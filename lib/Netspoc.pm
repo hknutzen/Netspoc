@@ -2713,7 +2713,9 @@ sub print_routes( $ ) {
 	# find interface and hop with largest number of routing entries
 	my $max_intf;
 	my $max_hop;
-	my $max = 0;
+	# substitue routes to one hop with a default route,
+	# if there are more than one entries.
+	my $max = 1;
 	for my $interface (@{$router->{interfaces}}) {
 	    # Sort interfaces by name to make output deterministic
 	    for my $hop (sort { $a->{name} cmp $b->{name} }
@@ -2728,11 +2730,8 @@ sub print_routes( $ ) {
 	}
 	if($max_intf && $max_hop) {
 	    # use default route for this direction
-	    for my $interface (@{$router->{interfaces}}) {
-		next unless $interface eq $max_intf;
-		$interface->{routing}->{$max_hop} = { $network_default =>
-							  $network_default };
-	    }
+	    $max_intf->{routing}->{$max_hop} = { $network_default =>
+						     $network_default };
 	}
     }
     for my $interface (@{$router->{interfaces}}) {
