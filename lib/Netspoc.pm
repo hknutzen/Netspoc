@@ -479,7 +479,6 @@ sub read_interface( $$ ) {
     }
     if($interfaces{$name}) {
 	error_atline "Redefining $interface->{name}";
-	next;
     }
     # assign interface to global hash of interfaces
     $interfaces{$name} = $interface;
