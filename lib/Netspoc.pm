@@ -2408,8 +2408,13 @@ sub setany_network( $$$ ) {
     # to have all networks of a security domain available.
     # Unnumbered networks are left out here because
     # they aren't a valid src or dst.
-    push(@{$any->{networks}}, $network)
-	unless $network->{ip} eq 'unnumbered';
+    # But we need them later in get_path for security domains
+    # consisting solely of unnumbered networks.
+    if($network->{ip} eq 'unnumbered') {
+	push(@{$any->{unnumbered}}, $network);
+    } else {
+	push(@{$any->{networks}}, $network);
+    }
     for my $interface (@{$network->{interfaces}}) {
 	# ignore interface where we reached this network
 	next if $interface eq $in_interface;
@@ -2637,7 +2642,8 @@ sub get_path( $ ) {
 	return $obj->{router};
     } elsif($type eq 'Any') {
 	# Take one random network of this security domain.
-	return $obj->{networks}->[0];
+	return
+	    $obj->{networks} ? $obj->{networks}->[0] : $obj->{unnumbered}->[0];
     } elsif($type eq 'Router') {
 	# This is only used, when called from path_first_interfaces or
 	# from find_active_routes_and_statics.
