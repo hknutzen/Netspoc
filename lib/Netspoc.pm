@@ -65,8 +65,14 @@ our $eof;
 sub add_context( $ ) {
     my($msg) = @_;
     my $at_file = ($file eq $main_file)?'':" of $file";
-    my($context) = m/([^\s,;={}]*([,;={}]|\s*)\G([,;={}]|\s*)[^\s,;={}]*)/;
-    if($eof) { $context = 'at EOF'; } else { $context = qq/near "$context"/; }
+    my $context;
+    if($eof) {
+	$context = 'at EOF';
+    } else {
+	my($pre, $post) =
+	    m/([^\s,;={}]*[,;={}\s]*)\G([,;={}\s]*[^\s,;={}]*)/;
+	$context = qq/near "$pre<--HERE-->$post"/;
+    }
     qq/$msg at line $.$at_file, $context\n/;
 }
 
@@ -547,21 +553,27 @@ sub read_group( $ ) {
     my $name = shift;
     skip('=');
     my @objects = &read_list_or_null(\&read_typed_name);
+    my $group = new('Group',
+		    name => "group:$name",
+		    elements => \@objects);
     if(my $old_group = $groups{$name}) {
-	error_atline "Redefining group:$name";
+	error_atline "Redefining $group->{name}";
     }
-    $groups{$name} = \@objects;
+    $groups{$name} = $group;
 }
 
 my %servicegroups;
 sub read_servicegroup( $ ) {
    my $name = shift;
-    skip('=');
-    my @objects = &read_list_or_null(\&read_typed_name);
-    if(my $old_group = $servicegroups{$name}) {
-        error_atline "Redefining servicegroup:$name";
-    }
-    $servicegroups{$name} = \@objects;
+   skip('=');
+   my @objects = &read_list_or_null(\&read_typed_name);
+   my $srvgroup = new('Servicegroup',
+		      name => "servicegroup:$name",
+		      elements => \@objects);
+   if(my $old_group = $servicegroups{$name}) {
+       error_atline "Redefining servicegroup:$name";
+   }
+   $servicegroups{$name} = $srvgroup;
 }
 
 sub read_port_range( $ ) {
@@ -758,12 +770,14 @@ sub show_read_statistics() {
 ##############################################################################
 
 # Type checking functions
-sub is_net( $ )       { ref($_[0]) eq 'Network'; }
-sub is_router( $ )    { ref($_[0]) eq 'Router'; }
-sub is_interface( $ ) { ref($_[0]) eq 'Interface'; }
-sub is_host( $ )      { ref($_[0]) eq 'Host'; }
-sub is_any( $ )       { ref($_[0]) eq 'Any'; }
-sub is_every( $ )     { ref($_[0]) eq 'Every'; }
+sub is_net( $ )          { ref($_[0]) eq 'Network'; }
+sub is_router( $ )       { ref($_[0]) eq 'Router'; }
+sub is_interface( $ )    { ref($_[0]) eq 'Interface'; }
+sub is_host( $ )         { ref($_[0]) eq 'Host'; }
+sub is_any( $ )          { ref($_[0]) eq 'Any'; }
+sub is_every( $ )        { ref($_[0]) eq 'Every'; }
+sub is_group( $ )        { ref($_[0]) eq 'Group'; }
+sub is_servicegroup( $ ) { ref($_[0]) eq 'Servicegroup'; }
 
 sub print_rule( $ ) {
     my($rule) = @_;
@@ -1100,7 +1114,6 @@ sub link_topology() {
 # src, dst and srv
 ####################################################################
 
-my %group_is_used;
 my %name2object =
 (
     host => \%hosts,
@@ -1125,26 +1138,25 @@ sub expand_group( $$ ) {
 	    err_msg "Can't resolve reference to '$tname' in $context";
 	    next;
 	}
-	if($object eq 'recursive') {
-	    err_msg "Found recursion in definition of $context";
-	    next;
-	}
-
-	# split a group into ist members
-	if(ref $object eq 'ARRAY') {
-	    my $obref;
-	    # detect, if group has already been converted from names to references
-	    if(@$object == 0 or ref $object->[0]) {
-		$obref = $object;
-	    } else {
-		# mark group for detection of recursive group definitions
-		$groups{$name} = 'recursive';
-		$group_is_used{$name} = 1;
-		$obref = &expand_group($object, $tname);
-		# cache result for further references to the same group
-		$groups{$name} = $obref;
+	# split a group into its members
+	if(is_group $object) {
+	    my $elements = $object->{elements};
+	    # check for recursive definitions
+	    if($elements eq 'recursive') {
+		err_msg "Found recursion in definition of $context";
+		$object->{elements} = $elements = [];
 	    }
-	    push @objects, @$obref;
+	    # detect, if group has already been converted
+	    # from names to references
+	    unless($object->{is_used}) {
+		# mark group for detection of recursive group definitions
+		$object->{elements} = 'recursive';
+		$object->{is_used} = 1;
+		$elements = &expand_group($elements, $tname);
+		# cache result for further references to the same group
+		$object->{elements} = $elements;
+	    }
+	    push @objects, @$elements;
 	} elsif(is_router $object) {
 	    # split a router into its interfaces
 	    push @objects, @{$object->{interfaces}};
@@ -1181,12 +1193,12 @@ sub expand_group( $$ ) {
 
 sub check_unused_groups() {
     return unless $warn_unused_groups;
-    for my $name (keys %groups) {
-	unless($group_is_used{$name}) {
-	    if(my $size = @{$groups{$name}}) {
-		warning "unused group:$name with $size element(s)\n";
+    for my $group (values %groups, values %servicegroups) {
+	unless($group->{is_used}) {
+	    if(my $size = @{$group->{elements}}) {
+		warning "unused $group->{name} with $size element(s)\n";
 	    } else {
-		warning "unused empty group:$name\n";
+		warning "unused empty $group->{name}\n";
 	    }
 	}
     }
@@ -1194,14 +1206,6 @@ sub check_unused_groups() {
 
 sub expand_services( $$ ) {
     my($aref, $context) = @_;
-    if($aref eq 'recursive') {
-	err_msg "Found recursion in definition of $context";
-	return [];
-    }
-    if(@$aref == 0 or ref $aref->[0]) {
-	# has already been converted from names to references
-	return $aref;
-    }
     my @services;
     for my $tname (@$aref) {
 	my($type, $name) = split_typed_name($tname);
@@ -1213,12 +1217,23 @@ sub expand_services( $$ ) {
 		next;
 	    }
 	} elsif ($type eq 'servicegroup') {
-            if(my $aref = $servicegroups{$name}) {
-		# detect recursive definitions
-		$servicegroups{$name} = 'recursive';
-		$aref = &expand_services($aref, $tname);
-		$servicegroups{$name} = $aref;
-		push @services, @$aref;
+            if(my $srvgroup = $servicegroups{$name}) {
+		my $elements = $srvgroup->{elements};
+		if($elements eq 'recursive') {
+		    err_msg "Found recursion in definition of $context";
+		    $srvgroup->{elements} = $elements = [];
+		}
+		# check if it has already been converted
+		# from names to references
+		elsif(not $srvgroup->{is_used}) {
+		    # detect recursive definitions
+		    $srvgroup->{elements} = 'recursive';
+		    $srvgroup->{is_used} = 1;
+		    $elements = &expand_services($elements, $tname);
+		    # cache result for further references to the same group
+		    $srvgroup->{elements} = $elements;
+		}
+		push @services, @$elements;
 	    } else {
 	        err_msg "Can't resolve reference to '$tname' in $context";
 		next;
