@@ -2876,8 +2876,25 @@ sub get_any( $ ) {
     }
 }
 
-# Prevent multiple error messages about missing 'any' rules;
-my %missing_any;
+{
+    # Prevent multiple error messages about missing 'any' rules;
+    my %missing_any;
+
+    sub err_missing_any ( $$$$ ) {
+	my($rule, $any, $where, $router) = @_;
+	return if $missing_any{$any};
+	$missing_any{$any} = $any;
+	my $policy = $rule->{rule}->{policy}->{name};
+	$rule = print_rule $rule;
+	$router = $router->{name};
+	err_msg  "Missing 'any' rule.\n", 
+	" $rule\n",
+	" of $policy\n",
+	" can't be effective at $router.\n",
+	" There needs to be defined a similar rule with\n",
+	" $where=$any->{name}";
+    }
+}
 
 # If such rule is defined
 #  permit any1 dst
@@ -2918,7 +2935,7 @@ sub check_any_src_rule( $$$ ) {
     my $dst = $rule->{dst};
     if($out_any eq $dst) {
 	# Both src and dst are 'any' objects and are directly connected
-	# by current router. Hence there can't be any missing rules.
+	# at current router. Hence there can't be any missing rules.
 	# But we need to know about this situation later during code
 	# generation.
 	# Note: Additional checks will be done for this situation at
@@ -2926,24 +2943,21 @@ sub check_any_src_rule( $$$ ) {
 	$rule->{any_are_neighbors} = 1;
 	return;
     }
-    # Check for rule.
+    # Check if reverse rule would need additional rules.
     if($router->{model}->{stateless}) {
-	# Find security domains at all interfaces except the in_intf.
-	for my $intf (@{$router->{interfaces}}) {
-	    next if $intf eq $in_intf;
-	    # Nothing to be checked for the interface which is connected
-	    # directly to the destination 'any' object.
-	    next if $intf eq $out_intf;
-	    my $any = $intf->{any};
-	    unless($missing_any{$any} or
-	       $rule_tree{$rule->{action}}->
-		   {$any}->{$dst}->{$rule->{srv}}) {
-		err_msg  "Missing 'any' rule for rule\n", 
-		" ", print_rule $rule, "\n",
-		" of $rule->{rule}->{policy}->{name}. To be effective\n",
-		" there needs to be defined a similar rule with\n",
-		" src=$any->{name}";
-		$missing_any{$any} = $any;
+	my $proto = $rule->{srv}->{proto};
+	if($proto eq 'tcp' or $proto eq 'udp' or $proto eq 'ip') {
+	    # Find security domains at all interfaces except the in_intf.
+	    for my $intf (@{$router->{interfaces}}) {
+		next if $intf eq $in_intf;
+		# Nothing to be checked for the interface which is connected
+		# directly to the destination 'any' object.
+		next if $intf eq $out_intf;
+		my $any = $intf->{any};
+		unless($rule_tree{$rule->{action}}->
+		       {$any}->{$dst}->{$rule->{srv}}) {
+		    err_missing_any $rule, $any, 'src', $router;
+		}
 	    }
 	}
     }	    
@@ -2951,15 +2965,9 @@ sub check_any_src_rule( $$$ ) {
     # Security domain of dst is directly connected with current router.
     # Hence there can't be any missing rules.
     return if $out_any eq $dst_any;
-    unless($missing_any{$out_any} or
-	   $rule_tree{$rule->{action}}->
+    unless($rule_tree{$rule->{action}}->
 	   {$out_any}->{$dst}->{$rule->{srv}}) {
-	err_msg "Missing 'any' rule for rule\n", 
-	" ", print_rule $rule, "\n",
-	" of $rule->{rule}->{policy}->{name}. To be effective\n",
-	" there needs to be defined a similar rule with\n",
-	" src=$out_any->{name}";
-	$missing_any{$out_any} = $out_any;
+	err_missing_any $rule, $out_any, 'src', $router; 
     }
 }
 
@@ -3005,15 +3013,9 @@ sub check_any_dst_rule( $$$ ) {
 	my $any = $intf->{any};
 	# Nothing to be checked if src is directly attached to current router.
 	next if $any eq $src_any;
-	unless($missing_any{$any} or
-	       $rule_tree{$rule->{action}}->
+	unless($rule_tree{$rule->{action}}->
 	       {$src}->{$any}->{$srv}) {
-	    err_msg  "Missing 'any' rule for rule\n", 
-	    " ", print_rule $rule, "\n",
-	    " of $rule->{rule}->{policy}->{name}. To be effective\n",
-	    " there needs to be defined a similar rule with\n",
-	    " dst=$any->{name}";
-	    $missing_any{$any} = $any;
+	    err_missing_any $rule, $any, 'dst', $router;
 	}
     }
 }
