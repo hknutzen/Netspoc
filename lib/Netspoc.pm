@@ -811,6 +811,38 @@ sub print_rule( $ ) {
 # Try to convert hosts with successive IP addresses to an IP range
 ####################################################################
 
+sub process_ip_ranges( $$ ) {
+    my($sorted, $fun) = @_;
+    # add a dummy host which doesn't match any range, 
+    # to simplify the code: we don't have to process any range
+    # after the loop has finished
+    push @$sorted, {ip => 0 };
+    my $start_range = 0;
+    my $prev_ip = $sorted->[0]->{ip};
+    for(my $i = 1; $i < @$sorted; $i++) {
+	my $host = $sorted->[$i];
+	my $ip = $host->{ip};
+	# continue current range
+	if($ip == $prev_ip + 1 or $ip == $prev_ip) {
+	    $prev_ip = $ip;
+	} else {
+	    my $end_range = $i - 1;
+	    # found a range with at least 2 elements
+	    if($start_range < $end_range) {
+		# This may be a range with all identical IP adresses.
+		# This is useful if we have multiple hosts with 
+		# identical IP addresses
+		&$fun($sorted, $start_range, $end_range);
+	    }
+	    # start a new range
+	    $start_range = $i;
+	    $prev_ip = $ip;
+	}
+    }
+    # remove the dummy 
+    pop @$sorted;
+}
+
 # Called from read_network
 # Works on the hosts of a network.
 # Selects hosts, not ranges,
@@ -822,44 +854,23 @@ sub print_rule( $ ) {
 # ==> support chains of network > range > range .. > host
 sub mark_ip_ranges( $ ) {
     my($network) = @_;
-    my @hosts =  grep { $_->{ip} } @{$network->{hosts}};
+    my @hosts = grep { $_->{ip} } @{$network->{hosts}};
     return unless @hosts;
-    my @sorted = sort { $a->{ip} <=> $b->{ip} } @hosts;
-    # add a dummy host which doesn't match any range, 
-    # to simplify the code: we don't have to process any range
-    # after the loop has finished
-    push @sorted, {ip => 0.5 };
-    my $start_range = 0;
-    my $prev_ip = $sorted[0]->{ip};
-    for(my $i = 1; $i < @sorted; $i++) {
-	my $host = $sorted[$i];
-	my $ip = $host->{ip};
-	# continue current range
-	if($ip == $prev_ip + 1 or $ip == $prev_ip) {
-	    $prev_ip = $ip;
-	} else {
-	    my $end_range = $i - 1;
-	    # found a range with at least 2 elements
-	    if($start_range < $end_range) {
-		my $begin = $sorted[$start_range]->{ip};
-		my $end = $sorted[$end_range]->{ip};
-		# This may be a range with $begin == $end.
-		# This is useful if we have multiple hosts with 
-		# identical IP addresses
-		my $range = new('Host',
-				name => "auto_range:$sorted[$start_range]->{name}",
-				range => [ $begin, $end ],
-				network => $network);
-		# mark hosts of range
-		for(my $j = $start_range; $j <= $end_range; $j++) {
-		    $sorted[$j]->{in_range} = $range;
-		}
-	    }
-	    # start a new range
-	    $start_range = $i;
-	    $prev_ip = $ip;
+    @hosts = sort { $a->{ip} <=> $b->{ip} } @hosts;
+    my $fun = sub {
+	my($aref, $start_range, $end_range) = @_;
+	my $begin = $aref->[$start_range]->{ip};
+	my $end = $aref->[$end_range]->{ip};
+	my $range = new('Host',
+			name => "auto_range:$aref->[$start_range]->{name}",
+			range => [ $begin, $end ],
+			network => $aref->[$start_range]->{network});
+	# mark hosts of range
+	for(my $j = $start_range; $j <= $end_range; $j++) {
+	    $aref->[$j]->{in_range} = $range;
 	}
-    }
+    };
+    process_ip_ranges \@hosts, $fun;
 }
 
 # Called from expand_group
@@ -879,25 +890,24 @@ sub gen_ip_ranges( $ ) {
 	    push @{$in_range{$range}}, $host;
 	}
 	for my $aref (values %in_range) {
+	    my $fun = sub {
+		my($aref, $start_range, $end_range) = @_;
+		my $begin = $aref->[$start_range]->{ip};
+		my $end = $aref->[$end_range]->{ip};
+		my $range = $aref->[$start_range]->{in_range};
+		my($ip1, $ip2) = @{$range->{range}};
+		if($begin == $ip1 and $end == $ip2) {
+		    # substitute first host with range
+		    $aref->[$start_range] = $range;
+		    # mark other hosts of range as deleted
+		    for(my $j = $start_range+1; $j <= $end_range; $j++) {
+			$aref->[$j] = undef;
+		    }
+		}
+	    };
 	    my @sorted = sort { $a->{ip} <=> $b->{ip} } @$aref;
-	    my $range = $sorted[0]->{in_range};
-	    my($begin, $end) = @{$range->{range}};
-	    my $first = $sorted[0]->{ip};
-	    my $last =  $sorted[@sorted - 1]->{ip};
-	    my $prev_ip = $first;
-	    # check if hosts are successive
-	    for my $host (@sorted) {
-		my $ip = $host->{ip};
-		last unless $ip == $prev_ip + 1 or $ip == $prev_ip;
-		$prev_ip = $ip;
-	    }
-	    # check if this set of hosts may be substituted by the range
-	    if($first == $begin and $last == $end and $last == $prev_ip) {
-		push @hosts, $range;
-	    } else {
-		# ToDo: generate subranges if $first != $last
-		push @hosts, @sorted;
-	    }
+	    process_ip_ranges \@sorted, $fun;
+	    push @hosts, grep { defined $_ } @sorted;
 	}
 	# make the result deterministic
 	push @objects, sort { ($a->{ip} || $a->{range}->[0]) <=>
