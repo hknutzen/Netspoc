@@ -77,14 +77,23 @@ close PFILE;
 my(undef, $policy) = split ' ', $line;
 my($count) = ($policy =~ /^p(\d+)$/) or
     die "Error: found invalid policy name '$policy' in $pfile";
+system("cvs edit $pfile") == 0 or die "Aborted\n";
 # increment policy counter
 $count++;
 $policy = "p$count";
+# read log message
+print "Enter log message for policy $count, terminated with a single '.' or EOF:\n";
+my $msg = "$policy: ";
+while(<STDIN>) {
+    last if /^\.$/;
+    $msg .= $_;
+}
+# write new policy
 open PFILE, ">", $pfile or die "Can't open $pfile: $!\n";
 print PFILE "# $policy # current policy, don't edit manually!\n";
 close PFILE;
 # commit
-system("cvs commit $pfile") == 0 or die "Aborted\n";
+system("cvs commit -m '$msg' $pfile") == 0 or die "Aborted\n";
 
 print STDERR "Saving policy $count\n";
 
@@ -103,9 +112,9 @@ system("cvs -Q checkout -d src -r $policy $module") == 0 or
 chdir $pdir or die "Error: can't cd to $pdir: $!\n";
 print STDERR "Compiling policy $count\n";
 my $failed;
-open COMPILE, '-|', "$compiler src code" or
+open COMPILE, "$compiler src code 2>&1 |" or
     die "Can't execute $compiler: $!\n";
-open LOG, '>', $log or die "Can' open $log: $!\n";
+open LOG, '>', $log or die "Can't open $log: $!\n";
 while(<COMPILE>) {
     print LOG; 
     print STDERR;
