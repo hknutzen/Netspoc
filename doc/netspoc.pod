@@ -1,0 +1,78 @@
+=head1 NAME
+
+netspoc - network security policy compiler
+
+=head1 SYNOPSIS
+
+netspoc input-dir output-dir
+
+netspoc input-file output-dir
+
+=head1 DESCRIPTION
+
+The network security compiler takes a policy description
+recursivly from all files in input-dir and places one file for
+each managed device into output-dir.
+Alternativly input may be read from a single input-file; this
+is mainly used for small examples or testing.
+
+=head1 OPTIONS
+
+Options may currently only be changed in the sourcefile of netspoc.
+
+=over 4
+
+=item $verbose = [0|1];
+
+Controls whether netspoc shows output about different
+compiler phases and statistics on standard error.
+
+=item $comment_acls = [0|1];
+
+Add a comment line before each generated ACL entry.
+Comments use names of network objects as defined in 
+the topology.
+
+=item $comment_routes = [0|1];
+
+Add a comment line before each generated routing entry.
+Comments use names of network objects as defined in 
+the topology.
+
+=item $ignore_files = qr/^CVS$|^RCS$|^raw$|~$/;
+
+Ignore these names when reading directories:
+
+=over 4
+
+=item *
+
+CVS and RCS directories
+
+=item *
+
+directory raw for prolog & epilog files
+
+=item *
+
+Editor backup files: emacs: *~
+
+=back
+
+=item $max_errors = number;
+
+Abort after this many errors.
+
+=back
+
+=head1 AUTHOR
+
+Heinz Knutzen <heinz.knutzen@mail.berlios.de>
+
+=head1 SEE ALSO
+
+http://netspoc.berlios.de
+
+	
+
+
