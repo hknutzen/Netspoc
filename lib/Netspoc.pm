@@ -1760,26 +1760,27 @@ sub link_topology() {
 	my ($short_intf, $route_intf);
 	for my $interface (@{$network->{interfaces}}) {
 	    my $ips = $interface->{ip};
-	    next if $ips eq 'unnumbered';
 	    if($ips eq 'short') {
 		$short_intf = $interface;
-		$route_intf and
-		    err_msg "$short_intf->{name} must be given an IP address, since there is\n",
-		    " a managed $route_intf->{name} with static routing enabled.";
-		next;
-	    }
-	    if($interface->{router}->{managed} and not $interface->{routing}) {
-		$route_intf = $interface;
-		$short_intf and
-		    err_msg "$short_intf->{name} must be given an IP address, since there is\n",
-		    " a managed $route_intf->{name} with static routing enabled.";
-	    }
-	    for my $ip (@$ips) {
-		if(my $old_intf = $ip{$ip}) {
-		    warning "Duplicate IP address for $old_intf->{name}",
-		    " and $interface->{name}";
+	    } else {
+		if($interface->{router}->{managed} and
+		   not $interface->{routing}) {
+		    $route_intf = $interface;
 		}
-		$ip{$ip} = $interface;
+		unless($ips eq 'unnumbered') {
+		    for my $ip (@$ips) {
+			if(my $old_intf = $ip{$ip}) {
+			    warning "Duplicate IP address for",
+			    " $old_intf->{name} and $interface->{name}";
+			}
+			$ip{$ip} = $interface;
+		    }
+		}
+	    }
+	    if($short_intf and $route_intf) {
+		err_msg "$short_intf->{name} must be defined in more detail,",
+		" since there is\n",
+		" a managed $route_intf->{name} with static routing enabled.";
 	    }
 	}
 	for my $host (@{$network->{hosts}}) {
