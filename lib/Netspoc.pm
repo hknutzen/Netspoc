@@ -3138,7 +3138,7 @@ sub loop_path_mark ( $$$$$ ) {
 	    push @{$from->{loop_enter}->{$to}}, $from;
 #	    debug " enter: $from->{name} -> $from->{name}";
 	}
-	# Additionally mark network of interface $from loop detection.
+	# Additionally mark network of interface $from for loop detection.
 	$network->{active_path} = 1;
 	for my $interface (@{$router->{interfaces}}) {
 	    next unless $interface->{in_loop};
@@ -3355,12 +3355,9 @@ sub path_first_interfaces( $$ ) {
 	return $dst;
     }
     path_mark($from, $to) unless $from->{path}->{$to};
-    if(is_interface $dst and $dst->{network} eq $from) {
-#	debug "$from->{name}.[auto] = $dst->{name}";
-	return $dst;
-    } 
-    elsif(my $exit = $from->{loop_exit}->{$to}) {
-#	debug "$from->{name}.[auto] = ".join ',', map {$_->{name}} @{$from->{loop_enter}->{$exit}};
+    if(my $exit = $from->{loop_exit}->{$to}) {
+#	debug "$from->{name}.[auto] = ",
+#	join ',', map {$_->{name}} @{$from->{loop_enter}->{$exit}};
 	return @{$from->{loop_enter}->{$exit}};
     } else {
 #	debug "$from->{name}.[auto] = $from->{path}->{$to}->{name}";
