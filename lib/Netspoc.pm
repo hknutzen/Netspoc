@@ -826,7 +826,7 @@ sub expand_object( $ ) {
 	return $ob->{interfaces};
     } elsif(is_every($ob)) {
 	# expand an 'every' object to all networks in the perimeter
-	return $ob->{border}->{networks};
+	return $ob->{link}->{border}->{networks};
     } else {
 	# an atomic object
 	return $ob;
@@ -1160,14 +1160,6 @@ sub setpath_anys() {
 	    die "More than one any object definied in a perimeter: any:$old_any->{name} and any:$any->{name}";
 	}
 	$border->{any} = $any;
-    }
-}
-
-# link each 'every object' with its correspnding border
-sub setpath_everys() {
-    for my $every (values %everys) {
-	my $border = $every->{link}->{border};
-	$every->{border} = $border;
     }
 }
 
@@ -1953,7 +1945,6 @@ if($verbose) {
 # to find a path from every network and router to router1
 &setpath_router($router1, 'not undef', undef, 0);
 setpath_anys();
-setpath_everys();
 
 # expand rules
 for my $rule (@rules) {
