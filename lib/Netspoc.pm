@@ -357,7 +357,7 @@ sub read_interface( $ ) {
     } else {
 	syntax_err "Illegal token";
     }
-    $interface->{physical} = &read_assign('physical', \&read_name);
+    $interface->{hardware} = &read_assign('hardware', \&read_name);
     &skip('}');
     return $interface;
 }
@@ -2157,14 +2157,14 @@ for my $router (values %routers) {
     print "!! Access lists for $router->{name}\n";
     for my $interface (@{$router->{interfaces}}) {
 	# ToDo: currently we operate with logical interfaces per network
-	# but access lists work with physical interfaces
-	print "ip access-list extended $interface->{physical}_in\n";
+	# but access lists work with hardware interfaces
+	print "ip access-list extended $interface->{hardware}_in\n";
 	for my $line (@{$interface->{code}}) {
 	    print " $line";
 	}
 	print " deny any any\n";
-	print "interface $interface->{physical}\n";
-	print " access group $interface->{physical}_in\n";
+	print "interface $interface->{hardware}\n";
+	print " access group $interface->{hardware}_in\n";
 	print "\n";
     }
 }
