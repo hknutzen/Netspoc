@@ -1036,63 +1036,23 @@ sub link_topology() {
 # src, dst and srv
 ##############################################################################
 
-my %name2object =
-(
-    host => \%hosts,
-    network => \%networks,
-    router => \%routers,
-    interface => \%interfaces,
-    any => \%anys,
-    every => \%everys,
-    group => \%groups
- );
-
-# Get a reference to an array of network object names and 
-# return a reference to an array of network objects
-sub expand_group( $$ ) {
+sub expand_obref( $$ ) {
     my($obref, $context) = @_;
-    if(@$obref == 0 or ref $obref->[0]) {
-	# group has already been converted from names to references
-	return $obref;
-    }
     my @objects;
-    for my $tname (@$obref) {
-	my($type, $name) = split_typed_name($tname);
-	my $object;
-	unless($object = $name2object{$type}->{$name}) {
-	    err_msg "Can't resolve reference to '$tname' in $context";
-	    next;
-	}
-	if($object eq 'recursive') {
-	    err_msg "Found recursion in definition of $context";
-	    next;
-	}
+    for my $object (@$obref) {
+	next if $object->{disabled};
 	if(is_host $object or is_any $object) {
-	    push @objects, $object unless $object->{disabled};
+	    push @objects, $object;
 	} elsif(is_net $object or is_interface $object) {
 	    if($object->{ip} eq 'unnumbered') {
 		err_msg "Unnumbered $object->{name} must not be used in $context";
 		next;
 	    }
-	    push @objects, $object unless $object->{disabled};
-	} elsif(is_router $object) {
-	    # split a router into its interfaces
-	    push @objects, grep { not $_->{disabled} }
-	    @{$object->{interfaces}};
-	} elsif(is_every $object) {
-	    # if the 'every' object itself is disabled, ignore all networks
-	    next if $object->{disabled};
-	    # expand an 'every' object to all networks in its security domain
-	    # check each network if it is disabled
-	    push @objects, grep { not $_->{disabled} }
-	    @{$object->{link}->{border}->{networks}};
-	} elsif(ref $object eq 'ARRAY') {
-	    # substitute a group by its members
-	    # detect recursive group definitions
-	    $groups{$name} = 'recursive';
-	    $obref = &expand_group($object, $tname);
-	    $groups{$name} = $obref;
-	    push @objects, @$obref;
+	    if($object->{ip} eq 'cloud') {
+		err_msg "Short $object->{name} must not be used in $context";
+		next;
+	    }
+	    push @objects, $object;
 	} else {
 	    die "internal in expand_group: unexpected type '$object->{name}'";
 	}
@@ -1130,6 +1090,62 @@ sub expand_group( $$ ) {
 	}
     }
     return \@objects;
+}
+
+my %name2object =
+(
+    host => \%hosts,
+    network => \%networks,
+    router => \%routers,
+    interface => \%interfaces,
+    any => \%anys,
+    every => \%everys,
+    group => \%groups
+ );
+
+# Get a reference to an array of network object names and 
+# return a reference to an array of network objects
+sub expand_group( $$ ) {
+    my($obref, $context) = @_;
+    my @objects;
+    for my $tname (@$obref) {
+
+	my($type, $name) = split_typed_name($tname);
+	my $object;
+	unless($object = $name2object{$type}->{$name}) { 
+	    err_msg "Can't resolve reference to '$tname' in $context";
+	    next;
+	}
+	if($object eq 'recursive') {
+	    err_msg "Found recursion in definition of $context";
+	    next;
+	}
+
+	# split a group into ist members
+	if(ref $object eq 'ARRAY') {
+	    my $obref;
+	    # detect, if group has already been converted from names to references
+	    if(@$object == 0 or ref $object->[0]) {
+		$obref = $object;
+	    } else {
+		# mark group for detection of recursive group definitions
+		$groups{$name} = 'recursive';
+		$obref = &expand_group($object, $tname);
+		# cache result for further references to the same group
+		$groups{$name} = $obref;
+	    }
+	    push @objects, @$obref;
+	} elsif(is_router $object) {
+	    # split a router into its interfaces
+	    push @objects, @{$object->{interfaces}};
+	} elsif(is_every $object) {
+	    # expand an 'every' object to all networks in its security domain
+	    push @objects,  @{$object->{link}->{border}->{networks}};
+	} else {
+	    push @objects, $object;
+	}
+    }
+    expand_obref \@objects, $context;
 }
 
 sub expand_services( $$ ) {
