@@ -432,6 +432,7 @@ sub set_pix_interface_level( $ ) {
 
 my %valid_model = (IOS => 1, PIX => 1);
 my %routers;
+my %interfaces;
 my $default_route;
 sub read_router( $ ) {
     my $name = shift;
@@ -448,23 +449,22 @@ sub read_router( $ ) {
     my $router = new('Router',
 		     name => "router:$name",
 		     managed => $managed,
-		     interfaces => {},
 		     );
     $router->{model} = $model if $managed;
     &check_flag('default_route') and $default_route = $router;
     while(1) {
 	last if &check('}');
 	my($type,$iname) = split_typed_name(read_typed_name());
-	syntax_err "Illegal token" unless $type eq 'interface';
+	syntax_err "Expected interface definition" unless $type eq 'interface';
 	my $interface = &read_interface($iname);
-	$interface->{name} = "interface:$name.$iname";
-	if(my $old_interface = $router->{interfaces}->{$iname}) {
-	    my $ip_string = &print_ip($interface->{ip});
-	    my $old_ip_string = &print_ip($old_interface->{ip});
-	    error_atline "Redefining $interface->{name} from IP $old_ip_string to $ip_string";
+	$iname = "$name.$iname";
+	$interface->{name} = "interface:$iname";
+	if(my $old_interface = $interfaces{$iname}) {
+	    error_atline "Redefining $interface->{name}";
 	}
-	# assign interface to routers hash of interfaces
-	$router->{interfaces}->{$iname} = $interface;
+	# assign interface to global hash of interfaces
+	$interfaces{$iname} = $interface;
+	push @{$router->{interfaces}}, $interface;
 	# assign router to interface
 	$interface->{router} = $router;
 	# interface of managed router must not be a cloud interface
@@ -480,7 +480,7 @@ sub read_router( $ ) {
 	}
     }
     if(my $old_router = $routers{$name}) {
-	error_atline "Redefining router:$name";
+	error_atline "Redefining $router->{name}";
     }
     $routers{$name} = $router;
 }
@@ -916,53 +916,6 @@ sub order_services() {
     }
 }
 
-# Get a reference to an array of network object names and substitute
-# the names with the referenced network objects
-sub subst_netob_names( $$ ) {
-    my($obref, $context) = @_;
-    my @unknown;
-    for my $object (@$obref) {
-	my($type, $name) = split_typed_name($object);
-	if($type eq 'host') {
-	    $object = $hosts{$name};
-	} elsif($type eq 'network') {
-	    $object = $networks{$name};
-	} elsif($type eq 'router') {
-	    $object = $routers{$name};
-	} elsif($type eq 'interface') {
-	    my($router, $interface)  = split /\./, $name, 2;
-	    $object = $routers{$router}->{interfaces}->{$interface};
-	} elsif($type eq 'any') {
-	    $object = $anys{$name};
-	} elsif($type eq 'every') {
-	    $object = $everys{$name};
-	} elsif($type eq 'group') {
-	    $object = $groups{$name};
-	} else {
-	    err_msg "Illegally typed '$type:$name' in $context";
-	}
-	unless(defined $object) {
-	    err_msg "Unknown object '$type:$name' in $context";
-	}
-    }
-}
-
-sub subst_srv_names( $$ ) {
-    my($aref, $context) = @_;
-    for my $srv (@$aref) {
-	my($type, $name) = split_typed_name($srv);
-	if($type eq 'service') {
-	    $srv = $services{$name} or
-		err_msg "Undefined '$type:$name' in $context";
-	} elsif ($type eq 'servicegroup') {
-            $srv = $servicegroups{$name} or
-	        err_msg "Undefined '$type:$name' in $context";
-	} else {
-	    err_msg "Illegally typed '$type:$name' in $context";
-	}
-    }
-}
-
 sub subst_name_with_ref_for_any_and_every() {
     for my $obj (values %anys, values %everys) {
 	my($type, $name) = split_typed_name($obj->{link});
@@ -1036,38 +989,98 @@ sub link_interface_with_net( $ ) {
 # src, dst and srv
 ##############################################################################
 
-sub expand_object( $ ) {
-    my($ob) = @_;
-    if(ref($ob) eq 'ARRAY') {
-	# a group is represented by an array of its members
-	# some members may again be groups
-	return map { &expand_object($_) } @$ob;
-    } elsif(is_router($ob)) {
-	# split up a router into its interfaces
-	return @{$ob->{interfaces}};
-    } elsif(is_every($ob)) {
-	# expand an 'every' object to all networks in its security domain
-	return @{$ob->{link}->{border}->{networks}};
-    } elsif((is_interface($ob) or is_net($ob)) and $ob->{ip} eq 'unnumbered') {
-	err_msg "Unnumbered $ob->{name} must not be used in rule";
-	return ();
-    } else {
-	# an atomic object
-	return $ob;
+my %name2object =
+(
+    host => \%hosts,
+    network => \%networks,
+    router => \%routers,
+    interface => \%interfaces,
+    any => \%anys,
+    every => \%everys,
+    group => \%groups
+ );
+
+# Get a reference to an array of network object names and 
+# return an reference to an array of network objects
+sub expand_group( $$ ) {
+    my($obref, $context) = @_;
+    if($obref eq 'recursive') {
+	err_msg "Found recursion in definition of $context";
+	return [];
     }
+    if(@$obref == 0 or ref $obref->[0]) {
+	# group has already been converted from names to references
+	return $obref;
+    }
+    my @objects;
+    for my $tname (@$obref) {
+	my($type, $name) = split_typed_name($tname);
+	my $object;
+	unless($object = $name2object{$type}->{$name}) {
+	    err_msg "Can't resolve reference to '$tname' in $context";
+	    next;
+	}
+	if(is_host $object or is_any $object) {
+	    push @objects, $object;
+	} elsif(is_net $object or is_interface $object) {
+	    if($object->{ip} eq 'unnumbered') {
+		err_msg "Unnumbered $object->{name} must not be used in $context";
+		next;
+	    }
+	    push @objects, $object;
+	} elsif(is_router $object) {
+	    # split a router into its interfaces
+	    push @objects,  @{$object->{interfaces}};
+	} elsif(is_every $object) {
+	    # expand an 'every' object to all networks in its security domain
+	    push @objects, @{$object->{link}->{border}->{networks}};
+	} elsif(ref $object eq 'ARRAY') {
+	    # substitute a group by its members
+	    # detect recursive group definitions
+	    $groups{$name} = 'recursive';
+	    $obref = &expand_group($object, $tname);
+	    $groups{$name} = $obref;
+	    push @objects, @$obref;
+	} else {
+	    die "internal in expand_group: unexpected type '$object->{name}'";
+	}
+    }
+    return \@objects;
 }
 
-sub expand_srv( $ ) {
-    my($srv) = @_;
-    if(ref($srv) eq 'ARRAY') {
-	# Service groups are arrays of srv
-	# some members may again be service groups
-	return map { &expand_srv($_) } @$srv;
-    } else {
-	return $srv;
+sub expand_services( $$ ) {
+    my($aref, $context) = @_;
+    if($aref eq 'recursive') {
+	err_msg "Found recursion in definition of $context";
+	return [];
     }
+    if(@$aref == 0 or ref $aref->[0]) {
+	# has already been converted from names to references
+	return $aref;
+    }
+    my @services;
+    for my $tname (@$aref) {
+	my($type, $name) = split_typed_name($tname);
+	my $srv;
+	if($type eq 'service') {
+	    $srv = $services{$name} or
+		err_msg "Can't resolve reference to '$tname' in $context";
+	    push @services, $srv;
+	} elsif ($type eq 'servicegroup') {
+            my $aref = $servicegroups{$name} or
+	        err_msg "Can't resolve reference to '$tname' in $context";
+	    # detect recursive definitions
+	    $servicegroups{$name} = 'recursive';
+	    $aref = &expand_services($aref, $tname);
+	    $servicegroups{$name} = $aref;
+	    push @services, @$aref;
+	} else {
+	    err_msg "Unknown type of '$type:$name' in $context";
+	}
+    }
+    return \@services;
 }
-    
+
 # array of expanded permit rules
 my @expanded_rules;
 # array of expanded deny rules
@@ -1081,9 +1094,9 @@ sub gen_expanded_rules() {
     for my $rule (@rules) {
 	my $src_any_group = {};
 	my $dst_any_group = {};
-	for my $src (&expand_object($rule->{src})) {
-	    for my $dst (&expand_object($rule->{dst})) {
-		for my $srv (&expand_srv($rule->{srv})) {
+	for my $src (@{expand_group $rule->{src}, 'src of rule'}) {
+	    for my $dst (@{expand_group $rule->{dst}, 'dst of rule'}) {
+		for my $srv (@{expand_services $rule->{srv}, 'rule'}) {
 		    my $action = $rule->{action};
 		    my $expanded_rule = { action => $action,
 					  src => $src,
@@ -2148,31 +2161,11 @@ sub read_config() {
 
 &order_services();
 
-# substitute group member names with links to network objects
-while(my($name, $aref) = (each %groups)) {
-    subst_netob_names($aref, "group:$name");
-}
-
-# substitute names in service groups with corresponding services
-while(my($name, $aref) = (each %servicegroups)) {
-    subst_srv_names($aref, "servicegroup:$name");
-}
-
-# substitute rule targets with links to network objects
-# and service names with service definitions
-for my $rule (@rules) {
-    subst_netob_names($rule->{src}, 'src of rule');
-    subst_netob_names($rule->{dst}, 'dst of rule');
-    subst_srv_names($rule->{srv}, 'rule');
-}
-
 # link 'any' and 'every' objects with referenced objects
 subst_name_with_ref_for_any_and_every();
 
 # link interface with network in both directions
 for my $router (values %routers) {
-    # substitute hash with array, since names are not needed any more
-    $router->{interfaces} = [ values(%{$router->{interfaces}}) ];
     for my $interface (@{$router->{interfaces}}) {
 	&link_interface_with_net($interface);
     }
@@ -2192,6 +2185,14 @@ $router1 or die "Topology needs at least one managed router\n";
 # to find a path from every network and router to router1
 &setpath_router($router1, 'not undef', undef, 0);
 setpath_anys();
+
+# substitute names of rule targets with network objects
+# and service names with service definitions
+#for my $rule (@rules) {
+#    $rule->{src} = subst_netob_names($rule->{src}, 'src of rule');
+#    $rule->{dst} = subst_netob_names($rule->{dst}, 'dst of rule');
+#    $rule->{srv} = subst_srv_names($rule->{srv}, 'rule');
+#}
 
 # expand rules
 &gen_expanded_rules();
