@@ -367,6 +367,7 @@ sub read_network( $ ) {
 	$host->{net} = $network;
 	push(@{$network->{hosts}}, $host);
     }
+    &find_ip_ranges($network->{hosts}, $network);
     if(my $old_net = $networks{$name}) {
 	my $ip_string = &print_ip($network->{ip});
 	my $old_ip_string = &print_ip($old_net->{ip});
@@ -768,6 +769,74 @@ sub print_rule( $ ) {
 # Build linked data structures
 ##############################################################################
 
+# take two references to arrays of hosts: 
+# hosts with single ip addresses ###and hosts with an ip range
+# detect adjacent ip addresses and link them to an 
+# automatically generated ip range
+# ToDo:
+# - check not only the first ip address
+# - check if any of the existing ranges may be used
+# - augment existing ranges by hosts or other ranges
+# ==> support chains of range > range .. > host
+sub find_ip_ranges( $$ ) {
+    my($host_aref, $network) = @_;
+    my @ranges = grep { $_->{is_range} } @$host_aref;
+    my @hosts =  grep { not $_->{is_range} } @$host_aref;
+    my @sorted = sort { $a->{ip}->[0] <=> $b->{ip}->[0] } @hosts;
+    # add a dummy host to simplify the code
+    push @sorted, {ip => [-1] };
+    my $start_range;
+    my $last_ip = 0;
+    for(my $i = 0; $i < @sorted; $i++) {
+	my $host = $sorted[$i];
+	my $ip = $host->{ip}->[0];
+	if(defined $start_range) {
+	    if($ip == $last_ip + 1 or $ip == $last_ip) {
+		# continue current range
+		$last_ip = $ip;
+	    } else {
+		if($start_range < $i - 1) {
+		    my $end_range = $i - 1;
+		    # found a range with at least 2 elements
+		    my $begin = $sorted[$start_range]->{ip}->[0];
+		    my $end = $sorted[$end_range]->{ip}->[0];
+		    # ignore last element if it is even
+		    # last element may be duplicate
+		    while(not ($end & 1)) {
+			$end_range--;
+			$end = $sorted[$end_range]->{ip}->[0];
+		    }
+		    if($begin != $end) {
+			my $range = new('Host', name => 'auto range',
+					ip => [ $begin, $end ],
+					is_range => 1,
+					net => $network);
+			# mark hosts of range
+			for(my $j = $start_range; $j <= $end_range; $j++) {
+			    $sorted[$j]->{in_range} = $range;
+			}
+		    }
+		}
+		# start a new range
+		# it is useless to start a range at an odd ip address
+		# because it can't be matched by a subnet
+		if(($ip & 1) == 0) {
+		    $start_range = $i;
+		    $last_ip = $ip;
+		} else {
+		    undef $start_range;
+		}
+	    }
+	} elsif(($ip & 1) == 0) {
+	    $start_range = $i;
+	    $last_ip = $ip;
+	}
+    }
+}
+	
+	
+    
+    
 # eliminate TCP/UDP overlapping port ranges
 # 12345 6
 #  2345
@@ -1043,6 +1112,38 @@ sub expand_group( $$ ) {
 	    die "internal in expand_group: unexpected type '$object->{name}'";
 	}
     }
+    my @hosts_in_range = grep { is_host $_ and $_->{in_range} } @objects;
+    if(@hosts_in_range) {
+	@objects = grep { not(is_host $_ and $_->{in_range}) } @objects;
+	my %in_range;
+	# collect host belonging to one range
+	for my $host (@hosts_in_range) {
+	    my $range = $host->{in_range};
+	    push @{$in_range{$range}}, $host;
+	}
+	for my $aref (values %in_range) {
+	    my @sorted = sort { $a->{ip}->[0] <=> $b->{ip}->[0] } @$aref;
+	    my $range = $sorted[0]->{in_range};
+	    my $begin = $range->{ip}->[0];
+	    my $end = $range->{ip}->[1];
+	    my $first = $sorted[0]->{ip}->[0];
+	    my $last =  $sorted[@sorted - 1]->{ip}->[0];
+	    my $last_ip = $first;
+	    # check if hosts are successive
+	    for my $host (@sorted) {
+		my $ip = $host->{ip}->[0];
+		$ip == $last_ip + 1 or $ip == $last_ip or last;
+		$last_ip = $ip;
+	    }
+	    # check if this set of hosts may be substituted by the range
+	    if($first == $begin and $last == $end and $last == $last_ip) {
+		push @objects, $range;
+	    } else {
+		# ToDo: generate subranges if $first != $last
+		push @objects, @sorted;
+	    }
+	}
+    }
     return \@objects;
 }
 
@@ -1154,7 +1255,7 @@ sub typeof( $ ) {
     } elsif(is_any($ob)) {
 	return 'any';
     } else {
-	die "internal in typeof: expected host|net|any but got $ob->{name}";
+	die "internal in typeof: expected host|net|any but got '$ob->{name}'";
     }
 }
 
