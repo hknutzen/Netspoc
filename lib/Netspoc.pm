@@ -3465,9 +3465,9 @@ sub print_acls( $ ) {
 	# Remember interface name for comments
 	$hardware{$interface->{hardware}} = $interface->{name};
 	push @ip, @{$interface->{ip}};
-	# is OSPF used?
+	# is OSPF used? What are the destination networks?
 	if($interface->{routing} and $interface->{routing} eq 'OSPF') {
-	    $ospf{$interface->{hardware}} = 1;
+	    push @{$ospf{$interface->{hardware}}}, $interface->{network};
 	}
     }
     for my $hardware (sort keys %hardware) {
@@ -3491,6 +3491,15 @@ sub print_acls( $ ) {
 		}
 		print " permit ip any host 224.0.0.5\n";
 		print " permit ip any host 224.0.0.6\n";
+		# Permit OSPF packets from attached networks to this router.
+		# We use the network address instead of the interface
+		# addresses, because it is shorter if the interfcae has 
+		# multiple addresses.
+		for my $net (@{$ospf{$hardware}}) {
+		    # netmasks are inverted for IOS
+		    my $code = adr_code $net, 1;
+		    print " permit ospf $code $code\n";
+		}
 	    }
 	    if(@$code) {
 		if($comment_acls and @ip) {
