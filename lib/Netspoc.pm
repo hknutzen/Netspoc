@@ -759,6 +759,48 @@ sub read_service( $ ) {
 }
 
 our @rules;
+
+sub read_user_or_typed_name_list( $ ) {
+    my ($name) = @_;
+    &skip($name);
+    &skip('=');
+    if(&check('user')) {
+	skip(';');
+	return 'user';
+    } else {
+	return &read_list(\&read_typed_name);
+    }
+}
+
+sub read_policy( $ ) {
+    my($name) = @_;
+    skip('=');
+    skip('{');
+    my @user = &read_assign_list('user', \&read_typed_name);
+    while(1) {
+	last if &check('}');
+	if(my $action = check_permit_deny()) {
+	    my @src = &read_user_or_typed_name_list('src');
+	    my @dst = &read_user_or_typed_name_list('dst');
+	    my @srv = &read_assign_list('srv', \&read_typed_name);
+	    if($src[0] ne 'user' && $dst[0] ne 'user') {
+		err_msg "a rule of policy:$name doesn't use keyword 'user'";
+	    }
+	    if($src[0] eq 'user') {
+		@src = @user;
+	    }
+	    if($dst[0] eq 'user') {
+		@dst = @user;
+	    }
+	    my $rule =
+	    { action => $action, src => \@src, dst => \@dst, srv => \@srv , policy => $name};
+	    push(@rules, $rule);
+	} else {
+	    syntax_err "Expected 'permit' or 'deny'";
+	}
+    }
+}
+
 sub read_rule( $ ) {
     my($action) = @_;
     my @src = &read_assign_list('src', \&read_typed_name);
@@ -787,6 +829,8 @@ sub read_netspoc() {
 	    &read_service($name);
 	} elsif ($type eq 'servicegroup') {
 	    &read_servicegroup($name);
+	} elsif ($type eq 'policy') {
+	    &read_policy($name);
 	} else {
 	    syntax_err "Unknown global definition";
 	}
