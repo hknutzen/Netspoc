@@ -507,8 +507,10 @@ sub read_host( $ ) {
     }
     if($host->{nat}) {
 	if($host->{range}) {
+	    # look at print_pix_static before changing this
 	    error_atline "No NAT supported for host with IP range";
 	} elsif(@hosts > 1) {
+	    # look at print_pix_static before changing this
 	    error_atline "No NAT supported for host with multiple IP's";
 	}
     }
@@ -738,6 +740,7 @@ sub read_interface( $$ ) {
 	    if($interface->{ip} eq 'unnumbered') {
 		error_atline "No NAT supported for unnumbered interface";
 	    } elsif(@{$interface->{ip}} > 1) {
+		# look at print_pix_static before changing this
 		error_atline
 		    "No NAT supported for interface with multiple IP's";
 	    }
@@ -1602,7 +1605,7 @@ sub link_interface_with_net( $ ) {
 		    }
 		} else {
 		    err_msg "nat:$nat_tag not allowed for $interface->{name} ",
-		    "because $network->{name} doesn't have a",
+		    "because $network->{name} doesn't have a ",
 		    "dynamic NAT definition";
 		}
 	    }
@@ -2899,9 +2902,9 @@ sub gen_secondary_rules() {
 
 sub setnat_any( $$$$ ) {
     my($any, $in_interface, $nat, $depth) = @_;
-    info "nat:$nat depth $depth at $any->{name}";
+##  info "nat:$nat depth $depth at $any->{name}";
     if($any->{active_path}) {
-	info "nat:$nat loop";
+##	info "nat:$nat loop";
 	# Found a loop
 	return;
     }
@@ -2909,7 +2912,7 @@ sub setnat_any( $$$$ ) {
 	my $max_depth = @{$any->{bind_nat}};
 	for(my $i = 0; $i < $max_depth; $i++) {
 	    if($any->{bind_nat}->[$i]->{$nat}) {
-		info "nat:$nat: other binding";
+##		info "nat:$nat: other binding";
 		# Found an alternate border of current NAT domain
 		if($i != $depth) {
 		    # There is another NAT binding on the path which
@@ -3533,18 +3536,18 @@ sub mark_networks_for_static( $$$ ) {
     " from  $in_intf->{name} to $out_intf->{name},\n",
     " since they have equal security levels.\n"
 	if $in_intf->{level} == $out_intf->{level};
-    
-    my $in_any = $in_intf->{any};
-    my $out_any = $out_intf->{any};
+    my $router = $out_intf->{router};    
     for my $net (values %{$rule->{dst_networks}}) {
 	next if $net->{ip} eq 'unnumbered';
 	# collect networks reachable from lower security level
 	# for generation of static commands
 	$net->{mask} == 0 and
 	    die "Pix doesn't support static command for mask 0.0.0.0 of $net->{name}\n";
-	my($nat_tag, $ip, $mask, $dynamic) = &nat_lookup($net, $in_any);
-	# put networks into a hash to prevent duplicates
-	$out_intf->{static}->{$in_intf->{hardware}}->{$net} = $net;
+	# Put networks into a hash to prevent duplicates.
+	# We need in_ and out_intf for
+	# - their hardware names and for
+	# - getting the NAT domain
+	$router->{static}->{$net} = [$net, $in_intf, $out_intf];
     }
 }
 
@@ -3564,41 +3567,96 @@ sub print_pix_static( $ ) {
 	$prev_level = $level;
     }
     print "\n";
-		       
-    for my $interface (sort { $a->{hardware} cmp $b->{hardware} }
-		       @{$router->{interfaces}}) {
-	my $static = $interface->{static};
-	next unless $static;
-	my $high = $interface->{hardware};
-	# make output deterministic
-	for my $low (sort keys %$static) {
-	    my @networks =
-		sort { $a->{ip} <=> $b->{ip} } values %{$static->{$low}};
-	    # find enclosing networks
-	    my %enclosing;
-	    for my $network (@networks) {
-		$network->{enclosing} and $enclosing{$network} = 1;
-	    }
-	    # mark redundant networks as deleted
-	    # if any enclosing network is found
-	    for my $network (@networks) {
-		my $net = $network->{is_in};
-		while($net) {
-		    if($enclosing{$net}) {
-			$network = undef;
-			last;
-		    } else {
-			$net = $net->{is_in};
-		    }
+    
+    my @networks;
+    my %in_intf;
+    my %out_intf;
+    my %enclosing;
+    my $nat_index = 1;
+    for my $aref (values %{$router->{static}}) {
+	my($network, $in_intf, $out_intf) = @$aref;
+	push @networks, $network;
+	$in_intf{$network} = $in_intf;
+	$out_intf{$network} = $out_intf;
+    }
+    @networks = sort { $a->{ip} <=> $b->{ip} } @networks;
+    # Mark enclosing networks, which are used in statics at this router
+    for my $network (@networks) {
+	$network->{enclosing} and $enclosing{$network} = 1;
+    }
+    # Mark redundant networks as deleted if an enclosing network is found, 
+    # which is associated with same the interfaces.
+    for my $network (@networks) {
+	my $net = $network->{is_in};
+	while($net) {
+	    if($enclosing{$net}) {
+		if($in_intf{$net} eq $in_intf{$network} and
+		   $out_intf{$net} eq $out_intf{$network}) {
+		    $network = undef;
 		}
-	    }
-	    for my $network (@networks) {
-		next unless defined $network;
-		my $ip = print_ip $network->{ip};
-		my $mask = print_ip $network->{mask};
-		print "static ($high,$low) $ip $ip netmask $mask\n";
+		last;
+	    } else {
+		$net = $net->{is_in};
 	    }
 	}
+    }
+    # sort output to make result deterministic
+    for my $network (@networks) {
+	next unless defined $network;
+	my $in_intf = $in_intf{$network};
+	my $out_intf = $out_intf{$network};
+	my $in_hw = $in_intf->{hardware};
+	my $out_hw = $out_intf->{hardware};
+	my $in_any = $in_intf->{any};
+	my $out_any = $out_intf->{any};
+	my $sub = sub () {
+	    my($network, $any) = @_;
+	    my($nat_tag, $network_ip, $mask, $dynamic) =
+		&nat_lookup($network, $any);
+	    if($nat_tag) {
+		return $network_ip, $mask, $dynamic?$nat_tag:undef;
+	    } else {
+		return $network->{ip}, $network->{mask};
+	    }
+	};
+	my($in_ip, $in_mask, $in_dynamic) = $sub->($network, $in_any);
+	my($out_ip, $out_mask, $out_dynamic) = $sub->($network, $out_any);
+	if($out_dynamic) {
+	    err_msg "Not supported: NAT for already dynamically translated ",
+	    "$network->{name} at $out_intf->{name}";
+	} elsif($in_dynamic) {
+	    # global (outside) 1 10.70.167.0-10.70.167.255 netmask 255.255.255.0
+	    # nat (inside) 1 141.4.136.0 255.255.252.0
+	    my $in_ip_max = $in_ip + ~$out_mask;
+	    $in_ip = print_ip $in_ip;
+	    $in_ip_max = print_ip $in_ip_max;
+	    $out_ip = print_ip $out_ip;
+	    $in_mask = print_ip $in_mask;
+	    $out_mask = print_ip $out_mask;
+	    print "global ($in_hw) $nat_index $in_ip-$in_ip_max netmask $in_mask\n";
+	    print "nat ($out_hw) $nat_index $out_ip $out_mask\n";
+	    $nat_index++;
+	    # Check for static NAT entries for hosts and interfaces
+	    for my $host (@{$network->{hosts}}, @{$network->{interfaces}}) {
+		if(my $in_ip = $host->{nat}->{$in_dynamic}) {
+		    my @addresses = &address($host, $out_any);
+		    err_msg "$host->{name}: NAT only for hosts / interfaces with a single IP"
+			if @addresses != 1;
+		    my($out_ip, $out_mask) = @{$addresses[0]};
+		    $in_ip = print_ip $in_ip;
+		    $out_ip = print_ip $out_ip;
+		    $out_mask = print_ip $out_mask;
+		    print "static ($out_hw,$in_hw) $in_ip $out_ip netmask $out_mask\n";
+		}
+	    }
+	} else {  # both static
+	    $in_ip = print_ip $in_ip;
+	    $out_ip = print_ip $out_ip;
+	    $in_mask = print_ip $in_mask;
+	    # static (inside,outside) 10.111.0.0 111.0.0.0 netmask 255.255.252.0
+	    print "static ($out_hw,$in_hw) $in_ip $out_ip netmask $in_mask\n";
+	}
+	    
     }
 }
 
@@ -3648,8 +3706,10 @@ sub address( $$$ ) {
 		    # single static NAT IP for this host
 		    return [$ip, 0xffffffff];
 		} else {
-		    err_msg "$obj->{name} has no known address in context ",
-		    "of dynamic nat.$nat_tag";
+		    # Use the address of the whole pool.
+		    # This is not an security leak, because we are filtering
+		    # for the host address at the NAT device
+		    return [$network_ip, $mask];
 		}
 	    } else {
 		# Take higher bits from network NAT,
@@ -3684,8 +3744,10 @@ sub address( $$$ ) {
 		    # single static NAT IP for this interface
 		    return [$ip, 0xffffffff];
 		} else {
-		    err_msg "$obj->{name} has no known address in context ",
-		    "of dynamic nat.$nat_tag";
+		    # Use the address of the whole pool.
+		    # This is not an security leak, because we are filtering
+		    # for the interface address at the NAT device
+		    return [$network_ip, $mask];
 		}
 	    } else {
 		# Take higher bits from network NAT,
@@ -3694,16 +3756,18 @@ sub address( $$$ ) {
 		@{$obj->{ip}};
 	    }
 	} else {
-	    return map { [$_, 0xffffffff]  } @{$obj->{ip}};
+	    return map { [$_, 0xffffffff] } @{$obj->{ip}};
 	}
     } elsif(is_network($obj)) {
 	my($nat_tag, $network_ip, $mask, $dynamic) =
 	   &nat_lookup($obj, $any);
 	if($nat_tag) {
-	    if($dynamic and $direction eq 'dst') {
-		err_msg "Dynamic nat:$nat_tag of $obj->{name} ",
-		"can't be used as destination";
-	    }
+	    # It is useless do use a dynamic address as destination,
+	    # but we permit it anyway.
+	    #if($dynamic and $direction eq 'dst') {
+	    #  err_msg "Dynamic nat:$nat_tag of $obj->{name} ",
+	    #  "can't be used as destination";
+	    #}
 	    return [$network_ip, $mask];
 	} else {
 
@@ -3944,7 +4008,7 @@ sub collect_acls( $$$ ) {
     }
     my $comment_char = $model->{comment_char};
     my @src_addr = &address($src, $in_intf->{any}, 'src');
-    my @dst_addr = &address($dst, ($out_intf?$out_intf:$dst)->{any}, 'dst');
+    my @dst_addr = &address($dst, $in_intf->{any}, 'dst');
     my $code_aref;
     # Packets for the router itself
     if(not defined $out_intf) {
