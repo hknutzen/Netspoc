@@ -146,7 +146,12 @@ we use them as delimiters.</P>
   }
 
   &lt;network NAT definition&gt; ::=
-         nat:&lt;name&gt; = { ip = &lt;ip-adr&gt;; [ mask = &lt;ip-adr&gt;; ] [dynamic;] }
+         nat:&lt;name&gt; = { 
+	  ip = &lt;ip-adr&gt;; 
+	  [ mask = &lt;ip-adr&gt;; ] 
+	  [ dynamic; ]
+	  [ subnet_of = network:&lt;name&gt;; ] 
+	 }
 </PRE>
 
 <UL>
@@ -500,6 +505,7 @@ must be used either as src or dst or both parts of a rule.
  ip = &lt;ip-adr&gt;; 
  mask = &lt;ip-adr&gt;; 
  dynamic;
+ [ subnet_of = network:&lt;name&gt;; ] 
 }</PRE>
 
 A global NAT definition may be used as a shortcut for applying multiple
