@@ -2143,7 +2143,7 @@ sub find_subnets() {
 	next if $network->{disabled};
 	# Ignore a network, if NAT is defined for it
 	# ToDo: separate calculation for each NAT domain
-	next if %{$network->{nat}};
+	next if $network->{nat} and %{$network->{nat}};
 	if(my $old_net = $mask_ip_hash{$network->{mask}}->{$network->{ip}}) {
 	    err_msg "$network->{name} and $old_net->{name} have identical ip/mask";
 	}
