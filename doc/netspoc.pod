@@ -11,14 +11,14 @@ netspoc input-file output-dir
 =head1 DESCRIPTION
 
 The network security compiler takes a policy description
-recursivly from all files in input-dir and places one file for
+recursively from all files in input-dir and places one file for
 each managed device into output-dir.
-Alternativly input may be read from a single input-file; this
+Alternatively input may be read from a single input-file; this
 is mainly used for small examples or testing.
 
 =head1 OPTIONS
 
-Options may currently only be changed in the sourcefile of netspoc.
+Options may currently only be changed in the source file of netspoc.
 
 =over 4
 
@@ -41,7 +41,7 @@ the topology.
 
 =item $warn_unused_groups = [0|1]
 
-Gives warning for unused groups and servicegroups.
+Gives warning for unused groups and service groups.
 
 =item $strict_subnets = [0|1]
 
