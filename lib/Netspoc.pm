@@ -1459,8 +1459,10 @@ sub expand_rules() {
 			" This is not supported currently. ",
 			"Use one 'every' object instead";
 		    } elsif(is_any($src)) {
+			$expanded_rule->{deny_src_networks} = [];
 			order_any_rule($expanded_rule, \%ordered_any_rules);
 		    } elsif(is_any($dst)) {
+			$expanded_rule->{deny_dst_networks} = [];
 			order_any_rule($expanded_rule, \%ordered_any_rules);
 		    } else {
 			push(@expanded_rules, $expanded_rule);
@@ -2223,11 +2225,9 @@ sub convert_any_rules() {
 	next if $rule->{deleted};
 	$rule->{any_rules} = [];
 	if(is_any($rule->{src})) {
-	    $rule->{deny_src_networks} = [];
 	    &path_walk($rule, \&convert_any_src_rule, 'Router');
 	}
 	if(is_any($rule->{dst})) {
-	    $rule->{deny_dst_networks} = [];
 	    &path_walk($rule, \&convert_any_dst_rule, 'Router');
 	}
     }
