@@ -4944,7 +4944,7 @@ sub print_acls( $ ) {
 	    print "interface $hardware->{name}\n";
 	    print " access group $name\n";
 	} elsif($model->{filter} eq 'PIX') {
-	    print "access-group $name in $hardware->{name}\n";
+	    print "access-group $name in interface $hardware->{name}\n";
 	}
 	# Empty line after each interface
 	print "\n";
