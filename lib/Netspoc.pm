@@ -2119,6 +2119,7 @@ sub convert_any_src_rule( $$$ ) {
 		    deny_src_networks => [ @{$any->{networks}} ]
 		    };
     push @{$rule->{any_rules}}, $any_rule;
+    &add_rule($any_rule);
 }
 
 # permit src any5
