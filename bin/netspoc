@@ -40,7 +40,7 @@ my($in_path, $out_dir) = &read_args();
 &setany();
 &distribute_nat_info();
 &setpath();
-&expand_rules();
+&expand_rules(1);	# 1: expand hosts to subnets
 # Abort now, if there are syntax errors and simple semantic errors.
 die "Aborted with $error_counter error(s)\n" if $error_counter;
 &check_unused_groups();
