@@ -38,7 +38,7 @@
   <li><A HREF="#secondary">Secondary packet filters</A></li>
   <li><a href="#routing">Routing</a>
   <li><a href="#rerouting">Rerouting inside of security domains</a>
-  <li><a href="#virtual">Virtual IP addresses</a>
+  <li><a href="#virtual">Virtual interfaces</a>
   <LI><A HREF="#disabling">Disabling part of the topology</A></LI>
   <LI><A HREF="#handling_any">Handling of 'any' objects</A></LI>
   <LI><A HREF="#pix_levels">PIX security levels</A></LI>
@@ -254,21 +254,28 @@ a group of its interfaces.
          {{ ip = &lt;ip-adr&gt;, ...; | unnumbered; }}
          &lt;NAT definition&gt; *
          [ &lt;NAT binding&gt; ]
-	 [ virtual = &lt;ip-adr&gt; ]
+	 [ &lt;virtual interface definition&gt; ]
          [ hardware = &lt;interface_name&gt;; ]
 	 [ routing = {{ EIGRP | OSPF }}; ]
 	 [ reroute_permit = network:&lt;name&gt;, ...; ]
          [ disabled ; ]
     }
 
+  &lt;NAT definition&gt; ::=
+    nat:&lt;name&gt; = { ip = &lt;ip-adr&gt;; }
+  &lt;NAT binding&gt; ::=
+    nat = &lt;name&gt;;
+
+  &lt;virtual interface definition&gt; ::=
+    virtual = { 
+         ip = &lt;ip-adr&gt;;
+         type = {{ VRRP | HSRP }};
+         [ id = &lt;int&gt;; ]
+    }
+        
   &lt;short interface definition&gt; ::=
     interface:&lt;name&gt;;
- 
-  &lt;NAT definition&gt; ::=
-         nat:&lt;name&gt; = { ip = &lt;ip-adr&gt;; }
-  &lt;NAT binding&gt; ::=
-         nat = &lt;name&gt;;
-</PRE>
+ </PRE>
 
 <UL>
 <LI>Interfaces have no name of their own; instead a network name is used
@@ -277,9 +284,8 @@ a group of its interfaces.
 <LI>An interface may have one or more IP addresses. All of them must
   match the IP/mask of the corresponding network.
 <LI>An unnumbered interface must only be linked to an unnumbered network.
-<li> A virtual IP address for redundancy protocols like HSRP or VRRP
-  may be defined with attribute 'virtual'. See <a name="#virtual">
-  Virtual IP addresses</a> for details.
+<li> A virtual interface defines a shared IP address and type of redundancy
+  protocol. See <a name="#virtual"> Virtual interfaces</a> for details.
 <LI>The 'hardware' attribute indicates, which hardware interface the router
   belongs to. This attribute is mandatory for managed routers.
 <LI>Multiple interfaces may belong to the same hardware interface.
@@ -674,9 +680,10 @@ routed via router:x and router:y, router:x would deny this traffic.
 Use "reroute_permit = network:b" at "interface:x.a" to permit any
 incoming traffic to network:b.
  
-<h2><a name="virtual">Virtual IP addresses</a></h2>
-A unique virtual IP address is defined at two or more interfaces, where a
-redundancy protocol like HSRP or VRRP is enabled.
+<h2><a name="virtual">Virtual interface</a></h2>
+A virtual interface defines a shared IP address and type of redundancy
+protocol at two or more interfaces. Currently, redundancy protocols VRRP and
+HSRP are supported. 
 <ul>
 <li> The virtual IP address is used as destination when generating static
 routes. 
@@ -687,6 +694,8 @@ routes.
 <li> must be part of the same cyclic subgraph.
 </ul>
 <li> A virtual IP must be different from normal IP address(es).
+<li> The 'id' attribute is optional. It is used for consistency checks but
+currently not used when generating code for managed devices.
 </ul>
 
 <H2><A NAME="disabling">Disabling part of the topology</A></H2>
