@@ -687,7 +687,7 @@ sub read_data( $ ) {
 	    } else {
 		syntax_err "Unknown global definition";
 	    }
-	} elsif(my $action = check('permit') or check('deny')) {
+	} elsif(my $action = check_permit_deny()) {
 	    &read_rule($action);
 	} elsif (check('include')) {
 	    my $file = read_string();
