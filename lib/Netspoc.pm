@@ -2186,14 +2186,6 @@ $router1 or die "Topology needs at least one managed router\n";
 &setpath_router($router1, 'not undef', undef, 0);
 setpath_anys();
 
-# substitute names of rule targets with network objects
-# and service names with service definitions
-#for my $rule (@rules) {
-#    $rule->{src} = subst_netob_names($rule->{src}, 'src of rule');
-#    $rule->{dst} = subst_netob_names($rule->{dst}, 'dst of rule');
-#    $rule->{srv} = subst_srv_names($rule->{srv}, 'rule');
-#}
-
 # expand rules
 &gen_expanded_rules();
 
