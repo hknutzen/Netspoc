@@ -1771,7 +1771,6 @@ sub gen_code( $$$ ) {
     my $src = $rule->{src};
     my $dst = $rule->{dst};
     my $srv = $rule->{srv};
-    my $router = $src_intf->{router};
     my @src_code = &adr_code($src);
     my @dst_code = &adr_code($dst);
     my ($proto_code, $port_code) = &srv_code($srv);
@@ -1794,18 +1793,38 @@ sub gen_code( $$$ ) {
     }
 }
 
-# call gen_code only for the first pep on the path from src to dst
-# r1-src-r2-r3-dst: get_pep(src) = r1, r1 is not on path
-# r3-src-r2-r1-dst: get_pep(src) = r2, r2 is 1st pep on path
+# for deny rules call gen_code only for the first pep
+# on the path from src to dst
+# Case 1:
+# r1-src-r2-r3-dst: get_pep(src) = r1: r1 is not on path, but r2.pep = r1
+# Case 1a/2a: src is interface of managed router
+# get_pep(src) is undef, r.src_intf is undef, src.router = dst_intf.router
+# Case 2:
+# r3-src-r2-r1-dst: get_pep(src) = r2: r2 is 1st pep on path
 # ToDo: this code works only for 2nd case
 # ToDo: If src is an managed interface, inverse deny rules have to be generated
 sub gen_code_at_src( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
-#    my $src = $rule->{src};
-#    my $src_pep = &get_pep($src);
-#    if($src_pep eq $src_intf) {
-	&gen_code($rule, $src_intf, $dst_intf);
-#    }
+    my $src = $rule->{src};
+    # Case 1a/2a:
+    if(not defined $src_intf) {
+	is_interface $src or
+	    die "internal in gen_code_at_src: expected interface";
+	if($src->{router} eq $dst_intf->{router}) {
+	    &gen_code($rule, $src_intf, $dst_intf);
+	}
+    } else {
+	my $src_pep = &get_pep($src);
+	my $router = $src_intf->{router};
+        # Case 1:
+	if($router->{to_pep} eq $src_intf and $router->{pep} eq $src_pep) {
+	    &gen_code($rule, $src_intf, $dst_intf);
+	}
+	# Case 2:
+	if($src_pep eq $src_intf) {
+	    &gen_code($rule, $src_intf, $dst_intf);
+	}
+    }
 }
 
 
