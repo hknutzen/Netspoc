@@ -93,7 +93,7 @@ my $auto_default_route = 1;
 my $ignore_files = qr/^CVS$|^RCS$|^\.#|^raw$|~$/;
 # abort after this many errors
 our $max_errors = 10;
-# allow rules at toplevel or only as part of policies
+# allow rules at top-level or only as part of policies
 # Possible values: 0 | warn | 1
 my $allow_toplevel_rules = 0;
 # Store descriptions as an attribute of policies.
@@ -467,7 +467,7 @@ sub new( $@ ) {
 # Is used, to check, 
 # - if all defined nat mappings are used and
 # - if all used mappings are defined
-my %nat_definitons;
+my %nat_definitions;
 
 our %hosts;
 sub read_host( $ ) {
@@ -515,7 +515,7 @@ sub read_host( $ ) {
 	    &skip(';');
 	    &skip('}');
 	    $host->{nat}->{$name} = $nat_ip;
-	    $nat_definitons{$name} = 1;
+	    $nat_definitions{$name} = 1;
 	} else {
 	    syntax_err "Expected NAT definition";
 	}
@@ -526,7 +526,7 @@ sub read_host( $ ) {
 	    error_atline "No NAT supported for host with IP range";
 	} elsif(@hosts > 1) {
 	    # look at print_pix_static before changing this
-	    error_atline "No NAT supported for host with multiple IP's";
+	    error_atline "No NAT supported for host with multiple IPs";
 	}
     }
     if(my $old_host = $hosts{$name}) {
@@ -589,8 +589,8 @@ sub read_network( $ ) {
 		    internal_err "$host->{name} hasn't ip or range";
 		}
 		# Check compatibility of host and network NAT.
-		# A NAT defintion for a single host is only allowed,
-		# if the network has a dynamic NAT defintion.
+		# A NAT definition for a single host is only allowed,
+		# if the network has a dynamic NAT definition.
 		if($host->{nat}) {
 		    for my $nat_tag (keys %{$host->{nat}}) {
 			my $nat_info;
@@ -648,7 +648,7 @@ sub read_network( $ ) {
 	    $network->{nat}->{$name} = { ip => $nat_ip,
 					 mask => $nat_mask,
 					 dynamic => $dynamic };
-	    $nat_definitons{$name} = 1;
+	    $nat_definitions{$name} = 1;
 	} else {
 	    syntax_err "Expected NAT or host definition";
 	}
@@ -718,12 +718,12 @@ sub read_interface( $$ ) {
 		    &skip(';');
 		    &skip('}');
 		    $interface->{nat}->{$name} = $nat_ip;
-		    $nat_definitons{$name} = 1;
+		    $nat_definitions{$name} = 1;
 		} else {
 		    syntax_err "Expected named attribute";
 		}
 	    } elsif(my $virtual = &check_assign('virtual', \&read_ip)) {
-		# read virtual IP vor VRRP / HSRP
+		# read virtual IP for VRRP / HSRP
 		$interface->{ip} eq 'unnumbered' and
 		    error_atline
 			"No virtual IP supported for unnumbered interface";
@@ -748,7 +748,7 @@ sub read_interface( $$ ) {
 		    error_atline "Unknown routing protocol '$protocol'";
 		}
 		$interface->{routing} and
-		    error_atline "Redefining routing protocal if interface";
+		    error_atline "Redefining routing protocol if interface";
 		$interface->{routing} = $protocol;
 	    } elsif(my @names = &check_assign_list('reroute_permit',
 						   \&read_typed_name)) {
@@ -777,7 +777,7 @@ sub read_interface( $$ ) {
 	    } elsif(@{$interface->{ip}} > 1) {
 		# look at print_pix_static before changing this
 		error_atline
-		    "No NAT supported for interface with multiple IP's";
+		    "No NAT supported for interface with multiple IPs";
 	    }
 	}
     }
@@ -1634,8 +1634,8 @@ sub link_interface_with_net( $ ) {
 	    }
 	}
 	# Check compatibility of interface and network NAT.
-	# A NAT defintion for a single interface is only allowed,
-	# if the network has a dynamic NAT defintion.
+	# A NAT definition for a single interface is only allowed,
+	# if the network has a dynamic NAT definition.
 	if($interface->{nat}) {
 	    for my $nat_tag (keys %{$interface->{nat}}) {
 		my $nat_info;
@@ -2242,7 +2242,7 @@ sub repair_deny_influence() {
 # "Behind" is defined like this:
 # Look from a router to its interfaces; 
 # if an interface is marked as disabled, 
-# recursivly mark the whole part of the topology lying behind 
+# recursively mark the whole part of the topology lying behind 
 # this interface as disabled.
 # Be cautious with loops:
 # If an interface inside a loop is marked as disabled,
@@ -2423,7 +2423,7 @@ sub setany() {
 	my $obj = $any->{link};
 	if(my $old_any = $obj->{any}) {
 	    err_msg
-		"More than one 'any' object definied in a security domain:\n",
+		"More than one 'any' object defined in a security domain:\n",
 		" $old_any->{name} and $any->{name}";
 	}
 	if(is_network $obj) {
@@ -2496,7 +2496,7 @@ sub setpath_obj( $$$ ) {
 	    }
 	    $interface->{in_loop} = 1;
 	} else {
-	    # continue marking loopless path
+	    # continue marking loop-less path
 	    $interface->{main} = $obj;
 	}
     }
@@ -2639,7 +2639,7 @@ my %key2obj;
 
 sub loop_path_mark1( $$$$$ ) {
     my($obj, $in_intf, $from, $to, $collect) = @_;
-    # Check for second occurence of path restriction.
+    # Check for second occurrence of path restriction.
     for my $restrict (@{$in_intf->{path_restrict}}) {
 	if($restrict->{active_path}) {
 #	    info " effective $restrict->{name} at $in_intf->{name}";
@@ -2657,7 +2657,7 @@ sub loop_path_mark1( $$$$$ ) {
     return 0 if $obj->{active_path};
     # Mark current path for loop detection.
     $obj->{active_path} = 1;
-    # Mark first occurence of path restriction.
+    # Mark first occurrence of path restriction.
     for my $restrict (@{$in_intf->{path_restrict}}) {
 #	info " enabled $restrict->{name} at $in_intf->{name}";
 	$restrict->{active_path} = 1;
@@ -2688,10 +2688,10 @@ sub loop_path_mark1( $$$$$ ) {
 
 # Mark paths inside a cyclic subgraph.
 # $from and $to are entry and exit objects of the subgraph.
-# The subgraph is entred at interface $from_in and left at interface $to_out.
+# The subgraph is entered at interface $from_in and left at interface $to_out.
 # For each pair of $from / $to, we collect attributes:
 # {loop_enter}: interfaces of $from, where the subgraph is entered,
-# {path_tuples}: tuples of interfaces, which describe all vaild paths,
+# {path_tuples}: tuples of interfaces, which describe all valid paths,
 # {loop_leave}: interfaces of $to, where the subgraph is left.
 sub loop_path_mark ( $$$$$ ) {
     my($from, $to, $from_in, $to_out, $dst) = @_;
@@ -2889,7 +2889,7 @@ sub path_walk( $&$ ) {
 	    my $loop_out = $in->{path}->{$to};
 	    loop_path_walk $in, $loop_out, $loop_entry, $loop_exit,
 	    $at_router, $rule, $fun;
-	    # path terminates inside clyclic graph
+	    # path terminates inside cyclic graph
 	    unless($loop_out) {
 #	    info "exit: path_walk: dst in loop";
 		return;
@@ -3254,20 +3254,20 @@ sub setnat_network( $$$$ ) {
 		if($i != $depth) {
 		    # There is another NAT binding on the path which
 		    # might overlap some translations of current NAT
-		    err_msg "Inconsistent multiple occurences of nat:$nat";
+		    err_msg "Inconsistent multiple occurrences of nat:$nat";
 		}
 		return;
 	    }
 	}
     }
-    # Use a hash to prevet duplicate entries
+    # Use a hash to prevent duplicate entries
     $network->{bind_nat}->[$depth]->{$nat} = $nat;
     # Loop detection
     $network->{active_path} = 1;
     if($network->{nat}->{$nat}) {
 	err_msg "$network->{name} is translated by nat:$nat,\n",
 	" but it lies inside the translation sphere of nat:$nat.\n",
-	" Propably nat:$nat was bound to wrong interface.";
+	" Probably nat:$nat was bound to wrong interface.";
     }
     for my $interface (@{$network->{interfaces}}) {
 	# ignore interface where we reached this network
@@ -3302,17 +3302,17 @@ sub distribute_nat_info() {
     for my $router (values %routers) {
 	for my $interface (@{$router->{interfaces}}) {
 	    my $nat = $interface->{bind_nat} or next;
-	    if($nat_definitons{$nat}) {
+	    if($nat_definitions{$nat}) {
 		&setnat_network($interface->{network}, $interface, $nat, 0);
-		$nat_definitons{$nat} = 'used';
+		$nat_definitions{$nat} = 'used';
 	    } else {
 		warning "Ignoring undefined nat:$nat bound to $interface->{name}";
 	    }
 	}
     }
-    for my $name (keys %nat_definitons) {
+    for my $name (keys %nat_definitions) {
 	warning "nat:$name is defined, but not used" 
-	    unless $nat_definitons{$name} eq 'used';
+	    unless $nat_definitions{$name} eq 'used';
     }
 }
 
@@ -3677,7 +3677,7 @@ sub find_active_routes_and_statics () {
 	#   entries added.
 	my $from = get_path $src;
 #	info "$from->{name} -> $to->{name}";
-	# 'any' objectes are expanded to all its contained networks
+	# 'any' objects are expanded to all its contained networks
 	# hosts and interfaces expand to its containing network
 	for my $network (get_networks($dst)) {
 	    my $to = is_interface $dst ? $dst : $network;
@@ -3759,7 +3759,7 @@ sub print_routes( $ ) {
 	# find interface and hop with largest number of routing entries
 	my $max_intf;
 	my $max_hop;
-	# substitue routes to one hop with a default route,
+	# substitute routes to one hop with a default route,
 	# if there are at least two entries.
 	my $max = 1;
 	for my $interface (@{$router->{interfaces}}) {
@@ -3990,10 +3990,10 @@ sub split_ip_range( $$ ) {
     return @result;
 }
 
-# Paramters:
+# Parameters:
 # obj: this address we want to know
 # network: look inside this nat domain
-# direction: do we want to a source or destination address
+# direction: is obj used as source or destination 
 # returns a list of [ ip, mask ] pairs
 sub address( $$$ ) {
     my ($obj, $network, $direction) = @_;
@@ -4410,15 +4410,15 @@ sub collect_acls_at_dst( $$$ ) {
     # this is called for the main rule and its auxiliary rules
     #
     # first build a list of all adjacent 'any' objects
-    my @neighbour_anys;
+    my @neighbor_anys;
     for my $intf (@{$out_intf->{router}->{interfaces}}) {
 	next if $in_intf and $intf eq $in_intf;
-	push @neighbour_anys, $intf->{any};
+	push @neighbor_anys, $intf->{any};
     }
     # generate deny rules in a first pass, since all related
     # 'any' rules must be placed behind them
     for my $any_rule (@{$rule->{any_rules}}) {
-	next unless grep { $_ eq $any_rule->{dst} } @neighbour_anys;
+	next unless grep { $_ eq $any_rule->{dst} } @neighbor_anys;
 	next if $any_rule->{deleted};
 	for my $deny_network (@{$any_rule->{deny_networks}}) {
 	    my $deny_rule = {action => 'deny',
@@ -4431,7 +4431,7 @@ sub collect_acls_at_dst( $$$ ) {
 	}
     }
     for my $any_rule ($rule, @{$rule->{any_rules}}) {
-	next unless grep { $_ eq $any_rule->{dst} } @neighbour_anys;
+	next unless grep { $_ eq $any_rule->{dst} } @neighbor_anys;
 	next if $any_rule->{deleted};
 	if($any_rule->{any_dst_group}) {
 	    unless($any_rule->{any_dst_group}->{active}) {
@@ -4536,7 +4536,7 @@ sub print_acls( $ ) {
 		for my $net (@{$routing->{$type}}) {
 		    my ($ip, $mask) = @{&address($net, $net, 'src')};
 		    push(@$code_aref,
-			 #  permit ospf $net $net
+			 #  permit OSPF $net $net
 			 acl_line('permit', $ip, $mask, $ip, $mask,
 				  $routing_info{$type}->{srv}, $model));
 		}
@@ -4608,7 +4608,7 @@ sub print_acls( $ ) {
 	    internal_err "unsupported router filter type '$model->{filter}'";
 	}
     }
-    # Postprocessing
+    # Post-processing
     if($model->{filter} eq 'iptables') {
 	print "iptables -P INPUT DROP\n";
 	print "iptables -F INPUT\n";
