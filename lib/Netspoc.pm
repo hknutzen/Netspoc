@@ -2106,6 +2106,10 @@ sub get_path( $ ) {
     }
 }
 
+# Mark path $from -> $to inside of loops.
+# For one direction we use the reference to $dst as a key.
+# For the other direction we build a key by appending
+# the string "2." to the reference: "2.$dst"
 sub loop_part_mark ( $$$$$$ ) {
     my($direction, $from, $to, $from_in, $to_out, $dst) = @_;
     while(1) {
@@ -2131,8 +2135,12 @@ sub loop_path_mark ( $$$$$ ) {
     loop_part_mark('right', $from, $to, $from_in, $to_out, $dst);
 }
 
-# Mark path from src to dst
-# src and dst are either a managed router or an 'any' object
+# Mark path from src to dst.
+# src and dst are either a managed router or an 'any' object.
+# At each interface on the path from src to dst,
+# we place a reference to the next interface on the path to dst.
+# This reference is found under a key which is the reference to dst.
+# Additionally we attach this information to the src network object.
 sub path_mark( $$ ) {
     my ($src, $dst) = @_;
     my $from = $src;
@@ -2159,7 +2167,7 @@ sub path_mark( $$ ) {
 		my $loop_out = $from_loop->{main};
 		loop_path_mark($from, $from_loop, $from_in, $loop_out, $dst);
 		$from_in = $loop_out;
-		$from = $from_loop;
+		$from = $loop_out->{main};
 	    } else {
 		my $from_out = $from->{main};
 #		info "$from_in->{name} -> ".($from_out?$from_out->{name}:'');
@@ -2170,10 +2178,10 @@ sub path_mark( $$ ) {
 	    $from_loop = $from->{loop};
 	} else {
 	    if($to_loop) {
-		my $loop_in = $from_loop->{main};
-		loop_path_mark($from_loop, $to, $loop_in, $to_out, $dst);
+		my $loop_in = $to_loop->{main};
+		loop_path_mark($to_loop, $to, $loop_in, $to_out, $dst);
 		$to_out = $loop_in;
-		$to = $to_loop;
+		$to = $loop_in->{main};
 	    } else {
 		my $to_in = $to->{main};
 #		info "$to_in->{name} -> ".($to_out?$to_out->{name}:'');
