@@ -2122,7 +2122,6 @@ sub expand_rules() {
 			    if($action eq 'deny') {
 				push(@expanded_deny_rules, $expanded_rule);
 			    } elsif(is_any($src) or is_any($dst)) {
-				$expanded_rule->{deny_networks} = [];
 				push(@expanded_any_rules, $expanded_rule);
 			    } else {
 				push(@expanded_rules, $expanded_rule);
@@ -2140,205 +2139,6 @@ sub expand_rules() {
 	my $na = 0+@expanded_any_rules;
 	info " deny $nd, permit: $n, permit any: $na";
     }
-}
-
-####################################################################
-# Order 'any' rules
-#
-# Rules with an 'any' object as src or dst will be augmented with
-# deny_networks later. deny_networks expand to deny rules
-# during code generation. Such an automatically generated deny rule
-# should only influence the 'any' rule it is attached to.
-# To minimize the risk that deny_networks influence
-# an unrelated 'any' rule, we order 'any' rules such that 'large'
-# rules are placed below 'small' rules.
-####################################################################
-
-# We put 'any' rules into a hash which eases building an ordered
-# list of 'any' rules with 'smaller' rules coming first:
-# - First, rules are ordered by their srv part, 
-#   smaller services coming first.
-# - Next, rules are ordered by src and dst:
-#  - any host
-#  - host any
-#  - any network
-#  - network any
-#  - any any
-# Note:
-# TCP and UDP port ranges may be not orderable if they are overlapping.
-# If necessary, we split ranges and their corresponding rules
-# into smaller pieces to make them orderable.
-
-sub typeof( $ ) {
-    my($ob) = @_;
-    if(is_host($ob) or is_interface($ob)) {
-	return 'host';
-    } elsif(is_network($ob)) {
-	return 'network';
-    } elsif(is_any($ob)) {
-	return 'any';
-    } else {
-	internal_err "expected host|network|any but got '$ob->{name}'";
-    }
-}
-
-sub order_any_rules2 ( @ ) {
-    my %ordered_any_rules;
-    for my $rule (@_) {
-	my $depth = $rule->{srv}->{depth};
-	defined $depth or internal_err "no depth for $rule->{srv}->{name}";
-	my $srcid = typeof($rule->{src});
-	my $dstid = typeof($rule->{dst});
-	push @{$ordered_any_rules{$depth}->{$srcid}->{$dstid}}, $rule;
-    }
-
-    # counter for sorted permit any rules
-    my $anyrule_index = 0;
-    my @result;
-    # add all rules with matching srcid and dstid to result
-    my $get_rules_from_hash = sub ( $$$ ) {
-	my($hash, $srcid, $dstid) = @_;
-	my $rules_aref = $hash->{$srcid}->{$dstid};
-	if(defined $rules_aref) {
-	    for my $rule (@$rules_aref) {
-		# add an incremented index to each any rule
-		# for simplifying a later check if one rule
-		# influences another one
-		$rule->{i} = $anyrule_index++;
-		push(@result, $rule);
-	    }
-	}
-    };
-
-    for my $depth (reverse sort keys %ordered_any_rules) {
-	my $hash = $ordered_any_rules{$depth};
-	next unless defined $hash;
-	&$get_rules_from_hash($hash, 'any','host');
-	&$get_rules_from_hash($hash, 'host','any');
-	&$get_rules_from_hash($hash, 'any','network');
-	&$get_rules_from_hash($hash, 'network','any');
-	&$get_rules_from_hash($hash, 'any','any');
-    }
-    return @result;
-}
-
-sub order_any_rules () {
-    @expanded_any_rules = order_any_rules2 @expanded_any_rules;
-}
-
-####################################################################
-# Repair deny influence
-#
-# After ordering permit 'any' rules and inserting of deny_networks 
-# we have to check for one pathological case, were a deny_network
-# influences an unrelated 'any' rule, i.e. some packets are denied
-# although they should be permitted.
-# Example:
-# 1. deny	net1  host2
-# 2. permit	any   host2
-# 3. permit	host1 any	 with host1 < net1
-# Problem: Traffic from host1 to host2 is denied by rule 1 and
-# permitted by rule 3.
-# But rule 1 is only related to rule 2 and must not deny traffic
-# which is allowed by rule 3
-# Solution: 
-# add additional rule 0
-# 0. permit	host1 host2
-# 1. deny	net1  host2
-# 2. permit	any   host2
-# 3. permit	host1 any
-####################################################################
-
-# we don't need to handle secondary services, they have been substituted
-# via ->{main} in expand_rules
-sub ge_srv( $$ ) {
-    my($s1, $s2) = @_;
-    $s1 eq $s2 and return 1;
-    $s1->{depth} >= $s2->{depth} and return 0;
-    while(my $up = $s2->{up}) {
-	return 1 if $up eq $s1;
-	$s2 = $up;
-    }
-    return 0;
-}
-
-#
-# any3--net1/host1--any2/net2/host2--
-#
-# search for
-# deny 	    net1  host2 <-- $net
-# permit    any3  host2 <-- $arule
-# permit    host1 any2  <-- $rule
-# with host1 < net1, any2 > host2
-# ToDo: May the deny rule influence any other rules where
-# dst is some 'any' object not in relation to host2 ?
-# I think not.
-sub repair_deny_influence1( $$ ) {
-    my($any_rules_ref, $normal_rules_ref) = @_;
-    for my $erule (@$any_rules_ref) {
-	next unless exists $erule->{any_rules};
-	my $dst = $erule->{dst};
-	next unless
-	    is_host $dst or
-	    is_interface $dst and
-	    # we don't need to repair anything for rules with an managed
-	    # interface as dst, since permission to access an 'any' object
-	    # doesn't imply permission to access an managed interface
-	    # lying at the border of the security domain.
-	    not $dst->{router}->{managed};
-	# Check those 'any' rules which are generated for all 'any' objects
-	# on the path from src 'any' object to dst.
-	# Note: $erule->{dst} eq $arule->{dst}
-	for my $arule (@{$erule->{any_rules}}) {
-	    # ToDo: think twice if we have an unexpected relation with
-	    # code generation of deleted interface rules
-	    next if $arule->{deleted};
-	    next unless $arule->{deny_networks};
-	    my $dst_any = $dst->{network}->{any} or
-		internal_err "No 'any' object in security domain of $dst";
-	    for my $net (@{$arule->{deny_networks}}) {
-		for my $host (@{$net->{hosts}}, @{$net->{interfaces}}) {
-		    # Don't repair, even if managed interface is src
-		    next if is_interface $host and $host->{router}->{managed};
-		    # search for rules with action = permit, src = host and
-		    # dst = dst_any in %rule_tree
-		    my $src_hash = $rule_tree{permit};
-		    next unless $src_hash;
-		    # do we have any rule with src = host ?
-		    next unless $src_hash->{$host};
-		    # do we have any rule with dst = dst_any ?
-		    next unless $src_hash->{$host}->[0]->{$dst_any};
-		    my $srv_hash = $src_hash->{$host}->[0]->{$dst_any}->[0];
-		    # get all rules, srv doesn't matter
-		    for my $rule (values %$srv_hash) {
-			# ToDo: see above
-			next if $rule->{deleted};
-#		    print STDERR "Got here:\n $net->{name}\n ",
-#		    print_rule $arule,"\n ",
-#		    print_rule $rule,"\n";
-			# we are only interested in rules behind the 'any' rule
-			next unless $rule->{i} > $erule->{i};
-			next unless ge_srv($rule->{srv}, $arule->{srv});
-			my $src = $rule->{src};
-			next if is_interface $src and is_interface $dst and
-			    $src->{router} eq $dst->{router};
-			my $hrule = { action => 'permit',
-				      src => $src,
-				      dst => $dst,
-				      srv => $arule->{srv},
-				      stateless => $arule->{stateless}
-				  };
-			push @$normal_rules_ref, $hrule;
-		    }
-		}
-	    }
-	}
-    }
-}
-
-sub repair_deny_influence() {
-    info "Repairing deny influence";
-    repair_deny_influence1 \@expanded_any_rules, \@expanded_rules;
 }
 
 ####################################################################
@@ -3169,24 +2969,6 @@ sub check_any_dst_rule( $$$ ) {
     my $srv = $rule->{srv};
     my $src_any = get_any $src;
 
-    # Let us assume two rules: 
-    # 1. permit src any:X 
-    # 2. permit src any:Y    /-any:X
-    # and this topology: src-R1-any:Y
-    # with any:X and any:Y directly attached to different interfaces of R1.
-    # Since we are generating only ACLs for inbound filtering,
-    # we would get two identical ACL entries at interface:R1.src:
-    # 1. permit src any
-    # 2. permit src any
-    # To identify these related rules at each router, we link them together
-    # at each router were they are applicable.
-    # Later, when generating code for the first rule at a router,
-    # the value of {active} is changed from 0 to 1. This indicates
-    # that no code needs to be generated for subsequent related rules
-    # at the same router.
-    $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv}->{active} = 0;
-    my $link = $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv};
-    $rule->{any_dst_group} = $link;
     # Find security domains at all interfaces except the in_intf.
     for my $intf (@{$router->{interfaces}}) {
 	# Nothing to be checked for the interface which is connected
@@ -3256,7 +3038,6 @@ sub check_any_rules() {
     for my $rule (@expanded_any_rules) {
 	next if $rule->{deleted};
 	next if $rule->{stateless};
-	$rule->{any_rules} = [];
 	if(is_any($rule->{src})) {
 	    &path_walk($rule, \&check_any_src_rule);
 	}
@@ -3338,7 +3119,6 @@ sub gen_reverse_rules1 ( $ ) {
 		# this rule must only be applied to stateless routers
 		stateless => 1,
 		orig_rule => $rule};
-	    $new_rule->{deny_networks} = [] if $rule->{deny_networks};
 	    $new_rule->{any_are_neighbors} = 1 if $rule->{any_are_neighbors};
 	    &add_rule($new_rule);
 	    # don' push to @$rule_aref while we are iterating over it
@@ -3546,17 +3326,8 @@ sub add_rule( $ ) {
     my $old_rule = $rule_tree->{$action}->{$src}->[0]->{$dst}->[0]->{$srv};
     if($old_rule) {
 	# Found identical rule
-	# For 'any' rules we must preserve the rule without deny_networks
-	# i.e. any_with_deny < any
-	if($action eq 'permit' and
-	   (is_any $src or is_any $dst) and
-	   @{$rule->{deny_networks}} == 0) {
-	    $old_rule->{deleted} = $rule;
-	    # continue adding new rule below
-	} else {
-	    $rule->{deleted} = $old_rule;
-	    return;
-	}
+	$rule->{deleted} = $old_rule;
+	return;
     } 
     $rule_tree->{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
     $rule_tree->{$action}->{$src}->[1] = $src;
@@ -3577,83 +3348,6 @@ sub aref_delete( $$ ) {
     return 0;
 }
 
-# Optimization of automatically generated any rules 
-# with attached deny networks
-#
-# 1.
-# cmp: permit any(deny_net: net2,net3) dst srv
-# chg: permit host1 dst' srv'
-# --> if host1 not in net2 or net3, dst >= dst', srv >= srv'
-# delete chg rule
-# 2.
-# cmp: permit any(deny_net: net2,net3) dst srv
-# chg: permit net1 dst' srv'
-# --> if net1 not eq net2 or net3, dst >= dst', srv >= srv'
-# delete chg rule
-# 3.
-# cmp permit any(deny_net: net1,net2) dst srv
-# chg permit net1 dst srv
-# -->
-# delete chg rule
-# remove net1 from cmp rule
-# 4. (currently not implemented because relation is in 'wrong' order)
-# cmp permit any(deny_net: net1,net2) dst srv
-# chg permit net1 dst' srv'
-# --> if dst <= dst', srv <= srv'
-# remove net1 from cmp rule
-# 5.
-# cmp permit any(deny_net: net1,net2) dst srv
-# chg permit any(deny_net: net1,net2,net3,...) dst' srv'
-# --> if dst >= dst', srv >= srv'
-# delete chg rule
-#
-# It doesn't hurt if deny_networks of a cmp rule are 
-# removed later even if it was used before to delete a chg rule.
-#
-# ToDo: Why aren't these optimizations applicable to deny rules?
-#
-sub optimize_any_rule( $$$ ) {
-    my($here, $cmp_rule, $chg_rule) = @_;
-    my $obj = $chg_rule->{$here};
-    # Case 1
-    if(is_host $obj or is_interface $obj) {
-	unless(grep { $obj->{network} eq $_ } @{$cmp_rule->{deny_networks}}) {
-	    $chg_rule->{deleted} = $cmp_rule;
-	}
-    }
-    elsif(is_network $obj) {
-	my $there = $here eq 'src' ? 'dst' : 'src';
-	# Case 2
-	unless(grep { $obj eq $_ } @{$cmp_rule->{deny_networks}}) {
-	    $chg_rule->{deleted} = $cmp_rule;
-	}
-	# Case 3
-	elsif($cmp_rule->{$there} eq $chg_rule->{$there} and
-	      $cmp_rule->{srv} eq $chg_rule->{srv} and
-	      aref_delete($obj, $cmp_rule->{deny_networks})) {
-	    $chg_rule->{deleted} = $cmp_rule;
-	}
-    }
-    elsif(is_any $obj) {
-	# Case 5
-	# Check if deny_networks of cmp rule are subset of
-	# deny_networks of chg rule.
-	my $subset = 1;
-	for my $net (@{$cmp_rule->{deny_networks}}) {
-	    unless(grep { $net eq $_ }
-		   @{$chg_rule->{deny_networks}}) {
-		$subset = 0;
-		last;
-	    }
-	}
-	if($subset) {
-	    $chg_rule->{deleted} = $cmp_rule;
-	}
-    } else {
-	internal_err "unexpected type of $obj->{name}";
-    }
-}
-
 # A rule may be deleted if we find a similar rule with greater or equal srv.
 # Property of parameters:
 # Rules in $cmp_hash >= rules in $chg_hash
@@ -3666,25 +3360,12 @@ sub optimize_srv_rules( $$ ) {
 	# This is vital for managed_intf optimization to work
 	next if $chg_rule->{deleted};
 # info "chg: ", print_rule $chg_rule;
-# map {info "chg deny-net: ",$_->{name} } @{$chg_rule->{deny_networks}};
 	my $srv = $chg_rule->{srv};
 	while($srv) {
 	    if(my $cmp_rule = $cmp_hash->{$srv}) {
 		unless($cmp_rule eq $chg_rule) {
 # info "cmp: ", print_rule $cmp_rule;
-# map {info "cmp deny-net: ",$_->{name} } @{$cmp_rule->{deny_networks}};
-		    if($cmp_rule->{action} eq 'permit' and
-		       $chg_rule->{action} eq 'permit') {
-			if(is_any $cmp_rule->{src}) {
-			    &optimize_any_rule('src', $cmp_rule, $chg_rule);
-			} elsif (is_any $cmp_rule->{dst}) {
-			    &optimize_any_rule('dst', $cmp_rule, $chg_rule);
-			} else {
-			    $chg_rule->{deleted} = $cmp_rule;
-			}
-		    } else {
-			$chg_rule->{deleted} = $cmp_rule;
-		    }
+		    $chg_rule->{deleted} = $cmp_rule;
 # info "deleted" if $chg_rule->{deleted};
 		    last;
 		}
@@ -3797,17 +3478,14 @@ sub optimize() {
     info "Optimization";
     optimize_action_rules \%rule_tree, \%rule_tree;
     if($verbose) {
-	my($n, $nd, $na, $naa) = (0,0,0,0);
+	my($n, $nd, $na) = (0,0,0);
 	for my $rule (@expanded_deny_rules) { $nd++ if $rule->{deleted}	}
 	for my $rule (@expanded_rules) { $n++ if $rule->{deleted} }
 	for my $rule (@expanded_any_rules) {
 	    $na++ if $rule->{deleted};
-	    for my $any_rule (@{$rule->{any_rules}}) {
-		$naa++ if $any_rule->{deleted};
-	    }
 	}
 	info "Deleted redundant rules:";
-	info " $nd deny, $n permit, $na permit any, $naa permit any from any";
+	info " $nd deny, $n permit, $na permit any";
     }
 }
 
@@ -4272,7 +3950,7 @@ sub distribute_rule( $$$ ) {
 #	info "$router->{name} intf_rule: ",print_rule $rule,"\n";
 	push @{$in_intf->{hardware}->{intf_rules}}, $rule;
     } 
-    # 'any' rules must be placed in a separate array, because they must no
+    # 'any' rules must be placed in a separate array, because they must not
     # be subject of object-group optimization
     elsif($any_rule) {
 #	info "$router->{name} any_rule: ",print_rule $rule,"\n";
@@ -4283,29 +3961,7 @@ sub distribute_rule( $$$ ) {
     }
 }
 
-sub check_deleted ( $$ ) {
-    my($rule, $out_intf) = @_;
-    if($rule->{deleted}) {
-	if($rule->{managed_intf}) {
-	    if($out_intf) {
-		# We are on an intermediate router if $out_intf is defined,
-		# hence normal 'delete' is valid.
-		return 1;
-	    }
-	    if($rule->{deleted}->{managed_intf}) {
-		# No code needed if it is deleted by another 
-		# rule to the same interface.
-		return 1;
-	    }
-	} else {
-	    # Not a managed interface, normal 'delete' is valid.
-	    return 1;
-	}
-    }
-    return 0;
-}
-
-# For deny and permit rules with src=any:*, call distribute_rule only for
+# For rules with src=any:*, call distribute_rule only for
 # the first router on the path from src to dst.
 sub distribute_rule_at_src( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
@@ -4313,75 +3969,31 @@ sub distribute_rule_at_src( $$$ ) {
     return unless $router->{managed};
     my $src = $rule->{src};
     is_any $src or internal_err "$src must be of type 'any'";
-    # The main rule is only processed at the first router on the path.
+    # Rule is only processed at the first router on the path.
     if($in_intf->{any} eq $src) {
-	# optional 4th parameter 'any_rule' must be set!
-	&distribute_rule(@_, 1) unless check_deleted $rule, $out_intf;
-    }
-    # Auxiliary rules are never needed at the first router.
-    elsif(exists $rule->{any_rules}) {
-	# check for auxiliary 'any' rules
-	for my $any_rule (@{$rule->{any_rules}}) {
-	    next unless $in_intf->{any} eq $any_rule->{src};
-	    # We need to know exactly if code is generated,
-	    # otherwise we would generate deny rules accidently.
-	    next if check_deleted $any_rule, $out_intf;
-	    # Put deny rules directly in front of
-	    # the corresponding permit 'any' rule.
-	    for my $deny_network (@{$any_rule->{deny_networks}}) {
-		my $deny_rule = { action => 'deny',
-				  src => $deny_network,
-				  dst => $any_rule->{dst},
-				  srv => $any_rule->{srv},
-				  stateless => $any_rule->{stateless} };
-		&distribute_rule($deny_rule, $in_intf, $out_intf, 1);
-	    }
-	    &distribute_rule($any_rule, $in_intf, $out_intf, 1);
-	}
+	# Optional 4th parameter 'any_rule' must be set!
+	&distribute_rule(@_, 1);
     }
 }
 
-# For permit dst=any:*, call distribute_rule only for
+# For rules with dst=any:*, call distribute_rule only for
 # the last router on the path from src to dst.
 sub distribute_rule_at_dst( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
     my $router = $out_intf->{router};
     return unless $router->{managed};
+    my $action = $rule->{action};
+    my $src = $rule->{src};
     my $dst = $rule->{dst};
+    my $srv = $rule->{srv};
     is_any $dst or internal_err "$dst must be of type 'any'";
-    # This is called for the main rule and its auxiliary rules.
-    # First build a list of all adjacent 'any' objects.
-    my @neighbor_anys;
-    for my $intf (@{$out_intf->{router}->{interfaces}}) {
-	next if $in_intf and $intf eq $in_intf;
-	push @neighbor_anys, $intf->{any};
-    }
-    # Generate deny rules in a first pass, since all related
-    # 'any' rules must be placed behind them.
-    for my $any_rule (@{$rule->{any_rules}}) {
-	next unless grep { $_ eq $any_rule->{dst} } @neighbor_anys;
-	next if $any_rule->{deleted};
-	for my $deny_network (@{$any_rule->{deny_networks}}) {
-	    my $deny_rule = {action => 'deny',
-			     src => $any_rule->{src},
-			     dst => $deny_network,
-			     srv => $any_rule->{srv},
-			     stateless => $any_rule->{stateless}
-			 };
-	    &distribute_rule($deny_rule, $in_intf, $out_intf, 1);
-	}
-    }
-    for my $any_rule ($rule, @{$rule->{any_rules}}) {
-	next unless grep { $_ eq $any_rule->{dst} } @neighbor_anys;
-	next if $any_rule->{deleted};
-	if($any_rule->{any_dst_group}) {
-	    unless($any_rule->{any_dst_group}->{active}) {
-		&distribute_rule($any_rule, $in_intf, $out_intf, 1);
-		$any_rule->{any_dst_group}->{active} = 1;
-	    }
-	} else {
-	    &distribute_rule($any_rule, $in_intf, $out_intf, 1);
-	}
+    # Rule is only processed at the last router on the path.
+    if($out_intf->{any} eq $dst and 
+       not $router->{has_any_dst}->{$action}->{$src}->{$srv}) {
+	# Prevent duplicate rules.
+	$router->{has_any_dst}->{$action}->{$src}->{$srv} = 1;
+	# Optional 4th parameter 'any_rule' must be set!
+	&distribute_rule(@_, 1);
     }
 }
 
@@ -4392,14 +4004,10 @@ sub rules_distribution() {
 	next if $rule->{deleted};
 	&path_walk($rule, \&distribute_rule);
     }
-    # Permit rules
-    for my $rule (@expanded_rules, @secondary_rules) {
-	next if $rule->{deleted} and
-	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
-	&path_walk($rule, \&distribute_rule, 'Router');
-    }
     # Rules with 'any' object as src or dst
     for my $rule (@expanded_any_rules) {
+	next if $rule->{deleted} and
+	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
 	if(is_any $rule->{src}) {
 	    if(is_any $rule->{dst}) {
 		# Both, src and dst are 'any' objects.
@@ -4417,6 +4025,12 @@ sub rules_distribution() {
 	} else {
 	    internal_err "unexpected rule ", print_rule $rule, "\n";
 	}
+    }
+    # Other permit rules
+    for my $rule (@expanded_rules, @secondary_rules) {
+	next if $rule->{deleted} and
+	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
+	&path_walk($rule, \&distribute_rule, 'Router');
     }
 }
 
@@ -5004,10 +4618,10 @@ sub print_acls( $ ) {
 	my $nat_info = $hardware->{interfaces}->[0]->{nat_info};
 	# Interface rules
 	acl_line $hardware->{intf_rules}, $nat_info, $intf_prefix, $model;
-	# Ordinary rules
-	acl_line $hardware->{rules}, $nat_info, $prefix, $model;
 	# 'any' rules
 	acl_line $hardware->{any_rules}, $nat_info, $prefix, $model;
+	# Ordinary rules
+	acl_line $hardware->{rules}, $nat_info, $prefix, $model;
 	# Postprocessing for hardware interface
 	if($model->{filter} eq 'IOS') {
 	    print "interface $hardware->{name}\n";
