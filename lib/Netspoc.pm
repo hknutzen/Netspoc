@@ -1853,6 +1853,7 @@ sub disable_behind( $ ) {
 # Lists of network objects which are left over after disabling.
 my @managed_routers;
 my @routers;
+my @networks;
 my @all_anys;
 
 sub mark_disabled() {
@@ -1873,16 +1874,25 @@ sub mark_disabled() {
 	my $router = $interface->{router};
 	&aref_delete($interface, $router->{interfaces});
     }
-    for my $obj (values %everys, values %anys) {
+    for my $obj (values %everys) {
+	$obj->{disabled} = 1 if $obj->{link}->{disabled};
+    }
+    for my $obj (values %anys) {
 	if($obj->{link}->{disabled}) {
 	    $obj->{disabled} = 1;
+	} else {
+	    push @all_anys, $obj;
 	}
     }
-    @all_anys = grep { not $_->{disabled} } values %anys;
     for my $router (values %routers) {
 	unless($router->{disabled}) {
 	    push @routers, $router;
 	    push @managed_routers, $router if $router->{managed};
+	}
+    }
+    for my $network (values %networks) {
+	unless($network->{disabled}) {
+	    push @networks, $network;
 	}
     }
     @virtual_interfaces = grep { not $_->{disabled} } @virtual_interfaces;
@@ -2221,8 +2231,7 @@ sub expand_rules() {
 sub find_subnets() {
     info "Finding subnets";
     my %mask_ip_hash;
-    for my $network (values %networks) {
-	next if $network->{disabled};
+    for my $network (@networks) {
 	next if $network->{ip} eq 'unnumbered';
 	# Ignore a network, if NAT is defined for it.
 	# ToDo: Do a separate calculation for each NAT domain.
@@ -2343,8 +2352,7 @@ sub setany() {
 
     # Automatically add an 'any' object to each security domain
     # where none has been declared.
-    for my $network (values %networks) {
-	next if $network->{disabled};
+    for my $network (@networks) {
 	next if $network->{any};
 	(my $name = $network->{name}) =~ s/^network:/auto_any:/;
 	my $any = new('Any', name => $name, link => $network);
@@ -2421,9 +2429,9 @@ sub setpath_obj( $$$ ) {
 
 sub setpath() {
     info "Preparing fast path traversal";
-    # Take a random network from %networks, name it "net1".
-    my($net1) = grep { not $_->{disabled} } (values %networks);
-    $net1 or err_msg "Topology seems to be empty";
+    # Take a random network from @networks, name it "net1".
+    @networks or die "Topology seems to be empty";
+    my $net1 = $networks[0];
 
     # Starting with net1, do a traversal of the whole topology
     # to find a path from every network and router to net1.
@@ -2432,8 +2440,7 @@ sub setpath() {
     setpath_obj($net1, $net1, 2);
 
     # Check if all networks are connected with net1.
-    for my $network (values %networks) {
-	next if $network->{disabled};
+    for my $network (@networks) {
 	next if $network eq $net1;
 	$network->{main} or $network->{loop} or
 	    err_msg "Found unconnected $network->{name}";
@@ -3367,8 +3374,7 @@ sub optimize_rules( $$ ) {
 sub optimize() {
     info "Global optimization";
     # Prepare data structures
-    for my $network (values %networks) {
-	next if $network->{disabled};
+    for my $network (@networks) {
 	next if $network->{up};
 	$network->{up} = $network->{any};
 	for my $object (@{$network->{hosts}}, @{$network->{interfaces}}) {
@@ -4556,8 +4562,7 @@ sub find_chains ( $ ) {
 sub local_optimization() {
     info "Local optimization";
     # Prepare data structures
-    for my $network (values %networks) {
-	next if $network->{disabled};
+    for my $network (@networks) {
 	$network->{subnet_of} or $network->{subnet_of} = $network_00;
 	for my $object (@{$network->{hosts}}, @{$network->{interfaces}}) {
 	    $object->{subnet_of} = $network;
