@@ -1,24 +1,54 @@
 ToDo list for NetSPoC, a Network Security Policy Compiler
 
+- Definition of and code generation for IPSec tunnels. 
+  This has high precedence on our agenda.  
+
+- In local_optimization don't use attribute 'subnet_of', but 'is_in' +
+  NAT. Current implementation might produce wrong code for networks have a
+  subnet relation and additinally have NAT applied.
+
+- Add documentation for dynamic NAT of multiple networks to a single address
+  space. Work out code generation for this case. Check that hosts of different
+  networks arn't statically translated to the same IP address.
+
+- Add documentation for global NAT definitions.
+
+- HSRP / VRRP: Implementation is incomplete. We only use 'virtual' interfaces
+  to get correct routing. But additionally we have to permit multicast
+  packets for HSRP / VRRP like we do for dynamic routing protocols. 
+
+- HSRP / VRRP: We got asked if the group number may be specified at virtual
+  interface definitions. If group numbers are managed by NetSPoC, a user
+  wouldn't use duplicate group numbers accidently.
+  To implement this, we would have to change or extend syntax for virtual
+  interfaces. 
+
+- PIX statics: Für nat/global ist es nicht richtig, die dst-Networks
+  einer Rule zu betrachten. Wir benötigen hier stattdessen die src.
+  Die derzeitigen Ergebnisse sind nur zufällig korrekt.
+
+- Bug with 'any' objects und path_walk: for cyclic topologies there are cases
+  where not all possible paths are found. This is, because we randomly pick
+  some network from the 'any' object and use this as source or destination.
+
+- Protect own interfaces: zur Zeit mit NAT; ist das ok?
+  Braucht man zusätzlich den Schutz für die originale IP-Adresse?
+
+- NAT domains should get a name, which is derived from NAT tags. Currently we
+  use the name of some arbitrary network out of the NAT domain.
+
+- Code which uses internal attributes 'managed_intf' and 'deleted' is ugly.
+
 - Documentation: add examples for network address translation and path
   restriction. 
 
-- We are working on a HTML interface for NetSPoC including a
+- We have a prototype of a HTML interface for NetSPoC including a
   graphical representation of the topology, using the graphviz library
-  (http://www.graphviz.org/).
+  (http://www.graphviz.org/). Need to publish this as open source.
 
 - Generate NAT code for other devices than PIX.
 
-- Check for duplicate IP addresses or subnet relation even for
-  translated IP addresses.
-
-- Add documentation for loops / cyclic graphs
-
-- Description and code generation for IPSec tunnels
-
-- With multiple interfaces at one hardware interface, there might be
-  missing automatically generated deny rules for 'any' rules or they
-  may be in wrong order.
+- Documentation: loops / cyclic graphs.
 
 - Currently there is a small problem if an interface is used as
   destination of a rule and if there is a path restriction at the same
@@ -29,20 +59,6 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
   restricting interface.
   Possible solution: Generate only a host route for an interface.
 
-- If we have a loop with only three routers and a rule with src inside
-  the loop and dst an 'any' object outside of the loop, netspoc
-  generates useless deny rules which try to prevent src accessing its
-  own security domain.
-
-- For a rule with src outside of a loop and dst inside or behind the
-  loop, we get duplicate ACLs at the router, where packets from src
-  enter the loop.
-
-- Too many duplicate 'any' acls for routers inside a loop.
-  Disable optimization for 'any' rules inside of loops more selectivly.
-
-- Build test case for 'any_dst_group' optimization
-
 - Refine code generation for 'deny any' rules. Currently, not only the
   access from / to a security domain is restricted, but for all
   network objects on the path to dst / from src.
@@ -51,7 +67,22 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 Done:
 ============================================================================
 
-- Add support for nested loops and path restrictions
+- Check for duplicate IP addresses or subnet relation even for
+  networks with NAT.
+
+- Security domain with only unnumbered networks: We would try to get the  
+  first element of an undefined array in get_path. Fixed.
+
+- For a rule with src outside of a loop and dst inside or behind the
+  loop, we get duplicate ACLs at the router, where packets from src
+  enter the loop.
+  Solved by local optimization.
+
+- Too many duplicate 'any' acls for routers inside a loop.
+  Disable optimization for 'any' rules inside of loops more selectivly.
+  Solved by local optimization.
+
+- Add support for nested loops and path restrictions.
 
 - Support of virtual IP addresses for HSRP / VRRP
 

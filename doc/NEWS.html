@@ -1,3 +1,47 @@
+<h3>netspoc-2.2</h3>
+
+New features:
+<ul>
+<li>Support 'chains' of iptables and 'object-groups' of Cisco PIX. Generates
+much shorter and more efficient code for rule sets, where one of source or
+destination is unchanged. 
+<li>Support masquerading, i.e dynamic NAT of multiple networks to a single
+address range. 
+<li>Generates NAT code for PIX ('static' and 'global') for both directions:
+inside - outside and vice versa. 
+</ul>
+
+Language:
+<ul>
+<li>Global NAT definition. This is used to declare masquerading for a large
+part of the topology.
+<li>any:[local] denotes the security domain connected to an interface.
+<li>Hyphen may now be used in names.
+<li>New attribute 'no_group_code' for routers. This disables generation of
+object-groups and chains.
+<li>Removed attribute 'static_manual' for routers.
+</ul>
+
+Other:
+<ul>
+<li>New local optimization step for each router.
+<li>Improved handling of subnets to get better results from optimization.
+<li>Options may be changed from command line. No need for altering the source
+code any longer.
+<li>Interfaces referenced in pathrestriction must be managed.
+<li>Code for 'any' rules is now inserted at top of ACLs, following deny
+rules. This usually gives better performance, because 'any' rules match many
+packets.
+<li>No automatically inserted deny rules any longer. Instead, 'any' rules are
+checked for global rule semantics and router semantics to be equivalent.
+</ul>
+
+Bug fixes:
+<ul>
+<li>PIX code: Added missing 'interface' keyword in 'access-group'.
+</ul>
+
+
 <h3>netspoc-2.1</h3>
 
 New features:
