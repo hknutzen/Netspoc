@@ -134,12 +134,18 @@ we use them as delimiters.</P>
      {{
          [ route_hint; ]
 	 [ subnet_of = network:&lt;name&gt;; ]
-         ip = &lt;ip-adr&gt;; mask = &lt;ip-adr&gt;; 
+         ip = &lt;ip-adr&gt;; mask = &lt;ip-adr&gt;;
+	 &lt;network NAT definition&gt; *
          &lt;host definition&gt; *
      |
          unnumbered
      }}
-  }</PRE>
+  }
+
+  &lt;network NAT definition&gt; ::=
+         nat:&lt;name&gt; = { ip = &lt;ip-adr&gt;; [ mask = &lt;ip-adr&gt;; ] [dynamic;] }
+</PRE>
+
 <UL>
 <LI>A network is described by an ip address and a mask or
 <LI>may alternatively be marked as unnumbered.
@@ -163,11 +169,19 @@ redefined by mistake.
 <H4>Syntax</H4>
 <PRE>
   &lt;host definition&gt; ::=
-  {{
-        host:&lt;name&gt; = { ip = &lt;ip-adr&gt;, ...; }
-  |
-        host:&lt;name&gt; = { range = &lt;ip-adr&gt; - &lt;ip-adr&gt;; }
-  }}</PRE>
+        host:&lt;name&gt; = {   
+	 {{
+	   ip = &lt;ip-adr&gt;, ...;
+         |
+           range = &lt;ip-adr&gt; - &lt;ip-adr&gt;;
+	 }}
+           &lt;NAT definition&gt; *
+        }
+
+  &lt;NAT definition&gt; ::=
+        nat:&lt;name&gt; = { ip = &lt;ip-adr&gt;; }
+</PRE>
+
 <UL>
 <LI>A host may only be defined inside a network definition.
 <LI>It has one or more IP addresses or
@@ -227,17 +241,27 @@ a group of its interfaces.
 <H3><A NAME="interface_definition">Interface definition</A></H3>
 <H4>Syntax</H4>
 <PRE>
- &lt;interface definition&gt; ::= 
- interface:&lt;name&gt; = {
+  &lt;interface definition&gt; ::= 
+    interface:&lt;name&gt; = {
          {{ ip = &lt;ip-adr&gt;, ...; | unnumbered; }}
+         &lt;NAT definition&gt; *
+         &lt;NAT binding&gt;
          [ hardware = &lt;interface_name&gt;; ]
 	 [ routing = OSPF; ]
 	 [ reroute_permit = network:&lt;name&gt;, ...; ]
          [ disabled ; ]
- }
+    }
 
- &lt;short interface definition&gt; ::=
- interface:&lt;name&gt;;</PRE>
+  &lt;short interface definition&gt; ::=
+    interface:&lt;name&gt;;
+
+ 
+  &lt;NAT definition&gt; ::=
+         nat:&lt;name&gt; = { ip = &lt;ip-adr&gt;; }
+  &lt;NAT binding&gt; ::=
+         nat = &lt;name&gt;;
+</PRE>
+
 <UL>
 <LI>Interfaces have no name of their own; instead a network name is used
   to indicate that the interface is linked to a network of the same
