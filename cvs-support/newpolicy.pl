@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # newpolicy -- integrates NetSPoC with CVS
 # http://netspoc.berlios.de
-# (c) 2002 by Heinz Knutzen <heinz.knutzen@web.de>,<heinz.knutzen@dzsh.de>
+# (c) 2002 by Heinz Knutzen <heinzknutzen@mail.berlios.de>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 # Description:
-# Integrates NetSPoC with version control / build management
+# Integrates NetSPoC with version control / build management.
 # The current user must have a working directory 'netspoc'
 # in his home directory with NetSPoC files checked out
 # from the CVS repository.
@@ -31,7 +31,7 @@
 # - tags users current configuration with new policy tag
 # - extracts the tagged configuration into the policy database
 # - compiles the new policy
-# - marks the new directory as current policy
+# - marks new policy in policy db as current
 #
 # $Id$
 
@@ -41,6 +41,8 @@ use Fcntl qw(:DEFAULT :flock);
 
 # policy database
 my $policydb = "/home/madnes/netspoc";
+# users working directory
+my $working = "$home/netspoc";
 # netspoc compiler
 my $compiler = 'netspoc';
 my $log = 'compile.log';
@@ -51,29 +53,29 @@ my $link = "$policydb/current";
 # LOCK for preventing concurrent updates
 my $lock = "$policydb/LOCK";
 my $home = $ENV{HOME};
-# users working directory
-my $working = "$home/netspoc";
 # policy file, contains current policy number
 my $pfile = "$working/POLICY";
 $ENV{CVSROOT} or die "Abort: No CVSROOT specified!\n";
 
-# user must have an updated and checked in current policy
-chdir $working or die "Error: can't change to $working: $!\n";
-system("cvs -nQ tag -c test") == 0 or die "Aborted\n";
+# user must have an updated and checked in working directory
+chdir $working or die "Error: can't cd to $working: $!\n";
+if(my $cvsout = `cvs -nq update`) {
+    die "Abort: $working isn't up to date:\n$cvsout";
+}
     
 # Lock policy database
 sysopen LOCK, "$lock", O_RDONLY | O_CREAT or
     die "Error: can't open $lock: $!";
 flock(LOCK, LOCK_EX | LOCK_NB) or die "Abort: Another $0 is running\n";
 
-# update, read, increment,commit current policy from working directory
+# update, read, increment, commit policy number from working directory
 # update
 system("cvs update $pfile") == 0 or die "Aborted\n";
 # read
 open PFILE, $pfile or die "Can't open $pfile: $!\n";
 my $line = <PFILE>;
 close PFILE;
-# $pfile contains one line: "! p22 comment .."
+# $pfile contains one line: "# p22 comment .."
 my(undef, $policy) = split ' ', $line;
 my($count) = ($policy =~ /^p(\d+)$/) or
     die "Error: found invalid policy name '$policy' in $pfile";
@@ -90,7 +92,7 @@ while(<STDIN>) {
 }
 # write new policy
 open PFILE, ">", $pfile or die "Can't open $pfile: $!\n";
-print PFILE "# $policy # current policy, don't edit manually!\n";
+print PFILE "# $policy # Current policy, don't edit manually!\n";
 close PFILE;
 # commit
 system("cvs commit -m '$msg' $pfile") == 0 or die "Aborted\n";
@@ -132,7 +134,7 @@ if($failed) {
     my $current = readlink $link;
     $current and print STDERR "Left current policy as '$current'\n";
 } else {
-    # mark new policy as current, only if compiled successfully
+    # mark new policy as current if compiled successfully
     chdir $policydb or die "Error: can't cd to $policydb: $!\n";
     unlink $link;
     symlink $policy, $link or
