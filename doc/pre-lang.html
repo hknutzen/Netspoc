@@ -395,20 +395,19 @@ directions, with only one rule.
 <LI>Deny rules override all permit rules.
 </UL>
 <h2><a name="secondary">Secondary packet filters</a></h2>
-By default, NetSPoC generates a full set of packet filter rules for
-each managed device. This may be redundant if IP packets from src to
-dst pass multiple managed devices.<br>
-Secondary packet filters only get a restricted set of packet filter
-rules: For each pair (src, dst) passing a secondary packet filter,
-it is checked if there is at least one full packet filter on the path
-from src to dst. In this case, only a reduced filter rule is inserted
-at the secondary packet filter, which checks that the packet comes
-from the network of src and goes to the network of dst. Otherwise, a
-full packet filter rule is generated.
-
-A packet filter should be marked as secondary if it has limited memory
-and / or processing ressources and most of the packet get fully
-filtered already by some other managed device.
+In a given topology we may have chains of managed packet filters
+on the path from src to dst. Each packet filter is a "full" packet
+filter by default, which does full filtering for each rule 
+again and again.<br>
+A secondary packet filter has simpler rules for	permitted traffic
+which gets further filtering by a full packet filter. In this
+case it allows any IP packets from the src network to the dst network.
+This simple filterung assures that the traffic comes from the rigth
+src and goes to the rigth dst.<br>
+A secondary packet filter is declared by the attribute
+"managed = secondary". This may be usefull if a router has not
+enough memory for storing a complete set of filter rules and most of
+the packets get fully filtered already by some other managed device.
 
 <H2><A NAME="disabling">Disabling part of the topology</A></H2>
 <P>An interface may be explicitly marked as disabled.  
