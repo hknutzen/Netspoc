@@ -1258,6 +1258,7 @@ sub read_file( $$ ) {
     }
 }
 
+sub read_file_or_dir( $ );
 sub read_file_or_dir( $ ) {
     my($path) = @_;
     if(-f $path) {
@@ -1271,7 +1272,7 @@ sub read_file_or_dir( $ ) {
 	    next if $file eq '.' or $file eq '..';
 	    next if $file =~ m/$ignore_files/;
 	    $file = "$path/$file";
-	    &read_file_or_dir($file);
+	    read_file_or_dir $file;
 	}
     } else {
 	die "Can't read path '$path'\n";
@@ -1521,10 +1522,14 @@ sub link_any_and_every() {
 	} elsif($type eq 'router') {
 	    if(my $router = $routers{$name}) {
 		$router->{managed} and
-		    err_msg "$obj->{name} must not be linked to managed $router->{name}";
+		    err_msg "$obj->{name} must not be linked to",
+		    "managed $router->{name}";
 		# Take some network connected to this router.
 		# Since this router is unmanged, all connected networks
 		# will belong to the same security domain.
+		$router->{interfaces} or
+		    err_msg "$obj->{name} must not be linked to",
+		    "$router->{name} without interfaces";
 		$obj->{link} = $router->{interfaces}->[0]->{network};
 	    }
 	} else {
@@ -1730,6 +1735,7 @@ sub link_topology() {
 # this will mark the whole topology as disabled.
 ####################################################################
 
+sub disable_behind( $ );
 sub disable_behind( $ ) {
     my($incoming) = @_;
     return if $incoming->{disabled};
@@ -1752,7 +1758,7 @@ sub disable_behind( $ ) {
 	for my $outgoing (@{$router->{interfaces}}) {
 	    next if $outgoing eq $interface;
 	    next if $outgoing->{disabled};
-	    &disable_behind($outgoing);
+	    disable_behind $outgoing ;
 	}
     }
 }	
@@ -2047,6 +2053,7 @@ sub set_auto_groups () {
 
 # Get a reference to an array of network object names and 
 # return a reference to an array of network objects
+sub expand_group1( $$ );
 sub expand_group1( $$ ) {
     my($obref, $context) = @_;
     my @objects;
@@ -2078,7 +2085,7 @@ sub expand_group1( $$ ) {
 		# mark group for detection of recursive group definitions
 		$object->{elements} = 'recursive';
 		$object->{is_used} = 1;
-		$elements = &expand_group1($elements, $tname);
+		$elements = expand_group1 $elements, $tname;
 		# cache result for further references to the same group
 		$object->{elements} = $elements;
 	    }
@@ -2153,6 +2160,7 @@ sub check_unused_groups() {
     }
 }
 
+sub expand_services( $$ );
 sub expand_services( $$ ) {
     my($aref, $context) = @_;
     my @services;
@@ -2178,7 +2186,7 @@ sub expand_services( $$ ) {
 		    # detect recursive definitions
 		    $srvgroup->{elements} = 'recursive';
 		    $srvgroup->{is_used} = 1;
-		    $elements = &expand_services($elements, $tname);
+		    $elements = expand_services $elements, $tname;
 		    # Cache result for further references to the same group.
 		    $srvgroup->{elements} = $elements;
 		}
@@ -2354,6 +2362,113 @@ sub expand_rules( ;$) {
     }
 }
 
+##############################################################################
+# Distribute NAT bindings from interfaces to affected networks
+##############################################################################
+
+sub setnat_network( $$$$ );
+sub setnat_network( $$$$ ) {
+    my($network, $in_interface, $nat, $depth) = @_;
+##  debug "nat:$nat depth $depth at $network->{name} from $in_interface->{name}";
+    if($network->{active_path}) {
+##	debug "nat:$nat loop";
+	# Found a loop
+	return;
+    }
+    if($network->{nat_info}) {
+	my $max_depth = @{$network->{nat_info}};
+	for(my $i = 0; $i < $max_depth; $i++) {
+	    if($network->{nat_info}->[$i]->{$nat}) {
+##		debug "nat:$nat: other binding";
+		# Found an alternate border of current NAT domain
+		if($i != $depth) {
+		    # There is another NAT binding on the path which
+		    # might overlap some translations of current NAT
+		    err_msg "Inconsistent multiple occurrences of nat:$nat";
+		}
+		return;
+	    }
+	}
+    }
+    # Use a hash to prevent duplicate entries.
+    $network->{nat_info}->[$depth]->{$nat} = $nat;
+    # Loop detection
+    $network->{active_path} = 1;
+    if($network->{nat}->{$nat}) {
+	err_msg "$network->{name} is translated by nat:$nat,\n",
+	" but it lies inside the translation domain of nat:$nat.\n",
+	" Probably nat:$nat was bound to wrong interface.";
+    }
+    for my $interface (@{$network->{interfaces}}) {
+	# Ignore interface where we reached this network.
+	next if $interface eq $in_interface;
+	# Found another border of current nat domain.
+	next if $interface->{bind_nat} and $interface->{bind_nat} eq $nat;
+	my $router = $interface->{router};
+	for my $out_interface (@{$router->{interfaces}}) {
+	    # Ignore interface where we reached this router.
+	    next if $out_interface eq $interface;
+	    my $depth = $depth;
+	    if($out_interface->{bind_nat}) { 
+		$depth++;
+		if($out_interface->{bind_nat} eq $nat) {
+		    err_msg "Found NAT loop for nat:$nat at $interface->{name}";
+		    next;
+		}
+	    }
+	    setnat_network 
+		$out_interface->{network}, $out_interface, $nat, $depth;
+	}
+    }
+    delete $network->{active_path};
+}
+ 
+sub distribute_nat_info() {
+    info "Distributing NAT";
+    for my $router (@routers) {
+	for my $interface (@{$router->{interfaces}}) {
+	    my $nat = $interface->{bind_nat} or next;
+	    if($nat_definitions{$nat}) {
+		setnat_network($interface->{network}, $interface, $nat, 0);
+		$nat_definitions{$nat} = 'used';
+	    } else {
+		warning "Ignoring undefined nat:$nat bound to $interface->{name}";
+	    }
+	}
+    }
+    # {nat_info} was collected at networks, but is needed at
+    # logical and hardware interfaces of managed routers
+    for my $router (@managed_routers) {
+	for my $interface (@{$router->{interfaces}}) {
+	    $interface->{nat_info} = $interface->{hardware}->{nat_info} =
+		$interface->{network}->{nat_info};
+	}
+    }
+    for my $name (keys %nat_definitions) {
+	warning "nat:$name is defined, but not used" 
+	    unless $nat_definitions{$name} eq 'used';
+    }
+}
+
+# Lookup NAT tag of a network while generating code in a domain
+# represented by nat_info.
+# Data structure:
+# $nat_info->[$depth]->{$nat_tag} = $nat_tag;
+sub nat_lookup( $$ ) {
+    my($net, $nat_info) = @_;
+    $nat_info or return undef;
+    # Iterate from most specific to less specific NAT tags
+    for my $href (@$nat_info) {
+	for my $nat_tag (values %$href) {
+	    if($net->{nat}->{$nat_tag}) {
+		return($nat_tag,
+		       @{$net->{nat}->{$nat_tag}}{'ip', 'mask', 'dynamic'});
+	    }
+	}
+    }
+    return undef;
+}
+
 ####################################################################
 # Find subnetworks
 # Mark each network with the smallest network enclosing it.
@@ -2427,12 +2542,12 @@ sub find_subnets() {
 ####################################################################
 
 # Forward declaration.
-sub setany_router( $$$ );
+sub setany_network( $$$ );
 
 sub setany_network( $$$ ) {
     my($network, $any, $in_interface) = @_;
     if($network->{any}) {
-	# Found a loop inside a security domain
+	# Found a loop inside a security domain.
 	return;
     }
     $network->{any} = $any;
@@ -2448,42 +2563,34 @@ sub setany_network( $$$ ) {
 	push(@{$any->{networks}}, $network);
     }
     for my $interface (@{$network->{interfaces}}) {
-	# ignore interface where we reached this network
+	# Ignore interface where we reached this network.
 	next if $interface eq $in_interface;
-	setany_router($interface->{router}, $any, $interface);
-    }
-}
- 
-sub setany_router( $$$ ) {
-    my($router, $any, $in_interface) = @_;
-    if($router->{managed}) {
-	$in_interface->{any} = $any;
-	push @{$any->{interfaces}}, $in_interface;
-	return;
-    }
-    for my $interface (@{$router->{interfaces}}) {
-	# Ignore interface where we reached this router.
-	next if $interface eq $in_interface;
-	setany_network($interface->{network}, $any, $interface);
+	my $router = $interface->{router};
+	if($router->{managed}) {
+	    $interface->{any} = $any;
+	    push @{$any->{interfaces}}, $interface;
+	} else {
+	    for my $out_interface (@{$router->{interfaces}}) {
+		# Ignore interface where we reached this router.
+		next if $out_interface eq $interface;
+		setany_network $out_interface->{network}, $any, $out_interface;
+	    }
+	}
     }
 }
 
 sub setany() {
     for my $any (@all_anys) {
 	$any->{networks} = [];
-	my $obj = $any->{link};
-	if(my $old_any = $obj->{any}) {
+	my $network = $any->{link};
+	if(my $old_any = $network->{any}) {
 	    err_msg
 		"More than one 'any' object defined in a security domain:\n",
 		" $old_any->{name} and $any->{name}";
 	}
-	if(is_network $obj) {
-	    setany_network $obj, $any, 0;
-	} elsif(is_router $obj) {
-	    setany_router $obj, $any, 0;
-	} else {
-	    internal_err "unexpected object $obj->{name}";
-	}
+	is_network $network or
+	    internal_err "unexpected object $network->{name}";
+	setany_network $network, $any, 0;
 	# Make results deterministic.
 	@{$any->{networks}} =
 	    sort { $a->{ip} <=> $b->{ip} } @{$any->{networks}};
@@ -2511,6 +2618,7 @@ sub setany() {
 # collect all networks and routers lying inside a cyclic graph
 my @loop_objects;
 
+sub setpath_obj( $$$ );
 sub setpath_obj( $$$ ) {
     my($obj, $to_net1, $distance) = @_;
 #    debug("-- $distance: $obj->{name} --> $to_net1->{name}");
@@ -2538,7 +2646,7 @@ sub setpath_obj( $$$ ) {
 	# which is already marked
 	next if $interface->{in_loop};
 	my $next = $interface->{$get_next};
-	if(my $loop = &setpath_obj($next, $interface, $distance+1)) {
+	if(my $loop = setpath_obj $next, $interface, $distance+1) {
 	    # path is part of a loop
 	    if(!$loop_start or $loop->{distance} < $loop_distance) {
 		$loop_start = $loop;
@@ -2576,7 +2684,7 @@ sub setpath() {
     # to find a path from every network and router to net1.
     # Second  parameter $net1 is used as placeholder for a not existing
     # starting interface.
-    setpath_obj($net1, $net1, 2);
+    setpath_obj $net1, $net1, 2;
 
     # Check if all networks are connected with net1.
     for my $network (@networks) {
@@ -2691,6 +2799,7 @@ sub get_path( $ ) {
 # Converts hash key of reference back to reference.
 my %key2obj;
 
+sub loop_path_mark1( $$$$$ );
 sub loop_path_mark1( $$$$$ ) {
     my($obj, $in_intf, $from, $to, $collect) = @_;
     # Check for second occurrence of path restriction.
@@ -2724,7 +2833,7 @@ sub loop_path_mark1( $$$$$ ) {
         next unless $interface->{in_loop};
         next if $interface eq $in_intf;
         my $next = $interface->{$get_next};
-	if(&loop_path_mark1($next, $interface, $from, $to, $collect)) {
+	if(loop_path_mark1 $next, $interface, $from, $to, $collect) {
 	    # Found a valid path from $next to $to
 	    $key2obj{$interface} = $interface;
 	    $collect->{$in_intf}->{$interface} = is_router $obj;
@@ -3371,112 +3480,6 @@ sub mark_secondary_rules() {
 	};
 	path_walk($rule, $mark_secondary_rule);
     }
-}
-
-##############################################################################
-# Distribute NAT bindings from interfaces to affected networks
-##############################################################################
-
-sub setnat_network( $$$$ ) {
-    my($network, $in_interface, $nat, $depth) = @_;
-##  debug "nat:$nat depth $depth at $network->{name} from $in_interface->{name}";
-    if($network->{active_path}) {
-##	debug "nat:$nat loop";
-	# Found a loop
-	return;
-    }
-    if($network->{nat_info}) {
-	my $max_depth = @{$network->{nat_info}};
-	for(my $i = 0; $i < $max_depth; $i++) {
-	    if($network->{nat_info}->[$i]->{$nat}) {
-##		debug "nat:$nat: other binding";
-		# Found an alternate border of current NAT domain
-		if($i != $depth) {
-		    # There is another NAT binding on the path which
-		    # might overlap some translations of current NAT
-		    err_msg "Inconsistent multiple occurrences of nat:$nat";
-		}
-		return;
-	    }
-	}
-    }
-    # Use a hash to prevent duplicate entries.
-    $network->{nat_info}->[$depth]->{$nat} = $nat;
-    # Loop detection
-    $network->{active_path} = 1;
-    if($network->{nat}->{$nat}) {
-	err_msg "$network->{name} is translated by nat:$nat,\n",
-	" but it lies inside the translation domain of nat:$nat.\n",
-	" Probably nat:$nat was bound to wrong interface.";
-    }
-    for my $interface (@{$network->{interfaces}}) {
-	# Ignore interface where we reached this network.
-	next if $interface eq $in_interface;
-	# Found another border of current nat domain.
-	next if $interface->{bind_nat} and $interface->{bind_nat} eq $nat;
-	my($router, $in_interface, $nat, $depth) =
-	    ($interface->{router}, $interface, $nat, $depth);
-	for my $interface (@{$router->{interfaces}}) {
-	    # Ignore interface where we reached this router.
-	    next if $interface eq $in_interface;
-	    my $depth = $depth;
-	    if($interface->{bind_nat}) { 
-		$depth++;
-		if($interface->{bind_nat} eq $nat) {
-		    err_msg "Found NAT loop for nat:$nat at $interface->{name}";
-		    next;
-		}
-	    }
-	    &setnat_network($interface->{network}, $interface, $nat, $depth);
-	}
-    }
-    delete $network->{active_path};
-}
- 
-sub distribute_nat_info() {
-    info "Distributing NAT";
-    for my $router (@routers) {
-	for my $interface (@{$router->{interfaces}}) {
-	    my $nat = $interface->{bind_nat} or next;
-	    if($nat_definitions{$nat}) {
-		setnat_network($interface->{network}, $interface, $nat, 0);
-		$nat_definitions{$nat} = 'used';
-	    } else {
-		warning "Ignoring undefined nat:$nat bound to $interface->{name}";
-	    }
-	}
-    }
-    # {nat_info} was collected at networks, but is needed at
-    # logical and hardware interfaces of managed routers
-    for my $router (@managed_routers) {
-	for my $interface (@{$router->{interfaces}}) {
-	    $interface->{nat_info} = $interface->{hardware}->{nat_info} =
-		$interface->{network}->{nat_info};
-	}
-    }
-    for my $name (keys %nat_definitions) {
-	warning "nat:$name is defined, but not used" 
-	    unless $nat_definitions{$name} eq 'used';
-    }
-}
-
-# Lookup NAT tag of a network while generating code in a domain
-# represented by nat_info.
-# Data structure:
-# $nat_info->[$depth]->{$nat_tag} = $nat_tag;
-sub nat_lookup( $$ ) {
-    my($net, $nat_info) = @_;
-    $nat_info or return undef;
-    # Iterate from most specific to less specific NAT tags
-    for my $href (@$nat_info) {
-	for my $nat_tag (values %$href) {
-	    if($net->{nat}->{$nat_tag}) {
-		return($nat_tag,
-		       @{$net->{nat}->{$nat_tag}}{'ip', 'mask', 'dynamic'});
-	    }
-	}
-    }
-    return undef;
 }
 
 ##############################################################################
