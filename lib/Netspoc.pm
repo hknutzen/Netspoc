@@ -458,11 +458,13 @@ sub read_router( $ ) {
     if($managed and not $model) {
 	err_msg "Missing 'model' for managed router:$name";
     }
+    my $static_manual = &check_flag('static_manual');
     my $router = new('Router',
 		     name => "router:$name",
 		     managed => $managed,
 		     );
     $router->{model} = $model if $managed;
+    $router->{static_manual} = 1 if $static_manual and $managed;
     while(1) {
 	last if &check('}');
 	my($type,$iname) = split_typed_name(read_typed_name());
@@ -2409,7 +2411,7 @@ sub print_code( $ ) {
 	print "[ Model = $model ]\n";
 	&gen_routes($router);
 	&gen_acls($router);
-	$model eq 'PIX' and &gen_pix_static($router);
+	$model eq 'PIX' and not $router->{static_manual} and &gen_pix_static($router);
 	print "[ END $name ]\n\n";
 	close STDOUT or die "Can't close $file\n";
     }
