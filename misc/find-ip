@@ -8,7 +8,7 @@
 # Uses module Netspoc.pm,
 # a Network Security Policy Compiler
 # http://netspoc.berlios.de
-# (c) 2003 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+# (c) 2004 by Heinz Knutzen <heinzknutzen@users.berlios.de>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -67,14 +67,10 @@ sub prepare() {
 	$mask_ip_hash{$network->{mask}}->{$network->{ip}} = $network;
     }
     for my $host (values %hosts) {
-	# hosts with multiple ip-addresses are represented as groups internally
-	if(defined $host->{elements}) {
-	    for my $sub_host (@{$host->{elements}}) {
-		$host_hash{$sub_host->{ip}} = $host;
+	if($host->{ips}) {
+	    for my $host_ip (@{$host->{ips}}) {
+		$host_hash{$host_ip} = $host;
 	    }
-	}
-	elsif(defined $host->{ip}) {
-	    $host_hash{$host->{ip}} = $host;
 	} elsif(defined $host->{range}) {
 	    my($ip1, $ip2) = @{$host->{range}};
 	    for(my $i=$ip1; $i<=$ip2; $i++) {
