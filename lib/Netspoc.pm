@@ -11,7 +11,11 @@ use strict;
 use warnings;
 
 our $program = 'Open Network Security Policy Compiler';
-our $version = split /:/, '$Revision$';
+our($version)= '$Revision$ ' =~ m/([0-9.]+)/;
+
+####################################################################
+# Options
+####################################################################
 our $verbose = 1;
 our $comment_acls = 1;
 
