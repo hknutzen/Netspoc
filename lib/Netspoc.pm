@@ -27,7 +27,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 %groups %services %servicegroups 
-		 @rules
+		 %policies @rules
 		 @expanded_deny_rules
 		 @expanded_any_rules
 		 @expanded_rules
@@ -762,6 +762,7 @@ sub read_service( $ ) {
     &prepare_srv_ordering($srv);
 }
 
+our %policies;
 our @rules;
 
 sub read_user_or_typed_name_list( $ ) {
@@ -781,28 +782,35 @@ sub read_policy( $ ) {
     skip('=');
     skip('{');
     my @user = &read_assign_list('user', \&read_typed_name);
+    my $policy = { name => "policy:$name",
+		   user => \@user,
+		   rules => []
+	       };
     while(1) {
 	last if &check('}');
 	if(my $action = check_permit_deny()) {
-	    my @src = &read_user_or_typed_name_list('src');
-	    my @dst = &read_user_or_typed_name_list('dst');
-	    my @srv = &read_assign_list('srv', \&read_typed_name);
-	    if($src[0] ne 'user' && $dst[0] ne 'user') {
-		err_msg "a rule of policy:$name doesn't use keyword 'user'";
+	    my $src = [ &read_user_or_typed_name_list('src') ];
+	    my $dst = [ &read_user_or_typed_name_list('dst') ];
+	    my $srv = [ &read_assign_list('srv', \&read_typed_name) ];
+	    if($src->[0] eq 'user') {
+		$src = 'user';
 	    }
-	    if($src[0] eq 'user') {
-		@src = @user;
+	    if($dst->[0] eq 'user') {
+		$dst = 'user';
 	    }
-	    if($dst[0] eq 'user') {
-		@dst = @user;
+	    if($src ne 'user' && $dst ne 'user') {
+		err_msg "all rules of $policy->{name} must use keyword 'user'";
 	    }
-	    my $rule =
-	    { action => $action, src => \@src, dst => \@dst, srv => \@srv , policy => $name};
-	    push(@rules, $rule);
+	    my $rule = { action => $action, src => $src, dst => $dst, srv => $srv};
+	    push(@{$policy->{rules}}, $rule);
 	} else {
 	    syntax_err "Expected 'permit' or 'deny'";
 	}
     }
+    if($policies{$name}) {
+	error_atline "Redefining policy:$name";
+    }
+    $policies{$name} = $policy; 
 }
 
 sub read_rule( $ ) {
@@ -1556,8 +1564,30 @@ our @expanded_any_rules;
 my %rule_tree;
 
 sub expand_rules() {
+    for my $name (sort keys %policies) {
+	my $policy = $policies{$name};
+	my $user = $policy->{user};
+	for my $p_rule (@{$policy->{rules}}) {
+	    # new hash with identical keys and values
+	    my $rule = { %$p_rule };
+	    if($rule->{src} eq 'user') {
+		$rule->{src} = $user;
+	    } else {
+		$p_rule->{src} = expand_group $p_rule->{src}, 'src of policy rule';
+	    }
+	    if($rule->{dst} eq 'user') {
+		$rule->{dst} = $user;
+	    } else {
+		$p_rule->{dst} = expand_group $p_rule->{dst}, 'dst of policy rule';
+	    }
+	    $rule->{policy} = $policy;
+	    push @rules, $rule;
+	}
+	$policy->{user} = expand_group $policy->{user}, "user of $policy->{name}";
+    }
     for my $rule (@rules) {
 	my $action = $rule->{action};
+	my $policy = $rule->{policy};
 	$rule->{src} = expand_group $rule->{src}, 'src of rule';
 	$rule->{dst} = expand_group $rule->{dst}, 'dst of rule';
 	
@@ -1565,6 +1595,7 @@ sub expand_rules() {
 	    for my $dst (@{$rule->{dst}}) {
 		for my $srv (@{expand_services $rule->{srv}, 'rule'}) {
 		    my $expanded_rule = { action => $action,
+					  policy => $policy,
 					  src => $src,
 					  dst => $dst,
 					  srv => $srv
