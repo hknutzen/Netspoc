@@ -1529,7 +1529,7 @@ sub find_subnets() {
 		    $bignet->{enclosing} = 1;
 		    my $subnet = $mask_ip_hash{$mask}->{$ip};
 		    $subnet->{is_in} = $bignet;
-		    unless($bignet->{route_hint}) {
+		    if(not $bignet->{route_hint} and $strict_subnets) {
 			if(not $subnet->{subnet_of} or
 			   $subnet->{subnet_of} eq $bignet) {
 			    err_msg "$subnet->{name} is subnet of $bignet->{name}\n",
