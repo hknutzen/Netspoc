@@ -370,7 +370,7 @@ sub read_interface( $ ) {
     my $net = shift;
     my $interface = new('Interface', 
 			# name will be set by caller
-			link => $net,
+			net => $net,
 			);
     unless(&check('=')) {
 	skip(';');
@@ -975,12 +975,12 @@ sub subst_name_with_ref_for_any_and_every() {
 sub link_interface_with_net( $ ) {
     my($interface) = @_;
 
-    my $net_name = $interface->{link};
+    my $net_name = $interface->{net};
     my $net = $networks{$net_name};
     unless($net) {
 	err_msg "Referencing unknown network:$net_name from $interface->{name}";
     }
-    $interface->{link} = $net;
+    $interface->{net} = $net;
 
     my $ip = $interface->{ip};
     # check if the network is already linked with another interface
@@ -1262,10 +1262,10 @@ sub setpath_router( $$$$ ) {
 	# ignore interface where we reached this router
 	next if $interface eq $to_border;
 	if($router->{managed}) {
-	    &setpath_network($interface->{link},
+	    &setpath_network($interface->{net},
 			     $interface, $interface, $distance+1);
 	} else {
-	    &setpath_network($interface->{link},
+	    &setpath_network($interface->{net},
 			     $interface, $border, $distance);
 	}
     }
@@ -1323,7 +1323,7 @@ sub get_border( $ ) {
 	if($obj->{router}->{managed}) {
 	    return undef;
 	} else {
-	    $border = $obj->{link}->{border};
+	    $border = $obj->{net}->{border};
 	}
     } elsif(&is_net($obj) or &is_any($obj)) {
 	$border = $obj->{border};
@@ -1690,18 +1690,11 @@ sub optimize_rules( $$ ) {
     } elsif ($src_tag eq 'src_any') {
 	@src_tags = ('src_any');
     }
-    if(&is_host($dst)) {
+    if(&is_host($dst) or &is_interface($dst)) {
 	for my $i (@src_tags) {
 	    &optimize_action_rules($dst->{$i}, $dst->{$src_tag});
 	    &optimize_action_rules($dst->{net}->{$i}, $dst->{$src_tag});
 	    &optimize_action_rules($dst->{net}->{border}->{any}->{$i}, 
-				$dst->{$src_tag});
-	}
-    } elsif(&is_interface($dst)) {
-	for my $i (@src_tags) {
-	    &optimize_action_rules($dst->{$i}, $dst->{$src_tag});
-	    &optimize_action_rules($dst->{link}->{$i}, $dst->{$src_tag});
-	    &optimize_action_rules($dst->{link}->{border}->{any}->{$i}, 
 				$dst->{$src_tag});
 	}
     } elsif(&is_net($dst)) {
@@ -1736,7 +1729,7 @@ sub setroute_router( $$ ) {
     for my $interface (@{$router->{interfaces}}) {
 	# ignore interface where we reached this router
 	next if $interface eq $to_default;
-	my $net = $interface->{link};
+	my $net = $interface->{net};
 	if($net->{ip} ne 'unnumbered') {
 	    # add directly connected networks
 	    # but not for unnumbered interfaces
