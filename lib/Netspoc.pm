@@ -1780,11 +1780,11 @@ sub setany() {
 sub setpath_obj( $$$$ ) {
     my($obj, $to_r1, $distance, $loop) = @_;
     # $obj: a managed router or an 'any' object
-    # $to_r1: interface of $obj; go this direction to reach router1
-    # $distance: distance to router1
+    # $to_r1: interface of $obj; go this direction to reach any1
+    # $distance: distance to any1
     # $loop: 
-    # (a) a flag, indicating that there are two paths from $obj to router1
-    # (b) a managed router or 'any' object, where the path from router1 to
+    # (a) a flag, indicating that there are two paths from $obj to any1
+    # (b) a managed router or 'any' object, where the path from any1 to
     #     the current $obj splits (the start of the loop).
     if($obj->{active_path}) {
 	# Found a loop
@@ -1845,7 +1845,7 @@ sub setpath() {
 
     # Artificially add an interface to any1 with lowest distance.
     my $interface = new('Interface',
-			name => 'interface:ARTIFICIAL',
+			name => "interface:ARTIFICIAL\@$any1->{name}",
 			dist2router => 1);
     push @{$any1->{interfaces}}, $interface;
 
@@ -1853,7 +1853,7 @@ sub setpath() {
     # to find a path from every security domain and router to any1
     &setpath_obj($any1, $interface, 2, 0);
 
-    # check, if all security domains are connected with router1 
+    # check, if all security domains are connected with any1 
     for my $any (@all_anys) {
 	next if $any eq $any1;
 	$any->{main} or
