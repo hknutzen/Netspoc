@@ -41,7 +41,7 @@ my $strict_subnets = 'warn';
 # - CVS working files
 # - directory raw for prolog & epilog files
 # - Editor backup files: emacs: *~
-my $ignore_files = qr/^CVS$|^RCS$|^.#|^raw$|~$/;
+my $ignore_files = qr/^CVS$|^RCS$|^\.#|^raw$|~$/;
 # abort after this many errors
 my $max_errors = 10;
 
