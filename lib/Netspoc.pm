@@ -426,6 +426,15 @@ sub read_assign_list($&) {
     &read_list($fun);
 }
 
+sub check_assign_list($&) {
+    my($token, $fun) = @_;
+    if(&check($token)) {
+	&skip('=');
+	return &read_list($fun);
+    }
+    return ();
+}
+
 ####################################################################
 # Creation of typed structures
 # Currently we don't use OO features;
@@ -704,10 +713,25 @@ sub read_interface( $$ ) {
 		$interface->{routing} and
 		    error_atline "Redefining routing protocal if interface";
 		$interface->{routing} = $protocol;
-	    } elsif(&check_flag('disabled')) {
+	    } elsif(my @names = &check_assign_list('reroute_permit',
+						   \&read_typed_name)) {
+		my @networks;
+		for my $name (@names) {
+		    my($type, $net) = split_typed_name($name);
+		    if($type eq 'network') {
+			push @networks, $net;
+		    } else {
+			error_atline "Expected networks as values";
+		    }
+		}		
+		$interface->{reroute_permit} = \@networks;
+	    }
+	    elsif(&check_flag('disabled')) {
 		$interface->{disabled} or 
 		    push @disabled_interfaces, $interface;
 		$interface->{disabled} = 1;
+	    } else {
+		syntax_err "Expected some valid attribute";
 	    }
 	}
 	if($interface->{nat}) {
@@ -1512,6 +1536,18 @@ sub link_interface_with_net( $ ) {
 	return;
     }
     $interface->{network} = $network;
+    if($interface->{reroute_permit}) {
+	for my $net (@{$interface->{reroute_permit}}) {
+	    my $network = $networks{$net};
+	    unless($network) {
+		err_msg "Referencing undefined network:$net ",
+		"from attribute 'reroute_permit' of $interface->{name}";
+		# prevent further errors
+		$interface->{disabled} = 1;
+	    }
+	    $net = $network;
+	}
+    }
     my $ip = $interface->{ip};
     # check if the network is already linked with another interface
     if(defined $network->{interfaces}) {
@@ -4060,12 +4096,30 @@ sub print_acls( $ ) {
     for my $interface (@{$router->{interfaces}}) {
 	# ignore 'unnumbered' and 'short' interfaces
 	next if $interface->{ip} eq 'unnumbered' or $interface->{ip} eq 'short';
+	my $hardware = $interface->{hardware};
 	# Remember interface name for comments
-	$hardware{$interface->{hardware}} = $interface->{name};
+	$hardware{$hardware} = $interface->{name};
 	push @ip, @{$interface->{ip}};
 	# is OSPF used? What are the destination networks?
 	if($interface->{routing} and $interface->{routing} eq 'OSPF') {
-	    push @{$ospf{$interface->{hardware}}}, $interface->{network};
+	    push @{$ospf{$hardware}}, $interface->{network};
+	}
+	# Current router is used as default router even for some internal
+	# networks
+	if($interface->{reroute_permit}) {
+	    for my $net (@{$interface->{reroute_permit}}) {
+		# this is not allowed between different security domains
+		if($net->{any} ne $interface->{any}) {
+		    err_msg "Invalid reroute_permit for $net->{name} ",
+		    "at $interface->{name}: different security domains";
+		    next;
+		}
+		my $code_aref = \@{$router->{code}->{$hardware}};
+		my ($ip, $mask) = @{&address($net, $net->{any}, 'src')};
+		# prepend to all other ACLs
+		unshift(@$code_aref,
+			acl_line('permit', 0,0, $ip, $mask, $srv_ip, $model));
+	    }
 	}
     }
     for my $hardware (sort keys %hardware) {
