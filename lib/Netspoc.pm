@@ -1545,11 +1545,11 @@ sub expand_services( $$ ) {
 }
 
 # array of expanded deny rules
-my @expanded_deny_rules;
+our @expanded_deny_rules;
 # array of expanded permit rules
-my @expanded_rules;
+our @expanded_rules;
 # array of expanded any rules
-my @expanded_any_rules;
+our @expanded_any_rules;
 # hash for ordering all rules:
 # $rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
 # see &add_rule for details
