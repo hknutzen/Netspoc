@@ -72,8 +72,8 @@ my $version = (split ' ','$Id$ ')[2];
 # User configurable options
 ####################################################################
 my $verbose = 1;
-my $comment_acls = 1;
-my $comment_routes = 1;
+my $comment_acls = 0;
+my $comment_routes = 0;
 my $warn_unused_groups = 1;
 # allow subnets only 
 # if the enclosing network is marked as 'route_hint' or
@@ -85,7 +85,7 @@ my $strict_subnets = 'warn';
 # and replace them with a single default route.
 # This is only applicable for internal networks 
 # which have no default route to the internet.
-my $auto_default_route = 0;
+my $auto_default_route = 1;
 # ignore these names when reading directories:
 # - CVS and RCS directories
 # - CVS working files
@@ -2561,6 +2561,11 @@ sub get_path( $ ) {
 
 sub mark_in_loop1( $$$$$ ) {
     my($obj, $in_intf, $from, $to, $restrict1) = @_;
+    # Found a path to $to
+    if($obj eq $to) {
+#	info " exit loop at $to->{name}";
+	return 1;
+    }
     # mark current path for loop detection
     $obj->{active_path} = 1;
     my $get_next = is_router $obj ? 'network' : 'router';
@@ -2580,14 +2585,9 @@ sub mark_in_loop1( $$$$$ ) {
             # remember first retricting interface;
             $restrict1 = $restrict;
         }
-        # Found a path to $to
-        if($next eq $to) {
+	if(&mark_in_loop1($next, $interface, $from, $to, $restrict1)) {
             push @{$in_intf->{loop_path}->{$from}->{$to}}, $interface;
-#	    info "$in_intf->{name} -loop-> $interface->{name}";
-            $success = 1;
-	} elsif(&mark_in_loop1($next, $interface, $from, $to, $restrict1)) {
-            push @{$in_intf->{loop_path}->{$from}->{$to}}, $interface;
-#	    info "$in_intf->{name} -loop-> $interface->{name}";
+#	    info " $in_intf->{name} -loop-> $interface->{name}";
             $success = 1;
         }
     }
@@ -2597,23 +2597,24 @@ sub mark_in_loop1( $$$$$ ) {
 
 sub loop_path_mark ( $$$$$ ) {
     my($from, $to, $from_in, $to_out, $dst) = @_;
-#    info "loop_path_mark: $from->{name} -> $to->{name}";
-    # loop has been reached at this object before, but at a different interface
+ #   info "loop_path_mark: $from->{name} -> $to->{name}";
+    # loop has been entered at this object before, but at a different interface
     return if $from->{path}->{$dst};
     if($from eq $to) {
 	$from_in->{path}->{$dst} = $to_out;
 	return;
     }
     if(is_interface $from_in) {
-	$from_in->{loop_from}->{$dst} = $from;
+	$from_in->{loop_entry}->{$dst} = $from;
     }
     $from->{path}->{$dst} = $to_out;
-    $from->{loop_to}->{$dst} = $to;
+    $from->{loop_exit}->{$dst} = $to;
     if($to_out) {
 	# Mark path from exit node to outgoing interface
 	for my $interface (@{$to->{interfaces}}) {
 	    next unless $interface->{in_loop};
 	    $interface->{path}->{$dst} = $to_out;
+#	    info " $interface->{name} -loop_end-> $to_out->{name}";
 	}	
     }
     # Path from $from to $to inside cyclic graph has been marked already
@@ -2625,7 +2626,7 @@ sub loop_path_mark ( $$$$$ ) {
         my $restrict1 = $interface->{path_restrict};
         if(mark_in_loop1 $next, $interface, $from, $to, $restrict1) {
             push @{$from->{loop_path}->{$to}}, $interface;
-#	    info "$from->{name} -loop-> $interface->{name}";
+#	    info " $from->{name} -loop-> $interface->{name}";
         }
     }
 }
@@ -2652,7 +2653,7 @@ sub path_mark( $$ ) {
     while(1) {
 	# paths meet outside a loop or at the edge of a loop
 	if($from eq $to) {
-#	    info "$from_in->{name} -> ".($to_out?$to_out->{name}:'');
+#	    info " $from_in->{name} -> ".($to_out?$to_out->{name}:'');
 	    $from_in->{path}->{$dst} = $to_out;
 	    return;
 	}
@@ -2673,7 +2674,7 @@ sub path_mark( $$ ) {
 		$from_out = $from->{main};
 		$from_in->{path}->{$dst} = $from_out;
 	    }
-#	    info "$from_in->{name} -> ".($from_out?$from_out->{name}:'');
+#	    info " $from_in->{name} -> ".($from_out?$from_out->{name}:'');
 	    $from_in = $from_out;
 	    $from = $from_out->{main};
 	    $from_loop = $from->{loop};
@@ -2686,7 +2687,7 @@ sub path_mark( $$ ) {
 		$to_in = $to->{main};
 		$to_in->{path}->{$dst} = $to_out;
 	    }
-#	    info "$to_in->{name} -> ".($to_out?$to_out->{name}:'');
+#	    info " $to_in->{name} -> ".($to_out?$to_out->{name}:'');
 	    $to_out = $to_in;
 	    $to = $to_in->{main};
 	    $to_loop = $to->{loop};
@@ -2699,28 +2700,30 @@ my $walk_mark = 0;
 
 # Call this while traversing loop
 sub loop_part_walk1( $$$$$$$ ) {
-    my($in, $from, $loop_to, $to, $call_it, $rule, $fun) = @_;
+    my($in, $loop_entry, $loop_exit, $to, $call_it, $rule, $fun) = @_;
+    return if $in->{walk_mark} and $in->{walk_mark} == $walk_mark;
     $in->{walk_mark} = $walk_mark;
-    if(not $in->{loop_path}->{$from}->{$loop_to}) {
+    if(not $in->{loop_path}->{$loop_entry}->{$loop_exit}) {
 	# reached end of loop
 	my $out = $in->{path}->{$to};
 	&$fun($rule, $in, $out) if $call_it;
+#	info "exit: loop_part_walk1";
     } else {	
-	for my $out (@{$in->{loop_path}->{$from}->{$loop_to}}) {
-	    next if $out->{walk_mark} and $out->{walk_mark} == $walk_mark;
+	for my $out (@{$in->{loop_path}->{$loop_entry}->{$loop_exit}}) {
 	    &$fun($rule, $in, $out) if $call_it;
-	    &loop_part_walk1($out, $from, $loop_to, $to, !$call_it, $rule, $fun);
+	    &loop_part_walk1($out, $loop_entry, $loop_exit, $to,
+			     !$call_it, $rule, $fun);
 	}
     }
 }    
 
 # Call this at loop entry
 sub loop_part_walk( $$$$$$$ ) {
-    my($in, $from, $loop_to, $to, $call_it, $rule, $fun) = @_;
-#    info "loop_part_walk: $in->{name}, $loop_to->{name}";
-    for my $out (@{$from->{loop_path}->{$loop_to}}) {
+    my($in, $loop_entry, $loop_exit, $to, $call_it, $rule, $fun) = @_;
+#    info "loop_part_walk: $in->{name}, $loop_exit->{name}";
+    for my $out (@{$loop_entry->{loop_path}->{$loop_exit}}) {
 	&$fun($rule, $in, $out) if $call_it;
-	loop_part_walk1 $out, $from, $loop_to, $to, !$call_it, $rule, $fun;
+	loop_part_walk1 $out, $loop_entry, $loop_exit, $to, !$call_it, $rule, $fun;
     }
 }    
 
@@ -2728,7 +2731,7 @@ sub path_info ( $$ ) {
     my ($in_intf, $out_intf) = @_;
     my $in_name = $in_intf?$in_intf->{name}:'-';
     my $out_name = $out_intf?$out_intf->{name}:'-';
-    info "Walk: $in_name, $out_name";
+    info " Walk: $in_name, $out_name";
 }
     
 # Apply a function to a rule at every router or network
@@ -2742,7 +2745,7 @@ sub path_walk( $&$ ) {
     my $from = get_path $src;
     my $to =  get_path $dst;
 #    info print_rule $rule;
-#    info("start: $from->{name}, $to->{name}" . ($where?", at $where":''));
+#    info(" start: $from->{name}, $to->{name}" . ($where?", at $where":''));
 #    my $fun2 = $fun;
 #    $fun = sub ( $$$ ) { 
 #	my($rule, $in, $out) = @_;
@@ -2757,20 +2760,23 @@ sub path_walk( $&$ ) {
     path_mark($from, $to) unless $from->{path}->{$to};
     $walk_mark++;
     my $in = undef;
+    my $out;
     my $at_network = $where && $where eq 'Network';
     my $call_it = (is_router($from) xor $at_network);
-    if(my $loop_to = $from->{loop_to}->{$to}) {
-	loop_part_walk $in, $from, $loop_to, $to, $call_it, $rule, $fun;
+    if(my $loop_exit = $from->{loop_exit}->{$to}) {
+	loop_part_walk $in, $from, $loop_exit, $to, $call_it, $rule, $fun;
 	if(my $loop_out = $from->{path}->{$to}) {
 	    # continue behind loop
 	    $in = $loop_out;
-	    $call_it = (not is_router($loop_to) xor $at_network);
+	    $out = $in->{path}->{$to};
+	    $call_it = not (is_router($loop_exit) xor $at_network);
 	} else {
 	    # path terminates inside clyclic graph
 	    return;
 	}
-    } 
-    my $out = $from->{path}->{$to};
+    } else {
+	$out = $from->{path}->{$to};
+    }
     while(1) {
 	# End of path has been reached
 	# either destination or end of sub-path
@@ -2782,10 +2788,10 @@ sub path_walk( $&$ ) {
 	&$fun($rule, $in, $out) if $call_it;
 	$call_it = ! $call_it;
 	$in = $out;
-	if(my $loop_from = $in->{loop_from}->{$to}) {
-	    my $loop_to = $loop_from->{loop_to}->{$to};
-	    my $loop_out = $loop_from->{path}->{$to};
-	    loop_part_walk $in, $loop_from, $loop_to, $to,
+	if(my $loop_entry = $in->{loop_entry}->{$to}) {
+	    my $loop_exit = $loop_entry->{loop_exit}->{$to};
+	    my $loop_out = $loop_entry->{path}->{$to};
+	    loop_part_walk $in, $loop_entry, $loop_exit, $to,
 	    $call_it, $rule, $fun;
 	    # path terminates inside clyclic graph
 	    unless($loop_out) {
@@ -2793,7 +2799,7 @@ sub path_walk( $&$ ) {
 		return;
 	    }
 	    $in = $loop_out;
-	    $call_it = (not is_router($loop_to) xor $at_network);
+	    $call_it = not (is_router($loop_exit) xor $at_network);
 	}
 	$out = $in->{path}->{$to};
     }
@@ -2942,7 +2948,7 @@ sub convert_any_dst_rule( $$$ ) {
 }
 
 sub convert_any_rules() {
-    info "Converting rules for 'any' ojects";
+    info "Converting rules for 'any' objects";
     for my $rule (@expanded_any_rules) {
 	next if $rule->{deleted};
 	$rule->{any_rules} = [];
