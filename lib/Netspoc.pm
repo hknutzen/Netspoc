@@ -1979,19 +1979,18 @@ sub collect_acls( $$$ ) {
 	}
 	for my $src_code (@src_code) {
 	    for my $dst_code (@dst_code) {
-		my($port_code1, $port_code2);
+		my $established;
 		if($srv->{type} eq 'tcp') {
-		    $port_code1 = $port_code;
-		    $port_code2 = 'established';
+		    $established = 'established';
 		} elsif($srv->{type} eq 'udp') {
-		     $port_code1 = $port_code;
-		     $port_code2 = '';
-		 } else {
-		     $port_code1 = '';
-		     $port_code2 = $port_code;
-		 }
+		    $established = '';
+		} else {
+		    # for other protocols, no return packets are
+		    # permitted implicitly
+		    next;
+		}
 		push(@{$dst_intf->{code}},
-		     "$action $proto_code $dst_code $port_code1 $src_code $port_code2\n");
+		     "$action $proto_code $dst_code $port_code $src_code $established\n");
 	    }
 	}
     } else {
