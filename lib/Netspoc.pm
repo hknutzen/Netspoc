@@ -3005,8 +3005,8 @@ sub collect_acls( $$$ ) {
     my $secondary =
 	$router->{managed} eq 'secondary' && $rule->{has_full_filter};
     if($secondary) {
-	$src = get_secondary_network $src;
-	$dst = get_secondary_network $dst;
+	$src = get_networks $src;
+	$dst = get_networks $dst;
     }
     # Rules from / to managed interfaces must be processed
     # at the corresponding router even if they are marked as deleted.
