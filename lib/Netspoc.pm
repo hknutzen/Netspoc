@@ -1161,19 +1161,24 @@ sub expand_services( $$ ) {
     my @services;
     for my $tname (@$aref) {
 	my($type, $name) = split_typed_name($tname);
-	my $srv;
 	if($type eq 'service') {
-	    $srv = $services{$name} or
-		(err_msg "Can't resolve reference to '$tname' in $context", next);
-	    push @services, $srv;
+	    if(my $srv = $services{$name}) {
+		push @services, $srv;
+	    } else {
+		err_msg "Can't resolve reference to '$tname' in $context";
+		next;
+	    }
 	} elsif ($type eq 'servicegroup') {
-            my $aref = $servicegroups{$name} or
-	        (err_msg "Can't resolve reference to '$tname' in $context", next);
-	    # detect recursive definitions
-	    $servicegroups{$name} = 'recursive';
-	    $aref = &expand_services($aref, $tname);
-	    $servicegroups{$name} = $aref;
-	    push @services, @$aref;
+            if(my $aref = $servicegroups{$name}) {
+		# detect recursive definitions
+		$servicegroups{$name} = 'recursive';
+		$aref = &expand_services($aref, $tname);
+		$servicegroups{$name} = $aref;
+		push @services, @$aref;
+	    } else {
+	        err_msg "Can't resolve reference to '$tname' in $context";
+		next;
+	    }
 	} else {
 	    err_msg "Unknown type of '$type:$name' in $context";
 	}
