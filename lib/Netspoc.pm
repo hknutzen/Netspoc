@@ -1105,6 +1105,19 @@ sub link_topology() {
     for my $interface (values %interfaces) {
 	&link_interface_with_net($interface);
     }
+    for my $network (values %networks) {
+	next unless $network->{subnet_of};
+	my($type, $name) = split_typed_name($network->{subnet_of});
+	if($type eq 'network') {
+	    my $subnet = $networks{$name} or
+		err_msg "Referencing undefined network:$name ",
+		"from attribute 'subnet_of' of $network->{name}";
+	    $network->{subnet_of} = $subnet;
+	} else {
+	    err_msg "Attribute 'subnet_of' of $network->{name} ",
+	    "must not be linked to $type:$name";
+	}
+    }
 }
 
 ####################################################################
@@ -1555,14 +1568,15 @@ sub find_subnets() {
 		    $bignet->{enclosing} = 1;
 		    my $subnet = $mask_ip_hash{$mask}->{$ip};
 		    $subnet->{is_in} = $bignet;
-		    if(not $bignet->{route_hint} and $strict_subnets) {
-			if(not $subnet->{subnet_of} or
-			   $subnet->{subnet_of} eq $bignet) {
-			    err_msg "$subnet->{name} is subnet of $bignet->{name}\n",
-			    " if desired, either declare attribute 'subnet_of'",
-			    " or attribute 'route_hint'";
-			}
+		    if($strict_subnets and
+		       not($bignet->{route_hint} or
+			   $subnet->{subnet_of} and
+			   $subnet->{subnet_of} eq $bignet)) {
+			err_msg "$subnet->{name} is subnet of $bignet->{name}\n",
+			" if desired, either declare attribute 'subnet_of'",
+			" or attribute 'route_hint'";
 		    }
+		    # we only need to find the smallest enclosing network
 		    last;
 		}
 	    }
@@ -1579,7 +1593,7 @@ sub setpath_router( $$$$ ) {
     # ToDo: operate with loops
     if($router->{border}) {
 	err_msg "Found a loop at $router->{name}.\n",
-		" Loops are not supported in this version";
+	" Loops are not supported in this version";
 	return;
     }
     $router->{border} = $border;
@@ -1713,7 +1727,7 @@ sub path_walk($&) {
     my $dst_router = $dst_intf?$dst_intf->{router}:$dst->{router};
     my $src_dist = $src_router->{distance};
     my $dst_dist = $dst_router->{distance};
-    
+
     if(# src and dst are interfaces on the same router
        not defined $src_intf and not defined $dst_intf
        and $src_router eq $dst_router or
@@ -1810,7 +1824,7 @@ sub convert_any_src_rule( $$$ ) {
     # Optimization: nothing to do if there is a similar rule
     # with another 'any' object as src
     return if $rule->{src_any_group}->{$any};
-    
+
     my $any_rule = {src => $any,
 		    dst => $rule->{dst},
 		    srv => $rule->{srv},
@@ -1925,9 +1939,9 @@ sub add_rule( $ ) {
 	# For 'any' rules we must preserve the rule without deny_networks
 	# i.e. auto_any < any
 	if($action eq 'permit' and
-	       (is_any $src and @{$rule->{deny_src_networks}} == 0
-		or
-		is_any $dst and @{$rule->{deny_dst_networks}} == 0)) {
+	   (is_any $src and @{$rule->{deny_src_networks}} == 0
+	    or
+	    is_any $dst and @{$rule->{deny_dst_networks}} == 0)) {
 	    $old_rule->{deleted} = 1;
 	    # continue adding new rule below
 	} else {
