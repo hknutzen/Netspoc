@@ -244,7 +244,7 @@ a group of its interfaces.
     interface:&lt;name&gt; = {
          {{ ip = &lt;ip-adr&gt;, ...; | unnumbered; }}
          &lt;NAT definition&gt; *
-         &lt;NAT binding&gt;
+         [ &lt;NAT binding&gt; }
          [ hardware = &lt;interface_name&gt;; ]
 	 [ routing = OSPF; ]
 	 [ reroute_permit = network:&lt;name&gt;, ...; ]
