@@ -10,8 +10,8 @@
 use strict;
 use warnings;
 
-our $program = 'Open Secure Policy Manager';
-our $version = 0.35;
+our $program = 'Open Network Security Policy Compiler';
+our $version = 0.36;
 our $verbose = 1;
 our $comment_acls = 1;
 
@@ -231,13 +231,26 @@ sub read_network_name() {
     return $name
 }
 
+####################################################################
+# Creation of typed structures
+# Currently we don't use OO features;
+# We use 'bless' only to give each structure a distinc type
+####################################################################
+
+# Create a new structure of given type; initialize it with key / value pairs
+sub new( $@ ) {
+    my $type = shift;
+    my $self = { @_ };
+    return bless($self, $type);
+}
+
 our %hosts;
 sub read_host( $ ) {
     my $name = shift;
     &skip('=');
     &skip('{');
     my $token = read_name();
-    my $host = { name => $name };
+    my $host = new('Host', name => $name);
     if($token eq 'ip') {
 	&skip('=');
 	my @ip = &read_list(\&read_ip);
@@ -276,11 +289,12 @@ sub read_network( $ ) {
 	my $mask_string = &print_ip($mask);
 	error_atline "network:$name's ip $ip_string doesn't match its mask $mask_string";
     }
-    my $network = { name => $name,
-		    ip => $ip,
-		    mask => $mask,
-		    hosts => [],
-		};
+    my $network = new('Network',
+		      name => $name,
+		      ip => $ip,
+		      mask => $mask,
+		      hosts => [],
+		      );
     while(1) {
 	last if &check('}');
 	my($type, $hname) = split_typed_name(read_name());
@@ -311,9 +325,10 @@ sub read_interface( $ ) {
     &skip('=');
     &skip('{');
     my $token = read_name();
-    my $interface = { name => $net,
-		      link => $net,
-		  };
+    my $interface = new('Interface', 
+			name => $net,
+			link => $net,
+			);
     my $ip;
     if($token eq 'ip') {
 	&skip('=');
@@ -345,10 +360,11 @@ sub read_router( $ ) {
 	&read_name();
 	skip(';');
     }
-    my $router = { name => $name,
-		   managed => $managed,
-		   interfaces => {},
-	       };
+    my $router = new('Router',
+		     name => $name,
+		     managed => $managed,
+		     interfaces => {},
+		     );
     $router->{type} = $type if $type;
     while(1) {
 	last if &check('}');
@@ -378,7 +394,7 @@ sub read_cloud( $ ) {
     my $name = shift;
     skip('=');
     skip('{');
-    my $cloud = { name => $name };
+    my $cloud = new('Router', name => $name);
     while(1) {
 	last if &check('}');
 	my($type, $iname) = split_typed_name(read_name());
@@ -402,11 +418,12 @@ sub read_cloud( $ ) {
 	    for my $link (@links) {
 		# implement link to cloud network as a special interface 
 		# without ip address 
-		my $interface = { name => $link,
-				  ip => 'cloud',
-				  link => $link,
-				  router => $cloud
-				  };
+		my $interface = new('Interface',
+				    name => $link,
+				    ip => 'cloud',
+				    link => $link,
+				    router => $cloud
+				    );
 		$cloud_intf_counter += 1;
 		# assign interface to clouds hash of interfaces
 		$cloud->{interfaces}->{$link} = $interface;
@@ -429,7 +446,7 @@ sub read_any( $ ) {
     skip('{');
     my $link = &read_assign('link', \&read_name);
     &skip('}');
-    my $any = { name => $name, link => $link };
+    my $any = new('Any', name => $name, link => $link);
     if(my $old_any = $anys{$name}) {
 	error_atline "Redefining any:$name";
     }
@@ -443,7 +460,7 @@ sub read_every( $ ) {
     skip('{');
     my $link = &read_assign('link', \&read_name);
     &skip('}');
-    my $every = { name => $name, link => $link, isevery => 1 };
+    my $every = new('Every', name => $name, link => $link);
     if(my $old_every = $everys{$name}) {
 	error_atline "Redefining every:$name";
     }
@@ -638,32 +655,27 @@ sub read_data() {
 # ToDo: find a more elgant solution
 sub is_net( $ ) {
     my($obj) = @_;
-    return exists $obj->{hosts};
+    return ref($obj) eq 'Network';
 }
 sub is_router( $ ) {
     my($obj) = @_;
-    return exists $obj->{managed};
+    return ref($obj) eq 'Router';
 }
 sub is_interface( $ ) {
     my($obj) = @_;
-    return exists $obj->{router};
+    return ref($obj) eq 'Interface';
 }
 sub is_host( $ ) {
     my($obj) = @_;
-    return exists($obj->{net});
+    return ref($obj) eq 'Host';
 }
 sub is_any( $ ) {
     my($obj) = @_;
-    return exists($obj->{link}) && not exists($obj->{ip}) &&
-	not exists($obj->{isevery});
+    return ref($obj) eq 'Any';
 }
 sub is_every( $ ) {
     my($obj) = @_;
-    return exists($obj->{isevery});
-}
-sub is_rule( $ ) {
-    my($obj) = @_;
-    return exists $obj->{src};
+    return ref($obj) eq 'Every';
 }
 
 # give a readable name of a network object
@@ -933,9 +945,9 @@ sub copy_srv( $ ) {
 sub copy_rule( $ ) {
     my($rule) = @_;
     return {action => $rule->{action},
-		src => $rule->{src},
-		dst => $rule->{dst},
-		srv => copy_srv($rule->{srv})
+	    src => $rule->{src},
+	    dst => $rule->{dst},
+	    srv => copy_srv($rule->{srv})
 	    };
 }
 
