@@ -2663,6 +2663,9 @@ sub find_subnets() {
 			    unless($bignet->{route_hint} or
 				   $subnet->{subnet_of} and
 				   $subnet->{subnet_of} eq $bignet) {
+				# Prevent multiple error messages 
+				# in different NAT domains.
+				$subnet->{subnet_of} = $bignet;
 				my $msg =
 				    "$subnet->{name} is subnet of $bignet->{name}\n" .
 				    " in $domain->{name}\n" .
