@@ -54,4 +54,5 @@ $error_counter = $max_errors; # following errors abort immediately
 &optimize();
 &optimize_reverse_rules();
 &rules_distribution();
+&local_optimization();
 &print_code($out_dir);
