@@ -11,7 +11,7 @@ use strict;
 use warnings;
 
 our $program = 'Open Network Security Policy Compiler';
-our $version = 0.36;
+our $version = 0.37;
 our $verbose = 1;
 our $comment_acls = 1;
 
@@ -956,10 +956,19 @@ sub copy_rule( $ ) {
 
 sub split_rule( $$$ ) {
     my($r1, $new_y, $new_x) = @_;
+    my($x, $y) = split(/-/, $r1->{srv}->{vals}->[0]);
     my $r2 = copy_rule($r1);
-    # ToDo: Check if a range becomes a single port
-    $r1->{srv}->{vals}->[0] =~ s/^\d+/$new_x/;
-    $r2->{srv}->{vals}->[0] =~ s/\d+$/$new_y/;
+    if($new_x == $y) {
+	# range is now a single port
+	$r1->{srv}->{vals}->[0] = $new_x;
+    } else {
+	$r1->{srv}->{vals}->[0] =~ s/^\d+/$new_x/;
+    }
+    if($x == $new_y) {
+	$r2->{srv}->{vals}->[0] = $new_y;
+    } else {
+	$r2->{srv}->{vals}->[0] =~ s/\d+$/$new_y/;
+    }
     return $r1, $r2;
 }
 
@@ -1083,12 +1092,63 @@ sub addrule_ordered_srv( $ ) {
     addrule_ordered_src_dst($hash->{ip});
 }
 
-# check, if two services have a non empty intersection
+sub ge_srv( $$ ) {
+    my($s1, $s2) = @_;
+    my $t1 = $s1->{type};
+    my $t2 = $s2->{type};
+    my($v11, $v12) = @{$s1->{vals}};
+    my($v21, $v22) = @{$s2->{vals}};
+    if($t1 eq 'ip') {
+	return 1;
+    } elsif($t1 ne $t2) {
+	return 0;
+    } elsif($t1 eq 'tcp' or $t1 eq 'udp') {
+	if($v11 eq 'any') {
+	    return 1;
+	}
+	my($x1, $y1) = split(/-/, $v11);
+	if(defined $y1) {
+	    # a port range
+	    my($x2, $y2) = split(/-/, $v21);
+	    if(defined $y2) {
+		# compare two port ranges
+		return($x1 >= $x2 and $y2 <= $y1);
+	    } else {  
+		return($x1 >= $x2 and $x2 <= $y1);
+	    }
+	} else {
+	    # a single port
+	    my($x2, $y2) = split(/-/, $v21);
+	    if(defined $y2) {
+		return 0;
+	    } else {
+		return($x1 == $x2);
+	    }
+	}
+    } elsif($t1 eq 'icmp') {
+	if($v11 eq 'any') {
+	    return 1;
+	}
+	if($v11 != $v21) {
+	    return 0;
+	}
+	if($v12 eq 'any') {
+	    return 1;
+	}
+	return($v12 == $v22);
+    } elsif($t1 eq 'proto') {
+	return($v12 == $v22);
+    } else {
+	die "internal in ge_srv: unexpected srv type $t1";
+    }
+}
+
+# check, if two services are equal or have a non empty intersection.
+# Real intersection of port ranges shouldn't happen, since
+# they were split into smaller pieces before
 sub match_srv( $$ ) {
     my($s1, $s2) = @_;
-
-    # ToDo: implement this
-    return 1;
+    return ge_srv($s1, $s2) or ge_srv($s2,$s1);
 }
 
 # ToDo: add 'is_interface' case
