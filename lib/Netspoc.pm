@@ -4541,6 +4541,8 @@ sub print_acls( $ ) {
 	    print "access-group $name in $hardware\n\n";
 	} elsif($model->{filter} eq 'iptables') {
 	    my $if_name = "${hardware}_self";
+	    print "iptables -N $name\n";
+	    print "iptables -N $if_name\n";
 	    for my $line (@$if_code) {
 		if($line =~ /^$comment_char/) {
 		    print $line;
@@ -4565,18 +4567,21 @@ sub print_acls( $ ) {
     if($model->{filter} eq 'iptables') {
 	print "iptables -P INPUT DROP\n";
 	print "iptables -F INPUT\n";
+	print "iptables -A INPUT -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
 	for my $hardware (sort keys %hardware) {
 	    my $if_name = "${hardware}_self";
-	    print "iptables -A INPUT -i $hardware -j $if_name\n";
+	    print "iptables -A INPUT -j $if_name -i $hardware \n";
 	}
-	print "iptables -A INPUT -j DROP\n";
+	print "iptables -A INPUT -j DROP -s 0.0.0.0/0 -d 0.0.0.0/0\n";
+	#
 	print "iptables -P FORWARD DROP\n";
 	print "iptables -F FORWARD\n";
+	print "iptables -A FORWARD -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
 	for my $hardware (sort keys %hardware) {
 	    my $name = "${hardware}_in";
-	    print "iptables -A FORWARD -i $hardware -j $name\n";
+	    print "iptables -A FORWARD -j $name -i $hardware\n";
 	}
-	print "iptables -A FORWARD -j DROP\n";
+	print "iptables -A FORWARD -j DROP -s 0.0.0.0/0 -d 0.0.0.0/0\n";
     }
 }
 
