@@ -719,7 +719,7 @@ sub read_interface( $$ ) {
 			name => "interface:$name",
 			network => $net);
     unless(check '=') {
-	# short form of interface definition
+	# Short form of interface definition.
 	skip ';';
 	$interface->{ip} = 'short';
     } else {
@@ -755,20 +755,24 @@ sub read_interface( $$ ) {
 		}
 	    } elsif(my $virtual =
 		    check_assign 'virtual', \&read_ip) {
-		# read virtual IP for VRRP / HSRP
+		# Read virtual IP for VRRP / HSRP.
 		$interface->{ip} eq 'unnumbered' and
 		    error_atline "No virtual IP supported for ",
 		    "unnumbered interface";
-		grep { $_ == $virtual } @{$interface->{ip}} and
-		    error_atline
-			"Virtual IP redefines standard IP";
+		# Allow virtual IP to be equal to physical IP.
+		# This is useful, if there are multiple hops 
+		# when generating static routes and
+		# only on hop should be used for static routing.
+		# grep { $_ == $virtual } @{$interface->{ip}} and
+		#    error_atline
+		#	"Virtual IP redefines standard IP";
 		$interface->{virtual} and
 		    error_atline "Duplicate virtual IP";
 		$interface->{virtual} = $virtual;
 		push @virtual_interfaces, $interface;
 	    } elsif(my $nat =
 		    check_assign 'nat', \&read_identifier) {
-		# bind NAT to an interface
+		# Bind NAT to an interface.
 		$interface->{bind_nat} and
 		    error_atline "Duplicate NAT binding";
 		$interface->{bind_nat} = $nat;
