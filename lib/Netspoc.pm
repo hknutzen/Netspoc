@@ -349,8 +349,9 @@ sub read_network( $ ) {
 	skip(';');
 	$mask = &read_assign('mask', \&read_ip);
 	# check if network ip matches mask
-	if(($ip & ~$mask) != 0) {
+	if(($ip & $mask) != $ip) {
 	    error_atline "$network->{name}'s IP doesn't match its mask";
+	    $ip &= $mask;
 	}
 	$network->{ip} = $ip;
 	$network->{mask} = $mask;
