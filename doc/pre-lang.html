@@ -339,6 +339,7 @@ intervening networks getting undesired access.
  | interface:[all].[all]; 
  | any:&lt;name&gt; 
  | any:[all]; 
+ | any:[local];
  | every:&lt;name&gt;
  | group:&lt;name&gt; 
  }}</PRE>
@@ -363,6 +364,9 @@ routers.</ul>
 <li>any:[all] denotes an implicitly defined group of <em>all</em>
 'any' objects, i.e. security domains. This may be used in rules to permit
 or deny traffic for the whole topology.
+<li>any:[local] may only be used as src or dst in a rule where the counterpart
+is an interface. In this case, any:[all] denotes the 'any' object, which is
+directly attached to this interface.
 </UL>
 
 <H3><A NAME="groups_def">Groups of network objects</A></H3>
