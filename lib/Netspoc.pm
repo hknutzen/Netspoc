@@ -32,6 +32,8 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 err_msg
 		 read_ip
 		 print_ip
+		 show_version
+		 read_args
 		 read_file
 		 read_file_or_dir
 		 show_read_statistics 
@@ -54,8 +56,8 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 print_code
 		 warn_pix_icmp);
 
-our $program = 'Network Security Policy Compiler';
-our $version = (split ' ','$Id$ ')[2];
+my $program = 'Network Security Policy Compiler';
+my $version = (split ' ','$Id$ ')[2];
 
 ####################################################################
 # User configurable options
@@ -96,15 +98,12 @@ sub warning ( @ ) {
     print STDERR "Warning: ", @_, "\n";
 }
 
-# input filename from command line
-our $main_file;
 # filename of current input file
 our $file;
 # eof status of current file
 our $eof;
 sub add_context( $ ) {
     my($msg) = @_;
-    my $at_file = ($file eq $main_file)?'':" of $file";
     my $context;
     if($eof) {
 	$context = 'at EOF';
@@ -113,13 +112,12 @@ sub add_context( $ ) {
 	    m/([^\s,;={}]*[,;={}\s]*)\G([,;={}\s]*[^\s,;={}]*)/;
 	$context = qq/near "$pre<--HERE-->$post"/;
     }
-    qq/$msg at line $.$at_file, $context\n/;
+    qq/$msg at line $. of $file, $context\n/;
 }
 
 sub add_line( $ ) {
     my($msg) = @_;
-    my $at_file = ($file eq $main_file)?'':" of $file";
-    qq/$msg at line $.$at_file\n/;
+    qq/$msg at line $. of $file\n/;
 }
 
 our $error_counter = 0;
@@ -3402,6 +3400,7 @@ sub check_output_dir( $ ) {
 # Print generated code for each managed router
 sub print_code( $ ) {
     my($dir) = @_;
+    &check_output_dir($dir);
     info "Printing code";
     for my $router (values %routers) {
 	next unless $router->{managed};
@@ -3427,33 +3426,20 @@ sub print_code( $ ) {
 # Argument processing
 ####################################################################
 sub usage() {
-    die "Usage: $0 [-c config] {in-file | in-directory} out-directory\n";
+    die "Usage: $0 {in-file | in-directory} out-directory\n";
 }
 
-our $conf_file;
-our $out_dir;
 sub read_args() {
-    use Getopt::Std;
-    my %opts;
-    getopts('c:', \%opts);
-    $conf_file = $opts{c};
-    $main_file = shift @ARGV or usage;
-    $out_dir = shift @ARGV or usage;
+    my $main_file = shift @ARGV or usage;
+    my $out_dir = shift @ARGV or usage;
     # strip trailing slash for nicer messages
     $out_dir =~ s./$..;
     not @ARGV or usage;
+    return $main_file, $out_dir;
 }
 
-sub read_config() {
-    open FILE, $conf_file or die "can't open $conf_file: $!";
-    while(<FILE>) {
-	# ignore comments
-	s/#.*$//;
-	# ignore empty lines
-	next if /^\s*$/;
-	my($key, $val) = m/(\S+)\s*=\s*(\S+)/;
-    }
-    close FILE;
+sub show_version() {
+    info "$program, version $version";
 }
 
 1
