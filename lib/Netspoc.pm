@@ -451,6 +451,20 @@ sub check_assign_list($&) {
     return ();
 }
 
+# Delete an element from an array reference.
+# Return 1 if found, 0 otherwise.
+sub aref_delete( $$ ) {
+    my($elt, $aref) = @_;
+    for(my $i = 0; $i < @$aref; $i++) {
+	if($aref->[$i] eq $elt) {
+	    splice @$aref, $i, 1;
+#info "aref_delete: $elt->{name}";
+	    return 1;
+	}
+    }
+    return 0;
+}
+
 ####################################################################
 # Creation of typed structures
 # Currently we don't use OO features;
@@ -1737,7 +1751,7 @@ sub mark_disabled() {
     for my $interface (@disabled_interfaces) {
 	# Delete disabled interfaces from routers.
 	my $router = $interface->{router};
-	&aref_delete($interface, $router->{interfaces});
+	aref_delete($interface, $router->{interfaces});
     }
     for my $obj (values %everys) {
 	$obj->{disabled} = 1 if $obj->{link}->{disabled};
@@ -1805,64 +1819,50 @@ sub convert_hosts() {
 	for my $host (@{$network->{hosts}}) {
 	    my $name = $host->{name};
 	    my $nat = $host->{nat};
+	    my @ip_mask;
 	    if($host->{ips}) {
-		for my $ip (@{$host->{ips}}) {
-		    if(my $other_subnet = $inv_prefix_aref[0]->{$ip}) {
-			push @{$host->{subnets}}, $other_subnet;
-			my $nat2 = $other_subnet->{nat};
-			if($nat xor $nat2) {
-			    err_msg "Inconsistent NAT definition for",
-			    "$other_subnet->{name} and $host->{name}";
-			} elsif($nat and $nat2) {
-			    # Number of entries is equal.
-			    if(keys %$nat eq keys %$nat2) {
-				# Entries are equal.
-				for my $name (keys %$nat) {
-				    unless($nat2->{$name} and
-					   $nat->{$name} eq $nat2->{$name}) {
-					err_msg "Inconsistent NAT definition for",
-					"$other_subnet->{name} and $host->{name}";
-					last;
-				    }
-				}
-			    } else {
-				err_msg "Inconsistent NAT definition for",
-				"$other_subnet->{name} and $host->{name}";
-			    }
-			}
-		    } else {
-			my $subnet = new('Subnet',
-					 name => $name,
-					 network => $network,
-					 ip => $ip, mask => 0xffffffff);
-			$subnet->{nat} = $nat if $nat;
-			$inv_prefix_aref[0]->{$ip} = $subnet;
-			push @{$host->{subnets}}, $subnet;
-			push @{$network->{subnets}}, $subnet;
-		    }
-		}
+		@ip_mask = map [ $_, 0xffffffff ], @{$host->{ips}};
 	    } elsif($host->{range}) {
 		my($ip1, $ip2) = @{$host->{range}};
-		for my $ip_mask (split_ip_range $ip1, $ip2) {
-		    my($ip, $mask) = @$ip_mask;
-		    my $inv_prefix = 32 - mask2prefix $mask;
-		    if(my $other_subnet = $inv_prefix_aref[$inv_prefix]->{$ip}) {
-			$other_subnet->{nat} and
-			    err_msg "Inconsistent NAT definition for",
-			    "$other_subnet->{name} and $host->{name}";
-			push @{$host->{subnets}}, $other_subnet;
-		    } else {
-			my $subnet = new('Subnet',
-					 name => $name,
-					 network => $network,
-					 ip => $ip, mask => $mask);
-			$inv_prefix_aref[$inv_prefix]->{$ip} = $subnet;
-			push @{$host->{subnets}}, $subnet;
-			push @{$network->{subnets}}, $subnet;
-		    }
-		}
+		@ip_mask = split_ip_range $ip1, $ip2;
 	    } else {
 		internal_err "unexpected host type";
+	    }
+	    for my $ip_mask (@ip_mask) {
+		my($ip, $mask) = @$ip_mask;
+		my $inv_prefix = 32 - mask2prefix $mask;
+		if(my $other_subnet = $inv_prefix_aref[$inv_prefix]->{$ip}) {
+		    my $nat2 = $other_subnet->{nat};
+		    if($nat xor $nat2) {
+			err_msg "Inconsistent NAT definition for",
+			"$other_subnet->{name} and $host->{name}";
+		    } elsif($nat and $nat2) {
+			# Number of entries is equal.
+			if(keys %$nat eq keys %$nat2) {
+			    # Entries are equal.
+			    for my $name (keys %$nat) {
+				unless($nat2->{$name} and
+				       $nat->{$name} eq $nat2->{$name}) {
+				    err_msg "Inconsistent NAT definition for",
+				    "$other_subnet->{name} and $host->{name}";
+				    last;
+				}
+			    }
+			} else {
+			    err_msg "Inconsistent NAT definition for",
+			    "$other_subnet->{name} and $host->{name}";
+			}
+		    }
+		    push @{$host->{subnets}}, $other_subnet;
+		} else {
+		    my $subnet = new('Subnet',
+				     name => $name,
+				     network => $network,
+				     ip => $ip, mask => $mask);
+		    $inv_prefix_aref[$inv_prefix]->{$ip} = $subnet;
+		    push @{$host->{subnets}}, $subnet;
+		    push @{$network->{subnets}}, $subnet;
+		}
 	    }
 	}
 	# Find adjacent subnets which build a larger subnet.
@@ -1921,7 +1921,7 @@ sub convert_hosts() {
     }
 }
 
-# Find adjacent subnets and substitute them by the enclosing subnet.
+# Find adjacent subnets and substitute them by their enclosing subnet.
 sub combine_subnets ( $ ) {
     my($aref) = @_;
     my %hash;
@@ -1940,7 +1940,12 @@ sub combine_subnets ( $ ) {
 	    delete $hash{$neighbor};
 	}
     }
-    return [ values %hash ];
+    # Sort networks by size of mask,
+    # i.e. large subnets coming first and 
+    # for equal mask by IP address.
+    # We need this to make the output deterministic.
+    return [ sort { $a->{mask} <=> $b->{mask} || $a->{ip} <=> $b->{ip} }
+	     values %hash ];
 }
 
 ####################################################################
@@ -2128,14 +2133,14 @@ sub expand_services( $$ ) {
 		    err_msg "Found recursion in definition of $context";
 		    $srvgroup->{elements} = $elements = [];
 		}
-		# check if it has already been converted
-		# from names to references
+		# Check if it has already been converted
+		# from names to references.
 		elsif(not $srvgroup->{is_used}) {
 		    # detect recursive definitions
 		    $srvgroup->{elements} = 'recursive';
 		    $srvgroup->{is_used} = 1;
 		    $elements = &expand_services($elements, $tname);
-		    # cache result for further references to the same group
+		    # Cache result for further references to the same group.
 		    $srvgroup->{elements} = $elements;
 		}
 		push @services, @$elements;
@@ -3297,7 +3302,7 @@ sub setnat_network( $$$$ ) {
 	    }
 	}
     }
-    # Use a hash to prevent duplicate entries
+    # Use a hash to prevent duplicate entries.
     $network->{nat_info}->[$depth]->{$nat} = $nat;
     # Loop detection
     $network->{active_path} = 1;
@@ -3307,9 +3312,9 @@ sub setnat_network( $$$$ ) {
 	" Probably nat:$nat was bound to wrong interface.";
     }
     for my $interface (@{$network->{interfaces}}) {
-	# ignore interface where we reached this network
+	# Ignore interface where we reached this network.
 	next if $interface eq $in_interface;
-	# found another border of current nat domain
+	# Found another border of current nat domain.
 	next if $interface->{bind_nat} and $interface->{bind_nat} eq $nat;
 	&setnat_router($interface->{router}, $interface, $nat, $depth);
     }
@@ -3319,7 +3324,7 @@ sub setnat_network( $$$$ ) {
 sub setnat_router( $$$$ ) {
     my($router, $in_interface, $nat, $depth) = @_;
     for my $interface (@{$router->{interfaces}}) {
-	# ignore interface where we reached this router
+	# Ignore interface where we reached this router.
 	next if $interface eq $in_interface;
 	my $depth = $depth;
 	if($interface->{bind_nat}) { 
@@ -3385,20 +3390,6 @@ sub add_rule( $ ) {
 	return;
     } 
     $rule_tree->{$action}->{$src}->{$dst}->{$srv} = $rule;
-}
-
-# delete an element from an array reference
-# return 1 if found, 0 otherwise
-sub aref_delete( $$ ) {
-    my($elt, $aref) = @_;
-    for(my $i = 0; $i < @$aref; $i++) {
-	if($aref->[$i] eq $elt) {
-	    splice @$aref, $i, 1;
-#info "aref_delete: $elt->{name}";
-	    return 1;
-	}
-    }
-    return 0;
 }
 
 sub optimize_rules( $$ ) {
@@ -4606,10 +4597,9 @@ sub local_optimization() {
     info "Local optimization";
     # Prepare data structures
     for my $network (@networks) {
-	if(my $up = $network->{subnet_of}) {
-	    $network->{up} = $up;
-	} else {
-	    $network->{up} = $network_00;
+	$network->{up} = $network->{subnet_of} || $network_00;
+	for my $interface (@{$network->{interfaces}}) {
+	    $interface->{up} = $network;
 	}
     }
     for my $rule (@expanded_any_rules, @expanded_rules) {
@@ -4697,14 +4687,14 @@ sub print_acls( $ ) {
     my @ip;
     for my $hardware (@{$router->{hardware}}) {
 	# We need to know, if packets for a dynamic routing protocol 
-	# are allowed for a hardware interface
+	# are allowed for a hardware interface.
 	my %routing;
 	for my $interface (@{$hardware->{interfaces}}) {
 	    # Current router is used as default router even for some internal
-	    # networks
+	    # networks.
 	    if($interface->{reroute_permit}) {
 		for my $net (@{$interface->{reroute_permit}}) {
-		    # this is not allowed between different security domains
+		    # This is not allowed between different security domains.
 		    if($net->{any} ne $interface->{any}) {
 			err_msg "Invalid reroute_permit for $net->{name} ",
 			"at $interface->{name}: different security domains";
@@ -4720,7 +4710,7 @@ sub print_acls( $ ) {
 	    # Is dynamic routing used?
 	    if(my $type = $interface->{routing}) {
 		unless($routing{$type}) {
-		    # prevent duplicate rules from multiple logical interfaces
+		    # Prevent duplicate rules from multiple logical interfaces.
 		    $routing{$type} = 1;
 		    # Permit multicast packets as destination.
 		    # permit ip any host 224.0.0.xx
@@ -4746,7 +4736,7 @@ sub print_acls( $ ) {
 	    }
 	}
     }
-    # Add deny rules 
+    # Add deny rules. 
     for my $hardware (@{$router->{hardware}}) {
 	if($model->{filter} eq 'IOS' and @{$hardware->{rules}}) {
 	    for my $interface (@{$router->{interfaces}}) {
@@ -4771,7 +4761,7 @@ sub print_acls( $ ) {
 				      dst => $network_00,
 				      srv => $srv_ip });
     }
-    # Generate code
+    # Generate code.
     for my $hardware (@{$router->{hardware}}) {
 	my $name = "$hardware->{name}_in";
 	my $intf_name;
