@@ -95,6 +95,11 @@ sub syntax_err( $ ) {
     die add_context $msg;
 }
 
+sub internal_err( @ ) {
+    my($package, $file, $line, $sub) = caller 1;
+    die "Internal error in $sub: ", @_, "\n";
+}
+
 ####################################################################
 # Reading topology, Services, Groups, Rules
 ####################################################################
@@ -1308,7 +1313,7 @@ sub typeof( $ ) {
     } elsif(is_any($ob)) {
 	return 'any';
     } else {
-	die "internal in typeof: expected host|network|any but got '$ob->{name}'";
+	internal_err "expected host|network|any but got '$ob->{name}'";
     }
 }
 
@@ -1614,7 +1619,7 @@ sub get_border( $ ) {
     } elsif(is_net($obj) or is_any($obj)) {
 	return $obj->{border};
     } else {
-	die "internal in get_border: unexpected object $obj->{name}";
+	internal_err "unexpected object $obj->{name}";
     }
 }
 
@@ -1625,7 +1630,7 @@ sub get_border( $ ) {
 #    dst-R3-/
 sub path_walk($&) {
     my ($rule, $fun) = @_;
-    die "internal in path_walk: undefined rule" unless $rule;
+    internal_err "undefined rule" unless $rule;
     my $src = $rule->{src};
     my $dst = $rule->{dst};
     my $src_intf = &get_border($src);
@@ -1903,8 +1908,7 @@ sub optimize_dst_rules( $$ ) {
 	    $cmp_dst = $cmp_hash->{$dst} and
 		&optimize_srv_rules($cmp_dst->[0], $next_hash);
 	} else {
-	    die "internal in optimize_dst_rules: ",
-	    "a rule was applied to unsupported dst '$dst->{name}'";
+	    internal_err "a rule was applied to unsupported dst '$dst->{name}'";
 	}
     }
 }
@@ -1934,8 +1938,7 @@ sub optimize_src_rules( $$ ) {
 	    $cmp_src = $cmp_hash->{$src} and
 		&optimize_dst_rules($cmp_src->[0], $next_hash);
 	} else {
-	    die "internal in optimize_src_rules: ",
-	    "a rule was applied to unsupported src '$src->{name}'";
+	    internal_err "a rule was applied to unsupported src '$src->{name}'";
 	}
     }
 }
@@ -2080,13 +2083,13 @@ sub adr_code( $$ ) {
     }
     if(is_interface($obj)) {
 	if($obj->{ip} eq 'unnumbered') {
-	    die "internal in adr_code: unexpected unnumbered $obj->{name}\n";
+	    internal_err "unexpected unnumbered $obj->{name}\n";
 	} else {
 	    return map { 'host '. &print_ip($_) } @{$obj->{ip}};
 	}
     } elsif(is_net($obj)) {
 	if($obj->{ip} eq 'unnumbered') {
-	    die "internal in adr_code: unexpected unnumbered $obj->{name}\n";
+	    internal_err "unexpected unnumbered $obj->{name}\n";
 	} else {
 	    my $ip_code = &print_ip($obj->{ip});
 	    my $mask_code = &print_ip($inv_mask?~$obj->{mask}:$obj->{mask});
@@ -2095,7 +2098,7 @@ sub adr_code( $$ ) {
     } elsif(is_any($obj)) {
 	return 'any';
     } else {
-	die "internal in adr_code: unsupported object $obj->{name}";
+	internal_err "unexpected object $obj->{name}";
     }
 }
 
@@ -2153,7 +2156,7 @@ sub srv_code( $$ ) {
 	my $nr = $v1;
 	return($nr, '');
     } else {
-	die "internal in srv_code: a rule has unknown protocol '$proto'";
+	internal_err "a rule has unknown protocol '$proto'";
     }
 }
 
@@ -2169,7 +2172,7 @@ sub collect_networks_for_routes_and_static( $$$$ ) {
 	# every network of that security domain
 	@networks = @{$dst->{border}->{networks}};
     } else {
-	die "internal in collect_networks_for_routes_and_static: unexpected dst $dst->{name}";
+	internal_err "unexpected dst $dst->{name}";
     }
     for my $net (@networks) {
 	next if $net->{ip} eq 'unnumbered';
@@ -2311,8 +2314,7 @@ sub collect_acls( $$$ ) {
 	    }
 	}
     } else {
-	die "internal in collect_acls: no interfaces for ".
-	    print_rule($rule);
+	internal_err "no interfaces for ", print_rule($rule);
     }
 }
 
@@ -2382,7 +2384,7 @@ sub gen_acls( $ ) {
 	    print "access-list $name deny ip any any\n";
 	    print "access-group $name in $hardware\n\n";
 	} else {
-	    die "internal in gen_acls: unsupported model $model";
+	    internal_err "unsupported router model $model";
 	}
     }
 }
@@ -2452,7 +2454,7 @@ sub gen_routes( $ ) {
 		} elsif($router->{model} eq 'PIX') {
 		    print "route $interface->{hardware} $adr\t$hop_ip\n";
 		} else {
-		    die "internal in gen_routes: unexpected router model $router->{model}";
+		    internal_err "unsupported router model $router->{model}";
 		}
 	    }
 	}
