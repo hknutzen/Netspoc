@@ -2168,12 +2168,10 @@ sub convert_any_dst_rule( $$$ ) {
     # at the same router.
     # This optimization is only applicable for stateful routers.
     my $link;
-    if(($router->{model} eq 'PIX' or $router->{model} eq 'IOS_FW') and
-       $out_intf->{any} eq $rule->{dst}) {
+    if($router->{model} eq 'PIX' or $router->{model} eq 'IOS_FW') {
 	$router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv}->{active} = 0;
 	$link = $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv};
     }
-
     # Find networks at all interfaces except the in_intf.
     # For the case that src is interface of current router,
     # take only the out_intf
@@ -2183,7 +2181,6 @@ sub convert_any_dst_rule( $$$ ) {
 	# case 2: the in_intf is on the same security domain
 	# as an out_intf of some other router on the path
 	next if defined $in_intf and $intf eq $in_intf;
-
 	my $any = $intf->{any};
 	# Nothing to be inserted for the interface which is connected
 	# directly to the destination 'any' object.
@@ -2560,10 +2557,8 @@ sub set_networks_behind ( $$$$ ) {
 	my $network = $interface->{network};
 	if($network->{depth} && $depth >= $network->{depth}) {
 	    # found a loop, current path is longer, don't go further
-#print "Loop in $network->{name} : current $depth, last $network->{depth}\n";
 	    next;
 	}
-#print "route: $network->{name} -> $route->{name}\n";
 	unless($interface->{ip} eq 'unnumbered') {
 	    # remember length of path
 	    $network->{depth} = $depth;
@@ -2594,7 +2589,6 @@ sub set_route_in_any () {
 	    for my $interface (@{$network->{interfaces}}) {
 		# ignore current or other border interfaces
 		next if $interface->{any};
-#print "Routing for $border->{name} -> $interface->{name}\n";
 		# all networks behind $interface are reachable via $interface
 		set_networks_behind($interface, 1, $interface,
 				    $network->{route_in_any});
@@ -2603,7 +2597,6 @@ sub set_route_in_any () {
 	    # for each border interface.
 	    # Attention: $any->{networks} doesn't include unnumbered networks
 	    for my $network (@{$any->{networks}}) {
-#print "Deleting depth for $network->{name}\n";
 		delete $network->{depth};
 	    }
 	}
@@ -3125,10 +3118,13 @@ sub collect_acls_at_src( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
     my $src = $rule->{src};
     is_any $src or internal_err "$src must be of type 'any'";
+    # the main rule is only processed at the first router on the path
     if($src_intf->{any} eq $src) {
 	&collect_acls(@_)
 	    unless $rule->{deleted} and not $rule->{managed_if};
-    } elsif(exists $rule->{any_rules}) {
+    }
+    # auxiliary rules are never needed at the first router
+    elsif(exists $rule->{any_rules}) {
 	# check for auxiliary 'any' rules
 	for my $any_rule (@{$rule->{any_rules}}) {
 	    next unless $src_intf->{any} eq $any_rule->{src};
@@ -3154,6 +3150,7 @@ sub collect_acls_at_dst( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
     my $dst = $rule->{dst};
     is_any $dst or internal_err "$dst must be of type 'any'";
+    # this is only called once for each path
     if($dst_intf->{any} eq $dst) {
 	unless ($rule->{deleted} and not $rule->{managed_if}) {
 	    if($rule->{any_dst_group}) {
@@ -3165,7 +3162,9 @@ sub collect_acls_at_dst( $$$ ) {
 		&collect_acls(@_);
 	    }
 	}
-    } elsif(exists $rule->{any_rules}) {
+    }
+    # this is called for all routers on a path
+    if(exists $rule->{any_rules}) {
 	# check for auxiliary 'any' rules
 	# first build a list of all adjacent 'any' objects
 	my @neighbour_anys;
