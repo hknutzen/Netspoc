@@ -661,11 +661,11 @@ sub read_network( $ ) {
 	err_msg "Unnumbered $network->{name} must not have ",
 	"nat definition";
     }
-    if($network->{hosts} and $ip eq 'unnumbered') {
+    if(@{$network->{hosts}} and $ip eq 'unnumbered') {
 	err_msg "Unnumbered $network->{name} must not have ",
 	"host definitions";
     }
-    if($network->{hosts} and $network->{route_hint}) {
+    if(@{$network->{hosts}} and $network->{route_hint}) {
 	err_msg "$network->{name} must not have host definitions",
 	"\n because it has attribute 'route_hint'";
     }
@@ -3705,6 +3705,47 @@ sub collect_route( $$$ ) {
     }
 }
 
+sub check_duplicate_routes () {
+    for my $router (values %routers) {
+	next unless $router->{managed};
+	# Remember, via which local interface a network is reached.
+	my %net2intf;
+	for my $interface (@{$router->{interfaces}}) {
+	    # Remember, via which remote interface a network is reached.
+	    my %net2hop;
+	    for my $hop (values %{$interface->{hop}}) {
+		for my $network (values %{$interface->{routes}->{$hop}}) {
+		    if(my $interface2 = $net2intf{$network}) {
+			if($interface2 ne $interface) {
+			    # Network is reached via two different local interfaces.
+			    # Check if both have dynamic routing enabled.
+			    unless($interface->{routing} and
+				   $interface2->{routing}) {
+				warning "Two static routes for $network->{name}\n",
+				" via $interface->{name} and $interface2->{name}";
+			    }
+			}
+		    } else {
+			$net2intf{$network} = $interface;
+		    }
+		    unless($interface->{routing}) {
+			if(my $hop2 = $net2hop{$network}) {
+			    # Network is reached via two different hops.
+			    # Check if both are reached via the same virtual IP.
+			    unless($hop->{virtual} and $hop2->{virtual} and
+				   $hop->{virtual} eq $hop2->{virtual}) {
+				warning "Two static routes for $network->{name} ",
+				"at $interface->{name}";
+			    }
+			} else {
+			    $net2hop{$network} = $hop;
+			}
+		    }
+		}
+	    }
+	}
+    }
+}
 sub mark_networks_for_static( $$$ ) {
     my($rule, $in_intf, $out_intf) = @_;
     # no static needed for directly attached interface
@@ -3776,48 +3817,14 @@ sub find_active_routes_and_statics () {
 	    &path_walk($pseudo_rule, \&collect_route, 'Network');
 	}
     }
+    check_duplicate_routes();
 }
 
 # needed for default route optimization
 my $network_00 = new('Network', name => "network:0/0", ip => 0, mask => 0);
+
 sub print_routes( $ ) {
     my($router) = @_;
-    # check if one network is reached via different local interfaces.
-    my %net2intf;
-    for my $interface (@{$router->{interfaces}}) {
-	# check if one network is reached a different remote interfaces.
-	my %net2hop;
-	for my $hop (values %{$interface->{hop}}) {
-	    for my $network (values %{$interface->{routes}->{$hop}}) {
-		if(my $interface2 = $net2intf{$network}) {
-		    if($interface2 ne $interface) {
-			# Network is reached via two different local interfaces.
-			# Check if both have dynamic routing enabled.
-			unless($interface->{routing} and
-			       $interface2->{routing}) {
-			    warning "Two static routes for $network->{name}\n",
-			    " via $interface->{name} and $interface2->{name}";
-			}
-		    }
-		} else {
-		    $net2intf{$network} = $interface;
-		}
-		unless($interface->{routing}) {
-		    if(my $hop2 = $net2hop{$network}) {
-			# Network is reached via two different hops.
-			# Check if both are reached via the same virtual IP.
-			unless($hop->{virtual} and $hop2->{virtual} and
-			       $hop->{virtual} eq $hop2->{virtual}) {
-			    warning "Two static routes for $network->{name} ",
-			    "at $interface->{name}";
-			}
-		    } else {
-			$net2hop{$network} = $hop;
-		    }
-		}
-	    }
-	}
-    }
     if($auto_default_route) {
 	# find interface and hop with largest number of routing entries
 	my $max_intf;
