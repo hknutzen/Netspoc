@@ -1,6 +1,5 @@
 #!/usr/bin/perl
-
-# File: onspoc.pl
+# File: netspoc.pl
 # Author: Heinz Knutzen
 # Address: heinz.knutzen@web.de, heinz.knutzen@dzsh.de
 # Description:
@@ -10,7 +9,7 @@
 use strict;
 use warnings;
 
-our $program = 'Open Network Security Policy Compiler';
+our $program = 'NETwork Security POlicy Compiler';
 our($version)= '$Revision$ ' =~ m/([0-9.]+)/;
 
 ####################################################################
@@ -493,7 +492,8 @@ sub read_servicegroup( $ ) {
     $servicegroups{$name} = \@objects;
 }
 
-sub read_port_range() {
+sub read_port_range( $ ) {
+    my($srv) = @_;
     if(defined (my $port1 = &check_int())) {
 	error_atline "Too large port number $port1" if $port1 > 65535;
 	error_atline "Invalid port number '0'" if $port1 == 0;
@@ -502,54 +502,61 @@ sub read_port_range() {
 		error_atline "Too large port number $port2" if $port2 > 65535;
 		error_atline "Invalid port number '0'" if $port2 == 0;
 		error_atline "Invalid port range $port1-$port2" if $port1 > $port2;
-		if($port1 == 1 && $port2 == 65535) {
-		    return 'any';
-		} elsif ($port1 == $port2) {
-		    return $port1;
-		} else {
-		    return "$port1-$port2";
-		}
+		$srv->{v1} = $port1;
+		$srv->{v2} = $port2;
 	    } else {
 		syntax_err "Missing second port in port range";
 	    }
 	} else {
-	    return $port1;
+	    $srv->{v1} = $port1;
+	    $srv->{v2} = $port1;
 	}
     } else {
-	return 'any';
+	$srv->{v1} = 1;
+	$srv->{v2} = 65535;
     }
 }
 
 sub read_icmp_type_code() {
+    my($srv) = @_;
     if(defined (my $type = &check_int())) {
 	error_atline "Too large icmp type $type" if $type > 255;
 	if(&check('/')) {
 	    if(defined (my $code = &check_int())) {
 		error_atline "Too large icmp code $code" if $code > 255;
-		return($type, $code);
+		$srv->{v1} = $type;
+		$srv->{v2} = $code;
 	    } else {
 		syntax_err "Expected icmp code";
 	    }
 	} else {
-	    return($type, 'any');
+	    $srv->{v1} = $type;
+	    $srv->{v2} = 'any';
 	}
     } else {
-	return 'any';
+	$srv->{v1} = 'any';
     }
 }
 
 sub read_proto_nr() {
+    my($srv) = @_;
     if(defined (my $nr = &check_int())) {
 	error_atline "Too large protocol number $nr" if $nr > 255;
 	error_atline "Invalid protocol number '0'" if $nr == 0;
 	if($nr == 1) {
-	    return('icmp', 'any');
+	    $srv->{type} = 'icmp';
+	    $srv->{v1} = 'any';
 	} elsif($nr == 4) {
-	    return('tcp', 'any');
+	    $srv->{type} = 'tcp';
+	    $srv->{v1} = 1;
+	    $srv->{v2} = 65535;
 	} elsif($nr == 17) {
-	    return('udp', 'any');
+	    $srv->{type} = 'udp';
+	    $srv->{v1} = 1;
+	    $srv->{v2} = 65535;
 	} else {
-	    return('proto', $nr);
+	    $srv->{type} = 'proto';
+	    $srv->{v1} = $nr;
 	}
     } else {
 	syntax_err "Expected protocol number";
@@ -563,19 +570,17 @@ sub read_service( $ ) {
     &skip('=');
     if(&check('ip')) {
 	$srv->{type} = 'ip';
-	$srv->{vals} = [ ];
     } elsif(&check('tcp')) {
 	$srv->{type} = 'tcp';
-	$srv->{vals} = [ &read_port_range() ];
+	&read_port_range($srv);
     } elsif(&check('udp')) {
 	$srv->{type} = 'udp';
-	$srv->{vals} = [ &read_port_range() ];
+	&read_port_range($srv);
     } elsif(&check('icmp')) {
 	$srv->{type} = 'icmp';
-	$srv->{vals} = [ &read_icmp_type_code() ];
+	&read_icmp_type_code($srv);
     } elsif(&check('proto')) {
-	($srv->{type}, my $val) = &read_proto_nr();
-	$srv->{vals} = [ $val ];
+	&read_proto_nr($srv);
     } else {
 	my $name = read_name();
 	error_atline "Unknown protocol $name in definition of service:$name";
@@ -585,6 +590,7 @@ sub read_service( $ ) {
 	error_atline "Redefining service:$name";
     }
     $services{$name} = $srv; 
+    &prepare_srv_ordering($srv);
 }
 
 our @rules;
@@ -725,9 +731,154 @@ sub delete_undefs( $ ) {
 # Build linked data structures
 ##############################################################################
 
+# eliminate TCP/UDP overlapping port ranges
+# 12345 6
+#  2345
+#    45|6|7|8
+#           89
+#
+# 123|45
+#  23|456
+#   3|4567
+#     456789
+#
+# 1234-5
+#  234-5-6
+#   34-5-6-7
+#    4|5|6|789
+sub eliminate_overlapping_ranges( \@ ) {
+    my($aref) = @_;
+    for my $srv1 (@$aref) {
+	my $x1 = $srv1->{v1};
+	my $y1 = $srv1->{v2};
+	for my $srv2 (@$aref) {
+	    my $x2 = $srv2->{v1};
+	    my $y2 = $srv2->{v2};
+	    # overlap check
+	    if($x1 < $x2 and $x2 <= $y1 and $y1 < $y2 or
+		# 1111111
+		#    2222222
+	       $x2 < $x1 and $x1 <= $y2 and $y2 < $y1) {
+		#    1111111
+		# 2222222
+		#
+		# ToDo: Implement this function
+		my $name1 = print_srv $srv1;
+		my $name2 = print_srv $srv2;
+		die "Overlapping port ranges are not supported currently.
+Workaround: Split one of $name1, $name2 manually";
+	    }    
+	}
+    }
+}
+
+my %srv_hash;
+sub prepare_srv_ordering( $ ) {
+    my($srv) = @_;
+    my $type = $srv->{type};
+    if($type eq 'tcp' or $type eq 'udp') {
+	push @{$srv_hash{$type}}, $srv;
+    } else { # ip, proto, icmp
+	my $v1 = $srv->{v1};
+	my $v2 = $srv->{v2};
+	my $old_srv;
+	if(defined $v2) {
+	    $old_srv = $srv_hash{$type}->{$v1}->{$v2};
+	    $srv_hash{$type}->{$v1}->{$v2} = $srv;
+	} elsif(defined $v1) {
+	    $old_srv = $srv_hash{$type}->{$v1};
+	    $srv_hash{$type}->{$v1} = $srv;
+	} else {
+	    $old_srv = $srv_hash{$type};
+	    $srv_hash{$type} = $srv;
+	}
+	if($old_srv) {
+	    my $name1 = print_srv $srv;
+	    my $name2 = print_srv $old_srv;
+	    error_atline "Services are duplicate: $name1, $name2";
+	}
+    }
+}
+
+sub order_icmp( $$ ) {
+    my($hash, $up) = @_;
+    if($hash->{any}) {
+	$hash->{any}->{up} = $up;
+	$up = $hash->{any};
+    }
+    while(my($type, $hash2) = each(%$hash)) {
+	my $up = $up;
+	next if $type eq 'any';
+	if($hash2->{any}) {
+	    $hash2->{any}->{up} = $up;
+	    $up = $hash2->{any};
+	}
+	while(my($code, $srv) = each(%$hash2)) {
+	    next if $code eq 'any';
+	    $srv->{up} = $up;
+	}
+    }
+}	
+
+sub order_proto( $$ ) {
+    my($hash, $up) = @_;
+    for my $srv (values %$hash) {
+	$srv->{up} = $up;
+    }
+}
+
+# Link each port range with the smalles port range which includes it or
+# if no including range is found, link it with the next larger service.
+sub order_ranges( $$) {
+    my($range_aref, $up) = @_;
+    for my $srv1 (@$range_aref) {
+	my $x1 = $srv1->{v1};
+	my $y1 = $srv1->{v2};
+	my $min_size = 2^16;
+	$srv1->{up} = $up;
+	for my $srv2 (@$range_aref) {
+	    next if $srv1 eq $srv2;
+	    my $x2 = $srv2->{v1};
+	    my $y2 = $srv2->{v2};
+	    if($x2 == $x1 and $y1 == $y2) {
+		my $name1 = print_srv $srv1;
+		my $name2 = print_srv $srv2;
+		die "Services are duplicate: $name1, $name2";
+	    }
+	    if($x2 <= $x1 and $y1 <= $y2) {
+		my $size = $y2-$x2;
+		if($size < $min_size) {
+		    $min_size = $size;
+		    $srv1->{up} = $srv2;
+		}
+	    }
+	}
+    }
+}
+
+sub order_services() {
+    my $up = undef;
+    if($srv_hash{ip}) {
+	$up = $srv_hash{ip};
+    }
+    order_ranges($srv_hash{tcp}, $up) if $srv_hash{tcp};
+    order_ranges($srv_hash{udp}, $up) if $srv_hash{udp};
+    order_icmp($srv_hash{icmp}, $up) if $srv_hash{icmp};
+    order_proto($srv_hash{proto}, $up) if $srv_hash{proto};
+
+    for my $srv (values %services) {
+	my $depth = 0;
+	my $up = $srv;
+	while($up = $up->{up}) {
+	    $depth++;
+	}
+	$srv->{depth} = $depth;
+    }
+}
+
 # get a reference to an array of network object names and substitute
 # the names with the referenced network objects
-# Returns a list of name wich couldn't be resolved
+# Returns a list of name which couldn't be resolved
 sub subst_names_with_refs( $ ) {
     my($obref) = @_;
     my @unknown;
@@ -944,123 +1095,11 @@ sub order_src ( $$ ) {
     order_dst($rule, \%{$hash->{$id}});
 }    
 
-sub copy_srv( $ ) {
-    my($srv) = @_;
-    return {name => $srv->{name},
-	    type => $srv->{type},
-	    vals => [ @{$srv->{vals}} ]
-	};
-}
-
-sub copy_rule( $ ) {
-    my($rule) = @_;
-    return {action => $rule->{action},
-	    src => $rule->{src},
-	    dst => $rule->{dst},
-	    srv => copy_srv($rule->{srv})
-	    };
-}
-
-sub split_rule( $$$ ) {
-    my($rule, $new_y, $new_x) = @_;
-    my($x, $y) = split(/-/, $rule->{srv}->{vals}->[0]);
-    my $r1 = copy_rule($rule);
-    my $r2 = copy_rule($rule);
-    my $s1 = $r1->{srv};
-    my $s2 = $r2->{srv};
-    $s1->{name} = "split from $new_x $s1->{name}";
-    $s2->{name} = "split to $new_y $s2->{name}";
-    if($new_x == $y) {
-	# range is now a single port
-	$s1->{vals}->[0] = $new_x;
-    } else {
-	$s1->{vals}->[0] =~ s/^\d+/$new_x/;
-    }
-    if($x == $new_y) {
-	$s2->{vals}->[0] = $new_y;
-    } else {
-	$s2->{vals}->[0] =~ s/\d+$/$new_y/;
-    }
-    return $r1, $r2;
-}
-
-#
-# Syntax of services:
-# ip
-# tcp any
-# tcp port
-# tcp port-port
-# udp ...
-# icmp any
-# icmp type any
-# icmp type code
-# proto nr
 sub order_srv ( $$ ) {
     my($rule, $hash) = @_;
     my $srv = $rule->{srv};
-    my $type = $srv->{type};
-    my($v1, $v2) = @{$srv->{vals}};
-
-    if($type eq 'icmp') {
-	my $id;
-	if(defined $v2) {
-	    if($v2 eq 'any') { $id = 'icmp1'; }
-	    else { $id = 'icmp2'; }
-	} else { $id = 'icmp';	}
-	order_src($rule, \%{$hash->{$id}});
-    } elsif($type eq 'tcp' or $type eq 'udp') {
-	if($v1 eq 'any') {
-	    order_src($rule, \%{$hash->{"${type}-any"}});
-	    return
-	} 
-	my($x, $y) = split(/-/, $v1);
-	if(defined $y) {
-	    # a port range
-	    # tcp-range => [ {x=>x,y=>y,any|net|host=>..}, ... ] 
-	    # Compare with all previously defined ranges to find out
-	    # if it overlapps with one.
-	    # Port ranges are sorted by size, i.e. highport - lowport
-	    # Observation: One range overlapps with at most two other ranges
-	    my $size = $x-$y;
-	    my $inspos = 0;
-	    my $aref = \@{$hash->{"${type}-range"}};
-	    # iterate over all previously inserted port ranges
-	    for(my $i = 0; $i < @$aref; $i++) {
-		my $elt = $aref->[$i];
-		my $ex = $elt->{x};
-		my $ey = $elt->{y};
-		# overlapp check
-		if($x < $ex and $ex <= $y and $y < $ey) {
-		    my($r1, $r2) = split_rule($rule,$ex-1,$ex);
-		    # start over with newly generated rules
-		    &order_srv($r1, $hash);
-		    &order_srv($r2, $hash);
-		    return;
-		} elsif($ex < $x and $x <= $ey and $y > $ey) {
-		    my($r1, $r2) = split_rule($rule,$ey,$ey+1);
-		    &order_srv($r1, $hash);
-		    &order_srv($r2, $hash);
-		    return;
-		}
-		# no overlapp
-		# remember location where this rule has to be inserted later:
-		# directly behind the last range with smaller or same size
-		if($ey-$ex <= $size) { $inspos = $i+1; }
-	    }
-	    my $newelt = {x => $x, y => $y};
-	    splice(@$aref, $inspos, 0, $newelt);
-	    order_src($rule, $newelt);
-	} else {
-	    # a single port
-	    order_src($rule, \%{$hash->{"${type}-port"}});
-	}
-    } elsif($type eq 'proto') {
-	order_src($rule, \%{$hash->{proto}});
-    } elsif($type eq 'ip') {
-	order_src($rule, \%{$hash->{ip}});
-    } else {
-	die "internal in order_srv: unexpected srv type $type";
-    }
+    my $depth = $srv->{depth};
+    order_src($rule, \%{$hash->{$depth}});
 }
 
 # add all rules with matching srcid and dstid to expanded_any_rules
@@ -1090,69 +1129,18 @@ sub addrule_ordered_src_dst( $ ) {
 
 sub addrule_ordered_srv( $ ) {
     my($hash) = @_;
-    for my $type ('tcp', 'udp') {
-	addrule_ordered_src_dst($hash->{"${type}-port"});
-	for my $hash2 (@{$hash->{"${type}-range"}}) {
-	    addrule_ordered_src_dst($hash2);
-	}
-	addrule_ordered_src_dst($hash->{"${type}-any"});
+    for my $depth (reverse sort keys %$hash) {
+	addrule_ordered_src_dst($hash->{$depth});
     }
-    addrule_ordered_src_dst($hash->{icmp2});
-    addrule_ordered_src_dst($hash->{icmp1});
-    addrule_ordered_src_dst($hash->{icmp});
-    addrule_ordered_src_dst($hash->{proto});
-    addrule_ordered_src_dst($hash->{ip});
 }
 
 sub ge_srv( $$ ) {
     my($s1, $s2) = @_;
-    my $t1 = $s1->{type};
-    my $t2 = $s2->{type};
-    my($v11, $v12) = @{$s1->{vals}};
-    my($v21, $v22) = @{$s2->{vals}};
-    if($t1 eq 'ip') {
-	return 1;
-    } elsif($t1 ne $t2) {
-	return 0;
-    } elsif($t1 eq 'tcp' or $t1 eq 'udp') {
-	if($v11 eq 'any') {
-	    return 1;
-	}
-	my($x1, $y1) = split(/-/, $v11);
-	if(defined $y1) {
-	    # a port range
-	    my($x2, $y2) = split(/-/, $v21);
-	    if(defined $y2) {
-		# compare two port ranges
-		return($x1 >= $x2 and $y2 <= $y1);
-	    } else {  
-		return($x1 >= $x2 and $x2 <= $y1);
-	    }
-	} else {
-	    # a single port
-	    my($x2, $y2) = split(/-/, $v21);
-	    if(defined $y2) {
-		return 0;
-	    } else {
-		return($x1 == $x2);
-	    }
-	}
-    } elsif($t1 eq 'icmp') {
-	if($v11 eq 'any') {
-	    return 1;
-	}
-	if($v11 != $v21) {
-	    return 0;
-	}
-	if($v12 eq 'any') {
-	    return 1;
-	}
-	return($v12 == $v22);
-    } elsif($t1 eq 'proto') {
-	return($v12 == $v22);
-    } else {
-	die "internal in ge_srv: unexpected srv type $t1";
+    while(my $up = $s2->{up}) {
+	return 1 if $up eq $s1;
+	$s2 = $up;
     }
+    return 0;
 }
 
 # check, if two services are equal or have a non empty intersection.
@@ -1518,7 +1506,7 @@ sub addrule_net( $ ) {
     }
 }
 
-# this subroutine is applied to hosts and interfaces as well
+# this subroutine is applied to hosts as well as interfaces
 sub addrule_host( $ ) {
     my ($host) = @_;
 
@@ -1540,191 +1528,38 @@ sub addrule_host( $ ) {
     }
 }    
 
-# Representation of srv in rules and srv_hash
-# ip
-# tcp any
-# tcp port
-# tcp port-port
-# udp ...
-# icmp any
-# icmp type any
-# icmp type code
-# proto nr
-#
-# add rule to a group of rules with identical src and dst
-# and identical or different srv. 
+# Add rule to a group of rules with identical src and dst
+# and identical or different action and srv. 
 # If a fully identical rule is already present, it is marked
 # as deleted and substituted by the new one.
 sub add_rule( $$ ) {
     my ($rule, $srv_hash) = @_;
     my $srv = $rule->{srv};
-    my $type = $srv->{type};
-    my($v1, $v2) = @{$srv->{vals}};
     my $action = $rule->{action};
-    my $old_rule;
-
-    if(defined $v2) {
-	$old_rule = $srv_hash->{$action}->{$type}->{$v1}->{$v2};
-	$srv_hash->{$action}->{$type}->{$v1}->{$v2} = $rule;
-    } elsif (defined $v1) {
-	$old_rule = $srv_hash->{$action}->{$type}->{$v1};
-	$srv_hash->{$action}->{$type}->{$v1} = $rule;
-    } else {
-	$old_rule = $srv_hash->{$action}->{$type};
-	$srv_hash->{$action}->{$type} = $rule;
-    }
+    # We use the address of the srv object as a hash key here
+    my $old_rule = $srv_hash->{$action}->{$srv};
     $old_rule->{deleted} = 1 if $old_rule;
+    $srv_hash->{$action}->{$srv} = $rule;
     return($srv_hash);
 }
 
-# tcp any
-# tcp port
-# tcp port-port
-# udp ...
-sub optimize_tcp_udp_rules( $$ ) {
-    my ($cmp_hash, $chg_hash) = @_;
-
-    # 'tcp/udp any' supersedes every port or port range
-    if(exists $cmp_hash->{any} &&
-       (my $rule = $cmp_hash->{any})) {
-	while(my($key, $rule2) = (each %$chg_hash)) {
-	    next if $rule2 eq $rule;
-	    $rule2->{deleted} = 1;
-	}
-    } else {
-	# find port ranges
-	for my $key (keys %$cmp_hash) {
-	    my $rule = $cmp_hash->{$key};
-	    if(my($from, $to) = ($key =~ /^(.*)-(.*)$/)) {
-		# compare this range with all other ports and ranges
-		# don't use nested "while (each)" here; they interact badly
-		for my $key2 (keys %$chg_hash) {
-		    my $rule2 = $chg_hash->{$key2};
-		    # this occurs if $cmp_hash and $chg_hash are identical
-		    next if $rule2 eq $rule;
-		    if(my($from2, $to2) = ($key2 =~ /^(.*)-(.*)$/)) {
-			if($from <= $from2 && $to2 <= $to) {
-			    $rule2->{deleted} = 1;
-			}
-		    } else {
-			if($from <= $key2 && $key2 <= $to) {
-			    $rule2->{deleted} = 1;
-			}
-		    }
-		}
-	    } else {
-		# don't try to find identical ports on equal hashes
-		unless($cmp_hash eq $chg_hash) {
-		    # a single port supersedes only an identical port
-		    if(exists $chg_hash->{$key} &&
-		       (my $rule2 = $chg_hash->{$key})) {
-			$rule2->{deleted} = 1;
-		    }
-		}
-	    }
-	}
-    }
-}
-
-# icmp any
-# icmp type any
-# icmp type code
-sub optimize_icmp_rules( $$ ) {
-    my ($cmp_hash, $chg_hash) = @_;
-
-    # 'icmp any' supersedes every type or type,code
-    if(exists $cmp_hash->{any} &&
-       (my $rule = $cmp_hash->{any})) {
-	while(my($type, $hash2) = (each %$chg_hash)) {
-	    next if $hash2 eq $rule;
-	    if($type eq 'any') {
-		$hash2->{deleted} = 1;
-		next;
-	    }
-	    while(my($code, $rule2) = (each %$hash2)) {
-		$rule2->{deleted} = 1;
-	    }
-	}
-    } else {
-	while(my($type, $hash2) = (each %$cmp_hash)) {    
-	    # 'type,any' supersedes every `type,code` entry
-	    if(exists $hash2->{any} &&
-	       (my $rule = $hash2->{any})) {
-		while(my($code, $rule2) = (each %{$chg_hash->{$type}})) {
-		    next if $rule2 eq $rule;
-		    $rule2->{deleted} = 1;
-		}
-	    } elsif($chg_hash->{$type}) {
-		&optimize_identical_rules($hash2, $chg_hash->{$type});
-	    }
-	}
-    }
-}
-
-sub optimize_identical_rules( $$ ) {
-    my ($cmp_hash, $chg_hash) = @_;
-
-    # don't try to find identical keys on equal hashes
-    return if $cmp_hash eq $chg_hash;
-
-    while(my($key, $rule) = (each %$cmp_hash)) {
-	if(exists $chg_hash->{$key} &&
-	   (my $rule2 = $chg_hash->{$key})) {
-	    $rule2->{deleted} = 1;
-	}
-    }
-}
-
-sub delete_srv_rules( $ ) {
-    my ($hash) = @_;
-
-    while(my($key, $rule) = (each %$hash)) {
-	$rule->{deleted} = 1;
-    }
-}
-
-sub delete_icmp_rules( $ ) {
-    my ($hash) = @_;
-
-    while(my($type, $hash2) = (each %$hash)) {   
-	while(my($code, $rule) = (each %$hash2)) {
-	    $rule->{deleted} = 1;
-	}
-    }
-}
-
+# a rule may be deleted if we find a similar rule with greater srv
 sub optimize_srv_rules( $$ ) {
     my($cmp_hash, $chg_hash) = @_;
 
-    if(exists $cmp_hash->{ip} && $cmp_hash->{ip}) {
-	for my $i ('tcp','udp','proto') {
-	    if(exists $chg_hash->{$i} &&
-	       (my $hash = $chg_hash->{$i})) {
-		&delete_srv_rules($hash);
+    for my $rule (values %$chg_hash) {
+	my $srv = $rule->{srv};
+	while($srv) {
+	    if(exists $cmp_hash->{$srv} and
+	       (my $rule2 = $cmp_hash->{$srv})) {
+		unless($rule2 eq $rule) {
+		    $rule->{deleted} = 1;
+		    last;
+		}
 	    }
+	    $srv = $srv->{up};
 	}
-	if(my $hash = $chg_hash->{icmp}) {
-	    &delete_icmp_rules($hash);
-	}
-    } else {
-	my($cmp_sub_hash, $chg_sub_hash);
-	exists $cmp_hash->{tcp} && exists $chg_hash->{tcp} &&
-	    ($cmp_sub_hash = $cmp_hash->{tcp}) &&
-		($chg_sub_hash = $chg_hash->{tcp}) && 
-		    &optimize_tcp_udp_rules($cmp_sub_hash, $chg_sub_hash);
-	exists $cmp_hash->{udp} && exists $chg_hash->{udp} &&
-	    ($cmp_sub_hash = $cmp_hash->{udp}) &&
-		($chg_sub_hash = $chg_hash->{udp}) &&
-		    &optimize_tcp_udp_rules($cmp_sub_hash, $chg_sub_hash);
-	exists $cmp_hash->{icmp} && exists $chg_hash->{icmp} &&
-	    ($cmp_sub_hash = $cmp_hash->{icmp}) &&
-		($chg_sub_hash = $chg_hash->{icmp}) &&
-		    &optimize_icmp_rules($cmp_sub_hash, $chg_sub_hash);
-	exists $cmp_hash->{proto} && exists $chg_hash->{proto} &&
-	    ($cmp_sub_hash = $cmp_hash->{proto}) &&
-		($chg_sub_hash = $chg_hash->{proto}) &&
-		    &optimize_identical_rules($cmp_sub_hash, $chg_sub_hash);
-    } 
+    }
 }
 
 # deny > permit > weak_deny
@@ -1856,18 +1691,19 @@ sub adr_code( $ ) {
 sub srv_code( $ ) {
     my ($srv) = @_;
     my $proto = $srv->{type};
-    my($v1, $v2) = @{$srv->{vals}};
+    my $v1 = $srv->{v1};
+    my $v2 = $srv->{v2};
 
     if($proto eq 'ip') {
 	return('ip', '');
     } elsif($proto eq 'tcp' || $proto eq 'udp') {
 	my $port = $v1;
-	if($port eq 'any') {
+	if($v1 == $v2) {
+	    return($proto, "eq $v1");
+	} elsif($v1 == 1 and $v2 == 65535) {
 	    return($proto, '');
-	} elsif(my($from, $to) = ($port =~ /^(.*)-(.*)$/)) {
-	    return($proto, "range $from $to");
 	} else {
-	    return($proto, "eq $port");
+	    return($proto, "range $v1 $v2");
 	}
     } elsif($proto eq 'icmp') {
 	my $type = $v1;
@@ -1961,6 +1797,8 @@ sub gen_code_at_src( $$$ ) {
 ##############################################################################
 
 &read_data();
+
+&order_services();
 
 # substitute group member names with links to network objects
 while(my($name, $array_ref) = (each %groups)) {
