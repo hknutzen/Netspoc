@@ -99,6 +99,33 @@ my $allow_toplevel_rules = 0;
 our $store_description = 0;
 
 ####################################################################
+# Attributes of supported router models
+####################################################################
+my %router_info =
+(
+ IOS => {
+     name => 'IOS',
+     stateful => 0,
+     routing => 'IOS',
+     filter => 'IOS'
+     },
+ IOS_FW => {
+     name => 'IOS_FW',
+     stateful => 1,
+     routing => 'IOS',
+     filter => 'IOS'
+     },
+ PIX => {
+     name => 'PIX',
+     stateful => 1,
+     routing => 'PIX',
+     filter => 'PIX',
+     has_interface_level => 1,
+     no_filter_icmp_code => 1
+     }
+ );
+
+####################################################################
 # Error Reporting
 ####################################################################
 
@@ -560,7 +587,6 @@ sub set_pix_interface_level( $ ) {
     $interface->{level} = $level;
 }
 
-my %valid_model = (IOS => 1, IOS_FW => 1, PIX => 1);
 our %routers;
 sub read_router( $ ) {
     my $name = shift;
@@ -579,9 +605,11 @@ sub read_router( $ ) {
 	    &syntax_err("Expected ';' or '='");
 	}
     }
-    my $model = &check_assign('model', \&read_identifier);
-    if($model and not $valid_model{$model}) {
-	error_atline "Unknown router model '$model'";
+    my $model;
+    if($model = &check_assign('model', \&read_identifier)) {
+       my $info = $router_info{$model};
+       $info or error_atline "Unknown router model '$model'";
+       $model = $info;
     }
     if($managed and not $model) {
 	err_msg "Missing 'model' for managed router:$name";
@@ -610,7 +638,7 @@ sub read_router( $ ) {
 	if($managed and not defined $interface->{hardware}) {
 	    err_msg "Missing 'hardware' for $interface->{name}";
 	}
-	if($managed and $model eq 'PIX') {
+	if($managed and $model->{has_interface_level}) {
 	    set_pix_interface_level($interface);
 	}
     }
@@ -2405,7 +2433,7 @@ sub convert_any_dst_rule( $$$ ) {
     # at the same router.
     # This optimization is only applicable for stateful routers.
     my $link;
-    if($router->{model} eq 'PIX' or $router->{model} eq 'IOS_FW') {
+    if($router->{model}->{stateful}) {
 	$router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv}->{active} = 0;
 	$link = $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv};
     }
@@ -3011,12 +3039,13 @@ sub print_routes( $ ) {
 		    print "! route $network->{name} -> $hop->{name}\n";
 		}
 		my $adr = &adr_code($network, 0);
-		if($router->{model} =~ /^IOS/) {
+		if($router->{model}->{routing} eq 'IOS') {
 		    print "ip route $adr\t$hop_addr\n";
-		} elsif($router->{model} eq 'PIX') {
+		} elsif($router->{model}->{routing} eq 'PIX') {
 		    print "route $interface->{hardware} $adr\t$hop_addr\n";
 		} else {
-		    internal_err "unexpected router model $router->{model}";
+		    internal_err
+			"unexpected routing type $router->{model}->{routing}";
 		}
 	    }
 	}
@@ -3030,8 +3059,8 @@ sub mark_networks_for_static( $$$ ) {
     my($rule, $src_intf, $dst_intf) = @_;
     # no static needed for directly attached interface
     return unless $dst_intf;
-    return unless $dst_intf->{router}->{model} eq 'PIX';
-    # no static needed for traffic coming from the pix itself
+    return unless $dst_intf->{router}->{model}->{has_interface_level};
+    # no static needed for traffic coming from the PIX itself
     return unless $src_intf;
     # no static needed for traffic from higher to lower security level
     return if $src_intf->{level} > $dst_intf->{level};
@@ -3219,7 +3248,7 @@ sub srv_code( $$ ) {
 	    if($code eq 'any') {
 		return($proto, '', $type);
 	    } else {
-		if($model eq 'PIX') {
+		if($model->{no_filter_icmp_code}) {
 		    # PIX can't handle the ICMP code field.
 		    # If we try to permit e.g. "port unreachable", 
 		    # "unreachable any" could pass the PIX. 
@@ -3286,7 +3315,7 @@ sub collect_acls( $$$ ) {
 #	}
     }
     my $model = $router->{model};
-    my $inv_mask = $model =~ /^IOS/;
+    my $inv_mask = $model->{filter} eq 'IOS';
     my @src_code = &adr_code($src, $inv_mask);
     my @dst_code = &adr_code($dst, $inv_mask);
     my ($proto_code, $src_port_code, $dst_port_code) = &srv_code($srv, $model);
@@ -3298,7 +3327,7 @@ sub collect_acls( $$$ ) {
 	    # for packets to the pix itself
 	    # because it accepts them anyway (telnet, IPSec)
 	    # ToDo: Check if this assumption holds for deny ACLs as well
-	    return if $model eq 'PIX' and $action eq 'permit';
+	    return if $model->{filter} eq 'PIX' and $action eq 'permit';
 	    $code_aref = \@{$router->{if_code}->{$src_intf->{hardware}}};
 	} else {
 	    # collect generated code at hardware interface,
@@ -3318,7 +3347,7 @@ sub collect_acls( $$$ ) {
 	}
 	# Code for stateless IOS: automatically permit return packets
 	# for TCP and UDP
-	if($model eq 'IOS' and defined $dst_intf and
+	if(not $model->{stateful} and defined $dst_intf and
 	   ($srv->{type} eq 'tcp' or $srv->{type} eq 'udp' or $secondary)) {
 	    $code_aref = \@{$router->{code}->{$dst_intf->{hardware}}};
 	    if($comment_acls) {
@@ -3341,7 +3370,7 @@ sub collect_acls( $$$ ) {
     } elsif(defined $dst_intf) {
 	# src_intf is undefined: src is an interface of this router
 	# No filtering necessary for packets to PIX itself
-	return if $model eq 'PIX' and $action eq 'permit';
+	return if $model->{filter} eq 'PIX' and $action eq 'permit';
 	# For IOS only packets from dst back to this router are filtered
 	if($srv->{type} eq 'tcp' or $srv->{type} eq 'udp' or $secondary) {
 	    my $code_aref = \@{$router->{if_code}->{$dst_intf->{hardware}}};
@@ -3498,7 +3527,7 @@ sub print_acls( $ ) {
 	# force auto-vivification
 	push @$code, ();
 	push @$if_code, ();
-	if($model =~ /^IOS/) {
+	if($model->{filter} eq 'IOS') {
 	    if($comment_acls) {
 		print "! $hardware{$hardware}\n";
 	    }
@@ -3536,7 +3565,7 @@ sub print_acls( $ ) {
 	    print " deny ip any any\n";
 	    print "interface $hardware\n";
 	    print " access group $name\n\n";
-	} elsif($model eq 'PIX') {
+	} elsif($model->{filter} eq 'PIX') {
 	    if($comment_acls) {
 		print "! $hardware{$hardware}\n";
 	    }
@@ -3550,7 +3579,7 @@ sub print_acls( $ ) {
 	    print "access-list $name deny ip any any\n";
 	    print "access-group $name in $hardware\n\n";
 	} else {
-	    internal_err "unsupported router model $model";
+	    internal_err "unsupported router filter type $model->{filter}";
 	}
     }
 }
@@ -3579,11 +3608,11 @@ sub print_code( $ ) {
 	open STDOUT, ">$file" or die "Can't open $file: $!\n";
 	print "!! Generated by $program, version $version\n\n";
 	print "[ BEGIN $name ]\n";
-	print "[ Model = $model ]\n";
+	print "[ Model = $model->{name} ]\n";
 	&print_routes($router);
 	&print_acls($router);
 	&print_pix_static($router)
-	    if $model eq 'PIX' and not $router->{static_manual};
+	    if $model->{has_interface_level} and not $router->{static_manual};
 	print "[ END $name ]\n\n";
 	close STDOUT or die "Can't close $file\n";
     }
