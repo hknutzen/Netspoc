@@ -1376,7 +1376,7 @@ sub check_deny_influence() {
 	    my $net = $drule->{src};
 	    my $dst = $drule->{dst};
 	    next unless (is_host $dst or is_interface $dst) and is_net $net;
-	    my $dst_any = $dst->{net}->{border}->{any};
+	    my $dst_any = $dst->{network}->{border}->{any};
 	    next unless $dst_any;
 	    for my $host (@{$net->{hosts}}, @{$net->{interfaces}}) {
 		# search for rules with action = permit, src = host and
