@@ -1917,7 +1917,7 @@ sub gen_pix_static( $ ) {
     }
 }
 
-sub gen_code( $$$ ) {
+sub collect_acls( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
     my $router;
     # one of both interfaces may be undefined
@@ -1963,12 +1963,15 @@ sub gen_code( $$$ ) {
 	    }
 	}
     } else {
-	die "internal in gen_code: no interfaces for ".
+	die "internal in collect_acls: no interfaces for ".
 	    print_rule($rule);
     }
 }
 
-# for deny rules call gen_code only for the first border
+# Curently unused
+# ToDo: Check, if it is ok, to use this function for deny rules
+#
+# For deny rules call collect_acls only for the first border
 # on the path from src to dst
 # Case 1:
 # r1-src-r2-r3-dst: get_border(src) = r1: r1 is not on path, but r2.border = r1
@@ -1976,26 +1979,24 @@ sub gen_code( $$$ ) {
 # get_border(src) is undef, r.src_intf is undef, src.router = dst_intf.router
 # Case 2:
 # r3-src-r2-r1-dst: get_border(src) = r2: r2 is 1st border on path
-# ToDo: this code works only for 2nd case
-# ToDo: If src is an managed interface, inverse deny rules have to be generated
-sub gen_code_at_src( $$$ ) {
+sub collect_acls_at_src( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
     my $src = $rule->{src};
     my $src_border = &get_border($src);
     # Case 1a/2a:
     if(not defined $src_border) {
 	if(not defined $src_intf) {
-	    &gen_code($rule, $src_intf, $dst_intf);
+	    &collect_acls($rule, $src_intf, $dst_intf);
 	}
     } else {
 	my $router = $src_intf->{router};
         # Case 1:
 	if($router->{to_border} eq $src_intf and $router->{border} eq $src_border) {
-	    &gen_code($rule, $src_intf, $dst_intf);
+	    &collect_acls($rule, $src_intf, $dst_intf);
 	}
 	# Case 2:
 	if($src_border eq $src_intf) {
-	    &gen_code($rule, $src_intf, $dst_intf);
+	    &collect_acls($rule, $src_intf, $dst_intf);
 	}
     }
 }
@@ -2223,7 +2224,7 @@ print STDERR "Starting code generation\n" if $verbose;
 # First Generate code for deny rules .
 for my $rule (@expanded_deny_rules) {
     next if $rule->{deleted};
-    &path_walk($rule, \&gen_code_at_src);
+    &path_walk($rule, \&collect_acls); #_at_src);
 }
 
 # Distribute permit rules to managed routers
@@ -2232,20 +2233,20 @@ for my $rule (@expanded_deny_rules) {
 #    dst-R3-/
 for my $rule (@expanded_rules) {
     next if $rule->{deleted};
-    &path_walk($rule, \&gen_code);
+    &path_walk($rule, \&collect_acls);
 }
 
-# Generate code for weak deny rules directly before the corresponding 
-# permit any rule
+# Generate code for weak deny rules directly in front of
+# the corresponding 'permit any' rule
 for my $rule (@expanded_any_rules) {
     next if $rule->{deleted};
     if(exists $rule->{deny_rules}) {
 	for my $deny_rule (@{$rule->{deny_rules}}) {
 	    next if $deny_rule->{deleted};
-	    &path_walk($deny_rule, \&gen_code_at_src);
+	    &path_walk($deny_rule, \&collect_acls); #_at_src);
 	}
     }
-    &path_walk($rule, \&gen_code);
+    &path_walk($rule, \&collect_acls);
 }
 
 # Print generated code for each managed router
