@@ -2413,6 +2413,10 @@ sub setany() {
 ####################################################################
 # Set paths for efficient topology traversal
 ####################################################################
+
+# collect all networks and routers lying inside a cyclic graph
+my @loop_objects;
+
 sub setpath_obj( $$$ ) {
     my($obj, $to_net1, $distance) = @_;
 #    info("-- $distance: $obj->{name} --> $to_net1->{name}");
@@ -2430,7 +2434,7 @@ sub setpath_obj( $$$ ) {
     $obj->{active_path} = 1;
     $obj->{distance} = $distance;
 
-    my $loop_exit;
+    my $loop_start;
     my $loop_distance;
     my $get_next = is_router $obj ? 'network' : 'router';
     for my $interface (@{$obj->{interfaces}}) {
@@ -2442,8 +2446,8 @@ sub setpath_obj( $$$ ) {
 	my $next = $interface->{$get_next};
 	if(my $loop = &setpath_obj($next, $interface, $distance+1)) {
 	    # path is part of a loop
-	    if(!$loop_exit or $loop->{distance} < $loop_distance) {
-		$loop_exit = $loop;
+	    if(!$loop_start or $loop->{distance} < $loop_distance) {
+		$loop_start = $loop;
 		$loop_distance = $loop->{distance};
 	    }
 	    $interface->{in_loop} = 1;
@@ -2453,15 +2457,15 @@ sub setpath_obj( $$$ ) {
 	}
     }
     delete $obj->{active_path};
-    if($loop_exit) {
-	# mark every node of a loop with the loop's starting point
-	$obj->{loop} = $loop_exit;
-#	info "Loop($obj->{distance}): $obj->{name} -> $loop_exit->{name}";
-	unless($obj eq $loop_exit) {
+    if($loop_start) {
+	# Mark every node of a cyclic graph with the graph's starting point
+	# or the starting point of a subgraph
+	$obj->{loop} = $loop_start;
+	push @loop_objects, $obj;
+#	info "Loop($obj->{distance}): $obj->{name} -> $loop_start->{name}";
+	unless($obj eq $loop_start) {
 	    # We are still inside a loop
-	    # every node of a loop gets the distance of its starting point
-	    $obj->{distance} = $loop_exit->{distance};
-	    return $loop_exit;
+	    return $loop_start;
 	}
     }
     $obj->{main} = $to_net1;
@@ -2489,6 +2493,23 @@ sub setpath() {
 	$network->{main} or $network->{loop} or
 	    err_msg "Found unconnected $network->{name}";
     }
+    
+    # Propagate loop starting point into all sub-loops.
+    for my $obj (@loop_objects) {
+	my $loop = $obj->{loop};
+	my $next = $loop->{loop};
+	next if $next eq $loop;
+	$loop = $next;
+	while(1) {
+	    $next = $loop->{loop};
+	    if($loop eq $next) { last; }
+	    else { $loop = $next; }
+	}
+	$obj->{loop} = $loop;
+#	info "adjusting $obj->{name}' loop to $loop->{name}";
+	$obj->{distance} = $loop->{distance};
+    }
+    @loop_objects = undef;
 
     # Check consistency of virtual interfaces:
     # Interfaces with identical virtual IP must 
@@ -3628,7 +3649,7 @@ sub print_routes( $ ) {
 			# Check if both have dynamic routing enabled.
 			unless($interface->{routing} and
 			       $interface2->{routing}) {
-			    warn "Two static routes for $network->{name}\n",
+			    warning "Two static routes for $network->{name}\n",
 			    " via $interface->{name} and $interface2->{name}";
 			}
 		    }
@@ -3641,7 +3662,7 @@ sub print_routes( $ ) {
 			# Check if both are reached via the same virtual IP.
 			unless($hop->{virtual} and $hop2->{virtual} and
 			       $hop->{virtual} eq $hop2->{virtual}) {
-			    warn "Two static routes for $network->{name} ",
+			    warning "Two static routes for $network->{name} ",
 			    "at $interface->{name}";
 			}
 		    } else {
