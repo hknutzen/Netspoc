@@ -1897,7 +1897,6 @@ sub gen_code( $$$ ) {
 	    for my $dst_code (@dst_code) {
 		my $established = $srv->{type} eq 'tcp'?'established':'';
 		push(@{$dst_intf->{code}},
-		     # ToDo: add 'established' for TCP
 		     "$action $proto_code $dst_code $port_code $src_code $established\n");
 	    }
 	}
