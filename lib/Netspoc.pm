@@ -436,7 +436,7 @@ sub read_interface( $ ) {
     unless(&check('=')) {
 	skip(';');
 	# short form of interface definition
-	$interface->{ip} = 'cloud';
+	$interface->{ip} = 'short';
 	return $interface;
     }
     &skip('{');
@@ -523,7 +523,7 @@ sub read_router( $ ) {
 	# assign router to interface
 	$interface->{router} = $router;
 	# managed router must not have short interface
-	if($managed and $interface->{ip} eq 'cloud') {
+	if($managed and $interface->{ip} eq 'short') {
 	    err_msg "Short definition of $interface->{name} not allowed";
 	}
 	# interface of managed router needs to have a hardware name
@@ -1096,19 +1096,19 @@ sub link_interface_with_net( $ ) {
 	my $old_intf = $net->{interfaces}->[0];
 	# if network is already linked to a short interface
 	# it must not be linked to any other interface
-	if($old_intf->{ip} eq 'cloud') {
+	if($old_intf->{ip} eq 'short') {
 	    err_msg "$net->{name} must not be linked with $interface->{name},\n",
 	    " since it is already linked with short $old_intf->{name}";
 	}
 	# if network is already linked to any interface
 	# it must not be linked to a short interface
-	if($ip eq 'cloud') {
+	if($ip eq 'short') {
 	    err_msg "$net->{name} must not be linked with $old_intf->{name},\n",
 	    " since it is already linked with short $interface->{name}";
 	}
     } 
 
-    if($ip eq 'cloud') {
+    if($ip eq 'short') {
 	# nothing to check: short interface may be linked to arbitrary network
     } elsif($ip eq 'unnumbered') {
 	$net->{ip} eq 'unnumbered' or
@@ -1226,7 +1226,7 @@ sub expand_group( $$ ) {
 	    if($object->{ip} eq 'unnumbered') {
 		err_msg "Unnumbered $object->{name} must not be used in $context";
 		$object = undef;
-	    } elsif($object->{ip} eq 'cloud') {
+	    } elsif($object->{ip} eq 'short') {
 		err_msg "Short $object->{name} must not be used in $context";
 		$object = undef;;
 	    }
