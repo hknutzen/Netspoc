@@ -38,6 +38,7 @@ my($in_path, $out_dir) = &read_args();
 &mark_disabled();
 &find_subnets();
 &setany();
+&distribute_nat_info();
 &expand_rules();
 &check_unused_groups();
 &setpath();
