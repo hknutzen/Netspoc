@@ -41,14 +41,14 @@ the topology.
 
 =item $warn_unused_groups = [0|1]
 
-Gives warning for unused groups.
+Gives warning for unused groups and servicegroups.
 
 =item $strict_subnets = [0|1]
 
 Allow subnets only if the enclosing network is marked as 'route_hint'
 or if the subnet is marked as 'subnet_of'.
 
-=item $ignore_files = qr/^CVS$|^RCS$|^raw$|~$/;
+=item $ignore_files = qr/^CVS$|^RCS$|^.#|^raw$|~$/;
 
 Ignore these names when reading directories:
 
@@ -57,6 +57,10 @@ Ignore these names when reading directories:
 =item *
 
 CVS and RCS directories
+
+=item *
+
+CVS working files
 
 =item *
 
