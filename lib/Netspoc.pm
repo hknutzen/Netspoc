@@ -309,11 +309,11 @@ sub print_ip_aref( $ ) {
     return map { print_ip($_); } @$aref;
 }
 		
-# check for xxx:xxx or xxx:xxx.xxx
+# check for xxx:xxx
 sub check_typed_name() {
     use locale;		# now German umlauts are part of \w
     &skip_space_and_comment();
-    if(m/(\G\w+:\w+(\.\w+)?)/gc) {
+    if(m/(\G\w+:[\w-]+)/gc) {
 	return $1;
     } else {
 	return undef;
@@ -325,11 +325,23 @@ sub read_typed_name() {
 	syntax_err "Typed name expected";
 }
 
-# check for xxx:xxx or xxx:[xxx] or xxx:[xxx].[xxx] or xxx:xxx.[xxx]
+# read interface:xxx.xxx
+sub read_interface_name() {
+    use locale;		# now German umlauts are part of \w
+    &skip_space_and_comment();
+    if(m/(\G\w+:[\w-]+\.[\w-]+)/gc) {
+	return $1;
+    } else {
+	syntax_err "Interface name expected";
+    }
+}
+
+# check for xxx:xxx or xxx:[xxx] or interface:xxx.xxx
+# or interface:xxx.[xxx] or interface:[xxx].[xxx]
 sub check_typed_ext_name() {
     use locale;		# now German umlauts are part of \w
     &skip_space_and_comment();
-    if(m/(\G\w+:[][\w]+(\.[][\w]+)?)/gc) {
+    if(m/\G(interface:[][\w-]+\.[][\w-]+|\w+:[][\w-]+)/gc) {
 	return $1;
     } else {
 	return undef;
@@ -344,7 +356,7 @@ sub read_typed_ext_name() {
 sub read_identifier() {
     use locale;		# now German umlauts are part of \w
     &skip_space_and_comment();
-    if(m/(\G\w+)/gc) {
+    if(m/(\G[\w-]+)/gc) {
 	return $1;
     } else {
 	syntax_err "Identifier expected";
@@ -1172,12 +1184,21 @@ sub read_pathrestriction( $ ) {
    my $name = shift;
    skip('=');
    my $description = &read_description();
-   my @objects = &read_list_or_null(\&read_typed_name);
-   @objects > 1 or
+   my @names = &read_list_or_null(\&read_interface_name);
+   my @interfaces;
+   for my $name (@names) {
+       my($type, $intf) = split_typed_name($name);
+       if($type eq 'interface') {
+	   push @interfaces, $intf;
+       } else {
+	   error_atline "Expected interfaces as values";
+       }
+   }		
+   @names > 1 or
        error_atline "pathrestriction:$name must use more than one interface";
    my $restriction = new('Pathrestriction',
 			 name => "pathrestriction:$name",
-			 elements => \@objects,
+			 elements => \@interfaces,
 			 file => $file);
    $store_description and $restriction->{description} = $description;
    if(my $old_restriction = $pathrestrictions{$name}) {
@@ -1528,15 +1549,16 @@ sub link_interface_with_net( $ ) {
     }
     $interface->{network} = $network;
     if($interface->{reroute_permit}) {
-	for my $net (@{$interface->{reroute_permit}}) {
-	    my $network = $networks{$net};
+	for my $name (@{$interface->{reroute_permit}}) {
+	    my $network = $networks{$name};
 	    unless($network) {
-		err_msg "Referencing undefined network:$net ",
+		err_msg "Referencing undefined network:$name ",
 		"from attribute 'reroute_permit' of $interface->{name}";
 		# prevent further errors
-		push @disabled_interfaces, $interface;
+		delete $interface->{reroute_permit};
+		next;
 	    }
-	    $net = $network;
+	    $name = $network;
 	}
     }
     my $ip = $interface->{ip};
@@ -1597,24 +1619,19 @@ sub link_interface_with_net( $ ) {
 
 sub link_pathrestrictions() {
     for my $restrict (values %pathrestrictions) {
-	for my $string (@{$restrict->{elements}}) {
-	    my($type, $name) = split_typed_name($string);
-	    if($type eq 'interface') {
-		if(my $interface = $interfaces{$name}) {
-		    # Multiple restrictions may be applied to a single 
-		    # interface.
-		    push @{$interface->{path_restrict}}, $restrict;
-		    # Substitute interface name by interface object.
-		    $string = $interface;
-		    $interface->{router}->{managed} or
-			err_msg "Referencing unmanaged $interface->{name} ",
-			"from $restrict->{name}";
-		} else {
-		    err_msg "Referencing undefined $type:$name ", 
+	for my $name (@{$restrict->{elements}}) {
+	    if(my $interface = $interfaces{$name}) {
+		$interface->{router}->{managed} or
+		    err_msg "Referencing unmanaged $interface->{name} ",
 		    "from $restrict->{name}";
-		}
+		# Multiple restrictions may be applied to a single 
+		# interface.
+		push @{$interface->{path_restrict}}, $restrict;
+		# Substitute interface name by interface object.
+		$name = $interface;
 	    } else {
-		err_msg "$restrict->{name} must not reference '$type:$name'";
+		err_msg "Referencing undefined interface:$name ", 
+		"from $restrict->{name}";
 	    }
 	}
     }
