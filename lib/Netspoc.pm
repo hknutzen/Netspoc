@@ -3834,7 +3834,8 @@ sub print_pix_static( $ ) {
 		    }
 		} else {	# both static
 		    if($in_hw->{level} < $out_hw->{level} ||
-		       $out_hw->{need_always_static}) {
+		       $out_hw->{need_always_static} ||
+		       $out_nat) {
 			$in_ip = print_ip $in_ip;
 			$out_ip = print_ip $out_ip;
 			$in_mask = print_ip $in_mask;
