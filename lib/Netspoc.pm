@@ -1841,7 +1841,8 @@ sub convert_any_dst_rule( $$$ ) {
     my $router = $out_intf->{router};
     # link together 'any' rules at one router:
     # code needs to be generated only for the first processed rule 
-    my $link = {active => 0};
+    $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv}->{active} = 0;
+    my $link = $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv};
 
     # Find networks at all interfaces except the in_intf.
     # For the case that src is interface of current router,
