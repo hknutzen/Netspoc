@@ -785,8 +785,7 @@ sub print_rule( $ ) {
 # ==> support chains of range > range .. > host
 sub find_ip_ranges( $$ ) {
     my($host_aref, $network) = @_;
-    my @ranges = grep { $_->{is_range} } @$host_aref;
-    my @hosts =  grep { not $_->{is_range} } @$host_aref;
+    my @hosts =  grep { not $_->{is_range} and @{$_->{ip}} == 1 } @$host_aref;
     my @sorted = sort { $a->{ip}->[0] <=> $b->{ip}->[0] } @hosts;
     # add a dummy host to simplify the code
     push @sorted, {ip => [-1] };
