@@ -1894,6 +1894,19 @@ sub setpath() {
 # Used for conversion of 'any' rules and for generation of ACLs
 ####################################################################
 
+sub get_networks ( $ ) {
+    my($obj) = @_;
+    if(is_host $obj or is_interface $obj) {
+	return $obj->{network};
+    } elsif(is_net $obj) {
+	return $obj;
+    } elsif(is_any $obj) {
+	return @{$obj->{networks}};
+    } else {
+	internal_err "unexpected $obj->{name}";
+    }
+}
+ 
 sub get_path( $ ) {
     my($obj) = @_;
     if(is_host($obj)) {
@@ -2240,17 +2253,6 @@ sub convert_any_rules() {
 # At secondary packet filters, we check only for src and dst network
 ##############################################################################
 
-sub get_secondary_network ( $ ) {
-    my($obj) = @_;
-    if(is_host $obj or is_interface $obj) {
-	return $obj->{network};
-    } elsif(is_net $obj) {
-	return $obj;
-    } else {
-	internal_err "unexpected $obj->{name}";
-    }
-}
-
 sub mark_secondary_rule( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
     my $router = ($src_intf || $dst_intf)->{router};
@@ -2270,8 +2272,10 @@ sub mark_secondary_rules() {
 	&path_walk($rule, \&mark_secondary_rule, 'Router');
 	if($rule->{has_secondary_filter} = 
 	   $rule->{has_secondary_filter} && $rule->{has_full_filter}) {
-	    my $src = get_secondary_network $rule->{src};
-	    my $dst = get_secondary_network $rule->{dst};
+	    # get_networks has a single result if not called 
+	    # with an 'any' object as argument
+	    my $src = get_networks $rule->{src};
+	    my $dst = get_networks $rule->{dst};
 	    my $old_rule = $secondary_rule_tree{$src}->{$dst};
 	    if($old_rule) {
 		# found redundant rule
@@ -2676,19 +2680,6 @@ sub collect_route( $$$ ) {
     }
 }
 
-sub get_networks ( $ ) {
-    my($obj) = @_;
-    if(is_host $obj or is_interface $obj) {
-	return $obj->{network};
-    } elsif(is_net $obj) {
-	return $obj;
-    } elsif(is_any $obj) {
-	return @{$obj->{networks}};
-    } else {
-	internal_err "unexpected $obj->{name}";
-    }
-}
- 
 sub find_active_routes_and_statics () {
     info "Finding routes and statics";
     my %routing_tree;
