@@ -1779,6 +1779,7 @@ sub setany() {
 ####################################################################
 sub setpath_obj( $$$$ ) {
     my($obj, $to_r1, $distance, $loop) = @_;
+#info("-- ".($loop?$loop->{name}:'main').",$distance: $obj->{name} --> $to_r1->{name}");
     # $obj: a managed router or an 'any' object
     # $to_r1: interface of $obj; go this direction to reach any1
     # $distance: distance to any1
@@ -1799,7 +1800,6 @@ sub setpath_obj( $$$$ ) {
 	$obj->{main} = $to_r1;
 	$obj->{main_dist} = $distance;
     } 
-#info("-- ".($loop?$loop->{name}:'main').",$distance: $obj->{name} --> $to_r1->{name}");
 
     for my $interface (@{$obj->{interfaces}}) {
 	# ignore interface where we reached this obj
@@ -1807,27 +1807,27 @@ sub setpath_obj( $$$$ ) {
 	# get local copy of loop: change only current interface
 	my $loop = $loop;
 	if($loop) {
-	    if($interface->{main}) {
+	    if($interface->{extra}) {
+		err_msg "Found nested loop at $interface->{name}";
+		next;
+	    } elsif($interface->{main}) {
 		# path already marked in same direction: outside of loop
 		next if $interface->{main} eq $obj;
 		$interface->{extra} = $obj;
-	    } elsif($interface->{extra}) {
-		err_msg "Found nested loop at $interface->{name}";
-		next;
 	    } else {
 		internal_err
 		    "Found unmarked $interface->{name} while marking loop";
 		next;
 	    }
 	} else {
-	    if($interface->{main}) {
+	    if($obj->{extra}) {
+		internal_err
+		    "Found marked loop at $obj->{name} while outside a loop";
+	    } elsif($interface->{main}) {
 		# a new loop begins at $obj (when looking from r1)
 		# take interface $obj as a representative for the whole loop
 		$loop = $obj;
 		$interface->{extra} = $obj;
-	    } elsif($obj->{extra}) {
-		internal_err
-		    "Found marked loop at $obj->{name} while outside a loop";
 	    } else {
 		# continue marking main path
 		$interface->{main} = $obj;
