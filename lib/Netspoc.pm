@@ -107,21 +107,21 @@ my %router_info =
 (
  IOS => {
      name => 'IOS',
-     stateful => 0,
+     stateless => 1,
+     stateless_self => 1,
      routing => 'IOS',
      filter => 'IOS',
      comment_char => '!'
      },
  IOS_FW => {
      name => 'IOS_FW',
-     stateful => 1,
+     stateless_self => 1,
      routing => 'IOS',
      filter => 'IOS',
      comment_char => '!'
      },
  PIX => {
      name => 'PIX',
-     stateful => 1,
      routing => 'PIX',
      filter => 'PIX',
      comment_char => '!',
@@ -130,7 +130,6 @@ my %router_info =
      },
  Linux => {
      name => 'Linux',
-     stateful => 1,
      routing => 'iproute',
      filter => 'iptables',
      comment_char => '#'
@@ -824,7 +823,7 @@ sub read_proto_nr() {
 our %services;
 sub read_service( $ ) {
     my $name = shift;
-    my $srv = { name => $name,
+    my $srv = { name => "service:$name",
 		file => $file };
     &skip('=');
     if(&check('ip')) {
@@ -1027,11 +1026,14 @@ sub is_servicegroup( $ ) { ref($_[0]) eq 'Servicegroup'; }
 
 sub print_rule( $ ) {
     my($rule) = @_;
+    my $extra = '';;
+    $extra .= " $rule->{for_router}" if $rule->{for_router};
+    $extra .= " stateless" if $rule->{stateless};
     if($rule->{orig_any}) { $rule = $rule->{orig_any}; }
     my $srv = exists($rule->{orig_srv}) ? 'orig_srv' : 'srv';
     return $rule->{action} .
 	" src=$rule->{src}->{name}; dst=$rule->{dst}->{name}; " .
-	"srv=$rule->{$srv}->{name};";
+	"srv=$rule->{$srv}->{name};$extra";
 }
 
 ####################################################################
@@ -1248,7 +1250,7 @@ sub order_ranges( $$$ ) {
 	       $p1[2] == $p2[2] and $p1[3] == $p2[3]) {
 		$srv1->{type} eq 'tcp' and $srv1->{established} and 
 		    $srv2->{type} eq 'tcp' and not $srv2->{established} or
-		    internal_err "$srv1->{name} should have 'established' flag";
+		    internal_err "expected $srv1->{name} to have 'established' flag set";
 		$srv1->{up} = $srv2;
 		last SRV2;
 	    } elsif($p2[0] <= $p1[0] and $p1[1] <= $p2[1] and 
@@ -1295,7 +1297,9 @@ my $srv_ip;
 
 sub order_services() {
     unless($srv_hash{ip}) {
-	$srv_hash{ip} = { type => 'ip', name => 'auto_srv:ip' };
+	my $name = 'auto_srv:ip';
+	$srv_hash{ip} = { type => 'ip', name => $name };
+	$services{$name} = $srv_hash{ip};
     }
     my $up = $srv_ip = $srv_hash{ip};
     # established port ranges: link to enclosing ranges, but not to 'ip'
@@ -1731,6 +1735,7 @@ sub order_any_rules2 ( @ ) {
     my %ordered_any_rules;
     for my $rule (@_) {
 	my $depth = $rule->{srv}->{depth};
+	defined $depth or internal_err "no depth for $rule->{srv}->{name}";
 	my $srcid = typeof($rule->{src});
 	my $dstid = typeof($rule->{dst});
 	push @{$ordered_any_rules{$depth}->{$srcid}->{$dstid}}, $rule;
@@ -1846,7 +1851,7 @@ sub repair_deny_influence1( $$ ) {
 		    # Don't repair, even if managed interface is src
 		    next if is_interface $host and $host->{router}->{managed};
 		    # search for rules with action = permit, src = host and
-		    # dst = dst_any in $rule_tree
+		    # dst = dst_any in %rule_tree
 		    my $src_hash = $rule_tree{permit};
 		    next unless $src_hash;
 		    # do we have any rule with src = host ?
@@ -1870,7 +1875,8 @@ sub repair_deny_influence1( $$ ) {
 			my $hrule = { action => 'permit',
 				      src => $src,
 				      dst => $dst,
-				      srv => $arule->{srv}
+				      srv => $arule->{srv},
+				      stateless => $arule->{stateless}
 				  };
 			push @$normal_rules_ref, $hrule;
 		    }
@@ -2218,15 +2224,15 @@ sub get_path( $ ) {
 }
 
 # Mark path $from -> $to inside of loops.
-# For one direction we use the reference to $dst as a key.
-# For the other direction we build a key by appending
+# In general we use the reference to $dst as a key.
+# At the forking we build a second key by appending
 # the string "2." to the reference: "2.$dst"
 sub loop_part_mark ( $$$$$$ ) {
     my($direction, $from, $to, $from_in, $to_out, $dst) = @_;
     while(1) {
 	my $mark = $from_in->{$dst}?"2.$dst":$dst;
-	$from_in->{$mark} and
-	    internal_err "unexpected third direction in graph";
+	# mark may be set already, if this function was called for
+	# a sub-path before
 	if($from eq $to) {
 #	    info "$from_in->{name} -> ".($to_out?$to_out->{name}:'');
 	    $from_in->{$mark} = $to_out;
@@ -2426,6 +2432,7 @@ sub convert_any_src_rule( $$$ ) {
 		    dst => $rule->{dst},
 		    srv => $rule->{srv},
 		    action => 'permit',
+		    stateless => $rule->{stateless},
 		    i => $rule->{i},
 		    orig_any => $rule,
 		    deny_networks => [ @{$any->{networks}} ]
@@ -2476,7 +2483,7 @@ sub convert_any_dst_rule( $$$ ) {
     # at the same router.
     # This optimization is only applicable for stateful routers.
     my $link;
-    if($router->{model}->{stateful}) {
+    unless($router->{model}->{stateless}) {
 	$router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv}->{active} = 0;
 	$link = $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv};
     }
@@ -2506,6 +2513,7 @@ sub convert_any_dst_rule( $$$ ) {
 			dst => $any,
 			srv => $srv,
 			action => 'permit',
+			stateless => $rule->{stateless},
 			i => $rule->{i},
 			orig_any => $rule,
 			deny_networks => [ @{$any->{networks}} ],
@@ -2538,11 +2546,12 @@ sub convert_any_rules() {
 ##############################################################################
 
 my @reverse_rules;
+my %reverse_rule_tree;
 
-# ToDo: How does this interact with convert_any_rules
-sub gen_reverse_rules() {
-    info "Generating reverse rules for stateless routers";
-    for my $rule (@expanded_deny_rules, @expanded_rules, @expanded_any_rules) {
+sub gen_reverse_rules1 ( $ ) {
+    my($rule_aref) = @_;
+    my @extra_rules;
+    for my $rule (@$rule_aref) {
 	next if $rule->{deleted};
 	my $srv = $rule->{srv};
 	my $type = $srv->{type};
@@ -2563,16 +2572,37 @@ sub gen_reverse_rules() {
 		    $has_stateless_router = 1;
 		}
 	    }
-	    elsif(not $model->{stateful}) {
+	    elsif($model->{stateless}) {
 		$has_stateless_router = 1;
 	    }
 	};
 	&path_walk($rule, $mark_reverse_rule, 'Router');
 	if($has_stateless_router) {
 	    my $new_srv;
-	    if($type eq 'tcp' or $type eq 'udp') {
-		my @ports = @{$srv->{ports}}[2,3,0,1];
-		my $key1 = $type eq 'tcp' ? 'established' : $type;
+	    if($type eq 'tcp') {
+		# We don't need to filter ports for tcp packets,
+		# since we check for 'established' flag
+		my @ports = (1,65535,1,65535);
+		my $key1 = 'established';
+		my $key2 = join ':', @ports;
+		if(my $found_srv = $srv_hash{$key1}->{$key2}) {
+		    $new_srv = $found_srv;
+		} else {
+		    my $name = 'reverse:TCP_ANY';
+		    $new_srv = { %$srv };
+		    $new_srv->{name} = $name;
+		    $new_srv->{ports} = [ @ports ];
+		    $new_srv->{established} = 1;
+		    # Needed for order_services to work;
+		    # Use prefixed name for not overwriting
+		    # an original service
+		    $services{$name} = $new_srv;
+		    prepare_srv_ordering $new_srv;
+		}
+	    } elsif($type eq 'udp') {
+		# swap src and dst ports
+		my @ports =  @{$srv->{ports}}[2,3,0,1];
+		my $key1 = $type;
 		my $key2 = join ':', @ports;
 		if(my $found_srv = $srv_hash{$key1}->{$key2}) {
 		    $new_srv = $found_srv;
@@ -2581,21 +2611,37 @@ sub gen_reverse_rules() {
 		    $new_srv = { %$srv };
 		    $new_srv->{name} = $name;
 		    $new_srv->{ports} = [ @ports ];
-		    if($type eq 'tcp') {
-			$new_srv->{established} = 1;
-		    }
+		    # Needed for order_services to work;
+		    # Use prefixed name for not overwriting
+		    # the original service
+		    $services{$name} = $new_srv;
+		    prepare_srv_ordering $new_srv;
 		}
-	    } else {
+	    } elsif($type eq 'ip') {
 		$new_srv = $srv;
+	    } else {
+		internal_err;
 	    }
-	    my $new_rule = { src => $rule->{dst},
-			     dst => $rule->{src},
-			     srv => $new_srv,
-			     stateless => 1,
-			 };
-	    push @reverse_rules, $new_rule;
+	    my $new_rule = { %$rule };
+	    $new_rule->{src} = $rule->{dst};
+	    $new_rule->{dst} = $rule->{src};
+	    $new_rule->{srv} = $new_srv;
+	    # this rule must only be applied to stateless routers
+	    $new_rule->{stateless} = 1;
+	    &add_rule($new_rule);
+	    # don' push to @$rule_aref while we are iterating over it
+	    push @extra_rules, $new_rule;
 	}
     }
+    push @$rule_aref, @extra_rules;
+}
+
+sub gen_reverse_rules() {
+    info "Generating reverse rules for stateless routers";
+    gen_reverse_rules1 \@expanded_deny_rules;
+    gen_reverse_rules1 \@expanded_rules;
+    # ToDo: How does this interact with convert_any_rules?
+    gen_reverse_rules1 \@expanded_any_rules;
 }
 
 ##############################################################################
@@ -2616,8 +2662,9 @@ sub gen_secondary_rules() {
     # ToDo: Think about applying this to 'any' rules
     for my $rule (@expanded_rules) {
 	next if $rule->{deleted};
-	my $has_secondary_filter;
 	my $has_full_filter;
+	my $has_secondary_filter;
+	my $dst_is_secondary;
 	# Local function.
 	# It uses variables $has_secondary_filter and $has_full_filter.
 	my $mark_secondary_rule = sub( $$$ ) {
@@ -2638,6 +2685,10 @@ sub gen_secondary_rules() {
 		$has_full_filter = 1;
 	    } elsif($router->{managed} eq 'secondary') {
 		$has_secondary_filter = 1;
+		# Interface of current router is destination of rule.
+		if(not $dst_intf) {
+		    $dst_is_secondary = 1;
+		}
 	    }
 	};
 
@@ -2647,7 +2698,9 @@ sub gen_secondary_rules() {
 	    # get_networks has a single result if not called 
 	    # with an 'any' object as argument
 	    my $src = get_networks $rule->{src};
-	    my $dst = get_networks $rule->{dst};
+	    my $dst = $rule->{dst};
+	    # ToDo: build two rules if there are two secondary routers
+	    $dst = get_networks $dst unless $dst_is_secondary;
 	    # nothing to do, if there is  an identical secondary rule
 	    unless($secondary_rule_tree{$src}->{$dst}) {
 		# copy original rule;
@@ -2668,14 +2721,15 @@ sub gen_secondary_rules() {
 # rules which are overlapped by a more general rule
 ##############################################################################
 
-# Add rule to $rule_tree 
+# Add rule to %rule_tree or %reverse_rule_tree
 sub add_rule( $ ) {
     my ($rule) = @_;
     my $action = $rule->{action};
     my $src = $rule->{src};
     my $dst = $rule->{dst};
     my $srv = $rule->{srv};
-    my $old_rule =$rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv};
+    my $rule_tree = $rule->{stateless} ? \%reverse_rule_tree : \%rule_tree;
+    my $old_rule = $rule_tree->{$action}->{$src}->[0]->{$dst}->[0]->{$srv};
     if($old_rule) {
 	# Found identical rule
 	# For 'any' rules we must preserve the rule without deny_networks
@@ -2690,9 +2744,9 @@ sub add_rule( $ ) {
 	    return;
 	}
     } 
-    $rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
-    $rule_tree{$action}->{$src}->[1] = $src;
-    $rule_tree{$action}->{$src}->[0]->{$dst}->[1] = $dst;
+    $rule_tree->{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
+    $rule_tree->{$action}->{$src}->[1] = $src;
+    $rule_tree->{$action}->{$src}->[0]->{$dst}->[1] = $dst;
 }
 
 # delete an element from an array reference
@@ -2895,17 +2949,29 @@ sub optimize_src_rules( $$ ) {
 }
 
 # deny > permit 
-sub optimize_rules() {
-    my $deny_hash;
-    if($deny_hash = $rule_tree{deny}) {
-	&optimize_src_rules($deny_hash, $deny_hash);
+sub optimize_action_rules( $$ ) {
+    my($cmp_hash, $chg_hash) = @_;
+    my $cmp_deny = $cmp_hash->{deny};
+    my $chg_deny = $chg_hash->{deny};
+    my $cmp_permit = $cmp_hash->{permit};
+    my $chg_permit = $chg_hash->{permit};
+    if($chg_deny && $cmp_deny) {
+	&optimize_src_rules($cmp_deny, $chg_deny);
     }
-    if(my $permit_hash = $rule_tree{permit}) {
-	&optimize_src_rules($permit_hash, $permit_hash);
-	$deny_hash and
-	    &optimize_src_rules($deny_hash, $permit_hash);
+    if($chg_permit && $cmp_permit) {
+	&optimize_src_rules($cmp_permit, $chg_permit);
+    }
+    if($chg_deny && $cmp_permit) {
+	&optimize_src_rules($cmp_permit, $chg_deny);
     }
 }
+
+# normal rules > reverse rules
+sub optimize_rules() {
+    optimize_action_rules \%reverse_rule_tree, \%reverse_rule_tree;
+    optimize_action_rules \%rule_tree, \%reverse_rule_tree;
+    optimize_action_rules \%rule_tree, \%rule_tree;
+}	
 
 sub optimize() {
     info "Optimization";
@@ -2933,7 +2999,7 @@ sub optimize() {
 ####################################################################
 
 # A security domain with multiple networks has some unmanaged routers.
-# For each interface at the border of a security domian,
+# For each interface at the border of a security domain,
 # fill a hash referenced by $route, showing by wich internal interface
 # each network may be reached from outside.
 # If a network may be reached by multiple paths, use the interface
@@ -3167,13 +3233,13 @@ sub print_routes( $ ) {
 		    print "! route $network->{name} -> $hop->{name}\n";
 		}
 		if($router->{model}->{routing} eq 'IOS') {
-		    my $adr = &ios_code(&address($network));
+		    my $adr = &ios_route_code(@{&address($network)});
 		    print "ip route $adr\t$hop_addr\n";
 		} elsif($router->{model}->{routing} eq 'PIX') {
-		    my $adr = &ios_code(&address($network));
+		    my $adr = &ios_route_code(@{&address($network)});
 		    print "route $interface->{hardware} $adr\t$hop_addr\n";
 		} elsif($router->{model}->{routing} eq 'iproute') {
-		    my $adr = &prefix_code(&address($network));
+		    my $adr = &prefix_code(@{&address($network)});
 		    print "ip route $adr via $hop_addr\n";
 		} else {
 		    internal_err
@@ -3289,35 +3355,36 @@ sub split_ip_range( $$ ) {
 	    }
 	}
 	my $mask = ~($add-1);
-	push @result, $i, $mask;
+	push @result, [ $i, $mask ];
 	$i += $add;
     }
     return @result;
 }
 
+# returns a list of [ ip, mask ] pairs
 sub address( $ ) {
     my ($obj) = @_;
     if(is_host($obj)) {
 	if($obj->{range}) {
 	    return &split_ip_range(@{$obj->{range}});
 	} else {
-	    return $obj->{ip}, 0xffffffff;
+	    return [$obj->{ip}, 0xffffffff];
 	}
     }
     if(is_interface($obj)) {
 	if($obj->{ip} eq 'unnumbered' or $obj->{ip} eq 'short') {
 	    internal_err "unexpected $obj->{ip} $obj->{name}\n";
 	} else {
-	    return map { ($_, 0xffffffff)  } @{$obj->{ip}};
+	    return map { [$_, 0xffffffff]  } @{$obj->{ip}};
 	}
     } elsif(is_net($obj)) {
 	if($obj->{ip} eq 'unnumbered') {
 	    internal_err "unexpected unnumbered $obj->{name}\n";
 	} else {
-	    return $obj->{ip}, $obj->{mask};
+	    return [$obj->{ip}, $obj->{mask}];
 	}
     } elsif(is_any($obj)) {
-	return 0, 0;
+	return [0, 0];
     } else {
 	internal_err "unexpected object $obj->{name}";
     }
@@ -3336,6 +3403,13 @@ sub ios_code( $$$ ) {
 	 my $mask_code = &print_ip($inv_mask?~$mask:$mask);
 	 return "$ip_code $mask_code";
      }
+}
+
+sub ios_route_code( $$ ) {
+    my($ip, $mask) = @_;
+    my $ip_code = &print_ip($ip);
+    my $mask_code = &print_ip($mask);
+    return "$ip_code $mask_code";
 }
 
 # Given an IP and mask, return its address as "x.x.x.x/x"
@@ -3387,7 +3461,9 @@ sub cisco_srv_code( $$ ) {
 		return("range $v1 $v2");
 	    }
 	};
-	return($proto, &$port_code(@p[0,1]), &$port_code(@p[2,3]));
+	my $established = $srv->{established} ? ' established' : '';
+	return($proto, &$port_code(@p[0,1]),
+	       &$port_code(@p[2,3]) . $established);
     } elsif($proto eq 'icmp') {
 	my $type = $srv->{v1};
 	if($type eq 'any') {
@@ -3444,6 +3520,9 @@ sub iptables_srv_code( $ ) {
 	my $result = "-p $proto";
 	$result .= " -sport $sport" if $sport;
 	$result .= " -dport $dport" if $dport;
+	$srv->{established} and
+	    internal_err "Unexpected service $srv->{name} with",
+	    " 'established' flag while generating code for iptables";
 	return $result;
     } elsif($proto eq 'icmp') {
 	my $type = $srv->{v1};
@@ -3488,30 +3567,42 @@ sub acl_line( $$$$$$$ ) {
 
 sub collect_acls( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
+    # Traffic from src reaches this router via src_intf
+    # and leaves it via dst_intf.
+    # src_intf is undefined if src is an interface of the current router
+    # dst_intf is undefined if dst  is an interface of the current router
     # Outgoing packets from a router itself are never filtered.
     return unless $src_intf;
     my $action = $rule->{action};
     my $src = $rule->{src};
     my $dst = $rule->{dst};
     my $srv = $rule->{srv};
-    # Traffic from src reaches this router via src_intf
-    # and leaves it via dst_intf 
-    # src_intf is undefined if src is an interface of the current router
-    # analogous for dst_intf 
-    my $router = ($src_intf || $dst_intf)->{router};
+    my $router = $src_intf->{router};
+    my $model = $router->{model};
     # Rules of type secondary are only applied to secondary routers.
     # Rules of type full are only applied to full filtering routers.
-    if(my $type = $rule->{on_router}) {
+    # All other rules are applied to all routers.
+    if(my $type = $rule->{for_router}) {
 	return unless $type eq $router->{managed};
     }
-    # Rules from / to managed interfaces must be processed
+    # Rules of type stateless must only be processed at 
+    # stateless routers
+    # or at routers which are stateless for packets destined for
+    # their own interfaces
+    if($rule->{stateless}) {
+	unless($model->{stateless} or
+	       not $dst_intf and $model->{stateless_self}) {
+	    return;
+	}
+    }
+
+    # Rules to managed interfaces must be processed
     # at the corresponding router even if they are marked as deleted,
     # because code for interfaces is placed before the 'normal' code.
     # ToDo: But we might get duplicate ACLs for an interface.
     if($rule->{deleted}) {
-	# we are on an intermediate router
-	# if both $src_intf and $dst_intf are defined
-	return if defined $src_intf and defined $dst_intf;
+	# we are on an intermediate router if $dst_intf is defined
+	return if $dst_intf;
 # ToDo: Check if this optimization is valid
 #	if(not defined $src_intf) {
 #	    # src is an interface of the current router
@@ -3533,7 +3624,6 @@ sub collect_acls( $$$ ) {
 #	    }
 #	}
     }
-    my $model = $router->{model};
     my $comment_char = $model->{comment_char};
     my @src_addr = &address($src);
     my @dst_addr = &address($dst);
@@ -3541,7 +3631,7 @@ sub collect_acls( $$$ ) {
     # Packets for the router itself
     if(not defined $dst_intf) {
 	# For PIX firewalls it is unnecessary to generate permit ACLs
-	# for packets to the pix itself
+	# for packets to the PIX itself
 	# because it accepts them anyway (telnet, IPSec)
 	# ToDo: Check if this assumption holds for deny ACLs as well
 	return if $model->{filter} eq 'PIX' and $action eq 'permit';
@@ -3554,12 +3644,10 @@ sub collect_acls( $$$ ) {
     if($comment_acls) {
 	push(@$code_aref, "$comment_char ". print_rule($rule)."\n");
     }
-    while(@src_addr) {
-	my $src_ip = shift @src_addr;
-	my $src_mask = shift @src_addr;
-	while(@dst_addr) {
-	    my $dst_ip = shift @dst_addr;
-	    my $dst_mask = shift @dst_addr;
+    for my $spair (@src_addr) {
+	my($src_ip, $src_mask) = @$spair;
+	for my $dpair (@dst_addr) {
+	    my ($dst_ip, $dst_mask) = @$dpair;
 	    push(@$code_aref,
 		 acl_line($action,
 			  $src_ip, $src_mask, $dst_ip, $dst_mask, $srv,
@@ -3591,7 +3679,8 @@ sub collect_acls_at_src( $$$ ) {
 		my $deny_rule = {action => 'deny',
 				 src => $deny_network,
 				 dst => $any_rule->{dst},
-				 srv => $any_rule->{srv}
+				 srv => $any_rule->{srv},
+				 stateless => $any_rule->{stateless}
 			     };
 		&collect_acls($deny_rule, $src_intf, $dst_intf);
 	    }
@@ -3623,7 +3712,8 @@ sub collect_acls_at_dst( $$$ ) {
 	    my $deny_rule = {action => 'deny',
 			     src => $any_rule->{src},
 			     dst => $deny_network,
-			     srv => $any_rule->{srv}
+			     srv => $any_rule->{srv},
+			     stateless => $any_rule->{stateless}
 			 };
 	    &collect_acls($deny_rule, $src_intf, $dst_intf);
 	}
@@ -3720,7 +3810,7 @@ sub print_acls( $ ) {
 	    # addresses, because it is shorter if the interfcae has 
 	    # multiple addresses.
 	    for my $net (@{$ospf{$hardware}}) {
-		my ($ip, $mask) = address $net;
+		my ($ip, $mask) = @{address($net)};
 		push(@$code_aref,
 		     #  permit ospf $net $net
 		     acl_line('permit',
