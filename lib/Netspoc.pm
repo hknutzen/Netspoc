@@ -2801,7 +2801,8 @@ sub print_acls( $ ) {
     # Collect IP addresses of all interfaces
     my @ip;
     for my $interface (@{$router->{interfaces}}) {
-	$hardware{$interface->{hardware}} = 1;
+	# Remember interface name for comments
+	$hardware{$interface->{hardware}} = $interface->{name};
 	# ignore 'unnumbered' and 'short' interfaces
 	next if $interface->{ip} eq 'unnumbered' or $interface->{ip} eq 'short';
 	push @ip, @{$interface->{ip}};
@@ -2814,13 +2815,16 @@ sub print_acls( $ ) {
 	push @$code;
 	push @$if_code;
 	if($model =~ /^IOS/) {
+	    if($comment_acls) {
+		print "! $hardware{$hardware}\n";
+	    }
 	    print "ip access-list extended $name\n";
 	    for my $line (@$if_code) {
 		print " $line";
 	    }
 	    if(@$code) {
 		if($comment_acls and @ip) {
-		    print " ! Protect interfaces\n";
+		    print " ! Protect own interfaces\n";
 		}
 		for my $ip (@ip) {
 		    print " deny ip any host ". print_ip($ip) ."\n";
@@ -2833,6 +2837,9 @@ sub print_acls( $ ) {
 	    print "interface $hardware\n";
 	    print " access group $name\n\n";
 	} elsif($model eq 'PIX') {
+	    if($comment_acls) {
+		print "! $hardware{$hardware}\n";
+	    }
 	    for my $line (@$if_code, @$code) {
 		if($line =~ /^\s*!/) {
 		    print $line;
