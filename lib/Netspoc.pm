@@ -62,8 +62,7 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 repair_deny_influence 
 		 acl_generation 
 		 check_output_dir
-		 print_code
-		 warn_pix_icmp);
+		 print_code );
 
 my $program = 'Network Security Policy Compiler';
 my $version = (split ' ','$Id$ ')[2];
@@ -100,6 +99,8 @@ my $allow_toplevel_rules = 0;
 # Store descriptions as an attribute of policies.
 # This may be useful when called from a reporting tool.
 our $store_description = 0;
+# Print warning about ignored icmp code fields at PIX firewalls
+my $warn_pix_icmp_code = 0;
 
 ####################################################################
 # Attributes of supported router models
@@ -1623,11 +1624,11 @@ sub link_interface_with_net( $ ) {
 		"$network->{name}'s IP/mask";
 	    }
 	    if($interface_ip == $network_ip) {
-		warning "$interface->{name} has address of it's network";
+		err_msg "$interface->{name} has address of its network";
 	    }
 	    my $broadcast = $network_ip + ~$mask;
 	    if($interface_ip == $broadcast) {
-		warning "$interface->{name} has broadcast address";
+		err_msg "$interface->{name} has broadcast address";
 	    }
 	}
 	# Check compatibility of interface and network NAT.
@@ -3680,8 +3681,8 @@ sub find_active_routes_and_statics () {
 	#   entries added.
 	my $from = get_path $src;
 #	info "$from->{name} -> $to->{name}";
-	# 'any' objectes are expanded to all it's contained networks
-	# hosts and interfaces expand to it's containing network
+	# 'any' objectes are expanded to all its contained networks
+	# hosts and interfaces expand to its containing network
 	for my $network (get_networks($dst)) {
 	    my $to = is_interface $dst ? $dst : $network;
 	    unless($routing_tree{$from}->{$to}) {
@@ -4669,6 +4670,7 @@ sub print_code( $ ) {
 	print "[ END $name ]\n\n";
 	close STDOUT or die "Can't close $file\n";
     }
+    $warn_pix_icmp_code && &warn_pix_icmp();
 }
 
 ####################################################################
