@@ -11,7 +11,7 @@ use strict;
 use warnings;
 
 our $program = 'Open Secure Policy Manager';
-our $version = 0.34;
+our $version = 0.35;
 our $verbose = 1;
 our $comment_acls = 1;
 
@@ -814,7 +814,7 @@ sub expand_object( $ ) {
 	return $ob->{interfaces};
     } elsif(is_every($ob)) {
 	# expand an 'every' object to all networks in the perimeter
-	return $ob->{pep}->{networks};
+	return $ob->{border}->{networks};
     } else {
 	# an atomic object
 	return $ob;
@@ -1075,8 +1075,8 @@ sub check_deny_influence() {
 	    my $src = $drule->{src};
 	    my $net = $drule->{dst};
 	    next unless is_host($src) and is_net($net);
-	    my $pep = get_pep($src);
-	    my $any = $pep->{any};
+	    my $border = get_border($src);
+	    my $any = $border->{any};
 	    next unless $any;
 	    for my $rule (@{$any->{rules}}) {
 		my $host = $rule->{dst};
@@ -1100,62 +1100,62 @@ sub check_deny_influence() {
 
 # find paths from every network and router to the starting object 'router 1'
 sub setpath_router( $$$$ ) {
-    my($router, $to_pep, $pep, $distance) = @_;
+    my($router, $to_border, $border, $distance) = @_;
     # ToDo: operate correctly with loops
-    if($router->{pep}) {
+    if($router->{border}) {
 	die "There is a loop at router:$router->{name}. Loops are not supported in this version";
     }
-    $router->{pep} = $pep;
-    $router->{to_pep} = $to_pep;
+    $router->{border} = $border;
+    $router->{to_border} = $to_border;
     $router->{distance} = $distance;
     for my $interface (@{$router->{interfaces}}) {
 	# ignore interface where we reached this router
-	next if $interface eq $to_pep;
+	next if $interface eq $to_border;
 	if($router->{managed}) {
 	    &setpath_network($interface->{link},
 			     $interface, $interface, $distance+1);
 	} else {
 	    &setpath_network($interface->{link},
-			     $interface, $pep, $distance);
+			     $interface, $border, $distance);
 	}
     }
 }
 
 sub setpath_network( $$$$ ) {
-    my ($network, $to_pep, $pep, $distance) = @_;
+    my ($network, $to_border, $border, $distance) = @_;
     # ToDo: operate correctly with loops
-    if($network->{pep}) {
+    if($network->{border}) {
 	die "There is a loop at net:$network->{name}. Loops are not supported in this version";
     }
-    $network->{pep} = $pep;
-    # add network to the corresponding pep; this info is used later
+    $network->{border} = $border;
+    # add network to the corresponding border; this info is used later
     # for optimization and generation of weak_deny rules for 'any' rules
-    push(@{$pep->{networks}}, $network);
+    push(@{$border->{networks}}, $network);
     for my $interface (@{$network->{interfaces}}) {
 	# ignore interface where we reached this network
-	next if $interface eq $to_pep;
+	next if $interface eq $to_border;
 	&setpath_router($interface->{router},
-			$interface, $pep, $distance);
+			$interface, $border, $distance);
     }
 }
 
-# link each 'any object' with its correspnding pep and vice versa
+# link each 'any object' with its correspnding border and vice versa
 sub setpath_anys() {
     for my $any (values %anys) {
-	my $pep = $any->{link}->{pep};
-	$any->{pep} = $pep;
-	if(my $old_any = $pep->{any}) {
+	my $border = $any->{link}->{border};
+	$any->{border} = $border;
+	if(my $old_any = $border->{any}) {
 	    die "More than one any object definied in a perimeter: any:$old_any->{name} and any:$any->{name}";
 	}
-	$pep->{any} = $any;
+	$border->{any} = $any;
     }
 }
 
-# link each 'every object' with its correspnding pep
+# link each 'every object' with its correspnding border
 sub setpath_everys() {
     for my $every (values %everys) {
-	my $pep = $every->{link}->{pep};
-	$every->{pep} = $pep;
+	my $border = $every->{link}->{border};
+	$every->{border} = $border;
     }
 }
 
@@ -1163,25 +1163,25 @@ sub setpath_everys() {
 # Helper functions: path traversal
 ##############################################################################
 
-sub get_pep( $ ) {
+sub get_border( $ ) {
     my($obj) = @_;
-    my $pep;
+    my $border;
 
     if(&is_host($obj)) {
-	$pep = $obj->{net}->{pep};
+	$border = $obj->{net}->{border};
     } elsif(&is_interface($obj)) {
 	if($obj->{router}->{managed}) {
 	    return undef;
 	} else {
-	    $pep = $obj->{link}->{pep};
+	    $border = $obj->{link}->{border};
 	}
     } elsif(&is_net($obj) || &is_any($obj)) {
-	$pep = $obj->{pep};
+	$border = $obj->{border};
     } else {
-	die "internal in get_pep: unsupported object " . &printable($obj);
+	die "internal in get_border: unsupported object " . &printable($obj);
     }
-    $pep or die "Found unconnected node: ". printable($obj);
-    return $pep;
+    $border or die "Found unconnected node: ". printable($obj);
+    return $border;
 }
 
 # Applying a function on a rule at every managed router
@@ -1191,8 +1191,8 @@ sub path_walk($&) {
     die "internal in path_walk: undefined rule" unless $rule;
     my $src = $rule->{src};
     my $dst = $rule->{dst};
-    my $src_intf = &get_pep($src);
-    my $dst_intf = &get_pep($dst);
+    my $src_intf = &get_border($src);
+    my $dst_intf = &get_border($dst);
     my $src_router = $src_intf?$src_intf->{router}:$src->{router};
     my $dst_router = $dst_intf?$dst_intf->{router}:$dst->{router};
     my $src_dist = $src_router->{distance};
@@ -1201,7 +1201,7 @@ sub path_walk($&) {
     if(# src and dst are interfaces on the same router
        not defined $src_intf and not defined $dst_intf
        and $src_router eq $dst_router or
-       # no pep between src and dst
+       # no border between src and dst
        defined $src_intf and defined $dst_intf and $src_intf eq $dst_intf) {
 	# no message if src eq dst; this happens for group to group rules
 	unless($src eq $dst) {
@@ -1214,18 +1214,18 @@ sub path_walk($&) {
 
     # go from src to dst until equal distance is reached
     while($src_dist > $dst_dist) {
-	my $out_intf = $src_router->{to_pep};
+	my $out_intf = $src_router->{to_border};
 	&$fun($rule, $src_intf, $out_intf);
-	$src_intf = $src_router->{pep};
+	$src_intf = $src_router->{border};
 	$src_router = $src_intf->{router};
 	$src_dist = $src_router->{distance};
     }
 
     # go from dst to src until equal distance is reached
     while($src_dist < $dst_dist) {
-	my $in_intf = $dst_router->{to_pep};
+	my $in_intf = $dst_router->{to_border};
 	&$fun($rule, $in_intf, $dst_intf);
-	$dst_intf = $dst_router->{pep};
+	$dst_intf = $dst_router->{border};
 	$dst_router = $dst_intf->{router};
 	$dst_dist = $dst_router->{distance};
     }
@@ -1233,14 +1233,14 @@ sub path_walk($&) {
     # now alternating go one step from src and one from dst
     # until the router in the middle is reached
     while($src_router ne $dst_router) {
-	my $out_intf = $src_router->{to_pep};
+	my $out_intf = $src_router->{to_border};
 	&$fun($rule, $src_intf, $out_intf);
-	$src_intf = $src_router->{pep};
+	$src_intf = $src_router->{border};
 	$src_router = $src_intf->{router};
 
-	my $in_intf = $dst_router->{to_pep};
+	my $in_intf = $dst_router->{to_border};
 	&$fun($rule, $in_intf, $dst_intf);
-	$dst_intf = $dst_router->{pep};
+	$dst_intf = $dst_router->{border};
 	$dst_router = $dst_intf->{router};
     }
 
@@ -1278,9 +1278,9 @@ sub gen_any_src_deny( $$$ ) {
 
     # we don't need the interface itself, but only information about all
     # networks and the any  object at that interface. We get this information
-    # at the pep interface, not the to_pep interface
-    if($in_intf eq $router->{to_pep}) {
-	$in_intf = $router->{pep};
+    # at the border interface, not the to_border interface
+    if($in_intf eq $router->{to_border}) {
+	$in_intf = $router->{border};
     }
     # nothing to do for the first router
     return if $in_intf->{any} and $in_intf->{any} eq $rule->{src};
@@ -1332,8 +1332,8 @@ sub gen_any_dst_deny( $$$ ) {
 	next if defined $in_intf and $intf eq $in_intf;
 
 	# see comment in &gen_any_src_deny
-	if($intf eq $router->{to_pep}) {
-	    $intf = $router->{pep};
+	if($intf eq $router->{to_border}) {
+	    $intf = $router->{border};
 	}
 	# nothing to do for the interface which is connected
 	# directly to the destination any object
@@ -1363,9 +1363,9 @@ sub gen_any_dst_deny( $$$ ) {
 
 # traverse rules and network objects top down, 
 # beginning with a perimeter
-sub addrule_pep_any( $ ) {
-    my ($pep) = @_;
-    my $any = $pep->{any};
+sub addrule_border_any( $ ) {
+    my ($border) = @_;
+    my $any = $border->{any};
     if($any) {
 	# add rule to dst object but remember that src was any
 	for my $rule (@{$any->{rules}}) {
@@ -1386,7 +1386,7 @@ sub addrule_pep_any( $ ) {
 	}
     }
     # optimize rules having a network < any as src
-    for my $network (@{$pep->{networks}}) {
+    for my $network (@{$border->{networks}}) {
 	&addrule_net($network);
     }
     if($any) {
@@ -1678,20 +1678,20 @@ sub optimize_rules( $$ ) {
 	for my $i (@src_tags) {
 	    &optimize_action_rules($dst->{$i}, $dst->{$src_tag});
 	    &optimize_action_rules($dst->{net}->{$i}, $dst->{$src_tag});
-	    &optimize_action_rules($dst->{net}->{pep}->{any}->{$i}, 
+	    &optimize_action_rules($dst->{net}->{border}->{any}->{$i}, 
 				$dst->{$src_tag});
 	}
     } elsif(&is_interface($dst)) {
 	for my $i (@src_tags) {
 	    &optimize_action_rules($dst->{$i}, $dst->{$src_tag});
 	    &optimize_action_rules($dst->{link}->{$i}, $dst->{$src_tag});
-	    &optimize_action_rules($dst->{link}->{pep}->{any}->{$i}, 
+	    &optimize_action_rules($dst->{link}->{border}->{any}->{$i}, 
 				$dst->{$src_tag});
 	}
     } elsif(&is_net($dst)) {
 	for my $i (@src_tags) {
 	    &optimize_action_rules($dst->{$i}, $dst->{$src_tag});
-	    &optimize_action_rules($dst->{pep}->{any}->{$i}, 
+	    &optimize_action_rules($dst->{border}->{any}->{$i}, 
 				$dst->{$src_tag});
 	}
     } elsif(&is_any($dst)) {
@@ -1819,33 +1819,33 @@ sub gen_code( $$$ ) {
     }
 }
 
-# for deny rules call gen_code only for the first pep
+# for deny rules call gen_code only for the first border
 # on the path from src to dst
 # Case 1:
-# r1-src-r2-r3-dst: get_pep(src) = r1: r1 is not on path, but r2.pep = r1
+# r1-src-r2-r3-dst: get_border(src) = r1: r1 is not on path, but r2.border = r1
 # Case 1a/2a: src is interface of managed router
-# get_pep(src) is undef, r.src_intf is undef, src.router = dst_intf.router
+# get_border(src) is undef, r.src_intf is undef, src.router = dst_intf.router
 # Case 2:
-# r3-src-r2-r1-dst: get_pep(src) = r2: r2 is 1st pep on path
+# r3-src-r2-r1-dst: get_border(src) = r2: r2 is 1st border on path
 # ToDo: this code works only for 2nd case
 # ToDo: If src is an managed interface, inverse deny rules have to be generated
 sub gen_code_at_src( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
     my $src = $rule->{src};
-    my $src_pep = &get_pep($src);
+    my $src_border = &get_border($src);
     # Case 1a/2a:
-    if(not defined $src_pep) {
+    if(not defined $src_border) {
 	if(not defined $src_intf) {
 	    &gen_code($rule, $src_intf, $dst_intf);
 	}
     } else {
 	my $router = $src_intf->{router};
         # Case 1:
-	if($router->{to_pep} eq $src_intf and $router->{pep} eq $src_pep) {
+	if($router->{to_border} eq $src_intf and $router->{border} eq $src_border) {
 	    &gen_code($rule, $src_intf, $dst_intf);
 	}
 	# Case 2:
-	if($src_pep eq $src_intf) {
+	if($src_border eq $src_intf) {
 	    &gen_code($rule, $src_intf, $dst_intf);
 	}
     }
@@ -1972,8 +1972,8 @@ print STDERR "Starting first optimization\n" if $verbose;
 for my $router (values %routers) {
     next unless $router->{managed};
     for my $interface (@{$router->{interfaces}}) {
-	next if $interface eq $router->{to_pep};
-	&addrule_pep_any($interface);
+	next if $interface eq $router->{to_border};
+	&addrule_border_any($interface);
     }
 } 
 if($verbose) {
@@ -2009,8 +2009,8 @@ print STDERR "Starting second optimization\n" if $verbose;
 for my $router (values %routers) {
     next unless $router->{managed};
     for my $interface (@{$router->{interfaces}}) {
-	next if $interface eq $router->{to_pep};
-	&addrule_pep_any($interface);
+	next if $interface eq $router->{to_border};
+	&addrule_border_any($interface);
     }
 } 
 if($verbose) {
@@ -2047,7 +2047,7 @@ for my $rule (@expanded_deny_rules) {
     &path_walk($rule, \&gen_code_at_src);
 }
 
-# Distribute permit rules to peps
+# Distribute permit rules to managed routers
 # src-R1-R2-\
 #           |-Rx
 #    dst-R3-/
