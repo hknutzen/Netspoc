@@ -118,6 +118,8 @@ we use them as delimiters.</P>
 <PRE>
   network:&lt;name&gt; = {
      {{
+         [ route_hint; ]
+	 [ subnet_of = network:&lt;name&gt;; ]
          ip = &lt;ip-adr&gt;; mask = &lt;ip-adr&gt;; 
          &lt;host definition&gt; *
      |
@@ -125,13 +127,20 @@ we use them as delimiters.</P>
      }}
   }</PRE>
 <UL>
-<LI>must have an ip address and mask or
-<LI>may alternatively be marked as unnumbered
-<LI>may contain any number of host definitions
-<LI>unnumbered networks have no host definitions at all
-<LI>if used as source or destination of a rule, the ip/mask is used
-directly for generating ACLs
-<LI>unnumbered network must not be used in rules
+<LI>Must have an ip address and mask or
+<LI>may alternatively be marked as unnumbered.
+<LI>May contain any number of host definitions.
+<LI>Unnumbered networks have no host definitions at all.
+<LI>If used as source or destination of a rule, the ip/mask is used
+directly for generating ACLs.
+<LI>Unnumbered network must not be used in rules
+<LI>All networks must be disjunct if option 'strict_subnets' is
+active. Exceptions must be declared explictly:
+<UL>
+<LI>route_hint: This network may enclose other networks, but it must
+not have host definitions.
+<LI>subnet_of: The enclosing network must be stated explicitly.
+</UL>
 </UL>
 
 <H3><A NAME="host_definition">Host definition</A></H3>
@@ -144,11 +153,11 @@ directly for generating ACLs
         host:&lt;name&gt; = { range = &lt;ip-adr&gt; - &lt;ip-adr&gt;; }
   }}</PRE>
 <UL>
-<LI>may only be used inside a network definition
-<LI>has one or more IP addresses or
+<LI>May only be used inside a network definition.
+<LI>Has one or more IP addresses or
 <LI>alternatively an ip address range with first address &lt; second address
-<LI>IP addresses must match ip/mask of the surrounding network
-<LI>if used as source or destination of a rule, one ACL entry is
+<LI>IP addresses must match ip/mask of the surrounding network.
+<LI>If used as source or destination of a rule, one ACL entry is
 generated for each IP address.
 <LI>NetSPoC tries to automatically convert successive IP addresses from one
 or multiple hosts of a common network to an IP range.
@@ -172,19 +181,18 @@ each subnetwork.
      }}
   }</PRE>
 <UL>
-<LI>
-managed routers need to be precisely described since this
- information is needed for code generation later
-<LI>the router model is used to generate correct code for different
+<LI>Managed routers need to be precisely described since this
+ information is needed for code generation later.
+<LI>The router model is used to generate correct code for different
  router models.<BR>Currently two models are supported:
 <UL>
 <LI>IOS for cisco IOS routers with statefull inspection
 <LI>PIX for cisco PIX firewalls
 </UL>
-<LI>may have any number of interface definitions
-<LI>for unmanaged routers, almost all attributes are optional
-<LI>if used as source or destination of a rule, a router is handled like
- group of its interfaces
+<LI>May have any number of interface definitions.
+<LI>For unmanaged routers, almost all attributes are optional.
+<LI>If used as source or destination of a rule, a router is handled like
+ group of its interfaces.
 </UL>
 
 <H3><A NAME="interface_definition">Interface definition</A></H3>
@@ -207,31 +215,22 @@ managed routers need to be precisely described since this
  &lt;short interface definition&gt; ::=
  interface:&lt;name&gt;;</PRE>
 <UL>
-<LI>
-Interfaces have no name of their own; instead a network name is used
+<LI>Interfaces have no name of their own; instead a network name is used
   to indicate that the interface is linked to a network of the same
   name.
-<LI>
-An interface may have one or more IP addresses. All of them must
+<LI>An interface may have one or more IP addresses. All of them must
   match the IP/mask of the corresponding network.
-<LI>
-An unnumbered interface must only be linked to an unnumbered network.
-<LI>
-hardware attribute indicates to which hardware interface the router
+<LI>An unnumbered interface must only be linked to an unnumbered network.
+<LI>Hardware attribute indicates to which hardware interface the router
   belongs.
-<LI>
-Multiple interfaces may belong to the same hardware interface.
-<LI>
-an interface may be marked as disabled. See <A HREF="#disabling">Disabling part of the topology</A> below.
-<LI>
-For interface definitions of unmanaged routers almost all attributes
+<LI>Multiple interfaces may belong to the same hardware interface.
+<LI>An interface may be marked as disabled. See <A HREF="#disabling">Disabling part of the topology</A> below.
+<LI>For interface definitions of unmanaged routers almost all attributes
   may be left out.
-<LI>
-If a network is linked to a short interface definition, it must not
+<LI>If a network is linked to a short interface definition, it must not
   be linked to any other interface. We need this requirement for
   getting all routing entries generated.
-<LI>
-if used as source or destination of a rule an interface is handled
+<LI>If used as source or destination of a rule an interface is handled
   like a host.
 </UL>
 
@@ -249,11 +248,11 @@ if used as source or destination of a rule an interface is handled
 <PRE>
  any:&lt;name&gt; = { link = {{ network:&lt;name&gt;; |  router:&lt;name&gt;; }} }</PRE>
 <UL>
-<LI>is used to represent all networks of a security domain
-<LI>must not be linked to a managed router
-<LI>at most one 'any' object can be defined for a security domain
-<LI>generated ACL use 'any' (i.e. network 0.0.0.0/0.0.0.0) to prevent
-enumeration of all networks of a security domain
+<LI>Is used to represent all networks of a security domain.
+<LI>Must not be linked to a managed router.
+<LI>At most one 'any' object can be defined for a security domain.
+<LI>Generated ACL use 'any' (i.e. network 0.0.0.0/0.0.0.0) to prevent
+enumeration of all networks of a security domain.
 <LI>NetSPoC generates additional deny rules to prevent
 intervening networks getting undesired access.
 <LI>See <A HREF="#handling_any">Handling of 'any' objects</A> for details.
@@ -273,11 +272,9 @@ intervening networks getting undesired access.
  | group:&lt;name&gt; 
  }}</PRE>
 <UL>
-<LI>
-network objects are referenced in groups or as source or destination
+<LI>Network objects are referenced in groups or as source or destination
 of rules.
-<LI>
-When referencing interfaces, we need to use a different syntax than
+<LI>When referencing interfaces, we need to use a different syntax than
 for interface definitions: the router name followed by a network name.
 </UL>
 
@@ -286,8 +283,8 @@ for interface definitions: the router name followed by a network name.
 <PRE>
  group:&lt;name&gt; = &lt;network object&gt; *;</PRE>
 <UL>
-<LI>a group may be empty
-<LI>a group may be defined by means of other groups
+<LI>A group may be empty
+<LI>A group may be defined by means of other groups
 </UL>
 
 <H3><A NAME="services">Services</A></H3>
@@ -333,8 +330,8 @@ for interface definitions: the router name followed by a network name.
 <PRE>
   &lt;service&gt; ::= {{ service:&lt;name&gt; | servicegroup:&lt;name&gt; }}</PRE>
 <UL>
-<LI>a servicegroup may be empty
-<LI>a servicegroup may be defined by means of other servicegroups
+<LI>A servicegroup may be empty.
+<LI>A servicegroup may be defined by means of other servicegroups.
 </UL>
 
 <H3><A NAME="rules_def">Rules</A></H3>
@@ -346,8 +343,8 @@ for interface definitions: the router name followed by a network name.
         dst = &lt;obj1&gt;, ..,&lt;obj_n&gt;;
         srv = &lt;srv1&gt;, ..,&lt;srv_n&gt;;</PRE>
 <UL>
-<LI>order of rules doesn't matter
-<LI>deny rules override all permit rules
+<LI>Order of rules doesn't matter.
+<LI>Deny rules override all permit rules.
 </UL>
 <H2><A NAME="disabling">Disabling part of the topology</A></H2>
 <P>An interface may be explicitly marked as disabled.  
@@ -358,10 +355,11 @@ silently discarded.</P>
 
 <H2><A NAME="handling_any">Handling of 'any' objects</A></H2>
 <P>The meaning of 'any' is different in a NetSPoC rule from that in an ACL.
-For NetSPoC, any:X means any network object of the security domain
-where any:X is located.
+For NetSPoC, any:X means "any network object of the security domain
+where any:X is located".
 For an ACL which filters incoming traffic of an interface, any
-(i.e. 0.0.0.0/0.0.0.0) means</P>
+(i.e. 0.0.0.0/0.0.0.0) means "any network object beyond the interface
+where the ACL is applied to".</P>
 <DL>
 <DT>
 as source:<DD>any data object connected directly or indirectly with
