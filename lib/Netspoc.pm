@@ -1984,45 +1984,82 @@ sub get_path( $ ) {
 	internal_err "unexpected object $obj->{name}";
     }
 }
-   
+
+sub loop_part_mark ( $$$$$$ ) {
+    my($direction, $from, $to, $from_in, $to_out, $dst) = @_;
+    while(1) {
+	my $mark = $from_in->{$dst}?"2.$dst":$dst;
+	$from_in->{$mark} and
+	    internal_err "unexpected third direction in graph";
+	if($from eq $to) {
+	    info "$from_in->{name} -> ".($to_out?$to_out->{name}:'');
+	    $from_in->{$mark} = $to_out;
+	    return;
+	}
+	my $from_out = $from->{$direction};
+	info "$from_in->{name} -> ".($from_out?$from_out->{name}:'');
+	$from_in->{$mark} = $from_out;
+	$from_in = $from_out;
+	$from = $from_out->{$direction};
+    }
+}
+
+sub loop_path_mark ( $$$$$ ) {
+    my($from, $to, $from_in, $to_out, $dst) = @_;
+    loop_part_mark('left', $from, $to, $from_in, $to_out, $dst);
+    loop_part_mark('right', $from, $to, $from_in, $to_out, $dst);
+}
+
 # Mark path from src to dst
+# src and dst are either a managed router or an 'any' object
 sub path_mark( $$ ) {
     my ($src, $dst) = @_;
     my $from = $src;
     my $to = $dst;
-    my $from_in;
-    my $to_out;
+    my $from_in = $from;
+    my $to_out = undef;
     my $from_loop = $from->{loop};
     my $to_loop = $to->{loop};
+    info "path_mark $from->{name} --> $to->{name}";
     while(1) {
 	# paths meet outside a loop or at the edge of a loop
-	return if $from eq $to;
+	if($from eq $to) {
+	    info "$from_in->{name} -> ".($to_out?$to_out->{name}:'');
+	    $from_in->{$dst} = $to_out;
+	    return;
+	}
 	# paths meet inside a loop	
 	if($from_loop and $to_loop and $from_loop eq $to_loop) {
-	    $from->{$dst} = $to;
+	    loop_path_mark($from, $to, $from_in, $to_out, $dst);
 	    return;
 	}
 	if($from->{distance} >= $to->{distance}) {
 	    if($from_loop) {
-		$from->{$dst} = $from_loop;
+		my $loop_out = $from_loop->{main};
+		loop_path_mark($from, $from_loop, $from_in, $loop_out, $dst);
+		$from_in = $loop_out;
 		$from = $from_loop;
+	    } else {
+		my $from_out = $from->{main};
+		info "$from_in->{name} -> ".($from_out?$from_out->{name}:'');
+		$from_in->{$dst} = $from_out;
+		$from_in = $from_out;
+		$from = $from_out->{main};
 	    }
-	    my $from_out = $from->{main};
-	    $from->{$dst} = $from_out;
-	    $from = $from_out->{main};
-	    $from_out->{$dst} = $from;
-	    $from_in = $from_out;
 	    $from_loop = $from->{loop};
 	} else {
 	    if($to_loop) {
-		$to_loop->{$dst} = $to;
+		my $loop_in = $from_loop->{main};
+		loop_path_mark($from_loop, $to, $loop_in, $to_out, $dst);
+		$to_out = $loop_in;
 		$to = $to_loop;
+	    } else {
+		my $to_in = $to->{main};
+		info "$to_in->{name} -> ".($to_out?$to_out->{name}:'');
+		$to_in->{$dst} = $to_out;
+		$to_out = $to_in;
+		$to = $to_in->{main};
 	    }
-	    my $to_in = $to->{main};
-	    $to_in->{$dst} = $to;
-	    $to = $to_in->{main};
-	    $to->{$dst} = $to_in;
-	    $to_out = $to_in;
 	    $to_loop = $to->{loop};
 	}
     }
@@ -2035,26 +2072,8 @@ sub path_info ( $$ ) {
     info "$in_name, $out_name";
 }
 
-sub go_path( $$$$$$$$ ) {
-    my($rule, $fun, $where, $from_in, $from, $to, $to_out, $path) = @_;
-    while($from ne $to) {
-	my $from_out = $from->{$path};
-	&$fun($rule, $from_in, $from_out) if ref($from) eq $where;
-	$from = $from_out->{$path};
-	$from_in = $from_out;
-    }
-    &$fun($rule, $from_in, $to_out) if ref($from) eq $where;
-}
-
-sub go_loop( $$$$$$$ ) {
-    # Generate duplicate routing entry for the current destination.
-    # This may be ok, if only one interface is active,
-    # or generation of routing entries may be disabled at all
-    # for the current interface using e.g. 'routing=ospf'
-    &go_path(@_, 'left');
-    &go_path(@_, 'right');
-
-}    
+# Used as a marker to detect loops when traversing topology graph
+my $walk_mark = 1;
 
 # Apply a function to a rule at every managed router
 # on the path from src to dst of the rule
@@ -2072,9 +2091,9 @@ sub path_walk( $&$ ) {
 #    info "start: $from->{name}, $to->{name}";
 #    my $fun2 = $fun;
 #    $fun = sub ( $$$ ) { 
-#	my($rule, $from_in, $from_out) = @_;
-#	path_info $from_in, $from_out;
-#	&$fun2($rule, $from_in, $from_out);
+#	my($rule, $in, $out) = @_;
+#	path_info $in, $out;
+#	&$fun2($rule, $in, $out);
 #    };
     if($from eq $to) {
 	unless($src eq $dst) {
@@ -2085,35 +2104,39 @@ sub path_walk( $&$ ) {
 	return;
     }
     &path_mark($from, $to) unless $from->{$to};
-    my $from_in;
-    my $from_loop = $from->{loop};
-    my $to_loop = $to->{loop};
-    while($from ne $to) {
-	if($from_loop and $to_loop and $from_loop eq $to_loop) {
-	    # path terminates at a loop
-	    # $from ne $to ==> go through loop in both directions
-	    &go_loop($rule, $fun, $where, $from_in, $from, $to, undef);
+    $walk_mark++;
+    my $in = undef;
+    my $out = $from->{$to};
+    my $type = is_router $from ? 'Router' : 'Any';
+    &part_walk($in, $out, $to, $type, $rule, $fun, $where);
+    if(my $out2 = $from->{"2.$to"}) {
+	&part_walk($in, $out2, $to, $type, $rule, $fun, $where);
+    }
+}
+
+sub part_walk( $$$$ ) {
+    my($in, $out, $to, $type, $rule, $fun, $where) = @_;
+#    info "part_walk: in = ".($in?$in->{name}:'').", out = $out->{name}";
+    while(1) {
+	if(not defined $out) {
+	    &$fun($rule, $in, $out) if $type eq $where;
+#	    info "exit: part_walk: reached dst";
+	    return;
+	} elsif(defined $out->{walk_mark} and
+		$out->{walk_mark} eq $walk_mark) {
+	    &$fun($rule, $in, $out) if $type eq $where;
+#           info "exit: part_walk: was there";
 	    return;
 	}
-	# does it go through a loop or does it only touch the loop at an edge
-	# ToDo: Find a better test / data structure
-	if($from_loop && $from->{$to}->{loop}) {
-	    # go through loop to exit of loop
-	    my $to_loop = $from->{$to};
-	    my $loop_out = $to_loop->{$to};
-	    &go_loop($rule, $fun, $where, $from_in, $from, $to_loop, $loop_out);
-	    $from = $loop_out->{$to};
-	    $from_in = $loop_out;
-	} else {
-	    my $from_out = $from->{$to};
-	    &$fun($rule, $from_in, $from_out) if ref($from) eq $where;
-	    $from = $from_out->{$to};
-	    $from_in = $from_out;
+	&$fun($rule, $in, $out) if $type eq $where;
+	$out->{walk_mark} = $walk_mark;
+	$in = $out;
+	$out = $in->{$to};
+	$type = $type eq 'Router' ? 'Any' : 'Router';
+	if(my $out2 = $in->{"2.$to"}) {
+	    &part_walk($in, $out2, $to, $type, $rule, $fun, $where);
 	}
-	$from_loop = $from->{loop};
     }
-#    path_info $from_in, undef if is_router $to;
-    &$fun($rule, $from_in, undef) if ref($to) eq $where;
 }
 
 ##############################################################################
@@ -2712,6 +2735,8 @@ sub find_active_routes_and_statics () {
 	    $pseudo_rule->{dst} = $to;
 	    $pseudo_rule->{src_networks} = {};
 	    $pseudo_rule->{dst_networks} = {};
+	    $pseudo_rule->{action} = '--';
+	    $pseudo_rule->{srv} = {name => '--'};
 	    $routing_tree{$from}->{$to} = $pseudo_rule;
 	}
 	for my $network (get_networks($src)) {
