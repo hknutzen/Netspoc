@@ -1449,6 +1449,41 @@ sub mark_disabled() {
 }
 
 ####################################################################
+# Find subnetworks
+# Mark each network with the smallest network enclosing it
+# Mark each network wich encloses some other network
+####################################################################
+sub find_subnets() {
+    info "Finding subnets\n";
+    my %mask_ip_hash;
+    for my $network (values %networks) {
+	next if $network->{ip} eq 'unnumbered';
+	next if $network->{disabled};
+	if(my $old_net = $mask_ip_hash{$network->{mask}}->{$network->{ip}}) {
+	    err_msg "$network->{name} and $old_net->{name} have identical ip/mask\n";
+	}
+	$mask_ip_hash{$network->{mask}}->{$network->{ip}} = $network;
+    }
+    for my $mask (reverse sort keys %mask_ip_hash) {
+	last if $mask == 0;
+	for my $ip (keys %{$mask_ip_hash{$mask}}) {
+	    my $m = $mask;
+	    my $i = $ip;
+	    while($m) {
+		$m <<= 1;
+		$i &= $m;
+		if($mask_ip_hash{$m}->{$i}) {
+		    my $bignet = $mask_ip_hash{$m}->{$i};
+		    $bignet->{enclosing} = 1;
+		    $mask_ip_hash{$mask}->{$ip}->{is_in} = $bignet;
+		    last;
+		}
+	    }
+	}
+    }
+}
+
+####################################################################
 # Set paths for efficient topology traversal
 ####################################################################
 
@@ -1956,36 +1991,7 @@ sub optimization() {
 # It holds an array of networks reachable
 # when using this interface as next hop
 ####################################################################
-
-sub find_subnets() {
-    my %mask_ip_hash;
-    for my $network (values %networks) {
-	next if $network->{ip} eq 'unnumbered';
-	next if $network->{disabled};
-	if(my $old_net = $mask_ip_hash{$network->{mask}}->{$network->{ip}}) {
-	    die "Duplicate networks with identical ip/mask: $network->{name} and $old_net->{name}\n";
-	}
-	$mask_ip_hash{$network->{mask}}->{$network->{ip}} = $network;
-    }
-    for my $mask (reverse sort keys %mask_ip_hash) {
-	last if $mask == 0;
-	for my $ip (keys %{$mask_ip_hash{$mask}}) {
-	    my $m = $mask;
-	    my $i = $ip;
-	    while($m) {
-		$m <<= 1;
-		$i &= $m;
-		if($mask_ip_hash{$m}->{$i}) {
-		    my $bignet = $mask_ip_hash{$m}->{$i};
-		    $bignet->{enclosing} = 1;
-		    $mask_ip_hash{$mask}->{$ip}->{is_in} = $bignet;
-		    last;
-		}
-	    }
-	}
-    }
-}
-		    
+    
 sub get_networks_behind ( $ ) {
     my($hop) = @_;
     # return if the values have already been calculated
@@ -2015,7 +2021,6 @@ sub get_networks_behind ( $ ) {
 # Set routes
 sub setroute() {
     info "Setting routes\n";
-    find_subnets();
     for my $interface (values %interfaces) {
 	get_networks_behind $interface;
     }
@@ -2154,18 +2159,10 @@ sub collect_pix_static( $$$ ) {
 	die "internal in collect_pix_static: unexpected dst $dst->{name}";
     }
     for my $net (@networks) {
-	my $ip = $net->{ip} or
-	    die "Pix doesn't support static command for IP 0.0.0.0\n";
-	my $mask = $net->{mask} or
-	    die "Pix doesn't support static command for mask 0.0.0.0\n";
-	if(my $oldmask = $dst_intf->{static}->{$src_intf->{hardware}}->{$ip}) {
-	    # take the smallest mask for overlapping networks
-	    # with identical starting IP
-	    $oldmask < $mask or
-		$dst_intf->{static}->{$src_intf->{hardware}}->{$ip} = $mask;
-	} else {
-	    $dst_intf->{static}->{$src_intf->{hardware}}->{$ip} = $mask;
-	}
+	$net->{mask} == 0 and
+	    die "Pix doesn't support static command for mask 0.0.0.0 of $net->{name}\n";
+	# put networks into a hash to prevent duplicates
+	$dst_intf->{static}->{$src_intf->{hardware}}->{$net} = $net;
     }
 }
 
@@ -2177,10 +2174,21 @@ sub gen_pix_static( $ ) {
 	next unless $static;
 	my $high = $interface->{hardware};
 	for my $low (keys %$static) {
-	    my $vals = $static->{$low};
-	    for my $i (sort keys %$vals) {
-		my $ip = print_ip $i;
-		my $mask = print_ip $vals->{$i};
+	    my @networks = values %{$static->{$low}};
+	    # find enclosing networks
+	    my %enclosing;
+	    for my $network (@networks) {
+		$network->{enclosing} and $enclosing{$network} = 1;
+	    }
+	    # delete redundant networks
+	    for my $network (@networks) {
+		$network->{is_in} and $enclosing{$network->{is_in}} and
+		    $network = undef;
+	    }
+	    for my $network (@networks) {
+		next unless defined $network;
+		my $ip = print_ip $network->{ip};
+		my $mask = print_ip $network->{mask};
 		print "static ($high,$low) $ip $ip netmask $mask\n";
 	    }
 	}
@@ -2356,16 +2364,12 @@ sub gen_routes( $ ) {
 	    # find enclosing networks
 	    my %enclosing;
 	    for my $network (@networks) {
-		if($network->{enclosing}) {
-		    $enclosing{$network} = 1;
-		}
+		$network->{enclosing} and $enclosing{$network} = 1;
 	    }
 	    # delete redundant networks
 	    for my $network (@networks) {
-		my $bignet;
-		if($bignet = $network->{is_in} and $enclosing{$bignet}) {
+		$network->{is_in} and $enclosing{$network->{is_in}} and
 		    $network = undef;
-		}
 	    }
 	    for my $network (@networks) {
 		next unless defined $network;
@@ -2462,6 +2466,7 @@ sub read_config() {
 &order_services();
 &link_topology();
 &mark_disabled();
+&find_subnets();
 &setpath();
 &expand_rules();
 die "Aborted with $error_counter error(s)\n" if $error_counter;
