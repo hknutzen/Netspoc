@@ -36,6 +36,10 @@ my $warn_unused_groups = 1;
 # if the enclosing network is marked as 'route_hint' or
 # if the subnet is marked as 'subnet_of'
 my $strict_subnets = 'warn';
+# Optimize number of routing entries per router
+# by replacing all routes going to the same hop 
+# with the default route
+my $auto_default_route = 0;
 # ignore these names when reading directories:
 # - CVS and RCS directories
 # - CVS working files
@@ -1913,6 +1917,49 @@ sub get_path( $ ) {
 	internal_err "unexpected object $obj->{name}";
     }
 }
+   
+# Mark path from src to dst
+sub path_mark( $$ ) {
+    my ($src, $dst) = @_;
+    my $from = $src;
+    my $to = $dst;
+    my $from_in;
+    my $to_out;
+    my $from_loop = $from->{loop};
+    my $to_loop = $to->{loop};
+    while(1) {
+	# paths meet outside a loop or at the edge of a loop
+	return if $from eq $to;
+	# paths meet inside a loop	
+	if($from_loop and $to_loop and $from_loop eq $to_loop) {
+	    $from->{$dst} = $to;
+	    return;
+	}
+	if($from->{distance} >= $to->{distance}) {
+	    if($from_loop) {
+		$from->{$dst} = $from_loop;
+		$from = $from_loop;
+	    }
+	    my $from_out = $from->{main};
+	    $from->{$dst} = $from_out;
+	    $from = $from_out->{main};
+	    $from_out->{$dst} = $from;
+	    $from_in = $from_out;
+	    $from_loop = $from->{loop};
+	} else {
+	    if($to_loop) {
+		$to_loop->{$dst} = $to;
+		$to = $to_loop;
+	    }
+	    my $to_in = $to->{main};
+	    $to_in->{$dst} = $to;
+	    $to = $to_in->{main};
+	    $to->{$dst} = $to_in;
+	    $to_out = $to_in;
+	    $to_loop = $to->{loop};
+	}
+    }
+}
 
 sub path_info ( $$ ) {
     my ($in_intf, $out_intf) = @_;
@@ -1921,21 +1968,45 @@ sub path_info ( $$ ) {
     info "$in_name, $out_name";
 }
 
-sub go_path( $$$$$$$ ) {
-    my($rule, $fun, $from_in, $from, $to, $to_out, $path) = @_;
+sub go_path( $$$$$$$$ ) {
+    my($rule, $fun, $where, $from_in, $from, $to, $to_out, $path) = @_;
     while($from ne $to) {
 	my $from_out = $from->{$path};
-	&$fun($rule, $from_in, $from_out) if is_router $from;
+	&$fun($rule, $from_in, $from_out) if ref($from) eq $where;
 	$from = $from_out->{$path};
 	$from_in = $from_out;
     }
-    &$fun($rule, $from_in, $to_out) if is_router $from;
+    &$fun($rule, $from_in, $to_out) if ref($from) eq $where;
 }
 
-sub go_loop( $$$$$$ ) {
-    my($rule, $fun, $from_in, $from, $to, $to_out) = @_;
-    &go_path($rule, $fun, $from_in, $from, $to, $to_out, 'left');
-    &go_path($rule, $fun, $from_in, $from, $to, $to_out, 'right');
+sub go_loop( $$$$$$$ ) {
+    my($rule, $fun, $where, $from_in, $from, $to, $to_out, $path) = @_;
+    if($where eq 'Any') {
+	# If $where eq 'Any', take only the shortest path throug loop
+	my $node = $from;
+	my $left_len = 0;
+	while($node ne $to) {
+	    $node = $node->{left}->{left};
+	    $left_len++;
+	}
+	$node = $from;
+	my $right_len = 0;
+	while($node ne $to) {
+	    $node = $node->{right}->{right};
+	    $right_len++;
+	}
+	if($left_len <= $right_len) {
+	    if($left_len == $right_len) {
+		warning "Equal length paths through loop from $from->{name} to $to->{name}";
+	    }
+	    &go_path(@_, 'left');
+	} else {
+	    &go_path(@_, 'right');
+	}
+    } else {
+	&go_path(@_, 'left');
+	&go_path(@_, 'right');
+    }
 }    
 
 # Apply a function to a rule at every managed router
@@ -1943,8 +2014,8 @@ sub go_loop( $$$$$$ ) {
 # src-R5-R4-\
 #           |-R2-R1
 #    dst-R3-/
-sub path_walk($&) {
-    my ($rule, $fun) = @_;
+sub path_walk( $&$ ) {
+    my ($rule, $fun, $where) = @_;
     internal_err "undefined rule" unless $rule;
     my $src = $rule->{src};
     my $dst = $rule->{dst};
@@ -1966,53 +2037,36 @@ sub path_walk($&) {
 	$rule->{deleted} = $rule;
 	return;
     }
+    &path_mark($from, $to) unless $from->{$to};
     my $from_in;
-    my $to_out;
-    my $from_dist = $from->{distance};
-    my $to_dist = $to->{distance};
     my $from_loop = $from->{loop};
     my $to_loop = $to->{loop};
     while($from ne $to) {
 	if($from_loop and $to_loop and $from_loop eq $to_loop) {
 	    # path terminates at a loop
 	    # $from ne $to ==> go through loop in both directions
-	    &go_loop($rule, $fun, $from_in, $from, $to, $to_out);
+	    &go_loop($rule, $fun, $where, $from_in, $from, $to, undef);
 	    return;
-	}	
-	if($from_dist >= $to_dist) {
-	    if($from_loop) {
-		# go through loop to exit of loop
-		my $loop_out = $from_loop->{main};
-		&go_loop($rule, $fun, $from_in, $from, $from_loop, $loop_out);
-		$from = $loop_out->{main};
-		$from_in = $loop_out;
-	    } else {
-		my $from_out = $from->{main};
-		&$fun($rule, $from_in, $from_out) if is_router $from;
-		$from = $from_out->{main};
-		$from_in = $from_out;
-	    }
-	    $from_dist = $from->{distance};
-	    $from_loop = $from->{loop};
-	} else {
-	    if($to_loop) {
-		# go through loop from exit of loop
-		my $loop_in = $to_loop->{main};
-		&go_loop($rule, $fun, $loop_in, $to_loop, $to, $to_out);
-		$to = $loop_in->{main};
-		$to_out = $loop_in;
-	    } else {
-		my $to_in = $to->{main};
-		&$fun($rule, $to_in, $to_out) if is_router $to;
-		$to = $to_in->{main};
-		$to_out = $to_in;
-	    }
-	    $to_dist = $to->{distance};
-	    $to_loop = $to->{loop};
 	}
+	# does it go through a loop or does it only touch the loop at an edge
+	# ToDo: Find a better test / data structure
+	if($from_loop && $from->{$to}->{loop}) {
+	    # go through loop to exit of loop
+	    my $to_loop = $from->{$to};
+	    my $loop_out = $to_loop->{$to};
+	    &go_loop($rule, $fun, $where, $from_in, $from, $to_loop, $loop_out);
+	    $from = $loop_out->{$to};
+	    $from_in = $loop_out;
+	} else {
+	    my $from_out = $from->{$to};
+	    &$fun($rule, $from_in, $from_out) if ref($from) eq $where;
+	    $from = $from_out->{$to};
+	    $from_in = $from_out;
+	}
+	$from_loop = $from->{loop};
     }
-#    path_info $from_in, $to_in if is_router $from;
-    &$fun($rule, $from_in, $to_out) if is_router $from;
+#    path_info $from_in, undef if is_router $to;
+    &$fun($rule, $from_in, undef) if ref($to) eq $where;
 }
 
 ##############################################################################
@@ -2161,11 +2215,11 @@ sub convert_any_rules() {
 	$rule->{any_rules} = [];
 	if(is_any($rule->{src})) {
 	    $rule->{deny_src_networks} = [];
-	    &path_walk($rule, \&convert_any_src_rule);
+	    &path_walk($rule, \&convert_any_src_rule, 'Router');
 	}
 	if(is_any($rule->{dst})) {
 	    $rule->{deny_dst_networks} = [];
-	    &path_walk($rule, \&convert_any_dst_rule);
+	    &path_walk($rule, \&convert_any_dst_rule, 'Router');
 	}
     }
 }
@@ -2189,7 +2243,7 @@ sub mark_secondary_rules() {
     info "Marking rules of secondary filters";
     # mark only normal rules, not 'deny', not 'any'
     for my $rule (@expanded_rules) {
-	&path_walk($rule, \&mark_secondary_rule);
+	&path_walk($rule, \&mark_secondary_rule, 'Router');
 	$rule->{has_secondary_filter} = 
 	    $rule->{has_secondary_filter} && $rule->{has_full_filter};
     }
@@ -2490,56 +2544,14 @@ sub optimize() {
 # It holds an array of networks reachable
 # using this interface as next hop
 ####################################################################
-    
-# ToDo: Think about routes in conjunction with loops
-sub get_networks_behind ( $ ) {
-    my($hop) = @_;
-    # return if the values have already been calculated
-    return @{$hop->{route}} if exists $hop->{route};
-    my @networks;
-    $hop->{route} = \@networks;
-    for my $interface (@{$hop->{router}->{interfaces}}) {
-	next if $interface eq $hop;
- 	next if $interface->{disabled};
-	# add directly connected network
-	unless($interface->{ip} eq 'unnumbered') {
-	    push @networks, $interface->{network};
-	}
-	for my $next_hop (@{$interface->{network}->{interfaces}}) {
-	    next if $next_hop eq $interface;
-	    # add networks reachable via interfaces behind
-	    # the directly connected networks
-	    push @networks, &get_networks_behind($next_hop);
-	}
-    }
-    return @networks;
-}
-	
-sub setroute() {
-    info "Setting routes";
-    for my $interface (values %interfaces) {
-	# info isn't needed for interface at leaf network
-	next if @{$interface->{network}->{interfaces}} == 1;
-	get_networks_behind $interface;
-    }
-}
 
-sub mark_networks_for_routes_and_static( $$$ ) {
+# ToDo: active this again
+sub mark_networks_for_static( $$$ ) {
     my($rule, $src_intf, $dst_intf) = @_;
-    # we need a route for answer packets back to src
-    if($src_intf) {
-	for my $net (@{$rule->{src_networks}}) {
-	    next if $net->{ip} eq 'unnumbered';
-	    # mark reachable networks for generation of route commands
-	    $src_intf->{used_route}->{$net} = 1;
-	}
-    }
     # no route or static needed for directly attached interface
     return unless $dst_intf;
     for my $net (@{$rule->{dst_networks}}) {
 	next if $net->{ip} eq 'unnumbered';
-	# mark reachable networks for generation of route commands
-	$dst_intf->{used_route}->{$net} = 1;
 	# collect networks reachable from lower security level
 	# for generation of static commands
 	if($dst_intf->{router}->{model} eq 'PIX' and $src_intf) {
@@ -2591,6 +2603,114 @@ sub get_networks ( $$$ ) {
     }
 }
 
+# A security domain with multiple networks has some unmanaged routers.
+# For each interface at the border of a security domian,
+# fill a hash referenced by $route, showing by wich internal interface
+# each network may be reached from outside.
+# If a network may be reached by multiple paths, use the interface
+# with the shortest path.
+sub set_networks_behind ( $$$$ ) {
+    my($hop, $depth, $route, $result) = @_;
+    for my $interface (@{$hop->{router}->{interfaces}}) {
+	next if $interface eq $hop;
+ 	next if $interface->{disabled};
+	# add directly connected network
+	my $network = $interface->{network};
+	if($network->{depth} && $depth >= $network->{depth}) {
+	    # found a loop, current path is longer, don't go further
+#print "Loop in $network->{name} : current $depth, last $network->{depth}\n";
+	    next;
+	}
+#print "route: $network->{name} -> $route->{name}\n";
+	unless($interface->{ip} eq 'unnumbered') {
+	    # remember length of path
+	    $network->{depth} = $depth;
+	    # ToDo: If this is inside a loop,
+	    # we must delete the previously found longer paths
+	    # to prevent duplicate routing entries
+	    $result->{$network} = $route;
+	}
+	for my $next_hop (@{$network->{interfaces}}) {
+	    next if $next_hop eq $interface;
+	    # we reached an other side of the current security domain
+	    next if $next_hop->{any};
+	    # add networks reachable via interfaces behind
+	    # the directly connected networks
+	    &set_networks_behind($next_hop, $depth+1, $route, $result);
+	}
+    }
+}
+
+sub set_route_in_any () {
+    info "Finding routes to unmanaged devices";
+    for my $any (@all_anys) {
+	for my $border (@{$any->{interfaces}}) {
+	    my $network = $border->{network};
+	    # has already been calculated
+	    next if $network->{route_in_any};
+	    $network->{route_in_any} = {};
+	    for my $interface (@{$network->{interfaces}}) {
+		# ignore current or other border interfaces
+		next if $interface->{any};
+#print "Routing for $border->{name} -> $interface->{name}\n";
+		# all networks behind $interface are reachable via $interface
+		set_networks_behind($interface, 1, $interface,
+				    $network->{route_in_any});
+	    }
+	    # we need to calculate separate values of depth
+	    # for each border interface.
+	    # Attention: $any->{networks} doesn't include unnumbered networks
+	    for my $network (@{$any->{networks}}) {
+#print "Deleting depth for $network->{name}\n";
+		delete $network->{depth};
+	    }
+	}
+    }
+}
+
+# This function is called for each 'any' object on the path from src to dst
+# of $rule.
+# If $in_intf and $out_intf are both defined, 
+# packets traverse this 'any'object.
+# If $in_intf is not defined, src lies inside this 'any' object,
+# no routing entries are needed.
+# If $out_intf is not defined, dst lies inside this 'any' object;
+# we need to add routing entries to $in_intf for each network of dst,
+# which isn't directly connected to $in_intf.
+sub collect_route( $$$ ) {
+    my($rule, $in_intf, $out_intf) = @_;
+    if($in_intf and $out_intf) {
+	my $hop;
+	if($in_intf->{network} eq $out_intf->{network}) {
+	    # No intermediate router lies between in_intf and out_intf,
+	    # hence we reach dst simply via $out_intf
+	    $hop = $out_intf;
+	} else {
+	    # Need to find appropriate interface of intermediate router.
+	    # This info was collected before by &set_route_in_any and stored
+	    # under {route_in_any} in a hash,
+	    # where we find the next hop inside the current 'any' object.
+	    $hop = $in_intf->{network}->{route_in_any}->{$out_intf->{network}};
+	}
+	# Remember which networks are reachable via $hop
+	for my $network (@{$rule->{dst_networks}}) {
+	    $in_intf->{routing}->{$hop}->{$network} = $network;
+	    # Store $hop itself, since we need to go back 
+	    # from hash key to original object later.
+	    $in_intf->{hop}->{$hop} = $hop;
+	}
+    } elsif($in_intf) { # and not $out_intf
+	# path ends here
+	for my $network (@{$rule->{dst_networks}}) {
+	    # ignore directly connected network
+	    next if $network eq $in_intf->{network};
+	    my $hop = $in_intf->{network}->{route_in_any}->{$network};
+	    $in_intf->{routing}->{$hop}->{$network} = $network;
+	    $in_intf->{hop}->{$hop} = $hop;
+	}
+    } # else not $in_intf: nothing to do
+}
+
 sub find_active_routes () {
     info "Finding active routes";
     my $hash = $rule_tree{permit};
@@ -2598,56 +2718,69 @@ sub find_active_routes () {
 	my($hash, $src) = @$aref;
 	for my $aref (values %$hash) {
 	    my($hash, $dst) = @$aref;
-	    my $pseudo_rule =
-	    { src => $src,
-	      src_networks => get_networks($src, $hash, 'src'),
-	      dst => $dst,
-	      dst_networks => get_networks($dst, $hash, 'dst')
-	      };
-	    &path_walk($pseudo_rule, \&mark_networks_for_routes_and_static);
+	    my $pseudo_rule;
+    print "$src->{name} -> $dst->{name}\n";
+	    $pseudo_rule->{src} = $src;
+	    $pseudo_rule->{dst} = $dst;
+	    $pseudo_rule->{dst_networks} = get_networks($dst, $hash, 'src');
+print join ',',map({$_->{name}} @{$pseudo_rule->{dst_networks}}),"\n";
+	    &path_walk($pseudo_rule, \&collect_route, 'Any');
+	    $pseudo_rule->{src} = $dst;
+	    $pseudo_rule->{dst} = $src;
+	    $pseudo_rule->{dst_networks} = get_networks($src, $hash, 'src');
+	    &path_walk($pseudo_rule, \&collect_route, 'Any');
+print join ',',map({$_->{name}} @{$pseudo_rule->{dst_networks}}),"\n";
 	}
     }
 }
 
+# needed for default route optimization
+my $network_default = new('Network',
+			  name => "network:0.0.0.0/0.0.0.0",
+			  ip => 0,
+			  mask => 0
+			  );
 sub print_routes( $ ) {
     my($router) = @_;
     print "[ Routing ]\n";
-    for my $interface (@{$router->{interfaces}}) {
-	# a hash reference having references to all networks
-	# reachable via this interface as keys
-	my $used_route = $interface->{used_route};
-	for my $hop (@{$interface->{network}->{interfaces}}) {
-	    next if $hop eq $interface;
-	    # sort networks by mask in reverse order, i.e. large masks coming
-	    # first and for equal mask by IP address
-	    # we need this
-	    # 1. for routing on demand to work
-	    # 2. to make the output deterministic
-	    my @networks =
-		sort { $b->{mask} <=> $a->{mask} || $a->{ip} <=> $b->{ip} }
-	    @{$hop->{route}};
-	    # find enclosing networks
-	    my %enclosing;
-	    for my $network (@networks) {
-		$network->{enclosing} and $enclosing{$network} = 1;
-	    }
-	    for my $network (@networks) {
-		if(not $used_route->{$network}) {
-		    # no route needed if all traffic to this network is denied
-		    $network = undef;
-		} elsif($network->{is_in} and $enclosing{$network->{is_in}}) {
-		    # Mark redundant network as deleted, if directly
-		    # enclosing network lies behind the same hop.
-		    # But add the enclosing network to used_route.
-		    $used_route->{$network->{is_in}} = 1;
-		    $network = undef;
+    if($auto_default_route) {
+	# find interface and hop with largest number of routing entries
+	my $max_intf;
+	my $max_hop;
+	my $max = 0;
+	for my $interface (@{$router->{interfaces}}) {
+	    for my $key (keys %{$interface->{routing}}) {
+		my $hop = $interface->{hop}->{$key};
+		my $count = keys %{$interface->{routing}->{$key}};
+		if($count > $max) {
+		    $max_intf = $interface;
+		    $max_hop = $hop;
+		    $max = $count;
 		}
 	    }
+	}
+	if($max_intf && $max_hop) {
+	    # use default route for this direction
+	    for my $interface (@{$router->{interfaces}}) {
+		next unless $interface eq $max_intf;
+		$interface->{routing}->{$max_hop} = { $network_default =>
+							  $network_default };
+	    }
+	}
+    }
+    for my $interface (@{$router->{interfaces}}) {
+	for my $key (keys %{$interface->{routing}}) {
+	    my $hop = $interface->{hop}->{$key};
 	    # for unnumbered networks use interface name as next hop
 	    my $hop_addr = $hop->{ip} eq 'unnumbered' ?
 		$interface->{hardware} : print_ip $hop->{ip}->[0];
-	    for my $network (@networks) {
-		next unless defined $network;
+	    for my $network
+		# Sort networks by mask in reverse order,
+		# i.e. small networks coming first and 
+		# for equal mask by IP address.
+		# We need this to make the output deterministic
+		( sort { $b->{mask} <=> $a->{mask} || $a->{ip} <=> $b->{ip} }
+		  values %{$interface->{routing}->{$key}}) {
 		if($comment_routes) {
 		    print "! route $network->{name} -> $hop->{name}\n";
 		}
@@ -3008,12 +3141,12 @@ sub acl_generation() {
     # Code for deny rules
     for my $rule (@expanded_deny_rules) {
 	next if $rule->{deleted};
-	&path_walk($rule, \&collect_acls);
+	&path_walk($rule, \&collect_acls, 'Router');
     }
     # Code for permit rules
     for my $rule (@expanded_rules) {
 	next if $rule->{deleted} and not $rule->{managed_if};
-	&path_walk($rule, \&collect_acls);
+	&path_walk($rule, \&collect_acls, 'Router');
     }
     # Code for rules with 'any' object as src or dst
     for my $rule (@expanded_any_rules) {
@@ -3030,13 +3163,13 @@ sub acl_generation() {
 					 dst => $any_rule->{dst},
 					 srv => $any_rule->{srv}
 				     };
-			&path_walk($deny_rule, \&collect_acls_at_src);
+			&path_walk($deny_rule, \&collect_acls_at_src, 'Router');
 		    }
-		    &path_walk($any_rule, \&collect_acls_at_src);
+		    &path_walk($any_rule, \&collect_acls_at_src, 'Router');
 		}
 	    }
 	    next if $rule->{deleted} and not $rule->{managed_if};
-	    &path_walk($rule, \&collect_acls_at_src);
+	    &path_walk($rule, \&collect_acls_at_src, 'Router');
 	} elsif(is_any $rule->{dst}) {
 	    # two passes:
 	    # first generate deny rules,
@@ -3049,7 +3182,7 @@ sub acl_generation() {
 				     dst => $deny_network,
 				     srv => $any_rule->{srv}
 				 };
-		    &path_walk($deny_rule, \&collect_acls_at_dst);
+		    &path_walk($deny_rule, \&collect_acls_at_dst, 'Router');
 		}
 	    }
 	    # then generate 'any' + auto 'any' rules
@@ -3058,12 +3191,12 @@ sub acl_generation() {
 			not $any_rule->{managed_if};
 		if($any_rule->{any_dst_group}) {
 		    unless($any_rule->{any_dst_group}->{active}) {
-			&path_walk($any_rule, \&collect_acls_at_dst);
+			&path_walk($any_rule, \&collect_acls_at_dst, 'Router');
 			$any_rule->{any_dst_group}->{active} = 1;
 		    }
 		} else {
 		    # no optimization for stateless routers
-		    &path_walk($any_rule, \&collect_acls_at_dst);
+		    &path_walk($any_rule, \&collect_acls_at_dst, 'Router');
 		}
 	    }
 	} else {
@@ -3228,7 +3361,7 @@ $error_counter = $max_errors; # following errors should always abort
 &mark_secondary_rules();
 &optimize();
 &repair_deny_influence();
-&setroute();
+&set_route_in_any();
 &find_active_routes();
 &acl_generation();
 &check_output_dir($out_dir);
