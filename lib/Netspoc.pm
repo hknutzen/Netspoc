@@ -64,6 +64,7 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 order_any_rules
 		 repair_deny_influence 
 		 rules_distribution
+		 local_optimization
 		 check_output_dir
 		 print_code );
 
@@ -1411,15 +1412,17 @@ sub gen_ip_ranges( $ ) {
 		unless($range = $range_mark->{$begin}->{$end}) {
 		    (my $name = $aref->[$start_range]->{name}) =~
 			s/^.*:/auto_range:/;
+		    my $network = $aref->[$start_range]->{network};
 		    $range = 
 			new('Host',
 			    name => $name,
 			    range => [ $begin, $end ],
-			    network => $aref->[$start_range]->{network},
+			    network => $network,
 			    # remember original hosts for later reference
 			    orig_hosts => [ @$aref[$start_range .. $end_range] ],
 			    );
 		    $range_mark->{$begin}->{$end} = $range;
+		    push @{$network->{hosts}}, $range;
 		}
 		# substitute first host with range
 		$aref->[$start_range] = $range;
@@ -1812,16 +1815,17 @@ sub link_topology() {
 		}
 	    }
 	}
-	next unless $network->{subnet_of};
-	my($type, $name) = split_typed_name($network->{subnet_of});
-	if($type eq 'network') {
-	    my $subnet = $networks{$name} or
-		err_msg "Referencing undefined network:$name ",
-		"from attribute 'subnet_of' of $network->{name}";
-	    $network->{subnet_of} = $subnet;
-	} else {
-	    err_msg "Attribute 'subnet_of' of $network->{name} ",
-	    "must not be linked to $type:$name";
+	if($network->{subnet_of}) {
+	    my($type, $name) = split_typed_name($network->{subnet_of});
+	    if($type eq 'network') {
+		my $subnet = $networks{$name} or
+		    err_msg "Referencing undefined network:$name ",
+		    "from attribute 'subnet_of' of $network->{name}";
+		$network->{subnet_of} = $subnet;
+	    } else {
+		err_msg "Attribute 'subnet_of' of $network->{name} ",
+		"must not be linked to $type:$name";
+	    }
 	}
     }
 }
@@ -3678,7 +3682,8 @@ sub find_active_routes_and_statics () {
 }
 
 # Needed for default route optimization and
-# while generating chains of iptables.
+# while generating chains of iptables and 
+# for local optimization.
 my $network_00 = new('Network', name => "network:0/0", ip => 0, mask => 0);
 
 sub print_routes( $ ) {
@@ -4664,84 +4669,64 @@ sub find_chains ( $ ) {
     print "\n";
 }
 
-sub optimize_router( $ ) {
-    my($router) = @_;
-    for my $hardware (@{$router->{hardware}}) {
-	my %both_any;
-	my %src_any;
-	my %dst_any;
-  	for my $rule (@{$hardware->{any_rules}}) {
-  	    my $src = $rule->{src};
-  	    my $dst = $rule->{dst};
-  	    my $srv = $rule->{srv};
- 	    if(is_any $src) {
- 		if(is_any $dst) {
- 		    $both_any{$srv} = $rule;
- 		} else {
- 		    $src_any{$dst}->{$srv} = $rule;
- 		}
- 	    } else {
- 		$dst_any{$src}->{$srv} = $rule;
- 	    }
- 	}
-	my $changed = 0;
-	for my $rule (@{$hardware->{any_rules}}) {
-	    my $src = $rule->{src};
-	    my $dst = $rule->{dst};
-	    my $srv = $rule->{srv};
-	    while($srv) {
-		if(my $old_rule = $both_any{$srv}) {
-		    unless($rule eq $old_rule) {
-			$rule = undef;
-			$changed = 1;
-			last;
-		    }
-		}
-		elsif(is_any $src) {
-		    unless(is_any $dst) {		
-			if(my $old_rule = $src_any{$dst}->{$srv}) {
-			    unless($rule eq $old_rule) {
-				$rule = undef;
-				$changed = 1;
-				last;
+sub local_optimization() {
+    info "Local optimization";
+    # Prepare data structures
+    for my $network (values %networks) {
+	next if $network->{disabled};
+	$network->{subnet_of} or $network->{subnet_of} = $network_00;
+	for my $object (@{$network->{hosts}}, @{$network->{interfaces}}) {
+	    $object->{subnet_of} = $network_00;
+	}
+    }
+    for my $rule (@expanded_any_rules, @expanded_rules, @secondary_rules) {
+	next if $rule->{deleted};
+	$rule->{src} = $network_00 if is_any $rule->{src};
+	$rule->{dst} = $network_00 if is_any $rule->{dst};
+    }
+    for my $router (values %routers) {
+	next unless $router->{managed};
+	for my $hardware (@{$router->{hardware}}) {
+	    my %hash;
+	    for my $rule (@{$hardware->{any_rules}}, @{$hardware->{rules}}) {
+		my $src = $rule->{src};
+		my $dst = $rule->{dst};
+		my $srv = $rule->{srv};
+		$hash{$src}->{$dst}->{$srv} = $rule;
+	    }
+	    my $changed = 0;
+	  RULE:
+	    for my $rule (@{$hardware->{any_rules}}, @{$hardware->{rules}}) {
+		my $src = $rule->{src};
+		my $dst = $rule->{dst};
+		my $srv = $rule->{srv};
+		while($src) {
+		    my $dst = $dst;
+		    my $hash = $hash{$src};
+		    while($dst) {
+			my $srv = $srv;
+			my $hash = $hash->{$dst};
+			while($srv) {
+			    if(my $old_rule = $hash->{$srv}) {
+				unless($rule eq $old_rule) {
+				    $rule = undef;
+				    $changed = 1;
+				    next RULE;
+				}
 			    }
+			    $srv = $srv->{up};
 			}
+			$dst = $dst->{subnet_of};
 		    }
-		} else {
-		    if(my $old_rule = $dst_any{$src}->{$srv}) {
-			unless($rule eq $old_rule) {
-			    $rule = undef;
-			    $changed = 1;
-			    last;
-			}
-		    }
+		    $src = $src->{subnet_of};
 		}
-		$srv = $srv->{up};
 	    }
-	}
-	if($changed) {
-	    $hardware->{any_rules} =
-		[ grep $_, @{$hardware->{any_rules}} ];
-	}
-	$changed = 0;
-	for my $rule (@{$hardware->{rules}}) {
-	    my $src = $rule->{src};
-	    my $dst = $rule->{dst};
-	    my $srv = $rule->{srv};
-	    while($srv) {
-		if($both_any{$srv} ||
-		   $src_any{$dst}->{$srv} ||
-		   $dst_any{$src}->{$srv}) {
-		    $rule = undef;
-		    $changed = 1;
-		    last;
-		}
-		$srv = $srv->{up};
+	    if($changed) {
+		$hardware->{any_rules} =
+		    [ grep $_, @{$hardware->{any_rules}} ];
+		$hardware->{rules} =
+		    [ grep $_, @{$hardware->{rules}} ];
 	    }
-	}
-	if($changed) {
-	    $hardware->{rules} =
-		[ grep $_, @{$hardware->{rules}} ];
 	}
     }
 }	    
@@ -4749,7 +4734,6 @@ sub optimize_router( $ ) {
 sub print_acls( $ ) {
     my($router) = @_;
     my $model = $router->{model};
-    &optimize_router($router);
     print "[ ACL ]\n";
     if($model->{filter} eq 'PIX' and $router->{use_object_groups}) {
 	&find_object_groups($router);
