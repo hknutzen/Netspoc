@@ -2521,14 +2521,10 @@ sub setpath() {
     # take a random network from %networks, name it "net1"
     my $net1 = (values %networks)[0] or die "Topology seems to be empty\n";
 
-    # Artificially add an interface to net1 with lowest distance.
-    my $interface = new('Interface',
-			name => "interface:ARTIFICIAL\@$net1->{name}");
-    push @{$net1->{interfaces}}, $interface;
-
     # Starting with net1, do a traversal of the whole topology
-    # to find a path from every network and router to net1
-    setpath_obj($net1, $interface, 2);
+    # to find a path from every network and router to net1.
+    # "xxx" is used as placeholder for a starting interface.
+    setpath_obj($net1, "xxx", 2);
 
     # check, if all networks are connected with net1 
     for my $network (values %networks) {
