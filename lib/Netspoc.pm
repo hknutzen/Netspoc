@@ -845,10 +845,6 @@ sub read_router( $ ) {
 	if($managed and not defined $interface->{hardware}) {
 	    err_msg "Missing 'hardware' for $interface->{name}";
 	}
-	# NAT is only supported at managed routers
-	if($interface->{bind_nat} and not $managed) {
-	    err_msg "Can't bind NAT to unmanaged $interface->{name}";
-	}
 	if($managed and $model->{has_interface_level}) {
 	    set_pix_interface_level($interface);
 	}
