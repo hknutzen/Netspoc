@@ -1482,7 +1482,6 @@ sub gen_any_src_deny( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
     # out_intf may be undefined if dst is an interface and
     # we just process the corresponding router; but that doesn't matter here.
-    return if $rule->{deleted};
     my $router = $in_intf->{router};
 
     # we don't need the interface itself, but only information about all
@@ -1528,7 +1527,6 @@ sub gen_any_dst_deny( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
     # in_intf may be undefined if src is an interface and
     # we just process the corresponding router;
-    return if $rule->{deleted};
     my $router = $out_intf->{router};
 
     # find networks at all interfaces except the in_intf
@@ -1568,6 +1566,19 @@ sub gen_any_dst_deny( $$$ ) {
 	    push(@{$deny_rule->{src}->{rules}}, $deny_rule);
 	    # counter for verbosity
 	    $weak_deny_counter++;
+	}
+    }
+}
+
+# generate deny rules for any rules
+sub gen_deny_rules() {
+    for my $rule (@expanded_any_rules) {
+	next if $rule->{deleted};
+	if(&is_any($rule->{src})) {
+	    &path_walk($rule, \&gen_any_src_deny);
+	}
+	if(&is_any($rule->{dst})) {
+	    &path_walk($rule, \&gen_any_dst_deny);
 	}
     }
 }
@@ -2057,17 +2068,9 @@ if($pre_optimization) {
 }
 
 # generate deny rules for any rules
-for my $rule (@expanded_any_rules) {
-    if(&is_any($rule->{src})) {
- 	&path_walk($rule, \&gen_any_src_deny);
-    }
-    if(&is_any($rule->{dst})) {
-	&path_walk($rule, \&gen_any_dst_deny);
-    }
-}
-if($verbose) {
-    print STDERR "Generated $weak_deny_counter deny rules from 'any rules'\n";
-}
+&gen_deny_rules();
+print STDERR "Generated $weak_deny_counter deny rules from 'any rules'\n"
+    if $verbose;
 
 print STDERR "Starting optimization\n" if $verbose;
 # Optimze rules for each security domain
