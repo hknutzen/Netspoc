@@ -4026,7 +4026,6 @@ sub distribute_rule( $$$ ) {
 			undef $rule->{has_full_filter};
 			$rule = { %$rule };
 			$rule->{$where} = $network;
-			info "chk_nat: $router->{name} ", print_rule $rule;
 		    }
 		}
 	    }
