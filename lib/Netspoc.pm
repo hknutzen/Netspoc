@@ -1853,7 +1853,6 @@ my %name2object =
  host => \%hosts,
  network => \%networks,
  interface => \%interfaces,
- router => \%routers,
  any => \%anys,
  every => \%everys,
  group => \%groups
@@ -1913,11 +1912,12 @@ sub expand_group( $$ ) {
     my($obref, $context) = @_;
     my @objects;
     for my $tname (@$obref) {
-	# rename router:xx to interface:xx.[all]
-	# to preserve compatibility with older versions
-	$tname =~ s/^router:(.*)$/interface:$1.[all]/;
 	my($type, $name) = split_typed_name($tname);
 	my $object;
+	unless($name2object{$type}) {
+	    err_msg "Unknown type of '$tname' in $context";
+	    next;
+	}
 	unless($object = $name2object{$type}->{$name} or
 	       $type eq 'interface' and
 	       $name =~ /^(.*)\.\[auto\]$/ and
