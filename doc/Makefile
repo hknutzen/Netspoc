@@ -11,3 +11,8 @@ netspoc.html: netspoc.pod
 
 CSPM.html: CSPM.pod
 	pod2html CSPM.pod | perl -pe 's/="([^"]*)">/($$_=$$1,tr.A-Za-z0-9#..cd,qq.="$$_">.)/e' >CSPM.html
+
+tar: netspoc.tar.gz
+
+netspoc.tar.gz: COPYING CSPM.html CSPM.pod ChangeLog Makefile NEWS TODO examples index.html language.html netspoc netspoc.html netspoc.man netspoc.pod newpolicy
+	tar czf $@ $^
