@@ -78,7 +78,8 @@ chdir $pdir or die "Error: can't cd to $pdir: $!\n";
 print STDERR "Compiling policy $count\n";
 system("$compiler src > $code") == 0 or warn "$compiler failed: $?\n";
 # make new policy read only
-system("chmod -R a-w *") == 0 or warn "Can't make $pdir read only\n";
+system("chmod -R a-w *") == 0 or warn "Can't make $pdir/* read only\n";
+system("chmod a+w .") == 0 or warn "Can't make $pdir world writable\n";
 
 chdir $policydb or die "Error: can't cd to $policydb: $!\n";
 unlink $link or die "Error: can't remove $link: $!\n";
