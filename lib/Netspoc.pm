@@ -4646,9 +4646,47 @@ sub find_chains ( $ ) {
     print "\n";
 }
 
+sub optimize_router( $ ) {
+    my($router) = @_;
+    my %both_any;
+    my %src_any;
+    my %dst_any;
+    for my $hardware (@{$router->{hardware}}) {
+	for my $rule (@{$hardware->{any_rules}}) {
+	    my $src = $rule->{src};
+	    my $dst = $rule->{dst};
+	    my $srv = $rule->{srv};
+	    if(is_any $src) {
+		if(is_any $dst) {
+		    $both_any{$srv} = $rule;
+		} else {
+		    $src_any{$dst}->{$srv} = $rule;
+		}
+	    } else {
+		$dst_any{$src}->{$srv} = $rule;
+	    }
+	}
+	my $changed = 0;
+	for my $rule (@{$hardware->{rules}}) {
+	    my $src = $rule->{src};
+	    my $dst = $rule->{dst};
+	    my $srv = $rule->{srv};
+	    if(my $any_rule = $both_any{$srv} ||
+	       $src_any{$dst}->{$srv} || $dst_any{$src}->{$srv}) {
+		$changed = $rule->{deleted} = $any_rule;
+	    }
+	}
+	if($changed) {
+	    $hardware->{rules} =
+		[ grep { not $_->{deleted} } @{$hardware->{rules}} ];
+	}
+    }
+}	    
+	
 sub print_acls( $ ) {
     my($router) = @_;
     my $model = $router->{model};
+    &optimize_router($router);
     print "[ ACL ]\n";
     if($model->{filter} eq 'PIX' and $router->{use_object_groups}) {
 	&find_object_groups($router);
@@ -4712,7 +4750,7 @@ sub print_acls( $ ) {
     # Add deny rules 
     for my $hardware (@{$router->{hardware}}) {
 	if($model->{filter} eq 'IOS' and
-	   ($hardware->{rules} or $hardware->{any_rules})) {
+	   (@{$hardware->{rules}} or @{$hardware->{any_rules}})) {
 	    for my $interface (@{$router->{interfaces}}) {
 		# ignore 'unnumbered' and 'short' interfaces
 		next if $interface->{ip} eq 'unnumbered' or
