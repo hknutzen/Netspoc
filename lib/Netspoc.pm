@@ -1984,7 +1984,7 @@ sub setany() {
 ####################################################################
 # Set paths for efficient topology traversal
 ####################################################################
-sub setpath_obj( $$$$ ) {
+sub setpath_obj( $$$ ) {
     my($obj, $to_any1, $distance) = @_;
 #info("-- $distance: $obj->{name} --> $to_any1->{name}");
     # $obj: a managed router or an 'any' object
@@ -2055,7 +2055,7 @@ sub setpath() {
 
     # Starting with any1, do a traversal of the whole network 
     # to find a path from every security domain and router to any1
-    &setpath_obj($any1, $interface, 2, 0);
+    setpath_obj($any1, $interface, 2);
 
     # check, if all security domains are connected with any1 
     for my $any (@all_anys) {
