@@ -408,6 +408,7 @@ sub read_network( $ ) {
     my $network = new('Network',
 		      name => "network:$name",
 		      hosts => [],
+		      file => $file
 		      );
     skip('=');
     skip('{');
@@ -481,7 +482,7 @@ sub read_interface( $$ ) {
     my $name = "$router.$net";
     my $interface = new('Interface', 
 			name => "interface:$name",
-			network => $net,
+			network => $net
 			);
     unless(&check('=')) {
 	# short form of interface definition
@@ -575,6 +576,7 @@ sub read_router( $ ) {
     my $router = new('Router',
 		     name => "router:$name",
 		     managed => $managed,
+		     file => $file
 		     );
     $router->{model} = $model if $managed;
     $router->{static_manual} = 1 if $static_manual and $managed;
@@ -611,7 +613,8 @@ sub read_any( $ ) {
     skip('{');
     my $link = &read_assign('link', \&read_typed_name);
     &skip('}');
-    my $any = new('Any', name => "any:$name", link => $link);
+    my $any = new('Any', name => "any:$name", link => $link,
+		  file => $file);
     if($anys{$name}) {
 	error_atline "Redefining $any->{name}";
     }
@@ -625,7 +628,8 @@ sub read_every( $ ) {
     skip('{');
     my $link = &read_assign('link', \&read_typed_name);
     &skip('}');
-    my $every = new('Every', name => "every:$name", link => $link);
+    my $every = new('Every', name => "every:$name", link => $link,
+		    file => $file);
     if(my $old_every = $everys{$name}) {
 	error_atline "Redefining $every->{name}";
     }
@@ -639,7 +643,8 @@ sub read_group( $ ) {
     my @objects = &read_list_or_null(\&read_typed_name);
     my $group = new('Group',
 		    name => "group:$name",
-		    elements => \@objects);
+		    elements => \@objects,
+		    file => $file);
     if(my $old_group = $groups{$name}) {
 	error_atline "Redefining $group->{name}";
     }
@@ -653,7 +658,8 @@ sub read_servicegroup( $ ) {
    my @objects = &read_list_or_null(\&read_typed_name);
    my $srvgroup = new('Servicegroup',
 		      name => "servicegroup:$name",
-		      elements => \@objects);
+		      elements => \@objects,
+		      file => $file);
    if(my $old_group = $servicegroups{$name}) {
        error_atline "Redefining servicegroup:$name";
    }
@@ -739,7 +745,8 @@ sub read_proto_nr() {
 our %services;
 sub read_service( $ ) {
     my $name = shift;
-    my $srv = { name => $name };
+    my $srv = { name => $name,
+		file => $file };
     &skip('=');
     if(&check('ip')) {
 	$srv->{type} = 'ip';
@@ -788,7 +795,8 @@ sub read_policy( $ ) {
     my @user = &read_assign_list('user', \&read_typed_name);
     my $policy = { name => "policy:$name",
 		   user => \@user,
-		   rules => []
+		   rules => [],
+		   file => $file
 	       };
     while(1) {
 	last if &check('}');
@@ -805,7 +813,8 @@ sub read_policy( $ ) {
 	    if($src ne 'user' && $dst ne 'user') {
 		err_msg "All rules of $policy->{name} must use keyword 'user'";
 	    }
-	    my $rule = { action => $action, src => $src, dst => $dst, srv => $srv};
+	    my $rule = { action => $action,
+			 src => $src, dst => $dst, srv => $srv};
 	    push(@{$policy->{rules}}, $rule);
 	} else {
 	    syntax_err "Expected 'permit' or 'deny'";
@@ -822,8 +831,9 @@ sub read_rule( $ ) {
     my @src = &read_assign_list('src', \&read_typed_name);
     my @dst = &read_assign_list('dst', \&read_typed_name);
     my @srv = &read_assign_list('srv', \&read_typed_name);
-    my $rule =
-    { action => $action, src => \@src, dst => \@dst, srv => \@srv };
+    my $rule = { action => $action,
+		 src => \@src, dst => \@dst, srv => \@srv,
+		 file => $file};
     push(@rules, $rule);
     if($allow_toplevel_rules =~ /^0|warn$/) {
 	my $msg = "Rule must be declared as part of policy";
