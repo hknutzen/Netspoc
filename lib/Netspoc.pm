@@ -56,6 +56,7 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 convert_any_rules 
 		 optimize
 		 optimize_reverse_rules
+		 distribute_nat_info
 		 gen_reverse_rules
 		 gen_secondary_rules 
 		 order_any_rules
@@ -438,6 +439,12 @@ sub new( $@ ) {
     return bless($self, $type);
 }
 
+# A hash with all defined nat names.
+# Is used, to check, 
+# - if all defined nat mappings are used and
+# - if all used mappings are defined
+my %nat_definitons;
+
 our %hosts;
 sub read_host( $ ) {
     my $name = shift;
@@ -472,7 +479,30 @@ sub read_host( $ ) {
     } else {
 	syntax_err "Expected 'ip' or 'range'";
     }
-    &skip('}');
+    while(1) {
+	last if &check('}');
+	my($type, $name) = split_typed_name(read_typed_name());
+	if($type eq 'nat') {
+	    &skip('=');
+	    &skip('{');
+	    &skip('ip');
+	    &skip('=');
+	    my $nat_ip = &read_ip();
+	    &skip(';');
+	    &skip('}');
+	    $host->{nat}->{$name} = $nat_ip;
+	    $nat_definitons{$name} = 1;
+	} else {
+	    syntax_err "Expected NAT definition";
+	}
+    }
+    if($host->{nat}) {
+	if($host->{range}) {
+	    error_atline "No NAT supported for host with IP range";
+	} elsif(@hosts > 1) {
+	    error_atline "No NAT supported for host with multiple IP's";
+	}
+    }
     if(my $old_host = $hosts{$name}) {
 	error_atline "Redefining host:$name";
     }
@@ -515,31 +545,92 @@ sub read_network( $ ) {
     }
     while(1) {
 	last if &check('}');
-	my($type, $hname) = split_typed_name(read_typed_name());
-	syntax_err "Expected host definition" unless($type eq 'host');
-	my @hosts = &read_host($hname);
-	if($ip eq 'unnumbered') {
-	    error_atline "Unnumbered network must not contain hosts";
-	    # ignore host
-	    next;
-	}
-	# check compatibility of host ip and network ip/mask
-	for my $host (@hosts) {
-	    if(exists $host->{ip}) {
-		if($ip != ($host->{ip} & $mask)) {
-		    error_atline "$host->{name}'s IP doesn't match $network->{name}'s IP/mask";
+	my($type, $name) = split_typed_name(read_typed_name());
+	if($type eq 'host') {
+	    my @hosts = &read_host($name);
+	    # check compatibility of host ip and network ip/mask
+	    for my $host (@hosts) {
+		if(exists $host->{ip}) {
+		    if($ip != ($host->{ip} & $mask)) {
+			error_atline "$host->{name}'s IP doesn't match $network->{name}'s IP/mask";
+		    }
+		} elsif(exists $host->{range}) {
+		    my ($ip1, $ip2) = @{$host->{range}};
+		    if($ip != ($ip1 & $mask) or $ip != ($ip2 & $mask)) {
+			error_atline "$host->{name}'s IP range doesn't match $network->{name}'s IP/mask";
+		    }
+		} else {
+		    internal_err "$host->{name} hasn't ip or range";
 		}
-	    } elsif(exists $host->{range}) {
-		my ($ip1, $ip2) = @{$host->{range}};
-		if($ip != ($ip1 & $mask) or $ip != ($ip2 & $mask)) {
-		    error_atline "$host->{name}'s IP range doesn't match $network->{name}'s IP/mask";
+		# Check compatibility of host and network NAT.
+		# A NAT defintion for a single host is only allowed,
+		# if the network has a dynamic NAT defintion.
+		if($host->{nat}) {
+		    for my $nat_tag (keys %{$host->{nat}}) {
+			my $nat_info;
+			if($nat_info = $network->{nat}->{$nat_tag} and
+			   $nat_info->{dynamic}) {
+			    my $host_ip = $host->{nat}->{$nat_tag};
+			    my($ip, $mask) = @{$nat_info}{'ip', 'mask'}; 
+			    if($ip != ($host_ip & $mask)) {
+				err_msg "nat:$nat_tag: $host->{name}'s IP ",
+				"doesn't match $network->{name}'s IP/mask";
+			    }
+			} else {
+			    err_msg
+				"nat:$nat_tag not allowed for $host->{name} ",
+				"because $network->{name} doesn't have a",
+				"dynamic NAT definition";
+			}
+		    }
 		}
-	    } else {
-		internal_err "$host->{name} hasn't ip or range";
+		$host->{network} = $network;
 	    }
-	    $host->{network} = $network;
+	    push(@{$network->{hosts}}, @hosts);
+	} elsif($type eq 'nat') {
+	    &skip('=');
+	    &skip('{');
+	    &skip('ip');
+	    &skip('=');
+	    my $nat_ip = &read_ip();
+	    &skip(';');
+	    my $nat_mask;
+	    if(&check('mask')) {
+		&skip('=');
+		$nat_mask = &read_ip();
+		&skip(';');
+	    } else {
+		# inherit mask from network
+		$nat_mask = $mask;
+	    }
+	    my $dynamic;
+	    if(&check('dynamic')) {
+		&skip(';');
+	    } else {
+		$nat_mask == $mask or
+		    error_atline
+		    "Non dynamic NAT mask must be equal to network mask";
+	    }
+	    &skip('}');
+	    # check if ip matches mask
+	    if(($nat_ip & $nat_mask) != $nat_ip) {
+		error_atline
+		    "$network->{name}'s NAT IP doesn't match its mask";
+		$nat_ip &= $nat_mask;
+	    }
+	    $network->{nat}->{$name} = { ip => $nat_ip,
+					 mask => $nat_mask,
+					 dynamic => $dynamic };
+	    $nat_definitons{$name} = 1;
+	} else {
+	    syntax_err "Expected NAT or host definition";
 	}
-	push(@{$network->{hosts}}, @hosts);
+    }
+    if($network->{nat} and $ip eq 'unnumbered') {
+	err_msg "Unnumbered $network->{name} must not have nat definition";
+    }
+    if(@{$network->{hosts}} and $ip eq 'unnumbered') {
+	err_msg "Unnumbered $network->{name} must not have host definitions";
     }
     if(@{$network->{hosts}} and $network->{route_hint}) {
 	err_msg "$network->{name} must not have host definitions,\n",
@@ -575,24 +666,57 @@ sub read_interface( $$ ) {
 	    $interface->{ip} = \@ip;
 	} elsif($token eq 'unnumbered') {
 	    $interface->{ip} = 'unnumbered';
-	    skip(';');
+	    &skip(';');
 	} else {
 	    syntax_err "Expected 'ip' or 'unnumbered'";
 	}
-	if(my $hardware = &check_assign('hardware', \&read_string)) {
-	    $interface->{hardware} = $hardware;
-	}
-	if(my $protocol = &check_assign('routing', \&read_string)) {
-	    unless($valid_routing{$protocol}) {
-		error_atline "Unknown routing protocol '$protocol'";
+	while(1) {
+	    last if &check('}');
+	    if(my $string = &check_typed_name()) {
+		my($type, $name) = split_typed_name($string);
+		if($type eq 'nat') {
+		    &skip('=');
+		    &skip('{');
+		    &skip('ip');
+		    &skip('=');
+		    my $nat_ip = &read_ip();
+		    &skip(';');
+		    &skip('}');
+		    $interface->{nat}->{$name} = $nat_ip;
+		    $nat_definitons{$name} = 1;
+		} else {
+		    syntax_err "Expected NAT definition";
+		}
+	    } elsif(my $nat = &check_assign('nat', \&read_identifier)) {
+		# bind NAT to an interface
+		$interface->{bind_nat} and
+		    error_atline "Redefining NAT binding";
+		$interface->{bind_nat} = $nat;
+	    } elsif(my $hardware = &check_assign('hardware', \&read_string)) {
+		$interface->{hardware} and
+		    error_atline "Redefining hardware of interface";
+		$interface->{hardware} = $hardware;
+	    } elsif(my $protocol = &check_assign('routing', \&read_string)) {
+		unless($valid_routing{$protocol}) {
+		    error_atline "Unknown routing protocol '$protocol'";
+		}
+		$interface->{routing} and
+		    error_atline "Redefining routing protocal if interface";
+		$interface->{routing} = $protocol;
+	    } elsif(&check_flag('disabled')) {
+		$interface->{disabled} or 
+		    push @disabled_interfaces, $interface;
+		$interface->{disabled} = 1;
 	    }
-	    $interface->{routing} = $protocol;
-	}	
-	if(&check_flag('disabled')) {
-	    $interface->{disabled} = 1;
-	    push @disabled_interfaces, $interface;
 	}
-	&skip('}');
+	if($interface->{nat}) {
+	    if($interface->{ip} eq 'unnumbered') {
+		error_atline "No NAT supported for unnumbered interface";
+	    } elsif(@{$interface->{ip}} > 1) {
+		error_atline
+		    "No NAT supported for interface with multiple IP's";
+	    }
+	}
     }
     if($interfaces{$name}) {
 	error_atline "Redefining $interface->{name}";
@@ -674,6 +798,10 @@ sub read_router( $ ) {
 	# interface of managed router needs to have a hardware name
 	if($managed and not defined $interface->{hardware}) {
 	    err_msg "Missing 'hardware' for $interface->{name}";
+	}
+	# NAT is only supported at managed routers
+	if($interface->{bind_nat} and not $managed) {
+	    err_msg "Can't bind NAT to unmanaged $interface->{name}";
 	}
 	if($managed and $model->{has_interface_level}) {
 	    set_pix_interface_level($interface);
@@ -1013,7 +1141,7 @@ sub show_read_statistics() {
 ##############################################################################
 
 # Type checking functions
-sub is_net( $ )          { ref($_[0]) eq 'Network'; }
+sub is_network( $ )          { ref($_[0]) eq 'Network'; }
 sub is_router( $ )       { ref($_[0]) eq 'Router'; }
 sub is_interface( $ )    { ref($_[0]) eq 'Interface'; }
 sub is_host( $ )         { ref($_[0]) eq 'Host'; }
@@ -1078,9 +1206,10 @@ sub process_ip_ranges( $$ ) {
 # anonymous hash which is used to collect IP ranges later.
 # ToDo: augment existing ranges by hosts or other ranges
 # ToDo: support chains of network > range > range .. > host
+# Hosts with an explicit NAT definition are left out from this optimization
 sub mark_ip_ranges( $ ) {
     my($network) = @_;
-    my @hosts = grep { $_->{ip} } @{$network->{hosts}};
+    my @hosts = grep { $_->{ip} and not $_->{nat} } @{$network->{hosts}};
     my @ranges = grep { $_->{range} } @{$network->{hosts}};
     return unless @hosts;
     @hosts = sort { $a->{ip} <=> $b->{ip} } @hosts;
@@ -1373,29 +1502,29 @@ sub link_any_and_every() {
 sub link_interface_with_net( $ ) {
     my($interface) = @_;
     my $net_name = $interface->{network};
-    my $net = $networks{$net_name};
-    unless($net) {
+    my $network = $networks{$net_name};
+    unless($network) {
 	err_msg "Referencing undefined network:$net_name ",
 	    "from $interface->{name}";
 	# prevent further errors
 	$interface->{disabled} = 1;
 	return;
     }
-    $interface->{network} = $net;
+    $interface->{network} = $network;
     my $ip = $interface->{ip};
     # check if the network is already linked with another interface
-    if(defined $net->{interfaces}) {
-	my $old_intf = $net->{interfaces}->[0];
+    if(defined $network->{interfaces}) {
+	my $old_intf = $network->{interfaces}->[0];
 	# if network is already linked to a short interface
 	# it must not be linked to any other interface
 	if($old_intf->{ip} eq 'short') {
-	    err_msg "$net->{name} must not be linked with $interface->{name},\n",
+	    err_msg "$network->{name} must not be linked with $interface->{name},\n",
 	    " since it is already linked with short $old_intf->{name}";
 	}
 	# if network is already linked to any interface
 	# it must not be linked to a short interface
 	if($ip eq 'short') {
-	    err_msg "$net->{name} must not be linked with $old_intf->{name},\n",
+	    err_msg "$network->{name} must not be linked with $old_intf->{name},\n",
 	    " since it is already linked with short $interface->{name}";
 	}
     } 
@@ -1403,25 +1532,46 @@ sub link_interface_with_net( $ ) {
     if($ip eq 'short') {
 	# nothing to check: short interface may be linked to arbitrary network
     } elsif($ip eq 'unnumbered') {
-	$net->{ip} eq 'unnumbered' or
+	$network->{ip} eq 'unnumbered' or
 	    err_msg "Unnumbered $interface->{name} must not be linked ",
-	    "to $net->{name}";
+	    "to $network->{name}";
     } else {
 	# check compatibility of interface ip and network ip/mask
+	my $network_ip = $network->{ip};
+	my $mask = $network->{mask};
 	for my $interface_ip (@$ip) {
-	    my $net_ip = $net->{ip};
-	    if($net_ip eq 'unnumbered') {
+	    if($network_ip eq 'unnumbered') {
 		err_msg "$interface->{name} must not be linked ",
-		"to unnumbered $net->{name}";
+		"to unnumbered $network->{name}";
 	    }
-	    my $mask = $net->{mask};
-	    if($net_ip != ($interface_ip & $mask)) {
+	    if($network_ip != ($interface_ip & $mask)) {
 		err_msg "$interface->{name}'s IP doesn't match ",
-		"$net->{name}'s IP/mask";
+		"$network->{name}'s IP/mask";
+	    }
+	}
+	# Check compatibility of interface and network NAT.
+	# A NAT defintion for a single interface is only allowed,
+	# if the network has a dynamic NAT defintion.
+	if($interface->{nat}) {
+	    for my $nat_tag (keys %{$interface->{nat}}) {
+		my $nat_info;
+		if($nat_info = $network->{nat}->{$nat_tag} and
+		   $nat_info->{dynamic}) {
+		    my $interface_ip = $interface->{nat}->{$nat_tag};
+		    my($ip, $mask) = @{$nat_info}{'ip', 'mask'}; 
+		    if($ip != ($interface_ip & $mask)) {
+			err_msg "nat:$nat_tag: $interface->{name}'s IP ",
+			"doesn't match $network->{name}'s IP/mask";
+		    }
+		} else {
+		    err_msg "nat:$nat_tag not allowed for $interface->{name} ",
+		    "because $network->{name} doesn't have a",
+		    "dynamic NAT definition";
+		}
 	    }
 	}
     }
-    push(@{$net->{interfaces}}, $interface);
+    push(@{$network->{interfaces}}, $interface);
 }
 
 sub link_topology() {
@@ -1546,7 +1696,7 @@ sub expand_group( $$ ) {
     for my $object (@objects) {
 	if($object->{disabled}) {
 	    $object = undef;
-	} elsif(is_net $object) {
+	} elsif(is_network $object) {
 	    if($object->{ip} eq 'unnumbered') {
 		err_msg "Unnumbered $object->{name} must not be used in $context";
 		$object = undef;
@@ -1745,7 +1895,7 @@ sub typeof( $ ) {
     my($ob) = @_;
     if(is_host($ob) or is_interface($ob)) {
 	return 'host';
-    } elsif(is_net($ob)) {
+    } elsif(is_network($ob)) {
 	return 'network';
     } elsif(is_any($ob)) {
 	return 'any';
@@ -1991,6 +2141,9 @@ sub find_subnets() {
     for my $network (values %networks) {
 	next if $network->{ip} eq 'unnumbered';
 	next if $network->{disabled};
+	# Ignore a network, if NAT is defined for it
+	# ToDo: separate calculation for each NAT domain
+	next if %{$network->{nat}};
 	if(my $old_net = $mask_ip_hash{$network->{mask}}->{$network->{ip}}) {
 	    err_msg "$network->{name} and $old_net->{name} have identical ip/mask";
 	}
@@ -2100,7 +2253,7 @@ sub setany() {
 		"More than one 'any' object definied in a security domain:\n",
 		" $old_any->{name} and $any->{name}";
 	}
-	if(is_net $obj) {
+	if(is_network $obj) {
 	    setany_network $obj, $any, 0;
 	} elsif(is_router $obj) {
 	    setany_router $obj, $any, 0;
@@ -2213,7 +2366,7 @@ sub get_networks ( $ ) {
     my($obj) = @_;
     if(is_host $obj or is_interface $obj) {
 	return $obj->{network};
-    } elsif(is_net $obj) {
+    } elsif(is_network $obj) {
 	return $obj;
     } elsif(is_any $obj) {
 	return @{$obj->{networks}};
@@ -2232,7 +2385,7 @@ sub get_path( $ ) {
 	} else {
 	    return $obj->{network}->{any};
 	}
-    } elsif(is_net($obj)) {
+    } elsif(is_network($obj)) {
 	return $obj->{any};
     } elsif(is_any($obj)) {
 	return $obj;
@@ -2708,6 +2861,64 @@ sub gen_secondary_rules() {
 }
 
 ##############################################################################
+# Distribute NAT bindings from interfaces to affected networks
+##############################################################################
+
+sub setnat_any( $$$$ ) {
+    my($any, $in_interface, $nat, $depth) = @_;
+    # use a hash to prevet duplicate entries
+    # and to detect loops
+    if($any->{bind_nat}->[$depth]->{$nat}) {
+	info "nat:$nat loop at $any->{name}";
+	return;
+    }
+    $any->{bind_nat}->[$depth]->{$nat} = $nat;
+    info "nat:$nat depth $depth at $any->{name}";
+    for my $interface (@{$any->{interfaces}}) {
+	# ignore interface where we reached this network
+	next if $interface eq $in_interface;
+	# found another border of current nat domain
+	next if $interface->{bind_nat} and $interface->{bind_nat} eq $nat;
+	&setnat_router($interface->{router}, $interface, $nat, $depth);
+    }
+}
+ 
+sub setnat_router( $$$$ ) {
+    my($router, $in_interface, $nat, $depth) = @_;
+    for my $interface (@{$router->{interfaces}}) {
+	# ignore interface where we reached this router
+	next if $interface eq $in_interface;
+	next if $interface->{disabled};
+	my $depth = $depth;
+	if($interface->{bind_nat}) { 
+	    $depth++;
+	    $interface->{bind_nat} eq $nat and
+		err_msg "Found NAT loop for $nat->{name} at $interface->{name}";
+	}
+	&setnat_any($interface->{any}, $interface, $nat, $depth);
+    }
+}
+
+sub distribute_nat_info() {
+    info "Distributing NAT";
+    for my $router (values %routers) {
+	for my $interface (@{$router->{interfaces}}) {
+	    my $nat = $interface->{bind_nat} or next;
+	    if($nat_definitons{$nat}) {
+		&setnat_any($interface->{any}, $interface, $nat, 0);
+		$nat_definitons{$nat} = 'used';
+	    } else {
+		warning "Ignoring undefined nat:$nat bound to $interface->{name}";
+	    }
+	}
+    }
+    for my $name (keys %nat_definitons) {
+	warning "nat:$name is defined, but not used" 
+	    unless $nat_definitons{$name} eq 'used';
+    }
+}
+
+##############################################################################
 # Optimize expanded rules by deleting identical rules and 
 # rules which are overlapped by a more general rule
 ##############################################################################
@@ -2798,7 +3009,7 @@ sub optimize_any_rule( $$ ) {
 	    $chg_rule->{deleted} = $cmp_rule;
 	}
     }
-    elsif(is_net $obj) {
+    elsif(is_network $obj) {
 	my $there = $here eq 'src' ? 'dst' : 'src';
 	# Case 2
 	unless(grep { $obj eq $_ } @{$cmp_rule->{deny_networks}}) {
@@ -2894,7 +3105,7 @@ sub optimize_dst_rules( $$ ) {
 	    $any = $dst->{network}->{any} and
 		$cmp_dst = $cmp_hash->{$any} and
 		    &optimize_srv_rules($cmp_dst->[0], $next_hash);
-	} elsif(is_net($dst)) {
+	} elsif(is_network($dst)) {
 	    $cmp_dst = $cmp_hash->{$dst} and
 		&optimize_srv_rules($cmp_dst->[0], $next_hash);
 	    $any = $dst->{any} and
@@ -2924,7 +3135,7 @@ sub optimize_src_rules( $$ ) {
 	    $any = $src->{network}->{any} and
 		$cmp_src = $cmp_hash->{$any} and
 		    &optimize_dst_rules($cmp_src->[0], $next_hash);
-	} elsif(is_net($src)) {
+	} elsif(is_network($src)) {
 	    $cmp_src = $cmp_hash->{$src} and
 		&optimize_dst_rules($cmp_src->[0], $next_hash);
 	    $any = $src->{any} and
@@ -3198,6 +3409,7 @@ sub print_routes( $ ) {
 		next;
 	    } 
 	}
+	my $any = $interface->{any};
 	# Sort interfaces by name to make output deterministic
 	for my $hop (sort { $a->{name} cmp $b->{name} }
 		     values %{$interface->{hop}}) {
@@ -3223,13 +3435,13 @@ sub print_routes( $ ) {
 		    print "! route $network->{name} -> $hop->{name}\n";
 		}
 		if($router->{model}->{routing} eq 'IOS') {
-		    my $adr = &ios_route_code(@{&address($network)});
+		    my $adr = &ios_route_code(@{&address($network, $any, 'src')});
 		    print "ip route $adr\t$hop_addr\n";
 		} elsif($router->{model}->{routing} eq 'PIX') {
-		    my $adr = &ios_route_code(@{&address($network)});
+		    my $adr = &ios_route_code(@{&address($network, $any, 'src')});
 		    print "route $interface->{hardware} $adr\t$hop_addr\n";
 		} elsif($router->{model}->{routing} eq 'iproute') {
-		    my $adr = &prefix_code(@{&address($network)});
+		    my $adr = &prefix_code(@{&address($network, $any, 'src')});
 		    print "ip route $adr via $hop_addr\n";
 		} else {
 		    internal_err
@@ -3244,43 +3456,47 @@ sub print_routes( $ ) {
 # 'static' commands for pix firewalls
 ##############################################################################
 sub mark_networks_for_static( $$$ ) {
-    my($rule, $src_intf, $dst_intf) = @_;
+    my($rule, $in_intf, $out_intf) = @_;
     # no static needed for directly attached interface
-    return unless $dst_intf;
-    return unless $dst_intf->{router}->{model}->{has_interface_level};
+    return unless $out_intf;
+    return unless $out_intf->{router}->{model}->{has_interface_level};
     # no static needed for traffic coming from the PIX itself
-    return unless $src_intf;
+    return unless $in_intf;
     # no static needed for traffic from higher to lower security level
-    return if $src_intf->{level} > $dst_intf->{level};
+    return if $in_intf->{level} > $out_intf->{level};
     die "Traffic to $rule->{dst}->{name} can't pass\n",
-    " from  $src_intf->{name} to $dst_intf->{name},\n",
+    " from  $in_intf->{name} to $out_intf->{name},\n",
     " since they have equal security levels.\n"
-	if $src_intf->{level} == $dst_intf->{level};
-
+	if $in_intf->{level} == $out_intf->{level};
+    
+    my $in_any = $in_intf->{any};
+    my $out_any = $out_intf->{any};
     for my $net (values %{$rule->{dst_networks}}) {
 	next if $net->{ip} eq 'unnumbered';
 	# collect networks reachable from lower security level
 	# for generation of static commands
 	$net->{mask} == 0 and
 	    die "Pix doesn't support static command for mask 0.0.0.0 of $net->{name}\n";
+	my($nat_tag, $ip, $mask, $dynamic) = &nat_lookup($net, $in_any);
 	# put networks into a hash to prevent duplicates
-	$dst_intf->{static}->{$src_intf->{hardware}}->{$net} = $net;
+	$out_intf->{static}->{$in_intf->{hardware}}->{$net} = $net;
     }
 }
 
 sub print_pix_static( $ ) {
     my($router) = @_;
     print "[ Static ]\n";
+    # print security level relation for each interface
     print "! Security levels: ";
-    my $last_level;
+    my $prev_level;
     for my $interface (sort { $a->{level} <=> $b->{level} }
 		       @{$router->{interfaces}} ) {
 	my $level = $interface->{level};
-	if(defined $last_level) {
-	    print(($last_level == $level)? " = ": " < ");
+	if(defined $prev_level) {
+	    print(($prev_level == $level)? " = ": " < ");
 	}
 	print $interface->{hardware};
-	$last_level = $level;
+	$prev_level = $level;
     }
     print "\n";
 		       
@@ -3351,33 +3567,110 @@ sub split_ip_range( $$ ) {
     return @result;
 }
 
+# Paramters:
+# obj: this address w e want to know
+# any: look inside this nat domain
+# direction: do we want to a source or destination address
 # returns a list of [ ip, mask ] pairs
-sub address( $ ) {
-    my ($obj) = @_;
+sub address( $$$ ) {
+    my ($obj, $any, $direction) = @_;
     if(is_host($obj)) {
-	if($obj->{range}) {
-	    return &split_ip_range(@{$obj->{range}});
+	my($nat_tag, $network_ip, $mask, $dynamic) =
+	   &nat_lookup($obj->{network}, $any);
+	if($nat_tag) {
+	    if($dynamic) {
+		if(my $ip = $obj->{nat}->{$nat_tag}) {
+		    # single static NAT IP for this host
+		    return [$ip, 0xffffffff];
+		} else {
+		    err_msg "$obj->{name} has no known address in context ",
+		    "of dynamic nat.$nat_tag";
+		}
+	    } else {
+		# Take higher bits from network NAT,
+		# lower bits from original IP
+		if($obj->{range}) {
+		    my($ip1, $ip2) = 
+			map { $network_ip | $_ & ~$mask } 
+		    @{$obj->{range}};
+		    return &split_ip_range($ip1, $ip2);
+		} else {
+		    my $ip = $network_ip | $obj->{ip} & ~$mask;
+		    return [$ip, 0xffffffff];
+		}
+	    }
 	} else {
-	    return [$obj->{ip}, 0xffffffff];
+	    if($obj->{range}) {
+		return &split_ip_range(@{$obj->{range}});
+	    } else {
+		return [$obj->{ip}, 0xffffffff];
+	    }
 	}
     }
     if(is_interface($obj)) {
 	if($obj->{ip} eq 'unnumbered' or $obj->{ip} eq 'short') {
 	    internal_err "unexpected $obj->{ip} $obj->{name}\n";
+	}
+	my($nat_tag, $network_ip, $mask, $dynamic) =
+	   &nat_lookup($obj->{network}, $any);
+	if($nat_tag) {
+	    if($dynamic) {
+		if(my $ip = $obj->{nat}->{$nat_tag}) {
+		    # single static NAT IP for this interface
+		    return [$ip, 0xffffffff];
+		} else {
+		    err_msg "$obj->{name} has no known address in context ",
+		    "of dynamic nat.$nat_tag";
+		}
+	    } else {
+		# Take higher bits from network NAT,
+		# lower bits from original IP
+		return map { [$network_ip | $_ & ~$mask, 0xffffffff] }
+		@{$obj->{ip}};
+	    }
 	} else {
 	    return map { [$_, 0xffffffff]  } @{$obj->{ip}};
 	}
-    } elsif(is_net($obj)) {
-	if($obj->{ip} eq 'unnumbered') {
-	    internal_err "unexpected unnumbered $obj->{name}\n";
+    } elsif(is_network($obj)) {
+	my($nat_tag, $network_ip, $mask, $dynamic) =
+	   &nat_lookup($obj, $any);
+	if($nat_tag) {
+	    if($dynamic and $direction eq 'dst') {
+		err_msg "Dynamic nat:$nat_tag of $obj->{name} ",
+		"can't be used as destination";
+	    }
+	    return [$network_ip, $mask];
 	} else {
-	    return [$obj->{ip}, $obj->{mask}];
+
+	    if($obj->{ip} eq 'unnumbered') {
+		internal_err "unexpected unnumbered $obj->{name}\n";
+	    } else {
+		return [$obj->{ip}, $obj->{mask}];
+	    }
 	}
     } elsif(is_any($obj)) {
 	return [0, 0];
     } else {
 	internal_err "unexpected object $obj->{name}";
     }
+}
+
+# Lookup NAT tag of a network while generating code in a domain
+# represented by an 'any' object.
+# Data structure:
+# $any->{bind_nat}->[$depth]->{$nat_tag} = $nat_tag;
+sub nat_lookup( $$ ) {
+    my($net, $any) = @_;
+    # Iterate from most specific to less specific NAT tags
+    for my $href (@{$any->{bind_nat}}) {
+	for my $nat_tag (values %$href) {
+	    if($net->{nat}->{$nat_tag}) {
+		return($nat_tag,
+		       @{$net->{nat}->{$nat_tag}}{'ip', 'mask', 'dynamic'});
+	    }
+	}
+    }
+    return undef;
 }
 
 # Given an IP and mask, return its address in IOS syntax
@@ -3546,18 +3839,18 @@ sub acl_line( $$$$$$$ ) {
 }
 
 sub collect_acls( $$$ ) {
-    my ($rule, $src_intf, $dst_intf) = @_;
-    # Traffic from src reaches this router via src_intf
-    # and leaves it via dst_intf.
-    # src_intf is undefined if src is an interface of the current router
-    # dst_intf is undefined if dst  is an interface of the current router
+    my ($rule, $in_intf, $out_intf) = @_;
+    # Traffic from src reaches this router via in_intf
+    # and leaves it via out_intf.
+    # in_intf is undefined if src is an interface of the current router
+    # out_intf is undefined if dst  is an interface of the current router
     # Outgoing packets from a router itself are never filtered.
-    return unless $src_intf;
+    return unless $in_intf;
     my $action = $rule->{action};
     my $src = $rule->{src};
     my $dst = $rule->{dst};
     my $srv = $rule->{srv};
-    my $router = $src_intf->{router};
+    my $router = $in_intf->{router};
     my $model = $router->{model};
     # Rules of type secondary are only applied to secondary routers.
     # Rules of type full are only applied to full filtering routers.
@@ -3571,7 +3864,7 @@ sub collect_acls( $$$ ) {
     # their own interfaces
     if($rule->{stateless}) {
 	unless($model->{stateless} or
-	       not $dst_intf and $model->{stateless_self}) {
+	       not $out_intf and $model->{stateless_self}) {
 	    return;
 	}
     }
@@ -3581,45 +3874,25 @@ sub collect_acls( $$$ ) {
     # because code for interfaces is placed before the 'normal' code.
     # ToDo: But we might get duplicate ACLs for an interface.
     if($rule->{deleted}) {
-	# we are on an intermediate router if $dst_intf is defined
-	return if $dst_intf;
-# ToDo: Check if this optimization is valid
-#	if(not defined $src_intf) {
-#	    # src is an interface of the current router
-#	    # and it was deleted because we have a similar rule
-#	    # for an interface of the current router
-#	    if($src eq $rule->{deleted}->{src}) {
-#		# The rule in {deleted} may be ineffective
-#		# if it is an interface -> any rule with attached auto-deny rule(s)
-#		# ToDo: Check if one of deny_networks matches $src
-#		return unless is_any $rule->{deleted}->{dst} and
-#		    $rule->{deleted}->{deny_networks};
-#	    }
-#	}
-#	if(not defined $dst_intf) {
-#	    if($dst eq $rule->{deleted}->{dst}) {
-#		# ToDo: see above
-#		return unless is_any $rule->{deleted}->{src} and
-#		    $rule->{deleted}->{deny_networks};
-#	    }
-#	}
+	# we are on an intermediate router if $out_intf is defined
+	return if $out_intf;
     }
     my $comment_char = $model->{comment_char};
-    my @src_addr = &address($src);
-    my @dst_addr = &address($dst);
+    my @src_addr = &address($src, $in_intf->{any}, 'src');
+    my @dst_addr = &address($dst, ($out_intf?$out_intf:$dst)->{any}, 'dst');
     my $code_aref;
     # Packets for the router itself
-    if(not defined $dst_intf) {
+    if(not defined $out_intf) {
 	# For PIX firewalls it is unnecessary to generate permit ACLs
 	# for packets to the PIX itself
 	# because it accepts them anyway (telnet, IPSec)
 	# ToDo: Check if this assumption holds for deny ACLs as well
 	return if $model->{filter} eq 'PIX' and $action eq 'permit';
-	$code_aref = \@{$router->{if_code}->{$src_intf->{hardware}}};
+	$code_aref = \@{$router->{if_code}->{$in_intf->{hardware}}};
     } else {
 	# collect generated code at hardware interface,
 	# not at logical interface
-	$code_aref = \@{$router->{code}->{$src_intf->{hardware}}};
+	$code_aref = \@{$router->{code}->{$in_intf->{hardware}}};
     }
     if($comment_acls) {
 	push(@$code_aref, "$comment_char ". print_rule($rule)."\n");
@@ -3639,11 +3912,11 @@ sub collect_acls( $$$ ) {
 # For deny and permit rules with src=any:*, call collect_acls only for
 # the first router on the path from src to dst
 sub collect_acls_at_src( $$$ ) {
-    my ($rule, $src_intf, $dst_intf) = @_;
+    my ($rule, $in_intf, $out_intf) = @_;
     my $src = $rule->{src};
     is_any $src or internal_err "$src must be of type 'any'";
     # the main rule is only processed at the first router on the path
-    if($src_intf->{any} eq $src) {
+    if($in_intf->{any} eq $src) {
 	&collect_acls(@_)
 	    unless $rule->{deleted} and not $rule->{managed_if};
     }
@@ -3651,7 +3924,7 @@ sub collect_acls_at_src( $$$ ) {
     elsif(exists $rule->{any_rules}) {
 	# check for auxiliary 'any' rules
 	for my $any_rule (@{$rule->{any_rules}}) {
-	    next unless $src_intf->{any} eq $any_rule->{src};
+	    next unless $in_intf->{any} eq $any_rule->{src};
 	    next if $any_rule->{deleted} and not $any_rule->{managed_if};
 	    # Generate code for deny rules directly in front of
 	    # the corresponding permit 'any' rule
@@ -3662,9 +3935,9 @@ sub collect_acls_at_src( $$$ ) {
 				 srv => $any_rule->{srv},
 				 stateless => $any_rule->{stateless}
 			     };
-		&collect_acls($deny_rule, $src_intf, $dst_intf);
+		&collect_acls($deny_rule, $in_intf, $out_intf);
 	    }
-	    &collect_acls($any_rule, $src_intf, $dst_intf);
+	    &collect_acls($any_rule, $in_intf, $out_intf);
 	}
     }
 }
@@ -3672,15 +3945,15 @@ sub collect_acls_at_src( $$$ ) {
 # For permit dst=any:*, call collect_acls only for
 # the last router on the path from src to dst
 sub collect_acls_at_dst( $$$ ) {
-    my ($rule, $src_intf, $dst_intf) = @_;
+    my ($rule, $in_intf, $out_intf) = @_;
     my $dst = $rule->{dst};
     is_any $dst or internal_err "$dst must be of type 'any'";
     # this is called for the main rule and its auxiliary rules
     #
     # first build a list of all adjacent 'any' objects
     my @neighbour_anys;
-    for my $intf (@{$dst_intf->{router}->{interfaces}}) {
-	next if $src_intf and $intf eq $src_intf;
+    for my $intf (@{$out_intf->{router}->{interfaces}}) {
+	next if $in_intf and $intf eq $in_intf;
 	push @neighbour_anys, $intf->{any};
     }
     # generate deny rules in a first pass, since all related
@@ -3695,7 +3968,7 @@ sub collect_acls_at_dst( $$$ ) {
 			     srv => $any_rule->{srv},
 			     stateless => $any_rule->{stateless}
 			 };
-	    &collect_acls($deny_rule, $src_intf, $dst_intf);
+	    &collect_acls($deny_rule, $in_intf, $out_intf);
 	}
     }
     for my $any_rule ($rule, @{$rule->{any_rules}}) {
@@ -3703,11 +3976,11 @@ sub collect_acls_at_dst( $$$ ) {
 	next if $any_rule->{deleted} and not $any_rule->{managed_if};
 	if($any_rule->{any_dst_group}) {
 	    unless($any_rule->{any_dst_group}->{active}) {
-		&collect_acls($any_rule, $src_intf, $dst_intf);
+		&collect_acls($any_rule, $in_intf, $out_intf);
 		$any_rule->{any_dst_group}->{active} = 1;
 	    }
 	} else {
-	    &collect_acls($any_rule, $src_intf, $dst_intf);
+	    &collect_acls($any_rule, $in_intf, $out_intf);
 	}
     }
 }
@@ -3784,10 +4057,10 @@ sub print_acls( $ ) {
 			  $srv_ip, $model));
 	    # Permit OSPF packets from attached networks to this router.
 	    # We use the network address instead of the interface
-	    # addresses, because it is shorter if the interfcae has 
+	    # addresses, because it is shorter if the interface has 
 	    # multiple addresses.
 	    for my $net (@{$ospf{$hardware}}) {
-		my ($ip, $mask) = @{address($net)};
+		my ($ip, $mask) = @{&address($net, $net->{any}, 'src')};
 		push(@$code_aref,
 		     #  permit ospf $net $net
 		     acl_line('permit',
