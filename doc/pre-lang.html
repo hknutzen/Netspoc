@@ -395,13 +395,13 @@ directly attached to this interface.
 <PRE> service:&lt;name&gt; = 
  {{
    ip 
- | tcp [&lt;range&gt; -&gt;] &lt;range&gt
- | udp [&lt;range&gt; -&gt;] &lt;range&gt
+ | tcp [[&lt;range&gt; :] &lt;range&gt]
+ | udp [[&lt;range&gt; :] &lt;range&gt]
  | icmp [&lt;int_1&gt;[/&lt;int_2&gt;]] 
  | proto &lt;int&gt; 
  }} ;</PRE>
 <p>with</p>
-<PRE> &lt;range&gt; ::= [&lt;int_1&gt;[-&lt;int_2&gt;]]
+<PRE> &lt;range&gt; ::= &lt;int_1&gt;[-&lt;int_2&gt;]
 </PRE>
 <P>
 <DL>
