@@ -174,9 +174,10 @@ sub add_line( $ ) {
 our $error_counter = 0;
 
 sub check_abort() {
-    if(++$error_counter == $max_errors) {
+    $error_counter++;
+    if($error_counter == $max_errors) {
 	die "Aborted after $error_counter errors\n";
-    }elsif(++$error_counter > $max_errors) {
+    }elsif($error_counter > $max_errors) {
 	die "Aborted\n";
     }
 }
@@ -677,7 +678,6 @@ my %valid_routing = (OSPF => 1);
 our %interfaces;
 my @virtual_interfaces;
 my @disabled_interfaces;
-our %path_restrictions;
 sub read_interface( $$ ) {
     my($router, $net) = @_;
     my $name = "$router.$net";
@@ -716,16 +716,6 @@ sub read_interface( $$ ) {
 		    &skip('}');
 		    $interface->{nat}->{$name} = $nat_ip;
 		    $nat_definitons{$name} = 1;
-		} elsif($type eq 'path_restrict') {
-		    &skip(';');
-		    # Path restrictions are represented by an anonymous hash.
-		    # Equal names must be replaced by identical hash.
-		    my $restrict;
-		    unless($restrict = $path_restrictions{$name}) {
-			$restrict = {name => "$type:$name", count => 1};
-			$path_restrictions{$name} = $restrict;
-		    }
-		    push @{$interface->{path_restrict}}, $restrict;
 		} else {
 		    syntax_err "Expected named attribute";
 		}
@@ -1117,6 +1107,25 @@ sub read_rule( $ ) {
     }
 }
 
+our %pathrestrictions;
+sub read_pathrestriction( $ ) {
+   my $name = shift;
+   skip('=');
+   my $description = &read_description();
+   my @objects = &read_list_or_null(\&read_typed_name);
+   @objects > 1 or
+       error_atline "pathrestriction:$name must use more than one interface";
+   my $restriction = new('Pathrestriction',
+			 name => "pathrestriction:$name",
+			 elements => \@objects,
+			 file => $file);
+   $store_description and $restriction->{description} = $description;
+   if(my $old_restriction = $pathrestrictions{$name}) {
+       error_atline "Redefining pathrestriction:$name";
+   }
+   $pathrestrictions{$name} = $restriction;
+}
+
 sub read_netspoc() {
     # check for definitions
     if(my $string = check_typed_name()) {
@@ -1137,6 +1146,8 @@ sub read_netspoc() {
 	    &read_servicegroup($name);
 	} elsif ($type eq 'policy') {
 	    &read_policy($name);
+	} elsif ($type eq 'pathrestriction') {
+	    &read_pathrestriction($name);
 	} else {
 	    syntax_err "Unknown global definition";
 	}
@@ -1654,11 +1665,34 @@ sub link_interface_with_net( $ ) {
     push(@{$network->{interfaces}}, $interface);
 }
 
+sub link_pathrestrictions() {
+    for my $restrict (values %pathrestrictions) {
+	for my $string (@{$restrict->{elements}}) {
+	    my($type, $name) = split_typed_name($string);
+	    if($type eq 'interface') {
+		if(my $interface = $interfaces{$name}) {
+		    # Multiple restrictions may be applied to a single 
+		    # interface.
+		    push @{$interface->{path_restrict}}, $restrict;
+		    # Substitute interface name by interface object.
+		    $string = $interface;
+		} else {
+		    err_msg "Referencing undefined $type:$name ", 
+		    "from $restrict->{name}";
+		}
+	    } else {
+		err_msg "$restrict->{name} must not reference '$type:$name'";
+	    }
+	}
+    }
+}
+
 sub link_topology() {
     &link_any_and_every();
     for my $interface (values %interfaces) {
 	&link_interface_with_net($interface);
     }
+    &link_pathrestrictions();
     for my $network (values %networks) {
 	if($network->{ip} eq 'unnumbered' and @{$network->{interfaces}} > 2) {
 	    err_msg "Unnumbered $network->{name} is connected to",
@@ -1705,11 +1739,6 @@ sub link_topology() {
 	    err_msg "Attribute 'subnet_of' of $network->{name} ",
 	    "must not be linked to $type:$name";
 	}
-    }
-    # Path restrictions should occour at least as tuples
-    for my $restrict (values %path_restrictions) {
-	$restrict->{count} < 2 and 
-	    warning "$restrict->{name} is used only once";
     }
 }
 
@@ -2557,7 +2586,17 @@ sub setpath() {
 	    "are supported, but $num are defined: ",
 	    join(", ", map {$_->{name}} @$aref);
 	}
-    }	
+    }
+    
+    # Check that interfaces with pathrestriction are located inside 
+    # of cyclic graphs
+    for my $restrict (values %pathrestrictions) {
+	for my $interface (@{$restrict->{elements}}) {
+	    $interface->{in_loop} or
+		err_msg "$interface->{name} of $restrict->{name}\n",
+		" isn't located inside cyclic graph";
+	}
+    }
 }
 
 ####################################################################
@@ -2610,7 +2649,7 @@ sub mark_in_loop1( $$$$$ ) {
     # Check for second occurence of path restriction.
     for my $restrict (@{$in_intf->{path_restrict}}) {
 	if($restrict->{active_path}) {
-#	    info " effective $restrict->{name} at $in_intf->{name}";
+	    info " effective $restrict->{name} at $in_intf->{name}";
 	    return 0;
 	}
     }
@@ -2627,7 +2666,7 @@ sub mark_in_loop1( $$$$$ ) {
     $obj->{active_path} = 1;
     # Mark first occurence of path restriction.
     for my $restrict (@{$in_intf->{path_restrict}}) {
-#	info " enabled $restrict->{name} at $in_intf->{name}";
+	info " enabled $restrict->{name} at $in_intf->{name}";
 	$restrict->{active_path} = 1;
     }
     my $get_next = is_router $obj ? 'network' : 'router';
@@ -2648,7 +2687,7 @@ sub mark_in_loop1( $$$$$ ) {
     }
     delete $obj->{active_path};
     for my $restrict (@{$in_intf->{path_restrict}}) {
-#	info " disabled $restrict->{name} at $in_intf->{name}";
+	info " disabled $restrict->{name} at $in_intf->{name}";
 	delete $restrict->{active_path};
     }
     return $success;
