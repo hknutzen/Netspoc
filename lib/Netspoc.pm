@@ -1561,8 +1561,7 @@ sub optimize_srv_rules( $$ ) {
     for my $rule (values %$chg_hash) {
 	my $srv = $rule->{srv};
 	while($srv) {
-	    if(exists $cmp_hash->{$srv} and
-	       (my $rule2 = $cmp_hash->{$srv})) {
+	    if(my $rule2 = $cmp_hash->{$srv}) {
 		unless($rule2 eq $rule) {
 		    $rule->{deleted} = 1;
 		    last;
@@ -1578,24 +1577,22 @@ sub optimize_action_rules( $$ ) {
     my($cmp_hash, $chg_hash) = @_;
     my($cmp_sub_hash, $chg_sub_hash);
 
-    if(exists $chg_hash->{deny} && ($chg_sub_hash = $chg_hash->{deny})) {
-	exists $cmp_hash->{deny} && ($cmp_sub_hash = $cmp_hash->{deny}) &&
+    if($chg_sub_hash = $chg_hash->{deny}) {
+	$cmp_sub_hash = $cmp_hash->{deny} and
 	    &optimize_srv_rules($cmp_sub_hash, $chg_sub_hash);
     }
-    if(exists $chg_hash->{permit} && ($chg_sub_hash = $chg_hash->{permit})) {
-	exists $cmp_hash->{permit} && ($cmp_sub_hash = $cmp_hash->{permit}) &&
+    if($chg_sub_hash = $chg_hash->{permit}) {
+	$cmp_sub_hash = $cmp_hash->{permit} and
 	    &optimize_srv_rules($cmp_sub_hash, $chg_sub_hash);
-	exists $cmp_hash->{deny} && ($cmp_sub_hash = $cmp_hash->{deny}) &&
+	$cmp_sub_hash = $cmp_hash->{deny} and
 	    &optimize_srv_rules($cmp_sub_hash, $chg_sub_hash);
     }
-    if(exists $chg_hash->{weak_deny} &&
-       ($chg_sub_hash = $chg_hash->{weak_deny})) {
-	exists $cmp_hash->{weak_deny} &&
-	    ($cmp_sub_hash = $cmp_hash->{weak_deny}) &&
+    if($chg_sub_hash = $chg_hash->{weak_deny}) {
+	$cmp_sub_hash = $cmp_hash->{weak_deny} and
 	    &optimize_srv_rules($cmp_sub_hash, $chg_sub_hash);
-	exists $cmp_hash->{permit} && ($cmp_sub_hash = $cmp_hash->{permit}) &&
+	$cmp_sub_hash = $cmp_hash->{permit} and
 	    &optimize_srv_rules($cmp_sub_hash, $chg_sub_hash);
-	exists $cmp_hash->{deny} && ($cmp_sub_hash = $cmp_hash->{deny}) &&
+	$cmp_sub_hash = $cmp_hash->{deny} and
 	    &optimize_srv_rules($cmp_sub_hash, $chg_sub_hash);
     }
 }
