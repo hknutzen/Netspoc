@@ -972,14 +972,24 @@ sub link_interface_with_net( $ ) {
     $interface->{link} = $net;
 
     my $is_cloud_intf = $interface->{ip} eq 'cloud';
-    # check, if the network is already linked with 
-    # an interface of the other type
-    if(defined $net->{is_cloud_network} and
-       $net->{is_cloud_network} != $is_cloud_intf) {
-	err_msg "network:$net_name must not be linked to an interface" .
-	    "since it is linked to a cloud";
+    # check if the network is already linked with another interface
+    if(defined $net->{interfaces}) {
+	my $old_intf = $net->{interfaces}->[0];
+	# if it is linked already to a cloud 
+	# it must not be linked to any other interface
+	if($old_intf->{ip} eq 'cloud') {
+	    my $netname = printable $net;
+	    my $rname = printable($interface->{router});
+	    err_msg "Cloud $netname must not be linked to $rname";
+	}
+	# if it is linked already to a router 
+	# it must not be linked to a cloud
+	if($is_cloud_intf) {
+	    my $netname = printable $net;
+	    my $rname = printable($old_intf->{router});
+	    err_msg "Cloud $netname must not be linked to $rname";
+	}
     } 
-    $net->{is_cloud_network} = $is_cloud_intf;
 
     if(! $is_cloud_intf) {
 	# check compatibility of interface ip and network ip/mask
@@ -988,7 +998,8 @@ sub link_interface_with_net( $ ) {
 	    my $mask = $net->{mask};
 	    if($ip != ($interface_ip & $mask)) {
 		my $iname = printable($interface);
-		err_msg "${iname}'s ip doesn't match net:${net_name}'s ip/mask";
+		my $netname = printable $net;
+		err_msg "${iname}'s ip doesn't match ${netname}'s ip/mask";
 	    }
 	}
     }
