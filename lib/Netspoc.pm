@@ -2167,7 +2167,8 @@ sub gen_pix_static( $ ) {
 	next unless $static;
 	my $high = $interface->{hardware};
 	for my $low (keys %$static) {
-	    my @networks = values %{$static->{$low}};
+	    my @networks =
+		sort { $a->{ip} <=> $b->{ip} }values %{$static->{$low}};
 	    # find enclosing networks
 	    my %enclosing;
 	    for my $network (@networks) {
