@@ -1,14 +1,33 @@
 ToDo list for NetSPoC, a Network Security Policy Compiler
 
-- Add support for nested loops and path restrictions
+- Documentation: add examples for network address translation and path
+  restriction. 
 
-- Support of virtual IP addresses for HSRP / VRRP
+- We are working on a HTML interface for NetSPoC including a
+  graphical representation of the topology, using the graphviz library
+  (http://www.graphviz.org/).
 
-- Add documentation for loops
+- Generate NAT code for other devices than PIX.
 
-- With multiple virtual interfaces at a hardware interface,
-  there might be missing automatically generated deny rules for 'any'
-  rules or they may be in wrong order.
+- Check for duplicate IP addresses or subnet relation even for
+  translated IP addresses.
+
+- Add documentation for loops / cyclic graphs
+
+- Description and code generation for IPSec tunnels
+
+- With multiple interfaces at one hardware interface, there might be
+  missing automatically generated deny rules for 'any' rules or they
+  may be in wrong order.
+
+- Currently there is a small problem if an interface is used as
+  destination of a rule and if there is a path restriction at the same
+  interface: access to the interface would be denied, because the
+  interface is located inside the router behind the restricting
+  interface, but routing for this interface would be generated because
+  the interface having an IP of it's network, is located before the
+  restricting interface.
+  Possible solution: Generate only a host route for an interface.
 
 - If we have a loop with only three routers and a rule with src inside
   the loop and dst an 'any' object outside of the loop, netspoc
@@ -16,7 +35,7 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
   own security domain.
 
 - For a rule with src outside of a loop and dst inside or behind the
-  loop, we get duplicate acls at the router, where packets from src
+  loop, we get duplicate ACLs at the router, where packets from src
   enter the loop.
 
 - Too many duplicate 'any' acls for routers inside a loop.
@@ -24,41 +43,33 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 
 - Build test case for 'any_dst_group' optimization
 
-- Problem with stateless routers and optimization:
-  We use IP > TCP during optimization, but we don't automatically
-  allow answer packets for IP rules. This may result in missing 
-  ACLs for TCP answer packets after optimization.
-  Possible solution: IP rules let pass traffic in both directions. 
+- Refine code generation for 'deny any' rules. Currently, not only the
+  access from / to a security domain is restricted, but for all
+  network objects on the path to dst / from src.
+
+============================================================================
+Done:
+============================================================================
+
+- Add support for nested loops and path restrictions
+
+- Support of virtual IP addresses for HSRP / VRRP
 
 - Extend language to easily denote all managed devices
-  (e.g. router:[managed])
+  (e.g. interface:[managed].[all])
 
 - Extend language to easily denote the interface 'on the right side'
   to src or dst (e.g. interface:router.[auto])
-
-- Refine code generation for 'deny any' rules. Currently, not only the
-  access from / to a security domain is restricted, but for any
-  network object on the path to dst / from src.
 
 - Make NetSPoC aware of network address translation
   - dynamic with pools
   - static for hosts and networks
 
-- In a second step generate NAT code
-
-- Description and code generation for IPSec tunnels
-
-- Give a graphical representation of the topology, for example using
-  the graphviz library (http://www.graphviz.org/).
-
-- Allow the network topology to have loops.
-  This has low priority for me.
-  I think this change would introduce much more complicated
-  algorithms. 
-
-============================================================================
-Done:
-============================================================================
+- Problem with stateless routers and optimization:
+  We use IP > TCP during optimization, but we don't automatically
+  allow answer packets for IP rules. This may result in missing 
+  ACLs for TCP answer packets after optimization.
+  Solution: rules for stateless routers are handled separately internally.
 
 - Separate NetSPoC functionality into a perl module. This would allow
   to build some interesting query tools:
@@ -66,6 +77,8 @@ Done:
     is allowed to pass with the current policy.
   - Which rules are applicable to a network object?
   - What are the managed routers between A and B?
+
+- Allow the network topology to have loops.
 
 - Code generation for IOS routers without firewall feature set
 
