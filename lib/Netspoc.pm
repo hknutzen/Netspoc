@@ -54,8 +54,10 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 path_walk
 		 find_active_routes_and_statics 
 		 convert_any_rules 
-		 optimize 
+		 optimize
+		 gen_reverse_rules
 		 gen_secondary_rules 
+		 order_any_rules
 		 repair_deny_influence 
 		 acl_generation 
 		 check_output_dir
@@ -1445,92 +1447,6 @@ sub link_topology() {
 }
 
 ####################################################################
-# Order 'any' rules
-#
-# Rules with an 'any' object as src or dst will be augmented with
-# deny_networks later. deny_networks expand to deny rules
-# during code generation. Such an automatically generated deny rule
-# should only influence the 'any' rule it is attached to.
-# To minimize the risk that deny_networks influence
-# an unrelated 'any' rule, we order 'any' rules such that 'large'
-# rules are placed below 'small' rules.
-####################################################################
-
-# We put 'any' rules into a hash which eases building an ordered
-# list of 'any' rules with 'smaller' rules coming first:
-# - First, rules are ordered by their srv part, 
-#   smaller services coming first.
-# - Next, rules are ordered by src and dst:
-#  - any host
-#  - host any
-#  - any network
-#  - network any
-#  - any any
-# Note:
-# TCP and UDP port ranges may be not orderable if they are overlapping.
-# If necessary, we split ranges and their corresponding rules
-# into smaller pieces to make them orderable.
-
-sub typeof( $ ) {
-    my($ob) = @_;
-    if(is_host($ob) or is_interface($ob)) {
-	return 'host';
-    } elsif(is_net($ob)) {
-	return 'network';
-    } elsif(is_any($ob)) {
-	return 'any';
-    } else {
-	internal_err "expected host|network|any but got '$ob->{name}'";
-    }
-}
-
-# new block with private global variables
-{
-    # hash for ordering permit any rules; 
-    # when sorted, they are added later to @expanded_any_rules
-    my %ordered_any_rules;
-
-    sub order_any_rule ( $ ) {
-	my($rule) = @_;
-	my $depth = $rule->{srv}->{depth};
-	my $srcid = typeof($rule->{src});
-	my $dstid = typeof($rule->{dst});
-	push @{$ordered_any_rules{$depth}->{$srcid}->{$dstid}}, $rule;
-    }
-
-    # counter for expanded permit any rules
-    my $anyrule_index = 0;
-
-    # add all rules with matching srcid and dstid to expanded_any_rules
-    sub add_rule_2hash( $$$$ ) {
-	my($result_aref, $hash, $srcid, $dstid) = @_;
-	my $rules_aref = $hash->{$srcid}->{$dstid};
-	if(defined $rules_aref) {
-	    for my $rule (@$rules_aref) {
-		# add an incremented index to each any rule
-		# for simplifying a later check if one rule
-		# influences another one
-		$rule->{i} = $anyrule_index++;
-		push(@$result_aref, $rule);
-	    }
-	}
-    }
-
-    sub add_ordered_any_rules( $ ) {
-	my($aref) = @_;
-	for my $depth (reverse sort keys %ordered_any_rules) {
-	    my $hash = $ordered_any_rules{$depth};
-	    next unless defined $hash;
-	    add_rule_2hash($aref, $hash, 'any','host');
-	    add_rule_2hash($aref, $hash, 'host','any');
-	    add_rule_2hash($aref, $hash, 'any','network');
-	    add_rule_2hash($aref, $hash, 'network','any');
-	    add_rule_2hash($aref, $hash, 'any','any');
-	}
-    }
-}
-
-####################################################################
 # Expand rules
 #
 # Simplify rules to expanded rules where each rule has exactly one 
@@ -1742,7 +1658,6 @@ sub expand_rules() {
 		    }
 		    if($action eq 'deny') {
 			push(@expanded_deny_rules, $expanded_rule);
-			&add_rule($expanded_rule);
 		    } elsif(is_any($src) and is_any($dst)) {
 			err_msg "Rule '", print_rule $expanded_rule, "'\n",
 			" has 'any' objects both as src and dst.\n",
@@ -1750,19 +1665,14 @@ sub expand_rules() {
 			"Use one 'every' object instead";
 		    } elsif(is_any($src) or is_any($dst)) {
 			$expanded_rule->{deny_networks} = [];
-			order_any_rule($expanded_rule);
+			push(@expanded_any_rules, $expanded_rule);
 		    } else {
 			push(@expanded_rules, $expanded_rule);
-			&add_rule($expanded_rule);
 		    }
+		    &add_rule($expanded_rule);
 		}
 	    }
 	}
-    }
-    # add ordered 'any' rules which have been ordered by order_any_rule
-    add_ordered_any_rules(\@expanded_any_rules);
-    for my $expanded_rule (@expanded_any_rules) {
-	&add_rule($expanded_rule);
     }
     if($verbose) {
 	my $nd = 0+@expanded_deny_rules;
@@ -1771,6 +1681,89 @@ sub expand_rules() {
 	info "Expanded rules:\n",
 	" deny $nd, permit: $n, permit any: $na";
     }
+}
+
+####################################################################
+# Order 'any' rules
+#
+# Rules with an 'any' object as src or dst will be augmented with
+# deny_networks later. deny_networks expand to deny rules
+# during code generation. Such an automatically generated deny rule
+# should only influence the 'any' rule it is attached to.
+# To minimize the risk that deny_networks influence
+# an unrelated 'any' rule, we order 'any' rules such that 'large'
+# rules are placed below 'small' rules.
+####################################################################
+
+# We put 'any' rules into a hash which eases building an ordered
+# list of 'any' rules with 'smaller' rules coming first:
+# - First, rules are ordered by their srv part, 
+#   smaller services coming first.
+# - Next, rules are ordered by src and dst:
+#  - any host
+#  - host any
+#  - any network
+#  - network any
+#  - any any
+# Note:
+# TCP and UDP port ranges may be not orderable if they are overlapping.
+# If necessary, we split ranges and their corresponding rules
+# into smaller pieces to make them orderable.
+
+sub typeof( $ ) {
+    my($ob) = @_;
+    if(is_host($ob) or is_interface($ob)) {
+	return 'host';
+    } elsif(is_net($ob)) {
+	return 'network';
+    } elsif(is_any($ob)) {
+	return 'any';
+    } else {
+	internal_err "expected host|network|any but got '$ob->{name}'";
+    }
+}
+
+sub order_any_rules2 ( @ ) {
+    my %ordered_any_rules;
+    for my $rule (@_) {
+	my $depth = $rule->{srv}->{depth};
+	my $srcid = typeof($rule->{src});
+	my $dstid = typeof($rule->{dst});
+	push @{$ordered_any_rules{$depth}->{$srcid}->{$dstid}}, $rule;
+    }
+
+    # counter for sorted permit any rules
+    my $anyrule_index = 0;
+    my @result;
+    # add all rules with matching srcid and dstid to result
+    my $get_rules_from_hash = sub ( $$$ ) {
+	my($hash, $srcid, $dstid) = @_;
+	my $rules_aref = $hash->{$srcid}->{$dstid};
+	if(defined $rules_aref) {
+	    for my $rule (@$rules_aref) {
+		# add an incremented index to each any rule
+		# for simplifying a later check if one rule
+		# influences another one
+		$rule->{i} = $anyrule_index++;
+		push(@result, $rule);
+	    }
+	}
+    };
+
+    for my $depth (reverse sort keys %ordered_any_rules) {
+	my $hash = $ordered_any_rules{$depth};
+	next unless defined $hash;
+	&$get_rules_from_hash($hash, 'any','host');
+	&$get_rules_from_hash($hash, 'host','any');
+	&$get_rules_from_hash($hash, 'any','network');
+	&$get_rules_from_hash($hash, 'network','any');
+	&$get_rules_from_hash($hash, 'any','any');
+    }
+    return @result;
+}
+
+sub order_any_rules () {
+    @expanded_any_rules = order_any_rules2 @expanded_any_rules;
 }
 
 ####################################################################
@@ -2542,6 +2535,7 @@ sub convert_any_rules() {
 
 my @reverse_rules;
 
+# ToDo: How does this interact with convert_any_rules
 sub gen_reverse_rules() {
     info "Generating reverse rules for stateless routers";
     for my $rule (@expanded_deny_rules, @expanded_rules, @expanded_any_rules) {
