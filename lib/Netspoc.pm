@@ -630,7 +630,11 @@ sub read_network( $ ) {
 	    }
 	    $network->{nat}->{$name} and
 		error_atline "Duplicate NAT definition";
-	    my $nat = { ip => $nat_ip, mask => $nat_mask };
+	    # NAT definition is of type network itself, for simpler code
+	    # when processing NAT.
+	    my $nat = new('Network',
+			  name => $network->{name},
+			  ip => $nat_ip, mask => $nat_mask );
 	    # $name is the nat_tag which is used later to lookup 
 	    # static translation of hosts inside a dynamically 
 	    # translated network.
@@ -2422,9 +2426,9 @@ sub set_natdomain( $$$ ) {
 sub distribute_nat1( $$$ );
 sub distribute_nat1( $$$ ) {
     my($domain, $nat, $depth) = @_;
-    debug "nat:$nat depth $depth at $domain->{name}";
+#    debug "nat:$nat depth $depth at $domain->{name}";
     if($domain->{active_path}) {
-	debug "nat:$nat loop";
+#	debug "nat:$nat loop";
 	# Found a loop
 	return;
     }
@@ -2433,7 +2437,6 @@ sub distribute_nat1( $$$ ) {
 	my $max_depth = @$nat_info;
 	for(my $i = 0; $i < $max_depth; $i++) {
 	    if($nat_info->[$i]->{$nat}) {
-		debug "nat:$nat: other binding";
 		# Found an alternate border of current NAT domain
 		# There is another NAT binding on the path which
 		# might overlap some translations of current NAT
@@ -2459,7 +2462,7 @@ sub distribute_nat1( $$$ ) {
 		    next;
 		}
 	    }
-	    debug "$interface->{name}";
+#	    debug "$interface->{name}";
 	    distribute_nat1 $interface->{nat_domain}, $nat, $depth;
 	}
     }
@@ -2507,7 +2510,7 @@ sub distribute_nat_info() {
 	# Network to address mapping (only for networks with NAT).
 	my $nat_map = $domain->{nat_map};
 	my $nat_info = $domain->{nat_info};
-	debug "$domain->{name}";
+#	debug "$domain->{name}";
 	next unless $nat_info;
 	# Reuse memory.
 	delete $domain->{nat_info};
@@ -2516,8 +2519,8 @@ sub distribute_nat_info() {
 		for my $network (@{$nat_tag2networks{$nat_tag}}) {
 		    next if $nat_map->{$network};
 		    $nat_map->{$network} = $network->{nat}->{$nat_tag};
-		    debug " Map: $network->{name} -> ",
-		    print_ip $nat_map->{$network}->{ip};
+#		    debug " Map: $network->{name} -> ",
+#		    print_ip $nat_map->{$network}->{ip};
 		}
 	    }
 	}
@@ -2565,7 +2568,7 @@ sub find_subnets() {
 	}
 	# go from smaller to larger networks
 	for my $mask (reverse sort keys %mask_ip_hash) {
-	    # network 0.0.0.0/0.0.0.0 can't be subnet
+	    # Network 0.0.0.0/0.0.0.0 can't be subnet.
 	    last if $mask == 0;
 	    for my $ip (keys %{$mask_ip_hash{$mask}}) {
 		my $m = $mask;
@@ -2575,9 +2578,10 @@ sub find_subnets() {
 		    $i &= $m;
 		    if($mask_ip_hash{$m}->{$i}) {
 			my $bignet = $mask_ip_hash{$m}->{$i};
-			$bignet->{enclosing} = 1;
 			my $subnet = $mask_ip_hash{$mask}->{$ip};
-			$subnet->{is_in} = $bignet;
+			# Mark subnet relation. 
+			# This may differ for different NAT domains.
+			$subnet->{is_in}->{$nat_map} = $bignet;
 			if($strict_subnets and
 			   not($bignet->{route_hint} or
 			       $subnet->{subnet_of} and
@@ -2592,7 +2596,7 @@ sub find_subnets() {
 				err_msg $msg;
 			    }
 			}
-			# we only need to find the smallest enclosing network
+			# We only need to find the smallest enclosing network.
 			last;
 		    }
 		}
@@ -3907,7 +3911,8 @@ sub print_routes( $ ) {
 	    {
 		# Network is redundant, if directly enclosing network
 		# lies behind the same hop.
-		next if $network->{is_in} and $net_hash->{$network->{is_in}};
+		next if $network->{is_in}->{$nat_map} and
+		    $net_hash->{$network->{is_in}->{$nat_map}};
 		if($comment_routes) {
 		    print "! route $network->{name} -> $hop->{name}\n";
 		}
@@ -3973,21 +3978,20 @@ sub print_pix_static( $ ) {
 	    my @networks =
 		sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
 	    values %$net_hash;
-	    # Mark enclosing networks, which are used in statics at this router
-	    my %enclosing;
+	    # Mark redundant network as deleted.
+	    # A network is redundant if some enclosing network is found 
+	    # in both NAT domains of incoming and outgoing interface.
 	    for my $network (@networks) {
-		$network->{enclosing} and $enclosing{$network} = 1;
-	    }
-	    # Mark redundant networks as deleted,
-	    # if any enclosing network is found.
-	    for my $network (@networks) {
-		my $net = $network->{is_in};
+		my $net = $network->{is_in}->{$in_nat};
 		while($net) {
-		    if($enclosing{$net}) {
+		    my $net2;
+		    if($net_hash->{$net} and
+		       $net2 = $network->{is_in}->{$out_nat} and
+		       $net_hash->{$net2}) {
 			$network = undef;
 			last;
 		    } else {
-			$net = $net->{is_in};
+			$net = $net->{is_in}->{$in_nat};
 		    }
 		}
 	    }
