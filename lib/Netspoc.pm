@@ -2229,8 +2229,8 @@ sub get_path( $ ) {
 # the string "2." to the reference: "2.$dst"
 sub loop_part_mark ( $$$$$$ ) {
     my($direction, $from, $to, $from_in, $to_out, $dst) = @_;
+    my $mark = $direction eq 'left' ? $dst : "2.$dst";
     while(1) {
-	my $mark = $from_in->{$dst}?"2.$dst":$dst;
 	# mark may be set already, if this function was called for
 	# a sub-path before
 	if($from eq $to) {
@@ -2243,6 +2243,7 @@ sub loop_part_mark ( $$$$$$ ) {
 	$from_in->{$mark} = $from_out;
 	$from_in = $from_out;
 	$from = $from_out->{$direction};
+	$mark = $dst;
     }
 }
 
