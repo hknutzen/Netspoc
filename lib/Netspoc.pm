@@ -2422,17 +2422,14 @@ sub set_natdomain( $$$ ) {
 sub distribute_nat1( $$$$ );
 sub distribute_nat1( $$$$ ) {
     my($domain, $nat_tag, $depth, $in_interface) = @_;
-    debug "nat:$nat_tag depth $depth at $domain->{name} from $in_interface->{name}";
+#    debug "nat:$nat_tag depth $depth at $domain->{name} from $in_interface->{name}";
     if($domain->{active_path}) {
-	debug "nat:$nat_tag loop";
+#	debug "nat:$nat_tag loop";
 	# Found a loop
 	return;
     }
     # Tag is already there.
     return if $domain->{nat_info}->[$depth]->{$nat_tag};
-    # Add tag at level depth.
-    # Use a hash to prevent duplicate entries.
-    $domain->{nat_info}->[$depth]->{$nat_tag} = $nat_tag;
     # Check for an alternate border (with different depth)
     # of current NAT domain. In this case, there is another NAT binding 
     # on the path which might overlap some translations of current NAT binding.
@@ -2445,6 +2442,9 @@ sub distribute_nat1( $$$$ ) {
 	    }
 	}
     }
+    # Add tag at level depth.
+    # Use a hash to prevent duplicate entries.
+    $domain->{nat_info}->[$depth]->{$nat_tag} = $nat_tag;
     # Network which has translation with tag $nat_tag must not be located
     # in area where this tag effective.
     for my $network (@{$domain->{networks}}) {
