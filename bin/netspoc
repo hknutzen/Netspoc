@@ -45,9 +45,6 @@ my($in_path, $out_dir) = &read_args();
 &check_any_rules();
 # Abort now, if there are syntax errors and simple semantic errors.
 die "Aborted with $error_counter error(s)\n" if $error_counter;
-# Find routes before conversion of any rules, 
-# because that will introduce additional 'any' objects,
-# which would result in superfluous routes
 &find_active_routes_and_statics();
 &optimize();
 &gen_reverse_rules();
@@ -56,7 +53,5 @@ die "Aborted with $error_counter error(s)\n" if $error_counter;
 $error_counter = $max_errors; # following errors abort immediately
 &optimize();
 &optimize_reverse_rules();
-&order_any_rules();
-&repair_deny_influence();
 &rules_distribution();
 &print_code($out_dir);
