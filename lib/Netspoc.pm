@@ -375,6 +375,27 @@ sub read_interface( $ ) {
     &skip('}');
     return $interface;
 }
+
+sub set_pix_interface_level( $ ) {
+    my($interface) = @_;
+    my $hwname = $interface->{hardware};
+    my $level;
+    if($hwname eq 'inside') {
+	$level = 100;
+    } elsif($hwname eq 'outside') {
+	$level = 0;
+    } else {
+	my $nr;
+	if($nr = ($hwname =~ /(\d+)$/) and 0 < $nr and $nr < 100) {
+	    # ToDo: Check how security level is related to interface nr
+	    $level = $nr;
+	} else {
+	    err_msg "invalid hardware name for ". printable($interface);
+	}
+    }
+    $interface->{level} = $level;
+}
+
 my %valid_model = (IOS => 1, PIX => 1);
 my %routers;
 sub read_router( $ ) {
@@ -412,6 +433,9 @@ sub read_router( $ ) {
 	# interface of managed router needs to have a hardware name
 	if($managed and not defined $interface->{hardware}) {
 	    err_msg("Missing 'hardware' for ". printable($interface));
+	}
+	if($managed and $model eq 'PIX') {
+	    set_pix_interface_level($interface);
 	}
     }
     if(my $old_router = $routers{$name}) {
