@@ -1593,10 +1593,11 @@ sub expand_rules() {
 	my $policy = $rule->{policy};
 	$rule->{src} = expand_group $rule->{src}, 'src of rule';
 	$rule->{dst} = expand_group $rule->{dst}, 'dst of rule';
+	$rule->{srv} = expand_services $rule->{srv}, 'rule';
 	
 	for my $src (@{$rule->{src}}) {
 	    for my $dst (@{$rule->{dst}}) {
-		for my $srv (@{expand_services $rule->{srv}, 'rule'}) {
+		for my $srv (@{$rule->{srv}}) {
 		    my $expanded_rule = { action => $action,
 					  policy => $policy,
 					  src => $src,
