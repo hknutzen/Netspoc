@@ -1778,65 +1778,62 @@ sub setany() {
 # Set paths for efficient topology traversal
 ####################################################################
 sub setpath_obj( $$$$ ) {
-    my($obj, $to_r1, $distance, $loop) = @_;
-#info("-- ".($loop?$loop->{name}:'main').",$distance: $obj->{name} --> $to_r1->{name}");
+    my($obj, $to_any1, $distance) = @_;
+#info("-- $distance: $obj->{name} --> $to_any1->{name}");
     # $obj: a managed router or an 'any' object
-    # $to_r1: interface of $obj; go this direction to reach any1
+    # $to_any1: interface of $obj; go this direction to reach any1
     # $distance: distance to any1
-    # $loop: 
-    # (a) a flag, indicating that there are two paths from $obj to any1
-    # (b) a managed router or 'any' object, where the path from any1 to
-    #     the current $obj splits (the start of the loop).
+    # return value:
+    # (1) a flag, indicating that the current path is part of a loop
+    # (2) that obj, which is starting point of the loop (as seen from any1)
     if($obj->{active_path}) {
 	# Found a loop
-	return;
+	# detect if multiple loops end at current object
+	$obj->{right} and err_msg "found nested loop at $obj->{name}";
+	$obj->{right} = $to_any1;
+	$to_any1->{left} = $obj;
+	return $obj;
     }
     # mark current path for loop detection
     $obj->{active_path} = 1;
-    if($loop) {
-	$obj->{loop} = $loop;
-	$obj->{extra} = $to_r1;
-    } else {
-	$obj->{main} = $to_r1;
-	$obj->{main_dist} = $distance;
-    } 
+    $obj->{distance} = $distance;
 
+    my $in_loop = 0;
     for my $interface (@{$obj->{interfaces}}) {
 	# ignore interface where we reached this obj
-	next if $interface eq $to_r1;
-	# get local copy of loop: change only current interface
-	my $loop = $loop;
-	if($loop) {
-	    if($interface->{extra}) {
-		err_msg "Found nested loop at $interface->{name}";
-		next;
-	    } elsif($interface->{main}) {
-		# path already marked in same direction: outside of loop
-		next if $interface->{main} eq $obj;
-		$interface->{extra} = $obj;
-	    } else {
-		internal_err
-		    "Found unmarked $interface->{name} while marking loop";
-		next;
-	    }
-	} else {
-	    if($obj->{extra}) {
-		internal_err
-		    "Found marked loop at $obj->{name} while outside a loop";
-	    } elsif($interface->{main}) {
-		# a new loop begins at $obj (when looking from r1)
-		# take interface $obj as a representative for the whole loop
-		$loop = $obj;
-		$interface->{extra} = $obj;
-	    } else {
-		# continue marking main path
-		$interface->{main} = $obj;
-	    }
-	}
+	next if $interface eq $to_any1;
+	# ignore interface which is the other entry of a loop 
+	# which is already marked
+	next if $interface->{right};
 	my $next = is_any $obj ? $interface->{router} : $interface->{any};
-	&setpath_obj($next, $interface, $distance+1, $loop);
+	if(my $loop = &setpath_obj($next, $interface, $distance+1)) {
+	    # path is part of a loop
+	    # detected if multiple loops start at current object
+	    $in_loop and err_msg "found nested loop at $obj->{name}";
+	    $in_loop = $loop;
+	    $interface->{right} = $obj;
+	    $obj->{left} = $interface
+	} else {
+	    # continue marking loopless path
+	    $interface->{main} = $obj;
+	}
     }
     $obj->{active_path} = 0;
+    if($in_loop) {
+	# mark every node of a loop with the loops starting point
+	$obj->{loop} = $in_loop;
+	unless($obj->{right}) {
+	    # inside a loop not at the starting point
+	    $obj->{right} = $to_any1;
+	    $to_any1->{left} = $obj;
+	    # every node of a loop gets the distance of its starting point
+	    $obj->{distance} = $in_loop->{distance};
+#info "Loop($obj->{distance}): $obj->{name}";
+	    return $in_loop;
+	}
+    }
+    $obj->{main} = $to_any1;
+    return 0;
 }
 
 sub setpath() {
@@ -1856,7 +1853,7 @@ sub setpath() {
     # check, if all security domains are connected with any1 
     for my $any (@all_anys) {
 	next if $any eq $any1;
-	$any->{main} or
+	$any->{main} or $any->{right} or
 	    err_msg "Found unconnected security domain $any->{name}";
     }
 }
@@ -1892,27 +1889,22 @@ sub path_info ( $$ ) {
     info "$in_name, $out_name";
 }
 
-sub go_path() {
-    my($rule, $fun, $from_in, $from, $to, $path) = @_;
+sub go_path( $$$$$$$ ) {
+    my($rule, $fun, $from_in, $from, $to, $to_out, $path) = @_;
     while($from ne $to) {
 	my $from_out = $from->{$path};
 	&$fun($rule, $from_in, $from_out) if is_router $from;
 	$from = $from_out->{$path};
 	$from_in = $from_out;
     }
-    return $from_in;
+    &$fun($rule, $from_in, $to_out) if is_router $from;
 }
 
-sub go_rev_path() {
-    my($rule, $fun, $from, $to, $to_out, $path) = @_;
-    while($to ne $from) {
-	my $to_in = $to->{$path};
-	&$fun($rule, $to_in, $to_out) if is_router $to;
-	$to = $to_in->{$path};
-	$to_out = $to_in;
-    }
-    return $to_out;
-}
+sub go_loop( $$$$$$ ) {
+    my($rule, $fun, $from_in, $from, $to, $to_out) = @_;
+    &go_path($rule, $fun, $from_in, $from, $to, $to_out, 'left');
+    &go_path($rule, $fun, $from_in, $from, $to, $to_out, 'right');
+}    
 
 # Apply a function to a rule at every managed router
 # on the path from src to dst of the rule
@@ -1944,83 +1936,46 @@ sub path_walk($&) {
     }
     my $from_in;
     my $to_out;
-    my $from_dist = $from->{main_dist};
-    my $to_dist = $to->{main_dist};
+    my $from_dist = $from->{distance};
+    my $to_dist = $to->{distance};
     my $from_loop = $from->{loop};
     my $to_loop = $to->{loop};
     while($from ne $to) {
 	if($from_loop and $to_loop and $from_loop eq $to_loop) {
 	    # path terminates at a loop
 	    # $from ne $to ==> go through loop in both directions
-	    if($from_dist >= $to_dist) {
-		# go $from_in,$from -extra-> loop
-		my $loop_in = &go_path($rule, $fun,
-				       $from_in, $from, $to_loop, 'extra');
-		# go_rev $to_out,$to -main-> loop
-		my $loop_out = &go_rev_path($rule, $fun,
-					    $to_loop, $to, $to_out, 'main');
-		# fun last intf. on main to loop, last intf on extra to loop
-		&$fun($rule, $loop_in, $loop_out) if is_router $to_loop;
-		# go $from_in,$from -main-> $to
-		$from_in = &go_path($rule, $fun,
-				    $from_in, $from, $to, 'main');
-		# fun last intf. on main to $to, $to_out
-		&$fun($rule, $from_in, $to_out) if is_router $to;
-		return;
-	    } else {
-		# go $from_in,$from -main-> loop
-		my $loop_in = &go_path($rule, $fun,
-				       $from_in, $from, $to_loop, 'main');
-		# go_rev $to_out,$to -extra-> loop
-		my $loop_out = &go_rev_path($rule, $fun,
-					    $to_loop, $to, $to_out, 'extra');
-		# fun last interfaces to loop
-		&$fun($rule, $loop_in, $loop_out) if is_router $to_loop;
-		# go $from_in,$from -extra-> $to
-		$from_in = &go_path($rule, $fun,
-				    $from_in, $from, $to, 'extra');
-		# fun last interface to $to
-		&$fun($rule, $from_in, $to_out) if is_router $to;
-		return;
-	    }
+	    &go_loop($rule, $fun, $from_in, $from, $to, $to_out);
+	    return;
 	}	
 	if($from_dist >= $to_dist) {
 	    if($from_loop) {
-		# go $from_in,$from -main-> loop
-		my $loop_in = &go_path($rule, $fun,
-				       $from_in, $from, $from_loop, 'main');
-		# go $from_in,$from -extra-> loop
-		my $loop_in2 = &go_path($rule, $fun,
-					$from_in, $from, $from_loop, 'extra');
-		$from = $from_loop;
-		$from_in = $loop_in;
-##		$from_in2 = $loop_in2;
+		# go through loop to exit of loop
+		my $loop_out = $from_loop->{main};
+		&go_loop($rule, $fun, $from_in, $from, $from_loop, $loop_out);
+		$from = $loop_out->{main};
+		$from_in = $loop_out;
 	    } else {
 		my $from_out = $from->{main};
 		&$fun($rule, $from_in, $from_out) if is_router $from;
 		$from = $from_out->{main};
 		$from_in = $from_out;
 	    }
-	    $from_dist = $from->{main_dist};
+	    $from_dist = $from->{distance};
 	    $from_loop = $from->{loop};
 	} else {
 	    if($to_loop) {
-		# go_rev $to_out,$to -main-> loop
-		my $loop_out = &go_rev_path($rule, $fun,
-					    $to_loop, $to, $to_out, 'main');
-		# go_rev $to_out,$to -extra-> loop
-		my $loop_out2 = &go_rev_path($rule, $fun,
-					    $to_loop, $to, $to_out, 'extra');
-		$to = $to_loop;
-		$to_out = $loop_out;
-##		$to_out2 = $loop_out2;
+		# go through loop from exit of loop
+		my $loop_in = $to_loop->{main};
+		&go_loop($rule, $fun, $loop_in, $to_loop, $to, $to_out);
+		$to = $loop_in->{main};
+		$to_out = $loop_in;
 	    } else {
 		my $to_in = $to->{main};
 		&$fun($rule, $to_in, $to_out) if is_router $to;
 		$to = $to_in->{main};
 		$to_out = $to_in;
 	    }
-	    $to_dist = $to->{main_dist};
+	    $to_dist = $to->{distance};
 	    $to_loop = $to->{loop};
 	}
     }
