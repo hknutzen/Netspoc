@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 # netspoc
 # A Network Security Policy Compiler
+# http://netspoc.berlios.de
 # (c) 2002 by Heinz Knutzen <heinz.knutzen@web.de>,<heinz.knutzen@dzsh.de>
 #
 # This program is free software; you can redistribute it and/or modify
