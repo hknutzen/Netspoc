@@ -40,7 +40,7 @@ use warnings;
 use Fcntl qw(:DEFAULT :flock);
 
 # policy database
-my $policydb = "/home/madnes/netspoc";
+my $policydb = "/home/diamonds/netspoc";
 # netspoc compiler
 my $compiler = 'netspoc';
 my $log = 'compile.log';
