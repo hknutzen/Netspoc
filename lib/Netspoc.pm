@@ -942,7 +942,10 @@ sub order_src ( $$ ) {
 
 sub copy_srv( $ ) {
     my($srv) = @_;
-    return [ @$srv ];
+    return {name => $srv->{name},
+	    type => $srv->{type},
+	    vals => $srv->{vals}
+	};
 }
 
 sub copy_rule( $ ) {
