@@ -2429,11 +2429,15 @@ sub mark_secondary_rule( $$$ ) {
     if($router->{managed} eq 'full') {
 	# there might be another path, without a full packet filter
 	return if $router->{loop};
-	# At secondary routers we will expand a single IP address
-	# to its enclosing network. But don't do this optimization
-	# for the routers own interfaces, because the enclosing network
-	# might not be filtered by this router.
-	return unless $src_intf and $dst_intf;
+	# Optimization should only take place for IP addresses lying BEHIND 
+	# a full packet filter. 
+	# ToDo: Think about virtual interfaces sitting all on the same hardware.
+	# Source of rule is an interface of current router.
+	# It doesn't lie behind this router.
+	return if not $src_intf and $rule->{src} eq $dst_intf;
+	# Destination of rule is an interface of current router.
+	# It doesn't lie behind this router.
+	return if not $dst_intf and $rule->{dst} eq $src_intf;
 	$rule->{has_full_filter} = 1;
     } elsif($router->{managed} eq 'secondary') {
 	$rule->{has_secondary_filter} = 1;
