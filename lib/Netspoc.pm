@@ -2082,22 +2082,25 @@ sub expand_group1( $$ ) {
     return \@objects;
 }
 
-sub expand_group( $$ ) {
+sub expand_group( $$$ ) {
     my($obref, $context, $convert_hosts) = @_;
     my $aref = expand_group1 $obref, $context;
-    my @subnets;
-    my @other;
-    for my $obj (@$aref) {
-	next unless $obj;
-	if(is_host $obj) {
-	    push  @subnets, @{$obj->{subnets}};
-	} else {
-	    push @other, $obj;
+    if($convert_hosts) {
+	my @subnets;
+	my @other;
+	for my $obj (@$aref) {
+	    next unless $obj;
+	    if(is_host $obj) {
+		push  @subnets, @{$obj->{subnets}};
+	    } else {
+		push @other, $obj;
+	    }
 	}
+	push @other, @{combine_subnets \@subnets};
+	return \@other;
+    } else {
+	return [ grep $_, @$aref ];
     }
-    my $converted = combine_subnets \@subnets;
-    push @other, @$converted;
-    return \@other;
 
 }    
 
@@ -2171,8 +2174,9 @@ my %reverse_rule_tree;
 # Hash for converting a reference of an object back to this object.
 my %ref2obj;
 
-sub expand_rules() {
-    &convert_hosts();
+sub expand_rules( ;$) {
+    my($convert_hosts) = @_;
+    &convert_hosts() if $convert_hosts;
     info "Expanding rules";
     # Prepare special groups
     set_auto_groups();
@@ -2180,7 +2184,8 @@ sub expand_rules() {
     for my $name (sort keys %policies) {
 	my $policy = $policies{$name};
 	my $user = $policy->{user} = expand_group($policy->{user},
-						  "user of $policy->{name}");
+						  "user of $policy->{name}",
+						  $convert_hosts);
 	for my $p_rule (@{$policy->{rules}}) {
 	    my $rule = {};
 	    my $action = $rule->{action} = $p_rule->{action};
@@ -2190,7 +2195,8 @@ sub expand_rules() {
 		} else {
 		    $rule->{$where} = $p_rule->{$where} =
 			expand_group($p_rule->{$where},
-				     "$where of rule in $policy->{name}");
+				     "$where of rule in $policy->{name}",
+				     $convert_hosts);
 		}
 	    }
 	    $rule->{srv} = expand_services($p_rule->{srv},
