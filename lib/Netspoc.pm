@@ -30,7 +30,7 @@ my $version = (split ' ','$Id$ ')[2];
 our @ISA = qw(Exporter);
 our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 %groups %services %servicegroups 
-		 %policies @rules
+		 %policies
 		 @expanded_deny_rules
 		 @expanded_any_rules
 		 @expanded_rules
@@ -94,9 +94,6 @@ my $auto_default_route = 1;
 my $ignore_files = qr/^CVS$|^RCS$|^\.#|^raw$|~$/;
 # abort after this many errors
 our $max_errors = 10;
-# allow rules at top-level or only as part of policies
-# Possible values: 0 | warn | 1
-my $allow_toplevel_rules = 0;
 # Store descriptions as an attribute of policies.
 # This may be useful when called from a reporting tool.
 our $store_description = 0;
@@ -1106,7 +1103,6 @@ sub read_service( $ ) {
 }
 
 our %policies;
-our @rules;
 
 sub read_user_or_typed_name_list( $ ) {
     my ($name) = @_;
@@ -1160,25 +1156,6 @@ sub read_policy( $ ) {
     $policies{$name} = $policy; 
 }
 
-sub read_rule( $ ) {
-    my($action) = @_;
-    my @src = &read_assign_list('src', \&read_typed_ext_name);
-    my @dst = &read_assign_list('dst', \&read_typed_ext_name);
-    my @srv = &read_assign_list('srv', \&read_typed_name);
-    my $rule = { action => $action,
-		 src => \@src, dst => \@dst, srv => \@srv,
-		 file => $file};
-    push(@rules, $rule);
-    if($allow_toplevel_rules =~ /^0|warn$/) {
-	my $msg = "Rule must be declared as part of policy";
-	if($allow_toplevel_rules eq 'warn') {
-	    warning $msg;
-	} else {
-	    error_atline $msg;
-	}
-    }
-}
-
 our %pathrestrictions;
 sub read_pathrestriction( $ ) {
    my $name = shift;
@@ -1223,8 +1200,6 @@ sub read_netspoc() {
 	} else {
 	    syntax_err "Unknown global definition";
 	}
-    } elsif(my $action = check_permit_deny()) {
-	&read_rule($action);
     } elsif (check('include')) {
 	my $file = read_string();
 	&read_data($file, \&read_netspoc);
@@ -1269,20 +1244,16 @@ sub read_file_or_dir( $ ) {
 }	
 	
 sub show_read_statistics() {
-    my $n = keys %routers;
-    info "Read $n routers";
-    $n = keys %networks;
-    info "Read $n networks";
-    $n = keys %groups;
-    info "Read $n groups";
-    $n = keys %services;
-    info "Read $n services";
-    $n = keys %servicegroups;
-    info "Read $n service groups";
-    $n = keys %policies;
-    info "Read $n policies";
-    $n = @rules;
-    info "Read $n rules" if $n;
+    my $n = keys %networks;
+    my $h = keys %hosts;
+    my $r = keys %routers;
+    my $g = keys %groups;
+    my $s = keys %services;
+    my $sg = keys %servicegroups;
+    my $p = keys %policies;
+    info "Read $r routers, $n networks, $h hosts";
+    info "Read $s services, $sg service groups";
+    info "Read $g groups, $p policies";
 }
 
 ##############################################################################
@@ -2053,107 +2024,108 @@ sub expand_rules() {
     info "Expanding rules";
     # Prepare special groups
     set_auto_groups();
+    # Sort keys to make output deterministic.
     for my $name (sort keys %policies) {
 	my $policy = $policies{$name};
-	my $user = $policy->{user};
+	my $user = $policy->{user} = expand_group($policy->{user},
+						  "user of $policy->{name}");
 	for my $p_rule (@{$policy->{rules}}) {
-	    # New hash with identical keys and values
-	    my $rule = { %$p_rule };
-	    if($rule->{src} eq 'user') {
+	    my $rule = {};
+	    my $action = $rule->{action} = $p_rule->{action};
+	    if($p_rule->{src} eq 'user') {
 		$rule->{src} = $user;
 	    } else {
-		$p_rule->{src} = expand_group $p_rule->{src}, "src of rule in $policy->{name}";
+		$rule->{src} = $p_rule->{src} =
+		    expand_group($p_rule->{src},
+				 "src of rule in $policy->{name}");
 	    }
-	    if($rule->{dst} eq 'user') {
+	    if($p_rule->{dst} eq 'user') {
 		$rule->{dst} = $user;
 	    } else {
-		$p_rule->{dst} = expand_group $p_rule->{dst}, "dst of rule in $policy->{name}";
+		$rule->{dst} =$p_rule->{dst} =
+		    expand_group($p_rule->{dst},
+				 "dst of rule in $policy->{name}");
 	    }
+	    $rule->{srv} = expand_services($p_rule->{srv},
+					   "rule in $policy->{name}");
 	    # remember original policy
 	    $rule->{policy} = $policy;
 	    # ... and remember original rule
 	    $rule->{p_rule} = $p_rule;
-	    push @rules, $rule;
-	}
-	$policy->{user} = expand_group $policy->{user}, "user of $policy->{name}";
-    }
-    for my $rule (@rules) {
-	my $action = $rule->{action};
-	my $policy = $rule->{policy};
-	$rule->{src} = expand_group $rule->{src}, 'src of rule';
-	$rule->{dst} = expand_group $rule->{dst}, 'dst of rule';
-	$rule->{srv} = expand_services $rule->{srv}, 'rule';
 
-	my $get_any_local = sub ( $ ) {
-	    my ($obj) = @_;
-	    if(is_interface $obj and $obj->{router}->{managed}) {
-		return $obj->{any};
-	    } else {
-		my $name = $obj eq 'any:[local]' ? $obj : $obj->{name};
-		err_msg "any:[local] must only be used in conjunction with a",
-		" managed interface\n",
-		" but not $name in $rule->{policy}->{name}";
-		$rule->{deleted} = 1;
-		# Continue with a valid value to prevent further errors.
-		return $obj;
-	    }
-	};
-	my $get_auto_interface = sub ( $$ ) {
-	    my($src, $dst) = @_;
-	    my @result;
-	    for my $interface (path_first_interfaces $src, $dst) {
-		if($interface->{ip} =~ /^unnumbered|short$/) {
-		    err_msg "'$interface->{ip}' $interface->{name} (from .[auto])\n",
-		    " must not be used in rule";
+	    my $get_any_local = sub ( $ ) {
+		my ($obj) = @_;
+		if(is_interface $obj and $obj->{router}->{managed}) {
+		    return $obj->{any};
 		} else {
-		    push @result, $interface;
+		    my $name = $obj eq 'any:[local]' ? $obj : $obj->{name};
+		    err_msg "any:[local] must only be used in conjunction",
+		    " with a managed interface\n",
+		    " but not $name in $rule->{policy}->{name}";
+		    $rule->{deleted} = 1;
+		    # Continue with a valid value to prevent further errors.
+		    return $obj;
 		}
-	    }
-	    return @result;
-	};
-	for my $src (@{$rule->{src}}) {
-	    for my $dst (@{$rule->{dst}}) {
-		
-		my @src = is_router $src ?
-		    $get_auto_interface->($src, $dst) : ($src);
-		my @dst = is_router $dst ?
-		    $get_auto_interface->($dst, $src) : ($dst);
-		for my $src (@src) {
-		    my $src = $src;	# prevent modification of original array
-		    $ref2obj{$src} = $src;
-		    for my $dst (@dst) {
-			my $dst = $dst;	# prevent ...
- 			if($src eq 'any:[local]') {
- 			    $src = $get_any_local->($dst);
-			    $ref2obj{$src} = $src;
-}
- 			if($dst eq 'any:[local]') {
- 			    $dst = $get_any_local->($src);
- 			}
-			$ref2obj{$dst} = $dst;
-			for my $srv (@{$rule->{srv}}) {
-			    my $expanded_rule = { action => $action,
-						  src => $src,
-						  dst => $dst,
-						  srv => $srv,
-						  # Remember original rule.
-						  rule => $rule
-						  };
-			    # If $srv is duplicate of an identical service,
-			    # use the main service, but remember
-			    # the original one for debugging / comments.
-			    if(my $main_srv = $srv->{main}) {
-				$expanded_rule->{srv} = $main_srv;
-				$expanded_rule->{orig_srv} = $srv;
+	    };
+	    my $get_auto_interface = sub ( $$ ) {
+		my($src, $dst) = @_;
+		my @result;
+		for my $interface (path_first_interfaces $src, $dst) {
+		    if($interface->{ip} =~ /^unnumbered|short$/) {
+			err_msg "'$interface->{ip}' $interface->{name}",
+			" (from .[auto])\n",
+			" must not be used in rule";
+		    } else {
+			push @result, $interface;
+		    }
+		}
+		return @result;
+	    };
+	    for my $src (@{$rule->{src}}) {
+		for my $dst (@{$rule->{dst}}) {
+
+		    my @src = is_router $src ?
+			$get_auto_interface->($src, $dst) : ($src);
+		    my @dst = is_router $dst ?
+			$get_auto_interface->($dst, $src) : ($dst);
+		    for my $src (@src) {
+			# Prevent modification of original array.
+			my $src = $src;	
+			$ref2obj{$src} = $src;
+			for my $dst (@dst) {
+			    my $dst = $dst; # prevent ...
+			    if($src eq 'any:[local]') {
+				$src = $get_any_local->($dst);
+				$ref2obj{$src} = $src;
 			    }
-			    if($action eq 'deny') {
-				push(@expanded_deny_rules, $expanded_rule);
-			    } elsif(is_any($src) or is_any($dst)) {
-				push(@expanded_any_rules, $expanded_rule);
-			    } else {
-				push(@expanded_rules, $expanded_rule);
+			    if($dst eq 'any:[local]') {
+				$dst = $get_any_local->($src);
 			    }
-			    &add_rule($expanded_rule);
+			    $ref2obj{$dst} = $dst;
+			    for my $srv (@{$rule->{srv}}) {
+				my $expanded_rule = { action => $action,
+						      src => $src,
+						      dst => $dst,
+						      srv => $srv,
+						      # Remember original rule.
+						      rule => $rule
+						      };
+				# If $srv is duplicate of an identical service,
+				# use the main service, but remember
+				# the original one for debugging / comments.
+				if(my $main_srv = $srv->{main}) {
+				    $expanded_rule->{srv} = $main_srv;
+				    $expanded_rule->{orig_srv} = $srv;
+				}
+				if($action eq 'deny') {
+				    push(@expanded_deny_rules, $expanded_rule);
+				} elsif(is_any($src) or is_any($dst)) {
+				    push(@expanded_any_rules, $expanded_rule);
+				} else {
+				    push(@expanded_rules, $expanded_rule);
+				}
+				&add_rule($expanded_rule);
+			    }
 			}
 		    }
 		}
