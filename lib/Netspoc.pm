@@ -1651,11 +1651,13 @@ sub link_any_and_every() {
 	    }
 	} else {
 	    err_msg "$obj->{name} must not be linked to '$type:$name'";
-	    $obj->{link} = undef;
+	    $obj->{disabled} = 1;
 	    next;
 	}
-	$obj->{link} or
+	unless($obj->{link}) {
 	    err_msg "Referencing undefined $type:$name from $obj->{name}";
+	    $obj->{disabled} = 1;
+	}
     }
 }
 
@@ -1896,7 +1898,6 @@ sub set_auto_groups () {
     $routers{'[all]'} =
 	new('Group', name => "router:[all]",
 	    elements => \@all_routers, is_used => 1);
-    @all_anys or internal_err "\@all_anys is empty";
     $anys{'[all]'} = 
 	new('Group', name => "any:[all]",
 	    elements => \@all_anys, is_used => 1);
@@ -2408,6 +2409,7 @@ sub setpath_obj( $$$ ) {
 	# ignore interface which is the other entry of a loop 
 	# which is already marked
 	next if $interface->{in_loop};
+	next if $interface->{disabled};
 	my $next = $interface->{$get_next};
 	if(my $loop = &setpath_obj($next, $interface, $distance+1)) {
 	    # path is part of a loop
@@ -3316,6 +3318,7 @@ sub distribute_nat_info() {
     for my $router (values %routers) {
 	next unless $router->{managed};
 	for my $interface (@{$router->{interfaces}}) {
+	    next if $interface->{disabled};
 	    $interface->{nat_info} = $interface->{hardware}->{nat_info} =
 		$interface->{network}->{nat_info};
 	}
