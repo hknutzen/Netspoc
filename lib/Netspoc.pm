@@ -1682,10 +1682,9 @@ sub expand_rules() {
 			$expanded_rule->{srv} = $main_srv;
 			$expanded_rule->{orig_srv} = $srv;
 		    }
-		    # Mark rules with managed interface as src or dst 
+		    # Mark rules with managed interface as dst 
 		    # because they get special handling during code generation
-		    if(is_interface($src) and $src->{router}->{managed} or
-		       is_interface($dst) and $dst->{router}->{managed}) {
+		    if(is_interface($dst) and $dst->{router}->{managed}) {
 			$expanded_rule->{managed_if} = 1;
 		    }
 		    if($action eq 'deny') {
@@ -2366,9 +2365,6 @@ sub path_walk( $&$ ) {
 #	&$fun2($rule, $in, $out);
 #    };
     if($from eq $to) {
-	unless($src eq $dst or $rule->{deleted}) {
-	    warning "Unenforceable rule\n ", print_rule($rule);
-	}
 	# don't process rule again later
 	$rule->{deleted} = $rule;
 	return;
