@@ -288,10 +288,10 @@ sub new( $@ ) {
 my %hosts;
 sub read_host( $ ) {
     my $name = shift;
+    my $host = new('Host', name => "host:$name");
     &skip('=');
     &skip('{');
     my $token = read_identifier();
-    my $host = new('Host', name => "host:$name");
     if($token eq 'ip') {
 	&skip('=');
 	my @ip = &read_list(\&read_ip);
@@ -305,13 +305,11 @@ sub read_host( $ ) {
 	$host->{is_range} = 1;
 	&skip(';');
     } else {
-	syntax_err "Illegal token";
+	syntax_err "Expected 'ip' or 'range'";
     }
     &skip('}');
     if(my $old_host = $hosts{$name}) {
-	my $ip_string = &print_ip($host->{ip}->[0]);
-	my $old_ip_string = &print_ip($old_host->{ip}->[0]);
-	error_atline "Redefining host:$name from IP $old_ip_string to $ip_string";
+	error_atline "Redefining host:$name";
     }
     $hosts{$name} = $host;
     return $host;
@@ -347,12 +345,12 @@ sub read_network( $ ) {
 	$network->{ip} = 'unnumbered';
 	skip(';');
     } else {
-	syntax_err "Illegal token";
+	syntax_err "Expected 'ip' or 'unnumbered'";
     }
     while(1) {
 	last if &check('}');
 	my($type, $hname) = split_typed_name(read_typed_name());
-	syntax_err "Illegal token" unless($type eq 'host');
+	syntax_err "Expected host definition" unless($type eq 'host');
 	if($ip eq 'unnumbered') {
 	    error_atline "Unnumbered network must not contain hosts";
 	}
@@ -400,7 +398,7 @@ sub read_interface( $ ) {
 	$interface->{ip} = 'unnumbered';
 	skip(';');
     } else {
-	syntax_err "Illegal token";
+	syntax_err "Expected 'ip' or 'unnumbered'";
     }
     my $hardware = &check_assign('hardware', \&read_string);
     $hardware and $interface->{hardware} = $hardware;
@@ -412,7 +410,7 @@ sub read_interface( $ ) {
 # We don't want to expand our syntax to state them explicitly,
 # but instead we try to derive the level from the interface name.
 # It is not neccessary the find the exact level; what we need to know
-# is the relation of the security levels to each other
+# is the relation of the security levels to each other.
 sub set_pix_interface_level( $ ) {
     my($interface) = @_;
     my $hwname = $interface->{hardware};
@@ -424,7 +422,7 @@ sub set_pix_interface_level( $ ) {
     } else {
 	unless($level = ($hwname =~ /(\d+)$/) and
 	       0 < $level and $level < 100) {
-	    err_msg "can't derive security level from $interface->{name}";
+	    err_msg "Can't derive PIX security level from $interface->{name}";
 	}
     }
     $interface->{level} = $level;
@@ -1131,7 +1129,7 @@ sub gen_expanded_rules() {
 
 # put an expanded rule into a data structure which eases building an ordered
 # list of expanded rules with the following properties:
-# - rules with an any object as src or estination are put at the end
+# - rules with an 'any' object as src or estination are put at the end
 #   (we call dem any-rules)
 # - any-rules are ordered themselve:
 #  - host any
@@ -1272,7 +1270,7 @@ sub setpath_router( $$$$ ) {
     my($router, $to_border, $border, $distance) = @_;
     # ToDo: operate with loops
     if($router->{border}) {
-	err_msg "There is a loop at $router->{name}. " .
+	err_msg "Found a loop at $router->{name}. " .
 		"Loops are not supported in this version";
     }
     $router->{border} = $border;
@@ -1295,7 +1293,7 @@ sub setpath_network( $$$$ ) {
     my ($network, $to_border, $border, $distance) = @_;
     # ToDo: operate with loops
     if($network->{border}) {
-	err_msg "There is a loop at $network->{name}. " .
+	err_msg "Found a loop at $network->{name}. " .
 	    "Loops are not supported in this version";
     }
     $network->{border} = $border;
@@ -1315,14 +1313,14 @@ sub setpath_network( $$$$ ) {
     }
 }
 
-# link each 'any object' with its corresponding border and vice versa
+# link each 'any' object with its corresponding border and vice versa
 sub setpath_anys() {
     for my $any (values %anys) {
 	my $border = $any->{link}->{border} or
 	    err_msg "Found unconnected node: $any->{link}->{name}";
 	$any->{border} = $border;
 	if(my $old_any = $border->{any}) {
-	    err_msg "More than one any object definied in a security domain: "
+	    err_msg "More than one 'any' object definied in a security domain: "
 		. "$old_any->{name} and $any->{name}";
 	}
 	$border->{any} = $any;
@@ -1428,7 +1426,7 @@ sub path_walk($&) {
 
 ##############################################################################
 # Phase 5
-# Process all rules with an any object as source or destination.
+# Process all rules with an 'any' object as source or destination.
 # Automatically insert deny rules at intermediate paths.
 ##############################################################################
 
@@ -1457,7 +1455,7 @@ sub gen_any_src_deny( $$$ ) {
     return if $in_intf->{any} and $in_intf->{any} eq $rule->{src};
 
     # Optimization: nothing to do if there is a similar rule
-    # with another any object as src
+    # with another 'any' object as src
     return if $in_intf->{any} and $rule->{src_any_group}->{$in_intf->{any}};
 
     for my $net (@{$in_intf->{networks}}) {
@@ -1510,11 +1508,11 @@ sub gen_any_dst_deny( $$$ ) {
 	    $intf = $router->{border};
 	}
 	# nothing to do for the interface which is connected
-	# directly to the destination any object
+	# directly to the destination 'any' object
 	next if $intf->{any} and $intf->{any} eq $rule->{dst};
 
 	# Optimization: nothing to do if there is a similar rule
-	# with another any object as dst
+	# with another 'any' object as dst
 	return if $intf->{any} and $rule->{dst_any_group}->{$intf->{any}};
 
 	for my $net (@{$intf->{networks}}) {
@@ -1581,7 +1579,7 @@ sub addrule_border_any( $ ) {
 	&addrule_net($network);
     }
     if($any) {
-	# clear rules at dst object before optimization of next any object
+	# clear rules at dst object before optimization of next 'any' object
 	for my $rule (@{$any->{rules}}) {
 	    delete($rule->{dst}->{src_any});
 	}
