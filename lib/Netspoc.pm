@@ -1298,6 +1298,7 @@ sub is_every( $ )        { ref($_[0]) eq 'Every'; }
 sub is_group( $ )        { ref($_[0]) eq 'Group'; }
 sub is_servicegroup( $ ) { ref($_[0]) eq 'Servicegroup'; }
 sub is_objectgroup( $ )  { ref($_[0]) eq 'Objectgroup'; }
+sub is_chain( $ )        { ref($_[0]) eq 'Chain'; }
 
 sub print_rule( $ ) {
     my($rule) = @_;
@@ -1306,7 +1307,9 @@ sub print_rule( $ ) {
     $extra .= " stateless" if $rule->{stateless};
     if($rule->{orig_any}) { $rule = $rule->{orig_any}; }
     my $srv = exists($rule->{orig_srv}) ? 'orig_srv' : 'srv';
-    return $rule->{action} .
+    my $action = $rule->{action};
+    $action = $action->{name} if is_chain $action;
+    return $action .
 	" src=$rule->{src}->{name}; dst=$rule->{dst}->{name}; " .
 	"srv=$rule->{$srv}->{name};$extra";
 }
@@ -2069,22 +2072,13 @@ sub expand_rules() {
 	    if(is_interface $obj and $obj->{router}->{managed}) {
 		return $obj->{any};
 	    } else {
+		my $name = $obj eq 'any:[local]' ? $obj : $obj->{name};
 		err_msg "any:[local] must only be used in conjunction with a",
 		" managed interface\n",
-		" but not $obj->{name} in $rule->{policy}->{name}";
+		" but not $name in $rule->{policy}->{name}";
+		$rule->{deleted} = 1;
 		# Continue with an valid value to prevent further errors.
-		if($obj eq 'any:[local]') {
-		    $rule->{deleted} = 1;
-		    return $obj;
-		}elsif(is_any $obj) {
-		    return $obj;
-		}elsif(is_network $obj) {
-		    return $obj->{any};
-		}elsif(is_host $obj || is_interface $obj) {
-		    return $obj->{network}->{any};
-		} else {
-		    internal_err;
-		}
+		return $obj;
 	    }
 	};
 	for my $src (@{$rule->{src}}) {
@@ -3669,7 +3663,8 @@ sub find_active_routes_and_statics () {
     check_duplicate_routes();
 }
 
-# needed for default route optimization
+# Needed for default route optimization and
+# while generating chains of iptables.
 my $network_00 = new('Network', name => "network:0/0", ip => 0, mask => 0);
 
 sub print_routes( $ ) {
@@ -4358,7 +4353,9 @@ sub acl_line( $$$$ ) {
 		    my $srv_code = iptables_srv_code($srv);
 		    my $src_code = &prefix_code($spair);
 		    my $dst_code = &prefix_code($dpair);
-		    my $action_code = $action eq 'permit' ? 'ACCEPT' : 'DROP';
+		    my $action_code =
+			is_chain $action ? $action->{name} :
+			$action eq 'permit' ? 'ACCEPT' : 'DROP';
 		    print "$prefix -j $action_code ",
 		    "-s $src_code -d $dst_code $srv_code\n";
 		} else {
@@ -4436,7 +4433,7 @@ sub find_object_groups ( $ ) {
 	    my $bind_nat = $glue->{bind_nat};
 	    my @keys = keys %$hash;
 	    my $size = @keys;
-	    # find group with identical elements
+	    # Find group with identical elements.
 	    for my $group (@{$nat2size2group{$bind_nat}->{$size}}) {
 		my $href = $group->{hash};
 		my $eq = 1;
@@ -4451,7 +4448,7 @@ sub find_object_groups ( $ ) {
 		    return;
 		}		
 	    }
-	    # Not found, build new group
+	    # Not found, build new group.
 	    my $group = new('Objectgroup',
 			    name => "g$counter",
 			    elements => [ map { $ref2obj{$_} } @keys ],
@@ -4460,16 +4457,16 @@ sub find_object_groups ( $ ) {
 	    push @{$nat2size2group{$bind_nat}->{$size}}, $group;
 	    push @groups, $group;
 	    $counter++;
-	    return $glue->{group} = $group;
+	    $glue->{group} = $group;
 	};
-	# build new list of rules using object groups
+	# Build new list of rules using object groups.
 	for my $hardware (@{$router->{hardware}}) {
 	    my @new_rules;
 	    for my $rule (@{$hardware->{rules}}) {
 		if(my $glue = $rule->{$tag}) {
 #		    info print_rule $rule;
-		    # remove tag, otherwise call to find_object_groups 
-		    # for another router would become confused
+		    # Remove tag, otherwise call to find_object_groups 
+		    # for another router would become confused.
 		    delete $rule->{$tag};
 		    if($glue->{active}) {
 #			info " deleted: $glue->{group}->{name}";
@@ -4490,8 +4487,8 @@ sub find_object_groups ( $ ) {
     }
     # print PIX object-groups
     for my $group (@groups) {
-        print "object-group network $group->{name}\n";
 	my $nat_info =  $group->{nat_info};
+        print "object-group network $group->{name}\n";
         for my $pair (sort { $a->[0] <=> $b->[0] ||  $a->[1] <=> $b->[1] }
 			 map { &address($_, $nat_info, 'src') }
 			 @{$group->{elements}}) {
@@ -4499,7 +4496,153 @@ sub find_object_groups ( $ ) {
 	    print " network-object $adr\n";
 	}
     }
-    # Empty line as delimiter
+    # Empty line as delimiter.
+    print "\n";
+}
+
+sub find_chains ( $ ) {
+    my($router) = @_;
+    # For collecting found chains. 
+    my @chains;
+    # For generating names of chains
+    my $counter = 1;
+    # Find groups in src / dst of rules
+    for my $this ('dst', 'src') {
+	my $that = $this eq 'src' ? 'dst' : 'src';
+	my $tag = "${this}_group";
+	# Find identical chains in identical NAT domain, 
+	# with same action and size
+	my %nat2action2size2group;
+	my %ref2obj;
+	for my $hardware (@{$router->{hardware}}) {
+	    my %group_rule_tree;
+	    # find groups of rules with identical 
+	    # action, srv, src/dst and different dst/src
+	    for my $rule (@{$hardware->{rules}}) {
+		# Action may be reference to chain from first round.
+		my $action = $rule->{action};
+		my $that = $rule->{$that};
+		my $this = $rule->{$this};
+		my $srv = $rule->{srv};
+		$ref2obj{$this} = $this;
+		$group_rule_tree{$action}->{$srv}->{$that}->{$this} = $rule;
+	    }
+	    # Find groups >= $min_object_group_size,
+	    # mark rules belonging to one group,
+	    # put groups into an array / hash
+	    for my $href (values %group_rule_tree) {
+		# $href is {srv => href, ...}
+		for my $href (values %$href) {
+		    # $href is {src/dst => href, ...}
+		    for my $href (values %$href) {
+			# $href is {dst/src => rule, ...}
+			my $size = keys %$href;
+			if($size >= $min_object_group_size) {
+			    my $glue = {
+				# Indicator, that no further rules need
+				# to be processed.
+				active => 0,
+				# NAT domain for address calculation
+				nat_info => $hardware->{interface}->{nat_info},
+				# for check, if interfaces belong to
+				# identical NAT domain
+				bind_nat => $hardware->{bind_nat} || 'none',
+				# object-ref => rule, ...
+				hash => $href};
+			    # all this rules have identical
+			    # action, srv, src/dst  and dst/src 
+			    # and shall be replaced by a new chain
+			    for my $rule (values %$href) {
+				$rule->{$tag} = $glue;
+			    }
+			}
+		    }
+		}
+	    }
+	}
+	# Find a chain of same type and with identical elements or
+	# define a new one
+	my $get_chain = sub ( $$ ) {
+	    my ($glue, $action) = @_;
+	    my $hash = $glue->{hash};
+	    my $bind_nat = $glue->{bind_nat};
+	    my @keys = keys %$hash;
+	    my $size = @keys;
+	    # Find chain with identical elements.
+	    for my $chain (@{$nat2action2size2group
+			     {$bind_nat}->{$action}->{$size}}) {
+		my $href = $chain->{hash};
+		my $eq = 1;
+		for my $key (@keys) {
+		    unless($href->{$key}) {
+			$eq = 0;
+			last;
+		    }
+		}
+		if($eq) {
+		    $glue->{chain} = $chain;
+		    return;
+		}		
+	    }
+	    # Not found, build new chain.
+	    my $chain = new('Chain',
+			    name => "c$counter",
+			    action => $action,
+			    where => $this,
+			    elements => [ map { $ref2obj{$_} } @keys ],
+			    hash => $hash,
+			    nat_info => $glue->{nat_info});
+	    push @{$nat2action2size2group{$bind_nat}->{$action}->{$size}},
+	    $chain;
+	    push @chains, $chain;
+	    $counter++;
+	    $glue->{chain} = $chain;
+	};
+	# Build new list of rules using chains.
+	for my $hardware (@{$router->{hardware}}) {
+	    my @new_rules;
+	    for my $rule (@{$hardware->{rules}}) {
+		if(my $glue = $rule->{$tag}) {
+#		    info print_rule $rule;
+		    # Remove tag, otherwise a subsequent call to
+		    # find_object_groups or find_chains would become confused.
+		    delete $rule->{$tag};
+		    if($glue->{active}) {
+#			info " deleted: $glue->{chain}->{name}";
+			next;
+		    }
+		    # Action may be a previously found chain.
+		    $get_chain->($glue, $rule->{action});
+#		    info " generated: $glue->{chain}->{name}";
+		    $glue->{active} = 1;
+		    $rule = {action => $glue->{chain},
+			     $this => $network_00,
+			     $that => $rule->{$that},
+			     srv => $rule->{srv}};
+		}
+		push @new_rules, $rule;
+	    }
+	    $hardware->{rules} = \@new_rules;
+	}
+    }
+    # print chains
+    for my $chain (@chains) {
+	my $name = $chain->{name};
+	my $action = $chain->{action};
+	my $action_code =
+	    is_chain $action ? $action->{name} :
+	    $action eq 'permit' ? 'ACCEPT' : 'DROP';
+	my $nat_info =  $chain->{nat_info};
+	print "iptables -N $name\n";
+        for my $pair (sort { $a->[0] <=> $b->[0] ||  $a->[1] <=> $b->[1] }
+		      map { &address($_, $nat_info, 'src') }
+		      @{$chain->{elements}}) {
+	    my $obj_code = &prefix_code($pair);
+	    my $type = $chain->{where} eq 'src' ? '-s' : '-d';
+	    print "iptables -A $name -j $action_code $type $obj_code\n";
+	}
+    }
+    # Empty line as delimiter.
     print "\n";
 }
 
@@ -4509,6 +4652,8 @@ sub print_acls( $ ) {
     print "[ ACL ]\n";
     if($model->{filter} eq 'PIX' and $router->{use_object_groups}) {
 	&find_object_groups($router);
+    } elsif($model->{filter} eq 'iptables') { 
+	&find_chains($router);
     }
     my $comment_char = $model->{comment_char};
     # Collect IP addresses of all interfaces
