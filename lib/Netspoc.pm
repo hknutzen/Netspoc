@@ -1726,10 +1726,13 @@ sub optimize_rules( $$ ) {
 # It holds an array of arrays:[ [ $interface, network, network, .. ], ...
 ####################################################################
 
+# This is used as destination network for default routes
+my $net0000 = new('Network', name => 'default', ip => 0, mask => 0);
+
 sub setroute_router( $$ ) {
     my($router, $to_default, $default) = @_;
     # first, add the interface where we reach the networks behind this router
-    my @networks = ($to_default);
+    my @routing = ($to_default);
     for my $interface (@{$router->{interfaces}}) {
 	# ignore interface where we reached this router
 	next if $interface eq $to_default;
@@ -1737,26 +1740,29 @@ sub setroute_router( $$ ) {
 	if($net->{ip} ne 'unnumbered') {
 	    # add directly connected networks
 	    # but not for unnumbered interfaces
-	    push @networks, $net;
+	    push @routing, $net;
 	}
 	&setroute_network($net, $interface);
     }
-    # add default route
-    $router->{default} = $default;
-    for my $routing (@{$router->{route}}) {
-	my $interface = $routing->[0];
-	my $len = @$routing;
-	for(my $i = 1; $i < $len; $i++) {
-	    # add networks which lie behind other routers
-	    push @networks, $routing->[$i];
+    for my $interface (@{$router->{interfaces}}) {
+	for my $routing (@{$interface->{route}}) {
+	    my $interface = $routing->[0];
+	    my $len = @$routing;
+	    for(my $i = 1; $i < $len; $i++) {
+		# add networks which lie behind other routers
+		push @routing, $routing->[$i];
+	    }
 	}
     }
-    return \@networks;
+    # add default route
+    push @{$to_default->{route}}, [ $default, $net0000 ] if $to_default;
+    return \@routing;
 }
 
 sub setroute_network( $$ ) {
     my ($network, $to_default) = @_;
     my @routing;
+    # first, collect all networks which lie behind other routers
     for my $interface (@{$network->{interfaces}}) {
 	# ignore interface where we reached this network
 	next if $interface eq $to_default;
@@ -1766,12 +1772,15 @@ sub setroute_network( $$ ) {
 				     $interface, $to_default);
 	push @routing, $route;
     }
-    push @{$to_default->{router}->{route}}, @routing;
+    # add collected routes to the interface, where we reached this network
+    push @{$to_default->{route}}, @routing;
+    # add collected routes to other interfaces at this network,
+    # but prevent duplicates
     for my $interface (@{$network->{interfaces}}) {
 	next if $interface eq $to_default;
 	for my $route (@routing) {
 	    next if $route->[0] eq $interface;
-	    push @{$interface->{router}->{route}}, $route;
+	    push @{$interface->{route}}, $route;
 	}
     }
 }
@@ -1965,23 +1974,25 @@ sub gen_acls( $ ) {
 sub gen_routes( $ ) {
     my($router) = @_;
     print "[ Routing ]\n";
-    for my $routing (@{$router->{route}}) {
-	my $interface = $routing->[0];
-	my $hop = print_ip $interface->{ip}->[0];
-	for(my $i = 1; $i < @$routing; $i++) {
-	    if($comment_routes) {
-		print "! route $routing->[$i]->{name} -> $interface->{name}\n";
+    for my $interface (@{$router->{interfaces}}) {
+	for my $routing (@{$interface->{route}}) {
+	    my $next_hop = $routing->[0];
+	    my $hop_ip = print_ip $next_hop->{ip}->[0];
+	    for(my $i = 1; $i < @$routing; $i++) {
+		if($comment_routes) {
+		    print "! route $routing->[$i]->{name} -> $next_hop->{name}\n";
+		}
+		my $adr = adr_code $routing->[$i];
+		if($router->{model} eq 'IOS') {
+		    print "ip route $adr\t$hop_ip\n";
+		} elsif($router->{model} eq 'PIX') {
+		    print "route $interface->{hardware} $adr\t$hop_ip\n";
+		} else {
+		    die "internal in gen_routes: unexpected router model $router->{model}";
+		}
 	    }
-	    my $adr = adr_code $routing->[$i];
-	    print "ip route $adr\t$hop\n";
 	}
     }
-    # Default route
-    my $hop = print_ip $router->{default}->{ip}->[0];
-    if($comment_routes) {
-	print "! route default -> $router->{default}->{name}\n";
-    }
-    print "ip route 0.0.0.0 0.0.0.0\t$hop\n";
 }
 
 ####################################################################
@@ -2164,7 +2175,7 @@ check_deny_influence();
 # Set routes
 $default_route or die "Topology has no default route";
 print STDERR "Setting routes\n";
-&setroute_router($default_route, 'not undef');
+&setroute_router($default_route, 0);
 
 print STDERR "Starting code generation\n" if $verbose;
 # First Generate code for deny rules .
