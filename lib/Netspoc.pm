@@ -1965,43 +1965,89 @@ sub optimize_srv_rules( $$ ) {
 			last;
 		    }
 # optimize auto_any rules:
-# 
-# permit net dst srv
-# permit auto_net(deny_net: net1,net2) dst srv
-# -->
-# permit auto_net(deny_net: net2) dst
 #
-# permit net dst srv
-# permit auto_net(deny_net: net1,net2) dst' srv'
+# cmp permit net1 dst srv
+# chg permit auto_any(deny_net: net1,net2) dst srv
+# -->
+# chg permit auto_any(deny_net: net2) dst srv
+#
+# cmp permit net1 dst srv
+# chg permit auto_any(deny_net: net1,net2) dst' srv'
 # --> if dst >= dst', srv >= srv'
-# permit net dst srv
-# permit auto_net(deny_net: net2) dst
-		    if($cmp_rule->{action} eq 'permit'){
-			if(is_any $cmp_rule->{src} and
-			   @{$cmp_rule->{deny_src_networks}}) {
-			    my $chg_src = $rule->{src};
-			    if(is_net $chg_src and
-			       deleted($chg_src,
-				       $cmp_rule->{deny_src_networks})) {
+# cmp permit net1 dst srv
+# chg permit auto_any(deny_net: net2) dst srv'
+#
+# cmp permit auto_any(deny_net: -) dst srv
+# chg permit auto_any(deny_net: net2,net3) dst srv'
+# --> if srv >= srv'
+# cmp permit auto_any(deny_net: -) dst srv
+#
+# cpm permit auto_any(deny_net: net1,net2) dst srv
+# chg permit auto_any(deny_net: net1,net2) dst srv'
+# --> if srv >= srv'
+# cmp permit auto_any(deny_net: net1,net2) dst srv
+#
+# cmp permit auto_any(deny_net: net1,net2) dst srv
+# chg permit auto_any(deny_net: net2,net3) dst srv'
+# --> if srv >= srv'
+# cmp permit auto_any(deny_net: net1,net2) dst srv
+# chg permit auto_any(deny_net: net3) dst srv'
+		    if($cmp_rule->{action} eq 'permit' and
+		       $rule->{action} eq 'permit'){
+			if(is_any $rule->{src}) {
+			    my $cmp_src = $cmp_rule->{src};
+			    if(is_net $cmp_src and
+			       deleted($cmp_src, $rule->{deny_src_networks})) {
 				if($cmp_rule->{dst} eq $rule->{dst} and
 				   $cmp_rule->{srv} eq $rule->{srv}) {
-				    $rule->{deleted} = 1;
+				    $cmp_rule->{deleted} = 1;
 				}
+				last;
 			    }
-			    last;
+			    if(is_any $cmp_src) {
+				if(@{$cmp_rule->{deny_src_networks}} == 0) {
+				    $rule->{deleted} = 1;
+				} else {
+				    my $equal_deny_net = 1;
+				    for my $net (@{$cmp_rule->
+						   {deny_src_networks}}) {
+					$equal_deny_net &= deleted $net, $rule->
+					{deny_src_networks};
+				    }
+				    if($equal_deny_net) {
+					$rule->{deleted} = 1;
+				    }
+				}
+				last;
+			    }
 			}
-			if(is_any $cmp_rule->{dst} and
-			   @{$cmp_rule->{deny_dst_networks}}) {
-			    my $chg_dst = $rule->{dst};
-			    if(is_net $chg_dst and
-			       deleted($chg_dst,
-				       $cmp_rule->{deny_dst_networks})) {
-				if($cmp_rule->{src} eq $rule->{src} and
+# equivalent for auto_any at dst
+			if(is_any $rule->{dst}) {
+			    my $cmp_dst = $cmp_rule->{dst};
+			    if(is_net $cmp_dst and
+			       deleted($cmp_dst, $rule->{deny_dst_networks})) {
+				if($cmp_rule->{dst} eq $rule->{dst} and
 				   $cmp_rule->{srv} eq $rule->{srv}) {
-				    $rule->{deleted} = 1;
+				    $cmp_rule->{deleted} = 1;
 				}
+				last;
 			    }
-			    last;
+			    if(is_any $cmp_dst) {
+				if(@{$cmp_rule->{deny_dst_networks}} == 0) {
+				    $rule->{deleted} = 1;
+				} else {
+				    my $equal_deny_net = 1;
+				    for my $net (@{$cmp_rule->
+						   {deny_dst_networks}}) {
+					$equal_deny_net &= deleted $net, $rule->
+					{deny_dst_networks};
+				    }
+				    if($equal_deny_net) {
+					$rule->{deleted} = 1;
+				    }
+				}
+				last;
+			    }
 			}
 		    } 			    
 		    $rule->{deleted} = 1;
