@@ -1261,10 +1261,10 @@ sub expand_rules() {
 # - First, rules are ordered by their srv part, 
 #   smaller services coming first.
 # - Next, rules are ordered by src and dst:
-#  - host any
 #  - any host
-#  - network any
+#  - host any
 #  - any network
+#  - network any
 #  - any any
 # Note:
 # TCP and UDP port ranges may be not orderable if they are overlapping.
@@ -1280,7 +1280,7 @@ sub typeof( $ ) {
     } elsif(is_any($ob)) {
 	return 'any';
     } else {
-	die "internal in typeof: expected host|net|any but got '$ob->{name}'";
+	die "internal in typeof: expected host|network|any but got '$ob->{name}'";
     }
 }
 
@@ -1310,10 +1310,10 @@ sub add_rule_2hash( $$$ ) {
 sub add_ordered_any_rules( $ ) {
     my($hash) = @_;
     return unless defined $hash;
-    add_rule_2hash($hash, 'host','any');
     add_rule_2hash($hash, 'any','host');
-    add_rule_2hash($hash, 'network','any');
+    add_rule_2hash($hash, 'host','any');
     add_rule_2hash($hash, 'any','network');
+    add_rule_2hash($hash, 'network','any');
     add_rule_2hash($hash, 'any','any');
 }
 
@@ -1325,12 +1325,18 @@ sub add_ordered_any_rules( $ ) {
 # influences an unrelated any rule, i.e. some packets are denied
 # although they should be.allowed.
 # Example:
-# 1. weak_deny   host1 net2
-# 2. permit      host1 any
-# 3. permit      any   host2	 with host2 < net2
-# Problem: Traffic from host1 to host2 is denied by rule 1
+# 1. weak_deny   net1  host2
+# 2. permit      any   host2
+# 3. permit      host1 any	 with host1 < net1
+# Problem: Traffic from host1 to host2 is denied by rule 1 and
+# permitted by rule 3.
 # But rule 1 is only related to rule 2 and must not deny traffic
 # which is allowed by rule 3
+# Possible solution (currently not implemented):
+# 0. permit      host1 host2
+# 1. weak_deny   net1  host2
+# 2. permit      any   host2
+# 3. permit      host1 any
 ####################################################################
 
 # we don't need to handle secondary services, they have been substituted
@@ -1346,30 +1352,34 @@ sub ge_srv( $$ ) {
     return 0;
 }
 
+# search for
+# weak_deny net1  host <-- drule
+# permit    any   host <-- arule
+# permit    host1 any  <-- rule
 sub check_deny_influence() {
     info "Checking for deny influence\n";
     for my $arule (@expanded_any_rules) {
 	next if $arule->{deleted};
 	next unless exists $arule->{deny_rules};
-	next unless is_host $arule->{src} or is_interface $arule->{src};
+	next unless is_host $arule->{dst} or is_interface $arule->{dst};
 	for my $drule (@{$arule->{deny_rules}}) {
 	    next if $drule->{deleted};
-	    my $src = $drule->{src};
-	    my $net = $drule->{dst};
-	    next unless (is_host $src or is_interface $src) and is_net $net;
-	    my $border = get_border($src);
+	    my $net = $drule->{src};
+	    my $dst = $drule->{dst};
+	    next unless (is_host $dst or is_interface $dst) and is_net $net;
 	    # At first thought we have to check only one 'any' object with
 	    # any > host. But this isn't sufficient because other any rules
 	    # may be influenced as well if they share a common path with
 	    # the current weak_deny rule
-	    # ToDo: this is very inefficient and show false positives
-	    for my $any (values %anys) {
-		for my $rule (@{$any->{rules}}) {
+	    # ToDo: this may show false positives
+	    for my $host (@{$net->{hosts}}, @{$net->{interfaces}}) {
+		for my $rule (@{$host->{rules}}) {
 		    next if $rule->{deleted};
-		    my $host = $rule->{dst};
-		    next unless is_host $host or is_interface $host;
-		    next unless $host->{network} eq $net;
+		    next unless is_any $rule->{dst};
 		    next unless $rule->{i} > $arule->{i};
+#		    print STDERR "Got here:\n ",print_rule $drule,"\n ",
+#		    print_rule $arule,"\n ",
+#		    print_rule $rule,"\n";
 		    if(ge_srv($rule->{srv}, $drule->{srv})) {
 			warning "currently not implemented correctly:\n ",
 			print_rule($drule), "\n influences\n ",
