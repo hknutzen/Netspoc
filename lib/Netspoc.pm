@@ -872,8 +872,6 @@ sub read_router( $ ) {
 	    my $info = $router_info{$model};
 	    $info or error_atline "Unknown router model '$model'";
 	    $router->{model} = $info;
-	} elsif(&check_flag('static_manual')) {
-	    $router->{static_manual} = 1;
 	} elsif(&check_flag('use_object_groups')) {
 	    $router->{use_object_groups} = 1;
 	} else {
@@ -4998,8 +4996,7 @@ sub print_code( $ ) {
 	print "[ Model = $model->{name} ]\n";
 	&print_routes($router);
 	&print_acls($router);
-	&print_pix_static($router)
-	    if $model->{has_interface_level} and not $router->{static_manual};
+	&print_pix_static($router);
 	print "[ END $name ]\n\n";
 	close STDOUT or die "Can't close $file\n";
     }
