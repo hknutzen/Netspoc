@@ -20,6 +20,8 @@ my $comment_acls = 1;
 my $comment_routes = 1;
 # if set to 1, may give better performance for very large rule sets
 my $pre_optimization = 0;
+# ignore these names when reading directories
+my @ignore_files = qw(CVS RCS);
 
 ####################################################################
 # Error Reporting
@@ -698,11 +700,16 @@ sub read_file_or_dir( $ ) {
     if(-f $path) {
 	read_data $path;
     } elsif(-d $path) {
+	local(*DIR);
 	opendir DIR, $path or die "Can't opendir $path: $!";
 	# for nicer file names in messages
 	$path =~ s./$..;
+      FILE:
 	while(my $file = readdir DIR) {
 	    next if $file eq '.' or $file eq '..';
+	    for my $name (@ignore_files) {
+		next FILE if $file eq $name;
+	    }
 	    $file = "$path/$file";
 	    &read_file_or_dir($file);
 	}
