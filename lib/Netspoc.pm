@@ -1437,8 +1437,7 @@ sub ge_srv( $$ ) {
 # I think not.
 sub repair_deny_influence() {
     info "Checking for deny influence\n";
-    for(my $i = 0; $i < @expanded_any_rules; $i++) {
-	my $erule = $expanded_any_rules[$i];
+    for my $erule (@expanded_any_rules) {
 	next unless exists $erule->{any_rules};
 	next unless is_host $erule->{dst} or is_interface $erule->{dst};
 	for my $arule (@{$erule->{any_rules}}) {
@@ -2560,36 +2559,28 @@ sub acl_generation() {
 	    next if $rule->{deleted};
 	    &path_walk($rule, \&collect_acls_at_src);
 	} elsif(is_any $rule->{dst}) {
-	    if(exists $rule->{any_rules}) {
-		# two passes: first generate deny rules,
-		# second generate auto 'any' rules
-		for my $any_rule (@{$rule->{any_rules}}) {
-		    next if $any_rule->{deleted};
-		    for my $deny_network (@{$any_rule->{deny_dst_networks}}) {
-			my $deny_rule = {action => 'deny',
-					 src => $any_rule->{src},
-					 dst => $deny_network,
-					 srv => $any_rule->{srv}
-				     };
-			&path_walk($deny_rule, \&collect_acls_at_dst);
-		    }
-		}
-		for my $any_rule (@{$rule->{any_rules}}) {
-		    next if $any_rule->{deleted};
-		    unless($any_rule->{any_dst_group}->{active}) {
-			&path_walk($any_rule, \&collect_acls_at_dst);
-			$any_rule->{any_dst_group}->{active} = 1;
-		    } else {
-			&path_walk($any_rule, \&collect_networks_for_routes_and_static);
-		    }
+	    # two passes:
+	    # first generate deny rules,
+	    for my $any_rule (@{$rule->{any_rules}}) {
+		next if $any_rule->{deleted};
+		for my $deny_network (@{$any_rule->{deny_dst_networks}}) {
+		    my $deny_rule = {action => 'deny',
+				     src => $any_rule->{src},
+				     dst => $deny_network,
+				     srv => $any_rule->{srv}
+				 };
+		    &path_walk($deny_rule, \&collect_acls_at_dst);
 		}
 	    }
-	    next if $rule->{deleted};
-	    unless($rule->{any_dst_group}->{active}) {
-		&path_walk($rule, \&collect_acls_at_dst);
-		$rule->{any_dst_group}->{active} = 1;
-	    } else {
-		&path_walk($rule, \&collect_networks_for_routes_and_static);
+	    # second generate 'any' + auto 'any' rules
+	    for my $any_rule ($rule, @{$rule->{any_rules}}) {
+		next if $any_rule->{deleted};
+		unless($any_rule->{any_dst_group}->{active}) {
+		    &path_walk($any_rule, \&collect_acls_at_dst);
+		    $any_rule->{any_dst_group}->{active} = 1;
+		} else {
+		    &path_walk($any_rule, \&collect_networks_for_routes_and_static);
+		}
 	    }
 	} else {
 	    internal_err "unexpected rule ", print_rule $rule, "\n";
