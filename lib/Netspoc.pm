@@ -36,9 +36,12 @@ my $warn_unused_groups = 1;
 # if the enclosing network is marked as 'route_hint' or
 # if the subnet is marked as 'subnet_of'
 my $strict_subnets = 'warn';
-# Optimize number of routing entries per router
-# by replacing all routes going to the same hop 
-# with the default route
+# Optimize the number of routing entries per router:
+# For each router find the hop, where the largest 
+# number of routing entries points to 
+# and replace them with a single default route.
+# This is only applicable for internal networks 
+# which have no default route to the internet.
 my $auto_default_route = 1;
 # ignore these names when reading directories:
 # - CVS and RCS directories
@@ -47,7 +50,7 @@ my $auto_default_route = 1;
 # - Editor backup files: emacs: *~
 my $ignore_files = qr/^CVS$|^RCS$|^\.#|^raw$|~$/;
 # abort after this many errors
-my $max_errors = 100;
+my $max_errors = 10;
 
 ####################################################################
 # Error Reporting
@@ -511,13 +514,18 @@ sub read_router( $ ) {
     my $name = shift;
     skip('=');
     skip('{');
-    my $managed = &check_flag('managed');
-    $managed = 'full' if $managed;
-    my $filter = &check_assign('filter', \&read_identifier);
-    if(defined $filter) {
-	if($filter eq 'full') { $managed = 'full'; }
-	elsif($filter eq 'secondary') { $managed = 'secondary'; }
-	elsif($filter eq 'none') { $managed = 0; }
+    my $managed;
+    if(&check('managed')) {
+	if(&check(';')) {
+	    $managed = 'full';
+	} elsif(&check('=')) {
+	    my $value = &read_identifier();
+	    if($value =~ '^full|secondary$') { $managed = $value; }
+	    else { error_atline "Unknown managed device type '$value'"; }
+	    &check(';');
+	} else {
+	    &syntax_err("Expected ';' or '='");
+	}
     }
     my $model = &check_assign('model', \&read_identifier);
     if($model and not $valid_model{$model}) {
@@ -1195,27 +1203,27 @@ sub link_topology() {
 	    next if $ips eq 'unnumbered' or $ips eq 'short';
 	    for my $ip (@$ips) {
 		if(my $old_intf = $ip{$ip}) {
-		    err_msg "Duplicate IP address for $old_intf->{name}",
+		    warning "Duplicate IP address for $old_intf->{name}",
 		    " and $interface->{name}";
 		}
 		$ip{$ip} = $interface;
 	    }
 	}
-	for my $host (@{$network->{hosts}}) {
-	    if(my $ip = $host->{ip}) {
-		if(my $old_intf = $ip{$ip}) {
-		    err_msg "Duplicate IP address for $old_intf->{name}",
-		    " and $host->{name}";
-		}
-	    } elsif(my $range = $host->{range}) {
-		for(my $ip = $range->[0]; $ip <= $range->[1]; $ip++) {
-		    if(my $old_intf = $ip{$ip}) {
-			err_msg "Duplicate IP address for $old_intf->{name}",
-			" and $host->{name}";
-		    }
-		}
-	    }
-	}
+#	for my $host (@{$network->{hosts}}) {
+#	    if(my $ip = $host->{ip}) {
+#		if(my $old_intf = $ip{$ip}) {
+#		    err_msg "Duplicate IP address for $old_intf->{name}",
+#		    " and $host->{name}";
+#		}
+#	    } elsif(my $range = $host->{range}) {
+#		for(my $ip = $range->[0]; $ip <= $range->[1]; $ip++) {
+#		    if(my $old_intf = $ip{$ip}) {
+#			err_msg "Duplicate IP address for $old_intf->{name}",
+#			" and $host->{name}";
+#		    }
+#		}
+#	    }
+#	}
 	next unless $network->{subnet_of};
 	my($type, $name) = split_typed_name($network->{subnet_of});
 	if($type eq 'network') {
@@ -1761,6 +1769,12 @@ sub find_subnets() {
 		}
 	    }
 	}
+    }
+    # we must not set an arbitrary default route if a network 0.0.0.0/0 exists
+    if($auto_default_route && $mask_ip_hash{0}->{0}) {
+	err_msg "\$auto_default_route must not be activated,",
+	" because $mask_ip_hash{0}->{0}->{name} has IP address 0.0.0.0";
+	$auto_default_route = 0;
     }
 }
 
