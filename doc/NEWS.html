@@ -1,0 +1,159 @@
+
+<h3>netspoc-1.6</h3>
+
+New features:
+<ol>
+<li>Introduced policies: A policy is a named group of related rules, which
+  all refer to the same network objects in their source or
+  destination.
+
+<li>The functionality of NetSPoC is available as a perl module now.
+</ol>
+
+<h3>netspoc-1.5</h3>
+
+New features:
+
+<ol>
+<li>Topology allows simple loops now which must be neither nested nor
+  adjacent.
+
+<li>Secondary packet filters are introduced, which have much shorter
+  access lists for traffic which is already filtered by a full packet
+  filter.
+<li>New option $auto_default_route to optimize the number of routing
+  entries per router.
+<li>Attribute 'routing=OSPF' for interfaces: disables generation of
+  static routes and generates access lists which automatically permit
+  OSPF packets.
+<li>NetSPoC warns if different interfaces have an identical IP address.
+</ol>
+
+Fixed bugs:
+
+<ol>
+<li>Routing entries were missing for traffic back from dst to src if
+  there was no other rule which allowed traffic from dst to src.
+<li>It was possible to link an 'any' object to an undefined router object.
+<li>Script 'newpolicy' now uses 'update -d'.
+</ol>
+
+Other:
+<ol>
+<li> Option $strict_subnets now may have values 0, 'warn' or 1.
+</ol>
+
+<h3>netspoc-1.4</h3>
+
+Fixed bugs:
+<ol>
+<li>Some valid configuration was rejected for certain combinations of
+  services with port ranges.
+<li>Some traffic was rejected even if the traffic was explicitly
+  allowed by another rule. See examples/auto-any-deny for an example.
+</ol>
+
+<h3>netspoc-1.3</h3>
+
+Language:
+
+<ul>
+<li>Source port may be specified for tcp and udp services
+</ul>
+
+Other:
+
+<ul>
+<li>Changed code generation for stateless IOS routers:
+Answer packets for tcp and udp connections are no longer restricted to
+ports > 1023 for two reasons:
+<ol>
+<li>This didn't work for services like IKE with source port < 1024.
+<li>It was too difficult to handle correctly during optimization.
+</ol>
+</ul>
+
+<h3>netspoc-1.2</h3>
+
+New features:
+
+<ol>
+<li>Preliminary support for stateless Cisco IOS routers 
+(without Firewall Feature Set) 
+This is untested until now.
+<li>Interfaces of managed IOS routers are automatically protected from
+unwanted access. Permitting access to a network which is directly
+attached to the interface of an managed router, no longer implicitly
+gives access to the interface. If desired, access to an interface has
+to be stated explicitly by a rule. (This feature isn't implemented for
+PIX firewalls, because they protect themselves.)
+</ol>
+
+Language:
+
+<ol>
+<li>Switched names for Cisco IOS routers: 
+<ul>
+<li>'IOS' is used now for stateless IOS routers,
+<li>'IOS_FW' is used for stateful IOS routers.
+</ul>
+</ol>
+ 
+Fixed bugs:
+
+<ol>
+<li>Routing to unnumbered networks now works
+<li>Hosts aren't allowed any longer in unnumbered networks
+<li>Unnumbered networks must be connected to at most two interfaces
+<li>Script 'newpolicy': home directory; quotes in messages
+</ol>
+
+Other:
+<ol>
+<li>added some small examples
+</ol>
+
+<h3>netspoc-1.1</h3>
+	
+Optimization: 
+
+<ol>
+<li>Hosts with successive IP addresses are converted to ranges.
+<li>Duplicate ACL entries are no longer generated for rules with an 'any'
+object as src or dst
+</ol>
+
+Language:
+
+<ol>
+<li>Overlapping networks are rejected unless this relation is declared
+explicitly using new attributes 'route_hint' or 'subnet_of'.
+This may be useful for a large topology, where a network may easily be
+redefined by mistake.
+Use option 'strict_subnets' to (de)active this new behavior.
+</ol>
+
+Other:
+
+<ol>
+<li>Warning messages are shown for unused groups and servicegroups.
+This may be switched off using option 'warn_unused_groups'.
+<li>NetSPoC doesn't accept rules with an 'any' object both as src and dst
+any longer.
+</ol>
+
+Fixed bugs:
+
+<ol>
+<li>pix security levels: all interfaces except inside and outside got
+level 1.
+<li>For rules with an 'any' object as dst, too few deny rules for
+intermediate networks were generated in some cases.
+<li>Routing entries were generated for disabled networks in some cases.
+</ol>
+
+<h3>netspoc-1.0</h3>
+
+Initial public release.
+
+
