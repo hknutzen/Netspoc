@@ -3310,7 +3310,7 @@ sub add_rule( $ ) {
     # Mark rules with managed interface as dst 
     # because they get special handling during code generation
     if(is_interface($dst) and $dst->{router}->{managed}) {
-	$rule->{managed_if} = 1;
+	$rule->{managed_intf} = 1;
     }
     my $rule_tree = $rule->{stateless} ? \%reverse_rule_tree : \%rule_tree;
     my $old_rule = $rule_tree->{$action}->{$src}->[0]->{$dst}->[0]->{$srv};
@@ -3432,6 +3432,7 @@ sub optimize_srv_rules( $$ ) {
  
     # optimize full rules
     for my $chg_rule (values %$chg_hash) {
+	next if $chg_rule->{deleted};
 # info "chg: ", print_rule $chg_rule;
 # map {info "chg deny-net: ",$_->{name} } @{$chg_rule->{deny_networks}};
 	my $srv = $chg_rule->{srv};
@@ -4276,10 +4277,11 @@ sub collect_acls( $$$ ) {
     # Rules to managed interfaces must be processed
     # at the corresponding router even if they are marked as deleted,
     # because code for interfaces is placed before the 'normal' code.
-    # ToDo: But we might get duplicate ACLs for an interface.
+    # ToDo: But we might get duplicate ACLs for an 
     if($rule->{deleted}) {
 	# we are on an intermediate router if $out_intf is defined
 	return if $out_intf;
+	return if $rule->{deleted}->{managed_intf};
     }
     my $comment_char = $model->{comment_char};
     my @src_addr = &address($src, $in_intf->{network}, 'src');
@@ -4313,6 +4315,23 @@ sub collect_acls( $$$ ) {
     }
 }
 
+sub check_deleted ( $$ ) {
+    my($rule, $out_intf) = @_;
+    if($rule->{deleted}) {
+	if($rule->{managed_intf}) {
+	    if($out_intf) {
+		return 1;
+	    }
+	    if($rule->{deleted}->{managed_intf}) {
+		return 1;
+	    }
+	} else {
+	    return 1;
+	}
+    }
+    return 0;
+}
+
 # For deny and permit rules with src=any:*, call collect_acls only for
 # the first router on the path from src to dst
 sub collect_acls_at_src( $$$ ) {
@@ -4323,15 +4342,16 @@ sub collect_acls_at_src( $$$ ) {
     is_any $src or internal_err "$src must be of type 'any'";
     # the main rule is only processed at the first router on the path
     if($in_intf->{any} eq $src) {
-	&collect_acls(@_)
-	    unless $rule->{deleted} and not $rule->{managed_if};
+	&collect_acls(@_) unless check_deleted $rule, $out_intf;
     }
     # auxiliary rules are never needed at the first router
     elsif(exists $rule->{any_rules}) {
 	# check for auxiliary 'any' rules
 	for my $any_rule (@{$rule->{any_rules}}) {
 	    next unless $in_intf->{any} eq $any_rule->{src};
-	    next if $any_rule->{deleted} and not $any_rule->{managed_if};
+	    # we need to know exactly if code is generated,
+	    # otherwise we would generate deny rules accidently
+	    next if check_deleted $any_rule, $out_intf;
 	    # Generate code for deny rules directly in front of
 	    # the corresponding permit 'any' rule
 	    for my $deny_network (@{$any_rule->{deny_networks}}) {
@@ -4368,7 +4388,7 @@ sub collect_acls_at_dst( $$$ ) {
     # 'any' rules must be placed behind them
     for my $any_rule (@{$rule->{any_rules}}) {
 	next unless grep { $_ eq $any_rule->{dst} } @neighbour_anys;
-	next if $any_rule->{deleted} and not $any_rule->{managed_if};
+	next if $any_rule->{deleted};
 	for my $deny_network (@{$any_rule->{deny_networks}}) {
 	    my $deny_rule = {action => 'deny',
 			     src => $any_rule->{src},
@@ -4381,7 +4401,7 @@ sub collect_acls_at_dst( $$$ ) {
     }
     for my $any_rule ($rule, @{$rule->{any_rules}}) {
 	next unless grep { $_ eq $any_rule->{dst} } @neighbour_anys;
-	next if $any_rule->{deleted} and not $any_rule->{managed_if};
+	next if $any_rule->{deleted};
 	if($any_rule->{any_dst_group}) {
 	    unless($any_rule->{any_dst_group}->{active}) {
 		&collect_acls($any_rule, $in_intf, $out_intf);
@@ -4402,7 +4422,8 @@ sub acl_generation() {
     }
     # Code for permit rules
     for my $rule (@expanded_rules, @secondary_rules) {
-	next if $rule->{deleted} and not $rule->{managed_if};
+	next if $rule->{deleted} and
+	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
 	&path_walk($rule, \&collect_acls, 'Router');
     }
     # Code for rules with 'any' object as src or dst
