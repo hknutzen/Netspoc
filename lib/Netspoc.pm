@@ -132,17 +132,6 @@ sub check_int() {
     }
 }
 
-# read a boolean value
-sub read_bool() {
-    if(&check('0') or &check('false')) {
-	return 0;
-    } elsif(&check('1') or &check('true')) {
-	return 1;
-    } else {
-	syntax_err "Expected boolean value";
-    }
-}
-
 # read IP address
 # internally it is stored as an integer
 sub read_ip() {
@@ -227,6 +216,16 @@ sub split_typed_name( $ ) {
     my($name) = @_;
     # split at first colon, thus the name may contain further colons
     split /:/, $name, 2;
+}
+
+sub check_flag( $ ) {
+    my $token = shift;
+    if(&check($token)) {
+	&skip(';');
+	return 1;
+    } else {
+	return undef;
+    }
 }
 
 sub read_assign($&) {
@@ -442,7 +441,7 @@ sub read_router( $ ) {
     my $name = shift;
     skip('=');
     skip('{');
-    my $managed = &read_assign('managed', \&read_bool);
+    my $managed = &check_flag('managed');
     my $model = &check_assign('model', \&read_identifier);
     if($model and not $valid_model{$model}) {
 	error_atline "Unknown router model '$model'";
@@ -456,11 +455,7 @@ sub read_router( $ ) {
 		     interfaces => {},
 		     );
     $router->{model} = $model if $managed;
-    
-    if(&check('default_route')) {
-	&skip(';');
-	$default_route = $router;
-    }
+    &check_flag('default_route') and $default_route = $router;
     while(1) {
 	last if &check('}');
 	my($type,$iname) = split_typed_name(read_typed_name());
