@@ -71,8 +71,8 @@ my $version = (split ' ','$Id$ ')[2];
 # User configurable options
 ####################################################################
 my $verbose = 1;
-my $comment_acls = 1;
-my $comment_routes = 1;
+my $comment_acls = 0;
+my $comment_routes = 0;
 my $warn_unused_groups = 1;
 # allow subnets only 
 # if the enclosing network is marked as 'route_hint' or
@@ -850,6 +850,7 @@ sub read_router( $ ) {
 	err_msg "Missing 'model' for managed router:$name";
     }
     my $static_manual = &check_flag('static_manual');
+    my $use_object_groups = &check_flag('use_object_groups');
     my $router = new('Router',
 		     name => "router:$name",
 		     managed => $managed,
@@ -857,6 +858,7 @@ sub read_router( $ ) {
 		     );
     $router->{model} = $model if $managed;
     $router->{static_manual} = 1 if $static_manual and $managed;
+    $router->{use_object_groups} = 1 if $use_object_groups and $managed;
     my %hardware;
     while(1) {
 	last if &check('}');
@@ -1253,6 +1255,7 @@ sub is_any( $ )          { ref($_[0]) eq 'Any'; }
 sub is_every( $ )        { ref($_[0]) eq 'Every'; }
 sub is_group( $ )        { ref($_[0]) eq 'Group'; }
 sub is_servicegroup( $ ) { ref($_[0]) eq 'Servicegroup'; }
+sub is_objectgroup( $ )  { ref($_[0]) eq 'Objectgroup'; }
 
 sub print_rule( $ ) {
     my($rule) = @_;
@@ -3822,7 +3825,7 @@ sub print_routes( $ ) {
 	    } 
 	    next;
 	}
-	my $nat_domain = $interface->{network};
+	my $nat_domain = $interface->{network}->{bind_nat};
 	# Sort interfaces by name to make output deterministic
 	for my $hop (sort { $a->{name} cmp $b->{name} }
 			 values %{$interface->{hop}}) {
@@ -3851,19 +3854,13 @@ sub print_routes( $ ) {
 		    print "! route $network->{name} -> $hop->{name}\n";
 		}
 		if($router->{model}->{routing} eq 'IOS') {
-		    my $adr = &ios_route_code(@{&address($network,
-							 $nat_domain,
-							 'src')});
+		    my $adr = &ios_route_code(&address($network, $nat_domain, 'src'));
 		    print "ip route $adr\t$hop_addr\n";
 		} elsif($router->{model}->{routing} eq 'PIX') {
-		    my $adr = &ios_route_code(@{&address($network,
-							 $nat_domain,
-							 'src')});
+		    my $adr = &ios_route_code(&address($network, $nat_domain, 'src'));
 		    print "route $interface->{hardware}->{name} $adr\t$hop_addr\n";
 		} elsif($router->{model}->{routing} eq 'iproute') {
-		    my $adr = &prefix_code(@{&address($network,
-						      $nat_domain,
-						      'src')});
+		    my $adr = &prefix_code(&address($network, $nat_domain, 'src'));
 		    print "ip route add $adr via $hop_addr\n";
 		} else {
 		    internal_err
@@ -3901,14 +3898,14 @@ sub print_pix_static( $ ) {
 		      @{$router->{interfaces}}) {
 	next unless $out_intf->{static};
 	my $out_hw = $out_intf->{hardware}->{name};
-	my $out_nat = $out_intf->{network};
+	my $out_nat = $out_intf->{network}->{bind_nat};
 	# values are [ { net => net, .. }, in_intf ]
 	for my $aref (sort { $a->[1]->{hardware}->{name} cmp
 				 $b->[1]->{hardware}->{name} }
 		      values %{$out_intf->{static}}) {
 	    my($net_hash, $in_intf) = @$aref;
 	    my $in_hw = $in_intf->{hardware}->{name};
-	    my $in_nat = $in_intf->{network};
+	    my $in_nat = $in_intf->{network}->{bind_nat};
 	    my @networks =
 		sort { $a->{ip} <=> $b->{ip} } values %$net_hash;
 	    # Mark enclosing networks, which are used in statics at this router
@@ -4204,10 +4201,10 @@ sub split_ip_range( $$ ) {
 # direction: is obj used as source or destination 
 # returns a list of [ ip, mask ] pairs
 sub address( $$$ ) {
-    my ($obj, $network, $direction) = @_;
+    my ($obj, $nat_info, $direction) = @_;
     if(is_host($obj)) {
 	my($nat_tag, $network_ip, $mask, $dynamic) =
-	   &nat_lookup($obj->{network}, $network);
+	   &nat_lookup($obj->{network}, $nat_info);
 	if($nat_tag) {
 	    if($dynamic) {
 		if(my $ip = $obj->{nat}->{$nat_tag}) {
@@ -4245,7 +4242,7 @@ sub address( $$$ ) {
 	    internal_err "unexpected $obj->{ip} $obj->{name}\n";
 	}
 	my($nat_tag, $network_ip, $mask, $dynamic) =
-	   &nat_lookup($obj->{network}, $network);
+	   &nat_lookup($obj->{network}, $nat_info);
 	if($nat_tag) {
 	    if($dynamic) {
 		if(my $ip = $obj->{nat}->{$nat_tag}) {
@@ -4271,7 +4268,7 @@ sub address( $$$ ) {
 	}
     } elsif(is_network($obj)) {
 	my($nat_tag, $network_ip, $mask, $dynamic) =
-	   &nat_lookup($obj, $network);
+	   &nat_lookup($obj, $nat_info);
 	if($nat_tag) {
 	    # It is useless do use a dynamic address as destination,
 	    # but we permit it anyway.
@@ -4290,6 +4287,8 @@ sub address( $$$ ) {
 	}
     } elsif(is_any($obj)) {
 	return [0, 0];
+    } elsif(is_objectgroup $obj) {
+	$obj;
     } else {
 	internal_err "unexpected object $obj->{name}";
     }
@@ -4300,9 +4299,10 @@ sub address( $$$ ) {
 # Data structure:
 # $network->{bind_nat}->[$depth]->{$nat_tag} = $nat_tag;
 sub nat_lookup( $$ ) {
-    my($net, $network) = @_;
+    my($net, $nat_info) = @_;
+    $nat_info or return undef;
     # Iterate from most specific to less specific NAT tags
-    for my $href (@{$network->{bind_nat}}) {
+    for my $href (@$nat_info) {
 	for my $nat_tag (values %$href) {
 	    if($net->{nat}->{$nat_tag}) {
 		return($nat_tag,
@@ -4316,20 +4316,26 @@ sub nat_lookup( $$ ) {
 # Given an IP and mask, return its address in IOS syntax
 # If third parameter is true, use inverted netmask for IOS ACLs
 sub ios_code( $$$ ) {
-     my($ip, $mask, $inv_mask) = @_;
-     my $ip_code = &print_ip($ip);
-     if($mask == 0xffffffff) {
-	 return "host $ip_code";
-     } elsif($mask == 0) {
-	 return "any";
-     } else {
-	 my $mask_code = &print_ip($inv_mask?~$mask:$mask);
-	 return "$ip_code $mask_code";
-     }
+    my($pair, $inv_mask) = @_;
+    if(is_objectgroup $pair) {
+	return "object-group $pair->{name}";
+    } else {
+	my($ip, $mask) = @$pair;
+	my $ip_code = &print_ip($ip);
+	if($mask == 0xffffffff) {
+	    return "host $ip_code";
+	} elsif($mask == 0) {
+	    return "any";
+	} else {
+	    my $mask_code = &print_ip($inv_mask?~$mask:$mask);
+	    return "$ip_code $mask_code";
+	}
+    }
 }
 
 sub ios_route_code( $$ ) {
-    my($ip, $mask) = @_;
+    my($pair) = @_;
+    my($ip, $mask) = @$pair;
     my $ip_code = &print_ip($ip);
     my $mask_code = &print_ip($mask);
     return "$ip_code $mask_code";
@@ -4337,7 +4343,8 @@ sub ios_route_code( $$ ) {
 
 # Given an IP and mask, return its address as "x.x.x.x/x" or "x.x.x.x" if prefix == 32
 sub prefix_code( $$ ) {
-    my($ip, $mask) = @_;
+    my($pair) = @_;
+    my($ip, $mask) = @$pair;
     my $ip_code = &print_ip($ip);
     my $prefix_code = &print_prefix($mask);
     return $prefix_code == 32 ? $ip_code : "$ip_code/$prefix_code";
@@ -4457,32 +4464,161 @@ sub iptables_srv_code( $ ) {
     }
 }
 
-sub acl_line( $$$$$$$ ) {
-    my ($action, $src_ip, $src_mask, $dst_ip, $dst_mask, $srv, $model) = @_;
+sub acl_line( $$$$ ) {
+    my($rules_aref, $nat_info, $prefix, $model) = @_;
     my $filter_type = $model->{filter};
-    if($filter_type eq 'IOS' or $filter_type eq 'PIX') {
-	my $inv_mask = $filter_type eq 'IOS';
-	my ($proto_code, $src_port_code, $dst_port_code) =
-	    cisco_srv_code($srv, $model);
-	my $src_code = ios_code($src_ip, $src_mask, $inv_mask);
-	my $dst_code = ios_code($dst_ip, $dst_mask, $inv_mask);
-	"$action $proto_code $src_code $src_port_code $dst_code $dst_port_code\n";
-    } elsif($filter_type eq 'iptables') {
-	my $srv_code = iptables_srv_code($srv);
-	my $src_code = prefix_code($src_ip, $src_mask);
-	my $dst_code = prefix_code($dst_ip, $dst_mask);
-	my $action_code = $action eq 'permit' ? 'ACCEPT' : 'DROP';
-	"-j $action_code -s $src_code -d $dst_code $srv_code\n";
-    } else {
-	internal_err "Unknown filter_type $filter_type";
+    for my $rule (@$rules_aref) {
+	my $action = $rule->{action};
+	my $src = $rule->{src};
+	my $dst;
+	if(my $glue = $rule->{dst_group}) {
+	    info "In group $glue->{group}->{name}: ". print_rule $rule;
+	    if($glue->{active}) {
+		info " deleted";
+		next;
+	    }
+	    info " generated";
+	    $glue->{active} = 1;
+	    $dst = $glue->{group};
+	} else {
+	    $dst = $rule->{dst};
+	}
+	my $srv = $rule->{srv};
+	print "$model->{comment_char} ". print_rule($rule)."\n" if $comment_acls;
+	for my $spair (&address($src, $nat_info, 'src')) {
+	    for my $dpair (&address($dst, $nat_info, 'dst')) {
+		if($filter_type eq 'IOS' or $filter_type eq 'PIX') {
+		    my $inv_mask = $filter_type eq 'IOS';
+		    my ($proto_code, $src_port_code, $dst_port_code) =
+			cisco_srv_code($srv, $model);
+		    my $src_code = &ios_code($spair, $inv_mask);
+		    my $dst_code = &ios_code($dpair, $inv_mask);
+		    print "$prefix $action $proto_code $src_code $src_port_code $dst_code $dst_port_code\n";
+		} elsif($filter_type eq 'iptables') {
+		    my $srv_code = iptables_srv_code($srv);
+		    my $src_code = &prefix_code($spair);
+		    my $dst_code = &prefix_code($dpair);
+		    my $action_code = $action eq 'permit' ? 'ACCEPT' : 'DROP';
+		    print "$prefix -j $action_code -s $src_code -d $dst_code $srv_code\n";
+		} else {
+		    internal_err "Unknown filter_type $filter_type";
+		}
+	    }
+	}
+    }
+}
+		
+sub find_object_groups ( $ ) {
+    my($router) = @_;
+    my @groups;
+    my %nat2hw;
+    # Find groups of hardware interfaces belonging to equal nat domains.
+    # (NAT domain of logical and hardware devices is assured to be equal)
+    for my $hardware (@{$router->{hardware}}) {
+        my $nat = $hardware->{interfaces}->[0]->{network}->{bind_nat};
+        push @{$nat2hw{$nat || 'none'}}, $hardware;
+        $hardware->{nat_info} = $nat if $nat;
+    }
+    for my $aref (values %nat2hw) {
+        my %group_rule_tree;
+        my %ref2obj;
+        my $nat_info = $aref->[0]->{nat_info};
+        for my $hardware (@$aref) {
+            # find groups of rules with identical 
+            # action, srv, src and different dst
+            for my $rule (@{$hardware->{rules}}) {
+                my $action = $rule->{action};
+                my $src = $rule->{src};
+                my $dst = $rule->{dst};
+                my $srv = $rule->{srv};
+                $ref2obj{$dst} = $dst;
+                $group_rule_tree{$action}->{$srv}->{$src}->{$dst} = $rule;
+            }
+        }
+        my %dst_size;
+        # Sort groups > 2 by size
+        for my $href (values %group_rule_tree) {
+            # $href is {srv => href, ...}
+            for my $href (values %$href) {
+                # $href is {src => href, ...}
+                for my $href (values %$href) {
+                    # $href is {dst => rule, ...}
+                    my $size = keys %$href;
+                    if($size > 2) {
+                        # group dst-groups with equal size together
+                        push @{$dst_size{$size}}, $href;
+                    }
+                }
+            }
+        }
+        # Find identical groups and mark rules belonging to one group.
+        # { size => [ { dst_ref => rule, ... }, ... ], ... }
+        for my $aref (values %dst_size) {
+            # find identical groups in hashes of equal size
+            for (my $i = 0; $i < @$aref; $i++) {
+                # get first element
+                my $h1 = $aref->[$i];
+                next if $h1->{processed};
+                my @keys = keys %$h1;
+                my $group = new('Objectgroup',
+				elements => [ map { $ref2obj{$_} } @keys ],
+				nat_info => $nat_info);
+                push @groups, $group;
+                # Later, setting active for the first rule, 
+                # indicates that no further rules need to be processed.
+                my $glue = {active => 0, group => $group};
+                # all this rules have identical action, srv, src
+                # and dst shall be replaced by a new object group
+                for my $rule (values %$h1) {
+                    $rule->{dst_group} = $glue;
+                }
+                $h1->{processed} = 1;
+                # compare with remaining elements
+                for (my $j = $i+1; $j < @$aref; $j++) {
+                    my $href = $aref->[$j];
+                    my $eq = 1;
+                    for my $key (@keys) {
+                        unless($href->{$key}) {
+                            $eq = 0;
+                            last;
+                        }
+                    }
+                    if($eq) {
+                        my $glue = {active => 0, group => $group};
+                        for my $rule (values %$href) {
+                            $rule->{dst_group} = $glue;
+                        }
+                        # don't process again
+                        $href->{processed} = 1;
+                    }
+                }
+            }
+        }
+    }
+    # print PIX object-groups
+    my $counter = 1;
+    for my $group (@groups) {
+        $group->{name} = "g$counter";
+	$counter++;
+        print "object-group network $group->{name}\n";
+	my $nat_info =  $group->{nat_info};
+        for my $element (@{$group->{elements}}) {
+	    for my $pair (&address($element, $nat_info, 'src')) {
+		my $adr = &ios_code($pair);
+		print " network-object $adr\n";
+	    }
+	}
     }
 }
 
 sub print_acls( $ ) {
     my($router) = @_;
     my $model = $router->{model};
-    my $comment_char = $model->{comment_char};
     print "[ ACL ]\n";
+    if($model->{filter} eq 'PIX' and $router->{use_object_groups}) {
+	&find_object_groups($router);
+    }
+    my $comment_char = $model->{comment_char};
     # Collect IP addresses of all interfaces
     my @ip;
     for my $hardware (@{$router->{hardware}}) {
@@ -4500,7 +4636,6 @@ sub print_acls( $ ) {
 			"at $interface->{name}: different security domains";
 			next;
 		    }
-		    my ($ip, $mask) = @{&address($net, $net, 'src')};
 		    # prepend to all other rules
 		    unshift(@{$hardware->{rules}}, { action => 'permit', 
 						     src => $network_00,
@@ -4573,14 +4708,14 @@ sub print_acls( $ ) {
 	    print "$comment_char $hardware->{interfaces}->[0]->{name}\n";
 	}
 	if($model->{filter} eq 'IOS') {
-	    $intf_prefix = $prefix = ' ';
+	    $intf_prefix = $prefix = '';
 	    print "ip access-list extended $name\n";
 	} elsif($model->{filter} eq 'PIX') {
-	    $intf_prefix = $prefix = "access-list $name ";
+	    $intf_prefix = $prefix = "access-list $name";
 	} elsif($model->{filter} eq 'iptables') {
 	    $intf_name = "$hardware->{name}_self";
-	    $intf_prefix = "iptables -A $intf_name ";
-	    $prefix = "iptables -A $name ";
+	    $intf_prefix = "iptables -A $intf_name";
+	    $prefix = "iptables -A $name";
 	    print "iptables -N $name\n";
 	    print "iptables -N $intf_name\n";
 	}
@@ -4588,39 +4723,11 @@ sub print_acls( $ ) {
 	# During NAT processing above, we have assured, that all logical interfaces
 	# of one hardware interface have the same NAT bindings and hence one network
 	# can be used as a representative for all.
-	my $nat_network = $hardware->{interfaces}->[0]->{network};
+	my $nat_info = $hardware->{interfaces}->[0]->{network}->{bind_nat};
 	# Interface rules
-	for my $rule (@{$hardware->{intf_rules}}) {
-	    my $src = $rule->{src};
-	    my $dst = $rule->{dst};
-	    print "$model->{comment_char} ". print_rule($rule)."\n" if $comment_acls;
-	    for my $spair (&address($src, $nat_network, 'src')) {
-		my($src_ip, $src_mask) = @$spair;
-		for my $dpair (&address($dst, $nat_network, 'dst')) {
-		    my ($dst_ip, $dst_mask) = @$dpair;
-		    print($intf_prefix,
-			  acl_line($rule->{action},
-				   $src_ip, $src_mask, $dst_ip, $dst_mask, $rule->{srv},
-				   $model));
-		}
-	    }
-	}
+	acl_line $hardware->{intf_rules}, $nat_info, $intf_prefix, $model;
 	# Other rules
-	for my $rule (@{$hardware->{rules}}) {
-	    my $src = $rule->{src};
-	    my $dst = $rule->{dst};
-	    print "$model->{comment_char} ". print_rule($rule)."\n" if $comment_acls;
-	    for my $spair (&address($src, $nat_network, 'src')) {
-		my($src_ip, $src_mask) = @$spair;
-		for my $dpair (&address($dst, $nat_network, 'dst')) {
-		    my ($dst_ip, $dst_mask) = @$dpair;
-		    print($prefix,
-			  acl_line($rule->{action},
-				   $src_ip, $src_mask, $dst_ip, $dst_mask, $rule->{srv},
-				   $model));
-		}
-	    }
-	}
+	acl_line $hardware->{rules}, $nat_info, $prefix, $model;
 	# Postprocessing for hardware interface
 	if($model->{filter} eq 'IOS') {
 	    print "interface $hardware->{name}\n";
