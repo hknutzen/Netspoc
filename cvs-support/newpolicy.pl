@@ -20,7 +20,7 @@ use Fcntl qw/:flock/; # import LOCK_* constants
 use constant CURRENT => 'current';
 use constant NETSPOC => 'netspoc';
 
-my $id = '$Id$';
+my $id = qq($Id$ );
 my $project = '/home/madnes';
 my $compiler = 'netspoc.pl';
 
@@ -50,7 +50,7 @@ chdir $working or die "Error: can't change to $working: $!\n";
 system("cvs -nQ tag -c test") == 0 or die "Aborted\n";
 
 # Lock policy database
-open LOCK, ">$lock" or die "Error: couldn't open $lock: $!";
+open LOCK, "$lock" or die "Error: couldn't open $lock: $!";
 flock(LOCK, LOCK_EX | LOCK_NB) or die "Abort: Another $0 is running\n";
 
 # increment policy counter
