@@ -1783,8 +1783,8 @@ sub setroute_network( $$ ) {
 # Code Generation
 ##############################################################################
 
-sub split_ip_range( $$ ) {
-    my($a, $b) = @_;
+sub split_ip_range( $$$ ) {
+    my($a, $b, $inv_mask) = @_;
     # b is inclusive upper bound
     # change it to exclusive upper bound
     $b++;
@@ -1802,17 +1802,17 @@ sub split_ip_range( $$ ) {
 	    }
 	}
 	my $mask = ~($add-1);
-	push @result, print_ip($i) .' '. print_ip($mask);
+	push @result, print_ip($i) .' '. print_ip($inv_mask?~$mask:$mask);
 	$i += $add;
     }
     return @result;
 }
 
-sub adr_code( $ ) {
-    my ($obj) = @_;
+sub adr_code( $$ ) {
+    my ($obj, $inv_mask) = @_;
     if(&is_host($obj)) {
 	if( $obj->{is_range}) {
-	    return &split_ip_range(@{$obj->{ip}});
+	    return &split_ip_range(@{$obj->{ip}}, $inv_mask);
 	} else {
 	    return map { 'host '. &print_ip($_) } @{$obj->{ip}};
 	}
@@ -1828,7 +1828,7 @@ sub adr_code( $ ) {
 	    die "internal in adr_code: unexpected unnumbered $obj->{name}\n";
 	} else {
 	    my $ip_code = &print_ip($obj->{ip});
-	    my $mask_code = &print_ip($obj->{mask});
+	    my $mask_code = &print_ip($inv_mask?~$obj->{mask}:$obj->{mask});
 	    return "$ip_code $mask_code";
 	}
     } elsif(&is_any($obj)) {
@@ -1877,12 +1877,18 @@ sub srv_code( $ ) {
 
 sub gen_code( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
+    my $router;
+    # one of both interfaces may be undefined
+    $src_intf and $router = $src_intf->{router};
+    $dst_intf and $router = $dst_intf->{router};
+    my $model = $router->{model};
     my $action = $rule->{action};
     my $src = $rule->{src};
     my $dst = $rule->{dst};
     my $srv = $rule->{srv};
-    my @src_code = &adr_code($src);
-    my @dst_code = &adr_code($dst);
+    my $inv_mask = $model eq 'IOS';
+    my @src_code = &adr_code($src, $inv_mask);
+    my @dst_code = &adr_code($dst, $inv_mask);
     my ($proto_code, $port_code) = &srv_code($srv);
     $action = 'deny' if $action eq 'weak_deny';
     # the src object reaches this router via src_intf
@@ -1975,7 +1981,7 @@ sub gen_routes( $ ) {
 		if($comment_routes) {
 		    print "! route $routing->[$i]->{name} -> $next_hop->{name}\n";
 		}
-		my $adr = adr_code $routing->[$i];
+		my $adr = adr_code $routing->[$i], 0;
 		if($router->{model} eq 'IOS') {
 		    print "ip route $adr\t$hop_ip\n";
 		} elsif($router->{model} eq 'PIX') {
@@ -2067,9 +2073,6 @@ for my $router (values %routers) {
     }
 }
 $router1 or die "Topology has no managed router"; 
-if($verbose) {
-    print STDERR "Selected $router1->{name} as 'router 1'\n";
-}
 
 # Beginning with router1, do a traversal of the whole network 
 # to find a path from every network and router to router1
