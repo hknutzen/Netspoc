@@ -2649,7 +2649,7 @@ sub mark_in_loop1( $$$$$ ) {
     # Check for second occurence of path restriction.
     for my $restrict (@{$in_intf->{path_restrict}}) {
 	if($restrict->{active_path}) {
-	    info " effective $restrict->{name} at $in_intf->{name}";
+#	    info " effective $restrict->{name} at $in_intf->{name}";
 	    return 0;
 	}
     }
@@ -2666,7 +2666,7 @@ sub mark_in_loop1( $$$$$ ) {
     $obj->{active_path} = 1;
     # Mark first occurence of path restriction.
     for my $restrict (@{$in_intf->{path_restrict}}) {
-	info " enabled $restrict->{name} at $in_intf->{name}";
+#	info " enabled $restrict->{name} at $in_intf->{name}";
 	$restrict->{active_path} = 1;
     }
     my $get_next = is_router $obj ? 'network' : 'router';
@@ -2687,7 +2687,7 @@ sub mark_in_loop1( $$$$$ ) {
     }
     delete $obj->{active_path};
     for my $restrict (@{$in_intf->{path_restrict}}) {
-	info " disabled $restrict->{name} at $in_intf->{name}";
+#	info " disabled $restrict->{name} at $in_intf->{name}";
 	delete $restrict->{active_path};
     }
     return $success;
