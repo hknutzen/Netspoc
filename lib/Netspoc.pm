@@ -579,7 +579,7 @@ sub read_network( $ ) {
 			} else {
 			    err_msg
 				"nat:$nat_tag not allowed for $host->{name} ",
-				"because $network->{name} doesn't have a",
+				"because $network->{name} doesn't have ",
 				"dynamic NAT definition";
 			}
 		    }
@@ -606,6 +606,7 @@ sub read_network( $ ) {
 	    my $dynamic;
 	    if(&check('dynamic')) {
 		&skip(';');
+ 		$dynamic = 1;
 	    } else {
 		$nat_mask == $mask or
 		    error_atline
@@ -2137,7 +2138,7 @@ sub find_subnets() {
 	next if $network->{ip} eq 'unnumbered';
 	next if $network->{disabled};
 	# Ignore a network, if NAT is defined for it
-	# ToDo: separate calculation for each NAT domain
+	# ToDo: do a separate calculation for each NAT domain
 	next if $network->{nat} and %{$network->{nat}};
 	if(my $old_net = $mask_ip_hash{$network->{mask}}->{$network->{ip}}) {
 	    err_msg "$network->{name} and $old_net->{name} have identical ip/mask";
@@ -2313,6 +2314,7 @@ sub setpath_obj( $$$ ) {
 	    $interface->{main} = $obj;
 	}
     }
+    delete $obj->{active_path};
     if($in_loop) {
 	# mark every node of a loop with the loops starting point
 	$obj->{loop} = $in_loop;
@@ -2861,14 +2863,38 @@ sub gen_secondary_rules() {
 
 sub setnat_any( $$$$ ) {
     my($any, $in_interface, $nat, $depth) = @_;
-    # use a hash to prevet duplicate entries
-    # and to detect loops
-    if($any->{bind_nat}->[$depth]->{$nat}) {
-	info "nat:$nat loop at $any->{name}";
+    info "nat:$nat depth $depth at $any->{name}";
+    if($any->{active_path}) {
+	info "nat:$nat loop";
+	# Found a loop
 	return;
     }
+    if($any->{bind_nat}) {
+	my $max_depth = @{$any->{bind_nat}};
+	for(my $i = 0; $i < $max_depth; $i++) {
+	    if($any->{bind_nat}->[$i]->{$nat}) {
+		info "nat:$nat: other binding";
+		# Found an alternate border of current NAT domain
+		if($i != $depth) {
+		    # There is another NAT binding on the path which
+		    # might overlap some translations of current NAT
+		    err_msg "Inconsistent multiple occurences of nat:$nat";
+		}
+		return;
+	    }
+	}
+    }
+    # Use a hash to prevet duplicate entries
     $any->{bind_nat}->[$depth]->{$nat} = $nat;
-    info "nat:$nat depth $depth at $any->{name}";
+    # Loop detection
+    $any->{active_path} = 1;
+    for my $network (@{$any->{networks}}) {
+	if($network->{nat}->{$nat}) {
+	    err_msg "$network->{name} is translated by nat:$nat,\n",
+	    " but it lies inside the translation sphere of nat:$nat.\n",
+	    " Propably nat:$nat was bound to wrong interface.";
+	}
+    }
     for my $interface (@{$any->{interfaces}}) {
 	# ignore interface where we reached this network
 	next if $interface eq $in_interface;
@@ -2876,6 +2902,7 @@ sub setnat_any( $$$$ ) {
 	next if $interface->{bind_nat} and $interface->{bind_nat} eq $nat;
 	&setnat_router($interface->{router}, $interface, $nat, $depth);
     }
+    delete $any->{active_path};
 }
  
 sub setnat_router( $$$$ ) {
@@ -2887,8 +2914,10 @@ sub setnat_router( $$$$ ) {
 	my $depth = $depth;
 	if($interface->{bind_nat}) { 
 	    $depth++;
-	    $interface->{bind_nat} eq $nat and
-		err_msg "Found NAT loop for $nat->{name} at $interface->{name}";
+	    if($interface->{bind_nat} eq $nat) {
+		err_msg "Found NAT loop for nat:$nat at $interface->{name}";
+		next;
+	    }
 	}
 	&setnat_any($interface->{any}, $interface, $nat, $depth);
     }
