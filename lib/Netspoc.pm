@@ -2321,8 +2321,16 @@ sub gen_acls( $ ) {
     my($router) = @_;
     my $model = $router->{model};
     print "[ ACL ]\n";
-    while(my($hardware, $code) = each %{$router->{code}}) {
+    # we need to know all hardware interface names.
+    # It isn't sufficient to iterate over the keys from $router->{code},
+    # since some interface may have no ACL at all
+    my %hw_names;
+    for my $interface (@{$router->{interfaces}}) { $hw_names{$interface->{hardware}} = 1};
+    for my $hardware (sort keys %hw_names) {
+	my $code = $router->{code}->{$hardware};
 	my $name = "${hardware}_in";
+	# force autovivification of @$code
+	push @$code;
 	if($model eq 'IOS') {
 	    print "ip access-list extended $name\n";
 	    for my $line (@$code) {
