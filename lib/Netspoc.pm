@@ -4306,7 +4306,7 @@ sub find_object_groups ( $ ) {
 				# to be processed.
 				active => 0,
 				# NAT domain for address calculation
-				nat_info => $hardware->{interface}->{nat_info},
+				nat_info => $hardware->{nat_info},
 				# for check, if interfaces belong to
 				# identical NAT domain
 				bind_nat => $hardware->{bind_nat} || 'none',
@@ -4442,7 +4442,7 @@ sub find_chains ( $ ) {
 				# to be processed.
 				active => 0,
 				# NAT domain for address calculation
-				nat_info => $hardware->{interface}->{nat_info},
+				nat_info => $hardware->{nat_info},
 				# for check, if interfaces belong to
 				# identical NAT domain
 				bind_nat => $hardware->{bind_nat} || 'none',
@@ -4740,10 +4740,7 @@ sub print_acls( $ ) {
 	    print "iptables -N $name\n";
 	    print "iptables -N $intf_name\n";
 	}
-	# Take network of first logical interface for determining the NAT domain.
-	# During NAT processing above, we have assured, that all logical interfaces
-	# of one hardware interface have the same NAT bindings.
-	my $nat_info = $hardware->{interfaces}->[0]->{nat_info};
+	my $nat_info = $hardware->{nat_info};
 	# Interface rules
 	acl_line $hardware->{intf_rules}, $nat_info, $intf_prefix, $model;
 	# Ordinary rules
