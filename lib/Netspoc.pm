@@ -597,8 +597,7 @@ sub read_servicegroup( $ ) {
    $servicegroups{$name} = $srvgroup;
 }
 
-sub read_port_range( $ ) {
-    my($srv) = @_;
+sub read_port_range() {
     if(defined (my $port1 = &check_int())) {
 	error_atline "Too large port number $port1" if $port1 > 65535;
 	error_atline "Invalid port number '0'" if $port1 == 0;
@@ -607,18 +606,29 @@ sub read_port_range( $ ) {
 		error_atline "Too large port number $port2" if $port2 > 65535;
 		error_atline "Invalid port number '0'" if $port2 == 0;
 		error_atline "Invalid port range $port1-$port2" if $port1 > $port2;
-		$srv->{v1} = $port1;
-		$srv->{v2} = $port2;
+		return $port1, $port2;
 	    } else {
 		syntax_err "Missing second port in port range";
 	    }
 	} else {
-	    $srv->{v1} = $port1;
-	    $srv->{v2} = $port1;
+	    return $port1, $port1;
 	}
     } else {
-	$srv->{v1} = 1;
-	$srv->{v2} = 65535;
+	return 1, 65535;
+    }
+}
+
+# Note: 
+# 'tcp 80' becomes [ 1024, 65535, 80, 80 ]
+# 'tcp -> 80' becomes [ 1, 65536, 80, 80 ]
+sub read_port_ranges( $ ) {
+    my($srv) = @_;
+    my($from, $to) = &read_port_range();
+    if(&check('->')) {
+	my($from2, $to2) = &read_port_range();
+	$srv->{ports} = [ $from, $to, $from2, $to2 ];
+    } else {
+	$srv->{ports} = [ 1024, 65535, $from, $to ];
     }
 }
 
@@ -653,12 +663,10 @@ sub read_proto_nr() {
 	    $srv->{v1} = 'any';
 	} elsif($nr == 4) {
 	    $srv->{type} = 'tcp';
-	    $srv->{v1} = 1;
-	    $srv->{v2} = 65535;
+	    $srv->{ports} = [ 1, 65535, 1, 65535 ];
 	} elsif($nr == 17) {
 	    $srv->{type} = 'udp';
-	    $srv->{v1} = 1;
-	    $srv->{v2} = 65535;
+	    $srv->{ports} = [ 1, 65535, 1, 65535 ];
 	} else {
 	    $srv->{type} = 'proto';
 	    $srv->{v1} = $nr;
@@ -677,10 +685,10 @@ sub read_service( $ ) {
 	$srv->{type} = 'ip';
     } elsif(&check('tcp')) {
 	$srv->{type} = 'tcp';
-	&read_port_range($srv);
+	&read_port_ranges($srv);
     } elsif(&check('udp')) {
 	$srv->{type} = 'udp';
-	&read_port_range($srv);
+	&read_port_ranges($srv);
     } elsif(&check('icmp')) {
 	$srv->{type} = 'icmp';
 	&read_icmp_type_code($srv);
@@ -1001,34 +1009,50 @@ sub order_ranges( $$ ) {
     my($range_aref, $up) = @_;
     for my $srv1 (@$range_aref) {
 	next if $srv1->{main};
-	my $x1 = $srv1->{v1};
-	my $y1 = $srv1->{v2};
-	my $min_size = 65536;
+	my @p1 = @{$srv1->{ports}};
+	my $min_size_src = 65536;
+	my $min_size_dst = 65536;
 	$srv1->{up} = $up;
 	for my $srv2 (@$range_aref) {
 	    next if $srv1 eq $srv2;
 	    next if $srv2->{main};
-	    my $x2 = $srv2->{v1};
-	    my $y2 = $srv2->{v2};
-	    if($x2 == $x1 and $y1 == $y2) {
+	    my @p2 = @{$srv2->{ports}};
+	    if($p1[0] == $p2[0] and $p1[1] == $p2[1] and
+	       $p1[2] == $p2[2] and $p1[3] == $p2[3]) {
 		# Found duplicate service definition
 		# Link $srv2 with $srv1
 		# Since $srv1 is not linked via ->{main},
 		# we never get chains of ->{main}
 		$srv2->{main} = $srv1;
-	    } elsif($x2 <= $x1 and $y1 <= $y2) {
-		my $size = $y2-$x2;
-		if($size < $min_size) {
-		    $min_size = $size;
+	    } elsif($p2[0] <= $p1[0] and $p1[1] <= $p2[1] and 
+		    $p2[2] <= $p1[2] and $p1[3] <= $p2[3]) {
+		# Found service definition with both ranges being larger
+		my $size_src = $p2[1]-$p2[0];
+		my $size_dst = $p2[3]-$p2[2];
+		if($size_src <= $min_size_src and $size_dst < $min_size_dst or
+		   $size_src < $min_size_src and $size_dst <= $min_size_dst) {
+		    $min_size_src = $size_src;
+		    $min_size_dst = $size_dst;
 		    $srv1->{up} = $srv2;
+		} elsif($size_src > $min_size_src and
+			$size_dst > $min_size_dst) {
+		    # both ranges are larger, ignore
+		} else {
+		    # src range is larger and dst range is smaller or
+		    # src range is smaller and dst range is larger
+		    # ToDo: Implement this.
+		    err_msg "Can't arrange $srv2->{name}\n",
+		    " Please contact author";
 		}
-	    } elsif($x1 < $x2 and $x2 <= $y1 and $y1 < $y2 or
-		# 1111111
-		#    2222222
-	       $x2 < $x1 and $x1 <= $y2 and $y2 < $y1) {
+	    } elsif($p1[0] < $p2[0] and $p2[0] <= $p1[1] and $p1[1] < $p2[1] or
+		    $p1[2] < $p2[2] and $p2[2] <= $p1[3] and $p1[3] < $p2[3] or
+		    # 1111111
+		    #    2222222
+		    $p2[0] < $p1[0] and $p1[0] <= $p2[1] and $p2[1] < $p1[1] or
+		    $p2[2] < $p1[2] and $p1[2] <= $p2[3] and $p2[3] < $p1[3]) {
 		#    1111111
 		# 2222222
-		# ToDo: Implement this function
+		# ToDo: Implement this
 		err_msg "Overlapping port ranges are not supported currently.\n",
 		" Workaround: Split one of $srv1->{name}, $srv2->{name} manually";
 	    }    
@@ -2463,46 +2487,57 @@ sub warn_pix_icmp() {
     }
 }
 
+sub range_code( $$ ) {
+    my($v1, $v2) = @_;
+    if($v1 == $v2) {
+	return("eq $v1");
+    } elsif($v1 == 1 and $v2 == 65535) {
+	return('');
+    } elsif($v2 == 65535) {
+	$v1--;
+	return "gt $v1";
+    } elsif($v1 == 1) {
+	$v2++;
+	return "lt $v2";
+    } else {
+	return("range $v1 $v2");
+    }
+}
+
+# returns 3 values for building an ACL:
+# permit <val1> <src> <val2> <dst> <val3>
 sub srv_code( $$ ) {
     my ($srv, $model) = @_;
     my $proto = $srv->{type};
-    my $v1 = $srv->{v1};
-    my $v2 = $srv->{v2};
 
     if($proto eq 'ip') {
-	return('ip', '');
+	return('ip', '', '');
     } elsif($proto eq 'tcp' or $proto eq 'udp') {
-	my $port = $v1;
-	if($v1 == $v2) {
-	    return($proto, "eq $v1");
-	} elsif($v1 == 1 and $v2 == 65535) {
-	    return($proto, '');
-	} else {
-	    return($proto, "range $v1 $v2");
-	}
+	my @p = @{$srv->{ports}};
+	return($proto, &range_code(@p[0,1]), &range_code(@p[2,3]));
     } elsif($proto eq 'icmp') {
-	my $type = $v1;
+	my $type = $srv->{v1};
 	if($type eq 'any') {
-	    return($proto, '');
+	    return($proto, '', '');
 	} else {
-	    my $code = $v2;
+	    my $code = $srv->{v2};
 	    if($code eq 'any') {
-		return($proto, $type);
+		return($proto, '', $type);
 	    } else {
 		if($model eq 'PIX') {
-		    # PIX can't handle the ICMP code.
+		    # PIX can't handle the ICMP code field.
 		    # If we try to permit e.g. "port unreachable", 
 		    # "unreachable any" could pass the PIX. 
 		    $pix_srv_hole{$srv->{name}}++;
-		    return($proto, $type);
+		    return($proto, '', $type);
 		} else {
-		    return($proto, "$type $code");
+		    return($proto, '', "$type $code");
 		}
 	    }
 	}
     } elsif($proto eq 'proto') {
-	my $nr = $v1;
-	return($nr, '');
+	my $nr = $srv->{v1};
+	return($nr, '', '');
     } else {
 	internal_err "a rule has unknown protocol '$proto'";
     }
@@ -2641,7 +2676,7 @@ sub collect_acls( $$$ ) {
     my $inv_mask = $model =~ /^IOS/;
     my @src_code = &adr_code($src, $inv_mask);
     my @dst_code = &adr_code($dst, $inv_mask);
-    my ($proto_code, $port_code) = &srv_code($srv, $model);
+    my ($proto_code, $src_port_code, $dst_port_code) = &srv_code($srv, $model);
     if(defined $src_intf) {
 	my $code_aref;
 	# Packets for the router itself
@@ -2663,7 +2698,7 @@ sub collect_acls( $$$ ) {
 	for my $src_code (@src_code) {
 	    for my $dst_code (@dst_code) {
 		push(@$code_aref,
-		     "$action $proto_code $src_code $dst_code $port_code\n");
+		     "$action $proto_code $src_code $src_port_code $dst_code $dst_port_code\n");
 	    }
 	}
 	# Code for stateless IOS: automatically permit return packets
@@ -2674,11 +2709,11 @@ sub collect_acls( $$$ ) {
 	    if($comment_acls) {
 		push(@$code_aref, "! REVERSE: ". print_rule($rule)."\n");
 	    }
-	    my $established = $srv->{type} eq 'tcp' ? 'gt 1023 established' : 'gt 1023';
+	    my $established = $srv->{type} eq 'tcp' ? 'established' : '';
 	    for my $src_code (@src_code) {
 		for my $dst_code (@dst_code) {
 		    push(@$code_aref,
-			 "$action $proto_code $dst_code $port_code $src_code $established\n");
+			 "$action $proto_code $dst_code $dst_port_code $src_code $src_port_code $established\n");
 		}
 	    }
 	}
@@ -2692,11 +2727,11 @@ sub collect_acls( $$$ ) {
 	    if($comment_acls) {
 		push(@$code_aref, "! REVERSE: ". print_rule($rule)."\n");
 	    }
-	    my $established = $srv->{type} eq 'tcp' ? 'gt 1023 established' : 'gt 1023';
+	    my $established = $srv->{type} eq 'tcp' ? 'established' : '';
 	    for my $src_code (@src_code) {
 		for my $dst_code (@dst_code) {
 		    push(@$code_aref,
-			 "$action $proto_code $dst_code $port_code $src_code $established\n");
+			 "$action $proto_code $dst_code $dst_port_code $src_code $src_port_code $established\n");
 		}
 	    }
 	}
