@@ -1082,6 +1082,8 @@ sub link_topology() {
 # Simplify rules to expanded rules where each rule has exactly one 
 # src, dst and srv
 ####################################################################
+
+my %group_is_used;
 my %name2object =
 (
     host => \%hosts,
@@ -1120,6 +1122,7 @@ sub expand_group( $$ ) {
 	    } else {
 		# mark group for detection of recursive group definitions
 		$groups{$name} = 'recursive';
+		$group_is_used{$name} = 1;
 		$obref = &expand_group($object, $tname);
 		# cache result for further references to the same group
 		$groups{$name} = $obref;
@@ -1150,6 +1153,18 @@ sub expand_group( $$ ) {
     }
     @objects = grep { defined $_ } @objects;
     return gen_ip_ranges(\@objects);
+}
+
+sub check_unused_groups() {
+    for my $name (keys %groups) {
+	unless($group_is_used{$name}) {
+	    if(my $size = @{$groups{$name}}) {
+		warning "group:$name with $size element(s) is unused\n";
+	    } else {
+		warning "empty group:$name is unused\n";
+	    }
+	}
+    }
 }
 
 sub expand_services( $$ ) {
@@ -2505,6 +2520,7 @@ sub read_config() {
 &find_subnets();
 &setpath();
 &expand_rules();
+&check_unused_groups();
 die "Aborted with $error_counter error(s)\n" if $error_counter;
 $error_counter = $max_errors; # following errors should always abort
 &gen_deny_rules_and_optimize();
