@@ -3,54 +3,42 @@
 <TITLE>Description Language for Security Policy and Topology</TITLE>
 </HEAD>
 
-<BODY bgcolor=#FFFFFF topmargin="0" bottommargin="0" leftmargin="0" rightmargin="0" marginheight="0" marginwidth="0"><BODY>
-
-<A NAME="__index__"></A>
-<!-- INDEX BEGIN -->
+<BODY bgcolor=#FFFFFF>
 
 <UL>
-
-	<LI><A HREF="#language">Description Language for Security Policy and Topology</A></LI>
-	<UL>
-
-		<LI><A HREF="#overview">Overview</A></LI>
-		<UL>
-
-			<LI><A HREF="#rules">Rules</A></LI>
-			<LI><A HREF="#network_objects">Network Objects</A></LI>
-			<LI><A HREF="#service_definitions">Service Definitions</A></LI>
-			<LI><A HREF="#groups">Groups</A></LI>
-			<LI><A HREF="#service_groups">Service Groups</A></LI>
-		</UL>
-
-		<LI><A HREF="#detailed">Detailed description of network objects</A></LI>
-		<UL>
-
-			<LI><A HREF="#general_syntax">General syntax</A></LI>
-			<LI><A HREF="#network_definition">Network Definition</A></LI>
-
-			<LI><A HREF="#host_definition">Host definition</A></LI>
-			<LI><A HREF="#router_definition">Router definition</A></LI>
-			<LI><A HREF="#interface_definition">Interface definition</A></LI>
-			<LI><A HREF="#every_definition">'Every' object definition</A></LI>
-			<LI><A HREF="#any_definition">'Any' object definition</A></LI>
-			<LI><A HREF="#referencing">Referencing network objects</A></LI>
-			<LI><A HREF="#groups_def">Groups of network objects</A></LI>
-			<LI><A HREF="#services">Services</A></LI>
-			<LI><A HREF="#groups_of_services">Groups of services</A></LI>
-			<LI><A HREF="#rules_def">Rules</A></LI>
-		</UL>
-
-		<LI><A HREF="#disabling">Disabling part of the topology</A></LI>
-		<LI><A HREF="#handling_any">Handling of 'any' objects</A></LI>
-		<LI><A HREF="#pix_levels">PIX security levels</A></LI>
-		<LI><A HREF="#redundant_rules">Automatic deletion of redundant rules</A></LI>
-		<LI><A HREF="#generated_code">Generated Code</A></LI>
-		<LI><A HREF="#supported_devices">Supported devices</A></LI>
-	</UL>
-
+ <LI><A HREF="#language">Description Language for Security Policy and Topology</A></LI>
+ <UL>
+  <LI><A HREF="#overview">Overview</A></LI>
+  <UL>
+   <LI><A HREF="#rules">Rules</A></LI>
+   <LI><A HREF="#network_objects">Network Objects</A></LI>
+   <LI><A HREF="#service_definitions">Service Definitions</A></LI>
+   <LI><A HREF="#groups">Groups</A></LI>
+   <LI><A HREF="#service_groups">Service Groups</A></LI>
+  </UL>
+  <LI><A HREF="#detailed">Detailed description of network objects</A></LI>
+  <UL>
+   <LI><A HREF="#general_syntax">General syntax</A></LI>
+   <LI><A HREF="#network_definition">Network Definition</A></LI>
+   <LI><A HREF="#host_definition">Host definition</A></LI>
+   <LI><A HREF="#router_definition">Router definition</A></LI>
+   <LI><A HREF="#interface_definition">Interface definition</A></LI>
+   <LI><A HREF="#every_definition">'Every' object definition</A></LI>
+   <LI><A HREF="#any_definition">'Any' object definition</A></LI>
+   <LI><A HREF="#referencing">Referencing network objects</A></LI>
+   <LI><A HREF="#groups_def">Groups of network objects</A></LI>
+   <LI><A HREF="#services">Services</A></LI>
+   <LI><A HREF="#groups_of_services">Groups of services</A></LI>
+   <LI><A HREF="#rules_def">Rules</A></LI>
+  </UL>
+  <LI><A HREF="#disabling">Disabling part of the topology</A></LI>
+  <LI><A HREF="#handling_any">Handling of 'any' objects</A></LI>
+  <LI><A HREF="#pix_levels">PIX security levels</A></LI>
+  <LI><A HREF="#redundant_rules">Automatic deletion of redundant rules</A></LI>
+  <LI><A HREF="#generated_code">Generated Code</A></LI>
+  <LI><A HREF="#supported_devices">Supported devices</A></LI>
+ </UL>
 </UL>
-<!-- INDEX END -->
 
 <HR>
 <P>
@@ -252,10 +240,8 @@ if used as source or destination of a rule an interface is handled
 <PRE>
  every:&lt;name&gt; = { link = {{ network:&lt;name&gt;; | router:&lt;name&gt;; }} }</PRE>
 <UL>
-<LI>
-equivalent to a group of all networks of a security domain
-<LI>
-must not be linked to a managed router
+<LI>equivalent to a group of all networks of a security domain
+<LI>must not be linked to a managed router
 </UL>
 
 <H3><A NAME="any_definition">'Any' object definition</A></H3>
@@ -263,21 +249,14 @@ must not be linked to a managed router
 <PRE>
  any:&lt;name&gt; = { link = {{ network:&lt;name&gt;; |  router:&lt;name&gt;; }} }</PRE>
 <UL>
-<LI>
-is used to represent all networks of a security domain
-<LI>
-must not be linked to a managed router
-<LI>
-at most one 'any' object can be defined for a security domain
-<LI>
-generated ACL use 'any' / 0.0.0.0/0.0.0.0 network to prevent
+<LI>is used to represent all networks of a security domain
+<LI>must not be linked to a managed router
+<LI>at most one 'any' object can be defined for a security domain
+<LI>generated ACL use 'any' (i.e. network 0.0.0.0/0.0.0.0) to prevent
 enumeration of all networks of a security domain
-<LI>
-additional deny rules may be generated automatically to prevent
-intervening networks getting access.
-
-<LI>
-See <A HREF="#handling_any">Handling of 'any' objects</A> for details.
+<LI>NetSPoC generates additional deny rules to prevent
+intervening networks getting undesired access.
+<LI>See <A HREF="#handling_any">Handling of 'any' objects</A> for details.
 </UL>
 
 <H3><A NAME="referencing">Referencing network objects</A></H3>
