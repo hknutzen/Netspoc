@@ -308,27 +308,42 @@ sub read_host( $ ) {
 my %networks;
 sub read_network( $ ) {
     my $name = shift;
-    skip('=');
-    skip('{');
-    # ToDo: unnumbered networks
-    my $ip = &read_assign('ip', \&read_ip);
-    my $mask = &read_assign('mask', \&read_ip);
-    # check if network ip matches mask
-    if($ip & ~$mask != 0) {
-	my $ip_string = &print_ip($ip);
-	my $mask_string = &print_ip($mask);
-	error_atline "network:$name's ip $ip_string doesn't match its mask $mask_string";
-    }
     my $network = new('Network',
 		      name => "network:$name",
-		      ip => $ip,
-		      mask => $mask,
 		      hosts => [],
 		      );
+    skip('=');
+    skip('{');
+    my $ip;
+    my $mask;
+    my $token = read_name();
+    if($token eq 'ip') {
+	&skip('=');
+	$ip = &read_ip;
+	skip(';');
+	$mask = &read_assign('mask', \&read_ip);
+	# check if network ip matches mask
+	if($ip & ~$mask != 0) {
+	    my $ip_string = &print_ip($ip);
+	    my $mask_string = &print_ip($mask);
+	    error_atline "$network->{name}'s ip $ip_string " .
+		"doesn't match its mask $mask_string";
+	}
+	$network->{ip} = $ip;
+	$network->{mask} = $mask;
+    } elsif($token eq 'unnumbered') {
+	$network->{ip} = 'unnumbered';
+	skip(';');
+    } else {
+	syntax_err "Illegal token";
+    }
     while(1) {
 	last if &check('}');
 	my($type, $hname) = split_typed_name(read_name());
 	syntax_err "Illegal token" unless($type eq 'host');
+	if($ip eq 'unnumbered') {
+	    error_atline "Unnumbered network must not contain hosts";
+	}
 	my $host = &read_host($hname);
 	# check compatibility of host ip and network ip/mask
 	for my $host_ip  (@{$host->{ip}}) {
@@ -336,7 +351,7 @@ sub read_network( $ ) {
 		my $ip_string = &print_ip($ip);
 		my $mask_string = &print_ip($mask);
 		my $host_ip_string = &print_ip($host_ip);
-		error_atline "$host->{name}'s ip $host_ip_string doesn't match net:$name's ip/mask $ip_string/$mask_string";
+		error_atline "$host->{name}'s ip $host_ip_string doesn't match $network->{name}'s ip/mask $ip_string/$mask_string";
 	    }
 	}
 	$host->{net} = $network;
@@ -345,7 +360,8 @@ sub read_network( $ ) {
     if(my $old_net = $networks{$name}) {
 	my $ip_string = &print_ip($network);
 	my $old_ip_string = &print_ip($old_net);
-	error_atline "Redefining network:$name from $old_ip_string to $ip_string";
+	error_atline "Redefining network:$name from " . 
+	    "$old_ip_string to $ip_string";
     }
     $networks{$name} = $network;
 }
@@ -364,13 +380,12 @@ sub read_interface( $ ) {
     }
     &skip('{');
     my $token = read_name();
-    my $ip;
     if($token eq 'ip') {
 	&skip('=');
 	my @ip = &read_list(\&read_ip);
 	$interface->{ip} = \@ip;
     } elsif($token eq 'unnumbered') {
-	$interface->{ip} = [];
+	$interface->{ip} = 'unnumbered';
 	skip(';');
     } else {
 	syntax_err "Illegal token";
@@ -949,7 +964,7 @@ sub link_interface_with_net( $ ) {
     }
     $interface->{link} = $net;
 
-    my $is_cloud_intf = $interface->{ip} eq 'cloud';
+    my $ip = $interface->{ip};
     # check if the network is already linked with another interface
     if(defined $net->{interfaces}) {
 	my $old_intf = $net->{interfaces}->[0];
@@ -961,16 +976,24 @@ sub link_interface_with_net( $ ) {
 	}
 	# if it is linked already to a router 
 	# it must not be linked to a cloud
-	if($is_cloud_intf) {
+	if($ip eq 'cloud') {
 	    my $rname = $old_intf->{router}->{name};
 	    err_msg "Cloud $net->{name} must not be linked to $rname";
 	}
     } 
 
-    if(! $is_cloud_intf) {
+    if($ip eq 'cloud') {
+	# nothing to check: cloud interface may be linked to any interface
+    } elsif($ip eq 'unnumbered') {
+	$net->{ip} eq 'unnumbered' or
+	    die "unnumbered $interface->{name} must not be linked to $net->{name}";
+    } else {
 	# check compatibility of interface ip and network ip/mask
-	for my $interface_ip (@{$interface->{ip}}) {
+	for my $interface_ip (@$ip) {
 	    my $ip = $net->{ip};
+	    if($ip eq 'unnumbered') {
+		err_msg "$interface->{name} must not be linked to unnumbered $net->{name}";
+	    }
 	    my $mask = $net->{mask};
 	    if($ip != ($interface_ip & $mask)) {
 		err_msg "$interface->{name}'s ip doesn't match $net->{name}'s ip/mask";
@@ -1000,6 +1023,9 @@ sub expand_object( $ ) {
     } elsif(is_every($ob)) {
 	# expand an 'every' object to all networks in its security domain
 	return @{$ob->{link}->{border}->{networks}};
+    } elsif((is_interface($ob) or is_net($ob)) and $ob->{ip} eq 'unnumbered') {
+	err_msg "Unnumbered $ob->{name} must not be used in rule";
+	return ();
     } else {
 	# an atomic object
 	return $ob;
@@ -1213,7 +1239,7 @@ sub setroute_router( $$ ) {
 	# ignore interface where we reached this router
 	next if $interface eq $to_default;
 	my $net = $interface->{link};
-	if($interface->{ip} ne 'cloud' and @{$interface->{ip}} != 0) {
+	if($net->{ip} ne 'unnumbered') {
 	    # add directly connected networks
 	    # but not for unnumbered interfaces
 	    push @networks, $net;
@@ -1295,10 +1321,11 @@ sub setpath_network( $$$$ ) {
     # add network to the corresponding border;
     # this info is used later for optimization,
     # generation of weak_deny rules for 'any' rules and
-    # expansion of 'every' objects
-    # 
-    # ToDo: Check, what to do with unnumbered interfaces here
-    push(@{$border->{networks}}, $network);
+    # expansion of 'every' objects.
+    # Unnumbered networks can be left out here because
+    # they aren't a valid src or dst
+    push(@{$border->{networks}}, $network)
+	unless $network->{ip} eq 'unnumbered';
     for my $interface (@{$network->{interfaces}}) {
 	# ignore interface where we reached this network
 	next if $interface eq $to_border;
@@ -1763,16 +1790,27 @@ sub split_ip_range( $$ ) {
 
 sub adr_code( $ ) {
     my ($obj) = @_;
-    if(&is_host($obj) and $obj->{is_range}) {
-	return &split_ip_range(@{$obj->{ip}});
+    if(&is_host($obj)) {
+	if( $obj->{is_range}) {
+	    return &split_ip_range(@{$obj->{ip}});
+	} else {
+	    return map { 'host '. &print_ip($_) } @{$obj->{ip}};
+	}
     }
-    if(&is_host($obj) or &is_interface($obj)) {
-	return map { 'host '. &print_ip($_) } @{$obj->{ip}};
+    if(&is_interface($obj)) {
+	if($obj->{ip} eq 'unnumbered') {
+	    die "internal in adr_code: unexpected unnumbered $obj->{name}\n";
+	} else {
+	    return map { 'host '. &print_ip($_) } @{$obj->{ip}};
+	}
     } elsif(&is_net($obj)) {
-	# ToDo: unnumbered networks
-	my $ip_code = &print_ip($obj->{ip});
-	my $mask_code = &print_ip($obj->{mask});
-	return "$ip_code $mask_code";
+	if($obj->{ip} eq 'unnumbered') {
+	    die "internal in adr_code: unexpected unnumbered $obj->{name}\n";
+	} else {
+	    my $ip_code = &print_ip($obj->{ip});
+	    my $mask_code = &print_ip($obj->{mask});
+	    return "$ip_code $mask_code";
+	}
     } elsif(&is_any($obj)) {
 	return 'any';
     } else {
