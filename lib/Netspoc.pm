@@ -1318,7 +1318,7 @@ sub expand_group( $$ ) {
 	    push @objects, @{$object->{interfaces}};
 	} elsif(is_every $object) {
 	    # expand an 'every' object to all networks in its security domain
-	    push @objects,  @{$object->{link}->{border}->{networks}};
+	    push @objects,  @{$object->{link}->{any}->{networks}};
 	} else {
 	    push @objects, $object;
 	}
@@ -1546,7 +1546,7 @@ sub repair_deny_influence1( $$ ) {
 	    # code generation of deleted interface rules
 	    next if $arule->{deleted};
 	    next unless $arule->{deny_src_networks};
-	    my $dst_any = $dst->{network}->{border}->{any} or
+	    my $dst_any = $dst->{network}->{any} or
 		internal_err "No 'any' object in security domain of $dst";
 	    for my $net (@{$arule->{deny_src_networks}}) {
 		for my $host (@{$net->{hosts}}, @{$net->{interfaces}}) {
@@ -1689,6 +1689,83 @@ sub find_subnets() {
 }
 
 ####################################################################
+# For each security domain find its associated 'any' object or 
+# generate a new one if no one was declared.
+# Link each interface at the border of this security domain with
+# its 'any' object and vice versa.
+# Additionally link each network and unmanaged router in this security
+# domain with the associated 'any' object.
+# Add a list of all numbered networks of a security domain to its
+# 'any' object
+####################################################################
+
+sub setany_network( $$$ ) {
+    my($network, $any, $in_interface) = @_;
+    if($network->{any}) {
+	# Found a loop inside a security domain
+	return;
+    }
+    $network->{any} = $any;
+    # Add network to the corresponding 'any' object,
+    # to have all networks of a security domain available.
+    # Unnumbered networks are left out here because
+    # they aren't a valid src or dst
+    push(@{$any->{networks}}, $network)
+	unless $network->{ip} eq 'unnumbered';
+    for my $interface (@{$network->{interfaces}}) {
+	# ignore interface where we reached this network
+	next if $interface eq $in_interface;
+	&setany_router($interface->{router}, $any, $interface);
+    }
+}
+ 
+sub setany_router( $$$ ) {
+    my($router, $any, $in_interface) = @_;
+    if($router->{managed}) {
+	$in_interface->{any} = $any;
+	push @{$any->{interfaces}}, $in_interface;
+	return;
+    }
+    if($router->{any}) {
+	# Found a loop inside a security domain
+	return;
+    }
+    $router->{any} = $any;
+    for my $interface (@{$router->{interfaces}}) {
+	# ignore interface where we reached this router
+	next if $interface eq $in_interface;
+	&setany_network($interface->{network}, $any, $interface);
+    }
+}
+
+sub setany() {
+    for my $any (values %anys) {
+	my $obj = $any->{link};
+	if(my $old_any = $obj->{any}) {
+	    err_msg
+		"More than one 'any' object definied in a security domain:\n",
+		" $old_any->{name} and $any->{name}";
+	}
+	if(is_net $obj) {
+	    setany_network $obj, $any, 0;
+	} elsif(is_router $obj) {
+	    setany_router $obj, $any, 0;
+	} else {
+	    internal_err "unexpected object $obj->{name}";
+	}
+    }
+
+    # automatically add an 'any' object to each security domain
+    # where none has been declared
+    for my $network (values %networks) {
+	next if $network->{any};
+	(my $name = $network->{name}) =~ s/^network:/auto_any:/;
+	my $any = new('Any', name => $name, link => $network);
+	setany_network $network, $any, 0;
+    }
+}
+	
+####################################################################
 # Set paths for efficient topology traversal
 ####################################################################
 
@@ -1706,32 +1783,21 @@ sub setpath_router( $$$$ ) {
     for my $interface (@{$router->{interfaces}}) {
 	# ignore interface where we reached this router
 	next if $interface eq $to_border;
-	if($router->{managed}) {
-	    &setpath_network($interface->{network},
-			     $interface, $interface, $distance+1);
-	} else {
-	    &setpath_network($interface->{network},
-			     $interface, $border, $distance);
-	}
+	&setpath_any($interface->{any},
+		     $interface, $interface, $distance+1);
     }
 }
 
-sub setpath_network( $$$$ ) {
-    my ($network, $to_border, $border, $distance) = @_;
+sub setpath_any( $$$$ ) {
+    my ($any, $to_border, $border, $distance) = @_;
     # ToDo: operate with loops
-    if($network->{border}) {
-	err_msg "Found a loop at $network->{name}.\n",
+    if($any->{border}) {
+	err_msg "Found a loop at $any->{name}.\n",
 	" Loops are not supported in this version";
 	return;
     }
-    $network->{border} = $border;
-    # Add network to the corresponding border,
-    # to have all networks of a security domain available.
-    # Unnumbered networks are left out here because
-    # they aren't a valid src or dst
-    push(@{$border->{networks}}, $network)
-	unless $network->{ip} eq 'unnumbered';
-    for my $interface (@{$network->{interfaces}}) {
+    $any->{border} = $border;
+    for my $interface (@{$any->{interfaces}}) {
 	# ignore interface where we reached this network
 	next if $interface eq $to_border;
 	&setpath_router($interface->{router},
@@ -1754,42 +1820,23 @@ sub setpath() {
     # to find a path from every network and router to router1
     &setpath_router($router1, 'not undef', undef, 0);
 
-    # check if all networks and routers are connected with router1
-    for my $obj (values %networks, values %routers) {
-	next if $obj eq $router1;
-	next if $obj->{disabled};
-	$obj->{border} or
-	    err_msg "Found unconnected node: $obj->{name}";
-    }
-    # link each 'any' object with its corresponding 
-    # border interface and vice versa
-    for my $any (values %anys) {
-	my $border = $any->{link}->{border};
-	$any->{border} = $border;
-	if(my $old_any = $border->{any}) {
-	    err_msg
-		"More than one 'any' object definied in a security domain:\n",
-		" $old_any->{name} and $any->{name}";
-	}
-	$border->{any} = $any;
-    }
-    # each security domain needs an 'any' object, 
-    # later for 'any' conversion
+    # check, if all routers are connected with router1 
     for my $router (values %routers) {
-	next unless $router->{managed};
-	for my $interface (@{$router->{interfaces}}) {
-	    # not a border interface
-	    next if $interface eq $router->{to_border};
-	    # already has an 'any' object
-	    next if $interface->{any};
-	    my $network = $interface->{network};
-	    (my $name = $network->{name}) =~ s/^network:/auto_any:/;
-	    my $any = new('Any',
-			  name => $name,
-			  link => $network,
-			  border => $interface);
-	    $interface->{any} = $any;
+	next if $router eq $router1;
+	next if $router->{disabled};
+	if($router->{managed}) {
+	    $router->{border} or
+	    err_msg "Found unconnected node: $router->{name}";
+	} else {
+	    $router->{any}->{border} or
+	    err_msg "Found unconnected node: $router->{name}";
 	}
+    }
+    # check, if all networks are connected with router1
+    for my $network (values %networks) {
+	next if $network->{disabled};
+	$network->{any}->{border} or
+	    err_msg "Found unconnected node: $network->{name}";
     }
 }
 
@@ -1801,14 +1848,16 @@ sub setpath() {
 sub get_border( $ ) {
     my($obj) = @_;
     if(is_host($obj)) {
-	return $obj->{network}->{border};
+	return $obj->{network}->{any}->{border};
     } elsif(is_interface($obj)) {
 	if($obj->{router}->{managed}) {
 	    return undef;
 	} else {
-	    return $obj->{network}->{border};
+	    return $obj->{network}->{any}->{border};
 	}
-    } elsif(is_net($obj) or is_any($obj)) {
+    } elsif(is_net($obj)) {
+	return $obj->{any}->{border};
+    } elsif(is_any($obj)) {
 	return $obj->{border};
     } else {
 	internal_err "unexpected object $obj->{name}";
@@ -1926,12 +1975,6 @@ sub convert_any_src_rule( $$$ ) {
     # we just process the corresponding router; but that doesn't matter here.
     my $router = $in_intf->{router};
 
-    # we don't need the interface itself, but only information about all
-    # networks and the 'any' object at that interface. We get this information
-    # at the border interface, not the to_border interface
-    if($in_intf eq $router->{to_border}) {
-	$in_intf = $router->{border};
-    }
     my $any = $in_intf->{any};
     # nothing to do for the first router
     return if $any eq $rule->{src};
@@ -1945,7 +1988,7 @@ sub convert_any_src_rule( $$$ ) {
 		    srv => $rule->{srv},
 		    action => 'permit',
 		    i => $rule->{i},
-		    deny_src_networks => [ @{$in_intf->{networks}} ]
+		    deny_src_networks => [ @{$any->{networks}} ]
 		    };
     push @{$rule->{any_rules}}, $any_rule;
 }
@@ -2000,20 +2043,13 @@ sub convert_any_dst_rule( $$$ ) {
     # Find networks at all interfaces except the in_intf.
     # For the case that src is interface of current router,
     # take only the out_intf
-    for my $orig_intf ($in_intf?@{$router->{interfaces}}:($out_intf)) {
-	# copy $intf to prevent changing of the iterated array
-	my $intf = $orig_intf;
-
+    for my $intf ($in_intf?@{$router->{interfaces}}:($out_intf)) {
 	# nothing to do for in_intf:
 	# case 1: it is the first router near src
 	# case 2: the in_intf is on the same security domain
 	# as an out_intf of some other router on the path
 	next if defined $in_intf and $intf eq $in_intf;
 
-	# see comment in &gen_any_src_deny
-	if($intf eq $router->{to_border}) {
-	    $intf = $router->{border};
-	}
 	my $any = $intf->{any};
 	# Nothing to be inserted for the interface which is connected
 	# directly to the destination 'any' object.
@@ -2033,7 +2069,7 @@ sub convert_any_dst_rule( $$$ ) {
 			srv => $srv,
 			action => 'permit',
 			i => $rule->{i},
-			deny_dst_networks => [ @{$intf->{networks}} ],
+			deny_dst_networks => [ @{$any->{networks}} ],
 			any_dst_group => $link
 			};
 	push @{$rule->{any_rules}}, $any_rule;
@@ -2235,13 +2271,13 @@ sub optimize_dst_rules( $$ ) {
 		&optimize_srv_rules($cmp_dst->[0], $next_hash);
 	    $cmp_dst = $cmp_hash->{$dst->{network}} and
 		&optimize_srv_rules($cmp_dst->[0], $next_hash);
-	    $any = $dst->{network}->{border}->{any} and
+	    $any = $dst->{network}->{any} and
 		$cmp_dst = $cmp_hash->{$any} and
 		    &optimize_srv_rules($cmp_dst->[0], $next_hash);
 	} elsif(is_net($dst)) {
 	    $cmp_dst = $cmp_hash->{$dst} and
 		&optimize_srv_rules($cmp_dst->[0], $next_hash);
-	    $any = $dst->{border}->{any} and
+	    $any = $dst->{any} and
 		$cmp_dst = $cmp_hash->{$any} and
 		&optimize_srv_rules($cmp_dst->[0], $next_hash);
 	} elsif(is_any($dst)) {
@@ -2265,13 +2301,13 @@ sub optimize_src_rules( $$ ) {
 		&optimize_dst_rules($cmp_src->[0], $next_hash);
 	    $cmp_src = $cmp_hash->{$src->{network}} and
 		&optimize_dst_rules($cmp_src->[0], $next_hash);
-	    $any = $src->{network}->{border}->{any} and
+	    $any = $src->{network}->{any} and
 		$cmp_src = $cmp_hash->{$any} and
 		    &optimize_dst_rules($cmp_src->[0], $next_hash);
 	} elsif(is_net($src)) {
 	    $cmp_src = $cmp_hash->{$src} and
 		&optimize_dst_rules($cmp_src->[0], $next_hash);
-	    $any = $src->{border}->{any} and
+	    $any = $src->{any} and
 		$cmp_src = $cmp_hash->{$any} and
 		&optimize_dst_rules($cmp_src->[0], $next_hash);
 	} elsif(is_any($src)) {
@@ -2571,7 +2607,7 @@ sub collect_networks_for_routes_and_static( $$$ ) {
 			   not grep { $_ eq $elt }
 			   @{$rule->{deny_dst_networks}}
 		       }
-	@{$dst->{border}->{networks}};
+	@{$dst->{networks}};
     } else {
 	internal_err "unexpected dst $dst->{name}";
     }
@@ -3014,6 +3050,7 @@ info "$program, version $version";
 &link_topology();
 &mark_disabled();
 &find_subnets();
+&setany();
 &setpath();
 &expand_rules();
 &check_unused_groups();
