@@ -2151,6 +2151,7 @@ sub collect_pix_static( $$$ ) {
 	die "internal in collect_pix_static: unexpected dst $dst->{name}";
     }
     for my $net (@networks) {
+	next if $net->{ip} eq 'unnumbered';
 	$net->{mask} == 0 and
 	    die "Pix doesn't support static command for mask 0.0.0.0 of $net->{name}\n";
 	# put networks into a hash to prevent duplicates
