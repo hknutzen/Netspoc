@@ -1991,12 +1991,12 @@ sub loop_part_mark ( $$$$$$ ) {
 	$from_in->{$mark} and
 	    internal_err "unexpected third direction in graph";
 	if($from eq $to) {
-	    info "$from_in->{name} -> ".($to_out?$to_out->{name}:'');
+#	    info "$from_in->{name} -> ".($to_out?$to_out->{name}:'');
 	    $from_in->{$mark} = $to_out;
 	    return;
 	}
 	my $from_out = $from->{$direction};
-	info "$from_in->{name} -> ".($from_out?$from_out->{name}:'');
+#	info "$from_in->{name} -> ".($from_out?$from_out->{name}:'');
 	$from_in->{$mark} = $from_out;
 	$from_in = $from_out;
 	$from = $from_out->{$direction};
@@ -2019,11 +2019,11 @@ sub path_mark( $$ ) {
     my $to_out = undef;
     my $from_loop = $from->{loop};
     my $to_loop = $to->{loop};
-    info "path_mark $from->{name} --> $to->{name}";
+#    info "path_mark $from->{name} --> $to->{name}";
     while(1) {
 	# paths meet outside a loop or at the edge of a loop
 	if($from eq $to) {
-	    info "$from_in->{name} -> ".($to_out?$to_out->{name}:'');
+#	    info "$from_in->{name} -> ".($to_out?$to_out->{name}:'');
 	    $from_in->{$dst} = $to_out;
 	    return;
 	}
@@ -2040,7 +2040,7 @@ sub path_mark( $$ ) {
 		$from = $from_loop;
 	    } else {
 		my $from_out = $from->{main};
-		info "$from_in->{name} -> ".($from_out?$from_out->{name}:'');
+#		info "$from_in->{name} -> ".($from_out?$from_out->{name}:'');
 		$from_in->{$dst} = $from_out;
 		$from_in = $from_out;
 		$from = $from_out->{main};
@@ -2054,7 +2054,7 @@ sub path_mark( $$ ) {
 		$to = $to_loop;
 	    } else {
 		my $to_in = $to->{main};
-		info "$to_in->{name} -> ".($to_out?$to_out->{name}:'');
+#		info "$to_in->{name} -> ".($to_out?$to_out->{name}:'');
 		$to_in->{$dst} = $to_out;
 		$to_out = $to_in;
 		$to = $to_in->{main};
