@@ -732,11 +732,13 @@ sub print_srv( $ ) {
 }
 
 sub print_rule( $ ) {
-    my($obj) = @_;
-    return $obj->{action} .
-	" src=".&printable($obj->{src}).
-	    "; dst=".&printable($obj->{dst}).
-		"; srv=". print_srv($obj->{srv}).";";
+    my($rule) = @_;
+    return $rule->{action} .
+	" src=".&printable($rule->{src}).
+	    "; dst=".&printable($rule->{dst}).
+		"; srv=". print_srv($rule->{orig_srv}?
+				    $rule->{orig_srv}:
+				    $rule->{srv}).";";
 }
 
 ##############################################################################
@@ -806,9 +808,10 @@ sub prepare_srv_ordering( $ ) {
 	    $srv_hash{$type} = $srv;
 	}
 	if($old_srv) {
-	    my $name1 = print_srv $srv;
-	    my $name2 = print_srv $old_srv;
-	    error_atline "Services are duplicate: $name1, $name2";
+	    # found duplicate service definition
+	    # link $old_srv with $srv
+	    # Later substitute occurences of $old_srv with $srv
+	    $old_srv->{main} = $srv;
 	}
     }
 }
@@ -840,11 +843,12 @@ sub order_proto( $$ ) {
     }
 }
 
-# Link each port range with the smalles port range which includes it or
-# if no including range is found, link it with the next larger service.
-sub order_ranges( $$) {
+# Link each port range with the smalles port range which includes it.
+# If no including range is found, link it with the next larger service.
+sub order_ranges( $$ ) {
     my($range_aref, $up) = @_;
     for my $srv1 (@$range_aref) {
+	next if $srv1->{main};
 	my $x1 = $srv1->{v1};
 	my $y1 = $srv1->{v2};
 	my $min_size = 2^16;
@@ -854,9 +858,10 @@ sub order_ranges( $$) {
 	    my $x2 = $srv2->{v1};
 	    my $y2 = $srv2->{v2};
 	    if($x2 == $x1 and $y1 == $y2) {
-		my $name1 = print_srv $srv1;
-		my $name2 = print_srv $srv2;
-		err_msg "Services are duplicate: $name1, $name2";
+		# found duplicate service definition
+		# link $srv2 with $srv1
+		# Later substitute occurences of $srv2 with $srv1
+		$srv2->{main} = $srv1;
 	    }
 	    if($x2 <= $x1 and $y1 <= $y2) {
 		my $size = $y2-$x2;
@@ -1049,6 +1054,13 @@ sub gen_expanded_rules() {
 					  dst => $dst,
 					  srv => $srv
 					  };
+		    # if $srv is duplicate of an identical service
+		    # use the main service, but rember the original one
+		    # for debugging / comments
+		    if(my $main_srv = $srv->{main}) {
+			$expanded_rule->{srv} = $main_srv;
+			$expanded_rule->{orig_srv} = $srv;
+		    }
 		    if($action eq 'deny') {
 			push(@expanded_deny_rules, $expanded_rule);
 		    } elsif(is_any($src)) {
