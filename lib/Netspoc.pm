@@ -3950,6 +3950,7 @@ sub distribute_rule( $$$ ) {
 	# No code needed if it is deleted by another rule to the same interface
 	return if $rule->{deleted}->{managed_intf};
     }
+    my $aref;
     # Packets for the router itself
     if(not $out_intf) {
 	# For PIX firewalls it is unnecessary to process rules for packets
@@ -3957,17 +3958,23 @@ sub distribute_rule( $$$ ) {
 	# ToDo: Check if this assumption holds for deny ACLs as well
 	return if $model->{filter} eq 'PIX' and $rule->{action} eq 'permit';
 #	info "$router->{name} intf_rule: ",print_rule $rule,"\n";
-	push @{$in_intf->{hardware}->{intf_rules}}, $rule;
+	$aref = \@{$in_intf->{hardware}->{intf_rules}};
     } 
     # 'any' rules must be placed in a separate array, because they must not
     # be subject of object-group optimization
     elsif($any_rule) {
 #	info "$router->{name} any_rule: ",print_rule $rule,"\n";
-	push @{$in_intf->{hardware}->{any_rules}}, $rule;
+	$aref = \@{$in_intf->{hardware}->{any_rules}};
     } else {
 #	info "$router->{name} rule: ",print_rule $rule,"\n";
-	push @{$in_intf->{hardware}->{rules}}, $rule;
+	$aref = \@{$in_intf->{hardware}->{rules}};
     }
+    # Add rule, but prevent duplicates, which might occur 
+    # at the start of a loop.
+    # Therefore check if last rule and current rule are identical.
+    push @$aref, $rule
+	unless @$aref and $aref->[$#$aref] eq $rule;
+
 }
 
 # For rules with src=any:*, call distribute_rule only for
@@ -3997,10 +4004,7 @@ sub distribute_rule_at_dst( $$$ ) {
     my $srv = $rule->{srv};
     is_any $dst or internal_err "$dst must be of type 'any'";
     # Rule is only processed at the last router on the path.
-    if($out_intf->{any} eq $dst and 
-       not $router->{has_any_dst}->{$action}->{$src}->{$srv}) {
-	# Prevent duplicate rules.
-	$router->{has_any_dst}->{$action}->{$src}->{$srv} = 1;
+    if($out_intf->{any} eq $dst) {
 	# Optional 4th parameter 'any_rule' must be set!
 	&distribute_rule(@_, 1);
     }
@@ -4662,33 +4666,77 @@ sub find_chains ( $ ) {
 
 sub optimize_router( $ ) {
     my($router) = @_;
-    my %both_any;
-    my %src_any;
-    my %dst_any;
     for my $hardware (@{$router->{hardware}}) {
+	my %both_any;
+	my %src_any;
+	my %dst_any;
+  	for my $rule (@{$hardware->{any_rules}}) {
+  	    my $src = $rule->{src};
+  	    my $dst = $rule->{dst};
+  	    my $srv = $rule->{srv};
+ 	    if(is_any $src) {
+ 		if(is_any $dst) {
+ 		    $both_any{$srv} = $rule;
+ 		} else {
+ 		    $src_any{$dst}->{$srv} = $rule;
+ 		}
+ 	    } else {
+ 		$dst_any{$src}->{$srv} = $rule;
+ 	    }
+ 	}
+	my $changed = 0;
 	for my $rule (@{$hardware->{any_rules}}) {
 	    my $src = $rule->{src};
 	    my $dst = $rule->{dst};
 	    my $srv = $rule->{srv};
-	    if(is_any $src) {
-		if(is_any $dst) {
-		    $both_any{$srv} = $rule;
-		} else {
-		    $src_any{$dst}->{$srv} = $rule;
+	    while($srv) {
+		if(my $old_rule = $both_any{$srv}) {
+		    unless($rule eq $old_rule) {
+			$rule = undef;
+			$changed = 1;
+			last;
+		    }
 		}
-	    } else {
-		$dst_any{$src}->{$srv} = $rule;
+		elsif(is_any $src) {
+		    unless(is_any $dst) {		
+			if(my $old_rule = $src_any{$dst}->{$srv}) {
+			    unless($rule eq $old_rule) {
+				$rule = undef;
+				$changed = 1;
+				last;
+			    }
+			}
+		    }
+		} else {
+		    if(my $old_rule = $dst_any{$src}->{$srv}) {
+			unless($rule eq $old_rule) {
+			    $rule = undef;
+			    $changed = 1;
+			    last;
+			}
+		    }
+		}
+		$srv = $srv->{up};
 	    }
 	}
-	my $changed = 0;
+	if($changed) {
+	    $hardware->{any_rules} =
+		[ grep $_, @{$hardware->{any_rules}} ];
+	}
+	$changed = 0;
 	for my $rule (@{$hardware->{rules}}) {
 	    my $src = $rule->{src};
 	    my $dst = $rule->{dst};
 	    my $srv = $rule->{srv};
-	    if(my $any_rule = $both_any{$srv} ||
-	       $src_any{$dst}->{$srv} || $dst_any{$src}->{$srv}) {
-		$rule = undef;
-		$changed = 1;
+	    while($srv) {
+		if($both_any{$srv} ||
+		   $src_any{$dst}->{$srv} ||
+		   $dst_any{$src}->{$srv}) {
+		    $rule = undef;
+		    $changed = 1;
+		    last;
+		}
+		$srv = $srv->{up};
 	    }
 	}
 	if($changed) {
