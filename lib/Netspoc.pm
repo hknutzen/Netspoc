@@ -2262,10 +2262,10 @@ sub optimize() {
 }
 
 ####################################################################
-# Set routes
+# Routing
 # Add a component 'route' to each interface.
 # It holds an array of networks reachable
-# when using this interface as next hop
+# using this interface as next hop
 ####################################################################
     
 sub get_networks_behind ( $ ) {
@@ -2291,14 +2291,67 @@ sub get_networks_behind ( $ ) {
     return @networks;
 }
 	
-
-# Set routes
 sub setroute() {
     info "Setting routes\n";
     for my $interface (values %interfaces) {
 	# info isn't needed for interface at leaf network
 	next if @{$interface->{network}->{interfaces}} == 1;
 	get_networks_behind $interface;
+    }
+}
+
+sub print_routes( $ ) {
+    my($router) = @_;
+    print "[ Routing ]\n";
+    for my $interface (@{$router->{interfaces}}) {
+	# a hash reference having references to all networks
+	# reachable via this interface as keys
+	my $used_route = $interface->{used_route};
+	for my $hop (@{$interface->{network}->{interfaces}}) {
+	    next if $hop eq $interface;
+	    # sort networks by mask in reverse order, i.e. large masks coming
+	    # first and for equal mask by IP address
+	    # we need this
+	    # 1. for routing on demand to work
+	    # 2. to make the output deterministic
+	    my @networks =
+		sort { $b->{mask} <=> $a->{mask} || $a->{ip} <=> $b->{ip} }
+	    @{$hop->{route}};
+	    # find enclosing networks
+	    my %enclosing;
+	    for my $network (@networks) {
+		$network->{enclosing} and $enclosing{$network} = 1;
+	    }
+	    for my $network (@networks) {
+		if(not $used_route->{$network}) {
+		    # no route needed if all traffic to this network is denied
+		    $network = undef;
+		} elsif($network->{is_in} and $enclosing{$network->{is_in}}) {
+		    # Mark redundant network as deleted, if directly
+		    # enclosing network lies behind the same hop.
+		    # But add the enclosing network to used_route.
+		    $used_route->{$network->{is_in}} = 1;
+		    $network = undef;
+		}
+	    }
+	    # for unnumbered networks use interface name as next hop
+	    my $hop_addr = $hop->{ip} eq 'unnumbered' ?
+		$interface->{hardware} : print_ip $hop->{ip}->[0];
+	    for my $network (@networks) {
+		next unless defined $network;
+		if($comment_routes) {
+		    print "! route $network->{name} -> $hop->{name}\n";
+		}
+		my $adr = &adr_code($network, 0);
+		if($router->{model} eq 'IOS') {
+		    print "ip route $adr\t$hop_addr\n";
+		} elsif($router->{model} eq 'PIX') {
+		    print "route $interface->{hardware} $adr\t$hop_addr\n";
+		} else {
+		    internal_err "unsupported router model $router->{model}";
+		}
+	    }
+	}
     }
 }
 
@@ -2734,7 +2787,7 @@ sub print_acls( $ ) {
     for my $interface (@{$router->{interfaces}}) {
 	$hardware{$interface->{hardware}} = 1;
 	# ignore 'unnumbered' and 'short' interfaces
-	next if ref $interface->{ip} eq 'SCALAR';
+	next if $interface->{ip} eq 'unnumbered' or $interface->{ip} eq 'short';
 	push @ip, @{$interface->{ip}};
     }
     for my $hardware (sort keys %hardware) {
@@ -2775,57 +2828,6 @@ sub print_acls( $ ) {
 	    print "access-group $name in $hardware\n\n";
 	} else {
 	    internal_err "unsupported router model $model";
-	}
-    }
-}
-
-sub print_routes( $ ) {
-    my($router) = @_;
-    print "[ Routing ]\n";
-    for my $interface (@{$router->{interfaces}}) {
-	my $used_route = $interface->{used_route};
-	for my $hop (@{$interface->{network}->{interfaces}}) {
-	    next if $hop eq $interface;
-	    my $hop_ip = print_ip $hop->{ip}->[0];
-	    # sort networks by mask in reverse order, i.e. large masks coming
-	    # first and for equal mask by IP address
-	    # we need this
-	    # 1. for routing on demand to work
-	    # 2. to make the output deterministic
-	    my @networks =
-		sort { $b->{mask} <=> $a->{mask} || $a->{ip} <=> $b->{ip} }
-	    @{$hop->{route}};
-	    # find enclosing networks
-	    my %enclosing;
-	    for my $network (@networks) {
-		$network->{enclosing} and $enclosing{$network} = 1;
-	    }
-	    for my $network (@networks) {
-		if(not $used_route->{$network}) {
-		    # no route needed if all traffic to this network is denied
-		    $network = undef;
-		} elsif($network->{is_in} and $enclosing{$network->{is_in}}) {
-		    # Mark redundant network as deleted, if directly
-		    # enclosing network lies behind the same hop.
-		    # But add the enclosing network to used_route.
-		    $used_route->{$network->{is_in}} = 1;
-		    $network = undef;
-		}
-	    }
-	    for my $network (@networks) {
-		next unless defined $network;
-		if($comment_routes) {
-		    print "! route $network->{name} -> $hop->{name}\n";
-		}
-		my $adr = adr_code $network, 0;
-		if($router->{model} eq 'IOS') {
-		    print "ip route $adr\t$hop_ip\n";
-		} elsif($router->{model} eq 'PIX') {
-		    print "route $interface->{hardware} $adr\t$hop_ip\n";
-		} else {
-		    internal_err "unsupported router model $router->{model}";
-		}
-	    }
 	}
     }
 }
