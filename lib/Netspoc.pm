@@ -96,7 +96,7 @@ sub check( $ ) {
 # skip a string
 sub skip ( $ ) {
     my $token = shift;
-    &check( $token) || syntax_err "Expected '$token'";
+    &check($token) or syntax_err "Expected '$token'";
 }
 
 # check, if an integer is available
@@ -121,9 +121,9 @@ sub check_permit_deny() {
 
 # read a boolean value
 sub read_bool() {
-    if(&check('0') || &check('false')) {
+    if(&check('0') or &check('false')) {
 	return 0;
-    } elsif(&check('1') || &check('true')) {
+    } elsif(&check('1') or &check('true')) {
 	return 1;
     } else {
 	syntax_err "Expected boolean value";
@@ -135,7 +135,7 @@ sub read_bool() {
 sub read_ip() {
     &skip_space_and_comment();
     if(m/\G(\d+)\.(\d+)\.(\d+)\.(\d+)/gc) {
-	if($1 > 255 || $2 > 255 || $3 > 255 || $4 > 255) {
+	if($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
 	    error_atline "Invalid IP address";
 	}
 	return(($1*256+$2)*256+$3)*256+$4;
@@ -955,7 +955,7 @@ sub link_interface_with_net( $ ) {
     my $is_cloud_intf = $interface->{ip} eq 'cloud';
     # check, if the network is already linked with 
     # an interface of the other type
-    if(defined $net->{is_cloud_network} &&
+    if(defined $net->{is_cloud_network} and
        $net->{is_cloud_network} != $is_cloud_intf) {
 	err_msg "network:$net_name must not be linked to an interface" .
 	    "since it is linked to a cloud";
@@ -1273,7 +1273,7 @@ sub get_border( $ ) {
 	} else {
 	    $border = $obj->{link}->{border};
 	}
-    } elsif(&is_net($obj) || &is_any($obj)) {
+    } elsif(&is_net($obj) or &is_any($obj)) {
 	$border = $obj->{border};
     } else {
 	die "internal in get_border: unexpected object " . &printable($obj);
@@ -1679,10 +1679,10 @@ sub split_ip_range( $$ ) {
 
 sub adr_code( $ ) {
     my ($obj) = @_;
-    if(&is_host($obj) && $obj->{is_range}) {
+    if(&is_host($obj) and $obj->{is_range}) {
 	return &split_ip_range(@{$obj->{ip}});
     }
-    if(&is_host($obj) || &is_interface($obj)) {
+    if(&is_host($obj) or &is_interface($obj)) {
 	return map { 'host '. &print_ip($_) } @{$obj->{ip}};
     } elsif(&is_net($obj)) {
 	my $ip_code = &print_ip($obj->{ip});
@@ -1704,7 +1704,7 @@ sub srv_code( $ ) {
 
     if($proto eq 'ip') {
 	return('ip', '');
-    } elsif($proto eq 'tcp' || $proto eq 'udp') {
+    } elsif($proto eq 'tcp' or $proto eq 'udp') {
 	my $port = $v1;
 	if($v1 == $v2) {
 	    return($proto, "eq $v1");
