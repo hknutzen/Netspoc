@@ -21,7 +21,7 @@ my $comment_routes = 1;
 # if set to 1, may give better performance for very large rule sets
 my $pre_optimization = 0;
 # ignore these names when reading directories
-my @ignore_files = qw(CVS RCS);
+my @ignore_files = qw(CVS RCS raw);
 # abort after this many errors
 my $max_errors = 10;
 
