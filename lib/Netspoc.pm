@@ -2120,6 +2120,7 @@ sub convert_any_src_rule( $$$ ) {
 		    srv => $rule->{srv},
 		    action => 'permit',
 		    i => $rule->{i},
+		    orig_any => $rule,
 		    deny_src_networks => [ @{$any->{networks}} ]
 		    };
     push @{$rule->{any_rules}}, $any_rule;
