@@ -2524,6 +2524,91 @@ sub setroute() {
     }
 }
 
+sub mark_networks_for_routes_and_static( $$$ ) {
+    my($rule, $src_intf, $dst_intf) = @_;
+    # we need a route for answer packets back to src
+    if($src_intf) {
+	for my $net (@{$rule->{src_networks}}) {
+	    next if $net->{ip} eq 'unnumbered';
+	    # mark reachable networks for generation of route commands
+	    $src_intf->{used_route}->{$net} = 1;
+	}
+    }
+    # no route or static needed for directly attached interface
+    return unless $dst_intf;
+    for my $net (@{$rule->{dst_networks}}) {
+	next if $net->{ip} eq 'unnumbered';
+	# mark reachable networks for generation of route commands
+	$dst_intf->{used_route}->{$net} = 1;
+	# collect networks reachable from lower security level
+	# for generation of static commands
+	if($dst_intf->{router}->{model} eq 'PIX' and $src_intf) {
+	    if($src_intf->{level} < $dst_intf->{level}) {	
+		$net->{mask} == 0 and
+		    die "Pix doesn't support static command for mask 0.0.0.0 of $net->{name}\n";
+		# put networks into a hash to prevent duplicates
+		$dst_intf->{static}->{$src_intf->{hardware}}->{$net} = $net;
+	    } elsif($src_intf->{level} == $dst_intf->{level}) {	
+		die "Traffic to $rule->{dst}->{name} can't pass\n",
+		" from  $src_intf->{name} to $dst_intf->{name},\n",
+		" since they have equal security levels.\n";
+	    }
+	}
+    }
+}
+
+sub get_networks ( $$$ ) {
+    my($obj, $hash, $where) = @_;
+    if(is_host $obj or is_interface $obj) {
+	return [ $obj->{network} ];
+    } elsif(is_net $obj) {
+	return [ $obj ];
+    } 
+    elsif(is_any $obj) {
+	# We approximate an 'any' object by
+	# every network of that security domain.
+	my $networks = $obj->{networks};
+	my %denied;
+	for my $net (@$networks) {
+	    # '1' means: network is denied
+	    $denied{$net} = 1;
+	}
+	# Ignore deny_*_networks, which occur in every rule
+	# for a given src / dst pair.
+	for my $rule (values %$hash) {
+	    my $deny_networks = $rule->{$where eq 'src'?
+					    'deny_src_networks':
+					    'deny_dst_networks'};
+	    for my $net (@$networks) {
+		# a network remains denied, if it is mentioned
+		# in deny_networks of every rule
+		$denied{$net} &= grep { $_ eq $net } @$deny_networks;
+	    } 
+	}
+	return [ grep { not $denied{$_} } @$networks ];
+    } else {
+	internal_err "unexpected $obj->{name}";
+    }
+}
+
+sub find_active_routes () {
+    info "Finding active routes";
+    my $hash = $rule_tree{permit};
+    for my $aref (values %$hash) {
+	my($hash, $src) = @$aref;
+	for my $aref (values %$hash) {
+	    my($hash, $dst) = @$aref;
+	    my $pseudo_rule =
+	    { src => $src,
+	      src_networks => get_networks($src, $hash, 'src'),
+	      dst => $dst,
+	      dst_networks => get_networks($dst, $hash, 'dst')
+	      };
+	    &path_walk($pseudo_rule, \&mark_networks_for_routes_and_static);
+	}
+    }
+}
+
 sub print_routes( $ ) {
     my($router) = @_;
     print "[ Routing ]\n";
@@ -2574,6 +2659,58 @@ sub print_routes( $ ) {
 		} else {
 		    internal_err "unexpected router model $router->{model}";
 		}
+	    }
+	}
+    }
+}
+
+sub print_pix_static( $ ) {
+    my($router) = @_;
+    print "[ Static ]\n";
+    print "! Security levels: ";
+    my $last_level;
+    for my $interface (sort { $a->{level} <=> $b->{level} }
+		       @{$router->{interfaces}} ) {
+	my $level = $interface->{level};
+	if(defined $last_level) {
+	    print(($last_level == $level)? " = ": " < ");
+	}
+	print $interface->{hardware};
+	$last_level = $level;
+    }
+    print "\n";
+		       
+    for my $interface (@{$router->{interfaces}}) {
+	my $static = $interface->{static};
+	next unless $static;
+	my $high = $interface->{hardware};
+	# make output deterministic
+	for my $low (sort keys %$static) {
+	    my @networks =
+		sort { $a->{ip} <=> $b->{ip} } values %{$static->{$low}};
+	    # find enclosing networks
+	    my %enclosing;
+	    for my $network (@networks) {
+		$network->{enclosing} and $enclosing{$network} = 1;
+	    }
+	    # mark redundant networks as deleted
+	    # if any enclosing network is found
+	    for my $network (@networks) {
+		my $net = $network->{is_in};
+		while($net) {
+		    if($enclosing{$net}) {
+			$network = undef;
+			last;
+		    } else {
+			$net = $net->{is_in};
+		    }
+		}
+	    }
+	    for my $network (@networks) {
+		next unless defined $network;
+		my $ip = print_ip $network->{ip};
+		my $mask = print_ip $network->{mask};
+		print "static ($high,$low) $ip $ip netmask $mask\n";
 	    }
 	}
     }
@@ -2713,116 +2850,6 @@ sub srv_code( $$ ) {
     }
 }
 
-sub get_networks ( $$ ) {
-    my($rule, $where) = @_;
-    my $obj = $rule->{$where};
-    my @networks;
-    if(is_host $obj or is_interface $obj) {
-	return ($obj->{network});
-    } elsif(is_net $obj) {
-	return ($obj);
-    } elsif(is_any $obj) {
-	# We approximate an 'any' object by
-	# every network of that security domain
-	# but ignore deny_dst_networks / deny_src_networks
-	# from 'any' rule
-	return grep { my $elt = $_;
-		      not grep { $_ eq $elt }
-		      @{$rule->{$where eq 'src'?
-				    'deny_src_networks':
-				    'deny_dst_networks'}}
-		  }
-	@{$obj->{networks}};
-    } else {
-	internal_err "unexpected $obj->{name}";
-    }
-}
-
-sub collect_networks_for_routes_and_static( $$$ ) {
-    my($rule, $src_intf, $dst_intf) = @_;
-    return unless $rule->{action} eq 'permit';
-    # we need a route for answer packets back to src
-    if($src_intf) {
-	for my $net (get_networks $rule, 'src') {
-	    next if $net->{ip} eq 'unnumbered';
-	    # mark reachable networks for generation of route commands
-	    $src_intf->{used_route}->{$net} = 1;
-	}
-    }
-    # no route or static needed for directly attached interface
-    return unless $dst_intf;
-    for my $net (get_networks $rule, 'dst') {
-	next if $net->{ip} eq 'unnumbered';
-	# mark reachable networks for generation of route commands
-	$dst_intf->{used_route}->{$net} = 1;
-	# collect networks reachable from lower security level
-	# for generation of static commands
-	if($dst_intf->{router}->{model} eq 'PIX' and $src_intf) {
-	    if($src_intf->{level} < $dst_intf->{level}) {	
-		$net->{mask} == 0 and
-		    die "Pix doesn't support static command for mask 0.0.0.0 of $net->{name}\n";
-		# put networks into a hash to prevent duplicates
-		$dst_intf->{static}->{$src_intf->{hardware}}->{$net} = $net;
-	    } elsif($src_intf->{level} == $dst_intf->{level}) {	
-		die "Traffic to $rule->{dst}->{name} can't pass\n",
-		" from  $src_intf->{name} to $dst_intf->{name},\n",
-		" since they have equal security levels.\n";
-	    }
-	}
-    }
-}
-
-sub print_pix_static( $ ) {
-    my($router) = @_;
-    print "[ Static ]\n";
-    print "! Security levels: ";
-    my $last_level;
-    for my $interface (sort { $a->{level} <=> $b->{level} }
-		       @{$router->{interfaces}} ) {
-	my $level = $interface->{level};
-	if(defined $last_level) {
-	    print(($last_level == $level)? " = ": " < ");
-	}
-	print $interface->{hardware};
-	$last_level = $level;
-    }
-    print "\n";
-		       
-    for my $interface (@{$router->{interfaces}}) {
-	my $static = $interface->{static};
-	next unless $static;
-	my $high = $interface->{hardware};
-	for my $low (keys %$static) {
-	    my @networks =
-		sort { $a->{ip} <=> $b->{ip} } values %{$static->{$low}};
-	    # find enclosing networks
-	    my %enclosing;
-	    for my $network (@networks) {
-		$network->{enclosing} and $enclosing{$network} = 1;
-	    }
-	    # mark redundant networks as deleted
-	    # if any enclosing network is found
-	    for my $network (@networks) {
-		my $net = $network->{is_in};
-		while($net) {
-		    if($enclosing{$net}) {
-			$network = undef;
-			last;
-		    } else {
-			$net = $net->{is_in};
-		    }
-		}
-	    }
-	    for my $network (@networks) {
-		next unless defined $network;
-		my $ip = print_ip $network->{ip};
-		my $mask = print_ip $network->{mask};
-		print "static ($high,$low) $ip $ip netmask $mask\n";
-	    }
-	}
-    }
-}
-
 sub collect_acls( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
     my $action = $rule->{action};
@@ -2866,7 +2893,6 @@ sub collect_acls( $$$ ) {
 #	}
     }
     my $model = $router->{model};
-    &collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
     my $inv_mask = $model =~ /^IOS/;
     my @src_code = &adr_code($src, $inv_mask);
     my @dst_code = &adr_code($dst, $inv_mask);
@@ -2969,16 +2995,11 @@ sub collect_acls_at_end( $$$$ ) {
     if(is_router $end_path) {
 	if(not defined $end_intf) {
 	    &collect_acls($rule, $src_intf, $dst_intf);
-	} else {
-	    &collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
 	}
     }
     # Case 2
     elsif($end_intf->{any} eq $end_path) {
 	&collect_acls($rule, $src_intf, $dst_intf);
-    } 
-    else {
-	&collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
     }
 }
 
@@ -3039,8 +3060,6 @@ sub acl_generation() {
 		    unless($any_rule->{any_dst_group}->{active}) {
 			&path_walk($any_rule, \&collect_acls_at_dst);
 			$any_rule->{any_dst_group}->{active} = 1;
-		    } else {
-			&path_walk($any_rule, \&collect_networks_for_routes_and_static);
 		    }
 		} else {
 		    # no optimization for stateless routers
@@ -3210,6 +3229,7 @@ $error_counter = $max_errors; # following errors should always abort
 &optimize();
 &repair_deny_influence();
 &setroute();
+&find_active_routes();
 &acl_generation();
 &check_output_dir($out_dir);
 &print_code($out_dir);
