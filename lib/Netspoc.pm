@@ -22,6 +22,8 @@ my $comment_routes = 1;
 my $pre_optimization = 0;
 # ignore these names when reading directories
 my @ignore_files = qw(CVS RCS);
+# abort after this many errors
+my $max_errors = 10;
 
 ####################################################################
 # Error Reporting
@@ -58,7 +60,7 @@ my $error_counter = 0;
 
 sub error_atline( $ ) {
     my($msg) = @_; 
-    if($error_counter++ > 10) {
+    if($error_counter++ > $max_errors) {
 	die add_line($msg);
     } else {
 	print STDERR add_line($msg);
@@ -67,7 +69,7 @@ sub error_atline( $ ) {
 
 sub err_msg( $ ) {
     my($msg) = @_; 
-    if($error_counter++ > 10) {
+    if($error_counter++ > $max_errors) {
 	die $msg;
     } else {
 	print STDERR "$msg\n";
@@ -1326,20 +1328,20 @@ sub get_border( $ ) {
     my($obj) = @_;
     my $border;
 
-    if(&is_host($obj)) {
+    if(is_host($obj)) {
 	$border = $obj->{net}->{border};
-    } elsif(&is_interface($obj)) {
+    } elsif(is_interface($obj)) {
 	if($obj->{router}->{managed}) {
 	    return undef;
 	} else {
 	    $border = $obj->{net}->{border};
 	}
-    } elsif(&is_net($obj) or &is_any($obj)) {
+    } elsif(is_net($obj) or is_any($obj)) {
 	$border = $obj->{border};
     } else {
 	die "internal in get_border: unexpected object $obj->{name}";
     }
-    $border or die "Found unconnected node: $obj->{name}";
+    $border or die "Found unconnected node: $obj->{name}\n";
     return $border;
 }
 
@@ -1526,10 +1528,10 @@ sub gen_any_dst_deny( $$$ ) {
 sub gen_deny_rules() {
     for my $rule (@expanded_any_rules) {
 	next if $rule->{deleted};
-	if(&is_any($rule->{src})) {
+	if(is_any($rule->{src})) {
 	    &path_walk($rule, \&gen_any_src_deny);
 	}
-	if(&is_any($rule->{dst})) {
+	if(is_any($rule->{dst})) {
 	    &path_walk($rule, \&gen_any_dst_deny);
 	}
     }
@@ -1699,20 +1701,20 @@ sub optimize_rules( $$ ) {
     } elsif ($src_tag eq 'src_any') {
 	@src_tags = ('src_any');
     }
-    if(&is_host($dst) or &is_interface($dst)) {
+    if(is_host($dst) or is_interface($dst)) {
 	for my $i (@src_tags) {
 	    &optimize_action_rules($dst->{$i}, $dst->{$src_tag});
 	    &optimize_action_rules($dst->{net}->{$i}, $dst->{$src_tag});
 	    &optimize_action_rules($dst->{net}->{border}->{any}->{$i}, 
 				$dst->{$src_tag});
 	}
-    } elsif(&is_net($dst)) {
+    } elsif(is_net($dst)) {
 	for my $i (@src_tags) {
 	    &optimize_action_rules($dst->{$i}, $dst->{$src_tag});
 	    &optimize_action_rules($dst->{border}->{any}->{$i}, 
 				$dst->{$src_tag});
 	}
-    } elsif(&is_any($dst)) {
+    } elsif(is_any($dst)) {
 	for my $i (@src_tags) {
 	    &optimize_action_rules($dst->{$i}, $dst->{$src_tag});
 	}
@@ -1819,20 +1821,20 @@ sub split_ip_range( $$$ ) {
 
 sub adr_code( $$ ) {
     my ($obj, $inv_mask) = @_;
-    if(&is_host($obj)) {
-	if( $obj->{is_range}) {
+    if(is_host($obj)) {
+	if($obj->{is_range}) {
 	    return &split_ip_range(@{$obj->{ip}}, $inv_mask);
 	} else {
 	    return map { 'host '. &print_ip($_) } @{$obj->{ip}};
 	}
     }
-    if(&is_interface($obj)) {
+    if(is_interface($obj)) {
 	if($obj->{ip} eq 'unnumbered') {
 	    die "internal in adr_code: unexpected unnumbered $obj->{name}\n";
 	} else {
 	    return map { 'host '. &print_ip($_) } @{$obj->{ip}};
 	}
-    } elsif(&is_net($obj)) {
+    } elsif(is_net($obj)) {
 	if($obj->{ip} eq 'unnumbered') {
 	    die "internal in adr_code: unexpected unnumbered $obj->{name}\n";
 	} else {
@@ -1840,7 +1842,7 @@ sub adr_code( $$ ) {
 	    my $mask_code = &print_ip($inv_mask?~$obj->{mask}:$obj->{mask});
 	    return "$ip_code $mask_code";
 	}
-    } elsif(&is_any($obj)) {
+    } elsif(is_any($obj)) {
 	return 'any';
     } else {
 	die "internal in adr_code: unsupported object $obj->{name}";
@@ -1912,7 +1914,7 @@ sub collect_pix_static( $$$ ) {
 	my $m4 = $mask >> 24;
 	if($m4 != 255) {
 	    die "can't generate static command for $net->{name}, because netmask ".
-		print_ip($mask) ." is too broad (currently max 255.0.0.0)";
+		print_ip($mask) ." is too broad (currently max 255.0.0.0)\n";
 	}
 	my $ip = $net->{ip};
 	my $v4 = $ip >> 24;
@@ -2165,7 +2167,7 @@ for my $router (values %routers) {
 	last;
     }
 }
-$router1 or die "Topology has no managed router"; 
+$router1 or die "Topology needs at least one managed router\n"; 
 
 # Beginning with router1, do a traversal of the whole network 
 # to find a path from every network and router to router1
@@ -2184,8 +2186,9 @@ if($verbose) {
     info "Expanded rules: deny $nd, permit: $n, permit any: $na,\n";
 }
 
-die "Aborted with errors\n" if $error_counter;
-$error_counter = 10;
+die "Aborted with $error_counter error(s)\n" if $error_counter;
+# following errors should always abort
+$error_counter = $max_errors;
 
 info "Preparing optimization\n";
 # Prepare optimization of rules
@@ -2260,7 +2263,7 @@ info "Checking for deny influence\n";
 check_deny_influence();
 
 # Set routes
-$default_route or die "Topology has no default route";
+$default_route or die "Topology needs one default route\n";
 info "Setting routes\n";
 &setroute_router($default_route, 0);
 
