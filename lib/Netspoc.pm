@@ -654,7 +654,8 @@ sub is_host( $ ) {
 }
 sub is_any( $ ) {
     my($obj) = @_;
-    return exists($obj->{link}) && not exists($obj->{ip});
+    return exists($obj->{link}) && not exists($obj->{ip}) &&
+	not exists($obj->{isevery});
 }
 sub is_every( $ ) {
     my($obj) = @_;
@@ -803,6 +804,23 @@ sub link_interface_with_net( $ ) {
 # simplify rules to expanded rules where each rule has exactly one 
 # src, dst and srv
 
+sub expand_object( $ ) {
+    my($ob) = @_;
+    if(ref($ob) eq 'ARRAY') {
+	# a group is represented by an array of its members
+	return $ob;
+    } elsif(is_router($ob)) {
+	# split up a router into its interfaces
+	return $ob->{interfaces};
+    } elsif(is_every($ob)) {
+	# expand an 'every' object to all networks in the perimeter
+	return $ob->{pep}->{networks};
+    } else {
+	# an atomic object
+	return $ob;
+    }
+}
+    
 # array of expanded permit rules
 our @expanded_rules;
 # array of expanded deny rules
@@ -814,63 +832,50 @@ our @expanded_any_rules;
 our %ordered_any_rules;
 # counter for expanded permit any rules
 our $anyrule_index = 0;
+
 sub gen_expanded_rules( $$$$ ) {
     my($action, $src_aref, $dst_aref, $srv_aref) = @_;
     for my $src (@$src_aref) {
-	if(ref($src) eq 'ARRAY') {
-	    # a group is represented by array of its members
-	    &gen_expanded_rules($action, $src, $dst_aref, $srv_aref);
-	} elsif(is_router($src)) {
-	    # split up a router into its interfaces
-	    &gen_expanded_rules($action, $src->{interfaces},
-				$dst_aref, $srv_aref);
-	} elsif(is_every($src)) {
-	    # expand an 'every' object to all networks in the perimeter
-	    &gen_expanded_rules($action, $src->{pep}->{networks},
-				$dst_aref, $srv_aref);
+	my $aref = expand_object($src);
+	if(ref($aref) eq 'ARRAY') {
+	    &gen_expanded_rules($action, $aref, $dst_aref, $srv_aref);
 	} else {
-	    unless($src) {
-		print STDERR "internal in gen_expanded_rules: undefined src\n";
-	    }
-	    for my $dst (@$dst_aref) {
-		if(ref($dst) eq 'ARRAY') {
-		    &gen_expanded_rules($action, [ $src ], $dst, $srv_aref);
-		} elsif(is_router($dst)) {
-		    # split up a router into its interfaces
-		    &gen_expanded_rules($action, [ $src ],
-					$dst->{interfaces}, $srv_aref);
-		} elsif(is_every($dst)) {
-		    # expand an 'every' object
-		    &gen_expanded_rules($action, [ $src ],
-					$dst->{pep}->{networks}, $srv_aref);
-		} else {
-		    unless($dst) {
-			print STDERR
-			    "internal in gen_expanded_rules: undefined dst\n";
-		    }
-		    for my $srv (@$srv_aref) {
-			# Services are arrays of scalars,
-			# Service groups are arrays of arrays
-			if(ref($srv) eq 'ARRAY') {
-			    &gen_expanded_rules($action, [ $src ], [ $dst ],
-						$srv);
-			} else {
-			    my $expanded_rule = { action => $action,
-						  src => $src,
-						  dst => $dst,
-						  srv => $srv
-						  };
-			    if($action eq 'deny') {
-				push(@expanded_deny_rules, $expanded_rule);
-			    } elsif(is_any($src) or is_any($dst)) {
-				&order_srv($expanded_rule,
-					   \%ordered_any_rules);
-			    } else {
-				push(@expanded_rules, $expanded_rule);
-			    }
-			}
-		    }
-		}
+	    &expand_rule_dst($action, $src, $dst_aref, $srv_aref);
+	}
+    }
+}
+
+sub expand_rule_dst( $$$$ ) {
+    my($action, $src, $dst_aref, $srv_aref) = @_;
+    for my $dst (@$dst_aref) {
+	my $aref = expand_object($dst);
+	if(ref($aref) eq 'ARRAY') {
+	    &expand_rule_dst($action, $src, $aref, $srv_aref);
+	} else {
+	    &expand_rule_srv($action, $src, $dst, $srv_aref);
+	}
+    }
+}
+
+sub expand_rule_srv( $$$$ ) {
+    my($action, $src, $dst, $srv_aref) = @_;
+    for my $srv (@$srv_aref) {
+	# Service groups are arrays of srv
+	if(ref($srv) eq 'ARRAY') {
+	    &expand_rule_srv($action, $src, $dst, $srv);
+	} else {
+	    my $expanded_rule = { action => $action,
+				  src => $src,
+				  dst => $dst,
+				  srv => $srv
+				  };
+	    if($action eq 'deny') {
+		push(@expanded_deny_rules, $expanded_rule);
+	    } elsif(is_any($src) or is_any($dst)) {
+		&order_srv($expanded_rule,
+			   \%ordered_any_rules);
+	    } else {
+		push(@expanded_rules, $expanded_rule);
 	    }
 	}
     }
@@ -903,7 +908,8 @@ sub typeof( $ ) {
     } elsif(is_any($ob)) {
 	return 'any';
     } else {
-	die "internal in typeof: expected host|net|any but got".printable($ob);
+	die "internal in typeof: expected host|net|any but got ".
+	    printable($ob);
     }
 }
 
@@ -1142,6 +1148,14 @@ sub setpath_anys() {
 	    die "More than one any object definied in a perimeter: any:$old_any->{name} and any:$any->{name}";
 	}
 	$pep->{any} = $any;
+    }
+}
+
+# link each 'every object' with its correspnding pep
+sub setpath_everys() {
+    for my $every (values %everys) {
+	my $pep = $every->{link}->{pep};
+	$every->{pep} = $pep;
     }
 }
 
@@ -1927,6 +1941,7 @@ if($verbose) {
 # to find a path from every network and router to router1
 &setpath_router($router1, 'not undef', undef, 0);
 setpath_anys();
+setpath_everys();
 
 # expand rules
 for my $rule (@rules) {
