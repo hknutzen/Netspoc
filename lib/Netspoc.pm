@@ -1549,8 +1549,8 @@ sub addrule_border_any( $ ) {
     if($any) {
 	# add rule to dst object but remember that src was any
 	for my $rule (@{$any->{rules}}) {
-	    $rule->{dst}->{src_any} =
-		&add_rule($rule,$rule->{dst}->{src_any});
+	    # \% : force autovivification
+	    &add_rule($rule,\%{$rule->{dst}->{src_any}});
 	}
 	# now, rules with identical src and dst
 	# are collected at the dst
@@ -1580,8 +1580,8 @@ sub addrule_border_any( $ ) {
 sub addrule_net( $ ) {
     my ($net) = @_;
     for my $rule (@{$net->{rules}}) {
-	$rule->{dst}->{src_net} =
-	    &add_rule($rule,$rule->{dst}->{src_net});
+	# \% : force autovivification
+	&add_rule($rule,\%{$rule->{dst}->{src_net}});
     }
     for my $rule (@{$net->{rules}}) {
 	unless($rule->{dst}->{src_net}->{isoptimized}) {
@@ -1603,8 +1603,8 @@ sub addrule_host( $ ) {
 
     # first, add rules to dst host
     for my $rule (@{$host->{rules}}) {
-	$rule->{dst}->{src_host} =
-	    &add_rule($rule,$rule->{dst}->{src_host});
+	# \% : force autovivification
+	&add_rule($rule,\%{$rule->{dst}->{src_host}});
     }
     # second, optimize rules for each host, where rules were added
     for my $rule (@{$host->{rules}}) {
