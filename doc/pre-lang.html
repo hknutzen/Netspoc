@@ -127,13 +127,13 @@ we use them as delimiters.</P>
      }}
   }</PRE>
 <UL>
-<LI>Must have an ip address and mask or
+<LI>A network is described by an ip address and a mask or
 <LI>may alternatively be marked as unnumbered.
-<LI>May contain any number of host definitions.
-<LI>Unnumbered networks have no host definitions at all.
+<LI>It may contain any number of host definitions.
+<LI>Unnumbered networks must have no host definitions at all.
 <LI>If used as source or destination of a rule, the ip/mask is used
 directly for generating ACLs.
-<LI>Unnumbered network must not be used in rules
+<LI>An unnumbered network must not be used in rules.
 <LI>All networks must be disjunct if option 'strict_subnets' is
 active. Exceptions must be declared explictly:
 <UL>
@@ -155,8 +155,8 @@ redefined by mistake.
         host:&lt;name&gt; = { range = &lt;ip-adr&gt; - &lt;ip-adr&gt;; }
   }}</PRE>
 <UL>
-<LI>May only be used inside a network definition.
-<LI>Has one or more IP addresses or
+<LI>A host may only be defined inside a network definition.
+<LI>It has one or more IP addresses or
 <LI>alternatively an ip address range with first address &lt; second address
 <LI>IP addresses must match ip/mask of the surrounding network.
 <LI>If used as source or destination of a rule, one ACL entry is
@@ -187,19 +187,22 @@ each subnetwork.
 <LI>Managed routers need to be precisely described since this
  information is needed for code generation later.
 <LI>The router model is used to generate correct code for different
- router models.<BR>Currently two models are supported:
+ router models.<BR>Currently three models are supported:
 <UL>
-<LI>IOS for cisco IOS routers with statefull inspection
-<LI>PIX for cisco PIX firewalls
+<LI>PIX for Cisco PIX firewalls
+<LI>IOS_FW for Cisco IOS routers with statefull inspection
+<li>IOS for stateless Cisco IOS
 </UL>
+<font size="-1">Note: IOS_FW was named IOS before NetSPoC version 1.3
+</font> 
 <LI>A PIX firewall may be marked as 'static_manual' if no 'static'
-commands should be genarated. We use this <UL><LI>as a workaround for missing
+commands should be generated. We use this <UL><LI>as a workaround for missing
 NAT functionality of NetSPoC and <LI>if we know, that incoming traffic is
 only allowed, after some outgoing connection has been established.</UL>
 <LI>A Router may have any number of interface definitions.
 <LI>For unmanaged routers, almost all attributes are optional.
 <LI>If used as source or destination of a rule, a router is handled like
- group of its interfaces.
+a group of its interfaces.
 </UL>
 
 <H3><A NAME="interface_definition">Interface definition</A></H3>
@@ -228,8 +231,8 @@ only allowed, after some outgoing connection has been established.</UL>
 <LI>An interface may have one or more IP addresses. All of them must
   match the IP/mask of the corresponding network.
 <LI>An unnumbered interface must only be linked to an unnumbered network.
-<LI>Hardware attribute indicates to which hardware interface the router
-  belongs.
+<LI>The 'hardware' attribute indicates, which hardware interface the router
+  belongs to.
 <LI>Multiple interfaces may belong to the same hardware interface.
 <LI>An interface may be marked as disabled. See <A HREF="#disabling">Disabling part of the topology</A> below.
 <LI>For interface definitions of unmanaged routers almost all attributes
@@ -246,8 +249,9 @@ only allowed, after some outgoing connection has been established.</UL>
 <PRE>
  every:&lt;name&gt; = { link = {{ network:&lt;name&gt;; | router:&lt;name&gt;; }} }</PRE>
 <UL>
-<LI>equivalent to a group of all networks of a security domain
-<LI>must not be linked to a managed router
+<LI>An 'every' definition is equivalent to a group of all networks of
+a security domain.
+<LI>It must not be linked to a managed router.
 </UL>
 
 <H3><A NAME="any_definition">'Any' object definition</A></H3>
@@ -255,10 +259,10 @@ only allowed, after some outgoing connection has been established.</UL>
 <PRE>
  any:&lt;name&gt; = { link = {{ network:&lt;name&gt;; |  router:&lt;name&gt;; }} }</PRE>
 <UL>
-<LI>Is used to represent all networks of a security domain.
-<LI>Must not be linked to a managed router.
+<LI>An 'any' definition is used to represent all networks of a security domain.
+<LI>It must not be linked to a managed router.
 <LI>At most one 'any' object can be defined for a security domain.
-<LI>Generated ACL use 'any' (i.e. network 0.0.0.0/0.0.0.0) to prevent
+<LI>Generated ACLs use 'any' (i.e. network 0.0.0.0/0.0.0.0) to prevent
 enumeration of all networks of a security domain.
 <LI>NetSPoC generates additional deny rules to prevent
 intervening networks getting undesired access.
@@ -311,8 +315,9 @@ for interface definitions: the router name followed by a network name.
 <DD>
 <UL>
 <LI>&lt;int_1&gt;, &lt;int_2&gt; describe a port range,
-<LI>if &lt;int_2&gt; is omitted, a single port is assumed
-<LI>0 &lt; &lt;int_1&gt; &lt;= &lt;int_2&gt; &lt;= 65535
+<LI>0 &lt; &lt;int_1&gt; &lt;= &lt;int_2&gt; &lt;= 65535,
+<LI>if &lt;int_2&gt; is omitted, a single port is assumed,
+<li>omit both ports to denote any tcp/udp traffic
 </UL>
 <P>
 <DT>icmp
@@ -329,7 +334,19 @@ for interface definitions: the router name followed by a network name.
 <LI>0 &lt; &lt;int&gt; &lt;= 255
 </UL>
 </DL>
-
+<ul>
+<li>For describing a tcp connection between client and server, only
+one rule is needed with client as source. The packets back from the
+destination are allowed implicitly. 
+<li>Similar to tcp connections, only one rule is needed to let udp
+packets pass from source to destination and back.
+<li>When using service "ip" in a rule, currently only packets from
+source to destination are allowed. But stateful packet filters let
+pass answer packets for tcp connections anyway. To get a unified
+handling for tcp, udp and ip for stateful and stateless packet filters,
+we might change this in the future, to let ip packets pass in both
+directions, with only one rule.
+</ul>
 <H3><A NAME="groups_of_services">Groups of services</A></H3>
 <H4>Syntax</H4>
 <PRE>  servicegroup:&lt;name&gt; = &lt;service&gt; *;</PRE>
@@ -394,8 +411,9 @@ is the relation of the security levels to each other.</P>
 </UL>
 <H2><A NAME="supported_devices">Supported devices</A></H2>
 <UL>
-<LI>IOS with firewall feature set
-<LI>PIX
+<LI>PIX (only versions supporting access-lists, i.e. >= 5.x)
+<LI>Cisco IOS with firewall feature set
+<li>Cisco IOS without firewall feature set (untested)
 </UL>
 
 <P> Copyright (c) 2002, Heinz Knutzen 
