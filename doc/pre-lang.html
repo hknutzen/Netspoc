@@ -291,7 +291,7 @@ a group of its interfaces.
 <LI>Multiple interfaces may belong to the same hardware interface.
 <li>A routing protocol may be activated for an interface. In this
  case, generation of static routing entries is disabled for this
- interface and the access lists for this interface are automatically
+ interface and access control lists for this interface are automatically
  augmented to permit incoming packets of the routing
  protocol. Currently EIGRP and OSPF are supported.
  <li> For a description of attribute 'reroute_permit', 
@@ -686,7 +686,9 @@ protocol at two or more interfaces. Currently, redundancy protocols VRRP and
 HSRP are supported. 
 <ul>
 <li> The virtual IP address is used as destination when generating static
-routes. 
+routes.
+<li> Access control lists for the associated real interfaces are automatically
+ augmented to permit incoming packets of the redundancy protocol.
 <Li> At least two interfaces with the same virtual IP are needed.
 <li> The set of interfaces with same virtual IP
 <ul>
@@ -700,7 +702,7 @@ currently not used when generating code for managed devices.
 
 <H2><A NAME="disabling">Disabling part of the topology</A></H2>
 <P>An interface may be explicitly marked as disabled.  This implicitly
-marks all network objects as disabled, that are lying <em>behind</em>
+marks all network objects as disabled, that are located <em>behind</em>
 this interface. We are defining <em>behind an interface</em> as that
 part of the topology which is seen when looking from the router to
 that interface. All occurrences of disabled network objects in groups and
@@ -718,7 +720,7 @@ where the ACL is applied to".</P>
 as source:<DD>any data object connected directly or indirectly with
 this interface.
 <DT>
-as destination:<DD>any data object lying behind the router where the
+as destination:<DD>any data object located behind the router where the
 interface belongs to.
 </DL>
 
@@ -741,16 +743,34 @@ is the relation of the security levels to each other.</P>
 
 <H2><A NAME="generated_code">Generated Code</A></H2>
 <UL>
-<LI>ACL
+<LI>Access control lists
 <LI>Routing
-<LI>Static commands for PIX
+<LI>NAT commands for some devices
 </UL>
 <H2><A NAME="supported_devices">Supported devices</A></H2>
 <UL>
-<LI>PIX (only versions supporting access-lists, i.e. >= 5.x)
+<LI>PIX 
+<ul>
+<li>access-list (conduit and outbound are not supported)
+<li>object-group
+<li>icmp, telnet, ssh, http
+<li>route
+</ul>
 <LI>Cisco IOS with firewall feature set
+ <ul>
+ <li>ip access-list extended
+ <li>ip route
+ </ul>
 <li>Cisco IOS without firewall feature set
-<li>Linux iptables and ip route commands
+ <ul>
+ <li>ip access-list extended (rules for answer packets are added automatically)
+ <li>ip route
+ </ul>
+<li>Linux 
+ <ul>
+  <li>iptables 
+  <li>ip route
+ </ul>
 </UL>
 
 <P> Copyright (c) 2005, Heinz Knutzen 
