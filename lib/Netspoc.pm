@@ -1714,10 +1714,14 @@ sub link_topology() {
 		unless($ips eq 'unnumbered') {
 		    for my $ip (@$ips) {
 			if(my $old_intf = $ip{$ip}) {
-			    warning "Duplicate IP address for",
-			    " $old_intf->{name} and $interface->{name}";
+			    unless($ip eq $old_intf->{virtual}->{ip} and
+				   $ip eq $interface->{virtual}->{ip}) {
+				err_msg "Duplicate IP address for",
+				" $old_intf->{name} and $interface->{name}";
+			    }
+			} else {
+			    $ip{$ip} = $interface;
 			}
-			$ip{$ip} = $interface;
 		    }
 		}
 	    }
@@ -2943,11 +2947,11 @@ sub setpath() {
 	}
         if(@rest) {
             my $network1 = $i1->{network};
-            my $loop1 = $i1->{router}->{loop} || 0;
+            my $loop1 = $i1->{router}->{loop};
 	    my $type1 = $i1->{virtual}->{type};
             for my $i2 (@rest) {
 		my $network2 = $i2->{network};
-		my $loop2 = $i2->{router}->{loop} || 0;
+		my $loop2 = $i2->{router}->{loop};
 		my $type2 = $i2->{virtual}->{type};
 		my $id2 = $i2->{virtual}->{id} || '';
 		$network1 eq $network2 or
@@ -2959,7 +2963,7 @@ sub setpath() {
 		$id1 eq $id2 or
 		    err_msg "Virtual IP: $i1->{name} and $i2->{name}",
 		    " use different ID";
-                $loop1 eq $loop2 or
+                $loop1 and $loop2 and $loop1 eq $loop2 or
                     err_msg "Virtual IP: $i1->{name} and $i2->{name}",
                     " are part of different cyclic subgraphs";
             } 
