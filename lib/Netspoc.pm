@@ -140,7 +140,7 @@ sub read_ip() {
 	if($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
 	    error_atline "Invalid IP address";
 	}
-	return(($1*256+$2)*256+$3)*256+$4;
+	return unpack 'N', pack 'C4',$1,$2,$3,$4;
     } else {
 	syntax_err "Expected IP address";
     }
@@ -150,15 +150,7 @@ sub read_ip() {
 # readable string
 sub print_ip( $ ) {
     my $ip = shift;
-    my $v1 = $ip % 256;
-    $ip >>= 8;
-    my $v2 = $ip % 256;
-    $ip >>= 8;
-    my $v3 = $ip % 256;
-    $ip >>= 8;
-    my $v4 = $ip % 256;
-    $ip >>= 8;
-    return "$v4.$v3.$v2.$v1";
+    return sprintf "%vd", pack 'N', $ip;
 }
 
 # generate a list of IP strings from an ref of an array of integers
