@@ -3164,7 +3164,8 @@ sub gen_secondary_rules() {
     # We can't change a deny rule from e.g. tcp to ip.
     # ToDo: Think about applying this to 'any' rules
     for my $rule (@expanded_rules) {
-	next if $rule->{deleted};
+	next if $rule->{deleted} and
+	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
 	my $has_full_filter;
 	my $has_secondary_filter;
 	my $dst_is_secondary;
