@@ -33,9 +33,7 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 %groups %services %servicegroups 
 		 %policies
-		 @expanded_deny_rules
-		 @expanded_any_rules
-		 @expanded_rules
+		 %expanded_rules
 		 $error_counter $max_errors
 		 $store_description
 		 info
@@ -52,7 +50,7 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 mark_disabled 
 		 find_subnets 
 		 setany 
-		 expand_rules 
+		 expand_policies
 		 check_unused_groups 
 		 setpath 
 		 path_walk
@@ -93,7 +91,7 @@ my $auto_default_route = 1;
 # Ignore these names when reading directories:
 # - CVS and RCS directories
 # - CVS working files
-# - directory raw for prolog & epilog files
+# - directory raw for prolog & epilogue files
 # - Editor backup files: emacs: *~
 my $ignore_files = '^CVS$|^RCS$|^\.#|^raw$|~$';
 # Abort after this many errors.
@@ -158,7 +156,7 @@ sub debug ( @ ) {
 
 # Filename of current input file.
 our $file;
-# Eof status of current file.
+# EOF status of current file.
 our $eof;
 sub context() {
     my $context;
@@ -1207,8 +1205,9 @@ sub read_policy( $ ) {
 	    if($src ne 'user' && $dst ne 'user') {
 		err_msg "All rules of $policy->{name} must use keyword 'user'";
 	    }
-	    my $rule = { action => $action,
-			 src => $src, dst => $dst, srv => $srv};
+	    my $rule = { policy => $policy,
+			 action => $action,
+			 src => $src, dst => $dst, srv => $srv };
 	    push @{$policy->{rules}}, $rule;
 	} else {
 	    syntax_err "Expected 'permit' or 'deny'";
@@ -1267,6 +1266,41 @@ sub read_global_nat( $ )  {
    $global_nat{$name} = $nat;
 }
 
+my %crypto;
+sub read_crypto( $ ) {
+    my($name) = @_;
+    skip '=';
+    skip '{';
+    my $crypto = { name => "crypto:$name", file => $file };
+    my $description = read_description;
+    $store_description and $crypto->{description} = $description;
+    while(1) {
+	last if check '}';
+	if(my $action = check_permit_deny) {
+	    my $src = [ read_assign_list 'srv', \&read_typed_name ];
+	    my $dst = [ read_assign_list 'srv', \&read_typed_name ];
+	    my $srv = [ read_assign_list 'srv', \&read_typed_name ];
+	    my $rule = { action => $action, 
+			 src => $src, dst => $dst, srv => $srv};
+	    push @{$crypto->{rules}}, $rule;
+	} elsif(my @spokes = check_assign_list 'spoke', \&read_typed_name) {
+	    push @{$crypto->{spoke}}, @spokes;
+	} elsif(my @hubs = check_assign_list 'hub', \&read_typed_name) {
+	    push @{$crypto->{hub}}, @hubs;
+	} elsif(my @mesh = check_assign_list 'mesh', \&read_typed_name) { 
+	    push @{$crypto->{meshes}}, [ @mesh ];
+	} else {
+	    syntax_err "Expected valid attribute or rule";
+	}
+    }
+    # Validity of tunnel definitions can't be checked here,
+    # because we don't know number of interfaces inside a group.
+    if($crypto{$name}) {
+	error_atline "Redefining crypto:$name";
+    }
+    $crypto{$name} = $crypto; 
+}
+    
 sub read_netspoc() {
     # Check for different definitions.
     if(my $string = check_typed_name) {
@@ -2156,7 +2190,7 @@ sub expand_group1( $$ ) {
 		$object->{elements} = 'recursive';
 		$object->{is_used} = 1;
 		$elements = expand_group1 $elements, $tname;
-		# cache result for further references to the same group
+		# Cache result for further references to the same group.
 		$object->{elements} = $elements;
 	    }
 	    push @objects, @$elements;
@@ -2195,7 +2229,7 @@ sub expand_group1( $$ ) {
     return \@objects;
 }
 
-sub expand_group( $$$ ) {
+sub expand_group( $$;$ ) {
     my($obref, $context, $convert_hosts) = @_;
     my $aref = expand_group1 $obref, $context;
     if($convert_hosts) {
@@ -2280,12 +2314,9 @@ sub expand_services( $$ ) {
 
 sub path_first_interfaces( $$ );
 
-# array of expanded deny rules
-our @expanded_deny_rules;
-# array of expanded permit rules
-our @expanded_rules;
-# array of expanded any rules
-our @expanded_any_rules;
+# Hash with attributes deny, any, permit for storing
+# expanded rules of different type.
+our %expanded_rules = ( deny => [], any => [], permit => [] );
 # Hash for ordering all rules:
 # $rule_tree{$action}->{$src}->{$dst}->{$srv} = $rule;
 my %rule_tree;
@@ -2293,136 +2324,114 @@ my %reverse_rule_tree;
 # Hash for converting a reference of an object back to this object.
 my %ref2obj;
 
-# Add rule to %rule_tree or %reverse_rule_tree for later optimization.
-sub add_rule( $ ) {
-    my ($rule) = @_;
-    my $action = $rule->{action};
-    my $src = $rule->{src};
-    my $dst = $rule->{dst};
-    my $srv = $rule->{srv};
-    # A rule with an interface as destination may be marked as deleted
-    # during global optimization. But in some case, code for this rule 
-    # must be generated anyway. This happens, if
-    # - it is an interface of a managed router and
-    # - code is generated for exacty this router.
-    # Mark such rules for easier handling.
-    if(is_interface($dst) and $dst->{router}->{managed}) {
-	$rule->{managed_intf} = 1;
+# Add rules to $rule_tree for efficient lookup.
+sub add_rules( $$ ) {
+    my ($rules_ref, $rule_tree) = @_;
+    for my $rule (@$rules_ref) {
+	my $action = $rule->{action};
+	my $src = $rule->{src};
+	my $dst = $rule->{dst};
+	my $srv = $rule->{srv};
+	# A rule with an interface as destination may be marked as deleted
+	# during global optimization. But in some case, code for this rule 
+	# must be generated anyway. This happens, if
+	# - it is an interface of a managed router and
+	# - code is generated for exacty this router.
+	# Mark such rules for easier handling.
+	if(is_interface($dst) and $dst->{router}->{managed}) {
+	    $rule->{managed_intf} = 1;
+	}
+	my $old_rule = $rule_tree->{$action}->{$src}->{$dst}->{$srv};
+	if($old_rule) {
+	    # Found identical rule.
+	    $rule->{deleted} = $old_rule;
+	    next;
+	} 
+	$rule_tree->{$action}->{$src}->{$dst}->{$srv} = $rule;
     }
-    my $rule_tree = $rule->{stateless} ? \%reverse_rule_tree : \%rule_tree;
-    my $old_rule = $rule_tree->{$action}->{$src}->{$dst}->{$srv};
-    if($old_rule) {
-	# Found identical rule.
-	$rule->{deleted} = $old_rule;
-	return;
-    } 
-    $rule_tree->{$action}->{$src}->{$dst}->{$srv} = $rule;
 }
 
-sub expand_rules( ;$) {
-    my($convert_hosts) = @_;
-    convert_hosts if $convert_hosts;
-    info "Expanding rules";
-    # Prepare special groups.
-    set_auto_groups;
-    # Sort keys to make output deterministic.
-    for my $name (sort keys %policies) {
-	my $policy = $policies{$name};
-	my $user = $policy->{user} = expand_group($policy->{user},
-						  "user of $policy->{name}",
-						  $convert_hosts);
-	for my $p_rule (@{$policy->{rules}}) {
-	    my $rule = {};
-	    my $action = $rule->{action} = $p_rule->{action};
-	    for my $where ('src', 'dst') {
-		if($p_rule->{$where} eq 'user') {
-		    $rule->{$where} = $user;
+# Parameters:
+# - Reference to array of unexpanded rules.
+# - Name of policy or crypto object for error messages.
+# - Reference to hash with attributes deny, any, permit for storing
+#   expanded rules of different type.
+# - Rule tree where expanded rules are stored for fast lookup.
+sub expand_rules ( $$$$ ) {
+    my($rules_ref, $name, $result, $rule_tree) = @_;
+    # For collecting resulting expanded rules.
+    my($deny,$any, $permit) = @{$result}{'deny', 'any', 'permit'};
+    for my $unexpanded (@$rules_ref) {
+	my $get_any_local = sub ( $ ) {
+	    my ($obj) = @_;
+	    if(is_interface $obj and $obj->{router}->{managed}) {
+		return $obj->{any};
+	    } else {
+		my $name = $obj eq 'any:[local]' ? $obj : $obj->{name};
+		err_msg "any:[local] must only be used in conjunction",
+		" with a managed interface\n",
+		" but not with $name in rule of $name";
+		# Continue with a valid value to prevent further errors.
+		return $obj;
+	    }
+	};
+	my $get_auto_interface = sub ( $$ ) {
+	    my($src, $dst) = @_;
+	    my @result;
+	    for my $interface (path_first_interfaces $src, $dst) {
+		if($interface->{ip} =~ /^unnumbered|short$/) {
+		    err_msg "'$interface->{ip}' $interface->{name}",
+		    " (from .[auto])\n",
+		    " must not be used in rule of $name";
 		} else {
-		    $rule->{$where} = $p_rule->{$where} =
-			expand_group($p_rule->{$where},
-				     "$where of rule in $policy->{name}",
-				     $convert_hosts);
+		    push @result, $interface;
 		}
 	    }
-	    $rule->{srv} = expand_services($p_rule->{srv},
-					   "rule in $policy->{name}");
-	    # remember original policy
-	    $rule->{policy} = $policy;
-	    # ... and remember original rule
-	    $rule->{p_rule} = $p_rule;
-
-	    my $get_any_local = sub ( $ ) {
-		my ($obj) = @_;
-		if(is_interface $obj and $obj->{router}->{managed}) {
-		    return $obj->{any};
-		} else {
-		    my $name = $obj eq 'any:[local]' ? $obj : $obj->{name};
-		    err_msg "any:[local] must only be used in conjunction",
-		    " with a managed interface\n",
-		    " but not $name in $rule->{policy}->{name}";
-		    $rule->{deleted} = 1;
-		    # Continue with a valid value to prevent further errors.
-		    return $obj;
-		}
-	    };
-	    my $get_auto_interface = sub ( $$ ) {
-		my($src, $dst) = @_;
-		my @result;
-		for my $interface (path_first_interfaces $src, $dst) {
-		    if($interface->{ip} =~ /^unnumbered|short$/) {
-			err_msg "'$interface->{ip}' $interface->{name}",
-			" (from .[auto])\n",
-			" must not be used in rule";
-		    } else {
-			push @result, $interface;
-		    }
-		}
-		return @result;
-	    };
-	    for my $src (@{$rule->{src}}) {
-		for my $dst (@{$rule->{dst}}) {
-
-		    my @src = is_router $src ?
-			$get_auto_interface->($src, $dst) : ($src);
-		    my @dst = is_router $dst ?
-			$get_auto_interface->($dst, $src) : ($dst);
-		    for my $src (@src) {
-			# Prevent modification of original array.
-			my $src = $src;	
-			$ref2obj{$src} = $src;
-			for my $dst (@dst) {
-			    my $dst = $dst; # prevent ...
-			    if($src eq 'any:[local]') {
-				$src = $get_any_local->($dst);
-				$ref2obj{$src} = $src;
+	    return @result;
+	};
+	for my $src (@{$unexpanded->{src}}) {
+	    for my $dst (@{$unexpanded->{dst}}) {
+		
+		my @src = is_router $src ?
+		    $get_auto_interface->($src, $dst) : ($src);
+		my @dst = is_router $dst ?
+		    $get_auto_interface->($dst, $src) : ($dst);
+		for my $src (@src) {
+		    # Prevent modification of original array.
+		    my $src = $src;	
+		    $ref2obj{$src} = $src;
+		    for my $dst (@dst) {
+			my $dst = $dst; # prevent ...
+			if($src eq 'any:[local]') {
+			    $src = $get_any_local->($dst);
+			    $ref2obj{$src} = $src;
+			}
+			if($dst eq 'any:[local]') {
+			    $dst = $get_any_local->($src);
+			}
+			$ref2obj{$dst} = $dst;
+			for my $srv (@{$unexpanded->{srv}}) {
+			    my $expanded_rule = { action =>
+						      $unexpanded->{action},
+						  src => $src,
+						  dst => $dst,
+						  srv => $srv,
+						  # Remember unexpanded rule.
+						  rule => $unexpanded
+						  };
+			    # If $srv is duplicate of an identical service,
+			    # use the main service, but remember
+			    # the original one for debugging / comments.
+			    if(my $main_srv = $srv->{main}) {
+				$expanded_rule->{srv} = $main_srv;
+				$expanded_rule->{orig_srv} = $srv;
 			    }
-			    if($dst eq 'any:[local]') {
-				$dst = $get_any_local->($src);
-			    }
-			    $ref2obj{$dst} = $dst;
-			    for my $srv (@{$rule->{srv}}) {
-				my $expanded_rule = { action => $action,
-						      src => $src,
-						      dst => $dst,
-						      srv => $srv,
-						      # Remember original rule.
-						      rule => $rule
-						      };
-				# If $srv is duplicate of an identical service,
-				# use the main service, but remember
-				# the original one for debugging / comments.
-				if(my $main_srv = $srv->{main}) {
-				    $expanded_rule->{srv} = $main_srv;
-				    $expanded_rule->{orig_srv} = $srv;
-				}
-				if($action eq 'deny') {
-				    push(@expanded_deny_rules, $expanded_rule);
-				} elsif(is_any($src) or is_any($dst)) {
-				    push(@expanded_any_rules, $expanded_rule);
-				} else {
-				    push(@expanded_rules, $expanded_rule);
-				}
-				add_rule $expanded_rule;
+			    if($unexpanded->{action} eq 'deny') {
+				push(@$deny, $expanded_rule);
+			    } elsif(is_any($src) or is_any($dst)) {
+				push(@$any, $expanded_rule);
+			    } else {
+				push(@$permit, $expanded_rule);
 			    }
 			}
 		    }
@@ -2430,11 +2439,135 @@ sub expand_rules( ;$) {
 	    }
 	}
     }
-    if($verbose) {
-	my $nd = 0+@expanded_deny_rules;
-	my $n  = 0+@expanded_rules;
-	my $na = 0+@expanded_any_rules;
-	info " deny $nd, permit: $n, permit any: $na";
+    for my $type ('deny', 'any', 'permit') {
+	add_rules $result->{$type}, $rule_tree;
+    }
+    # Result is indirectly returned using parameters $result and $rule_tree.
+}
+
+sub expand_policies( ;$) {
+    my($convert_hosts) = @_;
+    convert_hosts if $convert_hosts;
+    info "Expanding policies";
+    # Prepare special groups.
+    set_auto_groups;
+    for my $policy (values %policies) {
+	my $name = $policy->{name};
+	my $user = $policy->{user} =
+	    expand_group $policy->{user}, "user of $name", $convert_hosts;
+	for my $rule (@{$policy->{rules}}) {
+	    for my $where ('src', 'dst') {
+		if($rule->{$where} eq 'user') {
+		    $rule->{$where} = $user;
+		} else {
+		    $rule->{$where} = expand_group($rule->{$where},
+						   "$where of rule in $name",
+						   $convert_hosts);
+		}
+	    }
+	    $rule->{srv} = expand_services $rule->{srv}, "rule in $name";
+	}
+	expand_rules $policy->{rules}, $name, \%expanded_rules, \%rule_tree;
+    }
+}
+
+# For crypto rules we need a single objects, which encloses 
+# all 'any' objects.
+my $any_all = 	new('AnyAll', name => "any:[all]");
+
+sub expand_crypto () {
+    info "Preparing crypto tunnels and expanding crypto rules";
+    for my $crypto (values %crypto) {
+	my $name = $crypto->{name};
+	@{$crypto->{hub}} = expand_group(@{$crypto->{hub}}, "hub of $name");
+	@{$crypto->{spoke}} = expand_group(@{$crypto->{spoke}},
+					   "spoke of $name");
+	for my $mesh (@{$crypto->{meshes}}) {
+	    $mesh = [ expand_group @$mesh, "mesh of $name" ];
+	}
+	for my $what ('hub', 'spoke') {
+	    for my $element (@{$crypto->{$what}}) {
+		next if is_interface $element;
+		next if is_router $element;
+		err_msg "Illegal element in $what of $name:",
+		"$element->{name}";
+	    }
+	}
+	for my $mesh (@{$crypto->{mesh}}) {
+	    for my $element (@$mesh) {
+		next if is_interface $element;
+		next if is_router $element;
+		err_msg "Illegal element in mesh of $name:",
+		"$element->{name}";
+	    }
+	}
+	my @pairs;
+	for my $hub (@{$crypto->{hub}}) {
+	    for my $spoke (@{$crypto->{spoke}}) {
+		push @pairs, [ $hub, $spoke ];
+	    }
+	}
+	for my $mesh (@{$crypto->{meshes}}) {
+	    for my $intf1 (@$mesh) {
+		for my $intf2 (@$mesh) {
+		    next if $intf1 eq $intf2;
+		    push @pairs, [ $intf1, $intf2 ];
+		}
+	    }
+	}
+	my $check = sub ( $$ ) {
+	    my ($intf1, $intf2) = @_;
+	    my @intf1 = path_first_interfaces $intf1, $intf2;
+	    my @intf2 = path_first_interfaces $intf2, $intf1;
+	    if(@intf1 > 1 ) {
+		err_msg "Tunnel of $name starting at $intf2->{name}",
+		" has multiple endpoints at $intf1->{name}";
+	    }
+	    if(is_router $intf1) {
+		($intf1) = @intf1;
+	    } else {
+		my($tmp) = @intf1;
+		unless($tmp eq $intf1) {
+		    err_msg "Tunnel of $name starting at",
+		    " $intf2->{name} uses wrong endpoint at $intf1->{name}.\n",
+		    " Use $tmp->{name} instead.";
+		}
+		$intf1 = $tmp;
+	    }
+	    return $intf1;
+	};
+	for my $pair (@pairs) {
+	    my $intf1 = $check->(@pairs[0, 1]);
+	    my $intf2 = $check->(@pairs[1, 0]);
+	    if(my $old_crypto = $intf1->{tunnel}->{$intf2}) {
+		err_msg "Duplicate tunnel",
+		" between $intf1->{name} and $intf2->{name}",
+		" defined in $old_crypto->{name} and $name";
+	    }
+	    # Test for $intf2->{tunnel}->{$intf1} isn't necessary, because
+	    # tunnels are always defined symmetrically.
+	    $intf1->{tunnel}->{$intf2} = $crypto;
+	    $intf2->{tunnel}->{$intf1} = $crypto;
+	}
+	# For crypto rules, any:[all] must not be expanded to all
+	# 'any' objects, but to a new objects, which matches all 'any' objects.
+	$anys{'[all]'} = $any_all;
+	# Convert typed names in rule to internal objects.
+	for my $rule (@{$crypto->{rules}}) {
+	    for my $where ('src', 'dst') {
+		$rule->{$where} =
+		    expand_group $rule->{$where}, "$where of rule in $name";
+	    }
+	    $rule->{srv} = expand_services $rule->{srv}, "rule in $name";
+	}
+	my $result = $crypto->{expanded_rules} = { deny => [],
+						   any => [],
+						   permit => [] };
+	# Build a rule tree for fast lookup when checking
+	# if a rule matches a crypto rule.
+	my $rule_tree = $crypto->{rule_tree} = {};
+	# This adds expanded rules to $result and $rule_tree.
+	expand_rules $crypto->{rules}, $name, $result, $rule_tree;
     }
 }
 
@@ -3589,7 +3722,7 @@ sub check_any_dst_rule( $$$ ) {
 
 sub check_any_rules() {
     info "Checking rules with 'any' objects";
-    for my $rule (@expanded_any_rules) {
+    for my $rule (@{$expanded_rules{any}}) {
 	next if $rule->{deleted};
 	next if $rule->{stateless};
 	if(is_any($rule->{src})) {
@@ -3679,28 +3812,28 @@ sub gen_reverse_rules1 ( $ ) {
 		srv => $new_srv,
 		# This rule must only be applied to stateless routers.
 		stateless => 1,
-		orig_rule => $rule};
+		orig_rule => $rule };
 	    $new_rule->{any_are_neighbors} = 1 if $rule->{any_are_neighbors};
-	    add_rule $new_rule;
 	    # Don't push to @$rule_aref while we are iterating over it.
 	    push @extra_rules, $new_rule;
 	}
     }
     push @$rule_aref, @extra_rules;
+    add_rules \@extra_rules, \%reverse_rule_tree;
 }
 
 sub gen_reverse_rules() {
     info "Generating reverse rules for stateless routers";
-    gen_reverse_rules1 \@expanded_deny_rules;
-    gen_reverse_rules1 \@expanded_rules;
-    gen_reverse_rules1 \@expanded_any_rules;
+    for my $type ('deny', 'any', 'permit') {
+	gen_reverse_rules1 $expanded_rules{$type};
+    }
 }
 
 ##############################################################################
 # Mark rules for secondary filters.
 # At secondary packet filters, packets are only checked for its 
 # src and dst networks, if there is a full packet filter on the path from
-# src to dst, were the original rule is checked.
+# src to dst, where the original rule is checked.
 ##############################################################################
 
 sub mark_secondary_rules() {
@@ -3710,7 +3843,7 @@ sub mark_secondary_rules() {
     # We can't change a deny rule from e.g. tcp to ip.
     # We can't change 'any' rules, because path is unknown.
   RULE:
-    for my $rule (@expanded_rules) {
+    for my $rule (@{$expanded_rules{permit}}) {
 	next if $rule->{deleted} and
 	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
 	my $mark_secondary_rule = sub( $$$ ) {
@@ -3805,15 +3938,6 @@ sub optimize() {
 	}
     }
     optimize_rules \%rule_tree, \%rule_tree;
-    if($verbose) {
-	my($n, $nd, $na) = (0,0,0);
-	for my $rule (@expanded_deny_rules) { $nd++ if $rule->{deleted}	}
-	for my $rule (@expanded_rules) { $n++ if $rule->{deleted} }
-	for my $rule (@expanded_any_rules) {
-	    $na++ if $rule->{deleted};
-	}
-	info "Deleted redundant rules: $nd deny, $n permit, $na permit any";
-    }
 }
 
 # Normal rules > reverse rules.
@@ -3823,12 +3947,11 @@ sub optimize_reverse_rules() {
     optimize_rules \%rule_tree, \%reverse_rule_tree;
 }
 
-####################################################################
+########################################################################
 # Routing
-# Add a component 'route' to each interface.
-# It holds an array of networks reachable
-# using this interface as next hop
-####################################################################
+# Add a component 'route' to each interface, which holds an array of 
+# networks reachable using this interface as next hop.
+########################################################################
 
 # This function is called for each network on the path from src to dst
 # of $rule.
@@ -3999,7 +4122,7 @@ sub find_active_routes_and_statics () {
 	    }
 	}
     };
-    for my $rule (@expanded_rules, @expanded_any_rules) {
+    for my $rule (@{$expanded_rules{permit}}, @{$expanded_rules{any}}) {
 	$fun->($rule->{src}, $rule->{dst});
     }
     for my $hash (values %routing_tree) {
@@ -4009,7 +4132,7 @@ sub find_active_routes_and_statics () {
 	}
     }
     # Additionally process reverse direction for routing.
-    for my $rule (@expanded_rules, @expanded_any_rules) {
+    for my $rule (@{$expanded_rules{permit}}, @{$expanded_rules{any}}) {
 	$fun->($rule->{dst}, $rule->{src});
     }
     for my $hash (values %routing_tree) {
@@ -4382,12 +4505,12 @@ sub distribute_rule_at_dst( $$$ ) {
 sub rules_distribution() {
     info "Rules distribution";
     # Deny rules
-    for my $rule (@expanded_deny_rules) {
+    for my $rule (@{$expanded_rules{deny}}) {
 	next if $rule->{deleted};
 	path_walk($rule, \&distribute_rule);
     }
     # Rules with 'any' object as src or dst.
-    for my $rule (@expanded_any_rules) {
+    for my $rule (@{$expanded_rules{any}}) {
 	next if $rule->{deleted} and
 	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
 	if(is_any $rule->{src}) {
@@ -4409,7 +4532,7 @@ sub rules_distribution() {
 	}
     }
     # Other permit rules
-    for my $rule (@expanded_rules) {
+    for my $rule (@{$expanded_rules{permit}}) {
 	next if $rule->{deleted} and
 	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
 	path_walk($rule, \&distribute_rule, 'Router');
@@ -5005,7 +5128,7 @@ sub local_optimization() {
 	    $interface->{up} = $network;
 	}
     }
-    for my $rule (@expanded_any_rules, @expanded_rules) {
+    for my $rule (@{$expanded_rules{any}}, @{$expanded_rules{permit}}) {
 	next if $rule->{deleted} and not $rule->{managed_intf};
 	$rule->{src} = $network_00 if is_any $rule->{src};
 	$rule->{dst} = $network_00 if is_any $rule->{dst};
@@ -5324,3 +5447,6 @@ sub show_version() {
 }
 
 1
+
+#  LocalWords:  Netspoc Knutzen internet CVS IOS iproute iptables STDERR
+#  LocalWords:  netmask
