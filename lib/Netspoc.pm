@@ -3920,7 +3920,7 @@ sub print_pix_static( $ ) {
 ##############################################################################
 
 sub distribute_rule( $$$ ) {
-    my ($rule, $in_intf, $out_intf, $any_rule) = @_;
+    my ($rule, $in_intf, $out_intf) = @_;
     # Traffic from src reaches this router via in_intf
     # and leaves it via out_intf.
     # in_intf is undefined if src is an interface of the current router
@@ -3964,12 +3964,6 @@ sub distribute_rule( $$$ ) {
 	return if $model->{filter} eq 'PIX' and $rule->{action} eq 'permit';
 #	info "$router->{name} intf_rule: ",print_rule $rule,"\n";
 	$aref = \@{$in_intf->{hardware}->{intf_rules}};
-    } 
-    # 'any' rules must be placed in a separate array, because they must not
-    # be subject of object-group optimization
-    elsif($any_rule) {
-#	info "$router->{name} any_rule: ",print_rule $rule,"\n";
-	$aref = \@{$in_intf->{hardware}->{any_rules}};
     } else {
 #	info "$router->{name} rule: ",print_rule $rule,"\n";
 	$aref = \@{$in_intf->{hardware}->{rules}};
@@ -3993,7 +3987,7 @@ sub distribute_rule_at_src( $$$ ) {
     # Rule is only processed at the first router on the path.
     if($in_intf->{any} eq $src) {
 	# Optional 4th parameter 'any_rule' must be set!
-	&distribute_rule(@_, 1);
+	&distribute_rule(@_);
     }
 }
 
@@ -4011,7 +4005,7 @@ sub distribute_rule_at_dst( $$$ ) {
     # Rule is only processed at the last router on the path.
     if($out_intf->{any} eq $dst) {
 	# Optional 4th parameter 'any_rule' must be set!
-	&distribute_rule(@_, 1);
+	&distribute_rule(@_);
     }
 }
 
@@ -4477,6 +4471,10 @@ sub find_object_groups ( $ ) {
 			    elements => [ map { $ref2obj{$_} } @keys ],
 			    hash => $hash,
 			    nat_info => $glue->{nat_info});
+	    for my $element (@{$group->{elements}}) {
+		is_any $element and
+		    internal_err "Unexpected $element->{name} in object-group";
+	    }
 	    push @{$nat2size2group{$bind_nat}->{$size}}, $group;
 	    push @groups, $group;
 	    $counter++;
@@ -4615,6 +4613,10 @@ sub find_chains ( $ ) {
 			    elements => [ map { $ref2obj{$_} } @keys ],
 			    hash => $hash,
 			    nat_info => $glue->{nat_info});
+	    for my $element (@{$chain->{elements}}) {
+		is_any $element and
+		    internal_err "Unexpected $element->{name} in chain";
+	    }
 	    push @{$nat2action2size2group{$bind_nat}->{$action}->{$size}},
 	    $chain;
 	    push @chains, $chain;
@@ -4676,7 +4678,7 @@ sub local_optimization() {
 	next if $network->{disabled};
 	$network->{subnet_of} or $network->{subnet_of} = $network_00;
 	for my $object (@{$network->{hosts}}, @{$network->{interfaces}}) {
-	    $object->{subnet_of} = $network_00;
+	    $object->{subnet_of} = $network;
 	}
     }
     for my $rule (@expanded_any_rules, @expanded_rules, @secondary_rules) {
@@ -4687,45 +4689,45 @@ sub local_optimization() {
     for my $router (values %routers) {
 	next unless $router->{managed};
 	for my $hardware (@{$router->{hardware}}) {
-	    my %hash;
-	    for my $rule (@{$hardware->{any_rules}}, @{$hardware->{rules}}) {
-		my $src = $rule->{src};
-		my $dst = $rule->{dst};
-		my $srv = $rule->{srv};
-		$hash{$src}->{$dst}->{$srv} = $rule;
-	    }
-	    my $changed = 0;
-	  RULE:
-	    for my $rule (@{$hardware->{any_rules}}, @{$hardware->{rules}}) {
-		my $src = $rule->{src};
-		my $dst = $rule->{dst};
-		my $srv = $rule->{srv};
-		while($src) {
-		    my $dst = $dst;
-		    my $hash = $hash{$src};
-		    while($dst) {
-			my $srv = $srv;
-			my $hash = $hash->{$dst};
-			while($srv) {
-			    if(my $old_rule = $hash->{$srv}) {
-				unless($rule eq $old_rule) {
-				    $rule = undef;
-				    $changed = 1;
-				    next RULE;
-				}
-			    }
-			    $srv = $srv->{up};
-			}
-			$dst = $dst->{subnet_of};
-		    }
-		    $src = $src->{subnet_of};
+	    for my $rules ('intf_rules', 'rules') {
+		my %hash;
+		for my $rule (@{$hardware->{$rules}}) {
+		    my $src = $rule->{src};
+		    my $dst = $rule->{dst};
+		    my $srv = $rule->{srv};
+		    $hash{$src}->{$dst}->{$srv} = $rule;
 		}
-	    }
-	    if($changed) {
-		$hardware->{any_rules} =
-		    [ grep $_, @{$hardware->{any_rules}} ];
-		$hardware->{rules} =
-		    [ grep $_, @{$hardware->{rules}} ];
+		my $changed = 0;
+	      RULE:
+		for my $rule (@{$hardware->{$rules}}) {
+		    my $src = $rule->{src};
+		    my $dst = $rule->{dst};
+		    my $srv = $rule->{srv};
+		    while($src) {
+			my $dst = $dst;
+			my $hash = $hash{$src};
+			while($dst) {
+			    my $srv = $srv;
+			    my $hash = $hash->{$dst};
+			    while($srv) {
+				if(my $old_rule = $hash->{$srv}) {
+				    unless($rule eq $old_rule) {
+					$rule = undef;
+					$changed = 1;
+					next RULE;
+				    }
+				}
+				$srv = $srv->{up};
+			    }
+			    $dst = $dst->{subnet_of};
+			}
+			$src = $src->{subnet_of};
+		    }
+		}
+		if($changed) {
+		    $hardware->{$rules} =
+			[ grep $_, @{$hardware->{$rules}} ];
+		}
 	    }
 	}
     }
@@ -4796,8 +4798,7 @@ sub print_acls( $ ) {
     }
     # Add deny rules 
     for my $hardware (@{$router->{hardware}}) {
-	if($model->{filter} eq 'IOS' and
-	   (@{$hardware->{rules}} or @{$hardware->{any_rules}})) {
+	if($model->{filter} eq 'IOS' and @{$hardware->{rules}}) {
 	    for my $interface (@{$router->{interfaces}}) {
 		# ignore 'unnumbered' and 'short' interfaces
 		next if $interface->{ip} eq 'unnumbered' or
@@ -4848,8 +4849,6 @@ sub print_acls( $ ) {
 	my $nat_info = $hardware->{interfaces}->[0]->{nat_info};
 	# Interface rules
 	acl_line $hardware->{intf_rules}, $nat_info, $intf_prefix, $model;
-	# 'any' rules
-	acl_line $hardware->{any_rules}, $nat_info, $prefix, $model;
 	# Ordinary rules
 	acl_line $hardware->{rules}, $nat_info, $prefix, $model;
 	# Postprocessing for hardware interface
