@@ -3085,8 +3085,6 @@ sub check_any_rules() {
 # with additional 'established` flag.
 ##############################################################################
 
-my @reverse_rules;
-
 sub gen_reverse_rules1 ( $ ) {
     my($rule_aref) = @_;
     my @extra_rules;
