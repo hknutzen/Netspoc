@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # newpolicy -- integrates NetSPoC with CVS
 # http://netspoc.berlios.de
-# (c) 2002 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+# (c) 2004 by Heinz Knutzen <heinzknutzen@users.berlios.de>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
