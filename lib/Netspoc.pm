@@ -1961,10 +1961,10 @@ sub get_networks_behind ( $ ) {
     my($hop) = @_;
     # return if the values have already been calculated
     return @{$hop->{route}} if exists $hop->{route};
-    print STDERR $hop->{name},"\n";
     my @networks;
     for my $interface (@{$hop->{router}->{interfaces}}) {
 	next if $interface eq $hop;
+ 	next if $interface->{disabled};
 	# add directly connected network
 	unless($interface->{ip} eq 'unnumbered') {
 	    push @networks, $interface->{network};
