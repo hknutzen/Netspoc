@@ -679,6 +679,24 @@ sub read_data( $ ) {
     }
 }
 
+sub read_file_or_dir( $ ) {
+    my($path) = @_;
+    if(-f $path) {
+	read_data $path;
+    } elsif(-d $path) {
+	opendir DIR, $path or die "Can't opendir $path: $!";
+	# for nicer file names in messages
+	$path =~ s./$..;
+	while(my $file = readdir DIR) {
+	    next if $file eq '.' or $file eq '..';
+	    $file = "$path/$file";
+	    &read_file_or_dir($file);
+	}
+    } else {
+	&usage();
+    }
+}	
+	
 sub show_read_statistics() {
     if($verbose) {
 	my $n = keys %routers;
@@ -1970,7 +1988,7 @@ sub gen_routes( $ ) {
 # Argument processing
 ####################################################################
 sub usage() {
-    die "Usage: $0 [-c config] file\n";
+    die "Usage: $0 [-c config] file | directory\n";
 }
 
 my $conf_file;
@@ -2001,7 +2019,7 @@ sub read_config() {
 
 &read_args();
 &read_config() if $conf_file;
-&read_data($main_file);
+&read_file_or_dir($main_file);
 &show_read_statistics();
 
 &order_services();
