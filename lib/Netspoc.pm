@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# netspoc
+# Netspoc.pm
 # A Network Security Policy Compiler
 # http://netspoc.berlios.de
 # (c) 2003 by Heinz Knutzen <heinzknutzen@users.berlios.de>
@@ -21,9 +21,41 @@
 
 use strict;
 use warnings;
+package Netspoc;
+require Exporter;
 
-my $program = 'Network Security Policy Compiler';
-my $version = (split ' ','$Id$ ')[2];
+our @ISA = qw(Exporter);
+our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
+		 %groups %services %servicegroups %rules
+		 $program $version
+		 $conf_file $main_file $out_dir
+		 $error_counter $max_errors
+		 info
+		 read_args 
+		 read_config
+		 read_file_or_dir
+		 show_read_statistics 
+		 order_services 
+		 link_topology 
+		 mark_disabled 
+		 find_subnets 
+		 setany 
+		 expand_rules 
+		 check_unused_groups 
+		 setpath 
+		 set_route_in_any 
+		 find_active_routes_and_statics 
+		 convert_any_rules 
+		 optimize 
+		 mark_secondary_rules 
+		 repair_deny_influence 
+		 acl_generation 
+		 check_output_dir
+		 print_code
+		 warn_pix_icmp);
+
+our $program = 'Network Security Policy Compiler';
+our $version = (split ' ','$Id$ ')[2];
 
 ####################################################################
 # User configurable options
@@ -50,7 +82,7 @@ my $auto_default_route = 1;
 # - Editor backup files: emacs: *~
 my $ignore_files = qr/^CVS$|^RCS$|^\.#|^raw$|~$/;
 # abort after this many errors
-my $max_errors = 10;
+our $max_errors = 10;
 
 ####################################################################
 # Error Reporting
@@ -65,7 +97,7 @@ sub warning ( @ ) {
 }
 
 # input filename from command line
-my $main_file;
+our $main_file;
 # filename of current input file
 our $file;
 # eof status of current file
@@ -90,7 +122,7 @@ sub add_line( $ ) {
     qq/$msg at line $.$at_file\n/;
 }
 
-my $error_counter = 0;
+our $error_counter = 0;
 
 sub check_abort() {
     if(++$error_counter >= $max_errors) {
@@ -322,7 +354,7 @@ sub new( $@ ) {
     return bless($self, $type);
 }
 
-my %hosts;
+our %hosts;
 sub read_host( $ ) {
     my $name = shift;
     my $host;
@@ -364,7 +396,7 @@ sub read_host( $ ) {
     return @hosts;
 }
 
-my %networks;
+our %networks;
 sub read_network( $ ) {
     my $name = shift;
     my $network = new('Network',
@@ -436,7 +468,7 @@ sub read_network( $ ) {
 }
 
 my %valid_routing = (OSPF => 1);
-my %interfaces;
+our %interfaces;
 my @disabled_interfaces;
 sub read_interface( $$ ) {
     my($router, $net) = @_;
@@ -508,7 +540,7 @@ sub set_pix_interface_level( $ ) {
 }
 
 my %valid_model = (IOS => 1, IOS_FW => 1, PIX => 1);
-my %routers;
+our %routers;
 sub read_router( $ ) {
     my $name = shift;
     skip('=');
@@ -566,7 +598,7 @@ sub read_router( $ ) {
     $routers{$name} = $router;
 }
 
-my %anys;
+our %anys;
 sub read_any( $ ) {
     my $name = shift;
     skip('=');
@@ -580,7 +612,7 @@ sub read_any( $ ) {
     $anys{$name} = $any;
 }
 
-my %everys;
+our %everys;
 sub read_every( $ ) {
     my $name = shift;
     skip('=');
@@ -594,7 +626,7 @@ sub read_every( $ ) {
     $everys{$name} = $every;
 }
 
-my %groups;
+our %groups;
 sub read_group( $ ) {
     my $name = shift;
     skip('=');
@@ -608,7 +640,7 @@ sub read_group( $ ) {
     $groups{$name} = $group;
 }
 
-my %servicegroups;
+our %servicegroups;
 sub read_servicegroup( $ ) {
    my $name = shift;
    skip('=');
@@ -698,7 +730,7 @@ sub read_proto_nr() {
     }
 }
 
-my %services;
+our %services;
 sub read_service( $ ) {
     my $name = shift;
     my $srv = { name => $name };
@@ -728,7 +760,7 @@ sub read_service( $ ) {
     &prepare_srv_ordering($srv);
 }
 
-my @rules;
+our @rules;
 sub read_rule( $ ) {
     my($action) = @_;
     my @src = &read_assign_list('src', \&read_typed_name);
@@ -3394,8 +3426,8 @@ sub usage() {
     die "Usage: $0 [-c config] {in-file | in-directory} out-directory\n";
 }
 
-my $conf_file;
-my $out_dir;
+our $conf_file;
+our $out_dir;
 sub read_args() {
     use Getopt::Std;
     my %opts;
@@ -3419,36 +3451,5 @@ sub read_config() {
     }
     close FILE;
 }
-	    
-####################################################################
-# Main program
-####################################################################
 
-&read_args();
-&read_config() if $conf_file;
-info "$program, version $version";
-&read_file_or_dir($main_file);
-&show_read_statistics();
-&order_services();
-&link_topology();
-&mark_disabled();
-&find_subnets();
-&setany();
-&expand_rules();
-&check_unused_groups();
-&setpath();
-die "Aborted with $error_counter error(s)\n" if $error_counter;
-$error_counter = $max_errors; # following errors should always abort
-# Find routes before conversion of any rules, 
-# because that will introduce additinal 'any' objects,
-# which would result in superfluous routes
-&set_route_in_any();
-&find_active_routes_and_statics();
-&convert_any_rules();
-&optimize();
-&mark_secondary_rules();
-&repair_deny_influence();
-&acl_generation();
-&check_output_dir($out_dir);
-&print_code($out_dir);
-&warn_pix_icmp();
+1
