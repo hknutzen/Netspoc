@@ -1705,6 +1705,7 @@ sub setany_network( $$$ ) {
 	# Found a loop inside a security domain
 	return;
     }
+#    info "++ $network->{name}";
     $network->{any} = $any;
     # Add network to the corresponding 'any' object,
     # to have all networks of a security domain available.
@@ -1730,7 +1731,7 @@ sub setany_router( $$$ ) {
 	# Found a loop inside a security domain
 	return;
     }
-    $router->{any} = $any;
+#    info "++ $router->{name}";
     for my $interface (@{$router->{interfaces}}) {
 	# ignore interface where we reached this router
 	next if $interface eq $in_interface;
@@ -1738,14 +1739,18 @@ sub setany_router( $$$ ) {
     }
 }
 
+my @all_anys;
+
 sub setany() {
-    for my $any (values %anys) {
+    @all_anys = values %anys;
+    for my $any (@all_anys) {
 	my $obj = $any->{link};
 	if(my $old_any = $obj->{any}) {
 	    err_msg
 		"More than one 'any' object definied in a security domain:\n",
 		" $old_any->{name} and $any->{name}";
 	}
+#	info "** $any->{name}";
 	if(is_net $obj) {
 	    setany_network $obj, $any, 0;
 	} elsif(is_router $obj) {
@@ -1759,8 +1764,11 @@ sub setany() {
     # where none has been declared
     for my $network (values %networks) {
 	next if $network->{any};
+	next if $network->{disabled};
 	(my $name = $network->{name}) =~ s/^network:/auto_any:/;
 	my $any = new('Any', name => $name, link => $network);
+	push @all_anys, $any;
+#	info "** $any->{name}";
 	setany_network $network, $any, 0;
     }
 }
@@ -1769,96 +1777,237 @@ sub setany() {
 # Set paths for efficient topology traversal
 ####################################################################
 
-sub setpath_router( $$$$ ) {
-    my($router, $to_border, $border, $distance) = @_;
-    # ToDo: operate with loops
-    if($router->{border}) {
-	err_msg "Found a loop at $router->{name}.\n",
-	" Loops are not supported in this version";
+sub setpath_router( $$$ ) {
+    my($router, $to_r1, $distance) = @_;
+    if($router->{active_path}) {
+	# Found a loop
 	return;
     }
-    $router->{border} = $border;
-    $router->{to_border} = $to_border;
-    $router->{distance} = $distance;
+    # mark current path for loop detection
+    $router->{active_path} = 1;
+    my $old_dist = $to_r1->{dist2any};
+    # find maximum distance
+    if($old_dist and $old_dist >= $distance) {
+	return;
+    }
+#    info "-- $distance: $router->{name}";
+    $to_r1->{dist2any} = $distance;
     for my $interface (@{$router->{interfaces}}) {
 	# ignore interface where we reached this router
-	next if $interface eq $to_border;
-	&setpath_any($interface->{any},
-		     $interface, $interface, $distance+1);
+	next if $interface eq $to_r1;
+	&setpath_any($interface->{any}, $interface, $distance+1);
     }
+    $router->{active_path} = 0;
 }
 
-sub setpath_any( $$$$ ) {
-    my ($any, $to_border, $border, $distance) = @_;
-    # ToDo: operate with loops
-    if($any->{border}) {
-	err_msg "Found a loop at $any->{name}.\n",
-	" Loops are not supported in this version";
+sub setpath_any( $$$ ) {
+    my ($any, $to_r1, $distance) = @_;
+    if($any->{active_path}) {
+	# Found a loop
 	return;
     }
-    $any->{border} = $border;
+    # mark current path for loop detection
+    $any->{active_path} = 1;
+    my $old_dist = $to_r1->{dist2router};
+    # find maximum distance
+    if($old_dist and $old_dist >= $distance) {
+	return;
+    }
+#    info "-- $distance: $any->{name}";
+    $to_r1->{dist2router} = $distance;
     for my $interface (@{$any->{interfaces}}) {
 	# ignore interface where we reached this network
-	next if $interface eq $to_border;
-	&setpath_router($interface->{router},
-			$interface, $border, $distance);
+	next if $interface eq $to_r1;
+	&setpath_router($interface->{router}, $interface, $distance+1);
     }
+    $any->{active_path} = 0;
 }
 
 sub setpath() {
-    # take a random managed element from %routers, name it "router1"
-    my $router1;
-    for my $router (values %routers) {
-	if($router->{managed}) {
-	    $router1 = $router;
-	    last;
-	}
-    }
-    $router1 or die "Topology needs at least one managed router\n"; 
+    # take a random managed element from @all_anys, name it "any1"
+    my $any1 = $all_anys[0] or die "Topology seems to be empty\n";
 
-    # Starting with router1, do a traversal of the whole network 
-    # to find a path from every network and router to router1
-    &setpath_router($router1, 'not undef', undef, 0);
+    # Artificially add an interface to any1 with lowest distance.
+    my $interface = new('Interface',
+			name => 'interface:ARTIFICIAL',
+			dist2router => 1);
+    push @{$any1->{interfaces}}, $interface;
 
-    # check, if all routers are connected with router1 
-    for my $router (values %routers) {
-	next if $router eq $router1;
-	next if $router->{disabled};
-	if($router->{managed}) {
-	    $router->{border} or
-	    err_msg "Found unconnected node: $router->{name}";
-	} else {
-	    $router->{any}->{border} or
-	    err_msg "Found unconnected node: $router->{name}";
+    # Starting with any1, do a traversal of the whole network 
+    # to find a path from every security domain and router to any1
+    &setpath_any($any1, $interface, 2);
+
+    # check, if all security domains are connected with router1 
+    for my $any (@all_anys) {
+	next if $any eq $any1;
+	my $connected = 0;
+	for my $interface (@{$any->{interfaces}}) {
+	    if($interface->{dist2router}) {
+		$connected = 1,
+	    }
 	}
-    }
-    # check, if all networks are connected with router1
-    for my $network (values %networks) {
-	next if $network->{disabled};
-	$network->{any}->{border} or
-	    err_msg "Found unconnected node: $network->{name}";
+	$connected or
+	    err_msg "Found unconnected security domain $any->{name}";
     }
 }
 
 ####################################################################
-# Functions for path traversal
+# Efficient path traversal.
 # Used for conversion of 'any' rules and for generation of ACLs
 ####################################################################
 
-sub get_border( $ ) {
+# ToDo: 
+# - Sicherstellen, dass jedes Interface nur 1x durchlaufen wird
+sub part_walk( $$$$$$ ) {
+    my($rule, $fun, $src, $src_in, $dst, $dst_in) = @_;
+    if($src eq $dst) {
+	if(is_router $src) {
+	    if($src_in or $dst_in) {
+#    info("eql: ".($src_in?$src_in->{name}:'')." -- ".($dst_in?$dst_in->{name}:''));
+		&$fun($rule, $src_in, $dst_in);
+	    }
+	}
+	return;
+    }
+    my $found_src_path = 0;
+    for my $src_out (@{$src->{interfaces}}) {
+	next if $src_in and $src_in eq $src_out;
+	my $src_dist;
+	my $src_next;
+	if(is_router $src) {
+	    $src_dist = $src_out->{dist2any};
+	    $src_next = $src_out->{any};
+	} else {
+	    $src_dist = $src_out->{dist2router};
+	    $src_next = $src_out->{router};
+	}
+	# ignore interface, if this is not a path to router1
+	next unless $src_dist;
+	$found_src_path = 1;
+	my $found_dst_path = 0;
+	for my $dst_out (@{$dst->{interfaces}}) {
+	    next if $dst_in and $dst_in eq $dst_out;
+	    my $dst_dist;
+	    my $dst_next;
+	    if(is_router $dst) {
+		$dst_dist = $dst_out->{dist2any};
+		$dst_next = $dst_out->{any};
+	    } else {
+		$dst_dist = $dst_out->{dist2router};
+		$dst_next = $dst_out->{router};
+	    }
+	    next unless $dst_dist;
+	    $found_dst_path = 1;
+	    if($src_dist >= $dst_dist) {
+#    info("src: ".($src_in?$src_in->{name}:'')." -- ".($src_out?$src_out->{name}:'')) if is_router $src;
+		&$fun($rule, $src_in, $src_out) if is_router $src;
+		&part_walk($rule, $fun, $src_next, $src_out, $dst, $dst_in);
+	    } else {
+#    info("dst: ".($dst_out?$dst_out->{name}:'')." -- ".($dst_in?$dst_in->{name}:'')) if is_router $dst;
+		&$fun($rule, $dst_out, $dst_in) if is_router $dst;
+		&part_walk($rule, $fun, $src, $src_in, $dst_next, $dst_out);
+	    } 
+	}
+	unless($found_dst_path) {
+	    warning "No path to $dst->{name}";
+	}
+    }
+    unless($found_src_path) {
+	warning "No path from $src->{name}";
+    }
+}
+
+sub get_distance( $$ ) {
+    my($obj, $interface) = @_;
+    if(is_router $obj) {
+	return $interface->{dist2any};
+    } else {
+	return $interface->{dist2router};
+    }
+}
+
+sub get_next( $$ ) {
+    my ($obj, $intf) = @_;
+    if(is_any $obj) {
+	return $intf->{router};
+    } else {
+	return $intf->{any};
+    }
+}
+
+# ToDo: 
+# - Sicherstellen, dass jedes Interface nur 1x durchlaufen wird
+sub part_walk2( $$$$$$$ ) {
+    my($fun, $src_in, $src, $src_out, $dst_in, $dst, $dst_out) = @_;
+    if($src eq $dst) {
+	if(is_router $src) {
+	    if($src_in or $dst_in) {
+		&$fun($src_in, $dst_in);
+	    }
+	}
+	return;
+    }
+
+    my $src_dist;
+    my $src_next;
+    if(is_router $src) {
+	$src_dist = $src_out->{dist2any};
+	$src_next = $src_out->{any};
+    } else {
+	$src_dist = $src_out->{dist2router};
+	$src_next = $src_out->{router};
+    }
+    $src_dist or return;
+
+    my $dst_dist;
+    my $dst_next;
+    if(is_router $dst) {
+	$dst_dist = $dst_out->{dist2any};
+	$dst_next = $dst_out->{any};
+    } else {
+	$dst_dist = $dst_out->{dist2router};
+	$dst_next = $dst_out->{router};
+    }
+    $dst_dist or return;
+    if($src_dist >= $dst_dist) {
+	for my $interface (@{$src_next->{interfaces}}) {
+	    next if $interface eq $src_out;
+	    next unless get_distance($src_next,$interface);
+	    if (is_router $src) {
+		&$fun($src_in, $src_out) or next;
+	    }
+	    &part_walk2($fun,
+			$src_out, $src_next, $interface,
+			$dst_in, $dst, $dst_out);
+	}
+    } else {
+	for my $interface (@{$dst_next->{interfaces}}) {
+	    next if $interface eq $dst_out;
+	    next unless get_distance($dst_next,$interface);
+	    if (is_router $dst) {
+		&$fun($dst_out, $dst_in) or next;
+	    }
+	    &part_walk2($fun,
+			$src_in, $src, $src_out,
+			$dst_out, $dst_next, $interface);
+	}
+    }
+}
+
+sub get_path( $ ) {
     my($obj) = @_;
     if(is_host($obj)) {
-	return $obj->{network}->{any}->{border};
+	return $obj->{network}->{any};
     } elsif(is_interface($obj)) {
 	if($obj->{router}->{managed}) {
-	    return undef;
+	    return $obj->{router};
 	} else {
-	    return $obj->{network}->{any}->{border};
+	    return $obj->{network}->{any};
 	}
     } elsif(is_net($obj)) {
-	return $obj->{any}->{border};
+	return $obj->{any};
     } elsif(is_any($obj)) {
-	return $obj->{border};
+	return $obj;
     } else {
 	internal_err "unexpected object $obj->{name}";
     }
@@ -1872,70 +2021,34 @@ sub get_border( $ ) {
 sub path_walk($&) {
     my ($rule, $fun) = @_;
     internal_err "undefined rule" unless $rule;
-    my $src = $rule->{src};
-    my $dst = $rule->{dst};
-    my $src_intf = &get_border($src);
-    my $dst_intf = &get_border($dst);
-    my $src_router = $src_intf?$src_intf->{router}:$src->{router};
-    my $dst_router = $dst_intf?$dst_intf->{router}:$dst->{router};
-    my $src_dist = $src_router->{distance};
-    my $dst_dist = $dst_router->{distance};
-
-    if(# src and dst are interfaces on the same router
-       not defined $src_intf and not defined $dst_intf
-       and $src_router eq $dst_router or
-       # no border between src and dst
-       defined $src_intf and defined $dst_intf and $src_intf eq $dst_intf) {
-	# no message if src eq dst; this happens for group to group rules
-	unless($src eq $dst) {
-	    warning "Unenforceable rule\n ", print_rule($rule);
+#    info "Path for: ".print_rule $rule;
+    my $closure;
+    $closure = sub ( $$ ) {
+	my ($in_intf, $out_intf) = @_;
+	{
+	    no warnings 'uninitialized';
+	    (not defined $in_intf or $in_intf->{tag} eq $closure)
+		and (not defined $out_intf or $out_intf->{tag} eq $closure)
+		and return; 0;
 	}
-	# don't process rule again later
-	$rule->{deleted} = $rule;
-	return;
-    }
-
-    # go from src to dst until equal distance is reached
-    while($src_dist > $dst_dist) {
-	my $out_intf = $src_router->{to_border};
-	&$fun($rule, $src_intf, $out_intf);
-	$src_intf = $src_router->{border};
-	$src_router = $src_intf->{router};
-	$src_dist = $src_router->{distance};
-    }
-
-    # go from dst to src until equal distance is reached
-    while($src_dist < $dst_dist) {
-	my $in_intf = $dst_router->{to_border};
-	&$fun($rule, $in_intf, $dst_intf);
-	$dst_intf = $dst_router->{border};
-	$dst_router = $dst_intf->{router};
-	$dst_dist = $dst_router->{distance};
-    }
-
-    # now alternating go one step from src and one from dst
-    # until the router in the middle is reached
-    while($src_router ne $dst_router) {
-	my $out_intf = $src_router->{to_border};
-	&$fun($rule, $src_intf, $out_intf);
-	$src_intf = $src_router->{border};
-	$src_router = $src_intf->{router};
-
-	my $in_intf = $dst_router->{to_border};
-	&$fun($rule, $in_intf, $dst_intf);
-	$dst_intf = $dst_router->{border};
-	$dst_router = $dst_intf->{router};
-    }
-
-    # $src_router eq $dst-router
-    # if we reached the router via different interfaces, 
-    # the router lies on the path
-    if(not defined $src_intf or
-       not defined $dst_intf or
-       $src_intf ne $dst_intf) {
-	&$fun($rule, $src_intf, $dst_intf);
-    } else {
-	# the router doesn't lie on the path, nothing to do
+#	info("fun: ".
+#	     ($in_intf?$in_intf->{name}:'undef').' - '.
+#	     ($out_intf?$out_intf->{name}:'undef'));
+	&$fun($rule, $in_intf, $out_intf);
+	$in_intf->{tag} = $out_intf->{tag} = $closure;
+	return 1;
+    };
+    my $src = get_path $rule->{src};
+    my $dst = get_path $rule->{dst};
+#    part_walk($rule, $fun, $src, undef, $dst, undef);
+    for my $src_out (@{$src->{interfaces}}) {
+	next unless get_distance($src,$src_out);
+	for my $dst_out (@{$dst->{interfaces}}) {
+	    next unless get_distance($dst,$dst_out);
+	    part_walk2($closure, 
+		       undef, $src, $src_out,
+		       undef, $dst, $dst_out);
+	}
     }
 }
 
@@ -1976,6 +2089,9 @@ sub convert_any_src_rule( $$$ ) {
     my $router = $in_intf->{router};
 
     my $any = $in_intf->{any};
+    unless($any) {
+	internal_err "$in_intf->{name} has no associated any";
+    }
     # nothing to do for the first router
     return if $any eq $rule->{src};
 
@@ -2368,11 +2484,13 @@ sub optimize() {
 # using this interface as next hop
 ####################################################################
     
+# ToDo: Think about routes in conjunction with loops
 sub get_networks_behind ( $ ) {
     my($hop) = @_;
     # return if the values have already been calculated
     return @{$hop->{route}} if exists $hop->{route};
     my @networks;
+    $hop->{route} = \@networks;
     for my $interface (@{$hop->{router}->{interfaces}}) {
 	next if $interface eq $hop;
  	next if $interface->{disabled};
@@ -2387,7 +2505,6 @@ sub get_networks_behind ( $ ) {
 	    push @networks, &get_networks_behind($next_hop);
 	}
     }
-    $hop->{route} = \@networks;
     return @networks;
 }
 	
@@ -2637,7 +2754,8 @@ sub print_pix_static( $ ) {
     print "[ Static ]\n";
     print "! Security levels: ";
     my $last_level;
-    for my $interface (sort { $a->{level} <=> $b->{level} } @{$router->{interfaces}} ) {
+    for my $interface (sort { $a->{level} <=> $b->{level} }
+		       @{$router->{interfaces}} ) {
 	my $level = $interface->{level};
 	if(defined $last_level) {
 	    print(($last_level == $level)? " = ": " < ");
@@ -2799,37 +2917,38 @@ sub collect_acls_at_dst( $$$ ) {
     push @_, 'dst';
     &collect_acls_at_end(@_);
 }
+
 # Case 1:
-# r1-src-r2-r3-dst: get_border(src) = r1: r1 is not on path, but r2.border = r1
+# r1-src-r2-r3-dst: get_path(src) = any(src) lies betwen r1 and r2
+# src_intf of r2 is marked as path to r1 and it is connected to any($src)
 # Case 1a/2a: src is interface of managed router
-# get_border(src) is undef, r.src_intf is undef, src.router = dst_intf.router
+# get_path(src) is r2, r2.src_intf is undef
 # Case 2:
-# r3-src-r2-r1-dst: get_border(src) = r2: r2 is 1st border on path
+# r3-src-r2-r1-dst: get_path(src) = any(src) lies betwen r3 and r2
+# src_intf of r2 is marked as path to r1 and it is connected to any($src)
 sub collect_acls_at_end( $$$$ ) {
     my ($rule, $src_intf, $dst_intf, $where) = @_;
     my $end = $rule->{$where};
     my $end_intf = ($where eq 'src')? $src_intf:$dst_intf;
-    my $end_border = &get_border($end);
+    my $end_path = &get_path($end);
     # Case 1a/2a:
-    if(not defined $end_border) {
+    if(is_router $end_path) {
 	if(not defined $end_intf) {
 	    &collect_acls($rule, $src_intf, $dst_intf);
 	} else {
 	    &collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
 	}
-    } else {
-	my $router = $end_intf->{router};
-        # Case 1:
-	if($router->{to_border} eq $end_intf and
-	   $router->{border} eq $end_border) {
-	    &collect_acls($rule, $src_intf, $dst_intf);
-	}
-	# Case 2:
-	elsif($end_border eq $end_intf) {
-	    &collect_acls($rule, $src_intf, $dst_intf);
-	} else {
-	    &collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
-	}
+    }
+    # case 1
+    elsif($end_intf->{dist2any} and $end_intf->{any} eq $end_path) {
+	&collect_acls($rule, $src_intf, $dst_intf);
+    } 
+    # case 2
+    elsif($end_intf->{dist2router} and $end_intf->{any} eq $end_path) {
+	&collect_acls($rule, $src_intf, $dst_intf);
+    } 
+    else {
+	&collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
     }
 }
 
@@ -2917,10 +3036,10 @@ sub print_acls( $ ) {
     # Collect IP addresses of all interfaces
     my @ip;
     for my $interface (@{$router->{interfaces}}) {
-	# Remember interface name for comments
-	$hardware{$interface->{hardware}} = $interface->{name};
 	# ignore 'unnumbered' and 'short' interfaces
 	next if $interface->{ip} eq 'unnumbered' or $interface->{ip} eq 'short';
+	# Remember interface name for comments
+	$hardware{$interface->{hardware}} = $interface->{name};
 	push @ip, @{$interface->{ip}};
     }
     for my $hardware (sort keys %hardware) {
@@ -2928,8 +3047,8 @@ sub print_acls( $ ) {
 	my $code = $router->{code}->{$hardware};
 	my $if_code = $router->{if_code}->{$hardware};
 	# force auto-vivification
-	push @$code;
-	push @$if_code;
+	push @$code, ();
+	push @$if_code, ();
 	if($model =~ /^IOS/) {
 	    if($comment_acls) {
 		print "! $hardware{$hardware}\n";
@@ -3051,9 +3170,9 @@ info "$program, version $version";
 &mark_disabled();
 &find_subnets();
 &setany();
-&setpath();
 &expand_rules();
 &check_unused_groups();
+&setpath();
 die "Aborted with $error_counter error(s)\n" if $error_counter;
 $error_counter = $max_errors; # following errors should always abort
 &convert_any_rules();
