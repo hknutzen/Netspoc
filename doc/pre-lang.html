@@ -190,7 +190,7 @@ each subnetwork.
  router models.<BR>Currently three models are supported:
 <UL>
 <LI>PIX for Cisco PIX firewalls
-<LI>IOS_FW for Cisco IOS routers with statefull inspection
+<LI>IOS_FW for Cisco IOS routers with state full inspection
 <li>IOS for stateless Cisco IOS
 </UL>
 <font size="-1">Note: IOS_FW was named IOS before NetSPoC version 1.3
@@ -351,9 +351,9 @@ destination are allowed implicitly.
 <li>Similar to tcp connections, only one rule is needed to let udp
 packets pass from source to destination and back.
 <li>When using service "ip" in a rule, currently only packets from
-source to destination are allowed. But stateful packet filters let
+source to destination are allowed. But state full packet filters let
 pass answer packets for tcp connections anyway. To get a unified
-handling for tcp, udp and ip for stateful and stateless packet filters,
+handling for tcp, udp and ip for state full and stateless packet filters,
 we might change this in the future, to let ip packets pass in both
 directions, with only one rule.
 </ul>
@@ -384,7 +384,7 @@ directions, with only one rule.
 <P>An interface may be explicitly marked as disabled.  
 This implicitly marks all network objects as disabled, that are
 directly or indirectly connected to this interface.
-All occurences of disabled network objects in groups and rules are
+All occurrences of disabled network objects in groups and rules are
 silently discarded.</P>
 
 <H2><A NAME="handling_any">Handling of 'any' objects</A></H2>
@@ -404,10 +404,10 @@ interface belongs to.
 </DL>
 
 <H2><A NAME="pix_levels">PIX security levels</A></H2>
-<P>PIX firewalls have a security level associated wih each interface.
+<P>PIX firewalls have a security level associated with each interface.
 We don't want to expand our syntax to state them explicitly,
 but instead we try to derive the level from the interface name.
-It is not neccessary the find the exact level; what we need to know
+It is not necessary the find the exact level; what we need to know
 is the relation of the security levels to each other.</P>
 
 <H2><A NAME="redundant_rules">Automatic deletion of redundant rules</A></H2>
