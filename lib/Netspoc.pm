@@ -1408,6 +1408,7 @@ sub disable_behind( $$ ) {
 	my $router = $interface->{router};
 	$router->{disabled} = 1;
 	# a disabled router can't be managed
+	$router->{managed} = 0;
 	for my $outgoing (@{$router->{interfaces}}) {
 	    next if $outgoing eq $interface;
 	    $outgoing->{disabled} = 1;
