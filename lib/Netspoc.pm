@@ -3516,8 +3516,7 @@ sub optimize_reverse_rules() {
 
 # This function is called for each network on the path from src to dst
 # of $rule.
-# If $in_intf and $out_intf are both defined, 
-# packets traverse this network.
+# If $in_intf and $out_intf are both defined, packets traverse this network.
 # If $in_intf is not defined, there is no interface where we could add
 # routing entries.
 # If $out_intf is not defined, dst is this network;
@@ -3534,6 +3533,12 @@ sub collect_route( $$$ ) {
 	return unless $in_intf->{router}->{managed};
 	# Remember network which is reachable via $out_intf.
 	my $network = $rule->{dst};
+	# This router and all routers from here to dst have been processed already.
+	if($in_intf->{routes}->{$out_intf}->{$network}) {
+	    # Jump out of path_walk in sub find_active_routes_and_statics
+	    no warnings "exiting";
+	    next RULE;
+	}
 #	info "Route at $in_intf->{name}: $network->{name} via $out_intf->{name}";
 	$in_intf->{routes}->{$out_intf}->{$network} = $network;
 	# Store $out_intf itself, since we need to go back 
@@ -3542,7 +3547,7 @@ sub collect_route( $$$ ) {
     }
 }
 
-sub check_duplicate_routes () {
+sub check_and_convert_routes () {
     info "Checking for duplicate routes";
     for my $router (@managed_routers) {
 	# Remember, via which local interface a network is reached.
@@ -3550,7 +3555,10 @@ sub check_duplicate_routes () {
 	for my $interface (@{$router->{interfaces}}) {
 	    # Remember, via which remote interface a network is reached.
 	    my %net2hop;
-	    for my $hop (values %{$interface->{hop}}) {
+	    # Convert to sorted array, because hash isn't neede any longer.
+	    $interface->{hop} = [ sort { $a->{name} cmp $b->{name} }
+				  values %{$interface->{hop}} ];
+	    for my $hop (@{$interface->{hop}}) {
 		for my $network (values %{$interface->{routes}->{$hop}}) {
 		    if(my $interface2 = $net2intf{$network}) {
 			if($interface2 ne $interface) {
@@ -3614,6 +3622,12 @@ sub mark_networks_for_static( $$$ ) {
     " from  $in_intf->{name} to $out_intf->{name},\n",
     " because they have equal security levels.\n"
 	if $in_hw->{level} == $out_hw->{level};
+    # This router and all routers from here to dst have been processed already.
+    if($out_hw->{static}->{$in_hw}->{$dst}) {
+	# Jump out of path_walk in sub find_active_routes_and_statics
+	no warnings "exiting";
+	next RULE;
+    }
     # Put networks into a hash to prevent duplicates.
     $out_hw->{static}->{$in_hw}->{$dst} = $dst;
     # Do we need to generate "nat 0" for an interface?
@@ -3669,6 +3683,7 @@ sub find_active_routes_and_statics () {
 	$fun->($rule->{src}, $rule->{dst});
     }
     for my $hash (values %routing_tree) {
+      RULE:
 	for my $pseudo_rule (values %$hash) {
 	    &path_walk($pseudo_rule, \&mark_networks_for_static, 'Router');
 	}
@@ -3678,11 +3693,12 @@ sub find_active_routes_and_statics () {
 	$fun->($rule->{dst}, $rule->{src});
     }
     for my $hash (values %routing_tree) {
+      RULE:
 	for my $pseudo_rule (values %$hash) {
 	    &path_walk($pseudo_rule, \&collect_route, 'Network');
 	}
     }
-    check_duplicate_routes();
+    check_and_convert_routes();
 }
 
 # Needed for default route optimization and
@@ -3694,22 +3710,21 @@ sub print_routes( $ ) {
     my($router) = @_;
     my $type = $router->{model}->{routing};
     if($auto_default_route) {
-	# find interface and hop with largest number of routing entries
+	# Find interface and hop with largest number of routing entries.
 	my $max_intf;
 	my $max_hop;
-	# substitute routes to one hop with a default route,
+	# Substitute routes to one hop with a default route,
 	# if there are at least two entries.
 	my $max = 1;
 	for my $interface (@{$router->{interfaces}}) {
 	    if($interface->{routing}) {
-		# if dynamic routing is activated for any interface 
-		# of the current router, don't do this optimization at all
+		# If dynamic routing is activated for any interface 
+		# of the current router, don't do this optimization at all.
 		$max_intf = undef;
 		last;
 	    }
 	    # Sort interfaces by name to make output deterministic
-	    for my $hop (sort { $a->{name} cmp $b->{name} }
-			 values %{$interface->{hop}}) {
+	    for my $hop (@{$interface->{hop}}) {
 		my $count = keys %{$interface->{routes}->{$hop}};
 		if($count > $max) {
 		    $max_intf = $interface;
@@ -3736,8 +3751,7 @@ sub print_routes( $ ) {
 	}
 	my $nat_info = $interface->{nat_info};
 	# Sort interfaces by name to make output deterministic
-	for my $hop (sort { $a->{name} cmp $b->{name} }
-			 values %{$interface->{hop}}) {
+	for my $hop (@{$interface->{hop}}) {
 	    # for unnumbered networks use interface name as next hop
 	    my $hop_addr =
 		$hop->{ip} eq 'unnumbered' ?
