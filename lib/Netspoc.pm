@@ -1955,15 +1955,18 @@ sub gen_pix_static( $ ) {
 
 sub collect_acls( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
-    my $router;
-    # one of both interfaces may be undefined
-    $src_intf and $router = $src_intf->{router};
-    $dst_intf and $router = $dst_intf->{router};
-    my $model = $router->{model};
     my $action = $rule->{action};
     my $src = $rule->{src};
     my $dst = $rule->{dst};
     my $srv = $rule->{srv};
+    # Traffic from src reaches this router via src_intf
+    # and leaves it via dst_intf 
+    # src_intf is undefined if src is an interface of the current router
+    # analogous for dst_intf 
+    my $router;
+    $src_intf and $router = $src_intf->{router};
+    $dst_intf and $router = $dst_intf->{router};
+    my $model = $router->{model};
     if($model eq 'PIX' and $src_intf and $dst_intf and
        $src_intf->{level} < $dst_intf->{level}) {
 	&collect_pix_static($src_intf, $dst_intf, $rule);
@@ -1973,14 +1976,16 @@ sub collect_acls( $$$ ) {
     my @dst_code = &adr_code($dst, $inv_mask);
     my ($proto_code, $port_code) = &srv_code($srv, $model);
     $action = 'deny' if $action eq 'weak_deny';
-    # the src object reaches this router via src_intf
+    # ToDo: For PIX firewalls it is unnecessary to allow ipsec packets,
+    # because these are allowed implicitly
     if(defined $src_intf) {
+	my $hardware = $src_intf->{hardware};
 	if($comment_acls) {
-	    push(@{$src_intf->{code}}, "! ". print_rule($rule)."\n");
+	    push(@{$router->{code}->{$hardware}}, "! ". print_rule($rule)."\n");
 	}
 	for my $src_code (@src_code) {
 	    for my $dst_code (@dst_code) {
-		push(@{$src_intf->{code}},
+		push(@{$router->{code}->{$hardware}},
 		     "$action $proto_code $src_code $dst_code $port_code\n");
 	    }
 	}
@@ -1988,10 +1993,9 @@ sub collect_acls( $$$ ) {
 	# src_intf is undefined: src is an interface of this router
 	# For IOS and PIX, only packets from dst back to
 	# this router are filtered
-	# ToDo: For PIX firewalls it is unnecessary to allow ipsec packets,
-	# because these are allowed implicitly
+	my $hardware = $dst_intf->{hardware};
 	if($comment_acls) {
-	    push(@{$dst_intf->{code}}, "! ". print_rule($rule)."\n");
+	    push(@{$router->{code}->{$hardware}}, "! ". print_rule($rule)."\n");
 	}
 	for my $src_code (@src_code) {
 	    for my $dst_code (@dst_code) {
@@ -2005,7 +2009,7 @@ sub collect_acls( $$$ ) {
 		    # permitted implicitly
 		    next;
 		}
-		push(@{$dst_intf->{code}},
+		push(@{$router->{code}->{$hardware}},
 		     "$action $proto_code $dst_code $port_code $src_code $established\n");
 	    }
 	}
@@ -2052,20 +2056,18 @@ sub gen_acls( $ ) {
     my($router) = @_;
     my $model = $router->{model};
     print "[ ACL ]\n";
-    for my $interface (@{$router->{interfaces}}) {
-	# ToDo: currently we operate with logical interfaces per network
-	# but access lists work with hardware interfaces
-	my $name = "$interface->{hardware}_in";
+    while(my($hardware, $code) = each %{$router->{code}}) {
+	my $name = "${hardware}_in";
 	if($model eq 'IOS') {
 	    print "ip access-list extended $name\n";
-	    for my $line (@{$interface->{code}}) {
+	    for my $line (@$code) {
 		print " $line";
 	    }
 	    print " deny ip any any\n";
-	    print "interface $interface->{hardware}\n";
+	    print "interface $hardware\n";
 	    print " access group $name\n\n";
 	} elsif($model eq 'PIX') {
-	    for my $line (@{$interface->{code}}) {
+	    for my $line (@$code) {
 		if($line =~ /^\s*!/) {
 		    print $line;
 		} else {
@@ -2073,7 +2075,7 @@ sub gen_acls( $ ) {
 		}
 	    }
 	    print "access-list $name deny ip any any\n";
-	    print "access-group $name in $interface->{hardware}\n\n";
+	    print "access-group $name in $hardware\n\n";
 	} else {
 	    die "internal in gen_acls: unsupported model $model";
 	}
