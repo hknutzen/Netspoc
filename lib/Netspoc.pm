@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/perl
 
 # File: open-spm.pl
 # Author: Heinz Knutzen
@@ -6,15 +6,20 @@
 # An attempt for a simple and fast replacement of Cisco's
 # Cisco Secure Policy Manager
 
-$program = 'Open Secure Policy Manager';
-$version = 0.28;
-$verbose = 1;
+use strict;
+use warnings;
+
+our $program = 'Open Secure Policy Manager';
+our $version = 0.32;
+our $verbose = 1;
+our $comment_acls = 1;
 
 ##############################################################################
 # Phase 1
 # Reading topology, Services, Groups, Rules
 ##############################################################################
 
+our $eof;
 # $_ is used as input buffer, it holds the rest of the current input line
 sub skip_space_and_comment() {
     # ignore trailing whitespace and comments
@@ -39,7 +44,7 @@ sub check_eof() {
 }
 
 # check for a string and skip if available
-sub check($) {
+sub check( $ ) {
     my $token = shift;
     &skip_space_and_comment();
     # todo: escape special RE characters in $token
@@ -47,9 +52,9 @@ sub check($) {
 }
 
 # skip a string
-sub skip ($) {
+sub skip ( $ ) {
     my $token = shift;
-    &check($token) || die "expected '$token', but found '$_'";
+    &check( $token) || die "expected '$token', but found '$_'";
 }
 
 # check, if an integer is available
@@ -99,7 +104,7 @@ sub read_ip() {
 
 # convert IP address from internal integer representation to
 # readable string
-sub print_ip($) {
+sub print_ip( $ ) {
     my $ip = shift;
     my $v1 = $ip % 256;
     $ip >>= 8;
@@ -113,7 +118,7 @@ sub print_ip($) {
 }
 
 # generate a list of IP strings from an ref of an array of integers
-sub print_ip_aref($) {
+sub print_ip_aref( $ ) {
     my $aref = shift;
     return map { print_ip($_); } @$aref;
 }
@@ -142,7 +147,7 @@ sub read_name() {
     }
 }
 
-sub split_typed_name($) {
+sub split_typed_name( $ ) {
     my($name) = @_;
     # split at first colon, thus the name may contain further colons
     split /:/, $name, 2;
@@ -196,7 +201,8 @@ sub read_network_name() {
     return $name
 }
 
-sub read_host($) {
+our %hosts;
+sub read_host( $ ) {
     my $name = shift;
     &skip('=');
     &skip('{');
@@ -227,7 +233,8 @@ sub read_host($) {
     return $host;
 }
 
-sub read_network($) {
+our %networks;
+sub read_network( $ ) {
     my $name = shift;
     skip('=');
     skip('{');
@@ -270,7 +277,7 @@ sub read_network($) {
     $networks{$name} = $network;
 }
 
-sub read_interface($) {
+sub read_interface( $ ) {
     my $net = shift;
     &skip('=');
     &skip('{');
@@ -294,7 +301,8 @@ sub read_interface($) {
     return $interface;
 }
 
-sub read_router($) {
+our %routers;
+sub read_router( $ ) {
     my $name = shift;
     skip('=');
     skip('{');
@@ -337,7 +345,9 @@ sub read_router($) {
 
 # very similar to router, but has no 'managed' setting and has additional 
 # definition parts 'links' and 'any'
-sub read_cloud($) {
+our %clouds;
+our %anys;
+sub read_cloud( $ ) {
     my $name = shift;
     skip('=');
     skip('{');
@@ -401,8 +411,9 @@ sub read_cloud($) {
     }
     $clouds{$name} = $cloud;
 }
-	    
-sub read_group($) {
+
+our %groups;
+sub read_group( $ ) {
     my $name = shift;
     skip('=');
     my @objects = &read_list_or_null(\&read_name);
@@ -412,7 +423,8 @@ sub read_group($) {
     $groups{$name} = \@objects;
 }
 
-sub read_servicegroup($) {
+our %servicegroups;
+sub read_servicegroup( $ ) {
    my $name = shift;
     skip('=');
     my @objects = &read_list_or_null(\&read_name);
@@ -485,7 +497,8 @@ sub read_proto_nr() {
     }
 }
 
-sub read_service($) {
+our %services;
+sub read_service( $ ) {
     my $name = shift;
     my @srv;
     &skip('=');
@@ -501,7 +514,6 @@ sub read_service($) {
 	push(@srv, 'icmp');
 	push(@srv, &read_icmp_type_code());
     } elsif(&check('proto')) {
-	push(@srv, 'proto');
 	push(@srv, &read_proto_nr());
     } else {
 	die "unknown protocol in definition of service:$name: $_";
@@ -513,6 +525,7 @@ sub read_service($) {
     $services{$name} = \@srv; 
 }
 
+our @rules;
 sub read_rules() {
     # read rules as long as another permit or deny keyword follows
     while(my $action = &check_permit_deny()) {
@@ -578,33 +591,33 @@ sub read_data() {
 
 # Type checking functions
 # ToDo: find a more elgant solution
-sub is_net($) {
+sub is_net( $ ) {
     my($obj) = @_;
     return exists $obj->{hosts};
 }
-sub is_router($) {
+sub is_router( $ ) {
     my($obj) = @_;
     return exists $obj->{managed};
 }
-sub is_interface($) {
+sub is_interface( $ ) {
     my($obj) = @_;
     return exists $obj->{router};
 }
-sub is_host($) {
+sub is_host( $ ) {
     my($obj) = @_;
     return exists($obj->{net});
 }
-sub is_any($) {
+sub is_any( $ ) {
     my($obj) = @_;
     return exists($obj->{link}) && not exists($obj->{ip});
 }
-sub is_rule($) {
+sub is_rule( $ ) {
     my($obj) = @_;
     return exists $obj->{src};
 }
 
 # give a readable name of a network object
-sub printable($) {
+sub printable( $ ) {
     my($obj) = @_;
     my $out;
     if(&is_net($obj)) {$out = 'network';}
@@ -617,16 +630,16 @@ sub printable($) {
     return "$out:$obj->{name}";
 }
 
-sub print_rule($) {
+sub print_rule( $ ) {
     my($obj) = @_;
     return $obj->{action} .
 	" src=".&printable($obj->{src}).
-	    " dst=".&printable($obj->{dst}).
-		" srv= ". join ' ', @{$obj->{srv}};
+	    "; dst=".&printable($obj->{dst}).
+		"; srv=". join(' ', @{$obj->{srv}}).";";
 }
 
 # get an array reference and delete undefined values in it
-sub delete_undefs($) {
+sub delete_undefs( $ ) {
     my($aref) = @_;
     for(my $i = @$aref; $i > 0; ) {
 	$i--;
@@ -644,7 +657,7 @@ sub delete_undefs($) {
 # get a reference to an array of network object names and substitute
 # the names with the referenced network objects
 # Returns a list of name wich couldn't be resolved
-sub subst_names_with_refs($) {
+sub subst_names_with_refs( $ ) {
     my($obref) = @_;
     my @unknown;
     for my $object (@$obref) {
@@ -680,7 +693,7 @@ sub subst_names_with_refs($) {
     return @unknown;
 }
 	
-sub link_interface_with_net($) {
+sub link_interface_with_net( $ ) {
     my($interface) = @_;
 
     my $net_name = $interface->{link};
@@ -720,7 +733,19 @@ sub link_interface_with_net($) {
 
 # simplify rules to expanded rules where each rule has exactly one 
 # src, dst and srv
-sub gen_expanded_rules($$$$) {
+
+# array of expanded permit rules
+our @expanded_rules;
+# array of expanded deny rules
+our @expanded_deny_rules;
+# array of expanded any rules
+our @expanded_any_rules;
+# hash for ordering permit any rules; 
+# when sorted, they are added to @expanded_any_rules
+our %ordered_any_rules;
+# counter for expanded permit any rules
+our $anyrule_index = 0;
+sub gen_expanded_rules( $$$$ ) {
     my($action, $src_aref, $dst_aref, $srv_aref) = @_;
     for my $src (@$src_aref) {
 	if(ref($src) eq 'ARRAY') {
@@ -734,7 +759,7 @@ sub gen_expanded_rules($$$$) {
 	    }
 	} else {
 	    unless($src) {
-		print STDERR "undefined src in expanded rule\n";
+		print STDERR "internal in gen_expanded_rules: undefined src\n";
 	    }
 	    for my $dst (@$dst_aref) {
 		if(ref($dst) eq 'ARRAY') {
@@ -747,7 +772,8 @@ sub gen_expanded_rules($$$$) {
 		    }
 		} else {
 		    unless($dst) {
-			print STDERR "undefined dst in expanded rule\n";
+			print STDERR
+			    "internal in gen_expanded_rules: undefined dst\n";
 		    }
 		    for my $srv (@$srv_aref) {
 			# Services are arrays of scalars,
@@ -761,9 +787,11 @@ sub gen_expanded_rules($$$$) {
 						  dst => $dst,
 						  srv => $srv
 						  };
-##print "!! ", print_rule($expanded_rule), "\n";
 			    if($action eq 'deny') {
 				push(@expanded_deny_rules, $expanded_rule);
+			    } elsif(is_any($src) or is_any($dst)) {
+				&order_srv($expanded_rule,
+					   \%ordered_any_rules);
 			    } else {
 				push(@expanded_rules, $expanded_rule);
 			    }
@@ -775,13 +803,220 @@ sub gen_expanded_rules($$$$) {
     }
 }
 
+# put an expanded rule into a data structure which eases building an ordered
+# list of expanded rules with the following properties:
+# - rules with an any object as src or estination ar put at the end
+#   (we call dem any-rules)
+# - any-rules are ordered themselve:
+#  - host any
+#  - any host
+#  - net any
+#  - any net
+#  - any any
+# - all any-rules ar ordered in their srv component, 
+#  i.e. for every i,j with i < j either rule(i).srv < rule(j).srv
+#  or rule(i).srv and rule(j).srv are not comparable
+# Note:
+# TCP and UDP port ranges may be not orderable if they are overlapping.
+# If neccessary, we split ranges and their corresponding rules
+# into smaller pieces to make them orderable.
+
+sub typeof( $ ) {
+    my($ob) = @_;
+    if(is_host($ob) or is_interface($ob)) {
+	return 'host';
+    } elsif(is_net($ob)) {
+	return 'net';
+    } elsif(is_any($ob)) {
+	return 'any';
+    } else {
+	die "internal in typeof: expected host|net|any but got".printable($ob);
+    }
+}
+
+sub order_dst ( $$ ) {
+    my($rule, $hash) = @_;
+    my $id = typeof($rule->{dst});
+    push(@{$hash->{$id}}, $rule);
+}
+
+sub order_src ( $$ ) {
+    my($rule, $hash) = @_;
+    my $id = typeof($rule->{src});
+    order_dst($rule, \%{$hash->{$id}});
+}    
+
+sub copy_srv( $ ) {
+    my($srv) = @_;
+    return [ @$srv ];
+}
+
+sub copy_rule( $ ) {
+    my($rule) = @_;
+    return {action => $rule->{action},
+		src => $rule->{src},
+		dst => $rule->{dst},
+		srv => copy_srv($rule->{srv})
+	    };
+}
+
+sub split_rule( $$$ ) {
+    my($r1, $new_y, $new_x) = @_;
+    my $r2 = copy_rule($r1);
+    $r1->{srv}->[1] = $new_x;
+    $r2->{srv}->[2] = $new_y;
+    return $r1, $r2;
+}
+
+#
+# Syntax of services:
+# ip
+# tcp any
+# tcp port
+# tcp port-port
+# udp ...
+# icmp any
+# icmp type any
+# icmp type code
+# proto nr
+sub order_srv ( $$ ) {
+    my($rule, $hash) = @_;
+    my ($type, $v1, $v2) = @{$rule->{srv}};
+
+    if($type eq 'icmp') {
+	my $id;
+	if(defined $v2) {
+	    if($v2 eq 'any') { $id = 'icmp1'; }
+	    else { $id = 'icmp2'; }
+	} else { $id = 'icmp';	}
+	order_src($rule, \%{$hash->{$id}});
+    } elsif($type eq 'tcp' or $type eq 'udp') {
+	my($x, $y);
+	if($v1 eq 'any') {
+	    order_src($rule, \%{$hash->{"$type-any"}});
+	    return
+	} 
+	($x, $y) = split(/-/, $v1);
+	if(defined $y) {
+	    # a port range
+	    # tcp-range => [ {x=>x,y=>y,any|net|host=>..}, ... ] 
+	    # Compare with all previously defined ranges to find out
+	    # if it overlapps with one.
+	    # One range overlapps with at most two other ranges
+	    my $size = $x-$y;
+	    my $inspos = 0;
+	    my $aref = \@{$hash->{"$type-range"}};
+	    for(my $i = 0; $i < @$aref; $i++) {
+		my $elt = $aref->[$i];
+		my $ex = $elt->{x};
+		my $ey = $elt->{y};
+		# overlapp check
+		if($x < $ex and $ex <= $y and $y < $ey) {
+		    my($r1, $r2) = split_rule($rule,$ex-1,$ex);
+		    &order_srv($r1, $hash);
+		    &order_srv($r2, $hash);
+		    return;
+		} elsif($ex < $x and $x <= $ey and $y > $ey) {
+		    my($r1, $r2) = split_rule($rule,$ey,$ey+1);
+		    &order_srv($r1, $hash);
+		    &order_srv($r2, $hash);
+		    return;
+		}
+		# no overlapp
+		# remember location where this rule has to be inserted later:
+		# directly behind the last range with smaller size
+		if($ey-$ex <= $size) { $inspos = $i+1; }
+	    }
+	    my $newelt = {x => $x, y => $y};
+	    # Port ranges are sorted by size, i.e. highport - lowport
+	    splice(@$aref, $inspos, 0, $newelt);
+	    order_src($rule, $newelt);
+	} else {
+	    # a single port
+	    order_src($rule, \%{$hash->{"$type-port"}});
+	}
+    } elsif($type eq 'proto') {
+	order_src($rule, \%{$hash->{proto}});
+    } elsif($type eq 'ip') {
+	order_src($rule, \%{$hash->{ip}});
+    } else {
+	die "internal in order_srv: unexpected srv type $type";
+    }
+}
+
+sub add_rule_2hash( $$$ ) {
+    my($hash,$id1,$id2) = @_;
+    my $aref = $hash->{$id1}->{$id2};
+    if(defined $aref) {
+	for my $rule (@$aref) {
+	    # add an incremented index to each any rule
+	    # for simplifiing a later check if one rule influences another one
+	    $rule->{i} = $anyrule_index++;
+	    push(@expanded_any_rules, $rule);
+	}
+    }
+}
+
+sub addrule_ordered_src_dst( $ ) {
+    my($hash) = @_;
+    return unless defined $hash;
+    add_rule_2hash($hash, 'host','any');
+    add_rule_2hash($hash, 'any','host');
+    add_rule_2hash($hash, 'net','any');
+    add_rule_2hash($hash, 'any','net');
+    add_rule_2hash($hash, 'any','any');
+}
+
+sub addrule_ordered_srv( $ ) {
+    my($hash) = @_;
+    for my $type ('tcp', 'udp') {
+	addrule_ordered_src_dst($hash->{"$type-port"});
+	for my $hash2 (@{$hash->{"$type-range"}}) {
+	    addrule_ordered_src_dst($hash2);
+	}
+	addrule_ordered_src_dst($hash->{"$type-any"});
+    }
+    addrule_ordered_src_dst($hash->{icmp2});
+    addrule_ordered_src_dst($hash->{icmp1});
+    addrule_ordered_src_dst($hash->{icmp});
+    addrule_ordered_src_dst($hash->{proto});
+    addrule_ordered_src_dst($hash->{ip});
+}
+
+sub check_deny_influence() {
+    for my $rule (@expanded_any_rules) {
+	next if $rule->{deleted};
+	next unless exists $rule->{deny_rules};
+	next unless is_host($rule->{src});
+	for my $drule (@{$rule->{deny_rules}}) {
+	    next if $drule->{deleted};
+	    my $src = $drule->{src};
+	    my $net = $drule->{dst};
+	    next unless is_host($src) and is_net($net);
+	    my $pep = get_pep($src);
+	    my $any = $pep->{any};
+	    next unless $any;
+	    for my $rule (@{$any->{rules}}) {
+		my $host = $rule->{dst};
+		next unless is_host($host);
+		next unless $host->{net} eq $net;
+		if(match_srv($drule->{srv}, $rule->{srv})) {
+		    my $rd = print_rule($drule);
+		    my $r = print_rule($rule);
+		    die "currently not implemeted correctly: $rd influences $r";
+		}
+	    }
+	}
+    }
+}
+    
 ##############################################################################
 # Phase 4
 # Find paths
 ##############################################################################
 
 # find paths from every network and router to the starting object 'router 1'
-sub setpath_router($$$$) {
+sub setpath_router( $$$$ ) {
     my($router, $to_pep, $pep, $distance) = @_;
     # ToDo: operate correctly with loops
     if($router->{pep}) {
@@ -810,7 +1045,7 @@ sub setpath_router($$$$) {
     }
 }
 
-sub setpath_network($$$$) {
+sub setpath_network( $$$$ ) {
     my ($network, $to_pep, $pep, $distance) = @_;
     # ToDo: operate correctly with loops
     if($network->{pep}) {
@@ -829,11 +1064,10 @@ sub setpath_network($$$$) {
 }
 
 ##############################################################################
-# Helper functions: 
-# Applying a function on every managed router from src to dst of a rule
+# Helper functions: path traversal
 ##############################################################################
 
-sub get_pep($) {
+sub get_pep( $ ) {
     my($obj) = @_;
     my $pep;
 
@@ -850,24 +1084,17 @@ sub get_pep($) {
     return $pep;
 }
 
-# It applies a function on any managed router which lies on the path
-# between src and dst of the supplied rule
+# Applying a function on every managed router from src to dst of a rule
 sub path_walk($&) {
     my ($rule, $fun) = @_;
     die "internal in path_walk: undefined rule" unless $rule;
     my $src = $rule->{src};
     my $dst = $rule->{dst};
-# print STDERR "path_walk: ",printable($src)," ",printable($dst),"\n";
     my $src_intf = &get_pep($src);
     my $dst_intf = &get_pep($dst);
 
     if($src_intf eq $dst_intf) {
-	unless($src eq $dst) {
-	    my $src_name = &printable($src);
-	    my $dst_name = &printable($dst);
-
-	    print STDERR "Unenforceable rule\n from '$src_name'\n to '$dst_name'\n";
-	}
+	print STDERR "Unenforceable rule\n ", print_rule($rule), "\n";
 	# don't process rule again later
 	$rule->{deleted} = 1;
 	return;
@@ -878,7 +1105,6 @@ sub path_walk($&) {
     my $src_dist = $src_router->{distance};
     my $dst_dist = $dst_router->{distance};
 
-##    print STDERR "path_walk: ",printable($src_intf)," ",printable($dst_intf),"\n";
     # go from src to dst until equal distance is reached
     while($src_dist > $dst_dist) {
 	my $out_intf = $src_router->{to_pep};
@@ -886,7 +1112,6 @@ sub path_walk($&) {
 	$src_intf = $src_router->{pep};
 	$src_router = $src_intf->{router};
 	$src_dist = $src_router->{distance};
-##    print STDERR "path_walk: ",printable($src_intf)," ",printable($dst_intf),"\n";
     }
 
     # go from dst to src until equal distance is reached
@@ -896,7 +1121,6 @@ sub path_walk($&) {
 	$dst_intf = $dst_router->{pep};
 	$dst_router = $dst_intf->{router};
 	$dst_dist = $dst_router->{distance};
-##    print STDERR "path_walk: ",printable($src_intf)," ",printable($dst_intf),"\n";
     }
 
     # now alternating go one step from src and one from dst
@@ -928,6 +1152,8 @@ sub path_walk($&) {
 # Automatically insert deny rules at intermediate paths.
 ##############################################################################
 
+our $weak_deny_counter = 0;
+
 #     N4-\
 # any-R1-N1-R2-dst
 #  N2-/  N3-/
@@ -935,7 +1161,7 @@ sub path_walk($&) {
 # deny N1 dst (on R2)
 # deny N4 dst (on R2)
 # permit any dst (on R1 and R2)
-sub gen_any_src_deny($$$) {
+sub gen_any_src_deny( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
     return if $rule->{deleted};
     my $router = $in_intf->{router};
@@ -949,13 +1175,15 @@ sub gen_any_src_deny($$$) {
     # nothing to do for the first router
     return if $in_intf->{any} and $in_intf->{any} eq $rule->{src};
 
-    for $net (@{$in_intf->{networks}}) {
+    for my $net (@{$in_intf->{networks}}) {
 	my $deny_rule = {src => $net,
 			 dst => $rule->{dst},
 			 srv => $rule->{srv},
 			 action => 'weak_deny'
 		     };
+	# add generated rule to the current any-rule
 	push(@{$rule->{deny_rules}}, $deny_rule);
+	# add generated rule to src for later optimzation phase
 	push(@{$net->{rules}}, $deny_rule);
 	# counter for verbosity
 	$weak_deny_counter++;
@@ -972,7 +1200,7 @@ sub gen_any_src_deny($$$) {
 # deny src N4 (on R1)
 # deny src N3 (on R2 and/or R1)
 # permit src any (on R1 and R2)
-sub gen_any_dst_deny($$$) {
+sub gen_any_dst_deny( $$$ ) {
     # in_intf points to src, out_intf to dst
     my ($rule, $in_intf, $out_intf) = @_;
     return if $rule->{deleted};
@@ -997,13 +1225,15 @@ sub gen_any_dst_deny($$$) {
 	# directly to the destination any object
 	next if $intf->{any} and $intf->{any} eq $rule->{dst};
 
-	for $net (@{$intf->{networks}}) {
+	for my $net (@{$intf->{networks}}) {
 	    my $deny_rule = {src => $rule->{src},
 			     dst => $net,
 			     srv => $rule->{srv},
 			     action => 'weak_deny'
 			 };
+	    # add generated rule to the current any-rule
 	    push(@{$rule->{deny_rules}}, $deny_rule);
+	    # add generated rule to src for later optimzation phase
 	    push(@{$deny_rule->{src}->{rules}}, $deny_rule);
 	    # counter for verbosity
 	    $weak_deny_counter++;
@@ -1019,7 +1249,7 @@ sub gen_any_dst_deny($$$) {
 
 # traverse rules and network objects top down, 
 # beginning with a perimeter
-sub addrule_pep_any($) {
+sub addrule_pep_any( $ ) {
     my ($pep) = @_;
     my $any = $pep->{any};
     if($any) {
@@ -1053,7 +1283,7 @@ sub addrule_pep_any($) {
     }
 }
 
-sub addrule_net($) {
+sub addrule_net( $ ) {
     my ($net) = @_;
     for my $rule (@{$net->{rules}}) {
 	$rule->{dst}->{src_net} =
@@ -1074,7 +1304,7 @@ sub addrule_net($) {
 }
 
 # this subroutine is applied to hosts and interfaces as well
-sub addrule_host($) {
+sub addrule_host( $ ) {
     my ($host) = @_;
 
     # first, add rules to dst host
@@ -1110,7 +1340,7 @@ sub addrule_host($) {
 # and identical or different srv. 
 # If a fully identical rule is already present, it is marked
 # as deleted and substituted by the new one.
-sub add_rule($$) {
+sub add_rule( $$ ) {
     my ($rule, $srv_hash) = @_;
     my ($type, $v1, $v2) = @{$rule->{srv}};
     my $action = $rule->{action};
@@ -1134,7 +1364,7 @@ sub add_rule($$) {
 # tcp port
 # tcp port-port
 # udp ...
-sub optimize_tcp_udp_rules($$) {
+sub optimize_tcp_udp_rules( $$ ) {
     my ($cmp_hash, $chg_hash) = @_;
 
     # 'tcp/udp any' supersedes every port or port range
@@ -1182,7 +1412,7 @@ sub optimize_tcp_udp_rules($$) {
 # icmp any
 # icmp type any
 # icmp type code
-sub optimize_icmp_rules($$) {
+sub optimize_icmp_rules( $$ ) {
     my ($cmp_hash, $chg_hash) = @_;
 
     # 'icmp any' supersedes every type or type,code
@@ -1214,7 +1444,7 @@ sub optimize_icmp_rules($$) {
     }
 }
 
-sub optimize_identical_rules($$) {
+sub optimize_identical_rules( $$ ) {
     my ($cmp_hash, $chg_hash) = @_;
 
     # don't try to find identical keys on equal hashes
@@ -1228,7 +1458,7 @@ sub optimize_identical_rules($$) {
     }
 }
 
-sub delete_srv_rules($) {
+sub delete_srv_rules( $ ) {
     my ($hash) = @_;
 
     while(my($key, $rule) = (each %$hash)) {
@@ -1236,7 +1466,7 @@ sub delete_srv_rules($) {
     }
 }
 
-sub delete_icmp_rules($) {
+sub delete_icmp_rules( $ ) {
     my ($hash) = @_;
 
     while(my($type, $hash2) = (each %$hash)) {   
@@ -1246,7 +1476,7 @@ sub delete_icmp_rules($) {
     }
 }
 
-sub optimize_srv_rules($$) {
+sub optimize_srv_rules( $$ ) {
     my($cmp_hash, $chg_hash) = @_;
 
     if(exists $cmp_hash->{ip} && $cmp_hash->{ip}) {
@@ -1281,7 +1511,7 @@ sub optimize_srv_rules($$) {
 }
 
 # deny > permit > weak_deny
-sub optimize_action_rules($$) {
+sub optimize_action_rules( $$ ) {
     my($cmp_hash, $chg_hash) = @_;
     my($cmp_sub_hash, $chg_sub_hash);
 
@@ -1317,7 +1547,7 @@ sub optimize_action_rules($$) {
 #          \       /
 #          host,host
 #
-sub optimize_rules($$) {
+sub optimize_rules( $$ ) {
     my($dst, $src_tag) = @_;
     my @src_tags;
 
@@ -1362,7 +1592,7 @@ sub optimize_rules($$) {
 # Code Generation
 ##############################################################################
 
-sub split_ip_range($$) {
+sub split_ip_range( $$ ) {
     my($a, $b) = @_;
     # b is inclusive upper bound
     # change it to exclusive upper bound
@@ -1387,7 +1617,7 @@ sub split_ip_range($$) {
     return @result;
 }
 
-sub adr_code($) {
+sub adr_code( $ ) {
     my ($obj) = @_;
     if(&is_host($obj) && $obj->{is_range}) {
 	return &split_ip_range(@{$obj->{ip}});
@@ -1406,7 +1636,7 @@ sub adr_code($) {
     }
 }
 
-sub srv_code($) {
+sub srv_code( $ ) {
     my ($srv) = @_;
     my $proto = $srv->[0];
 
@@ -1441,8 +1671,11 @@ sub srv_code($) {
     }
 }
 
-sub gen_code($$$) {
+sub gen_code( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
+    if($comment_acls) {
+	 push(@{$src_intf->{code}}, "! ". print_rule($rule)."\n");
+     }
     my $action = $rule->{action};
     my $src = $rule->{src};
     my $dst = $rule->{dst};
@@ -1465,7 +1698,7 @@ sub gen_code($$$) {
 # r1-src-r2-r3-dst: get_pep(src) = r1, r1 is not on path
 # r3-src-r2-r1-dst: get_pep(src) = r2, r2 is 1st pep on path
 # ToDo: this code works only for 2nd case
-sub gen_code_at_src($$$) {
+sub gen_code_at_src( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
 #    my $src = $rule->{src};
 #    my $src_pep = &get_pep($src);
@@ -1548,12 +1781,17 @@ for my $rule (@rules) {
     &gen_expanded_rules($rule->{action},
 			$rule->{src}, $rule->{dst}, $rule->{srv});
 }
+# add sorted any rules to @expanded_rules
+&addrule_ordered_srv(\%ordered_any_rules);
 if($verbose) {
-    my $n = @expanded_deny_rules + @expanded_rules;
-    print STDERR "Expanded to $n simple rules\n" if $n;
+    my $nd = 0+@expanded_deny_rules;
+    my $n  = 0+@expanded_rules;
+    my $na = 0+@expanded_any_rules;
+    print STDERR "Expanded rules: deny $nd, permit: $n, permit any: $na,\n";
 }
 
 # take a random managed element from %routers, name it "router1"
+our $router1;
 for my $router (values %routers) {
     if($router->{managed}) {
 	$router1 = $router;
@@ -1573,16 +1811,12 @@ if($verbose) {
 print STDERR "Preparing optimization\n" if $verbose;
 # Prepare optimization of rules
 # link rules with the source network object of the rule
-for my $rule (@expanded_deny_rules, @expanded_rules) {
-    if(exists $rule->{deny_rules}) {
-	for my $deny_rule (@{$rule->{deny_rules}}) {
-	    push(@{$deny_rule->{src}->{rules}}, $deny_rule);
-	}
-    }
+for my $rule (@expanded_deny_rules, @expanded_rules, @expanded_any_rules) {
+    # weak deny rules are generated & added later
     push(@{$rule->{src}->{rules}}, $rule);
 }
 
-print STDERR "Starting optimization\n" if $verbose;
+print STDERR "Starting first optimization\n" if $verbose;
 # Optimze rules for each particular perimeter
 for my $router (values %routers) {
     next unless $router->{managed};
@@ -1592,15 +1826,22 @@ for my $router (values %routers) {
     }
 } 
 if($verbose) {
-    my $n = 0;
-    for my $rule (@expanded_deny_rules, @expanded_rules) {
-	$n++ if $rule->{deleted};
+    our($nd1,$n1,$na1) = (0,0,0);
+    for my $rule (@expanded_deny_rules) {
+	$nd1++ if $rule->{deleted};
     }
-    print STDERR "Deleted $n redundant rules\n";
+    for my $rule (@expanded_rules) {
+	$n1++ if $rule->{deleted};
+    }
+    for my $rule (@expanded_any_rules) {
+	$na1++ if $rule->{deleted};
+    }
+    print STDERR
+	"Deleted redundant rules: $nd1 deny, $n1 permit, $na1 permit any\n";
 }
 
 # generate deny rules for any rules
-for my $rule (@expanded_rules) {
+for my $rule (@expanded_any_rules) {
     if(&is_any($rule->{src})) {
  	&path_walk($rule, \&gen_any_src_deny);
     }
@@ -1609,11 +1850,10 @@ for my $rule (@expanded_rules) {
     }
 }
 if($verbose) {
-    print STDERR "Generated $weak_deny_counter deny rules from 'any rules'\n"
-	if $weak_deny_counter;
+    print STDERR "Generated $weak_deny_counter deny rules from 'any rules'\n";
 }
 
-print STDERR "Starting optimization\n" if $verbose;
+print STDERR "Starting second optimization\n" if $verbose;
 # Optimze rules for each particular perimeter
 for my $router (values %routers) {
     next unless $router->{managed};
@@ -1623,15 +1863,34 @@ for my $router (values %routers) {
     }
 } 
 if($verbose) {
-    my $n = 0;
-    for my $rule (@expanded_deny_rules, @expanded_rules) {
+    my($n, $nd, $na, $nw) = (0,0,0,0);
+    for my $rule (@expanded_deny_rules) {
+	$nd++ if $rule->{deleted};
+    }
+    for my $rule (@expanded_rules) {
 	$n++ if $rule->{deleted};
     }
-    print STDERR "Deleted $n redundant rules\n";
+    for my $rule (@expanded_any_rules) {
+	$na++ if $rule->{deleted};
+	if(exists $rule->{deny_rules}) {
+	    for my $deny_rule (@{$rule->{deny_rules}}) {
+		$nw++ if $deny_rule->{deleted};
+	    }
+	}
+    }
+    our($nd1,$n1,$na1);
+    $nd -= $nd1;
+    $n -= $n1;
+    $na -= $na1;
+    print STDERR "Deleted redundant rules:\n";
+    print STDERR " $nd deny, $n permit, $na permit any, $nw deny from any\n";
 }
 
+print STDERR "Checking for deny influence\n" if $verbose;
+check_deny_influence();
+
 print STDERR "Starting code generation\n" if $verbose;
-# Generate code for deny rules first.
+# First Generate code for deny rules .
 for my $rule (@expanded_deny_rules) {
     next if $rule->{deleted};
     &path_walk($rule, \&gen_code_at_src);
@@ -1641,9 +1900,14 @@ for my $rule (@expanded_deny_rules) {
 # src-R1-R2-\
 #           |-Rx
 #    dst-R3-/
+for my $rule (@expanded_rules) {
+    next if $rule->{deleted};
+    &path_walk($rule, \&gen_code);
+}
+
 # Generate code for weak deny rules directly before the corresponding 
 # permit any rule
-for my $rule (@expanded_rules) {
+for my $rule (@expanded_any_rules) {
     next if $rule->{deleted};
     if(exists $rule->{deny_rules}) {
 	for my $deny_rule (@{$rule->{deny_rules}}) {
