@@ -248,7 +248,7 @@ a group of its interfaces.
          [ &lt;NAT binding&gt; ]
 	 [ virtual = &lt;ip-adr&gt; ]
          [ hardware = &lt;interface_name&gt;; ]
-	 [ routing = OSPF; ]
+	 [ routing = {{ EIGRP | OSPF }}; ]
 	 [ reroute_permit = network:&lt;name&gt;, ...; ]
          [ disabled ; ]
     }
@@ -276,7 +276,7 @@ a group of its interfaces.
  case, generation of static routing entries is disabled for this
  interface and the access lists for this interface are automatically
  augmented to permit incoming packets of the routing
- protocol. Currently only OSPF is supported.
+ protocol. Currently EIGRP and OSPF are supported.
  <li> For a description of attribute 'reroute_permit', 
  see <a href="#rerouting">Rerouting inside of security domains</a> below.
 <LI>An interface may be marked as disabled.
@@ -696,10 +696,9 @@ is the relation of the security levels to each other.</P>
 <A HREF="mailto:heinzknutzen@users.berlios.de">heinzknutzen@users.berlios.de</A></P>
 
 </BODY>
-
 </HTML>
 
-<!--  LocalWords:  Rerouting NetSPoC nat OSPF src dst tcp udp icmp servicegroup
+<!--  LocalWords:  Rerouting NetSPoC nat EIGRP OSPF src dst tcp udp icmp servicegroup
  -->
 <!--  LocalWords:  servicegroups srv pathrestriction netmask www stateful DMZ
  -->

@@ -675,7 +675,14 @@ sub read_network( $ ) {
     $networks{$name} = $network;
 }
 
-my %valid_routing = (OSPF => 1);
+
+# Services below need not to be ordered using order_services
+# since they are only used at code generation time.
+my %routing_info =
+(EIGRP => {srv => { name => 'auto_srv:EIGRP', proto => 88 },
+	   mcast => [ gen_ip(224,0,0,10) ]},
+ OSPF => {srv => { name => 'auto_srv:OSPF', proto => 89 },
+	  mcast => [ gen_ip(224,0,0,5), gen_ip(224,0,0,6) ]});
 our %interfaces;
 my @virtual_interfaces;
 my @disabled_interfaces;
@@ -742,7 +749,7 @@ sub read_interface( $$ ) {
 		    error_atline "Redefining hardware of interface";
 		$interface->{hardware} = $hardware;
 	    } elsif(my $protocol = &check_assign('routing', \&read_string)) {
-		unless($valid_routing{$protocol}) {
+		unless($routing_info{$protocol}) {
 		    error_atline "Unknown routing protocol '$protocol'";
 		}
 		$interface->{routing} and
@@ -3786,7 +3793,7 @@ sub print_routes( $ ) {
     }
     print "[ Routing ]\n";
     for my $interface (@{$router->{interfaces}}) {
-	# don't generate static routing entries, 
+	# Don't generate static routing entries, 
 	# if a dynamic routing protocol is activated
 	if($interface->{routing}) {
 	    if($comment_routes) {
@@ -4468,10 +4475,6 @@ sub acl_generation() {
     }
 }
 
-# This service needs not to be ordered using order_services
-# since we only use it at code generation time.
-my $srv_ospf = { name => 'auto_srv:ospf', proto => 89 };
-
 sub print_acls( $ ) {
     my($router) = @_;
     my $model = $router->{model};
@@ -4483,20 +4486,20 @@ sub print_acls( $ ) {
     my %hardware;
     # Collect IP addresses of all interfaces
     my @ip;
-    # We need to know, if packets for dynamic routing protocol OSPF
+    # We need to know, if packets for a dynamic routing protocol 
     # are allowed for a hardware interface
-    my %ospf;
+    my %routing;
     for my $interface (@{$router->{interfaces}}) {
 	# ignore 'unnumbered' and 'short' interfaces
 	next if $interface->{ip} eq 'unnumbered' or $interface->{ip} eq 'short';
 	my $hardware = $interface->{hardware};
-	# Remember interface name for comments
+	# Remember some interface name for comments
 	$hardware{$hardware} = $interface->{name};
 	push @ip, @{$interface->{ip}};
 	push @ip, $interface->{virtual} if $interface->{virtual};
-	# is OSPF used? What are the destination networks?
-	if($interface->{routing} and $interface->{routing} eq 'OSPF') {
-	    push @{$ospf{$hardware}}, $interface->{network};
+	# Is dynamic routing used? What are the destination networks?
+	if(my $type = $interface->{routing}) {
+	    push @{$routing{$hardware}->{$type}}, $interface->{network};
 	}
 	# Current router is used as default router even for some internal
 	# networks
@@ -4517,31 +4520,31 @@ sub print_acls( $ ) {
 	}
     }
     for my $hardware (sort keys %hardware) {
-	if($ospf{$hardware}) {
+	if(my $routing = $routing{$hardware}) {
 	    my $code_aref = \@{$router->{if_code}->{$hardware}};
-	    if($comment_acls) {
-		push @$code_aref, "$comment_char OSPF\n";
-	    }
-	    push(@$code_aref,
-		 #  permit ip any host 224.0.0.5
-		 acl_line('permit',
-			  0,0,gen_ip(224,0,0,5),gen_ip(255,255,255,255),
-			  $srv_ip, $model));
-	    push(@$code_aref,
-		 #  permit ip any host 224.0.0.6
-		 acl_line('permit',
-			  0,0,gen_ip(224,0,0,6),gen_ip(255,255,255,255),
-			  $srv_ip, $model));
-	    # Permit OSPF packets from attached networks to this router.
-	    # We use the network address instead of the interface
-	    # addresses, because it is shorter if the interface has 
-	    # multiple addresses.
-	    for my $net (@{$ospf{$hardware}}) {
-		my ($ip, $mask) = @{&address($net, $net, 'src')};
-		push(@$code_aref,
-		     #  permit ospf $net $net
-		     acl_line('permit',
-			      $ip, $mask, $ip, $mask, $srv_ospf, $model));
+	    my $host_mask = gen_ip(255,255,255,255);
+	    for my $type (keys %$routing) {
+		if($comment_acls) {
+		    push @$code_aref, "$comment_char $type\n";
+		}
+		for my $mcast (@{$routing_info{$type}->{mcast}}) {
+		    push(@$code_aref,
+			 #  permit ip any host 224.0.0.xx
+			 acl_line('permit',
+				  0,0,$mcast,$host_mask,$srv_ip,$model));
+		}
+		# Permit dynamic routing protocol packets from
+		# attached networks to this router.
+		# We use the network address instead of the interface
+		# addresses, because it is shorter if the interface has 
+		# multiple addresses.
+		for my $net (@{$routing->{$type}}) {
+		    my ($ip, $mask) = @{&address($net, $net, 'src')};
+		    push(@$code_aref,
+			 #  permit ospf $net $net
+			 acl_line('permit', $ip, $mask, $ip, $mask,
+				  $routing_info{$type}->{srv}, $model));
+		}
 	    }
 	}
     }
