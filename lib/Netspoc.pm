@@ -2505,7 +2505,7 @@ sub distribute_nat1( $$$$ ) {
     delete $domain->{active_path};
 }
  
-my @all_natdomains;
+my @natdomains;
 
 sub distribute_nat_info() {
     info "Distributing NAT";
@@ -2524,10 +2524,10 @@ sub distribute_nat_info() {
 			 name => $name,
 			 networks => [],
 			 nat_map => {});
-	push @all_natdomains, $domain;
+	push @natdomains, $domain;
 	set_natdomain $network, $domain, 0;
     }
-    # Distribute NAT info to nat domains.
+    # Distribute NAT info to NAT domains.
     for my $router (@routers) {
 	for my $interface (@{$router->{interfaces}}) {
 	    my $nat_tag = $interface->{bind_nat} or next;
@@ -2545,12 +2545,14 @@ sub distribute_nat_info() {
     for my $nat_tag (keys %global_nat) {
 	my $global = $global_nat{$nat_tag};
       DOMAIN:
-	for my $domain (@all_natdomains) {
+	for my $domain (@natdomains) {
 	    for my $href (@{$domain->{nat_info}}) {
 		next DOMAIN if $href->{$nat_tag};
 	    }
 #	    debug "$domain->{name}";
 	    for my $network (@{$domain->{networks}}) {
+		# If network has local NAT definition, 
+		# then skip global NAT definition.
 		next if $network->{nat}->{$nat_tag};
 #		debug "global nat:$nat_tag to $network->{name}";
 		$network->{nat}->{$nat_tag} = $global;
@@ -2585,8 +2587,8 @@ sub distribute_nat_info() {
 	    }
 	}
     }
-    # Summarize nat info to nat mapping.
-    for my $domain (@all_natdomains) {
+    # Summarize NAT info to NAT mapping.
+    for my $domain (@natdomains) {
 	# Network to address mapping (only for networks with NAT).
 	my $nat_map = $domain->{nat_map};
 	my $nat_info = $domain->{nat_info};
@@ -2605,9 +2607,7 @@ sub distribute_nat_info() {
 	    }
 	}
 	# Reuse memory.
-	delete $domain->{managed_interfaces};
-	# Reuse memory.
-	delete $domain->{networks};
+	delete $domain->{interfaces};
     }
     for my $name (keys %nat_definitions) {
 	warning "nat:$name is defined, but not used" 
@@ -2621,7 +2621,7 @@ sub distribute_nat_info() {
 ####################################################################
 sub find_subnets() {
     info "Finding subnets";
-    for my $domain (@all_natdomains) {
+    for my $domain (@natdomains) {
 #	debug "$domain->{name}";
 	my $nat_map = $domain->{nat_map};
 	my %mask_ip_hash;
@@ -4863,7 +4863,6 @@ sub local_optimization() {
     info "Local optimization";
     # Prepare data structures
     for my $network (@networks) {
-	$network->{up} = $network->{subnet_of} || $network_00;
 	for my $interface (@{$network->{interfaces}}) {
 	    $interface->{up} = $network;
 	}
@@ -4873,66 +4872,81 @@ sub local_optimization() {
 	$rule->{src} = $network_00 if is_any $rule->{src};
 	$rule->{dst} = $network_00 if is_any $rule->{dst};
     }
-    for my $router (@managed_routers) {
- 	my $secondary_router = $router->{managed} eq 'secondary';
-	for my $hardware (@{$router->{hardware}}) {
-	    for my $rules ('intf_rules', 'rules') {
-		my %hash;
-		for my $rule (@{$hardware->{$rules}}) {
-		    my $src = $rule->{src};
-		    my $dst = $rule->{dst};
-		    my $srv = $rule->{srv};
-		    $hash{$src}->{$dst}->{$srv} = $rule;
-		}
-		my $changed = 0;
-	      RULE:
-		for my $rule (@{$hardware->{$rules}}) {
-		    my $src = $rule->{src};
-		    my $dst = $rule->{dst};
-		    my $srv = $rule->{srv};
-		    while($src) {
-			my $dst = $dst;
-			my $hash = $hash{$src};
-			while($dst) {
-			    my $srv = $srv;
-			    my $hash = $hash->{$dst};
-			    while($srv) {
-				if(my $old_rule = $hash->{$srv}) {
-				    unless($rule eq $old_rule) {
-					$rule = undef;
-					$changed = 1;
-					next RULE;
+    for my $domain (@natdomains) {
+	my $nat_map = $domain->{nat_map};
+	# Subnet relation may be different for each NAT domain,
+	# therefore it is set up again for each NAT domain.
+	for my $network (@networks) {
+	    $network->{up} = $network->{is_in}->{$nat_map} || $network_00;
+	}
+	for my $network (@{$domain->{networks}}) {
+	    for my $interface (@{$network->{interfaces}}) {
+		my $router = $interface->{router};
+		next unless $router->{managed};
+		my $secondary_router = $router->{managed} eq 'secondary';
+		my $hardware = $interface->{hardware};
+		next if $hardware->{seen};
+		$hardware->{seen} = 1;
+		for my $rules ('intf_rules', 'rules') {
+		    my %hash;
+		    for my $rule (@{$hardware->{$rules}}) {
+			my $src = $rule->{src};
+			my $dst = $rule->{dst};
+			my $srv = $rule->{srv};
+			$hash{$src}->{$dst}->{$srv} = $rule;
+		    }
+		    my $changed = 0;
+		  RULE:
+		    for my $rule (@{$hardware->{$rules}}) {
+			my $src = $rule->{src};
+			my $dst = $rule->{dst};
+			my $srv = $rule->{srv};
+			while($src) {
+			    my $dst = $dst;
+			    my $hash = $hash{$src};
+			    while($dst) {
+				my $srv = $srv;
+				my $hash = $hash->{$dst};
+				while($srv) {
+				    if(my $old_rule = $hash->{$srv}) {
+					unless($rule eq $old_rule) {
+					    $rule = undef;
+					    $changed = 1;
+					    next RULE;
+					}
 				    }
+				    $srv = $srv->{up};
 				}
-				$srv = $srv->{up};
+				$dst = $dst->{up};
 			    }
-			    $dst = $dst->{up};
+			    $src = $src->{up};
 			}
-			$src = $src->{up};
-		    }
-		    # Convert remaining rules to secondary rules, if possible.
-		    if($secondary_router && $rule->{has_full_filter}) {
-			# get_networks has a single result if not called 
-			# with an 'any' object as argument
-			$src = get_networks $rule->{src};
-			$dst = $rule->{dst};
-			unless(is_interface $dst && $dst->{router} eq $router) {
-			    $dst = get_networks $dst;
+			# Convert remaining rules to secondary rules,
+			# if possible.
+			if($secondary_router && $rule->{has_full_filter}) {
+			    # get_networks has a single result if not called 
+			    # with an 'any' object as argument
+			    $src = get_networks $rule->{src};
+			    $dst = $rule->{dst};
+			    unless(is_interface $dst &&
+				   $dst->{router} eq $router) {
+				$dst = get_networks $dst;
+			    }
+			    my $new_rule = {
+				action => $rule->{action},
+				src => $src,
+				dst => $dst,
+				srv => $srv_ip };
+			    $hash{$src}->{$dst}->{$srv_ip} = $new_rule;
+			    # This changes @{$hardware->{$rules}} !
+			    $rule = $new_rule;
 			}
-			my $new_rule = {
-			    action => $rule->{action},
-			    src => $src,
-			    dst => $dst,
-			    srv => $srv_ip };
-			$hash{$src}->{$dst}->{$srv_ip} = $new_rule;
-			# This changes @{$hardware->{$rules}} !
-			$rule = $new_rule;
-		    }
 			
-		}
-		if($changed) {
-		    $hardware->{$rules} =
-			[ grep $_, @{$hardware->{$rules}} ];
+		    }
+		    if($changed) {
+			$hardware->{$rules} =
+			    [ grep $_, @{$hardware->{$rules}} ];
+		    }
 		}
 	    }
 	}
