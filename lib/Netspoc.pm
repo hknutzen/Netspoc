@@ -1641,12 +1641,18 @@ sub link_any_and_every() {
 	if($type eq 'network') {
 	    $obj->{link} = $networks{$name};
 	} elsif($type eq 'router') {
-	    my $router = $routers{$name};
-	    $router and $router->{managed} and
-		err_msg "$obj->{name} must not be linked to managed $router->{name}";
-	    $obj->{link} = $router;
+	    if(my $router = $routers{$name}) {
+		$router->{managed} and
+		    err_msg "$obj->{name} must not be linked to managed $router->{name}";
+		# Take some network connected to this router.
+		# Since this router is unmanged, all connected networks
+		# will belong to the same security domain.
+		$obj->{link} = $router->{interfaces}->[0]->{network};
+	    }
 	} else {
 	    err_msg "$obj->{name} must not be linked to '$type:$name'";
+	    $obj->{link} = undef;
+	    next;
 	}
 	$obj->{link} or
 	    err_msg "Referencing undefined $type:$name from $obj->{name}";
@@ -1760,10 +1766,10 @@ sub link_pathrestrictions() {
 }
 
 sub link_topology() {
-    &link_any_and_every();
     for my $interface (values %interfaces) {
 	&link_interface_with_net($interface);
     }
+    &link_any_and_every();
     &link_pathrestrictions();
     for my $network (values %networks) {
 	if($network->{ip} eq 'unnumbered' and $network->{interfaces} and
