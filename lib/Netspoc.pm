@@ -632,7 +632,10 @@ sub read_network( $ ) {
 		error_atline "Duplicate NAT definition";
 	    $network->{nat}->{$name} = { ip => $nat_ip,
 					 mask => $nat_mask,
-					 dynamic => $dynamic };
+					 dynamic => $dynamic,
+					 # This is needed later for 
+					 # lookup of host NAT.
+					 tag => $name};
 	    $nat_definitions{$name} = 1;
 	} else {
 	    syntax_err "Expected NAT or host definition";
@@ -1737,16 +1740,16 @@ sub link_topology() {
 
 sub disable_behind( $ );
 sub disable_behind( $ ) {
-    my($incoming) = @_;
-    return if $incoming->{disabled};
-    $incoming->{disabled} = 1;
-    my $network = $incoming->{network};
+    my($in_interface) = @_;
+    return if $in_interface->{disabled};
+    $in_interface->{disabled} = 1;
+    my $network = $in_interface->{network};
     $network->{disabled} = 1;
     for my $host (@{$network->{hosts}}) {
 	$host->{disabled} = 1;
     }
     for my $interface (@{$network->{interfaces}}) {
-	next if $interface eq $incoming;
+	next if $interface eq $in_interface;
 	next if $interface->{disabled};
 	$interface->{disabled} = 1;
 	my $router = $interface->{router};
@@ -1755,10 +1758,10 @@ sub disable_behind( $ ) {
 	if($router->{managed}) {
 	    warning "Disabling managed $router->{name}";
 	}
-	for my $outgoing (@{$router->{interfaces}}) {
-	    next if $outgoing eq $interface;
-	    next if $outgoing->{disabled};
-	    disable_behind $outgoing ;
+	for my $out_interface (@{$router->{interfaces}}) {
+	    next if $out_interface eq $interface;
+	    next if $out_interface->{disabled};
+	    disable_behind $out_interface ;
 	}
     }
 }	
@@ -2366,20 +2369,59 @@ sub expand_rules( ;$) {
 # Distribute NAT bindings from interfaces to affected networks
 ##############################################################################
 
-sub setnat_network( $$$$ );
-sub setnat_network( $$$$ ) {
-    my($network, $in_interface, $nat, $depth) = @_;
-##  debug "nat:$nat depth $depth at $network->{name} from $in_interface->{name}";
-    if($network->{active_path}) {
-##	debug "nat:$nat loop";
+# Mapping: Network -> address
+# NAT Domain: an area of our topology (a set of networks)
+# where the NAT mapping is identical at each network.
+
+# Find and mark NAT domains.
+# A nat domain is an area of connected networks
+# which has a set of interfaces as border.
+sub set_natdomain( $$$ );
+sub set_natdomain( $$$ ) {
+    my($network, $domain, $in_interface) = @_;
+    if($network->{nat_domain}) {
+	# Found a loop inside a NAT domain.
+	return;
+    }
+    $network->{nat_domain} = $domain;
+    push(@{$domain->{networks}}, $network);
+    for my $interface (@{$network->{interfaces}}) {
+	# Ignore interface where we reached this network.
+	next if $interface eq $in_interface;
+	my $router = $interface->{router};
+	my $managed = $router->{managed};
+	my $bind_nat = grep {$_->{bind_nat}} @{$router->{interfaces}};
+	push @{$domain->{managed_interfaces}}, $interface if $managed;
+	# Stop, at this router begins a new nat domain.
+	if($bind_nat) {
+	    push @{$domain->{interfaces}}, $interface;
+	    $interface->{nat_domain} = $domain;
+	    next;
+	}
+	for my $out_interface (@{$router->{interfaces}}) {
+	    # Ignore interface where we reached this router.
+	    next if $out_interface eq $interface;
+	    push @{$domain->{managed_interfaces}}, $out_interface if $managed;
+	    set_natdomain $out_interface->{network}, $domain, $out_interface;
+	}
+
+    }
+}
+
+sub distribute_nat1( $$$$ );
+sub distribute_nat1( $$$$ ) {
+    my($domain, $in_interface, $nat, $depth) = @_;
+#    debug "nat:$nat depth $depth at $domain->{name} from $in_interface->{name}";
+    if($domain->{active_path}) {
+#	debug "nat:$nat loop";
 	# Found a loop
 	return;
     }
-    if($network->{nat_info}) {
-	my $max_depth = @{$network->{nat_info}};
+    if(my $nat_info = $domain->{nat_info}) {
+	my $max_depth = @$nat_info;
 	for(my $i = 0; $i < $max_depth; $i++) {
-	    if($network->{nat_info}->[$i]->{$nat}) {
-##		debug "nat:$nat: other binding";
+	    if($nat_info->[$i]->{$nat}) {
+#		debug "nat:$nat: other binding";
 		# Found an alternate border of current NAT domain
 		if($i != $depth) {
 		    # There is another NAT binding on the path which
@@ -2391,15 +2433,10 @@ sub setnat_network( $$$$ ) {
 	}
     }
     # Use a hash to prevent duplicate entries.
-    $network->{nat_info}->[$depth]->{$nat} = $nat;
+    $domain->{nat_info}->[$depth]->{$nat} = $nat;
     # Loop detection
-    $network->{active_path} = 1;
-    if($network->{nat}->{$nat}) {
-	err_msg "$network->{name} is translated by nat:$nat,\n",
-	" but it lies inside the translation domain of nat:$nat.\n",
-	" Probably nat:$nat was bound to wrong interface.";
-    }
-    for my $interface (@{$network->{interfaces}}) {
+    $domain->{active_path} = 1;
+    for my $interface (@{$domain->{interfaces}}) {
 	# Ignore interface where we reached this network.
 	next if $interface eq $in_interface;
 	# Found another border of current nat domain.
@@ -2416,33 +2453,83 @@ sub setnat_network( $$$$ ) {
 		    next;
 		}
 	    }
-	    setnat_network 
-		$out_interface->{network}, $out_interface, $nat, $depth;
+	    distribute_nat1
+		$out_interface->{nat_domain}, $out_interface, $nat, $depth;
 	}
     }
-    delete $network->{active_path};
+    delete $domain->{active_path};
 }
  
 sub distribute_nat_info() {
     info "Distributing NAT";
+    my @all_natdomains;
+    my %nat_tag2networks;
+    # Find nat domains.
+    # Build mapping from nat tags to networks. 
+    for my $network (@networks) {
+	if(my $href = $network->{nat}) {
+	    for my $nat_tag (keys %$href) {
+		push @{$nat_tag2networks{$nat_tag}}, $network;
+	    }
+	}
+	next if $network->{nat_domain};
+	(my $name = $network->{name}) =~ s/^network:/nat_domain:/;
+	my $domain = new('nat_domain', name => $name, networks => []);
+	push @all_natdomains, $domain;
+	set_natdomain $network, $domain, 0;
+    }
+    # Distribute nat info to nat domains.
     for my $router (@routers) {
 	for my $interface (@{$router->{interfaces}}) {
-	    my $nat = $interface->{bind_nat} or next;
-	    if($nat_definitions{$nat}) {
-		setnat_network($interface->{network}, $interface, $nat, 0);
-		$nat_definitions{$nat} = 'used';
+	    my $nat_tag = $interface->{bind_nat} or next;
+	    if($nat_definitions{$nat_tag}) {
+		distribute_nat1
+		    $interface->{nat_domain}, $interface, $nat_tag, 0;
+		$nat_definitions{$nat_tag} = 'used';
 	    } else {
-		warning "Ignoring undefined nat:$nat bound to $interface->{name}";
+		warning "Ignoring undefined nat:$nat_tag",
+		"bound to $interface->{name}";
 	    }
 	}
     }
-    # {nat_info} was collected at networks, but is needed at
-    # logical and hardware interfaces of managed routers
-    for my $router (@managed_routers) {
-	for my $interface (@{$router->{interfaces}}) {
-	    $interface->{nat_info} = $interface->{hardware}->{nat_info} =
-		$interface->{network}->{nat_info};
+    # Summarize nat info to nat mapping.
+    for my $domain (@all_natdomains) {
+	# Network to address mapping (only for networks with NAT).
+	my %addr_map;
+	my $nat_info = $domain->{nat_info};
+	next unless $nat_info;
+#	debug "$domain->{name}";
+	# Reuse memory.
+	delete $domain->{nat_info};
+	for my $href (@$nat_info) {
+	    for my $nat_tag (values %$href) {
+		for my $network (@{$nat_tag2networks{$nat_tag}}) {
+		    next if $addr_map{$network};
+		    $addr_map{$network} = $network->{nat}->{$nat_tag};
+#		    debug " Map: $network->{name} -> ",
+#		    print_ip $addr_map{$network}->{ip};
+		}
+	    }
 	}
+	# %addr_map was collected at nat domains, but is needed at
+	# logical and hardware interfaces of managed routers.
+	for my $interface (@{$domain->{managed_interfaces}}) {
+#	    debug "- $interface->{name}";
+	    $interface->{nat_map} =
+		$interface->{hardware}->{nat_map} = \%addr_map;
+	}
+	# Reuse memory.
+	delete $domain->{managed_interfaces};
+	for my $network (@{$domain->{networks}}) {
+	    if(my $href = $addr_map{$network}) {
+		my $name = "nat:$href->{tag}";
+		err_msg "$network->{name} is translated by $name,\n",
+		" but it lies inside the translation domain of $name.\n",
+		" Probably $name was bound to wrong interface.";
+	    }
+	}
+	# Reuse memory.
+	delete $domain->{networks};
     }
     for my $name (keys %nat_definitions) {
 	warning "nat:$name is defined, but not used" 
@@ -2451,20 +2538,14 @@ sub distribute_nat_info() {
 }
 
 # Lookup NAT tag of a network while generating code in a domain
-# represented by nat_info.
+# represented by nat_map.
 # Data structure:
-# $nat_info->[$depth]->{$nat_tag} = $nat_tag;
+# $nat_map->{$network} = {ip, mask, dynamic}
 sub nat_lookup( $$ ) {
-    my($net, $nat_info) = @_;
-    $nat_info or return undef;
-    # Iterate from most specific to less specific NAT tags
-    for my $href (@$nat_info) {
-	for my $nat_tag (values %$href) {
-	    if($net->{nat}->{$nat_tag}) {
-		return($nat_tag,
-		       @{$net->{nat}->{$nat_tag}}{'ip', 'mask', 'dynamic'});
-	    }
-	}
+    my($net, $nat_map) = @_;
+    $nat_map or return undef;
+    if(my $href = $nat_map->{$net}) {
+	return @{$href}{'tag', 'ip', 'mask', 'dynamic'};
     }
     return undef;
 }
@@ -3806,7 +3887,7 @@ sub print_routes( $ ) {
 	    } 
 	    next;
 	}
-	my $nat_info = $interface->{nat_info};
+	my $nat_map = $interface->{nat_map};
 	# Sort interfaces by name to make output deterministic
 	for my $hop (@{$interface->{hop}}) {
 	    # for unnumbered networks use interface name as next hop
@@ -3835,15 +3916,15 @@ sub print_routes( $ ) {
 		}
 		if($type eq 'IOS') {
 		    my $adr =
-			&ios_route_code(&address($network, $nat_info, 'src'));
+			&ios_route_code(&address($network, $nat_map, 'src'));
 		    print "ip route $adr\t$hop_addr\n";
 		} elsif($type eq 'PIX') {
 		    my $adr =
-			&ios_route_code(&address($network, $nat_info, 'src'));
+			&ios_route_code(&address($network, $nat_map, 'src'));
 		    print "route $interface->{hardware}->{name} $adr\t$hop_addr\n";
 		} elsif($type eq 'iproute') {
 		    my $adr =
-			&prefix_code(&address($network, $nat_info, 'src'));
+			&prefix_code(&address($network, $nat_map, 'src'));
 		    print "ip route add $adr via $hop_addr\n";
 		} else {
 		    internal_err "unexpected routing type '$type'";
@@ -3882,7 +3963,7 @@ sub print_pix_static( $ ) {
 		      @{$router->{hardware}}) {
 	next unless $out_hw->{static};
 	my $out_name = $out_hw->{name};
-	my $out_nat = $out_hw->{nat_info};
+	my $out_nat = $out_hw->{nat_map};
 	for my $in_hw (sort { $a->{level} <=> $b->{level} }
 		       map { $ref2hw{$_} }
 		       # Key is reference to hardware interface.
@@ -3890,7 +3971,7 @@ sub print_pix_static( $ ) {
 	    # Value is { net => net, .. }
 	    my($net_hash) = $out_hw->{static}->{$in_hw};
 	    my $in_name = $in_hw->{name};
-	    my $in_nat = $in_hw->{nat_info};
+	    my $in_nat = $in_hw->{nat_map};
 	    # Sorting is only needed for getting output deterministic.
 	    my @networks =
 		sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
@@ -3919,9 +4000,9 @@ sub print_pix_static( $ ) {
 		    err_msg "Pix doesn't support static command for ",
 		    "mask 0.0.0.0 of $network->{name}\n";
 		my $sub = sub () {
-		    my($network, $nat_info) = @_;
+		    my($network, $nat_map) = @_;
 		    my($nat_tag, $network_ip, $mask, $dynamic) =
-			nat_lookup($network, $nat_info);
+			nat_lookup($network, $nat_map);
 		    if($nat_tag) {
 			return $network_ip, $mask, $dynamic?$nat_tag:undef;
 		    } else {
@@ -4025,13 +4106,13 @@ sub distribute_rule( $$$ ) {
 	return if $rule->{deleted}->{managed_intf};
     }
     # Validate dynamic NAT.
-    if(my $nat_info = $in_intf->{nat_info}) {
+    if(my $nat_map = $in_intf->{nat_map}) {
 	for my $where ('src', 'dst') {
 	    my $obj = $rule->{$where};
 	    if(is_subnet $obj || is_interface $obj) {
 		my $network = $obj->{network};
 		my($nat_tag, $network_ip, $mask, $dynamic) =
-		    nat_lookup($network, $nat_info);
+		    nat_lookup($network, $nat_map);
 		if($dynamic) {
 		    # Doesn't have a static translation.
 		    unless($obj->{nat}->{$nat_tag}) {
@@ -4158,11 +4239,11 @@ sub rules_distribution() {
 # direction: is obj used as source or destination 
 # returns a list of [ ip, mask ] pairs
 sub address( $$$ ) {
-    my ($obj, $nat_info, $direction) = @_;
+    my ($obj, $nat_map, $direction) = @_;
     my $type = ref $obj;
     if($type eq 'Network') {
 	my($nat_tag, $network_ip, $mask, $dynamic) =
-	   nat_lookup($obj, $nat_info);
+	   nat_lookup($obj, $nat_map);
 	if($nat_tag) {
 	    # It is useless do use a dynamic address as destination,
 	    # but we permit it anyway.
@@ -4176,7 +4257,7 @@ sub address( $$$ ) {
 	}
     } elsif($type eq 'Subnet') {
 	my($nat_tag, $network_ip, $mask, $dynamic) =
-	   nat_lookup($obj->{network}, $nat_info);
+	   nat_lookup($obj->{network}, $nat_map);
 	if($nat_tag) {
 	    if($dynamic) {
 		if(my $ip = $obj->{nat}->{$nat_tag}) {
@@ -4200,7 +4281,7 @@ sub address( $$$ ) {
 	    internal_err "unexpected $obj->{ip} $obj->{name}\n";
 	}
 	my($nat_tag, $network_ip, $mask, $dynamic) =
-	   nat_lookup($obj->{network}, $nat_info);
+	   nat_lookup($obj->{network}, $nat_map);
 	if($nat_tag) {
 	    if($dynamic) {
 		if(my $ip = $obj->{nat}->{$nat_tag}) {
@@ -4384,7 +4465,7 @@ sub iptables_srv_code( $ ) {
 }
 
 sub acl_line( $$$$ ) {
-    my($rules_aref, $nat_info, $prefix, $model) = @_;
+    my($rules_aref, $nat_map, $prefix, $model) = @_;
     my $filter_type = $model->{filter};
     for my $rule (@$rules_aref) {
 	my $action = $rule->{action};
@@ -4393,8 +4474,8 @@ sub acl_line( $$$$ ) {
 	my $srv = $rule->{srv};
 	print "$model->{comment_char} ". print_rule($rule)."\n"
 	    if $comment_acls;
-	for my $spair (address($src, $nat_info, 'src')) {
-	    for my $dpair (address($dst, $nat_info, 'dst')) {
+	for my $spair (address($src, $nat_map, 'src')) {
+	    for my $dpair (address($dst, $nat_map, 'dst')) {
 		if($filter_type eq 'IOS' or $filter_type eq 'PIX') {
 		    my $inv_mask = $filter_type eq 'IOS';
 		    my ($proto_code, $src_port_code, $dst_port_code) =
@@ -4461,7 +4542,7 @@ sub find_object_groups ( $ ) {
 				# to be processed.
 				active => 0,
 				# NAT domain for address calculation
-				nat_info => $hardware->{nat_info},
+				nat_map => $hardware->{nat_map},
 				# for check, if interfaces belong to
 				# identical NAT domain
 				bind_nat => $hardware->{bind_nat} || 'none',
@@ -4505,7 +4586,7 @@ sub find_object_groups ( $ ) {
 			    name => "g$counter",
 			    elements => [ map { $ref2obj{$_} } @keys ],
 			    hash => $hash,
-			    nat_info => $glue->{nat_info});
+			    nat_map => $glue->{nat_map});
 	    for my $element (@{$group->{elements}}) {
 		is_any $element and
 		    internal_err "Unexpected $element->{name} in object-group";
@@ -4543,10 +4624,10 @@ sub find_object_groups ( $ ) {
     }
     # print PIX object-groups
     for my $group (@groups) {
-	my $nat_info =  $group->{nat_info};
+	my $nat_map =  $group->{nat_map};
         print "object-group network $group->{name}\n";
         for my $pair (sort { $a->[0] <=> $b->[0] ||  $a->[1] <=> $b->[1] }
-			 map { address($_, $nat_info, 'src') }
+			 map { address($_, $nat_map, 'src') }
 			 @{$group->{elements}}) {
 	    my $adr = ios_code($pair);
 	    print " network-object $adr\n";
@@ -4597,7 +4678,7 @@ sub find_chains ( $ ) {
 				# to be processed.
 				active => 0,
 				# NAT domain for address calculation
-				nat_info => $hardware->{nat_info},
+				nat_map => $hardware->{nat_map},
 				# for check, if interfaces belong to
 				# identical NAT domain
 				bind_nat => $hardware->{bind_nat} || 'none',
@@ -4645,7 +4726,7 @@ sub find_chains ( $ ) {
 			    where => $this,
 			    elements => [ map { $ref2obj{$_} } @keys ],
 			    hash => $hash,
-			    nat_info => $glue->{nat_info});
+			    nat_map => $glue->{nat_map});
 	    for my $element (@{$chain->{elements}}) {
 		is_any $element and
 		    internal_err "Unexpected $element->{name} in chain";
@@ -4690,10 +4771,10 @@ sub find_chains ( $ ) {
 	my $action_code =
 	    is_chain $action ? $action->{name} :
 	    $action eq 'permit' ? 'ACCEPT' : 'DROP';
-	my $nat_info =  $chain->{nat_info};
+	my $nat_map =  $chain->{nat_map};
 	print "iptables -N $name\n";
         for my $pair (sort { $a->[0] <=> $b->[0] ||  $a->[1] <=> $b->[1] }
-		      map { address($_, $nat_info, 'src') }
+		      map { address($_, $nat_map, 'src') }
 		      @{$chain->{elements}}) {
 	    my $obj_code = prefix_code($pair);
 	    my $type = $chain->{where} eq 'src' ? '-s' : '-d';
@@ -4894,11 +4975,11 @@ sub print_acls( $ ) {
 	    print "iptables -N $name\n";
 	    print "iptables -N $intf_name\n";
 	}
-	my $nat_info = $hardware->{nat_info};
+	my $nat_map = $hardware->{nat_map};
 	# Interface rules
-	acl_line $hardware->{intf_rules}, $nat_info, $intf_prefix, $model;
+	acl_line $hardware->{intf_rules}, $nat_map, $intf_prefix, $model;
 	# Ordinary rules
-	acl_line $hardware->{rules}, $nat_info, $prefix, $model;
+	acl_line $hardware->{rules}, $nat_map, $prefix, $model;
 	# Postprocessing for hardware interface
 	if($model->{filter} eq 'IOS') {
 	    print "interface $hardware->{name}\n";
