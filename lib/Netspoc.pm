@@ -1370,10 +1370,6 @@ sub expand_services( $$ ) {
 
 # array of expanded deny rules
 my @expanded_deny_rules;
-# array of interface rules
-my @expanded_if_rules;
-# array of interface & any rules
-my @expanded_any_if_rules;
 # array of expanded permit rules
 my @expanded_rules;
 # array of expanded any rules
@@ -1381,8 +1377,6 @@ my @expanded_any_rules;
 # hash for ordering permit any rules; 
 # when sorted, they are added later to @expanded_any_rules
 my %ordered_any_rules;
-# dito for interface & any rules
-my %order_any_if_rules;
 # hash for ordering all rules:
 # $rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
 # see &add_rule for details
@@ -1411,24 +1405,14 @@ sub expand_rules() {
 			$expanded_rule->{srv} = $main_srv;
 			$expanded_rule->{orig_srv} = $srv;
 		    }
+		    # Mark rules with managed interface as src or dst 
+		    # because they get special handling during code generation
+		    if(is_interface($src) and $src->{router}->{managed} or
+		       is_interface($dst) and $dst->{router}->{managed}) {
+			$expanded_rule->{managed_if} = 1;
+		    }
 		    if($action eq 'deny') {
 			push(@expanded_deny_rules, $expanded_rule);
-		    } elsif(is_interface($src) and $src->{router}->{managed}) {
-			if(is_any($dst)) {
-			    $dst_any_group->{$dst} = 1;
-			    $expanded_rule->{dst_any_group} = $dst_any_group;
-			    order_any_rule($expanded_rule, \%order_any_if_rules);
-			} else {
-			    push @expanded_if_rules, $expanded_rule;
-			}
-		    } elsif(is_interface($dst) and $dst->{router}->{managed}) {
-			if(is_any($src)) {
-			    $src_any_group->{$src} = 1;
-			    $expanded_rule->{src_any_group} = $src_any_group;
-			    order_any_rule($expanded_rule, \%order_any_if_rules);
-			} else {
-			    push @expanded_if_rules, $expanded_rule;
-			}
 		    } elsif(is_any($src) and is_any($dst)) {
 			err_msg "Rule '", print_rule $expanded_rule, "'\n",
 			" has 'any' objects both as src and dst.\n",
@@ -1450,16 +1434,13 @@ sub expand_rules() {
 	}
     }
     # add ordered 'any' rules which have been ordered by order_any_rule
-    add_ordered_any_rules(\@expanded_any_if_rules, \%order_any_if_rules);
     add_ordered_any_rules(\@expanded_any_rules, \%ordered_any_rules);
     if($verbose) {
 	my $nd = 0+@expanded_deny_rules;
-	my $ni = 0+@expanded_if_rules;
-	my $nai = 0+@expanded_any_if_rules;
 	my $n  = 0+@expanded_rules;
 	my $na = 0+@expanded_any_rules;
 	info "Expanded rules:\n",
-	" deny $nd, interface: $ni, Interface any: $nai, permit: $n, permit any: $na\n";
+	" deny $nd, permit: $n, permit any: $na\n";
     }
 }
 
@@ -1519,8 +1500,10 @@ sub repair_deny_influence1( $$ ) {
 	next unless
 	    is_host $dst or
 	    is_interface $dst and
-	    # access to managed interfaces is only granted,
-	    # if explicitly permitted
+	    # we don't need to repair anything for rules with an managed
+	    # interface as dst, since permission to access an 'any' object
+	    # doesn't imply permission to access an managed interface
+	    # lying at the border of the security domain.
 	    not $dst->{router}->{managed};
 	# Check those 'any' rules which are generated for all 'any' objects
 	# on the path from src 'any' object to dst.
@@ -1534,6 +1517,8 @@ sub repair_deny_influence1( $$ ) {
 		internal_err "No 'any' object in security domain of $dst";
 	    for my $net (@{$arule->{deny_src_networks}}) {
 		for my $host (@{$net->{hosts}}, @{$net->{interfaces}}) {
+		    # Don't repair, even if managed interface is src
+		    next if is_interface $host and $host->{router}->{managed};
 		    # search for rules with action = permit, src = host and
 		    # dst = dst_any in $rule_tree
 		    my $src_hash = $rule_tree{permit};
@@ -1571,10 +1556,6 @@ sub repair_deny_influence1( $$ ) {
 
 sub repair_deny_influence() {
     info "Repairing deny influence\n";
-    # we don't need to repair anything for rules with an managed
-    # interface as dst, since permission to access an 'any' object
-    # doesn't imply permission to access an managed interface
-    # lying at the border of the security domain.
     repair_deny_influence1 \@expanded_any_rules, \@expanded_rules;
 }
 
@@ -1991,7 +1972,7 @@ sub convert_any_dst_rule( $$$ ) {
 }
 
 sub convert_any_rules() {
-    for my $rule (@expanded_any_if_rules, @expanded_any_rules) {
+    for my $rule (@expanded_any_rules) {
 	next if $rule->{deleted};
 	$rule->{any_rules} = [];
 	if(is_any($rule->{src})) {
@@ -2060,14 +2041,7 @@ sub optimize_srv_rules( $$ ) {
 	while($srv) {
 	    if(my $cmp_rule = $cmp_hash->{$srv}) {
 		unless($cmp_rule eq $rule) {
-		    # Rule with managed interface as dst must not be deleted
-		    # if it is superseded by a network or 'any' object.
-		    # ToDo: Refine this rule
-		#    if(is_interface $rule->{dst} and
-		#	   $rule->{dst}->{router}->{managed} and
-		#	   not is_interface $cmp_rule->{dst}) {
-		#	last;
-		#    }
+
 # optimize auto_any rules:
 #
 # cmp permit net1 dst srv
@@ -2250,10 +2224,10 @@ sub optimize_rules() {
 sub optimize() {
     info "Preparing optimization\n";
     # add rules to $rule_tree for efficient rule compare operations
-    for my $rule (@expanded_deny_rules, @expanded_if_rules, @expanded_rules) {
+    for my $rule (@expanded_deny_rules, @expanded_rules) {
 	&add_rule($rule);
     }
-    for my $rule (@expanded_any_if_rules, @expanded_any_rules) {
+    for my $rule (@expanded_any_rules) {
 	&add_rule($rule);
 	for my $any_rule (@{$rule->{any_rules}}) {
 	    &add_rule($any_rule);
@@ -2265,7 +2239,7 @@ sub optimize() {
 	my($n, $nd, $na, $naa) = (0,0,0,0);
 	for my $rule (@expanded_deny_rules) { $nd++ if $rule->{deleted}	}
 	for my $rule (@expanded_rules) { $n++ if $rule->{deleted} }
-	for my $rule (@expanded_any_if_rules, @expanded_any_rules) {
+	for my $rule (@expanded_any_rules) {
 	    $na++ if $rule->{deleted};
 	    for my $any_rule (@{$rule->{any_rules}}) {
 		$naa++ if $any_rule->{deleted};
@@ -2554,14 +2528,18 @@ sub collect_acls( $$$ ) {
 	    # src is an interface of the current router
 	    # and it was deleted because we have a similar rule
 	    # for an interface of the current router
-	    # ToDo: The rule in {deleted} may be ineffective
-	    # if it is a interface/any rule with attached
-	    # auto-deny rule(s)
-	    return if $src eq $rule->{deleted}->{src};
+	    if($src eq $rule->{deleted}->{src}) {
+		# The rule in {deleted} may be ineffective
+		# if it is an interface -> any rule with attached auto-deny rule(s)
+		# ToDo: Check if one of deny_dst_networks matches $src
+		return unless is_any $rule->{deleted}->{dst} and $rule->{deleted}->{deny_dst_networks};
+	    }
 	}
 	if(not defined $dst_intf) {
-	    # ToDo: see above
-	    return if $dst eq $rule->{deleted}->{dst};
+	    if($dst eq $rule->{deleted}->{dst}) {
+		# ToDo: see above
+		return unless is_any $rule->{deleted}->{src} and $rule->{deleted}->{deny_src_networks};
+	    }
 	}
     }
     my $model = $router->{model};
@@ -2571,16 +2549,20 @@ sub collect_acls( $$$ ) {
     my @dst_code = &adr_code($dst, $inv_mask);
     my ($proto_code, $port_code) = &srv_code($srv, $model);
     if(defined $src_intf) {
-	# For PIX firewalls it is unnecessary to generate permit ACLs
-	# for packets to the pix itself
-	# because it accepts them anyway (telnet, IPSec)
-	# ToDo: Check if this assumption holds for deny ACLs as well
-	if(not defined $dst_intf and $model eq 'PIX' and $action eq 'permit') {
-	    return;
+	my $code_aref;
+	# Packets for the router itself
+	if(not defined $dst_intf) {
+	    # For PIX firewalls it is unnecessary to generate permit ACLs
+	    # for packets to the pix itself
+	    # because it accepts them anyway (telnet, IPSec)
+	    # ToDo: Check if this assumption holds for deny ACLs as well
+	    return if $model eq 'PIX' and $action eq 'permit';
+	    $code_aref = \@{$router->{if_code}->{$src_intf->{hardware}}};
+	} else {
+	    # collect generated code at hardware interface,
+	    # not at logical interface
+	    $code_aref = \@{$router->{code}->{$src_intf->{hardware}}};
 	}
-	# collect generated code at hardware interface,
-	# not at logical interface
-	my $code_aref = \@{$router->{code}->{$src_intf->{hardware}}};
 	if($comment_acls) {
 	    push(@$code_aref, "! ". print_rule($rule)."\n");
 	}
@@ -2595,24 +2577,17 @@ sub collect_acls( $$$ ) {
 	# No filtering necessary for packets to PIX itself
 	return if $model eq 'PIX' and $action eq 'permit';
 	# For IOS only packets from dst back to this router are filtered
-	my $code_aref = \@{$router->{code}->{$dst_intf->{hardware}}};
-	if($comment_acls) {
-	    push(@$code_aref, "! ". print_rule($rule)."\n");
-	}
-	for my $src_code (@src_code) {
-	    for my $dst_code (@dst_code) {
-		my $established;
-		if($srv->{type} eq 'tcp') {
-		    $established = 'established';
-		} elsif($srv->{type} eq 'udp') {
-		    $established = '';
-		} else {
-		    # for other protocols, no return packets are
-		    # permitted implicitly
-		    next;
+	if($srv->{type} eq 'tcp' or $srv->{type} eq 'udp') {
+	    my $code_aref = \@{$router->{if_code}->{$dst_intf->{hardware}}};
+	    if($comment_acls) {
+		push(@$code_aref, "! REVERSE: ". print_rule($rule)."\n");
+	    }
+	    my $established = $srv->{type} eq 'tcp' ? 'established' : '';
+	    for my $src_code (@src_code) {
+		for my $dst_code (@dst_code) {
+		    push(@$code_aref,
+			 "$action $proto_code $dst_code $port_code $src_code $established\n");
 		}
-		push(@$code_aref,
-		     "$action $proto_code $dst_code $port_code $src_code $established\n");
 	    }
 	}
     } else {
@@ -2667,13 +2642,25 @@ sub collect_acls_at_end( $$$$ ) {
     }
 }
 
-sub gen_acl_from_any_rule( $ ) {
-    my($any_rule_aref) = @_;
-    for my $rule (@$any_rule_aref) {
+sub acl_generation() {
+    info "Starting code generation\n";
+    # First generate code for deny rules
+    for my $rule (@expanded_deny_rules) {
+	next if $rule->{deleted};
+	&path_walk($rule, \&collect_acls);
+    }
+    # Code for permit rules
+    for my $rule (@expanded_rules) {
+	next if $rule->{deleted} and not $rule->{managed_if};
+	&path_walk($rule, \&collect_acls);
+    }
+    # Code for rules with 'any' object as src or dst
+    for my $rule (@expanded_any_rules) {
 	if(is_any $rule->{src}) {
 	    if(exists $rule->{any_rules}) {
 		for my $any_rule (@{$rule->{any_rules}}) {
-		    next if $any_rule->{deleted};
+		    next if $any_rule->{deleted} and
+			not $any_rule->{managed_if};
 		    # Generate code for deny rules directly in front of
 		    # the corresponding permit 'any' rule
 		    for my $deny_network (@{$any_rule->{deny_src_networks}}) {
@@ -2687,13 +2674,14 @@ sub gen_acl_from_any_rule( $ ) {
 		    &path_walk($any_rule, \&collect_acls_at_src);
 		}
 	    }
-	    next if $rule->{deleted};
+	    next if $rule->{deleted} and not $rule->{managed_if};
 	    &path_walk($rule, \&collect_acls_at_src);
 	} elsif(is_any $rule->{dst}) {
 	    # two passes:
 	    # first generate deny rules,
 	    for my $any_rule (@{$rule->{any_rules}}) {
-		next if $any_rule->{deleted};
+		next if $any_rule->{deleted} and
+		    not $any_rule->{managed_if};
 		for my $deny_network (@{$any_rule->{deny_dst_networks}}) {
 		    my $deny_rule = {action => 'deny',
 				     src => $any_rule->{src},
@@ -2705,7 +2693,8 @@ sub gen_acl_from_any_rule( $ ) {
 	    }
 	    # second generate 'any' + auto 'any' rules
 	    for my $any_rule ($rule, @{$rule->{any_rules}}) {
-		next if $any_rule->{deleted};
+		next if $any_rule->{deleted} and
+			not $any_rule->{managed_if};
 		unless($any_rule->{any_dst_group}->{active}) {
 		    &path_walk($any_rule, \&collect_acls_at_dst);
 		    $any_rule->{any_dst_group}->{active} = 1;
@@ -2716,86 +2705,55 @@ sub gen_acl_from_any_rule( $ ) {
 	} else {
 	    internal_err "unexpected rule ", print_rule $rule, "\n";
 	}
-	# ToDo: Handle is_any src & is_any dst
+	# ToDo: Handle is_any src && is_any dst
     }
-}
 
-sub acl_generation() {
-    info "Starting code generation\n";
-    # First generate code for deny rules
-    for my $rule (@expanded_deny_rules) {
-	next if $rule->{deleted};
-	&path_walk($rule, \&collect_acls);
-    }
-    # Code for managed interface rules
-    for my $rule (@expanded_if_rules) {
-	# ignore 'deleted' attribute
-	&path_walk($rule, \&collect_acls);
-    }
-    # Code for rules with interface and 'any' object as src or dst
-    gen_acl_from_any_rule(\@expanded_any_if_rules);
-    # Deny further access to managed interfaces
-    for my $router (values %routers) {
-	next unless $router->{managed};
-	# PIX protects itself
-	next if $router->{model} eq 'PIX';
-	internal_err "unsupported router model $router->{model}"
-	    unless $router->{model} eq 'IOS';
-	# collect IP addresses of all interfaces and
-	# collect all hardware interfaces
-	my @ip;
-	my %hardware;
-	for my $interface (@{$router->{interfaces}}) {
-	    $hardware{$interface->{hardware}} = 1;
-	    next unless ref $interface->{ip} eq 'ARRAY';
-	    push @ip, @{$interface->{ip}};
-	}
-	for my $hardware (keys %hardware) {
-	    my $code_aref = \@{$router->{code}->{$hardware}};
-	    if($comment_acls and @ip) {
-		push @$code_aref, "! Protecting interfaces\n";
-	    }
-	    for my $ip (@ip) {
-		my $code = "deny ip any host ". print_ip($ip) ."\n";
-		push @$code_aref, $code;
-	    }
-	}
-    }
-    # Code for other permit rules
-    for my $rule (@expanded_rules) {
-	next if $rule->{deleted};
-	&path_walk($rule, \&collect_acls);
-    }
-    # Code for rules with 'any' object as src or dst
-    gen_acl_from_any_rule(\@expanded_any_rules);
 }
 
 sub print_acls( $ ) {
     my($router) = @_;
     my $model = $router->{model};
     print "[ ACL ]\n";
-    # we need to know all hardware interface names.
+    # We need to know all hardware interface names.
     # It isn't sufficient to iterate over the keys from $router->{code},
-    # since some interfaces may have no ACL at all
-    my %hw_names;
+    # since some interfaces may have no ACL at all.
+    my %hardware;
+    # Collect IP addresses of all interfaces
+    my @ip;
     for my $interface (@{$router->{interfaces}}) {
-	$hw_names{$interface->{hardware}} = 1;
+	$hardware{$interface->{hardware}} = 1;
+	# ignore 'unnumbered' and 'short' interfaces
+	next if ref $interface->{ip} eq 'SCALAR';
+	push @ip, @{$interface->{ip}};
     }
-    for my $hardware (sort keys %hw_names) {
-	my $code = $router->{code}->{$hardware};
+    for my $hardware (sort keys %hardware) {
 	my $name = "${hardware}_in";
-	# force auto-vivification of @$code
+	my $code = $router->{code}->{$hardware};
+	my $if_code = $router->{if_code}->{$hardware};
+	# force auto-vivification
 	push @$code;
+	push @$if_code;
 	if($model eq 'IOS') {
 	    print "ip access-list extended $name\n";
-	    for my $line (@$code) {
+	    for my $line (@$if_code) {
 		print " $line";
+	    }
+	    if(@$code) {
+		if($comment_acls and @ip) {
+		    print " ! Protect interfaces\n";
+		}
+		for my $ip (@ip) {
+		    print " deny ip any host ". print_ip($ip) ."\n";
+		}
+		for my $line (@$code) {
+		    print " $line";
+		}
 	    }
 	    print " deny ip any any\n";
 	    print "interface $hardware\n";
 	    print " access group $name\n\n";
 	} elsif($model eq 'PIX') {
-	    for my $line (@$code) {
+	    for my $line (@$if_code, @$code) {
 		if($line =~ /^\s*!/) {
 		    print $line;
 		} else {
