@@ -33,6 +33,7 @@
   </UL>
   
   <li><A HREF="#secondary">Secondary packet filters</A></li>
+  <li><a href="#routing">Routing</a>
   <LI><A HREF="#disabling">Disabling part of the topology</A></LI>
   <LI><A HREF="#handling_any">Handling of 'any' objects</A></LI>
   <LI><A HREF="#pix_levels">PIX security levels</A></LI>
@@ -408,6 +409,40 @@ A secondary packet filter is declared by the attribute
 "managed = secondary". This may be usefull if a router has not
 enough memory for storing a complete set of filter rules and most of
 the packets get fully filtered already by some other managed device.
+
+<h2><a name="routing">Routing</a></h2>
+
+<h4>Static and dynamic routing</h4>
+<p>From its knowledge about the topology, NetSPoC generates static
+routing entries for each managed device. If an interface of a device
+has an attribute "routing=&lt;routing protocol&gt;", no static routing
+entries are generated for networks behind that interface.
+
+<p>Routing entries are only generated for network objects, which are
+used in some rule. I.e. no routing entries are generated for unsused
+parts of the topology. Even for network objects which are only used as
+source of a rule, routing entries are generated, since stateful packet
+filters implicitly allow answer packets back to the source. If an
+'any' object is used in a rule, routing entries for all networks part
+of this 'any' object are generated.
+
+<h4>Default route</h4>
+<p>A default route may be defined for a topology by placing a network
+with IP address and mask equal 0.0.0.0. Such a network must have an
+attribute "route_hint".
+
+<p>Alternativly, NetSPoC can automatically define a default route for
+each managed device as a means to reduce the number of static routing
+entries. At each managed device, a default route is automtically
+inserted such that it replaces the maximum number of routing
+entries. This behaviour may be switched on or off by option
+$auto_default_route. This option must be off, if a user defined
+default route is given.
+
+
+<h4>Optimization</h4>
+Multiple routing entries for networks which are in a subnet
+relation, are replaced by a single routing entry.
 
 <H2><A NAME="disabling">Disabling part of the topology</A></H2>
 <P>An interface may be explicitly marked as disabled.  
