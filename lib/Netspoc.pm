@@ -26,7 +26,11 @@ require Exporter;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
-		 %groups %services %servicegroups %rules
+		 %groups %services %servicegroups 
+		 @rules
+		 @expanded_deny_rules
+		 @expanded_any_rules
+		 @expanded_rules
 		 $error_counter $max_errors
 		 info
 		 err_msg
