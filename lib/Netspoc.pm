@@ -32,6 +32,7 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 @expanded_any_rules
 		 @expanded_rules
 		 $error_counter $max_errors
+		 $store_description
 		 info
 		 err_msg
 		 read_ip
@@ -93,6 +94,9 @@ our $max_errors = 10;
 # allow rules at toplevel or only as part of policies
 # Possible values: 0 | warn | 1
 my $allow_toplevel_rules = 0;
+# Store descriptions as an attribute of policies.
+# This may be useful when called from a reporting tool.
+our $store_description = 0;
 
 ####################################################################
 # Error Reporting
@@ -268,6 +272,16 @@ sub read_string() {
 	return $1;
     } else {
 	syntax_err "String expected";
+    }
+}
+
+sub read_description() {
+    &skip_space_and_comment();
+    if(&check('description')) {
+	&skip('=');
+	# read up to end of line, but ignore ';' at eol
+	m/\G(.*);?$/gc; 
+	return $1; 
     }
 }
 
@@ -792,12 +806,14 @@ sub read_policy( $ ) {
     my($name) = @_;
     skip('=');
     skip('{');
-    my @user = &read_assign_list('user', \&read_typed_name);
     my $policy = { name => "policy:$name",
-		   user => \@user,
 		   rules => [],
 		   file => $file
 	       };
+    my $description = &read_description();
+    $store_description and $policy->{description} = $description;
+    my @user = &read_assign_list('user', \&read_typed_name);
+    $policy->{user} = \@user;
     while(1) {
 	last if &check('}');
 	if(my $action = check_permit_deny()) {
