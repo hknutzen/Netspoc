@@ -1576,15 +1576,17 @@ sub expand_rules() {
 	    if($rule->{src} eq 'user') {
 		$rule->{src} = $user;
 	    } else {
-		$p_rule->{src} = expand_group $p_rule->{src}, 'src of policy rule';
+		$p_rule->{src} = expand_group $p_rule->{src}, "src of rule in policy->{name}";
 	    }
 	    if($rule->{dst} eq 'user') {
 		$rule->{dst} = $user;
 	    } else {
-		$p_rule->{dst} = expand_group $p_rule->{dst}, 'dst of policy rule';
+		$p_rule->{dst} = expand_group $p_rule->{dst}, "dst of rule in $policy->{name}";
 	    }
 	    # remember original policy
 	    $rule->{policy} = $policy;
+	    # ... and remember original rule
+	    $rule->{p_rule} = $p_rule;
 	    push @rules, $rule;
 	}
 	$policy->{user} = expand_group $policy->{user}, "user of $policy->{name}";
@@ -1603,7 +1605,7 @@ sub expand_rules() {
 					  src => $src,
 					  dst => $dst,
 					  srv => $srv,
-					  # remeber original rule
+					  # remember original rule
 					  rule => $rule
 					  };
 		    # if $srv is duplicate of an identical service
