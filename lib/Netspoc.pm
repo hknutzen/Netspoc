@@ -1937,20 +1937,7 @@ sub expand_services( $$ ) {
     return \@services;
 }
 
-sub get_auto_interfaces( $$ ) {
-    my ($from, $to) = @_;
-    is_router $from or internal_err "expected a router as first argument";
-    $to = &get_path($to);
-    &path_mark($from, $to) unless $from->{path}->{$to};
-    if(my $exit = $from->{loop_exit}->{$to}) {
-	my $intf_ref = 
-#	info "$from->{name}.[auto] = ".join ',', map {$_->{name}} @{$from->{loop_enter}->{$exit}};
-	return @{$from->{loop_enter}->{$exit}};
-    } else {
-#	info "$from->{name}.[auto] = $from->{path}->{$to}->{name}";
-	return ($from->{path}->{$to});
-    }
-}
+sub path_first_interfaces( $$ );
 
 # array of expanded deny rules
 our @expanded_deny_rules;
@@ -1965,13 +1952,13 @@ my %rule_tree;
 
 sub expand_rules() {
     info "Expanding rules";
-    # prepare special groups
+    # Prepare special groups
     set_auto_groups();
     for my $name (sort keys %policies) {
 	my $policy = $policies{$name};
 	my $user = $policy->{user};
 	for my $p_rule (@{$policy->{rules}}) {
-	    # new hash with identical keys and values
+	    # New hash with identical keys and values
 	    my $rule = { %$p_rule };
 	    if($rule->{src} eq 'user') {
 		$rule->{src} = $user;
@@ -2000,8 +1987,10 @@ sub expand_rules() {
 
 	for my $src (@{$rule->{src}}) {
 	    for my $dst (@{$rule->{dst}}) {
-		my @src = is_router $src ? get_auto_interfaces $src, $dst : ($src);
-		my @dst = is_router $dst ? get_auto_interfaces $dst, $src : ($dst);
+		my @src = is_router $src ?
+		    path_first_interfaces $src, $dst : ($src);
+		my @dst = is_router $dst ?
+		    path_first_interfaces $dst, $src : ($dst);
 		for my $src (@src) {
 		    for my $dst (@dst) {
 			for my $srv (@{$rule->{srv}}) {
@@ -2009,12 +1998,12 @@ sub expand_rules() {
 						  src => $src,
 						  dst => $dst,
 						  srv => $srv,
-						  # remember original rule
+						  # Remember original rule.
 						  rule => $rule
 						  };
-			    # if $srv is duplicate of an identical service
-			    # use the main service, but remember the original one
-			    # for debugging / comments
+			    # If $srv is duplicate of an identical service,
+			    # use the main service, but remember
+			    # the original one for debugging / comments.
 			    if(my $main_srv = $srv->{main}) {
 				$expanded_rule->{srv} = $main_srv;
 				$expanded_rule->{orig_srv} = $srv;
@@ -2637,12 +2626,7 @@ sub get_path( $ ) {
     } elsif(is_router($obj)) {
 	# this is only used, when called from 
 	# find_active_routes_and_statics or from get_auto_interfaces
-	if($obj->{managed}) {
-	    return $obj;
-	} else {
-	    # Take attached network of one of its interfaces
-	    return $obj->{interfaces}->[0]->{network};
-	}
+	return $obj;
     } else {
 	internal_err "unexpected $obj->{name}";
     }
@@ -2651,7 +2635,7 @@ sub get_path( $ ) {
 # converts hash key of reference back to reference
 my %key2obj;
 
-sub mark_in_loop1( $$$$$ ) {
+sub loop_path_mark1( $$$$$ ) {
     my($obj, $in_intf, $from, $to, $collect) = @_;
     # Check for second occurence of path restriction.
     for my $restrict (@{$in_intf->{path_restrict}}) {
@@ -2684,7 +2668,7 @@ sub mark_in_loop1( $$$$$ ) {
         next unless $interface->{in_loop};
         next if $interface eq $in_intf;
         my $next = $interface->{$get_next};
-	if(&mark_in_loop1($next, $interface, $from, $to, $collect)) {
+	if(&loop_path_mark1($next, $interface, $from, $to, $collect)) {
 	    # Found a valid path from $next to $to
 	    $key2obj{$interface} = $interface;
 	    $collect->{$in_intf}->{$interface} = is_router $obj;
@@ -2730,7 +2714,7 @@ sub loop_path_mark ( $$$$$ ) {
     for my $interface (@{$from->{interfaces}}) {
         next unless $interface->{in_loop};
         my $next = $interface->{$get_next};
-        if(mark_in_loop1 $next, $interface, $from, $to, $collect) {
+        if(loop_path_mark1 $next, $interface, $from, $to, $collect) {
 	    $success = 1;
 	    push @{$from->{loop_enter}->{$to}}, $interface;
 #	    info " enter: $from->{name} -> $interface->{name}";
@@ -2804,9 +2788,9 @@ sub path_mark( $$ ) {
 }
 
 # Walk paths inside cyclic graph
-sub loop_part_walk( $$$$$$$ ) {
+sub loop_path_walk( $$$$$$$ ) {
     my($in, $out, $loop_entry, $loop_exit, $call_at_router, $rule, $fun) = @_;
-#    my $info = "loop_part_walk: ";
+#    my $info = "loop_path_walk: ";
 #    $info .= "$in->{name}->" if $in;
 #    $info .= "$loop_entry->{name}->$loop_exit->{name}";
 #    $info .= "->$out->{name}" if $out;
@@ -2876,10 +2860,10 @@ sub path_walk( $&$ ) {
     my $call_it = (is_network($from) xor $at_router);
     if(my $loop_exit = $from->{loop_exit}->{$to}) {
 	my $loop_out = $from->{path}->{$to};
-	loop_part_walk $in, $loop_out, $from, $loop_exit,
+	loop_path_walk $in, $loop_out, $from, $loop_exit,
 	$at_router, $rule, $fun;
 	unless($loop_out) {
-#	    info "exit: part_walk: dst in loop";
+#	    info "exit: path_walk: dst in loop";
 	    return;
 	}
 	# continue behind loop
@@ -2893,7 +2877,7 @@ sub path_walk( $&$ ) {
 	&$fun($rule, $in, $out) if $call_it;
 	# End of path has been reached.
 	if(not defined $out) {
-#	    info "exit: part_walk: reached dst";
+#	    info "exit: path_walk: reached dst";
 	    return;
 	}
 	$call_it = ! $call_it;
@@ -2901,17 +2885,31 @@ sub path_walk( $&$ ) {
 	if(my $loop_entry = $in->{loop_entry}->{$to}) {
 	    my $loop_exit = $loop_entry->{loop_exit}->{$to};
 	    my $loop_out = $in->{path}->{$to};
-	    loop_part_walk $in, $loop_out, $loop_entry, $loop_exit,
+	    loop_path_walk $in, $loop_out, $loop_entry, $loop_exit,
 	    $at_router, $rule, $fun;
 	    # path terminates inside clyclic graph
 	    unless($loop_out) {
-#	    info "exit: part_walk: dst in loop";
+#	    info "exit: path_walk: dst in loop";
 		return;
 	    }
 	    $in = $loop_out;
 	    $call_it = not (is_network($loop_exit) xor $at_router);
 	}
 	$out = $in->{path}->{$to};
+    }
+}
+
+sub path_first_interfaces( $$ ) {
+    my ($from, $to) = @_;
+    $from = &get_path($from);
+    $to = &get_path($to);
+    &path_mark($from, $to) unless $from->{path}->{$to};
+    if(my $exit = $from->{loop_exit}->{$to}) {
+#	info "$from->{name}.[auto] = ".join ',', map {$_->{name}} @{$from->{loop_enter}->{$exit}};
+	return @{$from->{loop_enter}->{$exit}};
+    } else {
+#	info "$from->{name}.[auto] = $from->{path}->{$to}->{name}";
+	return ($from->{path}->{$to});
     }
 }
 
@@ -3700,7 +3698,7 @@ sub find_active_routes_and_statics () {
 	    &path_walk($pseudo_rule, \&mark_networks_for_static, 'Router');
 	}
     }
-    # Additional process reverse direction for routing
+    # Additionally process reverse direction for routing
     for my $rule (@expanded_rules, @expanded_any_rules) {
 	$fun->($rule->{dst}, $rule->{src});
     }
