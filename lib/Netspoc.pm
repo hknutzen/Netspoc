@@ -1882,9 +1882,9 @@ sub get_auto_interfaces( $$ ) {
     my ($from, $to) = @_;
     is_router $from or internal_err "expected a router as first argument";
     $to = &get_path($to);
-    &path_mark($from, $to) unless $from->{$to};
-    my @result = ($from->{$to});
-    push @result, $from->{"2.$to"} if $from->{$to.2};
+    &path_mark($from, $to) unless $from->{path}->{$to};
+    my @result = ($from->{path}->{$to});
+    push @result, $from->{path}->{"2.$to"} if $from->{path}->{$to.2};
     return @result;    
 }
 
@@ -2522,7 +2522,7 @@ sub get_path( $ ) {
 	    return $obj->{interfaces}->[0]->{network};
 	}
     } else {
-	internal_err "unexpected object $obj->{name}";
+	internal_err "unexpected $obj->{name}";
     }
 }
 
