@@ -1259,7 +1259,7 @@ sub show_read_statistics() {
 ##############################################################################
 
 # Type checking functions
-sub is_network( $ )          { ref($_[0]) eq 'Network'; }
+sub is_network( $ )      { ref($_[0]) eq 'Network'; }
 sub is_router( $ )       { ref($_[0]) eq 'Router'; }
 sub is_interface( $ )    { ref($_[0]) eq 'Interface'; }
 sub is_host( $ )         { ref($_[0]) eq 'Host'; }
@@ -2512,29 +2512,31 @@ sub setpath() {
 
 sub get_networks ( $ ) {
     my($obj) = @_;
-    if(is_host $obj or is_interface $obj) {
-	return $obj->{network};
-    } elsif(is_network $obj) {
+    my $type = ref $obj;
+    if($type eq 'Network') {
 	return $obj;
-    } elsif(is_any $obj) {
+    } elsif($type eq 'Host' or $type eq 'Interface') {
+	return $obj->{network};
+    } elsif($type eq 'Any') {
 	return @{$obj->{networks}};
     } else {
 	internal_err "unexpected $obj->{name}";
     }
 }
- 
+
 sub get_path( $ ) {
     my($obj) = @_;
-    if(is_host($obj)) {
-	return $obj->{network};
-    } elsif(is_interface($obj)) {
-	return $obj->{router};
-    } elsif(is_network($obj)) {
+    my $type = ref $obj;
+    if($type eq 'Network') {
 	return $obj;
-    } elsif(is_any($obj)) {
+    } elsif($type eq 'Host') {
+	return $obj->{network};
+    } elsif($type eq 'Interface') {
+	return $obj->{router};
+    } elsif($type eq 'Any') {
 	# Take one random network of this security domain.
 	return $obj->{networks}->[0];
-    } elsif(is_router($obj)) {
+    } elsif($type eq 'Router') {
 	# This is only used, when called from path_first_interfaces or
 	# from find_active_routes_and_statics.
 	return $obj;
@@ -2847,17 +2849,18 @@ sub path_first_interfaces( $$ ) {
 
 sub get_any( $ ) {
     my($obj) = @_;
-    if(is_host($obj)) {
+    my $type = ref $obj;
+    if($type eq 'Network') {
+	return $obj->{any};
+    } elsif($type eq 'Host') {
 	return $obj->{network}->{any};
-    } elsif(is_interface($obj)) {
+    } elsif($type eq 'Interface') {
 	if($obj->{router}->{managed}) {
 	    return $obj->{router};
 	} else {
 	    return $obj->{network}->{any};
 	}
-    } elsif(is_network($obj)) {
-	return $obj->{any};
-    } elsif(is_any($obj)) {
+    } elsif($type eq 'Any') {
 	return $obj;
     } else {
 	internal_err "unexpected $obj->{name}";
@@ -3975,7 +3978,27 @@ sub split_ip_range( $$ ) {
 # returns a list of [ ip, mask ] pairs
 sub address( $$$ ) {
     my ($obj, $nat_info, $direction) = @_;
-    if(is_host($obj)) {
+    my $type = ref $obj;
+    if($type eq 'Network') {
+	my($nat_tag, $network_ip, $mask, $dynamic) =
+	   &nat_lookup($obj, $nat_info);
+	if($nat_tag) {
+	    # It is useless do use a dynamic address as destination,
+	    # but we permit it anyway.
+	    #if($dynamic and $direction eq 'dst') {
+	    #  err_msg "Dynamic nat:$nat_tag of $obj->{name} ",
+	    #  "can't be used as destination";
+	    #}
+	    return [$network_ip, $mask];
+	} else {
+
+	    if($obj->{ip} eq 'unnumbered') {
+		internal_err "unexpected unnumbered $obj->{name}\n";
+	    } else {
+		return [$obj->{ip}, $obj->{mask}];
+	    }
+	}
+    } elsif($type eq 'Host') {
 	my($nat_tag, $network_ip, $mask, $dynamic) =
 	   &nat_lookup($obj->{network}, $nat_info);
 	if($nat_tag) {
@@ -4010,7 +4033,7 @@ sub address( $$$ ) {
 	    }
 	}
     }
-    if(is_interface($obj)) {
+    if($type eq 'Interface') {
 	if($obj->{ip} eq 'unnumbered' or $obj->{ip} eq 'short') {
 	    internal_err "unexpected $obj->{ip} $obj->{name}\n";
 	}
@@ -4035,32 +4058,14 @@ sub address( $$$ ) {
 	    }
 	} else {
 	    my @ip = @{$obj->{ip}};
-	    # Virtual IP must be added for deny rules, it doesn't hurt for permit rules.
+	    # Virtual IP must be added for deny rules,
+	    # it doesn't hurt for permit rules.
 	    push @ip, $obj->{virtual} if $obj->{virtual};
 	    return map { [$_, 0xffffffff] } @ip;
 	}
-    } elsif(is_network($obj)) {
-	my($nat_tag, $network_ip, $mask, $dynamic) =
-	   &nat_lookup($obj, $nat_info);
-	if($nat_tag) {
-	    # It is useless do use a dynamic address as destination,
-	    # but we permit it anyway.
-	    #if($dynamic and $direction eq 'dst') {
-	    #  err_msg "Dynamic nat:$nat_tag of $obj->{name} ",
-	    #  "can't be used as destination";
-	    #}
-	    return [$network_ip, $mask];
-	} else {
-
-	    if($obj->{ip} eq 'unnumbered') {
-		internal_err "unexpected unnumbered $obj->{name}\n";
-	    } else {
-		return [$obj->{ip}, $obj->{mask}];
-	    }
-	}
-    } elsif(is_any($obj)) {
+    } elsif($type eq 'Any') {
 	return [0, 0];
-    } elsif(is_objectgroup $obj) {
+    } elsif($type eq 'Objectgroup') {
 	$obj;
     } else {
 	internal_err "unexpected object $obj->{name}";
