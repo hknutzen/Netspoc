@@ -819,6 +819,7 @@ sub is_servicegroup( $ ) { ref($_[0]) eq 'Servicegroup'; }
 
 sub print_rule( $ ) {
     my($rule) = @_;
+    if($rule->{orig_any}) { $rule = $rule->{orig_any}; }
     my $srv = exists($rule->{orig_srv}) ? 'orig_srv' : 'srv';
     return (defined $rule->{action}?$rule->{action}:'') .
 	" src=$rule->{src}->{name}; dst=$rule->{dst}->{name}; " .
@@ -2176,7 +2177,8 @@ sub convert_any_dst_rule( $$$ ) {
     # at the same router.
     # This optimization is only applicable for stateful routers.
     my $link;
-    if($router->{model} eq 'PIX' or $router->{model} eq 'IOS_FW') {
+    if(($router->{model} eq 'PIX' or $router->{model} eq 'IOS_FW') and
+       $out_intf->{any} eq $rule->{dst}) {
 	$router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv}->{active} = 0;
 	$link = $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv};
     }
@@ -2205,11 +2207,16 @@ sub convert_any_dst_rule( $$$ ) {
 	# with another 'any' object as dst
 	next if $rule->{dst_any_group}->{$any};
 
+	# any_dst_group-optimization may lead to false results when applied
+	# inside a loop
+	my $link = $intf->{any}->{loop} ? undef : $link;
+
 	my $any_rule = {src => $src,
 			dst => $any,
 			srv => $srv,
 			action => 'permit',
 			i => $rule->{i},
+			orig_any => $rule,
 			deny_dst_networks => [ @{$any->{networks}} ],
 			any_dst_group => $link
 			};
@@ -2231,6 +2238,17 @@ sub convert_any_rules() {
 	    &path_walk($rule, \&convert_any_dst_rule, 'Router');
 	}
     }
+#    for my $rule (@expanded_any_rules) {
+#	next if $rule->{deleted};
+#	if(is_any($rule->{dst})) {
+#	    print print_rule $rule, " $rule->{any_dst_group}\n"
+#		if $rule->{any_dst_group};
+#	    for my $rule (@{$rule->{any_rules}}) {
+#		print print_rule $rule, " $rule->{any_dst_group}\n"
+#		    if $rule->{any_dst_group};
+#	    }
+#	}
+#    }
 }
 
 ##############################################################################
@@ -2543,30 +2561,6 @@ sub optimize() {
 # using this interface as next hop
 ####################################################################
 
-# ToDo: active this again
-sub mark_networks_for_static( $$$ ) {
-    my($rule, $src_intf, $dst_intf) = @_;
-    # no route or static needed for directly attached interface
-    return unless $dst_intf;
-    for my $net (@{$rule->{dst_networks}}) {
-	next if $net->{ip} eq 'unnumbered';
-	# collect networks reachable from lower security level
-	# for generation of static commands
-	if($dst_intf->{router}->{model} eq 'PIX' and $src_intf) {
-	    if($src_intf->{level} < $dst_intf->{level}) {	
-		$net->{mask} == 0 and
-		    die "Pix doesn't support static command for mask 0.0.0.0 of $net->{name}\n";
-		# put networks into a hash to prevent duplicates
-		$dst_intf->{static}->{$src_intf->{hardware}}->{$net} = $net;
-	    } elsif($src_intf->{level} == $dst_intf->{level}) {	
-		die "Traffic to $rule->{dst}->{name} can't pass\n",
-		" from  $src_intf->{name} to $dst_intf->{name},\n",
-		" since they have equal security levels.\n";
-	    }
-	}
-    }
-}
-
 # A security domain with multiple networks has some unmanaged routers.
 # For each interface at the border of a security domian,
 # fill a hash referenced by $route, showing by wich internal interface
@@ -2645,16 +2639,19 @@ sub collect_route( $$$ ) {
     my($rule, $in_intf, $out_intf) = @_;
     if($in_intf and $out_intf) {
 	my $hop;
+	my $back_hop;
 	if($in_intf->{network} eq $out_intf->{network}) {
 	    # No intermediate router lies between in_intf and out_intf,
 	    # hence we reach dst simply via $out_intf
 	    $hop = $out_intf;
+	    $back_hop = $in_intf;
 	} else {
 	    # Need to find appropriate interface of intermediate router.
 	    # This info was collected before by &set_route_in_any and stored
 	    # under {route_in_any} in a hash,
 	    # where we find the next hop inside the current 'any' object.
 	    $hop = $in_intf->{network}->{route_in_any}->{$out_intf->{network}};
+	    $back_hop = $out_intf->{network}->{route_in_any}->{$in_intf->{network}};
 	}
 	# Remember which networks are reachable via $hop
 	for my $network (@{$rule->{dst_networks}}) {
@@ -2662,6 +2659,13 @@ sub collect_route( $$$ ) {
 	    # Store $hop itself, since we need to go back 
 	    # from hash key to original object later.
 	    $in_intf->{hop}->{$hop} = $hop;
+	}
+	# Remember which networks are reachable via $back_hop
+	for my $network (@{$rule->{src_networks}}) {
+	    $out_intf->{routing}->{$back_hop}->{$network} = $network;
+	    # Store $back_hop itself, since we need to go back 
+	    # from hash key to original object later.
+	    $out_intf->{hop}->{$back_hop} = $back_hop;
 	}
     } elsif($in_intf) { # and not $out_intf
 	# path ends here
@@ -2672,11 +2676,20 @@ sub collect_route( $$$ ) {
 	    $in_intf->{routing}->{$hop}->{$network} = $network;
 	    $in_intf->{hop}->{$hop} = $hop;
 	}
-    } # else not $in_intf: nothing to do
+    } elsif($out_intf) { # and not $in_intf
+	# path ends here
+	for my $network (@{$rule->{src_networks}}) {
+	    # ignore directly connected network
+	    next if $network eq $out_intf->{network};
+	    my $back_hop = $out_intf->{network}->{route_in_any}->{$network};
+	    $out_intf->{routing}->{$back_hop}->{$network} = $network;
+	    $out_intf->{hop}->{$back_hop} = $back_hop;
+	}
+    }
 }
 
-sub get_networks ( $$$ ) {
-    my($obj, $hash, $where) = @_;
+sub get_networks ( $ ) {
+    my($obj) = @_;
     if(is_host $obj or is_interface $obj) {
 	return [ $obj->{network} ];
     } elsif(is_net $obj) {
@@ -2688,7 +2701,7 @@ sub get_networks ( $$$ ) {
     }
 }
 
-sub find_active_routes () {
+sub find_active_routes_and_statics () {
     info "Finding active routes";
     my $hash = $rule_tree{permit};
     for my $aref (values %$hash) {
@@ -2698,12 +2711,10 @@ sub find_active_routes () {
 	    my $pseudo_rule;
 	    $pseudo_rule->{src} = $src;
 	    $pseudo_rule->{dst} = $dst;
-	    $pseudo_rule->{dst_networks} = get_networks($dst, $hash, 'src');
+	    $pseudo_rule->{dst_networks} = get_networks($dst);
+	    $pseudo_rule->{src_networks} = get_networks($src);
 	    &path_walk($pseudo_rule, \&collect_route, 'Any');
-	    $pseudo_rule->{src} = $dst;
-	    $pseudo_rule->{dst} = $src;
-	    $pseudo_rule->{dst_networks} = get_networks($src, $hash, 'src');
-	    &path_walk($pseudo_rule, \&collect_route, 'Any');
+	    &path_walk($pseudo_rule, \&mark_networks_for_static, 'Router');
 	}
     }
 }
@@ -2771,6 +2782,34 @@ sub print_routes( $ ) {
     }
 }
 
+##############################################################################
+# 'static' commands for pix firewalls
+##############################################################################
+sub mark_networks_for_static( $$$ ) {
+    my($rule, $src_intf, $dst_intf) = @_;
+    # no static needed for directly attached interface
+    return unless $dst_intf;
+    return unless $dst_intf->{router}->{model} eq 'PIX';
+    # no static needed for traffic coming from the pix itself
+    return unless $src_intf;
+    # no static needed for traffic from higher to lower security level
+    return if $src_intf->{level} > $dst_intf->{level};
+    die "Traffic to $rule->{dst}->{name} can't pass\n",
+    " from  $src_intf->{name} to $dst_intf->{name},\n",
+    " since they have equal security levels.\n"
+	if $src_intf->{level} == $dst_intf->{level};
+
+    for my $net (@{$rule->{dst_networks}}) {
+	next if $net->{ip} eq 'unnumbered';
+	# collect networks reachable from lower security level
+	# for generation of static commands
+	$net->{mask} == 0 and
+	    die "Pix doesn't support static command for mask 0.0.0.0 of $net->{name}\n";
+	# put networks into a hash to prevent duplicates
+	$dst_intf->{static}->{$src_intf->{hardware}}->{$net} = $net;
+    }
+}
+
 sub print_pix_static( $ ) {
     my($router) = @_;
     print "[ Static ]\n";
@@ -2787,7 +2826,8 @@ sub print_pix_static( $ ) {
     }
     print "\n";
 		       
-    for my $interface (@{$router->{interfaces}}) {
+    for my $interface (sort { $a->{hardware} cmp $b->{hardware} }
+		       @{$router->{interfaces}}) {
 	my $static = $interface->{static};
 	next unless $static;
 	my $high = $interface->{hardware};
@@ -3073,40 +3113,82 @@ sub collect_acls( $$$ ) {
     }
 }
 
-# For deny rules and permit src=any:*, call collect_acls only for
-# the first border on the path from src to dst
+# For deny and permit rules with src=any:*, call collect_acls only for
+# the first router on the path from src to dst
 sub collect_acls_at_src( $$$ ) {
-    push @_, 'src';
-    &collect_acls_at_end(@_);
+    my ($rule, $src_intf, $dst_intf) = @_;
+    my $src = $rule->{src};
+    is_any $src or internal_err "$src must be of type 'any'";
+    if($src_intf->{any} eq $src) {
+	&collect_acls(@_)
+	    unless $rule->{deleted} and not $rule->{managed_if};
+    } elsif(exists $rule->{any_rules}) {
+	# check for auxiliary 'any' rules
+	for my $any_rule (@{$rule->{any_rules}}) {
+	    next unless $src_intf->{any} eq $any_rule->{src};
+	    next if $any_rule->{deleted} and not $any_rule->{managed_if};
+	    # Generate code for deny rules directly in front of
+	    # the corresponding permit 'any' rule
+	    for my $deny_network (@{$any_rule->{deny_src_networks}}) {
+		my $deny_rule = {action => 'deny',
+				 src => $deny_network,
+				 dst => $any_rule->{dst},
+				 srv => $any_rule->{srv}
+			     };
+		&collect_acls($deny_rule, $src_intf, $dst_intf);
+	    }
+	    &collect_acls($any_rule, $src_intf, $dst_intf);
+	}
+    }
 }
 
 # For permit dst=any:*, call collect_acls only for
-# the last border on the path from src to dst
+# the last router on the path from src to dst
 sub collect_acls_at_dst( $$$ ) {
-    push @_, 'dst';
-    &collect_acls_at_end(@_);
-}
-
-# r1-src-r2-r3-dst
-# r3-src-r2-r1-dst
-# Case 1: src is interface of managed router
-# get_path(src) eq r2, r2.src_intf is undef
-# Case 2: src is not an interface of managed router
-# get_path(src) eq any(src), any(r2.src_intf) eq any(src)
-sub collect_acls_at_end( $$$$ ) {
-    my ($rule, $src_intf, $dst_intf, $where) = @_;
-    my $end = $rule->{$where};
-    my $end_intf = ($where eq 'src')? $src_intf:$dst_intf;
-    my $end_path = &get_path($end);
-    # Case 1
-    if(is_router $end_path) {
-	if(not defined $end_intf) {
-	    &collect_acls($rule, $src_intf, $dst_intf);
+    my ($rule, $src_intf, $dst_intf) = @_;
+    my $dst = $rule->{dst};
+    is_any $dst or internal_err "$dst must be of type 'any'";
+    if($dst_intf->{any} eq $dst) {
+	unless ($rule->{deleted} and not $rule->{managed_if}) {
+	    if($rule->{any_dst_group}) {
+		unless($rule->{any_dst_group}->{active}) {
+		    &collect_acls(@_);
+		    $rule->{any_dst_group}->{active} = 1;
+		}
+	    } else {
+		&collect_acls(@_);
+	    }
 	}
-    }
-    # Case 2
-    elsif($end_intf->{any} eq $end_path) {
-	&collect_acls($rule, $src_intf, $dst_intf);
+    } elsif(exists $rule->{any_rules}) {
+	# check for auxiliary 'any' rules
+	# first build a list of all adjacent 'any' objects
+	my @neighbour_anys;
+	for my $intf (@{$dst_intf->{router}->{interfaces}}) {
+	    next if $src_intf and $intf eq $src_intf;
+	    push @neighbour_anys, $intf->{any};
+	}
+	for my $any_rule (@{$rule->{any_rules}}) {
+	    next unless grep { $_ eq $any_rule->{dst} } @neighbour_anys;
+	    next if $any_rule->{deleted} and not $any_rule->{managed_if};
+	    # first generate deny rules,
+	    for my $deny_network (@{$any_rule->{deny_dst_networks}}) {
+		my $deny_rule = {action => 'deny',
+				 src => $any_rule->{src},
+				 dst => $deny_network,
+				 srv => $any_rule->{srv}
+			     };
+		&collect_acls($deny_rule, $src_intf, $dst_intf);
+	    }
+	    if($any_rule->{any_dst_group}) {
+		unless($any_rule->{any_dst_group}->{active}) {
+		    &collect_acls($any_rule, $src_intf, $dst_intf);
+		    $any_rule->{any_dst_group}->{active} = 1;
+		}
+	    } else {
+		# no optimization for stateless routers
+		&collect_acls($any_rule, $src_intf, $dst_intf);
+	    }
+	}
     }
 }
 
@@ -3125,54 +3207,9 @@ sub acl_generation() {
     # Code for rules with 'any' object as src or dst
     for my $rule (@expanded_any_rules) {
 	if(is_any $rule->{src}) {
-	    if(exists $rule->{any_rules}) {
-		for my $any_rule (@{$rule->{any_rules}}) {
-		    next if $any_rule->{deleted} and
-			not $any_rule->{managed_if};
-		    # Generate code for deny rules directly in front of
-		    # the corresponding permit 'any' rule
-		    for my $deny_network (@{$any_rule->{deny_src_networks}}) {
-			my $deny_rule = {action => 'deny',
-					 src => $deny_network,
-					 dst => $any_rule->{dst},
-					 srv => $any_rule->{srv}
-				     };
-			&path_walk($deny_rule, \&collect_acls_at_src, 'Router');
-		    }
-		    &path_walk($any_rule, \&collect_acls_at_src, 'Router');
-		}
-	    }
-	    next if $rule->{deleted} and not $rule->{managed_if};
 	    &path_walk($rule, \&collect_acls_at_src, 'Router');
 	} elsif(is_any $rule->{dst}) {
-	    # two passes:
-	    # first generate deny rules,
-	    for my $any_rule (@{$rule->{any_rules}}) {
-		next if $any_rule->{deleted} and
-		    not $any_rule->{managed_if};
-		for my $deny_network (@{$any_rule->{deny_dst_networks}}) {
-		    my $deny_rule = {action => 'deny',
-				     src => $any_rule->{src},
-				     dst => $deny_network,
-				     srv => $any_rule->{srv}
-				 };
-		    &path_walk($deny_rule, \&collect_acls_at_dst, 'Router');
-		}
-	    }
-	    # then generate 'any' + auto 'any' rules
-	    for my $any_rule ($rule, @{$rule->{any_rules}}) {
-		next if $any_rule->{deleted} and
-			not $any_rule->{managed_if};
-		if($any_rule->{any_dst_group}) {
-		    unless($any_rule->{any_dst_group}->{active}) {
-			&path_walk($any_rule, \&collect_acls_at_dst, 'Router');
-			$any_rule->{any_dst_group}->{active} = 1;
-		    }
-		} else {
-		    # no optimization for stateless routers
-		    &path_walk($any_rule, \&collect_acls_at_dst, 'Router');
-		}
-	    }
+	    &path_walk($rule, \&collect_acls_at_dst, 'Router');
 	} else {
 	    internal_err "unexpected rule ", print_rule $rule, "\n";
 	}
@@ -3335,7 +3372,7 @@ $error_counter = $max_errors; # following errors should always abort
 # because that will introduce additinal 'any' objects,
 # which would result in superfluous routes
 &set_route_in_any();
-&find_active_routes();
+&find_active_routes_and_statics();
 &convert_any_rules();
 &mark_secondary_rules();
 &optimize();
