@@ -4,7 +4,7 @@
 # Address: heinz.knutzen@web.de, heinz.knutzen@dzsh.de
 # Description:
 # An attempt for a simple and fast replacement of Cisco's
-# Cisco Secure Policy Manager
+# Cisco Secure Policy Manager (CSPM)
 
 use strict;
 use warnings;
@@ -65,9 +65,18 @@ our $error_counter = 0;
 sub error_atline( $ ) {
     my($msg) = @_; 
     if($error_counter++ > 10) {
-	die add_line $msg;
+	die add_line($msg);
     } else {
-	print STDERR add_line $msg;
+	print STDERR add_line($msg);
+    }
+}
+
+sub err_msg( $ ) {
+    my($msg) = @_; 
+    if($error_counter++ > 10) {
+	die $msg;
+    } else {
+	print STDERR "$msg\n";
     }
 }
 
@@ -698,6 +707,7 @@ sub printable( $ ) {
 	return "interface:$obj->{router}->{name}.$obj->{name}";}
     elsif(&is_host($obj)) {$out = 'host';}
     elsif(&is_any($obj)) {$out = 'any';}
+    elsif(&is_every($obj)) {$out = 'every';}
     else { die "internal in printable: unknown object '$obj->{name}'";}
     return "$out:$obj->{name}";
 }
@@ -713,17 +723,6 @@ sub print_rule( $ ) {
 	" src=".&printable($obj->{src}).
 	    "; dst=".&printable($obj->{dst}).
 		"; srv=". print_srv($obj->{srv}).";";
-}
-
-# get an array reference and delete undefined values in it
-sub delete_undefs( $ ) {
-    my($aref) = @_;
-    for(my $i = @$aref; $i > 0; ) {
-	$i--;
-	unless(defined $aref->[$i]) {
-	    splice(@$aref, $i, 1);
-	}
-    }
 }
 
 ##############################################################################
@@ -765,7 +764,7 @@ sub eliminate_overlapping_ranges( \@ ) {
 		# ToDo: Implement this function
 		my $name1 = print_srv $srv1;
 		my $name2 = print_srv $srv2;
-		die "Overlapping port ranges are not supported currently.
+		err_msg "Overlapping port ranges are not supported currently.
 Workaround: Split one of $name1, $name2 manually";
 	    }    
 	}
@@ -843,7 +842,7 @@ sub order_ranges( $$) {
 	    if($x2 == $x1 and $y1 == $y2) {
 		my $name1 = print_srv $srv1;
 		my $name2 = print_srv $srv2;
-		die "Services are duplicate: $name1, $name2";
+		err_msg "Services are duplicate: $name1, $name2";
 	    }
 	    if($x2 <= $x1 and $y1 <= $y2) {
 		my $size = $y2-$x2;
@@ -876,11 +875,10 @@ sub order_services() {
     }
 }
 
-# get a reference to an array of network object names and substitute
+# Get a reference to an array of network object names and substitute
 # the names with the referenced network objects
-# Returns a list of name which couldn't be resolved
-sub subst_names_with_refs( $ ) {
-    my($obref) = @_;
+sub subst_netob_names( $$ ) {
+    my($obref, $context) = @_;
     my @unknown;
     for my $object (@$obref) {
 	# the name may contain colons
@@ -898,7 +896,7 @@ sub subst_names_with_refs( $ ) {
 	    # since in network names dots are more propable.
 	    my($router, $interface)  = split /\./, $name, 2;
 	    $object = $routers{$router}->{interfaces}->{$interface} or
-		$object = $clouds{$router}->{interfaces}->{$interface};
+ 		$object = $clouds{$router}->{interfaces}->{$interface};
 	} elsif($type eq 'any') {
 	    $object = $anys{$name};
 	} elsif($type eq 'every') {
@@ -906,17 +904,30 @@ sub subst_names_with_refs( $ ) {
 	} elsif($type eq 'group') {
 	    $object = $groups{$name};
 	} else {
-	    die "Referencing illegal object type '$type' in group or rule";
+	    err_msg "Illegally typed '$type:$name' in $context";
 	}
 	unless(defined $object) {
-	    my $unknown = "$type:$name";
-	    push(@unknown, $unknown);
-	    $object = undef;
+	    err_msg "Unknown object '$type:$name' in $context";
 	}
     }
-    return @unknown;
 }
-	
+
+sub subst_srv_names( $$ ) {
+    my($aref, $context) = @_;
+    for my $srv (@$aref) {
+	my($type, $name) = split_typed_name($srv);
+	if($type eq 'service') {
+	    $srv = $services{$name} or
+		err_msg "Undefined '$type:$name' in $context";
+	} elsif ($type eq 'servicegroup') {
+            $srv = $servicegroups{$name} or
+	        err_msg "Undefined '$type:$name' in $context";
+	} else {
+	    err_msg "Illegally typed '$type:$name' in $context";
+	}
+    }
+}
+
 sub subst_name_with_ref_for_any_and_every() {
     for my $obj (values %anys, values %everys) {
 	my($type, $name) = split_typed_name($obj->{link});
@@ -925,8 +936,7 @@ sub subst_name_with_ref_for_any_and_every() {
 	} elsif($type eq 'cloud') {
 	    $obj->{link} = $clouds{$name};
 	} else {
-	    die "Referencing illegal object type '$type' in " .
-		printable($obj);
+	    err_msg "Illegally typed '$type:$name' in " . printable($obj);
 	}
     }
 }
@@ -937,7 +947,7 @@ sub link_interface_with_net( $ ) {
     my $net_name = $interface->{link};
     my $net = $networks{$net_name};
     unless($net) {
-	die "Referencing unknown network:$net_name from " .
+	err_msg "Referencing unknown network:$net_name from " .
 	    printable($interface);
     }
     $interface->{link} = $net;
@@ -947,7 +957,8 @@ sub link_interface_with_net( $ ) {
     # an interface of the other type
     if(defined $net->{is_cloud_network} &&
        $net->{is_cloud_network} != $is_cloud_intf) {
-	die "net:$net_name must not be linked to an interface since it is linked to a cloud";
+	err_msg "network:$net_name must not be linked to an interface" .
+	    "since it is linked to a cloud";
     } 
     $net->{is_cloud_network} = $is_cloud_intf;
 
@@ -958,7 +969,7 @@ sub link_interface_with_net( $ ) {
 	    my $mask = $net->{mask};
 	    if($ip != ($interface_ip & $mask)) {
 		my $iname = printable($interface);
-		die "${iname}'s ip doesn't match net:${net_name}'s ip/mask";
+		err_msg "${iname}'s ip doesn't match net:${net_name}'s ip/mask";
 	    }
 	}
     }
@@ -1041,8 +1052,8 @@ sub expand_rule_srv( $$$$ ) {
 	    if($action eq 'deny') {
 		push(@expanded_deny_rules, $expanded_rule);
 	    } elsif(is_any($src) or is_any($dst)) {
-		&order_srv($expanded_rule,
-			   \%ordered_any_rules);
+		&order_rules($expanded_rule,
+			     \%ordered_any_rules);
 	    } else {
 		push(@expanded_rules, $expanded_rule);
 	    }
@@ -1082,24 +1093,24 @@ sub typeof( $ ) {
     }
 }
 
-sub order_dst ( $$ ) {
+sub order_rule_dst ( $$ ) {
     my($rule, $hash) = @_;
     my $id = typeof($rule->{dst});
     push(@{$hash->{$id}}, $rule);
 }
 
-sub order_src ( $$ ) {
+sub order_rule_src ( $$ ) {
     my($rule, $hash) = @_;
     my $id = typeof($rule->{src});
     # \% : force autovivification
-    order_dst($rule, \%{$hash->{$id}});
+    order_rule_dst($rule, \%{$hash->{$id}});
 }    
 
-sub order_srv ( $$ ) {
+sub order_rules ( $$ ) {
     my($rule, $hash) = @_;
     my $srv = $rule->{srv};
     my $depth = $srv->{depth};
-    order_src($rule, \%{$hash->{$depth}});
+    order_rule_src($rule, \%{$hash->{$depth}});
 }
 
 # add all rules with matching srcid and dstid to expanded_any_rules
@@ -1191,7 +1202,7 @@ sub setpath_router( $$$$ ) {
     my($router, $to_border, $border, $distance) = @_;
     # ToDo: operate correctly with loops
     if($router->{border}) {
-	die "There is a loop at " .
+	err_msg "There is a loop at " .
 	    printable($router) .
 		". Loops are not supported in this version";
     }
@@ -1215,7 +1226,7 @@ sub setpath_network( $$$$ ) {
     my ($network, $to_border, $border, $distance) = @_;
     # ToDo: operate correctly with loops
     if($network->{border}) {
-	die "There is a loop at " .
+	err_msg "There is a loop at " .
 	    printable($network) .
 	      ". Loops are not supported in this version";
     }
@@ -1237,10 +1248,10 @@ sub setpath_network( $$$$ ) {
 sub setpath_anys() {
     for my $any (values %anys) {
 	my $border = $any->{link}->{border} or
-	    die "Found unconnected node: ". printable($any->{link});
+	    err_msg "Found unconnected node: ". printable($any->{link});
 	$any->{border} = $border;
 	if(my $old_any = $border->{any}) {
-	    die "More than one any object definied in a perimeter: any:$old_any->{name} and any:$any->{name}";
+	    err_msg "More than one any object definied in a perimeter: any:$old_any->{name} and any:$any->{name}";
 	}
 	$border->{any} = $any;
     }
@@ -1801,56 +1812,21 @@ sub gen_code_at_src( $$$ ) {
 &order_services();
 
 # substitute group member names with links to network objects
-while(my($name, $array_ref) = (each %groups)) {
-    if(my @unknown = &subst_names_with_refs($array_ref)) {
-	print STDERR "Ignoring undefined references in group:$name:\n ",
-	join("\n ", @unknown),"\n";
-	&delete_undefs($array_ref);
-    }
+while(my($name, $aref) = (each %groups)) {
+    subst_netob_names($aref, "group:$name");
 }
 
 # substitute names in service groups with corresponding services
-while(my($gname, $aref) = (each %servicegroups)) {
-    for my $srv (@$aref) {
-	# the name may contain colons
-	my($type, $name) = split_typed_name($srv);
-	if($type eq 'service') {
-	    $srv = $services{$name} or
-		die "undefined ${type}:$name in servicegroup:$gname";
-	} elsif ($type eq 'servicegroup') {
-            $srv = $servicegroups{$name} or
-	        die "undefined ${type}:$name in servicegroup:$gname";
-	} else {
-	    die "Unknown type in ${type}:$name in servicegroup:$gname";
-	}
-    }
+while(my($name, $aref) = (each %servicegroups)) {
+    subst_srv_names($aref, "servicegroup:$name");
 }
 
 # substitute rule targets with links to network objects
 # and service names with service definitions
 for my $rule (@rules) {
-    if(my @unknown = &subst_names_with_refs($rule->{src})) {
-	print STDERR "Ignoring undefined references in src of rule\n ", 
-	join(",", @unknown),"\n";
-	&delete_undefs($rule->{src});    }
-    if(my @unknown = &subst_names_with_refs($rule->{dst})) {
-	print STDERR "Ignoring undefined references in dst of rule\n ", 
-	join(",", @unknown),"\n";
-	&delete_undefs($rule->{dst});
-    }
-    for my $srv (@{$rule->{srv}}) {
-	my($type, $name) = split_typed_name($srv);
-	my $srv_def;
-	if($type eq 'service') {
-	    $srv_def = $services{$name} || die "undefined $srv in rule";
-	} elsif ($type eq 'servicegroup') {
-            $srv_def = $servicegroups{$name} ||
-	        die "undefined $srv in rule";
-	} else {
-	    die "Unknown type '$type' in service part of rule";
-	}
-	$srv = $srv_def;
-    }
+    subst_netob_names($rule->{src}, 'src of rule');
+    subst_netob_names($rule->{dst}, 'dst of rule');
+    subst_srv_names($rule->{srv}, 'rule');
 }
 
 # link 'any' and 'every' objects with referenced objects
@@ -1873,7 +1849,7 @@ for my $router (values %routers) {
 	last;
     }
 }
-$router1 or die "Topology has no managed router"; 
+$router1 or err_msg "Topology has no managed router"; 
 if($verbose) {
     my $name = printable($router1);
     print STDERR "Selected $name as 'router 1'\n";
@@ -1898,7 +1874,8 @@ if($verbose) {
     print STDERR "Expanded rules: deny $nd, permit: $n, permit any: $na,\n";
 }
 
-exit if $error_counter;
+die "Aborted with errors\n" if $error_counter;
+$error_counter = 10;
 
 print STDERR "Preparing optimization\n" if $verbose;
 # Prepare optimization of rules
