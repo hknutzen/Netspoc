@@ -2460,9 +2460,10 @@ sub distribute_nat1( $$$$ ) {
     delete $domain->{active_path};
 }
  
+my @all_natdomains;
+
 sub distribute_nat_info() {
     info "Distributing NAT";
-    my @all_natdomains;
     my %nat_tag2networks;
     # Find nat domains.
     # Build mapping from nat tags to networks. 
@@ -2495,7 +2496,7 @@ sub distribute_nat_info() {
     # Summarize nat info to nat mapping.
     for my $domain (@all_natdomains) {
 	# Network to address mapping (only for networks with NAT).
-	my %addr_map;
+	my %nat_map;
 	my $nat_info = $domain->{nat_info};
 	next unless $nat_info;
 #	debug "$domain->{name}";
@@ -2504,24 +2505,26 @@ sub distribute_nat_info() {
 	for my $href (@$nat_info) {
 	    for my $nat_tag (values %$href) {
 		for my $network (@{$nat_tag2networks{$nat_tag}}) {
-		    next if $addr_map{$network};
-		    $addr_map{$network} = $network->{nat}->{$nat_tag};
+		    next if $nat_map{$network};
+		    $nat_map{$network} = $network->{nat}->{$nat_tag};
 #		    debug " Map: $network->{name} -> ",
 #		    print_ip $addr_map{$network}->{ip};
 		}
 	    }
 	}
+	# Needed for subnet check below.
+	$domain->{nat_map} = \%nat_map;
 	# %addr_map was collected at nat domains, but is needed at
 	# logical and hardware interfaces of managed routers.
 	for my $interface (@{$domain->{managed_interfaces}}) {
 #	    debug "- $interface->{name}";
 	    $interface->{nat_map} =
-		$interface->{hardware}->{nat_map} = \%addr_map;
+		$interface->{hardware}->{nat_map} = \%nat_map;
 	}
 	# Reuse memory.
 	delete $domain->{managed_interfaces};
 	for my $network (@{$domain->{networks}}) {
-	    if(my $href = $addr_map{$network}) {
+	    if(my $href = $nat_map{$network}) {
 		my $name = "nat:$href->{tag}";
 		err_msg "$network->{name} is translated by $name,\n",
 		" but it lies inside the translation domain of $name.\n",
@@ -2544,8 +2547,8 @@ sub distribute_nat_info() {
 sub nat_lookup( $$ ) {
     my($net, $nat_map) = @_;
     $nat_map or return undef;
-    if(my $href = $nat_map->{$net}) {
-	return @{$href}{'tag', 'ip', 'mask', 'dynamic'};
+    if(my $nat_addr = $nat_map->{$net}) {
+	return @{$nat_addr}{'tag', 'ip', 'mask', 'dynamic'};
     }
     return undef;
 }
@@ -2557,57 +2560,68 @@ sub nat_lookup( $$ ) {
 ####################################################################
 sub find_subnets() {
     info "Finding subnets";
-    my %mask_ip_hash;
-    for my $network (@networks) {
-	next if $network->{ip} eq 'unnumbered';
-	# Ignore a network, if NAT is defined for it.
-	# ToDo: Do a separate calculation for each NAT domain.
-	next if $network->{nat} and %{$network->{nat}};
-	if(my $old_net = $mask_ip_hash{$network->{mask}}->{$network->{ip}}) {
-	    err_msg "$network->{name} and $old_net->{name} have identical ip/mask";
+    for my $domain (@all_natdomains) {
+	debug "$domain->{name}";
+	my $nat_map = $domain->{nat_map};
+	my %mask_ip_hash;
+	for my $network (@networks) {
+	    next if $network->{ip} eq 'unnumbered';
+	    my ($ip, $mask);
+	    if(my $nat_addr = $nat_map->{$network}) {
+		($ip, $mask) = @{$nat_addr}{'ip', 'mask'};
+	    } else {
+		($ip, $mask) = @{$network}{'ip', 'mask'};
+	    }
+	    if(my $old_net = $mask_ip_hash{$mask}->{$ip}) {
+		err_msg 
+		    "$network->{name} and $old_net->{name}",
+		    "have identical ip/mask";
+	    } else {
+		$mask_ip_hash{$mask}->{$ip} = $network;
+	    }
 	}
-	$mask_ip_hash{$network->{mask}}->{$network->{ip}} = $network;
-    }
-    # go from smaller to larger networks
-    for my $mask (reverse sort keys %mask_ip_hash) {
-	# network 0.0.0.0/0.0.0.0 can't be subnet
-	last if $mask == 0;
-	for my $ip (keys %{$mask_ip_hash{$mask}}) {
-	    my $m = $mask;
-	    my $i = $ip;
-	    while($m) {
-		$m <<= 1;
-		$i &= $m;
-		if($mask_ip_hash{$m}->{$i}) {
-		    my $bignet = $mask_ip_hash{$m}->{$i};
-		    $bignet->{enclosing} = 1;
-		    my $subnet = $mask_ip_hash{$mask}->{$ip};
-		    $subnet->{is_in} = $bignet;
-		    if($strict_subnets and
-		       not($bignet->{route_hint} or
-			   $subnet->{subnet_of} and
-			   $subnet->{subnet_of} eq $bignet)) {
-			my $msg =
-			    "$subnet->{name} is subnet of $bignet->{name}\n" .
-			    " if desired, either declare attribute 'subnet_of'" .
-			    " or attribute 'route_hint'";
-			if($strict_subnets eq 'warn') {
-			    warning $msg;
-			} else {
-			    err_msg $msg;
+	# go from smaller to larger networks
+	for my $mask (reverse sort keys %mask_ip_hash) {
+	    # network 0.0.0.0/0.0.0.0 can't be subnet
+	    last if $mask == 0;
+	    for my $ip (keys %{$mask_ip_hash{$mask}}) {
+		my $m = $mask;
+		my $i = $ip;
+		while($m) {
+		    $m <<= 1;
+		    $i &= $m;
+		    if($mask_ip_hash{$m}->{$i}) {
+			my $bignet = $mask_ip_hash{$m}->{$i};
+			$bignet->{enclosing} = 1;
+			my $subnet = $mask_ip_hash{$mask}->{$ip};
+			$subnet->{is_in} = $bignet;
+			if($strict_subnets and
+			   not($bignet->{route_hint} or
+			       $subnet->{subnet_of} and
+			       $subnet->{subnet_of} eq $bignet)) {
+			    my $msg =
+				"$subnet->{name} is subnet of $bignet->{name}\n" .
+				" if desired, either declare attribute 'subnet_of'" .
+				" or attribute 'route_hint'";
+			    if($strict_subnets eq 'warn') {
+				warning $msg;
+			    } else {
+				err_msg $msg;
+			    }
 			}
+			# we only need to find the smallest enclosing network
+			last;
 		    }
-		    # we only need to find the smallest enclosing network
-		    last;
 		}
 	    }
 	}
-    }
-    # we must not set an arbitrary default route if a network 0.0.0.0/0 exists
-    if($auto_default_route && $mask_ip_hash{0}->{0}) {
-	err_msg "\$auto_default_route must not be activated,",
-	" because $mask_ip_hash{0}->{0}->{name} has IP address 0.0.0.0";
-	$auto_default_route = 0;
+	# We must not set an arbitrary default route 
+	# if a network 0.0.0.0/0 exists.
+	if($auto_default_route && $mask_ip_hash{0}->{0}) {
+	    err_msg "\$auto_default_route must not be activated,",
+	    " because $mask_ip_hash{0}->{0}->{name} has IP address 0.0.0.0";
+	    $auto_default_route = 0;
+	}
     }
 }
 
