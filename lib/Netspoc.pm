@@ -1872,7 +1872,7 @@ sub convert_any_dst_rule( $$$ ) {
 
 	# Optimization: nothing to do if there is a similar rule
 	# with another 'any' object as dst
-	return if $rule->{dst_any_group}->{$any};
+	next if $rule->{dst_any_group}->{$any};
 
 	my $any_rule = {src => $src,
 			dst => $any,
