@@ -4581,11 +4581,11 @@ sub print_acls( $ ) {
 	}
 	if($model->{filter} eq 'iptables') {
 	    push(@{$hardware->{intf_rules}}, { action => 'deny',
-				      src => $network_00,
-				      dst => $network_00,
-				      srv => $srv_ip });
+					       src => $network_00,
+					       dst => $network_00,
+					       srv => $srv_ip });
 	}
-	push(@{$hardware->{any_rules}}, { action => 'deny',
+	push(@{$hardware->{rules}}, { action => 'deny',
 				      src => $network_00,
 				      dst => $network_00,
 				      srv => $srv_ip });
