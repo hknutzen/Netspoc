@@ -1979,13 +1979,15 @@ sub collect_acls( $$$ ) {
     # ToDo: For PIX firewalls it is unnecessary to allow ipsec packets,
     # because these are allowed implicitly
     if(defined $src_intf) {
-	my $hardware = $src_intf->{hardware};
+	# collect generated code at hardware interface,
+	# not at logical interface
+	my $code_aref = \@{$router->{code}->{$src_intf->{hardware}}};
 	if($comment_acls) {
-	    push(@{$router->{code}->{$hardware}}, "! ". print_rule($rule)."\n");
+	    push(@$code_aref, "! ". print_rule($rule)."\n");
 	}
 	for my $src_code (@src_code) {
 	    for my $dst_code (@dst_code) {
-		push(@{$router->{code}->{$hardware}},
+		push(@$code_aref,
 		     "$action $proto_code $src_code $dst_code $port_code\n");
 	    }
 	}
@@ -1993,9 +1995,9 @@ sub collect_acls( $$$ ) {
 	# src_intf is undefined: src is an interface of this router
 	# For IOS and PIX, only packets from dst back to
 	# this router are filtered
-	my $hardware = $dst_intf->{hardware};
+	my $code_aref = \@{$router->{code}->{$dst_intf->{hardware}}};
 	if($comment_acls) {
-	    push(@{$router->{code}->{$hardware}}, "! ". print_rule($rule)."\n");
+	    push(@$code_aref, "! ". print_rule($rule)."\n");
 	}
 	for my $src_code (@src_code) {
 	    for my $dst_code (@dst_code) {
@@ -2009,7 +2011,7 @@ sub collect_acls( $$$ ) {
 		    # permitted implicitly
 		    next;
 		}
-		push(@{$router->{code}->{$hardware}},
+		push(@$code_aref,
 		     "$action $proto_code $dst_code $port_code $src_code $established\n");
 	    }
 	}
