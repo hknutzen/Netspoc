@@ -268,8 +268,8 @@ sub read_host( $ ) {
     }
     &skip('}');
     if(my $old_host = $hosts{$name}) {
-	my $ip_string = &print_ip($host->{ip});
-	my $old_ip_string = &print_ip($old_host->{ip});
+	my $ip_string = &print_ip($host->{ip}->[0]);
+	my $old_ip_string = &print_ip($old_host->{ip}->[0]);
 	error_atline "Redefining host:$name from IP $old_ip_string to $ip_string";
     }
     $hosts{$name} = $host;
