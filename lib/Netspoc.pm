@@ -1952,75 +1952,41 @@ sub optimization() {
 
 ####################################################################
 # Set routes
-# Add a component 'route' to each router.
-# It holds an array of arrays:[ [ $interface, network, network, .. ], ...
+# Add a component 'route' to each interface.
+# It holds an array of networks reachable
+# when using this interface as next hop
 ####################################################################
 
-# This is used as destination network for default routes
-my $net0000 = new('Network', name => 'default', ip => 0, mask => 0);
-
-sub setroute_router( $$ ) {
-    my($router, $to_default, $default) = @_;
-    # first, add the interface where we reach the networks behind this router
-    my @routing = ($to_default);
-    for my $interface (@{$router->{interfaces}}) {
-	# ignore interface where we reached this router
-	next if $interface eq $to_default;
-	next if $interface->{disabled};
-	my $net = $interface->{network};
-	if($net->{ip} ne 'unnumbered') {
-	    # add directly connected networks
-	    # but not for unnumbered interfaces
-	    push @routing, $net;
+sub get_networks_behind ( $ ) {
+    my($hop) = @_;
+    # return if the values have already been calculated
+    return @{$hop->{route}} if exists $hop->{route};
+    print STDERR $hop->{name},"\n";
+    my @networks;
+    for my $interface (@{$hop->{router}->{interfaces}}) {
+	next if $interface eq $hop;
+	# add directly connected network
+	unless($interface->{ip} eq 'unnumbered') {
+	    push @networks, $interface->{network};
 	}
-	&setroute_network($net, $interface);
-    }
-    for my $interface (@{$router->{interfaces}}) {
-	for my $routing (@{$interface->{route}}) {
-	    my $interface = $routing->[0];
-	    my $len = @$routing;
-	    for(my $i = 1; $i < $len; $i++) {
-		# add networks which lie behind other routers
-		push @routing, $routing->[$i];
-	    }
+	for my $next_hop (@{$interface->{network}->{interfaces}}) {
+	    next if $next_hop eq $interface;
+	    # add networks reachable via interfaces behind
+	    # the directly connected networks
+	    push @networks, &get_networks_behind($next_hop);
 	}
     }
-    # add default route
-    push @{$to_default->{route}}, [ $default, $net0000 ] if $to_default;
-    return \@routing;
+    $hop->{route} = \@networks;
+    return @networks;
 }
-
-sub setroute_network( $$ ) {
-    my ($network, $to_default) = @_;
-    my @routing;
-    # first, collect all networks which lie behind other routers
-    for my $interface (@{$network->{interfaces}}) {
-	# ignore interface where we reached this network
-	next if $interface eq $to_default;
-	# route: 1st element is interface,
-	# rest are networks reachable via this interface
-	my $route = &setroute_router($interface->{router},
-				     $interface, $to_default);
-	push @routing, $route;
-    }
-    # add collected routes to the interface, where we reached this network
-    push @{$to_default->{route}}, @routing;
-    # add collected routes to other interfaces at this network,
-    # but prevent duplicates
-    for my $interface (@{$network->{interfaces}}) {
-	next if $interface eq $to_default;
-	for my $route (@routing) {
-	    next if $route->[0] eq $interface;
-	    push @{$interface->{route}}, $route;
-	}
-    }
-}
+	
 
 # Set routes
 sub setroute() {
-    $default_route or die "Topology needs one default route\n";
     info "Setting routes\n";
-    &setroute_router($default_route, 0);
+    for my $interface (values %interfaces) {
+	get_networks_behind $interface;
+    }
 }
 
 ##############################################################################
@@ -2351,14 +2317,14 @@ sub gen_routes( $ ) {
     my($router) = @_;
     print "[ Routing ]\n";
     for my $interface (@{$router->{interfaces}}) {
-	for my $routing (@{$interface->{route}}) {
-	    my $next_hop = $routing->[0];
+	for my $next_hop (@{$interface->{network}->{interfaces}}) {
+	    next if $next_hop eq $interface;
 	    my $hop_ip = print_ip $next_hop->{ip}->[0];
-	    for(my $i = 1; $i < @$routing; $i++) {
+	    for my $network (@{$next_hop->{route}}) {
 		if($comment_routes) {
-		    print "! route $routing->[$i]->{name} -> $next_hop->{name}\n";
+		    print "! route $network->{name} -> $next_hop->{name}\n";
 		}
-		my $adr = adr_code $routing->[$i], 0;
+		my $adr = adr_code $network, 0;
 		if($router->{model} eq 'IOS') {
 		    print "ip route $adr\t$hop_ip\n";
 		} elsif($router->{model} eq 'PIX') {
