@@ -551,7 +551,7 @@ sub read_router( $ ) {
 	    $managed = 'full';
 	} elsif(&check('=')) {
 	    my $value = &read_identifier();
-	    if($value =~ '^full|secondary$') { $managed = $value; }
+	    if($value =~ /^full|secondary$/) { $managed = $value; }
 	    else { error_atline "Unknown managed device type '$value'"; }
 	    &check(';');
 	} else {
