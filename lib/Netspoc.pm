@@ -211,6 +211,16 @@ sub read_assign($&) {
     return $val;
 }
 
+sub check_assign($&) {
+    my($token, $fun) = @_;
+    my $val;
+    if(&check($token)) {
+	&skip('=');
+	$val = &$fun();
+	&skip(';');
+    }
+    return $val;
+}
 
 sub read_list_or_null(&) {
     my($fun) = @_;
@@ -360,7 +370,8 @@ sub read_interface( $ ) {
     } else {
 	syntax_err "Illegal token";
     }
-    $interface->{hardware} = &read_assign('hardware', \&read_name);
+    my $hardware = &check_assign('hardware', \&read_name);
+    $hardware and $interface->{hardware} = $hardware;
     &skip('}');
     return $interface;
 }
@@ -371,23 +382,19 @@ sub read_router( $ ) {
     skip('=');
     skip('{');
     my $managed = &read_assign('managed', \&read_bool);
-    my $model;
-    if($managed) {
-	$model = &read_assign('model', \&read_name);
-	$valid_model{$model} or
-	    error_atline "Unknown router model '$model'";
-    } elsif(check('model')) {
-	# for unmananged routers model is optional
-	skip('=');
-	&read_name();
-	skip(';');
+    my $model = &check_assign('model', \&read_name);
+    if($model and not $valid_model{$model}) {
+	error_atline "Unknown router model '$model'";
+    }
+    if($managed and not $model) {
+	err_msg "Missing 'model' for managed router:$name";
     }
     my $router = new('Router',
 		     name => $name,
 		     managed => $managed,
 		     interfaces => {},
 		     );
-    $router->{model} = $model if $model;
+    $router->{model} = $model if $managed;
     while(1) {
 	last if &check('}');
 	my($type,$iname) = split_typed_name(read_name());
@@ -402,6 +409,10 @@ sub read_router( $ ) {
 	$router->{interfaces}->{$iname} = $interface;
 	# assign router to interface
 	$interface->{router} = $router;
+	# interface of managed router needs to have a hardware name
+	if($managed and not defined $interface->{hardware}) {
+	    err_msg("Missing 'hardware' for ". printable($interface));
+	}
     }
     if(my $old_router = $routers{$name}) {
 	error_atline "Redefining router:$name";
@@ -1889,7 +1900,8 @@ sub gen_code( $$$ ) {
 	}
     } elsif(defined $dst_intf) {
 	# src_intf is undefined; src is an interface of this router
-	# For IOS and PIX, only packets from dst backt this router are filterd
+	# For IOS and PIX, only packets from dst back to
+	# this router are filterd
 	if($comment_acls) {
 	    push(@{$dst_intf->{code}}, "! ". print_rule($rule)."\n");
 	}
