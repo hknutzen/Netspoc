@@ -38,9 +38,10 @@ my $warn_unused_groups = 1;
 my $strict_subnets = 1;
 # ignore these names when reading directories:
 # - CVS and RCS directories
+# - CVS working files
 # - directory raw for prolog & epilog files
 # - Editor backup files: emacs: *~
-my $ignore_files = qr/^CVS$|^RCS$|^raw$|~$/;
+my $ignore_files = qr/^CVS$|^RCS$|^.#|^raw$|~$/;
 # abort after this many errors
 my $max_errors = 10;
 
@@ -56,7 +57,7 @@ sub warning ( @ ) {
     print STDERR "Warning: ", @_;
 }
 
-# input filename from commandline
+# input filename from command line
 my $main_file;
 # filename of current input file
 our $file;
@@ -126,10 +127,10 @@ sub skip_space_and_comment() {
 	    $eof = 1;
 	    return;
 	}
-	# cut off trailing lf
+	# cut off trailing linefeed
 	chop;
     }
-    # ignore leading witespace
+    # ignore leading whitespace
     m/\G\s*/gc;
 }
 
@@ -143,7 +144,7 @@ sub check_eof() {
 sub check( $ ) {
     my $token = shift;
     &skip_space_and_comment();
-    # todo: escape special RE characters in $token
+    # ToDo: escape special RE characters in $token
     return(m/\G$token/gc);
 }
 
@@ -191,7 +192,7 @@ sub print_ip_aref( $ ) {
 }
 		
 sub check_typed_name() {
-    use locale;		# now german umlauts are part of \w
+    use locale;		# now German umlauts are part of \w
     &skip_space_and_comment();
     if(m/(\G\w+:\w+(\.\w+)?)/gc) {
 	return $1;
@@ -206,7 +207,7 @@ sub read_typed_name() {
 }
 
 sub read_identifier() {
-    use locale;		# now german umlauts are part of \w
+    use locale;		# now German umlauts are part of \w
     &skip_space_and_comment();
     if(m/(\G\w+)/gc) {
 	return $1;
@@ -304,7 +305,7 @@ sub read_assign_list($&) {
 ####################################################################
 # Creation of typed structures
 # Currently we don't use OO features;
-# We use 'bless' only to give each structure a distinc type
+# We use 'bless' only to give each structure a distinct type
 ####################################################################
 
 # Create a new structure of given type; initialize it with key / value pairs
@@ -425,47 +426,54 @@ sub read_network( $ ) {
     $networks{$name} = $network;
 }
 
+my %interfaces;
 my @disabled_interfaces;
-
-sub read_interface( $ ) {
-    my $net = shift;
+sub read_interface( $$ ) {
+    my($router, $net) = @_;
+    my $name = "$router.$net";
     my $interface = new('Interface', 
-			# name will be set by caller
+			name => "interface:$name",
 			network => $net,
 			);
     unless(&check('=')) {
-	skip(';');
 	# short form of interface definition
-	$interface->{ip} = 'short';
-	return $interface;
-    }
-    &skip('{');
-    my $token = read_identifier();
-    if($token eq 'ip') {
-	&skip('=');
-	my @ip = &read_list(\&read_ip);
-	$interface->{ip} = \@ip;
-    } elsif($token eq 'unnumbered') {
-	$interface->{ip} = 'unnumbered';
 	skip(';');
+	$interface->{ip} = 'short';
     } else {
-	syntax_err "Expected 'ip' or 'unnumbered'";
+	&skip('{');
+	my $token = read_identifier();
+	if($token eq 'ip') {
+	    &skip('=');
+	    my @ip = &read_list(\&read_ip);
+	    $interface->{ip} = \@ip;
+	} elsif($token eq 'unnumbered') {
+	    $interface->{ip} = 'unnumbered';
+	    skip(';');
+	} else {
+	    syntax_err "Expected 'ip' or 'unnumbered'";
+	}
+	my $hardware = &check_assign('hardware', \&read_string);
+	$hardware and $interface->{hardware} = $hardware;
+	my $disabled = &check_flag('disabled');
+	if($disabled) {
+	    $interface->{disabled} = 1;
+	    push @disabled_interfaces, $interface;
+	}
+	&skip('}');
     }
-    my $hardware = &check_assign('hardware', \&read_string);
-    $hardware and $interface->{hardware} = $hardware;
-    my $disabled = &check_flag('disabled');
-    if($disabled) {
-	$interface->{disabled} = 1;
-	push @disabled_interfaces, $interface;
+    if($interfaces{$name}) {
+	error_atline "Redefining $interface->{name}";
+	next;
     }
-    &skip('}');
+    # assign interface to global hash of interfaces
+    $interfaces{$name} = $interface;
     return $interface;
 }
 
-# PIX firewalls have a security level associated wih each interface.
+# PIX firewalls have a security level associated with each interface.
 # We don't want to expand our syntax to state them explicitly,
 # but instead we try to derive the level from the interface name.
-# It is not neccessary the find the exact level; what we need to know
+# It is not necessary the find the exact level; what we need to know
 # is the relation of the security levels to each other.
 sub set_pix_interface_level( $ ) {
     my($interface) = @_;
@@ -486,7 +494,6 @@ sub set_pix_interface_level( $ ) {
 
 my %valid_model = (IOS => 1, PIX => 1);
 my %routers;
-my %interfaces;
 sub read_router( $ ) {
     my $name = shift;
     skip('=');
@@ -510,15 +517,7 @@ sub read_router( $ ) {
 	last if &check('}');
 	my($type,$iname) = split_typed_name(read_typed_name());
 	syntax_err "Expected interface definition" unless $type eq 'interface';
-	my $interface = &read_interface($iname);
-	$iname = "$name.$iname";
-	$interface->{name} = "interface:$iname";
-	if($interfaces{$iname}) {
-	    error_atline "Redefining $interface->{name}";
-	    next;
-	}
-	# assign interface to global hash of interfaces
-	$interfaces{$iname} = $interface;
+	my $interface = &read_interface($name, $iname);
 	push @{$router->{interfaces}}, $interface;
 	# assign router to interface
 	$interface->{router} = $router;
@@ -830,7 +829,7 @@ sub process_ip_ranges( $$ ) {
 	    my $end_range = $i - 1;
 	    # found a range with at least 2 elements
 	    if($start_range < $end_range) {
-		# This may be a range with all identical IP adresses.
+		# This may be a range with all identical IP addresses.
 		# This is useful if we have different hosts with 
 		# identical IP addresses
 		&$fun($sorted, $start_range, $end_range);
@@ -905,7 +904,6 @@ sub gen_ip_ranges( $ ) {
 		unless($range = $range_mark->{$begin}->{$end}) {
 		    (my $name = $aref->[$start_range]->{name}) =~
 			s/^.*:/auto_range:/;
-		    info "$name: ". print_ip($begin).",".print_ip($end)."\n";
 		    $range = 
 			new('Host',
 			    name => $name,
@@ -996,7 +994,7 @@ sub order_proto( $$ ) {
     }
 }
 
-# Link each port range with the smalles port range which includes it.
+# Link each port range with the smallest port range which includes it.
 # If no including range is found, link it with the next larger service.
 sub order_ranges( $$ ) {
     my($range_aref, $up) = @_;
@@ -1302,7 +1300,7 @@ my $anyrule_index = 0;
 # when sorted, they are added later to @expanded_any_rules
 my %ordered_any_rules;
 # hash for ordering all rules:
-# $rule_tree{$src}->[0]->{$dst}->[0]->{$action}->{$srv} = $rule;
+# $rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
 # see &add_rule for details
 my %rule_tree;
 
@@ -1323,7 +1321,7 @@ sub expand_rules() {
 					  srv => $srv
 					  };
 		    # if $srv is duplicate of an identical service
-		    # use the main service, but rember the original one
+		    # use the main service, but remember the original one
 		    # for debugging / comments
 		    if(my $main_srv = $srv->{main}) {
 			$expanded_rule->{srv} = $main_srv;
@@ -1385,7 +1383,7 @@ sub expand_rules() {
 #  - any any
 # Note:
 # TCP and UDP port ranges may be not orderable if they are overlapping.
-# If neccessary, we split ranges and their corresponding rules
+# If necessary, we split ranges and their corresponding rules
 # into smaller pieces to make them orderable.
 
 sub typeof( $ ) {
@@ -1481,7 +1479,7 @@ sub ge_srv( $$ ) {
 # dst is some 'any' object not in relation to host2 ?
 # I think not.
 sub repair_deny_influence() {
-    info "Checking for deny influence\n";
+    info "Repairing deny influence\n";
     for my $erule (@expanded_any_rules) {
 	next unless exists $erule->{any_rules};
 	next unless is_host $erule->{dst} or is_interface $erule->{dst};
@@ -1655,7 +1653,7 @@ sub setpath_network( $$$$ ) {
     $network->{border} = $border;
     # Add network to the corresponding border,
     # to have all networks of a security domain available.
-    # Unnumbered networks can be left out here because
+    # Unnumbered networks are left out here because
     # they aren't a valid src or dst
     push(@{$border->{networks}}, $network)
 	unless $network->{ip} eq 'unnumbered';
@@ -2197,7 +2195,7 @@ sub optimize_rules() {
 
 sub optimize() {
     info "Preparing optimization\n";
-    # add rules to $rule_tree for efficent rule compare operations
+    # add rules to $rule_tree for efficient rule compare operations
     for my $rule (@expanded_deny_rules, @expanded_rules) {
 	&add_rule($rule);
     }
@@ -2310,8 +2308,8 @@ sub adr_code( $$ ) {
 	}
     }
     if(is_interface($obj)) {
-	if($obj->{ip} eq 'unnumbered') {
-	    internal_err "unexpected unnumbered $obj->{name}\n";
+	if($obj->{ip} eq 'unnumbered' or $obj->{ip} eq 'short') {
+	    internal_err "unexpected $obj->{ip} $obj->{name}\n";
 	} else {
 	    return map { 'host '. &print_ip($_) } @{$obj->{ip}};
 	}
@@ -2522,7 +2520,7 @@ sub collect_acls( $$$ ) {
 	}
     } elsif(defined $dst_intf) {
 	# src_intf is undefined: src is an interface of this router
-	# No filtering neccessary for packets to PIX itself
+	# No filtering necessary for packets to PIX itself
 	return if $model eq 'PIX' and $action eq 'permit';
 	# For IOS only packets from dst back to this router are filtered
 	my $code_aref = \@{$router->{code}->{$dst_intf->{hardware}}};
@@ -2609,7 +2607,7 @@ sub gen_acls( $ ) {
     for my $hardware (sort keys %hw_names) {
 	my $code = $router->{code}->{$hardware};
 	my $name = "${hardware}_in";
-	# force autovivification of @$code
+	# force auto-vivification of @$code
 	push @$code;
 	if($model eq 'IOS') {
 	    print "ip access-list extended $name\n";
