@@ -50,6 +50,7 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 check_unused_groups 
 		 setpath 
 		 set_route_in_any 
+		 path_walk
 		 find_active_routes_and_statics 
 		 convert_any_rules 
 		 optimize 
