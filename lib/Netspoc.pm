@@ -2415,9 +2415,9 @@ sub set_natdomain( $$$ ) {
 	next if $interface eq $in_interface;
 	my $router = $interface->{router};
 	my $managed = $router->{managed};
-	my $nat_tag = $interface->{bind_nat} || '';
+	my $nat_tag = $interface->{bind_nat} || 0;
 	for my $out_interface (@{$router->{interfaces}}) {
-	    my $out_nat_tag = $out_interface->{bind_nat} || '';
+	    my $out_nat_tag = $out_interface->{bind_nat} || 0;
 	    if($out_nat_tag eq $nat_tag) {
 		# $nat_map will be collected at nat domains, but is needed at
 		# logical and hardware interfaces of managed routers.
@@ -2426,7 +2426,6 @@ sub set_natdomain( $$$ ) {
 		    $out_interface->{nat_map} =
 			$out_interface->{hardware}->{nat_map} = $nat_map;
 		}
-		$out_interface->{nat_domain} = $domain;
 		# Don't process interface where we reached this router.
 		next if $out_interface eq $interface;
 		# Current nat domain continues behind this interface.
@@ -2439,14 +2438,13 @@ sub set_natdomain( $$$ ) {
 		    if($old_nat_tag ne $nat_tag) {
 			err_msg "Inconsistent NAT in loop at $router->{name}:\n",
 			"nat:$old_nat_tag vs. nat:$nat_tag";
-			next;
 		    }
+		    # NAT domain and router have been linked together already.
+		    next;
 		}
 		$router->{nat_tag}->{$domain} = $nat_tag;
 		push @{$domain->{routers}}, $router;
-		push @{$router->{domains}}, $domain;
-		# It's sufficient to find one new NAT domain.
-		next;
+		push @{$router->{nat_domains}}, $domain;
 	    }
 	}
     }
@@ -2496,7 +2494,7 @@ sub distribute_nat1( $$$$ ) {
 	# Found another interface with same NAT binding.
 	# This stops effevt of current NAT tag.
 	next if $our_nat_tag and $our_nat_tag eq $nat_tag;
-	for my $out_domain (@{$router->{domains}}) {
+	for my $out_domain (@{$router->{nat_domains}}) {
 	    next if $out_domain eq $domain;
 	    my $depth = $depth;
 	    $depth++ if $router->{nat_tag}->{$out_domain};
@@ -2505,7 +2503,7 @@ sub distribute_nat1( $$$$ ) {
     }
     delete $domain->{active_path};
 }
- 
+
 my @natdomains;
 
 sub distribute_nat_info() {
@@ -2522,13 +2520,11 @@ sub distribute_nat_info() {
 	(my $name = $network->{name}) =~ s/^network:/nat_domain:/;
 #	debug "$name";
 	my $domain = new('nat_domain',
-			 name => $name,
-			 networks => [],
-			 nat_map => {});
+			 name => $name, networks => [], nat_map => {});
 	push @natdomains, $domain;
 	set_natdomain $network, $domain, 0;
     }
-    # Distribute NAT info to NAT domains.
+    # Distribute NAT tags to NAT domains.
     for my $domain (@natdomains) {
 	for my $router (@{$domain->{routers}}) {
 	    my $nat_tag = $router->{nat_tag}->{$domain} or next;
@@ -2542,7 +2538,7 @@ sub distribute_nat_info() {
 	    }
 	}
     }
-    # Convert global to local NAT definitions.
+    # Convert global NAT definitions to local ones.
     for my $nat_tag (keys %global_nat) {
 	my $global = $global_nat{$nat_tag};
       DOMAIN:
@@ -2607,8 +2603,6 @@ sub distribute_nat_info() {
 		}
 	    }
 	}
-	# Reuse memory.
-	delete $domain->{interfaces};
     }
     for my $name (keys %nat_definitions) {
 	warning "nat:$name is defined, but not used" 
@@ -3989,7 +3983,7 @@ sub print_routes( $ ) {
 		print_ip $hop->{virtual} :
 		print_ip $hop->{ip}->[0];
 	    # A hash having all networks reachable via current hop
-	    # as key as well as value.
+	    # both as key and as value.
 	    my $net_hash = $interface->{routes}->{$hop};
 	    for my $network
 		# Sort networks by mask in reverse order,
@@ -4000,9 +3994,10 @@ sub print_routes( $ ) {
 		  values %$net_hash)
 	    {
 		# Network is redundant, if directly enclosing network
-		# lies behind the same hop.
-		next if $network->{is_in}->{$nat_map} and
-		    $net_hash->{$network->{is_in}->{$nat_map}};
+		# is located behind same hop.
+		if(my $bignet = $network->{is_in}->{$nat_map}) {
+		    next if $net_hash->{$bignet};
+		}
 		if($comment_routes) {
 		    print "! route $network->{name} -> $hop->{name}\n";
 		}
@@ -4234,7 +4229,7 @@ sub distribute_rule( $$$ ) {
     if(not $out_intf) {
 	# For PIX firewalls it is unnecessary to process rules for packets
 	# to the PIX itself, because it accepts them anyway (telnet, IPSec).
-	# ToDo: Check if this assumption holds for deny ACLs as well
+	# ToDo: Check if this assumption holds for deny ACLs as well.
 	return if $model->{filter} eq 'PIX' and $rule->{action} eq 'permit';
 #	debug "$router->{name} intf_rule: ",print_rule $rule,"\n";
 	$aref = \@{$in_intf->{hardware}->{intf_rules}};
@@ -4288,7 +4283,7 @@ sub rules_distribution() {
 	next if $rule->{deleted};
 	path_walk($rule, \&distribute_rule);
     }
-    # Rules with 'any' object as src or dst
+    # Rules with 'any' object as src or dst.
     for my $rule (@expanded_any_rules) {
 	next if $rule->{deleted} and
 	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
@@ -4580,13 +4575,13 @@ my $min_object_group_size = 2;
 
 sub find_object_groups ( $ ) {
     my($router) = @_;
-    # For collecting found object-groups 
+    # For collecting found object-groups.
     my @groups;
-    # Find identical groups in identical NAT domain and of same size
+    # Find identical groups in identical NAT domain and of same size.
     my %nat2size2group;
-    # For generating names of object-groups
+    # For generating names of object-groups.
     my $counter = 1;
-    # Find object-groups in src / dst of rules
+    # Find object-groups in src / dst of rules.
     for my $this ('src', 'dst') {
 	my $that = $this eq 'src' ? 'dst' : 'src';
 	my $tag = "${this}_group";
@@ -4603,7 +4598,7 @@ sub find_object_groups ( $ ) {
 	    }
 	    # Find groups >= $min_object_group_size,
 	    # mark rules belonging to one group,
-	    # put groups into an array / hash
+	    # put groups into an array / hash.
 	    for my $href (values %group_rule_tree) {
 		# $href is {srv => href, ...}
 		for my $href (values %$href) {
@@ -4616,16 +4611,16 @@ sub find_object_groups ( $ ) {
 				# Indicator, that no further rules need
 				# to be processed.
 				active => 0,
-				# NAT domain for address calculation
+				# NAT map for address calculation.
 				nat_map => $hardware->{nat_map},
-				# for check, if interfaces belong to
-				# identical NAT domain
-				bind_nat => $hardware->{bind_nat} || 'none',
+				# For check, if interfaces belong to
+				# identical NAT domain.
+				bind_nat => $hardware->{bind_nat} || 0,
 				# object-ref => rule, ...
 				hash => $href};
-			    # all this rules have identical
+			    # All this rules have identical
 			    # action, srv, src/dst  and dst/stc 
-			    # and shall be replaced by a new object group
+			    # and shall be replaced by a new object group.
 			    for my $rule (values %$href) {
 				$rule->{$tag} = $glue;
 			    }
@@ -4634,7 +4629,7 @@ sub find_object_groups ( $ ) {
 		}
 	    }
 	}
-	# Find a group with identical elements or define a new one
+	# Find a group with identical elements or define a new one.
 	my $get_group = sub ( $ ) {
 	    my ($glue) = @_;
 	    my $hash = $glue->{hash};
@@ -4716,19 +4711,19 @@ sub find_chains ( $ ) {
     my($router) = @_;
     # For collecting found chains. 
     my @chains;
-    # For generating names of chains
+    # For generating names of chains.
     my $counter = 1;
-    # Find groups in src / dst of rules
+    # Find groups in src / dst of rules.
     for my $this ('dst', 'src') {
 	my $that = $this eq 'src' ? 'dst' : 'src';
 	my $tag = "${this}_group";
 	# Find identical chains in identical NAT domain, 
-	# with same action and size
+	# with same action and size.
 	my %nat2action2size2group;
 	for my $hardware (@{$router->{hardware}}) {
 	    my %group_rule_tree;
-	    # find groups of rules with identical 
-	    # action, srv, src/dst and different dst/src
+	    # Find groups of rules with identical 
+	    # action, srv, src/dst and different dst/src.
 	    for my $rule (@{$hardware->{rules}}) {
 		# Action may be reference to chain from first round.
 		my $action = $rule->{action};
@@ -4739,7 +4734,7 @@ sub find_chains ( $ ) {
 	    }
 	    # Find groups >= $min_object_group_size,
 	    # mark rules belonging to one group,
-	    # put groups into an array / hash
+	    # put groups into an array / hash.
 	    for my $href (values %group_rule_tree) {
 		# $href is {srv => href, ...}
 		for my $href (values %$href) {
@@ -4752,16 +4747,16 @@ sub find_chains ( $ ) {
 				# Indicator, that no further rules need
 				# to be processed.
 				active => 0,
-				# NAT domain for address calculation
+				# NAT map for address calculation.
 				nat_map => $hardware->{nat_map},
-				# for check, if interfaces belong to
-				# identical NAT domain
-				bind_nat => $hardware->{bind_nat} || 'none',
+				# For check, if interfaces belong to
+				# identical NAT domain.
+				bind_nat => $hardware->{bind_nat} || 0,
 				# object-ref => rule, ...
 				hash => $href};
-			    # all this rules have identical
+			    # All this rules have identical
 			    # action, srv, src/dst  and dst/src 
-			    # and shall be replaced by a new chain
+			    # and shall be replaced by a new chain.
 			    for my $rule (values %$href) {
 				$rule->{$tag} = $glue;
 			    }
@@ -4771,7 +4766,7 @@ sub find_chains ( $ ) {
 	    }
 	}
 	# Find a chain of same type and with identical elements or
-	# define a new one
+	# define a new one.
 	my $get_chain = sub ( $$ ) {
 	    my ($glue, $action) = @_;
 	    my $hash = $glue->{hash};
@@ -4862,7 +4857,7 @@ sub find_chains ( $ ) {
 
 sub local_optimization() {
     info "Local optimization";
-    # Prepare data structures
+    # Prepare data structures.
     for my $network (@networks) {
 	for my $interface (@{$network->{interfaces}}) {
 	    $interface->{up} = $network;
@@ -4926,7 +4921,7 @@ sub local_optimization() {
 			# if possible.
 			if($secondary_router && $rule->{has_full_filter}) {
 			    # get_networks has a single result if not called 
-			    # with an 'any' object as argument
+			    # with an 'any' object as argument.
 			    $src = get_networks $rule->{src};
 			    $dst = $rule->{dst};
 			    unless(is_interface $dst &&
@@ -4964,7 +4959,7 @@ sub print_acls( $ ) {
     } elsif($model->{filter} eq 'iptables') { 
 	find_chains($router) unless $router->{no_group_code};
     }
-    # Collect IP addresses of all interfaces
+    # Collect IP addresses of all interfaces.
     my @ip;
     for my $hardware (@{$router->{hardware}}) {
 	# We need to know, if packets for a dynamic routing protocol 
