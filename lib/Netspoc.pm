@@ -944,7 +944,7 @@ sub copy_srv( $ ) {
     my($srv) = @_;
     return {name => $srv->{name},
 	    type => $srv->{type},
-	    vals => $srv->{vals}
+	    vals => [ $srv->{vals} ]
 	};
 }
 
@@ -958,19 +958,24 @@ sub copy_rule( $ ) {
 }
 
 sub split_rule( $$$ ) {
-    my($r1, $new_y, $new_x) = @_;
-    my($x, $y) = split(/-/, $r1->{srv}->{vals}->[0]);
-    my $r2 = copy_rule($r1);
+    my($rule, $new_y, $new_x) = @_;
+    my($x, $y) = split(/-/, $rule->{srv}->{vals}->[0]);
+    my $r1 = copy_rule($rule);
+    my $r2 = copy_rule($rule);
+    my $s1 = $r1->{srv};
+    my $s2 = $r2->{srv};
+    $s1->{name} = "split from $new_x $s1->{name}";
+    $s2->{name} = "split to $new_y $s2->{name}";
     if($new_x == $y) {
 	# range is now a single port
-	$r1->{srv}->{vals}->[0] = $new_x;
+	$s1->{vals}->[0] = $new_x;
     } else {
-	$r1->{srv}->{vals}->[0] =~ s/^\d+/$new_x/;
+	$s1->{vals}->[0] =~ s/^\d+/$new_x/;
     }
     if($x == $new_y) {
-	$r2->{srv}->{vals}->[0] = $new_y;
+	$s2->{vals}->[0] = $new_y;
     } else {
-	$r2->{srv}->{vals}->[0] =~ s/\d+$/$new_y/;
+	$s2->{vals}->[0] =~ s/\d+$/$new_y/;
     }
     return $r1, $r2;
 }
