@@ -1,13 +1,32 @@
 ToDo list for NetSPoC, a Network Security Policy Compiler
 
+- Support of virtual IP addresses for HSRP / VRRP
+
+- Add documentation for loops
+
+- With multiple virtual interfaces at a hardware interface,
+  there might be missing automatically generated deny rules for 'any'
+  rules or they may be in wrong order.
+
+- If we have a loop with only three routers and a rule with src inside
+  the loop and dst an 'any' object outside of the loop, netspoc
+  generates useless deny rules which try to prevent src accessing its
+  own security domain.
+
+- For a rule with src outside of a loop and dst inside or behind the
+  loop, we get duplicate acls at the router, where packets from src
+  enter the loop.
+
+- Too many duplicate 'any' acls for routers inside a loop.
+  Disable optimization for 'any' rules inside of loops more selectivly.
+
+- Build test case for 'any_dst_group' optimization
+
 - Problem with stateless routers and optimization:
   We use IP > TCP during optimization, but we don't automatically
   allow answer packets for IP rules. This may result in missing 
   ACLs for TCP answer packets after optimization.
   Possible solution: IP rules let pass traffic in both directions. 
-
-- Comments for ACL entries with 'any' as src or dst are sometimes
-  wrong / misleading.
 
 - Separate NetSPoC functionality into a perl module. This would allow
   to build some interesting query tools:
@@ -42,7 +61,9 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
   I think this change would introduce much more complicated
   algorithms. 
 
+============================================================================
 Done:
+============================================================================
 
 - Code generation for IOS routers without firewall feature set
 
@@ -53,3 +74,6 @@ Done:
 - Restrict access to interfaces of managed routers. Currently, if a
   user is allowed to access a network behind a managed router, she gets
   access to the outgoing interface as well.
+
+- Comments for ACL entries with 'any' as src or dst are sometimes
+  wrong / misleading.
