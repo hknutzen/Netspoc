@@ -81,7 +81,7 @@ Abort after this many errors.
 
 =head1 AUTHOR
 
-Heinz Knutzen <heinz.knutzen@users.berlios.de>
+Heinz Knutzen <heinzknutzen@users.berlios.de>
 
 =head1 SEE ALSO
 
