@@ -55,7 +55,7 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 setpath 
 		 path_walk
 		 find_active_routes_and_statics 
-		 convert_any_rules 
+		 check_any_rules 
 		 optimize
 		 optimize_reverse_rules
 		 distribute_nat_info
@@ -92,7 +92,7 @@ my $auto_default_route = 1;
 # - Editor backup files: emacs: *~
 my $ignore_files = qr/^CVS$|^RCS$|^\.#|^raw$|~$/;
 # abort after this many errors
-our $max_errors = 10;
+our $max_errors = 100;
 # allow rules at top-level or only as part of policies
 # Possible values: 0 | warn | 1
 my $allow_toplevel_rules = 0;
@@ -2027,6 +2027,7 @@ our @expanded_any_rules;
 # $rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
 # see &add_rule for details
 my %rule_tree;
+my %reverse_rule_tree;
 
 sub expand_rules() {
     info "Expanding rules";
@@ -3014,8 +3015,8 @@ sub path_first_interfaces( $$ ) {
 }
 
 ##############################################################################
-# Convert semantics of rules with an 'any' object as source or destination
-# from high-level to low-level:
+# Check if high-level and low-level semantics of rules with an 'any' object
+# as source or destination are equivalent.
 # (A) rule "permit any:X dst"
 # high-level: all networks of security domain X get access to dst
 # low-level: like above, but additionally, the networks of
@@ -3024,70 +3025,132 @@ sub path_first_interfaces( $$ ) {
 # (B) rule permit src any:X
 # high-level: src gets access to all networks of security domain X
 # low-level: like above, but additionally, src gets access to the networks of
-#            all security domains lying directly behind all routers on the path
-#            from src to any:X
-# To preserve the overall meaning while converting from 
-# high-level to low-level semantics, deny rules have to be
-# inserted automatically.
+#            all security domains lying directly behind all routers on the
+#            path from src to any:X
 ##############################################################################
 
-# permit any1 dst
+sub get_any( $ ) {
+    my($obj) = @_;
+    if(is_host($obj)) {
+	return $obj->{network}->{any};
+    } elsif(is_interface($obj)) {
+	if($obj->{router}->{managed}) {
+	    return $obj->{router};
+	} else {
+	    return $obj->{network}->{any};
+	}
+    } elsif(is_network($obj)) {
+	return $obj->{any};
+    } elsif(is_any($obj)) {
+	return $obj;
+    } else {
+	internal_err "unexpected $obj->{name}";
+    }
+}
+
+# Prevent multiple error messages about missing 'any' rules;
+my %missing_any;
+
+# If such rule is defined
+#  permit any1 dst
 #
-#      N2-\/-N3
+# and topology is like this:
+#
 # any1-R1-any2-R2-any3-R3-dst
-#   N1-/    N4-/    \-N5
-# -->
-# deny N5 dst
-# permit any3 dst
-# deny N2 dst
-# deny N3 dst
-# permit any2 dst
-# permit any1 dst
-sub convert_any_src_rule( $$$ ) {
+#         any4-/
+# 
+# additional rules need to be defined as well:
+#  permit any2 dst
+#  permit any3 dst
+# 
+# If R2 is stateless, we need one more rule to be defined:
+#  permit any4 dst
+# This is, because at R2 we would get an automatically generated
+# reverse rule
+#  permit dst any1
+# which would accidently permit traffic to any4 as well.
+sub check_any_src_rule( $$$ ) {
+    # Function is called from &path_walk.
     my ($rule, $in_intf, $out_intf) = @_;
     # out_intf may be undefined if dst is an interface and
-    # we just process the corresponding router; but that doesn't matter here.
+    # we just process the corresponding router,
+    # thus we better use in_intf.
     my $router = $in_intf->{router};
     return unless $router->{managed};
 
-    my $any = $in_intf->{any};
-    unless($any) {
-	internal_err "$in_intf->{name} has no associated any";
-    }
-    # nothing to do for the first router
-    return if $any eq $rule->{src};
+    # Check only for the first router, because next test will be done
+    # for rule "permit any2 dst" anyway.
+    return unless $in_intf->{any} eq $rule->{src};
+    
+    # Destination is interface of current router and therefore there is
+    # nothing to be checked.
+    return unless $out_intf;
 
-    my $any_rule = {src => $any,
-		    dst => $rule->{dst},
-		    srv => $rule->{srv},
-		    action => 'permit',
-		    stateless => $rule->{stateless},
-		    i => $rule->{i},
-		    orig_any => $rule,
-		    deny_networks => [ @{$any->{networks}} ]
-		    };
-    push @{$rule->{any_rules}}, $any_rule;
-    &add_rule($any_rule);
+    my $out_any = $out_intf->{any};
+    my $dst = $rule->{dst};
+    if($out_any eq $dst) {
+	# Both src and dst are 'any' objects and are directly connected
+	# by current router. Hence there can't be any missing rules.
+	# But we need to know about this situation later during code
+	# generation.
+	# Note: Additional checks will be done for this situation at
+	# check_any_dst_rule
+	$rule->{any_are_neighbors} = 1;
+	return;
+    }
+    # Check for rule.
+    if($router->{model}->{stateless}) {
+	# Find security domains at all interfaces except the in_intf.
+	for my $intf (@{$router->{interfaces}}) {
+	    next if $intf eq $in_intf;
+	    # Nothing to be checked for the interface which is connected
+	    # directly to the destination 'any' object.
+	    next if $intf eq $out_intf;
+	    my $any = $intf->{any};
+	    unless($missing_any{$any} or
+	       $rule_tree{$rule->{action}}->
+		   {$any}->[0]->{$dst}->[0]->{$rule->{srv}}) {
+		err_msg  "Missing 'any' rule for rule\n", 
+		" ", print_rule $rule, "\n",
+		" of $rule->{rule}->{policy}->{name}. To be effective\n",
+		" there needs to be defined a similar rule with\n",
+		" src=$any->{name}";
+		$missing_any{$any} = $any;
+	    }
+	}
+    }	    
+    my $dst_any = get_any $dst;
+    # Security domain of dst is directly connected with current router.
+    # Hence there can't be any missing rules.
+    return if $out_any eq $dst_any;
+    unless($missing_any{$out_any} or
+	   $rule_tree{$rule->{action}}->
+	   {$out_any}->[0]->{$dst}->[0]->{$rule->{srv}}) {
+	err_msg "Missing 'any' rule for rule\n", 
+	" ", print_rule $rule, "\n",
+	" of $rule->{rule}->{policy}->{name}. To be effective\n",
+	" there needs to be defined a similar rule with\n",
+	" src=$out_any->{name}";
+	$missing_any{$out_any} = $out_any;
+    }
 }
 
-# permit src any5
+# If such rule is defined
+#  permit src any5
 #
-#      N2-\  N6-N3-\   /-N4-any4
+# and topology is like this:
+#
+#                      /-any4
 # src-R1-any2-R2-any3-R3-any5
-#      \-N1-any1
-# -->
-# deny src N1
-# permit src any1
-# deny src N2
-# permit src any2
-# deny src N6 
-# deny src N3 
-# permit src any3
-# deny src N4
-# permit src any4
-# permit src any5
-sub convert_any_dst_rule( $$$ ) {
-    # in_intf points to src, out_intf to dst
+#      \-any1
+# 
+# additional rules need to be defined as well:
+#  permit src any1
+#  permit src any2
+#  permit src any3
+#  permit src any4
+sub check_any_dst_rule( $$$ ) {
+    # Function is called from &path_walk.
     my ($rule, $in_intf, $out_intf) = @_;
     # in_intf may be undefined if src is an interface and
     # we just process the corresponding router,
@@ -3095,8 +3158,16 @@ sub convert_any_dst_rule( $$$ ) {
     my $router = $out_intf->{router};
     return unless $router->{managed};
 
+    my $out_any = $out_intf->{any};
+    # We only need to check last router on path.
+    return unless $rule->{dst} eq $out_any;
+    # Source is interface of current router.
+    return unless $in_intf;
+
+    my $in_any = $in_intf->{any};
     my $src = $rule->{src};
     my $srv = $rule->{srv};
+    my $src_any = get_any $src;
 
     # Let us assume two rules: 
     # 1. permit src any:X 
@@ -3115,100 +3186,82 @@ sub convert_any_dst_rule( $$$ ) {
     # at the same router.
     $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv}->{active} = 0;
     my $link = $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv};
-    # Find networks at all interfaces except the in_intf.
-    # For the case that src is interface of current router,
-    # take only the out_intf
-    for my $intf ($in_intf?@{$router->{interfaces}}:($out_intf)) {
-	# nothing to do for in_intf:
-	# case 1: it is the first router near src
-	# case 2: the in_intf is on the same security domain
-	# as an out_intf of some other router on the path
-	next if $in_intf and $intf eq $in_intf;
-	my $any = $intf->{any};
-	# Nothing to be inserted for the interface which is connected
+    $rule->{any_dst_group} = $link;
+    # Find security domains at all interfaces except the in_intf.
+    for my $intf (@{$router->{interfaces}}) {
+	# Nothing to be checked for the interface which is connected
 	# directly to the destination 'any' object.
-	# But link it together with other 'any' rules at the last router
-	# (R3 in the picture above)
-	if($any eq $rule->{dst}) {
-	    $rule->{any_dst_group} = $link;
-	    next;
-	}
-	# any_dst_group-optimization may lead to false results when applied
-	# inside a loop
-	my $link = $intf->{router}->{loop} ? undef : $link;
-
-	my $any_rule = {src => $src,
-			dst => $any,
-			srv => $srv,
-			action => 'permit',
-			stateless => $rule->{stateless},
-			i => $rule->{i},
-			orig_any => $rule,
-			deny_networks => [ @{$any->{networks}} ],
-			any_dst_group => $link
-			};
-	push @{$rule->{any_rules}}, $any_rule;
-	&add_rule($any_rule);
-    }
-}
-
-# Both src and dst of processed rule are an 'any' object.
-sub check_any_both_rule ( $$$ ) {
-    my ($rule, $in_intf, $out_intf) = @_;
-    # Neither in_intf nor out_intf may be undefined, because src and dst
-    # can't be an interface of current router.
-    my $router = $in_intf->{router};
-    return unless $router->{managed};
-    my $src = $rule->{src};
-    my $srv = $rule->{srv};
-    # See above for comment.
-    $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv}->{active} = 0;
-    my $link = $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv};
-    my $current_in_any = $in_intf->{any};
-    push @{$rule->{src_any_on_path}}, $current_in_any;
-    for my $in_any (@{$rule->{src_any_on_path}}) {
-	# Find 'any' objects at all outgoing interfaces.
-	for my $intf (@{$router->{interfaces}}) {
-	    # Nothing to do for in_intf:
-	    # Case 1: it is the first router near src.
-	    # Case 2: the in_intf is connected to the same security domain
-	    # as an out_intf of the previous router on the path.
-	    next if $intf eq $in_intf;
-	    my $out_any = $intf->{any};
-	    # Nothing to be checked for the original rule.
-	    if($out_any eq $rule->{dst} and $in_any eq $src) {
-		# Both 'any' objects are directly connected by a managed router.
-		if($in_any eq $current_in_any) {
-		    $rule->{any_dst_group} = $link;
-		    $rule->{any_are_neighbors} = 1;
-		}
-		next;
-	    }
-	    unless($rule_tree{$rule->{action}}->
-		   {$in_any}->[0]->{$out_any}->[0]->{$srv}) {
-		err_msg "For ", print_rule $rule, " to be effective\n",
-		" there needs to be defined a similar rule with\n",
-		" src=$in_any->{name} and dst=$out_any->{name}";
-	    }
+	next if $intf eq $out_intf;
+	my $any = $intf->{any};
+	# Nothing to be checked if src is directly attached to current router.
+	next if $any eq $src_any;
+	unless($missing_any{$any} or
+	       $rule_tree{$rule->{action}}->
+	       {$src}->[0]->{$any}->[0]->{$srv}) {
+	    err_msg  "Missing 'any' rule for rule\n", 
+	    " ", print_rule $rule, "\n",
+	    " of $rule->{rule}->{policy}->{name}. To be effective\n",
+	    " there needs to be defined a similar rule with\n",
+	    " dst=$any->{name}";
+	    $missing_any{$any} = $any;
 	}
     }
 }
 
-sub convert_any_rules() {
-    info "Converting rules for 'any' objects";
+# Handling of any rules created by gen_reverse_rules.
+#
+# 1. dst is any
+#
+# src--r1:stateful--dst1=any1--r2:stateless--dst2=any2
+#
+# gen_reverse_rule will create one additional rule
+# any2-->src, but not a rule any1-->src, because r1 is stateful.
+# check_any_src_rule would complain, that any1-->src is missing.
+# But that doesn't matter, because r1 would permit answer packets
+# from any2 anyway, because it's stateful.
+# Hence we can skip check_any_src_rule for this situation.
+#
+# 2. src is any
+#
+# a) no stateful router on the path between stateless routers and dst.
+# 
+#        any2---\
+# src=any1--r1:stateless--dst
+#
+# gen_reverse_rules will create one additional rule dst-->any1.
+# check_any_dst_rule would complain about a missing rule
+# dst-->any2.
+# To prevent this situation, check_any_src_rule checks for a rule 
+# any2 --> dst
+#
+# b) at least one stateful router on the path between
+#    stateless router and dst.
+#
+#        any3---\
+# src1=any1--r1:stateless--src2=any2--r2:stateful--dst
+#
+# gen_reverse_rules will create one additional rule
+# dst-->any1, but not dst-->any2 because second router is stateful.
+# check_any_dst_rule would complain about missing rules 
+# dst-->any2 and dst-->any3.
+# But answer packets back from dst have been filtered by r2 already,
+# hence it doesn`t hurt if the rules at r1 are a bit too relaxed,
+# i.e. r1 would permit dst to any, but should only permit dst to any1.
+# Hence we can skip check_any_dst_rule for this situation.
+# (Case b isn't implemented currently.)
+# 
+
+sub check_any_rules() {
+    info "Checking rules with 'any' objects";
     for my $rule (@expanded_any_rules) {
 	next if $rule->{deleted};
+	next if $rule->{stateless};
 	$rule->{any_rules} = [];
 	if(is_any($rule->{src})) {
-	    if(is_any($rule->{dst})) {
-		&path_walk($rule, \&check_any_both_rule);
-	    } else {
-		&path_walk($rule, \&convert_any_src_rule);
-	    }
-	}elsif(is_any($rule->{dst})) {
-	    &path_walk($rule, \&convert_any_dst_rule);
-	} else {
-	    internal_err;
+	    &path_walk($rule, \&check_any_src_rule);
+	}
+	if(is_any($rule->{dst})) {
+	    &path_walk($rule, \&check_any_dst_rule);
 	}
     }
 }
@@ -3222,7 +3275,6 @@ sub convert_any_rules() {
 ##############################################################################
 
 my @reverse_rules;
-my %reverse_rule_tree;
 
 sub gen_reverse_rules1 ( $ ) {
     my($rule_aref) = @_;
@@ -3287,6 +3339,7 @@ sub gen_reverse_rules1 ( $ ) {
 		stateless => 1,
 		orig_rule => $rule};
 	    $new_rule->{deny_networks} = [] if $rule->{deny_networks};
+	    $new_rule->{any_are_neighbors} = 1 if $rule->{any_are_neighbors};
 	    &add_rule($new_rule);
 	    # don' push to @$rule_aref while we are iterating over it
 	    push @extra_rules, $new_rule;
@@ -3299,7 +3352,6 @@ sub gen_reverse_rules() {
     info "Generating reverse rules for stateless routers";
     gen_reverse_rules1 \@expanded_deny_rules;
     gen_reverse_rules1 \@expanded_rules;
-    # ToDo: How does this interact with convert_any_rules?
     gen_reverse_rules1 \@expanded_any_rules;
 }
 
