@@ -1692,6 +1692,7 @@ sub link_interface_with_net( $ ) {
 	    if($network_ip eq 'unnumbered') {
 		err_msg "$interface->{name} must not be linked ",
 		"to unnumbered $network->{name}";
+		next;
 	    }
 	    if($network_ip != ($interface_ip & $mask)) {
 		err_msg "$interface->{name}'s IP doesn't match ",
@@ -2077,17 +2078,30 @@ sub expand_rules() {
 		" managed interface\n",
 		" but not $name in $rule->{policy}->{name}";
 		$rule->{deleted} = 1;
-		# Continue with an valid value to prevent further errors.
+		# Continue with a valid value to prevent further errors.
 		return $obj;
 	    }
+	};
+	my $get_auto_interface = sub ( $$ ) {
+	    my($src, $dst) = @_;
+	    my @result;
+	    for my $interface (path_first_interfaces $src, $dst) {
+		if($interface->{ip} =~ /^unnumbered|short$/) {
+		    err_msg "'$interface->{ip}' $interface->{name} (from .[auto])\n",
+		    " must not be used in rule";
+		} else {
+		    push @result, $interface;
+		}
+	    }
+	    return @result;
 	};
 	for my $src (@{$rule->{src}}) {
 	    for my $dst (@{$rule->{dst}}) {
 		
 		my @src = is_router $src ?
-		    path_first_interfaces $src, $dst : ($src);
+		    $get_auto_interface->($src, $dst) : ($src);
 		my @dst = is_router $dst ?
-		    path_first_interfaces $dst, $src : ($dst);
+		    $get_auto_interface->($dst, $src) : ($dst);
 		for my $src (@src) {
 		    my $src = $src;	# prevent modification of original array
 		    for my $dst (@dst) {
