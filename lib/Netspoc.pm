@@ -1608,6 +1608,8 @@ sub disable_behind( $ ) {
     my($incoming) = @_;
     $incoming->{disabled} = 1;
     my $network = $incoming->{network};
+    # stop, if we found a loop
+    return if $network->{disabled};
     $network->{disabled} = 1;
     for my $host (@{$network->{hosts}}) {
 	$host->{disabled} = 1;
@@ -1616,17 +1618,16 @@ sub disable_behind( $ ) {
 	next if $interface eq $incoming;
 	$interface->{disabled} = 1;
 	my $router = $interface->{router};
+	# stop, if we found a loop
+	return if $router->{disabled};
 	$router->{disabled} = 1;
-	# a disabled router can't be managed
+	# a disabled router must not be managed
 	if($router->{managed}) {
 	    $router->{managed} = 0;
 	    warning "Disabling managed $router->{name}";
 	}
 	for my $outgoing (@{$router->{interfaces}}) {
 	    next if $outgoing eq $interface;
-	    # ToDo: Check, if this is still true
-	    # Loop detection occurs later in setpath
-	    next if $outgoing->{disabled};
 	    &disable_behind($outgoing);
 	}
     }
@@ -1637,6 +1638,8 @@ sub mark_disabled() {
 	disable_behind($interface);
     }
     for my $interface (@disabled_interfaces) {
+	# if we expand a router later to its set of interfaces,
+	# don't add disabled interfaces.
 	my $router = $interface->{router};
 	&aref_delete($interface, $router->{interfaces});
     }
@@ -2821,6 +2824,7 @@ sub collect_acls( $$$ ) {
 	# we are on an intermediate router
 	# if both $src_intf and $dst_intf are defined
 	return if defined $src_intf and defined $dst_intf;
+# ToDo: Check if this optimization is valid
 #	if(not defined $src_intf) {
 #	    # src is an interface of the current router
 #	    # and it was deleted because we have a similar rule
