@@ -531,7 +531,7 @@ sub read_host( $ ) {
     if($token eq 'ip') {
 	skip '=';
 	my @ip = read_list \&read_ip;
-	$host = new 'Host', name => "host:$name", ips => [ @ip ];
+	$host = new 'Host', name => $name, ips => [ @ip ];
     } elsif($token eq 'range') {
 	skip '=';
 	my $ip1 = read_ip;
@@ -540,7 +540,7 @@ sub read_host( $ ) {
 	skip ';';
 	$ip1 <= $ip2 or error_atline "Invalid IP range";
 	$host = new('Host',
-		    name => "host:$name",
+		    name => $name,
 		    range => [ $ip1, $ip2 ]);
     } else {
 	syntax_err "Expected 'ip' or 'range'";
@@ -572,10 +572,6 @@ sub read_host( $ ) {
 	    error_atline "No NAT supported for host with multiple IPs";
 	}
     }
-    if(my $old_host = $hosts{$name}) {
-	error_atline "Redefining host:$name";
-    }
-    $hosts{$name} = $host;
     return $host;
 }
 
@@ -592,13 +588,16 @@ sub read_nat( $ )  {
    my $dynamic = check_flag 'dynamic';
    my $subnet_of = check_assign 'subnet_of', \&read_typed_name;
    skip '}';
-   my $nat = { name => "nat:$name", ip => $ip };
+   my $nat = { name => $name, ip => $ip };
    $nat->{mask} = $mask if defined $mask;
-   # $name is nat_tag which is used later to lookup 
-   # static translation of hosts inside a dynamically translated network.   
-   $nat->{dynamic} = $name if $dynamic;
+   (my $nat_tag = $name) =~ s/^nat://;
+   if($dynamic) {
+       # $nat_tag is used later to lookup static translation 
+       # of hosts inside a dynamically translated network.   
+       $nat->{dynamic} = $nat_tag;
+   }
    $nat->{subnet_of} = $subnet_of if $subnet_of;
-   $nat_definitions{$name} = 1;
+   $nat_definitions{$nat_tag} = 1;
    return $nat;
 }
 
@@ -606,7 +605,7 @@ our %networks;
 sub read_network( $ ) {
     my $name = shift;
     my $network = new('Network',
-		      name => "network:$name",
+		      name => $name,
 		      file => $file);
     skip '=';
     skip '{';
@@ -636,12 +635,17 @@ sub read_network( $ ) {
     }
     while(1) {
 	last if check '}';
-	my($type, $name) = split_typed_name read_typed_name;
+	my $string = read_typed_name;
+	my($type, $name) = split_typed_name $string;
 	if($type eq 'host') {
-	    my $host = read_host $name;
+	    my $host = read_host $string;
 	    push @{$network->{hosts}}, $host;
+	    if(my $old_host = $hosts{$name}) {
+		error_atline "Redefining host:$name";
+	    }
+	    $hosts{$name} = $host;
 	} elsif($type eq 'nat') {
-	    my $nat = read_nat $name;
+	    my $nat = read_nat $string;
 	    if(defined $nat->{mask}) {
 		unless($nat->{dynamic}) {
 		    $nat->{mask} == $mask or
@@ -701,10 +705,7 @@ sub read_network( $ ) {
 	err_msg "$network->{name} must not have host definitions\n",
 	" because it has attribute 'route_hint'";
     }
-    if($networks{$name}) {
-	error_atline "Redefining $network->{name}";
-    }
-    $networks{$name} = $network;
+    return $network;
 }
 
 # Definition of dynamic routing protocols.
@@ -745,12 +746,9 @@ my %xxrp_info =
 our %interfaces;
 my @virtual_interfaces;
 my @disabled_interfaces;
-sub read_interface( $$ ) {
-    my($router, $net) = @_;
-    my $name = "$router.$net";
-    my $interface = new('Interface', 
-			name => "interface:$name",
-			network => $net);
+sub read_interface( $ ) {
+    my($name) = @_;
+    my $interface = new('Interface', name => $name);
     unless(check '=') {
 	# Short form of interface definition.
 	skip ';';
@@ -881,11 +879,6 @@ sub read_interface( $$ ) {
 	    }
 	}
     }
-    if($interfaces{$name}) {
-	error_atline "Redefining $interface->{name}";
-    }
-    # Assign interface to global hash of interfaces.
-    $interfaces{$name} = $interface;
     return $interface;
 }
 
@@ -917,9 +910,9 @@ sub set_pix_interface_level( $ ) {
 our %routers;
 sub read_router( $ ) {
     my $name = shift;
-    my $router = new('Router',
-		     name => "router:$name",
-		     file => $file);
+    # Router name without prefix "router:" is needed to build interface name.
+    (my $rname = $name) =~ s/^router://;
+    my $router = new('Router', name => $name, file => $file);
     skip '=';
     skip '{';
     while(1) {
@@ -954,13 +947,23 @@ sub read_router( $ ) {
 	} elsif(check_flag('no_group_code')) {
 	    $router->{no_group_code} = 1;
 	} else {
-	    my($type,$iname) = split_typed_name(read_typed_name);
+	    my $string = read_typed_name;
+	    my($type, $network) = split_typed_name $string;
 	    $type eq 'interface' or
 		syntax_err "Expected interface definition";
-	    my $interface = read_interface $name, $iname;
+	    # Derive interface name from router name.
+	    my $iname = "$rname.$network";
+	    my $interface = read_interface "interface:$iname";
 	    push @{$router->{interfaces}}, $interface;
-	    # Link router with interface.
+	    if($interfaces{$iname}) {
+		error_atline "Redefining $interface->{name}";
+	    }
+	    # Assign interface to global hash of interfaces.
+	    $interfaces{$iname} = $interface;
+	    # Link interface with router object.
 	    $interface->{router} = $router;
+	    # Link interface with network name (will be resolved later).
+	    $interface->{network} = $network;
 	}
     }
     # Detailed interface processing for managed routers.
@@ -968,7 +971,7 @@ sub read_router( $ ) {
 	unless($router->{model}) {
 	    # Prevent further errors.
 	    $router->{model} = {};
-	    err_msg "Missing 'model' for managed router:$name";
+	    err_msg "Missing 'model' for managed $name";
 	}
 	# Create objects representing hardware interfaces.
 	# All logical interfaces using the same hardware are linked
@@ -1013,10 +1016,7 @@ sub read_router( $ ) {
 	    set_pix_interface_level $router;
 	}
     }
-    if($routers{$name}) {
-	error_atline "Redefining $router->{name}";
-    }
-    $routers{$name} = $router;
+    return $router;
 }
 
 our %anys;
@@ -1026,12 +1026,8 @@ sub read_any( $ ) {
     skip '{';
     my $link = read_assign 'link', \&read_typed_name;
     skip '}';
-    my $any = new('Any', name => "any:$name", link => $link,
-		  file => $file);
-    if($anys{$name}) {
-	error_atline "Redefining $any->{name}";
-    }
-    $anys{$name} = $any;
+    my $any = new('Any', name => $name, link => $link, file => $file);
+    return $any;
 }
 
 our %everys;
@@ -1041,12 +1037,8 @@ sub read_every( $ ) {
     skip '{';
     my $link = read_assign 'link', \&read_typed_name;
     skip '}';
-    my $every = new('Every', name => "every:$name", link => $link,
-		    file => $file);
-    if(my $old_every = $everys{$name}) {
-	error_atline "Redefining $every->{name}";
-    }
-    $everys{$name} = $every;
+    my $every = new('Every', name => $name, link => $link, file => $file);
+    return $every;
 }
 
 our %groups;
@@ -1055,13 +1047,8 @@ sub read_group( $ ) {
     skip '=';
     my @objects = read_list_or_null \&read_typed_ext_name;
     my $group = new('Group',
-		    name => "group:$name",
-		    elements => \@objects,
-		    file => $file);
-    if(my $old_group = $groups{$name}) {
-	error_atline "Redefining $group->{name}";
-    }
-    $groups{$name} = $group;
+		    name => $name, elements => \@objects, file => $file);
+    return $group;
 }
 
 our %servicegroups;
@@ -1069,14 +1056,9 @@ sub read_servicegroup( $ ) {
    my $name = shift;
    skip '=';
    my @objects = read_list_or_null \&read_typed_name;
-   my $srvgroup = new('Servicegroup',
-		      name => "servicegroup:$name",
-		      elements => \@objects,
-		      file => $file);
-   if(my $old_group = $servicegroups{$name}) {
-       error_atline "Redefining servicegroup:$name";
-   }
-   $servicegroups{$name} = $srvgroup;
+   my $servicegroup = new('Servicegroup',
+			  name => $name, elements => \@objects, file => $file);
+   return $servicegroup;
 }
 
 sub read_port_range() {
@@ -1156,31 +1138,27 @@ sub read_proto_nr( $ ) {
 our %services;
 sub read_service( $ ) {
     my $name = shift;
-    my $srv = { name => "service:$name",
-		file => $file };
+    my $service = { name => $name, file => $file };
     skip '=';
     if(check 'ip') {
-	$srv->{proto} = 'ip';
+	$service->{proto} = 'ip';
     } elsif(check 'tcp') {
-	$srv->{proto} = 'tcp';
-	read_port_ranges($srv);
+	$service->{proto} = 'tcp';
+	read_port_ranges($service);
     } elsif(check 'udp') {
-	$srv->{proto} = 'udp';
-	read_port_ranges $srv;
+	$service->{proto} = 'udp';
+	read_port_ranges $service;
     } elsif(check 'icmp') {
-	$srv->{proto} = 'icmp';
-	read_icmp_type_code $srv;
+	$service->{proto} = 'icmp';
+	read_icmp_type_code $service;
     } elsif(check 'proto') {
-	read_proto_nr $srv;
+	read_proto_nr $service;
     } else {
-	my $name = read_string;
-	error_atline "Unknown protocol $name in definition of service:$name";
+	my $string = read_string;
+	error_atline "Unknown protocol $string in definition of $name";
     }
     skip ';';
-    if(my $old_srv = $services{$name}) {
-	error_atline "Redefining service:$name";
-    }
-    $services{$name} = $srv; 
+    return $service; 
 }
 
 our %policies;
@@ -1201,10 +1179,7 @@ sub read_policy( $ ) {
     my($name) = @_;
     skip '=';
     skip '{';
-    my $policy = { name => "policy:$name",
-		   rules => [],
-		   file => $file
-	       };
+    my $policy = { name => $name, rules => [], file => $file };
     my $description = read_description;
     $store_description and $policy->{description} = $description;
     my @user = read_assign_list 'user', \&read_typed_ext_name;
@@ -1232,10 +1207,7 @@ sub read_policy( $ ) {
 	    syntax_err "Expected 'permit' or 'deny'";
 	}
     }
-    if($policies{$name}) {
-	error_atline "Redefining policy:$name";
-    }
-    $policies{$name} = $policy; 
+    return $policy; 
 }
 
 our %pathrestrictions;
@@ -1254,16 +1226,13 @@ sub read_pathrestriction( $ ) {
        }
    }		
    @names > 1 or
-       error_atline "pathrestriction:$name must use more than one interface";
+       error_atline "$name must use more than one interface";
    my $restriction = new('Pathrestriction',
-			 name => "pathrestriction:$name",
+			 name => $name,
 			 elements => \@interfaces,
 			 file => $file);
    $store_description and $restriction->{description} = $description;
-   if(my $old_restriction = $pathrestrictions{$name}) {
-       error_atline "Redefining pathrestriction:$name";
-   }
-   $pathrestrictions{$name} = $restriction;
+   return $restriction;
 }
 
 our %global_nat;
@@ -1280,9 +1249,45 @@ sub read_global_nat( $ )  {
    }
    $nat->{dynamic} or 
        error_atline "Global $nat->{name} must be dynamic";
-   $global_nat{$name} and
-       error_atline "Duplicate global NAT definition";
-   $global_nat{$name} = $nat;
+   return $nat;
+}
+
+sub read_attributed_object( $$ ) {
+    my($name, $attr_descr) = @_;
+    my $object = { name => $name, file => $file };
+    skip '=';
+    skip '{';
+    my $description = read_description;
+    $object->{description} = $description if $description;
+    while(1) {
+	last if check '}';
+	my $attribute = read_identifier;
+	my $val_descr = $attr_descr->{$attribute} or
+	    syntax_err "Unknown attribute '$attribute'";
+	skip '=';
+	my $val;
+	if(my $values = $val_descr->{values}) {
+	    $val = read_identifier;
+	    grep { $_ eq $val } @$values or
+		syntax_err "Invalid value";
+	} elsif(my $fun = $val_descr->{function}) {
+	    $val = &$fun;
+	} else {
+	    internal_err;
+	}
+	skip ';';
+	$object->{$attribute} and error_atline "Duplicate attribute";
+	$object->{$attribute} = $val;
+    }
+    for my $attribute (keys %$attr_descr) {
+	next if defined $object->{$attribute};
+	if(my $default = $attr_descr->{$attribute}->{default}) {
+	    $object->{$attribute} = $default;
+	} else {
+	    error_atline "Missing attribute for $object->{name}";
+	}
+    }
+    return $object; 
 }
 
 my %isakmp_attributes = 
@@ -1298,47 +1303,32 @@ my %isakmp_attributes =
 our %isakmp;
 sub read_isakmp( $ ) {
     my($name) = @_;
-    my $isakmp = { name => "isakmp:$name", file => $file };
-    skip '=';
-    skip '{';
-    $isakmp->{description} = read_description;
-    while(1) {
-	last if check '}';
-	my $attribute = read_identifier;
-	my $val_descr = $isakmp_attributes{$attribute} or
-	    error_atline "Unknown attribute '$attribute'";
-	skip '=';
-	my $val;
-	if(my $values = $val_descr->{values}) {
-	    $val = read_identifier;
-	    grep { $_ eq $val } @$values or
-		error_atline "Invalid value";
-	} elsif(my $fun = $val_descr->{function}) {
-	    $val = &$fun;
-	}
-	skip ';';
-	$isakmp{$attribute} and error_atline "Duplicate attribute";
-	$isakmp{$attribute} = $val;
-    }
-    for my $attribute (keys %isakmp_attributes) {
-	next if defined $isakmp_attributes{$attribute};
-	if(my $default = $isakmp_attributes{$attribute}->{default}) {
-	    $isakmp{$attribute} = $default;
-	} else {
-	    error_atline "Missing attribute for $isakmp->{name}";
-	}
-    }
-    $isakmp{$name} and error_atline "Redefining $isakmp->{name}";
-    $isakmp{$name} = $isakmp; 
+    return read_attributed_object $name, \%isakmp_attributes;
 }
-    
+
+my %ipsec_attributes = 
+( 'key-exchange' => { function => \&read_typed_name, },
+  'esp-encryption' => { values => [ qw( none aes aes-192 des 3des ) ],
+			default => 'none', },
+  'esp-authentication' => { values => [ qw( none md5-hmac sha-hmac ) ],
+			    default => 'none', },
+  ah => { values => [ qw( none md5-hmac sha-hmac ) ], default => 'none', },
+  'pfs-group' => { values => [ qw( none 1 2 5 ) ], default => 'none', },
+  lifetime => { function => \&read_time_val, },
+  );
+  
+our %ipsec;
+sub read_ipsec( $ ) {
+    my($name) = @_;
+    return read_attributed_object $name, \%ipsec_attributes;
+}
 	    
 my %crypto;
 sub read_crypto( $ ) {
     my($name) = @_;
     skip '=';
     skip '{';
-    my $crypto = { name => "crypto:$name", file => $file };
+    my $crypto = { name => $name, file => $file };
     my $description = read_description;
     $store_description and $crypto->{description} = $description;
     while(1) {
@@ -1356,40 +1346,47 @@ sub read_crypto( $ ) {
 	    push @{$crypto->{hub}}, @hubs;
 	} elsif(my @mesh = check_assign_list 'mesh', \&read_typed_ext_name) { 
 	    push @{$crypto->{meshes}}, [ @mesh ];
+	} elsif(my $type = check_assign 'type', \&read_typed_name) {
+	    $crypto->{type} and
+		error_atline "Redefining 'type' attribute";
+	    $crypto->{type} = $type;
 	} else {
 	    syntax_err "Expected valid attribute or rule";
 	}
     }
-    # Validity of tunnel definitions can't be checked here,
+    # Validity of tunnel definitions must be checked later,
     # because we don't know interfaces inside a group.
-    if($crypto{$name}) {
-	error_atline "Redefining crypto:$name";
-    }
-    $crypto{$name} = $crypto; 
+    return $crypto; 
 }
 
 my %global_type =
-( router => \&read_router,
-  network => \&read_network,
-  any => \&read_any,
-  every => \&read_every,
-  group => \&read_group,
-  service => \&read_service,
-  servicegroup => \&read_servicegroup,
-  policy => \&read_policy,
-  pathrestriction => \&read_pathrestriction,
-  nat => \&read_global_nat,
-  isakmp => \&read_isakmp,
-  crypto => \&read_crypto, 
+( router => [ \&read_router, \%routers ],
+  network => [ \&read_network, \%networks ],
+  any => [ \&read_any, \%anys ],
+  every => [ \&read_every, \%everys ],
+  group => [ \&read_group, \%groups ],
+  service => [ \&read_service, \%services ],
+  servicegroup => [ \&read_servicegroup, \%servicegroups ],
+  policy => [ \&read_policy, \%policies ],
+  pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
+  nat => [ \&read_global_nat, \%global_nat ],
+  isakmp => [ \&read_isakmp, \%isakmp ],
+  ipsec => [ \&read_ipsec, \%ipsec ],
+  crypto => [ \&read_crypto, \%crypto ],
 );
 
 sub read_netspoc() {
-    # Check for different definitions.
+    # Check for global definitions.
     if(my $string = check_typed_name) {
 	my($type,$name) = split_typed_name $string;
-	my $fun = $global_type{$type} or
+	my $descr = $global_type{$type} or
 	    syntax_err "Unknown global definition";
-	$fun->($name);
+	my($fun, $hash) = @$descr;
+	my $result = $fun->($string);
+	if($hash->{$name}) {
+	    error_atline "Redefining $string";
+	}
+	$hash->{$name} = $result; 
     } elsif (check 'include') {
 	my $file = read_string;
 	read_data $file, \&read_netspoc;
@@ -5698,6 +5695,7 @@ sub print_acls( $ ) {
 
 sub print_crypto( $ ) {
     my($router) = @_;
+    return unless grep $_->{crypto_maps}, @{$router->{hardware}};
     my $model = $router->{model};
     my $filter = $model->{filter};
     unless($filter eq 'IOS' or $filter eq 'PIX') {
