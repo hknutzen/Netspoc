@@ -944,7 +944,7 @@ sub copy_srv( $ ) {
     my($srv) = @_;
     return {name => $srv->{name},
 	    type => $srv->{type},
-	    vals => [ $srv->{vals} ]
+	    vals => [ @{$srv->{vals}} ]
 	};
 }
 
