@@ -2506,7 +2506,7 @@ sub setpath() {
                     "are part of different cyclic subgraphs";
             } 
         } else {
-            err_msg "Virtual IP: Missing second interface for $i1->{name}";
+            warning "Virtual IP: Missing second interface for $i1->{name}";
         } 
     }
     
