@@ -216,7 +216,7 @@ sub skip_space_and_comment() {
 	    return;
 	}
 	# cut off trailing linefeed
-	chop;
+	chomp;
     }
     # ignore leading whitespace
     m/\G\s*/gc;
