@@ -35,7 +35,7 @@ my $warn_unused_groups = 1;
 # allow subnets only 
 # if the enclosing network is marked as 'route_hint' or
 # if the subnet is marked as 'subnet_of'
-my $strict_subnets = 0;
+my $strict_subnets = 'warn';
 # ignore these names when reading directories:
 # - CVS and RCS directories
 # - CVS working files
@@ -50,11 +50,11 @@ my $max_errors = 10;
 ####################################################################
 
 sub info ( @ ) {
-    print STDERR @_ if $verbose;
+    print STDERR @_, "\n" if $verbose;
 }
 
 sub warning ( @ ) {
-    print STDERR "Warning: ", @_;
+    print STDERR "Warning: ", @_, "\n";
 }
 
 # input filename from command line
@@ -778,17 +778,17 @@ sub read_file_or_dir( $ ) {
 	
 sub show_read_statistics() {
     my $n = keys %routers;
-    info "Read $n routers\n";
+    info "Read $n routers";
     $n = keys %networks;
-    info "Read $n networks\n";
+    info "Read $n networks";
     $n = keys %groups;
-    info "Read $n groups\n";
+    info "Read $n groups";
     $n = keys %services;
-    info "Read $n services\n";
+    info "Read $n services";
     $n = keys %servicegroups;
-    info "Read $n service groups\n";
+    info "Read $n service groups";
     $n = @rules;
-    info "Read $n rules\n";
+    info "Read $n rules";
 }
 
 ##############################################################################
@@ -1352,9 +1352,9 @@ sub check_unused_groups() {
     for my $group (values %groups, values %servicegroups) {
 	unless($group->{is_used}) {
 	    if(my $size = @{$group->{elements}}) {
-		warning "unused $group->{name} with $size element(s)\n";
+		warning "unused $group->{name} with $size element(s)";
 	    } else {
-		warning "unused empty $group->{name}\n";
+		warning "unused empty $group->{name}";
 	    }
 	}
     }
@@ -1473,7 +1473,7 @@ sub expand_rules() {
 	my $n  = 0+@expanded_rules;
 	my $na = 0+@expanded_any_rules;
 	info "Expanded rules:\n",
-	" deny $nd, permit: $n, permit any: $na\n";
+	" deny $nd, permit: $n, permit any: $na";
     }
 }
 
@@ -1588,7 +1588,7 @@ sub repair_deny_influence1( $$ ) {
 }
 
 sub repair_deny_influence() {
-    info "Repairing deny influence\n";
+    info "Repairing deny influence";
     repair_deny_influence1 \@expanded_any_rules, \@expanded_rules;
 }
 
@@ -1611,7 +1611,7 @@ sub disable_behind( $ ) {
 	# a disabled router can't be managed
 	if($router->{managed}) {
 	    $router->{managed} = 0;
-	    warning "Disabling managed $router->{name}\n";
+	    warning "Disabling managed $router->{name}";
 	}
 	for my $outgoing (@{$router->{interfaces}}) {
 	    next if $outgoing eq $interface;
@@ -1641,7 +1641,7 @@ sub mark_disabled() {
 # Mark each network which encloses some other network
 ####################################################################
 sub find_subnets() {
-    info "Finding subnets\n";
+    info "Finding subnets";
     my %mask_ip_hash;
     for my $network (values %networks) {
 	next if $network->{ip} eq 'unnumbered';
@@ -1670,9 +1670,15 @@ sub find_subnets() {
 		       not($bignet->{route_hint} or
 			   $subnet->{subnet_of} and
 			   $subnet->{subnet_of} eq $bignet)) {
-			err_msg "$subnet->{name} is subnet of $bignet->{name}\n",
-			" if desired, either declare attribute 'subnet_of'",
-			" or attribute 'route_hint'";
+			my $msg =
+			    "$subnet->{name} is subnet of $bignet->{name}\n" .
+			    " if desired, either declare attribute 'subnet_of'" .
+			    " or attribute 'route_hint'";
+			if($strict_subnets eq 'warn') {
+			    warning $msg;
+			} else {
+			    err_msg $msg;
+			}
 		    }
 		    # we only need to find the smallest enclosing network
 		    last;
@@ -1833,7 +1839,7 @@ sub path_walk($&) {
        defined $src_intf and defined $dst_intf and $src_intf eq $dst_intf) {
 	# no message if src eq dst; this happens for group to group rules
 	unless($src eq $dst) {
-	    warning "Unenforceable rule\n ", print_rule($rule), "\n";
+	    warning "Unenforceable rule\n ", print_rule($rule);
 	}
 	# don't process rule again later
 	$rule->{deleted} = $rule;
@@ -2289,7 +2295,7 @@ sub optimize_rules() {
 }
 
 sub optimize() {
-    info "Preparing optimization\n";
+    info "Preparing optimization";
     # add rules to $rule_tree for efficient rule compare operations
     for my $rule (@expanded_deny_rules, @expanded_rules) {
 	&add_rule($rule);
@@ -2300,7 +2306,7 @@ sub optimize() {
 	    &add_rule($any_rule);
 	}
     }
-    info "Starting optimization\n";
+    info "Starting optimization";
     &optimize_rules();
     if($verbose) {
 	my($n, $nd, $na, $naa) = (0,0,0,0);
@@ -2312,8 +2318,8 @@ sub optimize() {
 		$naa++ if $any_rule->{deleted};
 	    }
 	}
-	info "Deleted redundant rules:\n";
-	info " $nd deny, $n permit, $na permit any, $naa permit any from any\n";
+	info "Deleted redundant rules:";
+	info " $nd deny, $n permit, $na permit any, $naa permit any from any";
     }
 }
 
@@ -2348,7 +2354,7 @@ sub get_networks_behind ( $ ) {
 }
 	
 sub setroute() {
-    info "Setting routes\n";
+    info "Setting routes";
     for my $interface (values %interfaces) {
 	# info isn't needed for interface at leaf network
 	next if @{$interface->{network}->{interfaces}} == 1;
@@ -2482,7 +2488,7 @@ my %pix_srv_hole;
 sub warn_pix_icmp() {
     if(%pix_srv_hole) {
 	warning "Ignored the code field of the following ICMP services\n",
-	" while generating code for pix firewalls:\n";
+	" while generating code for pix firewalls:";
 	while(my ($name, $count) = each %pix_srv_hole) {
 	    print STDERR " $name: $count times\n";
 	}
@@ -2790,7 +2796,7 @@ sub collect_acls_at_end( $$$$ ) {
 }
 
 sub acl_generation() {
-    info "Starting code generation\n";
+    info "Starting code generation";
     # Code for deny rules
     for my $rule (@expanded_deny_rules) {
 	next if $rule->{deleted};
@@ -2939,7 +2945,7 @@ sub check_output_dir( $ ) {
 # Print generated code for each managed router
 sub print_code( $ ) {
     my($dir) = @_;
-    info "Printing code\n";
+    info "Printing code";
     for my $router (values %routers) {
 	next unless $router->{managed};
 	my $model = $router->{model};
@@ -2999,7 +3005,7 @@ sub read_config() {
 
 &read_args();
 &read_config() if $conf_file;
-info "$program, version $version\n";
+info "$program, version $version";
 &read_file_or_dir($main_file);
 &show_read_statistics();
 &order_services();

@@ -43,10 +43,11 @@ the topology.
 
 Gives warning for unused groups and service groups.
 
-=item $strict_subnets = [0|1]
+=item $strict_subnets = [0|1|'warn']
 
-Allow subnets only if the enclosing network is marked as 'route_hint'
-or if the subnet is marked as 'subnet_of'.
+Allow subnets only if the enclosing network is declared as 'route_hint'
+or if the subnet is declared as 'subnet_of'.
+If set to 'warn', netspoc only warns about undeclared subnet relations.
 
 =item $ignore_files = qr/^CVS$|^RCS$|^.#|^raw$|~$/;
 
