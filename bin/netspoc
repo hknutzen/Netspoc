@@ -56,5 +56,5 @@ $error_counter = $max_errors; # following errors should always abort
 &optimize_reverse_rules();
 &order_any_rules();
 &repair_deny_influence();
-&acl_generation();
+&rules_distribution();
 &print_code($out_dir);
