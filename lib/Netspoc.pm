@@ -31,8 +31,6 @@ my $version = (split ' ','$Id$ ')[2];
 my $verbose = 1;
 my $comment_acls = 1;
 my $comment_routes = 1;
-# if set to 1, may give better performance for very large rule sets
-my $pre_optimization = 0;
 # ignore these names when reading directories:
 # - CVS and RCS directories
 # - directory raw for prolog & epilog files
@@ -1805,8 +1803,6 @@ sub gen_deny_rules() {
 ##############################################################################
 
 # Add rule to $rule_tree 
-# If a fully identical rule is already present, it is marked
-# as deleted and substituted by the new one.
 sub add_rule( $ ) {
     my ($rule) = @_;
     my $action = $rule->{action};
@@ -1814,7 +1810,8 @@ sub add_rule( $ ) {
     my $dst = $rule->{dst};
     my $srv = $rule->{srv};
     if($rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv}) {
-	# found identical rule: delete current one
+	# Found identical rule: delete current one
+	# Don't change this: for weak_deny the first rule must remain
 	$rule->{deleted} = 1;
     } else {
 	$rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
@@ -1932,45 +1929,37 @@ sub optimize_rules() {
 	$deny_hash and
 	    &optimize_src_rules($deny_hash, $permit_hash);
     }
-    if($weak_hash = $rule_tree{weak_deny}) {
-	&optimize_src_rules($weak_hash, $weak_hash);
-	$permit_hash and
-	    &optimize_src_rules($permit_hash, $weak_hash);
-	$deny_hash and
-	    &optimize_src_rules($deny_hash, $weak_hash);
+}
+
+sub optimize_weak_deny_rules() {
+    if(my $weak_hash = $rule_tree{weak_deny}) {
+	# don't compare weak_deny rules with other weak_deny rules:
+	# weak_deny A
+	# permit A'
+	# weak_deny B
+	# permit B'
+	# Even if A < B, we can't delete A, because it is needed for A'
+	# &optimize_src_rules($weak_hash, $weak_hash);
+	$rule_tree{permit} and
+	    &optimize_src_rules($rule_tree{permit}, $weak_hash);
+	$rule_tree{deny} and
+	    &optimize_src_rules($rule_tree{deny}, $weak_hash);
     }
 }
 
 # Prepare optimization of rules
 # add rules to $rule_tree for efficent rule compare operations
-sub prepare_optimization() {
+sub gen_deny_rules_and_optimize() {
     info "Preparing optimization\n";
     # weak deny rules are generated & added later
     for my $rule (@expanded_deny_rules, @expanded_rules, @expanded_any_rules)
     {
 	&add_rule($rule);
     }
-}
-
-# Global variables for statistic data of pre optimization
-# They are used to prevent duplicate reports about deleted rules
-my($nd1,$n1,$na1) = (0,0,0);
-
-sub extra_optimization() {
-    info "Starting pre-optimization\n";
-    &optimize_rules();
-    if($verbose) {
-	for my $rule (@expanded_deny_rules) { $nd1++ if $rule->{deleted} }
-	for my $rule (@expanded_rules) { $n1++ if $rule->{deleted} }
-	for my $rule (@expanded_any_rules) { $na1++ if $rule->{deleted}	}
-	info "Deleted redundant rules:\n";
-	info "$nd1 deny, $n1 permit, $na1 permit any\n";
-    }
-}
-
-sub optimization() {
     info "Starting optimization\n";
     &optimize_rules();
+    &gen_deny_rules();
+    &optimize_weak_deny_rules();
     if($verbose) {
 	my($n, $nd, $na, $nw) = (0,0,0,0);
 	for my $rule (@expanded_deny_rules) { $nd++ if $rule->{deleted}	}
@@ -1983,9 +1972,6 @@ sub optimization() {
 		}
 	    }
 	}
-	$nd -= $nd1;
-	$n -= $n1;
-	$na -= $na1;
 	info "Deleted redundant rules:\n";
 	info " $nd deny, $n permit, $na permit any, $nw deny from any\n";
     }
@@ -2497,10 +2483,7 @@ sub read_config() {
 &expand_rules();
 die "Aborted with $error_counter error(s)\n" if $error_counter;
 $error_counter = $max_errors; # following errors should always abort
-&prepare_optimization();
-&extra_optimization() if $pre_optimization;
-&gen_deny_rules();
-&optimization();
+&gen_deny_rules_and_optimize();
 &check_deny_influence();
 &setroute();
 &acl_generation();
