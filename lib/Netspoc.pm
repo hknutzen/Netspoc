@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# File: open-spm.pl
+# File: onspoc.pl
 # Author: Heinz Knutzen
 # Address: heinz.knutzen@web.de, heinz.knutzen@dzsh.de
 # Description:
@@ -11,7 +11,7 @@ use strict;
 use warnings;
 
 our $program = 'Open Secure Policy Manager';
-our $version = 0.33;
+our $version = 0.34;
 our $verbose = 1;
 our $comment_acls = 1;
 
