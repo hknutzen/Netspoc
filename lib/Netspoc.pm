@@ -868,8 +868,8 @@ sub read_router( $ ) {
 	    my $info = $router_info{$model};
 	    $info or error_atline "Unknown router model '$model'";
 	    $router->{model} = $info;
-	} elsif(&check_flag('use_object_groups')) {
-	    $router->{use_object_groups} = 1;
+	} elsif(&check_flag('no_object_groups')) {
+	    $router->{no_object_groups} = 1;
 	} else {
 	    my($type,$iname) = split_typed_name(read_typed_name());
 	    $type eq 'interface' or
@@ -4638,7 +4638,7 @@ sub print_acls( $ ) {
     my($router) = @_;
     my $model = $router->{model};
     print "[ ACL ]\n";
-    if($model->{filter} eq 'PIX' and $router->{use_object_groups}) {
+    if($model->{filter} eq 'PIX' and not $router->{no_object_groups}) {
 	&find_object_groups($router);
     } elsif($model->{filter} eq 'iptables') { 
 	&find_chains($router);
