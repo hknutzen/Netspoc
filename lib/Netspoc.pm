@@ -1772,12 +1772,15 @@ sub add_rule( $ ) {
     my $src = $rule->{src};
     my $dst = $rule->{dst};
     my $srv = $rule->{srv};
-    my $old_rule = $rule_tree{$src}->[0]->{$dst}->[0]->{$action}->{$srv};
-    # found identical rule: delete first one
-    $old_rule->{deleted} = 1 if $old_rule;
-    $rule_tree{$src}->[0]->{$dst}->[0]->{$action}->{$srv} = $rule;
-    $rule_tree{$src}->[1] = $src;
-    $rule_tree{$src}->[0]->{$dst}->[1] = $dst;
+    if($rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv}) {
+	# found identical rule: delete current one
+	$rule->{deleted} = 1;
+	return;
+    } else {
+	$rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
+	$rule_tree{$action}->{$src}->[1] = $src;
+	$rule_tree{$action}->{$src}->[0]->{$dst}->[1] = $dst;
+    }
 }
 
 # a rule may be deleted if we find a similar rule with greater or equal srv
@@ -1805,31 +1808,6 @@ sub optimize_srv_rules( $$ ) {
     }
 }
 
-# deny > permit > weak_deny
-sub optimize_action_rules( $$ ) {
-    my($cmp_hash, $chg_hash) = @_;
-    my($cmp_sub_hash, $chg_sub_hash);
-
-    if($chg_sub_hash = $chg_hash->{deny}) {
-	$cmp_sub_hash = $cmp_hash->{deny} and
-	    &optimize_srv_rules($cmp_sub_hash, $chg_sub_hash);
-    }
-    if($chg_sub_hash = $chg_hash->{permit}) {
-	$cmp_sub_hash = $cmp_hash->{permit} and
-	    &optimize_srv_rules($cmp_sub_hash, $chg_sub_hash);
-	$cmp_sub_hash = $cmp_hash->{deny} and
-	    &optimize_srv_rules($cmp_sub_hash, $chg_sub_hash);
-    }
-    if($chg_sub_hash = $chg_hash->{weak_deny}) {
-	$cmp_sub_hash = $cmp_hash->{weak_deny} and
-	    &optimize_srv_rules($cmp_sub_hash, $chg_sub_hash);
-	$cmp_sub_hash = $cmp_hash->{permit} and
-	    &optimize_srv_rules($cmp_sub_hash, $chg_sub_hash);
-	$cmp_sub_hash = $cmp_hash->{deny} and
-	    &optimize_srv_rules($cmp_sub_hash, $chg_sub_hash);
-    }
-}
-
 #           any,any
 #          /       \
 #      net,any   any,net
@@ -1850,21 +1828,21 @@ sub optimize_dst_rules( $$ ) {
 	my $any;
 	if(is_host($dst) or is_interface($dst)) {
 	    $cmp_dst = $cmp_hash->{$dst} and
-		&optimize_action_rules($cmp_dst->[0], $next_hash);
+		&optimize_srv_rules($cmp_dst->[0], $next_hash);
 	    $cmp_dst = $cmp_hash->{$dst->{network}} and
-		&optimize_action_rules($cmp_dst->[0], $next_hash);
+		&optimize_srv_rules($cmp_dst->[0], $next_hash);
 	    $any = $dst->{network}->{border}->{any} and
 		$cmp_dst = $cmp_hash->{$any} and
-		    &optimize_action_rules($cmp_dst->[0], $next_hash);
+		    &optimize_srv_rules($cmp_dst->[0], $next_hash);
 	} elsif(is_net($dst)) {
 	    $cmp_dst = $cmp_hash->{$dst} and
-		&optimize_action_rules($cmp_dst->[0], $next_hash);
+		&optimize_srv_rules($cmp_dst->[0], $next_hash);
 	    $any = $dst->{border}->{any} and
 		$cmp_dst = $cmp_hash->{$any} and
-		&optimize_action_rules($cmp_dst->[0], $next_hash);
+		&optimize_srv_rules($cmp_dst->[0], $next_hash);
 	} elsif(is_any($dst)) {
 	    $cmp_dst = $cmp_hash->{$dst} and
-		&optimize_action_rules($cmp_dst->[0], $next_hash);
+		&optimize_srv_rules($cmp_dst->[0], $next_hash);
 	} else {
 	    die "internal in optimize_dst_rules: ",
 	    "a rule was applied to unsupported dst '$dst->{name}'";
@@ -1872,30 +1850,54 @@ sub optimize_dst_rules( $$ ) {
     }
 }
     
-# any > net > host
-sub optimize_rules() {
-    for my $aref (values %rule_tree) {
+sub optimize_src_rules( $$ ) {
+    my($cmp_hash, $chg_hash) = @_;
+    return unless $cmp_hash and $chg_hash;
+    for my $aref (values %$chg_hash) {
 	my($next_hash, $src) = @$aref;
-	my $is_in;
+	my $cmp_src;
 	my $any;
 	if(is_host($src) or is_interface($src)) {
-	    &optimize_dst_rules($next_hash, $next_hash);
-	    $is_in = $rule_tree{$src->{network}} and
-		&optimize_dst_rules($is_in->[0], $next_hash);
+	    $cmp_src = $cmp_hash->{$src} and
+		&optimize_dst_rules($cmp_src->[0], $next_hash);
+	    $cmp_src = $cmp_hash->{$src->{network}} and
+		&optimize_dst_rules($cmp_src->[0], $next_hash);
 	    $any = $src->{network}->{border}->{any} and
-	    $is_in = $rule_tree{$any} and 
-		&optimize_dst_rules($is_in->[0], $next_hash);
+		$cmp_src = $cmp_hash->{$any} and
+		    &optimize_dst_rules($cmp_src->[0], $next_hash);
 	} elsif(is_net($src)) {
-	    &optimize_dst_rules($next_hash, $next_hash);
+	    $cmp_src = $cmp_hash->{$src} and
+		&optimize_dst_rules($cmp_src->[0], $next_hash);
 	    $any = $src->{border}->{any} and
-	    $is_in = $rule_tree{$any} and
-		&optimize_dst_rules($is_in->[0], $next_hash);
+		$cmp_src = $cmp_hash->{$any} and
+		&optimize_dst_rules($cmp_src->[0], $next_hash);
 	} elsif(is_any($src)) {
-	    &optimize_dst_rules($next_hash, $next_hash);
+	    $cmp_src = $cmp_hash->{$src} and
+		&optimize_dst_rules($cmp_src->[0], $next_hash);
 	} else {
-	    die "internal in optimize_rules: ", 
-	    "a rule was applied to unsupported dst '$src->{name}'";
+	    die "internal in optimize_src_rules: ",
+	    "a rule was applied to unsupported src '$src->{name}'";
 	}
+    }
+}
+
+# deny > permit > weak_deny
+sub optimize_rules() {
+    my($deny_hash, $permit_hash, $weak_hash);
+    if($deny_hash = $rule_tree{deny}) {
+	&optimize_src_rules($deny_hash, $deny_hash);
+    }
+    if($permit_hash = $rule_tree{permit}) {
+	&optimize_src_rules($permit_hash, $permit_hash);
+	$deny_hash and
+	    &optimize_src_rules($deny_hash, $permit_hash);
+    }
+    if($weak_hash = $rule_tree{weak_deny}) {
+	&optimize_src_rules($weak_hash, $weak_hash);
+	$permit_hash and
+	    &optimize_src_rules($permit_hash, $weak_hash);
+	$deny_hash and
+	    &optimize_src_rules($deny_hash, $weak_hash);
     }
 }
 
