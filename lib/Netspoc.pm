@@ -618,9 +618,6 @@ sub read_port_range() {
     }
 }
 
-# Note: 
-# 'tcp 80' becomes [ 1024, 65535, 80, 80 ]
-# 'tcp -> 80' becomes [ 1, 65536, 80, 80 ]
 sub read_port_ranges( $ ) {
     my($srv) = @_;
     my($from, $to) = &read_port_range();
@@ -628,7 +625,7 @@ sub read_port_ranges( $ ) {
 	my($from2, $to2) = &read_port_range();
 	$srv->{ports} = [ $from, $to, $from2, $to2 ];
     } else {
-	$srv->{ports} = [ 1024, 65535, $from, $to ];
+	$srv->{ports} = [ 1, 65535, $from, $to ];
     }
 }
 
