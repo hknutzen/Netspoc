@@ -2538,6 +2538,8 @@ sub acl_generation() {
 	    &path_walk($rule, \&collect_acls_at_src);
 	} elsif(is_any $rule->{dst}) {
 	    if(exists $rule->{any_rules}) {
+		# two passes: first generate deny rules,
+		# second generate auto 'any' rules
 		for my $any_rule (@{$rule->{any_rules}}) {
 		    next if $any_rule->{deleted};
 		    for my $deny_network (@{$any_rule->{deny_dst_networks}}) {
@@ -2548,6 +2550,9 @@ sub acl_generation() {
 				     };
 			&path_walk($deny_rule, \&collect_acls_at_dst);
 		    }
+		}
+		for my $any_rule (@{$rule->{any_rules}}) {
+		    next if $any_rule->{deleted};
 		    unless($any_rule->{any_dst_group}->{active}) {
 			&path_walk($any_rule, \&collect_acls_at_dst);
 			$any_rule->{any_dst_group}->{active} = 1;
