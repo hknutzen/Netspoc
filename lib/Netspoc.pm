@@ -55,6 +55,7 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 find_active_routes_and_statics 
 		 convert_any_rules 
 		 optimize
+		 optimize_reverse_rules
 		 gen_reverse_rules
 		 gen_secondary_rules 
 		 order_any_rules
@@ -783,17 +784,16 @@ sub read_icmp_type_code() {
 	if(&check('/')) {
 	    if(defined (my $code = &check_int())) {
 		error_atline "Too large icmp code $code" if $code > 255;
-		$srv->{v1} = $type;
-		$srv->{v2} = $code;
+		$srv->{type} = $type;
+		$srv->{code} = $code;
 	    } else {
 		syntax_err "Expected icmp code";
 	    }
 	} else {
-	    $srv->{v1} = $type;
-	    $srv->{v2} = 'any';
+	    $srv->{type} = $type;
 	}
     } else {
-	$srv->{v1} = 'any';
+	# no type, no code
     }
 }
 
@@ -803,17 +803,16 @@ sub read_proto_nr() {
 	error_atline "Too large protocol number $nr" if $nr > 255;
 	error_atline "Invalid protocol number '0'" if $nr == 0;
 	if($nr == 1) {
-	    $srv->{type} = 'icmp';
-	    $srv->{v1} = 'any';
+	    $srv->{proto} = 'icmp';
+	    # no icmp type, no code
 	} elsif($nr == 4) {
-	    $srv->{type} = 'tcp';
+	    $srv->{proto} = 'tcp';
 	    $srv->{ports} = [ 1, 65535, 1, 65535 ];
 	} elsif($nr == 17) {
-	    $srv->{type} = 'udp';
+	    $srv->{proto} = 'udp';
 	    $srv->{ports} = [ 1, 65535, 1, 65535 ];
 	} else {
-	    $srv->{type} = 'proto';
-	    $srv->{v1} = $nr;
+	    $srv->{proto} = $nr;
 	}
     } else {
 	syntax_err "Expected protocol number";
@@ -827,15 +826,15 @@ sub read_service( $ ) {
 		file => $file };
     &skip('=');
     if(&check('ip')) {
-	$srv->{type} = 'ip';
+	$srv->{proto} = 'ip';
     } elsif(&check('tcp')) {
-	$srv->{type} = 'tcp';
+	$srv->{proto} = 'tcp';
 	&read_port_ranges($srv);
     } elsif(&check('udp')) {
-	$srv->{type} = 'udp';
+	$srv->{proto} = 'udp';
 	&read_port_ranges($srv);
     } elsif(&check('icmp')) {
-	$srv->{type} = 'icmp';
+	$srv->{proto} = 'icmp';
 	&read_icmp_type_code($srv);
     } elsif(&check('proto')) {
 	&read_proto_nr($srv);
@@ -848,7 +847,6 @@ sub read_service( $ ) {
 	error_atline "Redefining service:$name";
     }
     $services{$name} = $srv; 
-    &prepare_srv_ordering($srv);
 }
 
 our %policies;
@@ -1078,9 +1076,8 @@ sub process_ip_ranges( $$ ) {
 # Selects hosts, not ranges,
 # detects successive IP addresses and links them to an 
 # anonymous hash which is used to collect IP ranges later.
-# ToDo:
-# - augment existing ranges by hosts or other ranges
-# ==> support chains of network > range > range .. > host
+# ToDo: augment existing ranges by hosts or other ranges
+# ToDo: support chains of network > range > range .. > host
 sub mark_ip_ranges( $ ) {
     my($network) = @_;
     my @hosts = grep { $_->{ip} } @{$network->{hosts}};
@@ -1169,28 +1166,24 @@ sub gen_ip_ranges( $ ) {
 my %srv_hash;
 sub prepare_srv_ordering( $ ) {
     my($srv) = @_;
-    my $type = $srv->{type};
+    my $proto = $srv->{proto};
     my $main_srv;
-    if($type eq 'tcp' or $type eq 'udp') {
-	if($type eq 'tcp' and $srv->{established}) {
-	    $type = 'established';
-	}
+    if($proto eq 'tcp' or $proto eq 'udp') {
 	my $key = join ':', @{$srv->{ports}};
-	$main_srv = $srv_hash{$type}->{$key} or
-	    $srv_hash{$type}->{$key} = $srv;
-    } else {			# ip, proto, icmp
-	my $v1 = $srv->{v1};
-	my $v2 = $srv->{v2};
-	if(defined $v2) {
-	    $main_srv = $srv_hash{$type}->{$v1}->{$v2} or
-		$srv_hash{$type}->{$v1}->{$v2} = $srv;
-	} elsif(defined $v1) {
-	    $main_srv = $srv_hash{$type}->{$v1} or
-		$srv_hash{$type}->{$v1} = $srv;
-	} else {
-	    $main_srv = $srv_hash{$type} or
-		$srv_hash{$type} = $srv;
-	}
+	$main_srv = $srv_hash{$proto}->{$key} or
+	    $srv_hash{$proto}->{$key} = $srv;
+    } elsif($proto eq 'icmp') {
+	my $key = !defined $srv->{type} ? '' : (!defined $srv->{code} ? $srv->{type} :
+					"$srv->{type}:$srv->{code}");
+	$main_srv = $srv_hash{$proto}->{$key} or
+	    $srv_hash{$proto}->{$key} = $srv;
+    } elsif($proto eq 'ip') {
+	$main_srv = $srv_hash{$proto} or
+	    $srv_hash{$proto} = $srv;
+    } else { # other protocol
+	my $key = $proto;
+	$main_srv = $srv_hash{proto}->{$key} or
+		$srv_hash{proto}->{$key} = $srv;
     }
     if($main_srv) {
 	# Found duplicate service definition.
@@ -1206,23 +1199,21 @@ sub prepare_srv_ordering( $ ) {
 
 sub order_icmp( $$ ) {
     my($hash, $up) = @_;
-    if($hash->{any}) {
-	$hash->{any}->{up} = $up;
-	$up = $hash->{any};
+    # icmp any
+    if(my $srv = $hash->{''}) {
+	$srv->{up} = $up;
+	$up = $srv;
     }
-    while(my($type, $hash2) = each(%$hash)) {
-	my $up = $up;
-	next if $type eq 'any';
-	if($hash2->{any}) {
-	    $hash2->{any}->{up} = $up;
-	    $up = $hash2->{any};
-	}
-	while(my($code, $srv) = each(%$hash2)) {
-	    next if $code eq 'any';
+    for my $srv (values %$hash) {
+	# 'icmp any' has been handled above
+	next unless defined $srv->{type};
+	if(defined $srv->{code}) {
+	    $srv->{up} = ($hash->{$srv->{type}} or $up);
+	} else {
 	    $srv->{up} = $up;
 	}
     }
-}	
+}
 
 sub order_proto( $$ ) {
     my($hash, $up) = @_;
@@ -1233,26 +1224,25 @@ sub order_proto( $$ ) {
 
 # Link each port range with the smallest port range which includes it.
 # If no including range is found, link it with the next larger service.
-# Services with identical ranges have already been removed before.
-sub order_ranges( $$$ ) {
-    my($chg_range_href, $cmp_range_href, $up) = @_;
-    for my $srv1 (values %$chg_range_href) {
-	next if $srv1->{up};
+sub order_ranges( $$ ) {
+    my($range_href, $up) = @_;
+    for my $srv1 (values %$range_href) {
+	next if $srv1->{main};
 	my @p1 = @{$srv1->{ports}};
 	my $min_size_src = 65536;
 	my $min_size_dst = 65536;
 	$srv1->{up} = $up;
-      SRV2: 
-	for my $srv2 (values %$cmp_range_href) {
-	  next if $srv1 eq $srv2;
+	for my $srv2 (values %$range_href) {
+	    next if $srv1 eq $srv2;
+	    next if $srv2->{main};
 	    my @p2 = @{$srv2->{ports}};
 	    if($p1[0] == $p2[0] and $p1[1] == $p2[1] and
 	       $p1[2] == $p2[2] and $p1[3] == $p2[3]) {
-		$srv1->{type} eq 'tcp' and $srv1->{established} and 
-		    $srv2->{type} eq 'tcp' and not $srv2->{established} or
-		    internal_err "expected $srv1->{name} to have 'established' flag set";
-		$srv1->{up} = $srv2;
-		last SRV2;
+		# Found duplicate service definition
+		# Link $srv2 with $srv1
+		# Since $srv1 is not linked via ->{main},
+		# we never get chains of ->{main}
+		$srv2->{main} = $srv1;
 	    } elsif($p2[0] <= $p1[0] and $p1[1] <= $p2[1] and 
 		    $p2[2] <= $p1[2] and $p1[3] <= $p2[3]) {
 		# Found service definition with both ranges being larger
@@ -1285,40 +1275,74 @@ sub order_ranges( $$$ ) {
 		# ToDo: Implement this
 		err_msg "Overlapping port ranges are not supported currently.\n",
 		" Workaround: Split one of $srv1->{name}, $srv2->{name} manually";
-	    } else {
-		# port ranges are not related
-	    }
+	    }    
+	}
+    }
+}
+
+sub add_reverse_srv( $ ) {
+    my($hash) = @_;
+    for my $srv (values %$hash) {
+	# swap src and dst ports
+	my @ports =  @{$srv->{ports}}[2,3,0,1];
+	my $key = join ':', @ports;
+	unless($hash->{$key}) {
+	    (my $name = $srv->{name}) =~ s/^service:/reverse:/;
+	    $hash->{$key} =  { name => $name,
+			       proto => $srv->{proto},
+			       ports => [ @ports ] };
 	}
     }
 }
 
 # we need service "ip" later for secondary rules
 my $srv_ip;
+# We need service "tcp established" later for reverse rules
+my $srv_tcp_established = 
+{ name => 'reverse:TCP_ANY',
+  proto => 'tcp',
+  ports => [ 1,65535, 1,65535 ],
+  established => 1
+  };
 
+# Order services. We need this to order any rules for not 
+# influencing themselves.
+# Additionally add
+# - one TCP "established" service and 
+# - reversed UDP services 
+# for generating reverse rules later.
 sub order_services() {
+    for my $srv (values %services) {
+	&prepare_srv_ordering($srv);
+    }
     unless($srv_hash{ip}) {
 	my $name = 'auto_srv:ip';
-	$srv_hash{ip} = { type => 'ip', name => $name };
+	$srv_hash{ip} = { proto => 'ip', name => $name };
 	$services{$name} = $srv_hash{ip};
     }
     my $up = $srv_ip = $srv_hash{ip};
-    # established port ranges: link to enclosing ranges, but not to 'ip'
-    order_ranges($srv_hash{established}, $srv_hash{established}, undef);
-    # link remaining established to tcp ranges or to 'ip'
-    order_ranges($srv_hash{established},  $srv_hash{tcp}, $up);
-    order_ranges($srv_hash{tcp}, $srv_hash{tcp}, $up);
-    order_ranges($srv_hash{udp}, $srv_hash{udp}, $up);
+    if(my $tcp = $srv_hash{tcp}->{'1:65535:1:65535'}) {
+	$srv_tcp_established->{up} = $tcp;
+    } else {
+	$srv_tcp_established->{up} = $up;
+    }
+    add_reverse_srv($srv_hash{udp});
+    order_ranges($srv_hash{tcp}, $up);
+    order_ranges($srv_hash{udp}, $up);
     order_icmp($srv_hash{icmp}, $up) if $srv_hash{icmp};
     order_proto($srv_hash{proto}, $up) if $srv_hash{proto};
 
     # it doesn't hurt to set {depth} for services with {main} defined
-    for my $srv (values %services) {
+    for my $srv ($srv_ip, $srv_tcp_established,
+		 values %{$srv_hash{tcp}}, values %{$srv_hash{udp}},
+		 values %{$srv_hash{icmp}}, values %{$srv_hash{proto}}) {
 	my $depth = 0;
 	my $up = $srv;
 	while($up = $up->{up}) {
 	    $depth++;
 	}
 	$srv->{depth} = $depth;
+#	info "$srv->{name} < $srv->{up}->{name}" if $srv->{up};
     }
 }
 
@@ -1819,8 +1843,7 @@ sub ge_srv( $$ ) {
 # permit    any3  host2 <-- $arule
 # permit    host1 any2  <-- $rule
 # with host1 < net1, any2 > host2
-# ToDo:
-# May the deny rule influence any other rules where
+# ToDo: May the deny rule influence any other rules where
 # dst is some 'any' object not in relation to host2 ?
 # I think not.
 sub repair_deny_influence1( $$ ) {
@@ -2555,8 +2578,8 @@ sub gen_reverse_rules1 ( $ ) {
     for my $rule (@$rule_aref) {
 	next if $rule->{deleted};
 	my $srv = $rule->{srv};
-	my $type = $srv->{type};
-	next unless $type eq 'tcp' or $type eq 'udp' or $type eq 'ip';
+	my $proto = $srv->{proto};
+	next unless $proto eq 'tcp' or $proto eq 'udp' or $proto eq 'ip';
 	my $has_stateless_router;
 	# Local function.
 	# It uses variable $has_stateless_router.
@@ -2580,45 +2603,16 @@ sub gen_reverse_rules1 ( $ ) {
 	&path_walk($rule, $mark_reverse_rule, 'Router');
 	if($has_stateless_router) {
 	    my $new_srv;
-	    if($type eq 'tcp') {
-		# We don't need to filter ports for tcp packets,
-		# since we check for 'established' flag
-		my @ports = (1,65535,1,65535);
-		my $key1 = 'established';
-		my $key2 = join ':', @ports;
-		if(my $found_srv = $srv_hash{$key1}->{$key2}) {
-		    $new_srv = $found_srv;
-		} else {
-		    my $name = 'reverse:TCP_ANY';
-		    $new_srv = { %$srv };
-		    $new_srv->{name} = $name;
-		    $new_srv->{ports} = [ @ports ];
-		    $new_srv->{established} = 1;
-		    # Needed for order_services to work;
-		    # Use prefixed name for not overwriting
-		    # an original service
-		    $services{$name} = $new_srv;
-		    prepare_srv_ordering $new_srv;
-		}
-	    } elsif($type eq 'udp') {
+	    if($proto eq 'tcp') {
+		$new_srv = $srv_tcp_established;
+	    } elsif($proto eq 'udp') {
 		# swap src and dst ports
 		my @ports =  @{$srv->{ports}}[2,3,0,1];
-		my $key1 = $type;
+		my $key1 = $proto;
 		my $key2 = join ':', @ports;
-		if(my $found_srv = $srv_hash{$key1}->{$key2}) {
-		    $new_srv = $found_srv;
-		} else {
-		    (my $name = $srv->{name}) =~ s/^service:/reverse:/;
-		    $new_srv = { %$srv };
-		    $new_srv->{name} = $name;
-		    $new_srv->{ports} = [ @ports ];
-		    # Needed for order_services to work;
-		    # Use prefixed name for not overwriting
-		    # the original service
-		    $services{$name} = $new_srv;
-		    prepare_srv_ordering $new_srv;
-		}
-	    } elsif($type eq 'ip') {
+		$new_srv = $srv_hash{$key1}->{$key2} or
+			internal_err "no reverse $srv->{name} found";
+	    } elsif($proto eq 'ip') {
 		$new_srv = $srv;
 	    } else {
 		internal_err;
@@ -2655,7 +2649,7 @@ sub gen_reverse_rules() {
 my @secondary_rules;
 
 sub gen_secondary_rules() {
-    info "Generating and optimizing rules of secondary filters";
+    info "Generating and optimizing rules for secondary filters";
 
     my %secondary_rule_tree;
     # Mark only normal rules for optimization.
@@ -2967,16 +2961,9 @@ sub optimize_action_rules( $$ ) {
     }
 }
 
-# normal rules > reverse rules
-sub optimize_rules() {
-    optimize_action_rules \%reverse_rule_tree, \%reverse_rule_tree;
-    optimize_action_rules \%rule_tree, \%reverse_rule_tree;
-    optimize_action_rules \%rule_tree, \%rule_tree;
-}	
-
 sub optimize() {
     info "Optimization";
-    &optimize_rules();
+    optimize_action_rules \%rule_tree, \%rule_tree;
     if($verbose) {
 	my($n, $nd, $na, $naa) = (0,0,0,0);
 	for my $rule (@expanded_deny_rules) { $nd++ if $rule->{deleted}	}
@@ -2992,6 +2979,12 @@ sub optimize() {
     }
 }
 
+# normal rules > reverse rules
+sub optimize_reverse_rules() {
+    info "Optimization of reverse rules";
+    optimize_action_rules \%reverse_rule_tree, \%reverse_rule_tree;
+    optimize_action_rules \%rule_tree, \%reverse_rule_tree;
+}
 ####################################################################
 # Routing
 # Add a component 'route' to each interface.
@@ -3438,7 +3431,7 @@ sub warn_pix_icmp() {
 # permit <val1> <src> <val2> <dst> <val3>
 sub cisco_srv_code( $$ ) {
     my ($srv, $model) = @_;
-    my $proto = $srv->{type};
+    my $proto = $srv->{proto};
 
     if($proto eq 'ip') {
 	return('ip', '', '');
@@ -3466,14 +3459,8 @@ sub cisco_srv_code( $$ ) {
 	return($proto, &$port_code(@p[0,1]),
 	       &$port_code(@p[2,3]) . $established);
     } elsif($proto eq 'icmp') {
-	my $type = $srv->{v1};
-	if($type eq 'any') {
-	    return($proto, '', '');
-	} else {
-	    my $code = $srv->{v2};
-	    if($code eq 'any') {
-		return($proto, '', $type);
-	    } else {
+	if(defined (my $type = $srv->{type})) {
+	    if(defined (my $code = $srv->{code})) {
 		if($model->{no_filter_icmp_code}) {
 		    # PIX can't handle the ICMP code field.
 		    # If we try to permit e.g. "port unreachable", 
@@ -3483,20 +3470,21 @@ sub cisco_srv_code( $$ ) {
 		} else {
 		    return($proto, '', "$type $code");
 		}
+	    } else {
+		return($proto, '', $type);
 	    }
+	} else  {
+	    return($proto, '', '');
 	}
-    } elsif($proto eq 'proto') {
-	my $nr = $srv->{v1};
-	return($nr, '', '');
     } else {
-	internal_err "a rule has unknown protocol '$proto'";
+	return($proto, '', '');
     }
 }
 
 # Returns iptables code for filtering a service.
 sub iptables_srv_code( $ ) {
     my ($srv) = @_;
-    my $proto = $srv->{type};
+    my $proto = $srv->{proto};
 
     if($proto eq 'ip') {
 	return '';
@@ -3526,22 +3514,17 @@ sub iptables_srv_code( $ ) {
 	    " 'established' flag while generating code for iptables";
 	return $result;
     } elsif($proto eq 'icmp') {
-	my $type = $srv->{v1};
-	if($type eq 'any') {
-	    return "-p $proto";
-	} else {
-	    my $code = $srv->{v2};
-	    if($code eq 'any') {
-		return "-p $proto --icmp-type $type";
-	    } else {
+	if(defined (my $type = $srv->{type})) {
+	    if(defined (my $code = $srv->{code})) {
 		return "-p $proto --icmp-type $type/$code";
+	    } else {
+		return "-p $proto --icmp-type $type";
 	    }
+	} else {
+	    return "-p $proto";
 	}
-    } elsif($proto eq 'proto') {
-	my $nr = $srv->{v1};
-	return "-p $nr"
     } else {
-	internal_err "a rule has unknown protocol '$proto'";
+	return "-p $proto"
     }
 }
 
@@ -3758,13 +3741,9 @@ sub acl_generation() {
     }
 }
 
-# This service needs not to be ordered using prepare_srv_ordering,
+# This service needs not to be ordered using order_services
 # since we only use it at code generation time.
-my $srv_ospf = { name => 'auto_srv:ospf',
-		 type => 'proto',
-		 # use quoted 'v1' here to circumvent a bug in perl 5.6
-		 'v1' => 89
-		 };
+my $srv_ospf = { name => 'auto_srv:ospf', proto => 89 };
 
 sub print_acls( $ ) {
     my($router) = @_;
