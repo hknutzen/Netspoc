@@ -1877,9 +1877,6 @@ sub srv_code( $ ) {
 
 sub gen_code( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
-    if($comment_acls) {
-	 push(@{$src_intf->{code}}, "! ". print_rule($rule)."\n");
-     }
     my $action = $rule->{action};
     my $src = $rule->{src};
     my $dst = $rule->{dst};
@@ -1889,6 +1886,9 @@ sub gen_code( $$$ ) {
     my ($proto_code, $port_code) = &srv_code($srv);
     $action = 'deny' if $action eq 'weak_deny';
     if(defined $src_intf) {
+	if($comment_acls) {
+	    push(@{$src_intf->{code}}, "! ". print_rule($rule)."\n");
+	}
 	for my $src_code (@src_code) {
 	    for my $dst_code (@dst_code) {
 		push(@{$src_intf->{code}},
@@ -1896,6 +1896,9 @@ sub gen_code( $$$ ) {
 	    }
 	}
     } else {	# defined $dst_intf
+	if($comment_acls) {
+	    push(@{$dst_intf->{code}}, "! ". print_rule($rule)."\n");
+	}
 	for my $src_code (@src_code) {
 	    for my $dst_code (@dst_code) {
 		push(@{$dst_intf->{code}},
