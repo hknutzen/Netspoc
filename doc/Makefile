@@ -16,7 +16,7 @@ current := $(shell cat VERSION)
 tar-file := $(current).tar.gz
 tar: $(tar-file)
 
-$(tar-file): COPYING INSTALL CSPM.html CSPM.pod ChangeLog Makefile NEWS.html TODO examples index.html language.html netspoc netspoc.html netspoc.man netspoc.pod newpolicy VERSION
+$(tar-file): Netspoc.pm netspoc COPYING INSTALL CSPM.html CSPM.pod ChangeLog Makefile NEWS.html TODO examples index.html language.html netspoc.html netspoc.man netspoc.pod newpolicy VERSION
 	echo Building $(current)
 	cd ..;ln -snf develop $(current)
 	tar cvzf $@ -C ..  $(addprefix $(current)/, $^)
