@@ -5488,11 +5488,12 @@ sub local_optimization() {
 sub print_acls( $ ) {
     my($router) = @_;
     my $model = $router->{model};
+    my $filter = $model->{filter};
     my $comment_char = $model->{comment_char};
     print "$comment_char [ ACL ]\n";
-    if($model->{filter} eq 'PIX') {
+    if($filter eq 'PIX') {
 	find_object_groups($router) unless $router->{no_group_code};
-    } elsif($model->{filter} eq 'iptables') { 
+    } elsif($filter eq 'iptables') { 
 	find_chains($router) unless $router->{no_group_code};
     }
     # Collect IP addresses of all interfaces.
@@ -5548,7 +5549,7 @@ sub print_acls( $ ) {
     }
     # Add deny rules. 
     for my $hardware (@{$router->{hardware}}) {
-	if($model->{filter} eq 'IOS' and @{$hardware->{rules}}) {
+	if($filter eq 'IOS' and @{$hardware->{rules}}) {
 	    my $nat_map = $hardware->{nat_map};
 	    for my $interface (@{$router->{interfaces}}) {
 		# Ignore 'unnumbered' interfaces.
@@ -5567,7 +5568,7 @@ sub print_acls( $ ) {
 						   srv => $srv_ip });
 	    }
 	}
-	if($model->{filter} eq 'iptables') {
+	if($filter eq 'iptables') {
 	    push(@{$hardware->{intf_rules}}, { action => 'deny',
 					       src => $network_00,
 					       dst => $network_00,
@@ -5588,13 +5589,13 @@ sub print_acls( $ ) {
 	    # Name of first logical interface
 	    print "$comment_char $hardware->{interfaces}->[0]->{name}\n";
 	}
-	if($model->{filter} eq 'IOS') {
+	if($filter eq 'IOS') {
 	    $intf_prefix = $prefix = '';
 	    print "ip access-list extended $name\n";
-	} elsif($model->{filter} eq 'PIX') {
+	} elsif($filter eq 'PIX') {
 	    $intf_prefix = '';
 	    $prefix = "access-list $name";
-	} elsif($model->{filter} eq 'iptables') {
+	} elsif($filter eq 'iptables') {
 	    $intf_name = "$hardware->{name}_self";
 	    $intf_prefix = "iptables -A $intf_name";
 	    $prefix = "iptables -A $name";
@@ -5607,17 +5608,17 @@ sub print_acls( $ ) {
 	# Ordinary rules
 	acl_line $hardware->{rules}, $nat_map, $prefix, $model;
 	# Postprocessing for hardware interface
-	if($model->{filter} eq 'IOS') {
+	if($filter eq 'IOS') {
 	    print "interface $hardware->{name}\n";
 	    print " ip access-group $name in\n";
-	} elsif($model->{filter} eq 'PIX') {
+	} elsif($filter eq 'PIX') {
 	    print "access-group $name in interface $hardware->{name}\n";
 	}
 	# Empty line after each interface.
 	print "\n";
     }
     # Post-processing for all interfaces.
-    if($model->{filter} eq 'iptables') {
+    if($filter eq 'iptables') {
 	print "iptables -P INPUT DROP\n";
 	print "iptables -F INPUT\n";
 	print "iptables -A INPUT -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
@@ -5641,6 +5642,11 @@ sub print_acls( $ ) {
 sub print_crypto( $ ) {
     my($router) = @_;
     my $model = $router->{model};
+    my $filter = $model->{filter};
+    unless($filter eq 'IOS' or $filter eq 'PIX') {
+	err_msg "Crypto not supported for $router->{name} of type $filter";
+	return;
+    }
     my $comment_char = $model->{comment_char};
     print "$comment_char [ Crypto ]\n";
     for my $hardware (@{$router->{hardware}}) {
@@ -5654,14 +5660,25 @@ sub print_crypto( $ ) {
 	for my $map (@{$hardware->{crypto_maps}}) {
 	    $seq_num++;
 	    my $crypto_acl_name = "crypto-$name-$seq_num";
-	    my $acl_prefix = "access-list $crypto_acl_name";
-	    acl_line $map->{rules}, $nat_map, $acl_prefix, $model;
+	    my $prefix;
+	    if($filter eq 'IOS') {
+		$prefix = '';
+		print "ip access-list extended $crypto_acl_name\n";
+	    } elsif($filter eq 'PIX') {
+		$prefix = "access-list $crypto_acl_name";
+	    } 
+	    acl_line $map->{rules}, $nat_map, $prefix, $model;
 	    my $peer = $map->{end};
 	    # Take first IP. 
 	    # Unnumberd and short interfaces have been rejected already.
 	    my $peer_ip = print_ip $peer->{ip}->[0];
-	    my $prefix = "crypto map $map_name $seq_num";
-	    print "$prefix ipsec-isakmp\n";
+	    if($filter eq 'IOS') {
+		$prefix = '';
+		print "crypto map $map_name $seq_num ipsec-isakmp\n";
+	    } elsif($filter eq 'PIX') {
+		$prefix = "crypto map $map_name $seq_num";
+		print "$prefix ipsec-isakmp\n";
+	    } 
 	    print "$prefix match address $crypto_acl_name\n";
 	    print "$prefix set peer $peer_ip\n";
 	    print "$prefix set transform-set sha-aes192\n";
