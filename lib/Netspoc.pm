@@ -3360,135 +3360,65 @@ sub aref_delete( $$ ) {
     return 0;
 }
 
-# A rule may be deleted if we find a similar rule with greater or equal srv.
-# Property of parameters:
-# Rules in $cmp_hash >= rules in $chg_hash
-sub optimize_srv_rules( $$ ) {
+sub optimize_rules( $$ ) {
     my($cmp_hash, $chg_hash) = @_;
- 
-    # optimize full rules
-    for my $chg_rule (values %$chg_hash) {
-	# don't change this attribute again.
-	# This is vital for managed_intf optimization to work
-	next if $chg_rule->{deleted};
-# info "chg: ", print_rule $chg_rule;
-	my $srv = $chg_rule->{srv};
-	while($srv) {
-	    if(my $cmp_rule = $cmp_hash->{$srv}) {
-		unless($cmp_rule eq $chg_rule) {
-# info "cmp: ", print_rule $cmp_rule;
-		    $chg_rule->{deleted} = $cmp_rule;
-# info "deleted" if $chg_rule->{deleted};
-		    last;
+    for my $action (keys %$chg_hash) {
+	my $chg_hash = $chg_hash->{$action};
+	while(1) {
+	    if(my $cmp_hash = $cmp_hash->{$action}) {
+		my($cmp_hash, $chg_hash) = ($cmp_hash, $chg_hash);
+		for my $aref (values %$chg_hash) {
+		    my($next_hash, $src) = @$aref;
+		    while(1) {
+			if(my $cmp_src = $cmp_hash->{$src}) {
+			    my($cmp_hash, $chg_hash) = ($cmp_src->[0], $next_hash);
+			    for my $aref (values %$chg_hash) {
+				my($next_hash, $dst) = @$aref;
+				while(1) {
+				    if(my $cmp_dst = $cmp_hash->{$dst}) {
+					my($cmp_hash, $chg_hash) = ($cmp_dst->[0], $next_hash);
+					for my $chg_rule (values %$chg_hash) {
+					    next if $chg_rule->{deleted};
+					    my $srv = $chg_rule->{srv};
+					    while(1) {
+						if(my $cmp_rule = $cmp_hash->{$srv}) {
+						    unless($cmp_rule eq $chg_rule) {
+							$chg_rule->{deleted} = $cmp_rule;
+							last;
+						    }
+						}
+						$srv = $srv->{up} or last;
+					    }
+					}
+				    }
+				    $dst = $dst->{up} or last;
+				}
+			    }
+			}
+			$src = $src->{up} or last;
+		    }
 		}
 	    }
-	    $srv = $srv->{up};
+	    if($action eq 'permit') {
+		$action = 'deny';
+	    } else {	# deny
+		last;
+	    }
 	}
-    }
-}
-
-#           any,any
-#          /       \
-#      net,any   any,net
-#       /     \ /     \
-#  host,any net,net any,host
-#       \     / \     /
-#     host,net   net,host
-#          \       /
-#          host,host
-#
-# any > net > host
-sub optimize_dst_rules( $$ ) {
-    my($cmp_hash, $chg_hash) = @_;
-    return unless $cmp_hash and $chg_hash;
-    for my $aref (values %$chg_hash) {
-	my($next_hash, $dst) = @$aref;
-	my $cmp_dst;
-	my $any;
-	if(is_host($dst) or is_interface($dst)) {
-	    # First compare with dst of other rules.
-	    # This is vital for managed_intf optimization to work.
-	    $cmp_dst = $cmp_hash->{$dst} and
-		&optimize_srv_rules($cmp_dst->[0], $next_hash);
-	    $cmp_dst = $cmp_hash->{$dst->{network}} and
-		&optimize_srv_rules($cmp_dst->[0], $next_hash);
-	    $any = $dst->{network}->{any} and
-		$cmp_dst = $cmp_hash->{$any} and
-		    &optimize_srv_rules($cmp_dst->[0], $next_hash);
-	} elsif(is_network($dst)) {
-	    $cmp_dst = $cmp_hash->{$dst} and
-		&optimize_srv_rules($cmp_dst->[0], $next_hash);
-	    $any = $dst->{any} and
-		$cmp_dst = $cmp_hash->{$any} and
-		&optimize_srv_rules($cmp_dst->[0], $next_hash);
-	} elsif(is_any($dst)) {
-	    $cmp_dst = $cmp_hash->{$dst} and
-		&optimize_srv_rules($cmp_dst->[0], $next_hash);
-	} else {
-	    internal_err "a rule was applied to unsupported dst '$dst->{name}'";
-	}
-    }
-}
-    
-sub optimize_src_rules( $$ ) {
-    my($cmp_hash, $chg_hash) = @_;
-    return unless $cmp_hash and $chg_hash;
-    for my $aref (values %$chg_hash) {
-	my($next_hash, $src) = @$aref;
-	my $cmp_src;
-	my $any;
-	if(is_host($src) or is_interface($src)) {
-	    $cmp_src = $cmp_hash->{$src->{network}} and
-		&optimize_dst_rules($cmp_src->[0], $next_hash);
-	    $any = $src->{network}->{any} and
-		$cmp_src = $cmp_hash->{$any} and
-		    &optimize_dst_rules($cmp_src->[0], $next_hash);
-	    # Check host last for one special case:
-	    # (a) permit hostA intfX
-	    # (b) permit networkA intfX
-	    # (c) permit hostA anyX
-	    # If we would check for rules with src=hostA first,
-	    # we would find (c) superseeding (a).
-	    # This is bad; we would like to find (b), because there is a hack with
-	    # managed_intf during code distribution, which wouldn't work otherwise.
-	    $cmp_src = $cmp_hash->{$src} and
-		&optimize_dst_rules($cmp_src->[0], $next_hash);
-	} elsif(is_network($src)) {
-	    $any = $src->{any} and
-		$cmp_src = $cmp_hash->{$any} and
-		&optimize_dst_rules($cmp_src->[0], $next_hash);
-	    $cmp_src = $cmp_hash->{$src} and
-		&optimize_dst_rules($cmp_src->[0], $next_hash);
-	} elsif(is_any($src)) {
-	    $cmp_src = $cmp_hash->{$src} and
-		&optimize_dst_rules($cmp_src->[0], $next_hash);
-	} else {
-	    internal_err "a rule was applied to unsupported src '$src->{name}'";
-	}
-    }
-}
-
-# deny > permit 
-sub optimize_action_rules( $$ ) {
-    my($cmp_hash, $chg_hash) = @_;
-    my $cmp_deny = $cmp_hash->{deny};
-    my $chg_deny = $chg_hash->{deny};
-    my $cmp_permit = $cmp_hash->{permit};
-    my $chg_permit = $chg_hash->{permit};
-    if($chg_deny && $cmp_deny) {
-	&optimize_src_rules($cmp_deny, $chg_deny);
-    }
-    if($chg_permit && $cmp_permit) {
-	&optimize_src_rules($cmp_permit, $chg_permit);
-    }
-    if($chg_deny && $cmp_permit) {
-	&optimize_src_rules($cmp_permit, $chg_deny);
     }
 }
 
 sub optimize() {
     info "Optimization";
-    optimize_action_rules \%rule_tree, \%rule_tree;
+    # Prepare data structures
+    for my $network (values %networks) {
+	next if $network->{disabled} or $network->{up};
+	$network->{up} = $network->{any};
+	for my $object (@{$network->{hosts}}, @{$network->{interfaces}}) {
+	    $object->{up} = $network;
+	}
+    }
+    optimize_rules \%rule_tree, \%rule_tree;
     if($verbose) {
 	my($n, $nd, $na) = (0,0,0);
 	for my $rule (@expanded_deny_rules) { $nd++ if $rule->{deleted}	}
