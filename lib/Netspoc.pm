@@ -1515,6 +1515,10 @@ sub mark_disabled() {
     for my $interface (@disabled_interfaces) {
 	disable_behind($interface);
     }
+    for my $interface (@disabled_interfaces) {
+	my $router = $interface->{router};
+	&deleted($interface, $router->{interfaces});
+    }
     for my $any (values %anys, values %everys) {
 	$any->{disabled} = 1 if $any->{link}->{disabled};
     }
@@ -1635,6 +1639,7 @@ sub setpath() {
     # check if all networks and routers are connected with router1
     for my $obj (values %networks, values %routers) {
 	next if $obj eq $router1;
+	next if $obj->{disabled};
 	$obj->{border} or
 	    err_msg "Found unconnected node: $obj->{name}";
     }
