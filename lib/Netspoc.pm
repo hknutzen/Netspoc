@@ -3690,18 +3690,26 @@ sub optimize_src_rules( $$ ) {
 	my $cmp_src;
 	my $any;
 	if(is_host($src) or is_interface($src)) {
-	    $cmp_src = $cmp_hash->{$src} and
-		&optimize_dst_rules($cmp_src->[0], $next_hash);
 	    $cmp_src = $cmp_hash->{$src->{network}} and
 		&optimize_dst_rules($cmp_src->[0], $next_hash);
 	    $any = $src->{network}->{any} and
 		$cmp_src = $cmp_hash->{$any} and
 		    &optimize_dst_rules($cmp_src->[0], $next_hash);
-	} elsif(is_network($src)) {
+	    # Check host last for one special case:
+	    # (a) permit hostA intfX
+	    # (b) permit networkA intfX
+	    # (c) permit hostA anyX
+	    # If we would check for rules with src=hostA first,
+	    # we would find (c) superseeding (a).
+	    # This is bad; we would like to find (b), because there is a hack with
+	    # managed_intf during code distribution, which wouldn't work otherwise.
 	    $cmp_src = $cmp_hash->{$src} and
 		&optimize_dst_rules($cmp_src->[0], $next_hash);
+	} elsif(is_network($src)) {
 	    $any = $src->{any} and
 		$cmp_src = $cmp_hash->{$any} and
+		&optimize_dst_rules($cmp_src->[0], $next_hash);
+	    $cmp_src = $cmp_hash->{$src} and
 		&optimize_dst_rules($cmp_src->[0], $next_hash);
 	} elsif(is_any($src)) {
 	    $cmp_src = $cmp_hash->{$src} and
