@@ -21,7 +21,8 @@
 
 use strict;
 use warnings;
-use lib "/$ENV{HOME}/develop", "/usr/local/bin";
+use FindBin;
+use lib $FindBin::Bin;
 use Netspoc;
 
 ####################################################################
