@@ -2129,7 +2129,7 @@ sub path_walk( $&$ ) {
 #	&$fun2($rule, $in, $out);
 #    };
     if($from eq $to) {
-	unless($src eq $dst) {
+	unless($src eq $dst or $rule->{deleted}) {
 	    warning "Unenforceable rule\n ", print_rule($rule);
 	}
 	# don't process rule again later
