@@ -9,16 +9,6 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 
 - Add more documentation and example for global NAT definitions.
 
-- HSRP / VRRP: Implementation is incomplete. We only use 'virtual' interfaces
-  to get correct routing. But additionally we have to permit multicast
-  packets for HSRP / VRRP like we do for dynamic routing protocols. 
-
-- HSRP / VRRP: We got asked if the group number may be specified at virtual
-  interface definitions. If group numbers are managed by NetSPoC, a user
-  wouldn't use duplicate group numbers accidently.
-  To implement this, we would have to change or extend syntax for virtual
-  interfaces. 
-
 - PIX statics: Für nat/global ist es nicht richtig, die dst-Networks
   einer Rule zu betrachten. Wir benötigen hier stattdessen die src.
   Die derzeitigen Ergebnisse sind nur zufällig korrekt.
@@ -26,6 +16,9 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 - Bug with 'any' objects und path_walk: for cyclic topologies there are cases
   where not all possible paths are found. This is, because we randomly pick
   some network from the 'any' object and use this as source or destination.
+
+- find_active_routes_and_statics: die Assymetrie get_path vs. get_networks ist
+  nicht zu rechtfertigen, da später src und dst ja sowieso vertauscht werden.
 
 - Protect own interfaces: zur Zeit mit NAT; ist das ok?
   Braucht man zusätzlich den Schutz für die originale IP-Adresse?
@@ -62,6 +55,16 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 ============================================================================
 Done:
 ============================================================================
+
+- HSRP / VRRP: Implementation is incomplete. We only use 'virtual' interfaces
+  to get correct routing. But additionally we have to permit multicast
+  packets for HSRP / VRRP like we do for dynamic routing protocols.
+
+- HSRP / VRRP: We got asked if the group ID may be specified at virtual
+  interface definitions. If group IDs are managed by NetSPoC, a user
+  wouldn't use duplicate group numbers accidently.
+  To implement this, we would have to change or extend syntax for virtual
+  interfaces. 
 
 - Check for duplicate IP addresses or subnet relation even for
   networks with NAT.
