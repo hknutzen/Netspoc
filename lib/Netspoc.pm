@@ -384,7 +384,7 @@ sub read_network( $ ) {
 	$network->{ip} = $ip;
 	$network->{mask} = $mask;
     } elsif($token eq 'unnumbered') {
-	$network->{ip} = 'unnumbered';
+	$ip = $network->{ip} = 'unnumbered';
 	skip(';');
     } else {
 	syntax_err "Expected 'ip' or 'unnumbered'";
@@ -393,10 +393,12 @@ sub read_network( $ ) {
 	last if &check('}');
 	my($type, $hname) = split_typed_name(read_typed_name());
 	syntax_err "Expected host definition" unless($type eq 'host');
+	my @hosts = &read_host($hname);
 	if($ip eq 'unnumbered') {
 	    error_atline "Unnumbered network must not contain hosts";
+	    # ignore host
+	    next;
 	}
-	my @hosts = &read_host($hname);
 	# check compatibility of host ip and network ip/mask
 	for my $host (@hosts) {
 	    if(exists $host->{ip}) {
@@ -870,7 +872,6 @@ sub mark_ip_ranges( $ ) {
 	for my $range (@ranges) {
 	    my($ip1, $ip2) = @{$range->{range}};
 	    if($begin <= $ip1 and $ip2 <= $end) {
-		info "Inserted predefined range $range->{name}\n";
 		$range_mark->{$ip1}->{$ip2} = $range;
 	    }
 	}
@@ -1288,10 +1289,12 @@ sub expand_services( $$ ) {
     return \@services;
 }
 
-# array of expanded permit rules
-my @expanded_rules;
 # array of expanded deny rules
 my @expanded_deny_rules;
+# array of interface rules
+my @expanded_interface_rules;
+# array of expanded permit rules
+my @expanded_rules;
 # array of expanded any rules
 my @expanded_any_rules;
 # counter for expanded permit any rules
@@ -1329,6 +1332,22 @@ sub expand_rules() {
 		    }
 		    if($action eq 'deny') {
 			push(@expanded_deny_rules, $expanded_rule);
+		    } elsif(is_interface($src) and $src->{router}->{managed}) {
+			if(is_any($dst)) {
+			    err_msg "Rule '", print_rule $expanded_rule, "'\n",
+			    " has managed interface as src and 'any' object as dst.\n",
+			    " This is not supported currently.",
+			    " Use an 'every' object instead";
+			}
+			push @expanded_interface_rules, $expanded_rule;
+		    } elsif(is_interface($dst) and $dst->{router}->{managed}) {
+			if(is_any($src)) {
+			    err_msg "Rule '", print_rule $expanded_rule, "'\n",
+			    " has 'any' object as src and managed interface as dst.\n",
+			    " This is not supported currently.",
+			    " Use an 'every' object instead";
+			}
+			push @expanded_interface_rules, $expanded_rule;
 		    } elsif(is_any($src) and is_any($dst)) {
 			err_msg "Rule '", print_rule $expanded_rule, "'\n",
 			" has 'any' objects both as src and dst.\n",
@@ -1449,7 +1468,8 @@ sub add_ordered_any_rules() {
 # permitted by rule 3.
 # But rule 1 is only related to rule 2 and must not deny traffic
 # which is allowed by rule 3
-# Solution: add additional rule
+# Solution: 
+# add additional rule 0
 # 0. permit	host1 host2
 # 1. deny	net1  host2
 # 2. permit	any   host2
@@ -1560,7 +1580,7 @@ sub mark_disabled() {
     }
     for my $interface (@disabled_interfaces) {
 	my $router = $interface->{router};
-	&deleted($interface, $router->{interfaces});
+	&aref_delete($interface, $router->{interfaces});
     }
     for my $any (values %anys, values %everys) {
 	$any->{disabled} = 1 if $any->{link}->{disabled};
@@ -1768,7 +1788,7 @@ sub path_walk($&) {
 	    warning "Unenforceable rule\n ", print_rule($rule), "\n";
 	}
 	# don't process rule again later
-	$rule->{deleted} = 1;
+	$rule->{deleted} = $rule;
 	return;
     }
 
@@ -1972,10 +1992,10 @@ sub add_rule( $ ) {
 	   (is_any $src and @{$rule->{deny_src_networks}} == 0
 	    or
 	    is_any $dst and @{$rule->{deny_dst_networks}} == 0)) {
-	    $old_rule->{deleted} = 1;
+	    $old_rule->{deleted} = $rule;
 	    # continue adding new rule below
 	} else {
-	    $rule->{deleted} = 1;
+	    $rule->{deleted} = $old_rule;
 	    return;
 	}
     } 
@@ -1985,8 +2005,8 @@ sub add_rule( $ ) {
 }
 
 # delete an element from an array reference
-# return 1 if found, undef otherwise
-sub deleted( $$ ) {
+# return 1 if found, 0 otherwise
+sub aref_delete( $$ ) {
     my($elt, $aref) = @_;
     for(my $i = 0; $i < @$aref; $i++) {
 	if($aref->[$i] eq $elt) {
@@ -1994,7 +2014,7 @@ sub deleted( $$ ) {
 	    return 1;
 	}
     }
-    return undef;
+    return 0;
 }
 
 # a rule may be deleted if we find a similar rule with greater or equal srv
@@ -2009,11 +2029,11 @@ sub optimize_srv_rules( $$ ) {
 		    # Rule with managed interface as dst must not be deleted
 		    # if it is superseded by a network or 'any' object.
 		    # ToDo: Refine this rule
-		    if(is_interface $rule->{dst} and
-			   $rule->{dst}->{router}->{managed} and
-			   not is_interface $cmp_rule->{dst}) {
-			last;
-		    }
+		#    if(is_interface $rule->{dst} and
+		#	   $rule->{dst}->{router}->{managed} and
+		#	   not is_interface $cmp_rule->{dst}) {
+		#	last;
+		#    }
 # optimize auto_any rules:
 #
 # cmp permit net1 dst srv
@@ -2047,25 +2067,25 @@ sub optimize_srv_rules( $$ ) {
 			if(is_any $rule->{src}) {
 			    my $cmp_src = $cmp_rule->{src};
 			    if(is_net $cmp_src and
-			       deleted($cmp_src, $rule->{deny_src_networks})) {
+			       aref_delete($cmp_src, $rule->{deny_src_networks})) {
 				if($cmp_rule->{dst} eq $rule->{dst} and
 				   $cmp_rule->{srv} eq $rule->{srv}) {
-				    $cmp_rule->{deleted} = 1;
+				    $cmp_rule->{deleted} = $rule;
 				}
 				last;
 			    }
 			    if(is_any $cmp_src) {
 				if(@{$cmp_rule->{deny_src_networks}} == 0) {
-				    $rule->{deleted} = 1;
+				    $rule->{deleted} = $cmp_rule;
 				} else {
 				    my $equal_deny_net = 1;
 				    for my $net (@{$cmp_rule->
 						   {deny_src_networks}}) {
-					$equal_deny_net &= deleted $net, $rule->
+					$equal_deny_net &= aref_delete $net, $rule->
 					{deny_src_networks};
 				    }
 				    if($equal_deny_net) {
-					$rule->{deleted} = 1;
+					$rule->{deleted} = $cmp_rule;
 				    }
 				}
 				last;
@@ -2075,32 +2095,32 @@ sub optimize_srv_rules( $$ ) {
 			if(is_any $rule->{dst}) {
 			    my $cmp_dst = $cmp_rule->{dst};
 			    if(is_net $cmp_dst and
-			       deleted($cmp_dst, $rule->{deny_dst_networks})) {
+			       aref_delete($cmp_dst, $rule->{deny_dst_networks})) {
 				if($cmp_rule->{dst} eq $rule->{dst} and
 				   $cmp_rule->{srv} eq $rule->{srv}) {
-				    $cmp_rule->{deleted} = 1;
+				    $cmp_rule->{deleted} = $rule;
 				}
 				last;
 			    }
 			    if(is_any $cmp_dst) {
 				if(@{$cmp_rule->{deny_dst_networks}} == 0) {
-				    $rule->{deleted} = 1;
+				    $rule->{deleted} = $cmp_rule;
 				} else {
 				    my $equal_deny_net = 1;
 				    for my $net (@{$cmp_rule->
 						   {deny_dst_networks}}) {
-					$equal_deny_net &= deleted $net, $rule->
+					$equal_deny_net &= aref_delete $net, $rule->
 					{deny_dst_networks};
 				    }
 				    if($equal_deny_net) {
-					$rule->{deleted} = 1;
+					$rule->{deleted} = $cmp_rule;
 				    }
 				}
 				last;
 			    }
 			}
 		    } 			    
-		    $rule->{deleted} = 1;
+		    $rule->{deleted} = $cmp_rule;
 		    last;
 		}
 	    }
@@ -2196,7 +2216,7 @@ sub optimize_rules() {
 sub optimize() {
     info "Preparing optimization\n";
     # add rules to $rule_tree for efficient rule compare operations
-    for my $rule (@expanded_deny_rules, @expanded_rules) {
+    for my $rule (@expanded_deny_rules, @expanded_interface_rules, @expanded_rules) {
 	&add_rule($rule);
     }
     for my $rule (@expanded_any_rules) {
@@ -2492,6 +2512,23 @@ sub collect_acls( $$$ ) {
     my $router;
     $src_intf and $router = $src_intf->{router};
     $dst_intf and $router = $dst_intf->{router};
+
+    # Rules from / to managed interfaces should be processed
+    # at the corresponding router even if they are marked as deleted.
+    if($rule->{deleted}) {
+	# we are on an intermediate router
+	# if both $src_intf and $dst_intf are defined
+	return if defined $src_intf and defined $dst_intf;
+	if(not defined $src_intf) {
+	    # src is an interface of the current router
+	    # and it was deleted because we have a similar rule
+	    # for an interface of the current router
+	    return if $src eq $rule->{deleted}->{src};
+	}
+	if(not defined $dst_intf) {
+	    return if $dst eq $rule->{deleted}->{dst};
+	}
+    }
     my $model = $router->{model};
     &collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
     my $inv_mask = $model eq 'IOS';
@@ -2603,7 +2640,9 @@ sub gen_acls( $ ) {
     # It isn't sufficient to iterate over the keys from $router->{code},
     # since some interface may have no ACL at all
     my %hw_names;
-    for my $interface (@{$router->{interfaces}}) { $hw_names{$interface->{hardware}} = 1};
+    for my $interface (@{$router->{interfaces}}) {
+	$hw_names{$interface->{hardware}} = 1;
+    }
     for my $hardware (sort keys %hw_names) {
 	my $code = $router->{code}->{$hardware};
 	my $name = "${hardware}_in";
@@ -2635,8 +2674,45 @@ sub gen_acls( $ ) {
 
 sub acl_generation() {
     info "Starting code generation\n";
-    # First Generate code for deny rules, then for permit rules
-    for my $rule (@expanded_deny_rules, @expanded_rules) {
+    # First Generate code for deny rules
+    for my $rule (@expanded_deny_rules) {
+	next if $rule->{deleted};
+	&path_walk($rule, \&collect_acls);
+    }
+    # Code for managed interface rules
+    for my $rule (@expanded_interface_rules) {
+	# ignore 'deleted' attribute
+	&path_walk($rule, \&collect_acls);
+    }
+    # Deny further access to managed interfaces
+    for my $router (values %routers) {
+	next unless $router->{managed};
+	# PIX protects itself
+	next if $router->{model} eq 'PIX';
+	internal_err "unsupported router model $router->{model}"
+	    unless $router->{model} eq 'IOS';
+	# collect IP addresses of all interfaces and
+	# collect all hardware interfaces
+	my @ip;
+	my %hardware;
+	for my $interface (@{$router->{interfaces}}) {
+	    $hardware{$interface->{hardware}} = 1;
+	    next unless ref $interface->{ip} eq 'ARRAY';
+	    push @ip, @{$interface->{ip}};
+	}
+	for my $hardware (keys %hardware) {
+	    my $code_aref = \@{$router->{code}->{$hardware}};
+	    if($comment_acls and @ip) {
+		push @$code_aref, "! Protecting interfaces\n";
+	    }
+	    for my $ip (@ip) {
+		my $code = "deny ip any host ". print_ip($ip) ."\n";
+		push @$code_aref, $code;
+	    }
+	}
+    }
+    # Code for other permit rules
+    for my $rule (@expanded_rules) {
 	next if $rule->{deleted};
 	&path_walk($rule, \&collect_acls);
     }
