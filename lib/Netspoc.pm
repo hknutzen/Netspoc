@@ -51,6 +51,7 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 find_subnets 
 		 setany 
 		 expand_policies
+		 expand_crypto
 		 check_unused_groups 
 		 setpath 
 		 path_walk
@@ -113,6 +114,7 @@ my %router_info =
      stateless_self => 1,
      routing => 'IOS',
      filter => 'IOS',
+     has_tunnel_filter => 1,
      comment_char => '!'
      },
  IOS_FW => {
@@ -120,6 +122,7 @@ my %router_info =
      stateless_self => 1,
      routing => 'IOS',
      filter => 'IOS',
+     has_tunnel_filter => 1,
      comment_char => '!'
      },
  PIX => {
@@ -1277,17 +1280,17 @@ sub read_crypto( $ ) {
     while(1) {
 	last if check '}';
 	if(my $action = check_permit_deny) {
-	    my $src = [ read_assign_list 'srv', \&read_typed_name ];
-	    my $dst = [ read_assign_list 'srv', \&read_typed_name ];
+	    my $src = [ read_assign_list 'src', \&read_typed_ext_name ];
+	    my $dst = [ read_assign_list 'dst', \&read_typed_ext_name ];
 	    my $srv = [ read_assign_list 'srv', \&read_typed_name ];
 	    my $rule = { action => $action, 
 			 src => $src, dst => $dst, srv => $srv};
 	    push @{$crypto->{rules}}, $rule;
-	} elsif(my @spokes = check_assign_list 'spoke', \&read_typed_name) {
+	} elsif(my @spokes = check_assign_list 'spoke', \&read_typed_ext_name) {
 	    push @{$crypto->{spoke}}, @spokes;
-	} elsif(my @hubs = check_assign_list 'hub', \&read_typed_name) {
+	} elsif(my @hubs = check_assign_list 'hub', \&read_typed_ext_name) {
 	    push @{$crypto->{hub}}, @hubs;
-	} elsif(my @mesh = check_assign_list 'mesh', \&read_typed_name) { 
+	} elsif(my @mesh = check_assign_list 'mesh', \&read_typed_ext_name) { 
 	    push @{$crypto->{meshes}}, [ @mesh ];
 	} else {
 	    syntax_err "Expected valid attribute or rule";
@@ -1325,6 +1328,8 @@ sub read_netspoc() {
 	    read_pathrestriction $name;
 	} elsif ($type eq 'nat') {
 	    read_global_nat $name;
+	} elsif ($type eq 'crypto') {
+	    read_crypto $name;
 	} else {
 	    syntax_err "Unknown global definition";
 	}
@@ -1566,6 +1571,8 @@ my $srv_tcp_established =
 # - one TCP "established" service and 
 # - reversed UDP services 
 # for generating reverse rules later.
+# Add reversed TCP services
+# for generating reverse crypto rules.
 sub order_services() {
     info "Arranging services";
     for my $srv (values %services) {
@@ -1583,6 +1590,7 @@ sub order_services() {
 	$srv_tcp_established->{up} = $up;
     }
     add_reverse_srv($srv_hash{udp});
+    add_reverse_srv($srv_hash{tcp});
     order_ranges($srv_hash{tcp}, $up);
     order_ranges($srv_hash{udp}, $up);
     order_icmp($srv_hash{icmp}, $up) if $srv_hash{icmp};
@@ -2357,8 +2365,8 @@ sub add_rules( $$ ) {
 # - Reference to hash with attributes deny, any, permit for storing
 #   expanded rules of different type.
 # - Rule tree where expanded rules are stored for fast lookup.
-sub expand_rules ( $$$$ ) {
-    my($rules_ref, $name, $result, $rule_tree) = @_;
+sub expand_rules ( $$$ ) {
+    my($rules_ref, $name, $result) = @_;
     # For collecting resulting expanded rules.
     my($deny,$any, $permit) = @{$result}{'deny', 'any', 'permit'};
     for my $unexpanded (@$rules_ref) {
@@ -2439,10 +2447,7 @@ sub expand_rules ( $$$$ ) {
 	    }
 	}
     }
-    for my $type ('deny', 'any', 'permit') {
-	add_rules $result->{$type}, $rule_tree;
-    }
-    # Result is indirectly returned using parameters $result and $rule_tree.
+    # Result is indirectly returned using parameter $result.
 }
 
 sub expand_policies( ;$) {
@@ -2467,110 +2472,13 @@ sub expand_policies( ;$) {
 	    }
 	    $rule->{srv} = expand_services $rule->{srv}, "rule in $name";
 	}
-	expand_rules $policy->{rules}, $name, \%expanded_rules, \%rule_tree;
+	expand_rules $policy->{rules}, $name, \%expanded_rules;
+	for my $type ('deny', 'any', 'permit') {
+	    add_rules $expanded_rules{$type}, \%rule_tree;
+	}
     }
 }
-
-# For crypto rules we need a single objects, which encloses 
-# all 'any' objects.
-my $any_all = 	new('AnyAll', name => "any:[all]");
-
-sub expand_crypto () {
-    info "Preparing crypto tunnels and expanding crypto rules";
-    for my $crypto (values %crypto) {
-	my $name = $crypto->{name};
-	@{$crypto->{hub}} = expand_group(@{$crypto->{hub}}, "hub of $name");
-	@{$crypto->{spoke}} = expand_group(@{$crypto->{spoke}},
-					   "spoke of $name");
-	for my $mesh (@{$crypto->{meshes}}) {
-	    $mesh = [ expand_group @$mesh, "mesh of $name" ];
-	}
-	for my $what ('hub', 'spoke') {
-	    for my $element (@{$crypto->{$what}}) {
-		next if is_interface $element;
-		next if is_router $element;
-		err_msg "Illegal element in $what of $name:",
-		"$element->{name}";
-	    }
-	}
-	for my $mesh (@{$crypto->{mesh}}) {
-	    for my $element (@$mesh) {
-		next if is_interface $element;
-		next if is_router $element;
-		err_msg "Illegal element in mesh of $name:",
-		"$element->{name}";
-	    }
-	}
-	my @pairs;
-	for my $hub (@{$crypto->{hub}}) {
-	    for my $spoke (@{$crypto->{spoke}}) {
-		push @pairs, [ $hub, $spoke ];
-	    }
-	}
-	for my $mesh (@{$crypto->{meshes}}) {
-	    for my $intf1 (@$mesh) {
-		for my $intf2 (@$mesh) {
-		    next if $intf1 eq $intf2;
-		    push @pairs, [ $intf1, $intf2 ];
-		}
-	    }
-	}
-	my $check = sub ( $$ ) {
-	    my ($intf1, $intf2) = @_;
-	    my @intf1 = path_first_interfaces $intf1, $intf2;
-	    my @intf2 = path_first_interfaces $intf2, $intf1;
-	    if(@intf1 > 1 ) {
-		err_msg "Tunnel of $name starting at $intf2->{name}",
-		" has multiple endpoints at $intf1->{name}";
-	    }
-	    if(is_router $intf1) {
-		($intf1) = @intf1;
-	    } else {
-		my($tmp) = @intf1;
-		unless($tmp eq $intf1) {
-		    err_msg "Tunnel of $name starting at",
-		    " $intf2->{name} uses wrong endpoint at $intf1->{name}.\n",
-		    " Use $tmp->{name} instead.";
-		}
-		$intf1 = $tmp;
-	    }
-	    return $intf1;
-	};
-	for my $pair (@pairs) {
-	    my $intf1 = $check->(@pairs[0, 1]);
-	    my $intf2 = $check->(@pairs[1, 0]);
-	    if(my $old_crypto = $intf1->{tunnel}->{$intf2}) {
-		err_msg "Duplicate tunnel",
-		" between $intf1->{name} and $intf2->{name}",
-		" defined in $old_crypto->{name} and $name";
-	    }
-	    # Test for $intf2->{tunnel}->{$intf1} isn't necessary, because
-	    # tunnels are always defined symmetrically.
-	    $intf1->{tunnel}->{$intf2} = $crypto;
-	    $intf2->{tunnel}->{$intf1} = $crypto;
-	}
-	# For crypto rules, any:[all] must not be expanded to all
-	# 'any' objects, but to a new objects, which matches all 'any' objects.
-	$anys{'[all]'} = $any_all;
-	# Convert typed names in rule to internal objects.
-	for my $rule (@{$crypto->{rules}}) {
-	    for my $where ('src', 'dst') {
-		$rule->{$where} =
-		    expand_group $rule->{$where}, "$where of rule in $name";
-	    }
-	    $rule->{srv} = expand_services $rule->{srv}, "rule in $name";
-	}
-	my $result = $crypto->{expanded_rules} = { deny => [],
-						   any => [],
-						   permit => [] };
-	# Build a rule tree for fast lookup when checking
-	# if a rule matches a crypto rule.
-	my $rule_tree = $crypto->{rule_tree} = {};
-	# This adds expanded rules to $result and $rule_tree.
-	expand_rules $crypto->{rules}, $name, $result, $rule_tree;
-    }
-}
-
+	
 ##############################################################################
 # Distribute NAT bindings
 ##############################################################################
@@ -3399,13 +3307,91 @@ sub loop_path_walk( $$$$$$$ ) {
     }
 }    
 
-sub path_info ( $$ ) {
-    my ($in_intf, $out_intf) = @_;
-    my $in_name = $in_intf?$in_intf->{name}:'-';
-    my $out_name = $out_intf?$out_intf->{name}:'-';
-    debug " Walk: $in_name, $out_name";
+my %ref2srv;
+
+sub check_less_equal ( $$ ) {
+    my($rule, $rule_tree) = @_;
+    my $src = $rule->{src};
+    while(1) {
+	if(my $rule_tree = $rule_tree->{$src}) {
+	    my $dst = $rule->{dst};
+	    while(1) {
+		if(my $rule_tree = $rule_tree->{$dst}) {
+		    my $srv = $rule->{srv};
+		    while(1) {
+			if(my $map = $rule_tree->{$srv}) {
+			    return $map;
+			}
+			$srv = $srv->{up} or last;
+		    }
+		}
+		$dst = $dst->{up} or last;
+	    }
+	}
+	$src = $src->{up} or last;
+    }
+    return undef;
 }
-    
+
+sub check_greater_equal ( $$ ) {
+    my($rule, $rule_tree) = @_;
+    my($src1, $dst1, $srv1) = @{$rule}{'src', 'dst', 'srv'};
+    for my $src_ref (keys %$rule_tree) {
+	my $rule_tree = $rule_tree->{$src_ref};
+	my $src2 = $ref2obj{$src_ref};
+	while(1) {
+	    if($src1 eq $src2) {
+		for my $dst_ref (keys %$rule_tree) {
+		    my $rule_tree = $rule_tree->{$dst_ref};
+		    my $dst2 = $ref2obj{$dst_ref};
+		    while(1) {
+			if($dst1 eq $dst2) {
+			    for my $srv_ref (keys %$rule_tree) {
+				my $srv2 = $ref2srv{$srv_ref};
+				while(1) {
+				    if($srv1 eq $srv2) {
+					my $map = $rule_tree->{$srv_ref};
+					return $map;
+				    }
+				    $srv2 = $srv2->{up} or last;
+				}
+			    }
+			}
+			$dst2 = $dst2->{up} or last;
+		    }
+		}
+	    }
+	    $src2 = $src2->{up} or last;
+	}
+    }
+    return undef;
+}
+
+# Check if $rule matches rules in $rule_tree.
+sub crypto_match( $$ ) {
+    my($rule, $rule_tree) = @_;
+    my $overlap = 0;
+    if(my $deny_tree = $rule_tree->{deny}) {
+	if(check_less_equal $rule, $deny_tree) {
+	    # Packets described by $rule never pass tunnel.
+	    return undef;
+	} 
+	if(check_greater_equal $rule, $rule_tree->{deny}) {
+	    # Some packets don't pass tunnel.
+	    $overlap = 1;
+	}
+    }
+    if(my $map = check_less_equal $rule, $rule_tree->{permit}) {
+	# All packets pass tunnel.
+	return $map, $overlap;
+    } elsif($map = check_greater_equal $rule, $rule_tree->{permit}) {
+	# Some packets pass tunnel.
+	return $map, 1;
+    } else {
+	return undef;
+    }
+}
+
 # Apply a function to a rule at every router or network
 # on the path from src to dst of the rule.
 # $where tells, where the function gets called: at 'Router' or 'Network'.
@@ -3416,14 +3402,17 @@ sub path_walk( $$;$ ) {
     my $dst = $rule->{dst};
     my $from = get_path $src;
     my $to =  get_path $dst;
-#    debug print_rule $rule;
-#    debug(" start: $from->{name}, $to->{name}" . ($where?", at $where":''));
-#    my $fun2 = $fun;
-#    $fun = sub ( $$$ ) { 
-#	my($rule, $in, $out) = @_;
-#	path_info $in, $out;
-#	$fun2->($rule, $in, $out);
-#    };
+    debug print_rule $rule;
+    debug(" start: $from->{name}, $to->{name}" . ($where?", at $where":''));
+    my $fun2 = $fun;
+    $fun = sub ( $$$;$ ) { 
+	my($rule, $in, $out, $crypto_map) = @_;
+	my $in_name = $in?$in->{name}:'-';
+	my $out_name = $out?$out->{name}:'-';
+	my $crypto = $crypto_map?'crypto':'';
+	debug " Walk: $in_name, $out_name $crypto";
+	$fun2->(@_);
+    };
     unless($from and $to) {
 	internal_err print_rule $rule;
     }
@@ -3454,7 +3443,30 @@ sub path_walk( $$;$ ) {
 	$out = $from->{path}->{$to};
     }
     while(1) {
-	$fun->($rule, $in, $out) if $call_it;
+	if($call_it) {
+	    # Call, even if crypto tunnel at $out is used.
+	    $fun->($rule, $in, $out);
+	    # Check if a crypto tunnel is applicable.
+	    # Crypto tunnel is only used in mode $at_router.
+	    if($at_router and (my $tree = $out->{crypto_rule_tree})) {
+		my($map, $overlap) = crypto_match $rule, $tree;
+		if($map) {
+		    my $end = $map->{end};
+		    my $next = $end->{path}->{$to};
+		    # Call at router of tunnel end.
+		    # Pass additional parameter $map, to indicate
+		    # that $end is tunnel interface.
+		    $fun->($rule, $end, $next, $map);
+		    if($overlap) {
+			# Walk cleartext path as well.
+		    } else {
+			# Continue behind tunnel.
+			$in = $end;
+			$out = $next;
+		    }
+		}
+	    }
+	}
 	# End of path has been reached.
 	if(not defined $out) {
 #	    debug "exit: path_walk: reached dst";
@@ -3484,9 +3496,7 @@ sub path_first_interfaces( $$ ) {
     my ($src, $dst) = @_;
     my $from = get_path($src);
     my $to = get_path($dst);
-    if($from eq $to) {
-	return $dst;
-    }
+    $from eq $to and return ();
     path_mark($from, $to) unless $from->{path}->{$to};
     if(my $exit = $from->{loop_exit}->{$to}) {
 #	debug "$from->{name}.[auto] = ",
@@ -3495,6 +3505,226 @@ sub path_first_interfaces( $$ ) {
     } else {
 #	debug "$from->{name}.[auto] = $from->{path}->{$to}->{name}";
 	return ($from->{path}->{$to});
+    }
+}
+
+########################################################################
+# Handling of crypto tunnels and crypto rules.
+########################################################################
+
+# ToDo: Currently exactly one single tunnel must be found.
+# Later we should be able to find the longest tunnel out of multipl tunnels.
+# But overlapping tunnels must not be accepted, to avoid inconsistent paths.
+sub distribute_crypto_rule ( $$$ ) {
+    my($rule, $in_intf, $out_intf) = @_;
+    my $crypto = $rule->{crypto};
+    # Check for a matching tunnel end.
+    if($in_intf and $in_intf->{tunnel}) {
+	for my $start_inf (@{$rule->{tunnel_start}}) {
+	    if(my $map = $in_intf->{tunnel}->{$start_inf}) {
+		$map->{crypto} eq $rule->{crypto} or
+		    err_msg "Tunnel between $start_inf->{name} and",
+		    " $in_intf->{name}\n",
+		    " belongs to $map->{crypto}->{name} but matching rule\n",
+		    print_rule $rule, "\n",
+		    " belongs to $rule->{crypto}->{name}";
+		$rule->{tunnel} and
+		    err_msg "Multiple tunnels are matching rule\n",
+		    print_rule $rule;
+		$rule->{tunnel} = [ $start_inf, $in_intf ];
+	    }
+	}
+    }
+    # Remember a tunnel start.
+    if($out_intf and $out_intf->{tunnel}) {
+	push @{$rule->{tunnel_start}}, $out_intf;
+    }
+}
+
+# Reverses a crypto rule and checks if srv is valid for IPSec.
+sub reverse_rule ( $ ) {
+    my($rule) = @_;
+    my($action, $src, $dst, $srv) = @{$rule}{'action', 'src', 'dst', 'srv'};
+    my $proto = $srv->{proto};
+    my $new_srv;
+    if($proto eq 'tcp' || $proto eq 'udp') {
+	# Swap src and dst ports.
+	my @ports =  @{$srv->{ports}}[2,3,0,1];
+	($ports[0] == $ports[1] || $ports[0] == 1 && $ports[1] == 65535) &&
+	    ($ports[2] == $ports[3] || $ports[2] == 1 && $ports[3] == 65535) or
+	    err_msg "Crypto rule must not use $srv->{name} with port ranges";
+	my $key1 = $proto;
+	my $key2 = join ':', @ports;
+	$new_srv = $srv_hash{$key1}->{$key2} or
+	    internal_err "no reverse $srv->{name} found";
+    } elsif($proto eq 'icmp') {
+	$srv->{type} and
+	    err_msg "Crypto rule must not use $srv->{name} with type";
+	$new_srv = $srv;
+    } else {
+	$new_srv = $srv;
+    }
+    $ref2srv{$srv} = $srv;
+    $ref2srv{$new_srv} = $new_srv;
+    my $new_rule = { action => $action,
+		     src => $dst,
+		     dst => $src,
+		     srv => $new_srv };
+}
+    
+sub expand_crypto () {
+    info "Preparing crypto tunnels and expanding crypto rules";
+    for my $crypto (values %crypto) {
+	my $name = $crypto->{name};
+	$crypto->{hub} = expand_group($crypto->{hub}, "hub of $name");
+	$crypto->{spoke} = expand_group($crypto->{spoke},
+					   "spoke of $name");
+	for my $mesh (@{$crypto->{meshes}}) {
+	    $mesh = [ expand_group $mesh, "mesh of $name" ];
+	}
+	for my $what ('hub', 'spoke') {
+	    for my $element (@{$crypto->{$what}}) {
+		next if is_interface $element;
+		next if is_router $element;
+		err_msg "Illegal element in $what of $name:",
+		"$element->{name}";
+	    }
+	}
+	for my $mesh (@{$crypto->{mesh}}) {
+	    for my $element (@$mesh) {
+		next if is_interface $element;
+		next if is_router $element;
+		err_msg "Illegal element in mesh of $name:",
+		"$element->{name}";
+	    }
+	}
+	my @pairs;
+	for my $hub (@{$crypto->{hub}}) {
+	    for my $spoke (@{$crypto->{spoke}}) {
+		push @pairs, [ $hub, $spoke ];
+	    }
+	}
+	for my $mesh (@{$crypto->{meshes}}) {
+	    for my $intf1 (@$mesh) {
+		for my $intf2 (@$mesh) {
+		    next if $intf1 eq $intf2;
+		    push @pairs, [ $intf1, $intf2 ];
+		}
+	    }
+	}
+	my $check = sub ( @ ) {
+	    my ($intf1, $intf2) = @_;
+	    my @intf1 = path_first_interfaces $intf1, $intf2 or
+		# Both interfaces are from same router.
+		return undef;	    
+	    my @intf2 = path_first_interfaces $intf2, $intf1;
+	    if(@intf1 > 1 ) {
+		err_msg "Tunnel of $name starting at $intf2->{name}",
+		" has multiple endpoints at $intf1->{name}";
+	    }
+	    if(is_router $intf1) {
+		($intf1) = @intf1;
+	    } else {
+		my($tmp) = @intf1;
+		unless($tmp eq $intf1) {
+		    err_msg "Tunnel of $name starting at $intf2->{name}\n",
+		    " uses wrong endpoint at $intf1->{name}.\n",
+		    " Use $tmp->{name} instead.";
+		}
+		$intf1 = $tmp;
+	    }
+	    return $intf1;
+	};
+	for my $pair (@pairs) {
+	    my $intf1 = $check->(@{$pair}[0, 1]) or 
+		# Silently ignore pairs where both interfaces have same router.
+		next;
+	    my $intf2 = $check->(@{$pair}[1, 0]);
+	    # Test for $intf2->{tunnel}->{$intf1} isn't necessary, because
+	    # tunnels are always defined symmetrically.
+	    if(my $old_crypto = $intf1->{tunnel}->{$intf2}) {
+		err_msg "Duplicate tunnel",
+		" between $intf1->{name} and $intf2->{name}",
+		" defined in $old_crypto->{name} and $name";
+	    }
+	    if($intf1->{in_loop}) {
+		err_msg "$intf1->{name} must not be used in tunnel of $name\n",
+		" because it is located inside a cyclic subgraph";
+	    }
+	    # Do a stronger check for loop here, 
+	    # to get a simpler implementation in path_walk. 
+	    if($intf2->{router}->{loop}) {
+		err_msg "$intf2->{name} must not be used in tunnel of $name\n",
+		" because its router is located inside a cyclic subgraph";
+	    }
+	    # Add a data structure for each tunnel, which is used to collect
+	    # - crypto ACL
+	    # - crypto access-group for IOS >= 12.0.8
+	    # Data will be used later to generate "crypto map" commands.
+	    $intf1->{tunnel}->{$intf2} = { rules => [],
+					   crypto => $crypto,
+					   end => $intf2, };
+	    $intf2->{tunnel}->{$intf1} = { rules => [],
+					   crypto => $crypto,
+					   end => $intf1, };
+	}
+	# Convert typed names in crypto rule to internal objects.
+	for my $rule (@{$crypto->{rules}}) {
+	    for my $where ('src', 'dst') {
+		$rule->{$where} =
+		    expand_group $rule->{$where}, "$where of rule in $name";
+	    }
+	    $rule->{srv} = expand_services $rule->{srv}, "rule in $name";
+	}
+	my(@deny, @any, @permit);
+	my $result = $crypto->{expanded_rules} = { deny => \@deny,
+						   any => \@any,
+						   permit => \@permit };
+	# This adds expanded rules to $result.
+	expand_rules $crypto->{rules}, $name, $result;
+# Distribute rules to tunnels.
+	my $add_rule = sub ( $$$ ) {
+	    my($rule, $start, $end) = @_;
+	    my $crypto_map = $start->{tunnel}->{$end};
+	    my($action, $src, $dst, $srv) =
+		@{$rule}{'action', 'src', 'dst', 'srv'};
+	    if(my $old_map =
+	       $start->{crypto_rule_tree}->{$action}->{$src}->{$dst}->{$srv}) {
+		err_msg "Duplicate crypto rule at $start->{name}\n ",
+		print_rule $rule;
+	    }
+	    # crypto_rule_tree is used to effiently decide, if a policy rule
+	    # uses a tunnel or not.
+	    # $ref2obj has already been filled by expand_rules
+	    $start->{crypto_rule_tree}->{$action}->{$src}->{$dst}->{$srv} =
+		$crypto_map;
+	    # Rules are stored additionally in crypto_map for code generation.
+	    push @{$crypto_map->{rules}}, $rule;
+	};
+	if(@deny) {
+	    err_msg "Deny rules are currently not supported.\n",
+	    " but some are defined for $name";
+	}
+	if(@any) {
+	    err_msg "'Any' rules are currently not supported.\n",
+	    " but some are defined for $name";
+	}
+	for my $rule (@permit) {
+	    $rule->{crypto} = $crypto;
+	    # This additionally checks, if srv is valid for IPSec.
+	    my $reverse_rule = reverse_rule $rule;
+	    # Find tunnel where $rule is applicable.
+	    path_walk($rule, \&distribute_crypto_rule);
+	    if(my $tunnel = $rule->{tunnel}) {
+		my($start, $end) = @$tunnel;
+		$add_rule->($rule, $start, $end);
+		$add_rule->($reverse_rule, $end, $start);
+		delete $rule->{tunnel};
+	    } else {
+		err_msg "No matching tunnel found for rule of $name\n ",
+		    print_rule $rule;
+	    }
+	}
     }
 }
 
@@ -4381,12 +4611,12 @@ sub print_pix_static( $ ) {
 # Distributing rules to managed devices
 ##############################################################################
 
-sub distribute_rule( $$$ ) {
-    my ($rule, $in_intf, $out_intf) = @_;
+sub distribute_rule( $$$;$ ) {
+    my ($rule, $in_intf, $out_intf, $in_crypto_map) = @_;
     # Traffic from src reaches this router via in_intf
     # and leaves it via out_intf.
-    # in_intf is undefined if src is an interface of the current router
-    # out_intf is undefined if dst is an interface of the current router
+    # in_intf is undefined if src is an interface of current router.
+    # out_intf is undefined if dst is an interface of current router.
     # Outgoing packets from a router itself are never filtered.
     return unless $in_intf;
     my $router = $in_intf->{router};
@@ -4450,18 +4680,20 @@ sub distribute_rule( $$$ ) {
 	    }
 	}
     }
-
     my $aref;
-    # Packets for the router itself.
+    my $store = $in_crypto_map && $model->{has_tunnel_filter} ?
+	$in_crypto_map : $in_intf->{hardware};
+#   debug "$router->{name} store: $store->{name}";
     if(not $out_intf) {
+	# Packets for the router itself.
  	# For PIX we can only reach that interface,
 	# where traffic enters the PIX.
  	return if $model->{filter} eq 'PIX' and $rule->{dst} ne $in_intf;
 #	debug "$router->{name} intf_rule: ",print_rule $rule,"\n";
-	$aref = \@{$in_intf->{hardware}->{intf_rules}};
+	$aref = \@{$store->{intf_rules}};
     } else {
 #	debug "$router->{name} rule: ",print_rule $rule,"\n";
-	$aref = \@{$in_intf->{hardware}->{rules}};
+	$aref = \@{$store->{rules}};
     }
     # Add rule, but prevent duplicates, which might occur 
     # at the start of a loop.
