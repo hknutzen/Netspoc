@@ -84,12 +84,11 @@ sub error_atline( $ ) {
     }
 }
 
-sub err_msg( $ ) {
-    my($msg) = @_; 
+sub err_msg( @ ) {
     if($error_counter++ > $max_errors) {
-	die $msg;
+	die $@, "\n";
     } else {
-	print STDERR "$msg\n";
+	print STDERR @_, "\n";
     }
 }
 
@@ -404,7 +403,7 @@ sub read_interface( $ ) {
 			);
     unless(&check('=')) {
 	skip(';');
-	# short form of interface definition: only link to cloud network
+	# short form of interface definition
 	$interface->{ip} = 'cloud';
 	return $interface;
     }
@@ -482,13 +481,14 @@ sub read_router( $ ) {
 	$interface->{name} = "interface:$iname";
 	if(my $old_interface = $interfaces{$iname}) {
 	    error_atline "Redefining $interface->{name}";
+	    next;
 	}
 	# assign interface to global hash of interfaces
 	$interfaces{$iname} = $interface;
 	push @{$router->{interfaces}}, $interface;
 	# assign router to interface
 	$interface->{router} = $router;
-	# interface of managed router must not be a cloud interface
+	# managed router must not have short interface
 	if($managed and $interface->{ip} eq 'cloud') {
 	    err_msg "Short definition of $interface->{name} not allowed";
 	}
@@ -928,8 +928,8 @@ sub order_ranges( $$ ) {
 		#    1111111
 		# 2222222
 		# ToDo: Implement this function
-		err_msg "Overlapping port ranges are not supported currently.
-Workaround: Split one of $srv1->{name}, $srv2->{name} manually";
+		err_msg "Overlapping port ranges are not supported currently.\n",
+		" Workaround: Split one of $srv1->{name}, $srv2->{name} manually";
 	    }    
 	}
     }
@@ -969,14 +969,13 @@ sub link_any_and_every() {
 	} elsif($type eq 'router') {
 	    my $router = $routers{$name};
 	    $router->{managed} and
-		err_msg "$obj->{name} must not be linked " .
-		    "to managed $router->{name}";
+		err_msg "$obj->{name} must not be linked to managed $router->{name}";
 	    $obj->{link} = $router;
 	} else {
 	    err_msg "$obj->{name} must not be linked to '$type:$name'";
 	}
 	$obj->{link} or
-	    err_msg "Referencing unknown $type:$name from $obj->{name}";
+	    err_msg "Referencing undefined $type:$name from $obj->{name}";
     }
 }
 
@@ -985,45 +984,45 @@ sub link_interface_with_net( $ ) {
     my($interface) = @_;
     my $net_name = $interface->{network};
     my $net = $networks{$net_name} or
-	err_msg "Referencing unknown network:$net_name " .
+	err_msg "Referencing undefined network:$net_name ",
 	    "from $interface->{name}";
     $interface->{network} = $net;
     my $ip = $interface->{ip};
     # check if the network is already linked with another interface
     if(defined $net->{interfaces}) {
 	my $old_intf = $net->{interfaces}->[0];
-	# if network is already linked to a cloud interface
+	# if network is already linked to a short interface
 	# it must not be linked to any other interface
 	if($old_intf->{ip} eq 'cloud') {
-	    my $rname = $interface->{router}->{name};
-	    err_msg "Cloud $net->{name} must not be linked to $rname";
+	    err_msg "$net->{name} must not be linked with $interface->{name},\n",
+	    " since it is already linked with short $old_intf->{name}";
 	}
 	# if network is already linked to any interface
-	# it must not be linked to a cloud interface
+	# it must not be linked to a short interface
 	if($ip eq 'cloud') {
-	    my $rname = $old_intf->{router}->{name};
-	    err_msg "Cloud $net->{name} must not be linked to $rname";
+	    err_msg "$net->{name} must not be linked with $old_intf->{name},\n",
+	    " since it is already linked with short $interface->{name}";
 	}
     } 
 
     if($ip eq 'cloud') {
-	# nothing to check: cloud interface may be linked to any network
+	# nothing to check: short interface may be linked to arbitrary network
     } elsif($ip eq 'unnumbered') {
 	$net->{ip} eq 'unnumbered' or
-	    die "unnumbered $interface->{name} must not be linked " .
+	    die "unnumbered $interface->{name} must not be linked ",
 		"to $net->{name}";
     } else {
 	# check compatibility of interface ip and network ip/mask
 	for my $interface_ip (@$ip) {
 	    my $net_ip = $net->{ip};
 	    if($net_ip eq 'unnumbered') {
-		err_msg "$interface->{name} must not be linked " .
-		    "to unnumbered $net->{name}";
+		err_msg "$interface->{name} must not be linked ",
+		"to unnumbered $net->{name}";
 	    }
 	    my $mask = $net->{mask};
 	    if($net_ip != ($interface_ip & $mask)) {
-		err_msg "$interface->{name}'s ip doesn't match " .
-		    "$net->{name}'s ip/mask";
+		err_msg "$interface->{name}'s ip doesn't match ",
+		"$net->{name}'s ip/mask";
 	    }
 	}
     }
@@ -1478,8 +1477,9 @@ sub setpath_router( $$$$ ) {
     my($router, $to_border, $border, $distance) = @_;
     # ToDo: operate with loops
     if($router->{border}) {
-	err_msg "Found a loop at $router->{name}. " .
-		"Loops are not supported in this version";
+	err_msg "Found a loop at $router->{name}.\n",
+		" Loops are not supported in this version";
+	return;
     }
     $router->{border} = $border;
     $router->{to_border} = $to_border;
@@ -1501,8 +1501,9 @@ sub setpath_network( $$$$ ) {
     my ($network, $to_border, $border, $distance) = @_;
     # ToDo: operate with loops
     if($network->{border}) {
-	err_msg "Found a loop at $network->{name}. " .
-	    "Loops are not supported in this version";
+	err_msg "Found a loop at $network->{name}.\n",
+	" Loops are not supported in this version";
+	return;
     }
     $network->{border} = $border;
     # add network to the corresponding border;
@@ -1549,8 +1550,8 @@ sub setpath() {
 	$any->{border} = $border;
 	if(my $old_any = $border->{any}) {
 	    err_msg
-		"More than one 'any' object definied in a security domain:\n"
-		    . "$old_any->{name} and $any->{name}";
+		"More than one 'any' object definied in a security domain:\n",
+		" $old_any->{name} and $any->{name}";
 	}
 	$border->{any} = $any;
     }
