@@ -5,7 +5,7 @@
 For a real world policy and topology with about 900 networks, 400
 routers, 100 groups, 400 rules and many I<wildcard> or I<any> objects,
 CSPM needed about 3 hours to generate configurations for about 30
-managed devices. NetSPoC needs 30 seconds for the same task.
+managed devices. NetSPoC needs less than 30 seconds for the same task.
 
 =head2 Import / Export
 
@@ -18,7 +18,7 @@ files.
 When using CSPM, only a single user is allowed to change the
 database. For NetSPoC, the topology and policy description may be
 split into different files, which may be changed by different users
-simultaniously.
+simultaneously.
 
 =head2 Version Control
 
@@ -30,13 +30,13 @@ task of security management.
 =head2 Operation system
 
 CSPM runs only on windows NT (next version W2k).
-NetSPoc is written in perl and should be portable to many platforms.
+NetSPoC is written in perl and should be portable to many platforms.
 
 =head2 Graphical user interface
 
 CSPM provides a graphical user interface which is nice to use for a
-small to medium size toplogy. It becomes nearly unusable for a large
-toplogy. NetSPoC provides no GUI at all.
+small to medium size topology. It becomes nearly unusable for a large
+topology. NetSPoC provides no GUI at all.
 
 =head2 IPSec & NAT
 
@@ -51,5 +51,56 @@ managed devices.
 NetSPoC uses separate scripts for this task which are currently not
 made available.
 
+=head2 Policy description language
 
+The policy description language of NetSPoC is similar to CSPM's
+graphical policy and topology description, but there are differences:
 
+=over 4
+
+=item Rules
+
+CSPM preserves the order in which rules are stated. 
+
+For NetSPoC, deny rules override any permit rules. Otherwise the order
+of rules doesn't matter.
+
+=item Clouds, Routers, PIX Firewalls
+
+NetSPoC handles clouds, routers and PIX firewalls all as routers. 
+
+=item Interfaces
+
+CSPM treats an interface as a physical interface with a name like
+router.Serial0.
+
+NetSPoC treats an interface as a logical interface with a name like
+router.network. The name of the underlying hardware is given as an
+attribute. There may be multiple logical interfaces for one hardware
+interface.
+
+=item Perimeters / Wildcard Networks
+
+In CSPM, perimeters are used as an implicitly defined group of all
+network objects of a security domain. When used in a rule, a perimeter
+object is compiled to an ACL with one entry for each network in that
+security domain. 
+
+For getting smaller ACLs, CSPM provides the notion of wildcard
+networks. They are used as a representation for the whole security
+domain as well. But when used in a rule, the corresponding ACL entry
+uses 'any' (i.e. network 0.0.0.0/0.0.0.0) for a wildcard network.
+CSPM automatically inserts 'deny' rules to prevent intervening
+networks getting undesired access.
+
+In NetSPoC's description language, perimeters are called 'every'
+objects and wildcard networks are called 'any' objects, but have
+similar meaning.
+
+=item Groups
+
+CSPM doesn't allow to define groups of groups or groups of interfaces.
+
+There is no such limitation for NetSPoC.
+
+=back
