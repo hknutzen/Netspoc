@@ -317,23 +317,34 @@ sub new( $@ ) {
 my %hosts;
 sub read_host( $ ) {
     my $name = shift;
-    my $host = new('Host', name => "host:$name");
+    my $host;
+    my @hosts;
     &skip('=');
     &skip('{');
     my $token = read_identifier();
     if($token eq 'ip') {
 	&skip('=');
 	my @ip = &read_list(\&read_ip);
-	$host->{ip} = \@ip;
+	if(@ip == 1) {
+	    $host = new('Host', name => "host:$name", ip => $ip[0]);
+	    @hosts = ($host);
+	} else {
+	    # a host with multiple IP addresses is represented internally as
+	    # a group of simple hosts
+	    @hosts =
+		map { new('Host', name => "auto_host:$name", ip => $_) } @ip;
+	    $host = new('Group', name => "host:$name",
+			elements => \@hosts, is_used => 1);
+	}
     } elsif($token eq 'range') {
 	&skip('=');
 	my $ip1 = &read_ip;
 	skip('-');
 	my $ip2 = &read_ip;
-	$ip1 <= $ip2 or error_atline "Invalid IP range";
-	$host->{ip} = [ $ip1, $ip2 ];
-	$host->{is_range} = 1;
 	&skip(';');
+	$ip1 <= $ip2 or error_atline "Invalid IP range";
+	$host = new('Host', name => "host:$name", range => [ $ip1, $ip2 ]);
+	@hosts = ($host);
     } else {
 	syntax_err "Expected 'ip' or 'range'";
     }
@@ -342,7 +353,7 @@ sub read_host( $ ) {
 	error_atline "Redefining host:$name";
     }
     $hosts{$name} = $host;
-    return $host;
+    return @hosts;
 }
 
 my %networks;
@@ -384,21 +395,30 @@ sub read_network( $ ) {
 	if($ip eq 'unnumbered') {
 	    error_atline "Unnumbered network must not contain hosts";
 	}
-	my $host = &read_host($hname);
+	my @hosts = &read_host($hname);
 	# check compatibility of host ip and network ip/mask
-	for my $host_ip  (@{$host->{ip}}) {
-	    if($ip != ($host_ip & $mask)) {
-		error_atline "$host->{name}'s IP doesn't match $network->{name}'s IP/mask";
+	for my $host (@hosts) {
+	    if(exists $host->{ip}) {
+		if($ip != ($host->{ip} & $mask)) {
+		    error_atline "$host->{name}'s IP doesn't match $network->{name}'s IP/mask";
+		}
+	    } elsif(exists $host->{range}) {
+		my ($ip1, $ip2) = @{$host->{range}};
+		if($ip != ($ip1 & $mask) or $ip != ($ip2 & $mask)) {
+		    error_atline "$host->{name}'s IP range doesn't match $network->{name}'s IP/mask";
+		}
+	    } else {
+		internal_err "$host->{name} hasn't ip or range";
 	    }
+	    $host->{network} = $network;
 	}
-	$host->{network} = $network;
-	push(@{$network->{hosts}}, $host);
+	push(@{$network->{hosts}}, @hosts);
     }
     if(@{$network->{hosts}} and $network->{route_hint}) {
 	err_msg "$network->{name} must not have host definitions,\n",
 	    " since it has attribute 'route_hint'";
     }
-    &find_ip_ranges($network->{hosts}, $network);
+    &mark_ip_ranges($network);
     if($networks{$name}) {
 	error_atline "Redefining $network->{name}";
     }
@@ -792,66 +812,52 @@ sub print_rule( $ ) {
 ####################################################################
 
 # Called from read_network
-# Takes a references to the array of hosts of a network.
-# Selects hosts with a single IP address,
+# Works on the hosts of a network.
+# Selects hosts, not ranges,
 # detects successive IP addresses and links them to an 
 # automatically generated IP range
 # ToDo:
-# - handle hosts with multiple ip addresses
 # - check if any of the existing ranges may be used
 # - augment existing ranges by hosts or other ranges
 # ==> support chains of network > range > range .. > host
-sub find_ip_ranges( $$ ) {
-    my($host_aref, $network) = @_;
-    my @hosts =  grep { not $_->{is_range} and @{$_->{ip}} == 1 } @$host_aref;
-    my @sorted = sort { $a->{ip}->[0] <=> $b->{ip}->[0] } @hosts;
-    # add a dummy host to simplify the code
-    push @sorted, {ip => [-1] };
-    my $start_range;
-    my $last_ip = 0;
-    for(my $i = 0; $i < @sorted; $i++) {
+sub mark_ip_ranges( $ ) {
+    my($network) = @_;
+    my @hosts =  grep { $_->{ip} } @{$network->{hosts}};
+    return unless @hosts;
+    my @sorted = sort { $a->{ip} <=> $b->{ip} } @hosts;
+    # add a dummy host which doesn't match any range, 
+    # to simplify the code: we don't have to process any range
+    # after the loop has finished
+    push @sorted, {ip => 0.5 };
+    my $start_range = 0;
+    my $prev_ip = $sorted[0]->{ip};
+    for(my $i = 1; $i < @sorted; $i++) {
 	my $host = $sorted[$i];
-	my $ip = $host->{ip}->[0];
-	if(defined $start_range) {
-	    if($ip == $last_ip + 1 or $ip == $last_ip) {
-		# continue current range
-		$last_ip = $ip;
-	    } else {
-		if($start_range < $i - 1) {
-		    my $end_range = $i - 1;
-		    # found a range with at least 2 elements
-		    my $begin = $sorted[$start_range]->{ip}->[0];
-		    my $end = $sorted[$end_range]->{ip}->[0];
-		    # ignore last element if it is even
-		    # last element may be duplicate
-		    while(not ($end & 1)) {
-			$end_range--;
-			$end = $sorted[$end_range]->{ip}->[0];
-		    }
-		    if($begin != $end) {
-			my $range = new('Host', name => 'auto range',
-					ip => [ $begin, $end ],
-					is_range => 1,
-					network => $network);
-			# mark hosts of range
-			for(my $j = $start_range; $j <= $end_range; $j++) {
-			    $sorted[$j]->{in_range} = $range;
-			}
-		    }
-		}
-		# start a new range
-		# it is useless to start a range at an odd ip address
-		# because it can't be matched by a subnet
-		if(($ip & 1) == 0) {
-		    $start_range = $i;
-		    $last_ip = $ip;
-		} else {
-		    undef $start_range;
+	my $ip = $host->{ip};
+	# continue current range
+	if($ip == $prev_ip + 1 or $ip == $prev_ip) {
+	    $prev_ip = $ip;
+	} else {
+	    my $end_range = $i - 1;
+	    # found a range with at least 2 elements
+	    if($start_range < $end_range) {
+		my $begin = $sorted[$start_range]->{ip};
+		my $end = $sorted[$end_range]->{ip};
+		# This may be a range with $begin == $end.
+		# This is useful if we have multiple hosts with 
+		# identical IP addresses
+		my $range = new('Host',
+				name => "auto_range:$sorted[$start_range]->{name}",
+				range => [ $begin, $end ],
+				network => $network);
+		# mark hosts of range
+		for(my $j = $start_range; $j <= $end_range; $j++) {
+		    $sorted[$j]->{in_range} = $range;
 		}
 	    }
-	} elsif(($ip & 1) == 0) {
+	    # start a new range
 	    $start_range = $i;
-	    $last_ip = $ip;
+	    $prev_ip = $ip;
 	}
     }
 }
@@ -863,8 +869,9 @@ sub gen_ip_ranges( $ ) {
     my($obref) = @_;
     my @hosts_in_range = grep { is_host $_ and $_->{in_range} } @$obref;
     if(@hosts_in_range) {
-	my @objects = grep { not(is_host $_ and $_->{in_range}) } @$obref;
-	my @hosts;
+	my @objects = grep { not is_host $_ } @$obref;
+	# we want to have hosts and ranges together in generated code
+	my @hosts = grep { is_host $_ and not $_->{in_range} } @$obref;
 	my %in_range;
 	# collect host belonging to one range
 	for my $host (@hosts_in_range) {
@@ -872,21 +879,20 @@ sub gen_ip_ranges( $ ) {
 	    push @{$in_range{$range}}, $host;
 	}
 	for my $aref (values %in_range) {
-	    my @sorted = sort { $a->{ip}->[0] <=> $b->{ip}->[0] } @$aref;
+	    my @sorted = sort { $a->{ip} <=> $b->{ip} } @$aref;
 	    my $range = $sorted[0]->{in_range};
-	    my $begin = $range->{ip}->[0];
-	    my $end = $range->{ip}->[1];
-	    my $first = $sorted[0]->{ip}->[0];
-	    my $last =  $sorted[@sorted - 1]->{ip}->[0];
-	    my $last_ip = $first;
+	    my($begin, $end) = @{$range->{range}};
+	    my $first = $sorted[0]->{ip};
+	    my $last =  $sorted[@sorted - 1]->{ip};
+	    my $prev_ip = $first;
 	    # check if hosts are successive
 	    for my $host (@sorted) {
-		my $ip = $host->{ip}->[0];
-		$ip == $last_ip + 1 or $ip == $last_ip or last;
-		$last_ip = $ip;
+		my $ip = $host->{ip};
+		last unless $ip == $prev_ip + 1 or $ip == $prev_ip;
+		$prev_ip = $ip;
 	    }
 	    # check if this set of hosts may be substituted by the range
-	    if($first == $begin and $last == $end and $last == $last_ip) {
+	    if($first == $begin and $last == $end and $last == $prev_ip) {
 		push @hosts, $range;
 	    } else {
 		# ToDo: generate subranges if $first != $last
@@ -894,7 +900,8 @@ sub gen_ip_ranges( $ ) {
 	    }
 	}
 	# make the result deterministic
-	push @objects, sort { $a->{ip}->[0] <=> $b->{ip}->[0] } @hosts;
+	push @objects, sort { ($a->{ip} || $a->{range}->[0]) <=>
+				  ($b->{ip} || $b->{range}->[0]) } @hosts;
 	return \@objects;
     } else {
 	return $obref;
@@ -2256,7 +2263,13 @@ sub split_ip_range( $$$ ) {
 	    }
 	}
 	my $mask = ~($add-1);
-	push @result, print_ip($i) .' '. print_ip($inv_mask?~$mask:$mask);
+	if($mask == 0xffffffff) {
+	    push @result, 'host '. &print_ip($i);
+	} else {
+	    my $ip_code = &print_ip($i);
+	    my $mask_code = &print_ip($inv_mask?~$mask:$mask);
+	    push @result, "$ip_code $mask_code";
+	}
 	$i += $add;
     }
     return @result;
@@ -2265,10 +2278,10 @@ sub split_ip_range( $$$ ) {
 sub adr_code( $$ ) {
     my ($obj, $inv_mask) = @_;
     if(is_host($obj)) {
-	if($obj->{is_range}) {
-	    return &split_ip_range(@{$obj->{ip}}, $inv_mask);
+	if($obj->{range}) {
+	    return &split_ip_range(@{$obj->{range}}, $inv_mask);
 	} else {
-	    return map { 'host '. &print_ip($_) } @{$obj->{ip}};
+	    return 'host '. &print_ip($obj->{ip});
 	}
     }
     if(is_interface($obj)) {
