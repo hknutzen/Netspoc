@@ -1381,7 +1381,7 @@ sub check_deny_influence() {
 	    for my $host (@{$net->{hosts}}, @{$net->{interfaces}}) {
 		# search for rules with action = permit, src = host and
 		# dst = dst_any in $rule_tree
-		my $src_hash = $rule_tree{'permit'};
+		my $src_hash = $rule_tree{permit};
 		next unless $src_hash;
 		# do we have any rule with src = host ?
 		next unless $src_hash->{$host};
@@ -1775,7 +1775,6 @@ sub add_rule( $ ) {
     if($rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv}) {
 	# found identical rule: delete current one
 	$rule->{deleted} = 1;
-	return;
     } else {
 	$rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
 	$rule_tree{$action}->{$src}->[1] = $src;
