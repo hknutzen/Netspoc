@@ -850,12 +850,12 @@ sub process_ip_ranges( $$ ) {
 # detects successive IP addresses and links them to an 
 # anonymous hash which is used to collect IP ranges later.
 # ToDo:
-# - check if any of the existing ranges may be used
 # - augment existing ranges by hosts or other ranges
 # ==> support chains of network > range > range .. > host
 sub mark_ip_ranges( $ ) {
     my($network) = @_;
     my @hosts = grep { $_->{ip} } @{$network->{hosts}};
+    my @ranges = grep { $_->{range} } @{$network->{hosts}};
     return unless @hosts;
     @hosts = sort { $a->{ip} <=> $b->{ip} } @hosts;
     my $fun = sub {
@@ -864,6 +864,16 @@ sub mark_ip_ranges( $ ) {
 	# mark hosts of range
 	for(my $j = $start_range; $j <= $end_range; $j++) {
 	    $aref->[$j]->{range_mark} = $range_mark;
+	}
+	# fill range_mark with predefined ranges for later substitution
+	my $begin = $aref->[$start_range]->{ip};
+	my $end = $aref->[$end_range]->{ip};
+	for my $range (@ranges) {
+	    my($ip1, $ip2) = @{$range->{range}};
+	    if($begin <= $ip1 and $ip2 <= $end) {
+		info "Inserted predefined range $range->{name}\n";
+		$range_mark->{$ip1}->{$ip2} = $range;
+	    }
 	}
     };
     process_ip_ranges \@hosts, $fun;
