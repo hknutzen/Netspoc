@@ -737,30 +737,12 @@ sub show_read_statistics() {
 ##############################################################################
 
 # Type checking functions
-sub is_net( $ ) {
-    my($obj) = @_;
-    return ref($obj) eq 'Network';
-}
-sub is_router( $ ) {
-    my($obj) = @_;
-    return ref($obj) eq 'Router';
-}
-sub is_interface( $ ) {
-    my($obj) = @_;
-    return ref($obj) eq 'Interface';
-}
-sub is_host( $ ) {
-    my($obj) = @_;
-    return ref($obj) eq 'Host';
-}
-sub is_any( $ ) {
-    my($obj) = @_;
-    return ref($obj) eq 'Any';
-}
-sub is_every( $ ) {
-    my($obj) = @_;
-    return ref($obj) eq 'Every';
-}
+sub is_net( $ )       { ref($_[0]) eq 'Network'; }
+sub is_router( $ )    { ref($_[0]) eq 'Router'; }
+sub is_interface( $ ) { ref($_[0]) eq 'Interface'; }
+sub is_host( $ )      { ref($_[0]) eq 'Host'; }
+sub is_any( $ )       { ref($_[0]) eq 'Any'; }
+sub is_every( $ )     { ref($_[0]) eq 'Every'; }
 
 sub print_rule( $ ) {
     my($rule) = @_;
