@@ -501,6 +501,13 @@ sub read_router( $ ) {
     skip('=');
     skip('{');
     my $managed = &check_flag('managed');
+    $managed = 'full' if $managed;
+    my $filter = &check_assign('filter', \&read_identifier);
+    if(defined $filter) {
+	if($filter eq 'full') { $managed = 'full'; }
+	elsif($filter eq 'secondary') { $managed = 'secondary'; }
+	elsif($filter eq 'none') { $managed = 0; }
+    }
     my $model = &check_assign('model', \&read_identifier);
     if($model and not $valid_model{$model}) {
 	error_atline "Unknown router model '$model'";
@@ -2504,6 +2511,27 @@ sub print_routes( $ ) {
 }
 
 ##############################################################################
+# mark rules
+##############################################################################
+
+sub mark_full_filter( $$$ ) {
+    my ($rule, $src_intf, $dst_intf) = @_;
+    my $router = ($src_intf || $dst_intf)->{router};
+    if($router->{managed} eq 'full' and not $router->{loop}) {
+	$rule->{has_full_filter} = 1;
+    }
+}
+
+sub mark_full_filter_rules() {
+    info "Marking rules for secondary filters";
+    # apply this optimization only to normal rules, not 'deny', not 'any'
+    for my $rule (@expanded_rules) {
+	next if $rule->{deleted} and not $rule->{managed_if};
+	&path_walk($rule, \&mark_full_filter);
+    }
+}
+
+##############################################################################
 # ACL Generation
 ##############################################################################
 
@@ -2772,7 +2800,8 @@ sub collect_acls( $$$ ) {
 		# The rule in {deleted} may be ineffective
 		# if it is an interface -> any rule with attached auto-deny rule(s)
 		# ToDo: Check if one of deny_dst_networks matches $src
-		return unless is_any $rule->{deleted}->{dst} and $rule->{deleted}->{deny_dst_networks};
+		return unless is_any $rule->{deleted}->{dst} and
+		    $rule->{deleted}->{deny_dst_networks};
 	    }
 	}
 	if(not defined $dst_intf) {
@@ -2783,6 +2812,10 @@ sub collect_acls( $$$ ) {
 	}
     }
     my $model = $router->{model};
+    # this is a secondary packet filter:
+    # we need to filter only IP-Addresses
+    my $secondary = $router->{managed} eq 'secondary'
+	and $rule->{has_full_filter};
     &collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
     my $inv_mask = $model =~ /^IOS/;
     my @src_code = &adr_code($src, $inv_mask);
@@ -2809,6 +2842,8 @@ sub collect_acls( $$$ ) {
 	for my $src_code (@src_code) {
 	    for my $dst_code (@dst_code) {
 		push(@$code_aref,
+		     $secondary ?
+		     "$action ip $src_code $dst_code\n" :
 		     "$action $proto_code $src_code $src_port_code $dst_code $dst_port_code\n");
 	    }
 	}
@@ -2824,6 +2859,8 @@ sub collect_acls( $$$ ) {
 	    for my $src_code (@src_code) {
 		for my $dst_code (@dst_code) {
 		    push(@$code_aref,
+			 $secondary ?
+			 "$action ip $dst_code $src_code\n" :
 			 "$action $proto_code $dst_code $dst_port_code $src_code $src_port_code $established\n");
 		}
 	    }
@@ -2842,6 +2879,8 @@ sub collect_acls( $$$ ) {
 	    for my $src_code (@src_code) {
 		for my $dst_code (@dst_code) {
 		    push(@$code_aref,
+			 $secondary ?
+			 "$action ip $dst_code $src_code\n" :
 			 "$action $proto_code $dst_code $dst_port_code $src_code $src_port_code $established\n");
 		}
 	    }
@@ -3120,6 +3159,7 @@ $error_counter = $max_errors; # following errors should always abort
 &optimize();
 &repair_deny_influence();
 &setroute();
+&mark_full_filter_rules();
 &acl_generation();
 &check_output_dir($out_dir);
 &print_code($out_dir);
