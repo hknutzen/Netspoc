@@ -983,15 +983,21 @@ sub order_services() {
     }
 }
 
-sub subst_name_with_ref_for_any_and_every() {
+####################################################################
+# Link topology elements each with another
+####################################################################
+
+# link 'any' and 'every' objects with referenced objects
+sub link_any_and_every() {
     for my $obj (values %anys, values %everys) {
 	my($type, $name) = split_typed_name($obj->{link});
 	if($type eq 'network') {
 	    $obj->{link} = $networks{$name};
 	} elsif($type eq 'router') {
 	    my $router = $routers{$name};
-	    not $router->{managed} or
-		err_msg "$obj->{name} must not be linked to managed $router->{name}";
+	    $router->{managed} and
+		err_msg "$obj->{name} must not be linked " .
+		    "to managed $router->{name}";
 	    $obj->{link} = $router;
 	} else {
 	    err_msg "$obj->{name} must not be linked to '$type:$name'";
@@ -999,16 +1005,14 @@ sub subst_name_with_ref_for_any_and_every() {
     }
 }
 
+# link interface with network in both directions
 sub link_interface_with_net( $ ) {
     my($interface) = @_;
-
     my $net_name = $interface->{net};
-    my $net = $networks{$net_name};
-    unless($net) {
-	err_msg "Referencing unknown network:$net_name from $interface->{name}";
-    }
+    my $net = $networks{$net_name} or
+	err_msg "Referencing unknown network:$net_name " .
+	    "from $interface->{name}";
     $interface->{net} = $net;
-
     my $ip = $interface->{ip};
     # check if the network is already linked with another interface
     if(defined $net->{interfaces}) {
@@ -1028,24 +1032,36 @@ sub link_interface_with_net( $ ) {
     } 
 
     if($ip eq 'cloud') {
-	# nothing to check: cloud interface may be linked to any interface
+	# nothing to check: cloud interface may be linked to any network
     } elsif($ip eq 'unnumbered') {
 	$net->{ip} eq 'unnumbered' or
-	    die "unnumbered $interface->{name} must not be linked to $net->{name}";
+	    die "unnumbered $interface->{name} must not be linked " .
+		"to $net->{name}";
     } else {
 	# check compatibility of interface ip and network ip/mask
 	for my $interface_ip (@$ip) {
-	    my $ip = $net->{ip};
-	    if($ip eq 'unnumbered') {
-		err_msg "$interface->{name} must not be linked to unnumbered $net->{name}";
+	    my $net_ip = $net->{ip};
+	    if($net_ip eq 'unnumbered') {
+		err_msg "$interface->{name} must not be linked " .
+		    "to unnumbered $net->{name}";
 	    }
 	    my $mask = $net->{mask};
-	    if($ip != ($interface_ip & $mask)) {
-		err_msg "$interface->{name}'s ip doesn't match $net->{name}'s ip/mask";
+	    if($net_ip != ($interface_ip & $mask)) {
+		err_msg "$interface->{name}'s ip doesn't match " .
+		    "$net->{name}'s ip/mask";
 	    }
 	}
     }
     push(@{$net->{interfaces}}, $interface);
+}
+
+sub link_topology() {
+    &link_any_and_every();
+    for my $router (values %routers) {
+	for my $interface (@{$router->{interfaces}}) {
+	    &link_interface_with_net($interface);
+	}
+    }
 }
 
 ##############################################################################
@@ -1188,8 +1204,11 @@ my @expanded_deny_rules;
 my @expanded_any_rules;
 # counter for expanded permit any rules
 my $anyrule_index = 0;
+# hash for ordering permit any rules; 
+# when sorted, they are added later to @expanded_any_rules
+my %ordered_any_rules;
 
-sub gen_expanded_rules() {
+sub expand_rules() {
     for my $rule (@rules) {
 	my $src_any_group = {};
 	my $dst_any_group = {};
@@ -1225,6 +1244,16 @@ sub gen_expanded_rules() {
 		}
 	    }
 	}
+    }
+    # add ordered 'any' rules which have been ordered by order_rules
+    for my $depth (reverse sort keys %ordered_any_rules) {
+	&addrule_ordered_src_dst($ordered_any_rules{$depth});
+    }
+    if($verbose) {
+	my $nd = 0+@expanded_deny_rules;
+	my $n  = 0+@expanded_rules;
+	my $na = 0+@expanded_any_rules;
+	info "Expanded rules: deny $nd, permit: $n, permit any: $na,\n";
     }
 }
 
@@ -1272,10 +1301,6 @@ sub order_rule_src ( $$ ) {
     order_rule_dst($rule, \%{$hash->{$id}});
 }    
 
-# hash for ordering permit any rules; 
-# when sorted, they are added later to @expanded_any_rules
-my %ordered_any_rules;
-
 sub order_rules ( $ ) {
     my($rule) = @_;
     my $srv = $rule->{srv};
@@ -1308,12 +1333,6 @@ sub addrule_ordered_src_dst( $ ) {
     add_rule_2hash($hash, 'any','any');
 }
 
-sub add_ordered_any_rules() {
-    for my $depth (reverse sort keys %ordered_any_rules) {
-	addrule_ordered_src_dst($ordered_any_rules{$depth});
-    }
-}
-
 sub ge_srv( $$ ) {
     my($s1, $s2) = @_;
     while(my $up = $s2->{up}) {
@@ -1333,6 +1352,7 @@ sub match_srv( $$ ) {
 
 # ToDo: add 'is_interface' case
 sub check_deny_influence() {
+    info "Checking for deny influence\n";
     for my $arule (@expanded_any_rules) {
 	next if $arule->{deleted};
 	next unless exists $arule->{deny_rules};
@@ -1363,10 +1383,9 @@ sub check_deny_influence() {
 
 ####################################################################
 # Phase 4
-# Find paths
+# Set paths for efficient topology traversal
 ####################################################################
 
-# find paths from every network and router to the starting object 'router 1'
 sub setpath_router( $$$$ ) {
     my($router, $to_border, $border, $distance) = @_;
     # ToDo: operate with loops
@@ -1414,47 +1433,69 @@ sub setpath_network( $$$$ ) {
     }
 }
 
-# link each 'any' object with its corresponding border and vice versa
-sub setpath_anys() {
+sub setpath() {
+    # take a random managed element from %routers, name it "router1"
+    my $router1;
+    for my $router (values %routers) {
+	if($router->{managed}) {
+	    $router1 = $router;
+	    last;
+	}
+    }
+    $router1 or die "Topology needs at least one managed router\n"; 
+
+    # Beginning with router1, do a traversal of the whole network 
+    # to find a path from every network and router to router1
+    &setpath_router($router1, 'not undef', undef, 0);
+
+    # check if all networks and routers are connected with router1
+    for my $obj (values %networks, values %routers) {
+	next if $obj eq $router1;
+	$obj->{border} or
+	    err_msg "Found unconnected node: $obj->{name}";
+    }
+    # link each 'any' object with its corresponding 
+    # border interface and vice versa
     for my $any (values %anys) {
-	my $border = $any->{link}->{border} or
-	    err_msg "Found unconnected node: $any->{link}->{name}";
+	my $border = $any->{link}->{border};
 	$any->{border} = $border;
 	if(my $old_any = $border->{any}) {
-	    err_msg "More than one 'any' object definied in a security domain: "
-		. "$old_any->{name} and $any->{name}";
+	    err_msg
+		"More than one 'any' object definied in a security domain:\n"
+		    . "$old_any->{name} and $any->{name}";
 	}
 	$border->{any} = $any;
     }
 }
 
 ##############################################################################
-# Helper functions: path traversal
+# Functions for path traversal
+# Used for generation of weak deny rules from 'any' rules and
+# for generation of ACLs
 ##############################################################################
 
 sub get_border( $ ) {
     my($obj) = @_;
-    my $border;
-
     if(is_host($obj)) {
-	$border = $obj->{net}->{border};
+	return $obj->{net}->{border};
     } elsif(is_interface($obj)) {
 	if($obj->{router}->{managed}) {
 	    return undef;
 	} else {
-	    $border = $obj->{net}->{border};
+	    return $obj->{net}->{border};
 	}
     } elsif(is_net($obj) or is_any($obj)) {
-	$border = $obj->{border};
+	return $obj->{border};
     } else {
 	die "internal in get_border: unexpected object $obj->{name}";
     }
-    $border or die "Found unconnected node: $obj->{name}\n";
-    return $border;
 }
 
-# Applying a function on a rule at every managed router
-# from src to dst of the rule
+# Apply a function to a rule at every managed router
+# on the path from src to dst of the rule
+# src-R5-R4-\
+#           |-R2-R1
+#    dst-R3-/
 sub path_walk($&) {
     my ($rule, $fun) = @_;
     die "internal in path_walk: undefined rule" unless $rule;
@@ -1643,6 +1684,7 @@ sub gen_deny_rules() {
 	    &path_walk($rule, \&gen_any_dst_deny);
 	}
     }
+    info "Generated $weak_deny_counter deny rules from 'any' rules\n";
 }
 
 ##############################################################################
@@ -1650,6 +1692,17 @@ sub gen_deny_rules() {
 # Optimize expanded rules by deleting identical rules and 
 # rules which are overlapped by a more general rule
 ##############################################################################
+
+# Prepare optimization of rules
+# link rules with the source network object of the rule
+sub prepare_optimization() {
+    info "Preparing optimization\n";
+    for my $rule (@expanded_deny_rules, @expanded_rules, @expanded_any_rules)
+    {
+	# weak deny rules are generated & added later
+	push(@{$rule->{src}->{rules}}, $rule);
+    }
+}
 
 # traverse rules and network objects top down, 
 # starting with a security domain its any-object
@@ -1831,6 +1884,59 @@ sub optimize_rules( $$ ) {
     }
 }
 
+# Global variables for statistic data of pre optimization
+# They are used to prevent duplicate reports about deleted rules
+my($nd1,$n1,$na1) = (0,0,0);
+
+sub extra_optimization() {
+    info "Starting pre-optimization\n";
+    # Optimize rules for each security domain
+    for my $router (values %routers) {
+	next unless $router->{managed};
+	for my $interface (@{$router->{interfaces}}) {
+	    next if $interface eq $router->{to_border};
+	    &addrule_border_any($interface);
+	}
+    } 
+    if($verbose) {
+	for my $rule (@expanded_deny_rules) { $nd1++ if $rule->{deleted} }
+	for my $rule (@expanded_rules) { $n1++ if $rule->{deleted} }
+	for my $rule (@expanded_any_rules) { $na1++ if $rule->{deleted}	}
+	info "Deleted redundant rules:\n";
+	info "$nd1 deny, $n1 permit, $na1 permit any\n";
+    }
+}
+
+sub optimization() {
+    info "Starting optimization\n";
+    # Optimze rules for each security domain
+    for my $router (values %routers) {
+	next unless $router->{managed};
+	for my $interface (@{$router->{interfaces}}) {
+	    next if $interface eq $router->{to_border};
+	    &addrule_border_any($interface);
+	}
+    } 
+    if($verbose) {
+	my($n, $nd, $na, $nw) = (0,0,0,0);
+	for my $rule (@expanded_deny_rules) { $nd++ if $rule->{deleted}	}
+	for my $rule (@expanded_rules) { $n++ if $rule->{deleted} }
+	for my $rule (@expanded_any_rules) {
+	    $na++ if $rule->{deleted};
+	    if(exists $rule->{deny_rules}) {
+		for my $deny_rule (@{$rule->{deny_rules}}) {
+		    $nw++ if $deny_rule->{deleted};
+		}
+	    }
+	}
+	$nd -= $nd1;
+	$n -= $n1;
+	$na -= $na1;
+	info "Deleted redundant rules:\n";
+	info " $nd deny, $n permit, $na permit any, $nw deny from any\n";
+    }
+}
+
 ####################################################################
 # Phase 7
 # Set routes
@@ -1897,6 +2003,13 @@ sub setroute_network( $$ ) {
     }
 }
 
+# Set routes
+sub setroute() {
+    $default_route or die "Topology needs one default route\n";
+    info "Setting routes\n";
+    &setroute_router($default_route, 0);
+}
+
 ##############################################################################
 # Phase 8
 # Code Generation
@@ -1958,6 +2071,18 @@ sub adr_code( $$ ) {
 }
 
 my %pix_srv_hole;
+
+# Print warnings about the PIX service hole
+sub warn_pix_icmp() {
+    if(%pix_srv_hole) {
+	warning "Ignored the code field of the following ICMP services\n",
+	" while generating code for pix firewalls:\n";
+	while(my ($name, $count) = each %pix_srv_hole) {
+	    print STDERR " $name: $count times\n";
+	}
+    }
+}
+
 sub srv_code( $$ ) {
     my ($srv, $model) = @_;
     my $proto = $srv->{type};
@@ -2196,6 +2321,27 @@ sub gen_acls( $ ) {
     }
 }
 
+sub acl_generation() {
+    info "Starting code generation\n";
+    # First Generate code for deny rules, then for permit rules
+    for my $rule (@expanded_deny_rules, @expanded_rules) {
+	next if $rule->{deleted};
+	&path_walk($rule, \&collect_acls);
+    }
+    # Generate code for weak deny rules directly in front of
+    # the corresponding 'permit any' rule
+    for my $rule (@expanded_any_rules) {
+	next if $rule->{deleted};
+	if(exists $rule->{deny_rules}) {
+	    for my $deny_rule (@{$rule->{deny_rules}}) {
+		next if $deny_rule->{deleted};
+		&path_walk($deny_rule, \&collect_acls); #_at_src);
+	    }
+	}
+	&path_walk($rule, \&collect_acls);
+    }
+}
+
 sub gen_routes( $ ) {
     my($router) = @_;
     print "[ Routing ]\n";
@@ -2217,6 +2363,22 @@ sub gen_routes( $ ) {
 		}
 	    }
 	}
+    }
+}
+
+# Print generated code for each managed router
+sub print_code() {
+    info "Printing code\n";
+    print "!! Generated by $program, version $version\n\n";
+    for my $router (values %routers) {
+	next unless $router->{managed};
+	my $model = $router->{model};
+	print "[ BEGIN $router->{name} ]\n";
+	print "[ Model = $model ]\n";
+	&gen_routes($router);
+	&gen_acls($router);
+	$model eq 'PIX' and &gen_pix_static($router);
+	print "[ END $router->{name} ]\n\n";
     }
 }
 
@@ -2257,174 +2419,18 @@ sub read_config() {
 &read_config() if $conf_file;
 &read_file_or_dir($main_file);
 &show_read_statistics();
-
 &order_services();
-
-# link 'any' and 'every' objects with referenced objects
-subst_name_with_ref_for_any_and_every();
-
-# link interface with network in both directions
-for my $router (values %routers) {
-    for my $interface (@{$router->{interfaces}}) {
-	&link_interface_with_net($interface);
-    }
-}
-
-# take a random managed element from %routers, name it "router1"
-my $router1;
-for my $router (values %routers) {
-    if($router->{managed}) {
-	$router1 = $router;
-	last;
-    }
-}
-$router1 or die "Topology needs at least one managed router\n"; 
-
-# Beginning with router1, do a traversal of the whole network 
-# to find a path from every network and router to router1
-&setpath_router($router1, 'not undef', undef, 0);
-setpath_anys();
-
-# expand rules
-&gen_expanded_rules();
-
-# add sorted any rules to @expanded_any_rules
-&add_ordered_any_rules();
-if($verbose) {
-    my $nd = 0+@expanded_deny_rules;
-    my $n  = 0+@expanded_rules;
-    my $na = 0+@expanded_any_rules;
-    info "Expanded rules: deny $nd, permit: $n, permit any: $na,\n";
-}
-
+&link_topology();
+&setpath();
+&expand_rules();
 die "Aborted with $error_counter error(s)\n" if $error_counter;
-# following errors should always abort
-$error_counter = $max_errors;
-
-info "Preparing optimization\n";
-# Prepare optimization of rules
-# link rules with the source network object of the rule
-for my $rule (@expanded_deny_rules, @expanded_rules, @expanded_any_rules) {
-    # weak deny rules are generated & added later
-    push(@{$rule->{src}->{rules}}, $rule);
-}
-
-my($nd1,$n1,$na1) = (0,0,0);
-if($pre_optimization) {
-    info "Starting pre-optimization\n";
-    # Optimize rules for each security domain
-    for my $router (values %routers) {
-	next unless $router->{managed};
-	for my $interface (@{$router->{interfaces}}) {
-	    next if $interface eq $router->{to_border};
-	    &addrule_border_any($interface);
-	}
-    } 
-    if($verbose) {
-	for my $rule (@expanded_deny_rules) {
-	    $nd1++ if $rule->{deleted};
-	}
-	for my $rule (@expanded_rules) {
-	    $n1++ if $rule->{deleted};
-	}
-	for my $rule (@expanded_any_rules) {
-	    $na1++ if $rule->{deleted};
-	}
-	info "Deleted redundant rules: $nd1 deny, $n1 permit, $na1 permit any\n";
-    }
-}
-
-# generate deny rules for any rules
+$error_counter = $max_errors; # following errors should always abort
+&prepare_optimization();
+&extra_optimization() if $pre_optimization;
 &gen_deny_rules();
-info "Generated $weak_deny_counter deny rules from 'any rules'\n";
-
-info "Starting optimization\n";
-# Optimze rules for each security domain
-for my $router (values %routers) {
-    next unless $router->{managed};
-    for my $interface (@{$router->{interfaces}}) {
-	next if $interface eq $router->{to_border};
-	&addrule_border_any($interface);
-    }
-} 
-if($verbose) {
-    my($n, $nd, $na, $nw) = (0,0,0,0);
-    for my $rule (@expanded_deny_rules) {
-	$nd++ if $rule->{deleted};
-    }
-    for my $rule (@expanded_rules) {
-	$n++ if $rule->{deleted};
-    }
-    for my $rule (@expanded_any_rules) {
-	$na++ if $rule->{deleted};
-	if(exists $rule->{deny_rules}) {
-	    for my $deny_rule (@{$rule->{deny_rules}}) {
-		$nw++ if $deny_rule->{deleted};
-	    }
-	}
-    }
-    $nd -= $nd1;
-    $n -= $n1;
-    $na -= $na1;
-    info "Deleted redundant rules:\n";
-    info " $nd deny, $n permit, $na permit any, $nw deny from any\n";
-}
-
-info "Checking for deny influence\n";
-check_deny_influence();
-
-# Set routes
-$default_route or die "Topology needs one default route\n";
-info "Setting routes\n";
-&setroute_router($default_route, 0);
-
-info "Starting code generation\n";
-# First Generate code for deny rules .
-for my $rule (@expanded_deny_rules) {
-    next if $rule->{deleted};
-    &path_walk($rule, \&collect_acls); #_at_src);
-}
-
-# Distribute permit rules to managed routers
-# src-R1-R2-\
-#           |-Rx
-#    dst-R3-/
-for my $rule (@expanded_rules) {
-    next if $rule->{deleted};
-    &path_walk($rule, \&collect_acls);
-}
-
-# Generate code for weak deny rules directly in front of
-# the corresponding 'permit any' rule
-for my $rule (@expanded_any_rules) {
-    next if $rule->{deleted};
-    if(exists $rule->{deny_rules}) {
-	for my $deny_rule (@{$rule->{deny_rules}}) {
-	    next if $deny_rule->{deleted};
-	    &path_walk($deny_rule, \&collect_acls); #_at_src);
-	}
-    }
-    &path_walk($rule, \&collect_acls);
-}
-
-# Print generated code for each managed router
-print "!! Generated by $program, version $version\n\n";
-for my $router (values %routers) {
-    next unless $router->{managed};
-    my $model = $router->{model};
-    print "[ BEGIN $router->{name} ]\n";
-    print "[ Model = $model ]\n";
-    &gen_routes($router);
-    &gen_acls($router);
-    $model eq 'PIX' and &gen_pix_static($router);
-    print "[ END $router->{name} ]\n\n";
-}
-
-# Print warnings about the PIX service hole
-if(%pix_srv_hole) {
-    warning "Ignored the code field of the following ICMP services\n",
-    " while generating code for pix firewalls:\n";
-    while(my ($name, $count) = each %pix_srv_hole) {
-	print STDERR " $name: $count times\n";
-    }
-}
+&optimization();
+&check_deny_influence();
+&setroute();
+&acl_generation();
+&print_code();
+&warn_pix_icmp();
