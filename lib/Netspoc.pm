@@ -757,15 +757,15 @@ sub print_rule( $ ) {
 		     "srv=$rule->{$srv}->{name};";
 }
 
-##############################################################################
-# Build linked data structures
-##############################################################################
+####################################################################
+# Try to convert hosts with successive IP addresses to an IP range
+####################################################################
 
 # Called from read_network
-# Takes a references to the array of hosts from one network.
-# Selects hosts with a single ip addresses,
-# detects adjacent ip addresses and link them to an 
-# automatically generated ip range
+# Takes a references to the array of hosts of a network.
+# Selects hosts with a single IP address,
+# detects successive IP addresses and links them to an 
+# automatically generated IP range
 # ToDo:
 # - handle hosts with multiple ip addresses
 # - check if any of the existing ranges may be used
@@ -826,6 +826,54 @@ sub find_ip_ranges( $$ ) {
     }
 }
 
+# Called from expand_group
+# Checks, if a group of network objects contains hosts which may be converted
+# to an IP range
+sub gen_ip_ranges( $ ) {
+    my($obref) = @_;
+    my @hosts_in_range = grep { is_host $_ and $_->{in_range} } @$obref;
+    if(@hosts_in_range) {
+	my @objects = grep { not(is_host $_ and $_->{in_range}) } @$obref;
+	my @hosts;
+	my %in_range;
+	# collect host belonging to one range
+	for my $host (@hosts_in_range) {
+	    my $range = $host->{in_range};
+	    push @{$in_range{$range}}, $host;
+	}
+	for my $aref (values %in_range) {
+	    my @sorted = sort { $a->{ip}->[0] <=> $b->{ip}->[0] } @$aref;
+	    my $range = $sorted[0]->{in_range};
+	    my $begin = $range->{ip}->[0];
+	    my $end = $range->{ip}->[1];
+	    my $first = $sorted[0]->{ip}->[0];
+	    my $last =  $sorted[@sorted - 1]->{ip}->[0];
+	    my $last_ip = $first;
+	    # check if hosts are successive
+	    for my $host (@sorted) {
+		my $ip = $host->{ip}->[0];
+		$ip == $last_ip + 1 or $ip == $last_ip or last;
+		$last_ip = $ip;
+	    }
+	    # check if this set of hosts may be substituted by the range
+	    if($first == $begin and $last == $end and $last == $last_ip) {
+		push @hosts, $range;
+	    } else {
+		# ToDo: generate subranges if $first != $last
+		push @hosts, @sorted;
+	    }
+	}
+	# make the result deterministic
+	push @objects, sort { $a->{ip}->[0] <=> $b->{ip}->[0] } @hosts;
+	return \@objects;
+    } else {
+	return $obref;
+    }
+}
+
+##############################################################################
+# Order services
+##############################################################################
 my %srv_hash;
 sub prepare_srv_ordering( $ ) {
     my($srv) = @_;
@@ -849,7 +897,7 @@ sub prepare_srv_ordering( $ ) {
 	if($main_srv) {
 	    # found duplicate service definition
 	    # link $srv with $main_srv
-	    # We link all duplicate services to the first service we found.
+	    # We link all duplicate services to the first service found.
 	    # This assures that we always reach the main service
 	    # from any duplicate service in one step via ->{main}
 	    # This is used later to substitute occurrences of
@@ -1028,69 +1076,12 @@ sub link_topology() {
     }
 }
 
-##############################################################################
+####################################################################
 # Expand rules
 #
 # Simplify rules to expanded rules where each rule has exactly one 
 # src, dst and srv
-##############################################################################
-
-sub expand_obref( $$ ) {
-    my($obref, $context) = @_;
-    my @objects;
-    for my $object (@$obref) {
-	next if $object->{disabled};
-	if(is_host $object or is_any $object) {
-	    push @objects, $object;
-	} elsif(is_net $object or is_interface $object) {
-	    if($object->{ip} eq 'unnumbered') {
-		err_msg "Unnumbered $object->{name} must not be used in $context";
-		next;
-	    }
-	    if($object->{ip} eq 'cloud') {
-		err_msg "Short $object->{name} must not be used in $context";
-		next;
-	    }
-	    push @objects, $object;
-	} else {
-	    die "internal in expand_group: unexpected type '$object->{name}'";
-	}
-    }
-    my @hosts_in_range = grep { is_host $_ and $_->{in_range} } @objects;
-    if(@hosts_in_range) {
-	@objects = grep { not(is_host $_ and $_->{in_range}) } @objects;
-	my %in_range;
-	# collect host belonging to one range
-	for my $host (@hosts_in_range) {
-	    my $range = $host->{in_range};
-	    push @{$in_range{$range}}, $host;
-	}
-	for my $aref (values %in_range) {
-	    my @sorted = sort { $a->{ip}->[0] <=> $b->{ip}->[0] } @$aref;
-	    my $range = $sorted[0]->{in_range};
-	    my $begin = $range->{ip}->[0];
-	    my $end = $range->{ip}->[1];
-	    my $first = $sorted[0]->{ip}->[0];
-	    my $last =  $sorted[@sorted - 1]->{ip}->[0];
-	    my $last_ip = $first;
-	    # check if hosts are successive
-	    for my $host (@sorted) {
-		my $ip = $host->{ip}->[0];
-		$ip == $last_ip + 1 or $ip == $last_ip or last;
-		$last_ip = $ip;
-	    }
-	    # check if this set of hosts may be substituted by the range
-	    if($first == $begin and $last == $end and $last == $last_ip) {
-		push @objects, $range;
-	    } else {
-		# ToDo: generate subranges if $first != $last
-		push @objects, @sorted;
-	    }
-	}
-    }
-    return \@objects;
-}
-
+####################################################################
 my %name2object =
 (
     host => \%hosts,
@@ -1144,7 +1135,21 @@ sub expand_group( $$ ) {
 	    push @objects, $object;
 	}
     }
-    expand_obref \@objects, $context;
+    for my $object (@objects) {
+	$object = undef if $object->{disabled};
+	if(is_net $object or is_interface $object) {
+	    if($object->{ip} eq 'unnumbered') {
+		err_msg "Unnumbered $object->{name} must not be used in $context";
+		$object = undef;
+	    }
+	    if($object->{ip} eq 'cloud') {
+		err_msg "Short $object->{name} must not be used in $context";
+		$object = undef;;
+	    }
+	}
+    }
+    @objects = grep { defined $_ } @objects;
+    return gen_ip_ranges(\@objects);
 }
 
 sub expand_services( $$ ) {
