@@ -174,8 +174,10 @@ sub add_line( $ ) {
 our $error_counter = 0;
 
 sub check_abort() {
-    if(++$error_counter >= $max_errors) {
+    if(++$error_counter == $max_errors) {
 	die "Aborted after $error_counter errors\n";
+    }elsif(++$error_counter > $max_errors) {
+	die "Aborted\n";
     }
 }
     
@@ -2680,7 +2682,9 @@ sub part_walk( $$$$$$$ ) {
     my($in, $out, $to, $real_to, $call_it, $rule, $fun) = @_;
 #    info "part_walk: in = ".($in?$in->{name}:'').", out = $out->{name}";
     while(1) {
+	# Destination network has been reached
 	if(not $out) {
+	    # Go one step further to destination interface 
 	    if($real_to) {
 		$in = $real_to;
 		$call_it and internal_err;
@@ -2689,17 +2693,25 @@ sub part_walk( $$$$$$$ ) {
 	    &$fun($rule, $in, $out) if $call_it;
 #	    info "exit: part_walk: reached dst";
 	    return;
-	} elsif($real_to and $out eq $real_to) {
-	    $call_it or internal_err;
-	    $out = undef;
-	    &$fun($rule, $in, $out) if $call_it;
-#	    info "exit: part_walk: reached dst";
-	    return;
 	} elsif($out->{walk_mark} and
 		$out->{walk_mark} == $walk_mark) {
 	    &$fun($rule, $in, $out) if $call_it;
 #           info "exit: part_walk: was already there";
 	    return;
+	} elsif($real_to) {
+	    if($out eq $real_to) {
+		# Don't go to destination network, 
+		# since we already have reached destination interface
+		$call_it or internal_err;
+		$out = undef;
+		&$fun($rule, $in, $out) if $call_it;
+#	        info "exit: part_walk: reached dst";
+		return;
+	    } elsif($out->{router} eq $real_to->{router}) {
+		# Don't walk an artifical loop behind destination router
+#	        info "exit: part_walk: ignore loop behind dst";
+		return;
+	    }
 	}	    
 	&$fun($rule, $in, $out) if $call_it;
 	$out->{walk_mark} = $walk_mark;
@@ -2714,6 +2726,7 @@ sub part_walk( $$$$$$$ ) {
 
 sub find_active_routes_and_statics () {
     info "Finding routes and statics";
+    # Mark paths for src / dst pairs of all rules
     for my $rule (@expanded_rules, @expanded_any_rules) {
 	my($src, $dst) = ($rule->{src}, $rule->{dst});
 	# Don't apply get_network to $src, but use get_path instead:
@@ -2775,12 +2788,18 @@ sub find_active_routes_and_statics () {
 	    next if $interface->{routing};
 	    for my $to (keys %{$interface->{path}}) {
 		my $hop = $interface->{path}->{$to};
+		# Don't generate two different static routes to destination
+		if($to =~ /^2\.(.*)$/) {
+		    $to =~ $1;
+		    next if $hop and $hop->{router} eq $router;
+		    my $obj = $key2obj{$to};
+		    err_msg "Two static routes for $obj->{name} at ",
+		    "$interface->{name}";
+		}
 		# ignore directly attached network
 		next unless $hop;
 		# ignore incoming direction
 		next if $hop->{router} eq $router;
-		# convert 2nd path
-		$to =~ s/^2.//;
 		# get destination object: a network
 		my $obj = $key2obj{$to};
 		is_network $obj or
