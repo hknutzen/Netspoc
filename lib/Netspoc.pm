@@ -722,7 +722,10 @@ sub read_interface( $$ ) {
 		# read virtual IP vor VRRP / HSRP
 		$interface->{ip} eq 'unnumbered' and
 		    error_atline
-		    "No virtual IP supported for unnumbered interface";
+			"No virtual IP supported for unnumbered interface";
+		grep { $_ == $virtual } @{$interface->{ip}} and
+		    error_atline
+			"Virtual IP redefines standard IP";
 		$interface->{virtual} and
 		    error_atline "Redefining virtual IP";
 		$interface->{virtual} = $virtual;
