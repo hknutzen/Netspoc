@@ -1891,6 +1891,29 @@ sub srv_code( $$ ) {
     }
 }
 
+# find largest mask which encloses a given ip adress
+# Examples: 1->1/1, 2->2/2, 3->2/2, 4->4/4, 5->4/4, 6->4/4, 
+# 13->8/8, 96->64/64, 129->128/128, 234->128/128
+sub find_max_mask( $ ) {
+    my($ip) = @_;
+    return 0 if $ip == 0;
+    # set $m to 11110
+    my $m = ~1;
+    # search the highest 1 bit in $ip
+    while($ip & $m) {
+	# fill with 0 from right
+	# 11100, 11000, ...
+	$m <<= 1;
+    }
+    # 111000 -> 000111
+    $m = ~$m; 
+    # 000111 -> 000011
+    $m >>= 1;
+    # 000011 -> 000100
+    $m += 1;
+    return $m;
+}
+
 sub collect_pix_static( $$$ ) {
     my($src_intf, $dst_intf, $rule) = @_;
     my $dst = $rule->{dst};
@@ -1907,17 +1930,10 @@ sub collect_pix_static( $$$ ) {
 	die "internal in collect_pix_static: unexpected dst $dst->{name}";
     }
     for my $net (@networks) {
-	my $mask = $net->{mask};
-	my $m4 = $mask >> 24;
-	if($m4 != 255) {
-	    # ToDo: operate correctly with large netmasks
-	    # Pix only refuses 0.0.0.0
-	    die "can't generate static command for $net->{name}, because netmask ".
-		print_ip($mask) ." is too broad (currently max 255.0.0.0)\n";
-	}
-	my $ip = $net->{ip};
-	my $v4 = $ip >> 24;
-	$dst_intf->{static}->{$src_intf->{hardware}}->{$v4} = 1;
+	my $ip = $net->{ip} or
+	    die "Pix doesn't support static command for IP 0.0.0.0\n";
+	my $m = find_max_mask $ip;
+	$dst_intf->{static}->{$src_intf->{hardware}}->{$m} = 1;
     }
 }
 
@@ -1929,8 +1945,9 @@ sub gen_pix_static( $ ) {
 	next unless $static;
 	my $high = $interface->{hardware};
 	for my $low (keys %$static) {
-	    for my $v4 (sort keys %{$static->{$low}}) {
-		print "static ($high,$low) $v4.0.0.0 $v4.0.0.0 netmask 255.0.0.0\n";
+	    for my $m (sort keys %{$static->{$low}}) {
+		my $ip = print_ip $m;
+		print "static ($high,$low) $ip $ip netmask $ip\n";
 	    }
 	}
     }
