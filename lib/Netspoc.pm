@@ -305,6 +305,7 @@ sub print_ip_aref( $ ) {
     return map { print_ip($_); } @$aref;
 }
 		
+# check for xxx:xxx or xxx:xxx.xxx
 sub check_typed_name() {
     use locale;		# now German umlauts are part of \w
     &skip_space_and_comment();
@@ -318,6 +319,22 @@ sub check_typed_name() {
 sub read_typed_name() {
     check_typed_name() or
 	syntax_err "Typed name expected";
+}
+
+# check for xxx:xxx or xxx:[xxx] or xxx:[xxx].[xxx] or xxx:xxx.[xxx]
+sub check_typed_ext_name() {
+    use locale;		# now German umlauts are part of \w
+    &skip_space_and_comment();
+    if(m/(\G\w+:[][\w]+(\.[][\w]+)?)/gc) {
+	return $1;
+    } else {
+	return undef;
+    }
+}
+
+sub read_typed_ext_name() {
+    check_typed_ext_name() or
+	syntax_err "Typed extended name expected";
 }
 
 sub read_identifier() {
@@ -875,7 +892,7 @@ our %groups;
 sub read_group( $ ) {
     my $name = shift;
     skip('=');
-    my @objects = &read_list_or_null(\&read_typed_name);
+    my @objects = &read_list_or_null(\&read_typed_ext_name);
     my $group = new('Group',
 		    name => "group:$name",
 		    elements => \@objects,
@@ -1016,7 +1033,7 @@ sub read_user_or_typed_name_list( $ ) {
 	skip(';');
 	return 'user';
     } else {
-	return &read_list(\&read_typed_name);
+	return &read_list(\&read_typed_ext_name);
     }
 }
 
@@ -1030,7 +1047,7 @@ sub read_policy( $ ) {
 	       };
     my $description = &read_description();
     $store_description and $policy->{description} = $description;
-    my @user = &read_assign_list('user', \&read_typed_name);
+    my @user = &read_assign_list('user', \&read_typed_ext_name);
     $policy->{user} = \@user;
     while(1) {
 	last if &check('}');
@@ -1062,8 +1079,8 @@ sub read_policy( $ ) {
 
 sub read_rule( $ ) {
     my($action) = @_;
-    my @src = &read_assign_list('src', \&read_typed_name);
-    my @dst = &read_assign_list('dst', \&read_typed_name);
+    my @src = &read_assign_list('src', \&read_typed_ext_name);
+    my @dst = &read_assign_list('dst', \&read_typed_ext_name);
     my @srv = &read_assign_list('srv', \&read_typed_name);
     my $rule = { action => $action,
 		 src => \@src, dst => \@dst, srv => \@srv,
@@ -1677,14 +1694,62 @@ sub link_topology() {
 
 my %name2object =
 (
-    host => \%hosts,
-    network => \%networks,
-    router => \%routers,
-    interface => \%interfaces,
-    any => \%anys,
-    every => \%everys,
-    group => \%groups
+ host => \%hosts,
+ network => \%networks,
+ interface => \%interfaces,
+ router => \%routers,
+ any => \%anys,
+ every => \%everys,
+ group => \%groups
  );
+
+my @all_anys;
+
+# Initialize 'special' objects which implicitly denote a group of objects.
+#
+# interface:[managed].[all], group of all interfaces of managed routers
+# interface:[managed].[auto], group of [auto] interfaces of managed routers
+# interface:[all].[all], all routers, all interfaces
+# interface:[all].[auto], all routers, [auto] interfaces
+# any:[all], group of all security domains
+sub set_auto_groups () {
+    my @managed_routers;
+#    my @all_routers;
+    my @managed_interfaces;
+    my @all_interfaces;
+    for my $router (values %routers) {
+	my @interfaces = grep { not $_->{ip} eq 'unnumbered' } @{$router->{interfaces}};
+	if($router->{managed}) {
+	    push @managed_routers, $router;
+	    push @managed_interfaces, @interfaces;
+	}
+#	push @all_routers, $router;
+	push @all_interfaces, @interfaces;
+	(my $name = $router->{name}) =~ s /^router://;
+	$interfaces{"$name.[all]"} =
+	    new('Group', name => "interface:$name.[all]",
+		elements => \@interfaces, is_used => 1);	    
+    }
+    $interfaces{'[managed].[all]'} =
+	new('Group', name => "interface:[managed].[all]",
+	    elements => \@managed_interfaces, is_used => 1);
+    $interfaces{'[all].[all]'} =
+	new('Group', name => "interface:[all].[all]",
+	    elements => \@all_interfaces, is_used => 1);
+    $routers{'[managed]'} =
+	new('Group', name => "router:[managed]",
+	    elements => \@managed_routers, is_used => 1);
+# This is needed for interface:[all].[auto];
+# but this isn't implemented, because we don't know paths inside of security domains
+# and hence can't automtically find the rigth interface.
+#    $routers{'[all]'} =
+#	new('Group', name => "router:[all]",
+#	    elements => \@all_routers, is_used => 1);
+    @all_anys or internal_err "\@all_anys is empty";
+    $anys{'[all]'} = 
+	new('Group', name => "any:[all]",
+	    elements => \@all_anys, is_used => 1);
+}
 
 # Get a reference to an array of network object names and 
 # return a reference to an array of network objects
@@ -1692,10 +1757,17 @@ sub expand_group( $$ ) {
     my($obref, $context) = @_;
     my @objects;
     for my $tname (@$obref) {
-
+	# rename router:xx to interface:xx.[all]
+	# to preserve compatibility with older versions
+	$tname =~ s/^router:(.*)$/interface:$1.[all]/;
 	my($type, $name) = split_typed_name($tname);
 	my $object;
-	unless($object = $name2object{$type}->{$name}) { 
+	unless($object = $name2object{$type}->{$name} or
+	       $type eq 'interface' and
+	       $name =~ /^(.*)\.\[auto\]$/ and
+	       $object = $routers{$1} and
+	       # currently only interface:xx.[auto] for managed routers
+	       $object->{managed}) {
 	    err_msg "Can't resolve reference to '$tname' in $context";
 	    next;
 	}
@@ -1718,13 +1790,6 @@ sub expand_group( $$ ) {
 		$object->{elements} = $elements;
 	    }
 	    push @objects, @$elements;
-	} elsif(is_router $object) {
-	    # split a router into it's numbered interfaces
-	    for my $interface (@{$object->{interfaces}}) {
-		unless($interface->{ip} eq 'unnumbered') {
-		    push @objects, $interface;
-		}
-	    }
 	} elsif(is_every $object) {
 	    # expand an 'every' object to all networks in its security domain
 	    # Attention: this doesn't include unnumbered networks
@@ -1812,6 +1877,16 @@ sub expand_services( $$ ) {
     return \@services;
 }
 
+sub get_auto_interfaces( $$ ) {
+    my ($from, $to) = @_;
+    is_router $from or internal_err "expected a router as first argument";
+    $to = &get_path($to);
+    &path_mark($from, $to) unless $from->{$to};
+    my @result = ($from->{$to});
+    push @result, $from->{$to.2} if $from->{$to.2};
+    return @result;    
+}
+
 # array of expanded deny rules
 our @expanded_deny_rules;
 # array of expanded permit rules
@@ -1825,6 +1900,8 @@ my %rule_tree;
 
 sub expand_rules() {
     info "Expanding rules";
+    # prepare special groups
+    set_auto_groups();
     for my $name (sort keys %policies) {
 	my $policy = $policies{$name};
 	my $user = $policy->{user};
@@ -1855,38 +1932,44 @@ sub expand_rules() {
 	$rule->{src} = expand_group $rule->{src}, 'src of rule';
 	$rule->{dst} = expand_group $rule->{dst}, 'dst of rule';
 	$rule->{srv} = expand_services $rule->{srv}, 'rule';
-	
+
 	for my $src (@{$rule->{src}}) {
 	    for my $dst (@{$rule->{dst}}) {
-		for my $srv (@{$rule->{srv}}) {
-		    my $expanded_rule = { action => $action,
-					  src => $src,
-					  dst => $dst,
-					  srv => $srv,
-					  # remember original rule
-					  rule => $rule
-					  };
-		    # if $srv is duplicate of an identical service
-		    # use the main service, but remember the original one
-		    # for debugging / comments
-		    if(my $main_srv = $srv->{main}) {
-			$expanded_rule->{srv} = $main_srv;
-			$expanded_rule->{orig_srv} = $srv;
+		my @src = is_router $src ? get_auto_interfaces $src, $dst : ($src);
+		my @dst = is_router $dst ? get_auto_interfaces $dst, $src : ($dst);
+		for my $src (@src) {
+		    for my $dst (@dst) {
+			for my $srv (@{$rule->{srv}}) {
+			    my $expanded_rule = { action => $action,
+						  src => $src,
+						  dst => $dst,
+						  srv => $srv,
+						  # remember original rule
+						  rule => $rule
+						  };
+			    # if $srv is duplicate of an identical service
+			    # use the main service, but remember the original one
+			    # for debugging / comments
+			    if(my $main_srv = $srv->{main}) {
+				$expanded_rule->{srv} = $main_srv;
+				$expanded_rule->{orig_srv} = $srv;
+			    }
+			    if($action eq 'deny') {
+				push(@expanded_deny_rules, $expanded_rule);
+			    } elsif(is_any($src) and is_any($dst)) {
+				err_msg "Rule '", print_rule $expanded_rule, "'\n",
+				" has 'any' objects both as src and dst.\n",
+				" This is not supported currently. ",
+				"Use one 'every' object instead";
+			    } elsif(is_any($src) or is_any($dst)) {
+				$expanded_rule->{deny_networks} = [];
+				push(@expanded_any_rules, $expanded_rule);
+			    } else {
+				push(@expanded_rules, $expanded_rule);
+			    }
+			    &add_rule($expanded_rule);
+			}
 		    }
-		    if($action eq 'deny') {
-			push(@expanded_deny_rules, $expanded_rule);
-		    } elsif(is_any($src) and is_any($dst)) {
-			err_msg "Rule '", print_rule $expanded_rule, "'\n",
-			" has 'any' objects both as src and dst.\n",
-			" This is not supported currently. ",
-			"Use one 'every' object instead";
-		    } elsif(is_any($src) or is_any($dst)) {
-			$expanded_rule->{deny_networks} = [];
-			push(@expanded_any_rules, $expanded_rule);
-		    } else {
-			push(@expanded_rules, $expanded_rule);
-		    }
-		    &add_rule($expanded_rule);
 		}
 	    }
 	}
@@ -2277,8 +2360,6 @@ sub setany_router( $$$ ) {
     }
 }
 
-my @all_anys;
-
 sub setany() {
     @all_anys = grep { not $_->{disabled} } values %anys;
     for my $any (@all_anys) {
@@ -2427,8 +2508,12 @@ sub get_path( $ ) {
 	return $obj;
     } elsif(is_router($obj)) {
 	# this is only allowed, when called from 
-	# find_active_routes_and_statics
-	return $obj;
+	# find_active_routes_and_statics or from get_auto_interfaces
+	if($obj->{managed}) {
+	    return $obj;
+	} else {
+	    return $obj->{any};
+	}
     } else {
 	internal_err "unexpected object $obj->{name}";
     }
@@ -2469,7 +2554,7 @@ sub loop_path_mark ( $$$$$ ) {
 # At each interface on the path from src to dst,
 # we place a reference to the next interface on the path to dst.
 # This reference is found under a key which is the reference to dst.
-# Additionally we attach this information to the src network object.
+# Additionally we attach this information to the src object.
 sub path_mark( $$ ) {
     my ($src, $dst) = @_;
     my $from = $src;
@@ -2769,14 +2854,14 @@ sub gen_reverse_rules1 ( $ ) {
 	# Local function.
 	# It uses variable $has_stateless_router.
 	my $mark_reverse_rule = sub( $$$ ) {
-	    my ($rule, $src_intf, $dst_intf) = @_;
+	    my ($rule, $in_intf, $out_intf) = @_;
 	    # Destination of current rule is current router.
 	    # Outgoing packets from a router itself are never filtered.
 	    # Hence we don't need a reverse rule for current router.
-	    return if not $dst_intf;
-	    my $model = $dst_intf->{router}->{model};
+	    return if not $out_intf;
+	    my $model = $out_intf->{router}->{model};
 	    # Source of current rule is current router.
-	    if(not $src_intf) {
+	    if(not $in_intf) {
 		if($model->{stateless_self}) {
 		    $has_stateless_router = 1;
 		}
@@ -2848,8 +2933,8 @@ sub gen_secondary_rules() {
 	# Local function.
 	# It uses variables $has_secondary_filter and $has_full_filter.
 	my $mark_secondary_rule = sub( $$$ ) {
-	    my ($rule, $src_intf, $dst_intf) = @_;
-	    my $router = ($src_intf || $dst_intf)->{router};
+	    my ($rule, $in_intf, $out_intf) = @_;
+	    my $router = ($in_intf || $out_intf)->{router};
 	    if($router->{managed} eq 'full') {
 		# there might be another path, without a full packet filter
 		# ToDo: this could be analyzed in more detail
@@ -2860,13 +2945,13 @@ sub gen_secondary_rules() {
 		# all on the same hardware.
 		# Source or destination of rule is an interface of current router.
 		# Hence, this router doesn't count as a full packet filter.
-		return if not $src_intf and $rule->{src} eq $dst_intf;
-		return if not $dst_intf and $rule->{dst} eq $src_intf;
+		return if not $in_intf and $rule->{src} eq $out_intf;
+		return if not $out_intf and $rule->{dst} eq $in_intf;
 		$has_full_filter = 1;
 	    } elsif($router->{managed} eq 'secondary') {
 		$has_secondary_filter = 1;
 		# Interface of current router is destination of rule.
-		if(not $dst_intf) {
+		if(not $out_intf) {
 		    $dst_is_secondary = 1;
 		}
 	    }
@@ -3052,7 +3137,7 @@ sub aref_delete( $$ ) {
 # -->
 # delete chg rule
 # remove net1 from cmp rule
-# 4. (currently not implemented)
+# 4. (currently not implemented because relation is in 'wrong' order)
 # cmp permit any(deny_net: net1,net2) dst srv
 # chg permit net1 dst' srv'
 # --> if dst <= dst', srv <= srv'
@@ -3068,7 +3153,7 @@ sub aref_delete( $$ ) {
 #
 # ToDo: Why aren't these optimizations applicable to deny rules?
 #
-sub optimize_any_rule( $$ ) {
+sub optimize_any_rule( $$$ ) {
     my($here, $cmp_rule, $chg_rule) = @_;
     my $obj = $chg_rule->{$here};
     # Case 1
