@@ -5062,9 +5062,6 @@ sub print_acls( $ ) {
     # Collect IP addresses of all interfaces.
     my @ip;
     for my $hardware (@{$router->{hardware}}) {
-	# We need to know, if packets for a dynamic routing protocol 
-	# are allowed for a hardware interface.
-	my %routing;
 	for my $interface (@{$hardware->{interfaces}}) {
 	    # Current router is used as default router even for some internal
 	    # networks.
@@ -5085,30 +5082,22 @@ sub print_acls( $ ) {
 	    }
 	    # Is dynamic routing used?
 	    if(my $type = $interface->{routing}) {
-		unless($routing{$type}) {
-		    # Prevent duplicate rules from multiple logical interfaces.
-		    $routing{$type} = 1;
-		    # Permit multicast packets as destination.
-		    # permit ip any host 224.0.0.xx
-		    for my $mcast (@{$routing_info{$type}->{mcast}}) {
-			push(@{$hardware->{intf_rules}},
-			     { action => 'permit',
-			       src => $network_00,
-			       dst => $mcast,
-			       srv => $srv_ip });
-		    }
-		    # Permit dynamic routing protocol packets from
-		    # attached networks to this router.
-		    # We use the network instead of the interface,
-		    # because we need fewer rules if the interface has 
-		    # multiple addresses.
-		    my $network = $interface->{network};
-		    push(@{$hardware->{intf_rules}},
-			 { action => 'permit', 
-			   src => $network,
-			   dst => $network,
-			   srv => $routing_info{$type}->{srv} });
+		my $network = $interface->{network};
+		my $srv = $routing_info{$type}->{srv};
+		# Permit multicast packets from current network.
+		for my $mcast (@{$routing_info{$type}->{mcast}}) {
+		    push @{$hardware->{intf_rules}},
+		    { action => 'permit',
+		      src => $network, dst => $mcast, srv => $srv };
 		}
+		# Additionally permit unicast packets.
+		# We use the network address as destination
+		# instead of the interface address,
+		# because we need fewer rules if the interface has 
+		# multiple addresses.
+		push @{$hardware->{intf_rules}},
+		{ action => 'permit', 
+		  src => $network, dst => $network, srv => $srv }
 	    }
 	    # Handle multicast packets of redundancy protocols.
 	    if(my $virtual = $interface->{virtual}) {
