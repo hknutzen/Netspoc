@@ -174,7 +174,8 @@ each subnetwork.
      {{
         managed; 
         model = &lt;name&gt;;
-        &lt;complete interface definition&gt; *
+        static_manual;
+	&lt;complete interface definition&gt; *
      |
         [ model = &lt;name&gt;; ]
         {{ &lt;interface definition&gt; | &lt;short interface definition&gt; }} *
@@ -189,7 +190,11 @@ each subnetwork.
 <LI>IOS for cisco IOS routers with statefull inspection
 <LI>PIX for cisco PIX firewalls
 </UL>
-<LI>May have any number of interface definitions.
+<LI>A PIX firewall may be marked as 'static_manual' if no 'static'
+commands should be genarated. We use this <UL><LI>as a workaround for missing
+NAT functionality of NetSPoC and <LI>if we know, that incoming traffic is
+only allowed, after some outgoing connection has been established.</UL>
+<LI>A Router may have any number of interface definitions.
 <LI>For unmanaged routers, almost all attributes are optional.
 <LI>If used as source or destination of a rule, a router is handled like
  group of its interfaces.
