@@ -1297,6 +1297,7 @@ sub is_network( $ )      { ref($_[0]) eq 'Network'; }
 sub is_router( $ )       { ref($_[0]) eq 'Router'; }
 sub is_interface( $ )    { ref($_[0]) eq 'Interface'; }
 sub is_host( $ )         { ref($_[0]) eq 'Host'; }
+sub is_subnet( $ )       { ref($_[0]) eq 'Subnet'; }
 sub is_any( $ )          { ref($_[0]) eq 'Any'; }
 sub is_every( $ )        { ref($_[0]) eq 'Every'; }
 sub is_group( $ )        { ref($_[0]) eq 'Group'; }
@@ -3325,7 +3326,7 @@ sub mark_secondary_rules() {
 
 sub setnat_network( $$$$ ) {
     my($network, $in_interface, $nat, $depth) = @_;
-##  info "nat:$nat depth $depth at $network->{name}";
+##  info "nat:$nat depth $depth at $network->{name} from $in_interface->{name}";
     if($network->{active_path}) {
 ##	info "nat:$nat loop";
 	# Found a loop
@@ -3352,7 +3353,7 @@ sub setnat_network( $$$$ ) {
     $network->{active_path} = 1;
     if($network->{nat}->{$nat}) {
 	err_msg "$network->{name} is translated by nat:$nat,\n",
-	" but it lies inside the translation sphere of nat:$nat.\n",
+	" but it lies inside the translation domain of nat:$nat.\n",
 	" Probably nat:$nat was bound to wrong interface.";
     }
     for my $interface (@{$network->{interfaces}}) {
@@ -3909,7 +3910,7 @@ sub print_pix_static( $ ) {
 		    for my $host (@{$network->{subnets}},
 				  @{$network->{interfaces}}) {
 			if(my $in_ip = $host->{nat}->{$in_dynamic}) {
-			    my @addresses = &address($host, $out_nat);
+			    my @addresses = &address($host, $out_nat, 'dst');
 			    err_msg "$host->{name}: NAT only for hosts / ",
 			    "interfaces with a single IP"
 				if @addresses != 1;
@@ -3974,6 +3975,42 @@ sub distribute_rule( $$$ ) {
 	# No code needed if it is deleted by another rule to the same interface
 	return if $rule->{deleted}->{managed_intf};
     }
+    # Validate dynamic NAT.
+    if(my $nat_info = $in_intf->{nat_info}) {
+	for my $where ('src', 'dst') {
+	    my $obj = $rule->{$where};
+	    if(is_subnet $obj || is_interface $obj) {
+		my $network = $obj->{network};
+		my($nat_tag, $network_ip, $mask, $dynamic) =
+		    &nat_lookup($network, $nat_info);
+		if($dynamic) {
+		    # Doesn't have a static translation.
+		    unless($obj->{nat}->{$nat_tag}) {
+			my $intf = $where eq 'src' ? $in_intf : $out_intf;
+			# Object lies in the same security domain,
+			# hence there is no other managed router 
+			# in between.
+			if($network->{any} eq $intf->{any}) {
+			    err_msg 
+				"$obj->{name} needs static translation",
+				" for nat:$nat_tag\n to be valid in rule\n ",
+				print_rule $rule;
+			}
+			# Otherwise, filtering occurs at other router,
+			# therefore the whole network can pass here.
+			# But attention, this assumption only holds,
+			# if the other router filters fully. 
+			# Hence disable secondary optimization.
+			undef $rule->{has_full_filter};
+			$rule = { %$rule };
+			$rule->{$where} = $network;
+			info "chk_nat: $router->{name} ", print_rule $rule;
+		    }
+		}
+	    }
+	}
+    }
+
     my $aref;
     # Packets for the router itself
     if(not $out_intf) {
@@ -4005,7 +4042,6 @@ sub distribute_rule_at_src( $$$ ) {
     is_any $src or internal_err "$src must be of type 'any'";
     # Rule is only processed at the first router on the path.
     if($in_intf->{any} eq $src) {
-	# Optional 4th parameter 'any_rule' must be set!
 	&distribute_rule(@_);
     }
 }
@@ -4023,7 +4059,6 @@ sub distribute_rule_at_dst( $$$ ) {
     is_any $dst or internal_err "$dst must be of type 'any'";
     # Rule is only processed at the last router on the path.
     if($out_intf->{any} eq $dst) {
-	# Optional 4th parameter 'any_rule' must be set!
 	&distribute_rule(@_);
     }
 }
@@ -4083,13 +4118,8 @@ sub address( $$$ ) {
 	if($nat_tag) {
 	    # It is useless do use a dynamic address as destination,
 	    # but we permit it anyway.
-	    #if($dynamic and $direction eq 'dst') {
-	    #  err_msg "Dynamic nat:$nat_tag of $obj->{name} ",
-	    #  "can't be used as destination";
-	    #}
 	    return [$network_ip, $mask];
 	} else {
-
 	    if($obj->{ip} eq 'unnumbered') {
 		internal_err "unexpected unnumbered $obj->{name}\n";
 	    } else {
@@ -4105,10 +4135,7 @@ sub address( $$$ ) {
 		    # single static NAT IP for this host
 		    return [$ip, 0xffffffff];
 		} else {
-		    # Use the address of the whole pool.
-		    # This is not an security leak, because we are filtering
-		    # for the host address at the NAT device
-		    return [$network_ip, $mask];
+		    internal_err "Unexpected $obj->{name} with dynamic NAT";
 		}
 	    } else {
 		# Take higher bits from network NAT,
@@ -4132,10 +4159,7 @@ sub address( $$$ ) {
 		    # single static NAT IP for this interface
 		    return [$ip, 0xffffffff];
 		} else {
-		    # Use the address of the whole pool.
-		    # This is not an security leak, because we are filtering
-		    # for the interface address at the NAT device
-		    return [$network_ip, $mask];
+		    internal_err "Unexpected $obj->{name} with dynamic NAT";
 		}
 	    } else {
 		# Take higher bits from network NAT,
