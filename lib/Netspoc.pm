@@ -2513,24 +2513,52 @@ sub print_routes( $ ) {
 }
 
 ##############################################################################
-# mark rules
+# Mark and optimize rules at secondary filters
 ##############################################################################
 
-sub mark_full_filter( $$$ ) {
+my $only_ip_rule_tree;
+my $dummy_srv = {name => 'service:dummy'};
+
+# Add rule to $only_ip_rule_tree 
+sub add_only_ip_rule( $ ) {
+    my ($rule) = @_;
+    $rule->{action} eq 'permit' or
+	internal_err "unexpected action $rule->{action}";
+    my $src = $rule->{src};
+    my $dst = $rule->{dst};
+    my $old_rule =
+	$only_ip_rule_tree->{$src}->[0]->{$dst}->[0]->{$dummy_srv};
+    if($old_rule) {
+	$rule->{deleted} = $old_rule;
+	return;
+    } 
+    $only_ip_rule_tree->{$src}->[0]->{$dst}->[0]->{$dummy_srv} = $rule;
+    $only_ip_rule_tree->{$src}->[1] = $src;
+    $only_ip_rule_tree->{$src}->[0]->{$dst}->[1] = $dst;
+}
+
+sub mark_secondary_rules( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
     my $router = ($src_intf || $dst_intf)->{router};
     if($router->{managed} eq 'full' and not $router->{loop}) {
 	$rule->{has_full_filter} = 1;
+    } elsif($router->{managed} eq 'secondary') {
+	$rule->{has_secondary_filter} = 1;
     }
 }
 
-sub mark_full_filter_rules() {
-    info "Marking rules for secondary filters";
+sub optimize_secondary_rules() {
+    info "Marking rules of secondary filters";
     # apply this optimization only to normal rules, not 'deny', not 'any'
     for my $rule (@expanded_rules) {
 	next if $rule->{deleted} and not $rule->{managed_if};
-	&path_walk($rule, \&mark_full_filter);
+	&path_walk($rule, \&mark_secondary_rules);
+	if($rule->{has_secondary_filter} and $rule->{has_full_filter}) {
+	    &add_only_ip_rule($rule);
+	}
     }
+    info "Optimizing rules of secondary filters";
+    &optimize_src_rules($only_ip_rule_tree, $only_ip_rule_tree);
 }
 
 ##############################################################################
@@ -3161,7 +3189,7 @@ $error_counter = $max_errors; # following errors should always abort
 &optimize();
 &repair_deny_influence();
 &setroute();
-&mark_full_filter_rules();
+&optimize_secondary_rules();
 &acl_generation();
 &check_output_dir($out_dir);
 &print_code($out_dir);
