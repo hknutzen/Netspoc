@@ -1745,6 +1745,9 @@ sub link_pathrestrictions() {
 		    push @{$interface->{path_restrict}}, $restrict;
 		    # Substitute interface name by interface object.
 		    $string = $interface;
+		    $interface->{router}->{managed} or
+			err_msg "Referencing unmanaged $interface->{name} ",
+			"from $restrict->{name}";
 		} else {
 		    err_msg "Referencing undefined $type:$name ", 
 		    "from $restrict->{name}";
