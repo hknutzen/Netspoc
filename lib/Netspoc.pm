@@ -794,7 +794,7 @@ sub read_interface( $$ ) {
 			    error_atline "Duplicate redundancy ID";
 			$virtual->{id} = $id;
 		    } else {
-			error_atline "Expected attribute for virtual IP";
+			syntax_err "Expected valid attribute for virtual IP";
 		    }
 		}
 		$virtual->{ip} or error_atline "Missing virtual IP";
