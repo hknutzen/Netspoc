@@ -1884,6 +1884,10 @@ sub set_auto_groups () {
     $anys{'[all]'} = 
 	new('Group', name => "any:[all]",
 	    elements => \@all_anys, is_used => 1);
+    # Artificial 'any' object, denotes the 'any' object,
+    # which is directly attached to an interface.
+    # String is expanded to a real 'any' object in expand_rules.
+    $anys{'[local]'} = 	"any:[local]";
 }
 
 # Get a reference to an array of network object names and 
@@ -1932,6 +1936,8 @@ sub expand_group( $$ ) {
 	}
     }
     for my $object (@objects) {
+	# ignore "any:[local]"
+	next unless ref $object;
 	if($object->{disabled}) {
 	    $object = undef;
 	} elsif(is_network $object) {
@@ -2058,12 +2064,37 @@ sub expand_rules() {
 	$rule->{dst} = expand_group $rule->{dst}, 'dst of rule';
 	$rule->{srv} = expand_services $rule->{srv}, 'rule';
 
+	my $get_any_local = sub ( $ ) {
+	    my ($obj) = @_;
+	    if(is_interface $obj and $obj->{router}->{managed}) {
+		return $obj->{any};
+	    } else {
+		err_msg "any:[local] must only be used in conjunction with an\n",
+		" managed interface in $rule->{policy}->{name}";
+		# Continue with an valid value to prevent further errors.
+		if($obj eq 'any:[local]') {
+		    $rule->{deleted} = 1;
+		    return $obj;
+		}elsif(is_any $obj) {
+		    return $obj;
+		}elsif(is_network $obj) {
+		    return $obj->{any};
+		}elsif(is_host $obj || is_interface $obj) {
+		    return $obj->{network}->{any};
+		} else {
+		    internal_err;
+		}
+	    }
+	};
 	for my $src (@{$rule->{src}}) {
 	    for my $dst (@{$rule->{dst}}) {
+		
 		my @src = is_router $src ?
-		    path_first_interfaces $src, $dst : ($src);
+		    path_first_interfaces $src, $dst :
+			$src eq 'any:[local]' ? $get_any_local->($dst) : ($src);
 		my @dst = is_router $dst ?
-		    path_first_interfaces $dst, $src : ($dst);
+		    path_first_interfaces $dst, $src :
+			$dst eq 'any:[local]' ? $get_any_local->($src) : ($dst);
 		for my $src (@src) {
 		    for my $dst (@dst) {
 			for my $srv (@{$rule->{srv}}) {
