@@ -17,6 +17,8 @@ my($version)= '$Revision$ ' =~ m/([0-9.]+)/;
 ####################################################################
 my $verbose = 1;
 my $comment_acls = 1;
+# if set to 1, may give better performance for very large rule sets
+my $pre_optimization = 0;
 
 ##############################################################################
 # Phase 1
@@ -2028,28 +2030,30 @@ for my $rule (@expanded_deny_rules, @expanded_rules, @expanded_any_rules) {
     push(@{$rule->{src}->{rules}}, $rule);
 }
 
-print STDERR "Starting first optimization\n" if $verbose;
-# Optimize rules for each security domain
-for my $router (values %routers) {
-    next unless $router->{managed};
-    for my $interface (@{$router->{interfaces}}) {
-	next if $interface eq $router->{to_border};
-	&addrule_border_any($interface);
-    }
-} 
 my($nd1,$n1,$na1) = (0,0,0);
-if($verbose) {
-    for my $rule (@expanded_deny_rules) {
-	$nd1++ if $rule->{deleted};
+if($pre_optimization) {
+    print STDERR "Starting pre-optimization\n" if $verbose;
+    # Optimize rules for each security domain
+    for my $router (values %routers) {
+	next unless $router->{managed};
+	for my $interface (@{$router->{interfaces}}) {
+	    next if $interface eq $router->{to_border};
+	    &addrule_border_any($interface);
+	}
+    } 
+    if($verbose) {
+	for my $rule (@expanded_deny_rules) {
+	    $nd1++ if $rule->{deleted};
+	}
+	for my $rule (@expanded_rules) {
+	    $n1++ if $rule->{deleted};
+	}
+	for my $rule (@expanded_any_rules) {
+	    $na1++ if $rule->{deleted};
+	}
+	print STDERR
+	    "Deleted redundant rules: $nd1 deny, $n1 permit, $na1 permit any\n";
     }
-    for my $rule (@expanded_rules) {
-	$n1++ if $rule->{deleted};
-    }
-    for my $rule (@expanded_any_rules) {
-	$na1++ if $rule->{deleted};
-    }
-    print STDERR
-	"Deleted redundant rules: $nd1 deny, $n1 permit, $na1 permit any\n";
 }
 
 # generate deny rules for any rules
@@ -2065,7 +2069,7 @@ if($verbose) {
     print STDERR "Generated $weak_deny_counter deny rules from 'any rules'\n";
 }
 
-print STDERR "Starting second optimization\n" if $verbose;
+print STDERR "Starting optimization\n" if $verbose;
 # Optimze rules for each security domain
 for my $router (values %routers) {
     next unless $router->{managed};
