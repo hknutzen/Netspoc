@@ -1,0 +1,157 @@
+#!/usr/bin/perl
+# find-ip
+#
+# Reads a list of IP addresses.
+# Prints information, how these addresses are related to
+# networks, hosts and interfaces of NetSPoC.
+#
+# Uses module Netspoc.pm,
+# a Network Security Policy Compiler
+# http://netspoc.berlios.de
+# (c) 2003 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+
+use strict;
+use warnings;
+use lib "/$ENV{HOME}/develop", "/usr/local/bin";
+use Netspoc;
+
+####################################################################
+# Argument processing
+####################################################################
+sub usage() {
+    die "Usage: $0 {in-file | in-directory} [ip-list]\n";
+}
+
+####################################################################
+# Argument to read_file; reads IP addresses
+# Each IP is stored as a anonymous hash, 
+# thus we can add additional attributes later
+####################################################################
+my @objects;
+sub read_ip_stream() {
+    my $ip = read_ip();
+    push @objects, { ip => $ip };
+}
+
+
+####################################################################
+# prepare efficient lookup of network objects
+####################################################################
+
+# a dummy network
+my $unknown = { name => '---UNKNOWN---' };
+my %mask_ip_hash;
+my %host_hash;
+sub prepare() {
+    for my $network (values %networks) {
+	next if $network->{ip} eq 'unnumbered';
+	next if $network->{disabled};
+	if(my $old_net = $mask_ip_hash{$network->{mask}}->{$network->{ip}}) {
+	    err_msg "$network->{name} and $old_net->{name} have identical ip/mask";
+	}
+	$mask_ip_hash{$network->{mask}}->{$network->{ip}} = $network;
+    }
+    for my $host (values %hosts) {
+	# hosts with multiple ip-addresses are represented as groups internally
+	if(defined $host->{elements}) {
+	    for my $sub_host (@{$host->{elements}}) {
+		$host_hash{$sub_host->{ip}} = $host;
+	    }
+	}
+	elsif(defined $host->{ip}) {
+	    $host_hash{$host->{ip}} = $host;
+	} elsif(defined $host->{range}) {
+	    my($ip1, $ip2) = @{$host->{range}};
+	    for(my $i=$ip1; $i<=$ip2; $i++) {
+		$host_hash{$i} = $host;
+	    }
+	} else {
+	    die "$host->{name} has neither IP nor range\n";
+	}
+    }
+    for my $interface (values %interfaces) {
+	next if $interface->{disabled};
+	my $ips = $interface->{ip};
+	next if $ips =~ /^unnumbered|short$/;
+	for my $ip (@$ips) {
+	    $host_hash{$ip} = $interface;
+	}
+    }
+}
+
+sub check_subnet( $ ) {
+    my $obj = shift;
+    my $ip = $obj->{ip};
+    my $mask = 2**32-1;
+    if(my $host = $host_hash{$ip}) {
+	$obj->{name} = $host->{name};
+    }
+    my $m = $mask;
+    my $i = $ip;
+    while($m) {
+	$i &= $m;
+	if($mask_ip_hash{$m}->{$i}) {
+	    my $net = $mask_ip_hash{$m}->{$i};
+	    push @{$net->{found}}, $obj;
+	    return;
+	}
+	$m <<= 1;
+    }
+    push @{$unknown->{found}}, $obj;
+}
+
+####################################################################
+# Main program
+####################################################################
+
+my $policy = shift @ARGV or usage;
+# read and process Netspoc policy
+&read_file_or_dir($policy);
+&link_topology();
+&mark_disabled();
+
+# read from file or STDIN
+my $file = shift || '-';
+# read a space separated list of ip addresses
+&read_file($file, \&read_ip_stream);
+# prepare efficient lookup of network objects from netspoc policy
+&prepare();
+
+# link ip addresses with network objects
+for my $obj (@objects) {
+    check_subnet $obj;
+}
+
+# print result
+for my $net (sort({ $a->{ip} <=> $b->{ip} } 
+		  grep
+		  {$_->{ip} ne 'unnumbered'}
+		  values %networks),
+	     $unknown) {
+    next unless $net->{found};
+    # networks, which contain ip addresses
+    print "$net->{name}\n";
+    for my $obj (@{$net->{found}}) {
+	print "\t";
+	print print_ip $obj->{ip};
+	# additionally print name of host or interface which has current IP address
+	print " $obj->{name}" if $obj->{name};
+	print "\n";
+    }
+}
+
