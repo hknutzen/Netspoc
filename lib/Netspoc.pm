@@ -2,7 +2,7 @@
 # Netspoc.pm
 # A Network Security Policy Compiler
 # http://netspoc.berlios.de
-# (c) 2003 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+# (c) 2004 by Heinz Knutzen <heinzknutzen@users.berlios.de>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -2577,26 +2577,22 @@ sub setpath() {
 	push @{$same_ip{$ip}}, $interface;
     }
     for my $aref (values %same_ip) {
-	if(@$aref == 1) {
-	    my $interface = $aref->[0];
-	    err_msg "Virtual IP: Missing second interface for ",
-	    "$interface->{name}";
-	} elsif(@$aref == 2) {
-	    my($i1, $i2) = @$aref;
-	    $i1->{network} eq $i2->{network} or
-		err_msg "Virtual IP: $i1->{name} and $i2->{name} ",
-		"are connected with different networks";
-	    $i1->{router}->{loop} and $i2->{router}->{loop} and
-	    $i1->{router}->{loop} eq $i2->{router}->{loop} or
-		err_msg "Virtual IP: $i1->{name} and $i2->{name} ",
-		"are part of different loops";
-	} else {
-	    my $ip = print_ip $aref->[0]->{virtual};
-	    my $num = @$aref;
-	    err_msg "Virtual IP $ip: currently only two interface ",
-	    "are supported, but $num are defined: ",
-	    join(", ", map {$_->{name}} @$aref);
-	}
+        my($i1, @rest) = @$aref;
+        if(@rest) {
+            my $network1 = $i1->{network};
+            my $loop1 = $i1->{router}->{loop};
+            for my $i2 (@rest) {
+                $network1 eq $i2->{network} or
+                    err_msg "Virtual IP: $i1->{name} and $i2->{name} ",
+                    "are connected to different networks";
+                $loop1 and $i2->{router}->{loop} and
+                    $loop1 eq $i2->{router}->{loop} or
+                    err_msg "Virtual IP: $i1->{name} and $i2->{name} ",
+                    "are part of different cyclic subgraphs";
+            } 
+        } else {
+            err_msg "Virtual IP: Missing second interface for $i1->{name}";
+        } 
     }
     
     # Check that interfaces with pathrestriction are located inside 
