@@ -1195,6 +1195,10 @@ my $anyrule_index = 0;
 # hash for ordering permit any rules; 
 # when sorted, they are added later to @expanded_any_rules
 my %ordered_any_rules;
+# hash for ordering all rules:
+# $rule_tree{$src}->[0]->{$dst}->[0]->{$action}->{$srv} = $rule;
+# see &add_rule for details
+my %rule_tree;
 
 sub expand_rules() {
     for my $rule (@rules) {
@@ -1353,9 +1357,10 @@ sub ge_srv( $$ ) {
 }
 
 # search for
-# weak_deny net1  host <-- drule
-# permit    any   host <-- arule
-# permit    host1 any  <-- rule
+# weak_deny net1  host2 <-- drule
+# permit    any3  host2 <-- arule
+# permit    host1 any2  <-- rule
+# with host1 < net1, any2 > host2
 sub check_deny_influence() {
     info "Checking for deny influence\n";
     for my $arule (@expanded_any_rules) {
@@ -1373,17 +1378,28 @@ sub check_deny_influence() {
 	    # the current weak_deny rule
 	    # ToDo: this may show false positives
 	    for my $host (@{$net->{hosts}}, @{$net->{interfaces}}) {
-		for my $rule (@{$host->{rules}}) {
-		    next if $rule->{deleted};
-		    next unless is_any $rule->{dst};
-		    next unless $rule->{i} > $arule->{i};
+		# search for rules with src = host and dst = any 'any' object
+		# in $rule_tree
+		next unless $rule_tree{$host};
+		# found subtree with src eq $host
+		for my $aref (values %{$rule_tree{$host}->[0]}) {
+		    my($action_hash, $dst) = @$aref;
+		    next unless is_any $dst;
+		    # found subtree with dst is some 'any' object
+		    for my $srv_hash (values %$action_hash) {
+			for my $rule (values %$srv_hash) {
+			    next if $rule->{deleted};
+			    next unless is_any $rule->{dst};
+			    next unless $rule->{i} > $arule->{i};
 #		    print STDERR "Got here:\n ",print_rule $drule,"\n ",
 #		    print_rule $arule,"\n ",
 #		    print_rule $rule,"\n";
-		    if(ge_srv($rule->{srv}, $drule->{srv})) {
-			warning "currently not implemented correctly:\n ",
-			print_rule($drule), "\n influences\n ",
-			print_rule($rule), "\n";
+			    if(ge_srv($rule->{srv}, $drule->{srv})) {
+				warning "currently not implemented correctly:\n ",
+				print_rule($drule), "\n influences\n ",
+				print_rule($rule), "\n";
+			    }
+			}
 		    }
 		}
 	    }
@@ -1649,16 +1665,19 @@ sub gen_any_src_deny( $$$ ) {
     # with another 'any' object as src
     return if $in_intf->{any} and $rule->{src_any_group}->{$in_intf->{any}};
 
-    for my $net (@{$in_intf->{networks}}) {
-	my $deny_rule = {src => $net,
-			 dst => $rule->{dst},
-			 srv => $rule->{srv},
-			 action => 'weak_deny'
+    my $dst = $rule->{dst};
+    my $srv = $rule->{srv};
+    my $action = 'weak_deny';
+    for my $src (@{$in_intf->{networks}}) {
+	my $deny_rule = {src => $src,
+			 dst => $dst,
+			 srv => $srv,
+			 action => $action
 		     };
 	# add generated rule to the current any-rule
 	push(@{$rule->{deny_rules}}, $deny_rule);
-	# add generated rule to src for later optimzation phase
-	push(@{$net->{rules}}, $deny_rule);
+	# add rule to rule tree
+	&add_rule($deny_rule);
 	# counter for verbosity
 	$weak_deny_counter++;
     }
@@ -1677,6 +1696,9 @@ sub gen_any_src_deny( $$$ ) {
 sub gen_any_dst_deny( $$$ ) {
     # in_intf points to src, out_intf to dst
     my ($rule, $in_intf, $out_intf) = @_;
+    my $src = $rule->{src};
+    my $srv = $rule->{srv};
+    my $action = 'weak_deny';
     # in_intf may be undefined if src is an interface and
     # we just process the corresponding router;
     my $router = $out_intf->{router};
@@ -1706,16 +1728,16 @@ sub gen_any_dst_deny( $$$ ) {
 	# with another 'any' object as dst
 	return if $intf->{any} and $rule->{dst_any_group}->{$intf->{any}};
 
-	for my $net (@{$intf->{networks}}) {
-	    my $deny_rule = {src => $rule->{src},
-			     dst => $net,
-			     srv => $rule->{srv},
-			     action => 'weak_deny'
+	for my $dst (@{$intf->{networks}}) {
+	    my $deny_rule = {src => $src,
+			     dst => $dst,
+			     srv => $srv,
+			     action => $action
 			 };
 	    # add generated rule to the current any-rule
 	    push(@{$rule->{deny_rules}}, $deny_rule);
-	    # add generated rule to src for later optimzation phase
-	    push(@{$deny_rule->{src}->{rules}}, $deny_rule);
+	    # add rule to rule tree
+	    &add_rule($deny_rule);
 	    # counter for verbosity
 	    $weak_deny_counter++;
 	}
@@ -1741,108 +1763,21 @@ sub gen_deny_rules() {
 # rules which are overlapped by a more general rule
 ##############################################################################
 
-# Prepare optimization of rules
-# link rules with the source network object of the rule
-sub prepare_optimization() {
-    info "Preparing optimization\n";
-    for my $rule (@expanded_deny_rules, @expanded_rules, @expanded_any_rules)
-    {
-	# weak deny rules are generated & added later
-	push(@{$rule->{src}->{rules}}, $rule);
-    }
-}
-
-# traverse rules and network objects top down, 
-# starting with a security domain its any-object
-sub addrule_border_any( $ ) {
-    my ($border) = @_;
-    my $any = $border->{any};
-    if($any) {
-	# add rule to dst object but remember that src was any
-	for my $rule (@{$any->{rules}}) {
-	    # \% : force autovivification
-	    &add_rule($rule,\%{$rule->{dst}->{src_any}});
-	}
-	# now, rules with identical src and dst
-	# are collected at the dst
-	# 1. optimize overlapping services
-	# 2. compare with other rules where src' = src and dst' > dst
-	for my $rule (@{$any->{rules}}) {
-	    unless($rule->{dst}->{src_any}->{isoptimized}) {
-		&optimize_rules($rule->{dst}, 'src_any');
-		# set 'isoptimized' to prevent a repeated optimization
-		# of rules having the same src and dst
-		$rule->{dst}->{src_any}->{isoptimized} = 1;
-	    }
-	}
-    }
-    # optimize rules having a network < any as src
-    for my $network (@{$border->{networks}}) {
-	&addrule_net($network);
-    }
-    if($any) {
-	# clear rules at dst object before optimization of next 'any' object
-	for my $rule (@{$any->{rules}}) {
-	    delete($rule->{dst}->{src_any});
-	}
-    }
-}
-
-sub addrule_net( $ ) {
-    my ($net) = @_;
-    for my $rule (@{$net->{rules}}) {
-	# \% : force autovivification
-	&add_rule($rule,\%{$rule->{dst}->{src_network}});
-    }
-    for my $rule (@{$net->{rules}}) {
-	unless($rule->{dst}->{src_network}->{isoptimized}) {
-	    &optimize_rules($rule->{dst}, 'src_network');
-	    $rule->{dst}->{src_network}->{isoptimized} = 1;
-	}
-    }
-    for my $host (@{$net->{hosts}}, @{$net->{interfaces}}) {
-	&addrule_host($host);
-    }
-    for my $rule (@{$net->{rules}}) {
-	delete($rule->{dst}->{src_network});
-    }
-}
-
-# this subroutine is applied to hosts as well as interfaces
-sub addrule_host( $ ) {
-    my ($host) = @_;
-
-    # first, add rules to dst host
-    for my $rule (@{$host->{rules}}) {
-	# \% : force autovivification
-	&add_rule($rule,\%{$rule->{dst}->{src_host}});
-    }
-    # second, optimize rules for each host, where rules were added
-    for my $rule (@{$host->{rules}}) {
-	unless($rule->{dst}->{src_host}->{isoptimized}) {
-	    &optimize_rules($rule->{dst}, 'src_host');
-	    $rule->{dst}->{src_host}->{isoptimized} = 1;
-	}
-    }
-    # clear rules before optimization of next host
-    for my $rule (@{$host->{rules}}) {
-	delete($rule->{dst}->{src_host});
-    }
-}    
-
-# Add rule to a group of rules with identical src and dst
-# and identical or different action and srv. 
+# Add rule to $rule_tree 
 # If a fully identical rule is already present, it is marked
 # as deleted and substituted by the new one.
-sub add_rule( $$ ) {
-    my ($rule, $srv_hash) = @_;
-    my $srv = $rule->{srv};
+sub add_rule( $ ) {
+    my ($rule) = @_;
     my $action = $rule->{action};
-    # We use the address of the srv object as a hash key here
-    my $old_rule = $srv_hash->{$action}->{$srv};
+    my $src = $rule->{src};
+    my $dst = $rule->{dst};
+    my $srv = $rule->{srv};
+    my $old_rule = $rule_tree{$src}->[0]->{$dst}->[0]->{$action}->{$srv};
     # found identical rule: delete first one
     $old_rule->{deleted} = 1 if $old_rule;
-    $srv_hash->{$action}->{$srv} = $rule;
+    $rule_tree{$src}->[1] = $src;
+    $rule_tree{$src}->[0]->{$dst}->[1] = $dst;
+    $rule_tree{$src}->[0]->{$dst}->[0]->{$action}->{$srv} = $rule;
 }
 
 # a rule may be deleted if we find a similar rule with greater or equal srv
@@ -1905,36 +1840,73 @@ sub optimize_action_rules( $$ ) {
 #          \       /
 #          host,host
 #
-sub optimize_rules( $$ ) {
-    my($dst, $src_tag) = @_;
-    my @src_tags;
-
-    if($src_tag eq 'src_host') {
-	@src_tags = ('src_host', 'src_network', 'src_any');
-    } elsif ($src_tag eq 'src_network') {
-	@src_tags = ('src_network', 'src_any');
-    } elsif ($src_tag eq 'src_any') {
-	@src_tags = ('src_any');
+# any > net > host
+sub optimize_dst_rules( $$ ) {
+    my($cmp_hash, $chg_hash) = @_;
+    return unless $cmp_hash and $chg_hash;
+    for my $aref (values %$chg_hash) {
+	my($next_hash, $dst) = @$aref;
+	my $cmp_dst;
+	my $any;
+	if(is_host($dst) or is_interface($dst)) {
+	    $cmp_dst = $cmp_hash->{$dst} and
+		&optimize_action_rules($cmp_dst->[0], $next_hash);
+	    $cmp_dst = $cmp_hash->{$dst->{network}} and
+		&optimize_action_rules($cmp_dst->[0], $next_hash);
+	    $any = $dst->{network}->{border}->{any} and
+		$cmp_dst = $cmp_hash->{$any} and
+		    &optimize_action_rules($cmp_dst->[0], $next_hash);
+	} elsif(is_net($dst)) {
+	    $cmp_dst = $cmp_hash->{$dst} and
+		&optimize_action_rules($cmp_dst->[0], $next_hash);
+	    $any = $dst->{border}->{any} and
+		$cmp_dst = $cmp_hash->{$any} and
+		&optimize_action_rules($cmp_dst->[0], $next_hash);
+	} elsif(is_any($dst)) {
+	    $cmp_dst = $cmp_hash->{$dst} and
+		&optimize_action_rules($cmp_dst->[0], $next_hash);
+	} else {
+	    die "internal in optimize_dst_rules: ",
+	    "a rule was applied to unsupported dst '$dst->{name}'";
+	}
     }
-    if(is_host($dst) or is_interface($dst)) {
-	for my $i (@src_tags) {
-	    &optimize_action_rules($dst->{$i}, $dst->{$src_tag});
-	    &optimize_action_rules($dst->{network}->{$i}, $dst->{$src_tag});
-	    &optimize_action_rules($dst->{network}->{border}->{any}->{$i}, 
-				$dst->{$src_tag});
+}
+    
+# any > net > host
+sub optimize_rules() {
+    for my $aref (values %rule_tree) {
+	my($next_hash, $src) = @$aref;
+	my $is_in;
+	my $any;
+	if(is_host($src) or is_interface($src)) {
+	    &optimize_dst_rules($next_hash, $next_hash);
+	    $is_in = $rule_tree{$src->{network}} and
+		&optimize_dst_rules($is_in->[0], $next_hash);
+	    $any = $src->{network}->{border}->{any} and
+	    $is_in = $rule_tree{$any} and 
+		&optimize_dst_rules($is_in->[0], $next_hash);
+	} elsif(is_net($src)) {
+	    &optimize_dst_rules($next_hash, $next_hash);
+	    $any = $src->{border}->{any} and
+	    $is_in = $rule_tree{$any} and
+		&optimize_dst_rules($is_in->[0], $next_hash);
+	} elsif(is_any($src)) {
+	    &optimize_dst_rules($next_hash, $next_hash);
+	} else {
+	    die "internal in optimize_rules: ", 
+	    "a rule was applied to unsupported dst '$src->{name}'";
 	}
-    } elsif(is_net($dst)) {
-	for my $i (@src_tags) {
-	    &optimize_action_rules($dst->{$i}, $dst->{$src_tag});
-	    &optimize_action_rules($dst->{border}->{any}->{$i}, 
-				$dst->{$src_tag});
-	}
-    } elsif(is_any($dst)) {
-	for my $i (@src_tags) {
-	    &optimize_action_rules($dst->{$i}, $dst->{$src_tag});
-	}
-    } else {
-	die "internal in optimize_rules: a rule was applied to unsupported dst '$dst->{name}'";
+    }
+}
+
+# Prepare optimization of rules
+# add rules to $rule_tree for efficent rule compare operations
+sub prepare_optimization() {
+    info "Preparing optimization\n";
+    # weak deny rules are generated & added later
+    for my $rule (@expanded_deny_rules, @expanded_rules, @expanded_any_rules)
+    {
+	&add_rule($rule);
     }
 }
 
@@ -1944,14 +1916,7 @@ my($nd1,$n1,$na1) = (0,0,0);
 
 sub extra_optimization() {
     info "Starting pre-optimization\n";
-    # Optimize rules for each security domain
-    for my $router (values %routers) {
-	next unless $router->{managed};
-	for my $interface (@{$router->{interfaces}}) {
-	    next if $interface eq $router->{to_border};
-	    &addrule_border_any($interface);
-	}
-    } 
+    &optimize_rules();
     if($verbose) {
 	for my $rule (@expanded_deny_rules) { $nd1++ if $rule->{deleted} }
 	for my $rule (@expanded_rules) { $n1++ if $rule->{deleted} }
@@ -1963,14 +1928,7 @@ sub extra_optimization() {
 
 sub optimization() {
     info "Starting optimization\n";
-    # Optimze rules for each security domain
-    for my $router (values %routers) {
-	next unless $router->{managed};
-	for my $interface (@{$router->{interfaces}}) {
-	    next if $interface eq $router->{to_border};
-	    &addrule_border_any($interface);
-	}
-    } 
+    &optimize_rules();
     if($verbose) {
 	my($n, $nd, $na, $nw) = (0,0,0,0);
 	for my $rule (@expanded_deny_rules) { $nd++ if $rule->{deleted}	}
