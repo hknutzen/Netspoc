@@ -1185,8 +1185,8 @@ sub prepare_srv_ordering( $ ) {
 	}
     }
     if($main_srv) {
-	# found duplicate service definition
-	# link $srv with $main_srv
+	# Found duplicate service definition.
+	# Link $srv with $main_srv.
 	# We link all duplicate services to the first service found.
 	# This assures that we always reach the main service
 	# from any duplicate service in one step via ->{main}
@@ -1278,7 +1278,7 @@ sub order_ranges( $$$ ) {
 		err_msg "Overlapping port ranges are not supported currently.\n",
 		" Workaround: Split one of $srv1->{name}, $srv2->{name} manually";
 	    } else {
-		internal_err "";
+		# port ranges are not related
 	    }
 	}
     }
@@ -1292,7 +1292,9 @@ sub order_services() {
 	$srv_hash{ip} = { type => 'ip', name => 'auto_srv:ip' };
     }
     my $up = $srv_ip = $srv_hash{ip};
-    order_ranges($srv_hash{established}, $srv_hash{established}, $up);
+    # established port ranges: link to enclosing ranges, but not to 'ip'
+    order_ranges($srv_hash{established}, $srv_hash{established}, undef);
+    # link remaining established to tcp ranges or to 'ip'
     order_ranges($srv_hash{established},  $srv_hash{tcp}, $up);
     order_ranges($srv_hash{tcp}, $srv_hash{tcp}, $up);
     order_ranges($srv_hash{udp}, $srv_hash{udp}, $up);
@@ -2531,7 +2533,72 @@ sub convert_any_rules() {
 }
 
 ##############################################################################
-# Mark and optimize rules at secondary filters
+# Generate reverse rules for stateless packet filters:
+# For each rule with protocol tcp, udp or ip we need a reverse rule
+# with swapped src, dst and src-port, dst-port.
+# For rules with an tcp service, the reverse rule gets a tcp service
+# with additional 'established` flag.
+##############################################################################
+
+my @reverse_rules;
+
+sub gen_reverse_rules() {
+    info "Generating reverse rules for stateless routers";
+    for my $rule (@expanded_deny_rules, @expanded_rules, @expanded_any_rules) {
+	next if $rule->{deleted};
+	my $srv = $rule->{srv};
+	my $type = $srv->{type};
+	next unless $type eq 'tcp' or $type eq 'udp' or $type eq 'ip';
+	my $has_stateless_router;
+	# Local function.
+	# It uses variable $has_stateless_router.
+	my $mark_reverse_rule = sub( $$$ ) {
+	    my ($rule, $src_intf, $dst_intf) = @_;
+	    # Destination of current rule is current router.
+	    # Outgoing packets from a router itself are never filtered.
+	    # Hence we don't need a reverse rule for current router.
+	    return if not $dst_intf;
+	    my $model = $dst_intf->{router}->{model};
+	    # Source of current rule is current router.
+	    if(not $src_intf) {
+		if($model->{stateless_self}) {
+		    $has_stateless_router = 1;
+		}
+	    }
+	    elsif(not $model->{stateful}) {
+		$has_stateless_router = 1;
+	    }
+	};
+	&path_walk($rule, $mark_reverse_rule, 'Router');
+	if($has_stateless_router) {
+	    my $new_srv = $srv;
+	    if($type eq 'tcp' or $type eq 'udp') {
+		my @ports = @{$srv->ports}[2,3,0,1];
+		my $key1 = $type eq 'tcp' ? 'established' : $type;
+		my $key2 = join ':', @ports;
+		if(my $srv = $srv_hash{$key1}->{$key2}) {
+		    $new_srv = $srv;
+		} else {
+		    $new_srv = { type => $type, 
+				 ports => [ @ports ],
+			     };
+		    if($type eq 'tcp') {
+			$new_srv->{established} = 1;
+		    }
+		}
+	    }
+	    my $new_rule = { src => $rule->{dst},
+			     dst => $rule->{src},
+			     srv => $new_srv,
+			     stateless => 1,
+			 };
+	    push @reverse_rules, $new_rule;
+	}
+    }
+}
+
+##############################################################################
+# Generate and optimize rules for secondary filters.
 # At secondary packet filters, packets are only checked for its 
 # src and dst networks, if there is a full packet filter on the path from
 # src to dst, were the original rule is checked.
@@ -2545,7 +2612,7 @@ sub gen_secondary_rules() {
     my %secondary_rule_tree;
     # Mark only normal rules for optimization.
     # We can't change a deny rule from e.g. tcp to ip.
-    # ToDo: Think about expanding this to 'any' rules
+    # ToDo: Think about applying this to 'any' rules
     for my $rule (@expanded_rules) {
 	next if $rule->{deleted};
 	my $has_secondary_filter;
@@ -3398,11 +3465,12 @@ sub iptables_srv_code( $ ) {
 }
 
 sub acl_line( $$$$$$$ ) {
-    my ($action, $src_ip, $src_mask, $dst_ip, $dst_mask, $srv, $filter_type) = @_;
+    my ($action, $src_ip, $src_mask, $dst_ip, $dst_mask, $srv, $model) = @_;
+    my $filter_type = $model->{filter};
     if($filter_type eq 'IOS' or $filter_type eq 'PIX') {
 	my $inv_mask = $filter_type eq 'IOS';
 	my ($proto_code, $src_port_code, $dst_port_code) =
-	    cisco_srv_code($srv, $filter_type);
+	    cisco_srv_code($srv, $model);
 	my $src_code = ios_code($src_ip, $src_mask, $inv_mask);
 	my $dst_code = ios_code($dst_ip, $dst_mask, $inv_mask);
 	"$action $proto_code $src_code $src_port_code $dst_code $dst_port_code\n";
@@ -3419,6 +3487,8 @@ sub acl_line( $$$$$$$ ) {
 
 sub collect_acls( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
+    # Outgoing packets from a router itself are never filtered.
+    return unless $src_intf;
     my $action = $rule->{action};
     my $src = $rule->{src};
     my $dst = $rule->{dst};
@@ -3427,7 +3497,7 @@ sub collect_acls( $$$ ) {
     # and leaves it via dst_intf 
     # src_intf is undefined if src is an interface of the current router
     # analogous for dst_intf 
-    my $router = ($src_intf || $dst_intf)->{router};
+    my $router = $dst_intf->{router};
     # Rules of type secondary are only applied to secondary routers.
     # Rules of type full are only applied to full filtering routers.
     if(my $type = $rule->{on_router}) {
@@ -3466,82 +3536,34 @@ sub collect_acls( $$$ ) {
     my $comment_char = $model->{comment_char};
     my @src_addr = &address($src);
     my @dst_addr = &address($dst);
-    my ($proto_code, $src_port_code, $dst_port_code) = &srv_code($srv, $model);
-    if(defined $src_intf) {
-	my $code_aref;
-	# Packets for the router itself
-	if(not defined $dst_intf) {
-	    # For PIX firewalls it is unnecessary to generate permit ACLs
-	    # for packets to the pix itself
-	    # because it accepts them anyway (telnet, IPSec)
-	    # ToDo: Check if this assumption holds for deny ACLs as well
-	    return if $model->{filter} eq 'PIX' and $action eq 'permit';
-	    $code_aref = \@{$router->{if_code}->{$src_intf->{hardware}}};
-	} else {
-	    # collect generated code at hardware interface,
-	    # not at logical interface
-	    $code_aref = \@{$router->{code}->{$src_intf->{hardware}}};
-	}
-	if($comment_acls) {
-	    push(@$code_aref, "$comment_char ". print_rule($rule)."\n");
-	}
-	while(@src_addr) {
-	    my $src_ip = shift @src_addr;
-	    my $src_mask = shift @src_addr;
-	    while(@dst_addr) {
-		my $dst_ip = shift @dst_addr;
-		my $dst_mask = shift @dst_addr;
-		push(@$code_aref, acl_line($action, $src_ip, $src_mask,
-					   $dst_ip, $dst_mask, $srv,
-					   $model->{filter}));
-	    }
-	}
-	# Code for stateless IOS: automatically permit return packets
-	# for TCP and UDP and IP (since IP implies both)
-	if(not $model->{stateful} and defined $dst_intf and
-	   ($srv->{type} =~ /^tcp|udp|ip$/ )) {
-	    $code_aref = \@{$router->{code}->{$dst_intf->{hardware}}};
-	    if($comment_acls) {
-		push @$code_aref,
-		     "$comment_char REVERSE: ". print_rule($rule)."\n";
-	    }
-	    my $established = '';
-	    if( $srv->{type} eq 'tcp') {
-		$established = 'established';
-		$dst_port_code = '';
-	    }
-	    for my $src_code (@src_code) {
-		for my $dst_code (@dst_code) {
-		    push(@$code_aref,
-			 "$action $proto_code $dst_code $dst_port_code $src_code $src_port_code $established\n");
-		}
-	    }
-	}
-    } elsif(defined $dst_intf) {
-	# src_intf is undefined: src is an interface of this router
-	# No filtering necessary for packets to PIX itself
+    my $code_aref;
+    # Packets for the router itself
+    if(not defined $dst_intf) {
+	# For PIX firewalls it is unnecessary to generate permit ACLs
+	# for packets to the pix itself
+	# because it accepts them anyway (telnet, IPSec)
+	# ToDo: Check if this assumption holds for deny ACLs as well
 	return if $model->{filter} eq 'PIX' and $action eq 'permit';
-	# For IOS only packets from dst back to this router are filtered
-	if($srv->{type} =~ /^tcp|udp|ip$/) {
-	    my $code_aref = \@{$router->{if_code}->{$dst_intf->{hardware}}};
-	    if($comment_acls) {
-		push(@$code_aref, "$comment_char REVERSE: ". print_rule($rule)."\n");
-	    }
-	    my $established = '';
-	    if( $srv->{type} eq 'tcp') {
-		$established = 'established';
-		# ToDo: this may generate duplicate lines for different services
-		$dst_port_code = '';
-	    }
-	    for my $src_code (@src_code) {
-		for my $dst_code (@dst_code) {
-		    push(@$code_aref,
-			 "$action $proto_code $dst_code $dst_port_code $src_code $src_port_code $established\n");
-		}
-	    }
-	}
+	$code_aref = \@{$router->{if_code}->{$src_intf->{hardware}}};
     } else {
-	internal_err "no interfaces for ", print_rule($rule);
+	# collect generated code at hardware interface,
+	# not at logical interface
+	$code_aref = \@{$router->{code}->{$src_intf->{hardware}}};
+    }
+    if($comment_acls) {
+	push(@$code_aref, "$comment_char ". print_rule($rule)."\n");
+    }
+    while(@src_addr) {
+	my $src_ip = shift @src_addr;
+	my $src_mask = shift @src_addr;
+	while(@dst_addr) {
+	    my $dst_ip = shift @dst_addr;
+	    my $dst_mask = shift @dst_addr;
+	    push(@$code_aref,
+		 acl_line($action,
+			  $src_ip, $src_mask, $dst_ip, $dst_mask, $srv,
+			  $model));
+	}
     }
 }
 
@@ -3719,7 +3741,7 @@ sub print_acls( $ ) {
 		print "$comment_char $hardware{$hardware}\n";
 	    }
 	    for my $line (@$if_code, @$code) {
-		if($line =~ /^\s*!/) {
+		if($line =~ /^\s*$comment_char/) {
 		    print $line;
 		} else {
 		    print "access-list $name $line";
@@ -3727,6 +3749,13 @@ sub print_acls( $ ) {
 	    }
 	    print "access-list $name deny ip any any\n";
 	    print "access-group $name in $hardware\n\n";
+	} elsif($model->{filter} eq 'iptables') {
+	    if($comment_acls) {
+		print "$comment_char $hardware{$hardware}\n";
+	    }
+	    for my $line (@$if_code, @$code) {
+		print $line;
+	    }
 	} else {
 	    internal_err "unsupported router filter type '$model->{filter}'";
 	}
