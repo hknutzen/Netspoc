@@ -279,7 +279,7 @@ sub read_host( $ ) {
     &skip('=');
     &skip('{');
     my $token = read_name();
-    my $host = new('Host', name => $name);
+    my $host = new('Host', name => "host:$name");
     if($token eq 'ip') {
 	&skip('=');
 	my @ip = &read_list(\&read_ip);
@@ -320,7 +320,7 @@ sub read_network( $ ) {
 	error_atline "network:$name's ip $ip_string doesn't match its mask $mask_string";
     }
     my $network = new('Network',
-		      name => $name,
+		      name => "network:$name",
 		      ip => $ip,
 		      mask => $mask,
 		      hosts => [],
@@ -336,7 +336,7 @@ sub read_network( $ ) {
 		my $ip_string = &print_ip($ip);
 		my $mask_string = &print_ip($mask);
 		my $host_ip_string = &print_ip($host_ip);
-		error_atline "host:$host->{name}'s ip $host_ip_string doesn't match net:$name's ip/mask $ip_string/$mask_string";
+		error_atline "$host->{name}'s ip $host_ip_string doesn't match net:$name's ip/mask $ip_string/$mask_string";
 	    }
 	}
 	$host->{net} = $network;
@@ -356,7 +356,7 @@ sub read_interface( $ ) {
     &skip('{');
     my $token = read_name();
     my $interface = new('Interface', 
-			name => $net,
+			# name will be set by caller
 			link => $net,
 			);
     my $ip;
@@ -390,7 +390,7 @@ sub set_pix_interface_level( $ ) {
 	    # ToDo: Check how security level is related to interface nr
 	    $level = $nr;
 	} else {
-	    err_msg "invalid hardware name for ". printable($interface);
+	    err_msg "invalid hardware name for $interface->{name}";
 	}
     }
     $interface->{level} = $level;
@@ -411,7 +411,7 @@ sub read_router( $ ) {
 	err_msg "Missing 'model' for managed router:$name";
     }
     my $router = new('Router',
-		     name => $name,
+		     name => "router:$name",
 		     managed => $managed,
 		     interfaces => {},
 		     );
@@ -421,10 +421,11 @@ sub read_router( $ ) {
 	my($type,$iname) = split_typed_name(read_name());
 	syntax_err "Illegal token" unless $type eq 'interface';
 	my $interface = &read_interface($iname);
+	$interface->{name} = "interface:$name.$iname";
 	if(my $old_interface = $router->{interfaces}->{$iname}) {
 	    my $ip_string = &print_ip($interface->{ip});
 	    my $old_ip_string = &print_ip($old_interface->{ip});
-	    error_atline "Redefining interface:$name.$interface->{name} from IP $old_ip_string to $ip_string";
+	    error_atline "Redefining $interface->{name} from IP $old_ip_string to $ip_string";
 	}
 	# assign interface to routers hash of interfaces
 	$router->{interfaces}->{$iname} = $interface;
@@ -432,7 +433,7 @@ sub read_router( $ ) {
 	$interface->{router} = $router;
 	# interface of managed router needs to have a hardware name
 	if($managed and not defined $interface->{hardware}) {
-	    err_msg("Missing 'hardware' for ". printable($interface));
+	    err_msg "Missing 'hardware' for $interface->{name}";
 	}
 	if($managed and $model eq 'PIX') {
 	    set_pix_interface_level($interface);
@@ -452,12 +453,13 @@ sub read_cloud( $ ) {
     my $name = shift;
     skip('=');
     skip('{');
-    my $cloud = new('Router', name => $name);
+    my $cloud = new('Router', name => "router:$name");
     while(1) {
 	last if &check('}');
 	my($type, $iname) = split_typed_name(read_name());
 	if ($type eq 'interface') {
 	    my $interface = &read_interface($iname);
+	    $interface->{name} = "interface:$name.$iname";
 	    if(my $old_interface = $cloud->{interfaces}->{$iname}) {
 		my $ip_string = &print_ip($interface->{ip});
 		my $old_ip_string = &print_ip($old_interface->{ip});
@@ -477,7 +479,7 @@ sub read_cloud( $ ) {
 		# implement link to cloud network as a special interface 
 		# without ip address 
 		my $interface = new('Interface',
-				    name => $link,
+				    name => "interface:$name.$link",
 				    ip => 'cloud',
 				    link => $link,
 				    router => $cloud
@@ -508,9 +510,9 @@ sub read_any( $ ) {
     skip('{');
     my $link = &read_assign('link', \&read_name);
     &skip('}');
-    my $any = new('Any', name => $name, link => $link);
+    my $any = new('Any', name => "any:$name", link => $link);
     if(my $old_any = $anys{$name}) {
-	error_atline "Redefining any:$name";
+	error_atline "Redefining $any->{name}";
     }
     $anys{$name} = $any;
 }
@@ -522,9 +524,9 @@ sub read_every( $ ) {
     skip('{');
     my $link = &read_assign('link', \&read_name);
     &skip('}');
-    my $every = new('Every', name => $name, link => $link);
+    my $every = new('Every', name => "every:$name", link => $link);
     if(my $old_every = $everys{$name}) {
-	error_atline "Redefining every:$name";
+	error_atline "Redefining $every->{name}";
     }
     $everys{$name} = $every;
 }
@@ -757,40 +759,12 @@ sub is_every( $ ) {
     return ref($obj) eq 'Every';
 }
 
-# give a readable name of a network object
-sub printable( $ ) {
-    my($obj) = @_;
-    my $out;
-    if(&is_net($obj)) {$out = 'network';}
-    elsif(&is_router($obj)) {$out = 'router';}
-    elsif(&is_interface($obj)) {
-	return "interface:$obj->{router}->{name}.$obj->{name}";}
-    elsif(&is_host($obj)) {$out = 'host';}
-    elsif(&is_any($obj)) {$out = 'any';}
-    elsif(&is_every($obj)) {$out = 'every';}
-    else {
-	if(ref $obj eq 'HASH' and exists $obj->{name}) {
-	    die "internal in printable: unknown object '$obj->{name}'";
-	} else {
-	    die "internal in printable: unknown object '$obj'";
-	}
-    }
-    return "$out:$obj->{name}";
-}
-
-sub print_srv( $ ) {
-    my($srv) = @_;
-    return "service:$srv->{name}";
-}
-
 sub print_rule( $ ) {
     my($rule) = @_;
+    my $srv = exists($rule->{orig_srv}) ? 'orig_srv' : 'srv';
     return $rule->{action} .
-	" src=".&printable($rule->{src}).
-	    "; dst=".&printable($rule->{dst}).
-		"; srv=". print_srv($rule->{orig_srv}?
-				    $rule->{orig_srv}:
-				    $rule->{srv}).";";
+	" src=$rule->{src}->{name}; dst=$rule->{dst}->{name}; " .
+		     "srv=$rule->{$srv}->{name};";
 }
 
 ##############################################################################
@@ -830,10 +804,8 @@ sub eliminate_overlapping_ranges( \@ ) {
 		# 2222222
 		#
 		# ToDo: Implement this function
-		my $name1 = print_srv $srv1;
-		my $name2 = print_srv $srv2;
 		err_msg "Overlapping port ranges are not supported currently.
-Workaround: Split one of $name1, $name2 manually";
+Workaround: Split one of $srv1->{name}, $srv2->{name} manually";
 	    }    
 	}
     }
@@ -1007,7 +979,7 @@ sub subst_name_with_ref_for_any_and_every() {
 	} elsif($type eq 'cloud') {
 	    $obj->{link} = $clouds{$name};
 	} else {
-	    err_msg "Illegally typed '$type:$name' in " . printable($obj);
+	    err_msg "Illegally typed '$type:$name' in $obj->{name}";
 	}
     }
 }
@@ -1018,8 +990,7 @@ sub link_interface_with_net( $ ) {
     my $net_name = $interface->{link};
     my $net = $networks{$net_name};
     unless($net) {
-	err_msg "Referencing unknown network:$net_name from " .
-	    printable($interface);
+	err_msg "Referencing unknown network:$net_name from $interface->{name}";
     }
     $interface->{link} = $net;
 
@@ -1030,16 +1001,14 @@ sub link_interface_with_net( $ ) {
 	# if it is linked already to a cloud 
 	# it must not be linked to any other interface
 	if($old_intf->{ip} eq 'cloud') {
-	    my $netname = printable $net;
-	    my $rname = printable($interface->{router});
-	    err_msg "Cloud $netname must not be linked to $rname";
+	    my $rname = $interface->{router}->{name};
+	    err_msg "Cloud $net->{name} must not be linked to $rname";
 	}
 	# if it is linked already to a router 
 	# it must not be linked to a cloud
 	if($is_cloud_intf) {
-	    my $netname = printable $net;
-	    my $rname = printable($old_intf->{router});
-	    err_msg "Cloud $netname must not be linked to $rname";
+	    my $rname = $old_intf->{router}->{name};
+	    err_msg "Cloud $net->{name} must not be linked to $rname";
 	}
     } 
 
@@ -1049,9 +1018,7 @@ sub link_interface_with_net( $ ) {
 	    my $ip = $net->{ip};
 	    my $mask = $net->{mask};
 	    if($ip != ($interface_ip & $mask)) {
-		my $iname = printable($interface);
-		my $netname = printable $net;
-		err_msg "${iname}'s ip doesn't match ${netname}'s ip/mask";
+		err_msg "$interface->{name}'s ip doesn't match $net->{name}'s ip/mask";
 	    }
 	}
     }
@@ -1170,8 +1137,7 @@ sub typeof( $ ) {
     } elsif(is_any($ob)) {
 	return 'any';
     } else {
-	die "internal in typeof: expected host|net|any but got ".
-	    printable($ob);
+	die "internal in typeof: expected host|net|any but got $ob->{name}";
     }
 }
 
@@ -1344,9 +1310,8 @@ sub setpath_router( $$$$ ) {
     my($router, $to_border, $border, $distance) = @_;
     # ToDo: operate correctly with loops
     if($router->{border}) {
-	err_msg "There is a loop at " .
-	    printable($router) .
-		". Loops are not supported in this version";
+	err_msg "There is a loop at $router->{name}. " .
+		"Loops are not supported in this version";
     }
     $router->{border} = $border;
     $router->{to_border} = $to_border;
@@ -1368,9 +1333,8 @@ sub setpath_network( $$$$ ) {
     my ($network, $to_border, $border, $distance) = @_;
     # ToDo: operate correctly with loops
     if($network->{border}) {
-	err_msg "There is a loop at " .
-	    printable($network) .
-	      ". Loops are not supported in this version";
+	err_msg "There is a loop at $network->{name}. " .
+	    "Loops are not supported in this version";
     }
     $network->{border} = $border;
     # add network to the corresponding border;
@@ -1392,13 +1356,11 @@ sub setpath_network( $$$$ ) {
 sub setpath_anys() {
     for my $any (values %anys) {
 	my $border = $any->{link}->{border} or
-	    err_msg "Found unconnected node: ". printable($any->{link});
+	    err_msg "Found unconnected node: $any->{link}->{name}";
 	$any->{border} = $border;
 	if(my $old_any = $border->{any}) {
-	    my $any1 = printable $old_any;
-	    my $any2 = printable $any;
 	    err_msg "More than one any object definied in a security domain: "
-		. "$any1 and $any2";
+		. "$old_any->{name} and $any->{name}";
 	}
 	$border->{any} = $any;
     }
@@ -1423,9 +1385,9 @@ sub get_border( $ ) {
     } elsif(&is_net($obj) or &is_any($obj)) {
 	$border = $obj->{border};
     } else {
-	die "internal in get_border: unexpected object " . &printable($obj);
+	die "internal in get_border: unexpected object $obj->{name}";
     }
-    $border or die "Found unconnected node: ". printable($obj);
+    $border or die "Found unconnected node: $obj->{name}";
     return $border;
 }
 
@@ -1859,8 +1821,7 @@ sub adr_code( $ ) {
     } elsif(&is_any($obj)) {
 	return 'any';
     } else {
-	my $name = printable($obj);
-	die "internal in adr_code: unsupported object '$name'";
+	die "internal in adr_code: unsupported object $obj->{name}";
     }
 }
 
@@ -1999,8 +1960,7 @@ sub gen_routes( $ ) {
 	my $hop = print_ip $interface->{ip}->[0];
 	for(my $i = 1; $i < @$routing; $i++) {
 	    if($comment_routes) {
-		print "! route ". printable($routing->[$i]) .
-		    " -> ". printable($interface) ."\n";
+		print "! route $routing->[$i]->{name} -> $interface->{name}\n";
 	    }
 	    my $adr = adr_code $routing->[$i];
 	    print "route $adr\t$hop\n";
@@ -2009,8 +1969,7 @@ sub gen_routes( $ ) {
     # Default route
     my $hop = print_ip $router->{default}->{ip}->[0];
     if($comment_routes) {
-	print "! route default -> ".
-	    printable($router->{default}) ."\n";
+	print "! route default -> $router->{default}->{name}\n";
     }
     print "route 0.0.0.0 0.0.0.0\t$hop\n";
 }
@@ -2095,8 +2054,7 @@ for my $router (values %routers) {
 }
 $router1 or die "Topology has no managed router"; 
 if($verbose) {
-    my $name = printable($router1);
-    print STDERR "Selected $name as 'router 1'\n";
+    print STDERR "Selected $router1->{name} as 'router 1'\n";
 }
 
 # Beginning with router1, do a traversal of the whole network 
