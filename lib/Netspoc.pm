@@ -3505,19 +3505,16 @@ sub collect_route( $$$ ) {
 #    $info .= $out_intf->{name} if $out_intf;
 #    info $info;;
     if($in_intf and $out_intf) {
-	my $from = $rule->{src};
-	my $to = $rule->{dst};
 	return unless $in_intf->{router}->{managed};
 	# Remember network which is reachable via $out_intf
-	for my $network (@{$rule->{dst_networks}}) {
-	    # ignore network, which was generated via get_networks from an interface
-	    next if $out_intf->{network} eq $network;
-#	    info "Route: $network->{name} via $out_intf->{name}";
-	    $in_intf->{routes}->{$out_intf}->{$network} = $network;
-	    # Store $out_intf itself, since we need to go back 
-	    # from hash key to original object later.
-	    $in_intf->{hop}->{$out_intf} = $out_intf;
-	}
+	my $network = $rule->{dst_network};
+	# ignore network, which was generated via get_networks from an interface
+	return if $out_intf->{network} eq $network;
+#       info "Route: $network->{name} via $out_intf->{name}";
+	$in_intf->{routes}->{$out_intf}->{$network} = $network;
+	# Store $out_intf itself, since we need to go back 
+	# from hash key to original object later.
+	$in_intf->{hop}->{$out_intf} = $out_intf;
     }
 }
 
@@ -3536,17 +3533,16 @@ sub mark_networks_for_static( $$$ ) {
     " from  $in_intf->{name} to $out_intf->{name},\n",
     " since they have equal security levels.\n"
 	if $in_intf->{level} == $out_intf->{level};
-    for my $dst (@{$rule->{dst_networks}}) {
-	next if $dst->{ip} eq 'unnumbered';
-	# Collect networks reachable from lower security level
-	# for generation of static commands.
-	# Put networks into a hash to prevent duplicates.
-	# We need in_ and out_intf for
-	# - their hardware names and for
-	# - getting the NAT domain
-	$out_intf->{static}->{$in_intf}->[0]->{$dst} = $dst;
-	$out_intf->{static}->{$in_intf}->[1] = $in_intf;
-    }
+    my $dst = $rule->{dst_network};
+    return if $dst->{ip} eq 'unnumbered';
+    # Collect networks reachable from lower security level
+    # for generation of static commands.
+    # Put networks into a hash to prevent duplicates.
+    # We need in_ and out_intf for
+    # - their hardware names and for
+    # - getting the NAT domain
+    $out_intf->{static}->{$in_intf}->[0]->{$dst} = $dst;
+    $out_intf->{static}->{$in_intf}->[1] = $in_intf;
 }
 
 sub find_active_routes_and_statics () {
@@ -3560,19 +3556,20 @@ sub find_active_routes_and_statics () {
 	# - We must preserve managed interfaces, since they may get routing
 	#   entries added.
 	my $from = get_path $src;
-	my $to = get_path $dst;
 #	info "$from->{name} -> $to->{name}";
-	if(my $pseudo_rule = $routing_tree{$from}->{$to}) {
-	    # 'any' objectes are expanded to all it's contained networks
-	    # hosts and interfaces expand to it's containing network
-	    push @{$pseudo_rule->{dst_networks}}, get_networks($dst);
-	} else {
-	    $pseudo_rule = { src => $from,
-			     dst => $to,
-			     action => '--',
-			     srv => $pseudo_srv,
-			     dst_networks => [ get_networks($dst) ]};
-	    $routing_tree{$from}->{$to} = $pseudo_rule;
+	# 'any' objectes are expanded to all it's contained networks
+	# hosts and interfaces expand to it's containing network
+	for my $network (get_networks($dst)) {
+	    my $to = is_interface $dst ? $dst : $network;
+	    unless($routing_tree{$from}->{$to}) {
+		my $pseudo_rule = { src => $from,
+				    dst => $to,
+				    action => '--',
+				    srv => $pseudo_srv,
+				    dst_network => $network
+				    };
+		$routing_tree{$from}->{$to} = $pseudo_rule;
+	    }
 	}
     };
     for my $rule (@expanded_rules, @expanded_any_rules) {
