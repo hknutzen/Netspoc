@@ -2141,26 +2141,29 @@ sub srv_code( $$ ) {
 }
 
 # find largest mask which encloses a given ip adress
-# Examples: 1->1/1, 2->2/2, 3->2/2, 4->4/4, 5->4/4, 6->4/4, 
-# 13->8/8, 96->64/64, 129->128/128, 234->128/128
+# Examples: 1->1/255, 2->2/254, 3->2/254, 4->4/252, 5->4/252, 6->4/252, 
+# 13->8/248, 96->64/192, 129->128/128, 234->128/128
+# Note: IP + Mask = 256 in our special case
 sub find_max_mask( $ ) {
     my($ip) = @_;
     return 0 if $ip == 0;
-    # set $m to 11110
-    my $m = ~1;
+    # set $i to 11110
+    my $i = ~1;
     # search the highest 1 bit in $ip
-    while($ip & $m) {
+    while($ip & $i) {
 	# fill with 0 from right
 	# 11100, 11000, ...
-	$m <<= 1;
+	$i <<= 1;
     }
     # 111000 -> 000111
-    $m = ~$m; 
+    $i = ~$i; 
     # 000111 -> 000011
-    $m >>= 1;
+    $i >>= 1;
     # 000011 -> 000100
-    $m += 1;
-    return $m;
+    my $m = $i;
+    $i += 1;
+    $m = ~$m;
+    return $i, $m;
 }
 
 sub collect_pix_static( $$$ ) {
@@ -2181,8 +2184,8 @@ sub collect_pix_static( $$$ ) {
     for my $net (@networks) {
 	my $ip = $net->{ip} or
 	    die "Pix doesn't support static command for IP 0.0.0.0\n";
-	my $m = find_max_mask $ip;
-	$dst_intf->{static}->{$src_intf->{hardware}}->{$m} = 1;
+	my($i, $m) = find_max_mask $ip;
+	$dst_intf->{static}->{$src_intf->{hardware}}->{$i} = $m;
     }
 }
 
@@ -2194,9 +2197,11 @@ sub gen_pix_static( $ ) {
 	next unless $static;
 	my $high = $interface->{hardware};
 	for my $low (keys %$static) {
-	    for my $m (sort keys %{$static->{$low}}) {
-		my $ip = print_ip $m;
-		print "static ($high,$low) $ip $ip netmask $ip\n";
+	    my $vals = $static->{$low};
+	    for my $i (sort keys %$vals) {
+		my $ip = print_ip $i;
+		my $mask = print_ip $vals->{$i};
+		print "static ($high,$low) $ip $ip netmask $mask\n";
 	    }
 	}
     }
