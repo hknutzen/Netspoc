@@ -75,21 +75,21 @@ sub add_line( $ ) {
 
 my $error_counter = 0;
 
+sub check_abort() {
+    if(++$error_counter >= $max_errors) {
+	die "Aborted after $error_counter errors\n";
+    }
+}
+    
 sub error_atline( $ ) {
     my($msg) = @_; 
-    if($error_counter++ > $max_errors) {
-	die add_line($msg);
-    } else {
-	print STDERR add_line($msg);
-    }
+    print STDERR add_line($msg);
+    check_abort();
 }
 
 sub err_msg( @ ) {
-    if($error_counter++ > $max_errors) {
-	die $@, "\n";
-    } else {
-	print STDERR @_, "\n";
-    }
+    print STDERR @_, "\n";
+    check_abort();
 }
 
 sub syntax_err( $ ) {
@@ -349,11 +349,8 @@ sub read_network( $ ) {
 	skip(';');
 	$mask = &read_assign('mask', \&read_ip);
 	# check if network ip matches mask
-	if($ip & ~$mask != 0) {
-	    my $ip_string = &print_ip($ip);
-	    my $mask_string = &print_ip($mask);
-	    error_atline "$network->{name}'s ip $ip_string " .
-		"doesn't match its mask $mask_string";
+	if(($ip & ~$mask) != 0) {
+	    error_atline "$network->{name}'s IP doesn't match its mask";
 	}
 	$network->{ip} = $ip;
 	$network->{mask} = $mask;
@@ -374,21 +371,15 @@ sub read_network( $ ) {
 	# check compatibility of host ip and network ip/mask
 	for my $host_ip  (@{$host->{ip}}) {
 	    if($ip != ($host_ip & $mask)) {
-		my $ip_string = &print_ip($ip);
-		my $mask_string = &print_ip($mask);
-		my $host_ip_string = &print_ip($host_ip);
-		error_atline "$host->{name}'s ip $host_ip_string doesn't match $network->{name}'s ip/mask $ip_string/$mask_string";
+		error_atline "$host->{name}'s IP doesn't match $network->{name}'s IP/mask";
 	    }
 	}
 	$host->{network} = $network;
 	push(@{$network->{hosts}}, $host);
     }
     &find_ip_ranges($network->{hosts}, $network);
-    if(my $old_net = $networks{$name}) {
-	my $ip_string = &print_ip($network->{ip});
-	my $old_ip_string = &print_ip($old_net->{ip});
-	error_atline "Redefining network:$name from " . 
-	    "$old_ip_string to $ip_string";
+    if($networks{$name}) {
+	error_atline "Redefining $network->{name}";
     }
     $networks{$name} = $network;
 }
@@ -479,7 +470,7 @@ sub read_router( $ ) {
 	my $interface = &read_interface($iname);
 	$iname = "$name.$iname";
 	$interface->{name} = "interface:$iname";
-	if(my $old_interface = $interfaces{$iname}) {
+	if($interfaces{$iname}) {
 	    error_atline "Redefining $interface->{name}";
 	    next;
 	}
@@ -500,7 +491,7 @@ sub read_router( $ ) {
 	    set_pix_interface_level($interface);
 	}
     }
-    if(my $old_router = $routers{$name}) {
+    if($routers{$name}) {
 	error_atline "Redefining $router->{name}";
     }
     $routers{$name} = $router;
@@ -514,7 +505,7 @@ sub read_any( $ ) {
     my $link = &read_assign('link', \&read_typed_name);
     &skip('}');
     my $any = new('Any', name => "any:$name", link => $link);
-    if(my $old_any = $anys{$name}) {
+    if($anys{$name}) {
 	error_atline "Redefining $any->{name}";
     }
     $anys{$name} = $any;
@@ -1021,8 +1012,8 @@ sub link_interface_with_net( $ ) {
 	    }
 	    my $mask = $net->{mask};
 	    if($net_ip != ($interface_ip & $mask)) {
-		err_msg "$interface->{name}'s ip doesn't match ",
-		"$net->{name}'s ip/mask";
+		err_msg "$interface->{name}'s IP doesn't match ",
+		"$net->{name}'s IP/mask";
 	    }
 	}
     }
@@ -1058,10 +1049,6 @@ my %name2object =
 # return a reference to an array of network objects
 sub expand_group( $$ ) {
     my($obref, $context) = @_;
-    if($obref eq 'recursive') {
-	err_msg "Found recursion in definition of $context";
-	return [];
-    }
     if(@$obref == 0 or ref $obref->[0]) {
 	# group has already been converted from names to references
 	return $obref;
@@ -1072,6 +1059,10 @@ sub expand_group( $$ ) {
 	my $object;
 	unless($object = $name2object{$type}->{$name}) {
 	    err_msg "Can't resolve reference to '$tname' in $context";
+	    next;
+	}
+	if($object eq 'recursive') {
+	    err_msg "Found recursion in definition of $context";
 	    next;
 	}
 	if(is_host $object or is_any $object) {
@@ -1155,11 +1146,11 @@ sub expand_services( $$ ) {
 	my $srv;
 	if($type eq 'service') {
 	    $srv = $services{$name} or
-		err_msg "Can't resolve reference to '$tname' in $context";
+		(err_msg "Can't resolve reference to '$tname' in $context", next);
 	    push @services, $srv;
 	} elsif ($type eq 'servicegroup') {
             my $aref = $servicegroups{$name} or
-	        err_msg "Can't resolve reference to '$tname' in $context";
+	        (err_msg "Can't resolve reference to '$tname' in $context", next);
 	    # detect recursive definitions
 	    $servicegroups{$name} = 'recursive';
 	    $aref = &expand_services($aref, $tname);
@@ -1193,8 +1184,11 @@ sub expand_rules() {
 	my $src_any_group = {};
 	my $dst_any_group = {};
 	my $action = $rule->{action};
-	for my $src (@{expand_group $rule->{src}, 'src of rule'}) {
-	    for my $dst (@{expand_group $rule->{dst}, 'dst of rule'}) {
+	$rule->{src} = expand_group $rule->{src}, 'src of rule';
+	$rule->{dst} = expand_group $rule->{dst}, 'dst of rule';
+	
+	for my $src (@{$rule->{src}}) {
+	    for my $dst (@{$rule->{dst}}) {
 		for my $srv (@{expand_services $rule->{srv}, 'rule'}) {
 		    my $expanded_rule = { action => $action,
 					  src => $src,
@@ -1446,7 +1440,7 @@ sub find_subnets() {
 	next if $network->{ip} eq 'unnumbered';
 	next if $network->{disabled};
 	if(my $old_net = $mask_ip_hash{$network->{mask}}->{$network->{ip}}) {
-	    err_msg "$network->{name} and $old_net->{name} have identical ip/mask\n";
+	    err_msg "$network->{name} and $old_net->{name} have identical ip/mask";
 	}
 	$mask_ip_hash{$network->{mask}}->{$network->{ip}} = $network;
     }
