@@ -266,6 +266,10 @@ sub read_ip() {
     }
 }
 
+sub gen_ip( $$$$ ) {
+    return unpack 'N', pack 'C4',@_;
+}
+
 # convert IP address from internal integer representation to
 # readable string
 sub print_ip( $ ) {
@@ -2565,21 +2569,24 @@ sub gen_reverse_rules() {
 	};
 	&path_walk($rule, $mark_reverse_rule, 'Router');
 	if($has_stateless_router) {
-	    my $new_srv = $srv;
+	    my $new_srv;
 	    if($type eq 'tcp' or $type eq 'udp') {
-		my @ports = @{$srv->ports}[2,3,0,1];
+		my @ports = @{$srv->{ports}}[2,3,0,1];
 		my $key1 = $type eq 'tcp' ? 'established' : $type;
 		my $key2 = join ':', @ports;
-		if(my $srv = $srv_hash{$key1}->{$key2}) {
-		    $new_srv = $srv;
+		if(my $found_srv = $srv_hash{$key1}->{$key2}) {
+		    $new_srv = $found_srv;
 		} else {
-		    $new_srv = { type => $type, 
-				 ports => [ @ports ],
-			     };
+		    (my $name = $srv->{name}) =~ s/^service:/reverse:/;
+		    $new_srv = { %$srv };
+		    $new_srv->{name} = $name;
+		    $new_srv->{ports} = [ @ports ];
 		    if($type eq 'tcp') {
 			$new_srv->{established} = 1;
 		    }
 		}
+	    } else {
+		$new_srv = $srv;
 	    }
 	    my $new_rule = { src => $rule->{dst},
 			     dst => $rule->{src},
@@ -3473,7 +3480,7 @@ sub acl_line( $$$$$$$ ) {
 	my $src_code = prefix_code($src_ip, $src_mask);
 	my $dst_code = prefix_code($dst_ip, $dst_mask);
 	my $action_code = $action eq 'permit' ? '-j ACCEPT' : '-j DROP';
-	"iptables $action_code $src_code $dst_code $srv_code\n";
+	"$action_code $src_code $dst_code $srv_code\n";
     } else {
 	internal_err "Unknown filter_type $filter_type";
     }
@@ -3660,6 +3667,13 @@ sub acl_generation() {
     }
 }
 
+# This service needs not to be ordered using prepare_srv_ordering,
+# since we only use it at code generation time.
+my $srv_ospf = { name => 'auto_srv:ospf',
+		 type => 'proto',
+		 v1 => 89
+		 };
+
 sub print_acls( $ ) {
     my($router) = @_;
     my $model = $router->{model};
@@ -3686,35 +3700,49 @@ sub print_acls( $ ) {
 	}
     }
     for my $hardware (sort keys %hardware) {
+	if($ospf{$hardware}) {
+	    my $code_aref = \@{$router->{if_code}->{$hardware}};
+	    if($comment_acls) {
+		push @$code_aref, "$comment_char OSPF\n";
+	    }
+	    push(@$code_aref,
+		 #  permit ip any host 224.0.0.5
+		 acl_line('permit',
+			  0,0,gen_ip(224,0,0,5),gen_ip(255,255,255,255),
+			  $srv_ip, $model));
+	    push(@$code_aref,
+		 #  permit ip any host 224.0.0.6
+		 acl_line('permit',
+			  0,0,gen_ip(224,0,0,6),gen_ip(255,255,255,255),
+			  $srv_ip, $model));
+	    # Permit OSPF packets from attached networks to this router.
+	    # We use the network address instead of the interface
+	    # addresses, because it is shorter if the interfcae has 
+	    # multiple addresses.
+	    for my $net (@{$ospf{$hardware}}) {
+		my ($ip, $mask) = address $net;
+		push(@$code_aref,
+		     #  permit ospf $net $net
+		     acl_line('permit',
+			      $ip, $mask, $ip, $mask, $srv_ospf, $model));
+	    }
+	}
+    }
+    for my $hardware (sort keys %hardware) {
 	my $name = "${hardware}_in";
 	my $code = $router->{code}->{$hardware};
 	my $if_code = $router->{if_code}->{$hardware};
 	# force auto-vivification
 	push @$code, ();
 	push @$if_code, ();
+	if($comment_acls) {
+	    print "$comment_char $hardware{$hardware}\n";
+	}
 	if($model->{filter} eq 'IOS') {
-	    if($comment_acls) {
-		print "$comment_char $hardware{$hardware}\n";
-	    }
 	    print "ip access-list extended $name\n";
+	    # First, ACLs where destination is one of this routers interfaces
 	    for my $line (@$if_code) {
 		print " $line";
-	    }
-	    if($ospf{$hardware}) {
-		if($comment_acls) {
-		    print " $comment_char OSPF\n";
-		}
-		print " permit ip any host 224.0.0.5\n";
-		print " permit ip any host 224.0.0.6\n";
-		# Permit OSPF packets from attached networks to this router.
-		# We use the network address instead of the interface
-		# addresses, because it is shorter if the interfcae has 
-		# multiple addresses.
-		for my $net (@{$ospf{$hardware}}) {
-		    # netmasks are inverted for IOS
-		    my $code = adr_code $net, 1;
-		    print " permit ospf $code $code\n";
-		}
 	    }
 	    if(@$code) {
 		if($comment_acls and @ip) {
@@ -3731,11 +3759,8 @@ sub print_acls( $ ) {
 	    print "interface $hardware\n";
 	    print " access group $name\n\n";
 	} elsif($model->{filter} eq 'PIX') {
-	    if($comment_acls) {
-		print "$comment_char $hardware{$hardware}\n";
-	    }
 	    for my $line (@$if_code, @$code) {
-		if($line =~ /^\s*$comment_char/) {
+		if($line =~ /^$comment_char/) {
 		    print $line;
 		} else {
 		    print "access-list $name $line";
@@ -3744,11 +3769,20 @@ sub print_acls( $ ) {
 	    print "access-list $name deny ip any any\n";
 	    print "access-group $name in $hardware\n\n";
 	} elsif($model->{filter} eq 'iptables') {
-	    if($comment_acls) {
-		print "$comment_char $hardware{$hardware}\n";
+	    my $if_name = "${hardware}_self";
+	    for my $line (@$if_code) {
+		if($line =~ /^$comment_char/) {
+		    print $line;
+		} else {
+		    print "iptables -A $if_name $line";
+		}
 	    }
-	    for my $line (@$if_code, @$code) {
-		print $line;
+	    for my $line (@$code) {
+		if($line =~ /^$comment_char/) {
+		    print $line;
+		} else {
+		    print "iptables -A $name $line";
+		}
 	    }
 	} else {
 	    internal_err "unsupported router filter type '$model->{filter}'";
