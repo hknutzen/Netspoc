@@ -2417,9 +2417,14 @@ sub set_natdomain( $$$ ) {
 	my $managed = $router->{managed};
 	my $nat_tag = $interface->{bind_nat};
 	for my $out_interface (@{$router->{interfaces}}) {
-	    no warnings "uninitialized";
-	    # This is true for incoming $interface as well.
-	    if($out_interface->{bind_nat} eq $nat_tag) {
+	    my $unchanged_nat_binding;
+	    {
+		no warnings "uninitialized";
+		# This is true for incoming $interface as well.
+		$unchanged_nat_binding =
+		    $out_interface->{bind_nat} eq $nat_tag;
+	    }
+	    if($unchanged_nat_binding) {
 		# $nat_map will be collected at nat domains, but is needed at
 		# logical and hardware interfaces of managed routers.
 		if($managed) {
@@ -2434,7 +2439,7 @@ sub set_natdomain( $$$ ) {
 		set_natdomain $out_interface->{network}, $domain,
 		$out_interface;
 	    } else {
-		# New nat domain behind this interface.
+		# New nat domain starts behind this interface.
 		push @{$domain->{interfaces}}, $interface;
 	    }
 		
@@ -2466,11 +2471,11 @@ sub distribute_nat1( $$$$ ) {
 	    }
 	}
     }
-    # Add tag at level depth.
+    # Add tag at level $depth.
     # Use a hash to prevent duplicate entries.
     $domain->{nat_info}->[$depth]->{$nat_tag} = $nat_tag;
     # Network which has translation with tag $nat_tag must not be located
-    # in area where this tag effective.
+    # in area where this tag is effective.
     for my $network (@{$domain->{networks}}) {
 	if($network->{nat} and $network->{nat}->{$nat_tag}) {
 	    err_msg "$network->{name} is translated by $nat_tag,\n",
@@ -2478,7 +2483,7 @@ sub distribute_nat1( $$$$ ) {
 	    " Probably $nat_tag was bound to wrong interface.";
 	}
     }
-    # Loop detection
+    # Activate loop detection.
     $domain->{active_path} = 1;
     for my $interface (@{$domain->{interfaces}}) {
 	next if $interface eq $in_interface;
