@@ -914,8 +914,10 @@ sub show_read_statistics() {
     info "Read $n services";
     $n = keys %servicegroups;
     info "Read $n service groups";
+    $n = keys %policies;
+    info "Read $n policies";
     $n = @rules;
-    info "Read $n rules";
+    info "Read $n rules" if $n;
 }
 
 ##############################################################################
