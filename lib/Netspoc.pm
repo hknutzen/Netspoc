@@ -811,11 +811,12 @@ sub print_rule( $ ) {
 # Try to convert hosts with successive IP addresses to an IP range
 ####################################################################
 
+# Find IP ranges in a list of sorted hosts
+# Call a function on each range
 sub process_ip_ranges( $$ ) {
     my($sorted, $fun) = @_;
-    # add a dummy host which doesn't match any range, 
-    # to simplify the code: we don't have to process any range
-    # after the loop has finished
+    # add a dummy host which doesn't match any range, to simplify the code: 
+    # we don't have to process any range after the loop has finished
     push @$sorted, {ip => 0 };
     my $start_range = 0;
     my $prev_ip = $sorted->[0]->{ip};
@@ -830,7 +831,7 @@ sub process_ip_ranges( $$ ) {
 	    # found a range with at least 2 elements
 	    if($start_range < $end_range) {
 		# This may be a range with all identical IP adresses.
-		# This is useful if we have multiple hosts with 
+		# This is useful if we have different hosts with 
 		# identical IP addresses
 		&$fun($sorted, $start_range, $end_range);
 	    }
@@ -843,11 +844,11 @@ sub process_ip_ranges( $$ ) {
     pop @$sorted;
 }
 
-# Called from read_network
+# Called from read_network.
 # Works on the hosts of a network.
 # Selects hosts, not ranges,
 # detects successive IP addresses and links them to an 
-# automatically generated IP range
+# anonymous hash which is used to collect IP ranges later.
 # ToDo:
 # - check if any of the existing ranges may be used
 # - augment existing ranges by hosts or other ranges
@@ -859,15 +860,10 @@ sub mark_ip_ranges( $ ) {
     @hosts = sort { $a->{ip} <=> $b->{ip} } @hosts;
     my $fun = sub {
 	my($aref, $start_range, $end_range) = @_;
-	my $begin = $aref->[$start_range]->{ip};
-	my $end = $aref->[$end_range]->{ip};
-	my $range = new('Host',
-			name => "auto_range:$aref->[$start_range]->{name}",
-			range => [ $begin, $end ],
-			network => $aref->[$start_range]->{network});
+	my $range_mark = {};
 	# mark hosts of range
 	for(my $j = $start_range; $j <= $end_range; $j++) {
-	    $aref->[$j]->{in_range} = $range;
+	    $aref->[$j]->{range_mark} = $range_mark;
 	}
     };
     process_ip_ranges \@hosts, $fun;
@@ -878,31 +874,40 @@ sub mark_ip_ranges( $ ) {
 # to an IP range
 sub gen_ip_ranges( $ ) {
     my($obref) = @_;
-    my @hosts_in_range = grep { is_host $_ and $_->{in_range} } @$obref;
+    my @hosts_in_range = grep { is_host $_ and $_->{range_mark} } @$obref;
     if(@hosts_in_range) {
 	my @objects = grep { not is_host $_ } @$obref;
 	# we want to have hosts and ranges together in generated code
-	my @hosts = grep { is_host $_ and not $_->{in_range} } @$obref;
+	my @hosts = grep { is_host $_ and not $_->{range_mark} } @$obref;
 	my %in_range;
 	# collect host belonging to one range
 	for my $host (@hosts_in_range) {
-	    my $range = $host->{in_range};
-	    push @{$in_range{$range}}, $host;
+	    my $range_mark = $host->{range_mark};
+	    push @{$in_range{$range_mark}}, $host;
 	}
 	for my $aref (values %in_range) {
 	    my $fun = sub {
 		my($aref, $start_range, $end_range) = @_;
 		my $begin = $aref->[$start_range]->{ip};
 		my $end = $aref->[$end_range]->{ip};
-		my $range = $aref->[$start_range]->{in_range};
-		my($ip1, $ip2) = @{$range->{range}};
-		if($begin == $ip1 and $end == $ip2) {
-		    # substitute first host with range
-		    $aref->[$start_range] = $range;
-		    # mark other hosts of range as deleted
-		    for(my $j = $start_range+1; $j <= $end_range; $j++) {
-			$aref->[$j] = undef;
-		    }
+		my $range_mark = $aref->[$start_range]->{range_mark};
+		my $range;
+		unless($range = $range_mark->{$begin}->{$end}) {
+		    (my $name = $aref->[$start_range]->{name}) =~
+			s/^.*:/auto_range:/;
+		    info "$name: ". print_ip($begin).",".print_ip($end)."\n";
+		    $range = 
+			new('Host',
+			    name => $name,
+			    range => [ $begin, $end ],
+			    network => $aref->[$start_range]->{network});
+		    $range_mark->{$begin}->{$end} = $range;
+		}
+		# substitute first host with range
+		$aref->[$start_range] = $range;
+		# mark other hosts of range as deleted
+		for(my $j = $start_range+1; $j <= $end_range; $j++) {
+		    $aref->[$j] = undef;
 		}
 	    };
 	    my @sorted = sort { $a->{ip} <=> $b->{ip} } @$aref;
