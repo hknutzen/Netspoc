@@ -60,7 +60,7 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 optimize_reverse_rules
 		 distribute_nat_info
 		 gen_reverse_rules
-		 gen_secondary_rules 
+		 mark_secondary_rules 
 		 order_any_rules
 		 repair_deny_influence 
 		 rules_distribution
@@ -3128,7 +3128,7 @@ sub gen_reverse_rules1 ( $ ) {
 	    if($proto eq 'tcp') {
 		$new_srv = $srv_tcp_established;
 	    } elsif($proto eq 'udp') {
-		# swap src and dst ports
+		# Swap src and dst ports.
 		my @ports =  @{$srv->{ports}}[2,3,0,1];
 		my $key1 = $proto;
 		my $key2 = join ':', @ports;
@@ -3144,12 +3144,12 @@ sub gen_reverse_rules1 ( $ ) {
 		src => $rule->{dst},
 		dst => $rule->{src},
 		srv => $new_srv,
-		# this rule must only be applied to stateless routers
+		# This rule must only be applied to stateless routers.
 		stateless => 1,
 		orig_rule => $rule};
 	    $new_rule->{any_are_neighbors} = 1 if $rule->{any_are_neighbors};
 	    &add_rule($new_rule);
-	    # don' push to @$rule_aref while we are iterating over it
+	    # Don't push to @$rule_aref while we are iterating over it.
 	    push @extra_rules, $new_rule;
 	}
     }
@@ -3164,29 +3164,21 @@ sub gen_reverse_rules() {
 }
 
 ##############################################################################
-# Generate and optimize rules for secondary filters.
+# Mark rules for secondary filters.
 # At secondary packet filters, packets are only checked for its 
 # src and dst networks, if there is a full packet filter on the path from
 # src to dst, were the original rule is checked.
 ##############################################################################
 
-my @secondary_rules;
+sub mark_secondary_rules() {
+    info "Marking rules for secondary optimization";
 
-sub gen_secondary_rules() {
-    info "Generating and optimizing rules for secondary routers";
-
-    my %secondary_rule_tree;
     # Mark only normal rules for optimization.
     # We can't change a deny rule from e.g. tcp to ip.
-    # ToDo: Think about applying this to 'any' rules
+    # We can't change 'any' rules, because path is unknown.
     for my $rule (@expanded_rules) {
 	next if $rule->{deleted} and
 	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
-	my $has_full_filter;
-	my $has_secondary_filter;
-	my $dst_is_secondary;
-	# Local function.
-	# It uses variables $has_secondary_filter and $has_full_filter.
 	my $mark_secondary_rule = sub( $$$ ) {
 	    my ($rule, $in_intf, $out_intf) = @_;
 	    my $router = ($in_intf || $out_intf)->{router};
@@ -3203,41 +3195,12 @@ sub gen_secondary_rules() {
 		# A full filter inside a loop doesn't count, because there might
 		# be another path without a full packet filter.
 		# But a full packet filter at loop entry or exit is sufficient.
-		# there might be another path, without a full packet filter
 		# ToDo: this could be analyzed in more detail
 		return if $in_intf->{in_loop} and $out_intf->{in_loop};
-		$has_full_filter = 1;
-	    } elsif($router->{managed} eq 'secondary') {
-		$has_secondary_filter = 1;
-		# Interface of current router is destination of rule.
-		if(not $out_intf) {
-		    $dst_is_secondary = 1;
-		}
+		$rule->{has_full_filter} = 1;
 	    }
 	};
-
 	&path_walk($rule, $mark_secondary_rule);
-	if($has_secondary_filter && $has_full_filter) {
-	    $rule->{for_router} = 'full';
-	    # get_networks has a single result if not called 
-	    # with an 'any' object as argument
-	    my $src = get_networks $rule->{src};
-	    my $dst = $rule->{dst};
-	    # ToDo: build two rules if there are two secondary routers
-	    $dst = get_networks $dst unless $dst_is_secondary;
-	    # nothing to do, if there is  an identical secondary rule
-	    unless($secondary_rule_tree{$src}->{$dst}) {
-		my $rule = {
-		    orig_rule => $rule,
-		    action => $rule->{action},
-		    src => $src,
-		    dst => $dst,
-		    srv => $srv_ip,
-		    for_router => 'secondary' };
-		$secondary_rule_tree{$src}->{$dst} = $rule;
-		push @secondary_rules, $rule;
-	    }
-	}
     }
 }
 
@@ -3424,7 +3387,7 @@ sub optimize_rules( $$ ) {
 }
 
 sub optimize() {
-    info "Optimization";
+    info "Global optimization";
     # Prepare data structures
     for my $network (values %networks) {
 	next if $network->{disabled} or $network->{up};
@@ -3441,8 +3404,7 @@ sub optimize() {
 	for my $rule (@expanded_any_rules) {
 	    $na++ if $rule->{deleted};
 	}
-	info "Deleted redundant rules:";
-	info " $nd deny, $n permit, $na permit any";
+	info "Deleted redundant rules: $nd deny, $n permit, $na permit any";
     }
 }
 
@@ -3877,12 +3839,6 @@ sub distribute_rule( $$$ ) {
     return unless $in_intf;
     my $router = $in_intf->{router};
     return unless $router->{managed};
-    # Rules of type secondary are only applied to secondary routers.
-    # Rules of type full are only applied to full filtering routers.
-    # All other rules are applied to all routers.
-    if(my $type = $rule->{for_router}) {
-	return unless $type eq $router->{managed};
-    }
     # Rules of type stateless must only be processed at stateless routers
     # or at routers which are stateless for packets destined for
     # their own interfaces.
@@ -3987,7 +3943,7 @@ sub rules_distribution() {
 	}
     }
     # Other permit rules
-    for my $rule (@expanded_rules, @secondary_rules) {
+    for my $rule (@expanded_rules) {
 	next if $rule->{deleted} and
 	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
 	&path_walk($rule, \&distribute_rule, 'Router');
@@ -4625,13 +4581,14 @@ sub local_optimization() {
 	    $object->{subnet_of} = $network;
 	}
     }
-    for my $rule (@expanded_any_rules, @expanded_rules, @secondary_rules) {
+    for my $rule (@expanded_any_rules, @expanded_rules) {
 	next if $rule->{deleted} and not $rule->{managed_intf};
 	$rule->{src} = $network_00 if is_any $rule->{src};
 	$rule->{dst} = $network_00 if is_any $rule->{dst};
     }
     for my $router (values %routers) {
 	next unless $router->{managed};
+ 	my $secondary_router = $router->{managed} eq 'secondary';
 	for my $hardware (@{$router->{hardware}}) {
 	    for my $rules ('intf_rules', 'rules') {
 		my %hash;
@@ -4667,6 +4624,25 @@ sub local_optimization() {
 			}
 			$src = $src->{subnet_of};
 		    }
+		    # Convert remaining rules to secondary rules, if possible.
+		    if($secondary_router && $rule->{has_full_filter}) {
+			# get_networks has a single result if not called 
+			# with an 'any' object as argument
+			$src = get_networks $rule->{src};
+			$dst = $rule->{dst};
+			unless(is_interface $dst && $dst->{router} eq $router) {
+			    $dst = get_networks $dst;
+			}
+			my $new_rule = {
+			    action => $rule->{action},
+			    src => $src,
+			    dst => $dst,
+			    srv => $srv_ip };
+			$hash{$src}->{$dst}->{$srv_ip} = $new_rule;
+			# This changes @{$hardware->{$rules}} !
+			$rule = $new_rule;
+		    }
+			
 		}
 		if($changed) {
 		    $hardware->{$rules} =
