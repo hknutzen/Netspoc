@@ -9,21 +9,21 @@
 use strict;
 use warnings;
 
-our $program = 'NETwork Security POlicy Compiler';
-our($version)= '$Revision$ ' =~ m/([0-9.]+)/;
+my $program = 'NETwork Security POlicy Compiler';
+my($version)= '$Revision$ ' =~ m/([0-9.]+)/;
 
 ####################################################################
 # Options
 ####################################################################
-our $verbose = 1;
-our $comment_acls = 1;
+my $verbose = 1;
+my $comment_acls = 1;
 
 ##############################################################################
 # Phase 1
 # Reading topology, Services, Groups, Rules
 ##############################################################################
 
-our $eof;
+my $eof;
 # $_ is used as input buffer, it holds the rest of the current input line
 sub skip_space_and_comment() {
     # ignore trailing whitespace and comments
@@ -60,7 +60,7 @@ sub add_line( $ ) {
     qq/$msg at line $.\n/;
 }
 
-our $error_counter = 0;
+my $error_counter = 0;
 
 sub error_atline( $ ) {
     my($msg) = @_; 
@@ -256,7 +256,7 @@ sub new( $@ ) {
     return bless($self, $type);
 }
 
-our %hosts;
+my %hosts;
 sub read_host( $ ) {
     my $name = shift;
     &skip('=');
@@ -288,7 +288,7 @@ sub read_host( $ ) {
     return $host;
 }
 
-our %networks;
+my %networks;
 sub read_network( $ ) {
     my $name = shift;
     skip('=');
@@ -357,7 +357,7 @@ sub read_interface( $ ) {
     return $interface;
 }
 
-our %routers;
+my %routers;
 sub read_router( $ ) {
     my $name = shift;
     skip('=');
@@ -401,7 +401,7 @@ sub read_router( $ ) {
 
 # very similar to router, but has no 'managed' setting and has additional 
 # definition part 'links' 
-our %clouds;
+my %clouds;
 sub read_cloud( $ ) {
     my $name = shift;
     skip('=');
@@ -451,7 +451,7 @@ sub read_cloud( $ ) {
     $clouds{$name} = $cloud;
 }
 
-our %anys;
+my %anys;
 sub read_any( $ ) {
     my $name = shift;
     skip('=');
@@ -465,7 +465,7 @@ sub read_any( $ ) {
     $anys{$name} = $any;
 }
 
-our %everys;
+my %everys;
 sub read_every( $ ) {
     my $name = shift;
     skip('=');
@@ -479,7 +479,7 @@ sub read_every( $ ) {
     $everys{$name} = $every;
 }
 
-our %groups;
+my %groups;
 sub read_group( $ ) {
     my $name = shift;
     skip('=');
@@ -490,7 +490,7 @@ sub read_group( $ ) {
     $groups{$name} = \@objects;
 }
 
-our %servicegroups;
+my %servicegroups;
 sub read_servicegroup( $ ) {
    my $name = shift;
     skip('=');
@@ -572,7 +572,7 @@ sub read_proto_nr() {
     }
 }
 
-our %services;
+my %services;
 sub read_service( $ ) {
     my $name = shift;
     my $srv = { name => $name };
@@ -602,7 +602,7 @@ sub read_service( $ ) {
     &prepare_srv_ordering($srv);
 }
 
-our @rules;
+my @rules;
 sub read_rules() {
     # read rules as long as another permit or deny keyword follows
     while(my $action = &check_permit_deny()) {
@@ -993,7 +993,7 @@ sub expand_object( $ ) {
 	# split up a router into its interfaces
 	return $ob->{interfaces};
     } elsif(is_every($ob)) {
-	# expand an 'every' object to all networks in the perimeter
+	# expand an 'every' object to all networks in its security domain
 	return $ob->{link}->{border}->{networks};
     } else {
 	# an atomic object
@@ -1002,16 +1002,13 @@ sub expand_object( $ ) {
 }
     
 # array of expanded permit rules
-our @expanded_rules;
+my @expanded_rules;
 # array of expanded deny rules
-our @expanded_deny_rules;
+my @expanded_deny_rules;
 # array of expanded any rules
-our @expanded_any_rules;
-# hash for ordering permit any rules; 
-# when sorted, they are added to @expanded_any_rules
-our %ordered_any_rules;
+my @expanded_any_rules;
 # counter for expanded permit any rules
-our $anyrule_index = 0;
+my $anyrule_index = 0;
 
 sub gen_expanded_rules( $$$$ ) {
     my($action, $src_aref, $dst_aref, $srv_aref) = @_;
@@ -1052,8 +1049,7 @@ sub expand_rule_srv( $$$$ ) {
 	    if($action eq 'deny') {
 		push(@expanded_deny_rules, $expanded_rule);
 	    } elsif(is_any($src) or is_any($dst)) {
-		&order_rules($expanded_rule,
-			     \%ordered_any_rules);
+		&order_rules($expanded_rule);
 	    } else {
 		push(@expanded_rules, $expanded_rule);
 	    }
@@ -1106,11 +1102,15 @@ sub order_rule_src ( $$ ) {
     order_rule_dst($rule, \%{$hash->{$id}});
 }    
 
-sub order_rules ( $$ ) {
-    my($rule, $hash) = @_;
+# hash for ordering permit any rules; 
+# when sorted, they are added later to @expanded_any_rules
+my %ordered_any_rules;
+
+sub order_rules ( $ ) {
+    my($rule) = @_;
     my $srv = $rule->{srv};
     my $depth = $srv->{depth};
-    order_rule_src($rule, \%{$hash->{$depth}});
+    order_rule_src($rule, \%{$ordered_any_rules{$depth}});
 }
 
 # add all rules with matching srcid and dstid to expanded_any_rules
@@ -1138,10 +1138,9 @@ sub addrule_ordered_src_dst( $ ) {
     add_rule_2hash($hash, 'any','any');
 }
 
-sub addrule_ordered_srv( $ ) {
-    my($hash) = @_;
-    for my $depth (reverse sort keys %$hash) {
-	addrule_ordered_src_dst($hash->{$depth});
+sub add_ordered_any_rules() {
+    for my $depth (reverse sort keys %ordered_any_rules) {
+	addrule_ordered_src_dst($ordered_any_rules{$depth});
     }
 }
 
@@ -1244,14 +1243,17 @@ sub setpath_network( $$$$ ) {
     }
 }
 
-# link each 'any object' with its correspnding border and vice versa
+# link each 'any object' with its corresponding border and vice versa
 sub setpath_anys() {
     for my $any (values %anys) {
 	my $border = $any->{link}->{border} or
 	    err_msg "Found unconnected node: ". printable($any->{link});
 	$any->{border} = $border;
 	if(my $old_any = $border->{any}) {
-	    err_msg "More than one any object definied in a perimeter: any:$old_any->{name} and any:$any->{name}";
+	    my $any1 = printable $old_any;
+	    my $any2 = printable $any;
+	    err_msg "More than one any object definied in a security domain: "
+		. "$any1 and $any2";
 	}
 	$border->{any} = $any;
     }
@@ -1360,7 +1362,7 @@ sub path_walk($&) {
 # Automatically insert deny rules at intermediate paths.
 ##############################################################################
 
-our $weak_deny_counter = 0;
+my $weak_deny_counter = 0;
 
 #     N4-\
 # any-R1-N1-R2-dst
@@ -1427,7 +1429,7 @@ sub gen_any_dst_deny( $$$ ) {
 
 	# nothing to do for in_intf:
 	# case 1: it is the first router near src
-	# case 2: the in_intf is on the same perimeter
+	# case 2: the in_intf is on the same security domain
 	# as an out_intf of some other router on the path
 	next if defined $in_intf and $intf eq $in_intf;
 
@@ -1462,7 +1464,7 @@ sub gen_any_dst_deny( $$$ ) {
 ##############################################################################
 
 # traverse rules and network objects top down, 
-# beginning with a perimeter
+# starting with a security domain its any-object
 sub addrule_border_any( $ ) {
     my ($border) = @_;
     my $any = $border->{any};
@@ -1839,7 +1841,7 @@ for my $router (values %routers, values %clouds) {
 }
 
 # take a random managed element from %routers, name it "router1"
-our $router1;
+my $router1;
 for my $router (values %routers) {
     if($router->{managed}) {
 	$router1 = $router;
@@ -1862,8 +1864,8 @@ for my $rule (@rules) {
     &gen_expanded_rules($rule->{action},
 			$rule->{src}, $rule->{dst}, $rule->{srv});
 }
-# add sorted any rules to @expanded_rules
-&addrule_ordered_srv(\%ordered_any_rules);
+# add sorted any rules to @expanded_any_rules
+&add_ordered_any_rules();
 if($verbose) {
     my $nd = 0+@expanded_deny_rules;
     my $n  = 0+@expanded_rules;
@@ -1883,7 +1885,7 @@ for my $rule (@expanded_deny_rules, @expanded_rules, @expanded_any_rules) {
 }
 
 print STDERR "Starting first optimization\n" if $verbose;
-# Optimze rules for each particular perimeter
+# Optimize rules for each security domain
 for my $router (values %routers) {
     next unless $router->{managed};
     for my $interface (@{$router->{interfaces}}) {
@@ -1891,8 +1893,8 @@ for my $router (values %routers) {
 	&addrule_border_any($interface);
     }
 } 
+my($nd1,$n1,$na1) = (0,0,0);
 if($verbose) {
-    our($nd1,$n1,$na1) = (0,0,0);
     for my $rule (@expanded_deny_rules) {
 	$nd1++ if $rule->{deleted};
     }
@@ -1920,7 +1922,7 @@ if($verbose) {
 }
 
 print STDERR "Starting second optimization\n" if $verbose;
-# Optimze rules for each particular perimeter
+# Optimze rules for each security domain
 for my $router (values %routers) {
     next unless $router->{managed};
     for my $interface (@{$router->{interfaces}}) {
@@ -1944,7 +1946,6 @@ if($verbose) {
 	    }
 	}
     }
-    our($nd1,$n1,$na1);
     $nd -= $nd1;
     $n -= $n1;
     $na -= $na1;
