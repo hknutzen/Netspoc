@@ -816,20 +816,23 @@ sub read_interface( $$ ) {
 # It is not necessary the find the exact level; what we need to know
 # is the relation of the security levels to each other.
 sub set_pix_interface_level( $ ) {
-    my($interface) = @_;
-    my $hwname = $interface->{hardware}->{name};
-    my $level;
-    if($hwname eq 'inside') {
-	$level = 100;
-    } elsif($hwname eq 'outside') {
-	$level = 0;
-    } else {
-	unless(($level) = ($hwname =~ /(\d+)$/) and
-	       0 < $level and $level < 100) {
-	    err_msg "Can't derive PIX security level from $interface->{name}";
+    my($router) = @_;
+    for my $hardware (@{$router->{hardware}}) {
+	my $hwname = $hardware->{name};
+	my $level;
+	if($hwname eq 'inside') {
+	    $level = 100;
+	} elsif($hwname eq 'outside') {
+	    $level = 0;
+	} else {
+	    unless(($level) = ($hwname =~ /(\d+)$/) and
+		   0 < $level and $level < 100) {
+		err_msg "Can't derive PIX security level for ",
+		"$hardware->{interfaces}->[0]->{name}";
+	    }
 	}
+	$hardware->{level} = $level;
     }
-    $interface->{level} = $level;
 }
 
 our %routers;
@@ -883,52 +886,55 @@ sub read_router( $ ) {
 	    $interface->{router} = $router;
 	}
     }
-    # Create objects representing hardware interfaces.
-    # All logical interfaces using the same hardware are linked
-    # to the same hardware object.
-    my %hardware;
-    for my $interface (@{$router->{interfaces}}) {
-	if(my $hw_name = $interface->{hardware}) {
-	    my $hardware;
-	    if($hardware = $hardware{$hw_name}) {
-		no warnings "uninitialized";
-		# All logical interfaces of one hardware interface
-		# need to use the same nat binding,
-		# because NAT operates on hardware, not on logic.
-		$interface->{bind_nat} eq $hardware->{bind_nat} or
-		    err_msg "All interfaces of $router->{name} ",
-		    "must use identical NAT binding";
+    # Detailed interface processing for managed routers.
+    if($router->{managed}) {
+	unless($router->{model}) {
+	    # Prevent further errors.
+	    $router->{model} = {};
+	    err_msg "Missing 'model' for managed router:$name";
+	}
+	# Create objects representing hardware interfaces.
+	# All logical interfaces using the same hardware are linked
+	# to the same hardware object.
+	my %hardware;
+	for my $interface (@{$router->{interfaces}}) {
+	    if(my $hw_name = $interface->{hardware}) {
+		my $hardware;
+		if($hardware = $hardware{$hw_name}) {
+		    no warnings "uninitialized";
+		    # All logical interfaces of one hardware interface
+		    # need to use the same nat binding,
+		    # because NAT operates on hardware, not on logic.
+		    $interface->{bind_nat} eq $hardware->{bind_nat} or
+			err_msg "All interfaces of $router->{name} ",
+			"must use identical NAT binding";
+		} else {
+		    $hardware = { name => $hw_name };
+		    $hardware{$hw_name} = $hardware;
+		    push @{$router->{hardware}}, $hardware;
+		    if(my $nat = $interface->{bind_nat}) {
+			$hardware->{bind_nat} = $nat;
+		    }
+		}
+		$interface->{hardware} = $hardware;
+		# Remember, which logical interfaces are bound
+		# to which hardware.
+		push @{$hardware->{interfaces}}, $interface;
 	    } else {
-		$hardware = { name => $hw_name };
-		$hardware{$hw_name} = $hardware;
-		push @{$router->{hardware}}, $hardware;
-		if(my $nat = $interface->{bind_nat}) {
-		    $hardware->{bind_nat} = $nat;
+		# Managed router must not have short interface.
+		if($interface->{ip} eq 'short') {
+		    err_msg "Short definition of $interface->{name} ",
+		    "not allowed";
+		} else {
+		    # Interface of managed router needs to
+		    # have a hardware name.
+		    err_msg "Missing 'hardware' for $interface->{name}";
 		}
 	    }
-	    $interface->{hardware} = $hardware;
-	    # Remember, which logical interfaces are bound
-	    # to which hardware.
-	    push @{$hardware->{interfaces}}, $interface;
-	} else {
-	    if($router->{managed}) {
-		# Interface of managed router needs to
-		# have a hardware name.
-		err_msg "Missing 'hardware' for $interface->{name}";
-	    }
 	}
-	if($router->{managed} and
-	   $router->{model}->{has_interface_level}) {
-	    set_pix_interface_level($interface);
+	if($router->{model}->{has_interface_level}) {
+	    set_pix_interface_level($router);
 	}
-	# Managed router must not have short interface.
-	if($router->{managed} and $interface->{ip} eq 'short') {
-	    err_msg "Short definition of $interface->{name} ",
-	    "not allowed";
-	}
-    }
-    if($router->{managed} and not $router->{model}) {
-	err_msg "Missing 'model' for managed router:$name";
     }
     if($routers{$name}) {
 	error_atline "Redefining $router->{name}";
@@ -3371,10 +3377,13 @@ sub distribute_nat_info() {
 	    }
 	}
     }
-    # {nat_info} was collected at networks, but is needed at interfaces
+    # {nat_info} was collected at networks, but is needed at
+    # logical and hardware interfaces of managed routers
     for my $router (values %routers) {
+	next unless $router->{managed};
 	for my $interface (@{$router->{interfaces}}) {
-	    $interface->{nat_info} = $interface->{network}->{nat_info};
+	    $interface->{nat_info} = $interface->{hardware}->{nat_info} =
+		$interface->{network}->{nat_info};
 	}
     }
     for my $name (keys %nat_definitions) {
@@ -3717,12 +3726,15 @@ sub check_duplicate_routes () {
 		for my $network (values %{$interface->{routes}->{$hop}}) {
 		    if(my $interface2 = $net2intf{$network}) {
 			if($interface2 ne $interface) {
-			    # Network is reached via two different local interfaces.
+			    # Network is reached via two different
+			    # local interfaces.
 			    # Check if both have dynamic routing enabled.
 			    unless($interface->{routing} and
 				   $interface2->{routing}) {
-				warning "Two static routes for $network->{name}\n",
-				" via $interface->{name} and $interface2->{name}";
+				warning
+				    "Two static routes for $network->{name}\n",
+				    " via $interface->{name} and ",
+				    "$interface2->{name}";
 			    }
 			}
 		    } else {
@@ -3734,8 +3746,9 @@ sub check_duplicate_routes () {
 			    # Check if both are reached via the same virtual IP.
 			    unless($hop->{virtual} and $hop2->{virtual} and
 				   $hop->{virtual} eq $hop2->{virtual}) {
-				warning "Two static routes for $network->{name} ",
-				"at $interface->{name}";
+				warning
+				    "Two static routes for $network->{name}\n",
+				    " at $interface->{name}";
 			    }
 			} else {
 			    $net2hop{$network} = $hop;
@@ -3746,6 +3759,7 @@ sub check_duplicate_routes () {
 	}
     }
 }
+
 sub mark_networks_for_static( $$$ ) {
     my($rule, $in_intf, $out_intf) = @_;
     # no static needed for directly attached interface
@@ -3755,22 +3769,22 @@ sub mark_networks_for_static( $$$ ) {
     return unless $router->{model}->{has_interface_level};
     # no static needed for traffic coming from the PIX itself
     return unless $in_intf;
+    my $in_hw = $in_intf->{hardware};
+    my $out_hw = $out_intf->{hardware};
     # no static needed for traffic from higher to lower security level
-    return if $in_intf->{level} > $out_intf->{level};
+    return if $in_hw->{level} > $out_hw->{level};
     err_msg "Traffic to $rule->{dst}->{name} can't pass\n",
     " from  $in_intf->{name} to $out_intf->{name},\n",
-    " since they have equal security levels.\n"
-	if $in_intf->{level} == $out_intf->{level};
+    " because they have equal security levels.\n"
+	if $in_hw->{level} == $out_hw->{level};
     my $dst = $rule->{dst_network};
     return if $dst->{ip} eq 'unnumbered';
-    # Collect networks reachable from lower security level
-    # for generation of static commands.
+    # Collect networks for generation of static commands.
     # Put networks into a hash to prevent duplicates.
-    # We need in_ and out_intf for
-    # - their hardware names and for
+    # We need in_hw and out_hw for
+    # - their names and for
     # - getting the NAT domain
-    $out_intf->{static}->{$in_intf}->[0]->{$dst} = $dst;
-    $out_intf->{static}->{$in_intf}->[1] = $in_intf;
+    $out_hw->{static}->{$in_hw}->{$dst} = $dst;
 }
 
 sub find_active_routes_and_statics () {
@@ -3825,6 +3839,7 @@ my $network_00 = new('Network', name => "network:0/0", ip => 0, mask => 0);
 
 sub print_routes( $ ) {
     my($router) = @_;
+    my $type = $router->{model}->{routing};
     if($auto_default_route) {
 	# find interface and hop with largest number of routing entries
 	my $max_intf;
@@ -3866,7 +3881,7 @@ sub print_routes( $ ) {
 	    } 
 	    next;
 	}
-	my $nat_domain = $interface->{nat_info};
+	my $nat_info = $interface->{nat_info};
 	# Sort interfaces by name to make output deterministic
 	for my $hop (sort { $a->{name} cmp $b->{name} }
 			 values %{$interface->{hop}}) {
@@ -3894,18 +3909,21 @@ sub print_routes( $ ) {
 		if($comment_routes) {
 		    print "! route $network->{name} -> $hop->{name}\n";
 		}
-		if($router->{model}->{routing} eq 'IOS') {
-		    my $adr = &ios_route_code(&address($network, $nat_domain, 'src'));
+		if($type eq 'IOS') {
+		    my $adr =
+			&ios_route_code(&address($network, $nat_info, 'src'));
 		    print "ip route $adr\t$hop_addr\n";
-		} elsif($router->{model}->{routing} eq 'PIX') {
-		    my $adr = &ios_route_code(&address($network, $nat_domain, 'src'));
+		} elsif($type eq 'PIX') {
+		    my $adr =
+			&ios_route_code(&address($network, $nat_info, 'src'));
 		    print "route $interface->{hardware}->{name} $adr\t$hop_addr\n";
-		} elsif($router->{model}->{routing} eq 'iproute') {
-		    my $adr = &prefix_code(&address($network, $nat_domain, 'src'));
+		} elsif($type eq 'iproute') {
+		    my $adr =
+			&prefix_code(&address($network, $nat_info, 'src'));
 		    print "ip route add $adr via $hop_addr\n";
 		} else {
 		    internal_err
-			"unexpected routing type $router->{model}->{routing}";
+			"unexpected routing type '$type'";
 		}
 	    }
 	}
@@ -3918,43 +3936,49 @@ sub print_routes( $ ) {
 
 sub print_pix_static( $ ) {
     my($router) = @_;
-    return unless $router->{model}->{has_interface_level};
+    my %ref2hw;
     print "[ Static ]\n";
-    # print security level relation for each interface
+    # Print security level relation for each interface.
     print "! Security levels: ";
     my $prev_level;
-    for my $interface (sort { $a->{level} <=> $b->{level} }
-		       @{$router->{interfaces}} ) {
-	my $level = $interface->{level};
+    for my $hardware (sort { $a->{level} <=> $b->{level} }
+		      @{$router->{hardware}} ) {
+	# For getting reference back from key.
+	$ref2hw{$hardware} = $hardware;
+	my $level = $hardware->{level};
 	if(defined $prev_level) {
 	    print(($prev_level == $level)? " = ": " < ");
 	}
-	print $interface->{hardware}->{name};
+	print $hardware->{name};
 	$prev_level = $level;
     }
     print "\n";
     	       
     my $nat_index = 1;
-    for my $out_intf (sort { $a->{hardware}->{name} cmp $b->{hardware}->{name} }
-		      @{$router->{interfaces}}) {
-	next unless $out_intf->{static};
-	my $out_hw = $out_intf->{hardware}->{name};
-	my $out_nat = $out_intf->{nat_info};
-	# values are [ { net => net, .. }, in_intf ]
-	for my $aref (sort { $a->[1]->{hardware}->{name} cmp
-				 $b->[1]->{hardware}->{name} }
-		      values %{$out_intf->{static}}) {
-	    my($net_hash, $in_intf) = @$aref;
-	    my $in_hw = $in_intf->{hardware}->{name};
-	    my $in_nat = $in_intf->{nat_info};
+    for my $out_hw (sort { $a->{level} <=> $b->{level} }
+		      @{$router->{hardware}}) {
+	next unless $out_hw->{static};
+	my $out_name = $out_hw->{name};
+	my $out_nat = $out_hw->{nat_info};
+	for my $in_hw (sort { $a->{level} <=> $b->{level} }
+		       map { $ref2hw{$_} }
+		       # Key is reference to hardware interface.
+		       keys %{$out_hw->{static}}) {
+	    # Value is { net => net, .. }
+	    my($net_hash) = $out_hw->{static}->{$in_hw};
+	    my $in_name = $in_hw->{name};
+	    my $in_nat = $in_hw->{nat_info};
+	    # Sorting is only needed for getting output deterministic.
 	    my @networks =
-		sort { $a->{ip} <=> $b->{ip} } values %$net_hash;
+		sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
+	    values %$net_hash;
 	    # Mark enclosing networks, which are used in statics at this router
 	    my %enclosing;
 	    for my $network (@networks) {
 		$network->{enclosing} and $enclosing{$network} = 1;
 	    }
-	    # Mark redundant networks as deleted, if any enclosing network is found
+	    # Mark redundant networks as deleted,
+	    # if any enclosing network is found.
 	    for my $network (@networks) {
 		my $net = $network->{is_in};
 		while($net) {
@@ -3969,13 +3993,12 @@ sub print_pix_static( $ ) {
 	    for my $network (@networks) {
 		next unless defined $network;
 		$network->{mask} == 0 and
-		    die "Pix doesn't support static command for ",
+		    err_msg "Pix doesn't support static command for ",
 		    "mask 0.0.0.0 of $network->{name}\n";
-
 		my $sub = sub () {
-		    my($network, $nat_domain) = @_;
+		    my($network, $nat_info) = @_;
 		    my($nat_tag, $network_ip, $mask, $dynamic) =
-			&nat_lookup($network, $nat_domain);
+			&nat_lookup($network, $nat_info);
 		    if($nat_tag) {
 			return $network_ip, $mask, $dynamic?$nat_tag:undef;
 		    } else {
@@ -3983,12 +4006,15 @@ sub print_pix_static( $ ) {
 		    }
 		};
 		my($in_ip, $in_mask, $in_dynamic) = $sub->($network, $in_nat);
-		my($out_ip, $out_mask, $out_dynamic) = $sub->($network, $out_nat);
+		my($out_ip,
+		   $out_mask, $out_dynamic) = $sub->($network, $out_nat);
 		if($out_dynamic) {
-		    err_msg "Not supported: NAT for already dynamically translated ",
-		    "$network->{name} at $out_intf->{name}";
+		    err_msg "Not supported: NAT for already dynamically ",
+		    "translated $network->{name} at hardware $out_hw->{name} ",
+		    " of $router->{name}";
 		} elsif($in_dynamic) {
-		    # global (outside) 1 10.70.167.0-10.70.167.255 netmask 255.255.255.0
+		    # global (outside) 1 \
+		    #   10.70.167.0-10.70.167.255 netmask 255.255.255.0
 		    # nat (inside) 1 141.4.136.0 255.255.252.0
 		    my $in_ip_max = $in_ip + ~$out_mask;
 		    $in_ip = print_ip $in_ip;
@@ -3996,28 +4022,34 @@ sub print_pix_static( $ ) {
 		    $out_ip = print_ip $out_ip;
 		    $in_mask = print_ip $in_mask;
 		    $out_mask = print_ip $out_mask;
-		    print "global ($in_hw) $nat_index $in_ip-$in_ip_max netmask $in_mask\n";
-		    print "nat ($out_hw) $nat_index $out_ip $out_mask\n";
+		    print "global ($in_name) $nat_index ",
+		    "$in_ip-$in_ip_max netmask $in_mask\n";
+		    print "nat ($out_name) $nat_index $out_ip $out_mask\n";
 		    $nat_index++;
-		    # Check for static NAT entries for hosts and interfaces
-		    for my $host (@{$network->{hosts}}, @{$network->{interfaces}}) {
+		    # Check for static NAT entries of hosts and interfaces.
+		    for my $host (@{$network->{hosts}},
+				  @{$network->{interfaces}}) {
 			if(my $in_ip = $host->{nat}->{$in_dynamic}) {
 			    my @addresses = &address($host, $out_nat);
-			    err_msg "$host->{name}: NAT only for hosts / interfaces with a single IP"
+			    err_msg "$host->{name}: NAT only for hosts / ",
+			    "interfaces with a single IP"
 				if @addresses != 1;
 			    my($out_ip, $out_mask) = @{$addresses[0]};
 			    $in_ip = print_ip $in_ip;
 			    $out_ip = print_ip $out_ip;
 			    $out_mask = print_ip $out_mask;
-			    print "static ($out_hw,$in_hw) $in_ip $out_ip netmask $out_mask\n";
+			    print "static ($out_name,$in_name) ",
+			    "$in_ip $out_ip netmask $out_mask\n";
 			}
 		    }
 		} else {  # both static
 		    $in_ip = print_ip $in_ip;
 		    $out_ip = print_ip $out_ip;
 		    $in_mask = print_ip $in_mask;
-		    # static (inside,outside) 10.111.0.0 111.0.0.0 netmask 255.255.252.0
-		    print "static ($out_hw,$in_hw) $in_ip $out_ip netmask $in_mask\n";
+		    # static (inside,outside) \
+		    #   10.111.0.0 111.0.0.0 netmask 255.255.252.0
+		    print "static ($out_name,$in_name) ",
+		    "$in_ip $out_ip netmask $in_mask\n";
 		}
 	    }
 	}	    
@@ -4025,7 +4057,7 @@ sub print_pix_static( $ ) {
 }
 
 ##############################################################################
-# Ditributing rules to managed devices
+# Distributing rules to managed devices
 ##############################################################################
 
 sub distribute_rule( $$$ ) {
@@ -4033,7 +4065,7 @@ sub distribute_rule( $$$ ) {
     # Traffic from src reaches this router via in_intf
     # and leaves it via out_intf.
     # in_intf is undefined if src is an interface of the current router
-    # out_intf is undefined if dst  is an interface of the current router
+    # out_intf is undefined if dst is an interface of the current router
     # Outgoing packets from a router itself are never filtered.
     return unless $in_intf;
     my $router = $in_intf->{router};
@@ -4044,10 +4076,9 @@ sub distribute_rule( $$$ ) {
     if(my $type = $rule->{for_router}) {
 	return unless $type eq $router->{managed};
     }
-    # Rules of type stateless must only be processed at 
-    # stateless routers
+    # Rules of type stateless must only be processed at stateless routers
     # or at routers which are stateless for packets destined for
-    # their own interfaces
+    # their own interfaces.
     my $model = $router->{model};
     if($rule->{stateless}) {
 	unless($model->{stateless} or
@@ -4090,25 +4121,25 @@ sub check_deleted ( $$ ) {
     if($rule->{deleted}) {
 	if($rule->{managed_intf}) {
 	    if($out_intf) {
-		# we are on an intermediate router if $out_intf is defined,
-		# hence normal 'delete' is valid
+		# We are on an intermediate router if $out_intf is defined,
+		# hence normal 'delete' is valid.
 		return 1;
 	    }
 	    if($rule->{deleted}->{managed_intf}) {
 		# No code needed if it is deleted by another 
-		# rule to the same interface
+		# rule to the same interface.
 		return 1;
 	    }
 	} else {
-	    # not a managed interface, normal 'delete' is valid
+	    # Not a managed interface, normal 'delete' is valid.
 	    return 1;
 	}
     }
     return 0;
 }
 
-# For deny and permit rules with src=any:*, call collect_acls only for
-# the first router on the path from src to dst
+# For deny and permit rules with src=any:*, call distribute_rule only for
+# the first router on the path from src to dst.
 sub distribute_rule_at_src( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
     my $router = $in_intf->{router};
@@ -4143,8 +4174,8 @@ sub distribute_rule_at_src( $$$ ) {
     }
 }
 
-# For permit dst=any:*, call collect_acls only for
-# the last router on the path from src to dst
+# For permit dst=any:*, call distribute_rule only for
+# the last router on the path from src to dst.
 sub distribute_rule_at_dst( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
     my $router = $out_intf->{router};
@@ -4389,7 +4420,8 @@ sub ios_route_code( $$ ) {
     return "$ip_code $mask_code";
 }
 
-# Given an IP and mask, return its address as "x.x.x.x/x" or "x.x.x.x" if prefix == 32
+# Given an IP and mask, return its address
+# as "x.x.x.x/x" or "x.x.x.x" if prefix == 32.
 sub prefix_code( $$ ) {
     my($pair) = @_;
     my($ip, $mask) = @$pair;
@@ -4400,7 +4432,7 @@ sub prefix_code( $$ ) {
 
 my %pix_srv_hole;
 
-# Print warnings about the PIX service hole
+# Print warnings about the PIX service hole.
 sub warn_pix_icmp() {
     if(%pix_srv_hole) {
 	warning "Ignored the code field of the following ICMP services\n",
@@ -4411,7 +4443,7 @@ sub warn_pix_icmp() {
     }
 }
 
-# returns 3 values for building an IOS or PIX ACL:
+# Returns 3 values for building an IOS or PIX ACL:
 # permit <val1> <src> <val2> <dst> <val3>
 sub cisco_srv_code( $$ ) {
     my ($srv, $model) = @_;
@@ -4520,7 +4552,8 @@ sub acl_line( $$$$ ) {
 	my $src = $rule->{src};
 	my $dst = $rule->{dst};
 	my $srv = $rule->{srv};
-	print "$model->{comment_char} ". print_rule($rule)."\n" if $comment_acls;
+	print "$model->{comment_char} ". print_rule($rule)."\n"
+	    if $comment_acls;
 	for my $spair (&address($src, $nat_info, 'src')) {
 	    for my $dpair (&address($dst, $nat_info, 'dst')) {
 		if($filter_type eq 'IOS' or $filter_type eq 'PIX') {
@@ -4529,13 +4562,15 @@ sub acl_line( $$$$ ) {
 			cisco_srv_code($srv, $model);
 		    my $src_code = &ios_code($spair, $inv_mask);
 		    my $dst_code = &ios_code($dpair, $inv_mask);
-		    print "$prefix $action $proto_code $src_code $src_port_code $dst_code $dst_port_code\n";
+		    print "$prefix $action $proto_code ",
+		    "$src_code $src_port_code $dst_code $dst_port_code\n";
 		} elsif($filter_type eq 'iptables') {
 		    my $srv_code = iptables_srv_code($srv);
 		    my $src_code = &prefix_code($spair);
 		    my $dst_code = &prefix_code($dpair);
 		    my $action_code = $action eq 'permit' ? 'ACCEPT' : 'DROP';
-		    print "$prefix -j $action_code -s $src_code -d $dst_code $srv_code\n";
+		    print "$prefix -j $action_code ",
+		    "-s $src_code -d $dst_code $srv_code\n";
 		} else {
 		    internal_err "Unknown filter_type $filter_type";
 		}
@@ -4548,9 +4583,9 @@ my $min_object_group_size = 2;
 
 sub find_object_groups ( $ ) {
     my($router) = @_;
-    # Collect found object-groups 
+    # For collecting found object-groups 
     my @groups;
-    # find identical groups in identical NAT domain and of same size
+    # Find identical groups in identical NAT domain and of same size
     my %nat2size2group;
     # For generating names of object-groups
     my $counter = 1;
