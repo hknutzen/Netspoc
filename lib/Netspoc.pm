@@ -2095,7 +2095,9 @@ sub aref_delete( $$ ) {
     return 0;
 }
 
-# a rule may be deleted if we find a similar rule with greater or equal srv
+# A rule may be deleted if we find a similar rule with greater or equal srv.
+# Property of parameters:
+# Rules in $cmp_hash >= rules in $chg_hash
 sub optimize_srv_rules( $$ ) {
     my($cmp_hash, $chg_hash) = @_;
 
@@ -2107,16 +2109,16 @@ sub optimize_srv_rules( $$ ) {
 
 # optimize auto_any rules:
 #
-# cmp permit net1 dst srv
-# chg permit auto_any(deny_net: net1,net2) dst srv
+# cmp permit auto_any(deny_net: net1,net2) dst srv
+# chg permit net1 dst srv
 # -->
-# chg permit auto_any(deny_net: net2) dst srv
+# cmp permit auto_any(deny_net: net2) dst srv
 #
-# cmp permit net1 dst srv
-# chg permit auto_any(deny_net: net1,net2) dst' srv'
+# cmp permit auto_any(deny_net: net1,net2) dst' srv'
+# chg permit net1 dst srv
 # --> if dst >= dst', srv >= srv'
-# cmp permit net1 dst srv
-# chg permit auto_any(deny_net: net2) dst srv'
+# cmp permit auto_any(deny_net: net2) dst srv'
+# chg permit net1 dst srv
 #
 # cmp permit auto_any(deny_net: -) dst srv
 # chg permit auto_any(deny_net: net2,net3) dst srv'
@@ -2133,18 +2135,21 @@ sub optimize_srv_rules( $$ ) {
 # --> if srv >= srv'
 # cmp permit auto_any(deny_net: net1,net2) dst srv
 # chg permit auto_any(deny_net: net3) dst srv'
+
 		    if($cmp_rule->{action} eq 'permit' and
 		       $rule->{action} eq 'permit'){
-			if(is_any $rule->{src}) {
-			    my $cmp_src = $cmp_rule->{src};
-			    if(is_net $cmp_src and
-			       aref_delete($cmp_src, $rule->{deny_src_networks})) {
+			if(is_net $rule->{src}) {
+			    if(is_any $cmp_rule->{src} and
+			       aref_delete($rule->{src}, $cmp_rule->{deny_src_networks})) {
 				if($cmp_rule->{dst} eq $rule->{dst} and
 				   $cmp_rule->{srv} eq $rule->{srv}) {
-				    $cmp_rule->{deleted} = $rule;
+				    $rule->{deleted} = $cmp_rule;
 				}
 				last;
 			    }
+			}
+			if(is_any $rule->{src}) {
+			    my $cmp_src = $cmp_rule->{src};
 			    if(is_any $cmp_src) {
 				if(@{$cmp_rule->{deny_src_networks}} == 0) {
 				    $rule->{deleted} = $cmp_rule;
@@ -2163,16 +2168,18 @@ sub optimize_srv_rules( $$ ) {
 			    }
 			}
 # equivalent for auto_any at dst
-			if(is_any $rule->{dst}) {
-			    my $cmp_dst = $cmp_rule->{dst};
-			    if(is_net $cmp_dst and
-			       aref_delete($cmp_dst, $rule->{deny_dst_networks})) {
-				if($cmp_rule->{dst} eq $rule->{dst} and
+			if(is_net $rule->{dst}) {
+			    if(is_any $cmp_rule->{dst} and
+			       aref_delete($rule->{dst}, $cmp_rule->{deny_dst_networks})) {
+				if($cmp_rule->{src} eq $rule->{src} and
 				   $cmp_rule->{srv} eq $rule->{srv}) {
-				    $cmp_rule->{deleted} = $rule;
+				    $rule->{deleted} = $cmp_rule;
 				}
 				last;
 			    }
+			}
+			if(is_any $rule->{dst}) {
+			    my $cmp_dst = $cmp_rule->{dst};
 			    if(is_any $cmp_dst) {
 				if(@{$cmp_rule->{deny_dst_networks}} == 0) {
 				    $rule->{deleted} = $cmp_rule;
