@@ -1970,8 +1970,6 @@ sub get_networks_behind ( $ ) {
     my($hop) = @_;
     # return if the values have already been calculated
     return @{$hop->{route}} if exists $hop->{route};
-    # info isn't needed for interface at leaf network
-    return if @{$hop->{network}->{interfaces}} == 1;
     my @networks;
     for my $interface (@{$hop->{router}->{interfaces}}) {
 	next if $interface eq $hop;
@@ -1996,6 +1994,8 @@ sub get_networks_behind ( $ ) {
 sub setroute() {
     info "Setting routes\n";
     for my $interface (values %interfaces) {
+	# info isn't needed for interface at leaf network
+	next if @{$interface->{network}->{interfaces}} == 1;
 	get_networks_behind $interface;
     }
 }
