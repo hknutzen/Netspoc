@@ -7,7 +7,8 @@
 # Cisco Secure Policy Manager
 
 $program = 'Open Secure Policy Manager';
-$version = 0.25;
+$version = 0.28;
+$verbose = 1;
 
 ##############################################################################
 # Phase 1
@@ -98,7 +99,7 @@ sub read_ip() {
 
 # convert IP address from internal integer representation to
 # readable string
-sub print_ip() {
+sub print_ip($) {
     my $ip = shift;
     my $v1 = $ip % 256;
     $ip >>= 8;
@@ -111,6 +112,12 @@ sub print_ip() {
     return "$v4.$v3.$v2.$v1";
 }
 
+# generate a list of IP strings from an ref of an array of integers
+sub print_ip_aref($) {
+    my $aref = shift;
+    return map { print_ip($_); } @$aref;
+}
+	
 # read string up to some delimiting character or end of line
 # Note: blank space is allowed inside of names 
 # but ignored at the beginning and end
@@ -119,10 +126,11 @@ sub read_name() {
 
     &skip_space_and_comment();
 
-    # allow dot in names to ease using ip addresses in names;
-    # if dot is used as separator in router.interface,
-    # we take the last dot
-    # allow colon in names; if colon is used as separator in type:name,
+    # Allow dot in names to ease using ip addresses in names.
+    # When dot is used as separator in interface:router.network,
+    # we take the first dot. 
+    # ToDo: This is ambiguous.
+    # Allow colon in names; if colon is used as separator in type:name,
     # we take the first colon
     if(s#(^[\w !:./*()+-]+)##) {
 	my $name = $1;
@@ -147,6 +155,19 @@ sub read_assign($&) {
     my $val = &$fun();
     &skip(';');
     return $val;
+}
+
+
+sub read_list_or_null(&) {
+    my($fun) = @_;
+    my @vals;
+    return @vals if check(';');
+    push(@vals, &$fun);
+    while(&check(',')) {
+        push(@vals, &$fun);
+    }
+    &skip(';');
+    return @vals;
 }
 
 sub read_list(&) {
@@ -180,31 +201,26 @@ sub read_host($) {
     &skip('=');
     &skip('{');
     my $token = read_name();
-    my $ip;
+    my $host = { name => $name };
     if($token eq 'ip') {
 	&skip('=');
 	my @ip = &read_list(\&read_ip);
-	@ip > 0 or die "host $name has 0 ip adresses";
-	$ip = shift @ip;
-	@ip == 0 or
-	    warn "ignoring additional ip addresses of host $name";
+	$host->{ip} = \@ip;
     } elsif($token eq 'range') {
 	&skip('=');
-	$ip = &read_ip;
+	my $ip1 = &read_ip;
 	skip('-');
-	&read_ip;
-	warn "ignoring 2. ip in ip range of host $name";
-	skip(';');
+	my $ip2 = &read_ip;
+	$host->{ip} = [ $ip1, $ip2 ];
+	$host->{is_range} = 1;
+	&skip(';');
     } else {
 	die "unknown token $token in host definition '$name'";
     }
     &skip('}');
-    my $host = { name => $name,
-		 ip => $ip,
-	     };
     if(my $old_host = $hosts{$name}) {
-	my $ip_string = &print_ip($ip);
-	my $old_ip_string = &print_ip($old_host->{ip});
+	my $ip_string = &print_obj_ip($host->{ip});
+	my $old_ip_string = &print_obj_ip($old_host->{ip});
 	die "redefining host:$name from IP $old_ip_string to $ip_string";
     }
     $hosts{$name} = $host;
@@ -235,48 +251,46 @@ sub read_network($) {
 	    unless($type eq 'host');
 	my $host = &read_host($hname);
 	# check compatibility of host ip and network ip/mask
-	my $host_ip = $host->{ip};
-	if($ip != ($host_ip & $mask)) {
-	    my $ip_string = &print_ip($ip);
-	    my $mask_string = &print_ip($mask);
-	    my $host_ip_string = &print_ip($host_ip);
-	    die "host:$host->{name}'s ip $host_ip_string doesn't match net:$name's ip/mask $ip_string/$mask_string";
+	for my $host_ip  (@{$host->{ip}}) {
+	    if($ip != ($host_ip & $mask)) {
+		my $ip_string = &print_ip($ip);
+		my $mask_string = &print_ip($mask);
+		my $host_ip_string = &print_ip($host_ip);
+		die "host:$host->{name}'s ip $host_ip_string doesn't match net:$name's ip/mask $ip_string/$mask_string";
+	    }
 	}
 	$host->{net} = $network;
 	push(@{$network->{hosts}}, $host);
     }
     if(my $old_net = $networks{$name}) {
-	my $ip_string = &print_ip($ip);
-	my $mask_string = &print_ip($mask);
-	my $old_ip_string = &print_ip($old_net->{ip});
-	my $old_mask_string = &print_ip($old_net->{mask});
-	die "redefining network:$name from $old_ip_string/$old_mask_string to $ip_string/$mask_string";
+	my $ip_string = &print_obj_ip($network);
+	my $old_ip_string = &print_obj_ip($old_net);
+	die "redefining network:$name from $old_ip_string to $ip_string";
     }
     $networks{$name} = $network;
 }
 
 sub read_interface($) {
-    my $name = shift;
+    my $net = shift;
     &skip('=');
     &skip('{');
     my $token = read_name();
+    my $interface = { name => $net,
+		      link => $net,
+		  };
     my $ip;
     if($token eq 'ip') {
 	&skip('=');
-	$ip = &read_ip;
-	skip(';');
+	my @ip = &read_list(\&read_ip);
+	$interface->{ip} = \@ip;
     } elsif($token eq 'unnumbered') {
-	$ip = 'unnumbered';
+	$interface->{ip} = [];
 	skip(';');
     } else {
-	die "unknown token $token in interface definition '$name'";
+	die "unknown token $token in definition of interface:$net";
     }
-    my $net = &read_assign('link', \&read_network_name);
+    $interface->{physical} = &read_assign('physical', \&read_name);
     &skip('}');
-    my $interface = { name => $name,
-		      ip => $ip,
-		      link => $net,
-		  };
     return $interface;
 }
 
@@ -286,25 +300,32 @@ sub read_router($) {
     skip('{');
     my $managed = &read_assign('managed', \&read_bool);
     my $type;
-    $type = &read_assign('type', \&read_name) if $managed;
+    if($managed) {
+	$type = &read_assign('type', \&read_name);
+    } elsif(check('type')) {
+	# for unmananged routers type is optional
+	skip('=');
+	&read_name();
+	skip(';');
+    }
     my $router = { name => $name,
 		   managed => $managed,
-		   type => $type,
 		   interfaces => {},
 	       };
+    $router->{type} = $type if $type;
     while(1) {
 	last if &check('}');
 	my($type,$iname) = split_typed_name(read_name());
 	die "unknown definition $type:$iname in router $name" 
 	    unless $type eq 'interface';
 	my $interface = &read_interface($iname);
-	if(my $old_interface = $router->{interfaces}->{$interface->{name}}) {
-	    my $ip_string = &print_ip($interface->{ip});
-	    my $old_ip_string = &print_ip($old_interface->{ip});
+	if(my $old_interface = $router->{interfaces}->{$iname}) {
+	    my $ip_string = &print_obj_ip($interface->{ip});
+	    my $old_ip_string = &print_obj_ip($old_interface->{ip});
 	    die "redefining interface:$name.$interface->{name} from IP $old_ip_string to $ip_string";
 	}
 	# assign interface to routers hash of interfaces
-	$router->{interfaces}->{$interface->{name}} = $interface;
+	$router->{interfaces}->{$iname} = $interface;
 	# assign router to interface
 	$interface->{router} = $router;
     }
@@ -321,20 +342,18 @@ sub read_cloud($) {
     skip('=');
     skip('{');
     my $cloud = { name => $name };
-    if(&check('links')) {
-    }
     while(1) {
 	last if &check('}');
 	my($type, $iname) = split_typed_name(read_name());
 	if ($type eq 'interface') {
 	    my $interface = &read_interface($iname);
 	    if(my $old_interface = $cloud->{interfaces}->{$iname}) {
-		my $ip_string = &print_ip($interface->{ip});
-		my $old_ip_string = &print_ip($old_interface->{ip});
+		my $ip_string = &print_obj_ip($interface->{ip});
+		my $old_ip_string = &print_obj_ip($old_interface->{ip});
 		die "redefining interface:$name.$iname from IP $old_ip_string to $ip_string";
 	    }
 	    # assign interface to clouds hash of interfaces
-	    $cloud->{interfaces}->{$interface->{name}} = $interface;
+	    $cloud->{interfaces}->{$iname} = $interface;
 	    # assign cloud to interface
 	    # treat cloud as a router
 	    $interface->{router} = $cloud;
@@ -362,13 +381,14 @@ sub read_cloud($) {
 	    for my $link (@links) {
 		# implement link to cloud network as a special interface 
 		# without ip address 
-		my $interface = { name => "_link_$cloud_intf_counter",
+		my $interface = { name => $link,
 				  ip => 'cloud',
-				  link => $link
+				  link => $link,
+				  router => $cloud
 				  };
 		$cloud_intf_counter += 1;
 		# assign interface to clouds hash of interfaces
-		$cloud->{interfaces}->{$interface->{name}} = $interface;
+		$cloud->{interfaces}->{$link} = $interface;
 	    }
 	}
 	else {
@@ -385,11 +405,21 @@ sub read_cloud($) {
 sub read_group($) {
     my $name = shift;
     skip('=');
-    my @objects = &read_list(\&read_name);
+    my @objects = &read_list_or_null(\&read_name);
     if(my $old_group = $groups{$name}) {
 	die "redefinig group:$name";
     }
     $groups{$name} = \@objects;
+}
+
+sub read_servicegroup($) {
+   my $name = shift;
+    skip('=');
+    my @objects = &read_list_or_null(\&read_name);
+    if(my $old_group = $servicegroups{$name}) {
+        die "redefinig group:$name";
+    }
+    $servicegroups{$name} = \@objects;
 }
 
 sub read_port_range() {
@@ -400,7 +430,14 @@ sub read_port_range() {
 	    if(defined (my $port2 = &check_int())) {
 		die "too large port number $port2" if $port2 > 65535;
 		die "invalid port number '0'" if $port2 == 0;
-		return "$port1-$port2";
+		die "invalid port range $port1-$port2" if $port1 > $port2;
+		if($port1 == 1 && $port2 == 65535) {
+		    return 'any';
+		} elsif ($port1 == $port2) {
+		    return $port1;
+		} else {
+		    return "$port1-$port2";
+		}
 	    } else {
 		die "expected second port in port range '$port1-' but got $_";
 	    }
@@ -517,6 +554,22 @@ sub read_data() {
 	    die "unknown global definition $type:$name";
 	}
     }
+    if($verbose) {
+	my $n = keys %routers;
+	print STDERR "Read $n routers\n" if $n;
+	$n = keys %networks;
+	print STDERR "Read $n networks\n" if $n;
+	$n = keys %clouds;
+	print STDERR "Read $n clouds\n" if $n;
+	$n = keys %groups;
+	print STDERR "Read $n groups\n" if $n;
+	$n = keys %services;
+	print STDERR "Read $n services\n" if $n;
+	$n = keys %servicegroups;
+	print STDERR "Read $n service groups\n" if $n;
+	$n = @rules;
+	print STDERR "Read $n rules\n" if $n;
+    }
 }
 
 ##############################################################################
@@ -545,6 +598,10 @@ sub is_any($) {
     my($obj) = @_;
     return exists($obj->{link}) && not exists($obj->{ip});
 }
+sub is_rule($) {
+    my($obj) = @_;
+    return exists $obj->{src};
+}
 
 # give a readable name of a network object
 sub printable($) {
@@ -552,11 +609,20 @@ sub printable($) {
     my $out;
     if(&is_net($obj)) {$out = 'network';}
     elsif(&is_router($obj)) {$out = 'router';}
-    elsif(&is_interface($obj)) {$out = 'interface';}
+    elsif(&is_interface($obj)) {
+	return "interface:$obj->{router}->{name}.$obj->{name}";}
     elsif(&is_host($obj)) {$out = 'host';}
     elsif(&is_any($obj)) {$out = 'any';}
     else { die "internal in printable: unknown object '$obj->{name}'";}
     return "$out:$obj->{name}";
+}
+
+sub print_rule($) {
+    my($obj) = @_;
+    return $obj->{action} .
+	" src=".&printable($obj->{src}).
+	    " dst=".&printable($obj->{dst}).
+		" srv= ". join ' ', @{$obj->{srv}};
 }
 
 # get an array reference and delete undefined values in it
@@ -564,8 +630,8 @@ sub delete_undefs($) {
     my($aref) = @_;
     for(my $i = @$aref; $i > 0; ) {
 	$i--;
-	unless(defined $i) {
-	    splice(@$aref, $i, 0);
+	unless(defined $aref->[$i]) {
+	    splice(@$aref, $i, 1);
 	}
     }
 }
@@ -583,7 +649,7 @@ sub subst_names_with_refs($) {
     my @unknown;
     for my $object (@$obref) {
 	# the name may contain colons
-	my($type, $name) = split(':', $object, 2);
+	my($type, $name) = split_typed_name($object);
 	if($type eq 'host') {
 	    $object = $hosts{$name};
 	} elsif($type eq 'network') {
@@ -591,10 +657,13 @@ sub subst_names_with_refs($) {
 	} elsif($type eq 'router') {
 	    $object = $routers{$name};
 	} elsif($type eq 'interface') {
-	    # Split at last dot, since router name may contain dots.
-	    # The first .* is greedy, thus we find the last dot.
-	    my($router, $interface)  = ($name =~ /^(.*)\.(.*)$/);
-	    $object = $routers{$router}->{interfaces}->{$interface};
+	    # ToDo: Both router and network names may contain dots.
+	    # We have to resolve this ambiguity somehow.
+	    # Currently we split at the first dot,
+	    # since in network names dots are more propable.
+	    my($router, $interface)  = split /\./, $name, 2;
+	    $object = $routers{$router}->{interfaces}->{$interface} or
+		$object = $clouds{$router}->{interfaces}->{$interface};
 	} elsif($type eq 'any') {
 	    $object = $anys{$name};
 	} elsif($type eq 'group') {
@@ -617,9 +686,7 @@ sub link_interface_with_net($) {
     my $net_name = $interface->{link};
     my $net = $networks{$net_name};
     unless($net) {
-	my $rname = $interface->{router}->{name};
-	my $iname = $interface->{name};
-	die "undefined reference from interface:$rname.$iname to network:$net_name";
+	die "no network found for " . printable($interface);
     }
     $interface->{link} = $net;
 
@@ -634,13 +701,13 @@ sub link_interface_with_net($) {
 
     if(! $is_cloud_intf) {
 	# check compatibility of interface ip and network ip/mask
-	my $interface_ip = $interface->{ip};
-	my $ip = $net->{ip};
-	my $mask = $net->{mask};
-	if($ip != ($interface_ip & $mask)) {
-	    my $rname = $interface->{router}->{name};
-	    my $iname = $interface->{name};
-	    die "interface:$rname.${iname}'s ip doesn't match net:${net_name}'s ip/mask";
+	for my $interface_ip (@{$interface->{ip}}) {
+	    my $ip = $net->{ip};
+	    my $mask = $net->{mask};
+	    if($ip != ($interface_ip & $mask)) {
+		my $iname = printable($interface);
+		die "${iname}'s ip doesn't match net:${net_name}'s ip/mask";
+	    }
 	}
     }
     push(@{$net->{interfaces}}, $interface);
@@ -656,24 +723,50 @@ sub link_interface_with_net($) {
 sub gen_expanded_rules($$$$) {
     my($action, $src_aref, $dst_aref, $srv_aref) = @_;
     for my $src (@$src_aref) {
-	# a group is represented as an array of its members
 	if(ref($src) eq 'ARRAY') {
+	    # a group is represented by array of its members
 	    &gen_expanded_rules($action, $src, $dst_aref, $srv_aref);
+	} elsif(is_router($src)) {
+	    # split up a router into its interfaces
+	    for my $interface ($src->{interfaces}) {
+		&gen_expanded_rules($action, [ $interface ],
+				    $dst_aref, $srv_aref);
+	    }
 	} else {
+	    unless($src) {
+		print STDERR "undefined src in expanded rule\n";
+	    }
 	    for my $dst (@$dst_aref) {
 		if(ref($dst) eq 'ARRAY') {
 		    &gen_expanded_rules($action, [ $src ], $dst, $srv_aref);
+		} elsif(is_router($dst)) {
+		    # split up a router into its interfaces
+		    for my $interface ($dst->{interfaces}) {
+			&gen_expanded_rules($action, [ $src ],
+					    [ $interface ], $srv_aref);
+		    }
 		} else {
+		    unless($dst) {
+			print STDERR "undefined dst in expanded rule\n";
+		    }
 		    for my $srv (@$srv_aref) {
-			my $expanded_rule = { action => $action,
-					      src => $src,
-					      dst => $dst,
-					      srv => $srv
-					      };
-			if($action eq 'deny') {
-			    push(@expanded_deny_rules, $expanded_rule);
+			# Services are arrays of scalars,
+			# Service groups are arrays of arrays
+			if(ref($srv->[0])) {
+			    &gen_expanded_rules($action, [ $src ], [ $dst ],
+						$srv);
 			} else {
-			    push(@expanded_rules, $expanded_rule);
+			    my $expanded_rule = { action => $action,
+						  src => $src,
+						  dst => $dst,
+						  srv => $srv
+						  };
+##print "!! ", print_rule($expanded_rule), "\n";
+			    if($action eq 'deny') {
+				push(@expanded_deny_rules, $expanded_rule);
+			    } else {
+				push(@expanded_rules, $expanded_rule);
+			    }
 			}
 		    }
 		}
@@ -687,8 +780,7 @@ sub gen_expanded_rules($$$$) {
 # Find paths
 ##############################################################################
 
-# select a starting router ($router1) and
-# find paths from every network and router to the starting object
+# find paths from every network and router to the starting object 'router 1'
 sub setpath_router($$$$) {
     my($router, $to_pep, $pep, $distance) = @_;
     # ToDo: operate correctly with loops
@@ -743,33 +835,39 @@ sub setpath_network($$$$) {
 
 sub get_pep($) {
     my($obj) = @_;
+    my $pep;
 
     if(&is_host($obj)) {
-	return $obj->{net}->{pep};
+	$pep = $obj->{net}->{pep};
     } elsif(&is_interface($obj)) {
-	return $obj->{link}->{pep};
+	$pep = $obj->{link}->{pep};
     } elsif(&is_net($obj) || &is_any($obj)) {
-	return $obj->{pep};
+	$pep = $obj->{pep};
     } else {
-	$name = &printable($obj);
-	die "internal in get_pep: unsupported object '$name'";
+	die "internal in get_pep: unsupported object " . &printable($obj);
     }
+    $pep or die "Found unconnected node: ". printable($obj);
+    return $pep;
 }
 
 # It applies a function on any managed router which lies on the path
-# between src and dst of a supplied rule
+# between src and dst of the supplied rule
 sub path_walk($&) {
     my ($rule, $fun) = @_;
+    die "internal in path_walk: undefined rule" unless $rule;
     my $src = $rule->{src};
     my $dst = $rule->{dst};
+# print STDERR "path_walk: ",printable($src)," ",printable($dst),"\n";
     my $src_intf = &get_pep($src);
     my $dst_intf = &get_pep($dst);
 
     if($src_intf eq $dst_intf) {
-	my $src_name = &printable($src);
-	my $dst_name = &printable($dst);
+	unless($src eq $dst) {
+	    my $src_name = &printable($src);
+	    my $dst_name = &printable($dst);
 
-	warn "unenforceble rule from '$src_name' to '$dst_name'";
+	    print STDERR "Unenforceable rule\n from '$src_name'\n to '$dst_name'\n";
+	}
 	# don't process rule again later
 	$rule->{deleted} = 1;
 	return;
@@ -780,6 +878,7 @@ sub path_walk($&) {
     my $src_dist = $src_router->{distance};
     my $dst_dist = $dst_router->{distance};
 
+##    print STDERR "path_walk: ",printable($src_intf)," ",printable($dst_intf),"\n";
     # go from src to dst until equal distance is reached
     while($src_dist > $dst_dist) {
 	my $out_intf = $src_router->{to_pep};
@@ -787,6 +886,7 @@ sub path_walk($&) {
 	$src_intf = $src_router->{pep};
 	$src_router = $src_intf->{router};
 	$src_dist = $src_router->{distance};
+##    print STDERR "path_walk: ",printable($src_intf)," ",printable($dst_intf),"\n";
     }
 
     # go from dst to src until equal distance is reached
@@ -796,11 +896,12 @@ sub path_walk($&) {
 	$dst_intf = $dst_router->{pep};
 	$dst_router = $dst_intf->{router};
 	$dst_dist = $dst_router->{distance};
+##    print STDERR "path_walk: ",printable($src_intf)," ",printable($dst_intf),"\n";
     }
 
     # now alternating go one step from src and one from dst
     # until the router in the middle is reached
-    while($src_router != $dst_router) {
+    while($src_router ne $dst_router) {
 	my $out_intf = $src_router->{to_pep};
 	&$fun($rule, $src_intf, $out_intf);
 	$src_intf = $src_router->{pep};
@@ -814,7 +915,7 @@ sub path_walk($&) {
 
     # if we reached the router via different interfaces, 
     # the router lies on the path
-    if($src_intf != $dst_intf) {
+    if($src_intf ne $dst_intf) {
 	&$fun($rule, $src_intf, $dst_intf);
     } else {
 	# the router doesn't lie on the path, nothing to do
@@ -836,6 +937,7 @@ sub path_walk($&) {
 # permit any dst (on R1 and R2)
 sub gen_any_src_deny($$$) {
     my ($rule, $in_intf, $out_intf) = @_;
+    return if $rule->{deleted};
     my $router = $in_intf->{router};
 
     # we don't need the interface itself, but only information about all
@@ -845,7 +947,7 @@ sub gen_any_src_deny($$$) {
 	$in_intf = $router->{pep};
     }
     # nothing to do for the first router
-    return if $in_intf->{any} eq $rule->{src};
+    return if $in_intf->{any} and $in_intf->{any} eq $rule->{src};
 
     for $net (@{$in_intf->{networks}}) {
 	my $deny_rule = {src => $net,
@@ -854,11 +956,15 @@ sub gen_any_src_deny($$$) {
 			 action => 'weak_deny'
 		     };
 	push(@{$rule->{deny_rules}}, $deny_rule);
+	push(@{$net->{rules}}, $deny_rule);
+	# counter for verbosity
+	$weak_deny_counter++;
     }
 }
 
 #     N4-\
 # src-R1-N1-R2-any
+
 #  N2-/  N3-/
 # -->
 # deny src N2 (on R1)
@@ -869,6 +975,7 @@ sub gen_any_src_deny($$$) {
 sub gen_any_dst_deny($$$) {
     # in_intf points to src, out_intf to dst
     my ($rule, $in_intf, $out_intf) = @_;
+    return if $rule->{deleted};
     my $router = $in_intf->{router};
 
     # find networks at all interfaces except the in_intf
@@ -888,7 +995,7 @@ sub gen_any_dst_deny($$$) {
 	}
 	# nothing to do for the interface which is connected
 	# directly to the destination any object
-	next if $intf->{any} eq $rule->{dst};
+	next if $intf->{any} and $intf->{any} eq $rule->{dst};
 
 	for $net (@{$intf->{networks}}) {
 	    my $deny_rule = {src => $rule->{src},
@@ -897,6 +1004,9 @@ sub gen_any_dst_deny($$$) {
 			     action => 'weak_deny'
 			 };
 	    push(@{$rule->{deny_rules}}, $deny_rule);
+	    push(@{$deny_rule->{src}->{rules}}, $deny_rule);
+	    # counter for verbosity
+	    $weak_deny_counter++;
 	}
     }
 }
@@ -1036,18 +1146,21 @@ sub optimize_tcp_udp_rules($$) {
 	}
     } else {
 	# find port ranges
-	while(my($key, $rule) = (each %$cmp_hash)) {
+	for my $key (keys %$cmp_hash) {
+	    my $rule = $cmp_hash->{$key};
 	    if(my($from, $to) = ($key =~ /^(.*)-(.*)$/)) {
 		# compare this range with all other ports and ranges
-		while(my($key2, $rule2) = (each %$chg_hash)) {
+		# don't use nested "while (each)" here; they interact badly
+		for my $key2 (keys %$chg_hash) {
+		    my $rule2 = $chg_hash->{$key2};
 		    # this occurs if $cmp_hash and $chg_hash are identical
 		    next if $rule2 eq $rule;
 		    if(my($from2, $to2) = ($key2 =~ /^(.*)-(.*)$/)) {
-			if($from >= $from2 && $to2 <= $to) {
+			if($from <= $from2 && $to2 <= $to) {
 			    $rule2->{deleted} = 1;
 			}
 		    } else {
-			if($from >= $key2 && $key2 <= $to) {
+			if($from <= $key2 && $key2 <= $to) {
 			    $rule2->{deleted} = 1;
 			}
 		    }
@@ -1056,7 +1169,7 @@ sub optimize_tcp_udp_rules($$) {
 		# don't try to find identical ports on equal hashes
 		unless($cmp_hash eq $chg_hash) {
 		    # a single port supersedes only an identical port
-		    if(exist $chg_hash->{$key} &&
+		    if(exists $chg_hash->{$key} &&
 		       (my $rule2 = $chg_hash->{$key})) {
 			$rule2->{deleted} = 1;
 		    }
@@ -1077,6 +1190,10 @@ sub optimize_icmp_rules($$) {
        (my $rule = $cmp_hash->{any})) {
 	while(my($type, $hash2) = (each %$chg_hash)) {
 	    next if $hash2 eq $rule;
+	    if($type eq 'any') {
+		$hash2->{deleted} = 1;
+		next;
+	    }
 	    while(my($code, $rule2) = (each %$hash2)) {
 		$rule2->{deleted} = 1;
 	    }
@@ -1090,7 +1207,7 @@ sub optimize_icmp_rules($$) {
 		    next if $rule2 eq $rule;
 		    $rule2->{deleted} = 1;
 		}
-	    } else {
+	    } elsif($chg_hash->{$type}) {
 		&optimize_identical_rules($hash2, $chg_hash->{$type});
 	    }
 	}
@@ -1101,7 +1218,7 @@ sub optimize_identical_rules($$) {
     my ($cmp_hash, $chg_hash) = @_;
 
     # don't try to find identical keys on equal hashes
-    return if($cmp_hash == $chg_hash);
+    return if $cmp_hash eq $chg_hash;
 
     while(my($key, $rule) = (each %$cmp_hash)) {
 	if(exists $chg_hash->{$key} &&
@@ -1211,11 +1328,18 @@ sub optimize_rules($$) {
     } elsif ($src_tag eq 'src_any') {
 	@src_tags = ('src_any');
     }
-    if(&is_host($dst) || &is_interface($dst)) {
+    if(&is_host($dst)) {
 	for my $i (@src_tags) {
 	    &optimize_action_rules($dst->{$i}, $dst->{$src_tag});
 	    &optimize_action_rules($dst->{net}->{$i}, $dst->{$src_tag});
 	    &optimize_action_rules($dst->{net}->{pep}->{any}->{$i}, 
+				$dst->{$src_tag});
+	}
+    } elsif(&is_interface($dst)) {
+	for my $i (@src_tags) {
+	    &optimize_action_rules($dst->{$i}, $dst->{$src_tag});
+	    &optimize_action_rules($dst->{link}->{$i}, $dst->{$src_tag});
+	    &optimize_action_rules($dst->{link}->{pep}->{any}->{$i}, 
 				$dst->{$src_tag});
 	}
     } elsif(&is_net($dst)) {
@@ -1238,11 +1362,38 @@ sub optimize_rules($$) {
 # Code Generation
 ##############################################################################
 
+sub split_ip_range($$) {
+    my($a, $b) = @_;
+    # b is inclusive upper bound
+    # change it to exclusive upper bound
+    $b++;
+    my $i = $a;
+    my @result;
+    while($i < $b) {
+	my $j = $i;
+	my $add = 1;
+	# j even
+	while(($j & 1) == 0) {
+	    $j >>= 1; $add <<= 1;
+	    if($i+$add > $b) {
+		$add >>= 1;
+		last;
+	    }
+	}
+	my $mask = ~($add-1);
+	push @result, print_ip($i) .' '. print_ip($mask);
+	$i += $add;
+    }
+    return @result;
+}
+
 sub adr_code($) {
     my ($obj) = @_;
-    if(&is_host($obj)) {
-	my $ip_code = &print_ip($obj->{ip});
-	return "host $ip_code";
+    if(&is_host($obj) && $obj->{is_range}) {
+	return &split_ip_range(@{$obj->{ip}});
+    }
+    if(&is_host($obj) || &is_interface($obj)) {
+	return map { 'host '. &print_ip($_) } @{$obj->{ip}};
     } elsif(&is_net($obj)) {
 	my $ip_code = &print_ip($obj->{ip});
 	my $mask_code = &print_ip($obj->{mask});
@@ -1297,14 +1448,18 @@ sub gen_code($$$) {
     my $dst = $rule->{dst};
     my $srv = $rule->{srv};
     my $router = $src_intf->{router};
-    my $src_code = &adr_code($src);
-    my $dst_code = &adr_code($dst);
+    my @src_code = &adr_code($src);
+    my @dst_code = &adr_code($dst);
     my ($proto_code, $port_code) = &srv_code($srv);
-
     $action = 'deny' if $action eq 'weak_deny';
-    push(@{$src_intf->{code}},
-	 "$action $proto_code $src_code $dst_code $port_code\n");
-}    
+    for my $src_code (@src_code) {
+	for my $dst_code (@dst_code) {
+	    
+	    push(@{$src_intf->{code}},
+		 "$action $proto_code $src_code $dst_code $port_code\n");
+	}
+    }
+}
 
 # call gen_code only for the first pep on the path from src to dst
 # r1-src-r2-r3-dst: get_pep(src) = r1, r1 is not on path
@@ -1325,13 +1480,30 @@ sub gen_code_at_src($$$) {
 ##############################################################################
 
 &read_data();
-    
+
 # substitute group member names with links to network objects
 while(my($name, $array_ref) = (each %groups)) {
     if(my @unknown = &subst_names_with_refs($array_ref)) {
-	warn "ignoring undefined references ", 
-	join(",", @unknown)," in group:$name\n";
+	print STDERR "Ignoring undefined references in group:$name:\n ",
+	join("\n ", @unknown),"\n";
 	&delete_undefs($array_ref);
+    }
+}
+
+# substitute names in service groups with corresponding services
+while(my($gname, $aref) = (each %servicegroups)) {
+    for my $srv (@$aref) {
+	# the name may contain colons
+	my($type, $name) = split_typed_name($srv);
+	if($type eq 'service') {
+	    $srv = $services{$name} or
+		die "undefined ${type}:$name in servicegroup:$gname";
+	} elsif ($type eq 'servicegroup') {
+            $srv = $servicegroups{$name} or
+	        die "undefined ${type}:$name in servicegroup:$gname";
+	} else {
+	    die "Unknown type in ${type}:$name in servicegroup:$gname";
+	}
     }
 }
 
@@ -1339,17 +1511,25 @@ while(my($name, $array_ref) = (each %groups)) {
 # and service names with service definitions
 for my $rule (@rules) {
     if(my @unknown = &subst_names_with_refs($rule->{src})) {
-	warn "ignoring undefined references ", 
-	join(",", @unknown)," in src of rule\n";
-	&delete_undefs($rule->{src});
-    }
+	print STDERR "Ignoring undefined references in src of rule\n ", 
+	join(",", @unknown),"\n";
+	&delete_undefs($rule->{src});    }
     if(my @unknown = &subst_names_with_refs($rule->{dst})) {
-	warn "ignoring undefined references ", 
-	join(",", @unknown)," in dst of rule\n";
+	print STDERR "Ignoring undefined references in dst of rule\n ", 
+	join(",", @unknown),"\n";
 	&delete_undefs($rule->{dst});
     }
     for my $srv (@{$rule->{srv}}) {
-	my $srv_def = $services{$srv} || die "undefined service '$srv'";
+	my($type, $name) = split_typed_name($srv);
+	my $srv_def;
+	if($type eq 'service') {
+	    $srv_def = $services{$name} || die "undefined $srv in rule";
+	} elsif ($type eq 'servicegroup') {
+            $srv_def = $servicegroups{$name} ||
+	        die "undefined $srv in rule";
+	} else {
+	    die "Unknown type '$type' in service part of rule";
+	}
 	$srv = $srv_def;
     }
 }
@@ -1368,6 +1548,10 @@ for my $rule (@rules) {
     &gen_expanded_rules($rule->{action},
 			$rule->{src}, $rule->{dst}, $rule->{srv});
 }
+if($verbose) {
+    my $n = @expanded_deny_rules + @expanded_rules;
+    print STDERR "Expanded to $n simple rules\n" if $n;
+}
 
 # take a random managed element from %routers, name it "router1"
 for my $router (values %routers) {
@@ -1375,22 +1559,18 @@ for my $router (values %routers) {
 	$router1 = $router;
 	last;
     }
-} 
- 
+}
+$router1 or die "Topology has no managed router"; 
+if($verbose) {
+    my $name = printable($router1);
+    print STDERR "Selected $name as 'router 1'\n";
+}
+
 # Beginning with router1, do a traversal of the whole network 
 # to find a path from every network and router to router1
 &setpath_router($router1, 'not undef', undef, 0);
 
-# generate deny rules for any rules
-for my $rule (@expanded_rules) {
-    if(&is_any($rule->{src})) {
-	&path_walk($rule, \&gen_any_src_deny);
-    }
-    if(&is_any($rule->{dst})) {
-	&path_walk($rule, \&gen_any_dst_deny);
-    }
-}
-
+print STDERR "Preparing optimization\n" if $verbose;
 # Prepare optimization of rules
 # link rules with the source network object of the rule
 for my $rule (@expanded_deny_rules, @expanded_rules) {
@@ -1402,6 +1582,7 @@ for my $rule (@expanded_deny_rules, @expanded_rules) {
     push(@{$rule->{src}->{rules}}, $rule);
 }
 
+print STDERR "Starting optimization\n" if $verbose;
 # Optimze rules for each particular perimeter
 for my $router (values %routers) {
     next unless $router->{managed};
@@ -1410,10 +1591,49 @@ for my $router (values %routers) {
 	&addrule_pep_any($interface);
     }
 } 
+if($verbose) {
+    my $n = 0;
+    for my $rule (@expanded_deny_rules, @expanded_rules) {
+	$n++ if $rule->{deleted};
+    }
+    print STDERR "Deleted $n redundant rules\n";
+}
 
+# generate deny rules for any rules
+for my $rule (@expanded_rules) {
+    if(&is_any($rule->{src})) {
+ 	&path_walk($rule, \&gen_any_src_deny);
+    }
+    if(&is_any($rule->{dst})) {
+	&path_walk($rule, \&gen_any_dst_deny);
+    }
+}
+if($verbose) {
+    print STDERR "Generated $weak_deny_counter deny rules from 'any rules'\n"
+	if $weak_deny_counter;
+}
+
+print STDERR "Starting optimization\n" if $verbose;
+# Optimze rules for each particular perimeter
+for my $router (values %routers) {
+    next unless $router->{managed};
+    for my $interface (@{$router->{interfaces}}) {
+	next if $interface eq $router->{to_pep};
+	&addrule_pep_any($interface);
+    }
+} 
+if($verbose) {
+    my $n = 0;
+    for my $rule (@expanded_deny_rules, @expanded_rules) {
+	$n++ if $rule->{deleted};
+    }
+    print STDERR "Deleted $n redundant rules\n";
+}
+
+print STDERR "Starting code generation\n" if $verbose;
 # Generate code for deny rules first.
-# It suffices to distribute to the first pep on the path from src to dst
 for my $rule (@expanded_deny_rules) {
+    next if $rule->{deleted};
     &path_walk($rule, \&gen_code_at_src);
 }
 
@@ -1423,7 +1643,7 @@ for my $rule (@expanded_deny_rules) {
 #    dst-R3-/
 # Generate code for weak deny rules directly before the corresponding 
 # permit any rule
-for my $rule (@expanded_deny_rules, @expanded_rules) {
+for my $rule (@expanded_rules) {
     next if $rule->{deleted};
     if(exists $rule->{deny_rules}) {
 	for my $deny_rule (@{$rule->{deny_rules}}) {
@@ -1439,15 +1659,17 @@ print "!! Generated by $program version $version\n\n";
 # Print generated code for each managed router
 for my $router (values %routers) {
     next unless $router->{managed};
-    print "!! Access Lists for Router '$router->{name}':\n";
+    print "!! Access Lists for $router->{name}\n";
     for my $interface (@{$router->{interfaces}}) {
-	print "ip access-list extended $interface->{name}_in\n";
+	# ToDo: currently we operate with logical interfaces per network
+	# but access lists work with physical interfaces
+	print "ip access-list extended $interface->{physical}_in\n";
 	for my $line (@{$interface->{code}}) {
-	    print $line;
+	    print " $line";
 	}
-	print "deny any any\n";
-	print "interface $interface->{name}\n";
-	print "access group $interface->{name}_in $interface->{name}\n";
+	print " deny any any\n";
+	print "interface $interface->{physical}\n";
+	print " access group $interface->{physical}_in\n";
 	print "\n";
     }
 }
