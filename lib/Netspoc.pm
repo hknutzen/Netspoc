@@ -1793,21 +1793,21 @@ sub link_topology() {
 		$ip{$ip} = $interface;
 	    }
 	}
-#	for my $host (@{$network->{hosts}}) {
-#	    if(my $ip = $host->{ip}) {
-#		if(my $old_intf = $ip{$ip}) {
-#		    err_msg "Duplicate IP address for $old_intf->{name}",
-#		    " and $host->{name}";
-#		}
-#	    } elsif(my $range = $host->{range}) {
-#		for(my $ip = $range->[0]; $ip <= $range->[1]; $ip++) {
-#		    if(my $old_intf = $ip{$ip}) {
-#			err_msg "Duplicate IP address for $old_intf->{name}",
-#			" and $host->{name}";
-#		    }
-#		}
-#	    }
-#	}
+	for my $host (@{$network->{hosts}}) {
+	    if(my $ip = $host->{ip}) {
+		if(my $old_intf = $ip{$ip}) {
+		    err_msg "Duplicate IP address for $old_intf->{name}",
+		    " and $host->{name}";
+		}
+	    } elsif(my $range = $host->{range}) {
+		for(my $ip = $range->[0]; $ip <= $range->[1]; $ip++) {
+		    if(my $old_intf = $ip{$ip}) {
+			err_msg "Duplicate IP address for $old_intf->{name}",
+			" and $host->{name}";
+		    }
+		}
+	    }
+	}
 	next unless $network->{subnet_of};
 	my($type, $name) = split_typed_name($network->{subnet_of});
 	if($type eq 'network') {
