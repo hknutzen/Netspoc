@@ -2068,8 +2068,9 @@ sub expand_rules() {
 	    if(is_interface $obj and $obj->{router}->{managed}) {
 		return $obj->{any};
 	    } else {
-		err_msg "any:[local] must only be used in conjunction with an\n",
-		" managed interface in $rule->{policy}->{name}";
+		err_msg "any:[local] must only be used in conjunction with a",
+		" managed interface\n",
+		" but not $obj->{name} in $rule->{policy}->{name}";
 		# Continue with an valid value to prevent further errors.
 		if($obj eq 'any:[local]') {
 		    $rule->{deleted} = 1;
@@ -2089,13 +2090,17 @@ sub expand_rules() {
 	    for my $dst (@{$rule->{dst}}) {
 		
 		my @src = is_router $src ?
-		    path_first_interfaces $src, $dst :
-			$src eq 'any:[local]' ? $get_any_local->($dst) : ($src);
+		    path_first_interfaces $src, $dst : ($src);
 		my @dst = is_router $dst ?
-		    path_first_interfaces $dst, $src :
-			$dst eq 'any:[local]' ? $get_any_local->($src) : ($dst);
+		    path_first_interfaces $dst, $src : ($dst);
 		for my $src (@src) {
 		    for my $dst (@dst) {
+ 			if($src eq 'any:[local]') {
+ 			    $src = $get_any_local->($dst);
+ 			}
+ 			if($dst eq 'any:[local]') {
+ 			    $dst = $get_any_local->($src);
+ 			}
 			for my $srv (@{$rule->{srv}}) {
 			    my $expanded_rule = { action => $action,
 						  src => $src,
