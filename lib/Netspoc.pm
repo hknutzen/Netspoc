@@ -1271,7 +1271,9 @@ sub order_ranges( $$ ) {
 		# ToDo: Implement this
 		err_msg "Overlapping port ranges are not supported currently.\n",
 		" Workaround: Split one of $srv1->{name}, $srv2->{name} manually";
-	    }    
+	    } else {
+		internal_err "";
+	    }
 	}
     }
 }
