@@ -432,6 +432,7 @@ sub read_network( $ ) {
     $networks{$name} = $network;
 }
 
+my %valid_routing = (OSPF => 1);
 my %interfaces;
 my @disabled_interfaces;
 sub read_interface( $$ ) {
@@ -458,11 +459,15 @@ sub read_interface( $$ ) {
 	} else {
 	    syntax_err "Expected 'ip' or 'unnumbered'";
 	}
-	my $hardware = &check_assign('hardware', \&read_string);
-	$hardware and $interface->{hardware} = $hardware;
-	if(&check_flag('ospf')) {
-	    $interface->{ospf} = 1;
+	if(my $hardware = &check_assign('hardware', \&read_string)) {
+	    $interface->{hardware} = $hardware;
 	}
+	if(my $protocol = &check_assign('routing', \&read_string)) {
+	    unless($valid_routing{$protocol}) {
+		error_atline "Unknown routing protocol '$protocol'";
+	    }
+	    $interface->{routing} = $protocol;
+	}	
 	if(&check_flag('disabled')) {
 	    $interface->{disabled} = 1;
 	    push @disabled_interfaces, $interface;
@@ -522,14 +527,12 @@ sub read_router( $ ) {
 	err_msg "Missing 'model' for managed router:$name";
     }
     my $static_manual = &check_flag('static_manual');
-    my $routing_manual = &check_flag('routing_manual');
     my $router = new('Router',
 		     name => "router:$name",
 		     managed => $managed,
 		     );
     $router->{model} = $model if $managed;
     $router->{static_manual} = 1 if $static_manual and $managed;
-    $router->{routing_manual} = 1 if $routing_manual and $managed;
     while(1) {
 	last if &check('}');
 	my($type,$iname) = split_typed_name(read_typed_name());
@@ -2023,7 +2026,7 @@ sub go_loop( $$$$$$$ ) {
 	    # Generate duplicate routing entry for the current destination.
 	    # This may be ok, if only one interface is active,
 	    # or generation of routing entries may be disabled at all
-	    # for the current router using 'routing_manual'
+	    # for the current interface using e.g. 'routing=ospf'
 	    &go_path(@_, 'left');
 	    &go_path(@_, 'right');
 	}
@@ -2645,7 +2648,7 @@ sub collect_route( $$$ ) {
 	for my $network (values %{$rule->{dst_networks}}) {
 	    # ignore directly connected network
 	    next if $network eq $in_intf->{network};
-	    $in_intf->{routing}->{$hop}->{$network} = $network;
+	    $in_intf->{routes}->{$hop}->{$network} = $network;
 	    # Store $hop itself, since we need to go back 
 	    # from hash key to original object later.
 	    $in_intf->{hop}->{$hop} = $hop;
@@ -2654,7 +2657,7 @@ sub collect_route( $$$ ) {
 	for my $network (values %{$rule->{src_networks}}) {
 	    # ignore directly connected network
 	    next if $network eq $out_intf->{network};
-	    $out_intf->{routing}->{$back_hop}->{$network} = $network;
+	    $out_intf->{routes}->{$back_hop}->{$network} = $network;
 	    # Store $back_hop itself, since we need to go back 
 	    # from hash key to original object later.
 	    $out_intf->{hop}->{$back_hop} = $back_hop;
@@ -2665,7 +2668,7 @@ sub collect_route( $$$ ) {
 	    # ignore directly connected network
 	    next if $network eq $in_intf->{network};
 	    my $hop = $in_intf->{network}->{route_in_any}->{$network};
-	    $in_intf->{routing}->{$hop}->{$network} = $network;
+	    $in_intf->{routes}->{$hop}->{$network} = $network;
 	    $in_intf->{hop}->{$hop} = $hop;
 	}
     } elsif($out_intf) { # and not $in_intf
@@ -2674,7 +2677,7 @@ sub collect_route( $$$ ) {
 	    # ignore directly connected network
 	    next if $network eq $out_intf->{network};
 	    my $back_hop = $out_intf->{network}->{route_in_any}->{$network};
-	    $out_intf->{routing}->{$back_hop}->{$network} = $network;
+	    $out_intf->{routes}->{$back_hop}->{$network} = $network;
 	    $out_intf->{hop}->{$back_hop} = $back_hop;
 	}
     }
@@ -2728,10 +2731,16 @@ sub print_routes( $ ) {
 	# if there are at least two entries.
 	my $max = 1;
 	for my $interface (@{$router->{interfaces}}) {
+	    if($interface->{routing}) {
+		# if dynamic routing is activated for any interface 
+		# of the current router, don't do this optimization at all
+		$max_intf = undef;
+		last;
+	    }
 	    # Sort interfaces by name to make output deterministic
 	    for my $hop (sort { $a->{name} cmp $b->{name} }
 			 values %{$interface->{hop}}) {
-		my $count = keys %{$interface->{routing}->{$hop}};
+		my $count = keys %{$interface->{routes}->{$hop}};
 		if($count > $max) {
 		    $max_intf = $interface;
 		    $max_hop = $hop;
@@ -2741,11 +2750,20 @@ sub print_routes( $ ) {
 	}
 	if($max_intf && $max_hop) {
 	    # use default route for this direction
-	    $max_intf->{routing}->{$max_hop} = { $network_default =>
+	    $max_intf->{routes}->{$max_hop} = { $network_default =>
 						     $network_default };
 	}
     }
     for my $interface (@{$router->{interfaces}}) {
+	# don't generate static routing entries, 
+	# if a dynamic routing protocol is activated
+	if($interface->{routing}) {
+	    if($comment_routes) {
+		print "! Dynamic routing $interface->{routing}",
+		" at $interface->{name}\n";
+		next;
+	    } 
+	}
 	# Sort interfaces by name to make output deterministic
 	for my $hop (sort { $a->{name} cmp $b->{name} }
 		     values %{$interface->{hop}}) {
@@ -2754,7 +2772,7 @@ sub print_routes( $ ) {
 		$interface->{hardware} : print_ip $hop->{ip}->[0];
 	    # A hash having all networks reachable via current hop
 	    # as key as well as value.
-	    my $net_hash = $interface->{routing}->{$hop};
+	    my $net_hash = $interface->{routes}->{$hop};
 	    for my $network
 		# Sort networks by mask in reverse order,
 		# i.e. small networks coming first and 
@@ -3228,8 +3246,8 @@ sub print_acls( $ ) {
     my %hardware;
     # Collect IP addresses of all interfaces
     my @ip;
-    # We need to know, if OSPF messages are allowed for a
-    # hardware interface
+    # We need to know, if packets for dynamic routing protocol OSPF
+    # are allowed for a hardware interface
     my %ospf;
     for my $interface (@{$router->{interfaces}}) {
 	# ignore 'unnumbered' and 'short' interfaces
@@ -3238,7 +3256,7 @@ sub print_acls( $ ) {
 	$hardware{$interface->{hardware}} = $interface->{name};
 	push @ip, @{$interface->{ip}};
 	# is OSPF used?
-	if($interface->{ospf}) {
+	if($interface->{routing} and $interface->{routing} eq 'OSPF') {
 	    $ospf{$interface->{hardware}} = 1;
 	}
     }
@@ -3321,7 +3339,7 @@ sub print_code( $ ) {
 	print "!! Generated by $program, version $version\n\n";
 	print "[ BEGIN $name ]\n";
 	print "[ Model = $model ]\n";
-	&print_routes($router) unless $router->{routing_manual};
+	&print_routes($router);
 	&print_acls($router);
 	&print_pix_static($router)
 	    if $model eq 'PIX' and not $router->{static_manual};
