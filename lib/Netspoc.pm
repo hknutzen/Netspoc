@@ -520,6 +520,8 @@ sub read_host( $ ) {
 	    my $nat_ip = &read_ip();
 	    &skip(';');
 	    &skip('}');
+	    $host->{nat}->{$name} and
+		error_atline "Duplicate NAT definition";
 	    $host->{nat}->{$name} = $nat_ip;
 	} else {
 	    syntax_err "Expected NAT definition";
@@ -611,6 +613,8 @@ sub read_network( $ ) {
 		"match its mask";
 		$nat_ip &= $nat_mask;
 	    }
+	    $network->{nat}->{$name} and
+		error_atline "Duplicate NAT definition";
 	    $network->{nat}->{$name} = { ip => $nat_ip,
 					 mask => $nat_mask,
 					 dynamic => $dynamic };
@@ -737,6 +741,8 @@ sub read_interface( $$ ) {
 		    my $nat_ip = &read_ip();
 		    &skip(';');
 		    &skip('}');
+		    $interface->{nat}->{$name} and
+			error_atline "Duplicate NAT definition";
 		    $interface->{nat}->{$name} = $nat_ip;
 		} else {
 		    syntax_err "Expected named attribute";
@@ -751,19 +757,20 @@ sub read_interface( $$ ) {
 		    error_atline
 			"Virtual IP redefines standard IP";
 		$interface->{virtual} and
-		    error_atline "Redefining virtual IP";
+		    error_atline "Duplicate virtual IP";
 		$interface->{virtual} = $virtual;
 		push @virtual_interfaces, $interface;
 	    } elsif(my $nat =
 		    &check_assign('nat', \&read_identifier)) {
 		# bind NAT to an interface
 		$interface->{bind_nat} and
-		    error_atline "Redefining NAT binding";
+		    error_atline "Duplicate NAT binding";
 		$interface->{bind_nat} = $nat;
 	    } elsif(my $hardware =
 		    &check_assign('hardware', \&read_string)) {
 		$interface->{hardware} and
-		    error_atline "Redefining hardware of interface";
+		    error_atline
+		    "Duplicate definition of hardware for interface";
 		$interface->{hardware} = $hardware;
 	    } elsif(my $protocol =
 		    &check_assign('routing', \&read_string)) {
@@ -771,7 +778,7 @@ sub read_interface( $$ ) {
 		    error_atline "Unknown routing protocol";
 		}
 		$interface->{routing} and
-		    error_atline "Redefining routing protocol";
+		    error_atline "Duplicate routing protocol";
 		$interface->{routing} = $protocol;
 	    } elsif(my @names =
 		    &check_assign_list('reroute_permit',
