@@ -39,6 +39,15 @@ Add a comment line before each generated routing entry.
 Comments use names of network objects as defined in 
 the topology.
 
+=item $warn_unused_groups = [0|1]
+
+Gives warning for unused groups.
+
+=item $strict_subnets = [0|1]
+
+Allow subnets only if the enclosing network is marked as 'route_hint'
+or if the subnet is marked as 'subnet_of'.
+
 =item $ignore_files = qr/^CVS$|^RCS$|^raw$|~$/;
 
 Ignore these names when reading directories:
