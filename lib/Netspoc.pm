@@ -3816,7 +3816,7 @@ sub print_routes( $ ) {
 		    my $adr = &prefix_code(@{&address($network,
 						      $nat_domain,
 						      'src')});
-		    print "ip route $adr via $hop_addr\n";
+		    print "ip route add $adr via $hop_addr\n";
 		} else {
 		    internal_err
 			"unexpected routing type $router->{model}->{routing}";
