@@ -4334,10 +4334,9 @@ sub distribute_rule( $$$ ) {
     my $aref;
     # Packets for the router itself.
     if(not $out_intf) {
-	# For PIX firewalls it is unnecessary to process rules for packets
-	# to the PIX itself, because it accepts them anyway (telnet, IPSec).
-	# ToDo: Check if this assumption holds for deny ACLs as well.
-	return if $model->{filter} eq 'PIX' and $rule->{action} eq 'permit';
+ 	# For PIX we can only reach that interface,
+	# where traffic enters the PIX.
+ 	return if $model->{filter} eq 'PIX' and $rule->{dst} ne $in_intf;
 #	debug "$router->{name} intf_rule: ",print_rule $rule,"\n";
 	$aref = \@{$in_intf->{hardware}->{intf_rules}};
     } else {
@@ -4591,6 +4590,30 @@ sub cisco_srv_code( $$ ) {
     }
 }
 
+# Code filtering traffic with PIX as destination.
+sub pix_self_code ( $$$$$ ) {
+    my($action, $spair, $dst, $srv, $model) = @_;
+    my $src_code = ios_route_code $spair;
+    my $dst_intf = $dst->{hardware}->{name};
+    my ($proto_code, $src_port_code, $dst_port_code) =
+	cisco_srv_code($srv, $model);
+    if($proto_code eq 'icmp') {
+	return "icmp $action $src_code $dst_port_code $dst_intf";
+    } elsif($proto_code eq 'tcp' and $action eq 'permit') {
+	if($dst_port_code eq 'eq 23') {
+	    return "telnet $src_code $dst_intf";
+	} elsif($dst_port_code eq 'eq 22') {
+	    return "ssh $src_code $dst_intf";
+	} elsif($dst_port_code eq 'eq 80') {
+	    return "http $src_code $dst_intf";
+	} else {
+	    return undef
+	}
+    } else {
+	return undef;
+    }
+}
+
 # Returns iptables code for filtering a service.
 sub iptables_srv_code( $ ) {
     my ($srv) = @_;
@@ -4650,7 +4673,25 @@ sub acl_line( $$$$ ) {
 	    if $comment_acls;
 	for my $spair (address($src, $nat_map)) {
 	    for my $dpair (address($dst, $nat_map)) {
-		if($filter_type eq 'IOS' or $filter_type eq 'PIX') {
+		if($filter_type eq 'PIX') {
+		    if($prefix) {
+			# Traffic passing through the PIX.
+			my ($proto_code, $src_port_code, $dst_port_code) =
+			    cisco_srv_code($srv, $model);
+			my $src_code = ios_code($spair);
+			my $dst_code = ios_code($dpair);
+			print "$prefix $action $proto_code ",
+			"$src_code $src_port_code $dst_code $dst_port_code\n";
+		    } else {
+			# Traffic for the PIX itself.
+			if(my $code =
+			   pix_self_code $action, $spair, $dst, $srv, $model) {
+			    print "$code\n"; 
+			} else {
+			    # Other rules are ignored silently.
+			}
+		    }
+		} elsif($filter_type eq 'IOS') {
 		    my $inv_mask = $filter_type eq 'IOS';
 		    my ($proto_code, $src_port_code, $dst_port_code) =
 			cisco_srv_code($srv, $model);
@@ -5160,7 +5201,8 @@ sub print_acls( $ ) {
 	    $intf_prefix = $prefix = '';
 	    print "ip access-list extended $name\n";
 	} elsif($model->{filter} eq 'PIX') {
-	    $intf_prefix = $prefix = "access-list $name";
+	    $intf_prefix = '';
+	    $prefix = "access-list $name";
 	} elsif($model->{filter} eq 'iptables') {
 	    $intf_name = "$hardware->{name}_self";
 	    $intf_prefix = "iptables -A $intf_name";
