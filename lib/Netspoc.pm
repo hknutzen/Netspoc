@@ -1286,6 +1286,11 @@ sub expand_rules() {
 		    }
 		    if($action eq 'deny') {
 			push(@expanded_deny_rules, $expanded_rule);
+		    } elsif(is_any($src) and is_any($dst)) {
+			err_msg "Rule '", print_rule $expanded_rule, "'\n",
+			" has 'any' objects both as src and dst.\n",
+			" This is not supported currently. ",
+			"Use an 'every' object instead";
 		    } elsif(is_any($src)) {
 			$src_any_group->{$src} = 1;
 			$expanded_rule->{src_any_group} = $src_any_group;
@@ -1302,9 +1307,7 @@ sub expand_rules() {
 	}
     }
     # add ordered 'any' rules which have been ordered by order_any_rule
-    for my $depth (reverse sort keys %ordered_any_rules) {
-	&add_ordered_any_rules($ordered_any_rules{$depth});
-    }
+    &add_ordered_any_rules();
     if($verbose) {
 	my $nd = 0+@expanded_deny_rules;
 	my $n  = 0+@expanded_rules;
@@ -1376,18 +1379,20 @@ sub add_rule_2hash( $$$ ) {
     }
 }
 
-sub add_ordered_any_rules( $ ) {
-    my($hash) = @_;
-    return unless defined $hash;
-    add_rule_2hash($hash, 'any','host');
-    add_rule_2hash($hash, 'host','any');
-    add_rule_2hash($hash, 'any','network');
-    add_rule_2hash($hash, 'network','any');
-    add_rule_2hash($hash, 'any','any');
+sub add_ordered_any_rules() {
+    for my $depth (reverse sort keys %ordered_any_rules) {
+	my $hash = $ordered_any_rules{$depth};
+	next unless defined $hash;
+	add_rule_2hash($hash, 'any','host');
+	add_rule_2hash($hash, 'host','any');
+	add_rule_2hash($hash, 'any','network');
+	add_rule_2hash($hash, 'network','any');
+	add_rule_2hash($hash, 'any','any');
+    }
 }
 
 ####################################################################
-# Check for deny influence
+# Repair deny influence
 #
 # After ordering permit 'any' rules and inserting of deny_networks 
 # we have to check for one pathological case, were a deny_network
@@ -1401,7 +1406,7 @@ sub add_ordered_any_rules( $ ) {
 # permitted by rule 3.
 # But rule 1 is only related to rule 2 and must not deny traffic
 # which is allowed by rule 3
-# Possible solution (currently not implemented):
+# Solution: add additional rule
 # 0. permit	host1 host2
 # 1. deny	net1  host2
 # 2. permit	any   host2
@@ -1430,9 +1435,10 @@ sub ge_srv( $$ ) {
 # May the deny rule influence any other rules where
 # dst is some 'any' object not in relation to host2 ?
 # I think not.
-sub check_deny_influence() {
+sub repair_deny_influence() {
     info "Checking for deny influence\n";
-    for my $erule (@expanded_any_rules) {
+    for(my $i = 0; $i < @expanded_any_rules; $i++) {
+	my $erule = $expanded_any_rules[$i];
 	next unless exists $erule->{any_rules};
 	next unless is_host $erule->{dst} or is_interface $erule->{dst};
 	for my $arule (@{$erule->{any_rules}}) {
@@ -1462,10 +1468,12 @@ sub check_deny_influence() {
 			# we are only interested in rules behind the 'any' rule
 			next unless $rule->{i} > $erule->{i};
 			if(ge_srv($rule->{srv}, $arule->{srv})) {
-			    warning "currently not implemented correctly:\n ",
-			    "deny_network $net->{name} of ",
-			    print_rule($arule),
-			    "\n influences\n ", print_rule($rule), "\n";
+			    my $hrule = { action => 'permit',
+					  src => $rule->{src},
+					  dst => $arule->{dst},
+					  srv => $arule->{srv}
+				      };
+			    push @expanded_rules, $hrule;
 			}
 		    }
 		}
@@ -2583,6 +2591,8 @@ sub acl_generation() {
 	    } else {
 		&path_walk($rule, \&collect_networks_for_routes_and_static);
 	    }
+	} else {
+	    internal_err "unexpected rule ", print_rule $rule, "\n";
 	}
 	# ToDo: Handle is_any src & is_any dst
     }
@@ -2724,7 +2734,7 @@ die "Aborted with $error_counter error(s)\n" if $error_counter;
 $error_counter = $max_errors; # following errors should always abort
 &convert_any_rules();
 &optimize();
-&check_deny_influence();
+&repair_deny_influence();
 &setroute();
 &acl_generation();
 &check_output_dir($out_dir);
