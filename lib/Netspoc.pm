@@ -4687,12 +4687,13 @@ sub optimize_router( $ ) {
 	    my $srv = $rule->{srv};
 	    if(my $any_rule = $both_any{$srv} ||
 	       $src_any{$dst}->{$srv} || $dst_any{$src}->{$srv}) {
-		$changed = $rule->{deleted} = $any_rule;
+		$rule = undef;
+		$changed = 1;
 	    }
 	}
 	if($changed) {
 	    $hardware->{rules} =
-		[ grep { not $_->{deleted} } @{$hardware->{rules}} ];
+		[ grep $_, @{$hardware->{rules}} ];
 	}
     }
 }	    
