@@ -2094,7 +2094,9 @@ sub expand_rules() {
 		my @dst = is_router $dst ?
 		    path_first_interfaces $dst, $src : ($dst);
 		for my $src (@src) {
+		    my $src = $src;	# prevent modification of original array
 		    for my $dst (@dst) {
+			my $dst = $dst;	# prevent ...
  			if($src eq 'any:[local]') {
  			    $src = $get_any_local->($dst);
  			}
