@@ -782,9 +782,7 @@ sub read_interface( $$ ) {
 		$interface->{reroute_permit} = \@networks;
 	    }
 	    elsif(&check_flag('disabled')) {
-		$interface->{disabled} or 
-		    push @disabled_interfaces, $interface;
-		$interface->{disabled} = 1;
+		push @disabled_interfaces, $interface;
 	    } else {
 		syntax_err "Expected some valid attribute";
 	    }
@@ -1330,7 +1328,7 @@ sub process_ip_ranges( $$ ) {
 # anonymous hash which is used to collect IP ranges later.
 # ToDo: augment existing ranges by hosts or other ranges
 # ToDo: support chains of network > range > range .. > host
-# Hosts with an explicit NAT definition are left out from this optimization
+# ToDo: Find auto_range for hosts with simple NAT.
 sub mark_ip_ranges( $ ) {
     my($network) = @_;
     my @hosts = grep { $_->{ip} and not $_->{nat} } @{$network->{hosts}};
@@ -1641,7 +1639,7 @@ sub link_interface_with_net( $ ) {
 	err_msg "Referencing undefined network:$net_name ",
 	    "from $interface->{name}";
 	# prevent further errors
-	$interface->{disabled} = 1;
+	push @disabled_interfaces, $interface;
 	return;
     }
     $interface->{network} = $network;
@@ -1652,7 +1650,7 @@ sub link_interface_with_net( $ ) {
 		err_msg "Referencing undefined network:$net ",
 		"from attribute 'reroute_permit' of $interface->{name}";
 		# prevent further errors
-		$interface->{disabled} = 1;
+		push @disabled_interfaces, $interface;
 	    }
 	    $net = $network;
 	}
@@ -1814,6 +1812,83 @@ sub link_topology() {
 }
 
 ####################################################################
+# Mark all parts of the topology lying behind disabled interfaces.
+# "Behind" is defined like this:
+# Look from a router to its interfaces; 
+# if an interface is marked as disabled, 
+# recursively mark the whole part of the topology lying behind 
+# this interface as disabled.
+# Be cautious with loops:
+# If an interface inside a loop is marked as disabled,
+# this will mark the whole topology as disabled.
+####################################################################
+
+sub disable_behind( $ ) {
+    my($incoming) = @_;
+    return if $incoming->{disabled};
+    $incoming->{disabled} = 1;
+    my $network = $incoming->{network};
+    $network->{disabled} = 1;
+    for my $host (@{$network->{hosts}}) {
+	$host->{disabled} = 1;
+    }
+    for my $interface (@{$network->{interfaces}}) {
+	next if $interface eq $incoming;
+	next if $interface->{disabled};
+	$interface->{disabled} = 1;
+	my $router = $interface->{router};
+	$router->{disabled} = 1;
+	# a disabled router must not be managed
+	if($router->{managed}) {
+	    warning "Disabling managed $router->{name}";
+	}
+	for my $outgoing (@{$router->{interfaces}}) {
+	    next if $outgoing eq $interface;
+	    next if $outgoing->{disabled};
+	    &disable_behind($outgoing);
+	}
+    }
+}	
+
+# Lists of network objects which are left over after disabling.
+my @managed_routers;
+my @routers;
+my @all_anys;
+
+sub mark_disabled() {
+    for my $interface (@disabled_interfaces) {
+	next if $interface->{router}->{disabled};
+	disable_behind($interface);
+	if($interface->{router}->{disabled}) {
+	    # We reached an initial element of @disabled_interfaces,
+	    # which seems to be part of a loop. 
+	    # This is dangerous, since the whole topology 
+	    # may be disabled by accident.
+	    err_msg "$interface->{name} must not be disabled,\n",
+	    " since it is part of a loop";
+	}
+    }
+    for my $interface (@disabled_interfaces) {
+	# Delete disabled interfaces from routers.
+	my $router = $interface->{router};
+	&aref_delete($interface, $router->{interfaces});
+    }
+    for my $obj (values %everys, values %anys) {
+	if($obj->{link}->{disabled}) {
+	    $obj->{disabled} = 1;
+	}
+    }
+    @all_anys = grep { not $_->{disabled} } values %anys;
+    for my $router (values %routers) {
+	unless($router->{disabled}) {
+	    push @routers, $router;
+	    push @managed_routers, $router if $router->{managed};
+	}
+    }
+    @virtual_interfaces = grep { not $_->{disabled} } @virtual_interfaces;
+}
+
+####################################################################
 # Expand rules
 #
 # Simplify rules to expanded rules where each rule has exactly one 
@@ -1830,9 +1905,6 @@ my %name2object =
  group => \%groups
  );
 
-my @all_anys;
-my @managed_routers;
-
 # Initialize 'special' objects which implicitly denote a group of objects.
 #
 # interface:[managed].[all], group of all interfaces of managed routers
@@ -1840,17 +1912,18 @@ my @managed_routers;
 # interface:[all].[all], all routers, all interfaces
 # interface:[all].[auto], all routers, [auto] interfaces
 # any:[all], group of all security domains
+# any:[local], denotes the 'any' object, which is directly attached to 
+#              an interface.
+
 sub set_auto_groups () {
-    my @all_routers;
     my @managed_interfaces;
     my @all_interfaces;
     for my $router (values %routers) {
-	my @interfaces = grep { not $_->{ip} eq 'unnumbered' } @{$router->{interfaces}};
+	my @interfaces = grep({ not $_->{ip} eq 'unnumbered' }
+			      @{$router->{interfaces}});
 	if($router->{managed}) {
-	    push @managed_routers, $router;
 	    push @managed_interfaces, @interfaces;
 	}
-	push @all_routers, $router;
 	push @all_interfaces, @interfaces;
 	(my $name = $router->{name}) =~ s /^router://;
 	$interfaces{"$name.[all]"} =
@@ -1868,13 +1941,11 @@ sub set_auto_groups () {
 	    elements => \@managed_routers, is_used => 1);
     $routers{'[all]'} =
 	new('Group', name => "router:[all]",
-	    elements => \@all_routers, is_used => 1);
+	    elements => \@routers, is_used => 1);
     $anys{'[all]'} = 
 	new('Group', name => "any:[all]",
 	    elements => \@all_anys, is_used => 1);
-    # Artificial 'any' object, denotes the 'any' object,
-    # which is directly attached to an interface.
-    # String is expanded to a real 'any' object in expand_rules.
+    # String is expanded to a real 'any' object during expand_rules.
     $anys{'[local]'} = 	"any:[local]";
 }
 
@@ -1897,10 +1968,10 @@ sub expand_group( $$ ) {
 	    err_msg "Can't resolve reference to '$tname' in $context";
 	    next;
 	}
-	# split a group into its members
+	# Split a group into its members.
 	if(is_group $object) {
 	    my $elements = $object->{elements};
-	    # check for recursive definitions
+	    # Check for recursive definitions.
 	    if($elements eq 'recursive') {
 		err_msg "Found recursion in definition of $context";
 		$object->{elements} = $elements = [];
@@ -1919,7 +1990,8 @@ sub expand_group( $$ ) {
 	} elsif(is_every $object) {
 	    # expand an 'every' object to all networks in its security domain
 	    # Attention: this doesn't include unnumbered networks
-	    push @objects,  @{$object->{link}->{any}->{networks}};
+	    push @objects,  @{$object->{link}->{any}->{networks}}
+	    unless $object->{disabled};
 	} else {
 	    push @objects, $object;
 	}
@@ -2142,85 +2214,18 @@ sub expand_rules() {
 }
 
 ####################################################################
-# Mark all parts of the topology lying behind disabled interfaces.
-# "Behind" is defined like this:
-# Look from a router to its interfaces; 
-# if an interface is marked as disabled, 
-# recursively mark the whole part of the topology lying behind 
-# this interface as disabled.
-# Be cautious with loops:
-# If an interface inside a loop is marked as disabled,
-# this will mark the whole topology as disabled.
-####################################################################
-sub disable_behind( $ ) {
-    my($incoming) = @_;
-    $incoming->{disabled} = 1;
-    my $network = $incoming->{network};
-    # stop, if we found a loop
-    return if $network->{disabled};
-    $network->{disabled} = 1;
-    for my $host (@{$network->{hosts}}) {
-	$host->{disabled} = 1;
-    }
-    for my $interface (@{$network->{interfaces}}) {
-	next if $interface eq $incoming;
-	$interface->{disabled} = 1;
-	my $router = $interface->{router};
-	# stop, if we found a loop
-	return if $router->{disabled};
-	$router->{disabled} = 1;
-	# a disabled router must not be managed
-	if($router->{managed}) {
-	    $router->{managed} = 0;
-	    warning "Disabling managed $router->{name}";
-	}
-	for my $outgoing (@{$router->{interfaces}}) {
-	    next if $outgoing eq $interface;
-	    if($outgoing->{disabled}) {
-		# We found an already disabled interface,
-		# but its router was not disabled.
-		# Hence, we reached an initial element 
-		# of @disabled_interfaces, which seems to 
-		# be part of a loop. 
-		# This is dangerous, since the whole topology 
-		# may be disabled by accident.
-		err_msg "$outgoing->{name} must not be disabled,\n",
-		"since it is part of a loop";
-		next;
-	    }
-	    &disable_behind($outgoing);
-	}
-    }
-}	
-
-sub mark_disabled() {
-    for my $interface (@disabled_interfaces) {
-	disable_behind($interface);
-    }
-    for my $interface (@disabled_interfaces) {
-	# if we expand a router later to its set of interfaces,
-	# don't add disabled interfaces.
-	my $router = $interface->{router};
-	&aref_delete($interface, $router->{interfaces});
-    }
-    for my $any (values %anys, values %everys) {
-	$any->{disabled} = 1 if $any->{link}->{disabled};
-    }
-}
-
-####################################################################
 # Find subnetworks
-# Mark each network with the smallest network enclosing it
-# Mark each network which encloses some other network
+# Mark each network with the smallest network enclosing it.
+# Mark each network which encloses some other network.
 ####################################################################
 sub find_subnets() {
     info "Finding subnets";
     my %mask_ip_hash;
     for my $network (values %networks) {
-	next if $network->{ip} eq 'unnumbered';
 	next if $network->{disabled};
-	# Ignore a network, if NAT is defined for it
-	# ToDo: do a separate calculation for each NAT domain
+	next if $network->{ip} eq 'unnumbered';
+	# Ignore a network, if NAT is defined for it.
+	# ToDo: Do a separate calculation for each NAT domain.
 	next if $network->{nat} and %{$network->{nat}};
 	if(my $old_net = $mask_ip_hash{$network->{mask}}->{$network->{ip}}) {
 	    err_msg "$network->{name} and $old_net->{name} have identical ip/mask";
@@ -2291,7 +2296,7 @@ sub setany_network( $$$ ) {
     # Add network to the corresponding 'any' object,
     # to have all networks of a security domain available.
     # Unnumbered networks are left out here because
-    # they aren't a valid src or dst
+    # they aren't a valid src or dst.
     push(@{$any->{networks}}, $network)
 	unless $network->{ip} eq 'unnumbered';
     for my $interface (@{$network->{interfaces}}) {
@@ -2309,15 +2314,13 @@ sub setany_router( $$$ ) {
 	return;
     }
     for my $interface (@{$router->{interfaces}}) {
-	# ignore interface where we reached this router
+	# Ignore interface where we reached this router.
 	next if $interface eq $in_interface;
-	next if $interface->{disabled};
 	&setany_network($interface->{network}, $any, $interface);
     }
 }
 
 sub setany() {
-    @all_anys = grep { not $_->{disabled} } values %anys;
     for my $any (@all_anys) {
 	$any->{networks} = [];
 	my $obj = $any->{link};
@@ -2333,22 +2336,22 @@ sub setany() {
 	} else {
 	    internal_err "unexpected object $obj->{name}";
 	}
-	# make results deterministic
+	# Make results deterministic.
 	@{$any->{networks}} =
 	    sort { $a->{ip} <=> $b->{ip} } @{$any->{networks}};
     }
 
-    # automatically add an 'any' object to each security domain
-    # where none has been declared
+    # Automatically add an 'any' object to each security domain
+    # where none has been declared.
     for my $network (values %networks) {
-	next if $network->{any};
 	next if $network->{disabled};
+	next if $network->{any};
 	(my $name = $network->{name}) =~ s/^network:/auto_any:/;
 	my $any = new('Any', name => $name, link => $network);
 	$any->{networks} = [];
 	push @all_anys, $any;
 	setany_network $network, $any, 0;
-	# make results deterministic
+	# Make results deterministic.
 	@{$any->{networks}} =
 	    sort { $a->{ip} <=> $b->{ip} } @{$any->{networks}};
     }
@@ -2387,7 +2390,6 @@ sub setpath_obj( $$$ ) {
 	# ignore interface which is the other entry of a loop 
 	# which is already marked
 	next if $interface->{in_loop};
-	next if $interface->{disabled};
 	my $next = $interface->{$get_next};
 	if(my $loop = &setpath_obj($next, $interface, $distance+1)) {
 	    # path is part of a loop
@@ -2409,7 +2411,7 @@ sub setpath_obj( $$$ ) {
 	push @loop_objects, $obj;
 #	info "Loop($obj->{distance}): $obj->{name} -> $loop_start->{name}";
 	unless($obj eq $loop_start) {
-	    # We are still inside a loop
+	    # We are still inside a loop.
 	    return $loop_start;
 	}
     }
@@ -2419,18 +2421,20 @@ sub setpath_obj( $$$ ) {
 
 sub setpath() {
     info "Preparing fast path traversal";
-    # take a random network from %networks, name it "net1"
-    my $net1 = (values %networks)[0] or die "Topology seems to be empty\n";
+    # Take a random network from %networks, name it "net1".
+    my($net1) = grep { not $_->{disabled} } (values %networks);
+    $net1 or err_msg "Topology seems to be empty";
 
     # Starting with net1, do a traversal of the whole topology
     # to find a path from every network and router to net1.
-    # "xxx" is used as placeholder for a starting interface.
-    setpath_obj($net1, "xxx", 2);
+    # Second  parameter $net1 is used as placeholder for a not existing
+    # starting interface.
+    setpath_obj($net1, $net1, 2);
 
-    # check, if all networks are connected with net1 
+    # Check if all networks are connected with net1.
     for my $network (values %networks) {
-	next if $network eq $net1;
 	next if $network->{disabled};
+	next if $network eq $net1;
 	$network->{main} or $network->{loop} or
 	    err_msg "Found unconnected $network->{name}";
     }
@@ -2487,6 +2491,7 @@ sub setpath() {
     # of cyclic graphs
     for my $restrict (values %pathrestrictions) {
 	for my $interface (@{$restrict->{elements}}) {
+	    next if $interface->{disabled};
 	    $interface->{in_loop} or
 		err_msg "$interface->{name} of $restrict->{name}\n",
 		" isn't located inside cyclic graph";
@@ -2520,18 +2525,18 @@ sub get_path( $ ) {
     } elsif(is_network($obj)) {
 	return $obj;
     } elsif(is_any($obj)) {
-	# take one random network of this security domain
+	# Take one random network of this security domain.
 	return $obj->{networks}->[0];
     } elsif(is_router($obj)) {
-	# this is only used, when called from 
-	# find_active_routes_and_statics or from get_auto_interfaces
+	# This is only used, when called from path_first_interfaces or
+	# from find_active_routes_and_statics.
 	return $obj;
     } else {
 	internal_err "unexpected $obj->{name}";
     }
 }
 
-# converts hash key of reference back to reference
+# Converts hash key of reference back to reference.
 my %key2obj;
 
 sub loop_path_mark1( $$$$$ ) {
@@ -2747,6 +2752,9 @@ sub path_walk( $&$ ) {
 #	path_info $in, $out;
 #	&$fun2($rule, $in, $out);
 #    };
+    unless($from and  $to) {
+	info print_rule $rule;
+    }
     if($from eq $to) {
 	# don't process rule again later
 	$rule->{deleted} = $rule;
@@ -3228,7 +3236,6 @@ sub setnat_router( $$$$ ) {
     for my $interface (@{$router->{interfaces}}) {
 	# ignore interface where we reached this router
 	next if $interface eq $in_interface;
-	next if $interface->{disabled};
 	my $depth = $depth;
 	if($interface->{bind_nat}) { 
 	    $depth++;
@@ -3243,7 +3250,7 @@ sub setnat_router( $$$$ ) {
 
 sub distribute_nat_info() {
     info "Distributing NAT";
-    for my $router (values %routers) {
+    for my $router (@routers) {
 	for my $interface (@{$router->{interfaces}}) {
 	    my $nat = $interface->{bind_nat} or next;
 	    if($nat_definitions{$nat}) {
@@ -3256,10 +3263,8 @@ sub distribute_nat_info() {
     }
     # {nat_info} was collected at networks, but is needed at
     # logical and hardware interfaces of managed routers
-    for my $router (values %routers) {
-	next unless $router->{managed};
+    for my $router (@managed_routers) {
 	for my $interface (@{$router->{interfaces}}) {
-	    next if $interface->{disabled};
 	    $interface->{nat_info} = $interface->{hardware}->{nat_info} =
 		$interface->{network}->{nat_info};
 	}
@@ -3363,7 +3368,8 @@ sub optimize() {
     info "Global optimization";
     # Prepare data structures
     for my $network (values %networks) {
-	next if $network->{disabled} or $network->{up};
+	next if $network->{disabled};
+	next if $network->{up};
 	$network->{up} = $network->{any};
 	for my $object (@{$network->{hosts}}, @{$network->{interfaces}}) {
 	    $object->{up} = $network;
@@ -3425,8 +3431,7 @@ sub collect_route( $$$ ) {
 
 sub check_duplicate_routes () {
     info "Checking for duplicate routes";
-    for my $router (values %routers) {
-	next unless $router->{managed};
+    for my $router (@managed_routers) {
 	# Remember, via which local interface a network is reached.
 	my %net2intf;
 	for my $interface (@{$router->{interfaces}}) {
@@ -4559,8 +4564,7 @@ sub local_optimization() {
 	$rule->{src} = $network_00 if is_any $rule->{src};
 	$rule->{dst} = $network_00 if is_any $rule->{dst};
     }
-    for my $router (values %routers) {
-	next unless $router->{managed};
+    for my $router (@managed_routers) {
  	my $secondary_router = $router->{managed} eq 'secondary';
 	for my $hardware (@{$router->{hardware}}) {
 	    for my $rules ('intf_rules', 'rules') {
@@ -4790,8 +4794,7 @@ sub print_code( $ ) {
     my($dir) = @_;
     &check_output_dir($dir);
     info "Printing code";
-    for my $router (values %routers) {
-	next unless $router->{managed};
+    for my $router (@managed_routers) {
 	my $model = $router->{model};
 	my $name = $router->{name};
 	my $file = $name;
