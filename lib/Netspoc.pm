@@ -2717,7 +2717,7 @@ sub find_active_routes_and_statics () {
 		# no static needed for traffic from higher to lower security level
 		next if $in_intf->{level} > $out_intf->{level};
 		# convert 2nd path
-		$to =~ s/^2.//;
+		$to =~ s/^2\.//;
 		# get destination object: a network
 		my $obj = $key2obj{$to};
 		err_msg "Traffic to $obj->{name} can't pass\n",
