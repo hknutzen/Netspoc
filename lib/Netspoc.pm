@@ -1425,8 +1425,6 @@ my %rule_tree;
 
 sub expand_rules() {
     for my $rule (@rules) {
-	my $src_any_group = {};
-	my $dst_any_group = {};
 	my $action = $rule->{action};
 	$rule->{src} = expand_group $rule->{src}, 'src of rule';
 	$rule->{dst} = expand_group $rule->{dst}, 'dst of rule';
@@ -1461,12 +1459,8 @@ sub expand_rules() {
 			" This is not supported currently. ",
 			"Use one 'every' object instead";
 		    } elsif(is_any($src)) {
-			$src_any_group->{$src} = 1;
-			$expanded_rule->{src_any_group} = $src_any_group;
 			order_any_rule($expanded_rule, \%ordered_any_rules);
 		    } elsif(is_any($dst)) {
-			$dst_any_group->{$dst} = 1;
-			$expanded_rule->{dst_any_group} = $dst_any_group;
 			order_any_rule($expanded_rule, \%ordered_any_rules);
 		    } else {
 			push(@expanded_rules, $expanded_rule);
@@ -2130,10 +2124,6 @@ sub convert_any_src_rule( $$$ ) {
     # nothing to do for the first router
     return if $any eq $rule->{src};
 
-    # Optimization: nothing to do if there is a similar rule
-    # with another 'any' object as src
-    return if $rule->{src_any_group}->{$any};
-
     my $any_rule = {src => $any,
 		    dst => $rule->{dst},
 		    srv => $rule->{srv},
@@ -2210,11 +2200,6 @@ sub convert_any_dst_rule( $$$ ) {
 	    $rule->{any_dst_group} = $link;
 	    next;
 	}
-
-	# Optimization: nothing to do if there is a similar rule
-	# with another 'any' object as dst
-	next if $rule->{dst_any_group}->{$any};
-
 	# any_dst_group-optimization may lead to false results when applied
 	# inside a loop
 	my $link = $intf->{any}->{loop} ? undef : $link;
