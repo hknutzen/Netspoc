@@ -3459,8 +3459,12 @@ sub check_duplicate_routes () {
 			if(my $hop2 = $net2hop{$network}) {
 			    # Network is reached via two different hops.
 			    # Check if both are reached via the same virtual IP.
-			    unless($hop->{virtual} and $hop2->{virtual} and
+			    if($hop->{virtual} and $hop2->{virtual} and
 				   $hop->{virtual} eq $hop2->{virtual}) {
+				# Prevent multiple identical routes to different
+				# interfaces with identical virtual IP.
+				delete $interface->{routes}->{$hop}->{$network};
+			    } else {
 				warning
 				    "Two static routes for $network->{name}\n",
 				    " at $interface->{name}";
