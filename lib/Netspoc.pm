@@ -1234,42 +1234,49 @@ sub typeof( $ ) {
     }
 }
 
-sub order_any_rule ( $$ ) {
-    my($rule, $href) = @_;
-    my $depth = $rule->{srv}->{depth};
-    my $srcid = typeof($rule->{src});
-    my $dstid = typeof($rule->{dst});
-    push @{$href->{$depth}->{$srcid}->{$dstid}}, $rule;
-}
+# new block with private global variables
+{
+    # hash for ordering permit any rules; 
+    # when sorted, they are added later to @expanded_any_rules
+    my %ordered_any_rules;
 
-# counter for expanded permit any rules
-my $anyrule_index = 0;
+    sub order_any_rule ( $ ) {
+	my($rule) = @_;
+	my $depth = $rule->{srv}->{depth};
+	my $srcid = typeof($rule->{src});
+	my $dstid = typeof($rule->{dst});
+	push @{$ordered_any_rules{$depth}->{$srcid}->{$dstid}}, $rule;
+    }
 
-# add all rules with matching srcid and dstid to expanded_any_rules
-sub add_rule_2hash( $$$$ ) {
-    my($result_aref, $hash,$srcid,$dstid) = @_;
-    my $rules_aref = $hash->{$srcid}->{$dstid};
-    if(defined $rules_aref) {
-	for my $rule (@$rules_aref) {
-	    # add an incremented index to each any rule
-	    # for simplifying a later check if one rule
-	    # influences another one
-	    $rule->{i} = $anyrule_index++;
-	    push(@$result_aref, $rule);
+    # counter for expanded permit any rules
+    my $anyrule_index = 0;
+
+    # add all rules with matching srcid and dstid to expanded_any_rules
+    sub add_rule_2hash( $$$$ ) {
+	my($result_aref, $hash, $srcid, $dstid) = @_;
+	my $rules_aref = $hash->{$srcid}->{$dstid};
+	if(defined $rules_aref) {
+	    for my $rule (@$rules_aref) {
+		# add an incremented index to each any rule
+		# for simplifying a later check if one rule
+		# influences another one
+		$rule->{i} = $anyrule_index++;
+		push(@$result_aref, $rule);
+	    }
 	}
     }
-}
 
-sub add_ordered_any_rules( $$ ) {
-    my($aref, $href) = @_;
-    for my $depth (reverse sort keys %$href) {
-	my $hash = $href->{$depth};
-	next unless defined $hash;
-	add_rule_2hash($aref, $hash, 'any','host');
-	add_rule_2hash($aref, $hash, 'host','any');
-	add_rule_2hash($aref, $hash, 'any','network');
-	add_rule_2hash($aref, $hash, 'network','any');
-	add_rule_2hash($aref, $hash, 'any','any');
+    sub add_ordered_any_rules( $ ) {
+	my($aref) = @_;
+	for my $depth (reverse sort keys %ordered_any_rules) {
+	    my $hash = $ordered_any_rules{$depth};
+	    next unless defined $hash;
+	    add_rule_2hash($aref, $hash, 'any','host');
+	    add_rule_2hash($aref, $hash, 'host','any');
+	    add_rule_2hash($aref, $hash, 'any','network');
+	    add_rule_2hash($aref, $hash, 'network','any');
+	    add_rule_2hash($aref, $hash, 'any','any');
+	}
     }
 }
 
@@ -1415,9 +1422,6 @@ my @expanded_deny_rules;
 my @expanded_rules;
 # array of expanded any rules
 my @expanded_any_rules;
-# hash for ordering permit any rules; 
-# when sorted, they are added later to @expanded_any_rules
-my %ordered_any_rules;
 # hash for ordering all rules:
 # $rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
 # see &add_rule for details
@@ -1460,10 +1464,10 @@ sub expand_rules() {
 			"Use one 'every' object instead";
 		    } elsif(is_any($src)) {
 			$expanded_rule->{deny_src_networks} = [];
-			order_any_rule($expanded_rule, \%ordered_any_rules);
+			order_any_rule($expanded_rule);
 		    } elsif(is_any($dst)) {
 			$expanded_rule->{deny_dst_networks} = [];
-			order_any_rule($expanded_rule, \%ordered_any_rules);
+			order_any_rule($expanded_rule);
 		    } else {
 			push(@expanded_rules, $expanded_rule);
 			&add_rule($expanded_rule);
@@ -1473,7 +1477,7 @@ sub expand_rules() {
 	}
     }
     # add ordered 'any' rules which have been ordered by order_any_rule
-    add_ordered_any_rules(\@expanded_any_rules, \%ordered_any_rules);
+    add_ordered_any_rules(\@expanded_any_rules);
     for my $expanded_rule (@expanded_any_rules) {
 	&add_rule($expanded_rule);
     }
@@ -2514,7 +2518,7 @@ sub optimize_rules() {
 }
 
 sub optimize() {
-    info "Starting optimization";
+    info "Optimization";
     &optimize_rules();
     if($verbose) {
 	my($n, $nd, $na, $naa) = (0,0,0,0);
@@ -3172,7 +3176,7 @@ sub collect_acls_at_dst( $$$ ) {
 }
 
 sub acl_generation() {
-    info "Starting code generation";
+    info "Code generation";
     # Code for deny rules
     for my $rule (@expanded_deny_rules) {
 	next if $rule->{deleted};
