@@ -2135,9 +2135,8 @@ sub srv_code( $$ ) {
     }
 }
 
-sub collect_pix_static( $$$ ) {
-    my($src_intf, $dst_intf, $rule) = @_;
-    my $dst = $rule->{dst};
+sub collect_networks_for_routes_and_static( $$$$ ) {
+    my($src_intf, $dst_intf, $dst, $model) = @_;
     my @networks;
     if(is_host $dst or is_interface $dst) {
 	@networks = ($dst->{network});
@@ -2148,14 +2147,21 @@ sub collect_pix_static( $$$ ) {
 	# every network of that security domain
 	@networks = @{$dst->{border}->{networks}};
     } else {
-	die "internal in collect_pix_static: unexpected dst $dst->{name}";
+	die "internal in collect_networks_for_routes_and_static: unexpected dst $dst->{name}";
     }
     for my $net (@networks) {
 	next if $net->{ip} eq 'unnumbered';
-	$net->{mask} == 0 and
-	    die "Pix doesn't support static command for mask 0.0.0.0 of $net->{name}\n";
-	# put networks into a hash to prevent duplicates
-	$dst_intf->{static}->{$src_intf->{hardware}}->{$net} = $net;
+	# mark reachable networks for generation of route commands
+	$dst_intf->{used_route}->{$net} = 1;
+	# collect networks reachable from lower security level
+	# for generation of static commands
+	if($model eq 'PIX' and $src_intf and
+	   $src_intf->{level} < $dst_intf->{level}) {	
+	    $net->{mask} == 0 and
+		die "Pix doesn't support static command for mask 0.0.0.0 of $net->{name}\n";
+	    # put networks into a hash to prevent duplicates
+	    $dst_intf->{static}->{$src_intf->{hardware}}->{$net} = $net;
+	}
     }
 }
 
@@ -2211,9 +2217,9 @@ sub collect_acls( $$$ ) {
     $src_intf and $router = $src_intf->{router};
     $dst_intf and $router = $dst_intf->{router};
     my $model = $router->{model};
-    if($model eq 'PIX' and $src_intf and $dst_intf and
-       $src_intf->{level} < $dst_intf->{level}) {
-	&collect_pix_static($src_intf, $dst_intf, $rule);
+    if($dst_intf and $action eq 'permit') {
+	&collect_networks_for_routes_and_static($src_intf, $dst_intf,
+						$dst, $model);
     }
     my $inv_mask = $model eq 'IOS';
     my @src_code = &adr_code($src, $inv_mask);
@@ -2367,21 +2373,34 @@ sub gen_routes( $ ) {
     my($router) = @_;
     print "[ Routing ]\n";
     for my $interface (@{$router->{interfaces}}) {
+	my $used_route = $interface->{used_route};
 	for my $hop (@{$interface->{network}->{interfaces}}) {
 	    next if $hop eq $interface;
 	    my $hop_ip = print_ip $hop->{ip}->[0];
-	    my @networks = sort { $a->{ip} <=> $b->{ip} } @{$hop->{route}};
+	    # sort networks by mask in reverse order, i.e. large masks coming
+	    # first and for equal mask by IP address
+	    # we need this
+	    # 1. for routing on demand to work
+	    # 2. to make the output deterministic
+	    my @networks =
+		sort { $b->{mask} <=> $a->{mask} || $a->{ip} <=> $b->{ip} }
+	    @{$hop->{route}};
 	    # find enclosing networks
 	    my %enclosing;
 	    for my $network (@networks) {
 		$network->{enclosing} and $enclosing{$network} = 1;
 	    }
-	    # mark redundant networks as deleted,
-	    # but only if the directly enclosing network lies behind
-	    # this router as well
 	    for my $network (@networks) {
-		$network->{is_in} and $enclosing{$network->{is_in}} and
+		if(not $used_route->{$network}) {
+		    # no route needed if all traffic to this network is denied
 		    $network = undef;
+		} elsif($network->{is_in} and $enclosing{$network->{is_in}}) {
+		    # Mark redundant network as deleted, if directly
+		    # enclosing network lies behind the same hop.
+		    # But add the enclosing network to used_route.
+		    $used_route->{$network->{is_in}} = 1;
+		    $network = undef;
+		}
 	    }
 	    for my $network (@networks) {
 		next unless defined $network;
