@@ -1622,6 +1622,13 @@ sub link_interface_with_net( $ ) {
 		err_msg "$interface->{name}'s IP doesn't match ",
 		"$network->{name}'s IP/mask";
 	    }
+	    if($interface_ip == $network_ip) {
+		warning "$interface->{name} has address of it's network";
+	    }
+	    my $broadcast = $network_ip + ~$mask;
+	    if($interface_ip == $broadcast) {
+		warning "$interface->{name} has broadcast address";
+	    }
 	}
 	# Check compatibility of interface and network NAT.
 	# A NAT defintion for a single interface is only allowed,
