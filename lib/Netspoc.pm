@@ -1030,7 +1030,10 @@ sub gen_ip_ranges( $ ) {
 			new('Host',
 			    name => $name,
 			    range => [ $begin, $end ],
-			    network => $aref->[$start_range]->{network});
+			    network => $aref->[$start_range]->{network},
+			    # remember original hosts for later reference
+			    orig_hosts => [ @$aref[$start_range .. $end_range] ],
+			    );
 		    $range_mark->{$begin}->{$end} = $range;
 		}
 		# substitute first host with range
