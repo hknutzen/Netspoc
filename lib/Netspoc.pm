@@ -1865,12 +1865,23 @@ sub path_walk($&) {
 ##############################################################################
 # Convert semantics of rules with an 'any' object as source or destination
 # from high-level to low-level:
-# high-level: any:X denotes all networks of security domain X
-# low-level:  automatically insert 'any' rules with attached deny rules 
-#             at intermediate paths.
+# (A) rule "permit any:X dst"
+# high-level: all networks of security domain X get access to dst
+# low-level: like above, but additionally, the networks of
+#            all security domains on the path from any:x to dst
+#            get access to dst.
+# (B) rule permit src any:X
+# high-level: src gets access to all networks of security domain X
+# low-level: like above, but additionally, src gets access to the networks of
+#            all security domains lying directly behind all routers on the path
+#            from src to any:X
+# To preserve the overall meaning while converting from 
+# high-level to low-level semantics, deny rules have to be
+# inserted automatically.
 ##############################################################################
 
 # permit any1 dst
+#
 #      N2-\/-N3
 # any1-R1-any2-R2-any3-R3-dst
 #   N1-/    N4-/    \-N5
@@ -1932,12 +1943,31 @@ sub convert_any_dst_rule( $$$ ) {
     my $src = $rule->{src};
     my $srv = $rule->{srv};
     # in_intf may be undefined if src is an interface and
-    # we just process the corresponding router;
+    # we just process the corresponding router,
+    # thus we better use out_intf
     my $router = $out_intf->{router};
-    # link together 'any' rules at one router:
-    # code needs to be generated only for the first processed rule 
-    $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv}->{active} = 0;
-    my $link = $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv};
+
+    # Let us assume two rules: 
+    # 1. permit src any:X 
+    # 2. permit src any:Y    /-any:X
+    # and this topology: src-R1-any:Y
+    # with any:X and any:Y directly attached to different interfaces of R1.
+    # Since we are generating only ACLs for inbound filtering,
+    # we would get two identical ACL entries at interface:R1.src:
+    # 1. permit src any
+    # 2. permit src any
+    # To identify these related rules at each router, we link them together
+    # at each router were they are applicable.
+    # Later, when generating code for the first rule at a router,
+    # the value of {active} is changed from 0 to 1. This indicates
+    # that no code needs to be generated for subsequent related rules
+    # at the same router.
+    # This optimization is only applicable for stateful routers.
+    my $link;
+    if($router->{model} eq 'PIX' or $router->{model} eq 'IOS_FW') {
+	$router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv}->{active} = 0;
+	$link = $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv};
+    }
 
     # Find networks at all interfaces except the in_intf.
     # For the case that src is interface of current router,
@@ -2724,7 +2754,7 @@ sub collect_acls_at_end( $$$$ ) {
 
 sub acl_generation() {
     info "Starting code generation\n";
-    # First generate code for deny rules
+    # Code for deny rules
     for my $rule (@expanded_deny_rules) {
 	next if $rule->{deleted};
 	&path_walk($rule, \&collect_acls);
@@ -2771,15 +2801,21 @@ sub acl_generation() {
 		    &path_walk($deny_rule, \&collect_acls_at_dst);
 		}
 	    }
-	    # second generate 'any' + auto 'any' rules
+	    # then generate 'any' + auto 'any' rules
 	    for my $any_rule ($rule, @{$rule->{any_rules}}) {
 		next if $any_rule->{deleted} and
 			not $any_rule->{managed_if};
-		unless($any_rule->{any_dst_group}->{active}) {
-		    &path_walk($any_rule, \&collect_acls_at_dst);
-		    $any_rule->{any_dst_group}->{active} = 1;
+		if($any_rule->{any_dst_group}) {
+		    unless($any_rule->{any_dst_group}->{active}) {
+			&path_walk($any_rule, \&collect_acls_at_dst);
+			$any_rule->{any_dst_group}->{active} = 1;
+		    } else {
+			info("- ".print_rule($any_rule)."\n");
+			&path_walk($any_rule, \&collect_networks_for_routes_and_static);
+		    }
 		} else {
-		    &path_walk($any_rule, \&collect_networks_for_routes_and_static);
+		    # no optimization for stateless routers
+		    &path_walk($any_rule, \&collect_acls_at_dst);
 		}
 	    }
 	} else {
