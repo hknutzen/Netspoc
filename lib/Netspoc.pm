@@ -2810,7 +2810,6 @@ sub acl_generation() {
 			&path_walk($any_rule, \&collect_acls_at_dst);
 			$any_rule->{any_dst_group}->{active} = 1;
 		    } else {
-			info("- ".print_rule($any_rule)."\n");
 			&path_walk($any_rule, \&collect_networks_for_routes_and_static);
 		    }
 		} else {
