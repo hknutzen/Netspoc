@@ -2997,9 +2997,12 @@ sub path_walk( $&$ ) {
 }
 
 sub path_first_interfaces( $$ ) {
-    my ($from, $to) = @_;
-    $from = &get_path($from);
-    $to = &get_path($to);
+    my ($src, $dst) = @_;
+    my $from = &get_path($src);
+    my $to = &get_path($dst);
+    if($from eq $to) {
+	return $dst;
+    }
     &path_mark($from, $to) unless $from->{path}->{$to};
     if(my $exit = $from->{loop_exit}->{$to}) {
 #	info "$from->{name}.[auto] = ".join ',', map {$_->{name}} @{$from->{loop_enter}->{$exit}};
