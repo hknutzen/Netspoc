@@ -2814,8 +2814,8 @@ sub collect_acls( $$$ ) {
     my $model = $router->{model};
     # this is a secondary packet filter:
     # we need to filter only IP-Addresses
-    my $secondary = $router->{managed} eq 'secondary'
-	and $rule->{has_full_filter};
+    my $secondary =
+	$router->{managed} eq 'secondary' && $rule->{has_full_filter};
     &collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
     my $inv_mask = $model =~ /^IOS/;
     my @src_code = &adr_code($src, $inv_mask);
