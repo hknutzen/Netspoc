@@ -2415,16 +2415,10 @@ sub set_natdomain( $$$ ) {
 	next if $interface eq $in_interface;
 	my $router = $interface->{router};
 	my $managed = $router->{managed};
-	my $nat_tag = $interface->{bind_nat};
+	my $nat_tag = $interface->{bind_nat} || '';
 	for my $out_interface (@{$router->{interfaces}}) {
-	    my $unchanged_nat_binding;
-	    {
-		no warnings "uninitialized";
-		# This is true for incoming $interface as well.
-		$unchanged_nat_binding =
-		    $out_interface->{bind_nat} eq $nat_tag;
-	    }
-	    if($unchanged_nat_binding) {
+	    my $out_nat_tag = $out_interface->{bind_nat} || '';
+	    if($out_nat_tag eq $nat_tag) {
 		# $nat_map will be collected at nat domains, but is needed at
 		# logical and hardware interfaces of managed routers.
 		if($managed) {
@@ -2439,19 +2433,29 @@ sub set_natdomain( $$$ ) {
 		set_natdomain $out_interface->{network}, $domain,
 		$out_interface;
 	    } else {
-		# New nat domain starts behind this interface.
-		push @{$domain->{interfaces}}, $interface;
+		# New NAT domain starts at some interface of current router.
+		# Remember NAT tag of current domain.
+		if(my $old_nat_tag = $router->{nat_tag}->{$domain}) {
+		    if($old_nat_tag ne $nat_tag) {
+			err_msg "Inconsistent NAT in loop at $router->{name}:\n",
+			"nat:$old_nat_tag vs. nat:$nat_tag";
+			next;
+		    }
+		}
+		$router->{nat_tag}->{$domain} = $nat_tag;
+		push @{$domain->{routers}}, $router;
+		push @{$router->{domains}}, $domain;
+		# It's sufficient to find one new NAT domain.
+		next;
 	    }
-		
 	}
-
     }
 }
 
 sub distribute_nat1( $$$$ );
 sub distribute_nat1( $$$$ ) {
-    my($domain, $nat_tag, $depth, $in_interface) = @_;
-#    debug "nat:$nat_tag depth $depth at $domain->{name} from $in_interface->{name}";
+    my($domain, $nat_tag, $depth, $in_router) = @_;
+#    debug "nat:$nat_tag depth $depth at $domain->{name} from $in_router->{name}";
     if($domain->{active_path}) {
 #	debug "nat:$nat_tag loop";
 	# Found a loop
@@ -2485,26 +2489,18 @@ sub distribute_nat1( $$$$ ) {
     }
     # Activate loop detection.
     $domain->{active_path} = 1;
-    for my $interface (@{$domain->{interfaces}}) {
-	next if $interface eq $in_interface;
-	my $out_nat_tag = $interface->{bind_nat};
-	# Found another border of current nat domain.
-	next if $out_nat_tag and $out_nat_tag eq $nat_tag;
-	my $router = $interface->{router};
-	for my $out_interface (@{$router->{interfaces}}) {
-	    next if $out_interface eq $interface;
-	    next if $out_interface->{nat_domain} eq $domain;
+    # Distribute NAT tag to adjacent NAT domains.
+    for my $router (@{$domain->{routers}}) {
+	next if $router eq $in_router;
+	my $our_nat_tag = $router->{nat_tag}->{$domain};
+	# Found another interface with same NAT binding.
+	# This stops effevt of current NAT tag.
+	next if $our_nat_tag and $our_nat_tag eq $nat_tag;
+	for my $out_domain (@{$router->{domains}}) {
+	    next if $out_domain eq $domain;
 	    my $depth = $depth;
-	    if($out_interface->{bind_nat}) { 
-		$depth++;
-		if($out_interface->{bind_nat} eq $nat_tag) {
-		    err_msg "Found NAT loop for nat:$nat_tag",
-		    "at $interface->{name}";
-		    next;
-		}
-	    }
-	    distribute_nat1
-		$out_interface->{nat_domain}, $nat_tag, $depth, $out_interface;
+	    $depth++ if $router->{nat_tag}->{$out_domain};
+	    distribute_nat1 $out_domain, $nat_tag, $depth, $router;
 	}
     }
     delete $domain->{active_path};
@@ -2533,16 +2529,16 @@ sub distribute_nat_info() {
 	set_natdomain $network, $domain, 0;
     }
     # Distribute NAT info to NAT domains.
-    for my $router (@routers) {
-	for my $interface (@{$router->{interfaces}}) {
-	    my $nat_tag = $interface->{bind_nat} or next;
+    for my $domain (@natdomains) {
+	for my $router (@{$domain->{routers}}) {
+	    my $nat_tag = $router->{nat_tag}->{$domain} or next;
 	    if($nat_definitions{$nat_tag}) {
 		distribute_nat1
-		    $interface->{nat_domain}, $nat_tag, 0, $interface;
+		    $domain, $nat_tag, 0, $router;
 		$nat_definitions{$nat_tag} = 'used';
 	    } else {
 		warning "Ignoring undefined nat:$nat_tag",
-		" bound to $interface->{name}";
+		" used at $router->{name}";
 	    }
 	}
     }
