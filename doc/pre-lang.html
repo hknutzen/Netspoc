@@ -304,20 +304,30 @@ for interface definitions: the router name followed by a network name.
  service:&lt;name&gt; = 
  {{
    ip 
- | tcp [&lt;int_1&gt;[-&lt;int_2&gt;]]
- | udp [&lt;int_1&gt;[-&lt;int_2&gt;]]
+ | tcp [&lt;range&gt; -&gt;] &lt;range&gt
+ | udp [&lt;range&gt; -&gt;] &lt;range&gt
  | icmp [&lt;int_1&gt;[/&lt;int_2&gt;]] 
  | proto &lt;int&gt; 
  }} ;</PRE>
+<p>with</p>
+<PRE>
+&lt;range&gt; ::= [&lt;int_1&gt;[-&lt;int_2&gt;]]
+</PRE>
 <P>
 <DL>
 <DT>tcp, udp
 <DD>
 <UL>
-<LI>&lt;int_1&gt;, &lt;int_2&gt; describe a port range,
-<LI>0 &lt; &lt;int_1&gt; &lt;= &lt;int_2&gt; &lt;= 65535,
-<LI>if &lt;int_2&gt; is omitted, a single port is assumed,
-<li>omit both ports to denote any tcp/udp traffic
+<li> A &lt;range&gt; denotes a tcp/udp port range
+<li> A &lt;range&gt; consisting of only one number denotes a single
+port
+<li> An empty &lt;range&gt; is equivalent with the full range of all
+ports 1 - 65535 
+<li> If only one  &lt;range&gt; is given, it describes the destination
+port
+<li> If two  &lt;range&gt;s are given, they describe source and
+destination port
+<LI>0 &lt; &lt;int_1&gt; &lt;= &lt;int_2&gt; &lt;= 65535
 </UL>
 <P>
 <DT>icmp
