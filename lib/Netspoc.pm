@@ -2711,9 +2711,10 @@ sub print_routes( $ ) {
 	my $max_hop;
 	my $max = 0;
 	for my $interface (@{$router->{interfaces}}) {
-	    for my $key (keys %{$interface->{routing}}) {
-		my $hop = $interface->{hop}->{$key};
-		my $count = keys %{$interface->{routing}->{$key}};
+	    # Sort interfaces by name to make output deterministic
+	    for my $hop (sort { $a->{name} cmp $b->{name} }
+			 values %{$interface->{hop}}) {
+		my $count = keys %{$interface->{routing}->{$hop}};
 		if($count > $max) {
 		    $max_intf = $interface;
 		    $max_hop = $hop;
@@ -2731,8 +2732,9 @@ sub print_routes( $ ) {
 	}
     }
     for my $interface (@{$router->{interfaces}}) {
-	for my $key (keys %{$interface->{routing}}) {
-	    my $hop = $interface->{hop}->{$key};
+	# Sort interfaces by name to make output deterministic
+	for my $hop (sort { $a->{name} cmp $b->{name} }
+		     values %{$interface->{hop}}) {
 	    # for unnumbered networks use interface name as next hop
 	    my $hop_addr = $hop->{ip} eq 'unnumbered' ?
 		$interface->{hardware} : print_ip $hop->{ip}->[0];
@@ -2742,7 +2744,7 @@ sub print_routes( $ ) {
 		# for equal mask by IP address.
 		# We need this to make the output deterministic
 		( sort { $b->{mask} <=> $a->{mask} || $a->{ip} <=> $b->{ip} }
-		  values %{$interface->{routing}->{$key}}) {
+		  values %{$interface->{routing}->{$hop}}) {
 		if($comment_routes) {
 		    print "! route $network->{name} -> $hop->{name}\n";
 		}
