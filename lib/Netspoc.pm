@@ -2168,7 +2168,7 @@ sub gen_pix_static( $ ) {
 	my $high = $interface->{hardware};
 	for my $low (keys %$static) {
 	    my @networks =
-		sort { $a->{ip} <=> $b->{ip} }values %{$static->{$low}};
+		sort { $a->{ip} <=> $b->{ip} } values %{$static->{$low}};
 	    # find enclosing networks
 	    my %enclosing;
 	    for my $network (@networks) {
@@ -2362,7 +2362,7 @@ sub gen_routes( $ ) {
 	for my $hop (@{$interface->{network}->{interfaces}}) {
 	    next if $hop eq $interface;
 	    my $hop_ip = print_ip $hop->{ip}->[0];
-	    my @networks = @{$hop->{route}};
+	    my @networks = sort { $a->{ip} <=> $b->{ip} } @{$hop->{route}};
 	    # find enclosing networks
 	    my %enclosing;
 	    for my $network (@networks) {
