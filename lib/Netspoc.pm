@@ -2047,39 +2047,13 @@ sub go_path( $$$$$$$$ ) {
 }
 
 sub go_loop( $$$$$$$ ) {
-    my($rule, $fun, $where, $from_in, $from, $to, $to_out, $path) = @_;
-    if($where eq 'Any') {
-	# processing routes: take only the shortest path throug loop
-	# ToDo: rethink, is this always the right thing to do?
-	my $node = $from;
-	my $left_len = 0;
-	while($node ne $to) {
-	    $node = $node->{left}->{left};
-	    $left_len++;
-	}
-	$node = $from;
-	my $right_len = 0;
-	while($node ne $to) {
-	    $node = $node->{right}->{right};
-	    $right_len++;
-	}
-	if($left_len == $right_len) {
-	    # Generate duplicate routing entry for the current destination.
-	    # This may be ok, if only one interface is active,
-	    # or generation of routing entries may be disabled at all
-	    # for the current interface using e.g. 'routing=ospf'
-	    &go_path(@_, 'left');
-	    &go_path(@_, 'right');
-	}
-	if($left_len < $right_len) {
-	    &go_path(@_, 'left');
-	} else {
-	    &go_path(@_, 'right');
-	}
-    } else {
-	&go_path(@_, 'left');
-	&go_path(@_, 'right');
-    }
+    # Generate duplicate routing entry for the current destination.
+    # This may be ok, if only one interface is active,
+    # or generation of routing entries may be disabled at all
+    # for the current interface using e.g. 'routing=ospf'
+    &go_path(@_, 'left');
+    &go_path(@_, 'right');
+
 }    
 
 # Apply a function to a rule at every managed router
