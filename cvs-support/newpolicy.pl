@@ -59,10 +59,12 @@ $ENV{CVSROOT} or die "Abort: No CVSROOT specified!\n";
 
 # user must have an updated and checked in working directory
 chdir $working or die "Error: can't cd to $working: $!\n";
-if(my $cvsout = `cvs -nq update`) {
-    die "Abort: $working isn't up to date:\n$cvsout";
+open CHECK, 'cvs -nq update -d 2>&1 |' or die "can't execute cvs\n";
+if(my $output = join '', <CHECK>) {
+    $output and die "Abort: $working isn't up to date:\n$output";
 }
-    
+close CHECK;
+
 # Lock policy database
 sysopen LOCK, "$lock", O_RDONLY | O_CREAT or
     die "Error: can't open $lock: $!";
