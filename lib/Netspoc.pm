@@ -3432,6 +3432,8 @@ sub optimize_srv_rules( $$ ) {
  
     # optimize full rules
     for my $chg_rule (values %$chg_hash) {
+	# don't change this attribute again.
+	# This is vital for managed_intf optimization to work
 	next if $chg_rule->{deleted};
 # info "chg: ", print_rule $chg_rule;
 # map {info "chg deny-net: ",$_->{name} } @{$chg_rule->{deny_networks}};
@@ -3481,6 +3483,8 @@ sub optimize_dst_rules( $$ ) {
 	my $cmp_dst;
 	my $any;
 	if(is_host($dst) or is_interface($dst)) {
+	    # First compare with dst of other rules.
+	    # This is vital for managed_intf optimization to work.
 	    $cmp_dst = $cmp_hash->{$dst} and
 		&optimize_srv_rules($cmp_dst->[0], $next_hash);
 	    $cmp_dst = $cmp_hash->{$dst->{network}} and
@@ -4281,6 +4285,7 @@ sub collect_acls( $$$ ) {
     if($rule->{deleted}) {
 	# we are on an intermediate router if $out_intf is defined
 	return if $out_intf;
+	# No code needed if it is deleted by another rule to the same interface
 	return if $rule->{deleted}->{managed_intf};
     }
     my $comment_char = $model->{comment_char};
@@ -4320,12 +4325,17 @@ sub check_deleted ( $$ ) {
     if($rule->{deleted}) {
 	if($rule->{managed_intf}) {
 	    if($out_intf) {
+		# we are on an intermediate router if $out_intf is defined,
+		# hence normal 'delete' is valid
 		return 1;
 	    }
 	    if($rule->{deleted}->{managed_intf}) {
+		# No code needed if it is deleted by another 
+		# rule to the same interface
 		return 1;
 	    }
 	} else {
+	    # not a managed interface, normal 'delete' is valid
 	    return 1;
 	}
     }
