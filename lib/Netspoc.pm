@@ -1630,11 +1630,8 @@ sub expand_rules() {
 			" has 'any' objects both as src and dst.\n",
 			" This is not supported currently. ",
 			"Use one 'every' object instead";
-		    } elsif(is_any($src)) {
-			$expanded_rule->{deny_src_networks} = [];
-			order_any_rule($expanded_rule);
-		    } elsif(is_any($dst)) {
-			$expanded_rule->{deny_dst_networks} = [];
+		    } elsif(is_any($src) or is_any($dst)) {
+			$expanded_rule->{deny_networks} = [];
 			order_any_rule($expanded_rule);
 		    } else {
 			push(@expanded_rules, $expanded_rule);
@@ -1726,10 +1723,10 @@ sub repair_deny_influence1( $$ ) {
 	    # ToDo: think twice if we have an unexpected relation with
 	    # code generation of deleted interface rules
 	    next if $arule->{deleted};
-	    next unless $arule->{deny_src_networks};
+	    next unless $arule->{deny_networks};
 	    my $dst_any = $dst->{network}->{any} or
 		internal_err "No 'any' object in security domain of $dst";
-	    for my $net (@{$arule->{deny_src_networks}}) {
+	    for my $net (@{$arule->{deny_networks}}) {
 		for my $host (@{$net->{hosts}}, @{$net->{interfaces}}) {
 		    # Don't repair, even if managed interface is src
 		    next if is_interface $host and $host->{router}->{managed};
@@ -2317,7 +2314,7 @@ sub convert_any_src_rule( $$$ ) {
 		    action => 'permit',
 		    i => $rule->{i},
 		    orig_any => $rule,
-		    deny_src_networks => [ @{$any->{networks}} ]
+		    deny_networks => [ @{$any->{networks}} ]
 		    };
     push @{$rule->{any_rules}}, $any_rule;
     &add_rule($any_rule);
@@ -2397,7 +2394,7 @@ sub convert_any_dst_rule( $$$ ) {
 			action => 'permit',
 			i => $rule->{i},
 			orig_any => $rule,
-			deny_dst_networks => [ @{$any->{networks}} ],
+			deny_networks => [ @{$any->{networks}} ],
 			any_dst_group => $link
 			};
 	push @{$rule->{any_rules}}, $any_rule;
@@ -2483,11 +2480,10 @@ sub add_rule( $ ) {
     if($old_rule) {
 	# Found identical rule
 	# For 'any' rules we must preserve the rule without deny_networks
-	# i.e. auto_any < any
+	# i.e. any_with_deny < any
 	if($action eq 'permit' and
-	   (is_any $src and @{$rule->{deny_src_networks}} == 0
-	    or
-	    is_any $dst and @{$rule->{deny_dst_networks}} == 0)) {
+	   (is_any $src or is_any $dst) and
+	   @{$rule->{deny_networks}} == 0) {
 	    $old_rule->{deleted} = $rule;
 	    # continue adding new rule below
 	} else {
@@ -2507,99 +2503,88 @@ sub aref_delete( $$ ) {
     for(my $i = 0; $i < @$aref; $i++) {
 	if($aref->[$i] eq $elt) {
 	    splice @$aref, $i, 1;
+#info "aref_delete: $elt->{name}";
 	    return 1;
 	}
     }
     return 0;
 }
 
+# Optimization of automatically generated any rules 
+# with attached deny networks
 #
-# cmp permit auto_any(deny_net: net1,net2) dst srv
+# 1.
+# cmp: permit any(deny_net: net2,net3) dst srv
+# chg: permit host1 dst' srv'
+# --> if host1 not in net2 or net3, dst >= dst', srv >= srv'
+# delete chg rule
+# 2.
+# cmp: permit any(deny_net: net2,net3) dst srv
+# chg: permit net1 dst' srv'
+# --> if net1 not eq net2 or net3, dst >= dst', srv >= srv'
+# delete chg rule
+# 3.
+# cmp permit any(deny_net: net1,net2) dst srv
 # chg permit net1 dst srv
 # -->
-# cmp permit auto_any(deny_net: net2) dst srv
-#
-# cmp permit auto_any(deny_net: net1,net2) dst' srv'
-# chg permit net1 dst srv
+# delete chg rule
+# remove net1 from cmp rule
+# 4. (currently not implemented)
+# cmp permit any(deny_net: net1,net2) dst srv
+# chg permit net1 dst' srv'
+# --> if dst <= dst', srv <= srv'
+# remove net1 from cmp rule
+# 5.
+# cmp permit any(deny_net: net1,net2) dst srv
+# chg permit any(deny_net: net1,net2,net3,...) dst' srv'
 # --> if dst >= dst', srv >= srv'
-# cmp permit auto_any(deny_net: net2) dst srv'
-# chg permit net1 dst srv
+# delete chg rule
 #
-# cmp permit auto_any(deny_net: -) dst srv
-# chg permit auto_any(deny_net: net2,net3) dst srv'
-# --> if srv >= srv'
-# cmp permit auto_any(deny_net: -) dst srv
-#
-# cpm permit auto_any(deny_net: net1,net2) dst srv
-# chg permit auto_any(deny_net: net1,net2) dst srv'
-# --> if srv >= srv'
-# cmp permit auto_any(deny_net: net1,net2) dst srv
-#
-# cmp permit auto_any(deny_net: net1,net2) dst srv
-# chg permit auto_any(deny_net: net2,net3) dst srv'
-# --> if srv >= srv'
-# cmp permit auto_any(deny_net: net1,net2) dst srv
-# chg permit auto_any(deny_net: net3) dst srv'
+# It doesn't hurt if deny_networks of a cmp rule are 
+# removed later even if it was used before to delete a chg rule.
 #
 # ToDo: Why aren't these optimizations applicable to deny rules?
 #
-sub optimize_auto_any_rules( $$ ) {
-    my($cmp_rule, $chg_rule) = @_;
-    if($cmp_rule->{action} eq 'permit' and
-       $chg_rule->{action} eq 'permit'){
-	if(is_any $cmp_rule->{src}) {
-	    if(is_net $chg_rule->{src} and
-	       aref_delete($chg_rule->{src}, $cmp_rule->{deny_src_networks})) {
-		if($cmp_rule->{dst} eq $chg_rule->{dst} and
-		   $cmp_rule->{srv} eq $chg_rule->{srv}) {
-		    $chg_rule->{deleted} = $cmp_rule;
-		}
-		return 1;
-	    }
-	    elsif(is_any $chg_rule->{src}) {
-		if(@{$cmp_rule->{deny_src_networks}} == 0) {
-		    $chg_rule->{deleted} = $cmp_rule;
-		} else {
-		    my $equal_deny_net = 1;
-		    for my $net (@{$cmp_rule->{deny_src_networks}}) {
-			$equal_deny_net &=
-			    aref_delete $net, $chg_rule->{deny_src_networks};
-		    }
-		    if($equal_deny_net) {
-			$chg_rule->{deleted} = $cmp_rule;
-		    }
-		}
-		return 1;
-	    }
-	}
-# equivalent for auto_any at dst
-	if(is_any $cmp_rule->{dst}) {
-	    if(is_net $chg_rule->{dst} and
-	       aref_delete($chg_rule->{dst}, $cmp_rule->{deny_dst_networks})) {
-		if($cmp_rule->{src} eq $chg_rule->{src} and
-		   $cmp_rule->{srv} eq $chg_rule->{srv}) {
-		    $chg_rule->{deleted} = $cmp_rule;
-		}
-		return 1;
-	    }
-	    elsif(is_any $chg_rule->{dst}) {
-		if(@{$cmp_rule->{deny_dst_networks}} == 0) {
-		    $chg_rule->{deleted} = $cmp_rule;
-		} else {
-		    my $equal_deny_net = 1;
-		    for my $net (@{$cmp_rule->{deny_dst_networks}}) {
-			$equal_deny_net &=
-			    aref_delete $net, $chg_rule->{deny_dst_networks};
-		    }
-		    if($equal_deny_net) {
-			$chg_rule->{deleted} = $cmp_rule;
-		    }
-		}
-		return 1;
-	    }
+sub optimize_any_rule( $$ ) {
+    my($here, $cmp_rule, $chg_rule) = @_;
+    my $obj = $chg_rule->{$here};
+    # Case 1
+    if(is_host $obj or is_interface $obj) {
+	unless(grep { $obj->{network} eq $_ } @{$cmp_rule->{deny_networks}}) {
+	    $chg_rule->{deleted} = $cmp_rule;
 	}
     }
-    return 0;
+    elsif(is_net $obj) {
+	my $there = $here eq 'src' ? 'dst' : 'src';
+	# Case 2
+	unless(grep { $obj eq $_ } @{$cmp_rule->{deny_networks}}) {
+	    $chg_rule->{deleted} = $cmp_rule;
+	}
+	# Case 3
+	elsif($cmp_rule->{$there} eq $chg_rule->{$there} and
+	      $cmp_rule->{srv} eq $chg_rule->{srv} and
+	      aref_delete($obj, $cmp_rule->{deny_networks})) {
+	    $chg_rule->{deleted} = $cmp_rule;
+	}
+    }
+    elsif(is_any $obj) {
+	# Case 5
+	# Check if deny_networks of cmp rule are subset of
+	# deny_networks of chg rule.
+	my $subset = 1;
+	for my $net (@{$cmp_rule->{deny_networks}}) {
+	    unless(grep { $net eq $_ }
+		   @{$chg_rule->{deny_networks}}) {
+		$subset = 0;
+		last;
+	    }
+	}
+	if($subset) {
+	    $chg_rule->{deleted} = $cmp_rule;
+	}
+    } else {
+	internal_err "unexpected type of $obj->{name}";
+    }
 }
 
 # A rule may be deleted if we find a similar rule with greater or equal srv.
@@ -2610,13 +2595,27 @@ sub optimize_srv_rules( $$ ) {
  
     # optimize full rules
     for my $chg_rule (values %$chg_hash) {
+# info "chg: ", print_rule $chg_rule;
+# map {info "chg deny-net: ",$_->{name} } @{$chg_rule->{deny_networks}};
 	my $srv = $chg_rule->{srv};
 	while($srv) {
 	    if(my $cmp_rule = $cmp_hash->{$srv}) {
 		unless($cmp_rule eq $chg_rule) {
-		    unless(&optimize_auto_any_rules($cmp_rule, $chg_rule)) { 
+# info "cmp: ", print_rule $cmp_rule;
+# map {info "cmp deny-net: ",$_->{name} } @{$cmp_rule->{deny_networks}};
+		    if($cmp_rule->{action} eq 'permit' and
+		       $chg_rule->{action} eq 'permit') {
+			if(is_any $cmp_rule->{src}) {
+			    &optimize_any_rule('src', $cmp_rule, $chg_rule);
+			} elsif (is_any $cmp_rule->{dst}) {
+			    &optimize_any_rule('dst', $cmp_rule, $chg_rule);
+			} else {
+			    $chg_rule->{deleted} = $cmp_rule;
+			}
+		    } else {
 			$chg_rule->{deleted} = $cmp_rule;
 		    }
+# info "deleted" if $chg_rule->{deleted};
 		    last;
 		}
 	    }
@@ -3230,16 +3229,16 @@ sub collect_acls( $$$ ) {
 #	    if($src eq $rule->{deleted}->{src}) {
 #		# The rule in {deleted} may be ineffective
 #		# if it is an interface -> any rule with attached auto-deny rule(s)
-#		# ToDo: Check if one of deny_dst_networks matches $src
+#		# ToDo: Check if one of deny_networks matches $src
 #		return unless is_any $rule->{deleted}->{dst} and
-#		    $rule->{deleted}->{deny_dst_networks};
+#		    $rule->{deleted}->{deny_networks};
 #	    }
 #	}
 #	if(not defined $dst_intf) {
 #	    if($dst eq $rule->{deleted}->{dst}) {
 #		# ToDo: see above
 #		return unless is_any $rule->{deleted}->{src} and
-#		    $rule->{deleted}->{deny_src_networks};
+#		    $rule->{deleted}->{deny_networks};
 #	    }
 #	}
     }
@@ -3345,7 +3344,7 @@ sub collect_acls_at_src( $$$ ) {
 	    next if $any_rule->{deleted} and not $any_rule->{managed_if};
 	    # Generate code for deny rules directly in front of
 	    # the corresponding permit 'any' rule
-	    for my $deny_network (@{$any_rule->{deny_src_networks}}) {
+	    for my $deny_network (@{$any_rule->{deny_networks}}) {
 		my $deny_rule = {action => 'deny',
 				 src => $deny_network,
 				 dst => $any_rule->{dst},
@@ -3377,7 +3376,7 @@ sub collect_acls_at_dst( $$$ ) {
     for my $any_rule (@{$rule->{any_rules}}) {
 	next unless grep { $_ eq $any_rule->{dst} } @neighbour_anys;
 	next if $any_rule->{deleted} and not $any_rule->{managed_if};
-	for my $deny_network (@{$any_rule->{deny_dst_networks}}) {
+	for my $deny_network (@{$any_rule->{deny_networks}}) {
 	    my $deny_rule = {action => 'deny',
 			     src => $any_rule->{src},
 			     dst => $deny_network,
