@@ -22,7 +22,6 @@ use constant NETSPOC => 'netspoc';
 
 my $project = '/home/madnes';
 my $compiler = 'netspoc.pl';
-my $code = 'code.acl';
 
 # policy database
 my $policydb = "$project/" . NETSPOC;
@@ -32,6 +31,8 @@ my $lock = "$policydb/LOCK";
 my $home = $ENV{HOME};
 # users working directory
 my $working = "$home/" . NETSPOC;
+
+$ENV{CVSROOT} or die "Abort:  No CVSROOT specified!\n";
 
 my $pdir = readlink "$link" or
     die "Can't read link " . CURRENT . "in $policydb. Check and repair manually.\n";
@@ -76,7 +77,7 @@ system("cvs -Q checkout -d src -r $policy " . NETSPOC) == 0 or
 # compile new policy
 chdir $pdir or die "Error: can't cd to $pdir: $!\n";
 print STDERR "Compiling policy $count\n";
-system("$compiler src > $code") == 0 or warn "$compiler failed: $?\n";
+system("$compiler src code ") == 0 or warn "$compiler failed: $?\n";
 # make new policy read only
 system("chmod -R a-w *") == 0 or warn "Can't make $pdir/* read only\n";
 system("chmod a+w .") == 0 or warn "Can't make $pdir world writable\n";
