@@ -154,8 +154,7 @@ sub warning ( @ ) {
 our $file;
 # eof status of current file
 our $eof;
-sub add_context( $ ) {
-    my($msg) = @_;
+sub context() {
     my $context;
     if($eof) {
 	$context = 'at EOF';
@@ -164,12 +163,11 @@ sub add_context( $ ) {
 	    m/([^\s,;={}]*[,;={}\s]*)\G([,;={}\s]*[^\s,;={}]*)/;
 	$context = qq/near "$pre<--HERE-->$post"/;
     }
-    qq/$msg at line $. of $file, $context\n/;
+    return qq/ at line $. of $file, $context\n/;
 }
 
-sub add_line( $ ) {
-    my($msg) = @_;
-    qq/$msg at line $. of $file\n/;
+sub line() {
+    return qq/ at line $. of $file\n/;
 }
 
 our $error_counter = 0;
@@ -183,9 +181,8 @@ sub check_abort() {
     }
 }
     
-sub error_atline( $ ) {
-    my($msg) = @_; 
-    print STDERR "Error: ", add_line($msg);
+sub error_atline( @ ) {
+    print STDERR "Error: ", @_, &line();
     check_abort();
 }
 
@@ -194,9 +191,8 @@ sub err_msg( @ ) {
     check_abort();
 }
 
-sub syntax_err( $ ) {
-    my($msg) = @_;    
-    die "Syntax error: ", add_context $msg;
+sub syntax_err( @ ) {
+    die "Syntax error: ", @_, &context();
 }
 
 sub internal_err( @ ) {
@@ -456,7 +452,8 @@ sub check_assign_list($&) {
 # We use 'bless' only to give each structure a distinct type
 ####################################################################
 
-# Create a new structure of given type; initialize it with key / value pairs
+# Create a new structure of given type;
+# initialize it with key / value pairs
 sub new( $@ ) {
     my $type = shift;
     my $self = { @_ };
@@ -484,10 +481,12 @@ sub read_host( $ ) {
 	    $host = new('Host', name => "host:$name", ip => $ip[0]);
 	    @hosts = ($host);
 	} else {
-	    # a host with multiple IP addresses is represented internally as
-	    # a group of simple hosts
+	    # a host with multiple IP addresses is represented 
+	    # internally as a group of simple hosts
 	    @hosts =
-		map { new('Host', name => "auto_host:$name", ip => $_) } @ip;
+		map { new('Host',
+			  name => "auto_host:$name",
+			  ip => $_) } @ip;
 	    $host = new('Group', name => "host:$name",
 			elements => \@hosts, is_used => 1);
 	}
@@ -498,7 +497,9 @@ sub read_host( $ ) {
 	my $ip2 = &read_ip;
 	&skip(';');
 	$ip1 <= $ip2 or error_atline "Invalid IP range";
-	$host = new('Host', name => "host:$name", range => [ $ip1, $ip2 ]);
+	$host = new('Host',
+		    name => "host:$name",
+		    range => [ $ip1, $ip2 ]);
 	@hosts = ($host);
     } else {
 	syntax_err "Expected 'ip' or 'range'";
@@ -514,8 +515,9 @@ sub read_host( $ ) {
 	    my $nat_ip = &read_ip();
 	    &skip(';');
 	    &skip('}');
+	    # It is sufficient to use $host and not @hosts, because
+	    # NAT is currently only allowed for hosts with one IP.
 	    $host->{nat}->{$name} = $nat_ip;
-	    $nat_definitions{$name} = 1;
 	} else {
 	    syntax_err "Expected NAT definition";
 	}
@@ -541,13 +543,12 @@ sub read_network( $ ) {
     my $name = shift;
     my $network = new('Network',
 		      name => "network:$name",
-		      hosts => [],
-		      file => $file
-		      );
+		      file => $file);
     skip('=');
     skip('{');
     $network->{route_hint} = &check_flag('route_hint');
-    $network->{subnet_of} = &check_assign('subnet_of', \&read_typed_name);
+    $network->{subnet_of} =
+	&check_assign('subnet_of', \&read_typed_name);
     my $ip;
     my $mask;
     my $token = read_identifier();
@@ -574,44 +575,6 @@ sub read_network( $ ) {
 	my($type, $name) = split_typed_name(read_typed_name());
 	if($type eq 'host') {
 	    my @hosts = &read_host($name);
-	    # check compatibility of host ip and network ip/mask
-	    for my $host (@hosts) {
-		if(exists $host->{ip}) {
-		    if($ip != ($host->{ip} & $mask)) {
-			error_atline "$host->{name}'s IP doesn't match $network->{name}'s IP/mask";
-		    }
-		} elsif(exists $host->{range}) {
-		    my ($ip1, $ip2) = @{$host->{range}};
-		    if($ip != ($ip1 & $mask) or $ip != ($ip2 & $mask)) {
-			error_atline "$host->{name}'s IP range doesn't match $network->{name}'s IP/mask";
-		    }
-		} else {
-		    internal_err "$host->{name} hasn't ip or range";
-		}
-		# Check compatibility of host and network NAT.
-		# A NAT definition for a single host is only allowed,
-		# if the network has a dynamic NAT definition.
-		if($host->{nat}) {
-		    for my $nat_tag (keys %{$host->{nat}}) {
-			my $nat_info;
-			if($nat_info = $network->{nat}->{$nat_tag} and
-			   $nat_info->{dynamic}) {
-			    my $host_ip = $host->{nat}->{$nat_tag};
-			    my($ip, $mask) = @{$nat_info}{'ip', 'mask'}; 
-			    if($ip != ($host_ip & $mask)) {
-				err_msg "nat:$nat_tag: $host->{name}'s IP ",
-				"doesn't match $network->{name}'s IP/mask";
-			    }
-			} else {
-			    err_msg
-				"nat:$nat_tag not allowed for $host->{name} ",
-				"because $network->{name} doesn't have ",
-				"dynamic NAT definition";
-			}
-		    }
-		}
-		$host->{network} = $network;
-	    }
 	    push(@{$network->{hosts}}, @hosts);
 	} elsif($type eq 'nat') {
 	    &skip('=');
@@ -635,14 +598,14 @@ sub read_network( $ ) {
  		$dynamic = 1;
 	    } else {
 		$nat_mask == $mask or
-		    error_atline
-		    "Non dynamic NAT mask must be equal to network mask";
+		    error_atline "Non dynamic NAT mask must be ",
+		    "equal to network mask";
 	    }
 	    &skip('}');
 	    # check if ip matches mask
 	    if(($nat_ip & $nat_mask) != $nat_ip) {
-		error_atline
-		    "$network->{name}'s NAT IP doesn't match its mask";
+		error_atline "$network->{name}'s NAT IP doesn't ",
+		"match its mask";
 		$nat_ip &= $nat_mask;
 	    }
 	    $network->{nat}->{$name} = { ip => $nat_ip,
@@ -653,15 +616,58 @@ sub read_network( $ ) {
 	    syntax_err "Expected NAT or host definition";
 	}
     }
+    # Check compatibility of host ip and network ip/mask.
+    for my $host (@{$network->{hosts}}) {
+	if(exists $host->{ip}) {
+	    if($ip != ($host->{ip} & $mask)) {
+		error_atline "Host IP doesn't match ",
+		"network IP/mask";
+	    }
+	} elsif(exists $host->{range}) {
+	    my ($ip1, $ip2) = @{$host->{range}};
+	    if($ip != ($ip1 & $mask) or
+	       $ip != ($ip2 & $mask)) {
+		error_atline "Host IP range doesn't match ",
+		"network IP/mask";
+	    }
+	} else {
+	    internal_err "$host->{name} hasn't ip or range";
+	}
+	# Check compatibility of host and network NAT.
+	# A NAT definition for a single host is only allowed,
+	# if the network has a dynamic NAT definition.
+	if($host->{nat}) {
+	    for my $nat_tag (keys %{$host->{nat}}) {
+		my $nat_info;
+		if($nat_info = $network->{nat}->{$nat_tag}
+		   and $nat_info->{dynamic}) {
+		    my $host_ip = $host->{nat}->{$nat_tag};
+		    my($ip, $mask) = @{$nat_info}{'ip', 'mask'}; 
+		    if($ip != ($host_ip & $mask)) {
+			err_msg "nat:$nat_tag: $host->{name}'s IP ",
+			"doesn't match $network->{name}'s IP/mask";
+		    }
+		} else {
+		    err_msg "nat:$nat_tag not allowed for ",
+		    "$host->{name} because $network->{name} ",
+		    "doesn't have dynamic NAT definition";
+		}
+	    }
+	}
+	# Link host with network
+	$host->{network} = $network;
+    }
     if($network->{nat} and $ip eq 'unnumbered') {
-	err_msg "Unnumbered $network->{name} must not have nat definition";
+	err_msg "Unnumbered $network->{name} must not have ",
+	"nat definition";
     }
-    if(@{$network->{hosts}} and $ip eq 'unnumbered') {
-	err_msg "Unnumbered $network->{name} must not have host definitions";
+    if($network->{hosts} and $ip eq 'unnumbered') {
+	err_msg "Unnumbered $network->{name} must not have ",
+	"host definitions";
     }
-    if(@{$network->{hosts}} and $network->{route_hint}) {
-	err_msg "$network->{name} must not have host definitions,\n",
-	    " since it has attribute 'route_hint'";
+    if($network->{hosts} and $network->{route_hint}) {
+	err_msg "$network->{name} must not have host definitions",
+	"\n because it has attribute 'route_hint'";
     }
     &mark_ip_ranges($network);
     if($networks{$name}) {
@@ -697,8 +703,7 @@ sub read_interface( $$ ) {
     my $name = "$router.$net";
     my $interface = new('Interface', 
 			name => "interface:$name",
-			network => $net
-			);
+			network => $net);
     unless(&check('=')) {
 	# short form of interface definition
 	skip(';');
@@ -729,15 +734,15 @@ sub read_interface( $$ ) {
 		    &skip(';');
 		    &skip('}');
 		    $interface->{nat}->{$name} = $nat_ip;
-		    $nat_definitions{$name} = 1;
 		} else {
 		    syntax_err "Expected named attribute";
 		}
-	    } elsif(my $virtual = &check_assign('virtual', \&read_ip)) {
+	    } elsif(my $virtual =
+		    &check_assign('virtual', \&read_ip)) {
 		# read virtual IP for VRRP / HSRP
 		$interface->{ip} eq 'unnumbered' and
-		    error_atline
-			"No virtual IP supported for unnumbered interface";
+		    error_atline "No virtual IP supported for ",
+		    "unnumbered interface";
 		grep { $_ == $virtual } @{$interface->{ip}} and
 		    error_atline
 			"Virtual IP redefines standard IP";
@@ -745,24 +750,28 @@ sub read_interface( $$ ) {
 		    error_atline "Redefining virtual IP";
 		$interface->{virtual} = $virtual;
 		push @virtual_interfaces, $interface;
-	    } elsif(my $nat = &check_assign('nat', \&read_identifier)) {
+	    } elsif(my $nat =
+		    &check_assign('nat', \&read_identifier)) {
 		# bind NAT to an interface
 		$interface->{bind_nat} and
 		    error_atline "Redefining NAT binding";
 		$interface->{bind_nat} = $nat;
-	    } elsif(my $hardware = &check_assign('hardware', \&read_string)) {
+	    } elsif(my $hardware =
+		    &check_assign('hardware', \&read_string)) {
 		$interface->{hardware} and
 		    error_atline "Redefining hardware of interface";
 		$interface->{hardware} = $hardware;
-	    } elsif(my $protocol = &check_assign('routing', \&read_string)) {
+	    } elsif(my $protocol =
+		    &check_assign('routing', \&read_string)) {
 		unless($routing_info{$protocol}) {
-		    error_atline "Unknown routing protocol '$protocol'";
+		    error_atline "Unknown routing protocol";
 		}
 		$interface->{routing} and
-		    error_atline "Redefining routing protocol if interface";
+		    error_atline "Redefining routing protocol";
 		$interface->{routing} = $protocol;
-	    } elsif(my @names = &check_assign_list('reroute_permit',
-						   \&read_typed_name)) {
+	    } elsif(my @names =
+		    &check_assign_list('reroute_permit',
+				       \&read_typed_name)) {
 		my @networks;
 		for my $name (@names) {
 		    my($type, $net) = split_typed_name($name);
@@ -784,11 +793,12 @@ sub read_interface( $$ ) {
 	}
 	if($interface->{nat}) {
 	    if($interface->{ip} eq 'unnumbered') {
-		error_atline "No NAT supported for unnumbered interface";
+		error_atline "No NAT supported for unnumbered ",
+		"interface";
 	    } elsif(@{$interface->{ip}} > 1) {
 		# look at print_pix_static before changing this
-		error_atline
-		    "No NAT supported for interface with multiple IPs";
+		error_atline "No NAT supported for interface ",
+		"with multiple IPs";
 	    }
 	}
     }
@@ -825,53 +835,59 @@ sub set_pix_interface_level( $ ) {
 our %routers;
 sub read_router( $ ) {
     my $name = shift;
-    skip('=');
-    skip('{');
-    my $managed;
-    if(&check('managed')) {
-	if(&check(';')) {
-	    $managed = 'full';
-	} elsif(&check('=')) {
-	    my $value = &read_identifier();
-	    if($value =~ /^full|secondary$/) { $managed = $value; }
-	    else { error_atline "Unknown managed device type '$value'"; }
-	    &check(';');
-	} else {
-	    &syntax_err("Expected ';' or '='");
-	}
-    }
-    my $model;
-    if($model = &check_assign('model', \&read_identifier)) {
-       my $info = $router_info{$model};
-       $info or error_atline "Unknown router model '$model'";
-       $model = $info;
-    }
-    if($managed and not $model) {
-	err_msg "Missing 'model' for managed router:$name";
-    }
-    my $static_manual = &check_flag('static_manual');
-    my $use_object_groups = &check_flag('use_object_groups');
     my $router = new('Router',
 		     name => "router:$name",
-		     managed => $managed,
-		     file => $file
-		     );
-    $router->{model} = $model if $managed;
-    $router->{static_manual} = 1 if $static_manual and $managed;
-    $router->{use_object_groups} = 1 if $use_object_groups and $managed;
-    my %hardware;
+		     file => $file);
+    skip('=');
+    skip('{');
     while(1) {
 	last if &check('}');
-	my($type,$iname) = split_typed_name(read_typed_name());
-	syntax_err "Expected interface definition" unless $type eq 'interface';
-	my $interface = &read_interface($name, $iname);
-	push @{$router->{interfaces}}, $interface;
-	# assign router to interface
-	$interface->{router} = $router;
-	# managed router must not have short interface
-	if($managed and $interface->{ip} eq 'short') {
-	    err_msg "Short definition of $interface->{name} not allowed";
+	if(&check('managed')) {
+	    $router->{managed} and
+		error_atline "Redefining 'managed' attribute";
+	    my $managed;
+	    if(&check(';')) {
+		$managed = 'full';
+	    } elsif(&check('=')) {
+		my $value = &read_identifier();
+		if($value =~ /^full|secondary$/) {
+		    $managed = $value;
+		}
+		else {
+		    error_atline "Unknown managed device type";
+		}
+		&check(';');
+	    } else {
+		&syntax_err("Expected ';' or '='");
+	    }
+	    $router->{managed} = $managed;
 	}
+	elsif(my $model =
+	      &check_assign('model', \&read_identifier)) {
+	    $router->{model} and
+		error_atline "Redefining 'model' attribute";
+	    my $info = $router_info{$model};
+	    $info or error_atline "Unknown router model '$model'";
+	    $router->{model} = $info;
+	} elsif(&check_flag('static_manual')) {
+	    $router->{static_manual} = 1;
+	} elsif(&check_flag('use_object_groups')) {
+	    $router->{use_object_groups} = 1;
+	} else {
+	    my($type,$iname) = split_typed_name(read_typed_name());
+	    $type eq 'interface' or
+		syntax_err "Expected interface definition";
+	    my $interface = &read_interface($name, $iname);
+	    push @{$router->{interfaces}}, $interface;
+	    # Link router with interface.
+	    $interface->{router} = $router;
+	}
+    }
+    # Create objects representing hardware interfaces.
+    # All logical interfaces using the same hardware are linked
+    # to the same hardware object.
+    my %hardware;
+    for my $interface (@{$router->{interfaces}}) {
 	if(my $hw_name = $interface->{hardware}) {
 	    my $hardware;
 	    if($hardware = $hardware{$hw_name}) {
@@ -891,17 +907,28 @@ sub read_router( $ ) {
 		}
 	    }
 	    $interface->{hardware} = $hardware;
-	    # Remember, which logical interfaces are bound to which hardware
+	    # Remember, which logical interfaces are bound
+	    # to which hardware.
 	    push @{$hardware->{interfaces}}, $interface;
 	} else {
-	    if($managed) {
-		# interface of managed router needs to have a hardware name
+	    if($router->{managed}) {
+		# Interface of managed router needs to
+		# have a hardware name.
 		err_msg "Missing 'hardware' for $interface->{name}";
 	    }
 	}
-	if($managed and $model->{has_interface_level}) {
+	if($router->{managed} and
+	   $router->{model}->{has_interface_level}) {
 	    set_pix_interface_level($interface);
 	}
+	# Managed router must not have short interface.
+	if($router->{managed} and $interface->{ip} eq 'short') {
+	    err_msg "Short definition of $interface->{name} ",
+	    "not allowed";
+	}
+    }
+    if($router->{managed} and not $router->{model}) {
+	err_msg "Missing 'model' for managed router:$name";
     }
     if($routers{$name}) {
 	error_atline "Redefining $router->{name}";
@@ -1686,9 +1713,9 @@ sub link_interface_with_net( $ ) {
 			"doesn't match $network->{name}'s IP/mask";
 		    }
 		} else {
-		    err_msg "nat:$nat_tag not allowed for $interface->{name} ",
-		    "because $network->{name} doesn't have a ",
-		    "dynamic NAT definition";
+		    err_msg "nat:$nat_tag not allowed for ",
+		    "$interface->{name} because $network->{name} ",
+		    "doesn't have a dynamic NAT definition";
 		}
 	    }
 	}
