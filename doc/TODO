@@ -1,5 +1,7 @@
 ToDo list for NetSPoC, a Network Security Policy Compiler
 
+- Add support for nested loops and path restrictions
+
 - Support of virtual IP addresses for HSRP / VRRP
 
 - Add documentation for loops
