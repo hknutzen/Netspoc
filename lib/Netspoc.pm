@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -w
 
 # File: open-spm.pl
 # Author: Heinz Knutzen
@@ -6,9 +6,8 @@
 # An attempt for a simple and fast replacement of Cisco's
 # Cisco Secure Policy Manager
 
-$longname = 'Open Secure Policy Manager';
-$shortname = 'open-spm';
-$version = 0.21;
+$program = 'Open Secure Policy Manager';
+$version = 0.25;
 
 ##############################################################################
 # Phase 1
@@ -114,16 +113,18 @@ sub print_ip() {
 
 # read string up to some delimiting character or end of line
 # Note: blank space is allowed inside of names 
-# but ignored at the beginning or end
+# but ignored at the beginning and end
 sub read_name() {
-    use locale;
+    use locale;		# now german umlauts are part of \w
 
     &skip_space_and_comment();
 
-    # allow dot in names to ease using ip addresses in names
+    # allow dot in names to ease using ip addresses in names;
     # if dot is used as separator in router.interface,
     # we take the last dot
-    if(s/(^[\w .-]+)//) {
+    # allow colon in names; if colon is used as separator in type:name,
+    # we take the first colon
+    if(s#(^[\w !:./*()+-]+)##) {
 	my $name = $1;
 	# delete trailing space
 	$name =~ s/\s*$//;
@@ -133,16 +134,10 @@ sub read_name() {
     }
 }
 
-sub read_type_prefix() {
-    my $type = &read_name();
-    &skip(':');
-    return $type;
-}
-
-sub read_typed_name() {
-    my $type = &read_type_prefix();
-    my $name = &read_name();
-    return("${type}:${name}");
+sub split_typed_name($) {
+    my($name) = @_;
+    # split at first colon, thus the name may contain further colons
+    split /:/, $name, 2;
 }
 
 sub read_assign($&) {
@@ -173,18 +168,36 @@ sub read_assign_list($&) {
 }
 
 sub read_network_name() {
-    my($type, $name) = split(':', &read_typed_name());
+    my($type, $name) = split_typed_name(&read_name());
     if($type ne 'network') {
 	die "expected network, but got $type:$name";
     }
     return $name
 }
 
-sub read_host() {
-    my $name = &read_name();
+sub read_host($) {
+    my $name = shift;
     &skip('=');
     &skip('{');
-    my $ip = &read_assign('ip', \&read_ip);
+    my $token = read_name();
+    my $ip;
+    if($token eq 'ip') {
+	&skip('=');
+	my @ip = &read_list(\&read_ip);
+	@ip > 0 or die "host $name has 0 ip adresses";
+	$ip = shift @ip;
+	@ip == 0 or
+	    warn "ignoring additional ip addresses of host $name";
+    } elsif($token eq 'range') {
+	&skip('=');
+	$ip = &read_ip;
+	skip('-');
+	&read_ip;
+	warn "ignoring 2. ip in ip range of host $name";
+	skip(';');
+    } else {
+	die "unknown token $token in host definition '$name'";
+    }
     &skip('}');
     my $host = { name => $name,
 		 ip => $ip,
@@ -198,8 +211,8 @@ sub read_host() {
     return $host;
 }
 
-sub read_network() {
-    my $name = &read_name();
+sub read_network($) {
+    my $name = shift;
     skip('=');
     skip('{');
     my $ip = &read_assign('ip', \&read_ip);
@@ -217,10 +230,10 @@ sub read_network() {
 		};
     while(1) {
 	last if &check('}');
-	my $type = &read_type_prefix();
-	die "unknown definition $type: in network $name"
+	my($type, $hname) = split_typed_name(read_name());
+	die "unknown definition $type:$hname in network $name"
 	    unless($type eq 'host');
-	my $host = &read_host();
+	my $host = &read_host($hname);
 	# check compatibility of host ip and network ip/mask
 	my $host_ip = $host->{ip};
 	if($ip != ($host_ip & $mask)) {
@@ -242,11 +255,22 @@ sub read_network() {
     $networks{$name} = $network;
 }
 
-sub read_interface() {
-    my $name = &read_name();
+sub read_interface($) {
+    my $name = shift;
     &skip('=');
     &skip('{');
-    my $ip = &read_assign('ip', \&read_ip);
+    my $token = read_name();
+    my $ip;
+    if($token eq 'ip') {
+	&skip('=');
+	$ip = &read_ip;
+	skip(';');
+    } elsif($token eq 'unnumbered') {
+	$ip = 'unnumbered';
+	skip(';');
+    } else {
+	die "unknown token $token in interface definition '$name'";
+    }
     my $net = &read_assign('link', \&read_network_name);
     &skip('}');
     my $interface = { name => $name,
@@ -256,8 +280,8 @@ sub read_interface() {
     return $interface;
 }
 
-sub read_router() {
-    my $name = &read_name();
+sub read_router($) {
+    my $name = shift;
     skip('=');
     skip('{');
     my $managed = &read_assign('managed', \&read_bool);
@@ -270,10 +294,10 @@ sub read_router() {
 	       };
     while(1) {
 	last if &check('}');
-	my $type = &read_type_prefix();
-	die "unknown definition $type: in router $name" 
+	my($type,$iname) = split_typed_name(read_name());
+	die "unknown definition $type:$iname in router $name" 
 	    unless $type eq 'interface';
-	my $interface = &read_interface();
+	my $interface = &read_interface($iname);
 	if(my $old_interface = $router->{interfaces}->{$interface->{name}}) {
 	    my $ip_string = &print_ip($interface->{ip});
 	    my $old_ip_string = &print_ip($old_interface->{ip});
@@ -292,36 +316,22 @@ sub read_router() {
 
 # very similar to router, but has no 'managed' setting and has additional 
 # definition parts 'links' and 'any'
-sub read_cloud() {
-    my $name = &read_name();
+sub read_cloud($) {
+    my $name = shift;
     skip('=');
     skip('{');
     my $cloud = { name => $name };
     if(&check('links')) {
-	&skip('=');
-	my @links = &read_list(\&read_network_name);
-	my $cloud_intf_counter = 1;
-	for my $link (@links) {
-	    # implement link to cloud network as a special interface 
-	    # without ip address 
-	    my $interface = { name => "_link_$cloud_intf_counter",
-			      ip => 'cloud',
-			      link => $link
-			      };
-	    $cloud_intf_counter += 1;
-	    # assign interface to clouds hash of interfaces
-	    $cloud->{interfaces}->{$interface->{name}} = $interface;
-	}
     }
     while(1) {
 	last if &check('}');
-	my $type = &read_type_prefix();
+	my($type, $iname) = split_typed_name(read_name());
 	if ($type eq 'interface') {
-	    my $interface = &read_interface();
-	    if(my $old_interface = $cloud->{interfaces}->{$interface->{name}}) {
+	    my $interface = &read_interface($iname);
+	    if(my $old_interface = $cloud->{interfaces}->{$iname}) {
 		my $ip_string = &print_ip($interface->{ip});
 		my $old_ip_string = &print_ip($old_interface->{ip});
-		die "redefining interface:$name.$interface->{name} from IP $old_ip_string to $ip_string";
+		die "redefining interface:$name.$iname from IP $old_ip_string to $ip_string";
 	    }
 	    # assign interface to clouds hash of interfaces
 	    $cloud->{interfaces}->{$interface->{name}} = $interface;
@@ -330,23 +340,40 @@ sub read_cloud() {
 	    $interface->{router} = $cloud;
 	}
 	elsif ($type eq 'any') {
-	    my $name2 = &read_name();
+	    my $aname = $iname;
 	    skip(';');
 	    if($cloud->{any}) {
 		die "found two any objects in cloud:$name";
 	    }
-	    if(my $old_any = $anys{$name2}) {
-		die "redefining any:$name2 in cloud:$name";
+	    if(my $old_any = $anys{$aname}) {
+		die "redefining any:$aname in cloud:$name";
 	    }
-	    my $any = { name => $name2,
+	    my $any = { name => $aname,
 			 link => $cloud
 			 };
 	    # we need the link from cloud to the any object later when finding
 	    # paths
 	    $cloud->{any} = $any;
-	    $anys{$name2} = $any;
-	} else {
-	    die "unknown definition $type:$name2 in cloud:$name";
+	    $anys{$aname} = $any;
+	} elsif($type eq 'links' and ! defined $iname) {
+	    &skip('=');
+	    my @links = &read_list(\&read_network_name);
+	    my $cloud_intf_counter = 1;
+	    for my $link (@links) {
+		# implement link to cloud network as a special interface 
+		# without ip address 
+		my $interface = { name => "_link_$cloud_intf_counter",
+				  ip => 'cloud',
+				  link => $link
+				  };
+		$cloud_intf_counter += 1;
+		# assign interface to clouds hash of interfaces
+		$cloud->{interfaces}->{$interface->{name}} = $interface;
+	    }
+	}
+	else {
+	    if(defined $iname){$iname .= ':'}else{$iname = ''}
+	    die "unknown token $type$iname in cloud:$name";
 	}
     }
     if(my $old_cloud = $clouds{$name}) {
@@ -355,10 +382,10 @@ sub read_cloud() {
     $clouds{$name} = $cloud;
 }
 	    
-sub read_group() {
-    my $name = &read_name();
+sub read_group($) {
+    my $name = shift;
     skip('=');
-    my @objects = &read_list(\&read_typed_name);
+    my @objects = &read_list(\&read_name);
     if(my $old_group = $groups{$name}) {
 	die "redefinig group:$name";
     }
@@ -421,8 +448,8 @@ sub read_proto_nr() {
     }
 }
 
-sub read_service() {
-    my $name = &read_name();
+sub read_service($) {
+    my $name = shift;
     my @srv;
     &skip('=');
     if(&check('ip')) {
@@ -440,7 +467,7 @@ sub read_service() {
 	push(@srv, 'proto');
 	push(@srv, &read_proto_nr());
     } else {
-	die "unknown protocol in definition of service $name: $_";
+	die "unknown protocol in definition of service:$name: $_";
     }
     &skip(';');
     if(my $old_srv = $services{$name}) {
@@ -452,8 +479,8 @@ sub read_service() {
 sub read_rules() {
     # read rules as long as another permit or deny keyword follows
     while(my $action = &check_permit_deny()) {
-	my @src = &read_assign_list('src', \&read_typed_name);
-	my @dst = &read_assign_list('dst', \&read_typed_name);
+	my @src = &read_assign_list('src', \&read_name);
+	my @dst = &read_assign_list('dst', \&read_name);
 	my @srv = &read_assign_list('srv', \&read_name);
 	my $rule = { action => $action,
 		     src => \@src,
@@ -470,23 +497,24 @@ sub read_data() {
     $_ = '';
     while(1) {
 	last if &check_eof();
-	$type = &read_type_prefix();
+	my($type,$name) = split_typed_name(read_name());
 	if($type eq 'router') {
-	    &read_router();
+	    &read_router($name);
 	} elsif ($type eq 'network') {
-	    &read_network();
+	    &read_network($name);
 	} elsif ($type eq 'cloud') {
-	    &read_cloud();
+	    &read_cloud($name);
 	} elsif ($type eq 'group') {
-	    &read_group();
+	    &read_group($name);
 	} elsif ($type eq 'service') {
-	    &read_service();
+	    &read_service($name);
 	} elsif ($type eq 'servicegroup') {
-	    &read_servicegroup();
+	    &read_servicegroup($name);
 	}elsif ($type eq 'rules') {
+	    # name of rules:name should be empty or will be ignored
 	    &read_rules();
 	} else {
-	    die "unknown global definition $type:";
+	    die "unknown global definition $type:$name";
 	}
     }
 }
@@ -531,17 +559,31 @@ sub printable($) {
     return "$out:$obj->{name}";
 }
 
+# get an array reference and delete undefined values in it
+sub delete_undefs($) {
+    my($aref) = @_;
+    for(my $i = @$aref; $i > 0; ) {
+	$i--;
+	unless(defined $i) {
+	    splice(@$aref, $i, 0);
+	}
+    }
+}
+
 ##############################################################################
 # Phase 2
 # Build linked data structures
 ##############################################################################
 
 # get a reference to an array of network object names and substitute
-# the names by the referenced network objects
+# the names with the referenced network objects
+# Returns a list of name wich couldn't be resolved
 sub subst_names_with_refs($) {
     my($obref) = @_;
+    my @unknown;
     for my $object (@$obref) {
-	my($type, $name) = split(':', $object);
+	# the name may contain colons
+	my($type, $name) = split(':', $object, 2);
 	if($type eq 'host') {
 	    $object = $hosts{$name};
 	} elsif($type eq 'network') {
@@ -549,8 +591,8 @@ sub subst_names_with_refs($) {
 	} elsif($type eq 'router') {
 	    $object = $routers{$name};
 	} elsif($type eq 'interface') {
-	    # split at last dot, since router name may contain dots
-	    # first .* is greedy, thus we find last dot
+	    # Split at last dot, since router name may contain dots.
+	    # The first .* is greedy, thus we find the last dot.
 	    my($router, $interface)  = ($name =~ /^(.*)\.(.*)$/);
 	    $object = $routers{$router}->{interfaces}->{$interface};
 	} elsif($type eq 'any') {
@@ -560,8 +602,13 @@ sub subst_names_with_refs($) {
 	} else {
 	    die "unknown object type '$type'";
 	}
-	die "undefined reference $type:$name" unless defined $object;
+	unless(defined $object) {
+	    my $unknown = "$type:$name";
+	    push(@unknown, $unknown);
+	    $object = undef;
+	}
     }
+    return @unknown;
 }
 	
 sub link_interface_with_net($) {
@@ -1280,15 +1327,27 @@ sub gen_code_at_src($$$) {
 &read_data();
     
 # substitute group member names with links to network objects
-for my $array_ref (values %groups) {
-    &subst_names_with_refs($array_ref);
+while(my($name, $array_ref) = (each %groups)) {
+    if(my @unknown = &subst_names_with_refs($array_ref)) {
+	warn "ignoring undefined references ", 
+	join(",", @unknown)," in group:$name\n";
+	&delete_undefs($array_ref);
+    }
 }
 
 # substitute rule targets with links to network objects
 # and service names with service definitions
 for my $rule (@rules) {
-    &subst_names_with_refs($rule->{src});
-    &subst_names_with_refs($rule->{dst});
+    if(my @unknown = &subst_names_with_refs($rule->{src})) {
+	warn "ignoring undefined references ", 
+	join(",", @unknown)," in src of rule\n";
+	&delete_undefs($rule->{src});
+    }
+    if(my @unknown = &subst_names_with_refs($rule->{dst})) {
+	warn "ignoring undefined references ", 
+	join(",", @unknown)," in dst of rule\n";
+	&delete_undefs($rule->{dst});
+    }
     for my $srv (@{$rule->{srv}}) {
 	my $srv_def = $services{$srv} || die "undefined service '$srv'";
 	$srv = $srv_def;
@@ -1374,6 +1433,8 @@ for my $rule (@expanded_deny_rules, @expanded_rules) {
     }
     &path_walk($rule, \&gen_code);
 }
+
+print "!! Generated by $program version $version\n\n";
 
 # Print generated code for each managed router
 for my $router (values %routers) {
