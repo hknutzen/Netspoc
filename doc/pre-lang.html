@@ -634,12 +634,16 @@ attribute "route_hint".
 
 <p>Alternatively, NetSPoC can automatically define a default route for
 each managed device as a means to reduce the number of static routing
-entries. At each managed device, a default route is automatically
-inserted such that it replaces the maximum number of routing
-entries. This behavior may be switched on or off by option
-$auto_default_route. This option must be off, if a user defined
-default route is given.
-
+entries. 
+<ul>
+<li>At each managed device, a default route is automatically inserted such
+that it replaces the maximum number of routing entries. 
+<li>This behavior may be switched on or off by option --auto_default_route.
+<li>This option must be switched off, if a user defined default route is
+given.
+<li>This behaviour is automatically disabled for routers where at least one
+interface has dynamic routing enabled. 
+</ul>
 
 <h4>Optimization</h4>
 Multiple routing entries for networks which are in a subnet
