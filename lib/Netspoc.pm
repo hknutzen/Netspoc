@@ -2525,20 +2525,6 @@ sub get_path( $ ) {
 	internal_err "unexpected object $obj->{name}";
     }
 }
- 
-sub get_one_network( $ ) {
-    my($obj) = @_;
-    if(is_host $obj or is_interface $obj) {
-	return $obj->{network};
-    } elsif(is_network($obj)) {
-	return $obj;
-    } elsif(is_any($obj)) {
-	# take one random network of this security domain
-	return $obj->{networks}->[0];
-    } else {
-	internal_err "unexpected object $obj->{name}";
-    }
-}
 
 # Mark path $from -> $to inside of loops.
 # In general we use the reference to $dst as a key.
@@ -2651,14 +2637,7 @@ sub path_walk( $& ) {
     my $src = $rule->{src};
     my $dst = $rule->{dst};
     my $from = get_path $src;
-    my $to =  get_one_network $dst;
-    my $real_to;
-    if(is_interface $dst && $dst->{router}->{managed}) {
-	return if $dst->{router} eq $from;
-	$real_to =  $dst;
-    } else {
-	return if $to eq $from;
-    }
+    my $to =  get_path $dst;
 #    info print_rule $rule;
 #    info "start: $from->{name}, $to->{name}";
 #    my $fun2 = $fun;
@@ -2667,59 +2646,44 @@ sub path_walk( $& ) {
 #	path_info $in, $out;
 #	&$fun2($rule, $in, $out);
 #    };
+    if($from eq $to) {
+	# don't process rule again later
+	$rule->{deleted} = $rule;
+	return;
+    }
     &path_mark($from, $to) unless $from->{path}->{$to};
     $walk_mark++;
     my $in = undef;
     my $out = $from->{path}->{$to};
     my $call_it = is_router $from;
-    &part_walk($in, $out, $to, $real_to, $call_it, $rule, $fun);
+    &part_walk($in, $out, $to, $call_it, $rule, $fun);
     if(my $out2 = $from->{path}->{"2.$to"}) {
-	&part_walk($in, $out2, $to, $real_to, $call_it, $rule, $fun);
+	&part_walk($in, $out2, $to, $call_it, $rule, $fun);
     }
 }
 
 sub part_walk( $$$$$$$ ) {
-    my($in, $out, $to, $real_to, $call_it, $rule, $fun) = @_;
+    my($in, $out, $to, $call_it, $rule, $fun) = @_;
 #    info "part_walk: in = ".($in?$in->{name}:'').", out = $out->{name}";
     while(1) {
 	# Destination network has been reached
-	if(not $out) {
-	    # Go one step further to destination interface 
-	    if($real_to) {
-		$in = $real_to;
-		$call_it and internal_err;
-		$call_it = 1;
-	    }
+	if(not defined $out) {
 	    &$fun($rule, $in, $out) if $call_it;
 #	    info "exit: part_walk: reached dst";
 	    return;
-	} elsif($out->{walk_mark} and
+	} elsif(defined $out->{walk_mark} and
 		$out->{walk_mark} == $walk_mark) {
 	    &$fun($rule, $in, $out) if $call_it;
 #           info "exit: part_walk: was already there";
 	    return;
-	} elsif($real_to) {
-	    if($out eq $real_to) {
-		# Don't go to destination network, 
-		# since we already have reached destination interface
-		$call_it or internal_err;
-		$out = undef;
-		&$fun($rule, $in, $out) if $call_it;
-#	        info "exit: part_walk: reached dst";
-		return;
-	    } elsif($out->{router} eq $real_to->{router}) {
-		# Don't walk an artifical loop behind destination router
-#	        info "exit: part_walk: ignore loop behind dst";
-		return;
-	    }
-	}	    
+	}
 	&$fun($rule, $in, $out) if $call_it;
 	$out->{walk_mark} = $walk_mark;
 	$in = $out;
 	$out = $in->{path}->{$to};
 	$call_it = ! $call_it;
 	if(my $out2 = $in->{path}->{"2.$to"}) {
-	    &part_walk($in, $out2, $to, $real_to, $call_it, $rule, $fun);
+	    &part_walk($in, $out2, $to, $call_it, $rule, $fun);
 	}
     }
 }
