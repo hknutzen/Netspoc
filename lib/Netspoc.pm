@@ -3079,7 +3079,14 @@ sub gen_reverse_rules1 ( $ ) {
     my($rule_aref) = @_;
     my @extra_rules;
     for my $rule (@$rule_aref) {
-	next if $rule->{deleted};
+	if($rule->{deleted}) {
+	    my $src = $rule->{src};
+	    # if source is a managed interface,
+	    # reversed will get attribute managed_intf
+	    unless(is_interface($src) and $src->{router}->{managed}) {
+		next;
+	    }
+	}
 	my $srv = $rule->{srv};
 	my $proto = $srv->{proto};
 	next unless $proto eq 'tcp' or $proto eq 'udp' or $proto eq 'ip';
