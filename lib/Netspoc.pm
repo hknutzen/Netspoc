@@ -297,6 +297,7 @@ sub read_network( $ ) {
     my $name = shift;
     skip('=');
     skip('{');
+    # ToDo: unnumbered networks
     my $ip = &read_assign('ip', \&read_ip);
     my $mask = &read_assign('mask', \&read_ip);
     # check if network ip matches mask
@@ -406,6 +407,7 @@ sub read_router( $ ) {
 # very similar to router, but has no 'managed' setting and has additional 
 # definition part 'links' 
 my %clouds;
+my $default_route;
 sub read_cloud( $ ) {
     my $name = shift;
     skip('=');
@@ -444,6 +446,10 @@ sub read_cloud( $ ) {
 		# assign interface to clouds hash of interfaces
 		$cloud->{interfaces}->{$link} = $interface;
 	    }
+	}
+	elsif($type eq 'default_route' and ! defined $iname) {
+	    &skip(';');
+	    $default_route = $cloud;
 	}
 	else {
 	    syntax_err "Illegal token";
@@ -722,7 +728,13 @@ sub printable( $ ) {
     elsif(&is_host($obj)) {$out = 'host';}
     elsif(&is_any($obj)) {$out = 'any';}
     elsif(&is_every($obj)) {$out = 'every';}
-    else { die "internal in printable: unknown object '$obj->{name}'";}
+    else {
+	if(ref $obj eq 'HASH' and exists $obj->{name}) {
+	    die "internal in printable: unknown object '$obj->{name}'";
+	} else {
+	    die "internal in printable: unknown object '$obj'";
+	}
+    }
     return "$out:$obj->{name}";
 }
 
@@ -1224,11 +1236,68 @@ sub check_deny_influence() {
 	}
     }
 }
-    
-##############################################################################
+
+####################################################################
+# Phase
+# Set routes
+# Add a component 'route' to each router.
+# It holds an array of arrays:[ [ $interface, network, network, .. ], ...
+####################################################################
+
+sub setroute_router( $$ ) {
+    my($router, $to_default, $default) = @_;
+    # first, add the interface where we reach the networks behind this router
+    my @networks = ($to_default);
+    for my $interface (@{$router->{interfaces}}) {
+	# ignore interface where we reached this router
+	next if $interface eq $to_default;
+	my $net = $interface->{link};
+	if($interface->{ip} ne 'cloud' and @{$interface->{ip}} != 0) {
+	    # add directly connected networks
+	    # but not for unnumbered interfaces
+	    push @networks, $net;
+	}
+	&setroute_network($net, $interface);
+    }
+    # add default route
+    $router->{default} = $default;
+    for my $routing (@{$router->{route}}) {
+	my $interface = $routing->[0];
+	my $len = @$routing;
+	for(my $i = 1; $i < $len; $i++) {
+	    # add networks which lie behind other routers
+	    push @networks, $routing->[$i];
+	}
+    }
+    return \@networks;
+}
+
+sub setroute_network( $$ ) {
+    my ($network, $to_default) = @_;
+    my @routing;
+    for my $interface (@{$network->{interfaces}}) {
+	# ignore interface where we reached this network
+	next if $interface eq $to_default;
+	# route: 1st element is interface,
+	# rest are networks reachable via this interface
+	my $route = &setroute_router($interface->{router},
+				     $interface, $to_default);
+	push @routing, $route;
+    }
+    push @{$to_default->{router}->{route}}, @routing;
+    for my $interface (@{$network->{interfaces}}) {
+	next if $interface eq $to_default;
+	for my $route (@routing) {
+	    next if $route->[0] eq $interface;
+	    push @{$interface->{router}->{route}}, $route;
+	}
+    }
+}
+
+####################################################################
 # Phase 4
 # Find paths
-##############################################################################
+####################################################################
 
 # find paths from every network and router to the starting object 'router 1'
 sub setpath_router( $$$$ ) {
@@ -1268,6 +1337,8 @@ sub setpath_network( $$$$ ) {
     # this info is used later for optimization,
     # generation of weak_deny rules for 'any' rules and
     # expansion of 'every' objects
+    # 
+    # ToDo: Check, what to do with unnumbered interfaces here
     push(@{$border->{networks}}, $network);
     for my $interface (@{$network->{interfaces}}) {
 	# ignore interface where we reached this network
@@ -1730,6 +1801,7 @@ sub adr_code( $ ) {
     if(&is_host($obj) or &is_interface($obj)) {
 	return map { 'host '. &print_ip($_) } @{$obj->{ip}};
     } elsif(&is_net($obj)) {
+	# ToDo: unnumbered networks
 	my $ip_code = &print_ip($obj->{ip});
 	my $mask_code = &print_ip($obj->{mask});
 	return "$ip_code $mask_code";
@@ -1922,7 +1994,7 @@ for my $router (values %routers) {
 	last;
     }
 }
-$router1 or err_msg "Topology has no managed router"; 
+$router1 or die "Topology has no managed router"; 
 if($verbose) {
     my $name = printable($router1);
     print STDERR "Selected $name as 'router 1'\n";
@@ -1932,6 +2004,11 @@ if($verbose) {
 # to find a path from every network and router to router1
 &setpath_router($router1, 'not undef', undef, 0);
 setpath_anys();
+
+# Set routes
+$default_route or die "Topology has no default route";
+print STDERR "Setting routes\n";
+&setroute_router($default_route, 'not undef');
 
 # expand rules
 &gen_expanded_rules();
@@ -2057,12 +2134,27 @@ for my $rule (@expanded_any_rules) {
     &path_walk($rule, \&gen_code);
 }
 
-print "!! Generated by $program version $version\n\n";
+print "!! Generated by $program, version $version\n\n";
 
 # Print generated code for each managed router
 for my $router (values %routers) {
     next unless $router->{managed};
-    print "!! Access Lists for $router->{name}\n";
+    print "!! Routing for $router->{name}\n";
+    for my $routing (@{$router->{route}}) {
+	my $interface = $routing->[0];
+	my $hop = print_ip $interface->{ip}->[0];
+	for(my $i = 1; $i < @$routing; $i++) {
+	    print "! route ". printable($routing->[$i]) ." -> ". printable($interface) ."\n";
+	    my $adr = adr_code $routing->[$i];
+	    print "route $adr\t$hop\n";
+	}
+    }
+    # Default route
+    my $hop = print_ip $router->{default}->{ip}->[0];
+    print "! route default -> ". printable($router->{default}) ."\n";
+    print "route 0.0.0.0 0.0.0.0\t$hop\n";
+
+    print "!! Access lists for $router->{name}\n";
     for my $interface (@{$router->{interfaces}}) {
 	# ToDo: currently we operate with logical interfaces per network
 	# but access lists work with physical interfaces
