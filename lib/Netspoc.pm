@@ -3332,9 +3332,6 @@ sub gen_secondary_rules() {
 	    my $router = ($in_intf || $out_intf)->{router};
 	    return unless $router->{managed};
 	    if($router->{managed} eq 'full') {
-		# there might be another path, without a full packet filter
-		# ToDo: this could be analyzed in more detail
-		return if $router->{loop};
 		# Optimization should only take place for IP addresses
 		# which are really filtered by a full packet filter. 
 		# ToDo: Think about virtual interfaces sitting
@@ -3343,6 +3340,12 @@ sub gen_secondary_rules() {
 		# Hence, this router doesn't count as a full packet filter.
 		return if not $in_intf and $rule->{src} eq $out_intf;
 		return if not $out_intf and $rule->{dst} eq $in_intf;
+		# A full filter inside a loop doesn't count, because there might
+		# be another path without a full packet filter.
+		# But a full packet filter at loop entry or exit is sufficient.
+		# there might be another path, without a full packet filter
+		# ToDo: this could be analyzed in more detail
+		return if $in_intf->{in_loop} and $out_intf->{in_loop};
 		$has_full_filter = 1;
 	    } elsif($router->{managed} eq 'secondary') {
 		$has_secondary_filter = 1;
