@@ -690,25 +690,41 @@ sub read_network( $ ) {
     $networks{$name} = $network;
 }
 
-
+# Definition of dynamic routing protocols.
 # Services below need not to be ordered using order_services
 # since they are only used at code generation time.
 my %routing_info =
 (EIGRP => {srv => { name => 'auto_srv:EIGRP', proto => 88 },
 	   mcast => [ new('Network',
-			  name => "network:EIGRP_224.0.0.10",
+			  name => "auto_network:EIGRP_multicast",
 			  ip => gen_ip(224,0,0,10),
 			  mask => gen_ip(255,255,255,255)) ]},
  OSPF => {srv => { name => 'auto_srv:OSPF', proto => 89 },
 	  mcast => [ new('Network',
-			  name => "network:OSPF_224.0.0.5",
+			  name => "auto_network:OSPF_multicast5",
 			  ip => gen_ip(224,0,0,5),
 			  mask => gen_ip(255,255,255,255),
 			  ),
 		     new('Network',
-			  name => "network:OSPF_224.0.0.6",
+			  name => "auto_network:OSPF_multicast6",
 			  ip => gen_ip(224,0,0,6),
 			  mask => gen_ip(255,255,255,255)) ]});
+
+# Definition of redundancy protocols.
+my %xxrp_info =
+(VRRP => {srv => { name => 'auto_srv:VRRP', proto => 112 },
+	  mcast => new('Network',
+		       name => "auto_network:VRRP_multicast",
+		       ip => gen_ip(224,0,0,18),
+		       mask => gen_ip(255,255,255,255)) },
+ HSRP => {srv => { name => 'auto_srv:HSRP',
+		   proto => 'udp',
+		   ports => [ 1, 65535, 1985, 1985 ] },
+	  mcast => new('Network',
+		       name => "auto_network:HSRP_multicast",
+		       ip => gen_ip(224,0,0,2),
+		       mask => gen_ip(255,255,255,255)) });
+
 our %interfaces;
 my @virtual_interfaces;
 my @disabled_interfaces;
@@ -753,19 +769,44 @@ sub read_interface( $$ ) {
 		} else {
 		    syntax_err "Expected named attribute";
 		}
-	    } elsif(my $virtual =
-		    check_assign 'virtual', \&read_ip) {
-		# Read virtual IP for VRRP / HSRP.
+	    } elsif(check 'virtual') {
+		# Read attributes of redundancy protocol (VRRP/HSRP).
+		my $virtual = {};
+		skip '=';
+		skip '{';
+		while(1) {
+		    last if check '}';
+		    if(my $ip = check_assign 'ip', \&read_ip) {
+			$virtual->{ip} and 
+			    error_atline "Duplicate virtual IP address";
+			$virtual->{ip} = $ip;
+		    } elsif(my $type = check_assign 'type', \&read_string) {
+			$xxrp_info{$type} or
+			    error_atline "Unknown redundancy protocol";
+			$virtual->{type} and
+			    error_atline "Duplicate redundancy type";
+			$virtual->{type} = $type;
+		    } elsif(my $id = check_assign 'id', \&read_string) {
+			$id =~ /^\d+$/ or
+			    error_atline "Redundancy ID must be numeric";
+			$id < 256 or error_atline "Redundancy ID mus be < 256";
+			$virtual->{id} and
+			    error_atline "Duplicate redundancy ID";
+			$virtual->{id} = $id;
+		    } else {
+			error_atline "Expected attribute for virtual IP";
+		    }
+		}
+		$virtual->{ip} or error_atline "Missing virtual IP";
+		$virtual->{type} or
+		    error_atline "Missing type of redundancy protocol";
 		$interface->{ip} eq 'unnumbered' and
 		    error_atline "No virtual IP supported for ",
 		    "unnumbered interface";
-		# Allow virtual IP to be equal to physical IP.
-		# This is useful, if there are multiple hops 
-		# when generating static routes and
-		# only on hop should be used for static routing.
-		# grep { $_ == $virtual } @{$interface->{ip}} and
-		#    error_atline
-		#	"Virtual IP redefines standard IP";
+		grep { $_ == $virtual->{ip} } @{$interface->{ip}} and
+		    error_atline "Virtual IP redefines standard IP";
+		# Add virtual IP to list of real IP addresses.
+		push @{$interface->{ip}}, $virtual->{ip};
 		$interface->{virtual} and
 		    error_atline "Duplicate virtual IP";
 		$interface->{virtual} = $virtual;
@@ -784,9 +825,8 @@ sub read_interface( $$ ) {
 		$interface->{hardware} = $hardware;
 	    } elsif(my $protocol =
 		    check_assign 'routing', \&read_string) {
-		unless($routing_info{$protocol}) {
+		$routing_info{$protocol} or
 		    error_atline "Unknown routing protocol";
-		}
 		$interface->{routing} and
 		    error_atline "Duplicate routing protocol";
 		$interface->{routing} = $protocol;
@@ -818,6 +858,9 @@ sub read_interface( $$ ) {
 		# look at print_pix_static before changing this
 		error_atline "No NAT supported for interface ",
 		"with multiple IPs";
+	    } elsif($interface->{virtual}) {
+		error_atline "No NAT supported for interface ",
+		"with virtual IP";
 	    }
 	}
     }
@@ -1597,9 +1640,7 @@ sub link_interface_with_net( $ ) {
 	# check compatibility of interface ip and network ip/mask
 	my $network_ip = $network->{ip};
 	my $mask = $network->{mask};
-	for my $interface_ip (@$ip,
-			      $interface->{virtual} ?
-			      $interface->{virtual} : ()) {
+	for my $interface_ip (@$ip) {
 	    if($network_ip eq 'unnumbered') {
 		err_msg "$interface->{name} must not be linked ",
 		"to unnumbered $network->{name}";
@@ -2875,26 +2916,52 @@ sub setpath() {
 
     # Check consistency of virtual interfaces:
     # Interfaces with identical virtual IP must 
-    # be connected to the same network and 
-    # must lie inside the same loop.
+    # - be connected to the same network,
+    # - be located inside the same loop,
+    # - use the same redundancy protocol,
+    # - use the same id (currently optional).
     my %same_ip;
+    # Unrelated virtual interfaces with identical IP must be located 
+    # in different networks.
+    my %same_id;
     for my $interface (@virtual_interfaces) {
-	my $ip = $interface->{virtual};
+	my $ip = $interface->{virtual}->{ip};
 	push @{$same_ip{$ip}}, $interface;
     }
     for my $aref (values %same_ip) {
         my($i1, @rest) = @$aref;
+	my $id1 = $i1->{virtual}->{id} || '';
+	my $other;
+	if($id1) {
+	    if($other = $same_id{$id1} and
+	       $i1->{network} eq $other->{network}) {
+		err_msg "Virtual IP: Unrelated $i1->{name} and $other->{name}",
+		" have identical ID";
+	    } else {
+		$same_id{$id1} = $i1;
+	    }
+	}
         if(@rest) {
             my $network1 = $i1->{network};
-            my $loop1 = $i1->{router}->{loop};
+            my $loop1 = $i1->{router}->{loop} || 0;
+	    my $type1 = $i1->{virtual}->{type};
             for my $i2 (@rest) {
-                $network1 eq $i2->{network} or
-                    err_msg "Virtual IP: $i1->{name} and $i2->{name} ",
-                    "are connected to different networks";
-                $loop1 and $i2->{router}->{loop} and
-                    $loop1 eq $i2->{router}->{loop} or
-                    err_msg "Virtual IP: $i1->{name} and $i2->{name} ",
-                    "are part of different cyclic subgraphs";
+		my $network2 = $i2->{network};
+		my $loop2 = $i2->{router}->{loop} || 0;
+		my $type2 = $i2->{virtual}->{type};
+		my $id2 = $i2->{virtual}->{id} || '';
+		$network1 eq $network2 or
+                    err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+                    " are connected to different networks";
+		$type1 eq $type2 or
+		    err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+		    " use different redundancy protocols";
+		$id1 eq $id2 or
+		    err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+		    " use different ID";
+                $loop1 eq $loop2 or
+                    err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+                    " are part of different cyclic subgraphs";
             } 
         } else {
             warning "Virtual IP: Missing second interface for $i1->{name}";
@@ -3832,7 +3899,7 @@ sub check_and_convert_routes () {
 			    # Network is reached via two different hops.
 			    # Check if both are reached via the same virtual IP.
 			    if($hop->{virtual} and $hop2->{virtual} and
-				   $hop->{virtual} eq $hop2->{virtual}) {
+			       $hop->{virtual}->{ip} eq $hop2->{virtual}->{ip}) {
 				# Prevent multiple identical routes to different
 				# interfaces with identical virtual IP.
 				delete $interface->{routes}->{$hop}->{$network};
@@ -4014,7 +4081,9 @@ sub print_routes( $ ) {
 		$hop->{ip} eq 'unnumbered' ?
 		$interface->{hardware}->{name} :
 		$hop->{virtual} ?
-		print_ip $hop->{virtual} :
+		# Take virtual IP if available.
+		print_ip $hop->{virtual}->{ip} :
+		# Take first IP from list of IP addresses.
 		print_ip $hop->{ip}->[0];
 	    # A hash having all networks reachable via current hop
 	    # both as key and as value.
@@ -4399,9 +4468,6 @@ sub address( $$ ) {
 	    }
 	} else {
 	    my @ip = @{$obj->{ip}};
-	    # Virtual IP must be added for deny rules,
-	    # it doesn't hurt for permit rules.
-	    push @ip, $obj->{virtual} if $obj->{virtual};
 	    # Take higher bits from network NAT, lower bits from original IP.
 	    # This works with and without NAT.
 	    my ($network_ip, $network_mask) = @{$network}{'ip', 'mask'};
@@ -5043,6 +5109,15 @@ sub print_acls( $ ) {
 			   dst => $network,
 			   srv => $routing_info{$type}->{srv} });
 		}
+	    }
+	    # Handle multicast packets of redundancy protocols.
+	    if(my $virtual = $interface->{virtual}) {
+		my $type = $virtual->{type};
+		my $src = $interface->{network};
+		my $dst = $xxrp_info{$type}->{mcast};
+		my $srv = $xxrp_info{$type}->{srv};
+		push @{$hardware->{intf_rules}},
+		{ action => 'permit', src => $src, dst => $dst, srv => $srv };
 	    }
 	}
     }
