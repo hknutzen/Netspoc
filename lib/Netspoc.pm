@@ -2041,11 +2041,13 @@ our @expanded_deny_rules;
 our @expanded_rules;
 # array of expanded any rules
 our @expanded_any_rules;
-# hash for ordering all rules:
-# $rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
+# Hash for ordering all rules:
+# $rule_tree{$action}->{$src}->{$dst}->{$srv} = $rule;
 # see &add_rule for details
 my %rule_tree;
 my %reverse_rule_tree;
+# Hash for converting a reference of an object back to this object.
+my %ref2obj;
 
 sub expand_rules() {
     info "Expanding rules";
@@ -2118,14 +2120,17 @@ sub expand_rules() {
 		    $get_auto_interface->($dst, $src) : ($dst);
 		for my $src (@src) {
 		    my $src = $src;	# prevent modification of original array
+		    $ref2obj{$src} = $src;
 		    for my $dst (@dst) {
 			my $dst = $dst;	# prevent ...
  			if($src eq 'any:[local]') {
  			    $src = $get_any_local->($dst);
- 			}
+			    $ref2obj{$src} = $src;
+}
  			if($dst eq 'any:[local]') {
  			    $dst = $get_any_local->($src);
  			}
+			$ref2obj{$dst} = $dst;
 			for my $srv (@{$rule->{srv}}) {
 			    my $expanded_rule = { action => $action,
 						  src => $src,
@@ -2932,7 +2937,7 @@ sub check_any_src_rule( $$$ ) {
 	    my $any = $intf->{any};
 	    unless($missing_any{$any} or
 	       $rule_tree{$rule->{action}}->
-		   {$any}->[0]->{$dst}->[0]->{$rule->{srv}}) {
+		   {$any}->{$dst}->{$rule->{srv}}) {
 		err_msg  "Missing 'any' rule for rule\n", 
 		" ", print_rule $rule, "\n",
 		" of $rule->{rule}->{policy}->{name}. To be effective\n",
@@ -2948,7 +2953,7 @@ sub check_any_src_rule( $$$ ) {
     return if $out_any eq $dst_any;
     unless($missing_any{$out_any} or
 	   $rule_tree{$rule->{action}}->
-	   {$out_any}->[0]->{$dst}->[0]->{$rule->{srv}}) {
+	   {$out_any}->{$dst}->{$rule->{srv}}) {
 	err_msg "Missing 'any' rule for rule\n", 
 	" ", print_rule $rule, "\n",
 	" of $rule->{rule}->{policy}->{name}. To be effective\n",
@@ -3002,7 +3007,7 @@ sub check_any_dst_rule( $$$ ) {
 	next if $any eq $src_any;
 	unless($missing_any{$any} or
 	       $rule_tree{$rule->{action}}->
-	       {$src}->[0]->{$any}->[0]->{$srv}) {
+	       {$src}->{$any}->{$srv}) {
 	    err_msg  "Missing 'any' rule for rule\n", 
 	    " ", print_rule $rule, "\n",
 	    " of $rule->{rule}->{policy}->{name}. To be effective\n",
@@ -3347,15 +3352,13 @@ sub add_rule( $ ) {
 	$rule->{managed_intf} = 1;
     }
     my $rule_tree = $rule->{stateless} ? \%reverse_rule_tree : \%rule_tree;
-    my $old_rule = $rule_tree->{$action}->{$src}->[0]->{$dst}->[0]->{$srv};
+    my $old_rule = $rule_tree->{$action}->{$src}->{$dst}->{$srv};
     if($old_rule) {
 	# Found identical rule
 	$rule->{deleted} = $old_rule;
 	return;
     } 
-    $rule_tree->{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
-    $rule_tree->{$action}->{$src}->[1] = $src;
-    $rule_tree->{$action}->{$src}->[0]->{$dst}->[1] = $dst;
+    $rule_tree->{$action}->{$src}->{$dst}->{$srv} = $rule;
 }
 
 # delete an element from an array reference
@@ -3379,16 +3382,16 @@ sub optimize_rules( $$ ) {
 	while(1) {
 	    if(my $cmp_hash = $cmp_hash->{$action}) {
 		my($cmp_hash, $chg_hash) = ($cmp_hash, $chg_hash);
-		for my $aref (values %$chg_hash) {
-		    my($next_hash, $src) = @$aref;
+		for my $src_ref (keys %$chg_hash) {
+		    my $chg_hash = $chg_hash->{$src_ref};
+		    my $src = $ref2obj{$src_ref};
 		    while(1) {
-			if(my $cmp_src = $cmp_hash->{$src}) {
-			    my($cmp_hash, $chg_hash) = ($cmp_src->[0], $next_hash);
-			    for my $aref (values %$chg_hash) {
-				my($next_hash, $dst) = @$aref;
+			if(my $cmp_hash = $cmp_hash->{$src}) {
+			    for my $dst_ref (keys %$chg_hash) {
+				my $chg_hash = $chg_hash->{$dst_ref};
+				my $dst = $ref2obj{$dst_ref};
 				while(1) {
-				    if(my $cmp_dst = $cmp_hash->{$dst}) {
-					my($cmp_hash, $chg_hash) = ($cmp_dst->[0], $next_hash);
+				    if(my $cmp_hash = $cmp_hash->{$dst}) {
 					for my $chg_rule (values %$chg_hash) {
 					    next if $chg_rule->{deleted};
 					    my $srv = $chg_rule->{srv};
@@ -3475,10 +3478,8 @@ sub collect_route( $$$ ) {
 #    info $info;;
     if($in_intf and $out_intf) {
 	return unless $in_intf->{router}->{managed};
-	# Remember network which is reachable via $out_intf
-	my $network = $rule->{dst_network};
-	# ignore network, which was generated via get_networks from an interface
-	return if $out_intf->{network} eq $network;
+	# Remember network which is reachable via $out_intf.
+	my $network = $rule->{dst};
 #	info "Route at $in_intf->{name}: $network->{name} via $out_intf->{name}";
 	$in_intf->{routes}->{$out_intf}->{$network} = $network;
 	# Store $out_intf itself, since we need to go back 
@@ -3488,6 +3489,7 @@ sub collect_route( $$$ ) {
 }
 
 sub check_duplicate_routes () {
+    info "Checking for duplicate routes";
     for my $router (values %routers) {
 	next unless $router->{managed};
 	# Remember, via which local interface a network is reached.
@@ -3533,6 +3535,7 @@ sub check_duplicate_routes () {
     }
 }
 
+# Collect networks for generation of static commands.
 sub mark_networks_for_static( $$$ ) {
     my($rule, $in_intf, $out_intf) = @_;
     # no static needed for directly attached interface
@@ -3542,19 +3545,19 @@ sub mark_networks_for_static( $$$ ) {
     return unless $router->{model}->{has_interface_level};
     # no static needed for traffic coming from the PIX itself
     return unless $in_intf;
+    # We need in_hw and out_hw for
+    # - their names and for
+    # - getting the NAT domain
     my $in_hw = $in_intf->{hardware};
     my $out_hw = $out_intf->{hardware};
+    my $dst = $rule->{dst};
+    # dst has been added before; skip NAT calculation.
+    return if $out_hw->{static}->{$in_hw}->{$dst};
     err_msg "Traffic to $rule->{dst}->{name} can't pass\n",
     " from  $in_intf->{name} to $out_intf->{name},\n",
     " because they have equal security levels.\n"
 	if $in_hw->{level} == $out_hw->{level};
-    # Collect networks for generation of static commands.
     # Put networks into a hash to prevent duplicates.
-    # We need in_hw and out_hw for
-    # - their names and for
-    # - getting the NAT domain
-    my $dst = $rule->{dst_network};
-    return if $dst->{ip} eq 'unnumbered';
     $out_hw->{static}->{$in_hw}->{$dst} = $dst;
     # Do we need to generate "nat 0" for an interface?
     if($in_hw->{level} < $out_hw->{level}) {
@@ -3562,8 +3565,8 @@ sub mark_networks_for_static( $$$ ) {
     } else {
 	# Check, if there is a dynamic NAT of a dst address from higher
 	# to lower security level. We need this info to decide,
-	# if static commands with "identity mapping" and "nat 0"
-	# need to be generated.
+	# if static commands with "identity mapping" and 
+	# a "nat 0" command needs to be generated.
 	$out_hw->{need_always_static} and return;
 	# Remember: NAT tag for networks behind out_hw is attached to in_hw.
 	my $nat_tag = $in_hw->{bind_nat} or return;
@@ -3594,12 +3597,12 @@ sub find_active_routes_and_statics () {
 	# this would give wrong routes and statics, if a path restriction
 	# is applied to this interface.
 	for my $network (get_networks($dst)) {
+	    next if $network->{ip} eq 'unnumbered';
 	    unless($routing_tree{$from}->{$network}) {
 		my $pseudo_rule = { src => $from,
 				    dst => $network,
 				    action => '--',
 				    srv => $pseudo_srv,
-				    dst_network => $network
 				    };
 		$routing_tree{$from}->{$network} = $pseudo_rule;
 	    }
@@ -4342,7 +4345,6 @@ sub find_object_groups ( $ ) {
     for my $this ('src', 'dst') {
 	my $that = $this eq 'src' ? 'dst' : 'src';
 	my $tag = "${this}_group";
-	my %ref2obj;
 	for my $hardware (@{$router->{hardware}}) {
 	    my %group_rule_tree;
 	    # find groups of rules with identical 
@@ -4352,7 +4354,6 @@ sub find_object_groups ( $ ) {
 		my $that = $rule->{$that};
 		my $this = $rule->{$this};
 		my $srv = $rule->{srv};
-		$ref2obj{$this} = $this;
 		$group_rule_tree{$action}->{$srv}->{$that}->{$this} = $rule;
 	    }
 	    # Find groups >= $min_object_group_size,
@@ -4479,7 +4480,6 @@ sub find_chains ( $ ) {
 	# Find identical chains in identical NAT domain, 
 	# with same action and size
 	my %nat2action2size2group;
-	my %ref2obj;
 	for my $hardware (@{$router->{hardware}}) {
 	    my %group_rule_tree;
 	    # find groups of rules with identical 
@@ -4490,7 +4490,6 @@ sub find_chains ( $ ) {
 		my $that = $rule->{$that};
 		my $this = $rule->{$this};
 		my $srv = $rule->{srv};
-		$ref2obj{$this} = $this;
 		$group_rule_tree{$action}->{$srv}->{$that}->{$this} = $rule;
 	    }
 	    # Find groups >= $min_object_group_size,
