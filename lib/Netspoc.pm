@@ -979,25 +979,37 @@ sub link_interface_with_net( $ ) {
 ##############################################################################
 # Phase 3
 # Expand rules
-##############################################################################
-
-# simplify rules to expanded rules where each rule has exactly one 
+#
+# Simplify rules to expanded rules where each rule has exactly one 
 # src, dst and srv
+##############################################################################
 
 sub expand_object( $ ) {
     my($ob) = @_;
     if(ref($ob) eq 'ARRAY') {
 	# a group is represented by an array of its members
-	return $ob;
+	# some members may again be groups
+	return map { &expand_object($_) } @$ob;
     } elsif(is_router($ob)) {
 	# split up a router into its interfaces
-	return $ob->{interfaces};
+	return @{$ob->{interfaces}};
     } elsif(is_every($ob)) {
 	# expand an 'every' object to all networks in its security domain
-	return $ob->{link}->{border}->{networks};
+	return @{$ob->{link}->{border}->{networks}};
     } else {
 	# an atomic object
 	return $ob;
+    }
+}
+
+sub expand_srv( $ ) {
+    my($srv) = @_;
+    if(ref($srv) eq 'ARRAY') {
+	# Service groups are arrays of srv
+	# some members may again be service groups
+	return map { &expand_srv($_) } @$srv;
+    } else {
+	return $srv;
     }
 }
     
@@ -1010,48 +1022,33 @@ my @expanded_any_rules;
 # counter for expanded permit any rules
 my $anyrule_index = 0;
 
-sub gen_expanded_rules( $$$$ ) {
-    my($action, $src_aref, $dst_aref, $srv_aref) = @_;
-    for my $src (@$src_aref) {
-	my $aref = expand_object($src);
-	if(ref($aref) eq 'ARRAY') {
-	    &gen_expanded_rules($action, $aref, $dst_aref, $srv_aref);
-	} else {
-	    &expand_rule_dst($action, $src, $dst_aref, $srv_aref);
-	}
-    }
-}
-
-sub expand_rule_dst( $$$$ ) {
-    my($action, $src, $dst_aref, $srv_aref) = @_;
-    for my $dst (@$dst_aref) {
-	my $aref = expand_object($dst);
-	if(ref($aref) eq 'ARRAY') {
-	    &expand_rule_dst($action, $src, $aref, $srv_aref);
-	} else {
-	    &expand_rule_srv($action, $src, $dst, $srv_aref);
-	}
-    }
-}
-
-sub expand_rule_srv( $$$$ ) {
-    my($action, $src, $dst, $srv_aref) = @_;
-    for my $srv (@$srv_aref) {
-	# Service groups are arrays of srv
-	if(ref($srv) eq 'ARRAY') {
-	    &expand_rule_srv($action, $src, $dst, $srv);
-	} else {
-	    my $expanded_rule = { action => $action,
-				  src => $src,
-				  dst => $dst,
-				  srv => $srv
-				  };
-	    if($action eq 'deny') {
-		push(@expanded_deny_rules, $expanded_rule);
-	    } elsif(is_any($src) or is_any($dst)) {
-		&order_rules($expanded_rule);
-	    } else {
-		push(@expanded_rules, $expanded_rule);
+sub gen_expanded_rules() {
+    for my $rule (@rules) {
+	my $src_any_group = {};
+	my $dst_any_group = {};
+	for my $src (&expand_object($rule->{src})) {
+	    for my $dst (&expand_object($rule->{dst})) {
+		for my $srv (&expand_srv($rule->{srv})) {
+		    my $action = $rule->{action};
+		    my $expanded_rule = { action => $action,
+					  src => $src,
+					  dst => $dst,
+					  srv => $srv
+					  };
+		    if($action eq 'deny') {
+			push(@expanded_deny_rules, $expanded_rule);
+		    } elsif(is_any($src)) {
+			$src_any_group->{$src} = 1;
+			$expanded_rule->{src_any_group} = $src_any_group;
+			&order_rules($expanded_rule);
+		    } elsif(is_any($dst)) {
+			$dst_any_group->{$dst} = 1;
+			$expanded_rule->{dst_any_group} = $dst_any_group;
+			&order_rules($expanded_rule);
+		    } else {
+			push(@expanded_rules, $expanded_rule);
+		    }
+		}
 	    }
 	}
     }
@@ -1387,6 +1384,10 @@ sub gen_any_src_deny( $$$ ) {
     # nothing to do for the first router
     return if $in_intf->{any} and $in_intf->{any} eq $rule->{src};
 
+    # Optimization: nothing to do if there is a similar rule
+    # with another any object as src
+    return if $in_intf->{any} and $rule->{src_any_group}->{$in_intf->{any}};
+
     for my $net (@{$in_intf->{networks}}) {
 	my $deny_rule = {src => $net,
 			 dst => $rule->{dst},
@@ -1440,6 +1441,10 @@ sub gen_any_dst_deny( $$$ ) {
 	# nothing to do for the interface which is connected
 	# directly to the destination any object
 	next if $intf->{any} and $intf->{any} eq $rule->{dst};
+
+	# Optimization: nothing to do if there is a similar rule
+	# with another any object as dst
+	return if $intf->{any} and $rule->{dst_any_group}->{$intf->{any}};
 
 	for my $net (@{$intf->{networks}}) {
 	    my $deny_rule = {src => $rule->{src},
@@ -1551,12 +1556,13 @@ sub add_rule( $$ ) {
     my $action = $rule->{action};
     # We use the address of the srv object as a hash key here
     my $old_rule = $srv_hash->{$action}->{$srv};
+    # found identical rule: delete first one
     $old_rule->{deleted} = 1 if $old_rule;
     $srv_hash->{$action}->{$srv} = $rule;
     return($srv_hash);
 }
 
-# a rule may be deleted if we find a similar rule with greater srv
+# a rule may be deleted if we find a similar rule with greater or equal srv
 sub optimize_srv_rules( $$ ) {
     my($cmp_hash, $chg_hash) = @_;
 
@@ -1860,10 +1866,8 @@ if($verbose) {
 setpath_anys();
 
 # expand rules
-for my $rule (@rules) {
-    &gen_expanded_rules($rule->{action},
-			$rule->{src}, $rule->{dst}, $rule->{srv});
-}
+&gen_expanded_rules();
+
 # add sorted any rules to @expanded_any_rules
 &add_ordered_any_rules();
 if($verbose) {
