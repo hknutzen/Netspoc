@@ -1615,6 +1615,7 @@ sub disable_behind( $ ) {
 	}
 	for my $outgoing (@{$router->{interfaces}}) {
 	    next if $outgoing eq $interface;
+	    # ToDo: Check, if this is still true
 	    # Loop detection occurs later in setpath
 	    next if $outgoing->{disabled};
 	    &disable_behind($outgoing);
@@ -1776,51 +1777,66 @@ sub setany() {
 ####################################################################
 # Set paths for efficient topology traversal
 ####################################################################
-
-sub setpath_router( $$$ ) {
-    my($router, $to_r1, $distance) = @_;
-    if($router->{active_path}) {
+sub setpath_obj( $$$$ ) {
+    my($obj, $to_r1, $distance, $loop) = @_;
+    # $obj: a managed router or an 'any' object
+    # $to_r1: interface of $obj; go this direction to reach router1
+    # $distance: distance to router1
+    # $loop: 
+    # (a) a flag, indicating that there are two paths from $obj to router1
+    # (b) a managed router or 'any' object, where the path from router1 to
+    #     the current $obj splits (the start of the loop).
+    if($obj->{active_path}) {
 	# Found a loop
 	return;
     }
     # mark current path for loop detection
-    $router->{active_path} = 1;
-    my $old_dist = $to_r1->{dist2any};
-    # find maximum distance
-    if($old_dist and $old_dist >= $distance) {
-	return;
-    }
-#    info "-- $distance: $router->{name}";
-    $to_r1->{dist2any} = $distance;
-    for my $interface (@{$router->{interfaces}}) {
-	# ignore interface where we reached this router
-	next if $interface eq $to_r1;
-	&setpath_any($interface->{any}, $interface, $distance+1);
-    }
-    $router->{active_path} = 0;
-}
+    $obj->{active_path} = 1;
+    if($loop) {
+	$obj->{loop} = $loop;
+	$obj->{extra} = $to_r1;
+    } else {
+	$obj->{main} = $to_r1;
+	$obj->{main_dist} = $distance;
+    } 
+#info("-- ".($loop?$loop->{name}:'main').",$distance: $obj->{name} --> $to_r1->{name}");
 
-sub setpath_any( $$$ ) {
-    my ($any, $to_r1, $distance) = @_;
-    if($any->{active_path}) {
-	# Found a loop
-	return;
-    }
-    # mark current path for loop detection
-    $any->{active_path} = 1;
-    my $old_dist = $to_r1->{dist2router};
-    # find maximum distance
-    if($old_dist and $old_dist >= $distance) {
-	return;
-    }
-#    info "-- $distance: $any->{name}";
-    $to_r1->{dist2router} = $distance;
-    for my $interface (@{$any->{interfaces}}) {
-	# ignore interface where we reached this network
+    for my $interface (@{$obj->{interfaces}}) {
+	# ignore interface where we reached this obj
 	next if $interface eq $to_r1;
-	&setpath_router($interface->{router}, $interface, $distance+1);
+	# get local copy of loop: change only current interface
+	my $loop = $loop;
+	if($loop) {
+	    if($interface->{main}) {
+		# path already marked in same direction: outside of loop
+		next if $interface->{main} eq $obj;
+		$interface->{extra} = $obj;
+	    } elsif($interface->{extra}) {
+		err_msg "Found nested loop at $interface->{name}";
+		next;
+	    } else {
+		internal_err
+		    "Found unmarked $interface->{name} while marking loop";
+		next;
+	    }
+	} else {
+	    if($interface->{main}) {
+		# a new loop begins at $obj (when looking from r1)
+		# take interface $obj as a representative for the whole loop
+		$loop = $obj;
+		$interface->{extra} = $obj;
+	    } elsif($obj->{extra}) {
+		internal_err
+		    "Found marked loop at $obj->{name} while outside a loop";
+	    } else {
+		# continue marking main path
+		$interface->{main} = $obj;
+	    }
+	}
+	my $next = is_any $obj ? $interface->{router} : $interface->{any};
+	&setpath_obj($next, $interface, $distance+1, $loop);
     }
-    $any->{active_path} = 0;
+    $obj->{active_path} = 0;
 }
 
 sub setpath() {
@@ -1835,18 +1851,12 @@ sub setpath() {
 
     # Starting with any1, do a traversal of the whole network 
     # to find a path from every security domain and router to any1
-    &setpath_any($any1, $interface, 2);
+    &setpath_obj($any1, $interface, 2, 0);
 
     # check, if all security domains are connected with router1 
     for my $any (@all_anys) {
 	next if $any eq $any1;
-	my $connected = 0;
-	for my $interface (@{$any->{interfaces}}) {
-	    if($interface->{dist2router}) {
-		$connected = 1,
-	    }
-	}
-	$connected or
+	$any->{main} or
 	    err_msg "Found unconnected security domain $any->{name}";
     }
 }
@@ -1855,144 +1865,6 @@ sub setpath() {
 # Efficient path traversal.
 # Used for conversion of 'any' rules and for generation of ACLs
 ####################################################################
-
-# ToDo: 
-# - Sicherstellen, dass jedes Interface nur 1x durchlaufen wird
-sub part_walk( $$$$$$ ) {
-    my($rule, $fun, $src, $src_in, $dst, $dst_in) = @_;
-    if($src eq $dst) {
-	if(is_router $src) {
-	    if($src_in or $dst_in) {
-#    info("eql: ".($src_in?$src_in->{name}:'')." -- ".($dst_in?$dst_in->{name}:''));
-		&$fun($rule, $src_in, $dst_in);
-	    }
-	}
-	return;
-    }
-    my $found_src_path = 0;
-    for my $src_out (@{$src->{interfaces}}) {
-	next if $src_in and $src_in eq $src_out;
-	my $src_dist;
-	my $src_next;
-	if(is_router $src) {
-	    $src_dist = $src_out->{dist2any};
-	    $src_next = $src_out->{any};
-	} else {
-	    $src_dist = $src_out->{dist2router};
-	    $src_next = $src_out->{router};
-	}
-	# ignore interface, if this is not a path to router1
-	next unless $src_dist;
-	$found_src_path = 1;
-	my $found_dst_path = 0;
-	for my $dst_out (@{$dst->{interfaces}}) {
-	    next if $dst_in and $dst_in eq $dst_out;
-	    my $dst_dist;
-	    my $dst_next;
-	    if(is_router $dst) {
-		$dst_dist = $dst_out->{dist2any};
-		$dst_next = $dst_out->{any};
-	    } else {
-		$dst_dist = $dst_out->{dist2router};
-		$dst_next = $dst_out->{router};
-	    }
-	    next unless $dst_dist;
-	    $found_dst_path = 1;
-	    if($src_dist >= $dst_dist) {
-#    info("src: ".($src_in?$src_in->{name}:'')." -- ".($src_out?$src_out->{name}:'')) if is_router $src;
-		&$fun($rule, $src_in, $src_out) if is_router $src;
-		&part_walk($rule, $fun, $src_next, $src_out, $dst, $dst_in);
-	    } else {
-#    info("dst: ".($dst_out?$dst_out->{name}:'')." -- ".($dst_in?$dst_in->{name}:'')) if is_router $dst;
-		&$fun($rule, $dst_out, $dst_in) if is_router $dst;
-		&part_walk($rule, $fun, $src, $src_in, $dst_next, $dst_out);
-	    } 
-	}
-	unless($found_dst_path) {
-	    warning "No path to $dst->{name}";
-	}
-    }
-    unless($found_src_path) {
-	warning "No path from $src->{name}";
-    }
-}
-
-sub get_distance( $$ ) {
-    my($obj, $interface) = @_;
-    if(is_router $obj) {
-	return $interface->{dist2any};
-    } else {
-	return $interface->{dist2router};
-    }
-}
-
-sub get_next( $$ ) {
-    my ($obj, $intf) = @_;
-    if(is_any $obj) {
-	return $intf->{router};
-    } else {
-	return $intf->{any};
-    }
-}
-
-# ToDo: 
-# - Sicherstellen, dass jedes Interface nur 1x durchlaufen wird
-sub part_walk2( $$$$$$$ ) {
-    my($fun, $src_in, $src, $src_out, $dst_in, $dst, $dst_out) = @_;
-    if($src eq $dst) {
-	if(is_router $src) {
-	    if($src_in or $dst_in) {
-		&$fun($src_in, $dst_in);
-	    }
-	}
-	return;
-    }
-
-    my $src_dist;
-    my $src_next;
-    if(is_router $src) {
-	$src_dist = $src_out->{dist2any};
-	$src_next = $src_out->{any};
-    } else {
-	$src_dist = $src_out->{dist2router};
-	$src_next = $src_out->{router};
-    }
-    $src_dist or return;
-
-    my $dst_dist;
-    my $dst_next;
-    if(is_router $dst) {
-	$dst_dist = $dst_out->{dist2any};
-	$dst_next = $dst_out->{any};
-    } else {
-	$dst_dist = $dst_out->{dist2router};
-	$dst_next = $dst_out->{router};
-    }
-    $dst_dist or return;
-    if($src_dist >= $dst_dist) {
-	for my $interface (@{$src_next->{interfaces}}) {
-	    next if $interface eq $src_out;
-	    next unless get_distance($src_next,$interface);
-	    if (is_router $src) {
-		&$fun($src_in, $src_out) or next;
-	    }
-	    &part_walk2($fun,
-			$src_out, $src_next, $interface,
-			$dst_in, $dst, $dst_out);
-	}
-    } else {
-	for my $interface (@{$dst_next->{interfaces}}) {
-	    next if $interface eq $dst_out;
-	    next unless get_distance($dst_next,$interface);
-	    if (is_router $dst) {
-		&$fun($dst_out, $dst_in) or next;
-	    }
-	    &part_walk2($fun,
-			$src_in, $src, $src_out,
-			$dst_out, $dst_next, $interface);
-	}
-    }
-}
 
 sub get_path( $ ) {
     my($obj) = @_;
@@ -2013,6 +1885,35 @@ sub get_path( $ ) {
     }
 }
 
+sub path_info ( $$ ) {
+    my ($in_intf, $out_intf) = @_;
+    my $in_name = $in_intf?$in_intf->{name}:'-';
+    my $out_name = $out_intf?$out_intf->{name}:'-';
+    info "$in_name, $out_name";
+}
+
+sub go_path() {
+    my($rule, $fun, $from_in, $from, $to, $path) = @_;
+    while($from ne $to) {
+	my $from_out = $from->{$path};
+	&$fun($rule, $from_in, $from_out) if is_router $from;
+	$from = $from_out->{$path};
+	$from_in = $from_out;
+    }
+    return $from_in;
+}
+
+sub go_rev_path() {
+    my($rule, $fun, $from, $to, $to_out, $path) = @_;
+    while($to ne $from) {
+	my $to_in = $to->{$path};
+	&$fun($rule, $to_in, $to_out) if is_router $to;
+	$to = $to_in->{$path};
+	$to_out = $to_in;
+    }
+    return $to_out;
+}
+
 # Apply a function to a rule at every managed router
 # on the path from src to dst of the rule
 # src-R5-R4-\
@@ -2021,35 +1922,110 @@ sub get_path( $ ) {
 sub path_walk($&) {
     my ($rule, $fun) = @_;
     internal_err "undefined rule" unless $rule;
-#    info "Path for: ".print_rule $rule;
-    my $closure;
-    $closure = sub ( $$ ) {
-	my ($in_intf, $out_intf) = @_;
-	{
-	    no warnings 'uninitialized';
-	    (not defined $in_intf or $in_intf->{tag} eq $closure)
-		and (not defined $out_intf or $out_intf->{tag} eq $closure)
-		and return; 0;
+    my $src = $rule->{src};
+    my $dst = $rule->{dst};
+    my $from = get_path $src;
+    my $to =  get_path $dst;
+#    info print_rule $rule;
+#    info "start: $from->{name}, $to->{name}";
+#    my $fun2 = $fun;
+#    $fun = sub ( $$$ ) { 
+#	my($rule, $from_in, $from_out) = @_;
+#	path_info $from_in, $from_out;
+#	&$fun2($rule, $from_in, $from_out);
+#    };
+    if($from eq $to) {
+	unless($src eq $dst) {
+	    warning "Unenforceable rule\n ", print_rule($rule);
 	}
-#	info("fun: ".
-#	     ($in_intf?$in_intf->{name}:'undef').' - '.
-#	     ($out_intf?$out_intf->{name}:'undef'));
-	&$fun($rule, $in_intf, $out_intf);
-	$in_intf->{tag} = $out_intf->{tag} = $closure;
-	return 1;
-    };
-    my $src = get_path $rule->{src};
-    my $dst = get_path $rule->{dst};
-#    part_walk($rule, $fun, $src, undef, $dst, undef);
-    for my $src_out (@{$src->{interfaces}}) {
-	next unless get_distance($src,$src_out);
-	for my $dst_out (@{$dst->{interfaces}}) {
-	    next unless get_distance($dst,$dst_out);
-	    part_walk2($closure, 
-		       undef, $src, $src_out,
-		       undef, $dst, $dst_out);
+	# don't process rule again later
+	$rule->{deleted} = $rule;
+	return;
+    }
+    my $from_in;
+    my $to_out;
+    my $from_dist = $from->{main_dist};
+    my $to_dist = $to->{main_dist};
+    my $from_loop = $from->{loop};
+    my $to_loop = $to->{loop};
+    while($from ne $to) {
+	if($from_loop and $to_loop and $from_loop eq $to_loop) {
+	    # path terminates at a loop
+	    # $from ne $to ==> go through loop in both directions
+	    if($from_dist >= $to_dist) {
+		# go $from_in,$from -extra-> loop
+		my $loop_in = &go_path($rule, $fun,
+				       $from_in, $from, $to_loop, 'extra');
+		# go_rev $to_out,$to -main-> loop
+		my $loop_out = &go_rev_path($rule, $fun,
+					    $to_loop, $to, $to_out, 'main');
+		# fun last intf. on main to loop, last intf on extra to loop
+		&$fun($rule, $loop_in, $loop_out) if is_router $to_loop;
+		# go $from_in,$from -main-> $to
+		$from_in = &go_path($rule, $fun,
+				    $from_in, $from, $to, 'main');
+		# fun last intf. on main to $to, $to_out
+		&$fun($rule, $from_in, $to_out) if is_router $to;
+		return;
+	    } else {
+		# go $from_in,$from -main-> loop
+		my $loop_in = &go_path($rule, $fun,
+				       $from_in, $from, $to_loop, 'main');
+		# go_rev $to_out,$to -extra-> loop
+		my $loop_out = &go_rev_path($rule, $fun,
+					    $to_loop, $to, $to_out, 'extra');
+		# fun last interfaces to loop
+		&$fun($rule, $loop_in, $loop_out) if is_router $to_loop;
+		# go $from_in,$from -extra-> $to
+		$from_in = &go_path($rule, $fun,
+				    $from_in, $from, $to, 'extra');
+		# fun last interface to $to
+		&$fun($rule, $from_in, $to_out) if is_router $to;
+		return;
+	    }
+	}	
+	if($from_dist >= $to_dist) {
+	    if($from_loop) {
+		# go $from_in,$from -main-> loop
+		my $loop_in = &go_path($rule, $fun,
+				       $from_in, $from, $from_loop, 'main');
+		# go $from_in,$from -extra-> loop
+		my $loop_in2 = &go_path($rule, $fun,
+					$from_in, $from, $from_loop, 'extra');
+		$from = $from_loop;
+		$from_in = $loop_in;
+##		$from_in2 = $loop_in2;
+	    } else {
+		my $from_out = $from->{main};
+		&$fun($rule, $from_in, $from_out) if is_router $from;
+		$from = $from_out->{main};
+		$from_in = $from_out;
+	    }
+	    $from_dist = $from->{main_dist};
+	    $from_loop = $from->{loop};
+	} else {
+	    if($to_loop) {
+		# go_rev $to_out,$to -main-> loop
+		my $loop_out = &go_rev_path($rule, $fun,
+					    $to_loop, $to, $to_out, 'main');
+		# go_rev $to_out,$to -extra-> loop
+		my $loop_out2 = &go_rev_path($rule, $fun,
+					    $to_loop, $to, $to_out, 'extra');
+		$to = $to_loop;
+		$to_out = $loop_out;
+##		$to_out2 = $loop_out2;
+	    } else {
+		my $to_in = $to->{main};
+		&$fun($rule, $to_in, $to_out) if is_router $to;
+		$to = $to_in->{main};
+		$to_out = $to_in;
+	    }
+	    $to_dist = $to->{main_dist};
+	    $to_loop = $to->{loop};
 	}
     }
+#    path_info $from_in, $to_in if is_router $from;
+    &$fun($rule, $from_in, $to_out) if is_router $from;
 }
 
 ##############################################################################
@@ -2918,20 +2894,18 @@ sub collect_acls_at_dst( $$$ ) {
     &collect_acls_at_end(@_);
 }
 
-# Case 1:
-# r1-src-r2-r3-dst: get_path(src) = any(src) lies betwen r1 and r2
-# src_intf of r2 is marked as path to r1 and it is connected to any($src)
-# Case 1a/2a: src is interface of managed router
-# get_path(src) is r2, r2.src_intf is undef
-# Case 2:
-# r3-src-r2-r1-dst: get_path(src) = any(src) lies betwen r3 and r2
-# src_intf of r2 is marked as path to r1 and it is connected to any($src)
+# r1-src-r2-r3-dst
+# r3-src-r2-r1-dst
+# Case 1: src is interface of managed router
+# get_path(src) eq r2, r2.src_intf is undef
+# Case 2: src is not an interface of managed router
+# get_path(src) eq any(src), any(r2.src_intf) eq any(src)
 sub collect_acls_at_end( $$$$ ) {
     my ($rule, $src_intf, $dst_intf, $where) = @_;
     my $end = $rule->{$where};
     my $end_intf = ($where eq 'src')? $src_intf:$dst_intf;
     my $end_path = &get_path($end);
-    # Case 1a/2a:
+    # Case 1
     if(is_router $end_path) {
 	if(not defined $end_intf) {
 	    &collect_acls($rule, $src_intf, $dst_intf);
@@ -2939,12 +2913,8 @@ sub collect_acls_at_end( $$$$ ) {
 	    &collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
 	}
     }
-    # case 1
-    elsif($end_intf->{dist2any} and $end_intf->{any} eq $end_path) {
-	&collect_acls($rule, $src_intf, $dst_intf);
-    } 
-    # case 2
-    elsif($end_intf->{dist2router} and $end_intf->{any} eq $end_path) {
+    # Case 2
+    elsif($end_intf->{any} eq $end_path) {
 	&collect_acls($rule, $src_intf, $dst_intf);
     } 
     else {
