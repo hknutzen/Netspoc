@@ -1544,27 +1544,28 @@ sub order_ranges( $$ ) {
 sub add_reverse_srv( $ ) {
     my($hash) = @_;
     for my $srv (values %$hash) {
-	# swap src and dst ports
+	# Swap src and dst ports.
 	my @ports =  @{$srv->{ports}}[2,3,0,1];
 	my $key = join ':', @ports;
 	unless($hash->{$key}) {
 	    (my $name = $srv->{name}) =~ s/^service:/reverse:/;
 	    $hash->{$key} =  { name => $name,
 			       proto => $srv->{proto},
-			       ports => [ @ports ] };
+			       ports => \@ports };
 	}
     }
 }
 
-# We need service "ip" later for secondary rules.
+# Service "ip" is needed later for secondary rules and 
+# automatically generated deny rules.
 my $srv_ip;
-# We need service "tcp established" later for reverse rules.
+# Services "ike" and "esp" are needed later for IPSec tunnels.
+my $srv_ike;
+my $srv_esp;
+# Service "tcp established" is needed later for reverse rules.
 my $srv_tcp_established = 
 { name => 'reverse:TCP_ANY',
-  proto => 'tcp',
-  ports => [ 1,65535, 1,65535 ],
-  established => 1
-  };
+  proto => 'tcp', ports => [ 1,65535, 1,65535 ], established => 1 };
 
 # Order services. We need this to simplify optimization.
 # Additionally add
@@ -1576,13 +1577,15 @@ my $srv_tcp_established =
 sub order_services() {
     info "Arranging services";
     for my $srv (values %services) {
-	prepare_srv_ordering($srv);
+	prepare_srv_ordering $srv;
     }
-    unless($srv_hash{ip}) {
-	my $name = 'auto_srv:ip';
-	$srv_hash{ip} = { proto => 'ip', name => $name };
-	$services{$name} = $srv_hash{ip};
-    }
+    prepare_srv_ordering { name => 'auto_srv:IPSec_IKE',
+			   proto => 'udp', ports => [ 500,500, 500,500 ] };
+    # Source and destination port (range) is set to 500.
+    $srv_ike = $srv_hash{udp}->{'500:500:500:500'};
+    prepare_srv_ordering { name => 'auto_srv:IPSec_ESP', proto => 50 };
+    $srv_esp = $srv_hash{proto}->{50};
+    prepare_srv_ordering { name => 'auto_srv:ip', proto => 'ip' };
     my $up = $srv_ip = $srv_hash{ip};
     if(my $tcp = $srv_hash{tcp}->{'1:65535:1:65535'}) {
 	$srv_tcp_established->{up} = $tcp;
@@ -1595,8 +1598,6 @@ sub order_services() {
     order_ranges($srv_hash{udp}, $up);
     order_icmp($srv_hash{icmp}, $up) if $srv_hash{icmp};
     order_proto($srv_hash{proto}, $up) if $srv_hash{proto};
-
-    # it doesn't hurt to set {depth} for services with {main} defined
     for my $srv ($srv_ip, $srv_tcp_established,
 		 values %{$srv_hash{tcp}}, values %{$srv_hash{udp}},
 		 values %{$srv_hash{icmp}}, values %{$srv_hash{proto}}) {
@@ -3402,17 +3403,17 @@ sub path_walk( $$;$ ) {
     my $dst = $rule->{dst};
     my $from = get_path $src;
     my $to =  get_path $dst;
-    debug print_rule $rule;
-    debug(" start: $from->{name}, $to->{name}" . ($where?", at $where":''));
-    my $fun2 = $fun;
-    $fun = sub ( $$$;$ ) { 
-	my($rule, $in, $out, $crypto_map) = @_;
-	my $in_name = $in?$in->{name}:'-';
-	my $out_name = $out?$out->{name}:'-';
-	my $crypto = $crypto_map?'crypto':'';
-	debug " Walk: $in_name, $out_name $crypto";
-	$fun2->(@_);
-    };
+#    debug print_rule $rule;
+#    debug(" start: $from->{name}, $to->{name}" . ($where?", at $where":''));
+#    my $fun2 = $fun;
+#    $fun = sub ( $$$;$ ) { 
+#	my($rule, $in, $out, $crypto_map) = @_;
+#	my $in_name = $in?$in->{name}:'-';
+#	my $out_name = $out?$out->{name}:'-';
+#	my $crypto = $crypto_map?'crypto':'';
+#	debug " Walk: $in_name, $out_name $crypto";
+#	$fun2->(@_);
+#    };
     unless($from and $to) {
 	internal_err print_rule $rule;
     }
@@ -3672,6 +3673,28 @@ sub expand_crypto () {
 			     end => $intf1, };
 	    $intf2->{tunnel}->{$intf1} = $crypto_map;
 	    push @{$intf2->{hardware}->{crypto_maps}}, $crypto_map;
+	    # Add rules, which permits crypto traffic between tunnel endpoints.
+	    my $rules = [ { action => 'permit',
+			    src => $intf1,
+			    dst => $intf2,
+			    srv => $srv_esp, }, 
+			  { action => 'permit',
+			    src => $intf1,
+			    dst => $intf2,
+			    srv => $srv_ike, },
+			  { action => 'permit',
+			    src => $intf2,
+			    dst => $intf1,
+			    srv => $srv_esp, }, 
+			  { action => 'permit',
+			    src => $intf2,
+			    dst => $intf1,
+			    srv => $srv_ike, },
+			  ];
+	    push @{$expanded_rules{permit}}, @$rules;
+	    add_rules $rules, \%rule_tree;
+	    $ref2obj{$intf1} = $intf1;
+	    $ref2obj{$intf2} = $intf2;
 	}
 # Convert typed names in crypto rule to internal objects.
 	for my $rule (@{$crypto->{rules}}) {
@@ -3711,6 +3734,9 @@ sub expand_crypto () {
 	    " but some are defined for $name";
 	}
 	if(@any) {
+	    # Attention: never allow rules with 'any' as src and dst.
+	    # In this case we would get a deadlock, because encrypted packets
+	    # would be encrypted again.
 	    err_msg "'Any' rules are currently not supported.\n",
 	    " but some are defined for $name";
 	}
