@@ -1905,6 +1905,10 @@ sub get_path( $ ) {
 	return $obj->{any};
     } elsif(is_any($obj)) {
 	return $obj;
+    } elsif(is_router($obj)) {
+	# this is only allowed, when called from 
+	# find_active_routes_and_statics
+	return $obj;
     } else {
 	internal_err "unexpected object $obj->{name}";
     }
@@ -2634,14 +2638,18 @@ sub collect_route( $$$ ) {
 	    $back_hop = $out_intf->{network}->{route_in_any}->{$in_intf->{network}};
 	}
 	# Remember which networks are reachable via $hop
-	for my $network (@{$rule->{dst_networks}}) {
+	for my $network (values %{$rule->{dst_networks}}) {
+	    # ignore directly connected network
+	    next if $network eq $in_intf->{network};
 	    $in_intf->{routing}->{$hop}->{$network} = $network;
 	    # Store $hop itself, since we need to go back 
 	    # from hash key to original object later.
 	    $in_intf->{hop}->{$hop} = $hop;
 	}
 	# Remember which networks are reachable via $back_hop
-	for my $network (@{$rule->{src_networks}}) {
+	for my $network (values %{$rule->{src_networks}}) {
+	    # ignore directly connected network
+	    next if $network eq $out_intf->{network};
 	    $out_intf->{routing}->{$back_hop}->{$network} = $network;
 	    # Store $back_hop itself, since we need to go back 
 	    # from hash key to original object later.
@@ -2649,7 +2657,7 @@ sub collect_route( $$$ ) {
 	}
     } elsif($in_intf) { # and not $out_intf
 	# path ends here
-	for my $network (@{$rule->{dst_networks}}) {
+	for my $network (values %{$rule->{dst_networks}}) {
 	    # ignore directly connected network
 	    next if $network eq $in_intf->{network};
 	    my $hop = $in_intf->{network}->{route_in_any}->{$network};
@@ -2658,7 +2666,7 @@ sub collect_route( $$$ ) {
 	}
     } elsif($out_intf) { # and not $in_intf
 	# path ends here
-	for my $network (@{$rule->{src_networks}}) {
+	for my $network (values %{$rule->{src_networks}}) {
 	    # ignore directly connected network
 	    next if $network eq $out_intf->{network};
 	    my $back_hop = $out_intf->{network}->{route_in_any}->{$network};
@@ -2671,28 +2679,41 @@ sub collect_route( $$$ ) {
 sub get_networks ( $ ) {
     my($obj) = @_;
     if(is_host $obj or is_interface $obj) {
-	return [ $obj->{network} ];
+	return $obj->{network};
     } elsif(is_net $obj) {
-	return [ $obj ];
+	return $obj;
     } elsif(is_any $obj) {
-	return $obj->{networks};
+	return @{$obj->{networks}};
     } else {
 	internal_err "unexpected $obj->{name}";
     }
 }
-
+ 
 sub find_active_routes_and_statics () {
-    info "Finding active routes";
-    my $hash = $rule_tree{permit};
-    for my $aref (values %$hash) {
-	my($hash, $src) = @$aref;
-	for my $aref (values %$hash) {
-	    my($hash, $dst) = @$aref;
-	    my $pseudo_rule;
-	    $pseudo_rule->{src} = $src;
-	    $pseudo_rule->{dst} = $dst;
-	    $pseudo_rule->{dst_networks} = get_networks($dst);
-	    $pseudo_rule->{src_networks} = get_networks($src);
+    info "Finding routes and statics";
+    my %routing_tree;
+    for my $rule (@expanded_rules, @expanded_any_rules) {
+	my $src = $rule->{src};
+	my $dst = $rule->{dst};
+	my $from = get_path $src;
+	my $to = get_path $dst;
+	my $pseudo_rule;
+	unless($pseudo_rule = $routing_tree{$from}->{$to}) {
+	    $pseudo_rule->{src} = $from;
+	    $pseudo_rule->{dst} = $to;
+	    $pseudo_rule->{src_networks} = {};
+	    $pseudo_rule->{dst_networks} = {};
+	    $routing_tree{$from}->{$to} = $pseudo_rule;
+	}
+	for my $network (get_networks($src)) {
+	    $pseudo_rule->{src_networks}->{$network} = $network;
+	}
+	for my $network (get_networks($dst)) {
+	    $pseudo_rule->{dst_networks}->{$network} = $network;
+	}
+    }
+    for my $hash (values %routing_tree) {
+	for my $pseudo_rule (values %$hash) {
 	    &path_walk($pseudo_rule, \&collect_route, 'Any');
 	    &path_walk($pseudo_rule, \&mark_networks_for_static, 'Router');
 	}
@@ -2779,7 +2800,7 @@ sub mark_networks_for_static( $$$ ) {
     " since they have equal security levels.\n"
 	if $src_intf->{level} == $dst_intf->{level};
 
-    for my $net (@{$rule->{dst_networks}}) {
+    for my $net (values %{$rule->{dst_networks}}) {
 	next if $net->{ip} eq 'unnumbered';
 	# collect networks reachable from lower security level
 	# for generation of static commands
