@@ -5176,7 +5176,7 @@ sub print_acls( $ ) {
 	# Postprocessing for hardware interface
 	if($model->{filter} eq 'IOS') {
 	    print "interface $hardware->{name}\n";
-	    print " access group $name\n";
+	    print " access-group $name in\n";
 	} elsif($model->{filter} eq 'PIX') {
 	    print "access-group $name in interface $hardware->{name}\n";
 	}
