@@ -3845,20 +3845,34 @@ sub mark_networks_for_static( $$$ ) {
     return unless $in_intf;
     my $in_hw = $in_intf->{hardware};
     my $out_hw = $out_intf->{hardware};
-    # no static needed for traffic from higher to lower security level
-    return if $in_hw->{level} > $out_hw->{level};
     err_msg "Traffic to $rule->{dst}->{name} can't pass\n",
     " from  $in_intf->{name} to $out_intf->{name},\n",
     " because they have equal security levels.\n"
 	if $in_hw->{level} == $out_hw->{level};
-    my $dst = $rule->{dst_network};
-    return if $dst->{ip} eq 'unnumbered';
     # Collect networks for generation of static commands.
     # Put networks into a hash to prevent duplicates.
     # We need in_hw and out_hw for
     # - their names and for
     # - getting the NAT domain
+    my $dst = $rule->{dst_network};
+    return if $dst->{ip} eq 'unnumbered';
     $out_hw->{static}->{$in_hw}->{$dst} = $dst;
+    # Do we need to generate "nat 0" for an interface?
+    if($in_hw->{level} < $out_hw->{level}) {
+	$out_hw->{need_nat_0} = 1;
+    } else {
+	# Check, if there is a dynamic NAT of a dst address from higher
+	# to lower security level. We need this info to decide,
+	# if static commands with "identity mapping" and "nat 0"
+	# need to be generated.
+	my $nat_tag = $out_hw->{bind_nat} or return;
+	if($dst->{nat} &&
+	   $dst->{nat}->{$nat_tag} &&
+	   $dst->{nat}->{$nat_tag}->{dynamic}) {
+	    $out_hw->{need_always_static} = 1;
+	    $out_hw->{need_nat_0} = 1;
+	}
+    }
 }
 
 sub find_active_routes_and_statics () {
@@ -4021,13 +4035,13 @@ sub print_pix_static( $ ) {
 	$ref2hw{$hardware} = $hardware;
 	my $level = $hardware->{level};
 	if(defined $prev_level) {
-	    print(($prev_level == $level)? " = ": " < ");
+	    print(($prev_level == $level) ? " = ": " < ");
 	}
 	print $hardware->{name};
 	$prev_level = $level;
     }
     print "\n";
-    	       
+
     my $nat_index = 1;
     for my $out_hw (sort { $a->{level} <=> $b->{level} }
 		      @{$router->{hardware}}) {
@@ -4082,15 +4096,19 @@ sub print_pix_static( $ ) {
 		my($in_ip, $in_mask, $in_dynamic) = $sub->($network, $in_nat);
 		my($out_ip,
 		   $out_mask, $out_dynamic) = $sub->($network, $out_nat);
+		# We are talking about destination addresses.
 		if($out_dynamic) {
-		    err_msg "Not supported: NAT for already dynamically ",
-		    "translated $network->{name} at hardware $out_hw->{name} ",
-		    " of $router->{name}";
+		    unless($in_dynamic && $in_dynamic eq $out_dynamic &&
+			   $in_ip eq $out_ip and $in_mask eq $out_mask) {
+			warning "Ignoring NAT for dynamically translated ",
+			"$network->{name}\n",
+			"at hardware $out_hw->{name} of $router->{name}";
+		    }
 		} elsif($in_dynamic) {
 		    # global (outside) 1 \
 		    #   10.70.167.0-10.70.167.255 netmask 255.255.255.0
 		    # nat (inside) 1 141.4.136.0 255.255.252.0
-		    my $in_ip_max = $in_ip + ~$out_mask;
+		    my $in_ip_max = $in_ip + ~$in_mask;
 		    $in_ip = print_ip $in_ip;
 		    $in_ip_max = print_ip $in_ip_max;
 		    $out_ip = print_ip $out_ip;
@@ -4098,7 +4116,9 @@ sub print_pix_static( $ ) {
 		    $out_mask = print_ip $out_mask;
 		    print "global ($in_name) $nat_index ",
 		    "$in_ip-$in_ip_max netmask $in_mask\n";
-		    print "nat ($out_name) $nat_index $out_ip $out_mask\n";
+		    print "nat ($out_name) $nat_index $out_ip $out_mask";
+		    print " outside" if $in_hw->{level} > $out_hw->{level};
+		    print "\n";
 		    $nat_index++;
 		    # Check for static NAT entries of hosts and interfaces.
 		    for my $host (@{$network->{hosts}},
@@ -4116,17 +4136,21 @@ sub print_pix_static( $ ) {
 			    "$in_ip $out_ip netmask $out_mask\n";
 			}
 		    }
-		} else {  # both static
-		    $in_ip = print_ip $in_ip;
-		    $out_ip = print_ip $out_ip;
-		    $in_mask = print_ip $in_mask;
-		    # static (inside,outside) \
-		    #   10.111.0.0 111.0.0.0 netmask 255.255.252.0
-		    print "static ($out_name,$in_name) ",
-		    "$in_ip $out_ip netmask $in_mask\n";
+		} else {	# both static
+		    if($in_hw->{level} < $out_hw->{level} ||
+		       $out_hw->{need_always_static}) {
+			$in_ip = print_ip $in_ip;
+			$out_ip = print_ip $out_ip;
+			$in_mask = print_ip $in_mask;
+			# static (inside,outside) \
+			#   10.111.0.0 111.0.0.0 netmask 255.255.252.0
+			print "static ($out_name,$in_name) ",
+			"$in_ip $out_ip netmask $in_mask\n";
+		    }
 		}
 	    }
-	}	    
+	}
+	print "nat ($out_name) 0 0.0.0.0 0.0.0.0\n" if $out_hw->{need_nat_0};
     }
 }
 
