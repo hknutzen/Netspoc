@@ -2005,11 +2005,6 @@ if($verbose) {
 &setpath_router($router1, 'not undef', undef, 0);
 setpath_anys();
 
-# Set routes
-$default_route or die "Topology has no default route";
-print STDERR "Setting routes\n";
-&setroute_router($default_route, 'not undef');
-
 # expand rules
 &gen_expanded_rules();
 
@@ -2104,6 +2099,11 @@ if($verbose) {
 
 print STDERR "Checking for deny influence\n" if $verbose;
 check_deny_influence();
+
+# Set routes
+$default_route or die "Topology has no default route";
+print STDERR "Setting routes\n";
+&setroute_router($default_route, 'not undef');
 
 print STDERR "Starting code generation\n" if $verbose;
 # First Generate code for deny rules .
