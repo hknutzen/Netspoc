@@ -20,6 +20,7 @@ use Fcntl qw/:flock/; # import LOCK_* constants
 use constant CURRENT => 'current';
 use constant NETSPOC => 'netspoc';
 
+my $id = '$Id:';
 my $project = '/home/madnes';
 my $compiler = 'netspoc.pl';
 
