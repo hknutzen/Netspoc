@@ -2543,17 +2543,20 @@ sub setpath() {
     for my $obj (@loop_objects) {
 	my $loop = $obj->{loop};
 	my $next = $loop->{loop};
-	next if $next eq $loop;
-	$loop = $next;
-	while(1) {
-	    $next = $loop->{loop};
-	    if($loop eq $next) { last; }
-	    else { $loop = $next; }
+	if($next ne  $loop) {
+	    $loop = $next;
+	    while(1) {
+		$next = $loop->{loop};
+		if($loop eq $next) { last; }
+		else { $loop = $next; }
+	    }
+#	    info "adjusting $obj->{name} loop to $loop->{name}";
+	    $obj->{loop} = $loop;
 	}
-	$obj->{loop} = $loop;
-#	info "adjusting $obj->{name}' loop to $loop->{name}";
+#	info "adjusting $obj->{name} distance to $loop->{distance}";
 	$obj->{distance} = $loop->{distance};
     }
+    # Data isn't needed any more.
     @loop_objects = undef;
 
     # Check consistency of virtual interfaces:
