@@ -3479,8 +3479,8 @@ sub acl_line( $$$$$$$ ) {
 	my $srv_code = iptables_srv_code($srv);
 	my $src_code = prefix_code($src_ip, $src_mask);
 	my $dst_code = prefix_code($dst_ip, $dst_mask);
-	my $action_code = $action eq 'permit' ? '-j ACCEPT' : '-j DROP';
-	"$action_code $src_code $dst_code $srv_code\n";
+	my $action_code = $action eq 'permit' ? 'ACCEPT' : 'DROP';
+	"-j $action_code -s $src_code -d $dst_code $srv_code\n";
     } else {
 	internal_err "Unknown filter_type $filter_type";
     }
@@ -3498,7 +3498,7 @@ sub collect_acls( $$$ ) {
     # and leaves it via dst_intf 
     # src_intf is undefined if src is an interface of the current router
     # analogous for dst_intf 
-    my $router = $dst_intf->{router};
+    my $router = ($src_intf || $dst_intf)->{router};
     # Rules of type secondary are only applied to secondary routers.
     # Rules of type full are only applied to full filtering routers.
     if(my $type = $rule->{on_router}) {
@@ -3740,7 +3740,8 @@ sub print_acls( $ ) {
 	}
 	if($model->{filter} eq 'IOS') {
 	    print "ip access-list extended $name\n";
-	    # First, ACLs where destination is one of this routers interfaces
+	    # First, handle ACLs where destination is one of 
+	    # this routers interfaces
 	    for my $line (@$if_code) {
 		print " $line";
 	    }
@@ -3777,6 +3778,7 @@ sub print_acls( $ ) {
 		    print "iptables -A $if_name $line";
 		}
 	    }
+	    print "iptables -A $if_name -j DROP -s 0.0.0.0/0 -d 0.0.0.0/0\n";
 	    for my $line (@$code) {
 		if($line =~ /^$comment_char/) {
 		    print $line;
@@ -3784,6 +3786,7 @@ sub print_acls( $ ) {
 		    print "iptables -A $name $line";
 		}
 	    }
+	    print "iptables -A $name -j DROP -s 0.0.0.0/0 -d 0.0.0.0/0\n";
 	} else {
 	    internal_err "unsupported router filter type '$model->{filter}'";
 	}
