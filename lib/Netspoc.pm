@@ -4103,12 +4103,12 @@ sub ios_route_code( $$ ) {
     return "$ip_code $mask_code";
 }
 
-# Given an IP and mask, return its address as "x.x.x.x/x"
+# Given an IP and mask, return its address as "x.x.x.x/x" or "x.x.x.x" if prefix == 32
 sub prefix_code( $$ ) {
     my($ip, $mask) = @_;
     my $ip_code = &print_ip($ip);
     my $prefix_code = &print_prefix($mask);
-    return "$ip_code/$prefix_code";
+    return $prefix_code == 32 ? $ip_code : "$ip_code/$prefix_code";
 }
 
 my %pix_srv_hole;
