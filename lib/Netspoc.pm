@@ -2426,7 +2426,14 @@ sub convert_any_rules() {
 sub mark_secondary_rule( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
     my $router = ($src_intf || $dst_intf)->{router};
-    if($router->{managed} eq 'full' and not $router->{loop}) {
+    if($router->{managed} eq 'full') {
+	# there might be another path, without a full packet filter
+	return if $router->{loop};
+	# At secondary routers we will expand a single IP address
+	# to its enclosing network. But don't do this optimization
+	# for the routers own interfaces, because the enclosing network
+	# might not be filtered by this router.
+	return unless $src_intf and $dst_intf;
 	$rule->{has_full_filter} = 1;
     } elsif($router->{managed} eq 'secondary') {
 	$rule->{has_secondary_filter} = 1;
