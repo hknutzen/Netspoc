@@ -1084,10 +1084,14 @@ sub link_any_and_every() {
 sub link_interface_with_net( $ ) {
     my($interface) = @_;
     my $net_name = $interface->{network};
-    my $net = $networks{$net_name} or
-	# ToDo: link interface to a dummy network
+    my $net = $networks{$net_name};
+    unless($net) {
 	err_msg "Referencing undefined network:$net_name ",
 	    "from $interface->{name}";
+	# prevent further errors
+	$interface->{disabled} = 1;
+	return;
+    }
     $interface->{network} = $net;
     my $ip = $interface->{ip};
     # check if the network is already linked with another interface
