@@ -11,7 +11,7 @@ use strict;
 use warnings;
 
 our $program = 'Open Network Security Policy Compiler';
-our $version = 0.37;
+our $version = split /:/, '$Revision$';
 our $verbose = 1;
 our $comment_acls = 1;
 
