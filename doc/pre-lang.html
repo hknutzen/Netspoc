@@ -36,6 +36,7 @@
   
   <li><A HREF="#secondary">Secondary packet filters</A></li>
   <li><a href="#routing">Routing</a>
+  <li><a href="#rerouting">Rerouting inside of security domains</a>
   <LI><A HREF="#disabling">Disabling part of the topology</A></LI>
   <LI><A HREF="#handling_any">Handling of 'any' objects</A></LI>
   <LI><A HREF="#pix_levels">PIX security levels</A></LI>
@@ -190,7 +191,7 @@ each subnetwork.
         managed [ = {{ full | secondary }} ] ;
         model = &lt;name&gt;;
         static_manual;
-	&lt;complete interface definition&gt; *
+	&lt;interface definition&gt; *
      |
         [ model = &lt;name&gt;; ]
         {{ &lt;interface definition&gt; | &lt;short interface definition&gt; }} *
@@ -226,19 +227,12 @@ a group of its interfaces.
 <H3><A NAME="interface_definition">Interface definition</A></H3>
 <H4>Syntax</H4>
 <PRE>
- &lt;complete interface definition&gt; ::=
- interface:&lt;name&gt; = {
-         {{ ip = &lt;ip-adr&gt;, ...; | unnumbered; }}
-         hardware = &lt;interface_name&gt;;
-	 [ routing = OSPF; ]
-         [ disabled ; ]
- }
-
  &lt;interface definition&gt; ::= 
  interface:&lt;name&gt; = {
          {{ ip = &lt;ip-adr&gt;, ...; | unnumbered; }}
          [ hardware = &lt;interface_name&gt;; ]
 	 [ routing = OSPF; ]
+	 [ reroute_permit = network:&lt;name&gt;, ...; ]
          [ disabled ; ]
  }
 
@@ -252,14 +246,17 @@ a group of its interfaces.
   match the IP/mask of the corresponding network.
 <LI>An unnumbered interface must only be linked to an unnumbered network.
 <LI>The 'hardware' attribute indicates, which hardware interface the router
-  belongs to.
+  belongs to. THis attribute is mandatory for managed routers.
 <LI>Multiple interfaces may belong to the same hardware interface.
 <li>A routing protocol may be activated for an interface. In this
  case, generation of static routing entries is disabled for this
  interface and the access lists for this interface are automatically
  augmented to permit incoming packets of the routing
  protocol. Currently only OSPF is supported.
-<LI>An interface may be marked as disabled. See <A HREF="#disabling">Disabling part of the topology</A> below.
+ <li> For a description of attribute 'reroute_permit', 
+ see <a href="#rerouting">Rerouting inside of security domains</a> below.
+<LI>An interface may be marked as disabled.
+  See <A HREF="#disabling">Disabling part of the topology</A> below.
 <LI>For interface definitions of unmanaged routers almost all attributes
   may be left out.
 <LI>If a network is linked to a short interface definition, it must not
@@ -483,6 +480,31 @@ default route is given.
 <h4>Optimization</h4>
 Multiple routing entries for networks which are in a subnet
 relation, are replaced by a single routing entry.
+
+<h2><a name="rerouting">Rerouting inside of security domains</a></h2>
+
+Internal traffic which flows inside a security domain isn't
+filtered at all. Sometimes an interface X of a managed (filtering)
+router is used as a default route for traffic which normally flows
+inside a security domain. This would cause internal traffic to be
+routed to X, which would deny this traffic.
+
+<p>NetSPoC is prepared to handle this case by defining an attribute
+'reroute_permit' for a managed interface. Value of this attribute is a
+list of networks, for which any internal traffic should be allowed.
+
+<h4>Example</h4>
+router:x is managed, router:y is unmanaged.
+<pre>
+router:x -- network:a -- router:y -- network:b
+</pre>
+
+
+<p>network:a and network:b are inside one security domain, since
+router:y isn't managed. If traffic from network:a to network:b is
+routed via router:x and router:y, router:x would deny this traffic.
+Use "reroute_permit = network:b" at "interface:x.a" to permit any
+incoming traffic to network:b.
 
 <H2><A NAME="disabling">Disabling part of the topology</A></H2>
 <P>An interface may be explicitly marked as disabled.  
