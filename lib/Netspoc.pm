@@ -377,6 +377,8 @@ sub read_network( $ ) {
     $networks{$name} = $network;
 }
 
+my @disabled_interfaces;
+
 sub read_interface( $ ) {
     my $net = shift;
     my $interface = new('Interface', 
@@ -403,6 +405,11 @@ sub read_interface( $ ) {
     }
     my $hardware = &check_assign('hardware', \&read_string);
     $hardware and $interface->{hardware} = $hardware;
+    my $disabled = &check_flag('disabled');
+    if($disabled) {
+	$interface->{disabled} = 1;
+	push @disabled_interfaces, $interface;
+    }
     &skip('}');
     return $interface;
 }
@@ -1084,7 +1091,7 @@ my %name2object =
  );
 
 # Get a reference to an array of network object names and 
-# return an reference to an array of network objects
+# return a reference to an array of network objects
 sub expand_group( $$ ) {
     my($obref, $context) = @_;
     if($obref eq 'recursive') {
@@ -1101,6 +1108,11 @@ sub expand_group( $$ ) {
 	my $object;
 	unless($object = $name2object{$type}->{$name}) {
 	    err_msg "Can't resolve reference to '$tname' in $context";
+	    next;
+	}
+	# check all objects except groups if disabled
+	if(not ref $object eq 'ARRAY' and $object->{disabled}) {
+	    info "Ignoring disabled $object->{name} in $context\n";
 	    next;
 	}
 	if(is_host $object or is_any $object) {
@@ -1378,6 +1390,39 @@ sub check_deny_influence() {
 		}
 	    }
 	}
+    }
+}
+
+####################################################################
+# mark all parts of the topology lying behind disabled interfaces
+####################################################################
+sub disable_behind( $$ ) {
+    my($network, $incoming) = @_;
+    $network->{disabled} = 1;
+    for my $host (@{$network->{hosts}}) {
+	$host->{disabled} = 1;
+    }
+    for my $interface (@{$network->{interfaces}}) {
+	next if $interface eq $incoming;
+	$interface->{disabled} = 1;
+	my $router = $interface->{router};
+	$router->{disabled} = 1;
+	# a disabled router can't be managed
+	for my $outgoing (@{$router->{interfaces}}) {
+	    next if $outgoing eq $interface;
+	    $outgoing->{disabled} = 1;
+	    &disable_behind($outgoing->{net}, $outgoing);
+	}
+    }
+}	
+
+sub mark_disabled() {
+    for my $interface (@disabled_interfaces) {
+	$interface->{disabled} = 1;
+	disable_behind($interface->{net}, $interface);
+    }
+    for my $any (values %anys, values %everys) {
+	$any->{disabled} = 1 if $any->{link}->{disabled};
     }
 }
 
@@ -2421,6 +2466,7 @@ sub read_config() {
 &show_read_statistics();
 &order_services();
 &link_topology();
+&mark_disabled();
 &setpath();
 &expand_rules();
 die "Aborted with $error_counter error(s)\n" if $error_counter;
