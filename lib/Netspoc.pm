@@ -364,18 +364,20 @@ sub read_interface( $ ) {
     &skip('}');
     return $interface;
 }
-
+my %valid_model = (IOS => 1, PIX => 1);
 my %routers;
 sub read_router( $ ) {
     my $name = shift;
     skip('=');
     skip('{');
     my $managed = &read_assign('managed', \&read_bool);
-    my $type;
+    my $model;
     if($managed) {
-	$type = &read_assign('type', \&read_name);
-    } elsif(check('type')) {
-	# for unmananged routers type is optional
+	$model = &read_assign('model', \&read_name);
+	$valid_model{$model} or
+	    error_atline "Unknown router model '$model'";
+    } elsif(check('model')) {
+	# for unmananged routers model is optional
 	skip('=');
 	&read_name();
 	skip(';');
@@ -385,7 +387,7 @@ sub read_router( $ ) {
 		     managed => $managed,
 		     interfaces => {},
 		     );
-    $router->{type} = $type if $type;
+    $router->{model} = $model if $model;
     while(1) {
 	last if &check('}');
 	my($type,$iname) = split_typed_name(read_name());
