@@ -1361,6 +1361,10 @@ sub ge_srv( $$ ) {
 # permit    any3  host2 <-- arule
 # permit    host1 any2  <-- rule
 # with host1 < net1, any2 > host2
+# ToDo:
+# May the weak_deny rule influence any other rules where
+# dst is some 'any' object not in relation to host2 ?
+# I think not.
 sub check_deny_influence() {
     info "Checking for deny influence\n";
     for my $arule (@expanded_any_rules) {
@@ -1372,34 +1376,30 @@ sub check_deny_influence() {
 	    my $net = $drule->{src};
 	    my $dst = $drule->{dst};
 	    next unless (is_host $dst or is_interface $dst) and is_net $net;
-	    # At first thought we have to check only one 'any' object with
-	    # any > host. But this isn't sufficient because other any rules
-	    # may be influenced as well if they share a common path with
-	    # the current weak_deny rule
-	    # ToDo: this may show false positives
+	    my $dst_any = $dst->{net}->{border}->{any};
+	    next unless $dst_any;
 	    for my $host (@{$net->{hosts}}, @{$net->{interfaces}}) {
-		# search for rules with src = host and dst = any 'any' object
-		# in $rule_tree
-		next unless $rule_tree{$host};
-		# found subtree with src eq $host
-		for my $aref (values %{$rule_tree{$host}->[0]}) {
-		    my($action_hash, $dst) = @$aref;
-		    next unless is_any $dst;
-		    # found subtree with dst is some 'any' object
-		    for my $srv_hash (values %$action_hash) {
-			for my $rule (values %$srv_hash) {
-			    next if $rule->{deleted};
-			    next unless is_any $rule->{dst};
-			    next unless $rule->{i} > $arule->{i};
+		# search for rules with action = permit, src = host and
+		# dst = dst_any in $rule_tree
+		my $src_hash = $rule_tree{'permit'};
+		next unless $src_hash;
+		# do we have any rule with src = host ?
+		next unless $src_hash->{$host};
+		# do we have any rule with dst = dst_any ?
+		next unless $src_hash->{$host}->[0]->{$dst_any};
+		my $srv_hash = $src_hash->{$host}->[0]->{$dst_any}->[0];
+		# get all rules, srv doesn't matter
+		for my $rule (values %$srv_hash) {
+		    next if $rule->{deleted};
+		    # we are only interested in rules behind the weak_deny rule
+		    next unless $rule->{i} > $arule->{i};
 #		    print STDERR "Got here:\n ",print_rule $drule,"\n ",
 #		    print_rule $arule,"\n ",
 #		    print_rule $rule,"\n";
-			    if(ge_srv($rule->{srv}, $drule->{srv})) {
-				warning "currently not implemented correctly:\n ",
-				print_rule($drule), "\n influences\n ",
-				print_rule($rule), "\n";
-			    }
-			}
+		    if(ge_srv($rule->{srv}, $drule->{srv})) {
+			warning "currently not implemented correctly:\n ",
+			print_rule($drule), "\n influences\n ",
+			print_rule($rule), "\n";
 		    }
 		}
 	    }
