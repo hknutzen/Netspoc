@@ -287,12 +287,19 @@ sub print_ip( $ ) {
     }
 
     # convert a network mask to a prefix ranging from 0 to 32
-    sub print_prefix( $ ) {
+    sub mask2prefix( $ ) {
 	my $mask = shift;
 	if(defined(my $prefix = $mask2prefix{$mask})) {
 	    return $prefix;
 	}
 	internal_err "Network mask ", print_ip $mask, " isn't a valid prefix";
+    }
+    sub prefix2mask( $ ) {
+	my $prefix = shift;
+	if(defined(my $mask = $prefix2mask{$prefix})) {
+	    return $mask;
+	}
+	internal_err "Invalid prefix: $prefix";
     }
 }
    
@@ -468,26 +475,13 @@ our %hosts;
 sub read_host( $ ) {
     my $name = shift;
     my $host;
-    my @hosts;
     &skip('=');
     &skip('{');
     my $token = read_identifier();
     if($token eq 'ip') {
 	&skip('=');
 	my @ip = &read_list(\&read_ip);
-	if(@ip == 1) {
-	    $host = new('Host', name => "host:$name", ip => $ip[0]);
-	    @hosts = ($host);
-	} else {
-	    # a host with multiple IP addresses is represented 
-	    # internally as a group of simple hosts
-	    @hosts =
-		map { new('Host',
-			  name => "auto_host:$name",
-			  ip => $_) } @ip;
-	    $host = new('Group', name => "host:$name",
-			elements => \@hosts, is_used => 1);
-	}
+	$host = new('Host', name => "host:$name", ips => [ @ip ]);
     } elsif($token eq 'range') {
 	&skip('=');
 	my $ip1 = &read_ip;
@@ -498,7 +492,6 @@ sub read_host( $ ) {
 	$host = new('Host',
 		    name => "host:$name",
 		    range => [ $ip1, $ip2 ]);
-	@hosts = ($host);
     } else {
 	syntax_err "Expected 'ip' or 'range'";
     }
@@ -513,8 +506,6 @@ sub read_host( $ ) {
 	    my $nat_ip = &read_ip();
 	    &skip(';');
 	    &skip('}');
-	    # It is sufficient to use $host and not @hosts, because
-	    # NAT is currently only allowed for hosts with one IP.
 	    $host->{nat}->{$name} = $nat_ip;
 	} else {
 	    syntax_err "Expected NAT definition";
@@ -524,7 +515,7 @@ sub read_host( $ ) {
 	if($host->{range}) {
 	    # look at print_pix_static before changing this
 	    error_atline "No NAT supported for host with IP range";
-	} elsif(@hosts > 1) {
+	} elsif(@{$host->{ips}} > 1) {
 	    # look at print_pix_static before changing this
 	    error_atline "No NAT supported for host with multiple IPs";
 	}
@@ -533,7 +524,7 @@ sub read_host( $ ) {
 	error_atline "Redefining host:$name";
     }
     $hosts{$name} = $host;
-    return @hosts;
+    return $host;
 }
 
 our %networks;
@@ -572,8 +563,8 @@ sub read_network( $ ) {
 	last if &check('}');
 	my($type, $name) = split_typed_name(read_typed_name());
 	if($type eq 'host') {
-	    my @hosts = &read_host($name);
-	    push(@{$network->{hosts}}, @hosts);
+	    my $host = &read_host($name);
+	    push(@{$network->{hosts}}, $host);
 	} elsif($type eq 'nat') {
 	    &skip('=');
 	    &skip('{');
@@ -616,12 +607,14 @@ sub read_network( $ ) {
     }
     # Check compatibility of host ip and network ip/mask.
     for my $host (@{$network->{hosts}}) {
-	if(exists $host->{ip}) {
-	    if($ip != ($host->{ip} & $mask)) {
-		error_atline "Host IP doesn't match ",
-		"network IP/mask";
+	if($host->{ips}) {
+	    for my $host_ip (@{$host->{ips}}) {
+		if($ip != ($host_ip & $mask)) {
+		    error_atline "Host IP doesn't match ",
+		    "network IP/mask";
+		}
 	    }
-	} elsif(exists $host->{range}) {
+	} elsif($host->{range}) {
 	    my ($ip1, $ip2) = @{$host->{range}};
 	    if($ip != ($ip1 & $mask) or
 	       $ip != ($ip2 & $mask)) {
@@ -652,8 +645,8 @@ sub read_network( $ ) {
 		}
 	    }
 	}
-	# Link host with network
-	$host->{network} = $network;
+ 	# Link host with network.
+ 	$host->{network} = $network;
     }
     if($network->{nat} and $ip eq 'unnumbered') {
 	err_msg "Unnumbered $network->{name} must not have ",
@@ -667,7 +660,6 @@ sub read_network( $ ) {
 	err_msg "$network->{name} must not have host definitions",
 	"\n because it has attribute 'route_hint'";
     }
-    &mark_ip_ranges($network);
     if($networks{$name}) {
 	error_atline "Redefining $network->{name}";
     }
@@ -1284,135 +1276,6 @@ sub print_rule( $ ) {
 	"srv=$rule->{$srv}->{name};$extra";
 }
 
-####################################################################
-# Try to convert hosts with successive IP addresses to an IP range
-####################################################################
-
-# Find IP ranges in a list of sorted hosts
-# Call a function on each range
-sub process_ip_ranges( $$ ) {
-    my($sorted, $fun) = @_;
-    # Add a dummy host which doesn't match any range, to simplify the code: 
-    # we don't have to process any range after the loop has finished
-    push @$sorted, {ip => 0 };
-    my $start_range = 0;
-    my $prev_ip = $sorted->[0]->{ip};
-    for(my $i = 1; $i < @$sorted; $i++) {
-	my $host = $sorted->[$i];
-	my $ip = $host->{ip};
-	# continue current range
-	if($ip == $prev_ip + 1 or $ip == $prev_ip) {
-	    $prev_ip = $ip;
-	} else {
-	    my $end_range = $i - 1;
-	    # found a range with at least 2 elements
-	    if($start_range < $end_range) {
-		# This may be a range with all identical IP addresses.
-		# This is useful if we have different hosts with 
-		# identical IP addresses
-		&$fun($sorted, $start_range, $end_range);
-	    }
-	    # start a new range
-	    $start_range = $i;
-	    $prev_ip = $ip;
-	}
-    }
-    # remove the dummy 
-    pop @$sorted;
-}
-
-# Called from read_network.
-# Works on the hosts of a network.
-# Selects hosts, not ranges,
-# detects successive IP addresses and links them to an 
-# anonymous hash which is used to collect IP ranges later.
-# ToDo: augment existing ranges by hosts or other ranges
-# ToDo: support chains of network > range > range .. > host
-# ToDo: Find auto_range for hosts with simple NAT.
-sub mark_ip_ranges( $ ) {
-    my($network) = @_;
-    my @hosts = grep { $_->{ip} and not $_->{nat} } @{$network->{hosts}};
-    my @ranges = grep { $_->{range} } @{$network->{hosts}};
-    return unless @hosts;
-    @hosts = sort { $a->{ip} <=> $b->{ip} } @hosts;
-    my $fun = sub {
-	my($aref, $start_range, $end_range) = @_;
-	my $range_mark = {};
-	# mark hosts of range
-	for(my $j = $start_range; $j <= $end_range; $j++) {
-	    $aref->[$j]->{range_mark} = $range_mark;
-	}
-	# fill range_mark with predefined ranges for later substitution
-	my $begin = $aref->[$start_range]->{ip};
-	my $end = $aref->[$end_range]->{ip};
-	for my $range (@ranges) {
-	    my($ip1, $ip2) = @{$range->{range}};
-	    if($begin <= $ip1 and $ip2 <= $end) {
-		$range_mark->{$ip1}->{$ip2} = $range;
-	    }
-	}
-    };
-    process_ip_ranges \@hosts, $fun;
-}
-
-# Called from expand_group
-# Checks, if a group of network objects contains hosts which may be converted
-# to an IP range
-sub gen_ip_ranges( $ ) {
-    my($obref) = @_;
-    my @hosts_in_range = grep { is_host $_ and $_->{range_mark} } @$obref;
-    if(@hosts_in_range) {
-	my @objects = grep { not is_host $_ } @$obref;
-	# we want to have hosts and ranges together in generated code
-	my @hosts = grep { is_host $_ and not $_->{range_mark} } @$obref;
-	my %in_range;
-	# collect host belonging to one range
-	for my $host (@hosts_in_range) {
-	    my $range_mark = $host->{range_mark};
-	    push @{$in_range{$range_mark}}, $host;
-	}
-	for my $aref (values %in_range) {
-	    my $fun = sub {
-		my($aref, $start_range, $end_range) = @_;
-		my $begin = $aref->[$start_range]->{ip};
-		my $end = $aref->[$end_range]->{ip};
-		my $range_mark = $aref->[$start_range]->{range_mark};
-		my $range;
-		unless($range = $range_mark->{$begin}->{$end}) {
-		    (my $name = $aref->[$start_range]->{name}) =~
-			s/^.*:/auto_range:/;
-		    my $network = $aref->[$start_range]->{network};
-		    $range = 
-			new('Host',
-			    name => $name,
-			    range => [ $begin, $end ],
-			    network => $network,
-			    # remember original hosts for later reference
-			    orig_hosts => [ @$aref[$start_range .. $end_range] ],
-			    );
-		    $range_mark->{$begin}->{$end} = $range;
-		    push @{$network->{hosts}}, $range;
-		}
-		# substitute first host with range
-		$aref->[$start_range] = $range;
-		# mark other hosts of range as deleted
-		for(my $j = $start_range+1; $j <= $end_range; $j++) {
-		    $aref->[$j] = undef;
-		}
-	    };
-	    my @sorted = sort { $a->{ip} <=> $b->{ip} } @$aref;
-	    process_ip_ranges \@sorted, $fun;
-	    push @hosts, grep { defined $_ } @sorted;
-	}
-	# make the result deterministic
-	push @objects, sort { ($a->{ip} || $a->{range}->[0]) <=>
-				  ($b->{ip} || $b->{range}->[0]) } @hosts;
-	return \@objects;
-    } else {
-	return $obref;
-    }
-}
-
 ##############################################################################
 # Order services
 ##############################################################################
@@ -1548,9 +1411,9 @@ sub add_reverse_srv( $ ) {
     }
 }
 
-# we need service "ip" later for secondary rules
+# We need service "ip" later for secondary rules.
 my $srv_ip;
-# We need service "tcp established" later for reverse rules
+# We need service "tcp established" later for reverse rules.
 my $srv_tcp_established = 
 { name => 'reverse:TCP_ANY',
   proto => 'tcp',
@@ -1558,13 +1421,13 @@ my $srv_tcp_established =
   established => 1
   };
 
-# Order services. We need this to order any rules for not 
-# influencing themselves.
+# Order services. We need this to simplify optimization.
 # Additionally add
 # - one TCP "established" service and 
 # - reversed UDP services 
 # for generating reverse rules later.
 sub order_services() {
+    info "Arranging services";
     for my $srv (values %services) {
 	&prepare_srv_ordering($srv);
     }
@@ -1782,10 +1645,12 @@ sub link_topology() {
 	    }
 	}
 	for my $host (@{$network->{hosts}}) {
-	    if(my $ip = $host->{ip}) {
-		if(my $old_intf = $ip{$ip}) {
-		    err_msg "Duplicate IP address for $old_intf->{name}",
-		    " and $host->{name}";
+	    if(my $ips = $host->{ips}) {
+		for my $ip (@$ips) {
+		    if(my $old_intf = $ip{$ip}) {
+			err_msg "Duplicate IP address for $old_intf->{name}",
+			" and $host->{name}";
+		    }
 		}
 	    } elsif(my $range = $host->{range}) {
 		for(my $ip = $range->[0]; $ip <= $range->[1]; $ip++) {
@@ -1899,6 +1764,186 @@ sub mark_disabled() {
 }
 
 ####################################################################
+# Convert hosts to subnets.
+# Find adjacent subnets.
+# Mark subnet relation of subnets.
+####################################################################
+
+# Convert an IP range to a set of covering IP/mask pairs
+sub split_ip_range( $$ ) {
+    my($a, $b) = @_;
+    # b is inclusive upper bound
+    # change it to exclusive upper bound
+    $b++;
+    my $i = $a;
+    my @result;
+    while($i < $b) {
+	my $j = $i;
+	my $add = 1;
+	# j even
+	while(($j & 1) == 0) {
+	    $j >>= 1; $add <<= 1;
+	    if($i+$add > $b) {
+		$add >>= 1;
+		last;
+	    }
+	}
+	my $mask = ~($add-1);
+	push @result, [ $i, $mask ];
+	$i += $add;
+    }
+    return @result;
+}
+
+sub convert_hosts() {
+    info "Converting hosts to subnets";
+    for my $network (@networks) {
+	next if $network->{ip} eq 'unnumbered';
+	my @inv_prefix_aref;
+	# Converts hosts and ranges to subnets.
+	# Eliminate duplicate subnets.
+	for my $host (@{$network->{hosts}}) {
+	    my $name = $host->{name};
+	    my $nat = $host->{nat};
+	    if($host->{ips}) {
+		for my $ip (@{$host->{ips}}) {
+		    if(my $other_subnet = $inv_prefix_aref[0]->{$ip}) {
+			push @{$host->{subnets}}, $other_subnet;
+			my $nat2 = $other_subnet->{nat};
+			if($nat xor $nat2) {
+			    err_msg "Inconsistent NAT definition for",
+			    "$other_subnet->{name} and $host->{name}";
+			} elsif($nat and $nat2) {
+			    # Number of entries is equal.
+			    if(keys %$nat eq keys %$nat2) {
+				# Entries are equal.
+				for my $name (keys %$nat) {
+				    unless($nat2->{$name} and
+					   $nat->{$name} eq $nat2->{$name}) {
+					err_msg "Inconsistent NAT definition for",
+					"$other_subnet->{name} and $host->{name}";
+					last;
+				    }
+				}
+			    } else {
+				err_msg "Inconsistent NAT definition for",
+				"$other_subnet->{name} and $host->{name}";
+			    }
+			}
+		    } else {
+			my $subnet = new('Subnet',
+					 name => $name,
+					 network => $network,
+					 ip => $ip, mask => 0xffffffff);
+			$subnet->{nat} = $nat if $nat;
+			$inv_prefix_aref[0]->{$ip} = $subnet;
+			push @{$host->{subnets}}, $subnet;
+			push @{$network->{subnets}}, $subnet;
+		    }
+		}
+	    } elsif($host->{range}) {
+		my($ip1, $ip2) = @{$host->{range}};
+		for my $ip_mask (split_ip_range $ip1, $ip2) {
+		    my($ip, $mask) = @$ip_mask;
+		    my $inv_prefix = 32 - mask2prefix $mask;
+		    if(my $other_subnet = $inv_prefix_aref[$inv_prefix]->{$ip}) {
+			$other_subnet->{nat} and
+			    err_msg "Inconsistent NAT definition for",
+			    "$other_subnet->{name} and $host->{name}";
+			push @{$host->{subnets}}, $other_subnet;
+		    } else {
+			my $subnet = new('Subnet',
+					 name => $name,
+					 network => $network,
+					 ip => $ip, mask => $mask);
+			$inv_prefix_aref[$inv_prefix]->{$ip} = $subnet;
+			push @{$host->{subnets}}, $subnet;
+			push @{$network->{subnets}}, $subnet;
+		    }
+		}
+	    } else {
+		internal_err "unexpected host type";
+	    }
+	}
+	# Find adjacent subnets which build a larger subnet.
+	my $network_inv_prefix = 32 - mask2prefix $network->{mask};
+	for(my $i = 0; $i < @inv_prefix_aref; $i++) {
+	    if(my $ip2subnet = $inv_prefix_aref[$i]) {
+		my $next = 2 ** $i;
+		my $modulo = 2 * $next;
+		for my $ip (keys %$ip2subnet) {
+		    my $subnet = $ip2subnet->{$ip};
+		    # Only take the left part of two adjacent subnets.
+		    if($ip % $modulo == 0) {
+			my $next_ip = $ip + $next;
+			# Find the right part.
+			if(my $neighbor = $ip2subnet->{$next_ip}) {
+			    $subnet->{neighbor} = $neighbor;
+			    my $up_inv_prefix = $i + 1;
+			    my $up;
+			    if($up_inv_prefix >= $network_inv_prefix) {
+				# Larger subnet is whole network.
+				$up = $network;
+			    } elsif($up_inv_prefix < @inv_prefix_aref and
+				    $up = $inv_prefix_aref[$up_inv_prefix]->{$ip}) {
+			    } else {
+				(my $name = $subnet->{name}) =~
+				    s/^.*:/auto_subnet:/;
+				my $mask = prefix2mask(32 - $up_inv_prefix);
+				$up = new('Subnet',
+					  name => $name,
+					  network => $network,
+					  ip => $ip, mask => $mask);
+				$inv_prefix_aref[$up_inv_prefix]->{$ip} = $up;
+			    }
+			    $subnet->{up} = $up;
+			    $neighbor->{up} = $up;
+			    # Don't search for enclosing subnet below.
+			    next;
+			}
+		    }
+		    # For neighbors, {up} has been set already.
+		    next if $subnet->{up};
+		    # Search for enclosing subnet.
+		    for(my $j = $i + 1; $j < @inv_prefix_aref; $j++) {
+			my $mask = prefix2mask(32 - $j);
+			$ip &= $mask;
+			if(my $up = $inv_prefix_aref[$j]->{$ip}) {
+			    $subnet->{up} = $up;
+			    last;
+			}
+		    }
+		    # Use network, if no enclosing subnet found.
+		    $subnet->{up} ||= $network;
+		}
+	    }
+	}
+    }
+}
+
+# Find adjacent subnets and substitute them by the enclosing subnet.
+sub combine_subnets ( $ ) {
+    my($aref) = @_;
+    my %hash;
+    for my $subnet (@$aref) {
+	$hash{$subnet} = $subnet;
+    }
+    for my $subnet (@$aref) {
+	my $neighbor;
+	if($neighbor = $subnet->{neighbor} and $hash{$neighbor}) {
+	    my $up = $subnet->{up};
+	    unless($hash{$up}) {
+		$hash{$up} = $up;
+		push @$aref, $up;
+	    }
+	    delete $hash{$subnet};
+	    delete $hash{$neighbor};
+	}
+    }
+    return [ values %hash ];
+}
+
+####################################################################
 # Expand rules
 #
 # Simplify rules to expanded rules where each rule has exactly one 
@@ -1961,7 +2006,7 @@ sub set_auto_groups () {
 
 # Get a reference to an array of network object names and 
 # return a reference to an array of network objects
-sub expand_group( $$ ) {
+sub expand_group1( $$ ) {
     my($obref, $context) = @_;
     my @objects;
     for my $tname (@$obref) {
@@ -1992,7 +2037,7 @@ sub expand_group( $$ ) {
 		# mark group for detection of recursive group definitions
 		$object->{elements} = 'recursive';
 		$object->{is_used} = 1;
-		$elements = &expand_group($elements, $tname);
+		$elements = &expand_group1($elements, $tname);
 		# cache result for further references to the same group
 		$object->{elements} = $elements;
 	    }
@@ -2029,9 +2074,27 @@ sub expand_group( $$ ) {
 	    }
 	}
     }
-    @objects = grep { defined $_ } @objects;
-    return gen_ip_ranges(\@objects);
+    return \@objects;
 }
+
+sub expand_group( $$ ) {
+    my($obref, $context, $convert_hosts) = @_;
+    my $aref = expand_group1 $obref, $context;
+    my @subnets;
+    my @other;
+    for my $obj (@$aref) {
+	next unless $obj;
+	if(is_host $obj) {
+	    push  @subnets, @{$obj->{subnets}};
+	} else {
+	    push @other, $obj;
+	}
+    }
+    my $converted = combine_subnets \@subnets;
+    push @other, @$converted;
+    return \@other;
+
+}    
 
 sub check_unused_groups() {
     return unless $warn_unused_groups;
@@ -2104,6 +2167,7 @@ my %reverse_rule_tree;
 my %ref2obj;
 
 sub expand_rules() {
+    &convert_hosts();
     info "Expanding rules";
     # Prepare special groups
     set_auto_groups();
@@ -2515,7 +2579,7 @@ sub get_networks ( $ ) {
     my $type = ref $obj;
     if($type eq 'Network') {
 	return $obj;
-    } elsif($type eq 'Host' or $type eq 'Interface') {
+    } elsif($type eq 'Subnet' or $type eq 'Interface') {
 	return $obj->{network};
     } elsif($type eq 'Any') {
 	return @{$obj->{networks}};
@@ -2529,7 +2593,7 @@ sub get_path( $ ) {
     my $type = ref $obj;
     if($type eq 'Network') {
 	return $obj;
-    } elsif($type eq 'Host') {
+    } elsif($type eq 'Subnet') {
 	return $obj->{network};
     } elsif($type eq 'Interface') {
 	return $obj->{router};
@@ -2540,6 +2604,9 @@ sub get_path( $ ) {
 	# This is only used, when called from path_first_interfaces or
 	# from find_active_routes_and_statics.
 	return $obj;
+    } elsif($type eq 'Host') {
+	# This is only used, if Netspoc.pm is called from Arnes report.pl.
+	return $obj->{network};
     } else {
 	internal_err "unexpected $obj->{name}";
     }
@@ -2852,7 +2919,7 @@ sub get_any( $ ) {
     my $type = ref $obj;
     if($type eq 'Network') {
 	return $obj->{any};
-    } elsif($type eq 'Host') {
+    } elsif($type eq 'Subnet') {
 	return $obj->{network}->{any};
     } elsif($type eq 'Interface') {
 	if($obj->{router}->{managed}) {
@@ -3092,28 +3159,37 @@ sub gen_reverse_rules1 ( $ ) {
 	my $proto = $srv->{proto};
 	next unless $proto eq 'tcp' or $proto eq 'udp' or $proto eq 'ip';
 	my $has_stateless_router;
-	# Local function.
-	# It uses variable $has_stateless_router.
-	my $mark_reverse_rule = sub( $$$ ) {
-	    my ($rule, $in_intf, $out_intf) = @_;
-	    # Destination of current rule is current router.
-	    # Outgoing packets from a router itself are never filtered.
-	    # Hence we don't need a reverse rule for current router.
-	    return if not $out_intf;
-	    my $router = $out_intf->{router};
-	    return unless $router->{managed};
-	    my $model = $router->{model};
-	    # Source of current rule is current router.
-	    if(not $in_intf) {
-		if($model->{stateless_self}) {
-		    $has_stateless_router = 1;
+      PATH_WALK:
+	{
+	    # Local function.
+	    # It uses variable $has_stateless_router.
+	    my $mark_reverse_rule = sub( $$$ ) {
+		my ($rule, $in_intf, $out_intf) = @_;
+		# Destination of current rule is current router.
+		# Outgoing packets from a router itself are never filtered.
+		# Hence we don't need a reverse rule for current router.
+		return if not $out_intf;
+		my $router = $out_intf->{router};
+		return unless $router->{managed};
+		my $model = $router->{model};
+		# Source of current rule is current router.
+		if(not $in_intf) {
+		    if($model->{stateless_self}) {
+			$has_stateless_router = 1;
+			# Jump out of path_walk.
+			no warnings "exiting";
+			last PATH_WALK;
+		    }
 		}
-	    }
-	    elsif($model->{stateless}) {
-		$has_stateless_router = 1;
-	    }
-	};
-	&path_walk($rule, $mark_reverse_rule);
+		elsif($model->{stateless}) {
+		    $has_stateless_router = 1;
+		    # Jump out of path_walk.
+		    no warnings "exiting";
+		    last PATH_WALK;
+		}
+	    };
+	    &path_walk($rule, $mark_reverse_rule);
+	}
 	if($has_stateless_router) {
 	    my $new_srv;
 	    if($proto eq 'tcp') {
@@ -3167,6 +3243,7 @@ sub mark_secondary_rules() {
     # Mark only normal rules for optimization.
     # We can't change a deny rule from e.g. tcp to ip.
     # We can't change 'any' rules, because path is unknown.
+  RULE:
     for my $rule (@expanded_rules) {
 	next if $rule->{deleted} and
 	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
@@ -3189,6 +3266,9 @@ sub mark_secondary_rules() {
 		# ToDo: this could be analyzed in more detail
 		return if $in_intf->{in_loop} and $out_intf->{in_loop};
 		$rule->{has_full_filter} = 1;
+		# Jump out of path_walk.
+		no warnings "exiting";
+		next RULE;
 	    }
 	};
 	&path_walk($rule, $mark_secondary_rule);
@@ -3380,8 +3460,8 @@ sub optimize() {
     for my $network (@networks) {
 	next if $network->{up};
 	$network->{up} = $network->{any};
-	for my $object (@{$network->{hosts}}, @{$network->{interfaces}}) {
-	    $object->{up} = $network;
+	for my $interface (@{$network->{interfaces}}) {
+	    $interface->{up} = $network;
 	}
     }
     optimize_rules \%rule_tree, \%rule_tree;
@@ -3782,7 +3862,7 @@ sub print_pix_static( $ ) {
 		    print "\n";
 		    $nat_index++;
 		    # Check for static NAT entries of hosts and interfaces.
-		    for my $host (@{$network->{hosts}},
+		    for my $host (@{$network->{subnets}},
 				  @{$network->{interfaces}}) {
 			if(my $in_ip = $host->{nat}->{$in_dynamic}) {
 			    my @addresses = &address($host, $out_nat);
@@ -3945,32 +4025,6 @@ sub rules_distribution() {
 # ACL Generation
 ##############################################################################
 
-# Convert an IP range to a set of covering IP/mask pairs
-sub split_ip_range( $$ ) {
-    my($a, $b) = @_;
-    # b is inclusive upper bound
-    # change it to exclusive upper bound
-    $b++;
-    my $i = $a;
-    my @result;
-    while($i < $b) {
-	my $j = $i;
-	my $add = 1;
-	# j even
-	while(($j & 1) == 0) {
-	    $j >>= 1; $add <<= 1;
-	    if($i+$add > $b) {
-		$add >>= 1;
-		last;
-	    }
-	}
-	my $mask = ~($add-1);
-	push @result, [ $i, $mask ];
-	$i += $add;
-    }
-    return @result;
-}
-
 # Parameters:
 # obj: this address we want to know
 # network: look inside this nat domain
@@ -3998,7 +4052,7 @@ sub address( $$$ ) {
 		return [$obj->{ip}, $obj->{mask}];
 	    }
 	}
-    } elsif($type eq 'Host') {
+    } elsif($type eq 'Subnet') {
 	my($nat_tag, $network_ip, $mask, $dynamic) =
 	   &nat_lookup($obj->{network}, $nat_info);
 	if($nat_tag) {
@@ -4015,22 +4069,11 @@ sub address( $$$ ) {
 	    } else {
 		# Take higher bits from network NAT,
 		# lower bits from original IP
-		if($obj->{range}) {
-		    my($ip1, $ip2) = 
-			map { $network_ip | $_ & ~$mask } 
-		    @{$obj->{range}};
-		    return &split_ip_range($ip1, $ip2);
-		} else {
-		    my $ip = $network_ip | $obj->{ip} & ~$mask;
-		    return [$ip, 0xffffffff];
-		}
+		my $ip = $network_ip | $obj->{ip} & ~$mask;
+		return [$ip, $obj->{mask}];
 	    }
 	} else {
-	    if($obj->{range}) {
-		return &split_ip_range(@{$obj->{range}});
-	    } else {
-		return [$obj->{ip}, 0xffffffff];
-	    }
+	    return [$obj->{ip}, $obj->{mask}];
 	}
     }
     if($type eq 'Interface') {
@@ -4125,7 +4168,7 @@ sub prefix_code( $$ ) {
     my($pair) = @_;
     my($ip, $mask) = @$pair;
     my $ip_code = &print_ip($ip);
-    my $prefix_code = &print_prefix($mask);
+    my $prefix_code = &mask2prefix($mask);
     return $prefix_code == 32 ? $ip_code : "$ip_code/$prefix_code";
 }
 
@@ -4568,9 +4611,10 @@ sub local_optimization() {
     info "Local optimization";
     # Prepare data structures
     for my $network (@networks) {
-	$network->{subnet_of} or $network->{subnet_of} = $network_00;
-	for my $object (@{$network->{hosts}}, @{$network->{interfaces}}) {
-	    $object->{subnet_of} = $network;
+	if(my $up = $network->{subnet_of}) {
+	    $network->{up} = $up;
+	} else {
+	    $network->{up} = $network_00;
 	}
     }
     for my $rule (@expanded_any_rules, @expanded_rules) {
@@ -4611,9 +4655,9 @@ sub local_optimization() {
 				}
 				$srv = $srv->{up};
 			    }
-			    $dst = $dst->{subnet_of};
+			    $dst = $dst->{up};
 			}
-			$src = $src->{subnet_of};
+			$src = $src->{up};
 		    }
 		    # Convert remaining rules to secondary rules, if possible.
 		    if($secondary_router && $rule->{has_full_filter}) {
