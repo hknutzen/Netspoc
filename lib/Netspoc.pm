@@ -71,8 +71,8 @@ my $version = (split ' ','$Id$ ')[2];
 # User configurable options
 ####################################################################
 my $verbose = 1;
-my $comment_acls = 0;
-my $comment_routes = 0;
+my $comment_acls = 1;
+my $comment_routes = 1;
 my $warn_unused_groups = 1;
 # allow subnets only 
 # if the enclosing network is marked as 'route_hint' or
