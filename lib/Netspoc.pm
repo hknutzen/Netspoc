@@ -135,18 +135,18 @@ sub check_abort() {
     
 sub error_atline( $ ) {
     my($msg) = @_; 
-    print STDERR add_line($msg);
+    print STDERR "Error: ", add_line($msg);
     check_abort();
 }
 
 sub err_msg( @ ) {
-    print STDERR @_, "\n";
+    print STDERR "Error: ", @_, "\n";
     check_abort();
 }
 
 sub syntax_err( $ ) {
     my($msg) = @_;    
-    die add_context $msg;
+    die "Syntax error: ", add_context $msg;
 }
 
 sub internal_err( @ ) {
@@ -800,7 +800,7 @@ sub read_policy( $ ) {
 		$dst = 'user';
 	    }
 	    if($src ne 'user' && $dst ne 'user') {
-		err_msg "all rules of $policy->{name} must use keyword 'user'";
+		err_msg "All rules of $policy->{name} must use keyword 'user'";
 	    }
 	    my $rule = { action => $action, src => $src, dst => $dst, srv => $srv};
 	    push(@{$policy->{rules}}, $rule);
@@ -853,7 +853,7 @@ sub read_netspoc() {
 	my $file = read_string();
 	&read_data($file, \&read_netspoc);
     } else {
-	syntax_err "Syntax error";
+	syntax_err '';
     }
 }
 
@@ -1257,7 +1257,7 @@ sub link_interface_with_net( $ ) {
 	# nothing to check: short interface may be linked to arbitrary network
     } elsif($ip eq 'unnumbered') {
 	$net->{ip} eq 'unnumbered' or
-	    err_msg "unnumbered $interface->{name} must not be linked ",
+	    err_msg "Unnumbered $interface->{name} must not be linked ",
 	    "to $net->{name}";
     } else {
 	# check compatibility of interface ip and network ip/mask
@@ -1996,7 +1996,7 @@ sub setpath_obj( $$$ ) {
     if($obj->{active_path}) {
 	# Found a loop
 	# detect if multiple loops end at current object
-	$obj->{right} and err_msg "found nested loop at $obj->{name}";
+	$obj->{right} and err_msg "Found nested loop at $obj->{name}";
 	$obj->{right} = $to_any1;
 	$to_any1->{left} = $obj;
 	return $obj;
@@ -2016,7 +2016,7 @@ sub setpath_obj( $$$ ) {
 	if(my $loop = &setpath_obj($next, $interface, $distance+1)) {
 	    # path is part of a loop
 	    # detected if multiple loops start at current object
-	    $in_loop and err_msg "found nested loop at $obj->{name}";
+	    $in_loop and err_msg "Found nested loop at $obj->{name}";
 	    $in_loop = $loop;
 	    $interface->{right} = $obj;
 	    $obj->{left} = $interface
