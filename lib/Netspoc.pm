@@ -343,6 +343,8 @@ sub read_network( $ ) {
 		      );
     skip('=');
     skip('{');
+    $network->{route_hint} = &check_flag('route_hint');
+    $network->{subnet_of} = &check_assign('subnet_of', \&read_typed_name);
     my $ip;
     my $mask;
     my $token = read_identifier();
@@ -380,6 +382,10 @@ sub read_network( $ ) {
 	}
 	$host->{network} = $network;
 	push(@{$network->{hosts}}, $host);
+    }
+    if(@{$network->{hosts}} and $network->{route_hint}) {
+	err_msg "$network->{name} must not have host definitions,\n",
+	    " since it has attribute 'route_hint'";
     }
     &find_ip_ranges($network->{hosts}, $network);
     if($networks{$name}) {
@@ -1029,6 +1035,7 @@ sub link_interface_with_net( $ ) {
     my($interface) = @_;
     my $net_name = $interface->{network};
     my $net = $networks{$net_name} or
+	# ToDo: link interface to a dummy network
 	err_msg "Referencing undefined network:$net_name ",
 	    "from $interface->{name}";
     $interface->{network} = $net;
@@ -1145,12 +1152,19 @@ sub expand_group( $$ ) {
     }
     for my $object (@objects) {
 	$object = undef if $object->{disabled};
-	if(is_net $object or is_interface $object) {
+	if(is_net $object) {
 	    if($object->{ip} eq 'unnumbered') {
 		err_msg "Unnumbered $object->{name} must not be used in $context";
 		$object = undef;
+	    } elsif($object->{route_hint}) {
+		err_msg "$object->{name} marked as 'route_hint' must not be used in $context";
+		$object = undef;
 	    }
-	    if($object->{ip} eq 'cloud') {
+	} elsif(is_interface $object) {
+	    if($object->{ip} eq 'unnumbered') {
+		err_msg "Unnumbered $object->{name} must not be used in $context";
+		$object = undef;
+	    } elsif($object->{ip} eq 'cloud') {
 		err_msg "Short $object->{name} must not be used in $context";
 		$object = undef;;
 	    }
@@ -1504,7 +1518,16 @@ sub find_subnets() {
 		if($mask_ip_hash{$m}->{$i}) {
 		    my $bignet = $mask_ip_hash{$m}->{$i};
 		    $bignet->{enclosing} = 1;
-		    $mask_ip_hash{$mask}->{$ip}->{is_in} = $bignet;
+		    my $subnet = $mask_ip_hash{$mask}->{$ip};
+		    $subnet->{is_in} = $bignet;
+		    unless($bignet->{route_hint}) {
+			if(not $subnet->{subnet_of} or
+			   $subnet->{subnet_of} eq $bignet) {
+			    err_msg "$subnet->{name} is subnet of $bignet->{name}\n",
+			    " if desired, either declare attribute 'subnet_of'",
+			    " or attribute 'route_hint'";
+			}
+		    }
 		    last;
 		}
 	    }
