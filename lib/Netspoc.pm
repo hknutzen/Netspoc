@@ -2535,12 +2535,12 @@ sub loop_part_mark ( $$$$$$ ) {
 	# a sub-path before
 	if($from eq $to) {
 #	    info "$from_in->{name} -> ".($to_out?$to_out->{name}:'');
-	    $from_in->{$mark} = $to_out;
+	    $from_in->{path}->{$mark} = $to_out;
 	    return;
 	}
 	my $from_out = $from->{$direction};
 #	info "$from_in->{name} -> ".($from_out?$from_out->{name}:'');
-	$from_in->{$mark} = $from_out;
+	$from_in->{path}->{$mark} = $from_out;
 	$from_in = $from_out;
 	$from = $from_out->{$direction};
 	$mark = $dst;
@@ -2572,7 +2572,7 @@ sub path_mark( $$ ) {
 	# paths meet outside a loop or at the edge of a loop
 	if($from eq $to) {
 #	    info "$from_in->{name} -> ".($to_out?$to_out->{name}:'');
-	    $from_in->{$dst} = $to_out;
+	    $from_in->{path}->{$dst} = $to_out;
 	    return;
 	}
 	# paths meet inside a loop	
@@ -2582,7 +2582,7 @@ sub path_mark( $$ ) {
 	}
 	if($from->{distance} >= $to->{distance}) {
 	    # mark has already been set for a sub-path
-	    return if $from_in->{$dst};
+	    return if $from_in->{path}->{$dst};
 	    my $from_out;
 	    if($from_loop) {
 		$from_out = $from_loop->{main};
@@ -2590,7 +2590,7 @@ sub path_mark( $$ ) {
 	    } else {
 		$from_out = $from->{main};
 #		info "$from_in->{name} -> ".($from_out?$from_out->{name}:'');
-		$from_in->{$dst} = $from_out;
+		$from_in->{path}->{$dst} = $from_out;
 	    }
 	    $from_in = $from_out;
 	    $from = $from_out->{main};
@@ -2603,7 +2603,7 @@ sub path_mark( $$ ) {
 	    } else {
 		$to_in = $to->{main};
 #		info "$to_in->{name} -> ".($to_out?$to_out->{name}:'');
-		$to_in->{$dst} = $to_out;
+		$to_in->{path}->{$dst} = $to_out;
 	    }
 	    $to_out = $to_in;
 	    $to = $to_in->{main};
@@ -2647,13 +2647,13 @@ sub path_walk( $&$ ) {
 	$rule->{deleted} = $rule;
 	return;
     }
-    &path_mark($from, $to) unless $from->{$to};
+    &path_mark($from, $to) unless $from->{path}->{$to};
     $walk_mark++;
     my $in = undef;
-    my $out = $from->{$to};
+    my $out = $from->{path}->{$to};
     my $type = is_router $from ? 'Router' : 'Network';
     &part_walk($in, $out, $to, $type, $rule, $fun, $where);
-    if(my $out2 = $from->{"2.$to"}) {
+    if(my $out2 = $from->{path}->{"2.$to"}) {
 	&part_walk($in, $out2, $to, $type, $rule, $fun, $where);
     }
 }
@@ -2675,9 +2675,9 @@ sub part_walk( $$$$ ) {
 	&$fun($rule, $in, $out) if $type eq $where;
 	$out->{walk_mark} = $walk_mark;
 	$in = $out;
-	$out = $in->{$to};
+	$out = $in->{path}->{$to};
 	$type = $type eq 'Router' ? 'Network' : 'Router';
-	if(my $out2 = $in->{"2.$to"}) {
+	if(my $out2 = $in->{path}->{"2.$to"}) {
 	    &part_walk($in, $out2, $to, $type, $rule, $fun, $where);
 	}
     }
@@ -2897,12 +2897,14 @@ sub gen_reverse_rules1 ( $ ) {
 		internal_err;
 	    }
 	    my $new_rule = { 
+		action => $rule->{action},
 		src => $rule->{dst},
 		dst => $rule->{src},
 		srv => $new_srv,
 		# this rule must only be applied to stateless routers
-		stateless = 1,
+		stateless => 1,
 		orig_rule => $rule};
+	    $new_rule->{deny_networks} = [] if $rule->{deny_networks};
 	    &add_rule($new_rule);
 	    # don' push to @$rule_aref while we are iterating over it
 	    push @extra_rules, $new_rule;
@@ -2981,6 +2983,7 @@ sub gen_secondary_rules() {
 	    unless($secondary_rule_tree{$src}->{$dst}) {
 		my $rule = {
 		    orig_rule => $rule,
+		    action => $rule->{action},
 		    src => $src,
 		    dst => $dst,
 		    srv => $srv_ip,
