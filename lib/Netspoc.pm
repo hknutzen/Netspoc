@@ -47,7 +47,7 @@ my $auto_default_route = 1;
 # - Editor backup files: emacs: *~
 my $ignore_files = qr/^CVS$|^RCS$|^\.#|^raw$|~$/;
 # abort after this many errors
-my $max_errors = 10;
+my $max_errors = 100;
 
 ####################################################################
 # Error Reporting
@@ -1187,6 +1187,33 @@ sub link_topology() {
 	    " more than two interfaces:";
 	    for my $interface (@{$network->{interfaces}}) {
 		print STDERR " $interface->{name}\n";
+	    }
+	}
+	my %ip;
+	for my $interface (@{$network->{interfaces}}) {
+	    my $ips = $interface->{ip};
+	    next if $ips eq 'unnumbered' or $ips eq 'short';
+	    for my $ip (@$ips) {
+		if(my $old_intf = $ip{$ip}) {
+		    err_msg "Duplicate IP address for $old_intf->{name}",
+		    " and $interface->{name}";
+		}
+		$ip{$ip} = $interface;
+	    }
+	}
+	for my $host (@{$network->{hosts}}) {
+	    if(my $ip = $host->{ip}) {
+		if(my $old_intf = $ip{$ip}) {
+		    err_msg "Duplicate IP address for $old_intf->{name}",
+		    " and $host->{name}";
+		}
+	    } elsif(my $range = $host->{range}) {
+		for(my $ip = $range->[0]; $ip <= $range->[1]; $ip++) {
+		    if(my $old_intf = $ip{$ip}) {
+			err_msg "Duplicate IP address for $old_intf->{name}",
+			" and $host->{name}";
+		    }
+		}
 	    }
 	}
 	next unless $network->{subnet_of};
