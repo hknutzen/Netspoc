@@ -3745,8 +3745,11 @@ sub collect_route( $$$ ) {
 	return unless $in_intf->{router}->{managed};
 	# Remember network which is reachable via $out_intf.
 	my $network = $rule->{dst};
-	# This router and all routers from here to dst have been processed already.
-	if($in_intf->{routes}->{$out_intf}->{$network}) {
+	# This router and all routers from here to dst have been processed
+	# already. 
+	# But we can't be shure about this, if we are walking inside a loop.
+	if($in_intf->{routes}->{$out_intf}->{$network} and
+	   not $in_intf->{in_loop}) {
 	    # Jump out of path_walk in sub find_active_routes_and_statics
 	    no warnings "exiting";
 	    next RULE;
@@ -3835,7 +3838,8 @@ sub mark_networks_for_static( $$$ ) {
     " because they have equal security levels.\n"
 	if $in_hw->{level} == $out_hw->{level};
     # This router and all routers from here to dst have been processed already.
-    if($out_hw->{static}->{$in_hw}->{$dst}) {
+    # But we can't be shure about this, if we are walking inside a loop.
+    if($out_hw->{static}->{$in_hw}->{$dst} and not $in_intf->{in_loop}) {
 	# Jump out of path_walk in sub find_active_routes_and_statics
 	no warnings "exiting";
 	next RULE;
