@@ -28,10 +28,9 @@ use Netspoc;
 # Main program
 ####################################################################
 
-&read_args();
-&read_config() if $conf_file;
-info "$program, version $version";
-&read_file_or_dir($main_file);
+my($in_path, $out_dir) = &read_args();
+&show_version();
+&read_file_or_dir($in_path);
 &show_read_statistics();
 &order_services();
 &link_topology();
@@ -53,6 +52,5 @@ $error_counter = $max_errors; # following errors should always abort
 &mark_secondary_rules();
 &repair_deny_influence();
 &acl_generation();
-&check_output_dir($out_dir);
 &print_code($out_dir);
 &warn_pix_icmp();
