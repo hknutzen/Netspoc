@@ -1,5 +1,7 @@
 =head1 Comparison of NetSPoC with CSPM
 
+Written at 2002/03/11.
+
 =head2 Runtime
 
 For a real world policy and topology with about 900 networks, 400
