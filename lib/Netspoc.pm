@@ -1049,6 +1049,7 @@ sub addrule_ordered_srv( $ ) {
     addrule_ordered_src_dst($hash->{ip});
 }
 
+# ToDo: add 'is_interface' case
 sub check_deny_influence() {
     for my $arule (@expanded_any_rules) {
 	next if $arule->{deleted};
@@ -1146,7 +1147,11 @@ sub get_pep( $ ) {
     if(&is_host($obj)) {
 	$pep = $obj->{net}->{pep};
     } elsif(&is_interface($obj)) {
-	$pep = $obj->{link}->{pep};
+	if($obj->{router}->{managed}) {
+	    return undef;
+	} else {
+	    $pep = $obj->{link}->{pep};
+	}
     } elsif(&is_net($obj) || &is_any($obj)) {
 	$pep = $obj->{pep};
     } else {
@@ -1156,7 +1161,8 @@ sub get_pep( $ ) {
     return $pep;
 }
 
-# Applying a function on every managed router from src to dst of a rule
+# Applying a function on a rule at every managed router
+# from src to dst of the rule
 sub path_walk($&) {
     my ($rule, $fun) = @_;
     die "internal in path_walk: undefined rule" unless $rule;
@@ -1164,18 +1170,21 @@ sub path_walk($&) {
     my $dst = $rule->{dst};
     my $src_intf = &get_pep($src);
     my $dst_intf = &get_pep($dst);
-
-    if($src_intf eq $dst_intf) {
+    my $src_router = $src_intf?$src_intf->{router}:$src->{router};
+    my $dst_router = $dst_intf?$dst_intf->{router}:$dst->{router};
+    my $src_dist = $src_router->{distance};
+    my $dst_dist = $dst_router->{distance};
+    
+    if(# src and dst are interfaces on the same router
+       not defined $src_intf and not defined $dst_intf
+       and $src_router eq $dst_router or
+       # no pep between src and dst
+       defined $src_intf and defined $dst_intf and $src_intf eq $dst_intf) {
 	print STDERR "Unenforceable rule\n ", print_rule($rule), "\n";
 	# don't process rule again later
 	$rule->{deleted} = 1;
 	return;
     }
-    my $src_router = $src_intf->{router};
-    my $dst_router = $dst_intf->{router};
-
-    my $src_dist = $src_router->{distance};
-    my $dst_dist = $dst_router->{distance};
 
     # go from src to dst until equal distance is reached
     while($src_dist > $dst_dist) {
@@ -1209,9 +1218,10 @@ sub path_walk($&) {
 	$dst_router = $dst_intf->{router};
     }
 
+    # $src_router eq $dst-router
     # if we reached the router via different interfaces, 
     # the router lies on the path
-    if($src_intf ne $dst_intf) {
+    if($src_intf and $dst_intf and $src_intf ne $dst_intf) {
 	&$fun($rule, $src_intf, $dst_intf);
     } else {
 	# the router doesn't lie on the path, nothing to do
@@ -1235,6 +1245,8 @@ our $weak_deny_counter = 0;
 # permit any dst (on R1 and R2)
 sub gen_any_src_deny( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
+    # out_intf may be undefined if dst is an interface and
+    # we just process the corresponding router; but that doesn't matter here.
     return if $rule->{deleted};
     my $router = $in_intf->{router};
 
@@ -1275,11 +1287,15 @@ sub gen_any_src_deny( $$$ ) {
 sub gen_any_dst_deny( $$$ ) {
     # in_intf points to src, out_intf to dst
     my ($rule, $in_intf, $out_intf) = @_;
+    # in_intf may be undefined if src is an interface and
+    # we just process the corresponding router;
     return if $rule->{deleted};
-    my $router = $in_intf->{router};
+    my $router = $out_intf->{router};
 
     # find networks at all interfaces except the in_intf
-    for my $orig_intf (@{$router->{interfaces}}) {
+    # for the case that src is interface of current router,
+    # take only the out_intf
+    for my $orig_intf ($in_intf?@{$router->{interfaces}}:($out_intf)) {
 	# copy $intf to prevent changing of the iterated array
 	my $intf = $orig_intf;
 
@@ -1287,7 +1303,7 @@ sub gen_any_dst_deny( $$$ ) {
 	# case 1: it is the first router near src
 	# case 2: the in_intf is on the same perimeter
 	# as an out_intf of some other router on the path
-	next if $intf == $in_intf;
+	next if defined $in_intf and $intf eq $in_intf;
 
 	# see comment in &gen_any_src_deny
 	if($intf eq $router->{to_pep}) {
@@ -1757,11 +1773,20 @@ sub gen_code( $$$ ) {
     my @dst_code = &adr_code($dst);
     my ($proto_code, $port_code) = &srv_code($srv);
     $action = 'deny' if $action eq 'weak_deny';
-    for my $src_code (@src_code) {
-	for my $dst_code (@dst_code) {
-	    
-	    push(@{$src_intf->{code}},
-		 "$action $proto_code $src_code $dst_code $port_code\n");
+    if(defined $src_intf) {
+	for my $src_code (@src_code) {
+	    for my $dst_code (@dst_code) {
+		push(@{$src_intf->{code}},
+		     "$action $proto_code $src_code $dst_code $port_code\n");
+	    }
+	}
+    } else {	# defined $dst_intf
+	for my $src_code (@src_code) {
+	    for my $dst_code (@dst_code) {
+		push(@{$dst_intf->{code}},
+		     # ToDo: add 'established' for TCP
+		     "$action $proto_code $dst_code $port_code $src_code\n");
+	    }
 	}
     }
 }
@@ -1770,6 +1795,7 @@ sub gen_code( $$$ ) {
 # r1-src-r2-r3-dst: get_pep(src) = r1, r1 is not on path
 # r3-src-r2-r1-dst: get_pep(src) = r2, r2 is 1st pep on path
 # ToDo: this code works only for 2nd case
+# ToDo: If src is an managed interface, inverse deny rules have to be generated
 sub gen_code_at_src( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
 #    my $src = $rule->{src};
