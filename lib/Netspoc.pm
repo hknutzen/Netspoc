@@ -132,16 +132,6 @@ sub check_int() {
     }
 }
 
-# check if one of the keywords 'permit' or 'deny' is available
-sub check_permit_deny() {
-    &skip_space_and_comment();
-    if(m/\G(permit|deny)/gc) {
-	return $1;
-    } else {
-	return undef;
-    }
-}
-
 # read a boolean value
 sub read_bool() {
     if(&check('0') or &check('false')) {
@@ -187,28 +177,49 @@ sub print_ip_aref( $ ) {
     my $aref = shift;
     return map { print_ip($_); } @$aref;
 }
-	
-# read string up to some delimiting character or end of line
-# Note: blank space is allowed inside of names 
-# but ignored at the beginning and end
-sub read_name() {
+		
+sub check_typed_name() {
     use locale;		# now german umlauts are part of \w
-
     &skip_space_and_comment();
-
-    # Allow dot in names to ease using ip addresses in names.
-    # When dot is used as separator in interface:router.network,
-    # we take the first dot. 
-    # ToDo: This is ambiguous.
-    # Allow colon in names; if colon is used as separator in type:name,
-    # we take the first colon
-    if(m#(\G[\w !:./*()+-]+)#gc) {
-	my $name = $1;
-	# delete trailing space
-	$name =~ s/\s*$//;
-	return $name;
+    if(m/(\G\w+:\w+(\.\w+)?)/gc) {
+	return $1;
     } else {
-	syntax_err "Expected name";
+	return undef;
+    }
+}
+
+sub read_typed_name() {
+    check_typed_name() or
+	syntax_err "Typed name expected";
+}
+
+sub read_identifier() {
+    use locale;		# now german umlauts are part of \w
+    &skip_space_and_comment();
+    if(m/(\G\w+)/gc) {
+	return $1;
+    } else {
+	syntax_err "Identifier expected";
+    }
+}
+
+# used for reading interface names
+sub read_string() {
+    &skip_space_and_comment();
+    if(m/(\G[^;,=]+)/gc) {
+	return $1;
+    } else {
+	syntax_err "String expected";
+    }
+}
+
+# check if one of the keywords 'permit' or 'deny' is available
+sub check_permit_deny() {
+    &skip_space_and_comment();
+    if(m/\G(permit|deny)/gc) {
+	return $1;
+    } else {
+	return undef;
     }
 }
 
@@ -268,14 +279,6 @@ sub read_assign_list($&) {
     &read_list($fun);
 }
 
-sub read_network_name() {
-    my($type, $name) = split_typed_name(&read_name());
-    if($type ne 'network') {
-	syntax_err "expected network:<name>";
-    }
-    return $name
-}
-
 ####################################################################
 # Creation of typed structures
 # Currently we don't use OO features;
@@ -294,7 +297,7 @@ sub read_host( $ ) {
     my $name = shift;
     &skip('=');
     &skip('{');
-    my $token = read_name();
+    my $token = read_identifier();
     my $host = new('Host', name => "host:$name");
     if($token eq 'ip') {
 	&skip('=');
@@ -332,7 +335,7 @@ sub read_network( $ ) {
     skip('{');
     my $ip;
     my $mask;
-    my $token = read_name();
+    my $token = read_identifier();
     if($token eq 'ip') {
 	&skip('=');
 	$ip = &read_ip;
@@ -355,7 +358,7 @@ sub read_network( $ ) {
     }
     while(1) {
 	last if &check('}');
-	my($type, $hname) = split_typed_name(read_name());
+	my($type, $hname) = split_typed_name(read_typed_name());
 	syntax_err "Illegal token" unless($type eq 'host');
 	if($ip eq 'unnumbered') {
 	    error_atline "Unnumbered network must not contain hosts";
@@ -374,8 +377,8 @@ sub read_network( $ ) {
 	push(@{$network->{hosts}}, $host);
     }
     if(my $old_net = $networks{$name}) {
-	my $ip_string = &print_ip($network);
-	my $old_ip_string = &print_ip($old_net);
+	my $ip_string = &print_ip($network->{ip});
+	my $old_ip_string = &print_ip($old_net->{ip});
 	error_atline "Redefining network:$name from " . 
 	    "$old_ip_string to $ip_string";
     }
@@ -395,7 +398,7 @@ sub read_interface( $ ) {
 	return $interface;
     }
     &skip('{');
-    my $token = read_name();
+    my $token = read_identifier();
     if($token eq 'ip') {
 	&skip('=');
 	my @ip = &read_list(\&read_ip);
@@ -406,7 +409,7 @@ sub read_interface( $ ) {
     } else {
 	syntax_err "Illegal token";
     }
-    my $hardware = &check_assign('hardware', \&read_name);
+    my $hardware = &check_assign('hardware', \&read_string);
     $hardware and $interface->{hardware} = $hardware;
     &skip('}');
     return $interface;
@@ -440,7 +443,7 @@ sub read_router( $ ) {
     skip('=');
     skip('{');
     my $managed = &read_assign('managed', \&read_bool);
-    my $model = &check_assign('model', \&read_name);
+    my $model = &check_assign('model', \&read_identifier);
     if($model and not $valid_model{$model}) {
 	error_atline "Unknown router model '$model'";
     }
@@ -460,7 +463,7 @@ sub read_router( $ ) {
     }
     while(1) {
 	last if &check('}');
-	my($type,$iname) = split_typed_name(read_name());
+	my($type,$iname) = split_typed_name(read_typed_name());
 	syntax_err "Illegal token" unless $type eq 'interface';
 	my $interface = &read_interface($iname);
 	$interface->{name} = "interface:$name.$iname";
@@ -496,7 +499,7 @@ sub read_any( $ ) {
     my $name = shift;
     skip('=');
     skip('{');
-    my $link = &read_assign('link', \&read_name);
+    my $link = &read_assign('link', \&read_typed_name);
     &skip('}');
     my $any = new('Any', name => "any:$name", link => $link);
     if(my $old_any = $anys{$name}) {
@@ -510,7 +513,7 @@ sub read_every( $ ) {
     my $name = shift;
     skip('=');
     skip('{');
-    my $link = &read_assign('link', \&read_name);
+    my $link = &read_assign('link', \&read_typed_name);
     &skip('}');
     my $every = new('Every', name => "every:$name", link => $link);
     if(my $old_every = $everys{$name}) {
@@ -523,7 +526,7 @@ my %groups;
 sub read_group( $ ) {
     my $name = shift;
     skip('=');
-    my @objects = &read_list_or_null(\&read_name);
+    my @objects = &read_list_or_null(\&read_typed_name);
     if(my $old_group = $groups{$name}) {
 	error_atline "Redefining group:$name";
     }
@@ -534,7 +537,7 @@ my %servicegroups;
 sub read_servicegroup( $ ) {
    my $name = shift;
     skip('=');
-    my @objects = &read_list_or_null(\&read_name);
+    my @objects = &read_list_or_null(\&read_typed_name);
     if(my $old_group = $servicegroups{$name}) {
         error_atline "Redefining servicegroup:$name";
     }
@@ -631,7 +634,7 @@ sub read_service( $ ) {
     } elsif(&check('proto')) {
 	&read_proto_nr($srv);
     } else {
-	my $name = read_name();
+	my $name = read_string();
 	error_atline "Unknown protocol $name in definition of service:$name";
     }
     &skip(';');
@@ -643,22 +646,17 @@ sub read_service( $ ) {
 }
 
 my @rules;
-sub read_rules() {
-    # read rules as long as another permit or deny keyword follows
-    while(my $action = &check_permit_deny()) {
-	my @src = &read_assign_list('src', \&read_name);
-	my @dst = &read_assign_list('dst', \&read_name);
-	my @srv = &read_assign_list('srv', \&read_name);
-	my $rule = { action => $action,
-		     src => \@src,
-		     dst => \@dst,
-		     srv => \@srv
-		     };
-	push(@rules, $rule);
-    }
+sub read_rule( $ ) {
+    my($action) = @_;
+    my @src = &read_assign_list('src', \&read_typed_name);
+    my @dst = &read_assign_list('dst', \&read_typed_name);
+    my @srv = &read_assign_list('srv', \&read_typed_name);
+    my $rule =
+    { action => $action, src => \@src, dst => \@dst, srv => \@srv };
+    push(@rules, $rule);
 }
 
-# reads input from <>, e.g. all files if given on the command line or STDIN
+# reads input from file
 sub read_data( $ ) {	
     local($file) = @_;
     local $eof = 0;
@@ -669,28 +667,33 @@ sub read_data( $ ) {
     $_ = '';
     while(1) {
 	last if &check_eof();
-	my($type,$name) = split_typed_name(read_name());
-	if($type eq 'router') {
-	    &read_router($name);
-	} elsif ($type eq 'network') {
-	    &read_network($name);
-	} elsif ($type eq 'any') {
-	    &read_any($name);
-	} elsif ($type eq 'every') {
-	    &read_every($name);
-	} elsif ($type eq 'group') {
-	    &read_group($name);
-	} elsif ($type eq 'service') {
-	    &read_service($name);
-	} elsif ($type eq 'servicegroup') {
-	    &read_servicegroup($name);
-	} elsif ($type eq 'rules') {
-	    # name of rules:name should be empty or will be ignored
-	    &read_rules();
-	} elsif ($type eq 'include') {
-	    &read_data($name);
+	# check for definitions
+	if(my $string = check_typed_name()) {
+	    my($type,$name) = split_typed_name($string);
+	    if($type eq 'router') {
+		&read_router($name);
+	    } elsif ($type eq 'network') {
+		&read_network($name);
+	    } elsif ($type eq 'any') {
+		&read_any($name);
+	    } elsif ($type eq 'every') {
+		&read_every($name);
+	    } elsif ($type eq 'group') {
+		&read_group($name);
+	    } elsif ($type eq 'service') {
+		&read_service($name);
+	    } elsif ($type eq 'servicegroup') {
+		&read_servicegroup($name);
+	    } else {
+		syntax_err "Unknown global definition";
+	    }
+	} elsif(my $action = check('permit') or check('deny')) {
+	    &read_rule($action);
+	} elsif (check('include')) {
+	    my $file = read_string();
+	    &read_data($file);
 	} else {
-	    syntax_err "Unknown global definition";
+	    syntax_err "Syntax error";
 	}
     }
 }
