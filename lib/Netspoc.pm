@@ -1611,7 +1611,7 @@ sub expand_rules() {
 	    if($rule->{src} eq 'user') {
 		$rule->{src} = $user;
 	    } else {
-		$p_rule->{src} = expand_group $p_rule->{src}, "src of rule in policy->{name}";
+		$p_rule->{src} = expand_group $p_rule->{src}, "src of rule in $policy->{name}";
 	    }
 	    if($rule->{dst} eq 'user') {
 		$rule->{dst} = $user;
