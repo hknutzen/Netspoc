@@ -2567,21 +2567,20 @@ sub get_path( $ ) {
 # the string "2." to the reference: "2.$dst"
 sub loop_part_mark ( $$$$$$ ) {
     my($direction, $from, $to, $from_in, $to_out, $dst) = @_;
-    my $mark = $direction eq 'left' ? $dst : "2.$dst";
+    my $attr = $direction eq 'left' ? 'path' : 'path2';
     while(1) {
 	# mark may be set already, if this function was called for
 	# a sub-path before
 	if($from eq $to) {
-#	    info "$from_in->{name} -> ".($to_out?$to_out->{name}:'');
-	    $from_in->{path}->{$mark} = $to_out;
+#	    info "$from_in->{name} -$attr-> ".($to_out?$to_out->{name}:'');
+	    $from_in->{$attr}->{$dst} = $to_out;
 	    return;
 	}
 	my $from_out = $from->{$direction};
-#	info "$from_in->{name} -> ".($from_out?$from_out->{name}:'');
-	$from_in->{path}->{$mark} = $from_out;
+#	info "$from_in->{name} -$attr-> ".($from_out?$from_out->{name}:'');
+	$from_in->{$attr}->{$dst} = $from_out;
 	$from_in = $from_out;
 	$from = $from_out->{$direction};
-	$mark = $dst;
     }
 }
 
@@ -2661,8 +2660,42 @@ sub path_info ( $$ ) {
     info "$in_name, $out_name";
 }
 
-# Used as a marker to detect loops when traversing topology graph
-my $walk_mark = 1;
+sub part_walk2( $$$$$$ ) {
+    my($in, $out, $to, $call_it, $rule, $fun) = @_;
+#    info "part_walk2: in = ".($in?$in->{name}:'').", out = $out->{name}";
+    while(1) {
+	if(not defined $out) {
+	    &$fun($rule, $in, $out) if $call_it;
+#	    info "exit: part_walk2: reached dst";
+	    return;
+	}
+	&$fun($rule, $in, $out) if $call_it;
+	$in = $out;
+	$out = $in->{path2}->{$to};
+	$call_it = ! $call_it;
+    }
+}
+
+sub part_walk( $$$$$$ ) {
+    my($in, $out, $to, $call_it, $rule, $fun) = @_;
+#    info "part_walk: in = ".($in?$in->{name}:'').", out = $out->{name}";
+    while(1) {
+	# End of path has been reached
+	# either destination or end of sub-path
+	if(not defined $out) {
+	    &$fun($rule, $in, $out) if $call_it;
+#	    info "exit: part_walk: reached dst";
+	    return;
+	}
+	&$fun($rule, $in, $out) if $call_it;
+	$in = $out;
+	$out = $in->{path}->{$to};
+	$call_it = ! $call_it;
+	if(my $out2 = $in->{path2}->{$to}) {
+	    part_walk2($in, $out2, $to, $call_it, $rule, $fun);
+	}
+    }
+}
 
 # Apply a function to a rule at every router or network
 # on the path from src to dst of the rule
@@ -2686,40 +2719,13 @@ sub path_walk( $& ) {
 	$rule->{deleted} = $rule;
 	return;
     }
-    &path_mark($from, $to) unless $from->{path}->{$to};
-    $walk_mark++;
+    path_mark($from, $to) unless $from->{path}->{$to};
     my $in = undef;
     my $out = $from->{path}->{$to};
     my $call_it = is_router $from;
-    &part_walk($in, $out, $to, $call_it, $rule, $fun);
-    if(my $out2 = $from->{path}->{"2.$to"}) {
-	&part_walk($in, $out2, $to, $call_it, $rule, $fun);
-    }
-}
-
-sub part_walk( $$$$$$$ ) {
-    my($in, $out, $to, $call_it, $rule, $fun) = @_;
-#    info "part_walk: in = ".($in?$in->{name}:'').", out = $out->{name}";
-    while(1) {
-	# Destination network has been reached
-	if(not defined $out) {
-	    &$fun($rule, $in, $out) if $call_it;
-#	    info "exit: part_walk: reached dst";
-	    return;
-	} elsif(defined $out->{walk_mark} and
-		$out->{walk_mark} == $walk_mark) {
-	    &$fun($rule, $in, $out) if $call_it;
-#           info "exit: part_walk: was already there";
-	    return;
-	}
-	&$fun($rule, $in, $out) if $call_it;
-	$out->{walk_mark} = $walk_mark;
-	$in = $out;
-	$out = $in->{path}->{$to};
-	$call_it = ! $call_it;
-	if(my $out2 = $in->{path}->{"2.$to"}) {
-	    &part_walk($in, $out2, $to, $call_it, $rule, $fun);
-	}
+    part_walk($in, $out, $to, $call_it, $rule, $fun);
+    if(my $out2 = $from->{path2}->{$to}) {
+	part_walk2($in, $out2, $to, $call_it, $rule, $fun);
     }
 }
 
@@ -2736,7 +2742,7 @@ sub find_active_routes_and_statics () {
 	# 'any' objectes are expanded to all its contained networks
 	# hosts and interfaces expand to its containing network
 	for my $to (get_networks $dst) {
-	    &path_mark($from, $to) unless $from->{path}->{$to};
+	    path_mark($from, $to) unless $from->{path}->{$to};
 	}
     }
     # Convert path info to info needed for generating PIX "static" commands
