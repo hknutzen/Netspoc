@@ -11,6 +11,7 @@
   <LI><A HREF="#overview">Overview</A></LI>
   <UL>
    <LI><A HREF="#rules">Rules</A></LI>
+   <LI><A HREF="#policies">Policies</A></LI>
    <LI><A HREF="#network_objects">Network Objects</A></LI>
    <LI><A HREF="#service_definitions">Service Definitions</A></LI>
    <LI><A HREF="#groups">Groups</A></LI>
@@ -30,6 +31,7 @@
    <LI><A HREF="#services">Services</A></LI>
    <LI><A HREF="#groups_of_services">Groups of services</A></LI>
    <LI><A HREF="#rules_def">Rules</A></LI>
+   <LI><A HREF="#policies_def">Policies</A></LI>
   </UL>
   
   <li><A HREF="#secondary">Secondary packet filters</A></li>
@@ -52,6 +54,14 @@
 <H3><A NAME="rules">Rules</A></H3>
 <P>Network objects and service definitions are used in rules to describe network
 traffic which can or must not pass packet from source to destination.</P>
+
+<h3><a name="policies"></a>Policies</h3>
+<ul>
+<li>Policies are used to group together related rules.
+<li>All rules of a single policy must refer to the same network object(s).
+<li>Policies have a name which may be used for documentation or
+reporting purposes.
+</ul>
 
 <H3><A NAME="network_objects">Network Objects</A></H3>
 <UL>
@@ -307,7 +317,10 @@ for interface definitions: the router name followed by a network name.
 <H3><A NAME="groups_def">Groups of network objects</A></H3>
 <H4>Syntax</H4>
 <PRE>
- group:&lt;name&gt; = &lt;network object&gt; *;</PRE>
+ group:&lt;name&gt; = &lt;network object list&gt;;</PRE>
+<p>with</p>
+<PRE>
+ &lt;network object list&gt; :== &lt;network object&gt;, ...</PRE>
 <UL>
 <LI>A group may be empty
 <LI>A group may be defined by means of other groups
@@ -372,11 +385,13 @@ handling for tcp, udp and ip for state full and stateless packet filters,
 we might change this in the future, to let ip packets pass in both
 directions, with only one rule.
 </ul>
+
 <H3><A NAME="groups_of_services">Groups of services</A></H3>
 <H4>Syntax</H4>
-<PRE>  servicegroup:&lt;name&gt; = &lt;service&gt; *;</PRE>
+<PRE>  servicegroup:&lt;name&gt; = &lt;service list&gt;;</PRE>
 <P>with</P>
 <PRE>
+  &lt;service list&gt; ::= &lt;service&gt;, ...
   &lt;service&gt; ::= {{ service:&lt;name&gt; | servicegroup:&lt;name&gt; }}</PRE>
 <UL>
 <LI>A servicegroup may be empty.
@@ -388,13 +403,38 @@ directions, with only one rule.
 <PRE>
   &lt;rule&gt; ::=
   {{ permit | deny }}
-        src = &lt;obj1&gt;, ..,&lt;obj_n&gt;;
-        dst = &lt;obj1&gt;, ..,&lt;obj_n&gt;;
-        srv = &lt;srv1&gt;, ..,&lt;srv_n&gt;;</PRE>
+        src = &lt;network object list&gt;;
+        dst = &lt;network objec listt&gt;;
+        srv = &lt;service list&gt;;</PRE>
 <UL>
 <LI>Order of rules doesn't matter.
 <LI>Deny rules override all permit rules.
 </UL>
+
+<H3><A NAME="policies_def">Policies</A></H3>
+<H4>Syntax</H4>
+<PRE>
+  &lt;policy&gt; ::= {
+        user = &lt;network object list&gt;;
+	&lt;policy_rule&gt; * 
+  }</PRE>
+<P>with</P>
+<PRE>
+  &lt;policy_rule&gt; ::=
+  {{ permit | deny }}
+        src = &lt;policy_object&gt;;
+        dst = &lt;policy_object&gt;;
+        srv = &lt;service list&gt;;
+  &lt;policy_object&gt; ::= {{ user | &lt;network object list&gt; }}</PRE>
+<UL>
+<LI>Policies give a descriptive name to a group of related rules. 
+<li>Policies are useful for documentation and reporting purposes. 
+<li>The rules of a policy must be related in that they all use the same source
+or destination object(s). This is enforced by the keyword "user" which
+must be used either as src or dst or both parts of a rule.
+</UL>
+
+
 <h2><a name="secondary">Secondary packet filters</a></h2>
 In a given topology we may have chains of managed packet filters
 on the path from src to dst. Each packet filter is a "full" packet
