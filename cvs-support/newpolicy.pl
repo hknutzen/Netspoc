@@ -39,13 +39,13 @@ use strict;
 use warnings;
 use Fcntl qw(:DEFAULT :flock);
 
-my $project = '/home/hk/project';
-my $compiler = '/home/hk/develop/netspoc';
+# policy database
+my $policydb = "/home/madnes/netspoc";
+# netspoc compiler
+my $compiler = 'netspoc';
 my $log = 'compile.log';
 # name of cvs module
 my $module = 'netspoc';
-# policy database
-my $policydb = "$project/netspoc";
 # link to current policy
 my $link = "$policydb/current";
 # LOCK for preventing concurrent updates
