@@ -1784,6 +1784,7 @@ our @expanded_any_rules;
 my %rule_tree;
 
 sub expand_rules() {
+    info "Expanding rules";
     for my $name (sort keys %policies) {
 	my $policy = $policies{$name};
 	my $user = $policy->{user};
@@ -1854,8 +1855,7 @@ sub expand_rules() {
 	my $nd = 0+@expanded_deny_rules;
 	my $n  = 0+@expanded_rules;
 	my $na = 0+@expanded_any_rules;
-	info "Expanded rules:\n",
-	" deny $nd, permit: $n, permit any: $na";
+	info " deny $nd, permit: $n, permit any: $na";
     }
 }
 
