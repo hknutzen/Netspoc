@@ -1889,9 +1889,12 @@ sub get_auto_interfaces( $$ ) {
     is_router $from or internal_err "expected a router as first argument";
     $to = &get_path($to);
     &path_mark($from, $to) unless $from->{path}->{$to};
-    if($from->{loop_path}->{$to}) {
-	return @{$from->{loop_path}->{$to}};
+    if(my $exit = $from->{loop_exit}->{$to}) {
+	my $intf_ref = 
+#	info "$from->{name}.[auto] = ".join ',', map {$_->{name}} @{$from->{loop_enter}->{$exit}};
+	return @{$from->{loop_enter}->{$exit}};
     } else {
+#	info "$from->{name}.[auto] = $from->{path}->{$to}->{name}";
 	return ($from->{path}->{$to});
     }
 }
@@ -2412,7 +2415,7 @@ sub setany() {
 ####################################################################
 sub setpath_obj( $$$ ) {
     my($obj, $to_net1, $distance) = @_;
-# info("-- $distance: $obj->{name} --> $to_net1->{name}");
+#    info("-- $distance: $obj->{name} --> $to_net1->{name}");
     # $obj: a managed router or a network
     # $to_net1: interface of $obj; go this direction to reach net1
     # $distance: distance to net1
@@ -2421,26 +2424,26 @@ sub setpath_obj( $$$ ) {
     # (2) that obj, which is starting point of the loop (as seen from net1)
     if($obj->{active_path}) {
 	# Found a loop
-	$to_net1->{in_loop} = 1;
 	return $obj;
     }
     # mark current path for loop detection
     $obj->{active_path} = 1;
     $obj->{distance} = $distance;
 
-    my $in_loop = 0;
+    my $loop_exit;
     my $loop_distance;
+    my $get_next = is_router $obj ? 'network' : 'router';
     for my $interface (@{$obj->{interfaces}}) {
 	# ignore interface where we reached this obj
 	next if $interface eq $to_net1;
 	# ignore interface which is the other entry of a loop 
 	# which is already marked
 	next if $interface->{in_loop};
-	my $next = is_network $obj ? $interface->{router} : $interface->{network};
+	my $next = $interface->{$get_next};
 	if(my $loop = &setpath_obj($next, $interface, $distance+1)) {
 	    # path is part of a loop
-	    if(!$in_loop or $loop->{distance} < $loop_distance) {
-		$in_loop = $loop;
+	    if(!$loop_exit or $loop->{distance} < $loop_distance) {
+		$loop_exit = $loop;
 		$loop_distance = $loop->{distance};
 	    }
 	    $interface->{in_loop} = 1;
@@ -2450,15 +2453,15 @@ sub setpath_obj( $$$ ) {
 	}
     }
     delete $obj->{active_path};
-    if($in_loop) {
+    if($loop_exit) {
 	# mark every node of a loop with the loop's starting point
-	$obj->{loop} = $in_loop;
-#	info "Loop($obj->{distance}): $obj->{name}";
-	unless($obj eq $in_loop) {
+	$obj->{loop} = $loop_exit;
+#	info "Loop($obj->{distance}): $obj->{name} -> $loop_exit->{name}";
+	unless($obj eq $loop_exit) {
 	    # We are still inside a loop
 	    # every node of a loop gets the distance of its starting point
-	    $obj->{distance} = $in_loop->{distance};
-	    return $in_loop;
+	    $obj->{distance} = $loop_exit->{distance};
+	    return $loop_exit;
 	}
     }
     $obj->{main} = $to_net1;
@@ -2562,76 +2565,90 @@ sub get_path( $ ) {
     }
 }
 
+# converts hash key of reference back to reference
+my %key2obj;
+
 sub mark_in_loop1( $$$$$ ) {
-    my($obj, $in_intf, $from, $to, $restrict1) = @_;
-    # Found a path to $to
+    my($obj, $in_intf, $from, $to, $collect) = @_;
+    # Check for second occurence of path restriction.
+    for my $restrict (@{$in_intf->{path_restrict}}) {
+	return 0 if $restrict->{active_path};
+    }
+    # Found a path to $to.
     if($obj eq $to) {
-#	info " exit loop at $to->{name}";
+	# Mark interface where we leave the loop.
+	push @{$to->{loop_leave}->{$from}}, $in_intf;
+#	info " leave: $in_intf->{name} -> $to->{name}";
 	return 1;
     }
-    # mark current path for loop detection
+    # Don't walk loops.
+    return 0 if $obj->{active_path};
+    # Mark current path for loop detection.
     $obj->{active_path} = 1;
+    # Mark first occurence of path restriction.
+    for my $restrict (@{$in_intf->{path_restrict}}) {
+	$restrict->{active_path} = 1;
+    }
     my $get_next = is_router $obj ? 'network' : 'router';
     my $success = 0;
+    # Fill hash for restoring reference from hash key.
+    $key2obj{$in_intf} = $in_intf;
     for my $interface (@{$obj->{interfaces}}) {
         next unless $interface->{in_loop};
         next if $interface eq $in_intf;
         my $next = $interface->{$get_next};
-        # don't walk loops
-        next if $next->{active_path};
-        # path restriction
-        # local copy of variable for each interface
-        my $restrict1 = $restrict1;
-        if(my $restrict = $interface->{path_restrict}) {
-            # found two restricting interfaces on path
-            next if $restrict1;
-            # remember first retricting interface;
-            $restrict1 = $restrict;
-        }
-	if(&mark_in_loop1($next, $interface, $from, $to, $restrict1)) {
-            push @{$in_intf->{loop_path}->{$from}->{$to}}, $interface;
-#	    info " $in_intf->{name} -loop-> $interface->{name}";
+	if(&mark_in_loop1($next, $interface, $from, $to, $collect)) {
+	    # Found a valid path from $next to $to
+	    $key2obj{$interface} = $interface;
+	    $collect->{$in_intf}->{$interface} = is_router $obj;
+#	    info " loop: $in_intf->{name} -> $interface->{name}";
             $success = 1;
         }
     }
     delete $obj->{active_path};
+    for my $restrict (@{$in_intf->{path_restrict}}) {
+	delete $restrict->{active_path};
+    }
     return $success;
 }
 
+# Mark paths inside a cyclic subgraph.
+# $from and $to are entry and exit objects of the subgraph.
+# The subgraph is entred at interface $from_in and left at interface $to_out.
+# For each pair of $from / $to, we collect attributes:
+# {loop_enter}: interfaces of $from, where the subgraph is entered,
+# {path_tuples}: tuples of interfaces, which describe all vaild paths,
+# {loop_leave}: interfaces of $to, where the subgraph is left.
 sub loop_path_mark ( $$$$$ ) {
     my($from, $to, $from_in, $to_out, $dst) = @_;
- #   info "loop_path_mark: $from->{name} -> $to->{name}";
+#   info "loop_path_mark: $from->{name} -> $to->{name}";
     # loop has been entered at this object before, but at a different interface
     return if $from->{path}->{$dst};
-    if($from eq $to) {
-	$from_in->{path}->{$dst} = $to_out;
-	return;
-    }
+    $from->{path}->{$dst} = $to_out;
+    # Loop is only passed by.
+    # This test is required although there is a similar test in path_mark.
+    return if $from eq $to;	
     if(is_interface $from_in) {
 	$from_in->{loop_entry}->{$dst} = $from;
     }
-    $from->{path}->{$dst} = $to_out;
     $from->{loop_exit}->{$dst} = $to;
-    if($to_out) {
-	# Mark path from exit node to outgoing interface
-	for my $interface (@{$to->{interfaces}}) {
-	    next unless $interface->{in_loop};
-	    $interface->{path}->{$dst} = $to_out;
-#	    info " $interface->{name} -loop_end-> $to_out->{name}";
-	}	
-    }
-    # Path from $from to $to inside cyclic graph has been marked already
-    return if $from->{loop_path}->{$to};
+    # Path from $from to $to inside cyclic graph has been marked already.
+    return if $from->{path_tuples}->{$to};
+    # Use this anonymous hash for collecting paths as tuples of interfaces.
+    my $collect = {};
+    $from->{path_tuples}->{$to} = $collect;
+    # Mark current path for loop detection.
+    $from->{active_path} = 1;
     my $get_next = is_router $from ? 'network' : 'router';
     for my $interface (@{$from->{interfaces}}) {
         next unless $interface->{in_loop};
         my $next = $interface->{$get_next};
-        my $restrict1 = $interface->{path_restrict};
-        if(mark_in_loop1 $next, $interface, $from, $to, $restrict1) {
-            push @{$from->{loop_path}->{$to}}, $interface;
-#	    info " $from->{name} -loop-> $interface->{name}";
+        if(mark_in_loop1 $next, $interface, $from, $to, $collect) {
+	    push @{$from->{loop_enter}->{$to}}, $interface;
+#	    info " enter: $from->{name} -> $interface->{name}";
         }
     }
+    delete $from->{active_path};
 }
 
 # Mark path from src to dst.
@@ -2650,6 +2667,7 @@ sub path_mark( $$ ) {
     my $to_loop = $to->{loop};
 #    info "path_mark $from->{name} --> $to->{name}";
     while(1) {
+	$from and $to or internal_err "";
 	# paths meet outside a loop or at the edge of a loop
 	if($from eq $to) {
 #	    info " $from_in->{name} -> ".($to_out?$to_out->{name}:'');
@@ -2661,6 +2679,7 @@ sub path_mark( $$ ) {
 	    loop_path_mark($from, $to, $from_in, $to_out, $dst);
 	    return;
 	}
+	$from->{distance} and $to->{distance} or internal_err "";
 	if($from->{distance} >= $to->{distance}) {
 	    # mark has already been set for a sub-path
 	    return if $from_in->{path}->{$dst};
@@ -2671,9 +2690,9 @@ sub path_mark( $$ ) {
 		loop_path_mark($from, $from_loop, $from_in, $from_out, $dst);
 	    } else {
 		$from_out = $from->{main};
-		$from_in->{path}->{$dst} = $from_out;
 	    }
 #	    info " $from_in->{name} -> ".($from_out?$from_out->{name}:'');
+	    $from_in->{path}->{$dst} = $from_out;
 	    $from_in = $from_out;
 	    $from = $from_out->{main};
 	    $from_loop = $from->{loop};
@@ -2684,9 +2703,9 @@ sub path_mark( $$ ) {
 		loop_path_mark($to_loop, $to, $to_in, $to_out, $dst);
 	    } else {
 		$to_in = $to->{main};
-		$to_in->{path}->{$dst} = $to_out;
 	    }
 #	    info " $to_in->{name} -> ".($to_out?$to_out->{name}:'');
+	    $to_in->{path}->{$dst} = $to_out;
 	    $to_out = $to_in;
 	    $to = $to_in->{main};
 	    $to_loop = $to->{loop};
@@ -2694,35 +2713,35 @@ sub path_mark( $$ ) {
     }
 }
 
-# Marker for preventing duplicate traversal of parts of cyclic graphs.
-my $walk_mark = 0;
-
-# Call this while traversing loop
-sub loop_part_walk1( $$$$$$$ ) {
-    my($in, $loop_entry, $loop_exit, $to, $call_it, $rule, $fun) = @_;
-    return if $in->{walk_mark} and $in->{walk_mark} == $walk_mark;
-    $in->{walk_mark} = $walk_mark;
-    if(not $in->{loop_path}->{$loop_entry}->{$loop_exit}) {
-	# reached end of loop
-	my $out = $in->{path}->{$to};
-	&$fun($rule, $in, $out) if $call_it;
-#	info "exit: loop_part_walk1";
-    } else {	
-	for my $out (@{$in->{loop_path}->{$loop_entry}->{$loop_exit}}) {
-	    &$fun($rule, $in, $out) if $call_it;
-	    &loop_part_walk1($out, $loop_entry, $loop_exit, $to,
-			     !$call_it, $rule, $fun);
+# Walk paths inside cyclic graph
+sub loop_part_walk( $$$$$$$ ) {
+    my($in, $out, $loop_entry, $loop_exit, $call_at_router, $rule, $fun) = @_;
+#    info "loop_part_walk: $in->{name}, $loop_exit->{name}";
+    # Process entry of cyclic graph
+    if(is_router($loop_entry) eq $call_at_router) {
+#	info " loop_enter";
+	for my $out_intf (@{$loop_entry->{loop_enter}->{$loop_exit}}) {
+	    &$fun($rule, $in, $out_intf);
 	}
     }
-}    
-
-# Call this at loop entry
-sub loop_part_walk( $$$$$$$ ) {
-    my($in, $loop_entry, $loop_exit, $to, $call_it, $rule, $fun) = @_;
-#    info "loop_part_walk: $in->{name}, $loop_exit->{name}";
-    for my $out (@{$loop_entry->{loop_path}->{$loop_exit}}) {
-	&$fun($rule, $in, $out) if $call_it;
-	loop_part_walk1 $out, $loop_entry, $loop_exit, $to, !$call_it, $rule, $fun;
+    # Process paths inside cyclic graph
+    my $tuples = $loop_entry->{path_tuples}->{$loop_exit};
+#    info " loop_tuples";
+    for my $in_intf_ref (keys %$tuples) {
+	my $in_intf = $key2obj{$in_intf_ref};
+	my $hash = $tuples->{$in_intf_ref};
+	for my $out_intf_ref (keys %$hash) {
+	    my $out_intf = $key2obj{$out_intf_ref};
+	    my $at_router = $hash->{$out_intf_ref};
+	    &$fun($rule, $in_intf, $out_intf) if $at_router eq $call_at_router;
+	}
+    }
+    # Process paths at exit of cyclic graph
+    if(is_router($loop_exit) eq $call_at_router) {
+#	info " loop_leave";
+	for my $in_intf (@{$loop_exit->{loop_leave}->{$loop_entry}}) {
+	    &$fun($rule, $in_intf, $out);
+	}
     }
 }    
 
@@ -2757,48 +2776,46 @@ sub path_walk( $&$ ) {
 	return;
     }
     path_mark($from, $to) unless $from->{path}->{$to};
-    $walk_mark++;
     my $in = undef;
     my $out;
-    my $at_network = $where && $where eq 'Network';
-    my $call_it = (is_router($from) xor $at_network);
+    my $at_router = not($where && $where eq 'Network');
+    my $call_it = (is_network($from) xor $at_router);
     if(my $loop_exit = $from->{loop_exit}->{$to}) {
-	loop_part_walk $in, $from, $loop_exit, $to, $call_it, $rule, $fun;
-	if(my $loop_out = $from->{path}->{$to}) {
-	    # continue behind loop
-	    $in = $loop_out;
-	    $out = $in->{path}->{$to};
-	    $call_it = not (is_router($loop_exit) xor $at_network);
-	} else {
-	    # path terminates inside clyclic graph
+	my $loop_out = $from->{path}->{$to};
+	loop_part_walk $in, $loop_out, $from, $loop_exit,
+	$at_router, $rule, $fun;
+	unless($loop_out) {
+#	    info "exit: part_walk: dst in loop";
 	    return;
 	}
+	# continue behind loop
+	$in = $loop_out;
+	$call_it = not(is_network($loop_exit) xor $at_router);
+	$out = $in->{path}->{$to};
     } else {
 	$out = $from->{path}->{$to};
     }
     while(1) {
-	# End of path has been reached
-	# either destination or end of sub-path
+	&$fun($rule, $in, $out) if $call_it;
+	# End of path has been reached.
 	if(not defined $out) {
-	    &$fun($rule, $in, $out) if $call_it;
 #	    info "exit: part_walk: reached dst";
 	    return;
 	}
-	&$fun($rule, $in, $out) if $call_it;
 	$call_it = ! $call_it;
 	$in = $out;
 	if(my $loop_entry = $in->{loop_entry}->{$to}) {
 	    my $loop_exit = $loop_entry->{loop_exit}->{$to};
 	    my $loop_out = $loop_entry->{path}->{$to};
-	    loop_part_walk $in, $loop_entry, $loop_exit, $to,
-	    $call_it, $rule, $fun;
+	    loop_part_walk $in, $loop_out, $loop_entry, $loop_exit,
+	    $at_router, $rule, $fun;
 	    # path terminates inside clyclic graph
 	    unless($loop_out) {
 #	    info "exit: part_walk: dst in loop";
 		return;
 	    }
 	    $in = $loop_out;
-	    $call_it = not (is_router($loop_exit) xor $at_network);
+	    $call_it = not (is_network($loop_exit) xor $at_router);
 	}
 	$out = $in->{path}->{$to};
     }
@@ -3509,7 +3526,7 @@ sub collect_route( $$$ ) {
 	my $network = $rule->{dst_network};
 	# ignore network, which was generated via get_networks from an interface
 	return if $out_intf->{network} eq $network;
-#       info "Route: $network->{name} via $out_intf->{name}";
+#	info "Route at $in_intf->{name}: $network->{name} via $out_intf->{name}";
 	$in_intf->{routes}->{$out_intf}->{$network} = $network;
 	# Store $out_intf itself, since we need to go back 
 	# from hash key to original object later.
@@ -3606,13 +3623,13 @@ sub print_routes( $ ) {
 	for my $hop (values %{$interface->{hop}}) {
 	    for my $network (values %{$interface->{routes}->{$hop}}) {
 		if(my $interface2 = $net2intf{$network}) {
-		    if($interface2 != $interface) {
+		    if($interface2 ne $interface) {
 			# Network is reached via two different local interfaces.
 			# Check if both have dynamic routing enabled.
 			unless($interface->{routing} and
 			       $interface2->{routing}) {
-			    err_msg "Two static routes for $network->{name} ",
-			    "at $router->{name}";
+			    warn "Two static routes for $network->{name}\n",
+			    " via $interface->{name} and $interface2->{name}";
 			}
 		    }
 		} else {
@@ -3624,7 +3641,7 @@ sub print_routes( $ ) {
 			# Check if both are reached via the same virtual IP.
 			unless($hop->{virtual} and $hop2->{virtual} and
 			       $hop->{virtual} eq $hop2->{virtual}) {
-			    err_msg "Two static routes for $network->{name} ",
+			    warn "Two static routes for $network->{name} ",
 			    "at $interface->{name}";
 			}
 		    } else {
