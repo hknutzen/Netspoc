@@ -454,6 +454,9 @@ sub read_interface( $$ ) {
 	}
 	my $hardware = &check_assign('hardware', \&read_string);
 	$hardware and $interface->{hardware} = $hardware;
+	if(&check_flag('ospf')) {
+	    $interface->{ospf} = 1;
+	}
 	if(&check_flag('disabled')) {
 	    $interface->{disabled} = 1;
 	    push @disabled_interfaces, $interface;
@@ -813,7 +816,7 @@ sub is_servicegroup( $ ) { ref($_[0]) eq 'Servicegroup'; }
 
 sub print_rule( $ ) {
     my($rule) = @_;
-##    if($rule->{orig_any}) { $rule = $rule->{orig_any}; }
+    if($rule->{orig_any}) { $rule = $rule->{orig_any}; }
     my $srv = exists($rule->{orig_srv}) ? 'orig_srv' : 'srv';
     return $rule->{action} .
 	" src=$rule->{src}->{name}; dst=$rule->{dst}->{name}; " .
@@ -828,7 +831,7 @@ sub print_rule( $ ) {
 # Call a function on each range
 sub process_ip_ranges( $$ ) {
     my($sorted, $fun) = @_;
-    # add a dummy host which doesn't match any range, to simplify the code: 
+    # Add a dummy host which doesn't match any range, to simplify the code: 
     # we don't have to process any range after the loop has finished
     push @$sorted, {ip => 0 };
     my $start_range = 0;
@@ -1978,7 +1981,8 @@ sub go_path( $$$$$$$$ ) {
 sub go_loop( $$$$$$$ ) {
     my($rule, $fun, $where, $from_in, $from, $to, $to_out, $path) = @_;
     if($where eq 'Any') {
-	# If $where eq 'Any', take only the shortest path throug loop
+	# processing routes: take only the shortest path throug loop
+	# ToDo: rethink, is this always the right thing to do?
 	my $node = $from;
 	my $left_len = 0;
 	while($node ne $to) {
@@ -1992,8 +1996,10 @@ sub go_loop( $$$$$$$ ) {
 	    $right_len++;
 	}
 	if($left_len == $right_len) {
-##	    warning "Duplicate routing at $from->{name} for $to->{name}"
-##		if is_router $from;
+	    # Generate duplicate routing entry for the current destination.
+	    # This may be ok, if only one interface is active,
+	    # or generation of routing entries may be disabled at all
+	    # for the current router using 'routing_manual'
 	    &go_path(@_, 'left');
 	    &go_path(@_, 'right');
 	}
@@ -3222,12 +3228,19 @@ sub print_acls( $ ) {
     my %hardware;
     # Collect IP addresses of all interfaces
     my @ip;
+    # We need to know, if OSPF messages are allowed for a
+    # hardware interface
+    my %ospf;
     for my $interface (@{$router->{interfaces}}) {
 	# ignore 'unnumbered' and 'short' interfaces
 	next if $interface->{ip} eq 'unnumbered' or $interface->{ip} eq 'short';
 	# Remember interface name for comments
 	$hardware{$interface->{hardware}} = $interface->{name};
 	push @ip, @{$interface->{ip}};
+	# is OSPF used?
+	if($interface->{ospf}) {
+	    $ospf{$interface->{hardware}} = 1;
+	}
     }
     for my $hardware (sort keys %hardware) {
 	my $name = "${hardware}_in";
@@ -3243,6 +3256,13 @@ sub print_acls( $ ) {
 	    print "ip access-list extended $name\n";
 	    for my $line (@$if_code) {
 		print " $line";
+	    }
+	    if($ospf{$hardware}) {
+		if($comment_acls) {
+		    print " ! OSPF\n";
+		}
+		print " permit ip any host 224.0.0.5\n";
+		print " permit ip any host 224.0.0.6\n";
 	    }
 	    if(@$code) {
 		if($comment_acls and @ip) {
