@@ -2813,13 +2813,28 @@ sub path_mark( $$ ) {
 }
 
 # Walk paths inside cyclic graph
-sub loop_path_walk( $$$$$$$ ) {
-    my($in, $out, $loop_entry, $loop_exit, $call_at_router, $rule, $fun) = @_;
+sub loop_path_walk( $$$$$$$$ ) {
+    my($in, $out, $loop_entry, $loop_exit, $dst_intf,
+       $call_at_router, $rule, $fun) = @_;
 #    my $info = "loop_path_walk: ";
 #    $info .= "$in->{name}->" if $in;
 #    $info .= "$loop_entry->{name}->$loop_exit->{name}";
 #    $info .= "->$out->{name}" if $out;
 #    info $info;
+    # Handle special case: If
+    # - $dst is interface,
+    # - $loop_entry is a network and
+    # - $dst is located inside this network,
+    # then don't walk all paths of current loop,
+    # but walk directly to $dst.
+    if($dst_intf and $loop_entry eq $dst_intf->{network}) {
+	if($call_at_router) {
+	    &$fun($rule, $dst_intf, undef);
+	} else {
+	    &$fun($rule, $in, $dst_intf);
+	}
+	return;
+    }	
     # Process entry of cyclic graph
     if(is_router($loop_entry) eq $call_at_router) {
 #	info " loop_enter";
@@ -2857,7 +2872,7 @@ sub path_info ( $$ ) {
     
 # Apply a function to a rule at every router or network
 # on the path from src to dst of the rule.
-# $where says, where the function gets called: at 'Router' or 'Network'.
+# $where tells, where the function gets called: at 'Router' or 'Network'.
 sub path_walk( $&$ ) {
     my ($rule, $fun, $where) = @_;
     internal_err "undefined rule" unless $rule;
@@ -2873,28 +2888,31 @@ sub path_walk( $&$ ) {
 #	path_info $in, $out;
 #	&$fun2($rule, $in, $out);
 #    };
-    unless($from and  $to) {
-	info print_rule $rule;
+    unless($from and $to) {
+	internal_err print_rule $rule;
     }
     if($from eq $to) {
-	# don't process rule again later
+	# Don't process rule again later
 	$rule->{deleted} = $rule;
 	return;
     }
     path_mark($from, $to) unless $from->{path}->{$to};
+    # Special handling needed if $dst is an interface inside a loop.
+    my $dst_intf; $dst_intf = $dst if is_interface $dst and $to->{loop};
     my $in = undef;
     my $out;
     my $at_router = not($where && $where eq 'Network');
     my $call_it = (is_network($from) xor $at_router);
-    if(my $loop_exit = $from->{loop_exit}->{$to}) {
+    # Path starts inside a cyclic graph.
+    if($from->{loop_exit} and my $loop_exit = $from->{loop_exit}->{$to}) {
 	my $loop_out = $from->{path}->{$to};
-	loop_path_walk $in, $loop_out, $from, $loop_exit,
+	loop_path_walk $in, $loop_out, $from, $loop_exit, $dst_intf,
 	$at_router, $rule, $fun;
 	unless($loop_out) {
 #	    info "exit: path_walk: dst in loop";
 	    return;
 	}
-	# continue behind loop
+	# Continue behind loop.
 	$in = $loop_out;
 	$call_it = not(is_network($loop_exit) xor $at_router);
 	$out = $in->{path}->{$to};
@@ -2910,12 +2928,12 @@ sub path_walk( $&$ ) {
 	}
 	$call_it = ! $call_it;
 	$in = $out;
-	if(my $loop_entry = $in->{loop_entry}->{$to}) {
+	if($in->{loop_entry} and my $loop_entry = $in->{loop_entry}->{$to}) {
 	    my $loop_exit = $loop_entry->{loop_exit}->{$to};
 	    my $loop_out = $in->{path}->{$to};
-	    loop_path_walk $in, $loop_out, $loop_entry, $loop_exit,
+	    loop_path_walk $in, $loop_out, $loop_entry, $loop_exit, $dst_intf,
 	    $at_router, $rule, $fun;
-	    # path terminates inside cyclic graph
+	    # Path terminates inside cyclic graph.
 	    unless($loop_out) {
 #	    info "exit: path_walk: dst in loop";
 		return;
@@ -2934,8 +2952,12 @@ sub path_first_interfaces( $$ ) {
     if($from eq $to) {
 	return $dst;
     }
-    &path_mark($from, $to) unless $from->{path}->{$to};
-    if(my $exit = $from->{loop_exit}->{$to}) {
+    path_mark($from, $to) unless $from->{path}->{$to};
+    if(is_interface $dst and $dst->{network} eq $from) {
+#	info "$from->{name}.[auto] = $dst->{name}";
+	return $dst;
+    } 
+    elsif(my $exit = $from->{loop_exit}->{$to}) {
 #	info "$from->{name}.[auto] = ".join ',', map {$_->{name}} @{$from->{loop_enter}->{$exit}};
 	return @{$from->{loop_enter}->{$exit}};
     } else {
