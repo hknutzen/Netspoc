@@ -443,7 +443,6 @@ sub set_pix_interface_level( $ ) {
 my %valid_model = (IOS => 1, PIX => 1);
 my %routers;
 my %interfaces;
-my $default_route;
 sub read_router( $ ) {
     my $name = shift;
     skip('=');
@@ -461,11 +460,6 @@ sub read_router( $ ) {
 		     managed => $managed,
 		     );
     $router->{model} = $model if $managed;
-    if(&check_flag('default_route')) {
-	$default_route and
-	    error_atline "Redefining default_route from $default_route->{name}";
-	$default_route = $router;
-    }
     while(1) {
 	last if &check('}');
 	my($type,$iname) = split_typed_name(read_typed_name());
@@ -1444,8 +1438,6 @@ sub mark_disabled() {
     for my $any (values %anys, values %everys) {
 	$any->{disabled} = 1 if $any->{link}->{disabled};
     }
-    $default_route->{disabled} and 
-	err_msg "Disabling default route $default_route->{name}";
 }
 
 ####################################################################
