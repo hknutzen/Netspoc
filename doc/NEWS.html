@@ -1,3 +1,35 @@
+<h3>netspoc-2.0</h3>
+
+New features:
+<ol>
+<li>Virtual IP addresses for supporting VRRP / HSRP are introduced.
+<li>Code for linux iptables and ip route is generated.
+<li>Network address translation (NAT) is supported.
+<li>Groups of all routers and all managed routers are implicitly defined.
+<li>New syntax for denoting an interface at "the right side" of a router. 
+<li>General cyclic graphs are supported. Restriction to simple loops
+has gone.
+<li>"Path restrictions" are introduced to restrict the use to some of multiple
+paths inside cyclic subgraphs. 
+</ol>
+
+Other:
+<ol>
+<li>Improved optimization.
+<li>Use of short interfaces (without an IP address) is much less
+restricted. 
+<li>When expanding a router to its interfaces, unnumbered interfaces are
+left out now.
+<li>Rules outside of policies aren't supported any longer.
+</ol>
+
+Bug fixes:
+<ol>
+<li>Code for OSPF was incomplete.
+<li>Removed minor bug with 'any' objects and routers with more than 2
+interfaces. 
+</ol>
+
 <h3>netspoc-1.7</h3>
 
 Fixed bugs:
