@@ -36,9 +36,9 @@ my($in_path, $out_dir) = &read_args();
 &order_services();
 &link_topology();
 &mark_disabled();
+&distribute_nat_info();
 &find_subnets();
 &setany();
-&distribute_nat_info();
 &setpath();
 &expand_rules(1);	# 1: expand hosts to subnets
 # Abort now, if there are syntax errors and simple semantic errors.
