@@ -770,7 +770,8 @@ sub subst_name_with_ref_for_any_and_every() {
 	} elsif($type eq 'cloud') {
 	    $obj->{link} = $clouds{$name};
 	} else {
-	    die "Referencing illegal object type '$type' in any or every object";
+	    die "Referencing illegal object type '$type' in " .
+		printable($obj);
 	}
     }
 }
@@ -781,7 +782,8 @@ sub link_interface_with_net( $ ) {
     my $net_name = $interface->{link};
     my $net = $networks{$net_name};
     unless($net) {
-	die "no network found for " . printable($interface);
+	die "Referencing unknown network:$net_name from " .
+	    printable($interface);
     }
     $interface->{link} = $net;
 
@@ -895,7 +897,7 @@ sub expand_rule_srv( $$$$ ) {
 
 # put an expanded rule into a data structure which eases building an ordered
 # list of expanded rules with the following properties:
-# - rules with an any object as src or estination ar put at the end
+# - rules with an any object as src or estination are put at the end
 #   (we call dem any-rules)
 # - any-rules are ordered themselve:
 #  - host any
@@ -903,7 +905,7 @@ sub expand_rule_srv( $$$$ ) {
 #  - net any
 #  - any net
 #  - any any
-# - all any-rules ar ordered in their srv component, 
+# - all any-rules are ordered in their srv component, 
 #  i.e. for every i,j with i < j either rule(i).srv < rule(j).srv
 #  or rule(i).srv and rule(j).srv are not comparable
 # Note:
@@ -934,6 +936,7 @@ sub order_dst ( $$ ) {
 sub order_src ( $$ ) {
     my($rule, $hash) = @_;
     my $id = typeof($rule->{src});
+    # \% : force autovivification
     order_dst($rule, \%{$hash->{$id}});
 }    
 
@@ -954,6 +957,7 @@ sub copy_rule( $ ) {
 sub split_rule( $$$ ) {
     my($r1, $new_y, $new_x) = @_;
     my $r2 = copy_rule($r1);
+    # ToDo: Check if a range becomes a single port
     $r1->{srv}->{vals}->[0] =~ s/^\d+/$new_x/;
     $r2->{srv}->{vals}->[0] =~ s/\d+$/$new_y/;
     return $r1, $r2;
@@ -984,21 +988,22 @@ sub order_srv ( $$ ) {
 	} else { $id = 'icmp';	}
 	order_src($rule, \%{$hash->{$id}});
     } elsif($type eq 'tcp' or $type eq 'udp') {
-	my($x, $y);
 	if($v1 eq 'any') {
-	    order_src($rule, \%{$hash->{"$type-any"}});
+	    order_src($rule, \%{$hash->{"${type}-any"}});
 	    return
 	} 
-	($x, $y) = split(/-/, $v1);
+	my($x, $y) = split(/-/, $v1);
 	if(defined $y) {
 	    # a port range
 	    # tcp-range => [ {x=>x,y=>y,any|net|host=>..}, ... ] 
 	    # Compare with all previously defined ranges to find out
 	    # if it overlapps with one.
-	    # One range overlapps with at most two other ranges
+	    # Port ranges are sorted by size, i.e. highport - lowport
+	    # Observation: One range overlapps with at most two other ranges
 	    my $size = $x-$y;
 	    my $inspos = 0;
-	    my $aref = \@{$hash->{"$type-range"}};
+	    my $aref = \@{$hash->{"${type}-range"}};
+	    # iterate over all previously inserted port ranges
 	    for(my $i = 0; $i < @$aref; $i++) {
 		my $elt = $aref->[$i];
 		my $ex = $elt->{x};
@@ -1006,6 +1011,7 @@ sub order_srv ( $$ ) {
 		# overlapp check
 		if($x < $ex and $ex <= $y and $y < $ey) {
 		    my($r1, $r2) = split_rule($rule,$ex-1,$ex);
+		    # start over with newly generated rules
 		    &order_srv($r1, $hash);
 		    &order_srv($r2, $hash);
 		    return;
@@ -1017,16 +1023,15 @@ sub order_srv ( $$ ) {
 		}
 		# no overlapp
 		# remember location where this rule has to be inserted later:
-		# directly behind the last range with smaller size
+		# directly behind the last range with smaller or same size
 		if($ey-$ex <= $size) { $inspos = $i+1; }
 	    }
 	    my $newelt = {x => $x, y => $y};
-	    # Port ranges are sorted by size, i.e. highport - lowport
 	    splice(@$aref, $inspos, 0, $newelt);
 	    order_src($rule, $newelt);
 	} else {
 	    # a single port
-	    order_src($rule, \%{$hash->{"$type-port"}});
+	    order_src($rule, \%{$hash->{"${type}-port"}});
 	}
     } elsif($type eq 'proto') {
 	order_src($rule, \%{$hash->{proto}});
@@ -1037,13 +1042,15 @@ sub order_srv ( $$ ) {
     }
 }
 
+# add all rules with matching srcid and dstid to expanded_any_rules
 sub add_rule_2hash( $$$ ) {
-    my($hash,$id1,$id2) = @_;
-    my $aref = $hash->{$id1}->{$id2};
+    my($hash,$srcid,$dstid) = @_;
+    my $aref = $hash->{$srcid}->{$dstid};
     if(defined $aref) {
 	for my $rule (@$aref) {
 	    # add an incremented index to each any rule
-	    # for simplifiing a later check if one rule influences another one
+	    # for simplifying a later check if one rule
+	    # influences another one
 	    $rule->{i} = $anyrule_index++;
 	    push(@expanded_any_rules, $rule);
 	}
@@ -1063,17 +1070,25 @@ sub addrule_ordered_src_dst( $ ) {
 sub addrule_ordered_srv( $ ) {
     my($hash) = @_;
     for my $type ('tcp', 'udp') {
-	addrule_ordered_src_dst($hash->{"$type-port"});
-	for my $hash2 (@{$hash->{"$type-range"}}) {
+	addrule_ordered_src_dst($hash->{"${type}-port"});
+	for my $hash2 (@{$hash->{"${type}-range"}}) {
 	    addrule_ordered_src_dst($hash2);
 	}
-	addrule_ordered_src_dst($hash->{"$type-any"});
+	addrule_ordered_src_dst($hash->{"${type}-any"});
     }
     addrule_ordered_src_dst($hash->{icmp2});
     addrule_ordered_src_dst($hash->{icmp1});
     addrule_ordered_src_dst($hash->{icmp});
     addrule_ordered_src_dst($hash->{proto});
     addrule_ordered_src_dst($hash->{ip});
+}
+
+# check, if two services have a non empty intersection
+sub match_srv( $$ ) {
+    my($s1, $s2) = @_;
+
+    # ToDo: implement this
+    return 1;
 }
 
 # ToDo: add 'is_interface' case
@@ -1088,6 +1103,7 @@ sub check_deny_influence() {
 	    my $net = $drule->{dst};
 	    next unless is_host($src) and is_net($net);
 	    my $border = get_border($src);
+	    # ToDo: Check ALL 'any' objects
 	    my $any = $border->{any};
 	    next unless $any;
 	    for my $rule (@{$any->{rules}}) {
@@ -1115,7 +1131,9 @@ sub setpath_router( $$$$ ) {
     my($router, $to_border, $border, $distance) = @_;
     # ToDo: operate correctly with loops
     if($router->{border}) {
-	die "There is a loop at router:$router->{name}. Loops are not supported in this version";
+	die "There is a loop at " .
+	    printable($router) .
+		". Loops are not supported in this version";
     }
     $router->{border} = $border;
     $router->{to_border} = $to_border;
@@ -1137,11 +1155,15 @@ sub setpath_network( $$$$ ) {
     my ($network, $to_border, $border, $distance) = @_;
     # ToDo: operate correctly with loops
     if($network->{border}) {
-	die "There is a loop at net:$network->{name}. Loops are not supported in this version";
+	die "There is a loop at " .
+	    printable($network) .
+	      ". Loops are not supported in this version";
     }
     $network->{border} = $border;
-    # add network to the corresponding border; this info is used later
-    # for optimization and generation of weak_deny rules for 'any' rules
+    # add network to the corresponding border;
+    # this info is used later for optimization,
+    # generation of weak_deny rules for 'any' rules and
+    # expansion of 'every' objects
     push(@{$border->{networks}}, $network);
     for my $interface (@{$network->{interfaces}}) {
 	# ignore interface where we reached this network
@@ -1154,7 +1176,8 @@ sub setpath_network( $$$$ ) {
 # link each 'any object' with its correspnding border and vice versa
 sub setpath_anys() {
     for my $any (values %anys) {
-	my $border = $any->{link}->{border};
+	my $border = $any->{link}->{border} or
+	    die "Found unconnected node: ". printable($any->{link});
 	$any->{border} = $border;
 	if(my $old_any = $border->{any}) {
 	    die "More than one any object definied in a perimeter: any:$old_any->{name} and any:$any->{name}";
@@ -1182,7 +1205,7 @@ sub get_border( $ ) {
     } elsif(&is_net($obj) || &is_any($obj)) {
 	$border = $obj->{border};
     } else {
-	die "internal in get_border: unsupported object " . &printable($obj);
+	die "internal in get_border: unexpected object " . &printable($obj);
     }
     $border or die "Found unconnected node: ". printable($obj);
     return $border;
