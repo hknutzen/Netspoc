@@ -58,4 +58,3 @@ $error_counter = $max_errors; # following errors should always abort
 &repair_deny_influence();
 &acl_generation();
 &print_code($out_dir);
-&warn_pix_icmp();
