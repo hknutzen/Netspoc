@@ -2863,6 +2863,9 @@ sub setpath() {
 	    }
 #	    debug "adjusting $obj->{name} loop to $loop->{name}";
 	    $obj->{loop} = $loop;
+	    # Only starting point of a loop has attribute {main}.
+	    # This property is used in path_mark.
+	    delete $obj->{main};
 	}
 #	debug "adjusting $obj->{name} distance to $loop->{distance}";
 	$obj->{distance} = $loop->{distance};
@@ -3040,13 +3043,10 @@ sub loop_path_mark1( $$$$$ ) {
 # {loop_leave}: interfaces of $to, where the subgraph is left.
 sub loop_path_mark ( $$$$$ ) {
     my($from, $to, $from_in, $to_out, $dst) = @_;
-   debug "loop_path_mark: $from->{name} -> $to->{name}";
+#   debug "loop_path_mark: $from->{name} -> $to->{name}";
     # Loop has been entered at this interface before, or path starts at this object.
     return if $from_in->{path}->{$dst};
     $from_in->{path}->{$dst} = $to_out;
-    # Loop is only passed by.
-    # This test is required although there is a similar test in path_mark.
-    return if $from eq $to;
     return if is_interface $from and $from->{router} eq $to;
     return if is_interface $to and $from eq $to->{router};
     $from_in->{loop_entry}->{$dst} = $from;
@@ -3115,31 +3115,28 @@ sub path_mark( $$ ) {
     my $to_out = undef;
     my $from_loop = $from->{loop};
     my $to_loop = $to->{loop};
-    debug "path_mark $from->{name} --> $to->{name}";
+#    debug "path_mark $from->{name} --> $to->{name}";
     while(1) {
-	$from and $to or internal_err;
 	# Paths meet outside a loop or at the edge of a loop.
 	if($from eq $to) {
 #	    debug " $from_in->{name} -> ".($to_out?$to_out->{name}:'');
 	    $from_in->{path}->{$dst} = $to_out;
 	    return;
 	}
-	# Paths meet inside a loop	.
+	# Paths meet inside a loop.
 	if($from_loop and $to_loop and $from_loop eq $to_loop) {
 	    loop_path_mark($from, $to, $from_in, $to_out, $dst);
 	    return;
 	}
-	$from->{distance} and $to->{distance} or internal_err;
 	if($from->{distance} >= $to->{distance}) {
 	    # Mark has already been set for a sub-path.
 	    return if $from_in->{path}->{$dst};
-	    my $from_out;
-	    if($from_loop) {
+	    my $from_out = $from->{main};
+	    unless($from_out) {
 		# $from_loop contains object which is loop's exit
 		$from_out = $from_loop->{main};
-		loop_path_mark($from, $from_loop, $from_in, $from_out, $dst);
-	    } else {
-		$from_out = $from->{main};
+		loop_path_mark($from, $from_loop, $from_in, $from_out, $dst)
+		    unless $from_in->{path}->{$dst};
 	    }
 #	    debug " $from_in->{name} -> ".($from_out?$from_out->{name}:'');
 	    $from_in->{path}->{$dst} = $from_out;
@@ -3147,12 +3144,11 @@ sub path_mark( $$ ) {
 	    $from = $from_out->{main};
 	    $from_loop = $from->{loop};
 	} else {
-	    my $to_in;
-	    if($to_loop) {
+	    my $to_in = $to->{main};
+	    unless($to_in) {
 		$to_in = $to_loop->{main};
-		loop_path_mark($to_loop, $to, $to_in, $to_out, $dst);
-	    } else {
-		$to_in = $to->{main};
+		loop_path_mark($to_loop, $to, $to_in, $to_out, $dst)
+		    unless $from_in->{path}->{$dst};
 	    }
 #	    debug " $to_in->{name} -> ".($to_out?$to_out->{name}:'');
 	    $to_in->{path}->{$dst} = $to_out;
