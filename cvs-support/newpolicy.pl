@@ -41,8 +41,6 @@ use Fcntl qw(:DEFAULT :flock);
 
 # policy database
 my $policydb = "/home/madnes/netspoc";
-# users working directory
-my $working = "$home/netspoc";
 # netspoc compiler
 my $compiler = 'netspoc';
 my $log = 'compile.log';
@@ -53,6 +51,8 @@ my $link = "$policydb/current";
 # LOCK for preventing concurrent updates
 my $lock = "$policydb/LOCK";
 my $home = $ENV{HOME};
+# users working directory
+my $working = "$home/netspoc";
 # policy file, contains current policy number
 my $pfile = "$working/POLICY";
 $ENV{CVSROOT} or die "Abort: No CVSROOT specified!\n";
@@ -70,7 +70,7 @@ flock(LOCK, LOCK_EX | LOCK_NB) or die "Abort: Another $0 is running\n";
 
 # update, read, increment, commit policy number from working directory
 # update
-system("cvs update $pfile") == 0 or die "Aborted\n";
+system('cvs', 'update',  $pfile) == 0 or die "Aborted\n";
 # read
 open PFILE, $pfile or die "Can't open $pfile: $!\n";
 my $line = <PFILE>;
@@ -79,7 +79,7 @@ close PFILE;
 my(undef, $policy) = split ' ', $line;
 my($count) = ($policy =~ /^p(\d+)$/) or
     die "Error: found invalid policy name '$policy' in $pfile";
-system("cvs edit $pfile") == 0 or die "Aborted\n";
+system('cvs', 'edit', $pfile) == 0 or die "Aborted\n";
 # increment policy counter
 $count++;
 $policy = "p$count";
@@ -95,19 +95,19 @@ open PFILE, ">", $pfile or die "Can't open $pfile: $!\n";
 print PFILE "# $policy # Current policy, don't edit manually!\n";
 close PFILE;
 # commit
-system("cvs commit -m '$msg' $pfile") == 0 or die "Aborted\n";
+system('cvs', 'commit', '-m', $msg, $pfile) == 0 or die "Aborted\n";
 
 print STDERR "Saving policy $count\n";
 
 # tagging policy
-system("cvs -Q tag -c $policy") == 0 or die "Aborted\n";
+system('cvs', '-Q', 'tag', '-c', $policy) == 0 or die "Aborted\n";
 
 # check out new policy into policy database
 chdir $policydb or die "Error: can't cd to $policydb: $!\n";
 my $pdir = "$policydb/$policy";
 mkdir $pdir or die "Error: can't create $pdir: $!\n";
 chdir $policy or die "Error: can't cd to $pdir: $!\n";
-system("cvs -Q checkout -d src -r $policy $module") == 0 or
+system('cvs', '-Q', 'checkout', '-d', 'src', '-r', $policy, $module) == 0 or
     die "Error: can't checkout $policy to $pdir/src\n";
 
 # compile new policy
