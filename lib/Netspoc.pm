@@ -1775,9 +1775,9 @@ sub add_rule( $ ) {
     my $old_rule = $rule_tree{$src}->[0]->{$dst}->[0]->{$action}->{$srv};
     # found identical rule: delete first one
     $old_rule->{deleted} = 1 if $old_rule;
+    $rule_tree{$src}->[0]->{$dst}->[0]->{$action}->{$srv} = $rule;
     $rule_tree{$src}->[1] = $src;
     $rule_tree{$src}->[0]->{$dst}->[1] = $dst;
-    $rule_tree{$src}->[0]->{$dst}->[0]->{$action}->{$srv} = $rule;
 }
 
 # a rule may be deleted if we find a similar rule with greater or equal srv
