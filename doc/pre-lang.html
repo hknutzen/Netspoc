@@ -31,6 +31,8 @@
    <LI><A HREF="#groups_of_services">Groups of services</A></LI>
    <LI><A HREF="#rules_def">Rules</A></LI>
   </UL>
+  
+  <li><A HREF="#secondary">Secondary packet filters</A></li>
   <LI><A HREF="#disabling">Disabling part of the topology</A></LI>
   <LI><A HREF="#handling_any">Handling of 'any' objects</A></LI>
   <LI><A HREF="#pix_levels">PIX security levels</A></LI>
@@ -174,7 +176,7 @@ each subnetwork.
   &lt;router definition&gt; ::=
   router:&lt;name&gt; = {
      {{
-        managed; 
+        managed [ = {{ full | secondary }} ] ;
         model = &lt;name&gt;;
         static_manual;
 	&lt;complete interface definition&gt; *
@@ -184,6 +186,11 @@ each subnetwork.
      }}
   }</PRE>
 <UL>
+<li>A router may be managed or unmanaged.
+<li>Managed routers may be of type 'full' or of type 'secondary'. A
+type 'full' is assumed, if no value is given. See <A
+HREF="#secondary">secondary packet filters</A> below for a detailed
+description. 
 <LI>Managed routers need to be precisely described since this
  information is needed for code generation later.
 <LI>The router model is used to generate correct code for different
@@ -212,6 +219,7 @@ a group of its interfaces.
  interface:&lt;name&gt; = {
          {{ ip = &lt;ip-adr&gt;, ...; | unnumbered; }}
          hardware = &lt;interface_name&gt;;
+	 [ routing = OSPF; ]
          [ disabled ; ]
  }
 
@@ -219,6 +227,7 @@ a group of its interfaces.
  interface:&lt;name&gt; = {
          {{ ip = &lt;ip-adr&gt;, ...; | unnumbered; }}
          [ hardware = &lt;interface_name&gt;; ]
+	 [ routing = OSPF; ]
          [ disabled ; ]
  }
 
@@ -234,6 +243,11 @@ a group of its interfaces.
 <LI>The 'hardware' attribute indicates, which hardware interface the router
   belongs to.
 <LI>Multiple interfaces may belong to the same hardware interface.
+<li>A routing protocol may be activated for an interface. In this
+ case, generation of static routing entries is disabled for this
+ interface and the access lists for this interface are automatically
+ augmented to permit incoming packets of the routing
+ protocol. Currently only OSPF is supported.
 <LI>An interface may be marked as disabled. See <A HREF="#disabling">Disabling part of the topology</A> below.
 <LI>For interface definitions of unmanaged routers almost all attributes
   may be left out.
@@ -380,6 +394,22 @@ directions, with only one rule.
 <LI>Order of rules doesn't matter.
 <LI>Deny rules override all permit rules.
 </UL>
+<h2><a name="secondary">Secondary packet filters</a></h2>
+By default, NetSPoC generates a full set of packet filter rules for
+each managed device. This may be redundant if IP packets from src to
+dst pass multiple managed devices.<br>
+Secondary packet filters only get a restricted set of packet filter
+rules: For each pair (src, dst) passing a secondary packet filter,
+it is checked if there is at least one full packet filter on the path
+from src to dst. In this case, only a reduced filter rule is inserted
+at the secondary packet filter, which checks that the packet comes
+from the network of src and goes to the network of dst. Otherwise, a
+full packet filter rule is generated.
+
+A packet filter should be marked as secondary if it has limited memory
+and / or processing ressources and most of the packet get fully
+filtered already by some other managed device.
+
 <H2><A NAME="disabling">Disabling part of the topology</A></H2>
 <P>An interface may be explicitly marked as disabled.  
 This implicitly marks all network objects as disabled, that are
@@ -406,12 +436,19 @@ interface belongs to.
 <H2><A NAME="pix_levels">PIX security levels</A></H2>
 <P>PIX firewalls have a security level associated with each interface.
 We don't want to expand our syntax to state them explicitly,
-but instead we try to derive the level from the interface name.
+but instead we try to derive the level from the interface name:
+<ul>
+<li>Interface 'inside' gets level 100
+<li>Interface 'outside' gets level 0
+<li>For each other interface there must be a number at the end of its
+name which is taken as the relative security level.<br> I.e 'DMZ-slot:4'
+&lt; 'DMZ-slot:5'
+</ul>
 It is not necessary the find the exact level; what we need to know
 is the relation of the security levels to each other.</P>
 
 <H2><A NAME="redundant_rules">Automatic deletion of redundant rules</A></H2>
-<P><em>Fully implemented, but documentation is to be done ...</em></P>
+<P><em>Fully implemented, but documentation has to be done ...</em></P>
 
 <H2><A NAME="generated_code">Generated Code</A></H2>
 <UL>
@@ -423,10 +460,10 @@ is the relation of the security levels to each other.</P>
 <UL>
 <LI>PIX (only versions supporting access-lists, i.e. >= 5.x)
 <LI>Cisco IOS with firewall feature set
-<li>Cisco IOS without firewall feature set (untested)
+<li>Cisco IOS without firewall feature set
 </UL>
 
-<P> Copyright (c) 2002, Heinz Knutzen 
+<P> Copyright (c) 2003, Heinz Knutzen 
 <A HREF="mailto:heinzknutzen@users.berlios.de">heinzknutzen@users.berlios.de</A></P>
 
 </BODY>
