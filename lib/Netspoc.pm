@@ -1797,7 +1797,7 @@ sub optimize_srv_rules( $$ ) {
 		    # ToDo: Refine this rule
 		    unless(is_interface $rule->{dst} and
 			   $rule->{dst}->{router}->{managed} and
-			   not is_interface $rule->{dst}) {
+			   not is_interface $rule2->{dst}) {
 			$rule->{deleted} = 1;
 		    }
 		    last;
