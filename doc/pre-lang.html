@@ -31,6 +31,7 @@
    <LI><A HREF="#groups_of_services">Groups of services</A></LI>
    <LI><A HREF="#policies_def">Policies</A></LI>
    <li><a href="#restrict_def">Path restrictions</a>
+   <li><a href="#global_NAT">Global NAT definition</a>
   </UL>
   
   <li><a href="#NAT">Network address translation (NAT)</a>
@@ -495,6 +496,18 @@ dst. Use one 'every' object instead.
   between some source / destination pair. Use a policy with deny rules instead.
 </ul>
 
+<h3><a name="global_NAT">Global NAT definition</a></h3>
+<H4>Syntax</H4>
+<PRE> nat:&lt;name&gt; = { 
+ ip = &lt;ip-adr&gt;; 
+ mask = &lt;ip-adr&gt;; 
+ dynamic;
+}</PRE>
+
+A global NAT definition may be used as a shortcut for applying multiple
+identical dynamic NAT definitions to all networks in some area. See <a
+href="#NAT">network address translation</a> for details.
+
 <h2><a name="NAT">Network address translation (NAT)</a></h2>
 
 Network address translation occurs at routers.
@@ -506,16 +519,16 @@ to another address.
 networks.
 
 <p>For static NAT, the translated address uses the same netmask as the
-original IP. The translation is automatically applied to all host and
+original network. The translation is automatically applied to all host and
 interface definitions of the translated network. A separate NAT
 definition for hosts or interfaces is not possible in this case.
 
-<p>For dynamic NAT, the translated address may use a different
-netmask; typically a smaller network is used for translation. IP
-addresses are translated dynamically, hence hosts and
-interfaces of this network are not visible from outside. But a dynamic
-translation of a network may be augmented with static translations for
-single hosts or interfaces of this network.
+<p>For dynamic NAT, the translated address may use a different netmask than
+the original network. Typically a smaller network is used for translation. IP
+addresses are translated dynamically, hence hosts and interfaces of this
+network are not visible from outside. But a dynamic translation of a network
+may be augmented with static translations for single hosts or interfaces of
+this network.
 
 <p>Syntax for NAT is divided into two parts:
 <ol>
@@ -528,7 +541,7 @@ interface.
 <h3>Example</h3>
 
 Network "extern" has bad IP addresses, which are not usable at network
-"intern". At router "r_ext" occurs static NAT. The NAT definition and
+"intern". At router "r_ext" static NAT occurs. The NAT definition and
 NAT binding tells NetSPoC, that and where NAT occurs.<br>
 Hosts "extern_www" and "extern_mail" are visible with addresses
 10.7.128.10 and 10.7.128.25 from "intern".
@@ -559,12 +572,16 @@ that interface where the NAT binding with the same name occurs. We are
 defining <em>behind an interface</em> as that part of the topology
 which is seen when looking from the router to that interface.
 
-<p>Multiple NAT definitions may be given for a single network. These are
-bound to different interfaces to make different NAT definitions
-effective at different parts of the topology.
+<p>Multiple NAT definitions may be given for a single network. These are bound
+to different interfaces to make different NAT definitions effective at
+different parts of the topology.
 
-<p>A network topology is divided into different areas by routers where
-NAT occurs.
+<p>For dynamic NAT, multiple networks may use identical NAT definitions. This
+is used to masquerade multiple networks to a single address space.
+
+<p>A global NAT definition may be used as a shortcut for applying multiple
+identical dynamic NAT definitions to all networks located <em>before</em> that
+interface where the NAT binding with this name occurs.
 
 <p>NetSPoC needs to know about NAT for different reasons:
 <ol>
