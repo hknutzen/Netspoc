@@ -82,7 +82,6 @@ sub syntax_err( $ ) {
 }
 
 ####################################################################
-# Phase 1
 # Reading topology, Services, Groups, Rules
 ####################################################################
 
@@ -772,7 +771,6 @@ sub print_rule( $ ) {
 }
 
 ##############################################################################
-# Phase 2
 # Build linked data structures
 ##############################################################################
 
@@ -1072,7 +1070,6 @@ sub link_topology() {
 }
 
 ##############################################################################
-# Phase 3
 # Expand rules
 #
 # Simplify rules to expanded rules where each rule has exactly one 
@@ -1428,7 +1425,6 @@ sub mark_disabled() {
 }
 
 ####################################################################
-# Phase 4
 # Set paths for efficient topology traversal
 ####################################################################
 
@@ -1613,7 +1609,6 @@ sub path_walk($&) {
 }
 
 ##############################################################################
-# Phase 5
 # Process all rules with an 'any' object as source or destination.
 # Automatically insert deny rules at intermediate paths.
 ##############################################################################
@@ -1734,7 +1729,6 @@ sub gen_deny_rules() {
 }
 
 ##############################################################################
-# Phase 6
 # Optimize expanded rules by deleting identical rules and 
 # rules which are overlapped by a more general rule
 ##############################################################################
@@ -1984,7 +1978,6 @@ sub optimization() {
 }
 
 ####################################################################
-# Phase 7
 # Set routes
 # Add a component 'route' to each router.
 # It holds an array of arrays:[ [ $interface, network, network, .. ], ...
@@ -2057,7 +2050,6 @@ sub setroute() {
 }
 
 ##############################################################################
-# Phase 8
 # Code Generation
 ##############################################################################
 
