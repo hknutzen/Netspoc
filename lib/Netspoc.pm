@@ -2706,15 +2706,13 @@ sub mark_in_loop1( $$$$$ ) {
 sub loop_path_mark ( $$$$$ ) {
     my($from, $to, $from_in, $to_out, $dst) = @_;
 #   info "loop_path_mark: $from->{name} -> $to->{name}";
-    # loop has been entered at this object before, but at a different interface
-    return if $from->{path}->{$dst};
-    $from->{path}->{$dst} = $to_out;
+    # loop has been entered at this interface before, or path starts at this object
+    return if $from_in->{path}->{$dst};
+    $from_in->{path}->{$dst} = $to_out;
     # Loop is only passed by.
     # This test is required although there is a similar test in path_mark.
     return if $from eq $to;	
-    if(is_interface $from_in) {
-	$from_in->{loop_entry}->{$dst} = $from;
-    }
+    $from_in->{loop_entry}->{$dst} = $from;
     $from->{loop_exit}->{$dst} = $to;
     # Path from $from to $to inside cyclic graph has been marked already.
     return if $from->{path_tuples}->{$to};
@@ -2800,7 +2798,11 @@ sub path_mark( $$ ) {
 # Walk paths inside cyclic graph
 sub loop_part_walk( $$$$$$$ ) {
     my($in, $out, $loop_entry, $loop_exit, $call_at_router, $rule, $fun) = @_;
-#    info "loop_part_walk: $in->{name}, $loop_exit->{name}";
+#    my $info = "loop_part_walk: ";
+#    $info .= "$in->{name}->" if $in;
+#    $info .= "$loop_entry->{name}->$loop_exit->{name}";
+#    $info .= "->$out->{name}" if $out;
+#    info $info;
     # Process entry of cyclic graph
     if(is_router($loop_entry) eq $call_at_router) {
 #	info " loop_enter";
@@ -2890,7 +2892,7 @@ sub path_walk( $&$ ) {
 	$in = $out;
 	if(my $loop_entry = $in->{loop_entry}->{$to}) {
 	    my $loop_exit = $loop_entry->{loop_exit}->{$to};
-	    my $loop_out = $loop_entry->{path}->{$to};
+	    my $loop_out = $in->{path}->{$to};
 	    loop_part_walk $in, $loop_out, $loop_entry, $loop_exit,
 	    $at_router, $rule, $fun;
 	    # path terminates inside clyclic graph
