@@ -2148,6 +2148,31 @@ sub convert_any_rules() {
 }
 
 ##############################################################################
+# Mark and optimize rules at secondary filters
+##############################################################################
+
+
+sub mark_secondary_rule( $$$ ) {
+    my ($rule, $src_intf, $dst_intf) = @_;
+    my $router = ($src_intf || $dst_intf)->{router};
+    if($router->{managed} eq 'full' and not $router->{loop}) {
+	$rule->{has_full_filter} = 1;
+    } elsif($router->{managed} eq 'secondary') {
+	$rule->{has_secondary_filter} = 1;
+    }
+}
+
+sub mark_secondary_rules() {
+    info "Marking rules of secondary filters";
+    # mark only normal rules, not 'deny', not 'any'
+    for my $rule (@expanded_rules) {
+	&path_walk($rule, \&mark_secondary_rule);
+	$rule->{has_secondary_filter} = 
+	    $rule->{has_secondary_filter} && $rule->{has_full_filter};
+    }
+}
+
+##############################################################################
 # Optimize expanded rules by deleting identical rules and 
 # rules which are overlapped by a more general rule
 ##############################################################################
@@ -2288,6 +2313,25 @@ sub optimize_auto_any_rules( $$ ) {
 sub optimize_srv_rules( $$ ) {
     my($cmp_hash, $chg_hash) = @_;
 
+    # optimize secondary rules
+    my $secondary_rule;
+    for my $cmp_rule (values %$cmp_hash) {
+	if($cmp_rule->{has_secondary_filter}) {
+	    $secondary_rule = $cmp_rule;
+	    last;
+	}
+    }    
+    if($secondary_rule) {
+	for my $chg_rule (values %$chg_hash) {
+	    if($chg_rule->{has_secondary_filter}) {
+		unless($chg_rule eq $secondary_rule) {
+		    $chg_rule->{secondary_deleted} = $secondary_rule;
+		}
+	    }
+	}
+    }
+	    
+    # optimize full rules
     for my $chg_rule (values %$chg_hash) {
 	my $srv = $chg_rule->{srv};
 	while($srv) {
@@ -2510,55 +2554,6 @@ sub print_routes( $ ) {
 	    }
 	}
     }
-}
-
-##############################################################################
-# Mark and optimize rules at secondary filters
-##############################################################################
-
-my $only_ip_rule_tree;
-my $dummy_srv = {name => 'service:dummy'};
-
-# Add rule to $only_ip_rule_tree 
-sub add_only_ip_rule( $ ) {
-    my ($rule) = @_;
-    $rule->{action} eq 'permit' or
-	internal_err "unexpected action $rule->{action}";
-    my $src = $rule->{src};
-    my $dst = $rule->{dst};
-    my $old_rule =
-	$only_ip_rule_tree->{$src}->[0]->{$dst}->[0]->{$dummy_srv};
-    if($old_rule) {
-	$rule->{deleted} = $old_rule;
-	return;
-    } 
-    $only_ip_rule_tree->{$src}->[0]->{$dst}->[0]->{$dummy_srv} = $rule;
-    $only_ip_rule_tree->{$src}->[1] = $src;
-    $only_ip_rule_tree->{$src}->[0]->{$dst}->[1] = $dst;
-}
-
-sub mark_secondary_rules( $$$ ) {
-    my ($rule, $src_intf, $dst_intf) = @_;
-    my $router = ($src_intf || $dst_intf)->{router};
-    if($router->{managed} eq 'full' and not $router->{loop}) {
-	$rule->{has_full_filter} = 1;
-    } elsif($router->{managed} eq 'secondary') {
-	$rule->{has_secondary_filter} = 1;
-    }
-}
-
-sub optimize_secondary_rules() {
-    info "Marking rules of secondary filters";
-    # apply this optimization only to normal rules, not 'deny', not 'any'
-    for my $rule (@expanded_rules) {
-	next if $rule->{deleted} and not $rule->{managed_if};
-	&path_walk($rule, \&mark_secondary_rules);
-	if($rule->{has_secondary_filter} and $rule->{has_full_filter}) {
-	    &add_only_ip_rule($rule);
-	}
-    }
-    info "Optimizing rules of secondary filters";
-    &optimize_src_rules($only_ip_rule_tree, $only_ip_rule_tree);
 }
 
 ##############################################################################
@@ -2816,36 +2811,37 @@ sub collect_acls( $$$ ) {
     # src_intf is undefined if src is an interface of the current router
     # analogous for dst_intf 
     my $router = ($src_intf || $dst_intf)->{router};
-    # Rules from / to managed interfaces should be processed
-    # at the corresponding router even if they are marked as deleted.
-    if($rule->{deleted}) {
-	# we are on an intermediate router
-	# if both $src_intf and $dst_intf are defined
-	return if defined $src_intf and defined $dst_intf;
-	if(not defined $src_intf) {
-	    # src is an interface of the current router
-	    # and it was deleted because we have a similar rule
-	    # for an interface of the current router
-	    if($src eq $rule->{deleted}->{src}) {
-		# The rule in {deleted} may be ineffective
-		# if it is an interface -> any rule with attached auto-deny rule(s)
-		# ToDo: Check if one of deny_dst_networks matches $src
-		return unless is_any $rule->{deleted}->{dst} and
-		    $rule->{deleted}->{deny_dst_networks};
-	    }
-	}
-	if(not defined $dst_intf) {
-	    if($dst eq $rule->{deleted}->{dst}) {
-		# ToDo: see above
-		return unless is_any $rule->{deleted}->{src} and $rule->{deleted}->{deny_src_networks};
-	    }
-	}
-    }
-    my $model = $router->{model};
     # this is a secondary packet filter:
     # we need to filter only IP-Addresses
     my $secondary =
 	$router->{managed} eq 'secondary' && $rule->{has_full_filter};
+    # Rules from / to managed interfaces must be processed
+    # at the corresponding router even if they are marked as deleted.
+    if($rule->{deleted} || $secondary && $rule->{secondary_deleted}) {
+	# we are on an intermediate router
+	# if both $src_intf and $dst_intf are defined
+	return if defined $src_intf and defined $dst_intf;
+#	if(not defined $src_intf) {
+#	    # src is an interface of the current router
+#	    # and it was deleted because we have a similar rule
+#	    # for an interface of the current router
+#	    if($src eq $rule->{deleted}->{src}) {
+#		# The rule in {deleted} may be ineffective
+#		# if it is an interface -> any rule with attached auto-deny rule(s)
+#		# ToDo: Check if one of deny_dst_networks matches $src
+#		return unless is_any $rule->{deleted}->{dst} and
+#		    $rule->{deleted}->{deny_dst_networks};
+#	    }
+#	}
+#	if(not defined $dst_intf) {
+#	    if($dst eq $rule->{deleted}->{dst}) {
+#		# ToDo: see above
+#		return unless is_any $rule->{deleted}->{src} and
+#		    $rule->{deleted}->{deny_src_networks};
+#	    }
+#	}
+    }
+    my $model = $router->{model};
     &collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
     my $inv_mask = $model =~ /^IOS/;
     my @src_code = &adr_code($src, $inv_mask);
@@ -3186,10 +3182,10 @@ info "$program, version $version";
 die "Aborted with $error_counter error(s)\n" if $error_counter;
 $error_counter = $max_errors; # following errors should always abort
 &convert_any_rules();
+&mark_secondary_rules();
 &optimize();
 &repair_deny_influence();
 &setroute();
-&optimize_secondary_rules();
 &acl_generation();
 &check_output_dir($out_dir);
 &print_code($out_dir);
