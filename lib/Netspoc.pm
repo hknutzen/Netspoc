@@ -1922,7 +1922,7 @@ sub collect_pix_static( $$$ ) {
 	my $m4 = $mask >> 24;
 	if($m4 != 255) {
 	    die "can't generate static command for $net->{name}, because netmask ".
-		print_ip($mask) ." is too broad (max 255.0.0.0)";
+		print_ip($mask) ." is too broad (currently max 255.0.0.0)";
 	}
 	my $ip = $net->{ip};
 	my $v4 = $ip >> 24;
@@ -1977,17 +1977,29 @@ sub collect_acls( $$$ ) {
 	    }
 	}
     } elsif(defined $dst_intf) {
-	# src_intf is undefined; src is an interface of this router
+	# src_intf is undefined: src is an interface of this router
 	# For IOS and PIX, only packets from dst back to
-	# this router are filterd
+	# this router are filtered
+	# ToDo: For PIX firewalls it is unnecessary to allow ipsec packets,
+	# because these are allowed implicitly
 	if($comment_acls) {
 	    push(@{$dst_intf->{code}}, "! ". print_rule($rule)."\n");
 	}
 	for my $src_code (@src_code) {
 	    for my $dst_code (@dst_code) {
-		my $established = $srv->{type} eq 'tcp'?'established':'';
+		my($port_code1, $port_code2);
+		if($srv->{type} eq 'tcp') {
+		    $port_code1 = $port_code;
+		    $port_code2 = 'established';
+		} elsif($srv->{type} eq 'udp') {
+		     $port_code1 = $port_code;
+		     $port_code2 = '';
+		 } else {
+		     $port_code1 = '';
+		     $port_code2 = $port_code;
+		 }
 		push(@{$dst_intf->{code}},
-		     "$action $proto_code $dst_code $port_code $src_code $established\n");
+		     "$action $proto_code $dst_code $port_code1 $src_code $port_code2\n");
 	    }
 	}
     } else {
