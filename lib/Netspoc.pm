@@ -1180,7 +1180,10 @@ sub path_walk($&) {
        and $src_router eq $dst_router or
        # no pep between src and dst
        defined $src_intf and defined $dst_intf and $src_intf eq $dst_intf) {
-	print STDERR "Unenforceable rule\n ", print_rule($rule), "\n";
+	# no message if src eq dst; this happens for group to group rules
+	unless($src eq $dst) {
+	    print STDERR "Unenforceable rule\n ", print_rule($rule), "\n";
+	}
 	# don't process rule again later
 	$rule->{deleted} = 1;
 	return;
