@@ -2960,6 +2960,7 @@ sub convert_any_src_rule( $$$ ) {
 }
 
 # permit src any5
+#
 #      N2-\  N6-N3-\   /-N4-any4
 # src-R1-any2-R2-any3-R3-any5
 #      \-N1-any1
@@ -3001,12 +3002,8 @@ sub convert_any_dst_rule( $$$ ) {
     # the value of {active} is changed from 0 to 1. This indicates
     # that no code needs to be generated for subsequent related rules
     # at the same router.
-    # This optimization is only applicable for stateful routers.
-    my $link;
-    unless($router->{model}->{stateless}) {
-	$router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv}->{active} = 0;
-	$link = $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv};
-    }
+    $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv}->{active} = 0;
+    my $link = $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv};
     # Find networks at all interfaces except the in_intf.
     # For the case that src is interface of current router,
     # take only the out_intf
@@ -3027,7 +3024,7 @@ sub convert_any_dst_rule( $$$ ) {
 	}
 	# any_dst_group-optimization may lead to false results when applied
 	# inside a loop
-	my $link = $intf->{any}->{loop} ? undef : $link;
+	my $link = $intf->{router}->{loop} ? undef : $link;
 
 	my $any_rule = {src => $src,
 			dst => $any,
