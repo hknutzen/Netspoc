@@ -2045,7 +2045,6 @@ sub setpath_obj( $$$ ) {
 	    $interface->{main} = $obj;
 	}
     }
-    $obj->{active_path} = 0;
     if($in_loop) {
 	# mark every node of a loop with the loops starting point
 	$obj->{loop} = $in_loop;
