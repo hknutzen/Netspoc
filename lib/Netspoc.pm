@@ -2385,49 +2385,59 @@ sub set_natdomain( $$$ ) {
     }
     $network->{nat_domain} = $domain;
     push(@{$domain->{networks}}, $network);
+    my $nat_map = $domain->{nat_map};
     for my $interface (@{$network->{interfaces}}) {
 	# Ignore interface where we reached this network.
 	next if $interface eq $in_interface;
 	my $router = $interface->{router};
 	my $managed = $router->{managed};
-	my $bind_nat = grep {$_->{bind_nat}} @{$router->{interfaces}};
-	push @{$domain->{managed_interfaces}}, $interface if $managed;
-	# Stop, at this router begins a new nat domain.
-	if($bind_nat) {
-	    push @{$domain->{interfaces}}, $interface;
-	    $interface->{nat_domain} = $domain;
-	    next;
-	}
+	my $nat_tag = $interface->{bind_nat};
 	for my $out_interface (@{$router->{interfaces}}) {
-	    # Ignore interface where we reached this router.
-	    next if $out_interface eq $interface;
-	    push @{$domain->{managed_interfaces}}, $out_interface if $managed;
-	    set_natdomain $out_interface->{network}, $domain, $out_interface;
+	    no warnings "uninitialized";
+	    if($out_interface->{bind_nat} eq $nat_tag) {
+		# $nat_map will be collected at nat domains, but is needed at
+		# logical and hardware interfaces of managed routers.
+		if($managed) {
+#		    debug "$domain->{name}: $out_interface->{name}";
+		    $out_interface->{nat_map} =
+			$out_interface->{hardware}->{nat_map} = $nat_map;
+		}
+		$out_interface->{nat_domain} = $domain;
+		# Don't process interface where we reached this router.
+		next if $out_interface eq $interface;
+		# Current nat domain continues behind this interface.
+		set_natdomain $out_interface->{network}, $domain,
+		$out_interface;
+	    } else {
+		# New nat domain behind this interface.
+		# Remember outgoing nat_tag; needed in distribute_nat1 below.
+		push @{$domain->{connect}->{$nat_tag}}, $out_interface;
+	    }
+		
 	}
 
     }
 }
 
-sub distribute_nat1( $$$$ );
-sub distribute_nat1( $$$$ ) {
-    my($domain, $in_interface, $nat, $depth) = @_;
-#    debug "nat:$nat depth $depth at $domain->{name} from $in_interface->{name}";
+sub distribute_nat1( $$$ );
+sub distribute_nat1( $$$ ) {
+    my($domain, $nat, $depth) = @_;
+    debug "nat:$nat depth $depth at $domain->{name}";
     if($domain->{active_path}) {
-#	debug "nat:$nat loop";
+	debug "nat:$nat loop";
 	# Found a loop
 	return;
     }
+    return if $domain->{nat_info}->[$depth]->{$nat};
     if(my $nat_info = $domain->{nat_info}) {
 	my $max_depth = @$nat_info;
 	for(my $i = 0; $i < $max_depth; $i++) {
 	    if($nat_info->[$i]->{$nat}) {
-#		debug "nat:$nat: other binding";
+		debug "nat:$nat: other binding";
 		# Found an alternate border of current NAT domain
-		if($i != $depth) {
-		    # There is another NAT binding on the path which
-		    # might overlap some translations of current NAT
-		    err_msg "Inconsistent multiple occurrences of nat:$nat";
-		}
+		# There is another NAT binding on the path which
+		# might overlap some translations of current NAT
+		err_msg "Inconsistent multiple occurrences of nat:$nat";
 		return;
 	    }
 	}
@@ -2436,25 +2446,21 @@ sub distribute_nat1( $$$$ ) {
     $domain->{nat_info}->[$depth]->{$nat} = $nat;
     # Loop detection
     $domain->{active_path} = 1;
-    for my $interface (@{$domain->{interfaces}}) {
-	# Ignore interface where we reached this network.
-	next if $interface eq $in_interface;
+    my $connect = $domain->{connect};
+    for my $nat_tag (keys %$connect) {
 	# Found another border of current nat domain.
-	next if $interface->{bind_nat} and $interface->{bind_nat} eq $nat;
-	my $router = $interface->{router};
-	for my $out_interface (@{$router->{interfaces}}) {
-	    # Ignore interface where we reached this router.
-	    next if $out_interface eq $interface;
+	next if $nat_tag and $nat_tag eq $nat;
+	for my $interface (@{$connect->{$nat_tag}}) {
 	    my $depth = $depth;
-	    if($out_interface->{bind_nat}) { 
+	    if($interface->{bind_nat}) { 
 		$depth++;
-		if($out_interface->{bind_nat} eq $nat) {
+		if($interface->{bind_nat} eq $nat) {
 		    err_msg "Found NAT loop for nat:$nat at $interface->{name}";
 		    next;
 		}
 	    }
-	    distribute_nat1
-		$out_interface->{nat_domain}, $out_interface, $nat, $depth;
+	    debug "$interface->{name}";
+	    distribute_nat1 $interface->{nat_domain}, $nat, $depth;
 	}
     }
     delete $domain->{active_path};
@@ -2475,7 +2481,11 @@ sub distribute_nat_info() {
 	}
 	next if $network->{nat_domain};
 	(my $name = $network->{name}) =~ s/^network:/nat_domain:/;
-	my $domain = new('nat_domain', name => $name, networks => []);
+#	debug "$name";
+	my $domain = new('nat_domain',
+			 name => $name,
+			 networks => [],
+			 nat_map => {});
 	push @all_natdomains, $domain;
 	set_natdomain $network, $domain, 0;
     }
@@ -2484,8 +2494,7 @@ sub distribute_nat_info() {
 	for my $interface (@{$router->{interfaces}}) {
 	    my $nat_tag = $interface->{bind_nat} or next;
 	    if($nat_definitions{$nat_tag}) {
-		distribute_nat1
-		    $interface->{nat_domain}, $interface, $nat_tag, 0;
+		distribute_nat1 $interface->{nat_domain}, $nat_tag, 0;
 		$nat_definitions{$nat_tag} = 'used';
 	    } else {
 		warning "Ignoring undefined nat:$nat_tag",
@@ -2496,35 +2505,26 @@ sub distribute_nat_info() {
     # Summarize nat info to nat mapping.
     for my $domain (@all_natdomains) {
 	# Network to address mapping (only for networks with NAT).
-	my %nat_map;
+	my $nat_map = $domain->{nat_map};
 	my $nat_info = $domain->{nat_info};
+	debug "$domain->{name}";
 	next unless $nat_info;
-#	debug "$domain->{name}";
 	# Reuse memory.
 	delete $domain->{nat_info};
 	for my $href (@$nat_info) {
 	    for my $nat_tag (values %$href) {
 		for my $network (@{$nat_tag2networks{$nat_tag}}) {
-		    next if $nat_map{$network};
-		    $nat_map{$network} = $network->{nat}->{$nat_tag};
-#		    debug " Map: $network->{name} -> ",
-#		    print_ip $addr_map{$network}->{ip};
+		    next if $nat_map->{$network};
+		    $nat_map->{$network} = $network->{nat}->{$nat_tag};
+		    debug " Map: $network->{name} -> ",
+		    print_ip $nat_map->{$network}->{ip};
 		}
 	    }
-	}
-	# Needed for subnet check below.
-	$domain->{nat_map} = \%nat_map;
-	# %addr_map was collected at nat domains, but is needed at
-	# logical and hardware interfaces of managed routers.
-	for my $interface (@{$domain->{managed_interfaces}}) {
-#	    debug "- $interface->{name}";
-	    $interface->{nat_map} =
-		$interface->{hardware}->{nat_map} = \%nat_map;
 	}
 	# Reuse memory.
 	delete $domain->{managed_interfaces};
 	for my $network (@{$domain->{networks}}) {
-	    if(my $href = $nat_map{$network}) {
+	    if(my $href = $nat_map->{$network}) {
 		my $name = "nat:$href->{tag}";
 		err_msg "$network->{name} is translated by $name,\n",
 		" but it lies inside the translation domain of $name.\n",
@@ -2561,7 +2561,7 @@ sub nat_lookup( $$ ) {
 sub find_subnets() {
     info "Finding subnets";
     for my $domain (@all_natdomains) {
-	debug "$domain->{name}";
+#	debug "$domain->{name}";
 	my $nat_map = $domain->{nat_map};
 	my %mask_ip_hash;
 	for my $network (@networks) {
