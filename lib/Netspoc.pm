@@ -352,13 +352,18 @@ sub read_network( $ ) {
 
 sub read_interface( $ ) {
     my $net = shift;
-    &skip('=');
-    &skip('{');
-    my $token = read_name();
     my $interface = new('Interface', 
 			# name will be set by caller
 			link => $net,
 			);
+    unless(&check('=')) {
+	skip(';');
+	# short form of interface definition: only link to cloud network
+	$interface->{ip} = 'cloud';
+	return $interface;
+    }
+    &skip('{');
+    my $token = read_name();
     my $ip;
     if($token eq 'ip') {
 	&skip('=');
@@ -398,6 +403,7 @@ sub set_pix_interface_level( $ ) {
 
 my %valid_model = (IOS => 1, PIX => 1);
 my %routers;
+my $default_route;
 sub read_router( $ ) {
     my $name = shift;
     skip('=');
@@ -416,6 +422,11 @@ sub read_router( $ ) {
 		     interfaces => {},
 		     );
     $router->{model} = $model if $managed;
+    
+    if(&check('default_route')) {
+	&skip(';');
+	$default_route = $router;
+    }
     while(1) {
 	last if &check('}');
 	my($type,$iname) = split_typed_name(read_name());
@@ -431,6 +442,10 @@ sub read_router( $ ) {
 	$router->{interfaces}->{$iname} = $interface;
 	# assign router to interface
 	$interface->{router} = $router;
+	# interface of managed router must not be a cloud interface
+	if($managed and $interface->{ip} eq 'cloud') {
+	    err_msg "Short definition of $interface->{name} not allowed";
+	}
 	# interface of managed router needs to have a hardware name
 	if($managed and not defined $interface->{hardware}) {
 	    err_msg "Missing 'hardware' for $interface->{name}";
@@ -443,64 +458,6 @@ sub read_router( $ ) {
 	error_atline "Redefining router:$name";
     }
     $routers{$name} = $router;
-}
-
-# very similar to router, but has no 'managed' setting and has additional 
-# definition part 'links' 
-my %clouds;
-my $default_route;
-sub read_cloud( $ ) {
-    my $name = shift;
-    skip('=');
-    skip('{');
-    my $cloud = new('Router', name => "router:$name");
-    while(1) {
-	last if &check('}');
-	my($type, $iname) = split_typed_name(read_name());
-	if ($type eq 'interface') {
-	    my $interface = &read_interface($iname);
-	    $interface->{name} = "interface:$name.$iname";
-	    if(my $old_interface = $cloud->{interfaces}->{$iname}) {
-		my $ip_string = &print_ip($interface->{ip});
-		my $old_ip_string = &print_ip($old_interface->{ip});
-		error_atline "Redefining interface:$name.$iname from $old_ip_string to $ip_string";
-	    }
-	    # assign interface to clouds hash of interfaces
-	    $cloud->{interfaces}->{$iname} = $interface;
-	    # assign cloud to interface
-	    # treat cloud as a router
-	    $interface->{router} = $cloud;
-	}
-	elsif($type eq 'links' and ! defined $iname) {
-	    &skip('=');
-	    my @links = &read_list(\&read_network_name);
-	    my $cloud_intf_counter = 1;
-	    for my $link (@links) {
-		# implement link to cloud network as a special interface 
-		# without ip address 
-		my $interface = new('Interface',
-				    name => "interface:$name.$link",
-				    ip => 'cloud',
-				    link => $link,
-				    router => $cloud
-				    );
-		$cloud_intf_counter += 1;
-		# assign interface to clouds hash of interfaces
-		$cloud->{interfaces}->{$link} = $interface;
-	    }
-	}
-	elsif($type eq 'default_route' and ! defined $iname) {
-	    &skip(';');
-	    $default_route = $cloud;
-	}
-	else {
-	    syntax_err "Illegal token";
-	}
-    }
-    if(my $old_cloud = $clouds{$name}) {
-	error_atline "Redefining cloud:$name";
-    }
-    $clouds{$name} = $cloud;
 }
 
 my %anys;
@@ -686,8 +643,6 @@ sub read_data( $ ) {
 	    &read_router($name);
 	} elsif ($type eq 'network') {
 	    &read_network($name);
-	} elsif ($type eq 'cloud') {
-	    &read_cloud($name);
 	} elsif ($type eq 'any') {
 	    &read_any($name);
 	} elsif ($type eq 'every') {
@@ -704,7 +659,7 @@ sub read_data( $ ) {
 	} elsif ($type eq 'include') {
 	    &read_data($name);
 	} else {
-	    syntax_err "Expected global definition";
+	    syntax_err "Unknown global definition";
 	}
     }
 }
@@ -715,8 +670,6 @@ sub show_read_statistics() {
 	print STDERR "Read $n routers\n";
 	$n = keys %networks;
 	print STDERR "Read $n networks\n";
-	$n = keys %clouds;
-	print STDERR "Read $n clouds\n";
 	$n = keys %groups;
 	print STDERR "Read $n groups\n";
 	$n = keys %services;
@@ -938,8 +891,7 @@ sub subst_netob_names( $$ ) {
 	    # Currently we split at the first dot,
 	    # since in network names dots are more propable.
 	    my($router, $interface)  = split /\./, $name, 2;
-	    $object = $routers{$router}->{interfaces}->{$interface} or
- 		$object = $clouds{$router}->{interfaces}->{$interface};
+	    $object = $routers{$router}->{interfaces}->{$interface};
 	} elsif($type eq 'any') {
 	    $object = $anys{$name};
 	} elsif($type eq 'every') {
@@ -976,10 +928,13 @@ sub subst_name_with_ref_for_any_and_every() {
 	my($type, $name) = split_typed_name($obj->{link});
 	if($type eq 'network') {
 	    $obj->{link} = $networks{$name};
-	} elsif($type eq 'cloud') {
-	    $obj->{link} = $clouds{$name};
+	} elsif($type eq 'router') {
+	    my $router = $routers{$name};
+	    not $router->{managed} or
+		err_msg "$obj->{name} must not be linked to managed $router->{name}";
+	    $obj->{link} = $router;
 	} else {
-	    err_msg "Illegally typed '$type:$name' in $obj->{name}";
+	    err_msg "$obj->{name} must not be linked to '$type:$name'";
 	}
     }
 }
@@ -2036,7 +1991,7 @@ for my $rule (@rules) {
 subst_name_with_ref_for_any_and_every();
 
 # link interface with network in both directions
-for my $router (values %routers, values %clouds) {
+for my $router (values %routers) {
     # substitute hash with array, since names are not needed any more
     $router->{interfaces} = [ values(%{$router->{interfaces}}) ];
     for my $interface (@{$router->{interfaces}}) {
