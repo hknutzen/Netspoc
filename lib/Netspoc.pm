@@ -2083,11 +2083,6 @@ sub expand_rules() {
 			    }
 			    if($action eq 'deny') {
 				push(@expanded_deny_rules, $expanded_rule);
-			    } elsif(is_any($src) and is_any($dst)) {
-				err_msg "Rule '", print_rule $expanded_rule, "'\n",
-				" has 'any' objects both as src and dst.\n",
-				" This is not supported currently. ",
-				"Use one 'every' object instead";
 			    } elsif(is_any($src) or is_any($dst)) {
 				$expanded_rule->{deny_networks} = [];
 				push(@expanded_any_rules, $expanded_rule);
@@ -3121,16 +3116,63 @@ sub convert_any_dst_rule( $$$ ) {
     }
 }
 
+# Both src and dst of processed rule are an 'any' object.
+sub check_any_both_rule ( $$$ ) {
+    my ($rule, $in_intf, $out_intf) = @_;
+    # Neither in_intf nor out_intf may be undefined, because src and dst
+    # can't be an interface of current router.
+    my $router = $in_intf->{router};
+    return unless $router->{managed};
+    my $src = $rule->{src};
+    my $srv = $rule->{srv};
+    # See above for comment.
+    $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv}->{active} = 0;
+    my $link = $router->{dst_any_link}->{$rule->{action}}->{$src}->{$srv};
+    my $current_in_any = $in_intf->{any};
+    push @{$rule->{src_any_on_path}}, $current_in_any;
+    for my $in_any (@{$rule->{src_any_on_path}}) {
+	# Find 'any' objects at all outgoing interfaces.
+	for my $intf (@{$router->{interfaces}}) {
+	    # Nothing to do for in_intf:
+	    # Case 1: it is the first router near src.
+	    # Case 2: the in_intf is connected to the same security domain
+	    # as an out_intf of the previous router on the path.
+	    next if $intf eq $in_intf;
+	    my $out_any = $intf->{any};
+	    # Nothing to be checked for the original rule.
+	    if($out_any eq $rule->{dst} and $in_any eq $src) {
+		# Both 'any' objects are directly connected by a managed router.
+		if($in_any eq $current_in_any) {
+		    $rule->{any_dst_group} = $link;
+		    $rule->{any_are_neighbors} = 1;
+		}
+		next;
+	    }
+	    unless($rule_tree{$rule->{action}}->
+		   {$in_any}->[0]->{$out_any}->[0]->{$srv}) {
+		err_msg "For ", print_rule $rule, " to be effective\n",
+		" there needs to be defined a similar rule with\n",
+		" src=$in_any->{name} and dst=$out_any->{name}";
+	    }
+	}
+    }
+}
+
 sub convert_any_rules() {
     info "Converting rules for 'any' objects";
     for my $rule (@expanded_any_rules) {
 	next if $rule->{deleted};
 	$rule->{any_rules} = [];
 	if(is_any($rule->{src})) {
-	    &path_walk($rule, \&convert_any_src_rule);
-	}
-	if(is_any($rule->{dst})) {
+	    if(is_any($rule->{dst})) {
+		&path_walk($rule, \&check_any_both_rule);
+	    } else {
+		&path_walk($rule, \&convert_any_src_rule);
+	    }
+	}elsif(is_any($rule->{dst})) {
 	    &path_walk($rule, \&convert_any_dst_rule);
+	} else {
+	    internal_err;
 	}
     }
 }
@@ -4234,13 +4276,22 @@ sub rules_distribution() {
     # Rules with 'any' object as src or dst
     for my $rule (@expanded_any_rules) {
 	if(is_any $rule->{src}) {
-	    &path_walk($rule, \&distribute_rule_at_src);
+	    if(is_any $rule->{dst}) {
+		# Both, src and dst are 'any' objects.
+		# We only need to generate code if they are directly connected
+		# by a managed router.
+		# See check_any_both_rule() above for details.
+		if($rule->{any_are_neighbors}) {
+		    &path_walk($rule, \&distribute_rule_at_dst);
+		}
+	    } else {
+		&path_walk($rule, \&distribute_rule_at_src);
+	    }
 	} elsif(is_any $rule->{dst}) {
 	    &path_walk($rule, \&distribute_rule_at_dst);
 	} else {
 	    internal_err "unexpected rule ", print_rule $rule, "\n";
 	}
-	# ToDo: Handle is_any src && is_any dst
     }
 }
 
