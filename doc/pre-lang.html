@@ -1,0 +1,422 @@
+<HTML>
+<HEAD>
+<TITLE>Description Language for Security Policy and Topology</TITLE>
+</HEAD>
+
+<BODY bgcolor=#FFFFFF topmargin="0" bottommargin="0" leftmargin="0" rightmargin="0" marginheight="0" marginwidth="0"><BODY>
+
+<A NAME="__index__"></A>
+<!-- INDEX BEGIN -->
+
+<UL>
+
+	<LI><A HREF="#language">Description Language for Security Policy and Topology</A></LI>
+	<UL>
+
+		<LI><A HREF="#overview">Overview</A></LI>
+		<UL>
+
+			<LI><A HREF="#rules">Rules</A></LI>
+			<LI><A HREF="#network_objects">Network Objects</A></LI>
+			<LI><A HREF="#service_definitions">Service Definitions</A></LI>
+			<LI><A HREF="#groups">Groups</A></LI>
+			<LI><A HREF="#service_groups">Service Groups</A></LI>
+		</UL>
+
+		<LI><A HREF="#detailed">Detailed description of network objects</A></LI>
+		<UL>
+
+			<LI><A HREF="#general_syntax">General syntax</A></LI>
+			<LI><A HREF="#network_definition">Network Definition</A></LI>
+
+			<LI><A HREF="#host_definition">Host definition</A></LI>
+			<LI><A HREF="#router_definition">Router definition</A></LI>
+			<LI><A HREF="#interface_definition">Interface definition</A></LI>
+			<LI><A HREF="#every_definition">'Every' object definition</A></LI>
+			<LI><A HREF="#any_definition">'Any' object definition</A></LI>
+			<LI><A HREF="#referencing">Referencing network objects</A></LI>
+			<LI><A HREF="#groups_def">Groups of network objects</A></LI>
+			<LI><A HREF="#services">Services</A></LI>
+			<LI><A HREF="#groups_of_services">Groups of services</A></LI>
+			<LI><A HREF="#rules_def">Rules</A></LI>
+		</UL>
+
+		<LI><A HREF="#disabling">Disabling part of the topology</A></LI>
+		<LI><A HREF="#handling_any">Handling of 'any' objects</A></LI>
+		<LI><A HREF="#pix_levels">PIX security levels</A></LI>
+		<LI><A HREF="#redundant_rules">Automatic deletion of redundant rules</A></LI>
+		<LI><A HREF="#generated_code">Generated Code</A></LI>
+		<LI><A HREF="#supported_devices">Supported devices</A></LI>
+	</UL>
+
+</UL>
+<!-- INDEX END -->
+
+<HR>
+<P>
+<H1><A NAME="language">Description Language for Security Policy and Topology</A></H1>
+
+<H2><A NAME="overview">Overview</A></H2>
+
+<H3><A NAME="rules">Rules</A></H3>
+<P>Network objects and service definitions are used in rules to describe network
+traffic which can or must not pass packet from source to destination.</P>
+
+<H3><A NAME="network_objects">Network Objects</A></H3>
+<UL>
+<LI>have name and IP address
+<LI>describe topology
+<LI>can be used as source and destination of rules
+</UL>
+
+<H3><A NAME="service_definitions">Service Definitions</A></H3>
+<UL>
+<LI>have a name
+<LI>describe properties of network traffic as they typically can be
+filtered by packet filters (i.e. type of protocol, port number)
+</UL>
+
+<H3><A NAME="groups">Groups</A></H3>
+<UL>
+<LI>have a name
+<LI>are used to group network objects
+<LI>are used in rules for simplified management of large numbers of
+network objects.
+</UL>
+
+<H3><A NAME="service_groups">Service Groups</A></H3>
+<UL>
+<LI>
+have a name
+<LI>are used to group service definitions
+<LI>are used in rules
+</UL>
+
+<H2><A NAME="detailed">Detailed description of network objects</A></H2>
+<P>The topology is built from networks and routers.
+A router and a network are connected by an interface.
+Networks may have any number of hosts, which are located inside the
+network.</P>
+<P>Routers may be managed or unmanaged. For a managed router, NetSPoC
+generates access control lists which control what traffic can pass
+this router and what traffic is blocked.
+The whole topology is partitioned into different security domains by
+managed routers.</P>
+<P>Special network objects called 'any' objects and 'every' objects may
+be defined which denote all network objects in a security domain.</P>
+
+<H3><A NAME="general_syntax">General syntax</A></H3>
+<P>All network objects and groups have a typed name like &lt;type&gt;:&lt;name&gt;.</P>
+<P>&lt;name&gt; is build from one ore more alphanumerical and underscore
+characters. The current locale settings are used, i.e. accented
+characters are allowed for european locale settings.</P>
+<P>&lt;ip-adr&gt; denotes an IP address. Currently NetSPoC handles IP v4
+addresses n.n.n.n with 0 &lt;= n &lt;= 255</P>
+<P>&lt;interface_name&gt; may contain any characters, even interspersed
+whitespace. Currently characters from <CODE>[;,=]</CODE> are not allowed, since
+we use them as delimiters.</P>
+<P>&lt;int&gt; is an integer</P>
+<P>Meta symbols in syntax definitions below:</P>
+<UL>
+<LI>&lt;..&gt; denote something defined elsewhere
+<LI>[..] denotes an optional part
+<LI>{{..|..}} denotes alternatives.
+<P>Note: single { and } characters stand for themselves.</P>
+<LI>... * means any number of the left part
+</UL>
+
+<H3><A NAME="network_definition">Network Definition</A></H3>
+<H4>Syntax</H4>
+<PRE>
+  network:&lt;name&gt; = {
+     {{
+         ip = &lt;ip-adr&gt;; mask = &lt;ip-adr&gt;; 
+         &lt;host definition&gt; *
+     |
+         unnumbered
+     }}
+  }</PRE>
+<UL>
+<LI>must have an ip address and mask or
+<LI>may alternatively be marked as unnumbered
+<LI>may contain any number of host definitions
+<LI>unnumbered networks have no host definitions at all
+<LI>if used as source or destination of a rule, the ip/mask is used
+directly for generating ACLs
+<LI>unnumbered network must not be used in rules
+</UL>
+
+<H3><A NAME="host_definition">Host definition</A></H3>
+<H4>Syntax</H4>
+<PRE>
+  &lt;host definition&gt; ::=
+  {{
+        host:&lt;name&gt; = { ip = &lt;ip-adr&gt;, ...; }
+  |
+        host:&lt;name&gt; = { range = &lt;ip-adr&gt; - &lt;ip-adr&gt;; }
+  }}</PRE>
+<UL>
+<LI>may only be used inside a network definition
+<LI>has one or more IP addresses or
+<LI>alternatively an ip address range with first address &lt; second address
+<LI>IP addresses must match ip/mask of the surrounding network
+<LI>if used as source or destination of a rule, one ACL entry is
+generated for each IP address.
+<LI>NetSPoC tries to automatically convert successive IP addresses from one
+or multiple hosts of a common network to an IP range.
+<LI>During code generation, an IP range is split into a number of
+subnetworks which cover the range. One ACL entry is generated for
+each subnetwork.
+</UL>
+
+<H3><A NAME="router_definition">Router definition</A></H3>
+<H4>Syntax</H4>
+<PRE>
+  &lt;router definition&gt; ::=
+  router:&lt;name&gt; = {
+     {{
+        managed; 
+        model = &lt;name&gt;;
+        &lt;complete interface definition&gt; *
+     |
+        [ model = &lt;name&gt;; ]
+        {{ &lt;interface definition&gt; | &lt;short interface definition&gt; }} *
+     }}
+  }</PRE>
+<UL>
+<LI>
+managed routers need to be precisely described since this
+ information is needed for code generation later
+<LI>the router model is used to generate correct code for different
+ router models.<BR>Currently two models are supported:
+<UL>
+<LI>IOS for cisco IOS routers with statefull inspection
+<LI>PIX for cisco PIX firewalls
+</UL>
+<LI>may have any number of interface definitions
+<LI>for unmanaged routers, almost all attributes are optional
+<LI>if used as source or destination of a rule, a router is handled like
+ group of its interfaces
+</UL>
+
+<H3><A NAME="interface_definition">Interface definition</A></H3>
+<H4>Syntax</H4>
+<PRE>
+ &lt;complete interface definition&gt; ::=
+ interface:&lt;name&gt; = {
+         {{ ip = &lt;ip-adr&gt;, ...; | unnumbered; }}
+         hardware = &lt;interface_name&gt;;
+         [ disabled ; ]
+ }
+
+ &lt;interface definition&gt; ::= 
+ interface:&lt;name&gt; = {
+         {{ ip = &lt;ip-adr&gt;, ...; | unnumbered; }}
+         [ hardware = &lt;interface_name&gt;; ]
+         [ disabled ; ]
+ }
+
+ &lt;short interface definition&gt; ::=
+ interface:&lt;name&gt;;</PRE>
+<UL>
+<LI>
+Interfaces have no name of their own; instead a network name is used
+  to indicate that the interface is linked to a network of the same
+  name.
+<LI>
+An interface may have one or more IP addresses. All of them must
+  match the IP/mask of the corresponding network.
+<LI>
+An unnumbered interface must only be linked to an unnumbered network.
+<LI>
+hardware attribute indicates to which hardware interface the router
+  belongs.
+<LI>
+Multiple interfaces may belong to the same hardware interface.
+<LI>
+an interface may be marked as disabled. See <A HREF="#disabling">Disabling part of the topology</A> below.
+<LI>
+For interface definitions of unmanaged routers almost all attributes
+  may be left out.
+<LI>
+If a network is linked to a short interface definition, it must not
+  be linked to any other interface. We need this requirement for
+  getting all routing entries generated.
+<LI>
+if used as source or destination of a rule an interface is handled
+  like a host.
+</UL>
+
+<H3><A NAME="every_definition">'Every' object definition</A></H3>
+<H4>Syntax</H4>
+<PRE>
+ every:&lt;name&gt; = { link = {{ network:&lt;name&gt;; | router:&lt;name&gt;; }} }</PRE>
+<UL>
+<LI>
+equivalent to a group of all networks of a security domain
+<LI>
+must not be linked to a managed router
+</UL>
+
+<H3><A NAME="any_definition">'Any' object definition</A></H3>
+<H4>Syntax</H4>
+<PRE>
+ any:&lt;name&gt; = { link = {{ network:&lt;name&gt;; |  router:&lt;name&gt;; }} }</PRE>
+<UL>
+<LI>
+is used to represent all networks of a security domain
+<LI>
+must not be linked to a managed router
+<LI>
+at most one 'any' object can be defined for a security domain
+<LI>
+generated ACL use 'any' / 0.0.0.0/0.0.0.0 network to prevent
+enumeration of all networks of a security domain
+<LI>
+additional deny rules may be generated automatically to prevent
+intervening networks getting access.
+
+<LI>
+See <A HREF="#handling_any">Handling of 'any' objects</A> for details.
+</UL>
+
+<H3><A NAME="referencing">Referencing network objects</A></H3>
+<H4>Syntax</H4>
+<PRE>
+ &lt;network object&gt; ::=
+ {{
+   host:&lt;name&gt; 
+ | network:&lt;name&gt; 
+ | router:&lt;name&gt; 
+ | interface:&lt;name&gt;.&lt;name&gt; 
+ | any:&lt;name&gt; 
+ | every:&lt;name&gt;
+ | group:&lt;name&gt; 
+ }}</PRE>
+<UL>
+<LI>
+network objects are referenced in groups or as source or destination
+of rules.
+<LI>
+When referencing interfaces, we need to use a different syntax than
+for interface definitions: the router name followed by a network name.
+</UL>
+
+<H3><A NAME="groups_def">Groups of network objects</A></H3>
+<H4>Syntax</H4>
+<PRE>
+ group:&lt;name&gt; = &lt;network object&gt; *;</PRE>
+<UL>
+<LI>a group may be empty
+<LI>a group may be defined by means of other groups
+</UL>
+
+<H3><A NAME="services">Services</A></H3>
+<H4>Syntax</H4>
+<PRE>
+ service:&lt;name&gt; = 
+ {{
+   ip 
+ | tcp [&lt;int_1&gt;[-&lt;int_2&gt;]]
+ | udp [&lt;int_1&gt;[-&lt;int_2&gt;]]
+ | icmp [&lt;int_1&gt;[/&lt;int_2&gt;]] 
+ | proto &lt;int&gt; 
+ }} ;</PRE>
+<P>
+<DL>
+<DT>tcp, udp
+<DD>
+<UL>
+<LI>&lt;int_1&gt;, &lt;int_2&gt; describe a port range,
+<LI>if &lt;int_2&gt; is omitted, a single port is assumed
+<LI>0 &lt; &lt;int_1&gt; &lt;= &lt;int_2&gt; &lt;= 65535
+</UL>
+<P>
+<DT>icmp
+<DD>
+<UL>
+<LI>&lt;int_1&gt;, &lt;int_2&gt; denote icmp type and code
+<LI>0 &lt;= &lt;int_1&gt;,&lt;int_2&gt; &lt;= 255
+</UL>
+<P>
+<DT>protocol
+<DD>
+<UL>
+<LI>&lt;int&gt; is a IP protocol number
+<LI>0 &lt; &lt;int&gt; &lt;= 255
+</UL>
+</DL>
+
+<H3><A NAME="groups_of_services">Groups of services</A></H3>
+<H4>Syntax</H4>
+<PRE>  servicegroup:&lt;name&gt; = &lt;service&gt; *;</PRE>
+<P>with</P>
+<PRE>
+  &lt;service&gt; ::= {{ service:&lt;name&gt; | servicegroup:&lt;name&gt; }}</PRE>
+<UL>
+<LI>a servicegroup may be empty
+<LI>a servicegroup may be defined by means of other servicegroups
+</UL>
+
+<H3><A NAME="rules_def">Rules</A></H3>
+<H4>Syntax</H4>
+<PRE>
+  &lt;rule&gt; ::=
+  {{ permit | deny }}
+        src = &lt;obj1&gt;, ..,&lt;obj_n&gt;;
+        dst = &lt;obj1&gt;, ..,&lt;obj_n&gt;;
+        srv = &lt;srv1&gt;, ..,&lt;srv_n&gt;;</PRE>
+<UL>
+<LI>order of rules doesn't matter
+<LI>deny rules override all permit rules
+</UL>
+<H2><A NAME="disabling">Disabling part of the topology</A></H2>
+<P>An interface may be explicitly marked as disabled.  
+This implicitly marks all network objects as disabled, that are
+directly or indirectly connected to this interface.
+All occurences of disabled network objects in groups and rules are
+silently discarded.</P>
+
+<H2><A NAME="handling_any">Handling of 'any' objects</A></H2>
+<P>The meaning of 'any' is different in a NetSPoC rule from that in an ACL.
+For NetSPoC, any:X means any network object of the security domain
+where any:X is located.
+For an ACL which filters incoming traffic of an interface, any
+(i.e. 0.0.0.0/0.0.0.0) means</P>
+<DL>
+<DT>
+as source:<DD>any data object connected directly or indirectly with
+this interface.
+<DT>
+as destination:<DD>any data object lying behind the router where the
+interface belongs to.
+</DL>
+
+<H2><A NAME="pix_levels">PIX security levels</A></H2>
+<P>PIX firewalls have a security level associated wih each interface.
+We don't want to expand our syntax to state them explicitly,
+but instead we try to derive the level from the interface name.
+It is not neccessary the find the exact level; what we need to know
+is the relation of the security levels to each other.</P>
+
+<H2><A NAME="redundant_rules">Automatic deletion of redundant rules</A></H2>
+<P><em>to be done ...</em></P>
+
+<H2><A NAME="generated_code">Generated Code</A></H2>
+<UL>
+<LI>ACL
+<LI>Routing
+<LI>Static commands for PIX
+</UL>
+<H2><A NAME="supported_devices">Supported devices</A></H2>
+<UL>
+<LI>IOS with firewall feature set
+<LI>PIX
+</UL>
+
+<P> Copyright (c) 2002, Heinz Knutzen 
+<A HREF="mailto:heinzknutzen@mail.berlios.de">heinzknutzen@mail.berlios.de</A></P>
+
+</BODY>
+
+</HTML>

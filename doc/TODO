@@ -1,0 +1,29 @@
+ToDo list for NetSPoC, a Network Security Policy Compiler
+
+- Make NetSPoC aware of network address translation
+  - dynamic with pools
+  - static for hosts and networks
+
+- In a second step generate NAT code
+
+- Code generation for IOS routers without firewall feature set
+
+- Description and code generation for IPSec tunnels
+
+- Consider if managed router should be seen as an own small security
+  domain with better isolation from the directly connected networks. 
+
+- Separate NetSPoC functionality into a perl module. This would allow
+  to build some interesting query tools:
+  - policy query: give a description of a data packet and answer if it
+    is allowed to pass with the current policy.
+  - Which rules are applicable to a network object?
+  - What are the managed routers between A and B?
+
+- Give a graphical reprensentation of the topology, for example using
+  the graphviz library (http://www.graphviz.org/).
+
+- Allow the network toplogy to have loops.
+  This has low priority for me.
+  I think this change would introduce much more complicated
+  algorithms. 

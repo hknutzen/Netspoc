@@ -1,0 +1,55 @@
+=head1 Comparison of NetSPoC with CSPM
+
+=head2 Runtime
+
+For a real world policy and topology with about 900 networks, 400
+routers, 100 groups, 400 rules and many I<wildcard> or I<any> objects,
+CSPM needed about 3 hours to generate configurations for about 30
+managed devices. NetSPoC needs 30 seconds for the same task.
+
+=head2 Import / Export
+
+There are no documented import or export functions for CSPM. 
+NetSPoC uses a simple, well defined language stored in plain text
+files. 
+
+=head2 Multi user operation
+
+When using CSPM, only a single user is allowed to change the
+database. For NetSPoC, the topology and policy description may be
+split into different files, which may be changed by different users
+simultaniously.
+
+=head2 Version Control
+
+Changes of the CSPM database can't be version controlled.  The text
+files of NetSPoC's language may be easily be integrated into a version
+control software like CVS. This is in particular important for the
+task of security management.
+
+=head2 Operation system
+
+CSPM runs only on windows NT (next version W2k).
+NetSPoc is written in perl and should be portable to many platforms.
+
+=head2 Graphical user interface
+
+CSPM provides a graphical user interface which is nice to use for a
+small to medium size toplogy. It becomes nearly unusable for a large
+toplogy. NetSPoC provides no GUI at all.
+
+=head2 IPSec & NAT
+
+CSPM supports the definition of IPSec tunnels and network address
+translation. This isn't supported by NetSPoC currently, but planned
+for the near future.
+
+=head2 Transferring code to managed devices
+
+CSPM has build-in support for transferring generated code to the
+managed devices.
+NetSPoC uses separate scripts for this task which are currently not
+made available.
+
+
+
