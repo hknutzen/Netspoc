@@ -3762,7 +3762,8 @@ sub acl_generation() {
 # since we only use it at code generation time.
 my $srv_ospf = { name => 'auto_srv:ospf',
 		 type => 'proto',
-		 v1 => 89
+		 # use quoted 'v1' here to circumvent a bug in perl 5.6
+		 'v1' => 89
 		 };
 
 sub print_acls( $ ) {
