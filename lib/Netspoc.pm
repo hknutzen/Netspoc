@@ -1334,7 +1334,9 @@ sub path_walk($&) {
     # $src_router eq $dst-router
     # if we reached the router via different interfaces, 
     # the router lies on the path
-    if($src_intf and $dst_intf and $src_intf ne $dst_intf) {
+    if(not defined $src_intf or
+       not defined $dst_intf or
+       $src_intf ne $dst_intf) {
 	&$fun($rule, $src_intf, $dst_intf);
     } else {
 	# the router doesn't lie on the path, nothing to do
