@@ -27,12 +27,12 @@ require Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 %groups %services %servicegroups %rules
-		 $program $version
-		 $conf_file $main_file $out_dir
 		 $error_counter $max_errors
 		 info
-		 read_args 
-		 read_config
+		 err_msg
+		 read_ip
+		 print_ip
+		 read_file
 		 read_file_or_dir
 		 show_read_statistics 
 		 order_services 
@@ -771,52 +771,56 @@ sub read_rule( $ ) {
     push(@rules, $rule);
 }
 
+sub read_netspoc() {
+    # check for definitions
+    if(my $string = check_typed_name()) {
+	my($type,$name) = split_typed_name($string);
+	if($type eq 'router') {
+	    &read_router($name);
+	} elsif ($type eq 'network') {
+	    &read_network($name);
+	} elsif ($type eq 'any') {
+	    &read_any($name);
+	} elsif ($type eq 'every') {
+	    &read_every($name);
+	} elsif ($type eq 'group') {
+	    &read_group($name);
+	} elsif ($type eq 'service') {
+	    &read_service($name);
+	} elsif ($type eq 'servicegroup') {
+	    &read_servicegroup($name);
+	} else {
+	    syntax_err "Unknown global definition";
+	}
+    } elsif(my $action = check_permit_deny()) {
+	&read_rule($action);
+    } elsif (check('include')) {
+	my $file = read_string();
+	&read_data($file, \&read_netspoc);
+    } else {
+	syntax_err "Syntax error";
+    }
+}
+
 # reads input from file
-sub read_data( $ ) {	
-    local($file) = @_;
+sub read_file( $$ ) {	
+    local $file = shift;
+    my $read_syntax = shift;
     local $eof = 0;
     local *FILE;
     open(FILE, $file) or die "can't open $file: $!";
     # set input buffer to defined state
     # when called from 'include:' ignore rest of line
     $_ = '';
-    while(1) {
-	last if &check_eof();
-	# check for definitions
-	if(my $string = check_typed_name()) {
-	    my($type,$name) = split_typed_name($string);
-	    if($type eq 'router') {
-		&read_router($name);
-	    } elsif ($type eq 'network') {
-		&read_network($name);
-	    } elsif ($type eq 'any') {
-		&read_any($name);
-	    } elsif ($type eq 'every') {
-		&read_every($name);
-	    } elsif ($type eq 'group') {
-		&read_group($name);
-	    } elsif ($type eq 'service') {
-		&read_service($name);
-	    } elsif ($type eq 'servicegroup') {
-		&read_servicegroup($name);
-	    } else {
-		syntax_err "Unknown global definition";
-	    }
-	} elsif(my $action = check_permit_deny()) {
-	    &read_rule($action);
-	} elsif (check('include')) {
-	    my $file = read_string();
-	    &read_data($file);
-	} else {
-	    syntax_err "Syntax error";
-	}
+    while(not &check_eof()) {
+	&$read_syntax();
     }
 }
 
 sub read_file_or_dir( $ ) {
     my($path) = @_;
     if(-f $path) {
-	read_data $path;
+	read_file $path, \&read_netspoc;
     } elsif(-d $path) {
 	local(*DIR);
 	# strip trailing slash for nicer file names in messages
