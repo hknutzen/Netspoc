@@ -3175,7 +3175,11 @@ sub collect_acls( $$$ ) {
 	    if($comment_acls) {
 		push(@$code_aref, "! REVERSE: ". print_rule($rule)."\n");
 	    }
-	    my $established = $srv->{type} eq 'tcp' ? 'established' : '';
+	    my $established = '';
+	    if( $srv->{type} eq 'tcp') {
+		$established = 'established';
+		$dst_port_code = '';
+	    }
 	    for my $src_code (@src_code) {
 		for my $dst_code (@dst_code) {
 		    push(@$code_aref,
@@ -3195,7 +3199,12 @@ sub collect_acls( $$$ ) {
 	    if($comment_acls) {
 		push(@$code_aref, "! REVERSE: ". print_rule($rule)."\n");
 	    }
-	    my $established = $srv->{type} eq 'tcp' ? 'established' : '';
+	    my $established = '';
+	    if( $srv->{type} eq 'tcp') {
+		$established = 'established';
+		# ToDo: this may generate duplicate lines for different services
+		$dst_port_code = '';
+	    }
 	    for my $src_code (@src_code) {
 		for my $dst_code (@dst_code) {
 		    push(@$code_aref,
