@@ -630,12 +630,12 @@ sub read_network( $ ) {
 	    }
 	    $network->{nat}->{$name} and
 		error_atline "Duplicate NAT definition";
-	    $network->{nat}->{$name} = { ip => $nat_ip,
-					 mask => $nat_mask,
-					 dynamic => $dynamic,
-					 # This is needed later for 
-					 # lookup of host NAT.
-					 tag => $name};
+	    my $nat = { ip => $nat_ip, mask => $nat_mask };
+	    # $name is the nat_tag which is used later to lookup 
+	    # static translation of hosts inside a dynamically 
+	    # translated network.
+	    $nat->{dynamic} = $name if $dynamic;
+	    $network->{nat}->{$name} = $nat;
 	    $nat_definitions{$name} = 1;
 	} else {
 	    syntax_err "Expected NAT or host definition";
@@ -2540,19 +2540,6 @@ sub distribute_nat_info() {
     }
 }
 
-# Lookup NAT tag of a network while generating code in a domain
-# represented by nat_map.
-# Data structure:
-# $nat_map->{$network} = {ip, mask, dynamic}
-sub nat_lookup( $$ ) {
-    my($net, $nat_map) = @_;
-    $nat_map or return undef;
-    if(my $nat_addr = $nat_map->{$net}) {
-	return @{$nat_addr}{'tag', 'ip', 'mask', 'dynamic'};
-    }
-    return undef;
-}
-
 ####################################################################
 # Find subnetworks
 # Mark each network with the smallest network enclosing it.
@@ -2566,12 +2553,8 @@ sub find_subnets() {
 	my %mask_ip_hash;
 	for my $network (@networks) {
 	    next if $network->{ip} eq 'unnumbered';
-	    my ($ip, $mask);
-	    if(my $nat_addr = $nat_map->{$network}) {
-		($ip, $mask) = @{$nat_addr}{'ip', 'mask'};
-	    } else {
-		($ip, $mask) = @{$network}{'ip', 'mask'};
-	    }
+	    my $nat_network = $nat_map->{$network} || $network;
+	    my ($ip, $mask) = @{$nat_network}{'ip', 'mask'};
 	    if(my $old_net = $mask_ip_hash{$mask}->{$ip}) {
 		err_msg 
 		    "$network->{name} and $old_net->{name}",
@@ -4010,22 +3993,14 @@ sub print_pix_static( $ ) {
 	    }
 	    for my $network (@networks) {
 		next unless defined $network;
-		$network->{mask} == 0 and
+		my($in_ip, $in_mask, $in_dynamic) =
+		    @{$in_nat->{$network} || $network}{'ip', 'mask', 'dynamic'};
+		my($out_ip, $out_mask, $out_dynamic) = 
+		    @{$out_nat->{$network} || $network}{'ip', 'mask', 'dynamic'};
+		if($in_mask == 0 || $out_mask == 0) {
 		    err_msg "Pix doesn't support static command for ",
 		    "mask 0.0.0.0 of $network->{name}\n";
-		my $sub = sub () {
-		    my($network, $nat_map) = @_;
-		    my($nat_tag, $network_ip, $mask, $dynamic) =
-			nat_lookup($network, $nat_map);
-		    if($nat_tag) {
-			return $network_ip, $mask, $dynamic?$nat_tag:undef;
-		    } else {
-			return $network->{ip}, $network->{mask};
-		    }
-		};
-		my($in_ip, $in_mask, $in_dynamic) = $sub->($network, $in_nat);
-		my($out_ip,
-		   $out_mask, $out_dynamic) = $sub->($network, $out_nat);
+		}
 		# We are talking about destination addresses.
 		if($out_dynamic) {
 		    unless($in_dynamic && $in_dynamic eq $out_dynamic &&
@@ -4125,29 +4100,30 @@ sub distribute_rule( $$$ ) {
 	    my $obj = $rule->{$where};
 	    if(is_subnet $obj || is_interface $obj) {
 		my $network = $obj->{network};
-		my($nat_tag, $network_ip, $mask, $dynamic) =
-		    nat_lookup($network, $nat_map);
-		if($dynamic) {
-		    # Doesn't have a static translation.
-		    unless($obj->{nat}->{$nat_tag}) {
-			my $intf = $where eq 'src' ? $in_intf : $out_intf;
-			# Object lies in the same security domain,
-			# hence there is no other managed router 
-			# in between.
-			if($network->{any} eq $intf->{any}) {
-			    err_msg 
-				"$obj->{name} needs static translation",
-				" for nat:$nat_tag\n to be valid in rule\n ",
-				print_rule $rule;
+		if(my $nat_network = $nat_map->{$network}) {
+		    if(my $nat_tag = $nat_network->{dynamic}) {
+			# Doesn't have a static translation.
+			unless($obj->{nat}->{$nat_tag}) {
+			    my $intf = $where eq 'src' ? $in_intf : $out_intf;
+			    # Object lies in the same security domain,
+			    # hence there is no other managed router 
+			    # in between.
+			    if($network->{any} eq $intf->{any}) {
+				err_msg 
+				    "$obj->{name} needs static translation",
+				    " for nat:$nat_tag\n",
+				    " to be valid in rule\n ",
+				    print_rule $rule;
+			    }
+			    # Otherwise, filtering occurs at other router,
+			    # therefore the whole network can pass here.
+			    # But attention, this assumption only holds,
+			    # if the other router filters fully. 
+			    # Hence disable secondary optimization.
+			    undef $rule->{has_full_filter};
+			    $rule = { %$rule };
+			    $rule->{$where} = $network;
 			}
-			# Otherwise, filtering occurs at other router,
-			# therefore the whole network can pass here.
-			# But attention, this assumption only holds,
-			# if the other router filters fully. 
-			# Hence disable secondary optimization.
-			undef $rule->{has_full_filter};
-			$rule = { %$rule };
-			$rule->{$where} = $network;
 		    }
 		}
 	    }
@@ -4256,66 +4232,52 @@ sub address( $$$ ) {
     my ($obj, $nat_map, $direction) = @_;
     my $type = ref $obj;
     if($type eq 'Network') {
-	my($nat_tag, $network_ip, $mask, $dynamic) =
-	   nat_lookup($obj, $nat_map);
-	if($nat_tag) {
-	    # It is useless do use a dynamic address as destination,
-	    # but we permit it anyway.
-	    return [$network_ip, $mask];
-	} else {
-	    if($obj->{ip} eq 'unnumbered') {
-		internal_err "unexpected unnumbered $obj->{name}\n";
-	    } else {
-		return [$obj->{ip}, $obj->{mask}];
-	    }
-	}
-    } elsif($type eq 'Subnet') {
-	my($nat_tag, $network_ip, $mask, $dynamic) =
-	   nat_lookup($obj->{network}, $nat_map);
-	if($nat_tag) {
-	    if($dynamic) {
-		if(my $ip = $obj->{nat}->{$nat_tag}) {
-		    # single static NAT IP for this host
-		    return [$ip, 0xffffffff];
-		} else {
-		    internal_err "Unexpected $obj->{name} with dynamic NAT";
-		}
-	    } else {
-		# Take higher bits from network NAT,
-		# lower bits from original IP
-		my $ip = $network_ip | $obj->{ip} & ~$mask;
-		return [$ip, $obj->{mask}];
-	    }
+	$obj = $nat_map->{$obj} || $obj;
+	# ToDo: Is is ok to permit a dynamic address as destination?
+	if($obj->{ip} eq 'unnumbered') {
+	    internal_err "unexpected unnumbered $obj->{name}\n";
 	} else {
 	    return [$obj->{ip}, $obj->{mask}];
+	}
+    } elsif($type eq 'Subnet') {
+	my $network = $obj->{network};
+	$network = $nat_map->{$network} || $network;
+	if(my $nat_tag = $network->{dynamic}) {
+	    if(my $ip = $obj->{nat}->{$nat_tag}) {
+		# single static NAT IP for this host
+		return [$ip, 0xffffffff];
+	    } else {
+		internal_err "Unexpected $obj->{name} with dynamic NAT";
+	    }
+	} else {
+	    # Take higher bits from network NAT, lower bits from original IP.
+	    # This works with and without NAT.
+	    my $ip = $network->{ip} | $obj->{ip} & ~$network->{mask};
+	    return [$ip, $obj->{mask}];
 	}
     }
     if($type eq 'Interface') {
 	if($obj->{ip} eq 'unnumbered' or $obj->{ip} eq 'short') {
 	    internal_err "unexpected $obj->{ip} $obj->{name}\n";
 	}
-	my($nat_tag, $network_ip, $mask, $dynamic) =
-	   nat_lookup($obj->{network}, $nat_map);
-	if($nat_tag) {
-	    if($dynamic) {
-		if(my $ip = $obj->{nat}->{$nat_tag}) {
-		    # single static NAT IP for this interface
-		    return [$ip, 0xffffffff];
-		} else {
-		    internal_err "Unexpected $obj->{name} with dynamic NAT";
-		}
+	my $network = $obj->{network};
+	$network = $nat_map->{$network} || $network;
+	if(my $nat_tag = $network->{dynamic}) {
+	    if(my $ip = $obj->{nat}->{$nat_tag}) {
+		# single static NAT IP for this interface
+		return [$ip, 0xffffffff];
 	    } else {
-		# Take higher bits from network NAT,
-		# lower bits from original IP
-		return map { [$network_ip | $_ & ~$mask, 0xffffffff] }
-		@{$obj->{ip}};
+		internal_err "Unexpected $obj->{name} with dynamic NAT";
 	    }
 	} else {
 	    my @ip = @{$obj->{ip}};
 	    # Virtual IP must be added for deny rules,
 	    # it doesn't hurt for permit rules.
 	    push @ip, $obj->{virtual} if $obj->{virtual};
-	    return map { [$_, 0xffffffff] } @ip;
+	    # Take higher bits from network NAT, lower bits from original IP.
+	    # This works with and without NAT.
+	    my ($network_ip, $network_mask) = @{$network}{'ip', 'mask'};
+	    return map { [$network_ip | $_ & ~$network_mask, 0xffffffff] } @ip;
 	}
     } elsif($type eq 'Any') {
 	return [0, 0];
