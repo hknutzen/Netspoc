@@ -1,0 +1,58 @@
+#!/usr/bin/perl
+# netspoc
+# A Network Security Policy Compiler
+# http://netspoc.berlios.de
+# (c) 2003 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+
+use strict;
+use warnings;
+use lib "/$ENV{HOME}/develop", "/usr/local/bin";
+use Netspoc;
+
+####################################################################
+# Main program
+####################################################################
+
+&read_args();
+&read_config() if $conf_file;
+info "$program, version $version";
+&read_file_or_dir($main_file);
+&show_read_statistics();
+&order_services();
+&link_topology();
+&mark_disabled();
+&find_subnets();
+&setany();
+&expand_rules();
+&check_unused_groups();
+&setpath();
+die "Aborted with $error_counter error(s)\n" if $error_counter;
+$error_counter = $max_errors; # following errors should always abort
+# Find routes before conversion of any rules, 
+# because that will introduce additinal 'any' objects,
+# which would result in superfluous routes
+&set_route_in_any();
+&find_active_routes_and_statics();
+&convert_any_rules();
+&optimize();
+&mark_secondary_rules();
+&repair_deny_influence();
+&acl_generation();
+&check_output_dir($out_dir);
+&print_code($out_dir);
+&warn_pix_icmp();
