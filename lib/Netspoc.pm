@@ -24,6 +24,9 @@ use warnings;
 package Netspoc;
 require Exporter;
 
+my $program = 'Network Security Policy Compiler';
+my $version = (split ' ','$Id$ ')[2];
+
 our @ISA = qw(Exporter);
 our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 %groups %services %servicegroups 
@@ -63,9 +66,6 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 rules_distribution
 		 check_output_dir
 		 print_code );
-
-my $program = 'Network Security Policy Compiler';
-my $version = (split ' ','$Id$ ')[2];
 
 ####################################################################
 # User configurable options
