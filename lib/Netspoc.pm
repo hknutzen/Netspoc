@@ -1091,7 +1091,7 @@ sub link_any_and_every() {
 	    $obj->{link} = $networks{$name};
 	} elsif($type eq 'router') {
 	    my $router = $routers{$name};
-	    $router->{managed} and
+	    $router and $router->{managed} and
 		err_msg "$obj->{name} must not be linked to managed $router->{name}";
 	    $obj->{link} = $router;
 	} else {
