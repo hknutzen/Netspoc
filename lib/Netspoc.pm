@@ -813,7 +813,7 @@ sub is_servicegroup( $ ) { ref($_[0]) eq 'Servicegroup'; }
 
 sub print_rule( $ ) {
     my($rule) = @_;
-    if($rule->{orig_any}) { $rule = $rule->{orig_any}; }
+##    if($rule->{orig_any}) { $rule = $rule->{orig_any}; }
     my $srv = exists($rule->{orig_srv}) ? 'orig_srv' : 'srv';
     return $rule->{action} .
 	" src=$rule->{src}->{name}; dst=$rule->{dst}->{name}; " .
@@ -3151,49 +3151,38 @@ sub collect_acls_at_dst( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
     my $dst = $rule->{dst};
     is_any $dst or internal_err "$dst must be of type 'any'";
-    # this is only called once for each path
-    if($dst_intf->{any} eq $dst) {
-	unless ($rule->{deleted} and not $rule->{managed_if}) {
-	    if($rule->{any_dst_group}) {
-		unless($rule->{any_dst_group}->{active}) {
-		    &collect_acls(@_);
-		    $rule->{any_dst_group}->{active} = 1;
-		}
-	    } else {
-		&collect_acls(@_);
-	    }
+    # this is called for the main rule and its auxiliary rules
+    #
+    # first build a list of all adjacent 'any' objects
+    my @neighbour_anys;
+    for my $intf (@{$dst_intf->{router}->{interfaces}}) {
+	next if $src_intf and $intf eq $src_intf;
+	push @neighbour_anys, $intf->{any};
+    }
+    # generate deny rules in a first pass, since all related
+    # 'any' rules must be placed behind them
+    for my $any_rule (@{$rule->{any_rules}}) {
+	next unless grep { $_ eq $any_rule->{dst} } @neighbour_anys;
+	next if $any_rule->{deleted} and not $any_rule->{managed_if};
+	for my $deny_network (@{$any_rule->{deny_dst_networks}}) {
+	    my $deny_rule = {action => 'deny',
+			     src => $any_rule->{src},
+			     dst => $deny_network,
+			     srv => $any_rule->{srv}
+			 };
+	    &collect_acls($deny_rule, $src_intf, $dst_intf);
 	}
     }
-    # this is called for all routers on a path
-    if(exists $rule->{any_rules}) {
-	# check for auxiliary 'any' rules
-	# first build a list of all adjacent 'any' objects
-	my @neighbour_anys;
-	for my $intf (@{$dst_intf->{router}->{interfaces}}) {
-	    next if $src_intf and $intf eq $src_intf;
-	    push @neighbour_anys, $intf->{any};
-	}
-	for my $any_rule (@{$rule->{any_rules}}) {
-	    next unless grep { $_ eq $any_rule->{dst} } @neighbour_anys;
-	    next if $any_rule->{deleted} and not $any_rule->{managed_if};
-	    # first generate deny rules,
-	    for my $deny_network (@{$any_rule->{deny_dst_networks}}) {
-		my $deny_rule = {action => 'deny',
-				 src => $any_rule->{src},
-				 dst => $deny_network,
-				 srv => $any_rule->{srv}
-			     };
-		&collect_acls($deny_rule, $src_intf, $dst_intf);
-	    }
-	    if($any_rule->{any_dst_group}) {
-		unless($any_rule->{any_dst_group}->{active}) {
-		    &collect_acls($any_rule, $src_intf, $dst_intf);
-		    $any_rule->{any_dst_group}->{active} = 1;
-		}
-	    } else {
-		# no optimization for stateless routers
+    for my $any_rule ($rule, @{$rule->{any_rules}}) {
+	next unless grep { $_ eq $any_rule->{dst} } @neighbour_anys;
+	next if $any_rule->{deleted} and not $any_rule->{managed_if};
+	if($any_rule->{any_dst_group}) {
+	    unless($any_rule->{any_dst_group}->{active}) {
 		&collect_acls($any_rule, $src_intf, $dst_intf);
+		$any_rule->{any_dst_group}->{active} = 1;
 	    }
+	} else {
+	    &collect_acls($any_rule, $src_intf, $dst_intf);
 	}
     }
 }
