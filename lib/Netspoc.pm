@@ -538,21 +538,23 @@ sub read_proto_nr() {
 our %services;
 sub read_service( $ ) {
     my $name = shift;
-    my @srv;
+    my $srv = { name => $name };
     &skip('=');
     if(&check('ip')) {
-	push(@srv, 'ip');
+	$srv->{type} = 'ip';
+	$srv->{vals} = [ ];
     } elsif(&check('tcp')) {
-	push(@srv, 'tcp');
-	push(@srv, &read_port_range());
+	$srv->{type} = 'tcp';
+	$srv->{vals} = [ &read_port_range() ];
     } elsif(&check('udp')) {
-	push(@srv, 'udp');
-	push(@srv, &read_port_range());
+	$srv->{type} = 'udp';
+	$srv->{vals} = [ &read_port_range() ];
     } elsif(&check('icmp')) {
-	push(@srv, 'icmp');
-	push(@srv, &read_icmp_type_code());
+	$srv->{type} = 'icmp';
+	$srv->{vals} = [ &read_icmp_type_code() ];
     } elsif(&check('proto')) {
-	push(@srv, &read_proto_nr());
+	($srv->{type}, my $val) = &read_proto_nr();
+	$srv->{vals} = [ $val ];
     } else {
 	my $name = read_name();
 	error_atline "Unknown protocol $name in definition of service:$name";
@@ -561,7 +563,7 @@ sub read_service( $ ) {
     if(my $old_srv = $services{$name}) {
 	error_atline "Redefining service:$name";
     }
-    $services{$name} = \@srv; 
+    $services{$name} = $srv; 
 }
 
 our @rules;
@@ -677,12 +679,17 @@ sub printable( $ ) {
     return "$out:$obj->{name}";
 }
 
+sub print_srv( $ ) {
+    my($srv) = @_;
+    return "service:$srv->{name}";
+}
+
 sub print_rule( $ ) {
     my($obj) = @_;
     return $obj->{action} .
 	" src=".&printable($obj->{src}).
 	    "; dst=".&printable($obj->{dst}).
-		"; srv=". join(' ', @{$obj->{srv}}).";";
+		"; srv=". print_srv($obj->{srv}).";";
 }
 
 # get an array reference and delete undefined values in it
@@ -844,7 +851,7 @@ sub gen_expanded_rules( $$$$ ) {
 		    for my $srv (@$srv_aref) {
 			# Services are arrays of scalars,
 			# Service groups are arrays of arrays
-			if(ref($srv->[0])) {
+			if(ref($srv) eq 'ARRAY') {
 			    &gen_expanded_rules($action, [ $src ], [ $dst ],
 						$srv);
 			} else {
@@ -929,8 +936,8 @@ sub copy_rule( $ ) {
 sub split_rule( $$$ ) {
     my($r1, $new_y, $new_x) = @_;
     my $r2 = copy_rule($r1);
-    $r1->{srv}->[1] = $new_x;
-    $r2->{srv}->[2] = $new_y;
+    $r1->{srv}->{vals}->[0] =~ s/^\d+/$new_x/;
+    $r2->{srv}->{vals}->[0] =~ s/\d+$/$new_y/;
     return $r1, $r2;
 }
 
@@ -947,7 +954,9 @@ sub split_rule( $$$ ) {
 # proto nr
 sub order_srv ( $$ ) {
     my($rule, $hash) = @_;
-    my ($type, $v1, $v2) = @{$rule->{srv}};
+    my $srv = $rule->{srv};
+    my $type = $srv->{type};
+    my($v1, $v2) = @{$srv->{vals}};
 
     if($type eq 'icmp') {
 	my $id;
@@ -1433,7 +1442,9 @@ sub addrule_host( $ ) {
 # as deleted and substituted by the new one.
 sub add_rule( $$ ) {
     my ($rule, $srv_hash) = @_;
-    my ($type, $v1, $v2) = @{$rule->{srv}};
+    my $srv = $rule->{srv};
+    my $type = $srv->{type};
+    my($v1, $v2) = @{$srv->{vals}};
     my $action = $rule->{action};
     my $old_rule;
 
@@ -1729,12 +1740,13 @@ sub adr_code( $ ) {
 
 sub srv_code( $ ) {
     my ($srv) = @_;
-    my $proto = $srv->[0];
+    my $proto = $srv->{type};
+    my($v1, $v2) = @{$srv->{vals}};
 
     if($proto eq 'ip') {
 	return('ip', '');
     } elsif($proto eq 'tcp' || $proto eq 'udp') {
-	my $port = $srv->[1];
+	my $port = $v1;
 	if($port eq 'any') {
 	    return($proto, '');
 	} elsif(my($from, $to) = ($port =~ /^(.*)-(.*)$/)) {
@@ -1743,11 +1755,11 @@ sub srv_code( $ ) {
 	    return($proto, "eq $port");
 	}
     } elsif($proto eq 'icmp') {
-	my $type = $srv->[1];
+	my $type = $v1;
 	if($type eq 'any') {
 	    return($proto, '');
 	} else {
-	    my $code = $srv->[2];
+	    my $code = $v2;
 	    if($code eq 'any') {
 		return($proto, $type);
 	    } else {
@@ -1755,7 +1767,7 @@ sub srv_code( $ ) {
 	    }
 	}
     } elsif($proto eq 'proto') {
-	my $nr = $srv->[1];
+	my $nr = $v1;
 	return($nr, '');
     } else {
 	die "internal in srv_code: a rule has unknown protocol '$proto'";
@@ -1806,15 +1818,13 @@ sub gen_code( $$$ ) {
 sub gen_code_at_src( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
     my $src = $rule->{src};
+    my $src_pep = &get_pep($src);
     # Case 1a/2a:
-    if(not defined $src_intf) {
-	is_interface $src or
-	    die "internal in gen_code_at_src: expected interface";
-	if($src->{router} eq $dst_intf->{router}) {
+    if(not defined $src_pep) {
+	if(not defined $src_intf) {
 	    &gen_code($rule, $src_intf, $dst_intf);
 	}
     } else {
-	my $src_pep = &get_pep($src);
 	my $router = $src_intf->{router};
         # Case 1:
 	if($router->{to_pep} eq $src_intf and $router->{pep} eq $src_pep) {
