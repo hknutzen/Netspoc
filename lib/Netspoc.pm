@@ -1882,7 +1882,8 @@ sub convert_hosts() {
 		    my $subnet = new('Subnet',
 				     name => $name,
 				     network => $network,
-				     ip => $ip, mask => $mask);
+				     ip => $ip, mask => $mask,
+				     nat => $nat);
 		    $inv_prefix_aref[$inv_prefix]->{$ip} = $subnet;
 		    push @{$host->{subnets}}, $subnet;
 		    push @{$network->{subnets}}, $subnet;
@@ -1897,6 +1898,13 @@ sub convert_hosts() {
 		my $modulo = 2 * $next;
 		for my $ip (keys %$ip2subnet) {
 		    my $subnet = $ip2subnet->{$ip};
+		    # Don't combine subnets with NAT
+		    # ToDo: This would be possible if all NAT addresses
+		    #  match too.
+		    # But, attention for PIX firewalls: 
+		    # static commands for networks / subnets block
+		    # network and broadcast address.
+		    next if $subnet->{nat};
 		    # Only take the left part of two adjacent subnets.
 		    if($ip % $modulo == 0) {
 			my $next_ip = $ip + $next;
