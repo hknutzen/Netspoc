@@ -1297,7 +1297,7 @@ sub read_crypto( $ ) {
 	}
     }
     # Validity of tunnel definitions can't be checked here,
-    # because we don't know number of interfaces inside a group.
+    # because we don't know interfaces inside a group.
     if($crypto{$name}) {
 	error_atline "Redefining crypto:$name";
     }
@@ -2387,7 +2387,7 @@ sub expand_rules ( $$$ ) {
 	    my($src, $dst) = @_;
 	    my @result;
 	    for my $interface (path_first_interfaces $src, $dst) {
-		if($interface->{ip} =~ /^unnumbered|short$/) {
+		if($interface->{ip} =~ /^(unnumbered|short)$/) {
 		    err_msg "'$interface->{ip}' $interface->{name}",
 		    " (from .[auto])\n",
 		    " must not be used in rule of $name";
@@ -3576,13 +3576,9 @@ sub expand_crypto () {
     info "Preparing crypto tunnels and expanding crypto rules";
     for my $crypto (values %crypto) {
 	my $name = $crypto->{name};
-	$crypto->{hub} = expand_group($crypto->{hub}, "hub of $name");
-	$crypto->{spoke} = expand_group($crypto->{spoke},
-					   "spoke of $name");
-	for my $mesh (@{$crypto->{meshes}}) {
-	    $mesh = [ expand_group $mesh, "mesh of $name" ];
-	}
 	for my $what ('hub', 'spoke') {
+	    $crypto->{$what} =
+		expand_group($crypto->{$what}, "$what of $name");
 	    for my $element (@{$crypto->{$what}}) {
 		next if is_interface $element;
 		next if is_router $element;
@@ -3590,7 +3586,8 @@ sub expand_crypto () {
 		"$element->{name}";
 	    }
 	}
-	for my $mesh (@{$crypto->{mesh}}) {
+	for my $mesh (@{$crypto->{meshes}}) {
+	    $mesh = [ expand_group $mesh, "mesh of $name" ];
 	    for my $element (@$mesh) {
 		next if is_interface $element;
 		next if is_router $element;
@@ -3633,6 +3630,10 @@ sub expand_crypto () {
 		}
 		$intf1 = $tmp;
 	    }
+	    if($intf1->{ip} =~ /^(unnumbered|short)$/) {
+		err_msg "'$intf1->{ip}' $intf1->{name}\n",
+		" must not be used in tunnel of $name";
+	    }
 	    return $intf1;
 	};
 	for my $pair (@pairs) {
@@ -3661,14 +3662,18 @@ sub expand_crypto () {
 	    # - crypto ACL
 	    # - crypto access-group for IOS >= 12.0.8
 	    # Data will be used later to generate "crypto map" commands.
-	    $intf1->{tunnel}->{$intf2} = { rules => [],
-					   crypto => $crypto,
-					   end => $intf2, };
-	    $intf2->{tunnel}->{$intf1} = { rules => [],
-					   crypto => $crypto,
-					   end => $intf1, };
+	    my $crypto_map = { rules => [],
+			       crypto => $crypto,
+			       end => $intf2, };
+	    $intf1->{tunnel}->{$intf2} = $crypto_map;
+	    push @{$intf1->{hardware}->{crypto_maps}}, $crypto_map;
+	    $crypto_map =  { rules => [],
+			     crypto => $crypto,
+			     end => $intf1, };
+	    $intf2->{tunnel}->{$intf1} = $crypto_map;
+	    push @{$intf2->{hardware}->{crypto_maps}}, $crypto_map;
 	}
-	# Convert typed names in crypto rule to internal objects.
+# Convert typed names in crypto rule to internal objects.
 	for my $rule (@{$crypto->{rules}}) {
 	    for my $where ('src', 'dst') {
 		$rule->{$where} =
@@ -4681,7 +4686,7 @@ sub distribute_rule( $$$;$ ) {
 	}
     }
     my $aref;
-    my $store = $in_crypto_map && $model->{has_tunnel_filter} ?
+    my $store = ($in_crypto_map && $model->{has_tunnel_filter}) ?
 	$in_crypto_map : $in_intf->{hardware};
 #   debug "$router->{name} store: $store->{name}";
     if(not $out_intf) {
@@ -5599,6 +5604,37 @@ sub print_acls( $ ) {
     }
 }
 
+sub print_crypto( $ ) {
+    my($router) = @_;
+    my $model = $router->{model};
+    my $comment_char = $model->{comment_char};
+    print "$comment_char [ Crypto ]\n";
+    for my $hardware (@{$router->{hardware}}) {
+	my $name = $hardware->{name};
+	# Name of crypto map.
+	my $map_name = "crypto-$name";
+	# Sequence number for parts of crypto map with different peers.
+	my $seq_num = 0;
+	# Crypto ACLs must obey NAT.
+	my $nat_map = $hardware->{nat_map};
+	for my $map (@{$hardware->{crypto_maps}}) {
+	    $seq_num++;
+	    my $crypto_acl_name = "crypto-$name-$seq_num";
+	    my $acl_prefix = "access-list $crypto_acl_name";
+	    acl_line $map->{rules}, $nat_map, $acl_prefix, $model;
+	    my $peer = $map->{end};
+	    # Take first IP. 
+	    # Unnumberd and short interfaces have been rejected already.
+	    my $peer_ip = print_ip $peer->{ip}->[0];
+	    my $prefix = "crypto map $map_name $seq_num";
+	    print "$prefix ipsec-isakmp\n";
+	    print "$prefix match address $crypto_acl_name\n";
+	    print "$prefix set peer $peer_ip\n";
+	    print "$prefix set transform-set sha-aes192\n";
+	}
+    }
+}
+
 # Make output directory available.
 sub check_output_dir( $ ) {
     my($dir) = @_;
@@ -5611,11 +5647,11 @@ sub check_output_dir( $ ) {
 # Print generated code for each managed router.
 sub print_code( $ ) {
     my($dir) = @_;
-    check_output_dir($dir);
+    check_output_dir $dir;
     info "Printing code";
     for my $router (@managed_routers) {
-	my $comment_char = $router->{model}->{comment_char};
 	my $model = $router->{model};
+	my $comment_char = $model->{comment_char};
 	my $name = $router->{name};
 	my $file = $name;
 	$file =~ s/^router://;
@@ -5624,11 +5660,12 @@ sub print_code( $ ) {
 	print "$comment_char Generated by $program, version $version\n\n";
 	print "$comment_char [ BEGIN $name ]\n";
 	print "$comment_char [ Model = $model->{name} ]\n";
-	print_routes($router);
-	print_acls($router);
-	print_pix_static($router) if $model->{has_interface_level};
+	print_routes $router;
+	print_acls $router;
+	print_crypto $router;
+	print_pix_static $router if $model->{has_interface_level};
 	print "$comment_char [ END $name ]\n\n";
-	close STDOUT or die "Can't close $file\n";
+	close STDOUT or die "Can't close $file: $!\n";
     }
     $warn_pix_icmp_code && warn_pix_icmp;
 }
