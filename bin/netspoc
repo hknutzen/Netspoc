@@ -39,9 +39,9 @@ my($in_path, $out_dir) = &read_args();
 &find_subnets();
 &setany();
 &distribute_nat_info();
+&setpath();
 &expand_rules();
 &check_unused_groups();
-&setpath();
 die "Aborted with $error_counter error(s)\n" if $error_counter;
 $error_counter = $max_errors; # following errors should always abort
 # Find routes before conversion of any rules, 
