@@ -55,7 +55,7 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 find_active_routes_and_statics 
 		 convert_any_rules 
 		 optimize 
-		 mark_secondary_rules 
+		 gen_secondary_rules 
 		 repair_deny_influence 
 		 acl_generation 
 		 check_output_dir
@@ -1162,12 +1162,17 @@ my %srv_hash;
 sub prepare_srv_ordering( $ ) {
     my($srv) = @_;
     my $type = $srv->{type};
+    my $main_srv;
     if($type eq 'tcp' or $type eq 'udp') {
-	push @{$srv_hash{$type}}, $srv;
-    } else { # ip, proto, icmp
+	if($type eq 'tcp' and $srv->{established}) {
+	    $type = 'established';
+	}
+	my $key = join ':', @{$srv->{ports}};
+	$main_srv = $srv_hash{$type}->{$key} or
+	    $srv_hash{$type}->{$key} = $srv;
+    } else {			# ip, proto, icmp
 	my $v1 = $srv->{v1};
 	my $v2 = $srv->{v2};
-	my $main_srv;
 	if(defined $v2) {
 	    $main_srv = $srv_hash{$type}->{$v1}->{$v2} or
 		$srv_hash{$type}->{$v1}->{$v2} = $srv;
@@ -1178,16 +1183,16 @@ sub prepare_srv_ordering( $ ) {
 	    $main_srv = $srv_hash{$type} or
 		$srv_hash{$type} = $srv;
 	}
-	if($main_srv) {
-	    # found duplicate service definition
-	    # link $srv with $main_srv
-	    # We link all duplicate services to the first service found.
-	    # This assures that we always reach the main service
-	    # from any duplicate service in one step via ->{main}
-	    # This is used later to substitute occurrences of
-	    # $srv with $main_srv
-	    $srv->{main} = $main_srv;
-	}
+    }
+    if($main_srv) {
+	# found duplicate service definition
+	# link $srv with $main_srv
+	# We link all duplicate services to the first service found.
+	# This assures that we always reach the main service
+	# from any duplicate service in one step via ->{main}
+	# This is used later to substitute occurrences of
+	# $srv with $main_srv
+	$srv->{main} = $main_srv;
     }
 }
 
@@ -1220,25 +1225,26 @@ sub order_proto( $$ ) {
 
 # Link each port range with the smallest port range which includes it.
 # If no including range is found, link it with the next larger service.
-sub order_ranges( $$ ) {
-    my($range_aref, $up) = @_;
-    for my $srv1 (@$range_aref) {
-	next if $srv1->{main};
+# Services with identical ranges have already been removed before.
+sub order_ranges( $$$ ) {
+    my($chg_range_href, $cmp_range_href, $up) = @_;
+    for my $srv1 (values %$chg_range_href) {
+	next if $srv1->{up};
 	my @p1 = @{$srv1->{ports}};
 	my $min_size_src = 65536;
 	my $min_size_dst = 65536;
 	$srv1->{up} = $up;
-	for my $srv2 (@$range_aref) {
-	    next if $srv1 eq $srv2;
-	    next if $srv2->{main};
+      SRV2: 
+	for my $srv2 (values %$cmp_range_href) {
+	  next if $srv1 eq $srv2;
 	    my @p2 = @{$srv2->{ports}};
 	    if($p1[0] == $p2[0] and $p1[1] == $p2[1] and
 	       $p1[2] == $p2[2] and $p1[3] == $p2[3]) {
-		# Found duplicate service definition
-		# Link $srv2 with $srv1
-		# Since $srv1 is not linked via ->{main},
-		# we never get chains of ->{main}
-		$srv2->{main} = $srv1;
+		$srv1->{type} eq 'tcp' and $srv1->{established} and 
+		    $srv2->{type} eq 'tcp' and not $srv2->{established} or
+		    internal_err "$srv1->{name} should have 'established' flag";
+		$srv1->{up} = $srv2;
+		last SRV2;
 	    } elsif($p2[0] <= $p1[0] and $p1[1] <= $p2[1] and 
 		    $p2[2] <= $p1[2] and $p1[3] <= $p2[3]) {
 		# Found service definition with both ranges being larger
@@ -1286,12 +1292,14 @@ sub order_services() {
 	$srv_hash{ip} = { type => 'ip', name => 'auto_srv:ip' };
     }
     my $up = $srv_ip = $srv_hash{ip};
-    order_ranges($srv_hash{tcp}, $up) if $srv_hash{tcp};
-    order_ranges($srv_hash{udp}, $up) if $srv_hash{udp};
+    order_ranges($srv_hash{established}, $srv_hash{established}, $up);
+    order_ranges($srv_hash{established},  $srv_hash{tcp}, $up);
+    order_ranges($srv_hash{tcp}, $srv_hash{tcp}, $up);
+    order_ranges($srv_hash{udp}, $srv_hash{udp}, $up);
     order_icmp($srv_hash{icmp}, $up) if $srv_hash{icmp};
     order_proto($srv_hash{proto}, $up) if $srv_hash{proto};
 
-    # it doesn't hurt to set {up} for services with {main} defined
+    # it doesn't hurt to set {depth} for services with {main} defined
     for my $srv (values %services) {
 	my $depth = 0;
 	my $up = $srv;
