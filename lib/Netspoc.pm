@@ -23,12 +23,12 @@ my $comment_acls = 1;
 # Reading topology, Services, Groups, Rules
 ##############################################################################
 
-my $eof;
+our $eof;
 # $_ is used as input buffer, it holds the rest of the current input line
 sub skip_space_and_comment() {
     # ignore trailing whitespace and comments
     while ( m'\G\s*([!#].*)?$ 'gcx and not $eof) {
-	$_ = <>;
+	$_ = <FILE>;
 	# <> becomes undefined at eof
 	unless(defined $_) {
 	    $_ = '';
@@ -48,16 +48,20 @@ sub check_eof() {
     return $eof;
 }
 
+my $main_file;
+our $file;
 sub add_context( $ ) {
     my($msg) = @_;
+    my $at_file = ($file eq $main_file)?'':" of $file";
     my($context) = m/([^\s,;={}]*([,;={}]|\s*)\G([,;={}]|\s*)[^\s,;={}]*)/;
     if($eof) { $context = 'at EOF'; } else { $context = qq/near "$context"/; }
-    qq/$msg at line $., $context\n/;
+    qq/$msg at line $.$at_file, $context\n/;
 }
 
 sub add_line( $ ) {
     my($msg) = @_;
-    qq/$msg at line $.\n/;
+    my $at_file = ($file eq $main_file)?'':" of $file";
+    qq/$msg at line $.$at_file\n/;
 }
 
 my $error_counter = 0;
@@ -619,8 +623,13 @@ sub read_rules() {
 }
 
 # reads input from <>, e.g. all files if given on the command line or STDIN
-sub read_data() {	
+sub read_data( $ ) {	
+    local($file) = @_;
+    local $eof = 0;
+    local *FILE;
+    open(FILE, $file) or die "can't open $file: $!";
     # set input buffer to defined state
+    # when called from 'include:' ignore rest of line
     $_ = '';
     while(1) {
 	last if &check_eof();
@@ -641,13 +650,18 @@ sub read_data() {
 	    &read_service($name);
 	} elsif ($type eq 'servicegroup') {
 	    &read_servicegroup($name);
-	}elsif ($type eq 'rules') {
+	} elsif ($type eq 'rules') {
 	    # name of rules:name should be empty or will be ignored
 	    &read_rules();
+	} elsif ($type eq 'include') {
+	    &read_data($name);
 	} else {
 	    syntax_err "Expected global definition";
 	}
     }
+}
+
+sub show_read_statistics() {
     if($verbose) {
 	my $n = keys %routers;
 	print STDERR "Read $n routers\n";
@@ -1807,12 +1821,43 @@ sub gen_code_at_src( $$$ ) {
     }
 }
 
+####################################################################
+# Argument processing
+####################################################################
+sub usage() {
+    die "Usage: $0 [-c config] file\n";
+}
 
-##############################################################################
+my $conf_file;
+sub read_args() {
+    use Getopt::Std;
+    my %opts;
+    getopts('c:', \%opts);
+    $conf_file = $opts{c};
+    $main_file = shift @ARGV or usage;
+    not @ARGV or usage;
+}
+
+sub read_config() {
+    open FILE, $conf_file or die "can't open $conf_file: $!";
+    while(<FILE>) {
+	# ignore comments
+	s'#.*$'';
+	# ignore empty lines
+	next if /^\s*$/;
+	my($key, $val) = m/(\S+)\s*=\s*(\S+)/;
+    }
+    close FILE;
+}
+	    
+####################################################################
 # Main program
-##############################################################################
+####################################################################
 
-&read_data();
+&read_args();
+&read_config() if $conf_file;
+&read_data($main_file);
+&show_read_statistics();
 
 &order_services();
 
