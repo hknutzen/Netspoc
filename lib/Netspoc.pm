@@ -2700,6 +2700,9 @@ sub find_active_routes_and_statics () {
 	}
     }
     # Convert path info to info needed for generating PIX "static" commands
+    # ToDo: Superflous statics might be generated, if an interface of a pix is
+    # expanded to a network by get_networks above and this network isn't 
+    # used as destination.
     for my $router (@managed_routers) {
 	next unless $router->{model}->{has_interface_level};
 	for my $in_intf (@{$router->{interfaces}}) {
@@ -2715,12 +2718,13 @@ sub find_active_routes_and_statics () {
 		$to =~ s/^2\.//;
 		# get destination object: a network
 		my $obj = $key2obj{$to};
+		# Some paths to routers might been added by 
+		# get_auto_interfaces; ignore them here.
+		next unless is_network $obj;
 		err_msg "Traffic to $obj->{name} can't pass\n",
 		" from  $in_intf->{name} to $out_intf->{name},\n",
 		" since they have equal security levels.\n"
 		    if $in_intf->{level} == $out_intf->{level};
-		is_network $obj or
-		    internal_err "Expected '$obj->{name}' to be a network";
 		next if $obj->{ip} eq 'unnumbered';
 		# Put networks into a hash to prevent duplicates.
 		# We need in_ and out_intf for
@@ -2761,8 +2765,9 @@ sub find_active_routes_and_statics () {
 		next if $hop->{router} eq $router;
 		# get destination object: a network
 		my $obj = $key2obj{$to};
-		is_network $obj or
-		    internal_err "Expected '$obj->{name}' to be a network";
+		# Some paths to routers might been added by 
+		# get_auto_interfaces; ignore them here.
+		next unless is_network $obj;
 		next if $obj->{ip} eq 'unnumbered';
 		$interface->{routes}->{$hop}->{$obj} = $obj;
 		$interface->{hop}->{$hop} = $hop;
