@@ -1507,10 +1507,15 @@ sub expand_group( $$ ) {
 	    }
 	    push @objects, @$elements;
 	} elsif(is_router $object) {
-	    # split a router into its interfaces
-	    push @objects, @{$object->{interfaces}};
+	    # split a router into it's numbered interfaces
+	    for my $interface (@{$object->{interfaces}}) {
+		unless($interface->{ip} eq 'unnumbered') {
+		    push @objects, $interface;
+		}
+	    }
 	} elsif(is_every $object) {
 	    # expand an 'every' object to all networks in its security domain
+	    # Attention: this doesn't include unnumbered networks
 	    push @objects,  @{$object->{link}->{any}->{networks}};
 	} else {
 	    push @objects, $object;
