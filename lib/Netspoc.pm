@@ -874,10 +874,21 @@ sub read_router( $ ) {
 	}
 	if(my $hw_name = $interface->{hardware}) {
 	    my $hardware;
-	    unless($hardware = $hardware{$hw_name}) {
+	    if($hardware = $hardware{$hw_name}) {
+		no warnings "uninitialized";
+		# All logical interfaces of one hardware interface
+		# need to use the same nat binding,
+		# because NAT operates on hardware, not on logic.
+		$interface->{bind_nat} eq $hardware->{bind_nat} or
+		    err_msg "All interfaces of $router->{name} ",
+		    "must use identical NAT binding";
+	    } else {
 		$hardware = { name => $hw_name };
 		$hardware{$hw_name} = $hardware;
 		push @{$router->{hardware}}, $hardware;
+		if(my $nat = $interface->{bind_nat}) {
+		    $hardware->{bind_nat} = $nat;
+		}
 	    }
 	    $interface->{hardware} = $hardware;
 	    # Remember, which logical interfaces are bound to which hardware
@@ -3268,10 +3279,10 @@ sub setnat_network( $$$$ ) {
 	# Found a loop
 	return;
     }
-    if($network->{bind_nat}) {
-	my $max_depth = @{$network->{bind_nat}};
+    if($network->{nat_info}) {
+	my $max_depth = @{$network->{nat_info}};
 	for(my $i = 0; $i < $max_depth; $i++) {
-	    if($network->{bind_nat}->[$i]->{$nat}) {
+	    if($network->{nat_info}->[$i]->{$nat}) {
 ##		info "nat:$nat: other binding";
 		# Found an alternate border of current NAT domain
 		if($i != $depth) {
@@ -3284,7 +3295,7 @@ sub setnat_network( $$$$ ) {
 	}
     }
     # Use a hash to prevent duplicate entries
-    $network->{bind_nat}->[$depth]->{$nat} = $nat;
+    $network->{nat_info}->[$depth]->{$nat} = $nat;
     # Loop detection
     $network->{active_path} = 1;
     if($network->{nat}->{$nat}) {
@@ -3332,15 +3343,11 @@ sub distribute_nat_info() {
 		warning "Ignoring undefined nat:$nat bound to $interface->{name}";
 	    }
 	}
-	# All logical interfaces of one hardware interface
-	# need to use the same nat binding, because in reality NAT operates on hardware.
-	for my $hardware (@{$router->{hardware}}) {
-	    my $nat = $hardware->{interfaces}->[0]->{bind_nat};
-	    for my $interface (@{$hardware->{interfaces}}) {
-		no warnings "uninitialized";
-		$interface->{bind_nat} eq $nat or
-		    err_msg "All interfaces of $router->{name} must use identical NAT binding";
-	    }
+    }
+    # {nat_info} was collected at networks, but is needed at interfaces
+    for my $router (values %routers) {
+	for my $interface (@{$router->{interfaces}}) {
+	    $interface->{nat_info} = $interface->{network}->{nat_info};
 	}
     }
     for my $name (keys %nat_definitions) {
@@ -3825,7 +3832,7 @@ sub print_routes( $ ) {
 	    } 
 	    next;
 	}
-	my $nat_domain = $interface->{network}->{bind_nat};
+	my $nat_domain = $interface->{nat_info};
 	# Sort interfaces by name to make output deterministic
 	for my $hop (sort { $a->{name} cmp $b->{name} }
 			 values %{$interface->{hop}}) {
@@ -3898,14 +3905,14 @@ sub print_pix_static( $ ) {
 		      @{$router->{interfaces}}) {
 	next unless $out_intf->{static};
 	my $out_hw = $out_intf->{hardware}->{name};
-	my $out_nat = $out_intf->{network}->{bind_nat};
+	my $out_nat = $out_intf->{nat_info};
 	# values are [ { net => net, .. }, in_intf ]
 	for my $aref (sort { $a->[1]->{hardware}->{name} cmp
 				 $b->[1]->{hardware}->{name} }
 		      values %{$out_intf->{static}}) {
 	    my($net_hash, $in_intf) = @$aref;
 	    my $in_hw = $in_intf->{hardware}->{name};
-	    my $in_nat = $in_intf->{network}->{bind_nat};
+	    my $in_nat = $in_intf->{nat_info};
 	    my @networks =
 		sort { $a->{ip} <=> $b->{ip} } values %$net_hash;
 	    # Mark enclosing networks, which are used in statics at this router
@@ -4304,7 +4311,7 @@ sub address( $$$ ) {
 # Lookup NAT tag of a network while generating code in a domain
 # represented by a network.
 # Data structure:
-# $network->{bind_nat}->[$depth]->{$nat_tag} = $nat_tag;
+# $nat_info->[$depth]->{$nat_tag} = $nat_tag;
 sub nat_lookup( $$ ) {
     my($net, $nat_info) = @_;
     $nat_info or return undef;
@@ -4508,12 +4515,11 @@ sub find_object_groups ( $ ) {
     # ref to hash, where each value is an aref of hardware lying
     # in the same NAT domain.
     my %nat2hw;
-    # Find groups of hardware interfaces belonging to equal nat domains.
-    # (NAT domain of logical and hardware devices is assured to be equal)
+    # Find groups of hardware interfaces having equal nat bindings.
+    # (NAT bindings of logical and hardware devices are assured to be equal)
     for my $hardware (@{$router->{hardware}}) {
-        my $nat = $hardware->{interfaces}->[0]->{network}->{bind_nat};
+        my $nat = $hardware->{bind_nat};
         push @{$nat2hw{$nat || 'none'}}, $hardware;
-        $hardware->{nat_info} = $nat if $nat;
     }
     # Collect found object-groups 
     my @groups;
@@ -4528,7 +4534,7 @@ sub find_object_groups ( $ ) {
 	    my %group_rule_tree;
 	    my %ref2obj;
 	    # get nat_info from first hardware
-	    my $nat_info = $aref->[0]->{nat_info};
+	    my $nat_info = $aref->[0]->{interface}->{nat_info};
 	    for my $hardware (@$aref) {
 		# find groups of rules with identical 
 		# action, srv, src/dst and different dst/src
@@ -4607,15 +4613,15 @@ sub find_object_groups ( $ ) {
 		my @new_rules;
 		for my $rule (@{$hardware->{rules}}) {
 		    if(my $glue = $rule->{$tag}) {
-#		    info "In group $glue->{group}->{name}: ". print_rule $rule;
+		    info "In group $glue->{group}->{name}: ". print_rule $rule;
 			# remove tag, otherwise call of find_object_groups 
 			# for another router would become confused
 			delete $rule->{$tag};
 			if($glue->{active}) {
-#			info " deleted";
+			info " deleted";
 			    next;
 			}
-#		    info " generated";
+		    info " generated";
 			$glue->{active} = 1;
 			$rule = {action => $rule->{action},
 				 $that => $rule->{$that},
@@ -4637,7 +4643,8 @@ sub find_object_groups ( $ ) {
         print "object-group network $group->{name}\n";
 	my $nat_info =  $group->{nat_info};
         for my $element (@{$group->{elements}}) {
-	    for my $pair (&address($element, $nat_info, 'src')) {
+	    for my $pair (sort { $a->[0] <=> $b->[0] ||  $a->[1] <=> $b->[1] }
+			  &address($element, $nat_info, 'src')) {
 		my $adr = &ios_code($pair);
 		print " network-object $adr\n";
 	    }
@@ -4756,9 +4763,8 @@ sub print_acls( $ ) {
 	}
 	# Take network of first logical interface for determining the NAT domain.
 	# During NAT processing above, we have assured, that all logical interfaces
-	# of one hardware interface have the same NAT bindings and hence one network
-	# can be used as a representative for all.
-	my $nat_info = $hardware->{interfaces}->[0]->{network}->{bind_nat};
+	# of one hardware interface have the same NAT bindings.
+	my $nat_info = $hardware->{interfaces}->[0]->{nat_info};
 	# Interface rules
 	acl_line $hardware->{intf_rules}, $nat_info, $intf_prefix, $model;
 	# Ordinary rules
