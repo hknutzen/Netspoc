@@ -2179,19 +2179,14 @@ sub expand_rules() {
 	for my $p_rule (@{$policy->{rules}}) {
 	    my $rule = {};
 	    my $action = $rule->{action} = $p_rule->{action};
-	    if($p_rule->{src} eq 'user') {
-		$rule->{src} = $user;
-	    } else {
-		$rule->{src} = $p_rule->{src} =
-		    expand_group($p_rule->{src},
-				 "src of rule in $policy->{name}");
-	    }
-	    if($p_rule->{dst} eq 'user') {
-		$rule->{dst} = $user;
-	    } else {
-		$rule->{dst} =$p_rule->{dst} =
-		    expand_group($p_rule->{dst},
-				 "dst of rule in $policy->{name}");
+	    for my $where ('src', 'dst') {
+		if($p_rule->{$where} eq 'user') {
+		    $rule->{$where} = $user;
+		} else {
+		    $rule->{$where} = $p_rule->{$where} =
+			expand_group($p_rule->{$where},
+				     "$where of rule in $policy->{name}");
+		}
 	    }
 	    $rule->{srv} = expand_services($p_rule->{srv},
 					   "rule in $policy->{name}");
