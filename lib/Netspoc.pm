@@ -2258,6 +2258,7 @@ sub mark_secondary_rules() {
     # mark only normal rules for optimization, not 'deny', not 'any'
     my %secondary_rule_tree;
     for my $rule (@expanded_rules) {
+	next if $rule->{deleted};
 	&path_walk($rule, \&mark_secondary_rule, 'Router');
 	if($rule->{has_secondary_filter} = 
 	   $rule->{has_secondary_filter} && $rule->{has_full_filter}) {
@@ -3357,8 +3358,8 @@ $error_counter = $max_errors; # following errors should always abort
 &set_route_in_any();
 &find_active_routes_and_statics();
 &convert_any_rules();
-&mark_secondary_rules();
 &optimize();
+&mark_secondary_rules();
 &repair_deny_influence();
 &acl_generation();
 &check_output_dir($out_dir);
