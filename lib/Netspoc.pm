@@ -122,6 +122,12 @@ my %router_info =
      filter => 'PIX',
      has_interface_level => 1,
      no_filter_icmp_code => 1
+     },
+ Linux => {
+     name => 'Linux',
+     stateful => 1,
+     routing => 'iproute',
+     filter => 'iptables'
      }
  );
 
@@ -261,6 +267,27 @@ sub print_ip( $ ) {
     return sprintf "%vd", pack 'N', $ip;
 }
 
+# Conversion from netmask to prefix and vice versa
+{
+    # initialize private variables of this block
+    my %mask2prefix;
+    my %prefix2mask;
+    for my $prefix (0 .. 32) {
+	my $mask = 2**32 - 2**(32-$prefix);
+	$mask2prefix{$mask} = $prefix;
+	$prefix2mask{$prefix} = $mask;
+    }
+
+    # convert a network mask to a prefix ranging from 0 to 32
+    sub print_prefix( $ ) {
+	my $mask = shift;
+	if(defined(my $prefix = $mask2prefix{$mask})) {
+	    return $prefix;
+	}
+	internal_err "Network mask ", print_ip $mask, " isn't a valid prefix";
+    }
+}
+   
 # generate a list of IP strings from an ref of an array of integers
 sub print_ip_aref( $ ) {
     my $aref = shift;
@@ -3038,11 +3065,15 @@ sub print_routes( $ ) {
 		if($comment_routes) {
 		    print "! route $network->{name} -> $hop->{name}\n";
 		}
-		my $adr = &adr_code($network, 0);
 		if($router->{model}->{routing} eq 'IOS') {
+		    my $adr = &adr_code($network, 0);
 		    print "ip route $adr\t$hop_addr\n";
 		} elsif($router->{model}->{routing} eq 'PIX') {
+		    my $adr = &adr_code($network, 0);
 		    print "route $interface->{hardware} $adr\t$hop_addr\n";
+		} elsif($router->{model}->{routing} eq 'iproute') {
+		    my $adr = &prefix_code($network);
+		    print "ip route $adr via $hop_addr\n";
 		} else {
 		    internal_err
 			"unexpected routing type $router->{model}->{routing}";
@@ -3193,6 +3224,22 @@ sub adr_code( $$ ) {
 	}
     } elsif(is_any($obj)) {
 	return 'any';
+    } else {
+	internal_err "unexpected object $obj->{name}";
+    }
+}
+
+# Given a network, return its address as "x.x.x.x/x"
+sub prefix_code( $ ) {
+    my($obj) = @_;
+    if(is_net $obj) {
+	if($obj->{ip} eq 'unnumbered') {
+	    internal_err "unexpected unnumbered $obj->{name}\n";
+	} else {
+	    my $ip_code = &print_ip($obj->{ip});
+	    my $prefix_code = &print_prefix($obj->{mask});
+	    return "$ip_code/$prefix_code";
+	}
     } else {
 	internal_err "unexpected object $obj->{name}";
     }
@@ -3579,7 +3626,7 @@ sub print_acls( $ ) {
 	    print "access-list $name deny ip any any\n";
 	    print "access-group $name in $hardware\n\n";
 	} else {
-	    internal_err "unsupported router filter type $model->{filter}";
+	    internal_err "unsupported router filter type '$model->{filter}'";
 	}
     }
 }
