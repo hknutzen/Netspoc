@@ -456,8 +456,7 @@ sub read_interface( $$ ) {
 	}
 	my $hardware = &check_assign('hardware', \&read_string);
 	$hardware and $interface->{hardware} = $hardware;
-	my $disabled = &check_flag('disabled');
-	if($disabled) {
+	if(&check_flag('disabled')) {
 	    $interface->{disabled} = 1;
 	    push @disabled_interfaces, $interface;
 	}
@@ -1333,8 +1332,9 @@ sub expand_group( $$ ) {
 	}
     }
     for my $object (@objects) {
-	$object = undef if $object->{disabled};
-	if(is_net $object) {
+	if($object->{disabled}) {
+	    $object = undef;
+	} elsif(is_net $object) {
 	    if($object->{ip} eq 'unnumbered') {
 		err_msg "Unnumbered $object->{name} must not be used in $context";
 		$object = undef;
@@ -1602,7 +1602,15 @@ sub repair_deny_influence() {
 }
 
 ####################################################################
-# mark all parts of the topology lying behind disabled interfaces
+# Mark all parts of the topology lying behind disabled interfaces.
+# "Behind" is defined like this:
+# Look from a router to its interfaces; 
+# if an interface is marked as disabled, 
+# recursivly mark the whole part of the topology lying behind 
+# this interface as disabled.
+# Be cautious with loops:
+# If an interface inside a loop is marked as disabled,
+# this will mark the whole topology as disabled.
 ####################################################################
 sub disable_behind( $ ) {
     my($incoming) = @_;
@@ -1628,6 +1636,18 @@ sub disable_behind( $ ) {
 	}
 	for my $outgoing (@{$router->{interfaces}}) {
 	    next if $outgoing eq $interface;
+	    if($outgoing->{disabled}) {
+		# We found an already disabled interface,
+		# but its router was not disabled.
+		# Hence, we reached an initial element 
+		# of @disabled_interfaces, which seems to 
+		# be part of a loop. 
+		# This is dangerous, since the whole topology 
+		# may be disabled by accident.
+		err_msg "$outgoing->{name} must not be disabled,\n",
+		"since it is part of a loop";
+		next;
+	    }
 	    &disable_behind($outgoing);
 	}
     }
@@ -1703,7 +1723,7 @@ sub find_subnets() {
 
 ####################################################################
 # For each security domain find its associated 'any' object or 
-# generate a new one if no one was declared.
+# generate a new one if none was declared.
 # Link each interface at the border of this security domain with
 # its 'any' object and vice versa.
 # Additionally link each network and unmanaged router in this security
@@ -1755,7 +1775,7 @@ sub setany_router( $$$ ) {
 my @all_anys;
 
 sub setany() {
-    @all_anys = values %anys;
+    @all_anys = grep { not $_->{disabled} } values %anys;
     for my $any (@all_anys) {
 	my $obj = $any->{link};
 	if(my $old_any = $obj->{any}) {
