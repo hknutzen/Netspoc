@@ -1938,7 +1938,7 @@ sub gen_acls( $ ) {
 	for my $line (@{$interface->{code}}) {
 	    print " $line";
 	}
-	print " deny any any\n";
+	print " deny ip any any\n";
 	print "interface $interface->{hardware}\n";
 	print " access group $interface->{hardware}_in\n";
     }
@@ -1955,7 +1955,7 @@ sub gen_routes( $ ) {
 		print "! route $routing->[$i]->{name} -> $interface->{name}\n";
 	    }
 	    my $adr = adr_code $routing->[$i];
-	    print "route $adr\t$hop\n";
+	    print "ip route $adr\t$hop\n";
 	}
     }
     # Default route
@@ -1963,7 +1963,7 @@ sub gen_routes( $ ) {
     if($comment_routes) {
 	print "! route default -> $router->{default}->{name}\n";
     }
-    print "route 0.0.0.0 0.0.0.0\t$hop\n";
+    print "ip route 0.0.0.0 0.0.0.0\t$hop\n";
 }
 
 ####################################################################
