@@ -1758,7 +1758,8 @@ sub link_topology() {
     }
     &link_pathrestrictions();
     for my $network (values %networks) {
-	if($network->{ip} eq 'unnumbered' and @{$network->{interfaces}} > 2) {
+	if($network->{ip} eq 'unnumbered' and $network->{interfaces} and
+	   @{$network->{interfaces}} > 2) {
 	    err_msg "Unnumbered $network->{name} is connected to",
 	    " more than two interfaces:";
 	    for my $interface (@{$network->{interfaces}}) {
