@@ -1957,10 +1957,41 @@ sub optimization() {
 # when using this interface as next hop
 ####################################################################
 
+sub find_subnets() {
+    my %mask_ip_hash;
+    for my $network (values %networks) {
+	next if $network->{ip} eq 'unnumbered';
+	next if $network->{disabled};
+	if(my $old_net = $mask_ip_hash{$network->{mask}}->{$network->{ip}}) {
+	    die "Duplicate networks with identical ip/mask: $network->{name} and $old_net->{name}\n";
+	}
+	$mask_ip_hash{$network->{mask}}->{$network->{ip}} = $network;
+    }
+    for my $mask (reverse sort keys %mask_ip_hash) {
+	last if $mask == 0;
+	for my $ip (keys %{$mask_ip_hash{$mask}}) {
+	    my $m = $mask;
+	    my $i = $ip;
+	    while($m) {
+		$m <<= 1;
+		$i &= $m;
+		if($mask_ip_hash{$m}->{$i}) {
+		    my $bignet = $mask_ip_hash{$m}->{$i};
+		    $bignet->{enclosing} = 1;
+		    $mask_ip_hash{$mask}->{$ip}->{is_in} = $bignet;
+		    last;
+		}
+	    }
+	}
+    }
+}
+		    
 sub get_networks_behind ( $ ) {
     my($hop) = @_;
     # return if the values have already been calculated
     return @{$hop->{route}} if exists $hop->{route};
+    # info isn't needed for interface at leaf network
+    return if @{$hop->{network}->{interfaces}} == 1;
     my @networks;
     for my $interface (@{$hop->{router}->{interfaces}}) {
 	next if $interface eq $hop;
@@ -1984,6 +2015,7 @@ sub get_networks_behind ( $ ) {
 # Set routes
 sub setroute() {
     info "Setting routes\n";
+    find_subnets();
     for my $interface (values %interfaces) {
 	get_networks_behind $interface;
     }
@@ -2317,12 +2349,28 @@ sub gen_routes( $ ) {
     my($router) = @_;
     print "[ Routing ]\n";
     for my $interface (@{$router->{interfaces}}) {
-	for my $next_hop (@{$interface->{network}->{interfaces}}) {
-	    next if $next_hop eq $interface;
-	    my $hop_ip = print_ip $next_hop->{ip}->[0];
-	    for my $network (@{$next_hop->{route}}) {
+	for my $hop (@{$interface->{network}->{interfaces}}) {
+	    next if $hop eq $interface;
+	    my $hop_ip = print_ip $hop->{ip}->[0];
+	    my @networks = @{$hop->{route}};
+	    # find enclosing networks
+	    my %enclosing;
+	    for my $network (@networks) {
+		if($network->{enclosing}) {
+		    $enclosing{$network} = 1;
+		}
+	    }
+	    # delete redundant networks
+	    for my $network (@networks) {
+		my $bignet;
+		if($bignet = $network->{is_in} and $enclosing{$bignet}) {
+		    $network = undef;
+		}
+	    }
+	    for my $network (@networks) {
+		next unless defined $network;
 		if($comment_routes) {
-		    print "! route $network->{name} -> $next_hop->{name}\n";
+		    print "! route $network->{name} -> $hop->{name}\n";
 		}
 		my $adr = adr_code $network, 0;
 		if($router->{model} eq 'IOS') {
