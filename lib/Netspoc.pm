@@ -1876,6 +1876,7 @@ sub gen_code( $$$ ) {
     my @dst_code = &adr_code($dst);
     my ($proto_code, $port_code) = &srv_code($srv);
     $action = 'deny' if $action eq 'weak_deny';
+    # the src object reaches this router via src_intf
     if(defined $src_intf) {
 	if($comment_acls) {
 	    push(@{$src_intf->{code}}, "! ". print_rule($rule)."\n");
@@ -1886,17 +1887,23 @@ sub gen_code( $$$ ) {
 		     "$action $proto_code $src_code $dst_code $port_code\n");
 	    }
 	}
-    } else {	# defined $dst_intf
+    } elsif(defined $dst_intf) {
+	# src_intf is undefined; src is an interface of this router
+	# For IOS and PIX, only packets from dst backt this router are filterd
 	if($comment_acls) {
 	    push(@{$dst_intf->{code}}, "! ". print_rule($rule)."\n");
 	}
 	for my $src_code (@src_code) {
 	    for my $dst_code (@dst_code) {
+		my $established = $srv->{type} eq 'tcp'?'established':'';
 		push(@{$dst_intf->{code}},
 		     # ToDo: add 'established' for TCP
-		     "$action $proto_code $dst_code $port_code $src_code\n");
+		     "$action $proto_code $dst_code $port_code $src_code $established\n");
 	    }
 	}
+    } else {
+	die "internal in gen_code: no interfaces for ".
+	    print_rule($rule);
     }
 }
 
