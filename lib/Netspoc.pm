@@ -1715,7 +1715,7 @@ my @managed_routers;
 # interface:[all].[auto], all routers, [auto] interfaces
 # any:[all], group of all security domains
 sub set_auto_groups () {
-#    my @all_routers;
+    my @all_routers;
     my @managed_interfaces;
     my @all_interfaces;
     for my $router (values %routers) {
@@ -1724,7 +1724,7 @@ sub set_auto_groups () {
 	    push @managed_routers, $router;
 	    push @managed_interfaces, @interfaces;
 	}
-#	push @all_routers, $router;
+	push @all_routers, $router;
 	push @all_interfaces, @interfaces;
 	(my $name = $router->{name}) =~ s /^router://;
 	$interfaces{"$name.[all]"} =
@@ -1740,12 +1740,9 @@ sub set_auto_groups () {
     $routers{'[managed]'} =
 	new('Group', name => "router:[managed]",
 	    elements => \@managed_routers, is_used => 1);
-# This is needed for interface:[all].[auto];
-# but this isn't implemented, because we don't know paths inside of security domains
-# and hence can't automtically find the rigth interface.
-#    $routers{'[all]'} =
-#	new('Group', name => "router:[all]",
-#	    elements => \@all_routers, is_used => 1);
+    $routers{'[all]'} =
+	new('Group', name => "router:[all]",
+	    elements => \@all_routers, is_used => 1);
     @all_anys or internal_err "\@all_anys is empty";
     $anys{'[all]'} = 
 	new('Group', name => "any:[all]",
@@ -1766,9 +1763,7 @@ sub expand_group( $$ ) {
 	unless($object = $name2object{$type}->{$name} or
 	       $type eq 'interface' and
 	       $name =~ /^(.*)\.\[auto\]$/ and
-	       $object = $routers{$1} and
-	       # currently only interface:xx.[auto] for managed routers
-	       $object->{managed}) {
+	       $object = $routers{$1}) {
 	    err_msg "Can't resolve reference to '$tname' in $context";
 	    next;
 	}
