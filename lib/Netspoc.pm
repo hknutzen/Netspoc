@@ -675,6 +675,7 @@ sub read_network( $ ) {
 
 my %valid_routing = (OSPF => 1);
 our %interfaces;
+my @virtual_interfaces;
 my @disabled_interfaces;
 sub read_interface( $$ ) {
     my($router, $net) = @_;
@@ -717,6 +718,15 @@ sub read_interface( $$ ) {
 		} else {
 		    syntax_err "Expected NAT definition";
 		}
+	    } elsif(my $virtual = &check_assign('virtual', \&read_ip)) {
+		# read virtual IP vor VRRP / HSRP
+		$interface->{ip} eq 'unnumbered' and
+		    error_atline
+		    "No virtual IP supported for unnumbered interface";
+		$interface->{virtual} and
+		    error_atline "Redefining virtual IP";
+		$interface->{virtual} = $virtual;
+		push @virtual_interfaces, $interface;
 	    } elsif(my $nat = &check_assign('nat', \&read_identifier)) {
 		# bind NAT to an interface
 		$interface->{bind_nat} and
@@ -1593,7 +1603,9 @@ sub link_interface_with_net( $ ) {
 	# check compatibility of interface ip and network ip/mask
 	my $network_ip = $network->{ip};
 	my $mask = $network->{mask};
-	for my $interface_ip (@$ip) {
+	for my $interface_ip (@$ip,
+			      $interface->{virtual} ?
+			      $interface->{virtual} : ()) {
 	    if($network_ip eq 'unnumbered') {
 		err_msg "$interface->{name} must not be linked ",
 		"to unnumbered $network->{name}";
@@ -2473,6 +2485,38 @@ sub setpath() {
 	$network->{main} or $network->{right} or
 	    err_msg "Found unconnected $network->{name}";
     }
+
+    # Check consistency of virtual interfaces:
+    # Interfaces with identical virtual IP must 
+    # be connected to the same network and 
+    # must lie inside the same loop.
+    my %same_ip;
+    for my $interface (@virtual_interfaces) {
+	my $ip = $interface->{virtual};
+	push @{$same_ip{$ip}}, $interface;
+    }
+    for my $aref (values %same_ip) {
+	if(@$aref == 1) {
+	    my $interface = $aref->[0];
+	    err_msg "Virtual IP: Missing second interface for ",
+	    "$interface->{name}";
+	} elsif(@$aref == 2) {
+	    my($i1, $i2) = @$aref;
+	    $i1->{network} eq $i2->{network} or
+		err_msg "Virtual IP: $i1->{name} and $i2->{name} ",
+		"are connected with different networks";
+	    $i1->{router}->{loop} and $i2->{router}->{loop} and
+	    $i1->{router}->{loop} eq $i2->{router}->{loop} or
+		err_msg "Virtual IP: $i1->{name} and $i2->{name} ",
+		"are part of different loops";
+	} else {
+	    my $ip = print_ip $aref->[0]->{virtual};
+	    my $num = @$aref;
+	    err_msg "Virtual IP $ip: currently only two interface ",
+	    "are supported, but $num are defined: ",
+	    join(", ", map {$_->{name}} @$aref);
+	}
+    }	
 }
 
 ####################################################################
@@ -2712,7 +2756,7 @@ sub find_active_routes_and_statics () {
 		next if $in_intf->{level} > $out_intf->{level};
 		# convert 2nd path
 		$to =~ s/^2\.//;
-		# get destination object: a network
+		# get destination object
 		my $obj = $key2obj{$to};
 		# Some paths to routers might been added by 
 		# get_auto_interfaces; ignore them here.
@@ -2748,10 +2792,12 @@ sub find_active_routes_and_statics () {
 	    for my $to (keys %{$interface->{path}}) {
 		my $hop = $interface->{path}->{$to};
 		# Don't generate two different static routes to destination
-		if($to =~ /^2\.(.*)$/) {
+		if($to =~ /^2\.(.*)$/ and
+		   not ($hop and $hop->{virtual} and
+			$hop->{router} ne $router)) {
 		    $to =~ $1;
-		    next if $hop and $hop->{router} eq $router;
 		    my $obj = $key2obj{$to};
+		    next unless is_network $obj;
 		    err_msg "Two static routes for $obj->{name} at ",
 		    "$interface->{name}";
 		}
@@ -2759,7 +2805,7 @@ sub find_active_routes_and_statics () {
 		next unless $hop;
 		# ignore incoming direction
 		next if $hop->{router} eq $router;
-		# get destination object: a network
+		# get destination object
 		my $obj = $key2obj{$to};
 		# Some paths to routers might been added by 
 		# get_auto_interfaces; ignore them here.
@@ -3509,8 +3555,12 @@ sub print_routes( $ ) {
 	for my $hop (sort { $a->{name} cmp $b->{name} }
 			 values %{$interface->{hop}}) {
 	    # for unnumbered networks use interface name as next hop
-	    my $hop_addr = $hop->{ip} eq 'unnumbered' ?
-		$interface->{hardware} : print_ip $hop->{ip}->[0];
+	    my $hop_addr =
+		$hop->{ip} eq 'unnumbered' ?
+		$interface->{hardware} :
+		$hop->{virtual} ?
+		print_ip $hop->{virtual} :
+		print_ip $hop->{ip}->[0];
 	    # A hash having all networks reachable via current hop
 	    # as key as well as value.
 	    my $net_hash = $interface->{routes}->{$hop};
@@ -4172,6 +4222,7 @@ sub print_acls( $ ) {
 	# Remember interface name for comments
 	$hardware{$hardware} = $interface->{name};
 	push @ip, @{$interface->{ip}};
+	push @ip, $interface->{virtual} if $interface->{virtual};
 	# is OSPF used? What are the destination networks?
 	if($interface->{routing} and $interface->{routing} eq 'OSPF') {
 	    push @{$ospf{$hardware}}, $interface->{network};
