@@ -33,6 +33,7 @@ my $comment_acls = 1;
 my $comment_routes = 1;
 my $warn_unused_groups = 1;
 # allow subnets only 
+# if the enclosing network is marked as 'route_hint' or
 # if the subnet is marked as 'subnet_of'
 my $strict_subnets = 'warn';
 # Optimize number of routing entries per router
@@ -369,6 +370,7 @@ sub read_network( $ ) {
 		      );
     skip('=');
     skip('{');
+    $network->{route_hint} = &check_flag('route_hint');
     $network->{subnet_of} = &check_assign('subnet_of', \&read_typed_name);
     my $ip;
     my $mask;
@@ -418,6 +420,10 @@ sub read_network( $ ) {
 	    $host->{network} = $network;
 	}
 	push(@{$network->{hosts}}, @hosts);
+    }
+    if(@{$network->{hosts}} and $network->{route_hint}) {
+	err_msg "$network->{name} must not have host definitions,\n",
+	    " since it has attribute 'route_hint'";
     }
     &mark_ip_ranges($network);
     if($networks{$name}) {
@@ -1347,6 +1353,9 @@ sub expand_group( $$ ) {
 	    if($object->{ip} eq 'unnumbered') {
 		err_msg "Unnumbered $object->{name} must not be used in $context";
 		$object = undef;
+	    } elsif($object->{route_hint}) {
+		err_msg "$object->{name} marked as 'route_hint' must not be used in $context";
+		$object = undef;
 	    }
 	} elsif(is_interface $object) {
 	    if($object->{ip} eq 'unnumbered') {
@@ -1704,11 +1713,13 @@ sub find_subnets() {
 		    my $subnet = $mask_ip_hash{$mask}->{$ip};
 		    $subnet->{is_in} = $bignet;
 		    if($strict_subnets and
-		       not($subnet->{subnet_of} and
+		       not($bignet->{route_hint} or
+			   $subnet->{subnet_of} and
 			   $subnet->{subnet_of} eq $bignet)) {
 			my $msg =
 			    "$subnet->{name} is subnet of $bignet->{name}\n" .
-			    " if desired, declare attribute 'subnet_of'";
+			    " if desired, either declare attribute 'subnet_of'" .
+			    " or attribute 'route_hint'";
 			if($strict_subnets eq 'warn') {
 			    warning $msg;
 			} else {
@@ -2714,7 +2725,7 @@ sub print_routes( $ ) {
 	my $max_intf;
 	my $max_hop;
 	# substitue routes to one hop with a default route,
-	# if there are more than one entries.
+	# if there are at least two entries.
 	my $max = 1;
 	for my $interface (@{$router->{interfaces}}) {
 	    # Sort interfaces by name to make output deterministic
@@ -2741,13 +2752,21 @@ sub print_routes( $ ) {
 	    # for unnumbered networks use interface name as next hop
 	    my $hop_addr = $hop->{ip} eq 'unnumbered' ?
 		$interface->{hardware} : print_ip $hop->{ip}->[0];
+	    # A hash having all networks reachable via current hop
+	    # as key as well as value.
+	    my $net_hash = $interface->{routing}->{$hop};
 	    for my $network
 		# Sort networks by mask in reverse order,
 		# i.e. small networks coming first and 
 		# for equal mask by IP address.
 		# We need this to make the output deterministic
 		( sort { $b->{mask} <=> $a->{mask} || $a->{ip} <=> $b->{ip} }
-		  values %{$interface->{routing}->{$hop}}) {
+		  values %$net_hash)
+	    {
+		# Network is redundant, if directly enclosing network
+		# lies behind the same hop.
+		next if $network->{is_in} and $net_hash->{$network->{is_in}};
+		next unless defined $network;
 		if($comment_routes) {
 		    print "! route $network->{name} -> $hop->{name}\n";
 		}
