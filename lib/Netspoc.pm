@@ -93,7 +93,7 @@ my $auto_default_route = 1;
 # - Editor backup files: emacs: *~
 my $ignore_files = qr/^CVS$|^RCS$|^\.#|^raw$|~$/;
 # abort after this many errors
-our $max_errors = 100;
+our $max_errors = 10;
 # allow rules at top-level or only as part of policies
 # Possible values: 0 | warn | 1
 my $allow_toplevel_rules = 0;
