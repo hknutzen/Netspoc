@@ -4509,46 +4509,37 @@ sub acl_line( $$$$ ) {
 	}
     }
 }
-		
+
+my $min_object_group_size = 2;
+
 sub find_object_groups ( $ ) {
     my($router) = @_;
-    # ref to hash, where each value is an aref of hardware lying
-    # in the same NAT domain.
-    my %nat2hw;
-    # Find groups of hardware interfaces having equal nat bindings.
-    # (NAT bindings of logical and hardware devices are assured to be equal)
-    for my $hardware (@{$router->{hardware}}) {
-        my $nat = $hardware->{bind_nat};
-        push @{$nat2hw{$nat || 'none'}}, $hardware;
-    }
     # Collect found object-groups 
     my @groups;
+    # find identical groups in identical NAT domain and of same size
+    my %nat2size2group;
     # For generating names of object-groups
     my $counter = 1;
-    my $sub = sub () {
-	# $this: 'src' or 'dst': where do we want to find object groups
-	my($this) = @_;
+    # Find object-groups in src / dst of rules
+    for my $this ('src', 'dst') {
 	my $that = $this eq 'src' ? 'dst' : 'src';
 	my $tag = "${this}_group";
-	for my $aref (values %nat2hw) {
+	my %ref2obj;
+	for my $hardware (@{$router->{hardware}}) {
 	    my %group_rule_tree;
-	    my %ref2obj;
-	    # get nat_info from first hardware
-	    my $nat_info = $aref->[0]->{interface}->{nat_info};
-	    for my $hardware (@$aref) {
-		# find groups of rules with identical 
-		# action, srv, src/dst and different dst/src
-		for my $rule (@{$hardware->{rules}}) {
-		    my $action = $rule->{action};
-		    my $that = $rule->{$that};
-		    my $this = $rule->{$this};
-		    my $srv = $rule->{srv};
-		    $ref2obj{$this} = $this;
-		    $group_rule_tree{$action}->{$srv}->{$that}->{$this} = $rule;
-		}
+	    # find groups of rules with identical 
+	    # action, srv, src/dst and different dst/src
+	    for my $rule (@{$hardware->{rules}}) {
+		my $action = $rule->{action};
+		my $that = $rule->{$that};
+		my $this = $rule->{$this};
+		my $srv = $rule->{srv};
+		$ref2obj{$this} = $this;
+		$group_rule_tree{$action}->{$srv}->{$that}->{$this} = $rule;
 	    }
-	    my %group_size;
-	    # Sort groups > 1 by size
+	    # Find groups >= $min_object_group_size,
+	    # mark rules belonging to one group,
+	    # put groups into an array / hash
 	    for my $href (values %group_rule_tree) {
 		# $href is {srv => href, ...}
 		for my $href (values %$href) {
@@ -4556,107 +4547,108 @@ sub find_object_groups ( $ ) {
 		    for my $href (values %$href) {
 			# $href is {dst/src => rule, ...}
 			my $size = keys %$href;
-			if($size > 1) {
-			    # group groups with equal size together
-			    push @{$group_size{$size}}, $href;
-			}
-		    }
-		}
-	    }
-	    # Find identical groups and mark rules belonging to one group.
-	    # { size => [ { ref => rule, ... }, ... ], ... }
-	    for my $aref (values %group_size) {
-		# find identical groups in hashes of equal size
-		for (my $i = 0; $i < @$aref; $i++) {
-		    # get next element
-		    my $h1 = $aref->[$i];
-		    next if $h1->{processed};
-		    my @keys = keys %$h1;
-		    my $group = new('Objectgroup',
-				    name => "g$counter",
-				    elements => [ map { $ref2obj{$_} } @keys ],
-				    nat_info => $nat_info);
-		    push @groups, $group;
-		    $counter++;
-		    # Later, setting active for the first rule, 
-		    # indicates that no further rules need to be processed.
-		    my $glue = {active => 0, group => $group};
-		    # all this rules have identical action, srv, src/dst
-		    # and dst/stc shall be replaced by a new object group
-		    for my $rule (values %$h1) {
-			$rule->{$tag} = $glue;
-		    }
-		    $h1->{processed} = 1;
-		    # compare with remaining elements
-		    for (my $j = $i+1; $j < @$aref; $j++) {
-			my $href = $aref->[$j];
-			my $eq = 1;
-			for my $key (@keys) {
-			    unless($href->{$key}) {
-				$eq = 0;
-				last;
-			    }
-			}
-			if($eq) {
-			    my $glue = {active => 0, group => $group};
+			if($size >= $min_object_group_size) {
+			    my $glue = {
+				# Indicator, that no further rules need
+				# to be processed.
+				active => 0,
+				# NAT domain for address calculation
+				nat_info => $hardware->{interface}->{nat_info},
+				# for check, if interfaces belong to
+				# identical NAT domain
+				bind_nat => $hardware->{bind_nat} || 'none',
+				# object-ref => rule, ...
+				hash => $href};
+			    # all this rules have identical
+			    # action, srv, src/dst  and dst/stc 
+			    # and shall be replaced by a new object group
 			    for my $rule (values %$href) {
 				$rule->{$tag} = $glue;
 			    }
-			    # don't process again
-			    $href->{processed} = 1;
 			}
 		    }
 		}
-	    }
-	    # build new list of rules using object groups
-	    for my $hardware (@$aref) {
-		my @new_rules;
-		for my $rule (@{$hardware->{rules}}) {
-		    if(my $glue = $rule->{$tag}) {
-		    info "In group $glue->{group}->{name}: ". print_rule $rule;
-			# remove tag, otherwise call of find_object_groups 
-			# for another router would become confused
-			delete $rule->{$tag};
-			if($glue->{active}) {
-			info " deleted";
-			    next;
-			}
-		    info " generated";
-			$glue->{active} = 1;
-			$rule = {action => $rule->{action},
-				 $that => $rule->{$that},
-				 $this => $glue->{group},
-				 srv => $rule->{srv}};
-		    }
-		    push @new_rules, $rule;
-		}
-		$hardware->{rules} = \@new_rules;
 	    }
 	}
-    };
-    # Find object-groups in src of rules
-    $sub->('src');
-    # Find object-groups in dst of rules
-    $sub->('dst');
+	# Find a group with identical elements or define a new one
+	my $get_group = sub ( $ ) {
+	    my ($glue) = @_;
+	    my $hash = $glue->{hash};
+	    my $bind_nat = $glue->{bind_nat};
+	    my @keys = keys %$hash;
+	    my $size = @keys;
+	    # find group with identical elements
+	    for my $group (@{$nat2size2group{$bind_nat}->{$size}}) {
+		my $href = $group->{hash};
+		my $eq = 1;
+		for my $key (@keys) {
+		    unless($href->{$key}) {
+			$eq = 0;
+			last;
+		    }
+		}
+		if($eq) {
+		    $glue->{group} = $group;
+		    return;
+		}		
+	    }
+	    # Not found, build new group
+	    my $group = new('Objectgroup',
+			    name => "g$counter",
+			    elements => [ map { $ref2obj{$_} } @keys ],
+			    hash => $hash,
+			    nat_info => $glue->{nat_info});
+	    push @{$nat2size2group{$bind_nat}->{$size}}, $group;
+	    push @groups, $group;
+	    $counter++;
+	    return $glue->{group} = $group;
+	};
+	# build new list of rules using object groups
+	for my $hardware (@{$router->{hardware}}) {
+	    my @new_rules;
+	    for my $rule (@{$hardware->{rules}}) {
+		if(my $glue = $rule->{$tag}) {
+#		    info print_rule $rule;
+		    # remove tag, otherwise call to find_object_groups 
+		    # for another router would become confused
+		    delete $rule->{$tag};
+		    if($glue->{active}) {
+#			info " deleted: $glue->{group}->{name}";
+			next;
+		    }
+		    $get_group->($glue);
+#		    info " generated: $glue->{group}->{name}";
+		    $glue->{active} = 1;
+		    $rule = {action => $rule->{action},
+			     $that => $rule->{$that},
+			     $this => $glue->{group},
+			     srv => $rule->{srv}};
+		}
+		push @new_rules, $rule;
+	    }
+	    $hardware->{rules} = \@new_rules;
+	}
+    }
     # print PIX object-groups
     for my $group (@groups) {
         print "object-group network $group->{name}\n";
 	my $nat_info =  $group->{nat_info};
-        for my $element (@{$group->{elements}}) {
-	    for my $pair (sort { $a->[0] <=> $b->[0] ||  $a->[1] <=> $b->[1] }
-			  &address($element, $nat_info, 'src')) {
-		my $adr = &ios_code($pair);
-		print " network-object $adr\n";
-	    }
+        for my $pair (sort { $a->[0] <=> $b->[0] ||  $a->[1] <=> $b->[1] }
+			 map { &address($_, $nat_info, 'src') }
+			 @{$group->{elements}}) {
+	    my $adr = &ios_code($pair);
+	    print " network-object $adr\n";
 	}
     }
+    # Empty line as delimiter
+    print "\n";
 }
 
 sub print_acls( $ ) {
     my($router) = @_;
     my $model = $router->{model};
     print "[ ACL ]\n";
-    if($model->{filter} eq 'PIX') { ## and $router->{use_object_groups}) {
+    if($model->{filter} eq 'PIX' and $router->{use_object_groups}) {
 	&find_object_groups($router);
     }
     my $comment_char = $model->{comment_char};
@@ -4774,10 +4766,12 @@ sub print_acls( $ ) {
 	# Postprocessing for hardware interface
 	if($model->{filter} eq 'IOS') {
 	    print "interface $hardware->{name}\n";
-	    print " access group $name\n\n";
+	    print " access group $name\n";
 	} elsif($model->{filter} eq 'PIX') {
-	    print "access-group $name in $hardware->{name}\n\n";
+	    print "access-group $name in $hardware->{name}\n";
 	}
+	# Empty line after each interface
+	print "\n";
     }
     # Post-processing for all interfaces
     if($model->{filter} eq 'iptables') {
