@@ -1031,9 +1031,10 @@ sub order_ranges( $$ ) {
 		    $min_size_src = $size_src;
 		    $min_size_dst = $size_dst;
 		    $srv1->{up} = $srv2;
-		} elsif($size_src > $min_size_src and
-			$size_dst > $min_size_dst) {
-		    # both ranges are larger, ignore
+		} elsif($size_src >= $min_size_src and
+			$size_dst >= $min_size_dst) {
+		    # both ranges are larger than a previously found range, 
+		    # ignore this one
 		} else {
 		    # src range is larger and dst range is smaller or
 		    # src range is smaller and dst range is larger
