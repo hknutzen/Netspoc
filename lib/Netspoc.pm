@@ -2527,11 +2527,12 @@ sub convert_any_rules() {
 # src to dst, were the original rule is checked.
 ##############################################################################
 
-my %secondary_rule_tree;
+my @secondary_rules;
 
 sub gen_secondary_rules() {
     info "Generating and optimizing rules of secondary filters";
 
+    my %secondary_rule_tree;
     # Mark only normal rules for optimization.
     # We can't change a deny rule from e.g. tcp to ip.
     # ToDo: Think about expanding this to 'any' rules
@@ -2578,6 +2579,7 @@ sub gen_secondary_rules() {
 		$rule->{srv} = $srv_ip;
 		$rule->{for_router} = 'secondary';
 		$secondary_rule_tree{$src}->{$dst} = $rule;
+		push @secondary_rules, $rule;
 	    }
 	}
     }
@@ -3615,7 +3617,7 @@ sub acl_generation() {
 	&path_walk($rule, \&collect_acls, 'Router');
     }
     # Code for permit rules
-    for my $rule (@expanded_rules) {
+    for my $rule (@expanded_rules, @secondary_rules) {
 	next if $rule->{deleted} and not $rule->{managed_if};
 	&path_walk($rule, \&collect_acls, 'Router');
     }
