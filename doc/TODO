@@ -28,13 +28,6 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
   ACLs for TCP answer packets after optimization.
   Possible solution: IP rules let pass traffic in both directions. 
 
-- Separate NetSPoC functionality into a perl module. This would allow
-  to build some interesting query tools:
-  - policy query: give a description of a data packet and answer if it
-    is allowed to pass with the current policy.
-  - Which rules are applicable to a network object?
-  - What are the managed routers between A and B?
-
 - Extend language to easily denote all managed devices
   (e.g. router:[managed])
 
@@ -64,6 +57,13 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 ============================================================================
 Done:
 ============================================================================
+
+- Separate NetSPoC functionality into a perl module. This would allow
+  to build some interesting query tools:
+  - policy query: give a description of a data packet and answer if it
+    is allowed to pass with the current policy.
+  - Which rules are applicable to a network object?
+  - What are the managed routers between A and B?
 
 - Code generation for IOS routers without firewall feature set
 
