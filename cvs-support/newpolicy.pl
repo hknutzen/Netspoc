@@ -135,6 +135,8 @@ if($failed) {
     print STDERR "New policy failed to compile\n";
     my $current = readlink $link;
     $current and print STDERR "Left current policy as '$current'\n";
+    # failure
+    exit 1;
 } else {
     # mark new policy as current if compiled successfully
     chdir $policydb or die "Error: can't cd to $policydb: $!\n";
@@ -143,5 +145,7 @@ if($failed) {
 	die "Error: failed to create symlink $link to $policy\n";
     
     print STDERR "Updated current policy to '$policy'\n";
+    # success
+    exit 0;
 }
 # Unlock policy database: implicitly by exit
