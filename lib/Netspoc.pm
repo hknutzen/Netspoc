@@ -301,6 +301,7 @@ sub read_host( $ ) {
 	my $ip1 = &read_ip;
 	skip('-');
 	my $ip2 = &read_ip;
+	$ip1 <= $ip2 or error_atline "Invalid IP range";
 	$host->{ip} = [ $ip1, $ip2 ];
 	$host->{is_range} = 1;
 	&skip(';');
@@ -364,7 +365,7 @@ sub read_network( $ ) {
 		error_atline "$host->{name}'s ip $host_ip_string doesn't match $network->{name}'s ip/mask $ip_string/$mask_string";
 	    }
 	}
-	$host->{net} = $network;
+	$host->{network} = $network;
 	push(@{$network->{hosts}}, $host);
     }
     &find_ip_ranges($network->{hosts}, $network);
@@ -383,7 +384,7 @@ sub read_interface( $ ) {
     my $net = shift;
     my $interface = new('Interface', 
 			# name will be set by caller
-			net => $net,
+			network => $net,
 			);
     unless(&check('=')) {
 	skip(';');
@@ -457,7 +458,11 @@ sub read_router( $ ) {
 		     managed => $managed,
 		     );
     $router->{model} = $model if $managed;
-    &check_flag('default_route') and $default_route = $router;
+    if(&check_flag('default_route')) {
+	$default_route and
+	    error_atline "Redefining default_route from $default_route->{name}";
+	$default_route = $router;
+    }
     while(1) {
 	last if &check('}');
 	my($type,$iname) = split_typed_name(read_typed_name());
@@ -816,7 +821,7 @@ sub find_ip_ranges( $$ ) {
 			my $range = new('Host', name => 'auto range',
 					ip => [ $begin, $end ],
 					is_range => 1,
-					net => $network);
+					network => $network);
 			# mark hosts of range
 			for(my $j = $start_range; $j <= $end_range; $j++) {
 			    $sorted[$j]->{in_range} = $range;
@@ -912,12 +917,14 @@ sub order_ranges( $$ ) {
 	$srv1->{up} = $up;
 	for my $srv2 (@$range_aref) {
 	    next if $srv1 eq $srv2;
+	    next if $srv2->{main};
 	    my $x2 = $srv2->{v1};
 	    my $y2 = $srv2->{v2};
 	    if($x2 == $x1 and $y1 == $y2) {
-		# found duplicate service definition
-		# link $srv2 with $srv1
-		# Later substitute occurences of $srv2 with $srv1
+		# Found duplicate service definition
+		# Link $srv2 with $srv1
+		# Since $srv1 is not linked via ->{main},
+		# we never get chains of ->{main}
 		$srv2->{main} = $srv1;
 	    } elsif($x2 <= $x1 and $y1 <= $y2) {
 		my $size = $y2-$x2;
@@ -949,6 +956,7 @@ sub order_services() {
     order_icmp($srv_hash{icmp}, $up) if $srv_hash{icmp};
     order_proto($srv_hash{proto}, $up) if $srv_hash{proto};
 
+    # it doesn't hurt to set {up} for services with {main} defined
     for my $srv (values %services) {
 	my $depth = 0;
 	my $up = $srv;
@@ -978,17 +986,19 @@ sub link_any_and_every() {
 	} else {
 	    err_msg "$obj->{name} must not be linked to '$type:$name'";
 	}
+	$obj->{link} or
+	    err_msg "Referencing unknown $type:$name from $obj->{name}";
     }
 }
 
 # link interface with network in both directions
 sub link_interface_with_net( $ ) {
     my($interface) = @_;
-    my $net_name = $interface->{net};
+    my $net_name = $interface->{network};
     my $net = $networks{$net_name} or
 	err_msg "Referencing unknown network:$net_name " .
 	    "from $interface->{name}";
-    $interface->{net} = $net;
+    $interface->{network} = $net;
     my $ip = $interface->{ip};
     # check if the network is already linked with another interface
     if(defined $net->{interfaces}) {
@@ -1211,11 +1221,11 @@ sub expand_rules() {
 		    } elsif(is_any($src)) {
 			$src_any_group->{$src} = 1;
 			$expanded_rule->{src_any_group} = $src_any_group;
-			&order_rules($expanded_rule);
+			&order_any_rule($expanded_rule);
 		    } elsif(is_any($dst)) {
 			$dst_any_group->{$dst} = 1;
 			$expanded_rule->{dst_any_group} = $dst_any_group;
-			&order_rules($expanded_rule);
+			&order_any_rule($expanded_rule);
 		    } else {
 			push(@expanded_rules, $expanded_rule);
 		    }
@@ -1223,9 +1233,9 @@ sub expand_rules() {
 	    }
 	}
     }
-    # add ordered 'any' rules which have been ordered by order_rules
+    # add ordered 'any' rules which have been ordered by order_any_rule
     for my $depth (reverse sort keys %ordered_any_rules) {
-	&addrule_ordered_src_dst($ordered_any_rules{$depth});
+	&add_ordered_any_rules($ordered_any_rules{$depth});
     }
     if($verbose) {
 	my $nd = 0+@expanded_deny_rules;
@@ -1235,19 +1245,27 @@ sub expand_rules() {
     }
 }
 
-# put an expanded rule into a data structure which eases building an ordered
-# list of expanded rules with the following properties:
-# - rules with an 'any' object as src or estination are put at the end
-#   (we call them 'any' rules)
-# - any-rules are ordered themselve:
+####################################################################
+# Order 'any' rules
+#
+# Rules with an 'any' object as src or dst will be augmented with
+# so called weak_deny rules later. A weak_deny rule should only 
+# influence the 'any' rule it is attached to.
+# To minimize the risk that a weak_deny rule influences 
+# an unrelated 'any' rule, we order 'any' rules such that 'large'
+# rules are placed below 'small' rules.
+####################################################################
+
+# We put 'any' rules into a hash which eases building an ordered
+# list of 'any' rules with 'smaller' rules coming first:
+# - First, rules are ordered by their srv part, 
+#   smaller services coming first.
+# - Next, rules are ordered by src and dst:
 #  - host any
 #  - any host
-#  - net any
-#  - any net
+#  - network any
+#  - any network
 #  - any any
-# - all any-rules are ordered in their srv component, 
-#  i.e. for every i,j with i < j either rule(i).srv < rule(j).srv
-#  or rule(i).srv and rule(j).srv are not comparable
 # Note:
 # TCP and UDP port ranges may be not orderable if they are overlapping.
 # If neccessary, we split ranges and their corresponding rules
@@ -1258,7 +1276,7 @@ sub typeof( $ ) {
     if(is_host($ob) or is_interface($ob)) {
 	return 'host';
     } elsif(is_net($ob)) {
-	return 'net';
+	return 'network';
     } elsif(is_any($ob)) {
 	return 'any';
     } else {
@@ -1266,24 +1284,12 @@ sub typeof( $ ) {
     }
 }
 
-sub order_rule_dst ( $$ ) {
-    my($rule, $hash) = @_;
-    my $id = typeof($rule->{dst});
-    push(@{$hash->{$id}}, $rule);
-}
-
-sub order_rule_src ( $$ ) {
-    my($rule, $hash) = @_;
-    my $id = typeof($rule->{src});
-    # \% : force autovivification
-    order_rule_dst($rule, \%{$hash->{$id}});
-}    
-
-sub order_rules ( $ ) {
+sub order_any_rule ( $ ) {
     my($rule) = @_;
-    my $srv = $rule->{srv};
-    my $depth = $srv->{depth};
-    order_rule_src($rule, \%{$ordered_any_rules{$depth}});
+    my $depth = $rule->{srv}->{depth};
+    my $srcid = typeof($rule->{src});
+    my $dstid = typeof($rule->{dst});
+    push @{$ordered_any_rules{$depth}->{$srcid}->{$dstid}}, $rule;
 }
 
 # add all rules with matching srcid and dstid to expanded_any_rules
@@ -1301,16 +1307,18 @@ sub add_rule_2hash( $$$ ) {
     }
 }
 
-sub addrule_ordered_src_dst( $ ) {
+sub add_ordered_any_rules( $ ) {
     my($hash) = @_;
     return unless defined $hash;
     add_rule_2hash($hash, 'host','any');
     add_rule_2hash($hash, 'any','host');
-    add_rule_2hash($hash, 'net','any');
-    add_rule_2hash($hash, 'any','net');
+    add_rule_2hash($hash, 'network','any');
+    add_rule_2hash($hash, 'any','network');
     add_rule_2hash($hash, 'any','any');
 }
 
+# we don't need to handle secondary services, they have been substituted
+# via ->{main} in expand_rules
 sub ge_srv( $$ ) {
     my($s1, $s2) = @_;
     while(my $up = $s2->{up}) {
@@ -1347,7 +1355,7 @@ sub check_deny_influence() {
 	    for my $rule (@{$any->{rules}}) {
 		my $host = $rule->{dst};
 		next unless is_host($host);
-		next unless $host->{net} eq $net;
+		next unless $host->{network} eq $net;
 		next unless $rule->{i} > $arule->{i};
 		if(match_srv($drule->{srv}, $rule->{srv})) {
 		    my $rd = print_rule($drule);
@@ -1365,7 +1373,7 @@ sub check_deny_influence() {
 sub disable_behind( $ ) {
     my($incoming) = @_;
     $incoming->{disabled} = 1;
-    my $network = $incoming->{net};
+    my $network = $incoming->{network};
     $network->{disabled} = 1;
     for my $host (@{$network->{hosts}}) {
 	$host->{disabled} = 1;
@@ -1382,6 +1390,8 @@ sub disable_behind( $ ) {
 	}
 	for my $outgoing (@{$router->{interfaces}}) {
 	    next if $outgoing eq $interface;
+	    # Loop detection occurs later in setpath
+	    next if $outgoing->{disabled};
 	    &disable_behind($outgoing);
 	}
     }
@@ -1416,10 +1426,10 @@ sub setpath_router( $$$$ ) {
 	# ignore interface where we reached this router
 	next if $interface eq $to_border;
 	if($router->{managed}) {
-	    &setpath_network($interface->{net},
+	    &setpath_network($interface->{network},
 			     $interface, $interface, $distance+1);
 	} else {
-	    &setpath_network($interface->{net},
+	    &setpath_network($interface->{network},
 			     $interface, $border, $distance);
 	}
     }
@@ -1493,12 +1503,12 @@ sub setpath() {
 sub get_border( $ ) {
     my($obj) = @_;
     if(is_host($obj)) {
-	return $obj->{net}->{border};
+	return $obj->{network}->{border};
     } elsif(is_interface($obj)) {
 	if($obj->{router}->{managed}) {
 	    return undef;
 	} else {
-	    return $obj->{net}->{border};
+	    return $obj->{network}->{border};
 	}
     } elsif(is_net($obj) or is_any($obj)) {
 	return $obj->{border};
@@ -1758,19 +1768,19 @@ sub addrule_net( $ ) {
     my ($net) = @_;
     for my $rule (@{$net->{rules}}) {
 	# \% : force autovivification
-	&add_rule($rule,\%{$rule->{dst}->{src_net}});
+	&add_rule($rule,\%{$rule->{dst}->{src_network}});
     }
     for my $rule (@{$net->{rules}}) {
-	unless($rule->{dst}->{src_net}->{isoptimized}) {
-	    &optimize_rules($rule->{dst}, 'src_net');
-	    $rule->{dst}->{src_net}->{isoptimized} = 1;
+	unless($rule->{dst}->{src_network}->{isoptimized}) {
+	    &optimize_rules($rule->{dst}, 'src_network');
+	    $rule->{dst}->{src_network}->{isoptimized} = 1;
 	}
     }
     for my $host (@{$net->{hosts}}, @{$net->{interfaces}}) {
 	&addrule_host($host);
     }
     for my $rule (@{$net->{rules}}) {
-	delete($rule->{dst}->{src_net});
+	delete($rule->{dst}->{src_network});
     }
 }
 
@@ -1876,17 +1886,17 @@ sub optimize_rules( $$ ) {
     my @src_tags;
 
     if($src_tag eq 'src_host') {
-	@src_tags = ('src_host', 'src_net', 'src_any');
-    } elsif ($src_tag eq 'src_net') {
-	@src_tags = ('src_net', 'src_any');
+	@src_tags = ('src_host', 'src_network', 'src_any');
+    } elsif ($src_tag eq 'src_network') {
+	@src_tags = ('src_network', 'src_any');
     } elsif ($src_tag eq 'src_any') {
 	@src_tags = ('src_any');
     }
     if(is_host($dst) or is_interface($dst)) {
 	for my $i (@src_tags) {
 	    &optimize_action_rules($dst->{$i}, $dst->{$src_tag});
-	    &optimize_action_rules($dst->{net}->{$i}, $dst->{$src_tag});
-	    &optimize_action_rules($dst->{net}->{border}->{any}->{$i}, 
+	    &optimize_action_rules($dst->{network}->{$i}, $dst->{$src_tag});
+	    &optimize_action_rules($dst->{network}->{border}->{any}->{$i}, 
 				$dst->{$src_tag});
 	}
     } elsif(is_net($dst)) {
@@ -1974,7 +1984,7 @@ sub setroute_router( $$ ) {
 	# ignore interface where we reached this router
 	next if $interface eq $to_default;
 	next if $interface->{disabled};
-	my $net = $interface->{net};
+	my $net = $interface->{network};
 	if($net->{ip} ne 'unnumbered') {
 	    # add directly connected networks
 	    # but not for unnumbered interfaces
@@ -2175,7 +2185,7 @@ sub collect_pix_static( $$$ ) {
     my $dst = $rule->{dst};
     my @networks;
     if(is_host $dst or is_interface $dst) {
-	@networks = ($dst->{net});
+	@networks = ($dst->{network});
     } elsif(is_net $dst) {
 	@networks = ($dst);
     } elsif(is_any $dst) {
