@@ -2505,10 +2505,6 @@ sub setany_router( $$$ ) {
 	push @{$any->{interfaces}}, $in_interface;
 	return;
     }
-    if($router->{any}) {
-	# Found a loop inside a security domain
-	return;
-    }
     for my $interface (@{$router->{interfaces}}) {
 	# ignore interface where we reached this router
 	next if $interface eq $in_interface;
@@ -5001,7 +4997,7 @@ sub print_code( $ ) {
 	print "[ Model = $model->{name} ]\n";
 	&print_routes($router);
 	&print_acls($router);
-	&print_pix_static($router);
+	&print_pix_static($router) if $model->{has_interface_level};
 	print "[ END $name ]\n\n";
 	close STDOUT or die "Can't close $file\n";
     }
