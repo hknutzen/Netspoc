@@ -2212,9 +2212,14 @@ sub collect_acls( $$$ ) {
     my @dst_code = &adr_code($dst, $inv_mask);
     my ($proto_code, $port_code) = &srv_code($srv, $model);
     $action = 'deny' if $action eq 'weak_deny';
-    # ToDo: For PIX firewalls it is unnecessary to allow ipsec packets,
-    # because these are allowed implicitly
     if(defined $src_intf) {
+	# For PIX firewalls it is unnecessary to generate permit ACLs
+	# for packets to the pix itself
+	# because it accepts them anyway (telnet, IPSec)
+	# ToDo: Check if this assumption holds for deny ACLs as well
+	if(not defined $dst_intf and $model eq 'PIX' and $action eq 'permit') {
+	    return;
+	}
 	# collect generated code at hardware interface,
 	# not at logical interface
 	my $code_aref = \@{$router->{code}->{$src_intf->{hardware}}};
@@ -2229,8 +2234,9 @@ sub collect_acls( $$$ ) {
 	}
     } elsif(defined $dst_intf) {
 	# src_intf is undefined: src is an interface of this router
-	# For IOS and PIX, only packets from dst back to
-	# this router are filtered
+	# No filtering neccessary for packets to PIX itself
+	return if $model eq 'PIX' and $action eq 'permit';
+	# For IOS only packets from dst back to this router are filtered
 	my $code_aref = \@{$router->{code}->{$dst_intf->{hardware}}};
 	if($comment_acls) {
 	    push(@$code_aref, "! ". print_rule($rule)."\n");
