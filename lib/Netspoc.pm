@@ -3864,7 +3864,9 @@ sub mark_networks_for_static( $$$ ) {
 	# to lower security level. We need this info to decide,
 	# if static commands with "identity mapping" and "nat 0"
 	# need to be generated.
-	my $nat_tag = $out_hw->{bind_nat} or return;
+	$out_hw->{need_always_static} and return;
+	# Remember: NAT tag for networks behind out_hw is attached to in_hw.
+	my $nat_tag = $in_hw->{bind_nat} or return;
 	if($dst->{nat} &&
 	   $dst->{nat}->{$nat_tag} &&
 	   $dst->{nat}->{$nat_tag}->{dynamic}) {
