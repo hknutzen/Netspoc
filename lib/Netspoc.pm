@@ -34,7 +34,7 @@ sub info ( @ ) {
 }
 
 sub warning ( @ ) {
-    print STDERR "Warning:", @_;
+    print STDERR "Warning: ", @_;
 }
 
 # input filename from commandline
@@ -1317,10 +1317,28 @@ sub add_ordered_any_rules( $ ) {
     add_rule_2hash($hash, 'any','any');
 }
 
+####################################################################
+# Check for deny influence
+#
+# After ordering of deny rules and inserting of weak_deny rules 
+# we have to check for one pathological case, were a weak_deny rule
+# influences an unrelated any rule, i.e. some packets are denied
+# although they should be.allowed.
+# Example:
+# 1. weak_deny   host1 net2
+# 2. permit      host1 any
+# 3. permit      any   host2	 with host2 < net2
+# Problem: Traffic from host1 to host2 is denied by rule 1
+# But rule 1 is only related to rule 2 and must not deny traffic
+# which is allowed by rule 3
+####################################################################
+
 # we don't need to handle secondary services, they have been substituted
 # via ->{main} in expand_rules
 sub ge_srv( $$ ) {
     my($s1, $s2) = @_;
+    $s1 eq $s2 and return 1;
+    $s1->{depth} >= $s2->{depth} and return 0;
     while(my $up = $s2->{up}) {
 	return 1 if $up eq $s1;
 	$s2 = $up;
@@ -1328,39 +1346,35 @@ sub ge_srv( $$ ) {
     return 0;
 }
 
-# Check if two services are equal or if one is subset of the other.
-# Real intersections of port ranges shouldn't happen, since
-# they were split into smaller pieces before
-sub match_srv( $$ ) {
-    my($s1, $s2) = @_;
-    return ge_srv($s1, $s2) or ge_srv($s2,$s1);
-}
-
-# ToDo: add 'is_interface' case
 sub check_deny_influence() {
     info "Checking for deny influence\n";
     for my $arule (@expanded_any_rules) {
 	next if $arule->{deleted};
 	next unless exists $arule->{deny_rules};
-	next unless is_host($arule->{src});
+	next unless is_host $arule->{src} or is_interface $arule->{src};
 	for my $drule (@{$arule->{deny_rules}}) {
 	    next if $drule->{deleted};
 	    my $src = $drule->{src};
 	    my $net = $drule->{dst};
-	    next unless is_host($src) and is_net($net);
+	    next unless (is_host $src or is_interface $src) and is_net $net;
 	    my $border = get_border($src);
-	    # ToDo: Check ALL 'any' objects
-	    my $any = $border->{any};
-	    next unless $any;
-	    for my $rule (@{$any->{rules}}) {
-		my $host = $rule->{dst};
-		next unless is_host($host);
-		next unless $host->{network} eq $net;
-		next unless $rule->{i} > $arule->{i};
-		if(match_srv($drule->{srv}, $rule->{srv})) {
-		    my $rd = print_rule($drule);
-		    my $r = print_rule($rule);
-		    die "currently not implemeted correctly: $rd influences $r";
+	    # At first thought we have to check only one 'any' object with
+	    # any > host. But this isn't sufficient because other any rules
+	    # may be influenced as well if they share a common path with
+	    # the current weak_deny rule
+	    # ToDo: this is very inefficient and show false positives
+	    for my $any (values %anys) {
+		for my $rule (@{$any->{rules}}) {
+		    next if $rule->{deleted};
+		    my $host = $rule->{dst};
+		    next unless is_host $host or is_interface $host;
+		    next unless $host->{network} eq $net;
+		    next unless $rule->{i} > $arule->{i};
+		    if(ge_srv($rule->{srv}, $drule->{srv})) {
+			warning "currently not implemented correctly:\n ",
+			print_rule($drule), "\n influences\n ",
+			print_rule($rule), "\n";
+		    }
 		}
 	    }
 	}
