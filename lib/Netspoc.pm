@@ -107,19 +107,22 @@ my %router_info =
      name => 'IOS',
      stateful => 0,
      routing => 'IOS',
-     filter => 'IOS'
+     filter => 'IOS',
+     comment_char => '!'
      },
  IOS_FW => {
      name => 'IOS_FW',
      stateful => 1,
      routing => 'IOS',
-     filter => 'IOS'
+     filter => 'IOS',
+     comment_char => '!'
      },
  PIX => {
      name => 'PIX',
      stateful => 1,
      routing => 'PIX',
      filter => 'PIX',
+     comment_char => '!',
      has_interface_level => 1,
      no_filter_icmp_code => 1
      },
@@ -127,7 +130,8 @@ my %router_info =
      name => 'Linux',
      stateful => 1,
      routing => 'iproute',
-     filter => 'iptables'
+     filter => 'iptables',
+     comment_char => '#'
      }
  );
 
@@ -1272,11 +1276,14 @@ sub order_ranges( $$ ) {
     }
 }
 
+# we need service "ip" later for secondary rules
+my $srv_ip;
+
 sub order_services() {
-    my $up = undef;
-    if($srv_hash{ip}) {
-	$up = $srv_hash{ip};
+    unless($srv_hash{ip}) {
+	$srv_hash{ip} = { type => 'ip', name => 'auto_srv:ip' };
     }
+    my $up = $srv_ip = $srv_hash{ip};
     order_ranges($srv_hash{tcp}, $up) if $srv_hash{tcp};
     order_ranges($srv_hash{udp}, $up) if $srv_hash{udp};
     order_icmp($srv_hash{icmp}, $up) if $srv_hash{icmp};
@@ -2515,49 +2522,63 @@ sub convert_any_rules() {
 
 ##############################################################################
 # Mark and optimize rules at secondary filters
-# At secondary packet filters, we check only for src and dst network
+# At secondary packet filters, packets are only checked for its 
+# src and dst networks, if there is a full packet filter on the path from
+# src to dst, were the original rule is checked.
 ##############################################################################
 
-sub mark_secondary_rule( $$$ ) {
-    my ($rule, $src_intf, $dst_intf) = @_;
-    my $router = ($src_intf || $dst_intf)->{router};
-    if($router->{managed} eq 'full') {
-	# there might be another path, without a full packet filter
-	return if $router->{loop};
-	# Optimization should only take place for IP addresses lying BEHIND 
-	# a full packet filter. 
-	# ToDo: Think about virtual interfaces sitting all on the same hardware.
-	# Source of rule is an interface of current router.
-	# It doesn't lie behind this router.
-	return if not $src_intf and $rule->{src} eq $dst_intf;
-	# Destination of rule is an interface of current router.
-	# It doesn't lie behind this router.
-	return if not $dst_intf and $rule->{dst} eq $src_intf;
-	$rule->{has_full_filter} = 1;
-    } elsif($router->{managed} eq 'secondary') {
-	$rule->{has_secondary_filter} = 1;
-    }
-}
+my %secondary_rule_tree;
 
-sub mark_secondary_rules() {
-    info "Marking and optimizing rules of secondary filters";
-    # mark only normal rules for optimization, not 'deny', not 'any'
-    my %secondary_rule_tree;
+sub gen_secondary_rules() {
+    info "Generating and optimizing rules of secondary filters";
+
+    # Mark only normal rules for optimization.
+    # We can't change a deny rule from e.g. tcp to ip.
+    # ToDo: Think about expanding this to 'any' rules
     for my $rule (@expanded_rules) {
 	next if $rule->{deleted};
-	&path_walk($rule, \&mark_secondary_rule, 'Router');
-	if($rule->{has_secondary_filter} = 
-	   $rule->{has_secondary_filter} && $rule->{has_full_filter}) {
+	my $has_secondary_filter;
+	my $has_full_filter;
+	# Local function.
+	# It uses variables $has_secondary_filter and $has_full_filter.
+	my $mark_secondary_rule = sub( $$$ ) {
+	    my ($rule, $src_intf, $dst_intf) = @_;
+	    my $router = ($src_intf || $dst_intf)->{router};
+	    if($router->{managed} eq 'full') {
+		# there might be another path, without a full packet filter
+		# ToDo: this could be analyzed in more detail
+		return if $router->{loop};
+		# Optimization should only take place for IP addresses
+		# which are really filtered by a full packet filter. 
+		# ToDo: Think about virtual interfaces sitting
+		# all on the same hardware.
+		# Source or destination of rule is an interface of current router.
+		# Hence, this router doesn't count as a full packet filter.
+		return if not $src_intf and $rule->{src} eq $dst_intf;
+		return if not $dst_intf and $rule->{dst} eq $src_intf;
+		$has_full_filter = 1;
+	    } elsif($router->{managed} eq 'secondary') {
+		$has_secondary_filter = 1;
+	    }
+	};
+
+	&path_walk($rule, $mark_secondary_rule, 'Router');
+	if($has_secondary_filter && $has_full_filter) {
+	    $rule->{for_router} = 'full';
 	    # get_networks has a single result if not called 
 	    # with an 'any' object as argument
 	    my $src = get_networks $rule->{src};
 	    my $dst = get_networks $rule->{dst};
-	    my $old_rule = $secondary_rule_tree{$src}->{$dst};
-	    if($old_rule) {
-		# found redundant rule
-		$old_rule->{secondary_deleted} = $rule;
+	    # nothing to do, if there is  an identical secondary rule
+	    unless($secondary_rule_tree{$src}->{$dst}) {
+		# copy original rule;
+		my $rule = { %$rule };
+		$rule->{src} = $src;
+		$rule->{dst} = $dst;
+		$rule->{srv} = $srv_ip;
+		$rule->{for_router} = 'secondary';
+		$secondary_rule_tree{$src}->{$dst} = $rule;
 	    }
-	    $secondary_rule_tree{$src}->{$dst} = $rule;
 	}
     }
 }
@@ -3066,13 +3087,13 @@ sub print_routes( $ ) {
 		    print "! route $network->{name} -> $hop->{name}\n";
 		}
 		if($router->{model}->{routing} eq 'IOS') {
-		    my $adr = &adr_code($network, 0);
+		    my $adr = &ios_code(&address($network));
 		    print "ip route $adr\t$hop_addr\n";
 		} elsif($router->{model}->{routing} eq 'PIX') {
-		    my $adr = &adr_code($network, 0);
+		    my $adr = &ios_code(&address($network));
 		    print "route $interface->{hardware} $adr\t$hop_addr\n";
 		} elsif($router->{model}->{routing} eq 'iproute') {
-		    my $adr = &prefix_code($network);
+		    my $adr = &prefix_code(&address($network));
 		    print "ip route $adr via $hop_addr\n";
 		} else {
 		    internal_err
@@ -3168,8 +3189,9 @@ sub print_pix_static( $ ) {
 # ACL Generation
 ##############################################################################
 
-sub split_ip_range( $$$ ) {
-    my($a, $b, $inv_mask) = @_;
+# Convert an IP range to a set of covering IP/mask pairs
+sub split_ip_range( $$ ) {
+    my($a, $b) = @_;
     # b is inclusive upper bound
     # change it to exclusive upper bound
     $b++;
@@ -3187,62 +3209,61 @@ sub split_ip_range( $$$ ) {
 	    }
 	}
 	my $mask = ~($add-1);
-	if($mask == 0xffffffff) {
-	    push @result, 'host '. &print_ip($i);
-	} else {
-	    my $ip_code = &print_ip($i);
-	    my $mask_code = &print_ip($inv_mask?~$mask:$mask);
-	    push @result, "$ip_code $mask_code";
-	}
+	push @result, $i, $mask;
 	$i += $add;
     }
     return @result;
 }
 
-sub adr_code( $$ ) {
-    my ($obj, $inv_mask) = @_;
+sub address( $ ) {
+    my ($obj) = @_;
     if(is_host($obj)) {
 	if($obj->{range}) {
-	    return &split_ip_range(@{$obj->{range}}, $inv_mask);
+	    return &split_ip_range(@{$obj->{range}});
 	} else {
-	    return 'host '. &print_ip($obj->{ip});
+	    return $obj->{ip}, 0xffffffff;
 	}
     }
     if(is_interface($obj)) {
 	if($obj->{ip} eq 'unnumbered' or $obj->{ip} eq 'short') {
 	    internal_err "unexpected $obj->{ip} $obj->{name}\n";
 	} else {
-	    return map { 'host '. &print_ip($_) } @{$obj->{ip}};
+	    return map { ($_, 0xffffffff)  } @{$obj->{ip}};
 	}
     } elsif(is_net($obj)) {
 	if($obj->{ip} eq 'unnumbered') {
 	    internal_err "unexpected unnumbered $obj->{name}\n";
 	} else {
-	    my $ip_code = &print_ip($obj->{ip});
-	    my $mask_code = &print_ip($inv_mask?~$obj->{mask}:$obj->{mask});
-	    return "$ip_code $mask_code";
+	    return $obj->{ip}, $obj->{mask};
 	}
     } elsif(is_any($obj)) {
-	return 'any';
+	return 0, 0;
     } else {
 	internal_err "unexpected object $obj->{name}";
     }
 }
 
-# Given a network, return its address as "x.x.x.x/x"
-sub prefix_code( $ ) {
-    my($obj) = @_;
-    if(is_net $obj) {
-	if($obj->{ip} eq 'unnumbered') {
-	    internal_err "unexpected unnumbered $obj->{name}\n";
-	} else {
-	    my $ip_code = &print_ip($obj->{ip});
-	    my $prefix_code = &print_prefix($obj->{mask});
-	    return "$ip_code/$prefix_code";
-	}
-    } else {
-	internal_err "unexpected object $obj->{name}";
-    }
+# Given an IP and mask, return its address in IOS syntax
+# If third parameter is true, use inverted netmask for IOS ACLs
+sub ios_code( $$$ ) {
+     my($ip, $mask, $inv_mask) = @_;
+     my $ip_code = &print_ip($ip);
+     if($mask == 0xffffffff) {
+	 return "host $ip_code";
+     } elsif($mask == 0) {
+	 return "any";
+     } else {
+	 my $mask_code = &print_ip($inv_mask?~$mask:$mask);
+	 return "$ip_code $mask_code";
+     }
+}
+
+# Given an IP and mask, return its address as "x.x.x.x/x"
+sub prefix_code( $$ ) {
+    my($ip, $mask) = @_;
+    my $ip_code = &print_ip($ip);
+    my $prefix_code = &print_prefix($mask);
+    return "$ip_code/$prefix_code";
 }
 
 my %pix_srv_hole;
@@ -3258,26 +3279,9 @@ sub warn_pix_icmp() {
     }
 }
 
-sub range_code( $$ ) {
-    my($v1, $v2) = @_;
-    if($v1 == $v2) {
-	return("eq $v1");
-    } elsif($v1 == 1 and $v2 == 65535) {
-	return('');
-    } elsif($v2 == 65535) {
-	$v1--;
-	return "gt $v1";
-    } elsif($v1 == 1) {
-	$v2++;
-	return "lt $v2";
-    } else {
-	return("range $v1 $v2");
-    }
-}
-
-# returns 3 values for building an ACL:
+# returns 3 values for building an IOS or PIX ACL:
 # permit <val1> <src> <val2> <dst> <val3>
-sub srv_code( $$ ) {
+sub cisco_srv_code( $$ ) {
     my ($srv, $model) = @_;
     my $proto = $srv->{type};
 
@@ -3285,7 +3289,25 @@ sub srv_code( $$ ) {
 	return('ip', '', '');
     } elsif($proto eq 'tcp' or $proto eq 'udp') {
 	my @p = @{$srv->{ports}};
-	return($proto, &range_code(@p[0,1]), &range_code(@p[2,3]));
+	my $port_code = sub ( $$ ) {
+	    my($v1, $v2) = @_;
+	    if($v1 == $v2) {
+		return("eq $v1");
+	    } 
+	    # PIX doesn't allow port 0; can port 0 be used anyhow?
+	    elsif($v1 == 1 and $v2 == 65535) {
+		return('');
+	    } elsif($v2 == 65535) {
+		$v1--;
+		return "gt $v1";
+	    } elsif($v1 == 1) {
+		$v2++;
+		return "lt $v2";
+	    } else {
+		return("range $v1 $v2");
+	    }
+	};
+	return($proto, &$port_code(@p[0,1]), &$port_code(@p[2,3]));
     } elsif($proto eq 'icmp') {
 	my $type = $srv->{v1};
 	if($type eq 'any') {
@@ -3314,6 +3336,75 @@ sub srv_code( $$ ) {
     }
 }
 
+# Returns iptables code for filtering a service.
+sub iptables_srv_code( $ ) {
+    my ($srv) = @_;
+    my $proto = $srv->{type};
+
+    if($proto eq 'ip') {
+	return '';
+    } elsif($proto eq 'tcp' or $proto eq 'udp') {
+	my @p = @{$srv->{ports}};
+	my $port_code = sub ( $$ ) {
+	    my($v1, $v2) = @_;
+	    if($v1 == $v2) {
+		return $v1;
+	    } elsif($v1 == 1 and $v2 == 65535) {
+		return '';
+	    } elsif($v2 == 65535) {
+		return "$v1:";
+	    } elsif($v1 == 1) {
+		return ":$v2";
+	    } else {
+		return "$v1:$v2";
+	    }
+	};
+	my $sport = &$port_code(@p[0,1]);
+	my $dport = &$port_code(@p[2,3]);
+	my $result = "-p $proto";
+	$result .= " -sport $sport" if $sport;
+	$result .= " -dport $dport" if $dport;
+	return $result;
+    } elsif($proto eq 'icmp') {
+	my $type = $srv->{v1};
+	if($type eq 'any') {
+	    return "-p $proto";
+	} else {
+	    my $code = $srv->{v2};
+	    if($code eq 'any') {
+		return "-p $proto --icmp-type $type";
+	    } else {
+		return "-p $proto --icmp-type $type/$code";
+	    }
+	}
+    } elsif($proto eq 'proto') {
+	my $nr = $srv->{v1};
+	return "-p $nr"
+    } else {
+	internal_err "a rule has unknown protocol '$proto'";
+    }
+}
+
+sub acl_line( $$$$$$$ ) {
+    my ($action, $src_ip, $src_mask, $dst_ip, $dst_mask, $srv, $filter_type) = @_;
+    if($filter_type eq 'IOS' or $filter_type eq 'PIX') {
+	my $inv_mask = $filter_type eq 'IOS';
+	my ($proto_code, $src_port_code, $dst_port_code) =
+	    cisco_srv_code($srv, $filter_type);
+	my $src_code = ios_code($src_ip, $src_mask, $inv_mask);
+	my $dst_code = ios_code($dst_ip, $dst_mask, $inv_mask);
+	"$action $proto_code $src_code $src_port_code $dst_code $dst_port_code\n";
+    } elsif($filter_type eq 'iptables') {
+	my $srv_code = iptables_srv_code($srv);
+	my $src_code = prefix_code($src_ip, $src_mask);
+	my $dst_code = prefix_code($dst_ip, $dst_mask);
+	my $action_code = $action eq 'permit' ? '-j ACCEPT' : '-j DROP';
+	"iptables $action_code $src_code $dst_code $srv_code\n";
+    } else {
+	internal_err "Unknown filter_type $filter_type";
+    }
+}
+
 sub collect_acls( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
     my $action = $rule->{action};
@@ -3325,18 +3416,16 @@ sub collect_acls( $$$ ) {
     # src_intf is undefined if src is an interface of the current router
     # analogous for dst_intf 
     my $router = ($src_intf || $dst_intf)->{router};
-    # this is a secondary packet filter:
-    # we need to filter only IP-Addresses
-    my $secondary =
-	$router->{managed} eq 'secondary' && $rule->{has_full_filter};
-    if($secondary) {
-	$src = get_networks $src;
-	$dst = get_networks $dst;
+    # Rules of type secondary are only applied to secondary routers.
+    # Rules of type full are only applied to full filtering routers.
+    if(my $type = $rule->{on_router}) {
+	return unless $type eq $router->{managed};
     }
     # Rules from / to managed interfaces must be processed
-    # at the corresponding router even if they are marked as deleted.
-    # ToDo: Rethink about different 'deleted' attributes
-    if($rule->{deleted} || $secondary && $rule->{secondary_deleted}) {
+    # at the corresponding router even if they are marked as deleted,
+    # because code for interfaces is placed before the 'normal' code.
+    # ToDo: But we might get duplicate ACLs for an interface.
+    if($rule->{deleted}) {
 	# we are on an intermediate router
 	# if both $src_intf and $dst_intf are defined
 	return if defined $src_intf and defined $dst_intf;
@@ -3362,9 +3451,9 @@ sub collect_acls( $$$ ) {
 #	}
     }
     my $model = $router->{model};
-    my $inv_mask = $model->{filter} eq 'IOS';
-    my @src_code = &adr_code($src, $inv_mask);
-    my @dst_code = &adr_code($dst, $inv_mask);
+    my $comment_char = $model->{comment_char};
+    my @src_addr = &address($src);
+    my @dst_addr = &address($dst);
     my ($proto_code, $src_port_code, $dst_port_code) = &srv_code($srv, $model);
     if(defined $src_intf) {
 	my $code_aref;
@@ -3382,23 +3471,27 @@ sub collect_acls( $$$ ) {
 	    $code_aref = \@{$router->{code}->{$src_intf->{hardware}}};
 	}
 	if($comment_acls) {
-	    push(@$code_aref, "! ". print_rule($rule)."\n");
+	    push(@$code_aref, "$comment_char ". print_rule($rule)."\n");
 	}
-	for my $src_code (@src_code) {
-	    for my $dst_code (@dst_code) {
-		push(@$code_aref,
-		     $secondary ?
-		     "$action ip $src_code $dst_code\n" :
-		     "$action $proto_code $src_code $src_port_code $dst_code $dst_port_code\n");
+	while(@src_addr) {
+	    my $src_ip = shift @src_addr;
+	    my $src_mask = shift @src_addr;
+	    while(@dst_addr) {
+		my $dst_ip = shift @dst_addr;
+		my $dst_mask = shift @dst_addr;
+		push(@$code_aref, acl_line($action, $src_ip, $src_mask,
+					   $dst_ip, $dst_mask, $srv,
+					   $model->{filter}));
 	    }
 	}
 	# Code for stateless IOS: automatically permit return packets
-	# for TCP and UDP
+	# for TCP and UDP and IP (since IP implies both)
 	if(not $model->{stateful} and defined $dst_intf and
-	   ($srv->{type} eq 'tcp' or $srv->{type} eq 'udp' or $secondary)) {
+	   ($srv->{type} =~ /^tcp|udp|ip$/ )) {
 	    $code_aref = \@{$router->{code}->{$dst_intf->{hardware}}};
 	    if($comment_acls) {
-		push(@$code_aref, "! REVERSE: ". print_rule($rule)."\n");
+		push @$code_aref,
+		     "$comment_char REVERSE: ". print_rule($rule)."\n";
 	    }
 	    my $established = '';
 	    if( $srv->{type} eq 'tcp') {
@@ -3408,8 +3501,6 @@ sub collect_acls( $$$ ) {
 	    for my $src_code (@src_code) {
 		for my $dst_code (@dst_code) {
 		    push(@$code_aref,
-			 $secondary ?
-			 "$action ip $dst_code $src_code\n" :
 			 "$action $proto_code $dst_code $dst_port_code $src_code $src_port_code $established\n");
 		}
 	    }
@@ -3419,10 +3510,10 @@ sub collect_acls( $$$ ) {
 	# No filtering necessary for packets to PIX itself
 	return if $model->{filter} eq 'PIX' and $action eq 'permit';
 	# For IOS only packets from dst back to this router are filtered
-	if($srv->{type} eq 'tcp' or $srv->{type} eq 'udp' or $secondary) {
+	if($srv->{type} =~ /^tcp|udp|ip$/) {
 	    my $code_aref = \@{$router->{if_code}->{$dst_intf->{hardware}}};
 	    if($comment_acls) {
-		push(@$code_aref, "! REVERSE: ". print_rule($rule)."\n");
+		push(@$code_aref, "$comment_char REVERSE: ". print_rule($rule)."\n");
 	    }
 	    my $established = '';
 	    if( $srv->{type} eq 'tcp') {
@@ -3433,8 +3524,6 @@ sub collect_acls( $$$ ) {
 	    for my $src_code (@src_code) {
 		for my $dst_code (@dst_code) {
 		    push(@$code_aref,
-			 $secondary ?
-			 "$action ip $dst_code $src_code\n" :
 			 "$action $proto_code $dst_code $dst_port_code $src_code $src_port_code $established\n");
 		}
 	    }
@@ -3546,6 +3635,7 @@ sub acl_generation() {
 sub print_acls( $ ) {
     my($router) = @_;
     my $model = $router->{model};
+    my $comment_char = $model->{comment_char};
     print "[ ACL ]\n";
     # We need to know all hardware interface names.
     # It isn't sufficient to iterate over the keys from $router->{code},
@@ -3576,7 +3666,7 @@ sub print_acls( $ ) {
 	push @$if_code, ();
 	if($model->{filter} eq 'IOS') {
 	    if($comment_acls) {
-		print "! $hardware{$hardware}\n";
+		print "$comment_char $hardware{$hardware}\n";
 	    }
 	    print "ip access-list extended $name\n";
 	    for my $line (@$if_code) {
@@ -3584,7 +3674,7 @@ sub print_acls( $ ) {
 	    }
 	    if($ospf{$hardware}) {
 		if($comment_acls) {
-		    print " ! OSPF\n";
+		    print " $comment_char OSPF\n";
 		}
 		print " permit ip any host 224.0.0.5\n";
 		print " permit ip any host 224.0.0.6\n";
@@ -3600,7 +3690,7 @@ sub print_acls( $ ) {
 	    }
 	    if(@$code) {
 		if($comment_acls and @ip) {
-		    print " ! Protect own interfaces\n";
+		    print " $comment_char Protect own interfaces\n";
 		}
 		for my $ip (@ip) {
 		    print " deny ip any host ". print_ip($ip) ."\n";
@@ -3614,7 +3704,7 @@ sub print_acls( $ ) {
 	    print " access group $name\n\n";
 	} elsif($model->{filter} eq 'PIX') {
 	    if($comment_acls) {
-		print "! $hardware{$hardware}\n";
+		print "$comment_char $hardware{$hardware}\n";
 	    }
 	    for my $line (@$if_code, @$code) {
 		if($line =~ /^\s*!/) {
