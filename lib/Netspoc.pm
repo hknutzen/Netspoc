@@ -3650,10 +3650,10 @@ sub expand_crypto () {
 	    my $intf2 = $check->(@{$pair}[1, 0]);
 	    # Test for $intf2->{tunnel}->{$intf1} isn't necessary, because
 	    # tunnels are always defined symmetrically.
-	    if(my $old_crypto = $intf1->{tunnel}->{$intf2}) {
+	    if(my $old_map = $intf1->{tunnel}->{$intf2}) {
 		err_msg "Duplicate tunnel",
-		" between $intf1->{name} and $intf2->{name}",
-		" defined in $old_crypto->{name} and $name";
+		" between $intf1->{name} and $intf2->{name}\n",
+		" defined in $old_map->{crypto}->{name} and $name";
 	    }
 	    if($intf1->{in_loop}) {
 		err_msg "$intf1->{name} must not be used in tunnel of $name\n",
@@ -3673,12 +3673,14 @@ sub expand_crypto () {
 			       crypto => $crypto,
 			       end => $intf2, };
 	    $intf1->{tunnel}->{$intf2} = $crypto_map;
-	    push @{$intf1->{hardware}->{crypto_maps}}, $crypto_map;
+	    push @{$intf1->{hardware}->{crypto_maps}}, $crypto_map
+		if $intf1->{router}->{managed};
 	    $crypto_map =  { rules => [],
 			     crypto => $crypto,
 			     end => $intf1, };
 	    $intf2->{tunnel}->{$intf1} = $crypto_map;
-	    push @{$intf2->{hardware}->{crypto_maps}}, $crypto_map;
+	    push @{$intf2->{hardware}->{crypto_maps}}, $crypto_map
+		if $intf2->{router}->{managed};
 	    # Add rules, which permits crypto traffic between tunnel endpoints.
 	    my $rules = [ { action => 'permit',
 			    src => $intf1,
@@ -3708,7 +3710,7 @@ sub expand_crypto () {
 		$rule->{$where} =
 		    expand_group $rule->{$where}, "$where of rule in $name";
 	    }
-	    $rule->{srv} = expand_services $rule->{srv}, "rule in $name";
+	    $rule->{srv} = expand_services $rule->{srv}, "rule of $name";
 	}
 	my(@deny, @any, @permit);
 	my $result = $crypto->{expanded_rules} = { deny => \@deny,
