@@ -90,6 +90,9 @@ my $auto_default_route = 1;
 my $ignore_files = qr/^CVS$|^RCS$|^\.#|^raw$|~$/;
 # abort after this many errors
 our $max_errors = 10;
+# allow rules at toplevel or only as part of policies
+# Possible values: 0 | warn | 1
+my $allow_toplevel_rules = 0;
 
 ####################################################################
 # Error Reporting
@@ -822,6 +825,14 @@ sub read_rule( $ ) {
     my $rule =
     { action => $action, src => \@src, dst => \@dst, srv => \@srv };
     push(@rules, $rule);
+    if($allow_toplevel_rules =~ /^0|warn$/) {
+	my $msg = "Rule must be declared as part of policy";
+	if($allow_toplevel_rules eq 'warn') {
+	    warning $msg;
+	} else {
+	    error_atline $msg;
+	}
+    }
 }
 
 sub read_netspoc() {

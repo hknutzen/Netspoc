@@ -89,6 +89,14 @@ Abort after this many errors.
 
 =back
 
+=over 4
+
+=item $allow_toplevel_rules = [0|1|'warn']
+
+Allow rules at toplevel or only as part of policies.
+
+=back
+
 =head1 AUTHOR
 
 Heinz Knutzen <heinzknutzen@users.berlios.de>
