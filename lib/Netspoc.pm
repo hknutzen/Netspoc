@@ -2003,17 +2003,33 @@ sub collect_acls_at_src( $$$ ) {
 
 sub gen_acls( $ ) {
     my($router) = @_;
+    my $model = $router->{model};
     print "[ ACL ]\n";
     for my $interface (@{$router->{interfaces}}) {
 	# ToDo: currently we operate with logical interfaces per network
 	# but access lists work with hardware interfaces
-	print "ip access-list extended $interface->{hardware}_in\n";
-	for my $line (@{$interface->{code}}) {
-	    print " $line";
+	my $name = "$interface->{hardware}_in";
+	if($model eq 'IOS') {
+	    print "ip access-list extended $name\n";
+	    for my $line (@{$interface->{code}}) {
+		print " $line";
+	    }
+	    print " deny ip any any\n";
+	    print "interface $interface->{hardware}\n";
+	    print " access group $name\n\n";
+	} elsif($model eq 'PIX') {
+	    for my $line (@{$interface->{code}}) {
+		if($line =~ /^\s*!/) {
+		    print $line;
+		} else {
+		    print "access-list $name $line";
+		}
+	    }
+	    print "access-list $name deny ip any any\n";
+	    print "access-group $name in $interface->{hardware}\n\n";
+	} else {
+	    die "internal in gen_acls: unsupported model $model";
 	}
-	print " deny ip any any\n";
-	print "interface $interface->{hardware}\n";
-	print " access group $interface->{hardware}_in\n";
     }
 }
 
