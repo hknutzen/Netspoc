@@ -2,7 +2,7 @@
 # netspoc
 # A Network Security Policy Compiler
 # http://netspoc.berlios.de
-# (c) 2002 by Heinz Knutzen <heinz.knutzen@web.de>,<heinz.knutzen@dzsh.de>
+# (c) 2002 by Heinz Knutzen <heinzknutzen@mail.berlios.de>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
