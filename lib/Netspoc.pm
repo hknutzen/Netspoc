@@ -35,7 +35,7 @@ my $warn_unused_groups = 1;
 # allow subnets only 
 # if the enclosing network is marked as 'route_hint' or
 # if the subnet is marked as 'subnet_of'
-my $strict_subnets = 1;
+my $strict_subnets = 0;
 # ignore these names when reading directories:
 # - CVS and RCS directories
 # - CVS working files
@@ -2135,22 +2135,22 @@ sub optimize_srv_rules( $$ ) {
 # --> if srv >= srv'
 # cmp permit auto_any(deny_net: net1,net2) dst srv
 # chg permit auto_any(deny_net: net3) dst srv'
-
+#
+# ToDo: Why aren't these optimizations applicable to deny rules?
+#
 		    if($cmp_rule->{action} eq 'permit' and
 		       $rule->{action} eq 'permit'){
-			if(is_net $rule->{src}) {
-			    if(is_any $cmp_rule->{src} and
-			       aref_delete($rule->{src}, $cmp_rule->{deny_src_networks})) {
+			if(is_any $cmp_rule->{src}) {
+			    if(is_net $rule->{src} and
+			       aref_delete($rule->{src},
+					   $cmp_rule->{deny_src_networks})) {
 				if($cmp_rule->{dst} eq $rule->{dst} and
 				   $cmp_rule->{srv} eq $rule->{srv}) {
 				    $rule->{deleted} = $cmp_rule;
 				}
 				last;
 			    }
-			}
-			if(is_any $rule->{src}) {
-			    my $cmp_src = $cmp_rule->{src};
-			    if(is_any $cmp_src) {
+			    elsif(is_any $rule->{src}) {
 				if(@{$cmp_rule->{deny_src_networks}} == 0) {
 				    $rule->{deleted} = $cmp_rule;
 				} else {
@@ -2168,8 +2168,8 @@ sub optimize_srv_rules( $$ ) {
 			    }
 			}
 # equivalent for auto_any at dst
-			if(is_net $rule->{dst}) {
-			    if(is_any $cmp_rule->{dst} and
+			if(is_any $cmp_rule->{dst}) {
+			    if(is_net $rule->{dst} and
 			       aref_delete($rule->{dst}, $cmp_rule->{deny_dst_networks})) {
 				if($cmp_rule->{src} eq $rule->{src} and
 				   $cmp_rule->{srv} eq $rule->{srv}) {
@@ -2177,10 +2177,7 @@ sub optimize_srv_rules( $$ ) {
 				}
 				last;
 			    }
-			}
-			if(is_any $rule->{dst}) {
-			    my $cmp_dst = $cmp_rule->{dst};
-			    if(is_any $cmp_dst) {
+			    elsif(is_any $rule->{dst}) {
 				if(@{$cmp_rule->{deny_dst_networks}} == 0) {
 				    $rule->{deleted} = $cmp_rule;
 				} else {
