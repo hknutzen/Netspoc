@@ -1243,63 +1243,6 @@ sub check_deny_influence() {
 }
 
 ####################################################################
-# Phase
-# Set routes
-# Add a component 'route' to each router.
-# It holds an array of arrays:[ [ $interface, network, network, .. ], ...
-####################################################################
-
-sub setroute_router( $$ ) {
-    my($router, $to_default, $default) = @_;
-    # first, add the interface where we reach the networks behind this router
-    my @networks = ($to_default);
-    for my $interface (@{$router->{interfaces}}) {
-	# ignore interface where we reached this router
-	next if $interface eq $to_default;
-	my $net = $interface->{link};
-	if($net->{ip} ne 'unnumbered') {
-	    # add directly connected networks
-	    # but not for unnumbered interfaces
-	    push @networks, $net;
-	}
-	&setroute_network($net, $interface);
-    }
-    # add default route
-    $router->{default} = $default;
-    for my $routing (@{$router->{route}}) {
-	my $interface = $routing->[0];
-	my $len = @$routing;
-	for(my $i = 1; $i < $len; $i++) {
-	    # add networks which lie behind other routers
-	    push @networks, $routing->[$i];
-	}
-    }
-    return \@networks;
-}
-
-sub setroute_network( $$ ) {
-    my ($network, $to_default) = @_;
-    my @routing;
-    for my $interface (@{$network->{interfaces}}) {
-	# ignore interface where we reached this network
-	next if $interface eq $to_default;
-	# route: 1st element is interface,
-	# rest are networks reachable via this interface
-	my $route = &setroute_router($interface->{router},
-				     $interface, $to_default);
-	push @routing, $route;
-    }
-    push @{$to_default->{router}->{route}}, @routing;
-    for my $interface (@{$network->{interfaces}}) {
-	next if $interface eq $to_default;
-	for my $route (@routing) {
-	    next if $route->[0] eq $interface;
-	    push @{$interface->{router}->{route}}, $route;
-	}
-    }
-}
-
-####################################################################
 # Phase 4
 # Find paths
 ####################################################################
@@ -1776,8 +1719,65 @@ sub optimize_rules( $$ ) {
     }
 }
 
-##############################################################################
+####################################################################
 # Phase 7
+# Set routes
+# Add a component 'route' to each router.
+# It holds an array of arrays:[ [ $interface, network, network, .. ], ...
+####################################################################
+
+sub setroute_router( $$ ) {
+    my($router, $to_default, $default) = @_;
+    # first, add the interface where we reach the networks behind this router
+    my @networks = ($to_default);
+    for my $interface (@{$router->{interfaces}}) {
+	# ignore interface where we reached this router
+	next if $interface eq $to_default;
+	my $net = $interface->{link};
+	if($net->{ip} ne 'unnumbered') {
+	    # add directly connected networks
+	    # but not for unnumbered interfaces
+	    push @networks, $net;
+	}
+	&setroute_network($net, $interface);
+    }
+    # add default route
+    $router->{default} = $default;
+    for my $routing (@{$router->{route}}) {
+	my $interface = $routing->[0];
+	my $len = @$routing;
+	for(my $i = 1; $i < $len; $i++) {
+	    # add networks which lie behind other routers
+	    push @networks, $routing->[$i];
+	}
+    }
+    return \@networks;
+}
+
+sub setroute_network( $$ ) {
+    my ($network, $to_default) = @_;
+    my @routing;
+    for my $interface (@{$network->{interfaces}}) {
+	# ignore interface where we reached this network
+	next if $interface eq $to_default;
+	# route: 1st element is interface,
+	# rest are networks reachable via this interface
+	my $route = &setroute_router($interface->{router},
+				     $interface, $to_default);
+	push @routing, $route;
+    }
+    push @{$to_default->{router}->{route}}, @routing;
+    for my $interface (@{$network->{interfaces}}) {
+	next if $interface eq $to_default;
+	for my $route (@routing) {
+	    next if $route->[0] eq $interface;
+	    push @{$interface->{router}->{route}}, $route;
+	}
+    }
+}
+
+##############################################################################
+# Phase 8
 # Code Generation
 ##############################################################################
 
