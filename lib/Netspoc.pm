@@ -434,7 +434,7 @@ sub set_pix_interface_level( $ ) {
     } elsif($hwname eq 'outside') {
 	$level = 0;
     } else {
-	unless($level = ($hwname =~ /(\d+)$/) and
+	unless(($level) = ($hwname =~ /(\d+)$/) and
 	       0 < $level and $level < 100) {
 	    err_msg "Can't derive PIX security level from $interface->{name}";
 	}
@@ -1159,9 +1159,9 @@ sub check_unused_groups() {
     for my $name (keys %groups) {
 	unless($group_is_used{$name}) {
 	    if(my $size = @{$groups{$name}}) {
-		warning "group:$name with $size element(s) is unused\n";
+		warning "unused group:$name with $size element(s)\n";
 	    } else {
-		warning "empty group:$name is unused\n";
+		warning "unused empty group:$name\n";
 	    }
 	}
     }
@@ -1486,7 +1486,9 @@ sub find_subnets() {
 	}
 	$mask_ip_hash{$network->{mask}}->{$network->{ip}} = $network;
     }
+    # go from smaller to larger networks
     for my $mask (reverse sort keys %mask_ip_hash) {
+	# network 0.0.0.0/0.0.0.0 can't be subnet
 	last if $mask == 0;
 	for my $ip (keys %{$mask_ip_hash{$mask}}) {
 	    my $m = $mask;
@@ -2175,12 +2177,17 @@ sub collect_networks_for_routes_and_static( $$$$ ) {
 	$dst_intf->{used_route}->{$net} = 1;
 	# collect networks reachable from lower security level
 	# for generation of static commands
-	if($model eq 'PIX' and $src_intf and
-	   $src_intf->{level} < $dst_intf->{level}) {	
-	    $net->{mask} == 0 and
-		die "Pix doesn't support static command for mask 0.0.0.0 of $net->{name}\n";
-	    # put networks into a hash to prevent duplicates
-	    $dst_intf->{static}->{$src_intf->{hardware}}->{$net} = $net;
+	if($model eq 'PIX' and $src_intf) {
+	    if($src_intf->{level} < $dst_intf->{level}) {	
+		$net->{mask} == 0 and
+		    die "Pix doesn't support static command for mask 0.0.0.0 of $net->{name}\n";
+		# put networks into a hash to prevent duplicates
+		$dst_intf->{static}->{$src_intf->{hardware}}->{$net} = $net;
+	    } elsif($src_intf->{level} == $dst_intf->{level}) {	
+		die "Traffic to $dst->{name} can't pass\n",
+		" from  $src_intf->{name} to $dst_intf->{name},\n",
+		" since they have equal security levels.\n";
+	    }
 	}
     }
 }
@@ -2188,6 +2195,18 @@ sub collect_networks_for_routes_and_static( $$$$ ) {
 sub gen_pix_static( $ ) {
     my($router) = @_;
     print "[ Static ]\n";
+    print "! Security levels: ";
+    my $last_level;
+    for my $interface (sort { $a->{level} <=> $b->{level} } @{$router->{interfaces}} ) {
+	my $level = $interface->{level};
+	if(defined $last_level) {
+	    print(($last_level == $level)? " = ": " < ");
+	}
+	print $interface->{hardware};
+	$last_level = $level;
+    }
+    print "\n";
+		       
     for my $interface (@{$router->{interfaces}}) {
 	my $static = $interface->{static};
 	next unless $static;
