@@ -2158,8 +2158,16 @@ sub collect_pix_static( $$$ ) {
     for my $net (@networks) {
 	my $ip = $net->{ip} or
 	    die "Pix doesn't support static command for IP 0.0.0.0\n";
-	my $mask = $net->{mask};
-	$dst_intf->{static}->{$src_intf->{hardware}}->{$ip} = $mask;
+	my $mask = $net->{mask} or
+	    die "Pix doesn't support static command for mask 0.0.0.0\n";
+	if(my $oldmask = $dst_intf->{static}->{$src_intf->{hardware}}->{$ip}) {
+	    # take the smallest mask for overlapping networks
+	    # with identical starting IP
+	    $oldmask < $mask or
+		$dst_intf->{static}->{$src_intf->{hardware}}->{$ip} = $mask;
+	} else {
+	    $dst_intf->{static}->{$src_intf->{hardware}}->{$ip} = $mask;
+	}
     }
 }
 
