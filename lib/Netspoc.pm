@@ -408,6 +408,11 @@ sub read_interface( $ ) {
     return $interface;
 }
 
+# PIX firewalls have a security level associated wih each interface.
+# We don't want to expand our syntax to state them explicitly,
+# but instead we try to derive the level from the interface name.
+# It is not neccessary the find the exact level; what we need to know
+# is the relation of the security levels to each other
 sub set_pix_interface_level( $ ) {
     my($interface) = @_;
     my $hwname = $interface->{hardware};
@@ -417,12 +422,9 @@ sub set_pix_interface_level( $ ) {
     } elsif($hwname eq 'outside') {
 	$level = 0;
     } else {
-	my $nr;
-	if($nr = ($hwname =~ /(\d+)$/) and 0 < $nr and $nr < 100) {
-	    # ToDo: Check how security level is related to interface nr
-	    $level = $nr;
-	} else {
-	    err_msg "invalid hardware name for $interface->{name}";
+	unless($level = ($hwname =~ /(\d+)$/) and
+	       0 < $level and $level < 100) {
+	    err_msg "can't derive security level from $interface->{name}";
 	}
     }
     $interface->{level} = $level;
@@ -730,7 +732,6 @@ sub show_read_statistics() {
 ##############################################################################
 
 # Type checking functions
-# ToDo: find a more elgant solution
 sub is_net( $ ) {
     my($obj) = @_;
     return ref($obj) eq 'Network';
@@ -921,7 +922,6 @@ sub subst_netob_names( $$ ) {
     my($obref, $context) = @_;
     my @unknown;
     for my $object (@$obref) {
-	# the name may contain colons
 	my($type, $name) = split_typed_name($object);
 	if($type eq 'host') {
 	    $object = $hosts{$name};
@@ -930,10 +930,6 @@ sub subst_netob_names( $$ ) {
 	} elsif($type eq 'router') {
 	    $object = $routers{$name};
 	} elsif($type eq 'interface') {
-	    # ToDo: Both router and network names may contain dots.
-	    # We have to resolve this ambiguity somehow.
-	    # Currently we split at the first dot,
-	    # since in network names dots are more propable.
 	    my($router, $interface)  = split /\./, $name, 2;
 	    $object = $routers{$router}->{interfaces}->{$interface};
 	} elsif($type eq 'any') {
@@ -1215,8 +1211,8 @@ sub ge_srv( $$ ) {
     return 0;
 }
 
-# check, if two services are equal or have a non empty intersection.
-# Real intersection of port ranges shouldn't happen, since
+# Check if two services are equal or if one is subset of the other.
+# Real intersections of port ranges shouldn't happen, since
 # they were split into smaller pieces before
 sub match_srv( $$ ) {
     my($s1, $s2) = @_;
@@ -1261,7 +1257,7 @@ sub check_deny_influence() {
 # find paths from every network and router to the starting object 'router 1'
 sub setpath_router( $$$$ ) {
     my($router, $to_border, $border, $distance) = @_;
-    # ToDo: operate correctly with loops
+    # ToDo: operate with loops
     if($router->{border}) {
 	err_msg "There is a loop at $router->{name}. " .
 		"Loops are not supported in this version";
@@ -1284,7 +1280,7 @@ sub setpath_router( $$$$ ) {
 
 sub setpath_network( $$$$ ) {
     my ($network, $to_border, $border, $distance) = @_;
-    # ToDo: operate correctly with loops
+    # ToDo: operate with loops
     if($network->{border}) {
 	err_msg "There is a loop at $network->{name}. " .
 	    "Loops are not supported in this version";
@@ -1904,7 +1900,8 @@ sub collect_pix_static( $$$ ) {
     } elsif(is_net $dst) {
 	@networks = ($dst);
     } elsif(is_any $dst) {
-	# ToDo: should a warning be printed here?
+	# We approximate an 'any' object with 
+	# every network of that security domain
 	@networks = @{$dst->{border}->{networks}};
     } else {
 	die "internal in collect_pix_static: unexpected dst $dst->{name}";
@@ -1913,6 +1910,8 @@ sub collect_pix_static( $$$ ) {
 	my $mask = $net->{mask};
 	my $m4 = $mask >> 24;
 	if($m4 != 255) {
+	    # ToDo: operate correctly with large netmasks
+	    # Pix only refuses 0.0.0.0
 	    die "can't generate static command for $net->{name}, because netmask ".
 		print_ip($mask) ." is too broad (currently max 255.0.0.0)\n";
 	}
