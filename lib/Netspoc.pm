@@ -416,27 +416,22 @@ sub check_assign($&) {
     return $val;
 }
 
-sub read_list_or_null(&) {
-    my($fun) = @_;
-    my @vals;
-    return @vals if check(';');
-    push(@vals, &$fun);
-    while(&check(',')) {
-        push(@vals, &$fun);
-    }
-    &skip(';');
-    return @vals;
-}
-
 sub read_list(&) {
     my($fun) = @_;
     my @vals;
-    push(@vals, &$fun);
-    while(&check(',')) {
-	push(@vals, &$fun);
+    while(1) {
+        push(@vals, &$fun);
+	last if check ';';
+	check ',';
+	# allow trailing comma
+	last if check ';';
     }
-    &skip(';');
     return @vals;
+}
+
+sub read_list_or_null(&) {
+    return () if check(';');
+    &read_list(@_);
 }
 
 sub read_assign_list($&) {
