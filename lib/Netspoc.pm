@@ -34,13 +34,14 @@ sub info ( @ ) {
 }
 
 sub warning ( @ ) {
-    my $first = shift;
-    $first = "Warning: $first";
-    print STDERR $first, @_;
+    print STDERR "Warning:", @_;
 }
 
+# input filename from commandline
 my $main_file;
+# filename of curent input file
 our $file;
+# eof status of current file
 our $eof;
 sub add_context( $ ) {
     my($msg) = @_;
@@ -700,9 +701,9 @@ sub read_file_or_dir( $ ) {
 	read_data $path;
     } elsif(-d $path) {
 	local(*DIR);
-	opendir DIR, $path or die "Can't opendir $path: $!";
-	# for nicer file names in messages
+	# strip trailing slash for nicer file names in messages
 	$path =~ s./$..;
+	opendir DIR, $path or die "Can't opendir $path: $!";
       FILE:
 	while(my $file = readdir DIR) {
 	    next if $file eq '.' or $file eq '..';
@@ -774,15 +775,16 @@ sub print_rule( $ ) {
 # Build linked data structures
 ##############################################################################
 
-# take two references to arrays of hosts: 
-# hosts with single ip addresses ###and hosts with an ip range
-# detect adjacent ip addresses and link them to an 
+# Called from read_network
+# Takes a references to the array of hosts from one network.
+# Selects hosts with a single ip addresses,
+# detects adjacent ip addresses and link them to an 
 # automatically generated ip range
 # ToDo:
-# - check not only the first ip address
+# - handle hosts with multiple ip addresses
 # - check if any of the existing ranges may be used
 # - augment existing ranges by hosts or other ranges
-# ==> support chains of range > range .. > host
+# ==> support chains of network > range > range .. > host
 sub find_ip_ranges( $$ ) {
     my($host_aref, $network) = @_;
     my @hosts =  grep { not $_->{is_range} and @{$_->{ip}} == 1 } @$host_aref;
@@ -837,48 +839,6 @@ sub find_ip_ranges( $$ ) {
 	}
     }
 }
-	
-	
-    
-    
-# eliminate TCP/UDP overlapping port ranges
-# 12345 6
-#  2345
-#    45|6|7|8
-#           89
-#
-# 123|45
-#  23|456
-#   3|4567
-#     456789
-#
-# 1234-5
-#  234-5-6
-#   34-5-6-7
-#    4|5|6|789
-sub eliminate_overlapping_ranges( \@ ) {
-    my($aref) = @_;
-    for my $srv1 (@$aref) {
-	my $x1 = $srv1->{v1};
-	my $y1 = $srv1->{v2};
-	for my $srv2 (@$aref) {
-	    my $x2 = $srv2->{v1};
-	    my $y2 = $srv2->{v2};
-	    # overlap check
-	    if($x1 < $x2 and $x2 <= $y1 and $y1 < $y2 or
-		# 1111111
-		#    2222222
-	       $x2 < $x1 and $x1 <= $y2 and $y2 < $y1) {
-		#    1111111
-		# 2222222
-		#
-		# ToDo: Implement this function
-		err_msg "Overlapping port ranges are not supported currently.
-Workaround: Split one of $srv1->{name}, $srv2->{name} manually";
-	    }    
-	}
-    }
-}
 
 my %srv_hash;
 sub prepare_srv_ordering( $ ) {
@@ -889,22 +849,26 @@ sub prepare_srv_ordering( $ ) {
     } else { # ip, proto, icmp
 	my $v1 = $srv->{v1};
 	my $v2 = $srv->{v2};
-	my $old_srv;
+	my $main_srv;
 	if(defined $v2) {
-	    $old_srv = $srv_hash{$type}->{$v1}->{$v2};
-	    $srv_hash{$type}->{$v1}->{$v2} = $srv;
+	    $main_srv = $srv_hash{$type}->{$v1}->{$v2} or
+		$srv_hash{$type}->{$v1}->{$v2} = $srv;
 	} elsif(defined $v1) {
-	    $old_srv = $srv_hash{$type}->{$v1};
-	    $srv_hash{$type}->{$v1} = $srv;
+	    $main_srv = $srv_hash{$type}->{$v1} or
+		$srv_hash{$type}->{$v1} = $srv;
 	} else {
-	    $old_srv = $srv_hash{$type};
-	    $srv_hash{$type} = $srv;
+	    $main_srv = $srv_hash{$type} or
+		$srv_hash{$type} = $srv;
 	}
-	if($old_srv) {
+	if($main_srv) {
 	    # found duplicate service definition
-	    # link $old_srv with $srv
-	    # Later substitute occurences of $old_srv with $srv
-	    $old_srv->{main} = $srv;
+	    # link $srv with $main_srv
+	    # We link all duplicate services to the first service we found.
+	    # This assures that we always reach the main service
+	    # from any duplicate service in one step via ->{main}
+	    # This is used later to substitute occurences of
+	    # $srv with $main_srv
+	    $srv->{main} = $main_srv;
 	}
     }
 }
@@ -944,7 +908,7 @@ sub order_ranges( $$ ) {
 	next if $srv1->{main};
 	my $x1 = $srv1->{v1};
 	my $y1 = $srv1->{v2};
-	my $min_size = 2^16;
+	my $min_size = 65536;
 	$srv1->{up} = $up;
 	for my $srv2 (@$range_aref) {
 	    next if $srv1 eq $srv2;
@@ -955,14 +919,22 @@ sub order_ranges( $$ ) {
 		# link $srv2 with $srv1
 		# Later substitute occurences of $srv2 with $srv1
 		$srv2->{main} = $srv1;
-	    }
-	    if($x2 <= $x1 and $y1 <= $y2) {
+	    } elsif($x2 <= $x1 and $y1 <= $y2) {
 		my $size = $y2-$x2;
 		if($size < $min_size) {
 		    $min_size = $size;
 		    $srv1->{up} = $srv2;
 		}
-	    }
+	    } elsif($x1 < $x2 and $x2 <= $y1 and $y1 < $y2 or
+		# 1111111
+		#    2222222
+	       $x2 < $x1 and $x1 <= $y2 and $y2 < $y1) {
+		#    1111111
+		# 2222222
+		# ToDo: Implement this function
+		err_msg "Overlapping port ranges are not supported currently.
+Workaround: Split one of $srv1->{name}, $srv2->{name} manually";
+	    }    
 	}
     }
 }
@@ -1021,14 +993,14 @@ sub link_interface_with_net( $ ) {
     # check if the network is already linked with another interface
     if(defined $net->{interfaces}) {
 	my $old_intf = $net->{interfaces}->[0];
-	# if it is linked already to a cloud 
+	# if network is already linked to a cloud interface
 	# it must not be linked to any other interface
 	if($old_intf->{ip} eq 'cloud') {
 	    my $rname = $interface->{router}->{name};
 	    err_msg "Cloud $net->{name} must not be linked to $rname";
 	}
-	# if it is linked already to a router 
-	# it must not be linked to a cloud
+	# if network is already linked to any interface
+	# it must not be linked to a cloud interface
 	if($ip eq 'cloud') {
 	    my $rname = $old_intf->{router}->{name};
 	    err_msg "Cloud $net->{name} must not be linked to $rname";
@@ -1061,10 +1033,8 @@ sub link_interface_with_net( $ ) {
 
 sub link_topology() {
     &link_any_and_every();
-    for my $router (values %routers) {
-	for my $interface (@{$router->{interfaces}}) {
-	    &link_interface_with_net($interface);
-	}
+    for my $interface (values %interfaces) {
+	&link_interface_with_net($interface);
     }
 }
 
@@ -1106,25 +1076,25 @@ sub expand_group( $$ ) {
 	    err_msg "Can't resolve reference to '$tname' in $context";
 	    next;
 	}
-	# check all objects except groups if disabled
-	if(not ref $object eq 'ARRAY' and $object->{disabled}) {
-	    info "Ignoring disabled $object->{name} in $context\n";
-	    next;
-	}
 	if(is_host $object or is_any $object) {
-	    push @objects, $object;
+	    push @objects, $object unless $object->{disabled};
 	} elsif(is_net $object or is_interface $object) {
 	    if($object->{ip} eq 'unnumbered') {
 		err_msg "Unnumbered $object->{name} must not be used in $context";
 		next;
 	    }
-	    push @objects, $object;
+	    push @objects, $object unless $object->{disabled};
 	} elsif(is_router $object) {
 	    # split a router into its interfaces
-	    push @objects,  @{$object->{interfaces}};
+	    push @objects, grep { not $_->{disabled} }
+	    @{$object->{interfaces}};
 	} elsif(is_every $object) {
+	    # if the 'every' object itself is disabled, ignore all networks
+	    next if $object->{disabled};
 	    # expand an 'every' object to all networks in its security domain
-	    push @objects, @{$object->{link}->{border}->{networks}};
+	    # check each network if it is disabled
+	    push @objects, grep { not $_->{disabled} }
+	    @{$object->{link}->{border}->{networks}};
 	} elsif(ref $object eq 'ARRAY') {
 	    # substitute a group by its members
 	    # detect recursive group definitions
@@ -1220,10 +1190,10 @@ sub expand_rules() {
     for my $rule (@rules) {
 	my $src_any_group = {};
 	my $dst_any_group = {};
+	my $action = $rule->{action};
 	for my $src (@{expand_group $rule->{src}, 'src of rule'}) {
 	    for my $dst (@{expand_group $rule->{dst}, 'dst of rule'}) {
 		for my $srv (@{expand_services $rule->{srv}, 'rule'}) {
-		    my $action = $rule->{action};
 		    my $expanded_rule = { action => $action,
 					  src => $src,
 					  dst => $dst,
@@ -1268,7 +1238,7 @@ sub expand_rules() {
 # put an expanded rule into a data structure which eases building an ordered
 # list of expanded rules with the following properties:
 # - rules with an 'any' object as src or estination are put at the end
-#   (we call dem any-rules)
+#   (we call them 'any' rules)
 # - any-rules are ordered themselve:
 #  - host any
 #  - any host
@@ -1392,8 +1362,10 @@ sub check_deny_influence() {
 ####################################################################
 # mark all parts of the topology lying behind disabled interfaces
 ####################################################################
-sub disable_behind( $$ ) {
-    my($network, $incoming) = @_;
+sub disable_behind( $ ) {
+    my($incoming) = @_;
+    $incoming->{disabled} = 1;
+    my $network = $incoming->{net};
     $network->{disabled} = 1;
     for my $host (@{$network->{hosts}}) {
 	$host->{disabled} = 1;
@@ -1404,23 +1376,26 @@ sub disable_behind( $$ ) {
 	my $router = $interface->{router};
 	$router->{disabled} = 1;
 	# a disabled router can't be managed
-	$router->{managed} = 0;
+	if($router->{managed}) {
+	    $router->{managed} = 0;
+	    warning "Disabling managed $router->{name}\n";
+	}
 	for my $outgoing (@{$router->{interfaces}}) {
 	    next if $outgoing eq $interface;
-	    $outgoing->{disabled} = 1;
-	    &disable_behind($outgoing->{net}, $outgoing);
+	    &disable_behind($outgoing);
 	}
     }
 }	
 
 sub mark_disabled() {
     for my $interface (@disabled_interfaces) {
-	$interface->{disabled} = 1;
-	disable_behind($interface->{net}, $interface);
+	disable_behind($interface);
     }
     for my $any (values %anys, values %everys) {
 	$any->{disabled} = 1 if $any->{link}->{disabled};
     }
+    $default_route->{disabled} and 
+	err_msg "Disabling default route $default_route->{name}";
 }
 
 ####################################################################
@@ -1834,7 +1809,6 @@ sub add_rule( $$ ) {
     # found identical rule: delete first one
     $old_rule->{deleted} = 1 if $old_rule;
     $srv_hash->{$action}->{$srv} = $rule;
-    return($srv_hash);
 }
 
 # a rule may be deleted if we find a similar rule with greater or equal srv
@@ -1992,6 +1966,7 @@ sub setroute_router( $$ ) {
     for my $interface (@{$router->{interfaces}}) {
 	# ignore interface where we reached this router
 	next if $interface eq $to_default;
+	next if $interface->{disabled};
 	my $net = $interface->{net};
 	if($net->{ip} ne 'unnumbered') {
 	    # add directly connected networks
