@@ -3434,8 +3434,8 @@ sub optimize() {
 # normal rules > reverse rules
 sub optimize_reverse_rules() {
     info "Optimization of reverse rules";
-    optimize_action_rules \%reverse_rule_tree, \%reverse_rule_tree;
-    optimize_action_rules \%rule_tree, \%reverse_rule_tree;
+    optimize_rules \%reverse_rule_tree, \%reverse_rule_tree;
+    optimize_rules \%rule_tree, \%reverse_rule_tree;
 }
 
 ####################################################################
@@ -3577,17 +3577,19 @@ sub find_active_routes_and_statics () {
 	my $from = get_path $src;
 #	info "$from->{name} -> $to->{name}";
 	# 'any' objects are expanded to all its contained networks
-	# hosts and interfaces expand to its containing network
+	# hosts and interfaces expand to its containing network.
+	# Don't try to use an interface as destination of $pseudo_rule;
+	# this would give wrong routes and statics, if a path restriction
+	# is applied to this interface.
 	for my $network (get_networks($dst)) {
-	    my $to = is_interface $dst ? $dst : $network;
-	    unless($routing_tree{$from}->{$to}) {
+	    unless($routing_tree{$from}->{$network}) {
 		my $pseudo_rule = { src => $from,
-				    dst => $to,
+				    dst => $network,
 				    action => '--',
 				    srv => $pseudo_srv,
 				    dst_network => $network
 				    };
-		$routing_tree{$from}->{$to} = $pseudo_rule;
+		$routing_tree{$from}->{$network} = $pseudo_rule;
 	    }
 	}
     };
