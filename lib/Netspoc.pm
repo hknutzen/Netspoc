@@ -18,15 +18,12 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
-# Description:
-# An attempt for a simple and fast replacement of Cisco's
-# Cisco Secure Policy Manager (CSPM)
 
 use strict;
 use warnings;
 
 my $program = 'NETwork Security POlicy Compiler';
-my $version = (split ' ', '$Id$ ')[2];
+my $version = (split ' ','$Id$ ')[2];
 
 ####################################################################
 # User configurable options
@@ -58,7 +55,7 @@ sub warning ( @ ) {
 
 # input filename from commandline
 my $main_file;
-# filename of curent input file
+# filename of current input file
 our $file;
 # eof status of current file
 our $eof;
@@ -863,7 +860,7 @@ sub prepare_srv_ordering( $ ) {
 	    # We link all duplicate services to the first service we found.
 	    # This assures that we always reach the main service
 	    # from any duplicate service in one step via ->{main}
-	    # This is used later to substitute occurences of
+	    # This is used later to substitute occurrences of
 	    # $srv with $main_srv
 	    $srv->{main} = $main_srv;
 	}
@@ -1441,7 +1438,7 @@ sub mark_disabled() {
 ####################################################################
 # Find subnetworks
 # Mark each network with the smallest network enclosing it
-# Mark each network wich encloses some other network
+# Mark each network which encloses some other network
 ####################################################################
 sub find_subnets() {
     info "Finding subnets\n";
@@ -2269,7 +2266,7 @@ sub collect_acls( $$$ ) {
     }
 }
 
-# Curently unused
+# Currently unused
 # ToDo: Check, if it is ok, to use this function for deny rules
 #
 # For deny rules call collect_acls only for the first border
