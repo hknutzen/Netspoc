@@ -677,6 +677,7 @@ my %valid_routing = (OSPF => 1);
 our %interfaces;
 my @virtual_interfaces;
 my @disabled_interfaces;
+our %path_restrictions;
 sub read_interface( $$ ) {
     my($router, $net) = @_;
     my $name = "$router.$net";
@@ -715,8 +716,18 @@ sub read_interface( $$ ) {
 		    &skip('}');
 		    $interface->{nat}->{$name} = $nat_ip;
 		    $nat_definitons{$name} = 1;
+		} elsif($type eq 'path_restrict') {
+		    &skip(';');
+		    # Path restrictions are represented by an anonymous hash.
+		    # Equal names must be replaced by identical hash.
+		    my $restrict;
+		    unless($restrict = $path_restrictions{$name}) {
+			$restrict = {name => "$type:$name", count => 1};
+			$path_restrictions{$name} = $restrict;
+		    }
+		    push @{$interface->{path_restrict}}, $restrict;
 		} else {
-		    syntax_err "Expected NAT definition";
+		    syntax_err "Expected named attribute";
 		}
 	    } elsif(my $virtual = &check_assign('virtual', \&read_ip)) {
 		# read virtual IP vor VRRP / HSRP
@@ -1695,6 +1706,11 @@ sub link_topology() {
 	    "must not be linked to $type:$name";
 	}
     }
+    # Path restrictions should occour at least as tuples
+    for my $restrict (values %path_restrictions) {
+	$restrict->{count} < 2 and 
+	    warning "$restrict->{name} is used only once";
+    }
 }
 
 ####################################################################
@@ -2593,7 +2609,10 @@ sub mark_in_loop1( $$$$$ ) {
     my($obj, $in_intf, $from, $to, $collect) = @_;
     # Check for second occurence of path restriction.
     for my $restrict (@{$in_intf->{path_restrict}}) {
-	return 0 if $restrict->{active_path};
+	if($restrict->{active_path}) {
+#	    info " effective $restrict->{name} at $in_intf->{name}";
+	    return 0;
+	}
     }
     # Found a path to $to.
     if($obj eq $to) {
@@ -2608,6 +2627,7 @@ sub mark_in_loop1( $$$$$ ) {
     $obj->{active_path} = 1;
     # Mark first occurence of path restriction.
     for my $restrict (@{$in_intf->{path_restrict}}) {
+#	info " enabled $restrict->{name} at $in_intf->{name}";
 	$restrict->{active_path} = 1;
     }
     my $get_next = is_router $obj ? 'network' : 'router';
@@ -2628,6 +2648,7 @@ sub mark_in_loop1( $$$$$ ) {
     }
     delete $obj->{active_path};
     for my $restrict (@{$in_intf->{path_restrict}}) {
+#	info " disabled $restrict->{name} at $in_intf->{name}";
 	delete $restrict->{active_path};
     }
     return $success;
@@ -3566,7 +3587,7 @@ sub mark_networks_for_static( $$$ ) {
     return unless $in_intf;
     # no static needed for traffic from higher to lower security level
     return if $in_intf->{level} > $out_intf->{level};
-    die "Traffic to $rule->{dst}->{name} can't pass\n",
+    err_msg "Traffic to $rule->{dst}->{name} can't pass\n",
     " from  $in_intf->{name} to $out_intf->{name},\n",
     " since they have equal security levels.\n"
 	if $in_intf->{level} == $out_intf->{level};
