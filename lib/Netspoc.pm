@@ -2634,9 +2634,6 @@ sub loop_path_mark ( $$$$$ ) {
     }
 }
 
-# Go back from a reference used as key to an object.
-my %key2obj;
-
 # Mark path from src to dst.
 # src and dst are either a router or a network.
 # At each interface on the path from src to dst,
@@ -2647,7 +2644,6 @@ sub path_mark( $$ ) {
     my ($src, $dst) = @_;
     my $from = $src;
     my $to = $dst;
-    $key2obj{$to} = $to;
     my $from_in = $from;
     my $to_out = undef;
     my $from_loop = $from->{loop};
@@ -3602,6 +3598,42 @@ my $network_default = new('Network',
 			  );
 sub print_routes( $ ) {
     my($router) = @_;
+    # check if one network is reached via different local interfaces.
+    my %net2intf;
+    for my $interface (@{$router->{interfaces}}) {
+	# check if one network is reached a different remote interfaces.
+	my %net2hop;
+	for my $hop (values %{$interface->{hop}}) {
+	    for my $network (values %{$interface->{routes}->{$hop}}) {
+		if(my $interface2 = $net2intf{$network}) {
+		    if($interface2 != $interface) {
+			# Network is reached via two different local interfaces.
+			# Check if both have dynamic routing enabled.
+			unless($interface->{routing} and
+			       $interface2->{routing}) {
+			    err_msg "Two static routes for $network->{name} ",
+			    "at $router->{name}";
+			}
+		    }
+		} else {
+		    $net2intf{$network} = $interface;
+		}
+		unless($interface->{routing}) {
+		    if(my $hop2 = $net2hop{$network}) {
+			# Network is reached via two different hops.
+			# Check if both are reached via the same virtual IP.
+			unless($hop->{virtual} and $hop2->{virtual} and
+			       $hop->{virtual} eq $hop2->{virtual}) {
+			    err_msg "Two static routes for $network->{name} ",
+			    "at $interface->{name}";
+			}
+		    } else {
+			$net2hop{$network} = $hop;
+		    }
+		}
+	    }
+	}
+    }
     if($auto_default_route) {
 	# find interface and hop with largest number of routing entries
 	my $max_intf;
