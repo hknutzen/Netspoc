@@ -3988,7 +3988,7 @@ sub print_pix_static( $ ) {
 ##############################################################################
 
 sub distribute_rule( $$$ ) {
-    my ($rule, $in_intf, $out_intf) = @_;
+    my ($rule, $in_intf, $out_intf, $any_rule) = @_;
     # Traffic from src reaches this router via in_intf
     # and leaves it via out_intf.
     # in_intf is undefined if src is an interface of the current router
@@ -4030,10 +4030,16 @@ sub distribute_rule( $$$ ) {
 	# to the PIX itself, because it accepts them anyway (telnet, IPSec).
 	# ToDo: Check if this assumption holds for deny ACLs as well
 	return if $model->{filter} eq 'PIX' and $rule->{action} eq 'permit';
-#	info "$router->{name} rule: ",print_rule $rule,"\n";
-	push @{$in_intf->{hardware}->{intf_rules}}, $rule;
-    } else {
 #	info "$router->{name} intf_rule: ",print_rule $rule,"\n";
+	push @{$in_intf->{hardware}->{intf_rules}}, $rule;
+    } 
+    # 'any' rules must be placed in a separate array, because they must no
+    # be subject of object-group optimization
+    elsif($any_rule) {
+#	info "$router->{name} any_rule: ",print_rule $rule,"\n";
+	push @{$in_intf->{hardware}->{any_rules}}, $rule;
+    } else {
+#	info "$router->{name} rule: ",print_rule $rule,"\n";
 	push @{$in_intf->{hardware}->{rules}}, $rule;
     }
 }
@@ -4070,7 +4076,8 @@ sub distribute_rule_at_src( $$$ ) {
     is_any $src or internal_err "$src must be of type 'any'";
     # The main rule is only processed at the first router on the path.
     if($in_intf->{any} eq $src) {
-	&distribute_rule(@_) unless check_deleted $rule, $out_intf;
+	# optional 4th parameter 'any_rule' must be set!
+	&distribute_rule(@_, 1) unless check_deleted $rule, $out_intf;
     }
     # Auxiliary rules are never needed at the first router.
     elsif(exists $rule->{any_rules}) {
@@ -4088,9 +4095,9 @@ sub distribute_rule_at_src( $$$ ) {
 				  dst => $any_rule->{dst},
 				  srv => $any_rule->{srv},
 				  stateless => $any_rule->{stateless} };
-		&distribute_rule($deny_rule, $in_intf, $out_intf);
+		&distribute_rule($deny_rule, $in_intf, $out_intf, 1);
 	    }
-	    &distribute_rule($any_rule, $in_intf, $out_intf);
+	    &distribute_rule($any_rule, $in_intf, $out_intf, 1);
 	}
     }
 }
@@ -4122,7 +4129,7 @@ sub distribute_rule_at_dst( $$$ ) {
 			     srv => $any_rule->{srv},
 			     stateless => $any_rule->{stateless}
 			 };
-	    &distribute_rule($deny_rule, $in_intf, $out_intf);
+	    &distribute_rule($deny_rule, $in_intf, $out_intf, 1);
 	}
     }
     for my $any_rule ($rule, @{$rule->{any_rules}}) {
@@ -4130,11 +4137,11 @@ sub distribute_rule_at_dst( $$$ ) {
 	next if $any_rule->{deleted};
 	if($any_rule->{any_dst_group}) {
 	    unless($any_rule->{any_dst_group}->{active}) {
-		&distribute_rule($any_rule, $in_intf, $out_intf);
+		&distribute_rule($any_rule, $in_intf, $out_intf, 1);
 		$any_rule->{any_dst_group}->{active} = 1;
 	    }
 	} else {
-	    &distribute_rule($any_rule, $in_intf, $out_intf);
+	    &distribute_rule($any_rule, $in_intf, $out_intf, 1);
 	}
     }
 }
@@ -4701,7 +4708,8 @@ sub print_acls( $ ) {
     }
     # Add deny rules 
     for my $hardware (@{$router->{hardware}}) {
-	if($model->{filter} eq 'IOS' and $hardware->{rules} ) {
+	if($model->{filter} eq 'IOS' and
+	   ($hardware->{rules} or $hardware->{any_rules})) {
 	    for my $interface (@{$router->{interfaces}}) {
 		# ignore 'unnumbered' and 'short' interfaces
 		next if $interface->{ip} eq 'unnumbered' or
@@ -4719,7 +4727,7 @@ sub print_acls( $ ) {
 				      dst => $network_00,
 				      srv => $srv_ip });
 	}
-	push(@{$hardware->{rules}}, { action => 'deny',
+	push(@{$hardware->{any_rules}}, { action => 'deny',
 				      src => $network_00,
 				      dst => $network_00,
 				      srv => $srv_ip });
@@ -4753,8 +4761,10 @@ sub print_acls( $ ) {
 	my $nat_info = $hardware->{interfaces}->[0]->{network}->{bind_nat};
 	# Interface rules
 	acl_line $hardware->{intf_rules}, $nat_info, $intf_prefix, $model;
-	# Other rules
+	# Ordinary rules
 	acl_line $hardware->{rules}, $nat_info, $prefix, $model;
+	# 'any' rules
+	acl_line $hardware->{any_rules}, $nat_info, $prefix, $model;
 	# Postprocessing for hardware interface
 	if($model->{filter} eq 'IOS') {
 	    print "interface $hardware->{name}\n";
