@@ -21,38 +21,23 @@ my $comment_routes = 1;
 # if set to 1, may give better performance for very large rule sets
 my $pre_optimization = 0;
 
-##############################################################################
-# Phase 1
-# Reading topology, Services, Groups, Rules
-##############################################################################
+####################################################################
+# Error Reporting
+####################################################################
 
-our $eof;
-# $_ is used as input buffer, it holds the rest of the current input line
-sub skip_space_and_comment() {
-    # ignore trailing whitespace and comments
-    while ( m'\G\s*([!#].*)?$ 'gcx and not $eof) {
-	$_ = <FILE>;
-	# <> becomes undefined at eof
-	unless(defined $_) {
-	    $_ = '';
-	    $eof = 1;
-	    return;
-	}
-	# cut off trailing lf
-	chop;
-    }
-    # ignore leading witespace
-    m/\G\s*/gc;
+sub info ( @ ) {
+    print STDERR @_ if $verbose;
 }
 
-# our input buffer $_ gets undefined, if we reached eof
-sub check_eof() {
-    &skip_space_and_comment();
-    return $eof;
+sub warning ( @ ) {
+    my $first = shift;
+    $first = "Warning: $first";
+    print STDERR $first, @_;
 }
 
 my $main_file;
 our $file;
+our $eof;
 sub add_context( $ ) {
     my($msg) = @_;
     my $at_file = ($file eq $main_file)?'':" of $file";
@@ -90,6 +75,35 @@ sub err_msg( $ ) {
 sub syntax_err( $ ) {
     my($msg) = @_;    
     die add_context $msg;
+}
+
+####################################################################
+# Phase 1
+# Reading topology, Services, Groups, Rules
+####################################################################
+
+# $_ is used as input buffer, it holds the rest of the current input line
+sub skip_space_and_comment() {
+    # ignore trailing whitespace and comments
+    while ( m'\G\s*([!#].*)?$ 'gcx and not $eof) {
+	$_ = <FILE>;
+	# <> becomes undefined at eof
+	unless(defined $_) {
+	    $_ = '';
+	    $eof = 1;
+	    return;
+	}
+	# cut off trailing lf
+	chop;
+    }
+    # ignore leading witespace
+    m/\G\s*/gc;
+}
+
+# our input buffer $_ gets undefined, if we reached eof
+sub check_eof() {
+    &skip_space_and_comment();
+    return $eof;
 }
 
 # check for a string and skip if available
@@ -698,20 +712,18 @@ sub read_file_or_dir( $ ) {
 }	
 	
 sub show_read_statistics() {
-    if($verbose) {
-	my $n = keys %routers;
-	print STDERR "Read $n routers\n";
-	$n = keys %networks;
-	print STDERR "Read $n networks\n";
-	$n = keys %groups;
-	print STDERR "Read $n groups\n";
-	$n = keys %services;
-	print STDERR "Read $n services\n";
-	$n = keys %servicegroups;
-	print STDERR "Read $n service groups\n";
-	$n = @rules;
-	print STDERR "Read $n rules\n";
-    }
+    my $n = keys %routers;
+    info "Read $n routers\n";
+    $n = keys %networks;
+    info "Read $n networks\n";
+    $n = keys %groups;
+    info "Read $n groups\n";
+    $n = keys %services;
+    info "Read $n services\n";
+    $n = keys %servicegroups;
+    info "Read $n service groups\n";
+    $n = @rules;
+    info "Read $n rules\n";
 }
 
 ##############################################################################
@@ -1355,7 +1367,7 @@ sub path_walk($&) {
        defined $src_intf and defined $dst_intf and $src_intf eq $dst_intf) {
 	# no message if src eq dst; this happens for group to group rules
 	unless($src eq $dst) {
-	    print STDERR "Unenforceable rule\n ", print_rule($rule), "\n";
+	    warning "Unenforceable rule\n ", print_rule($rule), "\n";
 	}
 	# don't process rule again later
 	$rule->{deleted} = 1;
@@ -2160,13 +2172,13 @@ if($verbose) {
     my $nd = 0+@expanded_deny_rules;
     my $n  = 0+@expanded_rules;
     my $na = 0+@expanded_any_rules;
-    print STDERR "Expanded rules: deny $nd, permit: $n, permit any: $na,\n";
+    info "Expanded rules: deny $nd, permit: $n, permit any: $na,\n";
 }
 
 die "Aborted with errors\n" if $error_counter;
 $error_counter = 10;
 
-print STDERR "Preparing optimization\n" if $verbose;
+info "Preparing optimization\n";
 # Prepare optimization of rules
 # link rules with the source network object of the rule
 for my $rule (@expanded_deny_rules, @expanded_rules, @expanded_any_rules) {
@@ -2176,7 +2188,7 @@ for my $rule (@expanded_deny_rules, @expanded_rules, @expanded_any_rules) {
 
 my($nd1,$n1,$na1) = (0,0,0);
 if($pre_optimization) {
-    print STDERR "Starting pre-optimization\n" if $verbose;
+    info "Starting pre-optimization\n";
     # Optimize rules for each security domain
     for my $router (values %routers) {
 	next unless $router->{managed};
@@ -2195,17 +2207,15 @@ if($pre_optimization) {
 	for my $rule (@expanded_any_rules) {
 	    $na1++ if $rule->{deleted};
 	}
-	print STDERR
-	    "Deleted redundant rules: $nd1 deny, $n1 permit, $na1 permit any\n";
+	info "Deleted redundant rules: $nd1 deny, $n1 permit, $na1 permit any\n";
     }
 }
 
 # generate deny rules for any rules
 &gen_deny_rules();
-print STDERR "Generated $weak_deny_counter deny rules from 'any rules'\n"
-    if $verbose;
+info "Generated $weak_deny_counter deny rules from 'any rules'\n";
 
-print STDERR "Starting optimization\n" if $verbose;
+info "Starting optimization\n";
 # Optimze rules for each security domain
 for my $router (values %routers) {
     next unless $router->{managed};
@@ -2233,19 +2243,19 @@ if($verbose) {
     $nd -= $nd1;
     $n -= $n1;
     $na -= $na1;
-    print STDERR "Deleted redundant rules:\n";
-    print STDERR " $nd deny, $n permit, $na permit any, $nw deny from any\n";
+    info "Deleted redundant rules:\n";
+    info " $nd deny, $n permit, $na permit any, $nw deny from any\n";
 }
 
-print STDERR "Checking for deny influence\n" if $verbose;
+info "Checking for deny influence\n";
 check_deny_influence();
 
 # Set routes
 $default_route or die "Topology has no default route";
-print STDERR "Setting routes\n";
+info "Setting routes\n";
 &setroute_router($default_route, 0);
 
-print STDERR "Starting code generation\n" if $verbose;
+info "Starting code generation\n";
 # First Generate code for deny rules .
 for my $rule (@expanded_deny_rules) {
     next if $rule->{deleted};
@@ -2289,9 +2299,9 @@ for my $router (values %routers) {
 
 # Print warnings about the PIX service hole
 if(%pix_srv_hole) {
-    print STDERR "Ignored the code field of the following ICMP services\n";
-    print STDERR "while generating code for pix firewalls:\n";
+    warning "Ignored the code field of the following ICMP services\n",
+    " while generating code for pix firewalls:\n";
     while(my ($name, $count) = each %pix_srv_hole) {
-	print STDERR "$name: $count times\n";
+	print STDERR " $name: $count times\n";
     }
 }
