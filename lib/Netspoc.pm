@@ -494,7 +494,7 @@ sub set_pix_interface_level( $ ) {
     $interface->{level} = $level;
 }
 
-my %valid_model = (IOS => 1, PIX => 1);
+my %valid_model = (IOS => 1, IOS_FW => 1, PIX => 1);
 my %routers;
 sub read_router( $ ) {
     my $name = shift;
@@ -2343,12 +2343,12 @@ sub print_routes( $ ) {
 		    print "! route $network->{name} -> $hop->{name}\n";
 		}
 		my $adr = &adr_code($network, 0);
-		if($router->{model} eq 'IOS') {
+		if($router->{model} =~ /^IOS/) {
 		    print "ip route $adr\t$hop_addr\n";
 		} elsif($router->{model} eq 'PIX') {
 		    print "route $interface->{hardware} $adr\t$hop_addr\n";
 		} else {
-		    internal_err "unsupported router model $router->{model}";
+		    internal_err "unexpected router model $router->{model}";
 		}
 	    }
 	}
@@ -2608,7 +2608,7 @@ sub collect_acls( $$$ ) {
     }
     my $model = $router->{model};
     &collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
-    my $inv_mask = $model eq 'IOS';
+    my $inv_mask = $model =~ /^IOS/;
     my @src_code = &adr_code($src, $inv_mask);
     my @dst_code = &adr_code($dst, $inv_mask);
     my ($proto_code, $port_code) = &srv_code($srv, $model);
@@ -2636,6 +2636,22 @@ sub collect_acls( $$$ ) {
 		     "$action $proto_code $src_code $dst_code $port_code\n");
 	    }
 	}
+	# Code for stateless IOS: automatically permit return packets
+	# for TCP and UDP
+	if($model eq 'IOS' and defined $dst_intf and
+	   ($srv->{type} eq 'tcp' or $srv->{type} eq 'udp')) {
+	    $code_aref = \@{$router->{code}->{$dst_intf->{hardware}}};
+	    if($comment_acls) {
+		push(@$code_aref, "! REVERSE: ". print_rule($rule)."\n");
+	    }
+	    my $established = $srv->{type} eq 'tcp' ? 'gt 1023 established' : 'gt 1023';
+	    for my $src_code (@src_code) {
+		for my $dst_code (@dst_code) {
+		    push(@$code_aref,
+			 "$action $proto_code $dst_code $port_code $src_code $established\n");
+		}
+	    }
+	}
     } elsif(defined $dst_intf) {
 	# src_intf is undefined: src is an interface of this router
 	# No filtering necessary for packets to PIX itself
@@ -2646,7 +2662,7 @@ sub collect_acls( $$$ ) {
 	    if($comment_acls) {
 		push(@$code_aref, "! REVERSE: ". print_rule($rule)."\n");
 	    }
-	    my $established = $srv->{type} eq 'tcp' ? 'established' : '';
+	    my $established = $srv->{type} eq 'tcp' ? 'gt 1023 established' : 'gt 1023';
 	    for my $src_code (@src_code) {
 		for my $dst_code (@dst_code) {
 		    push(@$code_aref,
@@ -2797,7 +2813,7 @@ sub print_acls( $ ) {
 	# force auto-vivification
 	push @$code;
 	push @$if_code;
-	if($model eq 'IOS') {
+	if($model =~ /^IOS/) {
 	    print "ip access-list extended $name\n";
 	    for my $line (@$if_code) {
 		print " $line";
