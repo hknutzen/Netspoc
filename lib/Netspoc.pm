@@ -4561,6 +4561,23 @@ sub print_acls( $ ) {
 	    internal_err "unsupported router filter type '$model->{filter}'";
 	}
     }
+    # Postprocessing
+    if($model->{filter} eq 'iptables') {
+	print "iptables -P INPUT DROP\n";
+	print "iptables -F INPUT\n";
+	for my $hardware (sort keys %hardware) {
+	    my $if_name = "${hardware}_self";
+	    print "iptables -A INPUT -i $hardware -j $if_name\n";
+	}
+	print "iptables -A INPUT -j DROP\n";
+	print "iptables -P FORWARD DROP\n";
+	print "iptables -F FORWARD\n";
+	for my $hardware (sort keys %hardware) {
+	    my $name = "${hardware}_in";
+	    print "iptables -A FORWARD -i $hardware -j $name\n";
+	}
+	print "iptables -A FORWARD -j DROP\n";
+    }
 }
 
 # make output directory available
