@@ -2370,16 +2370,12 @@ sub expand_rules( ;$) {
 }
 
 ##############################################################################
-# Distribute NAT bindings from interfaces to affected networks
+# Distribute NAT bindings
 ##############################################################################
 
-# Mapping: Network -> address
-# NAT Domain: an area of our topology (a set of networks)
+# NAT Map: a mapping Network -> NAT-Network (i.e. ip, mask, dynamic)
+# NAT Domain: an maximal area of our topology (a set of connected networks)
 # where the NAT mapping is identical at each network.
-
-# Find and mark NAT domains.
-# A nat domain is an area of connected networks
-# which has a set of interfaces as border.
 sub set_natdomain( $$$ );
 sub set_natdomain( $$$ ) {
     my($network, $domain, $in_interface) = @_;
@@ -2398,6 +2394,7 @@ sub set_natdomain( $$$ ) {
 	my $nat_tag = $interface->{bind_nat};
 	for my $out_interface (@{$router->{interfaces}}) {
 	    no warnings "uninitialized";
+	    # This is true for incoming $interface as well.
 	    if($out_interface->{bind_nat} eq $nat_tag) {
 		# $nat_map will be collected at nat domains, but is needed at
 		# logical and hardware interfaces of managed routers.
@@ -2414,8 +2411,7 @@ sub set_natdomain( $$$ ) {
 		$out_interface;
 	    } else {
 		# New nat domain behind this interface.
-		# Remember outgoing nat_tag; needed in distribute_nat1 below.
-		push @{$domain->{connect}->{$nat_tag}}, $out_interface;
+		push @{$domain->{interfaces}}, $interface;
 	    }
 		
 	}
@@ -2423,47 +2419,63 @@ sub set_natdomain( $$$ ) {
     }
 }
 
-sub distribute_nat1( $$$ );
-sub distribute_nat1( $$$ ) {
-    my($domain, $nat, $depth) = @_;
-#    debug "nat:$nat depth $depth at $domain->{name}";
+sub distribute_nat1( $$$$ );
+sub distribute_nat1( $$$$ ) {
+    my($domain, $nat_tag, $depth, $in_interface) = @_;
+    debug "nat:$nat_tag depth $depth at $domain->{name} from $in_interface->{name}";
     if($domain->{active_path}) {
-#	debug "nat:$nat loop";
+	debug "nat:$nat_tag loop";
 	# Found a loop
 	return;
     }
-    return if $domain->{nat_info}->[$depth]->{$nat};
+    # Tag is already there.
+    return if $domain->{nat_info}->[$depth]->{$nat_tag};
+    # Add tag at level depth.
+    # Use a hash to prevent duplicate entries.
+    $domain->{nat_info}->[$depth]->{$nat_tag} = $nat_tag;
+    # Check for an alternate border (with different depth)
+    # of current NAT domain. In this case, there is another NAT binding 
+    # on the path which might overlap some translations of current NAT binding.
     if(my $nat_info = $domain->{nat_info}) {
 	my $max_depth = @$nat_info;
 	for(my $i = 0; $i < $max_depth; $i++) {
-	    if($nat_info->[$i]->{$nat}) {
-		# Found an alternate border of current NAT domain
-		# There is another NAT binding on the path which
-		# might overlap some translations of current NAT
-		err_msg "Inconsistent multiple occurrences of nat:$nat";
+	    if($nat_info->[$i]->{$nat_tag}) {
+		err_msg "Inconsistent multiple occurrences of nat:$nat_tag";
 		return;
 	    }
 	}
     }
-    # Use a hash to prevent duplicate entries.
-    $domain->{nat_info}->[$depth]->{$nat} = $nat;
+    # Network which has translation with tag $nat_tag must not be located
+    # in area where this tag effective.
+    for my $network (@{$domain->{networks}}) {
+	if($network->{nat} and $network->{nat}->{$nat_tag}) {
+	    err_msg "$network->{name} is translated by $nat_tag,\n",
+	    " but it lies inside the translation domain of $nat_tag.\n",
+	    " Probably $nat_tag was bound to wrong interface.";
+	}
+    }
     # Loop detection
     $domain->{active_path} = 1;
-    my $connect = $domain->{connect};
-    for my $nat_tag (keys %$connect) {
+    for my $interface (@{$domain->{interfaces}}) {
+	next if $interface eq $in_interface;
+	my $out_nat_tag = $interface->{bind_nat};
 	# Found another border of current nat domain.
-	next if $nat_tag and $nat_tag eq $nat;
-	for my $interface (@{$connect->{$nat_tag}}) {
+	next if $out_nat_tag and $out_nat_tag eq $nat_tag;
+	my $router = $interface->{router};
+	for my $out_interface (@{$router->{interfaces}}) {
+	    next if $out_interface eq $interface;
+	    next if $out_interface->{nat_domain} eq $domain;
 	    my $depth = $depth;
-	    if($interface->{bind_nat}) { 
+	    if($out_interface->{bind_nat}) { 
 		$depth++;
-		if($interface->{bind_nat} eq $nat) {
-		    err_msg "Found NAT loop for nat:$nat at $interface->{name}";
+		if($out_interface->{bind_nat} eq $nat_tag) {
+		    err_msg "Found NAT loop for nat:$nat_tag",
+		    "at $interface->{name}";
 		    next;
 		}
 	    }
-#	    debug "$interface->{name}";
-	    distribute_nat1 $interface->{nat_domain}, $nat, $depth;
+	    distribute_nat1
+		$out_interface->{nat_domain}, $nat_tag, $depth, $out_interface;
 	}
     }
     delete $domain->{active_path};
@@ -2497,11 +2509,12 @@ sub distribute_nat_info() {
 	for my $interface (@{$router->{interfaces}}) {
 	    my $nat_tag = $interface->{bind_nat} or next;
 	    if($nat_definitions{$nat_tag}) {
-		distribute_nat1 $interface->{nat_domain}, $nat_tag, 0;
+		distribute_nat1
+		    $interface->{nat_domain}, $nat_tag, 0, $interface;
 		$nat_definitions{$nat_tag} = 'used';
 	    } else {
 		warning "Ignoring undefined nat:$nat_tag",
-		"bound to $interface->{name}";
+		" bound to $interface->{name}";
 	    }
 	}
     }
@@ -2526,14 +2539,6 @@ sub distribute_nat_info() {
 	}
 	# Reuse memory.
 	delete $domain->{managed_interfaces};
-	for my $network (@{$domain->{networks}}) {
-	    if(my $href = $nat_map->{$network}) {
-		my $name = "nat:$href->{tag}";
-		err_msg "$network->{name} is translated by $name,\n",
-		" but it lies inside the translation domain of $name.\n",
-		" Probably $name was bound to wrong interface.";
-	    }
-	}
 	# Reuse memory.
 	delete $domain->{networks};
     }
@@ -2558,10 +2563,12 @@ sub find_subnets() {
 	    next if $network->{ip} eq 'unnumbered';
 	    my $nat_network = $nat_map->{$network} || $network;
 	    my ($ip, $mask) = @{$nat_network}{'ip', 'mask'};
-	    if(my $old_net = $mask_ip_hash{$mask}->{$ip}) {
+	    my $old_net;
+	    if($old_net = $mask_ip_hash{$mask}->{$ip} and
+	       not $old_net->{dynamic} and not $nat_network->{dynamic}) {
 		err_msg 
 		    "$network->{name} and $old_net->{name}",
-		    "have identical ip/mask";
+		    " have identical ip/mask";
 	    } else {
 		$mask_ip_hash{$mask}->{$ip} = $network;
 	    }
