@@ -4618,7 +4618,7 @@ sub local_optimization() {
 	}
     }
     for my $rule (@expanded_any_rules, @expanded_rules, @secondary_rules) {
-	next if $rule->{deleted};
+	next if $rule->{deleted} and not $rule->{managed_intf};
 	$rule->{src} = $network_00 if is_any $rule->{src};
 	$rule->{dst} = $network_00 if is_any $rule->{dst};
     }
