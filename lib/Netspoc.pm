@@ -3276,7 +3276,7 @@ sub collect_acls( $$$ ) {
 	# Code for stateless IOS: automatically permit return packets
 	# for TCP and UDP
 	if($model eq 'IOS' and defined $dst_intf and
-	   ($srv->{type} eq 'tcp' or $srv->{type} eq 'udp')) {
+	   ($srv->{type} eq 'tcp' or $srv->{type} eq 'udp' or $secondary)) {
 	    $code_aref = \@{$router->{code}->{$dst_intf->{hardware}}};
 	    if($comment_acls) {
 		push(@$code_aref, "! REVERSE: ". print_rule($rule)."\n");
@@ -3300,7 +3300,7 @@ sub collect_acls( $$$ ) {
 	# No filtering necessary for packets to PIX itself
 	return if $model eq 'PIX' and $action eq 'permit';
 	# For IOS only packets from dst back to this router are filtered
-	if($srv->{type} eq 'tcp' or $srv->{type} eq 'udp') {
+	if($srv->{type} eq 'tcp' or $srv->{type} eq 'udp' or $secondary) {
 	    my $code_aref = \@{$router->{if_code}->{$dst_intf->{hardware}}};
 	    if($comment_acls) {
 		push(@$code_aref, "! REVERSE: ". print_rule($rule)."\n");
