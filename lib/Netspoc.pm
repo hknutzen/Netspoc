@@ -1820,7 +1820,14 @@ sub optimize_srv_rules( $$ ) {
 	while($srv) {
 	    if(my $rule2 = $cmp_hash->{$srv}) {
 		unless($rule2 eq $rule) {
-		    $rule->{deleted} = 1;
+		    # Rule with managed interface as dst must not be deleted
+		    # if it is superseded by a network or 'any' object.
+		    # ToDo: Refine this rule
+		    unless(is_interface $rule->{dst} and
+			   $rule->{dst}->{router}->{managed} and
+			   not is_interface $rule->{dst}) {
+			$rule->{deleted} = 1;
+		    }
 		    last;
 		}
 	    }
