@@ -2172,10 +2172,18 @@ sub gen_pix_static( $ ) {
 	    for my $network (@networks) {
 		$network->{enclosing} and $enclosing{$network} = 1;
 	    }
-	    # delete redundant networks
+	    # mark redundant networks as deleted
+	    # if any enclosing network is found
 	    for my $network (@networks) {
-		$network->{is_in} and $enclosing{$network->{is_in}} and
-		    $network = undef;
+		my $net = $network->{is_in};
+		while($net) {
+		    if($enclosing{$net}) {
+			$network = undef;
+			last;
+		    } else {
+			$net = $net->{is_in};
+		    }
+		}
 	    }
 	    for my $network (@networks) {
 		next unless defined $network;
@@ -2358,7 +2366,9 @@ sub gen_routes( $ ) {
 	    for my $network (@networks) {
 		$network->{enclosing} and $enclosing{$network} = 1;
 	    }
-	    # delete redundant networks
+	    # mark redundant networks as deleted,
+	    # but only if the directly enclosing network lies behind
+	    # this router as well
 	    for my $network (@networks) {
 		$network->{is_in} and $enclosing{$network->{is_in}} and
 		    $network = undef;
