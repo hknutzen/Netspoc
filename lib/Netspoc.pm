@@ -72,8 +72,8 @@ my $version = (split ' ','$Id$ ')[2];
 # User configurable options
 ####################################################################
 my $verbose = 1;
-my $comment_acls = 0;
-my $comment_routes = 0;
+my $comment_acls = 1;
+my $comment_routes = 1;
 my $warn_unused_groups = 1;
 # allow subnets only 
 # if the enclosing network is marked as 'route_hint' or
@@ -1887,7 +1887,7 @@ sub get_auto_interfaces( $$ ) {
     $to = &get_path($to);
     &path_mark($from, $to) unless $from->{path}->{$to};
     my @result = ($from->{path}->{$to});
-    push @result, $from->{path}->{"2.$to"} if $from->{path}->{$to.2};
+    push @result, $from->{path2}->{$to} if $from->{path2}->{$to};
     return @result;    
 }
 
@@ -2562,9 +2562,8 @@ sub get_path( $ ) {
 }
 
 # Mark path $from -> $to inside of loops.
-# In general we use the reference to $dst as a key.
-# At the forking we build a second key by appending
-# the string "2." to the reference: "2.$dst"
+# In general we use the reference to $dst as a key in attribute {path}.
+# At the forking we use a secondond value by using attribute {path2}
 sub loop_part_mark ( $$$$$$ ) {
     my($direction, $from, $to, $from_in, $to_out, $dst) = @_;
     my $attr = $direction eq 'left' ? 'path' : 'path2';
@@ -2752,6 +2751,9 @@ sub find_active_routes_and_statics () {
     for my $router (@managed_routers) {
 	next unless $router->{model}->{has_interface_level};
 	for my $in_intf (@{$router->{interfaces}}) {
+	    # ToDo: Handle {path2}. This isn't urgent, since PIX doesn't
+	    # understand HSRP and we currently don't use OSPF, 
+	    # i.e. they are not used inside loops.
 	    for my $to (keys %{$in_intf->{path}}) {
 		my $out_intf = $in_intf->{path}->{$to};
 		# ignore interface of this router or directly attached network
@@ -2760,8 +2762,6 @@ sub find_active_routes_and_statics () {
 		next unless $out_intf->{router} eq $router;
 		# no static needed for traffic from higher to lower security level
 		next if $in_intf->{level} > $out_intf->{level};
-		# convert 2nd path
-		$to =~ s/^2\.//;
 		# get destination object
 		my $obj = $key2obj{$to};
 		# Some paths to routers might been added by 
@@ -2795,21 +2795,40 @@ sub find_active_routes_and_statics () {
 	for my $interface (@{$router->{interfaces}}) {
 	    # no static routes if a dynamic routing protocol is activated
 	    next if $interface->{routing};
-	    for my $to (keys %{$interface->{path}}) {
-		my $hop = $interface->{path}->{$to};
-		# Don't generate two different static routes to destination
-		if($to =~ /^2\.(.*)$/ and
-		   not ($hop and $hop->{virtual} and
-			$hop->{router} ne $router)) {
-		    $to =~ $1;
-		    my $obj = $key2obj{$to};
-		    next unless is_network $obj;
-		    err_msg "Two static routes for $obj->{name} at ",
-		    "$interface->{name}";
+	    
+	    my %path;
+	    %path = %{$interface->{path}} if $interface->{path};
+	    for my $to (keys %{$interface->{path2}}) {
+		my $hop2 = $interface->{path2}->{$to};
+		if(my $hop = $path{$to}) {
+		    # Don't generate two different static routes to destination
+		    # 1.
+		    # intf:router.in -path->  intf:router.out1
+		    # intf:router.in -path2-> intf:router.out2
+		    # 2.
+		    # intf:router1.out -path->  intf:router2.in
+		    # intf:router1.out -path2-> intf:router3.in
+		    if($hop->{routing} and $hop2->{routing} or
+		       $hop->{virtual} and $hop2->{virtual} and
+		       $hop->{virtual} eq $hop2->{virtual}) {
+			# ignore 2nd path, because both are reached via
+			# the same virtual IP
+			next;
+		    } else {
+			my $obj = $key2obj{$to};
+			err_msg "Two static routes for $obj->{name} at ",
+			"$interface->{name}";
+		    }
+		} else {
+		    $path{$to} = $hop2;
 		}
-		# ignore directly attached network
+	    }
+	    for my $to (keys %path) {
+		my $hop = $path{$to};
+		# ignore directly attached network or
+		# interface of current router
 		next unless $hop;
-		# ignore incoming direction
+		# ignore path inside a router
 		next if $hop->{router} eq $router;
 		# get destination object
 		my $obj = $key2obj{$to};
@@ -2817,6 +2836,7 @@ sub find_active_routes_and_statics () {
 		# get_auto_interfaces; ignore them here.
 		next unless is_network $obj;
 		next if $obj->{ip} eq 'unnumbered';
+		next if $hop->{routing};
 		$interface->{routes}->{$hop}->{$obj} = $obj;
 		$interface->{hop}->{$hop} = $hop;
 	    }
