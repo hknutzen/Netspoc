@@ -1838,8 +1838,9 @@ sub adr_code( $$ ) {
     }
 }
 
-sub srv_code( $ ) {
-    my ($srv) = @_;
+my %pix_srv_hole;
+sub srv_code( $$ ) {
+    my ($srv, $model) = @_;
     my $proto = $srv->{type};
     my $v1 = $srv->{v1};
     my $v2 = $srv->{v2};
@@ -1864,7 +1865,15 @@ sub srv_code( $ ) {
 	    if($code eq 'any') {
 		return($proto, $type);
 	    } else {
-		return($proto, "$type $code");
+		if($model eq 'PIX') {
+		    # PIX can't handle the ICMP code.
+		    # If we try to permit e.g. "port unreachable", 
+		    # "unreachable any" could pass the PIX. 
+		    $pix_srv_hole{$srv->{name}}++;
+		    return($proto, $type);
+		} else {
+		    return($proto, "$type $code");
+		}
 	    }
 	}
     } elsif($proto eq 'proto') {
@@ -1935,7 +1944,7 @@ sub collect_acls( $$$ ) {
     my $inv_mask = $model eq 'IOS';
     my @src_code = &adr_code($src, $inv_mask);
     my @dst_code = &adr_code($dst, $inv_mask);
-    my ($proto_code, $port_code) = &srv_code($srv);
+    my ($proto_code, $port_code) = &srv_code($srv, $model);
     $action = 'deny' if $action eq 'weak_deny';
     # the src object reaches this router via src_intf
     if(defined $src_intf) {
@@ -2276,4 +2285,13 @@ for my $router (values %routers) {
     &gen_acls($router);
     $model eq 'PIX' and &gen_pix_static($router);
     print "[ END $router->{name} ]\n\n";
+}
+
+# Print warnings about the PIX service hole
+if(%pix_srv_hole) {
+    print STDERR "Ignored the code field of the following ICMP services\n";
+    print STDERR "while generating code for pix firewalls:\n";
+    while(my ($name, $count) = each %pix_srv_hole) {
+	print STDERR "$name: $count times\n";
+    }
 }
