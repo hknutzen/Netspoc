@@ -22,7 +22,7 @@
 use strict;
 use warnings;
 
-my $program = 'NETwork Security POlicy Compiler';
+my $program = 'Network Security Policy Compiler';
 my $version = (split ' ','$Id$ ')[2];
 
 ####################################################################
@@ -31,6 +31,11 @@ my $version = (split ' ','$Id$ ')[2];
 my $verbose = 1;
 my $comment_acls = 1;
 my $comment_routes = 1;
+my $warn_unused_groups = 1;
+# allow subnets only 
+# if the enclosing network is marked as 'route_hint' or
+# if the subnet is marked as 'subnet_of'
+my $strict_subnets = 1;
 # ignore these names when reading directories:
 # - CVS and RCS directories
 # - directory raw for prolog & epilog files
@@ -1175,6 +1180,7 @@ sub expand_group( $$ ) {
 }
 
 sub check_unused_groups() {
+    return unless $warn_unused_groups;
     for my $name (keys %groups) {
 	unless($group_is_used{$name}) {
 	    if(my $size = @{$groups{$name}}) {
@@ -1296,9 +1302,10 @@ sub expand_rules() {
 # Order 'any' rules
 #
 # Rules with an 'any' object as src or dst will be augmented with
-# so called weak_deny rules later. A weak_deny rule should only 
-# influence the 'any' rule it is attached to.
-# To minimize the risk that a weak_deny rule influences 
+# deny_networks later. deny_networks expand to deny rules
+# during code generation. Such an automatically generated deny rule
+# should only influence the 'any' rule it is attached to.
+# To minimize the risk that deny_networks influence
 # an unrelated 'any' rule, we order 'any' rules such that 'large'
 # rules are placed below 'small' rules.
 ####################################################################
@@ -1367,23 +1374,23 @@ sub add_ordered_any_rules( $ ) {
 ####################################################################
 # Check for deny influence
 #
-# After ordering of deny rules and inserting of weak_deny rules 
-# we have to check for one pathological case, were a weak_deny rule
-# influences an unrelated any rule, i.e. some packets are denied
-# although they should be.allowed.
+# After ordering permit 'any' rules and inserting of deny_networks 
+# we have to check for one pathological case, were a deny_network
+# influences an unrelated 'any' rule, i.e. some packets are denied
+# although they should be permitted.
 # Example:
-# 1. weak_deny   net1  host2
-# 2. permit      any   host2
-# 3. permit      host1 any	 with host1 < net1
+# 1. deny	net1  host2
+# 2. permit	any   host2
+# 3. permit	host1 any	 with host1 < net1
 # Problem: Traffic from host1 to host2 is denied by rule 1 and
 # permitted by rule 3.
 # But rule 1 is only related to rule 2 and must not deny traffic
 # which is allowed by rule 3
 # Possible solution (currently not implemented):
-# 0. permit      host1 host2
-# 1. weak_deny   net1  host2
-# 2. permit      any   host2
-# 3. permit      host1 any
+# 0. permit	host1 host2
+# 1. deny	net1  host2
+# 2. permit	any   host2
+# 3. permit	host1 any
 ####################################################################
 
 # we don't need to handle secondary services, they have been substituted
@@ -1400,49 +1407,51 @@ sub ge_srv( $$ ) {
 }
 
 # search for
-# weak_deny net1  host2 <-- drule
-# permit    any3  host2 <-- arule
-# permit    host1 any2  <-- rule
+# deny 	    net1  host2 <-- $net
+# permit    any3  host2 <-- $arule
+# permit    host1 any2  <-- $rule
 # with host1 < net1, any2 > host2
 # ToDo:
-# May the weak_deny rule influence any other rules where
+# May the deny rule influence any other rules where
 # dst is some 'any' object not in relation to host2 ?
 # I think not.
 sub check_deny_influence() {
     info "Checking for deny influence\n";
-    for my $arule (@expanded_any_rules) {
-	next if $arule->{deleted};
-	next unless exists $arule->{deny_rules};
-	next unless is_host $arule->{dst} or is_interface $arule->{dst};
-	for my $drule (@{$arule->{deny_rules}}) {
-	    next if $drule->{deleted};
-	    my $net = $drule->{src};
-	    my $dst = $drule->{dst};
-	    next unless (is_host $dst or is_interface $dst) and is_net $net;
+    for my $erule (@expanded_any_rules) {
+	next unless exists $erule->{any_rules};
+	next unless is_host $erule->{dst} or is_interface $erule->{dst};
+	for my $arule (@{$erule->{any_rules}}) {
+	    next if $arule->{deleted};
+	    next unless $arule->{deny_src_networks};
+	    my $dst = $arule->{dst};
+	    next unless (is_host $dst or is_interface $dst);
 	    my $dst_any = $dst->{network}->{border}->{any};
 	    next unless $dst_any;
-	    for my $host (@{$net->{hosts}}, @{$net->{interfaces}}) {
-		# search for rules with action = permit, src = host and
-		# dst = dst_any in $rule_tree
-		my $src_hash = $rule_tree{permit};
-		next unless $src_hash;
-		# do we have any rule with src = host ?
-		next unless $src_hash->{$host};
-		# do we have any rule with dst = dst_any ?
-		next unless $src_hash->{$host}->[0]->{$dst_any};
-		my $srv_hash = $src_hash->{$host}->[0]->{$dst_any}->[0];
-		# get all rules, srv doesn't matter
-		for my $rule (values %$srv_hash) {
-		    next if $rule->{deleted};
-		    # we are only interested in rules behind the weak_deny rule
-		    next unless $rule->{i} > $arule->{i};
-#		    print STDERR "Got here:\n ",print_rule $drule,"\n ",
+	    for my $net (@{$arule->{deny_src_networks}}) {
+		for my $host (@{$net->{hosts}}, @{$net->{interfaces}}) {
+		    # search for rules with action = permit, src = host and
+		    # dst = dst_any in $rule_tree
+		    my $src_hash = $rule_tree{permit};
+		    next unless $src_hash;
+		    # do we have any rule with src = host ?
+		    next unless $src_hash->{$host};
+		    # do we have any rule with dst = dst_any ?
+		    next unless $src_hash->{$host}->[0]->{$dst_any};
+		    my $srv_hash = $src_hash->{$host}->[0]->{$dst_any}->[0];
+		    # get all rules, srv doesn't matter
+		    for my $rule (values %$srv_hash) {
+			next if $rule->{deleted};
+#		    print STDERR "Got here:\n $net->{name}\n ",
 #		    print_rule $arule,"\n ",
 #		    print_rule $rule,"\n";
-		    if(ge_srv($rule->{srv}, $drule->{srv})) {
-			warning "currently not implemented correctly:\n ",
-			print_rule($drule), "\n influences\n ",
-			print_rule($rule), "\n";
+			# we are only interested in rules behind the 'any' rule
+			next unless $rule->{i} > $erule->{i};
+			if(ge_srv($rule->{srv}, $arule->{srv})) {
+			    warning "currently not implemented correctly:\n ",
+			    "deny_network $net->{name} of ",
+			    print_rule($arule),
+			    "\n influences\n ", print_rule($rule), "\n";
+			}
 		    }
 		}
 	    }
@@ -1572,10 +1581,8 @@ sub setpath_network( $$$$ ) {
 	return;
     }
     $network->{border} = $border;
-    # add network to the corresponding border;
-    # this info is used later for optimization,
-    # generation of weak_deny rules for 'any' rules and
-    # expansion of 'every' objects.
+    # Add network to the corresponding border,
+    # to have all networks of a security domain available.
     # Unnumbered networks can be left out here because
     # they aren't a valid src or dst
     push(@{$border->{networks}}, $network)
@@ -1599,7 +1606,7 @@ sub setpath() {
     }
     $router1 or die "Topology needs at least one managed router\n"; 
 
-    # Beginning with router1, do a traversal of the whole network 
+    # Starting with router1, do a traversal of the whole network 
     # to find a path from every network and router to router1
     &setpath_router($router1, 'not undef', undef, 0);
 
@@ -1621,13 +1628,30 @@ sub setpath() {
 	}
 	$border->{any} = $any;
     }
+    # each security domain needs an 'any' object, 
+    # later for 'any' conversion
+    for my $router (values %routers) {
+	next unless $router->{managed};
+	for my $interface (@{$router->{interfaces}}) {
+	    # not a border interface
+	    next if $interface eq $router->{to_border};
+	    # already has an 'any' object
+	    next if $interface->{any};
+	    my $network = $interface->{network};
+	    (my $name = $network->{name}) =~ s/^network:/auto_any:/;
+	    my $any = new('Any',
+			  name => $name,
+			  link => $network,
+			  border => $interface);
+	    $interface->{any} = $any;
+	}
+    }
 }
 
-##############################################################################
+####################################################################
 # Functions for path traversal
-# Used for generation of weak deny rules from 'any' rules and
-# for generation of ACLs
-##############################################################################
+# Used for conversion of 'any' rules and for generation of ACLs
+####################################################################
 
 sub get_border( $ ) {
     my($obj) = @_;
@@ -1722,78 +1746,83 @@ sub path_walk($&) {
 }
 
 ##############################################################################
-# Process all rules with an 'any' object as source or destination.
-# Automatically insert deny rules at intermediate paths.
+# Convert semantics of rules with an 'any' object as source or destination
+# from high-level to low-level:
+# high-level: any:X denotes all networks of security domain X
+# low-level:  automatically insert 'any' rules with attached deny rules 
+#             at intermediate paths.
 ##############################################################################
 
-my $weak_deny_counter = 0;
-
-#     N4-\
-# any-R1-N1-R2-dst
-#  N2-/  N3-/
+# permit any1 dst
+#      N2-\/-N3
+# any1-R1-any2-R2-any3-R3-dst
+#   N1-/    N4-/    \-N5
 # -->
-# deny N1 dst (on R2)
-# deny N4 dst (on R2)
-# permit any dst (on R1 and R2)
-sub gen_any_src_deny( $$$ ) {
+# deny N5 dst
+# permit any3 dst
+# deny N2 dst
+# deny N3 dst
+# permit any2 dst
+# permit any1 dst
+sub convert_any_src_rule( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
     # out_intf may be undefined if dst is an interface and
     # we just process the corresponding router; but that doesn't matter here.
     my $router = $in_intf->{router};
 
     # we don't need the interface itself, but only information about all
-    # networks and the any  object at that interface. We get this information
+    # networks and the 'any' object at that interface. We get this information
     # at the border interface, not the to_border interface
     if($in_intf eq $router->{to_border}) {
 	$in_intf = $router->{border};
     }
+    my $any = $in_intf->{any};
     # nothing to do for the first router
-    return if $in_intf->{any} and $in_intf->{any} eq $rule->{src};
+    return if $any eq $rule->{src};
 
     # Optimization: nothing to do if there is a similar rule
     # with another 'any' object as src
-    return if $in_intf->{any} and $rule->{src_any_group}->{$in_intf->{any}};
-
-    my $dst = $rule->{dst};
-    my $srv = $rule->{srv};
-    my $action = 'weak_deny';
-    for my $src (@{$in_intf->{networks}}) {
-	my $deny_rule = {src => $src,
-			 dst => $dst,
-			 srv => $srv,
-			 action => $action
-		     };
-	# add generated rule to the current any-rule
-	push(@{$rule->{deny_rules}}, $deny_rule);
-	# add rule to rule tree
-	&add_rule($deny_rule);
-	# counter for verbosity
-	$weak_deny_counter++;
-    }
+    return if $rule->{src_any_group}->{$any};
+    
+    my $any_rule = {src => $any,
+		    dst => $rule->{dst},
+		    srv => $rule->{srv},
+		    action => 'permit',
+		    i => $rule->{i},
+		    deny_src_networks => [ @{$in_intf->{networks}} ]
+		    };
+    push @{$rule->{any_rules}}, $any_rule;
 }
 
-#     N4-\
-# src-R1-N1-R2-any
-
-#  N2-/  N3-/
+# permit src any5
+#      N2-\  N6-N3-\   /-N4-any4
+# src-R1-any2-R2-any3-R3-any5
+#      \-N1-any1
 # -->
-# deny src N2 (on R1)
-# deny src N1 (on R1)
-# deny src N4 (on R1)
-# deny src N3 (on R2 and/or R1)
-# permit src any (on R1 and R2)
-sub gen_any_dst_deny( $$$ ) {
+# deny src N1
+# permit src any1
+# deny src N2
+# permit src any2
+# deny src N6 
+# deny src N3 
+# permit src any3
+# deny src N4
+# permit src any4
+# permit src any5
+sub convert_any_dst_rule( $$$ ) {
     # in_intf points to src, out_intf to dst
     my ($rule, $in_intf, $out_intf) = @_;
     my $src = $rule->{src};
     my $srv = $rule->{srv};
-    my $action = 'weak_deny';
     # in_intf may be undefined if src is an interface and
     # we just process the corresponding router;
     my $router = $out_intf->{router};
+    # link together 'any' rules at one router:
+    # code needs to be generated only for the first processed rule 
+    my $link = {active => 0};
 
-    # find networks at all interfaces except the in_intf
-    # for the case that src is interface of current router,
+    # Find networks at all interfaces except the in_intf.
+    # For the case that src is interface of current router,
     # take only the out_intf
     for my $orig_intf ($in_intf?@{$router->{interfaces}}:($out_intf)) {
 	# copy $intf to prevent changing of the iterated array
@@ -1809,42 +1838,45 @@ sub gen_any_dst_deny( $$$ ) {
 	if($intf eq $router->{to_border}) {
 	    $intf = $router->{border};
 	}
-	# nothing to do for the interface which is connected
-	# directly to the destination 'any' object
-	next if $intf->{any} and $intf->{any} eq $rule->{dst};
+	my $any = $intf->{any};
+	# Nothing to be inserted for the interface which is connected
+	# directly to the destination 'any' object.
+	# But link it together with other 'any' rules at the last router
+	# (R3 in the picture above)
+	if($any eq $rule->{dst}) {
+	    $rule->{any_dst_group} = $link;
+	    next;
+	}
 
 	# Optimization: nothing to do if there is a similar rule
 	# with another 'any' object as dst
-	return if $intf->{any} and $rule->{dst_any_group}->{$intf->{any}};
+	return if $rule->{dst_any_group}->{$any};
 
-	for my $dst (@{$intf->{networks}}) {
-	    my $deny_rule = {src => $src,
-			     dst => $dst,
-			     srv => $srv,
-			     action => $action
-			 };
-	    # add generated rule to the current any-rule
-	    push(@{$rule->{deny_rules}}, $deny_rule);
-	    # add rule to rule tree
-	    &add_rule($deny_rule);
-	    # counter for verbosity
-	    $weak_deny_counter++;
-	}
+	my $any_rule = {src => $src,
+			dst => $any,
+			srv => $srv,
+			action => 'permit',
+			i => $rule->{i},
+			deny_dst_networks => [ @{$intf->{networks}} ],
+			any_dst_group => $link
+			};
+	push @{$rule->{any_rules}}, $any_rule;
     }
 }
 
-# generate deny rules for any rules
-sub gen_deny_rules() {
+sub convert_any_rules() {
     for my $rule (@expanded_any_rules) {
 	next if $rule->{deleted};
+	$rule->{any_rules} = [];
 	if(is_any($rule->{src})) {
-	    &path_walk($rule, \&gen_any_src_deny);
+	    $rule->{deny_src_networks} = [];
+	    &path_walk($rule, \&convert_any_src_rule);
 	}
 	if(is_any($rule->{dst})) {
-	    &path_walk($rule, \&gen_any_dst_deny);
+	    $rule->{deny_dst_networks} = [];
+	    &path_walk($rule, \&convert_any_dst_rule);
 	}
     }
-    info "Generated $weak_deny_counter deny rules from 'any' rules\n";
 }
 
 ##############################################################################
@@ -1859,15 +1891,38 @@ sub add_rule( $ ) {
     my $src = $rule->{src};
     my $dst = $rule->{dst};
     my $srv = $rule->{srv};
-    if($rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv}) {
-	# Found identical rule: delete current one
-	# Don't change this: for weak_deny the first rule must remain
-	$rule->{deleted} = 1;
-    } else {
-	$rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
-	$rule_tree{$action}->{$src}->[1] = $src;
-	$rule_tree{$action}->{$src}->[0]->{$dst}->[1] = $dst;
+    my $old_rule =$rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv};
+    if($old_rule) {
+	# Found identical rule
+	# For 'any' rules we must preserve the rule without deny_networks
+	# i.e. auto_any < any
+	if($action eq 'permit' and
+	       (is_any $src and @{$rule->{deny_src_networks}} == 0
+		or
+		is_any $dst and @{$rule->{deny_dst_networks}} == 0)) {
+	    $old_rule->{deleted} = 1;
+	    # continue adding new rule below
+	} else {
+	    $rule->{deleted} = 1;
+	    return;
+	}
+    } 
+    $rule_tree{$action}->{$src}->[0]->{$dst}->[0]->{$srv} = $rule;
+    $rule_tree{$action}->{$src}->[1] = $src;
+    $rule_tree{$action}->{$src}->[0]->{$dst}->[1] = $dst;
+}
+
+# delete an element from an array reference
+# return 1 if found, undef otherwise
+sub deleted( $$ ) {
+    my($elt, $aref) = @_;
+    for(my $i = 0; $i < @$aref; $i++) {
+	if($aref->[$i] eq $elt) {
+	    splice @$aref, $i, 1;
+	    return 1;
+	}
     }
+    return undef;
 }
 
 # a rule may be deleted if we find a similar rule with greater or equal srv
@@ -1877,16 +1932,57 @@ sub optimize_srv_rules( $$ ) {
     for my $rule (values %$chg_hash) {
 	my $srv = $rule->{srv};
 	while($srv) {
-	    if(my $rule2 = $cmp_hash->{$srv}) {
-		unless($rule2 eq $rule) {
+	    if(my $cmp_rule = $cmp_hash->{$srv}) {
+		unless($cmp_rule eq $rule) {
 		    # Rule with managed interface as dst must not be deleted
 		    # if it is superseded by a network or 'any' object.
 		    # ToDo: Refine this rule
-		    unless(is_interface $rule->{dst} and
+		    if(is_interface $rule->{dst} and
 			   $rule->{dst}->{router}->{managed} and
-			   not is_interface $rule2->{dst}) {
-			$rule->{deleted} = 1;
+			   not is_interface $cmp_rule->{dst}) {
+			last;
 		    }
+# optimize auto_any rules:
+# 
+# permit net dst srv
+# permit auto_net(deny_net: net1,net2) dst srv
+# -->
+# permit auto_net(deny_net: net2) dst
+#
+# permit net dst srv
+# permit auto_net(deny_net: net1,net2) dst' srv'
+# --> if dst >= dst', srv >= srv'
+# permit net dst srv
+# permit auto_net(deny_net: net2) dst
+		    if($cmp_rule->{action} eq 'permit'){
+			if(is_any $cmp_rule->{src} and
+			   @{$cmp_rule->{deny_src_networks}}) {
+			    my $chg_src = $rule->{src};
+			    if(is_net $chg_src and
+			       deleted($chg_src,
+				       $cmp_rule->{deny_src_networks})) {
+				if($cmp_rule->{dst} eq $rule->{dst} and
+				   $cmp_rule->{srv} eq $rule->{srv}) {
+				    $rule->{deleted} = 1;
+				}
+			    }
+			    last;
+			}
+			if(is_any $cmp_rule->{dst} and
+			   @{$cmp_rule->{deny_dst_networks}}) {
+			    my $chg_dst = $rule->{dst};
+			    if(is_net $chg_dst and
+			       deleted($chg_dst,
+				       $cmp_rule->{deny_dst_networks})) {
+				if($cmp_rule->{src} eq $rule->{src} and
+				   $cmp_rule->{srv} eq $rule->{srv}) {
+				    $rule->{deleted} = 1;
+				}
+			    }
+			    last;
+			}
+		    } 			    
+		    $rule->{deleted} = 1;
 		    last;
 		}
 	    }
@@ -1966,62 +2062,45 @@ sub optimize_src_rules( $$ ) {
     }
 }
 
-# deny > permit > weak_deny
+# deny > permit 
 sub optimize_rules() {
-    my($deny_hash, $permit_hash, $weak_hash);
+    my $deny_hash;
     if($deny_hash = $rule_tree{deny}) {
 	&optimize_src_rules($deny_hash, $deny_hash);
     }
-    if($permit_hash = $rule_tree{permit}) {
+    if(my $permit_hash = $rule_tree{permit}) {
 	&optimize_src_rules($permit_hash, $permit_hash);
 	$deny_hash and
 	    &optimize_src_rules($deny_hash, $permit_hash);
     }
 }
 
-sub optimize_weak_deny_rules() {
-    if(my $weak_hash = $rule_tree{weak_deny}) {
-	# don't compare weak_deny rules with other weak_deny rules:
-	# weak_deny A
-	# permit A'
-	# weak_deny B
-	# permit B'
-	# Even if A < B, we can't delete A, because it is needed for A'
-	# &optimize_src_rules($weak_hash, $weak_hash);
-	$rule_tree{permit} and
-	    &optimize_src_rules($rule_tree{permit}, $weak_hash);
-	$rule_tree{deny} and
-	    &optimize_src_rules($rule_tree{deny}, $weak_hash);
-    }
-}
-
-# Prepare optimization of rules
-# add rules to $rule_tree for efficent rule compare operations
-sub gen_deny_rules_and_optimize() {
+sub optimize() {
     info "Preparing optimization\n";
-    # weak deny rules are generated & added later
-    for my $rule (@expanded_deny_rules, @expanded_rules, @expanded_any_rules)
-    {
+    # add rules to $rule_tree for efficent rule compare operations
+    for my $rule (@expanded_deny_rules, @expanded_rules) {
 	&add_rule($rule);
+    }
+    for my $rule (@expanded_any_rules) {
+	&add_rule($rule);
+	for my $any_rule (@{$rule->{any_rules}}) {
+	    &add_rule($any_rule);
+	}
     }
     info "Starting optimization\n";
     &optimize_rules();
-    &gen_deny_rules();
-    &optimize_weak_deny_rules();
     if($verbose) {
-	my($n, $nd, $na, $nw) = (0,0,0,0);
+	my($n, $nd, $na, $naa) = (0,0,0,0);
 	for my $rule (@expanded_deny_rules) { $nd++ if $rule->{deleted}	}
 	for my $rule (@expanded_rules) { $n++ if $rule->{deleted} }
 	for my $rule (@expanded_any_rules) {
 	    $na++ if $rule->{deleted};
-	    if(exists $rule->{deny_rules}) {
-		for my $deny_rule (@{$rule->{deny_rules}}) {
-		    $nw++ if $deny_rule->{deleted};
-		}
+	    for my $any_rule (@{$rule->{any_rules}}) {
+		$naa++ if $any_rule->{deleted};
 	    }
 	}
 	info "Deleted redundant rules:\n";
-	info " $nd deny, $n permit, $na permit any, $nw deny from any\n";
+	info " $nd deny, $n permit, $na permit any, $naa permit any from any\n";
     }
 }
 
@@ -2183,8 +2262,11 @@ sub srv_code( $$ ) {
     }
 }
 
-sub collect_networks_for_routes_and_static( $$$$ ) {
-    my($src_intf, $dst_intf, $dst, $model) = @_;
+sub collect_networks_for_routes_and_static( $$$ ) {
+    my($rule, $src_intf, $dst_intf) = @_;
+    return unless $rule->{action} eq 'permit';
+    return unless $dst_intf;
+    my $dst = $rule->{dst};
     my @networks;
     if(is_host $dst or is_interface $dst) {
 	@networks = ($dst->{network});
@@ -2193,7 +2275,12 @@ sub collect_networks_for_routes_and_static( $$$$ ) {
     } elsif(is_any $dst) {
 	# We approximate an 'any' object with 
 	# every network of that security domain
-	@networks = @{$dst->{border}->{networks}};
+	# but ignore deny_dst_networks from 'any' rule
+	@networks = grep { my $elt = $_;
+			   not grep { $_ eq $elt }
+			   @{$rule->{deny_dst_networks}}
+		       }
+	@{$dst->{border}->{networks}};
     } else {
 	internal_err "unexpected dst $dst->{name}";
     }
@@ -2203,7 +2290,7 @@ sub collect_networks_for_routes_and_static( $$$$ ) {
 	$dst_intf->{used_route}->{$net} = 1;
 	# collect networks reachable from lower security level
 	# for generation of static commands
-	if($model eq 'PIX' and $src_intf) {
+	if($dst_intf->{router}->{model} eq 'PIX' and $src_intf) {
 	    if($src_intf->{level} < $dst_intf->{level}) {	
 		$net->{mask} == 0 and
 		    die "Pix doesn't support static command for mask 0.0.0.0 of $net->{name}\n";
@@ -2282,15 +2369,11 @@ sub collect_acls( $$$ ) {
     $src_intf and $router = $src_intf->{router};
     $dst_intf and $router = $dst_intf->{router};
     my $model = $router->{model};
-    if($dst_intf and $action eq 'permit') {
-	&collect_networks_for_routes_and_static($src_intf, $dst_intf,
-						$dst, $model);
-    }
+    &collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
     my $inv_mask = $model eq 'IOS';
     my @src_code = &adr_code($src, $inv_mask);
     my @dst_code = &adr_code($dst, $inv_mask);
     my ($proto_code, $port_code) = &srv_code($srv, $model);
-    $action = 'deny' if $action eq 'weak_deny';
     if(defined $src_intf) {
 	# For PIX firewalls it is unnecessary to generate permit ACLs
 	# for packets to the pix itself
@@ -2341,35 +2424,49 @@ sub collect_acls( $$$ ) {
     }
 }
 
-# Currently unused
-# ToDo: Check, if it is ok, to use this function for deny rules
-#
-# For deny rules call collect_acls only for the first border
-# on the path from src to dst
+# For deny rules and permit src=any:*, call collect_acls only for
+# the first border on the path from src to dst
+sub collect_acls_at_src( $$$ ) {
+    push @_, 'src';
+    &collect_acls_at_end(@_);
+}
+
+# For permit dst=any:*, call collect_acls only for
+# the last border on the path from src to dst
+sub collect_acls_at_dst( $$$ ) {
+    push @_, 'dst';
+    &collect_acls_at_end(@_);
+}
 # Case 1:
 # r1-src-r2-r3-dst: get_border(src) = r1: r1 is not on path, but r2.border = r1
 # Case 1a/2a: src is interface of managed router
 # get_border(src) is undef, r.src_intf is undef, src.router = dst_intf.router
 # Case 2:
 # r3-src-r2-r1-dst: get_border(src) = r2: r2 is 1st border on path
-sub collect_acls_at_src( $$$ ) {
-    my ($rule, $src_intf, $dst_intf) = @_;
-    my $src = $rule->{src};
-    my $src_border = &get_border($src);
+sub collect_acls_at_end( $$$$ ) {
+    my ($rule, $src_intf, $dst_intf, $where) = @_;
+    my $end = $rule->{$where};
+    my $end_intf = ($where eq 'src')? $src_intf:$dst_intf;
+    my $end_border = &get_border($end);
     # Case 1a/2a:
-    if(not defined $src_border) {
-	if(not defined $src_intf) {
+    if(not defined $end_border) {
+	if(not defined $end_intf) {
 	    &collect_acls($rule, $src_intf, $dst_intf);
+	} else {
+	    &collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
 	}
     } else {
-	my $router = $src_intf->{router};
+	my $router = $end_intf->{router};
         # Case 1:
-	if($router->{to_border} eq $src_intf and $router->{border} eq $src_border) {
+	if($router->{to_border} eq $end_intf and
+	   $router->{border} eq $end_border) {
 	    &collect_acls($rule, $src_intf, $dst_intf);
 	}
 	# Case 2:
-	if($src_border eq $src_intf) {
+	elsif($end_border eq $end_intf) {
 	    &collect_acls($rule, $src_intf, $dst_intf);
+	} else {
+	    &collect_networks_for_routes_and_static($rule, $src_intf, $dst_intf);
 	}
     }
 }
@@ -2419,17 +2516,55 @@ sub acl_generation() {
 	next if $rule->{deleted};
 	&path_walk($rule, \&collect_acls);
     }
-    # Generate code for weak deny rules directly in front of
-    # the corresponding 'permit any' rule
     for my $rule (@expanded_any_rules) {
-	next if $rule->{deleted};
-	if(exists $rule->{deny_rules}) {
-	    for my $deny_rule (@{$rule->{deny_rules}}) {
-		next if $deny_rule->{deleted};
-		&path_walk($deny_rule, \&collect_acls); #_at_src);
+	if(is_any $rule->{src}) {
+	    if(exists $rule->{any_rules}) {
+		for my $any_rule (@{$rule->{any_rules}}) {
+		    next if $any_rule->{deleted};
+		    # Generate code for deny rules directly in front of
+		    # the corresponding permit 'any' rule
+		    for my $deny_network (@{$any_rule->{deny_src_networks}}) {
+			my $deny_rule = {action => 'deny',
+					 src => $deny_network,
+					 dst => $any_rule->{dst},
+					 srv => $any_rule->{srv}
+				     };
+			&path_walk($deny_rule, \&collect_acls_at_src);
+		    }
+		    &path_walk($any_rule, \&collect_acls_at_src);
+		}
+	    }
+	    next if $rule->{deleted};
+	    &path_walk($rule, \&collect_acls_at_src);
+	} elsif(is_any $rule->{dst}) {
+	    if(exists $rule->{any_rules}) {
+		for my $any_rule (@{$rule->{any_rules}}) {
+		    next if $any_rule->{deleted};
+		    for my $deny_network (@{$any_rule->{deny_dst_networks}}) {
+			my $deny_rule = {action => 'deny',
+					 src => $any_rule->{src},
+					 dst => $deny_network,
+					 srv => $any_rule->{srv}
+				     };
+			&path_walk($deny_rule, \&collect_acls_at_dst);
+		    }
+		    unless($any_rule->{any_dst_group}->{active}) {
+			&path_walk($any_rule, \&collect_acls_at_dst);
+			$any_rule->{any_dst_group}->{active} = 1;
+		    } else {
+			&path_walk($any_rule, \&collect_networks_for_routes_and_static);
+		    }
+		}
+	    }
+	    next if $rule->{deleted};
+	    unless($rule->{any_dst_group}->{active}) {
+		&path_walk($rule, \&collect_acls_at_dst);
+		$rule->{any_dst_group}->{active} = 1;
+	    } else {
+		&path_walk($rule, \&collect_networks_for_routes_and_static);
 	    }
 	}
-	&path_walk($rule, \&collect_acls);
+	# ToDo: Handle is_any src & is_any dst
     }
 }
 
@@ -2555,7 +2690,7 @@ sub read_config() {
 
 &read_args();
 &read_config() if $conf_file;
-&check_output_dir($out_dir);
+info "$program, version $version\n";
 &read_file_or_dir($main_file);
 &show_read_statistics();
 &order_services();
@@ -2567,9 +2702,11 @@ sub read_config() {
 &check_unused_groups();
 die "Aborted with $error_counter error(s)\n" if $error_counter;
 $error_counter = $max_errors; # following errors should always abort
-&gen_deny_rules_and_optimize();
+&convert_any_rules();
+&optimize();
 &check_deny_influence();
 &setroute();
 &acl_generation();
+&check_output_dir($out_dir);
 &print_code($out_dir);
 &warn_pix_icmp();
