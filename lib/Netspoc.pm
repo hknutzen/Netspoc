@@ -1832,11 +1832,6 @@ sub expand_rules() {
 			$expanded_rule->{srv} = $main_srv;
 			$expanded_rule->{orig_srv} = $srv;
 		    }
-		    # Mark rules with managed interface as dst 
-		    # because they get special handling during code generation
-		    if(is_interface($dst) and $dst->{router}->{managed}) {
-			$expanded_rule->{managed_if} = 1;
-		    }
 		    if($action eq 'deny') {
 			push(@expanded_deny_rules, $expanded_rule);
 		    } elsif(is_any($src) and is_any($dst)) {
@@ -2930,6 +2925,11 @@ sub add_rule( $ ) {
     my $src = $rule->{src};
     my $dst = $rule->{dst};
     my $srv = $rule->{srv};
+    # Mark rules with managed interface as dst 
+    # because they get special handling during code generation
+    if(is_interface($dst) and $dst->{router}->{managed}) {
+	$rule->{managed_if} = 1;
+    }
     my $rule_tree = $rule->{stateless} ? \%reverse_rule_tree : \%rule_tree;
     my $old_rule = $rule_tree->{$action}->{$src}->[0]->{$dst}->[0]->{$srv};
     if($old_rule) {
