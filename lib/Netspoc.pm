@@ -258,6 +258,10 @@ sub check_int() {
     }
 }
 
+sub read_int() {
+    check_int or syntax_err "Integer expected";
+}
+
 # Read IP address,
 # internally it is stored as an integer
 sub read_ip() {
@@ -329,8 +333,7 @@ sub check_typed_name() {
 }
 
 sub read_typed_name() {
-    check_typed_name or
-	syntax_err "Typed name expected";
+    check_typed_name or syntax_err "Typed name expected";
 }
 
 # Read interface:xxx.xxx
@@ -357,8 +360,7 @@ sub check_typed_ext_name() {
 }
 
 sub read_typed_ext_name() {
-    check_typed_ext_name or
-	syntax_err "Typed extended name expected";
+    check_typed_ext_name or syntax_err "Typed extended name expected";
 }
 
 sub read_identifier() {
@@ -379,6 +381,20 @@ sub read_string() {
     } else {
 	syntax_err "String expected";
     }
+}
+
+# Setup standard time units with different names and plural forms.
+my %timeunits = ( sec  => 1, min  => 60, hour => 3600, day  => 86400, );
+$timeunits{second} = $timeunits{sec};
+$timeunits{minute} = $timeunits{min};
+for my $key (keys %timeunits) { $timeunits{"${key}s"} = $timeunits{$key}; }
+
+# Read time value in different units, return seconds.
+sub read_time_val() {
+    my $int = read_int;
+    my $unit = read_identifier;
+    my $factor = $timeunits{$unit} or syntax_err "Invalid time unit";
+    return $int * $factor;
 }
 
 sub read_description() {
@@ -1269,6 +1285,54 @@ sub read_global_nat( $ )  {
    $global_nat{$name} = $nat;
 }
 
+my %isakmp_attributes = 
+( identity => { values => [ qw( address fqdn ) ], },
+  'nat-traversal' => { values => [ qw( on off ) ], default => 'off' },
+  authentication => { values => [ qw( pre-share rsa-sig ) ], },
+  encryption => { values => [ qw( aes aes-192 des 3des ) ], },
+  hash => { values => [ qw( md5 sha ) ], },
+  group => { values => [ qw( 1 2 5 ) ], },
+  lifetime => { function => \&read_time_val, },
+  );
+
+our %isakmp;
+sub read_isakmp( $ ) {
+    my($name) = @_;
+    my $isakmp = { name => "isakmp:$name", file => $file };
+    skip '=';
+    skip '{';
+    $isakmp->{description} = read_description;
+    while(1) {
+	last if check '}';
+	my $attribute = read_identifier;
+	my $val_descr = $isakmp_attributes{$attribute} or
+	    error_atline "Unknown attribute '$attribute'";
+	skip '=';
+	my $val;
+	if(my $values = $val_descr->{values}) {
+	    $val = read_identifier;
+	    grep { $_ eq $val } @$values or
+		error_atline "Invalid value";
+	} elsif(my $fun = $val_descr->{function}) {
+	    $val = &$fun;
+	}
+	skip ';';
+	$isakmp{$attribute} and error_atline "Duplicate attribute";
+	$isakmp{$attribute} = $val;
+    }
+    for my $attribute (keys %isakmp_attributes) {
+	next if defined $isakmp_attributes{$attribute};
+	if(my $default = $isakmp_attributes{$attribute}->{default}) {
+	    $isakmp{$attribute} = $default;
+	} else {
+	    error_atline "Missing attribute for $isakmp->{name}";
+	}
+    }
+    $isakmp{$name} and error_atline "Redefining $isakmp->{name}";
+    $isakmp{$name} = $isakmp; 
+}
+    
+	    
 my %crypto;
 sub read_crypto( $ ) {
     my($name) = @_;
@@ -1303,36 +1367,29 @@ sub read_crypto( $ ) {
     }
     $crypto{$name} = $crypto; 
 }
-    
+
+my %global_type =
+( router => \&read_router,
+  network => \&read_network,
+  any => \&read_any,
+  every => \&read_every,
+  group => \&read_group,
+  service => \&read_service,
+  servicegroup => \&read_servicegroup,
+  policy => \&read_policy,
+  pathrestriction => \&read_pathrestriction,
+  nat => \&read_global_nat,
+  isakmp => \&read_isakmp,
+  crypto => \&read_crypto, 
+);
+
 sub read_netspoc() {
     # Check for different definitions.
     if(my $string = check_typed_name) {
 	my($type,$name) = split_typed_name $string;
-	if($type eq 'router') {
-	    read_router $name;
-	} elsif ($type eq 'network') {
-	    read_network $name;
-	} elsif ($type eq 'any') {
-	    read_any $name;
-	} elsif ($type eq 'every') {
-	    read_every $name;
-	} elsif ($type eq 'group') {
-	    read_group $name;
-	} elsif ($type eq 'service') {
-	    read_service $name;
-	} elsif ($type eq 'servicegroup') {
-	    read_servicegroup $name;
-	} elsif ($type eq 'policy') {
-	    read_policy $name;
-	} elsif ($type eq 'pathrestriction') {
-	    read_pathrestriction $name;
-	} elsif ($type eq 'nat') {
-	    read_global_nat $name;
-	} elsif ($type eq 'crypto') {
-	    read_crypto $name;
-	} else {
+	my $fun = $global_type{$type} or
 	    syntax_err "Unknown global definition";
-	}
+	$fun->($name);
     } elsif (check 'include') {
 	my $file = read_string;
 	read_data $file, \&read_netspoc;
