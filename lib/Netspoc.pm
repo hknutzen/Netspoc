@@ -1087,7 +1087,7 @@ sub read_port_range() {
 sub read_port_ranges( $ ) {
     my($srv) = @_;
     my($from, $to) = read_port_range;
-    if(check '->') {
+    if(check ':') {
 	my($from2, $to2) = read_port_range;
 	$srv->{ports} = [ $from, $to, $from2, $to2 ];
     } else {
@@ -1490,6 +1490,7 @@ sub order_ranges( $$ ) {
     for my $srv1 (values %$range_href) {
 	next if $srv1->{main};
 	my @p1 = @{$srv1->{ports}};
+	# These variables hold smallest ranges found until now.
 	my $min_size_src = 65536;
 	my $min_size_dst = 65536;
 	$srv1->{up} = $up;
@@ -1499,31 +1500,36 @@ sub order_ranges( $$ ) {
 	    my @p2 = @{$srv2->{ports}};
 	    if($p1[0] == $p2[0] and $p1[1] == $p2[1] and
 	       $p1[2] == $p2[2] and $p1[3] == $p2[3]) {
-		# Found duplicate service definition
-		# Link $srv2 with $srv1
+		# Found duplicate service definition.
+		# Link $srv2 with $srv1.
 		# Since $srv1 is not linked via ->{main},
-		# we never get chains of ->{main}
+		# we never get chains of ->{main}.
 		$srv2->{main} = $srv1;
 	    } elsif($p2[0] <= $p1[0] and $p1[1] <= $p2[1] and 
 		    $p2[2] <= $p1[2] and $p1[3] <= $p2[3]) {
-		# Found service definition with both ranges being larger
-		my $size_src = $p2[1]-$p2[0];
-		my $size_dst = $p2[3]-$p2[2];
+		# Found service definition with both ranges being larger.
+		# Need to check if it is the smallest.
+		my $size_src = $p2[1] - $p2[0];
+		my $size_dst = $p2[3] - $p2[2];
 		if($size_src <= $min_size_src and $size_dst < $min_size_dst or
 		   $size_src < $min_size_src and $size_dst <= $min_size_dst) {
+		    # Found a smaller one.
 		    $min_size_src = $size_src;
 		    $min_size_dst = $size_dst;
 		    $srv1->{up} = $srv2;
 		} elsif($size_src >= $min_size_src and
 			$size_dst >= $min_size_dst) {
-		    # both ranges are larger than a previously found range, 
-		    # ignore this one
+		    # Both ranges are larger than a previously found range, 
+		    # ignore this one.
 		} else {
-		    # src range is larger and dst range is smaller or
+		    # Src range is larger and dst range is smaller or
 		    # src range is smaller and dst range is larger
+		    # than a previously found range.
 		    # ToDo: Implement this.
-		    err_msg "Can't arrange $srv2->{name}\n",
-		    " Please contact author";
+		    err_msg
+			"Can't arrange $srv2->{name} and $srv1->{up}->{name}\n",
+			"above $srv1->{name}.\n", 
+			"Please try to resolve by splitting port ranges.";
 		}
 	    } elsif($p1[0] < $p2[0] and $p2[0] <= $p1[1] and $p1[1] < $p2[1] or
 		    $p1[2] < $p2[2] and $p2[2] <= $p1[3] and $p1[3] < $p2[3] or
@@ -2474,9 +2480,9 @@ sub expand_policies( ;$) {
 	    $rule->{srv} = expand_services $rule->{srv}, "rule in $name";
 	}
 	expand_rules $policy->{rules}, $name, \%expanded_rules;
-	for my $type ('deny', 'any', 'permit') {
-	    add_rules $expanded_rules{$type}, \%rule_tree;
-	}
+    }
+    for my $type ('deny', 'any', 'permit') {
+	add_rules $expanded_rules{$type}, \%rule_tree;
     }
 }
 	
