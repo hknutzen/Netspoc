@@ -1141,6 +1141,13 @@ sub link_topology() {
 	&link_interface_with_net($interface);
     }
     for my $network (values %networks) {
+	if($network->{ip} eq 'unnumbered' and @{$network->{interfaces}} > 2) {
+	    err_msg "Unnumbered $network->{name} is connected to",
+	    " more than two interfaces:";
+	    for my $interface (@{$network->{interfaces}}) {
+		print STDERR " $interface->{name}\n";
+	    }
+	}
 	next unless $network->{subnet_of};
 	my($type, $name) = split_typed_name($network->{subnet_of});
 	if($type eq 'network') {
