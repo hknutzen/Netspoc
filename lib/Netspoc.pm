@@ -1883,7 +1883,7 @@ sub get_auto_interfaces( $$ ) {
     $to = &get_path($to);
     &path_mark($from, $to) unless $from->{$to};
     my @result = ($from->{$to});
-    push @result, $from->{$to.2} if $from->{$to.2};
+    push @result, $from->{"2.$to"} if $from->{$to.2};
     return @result;    
 }
 
