@@ -4,9 +4,9 @@ netspoc - network security policy compiler
 
 =head1 SYNOPSIS
 
-netspoc input-dir output-dir
+netspoc [options] input-dir output-dir
 
-netspoc input-file output-dir
+netspoc [options] input-file output-dir
 
 =head1 DESCRIPTION
 
@@ -18,38 +18,39 @@ is mainly used for small examples or testing.
 
 =head1 OPTIONS
 
-Options may currently only be changed in the source file of netspoc.
+The following options are recognized. Most can be negated (prefixed with "no") which
+is specially useful when the default is "true".
 
 =over 4
 
-=item $verbose = [0|1];
+=item --verbose
 
 Controls whether netspoc shows output about different
 compiler phases and statistics on standard error.
 
-=item $comment_acls = [0|1];
+=item --comment_acls
 
 Add a comment line before each generated ACL entry.
 Comments use names of network objects as defined in 
 the topology.
 
-=item $comment_routes = [0|1];
+=item --comment_routes
 
 Add a comment line before each generated routing entry.
 Comments use names of network objects as defined in 
 the topology.
 
-=item $warn_unused_groups = [0|1]
+=item --allow_unused_groups yes|no|warn
 
-Gives warning for unused groups and service groups.
+Handling of unused groups and service groups.
 
-=item $strict_subnets = [0|1|'warn']
+=item --strict_subnets yes|no|warn
 
 Allow subnets only if the enclosing network is declared as 'route_hint'
 or if the subnet is declared as 'subnet_of'.
 If set to 'warn', netspoc only warns about undeclared subnet relations.
 
-=item $auto_default_route = [0|1]
+=item --auto_default_route
 
 Optimize the number of routing entries per router:
 
@@ -59,9 +60,11 @@ and replace them with a single default route.
 This is only applicable for internal networks 
 which have no default route to the internet.
 
-=item $ignore_files = qr/^CVS$|^RCS$|^.#|^raw$|~$/;
+=item --ignore_files regex (default: ^CVS$|^RCS$|^.#|^raw$|~$)
 
-Ignore these names when reading directories:
+A regular expression matching filenames which are ignored when reading
+directories.
+Default value matches these files:
 
 =over 4
 
@@ -83,17 +86,9 @@ Editor backup files: emacs: *~
 
 =back
 
-=item $max_errors = number;
+=item --max_errors number
 
 Abort after this many errors.
-
-=back
-
-=over 4
-
-=item $allow_toplevel_rules = [0|1|'warn']
-
-Allow rules at toplevel or only as part of policies.
 
 =back
 
