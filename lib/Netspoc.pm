@@ -39,7 +39,7 @@ my $strict_subnets = 'warn';
 # Optimize number of routing entries per router
 # by replacing all routes going to the same hop 
 # with the default route
-my $auto_default_route = 0;
+my $auto_default_route = 1;
 # ignore these names when reading directories:
 # - CVS and RCS directories
 # - CVS working files
@@ -820,9 +820,9 @@ sub is_servicegroup( $ ) { ref($_[0]) eq 'Servicegroup'; }
 sub print_rule( $ ) {
     my($rule) = @_;
     my $srv = exists($rule->{orig_srv}) ? 'orig_srv' : 'srv';
-    return $rule->{action} .
+    return (defined $rule->{action}?$rule->{action}:'') .
 	" src=$rule->{src}->{name}; dst=$rule->{dst}->{name}; " .
-		     "srv=$rule->{$srv}->{name};";
+		     (defined $rule->{$srv}?"srv=$rule->{$srv}->{name};":'');
 }
 
 ####################################################################
@@ -1459,6 +1459,7 @@ sub expand_rules() {
 		    }
 		    if($action eq 'deny') {
 			push(@expanded_deny_rules, $expanded_rule);
+			&add_rule($expanded_rule);
 		    } elsif(is_any($src) and is_any($dst)) {
 			err_msg "Rule '", print_rule $expanded_rule, "'\n",
 			" has 'any' objects both as src and dst.\n",
@@ -1474,6 +1475,7 @@ sub expand_rules() {
 			order_any_rule($expanded_rule, \%ordered_any_rules);
 		    } else {
 			push(@expanded_rules, $expanded_rule);
+			&add_rule($expanded_rule);
 		    }
 		}
 	    }
@@ -1481,6 +1483,9 @@ sub expand_rules() {
     }
     # add ordered 'any' rules which have been ordered by order_any_rule
     add_ordered_any_rules(\@expanded_any_rules, \%ordered_any_rules);
+    for my $expanded_rule (@expanded_any_rules) {
+	&add_rule($expanded_rule);
+    }
     if($verbose) {
 	my $nd = 0+@expanded_deny_rules;
 	my $n  = 0+@expanded_rules;
@@ -1995,10 +2000,13 @@ sub go_loop( $$$$$$$ ) {
 	    $node = $node->{right}->{right};
 	    $right_len++;
 	}
-	if($left_len <= $right_len) {
-	    if($left_len == $right_len) {
-		warning "Equal length paths through loop from $from->{name} to $to->{name}";
-	    }
+	if($left_len == $right_len) {
+##	    warning "Duplicate routing at $from->{name} for $to->{name}"
+##		if is_router $from;
+	    &go_path(@_, 'left');
+	    &go_path(@_, 'right');
+	}
+	if($left_len < $right_len) {
 	    &go_path(@_, 'left');
 	} else {
 	    &go_path(@_, 'right');
@@ -2206,6 +2214,7 @@ sub convert_any_dst_rule( $$$ ) {
 			any_dst_group => $link
 			};
 	push @{$rule->{any_rules}}, $any_rule;
+	&add_rule($any_rule);
     }
 }
 
@@ -2510,17 +2519,6 @@ sub optimize_rules() {
 }
 
 sub optimize() {
-    info "Preparing optimization";
-    # add rules to $rule_tree for efficient rule compare operations
-    for my $rule (@expanded_deny_rules, @expanded_rules) {
-	&add_rule($rule);
-    }
-    for my $rule (@expanded_any_rules) {
-	&add_rule($rule);
-	for my $any_rule (@{$rule->{any_rules}}) {
-	    &add_rule($any_rule);
-	}
-    }
     info "Starting optimization";
     &optimize_rules();
     if($verbose) {
@@ -2566,40 +2564,6 @@ sub mark_networks_for_static( $$$ ) {
 		" since they have equal security levels.\n";
 	    }
 	}
-    }
-}
-
-sub get_networks ( $$$ ) {
-    my($obj, $hash, $where) = @_;
-    if(is_host $obj or is_interface $obj) {
-	return [ $obj->{network} ];
-    } elsif(is_net $obj) {
-	return [ $obj ];
-    } 
-    elsif(is_any $obj) {
-	# We approximate an 'any' object by
-	# every network of that security domain.
-	my $networks = $obj->{networks};
-	my %denied;
-	for my $net (@$networks) {
-	    # '1' means: network is denied
-	    $denied{$net} = 1;
-	}
-	# Ignore deny_*_networks, which occur in every rule
-	# for a given src / dst pair.
-	for my $rule (values %$hash) {
-	    my $deny_networks = $rule->{$where eq 'src'?
-					    'deny_src_networks':
-					    'deny_dst_networks'};
-	    for my $net (@$networks) {
-		# a network remains denied, if it is mentioned
-		# in deny_networks of every rule
-		$denied{$net} &= grep { $_ eq $net } @$deny_networks;
-	    } 
-	}
-	return [ grep { not $denied{$_} } @$networks ];
-    } else {
-	internal_err "unexpected $obj->{name}";
     }
 }
 
@@ -2711,6 +2675,19 @@ sub collect_route( $$$ ) {
     } # else not $in_intf: nothing to do
 }
 
+sub get_networks ( $$$ ) {
+    my($obj, $hash, $where) = @_;
+    if(is_host $obj or is_interface $obj) {
+	return [ $obj->{network} ];
+    } elsif(is_net $obj) {
+	return [ $obj ];
+    } elsif(is_any $obj) {
+	return $obj->{networks};
+    } else {
+	internal_err "unexpected $obj->{name}";
+    }
+}
+
 sub find_active_routes () {
     info "Finding active routes";
     my $hash = $rule_tree{permit};
@@ -2719,17 +2696,14 @@ sub find_active_routes () {
 	for my $aref (values %$hash) {
 	    my($hash, $dst) = @$aref;
 	    my $pseudo_rule;
-    print "$src->{name} -> $dst->{name}\n";
 	    $pseudo_rule->{src} = $src;
 	    $pseudo_rule->{dst} = $dst;
 	    $pseudo_rule->{dst_networks} = get_networks($dst, $hash, 'src');
-print join ',',map({$_->{name}} @{$pseudo_rule->{dst_networks}}),"\n";
 	    &path_walk($pseudo_rule, \&collect_route, 'Any');
 	    $pseudo_rule->{src} = $dst;
 	    $pseudo_rule->{dst} = $src;
 	    $pseudo_rule->{dst_networks} = get_networks($src, $hash, 'src');
 	    &path_walk($pseudo_rule, \&collect_route, 'Any');
-print join ',',map({$_->{name}} @{$pseudo_rule->{dst_networks}}),"\n";
 	}
     }
 }
@@ -3357,12 +3331,15 @@ info "$program, version $version";
 &setpath();
 die "Aborted with $error_counter error(s)\n" if $error_counter;
 $error_counter = $max_errors; # following errors should always abort
+# Find routes before conversion of any rules, 
+# because that will introduce additinal 'any' objects,
+# which would result in superfluous routes
+&set_route_in_any();
+&find_active_routes();
 &convert_any_rules();
 &mark_secondary_rules();
 &optimize();
 &repair_deny_influence();
-&set_route_in_any();
-&find_active_routes();
 &acl_generation();
 &check_output_dir($out_dir);
 &print_code($out_dir);
