@@ -37,6 +37,7 @@
   <li><A HREF="#secondary">Secondary packet filters</A></li>
   <li><a href="#routing">Routing</a>
   <li><a href="#rerouting">Rerouting inside of security domains</a>
+  <li><a href="#virtual">Virtual IP addresses</a>
   <LI><A HREF="#disabling">Disabling part of the topology</A></LI>
   <LI><A HREF="#handling_any">Handling of 'any' objects</A></LI>
   <LI><A HREF="#pix_levels">PIX security levels</A></LI>
@@ -205,7 +206,7 @@ each subnetwork.
      {{
         managed [ = {{ full | secondary }} ] ;
         model = &lt;name&gt;;
-        static_manual;
+        [ static_manual; ]
 	&lt;interface definition&gt; *
      |
         [ model = &lt;name&gt;; ]
@@ -233,7 +234,9 @@ description.
 commands should be generated. We use this if we know, that incoming traffic is
 only allowed, after some outgoing connection has been established.
 <LI>A Router may have any number of interface definitions.
-<LI>For unmanaged routers, almost all attributes are optional.
+<LI>For unmanaged routers, all attributes are optional.
+<li>An interface definition without attributes is called a "short
+interface definition".
 <LI>If used as source or destination of a rule, a router is handled like
 a group of its interfaces.
 </UL>
@@ -269,6 +272,9 @@ a group of its interfaces.
 <LI>An interface may have one or more IP addresses. All of them must
   match the IP/mask of the corresponding network.
 <LI>An unnumbered interface must only be linked to an unnumbered network.
+<li> A virtual IP address for redundancy protocols like HSRP or VRRP
+  may be defined with attribute 'virtual'. See <a name="#virtual">
+  Virtual IP addresses</a> for details.
 <LI>The 'hardware' attribute indicates, which hardware interface the router
   belongs to. This attribute is mandatory for managed routers.
 <LI>Multiple interfaces may belong to the same hardware interface.
@@ -281,11 +287,13 @@ a group of its interfaces.
  see <a href="#rerouting">Rerouting inside of security domains</a> below.
 <LI>An interface may be marked as disabled.
   See <A HREF="#disabling">Disabling part of the topology</A> below.
-<LI>For interface definitions of unmanaged routers almost all attributes
+<LI>For interface definitions of unmanaged routers all attributes
   may be left out.
-<LI>If a network is linked to a short interface definition, it must not
-  be linked to any other interface. We need this requirement for
-  getting all routing entries generated.
+<li>An interface definition without any attributes is called a "short
+  interface definition".
+<li> A short interface may only be used if there is no managed
+  interface with static routing enabled in the same network. We need
+  this requirement for getting all routing entries generated.
 <LI>If used as source or destination of a rule an interface is handled
   like a host.
 </UL>
@@ -636,6 +644,21 @@ router:y isn't managed. If traffic from network:a to network:b is
 routed via router:x and router:y, router:x would deny this traffic.
 Use "reroute_permit = network:b" at "interface:x.a" to permit any
 incoming traffic to network:b.
+ 
+<h2><a name="virtual">Virtual IP addresses</a></h2>
+A unique virtual IP address is defined at two or more interfaces, where a
+redundancy protocol like HSRP or VRRP is enabled.
+<ul>
+<li> The virtual IP address is used as destination when generating static
+routes. 
+<Li> At least two interfaces with the same virtual IP are needed.
+<li> The set of interfaces with same virtual IP
+<ul>
+<li> must be linked to the same network and
+<li> must be part of the same cyclic subgraph.
+</ul>
+<li> A virtual IP must be different from normal IP address(es).
+</ul>
 
 <H2><A NAME="disabling">Disabling part of the topology</A></H2>
 <P>An interface may be explicitly marked as disabled.  This implicitly
