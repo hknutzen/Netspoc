@@ -47,7 +47,6 @@ $error_counter = $max_errors; # following errors should always abort
 # Find routes before conversion of any rules, 
 # because that will introduce additional 'any' objects,
 # which would result in superfluous routes
-&set_route_in_any();
 &find_active_routes_and_statics();
 &gen_reverse_rules();
 &gen_secondary_rules();
