@@ -1583,6 +1583,7 @@ sub expand_rules() {
 	    } else {
 		$p_rule->{dst} = expand_group $p_rule->{dst}, 'dst of policy rule';
 	    }
+	    # remember original policy
 	    $rule->{policy} = $policy;
 	    push @rules, $rule;
 	}
@@ -1599,10 +1600,11 @@ sub expand_rules() {
 	    for my $dst (@{$rule->{dst}}) {
 		for my $srv (@{$rule->{srv}}) {
 		    my $expanded_rule = { action => $action,
-					  policy => $policy,
 					  src => $src,
 					  dst => $dst,
-					  srv => $srv
+					  srv => $srv,
+					  # remeber original rule
+					  rule => $rule
 					  };
 		    # if $srv is duplicate of an identical service
 		    # use the main service, but remember the original one
