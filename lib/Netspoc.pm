@@ -1115,8 +1115,8 @@ sub link_interface_with_net( $ ) {
 	# nothing to check: short interface may be linked to arbitrary network
     } elsif($ip eq 'unnumbered') {
 	$net->{ip} eq 'unnumbered' or
-	    die "unnumbered $interface->{name} must not be linked ",
-		"to $net->{name}";
+	    err_msg "unnumbered $interface->{name} must not be linked ",
+	    "to $net->{name}";
     } else {
 	# check compatibility of interface ip and network ip/mask
 	for my $interface_ip (@$ip) {
