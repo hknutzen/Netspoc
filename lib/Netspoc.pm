@@ -2682,29 +2682,45 @@ sub srv_code( $$ ) {
     }
 }
 
+sub get_networks ( $$ ) {
+    my($rule, $where) = @_;
+    my $obj = $rule->{$where};
+    my @networks;
+    if(is_host $obj or is_interface $obj) {
+	return ($obj->{network});
+    } elsif(is_net $obj) {
+	return ($obj);
+    } elsif(is_any $obj) {
+	# We approximate an 'any' object by
+	# every network of that security domain
+	# but ignore deny_dst_networks / deny_src_networks
+	# from 'any' rule
+	return grep { my $elt = $_;
+		      not grep { $_ eq $elt }
+		      @{$rule->{$where eq 'src'?
+				    'deny_src_networks':
+				    'deny_dst_networks'}}
+		  }
+	@{$obj->{networks}};
+    } else {
+	internal_err "unexpected $obj->{name}";
+    }
+}
+
 sub collect_networks_for_routes_and_static( $$$ ) {
     my($rule, $src_intf, $dst_intf) = @_;
     return unless $rule->{action} eq 'permit';
-    return unless $dst_intf;
-    my $dst = $rule->{dst};
-    my @networks;
-    if(is_host $dst or is_interface $dst) {
-	@networks = ($dst->{network});
-    } elsif(is_net $dst) {
-	@networks = ($dst);
-    } elsif(is_any $dst) {
-	# We approximate an 'any' object with 
-	# every network of that security domain
-	# but ignore deny_dst_networks from 'any' rule
-	@networks = grep { my $elt = $_;
-			   not grep { $_ eq $elt }
-			   @{$rule->{deny_dst_networks}}
-		       }
-	@{$dst->{networks}};
-    } else {
-	internal_err "unexpected dst $dst->{name}";
+    # we need a route for answer packets back to src
+    if($src_intf) {
+	for my $net (get_networks $rule, 'src') {
+	    next if $net->{ip} eq 'unnumbered';
+	    # mark reachable networks for generation of route commands
+	    $src_intf->{used_route}->{$net} = 1;
+	}
     }
-    for my $net (@networks) {
+    # no route or static needed for directly attached interface
+    return unless $dst_intf;
+    for my $net (get_networks $rule, 'dst') {
 	next if $net->{ip} eq 'unnumbered';
 	# mark reachable networks for generation of route commands
 	$dst_intf->{used_route}->{$net} = 1;
@@ -2717,7 +2733,7 @@ sub collect_networks_for_routes_and_static( $$$ ) {
 		# put networks into a hash to prevent duplicates
 		$dst_intf->{static}->{$src_intf->{hardware}}->{$net} = $net;
 	    } elsif($src_intf->{level} == $dst_intf->{level}) {	
-		die "Traffic to $dst->{name} can't pass\n",
+		die "Traffic to $rule->{dst}->{name} can't pass\n",
 		" from  $src_intf->{name} to $dst_intf->{name},\n",
 		" since they have equal security levels.\n";
 	    }
