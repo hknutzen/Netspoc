@@ -2,7 +2,8 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 
 - Problem with stateless routers and optimization:
   We use IP > TCP during optimization, but we don't automatically
-  allow answer packets for IP rules.
+  allow answer packets for IP rules. This may result in missing 
+  ACLs for TCP answer packets after optimization.
   Possible solution: IP rules let pass traffic in both directions. 
 
 - Comments for ACL entries with 'any' as src or dst are sometimes
