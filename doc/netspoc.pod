@@ -49,6 +49,16 @@ Allow subnets only if the enclosing network is declared as 'route_hint'
 or if the subnet is declared as 'subnet_of'.
 If set to 'warn', netspoc only warns about undeclared subnet relations.
 
+=item $auto_default_route = [0|1]
+
+Optimize the number of routing entries per router:
+
+For each router find the hop, where the largest 
+number of routing entries points to 
+and replace them with a single default route.
+This is only applicable for internal networks 
+which have no default route to the internet.
+
 =item $ignore_files = qr/^CVS$|^RCS$|^.#|^raw$|~$/;
 
 Ignore these names when reading directories:
