@@ -33,7 +33,6 @@ my $comment_acls = 1;
 my $comment_routes = 1;
 my $warn_unused_groups = 1;
 # allow subnets only 
-# if the enclosing network is marked as 'route_hint' or
 # if the subnet is marked as 'subnet_of'
 my $strict_subnets = 'warn';
 # Optimize number of routing entries per router
@@ -370,7 +369,6 @@ sub read_network( $ ) {
 		      );
     skip('=');
     skip('{');
-    $network->{route_hint} = &check_flag('route_hint');
     $network->{subnet_of} = &check_assign('subnet_of', \&read_typed_name);
     my $ip;
     my $mask;
@@ -420,10 +418,6 @@ sub read_network( $ ) {
 	    $host->{network} = $network;
 	}
 	push(@{$network->{hosts}}, @hosts);
-    }
-    if(@{$network->{hosts}} and $network->{route_hint}) {
-	err_msg "$network->{name} must not have host definitions,\n",
-	    " since it has attribute 'route_hint'";
     }
     &mark_ip_ranges($network);
     if($networks{$name}) {
@@ -821,9 +815,9 @@ sub print_rule( $ ) {
     my($rule) = @_;
     if($rule->{orig_any}) { $rule = $rule->{orig_any}; }
     my $srv = exists($rule->{orig_srv}) ? 'orig_srv' : 'srv';
-    return (defined $rule->{action}?$rule->{action}:'') .
+    return $rule->{action} .
 	" src=$rule->{src}->{name}; dst=$rule->{dst}->{name}; " .
-		     (defined $rule->{$srv}?"srv=$rule->{$srv}->{name};":'');
+	"srv=$rule->{$srv}->{name};";
 }
 
 ####################################################################
@@ -1343,9 +1337,6 @@ sub expand_group( $$ ) {
 	    if($object->{ip} eq 'unnumbered') {
 		err_msg "Unnumbered $object->{name} must not be used in $context";
 		$object = undef;
-	    } elsif($object->{route_hint}) {
-		err_msg "$object->{name} marked as 'route_hint' must not be used in $context";
-		$object = undef;
 	    }
 	} elsif(is_interface $object) {
 	    if($object->{ip} eq 'unnumbered') {
@@ -1710,13 +1701,11 @@ sub find_subnets() {
 		    my $subnet = $mask_ip_hash{$mask}->{$ip};
 		    $subnet->{is_in} = $bignet;
 		    if($strict_subnets and
-		       not($bignet->{route_hint} or
-			   $subnet->{subnet_of} and
+		       not($subnet->{subnet_of} and
 			   $subnet->{subnet_of} eq $bignet)) {
 			my $msg =
 			    "$subnet->{name} is subnet of $bignet->{name}\n" .
-			    " if desired, either declare attribute 'subnet_of'" .
-			    " or attribute 'route_hint'";
+			    " if desired, declare attribute 'subnet_of'";
 			if($strict_subnets eq 'warn') {
 			    warning $msg;
 			} else {
@@ -1748,7 +1737,6 @@ sub setany_network( $$$ ) {
 	# Found a loop inside a security domain
 	return;
     }
-#    info "++ $network->{name}";
     $network->{any} = $any;
     # Add network to the corresponding 'any' object,
     # to have all networks of a security domain available.
@@ -1774,10 +1762,10 @@ sub setany_router( $$$ ) {
 	# Found a loop inside a security domain
 	return;
     }
-#    info "++ $router->{name}";
     for my $interface (@{$router->{interfaces}}) {
 	# ignore interface where we reached this router
 	next if $interface eq $in_interface;
+	next if $interface->{disabled};
 	&setany_network($interface->{network}, $any, $interface);
     }
 }
@@ -1793,7 +1781,6 @@ sub setany() {
 		"More than one 'any' object definied in a security domain:\n",
 		" $old_any->{name} and $any->{name}";
 	}
-#	info "** $any->{name}";
 	if(is_net $obj) {
 	    setany_network $obj, $any, 0;
 	} elsif(is_router $obj) {
@@ -1811,7 +1798,6 @@ sub setany() {
 	(my $name = $network->{name}) =~ s/^network:/auto_any:/;
 	my $any = new('Any', name => $name, link => $network);
 	push @all_anys, $any;
-#	info "** $any->{name}";
 	setany_network $network, $any, 0;
     }
 }
@@ -2238,17 +2224,6 @@ sub convert_any_rules() {
 	    &path_walk($rule, \&convert_any_dst_rule, 'Router');
 	}
     }
-#    for my $rule (@expanded_any_rules) {
-#	next if $rule->{deleted};
-#	if(is_any($rule->{dst})) {
-#	    print print_rule $rule, " $rule->{any_dst_group}\n"
-#		if $rule->{any_dst_group};
-#	    for my $rule (@{$rule->{any_rules}}) {
-#		print print_rule $rule, " $rule->{any_dst_group}\n"
-#		    if $rule->{any_dst_group};
-#	    }
-#	}
-#    }
 }
 
 ##############################################################################
@@ -2418,6 +2393,7 @@ sub optimize_srv_rules( $$ ) {
     my($cmp_hash, $chg_hash) = @_;
 
     # optimize secondary rules
+    # ToDo: look for performance improvement
     my $secondary_rule;
     for my $cmp_rule (values %$cmp_hash) {
 	if($cmp_rule->{has_secondary_filter}) {
@@ -3014,6 +2990,7 @@ sub collect_acls( $$$ ) {
 	$router->{managed} eq 'secondary' && $rule->{has_full_filter};
     # Rules from / to managed interfaces must be processed
     # at the corresponding router even if they are marked as deleted.
+    # ToDo: Rethink about different 'deleted' attributes
     if($rule->{deleted} || $secondary && $rule->{secondary_deleted}) {
 	# we are on an intermediate router
 	# if both $src_intf and $dst_intf are defined
@@ -3215,7 +3192,6 @@ sub acl_generation() {
 	}
 	# ToDo: Handle is_any src && is_any dst
     }
-
 }
 
 sub print_acls( $ ) {
