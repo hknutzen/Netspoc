@@ -60,7 +60,7 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 gen_secondary_rules 
 		 order_any_rules
 		 repair_deny_influence 
-		 acl_generation 
+		 rules_distribution
 		 check_output_dir
 		 print_code );
 
@@ -675,9 +675,20 @@ sub read_network( $ ) {
 # since they are only used at code generation time.
 my %routing_info =
 (EIGRP => {srv => { name => 'auto_srv:EIGRP', proto => 88 },
-	   mcast => [ gen_ip(224,0,0,10) ]},
+	   mcast => [ new('Network',
+			  name => "network:EIGRP_224.0.0.10",
+			  ip => gen_ip(224,0,0,10),
+			  mask => gen_ip(255,255,255,255)) ]},
  OSPF => {srv => { name => 'auto_srv:OSPF', proto => 89 },
-	  mcast => [ gen_ip(224,0,0,5), gen_ip(224,0,0,6) ]});
+	  mcast => [ new('Network',
+			  name => "network:OSPF_224.0.0.5",
+			  ip => gen_ip(224,0,0,5),
+			  mask => gen_ip(255,255,255,255),
+			  ),
+		     new('Network',
+			  name => "network:OSPF_224.0.0.6",
+			  ip => gen_ip(224,0,0,6),
+			  mask => gen_ip(255,255,255,255)) ]});
 our %interfaces;
 my @virtual_interfaces;
 my @disabled_interfaces;
@@ -796,7 +807,7 @@ sub read_interface( $$ ) {
 # is the relation of the security levels to each other.
 sub set_pix_interface_level( $ ) {
     my($interface) = @_;
-    my $hwname = $interface->{hardware};
+    my $hwname = $interface->{hardware}->{name};
     my $level;
     if($hwname eq 'inside') {
 	$level = 100;
@@ -846,6 +857,7 @@ sub read_router( $ ) {
 		     );
     $router->{model} = $model if $managed;
     $router->{static_manual} = 1 if $static_manual and $managed;
+    my %hardware;
     while(1) {
 	last if &check('}');
 	my($type,$iname) = split_typed_name(read_typed_name());
@@ -858,9 +870,21 @@ sub read_router( $ ) {
 	if($managed and $interface->{ip} eq 'short') {
 	    err_msg "Short definition of $interface->{name} not allowed";
 	}
-	# interface of managed router needs to have a hardware name
-	if($managed and not defined $interface->{hardware}) {
-	    err_msg "Missing 'hardware' for $interface->{name}";
+	if(my $hw_name = $interface->{hardware}) {
+	    my $hardware;
+	    unless($hardware = $hardware{$hw_name}) {
+		$hardware = { name => $hw_name };
+		$hardware{$hw_name} = $hardware;
+		push @{$router->{hardware}}, $hardware;
+	    }
+	    $interface->{hardware} = $hardware;
+	    # Remember, which logical interfaces are bound to which hardware
+	    push @{$hardware->{interfaces}}, $interface;
+	} else {
+	    if($managed) {
+		# interface of managed router needs to have a hardware name
+		err_msg "Missing 'hardware' for $interface->{name}";
+	    }
 	}
 	if($managed and $model->{has_interface_level}) {
 	    set_pix_interface_level($interface);
@@ -3305,6 +3329,16 @@ sub distribute_nat_info() {
 		warning "Ignoring undefined nat:$nat bound to $interface->{name}";
 	    }
 	}
+	# All logical interfaces of one hardware interface
+	# need to use the same nat binding, because in reality NAT operates on hardware.
+	for my $hardware (@{$router->{hardware}}) {
+	    my $nat = $hardware->{interfaces}->[0]->{bind_nat};
+	    for my $interface (@{$hardware->{interfaces}}) {
+		no warnings "uninitialized";
+		$interface->{bind_nat} eq $nat or
+		    err_msg "All interfaces of $router->{name} must use identical NAT binding";
+	    }
+	}
     }
     for my $name (keys %nat_definitions) {
 	warning "nat:$name is defined, but not used" 
@@ -3708,11 +3742,7 @@ sub find_active_routes_and_statics () {
 }
 
 # needed for default route optimization
-my $network_default = new('Network',
-			  name => "network:0.0.0.0/0.0.0.0",
-			  ip => 0,
-			  mask => 0
-			  );
+my $network_00 = new('Network', name => "network:0/0", ip => 0, mask => 0);
 sub print_routes( $ ) {
     my($router) = @_;
     # check if one network is reached via different local interfaces.
@@ -3778,8 +3808,7 @@ sub print_routes( $ ) {
 	}
 	if($max_intf && $max_hop) {
 	    # use default route for this direction
-	    $max_intf->{routes}->{$max_hop} = { $network_default =>
-						     $network_default };
+	    $max_intf->{routes}->{$max_hop} = { $network_00 => $network_00 };
 	}
     }
     print "[ Routing ]\n";
@@ -3800,7 +3829,7 @@ sub print_routes( $ ) {
 	    # for unnumbered networks use interface name as next hop
 	    my $hop_addr =
 		$hop->{ip} eq 'unnumbered' ?
-		$interface->{hardware} :
+		$interface->{hardware}->{name} :
 		$hop->{virtual} ?
 		print_ip $hop->{virtual} :
 		print_ip $hop->{ip}->[0];
@@ -3830,7 +3859,7 @@ sub print_routes( $ ) {
 		    my $adr = &ios_route_code(@{&address($network,
 							 $nat_domain,
 							 'src')});
-		    print "route $interface->{hardware} $adr\t$hop_addr\n";
+		    print "route $interface->{hardware}->{name} $adr\t$hop_addr\n";
 		} elsif($router->{model}->{routing} eq 'iproute') {
 		    my $adr = &prefix_code(@{&address($network,
 						      $nat_domain,
@@ -3862,22 +3891,23 @@ sub print_pix_static( $ ) {
 	if(defined $prev_level) {
 	    print(($prev_level == $level)? " = ": " < ");
 	}
-	print $interface->{hardware};
+	print $interface->{hardware}->{name};
 	$prev_level = $level;
     }
     print "\n";
     	       
     my $nat_index = 1;
-    for my $out_intf (sort { $a->{hardware} cmp $b->{hardware} }
+    for my $out_intf (sort { $a->{hardware}->{name} cmp $b->{hardware}->{name} }
 		      @{$router->{interfaces}}) {
 	next unless $out_intf->{static};
-	my $out_hw = $out_intf->{hardware};
+	my $out_hw = $out_intf->{hardware}->{name};
 	my $out_nat = $out_intf->{network};
 	# values are [ { net => net, .. }, in_intf ]
-	for my $aref (sort { $a->[1]->{hardware} cmp $b->[1]->{hardware} }
+	for my $aref (sort { $a->[1]->{hardware}->{name} cmp
+				 $b->[1]->{hardware}->{name} }
 		      values %{$out_intf->{static}}) {
 	    my($net_hash, $in_intf) = @$aref;
-	    my $in_hw = $in_intf->{hardware};
+	    my $in_hw = $in_intf->{hardware}->{name};
 	    my $in_nat = $in_intf->{network};
 	    my @networks =
 		sort { $a->{ip} <=> $b->{ip} } values %$net_hash;
@@ -3953,6 +3983,188 @@ sub print_pix_static( $ ) {
 		}
 	    }
 	}	    
+    }
+}
+
+##############################################################################
+# Ditributing rules to managed devices
+##############################################################################
+
+sub distribute_rule( $$$ ) {
+    my ($rule, $in_intf, $out_intf) = @_;
+    # Traffic from src reaches this router via in_intf
+    # and leaves it via out_intf.
+    # in_intf is undefined if src is an interface of the current router
+    # out_intf is undefined if dst  is an interface of the current router
+    # Outgoing packets from a router itself are never filtered.
+    return unless $in_intf;
+    my $router = $in_intf->{router};
+    return unless $router->{managed};
+    # Rules of type secondary are only applied to secondary routers.
+    # Rules of type full are only applied to full filtering routers.
+    # All other rules are applied to all routers.
+    if(my $type = $rule->{for_router}) {
+	return unless $type eq $router->{managed};
+    }
+    # Rules of type stateless must only be processed at 
+    # stateless routers
+    # or at routers which are stateless for packets destined for
+    # their own interfaces
+    my $model = $router->{model};
+    if($rule->{stateless}) {
+	unless($model->{stateless} or
+	       not $out_intf and $model->{stateless_self}) {
+	    return;
+	}
+    }
+
+    # Rules to managed interfaces must be processed
+    # at the corresponding router even if they are marked as deleted,
+    # because code for interfaces is placed before the 'normal' code.
+    if($rule->{deleted}) {
+	# We are on an intermediate router if $out_intf is defined.
+	return if $out_intf;
+	# No code needed if it is deleted by another rule to the same interface
+	return if $rule->{deleted}->{managed_intf};
+    }
+    # Packets for the router itself
+    if(not $out_intf) {
+	# For PIX firewalls it is unnecessary to process rules for packets
+	# to the PIX itself, because it accepts them anyway (telnet, IPSec).
+	# ToDo: Check if this assumption holds for deny ACLs as well
+	return if $model->{filter} eq 'PIX' and $rule->{action} eq 'permit';
+#	info "$router->{name} rule: ",print_rule $rule,"\n";
+	push @{$in_intf->{hardware}->{intf_rules}}, $rule;
+    } else {
+#	info "$router->{name} intf_rule: ",print_rule $rule,"\n";
+	push @{$in_intf->{hardware}->{rules}}, $rule;
+    }
+}
+
+sub check_deleted ( $$ ) {
+    my($rule, $out_intf) = @_;
+    if($rule->{deleted}) {
+	if($rule->{managed_intf}) {
+	    if($out_intf) {
+		# we are on an intermediate router if $out_intf is defined,
+		# hence normal 'delete' is valid
+		return 1;
+	    }
+	    if($rule->{deleted}->{managed_intf}) {
+		# No code needed if it is deleted by another 
+		# rule to the same interface
+		return 1;
+	    }
+	} else {
+	    # not a managed interface, normal 'delete' is valid
+	    return 1;
+	}
+    }
+    return 0;
+}
+
+# For deny and permit rules with src=any:*, call collect_acls only for
+# the first router on the path from src to dst
+sub distribute_rule_at_src( $$$ ) {
+    my ($rule, $in_intf, $out_intf) = @_;
+    my $router = $in_intf->{router};
+    return unless $router->{managed};
+    my $src = $rule->{src};
+    is_any $src or internal_err "$src must be of type 'any'";
+    # The main rule is only processed at the first router on the path.
+    if($in_intf->{any} eq $src) {
+	&distribute_rule(@_) unless check_deleted $rule, $out_intf;
+    }
+    # Auxiliary rules are never needed at the first router.
+    elsif(exists $rule->{any_rules}) {
+	# check for auxiliary 'any' rules
+	for my $any_rule (@{$rule->{any_rules}}) {
+	    next unless $in_intf->{any} eq $any_rule->{src};
+	    # We need to know exactly if code is generated,
+	    # otherwise we would generate deny rules accidently.
+	    next if check_deleted $any_rule, $out_intf;
+	    # Put deny rules directly in front of
+	    # the corresponding permit 'any' rule.
+	    for my $deny_network (@{$any_rule->{deny_networks}}) {
+		my $deny_rule = { action => 'deny',
+				  src => $deny_network,
+				  dst => $any_rule->{dst},
+				  srv => $any_rule->{srv},
+				  stateless => $any_rule->{stateless} };
+		&distribute_rule($deny_rule, $in_intf, $out_intf);
+	    }
+	    &distribute_rule($any_rule, $in_intf, $out_intf);
+	}
+    }
+}
+
+# For permit dst=any:*, call collect_acls only for
+# the last router on the path from src to dst
+sub distribute_rule_at_dst( $$$ ) {
+    my ($rule, $in_intf, $out_intf) = @_;
+    my $router = $out_intf->{router};
+    return unless $router->{managed};
+    my $dst = $rule->{dst};
+    is_any $dst or internal_err "$dst must be of type 'any'";
+    # This is called for the main rule and its auxiliary rules.
+    # First build a list of all adjacent 'any' objects.
+    my @neighbor_anys;
+    for my $intf (@{$out_intf->{router}->{interfaces}}) {
+	next if $in_intf and $intf eq $in_intf;
+	push @neighbor_anys, $intf->{any};
+    }
+    # Generate deny rules in a first pass, since all related
+    # 'any' rules must be placed behind them.
+    for my $any_rule (@{$rule->{any_rules}}) {
+	next unless grep { $_ eq $any_rule->{dst} } @neighbor_anys;
+	next if $any_rule->{deleted};
+	for my $deny_network (@{$any_rule->{deny_networks}}) {
+	    my $deny_rule = {action => 'deny',
+			     src => $any_rule->{src},
+			     dst => $deny_network,
+			     srv => $any_rule->{srv},
+			     stateless => $any_rule->{stateless}
+			 };
+	    &distribute_rule($deny_rule, $in_intf, $out_intf);
+	}
+    }
+    for my $any_rule ($rule, @{$rule->{any_rules}}) {
+	next unless grep { $_ eq $any_rule->{dst} } @neighbor_anys;
+	next if $any_rule->{deleted};
+	if($any_rule->{any_dst_group}) {
+	    unless($any_rule->{any_dst_group}->{active}) {
+		&distribute_rule($any_rule, $in_intf, $out_intf);
+		$any_rule->{any_dst_group}->{active} = 1;
+	    }
+	} else {
+	    &distribute_rule($any_rule, $in_intf, $out_intf);
+	}
+    }
+}
+
+sub rules_distribution() {
+    info "Rules distribution";
+    # Deny rules
+    for my $rule (@expanded_deny_rules) {
+	next if $rule->{deleted};
+	&path_walk($rule, \&distribute_rule);
+    }
+    # Permit rules
+    for my $rule (@expanded_rules, @secondary_rules) {
+	next if $rule->{deleted} and
+	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
+	&path_walk($rule, \&distribute_rule, 'Router');
+    }
+    # Rules with 'any' object as src or dst
+    for my $rule (@expanded_any_rules) {
+	if(is_any $rule->{src}) {
+	    &path_walk($rule, \&distribute_rule_at_src);
+	} elsif(is_any $rule->{dst}) {
+	    &path_walk($rule, \&distribute_rule_at_dst);
+	} else {
+	    internal_err "unexpected rule ", print_rule $rule, "\n";
+	}
+	# ToDo: Handle is_any src && is_any dst
     }
 }
 
@@ -4052,7 +4264,10 @@ sub address( $$$ ) {
 		@{$obj->{ip}};
 	    }
 	} else {
-	    return map { [$_, 0xffffffff] } @{$obj->{ip}};
+	    my @ip = @{$obj->{ip}};
+	    # Virtual IP must be added for deny rules, it doesn't hurt for permit rules.
+	    push @ip, $obj->{virtual} if $obj->{virtual};
+	    return map { [$_, 0xffffffff] } @ip;
 	}
     } elsif(is_network($obj)) {
 	my($nat_tag, $network_ip, $mask, $dynamic) =
@@ -4263,364 +4478,174 @@ sub acl_line( $$$$$$$ ) {
     }
 }
 
-sub collect_acls( $$$ ) {
-    my ($rule, $in_intf, $out_intf) = @_;
-    # Traffic from src reaches this router via in_intf
-    # and leaves it via out_intf.
-    # in_intf is undefined if src is an interface of the current router
-    # out_intf is undefined if dst  is an interface of the current router
-    # Outgoing packets from a router itself are never filtered.
-    return unless $in_intf;
-    my $router = $in_intf->{router};
-    return unless $router->{managed};
-    my $action = $rule->{action};
-    my $src = $rule->{src};
-    my $dst = $rule->{dst};
-    my $srv = $rule->{srv};
-    my $model = $router->{model};
-    # Rules of type secondary are only applied to secondary routers.
-    # Rules of type full are only applied to full filtering routers.
-    # All other rules are applied to all routers.
-    if(my $type = $rule->{for_router}) {
-	return unless $type eq $router->{managed};
-    }
-    # Rules of type stateless must only be processed at 
-    # stateless routers
-    # or at routers which are stateless for packets destined for
-    # their own interfaces
-    if($rule->{stateless}) {
-	unless($model->{stateless} or
-	       not $out_intf and $model->{stateless_self}) {
-	    return;
-	}
-    }
-
-    # Rules to managed interfaces must be processed
-    # at the corresponding router even if they are marked as deleted,
-    # because code for interfaces is placed before the 'normal' code.
-    # ToDo: But we might get duplicate ACLs for an 
-    if($rule->{deleted}) {
-	# we are on an intermediate router if $out_intf is defined
-	return if $out_intf;
-	# No code needed if it is deleted by another rule to the same interface
-	return if $rule->{deleted}->{managed_intf};
-    }
-    my $comment_char = $model->{comment_char};
-    my @src_addr = &address($src, $in_intf->{network}, 'src');
-    my @dst_addr = &address($dst, $in_intf->{network}, 'dst');
-    my $code_aref;
-    # Packets for the router itself
-    if(not $out_intf) {
-	# For PIX firewalls it is unnecessary to generate permit ACLs
-	# for packets to the PIX itself
-	# because it accepts them anyway (telnet, IPSec)
-	# ToDo: Check if this assumption holds for deny ACLs as well
-	return if $model->{filter} eq 'PIX' and $action eq 'permit';
-	$code_aref = \@{$router->{if_code}->{$in_intf->{hardware}}};
-    } else {
-	# collect generated code at hardware interface,
-	# not at logical interface
-	$code_aref = \@{$router->{code}->{$in_intf->{hardware}}};
-    }
-    if($comment_acls) {
-	push(@$code_aref, "$comment_char ". print_rule($rule)."\n");
-    }
-    for my $spair (@src_addr) {
-	my($src_ip, $src_mask) = @$spair;
-	for my $dpair (@dst_addr) {
-	    my ($dst_ip, $dst_mask) = @$dpair;
-	    push(@$code_aref,
-		 acl_line($action,
-			  $src_ip, $src_mask, $dst_ip, $dst_mask, $srv,
-			  $model));
-	}
-    }
-}
-
-sub check_deleted ( $$ ) {
-    my($rule, $out_intf) = @_;
-    if($rule->{deleted}) {
-	if($rule->{managed_intf}) {
-	    if($out_intf) {
-		# we are on an intermediate router if $out_intf is defined,
-		# hence normal 'delete' is valid
-		return 1;
-	    }
-	    if($rule->{deleted}->{managed_intf}) {
-		# No code needed if it is deleted by another 
-		# rule to the same interface
-		return 1;
-	    }
-	} else {
-	    # not a managed interface, normal 'delete' is valid
-	    return 1;
-	}
-    }
-    return 0;
-}
-
-# For deny and permit rules with src=any:*, call collect_acls only for
-# the first router on the path from src to dst
-sub collect_acls_at_src( $$$ ) {
-    my ($rule, $in_intf, $out_intf) = @_;
-    my $router = $in_intf->{router};
-    return unless $router->{managed};
-    my $src = $rule->{src};
-    is_any $src or internal_err "$src must be of type 'any'";
-    # the main rule is only processed at the first router on the path
-    if($in_intf->{any} eq $src) {
-	&collect_acls(@_) unless check_deleted $rule, $out_intf;
-    }
-    # auxiliary rules are never needed at the first router
-    elsif(exists $rule->{any_rules}) {
-	# check for auxiliary 'any' rules
-	for my $any_rule (@{$rule->{any_rules}}) {
-	    next unless $in_intf->{any} eq $any_rule->{src};
-	    # we need to know exactly if code is generated,
-	    # otherwise we would generate deny rules accidently
-	    next if check_deleted $any_rule, $out_intf;
-	    # Generate code for deny rules directly in front of
-	    # the corresponding permit 'any' rule
-	    for my $deny_network (@{$any_rule->{deny_networks}}) {
-		my $deny_rule = {action => 'deny',
-				 src => $deny_network,
-				 dst => $any_rule->{dst},
-				 srv => $any_rule->{srv},
-				 stateless => $any_rule->{stateless}
-			     };
-		&collect_acls($deny_rule, $in_intf, $out_intf);
-	    }
-	    &collect_acls($any_rule, $in_intf, $out_intf);
-	}
-    }
-}
-
-# For permit dst=any:*, call collect_acls only for
-# the last router on the path from src to dst
-sub collect_acls_at_dst( $$$ ) {
-    my ($rule, $in_intf, $out_intf) = @_;
-    my $router = $out_intf->{router};
-    return unless $router->{managed};
-    my $dst = $rule->{dst};
-    is_any $dst or internal_err "$dst must be of type 'any'";
-    # this is called for the main rule and its auxiliary rules
-    #
-    # first build a list of all adjacent 'any' objects
-    my @neighbor_anys;
-    for my $intf (@{$out_intf->{router}->{interfaces}}) {
-	next if $in_intf and $intf eq $in_intf;
-	push @neighbor_anys, $intf->{any};
-    }
-    # generate deny rules in a first pass, since all related
-    # 'any' rules must be placed behind them
-    for my $any_rule (@{$rule->{any_rules}}) {
-	next unless grep { $_ eq $any_rule->{dst} } @neighbor_anys;
-	next if $any_rule->{deleted};
-	for my $deny_network (@{$any_rule->{deny_networks}}) {
-	    my $deny_rule = {action => 'deny',
-			     src => $any_rule->{src},
-			     dst => $deny_network,
-			     srv => $any_rule->{srv},
-			     stateless => $any_rule->{stateless}
-			 };
-	    &collect_acls($deny_rule, $in_intf, $out_intf);
-	}
-    }
-    for my $any_rule ($rule, @{$rule->{any_rules}}) {
-	next unless grep { $_ eq $any_rule->{dst} } @neighbor_anys;
-	next if $any_rule->{deleted};
-	if($any_rule->{any_dst_group}) {
-	    unless($any_rule->{any_dst_group}->{active}) {
-		&collect_acls($any_rule, $in_intf, $out_intf);
-		$any_rule->{any_dst_group}->{active} = 1;
-	    }
-	} else {
-	    &collect_acls($any_rule, $in_intf, $out_intf);
-	}
-    }
-}
-
-sub acl_generation() {
-    info "Code generation";
-    # Code for deny rules
-    for my $rule (@expanded_deny_rules) {
-	next if $rule->{deleted};
-	&path_walk($rule, \&collect_acls);
-    }
-    # Code for permit rules
-    for my $rule (@expanded_rules, @secondary_rules) {
-	next if $rule->{deleted} and
-	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
-	&path_walk($rule, \&collect_acls, 'Router');
-    }
-    # Code for rules with 'any' object as src or dst
-    for my $rule (@expanded_any_rules) {
-	if(is_any $rule->{src}) {
-	    &path_walk($rule, \&collect_acls_at_src);
-	} elsif(is_any $rule->{dst}) {
-	    &path_walk($rule, \&collect_acls_at_dst);
-	} else {
-	    internal_err "unexpected rule ", print_rule $rule, "\n";
-	}
-	# ToDo: Handle is_any src && is_any dst
-    }
-}
-
 sub print_acls( $ ) {
     my($router) = @_;
     my $model = $router->{model};
     my $comment_char = $model->{comment_char};
     print "[ ACL ]\n";
-    # We need to know all hardware interface names.
-    # It isn't sufficient to iterate over the keys from $router->{code},
-    # since some interfaces may have no ACL at all.
-    my %hardware;
     # Collect IP addresses of all interfaces
     my @ip;
-    # We need to know, if packets for a dynamic routing protocol 
-    # are allowed for a hardware interface
-    my %routing;
-    for my $interface (@{$router->{interfaces}}) {
-	# ignore 'unnumbered' and 'short' interfaces
-	next if $interface->{ip} eq 'unnumbered' or $interface->{ip} eq 'short';
-	my $hardware = $interface->{hardware};
-	# Remember some interface name for comments
-	$hardware{$hardware} = $interface->{name};
-	push @ip, @{$interface->{ip}};
-	push @ip, $interface->{virtual} if $interface->{virtual};
-	# Is dynamic routing used? What are the destination networks?
-	if(my $type = $interface->{routing}) {
-	    push @{$routing{$hardware}->{$type}}, $interface->{network};
-	}
-	# Current router is used as default router even for some internal
-	# networks
-	if($interface->{reroute_permit}) {
-	    for my $net (@{$interface->{reroute_permit}}) {
-		# this is not allowed between different security domains
-		if($net->{any} ne $interface->{any}) {
-		    err_msg "Invalid reroute_permit for $net->{name} ",
-		    "at $interface->{name}: different security domains";
-		    next;
-		}
-		my $code_aref = \@{$router->{code}->{$hardware}};
-		my ($ip, $mask) = @{&address($net, $net, 'src')};
-		# prepend to all other ACLs
-		unshift(@$code_aref,
-			acl_line('permit', 0,0, $ip, $mask, $srv_ip, $model));
-	    }
-	}
-    }
-    for my $hardware (sort keys %hardware) {
-	if(my $routing = $routing{$hardware}) {
-	    my $code_aref = \@{$router->{if_code}->{$hardware}};
-	    my $host_mask = gen_ip(255,255,255,255);
-	    for my $type (keys %$routing) {
-		if($comment_acls) {
-		    push @$code_aref, "$comment_char $type\n";
-		}
-		for my $mcast (@{$routing_info{$type}->{mcast}}) {
-		    push(@$code_aref,
-			 #  permit ip any host 224.0.0.xx
-			 acl_line('permit',
-				  0,0,$mcast,$host_mask,$srv_ip,$model));
-		}
-		# Permit dynamic routing protocol packets from
-		# attached networks to this router.
-		# We use the network address instead of the interface
-		# addresses, because it is shorter if the interface has 
-		# multiple addresses.
-		for my $net (@{$routing->{$type}}) {
+    for my $hardware (@{$router->{hardware}}) {
+	# We need to know, if packets for a dynamic routing protocol 
+	# are allowed for a hardware interface
+	my %routing;
+	for my $interface (@{$hardware->{interfaces}}) {
+	    # Current router is used as default router even for some internal
+	    # networks
+	    if($interface->{reroute_permit}) {
+		for my $net (@{$interface->{reroute_permit}}) {
+		    # this is not allowed between different security domains
+		    if($net->{any} ne $interface->{any}) {
+			err_msg "Invalid reroute_permit for $net->{name} ",
+			"at $interface->{name}: different security domains";
+			next;
+		    }
 		    my ($ip, $mask) = @{&address($net, $net, 'src')};
-		    push(@$code_aref,
-			 #  permit OSPF $net $net
-			 acl_line('permit', $ip, $mask, $ip, $mask,
-				  $routing_info{$type}->{srv}, $model));
+		    # prepend to all other rules
+		    unshift(@{$hardware->{rules}}, { action => 'permit', 
+						     src => $network_00,
+						     dst => $net,
+						     srv => $srv_ip });
+		}
+	    }
+	    # Is dynamic routing used?
+	    if(my $type = $interface->{routing}) {
+		unless($routing{$type}) {
+		    # prevent duplicate rules from multiple logical interfaces
+		    $routing{$type} = 1;
+		    # Permit multicast packets as destination.
+		    # permit ip any host 224.0.0.xx
+		    for my $mcast (@{$routing_info{$type}->{mcast}}) {
+			push(@{$hardware->{intf_rules}},
+			     { action => 'permit',
+			       src => $network_00,
+			       dst => $mcast,
+			       srv => $srv_ip });
+		    }
+		    # Permit dynamic routing protocol packets from
+		    # attached networks to this router.
+		    # We use the network instead of the interface,
+		    # because we need fewer rules if the interface has 
+		    # multiple addresses.
+		    my $network = $interface->{network};
+		    push(@{$hardware->{intf_rules}},
+			 { action => 'permit', 
+			   src => $network,
+			   dst => $network,
+			   srv => $routing_info{$type}->{srv} });
 		}
 	    }
 	}
     }
-    for my $hardware (sort keys %hardware) {
-	my $name = "${hardware}_in";
-	my $code = $router->{code}->{$hardware};
-	my $if_code = $router->{if_code}->{$hardware};
-	# force auto-vivification
-	push @$code, ();
-	push @$if_code, ();
+    # Add deny rules 
+    for my $hardware (@{$router->{hardware}}) {
+	if($model->{filter} eq 'IOS' and $hardware->{rules} ) {
+	    for my $interface (@{$router->{interfaces}}) {
+		# ignore 'unnumbered' and 'short' interfaces
+		next if $interface->{ip} eq 'unnumbered' or
+		    $interface->{ip} eq 'short';
+		# Protect own interfaces.
+		push(@{$hardware->{intf_rules}}, { action => 'deny',
+						   src => $network_00,
+						   dst => $interface,
+						   srv => $srv_ip });
+	    }
+	}
+	if($model->{filter} eq 'iptables') {
+	    push(@{$hardware->{intf_rules}}, { action => 'deny',
+				      src => $network_00,
+				      dst => $network_00,
+				      srv => $srv_ip });
+	}
+	push(@{$hardware->{rules}}, { action => 'deny',
+				      src => $network_00,
+				      dst => $network_00,
+				      srv => $srv_ip });
+    }
+    # Generate code
+    for my $hardware (@{$router->{hardware}}) {
+	my $name = "$hardware->{name}_in";
+	my $intf_name;
+	my $prefix;
+	my $intf_prefix;
 	if($comment_acls) {
-	    print "$comment_char $hardware{$hardware}\n";
+	    # Name of first logical interface
+	    print "$comment_char $hardware->{interfaces}->[0]->{name}\n";
 	}
 	if($model->{filter} eq 'IOS') {
+	    $intf_prefix = $prefix = ' ';
 	    print "ip access-list extended $name\n";
-	    # First, handle ACLs where destination is one of 
-	    # this routers interfaces
-	    for my $line (@$if_code) {
-		print " $line";
+	} elsif($model->{filter} eq 'PIX') {
+	    $intf_prefix = $prefix = "access-list $name ";
+	} elsif($model->{filter} eq 'iptables') {
+	    $intf_name = "$hardware->{name}_self";
+	    $intf_prefix = "iptables -A $intf_name ";
+	    $prefix = "iptables -A $name ";
+	    print "iptables -N $name\n";
+	    print "iptables -N $intf_name\n";
+	}
+	# Take network of first logical interface for determining the NAT domain.
+	# During NAT processing above, we have assured, that all logical interfaces
+	# of one hardware interface have the same NAT bindings and hence one network
+	# can be used as a representative for all.
+	my $nat_network = $hardware->{interfaces}->[0]->{network};
+	# Interface rules
+	for my $rule (@{$hardware->{intf_rules}}) {
+	    my $src = $rule->{src};
+	    my $dst = $rule->{dst};
+	    print "$model->{comment_char} ". print_rule($rule)."\n" if $comment_acls;
+	    for my $spair (&address($src, $nat_network, 'src')) {
+		my($src_ip, $src_mask) = @$spair;
+		for my $dpair (&address($dst, $nat_network, 'dst')) {
+		    my ($dst_ip, $dst_mask) = @$dpair;
+		    print($intf_prefix,
+			  acl_line($rule->{action},
+				   $src_ip, $src_mask, $dst_ip, $dst_mask, $rule->{srv},
+				   $model));
+		}
 	    }
-	    if(@$code) {
-		if($comment_acls and @ip) {
-		    print " $comment_char Protect own interfaces\n";
-		}
-		for my $ip (@ip) {
-		    print " deny ip any host ". print_ip($ip) ."\n";
-		}
-		for my $line (@$code) {
-		    print " $line";
+	}
+	# Other rules
+	for my $rule (@{$hardware->{rules}}) {
+	    my $src = $rule->{src};
+	    my $dst = $rule->{dst};
+	    print "$model->{comment_char} ". print_rule($rule)."\n" if $comment_acls;
+	    for my $spair (&address($src, $nat_network, 'src')) {
+		my($src_ip, $src_mask) = @$spair;
+		for my $dpair (&address($dst, $nat_network, 'dst')) {
+		    my ($dst_ip, $dst_mask) = @$dpair;
+		    print($prefix,
+			  acl_line($rule->{action},
+				   $src_ip, $src_mask, $dst_ip, $dst_mask, $rule->{srv},
+				   $model));
 		}
 	    }
-	    print " deny ip any any\n";
-	    print "interface $hardware\n";
+	}
+	# Postprocessing for hardware interface
+	if($model->{filter} eq 'IOS') {
+	    print "interface $hardware->{name}\n";
 	    print " access group $name\n\n";
 	} elsif($model->{filter} eq 'PIX') {
-	    for my $line (@$if_code, @$code) {
-		if($line =~ /^$comment_char/) {
-		    print $line;
-		} else {
-		    print "access-list $name $line";
-		}
-	    }
-	    print "access-list $name deny ip any any\n";
-	    print "access-group $name in $hardware\n\n";
-	} elsif($model->{filter} eq 'iptables') {
-	    my $if_name = "${hardware}_self";
-	    print "iptables -N $name\n";
-	    print "iptables -N $if_name\n";
-	    for my $line (@$if_code) {
-		if($line =~ /^$comment_char/) {
-		    print $line;
-		} else {
-		    print "iptables -A $if_name $line";
-		}
-	    }
-	    print "iptables -A $if_name -j DROP -s 0.0.0.0/0 -d 0.0.0.0/0\n";
-	    for my $line (@$code) {
-		if($line =~ /^$comment_char/) {
-		    print $line;
-		} else {
-		    print "iptables -A $name $line";
-		}
-	    }
-	    print "iptables -A $name -j DROP -s 0.0.0.0/0 -d 0.0.0.0/0\n";
-	} else {
-	    internal_err "unsupported router filter type '$model->{filter}'";
+	    print "access-group $name in $hardware->{name}\n\n";
 	}
     }
-    # Post-processing
+    # Post-processing for all interfaces
     if($model->{filter} eq 'iptables') {
 	print "iptables -P INPUT DROP\n";
 	print "iptables -F INPUT\n";
 	print "iptables -A INPUT -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
-	for my $hardware (sort keys %hardware) {
-	    my $if_name = "${hardware}_self";
-	    print "iptables -A INPUT -j $if_name -i $hardware \n";
+	for my $hardware (@{$router->{hardware}}) {
+	    my $if_name = "$hardware->{name}_self";
+	    print "iptables -A INPUT -j $if_name -i $hardware->{name} \n";
 	}
 	print "iptables -A INPUT -j DROP -s 0.0.0.0/0 -d 0.0.0.0/0\n";
 	#
 	print "iptables -P FORWARD DROP\n";
 	print "iptables -F FORWARD\n";
 	print "iptables -A FORWARD -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
-	for my $hardware (sort keys %hardware) {
-	    my $name = "${hardware}_in";
-	    print "iptables -A FORWARD -j $name -i $hardware\n";
+	for my $hardware (@{$router->{hardware}}) {
+	    my $name = "$hardware->{name}_in";
+	    print "iptables -A FORWARD -j $name -i $hardware->{name}\n";
 	}
 	print "iptables -A FORWARD -j DROP -s 0.0.0.0/0 -d 0.0.0.0/0\n";
     }
