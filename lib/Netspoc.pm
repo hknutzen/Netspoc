@@ -1601,23 +1601,6 @@ sub link_interface_with_net( $ ) {
 	}
     }
     my $ip = $interface->{ip};
-    # check if the network is already linked with another interface
-    if(defined $network->{interfaces}) {
-	my $old_intf = $network->{interfaces}->[0];
-	# if network is already linked to a short interface
-	# it must not be linked to any other interface
-	if($old_intf->{ip} eq 'short') {
-	    err_msg "$network->{name} must not be linked with $interface->{name},\n",
-	    " since it is already linked with short $old_intf->{name}";
-	}
-	# if network is already linked to any interface
-	# it must not be linked to a short interface
-	if($ip eq 'short') {
-	    err_msg "$network->{name} must not be linked with $old_intf->{name},\n",
-	    " since it is already linked with short $interface->{name}";
-	}
-    } 
-
     if($ip eq 'short') {
 	# nothing to check: short interface may be linked to arbitrary network
     } elsif($ip eq 'unnumbered') {
@@ -1701,10 +1684,27 @@ sub link_topology() {
 		print STDERR " $interface->{name}\n";
 	    }
 	}
+	# 1. Check for duplicate interface addresses.
+	# 2. Short interfaces must not be used, if a managed interface 
+	#    with static routing exists in the same network.
 	my %ip;
+	my ($short_intf, $route_intf);
 	for my $interface (@{$network->{interfaces}}) {
 	    my $ips = $interface->{ip};
-	    next if $ips eq 'unnumbered' or $ips eq 'short';
+	    next if $ips eq 'unnumbered';
+	    if($ips eq 'short') {
+		$short_intf = $interface;
+		$route_intf and
+		    err_msg "$short_intf->{name} must be given an IP address, since there is\n",
+		    " a managed $route_intf->{name} with static routing enabled.";
+		next;
+	    }
+	    if($interface->{router}->{managed} and not $interface->{routing}) {
+		$route_intf = $interface;
+		$short_intf and
+		    err_msg "$short_intf->{name} must be given an IP address, since there is\n",
+		    " a managed $route_intf->{name} with static routing enabled.";
+	    }
 	    for my $ip (@$ips) {
 		if(my $old_intf = $ip{$ip}) {
 		    warning "Duplicate IP address for $old_intf->{name}",
