@@ -2722,15 +2722,19 @@ sub loop_path_mark ( $$$$$ ) {
     # Mark current path for loop detection.
     $from->{active_path} = 1;
     my $get_next = is_router $from ? 'network' : 'router';
+    my $success = 0;
     for my $interface (@{$from->{interfaces}}) {
         next unless $interface->{in_loop};
         my $next = $interface->{$get_next};
         if(mark_in_loop1 $next, $interface, $from, $to, $collect) {
+	    $success = 1;
 	    push @{$from->{loop_enter}->{$to}}, $interface;
 #	    info " enter: $from->{name} -> $interface->{name}";
         }
     }
     delete $from->{active_path};
+    $success or err_msg "No valid path from $from->{name} to $to->{name}\n",
+    " Too many path restrictions?";
 }
 
 # Mark path from src to dst.
