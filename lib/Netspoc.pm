@@ -2101,19 +2101,6 @@ sub aref_delete( $$ ) {
     return 0;
 }
 
-# A rule may be deleted if we find a similar rule with greater or equal srv.
-# Property of parameters:
-# Rules in $cmp_hash >= rules in $chg_hash
-sub optimize_srv_rules( $$ ) {
-    my($cmp_hash, $chg_hash) = @_;
-
-    for my $rule (values %$chg_hash) {
-	my $srv = $rule->{srv};
-	while($srv) {
-	    if(my $cmp_rule = $cmp_hash->{$srv}) {
-		unless($cmp_rule eq $rule) {
-
-# optimize auto_any rules:
 #
 # cmp permit auto_any(deny_net: net1,net2) dst srv
 # chg permit net1 dst srv
@@ -2144,64 +2131,79 @@ sub optimize_srv_rules( $$ ) {
 #
 # ToDo: Why aren't these optimizations applicable to deny rules?
 #
-		    if($cmp_rule->{action} eq 'permit' and
-		       $rule->{action} eq 'permit'){
-			if(is_any $cmp_rule->{src}) {
-			    if(is_net $rule->{src} and
-			       aref_delete($rule->{src},
-					   $cmp_rule->{deny_src_networks})) {
-				if($cmp_rule->{dst} eq $rule->{dst} and
-				   $cmp_rule->{srv} eq $rule->{srv}) {
-				    $rule->{deleted} = $cmp_rule;
-				}
-				last;
-			    }
-			    elsif(is_any $rule->{src}) {
-				if(@{$cmp_rule->{deny_src_networks}} == 0) {
-				    $rule->{deleted} = $cmp_rule;
-				} else {
-				    my $equal_deny_net = 1;
-				    for my $net (@{$cmp_rule->
-						   {deny_src_networks}}) {
-					$equal_deny_net &= aref_delete $net, $rule->
-					{deny_src_networks};
-				    }
-				    if($equal_deny_net) {
-					$rule->{deleted} = $cmp_rule;
-				    }
-				}
-				last;
-			    }
-			}
+sub optimize_auto_any_rules( $$ ) {
+    my($cmp_rule, $chg_rule) = @_;
+    if($cmp_rule->{action} eq 'permit' and
+       $chg_rule->{action} eq 'permit'){
+	if(is_any $cmp_rule->{src}) {
+	    if(is_net $chg_rule->{src} and
+	       aref_delete($chg_rule->{src}, $cmp_rule->{deny_src_networks})) {
+		if($cmp_rule->{dst} eq $chg_rule->{dst} and
+		   $cmp_rule->{srv} eq $chg_rule->{srv}) {
+		    $chg_rule->{deleted} = $cmp_rule;
+		}
+		return 1;
+	    }
+	    elsif(is_any $chg_rule->{src}) {
+		if(@{$cmp_rule->{deny_src_networks}} == 0) {
+		    $chg_rule->{deleted} = $cmp_rule;
+		} else {
+		    my $equal_deny_net = 1;
+		    for my $net (@{$cmp_rule->{deny_src_networks}}) {
+			$equal_deny_net &=
+			    aref_delete $net, $chg_rule->{deny_src_networks};
+		    }
+		    if($equal_deny_net) {
+			$chg_rule->{deleted} = $cmp_rule;
+		    }
+		}
+		return 1;
+	    }
+	}
 # equivalent for auto_any at dst
-			if(is_any $cmp_rule->{dst}) {
-			    if(is_net $rule->{dst} and
-			       aref_delete($rule->{dst}, $cmp_rule->{deny_dst_networks})) {
-				if($cmp_rule->{src} eq $rule->{src} and
-				   $cmp_rule->{srv} eq $rule->{srv}) {
-				    $rule->{deleted} = $cmp_rule;
-				}
-				last;
-			    }
-			    elsif(is_any $rule->{dst}) {
-				if(@{$cmp_rule->{deny_dst_networks}} == 0) {
-				    $rule->{deleted} = $cmp_rule;
-				} else {
-				    my $equal_deny_net = 1;
-				    for my $net (@{$cmp_rule->
-						   {deny_dst_networks}}) {
-					$equal_deny_net &= aref_delete $net, $rule->
-					{deny_dst_networks};
-				    }
-				    if($equal_deny_net) {
-					$rule->{deleted} = $cmp_rule;
-				    }
-				}
-				last;
-			    }
-			}
-		    } 			    
-		    $rule->{deleted} = $cmp_rule;
+	if(is_any $cmp_rule->{dst}) {
+	    if(is_net $chg_rule->{dst} and
+	       aref_delete($chg_rule->{dst}, $cmp_rule->{deny_dst_networks})) {
+		if($cmp_rule->{src} eq $chg_rule->{src} and
+		   $cmp_rule->{srv} eq $chg_rule->{srv}) {
+		    $chg_rule->{deleted} = $cmp_rule;
+		}
+		return 1;
+	    }
+	    elsif(is_any $chg_rule->{dst}) {
+		if(@{$cmp_rule->{deny_dst_networks}} == 0) {
+		    $chg_rule->{deleted} = $cmp_rule;
+		} else {
+		    my $equal_deny_net = 1;
+		    for my $net (@{$cmp_rule->{deny_dst_networks}}) {
+			$equal_deny_net &=
+			    aref_delete $net, $chg_rule->{deny_dst_networks};
+		    }
+		    if($equal_deny_net) {
+			$chg_rule->{deleted} = $cmp_rule;
+		    }
+		}
+		return 1;
+	    }
+	}
+    }
+    return 0;
+}
+
+# A rule may be deleted if we find a similar rule with greater or equal srv.
+# Property of parameters:
+# Rules in $cmp_hash >= rules in $chg_hash
+sub optimize_srv_rules( $$ ) {
+    my($cmp_hash, $chg_hash) = @_;
+
+    for my $chg_rule (values %$chg_hash) {
+	my $srv = $chg_rule->{srv};
+	while($srv) {
+	    if(my $cmp_rule = $cmp_hash->{$srv}) {
+		unless($cmp_rule eq $chg_rule) {
+		    unless(&optimize_auto_any_rules($cmp_rule, $chg_rule)) { 
+			$chg_rule->{deleted} = $cmp_rule;
+		    }
 		    last;
 		}
 	    }
