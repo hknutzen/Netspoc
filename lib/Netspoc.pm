@@ -2228,8 +2228,19 @@ sub convert_any_rules() {
 
 ##############################################################################
 # Mark and optimize rules at secondary filters
+# At secondary packet filters, we check only for src and dst network
 ##############################################################################
 
+sub get_secondary_network ( $ ) {
+    my($obj) = @_;
+    if(is_host $obj or is_interface $obj) {
+	return $obj->{network};
+    } elsif(is_net $obj) {
+	return $obj;
+    } else {
+	internal_err "unexpected $obj->{name}";
+    }
+}
 
 sub mark_secondary_rule( $$$ ) {
     my ($rule, $src_intf, $dst_intf) = @_;
@@ -2242,12 +2253,22 @@ sub mark_secondary_rule( $$$ ) {
 }
 
 sub mark_secondary_rules() {
-    info "Marking rules of secondary filters";
-    # mark only normal rules, not 'deny', not 'any'
+    info "Marking and optimizing rules of secondary filters";
+    # mark only normal rules for optimization, not 'deny', not 'any'
+    my %secondary_rule_tree;
     for my $rule (@expanded_rules) {
 	&path_walk($rule, \&mark_secondary_rule, 'Router');
-	$rule->{has_secondary_filter} = 
-	    $rule->{has_secondary_filter} && $rule->{has_full_filter};
+	if($rule->{has_secondary_filter} = 
+	   $rule->{has_secondary_filter} && $rule->{has_full_filter}) {
+	    my $src = get_secondary_network $rule->{src};
+	    my $dst = get_secondary_network $rule->{dst};
+	    my $old_rule = $secondary_rule_tree{$src}->{$dst};
+	    if($old_rule) {
+		# found redundant rule
+		$old_rule->{secondary_deleted} = $rule;
+	    }
+	    $secondary_rule_tree{$src}->{$dst} = $rule;
+	}
     }
 }
 
@@ -2391,26 +2412,7 @@ sub optimize_auto_any_rules( $$ ) {
 # Rules in $cmp_hash >= rules in $chg_hash
 sub optimize_srv_rules( $$ ) {
     my($cmp_hash, $chg_hash) = @_;
-
-    # optimize secondary rules
-    # ToDo: look for performance improvement
-    my $secondary_rule;
-    for my $cmp_rule (values %$cmp_hash) {
-	if($cmp_rule->{has_secondary_filter}) {
-	    $secondary_rule = $cmp_rule;
-	    last;
-	}
-    }    
-    if($secondary_rule) {
-	for my $chg_rule (values %$chg_hash) {
-	    if($chg_rule->{has_secondary_filter}) {
-		unless($chg_rule eq $secondary_rule) {
-		    $chg_rule->{secondary_deleted} = $secondary_rule;
-		}
-	    }
-	}
-    }
-	    
+ 
     # optimize full rules
     for my $chg_rule (values %$chg_hash) {
 	my $srv = $chg_rule->{srv};
@@ -2988,6 +2990,10 @@ sub collect_acls( $$$ ) {
     # we need to filter only IP-Addresses
     my $secondary =
 	$router->{managed} eq 'secondary' && $rule->{has_full_filter};
+    if($secondary) {
+	$src = get_secondary_network $src;
+	$dst = get_secondary_network $dst;
+    }
     # Rules from / to managed interfaces must be processed
     # at the corresponding router even if they are marked as deleted.
     # ToDo: Rethink about different 'deleted' attributes
