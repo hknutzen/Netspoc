@@ -1,3 +1,21 @@
+<h3>netspoc-2.6</h3>
+
+Bug fixes:
+<ul>
+
+<li> There was a bug in local optimization which was introduced in version
+2.2.  Some deny rules could unadvertently be marked as redundant, leading to
+missing ACLs for these rules in generated code. This bug has been fixed.
+
+<li> NetSPoC automatically generates reverse rules for stateless packet
+filters if protocol is of type TCP, UDP or IP. For TCP, a reverse rule is
+generated which matches any packet that doesn't request a new connection. This
+was wrong for deny rules, because it would prevent answer packets for any
+port, not only for the port of the original rule. Therefore no reverse rules
+will be generated for deny rules of protocol TCP.
+
+</ul>
+
 <h3>netspoc-2.5</h3>
 
 New features:
