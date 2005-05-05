@@ -14,9 +14,10 @@ CSPM.html: CSPM.pod
 
 current := $(shell cat VERSION)
 tar-file := $(current).tar.gz
+cwd := $(shell pwd)
 tar: $(tar-file)
 
 $(tar-file): Netspoc.pm netspoc COPYING INSTALL CSPM.html CSPM.pod ChangeLog Makefile NEWS.html TODO examples index.html language.html netspoc.html netspoc.man netspoc.pod newpolicy VERSION
 	echo Building $(current)
-	cd ..;ln -snf develop $(current)
+	cd ..;ln -snf $(cwd) $(current)
 	tar cvzf $@ -C ..  $(addprefix $(current)/, $^)
