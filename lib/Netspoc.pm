@@ -4109,6 +4109,12 @@ sub gen_reverse_rules1 ( $ ) {
 	my $srv = $rule->{srv};
 	my $proto = $srv->{proto};
 	next unless $proto eq 'tcp' or $proto eq 'udp' or $proto eq 'ip';
+	# No reverse rules will be generated for denied TCP packets, because
+	# - there can't be an answer if the request is already denied and
+	# - the 'established' optimization for TCP below would produce 
+	#   wrong results.
+	next if $proto eq 'tcp' and $rule->{action} eq 'deny';
+
 	my $has_stateless_router;
       PATH_WALK:
 	{
@@ -4237,7 +4243,6 @@ sub optimize_rules( $$ ) {
 	my $chg_hash = $chg_hash->{$action};
 	while(1) {
 	    if(my $cmp_hash = $cmp_hash->{$action}) {
-		my($cmp_hash, $chg_hash) = ($cmp_hash, $chg_hash);
 		for my $src_ref (keys %$chg_hash) {
 		    my $chg_hash = $chg_hash->{$src_ref};
 		    my $src = $ref2obj{$src_ref};
@@ -4252,9 +4257,12 @@ sub optimize_rules( $$ ) {
 					    next if $chg_rule->{deleted};
 					    my $srv = $chg_rule->{srv};
 					    while(1) {
-						if(my $cmp_rule = $cmp_hash->{$srv}) {
-						    unless($cmp_rule eq $chg_rule) {
-							$chg_rule->{deleted} = $cmp_rule;
+						if(my $cmp_rule =
+						   $cmp_hash->{$srv}) {
+						    unless($cmp_rule eq
+							   $chg_rule) {
+							$chg_rule->{deleted} =
+							    $cmp_rule;
 							last;
 						    }
 						}
@@ -4270,11 +4278,8 @@ sub optimize_rules( $$ ) {
 		    }
 		}
 	    }
-	    if($action eq 'permit') {
-		$action = 'deny';
-	    } else {	# deny
-		last;
-	    }
+	    last if $action eq 'deny'; 
+	    $action = 'deny'; 
 	}
     }
 }
@@ -5500,45 +5505,60 @@ sub local_optimization() {
 		next unless $router->{managed};
 		my $secondary_router = $router->{managed} eq 'secondary';
 		my $hardware = $interface->{hardware};
+		# Do local optimization only once for each hardware interface.
 		next if $hardware->{seen};
 		$hardware->{seen} = 1;
 		for my $rules ('intf_rules', 'rules') {
 		    my %hash;
 		    for my $rule (@{$hardware->{$rules}}) {
+			my $action = $rule->{action};
 			my $src = $rule->{src};
 			my $dst = $rule->{dst};
 			my $srv = $rule->{srv};
-			$hash{$src}->{$dst}->{$srv} = $rule;
+			$hash{$action}->{$src}->{$dst}->{$srv} = $rule;
 		    }
 		    my $changed = 0;
 		  RULE:
 		    for my $rule (@{$hardware->{$rules}}) {
+			my $action = $rule->{action};
 			my $src = $rule->{src};
 			my $dst = $rule->{dst};
 			my $srv = $rule->{srv};
-			while($src) {
-			    my $dst = $dst;
-			    my $hash = $hash{$src};
-			    while($dst) {
-				my $srv = $srv;
-				my $hash = $hash->{$dst};
-				while($srv) {
-				    if(my $old_rule = $hash->{$srv}) {
-					unless($rule eq $old_rule) {
-					    $rule = undef;
-					    $changed = 1;
-					    next RULE;
+			while(1) {
+			    my $src = $src;
+			    if(my $hash = $hash{$action}) {
+				while(1) {
+				    my $dst = $dst;
+				    if(my $hash = $hash->{$src}) {
+					while(1) {
+					    my $srv = $srv;
+					    if(my $hash = $hash->{$dst}) {
+						while(1) {
+						    if(my $other_rule =
+						       $hash->{$srv}) {
+							unless($rule eq
+							       $other_rule) {
+							    $rule = undef;
+							    $changed = 1;
+							    next RULE;
+							}
+						    }
+						    $srv = $srv->{up} or last;
+						}
+					    }
+					    $dst = $dst->{up} or last;
 					}
 				    }
-				    $srv = $srv->{up};
+				    $src = $src->{up} or last;
 				}
-				$dst = $dst->{up};
 			    }
-			    $src = $src->{up};
+			    last if $action eq 'deny'; 
+			    $action = 'deny'; 
 			}
 			# Convert remaining rules to secondary rules,
 			# if possible.
 			if($secondary_router && $rule->{has_full_filter}) {
+			    $action = $rule->{action};
 			    # get_networks has a single result if not called 
 			    # with an 'any' object as argument.
 			    $src = get_networks $rule->{src};
@@ -5548,11 +5568,12 @@ sub local_optimization() {
 				$dst = get_networks $dst;
 			    }
 			    my $new_rule = {
-				action => $rule->{action},
+				action => $action,
 				src => $src,
 				dst => $dst,
 				srv => $srv_ip };
-			    $hash{$src}->{$dst}->{$srv_ip} = $new_rule;
+			    $hash{$action}->{$src}->{$dst}->{$srv_ip} =
+				$new_rule;
 			    # This changes @{$hardware->{$rules}} !
 			    $rule = $new_rule;
 			}
