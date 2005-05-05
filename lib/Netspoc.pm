@@ -23,8 +23,12 @@ use strict;
 use warnings;
 
 package Netspoc;
-use Getopt::Long;
 require Exporter;
+use Getopt::Long;
+# We need this for German umlauts being part of \w.
+use locale;
+# Use this instead, if your files are utf8 encoded:
+##use open ':utf8';
 
 my $program = 'Network Security Policy Compiler';
 my $version = (split ' ','$Id$ ')[2];
@@ -114,30 +118,32 @@ my %router_info =
      stateless_self => 1,
      routing => 'IOS',
      filter => 'IOS',
-     has_tunnel_filter => 1,
-     comment_char => '!'
+     crypto => 'IOS',
+     comment_char => '!',
      },
  IOS_FW => {
      name => 'IOS_FW',
      stateless_self => 1,
      routing => 'IOS',
      filter => 'IOS',
-     has_tunnel_filter => 1,
-     comment_char => '!'
+     crypto => 'IOS',
+     comment_char => '!',
      },
  PIX => {
      name => 'PIX',
      routing => 'PIX',
      filter => 'PIX',
+     crypto => 'PIX',
+     no_crypto_filter => 1,
      comment_char => '!',
      has_interface_level => 1,
-     no_filter_icmp_code => 1
+     no_filter_icmp_code => 1,
      },
  Linux => {
      name => 'Linux',
      routing => 'iproute',
      filter => 'iptables',
-     comment_char => '#'
+     comment_char => '#',
      }
  );
 
@@ -323,7 +329,6 @@ sub print_ip_aref( $ ) {
 		
 # Check for xxx:xxx
 sub check_typed_name() {
-    use locale;		# now German umlauts are part of \w
     skip_space_and_comment;
     if(m/(\G\w+:[\w-]+)/gc) {
 	return $1;
@@ -338,7 +343,6 @@ sub read_typed_name() {
 
 # Read interface:xxx.xxx
 sub read_interface_name() {
-    use locale;		# now German umlauts are part of \w
     skip_space_and_comment;
     if(m/(\G\w+:[\w-]+\.[\w-]+)/gc) {
 	return $1;
@@ -350,7 +354,6 @@ sub read_interface_name() {
 # Check for xxx:xxx or xxx:[xxx] or interface:xxx.xxx
 # or interface:xxx.[xxx] or interface:[xxx].[xxx]
 sub check_typed_ext_name() {
-    use locale;		# now German umlauts are part of \w
     skip_space_and_comment;
     if(m/\G(interface:[][\w-]+\.[][\w-]+|\w+:[][\w-]+)/gc) {
 	return $1;
@@ -364,7 +367,6 @@ sub read_typed_ext_name() {
 }
 
 sub read_identifier() {
-    use locale;		# now German umlauts are part of \w
     skip_space_and_comment;
     if(m/(\G[\w-]+)/gc) {
 	return $1;
@@ -946,6 +948,8 @@ sub read_router( $ ) {
 	    $router->{model} = $info;
 	} elsif(check_flag('no_group_code')) {
 	    $router->{no_group_code} = 1;
+	} elsif(check_flag('no_crypto_filter')) {
+	    $router->{no_crypto_filter} = 1;
 	} else {
 	    my $string = read_typed_name;
 	    my($type, $network) = split_typed_name $string;
@@ -1340,39 +1344,40 @@ sub read_crypto( $ ) {
 	    my $rule = { action => $action, 
 			 src => $src, dst => $dst, srv => $srv};
 	    push @{$crypto->{rules}}, $rule;
+	} elsif(my $type = check_assign 'type', \&read_typed_name) {
+	    $crypto->{type} and
+		error_atline "Redefining 'type' attribute";
+	    $crypto->{type} = $type;
 	} elsif(my @spokes = check_assign_list 'spoke', \&read_typed_ext_name) {
 	    push @{$crypto->{spoke}}, @spokes;
 	} elsif(my @hubs = check_assign_list 'hub', \&read_typed_ext_name) {
 	    push @{$crypto->{hub}}, @hubs;
 	} elsif(my @mesh = check_assign_list 'mesh', \&read_typed_ext_name) { 
 	    push @{$crypto->{meshes}}, [ @mesh ];
-	} elsif(my $type = check_assign 'type', \&read_typed_name) {
-	    $crypto->{type} and
-		error_atline "Redefining 'type' attribute";
-	    $crypto->{type} = $type;
 	} else {
 	    syntax_err "Expected valid attribute or rule";
 	}
     }
+    $crypto->{type} or error_atline "Missing type for $name";
     # Validity of tunnel definitions must be checked later,
-    # because we don't know interfaces inside a group.
+    # because we currently don't know interfaces defined inside groups.
     return $crypto; 
 }
 
 my %global_type =
-( router => [ \&read_router, \%routers ],
+( router =>  [ \&read_router,  \%routers ],
   network => [ \&read_network, \%networks ],
-  any => [ \&read_any, \%anys ],
-  every => [ \&read_every, \%everys ],
-  group => [ \&read_group, \%groups ],
+  any =>     [ \&read_any,     \%anys ],
+  every =>   [ \&read_every,   \%everys ],
+  group =>   [ \&read_group,   \%groups ],
   service => [ \&read_service, \%services ],
   servicegroup => [ \&read_servicegroup, \%servicegroups ],
-  policy => [ \&read_policy, \%policies ],
+  policy =>  [ \&read_policy,  \%policies ],
   pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
-  nat => [ \&read_global_nat, \%global_nat ],
-  isakmp => [ \&read_isakmp, \%isakmp ],
-  ipsec => [ \&read_ipsec, \%ipsec ],
-  crypto => [ \&read_crypto, \%crypto ],
+  nat =>     [ \&read_global_nat, \%global_nat ],
+  isakmp =>  [ \&read_isakmp,   \%isakmp ],
+  ipsec =>   [ \&read_ipsec,    \%ipsec ],
+  crypto =>  [ \&read_crypto,   \%crypto ],
 );
 
 sub read_netspoc() {
@@ -3512,17 +3517,17 @@ sub path_walk( $$;$ ) {
 	    if($at_router and (my $tree = $out->{crypto_rule_tree})) {
 		my($map, $overlap) = crypto_match $rule, $tree;
 		if($map) {
-		    my $end = $map->{end};
-		    my $next = $end->{path}->{$to};
-		    # Call at router of tunnel end.
+		    my $peer = $map->{peer};
+		    my $next = $peer->{path}->{$to};
+		    # Call at router at other end of tunnel.
 		    # Pass additional parameter $map, to indicate
-		    # that $end is tunnel interface.
-		    $fun->($rule, $end, $next, $map);
+		    # that $peer is tunnel interface.
+		    $fun->($rule, $peer, $next, $map);
 		    if($overlap) {
 			# Walk cleartext path as well.
 		    } else {
 			# Continue behind tunnel.
-			$in = $end;
+			$in = $peer;
 			$out = $next;
 		    }
 		}
@@ -3635,16 +3640,39 @@ sub reverse_rule ( $ ) {
     
 sub expand_crypto () {
     info "Preparing crypto tunnels and expanding crypto rules";
+    for my $ipsec (values %ipsec) {
+	# Convert name of isakmp definition to object with isakmp definition.
+	my($type, $name) = split_typed_name $ipsec->{'key-exchange'};
+	if($type eq 'isakmp') {
+	    my $isakmp =  $isakmp{$name} or 
+		err_msg "Can't resolve reference to '$type:$name'",
+		" for $ipsec->{name}";
+	    $ipsec->{'key-exchange'} = $isakmp;
+	} else {
+	    err_msg "Unknown type '$type' for $ipsec->{name}";
+	}
+    }
     for my $crypto (values %crypto) {
 	my $name = $crypto->{name};
+	# Convert name of ipsec definition to object with ipsec definition.
+	my($type, $name2) = split_typed_name $crypto->{type};
+	if($type eq 'ipsec') {
+	    my $ipsec =  $ipsec{$name2} or 
+		err_msg "Can't resolve reference to '$type:$name2'",
+		" for $name";
+	    $crypto->{type} = $ipsec;
+	} else {
+	    err_msg "Unknown type '$type' for $name";
+	}
+	# Resolve tunnel endpoints to lists of interfaces.
 	for my $what ('hub', 'spoke') {
 	    $crypto->{$what} =
 		expand_group($crypto->{$what}, "$what of $name");
 	    for my $element (@{$crypto->{$what}}) {
 		next if is_interface $element;
+		# [auto] interface is represented by router object.
 		next if is_router $element;
-		err_msg "Illegal element in $what of $name:",
-		"$element->{name}";
+		err_msg "Illegal element in $what of $name: $element->{name}";
 	    }
 	}
 	for my $mesh (@{$crypto->{meshes}}) {
@@ -3652,8 +3680,7 @@ sub expand_crypto () {
 	    for my $element (@$mesh) {
 		next if is_interface $element;
 		next if is_router $element;
-		err_msg "Illegal element in mesh of $name:",
-		"$element->{name}";
+		err_msg "Illegal element in mesh of $name: $element->{name}";
 	    }
 	}
 	my @pairs;
@@ -3721,21 +3748,23 @@ sub expand_crypto () {
 	    }
 	    # Add a data structure for each tunnel, which is used to collect
 	    # - crypto ACL
-	    # - crypto access-group for IOS >= 12.0.8
+	    # - crypto access-group for devices which allow separate filtering
+	    #   for encrypted traffic (no attribute no_crypto_filter).
 	    # Data will be used later to generate "crypto map" commands.
 	    my $crypto_map = { rules => [],
 			       crypto => $crypto,
-			       end => $intf2, };
+			       peer => $intf2, };
 	    $intf1->{tunnel}->{$intf2} = $crypto_map;
 	    push @{$intf1->{hardware}->{crypto_maps}}, $crypto_map
 		if $intf1->{router}->{managed};
 	    $crypto_map =  { rules => [],
 			     crypto => $crypto,
-			     end => $intf1, };
+			     peer => $intf1, };
 	    $intf2->{tunnel}->{$intf1} = $crypto_map;
 	    push @{$intf2->{hardware}->{crypto_maps}}, $crypto_map
 		if $intf2->{router}->{managed};
 	    # Add rules, which permits crypto traffic between tunnel endpoints.
+	    # ToDo: consider NAT traversal and AH.
 	    my $rules = [ { action => 'permit',
 			    src => $intf1,
 			    dst => $intf2,
@@ -4774,7 +4803,7 @@ sub distribute_rule( $$$;$ ) {
 	}
     }
     my $aref;
-    my $store = ($in_crypto_map && $model->{has_tunnel_filter}) ?
+    my $store = ($in_crypto_map && ! $model->{no_crypto_filter}) ?
 	$in_crypto_map : $in_intf->{hardware};
 #   debug "$router->{name} store: $store->{name}";
     if(not $out_intf) {
@@ -5695,11 +5724,38 @@ sub print_acls( $ ) {
 
 sub print_crypto( $ ) {
     my($router) = @_;
-    return unless grep $_->{crypto_maps}, @{$router->{hardware}};
+    # List of ipsec definitions used at current router.
+    my @ipsec;
+    # How often each ipsec definition is used.
+    my %ipsec;
+    # Find, which ipsec definitions are used at current router.
+    for my $hardware (@{$router->{hardware}}) {
+	for my $crypto_map (@{$hardware->{crypto_maps}}) {
+	    my $ipsec = $crypto_map->{crypto}->{type};
+	    unless($ipsec{$ipsec}++) {
+		push @ipsec, $ipsec;
+	    }
+	}
+    }
+    # Return if no crypto is used at current router.
+    return unless @ipsec;
+    
+    # List of isakmp definitions used at current router.
+    my @isakmp;
+    # How often each isakmp definition is used.
+    my %isakmp;
+    # Find, which isakmp definitions are used at current router.
+    for my $ipsec (@ipsec) {
+	my $isakmp = $ipsec->{'key-exchange'};
+	unless($isakmp{$isakmp}++) {
+	    push @isakmp, $isakmp;
+	}
+    }
     my $model = $router->{model};
-    my $filter = $model->{filter};
-    unless($filter eq 'IOS' or $filter eq 'PIX') {
-	err_msg "Crypto not supported for $router->{name} of type $filter";
+    my $crypto_type = $model->{crypto};
+    unless($crypto_type) {
+	err_msg
+	    "Crypto not supported for $router->{name} of type $model->{name}";
 	return;
     }
     my $comment_char = $model->{comment_char};
@@ -5716,21 +5772,23 @@ sub print_crypto( $ ) {
 	    $seq_num++;
 	    my $crypto_acl_name = "crypto-$name-$seq_num";
 	    my $prefix;
-	    if($filter eq 'IOS') {
+	    if($crypto_type eq 'IOS') {
 		$prefix = '';
 		print "ip access-list extended $crypto_acl_name\n";
-	    } elsif($filter eq 'PIX') {
+	    } elsif($crypto_type eq 'PIX') {
 		$prefix = "access-list $crypto_acl_name";
-	    } 
+	    } else {
+		internal_err;
+	    }
 	    acl_line $map->{rules}, $nat_map, $prefix, $model;
-	    my $peer = $map->{end};
+	    my $peer = $map->{peer};
 	    # Take first IP. 
 	    # Unnumberd and short interfaces have been rejected already.
 	    my $peer_ip = print_ip $peer->{ip}->[0];
-	    if($filter eq 'IOS') {
+	    if($crypto_type eq 'IOS') {
 		$prefix = '';
 		print "crypto map $map_name $seq_num ipsec-isakmp\n";
-	    } elsif($filter eq 'PIX') {
+	    } elsif($crypto_type eq 'PIX') {
 		$prefix = "crypto map $map_name $seq_num";
 		print "$prefix ipsec-isakmp\n";
 	    } 
