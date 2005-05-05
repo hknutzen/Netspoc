@@ -43,6 +43,7 @@ my($in_path, $out_dir) = &read_args();
 &expand_policies(1);	# 1: expand hosts to subnets
 # Abort now, if there are syntax errors and simple semantic errors.
 die "Aborted with $error_counter error(s)\n" if $error_counter;
+&expand_crypto();
 &check_unused_groups();
 &optimize();
 &check_any_rules();
