@@ -2050,7 +2050,7 @@ sub convert_hosts() {
 			"$other_subnet->{name} and $host->{name}";
 		    } elsif($nat and $nat2) {
 			# Number of entries is equal.
-			if(keys %$nat eq keys %$nat2) {
+			if(keys %$nat == keys %$nat2) {
 			    # Entries are equal.
 			    for my $name (keys %$nat) {
 				unless($nat2->{$name} and
@@ -2137,6 +2137,12 @@ sub convert_hosts() {
 		    $subnet->{up} ||= $network;
 		}
 	    }
+	}
+	# Attribute {up} has been set for all subnets now.
+	# Do the same for interfaces and the network itself.
+	$network->{up} = $network->{any};
+	for my $interface (@{$network->{interfaces}}) {
+	    $interface->{up} = $network;
 	}
     }
 }
@@ -2430,7 +2436,6 @@ sub add_rules( $$ ) {
 # - Name of policy or crypto object for error messages.
 # - Reference to hash with attributes deny, any, permit for storing
 #   expanded rules of different type.
-# - Rule tree where expanded rules are stored for fast lookup.
 sub expand_rules ( $$$ ) {
     my($rules_ref, $name, $result) = @_;
     # For collecting resulting expanded rules.
@@ -3790,8 +3795,10 @@ sub expand_crypto () {
 # Convert typed names in crypto rule to internal objects.
 	for my $rule (@{$crypto->{rules}}) {
 	    for my $where ('src', 'dst') {
-		$rule->{$where} =
-		    expand_group $rule->{$where}, "$where of rule in $name";
+		$rule->{$where} = expand_group($rule->{$where},
+					       "$where of rule in $name",
+					       # Convert hosts to subnets.
+					       1);
 	    }
 	    $rule->{srv} = expand_services $rule->{srv}, "rule of $name";
 	}
@@ -4286,14 +4293,6 @@ sub optimize_rules( $$ ) {
 
 sub optimize() {
     info "Global optimization";
-    # Prepare data structures
-    for my $network (@networks) {
-	next if $network->{up};
-	$network->{up} = $network->{any};
-	for my $interface (@{$network->{interfaces}}) {
-	    $interface->{up} = $network;
-	}
-    }
     optimize_rules \%rule_tree, \%rule_tree;
 }
 
@@ -5481,12 +5480,6 @@ sub find_chains ( $ ) {
 
 sub local_optimization() {
     info "Local optimization";
-    # Prepare data structures.
-    for my $network (@networks) {
-	for my $interface (@{$network->{interfaces}}) {
-	    $interface->{up} = $network;
-	}
-    }
     for my $rule (@{$expanded_rules{any}}, @{$expanded_rules{permit}}) {
 	next if $rule->{deleted} and not $rule->{managed_intf};
 	$rule->{src} = $network_00 if is_any $rule->{src};
