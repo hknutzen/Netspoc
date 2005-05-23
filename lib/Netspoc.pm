@@ -1666,17 +1666,6 @@ sub order_services() {
     order_ranges($srv_hash{udp}, $up);
     order_icmp($srv_hash{icmp}, $up) if $srv_hash{icmp};
     order_proto($srv_hash{proto}, $up) if $srv_hash{proto};
-    for my $srv ($srv_ip, $srv_tcp_established,
-		 values %{$srv_hash{tcp}}, values %{$srv_hash{udp}},
-		 values %{$srv_hash{icmp}}, values %{$srv_hash{proto}}) {
-	my $depth = 0;
-	my $up = $srv;
-	while($up = $up->{up}) {
-	    $depth++;
-	}
-	$srv->{depth} = $depth;
-#	debug "$srv->{name} < $srv->{up}->{name}" if $srv->{up};
-    }
 }
 
 ####################################################################
