@@ -1,5 +1,45 @@
 ToDo list for NetSPoC, a Network Security Policy Compiler
 
+- Doppelter Code in simlr-gap1 und sidzsh, der von local_optimization nicht
+  gefunden wird. (entstanden nachdem doppelte Regeln nicht mehr in
+  distribute_rule verhindert werden.)
+
+- Code für ISAKMP- und IPSEC-Definitionen generieren bzw. verwenden.
+
+- crypto rules mit any: path_walk findet ggf. den passenden Tunnel nicht,
+  da als Repräsentant für das any ein beliebiges network genommen wird.
+  Möglicherweise solche Rules nur zulassen, wenn Tunnel-Ende auf managed
+  Interface liegt.
+
+- crypto_match: Was passiert mit deny rules aus Policies?
+
+- crypto access-group: sind die stateful bei IOS_FW?
+
+- crypto ACLs: sind die immer stateless? Auch bei PIX? Bei racoon?
+  Sollen für Antwortpakete automatisch crypto ACLs generiert werden?
+
+- crypto ACLs: kann racoon auch mit deny-Regeln umgehen? Das geht mit
+  "setkey ... -P in/out ... none", aber wie passt das zu racoon?
+
+- isakmp Definition: add exchange_mode (main | aggressive | base)
+  Was ist base?
+
+- Objekte ipsec und isakmp mit Typ versehen und in crypto->{type} sowie
+  ipsec->{'key-exchange'} darauf prüfen.
+
+- Automatische Regeln für IPSec-Traffic: Anpassen an Definition von isakmp:
+  NAT-Traversal und ipsec: AH und / oder ESP.
+
+- crypto: beim path_walk zum verteilen der crypto-rules auf die Tunnel,
+  kann es da auftreten, dass versehentlich ein bereits aktiver Tunnel
+  durchlaufen wird. Also geschachtelte Tunnel nicht bemerkt werden?
+  Oder wir zumindest (je nach Reihenfolge) nicht deterministische Ergebnisse
+  erhalten?
+
+- path_walk: If path starts with a loop, we currently assume, there is at
+  least one acyclic part before the next loop starts. Is this always true?
+  May two loops be directly adjacent?
+
 - Definition of and code generation for IPSec tunnels. 
   This has high precedence on our agenda.  
 
@@ -8,6 +48,9 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
   networks arn't statically translated to the same IP address.
 
 - Add more documentation and example for global NAT definitions.
+
+- Add documentation for automatically generated deny rules which prevent
+  unwanted access to interfaces of managed routers.
 
 - PIX statics: Für nat/global ist es nicht richtig, die dst-Networks
   einer Rule zu betrachten. Wir benötigen hier stattdessen die src.
