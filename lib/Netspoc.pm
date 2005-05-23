@@ -106,6 +106,9 @@ our $max_errors = 10;
 our $store_description = 0;
 # Print warning about ignored icmp code fields at PIX firewalls.
 my $warn_pix_icmp_code = 0;
+# Use nonlocal function exition for efficiency.
+# Perl profiler doesn't work if this is active.
+my $use_nonlocal_exit = 1;
 
 ####################################################################
 # Attributes of supported router models
@@ -3378,8 +3381,6 @@ sub loop_path_walk( $$$$$$$ ) {
     }
 }    
 
-my %ref2srv;
-
 sub check_less_equal ( $$ ) {
     my($rule, $rule_tree) = @_;
     my $src = $rule->{src};
@@ -3404,62 +3405,90 @@ sub check_less_equal ( $$ ) {
     return undef;
 }
 
-sub check_greater_equal ( $$ ) {
+# Find all rules in $rule_tree which are related to $rule and return
+# appertaining crypto maps.
+# Two rules r1 and r2 are related, if
+# - r1.src op r2.src and r1.dst op r2.dst and r1.srv op r2.srv
+# with op: <= or >=
+sub find_related_rules ( $$ ) {
     my($rule, $rule_tree) = @_;
-    my($src1, $dst1, $srv1) = @{$rule}{'src', 'dst', 'srv'};
-    for my $src_ref (keys %$rule_tree) {
-	my $rule_tree = $rule_tree->{$src_ref};
-	my $src2 = $ref2obj{$src_ref};
-	while(1) {
-	    if($src1 eq $src2) {
-		for my $dst_ref (keys %$rule_tree) {
-		    my $rule_tree = $rule_tree->{$dst_ref};
-		    my $dst2 = $ref2obj{$dst_ref};
-		    while(1) {
-			if($dst1 eq $dst2) {
-			    for my $srv_ref (keys %$rule_tree) {
-				my $srv2 = $ref2srv{$srv_ref};
-				while(1) {
-				    if($srv1 eq $srv2) {
-					my $map = $rule_tree->{$srv_ref};
-					return $map;
-				    }
-				    $srv2 = $srv2->{up} or last;
-				}
-			    }
-			}
-			$dst2 = $dst2->{up} or last;
+    my $result;
+    my $overlap;
+    my $src = $rule->{src};
+    my $check_dst = sub ( $$ ) {
+	my($rule_tree, $above) = @_;
+	my $dst = $rule->{dst};
+	my $check_srv = sub ( $$ ) {
+	    my($rule_tree, $above) = @_;
+	    my $srv = $rule->{srv};
+	    if(my $aref = $rule_tree->{above}->{$srv}) {
+		for my $map (@$aref) {
+		    push @$result, $map;
+		    $overlap = 1;
+		}
+	    } else {
+		while(1) {
+		    if(my $map = $rule_tree->{$srv}) {
+			push @$result, $map;
+			$overlap |= $above;
+			last;
 		    }
+		    $srv = $srv->{up} or last;
 		}
 	    }
-	    $src2 = $src2->{up} or last;
+	};
+	if(my $aref = $rule_tree->{above}->{$dst}) {
+	    for my $rule_tree (@$aref) {
+		$check_srv->($rule_tree, 1);
+	    }
+	} else {
+	    while(1) {
+		if(my $rule_tree = $rule_tree->{$dst}) {
+		    $check_srv->($rule_tree, $above);
+		}
+		$dst = $dst->{up} or last;
+	    }
+	}
+    };
+    if(my $aref = $rule_tree->{above}->{$src}) {
+	for my $rule_tree (@$aref) {
+	    $check_dst->($rule_tree, 1);
+	}
+    } else {
+	while(1) {
+	    if(my $rule_tree = $rule_tree->{$src}) {
+		$check_dst->($rule_tree, 0);
+	    }
+	    $src = $src->{up} or last;
 	}
     }
-    return undef;
+    return $result ? ($result, $overlap) : ();
 }
 
-# Check if $rule matches rules in $rule_tree.
+# Check if 
+# - $rule matches rules in $rule_tree ($rule <= some element of $rule_tree) or
+# - $rule overlaps rules in $rule_tree 
+#   ($rule has intersection with some element(s) of $rule_tree)
 sub crypto_match( $$ ) {
     my($rule, $rule_tree) = @_;
-    my $overlap = 0;
+    my $some_deny = 0;
+    # Todo: What about deny- $rule.
     if(my $deny_tree = $rule_tree->{deny}) {
-	if(check_less_equal $rule, $deny_tree) {
-	    # Packets described by $rule never pass tunnel.
-	    return undef;
-	} 
-	if(check_greater_equal $rule, $rule_tree->{deny}) {
-	    # Some packets don't pass tunnel.
-	    $overlap = 1;
+	if(my($map_aref, $overlap) = find_related_rules $rule, $deny_tree) {
+	    if(not $overlap) {
+		# Packets described by $rule never pass tunnel.
+		return ();
+	    } else {
+		# Some packets don't pass tunnel, but continue checking.
+		$some_deny = 1;
+	    }
 	}
     }
-    if(my $map = check_less_equal $rule, $rule_tree->{permit}) {
-	# All packets pass tunnel.
-	return $map, $overlap;
-    } elsif($map = check_greater_equal $rule, $rule_tree->{permit}) {
-	# Some packets pass tunnel.
-	return $map, 1;
+    if(my($map_aref, $overlap) =
+       find_related_rules $rule, $rule_tree->{permit}) {
+	return $map_aref, $overlap | $some_deny;
     } else {
-	return undef;
+	return ();
     }
 }
 
@@ -3498,6 +3527,8 @@ sub path_walk( $$;$ ) {
     my $at_router = not($where && $where eq 'Network');
     my $call_it = (is_network($from) xor $at_router);
     # Path starts inside a cyclic graph.
+    # Crypto tunnel must not start inside acyclid graph, 
+    # hence no crypto check needed.
     if($from->{loop_exit} and my $loop_exit = $from->{loop_exit}->{$to}) {
 	my $loop_out = $from->{path}->{$to};
 	loop_path_walk $in, $loop_out, $from, $loop_exit,
@@ -3520,20 +3551,23 @@ sub path_walk( $$;$ ) {
 	    # Check if a crypto tunnel is applicable.
 	    # Crypto tunnel is only used in mode $at_router.
 	    if($at_router and (my $tree = $out->{crypto_rule_tree})) {
-		my($map, $overlap) = crypto_match $rule, $tree;
-		if($map) {
-		    my $peer = $map->{peer};
-		    my $next = $peer->{path}->{$to};
-		    # Call at router at other end of tunnel.
-		    # Pass additional parameter $map, to indicate
-		    # that $peer is tunnel interface.
-		    $fun->($rule, $peer, $next, $map);
-		    if($overlap) {
-			# Walk cleartext path as well.
-		    } else {
-			# Continue behind tunnel.
-			$in = $peer;
-			$out = $next;
+		my($map_aref, $overlap) = crypto_match $rule, $tree;
+		if($map_aref) {
+		    for my $map (@$map_aref) {
+			my $peer = $map->{peer};
+			my $next = $peer->{path}->{$to};
+			# Call at router at other end of tunnel.
+			# Pass additional parameter $map, to indicate
+			# that $peer is tunnel interface.
+			$fun->($rule, $peer, $next, $map);
+			if($overlap) {
+			    # Walk cleartext path as well.
+			} else {
+			    # Continue behind tunnel.
+			    # This happens only if @$map_aref == 1.
+			    $in = $peer;
+			    $out = $next;
+			}
 		    }
 		}
 	    }
@@ -3596,12 +3630,15 @@ sub distribute_crypto_rule ( $$$ ) {
 		$map->{crypto} eq $rule->{crypto} or
 		    err_msg "Tunnel between $start_inf->{name} and",
 		    " $in_intf->{name}\n",
-		    " belongs to $map->{crypto}->{name} but matching rule\n",
+		    " belongs to $map->{crypto}->{name} but matching rule\n ",
 		    print_rule $rule, "\n",
 		    " belongs to $rule->{crypto}->{name}";
-		$rule->{tunnel} and
-		    err_msg "Multiple tunnels are matching rule\n",
-		    print_rule $rule;
+		if(my $tunnel = $rule->{tunnel}) {
+		    err_msg "Multiple tunnels are matching rule\n ",
+		    print_rule $rule,
+		    "\n Tunnel: $tunnel->[0]->{name} -- $tunnel->[1]->{name}",
+		    "\n Tunnel: $start_inf->{name} -- $in_intf->{name}";
+		}
 		$rule->{tunnel} = [ $start_inf, $in_intf ];
 	    }
 	}
@@ -3612,7 +3649,7 @@ sub distribute_crypto_rule ( $$$ ) {
     }
 }
 
-# Reverses a crypto rule and checks if srv is valid for IPSec.
+# Reverse a crypto rule and check if srv is valid for IPSec.
 sub reverse_rule ( $ ) {
     my($rule) = @_;
     my($action, $src, $dst, $srv) = @{$rule}{'action', 'src', 'dst', 'srv'};
@@ -3635,14 +3672,12 @@ sub reverse_rule ( $ ) {
     } else {
 	$new_srv = $srv;
     }
-    $ref2srv{$srv} = $srv;
-    $ref2srv{$new_srv} = $new_srv;
     my $new_rule = { action => $action,
 		     src => $dst,
 		     dst => $src,
 		     srv => $new_srv };
 }
-    
+
 sub expand_crypto () {
     info "Preparing crypto tunnels and expanding crypto rules";
     for my $ipsec (values %ipsec) {
@@ -3819,11 +3854,29 @@ sub expand_crypto () {
 		err_msg "Duplicate crypto rule at $start->{name}\n ",
 		print_rule $rule;
 	    }
-	    # crypto_rule_tree is used to effiently decide, if a policy rule
-	    # uses a tunnel or not.
+	    # crypto_rule_tree is used to effiently decide, 
+	    # if a policy rule fully uses a tunnel or not.
 	    # $ref2obj has already been filled by expand_rules
 	    $start->{crypto_rule_tree}->{$action}->{$src}->{$dst}->{$srv} =
 		$crypto_map;
+	    # Additionally add entries to crypto_rule_tree, which allow
+	    # for efficient test, if a rule has intersection with some
+	    # rule(s) in crypto_rule_tree.
+	    my $subtree = $start->{crypto_rule_tree}->{$action};
+	    my $subtree2 = $subtree->{$src};
+	    while($src = $src->{up}) {
+		push(@{$subtree->{above}->{$src}}, $subtree2);
+	    }
+	    $subtree = $subtree2;
+	    $subtree2 = $subtree->{$dst};
+	    while($dst = $dst->{up}) {
+		push(@{$subtree->{above}->{$dst}}, $subtree2);
+	    }
+	    $subtree = $subtree2;
+	    $subtree2 = $subtree->{$srv};
+	    while($srv = $srv->{up}) {
+		push(@{$subtree->{above}->{$srv}}, $subtree2);
+	    }		
 	    # Rules are stored additionally in crypto_map for code generation.
 	    push @{$crypto_map->{rules}}, $rule;
 	};
@@ -3840,15 +3893,15 @@ sub expand_crypto () {
 	}
 	for my $rule (@permit) {
 	    $rule->{crypto} = $crypto;
-	    # This additionally checks, if srv is valid for IPSec.
-	    my $reverse_rule = reverse_rule $rule;
 	    # Find tunnel where $rule is applicable.
 	    path_walk($rule, \&distribute_crypto_rule);
+	    # Clean up helper attribute of &distribute_crypto_rule
+	    delete $rule->{tunnel_start};
 	    if(my $tunnel = $rule->{tunnel}) {
+		delete $rule->{tunnel};
 		my($start, $end) = @$tunnel;
 		$add_rule->($rule, $start, $end);
-		$add_rule->($reverse_rule, $end, $start);
-		delete $rule->{tunnel};
+		$add_rule->(reverse_rule $rule, $end, $start);
 	    } else {
 		err_msg "No matching tunnel found for rule of $name\n ",
 		    print_rule $rule;
@@ -4142,14 +4195,14 @@ sub gen_reverse_rules1 ( $ ) {
 			$has_stateless_router = 1;
 			# Jump out of path_walk.
 			no warnings "exiting";
-			last PATH_WALK;
+			last PATH_WALK if $use_nonlocal_exit;
 		    }
 		}
 		elsif($model->{stateless}) {
 		    $has_stateless_router = 1;
 		    # Jump out of path_walk.
 		    no warnings "exiting";
-		    last PATH_WALK;
+		    last PATH_WALK if $use_nonlocal_exit;
 		}
 	    };
 	    path_walk($rule, $mark_reverse_rule);
@@ -4232,7 +4285,7 @@ sub mark_secondary_rules() {
 		$rule->{has_full_filter} = 1;
 		# Jump out of path_walk.
 		no warnings "exiting";
-		next RULE;
+		next RULE if $use_nonlocal_exit;
 	    }
 	};
 	path_walk($rule, $mark_secondary_rule);
@@ -4331,7 +4384,8 @@ sub collect_route( $$$ ) {
 	# This router and all routers from here to dst have been processed
 	# already. 
 	# But we can't be shure about this, if we are walking inside a loop.
-	if($in_intf->{routes}->{$out_intf}->{$network} and
+	if($use_nonlocal_exit and
+	   $in_intf->{routes}->{$out_intf}->{$network} and
 	   not $in_intf->{in_loop}) {
 	    # Jump out of path_walk in sub find_active_routes_and_statics
 	    no warnings "exiting";
@@ -4422,7 +4476,8 @@ sub mark_networks_for_static( $$$ ) {
 	if $in_hw->{level} == $out_hw->{level};
     # This router and all routers from here to dst have been processed already.
     # But we can't be shure about this, if we are walking inside a loop.
-    if($out_hw->{static}->{$in_hw}->{$dst} and not $in_intf->{in_loop}) {
+    if($use_nonlocal_exit and
+       $out_hw->{static}->{$in_hw}->{$dst} and not $in_intf->{in_loop}) {
 	# Jump out of path_walk in sub find_active_routes_and_statics
 	no warnings "exiting";
 	next RULE;
