@@ -3545,10 +3545,11 @@ sub path_walk( $$;$ ) {
 		    for my $map (@$map_aref) {
 			my $peer = $map->{peer};
 			my $next = $peer->{path}->{$to};
+			my $peer_map = $peer->{tunnel}->{$out};
 			# Call at router at other end of tunnel.
-			# Pass additional parameter $map, to indicate
+			# Pass additional parameter $peer_map, to indicate
 			# that $peer is tunnel interface.
-			$fun->($rule, $peer, $next, $map);
+			$fun->($rule, $peer, $next, $peer_map);
 			if($overlap) {
 			    # Walk cleartext path as well.
 			} else {
@@ -3780,14 +3781,12 @@ sub expand_crypto () {
 	    # - crypto access-group for devices which allow separate filtering
 	    #   for encrypted traffic (no attribute no_crypto_filter).
 	    # Data will be used later to generate "crypto map" commands.
-	    my $crypto_map = { rules => [],
-			       crypto => $crypto,
+	    my $crypto_map = { crypto => $crypto,
 			       peer => $intf2, };
 	    $intf1->{tunnel}->{$intf2} = $crypto_map;
 	    push @{$intf1->{hardware}->{crypto_maps}}, $crypto_map
 		if $intf1->{router}->{managed};
-	    $crypto_map =  { rules => [],
-			     crypto => $crypto,
+	    $crypto_map =  { crypto => $crypto,
 			     peer => $intf1, };
 	    $intf2->{tunnel}->{$intf1} = $crypto_map;
 	    push @{$intf2->{hardware}->{crypto_maps}}, $crypto_map
@@ -3867,7 +3866,7 @@ sub expand_crypto () {
 		push(@{$subtree->{above}->{$srv}}, $subtree2);
 	    }		
 	    # Rules are stored additionally in crypto_map for code generation.
-	    push @{$crypto_map->{rules}}, $rule;
+	    push @{$crypto_map->{crypto_rules}}, $rule;
 	};
 	if(@deny) {
 	    err_msg "Deny rules are currently not supported.\n",
@@ -4865,12 +4864,7 @@ sub distribute_rule( $$$;$ ) {
 #	debug "$router->{name} rule: ",print_rule $rule,"\n";
 	$aref = \@{$store->{rules}};
     }
-    # Add rule, but prevent duplicates, which might occur 
-    # at the start of a loop.
-    # Therefore check if last rule and current rule are identical.
-    push @$aref, $rule
-	unless @$aref and $aref->[$#$aref] eq $rule;
-
+    push @$aref, $rule;
 }
 
 # For rules with src=any:*, call distribute_rule only for
@@ -5625,7 +5619,7 @@ sub local_optimization() {
 	}
     }
 }	    
-	
+
 sub print_acls( $ ) {
     my($router) = @_;
     my $model = $router->{model};
@@ -5704,9 +5698,9 @@ sub print_acls( $ ) {
 		}
 		# Protect own interfaces.
 		push(@{$hardware->{intf_rules}}, { action => 'deny',
-						   src => $network_00,
-						   dst => $interface,
-						   srv => $srv_ip });
+ 						   src => $network_00,
+ 						   dst => $interface,
+ 						   srv => $srv_ip });
 	    }
 	}
 	if($filter eq 'iptables') {
@@ -5828,6 +5822,7 @@ sub print_crypto( $ ) {
 	my $nat_map = $hardware->{nat_map};
 	for my $map (@{$hardware->{crypto_maps}}) {
 	    $seq_num++;
+	    # Print crypto ACL. It controls which traffic needs to be encrypted.
 	    my $crypto_acl_name = "crypto-$name-$seq_num";
 	    my $prefix;
 	    if($crypto_type eq 'IOS') {
@@ -5838,21 +5833,38 @@ sub print_crypto( $ ) {
 	    } else {
 		internal_err;
 	    }
-	    acl_line $map->{rules}, $nat_map, $prefix, $model;
-	    my $peer = $map->{peer};
-	    # Take first IP. 
-	    # Unnumberd and short interfaces have been rejected already.
-	    my $peer_ip = print_ip $peer->{ip}->[0];
+	    acl_line $map->{crypto_rules}, $nat_map, $prefix, $model;
+	    # Print filter ACL. It controls which traffic is allowed to leave
+	    # from crypto tunnel. This may be needed, if we don't fully trust 
+	    # our peer.
+	    my $crypto_filter_name;
+	    if($map->{intf_rules} || $map->{rules}) {
+		$crypto_filter_name = "crypto-filter-$name-$seq_num";
+		if($crypto_type eq 'IOS') {
+		    $prefix = '';
+		    print "ip access-list extended $crypto_filter_name\n";
+		} elsif($crypto_type eq 'PIX') {
+		    $prefix = "access-list $crypto_filter_name";
+		}
+		acl_line $map->{intf_rules}, $nat_map, $prefix, $model;
+		acl_line $map->{rules}, $nat_map, $prefix, $model;
+	    }
 	    if($crypto_type eq 'IOS') {
 		$prefix = '';
 		print "crypto map $map_name $seq_num ipsec-isakmp\n";
 	    } elsif($crypto_type eq 'PIX') {
 		$prefix = "crypto map $map_name $seq_num";
 		print "$prefix ipsec-isakmp\n";
-	    } 
+	    }
+	    my $peer = $map->{peer};
+	    # Take first IP. 
+	    # Unnumberd and short interfaces have been rejected already.
+	    my $peer_ip = print_ip $peer->{ip}->[0];
 	    print "$prefix match address $crypto_acl_name\n";
+	    $crypto_filter_name and 
+		print "$prefix set ip access-group $crypto_filter_name in\n";
 	    print "$prefix set peer $peer_ip\n";
-	    print "$prefix set transform-set sha-aes192\n";
+	    print "$prefix set transform-set 3des-sha-trans\n";
 	}
     }
 }
