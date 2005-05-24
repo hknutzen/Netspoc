@@ -1287,25 +1287,36 @@ sub read_attributed_object( $$ ) {
 	$object->{$attribute} = $val;
     }
     for my $attribute (keys %$attr_descr) {
-	next if defined $object->{$attribute};
-	if(my $default = $attr_descr->{$attribute}->{default}) {
-	    $object->{$attribute} = $default;
-	} else {
-	    error_atline "Missing attribute for $object->{name}";
+	my $description = $attr_descr->{$attribute};
+	unless(defined $object->{$attribute}) {
+	    if(my $default = $description->{default}) {
+		$object->{$attribute} = $default;
+	    } else {
+		error_atline "Missing attribute for $object->{name}";
+	    }
 	}
+	# Convert to from syntax to internal values, e.g. 'none' => undef.
+	if(my $map = $description->{map}) {
+	    my $value = $object->{$attribute};
+	    if(exists $map->{$value}) {
+		$object->{$attribute} = $map->{$value};
+	    }
+	}	
     }
     return $object; 
 }
 
 my %isakmp_attributes = 
-( identity => { values => [ qw( address fqdn ) ], },
-  'nat-traversal' => { values => [ qw( on off ) ], default => 'off' },
-  authentication => { values => [ qw( pre-share rsa-sig ) ], },
-  encryption => { values => [ qw( aes aes-192 des 3des ) ], },
-  hash => { values => [ qw( md5 sha ) ], },
-  group => { values => [ qw( 1 2 5 ) ], },
-  lifetime => { function => \&read_time_val, },
-  );
+    ( identity => { values => [ qw( address fqdn ) ], },
+      nat_traversal => { values => [ qw( on off ) ], 
+			 default => 'off',
+			 map => { off => undef } },
+      authentication => { values => [ qw( preshare rsasig ) ], },
+      encryption => { values => [ qw( aes aes192 des 3des ) ], },
+      hash => { values => [ qw( md5 sha ) ], },
+      group => { values => [ qw( 1 2 5 ) ], },
+      lifetime => { function => \&read_time_val, },
+      );
 
 our %isakmp;
 sub read_isakmp( $ ) {
@@ -1314,15 +1325,21 @@ sub read_isakmp( $ ) {
 }
 
 my %ipsec_attributes = 
-( 'key-exchange' => { function => \&read_typed_name, },
-  'esp-encryption' => { values => [ qw( none aes aes-192 des 3des ) ],
-			default => 'none', },
-  'esp-authentication' => { values => [ qw( none md5-hmac sha-hmac ) ],
-			    default => 'none', },
-  ah => { values => [ qw( none md5-hmac sha-hmac ) ], default => 'none', },
-  'pfs-group' => { values => [ qw( none 1 2 5 ) ], default => 'none', },
-  lifetime => { function => \&read_time_val, },
-  );
+    ( key_exchange => { function => \&read_typed_name, },
+      esp_encryption => { values => [ qw( none aes aes192 des 3des ) ],
+			  default => 'none', 
+			  map => { none => undef } },
+      esp_authentication => { values => [ qw( none md5_hmac sha_hmac ) ],
+			      default => 'none',
+			      map => { none => undef } },
+      ah => { values => [ qw( none md5_hmac sha_hmac ) ],
+	      default => 'none',
+	      map => { none => undef } },
+      pfs_group => { values => [ qw( none 1 2 5 ) ],
+		     default => 'none',
+		     map => { none => undef } },
+      lifetime => { function => \&read_time_val, },
+      );
   
 our %ipsec;
 sub read_ipsec( $ ) {
@@ -1624,35 +1641,41 @@ sub add_reverse_srv( $ ) {
     }
 }
 
-# Service "ip" is needed later for secondary rules and 
+# Service 'ip' is needed later for secondary rules and 
 # automatically generated deny rules.
 my $srv_ip;
-# Services "ike" and "esp" are needed later for IPSec tunnels.
+# Services 'ike', 'natt', 'esp' and 'ah' are needed later for IPSec tunnels.
 my $srv_ike;
+my $srv_natt;	# NAT traversal.
 my $srv_esp;
-# Service "tcp established" is needed later for reverse rules.
+my $srv_ah;
+# Service 'tcp established' is needed later for reverse rules.
 my $srv_tcp_established = 
 { name => 'reverse:TCP_ANY',
   proto => 'tcp', ports => [ 1,65535, 1,65535 ], established => 1 };
 
 # Order services. We need this to simplify optimization.
 # Additionally add
-# - one TCP "established" service and 
+# - one TCP 'established' service and 
 # - reversed UDP services 
 # for generating reverse rules later.
-# Add reversed TCP services
-# for generating reverse crypto rules.
+# Add reversed TCP services for generating reverse crypto rules.
 sub order_services() {
-    info "Arranging services";
+    info 'Arranging services';
     for my $srv (values %services) {
 	prepare_srv_ordering $srv;
     }
+    # Source and destination port (range) is set to 500.
     prepare_srv_ordering { name => 'auto_srv:IPSec_IKE',
 			   proto => 'udp', ports => [ 500,500, 500,500 ] };
-    # Source and destination port (range) is set to 500.
     $srv_ike = $srv_hash{udp}->{'500:500:500:500'};
+    prepare_srv_ordering { name => 'auto_srv:IPSec_NATT',
+			   proto => 'udp', ports => [ 4500,4500, 4500,4500 ] };
+    $srv_natt = $srv_hash{udp}->{'4500:4500:4500:4500'};
     prepare_srv_ordering { name => 'auto_srv:IPSec_ESP', proto => 50 };
     $srv_esp = $srv_hash{proto}->{50};
+    prepare_srv_ordering { name => 'auto_srv:IPSec_AH', proto => 51 };
+    $srv_ah = $srv_hash{proto}->{51};
     prepare_srv_ordering { name => 'auto_srv:ip', proto => 'ip' };
     my $up = $srv_ip = $srv_hash{ip};
     if(my $tcp = $srv_hash{tcp}->{'1:65535:1:65535'}) {
@@ -3608,7 +3631,7 @@ sub path_first_interfaces( $$ ) {
 ########################################################################
 
 # ToDo: Currently exactly one single tunnel must be found.
-# Later we should be able to find the longest tunnel out of multipl tunnels.
+# Later we should be able to find the longest tunnel out of multiple tunnels.
 # But overlapping tunnels must not be accepted, to avoid inconsistent paths.
 sub distribute_crypto_rule ( $$$ ) {
     my($rule, $in_intf, $out_intf) = @_;
@@ -3672,12 +3695,12 @@ sub expand_crypto () {
     info "Preparing crypto tunnels and expanding crypto rules";
     for my $ipsec (values %ipsec) {
 	# Convert name of isakmp definition to object with isakmp definition.
-	my($type, $name) = split_typed_name $ipsec->{'key-exchange'};
+	my($type, $name) = split_typed_name $ipsec->{key_exchange};
 	if($type eq 'isakmp') {
 	    my $isakmp =  $isakmp{$name} or 
 		err_msg "Can't resolve reference to '$type:$name'",
 		" for $ipsec->{name}";
-	    $ipsec->{'key-exchange'} = $isakmp;
+	    $ipsec->{key_exchange} = $isakmp;
 	} else {
 	    err_msg "Unknown type '$type' for $ipsec->{name}";
 	}
@@ -3686,11 +3709,18 @@ sub expand_crypto () {
 	my $name = $crypto->{name};
 	# Convert name of ipsec definition to object with ipsec definition.
 	my($type, $name2) = split_typed_name $crypto->{type};
+	# Used later when generating rules for AH, ESP and IKE.
+	my($use_ah, $use_esp, $use_nat_traversal);
 	if($type eq 'ipsec') {
 	    my $ipsec =  $ipsec{$name2} or 
 		err_msg "Can't resolve reference to '$type:$name2'",
 		" for $name";
 	    $crypto->{type} = $ipsec;
+	    $use_ah = $ipsec->{ah};
+	    $use_esp = $ipsec->{esp_authentication} || $ipsec->{esp_encryption};
+	    if(my $isakmp = $ipsec->{key_exchange}) {
+		$use_nat_traversal = $isakmp->{nat_traversal}
+	    }
 	} else {
 	    err_msg "Unknown type '$type' for $name";
 	}
@@ -3776,44 +3806,36 @@ sub expand_crypto () {
 		err_msg "$intf2->{name} must not be used in tunnel of $name\n",
 		" because its router is located inside a cyclic subgraph";
 	    }
-	    # Add a data structure for each tunnel, which is used to collect
-	    # - crypto ACL
-	    # - crypto access-group for devices which allow separate filtering
-	    #   for encrypted traffic (no attribute no_crypto_filter).
-	    # Data will be used later to generate "crypto map" commands.
-	    my $crypto_map = { crypto => $crypto,
-			       peer => $intf2, };
-	    $intf1->{tunnel}->{$intf2} = $crypto_map;
-	    push @{$intf1->{hardware}->{crypto_maps}}, $crypto_map
-		if $intf1->{router}->{managed};
-	    $crypto_map =  { crypto => $crypto,
-			     peer => $intf1, };
-	    $intf2->{tunnel}->{$intf1} = $crypto_map;
-	    push @{$intf2->{hardware}->{crypto_maps}}, $crypto_map
-		if $intf2->{router}->{managed};
-	    # Add rules, which permits crypto traffic between tunnel endpoints.
-	    # ToDo: consider NAT traversal and AH.
-	    my $rules = [ { action => 'permit',
-			    src => $intf1,
-			    dst => $intf2,
-			    srv => $srv_esp, }, 
-			  { action => 'permit',
-			    src => $intf1,
-			    dst => $intf2,
-			    srv => $srv_ike, },
-			  { action => 'permit',
-			    src => $intf2,
-			    dst => $intf1,
-			    srv => $srv_esp, }, 
-			  { action => 'permit',
-			    src => $intf2,
-			    dst => $intf1,
-			    srv => $srv_ike, },
-			  ];
-	    push @{$expanded_rules{permit}}, @$rules;
-	    add_rules $rules, \%rule_tree;
-	    $ref2obj{$intf1} = $intf1;
-	    $ref2obj{$intf2} = $intf2;
+	    # Subsequent code is needed for both directions.
+	    for my $pair ([ $intf1, $intf2 ], [ $intf2, $intf1 ]) {
+		my($intf1, $intf2) = @$pair;
+		# Add a data structure for each tunnel, which is used to 
+		# collect
+		# - crypto ACL
+		# - crypto access-group for devices which allow separate 
+		#   filtering for encrypted traffic 
+		#   (no attribute no_crypto_filter).
+		# Data will be used later to generate "crypto map" commands.
+		my $crypto_map = { crypto => $crypto, peer => $intf2 };
+		$intf1->{tunnel}->{$intf2} = $crypto_map;
+		push @{$intf1->{hardware}->{crypto_maps}}, $crypto_map
+		    if $intf1->{router}->{managed};
+		# Add rules to permit crypto traffic between tunnel endpoints.
+		my @rules;
+		my $rule = { action => 'permit', src => $intf1, dst => $intf2 };
+		if($use_nat_traversal) {
+		    $rule->{srv} = $srv_natt;
+		    push @rules, $rule;
+		} else {
+		    $rule->{srv} = $srv_ike;
+		    push @rules, $rule;
+		    $use_ah and push @rules, { %$rule, srv => $srv_ah };
+		    $use_esp and push @rules, {%$rule, srv => $srv_esp };
+		}
+		push @{$expanded_rules{permit}}, @rules;
+		add_rules \@rules, \%rule_tree;
+		$ref2obj{$intf1} = $intf1;
+	    }
 	}
 # Convert typed names in crypto rule to internal objects.
 	for my $rule (@{$crypto->{rules}}) {
@@ -5798,7 +5820,7 @@ sub print_crypto( $ ) {
     my %isakmp;
     # Find, which isakmp definitions are used at current router.
     for my $ipsec (@ipsec) {
-	my $isakmp = $ipsec->{'key-exchange'};
+	my $isakmp = $ipsec->{key_exchange};
 	unless($isakmp{$isakmp}++) {
 	    push @isakmp, $isakmp;
 	}
