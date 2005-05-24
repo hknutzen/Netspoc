@@ -27,9 +27,6 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 - Objekte ipsec und isakmp mit Typ versehen und in crypto->{type} sowie
   ipsec->{'key-exchange'} darauf prüfen.
 
-- Automatische Regeln für IPSec-Traffic: Anpassen an Definition von isakmp:
-  NAT-Traversal und ipsec: AH und / oder ESP.
-
 - crypto: beim path_walk zum verteilen der crypto-rules auf die Tunnel,
   kann es da auftreten, dass versehentlich ein bereits aktiver Tunnel
   durchlaufen wird. Also geschachtelte Tunnel nicht bemerkt werden?
