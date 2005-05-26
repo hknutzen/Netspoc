@@ -831,28 +831,32 @@ sub read_interface( $ ) {
 		    error_atline "Duplicate virtual IP";
 		$interface->{virtual} = $virtual;
 		push @virtual_interfaces, $interface;
-	    } elsif(my $nat =
-		    check_assign 'nat', \&read_identifier) {
+	    } elsif(my $value = check_assign 'managed', \&read_identifier) {
+		$interface->{managed} and
+		    error_atline "Duplicate managed interface type";
+		if($value =~ /^full|secondary$/) {
+		    $interface->{managed} = $value;
+		} else {
+		    error_atline "Unknown managed interface type";
+		}
+		$interface->{managed} = $value;
+	    } elsif(my $nat = check_assign 'nat', \&read_identifier) {
 		# Bind NAT to an interface.
 		$interface->{bind_nat} and
 		    error_atline "Duplicate NAT binding";
 		$interface->{bind_nat} = $nat;
-	    } elsif(my $hardware =
-		    check_assign 'hardware', \&read_string) {
+	    } elsif(my $hardware = check_assign 'hardware', \&read_string) {
 		$interface->{hardware} and
-		    error_atline
-		    "Duplicate definition of hardware for interface";
+		    error_atline "Duplicate definition of hardware";
 		$interface->{hardware} = $hardware;
-	    } elsif(my $protocol =
-		    check_assign 'routing', \&read_string) {
+	    } elsif(my $protocol = check_assign 'routing', \&read_string) {
 		$routing_info{$protocol} or
 		    error_atline "Unknown routing protocol";
 		$interface->{routing} and
 		    error_atline "Duplicate routing protocol";
 		$interface->{routing} = $protocol;
-	    } elsif(my @names =
-		    check_assign_list('reroute_permit',
-				       \&read_typed_name)) {
+	    } elsif(my @names = check_assign_list('reroute_permit',
+						  \&read_typed_name)) {
 		my @networks;
 		for my $name (@names) {
 		    my($type, $net) = split_typed_name $name;
@@ -974,7 +978,7 @@ sub read_router( $ ) {
 	}
     }
     # Detailed interface processing for managed routers.
-    if($router->{managed}) {
+    if(my $filter_type = $router->{managed}) {
 	unless($router->{model}) {
 	    # Prevent further errors.
 	    $router->{model} = {};
@@ -1018,6 +1022,9 @@ sub read_router( $ ) {
 		    err_msg "Missing 'hardware' for $interface->{name}";
 		}
 	    }
+	    # Propagate filtering attribute 'full' or 'secondary'
+	    # from router to interfaces.
+	    $interface->{managed} |= $filter_type;
 	}
 	if($router->{model}->{has_interface_level}) {
 	    set_pix_interface_level $router;
@@ -4259,9 +4266,9 @@ sub gen_reverse_rules() {
 
 ##############################################################################
 # Mark rules for secondary filters.
-# At secondary packet filters, packets are only checked for its 
-# src and dst networks, if there is a full packet filter on the path from
-# src to dst, where the original rule is checked.
+# At secondary packet filter interfaces, packets are only checked for its 
+# src and dst networks, if there is a full packet filter interface on the path 
+# from src to dst, were the original rule is checked.
 ##############################################################################
 
 sub mark_secondary_rules() {
@@ -4276,27 +4283,44 @@ sub mark_secondary_rules() {
 	    (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
 	my $mark_secondary_rule = sub( $$$ ) {
 	    my ($rule, $in_intf, $out_intf) = @_;
-	    my $router = ($in_intf || $out_intf)->{router};
-	    return unless $router->{managed};
-	    if($router->{managed} eq 'full') {
-		# Optimization should only take place for IP addresses
-		# which are really filtered by a full packet filter. 
-		# ToDo: Think about virtual interfaces sitting
-		# all on the same hardware.
-		# Source or destination of rule is an interface of current router.
+	    if(not $in_intf) {
+		# Source of rule must be some interface of current router,
+		# because $in_intf is undefined.
+		my $src = $rule->{src};
+		# If source is outgoing interface then its network
+		# isn't filtered at this router.
+		return if $src eq $out_intf;
+		# Remaining case:
+		# Interface is located behind router when looking
+		# into direction of destination.
+		# Router isn't managed.
+		return unless $src->{managed};
+		# Interface isn't full filter.
+		return unless $src->{managed} eq 'full';
+	    } else {
+		# Router isn't managed.
+		return unless $in_intf->{managed};
+		# Interface isn't full filter.
+		return unless $in_intf->{managed} eq 'full';
+		# Destination of rule is an interface of current router.
+		# But network of interface wouldn't be filtered, if it's
+		# located before router.
 		# Hence, this router doesn't count as a full packet filter.
-		return if not $in_intf and $rule->{src} eq $out_intf;
 		return if not $out_intf and $rule->{dst} eq $in_intf;
-		# A full filter inside a loop doesn't count, because there might
-		# be another path without a full packet filter.
+		# A full filter inside a loop doesn't count, because there 
+		# might be another path without a full packet filter.
 		# But a full packet filter at loop entry or exit is sufficient.
-		# ToDo: this could be analyzed in more detail
+		# ToDo: This could be analyzed in more detail.
 		return if $in_intf->{in_loop} and $out_intf->{in_loop};
-		$rule->{has_full_filter} = 1;
-		# Jump out of path_walk.
-		no warnings "exiting";
-		next RULE if $use_nonlocal_exit;
 	    }
+	    # Optimization should only take place for IP addresses
+	    # which are really filtered by a full packet filter. 
+	    # ToDo: Think about virtual interfaces sitting
+	    # all on the same hardware.
+	    $rule->{has_full_filter} = 1;
+	    # Jump out of path_walk.
+	    no warnings "exiting";
+	    next RULE if $use_nonlocal_exit;
 	};
 	path_walk($rule, $mark_secondary_rule);
     }
@@ -5556,7 +5580,7 @@ sub local_optimization() {
 	    for my $interface (@{$network->{interfaces}}) {
 		my $router = $interface->{router};
 		next unless $router->{managed};
-		my $secondary_router = $router->{managed} eq 'secondary';
+		my $secondary_router = $interface->{managed} eq 'secondary';
 		my $hardware = $interface->{hardware};
 		# Do local optimization only once for each hardware interface.
 		next if $hardware->{seen};
