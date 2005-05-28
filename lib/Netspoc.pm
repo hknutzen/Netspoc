@@ -679,16 +679,14 @@ sub read_network( $ ) {
 	if($host->{ips}) {
 	    for my $host_ip (@{$host->{ips}}) {
 		if($ip != ($host_ip & $mask)) {
-		    error_atline "Host IP doesn't match ",
-		    "network IP/mask";
+		    error_atline "Host IP doesn't match network IP/mask";
 		}
 	    }
 	} elsif($host->{range}) {
 	    my ($ip1, $ip2) = @{$host->{range}};
 	    if($ip != ($ip1 & $mask) or
 	       $ip != ($ip2 & $mask)) {
-		error_atline "Host IP range doesn't match ",
-		"network IP/mask";
+		error_atline "Host IP range doesn't match network IP/mask";
 	    }
 	} else {
 	    internal_err "$host->{name} hasn't ip or range";
@@ -809,7 +807,8 @@ sub read_interface( $ ) {
 		    } elsif(my $id = check_assign 'id', \&read_string) {
 			$id =~ /^\d+$/ or
 			    error_atline "Redundancy ID must be numeric";
-			$id < 256 or error_atline "Redundancy ID mus be < 256";
+			$id < 256 or
+			    error_atline "Redundancy ID must be < 256";
 			$virtual->{id} and
 			    error_atline "Duplicate redundancy ID";
 			$virtual->{id} = $id;
@@ -827,8 +826,7 @@ sub read_interface( $ ) {
 		    error_atline "Virtual IP redefines standard IP";
 		# Add virtual IP to list of real IP addresses.
 		push @{$interface->{ip}}, $virtual->{ip};
-		$interface->{virtual} and
-		    error_atline "Duplicate virtual IP";
+		$interface->{virtual} and error_atline "Duplicate virtual IP";
 		$interface->{virtual} = $virtual;
 		push @virtual_interfaces, $interface;
 	    } elsif(my $value = check_assign 'managed', \&read_identifier) {
@@ -876,8 +874,7 @@ sub read_interface( $ ) {
 	}
 	if($interface->{nat}) {
 	    if($interface->{ip} eq 'unnumbered') {
-		error_atline "No NAT supported for unnumbered ",
-		"interface";
+		error_atline "No NAT supported for unnumbered interface";
 	    } elsif(@{$interface->{ip}} > 1) {
 		# look at print_pix_static before changing this
 		error_atline "No NAT supported for interface ",
@@ -910,6 +907,7 @@ sub set_pix_interface_level( $ ) {
 		   0 < $level and $level < 100) {
 		err_msg "Can't derive PIX security level for ",
 		"$hardware->{interfaces}->[0]->{name}";
+		$level = 0;
 	    }
 	}
 	$hardware->{level} = $level;
@@ -950,9 +948,11 @@ sub read_router( $ ) {
 	      check_assign 'model', \&read_identifier) {
 	    $router->{model} and
 		error_atline "Redefining 'model' attribute";
-	    my $info = $router_info{$model};
-	    $info or error_atline "Unknown router model '$model'";
-	    $router->{model} = $info;
+	    unless($router->{model} = $router_info{$model}) {
+		error_atline "Unknown router model '$model'";
+		# Prevent further errors.
+		$router->{model} = {};
+	    }
 	} elsif(check_flag('no_group_code')) {
 	    $router->{no_group_code} = 1;
 	} elsif(check_flag('no_crypto_filter')) {
@@ -980,9 +980,9 @@ sub read_router( $ ) {
     # Detailed interface processing for managed routers.
     if(my $filter_type = $router->{managed}) {
 	unless($router->{model}) {
+	    err_msg "Missing 'model' for managed $name";
 	    # Prevent further errors.
 	    $router->{model} = {};
-	    err_msg "Missing 'model' for managed $name";
 	}
 	# Create objects representing hardware interfaces.
 	# All logical interfaces using the same hardware are linked
@@ -1712,13 +1712,16 @@ sub link_any_and_every() {
 	    if(my $router = $routers{$name}) {
 		$router->{managed} and
 		    err_msg "$obj->{name} must not be linked to",
-		    "managed $router->{name}";
+		    " managed $router->{name}";
 		# Take some network connected to this router.
 		# Since this router is unmanged, all connected networks
 		# will belong to the same security domain.
-		$router->{interfaces} or
+		unless($router->{interfaces}) {
 		    err_msg "$obj->{name} must not be linked to",
-		    "$router->{name} without interfaces";
+		    " $router->{name} without interfaces";
+		    $obj->{disabled} = 1;
+		    next;
+		}
 		$obj->{link} = $router->{interfaces}->[0]->{network};
 	    }
 	} else {
@@ -1733,7 +1736,7 @@ sub link_any_and_every() {
     }
 }
 
-# link interface with network in both directions
+# Link interface with network in both directions.
 sub link_interface_with_net( $ ) {
     my($interface) = @_;
     my $net_name = $interface->{network};
@@ -1741,33 +1744,32 @@ sub link_interface_with_net( $ ) {
     unless($network) {
 	err_msg "Referencing undefined network:$net_name ",
 	    "from $interface->{name}";
-	# prevent further errors
-	push @disabled_interfaces, $interface;
+	# Prevent further errors.
+	aref_delete $interface, $interface->{router}->{interfaces};
 	return;
     }
     $interface->{network} = $network;
     if($interface->{reroute_permit}) {
 	for my $name (@{$interface->{reroute_permit}}) {
-	    my $network = $networks{$name};
-	    unless($network) {
+	    if(my $network = $networks{$name}) {
+		$name = $network;
+	    } else {
 		err_msg "Referencing undefined network:$name ",
 		"from attribute 'reroute_permit' of $interface->{name}";
-		# prevent further errors
+		# Prevent further errors.
 		delete $interface->{reroute_permit};
-		next;
 	    }
-	    $name = $network;
 	}
     }
     my $ip = $interface->{ip};
     if($ip eq 'short') {
-	# nothing to check: short interface may be linked to arbitrary network
+	# Nothing to check: short interface may be linked to arbitrary network.
     } elsif($ip eq 'unnumbered') {
 	$network->{ip} eq 'unnumbered' or
 	    err_msg "Unnumbered $interface->{name} must not be linked ",
 	    "to $network->{name}";
     } else {
-	# check compatibility of interface ip and network ip/mask
+	# Check compatibility of interface ip and network ip/mask.
 	my $network_ip = $network->{ip};
 	my $mask = $network->{mask};
 	for my $interface_ip (@$ip) {
@@ -1807,6 +1809,8 @@ sub link_pathrestrictions() {
 	    } else {
 		err_msg "Referencing undefined interface:$name ", 
 		"from $restrict->{name}";
+		# Prevent further errors.
+		$restrict->{elements} = [];
 	    }
 	}
     }
@@ -1988,9 +1992,11 @@ sub mark_disabled() {
 	aref_delete($interface, $router->{interfaces});
     }
     for my $obj (values %everys) {
+	next if $obj->{disabled};
 	$obj->{disabled} = 1 if $obj->{link}->{disabled};
     }
     for my $obj (values %anys) {
+	next if $obj->{disabled};
 	if($obj->{link}->{disabled}) {
 	    $obj->{disabled} = 1;
 	} else {
@@ -2660,7 +2666,7 @@ sub distribute_nat1( $$$$ ) {
     for my $network (@{$domain->{networks}}) {
 	if($network->{nat} and $network->{nat}->{$nat_tag}) {
 	    err_msg "$network->{name} is translated by $nat_tag,\n",
-	    " but it lies inside the translation domain of $nat_tag.\n",
+	    " but is located inside the translation domain of $nat_tag.\n",
 	    " Probably $nat_tag was bound to wrong interface.";
 	}
     }
@@ -3029,9 +3035,6 @@ sub setpath() {
 	# Prevent further errors when calling 
 	# path_first_interfaces from expand_rules.
 	$object->{disabled} = 1;
-	for my $interface (@{$object->{interfaces}}) {
-#	    $interface->{disabled} = 1;
-	}	
     }
     
     # Propagate loop starting point into all sub-loops.
