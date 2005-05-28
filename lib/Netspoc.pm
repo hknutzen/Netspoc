@@ -1924,11 +1924,11 @@ sub link_topology() {
 }
 
 ####################################################################
-# Mark all parts of the topology lying behind disabled interfaces.
+# Mark all parts of the topology located behind disabled interfaces.
 # "Behind" is defined like this:
 # Look from a router to its interfaces; 
 # if an interface is marked as disabled, 
-# recursively mark the whole part of the topology lying behind 
+# recursively mark the whole part of the topology located behind 
 # this interface as disabled.
 # Be cautious with loops:
 # If an interface inside a loop is marked as disabled,
@@ -2951,7 +2951,7 @@ sub setany() {
 # Set paths for efficient topology traversal
 ####################################################################
 
-# collect all networks and routers lying inside a cyclic graph
+# collect all networks and routers located inside a cyclic graph
 my @loop_objects;
 
 sub setpath_obj( $$$ );
@@ -3022,11 +3022,16 @@ sub setpath() {
     # starting interface.
     setpath_obj $net1, $net1, 2;
 
-    # Check if all networks are connected with net1.
-    for my $network (@networks) {
-	next if $network eq $net1;
-	$network->{main} or $network->{loop} or
-	    err_msg "Found unconnected $network->{name}";
+    # Check if all objects are connected with net1.
+    for my $object (@networks, @routers) {
+	next if $object->{main} or $object->{loop};
+	err_msg "Found unconnected $object->{name}";
+	# Prevent further errors when calling 
+	# path_first_interfaces from expand_rules.
+	$object->{disabled} = 1;
+	for my $interface (@{$object->{interfaces}}) {
+#	    $interface->{disabled} = 1;
+	}	
     }
     
     # Propagate loop starting point into all sub-loops.
@@ -3938,7 +3943,7 @@ sub expand_crypto () {
 # (B) rule permit src any:X
 # high-level: src gets access to all networks of security domain X
 # low-level: like above, but additionally, src gets access to the networks of
-#            all security domains lying directly behind all routers on the
+#            all security domains located directly behind all routers on the
 #            path from src to any:X
 ##############################################################################
 
