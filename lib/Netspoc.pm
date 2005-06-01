@@ -1024,7 +1024,7 @@ sub read_router( $ ) {
 	    }
 	    # Propagate filtering attribute 'full' or 'secondary'
 	    # from router to interfaces.
-	    $interface->{managed} |= $filter_type;
+	    $interface->{managed} ||= $filter_type;
 	}
 	if($router->{model}->{has_interface_level}) {
 	    set_pix_interface_level $router;
@@ -3459,7 +3459,7 @@ sub find_related_rules ( $$ ) {
 		while(1) {
 		    if(my $map = $rule_tree->{$srv}) {
 			push @$result, $map;
-			$overlap |= $above;
+			$overlap ||= $above;
 			last;
 		    }
 		    $srv = $srv->{up} or last;
