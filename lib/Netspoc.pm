@@ -715,21 +715,25 @@ sub read_network( $ ) {
 # Services below need not to be ordered using order_services
 # since they are only used at code generation time.
 my %routing_info =
-(EIGRP => {srv => { name => 'auto_srv:EIGRP', proto => 88 },
+(EIGRP => { name => 'EIGRP',
+	    srv => { name => 'auto_srv:EIGRP', proto => 88 },
+	    mcast => [ new('Network',
+			   name => "auto_network:EIGRP_multicast",
+			   ip => gen_ip(224,0,0,10),
+			   mask => gen_ip(255,255,255,255)) ]},
+ OSPF => { name => 'OSPF',
+	   srv => { name => 'auto_srv:OSPF', proto => 89 },
 	   mcast => [ new('Network',
-			  name => "auto_network:EIGRP_multicast",
-			  ip => gen_ip(224,0,0,10),
-			  mask => gen_ip(255,255,255,255)) ]},
- OSPF => {srv => { name => 'auto_srv:OSPF', proto => 89 },
-	  mcast => [ new('Network',
 			  name => "auto_network:OSPF_multicast5",
 			  ip => gen_ip(224,0,0,5),
 			  mask => gen_ip(255,255,255,255),
 			  ),
-		     new('Network',
+		      new('Network',
 			  name => "auto_network:OSPF_multicast6",
 			  ip => gen_ip(224,0,0,6),
-			  mask => gen_ip(255,255,255,255)) ]});
+			  mask => gen_ip(255,255,255,255)) ]},
+ manual => { name => 'manual' },
+ );
 
 # Definition of redundancy protocols.
 my %xxrp_info =
@@ -848,11 +852,11 @@ sub read_interface( $ ) {
 		    error_atline "Duplicate definition of hardware";
 		$interface->{hardware} = $hardware;
 	    } elsif(my $protocol = check_assign 'routing', \&read_string) {
-		$routing_info{$protocol} or
+		my $routing = $routing_info{$protocol} or
 		    error_atline "Unknown routing protocol";
 		$interface->{routing} and
 		    error_atline "Duplicate routing protocol";
-		$interface->{routing} = $protocol;
+		$interface->{routing} = $routing;
 	    } elsif(my @names = check_assign_list('reroute_permit',
 						  \&read_typed_name)) {
 		my @networks;
@@ -1782,12 +1786,14 @@ sub link_interface_with_net( $ ) {
 		err_msg "$interface->{name}'s IP doesn't match ",
 		"$network->{name}'s IP/mask";
 	    }
-	    if($interface_ip == $network_ip) {
-		err_msg "$interface->{name} has address of its network";
-	    }
-	    my $broadcast = $network_ip + ~$mask;
-	    if($interface_ip == $broadcast) {
-		err_msg "$interface->{name} has broadcast address";
+	    unless($mask == 0xffffffff) {
+		if($interface_ip == $network_ip) {
+		    err_msg "$interface->{name} has address of its network";
+		}
+		my $broadcast = $network_ip + ~$mask;
+		if($interface_ip == $broadcast) {
+		    err_msg "$interface->{name} has broadcast address";
+		}
 	    }
 	}
     }
@@ -4647,7 +4653,7 @@ sub print_routes( $ ) {
 	# if a dynamic routing protocol is activated
 	if($interface->{routing}) {
 	    if($comment_routes) {
-		print "! Dynamic routing $interface->{routing}",
+		print "$comment_char Routing $interface->{routing}->{name}",
 		" at $interface->{name}\n";
 	    } 
 	    next;
@@ -5709,23 +5715,25 @@ sub print_acls( $ ) {
 		}
 	    }
 	    # Is dynamic routing used?
-	    if(my $type = $interface->{routing}) {
-		my $network = $interface->{network};
-		my $srv = $routing_info{$type}->{srv};
-		# Permit multicast packets from current network.
-		for my $mcast (@{$routing_info{$type}->{mcast}}) {
+	    if(my $routing = $interface->{routing}) {
+		unless($routing->{name} eq 'manual') {
+		    my $srv = $routing->{srv};
+		    my $network = $interface->{network};
+		    # Permit multicast packets from current network.
+		    for my $mcast (@{$routing->{mcast}}) {
+			push @{$hardware->{intf_rules}},
+			{ action => 'permit',
+			  src => $network, dst => $mcast, srv => $srv };
+		    }
+		    # Additionally permit unicast packets.
+		    # We use the network address as destination
+		    # instead of the interface address,
+		    # because we need fewer rules if the interface has 
+		    # multiple addresses.
 		    push @{$hardware->{intf_rules}},
-		    { action => 'permit',
-		      src => $network, dst => $mcast, srv => $srv };
+		    { action => 'permit', 
+		      src => $network, dst => $network, srv => $srv }
 		}
-		# Additionally permit unicast packets.
-		# We use the network address as destination
-		# instead of the interface address,
-		# because we need fewer rules if the interface has 
-		# multiple addresses.
-		push @{$hardware->{intf_rules}},
-		{ action => 'permit', 
-		  src => $network, dst => $network, srv => $srv }
 	    }
 	    # Handle multicast packets of redundancy protocols.
 	    if(my $virtual = $interface->{virtual}) {
