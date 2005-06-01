@@ -3200,7 +3200,7 @@ sub loop_path_mark1( $$$$$ ) {
     # Found a path to router or network.
     if($obj eq $to) {
 	# Mark interface where we leave the loop.
-	push @{$to->{loop_leave}->{$from}}, $in_intf;
+	$to->{loop_leave}->{$from}->{$in_intf} = $in_intf;;
 #	debug " leave: $in_intf->{name} -> $to->{name}";
 	return 1;
     }
@@ -3208,7 +3208,7 @@ sub loop_path_mark1( $$$$$ ) {
     if(is_interface $to and $obj eq $to->{router}) {
 	if($in_intf eq $to or not $to->{network}->{active_path}) {
 	    # Found a valid path.
-	    push @{$to->{loop_leave}->{$from}}, $in_intf;
+	    $to->{loop_leave}->{$from}->{$in_intf} = $in_intf;
 #	    debug " leave: $in_intf->{name} -> $to->{name}";
 	    return 1;
 	} else {
@@ -3309,6 +3309,8 @@ sub loop_path_mark ( $$$$$ ) {
 	}
 	delete $from->{active_path};
     }
+    # Convert hash of interfaces to array of interfaces.
+    $to->{loop_leave}->{$from} = [ values %{$to->{loop_leave}->{$from}} ];
     $success or err_msg "No valid path from $from->{name} to $to->{name}\n",
     " (destination is $dst->{name})\n",
     " Too many path restrictions?";
