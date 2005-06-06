@@ -1823,6 +1823,7 @@ sub link_pathrestrictions() {
 }
 
 sub link_topology() {
+    info "Linking topology";
     for my $interface (values %interfaces) {
 	link_interface_with_net($interface);
     }
@@ -1941,29 +1942,36 @@ sub link_topology() {
 # recursively mark the whole part of the topology located behind 
 # this interface as disabled.
 # Be cautious with loops:
-# If an interface inside a loop is marked as disabled,
-# this will mark the whole topology as disabled.
+# Mark all interfaces at loop entry as disabled,
+# otherwise the whole topology will get disabled.
 ####################################################################
 
 sub disable_behind( $ );
 sub disable_behind( $ ) {
     my($in_interface) = @_;
-    return if $in_interface->{disabled};
+#    debug "disable_behind $in_interface->{name}";
     $in_interface->{disabled} = 1;
     my $network = $in_interface->{network};
+    if($network->{disabled}) {
+#	debug "Stop disabling at $network->{name}";
+	return;
+    }
     $network->{disabled} = 1;
     for my $host (@{$network->{hosts}}) {
 	$host->{disabled} = 1;
     }
     for my $interface (@{$network->{interfaces}}) {
 	next if $interface eq $in_interface;
-	next if $interface->{disabled};
+	# This stops at other entry of a loop as well.
+	if($interface->{disabled}) {
+#	    debug "Stop disabling at $interface->{name}";
+	    next;
+	}
 	$interface->{disabled} = 1;
 	my $router = $interface->{router};
 	$router->{disabled} = 1;
 	for my $out_interface (@{$router->{interfaces}}) {
 	    next if $out_interface eq $interface;
-	    next if $out_interface->{disabled};
 	    disable_behind $out_interface ;
 	}
     }
@@ -1976,6 +1984,11 @@ my @networks;
 my @all_anys;
 
 sub mark_disabled() {
+    # Mark all disabled interfaces for the second pass to be able
+    # detecting loops.
+    for my $interface (@disabled_interfaces) {
+	$interface->{disabled} = 1;
+    }
     for my $interface (@disabled_interfaces) {
 	next if $interface->{router}->{disabled};
 	disable_behind($interface);
@@ -3021,7 +3034,7 @@ sub setpath_obj( $$$ ) {
 sub setpath() {
     info "Preparing fast path traversal";
     # Take a random network from @networks, name it "net1".
-    @networks or die "Topology seems to be empty";
+    @networks or die "Error: Topology seems to be empty\n";
     my $net1 = $networks[0];
 
     # Starting with net1, do a traversal of the whole topology
@@ -3073,6 +3086,11 @@ sub setpath() {
     # in different networks.
     my %same_id;
     for my $interface (@virtual_interfaces) {
+	unless($interface->{router}->{loop}) {
+	    warning "Ignoring virtual IP of $interface->{name}\n",
+	    " because it isn't located inside cyclic graph";
+	    next;
+	}
 	my $ip = $interface->{virtual}->{ip};
 	push @{$same_ip{$ip}}, $interface;
     }
@@ -3122,8 +3140,8 @@ sub setpath() {
 	for my $interface (@{$restrict->{elements}}) {
 	    next if $interface->{disabled};
 	    $interface->{in_loop} or
-		err_msg "$interface->{name} of $restrict->{name}\n",
-		" isn't located inside cyclic graph";
+		warning "Ignoring $restrict->{name} at $interface->{name}\n",
+		" because it isn't located inside cyclic graph";
 	}
     }
 }
