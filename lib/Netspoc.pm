@@ -1961,10 +1961,6 @@ sub disable_behind( $ ) {
 	$interface->{disabled} = 1;
 	my $router = $interface->{router};
 	$router->{disabled} = 1;
-	# A disabled router must not be managed.
-	if($router->{managed}) {
-	    warning "Disabling managed $router->{name}";
-	}
 	for my $out_interface (@{$router->{interfaces}}) {
 	    next if $out_interface eq $interface;
 	    next if $out_interface->{disabled};
