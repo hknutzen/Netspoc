@@ -5744,6 +5744,8 @@ sub print_acls( $ ) {
     }
     # Add deny rules. 
     for my $hardware (@{$router->{hardware}}) {
+	# Force valid array reference to prevent error in next but one line.
+	$hardware->{rules} ||= [];
 	if($filter eq 'IOS' and @{$hardware->{rules}}) {
 	    my $nat_map = $hardware->{nat_map};
 	    for my $interface (@{$router->{interfaces}}) {
