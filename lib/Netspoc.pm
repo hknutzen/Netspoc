@@ -3562,7 +3562,10 @@ sub path_walk( $$;$ ) {
 #	debug " Walk: $in_name, $out_name $crypto";
 #	$fun2->(@_);
 #    };
-    unless($from and $to) {
+    unless($from and $to) {        
+	unless($src eq $dst or $rule->{deleted}) {
+            warning "Unenforceable rule\n ", print_rule($rule);
+        }
 	internal_err print_rule $rule;
     }
     if($from eq $to) {
@@ -4409,13 +4412,13 @@ sub optimize_rules( $$ ) {
 }
 
 sub optimize() {
-    info "Global optimization";
+    info "Optimizing globally";
     optimize_rules \%rule_tree, \%rule_tree;
 }
 
 # Normal rules > reverse rules.
 sub optimize_reverse_rules() {
-    info "Optimization of reverse rules";
+    info "Optimizing reverse rules";
     optimize_rules \%reverse_rule_tree, \%reverse_rule_tree;
     optimize_rules \%rule_tree, \%reverse_rule_tree;
 }
@@ -4975,7 +4978,7 @@ sub distribute_rule_at_dst( $$$ ) {
 }
 
 sub rules_distribution() {
-    info "Rules distribution";
+    info "Distributing rules";
     # Deny rules
     for my $rule (@{$expanded_rules{deny}}) {
 	next if $rule->{deleted};
@@ -5593,7 +5596,7 @@ sub find_chains ( $ ) {
 }
 
 sub local_optimization() {
-    info "Local optimization";
+    info "Optimizing locally";
     for my $rule (@{$expanded_rules{any}}, @{$expanded_rules{permit}}) {
 	next if $rule->{deleted} and not $rule->{managed_intf};
 	$rule->{src} = $network_00 if is_any $rule->{src};
