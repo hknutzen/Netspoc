@@ -5895,6 +5895,39 @@ sub print_crypto( $ ) {
     }
     my $comment_char = $model->{comment_char};
     print "$comment_char [ Crypto ]\n";
+    $crypto_type =~ /^IOS|PIX$/ or internal_err;
+    if(@isakmp > 1) {
+	err_msg "Only one isakmp definition allowed at $router->{name}\n ",
+	join ', ', map $_->{name}, @isakmp;
+	return;
+    } else {
+	my $isakmp = $isakmp[0];
+	my $prefix = $crypto_type eq 'IOS' ? 'crypto isakmp' : 'isakmp';
+	my $identity = $isakmp->{identity};
+	$identity = 'hostname' if $identity eq 'fqdn';
+	print "$prefix identity $identity\n";
+	if($isakmp->{nat_traversal}) {
+	    print "$prefix nat-traversal\n";
+	}
+	if($crypto_type eq 'IOS') {
+	    print "crypto isakmp policy 1\n";
+	    $prefix = '';
+	} else {
+	    $prefix = "isakmp policy 1";
+	}
+	my $authentication = $isakmp->{authentication};
+	$authentication =~ s/preshare/pre-share/;
+	$authentication =~ s/rsasig/rsa-sig/;
+	print "$prefix authentication $authentication\n";
+	my $encryption = $isakmp->{encryption};
+	print "$prefix encryption $encryption\n";
+	my $hash = $isakmp->{hash};
+	print "$prefix hash $hash\n";
+	my $group = $isakmp->{group};
+	print "$prefix group $group\n";
+	my $lifetime = $isakmp->{lifetime};
+	print "$prefix lifetime $lifetime\n";
+    }
     for my $hardware (@{$router->{hardware}}) {
 	my $name = $hardware->{name};
 	# Name of crypto map.
