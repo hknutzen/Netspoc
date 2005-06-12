@@ -46,6 +46,7 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 print_ip
 		 show_version
 		 read_args
+		 read_netspoc
 		 read_file
 		 read_file_or_dir
 		 show_read_statistics 
@@ -166,24 +167,25 @@ sub debug ( @ ) {
     print STDERR @_, "\n";
 }
 
-# Filename of current input file.
+# Name of current input file.
 our $file;
-# EOF status of current file.
-our $eof;
+# Current line number of input file.
+our $line;
+
 sub context() {
     my $context;
-    if($eof) {
+    if(pos == length) {
 	$context = 'at EOF';
     } else {
 	my($pre, $post) =
-	    m/([^\s,;={}]*[,;={}\s]*)\G([,;={}\s]*[^\s,;={}]*)/;
+	    m/([^ \t\n,;={}]*[,;={} \t]*)\G([,;={} \t]*[^ \t\n,;={}]*)/;
 	$context = qq/near "$pre<--HERE-->$post"/;
     }
-    return qq/ at line $. of $file, $context\n/;
+    return qq/ at line $line of $file, $context\n/;
 }
 
 sub at_line() {
-    return qq/ at line $. of $file\n/;
+    return qq/ at line $line of $file\n/;
 }
 
 our $error_counter = 0;
@@ -217,31 +219,21 @@ sub internal_err( @ ) {
 }
 
 ####################################################################
-# Reading topology, Services, Groups, Rules
+# Helper functions for reading configuration
 ####################################################################
 
-# $_ is used as input buffer, it holds the rest of the current input line
+# $_ is used as input buffer, it holds content of current input file.
+# Progressive matching is used. \G and pos are used to query current position.
+# Return value is false if progressive matching has reached end of buffer.
 sub skip_space_and_comment() {
-    # ignore trailing whitespace and comments
-    while ( m'\G\s*([!#].*)?$ 'gcx and not $eof) {
-	$_ = <FILE>;
-	# <> becomes undefined at eof
-	unless(defined $_) {
-	    $_ = '';
-	    $eof = 1;
-	    return;
-	}
-	# Cut off trailing linefeed.
-	chomp;
+    # Ignore trailing whitespace and comments.
+    while ( m'\G[ \t]*([!#].*)?\n'gc ) { 
+	$line++;
     }
     # Ignore leading whitespace.
-    m/\G\s*/gc;
-}
-
-# Our input buffer $_ gets undefined, if we reached eof.
-sub check_eof() {
-    skip_space_and_comment;
-    return $eof;
+    m/\G[ \t]*/gc;
+    # Check and return EOF status.
+    return pos != length;
 }
 
 # Check for a string and skip if available.
@@ -406,8 +398,10 @@ sub read_description() {
     skip_space_and_comment;
     if(check 'description') {
 	skip '=';
-	# read up to end of line, but ignore ';' at eol
-	m/\G(.*);?$/gc; 
+	# Read up to end of line, but ignore ';' at eol.
+	# We must use '$' here to match EOL, +
+	# otherwise $line would be out of sync.
+	m/\G(.*);?$/gcm; 
 	return $1; 
     }
 }
@@ -609,9 +603,7 @@ sub read_nat( $ )  {
 our %networks;
 sub read_network( $ ) {
     my $name = shift;
-    my $network = new('Network',
-		      name => $name,
-		      file => $file);
+    my $network = new('Network', name => $name);
     skip '=';
     skip '{';
     $network->{route_hint} = check_flag 'route_hint';
@@ -923,7 +915,7 @@ sub read_router( $ ) {
     my $name = shift;
     # Router name without prefix "router:" is needed to build interface name.
     (my $rname = $name) =~ s/^router://;
-    my $router = new('Router', name => $name, file => $file);
+    my $router = new('Router', name => $name);
     skip '=';
     skip '{';
     while(1) {
@@ -1044,8 +1036,7 @@ sub read_any( $ ) {
     skip '{';
     my $link = read_assign 'link', \&read_typed_name;
     skip '}';
-    my $any = new('Any', name => $name, link => $link, file => $file);
-    return $any;
+    return new('Any', name => $name, link => $link);
 }
 
 our %everys;
@@ -1055,8 +1046,7 @@ sub read_every( $ ) {
     skip '{';
     my $link = read_assign 'link', \&read_typed_name;
     skip '}';
-    my $every = new('Every', name => $name, link => $link, file => $file);
-    return $every;
+    return new('Every', name => $name, link => $link);
 }
 
 our %groups;
@@ -1064,9 +1054,7 @@ sub read_group( $ ) {
     my $name = shift;
     skip '=';
     my @objects = read_list_or_null \&read_typed_ext_name;
-    my $group = new('Group',
-		    name => $name, elements => \@objects, file => $file);
-    return $group;
+    return new('Group', name => $name, elements => \@objects);
 }
 
 our %servicegroups;
@@ -1074,9 +1062,7 @@ sub read_servicegroup( $ ) {
    my $name = shift;
    skip '=';
    my @objects = read_list_or_null \&read_typed_name;
-   my $servicegroup = new('Servicegroup',
-			  name => $name, elements => \@objects, file => $file);
-   return $servicegroup;
+   return new('Servicegroup', name => $name, elements => \@objects);
 }
 
 sub read_port_range() {
@@ -1156,7 +1142,7 @@ sub read_proto_nr( $ ) {
 our %services;
 sub read_service( $ ) {
     my $name = shift;
-    my $service = { name => $name, file => $file };
+    my $service = { name => $name };
     skip '=';
     if(check 'ip') {
 	$service->{proto} = 'ip';
@@ -1197,7 +1183,7 @@ sub read_policy( $ ) {
     my($name) = @_;
     skip '=';
     skip '{';
-    my $policy = { name => $name, rules => [], file => $file };
+    my $policy = { name => $name, rules => [] };
     my $description = read_description;
     $store_description and $policy->{description} = $description;
     my @user = read_assign_list 'user', \&read_typed_ext_name;
@@ -1243,12 +1229,9 @@ sub read_pathrestriction( $ ) {
 	   error_atline "Expected interfaces as values";
        }
    }		
-   @names > 1 or
-       error_atline "$name must use more than one interface";
+   @names > 1 or error_atline "$name must use more than one interface";
    my $restriction = new('Pathrestriction',
-			 name => $name,
-			 elements => \@interfaces,
-			 file => $file);
+			 name => $name, elements => \@interfaces);
    $store_description and $restriction->{description} = $description;
    return $restriction;
 }
@@ -1272,7 +1255,7 @@ sub read_global_nat( $ )  {
 
 sub read_attributed_object( $$ ) {
     my($name, $attr_descr) = @_;
-    my $object = { name => $name, file => $file };
+    my $object = { name => $name };
     skip '=';
     skip '{';
     my $description = read_description;
@@ -1363,7 +1346,7 @@ sub read_crypto( $ ) {
     my($name) = @_;
     skip '=';
     skip '{';
-    my $crypto = { name => $name, file => $file };
+    my $crypto = { name => $name };
     my $description = read_description;
     $store_description and $crypto->{description} = $description;
     while(1) {
@@ -1413,54 +1396,54 @@ my %global_type =
 
 sub read_netspoc() {
     # Check for global definitions.
-    if(my $string = check_typed_name) {
-	my($type,$name) = split_typed_name $string;
-	my $descr = $global_type{$type} or
-	    syntax_err "Unknown global definition";
-	my($fun, $hash) = @$descr;
-	my $result = $fun->($string);
-	if($hash->{$name}) {
-	    error_atline "Redefining $string";
-	}
-	$hash->{$name} = $result; 
-    } elsif (check 'include') {
-	my $file = read_string;
-	read_data $file, \&read_netspoc;
-    } else {
-	syntax_err '';
+    my $string = check_typed_name or syntax_err '';
+    my($type,$name) = split_typed_name $string;
+    my $descr = $global_type{$type} or
+	syntax_err "Unknown global definition";
+    my($fun, $hash) = @$descr;
+    my $result = $fun->($string);
+    $result->{file} = $file;
+    if($hash->{$name}) {
+	error_atline "Redefining $string";
     }
+    # Result is not used in this module but can be useful
+    # when this function is called from outside.
+    return $hash->{$name} = $result; 
 }
 
-# reads input from file
+# Read input from file and process it by funtion which is given as argument.
 sub read_file( $$ ) {	
     local $file = shift;
     my $read_syntax = shift;
-    local $eof = 0;
     local *FILE;
-    open FILE, $file or die "can't open $file: $!";
-    # set input buffer to defined state
-    # when called from 'include:' ignore rest of line
-    $_ = '';
-    while(not check_eof) {
+    open FILE, $file or die "Can't open $file: $!\n";
+    # Fill buffer with content of whole FILE.
+    $_ = <FILE>;
+    close FILE;
+    local $line = 1;
+    while(skip_space_and_comment) {
 	&$read_syntax;
     }
 }
 
-sub read_file_or_dir( $ );
-sub read_file_or_dir( $ ) {
-    my($path) = @_;
+sub read_file_or_dir( $;$ );
+sub read_file_or_dir( $;$ ) {
+    my($path, $read_syntax) = @_;
+    $read_syntax ||= \&read_netspoc;
+    # Undef input record separator.
+    local $/;
     if(-f $path) {
-	read_file $path, \&read_netspoc;
+	read_file $path, $read_syntax;
     } elsif(-d $path) {
 	local(*DIR);
 	# Strip trailing slash for nicer file names in messages.
 	$path =~ s</$><>;
-	opendir DIR, $path or die "Can't opendir $path: $!";
+	opendir DIR, $path or die "Can't opendir $path: $!\n";
 	while(my $file = readdir DIR) {
 	    next if $file eq '.' or $file eq '..';
 	    next if $file =~ m/$ignore_files/;
 	    $file = "$path/$file";
-	    read_file_or_dir $file;
+	    read_file_or_dir $file, $read_syntax;
 	}
     } else {
 	die "Can't read path '$path'\n";
