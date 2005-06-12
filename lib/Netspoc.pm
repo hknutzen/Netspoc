@@ -1243,7 +1243,7 @@ sub read_pathrestriction( $ ) {
 	   error_atline "Expected interfaces as values";
        }
    }		
-   @names > 1 or error_atline "$name must use more than one interface";
+   @names > 1 or warn_msg "Ignoring $name with less than 2 interfaces";
    my $restriction = new('Pathrestriction',
 			 name => $name, elements => \@interfaces);
    $store_description and $restriction->{description} = $description;
