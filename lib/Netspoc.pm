@@ -1431,7 +1431,7 @@ sub read_file( $$ ) {
     local *FILE;
     open FILE, $file or die "Can't open $file: $!\n";
     # Fill buffer with content of whole FILE.
-    $_ = <FILE>;
+    local $_ = <FILE>;
     close FILE;
     local $line = 1;
     while(skip_space_and_comment) {
