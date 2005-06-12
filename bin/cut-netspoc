@@ -1,0 +1,136 @@
+#!/usr/bin/perl
+# cut-netspoc
+# Print parts of a netspoc configuration to stdout.
+# http://netspoc.berlios.de
+# (c) 2005 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+
+use strict;
+use warnings;
+use FindBin;
+use lib $FindBin::Bin;
+use Netspoc;
+
+####################################################################
+# Argument processing
+####################################################################
+sub usage() {
+    die "Usage: $0 {in-file | in-directory} [policy-list]\n";
+}
+
+# Enhanced version of read_netspoc, which stores source code of each 
+# global definition.
+sub read_netspoc_with_src () {
+    my $pre = pos;
+    my $object = &read_netspoc();
+    my $post = pos;
+    $object->{src_code} = substr $_, $pre, $post - $pre;
+#    print STDERR "$object->{name} $pre-$post\n";
+    return $object;
+}
+
+# This function is called by path_walk to mark all networks and routers
+# on path from src to dst of $rule with attribute {need_src}.
+sub mark_topology( $$ ) {
+    my ($rule, $in_intf, $out_intf) = @_;
+    my $router = ($in_intf || $out_intf)->{router};
+    $router->{need_src} = 1;
+    # Not only networks on path, but all connected networks need to be marked
+    # to get a valid topology.
+    for my $interface (@{$router->{interfaces}}) {
+	$interface->{network}->{need_src} = 1;
+    }
+}
+
+####################################################################
+# Main program
+####################################################################
+my $policy = shift @ARGV or usage;
+my @names  = @ARGV;
+&show_version();
+# Read and process netspoc policy.
+# Remember source code of each global definition.
+&read_file_or_dir($policy, \&read_netspoc_with_src);
+for my $arg (@ARGV) {
+    my($type, $name) = split_typed_name $arg;
+    $type eq 'policy' or usage;
+    $policy = $policies{$name} or die "Unknown $arg\n";
+    $policy->{need_src} = 1;
+}
+# Delete unwanted policies.
+for my $name (keys %policies) {
+    unless($policies{$name}->{need_src}) {
+	delete $policies{$name};
+    }
+}
+&link_topology();
+&mark_disabled();
+&setany();
+&setpath();
+&expand_policies();
+die "Aborted with $error_counter error(s)\n" if $error_counter;
+# Mark parts of topology which are referenced by rules of policies.
+for my $type ('deny', 'any', 'permit') {
+    for my $rule (@{$expanded_rules{$type}}) {
+	for my $where ('src', 'dst') {
+	    is_any $rule->{$where} and $rule->{$where}->{need_src} = 1;
+	}
+	&path_walk($rule, \&mark_topology);
+	$rule->{srv}->{need_src} = 1;
+    }
+}
+# Print marked parts of netspoc configuration.
+# Routers and networks have been marked by mark_topology.
+# Services have been marked while %expanded_rules have been processed above.
+delete $anys{'[local]'};
+for my $object (values %routers, values %networks, values %anys,
+		values %services) {
+    if($object->{need_src}) {
+	print $object->{src_code}, "\n";
+    }
+}
+# Groups, servicegroups and 'every' objects have been marked 
+# during expand_policies.
+for my $object (values %everys, values %groups, values %servicegroups) {
+    if($object->{is_used}) {
+	print $object->{src_code}, "\n";
+    }
+}
+# Source of pathrestrictions can't be used literally, 
+# but must be reconstructed from internal data structure. 
+for my $restrict (values %pathrestrictions) {
+    my $is_used;
+    for my $interface (@{$restrict->{elements}}) {
+	if($interface->{router}->{need_src}) {
+	    $is_used = 1;
+	} else {
+	    $interface = undef;
+	}
+    }
+    next unless $is_used;
+    print "$restrict->{name} =\n";
+    for my $interface (@{$restrict->{elements}}) {
+	next unless $interface;
+	print " $interface->{name},\n";
+    }
+    print ";\n";
+}
+    
+# All unwanted policies have already been deleted above.
+for my $policy (values %policies) {
+    print $policy->{src_code}, "\n";
+}
