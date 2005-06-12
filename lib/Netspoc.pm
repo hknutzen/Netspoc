@@ -171,7 +171,7 @@ sub info ( @ ) {
     print STDERR @_, "\n" if $verbose;
 }
 
-sub warning ( @ ) {
+sub warn_msg ( @ ) {
     print STDERR "Warning: ", @_, "\n";
 }
 
@@ -1751,8 +1751,8 @@ sub link_interface_with_net( $ ) {
 	    if(my $network = $networks{$name}) {
 		$name = $network;
 	    } else {
-		err_msg "Referencing undefined network:$name ",
-		"from attribute 'reroute_permit' of $interface->{name}";
+		warn_msg "Ignoring undefined network:$name ",
+		"from attribute 'reroute_permit'\n of $interface->{name}";
 		# Prevent further errors.
 		delete $interface->{reroute_permit};
 	    }
@@ -1885,24 +1885,29 @@ sub link_topology() {
 	if($network->{subnet_of}) {
 	    my($type, $name) = split_typed_name($network->{subnet_of});
 	    if($type eq 'network') {
-		my $subnet = $networks{$name} or
-		    err_msg "Referencing undefined network:$name ",
-		    "from attribute 'subnet_of' of $network->{name}";
-		$network->{subnet_of} = $subnet;
+		if(my $subnet = $networks{$name}) {
+		    $network->{subnet_of} = $subnet;
+		} else {
+		    warn_msg "Ignoring undefined network:$name",
+		    " from attribute 'subnet_of'\n",
+		    " of $network->{name}";
+		}
 	    } else {
-		err_msg "Attribute 'subnet_of' of $network->{name} ",
-		"must not be linked to $type:$name";
+		err_msg "Attribute 'subnet_of' of $network->{name}",
+		" must not be linked to $type:$name";
 	    }
 	}
 	for my $nat (values %{$network->{nat}}) {
 	    if($nat->{subnet_of}) {
 		my($type, $name) = split_typed_name($nat->{subnet_of});
 		if($type eq 'network') {
-		    my $subnet = $networks{$name} or
-			err_msg "Referencing undefined network:$name",
+		    if(my $subnet = $networks{$name}) {
+			$nat->{subnet_of} = $subnet;
+		    } else {
+			warn_msg "Ignoring undefined network:$name",
 			" from attribute 'subnet_of'\n",
 			" of $nat->{name} of $network->{name}";
-		    $nat->{subnet_of} = $subnet;
+		    }
 		} else {
 		    err_msg "Attribute 'subnet_of' of",
 		    " $nat->{name} of $network->{name}\n",
@@ -1915,13 +1920,16 @@ sub link_topology() {
 	if($nat->{subnet_of}) {
 	    my($type, $name) = split_typed_name($nat->{subnet_of});
 	    if($type eq 'network') {
-		my $subnet = $networks{$name} or
-		    err_msg "Referencing undefined network:$name ",
-		    "from attribute 'subnet_of' of global $nat->{name}";
-		$nat->{subnet_of} = $subnet;
+		if(my $subnet = $networks{$name}) {
+		    $nat->{subnet_of} = $subnet;
+		} else {
+		    warn_msg "Ignoring undefined network:$name",
+		    " from attribute 'subnet_of'\n",
+		    " of global $nat->{name}";
+		}
 	    } else {
-		err_msg "Attribute 'subnet_of' of global $nat->{name} ",
-		"must not be linked to $type:$name";
+		err_msg "Attribute 'subnet_of' of global $nat->{name}",
+		" must not be linked to $type:$name";
 	    }
 	}
     }	    
@@ -2382,7 +2390,7 @@ sub check_unused_groups() {
 		$msg = "unused empty $group->{name}";
 	    }
 	    if($allow_unused_groups eq 'warn') {
-		warning $msg;
+		warn_msg $msg;
 	    } else {
 		err_msg $msg;
 	    }
@@ -2730,7 +2738,7 @@ sub distribute_nat_info() {
 		    $domain, $nat_tag, 0, $router;
 		$nat_definitions{$nat_tag} = 'used';
 	    } else {
-		warning "Ignoring undefined nat:$nat_tag",
+		warn_msg "Ignoring undefined nat:$nat_tag",
 		" used at $router->{name}";
 	    }
 	}
@@ -2802,7 +2810,7 @@ sub distribute_nat_info() {
 	}
     }
     for my $name (keys %nat_definitions) {
-	warning "nat:$name is defined, but not used" 
+	warn_msg "nat:$name is defined, but not used" 
 	    unless $nat_definitions{$name} eq 'used';
     }
 }
@@ -2864,7 +2872,7 @@ sub find_subnets() {
 				    " if desired, either declare attribute 'subnet_of'" .
 				    " or attribute 'route_hint'";
 				if($strict_subnets eq 'warn') {
-				    warning $msg;
+				    warn_msg $msg;
 				} else {
 				    err_msg $msg;
 				}
@@ -3080,7 +3088,7 @@ sub setpath() {
     my %same_id;
     for my $interface (@virtual_interfaces) {
 	unless($interface->{router}->{loop}) {
-	    warning "Ignoring virtual IP of $interface->{name}\n",
+	    warn_msg "Ignoring virtual IP of $interface->{name}\n",
 	    " because it isn't located inside cyclic graph";
 	    next;
 	}
@@ -3123,7 +3131,7 @@ sub setpath() {
                     " are part of different cyclic subgraphs";
             } 
         } else {
-            warning "Virtual IP: Missing second interface for $i1->{name}";
+            warn_msg "Virtual IP: Missing second interface for $i1->{name}";
         } 
     }
     
@@ -3133,7 +3141,7 @@ sub setpath() {
 	for my $interface (@{$restrict->{elements}}) {
 	    next if $interface->{disabled};
 	    $interface->{in_loop} or
-		warning "Ignoring $restrict->{name} at $interface->{name}\n",
+		warn_msg "Ignoring $restrict->{name} at $interface->{name}\n",
 		" because it isn't located inside cyclic graph";
 	}
     }
@@ -3557,7 +3565,7 @@ sub path_walk( $$;$ ) {
 #    };
     unless($from and $to) {        
 	unless($src eq $dst or $rule->{deleted}) {
-            warning "Unenforceable rule\n ", print_rule($rule);
+            warn_msg "Unenforceable rule\n ", print_rule($rule);
         }
 	internal_err print_rule $rule;
     }
@@ -4479,7 +4487,7 @@ sub check_and_convert_routes () {
 			    # Check if both have dynamic routing enabled.
 			    unless($interface->{routing} and
 				   $interface2->{routing}) {
-				warning
+				warn_msg
 				    "Two static routes for $network->{name}\n",
 				    " via $interface->{name} and ",
 				    "$interface2->{name}";
@@ -4498,7 +4506,7 @@ sub check_and_convert_routes () {
 				# interfaces with identical virtual IP.
 				delete $interface->{routes}->{$hop}->{$network};
 			    } else {
-				warning
+				warn_msg
 				    "Two static routes for $network->{name}\n",
 				    " at $interface->{name}";
 			    }
@@ -4793,7 +4801,7 @@ sub print_pix_static( $ ) {
 		if($out_dynamic) {
 		    unless($in_dynamic && $in_dynamic eq $out_dynamic &&
 			   $in_ip eq $out_ip and $in_mask eq $out_mask) {
-			warning "Ignoring NAT for dynamically translated ",
+			warn_msg "Ignoring NAT for dynamically translated ",
 			"$network->{name}\n",
 			"at hardware $out_hw->{name} of $router->{name}";
 		    }
@@ -5116,7 +5124,7 @@ my %pix_srv_hole;
 # Print warnings about the PIX service hole.
 sub warn_pix_icmp() {
     if(%pix_srv_hole) {
-	warning "Ignored the code field of the following ICMP services\n",
+	warn_msg "Ignored the code field of the following ICMP services\n",
 	" while generating code for pix firewalls:";
 	while(my ($name, $count) = each %pix_srv_hole) {
 	    print STDERR " $name: $count times\n";
