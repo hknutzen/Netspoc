@@ -110,7 +110,10 @@ for my $object (values %routers, values %networks,
 		values %anys, values %everys, values %groups,
 		values %services, values %servicegroups) {
     if($object->{is_used}) {
-	print $object->{src_code}, "\n";
+	# There are some internal objects without src_code.
+	if(my $src_code = $object->{src_code}) {
+	    print $src_code, "\n";
+	}
     }
 }
 
@@ -133,7 +136,21 @@ for my $restrict (values %pathrestrictions) {
     }
     print ";\n";
 }
-    
+
+# Find global NAT definitions which are bound by used interfaces.
+if(keys %global_nat) {
+    my %used_nat;
+    for my $interface (values %interfaces) {
+	$interface->{router}->{is_used} or next;
+	my $nat_tag = $interface->{bind_nat} or next;
+	$used_nat{$nat_tag} = 1;
+    }
+    for my $nat_tag (keys %global_nat) {
+	next unless $used_nat{$nat_tag};
+	print $global_nat{$nat_tag}->{src_code}, "\n";
+    }
+}	
+
 # All unwanted policies have already been deleted above.
 for my $policy (values %policies) {
     print $policy->{src_code}, "\n";
