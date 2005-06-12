@@ -45,6 +45,18 @@ our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 read_ip
 		 print_ip
 		 show_version
+		 split_typed_name
+		 is_network
+		 is_router
+		 is_interface
+		 is_host
+		 is_subnet
+		 is_any
+		 is_every
+		 is_group
+		 is_servicegroup
+		 is_objectgroup
+		 is_chain
 		 read_args
 		 read_netspoc
 		 read_file
@@ -1432,9 +1444,7 @@ sub read_file_or_dir( $;$ ) {
     $read_syntax ||= \&read_netspoc;
     # Undef input record separator.
     local $/;
-    if(-f $path) {
-	read_file $path, $read_syntax;
-    } elsif(-d $path) {
+    if(-d $path) {
 	local(*DIR);
 	# Strip trailing slash for nicer file names in messages.
 	$path =~ s</$><>;
@@ -1446,7 +1456,7 @@ sub read_file_or_dir( $;$ ) {
 	    read_file_or_dir $file, $read_syntax;
 	}
     } else {
-	die "Can't read path '$path'\n";
+	read_file $path, $read_syntax;
     }
 }	
 	
@@ -2303,8 +2313,12 @@ sub expand_group1( $$ ) {
 	} elsif(is_every $object) {
 	    # Expand an 'every' object to all networks in its security domain.
 	    # Attention: this doesn't include unnumbered networks.
-	    push @objects,  @{$object->{link}->{any}->{networks}}
-	    unless $object->{disabled};
+	    unless($object->{disabled}) {
+		push @objects,  @{$object->{link}->{any}->{networks}};
+		# This may later be used to check that this object is used.
+		# Similar to check_unused_groups.
+		$object->{is_used} = 1;
+	    }		
 	} else {
 	    push @objects, $object;
 	}
