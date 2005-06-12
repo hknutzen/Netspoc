@@ -36,6 +36,7 @@ my $version = (split ' ','$Id$ ')[2];
 our @ISA = qw(Exporter);
 our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
 		 %pathrestrictions
+		 %global_nat
 		 %groups %services %servicegroups 
 		 %policies
 		 %expanded_rules
