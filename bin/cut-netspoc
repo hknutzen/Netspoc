@@ -120,15 +120,15 @@ for my $object (values %routers, values %networks,
 # Source of pathrestrictions can't be used literally, 
 # but must be reconstructed from internal data structure. 
 for my $restrict (values %pathrestrictions) {
-    my $is_used;
+    my $used = 0;
     for my $interface (@{$restrict->{elements}}) {
 	if($interface->{router}->{is_used}) {
-	    $is_used = 1;
+	    $used++;
 	} else {
 	    $interface = undef;
 	}
     }
-    next unless $is_used;
+    next if $used < 2;
     print "$restrict->{name} =\n";
     for my $interface (@{$restrict->{elements}}) {
 	next unless $interface;
