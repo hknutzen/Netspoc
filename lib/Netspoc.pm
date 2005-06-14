@@ -1741,11 +1741,17 @@ sub link_interface_with_net( $ ) {
     my $net_name = $interface->{network};
     my $network = $networks{$net_name};
     unless($network) {
-	err_msg "Referencing undefined network:$net_name ",
-	    "from $interface->{name}";
+	my $msg =
+	    "Referencing undefined network:$net_name from $interface->{name}";
+	if(grep $interface, @disabled_interfaces) {
+	    # There is no attached network to be disabled.
+	    aref_delete $interface, \@disabled_interfaces;
+	    warn_msg $msg;
+	} else {
+	    err_msg $msg;
+	}
 	# Prevent further errors.
 	aref_delete $interface, $interface->{router}->{interfaces};
-	aref_delete $interface, \@disabled_interfaces;
 	return;
     }
     $interface->{network} = $network;
