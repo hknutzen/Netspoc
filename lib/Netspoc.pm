@@ -5906,38 +5906,77 @@ sub print_crypto( $ ) {
     my $comment_char = $model->{comment_char};
     print "$comment_char [ Crypto ]\n";
     $crypto_type =~ /^IOS|PIX$/ or internal_err;
-    if(@isakmp > 1) {
-	err_msg "Only one isakmp definition allowed at $router->{name}\n ",
-	join ', ', map $_->{name}, @isakmp;
+    if(@ipsec > 1) {
+	err_msg "Only one ipsec definition supported at $router->{name}\n ",
+	"but these are used: ",
+	join ', ', map $_->{name}, @ipsec;
 	return;
-    } else {
-	my $isakmp = $isakmp[0];
-	my $prefix = $crypto_type eq 'IOS' ? 'crypto isakmp' : 'isakmp';
-	my $identity = $isakmp->{identity};
-	$identity = 'hostname' if $identity eq 'fqdn';
-	print "$prefix identity $identity\n";
-	if($isakmp->{nat_traversal}) {
-	    print "$prefix nat-traversal\n";
-	}
-	if($crypto_type eq 'IOS') {
-	    print "crypto isakmp policy 1\n";
-	    $prefix = '';
-	} else {
-	    $prefix = "isakmp policy 1";
-	}
-	my $authentication = $isakmp->{authentication};
-	$authentication =~ s/preshare/pre-share/;
-	$authentication =~ s/rsasig/rsa-sig/;
-	print "$prefix authentication $authentication\n";
-	my $encryption = $isakmp->{encryption};
-	print "$prefix encryption $encryption\n";
-	my $hash = $isakmp->{hash};
-	print "$prefix hash $hash\n";
-	my $group = $isakmp->{group};
-	print "$prefix group $group\n";
-	my $lifetime = $isakmp->{lifetime};
-	print "$prefix lifetime $lifetime\n";
     }
+    my $ipsec = $ipsec[0];
+    # Handle ISAKMP definition.
+    my $isakmp = $ipsec->{key_exchange};
+    my $prefix = $crypto_type eq 'IOS' ? 'crypto isakmp' : 'isakmp';
+    my $identity = $isakmp->{identity};
+    $identity = 'hostname' if $identity eq 'fqdn';
+    print "$prefix identity $identity\n";
+    if($isakmp->{nat_traversal}) {
+	print "$prefix nat-traversal\n";
+    }
+    if($crypto_type eq 'IOS') {
+	print "crypto isakmp policy 1\n";
+	$prefix = '';
+    } else {
+	$prefix = "isakmp policy 1";
+    }
+    my $authentication = $isakmp->{authentication};
+    $authentication =~ s/preshare/pre-share/;
+    $authentication =~ s/rsasig/rsa-sig/;
+    print "$prefix authentication $authentication\n";
+    my $encryption = $isakmp->{encryption};
+    print "$prefix encryption $encryption\n";
+    my $hash = $isakmp->{hash};
+    print "$prefix hash $hash\n";
+    my $group = $isakmp->{group};
+    print "$prefix group $group\n";
+    my $lifetime = $isakmp->{lifetime};
+    print "$prefix lifetime $lifetime\n";
+    # Handle IPSEC definition.
+    my $transform = '';
+    if(my $ah = $ipsec->{ah}) {
+	if($ah =~ /^(md5|sha)_hmac$/) {
+	    $transform .= "ah-$1-hmac ";
+	} else {
+	    err_msg "Unsupported IPSec AH method for $crypto_type: $ah";
+	}
+    }
+    if(not (my $esp = $ipsec->{esp_encryption})) {
+	$transform .= 'esp-null ';
+    } elsif($esp =~ /^(aes|des|3des)$/) {
+	$transform .= "esp-$1 ";
+    } elsif($esp =~ /^aes(192|256)$/) {
+	$transform .= "esp-aes-$1 ";
+    } else {
+	err_msg "Unsupported IPSec ESP method for $crypto_type: $esp";
+    }
+    if(my $esp_ah = $ipsec->{esp_authentication}) {
+	if($esp_ah =~ /^(md5|sha)_hmac$/) {
+	    $transform .= "esp-$1-hmac";
+	} else {
+	    err_msg
+		"Unsupported IPSec ESP auth. method for $crypto_type: $esp_ah";
+	}
+    }
+    # Syntax is identical for IOS and PIX.
+    print "crypto ipsec transform-set Trans $transform\n";
+    print "crypto ipsec security-association lifetime seconds",
+    " $ipsec->{lifetime}\n";
+    my $pfs_group = $ipsec->{pfs_group};
+    if($pfs_group =~ /^(1|2)$/) {
+	$pfs_group = "group$1";
+    } else {
+	err_msg "Unsupported pfs group for $crypto_type: $pfs_group";
+    }
+
     for my $hardware (@{$router->{hardware}}) {
 	my $name = $hardware->{name};
 	# Name of crypto map.
@@ -5990,7 +6029,9 @@ sub print_crypto( $ ) {
 	    $crypto_filter_name and 
 		print "$prefix set ip access-group $crypto_filter_name in\n";
 	    print "$prefix set peer $peer_ip\n";
-	    print "$prefix set transform-set 3des-sha-trans\n";
+	    # Name of transform set is currently always "Trans".
+	    print "$prefix set transform-set Trans\n";
+	    $pfs_group and print "$prefix set pfs $pfs_group\n";
 	}
     }
 }
