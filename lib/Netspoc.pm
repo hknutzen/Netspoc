@@ -1745,6 +1745,7 @@ sub link_interface_with_net( $ ) {
 	    "from $interface->{name}";
 	# Prevent further errors.
 	aref_delete $interface, $interface->{router}->{interfaces};
+	aref_delete $interface, \@disabled_interfaces;
 	return;
     }
     $interface->{network} = $network;
