@@ -5967,7 +5967,8 @@ sub print_crypto( $ ) {
 	}
     }
     # Syntax is identical for IOS and PIX.
-    print "crypto ipsec transform-set Trans $transform\n";
+    my $transform_name = 'Trans';
+    print "crypto ipsec transform-set $transform_name $transform\n";
     print "crypto ipsec security-association lifetime seconds",
     " $ipsec->{lifetime}\n";
     my $pfs_group = $ipsec->{pfs_group};
@@ -6029,9 +6030,15 @@ sub print_crypto( $ ) {
 	    $crypto_filter_name and 
 		print "$prefix set ip access-group $crypto_filter_name in\n";
 	    print "$prefix set peer $peer_ip\n";
-	    # Name of transform set is currently always "Trans".
-	    print "$prefix set transform-set Trans\n";
+	    print "$prefix set transform-set $transform_name\n";
 	    $pfs_group and print "$prefix set pfs $pfs_group\n";
+	}
+	if($crypto_type eq 'IOS') {
+	    print "interface $name\n";
+	    print " crypto map $map_name\n";
+	} elsif($crypto_type eq 'PIX') {
+	    print "crypto map $map_name interface $name\n";
+	    print "isakmp enable $name\n";
 	}
     }
 }
