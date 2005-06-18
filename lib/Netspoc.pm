@@ -2584,7 +2584,9 @@ sub expand_policies( ;$) {
     info "Expanding policies";
     # Prepare special groups.
     set_auto_groups;
-    for my $policy (values %policies) {
+    # Sort by policy name to make output deterministic.
+    for my $key (sort keys %policies) {
+	my $policy = $policies{$key};
 	my $name = $policy->{name};
 	my $user = $policy->{user} =
 	    expand_group $policy->{user}, "user of $name", $convert_hosts;
@@ -3572,13 +3574,14 @@ sub path_walk( $$;$ ) {
 #	debug " Walk: $in_name, $out_name $crypto";
 #	$fun2->(@_);
 #    };
-    unless($from and $to) {        
-	unless($src eq $dst or $rule->{deleted}) {
-            warn_msg "Unenforceable rule\n ", print_rule($rule);
-        }
+    unless($from and $to) {     
 	internal_err print_rule $rule;
     }
-    if($from eq $to) {
+    if($from eq $to) {     
+	unless($rule->{deleted} || $src eq $dst ||
+	       is_any $src || is_any $dst) {
+            warn_msg "Unenforceable rule\n ", print_rule($rule);
+        }
 	# Don't process rule again later
 	$rule->{deleted} = $rule;
 	return;
@@ -4484,7 +4487,8 @@ sub check_and_convert_routes () {
 	for my $interface (@{$router->{interfaces}}) {
 	    # Remember, via which remote interface a network is reached.
 	    my %net2hop;
-	    # Convert to sorted array, because hash isn't neede any longer.
+	    # Convert to array, because hash isn't needed any longer.
+	    # Array is sorted to get deterministic output.
 	    $interface->{hop} = [ sort { $a->{name} cmp $b->{name} }
 				  values %{$interface->{hop}} ];
 	    for my $hop (@{$interface->{hop}}) {
@@ -4659,7 +4663,6 @@ sub print_routes( $ ) {
 		$max_intf = undef;
 		last;
 	    }
-	    # Sort interfaces by name to make output deterministic
 	    for my $hop (@{$interface->{hop}}) {
 		my $count = keys %{$interface->{routes}->{$hop}};
 		if($count > $max) {
@@ -4686,7 +4689,6 @@ sub print_routes( $ ) {
 	    next;
 	}
 	my $nat_map = $interface->{nat_map};
-	# Sort interfaces by name to make output deterministic
 	for my $hop (@{$interface->{hop}}) {
 	    # For unnumbered networks use interface name as next hop.
 	    my $hop_addr =
