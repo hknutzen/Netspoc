@@ -863,23 +863,25 @@ sub read_interface( $ ) {
 		$interface->{routing} and
 		    error_atline "Duplicate routing protocol";
 		$interface->{routing} = $routing;
-	    } elsif(my @names = check_assign_list('reroute_permit',
-						  \&read_typed_name)) {
+	    } elsif(my @names = check_assign_list 'reroute_permit',
+						  \&read_typed_name) {
 		my @networks;
 		for my $name (@names) {
 		    my($type, $net) = split_typed_name $name;
 		    if($type eq 'network') {
 			push @networks, $net;
 		    } else {
-			error_atline "Expected networks as values";
+			error_atline 'Expected networks as values';
 		    }
-		}		
+		}
+		$interface->{reroute_permit} and
+		    error_atline 'Duplicate definition of reroute_permit';
 		$interface->{reroute_permit} = \@networks;
 	    }
 	    elsif(check_flag 'disabled') {
 		push @disabled_interfaces, $interface;
 	    } else {
-		syntax_err "Expected some valid attribute";
+		syntax_err 'Expected some valid attribute';
 	    }
 	}
 	if($interface->{nat}) {
@@ -953,19 +955,16 @@ sub read_router( $ ) {
 		syntax_err "Expected ';' or '='";
 	    }
 	    $router->{managed} = $managed;
-	}
-	elsif(my $model =
-	      check_assign 'model', \&read_identifier) {
-	    $router->{model} and
-		error_atline "Redefining 'model' attribute";
+	} elsif(my $model = check_assign 'model', \&read_identifier) {
+	    $router->{model} and error_atline "Redefining 'model' attribute";
 	    unless($router->{model} = $router_info{$model}) {
 		error_atline "Unknown router model '$model'";
 		# Prevent further errors.
 		$router->{model} = {};
 	    }
-	} elsif(check_flag('no_group_code')) {
+	} elsif(check_flag 'no_group_code') {
 	    $router->{no_group_code} = 1;
-	} elsif(check_flag('no_crypto_filter')) {
+	} elsif(check_flag 'no_crypto_filter') {
 	    $router->{no_crypto_filter} = 1;
 	} else {
 	    my $string = read_typed_name;
@@ -1063,6 +1062,52 @@ sub read_every( $ ) {
     return new('Every', name => $name, link => $link);
 }
 
+our %areas;
+sub read_area( $ ) {
+    my $name = shift;
+    my $area = new('Area', name => $name);
+    skip '=';
+    skip '{';
+    while(1) {
+	last if check '}';
+	if(my @names = check_assign_list 'border', \&read_typed_ext_name) {
+	    my @interfaces;
+	    for my $name (@names) {
+		my($type, $interface) = split_typed_name $name;
+		if($type eq 'interface') {
+		    push @interfaces, $interface;
+		} else {
+		    error_atline 'Expected interfaces as values';
+		}
+	    }
+	    $area->{border} and
+		error_atline 'Duplicate definition of border';
+	    $area->{border} = \@interfaces;
+	} elsif(check_flag 'auto_border') {
+	    $area->{auto_border} = 1;
+	} elsif(my $name = check_assign 'anchor', \&read_typed_name) {
+	    my($type, $network) = split_typed_name $name;
+	    if($type eq 'network') {
+		$area->{anchor} = $network;
+	    } else {
+		error_atline 'Expected network as value';
+	    }
+	} else {
+	    syntax_err "Expected some valid attribute";
+	}
+    }
+    $area->{border} and $area->{anchor} and
+	err_msg "Only one of attributes 'border' and 'anchor'",
+	" may be defined for $name";
+    $area->{anchor} and not $area->{auto_border} and
+	err_msg "Attribute 'anchor' needs attribute 'auto_border'",
+	"to be defined as well";
+    $area->{anchor} or $area->{border} or
+	err_msg "At least one of attributes 'border' and 'anchor'",
+	" must be defined for $name";
+    return $area;
+}
+	    
 our %groups;
 sub read_group( $ ) {
     my $name = shift;
@@ -1397,6 +1442,7 @@ my %global_type =
   network => [ \&read_network, \%networks ],
   any =>     [ \&read_any,     \%anys ],
   every =>   [ \&read_every,   \%everys ],
+  area =>    [ \&read_area,    \%areas ],
   group =>   [ \&read_group,   \%groups ],
   service => [ \&read_service, \%services ],
   servicegroup => [ \&read_servicegroup, \%servicegroups ],
@@ -1701,7 +1747,7 @@ sub order_services() {
 # Link topology elements each with another
 ####################################################################
 
-# link 'any' and 'every' objects with referenced objects
+# Link 'any' and 'every' objects with referenced objects.
 sub link_any_and_every() {
     for my $obj (values %anys, values %everys) {
 	my($type, $name) = split_typed_name($obj->{link});
@@ -1735,6 +1781,38 @@ sub link_any_and_every() {
     }
 }
 
+# Link areas with referenced interfaces or network.
+sub link_areas() {
+    for my $area (values %areas) {
+	if(my $name = $area->{anchor}) {
+	    if(my $network = $networks{$name}) {
+		$area->{anchor} = $network;
+	    } else {
+		err_msg 
+		    "Referencing undefined network:$name from $area->{name}";
+		# Prevent further errors.
+		delete $area->{anchor};
+		last;
+	    }
+	} else {
+	    for my $name (@{$area->{border}}) {
+		if(my $interface = $interfaces{$name}) {
+		    $interface->{router}->{managed} or
+			err_msg "Referencing unmanaged $interface->{name} ",
+			"from $area->{name}";
+		    $name = $interface;
+		} else {
+		    err_msg "Referencing undefined interface:$name",
+		    " from $area->{name}";
+		    # Prevent further errors.
+		    delete $area->{border};
+		    last;
+		}
+	    }
+	}
+    }
+}
+    
 # Link interface with network in both directions.
 sub link_interface_with_net( $ ) {
     my($interface) = @_;
@@ -1799,7 +1877,7 @@ sub link_interface_with_net( $ ) {
 	    }
 	}
     }
-    push(@{$network->{interfaces}}, $interface);
+    push @{$network->{interfaces}}, $interface;
 }
 
 sub link_pathrestrictions() {
@@ -1830,6 +1908,7 @@ sub link_topology() {
 	link_interface_with_net($interface);
     }
     link_any_and_every;
+    link_areas;
     link_pathrestrictions;
     for my $network (values %networks) {
 	if($network->{ip} eq 'unnumbered' and $network->{interfaces} and
@@ -1992,6 +2071,7 @@ my @managed_routers;
 my @routers;
 my @networks;
 my @all_anys;
+my @all_areas;
 
 sub mark_disabled() {
     # Mark all disabled interfaces for the second pass to be able
@@ -2027,6 +2107,15 @@ sub mark_disabled() {
 	} else {
 	    push @all_anys, $obj;
 	}
+    }
+    for my $area (values %areas) {
+	if(my $anchor = $area->{anchor}) {
+	    push @all_areas, $area if not $anchor->{disabled};
+	} else {
+	    $area->{border} =
+		[ grep !$_->{disabled}, @{$area->{border}} ];
+	    push @all_areas, $area if @{$area->{border}};
+	}	
     }
     for my $router (values %routers) {
 	unless($router->{disabled}) {
@@ -2563,11 +2652,11 @@ sub expand_rules ( $$$ ) {
 				$expanded_rule->{orig_srv} = $srv;
 			    }
 			    if($unexpanded->{action} eq 'deny') {
-				push(@$deny, $expanded_rule);
+				push @$deny, $expanded_rule;
 			    } elsif(is_any($src) or is_any($dst)) {
-				push(@$any, $expanded_rule);
+				push @$any, $expanded_rule;
 			    } else {
-				push(@$permit, $expanded_rule);
+				push @$permit, $expanded_rule;
 			    }
 			}
 		    }
@@ -2624,7 +2713,7 @@ sub set_natdomain( $$$ ) {
 	return;
     }
     $network->{nat_domain} = $domain;
-    push(@{$domain->{networks}}, $network);
+    push @{$domain->{networks}}, $network;
     my $nat_map = $domain->{nat_map};
     for my $interface (@{$network->{interfaces}}) {
 	# Ignore interface where we reached this network.
@@ -2913,9 +3002,8 @@ sub find_subnets() {
 # Additionally link each network and unmanaged router in this security
 # domain with the associated 'any' object.
 # Add a list of all numbered networks of a security domain to its
-# 'any' object
+# 'any' object.
 ####################################################################
-
 sub setany_network( $$$ );
 sub setany_network( $$$ ) {
     my($network, $any, $in_interface) = @_;
@@ -2929,7 +3017,7 @@ sub setany_network( $$$ ) {
     # Unnumbered networks are left out here because
     # they aren't a valid src or dst.
     unless($network->{ip} eq 'unnumbered') {
-	push(@{$any->{networks}}, $network);
+	push @{$any->{networks}}, $network;
     }
     for my $interface (@{$network->{interfaces}}) {
 	# Ignore interface where we reached this network.
@@ -2947,6 +3035,50 @@ sub setany_network( $$$ ) {
 	}
     }
 }
+
+# Collect all 'any' objects belonging to an area.
+sub setarea1( $$$ );
+sub setarea1( $$$ ) {
+    my($any, $area, $in_interface) = @_;
+    if($any->{areas}->{$area}) {
+	# Found a loop.
+	return;
+    }
+    $any->{active_path} = 1;
+    # Add any object to the corresponding area,
+    # to have all any objects of an area available.
+    push @{$area->{anys}}, $any;
+    # This will be used to prevent duplicate traversal of loops and
+    # later to check for duplictae and overlapping areas.
+    $any->{areas}->{$area} = $area;
+    my $auto_border = $area->{auto_border};
+    my $lookup = $area->{intf_lookup};
+    for my $interface (@{$any->{interfaces}}) {
+	# Ignore interface where we reached this network.
+	next if $interface eq $in_interface;
+	# Found another border of current area.
+	if($lookup->{$interface}) {
+	    # Remember that we have found this other border.
+	    $lookup->{$interface} = 'found';
+	    next;
+	}
+	next if $auto_border and $interface->{is_border};
+	my $router = $interface->{router};
+	for my $out_interface (@{$router->{interfaces}}) {
+	    # Ignore interface where we reached this router.
+	    next if $out_interface eq $interface;
+	    # Found another border of current area from wrong side.
+	    if($lookup->{$interface}) {
+		err_msg 
+		    "Invalid border $out_interface->{name} of $area->{name}";
+		next;
+	    }
+	    next if $auto_border and $out_interface->{is_border};
+	    setarea1 $out_interface->{any}, $area, $out_interface;
+	}
+    }
+}
+
 
 sub setany() {
     for my $any (@all_anys) {
@@ -2978,13 +3110,85 @@ sub setany() {
 	@{$any->{networks}} =
 	    sort { $a->{ip} <=> $b->{ip} } @{$any->{networks}};
     }
+    # Mark interfaces, which are border of some area.
+    # This is needed to locate auto_borders.
+    for my $area (@all_areas) {
+	next unless $area->{border};
+	for my $interface (@{$area->{border}}) {
+	    $interface->{is_border} = 1;
+	}
+    }
+    for my $area (@all_areas) {
+	if(my $network = $area->{anchor}) {
+	    setarea1 $network->{any}, $area, 0;
+	} elsif(my $interfaces = $area->{border}) {
+	    # For efficient lookup if some interface is border of current area.
+	    my %lookup;
+	    for my $interface (@$interfaces) {
+		$lookup{$interface} = 1;
+	    }
+	    $area->{intf_lookup} = \%lookup;
+	    my $start = $interfaces->[0];
+	    $lookup{$start} = 'found';
+	    setarea1 $start->{any}, $area, $start;
+	    if(my @bad_intf = grep $lookup{$_} ne 'found', @$interfaces) {
+		err_msg "Invalid border of $area->{name}\n ",
+		join "\n ", map $_->{name}, @bad_intf;
+		$area->{border} = [ grep $lookup{$_} eq 'found', @$interfaces ];
+	    }
+	}
+# debug "$area->{name}:\n ", join "\n ", map $_->{name}, @{$area->{anys}};
+    }
+    # Find subset relation between areas.
+    # Complain about duplicate and overlapping areas.
+    for my $any (@all_anys) {
+	next unless $any->{areas};
+	# Ignore empty hash.
+	my @areas = values %{$any->{areas}} or next;
+	@areas = sort { @{$a->{anys}} <=> @{$b->{anys}} } @areas;
+	# Take the smallest area.
+	my $small = shift @areas;
+	while(@areas) {
+	    my $next = shift @areas;
+	    if(my $big = $small->{subset_of}) {
+		$big eq $next or
+		    internal_err "$small->{name} is subset of",
+		    " $big->{name} and $next->{name}";
+	    } else {
+		# Each 'any' object of $small must be part of $next.
+		my $ok = 1;
+		for my $any (@{$small->{anys}}) {
+		    unless($any->{areas}->{$small}) {
+			$ok = 0;
+			err_msg "Overlapping $small->{name} and $next->{name}";
+			last;
+		    }
+		}
+		if($ok) {
+		    if(@{$small->{anys}} == @{$next->{anys}}) {
+			err_msg "Duplicate $small->{name} and $next->{name}";
+		    } else {
+			$small->{subset_of} = $next;
+		    }
+		}
+	    }
+	    $small = $next;
+	}
+    }
+    for my $area (@all_areas) {
+	# Tidy up: Delete unused attribute.
+	delete $area->{intf_lookup};
+	for my $interface (@{$area->{border}}) {
+	    delete $interface->{is_border};
+	}
+    }	
 }
 	
 ####################################################################
 # Set paths for efficient topology traversal
 ####################################################################
 
-# collect all networks and routers located inside a cyclic graph
+# Collect all networks and routers located inside a cyclic graph.
 my @loop_objects;
 
 sub setpath_obj( $$$ );
@@ -3928,17 +4132,17 @@ sub expand_crypto () {
 	    my $subtree = $start->{crypto_rule_tree}->{$action};
 	    my $subtree2 = $subtree->{$src};
 	    while($src = $src->{up}) {
-		push(@{$subtree->{above}->{$src}}, $subtree2);
+		push @{$subtree->{above}->{$src}}, $subtree2;
 	    }
 	    $subtree = $subtree2;
 	    $subtree2 = $subtree->{$dst};
 	    while($dst = $dst->{up}) {
-		push(@{$subtree->{above}->{$dst}}, $subtree2);
+		push @{$subtree->{above}->{$dst}}, $subtree2;
 	    }
 	    $subtree = $subtree2;
 	    $subtree2 = $subtree->{$srv};
 	    while($srv = $srv->{up}) {
-		push(@{$subtree->{above}->{$srv}}, $subtree2);
+		push @{$subtree->{above}->{$srv}}, $subtree2;
 	    }		
 	    # Rules are stored additionally in crypto_map for code generation.
 	    push @{$crypto_map->{crypto_rules}}, $rule;
@@ -5792,22 +5996,22 @@ sub print_acls( $ ) {
 		    next if $nat_network->{dynamic};
 		}
 		# Protect own interfaces.
-		push(@{$hardware->{intf_rules}}, { action => 'deny',
+		push @{$hardware->{intf_rules}}, { action => 'deny',
  						   src => $network_00,
  						   dst => $interface,
- 						   srv => $srv_ip });
+ 						   srv => $srv_ip };
 	    }
 	}
 	if($filter eq 'iptables') {
-	    push(@{$hardware->{intf_rules}}, { action => 'deny',
+	    push @{$hardware->{intf_rules}}, { action => 'deny',
 					       src => $network_00,
 					       dst => $network_00,
-					       srv => $srv_ip });
+					       srv => $srv_ip };
 	}
-	push(@{$hardware->{rules}}, { action => 'deny',
+	push @{$hardware->{rules}}, { action => 'deny',
 				      src => $network_00,
 				      dst => $network_00,
-				      srv => $srv_ip });
+				      srv => $srv_ip };
     }
     # Generate code.
     for my $hardware (@{$router->{hardware}}) {
