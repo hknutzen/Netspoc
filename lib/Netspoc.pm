@@ -34,7 +34,7 @@ my $program = 'Network Security Policy Compiler';
 my $version = (split ' ','$Id$ ')[2];
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys
+our @EXPORT = qw(%routers %interfaces %networks %hosts %anys %everys %areas
 		 %pathrestrictions
 		 %global_nat
 		 %groups %services %servicegroups 
@@ -360,11 +360,11 @@ sub read_interface_name() {
     }
 }
 
-# Check for xxx:xxx or xxx:[xxx] or interface:xxx.xxx
-# or interface:xxx.[xxx] or interface:[xxx].[xxx]
+# Check for xxx:xxx or xxx:[xxx] or xxx:[xxx:xxx] or 
+# interface:xxx.xxx or interface:xxx.[xxx] or interface:[xxx].[xxx]
 sub check_typed_ext_name() {
     skip_space_and_comment;
-    if(m/\G(interface:[][\w-]+\.[][\w-]+|\w+:[][\w-]+)/gc) {
+    if(m/\G(interface:[][\w-]+\.[][\w-]+|\w+:[][:\w-]+)/gc) {
 	return $1;
     } else {
 	return undef;
@@ -1533,6 +1533,7 @@ sub is_host( $ )         { ref($_[0]) eq 'Host'; }
 sub is_subnet( $ )       { ref($_[0]) eq 'Subnet'; }
 sub is_any( $ )          { ref($_[0]) eq 'Any'; }
 sub is_every( $ )        { ref($_[0]) eq 'Every'; }
+sub is_area( $ )         { ref($_[0]) eq 'Area'; }
 sub is_group( $ )        { ref($_[0]) eq 'Group'; }
 sub is_servicegroup( $ ) { ref($_[0]) eq 'Servicegroup'; }
 sub is_objectgroup( $ )  { ref($_[0]) eq 'Objectgroup'; }
@@ -2325,12 +2326,12 @@ sub combine_subnets ( $ ) {
 
 my %name2object =
 (
- host => \%hosts,
- network => \%networks,
+ host      => \%hosts,
+ network   => \%networks,
  interface => \%interfaces,
- any => \%anys,
- every => \%everys,
- group => \%groups
+ any       => \%anys,
+ every     => \%everys,
+ group     => \%groups,
  );
 
 # Initialize 'special' objects which implicitly denote a group of objects.
@@ -2390,10 +2391,18 @@ sub expand_group1( $$ ) {
 	    err_msg "Unknown type of '$tname' in $context";
 	    next;
 	}
-	unless($object = $name2object{$type}->{$name} or
+	unless(# A simple object type:name.
+	       $object = $name2object{$type}->{$name} or
+	       # interface:name.[auto]
 	       $type eq 'interface' and
 	       $name =~ /^(.*)\.\[auto\]$/ and
-	       $object = $routers{$1}) {
+	       $object = $routers{$1} or
+	       # network:[area:name] or any:[area:name]
+	       $type =~ /^(network|any)$/ and
+	       $name =~ /^\[area:(.*)\]/ and
+	       # Variable $type will be used when expanding area to objects 
+	       # of type $type.
+	       $object = $areas{$1}) {
 	    err_msg "Can't resolve reference to '$tname' in $context";
 	    next;
 	}
@@ -2420,7 +2429,25 @@ sub expand_group1( $$ ) {
 	    # Expand an 'every' object to all networks in its security domain.
 	    # Attention: this doesn't include unnumbered networks.
 	    unless($object->{disabled}) {
-		push @objects,  @{$object->{link}->{any}->{networks}};
+		push @objects,
+		grep !$_->{route_hint}, @{$object->{link}->{any}->{networks}};
+		# This may later be used to check that this object is used.
+		# Similar to check_unused_groups.
+		$object->{is_used} = 1;
+	    }		
+	} elsif(is_area $object) {
+	    # Expand an 'area' object to containing networks or 'any' objects,
+	    # depending on value of $type.
+	    unless($object->{disabled}) {
+		if($type eq 'network') {
+		    push @objects,
+		    grep !$_->{route_hint},
+		    map @{$_->{networks}}, @{$object->{anys}};
+		} elsif($type eq 'any') {
+		    push @objects,  @{$object->{anys}};
+		} else {
+		    internal_err;
+		}
 		# This may later be used to check that this object is used.
 		# Similar to check_unused_groups.
 		$object->{is_used} = 1;
