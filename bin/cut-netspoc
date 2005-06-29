@@ -45,7 +45,7 @@ sub read_netspoc_with_src () {
 
 # This function is called by path_walk to mark all networks and routers
 # on path from src to dst of $rule with attribute {is_used}.
-sub mark_topology( $$ ) {
+sub mark_topology( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
     my $router = ($in_intf || $out_intf)->{router};
     $router->{is_used} = 1;
@@ -93,10 +93,25 @@ die "Aborted with $error_counter error(s)\n" if $error_counter;
 for my $type ('deny', 'any', 'permit') {
     for my $rule (@{$expanded_rules{$type}}) {
 	for my $where ('src', 'dst') {
+	    # path_walk only handles networks and routes, 
+	    # therefore 'any' objects need to be marked separately.
 	    is_any $rule->{$where} and $rule->{$where}->{is_used} = 1;
 	}
 	&path_walk($rule, \&mark_topology);
 	$rule->{srv}->{is_used} = 1;
+    }
+}
+
+# Mark interfaces which are referenced by areas.
+for my $area (values %areas) {
+    if($area->{is_used}) {
+	if(my $anchor = $area->{anchor}) {
+	    $anchor->{is_used} = 1;
+	} else {
+	    for my $interface (@{$area->{border}}) {
+		mark_topology undef, $interface, undef;
+	    }
+	}
     }
 }
 
@@ -107,7 +122,7 @@ for my $type ('deny', 'any', 'permit') {
 # during expand_policies.
 delete $anys{'[local]'};
 for my $object (values %routers, values %networks,
-		values %anys, values %everys, values %groups,
+		values %anys, values %everys, values %areas, values %groups,
 		values %services, values %servicegroups) {
     if($object->{is_used}) {
 	# There are some internal objects without src_code.
