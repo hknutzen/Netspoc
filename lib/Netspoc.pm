@@ -277,31 +277,6 @@ sub read_int() {
     check_int or syntax_err "Integer expected";
 }
 
-# Read IP address,
-# internally it is stored as an integer
-sub read_ip() {
-    skip_space_and_comment;
-    if(m/\G(\d+)\.(\d+)\.(\d+)\.(\d+)/gc) {
-	if($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
-	    error_atline "Invalid IP address";
-	}
-	return unpack 'N', pack 'C4',$1,$2,$3,$4;
-    } else {
-	syntax_err "Expected IP address";
-    }
-}
-
-sub gen_ip( $$$$ ) {
-    return unpack 'N', pack 'C4',@_;
-}
-
-# Convert IP address from internal integer representation to
-# readable string.
-sub print_ip( $ ) {
-    my $ip = shift;
-    return sprintf "%vd", pack 'N', $ip;
-}
-
 # Conversion from netmask to prefix and vice versa.
 {
     # initialize private variables of this block
@@ -328,6 +303,44 @@ sub print_ip( $ ) {
 	}
 	internal_err "Invalid prefix: $prefix";
     }
+}
+
+# Read IP address. Internally it is stored as an integer.
+sub read_ip() {
+    skip_space_and_comment;
+    if(m/\G(\d+)\.(\d+)\.(\d+)\.(\d+)/gc) {
+	if($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
+	    error_atline "Invalid IP address";
+	}
+	return unpack 'N', pack 'C4',$1,$2,$3,$4;
+    } else {
+	syntax_err "IP address expected";
+    }
+}
+
+# Read IP address with optional prefix length: x.x.x.x or x.x.x.x/n.
+sub read_ip_opt_prefixlen() {
+    my $ip = read_ip;
+    my $len = undef;
+    if(m/\G\/(\d+)/gc) {
+	if($1 <= 32) {
+	    $len = $1;
+	} else {
+	    error_atline "Prefix length must be greater than 32";
+	}
+    }
+    return $ip, $len;
+}
+
+sub gen_ip( $$$$ ) {
+    return unpack 'N', pack 'C4',@_;
+}
+
+# Convert IP address from internal integer representation to
+# readable string.
+sub print_ip( $ ) {
+    my $ip = shift;
+    return sprintf "%vd", pack 'N', $ip;
 }
    
 # Generate a list of IP strings from an ref of an array of integers.
@@ -387,7 +400,7 @@ sub read_identifier() {
 # Used for reading interface names.
 sub read_string() {
     skip_space_and_comment;
-    if(m/(\G[^;,=]+)/gc) {
+    if(m/(\G[^;,]+)/gc) {
 	return $1;
     } else {
 	syntax_err "String expected";
@@ -412,8 +425,8 @@ sub read_description() {
     skip_space_and_comment;
     if(check 'description') {
 	skip '=';
-	# Read up to end of line, but ignore ';' at eol.
-	# We must use '$' here to match EOL, +
+	# Read up to end of line, but ignore ';' at EOL.
+	# We must use '$' here to match EOL,
 	# otherwise $line would be out of sync.
 	m/\G(.*);?$/gcm; 
 	return $1; 
@@ -450,20 +463,32 @@ sub read_assign($&) {
     my($token, $fun) = @_;
     skip $token;
     skip '=';
-    my $val = &$fun;
-    skip ';';
-    return $val;
+    if(wantarray) {
+	my @val = &$fun;
+	skip ';';
+	return @val;
+    } else {
+	my $val = &$fun;
+	skip ';';
+	return $val; 
+    }
 }
 
 sub check_assign($&) {
     my($token, $fun) = @_;
-    my $val;
     if(check $token) {
 	skip '=';
-	$val = &$fun;
-	skip ';';
+	if(wantarray) {
+	    my @val = &$fun;
+	    skip ';';
+	    return @val;
+	} else {
+	    my $val = &$fun;
+	    skip ';';
+	    return $val; 
+	}
     }
-    return $val;
+    return;
 }
 
 sub read_list(&) {
@@ -590,26 +615,38 @@ sub read_host( $ ) {
 
 sub read_nat( $ )  {
    my $name = shift;
+   # Currently this needs not to be blessed.
+   my $nat = { name => $name };
+   (my $nat_tag = $name) =~ s/^nat://;
    skip '=';
    skip '{';
-   my $description = read_description;
-   skip 'ip';
-   skip '=';
-   my $ip = read_ip;
-   skip ';';
-   my $mask = check_assign 'mask', \&read_ip;
-   my $dynamic = check_flag 'dynamic';
-   my $subnet_of = check_assign 'subnet_of', \&read_typed_name;
-   skip '}';
-   my $nat = { name => $name, ip => $ip };
-   $nat->{mask} = $mask if defined $mask;
-   (my $nat_tag = $name) =~ s/^nat://;
-   if($dynamic) {
-       # $nat_tag is used later to lookup static translation 
-       # of hosts inside a dynamically translated network.   
-       $nat->{dynamic} = $nat_tag;
+   if(my $description = read_description and $store_description) {
+       $nat->{description} = $description;
    }
-   $nat->{subnet_of} = $subnet_of if $subnet_of;
+   while(1) {
+       last if check '}';
+       if(my($ip, $prefixlen) = check_assign 'ip', \&read_ip_opt_prefixlen) {
+	   if($prefixlen) {
+	       my $mask = prefix2mask $prefixlen;
+	       $nat->{mask} and error_atline "Duplicate IP mask";
+	       $nat->{mask} = $mask;
+	   }		
+	   $nat->{ip} and error_atline "Duplicate IP address";
+	   $nat->{ip} = $ip;
+       } elsif(my $mask = check_assign 'mask', \&read_ip) {
+	   $nat->{mask} and error_atline "Duplicate IP mask";
+	   $nat->{mask} = $mask;
+       } elsif(my $dynamic = check_flag 'dynamic') {
+	   # $nat_tag is used later to lookup static translation 
+	   # of hosts inside a dynamically translated network.   
+	   $nat->{dynamic} = $nat_tag;
+       } elsif(my $subnet = check_assign 'subnet_of', \&read_typed_name) {
+	   $nat->{subnet_of} and
+	       error_atline "Duplicate attribute 'subnet_of'";
+	   $nat->{subnet_of} = $subnet;
+       }
+   }
+   $nat->{ip} or error_atline "Missing IP address";
    $nat_definitions{$nat_tag} = 1;
    return $nat;
 }
@@ -620,99 +657,117 @@ sub read_network( $ ) {
     my $network = new('Network', name => $name);
     skip '=';
     skip '{';
-    $network->{route_hint} = check_flag 'route_hint';
-    $network->{subnet_of} =
-	check_assign 'subnet_of', \&read_typed_name;
-    my $ip;
-    my $mask;
-    my $token = read_identifier;
-    if($token eq 'ip') {
-	skip '=';
-	$ip = read_ip;
-	skip ';';
-	$mask = read_assign 'mask', \&read_ip;
-	# Check if network ip matches mask.
-	if(($ip & $mask) != $ip) {
-	    error_atline "$network->{name}'s IP doesn't match its mask";
-	    $ip &= $mask;
-	}
-	$network->{ip} = $ip;
-	$network->{mask} = $mask;
-    } elsif($token eq 'unnumbered') {
-	$ip = $network->{ip} = 'unnumbered';
-	skip ';';
-    } else {
-	syntax_err "Expected 'ip' or 'unnumbered'";
-    }
     while(1) {
 	last if check '}';
-	my $string = read_typed_name;
-	my($type, $name) = split_typed_name $string;
-	if($type eq 'host') {
-	    my $host = read_host $string;
-	    push @{$network->{hosts}}, $host;
-	    if(my $old_host = $hosts{$name}) {
-		error_atline "Redefining host:$name";
+	if(my($ip, $prefixlen) = check_assign 'ip', \&read_ip_opt_prefixlen) {
+	    if($prefixlen) {
+		my $mask = prefix2mask $prefixlen;
+		$network->{mask} and error_atline "Duplicate IP mask";
+		$network->{mask} = $mask;
+	    }		
+	    $network->{ip} and error_atline "Duplicate IP address";
+	    $network->{ip} = $ip;
+	} elsif(my $mask = check_assign 'mask', \&read_ip) {
+	    $network->{mask} and error_atline "Duplicate IP mask";
+	    $network->{mask} = $mask;
+	} elsif(check_flag 'unnumbered') {
+	    $network->{ip} and error_atline "Duplicate IP address";
+	    $network->{ip} = 'unnumbered';
+	} elsif(check_flag 'route_hint') {
+	    # Duplicate use of this flag doesn't matter.  
+	    $network->{route_hint} = 1;
+	} elsif(my $subnet = check_assign 'subnet_of', \&read_typed_name) {
+	    $network->{subnet_of} and
+		error_atline "Duplicate attribute 'subnet_of'";
+	    $network->{subnet_of} = $subnet;
+	} else {
+	    my $string = read_typed_name;
+	    my($type, $name) = split_typed_name $string;
+	    if($type eq 'host') {
+		my $host = read_host $string;
+		push @{$network->{hosts}}, $host;
+		$hosts{$name} and error_atline "Duplicate host:$name";
+		$hosts{$name} = $host;
+	    } elsif($type eq 'nat') {
+		my $nat = read_nat $string;
+		$network->{nat}->{$name} and
+		    error_atline "Duplicate NAT definition";
+		$network->{nat}->{$name} = $nat;
+	    } else {
+		syntax_err "Expected NAT or host definition";
 	    }
-	    $hosts{$name} = $host;
-	} elsif($type eq 'nat') {
-	    my $nat = read_nat $string;
-	    if(defined $nat->{mask}) {
-		unless($nat->{dynamic}) {
-		    $nat->{mask} == $mask or
-			error_atline "Mask for non dynamic $nat->{name} of",
-			" $network->{name} must be equal to network mask";
+	}
+    }
+    # Network needs at least IP and mask to be defined.
+    my $ip = $network->{ip};
+    # Use 'defined' here because IP may have value '0'.
+    defined $ip or error_atline "Missing network IP";
+    if($ip eq 'unnumbered') {
+	# Unnumbered network must not have any other attributes.
+	for my $key (keys %$network) {
+	    next if $key eq 'ip' or $key eq 'name';
+	    error_atline "Unnumbered network must not have ",
+	    ($key eq 'hosts') ? "host definition" :
+		($key eq 'nat') ? "nat definition" : "attribute '$key'";
+	}
+    } else {
+	my $mask = $network->{mask};
+	# Check if network ip matches mask.
+	if(($ip & $mask) != $ip) {
+	    error_atline "IP and mask don't match";
+	    # Prevent further errors.
+	    $network->{ip} &= $mask;
+	}
+	for my $host (@{$network->{hosts}}) {
+	    # Link host with network.
+	    $host->{network} = $network;
+	    # Check compatibility of host ip and network ip/mask.
+	    if($host->{ips}) {
+		for my $host_ip (@{$host->{ips}}) {
+		    if($ip != ($host_ip & $mask)) {
+			error_atline
+			    "$host->{name}'s IP doesn't match network IP/mask";
+		    }
+		}
+	    } elsif($host->{range}) {
+		my ($ip1, $ip2) = @{$host->{range}};
+		if($ip != ($ip1 & $mask) or
+		   $ip != ($ip2 & $mask)) {
+		    error_atline "$host->{name}'s IP range doesn't match",
+		    " network IP/mask";
 		}
 	    } else {
-		# Inherit mask from network.
-		$nat->{mask} = $mask;
+		internal_err;
 	    }
-	    # Check if ip matches mask.
-	    if(($nat->{ip} & $nat->{mask}) != $nat->{ip}) {
-		error_atline "IP for $nat->{name} of $network->{name} doesn't",
-		" match its mask";
-		$nat->{ip} &= $nat->{mask};
-	    }
-	    $network->{nat}->{$name} and
-		error_atline "Duplicate NAT definition";
-	    $network->{nat}->{$name} = $nat;
-	} else {
-	    syntax_err "Expected NAT or host definition";
+	    # Compatibility of host and network NAT will be checked later,
+	    # after global NAT definitions have been processed.
 	}
-    }
-    # Check compatibility of host ip and network ip/mask.
-    for my $host (@{$network->{hosts}}) {
-	if($host->{ips}) {
-	    for my $host_ip (@{$host->{ips}}) {
-		if($ip != ($host_ip & $mask)) {
-		    error_atline "Host IP doesn't match network IP/mask";
+	if(@{$network->{hosts}} and $network->{route_hint}) {
+	    error_atline "network must not have host definitions\n",
+	    " because it has attribute 'route_hint'";
+	}
+	# Check NAT definitions.
+	if($network->{nat}) {
+	    for my $nat (values %{$network->{nat}}) {
+		if(defined $nat->{mask}) {
+		    unless($nat->{dynamic}) {
+			$nat->{mask} == $mask or
+			    error_atline "Mask for non dynamic $nat->{name}",
+			    " must be equal to network mask";
+		    }
+		} else {
+		    # Inherit mask from network.
+		    $nat->{mask} = $mask;
+		}
+		# Check if ip matches mask.
+		if(($nat->{ip} & $nat->{mask}) != $nat->{ip}) {
+		    error_atline "IP for $nat->{name} of doesn't",
+		    " match its mask";
+		    # Prevent further errors.
+		    $nat->{ip} &= $nat->{mask};
 		}
 	    }
-	} elsif($host->{range}) {
-	    my ($ip1, $ip2) = @{$host->{range}};
-	    if($ip != ($ip1 & $mask) or
-	       $ip != ($ip2 & $mask)) {
-		error_atline "Host IP range doesn't match network IP/mask";
-	    }
-	} else {
-	    internal_err "$host->{name} hasn't ip or range";
 	}
-	# Compatibility of host and network NAT will be checked,
-	# after global NAT definitions have been processed.
- 	# Link host with network.
- 	$host->{network} = $network;
-    }
-    if($network->{nat} and $ip eq 'unnumbered') {
-	err_msg "Unnumbered $network->{name} must not have ",
-	"nat definition";
-    }
-    if(@{$network->{hosts}} and $ip eq 'unnumbered') {
-	err_msg "Unnumbered $network->{name} must not have ",
-	"host definitions";
-    }
-    if(@{$network->{hosts}} and $network->{route_hint}) {
-	err_msg "$network->{name} must not have host definitions\n",
-	" because it has attribute 'route_hint'";
     }
     return $network;
 }
