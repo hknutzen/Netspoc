@@ -397,7 +397,7 @@ sub read_identifier() {
     }
 }
 
-# Used for reading interface names.
+# Used for reading interface names and attribute 'owner'.
 sub read_string() {
     skip_space_and_comment;
     if(m/(\G[^;,]+)/gc) {
@@ -562,14 +562,17 @@ my %nat_definitions;
 our %hosts;
 sub read_host( $ ) {
     my $name = shift;
-    my $host;
+    my $host = new 'Host', name => $name;
     skip '=';
     skip '{';
+    if(my @owner = check_assign_list 'owner', \&read_string) {
+	$host->{owner} = \@owner;
+    }
     my $token = read_identifier;
     if($token eq 'ip') {
 	skip '=';
 	my @ip = read_list \&read_ip;
-	$host = new 'Host', name => $name, ips => [ @ip ];
+	$host->{ips} = [ @ip ];
     } elsif($token eq 'range') {
 	skip '=';
 	my $ip1 = read_ip;
@@ -577,9 +580,7 @@ sub read_host( $ ) {
 	my $ip2 = read_ip;
 	skip ';';
 	$ip1 <= $ip2 or error_atline "Invalid IP range";
-	$host = new('Host',
-		    name => $name,
-		    range => [ $ip1, $ip2 ]);
+	$host->{range} = [ $ip1, $ip2 ];
     } else {
 	syntax_err "Expected 'ip' or 'range'";
     }
@@ -680,6 +681,10 @@ sub read_network( $ ) {
 	    $network->{subnet_of} and
 		error_atline "Duplicate attribute 'subnet_of'";
 	    $network->{subnet_of} = $subnet;
+	} elsif(my @owner = check_assign_list 'owner', \&read_string) {
+	    $network->{owner} and
+		error_atline "Duplicate attribute 'owner'";
+	    $network->{owner} = \@owner;
 	} else {
 	    my $string = read_typed_name;
 	    my($type, $name) = split_typed_name $string;
@@ -1100,11 +1105,15 @@ sub read_router( $ ) {
 our %anys;
 sub read_any( $ ) {
     my $name = shift;
+    my $any = new 'Any', name => $name;
     skip '=';
     skip '{';
-    my $link = read_assign 'link', \&read_typed_name;
+    if(my @owner = check_assign_list 'owner', \&read_string) {
+	$any->{owner} = \@owner;
+    }
+    $any->{link} = read_assign 'link', \&read_typed_name;
     skip '}';
-    return new('Any', name => $name, link => $link);
+    return $any;
 }
 
 our %everys;
@@ -1147,6 +1156,8 @@ sub read_area( $ ) {
 	    } else {
 		error_atline 'Expected network as value';
 	    }
+	} elsif(my @owner = check_assign_list 'owner', \&read_string) {
+	    $area->{owner} = \@owner;
 	} else {
 	    syntax_err "Expected some valid attribute";
 	}
