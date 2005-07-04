@@ -1610,7 +1610,6 @@ sub print_rule( $ ) {
     my $extra = '';;
     $extra .= " $rule->{for_router}" if $rule->{for_router};
     $extra .= " stateless" if $rule->{stateless};
-    if($rule->{orig_any}) { $rule = $rule->{orig_any}; }
     my $srv = exists $rule->{orig_srv} ? 'orig_srv' : 'srv';
     my $action = $rule->{action};
     $action = $action->{name} if is_chain $action;
