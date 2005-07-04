@@ -4588,8 +4588,7 @@ sub gen_reverse_rules1 ( $ ) {
 		dst => $rule->{src},
 		srv => $new_srv,
 		# This rule must only be applied to stateless routers.
-		stateless => 1,
-		orig_rule => $rule };
+		stateless => 1 };
 	    $new_rule->{any_are_neighbors} = 1 if $rule->{any_are_neighbors};
 	    # Don't push to @$rule_aref while we are iterating over it.
 	    push @extra_rules, $new_rule;
