@@ -101,6 +101,9 @@ my $allow_unused_groups = 'warn';
 # - if the subnet is marked as 'subnet_of'
 # Possible values: 0,1,'warn';
 my $strict_subnets = 'warn';
+# Check for unenforceable rules, i.e. no managed device between src and dst.
+# Possible values: 0,1,'warn';
+my $check_unenforceable = 0;
 # Optimize the number of routing entries per router:
 # For each router find the hop, where the largest 
 # number of routing entries points to 
@@ -2669,6 +2672,39 @@ sub add_rules( $$ ) {
     }
 }
 
+sub get_any( $ ) {
+    my($obj) = @_;
+    my $type = ref $obj;
+    if($type eq 'Network') {
+	return $obj->{any};
+    } elsif($type eq 'Subnet') {
+	return $obj->{network}->{any};
+    } elsif($type eq 'Interface') {
+	if($obj->{router}->{managed}) {
+	    return $obj->{router};
+	} else {
+	    return $obj->{network}->{any};
+	}
+    } elsif($type eq 'Any') {
+	return $obj;
+    }
+    # Only used when called from expand_rules.
+    elsif($type eq 'Router') {
+	if($obj->{managed}) {
+	    return $obj;
+	} else {
+	    return $obj->{interfaces}->[0]->{network}->{any};
+	}
+    } elsif($type eq 'Host') {
+	return $obj->{network}->{any};
+    } elsif(not $type) {
+	# $obj is 'any:[local]'
+	return $obj;    # A value, not equal to any other security domain.
+    } else {
+	internal_err "unexpected $obj->{name}";
+    }
+}
+
 # Parameters:
 # - Reference to array of unexpanded rules.
 # - Name of policy or crypto object for error messages.
@@ -2707,8 +2743,65 @@ sub expand_rules ( $$$ ) {
 	    return @result;
 	};
 	for my $src (@{$unexpanded->{src}}) {
+	    my $src_any = get_any $src;
 	    for my $dst (@{$unexpanded->{dst}}) {
-		
+		my $dst_any = get_any $dst;
+		# Check for unenforceable rules.
+		if($src_any eq $dst_any) {
+		    # This is a rule between 
+		    # objects inside a single security domain or
+		    # interfaces of a single managed router or
+		    # two instances of 'any:[local}'.
+		    if($src eq 'any:[local]') {
+			err_msg
+			    "'any:[local]' is used as src and dst in $name";
+			# Ignore this rule.
+			next;
+		    }
+		    $check_unenforceable or next;
+		    my $get_network = sub( $ ) {
+			my($object) = @_;
+			if(is_network $object) {
+			    $object;
+			} elsif(is_subnet $object or is_host $object) {
+			    $object->{network};
+			} elsif(is_interface $object) {
+			    $object;
+			} elsif(is_router $object) {
+			    $object;
+			} else {
+			    internal_err "Unexpected $object->{name}",
+			    " in get_network";
+			}
+		    };
+		    # Show a warning if rule is between 
+		    # - different interfaces of a single managed router or
+		    # - different networks or
+		    # - between host/subnet of different networks or 
+		    # - between host/subnet of one network and another network.
+		    # A rule between identical objects is a common case
+		    # which results from rules with "src=user;dst=user;".
+		    # For rules with different subnets of a single network
+		    # no warning is shown, because at this point we don't know
+		    # if the subnets have been expanded from a single host.
+		    if(is_router $src_any
+		       and 
+		       not ($src eq $dst ||
+			    # Auto interface is assumed to be identical 
+			    # to each other interface.
+			    is_router $src || is_router $dst)
+		       or
+		       not (is_any $src || is_any $dst ||
+			    $get_network->($src) eq
+			    $get_network->($dst))) {
+			my $msg = "Unenforceable rule of $name:\n".
+			    " src=$src->{name}; dst=$dst->{name}";
+			$check_unenforceable eq 'warn' ? 
+			    warn_msg $msg : err_msg $msg; 
+		    }
+		    # Ignore this rule.
+		    next;
+		}
 		my @src = is_router $src ?
 		    $get_auto_interface->($src, $dst) : ($src);
 		my @dst = is_router $dst ?
@@ -3873,12 +3966,8 @@ sub path_walk( $$;$ ) {
     unless($from and $to) {     
 	internal_err print_rule $rule;
     }
-    if($from eq $to) {     
-	unless($rule->{deleted} || $src eq $dst ||
-	       is_any $src || is_any $dst) {
-            warn_msg "Unenforceable rule\n ", print_rule($rule);
-        }
-	# Don't process rule again later
+    if($from eq $to) {
+	# Don't process rule again later.
 	$rule->{deleted} = $rule;
 	return;
     }
@@ -4283,26 +4372,6 @@ sub expand_crypto () {
 #            all security domains located directly behind all routers on the
 #            path from src to any:X
 ##############################################################################
-
-sub get_any( $ ) {
-    my($obj) = @_;
-    my $type = ref $obj;
-    if($type eq 'Network') {
-	return $obj->{any};
-    } elsif($type eq 'Subnet') {
-	return $obj->{network}->{any};
-    } elsif($type eq 'Interface') {
-	if($obj->{router}->{managed}) {
-	    return $obj->{router};
-	} else {
-	    return $obj->{network}->{any};
-	}
-    } elsif($type eq 'Any') {
-	return $obj;
-    } else {
-	internal_err "unexpected $obj->{name}";
-    }
-}
 
 {
     # Prevent multiple error messages about missing 'any' rules;
@@ -6398,6 +6467,7 @@ Options:
 			Default is '^(raw|CVS|RCS|\.#.*|.*~)$'
 -strict_subnets=yes|no|warn	Subnets must be declared with 'subnet_of'
 -allow_unused_groups=yes|no|warn 
+-check_unenforceable=yes|no|warn
 MSG
 ;
 }
@@ -6430,9 +6500,11 @@ sub read_args() {
 	'ignore_files=s' => \$ignore_files,
 	# Function checks validity of string value.
 	'strict_subnets=s' =>
-	sub { my $value = $_[1]; $strict_subnets = assign_tri $value },
+	sub { my $value = $_[1]; $strict_subnets = check_tri $value },
 	'allow_unused_groups=s' => 
-	sub { my $value = $_[1]; $allow_unused_groups = assign_tri $value }
+	sub { my $value = $_[1]; $allow_unused_groups = check_tri $value },
+	'check_unenforceable_rules=s' => 
+	sub { my $value = $_[1]; $check_unenforceable = check_tri $value },
 	or usage;
     my $main_file = shift @ARGV or usage;
     # $out_dir is used to store compilation results:
