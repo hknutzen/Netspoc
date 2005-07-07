@@ -122,9 +122,9 @@ our $max_errors = 10;
 # Store descriptions as an attribute of policies.
 # This may be useful when called from a reporting tool.
 our $store_description = 0;
-# Print warning about ignored icmp code fields at PIX firewalls.
+# Print warning about ignored ICMP code fields at PIX firewalls.
 my $warn_pix_icmp_code = 0;
-# Use nonlocal function exition for efficiency.
+# Use nonlocal function exit for efficiency.
 # Perl profiler doesn't work if this is active.
 my $use_nonlocal_exit = 1;
 
@@ -556,9 +556,9 @@ sub new( $@ ) {
     return bless $self, $type;
 }
 
-# A hash with all defined nat names.
+# A hash with all defined NAT names.
 # It is used to check,
-# - if all defined nat mappings are used and
+# - if all defined NAT mappings are used and
 # - if all used mappings are defined.
 my %nat_definitions;
 
@@ -1228,14 +1228,14 @@ sub read_port_ranges( $ ) {
 sub read_icmp_type_code( $ ) {
     my($srv) = @_;
     if(defined (my $type = check_int)) {
-	error_atline "Too large icmp type $type" if $type > 255;
+	error_atline "Too large ICMP type $type" if $type > 255;
 	if(check '/') {
 	    if(defined (my $code = check_int)) {
-		error_atline "Too large icmp code $code" if $code > 255;
+		error_atline "Too large ICMP code $code" if $code > 255;
 		$srv->{type} = $type;
 		$srv->{code} = $code;
 	    } else {
-		syntax_err "Expected icmp code";
+		syntax_err "Expected ICMP code";
 	    }
 	} else {
 	    $srv->{type} = $type;
@@ -1540,7 +1540,7 @@ sub read_netspoc() {
     return $hash->{$name} = $result; 
 }
 
-# Read input from file and process it by funtion which is given as argument.
+# Read input from file and process it by function which is given as argument.
 sub read_file( $$ ) {	
     local $file = shift;
     my $read_syntax = shift;
@@ -1828,7 +1828,7 @@ sub link_any_and_every() {
 		    err_msg "$obj->{name} must not be linked to",
 		    " managed $router->{name}";
 		# Take some network connected to this router.
-		# Since this router is unmanged, all connected networks
+		# Since this router is unmanaged, all connected networks
 		# will belong to the same security domain.
 		unless($router->{interfaces}) {
 		    err_msg "$obj->{name} must not be linked to",
@@ -2657,7 +2657,7 @@ sub add_rules( $$ ) {
 	# during global optimization. But in some case, code for this rule 
 	# must be generated anyway. This happens, if
 	# - it is an interface of a managed router and
-	# - code is generated for exacty this router.
+	# - code is generated for exactly this router.
 	# Mark such rules for easier handling.
 	if(is_interface($dst) and $dst->{router}->{managed}) {
 	    $rule->{managed_intf} = 1;
@@ -2982,7 +2982,7 @@ sub distribute_nat1( $$$$ ) {
 	next if $router eq $in_router;
 	my $our_nat_tag = $router->{nat_tag}->{$domain};
 	# Found another interface with same NAT binding.
-	# This stops effevt of current NAT tag.
+	# This stops effect of current NAT tag.
 	next if $our_nat_tag and $our_nat_tag eq $nat_tag;
 	for my $out_domain (@{$router->{nat_domains}}) {
 	    next if $out_domain eq $domain;
@@ -3234,7 +3234,7 @@ sub setarea1( $$$ ) {
     # to have all any objects of an area available.
     push @{$area->{anys}}, $any;
     # This will be used to prevent duplicate traversal of loops and
-    # later to check for duplictae and overlapping areas.
+    # later to check for duplicate and overlapping areas.
     $any->{areas}->{$area} = $area;
     my $auto_border = $area->{auto_border};
     my $lookup = $area->{intf_lookup};
@@ -3922,7 +3922,7 @@ sub find_related_rules ( $$ ) {
 sub crypto_match( $$ ) {
     my($rule, $rule_tree) = @_;
     my $some_deny = 0;
-    # Todo: What about deny- $rule.
+    # ToDo: What about deny- $rule.
     if(my $deny_tree = $rule_tree->{deny}) {
 	if(my($map_aref, $overlap) = find_related_rules $rule, $deny_tree) {
 	    if(not $overlap) {
@@ -3977,7 +3977,7 @@ sub path_walk( $$;$ ) {
     my $at_router = not($where && $where eq 'Network');
     my $call_it = (is_network($from) xor $at_router);
     # Path starts inside a cyclic graph.
-    # Crypto tunnel must not start inside acyclid graph, 
+    # Crypto tunnel must not start inside acyclic graph, 
     # hence no crypto check needed.
     if($from->{loop_exit} and my $loop_exit = $from->{loop_exit}->{$to}) {
 	my $loop_out = $from->{path}->{$to};
@@ -4012,7 +4012,7 @@ sub path_walk( $$;$ ) {
 			# that $peer is tunnel interface.
 			$fun->($rule, $peer, $next, $peer_map);
 			if($overlap) {
-			    # Walk cleartext path as well.
+			    # Walk clear text path as well.
 			} else {
 			    # Continue behind tunnel.
 			    # This happens only if @$map_aref == 1.
@@ -4132,7 +4132,7 @@ sub reverse_rule ( $ ) {
 sub expand_crypto () {
     info "Preparing crypto tunnels and expanding crypto rules";
     for my $ipsec (values %ipsec) {
-	# Convert name of isakmp definition to object with isakmp definition.
+	# Convert name of ISAKMP definition to object with ISAKMP definition.
 	my($type, $name) = split_typed_name $ipsec->{key_exchange};
 	if($type eq 'isakmp') {
 	    my $isakmp =  $isakmp{$name} or 
@@ -4302,7 +4302,7 @@ sub expand_crypto () {
 		err_msg "Duplicate crypto rule at $start->{name}\n ",
 		print_rule $rule;
 	    }
-	    # crypto_rule_tree is used to effiently decide, 
+	    # crypto_rule_tree is used to efficiently decide, 
 	    # if a policy rule fully uses a tunnel or not.
 	    # $ref2obj has already been filled by expand_rules
 	    $start->{crypto_rule_tree}->{$action}->{$src}->{$dst}->{$srv} =
@@ -4554,7 +4554,7 @@ sub check_any_dst_rule( $$$ ) {
 # check_any_dst_rule would complain about missing rules 
 # dst-->any2 and dst-->any3.
 # But answer packets back from dst have been filtered by r2 already,
-# hence it doesn`t hurt if the rules at r1 are a bit too relaxed,
+# hence it doesn't hurt if the rules at r1 are a bit too relaxed,
 # i.e. r1 would permit dst to any, but should only permit dst to any1.
 # Hence we can skip check_any_dst_rule for this situation.
 # (Case b isn't implemented currently.)
@@ -4827,7 +4827,7 @@ sub collect_route( $$$ ) {
 	my $network = $rule->{dst};
 	# This router and all routers from here to dst have been processed
 	# already. 
-	# But we can't be shure about this, if we are walking inside a loop.
+	# But we can't be sure about this, if we are walking inside a loop.
 	if($use_nonlocal_exit and
 	   $in_intf->{routes}->{$out_intf}->{$network} and
 	   not $in_intf->{in_loop}) {
@@ -4920,7 +4920,7 @@ sub mark_networks_for_static( $$$ ) {
     " because they have equal security levels.\n"
 	if $in_hw->{level} == $out_hw->{level};
     # This router and all routers from here to dst have been processed already.
-    # But we can't be shure about this, if we are walking inside a loop.
+    # But we can't be sure about this, if we are walking inside a loop.
     if($use_nonlocal_exit and
        $out_hw->{static}->{$in_hw}->{$dst} and not $in_intf->{in_loop}) {
 	# Jump out of path_walk in sub find_active_routes_and_statics
@@ -5314,12 +5314,19 @@ sub distribute_rule( $$$;$ ) {
 	# where traffic enters the PIX.
  	return if $model->{filter} eq 'PIX' and $rule->{dst} ne $in_intf;
 #	debug "$router->{name} intf_rule: ",print_rule $rule,"\n";
-	$aref = \@{$store->{intf_rules}};
+	push @{$store->{intf_rules}}, $rule;
     } else {
-#	debug "$router->{name} rule: ",print_rule $rule,"\n";
-	$aref = \@{$store->{rules}};
+#	debug "$router->{name} rule: ",print_rule $rule,"\n";    
+	# Prevent duplicate rules, when path is splitting behind current 
+	# router. This might occur at the start or inside a cyclic graph.
+	# Therefore check if last rule and current rule are identical.
+	# This test can't easily be done at local_optimization,
+	# because it wouldn't find IDENTICAL rules.
+	# Force auto-vivification.
+	my $aref = \@{$store->{rules}};
+	push @$aref, $rule
+	    unless $router->{loop} and @$aref and $aref->[$#$aref] eq $rule;
     }
-    push @$aref, $rule;
 }
 
 # For rules with src=any:*, call distribute_rule only for
@@ -5403,7 +5410,7 @@ sub address( $$ ) {
     my $type = ref $obj;
     if($type eq 'Network') {
 	$obj = $nat_map->{$obj} || $obj;
-	# ToDo: Is it ok to permit a dynamic address as destination?
+	# ToDo: Is it OK to permit a dynamic address as destination?
 	if($obj->{ip} eq 'unnumbered') {
 	    internal_err "Unexpected unnumbered $obj->{name}\n";
 	} else {
@@ -5735,7 +5742,7 @@ sub find_object_groups ( $ ) {
 				# object-ref => rule, ...
 				hash => $href};
 			    # All this rules have identical
-			    # action, srv, src/dst  and dst/stc 
+			    # action, srv, src/dst  and dst/src 
 			    # and shall be replaced by a new object group.
 			    for my $rule (values %$href) {
 				$rule->{$tag} = $glue;
@@ -5996,6 +6003,7 @@ sub local_optimization() {
 		$hardware->{seen} = 1;
 		for my $rules ('intf_rules', 'rules') {
 		    my %hash;
+		    my $changed = 0;
 		    for my $rule (@{$hardware->{$rules}}) {
 			my $action = $rule->{action};
 			my $src = $rule->{src};
@@ -6003,7 +6011,6 @@ sub local_optimization() {
 			my $srv = $rule->{srv};
 			$hash{$action}->{$src}->{$dst}->{$srv} = $rule;
 		    }
-		    my $changed = 0;
 		  RULE:
 		    for my $rule (@{$hardware->{$rules}}) {
 			my $action = $rule->{action};
@@ -6201,7 +6208,7 @@ sub print_acls( $ ) {
 	acl_line $hardware->{intf_rules}, $nat_map, $intf_prefix, $model;
 	# Ordinary rules
 	acl_line $hardware->{rules}, $nat_map, $prefix, $model;
-	# Postprocessing for hardware interface
+	# Post-processing for hardware interface
 	if($filter eq 'IOS') {
 	    print "interface $hardware->{name}\n";
 	    print " ip access-group $name in\n";
@@ -6390,7 +6397,7 @@ sub print_crypto( $ ) {
 	    }
 	    my $peer = $map->{peer};
 	    # Take first IP. 
-	    # Unnumberd and short interfaces have been rejected already.
+	    # Unnumbered and short interfaces have been rejected already.
 	    my $peer_ip = print_ip $peer->{ip}->[0];
 	    print "$prefix match address $crypto_acl_name\n";
 	    $crypto_filter_name and 
@@ -6510,7 +6517,7 @@ sub read_args() {
     # $out_dir is used to store compilation results:
     # For each managed router with name X a corresponding file X 
     # is created in $out_dir.
-    # If $out_dir is missing, all code is printed to stdout.
+    # If $out_dir is missing, all code is printed to STDOUT.
     my $out_dir = shift @ARGV;
     # Strip trailing slash for nicer messages.
     $out_dir and $out_dir =~ s</$><>;
@@ -6525,5 +6532,7 @@ sub show_version() {
 
 1
 
-#  LocalWords:  Netspoc Knutzen internet CVS IOS iproute iptables STDERR
-#  LocalWords:  netmask
+#  LocalWords:  Netspoc Knutzen internet CVS IOS iproute iptables STDERR Perl
+#  LocalWords:  netmask EOL ToDo IPSec unicast utf hk src dst ICMP IPs EIGRP
+#  LocalWords:  OSPF VRRP HSRP Arnes loop's ISAKMP stateful ACLs negatable
+#  LocalWords:  STDOUT
