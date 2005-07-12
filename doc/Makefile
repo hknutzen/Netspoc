@@ -1,6 +1,6 @@
 # Makefile for NetSPoC
 
-all:	netspoc.man netspoc.html CSPM.html toc-lang.html
+all:	netspoc.man netspoc.html CSPM.html language.html
 
 language.html: pre-lang.html .hypertocrc
 	# hypertoc uses options from file .hypertocrc in current directory.
