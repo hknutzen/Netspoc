@@ -1,56 +1,44 @@
 <HTML>
 <HEAD>
 <TITLE>Description Language for Security Policy and Topology</TITLE>
+<style type="text/css">
+<!--
+body { background-color:white;
+       margin-left:0.5cm;
+       font-family:helvetica,arial,sans-serif;  }
+h1 { font-size:20pt;
+     color:maroon;
+     text-align:center;
+     border-bottom:solid thin black; }
+h1 image { border-style:none;
+           padding:0cm; }
+  
+pre {
+  border-width:thin;
+  border-style:solid;
+  color:blue;
+  border-color:black;
+  padding:0.15cm; }
+tt {
+  color:blue; }
+code {
+  color:blue; }
+image {
+  border-width:thin;
+  border-style:solid;
+  padding:0.15cm; }
+dt { 
+  color:blue;
+  font:bold; }
+-->
+</style>
 </HEAD>
 
 <BODY bgcolor=#FFFFFF>
 
-<UL>
- <LI><A HREF="#language">Description Language for Security Policy and Topology</A></LI>
- <UL>
-  <LI><A HREF="#overview">Overview</A></LI>
-  <UL>
-   <LI><A HREF="#policies">Policies</A></LI>
-   <LI><A HREF="#network_objects">Network Objects</A></LI>
-   <LI><A HREF="#service_definitions">Service Definitions</A></LI>
-   <LI><A HREF="#groups">Groups</A></LI>
-   <LI><A HREF="#service_groups">Service Groups</A></LI>
-  </UL>
-  <LI><A HREF="#detailed">Detailed description of network objects</A></LI>
-  <UL>
-   <LI><A HREF="#general_syntax">General syntax</A></LI>
-   <LI><A HREF="#network_definition">Network Definition</A></LI>
-   <LI><A HREF="#host_definition">Host definition</A></LI>
-   <LI><A HREF="#router_definition">Router definition</A></LI>
-   <LI><A HREF="#interface_definition">Interface definition</A></LI>
-   <LI><A HREF="#every_definition">'Every' object definition</A></LI>
-   <LI><A HREF="#any_definition">'Any' object definition</A></LI>
-   <LI><A HREF="#referencing">Referencing network objects</A></LI>
-   <LI><A HREF="#groups_def">Groups of network objects</A></LI>
-   <LI><A HREF="#services">Services</A></LI>
-   <LI><A HREF="#groups_of_services">Groups of services</A></LI>
-   <LI><A HREF="#policies_def">Policies</A></LI>
-   <li><a href="#restrict_def">Path restrictions</a>
-   <li><a href="#global_NAT">Global NAT definition</a>
-  </UL>
-  
-  <li><a href="#NAT">Network address translation (NAT)</a>
-  <li><A HREF="#secondary">Secondary packet filters</A></li>
-  <li><a href="#routing">Routing</a>
-  <li><a href="#rerouting">Rerouting inside of security domains</a>
-  <li><a href="#virtual">Virtual interfaces</a>
-  <LI><A HREF="#disabling">Disabling part of the topology</A></LI>
-  <LI><A HREF="#handling_any">Handling of 'any' objects</A></LI>
-  <LI><A HREF="#pix_levels">PIX security levels</A></LI>
-  <LI><A HREF="#redundant_rules">Automatic deletion of redundant rules</A></LI>
-  <LI><A HREF="#generated_code">Generated Code</A></LI>
-  <LI><A HREF="#supported_devices">Supported devices</A></LI>
- </UL>
-</UL>
-
-<HR>
-<P>
 <H1><A NAME="language">Description Language for Security Policy and Topology</A></H1>
+
+<!--toc-->
 
 <H2><A NAME="overview">Overview</A></H2>
 
@@ -135,10 +123,10 @@ we use them as delimiters.</P>
 <PRE>
   network:&lt;name&gt; = {
      {{
-         [ route_hint; ]
-	 [ subnet_of = network:&lt;name&gt;; ]
          ip = &lt;ip-adr&gt;; mask = &lt;ip-adr&gt;;
 	 &lt;network NAT definition&gt; *
+         [ route_hint; ]
+	 [ subnet_of = network:&lt;name&gt;; ]
          &lt;host definition&gt; *
      |
          unnumbered
@@ -242,8 +230,6 @@ chains for iptables. Use flag no_group_code to disable this optimization.
 <LI>For unmanaged routers, all attributes are optional.
 <li>An interface definition without attributes is called a "short
 interface definition".
-<LI>If used as source or destination of a rule, a router is handled like
-a group of its interfaces.
 </UL>
 
 <H3><A NAME="interface_definition">Interface definition</A></H3>
@@ -376,7 +362,7 @@ routers.</ul>
 'any' objects, i.e. security domains. This may be used in rules to permit
 or deny traffic for the whole topology.
 <li>any:[local] may only be used as src or dst in a rule where the counterpart
-is an interface. In this case, any:[all] denotes the 'any' object, which is
+is an interface. In this case, any:[local] denotes the 'any' object, which is
 directly attached to this interface.
 </UL>
 
