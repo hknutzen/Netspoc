@@ -26,9 +26,10 @@ package Netspoc;
 require Exporter;
 use Getopt::Long;
 # We need this for German umlauts being part of \w.
-use locale;
-# Use this instead, if your files are utf8 encoded:
-##use open ':utf8';
+# Uncomment next line, if your files are latin1..9 encoded.
+##use locale;
+# Uncomment next line, if your files are utf8 encoded.
+use open ':utf8';
 
 my $program = 'Network Security Policy Compiler';
 my $version = (split ' ','$Id$ ')[2];
@@ -424,7 +425,7 @@ sub read_time_val() {
     return $int * $factor;
 }
 
-sub read_description() {
+sub check_description() {
     skip_space_and_comment;
     if(check 'description') {
 	skip '=';
@@ -432,7 +433,9 @@ sub read_description() {
 	# We must use '$' here to match EOL,
 	# otherwise $line would be out of sync.
 	m/\G(.*);?$/gcm; 
-	return $1; 
+	return $store_description ? $1 : undef; 
+    } else {
+	return undef;
     }
 }
 
@@ -528,6 +531,19 @@ sub check_assign_list($&) {
     return ();
 }
 
+sub check_assign_range($&) {
+    my($token, $fun) = @_;
+    if(check $token) {
+ 	skip '=';
+ 	my $v1 = &$fun;
+ 	skip '-';
+ 	my $v2 = &$fun;
+ 	skip ';';
+	return $v1, $v2;
+    }
+    return ();
+}
+
 # Delete an element from an array reference.
 # Return 1 if found, 0 otherwise.
 sub aref_delete( $$ ) {
@@ -568,43 +584,40 @@ sub read_host( $ ) {
     my $host = new 'Host', name => $name;
     skip '=';
     skip '{';
-    if(my @owner = check_assign_list 'owner', \&read_string) {
-	$host->{owner} = \@owner;
-    }
-    my $token = read_identifier;
-    if($token eq 'ip') {
-	skip '=';
-	my @ip = read_list \&read_ip;
-	$host->{ips} = [ @ip ];
-    } elsif($token eq 'range') {
-	skip '=';
-	my $ip1 = read_ip;
-	skip '-';
-	my $ip2 = read_ip;
-	skip ';';
-	$ip1 <= $ip2 or error_atline "Invalid IP range";
-	$host->{range} = [ $ip1, $ip2 ];
-    } else {
-	syntax_err "Expected 'ip' or 'range'";
-    }
     while(1) {
 	last if check '}';
-	my($type, $name) = split_typed_name read_typed_name;
-	if($type eq 'nat') {
-	    skip '=';
-	    skip '{';
-	    skip 'ip';
-	    skip '=';
-	    my $nat_ip = read_ip;
-	    skip ';';
-	    skip '}';
-	    $host->{nat}->{$name} and
-		error_atline "Duplicate NAT definition";
-	    $host->{nat}->{$name} = $nat_ip;
+	if(my @ip = check_assign_list 'ip', \&read_ip) {
+	    $host->{ips} and error_atline "Duplicate attribute 'ip'";
+	    $host->{ips} = \@ip;
+	} elsif(my ($ip1, $ip2) = check_assign_range 'range', \&read_ip) {
+	    $ip1 <= $ip2 or error_atline "Invalid IP range";
+	    $host->{range} and error_atline "Duplicate attribute 'range'";
+	    $host->{range} = [ $ip1, $ip2 ];
+	} elsif(my @owner = check_assign_list 'owner', \&read_string) {
+	    $host->{owner} and error_atline "Duplicate attribute 'owner'";
+	    $host->{owner} = \@owner;
+	} elsif(my $string = check_typed_name) {
+	    my($type, $name) = split_typed_name $string;
+	    if($type eq 'nat') {
+		skip '=';
+		skip '{';
+		skip 'ip';
+		skip '=';
+		my $nat_ip = read_ip;
+		skip ';';
+		skip '}';
+		$host->{nat}->{$name} and
+		    error_atline "Duplicate NAT definition";
+		$host->{nat}->{$name} = $nat_ip;
+	    } else {
+		syntax_err "Expected NAT definition";
+	    }
 	} else {
-	    syntax_err "Expected NAT definition";
+	    error_atline "Expected some valid attribute";
 	}
     }
+    $host->{ips} xor $host->{range} or
+	error_atline "Exactly one of attributes 'ip' and 'range' is needed";
     if($host->{nat}) {
 	if($host->{range}) {
 	    # Look at print_pix_static before changing this.
@@ -624,9 +637,6 @@ sub read_nat( $ )  {
    (my $nat_tag = $name) =~ s/^nat://;
    skip '=';
    skip '{';
-   if(my $description = read_description and $store_description) {
-       $nat->{description} = $description;
-   }
    while(1) {
        last if check '}';
        if(my($ip, $prefixlen) = check_assign 'ip', \&read_ip_opt_prefixlen) {
@@ -831,20 +841,15 @@ sub read_interface( $ ) {
 	$interface->{ip} = 'short';
     } else {
 	skip '{';
-	my $token = read_identifier;
-	if($token eq 'ip') {
-	    skip '=';
-	    my @ip = read_list \&read_ip;
-	    $interface->{ip} = \@ip;
-	} elsif($token eq 'unnumbered') {
-	    $interface->{ip} = 'unnumbered';
-	    skip ';';
-	} else {
-	    syntax_err "Expected 'ip' or 'unnumbered'";
-	}
 	while(1) {
 	    last if check '}';
-	    if(my $string = check_typed_name) {
+	    if(my @ip = check_assign_list 'ip', \&read_ip) {
+		$interface->{ip} and error_atline "Duplicate attribute 'ip'";
+		$interface->{ip} = \@ip;
+	    } elsif(check_flag 'unnumbered') {
+		$interface->{ip} and error_atline "Duplicate attribute 'ip'";
+		$interface->{ip} = 'unnumbered';
+	    } elsif(my $string = check_typed_name) {
 		my($type, $name) = split_typed_name $string;
 		if($type eq 'nat') {
 		    skip '=';
@@ -947,11 +952,14 @@ sub read_interface( $ ) {
 		syntax_err 'Expected some valid attribute';
 	    }
 	}
+	unless($interface->{ip}) {
+	    error_atline "Missing IP address";
+	}
 	if($interface->{nat}) {
 	    if($interface->{ip} eq 'unnumbered') {
 		error_atline "No NAT supported for unnumbered interface";
 	    } elsif(@{$interface->{ip}} > 1) {
-		# look at print_pix_static before changing this
+		# Look at print_pix_static before changing this.
 		error_atline "No NAT supported for interface ",
 		"with multiple IPs";
 	    } elsif($interface->{virtual}) {
@@ -1312,8 +1320,9 @@ sub read_policy( $ ) {
     skip '=';
     skip '{';
     my $policy = { name => $name, rules => [] };
-    my $description = read_description;
-    $store_description and $policy->{description} = $description;
+    if(my $description = check_description) {
+	$policy->{description} = $description;
+    }
     my @user = read_assign_list 'user', \&read_typed_ext_name;
     $policy->{user} = \@user;
     while(1) {
@@ -1346,8 +1355,12 @@ our %pathrestrictions;
 sub read_pathrestriction( $ ) {
    my $name = shift;
    skip '=';
-   my $description = read_description;
-   my @names = read_list_or_null \&read_interface_name;
+   my $restriction = new('Pathrestriction', name => $name);
+   if(my $description = check_description) {
+       $restriction->{description} = $description;
+   }       
+   my @names = read_list \&read_interface_name;
+   @names > 1 or warn_msg "Ignoring $name with less than 2 interfaces";
    my @interfaces;
    for my $name (@names) {
        my($type, $intf) = split_typed_name $name;
@@ -1357,10 +1370,7 @@ sub read_pathrestriction( $ ) {
 	   error_atline "Expected interfaces as values";
        }
    }		
-   @names > 1 or warn_msg "Ignoring $name with less than 2 interfaces";
-   my $restriction = new('Pathrestriction',
-			 name => $name, elements => \@interfaces);
-   $store_description and $restriction->{description} = $description;
+   $restriction->{elements} = \@interfaces;
    return $restriction;
 }
 
@@ -1386,8 +1396,6 @@ sub read_attributed_object( $$ ) {
     my $object = { name => $name };
     skip '=';
     skip '{';
-    my $description = read_description;
-    $object->{description} = $description if $description;
     while(1) {
 	last if check '}';
 	my $attribute = read_identifier;
@@ -1475,8 +1483,9 @@ sub read_crypto( $ ) {
     skip '=';
     skip '{';
     my $crypto = { name => $name };
-    my $description = read_description;
-    $store_description and $crypto->{description} = $description;
+    if(my $description = check_description) {
+	$crypto->{description} = $description;
+    }
     while(1) {
 	last if check '}';
 	if(my $action = check_permit_deny) {
