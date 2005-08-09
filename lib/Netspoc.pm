@@ -5359,10 +5359,7 @@ sub distribute_rule_at_dst( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
     my $router = $out_intf->{router};
     return unless $router->{managed};
-    my $action = $rule->{action};
-    my $src = $rule->{src};
     my $dst = $rule->{dst};
-    my $srv = $rule->{srv};
     is_any $dst or internal_err "$dst must be of type 'any'";
     # Rule is only processed at the last router on the path.
     if($out_intf->{any} eq $dst) {
