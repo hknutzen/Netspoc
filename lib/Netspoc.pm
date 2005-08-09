@@ -1168,6 +1168,7 @@ sub read_area( $ ) {
 		error_atline 'Expected network as value';
 	    }
 	} elsif(my @owner = check_assign_list 'owner', \&read_string) {
+	    $area->{owner} and error_atline "Duplicate attribute 'owner'";
 	    $area->{owner} = \@owner;
 	} else {
 	    syntax_err "Expected some valid attribute";
@@ -4207,7 +4208,7 @@ sub expand_crypto () {
 	my $check = sub ( @ ) {
 	    my ($intf1, $intf2) = @_;
 	    my @intf1 = path_first_interfaces $intf1, $intf2 or
-		# Both interfaces are from same router.
+		# Both interfaces have same router.
 		return undef;	    
 	    my @intf2 = path_first_interfaces $intf2, $intf1;
 	    if(@intf1 > 1 ) {
