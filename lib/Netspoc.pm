@@ -1644,14 +1644,16 @@ sub prepare_srv_ordering( $ ) {
 	$main_srv = $srv_hash{$proto}->{$key} or
 	    $srv_hash{$proto}->{$key} = $srv;
     } elsif($proto eq 'icmp') {
-	my $key = !defined $srv->{type} ? '' : (!defined $srv->{code} ? $srv->{type} :
-					"$srv->{type}:$srv->{code}");
+	my $type = $srv->{type};
+	my $code = $srv->{code};
+	my $key = defined $type ? (defined $code ? "$type:$code" : $type) : '';
 	$main_srv = $srv_hash{$proto}->{$key} or
 	    $srv_hash{$proto}->{$key} = $srv;
     } elsif($proto eq 'ip') {
 	$main_srv = $srv_hash{$proto} or
 	    $srv_hash{$proto} = $srv;
-    } else { # other protocol
+    } else { 
+	# Other protocol.
 	my $key = $proto;
 	$main_srv = $srv_hash{proto}->{$key} or
 		$srv_hash{proto}->{$key} = $srv;
@@ -1670,13 +1672,13 @@ sub prepare_srv_ordering( $ ) {
 
 sub order_icmp( $$ ) {
     my($hash, $up) = @_;
-    # icmp any
+    # Handle 'icmp any'.
     if(my $srv = $hash->{''}) {
 	$srv->{up} = $up;
 	$up = $srv;
     }
     for my $srv (values %$hash) {
-	# 'icmp any' has been handled above
+	# 'icmp any' has been handled above.
 	next unless defined $srv->{type};
 	if(defined $srv->{code}) {
 	    $srv->{up} = ($hash->{$srv->{type}} or $up);
@@ -3840,30 +3842,6 @@ sub loop_path_walk( $$$$$$$ ) {
 	}
     }
 }    
-
-sub check_less_equal ( $$ ) {
-    my($rule, $rule_tree) = @_;
-    my $src = $rule->{src};
-    while(1) {
-	if(my $rule_tree = $rule_tree->{$src}) {
-	    my $dst = $rule->{dst};
-	    while(1) {
-		if(my $rule_tree = $rule_tree->{$dst}) {
-		    my $srv = $rule->{srv};
-		    while(1) {
-			if(my $map = $rule_tree->{$srv}) {
-			    return $map;
-			}
-			$srv = $srv->{up} or last;
-		    }
-		}
-		$dst = $dst->{up} or last;
-	    }
-	}
-	$src = $src->{up} or last;
-    }
-    return undef;
-}
 
 # Find all rules in $rule_tree which are related to $rule and return
 # appertaining crypto maps.
