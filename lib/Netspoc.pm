@@ -1710,14 +1710,9 @@ sub order_ranges( $$ ) {
 	    next if $srv1 eq $srv2;
 	    next if $srv2->{main};
 	    my @p2 = @{$srv2->{ports}};
-	    if($p1[0] == $p2[0] and $p1[1] == $p2[1] and
-	       $p1[2] == $p2[2] and $p1[3] == $p2[3]) {
-		# Found duplicate service definition.
-		# Link $srv2 with $srv1.
-		# Since $srv1 is not linked via ->{main},
-		# we never get chains of ->{main}.
-		$srv2->{main} = $srv1;
-	    } elsif($p2[0] <= $p1[0] and $p1[1] <= $p2[1] and 
+	    # No need to check for duplicate service definitions here.
+	    # This hase been done at prepare_srv_ordering above.
+	    if($p2[0] <= $p1[0] and $p1[1] <= $p2[1] and 
 		    $p2[2] <= $p1[2] and $p1[3] <= $p2[3]) {
 		# Found service definition with both ranges being larger.
 		# Need to check if it is the smallest.
