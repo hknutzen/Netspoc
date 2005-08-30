@@ -27,9 +27,9 @@ require Exporter;
 use Getopt::Long;
 # We need this for German umlauts being part of \w.
 # Uncomment next line, if your files are latin1..9 encoded.
-##use locale;
+use locale;
 # Uncomment next line, if your files are utf8 encoded.
-use open ':utf8';
+##use open ':utf8';
 
 my $program = 'Network Security Policy Compiler';
 my $version = (split ' ','$Id$ ')[2];
@@ -825,10 +825,12 @@ my %xxrp_info =
 		       mask => gen_ip(255,255,255,255)) },
  HSRP => {srv => { name => 'auto_srv:HSRP',
 		   proto => 'udp',
-		   src_ports => { name => 'auto_srv:HSRP',
-				  proto => 'udp', ports => [ 1, 65535 ] },
-		   dst_ports => { name => 'auto_srv:HSRP',
-				  proto => 'udp', ports => [ 1985, 1985 ] } },
+		   src_range => { name => 'auto_srv:HSRP',
+				  proto => 'udp',
+				  range => [ 1, 65535 ] },
+		   dst_range => { name => 'auto_srv:HSRP',
+				  proto => 'udp',
+				  range => [ 1985, 1985 ] } },
 	  mcast => new('Network',
 		       name => "auto_network:HSRP_multicast",
 		       ip => gen_ip(224,0,0,2),
@@ -1237,11 +1239,11 @@ sub read_port_ranges( $ ) {
     my($srv) = @_;
     my $range = read_port_range;
     if(check ':') {
-	$srv->{src_ports} = $range;
-	$srv->{dst_ports} = read_port_range;
+	$srv->{src_range} = $range;
+	$srv->{dst_range} = read_port_range;
     } else {
-	$srv->{src_ports} = $aref_tcp_any;
-	$srv->{dst_ports} = $range;
+	$srv->{src_range} = $aref_tcp_any;
+	$srv->{dst_range} = $range;
     }
 }
 
@@ -1275,10 +1277,10 @@ sub read_proto_nr( $ ) {
 	    # No icmp type and code given.
 	} elsif($nr == 4) {
 	    $srv->{proto} = 'tcp';
-	    $srv->{src_ports} = $srv->{dst_ports} = $aref_tcp_any;
+	    $srv->{src_range} = $srv->{dst_range} = $aref_tcp_any;
 	} elsif($nr == 17) {
 	    $srv->{proto} = 'udp';
-	    $srv->{src_ports} = $srv->{dst_ports} = $aref_tcp_any;
+	    $srv->{src_range} = $srv->{dst_range} = $aref_tcp_any;
 	} else {
 	    $srv->{proto} = $nr;
 	}
@@ -1651,15 +1653,21 @@ sub prepare_srv_ordering( $ ) {
     my $proto = $srv->{proto};
     my $main_srv;
     if($proto eq 'tcp' or $proto eq 'udp') {
-	for my $where ('src_ports', 'dst_ports') {
-	    my $key = join ':', @{$srv->{$where}};
-	    if(my $range = $srv_hash{$proto}->{$key}) {
-		$srv->{$where} = $range;
-	    } else {
-		my $range = { name => $srv->{name}, proto => $proto, ports => $srv->{$where}, };
-		$srv_hash{$proto}->{$key} = $range;
-		$srv->{$where} = $range;
+      # Convert src and dst port ranges from arrays to real service objects.
+      # This is used in function expand_rules:
+      # An unexpanded rule has references to TCP and UDP services with combined src and dst port ranges.
+      # An expanded rule has distinct references to src and dst services with a single port range.
+	for my $where ('src_range', 'dst_range') {
+	  # An array with low and high port.
+	    my $range = $srv->{$where};
+	    my $key = join ':', @$range;
+	    my $range_srv = $srv_hash{$proto}->{$key};
+	    unless ($range_srv) {
+	      $range_srv = { name => $srv->{name}, proto => $proto,
+			     range => $range };
+	      $srv_hash{$proto}->{$key} = $range_srv;
 	    }
+	    $srv->{$where} = $range_srv;
 	}
     } elsif($proto eq 'icmp') {
 	my $type = $srv->{type};
@@ -1717,58 +1725,150 @@ sub order_proto( $$ ) {
 # If no including range is found, link it with the next larger service.
 sub order_ranges( $$ ) {
     my($range_href, $up) = @_;
-    for my $srv1 (values %$range_href) {
-	my @p1 = @{$srv1->{ports}};
-	# These variable holds the smallest range found until now.
-	my $min_size = 65536;
-	$srv1->{up} = $up;
-	for my $srv2 (values %$range_href) {
-	    next if $srv1 eq $srv2;
-	    my @p2 = @{$srv2->{ports}};
-	    # No need to check for duplicate ranges here.
-	    # This hase been done at prepare_srv_ordering above.
-	    if($p2[0] <= $p1[0] and $p1[1] <= $p2[1]) {
-		# Found larger range. Need to check if it is the smallest.
-		my $size = $p2[1] - $p2[0];
-		if($size < $min_size) {
-		    # Found a smaller one.
-		    $min_size = $size;
-		    $srv1->{up} = $srv2;
+    my @sorted =
+	# Sort by low port. If low ports are equal, sort reverse by high port.
+	# I.e. larger ranges coming first, if there are multiple ranges 
+	# with identical low port.
+	sort { $a->{range}->[0] <=> $b->{range}->[0] ||
+		   $b->{range}->[1] <=> $a->{range}->[1] } values %$range_href;
+    
+    # Check current range [a1, a2] for sub-ranges, starting at position $i.
+    # Return position of range which isn't sub-range or undef 
+    # if end of array is reached.
+    my $check_subrange;
+    $check_subrange = sub ( $$$$ ) {
+	my ($a, $a1, $a2, $i) = @_;
+	while(1) {
+	    return if $i == @sorted;
+	    my $b = $sorted[$i];
+	    my($b1, $b2) = @{$b->{range}};
+	
+	    # Not related.
+	    # aaaa    bbbbb
+	    return $i if $a2 <= $b1;
+
+	    # $a includes $b.
+	    # aaaaaaa
+	    #  bbbbb
+	    if($a2 >= $b2) {
+		$b->{up} = $a;
+#		debug "$b->{name} [$b1-$b2] < $a->{name} [$a1-$a2]";
+		$i = $check_subrange->($b, $b1, $b2, $i+1);
+		# Stop at end of array.
+		$i or return;
+		next;
+	    }
+
+	    # $a and $b are overlapping.
+	    # aaaaa
+	    #   bbbbbb
+	    # Split $b in two parts $x and $y with $x included by $b:
+	    # aaaaa
+	    #   xxxyyy
+	    my $x1 = $b1;
+	    my $x2 = $a2;
+	    my $y1 = $a2+1;
+	    my $y2 = $b2;
+#	    debug "$b->{name} [$b1-$b2] split into [$x1-$x2] and [$y1-$y2]";
+	    my $find_or_insert_range = sub( $$$$$ ) {
+		my($a1, $a2, $i, $orig, $prefix) = @_;
+		while(1) {
+		    if($i == @sorted) {
+			last;
+		    } 
+		    my $b = $sorted[$i];
+		    my($b1, $b2) = @{$b->{range}};
+		    # New range starts at higher position and therefore must 
+		    # be inserted behind current range.
+		    if($a1 > $b1) {
+			$i++;
+			next;
+		    }
+		    # New and current range start a same position.
+		    if($a1 == $b1) {
+			# New range is smaller and therefore must be inserted
+			# behind current range.
+			if($a2 < $b2) {
+			    $i++;
+			    next;
+			}
+			# Found identical range, return this one.
+			if($a2 == $b2) {
+#			    debug "Splitted range is already defined: $b->{name}";
+			    return $b;
+			}
+			# New range is larger tha current range and therefore
+			# must be inserted before current one.
+			last;
+		    }
+		    # New range starts at lower position than current one.
+		    # It must be inserted before current range.
+		    last;
 		}
-	    } elsif($p1[0] < $p2[0] and $p2[0] <= $p1[1] and $p1[1] < $p2[1] or
-		    # 1111111
-		    #    2222222
-		    $p2[0] < $p1[0] and $p1[0] <= $p2[1] and $p2[1] < $p1[1]) {
-		#    1111111
-		# 2222222
-		# ToDo: Implement this
-		err_msg "Overlapping port ranges are not supported currently.\n",
-		" Workaround: Split one of $srv1->{name}, $srv2->{name} manually";
-	    }    
+		my $new = { name => "$prefix$orig->{name}",
+			    proto => $orig->{proto},
+			    range => [ $a1, $a2 ] };
+		# Insert new range at position $i.
+		splice @sorted, $i, 0, $new;
+		return $new;
+	    };
+	    my $left = $find_or_insert_range->($x1, $x2, $i+1, $b, 'lpart_');
+	    my $rigth = $find_or_insert_range->($y1, $y2, $i+1, $b, 'rpart_');
+	    $b->{split} = [ $left, $rigth ];
+	    # Continue processing with next element.
+	    $i++;
 	}
-    }
+    };
+
+    # Array wont be empty because $srv_tcp and $srv_udp are defined internally.
+    @sorted or internal_err "Unexpected empty array";
+    
+    my $a = $sorted[0];
+    $a->{up} = $up;
+    my($a1, $a2) = @{$a->{range}};
+    # Ranges "TCP any" and "UDP any" 1..65535 are defined internally,
+    # they include all other ranges.
+    $a1 == 1 and $a2 == 65535 or
+	internal_err "Expected $a->{name} to have range 1..65535";
+    # There can't be any port which isn't included by ranges "TCP any" or "UDP any".
+    $check_subrange->($a, $a1, $a2, 1) and internal_err;
 }
 
+sub expand_splitted_services ( $ );
+sub expand_splitted_services ( $ ) {
+    my($srv) = @_;
+    if(my $split = $srv->{split}) {
+	my($srv1, $srv2) = @$split;
+	return expand_splitted_services $srv1, expand_splitted_services $srv2;
+    } else {
+	return $srv;
+    }
+}
 
 # Service 'ip' is needed later for secondary rules and 
 # automatically generated deny rules.
 my $srv_ip =  { name => 'auto_srv:ip', proto => 'ip' };
 
-# Serice 'TCP any'
+# Service 'TCP any'.
 my $srv_tcp = { name => 'auto_srv:tcp',
 		proto => 'tcp',
-		src_ports => [ 1, 65535 ], dst_ports => [ 1, 65535 ] };
+		src_range => $aref_tcp_any, dst_range => $aref_tcp_any };
+
+# Service 'UDP any'.
+my $srv_udp = { name => 'auto_srv:udp',
+		proto => 'udp',
+		src_range => $aref_tcp_any, dst_range => $aref_tcp_any };
 
 # IPSec: Internet key exchange.
 # Source and destination port (range) is set to 500.
 my $srv_ike = { name => 'auto_srv:IPSec_IKE',
 		proto => 'udp',
-		src_ports => [ 500,500 ], dst_ports => [ 500,500 ] };
+		src_range => [ 500,500 ], dst_range => [ 500,500 ] };
 
 # IPSec: NAT traversal.
 my $srv_natt = { name => 'auto_srv:IPSec_NATT',
 		 proto => 'udp', 
-		 src_ports => [ 4500,4500 ], dst_ports => [ 4500,4500 ] };
+		 src_range => [ 4500,4500 ], dst_range => [ 4500,4500 ] };
 
 # IPSec: encryption security payload.
 my $srv_esp = { name => 'auto_srv:IPSec_ESP', proto => 50 };
@@ -1776,32 +1876,33 @@ my $srv_esp = { name => 'auto_srv:IPSec_ESP', proto => 50 };
 # IPSec: authentication header.
 my $srv_ah =  { name => 'auto_srv:IPSec_AH', proto => 51 };
 
-# Port range 'tcp established' is needed later for reverse rules.
-my $range_tcp_established = { name => 'reverse:TCP_ANY',
-			      proto => 'tcp', 
-			      ports => [ 1,65535 ],
-			      established => 1 };
-
-# Port range 'TCP any'; assigned below.
+# Port range 'TCP any'; assigned in sub order_services below.
 my $range_tcp_any;
 
+# Port range 'tcp established' is needed later for reverse rules
+# and assigned below.
+my $range_tcp_established;
+
 # Order services. We need this to simplify optimization.
-# Additionally add one TCP 'established' service and further predefined services.
+# Additionally add internal predefined services.
 sub order_services() {
     info 'Arranging services';
-    for my $srv (values %services) {
+    # Internal services need to be processed before user defined services,
+    # because we want to avoid handling of {main} for internal services.
+    # $srv_tcp and $srv_udp need to be processed before all other TCP and UDP
+    # services, because otherwise the range 1..65535 would get a misleading 
+    # name.
+    for my $srv ( $srv_ip, $srv_tcp, $srv_udp,
+		  $srv_ike, $srv_natt, $srv_esp, $srv_ah,
+		  values %services) {
 	prepare_srv_ordering $srv;
-    }
-    for my $ref ( \$srv_ip, \$srv_tcp, \$srv_ike, \$srv_natt, \$srv_esp, \$srv_ah ) {
-	prepare_srv_ordering $$ref;
-	if(my $main_srv = $$ref->{main}) {
-	    $$ref = $main_srv; 
-	}
     }
     my $up = $srv_ip;
 
     # This is guaranteed to be defined, because $srv_tcp has been processed already.
     $range_tcp_any = $srv_hash{tcp}->{'1:65535'};
+    $range_tcp_established = { %$range_tcp_any,
+			       name => 'reverse:TCP_ANY', established => 1 };
     $range_tcp_established->{up} = $range_tcp_any;
 
     order_ranges($srv_hash{tcp}, $up);
@@ -2637,7 +2738,7 @@ sub path_first_interfaces( $$ );
 # expanded rules of different type.
 our %expanded_rules = ( deny => [], any => [], permit => [] );
 # Hash for ordering all rules:
-# $rule_tree{$action}->{$src}->{$dst}->{$srv}->{$src_ports} = $rule;
+# $rule_tree{$action}->{$src}->{$dst}->{$src_range}->{$srv} = $rule;
 my %rule_tree;
 my %reverse_rule_tree;
 # Hash for converting a reference of an object back to this object.
@@ -2647,11 +2748,12 @@ my %ref2obj;
 sub add_rules( $$ ) {
     my ($rules_ref, $rule_tree) = @_;
     for my $rule (@$rules_ref) {
-	my($action, $src, $dst, $srv, $src_ports) =
-	    @{$rule}{'action', 'src', 'dst', 'srv', 'src_ports'};
+	my($action, $src, $dst, $src_range, $srv) =
+	    @{$rule}{'action', 'src', 'dst', 'src_range', 'srv'};
+	$ref2obj{$src_range} = $src_range;
 	$ref2obj{$srv} = $srv;
 	# A rule with an interface as destination may be marked as deleted
-	# during global optimization. But in some case, code for this rule 
+	# during global optimization. But in some cases, code for this rule 
 	# must be generated anyway. This happens, if
 	# - it is an interface of a managed router and
 	# - code is generated for exactly this router.
@@ -2660,13 +2762,13 @@ sub add_rules( $$ ) {
 	    $rule->{managed_intf} = 1;
 	}
 	my $old_rule =
-	    $rule_tree->{$action}->{$src}->{$dst}->{$srv}->{$src_ports};
+	    $rule_tree->{$action}->{$src}->{$dst}->{$src_range}->{$srv};
 	if($old_rule) {
 	    # Found identical rule.
 	    $rule->{deleted} = $old_rule;
 	    next;
 	} 
-	$rule_tree->{$action}->{$src}->{$dst}->{$srv}->{$src_ports} = $rule;
+	$rule_tree->{$action}->{$src}->{$dst}->{$src_range}->{$srv} = $rule;
     }
 }
 
@@ -2740,6 +2842,7 @@ sub expand_rules ( $$$ ) {
 	    }
 	    return @result;
 	};
+	my $action = $unexpanded->{action};
 	for my $src (@{$unexpanded->{src}}) {
 	    my $src_any = get_any $src;
 	    for my $dst (@{$unexpanded->{dst}}) {
@@ -2823,36 +2926,49 @@ sub expand_rules ( $$$ ) {
 			    # use the main service, but remember
 			    # the original one for debugging / comments.
 			    my $orig_srv;
-			    # Don't alter array we are currently looping over.
+			    # Don't alter the array we are currently looping over.
 			    my $srv = $srv;
+			    my $add_rule = sub ( $$$$$$$ ) {
+				my($action, $src, $dst, $src_range, $srv, $unexpanded, $orig_srv) = @_;
+				my $rule = { action => $action,
+					     src => $src,
+					     dst => $dst,
+					     src_range => $src_range,
+					     srv => $srv,
+					     # Remember unexpanded rule.
+					     rule => $unexpanded
+					     };
+				$rule->{orig_srv} = $orig_srv if $orig_srv;
+				if($action eq 'deny') {
+				    push @$deny, $rule;
+				} elsif(is_any($src) or is_any($dst)) {
+				    push @$any, $rule;
+				} else {
+				    push @$permit, $rule;
+				}
+			    };
 			    if(my $main_srv = $srv->{main}) {
 				$orig_srv = $srv;
 				$srv = $main_srv;
 			    }
-			    my $src_ports;
+			    my $src_range;
 			    my $proto = $srv->{proto};
 			    if($proto eq 'tcp' || $proto eq 'udp') {
 				$orig_srv = $srv unless $orig_srv;
-				$src_ports = $srv->{src_ports};
-				$srv = $srv->{dst_ports};
+				$src_range = $srv->{src_range};
+				$srv = $srv->{dst_range};
+				for my $src_range (expand_splitted_services
+						   $src_range) {
+				    for my $srv (expand_splitted_services $srv) {
+					$add_rule->($action, $src, $dst, $src_range,
+						    $srv, $unexpanded,
+						    $orig_srv);
+				    }
+				}
 			    } else {
-				$src_ports = $srv_ip; 
-			    }
-			    my $expanded_rule = { action => $unexpanded->{action},
-						  src => $src,
-						  dst => $dst,
-						  srv => $srv,
-						  src_ports => $src_ports,
-						  # Remember unexpanded rule.
-						  rule => $unexpanded
-						  };
-			    $expanded_rule->{orig_srv} = $orig_srv if $orig_srv;
-			    if($unexpanded->{action} eq 'deny') {
-				push @$deny, $expanded_rule;
-			    } elsif(is_any($src) or is_any($dst)) {
-				push @$any, $expanded_rule;
-			    } else {
-				push @$permit, $expanded_rule;
+				$src_range = $srv_ip; 
+				$add_rule->($action, $src, $dst, $src_range,
+					    $srv, $unexpanded, $orig_srv);
 			    }
 			}
 		    }
@@ -3858,33 +3974,33 @@ sub find_related_rules ( $$ ) {
 	my $check_srv = sub ( $$ ) {
 	    my($rule_tree, $above) = @_;
 	    my $srv = $rule->{srv};
-	    my $check_src_ports = sub ( $$ ) {
+	    my $check_src_range = sub ( $$ ) {
 		my($rule_tree, $above) = @_;
-		my $src_ports = $rule->{src_ports};
-		if(my $aref = $rule_tree->{above}->{$src_ports}) {
+		my $src_range = $rule->{src_range};
+		if(my $aref = $rule_tree->{above}->{$src_range}) {
 		    for my $map (@$aref) {
 			push @$result, $map;
 			$overlap = 1;
 		    }
 		} else {
 		    while(1) {
-			if(my $map = $rule_tree->{$src_ports}) {
+			if(my $map = $rule_tree->{$src_range}) {
 			    push @$result, $map;
 			    $overlap ||= $above;
 			    last;
 			}
-			$src_ports = $src_ports->{up} or last;
+			$src_range = $src_range->{up} or last;
 		    }
 		}
 	    };
 	    if(my $aref = $rule_tree->{above}->{$srv}) {
 		for my $rule_tree (@$aref) {
-		    $check_src_ports->($rule_tree, 1);
+		    $check_src_range->($rule_tree, 1);
 		}
 	    } else {
 		while(1) {
 		    if(my $rule_tree = $rule_tree->{$srv}) {
-			$check_src_ports->($rule_tree, $above);
+			$check_src_range->($rule_tree, $above);
 		    }
 		    $srv = $srv->{up} or last;
 		}
@@ -4106,19 +4222,19 @@ sub distribute_crypto_rule ( $$$ ) {
 # Reverse a crypto rule and check if srv is valid for IPSec.
 sub reverse_rule ( $ ) {
     my($rule) = @_;
-    my($action, $src, $dst, $srv, $src_ports) = @{$rule}{'action', 'src', 'dst', 'srv', 'src_ports'};
+    my($action, $src, $dst, $src_range, $srv) = @{$rule}{'action', 'src', 'dst', 'src_range', 'srv'};
     my $proto = $srv->{proto};
     my $new_srv;
-    my $new_src_ports = $srv_ip;
+    my $new_src_range = $srv_ip;
     if($proto eq 'tcp' || $proto eq 'udp') {
-	for my $ports ($srv->{ports}, $src_ports->{ports}) {
-	    ($ports->[0] == $ports->[1] || $ports->[0] == 1 && $ports->[1] == 65535) or
+	for my $range ($srv->{range}, $src_range->{range}) {
+	    ($range->[0] == $range->[1] || $range->[0] == 1 && $range->[1] == 65535) or
 		err_msg "Crypto rule must not use $srv->{name} with port ranges";
 	}
 	    
-	# Swap src and dst ports.
-	$new_src_ports = $srv;
-	$new_srv = $src_ports;
+	# Swap src and dst range.
+	$new_src_range = $srv;
+	$new_srv = $src_range;
     } elsif($proto eq 'icmp') {
 	$srv->{type} and
 	    err_msg "Crypto rule must not use $srv->{name} with type";
@@ -4129,8 +4245,8 @@ sub reverse_rule ( $ ) {
     my $new_rule = { action => $action,
 		     src => $dst,
 		     dst => $src,
-		     srv => $new_srv,
-		     src_ports => $new_src_ports };
+		     src_range => $new_src_range,
+		     srv => $new_srv};
 }
 
 sub expand_crypto () {
@@ -4266,15 +4382,15 @@ sub expand_crypto () {
 		my @rules;
 		my $rule = { action => 'permit', src => $intf1, dst => $intf2 };
 		if($use_nat_traversal) {
-		    $rule->{src_ports} = $srv_natt->{src_ports};
-		    $rule->{srv} = $srv_natt->{dst_ports};
+		    $rule->{src_range} = $srv_natt->{src_range};
+		    $rule->{srv} = $srv_natt->{dst_range};
 		    push @rules, $rule;
 		} else {
-		    $rule->{src_ports} = $srv_ip;
+		    $rule->{src_range} = $srv_ip;
 		    $use_ah and push @rules, { %$rule, srv => $srv_ah };
 		    $use_esp and push @rules, {%$rule, srv => $srv_esp };
-		    $rule->{src_ports} = $srv_ike->{src_ports};
-		    $rule->{srv} = $srv_ike->{dst_ports};
+		    $rule->{src_range} = $srv_ike->{src_range};
+		    $rule->{srv} = $srv_ike->{dst_range};
 		    push @rules, $rule;
 		}
 		push @{$expanded_rules{permit}}, @rules;
@@ -4302,11 +4418,11 @@ sub expand_crypto () {
 	my $add_rule = sub ( $$$ ) {
 	    my($rule, $start, $end) = @_;
 	    my $crypto_map = $start->{tunnel}->{$end};
-	    my($action, $src, $dst, $srv, $src_ports) =
-		@{$rule}{'action', 'src', 'dst', 'srv', 'src_ports'};
+	    my($action, $src, $dst, $src_range, $srv) =
+		@{$rule}{'action', 'src', 'dst', 'src_range', 'srv'};
 	    if(my $old_map =
 	       $start->{crypto_rule_tree}->
-	       {$action}->{$src}->{$dst}->{$srv}->{$src_ports}) {
+	       {$action}->{$src}->{$dst}->{$src_range}->{$srv}) {
 		err_msg "Duplicate crypto rule at $start->{name}\n ",
 		print_rule $rule;
 	    }
@@ -4314,7 +4430,7 @@ sub expand_crypto () {
 	    # if a policy rule fully uses a tunnel or not.
 	    # $ref2obj has already been filled by expand_rules
 	    $start->{crypto_rule_tree}->
-	    {$action}->{$src}->{$dst}->{$srv}->{$src_ports} = $crypto_map;
+	    {$action}->{$src}->{$dst}->{$src_range}->{$srv} = $crypto_map;
 	    # Additionally add entries to crypto_rule_tree, which allow
 	    # for efficient test, if a rule has intersection with some
 	    # rule(s) in crypto_rule_tree.
@@ -4329,15 +4445,15 @@ sub expand_crypto () {
 		push @{$subtree->{above}->{$dst}}, $subtree2;
 	    }
 	    $subtree = $subtree2;
+	    $subtree2 = $subtree->{$src_range};
+	    while($src_range = $src_range->{up}) {
+		push @{$subtree->{above}->{$src_range}}, $subtree2;
+	    }		
+	    $subtree = $subtree2;
 	    $subtree2 = $subtree->{$srv};
 	    while($srv = $srv->{up}) {
 		push @{$subtree->{above}->{$srv}}, $subtree2;
 	    }	
-	    $subtree = $subtree2;
-	    $subtree2 = $subtree->{$src_ports};
-	    while($src_ports = $src_ports->{up}) {
-		push @{$subtree->{above}->{$src_ports}}, $subtree2;
-	    }		
 	    # Rules are stored additionally in crypto_map for code generation.
 	    push @{$crypto_map->{crypto_rules}}, $rule;
 	};
@@ -4465,7 +4581,7 @@ sub check_any_src_rule( $$$ ) {
 		next if $intf eq $out_intf;
 		my $any = $intf->{any};
 		unless($rule_tree{$rule->{action}}->
-		       {$any}->{$dst}->{$rule->{srv}}->{$rule->{src_ports}}) {
+		       {$any}->{$dst}->{$rule->{src_range}}->{$rule->{srv}}) {
 		    err_missing_any $rule, $any, 'src', $router;
 		}
 	    }
@@ -4476,7 +4592,7 @@ sub check_any_src_rule( $$$ ) {
     # Hence there can't be any missing rules.
     return if $out_any eq $dst_any;
     unless($rule_tree{$rule->{action}}->
-	   {$out_any}->{$dst}->{$rule->{srv}}->{$rule->{src_ports}}) {
+	   {$out_any}->{$dst}->{$rule->{src_range}}->{$rule->{srv}}) {
 	err_missing_any $rule, $out_any, 'src', $router; 
     }
 }
@@ -4512,8 +4628,8 @@ sub check_any_dst_rule( $$$ ) {
 
     my $in_any = $in_intf->{any};
     my $src = $rule->{src};
+    my $src_range = $rule->{src_range};
     my $srv = $rule->{srv};
-    my $src_ports = $rule->{src_ports};
     my $src_any = get_any $src;
 
     # Find security domains at all interfaces except the in_intf.
@@ -4525,7 +4641,7 @@ sub check_any_dst_rule( $$$ ) {
 	# Nothing to be checked if src is directly attached to current router.
 	next if $any eq $src_any;
 	unless($rule_tree{$rule->{action}}->
-	       {$src}->{$any}->{$srv}->{$src_ports}) {
+	       {$src}->{$any}->{$src_range}->{$srv}) {
 	    err_missing_any $rule, $any, 'dst', $router;
 	}
     }
@@ -4593,7 +4709,7 @@ sub check_any_rules() {
 # For each rule with protocol tcp, udp or ip we need a reverse rule
 # with swapped src, dst and src-port, dst-port.
 # For rules with a tcp service, the reverse rule gets a tcp service
-# without ports checking but with checking for 'established` flag.
+# without range checking but with checking for 'established` flag.
 ##############################################################################
 
 sub gen_reverse_rules1 ( $ ) {
@@ -4650,18 +4766,18 @@ sub gen_reverse_rules1 ( $ ) {
 	    path_walk($rule, $mark_reverse_rule);
 	}
 	if($has_stateless_router) {
-	    my $new_src_ports;
+	    my $new_src_range;
 	    my $new_srv;
 	    if($proto eq 'tcp') {
-		$new_src_ports = $range_tcp_any;
+		$new_src_range = $range_tcp_any;
 		$new_srv = $range_tcp_established;
 	    } elsif($proto eq 'udp') {
-		# Swap src and dst ports.
-		$new_src_ports = $rule->{srv};
-		$new_srv = $rule->{src_ports};
+		# Swap src and dst range.
+		$new_src_range = $rule->{srv};
+		$new_srv = $rule->{src_range};
 	    } elsif($proto eq 'ip') {
 		$new_srv = $rule->{srv};
-		$new_src_ports = $rule->{src_ports};
+		$new_src_range = $rule->{src_range};
 	    } else {
 		internal_err;
 	    }
@@ -4669,8 +4785,8 @@ sub gen_reverse_rules1 ( $ ) {
 		action => $rule->{action},
 		src => $rule->{dst},
 		dst => $rule->{src},
+		src_range => $new_src_range,
 		srv => $new_srv,
-		src_ports => $new_src_ports,
 		# This rule must only be applied to stateless routers.
 		stateless => 1 };
 	    $new_rule->{any_are_neighbors} = 1 if $rule->{any_are_neighbors};
@@ -4772,26 +4888,26 @@ sub optimize_rules( $$ ) {
 				my $dst = $ref2obj{$dst_ref};
 				while(1) {
 				    if(my $cmp_hash = $cmp_hash->{$dst}) {
-					for my $srv_ref (keys %$chg_hash) {
-					    my $chg_hash = $chg_hash->{$srv_ref};
-					    my $srv = $ref2obj{$srv_ref};
+					for my $src_range_ref (keys %$chg_hash) {
+					    my $chg_hash = $chg_hash->{$src_range_ref};
+					    my $src_range = $ref2obj{$src_range_ref};
 					    while(1) {
-						if(my $cmp_hash = $cmp_hash->{$srv}) {
+						if(my $cmp_hash = $cmp_hash->{$src_range}) {
 						    for my $chg_rule (values %$chg_hash) {
 							next if $chg_rule->{deleted};
-							my $src_ports = $chg_rule->{src_ports};
+							my $srv = $chg_rule->{srv};
 							while(1) {
-							    if(my $cmp_rule = $cmp_hash->{$src_ports}) {
+							    if(my $cmp_rule = $cmp_hash->{$srv}) {
 								unless($cmp_rule eq $chg_rule) {
 								    $chg_rule->{deleted} = $cmp_rule;
 								    last;
 								}
 							    }
-							    $src_ports = $src_ports->{up} or last;
+							    $srv = $srv->{up} or last;
 							}
 						    }
 						}
-						$srv = $srv->{up} or last;
+						$src_range = $src_range->{up} or last;
 					    }
 					}
 				    }
@@ -5535,7 +5651,7 @@ sub warn_pix_icmp() {
 # Returns 3 values for building an IOS or PIX ACL:
 # permit <val1> <src> <val2> <dst> <val3>
 sub cisco_srv_code( $$$ ) {
-    my ($srv, $src_ports, $model) = @_;
+    my ($src_range, $srv, $model) = @_;
     my $proto = $srv->{proto};
 
     if($proto eq 'ip') {
@@ -5560,8 +5676,8 @@ sub cisco_srv_code( $$$ ) {
 	    }
 	};
 	my $established = $srv->{established} ? ' established' : '';
-	return($proto, $port_code->(@{$src_ports->{ports}}),
-	       $port_code->(@{$srv->{ports}}) . $established);
+	return($proto, $port_code->(@{$src_range->{range}}),
+	       $port_code->(@{$srv->{range}}) . $established);
     } elsif($proto eq 'icmp') {
 	if(defined (my $type = $srv->{type})) {
 	    if(defined (my $code = $srv->{code})) {
@@ -5587,31 +5703,35 @@ sub cisco_srv_code( $$$ ) {
 
 # Code filtering traffic with PIX as destination.
 sub pix_self_code ( $$$$$$ ) {
-    my($action, $spair, $dst, $srv, $src_ports, $model) = @_;
+    my($action, $spair, $dst, $src_range, $srv, $model) = @_;
     my $src_code = ios_route_code $spair;
     my $dst_intf = $dst->{hardware}->{name};
-    my ($proto_code, $src_port_code, $dst_port_code) =
-	cisco_srv_code($srv, $src_ports, $model);
-    if($proto_code eq 'icmp') {
+    my $proto = $srv->{proto};
+    if($proto eq 'icmp') {
+	my ($proto_code, $src_port_code, $dst_port_code) =
+	    cisco_srv_code($src_range, $srv, $model);
 	return "icmp $action $src_code $dst_port_code $dst_intf";
-    } elsif($proto_code eq 'tcp' and $action eq 'permit') {
-	if($dst_port_code eq 'eq 23') {
-	    return "telnet $src_code $dst_intf";
-	} elsif($dst_port_code eq 'eq 22') {
-	    return "ssh $src_code $dst_intf";
-	} elsif($dst_port_code eq 'eq 80') {
-	    return "http $src_code $dst_intf";
-	} else {
-	    return undef
-	}
+    } elsif($proto eq 'tcp' and $action eq 'permit') {
+      my @code;
+      my($v1, $v2) = @{$srv->{range}};
+      if($v1 <= 23 && 23 <= $v2) {
+	push @code "telnet $src_code $dst_intf";
+      }
+      if($v1 <= 22 && 22 <= $v2) {
+	push @code, "ssh $src_code $dst_intf";
+      }
+      if($v1 <= 80 && 80 <= $v2) {
+	push @code, "http $src_code $dst_intf";
+      }
+      return join "\n", @code;
     } else {
-	return undef;
+      return undef;
     }
 }
 
 # Returns iptables code for filtering a service.
 sub iptables_srv_code( $$ ) {
-    my ($srv, $src_ports) = @_;
+    my ($src_range, $srv) = @_;
     my $proto = $srv->{proto};
 
     if($proto eq 'ip') {
@@ -5631,8 +5751,8 @@ sub iptables_srv_code( $$ ) {
 		return "$v1:$v2";
 	    }
 	};
-	my $sport = $port_code->(@{$src_ports->{ports}});
-	my $dport = $port_code->(@{$srv->{ports}});
+	my $sport = $port_code->(@{$src_range->{range}});
+	my $dport = $port_code->(@{$srv->{range}});
 	my $result = "-p $proto";
 	$result .= " -sport $sport" if $sport;
 	$result .= " -dport $dport" if $dport;
@@ -5659,8 +5779,8 @@ sub acl_line( $$$$ ) {
     my($rules_aref, $nat_map, $prefix, $model) = @_;
     my $filter_type = $model->{filter};
     for my $rule (@$rules_aref) {
-	my($action, $src, $dst, $srv, $src_ports) =
-	    @{$rule}{'action', 'src', 'dst', 'srv', 'src_ports'};
+	my($action, $src, $dst, $src_range, $srv) =
+	    @{$rule}{'action', 'src', 'dst', 'src_range', 'srv'};
 	print "$model->{comment_char} ". print_rule($rule)."\n"
 	    if $comment_acls;
 	for my $spair (address($src, $nat_map)) {
@@ -5669,7 +5789,7 @@ sub acl_line( $$$$ ) {
 		    if($prefix) {
 			# Traffic passing through the PIX.
 			my ($proto_code, $src_port_code, $dst_port_code) =
-			    cisco_srv_code($srv, $src_ports, $model);
+			    cisco_srv_code($src_range, $srv, $model);
 			my $src_code = ios_code($spair);
 			my $dst_code = ios_code($dpair);
 			print "$prefix $action $proto_code ",
@@ -5677,7 +5797,7 @@ sub acl_line( $$$$ ) {
 		    } else {
 			# Traffic for the PIX itself.
 			if(my $code =
-			   pix_self_code $action, $spair, $dst, $srv, $src_ports, $model) {
+			   pix_self_code $action, $spair, $dst, $src_range, $srv, $model) {
 			    print "$code\n"; 
 			} else {
 			    # Other rules are ignored silently.
@@ -5686,13 +5806,13 @@ sub acl_line( $$$$ ) {
 		} elsif($filter_type eq 'IOS') {
 		    my $inv_mask = $filter_type eq 'IOS';
 		    my ($proto_code, $src_port_code, $dst_port_code) =
-			cisco_srv_code($srv, $src_ports,$model);
+			cisco_srv_code($src_range, $srv, $model);
 		    my $src_code = ios_code($spair, $inv_mask);
 		    my $dst_code = ios_code($dpair, $inv_mask);
 		    print "$prefix $action $proto_code ",
 		    "$src_code $src_port_code $dst_code $dst_port_code\n";
 		} elsif($filter_type eq 'iptables') {
-		    my $srv_code = iptables_srv_code($srv, $src_ports);
+		    my $srv_code = iptables_srv_code($src_range, $srv);
 		    my $src_code = prefix_code($spair);
 		    my $dst_code = prefix_code($dpair);
 		    my $action_code =
@@ -5731,17 +5851,17 @@ sub find_object_groups ( $ ) {
 		my $that = $rule->{$that};
 		my $this = $rule->{$this};
 		my $srv = $rule->{srv};
-		my $src_ports = $rule->{src_ports};
-		$group_rule_tree{$action}->{$srv}->{$src_ports}->{$that}->{$this} =
+		my $src_range = $rule->{src_range};
+		$group_rule_tree{$action}->{$src_range}->{$srv}->{$that}->{$this} =
 		    $rule;
 	    }
 	    # Find groups >= $min_object_group_size,
 	    # mark rules belonging to one group,
 	    # put groups into an array / hash.
 	    for my $href (values %group_rule_tree) {
-		# $href is {srv => href, ...}
+		# $href is {src_range => href, ...}
 		for my $href (values %$href) {
-		    # $href is {src_ports => href, ...}
+		    # $href is {srv => href, ...}
 		    for my $href (values %$href) {
 			# $href is {src/dst => href, ...}
 			for my $href (values %$href) {
@@ -5827,8 +5947,8 @@ sub find_object_groups ( $ ) {
 		    $rule = {action => $rule->{action},
 			     $that => $rule->{$that},
 			     $this => $glue->{group},
-			     srv => $rule->{srv},
-			     src_ports => $rule->{src_ports}};
+			     src_range => $rule->{src_range},
+			     srv => $rule->{srv}};
 		}
 		push @new_rules, $rule;
 	    }
@@ -5872,18 +5992,18 @@ sub find_chains ( $ ) {
 		my $action = $rule->{action};
 		my $that = $rule->{$that};
 		my $this = $rule->{$this};
+		my $src_range = $rule->{src_range};
 		my $srv = $rule->{srv};
-		my $src_ports = $rule->{src_ports};
-		$group_rule_tree{$action}->{$srv}->{$src_ports}->{$that}->{$this} =
+		$group_rule_tree{$action}->{$src_range}->{$srv}->{$that}->{$this} =
 		    $rule;
 	    }
 	    # Find groups >= $min_object_group_size,
 	    # mark rules belonging to one group,
 	    # put groups into an array / hash.
 	    for my $href (values %group_rule_tree) {
-		# $href is {srv => href, ...}
+		# $href is {src_range => href, ...}
 		for my $href (values %$href) {
-		    # $href is {src_ports => href, ...}
+		    # $href is {srv => href, ...}
 		    for my $href (values %$href) {
 			# $href is {src/dst => href, ...}
 			for my $href (values %$href) {
@@ -5975,8 +6095,8 @@ sub find_chains ( $ ) {
 		    $rule = {action => $glue->{chain},
 			     $this => $network_00,
 			     $that => $rule->{$that},
-			     srv => $rule->{srv},
-			     src_ports => $rule->{src_ports}};
+			     src_range => $rule->{src_range},
+			     srv => $rule->{srv}};
 		}
 		push @new_rules, $rule;
 	    }
@@ -6031,15 +6151,15 @@ sub local_optimization() {
 		    my %hash;
 		    my $changed = 0;
 		    for my $rule (@{$hardware->{$rules}}) {
-			my($action, $src, $dst, $srv, $src_ports) =
-			    @{$rule}{'action', 'src', 'dst', 'srv', 'src_ports'};
-			$hash{$action}->{$src}->{$dst}->{$srv}->{$src_ports} =
+			my($action, $src, $dst, $src_range, $srv) =
+			    @{$rule}{'action', 'src', 'dst', 'src_range', 'srv'};
+			$hash{$action}->{$src}->{$dst}->{$src_range}->{$srv} =
 			    $rule;
 		    }
 		  RULE:
 		    for my $rule (@{$hardware->{$rules}}) {
-			my($action, $src, $dst, $srv, $src_ports) =
-			    @{$rule}{'action', 'src', 'dst', 'srv', 'src_ports'};
+			my($action, $src, $dst, $src_range, $srv) =
+			    @{$rule}{'action', 'src', 'dst', 'src_range', 'srv'};
 			while(1) {
 			    my $src = $src;
 			    if(my $hash = $hash{$action}) {
@@ -6047,14 +6167,14 @@ sub local_optimization() {
 				    my $dst = $dst;
 				    if(my $hash = $hash->{$src}) {
 					while(1) {
-					    my $srv = $srv;
+					    my $src_range = $src_range;
 					    if(my $hash = $hash->{$dst}) {
 						while(1) {
-						    my $src_ports = $src_ports;
-						    if(my $hash = $hash->{$srv}) {
+						    my $srv = $srv;
+						    if(my $hash = $hash->{$src_range}) {
 							while(1) {
 							    if(my $other_rule =
-							       $hash->{$src_ports}) {
+							       $hash->{$srv}) {
 								unless($rule eq
 								       $other_rule) {
 								    $rule = undef;
@@ -6062,10 +6182,10 @@ sub local_optimization() {
 								    next RULE;
 								}
 							    }
-							    $src_ports = $src_ports->{up} or last;
+							    $srv = $srv->{up} or last;
 							}
 						    }
-						    $srv = $srv->{up} or last;
+						    $src_range = $src_range->{up} or last;
 						}
 					    }
 					    $dst = $dst->{up} or last;
@@ -6089,28 +6209,120 @@ sub local_optimization() {
 				   $dst->{router} eq $router) {
 				$dst = get_networks $dst;
 			    }
+			    # Don't modify original rule, because the identical rule 
+			    # is referenced at different routers.
 			    my $new_rule = {
 				action => $action,
 				src => $src,
 				dst => $dst,
-				srv => $srv_ip,
-				src_ports => $srv_ip };
+				src_range => $srv_ip,
+				srv => $srv_ip, };
+			    # Add new rule to hash. If there are multiple rules which could be converted to the same secondary rule, only the first one will be generated.
 			    $hash{$action}->{$src}->{$dst}->{$srv_ip}->{$srv_ip} =
 				$new_rule;
 			    # This changes @{$hardware->{$rules}} !
 			    $rule = $new_rule;
 			}
-			
+		    }
+  		    if($changed) {
+ 			$hardware->{$rules} =
+ 			    [ grep $_, @{$hardware->{$rules}} ];
+  		    }
+		    $changed = 0;
+# Find adjacent port ranges.
+		    # Recreate content of %hash, because some entries are no longer valid
+		    # after optimization above.
+		    %hash = ();
+		    for my $rule (@{$hardware->{$rules}}) {
+			my($action, $src, $dst, $src_range, $srv) =
+			    @{$rule}{'action', 'src', 'dst', 'src_range', 'srv'};
+			$hash{$action}->{$src}->{$dst}->{$src_range}->{$srv} =
+			    $rule;
+		    }
+		    # %hash is {action => href, ...}
+		    for my $href (values %hash) {
+			# $href is {src => href, ...}
+			for my $href (values %$href) {
+			    # $href is {dst => href, ...}
+			    for my $href (values %$href) {
+				# $href is {src_port => href, ...}
+				for my $src_range_ref (keys %$href) {
+				    my $src_range = $ref2obj{$src_range_ref};
+				    my $proto = $src_range->{proto};
+				    # This optimization is only applicable to TCP and UDP.
+				    $proto eq 'tcp' or $proto eq 'udp' or next;
+				    my $href = $href->{$src_range_ref};
+				    # Values of %$href are rules with identical action/src/dst/src_port 
+				    # and a TCP or UDP service.
+				    # When sorting these rules by low port number,
+				    # rules with adjacent services will placed side by side.
+				    # There can't be overlaps, because they have been split
+				    # in function 'order_ranges'.
+				    # There can't be sub-ranges, because they have been deleted as redundant above.
+				    my @sorted = sort { $a->{srv}->{range}->[0] <=> $b->{srv}->{range}->[0] }
+				    (values %$href);
+				    @sorted >= 2 or next;
+				    my $i = 0;
+				    my $rule_a = $sorted[$i];
+				    my($a1, $a2) = @{$rule_a->{srv}->{range}};
+				    while(++$i < @sorted) {
+					my $rule_b = $sorted[$i];
+					my($b1, $b2) = @{$rule_b->{srv}->{range}};
+					if($a2+1 == $b1) {
+					    # Found adjacent port ranges.
+					    if(my $range = delete $rule_a->{range}) {
+						# Extend range of previous two or more elements.
+						$range->[1] = $b2;
+						$rule_b->{range} = $range;
+					    } else {
+						# Combine ranges of $rule_a and $rule_b.
+						$rule_b->{range} = [ $a1, $b2 ];
+					    }
+					    # Mark previous rule as deleted.
+					    # Don't use attribute 'deleted', this may still be 
+					    # set by global optimization pass.
+					    $rule_a->{local_del} = 1;
+					    $changed = 1;
+					}
+					$rule_a = $rule_b;
+					($a1, $a2) = ($b1, $b2);
+				    }
+				}
+			    }
+			}
 		    }
 		    if($changed) {
-			$hardware->{$rules} =
-			    [ grep $_, @{$hardware->{$rules}} ];
+			my @rules;
+			for my $rule (@{$hardware->{$rules}}) {
+			    # Check and remove attribute 'local_del'.
+			    next if delete $rule->{local_del};
+			    # Process rules with joined port ranges.
+			    # Remove auxiliary attribute {range} from rules.
+			    if(my $range = delete $rule->{range}) {
+				my $srv = $rule->{srv};
+				my $proto = $srv->{proto};
+				my $key = join ':', @$range;
+				# Try to find existing srv with matching range.
+				# This is needed for find_object_groups to work.
+				my $new_srv = $srv_hash{$proto}->{$key};
+				unless($new_srv) {
+				    $new_srv = { name => "joined_$srv->{name}", proto => $proto, 
+						 range => $range };
+				    $srv_hash{$proto}->{$key} = $new_srv;
+				}
+				my $new_rule = { %$rule, srv => $new_srv };
+				push @rules, $new_rule;
+			    } else {
+				push @rules, $rule;
+			    }
+			}
+			$hardware->{$rules} = \@rules;
 		    }
 		}
 	    }
 	}
     }
-}	    
+}
 
 sub print_acls( $ ) {
     my($router) = @_;
@@ -6141,25 +6353,25 @@ sub print_acls( $ ) {
 		    unshift(@{$hardware->{rules}}, { action => 'permit', 
 						     src => $network_00,
 						     dst => $net,
-						     srv => $srv_ip,
-						     src_ports => $srv_ip });
+						     src_range => $srv_ip,
+						     srv => $srv_ip});
 		}
 	    }
 	    # Is dynamic routing used?
 	    if(my $routing = $interface->{routing}) {
 		unless($routing->{name} eq 'manual') {
 		    my $srv = $routing->{srv};
-		    my $src_ports = $srv_ip;
-		    if(my $dst_ports = $srv->{dst_ports}) {
-			$src_ports = $srv->{src_ports};
-			$srv = $srv->{dst_ports};
+		    my $src_range = $srv_ip;
+		    if(my $dst_range = $srv->{dst_range}) {
+			$src_range = $srv->{src_range};
+			$srv = $srv->{dst_range};
 		    }
 		    my $network = $interface->{network};
 		    # Permit multicast packets from current network.
 		    for my $mcast (@{$routing->{mcast}}) {
 			push @{$hardware->{intf_rules}},
 			{ action => 'permit',
-			  src => $network, dst => $mcast, srv => $srv, src_ports => $src_ports };
+			  src => $network, dst => $mcast, src_range => $src_range, srv => $srv };
 		    }
 		    # Additionally permit unicast packets.
 		    # We use the network address as destination
@@ -6168,7 +6380,7 @@ sub print_acls( $ ) {
 		    # multiple addresses.
 		    push @{$hardware->{intf_rules}},
 		    { action => 'permit', 
-		      src => $network, dst => $network, srv => $srv, src_ports => $src_ports }
+		      src => $network, dst => $network, src_range => $src_range, srv => $srv }
 		}
 	    }
 	    # Handle multicast packets of redundancy protocols.
@@ -6177,13 +6389,13 @@ sub print_acls( $ ) {
 		my $src = $interface->{network};
 		my $dst = $xxrp_info{$type}->{mcast};
 		my $srv = $xxrp_info{$type}->{srv};
-		my $src_ports = $srv_ip;
-		if(my $dst_ports = $srv->{dst_ports}) {
-		    $src_ports = $srv->{src_ports};
-		    $srv = $srv->{dst_ports};
+		my $src_range = $srv_ip;
+		if(my $dst_range = $srv->{dst_range}) {
+		    $src_range = $srv->{src_range};
+		    $srv = $srv->{dst_range};
 		}
 		push @{$hardware->{intf_rules}},
-		{ action => 'permit', src => $src, dst => $dst, srv => $srv, src_ports => $src_ports };
+		{ action => 'permit', src => $src, dst => $dst, src_range => $src_range, srv => $srv };
 	    }
 	}
     }
@@ -6207,22 +6419,22 @@ sub print_acls( $ ) {
 		push @{$hardware->{intf_rules}}, { action => 'deny',
  						   src => $network_00,
  						   dst => $interface,
- 						   srv => $srv_ip,
-						   src_ports => $srv_ip };
+						   src_range => $srv_ip,
+ 						   srv => $srv_ip};
 	    }
 	}
 	if($filter eq 'iptables') {
 	    push @{$hardware->{intf_rules}}, { action => 'deny',
 					       src => $network_00,
 					       dst => $network_00,
-					       srv => $srv_ip,
-					       src_ports => $srv_ip };
+					       src_range => $srv_ip,
+					       srv => $srv_ip};
 	}
 	push @{$hardware->{rules}}, { action => 'deny',
 				      src => $network_00,
 				      dst => $network_00,
-				      srv => $srv_ip,
-				      src_ports => $srv_ip };
+				      src_range => $srv_ip,
+				      srv => $srv_ip};
     }
     # Generate code.
     for my $hardware (@{$router->{hardware}}) {
