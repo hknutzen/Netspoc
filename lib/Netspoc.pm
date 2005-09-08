@@ -455,7 +455,9 @@ sub read_string() {
 my %timeunits = (sec => 1, min => 60, hour => 3600, day => 86400,);
 $timeunits{second} = $timeunits{sec};
 $timeunits{minute} = $timeunits{min};
-for my $key (keys %timeunits) { $timeunits{"${key}s"} = $timeunits{$key}; }
+for my $key (keys %timeunits) {
+   $timeunits{"${key}s"} = $timeunits{$key};
+}
 
 # Read time value in different units, return seconds.
 sub read_time_val() {
@@ -1139,7 +1141,9 @@ sub set_pix_interface_level( $ ) {
             and $level < 100)
          {
             err_msg "Can't derive PIX security level for ",
-              "$hardware->{interfaces}->[0]->{name}";
+              "$hardware->{interfaces}->[0]->{name}\n",
+		" Interface name should contain a number",
+		  " which is used as level";
             $level = 0;
          }
       }
@@ -1582,9 +1586,9 @@ sub read_pathrestriction( $ ) {
    @names > 1 or warn_msg "Ignoring $name with less than 2 interfaces";
    my @interfaces;
    for my $name (@names) {
-      my ($type, $intf) = split_typed_name $name;
+      my ($type, $interface) = split_typed_name $name;
       if ($type eq 'interface') {
-         push @interfaces, $intf;
+         push @interfaces, $interface;
       }
       else {
          error_atline "Expected interfaces as values";
@@ -2302,7 +2306,7 @@ sub link_interface_with_net( $ ) {
    unless ($network) {
       my $msg =
         "Referencing undefined network:$net_name from $interface->{name}";
-      if (grep $interface, @disabled_interfaces) {
+      if (grep { $interface eq $_ } @disabled_interfaces) {
 
          # There is no attached network to be disabled.
          aref_delete $interface, \@disabled_interfaces;
@@ -2628,7 +2632,7 @@ sub mark_disabled() {
          push @all_areas, $area if not $anchor->{disabled};
       }
       else {
-         $area->{border} = [ grep !$_->{disabled}, @{ $area->{border} } ];
+         $area->{border} = [ grep { not $_->{disabled} } @{ $area->{border} } ];
          push @all_areas, $area if @{ $area->{border} };
       }
    }
@@ -2893,7 +2897,7 @@ sub set_auto_groups () {
    my @all_interfaces;
    for my $router (values %routers) {
       my @interfaces =
-        grep({ not $_->{ip} eq 'unnumbered' } @{ $router->{interfaces} });
+        grep { not $_->{ip} eq 'unnumbered' } @{ $router->{interfaces} };
       if ($router->{managed}) {
          push @managed_interfaces, @interfaces;
       }
@@ -2951,12 +2955,13 @@ sub expand_group1( $$ ) {
    for my $tname (@$obref) {
       my ($type, $name) = split_typed_name($tname);
       my $object;
-      unless ($name2object{$type}) {
+      if (not $name2object{$type}) {
          err_msg "Unknown type of '$tname' in $context";
          next;
       }
       unless (    # A simple object type:name.
-         $object = $name2object{$type}->{$name} or
+         $object = $name2object{$type}->{$name}
+	 or
 
          # interface:name.[auto]
          $type eq 'interface'
@@ -2965,13 +2970,11 @@ sub expand_group1( $$ ) {
          or
 
          # network:[area:name] or any:[area:name]
+         # Variable $type will be used below when expanding area to objects
+         # of type $type.
          $type     =~ /^(network|any)$/
          and $name =~ /^\[area:(.*)\]/
-         and
-
-         # Variable $type will be used when expanding area to objects
-         # of type $type.
-         $object = $areas{$1}
+         and $object = $areas{$1}
         )
       {
          err_msg "Can't resolve reference to '$tname' in $context";
@@ -3007,8 +3010,9 @@ sub expand_group1( $$ ) {
          # Expand an 'every' object to all networks in its security domain.
          # Attention: this doesn't include unnumbered networks.
          unless ($object->{disabled}) {
-            push @objects, grep !$_->{route_hint},
-              @{ $object->{link}->{any}->{networks} };
+            push @objects,
+	      grep { not $_->{route_hint} }
+		@{ $object->{link}->{any}->{networks} };
 
             # This may later be used to check that this object is used.
             # Similar to check_unused_groups.
@@ -3021,8 +3025,9 @@ sub expand_group1( $$ ) {
          # depending on value of $type.
          unless ($object->{disabled}) {
             if ($type eq 'network') {
-               push @objects, grep !$_->{route_hint}, map @{ $_->{networks} },
-                 @{ $object->{anys} };
+               push @objects,
+		 grep { not $_->{route_hint} } map @{ $_->{networks} },
+		   @{ $object->{anys} };
             }
             elsif ($type eq 'any') {
                push @objects, @{ $object->{anys} };
@@ -3091,7 +3096,7 @@ sub expand_group( $$;$ ) {
       return \@other;
    }
    else {
-      return [ grep $_, @$aref ];
+      return [ grep { defined $_ } @$aref ];
    }
 
 }
@@ -3244,9 +3249,7 @@ sub get_any( $ ) {
    elsif ($type eq 'Host') {
       return $obj->{network}->{any};
    }
-   elsif (not $type) {
-
-      # $obj is 'any:[local]'
+   elsif ($obj eq 'any:[local]') {
       return $obj;    # A value, not equal to any other security domain.
    }
    else {
@@ -3254,135 +3257,123 @@ sub get_any( $ ) {
    }
 }
 
+# Return associated 'any' object of an interface.
+# Give error message if no interface is provided.
+sub get_any_local ( $ ) {
+   my ($obj) = @_;
+   if (is_interface $obj and $obj->{router}->{managed}) {
+      return $obj->{any};
+   }
+   else {
+      my $name = $obj eq 'any:[local]' ? $obj : $obj->{name};
+      err_msg "any:[local] must only be used in conjunction",
+	" with a managed interface\n",
+	  " but not with $name in rule of $name";
+
+      # Continue with a valid value to prevent further errors.
+      return $obj;
+   }
+}
+
+sub get_auto_interface ( $$$ ) {
+   my ($src, $dst, $context) = @_;
+   my @result;
+   for my $interface (path_first_interfaces $src, $dst) {
+      if ($interface->{ip} =~ /^(unnumbered|short)$/) {
+	 err_msg "'$interface->{ip}' $interface->{name}",
+	   " (from .[auto])\n", " must not be used in rule of $context";
+      }
+      else {
+	 push @result, $interface;
+      }
+   }
+   return @result;
+}
+
+# This handles a rule between objects inside a single security domain or
+# between interfaces of a single managed router or between two instances of
+# 'any:[local]'.
+sub warn_unenforceable ( $$$$ ) {
+    my ($src, $dst, $domain, $context) = @_;
+
+    if ($src eq 'any:[local]') {
+	err_msg "'any:[local]' is used as src and dst in $context";
+	return;
+    }
+    return if not $check_unenforceable;
+
+    # A rule between identical objects is a common case
+    # which results from rules with "src=user;dst=user;".
+    return if $src eq $dst;
+
+    if (is_router $domain) {
+
+	# Auto interface is assumed to be identical
+	# to each other interface of a single router.
+	return if is_router $src or is_router $dst;
+    }
+    else {
+	if ( is_subnet $src and is_subnet $dst or
+	     is_host $src and is_host $dst ) {
+
+	    # For rules with different subnets of a single network no warning
+	    # is shown, because at this point we don't know if the subnets
+	    # have been expanded from a single host.
+	    return if $src->{network} eq $dst->{network};
+	}
+    }
+
+    # Show warning or error message if rule is between
+    # - different interfaces or
+    # - different networks or
+    # - subnets/hosts of different networks.
+    my $msg =
+      "Unenforceable rule of $context:\n src=$src->{name}; dst=$dst->{name}";
+    $check_unenforceable eq 'warn' ? warn_msg $msg : err_msg $msg;
+}
+
 # Parameters:
 # - Reference to array of unexpanded rules.
-# - Name of policy or crypto object for error messages.
+# - Current context for error messages: name of policy or crypto object.
 # - Reference to hash with attributes deny, any, permit for storing
-#   expanded rules of different type.
+#   resulting expanded rules of different type.
 sub expand_rules ( $$$ ) {
-   my ($rules_ref, $name, $result) = @_;
+   my ($rules_ref, $context, $result) = @_;
 
    # For collecting resulting expanded rules.
    my ($deny, $any, $permit) = @{$result}{ 'deny', 'any', 'permit' };
-   for my $unexpanded (@$rules_ref) {
-      my $get_any_local = sub ( $ ) {
-         my ($obj) = @_;
-         if (is_interface $obj and $obj->{router}->{managed}) {
-            return $obj->{any};
-         }
-         else {
-            my $name = $obj eq 'any:[local]' ? $obj : $obj->{name};
-            err_msg "any:[local] must only be used in conjunction",
-              " with a managed interface\n",
-              " but not with $name in rule of $name";
 
-            # Continue with a valid value to prevent further errors.
-            return $obj;
-         }
-      };
-      my $get_auto_interface = sub ( $$ ) {
-         my ($src, $dst) = @_;
-         my @result;
-         for my $interface (path_first_interfaces $src, $dst) {
-            if ($interface->{ip} =~ /^(unnumbered|short)$/) {
-               err_msg "'$interface->{ip}' $interface->{name}",
-                 " (from .[auto])\n", " must not be used in rule of $name";
-            }
-            else {
-               push @result, $interface;
-            }
-         }
-         return @result;
-      };
+   for my $unexpanded (@$rules_ref) {
+
       my $action = $unexpanded->{action};
       for my $src (@{ $unexpanded->{src} }) {
          my $src_any = get_any $src;
          for my $dst (@{ $unexpanded->{dst} }) {
             my $dst_any = get_any $dst;
 
-            # Check for unenforceable rules.
+            # Check for unenforceable rule.
             if ($src_any eq $dst_any) {
-
-               # This is a rule between objects inside a single security
-               # domain or interfaces of a single managed router or two
-               # instances of 'any:[local}'.
-               if ($src eq 'any:[local]') {
-                  err_msg "'any:[local]' is used as src and dst in $name";
-
-                  # Ignore this rule.
-                  next;
-               }
-               $check_unenforceable or next;
-               my $get_network = sub( $ ) {
-                  my ($object) = @_;
-                  if (is_network $object) {
-                     $object;
-                  }
-                  elsif (is_subnet $object or is_host $object) {
-                     $object->{network};
-                  }
-                  elsif (is_interface $object) {
-                     $object;
-                  }
-                  elsif (is_router $object) {
-                     $object;
-                  }
-                  else {
-                     internal_err "Unexpected $object->{name}",
-                       " in get_network";
-                  }
-               };
-
-               # Show a warning if rule is between
-               # - different interfaces of a single managed router or
-               # - different networks or
-               # - between host/subnet of different networks or
-               # - between host/subnet of one network and another network.
-               # A rule between identical objects is a common case
-               # which results from rules with "src=user;dst=user;".
-               # For rules with different subnets of a single network
-               # no warning is shown, because at this point we don't know
-               # if the subnets have been expanded from a single host.
-               if (
-                  is_router $src_any
-                  and not(
-                     $src eq $dst
-                     ||
-
-                     # Auto interface is assumed to be identical
-                     # to each other interface.
-                     is_router $src || is_router $dst)
-                  or not(is_any $src
-                     || is_any $dst
-                     || $get_network->($src) eq $get_network->($dst))
-                 )
-               {
-                  my $msg =
-                      "Unenforceable rule of $name:\n"
-                    . " src=$src->{name}; dst=$dst->{name}";
-                  $check_unenforceable eq 'warn' ? warn_msg $msg : err_msg $msg;
-               }
-
-               # Ignore this rule.
-               next;
-            }
-            my @src =
-              is_router $src ? $get_auto_interface->($src, $dst) : ($src);
-            my @dst =
-              is_router $dst ? $get_auto_interface->($dst, $src) : ($dst);
+	       warn_unenforceable $src, $dst, $src_any, $context;
+	       # Ignore this rule.
+	       next;
+	    }
+            my @src = is_router $src ? get_auto_interface $src, $dst, $context
+	                             : ($src);
+            my @dst = is_router $dst ? get_auto_interface $dst, $src, $context
+	                             : ($dst);
             for my $src (@src) {
 
                # Prevent modification of original array.
                my $src = $src;
                $ref2obj{$src} = $src;
                for my $dst (@dst) {
-                  my $dst = $dst;    # prevent ...
+                  my $dst = $dst;    # Prevent ...
                   if ($src eq 'any:[local]') {
-                     $src = $get_any_local->($dst);
+                     $src = get_any_local($dst);
                      $ref2obj{$src} = $src;
                   }
                   if ($dst eq 'any:[local]') {
-                     $dst = $get_any_local->($src);
+                     $dst = get_any_local($src);
                   }
                   $ref2obj{$dst} = $dst;
                   for my $srv (@{ $unexpanded->{srv} }) {
@@ -3392,7 +3383,7 @@ sub expand_rules ( $$$ ) {
                      # debugging / comments.
                      my $orig_srv;
 
-                     # Don't alter the array we are currently looping over.
+		     # Prevent modification of original array.
                      my $srv = $srv;
                      my $add_rule = sub ( $$$$$$$ ) {
                         my ($action, $src, $dst, $src_range, $srv, $unexpanded,
@@ -3987,10 +3978,10 @@ sub setany() {
          my $start = $interfaces->[0];
          $lookup{$start} = 'found';
          setarea1 $start->{any}, $area, $start;
-         if (my @bad_intf = grep $lookup{$_} ne 'found', @$interfaces) {
+         if (my @bad_intf = grep { $lookup{$_} ne 'found' } @$interfaces) {
             err_msg "Invalid border of $area->{name}\n ", join "\n ",
               map $_->{name}, @bad_intf;
-            $area->{border} = [ grep $lookup{$_} eq 'found', @$interfaces ];
+            $area->{border} = [ grep { $lookup{$_} eq 'found' } @$interfaces ];
          }
       }
 
@@ -5175,8 +5166,7 @@ sub expand_crypto () {
 
          # Clean up helper attribute of &distribute_crypto_rule
          delete $rule->{tunnel_start};
-         if (my $tunnel = $rule->{tunnel}) {
-            delete $rule->{tunnel};
+         if (my $tunnel = delete $rule->{tunnel}) {
             my ($start, $end) = @$tunnel;
             $add_rule->($rule, $start, $end);
             $add_rule->(reverse_rule $rule, $end, $start);
@@ -7314,7 +7304,8 @@ sub local_optimization() {
                   }
                }
                if ($changed) {
-                  $hardware->{$rules} = [ grep $_, @{ $hardware->{$rules} } ];
+                  $hardware->{$rules} =
+		    [ grep { defined $_ } @{ $hardware->{$rules} } ];
                }
             }
 
