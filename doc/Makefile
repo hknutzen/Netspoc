@@ -22,7 +22,7 @@ tar-file := $(current).tar.gz
 cwd := $(shell pwd)
 tar: $(tar-file)
 
-$(tar-file): Netspoc.pm netspoc COPYING INSTALL CSPM.html CSPM.pod ChangeLog Makefile NEWS.html TODO examples index.html language.html netspoc.html netspoc.man netspoc.pod newpolicy VERSION
+$(tar-file): Netspoc.pm netspoc COPYING INSTALL CSPM.html CSPM.pod ChangeLog Makefile NEWS.html TODO examples index.html language.html netspoc.html netspoc.man netspoc.pod newpolicy cut-netspoc VERSION
 	echo Building $(current)
 	cd ..;ln -snf $(cwd) $(current)
 	tar cvzf $@ -C ..  $(addprefix $(current)/, $^)
