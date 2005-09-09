@@ -11,32 +11,32 @@ netspoc [options] input-file [output-dir]
 =head1 DESCRIPTION
 
 The network security compiler takes a policy description
-recursively from all files in input-dir and places one file for
-each managed device into output-dir.
-Alternatively input may be read from a single input-file; this
+recursively from all files in B<input-dir> and places one file for
+each managed device into B<output-dir>.
+Alternatively input may be read from a single B<input-file>; this
 is mainly used for small examples or testing.
-Input is read from STDIN if input-file equals "-".
-If output-dir is missing, all output is written to STDOUT.
+Input is read from STDIN if B<input-file> is equal to C<->.
+If B<output-dir> is missing, all output is written to STDOUT.
 
 =head1 OPTIONS
 
-The following options are recognized. Most can be negated (prefixed with "no") which
-is specially useful when the default is "true".
+The following options are recognized. Some can be negated (prefixed with "no")
+which is specially useful when the default is "true".
 
-=over 4
+=over
 
-=item --verbose
+=item --verbose, --quiet
 
 Controls whether netspoc shows output about different
 compiler phases and statistics on standard error.
 
-=item --comment_acls
+=item --[no]comment_acls
 
 Add a comment line before each generated ACL entry.
 Comments use names of network objects as defined in 
 the topology.
 
-=item --comment_routes
+=item --[no]comment_routes
 
 Add a comment line before each generated routing entry.
 Comments use names of network objects as defined in 
@@ -46,13 +46,18 @@ the topology.
 
 Handling of unused groups and service groups.
 
+=item --check_unenforceable_rules yes|no|warn
+
+Controls behavior for rules with no managed device 
+on the path from source to destination. 
+
 =item --strict_subnets yes|no|warn
 
 Allow subnets only if the enclosing network is declared as 'route_hint'
 or if the subnet is declared as 'subnet_of'.
 If set to 'warn', netspoc only warns about undeclared subnet relations.
 
-=item --auto_default_route
+=item --[no]auto_default_route
 
 Optimize the number of routing entries per router:
 
@@ -68,7 +73,7 @@ A regular expression matching filenames which are ignored when reading
 directories.
 Default value matches these files:
 
-=over 4
+=over
 
 =item *
 
@@ -96,11 +101,11 @@ Abort after this many errors.
 
 =head1 AUTHOR
 
-Heinz Knutzen <heinzknutzen@users.berlios.de>
+Heinz Knutzen E<lt>heinzknutzen@users.berlios.deE<gt>
 
 =head1 SEE ALSO
 
-http://netspoc.berlios.de
+L<http://netspoc.berlios.de>
 
 	
 
