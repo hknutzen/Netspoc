@@ -29,10 +29,10 @@ use Netspoc;
 # Argument processing
 ####################################################################
 sub usage() {
-    die "Usage: $0 {in-file | in-directory} [policy-list]\n";
+    die "Usage: $0 {in-file | in-directory} policy:name ...\n";
 }
 
-# Enhanced version of read_netspoc, which stores source code of each 
+# Enhanced version of read_netspoc, which stores source code of each
 # global definition.
 sub read_netspoc_with_src () {
     my $pre = pos;
