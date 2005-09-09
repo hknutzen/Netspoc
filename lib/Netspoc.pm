@@ -1269,7 +1269,7 @@ sub read_router( $ ) {
 
             # Managed router must not have short interface.
             if ($interface->{ip} eq 'short') {
-               err_msg "Short definition of $interface->{name} ", "not allowed";
+               err_msg "Short definition of $interface->{name} not allowed";
             }
             else {
 
@@ -1286,7 +1286,15 @@ sub read_router( $ ) {
       if ($router->{model}->{has_interface_level}) {
          set_pix_interface_level $router;
       }
-   }
+  } 
+   else {
+       
+       # Interfaces of unmanaged router must not have attribute "managed";
+      for my $interface (@{ $router->{interfaces} }) {
+	  err_msg "$interface->{name} must not have attribute 'managed'\n",
+	    " because $router->{name} is unmanaged" if $interface->{managed};
+      }
+  }
    return $router;
 }
 
