@@ -85,6 +85,20 @@ have a name
 <LI>are used in rules
 </UL>
 
+<h3>Crypto Definition</h3>
+
+A <a href="#crypto_syntax">crypto definition</a> consists of three parts:
+<ol>
+<li>A definition of crypto tunnels.
+<li>A set of rules describing which traffic has to be encrypted.
+<li>A reference to another definition with details about the used
+encryption method. Currently only IPSec is supported.
+</ol>
+
+Crypto definitions are very powerful: A large number of crypto tunnles of
+either a hub and spoke topology or a fully meshed topology may be defined
+easily. 
+
 <H2><A NAME="detailed">Detailed description of network objects</A></H2>
 <P>The topology is built from networks and routers.
 A router and a network are connected by an interface.
@@ -693,6 +707,52 @@ this interface. We are defining <em>behind an interface</em> as that
 part of the topology which is seen when looking from the router to
 that interface. All occurrences of disabled network objects in groups and
 rules are silently discarded.</P>
+
+<h2><a name="encryption">Encryption</a></h2>
+<h3><a name="crypto_syntax">Syntax</a></h3>
+<pre>
+  crypto:&lt;name&gt; = {
+     [ &lt;description&gt; ]
+     type = ipsec:&lt;name&gt;;
+     hub = &lt;network object list&gt;; *
+     spoke = &lt;network object list&gt;; *
+     mesh = &lt;network object list&gt;; *
+     &lt;crypto_rule&gt; * 
+  }</PRE>
+<P>with</P>
+<PRE>
+  &lt;crypto_rule&gt; ::=
+  {{ permit | deny }}
+        src = &lt;network object list&gt;;
+        dst = &lt;network object list&gt;;
+        srv = &lt;service list&gt;;
+</PRE>
+
+<pre>
+  ipsec:&lt;name&gt; = {
+     key_exchange = isakmp:&lt;name&gt;;
+     esp_encryption = {{ aes | aes192 | des | 3des | none }};
+     esp_authentication = {{ md5_hmac | sha_hmac | none }};
+     ah = {{ md5_hmac | sha_hmac | none }};
+     pfs_group = {{ 1 | 2 | 5 }};
+     lifetime = &lt;number&gt; &lt;timeunit&gt;;
+  }</pre>
+
+<pre>
+  isakmp:&lt;name&gt; = {
+     identity = {{ address | fqdn }};
+     nat_traversal = {{ on | off }};
+     authentication = {{ preshare | rsasig }};
+     encryption = {{ aes | aes192 | des | 3des }};
+     hash = {{ md5 | sha }};
+     group = {{ 1 | 2 | 5 }};
+     lifetime = &lt;number&gt; &lt;timeunit&gt;;
+  }</pre>
+<P>with</P>
+<PRE>
+  &lt;timeunit&gt; ::= 
+    {{ sec | min | hour | day | secs | mins | hours | days }};
+</PRE>
 
 <H2><A NAME="handling_any">Handling of 'any' objects</A></H2>
 <P>The meaning of 'any' is different in a NetSPoC rule from that in an ACL.
