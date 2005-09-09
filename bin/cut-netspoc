@@ -35,10 +35,11 @@ sub usage() {
 # Enhanced version of read_netspoc, which stores source code of each
 # global definition.
 sub read_netspoc_with_src () {
-    my $pre = pos $Netspoc::input;
+    my $pre    = pos $Netspoc::input;
     my $object = &read_netspoc();
-    my $post = pos $Netspoc::input;
+    my $post   = pos $Netspoc::input;
     $object->{src_code} = substr $Netspoc::input, $pre, $post - $pre;
+
 #    print STDERR "$object->{name} $pre-$post\n";
     return $object;
 }
@@ -49,10 +50,11 @@ sub mark_topology( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
     my $router = ($in_intf || $out_intf)->{router};
     $router->{is_used} = 1;
+
     # Not only networks on path, but all connected networks need to be marked
     # to get a valid topology.
-    for my $interface (@{$router->{interfaces}}) {
-	$interface->{network}->{is_used} = 1;
+    for my $interface (@{ $router->{interfaces} }) {
+        $interface->{network}->{is_used} = 1;
     }
 }
 
@@ -69,7 +71,7 @@ my $config = shift @ARGV or usage;
 
 # Read names of policies from command line.
 for my $arg (@ARGV) {
-    my($type, $name) = split_typed_name $arg;
+    my ($type, $name) = split_typed_name $arg;
     $type eq 'policy' or usage;
     my $policy = $policies{$name} or die "Unknown $arg\n";
     $policy->{is_used} = 1;
@@ -77,8 +79,8 @@ for my $arg (@ARGV) {
 
 # Delete unwanted policies.
 for my $name (keys %policies) {
-    unless($policies{$name}->{is_used}) {
-	delete $policies{$name};
+    unless ($policies{$name}->{is_used}) {
+        delete $policies{$name};
     }
 }
 
@@ -91,80 +93,92 @@ die "Aborted with $error_counter error(s)\n" if $error_counter;
 
 # Mark parts of topology which are referenced by rules of policies.
 for my $type ('deny', 'any', 'permit') {
-    for my $rule (@{$expanded_rules{$type}}) {
-	for my $where ('src', 'dst') {
-	    # path_walk only handles networks and routes, 
-	    # therefore 'any' objects need to be marked separately.
-	    is_any $rule->{$where} and $rule->{$where}->{is_used} = 1;
-	}
-	&path_walk($rule, \&mark_topology);
-	$rule->{srv}->{is_used} = 1;
+    for my $rule (@{ $expanded_rules{$type} }) {
+        for my $where ('src', 'dst') {
+
+            # path_walk only handles networks and routes,
+            # therefore 'any' objects need to be marked separately.
+            is_any $rule->{$where} and $rule->{$where}->{is_used} = 1;
+        }
+        &path_walk($rule, \&mark_topology);
+        $rule->{srv}->{is_used} = 1;
     }
 }
 
 # Mark interfaces which are referenced by areas.
 for my $area (values %areas) {
-    if($area->{is_used}) {
-	if(my $anchor = $area->{anchor}) {
-	    $anchor->{is_used} = 1;
-	} else {
-	    for my $interface (@{$area->{border}}) {
-		mark_topology undef, $interface, undef;
-	    }
-	}
+    if ($area->{is_used}) {
+        if (my $anchor = $area->{anchor}) {
+            $anchor->{is_used} = 1;
+        }
+        else {
+            for my $interface (@{ $area->{border} }) {
+                mark_topology undef, $interface, undef;
+            }
+        }
     }
 }
 
 # Print marked parts of netspoc configuration.
 # Routers and networks have been marked by mark_topology.
 # Services have been marked while %expanded_rules have been processed above.
-# Groups, servicegroups and 'every' objects have been marked 
+# Groups, servicegroups and 'every' objects have been marked
 # during expand_policies.
 delete $anys{'[local]'};
-for my $object (values %routers, values %networks,
-		values %anys, values %everys, values %areas, values %groups,
-		values %services, values %servicegroups) {
-    if($object->{is_used}) {
-	# There are some internal objects without src_code.
-	if(my $src_code = $object->{src_code}) {
-	    print $src_code, "\n";
-	}
+for my $object (
+    values %routers,
+    values %networks,
+    values %anys,
+    values %everys,
+    values %areas,
+    values %groups,
+    values %services,
+    values %servicegroups
+  )
+{
+    if ($object->{is_used}) {
+
+        # There are some internal objects without src_code.
+        if (my $src_code = $object->{src_code}) {
+            print $src_code, "\n";
+        }
     }
 }
 
-# Source of pathrestrictions can't be used literally, 
-# but must be reconstructed from internal data structure. 
+# Source of pathrestrictions can't be used literally,
+# but must be reconstructed from internal data structure.
 for my $restrict (values %pathrestrictions) {
     my $used = 0;
-    for my $interface (@{$restrict->{elements}}) {
-	if($interface->{router}->{is_used}) {
-	    $used++;
-	} else {
-	    $interface = undef;
-	}
+    for my $interface (@{ $restrict->{elements} }) {
+        if ($interface->{router}->{is_used}) {
+            $used++;
+        }
+        else {
+            $interface = undef;
+        }
     }
     next if $used < 2;
     print "$restrict->{name} =\n";
-    for my $interface (@{$restrict->{elements}}) {
-	next unless $interface;
-	print " $interface->{name},\n";
+    for my $interface (@{ $restrict->{elements} }) {
+        next unless $interface;
+        print " $interface->{name},\n";
     }
     print ";\n";
 }
 
 # Find global NAT definitions which are bound by used interfaces.
-if(keys %global_nat) {
+if (keys %global_nat) {
     my %used_nat;
     for my $interface (values %interfaces) {
-	$interface->{router}->{is_used} or next;
-	my $nat_tag = $interface->{bind_nat} or next;
-	$used_nat{$nat_tag} = 1;
+        $interface->{router}->{is_used} or next;
+        my $nat_tag = $interface->{bind_nat} or next;
+        $used_nat{$nat_tag} = 1;
     }
     for my $nat_tag (keys %global_nat) {
-	next unless $used_nat{$nat_tag};
-	print $global_nat{$nat_tag}->{src_code}, "\n";
+        next unless $used_nat{$nat_tag};
+        print $global_nat{$nat_tag}->{src_code}, "\n";
     }
-}	
+}
 
 # All unwanted policies have already been deleted above.
 for my $policy (values %policies) {
