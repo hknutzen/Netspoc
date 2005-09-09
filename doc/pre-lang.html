@@ -1,5 +1,6 @@
 <HTML>
 <HEAD>
+<!-- $Id$ -->
 <TITLE>Description Language for Security Policy and Topology</TITLE>
 <style type="text/css">
 <!--
@@ -257,6 +258,7 @@ interface definition".
 	 [ &lt;virtual interface definition&gt; ]
          [ hardware = &lt;interface_name&gt;; ]
 	 [ routing = {{ EIGRP | OSPF }}; ]
+	 [ managed = {{ full | secondary }}; ]
 	 [ reroute_permit = network:&lt;name&gt;, ...; ]
          [ disabled ; ]
     }
@@ -294,7 +296,10 @@ interface definition".
  interface and access control lists for this interface are automatically
  augmented to permit incoming packets of the routing
  protocol. Currently EIGRP and OSPF are supported.
- <li> For a description of attribute 'reroute_permit', 
+<li>By default, the filter level is declared for the whole router. This may be
+  overridden for an interface. See <A HREF="#secondary">secondary packet
+  filters</A> for details.
+<li> For a description of attribute 'reroute_permit', 
  see <a href="#rerouting">Rerouting inside of security domains</a> below.
 <LI>An interface may be marked as disabled.
   See <A HREF="#disabling">Disabling part of the topology</A> below.
@@ -612,10 +617,13 @@ which gets further filtering by a full packet filter. In this
 case it allows any IP packets from the src network to the dst network.
 This simple filtering assures that the traffic comes from the right
 src and goes to the right dst.<br>
-A secondary packet filter is declared by the attribute
+A secondary packet filter is declared with attribute
 "managed = secondary". This may be useful if a router has not
 enough memory for storing a complete set of filter rules and most of
-the packets get fully filtered already by some other managed device.
+the packets get fully filtered already by some other managed device.<br>
+The filter level of each interface may be individually changed from the
+default value declared for the whole router using attribute "managed" with
+value "secondary" or "full". 
 
 <h2><a name="routing">Routing</a></h2>
 
