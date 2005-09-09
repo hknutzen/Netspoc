@@ -4,9 +4,9 @@ netspoc - network security policy compiler
 
 =head1 SYNOPSIS
 
-netspoc [options] input-dir output-dir
+netspoc [options] input-dir [output-dir]
 
-netspoc [options] input-file output-dir
+netspoc [options] input-file [output-dir]
 
 =head1 DESCRIPTION
 
@@ -15,6 +15,8 @@ recursively from all files in input-dir and places one file for
 each managed device into output-dir.
 Alternatively input may be read from a single input-file; this
 is mainly used for small examples or testing.
+Input is read from STDIN if input-file equals "-".
+If output-dir is missing, all output is written to STDOUT.
 
 =head1 OPTIONS
 
