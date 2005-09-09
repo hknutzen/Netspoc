@@ -35,10 +35,10 @@ sub usage() {
 # Enhanced version of read_netspoc, which stores source code of each
 # global definition.
 sub read_netspoc_with_src () {
-    my $pre = pos;
+    my $pre = pos $Netspoc::input;
     my $object = &read_netspoc();
-    my $post = pos;
-    $object->{src_code} = substr $_, $pre, $post - $pre;
+    my $post = pos $Netspoc::input;
+    $object->{src_code} = substr $Netspoc::input, $pre, $post - $pre;
 #    print STDERR "$object->{name} $pre-$post\n";
     return $object;
 }
