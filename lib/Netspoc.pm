@@ -1756,14 +1756,18 @@ sub read_crypto( $ ) {
            and error_atline "Redefining 'type' attribute";
          $crypto->{type} = $type;
       }
-      elsif (my @spokes = check_assign_list 'spoke', \&read_typed_ext_name) {
-         push @{ $crypto->{spoke} }, @spokes;
-      }
       elsif (my @hubs = check_assign_list 'hub', \&read_typed_ext_name) {
-         push @{ $crypto->{hub} }, @hubs;
+         $crypto->{hub}
+           and error_atline "Redefining 'hub' attribute";
+         $crypto->{hub} = \@hubs;
+      }
+      elsif (my @spokes = check_assign_list 'spoke', \&read_typed_ext_name) {
+         $crypto->{spoke}
+           and error_atline "Redefining 'spoke' attribute";
+         $crypto->{spoke} = \@spokes;
       }
       elsif (my @mesh = check_assign_list 'mesh', \&read_typed_ext_name) {
-         push @{ $crypto->{meshes} }, [@mesh];
+         push @{ $crypto->{meshes} }, \@mesh;
       }
       else {
          syntax_err "Expected valid attribute or rule";
