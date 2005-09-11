@@ -37,13 +37,13 @@ dt {
 
 <BODY bgcolor=#FFFFFF>
 
-<H1><A NAME="language">Description Language for Security Policy and Topology</A></H1>
+<H1>Description Language for Security Policy and Topology</H1>
 
 <!--toc-->
 
-<H2><A NAME="overview">Overview</A></H2>
+<H2>Overview</H2>
 
-<h3><a name="policies"></a>Policies</h3>
+<h3>Policies</h3>
 
 <ul>
 <li>A policy is a set of related rules. 
@@ -56,21 +56,21 @@ objects in their source or destination.
 reporting purposes.
 </ul>
 
-<H3><A NAME="network_objects">Network Objects</A></H3>
+<H3>Network Objects</H3>
 <UL>
 <LI>Have name and IP address.
 <LI>Describe the topology.
 <LI>Can be used as source and destination of rules.
 </UL>
 
-<H3><A NAME="service_definitions">Service Definitions</A></H3>
+<H3>Service Definitions</H3>
 <UL>
 <LI>have a name
 <LI>describe properties of network traffic as they typically can be
 filtered by packet filters (i.e. type of protocol, port number)
 </UL>
 
-<H3><A NAME="groups">Groups</A></H3>
+<H3>Groups</H3>
 <UL>
 <LI>have a name
 <LI>are used to group network objects
@@ -78,13 +78,22 @@ filtered by packet filters (i.e. type of protocol, port number)
 network objects.
 </UL>
 
-<H3><A NAME="service_groups">Service Groups</A></H3>
+<H3>Service Groups</H3>
 <UL>
 <LI>
 have a name
 <LI>are used to group service definitions
 <LI>are used in rules
 </UL>
+
+<h3>Areas</h3>
+
+The topology is build from networks and routers. Networks and routers are
+connected by interfaces. 
+
+<p>An <em>area</em> denotes a part of the topology which is delimited by a set
+of interfaces. Areas are used to denote all networks or security domains of a
+part of the topology.
 
 <h3>Crypto Definition</h3>
 
@@ -100,7 +109,7 @@ Crypto definitions are very powerful: A large number of crypto tunnles of
 either a hub and spoke topology or a fully meshed topology may be defined
 easily. 
 
-<H2><A NAME="detailed">Detailed description of network objects</A></H2>
+<H2>Detailed description of network objects</H2>
 <P>The topology is built from networks and routers.
 A router and a network are connected by an interface.
 Networks may have any number of hosts, which are located inside the
@@ -113,7 +122,7 @@ managed routers.</P>
 <P>Special network objects called 'any' objects and 'every' objects may
 be defined which denote all network objects inside a security domain.</P>
 
-<H3><A NAME="general_syntax">General syntax</A></H3>
+<H3>General syntax</H3>
 <P>All network objects and groups have a typed name like &lt;type&gt;:&lt;name&gt;.</P>
 <P>&lt;name&gt; is build from one ore more alphanumerical characters together
 with hyphen and underscore. The current locale settings are used,
@@ -339,6 +348,28 @@ intervening networks getting undesired access.
 <LI>See <A HREF="#handling_any">Handling of 'any' objects</A> for details.
 </UL>
 
+<h3>Area definition</h3>
+<H4>Syntax</H4>
+<PRE>
+  any:&lt;name&gt; = {
+   [ auto_border; ]
+   {{ 
+     border = &lt;interface list&gt; ; 
+   | anchor = network:&lt;name&gt;;
+   }}
+  }</pre>
+with
+<pre>
+  &lt;interface list&gt; ::= interface:&lt;name&gt;.&lt;name&gt;, ...
+</pre>
+
+<h4>Restrictions:</h4>
+<ul>
+<li>Exactly one of <code>border</code> and <code>anchor</code> must be
+choosen.
+<li>Attribute <code>auto_border</code> is mandatory for <code>anchor</code>.
+</ul>
+
 <H3><A NAME="referencing">Referencing network objects</A></H3>
 <H4>Syntax</H4>
 <PRE>
@@ -357,6 +388,8 @@ intervening networks getting undesired access.
  | any:[all]; 
  | any:[local];
  | every:&lt;name&gt;
+ | network:[area:&lt;name&gt;] 
+ | any:[area:&lt;name&gt;]
  | group:&lt;name&gt; 
  }}</PRE>
 <UL>
