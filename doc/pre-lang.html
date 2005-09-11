@@ -129,23 +129,28 @@ with hyphen and underscore. The current locale settings are used,
 i.e. accented characters are allowed for European locale settings.</P>
 <P>&lt;ip-adr&gt; denotes an IP address. Currently NetSPoC handles IP v4
 addresses n.n.n.n with 0 &lt;= n &lt;= 255</P>
+<p>&lt;text_to_end_of_line&gt; is any text from current position up to end of
+line.</p>
 <P>&lt;external_name&gt; may contain almost any characters, but not
 whitespace, no delimiters <CODE>[;,=]</CODE> and no quotes 
 <CODE>[&quot;']</CODE>.</P> 
 <P>&lt;int&gt; is an integer</P>
 <P>Meta symbols in syntax definitions below:</P>
 <UL>
-<LI>&lt;..&gt; denote something defined elsewhere.
-<LI>[..] denotes an optional part.
-<LI>{{..|..}} denotes alternatives.
+<LI><code>&lt;xx&gt;</code> denote something defined elsewhere.
+<LI><code>[xx]</code> denotes an optional part.
+<LI><code>{{xx|yy}}</code> denotes alternatives.
 <P>Note: single { and } characters stand for themselves.</P>
-<LI>... * means any number of the left part
+<LI><code>xx *</code> means any number of the left part.
+<li><code>xx, ...</code> means a comma separated list of one or more elements
+of the left part.
 </UL>
 
 <H3><A NAME="network_definition">Network Definition</A></H3>
 <H4>Syntax</H4>
 <PRE>
   network:&lt;name&gt; = {
+     [ owner = &lt;external_name&gt;, ... ; ]
      {{
          ip = &lt;ip-adr&gt;&lt;mask&gt;;
 	 &lt;network NAT definition&gt; *
@@ -192,13 +197,14 @@ redefined by mistake.
 <H4>Syntax</H4>
 <PRE>
   &lt;host definition&gt; ::=
-        host:&lt;name&gt; = {   
-	 {{
-	   ip = &lt;ip-adr&gt;, ...;
-         |
-           range = &lt;ip-adr&gt; - &lt;ip-adr&gt;;
-	 }}
-           &lt;NAT definition&gt; *
+        host:&lt;name&gt; = { 
+          [ owner = &lt;external_name&gt;, ... ; ]  
+	  {{
+	    ip = &lt;ip-adr&gt;, ... ;
+          |
+            range = &lt;ip-adr&gt; - &lt;ip-adr&gt;;
+	  }}
+          &lt;NAT definition&gt; *
         }
 
   &lt;NAT definition&gt; ::=
@@ -231,7 +237,11 @@ each subnetwork.
 	&lt;interface definition&gt; *
      |
         [ model = &lt;name&gt;; ]
-        {{ &lt;interface definition&gt; | &lt;short interface definition&gt; }} *
+        {{ 
+           &lt;interface definition&gt; 
+        | 
+           &lt;short interface definition&gt; 
+        }} *
      }}
   }</PRE>
 <UL>
@@ -264,14 +274,14 @@ interface definition".
 <PRE>
   &lt;interface definition&gt; ::= 
     interface:&lt;name&gt; = {
-         {{ ip = &lt;ip-adr&gt;, ...; | unnumbered; }}
+         {{ ip = &lt;ip-adr&gt;, ... ; | unnumbered; }}
          &lt;NAT definition&gt; *
          [ &lt;NAT binding&gt; ]
 	 [ &lt;virtual interface definition&gt; ]
          [ hardware = &lt;external_name&gt;; ]
 	 [ routing = {{ EIGRP | OSPF }}; ]
 	 [ managed = {{ full | secondary }}; ]
-	 [ reroute_permit = network:&lt;name&gt;, ...; ]
+	 [ reroute_permit = network:&lt;name&gt;, ... ; ]
          [ disabled ; ]
     }
 
@@ -329,7 +339,13 @@ interface definition".
 <H3><A NAME="every_definition">'Every' object definition</A></H3>
 <H4>Syntax</H4>
 <PRE>
- every:&lt;name&gt; = { link = {{ network:&lt;name&gt;; | router:&lt;name&gt;; }} }</PRE>
+ every:&lt;name&gt; = { 
+   link = {{ 
+             network:&lt;name&gt;; 
+          | 
+	     router:&lt;name&gt;; 
+	  }} 
+ }</PRE>
 <UL>
 <LI>An 'every' definition is equivalent to a group of all networks of
 a security domain.
@@ -339,7 +355,14 @@ a security domain.
 <H3><A NAME="any_definition">'Any' object definition</A></H3>
 <H4>Syntax</H4>
 <PRE>
- any:&lt;name&gt; = { link = {{ network:&lt;name&gt;; |  router:&lt;name&gt;; }} }</PRE>
+ any:&lt;name&gt; = { 
+     [ owner = &lt;external_name&gt;, ... ; ]
+     link = {{ 
+               network:&lt;name&gt;; 
+            |  
+	       router:&lt;name&gt;; 
+            }} 
+ }</PRE>
 <UL>
 <LI>An 'any' definition is used to represent all networks of a security domain.
 <LI>It must not be linked to a managed router.
@@ -354,17 +377,14 @@ intervening networks getting undesired access.
 <h3>Area definition</h3>
 <H4>Syntax</H4>
 <PRE>
-  any:&lt;name&gt; = {
+  area:&lt;name&gt; = {
+   [ owner = &lt;external_name&gt;, ... ; ]
    [ auto_border; ]
    {{ 
-     border = &lt;interface list&gt; ; 
+     border = interface:&lt;name&gt;.&lt;name&gt;, ... ; 
    | anchor = network:&lt;name&gt;;
    }}
   }</pre>
-with
-<pre>
-  &lt;interface list&gt; ::= interface:&lt;name&gt;.&lt;name&gt;, ...
-</pre>
 
 <h4>Restrictions:</h4>
 <ul>
@@ -424,9 +444,7 @@ directly attached to this interface.
 
 <H3><A NAME="groups_def">Groups of network objects</A></H3>
 <H4>Syntax</H4>
-<PRE> group:&lt;name&gt; = &lt;network object list&gt;;</PRE>
-<p>with</p>
-<PRE> &lt;network object list&gt; :== &lt;network object&gt;, ...</PRE>
+<PRE> group:&lt;name&gt; = &lt;network object&gt;, ... ;</PRE>
 <UL>
 <LI>A group may be empty
 <LI>A group may be defined by means of other groups
@@ -492,10 +510,9 @@ directions, with only one rule.
 
 <H3><A NAME="groups_of_services">Groups of services</A></H3>
 <H4>Syntax</H4>
-<PRE>  servicegroup:&lt;name&gt; = &lt;service list&gt;;</PRE>
+<PRE>  servicegroup:&lt;name&gt; = &lt;service&gt;, ... ;</PRE>
 <P>with</P>
 <PRE>
-  &lt;service list&gt; ::= &lt;service&gt;, ...
   &lt;service&gt; ::= {{ service:&lt;name&gt; | servicegroup:&lt;name&gt; }}</PRE>
 <UL>
 <LI>A servicegroup may be empty.
@@ -506,8 +523,8 @@ directions, with only one rule.
 <H4>Syntax</H4>
 <PRE>
   policy:&lt;name&gt; = {
-     [ &lt;description&gt; ]
-     user = &lt;network object list&gt;;
+     [ description = &lt;text_to_end_of_line&gt ]
+     user = &lt;network object&gt;, ... ;
      &lt;policy_rule&gt; * 
   }</PRE>
 <P>with</P>
@@ -516,9 +533,8 @@ directions, with only one rule.
   {{ permit | deny }}
         src = &lt;policy_object&gt;;
         dst = &lt;policy_object&gt;;
-        srv = &lt;service list&gt;;
-  &lt;policy_object&gt; ::= {{ user | &lt;network object list&gt; }}
-  &lt;description&gt; ::= description = any text up to end of line</PRE>
+        srv = &lt;service&gt;, ... ;
+  &lt;policy_object&gt; ::= {{ user | &lt;network object&gt;, ... ; }}</PRE>
 <UL>
 <LI>Order of rules doesn't matter.
 <LI>Deny rules override all permit rules.
@@ -531,12 +547,10 @@ must be used either as src or dst or both parts of a rule.
 
 <h3><a name="restrict_def">Path restrictions</a></h3>
 <H4>Syntax</H4>
-<PRE> pathrestriction:&lt;name&gt; = 
-  [ &lt;description&gt; ]
-  &lt;interface list&gt; ;
-
-  &lt;interface list&gt; ::= interface:&lt;name&gt;.&lt;name&gt;, ...
-  &lt;description&gt; ::= description = any text up to end of line</PRE>
+<PRE> 
+ pathrestriction:&lt;name&gt; = 
+   [ description = &lt;text_to_end_of_line&gt ]
+   interface:&lt;name&gt;.&lt;name&gt;, ... ;</PRE>
 <ul>
  <li>Path restrictions are used to restrict paths inside cyclic
   subgraphs of the topology.
@@ -549,11 +563,12 @@ must be used either as src or dst or both parts of a rule.
 
 <h3><a name="global_NAT">Global NAT definition</a></h3>
 <H4>Syntax</H4>
-<PRE> nat:&lt;name&gt; = { 
- ip = &lt;ip-adr&gt;&lt;mask&gt;; 
- dynamic;
- [ subnet_of = network:&lt;name&gt;; ] 
-}</PRE>
+<PRE>
+ nat:&lt;name&gt; = { 
+   ip = &lt;ip-adr&gt;&lt;mask&gt;; 
+   dynamic;
+   [ subnet_of = network:&lt;name&gt;; ] 
+ }</PRE>
 with <code>&lt;mask&gt;</code> defined as 
 <a href="#network_definition">above</a>.
 
@@ -758,20 +773,20 @@ rules are silently discarded.</P>
 <h3><a name="crypto_syntax">Syntax</a></h3>
 <pre>
   crypto:&lt;name&gt; = {
-     [ &lt;description&gt; ]
+     [ description = &lt;text_to_end_of_line&gt ]
      type = ipsec:&lt;name&gt;;
-     hub = &lt;network object list&gt;; *
-     spoke = &lt;network object list&gt;; *
-     mesh = &lt;network object list&gt;; *
+     hub = &lt;network object&gt;, ... ; *
+     spoke = &lt;network object&gt;, ... ; *
+     mesh = &lt;network object&gt;, ... ; *
      &lt;crypto_rule&gt; * 
   }</PRE>
 <P>with</P>
 <PRE>
   &lt;crypto_rule&gt; ::=
   {{ permit | deny }}
-        src = &lt;network object list&gt;;
-        dst = &lt;network object list&gt;;
-        srv = &lt;service list&gt;;
+        src = &lt;network object&gt;, ... ;
+        dst = &lt;network object&gt;, ... ;
+        srv = &lt;service&gt;, ... ;
 </PRE>
 
 <pre>
