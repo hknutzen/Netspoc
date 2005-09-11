@@ -1773,10 +1773,16 @@ sub read_crypto( $ ) {
          syntax_err "Expected valid attribute or rule";
       }
    }
-   $crypto->{type} or error_atline "Missing type for $name";
+   $crypto->{type} or error_atline "Missing 'type' for $name";
 
-   # Validity of tunnel definitions must be checked later,
-   # because we currently don't know interfaces defined inside groups.
+   # Hub and spoke must attributes must be used pairwise.
+   # But we can only do a rough estimate,
+   # because hub or spoke could be defined as an empty group.
+   $crypto->{hub} and $crypto->{spoke} or
+     error_atline "Missing 'spoke' for $name";
+   $crypto->{spoke} and $crypto->{hub} or
+     error_atline "Missing 'hub' for $name";
+
    return $crypto;
 }
 
