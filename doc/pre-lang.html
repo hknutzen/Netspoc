@@ -147,7 +147,7 @@ we use them as delimiters.</P>
 <PRE>
   network:&lt;name&gt; = {
      {{
-         ip = &lt;ip-adr&gt;; mask = &lt;ip-adr&gt;;
+         ip = &lt;ip-adr&gt;&lt;mask&gt;;
 	 &lt;network NAT definition&gt; *
          [ route_hint; ]
 	 [ subnet_of = network:&lt;name&gt;; ]
@@ -156,16 +156,19 @@ we use them as delimiters.</P>
          unnumbered
      }}
   }
-
+</PRE>
+with
+<pre>
   &lt;network NAT definition&gt; ::=
          nat:&lt;name&gt; = { 
-	  ip = &lt;ip-adr&gt;; 
-	  [ mask = &lt;ip-adr&gt;; ] 
+	  ip = &lt;ip-adr&gt;[&lt;mask&gt;];
 	  [ dynamic; ]
 	  [ subnet_of = network:&lt;name&gt;; ] 
 	 }
-</PRE>
 
+  &lt;mask&gt; ::= {{/&lt;prefix-lenght&gt; | ; mask = &lt;ip-adr&gt; }}
+  &lt;prefix-lenght&gt; ::= {{ 0 | 1 | 2 | ... | 32 }}
+</pre>
 <UL>
 <LI>A network is described by an ip address and a mask or
 <LI>may alternatively be marked as unnumbered.
@@ -547,13 +550,14 @@ must be used either as src or dst or both parts of a rule.
 <h3><a name="global_NAT">Global NAT definition</a></h3>
 <H4>Syntax</H4>
 <PRE> nat:&lt;name&gt; = { 
- ip = &lt;ip-adr&gt;; 
- mask = &lt;ip-adr&gt;; 
+ ip = &lt;ip-adr&gt;&lt;mask&gt;; 
  dynamic;
  [ subnet_of = network:&lt;name&gt;; ] 
 }</PRE>
+with <code>&lt;mask&gt;</code> defined as 
+<a href="#network_definition">above</a>.
 
-A global NAT definition may be used as a shortcut for applying multiple
+<p>A global NAT definition may be used as a shortcut for applying multiple
 identical dynamic NAT definitions to all networks in some area. See <a
 href="#NAT">network address translation</a> for details.
 
