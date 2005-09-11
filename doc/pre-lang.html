@@ -129,14 +129,14 @@ with hyphen and underscore. The current locale settings are used,
 i.e. accented characters are allowed for European locale settings.</P>
 <P>&lt;ip-adr&gt; denotes an IP address. Currently NetSPoC handles IP v4
 addresses n.n.n.n with 0 &lt;= n &lt;= 255</P>
-<P>&lt;interface_name&gt; may contain any characters, even interspersed
-whitespace. Currently characters from <CODE>[;,=]</CODE> are not allowed, since
-we use them as delimiters.</P>
+<P>&lt;external_name&gt; may contain almost any characters, but not
+whitespace, no delimiters <CODE>[;,=]</CODE> and no quotes 
+<CODE>[&quot;']</CODE>.</P> 
 <P>&lt;int&gt; is an integer</P>
 <P>Meta symbols in syntax definitions below:</P>
 <UL>
-<LI>&lt;..&gt; denote something defined elsewhere
-<LI>[..] denotes an optional part
+<LI>&lt;..&gt; denote something defined elsewhere.
+<LI>[..] denotes an optional part.
 <LI>{{..|..}} denotes alternatives.
 <P>Note: single { and } characters stand for themselves.</P>
 <LI>... * means any number of the left part
@@ -268,7 +268,7 @@ interface definition".
          &lt;NAT definition&gt; *
          [ &lt;NAT binding&gt; ]
 	 [ &lt;virtual interface definition&gt; ]
-         [ hardware = &lt;interface_name&gt;; ]
+         [ hardware = &lt;external_name&gt;; ]
 	 [ routing = {{ EIGRP | OSPF }}; ]
 	 [ managed = {{ full | secondary }}; ]
 	 [ reroute_permit = network:&lt;name&gt;, ...; ]
