@@ -775,8 +775,9 @@ rules are silently discarded.</P>
   crypto:&lt;name&gt; = {
      [ description = &lt;text_to_end_of_line&gt ]
      type = ipsec:&lt;name&gt;;
-     hub = &lt;network object&gt;, ... ; *
-     spoke = &lt;network object&gt;, ... ; *
+     [ hub = &lt;network object&gt;, ... ;
+       spoke = &lt;network object&gt;, ... ;
+     ]
      mesh = &lt;network object&gt;, ... ; *
      &lt;crypto_rule&gt; * 
   }</PRE>
