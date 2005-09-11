@@ -443,7 +443,7 @@ sub read_identifier() {
 # Used for reading interface names and attribute 'owner'.
 sub read_string() {
    skip_space_and_comment;
-   if ($input =~ m/(\G[^;,]+)/gc) {
+   if ($input =~ m/(\G[^;,\s"']+)/gc) {
       return $1;
    }
    else {
