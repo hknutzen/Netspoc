@@ -2267,6 +2267,11 @@ sub link_any_and_every() {
             }
             $obj->{link} = $router->{interfaces}->[0]->{network};
          }
+
+	 # Force error handling below.
+	 else {
+	     $obj->{link} = undef;
+	 }
       }
       else {
          err_msg "$obj->{name} must not be linked to '$type:$name'";
