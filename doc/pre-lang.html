@@ -234,6 +234,7 @@ each subnetwork.
         managed [ = {{ full | secondary }} ] ;
         model = &lt;name&gt;;
 	[ no_group_code; ]
+	[ no_crypto_filter; ]
 	&lt;interface definition&gt; *
      |
         [ model = &lt;name&gt;; ]
@@ -255,14 +256,17 @@ description.
 <LI>The router model is used to generate correct code for different
  router models.<BR>Currently three models are supported:
 <UL>
-<LI>PIX for Cisco PIX firewalls
-<LI>IOS_FW for Cisco IOS routers with state full inspection
-<li>IOS for stateless Cisco IOS
+<LI><code>PIX</code> for Cisco PIX firewalls
+<LI><code>IOS_FW</code> for Cisco IOS routers with state full inspection
+<li><code>IOS</code> for stateless Cisco IOS
 </UL>
-<font size="-1">Note: IOS_FW was named IOS before NetSPoC version 1.3
-</font> 
 <LI>NetSPoC generates optimized code using object groups for PIX firewalls and
-chains for iptables. Use flag no_group_code to disable this optimization.
+chains for iptables. Use flag <code>no_group_code</code> to disable this
+optimization. 
+<li>For IOS routers from version 12.3(8)T up, a separate access-list is used
+for filtering incoming traffic of crypto tunnels. Use
+attribute <code>no_crypto_filter</code> to enable the old behavior where
+crypto traffic is filtered by access-lists of interfaces.
 <LI>A Router may have any number of interface definitions.
 <LI>For unmanaged routers, all attributes are optional.
 <li>An interface definition without attributes is called a "short
