@@ -283,7 +283,7 @@ interface definition".
          [ &lt;NAT binding&gt; ]
 	 [ &lt;virtual interface definition&gt; ]
          [ hardware = &lt;external_name&gt;; ]
-	 [ routing = {{ EIGRP | OSPF }}; ]
+	 [ routing = {{ EIGRP | OSPF | manual }}; ]
 	 [ managed = {{ full | secondary }}; ]
 	 [ reroute_permit = network:&lt;name&gt;, ... ; ]
          [ disabled ; ]
@@ -322,6 +322,8 @@ interface definition".
  interface and access control lists for this interface are automatically
  augmented to permit incoming packets of the routing
  protocol. Currently EIGRP and OSPF are supported.
+<li>If <code>routing=manual</code>, no routing code is generated at all. Some
+  other means has to be used to configure routing for this interface.
 <li>By default, the filter level is declared for the whole router. This may be
   overridden for an interface. See <A HREF="#secondary">secondary packet
   filters</A> for details.
