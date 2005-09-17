@@ -25,4 +25,4 @@ tar: $(tar-file)
 $(tar-file): Netspoc.pm netspoc COPYING INSTALL CSPM.html CSPM.pod ChangeLog Makefile NEWS.html TODO examples index.html language.html netspoc.html netspoc.man netspoc.pod newpolicy cut-netspoc VERSION
 	echo Building $(current)
 	cd ..;ln -snf $(cwd) $(current)
-	tar cvzf $@ -C ..  $(addprefix $(current)/, $^)
+	tar cvzf $@ -C .. --exclude=RCS $(addprefix $(current)/, $^)
