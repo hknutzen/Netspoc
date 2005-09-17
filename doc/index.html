@@ -16,7 +16,7 @@
  <A HREF="NEWS.html">News</A><BR>
  <A HREF="TODO">Todo list</A><BR>
  <A HREF="#copyright">Copyright</A><br><br>
- <A HREF="http://developer.berlios.de/project/?group_id=252">Project Page</A><br>
+ <A HREF="http://developer.berlios.de/projects/netspoc/">Project Page</A><br>
 </TD></TR>
 <TR bgcolor="#7B7B7B"><TD align="center">
 <font color="#ffffff">Documentation</font>
@@ -34,7 +34,6 @@
 </TD></TR>
 <TR align="right" BGCOLOR="#FFCC33"><TD>
  <a href="http://developer.berlios.de/project/filelist.php?group_id=252">netspoc</a><BR>
- <a href="http://developer.berlios.de/project/filelist.php?group_id=252">cpm2spoc</a><BR>
 </TD></TR>
 
 <TR bgcolor="#7B7B7B"><TD>
@@ -74,34 +73,32 @@ filters on the path from A to B.
 <li>PIX firewalls and 
 <li>Linux iptables and ip route. 
 </ul>
-It supports network address translation and virtual IP addresses for
-redundancy protocols like VRRP. Support for IPSec has not been
-implemented yet.
+It supports network address translation, virtual IP addresses for
+redundancy protocols like VRRP and some dynamic routing protocols.
 
-<P>NetSPoC's text based specification language is well suited for
-integration with CVS or other version control systems. A script is
-provided for tagging a policy and saving it to a policy database.
+<p>IPSec encryption is supported as well. A powerful syntax allows to easily
+define a large number of crypto tunnels of either a hub and spoke topology or
+a fully meshed topology. Crypto rules define which type of traffic needs to be
+encrypted. Crypto configuration for Cisco IOS routers and PIX firewalls is
+generated.
 
-<P>This software is actively developed with perl 5.8 under
-linux. It should be portable to other platforms where perl is
-available.
+<P>NetSPoC's text based specification language is well suited for integration
+with CVS or other version control systems. A script is provided for tagging a
+policy and saving it to a policy database.
 
-<P>NetSPoC was developed as a replacement for Cisco's CSPM
-(Cisco Secure Policy Manager). See file <A
-HREF="CSPM.html">CSPM.html</A> for a comparison.  For CSPM users we
-have developed an export utility which converts most of the data of a
-cpm file into NetSPoC's own language.</P>
+<P>This software is actively developed with perl 5.8 under linux. It should be
+portable to other platforms where perl is available.
 
 <HR>
 <h2><A NAME="contact">Contact</A></h2>
 <p>Homepage for NetSPoC is at:
  <A HREF="http://netspoc.berlios.de">http://netspoc.berlios.de</A>
-<p>Send questions and comments to mailing list: 
- <A HREF="mailto:netspoc-users@lists.berlios.de">mailto:netspoc-users@lists.berlios.de</A>
+<p>For questions and comments use the 
+ <a href="http://developer.berlios.de/mail/?group_id=252">
+ netspoc mailing list</a>.
 <HR>
 <h2><A NAME="copyright">Copyright</A></h2>
-Copyright 2005, Heinz Knutzen,
-<A HREF="mailto:heinzknutzen@users.berlios.de">heinzknutzen@users.berlios.de</A>
+Copyright 2005, Heinz Knutzen.
 
 <P>This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
