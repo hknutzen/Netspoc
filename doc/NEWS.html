@@ -1,3 +1,63 @@
+<h3>netspoc-3.0</h3>
+
+New features:
+<ul>
+
+<li> IPSec encryption is supported now. A powerful syntax was added to easily
+define a large number of crypto tunnels of either a hub and spoke topology or
+a fully meshed topology. Crypto configuration for Cisco IOS routers and PIX
+firewalls is generated.
+
+<li>Improved optimization by automatically joining rules with adjacent port
+ranges if possible.
+
+<li>No restrictions on overlapping port ranges any longer.
+
+<li>Unenforceable rules with no managed device between source and destination
+have been silently ignored in previous versions. Now there is a command line
+switch to enable a check for unenforceable rules.
+
+<li>Netspoc may now read from stdin and write to stdout.
+
+<li>The new program 'cut-netspoc' is used to cut a large netspoc configuration
+into small self-contained parts. cut-netspoc gets the location of a netspoc
+configuration and one or more policy names as arguments. It generates a
+minimal configuration that contains only the given policies and enough
+elements from the topology to get all references intact.
+
+</ul>
+
+Language:
+
+<ul>
+
+<li>New concept of areas was introduced. An area denotes a part of the
+topology which is delimited by a set of interfaces. Areas are a convenient
+means to access all networks or security domains of some part of the topology.
+
+<li>Syntax was extended to individually define an interface as full or
+secondary filter.
+
+<li>IP address and mask of networks may alternatively be declared as IP
+address and prefix length. For example ip = 1.2.3.0/24.
+
+<li>New optional attribute 'owner' for network objects of type 'host',
+'network', 'any' and 'area'. It takes a comma separated list of strings as
+value. This isn't used by netspoc but can be used for documentation purposes.
+
+</ul>
+
+Bug fixes:
+
+<ul>
+
+<li> Made code 64 bit clean. This was necessary when applying complement and
+ left-shift to 32 bit IP addresses.
+
+<li> Improved error handling to prevent unhandled internal errors. 
+
+</ul>
+
 <h3>netspoc-2.6</h3>
 
 Bug fixes:
