@@ -187,7 +187,15 @@ my %router_info = (
         routing      => 'iproute',
         filter       => 'iptables',
         comment_char => '#',
-    }
+    },
+
+    # Cisco VPN 3000 Concentrator including RADIUS config.
+    VPN3K => {
+        name         => 'VPN3K',
+	routing      => 'IOS',
+        filter       => 'IOS',
+        comment_char => '!',
+    },
 );
 
 ####################################################################
@@ -419,20 +427,63 @@ sub read_interface_name() {
     }
 }
 
-# Check for xxx:xxx or xxx:[xxx] or xxx:[xxx:xxx] or
-# interface:xxx.xxx or interface:xxx.[xxx] or interface:[xxx].[xxx]
-sub check_typed_ext_name() {
-    skip_space_and_comment;
-    if ($input =~ m/\G(interface:[][\w-]+\.[][\w-]+|\w+:[][:\w-]+)/gc) {
-        return $1;
-    }
-    else {
-        return undef;
-    }
-}
+{
+    my $domain_regex = qr/@(?:[\w-]+\.)+[\w-]+/;
+    my $email_regex = qr/[\w-]+(?:\.[\w-]+)*$domain_regex/;
+    my $hostname_regex = qr/host:(?:ID:$email_regex|[\w-]+)/;
 
-sub read_typed_ext_name() {
-    check_typed_ext_name or syntax_err "Typed extended name expected";
+# Check for xxx:xxx or xxx:[xxx] or xxx:[xxx:xxx]
+# or interface:xxx.xxx or interface:xxx.[xxx] or interface:[xxx].[xxx]
+# or host:ID:user@domain.network
+    sub check_typed_ext_name() {
+	skip_space_and_comment;
+	if ($input =~ m/\G(interface:[][\w-]+\.[][\w-]+ |
+			   $hostname_regex |
+			   \w+:[][:\w-]+)/gcx) {
+	    return $1;
+	}
+	else {
+	    return undef;
+	}
+    }
+
+    sub read_typed_ext_name() {
+	check_typed_ext_name or syntax_err "Typed extended name expected";
+    }
+
+# user@domain
+    sub read_email_address() {
+	skip_space_and_comment;
+	if ($input =~ m/\G($email_regex)/gco) {
+	    return $1;
+	}
+	else {
+	    syntax_err "Email address expected";
+	}
+    }
+
+# @domain
+    sub read_domain() {
+	skip_space_and_comment;
+	if ($input =~ m/\G($domain_regex)/gco) {
+	    return $1;
+	}
+	else {
+	    syntax_err "Domain with leading \@ expected";
+	}
+    }
+
+# host:xxx or host:ID:user@domain
+    sub check_hostname() {
+	skip_space_and_comment;
+	if ($input =~
+	    m/\G($hostname_regex)/gc) {
+	    return $1;
+	}
+	else {
+	    return undef;
+	}
+    }
 }
 
 sub read_identifier() {
@@ -636,9 +687,16 @@ my %nat_definitions;
 
 our %hosts;
 
-sub read_host( $ ) {
-    my $name = shift;
-    my $host = new 'Host', name => $name;
+sub read_host( $$ ) {
+    my($name, $network_name) = @_;
+    my $host = new 'Host';
+    if(my $id = ($name =~ /^host:ID:(.*)$/)) {
+
+	# Make ID unique by appending name of enclosing network.
+	$name = "$name.$network_name";
+	$host->{id} = $id;
+    }
+    $host->{name} = $name;
     skip '=';
     skip '{';
     while (1) {
@@ -680,6 +738,8 @@ sub read_host( $ ) {
     }
     $host->{ips} xor $host->{range}
       or error_atline "Exactly one of attributes 'ip' and 'range' is needed";
+    $host->{id} and $host->{range}
+      and error_atline "Host with ID must not have 'range'";
     if ($host->{nat}) {
         if ($host->{range}) {
 
@@ -739,6 +799,10 @@ our %networks;
 
 sub read_network( $ ) {
     my $name = shift;
+
+    # Network name without prefix "network:" is needed to build
+    # name of ID-hosts.
+    (my $net_name = $name) =~ s/^network://;
     my $network = new('Network', name => $name);
     skip '=';
     skip '{';
@@ -766,6 +830,16 @@ sub read_network( $ ) {
             # Duplicate use of this flag doesn't matter.
             $network->{route_hint} = 1;
         }
+	elsif (my $id = check_assign 'id', \&read_email_address) {
+	    $network->{id}
+	      and error_atline "Duplicate attribute 'id'";
+	    $network->{id} = $id;
+	}
+	elsif (my $suffix = check_assign 'suffix', \&read_domain) {
+	    $network->{suffix}
+	      and error_atline "Duplicate attribute 'suffix'";
+	    $network->{suffix} = $suffix;
+	}
         elsif (my $subnet = check_assign 'subnet_of', \&read_typed_name) {
             $network->{subnet_of}
               and error_atline "Duplicate attribute 'subnet_of'";
@@ -776,16 +850,17 @@ sub read_network( $ ) {
               and error_atline "Duplicate attribute 'owner'";
             $network->{owner} = \@owner;
         }
+	elsif (my $string = check_hostname) {
+	    my $host = read_host $string, $net_name;
+	    push @{ $network->{hosts} }, $host;
+	    my($dummy, $host_name) = split_typed_name $host->{name};
+	    $hosts{$host_name} and error_atline "Duplicate host:$host_name";
+	    $hosts{$host_name} = $host;
+	}
         else {
             my $string = read_typed_name;
             my ($type, $name) = split_typed_name $string;
-            if ($type eq 'host') {
-                my $host = read_host $string;
-                push @{ $network->{hosts} }, $host;
-                $hosts{$name} and error_atline "Duplicate host:$name";
-                $hosts{$name} = $host;
-            }
-            elsif ($type eq 'nat') {
+            if ($type eq 'nat') {
                 my $nat = read_nat $string;
                 $network->{nat}->{$name}
                   and error_atline "Duplicate NAT definition";
@@ -807,7 +882,7 @@ sub read_network( $ ) {
         # Unnumbered network must not have any other attributes.
         for my $key (keys %$network) {
             next if $key eq 'ip' or $key eq 'name';
-            error_atline "Unnumbered network must not have ",
+            error_atline "Unnumbered $network->{name} must not have ",
               ($key eq 'hosts') ? "host definition"
               : ($key eq 'nat') ? "nat definition"
               : "attribute '$key'";
@@ -840,8 +915,7 @@ sub read_network( $ ) {
             elsif ($host->{range}) {
                 my ($ip1, $ip2) = @{ $host->{range} };
                 if (   $ip != ($ip1 & $mask)
-                    or $ip != ($ip2 & $mask))
-                {
+		       or $ip != ($ip2 & $mask)) {
                     error_atline "$host->{name}'s IP range doesn't match",
                       " network IP/mask";
                 }
@@ -865,7 +939,7 @@ sub read_network( $ ) {
                     unless ($nat->{dynamic}) {
                         $nat->{mask} == $mask
                           or error_atline "Mask for non dynamic $nat->{name}",
-                          " must be equal to network mask";
+			    " must be equal to network mask";
                     }
                 }
                 else {
@@ -884,6 +958,31 @@ sub read_network( $ ) {
                 }
             }
         }
+
+	# Check networks where RADIUS is used.
+	$network->{id} and $network->{suffix}
+	  and error_atline "Must not use both attributes 'id' and 'suffix'";
+
+	$network->{suffix} and @{ $network->{hosts} }
+	  and error_atline
+	    "Network with attribute 'suffix' must not have hosts defined.";
+
+	# Check and mark networks with ID-hosts.
+	if (my $id_hosts_count = grep { $_->{id} } @{ $network->{hosts} }) {
+
+	    # If one host has ID, all hosts must have ID.
+	    @{ $network->{hosts} } == $id_hosts_count
+	      or error_atline "All hosts must have ID in $name";
+
+	    # Mark network.
+	    $network->{has_ID_hosts} = 1;
+
+	    # Check for attribute 'suffix' has been done above.
+	    $network->{id}
+	      and error_atline
+		"Must not use attribute 'id' at $network->{name}\n",
+		  " when hosts with ID are defined inside";
+	}
     }
     return $network;
 }
