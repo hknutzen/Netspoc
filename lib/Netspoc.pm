@@ -3164,6 +3164,9 @@ sub expand_services( $$ ) {
         if ($type eq 'service') {
             if (my $srv = $services{$name}) {
                 push @services, $srv;
+
+		# Currently needed by external program 'cut-netspoc'.
+		$srv->{is_used}  = 1;
             }
             else {
                 err_msg "Can't resolve reference to '$tname' in $context";
