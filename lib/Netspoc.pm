@@ -192,8 +192,10 @@ my %router_info = (
     # Cisco VPN 3000 Concentrator including RADIUS config.
     VPN3K => {
         name         => 'VPN3K',
-	routing      => 'IOS',
-        filter       => 'IOS',
+        stateless      => 1,
+        stateless_self => 1,
+	routing      => 'none',
+        filter       => 'VPN3K',
         comment_char => '!',
     },
 );
@@ -497,9 +499,20 @@ sub read_identifier() {
 }
 
 # Used for reading interface names and attribute 'owner'.
-sub read_string() {
+sub read_name() {
     skip_space_and_comment;
     if ($input =~ m/(\G[^;,\s"']+)/gc) {
+        return $1;
+    }
+    else {
+        syntax_err "String expected";
+    }
+}
+
+# Used for reading RADIUS attributes.
+sub read_string() {
+    skip_space_and_comment;
+    if ($input =~ m/\G([^;,"'\n]+)/gc) {
         return $1;
     }
     else {
@@ -687,10 +700,28 @@ my %nat_definitions;
 
 our %hosts;
 
+sub check_radius_attributes() {
+    my $result = {};
+    check 'radius_attributes' or
+      return undef;
+    skip '=';
+    skip '{';
+    while (1) {
+        last if check '}';
+        my $key = read_identifier;
+        skip '=';
+	my $val = read_string;
+	skip ';';
+	$result->{$key} and error_atline "Duplicate attribute '$key'";
+	$result->{$key} = $val;
+    }
+    return $result;
+}
+
 sub read_host( $$ ) {
     my($name, $network_name) = @_;
     my $host = new 'Host';
-    if(my $id = ($name =~ /^host:ID:(.*)$/)) {
+    if(my ($id) = ($name =~ /^host:ID:(.*)$/)) {
 
 	# Make ID unique by appending name of enclosing network.
 	$name = "$name.$network_name";
@@ -710,10 +741,15 @@ sub read_host( $$ ) {
             $host->{range} and error_atline "Duplicate attribute 'range'";
             $host->{range} = [ $ip1, $ip2 ];
         }
-        elsif (my @owner = check_assign_list 'owner', \&read_string) {
+        elsif (my @owner = check_assign_list 'owner', \&read_name) {
             $host->{owner} and error_atline "Duplicate attribute 'owner'";
             $host->{owner} = \@owner;
         }
+	elsif (my $radius_attributes = check_radius_attributes) {
+	    $host->{radius_attributes} and
+	      error_atline "Duplicate attribute 'radius_attributes'";
+	    $host->{radius_attributes} = $radius_attributes;
+	}
         elsif (my $string = check_typed_name) {
             my ($type, $name) = split_typed_name $string;
             if ($type eq 'nat') {
@@ -737,9 +773,19 @@ sub read_host( $$ ) {
         }
     }
     $host->{ips} xor $host->{range}
-      or error_atline "Exactly one of attributes 'ip' and 'range' is needed";
+      or error_atline
+	"Exactly one of attributes 'ip' and 'range' is needed";
+
     $host->{id} and $host->{range}
       and error_atline "Host with ID must not have 'range'";
+
+    if ($host->{id}) {
+	$host->{radius_attributes} ||= {};
+    } else {
+	$host->{radius_attributes}
+	  and error_atline
+	    "Attribute 'radius_attributes' is not allowed for $name";
+    }
     if ($host->{nat}) {
         if ($host->{range}) {
 
@@ -845,11 +891,16 @@ sub read_network( $ ) {
               and error_atline "Duplicate attribute 'subnet_of'";
             $network->{subnet_of} = $subnet;
         }
-        elsif (my @owner = check_assign_list 'owner', \&read_string) {
+        elsif (my @owner = check_assign_list 'owner', \&read_name) {
             $network->{owner}
               and error_atline "Duplicate attribute 'owner'";
             $network->{owner} = \@owner;
         }
+	elsif (my $radius_attributes = check_radius_attributes) {
+	    $network->{radius_attributes} and
+	      error_atline "Duplicate attribute 'radius_attributes'";
+	    $network->{radius_attributes} = $radius_attributes;
+	}
 	elsif (my $string = check_hostname) {
 	    my $host = read_host $string, $net_name;
 	    push @{ $network->{hosts} }, $host;
@@ -975,13 +1026,20 @@ sub read_network( $ ) {
 	      or error_atline "All hosts must have ID in $name";
 
 	    # Mark network.
-	    $network->{has_ID_hosts} = 1;
+	    $network->{has_id_hosts} = 1;
 
 	    # Check for attribute 'suffix' has been done above.
 	    $network->{id}
 	      and error_atline
 		"Must not use attribute 'id' at $network->{name}\n",
 		  " when hosts with ID are defined inside";
+	}
+	if ($network->{id} or $network->{suffix} or $network->{has_id_hosts}) {
+	    $network->{radius_attributes} ||= {};
+	} else {
+	    $network->{radius_attributes}
+	      and error_atline
+		"Attribute 'radius_attributes' is not allowed for $name";
 	}
     }
     return $network;
@@ -1115,14 +1173,14 @@ sub read_interface( $ ) {
                           and error_atline "Duplicate virtual IP address";
                         $virtual->{ip} = $ip;
                     }
-                    elsif (my $type = check_assign 'type', \&read_string) {
+                    elsif (my $type = check_assign 'type', \&read_name) {
                         $xxrp_info{$type}
                           or error_atline "Unknown redundancy protocol";
                         $virtual->{type}
                           and error_atline "Duplicate redundancy type";
                         $virtual->{type} = $type;
                     }
-                    elsif (my $id = check_assign 'id', \&read_string) {
+                    elsif (my $id = check_assign 'id', \&read_name) {
                         $id =~ /^\d+$/
                           or error_atline "Redundancy ID must be numeric";
                         $id < 256
@@ -1168,12 +1226,12 @@ sub read_interface( $ ) {
                   and error_atline "Duplicate NAT binding";
                 $interface->{bind_nat} = $nat;
             }
-            elsif (my $hardware = check_assign 'hardware', \&read_string) {
+            elsif (my $hardware = check_assign 'hardware', \&read_name) {
                 $interface->{hardware}
                   and error_atline "Duplicate definition of hardware";
                 $interface->{hardware} = $hardware;
             }
-            elsif (my $protocol = check_assign 'routing', \&read_string) {
+            elsif (my $protocol = check_assign 'routing', \&read_name) {
                 my $routing = $routing_info{$protocol}
                   or error_atline "Unknown routing protocol";
                 $interface->{routing}
@@ -1258,6 +1316,9 @@ sub set_pix_interface_level( $ ) {
     }
 }
 
+# Routers which reference one or more RADIUS servers.
+my @auth_routers;
+
 our %routers;
 
 sub read_router( $ ) {
@@ -1307,6 +1368,19 @@ sub read_router( $ ) {
         elsif (check_flag 'no_crypto_filter') {
             $router->{no_crypto_filter} = 1;
         }
+	elsif (my @radius_servers =
+	       check_assign_list 'radius_servers', \&read_typed_name)
+        {
+	    $router->{radius_servers} and
+	      error_atline "Redefining 'radius' attribute";
+	    $router->{radius_servers} = \@radius_servers;
+	    push @auth_routers, $router;
+	}
+	elsif (my $radius_attributes = check_radius_attributes) {
+	    $router->{radius_attributes} and
+	      error_atline "Duplicate attribute 'radius_attributes'";
+	    $router->{radius_attributes} = $radius_attributes;
+	}
         else {
             my $string = read_typed_name;
             my ($type, $network) = split_typed_name $string;
@@ -1333,12 +1407,13 @@ sub read_router( $ ) {
     }
 
     # Detailed interface processing for managed routers.
-    if (my $filter_type = $router->{managed}) {
+    if (my $managed = $router->{managed}) {
+
         unless ($router->{model}) {
             err_msg "Missing 'model' for managed $name";
 
             # Prevent further errors.
-            $router->{model} = {};
+            $router->{model} = { name => 'unknown' };
         }
 
         # Create objects representing hardware interfaces.
@@ -1389,11 +1464,22 @@ sub read_router( $ ) {
 
             # Propagate filtering attribute 'full' or 'secondary'
             # from router to interfaces.
-            $interface->{managed} ||= $filter_type;
+            $interface->{managed} ||= $managed;
         }
         if ($router->{model}->{has_interface_level}) {
             set_pix_interface_level $router;
         }
+	if ($router->{model}->{name} eq 'VPN3K') {
+	    $router->{radius_servers} or
+	      err_msg "Attribute 'radius_servers' needs to be defined",
+		" for $name";
+	    $router->{radius_attributes} ||= {};
+	}
+	else {
+	    $router->{radius_attributes}
+	      and err_msg "Attribute 'radius_attributes' is not allowed",
+		" for $router->{name}";
+	}
     }
     else {
 
@@ -1404,6 +1490,7 @@ sub read_router( $ ) {
               if $interface->{managed};
         }
     }
+
     return $router;
 }
 
@@ -1414,7 +1501,7 @@ sub read_any( $ ) {
     my $any = new 'Any', name => $name;
     skip '=';
     skip '{';
-    if (my @owner = check_assign_list 'owner', \&read_string) {
+    if (my @owner = check_assign_list 'owner', \&read_name) {
         $any->{owner} = \@owner;
     }
     $any->{link} = read_assign 'link', \&read_typed_name;
@@ -1469,7 +1556,7 @@ sub read_area( $ ) {
                 error_atline 'Expected network as value';
             }
         }
-        elsif (my @owner = check_assign_list 'owner', \&read_string) {
+        elsif (my @owner = check_assign_list 'owner', \&read_name) {
             $area->{owner} and error_atline "Duplicate attribute 'owner'";
             $area->{owner} = \@owner;
         }
@@ -1628,7 +1715,7 @@ sub read_service( $ ) {
         read_proto_nr $service;
     }
     else {
-        my $string = read_string;
+        my $string = read_name;
         error_atline "Unknown protocol $string in definition of $name";
     }
     skip ';';
@@ -2534,6 +2621,29 @@ sub link_pathrestrictions() {
     }
 }
 
+
+sub expand_group( $$;$ );
+
+# Link RADIUS servers referenced in authenticating routers.
+sub link_radius() {
+    for my $router (@auth_routers) {
+	next if $router->{disabled};
+
+	$router->{radius_servers} =
+	  expand_group $router->{radius_servers}, $router->{name};
+	for my $element (@{ $router->{radius_servers} }) {
+	    if (is_host $element) {
+		if ($element->{range} or @{ $element->{ips} } > 1) {
+		    err_msg "$element->{name} must have single IP address\n",
+		      " because it is used as RADUIS server";
+		}
+	    } else {
+		err_msg "$element->{name} can't be used as RADIUS server";
+	    }
+	}
+    }
+}
+
 sub link_topology() {
     info "Linking topology";
     for my $interface (values %interfaces) {
@@ -2542,6 +2652,7 @@ sub link_topology() {
     link_any_and_every;
     link_areas;
     link_pathrestrictions;
+    link_radius;
     for my $network (values %networks) {
         if (    $network->{ip} eq 'unnumbered'
             and $network->{interfaces}
@@ -2823,6 +2934,7 @@ sub convert_hosts() {
         for my $host (@{ $network->{hosts} }) {
             my $name = $host->{name};
             my $nat  = $host->{nat};
+            my $id   = $host->{id};
             my @ip_mask;
             if ($host->{ips}) {
                 @ip_mask = map [ $_, 0xffffffff ], @{ $host->{ips} };
@@ -2875,6 +2987,11 @@ sub convert_hosts() {
                         mask    => $mask,
                         nat     => $nat
                     );
+		    if ($id) {
+			$subnet->{id} = $id;
+			$subnet->{radius_attributes} =
+			  $host->{radius_attributes};
+		    }
                     $inv_prefix_aref[$inv_prefix]->{$ip} = $subnet;
                     push @{ $host->{subnets} },    $subnet;
                     push @{ $network->{subnets} }, $subnet;
@@ -3189,9 +3306,13 @@ sub expand_group1( $$ ) {
             }
             elsif ($object->{route_hint}) {
                 err_msg "$object->{name} marked as 'route_hint'",
-                  "must not be used in $context";
+                  " must not be used in $context";
                 $object = undef;
             }
+	    elsif ($object->{has_id_hosts}) {
+		err_msg "$object->{name} having ID-hosts must",
+		  " not be used in $context";
+	    }
         }
         elsif (is_interface $object) {
             if ($object->{ip} eq 'unnumbered') {
@@ -6191,6 +6312,10 @@ sub print_routes( $ ) {
                     my $adr = prefix_code(address($network, $nat_map));
                     print "ip route add $adr via $hop_addr\n";
                 }
+		elsif ($type eq 'none') {
+
+		    # Do nothing.
+		}
                 else {
                     internal_err "unexpected routing type '$type'";
                 }
@@ -7399,6 +7524,7 @@ sub local_optimization() {
                 my $router = $interface->{router};
                 next unless $router->{managed};
                 my $secondary_router = $interface->{managed} eq 'secondary';
+		my $is_vpn3k         = $router->{model}->{filter} eq 'VPN3K';
                 my $hardware         = $interface->{hardware};
 
                 # Do local optimization only once for each hardware interface.
@@ -7471,12 +7597,24 @@ sub local_optimization() {
                         if ($secondary_router && $rule->{has_full_filter}) {
                             $action = $rule->{action};
 
-                            # get_networks has a single result if not called
-                            # with an 'any' object as argument.
-                            $src = get_networks $rule->{src};
+			    $src = $rule->{src};
+
+			    # Single ID-hosts must not be converted to
+			    # network at authenticating router.
+			    if (not(is_subnet $src and
+				    $src->{id} and
+				    $is_vpn3k))
+			    {
+				# get_networks has a single result if
+				# not called with an 'any' object as argument.
+				$src = get_networks $src;
+			    }
                             $dst = $rule->{dst};
-                            unless (is_interface $dst
-                                && $dst->{router} eq $router)
+                            if (not(is_interface $dst and
+				    $dst->{router} eq $router) and
+				not(is_subnet $dst and
+				    $dst->{id} and
+				    $is_vpn3k))
                             {
                                 $dst = get_networks $dst;
                             }
@@ -7518,11 +7656,122 @@ sub local_optimization() {
     }
 }
 
+sub print_xml( $ );
+sub print_xml( $ ) {
+    my($arg) = @_;
+    my $ref = ref $arg;
+    if (not $ref) {
+	print "$arg";
+    } elsif ($ref eq 'HASH') {
+	for my $tag (keys %$arg) {
+	    print "<$tag>";
+	    print_xml $arg->{$tag};
+	    print "</$tag>\n"
+	}
+    } else {
+	for my $element (@$arg) {
+	    print_xml $element;
+	}
+    }
+}
+
+sub print_vpn3k( $ ) {
+    my ($router) = @_;
+    my $model = $router->{model};
+    my %vpn_config = ();
+    $vpn_config{'vpn-device'} = $router->{name};
+    $vpn_config{'aaa-server'} =
+      [ map { { radius => print_ip $_->{ips}->[0] } }
+	    @{ $router->{radius_servers} } ];
+    my @entries = ();
+    for my $hardware (@{ $router->{hardware} }) {
+        my $hw_name = $hardware->{name};
+        my $nat_map = $hardware->{nat_map};
+
+	# Rules of $hardware->{intf_rules} are ignored.
+	# Protection for device must currently be configured manually.
+
+	# Collect rules belonging to a single authenticated user or network.
+	my %id_rules;
+	for my $rule (@{ $hardware->{rules} }) {
+	    my $src = $rule->{src};
+	    if ($src->{id} || $src->{suffix}) {
+		push @{ $id_rules{$src} }, $rule;
+	    } elsif ((is_subnet $src || is_interface $src)
+		     && $src->{network}->{id}) {
+		internal_err "Unexpected src $src->{name} in rule",
+		  " at $router->{name}";
+	    }
+	    else {
+
+		# Traffic from not authenticated sources are silently ignored
+		# and should be filtered manually.
+	    }
+	}
+	for my $rules (values %id_rules) {
+	    my $src = $rules->[0]->{src};
+	    my %entry;
+	    $entry{'Called-Station-Id'} = $hw_name;
+	    if (is_subnet $src) {
+		my $id = $src->{id};
+		my $ip = print_ip $src->{ip};
+		$src->{mask} == 0xffffffff or
+		  internal_err "Unexpected $src->{name} at $router->{name}";
+		$entry{id} = $id;
+		$entry{'Framed-IP-Address'} = $ip;
+		$entry{inherited} =
+		  { %{ $router->{radius_attributes} },
+		    %{ $src->{network}->{radius_attributes}},
+		    %{ $src->{radius_attributes}},
+		  };
+	    } elsif (is_network $src) {
+		if (my $id = $src->{id}) {
+		    $entry{id} = $id;
+		} elsif (my $suffix = $src->{suffix}) {
+		    my $ip = print_ip $src->{ip};
+		    my $mask = print_ip complement_32bit $src->{mask};
+		    $entry{suffix} = $suffix;
+		    $entry{network} = { base => $ip, mask => $mask };
+		}
+		$entry{inherited} = { %{ $router->{radius_attributes} },
+				      %{ $src->{radius_attributes}},
+				    };
+	    } else {
+		internal_err "Unexpected src $src->{name}";
+	    }
+	    my @in_acl;
+	    for my $rule (@$rules) {
+		my ($action, $src, $dst, $src_range, $srv) =
+		  @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
+		my ($proto_code, $src_port_code, $dst_port_code) =
+		  cisco_srv_code($src_range, $srv, $model);
+		my $spair = address $src, $nat_map;
+		for my $dpair (address($dst, $nat_map)) {
+
+		    # 2nd argument: inverted mask.
+		    my $src_code = ios_code($spair, 1);
+		    my $dst_code = ios_code($dpair, 1);
+		    my $code =
+		      "$action $proto_code $src_code $src_port_code" .
+			" $dst_code $dst_port_code";
+		    push @in_acl, { ace => $code };
+		}
+	    }
+	    $entry{in_acl} = \@in_acl;
+	    push @entries, { user_entry => \%entry };
+	}
+    }
+    $vpn_config{entries} = \@entries;
+    my $result = { 'vpn-config' => \%vpn_config };
+    print_xml $result;
+}
+
 sub print_acls( $ ) {
     my ($router)     = @_;
     my $model        = $router->{model};
     my $filter       = $model->{filter};
     my $comment_char = $model->{comment_char};
+
     print "$comment_char [ ACL ]\n";
     if ($filter eq 'PIX') {
         find_object_groups($router) unless $router->{no_group_code};
@@ -7974,6 +8223,13 @@ sub print_code( $ ) {
             $file = "$dir/$file";
             open STDOUT, ">$file" or die "Can't open $file: $!\n";
         }
+
+	# Handle VPN3K separately;
+	if ($model->{filter} eq 'VPN3K') {
+	    print_vpn3k $router;
+	    return;
+	}
+
         print "$comment_char Generated by $program, version $version\n\n";
         print "$comment_char [ BEGIN $name ]\n";
         print "$comment_char [ Model = $model->{name} ]\n";
