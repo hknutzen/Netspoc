@@ -430,13 +430,17 @@ sub read_interface_name() {
 }
 
 {
+
+    # user@domain or @domain
     my $domain_regex = qr/@(?:[\w-]+\.)+[\w-]+/;
-    my $email_regex = qr/[\w-]+(?:\.[\w-]+)*$domain_regex/;
-    my $hostname_regex = qr/host:(?:ID:$email_regex|[\w-]+)/;
+    my $user_regex =qr/[\w-]+(?:\.[\w-]+)*/;
+    my $full_id_regex = qr/$user_regex$domain_regex/;
+    my $id_regex = qr/(?:$user_regex)?$domain_regex/;
+    my $hostname_regex = qr/host:(?:id:$id_regex|[\w-]+)/;
 
 # Check for xxx:xxx or xxx:[xxx] or xxx:[xxx:xxx]
 # or interface:xxx.xxx or interface:xxx.[xxx] or interface:[xxx].[xxx]
-# or host:ID:user@domain.network
+# or host:id:user@domain.network
     sub check_typed_ext_name() {
 	skip_space_and_comment;
 	if ($input =~ m/\G(interface:[][\w-]+\.[][\w-]+ |
@@ -454,28 +458,17 @@ sub read_interface_name() {
     }
 
 # user@domain
-    sub read_email_address() {
+    sub read_full_id() {
 	skip_space_and_comment;
-	if ($input =~ m/\G($email_regex)/gco) {
+	if ($input =~ m/\G($full_id_regex)/gco) {
 	    return $1;
 	}
 	else {
-	    syntax_err "Email address expected";
+	    syntax_err "Full id expected";
 	}
     }
 
-# @domain
-    sub read_domain() {
-	skip_space_and_comment;
-	if ($input =~ m/\G($domain_regex)/gco) {
-	    return $1;
-	}
-	else {
-	    syntax_err "Domain with leading \@ expected";
-	}
-    }
-
-# host:xxx or host:ID:user@domain
+# host:xxx or host:id:user@domain or host:id:@domain
     sub check_hostname() {
 	skip_space_and_comment;
 	if ($input =~
@@ -721,7 +714,7 @@ sub check_radius_attributes() {
 sub read_host( $$ ) {
     my($name, $network_name) = @_;
     my $host = new 'Host';
-    if(my ($id) = ($name =~ /^host:ID:(.*)$/)) {
+    if(my ($id) = ($name =~ /^host:id:(.*)$/)) {
 
 	# Make ID unique by appending name of enclosing network.
 	$name = "$name.$network_name";
@@ -775,9 +768,6 @@ sub read_host( $$ ) {
     $host->{ips} xor $host->{range}
       or error_atline
 	"Exactly one of attributes 'ip' and 'range' is needed";
-
-    $host->{id} and $host->{range}
-      and error_atline "Host with ID must not have 'range'";
 
     if ($host->{id}) {
 	$host->{radius_attributes} ||= {};
@@ -876,15 +866,10 @@ sub read_network( $ ) {
             # Duplicate use of this flag doesn't matter.
             $network->{route_hint} = 1;
         }
-	elsif (my $id = check_assign 'id', \&read_email_address) {
+	elsif (my $id = check_assign 'id', \&read_full_id) {
 	    $network->{id}
 	      and error_atline "Duplicate attribute 'id'";
 	    $network->{id} = $id;
-	}
-	elsif (my $suffix = check_assign 'suffix', \&read_domain) {
-	    $network->{suffix}
-	      and error_atline "Duplicate attribute 'suffix'";
-	    $network->{suffix} = $suffix;
 	}
         elsif (my $subnet = check_assign 'subnet_of', \&read_typed_name) {
             $network->{subnet_of}
@@ -1010,14 +995,6 @@ sub read_network( $ ) {
             }
         }
 
-	# Check networks where RADIUS is used.
-	$network->{id} and $network->{suffix}
-	  and error_atline "Must not use both attributes 'id' and 'suffix'";
-
-	$network->{suffix} and @{ $network->{hosts} }
-	  and error_atline
-	    "Network with attribute 'suffix' must not have hosts defined.";
-
 	# Check and mark networks with ID-hosts.
 	if (my $id_hosts_count = grep { $_->{id} } @{ $network->{hosts} }) {
 
@@ -1028,13 +1005,12 @@ sub read_network( $ ) {
 	    # Mark network.
 	    $network->{has_id_hosts} = 1;
 
-	    # Check for attribute 'suffix' has been done above.
 	    $network->{id}
 	      and error_atline
 		"Must not use attribute 'id' at $network->{name}\n",
 		  " when hosts with ID are defined inside";
 	}
-	if ($network->{id} or $network->{suffix} or $network->{has_id_hosts}) {
+	if ($network->{id} or $network->{has_id_hosts}) {
 	    $network->{radius_attributes} ||= {};
 	} else {
 	    $network->{radius_attributes}
@@ -7715,24 +7691,23 @@ sub print_vpn3k( $ ) {
 	    if (is_subnet $src) {
 		my $id = $src->{id};
 		my $ip = print_ip $src->{ip};
-		$src->{mask} == 0xffffffff or
-		  internal_err "Unexpected $src->{name} at $router->{name}";
-		$entry{id} = $id;
-		$entry{'Framed-IP-Address'} = $ip;
+		if ($src->{mask} == 0xffffffff) {
+		    $entry{id} = $id;
+		    $entry{'Framed-IP-Address'} = $ip;
+		}
+		else {
+		    $entry{suffix} = $id;
+		    my $mask = print_ip complement_32bit $src->{mask};
+		    $entry{network} = { base => $ip, mask => $mask };
+		}
 		$entry{inherited} =
 		  { %{ $router->{radius_attributes} },
 		    %{ $src->{network}->{radius_attributes}},
 		    %{ $src->{radius_attributes}},
 		  };
 	    } elsif (is_network $src) {
-		if (my $id = $src->{id}) {
-		    $entry{id} = $id;
-		} elsif (my $suffix = $src->{suffix}) {
-		    my $ip = print_ip $src->{ip};
-		    my $mask = print_ip complement_32bit $src->{mask};
-		    $entry{suffix} = $suffix;
-		    $entry{network} = { base => $ip, mask => $mask };
-		}
+		my $id = $src->{id};
+		$entry{id} = $id;
 		$entry{inherited} = { %{ $router->{radius_attributes} },
 				      %{ $src->{radius_attributes}},
 				    };
