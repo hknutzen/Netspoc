@@ -7679,7 +7679,7 @@ sub print_vpn3k( $ ) {
     my ($router) = @_;
     my $model = $router->{model};
     my %vpn_config = ();
-    $vpn_config{'vpn-device'} = $router->{name};
+    ($vpn_config{'vpn-device'} = $router->{name})  =~ s/^router://;
     $vpn_config{'aaa-server'} =
       [ map { { radius => print_ip $_->{ips}->[0] } }
 	    @{ $router->{radius_servers} } ];
