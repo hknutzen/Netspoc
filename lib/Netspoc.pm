@@ -6511,7 +6511,9 @@ sub distribute_rule( $$$;$ ) {
                             # Object is located in the same security domain,
                             # hence there is no other managed router
                             # in between.
-                            if ($network->{any} eq $intf->{any}) {
+			    # $intf could have value 'undef' if $obj is
+			    # interface of current router and destination of rule.
+                            if (! $intf || $network->{any} eq $intf->{any}) {
                                 err_msg "$obj->{name} needs static translation",
                                   " for nat:$nat_tag\n",
                                   " to be valid in rule\n ", print_rule $rule;
