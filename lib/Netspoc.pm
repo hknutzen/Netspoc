@@ -5397,19 +5397,10 @@ sub expand_crypto () {
             # Rules are stored additionally in crypto_map for code generation.
             push @{ $crypto_map->{crypto_rules} }, $rule;
         };
-        if (@deny) {
-            err_msg "Deny rules are currently not supported.\n",
-              " but some are defined for $name";
-        }
-        if (@any) {
-
-            # Attention: never allow rules with 'any' as src and dst.
-            # In this case we would get a deadlock, because encrypted packets
-            # would be encrypted again.
-            err_msg "'Any' rules are currently not supported.\n",
-              " but some are defined for $name";
-        }
-        for my $rule (@permit) {
+	# ToDo:
+	# Is special handling of deny rules necessary?
+	# Check for matching high-level and low-level semantic of any rules.
+        for my $rule (@deny, @any , @permit) {
             $rule->{crypto} = $crypto;
 
             # Find tunnel where $rule is applicable.
