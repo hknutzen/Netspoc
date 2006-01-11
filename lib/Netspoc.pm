@@ -7371,7 +7371,7 @@ sub join_ranges ( $) {
             my ($action, $src, $dst, $src_range, $srv) =
               @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
 
-            # Only ranges which have a neighbor mqy be successfully optimized.
+            # Only ranges which have a neighbor may be successfully optimized.
             $srv->{has_neighbor} or next;
             $hash{$action}->{$src}->{$dst}->{$src_range}->{$srv} = $rule;
         }
