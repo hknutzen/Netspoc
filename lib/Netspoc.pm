@@ -4157,9 +4157,9 @@ sub setarea1( $$$ ) {
             next if $out_interface eq $interface;
 
             # Found another border of current area from wrong side.
-            if ($lookup->{$interface}) {
-                err_msg
-                  "Invalid border $out_interface->{name} of $area->{name}";
+            if ($lookup->{$out_interface}) {
+                err_msg "Inconsistent definition of $area->{name}",
+		  " in loop at $out_interface->{name}";
                 next;
             }
             next if $auto_border and $out_interface->{is_border};
