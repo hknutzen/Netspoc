@@ -2992,6 +2992,9 @@ sub convert_hosts() {
                     # network and broadcast address.
                     next if $subnet->{nat};
 
+		    # Don't combine subnets having radius-ID.
+		    next if $subnet->{id};
+
                     # Only take the left part of two adjacent subnets.
                     if ($ip % $modulo == 0) {
                         my $next_ip = $ip + $next;
