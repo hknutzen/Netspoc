@@ -52,6 +52,9 @@ our @EXPORT = qw(
   %services
   %servicegroups
   %policies
+  %isakmp
+  %ipsec
+  %crypto
   %expanded_rules
   $error_counter
   $max_errors
@@ -1900,7 +1903,7 @@ sub read_ipsec( $ ) {
     return read_attributed_object $name, \%ipsec_attributes;
 }
 
-my %crypto;
+our %crypto;
 
 sub read_crypto( $ ) {
     my ($name) = @_;
