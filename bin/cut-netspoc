@@ -84,6 +84,7 @@ for my $name (keys %policies) {
     }
 }
 
+&order_services();
 &link_topology();
 &mark_disabled();
 &setany();
@@ -101,7 +102,11 @@ for my $type ('deny', 'any', 'permit') {
             is_any $rule->{$where} and $rule->{$where}->{is_used} = 1;
         }
         &path_walk($rule, \&mark_topology);
-        $rule->{srv}->{is_used} = 1;
+	if($rule->{orig_srv}){
+	    $rule->{orig_srv}->{is_used} = 1;
+	} else {
+	    $rule->{srv}->{is_used} = 1;
+	}
     }
 }
 
