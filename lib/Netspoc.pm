@@ -194,12 +194,13 @@ my %router_info = (
 
     # Cisco VPN 3000 Concentrator including RADIUS config.
     VPN3K => {
-        name         => 'VPN3K',
+        name           => 'VPN3K',
         stateless      => 1,
         stateless_self => 1,
-	routing      => 'none',
-        filter       => 'VPN3K',
-        comment_char => '!',
+	routing        => 'none',
+        filter         => 'VPN3K',
+	crypto         => 'ignore',
+        comment_char   => '!',
     },
 );
 
@@ -8013,6 +8014,7 @@ sub print_crypto( $ ) {
           "Crypto not supported for $router->{name} of type $model->{name}";
         return;
     }
+    return if $crypto_type eq 'ignore';
     my $comment_char = $model->{comment_char};
     print "$comment_char [ Crypto ]\n";
     $crypto_type =~ /^IOS|PIX$/ or internal_err;
