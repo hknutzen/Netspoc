@@ -65,22 +65,26 @@ sub mark_topology( $$$ ) {
 my $config = shift @ARGV or usage;
 &show_version();
 
-# Read and process netspoc policy.
+# Read and process netspoc configuration data.
 # Remember source code of each global definition.
 &read_file_or_dir($config, \&read_netspoc_with_src);
 
-# Read names of policies from command line.
+my %name2var = ( policy =>\%policies, );
+
+# Read names of policies and crypto definitions from command line.
 for my $arg (@ARGV) {
     my ($type, $name) = split_typed_name $arg;
-    $type eq 'policy' or usage;
-    my $policy = $policies{$name} or die "Unknown $arg\n";
-    $policy->{is_used} = 1;
+    my $ref = $name2var{$type} or usage;
+    my $thing = $ref->{$name} or die "Unknown $arg\n";
+    $thing->{is_used} = 1;
 }
 
-# Delete unwanted policies.
-for my $name (keys %policies) {
-    unless ($policies{$name}->{is_used}) {
-        delete $policies{$name};
+# Delete unwanted global definitions.
+for my $ref (values %name2var) {
+    for my $name (keys %$ref) {
+	unless ($ref->{$name}->{is_used}) {
+	    delete $ref->{$name};
+	}
     }
 }
 
@@ -92,23 +96,29 @@ for my $name (keys %policies) {
 &expand_policies();
 die "Aborted with $error_counter error(s)\n" if $error_counter;
 
-# Mark parts of topology which are referenced by rules of policies.
-for my $type ('deny', 'any', 'permit') {
-    for my $rule (@{ $expanded_rules{$type} }) {
-        for my $where ('src', 'dst') {
+# Process rules of policies and crypto definitions.
+sub process_rules ( $ ) {
+    my ($expanded_rules) = @_;
+    for my $type ('deny', 'any', 'permit') {
+	for my $rule (@{ $expanded_rules->{$type} }) {
+	    for my $where ('src', 'dst') {
 
-            # path_walk only handles networks and routes,
-            # therefore 'any' objects need to be marked separately.
-            is_any $rule->{$where} and $rule->{$where}->{is_used} = 1;
-        }
-        &path_walk($rule, \&mark_topology);
-	if($rule->{orig_srv}){
-	    $rule->{orig_srv}->{is_used} = 1;
-	} else {
-	    $rule->{srv}->{is_used} = 1;
+		# path_walk only handles networks and routes,
+		# therefore 'any' objects need to be marked separately.
+		is_any $rule->{$where} and $rule->{$where}->{is_used} = 1;
+	    }
+	    &path_walk($rule, \&mark_topology);
+	    if($rule->{orig_srv}){
+		$rule->{orig_srv}->{is_used} = 1;
+	    } else {
+		$rule->{srv}->{is_used} = 1;
+	    }
 	}
     }
 }
+
+# Mark parts of topology which are referenced by rules of policies.
+process_rules \%expanded_rules;
 
 # Mark interfaces which are referenced by areas.
 for my $area (values %areas) {
@@ -124,6 +134,32 @@ for my $area (values %areas) {
     }
 }
 
+# Call this after topology has been marked.
+&expand_crypto();
+
+# Mark crypto definitions which have tunnel between interfaces of
+# already marked routers.
+for my $router (values %routers) {
+    next unless $router->{is_used};
+    for my $interface (@{$router->{interfaces}}) {
+	my $tunnel_info = $interface->{tunnel};
+	next unless $tunnel_info;
+	for my $crypto_map (values %$tunnel_info) {
+	    my $peer = $crypto_map->{peer};
+	    next unless $peer->{router}->{is_used};
+	    $crypto_map->{crypto}->{is_used} = 1;
+	}
+    }
+}
+
+for my $crypto (values %crypto) {
+    next unless $crypto->{is_used};
+    $crypto->{type}->{is_used} = 1;
+    $crypto->{type}->{key_exchange}->{is_used} = 1;
+    process_rules $crypto->{expanded_rules};
+}
+
+
 # Print marked parts of netspoc configuration.
 # Routers and networks have been marked by mark_topology.
 # Services have been marked while %expanded_rules have been processed above.
@@ -138,7 +174,10 @@ for my $object (
     values %areas,
     values %groups,
     values %services,
-    values %servicegroups
+    values %servicegroups,
+    values %isakmp,
+    values %ipsec,
+    values %crypto,
   )
 {
     if ($object->{is_used}) {
