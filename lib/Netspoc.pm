@@ -5058,16 +5058,14 @@ sub path_walk( $$;$ ) {
         $in      = $out;
         if ($in->{loop_entry} and my $loop_entry = $in->{loop_entry}->{$to}) {
             my $loop_exit = $loop_entry->{loop_exit}->{$to};
-            if (my $loop_out = $in->{path}->{$to}) {
-                loop_path_walk $in, $loop_out, $loop_entry, $loop_exit,
-                  $at_router, $rule, $fun;
+            my $loop_out = $in->{path}->{$to};
+	    loop_path_walk $in, $loop_out, $loop_entry, $loop_exit,
+	      $at_router, $rule, $fun;
+	    if ($loop_out) {
                 $in      = $loop_out;
                 $call_it = not(is_network($loop_exit) xor $at_router);
             }
             else {
-                loop_path_walk $in, $loop_out, $loop_entry, $loop_exit,
-                  $at_router, $rule, $fun;
-
 #	    debug "exit: path_walk: dst in loop";
                 return;
             }
