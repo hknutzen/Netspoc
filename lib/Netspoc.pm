@@ -8098,6 +8098,7 @@ sub print_crypto( $ ) {
     }
 
     for my $hardware (@{ $router->{hardware} }) {
+	next if not @{$hardware->{crypto_maps}};
         my $name = $hardware->{name};
 
         # Name of crypto map.
