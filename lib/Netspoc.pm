@@ -1100,6 +1100,7 @@ my %xxrp_info = (
 our %interfaces;
 my @virtual_interfaces;
 my @disabled_interfaces;
+my @auto_crypto_interfaces;
 
 sub read_interface( $ ) {
     my ($name) = @_;
@@ -1176,14 +1177,6 @@ sub read_interface( $ ) {
                 $virtual->{ip} or error_atline "Missing virtual IP";
                 $virtual->{type}
                   or error_atline "Missing type of redundancy protocol";
-                $interface->{ip} eq 'unnumbered'
-                  and error_atline "No virtual IP supported for ",
-                  "unnumbered interface";
-                grep { $_ == $virtual->{ip} } @{ $interface->{ip} }
-                  and error_atline "Virtual IP redefines standard IP";
-
-                # Add virtual IP to list of real IP addresses.
-                push @{ $interface->{ip} }, $virtual->{ip};
                 $interface->{virtual} and error_atline "Duplicate virtual IP";
                 $interface->{virtual} = $virtual;
                 push @virtual_interfaces, $interface;
@@ -1238,6 +1231,15 @@ sub read_interface( $ ) {
             elsif (check_flag 'disabled') {
                 push @disabled_interfaces, $interface;
             }
+            elsif (check_flag 'no_check') {
+                $interface->{no_check} = 1;
+            }
+	    elsif (my $ipsec = check_assign 'auto_crypto', \&read_typed_name) {
+		$interface->{auto_crypto}
+		  and error_atline 'Duplicate definition of attribute auto_crypto';
+		$interface->{auto_crypto} = $ipsec;
+		push @auto_crypto_interfaces, $interface;
+	    }
             else {
                 syntax_err 'Expected some valid attribute';
             }
@@ -1252,14 +1254,26 @@ sub read_interface( $ ) {
             elsif (@{ $interface->{ip} } > 1) {
 
                 # Look at print_pix_static before changing this.
-                error_atline "No NAT supported for interface ",
-                  "with multiple IPs";
+                error_atline "No NAT supported for interface with multiple IPs";
             }
             elsif ($interface->{virtual}) {
-                error_atline "No NAT supported for interface ",
-                  "with virtual IP";
+                error_atline "No NAT supported for interface with virtual IP";
             }
         }
+	if (my $virtual = $interface->{virtual}) {
+	    $interface->{ip} eq 'unnumbered'
+	      and error_atline "No virtual IP supported for unnumbered interface";
+	    grep { $_ == $virtual->{ip} } @{ $interface->{ip} }
+	      and error_atline "Virtual IP redefines standard IP";
+
+	    # Add virtual IP to list of real IP addresses.
+	    push @{ $interface->{ip} }, $virtual->{ip};
+	}
+	if ($interface->{auto_crypto}) {
+	    if ($interface->{ip} eq 'unnumbered') {
+                error_atline "No auto_crypto supported for unnumbered interface";
+            }
+	}
     }
     return $interface;
 }
@@ -1459,6 +1473,9 @@ sub read_router( $ ) {
 	    $router->{radius_attributes}
 	      and err_msg "Attribute 'radius_attributes' is not allowed",
 		" for $router->{name}";
+	    grep { $_->{no_check} } @{$router->{interfaces}}
+	      and err_msg "Attribute 'no_check' is not allowed",
+		" at interface of $router->{name}";
 	}
     }
     else {
@@ -2624,6 +2641,21 @@ sub link_radius() {
     }
 }
 
+sub link_auto_crypto() {
+    for my $interface (@auto_crypto_interfaces) {
+
+	# Convert name of ipsec definition to object of ipsec definition.
+        my ($type, $name) = split_typed_name $interface->{auto_crypto};
+        if ($type eq 'ipsec') {
+            my $ipsec = $ipsec{$name}
+              or err_msg "Can't resolve reference to '$type:$name' at $interface->{name}";
+            $interface->{auto_crypto} = $ipsec;
+	} else {
+	    err_msg "Unknown type '$type' for $name";
+	}
+    }
+}
+
 sub link_topology() {
     info "Linking topology";
     for my $interface (values %interfaces) {
@@ -2633,6 +2665,7 @@ sub link_topology() {
     link_areas;
     link_pathrestrictions;
     link_radius;
+    link_auto_crypto;
     for my $network (values %networks) {
         if (    $network->{ip} eq 'unnumbered'
             and $network->{interfaces}
@@ -6535,6 +6568,24 @@ sub distribute_rule( $$$;$ ) {
             }
         }
     }
+
+    # VPN3K: At interfaces without tag 'no_check',
+    # src  of rule must only be host or network with ID.
+    if ($router->{model}->{name} eq 'VPN3K' and not $in_intf->{no_check}) {
+	my $src = $rule->{src};
+	if ($src->{id}) {
+	    if (is_network $src and $in_intf->{auto_crypto}) {
+
+		# Automatically generate IPSec-Tunnel to corresponding router.
+		my $peer = $src->{interfaces}->[0]->{router};
+		$peer->{auto_crypto_peer}->{$in_intf} = $in_intf;
+	    }
+	} else {
+	    err_msg
+	      "Source of rule must have ID when entering $in_intf->{name} in rule\n ",
+	      print_rule $rule;
+	}
+    }
     my $aref;
     my $store =
       ($in_crypto_map && !$model->{no_crypto_filter})
@@ -7669,7 +7720,7 @@ sub print_vpn3k( $ ) {
 	my %id_rules;
 	for my $rule (@{ $hardware->{rules} }) {
 	    my $src = $rule->{src};
-	    if ($src->{id} || $src->{suffix}) {
+	    if ($src->{id}) {
 		push @{ $id_rules{$src} }, $rule;
 	    } elsif ((is_subnet $src || is_interface $src)
 		     && $src->{network}->{id}) {
@@ -7678,8 +7729,10 @@ sub print_vpn3k( $ ) {
 	    }
 	    else {
 
-		# Traffic from not authenticated sources are silently ignored
-		# and should be filtered manually.
+		# Traffic from not authenticated sources must only enter
+		# at 'no_check' interface.
+		# This has been verified during rules distribution.
+		# They are silently ignored and should be filtered manually.
 	    }
 	}
 	for my $rules (values %id_rules) {
@@ -7970,8 +8023,87 @@ sub print_acls( $ ) {
     }
 }
 
+sub prepare_auto_crypto( $ ) {
+    my ($router) = @_;
+
+    # Interfaces of vpn3k devices.
+    my @peers = values %{$router->{auto_crypto_peer}};
+
+    # All peers need to use the same ipsec definition.
+    my %ipsec;
+    for my $peer (@peers) {
+	my $ipsec = $peer->{auto_crypto};
+	$ipsec{$ipsec} = $ipsec;
+    }
+    values %ipsec == 1
+      or err_msg "ipsec-definitions for auto_crypto must be identical at:",
+	map { "\n $_->{router}->{name}" } @peers;
+    my($ipsec) = values %ipsec;
+
+    # There needs to be exactly one local network.
+    # That is a network with only this router attached.
+    # This network must have ID which is to be authenticated at vpn3k device.
+    my $local_net;
+    for my $interface (@{$router->{interfaces}}) {
+	my $network = $interface->{network};
+	if (@{$network->{interfaces}} == 1) {
+	    if ($local_net) {
+		err_msg "$router must have exacly one local network",
+		  " because it has auto_crypto to $peers[0].",
+		    " But there are at least two networks attached:\n",
+		    "$local_net->{name} and $network->{name}";
+	    } elsif (@{$interface->{hardware}->{interfaces}} > 1) {
+		err_msg "$network->{name} must be the only network attached to",
+		  " $interface->{hardware}->{name}"
+	      } elsif (not $network->{id}) {
+		  err_msg "$network->{name} must have ID, because it is attached",
+		    " to $router->{name} with auto_crypto";
+	      } else {
+		$local_net = $network;
+	    }
+	}
+    }
+    $local_net or 
+      err_msg "At least one local network with ID needs to be attached to $router->{name}";
+
+    for my $hardware (@{ $router->{hardware} }) {
+	next if $hardware->{interfaces}->[0]->{network} eq $local_net;
+	my $crypto_map = { crypto => { type => $ipsec },
+			   peers => \@peers,
+
+			   # Any traffic from local_net needs to be encrypted.
+			   crypto_rules => [ { action    => 'permit',
+					       src       => $local_net,
+					       dst       => $network_00,
+					       src_range => $srv_ip,
+					       srv       => $srv_ip
+					     } ],
+			   intf_rules => [],
+			   rules => $hardware->{rules},
+			 };
+	$hardware->{rules} = [];
+	$hardware->{crypto_maps} = [ $crypto_map ];
+	my @intf_rules = @{$hardware->{intf_rules}};
+	my @crypto_rules;
+	my @real_rules;
+	for my $rule (@{$hardware->{intf_rules}}) {
+	    if (grep { $rule->{src} eq $_ } @{$hardware->{interfaces}} ) {
+		push @real_rules, $rule;
+	    } else {
+		push @crypto_rules, $rule;
+	    }
+	}
+	$hardware->{intf_rules} = \@real_rules;
+	$crypto_map->{intf_rules} = \@crypto_rules;
+    }
+}
+
 sub print_crypto( $ ) {
     my ($router) = @_;
+
+    if ($router->{auto_crypto_peer}) {
+	prepare_auto_crypto $router;
+    }
 
     # List of ipsec definitions used at current router.
     my @ipsec;
@@ -8151,15 +8283,21 @@ sub print_crypto( $ ) {
                 $prefix = "crypto map $map_name $seq_num";
                 print "$prefix ipsec-isakmp\n";
             }
-            my $peer = $map->{peer};
-
-            # Take first IP.
-            # Unnumbered and short interfaces have been rejected already.
-            my $peer_ip = print_ip $peer->{ip}->[0];
             print "$prefix match address $crypto_acl_name\n";
             $crypto_filter_name
               and print "$prefix set ip access-group $crypto_filter_name in\n";
-            print "$prefix set peer $peer_ip\n";
+
+	    # Auto_crypto case allows multiple peers.
+	    my @peers = @{$map->{peers}};
+	    @peers or @peers = ($map->{peer});
+	    
+	    for my $peer (@peers) {
+
+		# Take first IP.
+		# Unnumbered and short interfaces have been rejected already.
+		my $peer_ip = print_ip $peer->{ip}->[0];
+		print "$prefix set peer $peer_ip\n";
+	    }
             print "$prefix set transform-set $transform_name\n";
             $pfs_group and print "$prefix set pfs $pfs_group\n";
         }
@@ -8202,15 +8340,17 @@ sub print_code( $ ) {
 	# Handle VPN3K separately;
 	if ($model->{filter} eq 'VPN3K') {
 	    print_vpn3k $router;
-	    return;
+	    next;
 	}
 
         print "$comment_char Generated by $program, version $version\n\n";
         print "$comment_char [ BEGIN $name ]\n";
         print "$comment_char [ Model = $model->{name} ]\n";
         print_routes $router;
-        print_acls $router;
+
+	# ACLs are changed for auto_crypto peers, hence print_crypto first.
         print_crypto $router;
+        print_acls $router;
         print_pix_static $router if $model->{has_interface_level};
         print "$comment_char [ END $name ]\n\n";
 
