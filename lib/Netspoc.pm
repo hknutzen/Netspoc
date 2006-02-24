@@ -849,20 +849,20 @@ sub read_network( $ ) {
     while (1) {
         last if check '}';
         if (my ($ip, $prefixlen) = check_assign 'ip', \&read_ip_opt_prefixlen) {
-            if ($prefixlen) {
+            if (defined $prefixlen) {
                 my $mask = prefix2mask $prefixlen;
-                $network->{mask} and error_atline "Duplicate IP mask";
+                defined $network->{mask} and error_atline "Duplicate IP mask";
                 $network->{mask} = $mask;
             }
             $network->{ip} and error_atline "Duplicate IP address";
             $network->{ip} = $ip;
         }
-        elsif (my $mask = check_assign 'mask', \&read_ip) {
-            $network->{mask} and error_atline "Duplicate IP mask";
+        elsif (defined (my $mask = check_assign 'mask', \&read_ip)) {
+            defined $network->{mask} and error_atline "Duplicate IP mask";
             $network->{mask} = $mask;
         }
         elsif (check_flag 'unnumbered') {
-            $network->{ip} and error_atline "Duplicate IP address";
+            defined $network->{ip} and error_atline "Duplicate IP address";
             $network->{ip} = 'unnumbered';
         }
         elsif (check_flag 'route_hint') {
@@ -916,7 +916,7 @@ sub read_network( $ ) {
     my $ip = $network->{ip};
 
     # Use 'defined' here because IP may have value '0'.
-    defined $ip or error_atline "Missing network IP";
+    defined $ip or syntax_err "Missing network IP";
     if ($ip eq 'unnumbered') {
 
         # Unnumbered network must not have any other attributes.
@@ -930,6 +930,9 @@ sub read_network( $ ) {
     }
     else {
         my $mask = $network->{mask};
+
+	# Use 'defined' here because mask may have value '0'.
+	defined $mask or syntax_err "Missing network mask";
 
         # Check if network ip matches mask.
         if (($ip & $mask) != $ip) {
