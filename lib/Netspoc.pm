@@ -4103,11 +4103,15 @@ sub find_subnets() {
         }
 
         # We must not set an arbitrary default route
-        # if a network 0.0.0.0/0 exists.
-        if ($auto_default_route && $mask_ip_hash{0}->{0}) {
-            err_msg "auto_default_route must not be activated,",
-              " because $mask_ip_hash{0}->{0}->{name} has IP address 0.0.0.0";
-            $auto_default_route = 0;
+        # if a network 0.0.0.0/0 exists and may be referenced in some rule.
+        if ($auto_default_route && (my $network = $mask_ip_hash{0}->{0})) {
+	    if (not $network->{route_hint}) {
+		err_msg "auto_default_route is set and $network->{name}",
+		  " has IP address 0.0.0.0/0\n",
+		    " either deactivate auto_default_route\n",
+		      " or set attribute 'route_hint' of $network->{name}";
+		$auto_default_route = 0;
+	    }
         }
     }
 }
