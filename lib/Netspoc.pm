@@ -1123,6 +1123,10 @@ sub read_interface( $ ) {
                 $interface->{ip} and error_atline "Duplicate attribute 'ip'";
                 $interface->{ip} = 'unnumbered';
             }
+            elsif (check_flag 'negotiated') {
+                $interface->{ip} and error_atline "Duplicate attribute 'ip'";
+                $interface->{ip} = 'negotiated';
+            }
             elsif (my $string = check_typed_name) {
                 my ($type, $name) = split_typed_name $string;
                 if ($type eq 'nat') {
@@ -1248,8 +1252,8 @@ sub read_interface( $ ) {
             error_atline "Missing IP address";
         }
         if ($interface->{nat}) {
-            if ($interface->{ip} eq 'unnumbered') {
-                error_atline "No NAT supported for unnumbered interface";
+            if ($interface->{ip} =~ /unnumbered|negotiated/) {
+                error_atline "No NAT supported for $interface->{ip} interface";
             }
             elsif (@{ $interface->{ip} } > 1) {
 
@@ -1261,8 +1265,8 @@ sub read_interface( $ ) {
             }
         }
 	if (my $virtual = $interface->{virtual}) {
-	    $interface->{ip} eq 'unnumbered'
-	      and error_atline "No virtual IP supported for unnumbered interface";
+	    $interface->{ip} =~ /unnumbered|negotiated/
+	      and error_atline "No virtual IP supported for $interface->{ip} interface";
 	    grep { $_ == $virtual->{ip} } @{ $interface->{ip} }
 	      and error_atline "Virtual IP redefines standard IP";
 
@@ -1270,8 +1274,8 @@ sub read_interface( $ ) {
 	    push @{ $interface->{ip} }, $virtual->{ip};
 	}
 	if ($interface->{auto_crypto}) {
-	    if ($interface->{ip} eq 'unnumbered') {
-                error_atline "No auto_crypto supported for unnumbered interface";
+	    if ($interface->{ip} =~ /unnumbered|negotiated/) {
+                error_atline "No auto_crypto supported for  $interface->{ip} interface";
             }
 	}
     }
@@ -2554,6 +2558,7 @@ sub link_interface_with_net( $ ) {
         }
     }
     my $ip = $interface->{ip};
+    my $network_ip = $network->{ip};
     if ($ip eq 'short') {
 
         # Nothing to check: short interface may be linked to arbitrary network.
@@ -2563,17 +2568,18 @@ sub link_interface_with_net( $ ) {
           or err_msg "Unnumbered $interface->{name} must not be linked ",
           "to $network->{name}";
     }
+    elsif ($network_ip eq 'unnumbered') {
+	err_msg "$interface->{name} must not be linked ",
+	  "to unnumbered $network->{name}";
+    }
+    elsif ($ip eq 'negotiated') {
+	# Nothing to be checked: negotiated may be linked to any numbered network.
+    }
     else {
 
         # Check compatibility of interface ip and network ip/mask.
-        my $network_ip = $network->{ip};
         my $mask       = $network->{mask};
         for my $interface_ip (@$ip) {
-            if ($network_ip eq 'unnumbered') {
-                err_msg "$interface->{name} must not be linked ",
-                  "to unnumbered $network->{name}";
-                next;
-            }
             if ($network_ip != ($interface_ip & $mask)) {
                 err_msg "$interface->{name}'s IP doesn't match ",
                   "$network->{name}'s IP/mask";
@@ -2694,7 +2700,7 @@ sub link_topology() {
                 {
                     $route_intf = $interface;
                 }
-                unless ($ips eq 'unnumbered') {
+                unless ($ips =~ /unnumbered|negotiated/) {
                     for my $ip (@$ips) {
                         if (my $old_intf = $ip{$ip}) {
                             unless ($ip eq $old_intf->{virtual}->{ip}
@@ -3159,7 +3165,7 @@ sub set_auto_groups () {
     my @all_interfaces;
     for my $router (values %routers) {
         my @interfaces =
-          grep { not $_->{ip} eq 'unnumbered' } @{ $router->{interfaces} };
+          grep { not $_->{ip} =~ /unnumbered|negotiated/ } @{ $router->{interfaces} };
         if ($router->{managed}) {
             push @managed_interfaces, @interfaces;
         }
@@ -3331,13 +3337,8 @@ sub expand_group1( $$ ) {
 	    }
         }
         elsif (is_interface $object) {
-            if ($object->{ip} eq 'unnumbered') {
-                err_msg
-                  "Unnumbered $object->{name} must not be used in $context";
-                $object = undef;
-            }
-            elsif ($object->{ip} eq 'short') {
-                err_msg "Short $object->{name} must not be used in $context";
+            if ($object->{ip} =~ /short|unnumbered|negotiated/) {
+                err_msg "$object->{ip} $object->{name} must not be used in $context";
                 $object = undef;
             }
         }
@@ -3549,7 +3550,7 @@ sub get_auto_interface ( $$$ ) {
     my ($src, $dst, $context) = @_;
     my @result;
     for my $interface (path_first_interfaces $src, $dst) {
-        if ($interface->{ip} =~ /^(unnumbered|short)$/) {
+        if ($interface->{ip} =~ /unnumbered|short|negotiated/) {
             err_msg "'$interface->{ip}' $interface->{name}",
               " (from .[auto])\n", " must not be used in rule of $context";
         }
@@ -5200,6 +5201,30 @@ sub reverse_rule ( $ ) {
     };
 }
 
+# Generate rules to permit crypto traffic between tunnel endpoints.
+sub gen_tunnel_rules ( $$$ ) {
+    my ($intf1, $intf2, $ipsec) = @_;
+    my $use_ah = $ipsec->{ah};
+    my $use_esp = $ipsec->{esp_authentication} || $ipsec->{esp_encryption};
+    my $use_nat_traversal = $ipsec->{key_exchange}->{nat_traversal};
+    my @rules;
+    my $rule = { action => 'permit', src => $intf1, dst => $intf2 };
+    if ($use_nat_traversal) {
+	$rule->{src_range} = $srv_natt->{src_range};
+	$rule->{srv}       = $srv_natt->{dst_range};
+	push @rules, $rule;
+    }
+    else {
+	$rule->{src_range} = $srv_ip;
+	$use_ah  and push @rules, { %$rule, srv => $srv_ah };
+	$use_esp and push @rules, { %$rule, srv => $srv_esp };
+	$rule->{src_range} = $srv_ike->{src_range};
+	$rule->{srv}       = $srv_ike->{dst_range};
+	push @rules, $rule;
+    }
+    return \@rules;
+}
+
 sub expand_crypto () {
     info "Preparing crypto tunnels and expanding crypto rules";
     for my $ipsec (values %ipsec) {
@@ -5229,11 +5254,6 @@ sub expand_crypto () {
               or err_msg "Can't resolve reference to '$type:$name2'",
               " for $name";
             $crypto->{type} = $ipsec;
-            $use_ah = $ipsec->{ah};
-            $use_esp = $ipsec->{esp_authentication} || $ipsec->{esp_encryption};
-            if (my $isakmp = $ipsec->{key_exchange}) {
-                $use_nat_traversal = $isakmp->{nat_traversal};
-            }
         }
         else {
             err_msg "Unknown type '$type' for $name";
@@ -5295,7 +5315,7 @@ sub expand_crypto () {
                 }
                 $intf1 = $tmp;
             }
-            if ($intf1->{ip} =~ /^(unnumbered|short)$/) {
+            if ($intf1->{ip} =~ /unnumbered|short|negotiated/) {
                 err_msg "'$intf1->{ip}' $intf1->{name}\n",
                   " must not be used in tunnel of $name";
             }
@@ -5344,23 +5364,9 @@ sub expand_crypto () {
                   if $intf1->{router}->{managed};
 
                 # Add rules to permit crypto traffic between tunnel endpoints.
-                my @rules;
-                my $rule = { action => 'permit', src => $intf1, dst => $intf2 };
-                if ($use_nat_traversal) {
-                    $rule->{src_range} = $srv_natt->{src_range};
-                    $rule->{srv}       = $srv_natt->{dst_range};
-                    push @rules, $rule;
-                }
-                else {
-                    $rule->{src_range} = $srv_ip;
-                    $use_ah  and push @rules, { %$rule, srv => $srv_ah };
-                    $use_esp and push @rules, { %$rule, srv => $srv_esp };
-                    $rule->{src_range} = $srv_ike->{src_range};
-                    $rule->{srv}       = $srv_ike->{dst_range};
-                    push @rules, $rule;
-                }
-                push @{ $expanded_rules{permit} }, @rules;
-                add_rules \@rules, \%rule_tree;
+                my $rules_ref = gen_tunnel_rules $intf1, $intf2, $crypto->{type};
+                push @{ $expanded_rules{permit} }, @$rules_ref;
+                add_rules $rules_ref, \%rule_tree;
                 $ref2obj{$intf1} = $intf1;
             }
         }
@@ -6742,11 +6748,16 @@ sub address( $$ ) {
         }
     }
     if ($type eq 'Interface') {
-        if ($obj->{ip} eq 'unnumbered' or $obj->{ip} eq 'short') {
+        if ($obj->{ip} =~ /unnumbered|short/) {
             internal_err "Unexpected $obj->{ip} $obj->{name}\n";
         }
+
         my $network = $obj->{network};
         $network = $nat_map->{$network} || $network;
+	if ($obj->{ip} eq 'negotiated') {
+            my ($network_ip, $network_mask) = @{$network}{ 'ip', 'mask' };
+	    return [ $network_ip, $network_mask ];
+	}
         if (my $nat_tag = $network->{dynamic}) {
             if (my $ip = $obj->{nat}->{$nat_tag}) {
 
@@ -7909,7 +7920,7 @@ sub print_acls( $ ) {
             for my $interface (@{ $router->{interfaces} }) {
 
                 # Ignore 'unnumbered' interfaces.
-                next if $interface->{ip} eq 'unnumbered';
+                next if $interface->{ip} =~ /unnumbered|negotiated/;
                 internal_err "Managed router has short $interface->{name}"
                   if $interface->{ip} eq 'short';
 
@@ -8048,7 +8059,7 @@ sub prepare_auto_crypto( $ ) {
 	my $network = $interface->{network};
 	if (@{$network->{interfaces}} == 1) {
 	    if ($local_net) {
-		err_msg "$router must have exacly one local network",
+		err_msg "$router->{name} must have exacly one local network",
 		  " because it has auto_crypto to $peers[0].",
 		    " But there are at least two networks attached:\n",
 		    "$local_net->{name} and $network->{name}";
@@ -8063,11 +8074,16 @@ sub prepare_auto_crypto( $ ) {
 	    }
 	}
     }
-    $local_net or 
+    $local_net or
       err_msg "At least one local network with ID needs to be attached to $router->{name}";
 
     for my $hardware (@{ $router->{hardware} }) {
-	next if $hardware->{interfaces}->[0]->{network} eq $local_net;
+	my $interfaces = $hardware->{interfaces};
+	@$interfaces > 1 and 
+	  err_msg "Interface $hardware->{name} of $router->{name} must have extly one",
+	    "logical interface";
+	my $interface = $interfaces->[0];
+	next if $interface->{network} eq $local_net;
 	my $crypto_map = { crypto => { type => $ipsec },
 			   peers => \@peers,
 
@@ -8092,6 +8108,10 @@ sub prepare_auto_crypto( $ ) {
 	    } else {
 		push @crypto_rules, $rule;
 	    }
+	}
+	for my $peer (@peers) {
+	    my $rules_ref = gen_tunnel_rules $peer, $interface, $ipsec;
+	    push @real_rules, @$rules_ref;
 	}
 	$hardware->{intf_rules} = \@real_rules;
 	$crypto_map->{intf_rules} = \@crypto_rules;
@@ -8288,13 +8308,12 @@ sub print_crypto( $ ) {
               and print "$prefix set ip access-group $crypto_filter_name in\n";
 
 	    # Auto_crypto case allows multiple peers.
-	    my @peers = @{$map->{peers}};
-	    @peers or @peers = ($map->{peer});
+	    my @peers = $map->{peers} ? @{$map->{peers}} : ($map->{peer});
 	    
 	    for my $peer (@peers) {
 
 		# Take first IP.
-		# Unnumbered and short interfaces have been rejected already.
+		# Unnumbered, negotiated and short interfaces have been rejected already.
 		my $peer_ip = print_ip $peer->{ip}->[0];
 		print "$prefix set peer $peer_ip\n";
 	    }
