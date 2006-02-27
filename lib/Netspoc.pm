@@ -1875,18 +1875,20 @@ sub read_attributed_object( $$ ) {
     return $object;
 }
 
+# Some attributes are currently commented out,
+# because they aren't supported by backendcurrently
 my %isakmp_attributes = (
-    identity      => { values => [qw( address fqdn )], },
+#    identity      => { values => [qw( address fqdn )], },
     nat_traversal => {
         values  => [qw( on off )],
         default => 'off',
         map     => { off => undef }
     },
-    authentication => { values   => [qw( preshare rsasig )], },
+#    authentication => { values   => [qw( preshare rsasig )], },
     encryption     => { values   => [qw( aes aes192 des 3des )], },
     hash           => { values   => [qw( md5 sha )], },
     group          => { values   => [qw( 1 2 5 )], },
-    lifetime       => { function => \&read_time_val, },
+#    lifetime       => { function => \&read_time_val, },
 );
 
 our %isakmp;
@@ -1918,7 +1920,7 @@ my %ipsec_attributes = (
         default => 'none',
         map     => { none => undef }
     },
-    lifetime => { function => \&read_time_val, },
+#    lifetime => { function => \&read_time_val, },
 );
 
 our %ipsec;
@@ -8185,9 +8187,11 @@ sub print_crypto( $ ) {
     # Handle ISAKMP definition.
     my $isakmp   = $ipsec->{key_exchange};
     my $prefix   = $crypto_type eq 'IOS' ? 'crypto isakmp' : 'isakmp';
-    my $identity = $isakmp->{identity};
-    $identity = 'hostname' if $identity eq 'fqdn';
-    print "$prefix identity $identity\n";
+
+# Currently not supported by backend.
+#    my $identity = $isakmp->{identity};
+#    $identity = 'hostname' if $identity eq 'fqdn';
+#    print "$prefix identity $identity\n";
     if ($isakmp->{nat_traversal}) {
         print "$prefix nat-traversal\n";
     }
@@ -8198,18 +8202,23 @@ sub print_crypto( $ ) {
     else {
         $prefix = "isakmp policy 1";
     }
-    my $authentication = $isakmp->{authentication};
-    $authentication =~ s/preshare/pre-share/;
-    $authentication =~ s/rsasig/rsa-sig/;
-    print "$prefix authentication $authentication\n";
+
+# Currently not supported by backend.
+#    my $authentication = $isakmp->{authentication};
+#    $authentication =~ s/preshare/pre-share/;
+#    $authentication =~ s/rsasig/rsa-sig/;
+#    print "$prefix authentication $authentication\n";
+
     my $encryption = $isakmp->{encryption};
     print "$prefix encryption $encryption\n";
     my $hash = $isakmp->{hash};
     print "$prefix hash $hash\n";
     my $group = $isakmp->{group};
     print "$prefix group $group\n";
-    my $lifetime = $isakmp->{lifetime};
-    print "$prefix lifetime $lifetime\n";
+
+# Currently not supported by backend.
+#    my $lifetime = $isakmp->{lifetime};
+#    print "$prefix lifetime $lifetime\n";
 
     # Handle IPSEC definition.
     my $transform = '';
@@ -8246,8 +8255,10 @@ sub print_crypto( $ ) {
     # Syntax is identical for IOS and PIX.
     my $transform_name = 'Trans';
     print "crypto ipsec transform-set $transform_name $transform\n";
-    print "crypto ipsec security-association lifetime seconds",
-      " $ipsec->{lifetime}\n";
+
+# Currently not supported by backend.
+#    print "crypto ipsec security-association lifetime seconds",
+#      " $ipsec->{lifetime}\n";
     my $pfs_group = $ipsec->{pfs_group};
     if ($pfs_group =~ /^(1|2)$/) {
         $pfs_group = "group$1";
