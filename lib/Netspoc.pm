@@ -3555,10 +3555,14 @@ sub get_auto_interface ( $$$ ) {
     my ($src, $dst, $context) = @_;
     my @result;
     for my $interface (path_first_interfaces $src, $dst) {
-        if ($interface->{ip} =~ /unnumbered|short|negotiated/) {
+        if ($interface->{ip} =~ /short/) {
             err_msg "'$interface->{ip}' $interface->{name}",
               " (from .[auto])\n", " must not be used in rule of $context";
         }
+	elsif ($interface->{ip} =~ /unnumbered|negotiated/) {
+
+	    # Ignore unnumbered and negotiated interfaces.
+	}
         else {
             push @result, $interface;
         }
@@ -6142,6 +6146,11 @@ sub mark_networks_for_static( $$$ ) {
         next RULE;
     }
 
+    if ($dst->{mask} == 0) {
+	err_msg "$router->{name} doesn't support static command for ",
+	  "mask 0.0.0.0 in dst of ", print_rule $rule;
+    }
+
     # Put networks into a hash to prevent duplicates.
     $out_hw->{static}->{$in_hw}->{$dst} = $dst;
 
@@ -6420,13 +6429,11 @@ sub print_pix_static( $ ) {
             for my $network (@networks) {
                 next unless defined $network;
                 my ($in_ip, $in_mask, $in_dynamic) =
-                  @{ $in_nat->{$network} || $network }{ 'ip', 'mask',
-                    'dynamic' };
+                  @{ $in_nat->{$network} || $network }{ 'ip', 'mask', 'dynamic' };
                 my ($out_ip, $out_mask, $out_dynamic) =
-                  @{ $out_nat->{$network} || $network }{ 'ip', 'mask',
-                    'dynamic' };
+                  @{ $out_nat->{$network} || $network }{ 'ip', 'mask', 'dynamic' };
                 if ($in_mask == 0 || $out_mask == 0) {
-                    err_msg "Pix doesn't support static command for ",
+                    err_msg "$router->{name} doesn't support static command for ",
                       "mask 0.0.0.0 of $network->{name}\n";
                 }
 
@@ -6584,11 +6591,13 @@ sub distribute_rule( $$$;$ ) {
         }
     }
 
-    # VPN3K: At interfaces without tag 'no_check',
+    # VPN3K: At interfaces without tag 'no_check' and traffic not for this device
     # src  of rule must only be host or network with ID.
-    if ($router->{model}->{name} eq 'VPN3K' and not $in_intf->{no_check}) {
+    if ($router->{model}->{name} eq 'VPN3K' 
+	and not $in_intf->{no_check}
+	and $out_intf) {
 	my $src = $rule->{src};
-	if ($src->{id}) {
+	if ($src->{id} || (is_subnet $src || is_interface $src) && $src->{network}->{id}) {
 	    if (is_network $src and $in_intf->{auto_crypto}) {
 
 		# Automatically generate IPSec-Tunnel to corresponding router.
