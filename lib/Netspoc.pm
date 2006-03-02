@@ -1880,7 +1880,7 @@ sub read_attributed_object( $$ ) {
 my %isakmp_attributes = (
     identity      => { values => [qw( address fqdn )], },
     nat_traversal => {
-        values  => [qw( on off )],
+        values  => [qw( on additional off )],
         default => 'off',
         map     => { off => undef }
     },
@@ -5219,21 +5219,20 @@ sub gen_tunnel_rules ( $$$ ) {
     my ($intf1, $intf2, $ipsec) = @_;
     my $use_ah = $ipsec->{ah};
     my $use_esp = $ipsec->{esp_authentication} || $ipsec->{esp_encryption};
-    my $use_nat_traversal = $ipsec->{key_exchange}->{nat_traversal};
+    my $nat_traversal = $ipsec->{key_exchange}->{nat_traversal};
     my @rules;
     my $rule = { action => 'permit', src => $intf1, dst => $intf2 };
-    if ($use_nat_traversal) {
-	$rule->{src_range} = $srv_natt->{src_range};
-	$rule->{srv}       = $srv_natt->{dst_range};
-	push @rules, $rule;
+    if ($nat_traversal) {
+	push @rules, { %$rule,
+		       src_range => $srv_natt->{src_range},
+		       srv       => $srv_natt->{dst_range} };
     }
-    else {
-	$rule->{src_range} = $srv_ip;
-	$use_ah  and push @rules, { %$rule, srv => $srv_ah };
-	$use_esp and push @rules, { %$rule, srv => $srv_esp };
-	$rule->{src_range} = $srv_ike->{src_range};
-	$rule->{srv}       = $srv_ike->{dst_range};
-	push @rules, $rule;
+    if (not $nat_traversal or $nat_traversal ne 'on') {
+	$use_ah  and push @rules, { %$rule, src_range => $srv_ip, srv => $srv_ah };
+	$use_esp and push @rules, { %$rule, src_range => $srv_ip, srv => $srv_esp };
+	push @rules, { %$rule,
+		       src_range => $srv_ike->{src_range},
+		       srv       => $srv_ike->{dst_range} };
     }
     return \@rules;
 }
