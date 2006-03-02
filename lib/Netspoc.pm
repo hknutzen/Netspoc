@@ -2708,8 +2708,10 @@ sub link_topology() {
                 unless ($ips =~ /unnumbered|negotiated/) {
                     for my $ip (@$ips) {
                         if (my $old_intf = $ip{$ip}) {
-                            unless ($ip eq $old_intf->{virtual}->{ip}
-                                and $ip eq $interface->{virtual}->{ip})
+                            unless ($old_intf->{virtual}
+				    and $interface->{virtual}
+				    and $ip eq $old_intf->{virtual}->{ip}
+				    and $ip eq $interface->{virtual}->{ip})
                             {
                                 err_msg "Duplicate IP address for",
                                   " $old_intf->{name} and $interface->{name}";
