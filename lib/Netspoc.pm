@@ -5222,17 +5222,17 @@ sub gen_tunnel_rules ( $$$ ) {
     my $nat_traversal = $ipsec->{key_exchange}->{nat_traversal};
     my @rules;
     my $rule = { action => 'permit', src => $intf1, dst => $intf2 };
-    if ($nat_traversal) {
-	push @rules, { %$rule,
-		       src_range => $srv_natt->{src_range},
-		       srv       => $srv_natt->{dst_range} };
-    }
     if (not $nat_traversal or $nat_traversal ne 'on') {
 	$use_ah  and push @rules, { %$rule, src_range => $srv_ip, srv => $srv_ah };
 	$use_esp and push @rules, { %$rule, src_range => $srv_ip, srv => $srv_esp };
 	push @rules, { %$rule,
 		       src_range => $srv_ike->{src_range},
 		       srv       => $srv_ike->{dst_range} };
+    }
+    if ($nat_traversal) {
+	push @rules, { %$rule,
+		       src_range => $srv_natt->{src_range},
+		       srv       => $srv_natt->{dst_range} };
     }
     return \@rules;
 }
