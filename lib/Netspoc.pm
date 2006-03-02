@@ -6594,9 +6594,7 @@ sub distribute_rule( $$$;$ ) {
 
     # VPN3K: At interfaces without tag 'no_check' and traffic not for this device
     # src of rule must only be host or network with ID.
-    if ($router->{model}->{name} eq 'VPN3K' 
-	and not $in_intf->{no_check}
-	and $out_intf) {
+    if ($router->{model}->{name} eq 'VPN3K' and $out_intf) {
 	my $src = $rule->{src};
 	if ($src->{id} || (is_subnet $src || is_interface $src) && $src->{network}->{id}) {
 	    if ($in_intf->{auto_crypto}) {
@@ -6606,10 +6604,10 @@ sub distribute_rule( $$$;$ ) {
 		my $peer = $src->{interfaces}->[0]->{router};
 		$peer->{auto_crypto_peer}->{$in_intf} = $in_intf;
 	    }
-	} else {
+	} elsif ( not $in_intf->{no_check} ) {
 	    err_msg
 	      "Source of rule must have ID when entering $in_intf->{name} in rule\n ",
-	      print_rule $rule;
+		print_rule $rule;
 	}
     }
     my $aref;
