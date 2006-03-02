@@ -8204,7 +8204,7 @@ sub print_crypto( $ ) {
 	# Don't print default value for backend IOS.
 	print "$prefix identity $identity\n";
     }
-    if ($isakmp->{nat_traversal} eq 'on') {
+    if ($isakmp->{nat_traversal} and $isakmp->{nat_traversal} eq 'on') {
         print "$prefix nat-traversal\n";
     }
     if ($crypto_type eq 'IOS') {
