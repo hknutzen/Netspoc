@@ -6592,15 +6592,16 @@ sub distribute_rule( $$$;$ ) {
     }
 
     # VPN3K: At interfaces without tag 'no_check' and traffic not for this device
-    # src  of rule must only be host or network with ID.
+    # src of rule must only be host or network with ID.
     if ($router->{model}->{name} eq 'VPN3K' 
 	and not $in_intf->{no_check}
 	and $out_intf) {
 	my $src = $rule->{src};
 	if ($src->{id} || (is_subnet $src || is_interface $src) && $src->{network}->{id}) {
-	    if (is_network $src and $in_intf->{auto_crypto}) {
+	    if ($in_intf->{auto_crypto}) {
 
 		# Automatically generate IPSec-Tunnel to corresponding router.
+		$src = $src->{network} if is_subnet $src || is_interface $src;
 		my $peer = $src->{interfaces}->[0]->{router};
 		$peer->{auto_crypto_peer}->{$in_intf} = $in_intf;
 	    }
