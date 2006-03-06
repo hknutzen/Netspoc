@@ -2700,12 +2700,12 @@ sub link_topology() {
                 $short_intf = $interface;
             }
             else {
-                if ($interface->{router}->{managed}
-                    and not $interface->{routing})
-                {
-                    $route_intf = $interface;
-                }
                 unless ($ips =~ /unnumbered|negotiated/) {
+		    if ($interface->{router}->{managed}
+			and not $interface->{routing})
+		    {
+			$route_intf = $interface;
+		    }
                     for my $ip (@$ips) {
                         if (my $old_intf = $ip{$ip}) {
                             unless ($old_intf->{virtual}
@@ -3344,7 +3344,7 @@ sub expand_group1( $$ ) {
 	    }
         }
         elsif (is_interface $object) {
-            if ($object->{ip} =~ /short|unnumbered|negotiated/) {
+            if ($object->{ip} =~ /short|unnumbered/) {
                 err_msg "$object->{ip} $object->{name} must not be used in $context";
                 $object = undef;
             }
@@ -6294,9 +6294,9 @@ sub print_routes( $ ) {
         my $nat_map = $interface->{nat_map};
         for my $hop (@{ $interface->{hop} }) {
 
-            # For unnumbered networks use interface name as next hop.
+            # For unnumbered and negotiated networks use interface name as next hop.
             my $hop_addr =
-                $hop->{ip} eq 'unnumbered'
+                $interface->{ip} =~ 'unnumbered|negotiated'
               ? $interface->{hardware}->{name}
               : $hop->{virtual}
               ?
@@ -6772,8 +6772,17 @@ sub address( $$ ) {
 
         my $network = $obj->{network};
         $network = $nat_map->{$network} || $network;
+
+	# Negotiated interfaces are dangerous:
+	# If the attaches network has address 0.0.0.0/0,
+	# we would accidently permit 'any'.
+	# We allow this only, if local networks are protected by auto_crypto.
 	if ($obj->{ip} eq 'negotiated') {
             my ($network_ip, $network_mask) = @{$network}{ 'ip', 'mask' };
+	    if ($network_mask eq 0 and not $obj->{router}->{auto_crypto_peer}) {
+		err_msg "$obj->{name} has negotiated IP in range 0.0.0.0/0.\n",
+		  "This is only allowed for interfaces where auto_crypto is active.";
+	    }
 	    return [ $network_ip, $network_mask ];
 	}
         if (my $nat_tag = $network->{dynamic}) {
@@ -8121,7 +8130,8 @@ sub prepare_auto_crypto( $ ) {
 	my @crypto_rules;
 	my @real_rules;
 	for my $rule (@{$hardware->{intf_rules}}) {
-	    if (grep { $rule->{src} eq $_ } @{$hardware->{interfaces}} ) {
+	    if (grep
+		{ $rule->{src} eq $_ or $rule->{dst} eq $_ } @{$hardware->{interfaces}} ) {
 		push @real_rules, $rule;
 	    } else {
 		push @crypto_rules, $rule;
