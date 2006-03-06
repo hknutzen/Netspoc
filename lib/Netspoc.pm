@@ -618,10 +618,12 @@ sub read_list(&) {
     while (1) {
         push @vals, &$fun;
         last if check ';';
-        check ',';
+        my $comma_seen = check ',';
 
         # Allow trailing comma.
         last if check ';';
+
+	$comma_seen or syntax_err "Comma expected in list of values";
     }
     return @vals;
 }
