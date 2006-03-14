@@ -7004,8 +7004,8 @@ sub iptables_srv_code( $$ ) {
         my $sport  = $port_code->(@{ $src_range->{range} });
         my $dport  = $port_code->(@{ $srv->{range} });
         my $result = "-p $proto";
-        $result .= " -sport $sport" if $sport;
-        $result .= " -dport $dport" if $dport;
+        $result .= " --sport $sport" if $sport;
+        $result .= " --dport $dport" if $dport;
         $srv->{established}
           and internal_err "Unexpected service $srv->{name} with",
           " 'established' flag while generating code for iptables";
