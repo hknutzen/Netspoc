@@ -2399,10 +2399,10 @@ my $srv_natt = {
 };
 
 # IPSec: encryption security payload.
-my $srv_esp = { name => 'auto_srv:IPSec_ESP', proto => 50 };
+my $srv_esp = { name => 'auto_srv:IPSec_ESP', proto => 50, prio => 100, };
 
 # IPSec: authentication header.
-my $srv_ah = { name => 'auto_srv:IPSec_AH', proto => 51 };
+my $srv_ah = { name => 'auto_srv:IPSec_AH', proto => 51, prio => 99, };
 
 # Port range 'TCP any'; assigned in sub order_services below.
 my $range_tcp_any;
@@ -6677,6 +6677,16 @@ sub distribute_rule_at_dst( $$$ ) {
 
 sub rules_distribution() {
     info "Distributing rules";
+
+    # Sort rules by reverse priority of service.
+    # This should be done late to get all auxilliary rules processed.
+    for my $type ('deny', 'any', 'permit') {
+	$expanded_rules{$type} = [ sort { ($b->{srv}->{prio} || 0)
+					    <=> 
+					  ($a->{srv}->{prio} || 0) }
+				   @{$expanded_rules{$type}}
+				 ];
+    }
 
     # Deny rules
     for my $rule (@{ $expanded_rules{deny} }) {
