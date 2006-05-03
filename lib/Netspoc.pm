@@ -7683,6 +7683,7 @@ sub local_optimization() {
 				# get_networks has a single result if
 				# not called with an 'any' object as argument.
 				$src = get_networks $src;
+				$ref2obj{$src} = $src;
 			    }
                             $dst = $rule->{dst};
                             if (not(is_interface $dst and
@@ -7692,6 +7693,7 @@ sub local_optimization() {
 				    $is_vpn3k))
                             {
                                 $dst = get_networks $dst;
+				$ref2obj{$dst} = $dst;
                             }
 
                             # Don't modify original rule, because the
