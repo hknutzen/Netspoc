@@ -4081,7 +4081,10 @@ sub find_subnets() {
                         # This may differ for different NAT domains.
                         $subnet->{is_in}->{$nat_map} = $bignet;
                         if ($strict_subnets) {
-                            $bignet = $nat_map->{$bignet} || $bignet;
+
+			    # Take original $bignet, because currently 
+			    # there's no way to specify a natted network
+			    # as value of subnet_of.
                             $subnet = $nat_map->{$subnet} || $subnet;
                             unless ($bignet->{route_hint}
                                 or $subnet->{subnet_of}
