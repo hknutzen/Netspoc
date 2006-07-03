@@ -831,6 +831,9 @@ sub read_nat( $ ) {
               and error_atline "Duplicate attribute 'subnet_of'";
             $nat->{subnet_of} = $subnet;
         }
+	else {
+	    syntax_err "Expected some valid NAT attribute";
+	}
     }
     $nat->{ip} or error_atline "Missing IP address";
     $nat_definitions{$nat_tag} = 1;
