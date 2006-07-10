@@ -6446,17 +6446,18 @@ sub print_pix_static( $ ) {
                       "mask 0.0.0.0 of $network->{name}\n";
                 }
 
+		# Ignore dynamic translation, which doesn't occur
+		# at current router
+		if ($out_dynamic and $in_dynamic and 
+		    $out_dynamic eq $in_dynamic) {
+		    $out_dynamic = $in_dynamic = undef;
+		}
+
                 # We are talking about destination addresses.
                 if ($out_dynamic) {
-                    unless ($in_dynamic
-                        && $in_dynamic eq $out_dynamic
-                        && $in_ip      eq $out_ip
-                        and $in_mask   eq $out_mask)
-                    {
-                        warn_msg "Ignoring NAT for dynamically translated ",
-                          "$network->{name}\n",
-                          "at hardware $out_hw->{name} of $router->{name}";
-                    }
+		    warn_msg "Ignoring NAT for dynamically translated ",
+		      "$network->{name}\n",
+			"at hardware $out_hw->{name} of $router->{name}";
                 }
                 elsif ($in_dynamic) {
 
@@ -6494,7 +6495,8 @@ sub print_pix_static( $ ) {
                         }
                     }
                 }
-                else {    # both static
+		# Both static or dynamic at other router.
+                else { 
                     if (   $in_hw->{level} < $out_hw->{level}
                         || $out_hw->{need_always_static}
                         || $in_ip ne $out_ip)
