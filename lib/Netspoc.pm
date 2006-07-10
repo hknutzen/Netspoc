@@ -3084,6 +3084,7 @@ sub convert_hosts() {
                             }
                             $subnet->{up}   = $up;
                             $neighbor->{up} = $up;
+			    push @{ $network->{subnets} }, $up;
 
                             # Don't search for enclosing subnet below.
                             next;
@@ -3467,8 +3468,8 @@ our %expanded_rules = (deny => [], any => [], permit => []);
 my %rule_tree;
 my %reverse_rule_tree;
 
-# Hash for converting a reference of an object back to this object.
-my %ref2obj;
+# Hash for converting a reference of an service back to this service.
+my %ref2srv;
 
 # Add rules to $rule_tree for efficient lookup.
 sub add_rules( $$ ) {
@@ -3476,8 +3477,8 @@ sub add_rules( $$ ) {
     for my $rule (@$rules_ref) {
         my ($action, $src, $dst, $src_range, $srv) =
           @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
-        $ref2obj{$src_range} = $src_range;
-        $ref2obj{$srv}       = $srv;
+        $ref2srv{$src_range} = $src_range;
+        $ref2srv{$srv}       = $srv;
 
         # A rule with an interface as destination may be marked as deleted
         # during global optimization. But in some cases, code for this rule
@@ -3658,17 +3659,14 @@ sub expand_rules ( $$$ ) {
 
                     # Prevent modification of original array.
                     my $src = $src;
-                    $ref2obj{$src} = $src;
                     for my $dst (@dst) {
                         my $dst = $dst;    # Prevent ...
                         if ($src eq 'any:[local]') {
                             $src = get_any_local($dst);
-                            $ref2obj{$src} = $src;
                         }
                         if ($dst eq 'any:[local]') {
                             $dst = get_any_local($src);
                         }
-                        $ref2obj{$dst} = $dst;
                         for my $srv (@{ $unexpanded->{srv} }) {
 
                             # If $srv is duplicate of an identical service,
@@ -5389,7 +5387,6 @@ sub expand_crypto () {
                 my $rules_ref = gen_tunnel_rules $intf1, $intf2, $crypto->{type};
                 push @{ $expanded_rules{permit} }, @$rules_ref;
                 add_rules $rules_ref, \%rule_tree;
-                $ref2obj{$intf1} = $intf1;
             }
         }
 
@@ -5432,7 +5429,6 @@ sub expand_crypto () {
 
             # crypto_rule_tree is used to efficiently decide,
             # if a policy rule fully uses a tunnel or not.
-            # $ref2obj has already been filled by expand_rules
             $start->{crypto_rule_tree}->{$action}->{$src}->{$dst}->{$src_range}
               ->{$srv} = $crypto_map;
 
@@ -5908,6 +5904,21 @@ sub mark_secondary_rules() {
     }
 }
 
+# Hash for converting a reference of an object back to this object.
+my %ref2obj;
+
+sub setup_ref2obj () {
+    for my $network (@networks) {
+	$ref2obj{$network} = $network;
+	for my $obj (@{$network->{subnets}}, @{$network->{interfaces}}) {
+	    $ref2obj{$obj} = $obj;
+	}
+    }
+    for my $any (@all_anys) {
+	$ref2obj{$any} = $any;
+    }
+}
+
 ##############################################################################
 # Optimize expanded rules by deleting identical rules and
 # rules which are overlapped by a more general rule
@@ -5934,7 +5945,7 @@ sub optimize_rules( $$ ) {
                                             my $chg_hash =
                                               $chg_hash->{$src_range_ref};
                                             my $src_range =
-                                              $ref2obj{$src_range_ref};
+                                              $ref2srv{$src_range_ref};
                                             while (1) {
                                                 if (my $cmp_hash =
                                                     $cmp_hash->{$src_range})
@@ -5988,6 +5999,7 @@ sub optimize_rules( $$ ) {
 
 sub optimize() {
     info "Optimizing globally";
+    setup_ref2obj;
     optimize_rules \%rule_tree, \%rule_tree;
 }
 
@@ -7501,7 +7513,7 @@ sub join_ranges ( $) {
 
                     # $href is {src_port => href, ...}
                     for my $src_range_ref (keys %$href) {
-                        my $src_range = $ref2obj{$src_range_ref};
+                        my $src_range = $ref2srv{$src_range_ref};
                         my $href      = $href->{$src_range_ref};
 
                         # Values of %$href are rules with identical
@@ -7691,7 +7703,6 @@ sub local_optimization() {
 				# get_networks has a single result if
 				# not called with an 'any' object as argument.
 				$src = get_networks $src;
-				$ref2obj{$src} = $src;
 			    }
                             $dst = $rule->{dst};
                             if (not(is_interface $dst and
@@ -7701,7 +7712,6 @@ sub local_optimization() {
 				    $is_vpn3k))
                             {
                                 $dst = get_networks $dst;
-				$ref2obj{$dst} = $dst;
                             }
 
                             # Don't modify original rule, because the
