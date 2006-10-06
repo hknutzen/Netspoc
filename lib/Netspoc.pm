@@ -1387,6 +1387,20 @@ sub read_router( $ ) {
 	      error_atline "Duplicate attribute 'radius_attributes'";
 	    $router->{radius_attributes} = $radius_attributes;
 	}
+	elsif (my @vpn_host_addresses =
+	       check_assign_list 'vpn_host_addresses',
+	       sub {
+		   my ($ip, $prefixlen) = read_ip_opt_prefixlen;
+		   defined $prefixlen or
+		     error_atline "Missing prefixlen after IP";
+		   my $mask = prefix2mask $prefixlen;
+		   return [ $ip, $mask ];
+	       } )
+	{
+	    $router->{vpn_host_addresses} and
+	      error_atline "Redefining 'vpn_host_addresses' attribute";
+	    $router->{vpn_host_addresses} = \@vpn_host_addresses;
+	}
         else {
             my $string = read_typed_name;
             my ($type, $network) = split_typed_name $string;
@@ -1480,10 +1494,22 @@ sub read_router( $ ) {
 	      err_msg "Attribute 'radius_servers' needs to be defined",
 		" for $name";
 	    $router->{radius_attributes} ||= {};
+
+	    # Don't support NAT for VPN3K, otherwise check for 'vpn_host_addresses'
+	    # will become more difficult.
+	    grep { $_->{bind_nat} } @{$router->{interfaces}}
+	      and err_msg "Attribute 'bind_nat' is not allowed",
+		" at interface of $router->{name} of type $router->{model}->{name}";
+	    $managed eq 'secondary' or
+	      err_msg "$router->{name} of type $router->{model}->{name}",
+		"needs to be managed 'secondary'";
 	}
 	else {
 	    $router->{radius_attributes}
 	      and err_msg "Attribute 'radius_attributes' is not allowed",
+		" for $router->{name}";
+	    $router->{vpn_host_addresses}
+	      and err_msg "Attribute 'vpn_host_addresses' is not allowed",
 		" for $router->{name}";
 	    grep { $_->{no_check} } @{$router->{interfaces}}
 	      and err_msg "Attribute 'no_check' is not allowed",
@@ -7758,7 +7784,7 @@ sub print_xml( $ ) {
     if (not $ref) {
 	print "$arg";
     } elsif ($ref eq 'HASH') {
-	for my $tag (keys %$arg) {
+	for my $tag (sort keys %$arg) {
 	    print "<$tag>";
 	    print_xml $arg->{$tag};
 	    print "</$tag>\n"
@@ -7773,25 +7799,53 @@ sub print_xml( $ ) {
 sub print_vpn3k( $ ) {
     my ($router) = @_;
     my $model = $router->{model};
+
+    # Build a hash of hashes of ... which will later be converted to XML.
     my %vpn_config = ();
     ($vpn_config{'vpn-device'} = $router->{name})  =~ s/^router://;
     $vpn_config{'aaa-server'} =
       [ map { { radius => print_ip $_->{ips}->[0] } }
 	    @{ $router->{radius_servers} } ];
+
+    # Build a sub structure of %vpn_config
     my @entries = ();
+
+    # nat_map of all hardware interfaces is identical, because we don't allow
+    # bind_nat at vpn3k devices.
+    # Hence we can take nat_map of first hardware interface.
+    my $nat_map = $router->{hardware}->[0]->{nat_map};
+
+    # Check if each id belongs to a single src object.
+    my %id_src;
+
+    # Collection of networks with ID hosts at current device.
+    my %vpn_host_addresses;
+
     for my $hardware (@{ $router->{hardware} }) {
-        my $hw_name = $hardware->{name};
-        my $nat_map = $hardware->{nat_map};
 
 	# Rules of $hardware->{intf_rules} are ignored.
 	# Protection for device must currently be configured manually.
 
-	# Collect rules belonging to a single authenticated user or network.
-	my %id_rules;
 	for my $rule (@{ $hardware->{rules} }) {
 	    my $src = $rule->{src};
-	    if ($src->{id}) {
-		push @{ $id_rules{$src} }, $rule;
+	    if (my $id = $src->{id}) {
+		if (my $old_src = $id_src{$id}) {
+		    $old_src eq $src or
+		      err_msg "$src->{name} and $old_src->{name} must not have",
+			" identical id:$id";
+		} else {
+
+		    # Collect all authenticated users or networks.
+		    push @{$hardware->{id_src}}, $src;
+
+		    # Mark networks of teleworker to be protected by deny rules.
+		    # (see below)
+		    if (is_subnet $src) {
+			my $network = $src->{network};
+			$network->{vpn3k} = $router;
+			$vpn_host_addresses{$network} = $network;
+		    }
+		}
 	    } elsif ((is_subnet $src || is_interface $src)
 		     && $src->{network}->{id}) {
 		internal_err "Unexpected src $src->{name} in rule",
@@ -7805,8 +7859,69 @@ sub print_vpn3k( $ ) {
 		# They are silently ignored and should be filtered manually.
 	    }
 	}
-	for my $rules (values %id_rules) {
-	    my $src = $rules->[0]->{src};
+    }
+
+
+    if (not defined $router->{vpn_host_addresses}) {
+	$router->{vpn_host_addresses} = 
+	  [ map { address $_, $nat_map } values %vpn_host_addresses ];
+    }
+
+    # Error checking.
+    for my $network (@networks) {
+	next if $network->{ip} eq 'unnumbered';
+	my($ip, $mask) = @{address $network, $nat_map};
+
+	# Check if $network is subnet of at least one element of
+	# vpn_host_addresses.
+	my $matched = 0;
+	for my $pair (@{$router->{vpn_host_addresses}}) {
+	    my ($check_ip, $check_mask) = @$pair;
+	    if ($mask >= $check_mask and $check_ip == ($ip & $check_mask)) {
+		$matched = $pair;
+		last;
+	    }
+	}
+
+	# $network has vpn hosts accessing this router.
+	if ($network->{vpn3k}) {
+	    if (not $matched) {
+		err_msg
+		  "Address of $network->{name} must be subnet of one element of",
+		    " attribute 'vpn_host_addresses' of $router->{name}";
+	    }
+	}
+
+	# $network has not vpn hosts accessing this router.
+	else {
+	    if ($matched and not $network->{route_hint}) {
+
+		# Convert [ ip, mask ] to "ip.ip.ip.ip/prefix".
+		my $match = prefix_code $matched;
+		err_msg
+		  "Address of $network->{name} must not be subnet of element",
+		    " $match of attribute 'vpn_host_addresses'",
+		      " of $router->{name}";
+	    }
+	}
+
+	# Tidy up for processing of next vpn3k device.
+	delete $network->{vpn3k};
+    }
+
+    my @deny_rules;
+    for my $pair (@{$router->{vpn_host_addresses}}) {
+
+	# 2nd argument: inverted mask.
+	my $src_code = ios_code $pair, 1;
+	push @deny_rules, "deny ip $src_code any";
+    }
+
+    for my $hardware (@{ $router->{hardware} }) {
+	my $src_aref = delete $hardware->{id_src} or next;
+        my $hw_name = $hardware->{name};
+
+	for my $src (@$src_aref) {
 	    my %entry;
 	    $entry{'Called-Station-Id'} = $hw_name;
 	    if (is_subnet $src) {
@@ -7835,25 +7950,12 @@ sub print_vpn3k( $ ) {
 	    } else {
 		internal_err "Unexpected src $src->{name}";
 	    }
-	    my @in_acl;
-	    for my $rule (@$rules) {
-		my ($action, $src, $dst, $src_range, $srv) =
-		  @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
-		my ($proto_code, $src_port_code, $dst_port_code) =
-		  cisco_srv_code($src_range, $srv, $model);
-		my $spair = address $src, $nat_map;
-		for my $dpair (address($dst, $nat_map)) {
 
-		    # 2nd argument: inverted mask.
-		    my $src_code = ios_code($spair, 1);
-		    my $dst_code = ios_code($dpair, 1);
-		    my $code =
-		      "$action $proto_code $src_code $src_port_code" .
-			" $dst_code $dst_port_code";
-		    push @in_acl, { ace => $code };
-		}
-	    }
-	    $entry{in_acl} = \@in_acl;
+	    my $spair = address $src, $nat_map;
+	    # 2nd argument: inverted mask.
+	    my $src_code = ios_code($spair, 1);
+	    my $permit_rule = "permit ip $src_code any";
+	    $entry{in_acl} = [ map { { ace => $_ } } @deny_rules, $permit_rule ];
 	    push @entries, { user_entry => \%entry };
 	}
     }
