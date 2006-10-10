@@ -1387,20 +1387,6 @@ sub read_router( $ ) {
 	      error_atline "Duplicate attribute 'radius_attributes'";
 	    $router->{radius_attributes} = $radius_attributes;
 	}
-	elsif (my @vpn_host_addresses =
-	       check_assign_list 'vpn_host_addresses',
-	       sub {
-		   my ($ip, $prefixlen) = read_ip_opt_prefixlen;
-		   defined $prefixlen or
-		     error_atline "Missing prefixlen after IP";
-		   my $mask = prefix2mask $prefixlen;
-		   return [ $ip, $mask ];
-	       } )
-	{
-	    $router->{vpn_host_addresses} and
-	      error_atline "Redefining 'vpn_host_addresses' attribute";
-	    $router->{vpn_host_addresses} = \@vpn_host_addresses;
-	}
         else {
             my $string = read_typed_name;
             my ($type, $network) = split_typed_name $string;
@@ -1495,8 +1481,8 @@ sub read_router( $ ) {
 		" for $name";
 	    $router->{radius_attributes} ||= {};
 
-	    # Don't support NAT for VPN3K, otherwise check for 'vpn_host_addresses'
-	    # will become more difficult.
+	    # Don't support NAT for VPN3K, otherwise code generation for vpn3k
+	    # devices will become more difficult.
 	    grep { $_->{bind_nat} } @{$router->{interfaces}}
 	      and err_msg "Attribute 'bind_nat' is not allowed",
 		" at interface of $router->{name} of type $router->{model}->{name}";
@@ -1507,9 +1493,6 @@ sub read_router( $ ) {
 	else {
 	    $router->{radius_attributes}
 	      and err_msg "Attribute 'radius_attributes' is not allowed",
-		" for $router->{name}";
-	    $router->{vpn_host_addresses}
-	      and err_msg "Attribute 'vpn_host_addresses' is not allowed",
 		" for $router->{name}";
 	    grep { $_->{no_check} } @{$router->{interfaces}}
 	      and err_msg "Attribute 'no_check' is not allowed",
@@ -7815,9 +7798,6 @@ sub print_vpn3k( $ ) {
     # Hence we can take nat_map of first hardware interface.
     my $nat_map = $router->{hardware}->[0]->{nat_map};
 
-    # Check if each id belongs to a single src object.
-    my %id_src;
-
     # Collection of networks with ID hosts at current device.
     my %vpn_host_addresses;
 
@@ -7826,96 +7806,57 @@ sub print_vpn3k( $ ) {
 	# Rules of $hardware->{intf_rules} are ignored.
 	# Protection for device must currently be configured manually.
 
+	# Check for duplicate ids at different hosts coming into current interface.
+	my %id2src;
+
 	for my $rule (@{ $hardware->{rules} }) {
-	    my $src = $rule->{src};
-	    if (my $id = $src->{id}) {
-		if (my $old_src = $id_src{$id}) {
+	    my ($src, $dst) = @{$rule}{'src', 'dst'};
+	    my $src_id = $src->{id};
+	    my $dst_id = $dst->{id};
+	    if ($src_id && $dst_id) {
+		warn_msg "Traffic between VPN hosts $src->{name} and $dst->{name}",
+		  " isn't allowed at $router->{name}";
+	    }
+	    elsif (!$src_id && !$dst_id) {
+
+		# Hosts or interfaces of of network with id can't occur here,
+		# because they have been converted to network by secondary 
+		# optimization.
+		warn_msg "Traffic between non VPN hosts $src->{name} and",
+		  " $dst->{name} isn't allowed at $router->{name}";
+	    }
+	    elsif ($src_id) {
+		if (my $old_src = $id2src{$src_id}) {
 		    $old_src eq $src or
 		      err_msg "$src->{name} and $old_src->{name} must not have",
-			" identical id:$id";
+			" identical id:$src_id";
 		} else {
 
+		    $id2src{$src_id} = $src;
 		    # Collect all authenticated users or networks.
 		    push @{$hardware->{id_src}}, $src;
 
-		    # Mark networks of teleworker to be protected by deny rules.
+		    # Mark subnets of teleworker to be protected by deny rules.
 		    # (see below)
 		    if (is_subnet $src) {
 			my $network = $src->{network};
-			$network->{vpn3k} = $router;
 			$vpn_host_addresses{$network} = $network;
 		    }
 		}
-	    } elsif ((is_subnet $src || is_interface $src)
-		     && $src->{network}->{id}) {
-		internal_err "Unexpected src $src->{name} in rule",
-		  " at $router->{name}";
 	    }
-	    else {
 
-		# Traffic from not authenticated sources must only enter
-		# at 'no_check' interface.
-		# This has been verified during rules distribution.
-		# They are silently ignored and should be filtered manually.
-	    }
+	    # Traffic from not authenticated sources must only enter
+	    # at 'no_check' interface.
+	    # This has been verified during rules distribution.
+	    # They are silently ignored and should be filtered manually.
 	}
     }
 
-
-    if (not defined $router->{vpn_host_addresses}) {
-	$router->{vpn_host_addresses} = 
-	  [ map { address $_, $nat_map } values %vpn_host_addresses ];
-    }
-
-    # Error checking.
-    for my $network (@networks) {
-	next if $network->{ip} eq 'unnumbered';
-	my($ip, $mask) = @{address $network, $nat_map};
-
-	# Check if $network is subnet of at least one element of
-	# vpn_host_addresses.
-	my $matched = 0;
-	for my $pair (@{$router->{vpn_host_addresses}}) {
-	    my ($check_ip, $check_mask) = @$pair;
-	    if ($mask >= $check_mask and $check_ip == ($ip & $check_mask)) {
-		$matched = $pair;
-		last;
-	    }
-	}
-
-	# $network has vpn hosts accessing this router.
-	if ($network->{vpn3k}) {
-	    if (not $matched) {
-		err_msg
-		  "Address of $network->{name} must be subnet of one element of",
-		    " attribute 'vpn_host_addresses' of $router->{name}";
-	    }
-	}
-
-	# $network has not vpn hosts accessing this router.
-	else {
-	    if ($matched and not $network->{route_hint}) {
-
-		# Convert [ ip, mask ] to "ip.ip.ip.ip/prefix".
-		my $match = prefix_code $matched;
-		err_msg
-		  "Address of $network->{name} must not be subnet of element",
-		    " $match of attribute 'vpn_host_addresses'",
-		      " of $router->{name}";
-	    }
-	}
-
-	# Tidy up for processing of next vpn3k device.
-	delete $network->{vpn3k};
-    }
-
-    my @deny_rules;
-    for my $pair (@{$router->{vpn_host_addresses}}) {
-
-	# 2nd argument: inverted mask.
-	my $src_code = ios_code $pair, 1;
-	push @deny_rules, "deny ip $src_code any";
-    }
+    my @deny_rules =
+      map { "deny ip any $_" }
+      sort
+	map { ios_code $_, 1 }
+	  map { address $_, $nat_map } values %vpn_host_addresses;
 
     for my $hardware (@{ $router->{hardware} }) {
 	my $src_aref = delete $hardware->{id_src} or next;
