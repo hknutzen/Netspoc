@@ -3048,20 +3048,21 @@ sub convert_hosts() {
                 for my $ip (keys %$ip2subnet) {
                     my $subnet = $ip2subnet->{$ip};
 
-                    # Don't combine subnets with NAT
-                    # ToDo: This would be possible if all NAT addresses
-                    #  match too.
-                    # But, attention for PIX firewalls:
-                    # static commands for networks / subnets block
-                    # network and broadcast address.
-                    next if $subnet->{nat};
+		    if (
+			# Don't combine subnets with NAT
+			# ToDo: This would be possible if all NAT addresses
+			#  match too.
+			# But, attention for PIX firewalls:
+			# static commands for networks / subnets block
+			# network and broadcast address.
+			not $subnet->{nat}
 
-		    # Don't combine subnets having radius-ID.
-		    next if $subnet->{id};
+			# Don't combine subnets having radius-ID.
+			and not $subnet->{id}
 
-                    # Only take the left part of two adjacent subnets.
-                    if ($ip % $modulo == 0) {
-                        my $next_ip = $ip + $next;
+			# Only take the left part of two adjacent subnets.
+			and $ip % $modulo == 0) {
+			my $next_ip = $ip + $next;
 
                         # Find the right part.
                         if (my $neighbor = $ip2subnet->{$next_ip}) {
