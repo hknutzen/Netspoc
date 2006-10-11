@@ -7222,6 +7222,12 @@ sub find_object_groups ( $ ) {
             my @keys     = keys %$hash;
             my $size     = @keys;
 
+	    # This occurs if optimization didn't work correctly.
+	    if (grep { $_ eq $network_00 } @keys) {
+		internal_err
+		  "Unexpected $network_00->{name} in object-group of $router->{name}";
+	    }
+
             # Find group with identical elements.
             for my $group (@{ $nat2size2group{$bind_nat}->{$size} }) {
                 my $href = $group->{hash};
@@ -7246,11 +7252,6 @@ sub find_object_groups ( $ ) {
                 hash     => $hash,
                 nat_map  => $glue->{nat_map}
             );
-            for my $element (@{ $group->{elements} }) {
-                is_any $element
-                  and internal_err
-                  "Unexpected $element->{name} in object-group";
-            }
             push @{ $nat2size2group{$bind_nat}->{$size} }, $group;
             push @groups, $group;
             $counter++;
@@ -7398,6 +7399,12 @@ sub find_chains ( $ ) {
             my @keys     = keys %$hash;
             my $size     = @keys;
 
+ 	    # This occurs if optimization didn't work correctly.
+ 	    if (grep { $_ eq $network_00 } @keys) {
+ 		internal_err
+ 		  "Unexpected $network_00->{name} in chain of $router->{name}";
+ 	    }
+
             # Find chain with identical elements.
             for my $chain (
                 @{ $nat2action2size2group{$bind_nat}->{$action}->{$size} })
@@ -7426,10 +7433,6 @@ sub find_chains ( $ ) {
                 hash     => $hash,
                 nat_map  => $glue->{nat_map}
             );
-            for my $element (@{ $chain->{elements} }) {
-                is_any $element
-                  and internal_err "Unexpected $element->{name} in chain";
-            }
             push @{ $nat2action2size2group{$bind_nat}->{$action}->{$size} },
               $chain;
             push @chains, $chain;
