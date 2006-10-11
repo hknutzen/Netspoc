@@ -8144,7 +8144,9 @@ sub prepare_auto_crypto( $ ) {
     my ($router) = @_;
 
     # Interfaces of vpn3k devices.
-    my @peers = values %{$router->{auto_crypto_peer}};
+    # Sort by first IP-adress to get output deterministic.
+    my @peers = sort { $a->{ip}->[0] <=> $b->{ip}->[0]}
+      values %{$router->{auto_crypto_peer}};
 
     # All peers need to use the same ipsec definition.
     my %ipsec;
