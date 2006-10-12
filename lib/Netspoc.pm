@@ -444,10 +444,11 @@ sub read_interface_name() {
 
 # Check for xxx:xxx or xxx:[xxx] or xxx:[xxx:xxx]
 # or interface:xxx.xxx or interface:xxx.[xxx] or interface:[xxx].[xxx]
+# or interface:[xxx & xxx:xxx].[xxx]
 # or host:id:user@domain.network
     sub check_typed_ext_name() {
 	skip_space_and_comment;
-	if ($input =~ m/\G(interface:[][\w-]+\.[][\w-]+ |
+	if ($input =~ m/\G(interface:[][:& \w-]+\.[][\w-]+ |
 			   $hostname_regex |
 			   \w+:[][:\w-]+)/gcx) {
 	    return $1;
@@ -3246,6 +3247,7 @@ sub expand_group1( $$ ) {
     for my $tname (@$obref) {
         my ($type, $name) = split_typed_name($tname);
         my $object;
+	my ($area_name, $router_type, $interface_type);
         if (not $name2object{$type}) {
             err_msg "Unknown type of '$tname' in $context";
             next;
@@ -3266,6 +3268,14 @@ sub expand_group1( $$ ) {
             $type     =~ /^(network|any)$/
             and $name =~ /^\[area:(.*)\]/
             and $object = $areas{$1}
+	    or
+
+	    # interface:[managed & area:name].[x] or interface:[all & area:name].[x]
+	    # with [x] from [all] or [auto].
+	    $type eq 'interface'
+            and ($router_type, $area_name, $interface_type) = 
+		($name =~ /^\[(managed|all)\s*\&\s*area:(.*)\]\.\[(all|auto)\]/)
+	    and $object = $areas{$area_name}
           )
         {
             err_msg "Can't resolve reference to '$tname' in $context";
@@ -3323,6 +3333,38 @@ sub expand_group1( $$ ) {
                 elsif ($type eq 'any') {
                     push @objects, @{ $object->{anys} };
                 }
+		elsif ($type eq 'interface') {
+
+		    # Fill hash with all managed routers
+		    # including border routers of current area.
+		    my %managed_routers = 
+		      map { my $router = $_->{router};
+			    ( $router => $router ) }
+			map @{ $_->{interfaces} }, @{ $object->{anys} };
+
+		    # Remove border routers, because we only
+		    # need routers _inside_ an area.
+		    for my $interface (@{ $object->{border} }) {
+			delete $managed_routers{$interface->{router}};
+		    }
+		    my @routers = values %managed_routers;
+		    if ($router_type eq 'all') {
+			push @routers,
+			  map @{ $_->{unmanaged_routers} }, @{ $object->{anys} };
+		    }
+		    if ($interface_type eq 'all') {
+			push @objects,
+			  grep { not $_->{ip} =~ /unnumbered|negotiated/ }
+			    map @{ $_->{interfaces} },
+			      @routers;
+		    }
+		    elsif ($interface_type eq 'auto') {
+			push @objects, @routers;
+		    }
+		    else {
+			internal_err;
+		    }
+		}
                 else {
                     internal_err;
                 }
@@ -4178,6 +4220,7 @@ sub setany_network( $$$ ) {
             push @{ $any->{interfaces} }, $interface;
         }
         else {
+	    push @{ $any->{unmanaged_routers} }, $router;
             for my $out_interface (@{ $router->{interfaces} }) {
 
                 # Ignore interface where we reached this router.
