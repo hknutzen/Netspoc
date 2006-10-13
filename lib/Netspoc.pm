@@ -7861,16 +7861,16 @@ sub print_vpn3k( $ ) {
 	    my $src_id = $src->{id};
 	    my $dst_id = $dst->{id};
 	    if ($src_id && $dst_id) {
-		warn_msg "Traffic between VPN hosts $src->{name} and $dst->{name}",
-		  " isn't allowed at $router->{name}";
+#		warn_msg "Traffic between VPN hosts $src->{name} and $dst->{name}",
+#		  " isn't allowed at $router->{name}";
 	    }
 	    elsif (!$src_id && !$dst_id) {
 
 		# Hosts or interfaces of of network with id can't occur here,
 		# because they have been converted to network by secondary 
 		# optimization.
-		warn_msg "Traffic between non VPN hosts $src->{name} and",
-		  " $dst->{name} isn't allowed at $router->{name}";
+#		warn_msg "Traffic between non VPN hosts $src->{name} and",
+#		  " $dst->{name} isn't allowed at $router->{name}";
 	    }
 	    elsif ($src_id) {
 		if (my $old_src = $id2src{$src_id}) {
