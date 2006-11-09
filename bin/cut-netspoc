@@ -142,6 +142,10 @@ for my $area (values %areas) {
 for my $router (values %routers) {
     next unless $router->{is_used};
     for my $interface (@{$router->{interfaces}}) {
+	if (my $type = $interface->{auto_crypto}) {
+	    $type->{is_used} = 1;
+	    $type->{key_exchange}->{is_used} = 1;
+	}
 	my $tunnel_info = $interface->{tunnel};
 	next unless $tunnel_info;
 	for my $crypto_map (values %$tunnel_info) {
