@@ -1486,10 +1486,8 @@ sub read_router( $ ) {
 	    # devices will become more difficult.
 	    grep { $_->{bind_nat} } @{$router->{interfaces}}
 	      and err_msg "Attribute 'bind_nat' is not allowed",
-		" at interface of $router->{name} of type $router->{model}->{name}";
-	    $managed eq 'secondary' or
-	      err_msg "$router->{name} of type $router->{model}->{name}",
-		"needs to be managed 'secondary'";
+		" at interface of $router->{name}",
+		  " of type $router->{model}->{name}";
 	}
 	else {
 	    $router->{radius_attributes}
@@ -2112,6 +2110,13 @@ sub is_group( $ )        { ref($_[0]) eq 'Group'; }
 sub is_servicegroup( $ ) { ref($_[0]) eq 'Servicegroup'; }
 sub is_objectgroup( $ )  { ref($_[0]) eq 'Objectgroup'; }
 sub is_chain( $ )        { ref($_[0]) eq 'Chain'; }
+
+# Get VPN id of network object, if available.
+sub get_id( $ ) {
+    my ($obj) =@_;
+    return $obj->{id} ||
+      (is_subnet $obj || is_interface $obj) && $obj->{network}->{id};
+}
 
 sub print_rule( $ ) {
     my ($rule) = @_;
@@ -6596,12 +6601,64 @@ sub distribute_rule( $$$;$ ) {
     # Outgoing packets from a router itself are never filtered.
     return unless $in_intf;
     my $router = $in_intf->{router};
+    my $model = $router->{model};
+
+    # VPN3K: At interfaces without tag 'no_check' and traffic not for this
+    # device, src of rule must only be host or network with ID.
+    # This is checked even for unmanaged vpn3k devices.
+    if ($model and $model->{name} eq 'VPN3K' and $out_intf) {
+	my $src = $rule->{src};
+	if (get_id $src) {
+	    if ($in_intf->{auto_crypto}) {
+		$src = $src->{network} if not is_network $src;
+		if ($src->{id}) {
+
+		    # Automatically generate IPSec-Tunnel to VPN-Router.
+		    my $peer = $src->{interfaces}->[0]->{router};
+		    $peer->{auto_crypto_peer}->{$in_intf} = $in_intf;
+		}
+	    }
+	    else {
+		$src = $src->{network} if not is_network $src;
+	    }
+
+	    # Mark VPN network with applicable vpn3k devices,
+	    # i.e. the first vpn3k device(s) on the path from src to dst.
+	    # All applicable vpn3 devices need to be located inside
+	    # the same loop.
+	    if (not $src->{id_checker}->{$router}) {
+		my @other_vpn3k = values %{$src->{id_checker}};
+		if (not @other_vpn3k) {
+#		    debug "$router->{name} for $src->{name}";
+		    $src->{id_checker}->{$router} = $router;
+		}
+		elsif (my $other_loop = $other_vpn3k[0]->{loop}) {
+		    if ($other_loop eq ($router->{loop} || 0)) {
+#			debug "$router->{name} for $src->{name} (loop)";
+			$src->{id_checker}->{$router} = $router;
+		    }
+		    else {
+			# Ignore.
+#			debug "ignore $router->{name} for $src->{name} (loop)";
+		    }
+		}
+		else {
+		    # Ignore.
+#		    debug "ignore $router->{name} for $src->{name}";
+		}
+	    }
+	} elsif ( not $in_intf->{no_check} ) {
+	    err_msg
+	      "Source of rule must have ID when entering $in_intf->{name} in rule\n ",
+		print_rule $rule;
+	}
+    }
+
     return unless $router->{managed};
 
     # Rules of type stateless must only be processed at stateless routers
     # or at routers which are stateless for packets destined for
     # their own interfaces.
-    my $model = $router->{model};
     if ($rule->{stateless}) {
         unless ($model->{stateless}
             or not $out_intf and $model->{stateless_self})
@@ -6665,25 +6722,6 @@ sub distribute_rule( $$$;$ ) {
                 }
             }
         }
-    }
-
-    # VPN3K: At interfaces without tag 'no_check' and traffic not for this device
-    # src of rule must only be host or network with ID.
-    if ($router->{model}->{name} eq 'VPN3K' and $out_intf) {
-	my $src = $rule->{src};
-	if ($src->{id} || (is_subnet $src || is_interface $src) && $src->{network}->{id}) {
-	    if ($in_intf->{auto_crypto}) {
-
-		# Automatically generate IPSec-Tunnel to corresponding router.
-		$src = $src->{network} if is_subnet $src || is_interface $src;
-		my $peer = $src->{interfaces}->[0]->{router};
-		$peer->{auto_crypto_peer}->{$in_intf} = $in_intf;
-	    }
-	} elsif ( not $in_intf->{no_check} ) {
-	    err_msg
-	      "Source of rule must have ID when entering $in_intf->{name} in rule\n ",
-		print_rule $rule;
-	}
     }
     my $aref;
     my $store =
@@ -7815,9 +7853,17 @@ sub print_xml( $ ) {
 	print "$arg";
     } elsif ($ref eq 'HASH') {
 	for my $tag (sort keys %$arg) {
-	    print "<$tag>";
-	    print_xml $arg->{$tag};
-	    print "</$tag>\n"
+	    my $arg = $arg->{$tag};
+	    if (ref $arg) {
+		print "<$tag>\n";
+		print_xml $arg;
+		print "</$tag>\n"
+	    }
+	    else {
+
+		# Handle simple case sepratatly for formatting reasons.
+		print "<$tag>$arg</$tag>\n"
+	    }
 	}
     } else {
 	for my $element (@$arg) {
@@ -7845,51 +7891,116 @@ sub print_vpn3k( $ ) {
     # Hence we can take nat_map of first hardware interface.
     my $nat_map = $router->{hardware}->[0]->{nat_map};
 
-    # Collection of networks with ID hosts at current device.
-    my %vpn_host_addresses;
+    # Collection of networks, which are authenticated at current device,
+    # but which are not protected by some other managed device.
+    # Either network with VPN clients or VPN network.
+    my %auto_deny_networks;
 
     for my $hardware (@{ $router->{hardware} }) {
 
 	# Rules of $hardware->{intf_rules} are ignored.
 	# Protection for device must currently be configured manually.
 
-	# Check for duplicate ids at different hosts coming into current interface.
+	# Check for duplicate IDs at different hosts
+	# coming into current interface.
 	my %id2src;
 
 	for my $rule (@{ $hardware->{rules} }) {
 	    my ($src, $dst) = @{$rule}{'src', 'dst'};
-	    my $src_id = $src->{id};
-	    my $dst_id = $dst->{id};
-	    if ($src_id && $dst_id) {
-#		warn_msg "Traffic between VPN hosts $src->{name} and $dst->{name}",
-#		  " isn't allowed at $router->{name}";
-	    }
-	    elsif (!$src_id && !$dst_id) {
+	    my $src_id = get_id $src;
+	    my $dst_id = get_id $dst;
+	    if ($src_id) {
+		my $network = is_network $src ? $src : $src->{network};
 
-		# Hosts or interfaces of of network with id can't occur here,
-		# because they have been converted to network by secondary 
-		# optimization.
-#		warn_msg "Traffic between non VPN hosts $src->{name} and",
-#		  " $dst->{name} isn't allowed at $router->{name}";
+		# Will $network or client of $network authenticated at
+		# current device?
+		if ($network->{id_checker}->{$router}) {
+
+		    # Mark network of VPN clients or VPN networks behind
+		    # unmanaged router to be protected by deny rules.
+		    # (See below for details.)
+		    if (
+			# Network with VPN clients has no id.
+			! $network->{id} ||
+
+			# VPN network is located inside some security domain
+			# directly attached to current router.
+			grep {$network->{any} eq $_->{any}}
+			@{$router->{interfaces}}
+		       ) {
+			$auto_deny_networks{$network} = $network;
+		    }
+		}
+		else {
+
+		    # Not authenticated at current router.
+		    undef $src_id;
+		}
 	    }
-	    elsif ($src_id) {
+	    if ($dst_id) {
+		my $network = is_network $dst ? $dst : $dst->{network};
+
+		# Will $network or client of $network authenticated at
+		# current device?
+		if ($network->{id_checker}->{$router}) {
+		    # Mark network of VPN clients or VPN networks behind
+		    # unmanaged router to be protected by deny rules.
+		    # (See below for details.)
+		    if (
+			# Network of VPN clients has no id.
+			! $network->{id} ||
+
+			# VPN network is located inside some security domain
+			# directly attached to current router.
+			grep {$network->{any} eq $_->{any}}
+			@{$router->{interfaces}}
+		       ) {
+			$auto_deny_networks{$network} = $network;
+		    }
+		}
+		else {
+
+		    # Not authenticated at current router.
+		    undef $dst_id;
+		}
+	    }
+	    if ($src_id) {
+
+		# Remember destination networks form vpn3k
+		# split tunnel configuration.
+		my $dst_network = is_network $dst ? $dst : $dst->{network};
+		$hardware->{id_dst_networks}->{$src}->{$dst_network} =
+		  $dst_network;
+
+		# Take ID of enclosing ID network.
+		$src = $src->{network} if not $src->{id};
+		if ($dst_id) {
+
+		    # Source is network or host/interface behind VPN router.
+		    if (is_network $src) {
+			my $dst_network =
+			  is_network $dst ? $dst : $dst->{network};
+			if ($auto_deny_networks{$dst_network}) {
+			    push @{$hardware->{id_src_rules}->{$src}}, $rule;
+			}
+		    }
+		}
 		if (my $old_src = $id2src{$src_id}) {
 		    $old_src eq $src or
-		      err_msg "$src->{name} and $old_src->{name} must not have",
-			" identical id:$src_id";
+		      err_msg "$src->{name} and $old_src->{name}",
+			" must not have identical id:$src_id";
 		} else {
 
 		    $id2src{$src_id} = $src;
 		    # Collect all authenticated users or networks.
 		    push @{$hardware->{id_src}}, $src;
 
-		    # Mark subnets of teleworker to be protected by deny rules.
-		    # (see below)
-		    if (is_subnet $src) {
-			my $network = $src->{network};
-			$vpn_host_addresses{$network} = $network;
-		    }
 		}
+	    }
+	    elsif (!$src_id && !$dst_id) {
+
+		warn_msg "Traffic between non VPN hosts $src->{name} and",
+		  " $dst->{name} isn't allowed at $router->{name}";
 	    }
 
 	    # Traffic from not authenticated sources must only enter
@@ -7903,7 +8014,7 @@ sub print_vpn3k( $ ) {
       map { "deny ip any $_" }
       sort
 	map { ios_code $_, 1 }
-	  map { address $_, $nat_map } values %vpn_host_addresses;
+	  map { address $_, $nat_map } values %auto_deny_networks;
 
     for my $hardware (@{ $router->{hardware} }) {
 	my $src_aref = delete $hardware->{id_src} or next;
@@ -7912,6 +8023,8 @@ sub print_vpn3k( $ ) {
 	for my $src (@$src_aref) {
 	    my %entry;
 	    $entry{'Called-Station-Id'} = $hw_name;
+
+	    # A single VPN host.
 	    if (is_subnet $src) {
 		my $id = $src->{id};
 		my $ip = print_ip $src->{ip};
@@ -7925,11 +8038,25 @@ sub print_vpn3k( $ ) {
 		    $entry{network} = { base => $ip, mask => $mask };
 		}
 		$entry{inherited} =
-		  { %{ $router->{radius_attributes} },
-		    %{ $src->{network}->{radius_attributes}},
-		    %{ $src->{radius_attributes}},
+		  {
+		   %{ $router->{radius_attributes} },
+		   %{ $src->{network}->{radius_attributes}},
+		   %{ $src->{radius_attributes}},
 		  };
-	    } elsif (is_network $src) {
+
+		# Add split tunnel list.
+		my @split_tunnel_networks;
+		for my $network (values %{$hardware->{id_dst_networks}->{$src}}) {
+		    my $ip = print_ip $network->{ip};
+		    my $mask = print_ip complement_32bit $network->{mask};
+		    push @split_tunnel_networks, { base => $ip, mask => $mask };
+		}
+		$entry{split_tunnel_networks} =
+		  [ map { { network => $_ } } @split_tunnel_networks ];
+	    }
+
+	    # A VPN network.
+	    elsif (is_network $src) {
 		my $id = $src->{id};
 		$entry{id} = $id;
 		$entry{inherited} = { %{ $router->{radius_attributes} },
@@ -7939,12 +8066,39 @@ sub print_vpn3k( $ ) {
 		internal_err "Unexpected src $src->{name}";
 	    }
 
+	    my @acl_lines;
+	    my $inv_mask = 1;
+	    for my $rule (@{$hardware->{id_src_rules}->{$src}}) {
+		my ($action, $src, $dst, $src_range, $srv) =
+		  @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
+		for my $spair (address($src, $nat_map)) {
+		    for my $dpair (address($dst, $nat_map)) {
+			my ($proto_code, $src_port_code, $dst_port_code) =
+			  cisco_srv_code($src_range, $srv, $model);
+			my $src_code = ios_code($spair, $inv_mask);
+			my $dst_code = ios_code($dpair, $inv_mask);
+			push @acl_lines,
+			  "$action $proto_code $src_code $src_port_code" .
+			    " $dst_code $dst_port_code";
+		    }
+		}
+	    }
 	    my $spair = address $src, $nat_map;
-	    # 2nd argument: inverted mask.
-	    my $src_code = ios_code($spair, 1);
+	    my $src_code = ios_code($spair, $inv_mask);
 	    my $permit_rule = "permit ip $src_code any";
-	    $entry{in_acl} = [ map { { ace => $_ } } @deny_rules, $permit_rule ];
+	    push @acl_lines, @deny_rules, $permit_rule;
+ 	    $entry{in_acl} = [ map { { ace => $_ } } @acl_lines ];
 	    push @entries, { user_entry => \%entry };
+	    if ((my $lines = @acl_lines) > 39) {
+		my $msg = "Too many ACL lines at $router->{name}" .
+		  " for $src->{name}: $lines > 39";
+
+		# Print error, but don't abort.
+		print STDERR "Error: $msg\n";
+
+		# Force generated config to be syntactically incorrect.
+		$entry{error} = $msg;
+	    }
 	}
     }
     $vpn_config{entries} = \@entries;
