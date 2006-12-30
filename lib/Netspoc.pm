@@ -1805,7 +1805,6 @@ sub read_pathrestriction( $ ) {
         $restriction->{description} = $description;
     }
     my @names = read_list \&read_interface_name;
-    @names > 1 or warn_msg "Ignoring $name with less than 2 interfaces";
     my @interfaces;
     for my $name (@names) {
         my ($type, $interface) = split_typed_name $name;
@@ -2623,32 +2622,6 @@ sub link_interface_with_net( $ ) {
     push @{ $network->{interfaces} }, $interface;
 }
 
-sub link_pathrestrictions() {
-    for my $restrict (values %pathrestrictions) {
-        for my $name (@{ $restrict->{elements} }) {
-            if (my $interface = $interfaces{$name}) {
-                $interface->{router}->{managed}
-                  or err_msg "Referencing unmanaged $interface->{name} ",
-                  "from $restrict->{name}";
-
-                # Multiple restrictions may be applied to a single
-                # interface.
-                push @{ $interface->{path_restrict} }, $restrict;
-
-                # Substitute interface name by interface object.
-                $name = $interface;
-            }
-            else {
-                err_msg "Referencing undefined interface:$name ",
-                  "from $restrict->{name}";
-
-                # Prevent further errors.
-                $restrict->{elements} = [];
-            }
-        }
-    }
-}
-
 
 sub expand_group( $$;$ );
 
@@ -2694,7 +2667,6 @@ sub link_topology() {
     }
     link_any_and_every;
     link_areas;
-    link_pathrestrictions;
     link_radius;
     link_auto_crypto;
     for my $network (values %networks) {
@@ -4476,6 +4448,52 @@ sub check_virtual_interfaces () {
 }
 
 ####################################################################
+# Link and check pathrestrictions
+####################################################################
+
+sub link_and_check_pathrestrictions() {
+    for my $restrict (values %pathrestrictions) {
+	my @elements;
+        for my $name (@{ $restrict->{elements} }) {
+            if (my $interface = $interfaces{$name}) {
+		next if $interface->{disabled};
+                push @elements, $interface;
+
+                # Multiple restrictions may be applied to a single
+                # interface.
+                push @{ $interface->{path_restrict} }, $restrict;
+
+		# Pathrestriction must only be applied to interface
+		# of managed device. Otherwise the restriction possibly
+		# can't be enforced for 'any' objects.
+                $interface->{router}->{managed}
+                  or err_msg "Referencing unmanaged $interface->{name} ",
+                  "from $restrict->{name}";
+
+		# Interfaces with pathrestriction need to be located 
+		# inside cyclic graphs.
+		$interface->{in_loop}
+		  or warn_msg 
+		      "Ignoring $restrict->{name} at $interface->{name}\n",
+		      " because it isn't located inside cyclic graph";
+            }
+            else {
+                err_msg "Referencing undefined interface:$name ",
+                  "from $restrict->{name}";
+            }
+        }
+	$restrict->{elements} = \@elements;
+	if(@elements == 1) {
+	    warn_msg 
+		"Ignoring $restrict->{name} with only $elements[0]->{name}";
+	}
+	elsif(@elements == 0) {
+	    warn_msg "Ignoring $restrict->{name} without elements";
+	}
+    }    
+}
+
+####################################################################
 # Set paths for efficient topology traversal
 ####################################################################
 
@@ -4601,20 +4619,13 @@ sub setpath() {
     # Data isn't needed any more.
     @loop_objects = undef;
 
-    # This function is called here because it needs attribute {loop}
+    # This is called here because it needs attribute {loop}
     # which just has been set.
     check_virtual_interfaces;
 
-    # Check that interfaces with pathrestriction are located inside
-    # of cyclic graphs
-    for my $restrict (values %pathrestrictions) {
-        for my $interface (@{ $restrict->{elements} }) {
-            next if $interface->{disabled};
-            $interface->{in_loop}
-              or warn_msg "Ignoring $restrict->{name} at $interface->{name}\n",
-              " because it isn't located inside cyclic graph";
-        }
-    }
+    # This is called here and not at link_topology because it needs
+    # attributes {disabled} and {in_loop}.
+    link_and_check_pathrestrictions;
 }
 
 ####################################################################
