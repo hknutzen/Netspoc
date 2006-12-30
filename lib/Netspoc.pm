@@ -28,10 +28,10 @@ use Getopt::Long;
 
 # We need this for German umlauts being part of \w.
 # Uncomment next line, if your files are latin1..9 encoded.
-use locale;
+##use locale;
 
 # Uncomment next line, if your files are utf8 encoded.
-##use open ':utf8';
+use open ':utf8';
 
 my $program = 'Network Security Policy Compiler';
 my $version =
@@ -2883,7 +2883,7 @@ my @all_areas;
 sub mark_disabled() {
 
     # Mark all disabled interfaces for the second pass to be able
-    # detecting loops.
+    # to detect loops.
     for my $interface (@disabled_interfaces) {
         $interface->{disabled} = 1;
     }
@@ -4407,6 +4407,75 @@ sub setany() {
 }
 
 ####################################################################
+# Virtual interfaces
+####################################################################
+
+# Check consistency of virtual interfaces:
+# Interfaces with identical virtual IP must
+# - be connected to the same network,
+# - be located inside the same loop,
+# - use the same redundancy protocol,
+# - use the same id (currently optional).
+sub check_virtual_interfaces () {
+    my %same_ip;
+
+    # Unrelated virtual interfaces with identical IP must be located
+    # in different networks.
+    my %same_id;
+    for my $interface (@virtual_interfaces) {
+        unless ($interface->{router}->{loop}) {
+            warn_msg "Ignoring virtual IP of $interface->{name}\n",
+              " because it isn't located inside cyclic graph";
+            next;
+        }
+        my $ip = $interface->{virtual}->{ip};
+        push @{ $same_ip{$ip} }, $interface;
+    }
+    for my $aref (values %same_ip) {
+        my ($i1, @rest) = @$aref;
+        my $id1 = $i1->{virtual}->{id} || '';
+        my $other;
+        if ($id1) {
+            if (    $other = $same_id{$id1}
+                and $i1->{network} eq $other->{network})
+            {
+                err_msg "Virtual IP: Unrelated $i1->{name} and $other->{name}",
+                  " have identical ID";
+            }
+            else {
+                $same_id{$id1} = $i1;
+            }
+        }
+        if (@rest) {
+            my $network1 = $i1->{network};
+            my $loop1    = $i1->{router}->{loop};
+            my $type1    = $i1->{virtual}->{type};
+            for my $i2 (@rest) {
+                my $network2 = $i2->{network};
+                my $loop2    = $i2->{router}->{loop};
+                my $type2    = $i2->{virtual}->{type};
+                my $id2      = $i2->{virtual}->{id} || '';
+                $network1 eq $network2
+                  or err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+                  " are connected to different networks";
+                $type1 eq $type2
+                  or err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+                  " use different redundancy protocols";
+                $id1 eq $id2
+                  or err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+                  " use different ID";
+                $loop1 and $loop2 and $loop1 eq $loop2
+                  or err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+                  " are part of different cyclic subgraphs";
+            }
+        }
+        else {
+            warn_msg "Virtual IP: Missing second interface for $i1->{name}";
+        }
+    }
+}
+
+####################################################################
 # Set paths for efficient topology traversal
 ####################################################################
 
@@ -4490,9 +4559,10 @@ sub setpath() {
 
     # Starting with net1, do a traversal of the whole topology
     # to find a path from every network and router to net1.
-    # Second  parameter $net1 is used as placeholder for a not existing
-    # starting interface.
-    setpath_obj $net1, $net1, 2;
+    # Second  parameter is used as placeholder for a not existing
+    # starting interface. Value must be "true" and unequal to any interface.
+    # Third parameter is distance from $net1 to $net1.
+    setpath_obj $net1, 1, 0;
 
     # Check if all objects are connected with net1.
     for my $object (@networks, @routers) {
@@ -4531,68 +4601,9 @@ sub setpath() {
     # Data isn't needed any more.
     @loop_objects = undef;
 
-    # Check consistency of virtual interfaces:
-    # Interfaces with identical virtual IP must
-    # - be connected to the same network,
-    # - be located inside the same loop,
-    # - use the same redundancy protocol,
-    # - use the same id (currently optional).
-    my %same_ip;
-
-    # Unrelated virtual interfaces with identical IP must be located
-    # in different networks.
-    my %same_id;
-    for my $interface (@virtual_interfaces) {
-        unless ($interface->{router}->{loop}) {
-            warn_msg "Ignoring virtual IP of $interface->{name}\n",
-              " because it isn't located inside cyclic graph";
-            next;
-        }
-        my $ip = $interface->{virtual}->{ip};
-        push @{ $same_ip{$ip} }, $interface;
-    }
-    for my $aref (values %same_ip) {
-        my ($i1, @rest) = @$aref;
-        my $id1 = $i1->{virtual}->{id} || '';
-        my $other;
-        if ($id1) {
-            if (    $other = $same_id{$id1}
-                and $i1->{network} eq $other->{network})
-            {
-                err_msg "Virtual IP: Unrelated $i1->{name} and $other->{name}",
-                  " have identical ID";
-            }
-            else {
-                $same_id{$id1} = $i1;
-            }
-        }
-        if (@rest) {
-            my $network1 = $i1->{network};
-            my $loop1    = $i1->{router}->{loop};
-            my $type1    = $i1->{virtual}->{type};
-            for my $i2 (@rest) {
-                my $network2 = $i2->{network};
-                my $loop2    = $i2->{router}->{loop};
-                my $type2    = $i2->{virtual}->{type};
-                my $id2      = $i2->{virtual}->{id} || '';
-                $network1 eq $network2
-                  or err_msg "Virtual IP: $i1->{name} and $i2->{name}",
-                  " are connected to different networks";
-                $type1 eq $type2
-                  or err_msg "Virtual IP: $i1->{name} and $i2->{name}",
-                  " use different redundancy protocols";
-                $id1 eq $id2
-                  or err_msg "Virtual IP: $i1->{name} and $i2->{name}",
-                  " use different ID";
-                $loop1 and $loop2 and $loop1 eq $loop2
-                  or err_msg "Virtual IP: $i1->{name} and $i2->{name}",
-                  " are part of different cyclic subgraphs";
-            }
-        }
-        else {
-            warn_msg "Virtual IP: Missing second interface for $i1->{name}";
-        }
-    }
+    # This function is called here because it needs attribute {loop}
+    # which just has been set.
+    check_virtual_interfaces;
 
     # Check that interfaces with pathrestriction are located inside
     # of cyclic graphs
