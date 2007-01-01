@@ -5425,11 +5425,12 @@ sub distribute_crypto_rule ( $$$ ) {
     if ($in_intf and $in_intf->{tunnel}) {
         for my $start_inf (@{ $rule->{tunnel_start} }) {
             if (my $map = $in_intf->{tunnel}->{$start_inf}) {
-                $map->{crypto} eq $rule->{crypto}
-                  or err_msg "Tunnel between $start_inf->{name} and",
-                  " $in_intf->{name}\n",
+                $map->{crypto} eq $crypto
+                  or err_msg 
+		  "Tunnel between $start_inf->{name} and $in_intf->{name}\n",
                   " belongs to $map->{crypto}->{name} but matching rule\n ",
-                  print_rule $rule, "\n", " belongs to $rule->{crypto}->{name}";
+                  print_rule $rule, "\n", 
+		  " belongs to $crypto->{name}";
                 if (my $tunnel = $rule->{tunnel}) {
                     err_msg "Multiple tunnels are matching rule\n ",
                       print_rule $rule,
@@ -5483,6 +5484,51 @@ sub reverse_rule ( $ ) {
         srv       => $new_srv
     };
 }
+sub link_crypto_rule_with_tunnel ( $$$ ) {
+    my ($rule, $start, $end) = @_;
+    my $crypto_map = $start->{tunnel}->{$end};
+    my ($action, $src, $dst, $src_range, $srv) =
+	@{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
+    if (my $old_map =
+	$start->{crypto_rule_tree}->{$action}->{$src}->{$dst}
+	->{$src_range}->{$srv})
+    {
+	err_msg "Duplicate crypto rule at $start->{name}\n ",
+	print_rule $rule;
+    }
+
+    # crypto_rule_tree is used to efficiently decide,
+    # if a policy rule fully uses a tunnel or not.
+    $start->{crypto_rule_tree}->{$action}->{$src}->{$dst}->{$src_range}
+    ->{$srv} = $crypto_map;
+
+    # Additionally add entries to crypto_rule_tree, which allow
+    # for efficient test, if a rule has intersection with some
+    # rule(s) in crypto_rule_tree.
+    my $subtree  = $start->{crypto_rule_tree}->{$action};
+    my $subtree2 = $subtree->{$src};
+    while ($src = $src->{up}) {
+	push @{ $subtree->{above}->{$src} }, $subtree2;
+    }
+    $subtree  = $subtree2;
+    $subtree2 = $subtree->{$dst};
+    while ($dst = $dst->{up}) {
+	push @{ $subtree->{above}->{$dst} }, $subtree2;
+    }
+    $subtree  = $subtree2;
+    $subtree2 = $subtree->{$src_range};
+    while ($src_range = $src_range->{up}) {
+	push @{ $subtree->{above}->{$src_range} }, $subtree2;
+    }
+    $subtree  = $subtree2;
+    $subtree2 = $subtree->{$srv};
+    while ($srv = $srv->{up}) {
+	push @{ $subtree->{above}->{$srv} }, $subtree2;
+    }
+
+    # Rules are stored additionally in crypto_map for code generation.
+    push @{ $crypto_map->{crypto_rules} }, $rule;
+}
     
 sub expand_crypto () {
     info "Preparing crypto tunnels and expanding crypto rules";
@@ -5492,7 +5538,7 @@ sub expand_crypto () {
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
 
-# Convert typed names in crypto rule to internal objects.
+	# Convert typed names in crypto rule to internal objects.
         for my $rule (@{ $crypto->{rules} }) {
             for my $where ('src', 'dst') {
                 $rule->{$where} = expand_group(
@@ -5515,67 +5561,25 @@ sub expand_crypto () {
         # This adds expanded rules to $result.
         expand_rules $crypto->{rules}, $name, $result;
 
-# Distribute rules to tunnels.
-        my $add_rule = sub ( $$$ ) {
-            my ($rule, $start, $end) = @_;
-            my $crypto_map = $start->{tunnel}->{$end};
-            my ($action, $src, $dst, $src_range, $srv) =
-              @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
-            if (my $old_map =
-                $start->{crypto_rule_tree}->{$action}->{$src}->{$dst}
-                ->{$src_range}->{$srv})
-            {
-                err_msg "Duplicate crypto rule at $start->{name}\n ",
-                  print_rule $rule;
-            }
-
-            # crypto_rule_tree is used to efficiently decide,
-            # if a policy rule fully uses a tunnel or not.
-            $start->{crypto_rule_tree}->{$action}->{$src}->{$dst}->{$src_range}
-              ->{$srv} = $crypto_map;
-
-            # Additionally add entries to crypto_rule_tree, which allow
-            # for efficient test, if a rule has intersection with some
-            # rule(s) in crypto_rule_tree.
-            my $subtree  = $start->{crypto_rule_tree}->{$action};
-            my $subtree2 = $subtree->{$src};
-            while ($src = $src->{up}) {
-                push @{ $subtree->{above}->{$src} }, $subtree2;
-            }
-            $subtree  = $subtree2;
-            $subtree2 = $subtree->{$dst};
-            while ($dst = $dst->{up}) {
-                push @{ $subtree->{above}->{$dst} }, $subtree2;
-            }
-            $subtree  = $subtree2;
-            $subtree2 = $subtree->{$src_range};
-            while ($src_range = $src_range->{up}) {
-                push @{ $subtree->{above}->{$src_range} }, $subtree2;
-            }
-            $subtree  = $subtree2;
-            $subtree2 = $subtree->{$srv};
-            while ($srv = $srv->{up}) {
-                push @{ $subtree->{above}->{$srv} }, $subtree2;
-            }
-
-            # Rules are stored additionally in crypto_map for code generation.
-            push @{ $crypto_map->{crypto_rules} }, $rule;
-        };
+	# Distribute rules to tunnels.
 	# ToDo:
 	# Is special handling of deny rules necessary?
 	# Check for matching high-level and low-level semantic of any rules.
-        for my $rule (@deny, @any , @permit) {
+        for my $rule (@deny, @any, @permit) {
             $rule->{crypto} = $crypto;
 
             # Find tunnel where $rule is applicable.
             path_walk($rule, \&distribute_crypto_rule);
 
-            # Clean up helper attribute of &distribute_crypto_rule
+            # Remove helper attributes of &distribute_crypto_rule
             delete $rule->{tunnel_start};
+	    delete $rule->{crypto};
+
             if (my $tunnel = delete $rule->{tunnel}) {
                 my ($start, $end) = @$tunnel;
-                $add_rule->($rule, $start, $end);
-                $add_rule->(reverse_rule $rule, $end, $start);
+                link_crypto_rule_with_tunnel $rule, $start, $end;
+                link_crypto_rule_with_tunnel 
+		    reverse_rule $rule, $end, $start;
             }
             else {
                 err_msg "No matching tunnel found for rule of $name\n ",
