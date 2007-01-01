@@ -5232,6 +5232,23 @@ sub path_first_interfaces( $$ ) {
 # Handling of crypto tunnels and crypto rules.
 ########################################################################
 
+sub link_ipsec () {
+    for my $ipsec (values %ipsec) {
+
+        # Convert name of ISAKMP definition to object with ISAKMP definition.
+        my ($type, $name) = split_typed_name $ipsec->{key_exchange};
+        if ($type eq 'isakmp') {
+            my $isakmp = $isakmp{$name}
+              or err_msg "Can't resolve reference to '$type:$name'",
+              " for $ipsec->{name}";
+            $ipsec->{key_exchange} = $isakmp;
+        }
+        else {
+            err_msg "Unknown key_exchange type '$type' for $ipsec->{name}";
+        }
+    }
+}
+
 # ToDo: Currently exactly one single tunnel must be found.
 # Later we should be able to find the longest tunnel out of multiple tunnels.
 # But overlapping tunnels must not be accepted, to avoid inconsistent paths.
@@ -5327,20 +5344,7 @@ sub gen_tunnel_rules ( $$$ ) {
 
 sub expand_crypto () {
     info "Preparing crypto tunnels and expanding crypto rules";
-    for my $ipsec (values %ipsec) {
-
-        # Convert name of ISAKMP definition to object with ISAKMP definition.
-        my ($type, $name) = split_typed_name $ipsec->{key_exchange};
-        if ($type eq 'isakmp') {
-            my $isakmp = $isakmp{$name}
-              or err_msg "Can't resolve reference to '$type:$name'",
-              " for $ipsec->{name}";
-            $ipsec->{key_exchange} = $isakmp;
-        }
-        else {
-            err_msg "Unknown type '$type' for $ipsec->{name}";
-        }
-    }
+    link_ipsec;
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
 
