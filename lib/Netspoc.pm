@@ -5249,6 +5249,171 @@ sub link_ipsec () {
     }
 }
 
+sub link_crypto () {
+    for my $crypto (values %crypto) {
+        my $name = $crypto->{name};
+
+        # Convert name of ipsec definition to object with ipsec definition.
+        my ($type, $name2) = split_typed_name $crypto->{type};
+
+        if ($type eq 'ipsec') {
+            my $ipsec = $ipsec{$name2}
+              or err_msg "Can't resolve reference to '$type:$name2'",
+              " for $name";
+            $crypto->{type} = $ipsec;
+        }
+        else {
+            err_msg "Unknown type '$type' for $name";
+        }
+
+        # Resolve tunnel endpoints to lists of interfaces.
+        for my $what ('hub', 'spoke') {
+            $crypto->{$what} = expand_group($crypto->{$what}, "$what of $name");
+            for my $element (@{ $crypto->{$what} }) {
+                next if is_interface $element;
+
+                # [auto] interface is represented by router object.
+                next if is_router $element;
+                err_msg "Illegal element in $what of $name: $element->{name}";
+            }
+        }
+        for my $mesh (@{ $crypto->{meshes} }) {
+            $mesh = [ expand_group $mesh, "mesh of $name" ];
+            for my $element (@$mesh) {
+                next if is_interface $element;
+                next if is_router $element;
+                err_msg "Illegal element in mesh of $name: $element->{name}";
+            }
+        }
+    }
+}
+
+# Generate rules to permit crypto traffic between tunnel endpoints.
+sub gen_tunnel_rules ( $$$ ) {
+    my ($intf1, $intf2, $ipsec) = @_;
+    my $use_ah = $ipsec->{ah};
+    my $use_esp = $ipsec->{esp_authentication} || $ipsec->{esp_encryption};
+    my $nat_traversal = $ipsec->{key_exchange}->{nat_traversal};
+    my @rules;
+    my $rule = { action => 'permit', src => $intf1, dst => $intf2 };
+    if (not $nat_traversal or $nat_traversal ne 'on') {
+	$use_ah  and push @rules, { %$rule, src_range => $srv_ip, srv => $srv_ah };
+	$use_esp and push @rules, { %$rule, src_range => $srv_ip, srv => $srv_esp };
+	push @rules, { %$rule,
+		       src_range => $srv_ike->{src_range},
+		       srv       => $srv_ike->{dst_range} };
+    }
+    if ($nat_traversal) {
+	push @rules, { %$rule,
+		       src_range => $srv_natt->{src_range},
+		       srv       => $srv_natt->{dst_range} };
+    }
+    return \@rules;
+}
+
+# 1. Determine all tunnel endpoints.
+# 2. Link interface of tunnel endpoint with crypto map data structure 
+#    and tunnel peer.
+sub mark_tunnels () {
+    for my $crypto (values %crypto) {
+        my $name = $crypto->{name};
+
+	# List of tunnels ie. pairs of interfaces.
+        my @pairs;
+        for my $hub (@{ $crypto->{hub} }) {
+            for my $spoke (@{ $crypto->{spoke} }) {
+                push @pairs, [ $hub, $spoke ];
+            }
+        }
+        for my $mesh (@{ $crypto->{meshes} }) {
+            for my $intf1 (@$mesh) {
+                for my $intf2 (@$mesh) {
+                    next if $intf1 eq $intf2;
+                    push @pairs, [ $intf1, $intf2 ];
+                }
+            }
+        }
+
+        my $check = sub ( @ ) {
+            my ($intf1, $intf2) = @_;
+            my @intf1 = path_first_interfaces $intf1, $intf2 or
+
+              # Both interfaces have same router.
+              return undef;
+            if (@intf1 > 1) {
+                err_msg "Tunnel of $name starting at $intf2->{name}",
+                  " has multiple endpoints at $intf1->{name}";
+            }
+            if (is_router $intf1) {
+                ($intf1) = @intf1;
+            }
+            else {
+                my ($tmp) = @intf1;
+                unless ($tmp eq $intf1) {
+                    err_msg "Tunnel of $name starting at $intf2->{name}\n",
+                      " uses wrong endpoint at $intf1->{name}.\n",
+                      " Use $tmp->{name} instead.";
+		    $intf1 = $tmp;
+                }
+            }
+            if ($intf1->{ip} =~ /unnumbered|short|negotiated/) {
+                err_msg "'$intf1->{ip}' $intf1->{name}\n",
+                  " must not be used in tunnel of $name";
+            }
+            return $intf1;
+        };
+        for my $pair (@pairs) {
+            my $intf1 = $check->(@{$pair}[ 0, 1 ]) or
+
+              # Silently ignore pairs where both interfaces have same router.
+              next;
+            my $intf2 = $check->(@{$pair}[ 1, 0 ]);
+
+            # Test for $intf2->{tunnel}->{$intf1} isn't necessary, because
+            # tunnels are always defined symmetrically.
+            if (my $old_map = $intf1->{tunnel}->{$intf2}) {
+                err_msg "Duplicate tunnel",
+                  " between $intf1->{name} and $intf2->{name}\n",
+                  " defined in $old_map->{crypto}->{name} and $name";
+            }
+            if ($intf1->{in_loop}) {
+                err_msg "$intf1->{name} must not be used in tunnel of $name\n",
+                  " because it is located inside a cyclic subgraph";
+            }
+
+            # Do a stronger check for loop here,
+            # to get a simpler implementation in path_walk.
+            if ($intf2->{router}->{loop}) {
+                err_msg "$intf2->{name} must not be used in tunnel of $name\n",
+                  " because its router is located inside a cyclic subgraph";
+            }
+
+            # Subsequent code is needed for both directions.
+            for my $pair ([ $intf1, $intf2 ], [ $intf2, $intf1 ]) {
+                my ($intf1, $intf2) = @$pair;
+
+                # Add a data structure for each tunnel, which is used to
+                # collect
+                # - crypto ACL
+                # - crypto access-group for devices which allow separate
+                #   filtering for encrypted traffic
+                #   (no attribute no_crypto_filter).
+                # Data will be used later to generate "crypto map" commands.
+                my $crypto_map = { crypto => $crypto, peer => $intf2 };
+                $intf1->{tunnel}->{$intf2} = $crypto_map;
+                push @{ $intf1->{hardware}->{crypto_maps} }, $crypto_map
+                  if $intf1->{router}->{managed};
+
+                # Add rules to permit crypto traffic between tunnel endpoints.
+                my $rules_ref = 
+		    gen_tunnel_rules $intf1, $intf2, $crypto->{type};
+                push @{ $expanded_rules{permit} }, @$rules_ref;
+                add_rules $rules_ref, \%rule_tree;
+            }
+        }
+    }
+}
+
 # ToDo: Currently exactly one single tunnel must be found.
 # Later we should be able to find the longest tunnel out of multiple tunnels.
 # But overlapping tunnels must not be accepted, to avoid inconsistent paths.
@@ -5318,161 +5483,14 @@ sub reverse_rule ( $ ) {
         srv       => $new_srv
     };
 }
-
-# Generate rules to permit crypto traffic between tunnel endpoints.
-sub gen_tunnel_rules ( $$$ ) {
-    my ($intf1, $intf2, $ipsec) = @_;
-    my $use_ah = $ipsec->{ah};
-    my $use_esp = $ipsec->{esp_authentication} || $ipsec->{esp_encryption};
-    my $nat_traversal = $ipsec->{key_exchange}->{nat_traversal};
-    my @rules;
-    my $rule = { action => 'permit', src => $intf1, dst => $intf2 };
-    if (not $nat_traversal or $nat_traversal ne 'on') {
-	$use_ah  and push @rules, { %$rule, src_range => $srv_ip, srv => $srv_ah };
-	$use_esp and push @rules, { %$rule, src_range => $srv_ip, srv => $srv_esp };
-	push @rules, { %$rule,
-		       src_range => $srv_ike->{src_range},
-		       srv       => $srv_ike->{dst_range} };
-    }
-    if ($nat_traversal) {
-	push @rules, { %$rule,
-		       src_range => $srv_natt->{src_range},
-		       srv       => $srv_natt->{dst_range} };
-    }
-    return \@rules;
-}
-
+    
 sub expand_crypto () {
     info "Preparing crypto tunnels and expanding crypto rules";
     link_ipsec;
+    link_crypto;
+    mark_tunnels;
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
-
-        # Convert name of ipsec definition to object with ipsec definition.
-        my ($type, $name2) = split_typed_name $crypto->{type};
-
-        # Used later when generating rules for AH, ESP and IKE.
-        my ($use_ah, $use_esp, $use_nat_traversal);
-        if ($type eq 'ipsec') {
-            my $ipsec = $ipsec{$name2}
-              or err_msg "Can't resolve reference to '$type:$name2'",
-              " for $name";
-            $crypto->{type} = $ipsec;
-        }
-        else {
-            err_msg "Unknown type '$type' for $name";
-        }
-
-        # Resolve tunnel endpoints to lists of interfaces.
-        for my $what ('hub', 'spoke') {
-            $crypto->{$what} = expand_group($crypto->{$what}, "$what of $name");
-            for my $element (@{ $crypto->{$what} }) {
-                next if is_interface $element;
-
-                # [auto] interface is represented by router object.
-                next if is_router $element;
-                err_msg "Illegal element in $what of $name: $element->{name}";
-            }
-        }
-        for my $mesh (@{ $crypto->{meshes} }) {
-            $mesh = [ expand_group $mesh, "mesh of $name" ];
-            for my $element (@$mesh) {
-                next if is_interface $element;
-                next if is_router $element;
-                err_msg "Illegal element in mesh of $name: $element->{name}";
-            }
-        }
-        my @pairs;
-        for my $hub (@{ $crypto->{hub} }) {
-            for my $spoke (@{ $crypto->{spoke} }) {
-                push @pairs, [ $hub, $spoke ];
-            }
-        }
-        for my $mesh (@{ $crypto->{meshes} }) {
-            for my $intf1 (@$mesh) {
-                for my $intf2 (@$mesh) {
-                    next if $intf1 eq $intf2;
-                    push @pairs, [ $intf1, $intf2 ];
-                }
-            }
-        }
-        my $check = sub ( @ ) {
-            my ($intf1, $intf2) = @_;
-            my @intf1 = path_first_interfaces $intf1, $intf2 or
-
-              # Both interfaces have same router.
-              return undef;
-            my @intf2 = path_first_interfaces $intf2, $intf1;
-            if (@intf1 > 1) {
-                err_msg "Tunnel of $name starting at $intf2->{name}",
-                  " has multiple endpoints at $intf1->{name}";
-            }
-            if (is_router $intf1) {
-                ($intf1) = @intf1;
-            }
-            else {
-                my ($tmp) = @intf1;
-                unless ($tmp eq $intf1) {
-                    err_msg "Tunnel of $name starting at $intf2->{name}\n",
-                      " uses wrong endpoint at $intf1->{name}.\n",
-                      " Use $tmp->{name} instead.";
-                }
-                $intf1 = $tmp;
-            }
-            if ($intf1->{ip} =~ /unnumbered|short|negotiated/) {
-                err_msg "'$intf1->{ip}' $intf1->{name}\n",
-                  " must not be used in tunnel of $name";
-            }
-            return $intf1;
-        };
-        for my $pair (@pairs) {
-            my $intf1 = $check->(@{$pair}[ 0, 1 ]) or
-
-              # Silently ignore pairs where both interfaces have same router.
-              next;
-            my $intf2 = $check->(@{$pair}[ 1, 0 ]);
-
-            # Test for $intf2->{tunnel}->{$intf1} isn't necessary, because
-            # tunnels are always defined symmetrically.
-            if (my $old_map = $intf1->{tunnel}->{$intf2}) {
-                err_msg "Duplicate tunnel",
-                  " between $intf1->{name} and $intf2->{name}\n",
-                  " defined in $old_map->{crypto}->{name} and $name";
-            }
-            if ($intf1->{in_loop}) {
-                err_msg "$intf1->{name} must not be used in tunnel of $name\n",
-                  " because it is located inside a cyclic subgraph";
-            }
-
-            # Do a stronger check for loop here,
-            # to get a simpler implementation in path_walk.
-            if ($intf2->{router}->{loop}) {
-                err_msg "$intf2->{name} must not be used in tunnel of $name\n",
-                  " because its router is located inside a cyclic subgraph";
-            }
-
-            # Subsequent code is needed for both directions.
-            for my $pair ([ $intf1, $intf2 ], [ $intf2, $intf1 ]) {
-                my ($intf1, $intf2) = @$pair;
-
-                # Add a data structure for each tunnel, which is used to
-                # collect
-                # - crypto ACL
-                # - crypto access-group for devices which allow separate
-                #   filtering for encrypted traffic
-                #   (no attribute no_crypto_filter).
-                # Data will be used later to generate "crypto map" commands.
-                my $crypto_map = { crypto => $crypto, peer => $intf2 };
-                $intf1->{tunnel}->{$intf2} = $crypto_map;
-                push @{ $intf1->{hardware}->{crypto_maps} }, $crypto_map
-                  if $intf1->{router}->{managed};
-
-                # Add rules to permit crypto traffic between tunnel endpoints.
-                my $rules_ref = gen_tunnel_rules $intf1, $intf2, $crypto->{type};
-                push @{ $expanded_rules{permit} }, @$rules_ref;
-                add_rules $rules_ref, \%rule_tree;
-            }
-        }
 
 # Convert typed names in crypto rule to internal objects.
         for my $rule (@{ $crypto->{rules} }) {
