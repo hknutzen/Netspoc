@@ -5321,14 +5321,17 @@ sub mark_tunnels () {
 	# List of tunnels ie. pairs of interfaces.
         my @pairs;
         for my $hub (@{ $crypto->{hub} }) {
+	    next if $hub->{disabled};
             for my $spoke (@{ $crypto->{spoke} }) {
+		next if $spoke->{disabled};
                 push @pairs, [ $hub, $spoke ];
             }
         }
         for my $mesh (@{ $crypto->{meshes} }) {
             for my $intf1 (@$mesh) {
+		next if $intf1->{disabled};
                 for my $intf2 (@$mesh) {
-                    next if $intf1 eq $intf2;
+		    next if $intf2->{disabled};
                     push @pairs, [ $intf1, $intf2 ];
                 }
             }
