@@ -2238,6 +2238,7 @@ sub order_ranges( $$ ) {
     # Return position of range which isn't sub-range or undef
     # if end of array is reached.
     my $check_subrange;
+
     $check_subrange = sub ( $$$$ ) {
         my ($a, $a1, $a2, $i) = @_;
         while (1) {
@@ -2317,7 +2318,7 @@ sub order_ranges( $$ ) {
                             return $b;
                         }
 
-                        # New range is larger tha current range and therefore
+                        # New range is larger than current range and therefore
                         # must be inserted before current one.
                         last;
                     }
@@ -2459,6 +2460,25 @@ sub order_services() {
     order_ranges($srv_hash{udp}, $up);
     order_icmp($srv_hash{icmp}, $up) if $srv_hash{icmp};
     order_proto($srv_hash{proto}, $up) if $srv_hash{proto};
+}
+
+# Used in expand_services.
+sub set_src_dst_range_list  ( $ ) {
+    my ($srv) = @_;
+    $srv = $srv->{main} if $srv->{main};
+    my $proto = $srv->{proto};
+    if ($proto eq 'tcp' or $proto eq 'udp') {
+	my @src_dst_range_list;
+	for my $src_range (expand_splitted_services $srv->{src_range}) {
+	    for my $dst_range (expand_splitted_services $srv->{dst_range}) {
+		push @src_dst_range_list, [ $src_range, $dst_range ];
+	    }
+	}
+	$srv->{src_dst_range_list} = \@src_dst_range_list;
+    }
+    else {
+	$srv->{src_dst_range_list} = [[ $srv_ip, $srv ]];
+    }
 }
 
 ####################################################################
@@ -3446,6 +3466,11 @@ sub expand_services( $$ ) {
 
 		# Currently needed by external program 'cut-netspoc'.
 		$srv->{is_used}  = 1;
+
+		# Used in expand_rules.
+		if (not $srv->{src_dst_range_list}) {
+		    set_src_dst_range_list ($srv);
+		}
             }
             else {
                 err_msg "Can't resolve reference to '$tname' in $context";
@@ -3705,59 +3730,43 @@ sub expand_rules ( $$$ ) {
 
                             # Prevent modification of original array.
                             my $srv = $srv;
-                            my $add_rule = sub ( $$$$$$$ ) {
-                                my ($action, $src, $dst, $src_range, $srv,
-                                    $unexpanded, $orig_srv)
-                                  = @_;
-                                my $rule = {
-                                    action    => $action,
-                                    src       => $src,
-                                    dst       => $dst,
-                                    src_range => $src_range,
-                                    srv       => $srv,
-
-                                    # Remember unexpanded rule.
-                                    rule => $unexpanded
-                                };
-                                $rule->{orig_srv} = $orig_srv if $orig_srv;
-                                if ($action eq 'deny') {
-                                    push @$deny, $rule;
-                                }
-                                elsif (is_any($src) or is_any($dst)) {
-                                    push @$any, $rule;
-                                }
-                                else {
-                                    push @$permit, $rule;
-                                }
-                            };
                             if (my $main_srv = $srv->{main}) {
                                 $orig_srv = $srv;
                                 $srv      = $main_srv;
                             }
-                            my $src_range;
-                            my $proto = $srv->{proto};
-                            if ($proto eq 'tcp' || $proto eq 'udp') {
-                                $orig_srv  = $srv unless $orig_srv;
-                                $src_range = $srv->{src_range};
-                                $srv       = $srv->{dst_range};
-                                for my $src_range (
-                                    expand_splitted_services $src_range)
-                                {
-                                    for my $srv (expand_splitted_services $srv)
-                                    {
-                                        $add_rule->(
-                                            $action, $src, $dst, $src_range,
-                                            $srv, $unexpanded, $orig_srv
-                                        );
-                                    }
-                                }
-                            }
-                            else {
-                                $src_range = $srv_ip;
-                                $add_rule->(
-                                    $action, $src, $dst, $src_range, $srv,
-                                    $unexpanded, $orig_srv
-                                );
+			    else {
+				my $proto = $srv->{proto};
+				if ($proto eq 'tcp' || $proto eq 'udp') {
+
+				    # Remember unsplitted srv.
+				    $orig_srv  = $srv;
+				}
+			    }
+			    $srv->{src_dst_range_list} or internal_err $srv->{name};
+			    for my $src_dst_range 
+				(@{$srv->{src_dst_range_list}}) 
+			    {
+				my($src_range, $srv) = @$src_dst_range;
+				my $rule = {
+				    action    => $action,
+				    src       => $src,
+				    dst       => $dst,
+				    src_range => $src_range,
+				    srv       => $srv,
+				    
+				    # Remember unexpanded rule.
+				    rule      => $unexpanded
+				};
+				$rule->{orig_srv} = $orig_srv if $orig_srv;
+				if ($action eq 'deny') {
+				    push @$deny, $rule;
+				}
+				elsif (is_any($src) or is_any($dst)) {
+				    push @$any, $rule;
+				}
+				else {
+				    push @$permit, $rule;
+				}
                             }
                         }
                     }
