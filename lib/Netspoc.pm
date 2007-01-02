@@ -2617,7 +2617,8 @@ sub link_interface_with_net( $ ) {
 	  "to unnumbered $network->{name}";
     }
     elsif ($ip eq 'negotiated') {
-	# Nothing to be checked: negotiated may be linked to any numbered network.
+	# Nothing to be checked: negotiated interface may be linked to 
+	# any numbered network.
     }
     else {
 
@@ -3186,7 +3187,8 @@ sub set_auto_groups () {
     my @all_interfaces;
     for my $router (values %routers) {
         my @interfaces =
-          grep { not $_->{ip} =~ /unnumbered|negotiated/ } @{ $router->{interfaces} };
+          grep { not $_->{ip} =~ /unnumbered/ } 
+	      @{ $router->{interfaces} };
         if ($router->{managed}) {
             push @managed_interfaces, @interfaces;
         }
@@ -3351,7 +3353,7 @@ sub expand_group1( $$ ) {
 		    }
 		    if ($interface_type eq 'all') {
 			push @objects,
-			  grep { not $_->{ip} =~ /unnumbered|negotiated/ }
+			  grep { not $_->{ip} =~ /unnumbered/ }
 			    map @{ $_->{interfaces} },
 			      @routers;
 		    }
@@ -3621,9 +3623,9 @@ sub get_auto_interface ( $$$ ) {
             err_msg "'$interface->{ip}' $interface->{name}",
               " (from .[auto])\n", " must not be used in rule of $context";
         }
-	elsif ($interface->{ip} =~ /unnumbered|negotiated/) {
+	elsif ($interface->{ip} =~ /unnumbered/) {
 
-	    # Ignore unnumbered and negotiated interfaces.
+	    # Ignore unnumbered interfaces.
 	}
         else {
             push @result, $interface;
@@ -5368,6 +5370,8 @@ sub mark_tunnels () {
 		    $intf1 = $tmp;
                 }
             }
+
+	    # Currently we support only VPN peers with fixed IP address.
             if ($intf1->{ip} =~ /unnumbered|short|negotiated/) {
                 err_msg "'$intf1->{ip}' $intf1->{name}\n",
                   " must not be used in tunnel of $name";
@@ -6432,7 +6436,8 @@ sub print_routes( $ ) {
         my $nat_map = $interface->{nat_map};
         for my $hop (@{ $interface->{hop} }) {
 
-            # For unnumbered and negotiated networks use interface name as next hop.
+            # For unnumbered and negotiated networks use interface name 
+	    # as next hop.
             my $hop_addr =
                 $interface->{ip} =~ 'unnumbered|negotiated'
               ? $interface->{hardware}->{name}
@@ -6957,7 +6962,7 @@ sub address( $$ ) {
         $network = $nat_map->{$network} || $network;
 
 	# Negotiated interfaces are dangerous:
-	# If the attaches network has address 0.0.0.0/0,
+	# If the attached network has address 0.0.0.0/0,
 	# we would accidently permit 'any'.
 	# We allow this only, if local networks are protected by auto_crypto.
 	if ($obj->{ip} eq 'negotiated') {
@@ -8701,7 +8706,8 @@ sub print_crypto( $ ) {
 	    for my $peer (@peers) {
 
 		# Take first IP.
-		# Unnumbered, negotiated and short interfaces have been rejected already.
+		# Unnumbered, negotiated and short interfaces have been 
+		# rejected already.
 		my $peer_ip = print_ip $peer->{ip}->[0];
 		print "$prefix set peer $peer_ip\n";
 	    }
