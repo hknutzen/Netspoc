@@ -8196,8 +8196,6 @@ sub print_acls( $ ) {
         find_chains($router) unless $router->{no_group_code};
     }
 
-    # Collect IP addresses of all interfaces.
-    my @ip;
     for my $hardware (@{ $router->{hardware} }) {
         for my $interface (@{ $hardware->{interfaces} }) {
 
