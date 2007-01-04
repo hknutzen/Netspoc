@@ -3967,6 +3967,7 @@ sub distribute_nat_info() {
             'nat_domain',
             name     => $name,
             networks => [],
+	    routers  => [],
             nat_map  => {}
         );
         push @natdomains, $domain;
@@ -4090,8 +4091,13 @@ sub find_subnets() {
             if (my $old_net = $mask_ip_hash{$mask}->{$ip}) {
                 my $nat_old_net = $nat_map->{$old_net} || $old_net;
                 unless ($nat_old_net->{dynamic} and $nat_network->{dynamic}) {
-                    err_msg "$network->{name} and $old_net->{name}",
-                      " have identical ip/mask\n", " in $domain->{name}";
+		    my $name1 = $network->{name};
+		    my $name2 = $old_net->{name};
+		    my $nat1 = $nat_network->{name};
+		    my $nat2 = $nat_old_net->{name};
+		    $name1 .= " with $nat1" if $name1 ne $nat1;
+		    $name2 .= " with $nat2" if $name2 ne $nat2;
+                    err_msg "$name1 and $name2 have identical ip/mask";
                 }
             }
             else {
@@ -4126,18 +4132,24 @@ sub find_subnets() {
 			    # Take original $bignet, because currently 
 			    # there's no way to specify a natted network
 			    # as value of subnet_of.
-                            $subnet = $nat_map->{$subnet} || $subnet;
+                            my $nat_subnet = $nat_map->{$subnet} || $subnet;
                             unless ($bignet->{route_hint}
-                                or $subnet->{subnet_of}
-                                and $subnet->{subnet_of} eq $bignet)
+                                or $nat_subnet->{subnet_of}
+                                and $nat_subnet->{subnet_of} eq $bignet)
                             {
 
                                 # Prevent multiple error messages in different
                                 # NAT domains.
-                                $subnet->{subnet_of} = $bignet;
+                                $nat_subnet->{subnet_of} = $bignet;
+
+				my $subname = $subnet->{name};
+				my $bigname = $bignet->{name};
+				my $subnat = $nat_map->{$subnet};
+				my $bignat = $nat_map->{$bignet};
+				$subname .= " with $subnat->{name}" if $subnat;
+				$bigname .= " with $bignat->{name}" if $bignat;
                                 my $msg =
-                                  "$subnet->{name} is subnet of $bignet->{name}\n"
-                                  . " in $domain->{name}\n"
+                                  "$subname is subnet of $bigname\n"
                                   . " if desired, either declare attribute"
 				  . " 'subnet_of' or attribute 'route_hint'";
                                 if ($strict_subnets eq 'warn') {
