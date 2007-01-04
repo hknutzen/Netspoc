@@ -6800,7 +6800,6 @@ sub distribute_rule( $$$;$ ) {
             }
         }
     }
-    my $aref;
     my $store =
       ($in_crypto_map && !$model->{no_crypto_filter})
       ? $in_crypto_map
