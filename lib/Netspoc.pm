@@ -6486,12 +6486,12 @@ sub print_routes( $ ) {
                 }
                 if ($type eq 'IOS') {
                     my $adr = ios_route_code(address($network, $nat_map));
-                    print "ip route $adr\t$hop_addr\n";
+                    print "ip route $adr $hop_addr\n";
                 }
                 elsif ($type eq 'PIX') {
                     my $adr = ios_route_code(address($network, $nat_map));
                     print
-                      "route $interface->{hardware}->{name} $adr\t$hop_addr\n";
+                      "route $interface->{hardware}->{name} $adr $hop_addr\n";
                 }
                 elsif ($type eq 'iproute') {
                     my $adr = prefix_code(address($network, $nat_map));
