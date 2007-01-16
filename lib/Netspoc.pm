@@ -7351,10 +7351,6 @@ sub find_object_groups ( $ ) {
                                     # NAT map for address calculation.
                                     nat_map => $hardware->{nat_map},
 
-                                    # For check, if interfaces belong to
-                                    # identical NAT domain.
-                                    bind_nat => $hardware->{bind_nat} || 0,
-
                                     # object-ref => rule, ...
                                     hash => $href
                                 };
@@ -7376,7 +7372,7 @@ sub find_object_groups ( $ ) {
         my $get_group = sub ( $ ) {
             my ($glue)   = @_;
             my $hash     = $glue->{hash};
-            my $bind_nat = $glue->{bind_nat};
+            my $nat_map  = $glue->{nat_map};
             my @keys     = keys %$hash;
             my $size     = @keys;
 
@@ -7387,7 +7383,7 @@ sub find_object_groups ( $ ) {
 	    }
 
             # Find group with identical elements.
-            for my $group (@{ $nat2size2group{$bind_nat}->{$size} }) {
+            for my $group (@{ $nat2size2group{$nat_map}->{$size} }) {
                 my $href = $group->{hash};
                 my $eq   = 1;
                 for my $key (@keys) {
@@ -7409,7 +7405,7 @@ sub find_object_groups ( $ ) {
                 hash     => $hash,
                 nat_map  => $glue->{nat_map}
             );
-            push @{ $nat2size2group{$bind_nat}->{$size} }, $group;
+            push @{ $nat2size2group{$nat_map}->{$size} }, $group;
             push @groups, $group;
             $counter++;
             return $group;
@@ -7529,10 +7525,6 @@ sub find_chains ( $ ) {
                                     # NAT map for address calculation.
                                     nat_map => $hardware->{nat_map},
 
-                                    # For check, if interfaces belong to
-                                    # identical NAT domain.
-                                    bind_nat => $hardware->{bind_nat} || 0,
-
                                     # object-ref => rule, ...
                                     hash => $href
                                 };
@@ -7555,7 +7547,7 @@ sub find_chains ( $ ) {
         my $get_chain = sub ( $$ ) {
             my ($glue, $action) = @_;
             my $hash     = $glue->{hash};
-            my $bind_nat = $glue->{bind_nat};
+            my $nat_map  = $glue->{nat_map};
             my @keys     = keys %$hash;
             my $size     = @keys;
 
@@ -7567,7 +7559,7 @@ sub find_chains ( $ ) {
 
             # Find chain with identical elements.
             for my $chain (
-                @{ $nat2action2size2group{$bind_nat}->{$action}->{$size} })
+                @{ $nat2action2size2group{$nat_map}->{$action}->{$size} })
             {
                 my $href = $chain->{hash};
                 my $eq   = 1;
@@ -7592,7 +7584,7 @@ sub find_chains ( $ ) {
                 hash     => $hash,
                 nat_map  => $glue->{nat_map}
             );
-            push @{ $nat2action2size2group{$bind_nat}->{$action}->{$size} },
+            push @{ $nat2action2size2group{$nat_map}->{$action}->{$size} },
               $chain;
             push @chains, $chain;
             $counter++;
