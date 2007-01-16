@@ -7397,8 +7397,7 @@ sub find_object_groups ( $ ) {
                     }
                 }
                 if ($eq) {
-                    $glue->{group} = $group;
-                    return;
+                    return $group;
                 }
             }
 
@@ -7413,7 +7412,7 @@ sub find_object_groups ( $ ) {
             push @{ $nat2size2group{$bind_nat}->{$size} }, $group;
             push @groups, $group;
             $counter++;
-            $glue->{group} = $group;
+            return $group;
         };
 
         # Build new list of rules using object groups.
@@ -7431,14 +7430,17 @@ sub find_object_groups ( $ ) {
 #		  debug " deleted: $glue->{group}->{name}";
                         next;
                     }
-                    $get_group->($glue);
+                    my $group = $get_group->($glue);
 
-#	       debug " generated: $glue->{group}->{name}";
+#	       debug " generated: $group->{name}";
+#              # Only needed when debugging.
+#              $glue->{group} = $group;
+	    
                     $glue->{active} = 1;
                     $rule = {
                         action    => $rule->{action},
                         $that     => $rule->{$that},
-                        $this     => $glue->{group},
+                        $this     => $group,
                         src_range => $rule->{src_range},
                         srv       => $rule->{srv}
                     };
@@ -7576,8 +7578,7 @@ sub find_chains ( $ ) {
                     }
                 }
                 if ($eq) {
-                    $glue->{chain} = $chain;
-                    return;
+                    return $chain;
                 }
             }
 
@@ -7595,7 +7596,7 @@ sub find_chains ( $ ) {
               $chain;
             push @chains, $chain;
             $counter++;
-            $glue->{chain} = $chain;
+            return $chain;
         };
 
         # Build new list of rules using chains.
@@ -7615,12 +7616,14 @@ sub find_chains ( $ ) {
                     }
 
                     # Action may be a previously found chain.
-                    $get_chain->($glue, $rule->{action});
+                    my $chain = $get_chain->($glue, $rule->{action});
 
-#	       debug " generated: $glue->{chain}->{name}";
+#	       debug " generated: $chain->{name}";
+#              # Only needed while debugging.
+#              $glue->{chain} = $chain;
                     $glue->{active} = 1;
                     $rule = {
-                        action    => $glue->{chain},
+                        action    => $chain,
                         $this     => $network_00,
                         $that     => $rule->{$that},
                         src_range => $rule->{src_range},
