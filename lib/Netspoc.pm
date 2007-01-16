@@ -5498,7 +5498,8 @@ sub reverse_rule ( $ ) {
     }
     elsif ($proto eq 'icmp') {
         $srv->{type}
-          and err_msg "Crypto rule must not use $srv->{name} with type";
+          and err_msg 
+	      "Crypto rule must not use $srv->{name} with attribute 'type'";
         $new_srv = $srv;
     }
     else {
@@ -8271,6 +8272,9 @@ sub print_acls( $ ) {
                 my $dst       = $xxrp_info{$type}->{mcast};
                 my $srv       = $xxrp_info{$type}->{srv};
                 my $src_range = $srv_ip;
+
+		# Is srv TCP or UDP with destination port range?
+		# Then use source port range as well.
                 if (my $dst_range = $srv->{dst_range}) {
                     $src_range = $srv->{src_range};
                     $srv       = $srv->{dst_range};
@@ -8290,9 +8294,21 @@ sub print_acls( $ ) {
     # Add deny rules.
     for my $hardware (@{ $router->{hardware} }) {
 
-        # Force valid array reference to prevent error in next but one line.
+        # Force valid array reference to prevent error
+	# when checking for non empty array.
         $hardware->{rules} ||= [];
-        if ($filter eq 'IOS' and @{ $hardware->{rules} }) {
+
+        if ($filter eq 'iptables') {
+            push @{ $hardware->{intf_rules} },
+              {
+                action    => 'deny',
+                src       => $network_00,
+                dst       => $network_00,
+                src_range => $srv_ip,
+                srv       => $srv_ip
+              };
+        }
+        elsif ($filter eq 'IOS' and @{ $hardware->{rules} }) {
             my $nat_map = $hardware->{nat_map};
             for my $interface (@{ $router->{interfaces} }) {
 
@@ -8319,16 +8335,6 @@ sub print_acls( $ ) {
                   };
             }
         }
-        if ($filter eq 'iptables') {
-            push @{ $hardware->{intf_rules} },
-              {
-                action    => 'deny',
-                src       => $network_00,
-                dst       => $network_00,
-                src_range => $srv_ip,
-                srv       => $srv_ip
-              };
-        }
         push @{ $hardware->{rules} },
           {
             action    => 'deny',
@@ -8341,7 +8347,7 @@ sub print_acls( $ ) {
 
     # Generate code.
     for my $hardware (@{ $router->{hardware} }) {
-        my $name = "$hardware->{name}_in";
+        my $acl_name = "$hardware->{name}_in";
         my $intf_name;
         my $prefix;
         my $intf_prefix;
@@ -8352,17 +8358,17 @@ sub print_acls( $ ) {
         }
         if ($filter eq 'IOS') {
             $intf_prefix = $prefix = '';
-            print "ip access-list extended $name\n";
+            print "ip access-list extended $acl_name\n";
         }
         elsif ($filter eq 'PIX') {
             $intf_prefix = '';
-            $prefix      = "access-list $name";
+            $prefix      = "access-list $acl_name";
         }
         elsif ($filter eq 'iptables') {
             $intf_name   = "$hardware->{name}_self";
             $intf_prefix = "iptables -A $intf_name";
-            $prefix      = "iptables -A $name";
-            print "iptables -N $name\n";
+            $prefix      = "iptables -A $acl_name";
+            print "iptables -N $acl_name\n";
             print "iptables -N $intf_name\n";
         }
         my $nat_map = $hardware->{nat_map};
@@ -8376,10 +8382,10 @@ sub print_acls( $ ) {
         # Post-processing for hardware interface
         if ($filter eq 'IOS') {
             print "interface $hardware->{name}\n";
-            print " ip access-group $name in\n";
+            print " ip access-group $acl_name in\n";
         }
         elsif ($filter eq 'PIX') {
-            print "access-group $name in interface $hardware->{name}\n";
+            print "access-group $acl_name in interface $hardware->{name}\n";
         }
 
         # Empty line after each interface.
@@ -8404,8 +8410,8 @@ sub print_acls( $ ) {
         print
           "iptables -A FORWARD -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
         for my $hardware (@{ $router->{hardware} }) {
-            my $name = "$hardware->{name}_in";
-            print "iptables -A FORWARD -j $name -i $hardware->{name}\n";
+            my $acl_name = "$hardware->{name}_in";
+            print "iptables -A FORWARD -j $acl_name -i $hardware->{name}\n";
         }
         print "iptables -A FORWARD -j DROP -s 0.0.0.0/0 -d 0.0.0.0/0\n";
     }
