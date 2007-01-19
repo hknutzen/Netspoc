@@ -8123,7 +8123,9 @@ sub print_vpn3k( $ ) {
 
 		# Add split tunnel list.
 		my @split_tunnel_networks;
-		for my $network (values %{$hardware->{id_dst_networks}->{$src}}) {
+		for my $network 
+		    (sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
+		     values %{$hardware->{id_dst_networks}->{$src}}) {
 		    my $ip = print_ip $network->{ip};
 		    my $mask = print_ip complement_32bit $network->{mask};
 		    push @split_tunnel_networks, { base => $ip, mask => $mask };
