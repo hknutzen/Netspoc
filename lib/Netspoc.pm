@@ -98,8 +98,6 @@ our @EXPORT = qw(
   distribute_nat_info
   gen_reverse_rules
   mark_secondary_rules
-  order_any_rules
-  repair_deny_influence
   rules_distribution
   local_optimization
   check_output_dir
