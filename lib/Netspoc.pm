@@ -6690,8 +6690,15 @@ sub distribute_rule( $$$;$ ) {
 		if ($src->{id}) {
 
 		    # Automatically generate IPSec-Tunnel to VPN-Router.
-		    my $peer = $src->{interfaces}->[0]->{router};
-		    $peer->{auto_crypto_peer}->{$in_intf} = $in_intf;
+		    my (@peers) = map { $_->{router} } @{$src->{interfaces}};
+		    if (@peers > 1) {
+			err_msg "Exactly one router needed at",
+			" auto_crypto VPN $src->{name}";
+		    }
+		    my $peer = $peers[0];
+		    if ($peer->{managed}) {
+			$peer->{auto_crypto_peer}->{$in_intf} = $in_intf;
+		    }
 		}
 	    }
 	    else {
