@@ -2581,7 +2581,8 @@ sub link_interface_with_net( $ ) {
         }
 
         # Prevent further errors.
-        aref_delete $interface, $interface->{router}->{interfaces};
+	# This case is handled in disable_behind.
+        $interface->{network} = undef;
         return;
     }
     $interface->{network} = $network;
@@ -2835,7 +2836,7 @@ sub disable_behind( $ ) {
 #  debug "disable_behind $in_interface->{name}";
     $in_interface->{disabled} = 1;
     my $network = $in_interface->{network};
-    if ($network->{disabled}) {
+    if (not $network or $network->{disabled}) {
 
 #     debug "Stop disabling at $network->{name}";
         return;
@@ -2895,6 +2896,7 @@ sub mark_disabled() {
         # Delete disabled interfaces from routers.
         my $router = $interface->{router};
         aref_delete($interface, $router->{interfaces});
+	aref_delete($interface, $interface->{hardware}->{interfaces});
     }
     for my $obj (values %everys) {
         next if $obj->{disabled};
