@@ -2641,7 +2641,6 @@ sub link_interface_with_net( $ ) {
     push @{ $network->{interfaces} }, $interface;
 }
 
-
 sub expand_group( $$;$ );
 
 # Link RADIUS servers referenced in authenticating routers.
@@ -4409,63 +4408,87 @@ sub setany() {
 # - be located inside the same loop,
 # - use the same redundancy protocol,
 # - use the same id (currently optional).
-sub check_virtual_interfaces () {
-    my %same_ip;
+# Link all virtual interface information to a single object.
+# Add a list of all member interfaces.
+sub link_and_check_virtual_interfaces () {
+    my %virtual;
 
-    # Unrelated virtual interfaces with identical IP must be located
+    # Unrelated virtual interfaces with identical ID must be located
     # in different networks.
     my %same_id;
-    for my $interface (@virtual_interfaces) {
-        unless ($interface->{router}->{loop}) {
-            warn_msg "Ignoring virtual IP of $interface->{name}\n",
+    for my $i1 (@virtual_interfaces) {
+        unless ($i1->{router}->{loop}) {
+            warn_msg "Ignoring virtual IP of $i1->{name}\n",
               " because it isn't located inside cyclic graph";
             next;
         }
-        my $ip = $interface->{virtual}->{ip};
-        push @{ $same_ip{$ip} }, $interface;
+	my $virtual1 = $i1->{virtual};
+        my $ip = $virtual1->{ip};
+	my $id1 = $virtual1->{id} || '';
+	if(my $virtual2 = $virtual{$ip}) {
+	    my $i2 = $virtual2->{interfaces}->[0];
+	    if(not $i1->{network} eq $i2->{network}) {
+		err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+		" are connected to different networks";
+
+		# Prevent further errors.
+		delete $i1->{virtual};
+		next;
+	    }
+	    if(not $virtual1->{type} eq $virtual2->{type}) {
+		err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+		" use different redundancy protocols";
+		next;
+	    }
+	    if(not $id1 eq ($virtual2->{id} || '')) {
+		err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+		" use different ID";
+		next;
+	    }
+	    if(not $i1->{router}->{loop} eq $i2->{router}->{loop}) {
+		err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+		" are part of different cyclic subgraphs";
+		next;
+	    }
+	    push @{$virtual2->{interfaces}}, $i1;
+	    $i1->{virtual} = $virtual2;
+	}
+	else {
+	    push @{$virtual1->{interfaces}}, $i1;
+	    $virtual{$ip} = $virtual1;
+	    if ($id1) {
+		my $other;
+		if (    $other = $same_id{$id1}
+			and $i1->{network} eq $other->{network})
+		{
+		    err_msg "Virtual IP:",
+		    " Unrelated $i1->{name} and $other->{name}",
+		    " have identical ID";
+		}
+		else {
+		    $same_id{$id1} = $i1;
+		}
+	    }
+	}
     }
-    for my $aref (values %same_ip) {
-        my ($i1, @rest) = @$aref;
-        my $id1 = $i1->{virtual}->{id} || '';
-        my $other;
-        if ($id1) {
-            if (    $other = $same_id{$id1}
-                and $i1->{network} eq $other->{network})
-            {
-                err_msg "Virtual IP: Unrelated $i1->{name} and $other->{name}",
-                  " have identical ID";
-            }
-            else {
-                $same_id{$id1} = $i1;
-            }
-        }
-        if (@rest) {
-            my $network1 = $i1->{network};
-            my $loop1    = $i1->{router}->{loop};
-            my $type1    = $i1->{virtual}->{type};
-            for my $i2 (@rest) {
-                my $network2 = $i2->{network};
-                my $loop2    = $i2->{router}->{loop};
-                my $type2    = $i2->{virtual}->{type};
-                my $id2      = $i2->{virtual}->{id} || '';
-                $network1 eq $network2
-                  or err_msg "Virtual IP: $i1->{name} and $i2->{name}",
-                  " are connected to different networks";
-                $type1 eq $type2
-                  or err_msg "Virtual IP: $i1->{name} and $i2->{name}",
-                  " use different redundancy protocols";
-                $id1 eq $id2
-                  or err_msg "Virtual IP: $i1->{name} and $i2->{name}",
-                  " use different ID";
-                $loop1 and $loop2 and $loop1 eq $loop2
-                  or err_msg "Virtual IP: $i1->{name} and $i2->{name}",
-                  " are part of different cyclic subgraphs";
-            }
-        }
-        else {
-            warn_msg "Virtual IP: Missing second interface for $i1->{name}";
-        }
-    }
+    for my $virtual (values %virtual) {
+	my $interfaces = $virtual->{interfaces};
+	if(@$interfaces == 1) {
+	    err_msg "Virtual IP: Missing second interface for",
+	    " $interfaces->[0]->{name}";
+	}
+	else {
+
+	    # Automatically add pathrestriction to interfaces
+	    # belonging to $virtual.
+	    my $name = "auto-virtual-" . print_ip $virtual->{ip};
+	    my $restrict = new('Pathrestriction', name => $name);
+	    for my $interface (@$interfaces) {
+		next if not $interface->{router}->{managed};
+		push @{ $interface->{path_restrict} }, $restrict;
+	    }
+	}
+    }	    
 }
 
 ####################################################################
@@ -4642,7 +4665,7 @@ sub setpath() {
 
     # This is called here because it needs attribute {loop}
     # which just has been set.
-    check_virtual_interfaces;
+    link_and_check_virtual_interfaces;
 
     # This is called here and not at link_topology because it needs
     # attributes {disabled} and {in_loop}.
@@ -4685,7 +4708,7 @@ sub get_path( $ ) {
         # Special handling needed if $src or $dst are interface inside a loop.
         if ($obj->{in_loop}) {
 
-            # path_walk needs this attributes to be set
+            # path_walk needs this attributes to be set.
             $obj->{loop}     = $router->{loop};
             $obj->{distance} = $router->{distance};
             return $obj;
@@ -4752,23 +4775,6 @@ sub loop_path_mark1( $$$$$ ) {
         return 1;
     }
 
-    # Found a path to interface as destination.
-    if (is_interface $to and $obj eq $to->{router}) {
-        if ($in_intf eq $to or not $to->{network}->{active_path}) {
-
-            # Found a valid path.
-            $to->{loop_leave}->{$from}->{$in_intf} = $in_intf;
-
-#	 debug " leave: $in_intf->{name} -> $to->{name}";
-            return 1;
-        }
-        else {
-
-#	 debug " invalid path: $in_intf->{name} -> $to->{name}";
-            return 0;
-        }
-    }
-
     # Mark current path for loop detection.
     $obj->{active_path} = 1;
 
@@ -4805,6 +4811,201 @@ sub loop_path_mark1( $$$$$ ) {
     }
     return $success;
 }
+	    
+sub loop_path_mark0 ( $$ ) {
+    my ($from, $to) = @_;
+
+    # Use this anonymous hash for collecting paths as tuples of interfaces.
+    my $collect = {};
+    $from->{path_tuples}->{$to} = $collect;
+    my $success = 0;
+
+    # Mark current path for loop detection.
+    $from->{active_path} = 1;
+    my $get_next = is_router $from ? 'network' : 'router';
+    for my $interface (@{ $from->{interfaces} }) {
+	next unless $interface->{in_loop};
+	my $next = $interface->{$get_next};
+	if (loop_path_mark1 $next, $interface, $from, $to, $collect) {
+	    $success = 1;
+	    push @{ $from->{loop_enter}->{$to} }, $interface;
+	    
+#	    debug " enter: $from->{name} -> $interface->{name}";
+	}
+    }
+    delete $from->{active_path};
+
+    # Convert hash of interfaces to array of interfaces.
+    $to->{loop_leave}->{$from} = [ values %{ $to->{loop_leave}->{$from} } ];
+    return $success;
+}
+
+# The path starts or ends at an interface inside the subgraph.
+# This needs special handling.
+# For routing and pathrestrictions the interface should be handled 
+# as part of the attached network.
+# But for ACLs it must be handled as part of the attached router.
+sub intf_loop_path_mark ( $$ ) {
+    my ($from, $to) = @_;
+    my ($from_net, $to_net) = ( $from, $to);
+    my ($is_from_interface, $is_to_interface);
+    if(is_interface $from) {
+	$is_from_interface = 1;
+	$from_net = $from ->{network};
+    }	
+    if(is_interface $to) {
+	$is_to_interface = 1;
+	$to_net = $to ->{network};
+    }	
+
+    # Simple case.
+    if($from_net eq $to_net) {
+	if($is_from_interface) {
+	    if($is_to_interface) {
+
+		# Needed for path_tuples, below.
+		$key2obj{$from} = $from;
+		$key2obj{$to} = $to;
+
+		# 0: subpath is through network ($from_net).
+		$from->{path_tuples}->{$to} = { $from => { $to => 0 }};
+		push @{$from->{loop_enter}->{$to}}, $from;
+		push @{$to->{loop_leave}->{$from}}, $to;
+	    }
+	    else {
+		push @{$from->{loop_enter}->{$to}}, $from;
+		push @{$to->{loop_leave}->{$from}}, $from;
+	    }
+	}
+	elsif($is_to_interface) {
+	    push @{$from->{loop_enter}->{$to}}, $to;
+	    push @{$to->{loop_leave}->{$from}}, $to;
+	}
+	return 1;
+    }
+
+    # General case: Use loop_path_mark0.
+
+    # Temporary add path restrictions.
+    for my $where ($from, $to) {
+	if(is_interface $where) {
+
+	    # Put a pathrestriction at all interfaces
+	    # of current router except current interface.
+	    my $restrict = new('Pathrestriction', name => 'internal');
+	    for my $interface (@{$where->{router}->{interfaces}}) {
+		next if $interface eq $where;
+		push @{ $interface->{path_restrict} }, $restrict;
+	    }
+
+	    # If current interface is part of a group of virtual
+	    # interfaces (VRRP, HSRP), 
+	    # prevent traffic through other interfaces of this group.
+	    if(my $virtual = $where->{virtual}) {
+		my $restrict = new('Pathrestriction', 
+				   name => 'virtual-IP');
+		$restrict->{active_path} = 1;
+		for my $interface (@{$virtual->{interfaces}}) {
+		    next if $interface eq $where;
+		    push @{ $interface->{path_restrict} }, $restrict;
+		}
+	    }			
+	}	
+    }	
+    my $saved_enter  = $from_net->{loop_enter}->{$to_net};
+    my $saved_tuples = $from_net->{path_tuples}->{$to_net};
+    my $saved_leave  = $to_net->{loop_leave}->{$from_net};
+    $from_net->{loop_enter}->{$to_net}  = undef;
+    $from_net->{path_tuples}->{$to_net} = undef;
+    $to_net->{loop_leave}->{$from_net}  = undef;
+
+    # Do a simulated pathwalk $from_net -> $to_net.
+    my $success = loop_path_mark0 $from_net, $to_net;
+
+    # Remove temporary path restrictions.
+    for my $where ($from, $to) {
+	if(is_interface $where) {
+	    if(my $virtual = $where->{virtual}) {
+		for my $interface (@{$virtual->{interfaces}}) {
+		    next if $interface eq $where;
+		    pop @{ $interface->{path_restrict} };
+		}
+	    }
+	    for my $interface (@{$where->{router}->{interfaces}}) {
+		next if $interface eq $where;
+		pop @{ $interface->{path_restrict} };
+	    }
+	}
+    }
+
+    # Get result of simulation and restore original paths.
+    my $new_enter  = $from_net->{loop_enter}->{$to_net};
+    my $new_tuples = $from_net->{path_tuples}->{$to_net};
+    my $new_leave  = $to_net->{loop_leave}->{$from_net};
+    $from_net->{loop_enter}->{$to_net} = $saved_enter;
+    $from_net->{path_tuples}->{$to_net} = $saved_tuples;
+    $to_net->{loop_leave}->{$from_net}  = $saved_leave;
+
+    $success or return 0;
+
+    if($is_from_interface) {
+	for my $interface (@{$from->{router}->{interfaces}}) {
+	    next if $interface eq $from;
+	    if(delete $new_tuples->{$from}->{$interface}) {
+#		debug " del-path: $from->{name} -> $interface->{name}";
+#		debug " intf-enter: $interface->{name}";
+		push @{$from->{loop_enter}->{$to}}, $interface;
+	    }
+	}
+
+	my $enter_at_from = 0;
+
+	# Interface, where $from_net enters loop.
+	for my $interface (@$new_enter) {
+	    next if $interface eq $from;
+
+#	    debug " intf-loop: $from->{name} -> $interface->{name}";
+	    # Path through $from_net.
+	    $new_tuples->{$from}->{$interface} = 0;
+	    $enter_at_from = 1;
+	}
+	if($enter_at_from) {
+#	    debug " intf-enter2: $from->{name}";
+	    push @{$from->{loop_enter}->{$to}}, $from;
+	}
+    }
+    else {
+	$from->{loop_enter}->{$to} = $new_enter;
+    }
+    if($is_to_interface) {
+	for my $interface (@{$to->{router}->{interfaces}}) {
+	    next if $interface eq $to;
+	    if(delete $new_tuples->{$interface}->{$to}) {
+#		debug " del-path: $interface->{name} -> $to->{name}";
+#		debug " intf-leave: $interface->{name}";
+		push @{$to->{loop_leave}->{$from}}, $interface;
+	    }
+	}
+	my $leave_at_to = 0;
+	for my $interface (@$new_leave) {
+	    next if $interface eq $to;
+#	    debug " intf-loop: $interface->{name} -> $to->{name}";
+	    $new_tuples->{$interface}->{$to} = 0;
+	    $leave_at_to = 1;
+	}
+	if($leave_at_to) {
+#	    debug " intf-leave2: $to->{name}";
+	    push @{$to->{loop_leave}->{$from}}, $to;
+	}
+    }
+    else {	    
+	$to->{loop_leave}->{$from} = $new_leave;
+    }
+
+    $from->{path_tuples}->{$to} = $new_tuples;
+
+    return 1;
+}
 
 # Mark paths inside a cyclic subgraph.
 # $from and $to are entry and exit objects of the subgraph.
@@ -4817,78 +5018,41 @@ sub loop_path_mark ( $$$$$ ) {
     my ($from, $to, $from_in, $to_out, $dst) = @_;
 
 #  debug "loop_path_mark: $from->{name} -> $to->{name}";
-    # Loop has been entered at this interface before, or path starts at this
-    # object.
+
+    # This particular path through this subgraph is already known.
     return if $from_in->{path}->{$dst};
+
+    # When entering subgraph at $from_in we will leave it at $to_out.
     $from_in->{path}->{$dst} = $to_out;
+
+    # Corner case: 
+    # Path starts at interface of that router, where subgraph is left. 
+    # Don't mark this as loop-path; attribute path is sufficient.
     return if is_interface $from and $from->{router} eq $to;
     return if is_interface $to   and $from           eq $to->{router};
+
     $from_in->{loop_entry}->{$dst} = $from;
     $from->{loop_exit}->{$dst}     = $to;
 
     # Path from $from to $to inside cyclic graph has been marked already.
-    return if $from->{path_tuples}->{$to};
+    return if $from->{loop_enter}->{$to};
 
-    # Use this anonymous hash for collecting paths as tuples of interfaces.
-    my $collect = {};
-    $from->{path_tuples}->{$to} = $collect;
-    my $success = 0;
-    if (is_interface $from) {
-        my $router  = $from->{router};
-        my $network = $from->{network};
-
-        # Mark current path for loop detection.
-        $router->{active_path} = 1;
-        if (loop_path_mark1 $network, $from, $from, $to, $collect) {
-            $success = 1;
-            push @{ $from->{loop_enter}->{$to} }, $from;
-
-#	 debug " enter: $from->{name} -> $from->{name}";
-        }
-
-        # Additionally mark network of interface $from for loop detection.
-        $network->{active_path} = 1;
-        for my $interface (@{ $router->{interfaces} }) {
-            next unless $interface->{in_loop};
-            next if $interface eq $from;
-            my $next = $interface->{network};
-            if (loop_path_mark1 $next, $interface, $from, $to, $collect) {
-                $success = 1;
-                push @{ $from->{loop_enter}->{$to} }, $interface;
-
-#	    debug " enter: $from->{name} -> $interface->{name}";
-            }
-        }
-        delete $network->{active_path};
-        delete $router->{active_path};
+    my $success;
+    
+    if(is_interface $from or is_interface $to) {
+	$success = intf_loop_path_mark $from, $to;
     }
     else {
-
-        # Mark current path for loop detection.
-        $from->{active_path} = 1;
-        my $get_next = is_router $from ? 'network' : 'router';
-        for my $interface (@{ $from->{interfaces} }) {
-            next unless $interface->{in_loop};
-            my $next = $interface->{$get_next};
-            if (loop_path_mark1 $next, $interface, $from, $to, $collect) {
-                $success = 1;
-                push @{ $from->{loop_enter}->{$to} }, $interface;
-
-#	    debug " enter: $from->{name} -> $interface->{name}";
-            }
-        }
-        delete $from->{active_path};
+	$success = loop_path_mark0 $from, $to;
     }
-
-    # Convert hash of interfaces to array of interfaces.
-    $to->{loop_leave}->{$from} = [ values %{ $to->{loop_leave}->{$from} } ];
     $success
       or err_msg "No valid path from $from->{name} to $to->{name}\n",
       " (destination is $dst->{name})\n", " Too many path restrictions?";
 }
 
 # Mark path from src to dst.
-# src and dst are either a router or a network.
+# src and dst are either a router or a network,
+# or, as special case, an interface inside a loop.
 # At each interface on the path from src to dst,
 # we place a reference to the next interface on the path to dst.
 # This reference is found at a key which is the reference to dst.
@@ -4964,7 +5128,9 @@ sub loop_path_walk( $$$$$$$ ) {
 #    $info .= "->$out->{name}" if $out;
 #    debug $info;
     # Process entry of cyclic graph.
-    if ((is_router $loop_entry or is_interface $loop_entry) eq $call_at_router)
+    # Note: not .. xor is similar to eq, but operates on boolean values.
+    if (not (is_router $loop_entry or is_interface $loop_entry)
+	xor $call_at_router)
     {
 
 #     debug " loop_enter";
@@ -4983,12 +5149,14 @@ sub loop_path_walk( $$$$$$$ ) {
         for my $out_intf_ref (keys %$hash) {
             my $out_intf  = $key2obj{$out_intf_ref};
             my $at_router = $hash->{$out_intf_ref};
-            $fun->($rule, $in_intf, $out_intf) if $at_router eq $call_at_router;
+            $fun->($rule, $in_intf, $out_intf) 
+		if not $at_router xor $call_at_router;
         }
     }
 
     # Process paths at exit of cyclic graph.
-    if ((is_router $loop_exit or is_interface $loop_exit) eq $call_at_router) {
+    if (not (is_router $loop_exit or is_interface $loop_exit) 
+	xor $call_at_router) {
 
 #     debug " loop_leave";
         for my $in_intf (@{ $loop_exit->{loop_leave}->{$loop_entry} }) {
@@ -6283,10 +6451,11 @@ sub mark_networks_for_static( $$$ ) {
 
     # dst has been added before; skip NAT calculation.
     return if $out_hw->{static}->{$in_hw}->{$dst};
-    err_msg "Traffic to $rule->{dst}->{name} can't pass\n",
-      " from  $in_intf->{name} to $out_intf->{name},\n",
-      " because they have equal security levels.\n"
-      if $in_hw->{level} == $out_hw->{level};
+    if($in_hw->{level} == $out_hw->{level}) {
+	err_msg "Traffic to $rule->{dst}->{name} can't pass\n",
+	" from  $in_intf->{name} to $out_intf->{name},\n",
+	" because they have equal security levels.\n";
+    }
 
     # This router and all routers from here to dst have been processed already.
     # But we can't be sure about this, if we are walking inside a loop.
