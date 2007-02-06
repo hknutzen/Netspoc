@@ -433,12 +433,12 @@ sub read_interface_name() {
 
 {
 
-    # user@domain or @domain
+    # user@domain or @domain or user
     my $domain_regex = qr/@(?:[\w-]+\.)+[\w-]+/;
     my $user_regex =qr/[\w-]+(?:\.[\w-]+)*/;
-    my $full_id_regex = qr/$user_regex$domain_regex/;
-    my $id_regex = qr/(?:$user_regex)?$domain_regex/;
-    my $hostname_regex = qr/host:(?:id:$id_regex|[\w-]+)/;
+    my $user_id_regex = qr/$user_regex(?:$domain_regex)?/;
+    my $id_regex = qr/$user_id_regex|$domain_regex/;
+    my $hostname_regex = qr/(?:id:$id_regex|[\w-]+)/;
 
 # Check for xxx:xxx or xxx:[xxx] or xxx:[xxx:xxx]
 # or interface:xxx.xxx or interface:xxx.[xxx] or interface:[xxx].[xxx]
@@ -447,8 +447,8 @@ sub read_interface_name() {
     sub check_typed_ext_name() {
 	skip_space_and_comment;
 	if ($input =~ m/\G(interface:[][:& \w-]+\.[][\w-]+ |
-			   $hostname_regex |
-			   \w+:[][:\w-]+)/gcx) {
+                         host:$hostname_regex |
+                         \w+:[][:\w-]+)/gcox) {
 	    return $1;
 	}
 	else {
@@ -460,23 +460,27 @@ sub read_interface_name() {
 	check_typed_ext_name or syntax_err "Typed extended name expected";
     }
 
-# user@domain
-    sub read_full_id() {
+# user@domain or user
+    sub read_user_id() {
 	skip_space_and_comment;
-	if ($input =~ m/\G($full_id_regex)/gco) {
+	if ($input =~ m/\G($user_id_regex)/gco) {
 	    return $1;
 	}
 	else {
-	    syntax_err "Full id expected";
+	    syntax_err "Id expected ('user\@domain' or 'user')";
 	}
     }
 
-# host:xxx or host:id:user@domain or host:id:@domain
+# host:xxx or host:id:user@domain or host:id:@domain or host:id:user
     sub check_hostname() {
 	skip_space_and_comment;
-	if ($input =~
-	    m/\G($hostname_regex)/gc) {
-	    return $1;
+	if ($input =~ m/\G host:/gcx) {
+	    if ($input =~ m/\G($hostname_regex)/gco) {
+		return "host:$1";
+	    }
+	    else {
+		syntax_err "Hostname expected";
+	    }
 	}
 	else {
 	    return undef;
@@ -874,7 +878,7 @@ sub read_network( $ ) {
             # Duplicate use of this flag doesn't matter.
             $network->{route_hint} = 1;
         }
-	elsif (my $id = check_assign 'id', \&read_full_id) {
+      elsif (my $id = check_assign 'id', \&read_user_id) {
 	    $network->{id}
 	      and error_atline "Duplicate attribute 'id'";
 	    $network->{id} = $id;
@@ -8277,10 +8281,15 @@ sub print_vpn3k( $ ) {
 		my $id = $src->{id};
 		my $ip = print_ip $src->{ip};
 		if ($src->{mask} == 0xffffffff) {
+                   $id =~ /^\@/
+                       and err_msg "ID of $src->{name} must not start with character '\@'";
+
 		    $entry{id} = $id;
 		    $entry{'Framed-IP-Address'} = $ip;
 		}
 		else {
+                  $id =~ /^\@/
+                      or err_msg "ID of $src->{name} must start with character '\@'";
 		    $entry{suffix} = $id;
 		    my $mask = print_ip complement_32bit $src->{mask};
 		    $entry{network} = { base => $ip, mask => $mask };
