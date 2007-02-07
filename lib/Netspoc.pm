@@ -7454,15 +7454,21 @@ sub acl_line( $$$$ ) {
                       "$src_code $src_port_code $dst_code $dst_port_code\n";
                 }
                 elsif ($filter_type eq 'iptables') {
-                    my $srv_code    = iptables_srv_code($src_range, $srv);
-                    my $src_code    = prefix_code($spair);
-                    my $dst_code    = prefix_code($dpair);
                     my $action_code =
                         is_chain $action ? $action->{name}
                       : $action eq 'permit' ? 'ACCEPT'
                       : 'DROP';
-                    print "$prefix -j $action_code ",
-                      "-s $src_code -d $dst_code $srv_code\n";
+		    my $result = "$prefix -j $action_code";
+		    if($spair->[1] != 0) {
+			$result .= ' -s ' . prefix_code($spair);
+		    }
+		    if($dpair->[1] != 0) {
+			$result .= ' -d ' . prefix_code($dpair);
+		    }
+		    if($srv ne $srv_ip) {
+			$result .= ' ' . iptables_srv_code($src_range, $srv);
+		    }
+		    print "$result\n";
                 }
                 else {
                     internal_err "Unknown filter_type $filter_type";
@@ -7755,12 +7761,22 @@ sub find_chains ( $ ) {
             }
 
             # Not found, build new chain.
+
+	    # A chain must not have "any" objects as elements.
+	    # Global_optimization should have shrinked them to a single element
+	    # which isn't further optimized at this point.
+	    # "any" objects have been converted to network:0/0 during
+	    # local_optimization. These don't have a ref2obj mapping.
+	    my $elements = [ map { $ref2obj{$_} or  
+				       internal_err "Unexpected network:0/0",
+				       " in chain of $router->{name}";
+			       } @keys ];
             my $chain = new(
                 'Chain',
                 name     => "c$counter",
                 action   => $action,
                 where    => $this,
-                elements => [ map { $ref2obj{$_} } @keys ],
+                elements => $elements,
                 hash     => $hash,
                 nat_map  => $glue->{nat_map}
             );
@@ -8584,7 +8600,7 @@ sub print_acls( $ ) {
             my $if_name = "$hardware->{name}_self";
             print "iptables -A INPUT -j $if_name -i $hardware->{name} \n";
         }
-        print "iptables -A INPUT -j DROP -s 0.0.0.0/0 -d 0.0.0.0/0\n";
+        print "iptables -A INPUT -j DROP\n";
 
         #
         print "iptables -P FORWARD DROP\n";
@@ -8595,7 +8611,7 @@ sub print_acls( $ ) {
             my $acl_name = "$hardware->{name}_in";
             print "iptables -A FORWARD -j $acl_name -i $hardware->{name}\n";
         }
-        print "iptables -A FORWARD -j DROP -s 0.0.0.0/0 -d 0.0.0.0/0\n";
+        print "iptables -A FORWARD -j DROP\n";
     }
 }
 
