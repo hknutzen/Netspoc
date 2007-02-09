@@ -28,10 +28,10 @@ use Getopt::Long;
 
 # We need this for German umlauts being part of \w.
 # Uncomment next line, if your files are latin1..9 encoded.
-##use locale;
+use locale;
 
 # Uncomment next line, if your files are utf8 encoded.
-use open ':utf8';
+##use open ':utf8';
 
 my $program = 'Network Security Policy Compiler';
 my $version =
@@ -2870,6 +2870,8 @@ sub disable_behind( $ ) {
 
 # Lists of network objects which are left over after disabling.
 my @managed_routers;
+my @managed_vpn3k;
+my @unmanaged_vpn3k;
 my @routers;
 my @networks;
 my @all_anys;
@@ -2928,7 +2930,14 @@ sub mark_disabled() {
     for my $router (values %routers) {
         unless ($router->{disabled}) {
             push @routers, $router;
-            push @managed_routers, $router if $router->{managed};
+	    if($router->{managed}) {
+		push @managed_routers, $router;
+		push @managed_vpn3k, $router if $router->{model}->{name} eq 'VPN3K';
+	    }
+	    else {
+		push @unmanaged_vpn3k, $router 
+		    if $router->{model} and $router->{model}->{name} eq 'VPN3K';
+	    }
         }
     }
     for my $network (values %networks) {
@@ -4185,6 +4194,54 @@ sub find_subnets() {
     }
 }
 
+sub equal (@) {
+    my($first, @rest) = @_;
+    my %hash = map { $_ => 1 } @$first;
+    my $size = keys %hash;
+
+    for my $list (@rest) {
+	@$list == $size or return 0;
+	for my $element (@$list) {
+	    $hash{$element} or return 0;
+	}
+    }
+    return 1;
+}
+	    
+sub check_vpn3k () {
+    my %any2vpn3k_intf;
+    for my $router (@managed_vpn3k) {
+	my $no_check_count = 0;
+	for my $interface (@{$router->{interfaces}}) {
+	    my $any = $interface->{any};
+	    push @{$any2vpn3k_intf{$any}}, $interface;
+	    $interface->{no_check} and $no_check_count++;
+	}
+	$no_check_count == 1 or 
+	    err_msg 
+	    "$router->{name} needs to have exctly on interface with attribute 'no_check'";
+    }
+    for my $router (@managed_vpn3k) {
+	if( not equal 
+	        map { [ map { $_->{router} } @{$any2vpn3k_intf{$_->{any}}} ] } 
+                @{$router->{interfaces}}) {
+	    err_msg "Interfaces of $router->{name} must all be connected to",
+	    " the same backup VPN3k devices.";
+	}
+    }
+    for my $router (@unmanaged_vpn3k) {
+	my $any = $router->{interfaces}->[0]->{network}->{any};
+	for my $other (@{$any->{unmanaged_routers}}) {
+	    next if $other eq $router;
+	    my $model = $other->{model};
+	    if($model and $model->{name} eq 'VPN3K') {
+		err_msg "Only one VPN3K device allowed in $any->{name},",
+		" but found $router->{name} and $other->{name}";
+	    }
+	}
+    }	
+}
+		
 ####################################################################
 # For each security domain find its associated 'any' object or
 # generate a new one if none was declared.
@@ -4318,6 +4375,8 @@ sub setany() {
         @{ $any->{networks} } =
           sort { $a->{ip} <=> $b->{ip} } @{ $any->{networks} };
     }
+
+    check_vpn3k;
 
     # Mark interfaces, which are border of some area.
     # This is needed to locate auto_borders.
@@ -6985,6 +7044,7 @@ sub distribute_rule( $$$;$ ) {
       ($in_crypto_map && !$model->{no_crypto_filter})
       ? $in_crypto_map
       : $in_intf->{hardware};
+    my $aref;
 
 #  debug "$router->{name} store: $store->{name}";
     if (not $out_intf) {
@@ -6994,7 +7054,8 @@ sub distribute_rule( $$$;$ ) {
         return if $model->{filter} eq 'PIX' and $rule->{dst} ne $in_intf;
 
 #     debug "$router->{name} intf_rule: ",print_rule $rule,"\n";
-        push @{ $store->{intf_rules} }, $rule;
+        
+        $aref = \@{ $store->{intf_rules} };
     }
     else {
 
@@ -7005,12 +7066,12 @@ sub distribute_rule( $$$;$ ) {
         # This test can't easily be done at local_optimization,
         # because it wouldn't find IDENTICAL rules.
         # Force auto-vivification.
-        my $aref = \@{ $store->{rules} };
-        push @$aref, $rule
-          unless $router->{loop}
-          and @$aref
-          and $aref->[$#$aref] eq $rule;
+        $aref = \@{ $store->{rules} };
     }
+    push @$aref, $rule
+      unless $router->{loop}
+      and @$aref
+      and $aref->[$#$aref] eq $rule;
 }
 
 # For rules with src=any:*, call distribute_rule only for
@@ -8164,117 +8225,96 @@ sub print_vpn3k( $ ) {
     # Either network with VPN clients or VPN network.
     my %auto_deny_networks;
 
+    # Additionally add all networks in security domain located at no_check interface.
+    for my $interface (@{ $router->{interfaces} }) {
+	next if not $interface->{no_check};
+	for my $network (@{ $interface->{any}->{networks}}) {
+	    $auto_deny_networks{$network} = $network;
+	}
+    }
+
     for my $hardware (@{ $router->{hardware} }) {
 
 	# Rules of $hardware->{intf_rules} are ignored.
 	# Protection for device must currently be configured manually.
 
+	# Traffic from not authenticated sources must only enter
+	# at 'no_check' interface.
+	# This has been verified during rules distribution.
+	# They are silently ignored and should be filtered manually.
+
+	my %active_id;
+	for my $rule (@{ $hardware->{rules} }) {
+	    my ($src, $dst) = @{$rule}{'src', 'dst'};
+	    my $active_id;
+	    for my $where ($src, $dst) {
+		my $where_id = get_id $where;
+		if ($where_id) {
+		    my $network = is_network $where ? $where : $where->{network};
+
+		    # Will $network or client of $network authenticated at
+		    # current device?
+		    if ($network->{id_checker}->{$router}) {
+
+			$active_id = 1;
+			$active_id{$where} = 1;
+
+			# Mark network of VPN clients or VPN networks behind
+			# unmanaged router to be protected by deny rules.
+			# (See below for details.)
+			if (
+			    # Network with VPN clients has no id.
+			    ! $network->{id} ||
+
+			    # VPN network is located inside some security domain
+			    # directly attached to current router.
+			    grep {$network->{any} eq $_->{any}}
+			    @{$router->{interfaces}}
+			    ) {
+			    $auto_deny_networks{$network} = $network;
+			}
+		    }
+		}
+	    }
+	    $active_id or
+		warn_msg "Traffic between non VPN hosts $src->{name} and",
+		   " $dst->{name} isn't allowed at $router->{name}";
+	}
+
 	# Check for duplicate IDs at different hosts
 	# coming into current interface.
 	my %id2src;
 
-	for my $rule (@{ $hardware->{rules} }) {
+	for my $rule (@{ $hardware->{rules} }, @{$hardware->{intf_rules}}) {
 	    my ($src, $dst) = @{$rule}{'src', 'dst'};
-	    my $src_id = get_id $src;
-	    my $dst_id = get_id $dst;
-	    if ($src_id) {
-		my $network = is_network $src ? $src : $src->{network};
+	    if ($active_id{$src}) {
+		my $src_id = get_id $src;
 
-		# Will $network or client of $network authenticated at
-		# current device?
-		if ($network->{id_checker}->{$router}) {
-
-		    # Mark network of VPN clients or VPN networks behind
-		    # unmanaged router to be protected by deny rules.
-		    # (See below for details.)
-		    if (
-			# Network with VPN clients has no id.
-			! $network->{id} ||
-
-			# VPN network is located inside some security domain
-			# directly attached to current router.
-			grep {$network->{any} eq $_->{any}}
-			@{$router->{interfaces}}
-		       ) {
-			$auto_deny_networks{$network} = $network;
-		    }
-		}
-		else {
-
-		    # Not authenticated at current router.
-		    undef $src_id;
-		}
-	    }
-	    if ($dst_id) {
-		my $network = is_network $dst ? $dst : $dst->{network};
-
-		# Will $network or client of $network authenticated at
-		# current device?
-		if ($network->{id_checker}->{$router}) {
-		    # Mark network of VPN clients or VPN networks behind
-		    # unmanaged router to be protected by deny rules.
-		    # (See below for details.)
-		    if (
-			# Network of VPN clients has no id.
-			! $network->{id} ||
-
-			# VPN network is located inside some security domain
-			# directly attached to current router.
-			grep {$network->{any} eq $_->{any}}
-			@{$router->{interfaces}}
-		       ) {
-			$auto_deny_networks{$network} = $network;
-		    }
-		}
-		else {
-
-		    # Not authenticated at current router.
-		    undef $dst_id;
-		}
-	    }
-	    if ($src_id) {
-
-		# Remember destination networks form vpn3k
+		# Remember destination networks for VPN3K
 		# split tunnel configuration.
 		my $dst_network = is_network $dst ? $dst : $dst->{network};
 		$hardware->{id_dst_networks}->{$src}->{$dst_network} =
 		  $dst_network;
 
-		# Take ID of enclosing ID network.
+		# Take enclosing ID network.
 		$src = $src->{network} if not $src->{id};
-		if ($dst_id) {
 
-		    # Source is network or host/interface behind VPN router.
-		    if (is_network $src) {
-			my $dst_network =
-			  is_network $dst ? $dst : $dst->{network};
-			if ($auto_deny_networks{$dst_network}) {
-			    push @{$hardware->{id_src_rules}->{$src}}, $rule;
-			}
-		    }
+		# Permit access to auto denied networks.
+		if ($auto_deny_networks{$dst_network}) {
+		    push @{$hardware->{id_src_rules}->{$src}}, $rule;
 		}
+
 		if (my $old_src = $id2src{$src_id}) {
 		    $old_src eq $src or
 		      err_msg "$src->{name} and $old_src->{name}",
 			" must not have identical id:$src_id";
-		} else {
-
+		} 
+		else {
 		    $id2src{$src_id} = $src;
 		    # Collect all authenticated users or networks.
 		    push @{$hardware->{id_src}}, $src;
-
 		}
 	    }
-	    elsif (!$src_id && !$dst_id) {
-
-		warn_msg "Traffic between non VPN hosts $src->{name} and",
-		  " $dst->{name} isn't allowed at $router->{name}";
-	    }
-
-	    # Traffic from not authenticated sources must only enter
-	    # at 'no_check' interface.
-	    # This has been verified during rules distribution.
-	    # They are silently ignored and should be filtered manually.
 	}
     }
 
