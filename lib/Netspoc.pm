@@ -5849,6 +5849,21 @@ sub expand_crypto () {
     }
 }
 
+# Hash for converting a reference of an object back to this object.
+my %ref2obj;
+
+sub setup_ref2obj () {
+    for my $network (@networks) {
+	$ref2obj{$network} = $network;
+	for my $obj (@{$network->{subnets}}, @{$network->{interfaces}}) {
+	    $ref2obj{$obj} = $obj;
+	}
+    }
+    for my $any (@all_anys) {
+	$ref2obj{$any} = $any;
+    }
+}
+
 ##############################################################################
 # Check if high-level and low-level semantics of rules with an 'any' object
 # as source or destination are equivalent.
@@ -6024,6 +6039,167 @@ sub check_any_dst_rule( $$$ ) {
     }
 }
 
+# Find smaller service of two services.
+sub find_smaller_srv ( $$ ) {
+    my($srv1, $srv2) = @_;
+    
+    return $srv1 if $srv1 eq $srv2;
+
+    my $srv = $srv1;
+    while ( $srv = $srv->{up} ) {
+	return $srv1 if $srv eq $srv2;
+    }
+    $srv = $srv2;
+    while ( $srv = $srv->{up} ) {
+	return $srv2 if $srv eq $srv1;
+    }
+}
+
+# Example:
+# XX--R1--any_A--R2--R3--R4--YY
+#
+# If we have rules
+#   permit XX any_A
+#   permit any_A YY
+# this implies
+#   permit XX YY
+# which may not have been wanted.
+# In order to avoid this, a warning is generated if the last rule is not
+# explicitly defined.
+#
+sub check_for_transient_any_rule () {
+
+    my $start = time();
+
+    # Collect info about unwanted implied rules.
+    my %missing_rule_tree;
+    my $missing_count = 0;
+    
+    for my $rule (@{ $expanded_rules{any} }) {
+        next if $rule->{deleted};
+        next if $rule->{stateless};
+	next if $rule->{action} ne 'permit';
+	my $dst = $rule->{dst};
+	next if not is_any($dst);
+
+	# A leaf security domain has only one interface.
+	# It can't lead to unwanted rule chains.
+	next if @{$dst->{interfaces}} <= 1;
+
+	my ( $src1, $dst1, $src_range1, $srv1 )
+	    = @$rule{'src', 'dst', 'src_range', 'srv'};
+
+	# Find all rules with $dst1 as source.
+	my $src2 = $dst1;
+	while (my($dst2_str, $hash) = each %{$rule_tree{permit}->{$src2}} ) {
+
+	    # Skip reverse rules.
+	    next if $src1 eq $dst2_str;
+
+	    my $dst2 = $ref2obj{$dst2_str};
+
+	    # Skip rules with src and dst inside a single security domain.
+	    next if get_any $src1 eq get_any $dst2;
+
+	    while (my($src_range2_str, $hash) = each %$hash) {
+	      RULE2:
+		while (my($srv2_str, $rule2) = each %$hash) {
+
+		    my $srv2  = $rule2->{srv};
+		    my $src_range2  = $rule2->{src_range};
+
+		    # Find smaller service of two rules found.
+		    my $smaller_srv = find_smaller_srv $srv1, $srv2;
+		    my $smaller_src_range = 
+			find_smaller_srv $src_range1, $src_range2;
+
+		    # If services are disjoint, 
+		    # we do not have transient-any-problem for $rule and $rule2.
+		    next if not $smaller_srv or not $smaller_src_range;
+
+		    # If we have a rule with $src1 and $dst2 
+		    # with $smaller_service, everything is fine.
+		    my $action = 'permit';
+		    while (1) {
+			my $src = $src1;
+			if (my $hash = $rule_tree{$action}) {
+			    while (1) {
+				my $dst = $dst2;
+				if (my $hash = $hash->{$src}) {
+				    while (1) {
+					my $src_range = $smaller_src_range;
+					if (my $hash = $hash->{$dst}) {
+					    while (1) {
+						my $srv = $smaller_srv;
+						if (my $hash =
+						    $hash->{$src_range})
+						{
+						    while (1) {
+							if (my $other_rule =
+							    $hash->{$srv})
+							{
+# debug print_rule $other_rule;
+							    next RULE2;
+							}
+							$srv = $srv->{up}
+							or last;
+						    }
+						}
+						$src_range =
+						    $src_range->{up}
+						or last;
+					    }
+					}
+					$dst = $dst->{up} or last;
+				    }
+				}
+				$src = $src->{up} or last;
+			    }
+			}
+			last if $action eq 'deny';
+			$action = 'deny';
+		    }
+		    
+# debug "Src: ", print_rule $rule;
+# debug "Dst: ", print_rule $rule2;
+		    my $src_policy = $rule->{rule}->{policy}->{name};
+		    my $dst_policy = $rule2->{rule}->{policy}->{name};
+		    my $new = $missing_rule_tree{$src_policy}->{$src1->{name}}
+		                              ->{$dst_policy}->{$dst2->{name}}
+		                              ->{$smaller_src_range->{name}}
+		                              ->{$smaller_srv->{name}}++;
+		    $missing_count++ if $new;
+		}
+	    }
+	}
+    }
+    
+    my $end = time();
+    if($missing_count) {
+
+	err_msg "Missing transient rules: $missing_count";
+
+	while(my($src_policy, $hash) = each %missing_rule_tree) {
+	    info "*Src-Policy: $src_policy";
+	    while(my($src, $hash) = each %$hash) {
+		info " Src: $src";
+		while(my($dst_policy, $hash) = each %$hash) {
+		    info " *Dst-Policy: $dst_policy";
+		    while(my($dst, $hash) = each %$hash) {
+			info "  Dst: $dst";
+			while(my($src_range, $hash) = each %$hash) {
+			    while(my($srv, $hash) = each %$hash) {
+				info "   Srv: $srv";
+			    }
+			}
+		    }
+		}
+	    }
+	}
+    }
+    printf STDERR "check_for_transient_any_rule took %.2f CPU seconds of user time\n", $end - $start;
+}
+
 # Handling of any rules created by gen_reverse_rules.
 #
 # 1. dst is any
@@ -6079,6 +6255,7 @@ sub check_any_rules() {
             path_walk($rule, \&check_any_dst_rule);
         }
     }
+    check_for_transient_any_rule;
 }
 
 ##############################################################################
@@ -6267,21 +6444,6 @@ sub mark_secondary_rules() {
             next RULE if $use_nonlocal_exit;
         };
         path_walk($rule, $mark_secondary_rule);
-    }
-}
-
-# Hash for converting a reference of an object back to this object.
-my %ref2obj;
-
-sub setup_ref2obj () {
-    for my $network (@networks) {
-	$ref2obj{$network} = $network;
-	for my $obj (@{$network->{subnets}}, @{$network->{interfaces}}) {
-	    $ref2obj{$obj} = $obj;
-	}
-    }
-    for my $any (@all_anys) {
-	$ref2obj{$any} = $any;
     }
 }
 
