@@ -6454,24 +6454,20 @@ sub mark_secondary_rules() {
 
 sub optimize_rules( $$ ) {
     my ($cmp_hash, $chg_hash) = @_;
-    for my $action (keys %$chg_hash) {
-        my $chg_hash = $chg_hash->{$action};
+    while (my ($action,$chg_hash) = each %$chg_hash) {
         while (1) {
             if (my $cmp_hash = $cmp_hash->{$action}) {
-                for my $src_ref (keys %$chg_hash) {
-                    my $chg_hash = $chg_hash->{$src_ref};
-                    my $src      = $ref2obj{$src_ref};
+                while( my($src_ref, $chg_hash) = each %$chg_hash) {
+                    my $src = $ref2obj{$src_ref};
                     while (1) {
                         if (my $cmp_hash = $cmp_hash->{$src}) {
-                            for my $dst_ref (keys %$chg_hash) {
-                                my $chg_hash = $chg_hash->{$dst_ref};
-                                my $dst      = $ref2obj{$dst_ref};
+                            while (my($dst_ref, $chg_hash) = each %$chg_hash) {
+                                my $dst = $ref2obj{$dst_ref};
                                 while (1) {
                                     if (my $cmp_hash = $cmp_hash->{$dst}) {
-                                        for my $src_range_ref (keys %$chg_hash)
+                                        while (my($src_range_ref, $chg_hash) = 
+					       each %$chg_hash)
                                         {
-                                            my $chg_hash =
-                                              $chg_hash->{$src_range_ref};
                                             my $src_range =
                                               $ref2srv{$src_range_ref};
                                             while (1) {
