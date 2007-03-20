@@ -2747,17 +2747,21 @@ sub link_topology() {
         for my $host (@{ $network->{hosts} }) {
             if (my $ips = $host->{ips}) {
                 for my $ip (@$ips) {
-                    if (my $old_intf = $ip{$ip}) {
-                        err_msg "Duplicate IP address for $old_intf->{name}",
+                    if (my $other_device = $ip{$ip}) {
+                        err_msg "Duplicate IP address for $other_device->{name}",
                           " and $host->{name}";
                     }
+		    else {
+			$ip{$ip} = $host;
+		    }
                 }
             }
             elsif (my $range = $host->{range}) {
                 for (my $ip = $range->[0] ; $ip <= $range->[1] ; $ip++) {
-                    if (my $old_intf = $ip{$ip}) {
-                        err_msg "Duplicate IP address for $old_intf->{name}",
-                          " and $host->{name}";
+                    if (my $other_device = $ip{$ip}) {
+			is_host $other_device or
+			    err_msg "Duplicate IP address for $other_device->{name}",
+			    " and $host->{name}";
                     }
                 }
             }
