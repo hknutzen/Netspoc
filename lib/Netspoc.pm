@@ -1196,17 +1196,6 @@ sub read_interface( $ ) {
                 $interface->{virtual} = $virtual;
                 push @virtual_interfaces, $interface;
             }
-            elsif (my $value = check_assign 'managed', \&read_identifier) {
-                $interface->{managed}
-                  and error_atline "Duplicate managed interface type";
-                if ($value =~ /^full|secondary$/) {
-                    $interface->{managed} = $value;
-                }
-                else {
-                    error_atline "Unknown managed interface type";
-                }
-                $interface->{managed} = $value;
-            }
             elsif (my $nat = check_assign 'nat', \&read_identifier) {
 
                 # Bind NAT to an interface.
@@ -1470,10 +1459,6 @@ sub read_router( $ ) {
                     err_msg "Missing 'hardware' for $interface->{name}";
                 }
             }
-
-            # Propagate filtering attribute 'full' or 'secondary'
-            # from router to interfaces.
-            $interface->{managed} ||= $managed;
         }
         if ($router->{model}->{has_interface_level}) {
             set_pix_interface_level $router;
@@ -1499,15 +1484,6 @@ sub read_router( $ ) {
 	      and err_msg "Attribute 'no_check' is not allowed",
 		" at interface of $router->{name}";
 	}
-    }
-    else {
-
-        # Interfaces of unmanaged router must not have attribute "managed";
-        for my $interface (@{ $router->{interfaces} }) {
-            err_msg "$interface->{name} must not have attribute 'managed'\n",
-              " because $router->{name} is unmanaged"
-              if $interface->{managed};
-        }
     }
 
     return $router;
@@ -4348,6 +4324,7 @@ sub setarea1( $$$ ) {
 }
 
 sub setany() {
+    info "Preparing security domains and areas";
     for my $any (@all_anys) {
         $any->{networks} = [];
         my $network = $any->{link};
@@ -6073,8 +6050,6 @@ sub find_smaller_srv ( $$ ) {
 #
 sub check_for_transient_any_rule () {
 
-    my $start = time();
-
     # Collect info about unwanted implied rules.
     my %missing_rule_tree;
     my $missing_count = 0;
@@ -6178,7 +6153,6 @@ sub check_for_transient_any_rule () {
 	}
     }
     
-    my $end = time();
     if($missing_count) {
 
 	err_msg "Missing transient rules: $missing_count";
@@ -6201,7 +6175,6 @@ sub check_for_transient_any_rule () {
 	    }
 	}
     }
-    printf STDERR "check_for_transient_any_rule took %.2f CPU seconds of user time\n", $end - $start;
 }
 
 # Handling of any rules created by gen_reverse_rules.
@@ -6384,70 +6357,65 @@ sub gen_reverse_rules() {
 # from src to dst, were the original rule is checked.
 ##############################################################################
 
+sub get_any2( $ ) {
+    my ($obj) = @_;
+    my $type = ref $obj;
+    if ($type eq 'Network') {
+        return $obj->{any};
+    }
+    elsif ($type eq 'Subnet') {
+        return $obj->{network}->{any};
+    }
+    elsif ($type eq 'Interface') {
+	return $obj->{network}->{any};
+    }
+    elsif ($type eq 'Any') {
+        return $obj;
+    }
+}
+
+# Mark security domain $any with $mark and 
+# additionally mark all security domains 
+# which are connected with $any by secondary packet filters.
+sub mark_secondary ( $$ );
+sub mark_secondary ( $$ ) {
+    my ($any, $mark) = @_;
+    return if $any->{secondary_mark};
+    $any->{secondary_mark} = $mark;
+    for my $in_interface (@{$any->{interfaces}}) {
+	my $router = $in_interface->{router};
+	next unless $router->{managed} eq 'secondary';
+	for my $out_interface (@{$router->{interfaces}}) {
+	    next if $out_interface eq $in_interface;
+	    mark_secondary $out_interface->{any}, $mark;
+	}
+    }
+}
+
 sub mark_secondary_rules() {
     info "Marking rules for secondary optimization";
+
+    my $secondary_mark = 0;
+    for my $any (@all_anys) {
+	next if $any->{secondary_mark};
+	$secondary_mark++;
+	mark_secondary $any, $secondary_mark;
+    }
 
     # Mark only normal rules for optimization.
     # We can't change a deny rule from e.g. tcp to ip.
     # We can't change 'any' rules, because path is unknown.
-  RULE:
     for my $rule (@{ $expanded_rules{permit} }) {
         next
           if $rule->{deleted}
           and (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
-        my $mark_secondary_rule = sub( $$$ ) {
-            my ($rule, $in_intf, $out_intf) = @_;
-            if (not $in_intf) {
 
-                # Source of rule must be some interface of current router,
-                # because $in_intf is undefined.
-                my $src = $rule->{src};
-
-                # If source is outgoing interface then its network
-                # isn't filtered at this router.
-                return if $src eq $out_intf;
-
-                # Remaining case:
-                # Interface is located behind router when looking
-                # into direction of destination.
-                # Router isn't managed.
-                return unless $src->{managed};
-
-                # Interface isn't full filter.
-                return unless $src->{managed} eq 'full';
-            }
-            else {
-
-                # Router isn't managed.
-                return unless $in_intf->{managed};
-
-                # Interface isn't full filter.
-                return unless $in_intf->{managed} eq 'full';
-
-                # Destination of rule is an interface of current router.
-                # But network of interface wouldn't be filtered, if it's
-                # located before router.
-                # Hence, this router doesn't count as a full packet filter.
-                return if not $out_intf and $rule->{dst} eq $in_intf;
-
-                # A full filter inside a loop doesn't count, because there
-                # might be another path without a full packet filter.
-                # But a full packet filter at loop entry or exit is sufficient.
-                # ToDo: This could be analyzed in more detail.
-                return if $in_intf->{in_loop} and $out_intf->{in_loop};
-            }
-
-            # Optimization should only take place for IP addresses
-            # which are really filtered by a full packet filter.
-            # ToDo: Think about virtual interfaces sitting
-            # all on the same hardware.
+	my $src_any = get_any2 $rule->{src};
+	my $dst_any = get_any2 $rule->{dst};
+	
+	if($src_any->{secondary_mark} ne $dst_any->{secondary_mark}) {
             $rule->{has_full_filter} = 1;
-
-            # Jump out of path_walk.
-            no warnings "exiting";
-            next RULE if $use_nonlocal_exit;
-        };
-        path_walk($rule, $mark_secondary_rule);
+	}
     }
 }
 
@@ -8203,7 +8171,7 @@ sub local_optimization() {
             for my $interface (@{ $network->{interfaces} }) {
                 my $router = $interface->{router};
                 next unless $router->{managed};
-                my $secondary_router = $interface->{managed} eq 'secondary';
+                my $secondary_router = $router->{managed} eq 'secondary';
 		my $is_vpn3k         = $router->{model}->{filter} eq 'VPN3K';
                 my $hardware         = $interface->{hardware};
 
