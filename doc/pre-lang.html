@@ -412,10 +412,8 @@ choosen.
  | interface:&lt;name&gt;.&lt;name&gt; 
  | interface:&lt;name&gt;.[auto]; 
  | interface:&lt;name&gt;.[all]; 
- | interface:[managed].[auto]; 
- | interface:[managed].[all]; 
- | interface:[all].[auto]; 
- | interface:[all].[all]; 
+ | interface:[&lt;router group&gt;].[auto]; 
+ | interface:[&lt;router group&gt;].[all]; 
  | any:&lt;name&gt; 
  | any:[all]; 
  | any:[local];
@@ -423,7 +421,11 @@ choosen.
  | network:[area:&lt;name&gt;] 
  | any:[area:&lt;name&gt;]
  | group:&lt;name&gt; 
- }}</PRE>
+ }}
+ 
+ &lt;router group&gt; ::=
+    {{ managed | all }} [ & area:&lt;name&gt;]
+</PRE>
 <UL>
 <LI>Network objects are referenced in groups or as source or destination
 of rules.
@@ -442,6 +444,8 @@ reference to an interface.<ul>
 <em>managed</em> routers. 
 <li>[all] denotes an implicitly defined group of <em>all</em>
 routers.</ul>
+<li>[managed] and [all] can be confined to routers inside an area.<br>
+    E.g. [managed & area:&lt;name&gt;].
 <li>any:[all] denotes an implicitly defined group of <em>all</em>
 'any' objects, i.e. security domains. This may be used in rules to permit
 or deny traffic for the whole topology.
@@ -889,7 +893,7 @@ is the relation of the security levels to each other.</P>
  </ul>
 </UL>
 
-<P> Copyright (c) 2005, Heinz Knutzen 
+<P> Copyright (c) 2007, Heinz Knutzen 
 <A HREF="mailto:heinzknutzen@users.berlios.de">heinzknutzen@users.berlios.de</A></P>
 
 </BODY>
