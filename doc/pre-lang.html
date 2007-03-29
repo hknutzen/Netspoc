@@ -374,8 +374,8 @@ a security domain.
 <LI>At most one 'any' object can be defined for a security domain.
 <LI>Generated ACLs use 'any' (i.e. network 0.0.0.0/0.0.0.0) to prevent
 enumeration of all networks of a security domain.
-<LI>NetSPoC generates additional deny rules to prevent
-intervening networks getting undesired access.
+<LI>NetSPoC checks that additional any rules are definet to ensure that
+intervening networks get access as well.
 <LI>See <A HREF="#handling_any">Handling of 'any' objects</A> for details.
 </UL>
 
