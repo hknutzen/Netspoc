@@ -284,7 +284,6 @@ interface definition".
 	 [ &lt;virtual interface definition&gt; ]
          [ hardware = &lt;external_name&gt;; ]
 	 [ routing = {{ EIGRP | OSPF | manual }}; ]
-	 [ managed = {{ full | secondary }}; ]
 	 [ reroute_permit = network:&lt;name&gt;, ... ; ]
          [ disabled ; ]
     }
@@ -671,19 +670,19 @@ In a given topology we may get chains of managed packet filters
 on the path from src to dst. Each packet filter is a "full" packet
 filter by default, which does full filtering for each rule 
 again and again.<br>
-A secondary packet filter has simpler rules for	permitted traffic
-which gets further filtering by a full packet filter. In this
-case it allows any IP packets from the src network to the dst network.
-This simple filtering assures that the traffic comes from the right
-src and goes to the right dst.<br>
+A secondary packet filter gets a simpler rule set.<br>
+A given rule describes traffic starting at src and terminating at dst.
+If there is at least one full packet filter on the path from src to dst, all
+secondary packet filters on this path get a simplified ACL line for the current
+rule. This ACL line allows any IP packets from the src network to the dst
+network. This simplified filtering assures that the traffic comes from the
+right src and goes to the right dst.<br>
+If, for a given rule, there is a chain of secondary packet filters without a
+full packet filter, all devices do full filtering.<br>
 A secondary packet filter is declared with attribute
 "managed = secondary". This may be useful if a router has not
 enough memory for storing a complete set of filter rules and most of
-the packets get fully filtered already by some other managed device.<br>
-The filter level of each interface may be individually changed from the
-default value declared for the whole router using attribute "managed" with
-value "secondary" or "full". 
-
+the packets get fully filtered already by some other managed device.
 <h2><a name="routing">Routing</a></h2>
 
 <h4>Static and dynamic routing</h4>
