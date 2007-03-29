@@ -278,7 +278,7 @@ interface definition".
 <PRE>
   &lt;interface definition&gt; ::= 
     interface:&lt;name&gt; = {
-         {{ ip = &lt;ip-adr&gt;, ... ; | unnumbered; }}
+         {{ ip = &lt;ip-adr&gt;, ... ; | unnumbered; | negotiated; }}
          &lt;NAT definition&gt; *
          [ &lt;NAT binding&gt; ]
 	 [ &lt;virtual interface definition&gt; ]
@@ -311,6 +311,9 @@ interface definition".
 <LI>An interface may have one or more IP addresses. All of them must
   match the IP/mask of the corresponding network.
 <LI>An unnumbered interface must only be linked to an unnumbered network.
+<li>A negotiated interface has an unknown IP address out of the attached
+  network. If an interface with negotiated IP is used in a rule, the address
+  range of the attached network is used.
 <li> A virtual interface defines a shared IP address and type of redundancy
   protocol. See <a name="#virtual"> Virtual interfaces</a> for details.
 <LI>The 'hardware' attribute indicates, which hardware interface the router
