@@ -5148,8 +5148,7 @@ sub path_mark( $$ ) {
 
                 # $from_loop contains object which is loop's exit
                 $from_out = $from_loop->{main};
-                loop_path_mark($from, $from_loop, $from_in, $from_out, $dst)
-                  unless $from_in->{path}->{$dst};
+                loop_path_mark($from, $from_loop, $from_in, $from_out, $dst);
             }
 
 #	 debug " $from_in->{name} -> ".($from_out?$from_out->{name}:'');
@@ -5162,8 +5161,7 @@ sub path_mark( $$ ) {
             my $to_in = $to->{main};
             unless ($to_in) {
                 $to_in = $to_loop->{main};
-                loop_path_mark($to_loop, $to, $to_in, $to_out, $dst)
-                  unless $from_in->{path}->{$dst};
+                loop_path_mark($to_loop, $to, $to_in, $to_out, $dst);
             }
 
 #	 debug " $to_in->{name} -> ".($to_out?$to_out->{name}:'');
