@@ -152,6 +152,10 @@ my $warn_pix_icmp_code = 0;
 # Perl profiler doesn't work if this is active.
 my $use_nonlocal_exit = 1;
 
+# Print time stamps at echo call to sub info.
+# Print "finished" with time stamp when finished.
+my $time_stamps = 0;
+
 ####################################################################
 # Attributes of supported router models
 ####################################################################
@@ -206,10 +210,17 @@ my %router_info = (
 # Error Reporting
 ####################################################################
 
+my $start_time;
 sub info ( @ ) {
-    print STDERR @_, "\n" if $verbose;
+    return if not $verbose;
+    $start_time ||= time();
+    my $diff = time() - $start_time;
+    if($time_stamps) {
+	printf STDERR "% 3ds ", $diff;
+    }
+    print STDERR @_, "\n";
 }
-
+  
 sub warn_msg ( @ ) {
     print STDERR "Warning: ", @_, "\n";
 }
@@ -9155,6 +9166,7 @@ sub print_code( $ ) {
         }
     }
     $warn_pix_icmp_code && warn_pix_icmp;
+    info "Finished" if $time_stamps;
 }
 
 ####################################################################
@@ -9171,6 +9183,7 @@ Options:
 -[no]auto_default_route	Use default route to minimize number of routing entries
 -verbose		Show statistics and compilation steps
 -quiet			Disable -verbose
+-time_stamps		Show time stamps if verbose.
 -max_errors=<n>		Abort after that number of errors
 -ignore_files=<regexp>	Ignore some files inside in-directory
 			Default is '^(raw|CVS|RCS|\.#.*|.*~)$'
@@ -9203,6 +9216,7 @@ sub read_args() {
       # Simple option, variable is set to 1.
       'verbose' => \$verbose,
       'quiet'   => sub { $verbose = 0 },
+      'time_stamps' => \$time_stamps,
 
       # Negatable options; use as -xxx or -noxxx
       'comment_acls!'       => \$comment_acls,
