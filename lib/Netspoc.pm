@@ -216,7 +216,7 @@ sub info ( @ ) {
     $start_time ||= time();
     my $diff = time() - $start_time;
     if($time_stamps) {
-	printf STDERR "% 3ds ", $diff;
+	printf STDERR "%3ds ", $diff;
     }
     print STDERR @_, "\n";
 }
