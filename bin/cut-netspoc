@@ -24,6 +24,8 @@ use warnings;
 use FindBin;
 use lib $FindBin::Bin;
 use Netspoc;
+use open ':locale';
+
 
 ####################################################################
 # Argument processing
@@ -152,6 +154,14 @@ for my $router (values %routers) {
 	    my $peer = $crypto_map->{peer};
 	    next unless $peer->{router}->{is_used};
 	    $crypto_map->{crypto}->{is_used} = 1;
+	}
+    }
+    if ($router->{radius_servers}) {
+	for my $host (@{$router->{radius_servers}}) {
+	    my ($src) = Netspoc::get_auto_interface
+		$router, $host, 'cut-netspoc';
+	    my $rule = {src => $src, dst => $host, srv => {}};
+	    &path_walk($rule, \&mark_topology);
 	}
     }
 }
