@@ -26,12 +26,18 @@ package Netspoc;
 require Exporter;
 use Getopt::Long;
 
+# Activate for perl 5.8.6 or above.
+# This automatically selects the encoding from your locale and 
+# works even if UTF-8 is enabled.
+use open ':locale';
+
+# Activate for perl 5.8.0 or above if your input is UTF-8 encoded.
+#use open ':utf8';
+
+# Activate for older perl versions with legacy encoding.
 # We need this for German umlauts being part of \w.
 # Uncomment next line, if your files are latin1..9 encoded.
-use locale;
-
-# Uncomment next line, if your files are utf8 encoded.
-##use open ':utf8';
+#use locale;
 
 my $program = 'Network Security Policy Compiler';
 my $version =
