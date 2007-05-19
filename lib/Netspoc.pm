@@ -2568,9 +2568,6 @@ sub link_interface_with_net( $ ) {
         my $msg =
           "Referencing undefined network:$net_name from $interface->{name}";
         if (grep { $interface eq $_ } @disabled_interfaces) {
-
-            # There is no attached network to be disabled.
-            aref_delete $interface, \@disabled_interfaces;
             warn_msg $msg;
         }
         else {
@@ -2921,7 +2918,12 @@ sub mark_disabled() {
         else {
             $area->{border} =
               [ grep { not $_->{disabled} } @{ $area->{border} } ];
-            push @all_areas, $area if @{ $area->{border} };
+	    if(@{ $area->{border} }) {
+		push @all_areas, $area;
+	    }
+	    else {
+		$area->{disabled} = 1;
+	    }
         }
     }
     for my $router (values %routers) {
