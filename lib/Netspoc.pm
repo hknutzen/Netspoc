@@ -8171,7 +8171,7 @@ sub join_ranges ( $) {
 
 sub local_optimization() {
     info "Optimizing locally";
-    for my $rule (@{ $expanded_rules{any} }, @{ $expanded_rules{permit} }) {
+    for my $rule (@{ $expanded_rules{any} }) {
         next if $rule->{deleted} and not $rule->{managed_intf};
         $rule->{src} = $network_00 if is_any $rule->{src};
         $rule->{dst} = $network_00 if is_any $rule->{dst};
