@@ -5379,85 +5379,85 @@ sub path_walk( $$;$ ) {
     my $call_it   = (is_network($from) xor $at_router);
 
     # Path starts inside a cyclic graph.
-    # Crypto tunnel must not start inside acyclic graph,
+    # Crypto tunnel must not start inside a cyclic graph,
     # hence no crypto check needed.
     if ($from->{loop_exit} and my $loop_exit = $from->{loop_exit}->{$to}) {
         my $loop_out = $from->{path}->{$to};
         loop_path_walk $in, $loop_out, $from, $loop_exit, $at_router, $rule,
           $fun;
-        unless ($loop_out) {
-
-#	 debug "exit: path_walk: dst in loop";
+        if (not $loop_out) {
+#	    debug "exit: path_walk: dst in loop";
             return;
         }
 
         # Continue behind loop.
-        $in      = $loop_out;
         $call_it = not(is_network($loop_exit) xor $at_router);
+        $in      = $loop_out;
         $out     = $in->{path}->{$to};
     }
     else {
         $out = $from->{path}->{$to};
     }
-    while (1) {
-        if ($call_it) {
-
-            # Call, even if crypto tunnel at $out is used.
-            $fun->($rule, $in, $out);
-
-            # Check if a crypto tunnel is applicable.
-            # Crypto tunnel is only used in mode $at_router.
-            if ($at_router and (my $tree = $out->{crypto_rule_tree})) {
-                my ($map_aref, $overlap) = crypto_match $rule, $tree;
-                if ($map_aref) {
-                    for my $map (@$map_aref) {
-                        my $peer     = $map->{peer};
-                        my $next     = $peer->{path}->{$to};
-                        my $peer_map = $peer->{tunnel}->{$out};
-
-                        # Call at router at other end of tunnel.
-                        # Pass additional parameter $peer_map, to indicate
-                        # that $peer is tunnel interface.
-                        $fun->($rule, $peer, $next, $peer_map);
-                        if ($overlap) {
-
-                            # Walk clear text path as well.
-                        }
-                        else {
-
-                            # Continue behind tunnel.
-                            # This happens only if @$map_aref == 1.
-                            $in  = $peer;
-                            $out = $next;
-                        }
-                    }
-                }
-            }
-        }
-
-        # End of path has been reached.
-        if (not defined $out) {
-
-#	 debug "exit: path_walk: reached dst";
-            return;
-        }
-        $call_it = !$call_it;
-        $in      = $out;
-        if ($in->{loop_entry} and my $loop_entry = $in->{loop_entry}->{$to}) {
+    while (1) {	
+        if ($in and $in->{loop_entry} and my $loop_entry = $in->{loop_entry}->{$to}) {
             my $loop_exit = $loop_entry->{loop_exit}->{$to};
             my $loop_out = $in->{path}->{$to};
 	    loop_path_walk $in, $loop_out, $loop_entry, $loop_exit,
 	      $at_router, $rule, $fun;
-	    if ($loop_out) {
-                $in      = $loop_out;
-                $call_it = not(is_network($loop_exit) xor $at_router);
-            }
-            else {
-#	    debug "exit: path_walk: dst in loop";
+	    if (not $loop_out) {
+#		debug "exit: path_walk: reached dst in loop";
                 return;
             }
+	    $call_it = not(is_network($loop_exit) xor $at_router);
+	    $in      = $loop_out;
+	    $out     = $in->{path}->{$to};
         }
-        $out = $in->{path}->{$to};
+	else {
+	    if ($call_it) {
+
+		# Call, even if crypto tunnel at $out is used.
+		$fun->($rule, $in, $out);
+
+		# Check if a crypto tunnel is applicable.
+		# Crypto tunnel is only used in mode $at_router.
+		if ($at_router and (my $tree = $out->{crypto_rule_tree})) {
+		    my ($map_aref, $overlap) = crypto_match $rule, $tree;
+		    if ($map_aref) {
+			for my $map (@$map_aref) {
+			    my $peer     = $map->{peer};
+			    my $next     = $peer->{path}->{$to};
+			    my $peer_map = $peer->{tunnel}->{$out};
+
+			    # Call at router at other end of tunnel.
+			    # Pass additional parameter $peer_map, to indicate
+			    # that $peer is tunnel interface.
+			    $fun->($rule, $peer, $next, $peer_map);
+			    if ($overlap) {
+
+				# Walk clear text path as well.
+			    }
+			    else {
+
+				# Continue behind tunnel.
+				# This happens only if @$map_aref == 1.
+				$in  = $peer;
+				$out = $next;
+			    }
+			}
+		    }
+		}
+	    }
+
+	    # End of path has been reached.
+	    if (not $out) {
+
+#		debug "exit: path_walk: reached dst";
+		return;
+	    }
+	    $call_it = !$call_it;
+	    $in      = $out;
+	    $out     = $in->{path}->{$to};
+	}
     }
 }
 
