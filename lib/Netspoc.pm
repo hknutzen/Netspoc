@@ -2896,7 +2896,9 @@ sub mark_disabled() {
         # Delete disabled interfaces from routers.
         my $router = $interface->{router};
         aref_delete($interface, $router->{interfaces});
-	aref_delete($interface, $interface->{hardware}->{interfaces});
+	if($router->{managed}) {
+	    aref_delete($interface, $interface->{hardware}->{interfaces});
+	}
     }
     for my $obj (values %everys) {
         next if $obj->{disabled};
