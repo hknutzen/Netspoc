@@ -1,5 +1,10 @@
 ToDo list for NetSPoC, a Network Security Policy Compiler
 
+- Look if check_any_src/dst_rule works correctly 
+  at the endpoint of crypto tunnels.
+
+- Don't silently ignore rules for interfaces of vpn3k.
+
 - Crypto: Read pairs of [ address preshared_key ] from a separate file.
 
 - ISAKMP: Add attribute for keepalive (= DPD, Dead Peer Detection)
@@ -10,22 +15,20 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
   choosen as representative for the "any" object. Possible workaround:
   restrict tunnel endpoint to managed interface for this situation.
 
-- crypto access-group: are rules stateful for IOS_FW?
+- crypto access-group: Are rules stateful for IOS_FW?
 
-- crypto ACLs: sind die immer stateless? Auch bei PIX? Bei racoon?
-  Sollen für Antwortpakete automatisch crypto ACLs generiert werden?
+- crypto ACLs: Are they always stateless? For PIX? For racoon?
+  Do we need to automatically generate crypto ACLs for answer packets?
 
 - crypto_match: Are deny rules from policies are handled correctly?
 
-- crypto: add support for crypto rules with action = "deny".
+- crypto: Add support for crypto rules with action = "deny".
 
-- crypto: add support for crypto rules with "any" object as src or dst.
+- crypto: Add support for crypto rules with "any" object as src or dst.
 
-- crypto: beim path_walk zum Verteilen der crypto-rules auf die Tunnel,
-  kann es da auftreten, dass versehentlich ein bereits aktiver Tunnel
-  durchlaufen wird. Also geschachtelte Tunnel nicht bemerkt werden?
-  Oder wir zumindest (je nach Reihenfolge) nicht deterministische Ergebnisse
-  erhalten?
+- crypto: We are using path_walk to distribute crypto rules to crypto tunnels.
+  Do we always get correct and determinstic results 
+  if there are nested tunnels? Do we detect this situation?
 
 - If a rule is affected by dynamic NAT and service has a defined source port,
   source port must be changed to unrestricted (1..65535).
