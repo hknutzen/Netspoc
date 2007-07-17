@@ -458,12 +458,13 @@ sub read_interface_name() {
     my $hostname_regex = qr/(?:id:$id_regex|[\w-]+)/;
 
 # Check for xxx:xxx or xxx:[xxx] or xxx:[xxx:xxx]
-# or interface:xxx.xxx or interface:xxx.[xxx] or interface:[xxx].[xxx]
+# or interface:xxx.xxx or interface:xxx.xxx.xxx
+# or interface:xxx.[xxx] or interface:[xxx].[xxx]
 # or interface:[xxx & xxx:xxx].[xxx]
 # or host:id:user@domain.network
     sub check_typed_ext_name() {
 	skip_space_and_comment;
-	if ($input =~ m/\G(interface:[][:& \w-]+\.[][\w-]+ |
+	if ($input =~ m/\G(interface:[][:& \w-]+\.[][\w-]+(?:\.[\w-]+)? |
                          host:$hostname_regex |
                          \w+:[][:\w-]+)/gcox) {
 	    return $1;
@@ -1129,10 +1130,14 @@ our %interfaces;
 my @virtual_interfaces;
 my @disabled_interfaces;
 my @auto_crypto_interfaces;
+my $global_active_pathrestriction = new('Pathrestriction', 
+					name => 'block_through_secondary',
+					active_path => 1);
 
 sub read_interface( $ ) {
     my ($name) = @_;
     my $interface = new('Interface', name => $name);
+    my @secondary_interfaces = ();
     unless (check '=') {
 
         # Short form of interface definition.
@@ -1145,8 +1150,21 @@ sub read_interface( $ ) {
             last if check '}';
             if (my @ip = check_assign_list 'ip', \&read_ip) {
                 $interface->{ip} and error_atline "Duplicate attribute 'ip'";
-                $interface->{ip} = \@ip;
-            }
+		$interface->{ip} = shift @ip;
+
+		# Build interface objects for secondary IP addresses.
+		# These objects are named interface:router.name.2, ...
+		my $counter = 2;
+		for my $ip (@ip) {
+		    push @secondary_interfaces,
+		    new('Interface', 
+			name => "$name.$counter", 
+			ip => $ip,
+			main_interface => $interface);
+		    $counter++;
+		}
+
+	    }
             elsif (check_flag 'unnumbered') {
                 $interface->{ip} and error_atline "Duplicate attribute 'ip'";
                 $interface->{ip} = 'unnumbered';
@@ -1156,7 +1174,7 @@ sub read_interface( $ ) {
                 $interface->{ip} = 'negotiated';
             }
             elsif (my $string = check_typed_name) {
-                my ($type, $name) = split_typed_name $string;
+                my ($type, $name2) = split_typed_name $string;
                 if ($type eq 'nat') {
                     skip '=';
                     skip '{';
@@ -1165,18 +1183,43 @@ sub read_interface( $ ) {
                     my $nat_ip = read_ip;
                     skip ';';
                     skip '}';
-                    $interface->{nat}->{$name}
+                    $interface->{nat}->{$name2}
                       and error_atline "Duplicate NAT definition";
-                    $interface->{nat}->{$name} = $nat_ip;
+                    $interface->{nat}->{$name2} = $nat_ip;
                 }
+		elsif ($type eq 'secondary') {
+
+		    # Build new interface for secondary IP addresses.
+		    my $secondary = new('Interface', 
+					name => "$name.$name2",
+					main_interface => $interface);
+		    skip '=';
+		    skip '{';
+		    while (1) {
+			last if check '}';
+			if (my $ip = check_assign 'ip', \&read_ip) {
+			    $secondary->{ip}
+			      and error_atline "Duplicate IP address";
+			    $secondary->{ip} = $ip;
+			}
+			else {
+			    syntax_err "Expected attribute IP";
+			}
+		    }
+		    $secondary->{ip} or error_atline "Missing IP address";
+		    push @secondary_interfaces, $secondary;
+		}
                 else {
-                    syntax_err "Expected named attribute";
+                    syntax_err 
+			"Expected nat or secondary interface definition";
                 }
             }
             elsif (check 'virtual') {
 
                 # Read attributes of redundancy protocol (VRRP/HSRP).
-                my $virtual = {};
+		my $virtual = new('Interface', 
+				  name => "$name.virtual",
+				  main_interface => $interface);
                 skip '=';
                 skip '{';
                 while (1) {
@@ -1212,6 +1255,7 @@ sub read_interface( $ ) {
                 $interface->{virtual} and error_atline "Duplicate virtual IP";
                 $interface->{virtual} = $virtual;
                 push @virtual_interfaces, $interface;
+		push @secondary_interfaces, $virtual;
             }
             elsif (my $nat = check_assign 'nat', \&read_identifier) {
 
@@ -1272,31 +1316,31 @@ sub read_interface( $ ) {
             if ($interface->{ip} =~ /unnumbered|negotiated/) {
                 error_atline "No NAT supported for $interface->{ip} interface";
             }
-            elsif (@{ $interface->{ip} } > 1) {
-
-                # Look at print_pix_static before changing this.
-                error_atline "No NAT supported for interface with multiple IPs";
-            }
-            elsif ($interface->{virtual}) {
-                error_atline "No NAT supported for interface with virtual IP";
-            }
         }
-	if (my $virtual = $interface->{virtual}) {
-	    $interface->{ip} =~ /unnumbered|negotiated/
-	      and error_atline "No virtual IP supported for $interface->{ip} interface";
-	    grep { $_ == $virtual->{ip} } @{ $interface->{ip} }
-	      and error_atline "Virtual IP redefines standard IP";
-
-	    # Add virtual IP to list of real IP addresses.
-	    push @{ $interface->{ip} }, $virtual->{ip};
+        if ($interface->{virtual} 
+            and $interface->{ip} =~ /unnumbered|negotiated/) {
+              error_atline 
+                  "No virtual IP supported for $interface->{ip} interface";
 	}
 	if ($interface->{auto_crypto}) {
 	    if ($interface->{ip} =~ /unnumbered|negotiated/) {
-                error_atline "No auto_crypto supported for  $interface->{ip} interface";
+                error_atline "No auto_crypto supported for",
+		" $interface->{ip} interface";
             }
 	}
+	for my $secondary_interface (@secondary_interfaces) {
+	    $secondary_interface->{hardware} = $interface->{hardware};
+	    $secondary_interface->{bind_nat} = $interface->{bind_nat};
+	    $secondary_interface->{disabled} = $interface->{disabled};
+
+	    # No traffic must pass secondary interface.
+	    # If secondary interface is start- or endpoint of a path,
+	    # the corresponding router is entered by main interface.
+	    push @{ $secondary_interface->{path_restrict} }, 
+	      $global_active_pathrestriction;
+	}
     }
-    return $interface;
+    return $interface, @secondary_interfaces;
 }
 
 # PIX firewalls have a security level associated with each interface.
@@ -1404,20 +1448,22 @@ sub read_router( $ ) {
 
             # Derive interface name from router name.
             my $iname     = "$rname.$network";
-            my $interface = read_interface "interface:$iname";
-            push @{ $router->{interfaces} }, $interface;
-            if ($interfaces{$iname}) {
-                error_atline "Redefining $interface->{name}";
-            }
+            for my $interface (read_interface "interface:$iname") {
+		push @{ $router->{interfaces} }, $interface;
+		($iname = $interface->{name}) =~ s/interface://;
+		if ($interfaces{$iname}) {
+		    error_atline "Redefining $interface->{name}";
+		}
 
-            # Assign interface to global hash of interfaces.
-            $interfaces{$iname} = $interface;
+		# Assign interface to global hash of interfaces.
+		$interfaces{$iname} = $interface;
 
-            # Link interface with router object.
-            $interface->{router} = $router;
+		# Link interface with router object.
+		$interface->{router} = $router;
 
-            # Link interface with network name (will be resolved later).
-            $interface->{network} = $network;
+		# Link interface with network name (will be resolved later).
+		$interface->{network} = $network;
+	    }
         }
     }
 
@@ -2617,21 +2663,20 @@ sub link_interface_with_net( $ ) {
 
         # Check compatibility of interface ip and network ip/mask.
         my $mask       = $network->{mask};
-        for my $interface_ip (@$ip) {
-            if ($network_ip != ($interface_ip & $mask)) {
-                err_msg "$interface->{name}'s IP doesn't match ",
-                  "$network->{name}'s IP/mask";
-            }
-            unless ($mask == 0xffffffff) {
-                if ($interface_ip == $network_ip) {
-                    err_msg "$interface->{name} has address of its network";
-                }
-                my $broadcast = $network_ip + complement_32bit $mask;
-                if ($interface_ip == $broadcast) {
-                    err_msg "$interface->{name} has broadcast address";
-                }
-            }
-        }
+	if ($network_ip != ($ip & $mask)) {
+	    err_msg "$interface->{name}'s IP doesn't match ",
+	    "$network->{name}'s IP/mask";
+	}
+	unless ($mask == 0xffffffff) {
+	    if ($ip == $network_ip) {
+		err_msg "$interface->{name} has address of its network";
+	    }
+	    my $broadcast = $network_ip + complement_32bit $mask;
+	    if ($ip == $broadcast) {
+		err_msg "$interface->{name} has broadcast address";
+	    }
+	}
+
     }
     push @{ $network->{interfaces} }, $interface;
 }
@@ -2700,32 +2745,35 @@ sub link_topology() {
         my %ip;
         my ($short_intf, $route_intf);
         for my $interface (@{ $network->{interfaces} }) {
-            my $ips = $interface->{ip};
-            if ($ips eq 'short') {
+            my $ip = $interface->{ip};
+            if ($ip eq 'short') {
                 $short_intf = $interface;
             }
             else {
-                unless ($ips =~ /unnumbered|negotiated/) {
+                unless ($ip =~ /unnumbered|negotiated/) {
 		    if ($interface->{router}->{managed}
 			and not $interface->{routing})
 		    {
 			$route_intf = $interface;
 		    }
-                    for my $ip (@$ips) {
-                        if (my $old_intf = $ip{$ip}) {
-                            unless ($old_intf->{virtual}
-				    and $interface->{virtual}
-				    and $ip eq $old_intf->{virtual}->{ip}
-				    and $ip eq $interface->{virtual}->{ip})
-                            {
-                                err_msg "Duplicate IP address for",
-                                  " $old_intf->{name} and $interface->{name}";
-                            }
-                        }
-                        else {
-                            $ip{$ip} = $interface;
-                        }
-                    }
+		    if (my $old_intf = $ip{$ip}) {
+			unless ($old_intf->{main_interface}
+				and
+				$old_intf->{main_interface}->{virtual} 
+				eq $old_intf
+				and 
+				$interface->{main_interface}
+				and
+				$interface->{main_interface}->{virtual} 
+				eq $interface)
+			{
+			    err_msg "Duplicate IP address for",
+			    " $old_intf->{name} and $interface->{name}";
+			}
+		    }
+		    else {
+			$ip{$ip} = $interface;
+		    }
                 }
             }
             if ($short_intf and $route_intf) {
@@ -4219,8 +4267,8 @@ sub check_vpn3k () {
 	    $interface->{no_check} and $no_check_count++;
 	}
 	$no_check_count == 1 or 
-	    err_msg 
-	    "$router->{name} needs to have exctly on interface with attribute 'no_check'";
+	    err_msg "$router->{name} needs to have exactly on interface with",
+	    " attribute 'no_check'";
     }
     for my $router (@managed_vpn3k) {
 	if( not equal 
@@ -4551,6 +4599,7 @@ sub link_and_check_virtual_interfaces () {
 	    my $name = "auto-virtual-" . print_ip $virtual->{ip};
 	    my $restrict = new('Pathrestriction', name => $name);
 	    for my $interface (@$interfaces) {
+#		debug "pathrestriction $name at $interface->{name}";
 		next if not $interface->{router}->{managed};
 		push @{ $interface->{path_restrict} }, $restrict;
 	    }
@@ -4580,6 +4629,11 @@ sub link_and_check_pathrestrictions() {
                 $interface->{router}->{managed}
                   or err_msg "Referencing unmanaged $interface->{name} ",
                   "from $restrict->{name}";
+
+		# Pathrestrictions must not be applied to secondary interfaces
+		$interface->{main_interface} 
+		and err_msg "secondary $interface->{name} must not be used",
+		            " in pathrestriction";
 
 		# Interfaces with pathrestriction need to be located 
 		# inside cyclic graphs.
@@ -4775,6 +4829,11 @@ sub get_path( $ ) {
         # Special handling needed if $src or $dst are interface inside a loop.
         if ($obj->{in_loop}) {
 
+	    # If this is a secondary interface, we can't use it to enter 
+	    # the router, because it has an active pathrestriction attached.
+	    # But it doesn't matter if we use the main interface instead.
+	    $obj = $obj->{main_interface} if $obj->{main_interface};
+
             # path_walk needs this attributes to be set.
             $obj->{loop}     = $router->{loop};
             $obj->{distance} = $router->{distance};
@@ -4798,7 +4857,7 @@ sub get_path( $ ) {
     }
     elsif ($type eq 'Host') {
 
-        # This is only used, if Netspoc.pm is called from Arnes report.pl.
+        # This is only used, if Netspoc.pm is called from Arne's report.pl.
         return $obj->{network};
     }
     else {
@@ -4874,7 +4933,7 @@ sub loop_path_mark1( $$$$$ ) {
     for my $restrict (@{ $in_intf->{path_restrict} }) {
 
 #     debug " disabled $restrict->{name} at $in_intf->{name}";
-        delete $restrict->{active_path};
+        $restrict->{active_path} = undef;
     }
     return $success;
 }
@@ -4969,12 +5028,10 @@ sub intf_loop_path_mark ( $$ ) {
 	    # interfaces (VRRP, HSRP), 
 	    # prevent traffic through other interfaces of this group.
 	    if(my $virtual = $where->{virtual}) {
-		my $restrict = new('Pathrestriction', 
-				   name => 'virtual-IP');
-		$restrict->{active_path} = 1;
 		for my $interface (@{$virtual->{interfaces}}) {
 		    next if $interface eq $where;
-		    push @{ $interface->{path_restrict} }, $restrict;
+		    push @{ $interface->{path_restrict} }, 
+		    $global_active_pathrestriction;
 		}
 	    }			
 	}	
@@ -4989,7 +5046,7 @@ sub intf_loop_path_mark ( $$ ) {
     # Do a simulated pathwalk $from_net -> $to_net.
     my $success = loop_path_mark0 $from_net, $to_net;
 
-    # Remove temporary path restrictions.
+    # Remove temporary added path restrictions.
     for my $where ($from, $to) {
 	if(is_interface $where) {
 	    if(my $virtual = $where->{virtual}) {
@@ -6728,7 +6785,6 @@ sub find_active_routes_and_statics () {
         #   entries added.
         my $from = get_path $src;
 
-#     debug "$from->{name} -> $to->{name}";
         # 'any' objects are expanded to all its contained networks
         # hosts and interfaces expand to its containing network.
         # Don't try to use an interface as destination of $pseudo_rule;
@@ -6736,6 +6792,7 @@ sub find_active_routes_and_statics () {
         # is applied to this interface.
         for my $network (get_networks($dst)) {
             next if $network->{ip} eq 'unnumbered';
+#	    debug "$from->{name} -> $network->{name}";
             unless ($routing_tree{$from}->{$network}) {
                 my $pseudo_rule = {
                     src    => $from,
@@ -6842,8 +6899,8 @@ sub print_routes( $ ) {
               print_ip $hop->{virtual}->{ip}
               :
 
-              # Take first IP from list of IP addresses.
-              print_ip $hop->{ip}->[0];
+              # Take IP address.
+              print_ip $hop->{ip};
 
             # A hash having all networks reachable via current hop
             # both as key and as value.
@@ -7011,11 +7068,8 @@ sub print_pix_static( $ ) {
                         @{ $network->{interfaces} })
                     {
                         if (my $in_ip = $host->{nat}->{$in_dynamic}) {
-                            my @addresses = address($host, $out_nat);
-                            err_msg "$host->{name}: NAT only for hosts / ",
-                              "interfaces with a single IP"
-                              if @addresses != 1;
-                            my ($out_ip, $out_mask) = @{ $addresses[0] };
+                            my $pair  = address($host, $out_nat);
+                            my ($out_ip, $out_mask) = @$pair;
                             $in_ip    = print_ip $in_ip;
                             $out_ip   = print_ip $out_ip;
                             $out_mask = print_ip $out_mask;
@@ -7386,17 +7440,12 @@ sub address( $$ ) {
             }
         }
         else {
-            my @ip = @{ $obj->{ip} };
 
             # Take higher bits from network NAT, lower bits from original IP.
             # This works with and without NAT.
-            my ($network_ip, $network_mask) = @{$network}{ 'ip', 'mask' };
-            return map {
-                [
-                    $network_ip | $_ & complement_32bit $network_mask,
-                    0xffffffff
-                ]
-            } @ip;
+	    my $ip = 
+		$network->{ip} | $obj->{ip} & complement_32bit $network->{mask};
+	    return [ $ip, 0xffffffff ];
         }
     }
     elsif ($type eq 'Any') {
@@ -7625,66 +7674,64 @@ sub acl_line( $$$$ ) {
           @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
         print "$model->{comment_char} " . print_rule($rule) . "\n"
           if $comment_acls;
-        for my $spair (address($src, $nat_map)) {
-            for my $dpair (address($dst, $nat_map)) {
-                if ($filter_type eq 'PIX') {
-                    if ($prefix) {
+        my $spair = address($src, $nat_map);
+	my $dpair = address($dst, $nat_map);
+	if ($filter_type eq 'PIX') {
+	    if ($prefix) {
 
-                        # Traffic passing through the PIX.
-                        my ($proto_code, $src_port_code, $dst_port_code) =
-                          cisco_srv_code($src_range, $srv, $model);
-                        my $src_code = ios_code($spair);
-                        my $dst_code = ios_code($dpair);
-                        print "$prefix $action $proto_code ",
-                          "$src_code $src_port_code $dst_code $dst_port_code\n";
-                    }
-                    else {
+		# Traffic passing through the PIX.
+		my ($proto_code, $src_port_code, $dst_port_code) =
+		    cisco_srv_code($src_range, $srv, $model);
+		my $src_code = ios_code($spair);
+		my $dst_code = ios_code($dpair);
+		print "$prefix $action $proto_code ",
+		"$src_code $src_port_code $dst_code $dst_port_code\n";
+	    }
+	    else {
 
-                        # Traffic for the PIX itself.
-                        if (my $code = pix_self_code $action, $spair, $dst,
-                            $src_range, $srv, $model)
-                        {
+		# Traffic for the PIX itself.
+		if (my $code = pix_self_code $action, $spair, $dst,
+		    $src_range, $srv, $model)
+		{
 
-                            # Attention: $code might have multiple lines.
-                            print "$code\n";
-                        }
-                        else {
+		    # Attention: $code might have multiple lines.
+		    print "$code\n";
+		}
+		else {
 
-                            # Other rules are ignored silently.
-                        }
-                    }
-                }
-                elsif ($filter_type eq 'IOS') {
-                    my $inv_mask = $filter_type eq 'IOS';
-                    my ($proto_code, $src_port_code, $dst_port_code) =
-                      cisco_srv_code($src_range, $srv, $model);
-                    my $src_code = ios_code($spair, $inv_mask);
-                    my $dst_code = ios_code($dpair, $inv_mask);
-                    print "$prefix $action $proto_code ",
-                      "$src_code $src_port_code $dst_code $dst_port_code\n";
-                }
-                elsif ($filter_type eq 'iptables') {
-                    my $action_code =
-                        is_chain $action ? $action->{name}
-                      : $action eq 'permit' ? 'ACCEPT'
-                      : 'DROP';
-		    my $result = "$prefix -j $action_code";
-		    if($spair->[1] != 0) {
-			$result .= ' -s ' . prefix_code($spair);
-		    }
-		    if($dpair->[1] != 0) {
-			$result .= ' -d ' . prefix_code($dpair);
-		    }
-		    if($srv ne $srv_ip) {
-			$result .= ' ' . iptables_srv_code($src_range, $srv);
-		    }
-		    print "$result\n";
-                }
-                else {
-                    internal_err "Unknown filter_type $filter_type";
-                }
-            }
-        }
+		    # Other rules are ignored silently.
+		}
+	    }
+	}
+	elsif ($filter_type eq 'IOS') {
+	    my $inv_mask = $filter_type eq 'IOS';
+	    my ($proto_code, $src_port_code, $dst_port_code) =
+		cisco_srv_code($src_range, $srv, $model);
+	    my $src_code = ios_code($spair, $inv_mask);
+	    my $dst_code = ios_code($dpair, $inv_mask);
+	    print "$prefix $action $proto_code ",
+	    "$src_code $src_port_code $dst_code $dst_port_code\n";
+	}
+	elsif ($filter_type eq 'iptables') {
+	    my $action_code =
+		is_chain $action ? $action->{name}
+	    : $action eq 'permit' ? 'ACCEPT'
+		: 'DROP';
+	    my $result = "$prefix -j $action_code";
+	    if($spair->[1] != 0) {
+		$result .= ' -s ' . prefix_code($spair);
+	    }
+	    if($dpair->[1] != 0) {
+		$result .= ' -d ' . prefix_code($dpair);
+	    }
+	    if($srv ne $srv_ip) {
+		$result .= ' ' . iptables_srv_code($src_range, $srv);
+	    }
+	    print "$result\n";
+	}
+	else {
+	    internal_err "Unknown filter_type $filter_type";
+	}
     }
 }
 
@@ -8534,18 +8581,14 @@ sub print_vpn3k( $ ) {
 	    my $inv_mask = 1;
 	    for my $rule (@{$hardware->{id_src_rules}->{$src}}) {
 		my ($action, $src, $dst, $src_range, $srv) =
-		  @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
-		for my $spair (address($src, $nat_map)) {
-		    for my $dpair (address($dst, $nat_map)) {
-			my ($proto_code, $src_port_code, $dst_port_code) =
-			  cisco_srv_code($src_range, $srv, $model);
-			my $src_code = ios_code($spair, $inv_mask);
-			my $dst_code = ios_code($dpair, $inv_mask);
-			push @acl_lines,
-			  "$action $proto_code $src_code $src_port_code" .
-			    " $dst_code $dst_port_code";
-		    }
-		}
+		    @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
+		my ($proto_code, $src_port_code, $dst_port_code) =
+		    cisco_srv_code($src_range, $srv, $model);
+		my $src_code = ios_code(address($src, $nat_map), $inv_mask);
+		my $dst_code = ios_code(address($dst, $nat_map), $inv_mask);
+		push @acl_lines,
+		"$action $proto_code $src_code $src_port_code" .
+		    " $dst_code $dst_port_code";
 	    }
 	    my $spair = address $src, $nat_map;
 	    my $src_code = ios_code($spair, $inv_mask);
@@ -8808,8 +8851,8 @@ sub prepare_auto_crypto( $ ) {
     my ($router) = @_;
 
     # Interfaces of vpn3k devices.
-    # Sort by first IP-adress to get output deterministic.
-    my @peers = sort { $a->{ip}->[0] <=> $b->{ip}->[0]}
+    # Sort by IP address to get output deterministic.
+    my @peers = sort { $a->{ip} <=> $b->{ip}}
       values %{$router->{auto_crypto_peer}};
 
     # All peers need to use the same ipsec definition.
@@ -9107,10 +9150,9 @@ sub print_crypto( $ ) {
 	    
 	    for my $peer (@peers) {
 
-		# Take first IP.
 		# Unnumbered, negotiated and short interfaces have been 
 		# rejected already.
-		my $peer_ip = print_ip $peer->{ip}->[0];
+		my $peer_ip = print_ip $peer->{ip};
 		print "$prefix set peer $peer_ip\n";
 	    }
             print "$prefix set transform-set $transform_name\n";
