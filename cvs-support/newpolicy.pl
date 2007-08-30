@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # newpolicy -- integrates NetSPoC with CVS
 # http://netspoc.berlios.de
-# (c) 2004 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+# (c) 2007 by Heinz Knutzen <heinzknutzen@users.berlios.de>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -57,9 +57,12 @@ my $working = "$home/netspoc";
 my $pfile = "$working/POLICY";
 $ENV{CVSROOT} or die "Abort: No CVSROOT specified!\n";
 
-# user must have an updated and checked in working directory
+# User must have an updated and checked in working directory.
 chdir $working or die "Error: can't cd to $working: $!\n";
-open CHECK, 'cvs -nq update -d 2>&1 |' or die "can't execute cvs\n";
+# -A: Reset any sticky tags, dates, or -k options.
+# -d: Create any directories that exist in the repository 
+#     if they're missing from the working directory.
+open CHECK, 'cvs -nq update -A -d 2>&1 |' or die "can't execute cvs\n";
 if(my $output = join '', <CHECK>) {
     $output and die "Abort: $working isn't up to date:\n$output";
 }
