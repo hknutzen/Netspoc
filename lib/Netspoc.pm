@@ -7556,6 +7556,10 @@ sub cisco_srv_code( $$$ ) {
     elsif ($proto eq 'icmp') {
         if (defined(my $type = $srv->{type})) {
             if (defined(my $code = $srv->{code})) {
+		if($model->{filter} eq 'VPN3K') {
+		    err_msg "$model->{name} device can handle",
+		    " only simple ICMP\n but not $srv->{name}";
+		}
                 if ($model->{no_filter_icmp_code}) {
 
                     # PIX can't handle the ICMP code field.
