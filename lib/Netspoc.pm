@@ -3248,7 +3248,7 @@ sub set_auto_groups () {
     my @all_interfaces;
     for my $router (values %routers) {
         my @interfaces =
-          grep { not $_->{ip} =~ /unnumbered/ } 
+          grep { not $_->{ip} =~ /unnumbered|short/ } 
 	      @{ $router->{interfaces} };
         if ($router->{managed}) {
             push @managed_interfaces, @interfaces;
