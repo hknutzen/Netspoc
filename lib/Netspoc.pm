@@ -6976,7 +6976,12 @@ sub print_pix_static( $ ) {
     }
     print "\n";
 
+    # Index for naming NAT pools. This is also referenced in "nat" command.
     my $nat_index = 1;
+
+    # Hash of indexes for reusing of NAT pools.
+    my %intf2net2mask2index;
+
     for
       my $out_hw (sort { $a->{level} <=> $b->{level} } @{ $router->{hardware} })
     {
@@ -7056,9 +7061,19 @@ sub print_pix_static( $ ) {
                     $out_ip    = print_ip $out_ip;
                     $in_mask   = print_ip $in_mask;
                     $out_mask  = print_ip $out_mask;
-                    print "global ($in_name) $nat_index ",
-                      "$in_ip-$in_ip_max netmask $in_mask\n";
-                    print "nat ($out_name) $nat_index $out_ip $out_mask";
+
+		    # Use a single "global" command if multiple networks are
+		    # mapped to a single pool.
+		    my $index = 
+			$intf2net2mask2index{$in_name}->{$in_ip}->{$in_mask};
+		    if(not $index) {
+			$index = $nat_index++;
+			$intf2net2mask2index{$in_name}->{$in_ip}->{$in_mask} = 
+			    $index;
+			print "global ($in_name) $index ",
+			"$in_ip-$in_ip_max netmask $in_mask\n";
+		    }
+		    print "nat ($out_name) $index $out_ip $out_mask";
                     print " outside" if $in_hw->{level} > $out_hw->{level};
                     print "\n";
                     $nat_index++;
