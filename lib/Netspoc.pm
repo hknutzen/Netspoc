@@ -7052,16 +7052,6 @@ sub print_pix_static( $ ) {
                 }
                 elsif ($in_dynamic) {
 
-                    # global (outside) 1 \
-                    #   10.70.167.0-10.70.167.255 netmask 255.255.255.0
-                    # nat (inside) 1 141.4.136.0 255.255.252.0
-                    my $in_ip_max = $in_ip | complement_32bit $in_mask;
-                    $in_ip     = print_ip $in_ip;
-                    $in_ip_max = print_ip $in_ip_max;
-                    $out_ip    = print_ip $out_ip;
-                    $in_mask   = print_ip $in_mask;
-                    $out_mask  = print_ip $out_mask;
-
 		    # Use a single "global" command if multiple networks are
 		    # mapped to a single pool.
 		    my $index = 
@@ -7070,26 +7060,36 @@ sub print_pix_static( $ ) {
 			$index = $nat_index++;
 			$intf2net2mask2index{$in_name}->{$in_ip}->{$in_mask} = 
 			    $index;
-			print "global ($in_name) $index ",
-			"$in_ip-$in_ip_max netmask $in_mask\n";
+
+			# global (outside) 1 \
+			#   10.70.167.0-10.70.167.255 netmask 255.255.255.0
+			# nat (inside) 1 141.4.136.0 255.255.252.0
+			my $max   = $in_ip | complement_32bit $in_mask;
+			my $mask  = print_ip $in_mask;
+			my $range = ($in_ip == $max) 
+			          ? print_ip($in_ip) 
+			          : print_ip($in_ip) . '-' . print_ip($max);
+			print "global ($in_name) $index $range netmask $mask\n";
 		    }
-		    print "nat ($out_name) $index $out_ip $out_mask";
+                    my $out   = print_ip $out_ip;
+                    my $mask = print_ip $out_mask;
+		    print "nat ($out_name) $index $out $mask";
                     print " outside" if $in_hw->{level} > $out_hw->{level};
                     print "\n";
                     $nat_index++;
 
                     # Check for static NAT entries of hosts and interfaces.
                     for my $host (@{ $network->{subnets} },
-                        @{ $network->{interfaces} })
+				  @{ $network->{interfaces} })
                     {
                         if (my $in_ip = $host->{nat}->{$in_dynamic}) {
                             my $pair  = address($host, $out_nat);
                             my ($out_ip, $out_mask) = @$pair;
-                            $in_ip    = print_ip $in_ip;
-                            $out_ip   = print_ip $out_ip;
-                            $out_mask = print_ip $out_mask;
+                            my $in    = print_ip $in_ip;
+                            my $out   = print_ip $out_ip;
+                            my $mask  = print_ip $out_mask;
                             print "static ($out_name,$in_name) ",
-                              "$in_ip $out_ip netmask $out_mask\n";
+			    "$in $out netmask $mask\n";
                         }
                     }
                 }
@@ -7097,16 +7097,16 @@ sub print_pix_static( $ ) {
                 else { 
                     if (   $in_hw->{level} < $out_hw->{level}
                         || $out_hw->{need_always_static}
-                        || $in_ip ne $out_ip)
+                        || $in_ip != $out_ip)
                     {
-                        $in_ip   = print_ip $in_ip;
-                        $out_ip  = print_ip $out_ip;
-                        $in_mask = print_ip $in_mask;
+                        my $in   = print_ip $in_ip;
+                        my $out  = print_ip $out_ip;
+                        my $mask = print_ip $in_mask;
 
                         # static (inside,outside) \
                         #   10.111.0.0 111.0.0.0 netmask 255.255.252.0
                         print "static ($out_name,$in_name) ",
-                          "$in_ip $out_ip netmask $in_mask\n";
+                          "$in $out netmask $mask\n";
                     }
                 }
             }
