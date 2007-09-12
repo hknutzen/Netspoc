@@ -6910,8 +6910,11 @@ sub print_routes( $ ) {
               # Sort networks by mask in reverse order,
               # i.e. small networks coming first and
               # for equal mask by IP address.
+	      # For equal addresses look at the NAT address.	
               # We need this to make the output deterministic
-              (sort { $b->{mask} <=> $a->{mask} || $a->{ip} <=> $b->{ip} }
+              (sort {    $b->{mask} <=> $a->{mask} 
+		      || $a->{ip} <=> $b->{ip}
+		      || $nat_map->{$a}->{ip} <=> $nat_map->{$b}->{ip} }
                 values %$net_hash)
             {
 
@@ -7003,8 +7006,11 @@ sub print_pix_static( $ ) {
             my $in_nat     = $in_hw->{nat_map};
 
             # Sorting is only needed for getting output deterministic.
+	    # For equal addresses look at the NAT address.
             my @networks =
-              sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
+              sort {    $a->{ip} <=> $b->{ip} 
+		     || $a->{mask} <=> $b->{mask} 
+		     || $in_nat->{$a}->{ip} <=> $in_nat->{$b}->{ip} }
               values %$net_hash;
 
             # Mark redundant network as deleted.
