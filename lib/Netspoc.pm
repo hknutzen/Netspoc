@@ -29,7 +29,7 @@ use Getopt::Long;
 # Activate for perl 5.8.6 or above.
 # This automatically selects the encoding from your locale and 
 # works even if UTF-8 is enabled.
-use open ':locale';
+#use open ':locale';
 
 # Activate for perl 5.8.0 or above if your input is UTF-8 encoded.
 #use open ':utf8';
@@ -37,7 +37,7 @@ use open ':locale';
 # Activate for older perl versions with legacy encoding.
 # We need this for German umlauts being part of \w.
 # Uncomment next line, if your files are latin1..9 encoded.
-#use locale;
+use locale;
 
 my $program = 'Network Security Policy Compiler';
 my $version =
@@ -9192,7 +9192,7 @@ sub print_crypto( $ ) {
 sub check_output_dir( $ ) {
     my ($dir) = @_;
     unless (-e $dir) {
-        mkdir $dir or die "Abort: can't create output directory $dir: $!\n";
+	mkdir $dir or die "Abort: can't create output directory $dir: $!\n";
     }
     -d $dir or die "Abort: $dir isn't a directory\n";
 }
@@ -9200,6 +9200,12 @@ sub check_output_dir( $ ) {
 # Print generated code for each managed router.
 sub print_code( $ ) {
     my ($dir) = @_;
+
+    # Untaint $dir. This is necessary if running setuid.
+    # We can trust value of $dir because it is set by setuid wrapper.
+    $dir =~ /(.*)/;
+    $dir = $1;
+
     $dir and check_output_dir $dir;
     info "Printing code";
     for my $router (@managed_routers) {
@@ -9208,8 +9214,11 @@ sub print_code( $ ) {
         my $name         = $router->{name};
         if ($dir) {
             my $file = $name;
-            $file =~ s/^router://;
-            $file = "$dir/$file";
+
+	    # Untaint $file. It has already been checked for word characters,
+	    # but check again for the case of a weird locale setting.
+            $file =~ /^router:([^.\/ ]*)/;
+            $file = "$dir/$1";
             open STDOUT, ">$file" or die "Can't open $file: $!\n";
         }
 
