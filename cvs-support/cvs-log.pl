@@ -5,8 +5,9 @@
 # Description:
 # This script is called from $CVSROOT/CVSROOT/loginfo
 # Usage:
-# cvs-log.pl <logfile> <user> <module>
+# cvs-log.pl <user> <cvsroot> <module>
 # Log message is read from STDIN
+# Parsed output is written to STDOUT
 #
 # $Id$
 
@@ -14,10 +15,9 @@ use strict;
 use warnings;
 use Fcntl qw/:flock/; # import LOCK_* constants
 
-my $logfile = shift;
 my $user = shift;
+my $cvsroot = shift;
 my $module = shift;
-my $cvsroot = $ENV{CVSROOT};
 $cvsroot =~ s,/$,,;
 my $prefix = "$cvsroot/$module";
 
@@ -62,9 +62,6 @@ for my $file (@{$files{mod}}) { $out .= "\t* $dir$file:\n"; }
 for my $log (@log) { $out .= "\t$log"; }
 $out .= "\n" unless $out =~ /\n$/;
 
-open LOG, ">>$logfile" or die "Can't open $logfile: $!\n";
-flock(LOG, LOCK_EX) or die "Can't get lock for $logfile: $!\n";
-print LOG $out;
-close LOG;
+print $out;
 
 
