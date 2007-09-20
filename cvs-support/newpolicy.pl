@@ -22,15 +22,15 @@
 # The current user must have a working directory 'netspoc'
 # in his home directory with NetSPoC files checked out
 # from the CVS repository.
-# - checks if working directory 
-#   - is updated and 
-#   - all changes are commited, 
-#   - aborts if not
-# - identifies the current policy 
+# - identifies the current policy from policy db
 # - calculates the next policy tag
-# - tags users current configuration with new policy tag
-# - extracts the tagged configuration into the policy database
+# - extracts newest configuration from repository into policy database
+# - checks if working directory of current user
+#   - is identical to extracted configuration,
+#   - then we know, it is updated and all changes are commited, 
+#   - aborts if not
 # - compiles the new policy
+# - tags extracted configuration with new policy tag
 # - marks new policy in policy db as current
 #
 # $Id$
@@ -39,116 +39,128 @@ use strict;
 use warnings;
 use Fcntl qw(:DEFAULT :flock);
 
-# policy database
-my $policydb = "/home/diamonds/netspoc";
-# netspoc compiler
-my $compiler = 'netspoc';
-my $log = 'compile.log';
-# name of cvs module
-my $module = 'netspoc';
-# link to current policy
-my $link = "$policydb/current";
-# LOCK for preventing concurrent updates
-my $lock = "$policydb/LOCK";
-my $home = $ENV{HOME};
-# users working directory
+# Get real UID of calling user (not the effective UID from setuid wrapper).
+my $real_uid = $<;
+
+# Get users pw entry.
+my @pwentry = getpwuid($real_uid) or 
+    die "Can't get pwentry of UID $real_uid: $!";
+
+# Get users home directory.
+my $home = $pwentry[7] or die "Can't get home directory for UID $real_uid";
+
+# Users netspoc directory.
 my $working = "$home/netspoc";
-# policy file, contains current policy number
-my $pfile = "$working/POLICY";
-$ENV{CVSROOT} or die "Abort: No CVSROOT specified!\n";
 
-# User must have an updated and checked in working directory.
-chdir $working or die "Error: can't cd to $working: $!\n";
-# -A: Reset any sticky tags, dates, or -k options.
-# -d: Create any directories that exist in the repository 
-#     if they're missing from the working directory.
-open CHECK, 'cvs -nq update -A -d 2>&1 |' or die "can't execute cvs\n";
-if(my $output = join '', <CHECK>) {
-    $output and die "Abort: $working isn't up to date:\n$output";
-}
-close CHECK;
+# Path of policy database.
+my $policydb = '/home/diamonds/netspoc';
 
-# Lock policy database
+# Name of netspoc compiler, PATH from sanitized environment (see below).
+my $compiler = 'netspoc';
+
+# Name of cvs module in repository.
+my $module = 'netspoc';
+
+# Location of repository.
+my $CVSROOT = '/usr/local/cvsroot';
+
+# Link to current policy.
+my $link = "$policydb/current";
+
+# Lock file for preventing concurrent updates.
+my $lock = "$policydb/LOCK";
+
+# Setup environment variables.
+$ENV{PATH} = "/home/heinz/develop:/usr/bin:/bin";
+$ENV{CVSROOT} = "/usr/local/cvsroot";
+$ENV{LANG} = 'de_DE@euro';
+
+# Lock policy database.
 sysopen LOCK, "$lock", O_RDONLY | O_CREAT or
     die "Error: can't open $lock: $!";
 flock(LOCK, LOCK_EX | LOCK_NB) or die "Abort: Another $0 is running\n";
 
-# update, read, increment, commit policy number from working directory
-# update
-system('cvs', 'update',  $pfile) == 0 or die "Aborted\n";
-# read
-open PFILE, $pfile or die "Can't open $pfile: $!\n";
-my $line = <PFILE>;
-close PFILE;
-# $pfile contains one line: "# p22 comment .."
-my(undef, $policy) = split ' ', $line;
+# Read current policy name from symbolic link.
+my $policy = readlink $link or die "Can't read $link: $!\n";
+
+# Link must have name "p<number>".
 my($count) = ($policy =~ /^p(\d+)$/) or
-    die "Error: found invalid policy name '$policy' in $pfile";
-system('cvs', 'edit', $pfile) == 0 or die "Aborted\n";
-# increment policy counter
+    die "Error: found invalid policy name '$policy' in $link";
+
+# Increment counter.
 $count++;
+
+# Get next policy name.
 $policy = "p$count";
-# read log message
-print "Enter log message for policy $count, terminated with a single '.' or EOF:\n";
-my $msg = "$policy: ";
-while(<STDIN>) {
-    last if /^\.$/;
-    $msg .= $_;
-}
-# write new policy
-open PFILE, ">", $pfile or die "Can't open $pfile: $!\n";
-print PFILE "# $policy # Current policy, don't edit manually!\n";
-close PFILE;
-# commit
-system('cvs', 'commit', '-m', $msg, $pfile) == 0 or die "Aborted\n";
 
+# Directory and file names of new policy in policy database.
+my $pdir  = "$policydb/$policy";
+my $psrc  = "$pdir/src";
+my $pcode = "$pdir/code";
+my $plog  = "$pdir/compile.log";
+
+# Cleanup leftovers from previous unsuccessful build of this policy.
+system('rm', '-rf', $pdir);
+
+# Create directory for new policy.
 print STDERR "Saving policy $count\n";
-
-# tagging policy
-system('cvs', '-Q', 'tag', '-c', $policy) == 0 or die "Aborted\n";
-
-# check out new policy into policy database
-chdir $policydb or die "Error: can't cd to $policydb: $!\n";
-my $pdir = "$policydb/$policy";
 mkdir $pdir or die "Error: can't create $pdir: $!\n";
-chdir $policy or die "Error: can't cd to $pdir: $!\n";
-system('cvs', '-Q', 'checkout', '-d', 'src', '-r', $policy, $module) == 0 or
-    die "Error: can't checkout $policy to $pdir/src\n";
 
-# compile new policy
-chdir $pdir or die "Error: can't cd to $pdir: $!\n";
-print STDERR "Compiling policy $count\n";
-my $failed;
-open COMPILE, "$compiler src code 2>&1 |" or
+# Check out newest files from repository
+# into subdirectory "src" of policy directory.
+system('cvs', '-Q', 'checkout', '-d', "$psrc", $module) == 0 or
+    die "Error: can't checkout $policy to $psrc\n";
+
+# Sanity check that working copy of calling user 
+# is identical to just checked out copy.
+system('diff', '-qr', '-x', 'CVS', '-x', '*~', $working, $psrc) == 0 or
+    die "Error: $working isn't up to date\n";
+
+# Compile new policy.
+print STDERR "Compiling policy $count; log files in $plog \n";
+open COMPILE, "$compiler $psrc $pcode 2>&1 |" or
     die "Can't execute $compiler: $!\n";
-open LOG, '>', $log or die "Can't open $log: $!\n";
+open LOG, '>', "$plog" or die "Can't open $plog: $!\n";
 while(<COMPILE>) {
     print LOG; 
     print STDERR;
 }
 close LOG;
 close COMPILE;
-($? == 0) or $failed = 1;
 
-# make new policy read only
-system("chmod -R a-w *") == 0 or warn "Can't make $pdir/* read only\n";
-system("chmod a+w .") == 0 or warn "Can't make $pdir world writable\n";
+# Compiled successfully.
+if ($? == 0) {
 
-if($failed) {
-    print STDERR "New policy failed to compile\n";
-    my $current = readlink $link;
-    $current and print STDERR "Left current policy as '$current'\n";
-    # failure
-    exit 1;
-} else {
-    # mark new policy as current if compiled successfully
+    # Update POLICY file of current version
+    my $pfile = "$psrc/POLICY";
+    system('cvs', 'edit', $pfile) == 0 or die "Aborted\n";
+    open  PFILE, ">", $pfile or die "Can't open $pfile: $!\n";
+    print PFILE "# $policy # Current policy, don't edit manually!\n";
+    close PFILE;
+    system('cvs', 'commit', '-m', $policy , $pfile) == 0 or die "Aborted\n";
+
+    # Add tags to files of current version.
+    system('cvs', '-Q', 'tag', $policy, $psrc) == 0 or die "Aborted\n";
+
+    # Mark new policy as current.
     chdir $policydb or die "Error: can't cd to $policydb: $!\n";
     unlink $link;
     symlink $policy, $link or
 	die "Error: failed to create symlink $link to $policy\n";
-    
     print STDERR "Updated current policy to '$policy'\n";
-    # success
+
+    # Success.
     exit 0;
 }
-# Unlock policy database: implicitly by exit
+
+# Failed to compile.
+else {
+    print STDERR "New policy failed to compile\n";
+    my $current = readlink $link;
+    $current and print STDERR "Left current policy as '$current'\n";
+
+    # Failure.
+    exit 1;
+}
+
+# Unlock policy database: implicitly by exit.
