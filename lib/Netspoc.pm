@@ -4341,6 +4341,7 @@ sub setany_network( $$$ ) {
 }
 
 # Collect all 'any' objects belonging to an area.
+# Set attribute {border} for areas defined by anchor and auto_border.
 sub setarea1( $$$ );
 
 sub setarea1( $$$ ) {
@@ -4366,27 +4367,42 @@ sub setarea1( $$$ ) {
         # Ignore interface where we reached this network.
         next if $interface eq $in_interface;
 
+	if($auto_border) {
+	    if( $interface->{is_border}) {
+		push @{$area->{border}}, $interface;
+		next;
+	    }
+	}
+
         # Found another border of current area.
-        if ($lookup->{$interface}) {
+        elsif ($lookup->{$interface}) {
 
             # Remember that we have found this other border.
             $lookup->{$interface} = 'found';
             next;
         }
-        next if $auto_border and $interface->{is_border};
+
         my $router = $interface->{router};
         for my $out_interface (@{ $router->{interfaces} }) {
 
             # Ignore interface where we reached this router.
             next if $out_interface eq $interface;
 
+	    if($auto_border) {
+		if( $out_interface->{is_border}) {
+
+		    # Take interface where we reached this router.
+		    push @{$area->{border}}, $interface;
+		    next;
+		}
+	    }
+
             # Found another border of current area from wrong side.
-            if ($lookup->{$out_interface}) {
+            elsif ($lookup->{$out_interface}) {
                 err_msg "Inconsistent definition of $area->{name}",
 		  " in loop at $out_interface->{name}";
                 next;
             }
-            next if $auto_border and $out_interface->{is_border};
             setarea1 $out_interface->{any}, $area, $out_interface;
         }
     }
