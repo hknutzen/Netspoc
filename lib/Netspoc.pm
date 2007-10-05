@@ -100,7 +100,6 @@ our @EXPORT = qw(
   find_active_routes_and_statics
   check_any_rules
   optimize
-  optimize_reverse_rules
   distribute_nat_info
   gen_reverse_rules
   mark_secondary_rules
@@ -3581,19 +3580,19 @@ sub path_first_interfaces( $$ );
 our %expanded_rules = (deny => [], any => [], permit => []);
 
 # Hash for ordering all rules:
-# $rule_tree{$action}->{$src}->{$dst}->{$src_range}->{$srv} = $rule;
+# $rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$src_range}->{$srv} 
+#  = $rule;
 my %rule_tree;
-my %reverse_rule_tree;
 
 # Hash for converting a reference of an service back to this service.
 my %ref2srv;
 
-# Add rules to $rule_tree for efficient lookup.
-sub add_rules( $$ ) {
-    my ($rules_ref, $rule_tree) = @_;
+# Add rules to %rule_tree for efficient lookup.
+sub add_rules( $ ) {
+    my ($rules_ref) = @_;
     for my $rule (@$rules_ref) {
-        my ($action, $src, $dst, $src_range, $srv) =
-          @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
+        my ($stateless, $action, $src, $dst, $src_range, $srv) =
+          @{$rule}{ 'stateless', 'action', 'src', 'dst', 'src_range', 'srv' };
         $ref2srv{$src_range} = $src_range;
         $ref2srv{$srv}       = $srv;
 
@@ -3607,14 +3606,15 @@ sub add_rules( $$ ) {
             $rule->{managed_intf} = 1;
         }
         my $old_rule =
-          $rule_tree->{$action}->{$src}->{$dst}->{$src_range}->{$srv};
+          $rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$src_range}->{$srv};
         if ($old_rule) {
 
             # Found identical rule.
             $rule->{deleted} = $old_rule;
             next;
         }
-        $rule_tree->{$action}->{$src}->{$dst}->{$src_range}->{$srv} = $rule;
+#	debug "Add:", print_rule $rule;
+        $rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$src_range}->{$srv} = $rule;
     }
 }
 
@@ -3693,6 +3693,21 @@ sub get_auto_interface ( $$$ ) {
         }
     }
     return @result;
+}
+
+sub path_walk( $$;$ );
+
+sub get_path_networks ( $ ) {
+    my ($rule) = @_;
+    my @networks;
+    my $fun = sub { 
+	my ($rule, $in_intf, $out_intf) = @_;
+	if ($in_intf and $out_intf) {
+	    push @networks, $in_intf->{network};
+	}
+    };
+    path_walk $rule, $fun, 'Network';
+    return @networks;
 }
 
 # This handles a rule between objects inside a single security domain or
@@ -3811,6 +3826,7 @@ sub expand_rules ( $$$ ) {
 			    {
 				my($src_range, $srv) = @$src_dst_range;
 				my $rule = {
+				    stateless => 0,
 				    action    => $action,
 				    src       => $src,
 				    dst       => $dst,
@@ -3871,7 +3887,7 @@ sub expand_policies( ;$) {
         expand_rules $policy->{rules}, $name, \%expanded_rules;
     }
     for my $type ('deny', 'any', 'permit') {
-        add_rules $expanded_rules{$type}, \%rule_tree;
+        add_rules $expanded_rules{$type};
     }
 }
 
@@ -5622,7 +5638,7 @@ sub gen_tunnel_rules ( $$$ ) {
     my $use_esp = $ipsec->{esp_authentication} || $ipsec->{esp_encryption};
     my $nat_traversal = $ipsec->{key_exchange}->{nat_traversal};
     my @rules;
-    my $rule = { action => 'permit', src => $intf1, dst => $intf2 };
+    my $rule = { stateless => 0, action => 'permit', src => $intf1, dst => $intf2 };
     if (not $nat_traversal or $nat_traversal ne 'on') {
 	$use_ah  and push @rules, { %$rule, src_range => $srv_ip, srv => $srv_ah };
 	$use_esp and push @rules, { %$rule, src_range => $srv_ip, srv => $srv_esp };
@@ -5740,7 +5756,7 @@ sub mark_tunnels () {
                 my $rules_ref = 
 		    gen_tunnel_rules $intf1, $intf2, $crypto->{type};
                 push @{ $expanded_rules{permit} }, @$rules_ref;
-                add_rules $rules_ref, \%rule_tree;
+                add_rules $rules_ref;
             }
         }
     }
@@ -6009,7 +6025,8 @@ sub check_any_src_rule( $$$ ) {
     return unless $out_intf;
 
     my $out_any = $out_intf->{any};
-    my $dst     = $rule->{dst};
+    my ($stateless, $action, $src, $dst, $src_range, $srv) =
+	@{$rule}{ 'stateless', 'action', 'src', 'dst', 'src_range', 'srv' };
     if ($out_any eq $dst) {
 
         # Both src and dst are 'any' objects and are directly connected
@@ -6035,8 +6052,7 @@ sub check_any_src_rule( $$$ ) {
                 # directly to the destination 'any' object.
                 next if $intf eq $out_intf;
                 my $any = $intf->{any};
-                unless ($rule_tree{ $rule->{action} }->{$any}->{$dst}
-                    ->{ $rule->{src_range} }->{ $rule->{srv} })
+                unless ($rule_tree{$stateless}->{$action}->{$any}->{$dst}->{$src_range}->{$srv})
                 {
                     err_missing_any $rule, $any, 'src', $router;
                 }
@@ -6048,8 +6064,7 @@ sub check_any_src_rule( $$$ ) {
     # Security domain of dst is directly connected with current router.
     # Hence there can't be any missing rules.
     return if $out_any eq $dst_any;
-    unless ($rule_tree{ $rule->{action} }->{$out_any}->{$dst}
-        ->{ $rule->{src_range} }->{ $rule->{srv} })
+    unless ($rule_tree{$stateless}->{$action}->{$out_any}->{$dst}->{$src_range}->{$srv})
     {
         err_missing_any $rule, $out_any, 'src', $router;
     }
@@ -6082,17 +6097,17 @@ sub check_any_dst_rule( $$$ ) {
 
     my $out_any = $out_intf->{any};
 
-    # We only need to check last router on path.
-    return unless $rule->{dst} eq $out_any;
-
     # Source is interface of current router.
     return unless $in_intf;
 
     my $in_any    = $in_intf->{any};
-    my $src       = $rule->{src};
-    my $src_range = $rule->{src_range};
-    my $srv       = $rule->{srv};
-    my $src_any   = get_any $src;
+    my ($stateless, $action, $src, $dst, $src_range, $srv) =
+	@{$rule}{ 'stateless', 'action', 'src', 'dst', 'src_range', 'srv' };
+
+    # We only need to check last router on path.
+    return unless $rule->{dst} eq $out_any;
+
+    my $src_any = get_any $src;
 
     # Find security domains at all interfaces except the in_intf.
     for my $intf (@{ $router->{interfaces} }) {
@@ -6105,7 +6120,7 @@ sub check_any_dst_rule( $$$ ) {
         # Nothing to be checked if src is directly attached to current router.
         next if $any eq $src_any;
         unless (
-            $rule_tree{ $rule->{action} }->{$src}->{$any}->{$src_range}->{$srv})
+            $rule_tree{$stateless}->{$action}->{$src}->{$any}->{$src_range}->{$srv})
         {
             err_missing_any $rule, $any, 'dst', $router;
         }
@@ -6145,10 +6160,9 @@ sub check_for_transient_any_rule () {
     # Collect info about unwanted implied rules.
     my %missing_rule_tree;
     my $missing_count = 0;
-    
+
     for my $rule (@{ $expanded_rules{any} }) {
         next if $rule->{deleted};
-        next if $rule->{stateless};
 	next if $rule->{action} ne 'permit';
 	my $dst = $rule->{dst};
 	next if not is_any($dst);
@@ -6157,94 +6171,107 @@ sub check_for_transient_any_rule () {
 	# It can't lead to unwanted rule chains.
 	next if @{$dst->{interfaces}} <= 1;
 
-	my ( $src1, $dst1, $src_range1, $srv1 )
-	    = @$rule{'src', 'dst', 'src_range', 'srv'};
+	my ( $stateless1, $src1, $dst1, $src_range1, $srv1 )
+	    = @$rule{'stateless', 'src', 'dst', 'src_range', 'srv'};
 
 	# Find all rules with $dst1 as source.
 	my $src2 = $dst1;
-	while (my($dst2_str, $hash) = each %{$rule_tree{permit}->{$src2}} ) {
+	for my $stateless2 (1, 0) {
+	    while (my($dst2_str, $hash) = each %{$rule_tree{$stateless2}->{permit}->{$src2}} ) {
 
-	    # Skip reverse rules.
-	    next if $src1 eq $dst2_str;
+		# Skip reverse rules.
+		next if $src1 eq $dst2_str;
 
-	    my $dst2 = $ref2obj{$dst2_str};
+		my $dst2 = $ref2obj{$dst2_str};
 
-	    # Skip rules with src and dst inside a single security domain.
-	    next if get_any $src1 eq get_any $dst2;
+		# Skip rules with src and dst inside a single security domain.
+		next if get_any $src1 eq get_any $dst2;
 
-	    while (my($src_range2_str, $hash) = each %$hash) {
-	      RULE2:
-		while (my($srv2_str, $rule2) = each %$hash) {
+		while (my($src_range2_str, $hash) = each %$hash) {
+		  RULE2:
+		    while (my($srv2_str, $rule2) = each %$hash) {
 
-		    my $srv2  = $rule2->{srv};
-		    my $src_range2  = $rule2->{src_range};
+			my $srv2  = $rule2->{srv};
+			my $src_range2  = $rule2->{src_range};
 
-		    # Find smaller service of two rules found.
-		    my $smaller_srv = find_smaller_srv $srv1, $srv2;
-		    my $smaller_src_range = 
-			find_smaller_srv $src_range1, $src_range2;
+			# Find smaller service of two rules found.
+			my $smaller_srv = find_smaller_srv $srv1, $srv2;
+			my $smaller_src_range = 
+			    find_smaller_srv $src_range1, $src_range2;
 
-		    # If services are disjoint, 
-		    # we do not have transient-any-problem for $rule and $rule2.
-		    next if not $smaller_srv or not $smaller_src_range;
+			# If services are disjoint, 
+			# we do not have transient-any-problem for $rule and $rule2.
+			next if not $smaller_srv or not $smaller_src_range;
 
-		    # If we have a rule with $src1 and $dst2 
-		    # with $smaller_service, everything is fine.
-		    my $action = 'permit';
-		    while (1) {
-			my $src = $src1;
-			if (my $hash = $rule_tree{$action}) {
-			    while (1) {
-				my $dst = $dst2;
-				if (my $hash = $hash->{$src}) {
-				    while (1) {
-					my $src_range = $smaller_src_range;
-					if (my $hash = $hash->{$dst}) {
-					    while (1) {
-						my $srv = $smaller_srv;
-						if (my $hash =
-						    $hash->{$src_range})
-						{
-						    while (1) {
-							if (my $other_rule =
-							    $hash->{$srv})
-							{
+			# Force a unique value for boolean result.
+			my $stateless = ($stateless1 && $stateless2) + 0;
+
+			# Check for a rule with $src1 and $dst2 and
+			# with $smaller_service.
+			while(1) {
+			    my $action = 'permit';
+			    if (my $hash = $rule_tree{$stateless}) {
+				while (1) {
+				    my $src = $src1;
+				    if (my $hash = $hash->{$action}) {
+					while (1) {
+					    my $dst = $dst2;
+					    if (my $hash = $hash->{$src}) {
+						while (1) {
+						    my $src_range = $smaller_src_range;
+						    if (my $hash = $hash->{$dst}) {
+							while (1) {
+							    my $srv = $smaller_srv;
+							    if (my $hash =
+								$hash->{$src_range})
+							    {
+								while (1) {
+								    if (my $other_rule =
+									$hash->{$srv})
+								    {
 # debug print_rule $other_rule;
-							    next RULE2;
+									next RULE2;
+								    }
+								    $srv = $srv->{up}
+								    or last;
+								}
+							    }
+							    $src_range =
+								$src_range->{up}
+							    or last;
 							}
-							$srv = $srv->{up}
-							or last;
 						    }
+						    $dst = $dst->{up} or last;
 						}
-						$src_range =
-						    $src_range->{up}
-						or last;
 					    }
+					    $src = $src->{up} or last;
 					}
-					$dst = $dst->{up} or last;
 				    }
+				    last if $action eq 'deny';
+				    $action = 'deny';
 				}
-				$src = $src->{up} or last;
 			    }
+			    last if !$stateless;
+
+			    # Boolean value "false" is used as hash key, hence we take '0'.
+			    $stateless = 0;
 			}
-			last if $action eq 'deny';
-			$action = 'deny';
-		    }
-		    
+
 # debug "Src: ", print_rule $rule;
 # debug "Dst: ", print_rule $rule2;
-		    my $src_policy = $rule->{rule}->{policy}->{name};
-		    my $dst_policy = $rule2->{rule}->{policy}->{name};
-		    my $new = $missing_rule_tree{$src_policy}->{$src1->{name}}
-		                              ->{$dst_policy}->{$dst2->{name}}
-		                              ->{$smaller_src_range->{name}}
-		                              ->{$smaller_srv->{name}}++;
-		    $missing_count++ if $new;
+			my $src_policy = $rule->{rule}->{policy}->{name};
+			my $dst_policy = $rule2->{rule}->{policy}->{name};
+			my $new = $missing_rule_tree{$src_policy}->{$src1->{name}}
+			->{$dst_policy}->{$dst2->{name}}
+			->{$smaller_src_range->{name}}
+			->{$smaller_srv->{name}}++;
+			$missing_count++ if $new;
+		    }
 		}
 	    }
 	}
     }
-    
+
     if($missing_count) {
 
 	err_msg "Missing transient rules: $missing_count";
@@ -6316,7 +6343,6 @@ sub check_any_rules() {
     info "Checking rules with 'any' objects";
     for my $rule (@{ $expanded_rules{any} }) {
         next if $rule->{deleted};
-        next if $rule->{stateless};
         if (is_any($rule->{src})) {
             path_walk($rule, \&check_any_src_rule);
         }
@@ -6416,14 +6442,14 @@ sub gen_reverse_rules1 ( $ ) {
                 internal_err;
             }
             my $new_rule = {
+
+                # This rule must only be applied to stateless routers.
+                stateless => 1,
                 action    => $rule->{action},
                 src       => $rule->{dst},
                 dst       => $rule->{src},
                 src_range => $new_src_range,
                 srv       => $new_srv,
-
-                # This rule must only be applied to stateless routers.
-                stateless => 1
             };
             $new_rule->{any_are_neighbors} = 1 if $rule->{any_are_neighbors};
 
@@ -6432,7 +6458,7 @@ sub gen_reverse_rules1 ( $ ) {
         }
     }
     push @$rule_aref, @extra_rules;
-    add_rules \@extra_rules, \%reverse_rule_tree;
+    add_rules \@extra_rules;
 }
 
 sub gen_reverse_rules() {
@@ -6518,70 +6544,80 @@ sub mark_secondary_rules() {
 
 sub optimize_rules( $$ ) {
     my ($cmp_hash, $chg_hash) = @_;
-    while (my ($action,$chg_hash) = each %$chg_hash) {
-        while (1) {
-            if (my $cmp_hash = $cmp_hash->{$action}) {
-                while( my($src_ref, $chg_hash) = each %$chg_hash) {
-                    my $src = $ref2obj{$src_ref};
-                    while (1) {
-                        if (my $cmp_hash = $cmp_hash->{$src}) {
-                            while (my($dst_ref, $chg_hash) = each %$chg_hash) {
-                                my $dst = $ref2obj{$dst_ref};
-                                while (1) {
-                                    if (my $cmp_hash = $cmp_hash->{$dst}) {
-                                        while (my($src_range_ref, $chg_hash) = 
-					       each %$chg_hash)
-                                        {
-                                            my $src_range =
-                                              $ref2srv{$src_range_ref};
-                                            while (1) {
-                                                if (my $cmp_hash =
-                                                    $cmp_hash->{$src_range})
-                                                {
-                                                    for my $chg_rule (
-                                                        values %$chg_hash)
-                                                    {
-                                                        next
-                                                          if
-                                                          $chg_rule->{deleted};
-                                                        my $srv =
-                                                          $chg_rule->{srv};
-                                                        while (1) {
-                                                            if (my $cmp_rule =
-                                                                $cmp_hash
-                                                                ->{$srv})
-                                                            {
-                                                                unless (
-                                                                    $cmp_rule eq
-                                                                    $chg_rule)
-                                                                {
-                                                                    $chg_rule
-                                                                      ->{deleted}
-                                                                      = $cmp_rule;
-                                                                    last;
-                                                                }
-                                                            }
-                                                            $srv = $srv->{up}
-                                                              or last;
-                                                        }
-                                                    }
-                                                }
-                                                $src_range = $src_range->{up}
-                                                  or last;
-                                            }
-                                        }
-                                    }
-                                    $dst = $dst->{up} or last;
-                                }
-                            }
-                        }
-                        $src = $src->{up} or last;
-                    }
-                }
-            }
-            last if $action eq 'deny';
-            $action = 'deny';
-        }
+    while (my ($stateless, $chg_hash) = each %$chg_hash) {
+	while (1) {
+	    if (my $cmp_hash = $cmp_hash->{$stateless}) {
+		while (my ($action, $chg_hash) = each %$chg_hash) {
+		    while (1) {
+			if (my $cmp_hash = $cmp_hash->{$action}) {
+			    while( my($src_ref, $chg_hash) = each %$chg_hash) {
+				my $src = $ref2obj{$src_ref};
+				while (1) {
+				    if (my $cmp_hash = $cmp_hash->{$src}) {
+					while (my($dst_ref, $chg_hash) = each %$chg_hash) {
+					    my $dst = $ref2obj{$dst_ref};
+					    while (1) {
+						if (my $cmp_hash = $cmp_hash->{$dst}) {
+						    while (my($src_range_ref, $chg_hash) = 
+							   each %$chg_hash)
+						    {
+							my $src_range =
+							    $ref2srv{$src_range_ref};
+							while (1) {
+							    if (my $cmp_hash =
+								$cmp_hash->{$src_range})
+							    {
+								for my $chg_rule (
+										  values %$chg_hash)
+								{
+								    next
+									if
+									$chg_rule->{deleted};
+								    my $srv =
+									$chg_rule->{srv};
+								    while (1) {
+									if (my $cmp_rule =
+									    $cmp_hash
+									    ->{$srv})
+									{
+									    unless (
+										    $cmp_rule eq
+										    $chg_rule)
+									    {
+# debug "Del:", print_rule $chg_rule;
+# debug "Oth:", print_rule $cmp_rule;
+										$chg_rule
+										    ->{deleted}
+										= $cmp_rule;
+										last;
+									    }
+									}
+									$srv = $srv->{up}
+									or last;
+								    }
+								}
+							    }
+							    $src_range = $src_range->{up}
+							    or last;
+							}
+						    }
+						}
+						$dst = $dst->{up} or last;
+					    }
+					}
+				    }
+				    $src = $src->{up} or last;
+				}
+			    }
+			}
+			last if $action eq 'deny';
+			$action = 'deny';
+		    }
+		}
+	    }
+	    last if !$stateless;
+	    $stateless = 0;
+	}
     }
 }
 
@@ -6589,13 +6625,6 @@ sub optimize() {
     info "Optimizing globally";
     setup_ref2obj;
     optimize_rules \%rule_tree, \%rule_tree;
-}
-
-# Normal rules > reverse rules.
-sub optimize_reverse_rules() {
-    info "Optimizing reverse rules";
-    optimize_rules \%reverse_rule_tree, \%reverse_rule_tree;
-    optimize_rules \%rule_tree,         \%reverse_rule_tree;
 }
 
 ########################################################################
@@ -7286,20 +7315,20 @@ sub distribute_rule( $$$;$ ) {
       : $in_intf->{hardware};
     my $aref;
 
-#  debug "$router->{name} store: $store->{name}";
+#   debug "$router->{name} store: $store->{name}";
     if (not $out_intf) {
 
         # Packets for the router itself.  For PIX we can only reach that
         # interface, where traffic enters the PIX.
         return if $model->{filter} eq 'PIX' and $rule->{dst} ne $in_intf;
 
-#     debug "$router->{name} intf_rule: ",print_rule $rule,"\n";
+#	debug "$router->{name} intf_rule: ",print_rule $rule;
         
         $aref = \@{ $store->{intf_rules} };
     }
     else {
 
-#     debug "$router->{name} rule: ",print_rule $rule,"\n";
+#	debug "$router->{name} rule: ",print_rule $rule;
         # Prevent duplicate rules, when path is splitting behind current
         # router. This might occur at the start or inside a cyclic graph.
         # Therefore check if last rule and current rule are identical.
