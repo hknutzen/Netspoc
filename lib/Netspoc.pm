@@ -6128,19 +6128,37 @@ sub check_any_dst_rule( $$$ ) {
 }
 
 # Find smaller service of two services.
+# Cache results.
+my %smaller_srv;
 sub find_smaller_srv ( $$ ) {
     my($srv1, $srv2) = @_;
     
-    return $srv1 if $srv1 eq $srv2;
+    if($srv1 eq $srv2) {
+	return $srv1;
+    }
+    if(defined(my $srv = $smaller_srv{$srv1}->{$srv2})) {
+	return $srv;
+    }
 
     my $srv = $srv1;
     while ( $srv = $srv->{up} ) {
-	return $srv1 if $srv eq $srv2;
+	if($srv eq $srv2) {
+	    $smaller_srv{$srv1}->{$srv2} = $srv1;
+	    $smaller_srv{$srv2}->{$srv1} = $srv1;
+	    return $srv1;
+	}
     }
     $srv = $srv2;
     while ( $srv = $srv->{up} ) {
-	return $srv2 if $srv eq $srv1;
+	if($srv eq $srv1) {
+	    $smaller_srv{$srv1}->{$srv2} = $srv2;
+	    $smaller_srv{$srv2}->{$srv1} = $srv2;
+	    return $srv2;
+	}
     }
+    $smaller_srv{$srv1}->{$srv2} = 0;
+    $smaller_srv{$srv2}->{$srv1} = 0;
+    return 0;
 }
 
 # Example:
