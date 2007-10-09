@@ -1775,6 +1775,18 @@ sub read_service( $ ) {
         my $string = read_name;
         error_atline "Unknown protocol $string in definition of $name";
     }
+    while(check ',') {
+	my $flag = read_identifier;
+	if($flag =~ /^(src|dst)_(path|net|any)$/) {
+	    $service->{flags}->{$1}->{$2} = 1;
+	}
+	elsif($flag =~ /^(?:stateless|reversed|oneway)/) {
+	    $service->{flags}->{$flag} = 1;
+	}
+	else {
+	    error_atline "Unknown flag '$flag' in definition of $name";
+	}
+    }
     skip ';';
     return $service;
 }
@@ -3618,58 +3630,62 @@ sub add_rules( $ ) {
     }
 }
 
+my %obj2any;
 sub get_any( $ ) {
     my ($obj) = @_;
     my $type = ref $obj;
+    my $result;
     if ($type eq 'Network') {
-        return $obj->{any};
+        $result = $obj->{any};
     }
     elsif ($type eq 'Subnet') {
-        return $obj->{network}->{any};
+        $result = $obj->{network}->{any};
     }
     elsif ($type eq 'Interface') {
         if ($obj->{router}->{managed}) {
-            return $obj->{router};
+            $result = $obj->{router};
         }
         else {
-            return $obj->{network}->{any};
+            $result = $obj->{network}->{any};
         }
     }
     elsif ($type eq 'Any') {
-        return $obj;
+        $result = $obj;
     }
 
     # Only used when called from expand_rules.
     elsif ($type eq 'Router') {
         if ($obj->{managed}) {
-            return $obj;
+            $result = $obj;
         }
         else {
-            return $obj->{interfaces}->[0]->{network}->{any};
+            $result = $obj->{interfaces}->[0]->{network}->{any};
         }
     }
     elsif ($type eq 'Host') {
-        return $obj->{network}->{any};
+        $result = $obj->{network}->{any};
     }
     elsif ($obj eq 'any:[local]') {
-        return $obj;    # A value, not equal to any other security domain.
+        $result = $obj;    # A value, not equal to any other security domain.
     }
     else {
         internal_err "unexpected $obj->{name}";
     }
+    $obj2any{$obj} = $result;
 }
 
 # Return associated 'any' object of an interface.
 # Give error message if no interface is provided.
-sub get_any_local ( $ ) {
-    my ($obj) = @_;
+sub get_any_local ( $$ ) {
+    my ($obj, $context) = @_;
     if (is_interface $obj and $obj->{router}->{managed}) {
         return $obj->{any};
     }
     else {
         my $name = $obj eq 'any:[local]' ? $obj : $obj->{name};
         err_msg "any:[local] must only be used in conjunction",
-          " with a managed interface\n", " but not with $name in rule of $name";
+	  " with a managed interface\n", 
+	  " but not with $name in rule of $context";
 
         # Continue with a valid value to prevent further errors.
         return $obj;
@@ -3680,7 +3696,7 @@ sub get_auto_interface ( $$$ ) {
     my ($src, $dst, $context) = @_;
     my @result;
     for my $interface (path_first_interfaces $src, $dst) {
-        if ($interface->{ip} =~ /short/) {
+        if ($interface->{ip} eq 'short') {
             err_msg "'$interface->{ip}' $interface->{name}",
               " (from .[auto])\n", " must not be used in rule of $context";
         }
@@ -3697,17 +3713,108 @@ sub get_auto_interface ( $$$ ) {
 
 sub path_walk( $$;$ );
 
-sub get_path_networks ( $ ) {
-    my ($rule) = @_;
-    my @networks;
-    my $fun = sub { 
-	my ($rule, $in_intf, $out_intf) = @_;
-	if ($in_intf and $out_intf) {
-	    push @networks, $in_intf->{network};
+sub get_networks ( $ ) {
+    my ($obj) = @_;
+    my $type = ref $obj;
+    if ($type eq 'Network') {
+        return $obj;
+    }
+    elsif ($type eq 'Subnet' or $type eq 'Interface') {
+        return $obj->{network};
+    }
+    elsif ($type eq 'Any') {
+        return @{ $obj->{networks} };
+    }
+    else {
+        internal_err "unexpected $obj->{name}";
+    }
+}
+
+sub expand_special ( $$$$ ) {
+    my ($src, $dst, $flags, $context) = @_;
+    my @result;
+    if($src eq 'any:[local]') {
+	return get_any_local $dst, $context;
+    }
+    if(is_router $src) {
+	if($dst eq 'any:[local]') {
+	    err_msg "'any:[local]' must not be used together with .[auto]",
+	            " in rule of $context";
+	    return ();
 	}
-    };
-    path_walk $rule, $fun, 'Network';
-    return @networks;
+	@result = get_auto_interface $src, $dst, $context;
+    }
+    else {
+	@result = ($src);
+    }
+    if($flags->{path}) {
+	if($dst eq 'any:[local]') {
+	    err_msg "'any:[local]' must not be used in rule with\n",
+	            " service having flag src_path or dst_path in $context";
+	    return ();
+	}
+	my %interfaces;
+	for my $src (@result) {
+	    my $fun = sub { 
+		my ($rule, $in_intf, $out_intf) = @_;
+		if ($in_intf) {
+		    $interfaces{$in_intf} = $in_intf;
+		}
+	    };
+	    my $pseudo_rule = {
+		src    => $src,
+		dst    => $dst,
+		action => '--',
+		srv    => $srv_ip,
+	    };
+	    path_walk $pseudo_rule, $fun, 'Network';
+	}
+	@result = grep { $_->{ip} !~ /unnumbered|short/ } values %interfaces;
+    }
+    if($flags->{net}) {
+	my %networks;
+	for my $obj (@result) {
+	    my $type = ref $obj;
+	    my $result;
+	    if ($type eq 'Network') {
+		$result = $obj;
+	    }
+	    elsif ($type eq 'Subnet' or $type eq 'Interface') {
+		$result = $obj->{network};
+	    }
+	    elsif ($type eq 'Any') {
+		err_msg "$obj->{name} must not be used in rule with\n",
+		" service having flag src_net or dst_net in $context";
+	    }
+	    else {
+		internal_err "unexpected $obj->{name}";
+	    }
+	    $networks{$result} = $result;
+	}
+	@result = grep { $_->{ip} ne 'unnumbered'; } values %networks;
+    }
+    if($flags->{any}) {
+	my %anys;
+	for my $obj (@result) {
+	    my $type = ref $obj;
+	    my $result;
+	    if ($type eq 'Network') {
+		$result = $obj->{any};
+	    }
+	    elsif ($type eq 'Subnet' or $type eq 'Interface') {
+		$result = $obj->{network}->{any};
+	    }
+	    elsif ($type eq 'Any') {
+		$result = $obj;
+	    }
+	    else {
+		internal_err "unexpected $obj->{name}";
+	    }
+	    $anys{$result} = $result;
+	}
+	@result = values %anys;
+    }
+    return @result;
 }
 
 # This handles a rule between objects inside a single security domain or
@@ -3767,76 +3874,69 @@ sub expand_rules ( $$$ ) {
     for my $unexpanded (@$rules_ref) {
 
         my $action = $unexpanded->{action};
-        for my $src (@{ $unexpanded->{src} }) {
-            my $src_any = get_any $src;
-            for my $dst (@{ $unexpanded->{dst} }) {
-                my $dst_any = get_any $dst;
+	for my $srv (@{ $unexpanded->{srv} }) {
+	    my $flags = $srv->{flags};
 
-                # Check for unenforceable rule.
-                if ($src_any eq $dst_any) {
-                    warn_unenforceable $src, $dst, $src_any, $context;
+	    # We must not use a unspecified boolean value but values 0 or 1,
+	    # because this is used as a hash key in %rule_tree.
+	    my $stateless = $flags->{stateless} ? 1 : 0;
 
-                    # Ignore this rule.
-                    next;
-                }
-                my @src =
-                    is_router $src
-                  ? get_auto_interface $src, $dst, $context
-                  : ($src);
-                my @dst =
-                    is_router $dst
-                  ? get_auto_interface $dst, $src, $context
-                  : ($dst);
-                for my $src (@src) {
+	    my($src, $dst) = @{$unexpanded}{'src' , 'dst'};
+	    ($src, $dst) = ($dst, $src) if $flags->{reversed};
 
-                    # Prevent modification of original array.
-                    my $src = $src;
-                    for my $dst (@dst) {
-                        my $dst = $dst;    # Prevent ...
-                        if ($src eq 'any:[local]') {
-                            $src = get_any_local($dst);
-                        }
-                        if ($dst eq 'any:[local]') {
-                            $dst = get_any_local($src);
-                        }
-                        for my $srv (@{ $unexpanded->{srv} }) {
+	    # If $srv is duplicate of an identical service,
+	    # use the main service, but remember the original
+	    # one for debugging / comments.
+	    my $orig_srv;
 
-                            # If $srv is duplicate of an identical service,
-                            # use the main service, but remember the original
-                            # one for debugging / comments.
-                            my $orig_srv;
+	    # Prevent modification of original array.
+	    my $srv = $srv;
+	    if (my $main_srv = $srv->{main}) {
+		$orig_srv = $srv;
+		$srv      = $main_srv;
+	    }
+	    else {
+		my $proto = $srv->{proto};
+		if ($proto eq 'tcp' || $proto eq 'udp') {
 
-                            # Prevent modification of original array.
-                            my $srv = $srv;
-                            if (my $main_srv = $srv->{main}) {
-                                $orig_srv = $srv;
-                                $srv      = $main_srv;
-                            }
-			    else {
-				my $proto = $srv->{proto};
-				if ($proto eq 'tcp' || $proto eq 'udp') {
+		    # Remember unsplitted srv.
+		    $orig_srv  = $srv;
+		}
+	    }
+	    $srv->{src_dst_range_list} or internal_err $srv->{name};
+	    for my $src_dst_range (@{$srv->{src_dst_range_list}}) {
+		my($src_range, $srv) = @$src_dst_range;
+		for my $src (@$src) {
+		    my $src_any = $obj2any{$src} || get_any $src;
+		    for my $dst (@$dst) {
+			my $dst_any = $obj2any{$dst} || get_any $dst;
 
-				    # Remember unsplitted srv.
-				    $orig_srv  = $srv;
-				}
-			    }
-			    $srv->{src_dst_range_list} or internal_err $srv->{name};
-			    for my $src_dst_range 
-				(@{$srv->{src_dst_range_list}}) 
-			    {
-				my($src_range, $srv) = @$src_dst_range;
+			# Check for unenforceable rule.
+			if ($src_any eq $dst_any) {
+			    warn_unenforceable $src, $dst, $src_any, $context;
+
+			    # Ignore this rule.
+			    next;
+			}  
+			my @src = 
+			    expand_special $src, $dst, $flags->{src}, $context;
+			my @dst = 
+			    expand_special $dst, $src, $flags->{dst}, $context;
+			for my $src (@src) {
+			    for my $dst (@dst) {
 				my $rule = {
-				    stateless => 0,
+				    stateless => $stateless,
 				    action    => $action,
 				    src       => $src,
 				    dst       => $dst,
 				    src_range => $src_range,
 				    srv       => $srv,
-				    
+
 				    # Remember unexpanded rule.
 				    rule      => $unexpanded
-				};
+				    };
 				$rule->{orig_srv} = $orig_srv if $orig_srv;
+				$rule->{oneway} = 1 if $flags->{oneway};
 				if ($action eq 'deny') {
 				    push @$deny, $rule;
 				}
@@ -4829,31 +4929,16 @@ sub setpath() {
 # Efficient path traversal.
 ####################################################################
 
-sub get_networks ( $ ) {
-    my ($obj) = @_;
-    my $type = ref $obj;
-    if ($type eq 'Network') {
-        return $obj;
-    }
-    elsif ($type eq 'Subnet' or $type eq 'Interface') {
-        return $obj->{network};
-    }
-    elsif ($type eq 'Any') {
-        return @{ $obj->{networks} };
-    }
-    else {
-        internal_err "unexpected $obj->{name}";
-    }
-}
-
+my %obj2path;
 sub get_path( $ ) {
     my ($obj) = @_;
     my $type = ref $obj;
+    my $result;
     if ($type eq 'Network') {
-        return $obj;
+        $result = $obj;
     }
     elsif ($type eq 'Subnet') {
-        return $obj->{network};
+        $result = $obj->{network};
     }
     elsif ($type eq 'Interface') {
         my $router = $obj->{router};
@@ -4864,37 +4949,38 @@ sub get_path( $ ) {
 	    # If this is a secondary interface, we can't use it to enter 
 	    # the router, because it has an active pathrestriction attached.
 	    # But it doesn't matter if we use the main interface instead.
-	    $obj = $obj->{main_interface} if $obj->{main_interface};
+	    my $obj = $obj->{main_interface} || $obj;
 
             # path_walk needs this attributes to be set.
             $obj->{loop}     = $router->{loop};
             $obj->{distance} = $router->{distance};
-            return $obj;
+            $result = $obj;
         }
         else {
-            return $router;
+            $result = $router;
         }
     }
     elsif ($type eq 'Any') {
 
         # We may take any network of this security domain,
         # but attribute {link} is guaranteed to contain a valid network.
-        return $obj->{link};
+        $result = $obj->{link};
     }
     elsif ($type eq 'Router') {
 
         # This is only used, when called from path_first_interfaces or
         # from find_active_routes_and_statics.
-        return $obj;
+        $result = $obj;
     }
     elsif ($type eq 'Host') {
 
         # This is only used, if Netspoc.pm is called from Arne's report.pl.
-        return $obj->{network};
+        $result = $obj->{network};
     }
     else {
         internal_err "unexpected $obj->{name}";
     }
+    $obj2path{$obj} = $result;
 }
 
 # Converts hash key of reference back to reference.
@@ -5440,8 +5526,8 @@ sub path_walk( $$;$ ) {
     internal_err "undefined rule" unless $rule;
     my $src  = $rule->{src};
     my $dst  = $rule->{dst};
-    my $from = get_path $src;
-    my $to   = get_path $dst;
+    my $from = $obj2path{$src} || get_path $src;
+    my $to   = $obj2path{$dst} || get_path $dst;
 
 #    debug print_rule $rule;
 #    debug(" start: $from->{name}, $to->{name}" . ($where?", at $where":''));
@@ -5554,8 +5640,8 @@ sub path_walk( $$;$ ) {
 
 sub path_first_interfaces( $$ ) {
     my ($src, $dst) = @_;
-    my $from = get_path($src);
-    my $to   = get_path($dst);
+    my $from = $obj2path{$src} || get_path($src);
+    my $to   = $obj2path{$dst} || get_path($dst);
     $from eq $to and return ();
     path_mark($from, $to) unless $from->{path}->{$to};
     if (my $exit = $from->{loop_exit}->{$to}) {
@@ -6040,7 +6126,7 @@ sub check_any_src_rule( $$$ ) {
     }
 
     # Check if reverse rule would need additional rules.
-    if ($router->{model}->{stateless}) {
+    if ($router->{model}->{stateless} and not $rule->{oneway}) {
         my $proto = $rule->{srv}->{proto};
         if ($proto eq 'tcp' or $proto eq 'udp' or $proto eq 'ip') {
 
@@ -6203,7 +6289,8 @@ sub check_for_transient_any_rule () {
 		my $dst2 = $ref2obj{$dst2_str};
 
 		# Skip rules with src and dst inside a single security domain.
-		next if get_any $src1 eq get_any $dst2;
+		next if(($obj2any{$src1} || get_any $src1) eq 
+			($obj2any{$dst2} || get_any $dst2));
 
 		while (my($src_range2_str, $hash) = each %$hash) {
 		  RULE2:
@@ -6395,6 +6482,7 @@ sub gen_reverse_rules1 ( $ ) {
         my $srv   = $rule->{srv};
         my $proto = $srv->{proto};
         next unless $proto eq 'tcp' or $proto eq 'udp' or $proto eq 'ip';
+	next if $rule->{oneway};
 
         # No reverse rules will be generated for denied TCP packets, because
         # - there can't be an answer if the request is already denied and
@@ -6846,7 +6934,7 @@ sub find_active_routes_and_statics () {
         # - It doesn't matter which network of an 'any' object is used.
         # - We must preserve managed interfaces, since they may get routing
         #   entries added.
-        my $from = get_path $src;
+        my $from = $obj2path{$src} || get_path $src;
 
         # 'any' objects are expanded to all its contained networks
         # hosts and interfaces expand to its containing network.
