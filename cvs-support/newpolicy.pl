@@ -71,7 +71,7 @@ my $link = "$policydb/current";
 my $lock = "$policydb/LOCK";
 
 # Setup environment variables.
-$ENV{PATH} = "/home/heinz/develop:/usr/bin:/bin";
+$ENV{PATH} = "/usr/local/bin:/usr/bin:/bin";
 $ENV{CVSROOT} = "/usr/local/cvsroot";
 $ENV{LANG} = 'de_DE@euro';
 
