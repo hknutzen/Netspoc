@@ -80,18 +80,41 @@ sysopen LOCK, "$lock", O_RDONLY | O_CREAT or
     die "Error: can't open $lock: $!";
 flock(LOCK, LOCK_EX | LOCK_NB) or die "Abort: Another $0 is running\n";
 
+# Read current policy name from POLICY file from repository.
+my $fcount;
+if(open POLICY, "cvs -Q checkout -p $module/POLICY|") {
+    my $line = <POLICY>;
+    close POLICY;
+    # $pfile contains one line: "# p22 comment .."
+    ($fcount) = ($line =~ m'^#? *p(\d+) ') or
+	die "Error: found no valid policy name in $module/POLICY\n";
+}
+else {
+    $fcount = 0;
+}
+  
 # Read current policy name from symbolic link.
-my $policy = readlink $link or die "Can't read $link: $!\n";
+my $lcount;
+if(my $name = readlink $link) {
 
-# Link must have name "p<number>".
-my($count) = ($policy =~ /^p(\d+)$/) or
-    die "Error: found invalid policy name '$policy' in $link";
+    # Link must have name "p<number>".
+    ($lcount) = ($name =~ /^p(\d+)$/) or
+	die "Error: found invalid policy name '$name' in $link";
+}
+else {
+    $lcount = 0;
+}
 
+# Compare $fcount and $lcount.
+# Typically both values are identical.
+# Take maximum if values are different. 
+my $count = $fcount > $lcount ? $fcount : $lcount;
+    
 # Increment counter.
 $count++;
 
 # Get next policy name.
-$policy = "p$count";
+my $policy = "p$count";
 
 # Directory and file names of new policy in policy database.
 my $pdir  = "$policydb/$policy";
