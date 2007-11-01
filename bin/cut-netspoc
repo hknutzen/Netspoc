@@ -159,8 +159,12 @@ for my $router (values %routers) {
     }
     if ($router->{radius_servers}) {
 	for my $host (@{$router->{radius_servers}}) {
-	    my ($src) = Netspoc::get_auto_interface
-		$router, $host, 'cut-netspoc';
+
+	    # Take an arbitrary interface and get the interface 
+	    # in direction to $host.
+	    my ($src) = 
+		Netspoc::path_auto_interfaces($router->{interfaces}->[0], 
+					     $host);
 	    my $rule = {src => $src, dst => $host, srv => {}};
 	    &path_walk($rule, \&mark_topology);
 	}
@@ -178,14 +182,11 @@ for my $crypto (values %crypto) {
 # Print marked parts of netspoc configuration.
 # Routers and networks have been marked by mark_topology.
 # Services have been marked while %expanded_rules have been processed above.
-# Groups, servicegroups and 'every' objects have been marked
-# during expand_policies.
-delete $anys{'[local]'};
+# Groups and servicegroups objects have been marked during expand_policies.
 for my $object (
     values %routers,
     values %networks,
     values %anys,
-    values %everys,
     values %areas,
     values %groups,
     values %services,
