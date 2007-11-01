@@ -29,7 +29,7 @@ use Getopt::Long;
 # Activate for perl 5.8.6 or above.
 # This automatically selects the encoding from your locale and 
 # works even if UTF-8 is enabled.
-#use open ':locale';
+use open ':locale';
 
 # Activate for perl 5.8.0 or above if your input is UTF-8 encoded.
 #use open ':utf8';
@@ -50,7 +50,6 @@ our @EXPORT = qw(
   %networks
   %hosts
   %anys
-  %everys
   %areas
   %pathrestrictions
   %global_nat
@@ -421,11 +420,59 @@ sub print_ip_aref( $ ) {
     return map { print_ip $_; } @$aref;
 }
 
+sub read_identifier() {
+    skip_space_and_comment;
+    if ($input =~ m/(\G[\w-]+)/gc) {
+        return $1;
+    }
+    else {
+        syntax_err "Identifier expected";
+    }
+}
+
+# Used for reading interface names and attribute 'owner'.
+sub read_name() {
+    skip_space_and_comment;
+    if ($input =~ m/(\G[^;,\s"']+)/gc) {
+        return $1;
+    }
+    else {
+        syntax_err "String expected";
+    }
+}
+
+# Used for reading RADIUS attributes.
+sub read_string() {
+    skip_space_and_comment;
+    if ($input =~ m/\G([^;,'"\n]+)/gc) {
+        return $1;
+    }
+    else {
+        syntax_err "String expected";
+    }
+}
+
+sub read_expr_list(&) {
+    my ($fun) = @_;
+    my @vals;
+    while (1) {
+        push @vals, &$fun;
+        last if check '\]';
+        my $comma_seen = check ',';
+
+        # Allow trailing comma.
+        last if check '\]';
+
+	$comma_seen or syntax_err "Comma expected in list of values";
+    }
+    return @vals;
+}
+
 # Check for xxx:xxx
 sub check_typed_name() {
     skip_space_and_comment;
-    if ($input =~ m/(\G\w+:[\w-]+)/gc) {
-        return $1;
+    if ($input =~ m/(\G\w+):([\w-]+)/gc) {
+        return [ $1, $2 ];
     }
     else {
         return undef;
@@ -434,17 +481,6 @@ sub check_typed_name() {
 
 sub read_typed_name() {
     check_typed_name or syntax_err "Typed name expected";
-}
-
-# Read interface:xxx.xxx
-sub read_interface_name() {
-    skip_space_and_comment;
-    if ($input =~ m/(\G\w+:[\w-]+\.[\w-]+)/gc) {
-        return $1;
-    }
-    else {
-        syntax_err "Interface name expected";
-    }
 }
 
 {
@@ -456,20 +492,66 @@ sub read_interface_name() {
     my $id_regex = qr/$user_id_regex|$domain_regex/;
     my $hostname_regex = qr/(?:id:$id_regex|[\w-]+)/;
 
-# Check for xxx:xxx or xxx:[xxx] or xxx:[xxx:xxx]
-# or interface:xxx.xxx or interface:xxx.xxx.xxx
-# or interface:xxx.[xxx] or interface:[xxx].[xxx]
-# or interface:[xxx & xxx:xxx].[xxx]
+# Check for xxx:xxx or xxx:[xxx:xxx, ...]
+# or interface:xxx.xxx or interface:xxx.xxx.xxx or interface:xxx.[xxx] 
+# or interface:[xxx:xxx, ...].[xxx] or interface:[managed & xxx:xxx, ...].[xxx]
 # or host:id:user@domain.network
     sub check_typed_ext_name() {
 	skip_space_and_comment;
-	if ($input =~ m/\G(interface:[][:& \w-]+\.[][\w-]+(?:\.[\w-]+)? |
-                         host:$hostname_regex |
-                         \w+:[][:\w-]+)/gcox) {
-	    return $1;
+	my $managed;
+	$input =~ m/\G([\w-]+):/gc or syntax_err "Type expected";
+	my $type = $1;
+	my $interface = $type eq 'interface';
+	my $name;
+	my $ext;
+	if($type eq 'host') {
+	    if($input =~ m/\G($hostname_regex)/gco) {
+		$name = $1;
+	    }
+	    else {
+		syntax_err "Hostname expected";
+	    }
+	}
+	elsif(check '\[') {
+	    my @list;
+	    if($interface && check 'managed') {
+		$managed = 1;
+		skip '&';
+		$name = [ read_expr_list \&check_typed_ext_name ];
+	    }
+	    elsif($type eq 'any' && check 'local') {
+		$name = [ 'local' ];
+		skip '\]';
+	    }
+	    else {
+		$name = [ read_expr_list \&check_typed_ext_name ];
+	    }
 	}
 	else {
-	    return undef;
+	    $name = read_identifier;
+	}
+	if($interface) {
+	    skip '\.';
+	    if(check '\[') {
+		my $selector = read_identifier;
+		$selector =~ s/^auto$/front/;
+		$selector =~/^(front|back|all)/
+		    or syntax_err "Expected [front|back|all]";
+		$ext = [ $selector, $managed ];
+		skip '\]';
+	    }
+	    else {
+		$ext = read_identifier;
+		if(check '\.') {
+		    $ext .= '.' . read_identifier;
+		}
+		$managed 
+		    and syntax_err "Keyword 'managed' not allowed";
+	    }
+	    [ $type, $name, $ext ];
+	}
+	else {
+	    [ $type, $name ];
 	}
     }
 
@@ -502,38 +584,6 @@ sub read_interface_name() {
 	else {
 	    return undef;
 	}
-    }
-}
-
-sub read_identifier() {
-    skip_space_and_comment;
-    if ($input =~ m/(\G[\w-]+)/gc) {
-        return $1;
-    }
-    else {
-        syntax_err "Identifier expected";
-    }
-}
-
-# Used for reading interface names and attribute 'owner'.
-sub read_name() {
-    skip_space_and_comment;
-    if ($input =~ m/(\G[^;,\s"']+)/gc) {
-        return $1;
-    }
-    else {
-        syntax_err "String expected";
-    }
-}
-
-# Used for reading RADIUS attributes.
-sub read_string() {
-    skip_space_and_comment;
-    if ($input =~ m/\G([^;,"'\n]+)/gc) {
-        return $1;
-    }
-    else {
-        syntax_err "String expected";
     }
 }
 
@@ -769,8 +819,8 @@ sub read_host( $$ ) {
 	      error_atline "Duplicate attribute 'radius_attributes'";
 	    $host->{radius_attributes} = $radius_attributes;
 	}
-        elsif (my $string = check_typed_name) {
-            my ($type, $name) = split_typed_name $string;
+        elsif (my $pair = check_typed_name) {
+            my ($type, $name) = @$pair;
             if ($type eq 'nat') {
                 skip '=';
                 skip '{';
@@ -846,10 +896,10 @@ sub read_nat( $ ) {
             # of hosts inside a dynamically translated network.
             $nat->{dynamic} = $nat_tag;
         }
-        elsif (my $subnet = check_assign 'subnet_of', \&read_typed_name) {
+        elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
             $nat->{subnet_of}
               and error_atline "Duplicate attribute 'subnet_of'";
-            $nat->{subnet_of} = $subnet;
+            $nat->{subnet_of} = $pair;
         }
 	else {
 	    syntax_err "Expected some valid NAT attribute";
@@ -900,10 +950,10 @@ sub read_network( $ ) {
 	      and error_atline "Duplicate attribute 'id'";
 	    $network->{id} = $id;
 	}
-        elsif (my $subnet = check_assign 'subnet_of', \&read_typed_name) {
+        elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
             $network->{subnet_of}
               and error_atline "Duplicate attribute 'subnet_of'";
-            $network->{subnet_of} = $subnet;
+            $network->{subnet_of} = $pair;
         }
         elsif (my @owner = check_assign_list 'owner', \&read_name) {
             $network->{owner}
@@ -923,10 +973,10 @@ sub read_network( $ ) {
 	    $hosts{$host_name} = $host;
 	}
         else {
-            my $string = read_typed_name;
-            my ($type, $name) = split_typed_name $string;
+            my $pair = read_typed_name;
+            my ($type, $name) = @$pair;
             if ($type eq 'nat') {
-                my $nat = read_nat $string;
+                my $nat = read_nat "$type:$name";
                 $network->{nat}->{$name}
                   and error_atline "Duplicate NAT definition";
                 $network->{nat}->{$name} = $nat;
@@ -1172,8 +1222,8 @@ sub read_interface( $ ) {
                 $interface->{ip} and error_atline "Duplicate attribute 'ip'";
                 $interface->{ip} = 'negotiated';
             }
-            elsif (my $string = check_typed_name) {
-                my ($type, $name2) = split_typed_name $string;
+            elsif (my $pair = check_typed_name) {
+                my ($type, $name2) = @$pair;
                 if ($type eq 'nat') {
                     skip '=';
                     skip '{';
@@ -1275,22 +1325,12 @@ sub read_interface( $ ) {
                   and error_atline "Duplicate routing protocol";
                 $interface->{routing} = $routing;
             }
-            elsif (my @names = check_assign_list 'reroute_permit',
+            elsif (my @pairs = check_assign_list 'reroute_permit',
                 \&read_typed_name)
             {
-                my @networks;
-                for my $name (@names) {
-                    my ($type, $net) = split_typed_name $name;
-                    if ($type eq 'network') {
-                        push @networks, $net;
-                    }
-                    else {
-                        error_atline 'Expected networks as values';
-                    }
-                }
                 $interface->{reroute_permit}
                   and error_atline 'Duplicate definition of reroute_permit';
-                $interface->{reroute_permit} = \@networks;
+                $interface->{reroute_permit} = \@pairs;
             }
             elsif (check_flag 'disabled') {
                 push @disabled_interfaces, $interface;
@@ -1298,10 +1338,10 @@ sub read_interface( $ ) {
             elsif (check_flag 'no_check') {
                 $interface->{no_check} = 1;
             }
-	    elsif (my $ipsec = check_assign 'auto_crypto', \&read_typed_name) {
+	    elsif ($pair = check_assign 'auto_crypto', \&read_typed_name) {
 		$interface->{auto_crypto}
 		  and error_atline 'Duplicate definition of attribute auto_crypto';
-		$interface->{auto_crypto} = $ipsec;
+		$interface->{auto_crypto} = $pair;
 		push @auto_crypto_interfaces, $interface;
 	    }
             else {
@@ -1426,12 +1466,11 @@ sub read_router( $ ) {
         elsif (check_flag 'no_crypto_filter') {
             $router->{no_crypto_filter} = 1;
         }
-	elsif (my @radius_servers =
-	       check_assign_list 'radius_servers', \&read_typed_name)
+	elsif (my @pairs = check_assign_list 'radius_servers', \&read_typed_name)
         {
 	    $router->{radius_servers} and
 	      error_atline "Redefining 'radius' attribute";
-	    $router->{radius_servers} = \@radius_servers;
+	    $router->{radius_servers} = \@pairs;
 	    push @auth_routers, $router;
 	}
 	elsif (my $radius_attributes = check_radius_attributes) {
@@ -1440,13 +1479,13 @@ sub read_router( $ ) {
 	    $router->{radius_attributes} = $radius_attributes;
 	}
         else {
-            my $string = read_typed_name;
-            my ($type, $network) = split_typed_name $string;
+            my $pair = read_typed_name;
+            my ($type, $network) = @$pair;
             $type eq 'interface'
               or syntax_err "Expected interface definition";
 
             # Derive interface name from router name.
-            my $iname     = "$rname.$network";
+            my $iname = "$rname.$network";
             for my $interface (read_interface "interface:$iname") {
 		push @{ $router->{interfaces} }, $interface;
 		($iname = $interface->{name}) =~ s/interface://;
@@ -1566,17 +1605,6 @@ sub read_any( $ ) {
     return $any;
 }
 
-our %everys;
-
-sub read_every( $ ) {
-    my $name = shift;
-    skip '=';
-    skip '{';
-    my $link = read_assign 'link', \&read_typed_name;
-    skip '}';
-    return new('Every', name => $name, link => $link);
-}
-
 our %areas;
 
 sub read_area( $ ) {
@@ -1586,32 +1614,17 @@ sub read_area( $ ) {
     skip '{';
     while (1) {
         last if check '}';
-        if (my @names = check_assign_list 'border', \&read_typed_ext_name) {
-            my @interfaces;
-            for my $name (@names) {
-                my ($type, $interface) = split_typed_name $name;
-                if ($type eq 'interface') {
-                    push @interfaces, $interface;
-                }
-                else {
-                    error_atline 'Expected interfaces as values';
-                }
-            }
+        if (my @aref = check_assign_list 'border', \&read_typed_ext_name) {
             $area->{border}
               and error_atline 'Duplicate definition of border';
-            $area->{border} = \@interfaces;
+            $area->{border} = \@aref;
         }
         elsif (check_flag 'auto_border') {
             $area->{auto_border} = 1;
         }
-        elsif (my $name = check_assign 'anchor', \&read_typed_name) {
-            my ($type, $network) = split_typed_name $name;
-            if ($type eq 'network') {
-                $area->{anchor} = $network;
-            }
-            else {
-                error_atline 'Expected network as value';
-            }
+        elsif (my $pair = check_assign 'anchor', \&read_typed_name) {
+            $area->{anchor} and error_atline "Duplicate attribute 'anchor'";
+	    $area->{anchor} = $pair;
         }
         elsif (my @owner = check_assign_list 'owner', \&read_name) {
             $area->{owner} and error_atline "Duplicate attribute 'owner'";
@@ -1625,10 +1638,6 @@ sub read_area( $ ) {
       and $area->{anchor}
       and err_msg "Only one of attributes 'border' and 'anchor'",
       " may be defined for $name";
-    $area->{anchor}
-      and not $area->{auto_border}
-      and err_msg "Attribute 'anchor' needs attribute 'auto_border'",
-      "to be defined as well";
     $area->{anchor}
       or $area->{border}
       or err_msg "At least one of attributes 'border' and 'anchor'",
@@ -1650,8 +1659,8 @@ our %servicegroups;
 sub read_servicegroup( $ ) {
     my $name = shift;
     skip '=';
-    my @objects = read_list_or_null \&read_typed_name;
-    return new('Servicegroup', name => $name, elements => \@objects);
+    my @pairs = read_list_or_null \&read_typed_name;
+    return new('Servicegroup', name => $name, elements => \@pairs);
 }
 
 # Use this if src or dst port isn't defined.
@@ -1856,18 +1865,8 @@ sub read_pathrestriction( $ ) {
     if (my $description = check_description) {
         $restriction->{description} = $description;
     }
-    my @names = read_list \&read_interface_name;
-    my @interfaces;
-    for my $name (@names) {
-        my ($type, $interface) = split_typed_name $name;
-        if ($type eq 'interface') {
-            push @interfaces, $interface;
-        }
-        else {
-            error_atline "Expected interfaces as values";
-        }
-    }
-    $restriction->{elements} = \@interfaces;
+    my @pairs = read_list \&read_typed_ext_name;
+    $restriction->{elements} = \@pairs;
     return $restriction;
 }
 
@@ -2057,7 +2056,6 @@ my %global_type = (
     router          => [ \&read_router,          \%routers ],
     network         => [ \&read_network,         \%networks ],
     any             => [ \&read_any,             \%anys ],
-    every           => [ \&read_every,           \%everys ],
     area            => [ \&read_area,            \%areas ],
     group           => [ \&read_group,           \%groups ],
     service         => [ \&read_service,         \%services ],
@@ -2073,15 +2071,15 @@ my %global_type = (
 sub read_netspoc() {
 
     # Check for global definitions.
-    my $string = check_typed_name or syntax_err '';
-    my ($type, $name) = split_typed_name $string;
+    my $pair = check_typed_name or syntax_err '';
+    my ($type, $name) = @$pair;
     my $descr = $global_type{$type}
       or syntax_err "Unknown global definition";
     my ($fun, $hash) = @$descr;
-    my $result = $fun->($string);
+    my $result = $fun->("$type:$name");
     $result->{file} = $file;
     if ($hash->{$name}) {
-        error_atline "Redefining $string";
+        error_atline "Redefining $type:$name";
     }
 
     # Result is not used in this module but can be useful
@@ -2155,12 +2153,12 @@ sub is_interface( $ )    { ref($_[0]) eq 'Interface'; }
 sub is_host( $ )         { ref($_[0]) eq 'Host'; }
 sub is_subnet( $ )       { ref($_[0]) eq 'Subnet'; }
 sub is_any( $ )          { ref($_[0]) eq 'Any'; }
-sub is_every( $ )        { ref($_[0]) eq 'Every'; }
 sub is_area( $ )         { ref($_[0]) eq 'Area'; }
 sub is_group( $ )        { ref($_[0]) eq 'Group'; }
 sub is_servicegroup( $ ) { ref($_[0]) eq 'Servicegroup'; }
 sub is_objectgroup( $ )  { ref($_[0]) eq 'Objectgroup'; }
 sub is_chain( $ )        { ref($_[0]) eq 'Chain'; }
+sub is_autointerface( $ ){ ref($_[0]) eq 'Autointerface'; }
 
 # Get VPN id of network object, if available.
 sub get_id( $ ) {
@@ -2537,10 +2535,12 @@ sub set_src_dst_range_list  ( $ ) {
 # Link topology elements each with another
 ####################################################################
 
-# Link 'any' and 'every' objects with referenced objects.
-sub link_any_and_every() {
-    for my $obj (values %anys, values %everys) {
-        my ($type, $name) = split_typed_name($obj->{link});
+sub expand_group( $$;$ );
+
+# Link 'any' objects with referenced objects.
+sub link_any() {
+    for my $obj (values %anys) {
+        my ($type, $name) = @{$obj->{link}};
         if ($type eq 'network') {
             $obj->{link} = $networks{$name};
         }
@@ -2582,34 +2582,42 @@ sub link_any_and_every() {
 # Link areas with referenced interfaces or network.
 sub link_areas() {
     for my $area (values %areas) {
-        if (my $name = $area->{anchor}) {
-            if (my $network = $networks{$name}) {
-                $area->{anchor} = $network;
-            }
-            else {
-                err_msg
-                  "Referencing undefined network:$name from $area->{name}";
-
-                # Prevent further errors.
-                delete $area->{anchor};
-                last;
-            }
+        if ($area->{anchor}) {
+            my @elements = @{ expand_group([$area->{anchor}], $area->{name}) };
+	    if(@elements == 1) {
+		my $obj = $elements[0];
+		if (is_network $obj) {
+		    $area->{anchor} = $obj;
+		}
+		else {
+		    err_msg
+			"Unexpected $obj->{name} in anchor of $area->{name}";
+		    
+		    # Prevent further errors.
+		    delete $area->{anchor};
+		}
+	    }
+	    else {
+		err_msg 
+		    "Expected exactly one element in anchor of $area->{name}";
+		delete $area->{anchor};
+	    }
+		
         }
         else {
-            for my $name (@{ $area->{border} }) {
-                if (my $interface = $interfaces{$name}) {
-                    $interface->{router}->{managed}
-                      or err_msg "Referencing unmanaged $interface->{name} ",
+	    $area->{border} = expand_group $area->{border}, $area->{name};
+            for my $obj (@{ $area->{border} }) {
+                if (is_interface $obj) {
+                    $obj->{router}->{managed}
+                      or err_msg "Referencing unmanaged $obj->{name} ",
                       "from $area->{name}";
-                    $name = $interface;
                 }
                 else {
-                    err_msg "Referencing undefined interface:$name",
-                      " from $area->{name}";
+                    err_msg 
+			"Unexpected $obj->{name} in border of $area->{name}";
 
                     # Prevent further errors.
                     delete $area->{border};
-                    last;
                 }
             }
         }
@@ -2638,13 +2646,14 @@ sub link_interface_with_net( $ ) {
     }
     $interface->{network} = $network;
     if ($interface->{reroute_permit}) {
-        for my $name (@{ $interface->{reroute_permit} }) {
-            if (my $network = $networks{$name}) {
-                $name = $network;
-            }
-            else {
-                warn_msg "Ignoring undefined network:$name ",
-                  "from attribute 'reroute_permit'\n of $interface->{name}";
+	$interface->{reroute_permit} =
+	    expand_group $interface->{reroute_permit}, 
+	    "'reroute_permit' of $interface->{name}";
+        for my $obj (@{ $interface->{reroute_permit} }) {
+
+            if (not is_network $obj) {
+                err_msg "$obj->{name} not allowed in attribute 'reroute_permit'\n",
+		" of $interface->{name}";
 
                 # Prevent further errors.
                 delete $interface->{reroute_permit};
@@ -2692,8 +2701,6 @@ sub link_interface_with_net( $ ) {
     push @{ $network->{interfaces} }, $interface;
 }
 
-sub expand_group( $$;$ );
-
 # Link RADIUS servers referenced in authenticating routers.
 sub link_radius() {
     for my $router (@auth_routers) {
@@ -2718,7 +2725,7 @@ sub link_auto_crypto() {
     for my $interface (@auto_crypto_interfaces) {
 
 	# Convert name of ipsec definition to object of ipsec definition.
-        my ($type, $name) = split_typed_name $interface->{auto_crypto};
+        my ($type, $name) = @{$interface->{auto_crypto}};
         if ($type eq 'ipsec') {
             my $ipsec = $ipsec{$name}
               or err_msg "Can't resolve reference to '$type:$name' at $interface->{name}";
@@ -2734,7 +2741,7 @@ sub link_topology() {
     for my $interface (values %interfaces) {
         link_interface_with_net($interface);
     }
-    link_any_and_every;
+    link_any;
     link_areas;
     link_radius;
     link_auto_crypto;
@@ -2816,7 +2823,7 @@ sub link_topology() {
             }
         }
         if ($network->{subnet_of}) {
-            my ($type, $name) = split_typed_name($network->{subnet_of});
+            my ($type, $name) = @{$network->{subnet_of}};
             if ($type eq 'network') {
                 if (my $subnet = $networks{$name}) {
                     $network->{subnet_of} = $subnet;
@@ -2833,7 +2840,7 @@ sub link_topology() {
         }
         for my $nat (values %{ $network->{nat} }) {
             if ($nat->{subnet_of}) {
-                my ($type, $name) = split_typed_name($nat->{subnet_of});
+                my ($type, $name) = @{$nat->{subnet_of}};
                 if ($type eq 'network') {
                     if (my $subnet = $networks{$name}) {
                         $nat->{subnet_of} = $subnet;
@@ -2854,7 +2861,7 @@ sub link_topology() {
     }
     for my $nat (values %global_nat) {
         if ($nat->{subnet_of}) {
-            my ($type, $name) = split_typed_name($nat->{subnet_of});
+            my ($type, $name) = @{$nat->{subnet_of}};
             if ($type eq 'network') {
                 if (my $subnet = $networks{$name}) {
                     $nat->{subnet_of} = $subnet;
@@ -2958,10 +2965,6 @@ sub mark_disabled() {
 	if($router->{managed}) {
 	    aref_delete($interface, $interface->{hardware}->{interfaces});
 	}
-    }
-    for my $obj (values %everys) {
-        next if $obj->{disabled};
-        $obj->{disabled} = 1 if $obj->{link}->{disabled};
     }
     for my $obj (values %anys) {
         next if $obj->{disabled};
@@ -3240,216 +3243,270 @@ my %name2object = (
     network   => \%networks,
     interface => \%interfaces,
     any       => \%anys,
-    every     => \%everys,
     group     => \%groups,
+    area      => \%areas,
 );
 
-# Initialize 'special' objects which implicitly denote a group of objects.
-#
-# interface:[managed].[all], group of all interfaces of managed routers
-# interface:[managed].[auto], group of [auto] interfaces of managed routers
-# interface:[all].[all], all routers, all interfaces
-# interface:[all].[auto], all routers, [auto] interfaces
-# any:[all], group of all security domains
-# any:[local], denotes the 'any' object, which is directly attached to
-#              an interface.
+my %auto_interfaces;
 
-sub set_auto_groups () {
-    my @managed_interfaces;
-    my @all_interfaces;
-    for my $router (values %routers) {
-        my @interfaces =
-          grep { not $_->{ip} =~ /unnumbered|short/ } 
-	      @{ $router->{interfaces} };
-        if ($router->{managed}) {
-            push @managed_interfaces, @interfaces;
-        }
-        push @all_interfaces, @interfaces;
-        (my $name = $router->{name}) =~ s /^router://;
-        $interfaces{"$name.[all]"} = new(
-            'Group',
-            name     => "interface:$name.[all]",
-            elements => \@interfaces,
-            is_used  => 1
-        );
+sub get_auto_intf ( $$;$) {
+    my($object, $selector, $managed) = @_;
+    $managed ||= 0;
+    my $result = $auto_interfaces{$object}->{$selector}->{$managed};
+    if(not $result) {
+	my $name;
+	if(is_router $object) {
+	    ($name = $object->{name}) =~ s/^router://;
+	}
+	else {
+	    $name = "[$object->{name}]";
+	}
+	$name = "interface:$name.[$selector]";
+	$result = new('Autointerface', 
+		      name => $name, 
+		      object => $object,
+		      selector => $selector,
+		      managed => $managed
+		  );
+	$result->{disabled} = 1 if $object->{disabled};
+	$auto_interfaces{$object}->{$selector}->{$managed} = $result;
+#	debug $result->{name};
     }
-    $interfaces{'[managed].[all]'} = new(
-        'Group',
-        name     => "interface:[managed].[all]",
-        elements => \@managed_interfaces,
-        is_used  => 1
-    );
-    $interfaces{'[all].[all]'} = new(
-        'Group',
-        name     => "interface:[all].[all]",
-        elements => \@all_interfaces,
-        is_used  => 1
-    );
-    $routers{'[managed]'} = new(
-        'Group',
-        name     => "router:[managed]",
-        elements => \@managed_routers,
-        is_used  => 1
-    );
-    $routers{'[all]'} = new(
-        'Group',
-        name     => "router:[all]",
-        elements => \@routers,
-        is_used  => 1
-    );
-    $anys{'[all]'} = new(
-        'Group',
-        name     => "any:[all]",
-        elements => \@all_anys,
-        is_used  => 1
-    );
+    $result;
+}	
 
-    # String is expanded to a real 'any' object during expand_rules.
-    $anys{'[local]'} = "any:[local]";
-}
-
-# Get a reference to an array of network object names and
-# return a reference to an array of network objects
+# Get a reference to an array of network object descriptions and
+# return a reference to an array of network objects.
 sub expand_group1( $$ );
 
 sub expand_group1( $$ ) {
-    my ($obref, $context) = @_;
+    my ($aref, $context) = @_;
     my @objects;
-    for my $tname (@$obref) {
-        my ($type, $name) = split_typed_name($tname);
+    for my $parts (@$aref) {
+        my ($type, $name, $ext) = @$parts;
         my $object;
-	my ($area_name, $router_type, $interface_type);
         if (not $name2object{$type}) {
-            err_msg "Unknown type of '$tname' in $context";
-            next;
-        }
-        unless (    # A simple object type:name.
-            $object = $name2object{$type}->{$name}
-            or
-
-            # interface:name.[auto]
-            $type eq 'interface'
-            and $name =~ /^(.*)\.\[auto\]$/
-            and $object = $routers{$1}
-            or
-
-            # network:[area:name] or any:[area:name]
-            # Variable $type will be used below when expanding area to objects
-            # of type $type.
-            $type     =~ /^(network|any)$/
-            and $name =~ /^\[area:(.*)\]/
-            and $object = $areas{$1}
-	    or
-
-	    # interface:[managed & area:name].[x] or interface:[all & area:name].[x]
-	    # with [x] from [all] or [auto].
-	    $type eq 'interface'
-            and ($router_type, $area_name, $interface_type) = 
-		($name =~ /^\[(managed|all)\s*\&\s*area:(.*)\]\.\[(all|auto)\]/)
-	    and $object = $areas{$area_name}
-          )
-        {
-            err_msg "Can't resolve reference to '$tname' in $context";
+            err_msg "Unknown type '$type' in $context";
             next;
         }
 
-        # Split a group into its members.
-        if (is_group $object) {
-            my $elements = $object->{elements};
+	if($type eq 'interface') {
+	    if(ref $name) {
+		ref $ext 
+		    or err_msg "Must not use 'interface:[..].$ext' in $context";
+		my($selector, $managed) = @$ext;
+		my $sub_objects = 
+		    expand_group1 $name, 
+		      "interface:[..].[$selector] of $context";
+		for my $object (@$sub_objects) {
+		    my $type = ref $object;
+		    if($type eq 'Network') {
+			if($selector eq 'all') {
+			    if($managed) {
+				push @objects, 
+				grep { $_->{router}->{managed} } 
+				@{$object->{interfaces}};
+			    }
+			    else {
+				push @objects, @{$object->{interfaces}};
+			    }
+			}
+			else {
+			    push @objects,
+			      get_auto_intf $object, $selector, $managed;
+			}
+		    }
+		    elsif($type eq 'Interface') {
+			my $router = $object->{router};
+			if($managed and not $router->{managed}) {
 
-            # Check for recursive definitions.
-            if ($elements eq 'recursive') {
-                err_msg "Found recursion in definition of $context";
-                $object->{elements} = $elements = [];
-            }
+			    # Do nothing.
+			}
+			elsif($selector eq 'all') {
+			    push @objects, @{$router->{interfaces}};
+			}
+			else {
 
-            # Detect, if group has already been converted from names to
-            # references.
-            unless ($object->{is_used}) {
+			    # Relabel with new selector.
+			    push @objects, get_auto_intf $router, $selector;
+			}
+		    }
+		    elsif($type eq 'Area') {
 
-                # Mark group for detection of recursive group definitions.
-                $object->{elements} = 'recursive';
-                $object->{is_used}  = 1;
-                $elements = expand_group1 $elements, $tname;
-
-                # Cache result for further references to the same group.
-                $object->{elements} = $elements;
-            }
-            push @objects, @$elements;
-        }
-        elsif (is_every $object) {
-
-            # Expand an 'every' object to all networks in its security domain.
-            # Attention: this doesn't include unnumbered networks.
-            unless ($object->{disabled}) {
-                push @objects,
-                  grep { not $_->{route_hint} }
-                  @{ $object->{link}->{any}->{networks} };
-
-                # This may later be used to check that this object is used.
-                # Similar to check_unused_groups.
-                $object->{is_used} = 1;
-            }
-        }
-        elsif (is_area $object) {
-
-            # Expand an 'area' object to containing networks or 'any' objects,
-            # depending on value of $type.
-            unless ($object->{disabled}) {
-                if ($type eq 'network') {
-                    push @objects,
-                      grep { not $_->{route_hint} } map @{ $_->{networks} },
-                      @{ $object->{anys} };
-                }
-                elsif ($type eq 'any') {
-                    push @objects, @{ $object->{anys} };
-                }
-		elsif ($type eq 'interface') {
-
-		    # Fill hash with all managed routers
-		    # including border routers of current area.
-		    my %managed_routers = 
-		      map { my $router = $_->{router};
-			    ( $router => $router ) }
+			# Fill hash with all managed routers
+			# including border routers of current area.
+			my %managed_routers = 
+			    map { my $router = $_->{router};
+				  ( $router => $router ) }
 			map @{ $_->{interfaces} }, @{ $object->{anys} };
 
-		    # Remove border routers, because we only
-		    # need routers _inside_ an area.
-		    for my $interface (@{ $object->{border} }) {
-			delete $managed_routers{$interface->{router}};
-		    }
-		    my @routers = values %managed_routers;
-		    if ($router_type eq 'all') {
-			push @routers,
-			  map @{ $_->{unmanaged_routers} }, @{ $object->{anys} };
-		    }
-		    if ($interface_type eq 'all') {
-			push @objects,
-			  grep { not $_->{ip} =~ /unnumbered/ }
+			# Remove border routers, because we only
+			# need routers _inside_ an area.
+			for my $interface (@{ $object->{border} }) {
+			    delete $managed_routers{$interface->{router}};
+			}
+			my @routers = values %managed_routers;
+			if (not $managed) {
+			    push @routers,
+			    map @{ $_->{unmanaged_routers} }, @{ $object->{anys} };
+			}
+			if ($selector eq 'all') {
+			    push @objects,
+			    grep { $_->{ip} ne 'unnumbered' }
 			    map @{ $_->{interfaces} },
-			      @routers;
+			    @routers;
+			}
+			else {
+			    push @objects, 
+			      map { get_auto_intf $_, $selector } @routers;
+			}
 		    }
-		    elsif ($interface_type eq 'auto') {
-			push @objects, @routers;
+		    elsif($type eq 'Autointerface') {
+			my $obj = $object->{object};
+			if(is_router $obj) {
+			    if($managed and not $obj->{managed}) {
+				
+				# This router has no managed interfaces.
+			    }
+			    elsif($selector eq 'all') {
+				push @objects, @{$obj->{interfaces}};
+			    }
+			    else {
+				push @objects, get_auto_intf $obj, $selector;
+			    }
+			}
+			else {
+			    err_msg "Can't use $object->{name} inside",
+			      " interface:[..].[$selector] of $context";
+			}
 		    }
 		    else {
-			internal_err;
+			err_msg "Unexpected type '$type' in interface:[..] of $context";
+		    }
+		}			
+	    }
+
+            # interface:name.[xxx]
+	    elsif(ref $ext) { 
+		my($selector, $managed) = @$ext;
+		if(my $router = $routers{$name}) {
+
+		    # Syntactically impossible.
+		    $managed and internal_err;
+		    if($selector eq 'all') {
+			push @objects, @{$router->{interfaces}};
+		    }
+		    else {
+			push @objects, get_auto_intf $router, $selector;
 		    }
 		}
-                else {
-                    internal_err;
-                }
+		else {		
+		    err_msg "Can't resolve '$type:$name.[$selector]' in $context";
+		}
+	    }
 
-                # This may later be used to check that this object is used.
-                # Similar to check_unused_groups.
-                $object->{is_used} = 1;
-            }
-        }
-        else {
-            push @objects, $object;
+	    # interface:name.name
+	    elsif(my $interface = $interfaces{"$name.$ext"}) {
+		push @objects, $interface;
+	    }
+	    else {
+		err_msg "Can't resolve '$type:$name.$ext' in $context"
+	    }
+	}
+	elsif(ref $name) {
+	    if($type eq 'network') {
+		my $sub_objects = expand_group1 $name, "network:[..] of $context";
+		for my $object (@$sub_objects) {
+		    my $type = ref $object;
+		    if($type eq 'Area') {
+			push @objects,
+			grep { not $_->{route_hint} } map @{ $_->{networks} },
+			@{ $object->{anys} };
+		    }
+		    elsif($type eq 'Host' or $type eq 'Interface') {
+			push @objects, $object->{network};
+		    }
+		    elsif($type eq 'Network') {
+			push @objects, $object;
+		    }
+		    else {
+			err_msg "Unexpected type '$type' in network:[..] of $context";
+		    }
+		}
+	    }
+	    elsif ($type eq 'any') {
+		if(@$name == 1 and $name->[0] eq 'local') {
+		    push @objects, 'any:[local]';
+		    next;
+		}
+		my $sub_objects = expand_group1 $name, "any:[..] of $context";
+		for my $object (@$sub_objects) {
+		    my $type = ref $object;
+		    if($type eq 'Area') {
+			push @objects, @{ $object->{anys} };
+		    }
+		    elsif($type eq 'Host' or $type eq 'Interface') {
+			push @objects, $object->{network}->{any};
+		    }
+		    elsif($type eq 'Network') {
+			push @objects, $object->{any};
+		    }
+		    elsif($type eq 'Any') {
+			push @objects, $object;
+		    }
+		    else {
+			err_msg "Unexpected type '$type' in any:[..] of $context";
+		    }
+		}
+	    }
+	    else {
+		err_msg "Unexpected type '$type:[..]' in $context";
+	    }
+	}
+
+	# A object named simply type:name.
+	elsif($object = $name2object{$type}->{$name}) {
+
+	    # Split a group into its members.
+	    if (is_group $object) {
+		my $elements = $object->{elements};
+
+		# Check for recursive definitions.
+		if ($elements eq 'recursive') {
+		    err_msg "Found recursion in definition of $context";
+		    $object->{elements} = $elements = [];
+		}
+
+		# Detect, if group has already been converted from names to
+		# references.
+		unless ($object->{is_used}) {
+
+		    # Mark group for detection of recursive group definitions.
+		    $object->{elements} = 'recursive';
+		    $object->{is_used}  = 1;
+		    $elements = expand_group1 $elements, "$type:$name";
+
+		    # Cache result for further references to the same group.
+		    $object->{elements} = $elements;
+		}
+		push @objects, @$elements;
+	    }
+	    else {
+		push @objects, $object;
+	    }
+
+	}
+	else {
+            err_msg "Can't resolve '$type:$name' in $context";
         }
     }
-    for my $object (@objects) {
+    return \@objects;
+}
+
+sub expand_group( $$;$ ) {
+    my ($obref, $context, $convert_hosts) = @_;
+    my $aref = expand_group1 $obref, $context;
+    for my $object (@$aref) {
 
         # Ignore "any:[local]".
         next unless ref $object;
@@ -3458,13 +3515,9 @@ sub expand_group1( $$ ) {
         }
         elsif (is_network $object) {
             if ($object->{ip} eq 'unnumbered') {
-                err_msg
-                  "Unnumbered $object->{name} must not be used in $context";
                 $object = undef;
             }
             elsif ($object->{route_hint}) {
-                err_msg "$object->{name} marked as 'route_hint'",
-                  " must not be used in $context";
                 $object = undef;
             }
 	    elsif ($object->{has_id_hosts}) {
@@ -3474,22 +3527,21 @@ sub expand_group1( $$ ) {
         }
         elsif (is_interface $object) {
             if ($object->{ip} =~ /short|unnumbered/) {
-                err_msg "$object->{ip} $object->{name} must not be used in $context";
                 $object = undef;
             }
         }
+	elsif(is_area $object) {
+	    err_msg "$object->{name} must not be used in $context";
+	}
     }
-    return \@objects;
-}
 
-sub expand_group( $$;$ ) {
-    my ($obref, $context, $convert_hosts) = @_;
-    my $aref = expand_group1 $obref, $context;
+    # Remove undefined and duplicate values.
+    my %unique = map { $_ => $_ } grep { defined $_ } @$aref;
+
     if ($convert_hosts) {
         my @subnets;
         my @other;
-        for my $obj (@$aref) {
-            next unless $obj;
+        for my $obj ( values %unique) {
             if (is_host $obj) {
                 push @subnets, @{ $obj->{subnets} };
             }
@@ -3501,7 +3553,7 @@ sub expand_group( $$;$ ) {
         return \@other;
     }
     else {
-        return [ grep { defined $_ } @$aref ];
+	return [ values %unique ];
     }
 
 }
@@ -3532,8 +3584,8 @@ sub expand_services( $$ );
 sub expand_services( $$ ) {
     my ($aref, $context) = @_;
     my @services;
-    for my $tname (@$aref) {
-        my ($type, $name) = split_typed_name($tname);
+    for my $pair (@$aref) {
+        my ($type, $name) = @$pair;
         if ($type eq 'service') {
             if (my $srv = $services{$name}) {
                 push @services, $srv;
@@ -3547,7 +3599,7 @@ sub expand_services( $$ ) {
 		}
             }
             else {
-                err_msg "Can't resolve reference to '$tname' in $context";
+                err_msg "Can't resolve reference to '$type:$name' in $context";
                 next;
             }
         }
@@ -3566,7 +3618,7 @@ sub expand_services( $$ ) {
                     # Detect recursive definitions.
                     $srvgroup->{elements} = 'recursive';
                     $srvgroup->{is_used}  = 1;
-                    $elements = expand_services $elements, $tname;
+                    $elements = expand_services $elements, "$type:$name";
 
                     # Cache result for further references to the same group.
                     $srvgroup->{elements} = $elements;
@@ -3574,7 +3626,7 @@ sub expand_services( $$ ) {
                 push @services, @$elements;
             }
             else {
-                err_msg "Can't resolve reference to '$tname' in $context";
+                err_msg "Can't resolve reference to '$type:$name' in $context";
                 next;
             }
         }
@@ -3585,7 +3637,7 @@ sub expand_services( $$ ) {
     return \@services;
 }
 
-sub path_first_interfaces( $$ );
+sub path_auto_interfaces( $$ );
 
 # Hash with attributes deny, any, permit for storing
 # expanded rules of different type.
@@ -3635,6 +3687,12 @@ sub get_any( $ ) {
     my ($obj) = @_;
     my $type = ref $obj;
     my $result;
+
+    # A router or network with [front|back] selector.
+    if ($type eq 'Autointerface') {
+	$obj = $obj->{object};
+	$type = ref $obj;
+    }
     if ($type eq 'Network') {
         $result = $obj->{any};
     }
@@ -3682,33 +3740,25 @@ sub get_any_local ( $$ ) {
         return $obj->{any};
     }
     else {
-        my $name = $obj eq 'any:[local]' ? $obj : $obj->{name};
+        my $name;
+	my $addendum = '';
+	if($obj eq 'any:[local]') {
+	    $name = $obj;
+	}
+	elsif(is_autointerface $obj) {
+	    $name = $obj->{name};
+	    $addendum = ' distinct';
+	}
+	else {
+	    $name = $obj->{name};
+	}
         err_msg "any:[local] must only be used in conjunction",
-	  " with a managed interface\n", 
+	  " with a$addendum managed interface\n", 
 	  " but not with $name in rule of $context";
 
-        # Continue with a valid value to prevent further errors.
-        return $obj;
+        # No value to prevent further errors.
+        return ();
     }
-}
-
-sub get_auto_interface ( $$$ ) {
-    my ($src, $dst, $context) = @_;
-    my @result;
-    for my $interface (path_first_interfaces $src, $dst) {
-        if ($interface->{ip} eq 'short') {
-            err_msg "'$interface->{ip}' $interface->{name}",
-              " (from .[auto])\n", " must not be used in rule of $context";
-        }
-	elsif ($interface->{ip} =~ /unnumbered/) {
-
-	    # Ignore unnumbered interfaces.
-	}
-        else {
-            push @result, $interface;
-        }
-    }
-    return @result;
 }
 
 sub path_walk( $$;$ );
@@ -3736,13 +3786,28 @@ sub expand_special ( $$$$ ) {
     if($src eq 'any:[local]') {
 	return get_any_local $dst, $context;
     }
-    if(is_router $src) {
+    if(is_autointerface $src) {
 	if($dst eq 'any:[local]') {
-	    err_msg "'any:[local]' must not be used together with .[auto]",
-	            " in rule of $context";
+	    err_msg "'any:[local]' must not be used together",
+	      " with $src->{name} in rule of $context";
 	    return ();
 	}
-	@result = get_auto_interface $src, $dst, $context;
+	else {
+	    for my $interface (path_auto_interfaces $src, $dst) {
+		if ($interface->{ip} eq 'short') {
+		    err_msg "'$interface->{ip}' $interface->{name}",
+		    " (from .[$src->{selector}])\n", 
+		    " must not be used in rule of $context";
+		}
+		elsif ($interface->{ip} =~ /unnumbered/) {
+		    
+		    # Ignore unnumbered interfaces.
+		}
+		else {
+		    push @result, $interface;
+		}
+	    }
+	}
     }
     else {
 	@result = ($src);
@@ -3837,7 +3902,7 @@ sub warn_unenforceable ( $$$$ ) {
 
         # Auto interface is assumed to be identical
         # to each other interface of a single router.
-        return if is_router $src or is_router $dst;
+        return if is_autointerface $src or is_autointerface $dst;
     }
     else {
         if (   is_subnet $src and is_subnet $dst
@@ -3910,16 +3975,13 @@ sub expand_rules ( $$$ ) {
 		    my $src_any = $obj2any{$src} || get_any $src;
 		    for my $dst (@$dst) {
 			my $dst_any = $obj2any{$dst} || get_any $dst;
-
-			# Check for unenforceable rule.
 			if ($src_any eq $dst_any) {
 			    warn_unenforceable $src, $dst, $src_any, $context;
-
-			    # Ignore this rule.
 			    next;
 			}  
 			my @src = 
-			    expand_special $src, $dst, $flags->{src}, $context;
+			    expand_special $src, $dst, $flags->{src}, $context
+			  or next; # Prevent multiple error messages.
 			my @dst = 
 			    expand_special $dst, $src, $flags->{dst}, $context;
 			for my $src (@src) {
@@ -3931,8 +3993,6 @@ sub expand_rules ( $$$ ) {
 				    dst       => $dst,
 				    src_range => $src_range,
 				    srv       => $srv,
-
-				    # Remember unexpanded rule.
 				    rule      => $unexpanded
 				    };
 				$rule->{orig_srv} = $orig_srv if $orig_srv;
@@ -3961,9 +4021,6 @@ sub expand_policies( ;$) {
     my ($convert_hosts) = @_;
     convert_hosts if $convert_hosts;
     info "Expanding policies";
-
-    # Prepare special groups.
-    set_auto_groups;
 
     # Sort by policy name to make output deterministic.
     for my $key (sort keys %policies) {
@@ -4745,46 +4802,49 @@ sub link_and_check_virtual_interfaces () {
 
 sub link_and_check_pathrestrictions() {
     for my $restrict (values %pathrestrictions) {
-	my @elements;
-        for my $name (@{ $restrict->{elements} }) {
-            if (my $interface = $interfaces{$name}) {
-		next if $interface->{disabled};
-                push @elements, $interface;
+	$restrict->{elements} = expand_group  $restrict->{elements}, $restrict->{name};
+	my $changed;
+        for my $obj (@{ $restrict->{elements} }) {
+            if (is_interface $obj) {
 
                 # Multiple restrictions may be applied to a single
                 # interface.
-                push @{ $interface->{path_restrict} }, $restrict;
+                push @{ $obj->{path_restrict} }, $restrict;
 
 		# Pathrestriction must only be applied to interface
 		# of managed device. Otherwise the restriction possibly
 		# can't be enforced for 'any' objects.
-                $interface->{router}->{managed}
-                  or err_msg "Referencing unmanaged $interface->{name} ",
+                $obj->{router}->{managed}
+                  or err_msg "Referencing unmanaged $obj->{name} ",
                   "from $restrict->{name}";
 
 		# Pathrestrictions must not be applied to secondary interfaces
-		$interface->{main_interface} 
-		and err_msg "secondary $interface->{name} must not be used",
+		$obj->{main_interface} 
+		and err_msg "secondary $obj->{name} must not be used",
 		            " in pathrestriction";
 
 		# Interfaces with pathrestriction need to be located 
 		# inside cyclic graphs.
-		$interface->{in_loop}
+		$obj->{in_loop}
 		  or warn_msg 
-		      "Ignoring $restrict->{name} at $interface->{name}\n",
+		      "Ignoring $restrict->{name} at $obj->{name}\n",
 		      " because it isn't located inside cyclic graph";
             }
             else {
-                err_msg "Referencing undefined interface:$name ",
-                  "from $restrict->{name}";
+                err_msg "Must not reference $obj->{name} from $restrict->{name}";
+		$obj = undef;
+		$changed = 1;
             }
         }
-	$restrict->{elements} = \@elements;
-	if(@elements == 1) {
-	    warn_msg 
-		"Ignoring $restrict->{name} with only $elements[0]->{name}";
+	if($changed) {
+	    $restrict->{elements} = grep $_, $restrict->{elements};
 	}
-	elsif(@elements == 0) {
+	my $count = @{$restrict->{elements}};
+	if($count == 1) {
+	    warn_msg 
+		"Ignoring $restrict->{name} with only $restrict->{elements}->[0]->{name}";
+	}
+	elsif($count == 0) {
 	    warn_msg "Ignoring $restrict->{name} without elements";
 	}
     }    
@@ -4885,7 +4945,7 @@ sub setpath() {
         err_msg "Found unconnected $object->{name}";
 
         # Prevent further errors when calling
-        # path_first_interfaces from expand_rules.
+        # path_auto_interfaces from expand_rules.
         $object->{disabled} = 1;
     }
 
@@ -4968,13 +5028,13 @@ sub get_path( $ ) {
     }
     elsif ($type eq 'Router') {
 
-        # This is only used, when called from path_first_interfaces or
+        # This is only used, when called from path_auto_interfaces or
         # from find_active_routes_and_statics.
         $result = $obj;
     }
     elsif ($type eq 'Host') {
 
-        # This is only used, if Netspoc.pm is called from Arne's report.pl.
+        # This is only used, if Netspoc.pm is called from report.pl.
         $result = $obj->{network};
     }
     else {
@@ -5638,23 +5698,46 @@ sub path_walk( $$;$ ) {
     }
 }
 
-sub path_first_interfaces( $$ ) {
+# $src is an auto_interface or an interface.
+# $selector has value 'front' or 'back'.
+# Result the set of interfaces of $src located at the front or back side
+# of the direction to $dst.
+sub path_auto_interfaces( $$ ) {
     my ($src, $dst) = @_;
+    my @result;
+    my($selector, $managed);
+    if(is_autointerface $src) {
+	($src, $selector, $managed) = @{$src}{'object', 'selector', 'managed'};
+    }
+    else {
+	$selector = 'front';
+    }
+    $dst = $dst->{object} if is_autointerface $dst;
+	
     my $from = $obj2path{$src} || get_path($src);
     my $to   = $obj2path{$dst} || get_path($dst);
     $from eq $to and return ();
     path_mark($from, $to) unless $from->{path}->{$to};
     if (my $exit = $from->{loop_exit}->{$to}) {
-
-#     debug "$from->{name}.[auto] = ",
-#     join ',', map {$_->{name}} @{$from->{loop_enter}->{$exit}};
-        return @{ $from->{loop_enter}->{$exit} };
+	if($selector eq 'front') {
+	    @result = @{ $from->{loop_enter}->{$exit} };
+	}
+	else {
+	    my %front = map { $_ => 1 } @{ $from->{loop_enter}->{$exit} };
+	    @result = grep !$front{$_}, @{ $from->{loop_enter}->{$exit} };
+	}
     }
     else {
-
-#     debug "$from->{name}.[auto] = $from->{path}->{$to}->{name}";
-        return ($from->{path}->{$to});
+	my $front = $from->{path}->{$to};
+	if($selector eq 'front') {
+	    @result = ($front);
+	}
+	else {
+	    @result = grep { $_ ne $front } @{$from->{interfaces}};
+	}
     }
+#    debug "$from->{name}.[$selector] = ", join ',', map {$_->{name}} @result;
+    $managed ? grep { $_->{router}->{managed} } @result : @result;
 }
 
 ########################################################################
@@ -5665,7 +5748,7 @@ sub link_ipsec () {
     for my $ipsec (values %ipsec) {
 
         # Convert name of ISAKMP definition to object with ISAKMP definition.
-        my ($type, $name) = split_typed_name $ipsec->{key_exchange};
+        my ($type, $name) = @{$ipsec->{key_exchange}};
         if ($type eq 'isakmp') {
             my $isakmp = $isakmp{$name}
               or err_msg "Can't resolve reference to '$type:$name'",
@@ -5683,7 +5766,7 @@ sub link_crypto () {
         my $name = $crypto->{name};
 
         # Convert name of ipsec definition to object with ipsec definition.
-        my ($type, $name2) = split_typed_name $crypto->{type};
+        my ($type, $name2) = @{$crypto->{type}};
 
         if ($type eq 'ipsec') {
             my $ipsec = $ipsec{$name2}
@@ -5699,18 +5782,14 @@ sub link_crypto () {
         for my $what ('hub', 'spoke') {
             $crypto->{$what} = expand_group($crypto->{$what}, "$what of $name");
             for my $element (@{ $crypto->{$what} }) {
-                next if is_interface $element;
-
-                # [auto] interface is represented by router object.
-                next if is_router $element;
+                next if is_interface $element or is_autointerface $element;
                 err_msg "Illegal element in $what of $name: $element->{name}";
             }
         }
         for my $mesh (@{ $crypto->{meshes} }) {
             $mesh = [ expand_group $mesh, "mesh of $name" ];
             for my $element (@$mesh) {
-                next if is_interface $element;
-                next if is_router $element;
+                next if is_interface $element or is_autointerface $element;
                 err_msg "Illegal element in mesh of $name: $element->{name}";
             }
         }
@@ -5750,17 +5829,13 @@ sub mark_tunnels () {
 	# List of tunnels ie. pairs of interfaces.
         my @pairs;
         for my $hub (@{ $crypto->{hub} }) {
-	    next if $hub->{disabled};
             for my $spoke (@{ $crypto->{spoke} }) {
-		next if $spoke->{disabled};
                 push @pairs, [ $hub, $spoke ];
             }
         }
         for my $mesh (@{ $crypto->{meshes} }) {
             for my $intf1 (@$mesh) {
-		next if $intf1->{disabled};
                 for my $intf2 (@$mesh) {
-		    next if $intf2->{disabled};
                     push @pairs, [ $intf1, $intf2 ];
                 }
             }
@@ -5768,19 +5843,19 @@ sub mark_tunnels () {
 
         my $check = sub ( @ ) {
             my ($intf1, $intf2) = @_;
-            my @intf1 = path_first_interfaces $intf1, $intf2 or
+            my @auto_intf = path_auto_interfaces $intf1, $intf2 or
 
               # Both interfaces have same router.
               return undef;
-            if (@intf1 > 1) {
+            if (@auto_intf > 1) {
                 err_msg "Tunnel of $name starting at $intf2->{name}",
                   " has multiple endpoints at $intf1->{name}";
             }
-            if (is_router $intf1) {
-                ($intf1) = @intf1;
+            if (is_autointerface $intf1) {
+                $intf1 = $auto_intf[0];
             }
             else {
-                my ($tmp) = @intf1;
+                my ($tmp) = @auto_intf;
                 unless ($tmp eq $intf1) {
                     err_msg "Tunnel of $name starting at $intf2->{name}\n",
                       " uses wrong endpoint at $intf1->{name}.\n",
@@ -6022,6 +6097,9 @@ sub expand_crypto () {
             }
         }
     }
+
+    # Hash only needed during expand_group and expand_rules.
+    %auto_interfaces = ();
 }
 
 # Hash for converting a reference of an object back to this object.
@@ -9360,10 +9438,12 @@ sub print_code( $ ) {
 
     # Untaint $dir. This is necessary if running setuid.
     # We can trust value of $dir because it is set by setuid wrapper.
-    $dir =~ /(.*)/;
-    $dir = $1;
+    if($dir) {
+	$dir =~ /(.*)/;
+	$dir = $1;
+	check_output_dir $dir;
+    }
 
-    $dir and check_output_dir $dir;
     info "Printing code";
     for my $router (@managed_routers) {
         my $model        = $router->{model};
