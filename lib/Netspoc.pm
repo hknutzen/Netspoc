@@ -2682,21 +2682,18 @@ sub link_interface_with_net( $ ) {
     else {
 
         # Check compatibility of interface ip and network ip/mask.
-        my $mask       = $network->{mask};
+        my $mask = $network->{mask};
 	if ($network_ip != ($ip & $mask)) {
 	    err_msg "$interface->{name}'s IP doesn't match ",
 	    "$network->{name}'s IP/mask";
 	}
-	unless ($mask == 0xffffffff) {
-	    if ($ip == $network_ip) {
-		err_msg "$interface->{name} has address of its network";
-	    }
-	    my $broadcast = $network_ip + complement_32bit $mask;
-	    if ($ip == $broadcast) {
-		err_msg "$interface->{name} has broadcast address";
-	    }
+	if ($ip == $network_ip) {
+	    err_msg "$interface->{name} has address of its network";
 	}
-
+	my $broadcast = $network_ip + complement_32bit $mask;
+	if ($ip == $broadcast) {
+	    err_msg "$interface->{name} has broadcast address";
+	}
     }
     push @{ $network->{interfaces} }, $interface;
 }
