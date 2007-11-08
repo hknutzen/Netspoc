@@ -1222,6 +1222,11 @@ sub read_interface( $ ) {
                 $interface->{ip} and error_atline "Duplicate attribute 'ip'";
                 $interface->{ip} = 'negotiated';
             }
+            elsif (check_flag 'loopback') {
+                $interface->{loopback} 
+		and error_atline "Duplicate attribute 'loopback'";
+                $interface->{loopback} = 1;
+            }
             elsif (my $pair = check_typed_name) {
                 my ($type, $name2) = @$pair;
                 if ($type eq 'nat') {
@@ -1356,6 +1361,19 @@ sub read_interface( $ ) {
                 error_atline "No NAT supported for $interface->{ip} interface";
             }
         }
+	if($interface->{loopback}) {
+	    my %copy = %$interface;
+
+	    # Only these attributes are valid.
+	    delete @copy{'name', 'ip', 'nat', 'hardware', 'loopback'};
+	    if(keys %copy) {
+		my $attr = join ", ", map "'$_'", keys %copy;
+		error_atline "Invalid attributes $attr for loopback interface";
+	    }
+	    if ($interface->{ip} =~ /unnumbered|negotiated/) {
+                error_atline "Loopback interface must not be $interface->{ip}";
+            }
+	}
         if ($interface->{virtual} 
             and $interface->{ip} =~ /unnumbered|negotiated/) {
               error_atline 
@@ -1531,6 +1549,12 @@ sub read_router( $ ) {
                     $interface->{bind_nat} eq $hardware->{bind_nat}
                       or err_msg "All logical interfaces of $hw_name\n",
                       " at $router->{name} must use identical NAT binding";
+
+		    # Only one logical loopback interface 
+		    # must be bound to a hardware interface.
+		    $hardware->{loopback}
+		      and err_msg "Only one logical loopback interface must",
+		                  " be bound to $hw_name at $router->{name}";
                 }
                 else {
                     $hardware = { name => $hw_name };
@@ -1538,6 +1562,11 @@ sub read_router( $ ) {
                     push @{ $router->{hardware} }, $hardware;
                     if (my $nat = $interface->{bind_nat}) {
                         $hardware->{bind_nat} = $nat;
+                    }
+
+		    # Needed at hardware interface during code generation.
+                    if (my $loopback = $interface->{loopback}) {
+                        $hardware->{loopback} = $loopback;
                     }
                 }
                 $interface->{hardware} = $hardware;
@@ -2629,22 +2658,47 @@ sub link_interface_with_net( $ ) {
     my ($interface) = @_;
     my $net_name    = $interface->{network};
     my $network     = $networks{$net_name};
-    unless ($network) {
-        my $msg =
-          "Referencing undefined network:$net_name from $interface->{name}";
-        if (grep { $interface eq $_ } @disabled_interfaces) {
-            warn_msg $msg;
-        }
-        else {
-            err_msg $msg;
-        }
+    if($interface->{loopback}) {
+	if($network) {
+	    err_msg "Don't define $network->{name}",
+	    " for loopback $interface->{name}";
 
-        # Prevent further errors.
+	    # Prevent further errors.
+	    delete $networks{$net_name};
+	}
+	$network = new('Network',
+		       name => $interface->{name},
+		       ip => $interface->{ip},
+		       mask => 0xffffffff,
+		       interfaces => [ $interface ]);
+
+	# Put network in hash of all networks.
+	# We use this when processing all networks. Use an invalid name 
+	# 'router:loopback' to prevent name clashes with real networks.
+	($net_name = $interface->{name}) =~ s/^interface://;
+	$networks{$net_name} = $network;
+	
+	$interface->{network} = $network;
+	return;
+    }
+
+    unless ($network) {
+	my $msg = 
+	    "Referencing undefined network:$net_name from $interface->{name}";
+	if (grep { $interface eq $_ } @disabled_interfaces) {
+	    warn_msg $msg;
+	}
+	else {
+	    err_msg $msg;
+	}
+
+	# Prevent further errors.
 	# This case is handled in disable_behind.
-        $interface->{network} = undef;
-        return;
+	$interface->{network} = undef;
+	return;
     }
     $interface->{network} = $network;
+    push @{ $network->{interfaces} }, $interface;
     if ($interface->{reroute_permit}) {
 	$interface->{reroute_permit} =
 	    expand_group $interface->{reroute_permit}, 
@@ -2687,15 +2741,21 @@ sub link_interface_with_net( $ ) {
 	    err_msg "$interface->{name}'s IP doesn't match ",
 	    "$network->{name}'s IP/mask";
 	}
-	if ($ip == $network_ip) {
-	    err_msg "$interface->{name} has address of its network";
+	if($mask == 0xffffffff) {
+	    warn_msg "$interface->{name} has address of its network.\n",
+	    " Remove definition of $network->{name}.\n",
+	    " Use attribute 'loopback' at interface definition instead.";
 	}
-	my $broadcast = $network_ip + complement_32bit $mask;
-	if ($ip == $broadcast) {
-	    err_msg "$interface->{name} has broadcast address";
+	else {
+	    if ($ip == $network_ip) {
+		err_msg "$interface->{name} has address of its network";
+	    }
+	    my $broadcast = $network_ip + complement_32bit $mask;
+	    if ($ip == $broadcast) {
+		err_msg "$interface->{name} has broadcast address";
+	    }
 	}
     }
-    push @{ $network->{interfaces} }, $interface;
 }
 
 # Link RADIUS servers referenced in authenticating routers.
@@ -3824,8 +3884,8 @@ sub expand_special ( $$$$ ) {
 		}
 	    };
 	    my $pseudo_rule = {
-		src    => $src,
-		dst    => $dst,
+		src    => is_autointerface $src ? $src->{object} : $src,
+		dst    => is_autointerface $dst ? $dst->{object} : $dst,
 		action => '--',
 		srv    => $srv_ip,
 	    };
@@ -3835,44 +3895,60 @@ sub expand_special ( $$$$ ) {
     }
     if($flags->{net}) {
 	my %networks;
+	my @other;
 	for my $obj (@result) {
 	    my $type = ref $obj;
-	    my $result;
+	    my $network;
 	    if ($type eq 'Network') {
-		$result = $obj;
+		$network = $obj;
 	    }
-	    elsif ($type eq 'Subnet' or $type eq 'Interface') {
-		$result = $obj->{network};
+	    elsif ($type eq 'Subnet') {
+		if($obj->{id}) {
+		    push @other, $obj;
+		    next;
+		}
+		else {
+		    $network = $obj->{network};
+		}
+	    }
+	    elsif ($type eq 'Interface') {
+		if($obj->{router}->{managed}) {
+		    push @other, $obj;
+		    next;
+		}
+		else {
+		    $network = $obj->{network};
+		}
 	    }
 	    elsif ($type eq 'Any') {
-		err_msg "$obj->{name} must not be used in rule with\n",
-		" service having flag src_net or dst_net in $context";
+		push @other, $obj;
+		next;
 	    }
 	    else {
 		internal_err "unexpected $obj->{name}";
 	    }
-	    $networks{$result} = $result;
+	    $networks{$network} = $network if $network->{ip} ne 'unnumbered';
 	}
-	@result = grep { $_->{ip} ne 'unnumbered'; } values %networks;
+	@result = (@other, values %networks);
     }
     if($flags->{any}) {
 	my %anys;
 	for my $obj (@result) {
 	    my $type = ref $obj;
-	    my $result;
+	    my $any;
 	    if ($type eq 'Network') {
-		$result = $obj->{any};
+		$any = $obj->{any};
 	    }
 	    elsif ($type eq 'Subnet' or $type eq 'Interface') {
-		$result = $obj->{network}->{any};
+		$any = $obj->{network}->{any};
 	    }
 	    elsif ($type eq 'Any') {
-		$result = $obj;
+		$any = $obj;
 	    }
 	    else {
 		internal_err "unexpected $obj->{name}";
 	    }
-	    $anys{$result} = $result;
+	    $anys{$any} = $any;
 	}
 	@result = values %anys;
     }
@@ -4601,7 +4677,7 @@ sub setany() {
     # where none has been declared.
     for my $network (@networks) {
         next if $network->{any};
-        (my $name = $network->{name}) =~ s/^network:/auto_any:/;
+        (my $name = $network->{name}) =~ s/^\w+:/auto_any:/;
         my $any = new('Any', name => $name, link => $network);
         $any->{networks} = [];
         push @all_anys, $any;
@@ -8974,6 +9050,7 @@ sub print_acls( $ ) {
 
     # Add deny rules.
     for my $hardware (@{ $router->{hardware} }) {
+	next if $hardware->{loopback};
 
         # Force valid array reference to prevent error
 	# when checking for non empty array.
@@ -9028,6 +9105,7 @@ sub print_acls( $ ) {
 
     # Generate code.
     for my $hardware (@{ $router->{hardware} }) {
+	next if $hardware->{loopback};
         my $acl_name = "$hardware->{name}_in";
         my $intf_name;
         my $prefix;
@@ -9131,11 +9209,11 @@ sub prepare_auto_crypto( $ ) {
 		    "$local_net->{name} and $network->{name}";
 	    } elsif (@{$interface->{hardware}->{interfaces}} > 1) {
 		err_msg "$network->{name} must be the only network attached to",
-		  " $interface->{hardware}->{name}"
-	      } elsif (not $network->{id}) {
-		  err_msg "$network->{name} must have ID, because it is attached",
-		    " to $router->{name} with auto_crypto";
-	      } else {
+		" $interface->{hardware}->{name}";
+	    } elsif (not $network->{id}) {
+		err_msg "$network->{name} must have ID, because it is attached",
+		" to $router->{name} with auto_crypto";
+	    } else {
 		$local_net = $network;
 	    }
 	}
