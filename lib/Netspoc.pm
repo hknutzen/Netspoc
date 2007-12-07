@@ -7448,24 +7448,52 @@ sub distribute_rule( $$$;$ ) {
     if ($model and $model->{name} eq 'VPN3K' and $out_intf) {
 	my $src = $rule->{src};
 	if (get_id $src) {
+	    if($in_intf->{no_check}) {
+		err_msg "Source of rule must not have ID",
+		" when entering $in_intf->{name} in rule\n ", 
+		print_rule $rule;
+	    }
+	    $src = $src->{network} if not is_network $src;
 	    if ($in_intf->{auto_crypto}) {
-		$src = $src->{network} if not is_network $src;
 		if ($src->{id}) {
+		    my $in_any = $in_intf->{any};
+		    if($src->{any} eq $in_any) {
 
-		    # Automatically generate IPSec-Tunnel to VPN-Router.
-		    my (@peers) = map { $_->{router} } @{$src->{interfaces}};
-		    if (@peers > 1) {
-			err_msg "Exactly one router needed at",
-			" auto_crypto VPN $src->{name}";
+			# No managed router on path.
+			# VPN-Router must only have one local network attached.
+			my (@peers) = 
+			    map { $_->{router} } @{$src->{interfaces}};
+			if (@peers > 1) {
+			    err_msg "Exactly one router needed at",
+			    " auto_crypto VPN $src->{name}";
+			}
 		    }
-		    my $peer = $peers[0];
-		    if ($peer->{managed}) {
-			$peer->{auto_crypto_peer}->{$in_intf} = $in_intf;
+		    else {
+
+			# Find managed Router which connects $src with
+			# current VPN device.
+			my $found = 0;
+			for my $router (grep { $_->{managed} }
+					   map { $_->{router} } 
+					   @{$src->{interfaces}}) {
+			    for my $interface (@{ $router->{interfaces}}) {
+				if($interface->{any} eq $in_any) {
+				    my $peer = $interface->{router};
+
+				    # Automatically generate IPSec tunnel 
+				    # to VPN device.
+				    $peer->{auto_crypto_peer}->{$in_intf} = 
+					$in_intf;
+				    $found = 1;
+				}
+			    }
+			}
+			if($found != 1) {
+			    err_msg "Exactly one managed router needed",
+			    " between VPN $src->{name} and $router->{name}";
+			}
 		    }
 		}
-	    }
-	    else {
-		$src = $src->{network} if not is_network $src;
 	    }
 
 	    # Mark VPN network with applicable vpn3k devices,
@@ -7495,7 +7523,8 @@ sub distribute_rule( $$$;$ ) {
 	    }
 	} elsif ( not $in_intf->{no_check} ) {
 	    err_msg
-	      "Source of rule must have ID when entering $in_intf->{name} in rule\n ",
+		"Source of rule must have ID when entering $in_intf->{name}",
+		" in rule\n ",
 		print_rule $rule;
 	}
     }
@@ -9199,30 +9228,22 @@ sub prepare_auto_crypto( $ ) {
     my($ipsec) = values %ipsec;
 
     # There needs to be exactly one local network.
-    # That is a network with only this router attached.
-    # This network must have ID which is to be authenticated at vpn3k device.
+    # This network has an ID which is to be authenticated at vpn3k device.
     my $local_net;
     for my $interface (@{$router->{interfaces}}) {
 	my $network = $interface->{network};
-	if (@{$network->{interfaces}} == 1) {
-	    if ($local_net) {
-		err_msg "$router->{name} must have exacly one local network",
-		  " because it has auto_crypto to $peers[0].",
-		    " But there are at least two networks attached:\n",
-		    "$local_net->{name} and $network->{name}";
-	    } elsif (@{$interface->{hardware}->{interfaces}} > 1) {
-		err_msg "$network->{name} must be the only network attached to",
-		" $interface->{hardware}->{name}";
-	    } elsif (not $network->{id}) {
-		err_msg "$network->{name} must have ID, because it is attached",
-		" to $router->{name} with auto_crypto";
-	    } else {
-		$local_net = $network;
-	    }
+	if ($local_net) {
+	    err_msg "$router->{name} must have exacly one local network",
+	    " because it has auto_crypto to $peers[0].",
+	    " But there are at least two networks attached:\n",
+	    " $local_net->{name} and $network->{name}";
+	}  elsif ($network->{id}) {
+	    $local_net = $network;
 	}
     }
     $local_net or
-      err_msg "At least one local network with ID needs to be attached to $router->{name}";
+      err_msg "At least one local network with ID needs to be attached",
+	" to $router->{name}";
 
     for my $hardware (@{ $router->{hardware} }) {
 	my $interfaces = $hardware->{interfaces};
