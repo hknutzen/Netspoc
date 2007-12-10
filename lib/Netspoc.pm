@@ -3662,7 +3662,7 @@ sub expand_group( $$;$ ) {
         my @subnets;
         my @other;
         for my $obj (grep { defined $_ and not $unique{$_}++ } @$aref) {
-	    debug "group:$obj->{name}";
+#	    debug "group:$obj->{name}";
             if (is_host $obj) {
                 push @subnets, @{ $obj->{subnets} };
             }
