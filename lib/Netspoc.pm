@@ -3656,14 +3656,13 @@ sub expand_group( $$;$ ) {
 	}
     }
 
-    # Remove undefined and duplicate values.
-    my %unique = map { $_ => $_ } grep { defined $_ } @$aref;
-
+    # For detecting and removing duplicate values.
+    my %unique;
     if ($convert_hosts) {
         my @subnets;
         my @other;
-        for my $obj ( values %unique) {
-	    debug "exp:$obj->{name}";
+        for my $obj (grep { defined $_ and not $unique{$_}++ } @$aref) {
+	    debug "group:$obj->{name}";
             if (is_host $obj) {
                 push @subnets, @{ $obj->{subnets} };
             }
@@ -3675,7 +3674,7 @@ sub expand_group( $$;$ ) {
         return \@other;
     }
     else {
-	return [ values %unique ];
+	return [ grep { defined $_ and not $unique{$_}++ } @$aref ];
     }
 
 }
@@ -3799,7 +3798,7 @@ sub add_rules( $ ) {
             $rule->{deleted} = $old_rule;
             next;
         }
-	debug "Add:", print_rule $rule;
+#	debug "Add:", print_rule $rule;
         $rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$src_range}->{$srv} = $rule;
     }
 }
