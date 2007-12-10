@@ -303,7 +303,7 @@ sub internal_err( @ ) {
 sub skip_space_and_comment() {
 
     # Ignore trailing whitespace and comments.
-    while ($input =~ m'\G[ \t]*([!#].*)?\n'gc) {
+    while ($input =~ m'\G[ \t]*([#].*)?\n'gc) {
         $line++;
     }
 
@@ -486,6 +486,30 @@ sub read_typed_name() {
     check_typed_name or syntax_err "Typed name expected";
 }
 
+sub read_typed_ext_name;
+
+sub read_complement() {
+    if(check '!') {
+	[ '!', read_typed_ext_name ];
+    }
+    else {
+	read_typed_ext_name;
+    }
+}	
+	
+sub read_intersection() {
+    my @result = read_complement;
+    while(check '&') {
+	push @result, read_complement;
+    }
+    if(@result == 1) {
+	$result[0];
+    }
+    else {
+	[ '&', \@result ];
+    }
+}
+
 {
 
     # user@domain or @domain or user
@@ -499,7 +523,7 @@ sub read_typed_name() {
 # or interface:xxx.xxx or interface:xxx.xxx.xxx or interface:xxx.[xxx] 
 # or interface:[xxx:xxx, ...].[xxx] or interface:[managed & xxx:xxx, ...].[xxx]
 # or host:id:user@domain.network
-    sub check_typed_ext_name() {
+    sub read_typed_ext_name() {
 	skip_space_and_comment;
 	my $managed;
 	$input =~ m/\G([\w-]+):/gc or syntax_err "Type expected";
@@ -520,14 +544,14 @@ sub read_typed_name() {
 	    if($interface && check 'managed') {
 		$managed = 1;
 		skip '&';
-		$name = [ read_expr_list \&check_typed_ext_name ];
+		$name = [ read_expr_list \&read_intersection ];
 	    }
 	    elsif($type eq 'any' && check 'local') {
 		$name = [ 'local' ];
 		skip '\]';
 	    }
 	    else {
-		$name = [ read_expr_list \&check_typed_ext_name ];
+		$name = [ read_expr_list \&read_intersection ];
 	    }
 	}
 	else {
@@ -556,10 +580,6 @@ sub read_typed_name() {
 	else {
 	    [ $type, $name ];
 	}
-    }
-
-    sub read_typed_ext_name() {
-	check_typed_ext_name or syntax_err "Typed extended name expected";
     }
 
 # user@domain or user
@@ -1682,7 +1702,7 @@ our %groups;
 sub read_group( $ ) {
     my $name = shift;
     skip '=';
-    my @objects = read_list_or_null \&read_typed_ext_name;
+    my @objects = read_list_or_null \&read_intersection;
     return new('Group', name => $name, elements => \@objects);
 }
 
@@ -3343,14 +3363,52 @@ sub expand_group1( $$ ) {
     my ($aref, $context) = @_;
     my @objects;
     for my $parts (@$aref) {
+	    
         my ($type, $name, $ext) = @$parts;
-        my $object;
-        if (not $name2object{$type}) {
-            err_msg "Unknown type '$type' in $context";
-            next;
-        }
+	if($type eq '&') {
+	    my @non_compl;
+	    my @compl;
+	    for my $element (@$name) {
+		if($element->[0] eq '!') {
+		    push @compl, $element->[1];
+		}
+		else {
+		    push @non_compl, $element;
+		}
+	    }
+	    @non_compl == 1 
+		or err_msg "Intersection currently needs exactly one element",
+		" which is not complement in $context";
+	    my $type;
+	    my %result;
+	    for my $element (@{expand_group1([ $non_compl[0] ], 
+					     "non complement in $context")}) 
+	    {
+		if($type) {
+		    ref $element eq $type
+			or err_msg 
+			"All elements must be of same type in $context";
+		}
+		else {
+		    $type = ref $element;
+		}
+		$result{$element} = $element;
+	    }
 
-	if($type eq 'interface') {
+	    # No need to delete elements if set is empty.
+	    return if not $type;
+
+	    for my $element (@{expand_group1(\@compl, 
+					     "complement in $context")}) 
+	    {
+		ref $element eq $type
+		    or err_msg 
+		    "All elements must be of same type in $context";
+		delete $result{$element};
+	    }
+	    push @objects, values %result;
+	}
+	elsif($type eq 'interface') {
 	    if(ref $name) {
 		ref $ext 
 		    or err_msg "Must not use 'interface:[..].$ext' in $context";
@@ -3525,7 +3583,10 @@ sub expand_group1( $$ ) {
 	}
 
 	# A object named simply type:name.
-	elsif($object = $name2object{$type}->{$name}) {
+	elsif(my $object = $name2object{$type}->{$name}) {
+
+	    $ext and 
+		err_msg "Unexpected '.$ext' after '$type:$name' in $context";
 
 	    # Split a group into its members.
 	    if (is_group $object) {
@@ -3602,6 +3663,7 @@ sub expand_group( $$;$ ) {
         my @subnets;
         my @other;
         for my $obj ( values %unique) {
+	    debug "exp:$obj->{name}";
             if (is_host $obj) {
                 push @subnets, @{ $obj->{subnets} };
             }
@@ -3737,7 +3799,7 @@ sub add_rules( $ ) {
             $rule->{deleted} = $old_rule;
             next;
         }
-#	debug "Add:", print_rule $rule;
+	debug "Add:", print_rule $rule;
         $rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$src_range}->{$srv} = $rule;
     }
 }
