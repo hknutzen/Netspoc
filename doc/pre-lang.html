@@ -570,7 +570,10 @@ must be used either as src or dst or both parts of a rule.
   same path restriction are discarded i. e. marked as invalid.
  <li>Only interfaces of managed routers may be referenced.
  <li>Path restrictions must not be used to discard <em>all</em> paths
-  between some source / destination pair. Use a policy with deny rules instead.
+  between some source / destination pair. Use a policy with deny rules
+  instead.
+ <li>A pathrestriction is automatically added for each group of interfaces
+ belonging to a VRRP or HSRP cluster.
 </ul>
 
 <h3><a name="global_NAT">Global NAT definition</a></h3>
