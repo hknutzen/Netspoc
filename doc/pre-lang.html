@@ -828,6 +828,89 @@ rules are silently discarded.</P>
     {{ sec | min | hour | day | secs | mins | hours | days }};
 </PRE>
 
+<h2>Remote access</h2>
+
+Support for remote access by tele worker or remote office has been
+implemented.
+
+<dl>
+<dt>Tele worker
+<dd>
+<ul>
+<li>VPN software client
+<li>authenticate itself by certificate
+<li>dynamically get IP address from radius server via VPN device
+</ul>
+
+<dt>Remote office
+<dd>
+<ul>
+<li>VPN router with attached network
+<li>router authenticates traffic by certificate
+<li>router has public IP address at outside interface
+<li>router has fixed private IP address at inside interface
+<li>fixed IP address range for attached network
+</ul>
+
+<dt>Both
+<dd>
+<ul>
+<li>build VPN tunnel to central VPN device
+<li>VPN device uses certificate name to authenticate at radius server
+<li>radius server sends indivdual access list to VPN device
+<li>VPN device permits authorized access for client
+</ul>
+</dl>
+
+This concept has been implemented for Cisco VPN 3000 devices which
+send authorization request to one or more radius servers. VPN is build
+using IPSec tunnels.
+
+<h3>Cisco VPN 3000</h3>
+<dl>
+<dt>new type of router 
+<dd> type=vpn3k
+<dt>additional attribute for router
+<dd> radius_servers=host:&lt;name&gt;
+<dt>additional attributes for interface
+<dd><ul> 
+<li>auto_crypto=ipsec:&lt;name&gt;
+<li> no_check
+</ul>
+<dt>additional syntax for hosts
+<dd> host:id:certificate-name
+<dt>additional attribute for network
+<dd> id=&lt;user[@domain]&gt;
+<dt>additional optional attribute at host with id, network with id, network having id hosts and router of type vpn3k
+<dd> radius_attributes={&lt;key&gt;=&lt;value&gt;;*}
+</dl>
+<p>
+<h4>Additional restrictions</h4>
+<ul>
+<li>Router needs to have exactly on interface with attribute 'no_check'.
+<li>Source of rule must have ID when entering interface without attribute 'no_check',
+<li>Attribute 'radius_servers' needs to be defined for router of type vpn3k.
+<li>A network having id hosts must not be used in a rule.
+</ul>
+
+<p>
+Multiple instances if one host:id:&lt;name&gt; may get defined in different networks of a topology. When referencing an id host, one has to append the name of the enclosing  newtork to make the reference definite.
+host:id:&lt;name&gt; is referenced as host:id:&lt;name&gt;.&lt;network&gt;
+
+<h4>Special handling of access lists at vpn3k device</h4>
+<ul>
+<li>First use all regular rules were destination is in one of the denied
+  networks below. 
+<li>Deny access to all networks, which talk to the vpn3k device, but
+  which are not protected by some managed device; i.e.
+  <ul>
+  <li> container network of id hosts,
+  <li>network of remote office with unmanged VPN router
+  <li>networks attached to the 'no_check' interface of the vpn3k device.
+  </ul>
+<li>Permit any traffic from IP address of remote host or network.
+</ul>
+
 <H2><A NAME="handling_any">Handling of 'any' objects</A></H2>
 <P>The meaning of 'any' is different in a NetSPoC rule from that in an ACL.
 For NetSPoC, any:X means "any network object of the security domain
