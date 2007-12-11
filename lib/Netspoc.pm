@@ -486,30 +486,6 @@ sub read_typed_name() {
     check_typed_name or syntax_err "Typed name expected";
 }
 
-sub read_typed_ext_name;
-
-sub read_complement() {
-    if(check '!') {
-	[ '!', read_typed_ext_name ];
-    }
-    else {
-	read_typed_ext_name;
-    }
-}	
-	
-sub read_intersection() {
-    my @result = read_complement;
-    while(check '&') {
-	push @result, read_complement;
-    }
-    if(@result == 1) {
-	$result[0];
-    }
-    else {
-	[ '&', \@result ];
-    }
-}
-
 {
 
     # user@domain or @domain or user
@@ -607,6 +583,28 @@ sub read_intersection() {
 	else {
 	    return undef;
 	}
+    }
+}
+
+sub read_complement() {
+    if(check '!') {
+	[ '!', read_typed_ext_name ];
+    }
+    else {
+	read_typed_ext_name;
+    }
+}	
+	
+sub read_intersection() {
+    my @result = read_complement;
+    while(check '&') {
+	push @result, read_complement;
+    }
+    if(@result == 1) {
+	$result[0];
+    }
+    else {
+	[ '&', \@result ];
     }
 }
 
@@ -1666,7 +1664,7 @@ sub read_area( $ ) {
     skip '{';
     while (1) {
         last if check '}';
-        if (my @aref = check_assign_list 'border', \&read_typed_ext_name) {
+        if (my @aref = check_assign_list 'border', \&read_complement) {
             $area->{border}
               and error_atline 'Duplicate definition of border';
             $area->{border} = \@aref;
@@ -1854,7 +1852,7 @@ sub read_service( $ ) {
 
 our %policies;
 
-sub read_user_or_typed_name_list( $ ) {
+sub read_user_or_complement_list( $ ) {
     my ($name) = @_;
     skip $name;
     skip '=';
@@ -1863,7 +1861,7 @@ sub read_user_or_typed_name_list( $ ) {
         return 'user';
     }
     else {
-        return read_list \&read_typed_ext_name;
+        return read_list \&read_complement;
     }
 }
 
@@ -1875,13 +1873,13 @@ sub read_policy( $ ) {
     if (my $description = check_description) {
         $policy->{description} = $description;
     }
-    my @user = read_assign_list 'user', \&read_typed_ext_name;
+    my @user = read_assign_list 'user', \&read_complement;
     $policy->{user} = \@user;
     while (1) {
         last if check '}';
         if (my $action = check_permit_deny) {
-            my $src = [ read_user_or_typed_name_list 'src' ];
-            my $dst = [ read_user_or_typed_name_list 'dst' ];
+            my $src = [ read_user_or_complement_list 'src' ];
+            my $dst = [ read_user_or_complement_list 'dst' ];
             my $srv = [ read_assign_list 'srv', \&read_typed_name ];
             if ($src->[0] eq 'user') {
                 $src = 'user';
@@ -1917,7 +1915,7 @@ sub read_pathrestriction( $ ) {
     if (my $description = check_description) {
         $restriction->{description} = $description;
     }
-    my @pairs = read_list \&read_typed_ext_name;
+    my @pairs = read_list \&read_complement;
     $restriction->{elements} = \@pairs;
     return $restriction;
 }
@@ -2058,8 +2056,8 @@ sub read_crypto( $ ) {
     while (1) {
         last if check '}';
         if (my $action = check_permit_deny) {
-            my $src = [ read_assign_list 'src', \&read_typed_ext_name ];
-            my $dst = [ read_assign_list 'dst', \&read_typed_ext_name ];
+            my $src = [ read_assign_list 'src', \&read_complement ];
+            my $dst = [ read_assign_list 'dst', \&read_complement ];
             my $srv = [ read_assign_list 'srv', \&read_typed_name ];
             my $rule = {
                 action => $action,
@@ -2074,17 +2072,17 @@ sub read_crypto( $ ) {
               and error_atline "Redefining 'type' attribute";
             $crypto->{type} = $type;
         }
-        elsif (my @hubs = check_assign_list 'hub', \&read_typed_ext_name) {
+        elsif (my @hubs = check_assign_list 'hub', \&read_complement) {
             $crypto->{hub}
               and error_atline "Redefining 'hub' attribute";
             $crypto->{hub} = \@hubs;
         }
-        elsif (my @spokes = check_assign_list 'spoke', \&read_typed_ext_name) {
+        elsif (my @spokes = check_assign_list 'spoke', \&read_complement) {
             $crypto->{spoke}
               and error_atline "Redefining 'spoke' attribute";
             $crypto->{spoke} = \@spokes;
         }
-        elsif (my @mesh = check_assign_list 'mesh', \&read_typed_ext_name) {
+        elsif (my @mesh = check_assign_list 'mesh', \&read_complement) {
             push @{ $crypto->{meshes} }, \@mesh;
         }
         else {
