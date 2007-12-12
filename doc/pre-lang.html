@@ -279,19 +279,20 @@ interface definition".
   &lt;interface definition&gt; ::= 
     interface:&lt;name&gt; = {
          {{ ip = &lt;ip-adr&gt;, ... ; | unnumbered; | negotiated; }}
+	 &lt;secondary interface definition&gt; *
+	 [ &lt;virtual interface definition&gt; ]
          &lt;NAT definition&gt; *
          [ &lt;NAT binding&gt; ]
-	 [ &lt;virtual interface definition&gt; ]
          [ hardware = &lt;external_name&gt;; ]
 	 [ routing = {{ EIGRP | OSPF | manual }}; ]
 	 [ reroute_permit = network:&lt;name&gt;, ... ; ]
          [ disabled ; ]
     }
 
-  &lt;NAT definition&gt; ::=
-    nat:&lt;name&gt; = { ip = &lt;ip-adr&gt;; }
-  &lt;NAT binding&gt; ::=
-    nat = &lt;name&gt;;
+  &lt;secondary interface definition&gt; ::=
+    secondary:&lt;name&gt; = { 
+         ip = &lt;ip-adr&gt;;
+    }
 
   &lt;virtual interface definition&gt; ::=
     virtual = { 
@@ -299,7 +300,12 @@ interface definition".
          type = {{ VRRP | HSRP }};
          [ id = &lt;int&gt;; ]
     }
-        
+
+  &lt;NAT definition&gt; ::=
+    nat:&lt;name&gt; = { ip = &lt;ip-adr&gt;; }
+  &lt;NAT binding&gt; ::=
+    nat = &lt;name&gt;;
+
   &lt;short interface definition&gt; ::=
     interface:&lt;name&gt;;
  </PRE>
@@ -314,7 +320,16 @@ interface definition".
 <li>A negotiated interface has an unknown IP address out of the attached
   network. If an interface with negotiated IP is used in a rule, the address
   range of the attached network is used.
-<li> A virtual interface defines a shared IP address and type of redundancy
+<li>Additional IP addresses may be defined using a secondary
+  interface. A secondary interface is referenced as
+  <code>interface:&lt;router-name&gt;.&lt;network-name&gt;.&lt;secondary-name&gt;</code>
+<li>
+  Another method to define secondary interfaces is by giving two or more IP
+  addresses to the primary interface. This implicitly defines secondary
+  interfaces with a name which is derived from the name of the primary
+  interface by adding an incrementing number beginning with "2".
+  E.g. <code>interface:router.name.2, interface:router.name.3, ...</code>.
+<li>A virtual interface defines a shared IP address and type of redundancy
   protocol. See <a name="#virtual"> Virtual interfaces</a> for details.
 <LI>The 'hardware' attribute indicates, which hardware interface the router
   belongs to. This attribute is mandatory for managed routers.
