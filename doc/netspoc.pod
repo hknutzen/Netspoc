@@ -71,7 +71,11 @@ which have no default route to the internet.
 
 A regular expression matching filenames which are ignored when reading
 directories.
-Default value matches these files:
+
+=item --time_stamps
+
+View runtime of compilation steps.
+Adds time stamps in seconds when printing compilation steps in verbose mode.
 
 =over
 
