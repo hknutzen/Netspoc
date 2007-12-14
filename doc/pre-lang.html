@@ -497,7 +497,7 @@ directly attached to this interface.
 <li> A &lt;range&gt; denotes a tcp/udp port range
 <li> A &lt;range&gt; consisting of only one number denotes a single
 port
-<li> An empty &lt;range&gt; is equivalent with the full range of all
+<li> An empty &lt;range&gt; is equivalent to the full range of all
 ports 1 - 65535 
 <li> If only one  &lt;range&gt; is given, it describes the destination
 port
@@ -516,22 +516,26 @@ destination port
 <DT>protocol
 <DD>
 <UL>
-<LI>&lt;int&gt; is a IP protocol number
+<LI>&lt;int&gt; is an IP protocol number
 <LI>0 &lt; &lt;int&gt; &lt;= 255
 </UL>
 </DL>
 <ul>
-<li>For describing a tcp connection between client and server, only
-one rule is needed with client as source. The packets back from the
-destination are allowed implicitly. 
-<li>Similar to tcp connections, only one rule is needed to let udp
-packets pass from source to destination and back.
-<li>When using service "ip" in a rule, currently only packets from
-source to destination are allowed. But state full packet filters let
-pass answer packets for tcp connections anyway. To get a unified
-handling for tcp, udp and ip for state full and stateless packet filters,
-we might change this in the future, to let ip packets pass in both
-directions, with only one rule.
+
+<li>For permitting a TCP connection from source to destination, only one rule
+    is needed. Answer packets are automatically allowed. For stateful packet
+    filters, this is done at the device. For stateless packet filters, netspoc
+    automatically generates a rule which allowes any TCP traffic from
+    destination to source with flag "established" i.e. no SYN flag set.
+
+<li>Similarly, only one rule is needed to let UDP packets pass from source to
+    destination and back. For stateless packet filters, a rule with reversed
+    addresses and reversed port numbers is generated.
+
+<li>For service IP and stateless packet filters, a rules with reversed
+    addresses is generated. This is needed to get an unified handling for TCP,
+    UDP and IP.
+
 </ul>
 
 <H3><A NAME="groups_of_services">Groups of services</A></H3>
