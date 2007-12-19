@@ -6589,6 +6589,9 @@ sub check_for_transient_any_rule () {
 	    }
 	}
     }
+    
+    # No longer needed; free some memory.
+    %smaller_srv = ();
 
     if($missing_count) {
 
@@ -6669,6 +6672,9 @@ sub check_any_rules() {
         }
     }
     check_for_transient_any_rule;
+
+    # no longer needed; free some memory.
+    %obj2any = ();
 }
 
 ##############################################################################
@@ -7724,6 +7730,9 @@ sub distribute_rule_at_dst( $$$ ) {
 sub rules_distribution() {
     info "Distributing rules";
 
+    # Not longer used, free memory.
+    %rule_tree = ();
+
     # Sort rules by reverse priority of service.
     # This should be done late to get all auxilliary rules processed.
     for my $type ('deny', 'any', 'permit') {
@@ -7775,6 +7784,10 @@ sub rules_distribution() {
           and (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
         path_walk($rule, \&distribute_rule, 'Router');
     }
+
+    # No longer needed, free some memory.
+    %obj2path = ();
+    %key2obj = ();
 }
 
 ##############################################################################
