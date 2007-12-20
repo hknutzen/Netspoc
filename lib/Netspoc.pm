@@ -7785,7 +7785,15 @@ sub rules_distribution() {
         path_walk($rule, \&distribute_rule, 'Router');
     }
 
+    # Prepare rules for local_optimization.
+    for my $rule (@{ $expanded_rules{any} }) {
+        next if $rule->{deleted} and not $rule->{managed_intf};
+        $rule->{src} = $network_00 if is_any $rule->{src};
+        $rule->{dst} = $network_00 if is_any $rule->{dst};
+    }
+
     # No longer needed, free some memory.
+    %expanded_rules = ();
     %obj2path = ();
     %key2obj = ();
 }
@@ -8651,11 +8659,6 @@ sub join_ranges ( $) {
 
 sub local_optimization() {
     info "Optimizing locally";
-    for my $rule (@{ $expanded_rules{any} }) {
-        next if $rule->{deleted} and not $rule->{managed_intf};
-        $rule->{src} = $network_00 if is_any $rule->{src};
-        $rule->{dst} = $network_00 if is_any $rule->{dst};
-    }
     for my $domain (@natdomains) {
         my $nat_map = $domain->{nat_map};
 
