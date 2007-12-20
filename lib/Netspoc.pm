@@ -3678,24 +3678,28 @@ sub expand_group( $$;$ ) {
 }
 
 sub check_unused_groups() {
-    return unless $allow_unused_groups;
-    for my $group (values %groups, values %servicegroups) {
-        unless ($group->{is_used}) {
-            my $msg;
-            if (my $size = @{ $group->{elements} }) {
-                $msg = "unused $group->{name} with $size element(s)";
-            }
-            else {
-                $msg = "unused empty $group->{name}";
-            }
-            if ($allow_unused_groups eq 'warn') {
-                warn_msg $msg;
-            }
-            else {
-                err_msg $msg;
-            }
-        }
+    if(not $allow_unused_groups) {
+	for my $group (values %groups, values %servicegroups) {
+	    unless ($group->{is_used}) {
+		my $msg;
+		if (my $size = @{ $group->{elements} }) {
+		    $msg = "unused $group->{name} with $size element(s)";
+		}
+		else {
+		    $msg = "unused empty $group->{name}";
+		}
+		if ($allow_unused_groups eq 'warn') {
+		    warn_msg $msg;
+		}
+		else {
+		    err_msg $msg;
+		}
+	    }
+	}
     }
+
+    # Not used any longer; free memory.
+    %groups = ();
 }
 
 sub expand_services( $$ );
