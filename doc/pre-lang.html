@@ -390,12 +390,24 @@ intervening networks get access as well.
    }}
   }</pre>
 
-<h4>Restrictions:</h4>
 <ul>
-<li>Exactly one of <code>border</code> and <code>anchor</code> must be
-choosen.
+
+<li>Use attribute <code>border</code> to define interfaces which are the
+border of the area.
+
+<li>Alternatively use attribute <code>anchor</code> to define a starting point
+from where the area extends. Typically <code>anchor</code> is used together
+with attribute <code>auto_border</code> which restricts the area to the border
+of other areas. 
+
+<li>Use attribute <code>anchor</code> without <code>auto_border</code> to
+define an area which streches across the whole topology.
+
+<li>Exactly one attribute of <code>border</code> and <code>anchor</code> must
+be choosen.
+
 <li>Only interfaces of managed routers must be given as <code>border</code>.
-<li>Attribute <code>auto_border</code> is mandatory for <code>anchor</code>.
+
 </ul>
 
 <H3><A NAME="referencing">Referencing network objects</A></H3>
