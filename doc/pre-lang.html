@@ -119,7 +119,7 @@ generates access control lists which control what traffic can pass
 this router and what traffic is blocked.
 The whole topology is partitioned into different security domains by
 managed routers.</P>
-<P>Special network objects called 'any' objects and 'every' objects may
+<P>Special network objects called 'any' objects may
 be defined which denote all network objects inside a security domain.</P>
 
 <H3>General syntax</H3>
@@ -356,22 +356,6 @@ interface definition".
   like a host.
 </UL>
 
-<H3><A NAME="every_definition">'Every' object definition</A></H3>
-<H4>Syntax</H4>
-<PRE>
- every:&lt;name&gt; = { 
-   link = {{ 
-             network:&lt;name&gt;; 
-          | 
-	     router:&lt;name&gt;; 
-	  }} 
- }</PRE>
-<UL>
-<LI>An 'every' definition is equivalent to a group of all networks of
-a security domain.
-<LI>It must not be linked to a managed router.
-</UL>
-
 <H3><A NAME="any_definition">'Any' object definition</A></H3>
 <H4>Syntax</H4>
 <PRE>
@@ -429,7 +413,6 @@ choosen.
  | any:&lt;name&gt; 
  | any:[all]; 
  | any:[local];
- | every:&lt;name&gt;
  | network:[area:&lt;name&gt;] 
  | any:[area:&lt;name&gt;]
  | group:&lt;name&gt; 
