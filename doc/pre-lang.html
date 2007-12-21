@@ -418,10 +418,8 @@ be choosen.
    host:&lt;name&gt; 
  | network:&lt;name&gt; 
  | interface:&lt;name&gt;.&lt;name&gt; 
- | interface:&lt;name&gt;.[auto]; 
- | interface:&lt;name&gt;.[all]; 
- | interface:[&lt;router group&gt;].[auto]; 
- | interface:[&lt;router group&gt;].[all]; 
+ | interface:&lt;name&gt;.[&lt;selector&gt;]; 
+ | interface:[&lt;router group&gt;].[&lt;selector&gt;]; 
  | any:&lt;name&gt; 
  | any:[local];
  | network:[area:&lt;name&gt;] 
@@ -431,6 +429,8 @@ be choosen.
  
  &lt;router group&gt; ::=
     {{ managed | all }} [ & area:&lt;name&gt;]
+ &lt;selector&gt; ::=
+    {{ front | back | all }}
 </PRE>
 <UL>
 <LI>Network objects are referenced in groups or as source or destination
