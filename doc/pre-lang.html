@@ -411,7 +411,6 @@ choosen.
  | interface:[&lt;router group&gt;].[auto]; 
  | interface:[&lt;router group&gt;].[all]; 
  | any:&lt;name&gt; 
- | any:[all]; 
  | any:[local];
  | network:[area:&lt;name&gt;] 
  | any:[area:&lt;name&gt;]
@@ -443,9 +442,6 @@ reference to an interface.<ul>
 routers.</ul>
 <li>[managed] and [all] can be confined to routers inside an area.<br>
     E.g. [managed & area:&lt;name&gt;].
-<li>any:[all] denotes an implicitly defined group of <em>all</em>
-'any' objects, i.e. security domains. This may be used in rules to permit
-or deny traffic for the whole topology.
 <li>any:[local] may only be used as src or dst in a rule where the counterpart
 is an interface. In this case, any:[local] denotes the 'any' object, which is
 directly attached to this interface.
