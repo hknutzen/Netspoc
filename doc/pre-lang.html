@@ -485,7 +485,7 @@ directly attached to this interface.
  | udp [[&lt;range&gt; :] &lt;range&gt]
  | icmp [&lt;int_1&gt;[/&lt;int_2&gt;]] 
  | proto &lt;int&gt; 
- }} ;</PRE>
+ }} [&lt;service flag&gt;] ;</PRE>
 <p>with</p>
 <PRE> &lt;range&gt; ::= &lt;int_1&gt;[-&lt;int_2&gt;]
 </PRE>
@@ -537,6 +537,38 @@ destination port
     UDP and IP.
 
 </ul>
+
+<h4>Service flags</h4>
+
+One or more &lt;service flag&gt;s may optionally be appended to a service
+definition. A &lt;service flag&gt; modifies the rule in which the
+corresponding service is used as follows.
+
+<dl>
+<dt>stateless<dd>The rule is only applied to stateless devices.
+<dt>oneway<dd>At stateless devices, no rules are generated to permit answer
+packets.
+<dt>reversed<dd>Source and destination are swapped.
+
+<dt>dst_path<dd>The rule is replaced by <em>n</em> rules where the destination
+is substituted by interfaces <em>i</em>. <em>i</em> is defined by this rule:
+Take from each packet filter on the path from source to destination that
+interface <em>i</em> which is headed in source direction.<br> This flag can be
+combined with flags dst_net or dst_any to not get the interfaces but the
+corresponding network or 'any' object.
+
+<dt>dst_net<dd>If destination of rule is a host or interface located in
+network <em>n</em> then replace destination by <em>n</em>. Otherwise let
+destination unchanged. Exception: hosts having a vpn id and interfaces of
+manged routers are left unchanged.
+
+<dt>dst_any<dd>First apply rules of flag dst_net above. If destination of rule
+is a network located in 'any' object <em>a</em> then replace destination by
+<em>a</em>. Otherwise let destination unchanged
+
+<dt>src_path, src_net, src_any<dd>Equivalent to dst_* flags but with source
+replaced. 
+</dl>
 
 <H3><A NAME="groups_of_services">Groups of services</A></H3>
 <H4>Syntax</H4>
