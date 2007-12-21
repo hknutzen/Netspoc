@@ -138,9 +138,10 @@ whitespace, no delimiters <CODE>[;,=]</CODE> and no quotes
 <P>Meta symbols in syntax definitions below:</P>
 <UL>
 <LI><code>&lt;xx&gt;</code> denote something defined elsewhere.
-<LI><code>[xx]</code> denotes an optional part.
+<LI><code>[[xx]]</code> denotes an optional part.
+<br>Note: single [ and ] characters stand for themselves.
 <LI><code>{{xx|yy}}</code> denotes alternatives.
-<P>Note: single { and } characters stand for themselves.</P>
+<br>Note: single { and } characters stand for themselves.
 <LI><code>xx *</code> means any number of the left part.
 <li><code>xx, ...</code> means a comma separated list of one or more elements
 of the left part.
@@ -150,12 +151,12 @@ of the left part.
 <H4>Syntax</H4>
 <PRE>
   network:&lt;name&gt; = {
-     [ owner = &lt;external_name&gt;, ... ; ]
+     [[ owner = &lt;external_name&gt;, ... ; ]]
      {{
          ip = &lt;ip-adr&gt;&lt;mask&gt;;
 	 &lt;network NAT definition&gt; *
-         [ route_hint; ]
-	 [ subnet_of = network:&lt;name&gt;; ]
+         [[ route_hint; ]]
+	 [[ subnet_of = network:&lt;name&gt;; ]]
          &lt;host definition&gt; *
      |
          unnumbered
@@ -166,9 +167,9 @@ with
 <pre>
   &lt;network NAT definition&gt; ::=
          nat:&lt;name&gt; = { 
-	  ip = &lt;ip-adr&gt;[&lt;mask&gt;];
-	  [ dynamic; ]
-	  [ subnet_of = network:&lt;name&gt;; ] 
+	  ip = &lt;ip-adr&gt;[[&lt;mask&gt;]];
+	  [[ dynamic; ]]
+	  [[ subnet_of = network:&lt;name&gt;; ]] 
 	 }
 
   &lt;mask&gt; ::= {{/&lt;prefix-lenght&gt; | ; mask = &lt;ip-adr&gt; }}
@@ -198,7 +199,7 @@ redefined by mistake.
 <PRE>
   &lt;host definition&gt; ::=
         host:&lt;name&gt; = { 
-          [ owner = &lt;external_name&gt;, ... ; ]  
+          [[ owner = &lt;external_name&gt;, ... ; ]]  
 	  {{
 	    ip = &lt;ip-adr&gt;, ... ;
           |
@@ -231,13 +232,13 @@ each subnetwork.
   &lt;router definition&gt; ::=
   router:&lt;name&gt; = {
      {{
-        managed [ = {{ full | secondary }} ] ;
+        managed [[ = {{ full | secondary }} ]] ;
         model = &lt;name&gt;;
-	[ no_group_code; ]
-	[ no_crypto_filter; ]
+	[[ no_group_code; ]]
+	[[ no_crypto_filter; ]]
 	&lt;interface definition&gt; *
      |
-        [ model = &lt;name&gt;; ]
+        [[ model = &lt;name&gt;; ]]
         {{ 
            &lt;interface definition&gt; 
         | 
@@ -280,13 +281,13 @@ interface definition".
     interface:&lt;name&gt; = {
          {{ ip = &lt;ip-adr&gt;, ... ; | unnumbered; | negotiated; }}
 	 &lt;secondary interface definition&gt; *
-	 [ &lt;virtual interface definition&gt; ]
+	 [[ &lt;virtual interface definition&gt; ]]
          &lt;NAT definition&gt; *
-         [ &lt;NAT binding&gt; ]
-         [ hardware = &lt;external_name&gt;; ]
-	 [ routing = {{ EIGRP | OSPF | manual }}; ]
-	 [ reroute_permit = network:&lt;name&gt;, ... ; ]
-         [ disabled ; ]
+         [[ &lt;NAT binding&gt; ]]
+         [[ hardware = &lt;external_name&gt;; ]]
+	 [[ routing = {{ EIGRP | OSPF | manual }}; ]]
+	 [[ reroute_permit = network:&lt;name&gt;, ... ; ]]
+         [[ disabled ; ]]
     }
 
   &lt;secondary interface definition&gt; ::=
@@ -298,7 +299,7 @@ interface definition".
     virtual = { 
          ip = &lt;ip-adr&gt;;
          type = {{ VRRP | HSRP }};
-         [ id = &lt;int&gt;; ]
+         [[ id = &lt;int&gt;; ]]
     }
 
   &lt;NAT definition&gt; ::=
@@ -360,7 +361,7 @@ interface definition".
 <H4>Syntax</H4>
 <PRE>
  any:&lt;name&gt; = { 
-     [ owner = &lt;external_name&gt;, ... ; ]
+     [[ owner = &lt;external_name&gt;, ... ; ]]
      link = {{ 
                network:&lt;name&gt;; 
             |  
@@ -382,8 +383,8 @@ intervening networks get access as well.
 <H4>Syntax</H4>
 <PRE>
   area:&lt;name&gt; = {
-   [ owner = &lt;external_name&gt;, ... ; ]
-   [ auto_border; ]
+   [[ owner = &lt;external_name&gt;, ... ; ]]
+   [[ auto_border; ]]
    {{ 
      border = interface:&lt;name&gt;.&lt;name&gt;, ... ; 
    | anchor = network:&lt;name&gt;;
@@ -416,44 +417,49 @@ be choosen.
  &lt;network object&gt; ::=
  {{
    host:&lt;name&gt; 
- | network:&lt;name&gt; 
+ | network:&lt;name&gt;
+ | network:[&lt;object set&gt;] 
+ | any:&lt;name&gt; 
+ | any:[&lt;object set&gt;]
+ | any:[local];
  | interface:&lt;name&gt;.&lt;name&gt; 
  | interface:&lt;name&gt;.[&lt;selector&gt;]; 
- | interface:[&lt;router group&gt;].[&lt;selector&gt;]; 
- | any:&lt;name&gt; 
- | any:[local];
- | network:[area:&lt;name&gt;] 
- | any:[area:&lt;name&gt;]
+ | interface:[&lt;interface set&gt;].[&lt;selector&gt;]; 
  | group:&lt;name&gt; 
  }}
  
- &lt;router group&gt; ::=
-    {{ managed | all }} [ & area:&lt;name&gt;]
+ &lt;object set&gt; ::=
+    &lt;intersection&gt;, ...
+ &lt;intersection&gt ::=
+    &lt;complement&gt; & ...
+ &lt;complement&gt ::= 
+    [[ ! ]] &lt;network object&gt;
+ &lt;interface set&gt; ::=
+    [[ managed & ]] &lt;object set&gt;
  &lt;selector&gt; ::=
     {{ front | back | all }}
 </PRE>
 <UL>
-<LI>Network objects are referenced in groups or as source or destination
+<LI>object sets are used in groups or as source or destination
 of rules.
 <LI>When referencing interfaces, we need to use a different syntax than
 for interface definitions: the router name followed by a network name.
-<li>Special names [auto] and [all] may be used as network part in a
+<li>Special names [front], [back] and [all] may be used as network part in a
 reference to an interface.
 <ul>
- <li>[auto] denotes "the right side" of a router to reach src or
- dst in a rule.
+ <li>When looking at a pair of network objects, [front] denotes that interface
+    of a router where the path to the other object starts. If a router is part
+    of a cyclic subgraph then there can be multiple paths to the other object
+    and [front] can denote multiple interfaces.
  <li>[all] denotes <em>all</em> interfaces of a router.<br>
  But note: Short interfaces (without known IP address) of unmanaged routers
     are excluded. 
+ <li>[back] is [all] without [front].
 </ul>
-<li>Special names [managed] and [all] may be used as router part in a
-reference to an interface.<ul>
-<li>[managed] denotes an implicitly defined group of all
-<em>managed</em> routers. 
-<li>[all] denotes an implicitly defined group of <em>all</em>
-routers.</ul>
-<li>[managed] and [all] can be confined to routers inside an area.<br>
-    E.g. [managed & area:&lt;name&gt;].
+
+<li>[managed & ...] restricts the result to interfaces <em>managed</em>
+routers.
+
 <li>any:[local] may only be used as src or dst in a rule where the counterpart
 is an interface. In this case, any:[local] denotes the 'any' object, which is
 directly attached to this interface.
@@ -461,7 +467,7 @@ directly attached to this interface.
 
 <H3><A NAME="groups_def">Groups of network objects</A></H3>
 <H4>Syntax</H4>
-<PRE> group:&lt;name&gt; = &lt;network object&gt;, ... ;</PRE>
+<PRE> group:&lt;name&gt; = &lt;object set&gt;;</PRE>
 <UL>
 <LI>A group may be empty
 <LI>A group may be defined by means of other groups
@@ -472,13 +478,13 @@ directly attached to this interface.
 <PRE> service:&lt;name&gt; = 
  {{
    ip 
- | tcp [[&lt;range&gt; :] &lt;range&gt]
- | udp [[&lt;range&gt; :] &lt;range&gt]
- | icmp [&lt;int_1&gt;[/&lt;int_2&gt;]] 
+ | tcp [[[[&lt;range&gt; :]] &lt;range&gt]]
+ | udp [[[[&lt;range&gt; :]] &lt;range&gt]]
+ | icmp [[&lt;int_1&gt;[[/&lt;int_2&gt;]]]] 
  | proto &lt;int&gt; 
- }} [&lt;service flag&gt;] ;</PRE>
+ }} [[&lt;service flag&gt;]] ;</PRE>
 <p>with</p>
-<PRE> &lt;range&gt; ::= &lt;int_1&gt;[-&lt;int_2&gt;]
+<PRE> &lt;range&gt; ::= &lt;int_1&gt;[[-&lt;int_2&gt;]]
 </PRE>
 <P>
 <DL>
@@ -576,8 +582,8 @@ replaced.
 <H4>Syntax</H4>
 <PRE>
   policy:&lt;name&gt; = {
-     [ description = &lt;text_to_end_of_line&gt ]
-     user = &lt;network object&gt;, ... ;
+     [[ description = &lt;text_to_end_of_line&gt ]]
+     user = &lt;object set&gt;;
      &lt;policy_rule&gt; * 
   }</PRE>
 <P>with</P>
@@ -587,7 +593,7 @@ replaced.
         src = &lt;policy_object&gt;;
         dst = &lt;policy_object&gt;;
         srv = &lt;service&gt;, ... ;
-  &lt;policy_object&gt; ::= {{ user | &lt;network object&gt;, ... ; }}</PRE>
+  &lt;policy_object&gt; ::= {{ user | &lt;object set&gt; }};</PRE>
 <UL>
 <LI>Order of rules doesn't matter.
 <LI>Deny rules override all permit rules.
@@ -602,7 +608,7 @@ must be used either as src or dst or both parts of a rule.
 <H4>Syntax</H4>
 <PRE> 
  pathrestriction:&lt;name&gt; = 
-   [ description = &lt;text_to_end_of_line&gt ]
+   [[ description = &lt;text_to_end_of_line&gt ]]
    interface:&lt;name&gt;.&lt;name&gt;, ... ;</PRE>
 <ul>
  <li>Path restrictions are used to restrict paths inside cyclic
@@ -623,7 +629,7 @@ must be used either as src or dst or both parts of a rule.
  nat:&lt;name&gt; = { 
    ip = &lt;ip-adr&gt;&lt;mask&gt;; 
    dynamic;
-   [ subnet_of = network:&lt;name&gt;; ] 
+   [[ subnet_of = network:&lt;name&gt;; ]] 
  }</PRE>
 with <code>&lt;mask&gt;</code> defined as 
 <a href="#network_definition">above</a>.
@@ -829,20 +835,20 @@ rules are silently discarded.</P>
 <h3><a name="crypto_syntax">Syntax</a></h3>
 <pre>
   crypto:&lt;name&gt; = {
-     [ description = &lt;text_to_end_of_line&gt ]
+     [[ description = &lt;text_to_end_of_line&gt ]]
      type = ipsec:&lt;name&gt;;
-     [ hub = &lt;network object&gt;, ... ;
-       spoke = &lt;network object&gt;, ... ;
-     ]
-     mesh = &lt;network object&gt;, ... ; *
+     [[ hub = &lt;object set&gt;;
+       spoke = &lt;object set&gt;;
+     ]]
+     mesh = &lt;object set&gt;; *
      &lt;crypto_rule&gt; * 
   }</PRE>
 <P>with</P>
 <PRE>
   &lt;crypto_rule&gt; ::=
   {{ permit | deny }}
-        src = &lt;network object&gt;, ... ;
-        dst = &lt;network object&gt;, ... ;
+        src = &lt;object set&gt;;
+        dst = &lt;object set&gt;;
         srv = &lt;service&gt;, ... ;
 </PRE>
 
@@ -924,7 +930,7 @@ using IPSec tunnels.
 <dt>additional syntax for hosts
 <dd> host:id:certificate-name
 <dt>additional attribute for network
-<dd> id=&lt;user[@domain]&gt;
+<dd> id=&lt;user[[@domain]]&gt;
 <dt>additional optional attribute at host with id, network with id, network having id hosts and router of type vpn3k
 <dd> radius_attributes={&lt;key&gt;=&lt;value&gt;;*}
 </dl>
