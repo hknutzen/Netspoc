@@ -3376,17 +3376,19 @@ sub expand_group1( $$ ) {
 		}
 	    }
 	    @non_compl == 1 
-		or err_msg "Intersection currently needs exactly one element",
+		or err_msg "Intersection needs exactly one element",
 		" which is not complement in $context";
 	    my $type;
 	    my %result;
-	    for my $element (@{expand_group1([ $non_compl[0] ], 
-					     "non complement in $context")}) 
+	    for my $element (@{expand_group1
+				   [ $non_compl[0] ], 
+				   "non complement in intersection of $context"
+			       }) 
 	    {
 		if($type) {
 		    ref $element eq $type
-			or err_msg 
-			"All elements must be of same type in $context";
+			or err_msg "All elements must be of same type",
+			           " in intersection of $context";
 		}
 		else {
 		    $type = ref $element;
@@ -3397,15 +3399,21 @@ sub expand_group1( $$ ) {
 	    # No need to delete elements if set is empty.
 	    return if not $type;
 
-	    for my $element (@{expand_group1(\@compl, 
-					     "complement in $context")}) 
+	    for my $element (@{expand_group1
+				   \@compl, 
+				   "complement in intersection of $context"
+			       }) 
 	    {
 		ref $element eq $type
-		    or err_msg 
-		    "All elements must be of same type in $context";
+		    or err_msg "All elements must be of same type",
+		               " in intersection of $context";
 		delete $result{$element};
 	    }
 	    push @objects, values %result;
+	}
+	elsif($type eq '!') {
+	    err_msg 
+		"Complement (!) ist only supported as part of intersection";
 	}
 	elsif($type eq 'interface') {
 	    if(ref $name) {
