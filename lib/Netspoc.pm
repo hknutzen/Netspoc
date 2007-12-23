@@ -2145,6 +2145,7 @@ sub read_file( $$ ) {
     open FILE, $file or die "Can't open $file: $!\n";
 
     # Fill buffer with content of whole FILE.
+    # Content is implicity freed when subroutine is left.
     local $input = <FILE>;
     close FILE;
     local $line = 1;
