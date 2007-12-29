@@ -3367,46 +3367,65 @@ sub expand_group1( $$ ) {
 	if($type eq '&') {
 	    my @non_compl;
 	    my @compl;
-	    for my $element (@$name) {
-		if($element->[0] eq '!') {
-		    push @compl, $element->[1];
-		}
-		else {
-		    push @non_compl, $element;
-		}
-	    }
-	    @non_compl == 1 
-		or err_msg "Intersection needs exactly one element",
-		" which is not complement in $context";
 	    my $type;
-	    my %result;
-	    for my $element (@{expand_group1
-				   [ $non_compl[0] ], 
-				   "non complement in intersection of $context"
-			       }) 
-	    {
-		if($type) {
-		    ref $element eq $type
-			or err_msg "All elements must be of same type",
-			           " in intersection of $context";
+	    for my $element (@$name) {
+		my $element1 = $element->[0] eq '!' ? $element->[1] : $element;
+		my @elements = 
+		    map {
+			
+			# any:[local]
+			if(not ref $_) {
+			    err_msg 
+				"$_ not allowed in intersection of $context";
+			    ();
+			}
+			elsif(ref $_ eq 'Autointerface') {
+			    err_msg 
+				"$_->{name} not allowed in intersection of",
+				" $context";
+			    ();
+			}
+			elsif($type and ref $_ ne $type) {
+			    err_msg 
+				"All elements must be of same type",
+				" in intersection of $context";
+			    ();
+			}
+			else {
+			    $type = ref $_;
+			    $_;
+			}
+		    }
+		@{expand_group1([ $element1 ], "intersection of $context")};
+
+		if($element->[0] eq '!') {
+		    push @compl, @elements;
 		}
 		else {
-		    $type = ref $element;
+		    push @non_compl, \@elements;
 		}
-		$result{$element} = $element;
 	    }
-
-	    # No need to delete elements if set is empty.
-	    return if not $type;
-
-	    for my $element (@{expand_group1
-				   \@compl, 
-				   "complement in intersection of $context"
-			       }) 
-	    {
-		ref $element eq $type
-		    or err_msg "All elements must be of same type",
-		               " in intersection of $context";
+	    @non_compl >= 1 
+		or err_msg "Intersection needs at least one element",
+		" which is not complement in $context";
+	    my %result;
+	    if(@non_compl > 1) {
+		my %hash;
+		for my $element (@{pop @non_compl}) {
+		    $hash{$element} = $element;
+		}
+		for my $element (map { @$_ } @non_compl) {
+		    if($hash{$element}) {
+			$result{$element} = $element;
+		    }
+		}
+	    }
+	    else {
+		for my $element (@{$non_compl[0]}) {
+		    $result{$element} = $element;
+		}
+	    }
+	    for my $element (@compl) {
 		delete $result{$element};
 	    }
 	    push @objects, values %result;
@@ -3589,7 +3608,7 @@ sub expand_group1( $$ ) {
 	    }
 	}
 
-	# A object named simply type:name.
+	# An object named simply 'type:name'.
 	elsif(my $object = $name2object{$type}->{$name}) {
 
 	    $ext and 
@@ -3617,7 +3636,7 @@ sub expand_group1( $$ ) {
 		    # Cache result for further references to the same group.
 		    $object->{elements} = $elements;
 		}
-		push @objects, @$elements;
+		push @objects, @$elements if $elements;
 	    }
 	    else {
 		push @objects, $object;
