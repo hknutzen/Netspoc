@@ -522,7 +522,7 @@ sub read_typed_name() {
 		skip '&';
 		$name = [ read_expr_list \&read_intersection ];
 	    }
-	    elsif($type eq 'any' && check 'local') {
+	    elsif($type =~ /^(network|any)$/ && check 'local') {
 		$name = [ 'local' ];
 		skip '\]';
 	    }
@@ -537,8 +537,11 @@ sub read_typed_name() {
 	    skip '\.';
 	    if(check '\[') {
 		my $selector = read_identifier;
+
+		# Convert 'auto' to 'front' 
+		# for compatibility with older versions.
 		$selector =~ s/^auto$/front/;
-		$selector =~/^(front|back|all)/
+		$selector =~/^(front|back|all)$/
 		    or syntax_err "Expected [front|back|all]";
 		$ext = [ $selector, $managed ];
 		skip '\]';
@@ -2210,6 +2213,7 @@ sub is_servicegroup( $ ) { ref($_[0]) eq 'Servicegroup'; }
 sub is_objectgroup( $ )  { ref($_[0]) eq 'Objectgroup'; }
 sub is_chain( $ )        { ref($_[0]) eq 'Chain'; }
 sub is_autointerface( $ ){ ref($_[0]) eq 'Autointerface'; }
+sub is_local( $ )        { ref($_[0]) eq 'Local'; }
 
 # Get VPN id of network object, if available.
 sub get_id( $ ) {
@@ -3372,14 +3376,7 @@ sub expand_group1( $$ ) {
 		my $element1 = $element->[0] eq '!' ? $element->[1] : $element;
 		my @elements = 
 		    map {
-			
-			# any:[local]
-			if(not ref $_) {
-			    err_msg 
-				"$_ not allowed in intersection of $context";
-			    ();
-			}
-			elsif(ref $_ eq 'Autointerface') {
+			if(ref $_ =~ /Local|Autointerface/) {
 			    err_msg 
 				"$_->{name} not allowed in intersection of",
 				" $context";
@@ -3558,8 +3555,19 @@ sub expand_group1( $$ ) {
 	    }
 	}
 	elsif(ref $name) {
+	    $type =~ /^(network|any)$/
+		or err_msg "Unexpected '$type:[..]' in $context";
+
+	    # network:[local], any:[local]
+	    if(@$name == 1 and $name->[0] eq 'local') {
+		push @objects, new('Local', 
+				   name => "$type:[local]", 
+				   what => $type);
+		next;
+	    }
+
+	    my $sub_objects = expand_group1 $name, "$type:[..] of $context";
 	    if($type eq 'network') {
-		my $sub_objects = expand_group1 $name, "network:[..] of $context";
 		for my $object (@$sub_objects) {
 		    my $type = ref $object;
 		    if($type eq 'Area') {
@@ -3579,11 +3587,6 @@ sub expand_group1( $$ ) {
 		}
 	    }
 	    elsif ($type eq 'any') {
-		if(@$name == 1 and $name->[0] eq 'local') {
-		    push @objects, 'any:[local]';
-		    next;
-		}
-		my $sub_objects = expand_group1 $name, "any:[..] of $context";
 		for my $object (@$sub_objects) {
 		    my $type = ref $object;
 		    if($type eq 'Area') {
@@ -3602,9 +3605,6 @@ sub expand_group1( $$ ) {
 			err_msg "Unexpected type '$type' in any:[..] of $context";
 		    }
 		}
-	    }
-	    else {
-		err_msg "Unexpected type '$type:[..]' in $context";
 	    }
 	}
 
@@ -3654,9 +3654,6 @@ sub expand_group( $$;$ ) {
     my ($obref, $context, $convert_hosts) = @_;
     my $aref = expand_group1 $obref, $context;
     for my $object (@$aref) {
-
-        # Ignore "any:[local]".
-        next unless ref $object;
         if ($object->{disabled}) {
             $object = undef;
         }
@@ -3874,42 +3871,13 @@ sub get_any( $ ) {
     elsif ($type eq 'Host') {
         $result = $obj->{network}->{any};
     }
-    elsif ($obj eq 'any:[local]') {
+    elsif ($type eq 'Local') {
         $result = $obj;    # A value, not equal to any other security domain.
     }
     else {
         internal_err "unexpected $obj->{name}";
     }
     $obj2any{$obj} = $result;
-}
-
-# Return associated 'any' object of an interface.
-# Give error message if no interface is provided.
-sub get_any_local ( $$ ) {
-    my ($obj, $context) = @_;
-    if (is_interface $obj and $obj->{router}->{managed}) {
-        return $obj->{any};
-    }
-    else {
-        my $name;
-	my $addendum = '';
-	if($obj eq 'any:[local]') {
-	    $name = $obj;
-	}
-	elsif(is_autointerface $obj) {
-	    $name = $obj->{name};
-	    $addendum = ' distinct';
-	}
-	else {
-	    $name = $obj->{name};
-	}
-        err_msg "any:[local] must only be used in conjunction",
-	  " with a$addendum managed interface\n", 
-	  " but not with $name in rule of $context";
-
-        # No value to prevent further errors.
-        return ();
-    }
 }
 
 sub path_walk( $$;$ );
@@ -3934,13 +3902,25 @@ sub get_networks ( $ ) {
 sub expand_special ( $$$$ ) {
     my ($src, $dst, $flags, $context) = @_;
     my @result;
-    if($src eq 'any:[local]') {
-	return get_any_local $dst, $context;
+    if(is_local $src) {
+	if (is_interface $dst and $dst->{router}->{managed}) {
+
+	    # Associated network or 'any' object of interface.
+	    return $dst->{$src->{what}};
+	}
+	else {
+	    err_msg "$src->{name} must only be used in conjunction",
+	            " with a distinct managed interface\n", 
+	            " but not with $dst->{name} in rule of $context";
+
+	    # No value, to prevent further errors.
+	    return ();
+	}
     }
-    if(is_autointerface $src) {
-	if($dst eq 'any:[local]') {
-	    err_msg "'any:[local]' must not be used together",
-	      " with $src->{name} in rule of $context";
+    elsif(is_autointerface $src) {
+	if(is_local $dst) {
+
+	    # Error has already been reported above with swapped src and dst.
 	    return ();
 	}
 	else {
@@ -3964,8 +3944,8 @@ sub expand_special ( $$$$ ) {
 	@result = ($src);
     }
     if($flags->{path}) {
-	if($dst eq 'any:[local]') {
-	    err_msg "'any:[local]' must not be used in rule with\n",
+	if(is_local $dst) {
+	    err_msg "$dst->{name} must not be used in rule with\n",
 	            " service having flag src_path or dst_path in $context";
 	    return ();
 	}
@@ -4050,15 +4030,10 @@ sub expand_special ( $$$$ ) {
 }
 
 # This handles a rule between objects inside a single security domain or
-# between interfaces of a single managed router or between two instances of
-# 'any:[local]'.
+# between interfaces of a single managed router.
 sub warn_unenforceable ( $$$$ ) {
     my ($src, $dst, $domain, $context) = @_;
 
-    if ($src eq 'any:[local]') {
-        err_msg "'any:[local]' is used as src and dst in $context";
-        return;
-    }
     return if not $check_unenforceable;
 
     # A rule between identical objects is a common case
