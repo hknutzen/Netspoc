@@ -1377,11 +1377,9 @@ sub read_interface( $ ) {
                 syntax_err 'Expected some valid attribute';
             }
         }
-        unless ($interface->{ip}) {
-            error_atline "Missing IP address";
-        }
+        $interface->{ip} ||= 'short';
         if ($interface->{nat}) {
-            if ($interface->{ip} =~ /unnumbered|negotiated/) {
+            if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
                 error_atline "No NAT supported for $interface->{ip} interface";
             }
         }
@@ -1394,17 +1392,17 @@ sub read_interface( $ ) {
 		my $attr = join ", ", map "'$_'", keys %copy;
 		error_atline "Invalid attributes $attr for loopback interface";
 	    }
-	    if ($interface->{ip} =~ /unnumbered|negotiated/) {
+	    if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
                 error_atline "Loopback interface must not be $interface->{ip}";
             }
 	}
         if ($interface->{virtual} 
-            and $interface->{ip} =~ /unnumbered|negotiated/) {
+            and $interface->{ip} =~ /unnumbered|negotiated|short/) {
               error_atline 
                   "No virtual IP supported for $interface->{ip} interface";
 	}
 	if ($interface->{auto_crypto}) {
-	    if ($interface->{ip} =~ /unnumbered|negotiated/) {
+	    if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
                 error_atline "No auto_crypto supported for",
 		" $interface->{ip} interface";
             }
