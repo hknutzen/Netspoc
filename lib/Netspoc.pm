@@ -3,7 +3,7 @@
 =head1 Netspoc, a Network Security Policy Compiler
 
 http://netspoc.berlios.de
-(c) 2007 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+(C) 2008 by Heinz Knutzen <heinzknutzen@users.berlios.de>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
