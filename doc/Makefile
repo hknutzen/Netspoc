@@ -17,6 +17,12 @@ netspoc.html: netspoc.pod
 CSPM.html: CSPM.pod
 	pod2html CSPM.pod >CSPM.html
 
+newpolicy: newpolicy.c
+
+append-commitlog: append-commitlog.c
+
+suid-cvs: suid-cvs.c
+
 current := $(shell cat VERSION)
 tar-file := $(current).tar.gz
 cwd := $(shell pwd)
