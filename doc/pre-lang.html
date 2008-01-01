@@ -52,7 +52,7 @@ describe network traffic which can or must not pass from source to
 destination.
 <li>All rules of a single policy must refer to the same network
 objects in their source or destination.
-<li>Policies have a name which may be used for documentation or
+<li>Policies have a name which can be used for documentation or
 reporting purposes.
 </ul>
 
@@ -106,20 +106,20 @@ encryption method. Currently only IPSec is supported.
 </ol>
 
 Crypto definitions are very powerful: A large number of crypto tunnels of
-either a hub and spoke topology or a fully meshed topology may be defined
+either a hub and spoke topology or a fully meshed topology can be defined
 easily. 
 
 <H2>Detailed description of network objects</H2>
 <P>The topology is built from networks and routers.
 A router and a network are connected by an interface.
-Networks may have any number of hosts, which are located inside the
+Networks can have any number of hosts, which are located inside the
 network.</P>
-<P>Routers may be managed or unmanaged. For a managed router, NetSPoC
+<P>Routers can be managed or unmanaged. For a managed router, NetSPoC
 generates access control lists which control what traffic can pass
 this router and what traffic is blocked.
 The whole topology is partitioned into different security domains by
 managed routers.</P>
-<P>Special network objects called 'any' objects may
+<P>Special network objects called 'any' objects can
 be defined which denote all network objects inside a security domain.</P>
 
 <H3>General syntax</H3>
@@ -131,7 +131,7 @@ i.e. accented characters are allowed for European locale settings.</P>
 addresses n.n.n.n with 0 &lt;= n &lt;= 255</P>
 <p>&lt;text_to_end_of_line&gt; is any text from current position up to end of
 line.</p>
-<P>&lt;external_name&gt; may contain almost any characters, but not
+<P>&lt;external_name&gt; can contain almost any characters, but not
 whitespace, no delimiters <CODE>[;,=]</CODE> and no quotes 
 <CODE>[&quot;']</CODE>.</P> 
 <P>&lt;int&gt; is an integer</P>
@@ -177,8 +177,8 @@ with
 </pre>
 <UL>
 <LI>A network is described by an ip address and a mask or
-<LI>may alternatively be marked as unnumbered.
-<LI>It may contain any number of host definitions.
+<LI>can alternatively be marked as unnumbered.
+<LI>It can contain any number of host definitions.
 <LI>Unnumbered networks must have no host definitions at all.
 <LI>If used as source or destination of a rule, the ip/mask is used
 directly for generating ACLs.
@@ -186,11 +186,11 @@ directly for generating ACLs.
 <LI>All networks must be disjunct if option 'strict_subnets' is
 active. Exceptions must be declared explictly:
 <UL>
-<LI>route_hint: This network may enclose other networks, but it must
+<LI>route_hint: This network can enclose other networks, but it must
 not have host definitions.
 <LI>subnet_of: The enclosing network must be stated explicitly.
 </UL>
-This may be useful for a large topology, where a network may easily be
+This can be useful for a large topology, where a network can easily be
 redefined by mistake.
 </UL>
 
@@ -213,7 +213,7 @@ redefined by mistake.
 </PRE>
 
 <UL>
-<LI>A host may only be defined inside a network definition.
+<LI>A host can only be defined inside a network definition.
 <LI>It has one or more IP addresses or
 <LI>alternatively an ip address range with first address &lt; second address
 <LI>IP addresses must match ip/mask of the surrounding network.
@@ -247,8 +247,8 @@ each subnetwork.
      }}
   }</PRE>
 <UL>
-<li>A router may be managed or unmanaged.
-<li>Managed routers may be of type 'full' or of type 'secondary'. A
+<li>A router can be managed or unmanaged.
+<li>Managed routers can be of type 'full' or of type 'secondary'. A
 type 'full' is assumed, if no value is given. See <A
 HREF="#secondary">secondary packet filters</A> below for a detailed
 description. 
@@ -268,7 +268,7 @@ optimization.
 for filtering incoming traffic of crypto tunnels. Use
 attribute <code>no_crypto_filter</code> to enable the old behavior where
 crypto traffic is filtered by access-lists of interfaces.
-<LI>A Router may have any number of interface definitions.
+<LI>A Router can have any number of interface definitions.
 <LI>For unmanaged routers, all attributes are optional.
 <li>An interface definition without attributes is called a "short
 interface definition".
@@ -284,9 +284,10 @@ interface definition".
 	 [[ &lt;virtual interface definition&gt; ]]
          &lt;NAT definition&gt; *
          [[ &lt;NAT binding&gt; ]]
-         [[ hardware = &lt;external_name&gt;; ]]
-	 [[ routing = {{ EIGRP | OSPF | manual }}; ]]
+         [[ hardware = &lt;external_name&gt; ; ]]
+	 [[ routing = {{ EIGRP | OSPF | manual }} ; ]]
 	 [[ reroute_permit = network:&lt;name&gt;, ... ; ]]
+	 [[ loopback ; ]]
          [[ disabled ; ]]
     }
 
@@ -315,13 +316,13 @@ interface definition".
 <LI>Interfaces have no name of their own; instead a network name is used
   to indicate that the interface is linked to a network of the same
   name.
-<LI>An interface may have one or more IP addresses. All of them must
+<LI>An interface can have one or more IP addresses. All of them must
   match the IP/mask of the corresponding network.
 <LI>An unnumbered interface must only be linked to an unnumbered network.
 <li>A negotiated interface has an unknown IP address out of the attached
   network. If an interface with negotiated IP is used in a rule, the address
   range of the attached network is used.
-<li>Additional IP addresses may be defined using a secondary
+<li>Additional IP addresses can be defined using a secondary
   interface. A secondary interface is referenced as
   <code>interface:&lt;router-name&gt;.&lt;network-name&gt;.&lt;secondary-name&gt;</code>
 <li>
@@ -334,8 +335,8 @@ interface definition".
   protocol. See <a name="#virtual"> Virtual interfaces</a> for details.
 <LI>The 'hardware' attribute indicates, which hardware interface the router
   belongs to. This attribute is mandatory for managed routers.
-<LI>Multiple interfaces may belong to the same hardware interface.
-<li>A routing protocol may be activated for an interface. In this
+<LI>Multiple interfaces can belong to the same hardware interface.
+<li>A routing protocol can be activated for an interface. In this
  case, generation of static routing entries is disabled for this
  interface and access control lists for this interface are automatically
  augmented to permit incoming packets of the routing
@@ -344,17 +345,26 @@ interface definition".
   other means has to be used to configure routing for this interface.
 <li> For a description of attribute 'reroute_permit', 
  see <a href="#rerouting">Rerouting inside of security domains</a> below.
-<LI>An interface may be marked as disabled.
+
+ <li> Use attribute 'loopback' to define a loopback interface. A
+ loopback interface is not linked to a network, but only used as an
+ additional address of a router. Loopback interfaces of different
+ routers may share the same name, e.g. interface:r1.loop and
+ interface:r2.loop.
+
+<LI>An interface can be marked as disabled.
   See <A HREF="#disabling">Disabling part of the topology</A> below.
 <LI>For interface definitions of unmanaged routers all attributes
-  may be left out.
+  can be left out.
 <li>An interface definition without any attributes is called a "short
   interface definition".
-<li> A short interface may only be used if there is no managed
+<li> A short interface can only be used if there is no managed
   interface with static routing enabled in the same network. We need
   this requirement for getting all routing entries generated.
-<LI>If used as source or destination of a rule an interface is handled
-  like a host.
+
+<LI>An interface is handled like a host if it is used as source or
+  destination of a rule.
+
 </UL>
 
 <H3><A NAME="any_definition">'Any' object definition</A></H3>
@@ -386,7 +396,7 @@ intervening networks get access as well.
    [[ owner = &lt;external_name&gt;, ... ; ]]
    [[ auto_border; ]]
    {{ 
-     border = interface:&lt;name&gt;.&lt;name&gt;, ... ; 
+     border = &lt;object set&gt; ; 
    | anchor = network:&lt;name&gt;;
    }}
   }</pre>
@@ -402,7 +412,7 @@ with attribute <code>auto_border</code> which restricts the area to the border
 of other areas. 
 
 <li>Use attribute <code>anchor</code> without <code>auto_border</code> to
-define an area which streches across the whole topology.
+define an area which stretches across the whole topology.
 
 <li>Exactly one attribute of <code>border</code> and <code>anchor</code> must
 be choosen.
@@ -411,67 +421,149 @@ be choosen.
 
 </ul>
 
-<H3><A NAME="referencing">Referencing network objects</A></H3>
+<H3><A NAME="referencing">Referencing single or sets of network objects</A></H3>
 <H4>Syntax</H4>
 <PRE>
+ &lt;object set&gt; ::= 
+    {{ &lt;network object&gt; | &lt;intersection&gt; }} , ...
+ &lt;intersection&gt ::= 
+    &lt;network object&gt;  &  &lt;complement&gt; [[ & &lt;complement&gt; ...]]
+ &lt;complement&gt ::=
+    [[!]] &lt;network object&gt;
+
  &lt;network object&gt; ::=
  {{
    host:&lt;name&gt; 
  | network:&lt;name&gt;
- | network:[&lt;object set&gt;] 
  | any:&lt;name&gt; 
- | any:[&lt;object set&gt;]
- | any:[local];
- | interface:&lt;name&gt;.&lt;name&gt; 
- | interface:&lt;name&gt;.[&lt;selector&gt;]; 
- | interface:[&lt;interface set&gt;].[&lt;selector&gt;]; 
+ | interface:&lt;name&gt;.&lt;name&gt;[[.&lt;name&gt;]]
+ | network:[local]
+ | any:[local]
  | group:&lt;name&gt; 
+ | &lt;auto group&gt;
  }}
- 
- &lt;object set&gt; ::=
-    &lt;intersection&gt;, ...
- &lt;intersection&gt ::=
-    &lt;complement&gt; & ...
- &lt;complement&gt ::= 
-    [[ ! ]] &lt;network object&gt;
- &lt;interface set&gt; ::=
-    [[ managed & ]] &lt;object set&gt;
- &lt;selector&gt; ::=
-    {{ front | back | all }}
 </PRE>
 <UL>
-<LI>object sets are used in groups or as source or destination
+
+<LI>An &lt;object set&gt; is used to define a set of elements. 
+
+<li>In the simplest case it is the union of comma separated
+&lt;network object&gt;s. 
+
+<li>More complicated sets can be build using intersection and
+complement. There are two restrictions:
+
+<ol>
+<li>At least one subexpression must not be complemented.
+<li>All elements of the subexpressions must be of same type.
+</ol>
+
+Intersection and complement is typically used to remove some elements
+from a given group of elements.
+
+<li>&lt;object set&gt;s are used in groups or as source or destination
 of rules.
-<LI>When referencing interfaces, we need to use a different syntax than
-for interface definitions: the router name followed by a network name.
-<li>Special names [front], [back] and [all] may be used as network part in a
+
+<li> Hosts, networks and 'any' objects are referenced by the name of
+their respective definition.
+
+<LI>When referencing interfaces, we need to use a different syntax
+than for interface definitions: the router name followed by a network
+name.  
+
+<li>The name for referencing secondary interfaces has three parts: the
+router name, the network name and the name of the secondary interface
+from its definition.
+
+<li>network:[local] denotes the network, which is directly attached to
+an interface. This can only be used as source or destination in a rule
+where the counterpart is an interface.
+
+<li>any:[local] is similar to network:[local] but denotes the 'any' object.
+
+<li>A reference to a group is substituted by the elements of the <a
+href="#groups_def">group definition</a>.
+
+<li>So called <a href="#auto_group">automatic groups</a> are used to
+reference network objects from particular parts of the topology.
+
+</UL>
+
+<h3><a name="auto_group">Automatic groups</a></h3>
+<H4>Syntax</H4>
+<PRE>
+
+ &lt;auto group&gt; ::=
+ {{
+   interface:&lt;name&gt;.[&lt;selector&gt;]
+ | interface:[ [[ managed & ]] &lt;object set with area&gt;].[&lt;selector&gt;]
+ | network:[&lt;object set with area&gt;] 
+ | any:[&lt;object set with area&gt;]
+ }}
+
+ &lt;selector&gt; ::= {{ front | back | all }}
+ &lt;object set with area&gt; is like &lt;object set&gt; 
+   but with additional area:&lt;name&gt; in &lt;network object&gt;
+</PRE>
+<UL>
+
+<li>Special names [front], [back] and [all] can be used as network part in a
 reference to an interface.
 <ul>
  <li>When looking at a pair of network objects, [front] denotes that interface
     of a router where the path to the other object starts. If a router is part
-    of a cyclic subgraph then there can be multiple paths to the other object
-    and [front] can denote multiple interfaces.
+    of a cyclic subgraph then there can be multiple paths to the other object.
+    In this case [front] denotes multiple interfaces.
  <li>[all] denotes <em>all</em> interfaces of a router.<br>
  But note: Short interfaces (without known IP address) of unmanaged routers
     are excluded. 
  <li>[back] is [all] without [front].
 </ul>
 
-<li>[managed & ...] restricts the result to interfaces <em>managed</em>
+<li>[managed & ...] restricts the result to interfaces of <em>managed</em>
 routers.
 
-<li>any:[local] may only be used as src or dst in a rule where the counterpart
-is an interface. In this case, any:[local] denotes the 'any' object, which is
-directly attached to this interface.
+<li><code>interface</code>, <code> network </code> or <code> any
+</code> applied to a set of objects is equivalent to applying these to
+the single elements and taking the union of results. E.g. <code>
+network:[host:a, host:b] </code> is equivalent to <code> network:[host:a],
+network:[host:b] </code>.
+
+<li><code>interface:[network:x].[&lt;selector&gt;]</code> takes
+interfaces of the network:x.
+
+<li><code>interface:[interface:x.y].[&lt;selector&gt;]</code> is
+equivalent to <code>interface:x.&lt;selector&gt;</code>.
+
+<li><code>interface:[area:x].[&lt;selector&gt;]</code> takes
+interfaces which are located <em>inside</em> area:x.<br>Note: Border
+interfaces are left out.
+
+<li><code>network:[interface:x.y]</code> takes the network attached to
+interface:x.y.
+
+<li><code>network:[host:x]</code> takes the network where host:x is located.
+
+<li><code>network:[network:x]</code> is equivalent to
+<code>network:x</code>.
+
+<li><code>any:[interface:x.y], any:[host:x], any:[network:x],
+any:[any:x]</code> takes the security domain where the inner object is
+located.
+
+<li>Auto interfaces, i.e. with selector [front] or [back] must only be
+  used at toplevel and not as inner object of other automatic
+  groups. There is one exception from this rule: <code>
+  interface:[interface:x.[s1]].[s2] </code> is
+  allowed. In this case the inner selector s1 is ignored and the outer
+  selector s2 is used.
+
 </UL>
 
 <H3><A NAME="groups_def">Groups of network objects</A></H3>
-<H4>Syntax</H4>
-<PRE> group:&lt;name&gt; = &lt;object set&gt;;</PRE>
-<UL>
-<LI>A group may be empty
-<LI>A group may be defined by means of other groups
-</UL>
+<H4>Syntax</H4> <PRE> group:&lt;name&gt; = &lt;object set&gt;;</PRE>
+<UL> <LI>A group can be empty <LI>A group can be defined by means of
+other groups </UL>
 
 <H3><A NAME="services">Services</A></H3>
 <H4>Syntax</H4>
@@ -537,7 +629,7 @@ destination port
 
 <h4>Service flags</h4>
 
-One or more &lt;service flag&gt;s may optionally be appended to a service
+One or more &lt;service flag&gt;s can optionally be appended to a service
 definition. A &lt;service flag&gt; modifies the rule in which the
 corresponding service is used as follows.
 
@@ -574,8 +666,8 @@ replaced.
 <PRE>
   &lt;service&gt; ::= {{ service:&lt;name&gt; | servicegroup:&lt;name&gt; }}</PRE>
 <UL>
-<LI>A servicegroup may be empty.
-<LI>A servicegroup may be defined by means of other servicegroups.
+<LI>A servicegroup can be empty.
+<LI>A servicegroup can be defined by means of other servicegroups.
 </UL>
 
 <H3><A NAME="policies_def">Policies</A></H3>
@@ -609,13 +701,14 @@ must be used either as src or dst or both parts of a rule.
 <PRE> 
  pathrestriction:&lt;name&gt; = 
    [[ description = &lt;text_to_end_of_line&gt ]]
-   interface:&lt;name&gt;.&lt;name&gt;, ... ;</PRE>
+   &lt;object set&gt; ;</PRE>
 <ul>
  <li>Path restrictions are used to restrict paths inside cyclic
   subgraphs of the topology.
  <li>All paths running through two or more interfaces belonging to the
   same path restriction are discarded i. e. marked as invalid.
- <li>Only interfaces of managed routers may be referenced.
+ <li>Only interfaces of managed routers can be used to define a 
+     pathrestriction .
  <li>Path restrictions must not be used to discard <em>all</em> paths
   between some source / destination pair. Use a policy with deny rules
   instead.
@@ -634,7 +727,7 @@ must be used either as src or dst or both parts of a rule.
 with <code>&lt;mask&gt;</code> defined as 
 <a href="#network_definition">above</a>.
 
-<p>A global NAT definition may be used as a shortcut for applying multiple
+<p>A global NAT definition can be used as a shortcut for applying multiple
 identical dynamic NAT definitions to all networks in some area. See <a
 href="#NAT">network address translation</a> for details.
 
@@ -653,11 +746,11 @@ original network. The translation is automatically applied to all host and
 interface definitions of the translated network. A separate NAT
 definition for hosts or interfaces is not possible in this case.
 
-<p>For dynamic NAT, the translated address may use a different netmask than
+<p>For dynamic NAT, the translated address can use a different netmask than
 the original network. Typically a smaller network is used for translation. IP
 addresses are translated dynamically, hence hosts and interfaces of this
 network are not visible from outside. But a dynamic translation of a network
-may be augmented with static translations for single hosts or interfaces of
+can be augmented with static translations for single hosts or interfaces of
 this network.
 
 <p>Syntax for NAT is divided into two parts:
@@ -702,14 +795,14 @@ that interface where the NAT binding with the same name occurs. We are
 defining <em>behind an interface</em> as that part of the topology
 which is seen when looking from the router to that interface.
 
-<p>Multiple NAT definitions may be given for a single network. These are bound
+<p>Multiple NAT definitions can be given for a single network. These are bound
 to different interfaces to make different NAT definitions effective at
 different parts of the topology.
 
-<p>For dynamic NAT, multiple networks may use identical NAT definitions. This
+<p>For dynamic NAT, multiple networks can use identical NAT definitions. This
 is used to masquerade multiple networks to a single address space.
 
-<p>A global NAT definition may be used as a shortcut for applying multiple
+<p>A global NAT definition can be used as a shortcut for applying multiple
 identical dynamic NAT definitions to all networks located <em>before</em> that
 interface where the NAT binding with this name occurs.
 
@@ -723,7 +816,7 @@ interface where the NAT binding with this name occurs.
 </ol>
 
 <h2><a name="secondary">Secondary packet filters</a></h2>
-In a given topology we may get chains of managed packet filters
+In a given topology we can get chains of managed packet filters
 on the path from src to dst. Each packet filter is a "full" packet
 filter by default, which does full filtering for each rule 
 again and again.<br>
@@ -737,7 +830,7 @@ right src and goes to the right dst.<br>
 If, for a given rule, there is a chain of secondary packet filters without a
 full packet filter, all devices do full filtering.<br>
 A secondary packet filter is declared with attribute
-"managed = secondary". This may be useful if a router has not
+"managed = secondary". This can be useful if a router has not
 enough memory for storing a complete set of filter rules and most of
 the packets get fully filtered already by some other managed device.
 <h2><a name="routing">Routing</a></h2>
@@ -757,7 +850,7 @@ filters implicitly allow answer packets back to the source. If an
 of this 'any' object are generated.
 
 <h4>Default route</h4>
-<p>A default route may be defined for a topology by placing a network
+<p>A default route can be defined for a topology by placing a network
 with IP address and mask equal 0.0.0.0. Such a network must have an
 attribute "route_hint".
 
@@ -767,7 +860,7 @@ entries.
 <ul>
 <li>At each managed device, a default route is automatically inserted such
 that it replaces the maximum number of routing entries. 
-<li>This behavior may be switched on or off by option --auto_default_route.
+<li>This behavior can be switched on or off by option --auto_default_route.
 <li>This option must be switched off, if a user defined default route is
 given.
 <li>This behavior is automatically disabled for routers where at least one
@@ -824,7 +917,7 @@ currently not used when generating code for managed devices.
 </ul>
 
 <H2><A NAME="disabling">Disabling part of the topology</A></H2>
-<P>An interface may be explicitly marked as disabled.  This implicitly
+<P>An interface can be explicitly marked as disabled.  This implicitly
 marks all network objects as disabled, that are located <em>behind</em>
 this interface. We are defining <em>behind an interface</em> as that
 part of the topology which is seen when looking from the router to
@@ -921,7 +1014,7 @@ using IPSec tunnels.
 <dt>new type of router 
 <dd> type=vpn3k
 <dt>additional attribute for router
-<dd> radius_servers=host:&lt;name&gt;
+<dd> radius_servers=&lt;object set&gt;
 <dt>additional attributes for interface
 <dd><ul> 
 <li>auto_crypto=ipsec:&lt;name&gt;
@@ -939,13 +1032,19 @@ using IPSec tunnels.
 <ul>
 <li>Router needs to have exactly on interface with attribute 'no_check'.
 <li>Source of rule must have ID when entering interface without attribute 'no_check',
-<li>Attribute 'radius_servers' needs to be defined for router of type vpn3k.
+
+<li>Attribute 'radius_servers' needs to be defined for router of type
+vpn3k. Each element must be a host.
+
 <li>A network having id hosts must not be used in a rule.
 </ul>
 
 <p>
-Multiple instances if one host:id:&lt;name&gt; may get defined in different networks of a topology. When referencing an id host, one has to append the name of the enclosing  newtork to make the reference definite.
-host:id:&lt;name&gt; is referenced as host:id:&lt;name&gt;.&lt;network&gt;
+Multiple instances if one host:id:&lt;name&gt; can get defined in
+different networks of a topology. When referencing an id host, one has
+to append the name of the enclosing newtork to make the reference
+definite.  <code> host:id:&lt;name&gt; </code> is referenced as <code>
+host:id:&lt;name&gt;.&lt;network&gt; </code>
 
 <h4>Special handling of access lists at vpn3k device</h4>
 <ul>
