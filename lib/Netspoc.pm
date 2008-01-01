@@ -1665,10 +1665,10 @@ sub read_area( $ ) {
     skip '{';
     while (1) {
         last if check '}';
-        if (my @aref = check_assign_list 'border', \&read_complement) {
+        if (my @elements = check_assign_list 'border', \&read_intersection) {
             $area->{border}
               and error_atline 'Duplicate definition of border';
-            $area->{border} = \@aref;
+            $area->{border} = \@elements;
         }
         elsif (check_flag 'auto_border') {
             $area->{auto_border} = 1;
@@ -1701,8 +1701,8 @@ our %groups;
 sub read_group( $ ) {
     my $name = shift;
     skip '=';
-    my @objects = read_list_or_null \&read_intersection;
-    return new('Group', name => $name, elements => \@objects);
+    my @elements = read_list_or_null \&read_intersection;
+    return new('Group', name => $name, elements => \@elements);
 }
 
 our %servicegroups;
@@ -1853,7 +1853,7 @@ sub read_service( $ ) {
 
 our %policies;
 
-sub read_user_or_complement_list( $ ) {
+sub read_user_or_intersection_list( $ ) {
     my ($name) = @_;
     skip $name;
     skip '=';
@@ -1862,7 +1862,7 @@ sub read_user_or_complement_list( $ ) {
         return 'user';
     }
     else {
-        return read_list \&read_complement;
+        return read_list \&read_intersection;
     }
 }
 
@@ -1874,13 +1874,13 @@ sub read_policy( $ ) {
     if (my $description = check_description) {
         $policy->{description} = $description;
     }
-    my @user = read_assign_list 'user', \&read_complement;
-    $policy->{user} = \@user;
+    my @elements = read_assign_list 'user', \&read_intersection;
+    $policy->{user} = \@elements;
     while (1) {
         last if check '}';
         if (my $action = check_permit_deny) {
-            my $src = [ read_user_or_complement_list 'src' ];
-            my $dst = [ read_user_or_complement_list 'dst' ];
+            my $src = [ read_user_or_intersection_list 'src' ];
+            my $dst = [ read_user_or_intersection_list 'dst' ];
             my $srv = [ read_assign_list 'srv', \&read_typed_name ];
             if ($src->[0] eq 'user') {
                 $src = 'user';
@@ -1916,8 +1916,8 @@ sub read_pathrestriction( $ ) {
     if (my $description = check_description) {
         $restriction->{description} = $description;
     }
-    my @pairs = read_list \&read_complement;
-    $restriction->{elements} = \@pairs;
+    my @elements = read_list \&read_intersection;
+    $restriction->{elements} = \@elements;
     return $restriction;
 }
 
@@ -2057,8 +2057,8 @@ sub read_crypto( $ ) {
     while (1) {
         last if check '}';
         if (my $action = check_permit_deny) {
-            my $src = [ read_assign_list 'src', \&read_complement ];
-            my $dst = [ read_assign_list 'dst', \&read_complement ];
+            my $src = [ read_assign_list 'src', \&read_intersection ];
+            my $dst = [ read_assign_list 'dst', \&read_intersection ];
             my $srv = [ read_assign_list 'srv', \&read_typed_name ];
             my $rule = {
                 action => $action,
@@ -2073,17 +2073,17 @@ sub read_crypto( $ ) {
               and error_atline "Redefining 'type' attribute";
             $crypto->{type} = $type;
         }
-        elsif (my @hubs = check_assign_list 'hub', \&read_complement) {
+        elsif (my @hubs = check_assign_list 'hub', \&read_intersection) {
             $crypto->{hub}
               and error_atline "Redefining 'hub' attribute";
             $crypto->{hub} = \@hubs;
         }
-        elsif (my @spokes = check_assign_list 'spoke', \&read_complement) {
+        elsif (my @spokes = check_assign_list 'spoke', \&read_intersection) {
             $crypto->{spoke}
               and error_atline "Redefining 'spoke' attribute";
             $crypto->{spoke} = \@spokes;
         }
-        elsif (my @mesh = check_assign_list 'mesh', \&read_complement) {
+        elsif (my @mesh = check_assign_list 'mesh', \&read_intersection) {
             push @{ $crypto->{meshes} }, \@mesh;
         }
         else {
@@ -4942,7 +4942,8 @@ sub link_and_check_virtual_interfaces () {
 
 sub link_and_check_pathrestrictions() {
     for my $restrict (values %pathrestrictions) {
-	$restrict->{elements} = expand_group  $restrict->{elements}, $restrict->{name};
+	$restrict->{elements} = 
+	    expand_group $restrict->{elements}, $restrict->{name};
 	my $changed;
         for my $obj (@{ $restrict->{elements} }) {
             if (is_interface $obj) {
@@ -5920,14 +5921,14 @@ sub link_crypto () {
 
         # Resolve tunnel endpoints to lists of interfaces.
         for my $what ('hub', 'spoke') {
-            $crypto->{$what} = expand_group($crypto->{$what}, "$what of $name");
+            $crypto->{$what} = expand_group $crypto->{$what}, "$what of $name";
             for my $element (@{ $crypto->{$what} }) {
                 next if is_interface $element or is_autointerface $element;
                 err_msg "Illegal element in $what of $name: $element->{name}";
             }
         }
         for my $mesh (@{ $crypto->{meshes} }) {
-            $mesh = [ expand_group $mesh, "mesh of $name" ];
+            $mesh = expand_group $mesh, "mesh of $name";
             for my $element (@$mesh) {
                 next if is_interface $element or is_autointerface $element;
                 err_msg "Illegal element in mesh of $name: $element->{name}";
@@ -5976,6 +5977,7 @@ sub mark_tunnels () {
         for my $mesh (@{ $crypto->{meshes} }) {
             for my $intf1 (@$mesh) {
                 for my $intf2 (@$mesh) {
+		    next if $intf1 eq $intf2;
                     push @pairs, [ $intf1, $intf2 ];
                 }
             }
@@ -6191,13 +6193,10 @@ sub expand_crypto () {
 	# Convert typed names in crypto rule to internal objects.
         for my $rule (@{ $crypto->{rules} }) {
             for my $where ('src', 'dst') {
-                $rule->{$where} = expand_group(
-                    $rule->{$where},
-                    "$where of rule in $name",
+                $rule->{$where} = 
 
-                    # Convert hosts to subnets.
-                    1
-                );
+		    # Expand and convert hosts to subnets.
+		    expand_group $rule->{$where}, "$where of rule in $name", 1;
             }
             $rule->{srv} = expand_services $rule->{srv}, "rule of $name";
         }
