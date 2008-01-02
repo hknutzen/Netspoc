@@ -1,5 +1,15 @@
 ToDo list for NetSPoC, a Network Security Policy Compiler
 
+- Describe syntax of host:id for vpn3k devices. 
+
+- Only accept attribute "auto_crypto" at interface of router model vpn3k.
+
+- Automatically add an internal rule which allows radius trafic from
+  router of type vpn3k to its radius hosts.
+
+- Add a check for this situation: If network A is subnet of network B 
+  then B must not have hosts inside the address space of A.
+
 - Look if check_any_src/dst_rule works correctly 
   at the endpoint of crypto tunnels.
 
@@ -33,13 +43,6 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 - If a rule is affected by dynamic NAT and service has a defined source port,
   source port must be changed to unrestricted (1..65535).
 
-- Automatically add a pathrestriction for all interfaces belonging to a single
-  {virtual} IP address.
-
-- path_walk: If path starts with a loop, we currently assume, there is at
-  least one acyclic part before the next loop starts. Is this always true?
-  May two loops be directly adjacent?
-
 - Add documentation for dynamic NAT of multiple networks to a single address
   space. Work out code generation for this case. Check that hosts of different
   networks aren't statically translated to the same IP address.
@@ -49,23 +52,21 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 - Add documentation for automatically generated deny rules which prevent
   unwanted access to interfaces of managed routers.
 
-- PIX statics: Für nat/global ist es nicht richtig, die dst-Networks
-  einer Rule zu betrachten. Wir benötigen hier stattdessen die src.
-  Die derzeitigen Ergebnisse sind nur zufällig korrekt.
+- PIX statics: For nat/global it isn't correct to look at the dst-networks
+  of a rule. Instead we should use src-networks.
+  Current results are only correct, because there are rules for both
+  directions most of the time.
 
 - Bug with 'any' objects und path_walk: for cyclic topologies there are cases
   where not all possible paths are found. This is, because we randomly pick
   some network from the 'any' object and use this as source or destination.
 
-- find_active_routes_and_statics: die Assymetrie get_path vs. get_networks ist
-  nicht zu rechtfertigen, da später src und dst ja sowieso vertauscht werden.
+- find_active_routes_and_statics: 
+  why use different get_path and get_networks for source and destination
+  if later source and destination are swapped anyway?
 
-- Protect own interfaces: zur Zeit mit NAT; ist das ok?
-  Braucht man zusätzlich den Schutz für die originale IP-Adresse?
-
-- NAT domains should get a name, which is derived from NAT tags.
-  This would be mor understandable in error messages. Currently we
-  use the name of some arbitrary network out of the NAT domain.
+- Protect own interfaces: currently with NAT; is that ok?
+  Do we need additional protection for the original IP addresses?
 
 - Code which uses internal attributes 'managed_intf' and 'deleted' is ugly.
 
@@ -96,6 +97,21 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 ============================================================================
 Done:
 ============================================================================
+
+- Automatically add a pathrestriction for all interfaces belonging to a single
+  {virtual} IP address.
+
+- Add syntax for secondary interface.
+
+- NAT domains should get a name, which is derived from NAT tags.
+  This would be more understandable in error messages. Currently we
+  use the name of some arbitrary network out of the NAT domain.
+  ==> Name of NAT domain isn't used any longer in error messages,
+      but only in debug statements. The name of the NAT tag is used instead.
+
+- path_walk: If path starts with a loop, we currently assume, there is at
+  least one acyclic part before the next loop starts. Is this always true?
+  May two loops be directly adjacent?
 
 - Definition of and code generation for IPSec tunnels. 
 
