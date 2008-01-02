@@ -1,0 +1,68 @@
+<HTML>
+<HEAD>
+<TITLE>NetSPoC: a Network Security Policy Compiler</TITLE>
+</HEAD>
+<BODY bgcolor=#FFFFFF topmargin="0" bottommargin="0" leftmargin="0" rightmargin="0" marginheight="0" marginwidth="0">
+<TABLE width="100%" cellspacing=0 cellpadding=0 border=0>
+<TR valign="top">
+<TD bgcolor=#FFCC33>
+<!-- menus -->
+<TABLE cellspacing="0" cellpadding="3" width="100%" border="0" bgcolor="#000000">
+
+<TR bgcolor="#7B7B7B"><TD align="center">
+<font color="#ffffff">NetSPoC</font>
+</TD></TR>
+<TR align="right" BGCOLOR="#FFCC33"><TD>
+ <A HREF="overview.html">Overview</A><BR>
+ <A HREF="TODO">Todo list</A><BR>
+ <A HREF="license.html">Copyright</A><br><br>
+ <A HREF="http://developer.berlios.de/projects/netspoc/">Project Page</A><br>
+</TD></TR>
+<TR bgcolor="#7B7B7B"><TD align="center">
+<font color="#ffffff">Documentation</font>
+</TD></TR>
+<TR align="right" BGCOLOR="#FFCC33"><TD>
+ <a href="netspoc.html">Manual Page</a><br>
+ <A HREF="language.html">Policy Description Language</A><BR>
+ <a href="examples">Examples</a><br>
+ <a href="Netspoc.pm">Source Code</a><br>
+ <A HREF="CSPM.html">CSPM Comparison</A><br>
+</TD></TR>
+
+<TR bgcolor="#7B7B7B"><TD align="center">
+<font color="#ffffff">Download</font>
+</TD></TR>
+<TR align="right" BGCOLOR="#FFCC33"><TD>
+ <a href="http://developer.berlios.de/project/filelist.php?group_id=252">netspoc</a><BR>
+</TD></TR>
+
+<TR bgcolor="#7B7B7B"><TD>
+<A href="http://developer.berlios.de"> 
+<img src="http://developer.berlios.de/sflogo.php?group_id=252&type=1"
+width="124" height="32" border="0" alt="BerliOS Logo"></A> 
+</TD></TR>
+
+</TABLE>
+</TD>
+
+<td width="9" bgcolor="#FFFFFF">
+	<IMG src="/images/blank.gif" height="1" width="9" border=0 alt="blank.gif">	</td>
+<!-- content -->
+
+<td width="99%">&nbsp;<BR>
+	
+<H1>NetSPoC</H1>
+<h3>a Network Security Policy Compiler</h3>
+<!--#include file="NEWS.html" -->
+<!-- end content -->
+<p>&nbsp;</p>
+</td>
+<td width="9" bgcolor="#FFFFFF">
+	<IMG src="/images/blank.gif" height="1" width="10" border=0 alt="blank.gif">	</td>
+
+</tr>
+</table>
+<!-- end footer table -->
+</body>
+</html>
+

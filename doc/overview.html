@@ -1,0 +1,45 @@
+<H1>NetSPoC</H1>
+<h3>a Network Security Policy Compiler</h3>
+<HR>
+<h2><A NAME="description">Description</A></h2>
+
+NetSPoC is a tool for security managment of large computer networks
+with different security domains. It generates configuration files for
+packet filters controlling the borders of security domains.
+
+<P>NetSPoC provides its own <A HREF="language.html">language</A> for
+describing the security policy and topology of a network. The security
+policy is a set of rules that state which packets are allowed to pass
+the network and which not. NetSPoC is topology aware: a rule for
+traffic from A to B is automatically applied to all managed packet
+filters on the path from A to B.
+
+<P>Currently NetSPoC generates ACLs and static routing entries for
+<ul>
+<li>Cisco routers with or without firewall feature set,
+<li>PIX firewalls and 
+<li>Linux iptables and ip route. 
+</ul>
+It supports network address translation, virtual IP addresses for
+redundancy protocols like VRRP and some dynamic routing protocols.
+
+<p>IPSec encryption is supported as well. A powerful syntax allows to easily
+define a large number of crypto tunnels of either a hub and spoke topology or
+a fully meshed topology. Crypto rules define which type of traffic needs to be
+encrypted. Crypto configuration for Cisco IOS routers and PIX firewalls is
+generated.
+
+<P>NetSPoC's text based specification language is well suited for integration
+with CVS or other version control systems. A script is provided for tagging a
+policy and saving it to a policy database.
+
+<P>This software is actively developed with perl 5.8 under linux. It should be
+portable to other platforms where perl is available.
+
+<HR>
+<h2><A NAME="contact">Contact</A></h2>
+<p>Homepage for NetSPoC is at:
+ <A HREF="http://netspoc.berlios.de">http://netspoc.berlios.de</A>
+<p>For questions and comments use the 
+ <a href="http://developer.berlios.de/mail/?group_id=252">
+ netspoc mailing list</a>.
