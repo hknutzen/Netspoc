@@ -510,14 +510,18 @@ reference network objects from particular parts of the topology.
 <li>Special names [front], [back] and [all] can be used as network part in a
 reference to an interface.
 <ul>
- <li>When looking at a pair of network objects, [front] denotes that interface
-    of a router where the path to the other object starts. If a router is part
-    of a cyclic subgraph then there can be multiple paths to the other object.
-    In this case [front] denotes multiple interfaces.
+
+ <li>[front] denotes the interface on the same side in respect to the
+    other object in a rule.  If a router is part of a cyclic subgraph
+    then there can be multiple paths to the other object.  In this
+    case [front] denotes multiple interfaces.
+
  <li>[all] denotes <em>all</em> interfaces of a router.<br>
  But note: Short interfaces (without known IP address) of unmanaged routers
-    are excluded. 
+    are excluded.
+ 
  <li>[back] is [all] without [front].
+
 </ul>
 
 <li>[managed & ...] restricts the result to interfaces of <em>managed</em>
@@ -530,7 +534,7 @@ network:[host:a, host:b] </code> is equivalent to <code> network:[host:a],
 network:[host:b] </code>.
 
 <li><code>interface:[network:x].[&lt;selector&gt;]</code> takes
-interfaces of the network:x.
+some or all interfaces of network:x.
 
 <li><code>interface:[interface:x.y].[&lt;selector&gt;]</code> is
 equivalent to <code>interface:x.&lt;selector&gt;</code>.
@@ -556,7 +560,7 @@ located.
   groups. There is one exception from this rule: <code>
   interface:[interface:x.[s1]].[s2] </code> is
   allowed. In this case the inner selector s1 is ignored and the outer
-  selector s2 is used.
+  selector s2 is used.Anpassung an neues 
 
 </UL>
 
@@ -635,15 +639,17 @@ corresponding service is used as follows.
 
 <dl>
 <dt>stateless<dd>The rule is only applied to stateless devices.
-<dt>oneway<dd>At stateless devices, no rules are generated to permit answer
-packets.
+
+<dt>oneway<dd>At stateless devices, don't automatically generate rules
+to permit answer packets.
+
 <dt>reversed<dd>Source and destination are swapped.
 
 <dt>dst_path<dd>The rule is replaced by <em>n</em> rules where the destination
 is substituted by interfaces <em>i</em>. <em>i</em> is defined by this rule:
 Take from each packet filter on the path from source to destination that
 interface <em>i</em> which is headed in source direction.<br> This flag can be
-combined with flags dst_net or dst_any to not get the interfaces but the
+combined with flags dst_net or dst_any to not get the interface but the
 corresponding network or 'any' object.
 
 <dt>dst_net<dd>If destination of rule is a host or interface located in
