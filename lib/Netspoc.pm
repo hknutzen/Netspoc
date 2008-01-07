@@ -297,9 +297,8 @@ sub internal_err( @ ) {
 # Helper functions for reading configuration
 ####################################################################
 
-# $_ is used as input buffer, it holds content of current input file.
-# Progressive matching is used. \G and pos are used to query current position.
-# Return value is false if progressive matching has reached end of buffer.
+# $input is used as input buffer, it holds content of current input file.
+# Progressive matching is used. \G is used to match current position.
 sub skip_space_and_comment() {
 
     # Ignore trailing whitespace and comments.
@@ -309,9 +308,6 @@ sub skip_space_and_comment() {
 
     # Ignore leading whitespace.
     $input =~ m/\G[ \t]*/gc;
-
-    # Check and return EOF status.
-    return pos $input != length $input;
 }
 
 # Check for a string and skip if available.
@@ -2150,7 +2146,7 @@ sub read_file( $$ ) {
     local $input = <FILE>;
     close FILE;
     local $line = 1;
-    while (skip_space_and_comment) {
+    while (skip_space_and_comment, pos $input != length $input) {
         &$read_syntax;
     }
 }
