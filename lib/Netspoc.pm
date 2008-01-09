@@ -175,14 +175,11 @@ my %router_info = (
         filter         => 'IOS',
         crypto         => 'IOS',
         comment_char   => '!',
-    },
-    IOS_FW => {
-        name           => 'IOS_FW',
-        stateless_self => 1,
-        routing        => 'IOS',
-        filter         => 'IOS',
-        crypto         => 'IOS',
-        comment_char   => '!',
+	extension      => 
+	{ 
+	    EZVPN => { crypto => 'EZVPN' },
+	    FW    => { stateless => 0 },
+	},
     },
     PIX => {
         name                => 'PIX',
@@ -1487,14 +1484,34 @@ sub read_router( $ ) {
             }
             $router->{managed} = $managed;
         }
-        elsif (my $model = check_assign 'model', \&read_identifier) {
+        elsif (my($model, @attributes) = 
+	       check_assign_list 'model', \&read_identifier) 
+	{
+	    my @attr2;
+	    ($model, @attr2) = split /_/, $model;
+	    push @attributes, @attr2;
             $router->{model} and error_atline "Redefining 'model' attribute";
-            unless ($router->{model} = $router_info{$model}) {
-                error_atline "Unknown router model '$model'";
-
-                # Prevent further errors.
-                $router->{model} = {};
-            }
+	    my $info = $router_info{$model};
+	    if(not $info) {
+		error_atline "Unknown router model '$model'";
+		next;
+	    }
+	    my $extension_info = $info->{extension};
+	    if(@attributes and not $extension_info) {
+		error_atline "Unexpected extension for this model";
+		next;
+	    }
+	    
+	    my @ext_list = map { 
+		my $ext = $extension_info->{$_};
+		$ext or  error_atline "Unknown extension $_";
+		$ext ? %$ext : ();
+	    } @attributes;
+	    if(@ext_list) {
+		$info = { %$info, @ext_list };
+		delete $info->{extension};
+	    }
+	    $router->{model} = $info;
         }
         elsif (check_flag 'no_group_code') {
             $router->{no_group_code} = 1;
@@ -9047,6 +9064,63 @@ sub print_vpn3k( $ ) {
     print_xml $result;
 }
 
+sub print_acl_add_deny ( $$$$$$ ) {
+    my($router, $hardware, $nat_map, $model, $intf_prefix, $prefix) = @_;
+    my $filter  = $model->{filter};
+
+    # Add deny rules.
+    if ($filter eq 'iptables') {
+	push @{ $hardware->{intf_rules} },
+	{
+	    action    => 'deny',
+	    src       => $network_00,
+	    dst       => $network_00,
+	    src_range => $srv_ip,
+	    srv       => $srv_ip
+	    };
+    }
+    elsif ($filter eq 'IOS' and @{ $hardware->{rules} }) {
+	for my $interface (@{ $router->{interfaces} }) {
+
+	    # Ignore 'unnumbered' interfaces.
+	    next if $interface->{ip} =~ /unnumbered|negotiated/;
+	    internal_err "Managed router has short $interface->{name}"
+		if $interface->{ip} eq 'short';
+
+	    # IP of other interface may be unknown if dynamic NAT is used.
+	    if ($interface->{hardware} ne $hardware
+		and (my $nat_network = $nat_map->{ $interface->{network} }))
+	    {
+		next if $nat_network->{dynamic};
+	    }
+
+	    # Protect own interfaces.
+	    push @{ $hardware->{intf_rules} },
+	    {
+		action    => 'deny',
+		src       => $network_00,
+		dst       => $interface,
+		src_range => $srv_ip,
+		srv       => $srv_ip
+		};
+	}
+    }
+    push @{ $hardware->{rules} },
+    {
+	action    => 'deny',
+	src       => $network_00,
+	dst       => $network_00,
+	src_range => $srv_ip,
+	srv       => $srv_ip
+	};
+
+    # Interface rules
+    acl_line $hardware->{intf_rules}, $nat_map, $intf_prefix, $model;
+
+    # Ordinary rules
+    acl_line $hardware->{rules}, $nat_map, $prefix, $model;
+}
+
 sub print_acls( $ ) {
     my ($router)     = @_;
     my $model        = $router->{model};
@@ -9155,7 +9229,6 @@ sub print_acls( $ ) {
         }
     }
 
-    # Add deny rules.
     for my $hardware (@{ $router->{hardware} }) {
 	next if $hardware->{loopback};
 
@@ -9163,60 +9236,12 @@ sub print_acls( $ ) {
 	# when checking for non empty array.
         $hardware->{rules} ||= [];
 
-        if ($filter eq 'iptables') {
-            push @{ $hardware->{intf_rules} },
-              {
-                action    => 'deny',
-                src       => $network_00,
-                dst       => $network_00,
-                src_range => $srv_ip,
-                srv       => $srv_ip
-              };
-        }
-        elsif ($filter eq 'IOS' and @{ $hardware->{rules} }) {
-            my $nat_map = $hardware->{nat_map};
-            for my $interface (@{ $router->{interfaces} }) {
-
-                # Ignore 'unnumbered' interfaces.
-                next if $interface->{ip} =~ /unnumbered|negotiated/;
-                internal_err "Managed router has short $interface->{name}"
-                  if $interface->{ip} eq 'short';
-
-                # IP of other interface may be unknown if dynamic NAT is used.
-                if ($interface->{hardware} ne $hardware
-                    and (my $nat_network = $nat_map->{ $interface->{network} }))
-                {
-                    next if $nat_network->{dynamic};
-                }
-
-                # Protect own interfaces.
-                push @{ $hardware->{intf_rules} },
-                  {
-                    action    => 'deny',
-                    src       => $network_00,
-                    dst       => $interface,
-                    src_range => $srv_ip,
-                    srv       => $srv_ip
-                  };
-            }
-        }
-        push @{ $hardware->{rules} },
-          {
-            action    => 'deny',
-            src       => $network_00,
-            dst       => $network_00,
-            src_range => $srv_ip,
-            srv       => $srv_ip
-          };
-    }
-
-    # Generate code.
-    for my $hardware (@{ $router->{hardware} }) {
-	next if $hardware->{loopback};
+	# Generate code.
         my $acl_name = "$hardware->{name}_in";
         my $intf_name;
         my $prefix;
         my $intf_prefix;
+	my $nat_map = $hardware->{nat_map};
         if ($comment_acls) {
 
             # Name of first logical interface
@@ -9237,13 +9262,8 @@ sub print_acls( $ ) {
             print "iptables -N $acl_name\n";
             print "iptables -N $intf_name\n";
         }
-        my $nat_map = $hardware->{nat_map};
-
-        # Interface rules
-        acl_line $hardware->{intf_rules}, $nat_map, $intf_prefix, $model;
-
-        # Ordinary rules
-        acl_line $hardware->{rules}, $nat_map, $prefix, $model;
+	print_acl_add_deny 
+	    $router, $hardware, $nat_map, $model, $intf_prefix, $prefix;
 
         # Post-processing for hardware interface
         if ($filter eq 'IOS') {
@@ -9362,6 +9382,79 @@ sub prepare_auto_crypto( $ ) {
     }
 }
 
+sub print_ezvpn( $ ) {
+    my ($router)     = @_;
+    my $model        = $router->{model};
+    my $comment_char = $model->{comment_char};
+    %{$router->{auto_crypto_peer}} or 
+	err_msg 
+	"EZVPN must only be used together with auto_crypto at $router->{name}";
+    @{$router->{interfaces}} == 2 or
+	err_msg "Exactly 2 interfaces expected for $router->{name} with EZVPN";
+    my($lan_intf, $wan_intf) = @{$router->{interfaces}};
+    if($wan_intf->{network}->{id}) {
+	($wan_intf, $lan_intf) = ($lan_intf, $wan_intf);
+    }
+    my $map = $wan_intf->{hardware}->{crypto_maps}->[0];
+
+    print "$comment_char [ Crypto ]\n";
+
+    # Ezvpn configuration.
+    my $ezvpn_name = 'vpn';
+    my $crypto_acl_name = 'ACL-Split-Tunnel';
+    my $crypto_filter_name = 'ACL-crypto-filter';
+    my $virtual_interface_number = 1;
+    print "crypto ipsec client ezvpn $ezvpn_name\n";
+    print " connect auto\n";
+    print " mode network-extension\n";
+
+    # Auto_crypto case allows multiple peers.
+    my @peers = $map->{peers} ? @{$map->{peers}} : ($map->{peer});
+    
+    for my $peer (@peers) {
+	
+	# Unnumbered, negotiated and short interfaces have been 
+	# rejected already.
+	my $peer_ip = print_ip $peer->{ip};
+	print " peer $peer_ip\n";
+    }
+    
+    # Bind split tunnel ACL.
+    print " acl $crypto_acl_name\n";
+
+    # Use virtual template defined above.
+    print " virtual-interface $virtual_interface_number\n";
+
+    # xauth is unused, but syntactically needed.
+    print " username test pass test\n";
+    print " xauth userid mode local\n";
+
+    # Apply ezvpn to WAN and LAN interface.
+    print "interface $lan_intf->{name}\n";
+    print " crypto ipsec client ezvpn $ezvpn_name inside\n";
+    print "interface $wan_intf->{name}\n";
+    print " crypto ipsec client ezvpn $ezvpn_name\n";
+
+    # Split tunnel ACL. It controls which traffic needs to be encrypted.
+    print "ip access-list extended $crypto_acl_name\n";
+    my $nat_map = $wan_intf->{nat_map};
+    my $prefix = '';
+    acl_line $map->{crypto_rules}, $nat_map, $prefix, $model;
+
+    # Crypto filter ACL.
+    $prefix = '';
+    $map->{intf_rules} ||= [];
+    $prefix = '';
+    $map->{rules} ||= [];
+    print "ip access-list extended $crypto_filter_name\n";
+    print_acl_add_deny $router, $map, $nat_map, $model, $prefix, $prefix;
+
+    # Bind crypto filter ACL to virtual template.
+    print "interface Virtual-Template$virtual_interface_number type tunnel\n";
+    $crypto_filter_name
+	and print " ip access-group $crypto_filter_name in\n";
+}
+
 sub print_crypto( $ ) {
     my ($router) = @_;
 
@@ -9369,6 +9462,13 @@ sub print_crypto( $ ) {
 	prepare_auto_crypto $router;
     }
 
+    my $model       = $router->{model};
+    my $crypto_type = $model->{crypto} || '';
+    return if $crypto_type eq 'ignore';
+    if($crypto_type eq 'EZVPN') {
+	print_ezvpn $router;
+	return;
+    }
     # List of ipsec definitions used at current router.
     my @ipsec;
 
@@ -9388,6 +9488,12 @@ sub print_crypto( $ ) {
     # Return if no crypto is used at current router.
     return unless @ipsec;
 
+    unless ($crypto_type) {
+        err_msg
+          "Crypto not supported for $router->{name} of type $model->{name}";
+        return;
+    }
+
     # List of isakmp definitions used at current router.
     my @isakmp;
 
@@ -9401,14 +9507,6 @@ sub print_crypto( $ ) {
             push @isakmp, $isakmp;
         }
     }
-    my $model       = $router->{model};
-    my $crypto_type = $model->{crypto};
-    unless ($crypto_type) {
-        err_msg
-          "Crypto not supported for $router->{name} of type $model->{name}";
-        return;
-    }
-    return if $crypto_type eq 'ignore';
     my $comment_char = $model->{comment_char};
     print "$comment_char [ Crypto ]\n";
     $crypto_type =~ /^IOS|PIX$/ or internal_err;
@@ -9558,8 +9656,8 @@ sub print_crypto( $ ) {
                 elsif ($crypto_type eq 'PIX') {
                     $prefix = "access-list $crypto_filter_name";
                 }
-                acl_line $map->{intf_rules}, $nat_map, $prefix, $model;
-                acl_line $map->{rules},      $nat_map, $prefix, $model;
+		print_acl_add_deny 
+		    $router, $map, $nat_map, $model, $prefix, $prefix;
             }
             if ($crypto_type eq 'IOS') {
                 $prefix = '';
