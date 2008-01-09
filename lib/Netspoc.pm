@@ -178,7 +178,8 @@ my %router_info = (
 	extension      => 
 	{ 
 	    EZVPN => { crypto => 'EZVPN' },
-	    FW    => { stateless => 0 },
+	    FW    => { name => 'IOS_FW',
+		       stateless => 0 },
 	},
     },
     PIX => {
