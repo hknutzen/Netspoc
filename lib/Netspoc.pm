@@ -2728,6 +2728,9 @@ sub link_interface_with_net( $ ) {
 	}
 	else {
 	    err_msg $msg;
+
+	    # Prevent further errors.
+	    push @disabled_interfaces, $interface;
 	}
 
 	# Prevent further errors.
