@@ -2716,6 +2716,9 @@ sub link_interface_with_net( $ ) {
 	($net_name = $interface->{name}) =~ s/^interface://;
 	$networks{$net_name} = $network;
 	
+	# Mark networks which are attached to manged router.
+	# This attribute is used in loop_path_mark.
+	$network->{managed} = 1 if $interface->{router}->{managed};
 	$interface->{network} = $network;
 	return;
     }
@@ -2738,6 +2741,10 @@ sub link_interface_with_net( $ ) {
 	$interface->{network} = undef;
 	return;
     }
+
+    # Mark networks which are attached to manged router.
+    # This attribute is used in loop_path_mark.
+    $network->{managed} = 1 if $interface->{router}->{managed};
     $interface->{network} = $network;
     push @{ $network->{interfaces} }, $interface;
     if ($interface->{reroute_permit}) {
@@ -5259,7 +5266,16 @@ sub loop_path_mark1( $$$$$ ) {
 
             # Found a valid path from $next to $to
             $key2obj{$interface} = $interface;
-            $collect->{$in_intf}->{$interface} = is_router $obj;
+
+	    # Only add interface tuple of this object 
+	    # if it is a managed router 
+	    # or a network directly attached to a managed router.
+	    # This is sufficient to get ACLs to managed routers
+	    # and to find the next hop interfaces 
+	    # when generating static routes on managed routers.
+	    if($obj->{managed}) {
+		$collect->{$in_intf}->{$interface} = is_router $obj;
+	    }
 
 #	 debug " loop: $in_intf->{name} -> $interface->{name}";
             $success = 1;
