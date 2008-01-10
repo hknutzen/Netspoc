@@ -3597,6 +3597,10 @@ sub expand_group1( $$ ) {
 			grep { not $_->{route_hint} } map @{ $_->{networks} },
 			@{ $object->{anys} };
 		    }
+		    elsif($type eq 'Any') {
+			push @objects, 
+			grep { not $_->{route_hint} } @{$object->{networks}};
+		    }
 		    elsif($type eq 'Host' or $type eq 'Interface') {
 			push @objects, $object->{network};
 		    }
@@ -3614,14 +3618,14 @@ sub expand_group1( $$ ) {
 		    if($type eq 'Area') {
 			push @objects, @{ $object->{anys} };
 		    }
+		    elsif($type eq 'Any') {
+			push @objects, $object;
+		    }
 		    elsif($type eq 'Host' or $type eq 'Interface') {
 			push @objects, $object->{network}->{any};
 		    }
 		    elsif($type eq 'Network') {
 			push @objects, $object->{any};
-		    }
-		    elsif($type eq 'Any') {
-			push @objects, $object;
 		    }
 		    else {
 			err_msg "Unexpected type '$type' in any:[..] of $context";
