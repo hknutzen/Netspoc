@@ -3411,6 +3411,7 @@ sub expand_group1( $$ ) {
 			    ();
 			}
 			else {
+			    $_->{is_used} = 1;
 			    $type = ref $_;
 			    $_;
 			}
@@ -3462,6 +3463,7 @@ sub expand_group1( $$ ) {
 		    expand_group1 $name, 
 		      "interface:[..].[$selector] of $context";
 		for my $object (@$sub_objects) {
+		    $object->{is_used} = 1;
 		    my $type = ref $object;
 		    if($type eq 'Network') {
 			if($selector eq 'all') {
@@ -3591,6 +3593,7 @@ sub expand_group1( $$ ) {
 	    my $sub_objects = expand_group1 $name, "$type:[..] of $context";
 	    if($type eq 'network') {
 		for my $object (@$sub_objects) {
+		    $object->{is_used} = 1;
 		    my $type = ref $object;
 		    if($type eq 'Area') {
 			push @objects,
@@ -3614,6 +3617,7 @@ sub expand_group1( $$ ) {
 	    }
 	    elsif ($type eq 'any') {
 		for my $object (@$sub_objects) {
+		    $object->{is_used} = 1;
 		    my $type = ref $object;
 		    if($type eq 'Area') {
 			push @objects, @{ $object->{anys} };
@@ -3730,14 +3734,17 @@ sub expand_group( $$;$ ) {
 
 sub check_unused_groups() {
     if(not $allow_unused_groups) {
-	for my $group (values %groups, values %servicegroups) {
-	    unless ($group->{is_used}) {
+	for my $obj (values %groups, values %servicegroups, values %areas) {
+	    unless ($obj->{is_used}) {
 		my $msg;
-		if (my $size = @{ $group->{elements} }) {
-		    $msg = "unused $group->{name} with $size element(s)";
+		if(is_area $obj) {
+		    $msg = "unused $obj->{name}";
+		}
+		elsif (my $size = @{ $obj->{elements} }) {
+		    $msg = "unused $obj->{name} with $size element(s)";
 		}
 		else {
-		    $msg = "unused empty $group->{name}";
+		    $msg = "unused empty $obj->{name}";
 		}
 		if ($allow_unused_groups eq 'warn') {
 		    warn_msg $msg;
@@ -3751,6 +3758,7 @@ sub check_unused_groups() {
 
     # Not used any longer; free memory.
     %groups = ();
+#   %areas = ();
 }
 
 sub expand_services( $$ );
