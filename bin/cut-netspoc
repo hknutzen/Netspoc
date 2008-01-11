@@ -25,7 +25,8 @@ use warnings;
 use FindBin;
 use lib $FindBin::Bin;
 use Netspoc;
-use open ':locale';
+#use open ':locale';
+use locale;
 
 
 ####################################################################
@@ -140,11 +141,20 @@ for my $area (values %areas) {
 # Call this after topology has been marked.
 &expand_crypto();
 
-# Mark crypto definitions which have tunnel between interfaces of
-# already marked routers.
 for my $router (values %routers) {
     next unless $router->{is_used};
     for my $interface (@{$router->{interfaces}}) {
+
+	# Mark networks referenced in attribute reroute_permit.
+	if ($interface->{reroute_permit}) {
+	    for my $net (@{ $interface->{reroute_permit} }) {
+		my $rule = {src => $interface, dst => $net, srv => {}};
+		&path_walk($rule, \&mark_topology);
+	    }
+	}
+ 
+	# Mark crypto definitions which have tunnel between interfaces of
+	# already marked routers.    
 	if (my $type = $interface->{auto_crypto}) {
 	    $type->{is_used} = 1;
 	    $type->{key_exchange}->{is_used} = 1;
@@ -157,6 +167,8 @@ for my $router (values %routers) {
 	    $crypto_map->{crypto}->{is_used} = 1;
 	}
     }
+
+    # Mark radius servers referenced in attribute radius_servers.
     if ($router->{radius_servers}) {
 	for my $host (@{$router->{radius_servers}}) {
 
