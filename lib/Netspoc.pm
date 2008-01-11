@@ -5910,7 +5910,7 @@ sub path_auto_interfaces( $$ ) {
 	}
 	else {
 	    my %front = map { $_ => 1 } @{ $from->{loop_enter}->{$exit} };
-	    @result = grep !$front{$_}, @{ $from->{loop_enter}->{$exit} };
+	    @result = grep !$front{$_}, @{$from->{interfaces}};
 	}
     }
     else {
