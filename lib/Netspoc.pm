@@ -3733,15 +3733,16 @@ sub expand_group( $$;$ ) {
 }
 
 sub check_unused_groups() {
-    if(not $allow_unused_groups) {
-	for my $obj (values %groups, values %servicegroups, values %areas) {
+    if($allow_unused_groups ne 1) {
+	for my $obj (values %groups, values %servicegroups) {
 	    unless ($obj->{is_used}) {
 		my $msg;
 		if(is_area $obj) {
 		    $msg = "unused $obj->{name}";
 		}
 		elsif (my $size = @{ $obj->{elements} }) {
-		    $msg = "unused $obj->{name} with $size element(s)";
+		    $msg = "unused $obj->{name} with $size element" 
+			. ($size==1?'':'s');
 		}
 		else {
 		    $msg = "unused empty $obj->{name}";
