@@ -9428,7 +9428,8 @@ sub print_ezvpn( $ ) {
     if($wan_intf->{network}->{id}) {
 	($wan_intf, $lan_intf) = ($lan_intf, $wan_intf);
     }
-    my $map = $wan_intf->{hardware}->{crypto_maps}->[0];
+    my($wan_hw, $lan_hw) = ($wan_intf->{hardware}, $lan_intf->{hardware});
+    my $map = $wan_hw->{crypto_maps}->[0];
 
     print "$comment_char [ Crypto ]\n";
 
@@ -9463,14 +9464,14 @@ sub print_ezvpn( $ ) {
     print " xauth userid mode local\n";
 
     # Apply ezvpn to WAN and LAN interface.
-    print "interface $lan_intf->{name}\n";
+    print "interface $lan_hw->{name}\n";
     print " crypto ipsec client ezvpn $ezvpn_name inside\n";
-    print "interface $wan_intf->{name}\n";
+    print "interface $wan_hw->{name}\n";
     print " crypto ipsec client ezvpn $ezvpn_name\n";
 
     # Split tunnel ACL. It controls which traffic needs to be encrypted.
     print "ip access-list extended $crypto_acl_name\n";
-    my $nat_map = $wan_intf->{nat_map};
+    my $nat_map = $wan_hw->{nat_map};
     my $prefix = '';
     acl_line $map->{crypto_rules}, $nat_map, $prefix, $model;
 
