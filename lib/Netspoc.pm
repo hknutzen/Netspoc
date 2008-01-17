@@ -3428,27 +3428,23 @@ sub expand_group1( $$ ) {
 	    @non_compl >= 1 
 		or err_msg "Intersection needs at least one element",
 		" which is not complement in $context";
-	    my %result;
-	    if(@non_compl > 1) {
-		my %hash;
-		for my $element (@{pop @non_compl}) {
-		    $hash{$element} = $element;
-		}
-		for my $element (map { @$_ } @non_compl) {
-		    if($hash{$element}) {
-			$result{$element} = $element;
+	    my $result;
+	    for my $element (@{pop @non_compl}) {
+		$result->{$element} = $element;
+	    }
+	    for my $set (@non_compl) {
+		my $intersection;
+		for my $element (@$set) {
+		    if($result->{$element}) {
+			$intersection->{$element} = $element;
 		    }
 		}
-	    }
-	    else {
-		for my $element (@{$non_compl[0]}) {
-		    $result{$element} = $element;
-		}
+		$result = $intersection;
 	    }
 	    for my $element (@compl) {
-		delete $result{$element};
+		delete $result->{$element};
 	    }
-	    push @objects, values %result;
+	    push @objects, values %$result;
 	}
 	elsif($type eq '!') {
 	    err_msg 
