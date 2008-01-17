@@ -5116,7 +5116,7 @@ sub setpath() {
     # Check if all objects are connected with net1.
     for my $object (@networks, @routers) {
         next if $object->{main} or $object->{loop};
-        err_msg "Found unconnected $object->{name}";
+        err_msg "Found $object->{name} not be connected to $net1->{name}";
 
         # Prevent further errors when calling
         # path_auto_interfaces from expand_rules.
