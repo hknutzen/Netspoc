@@ -430,7 +430,7 @@ sub read_identifier() {
 # Used for reading interface names and attribute 'owner'.
 sub read_name() {
     skip_space_and_comment;
-    if ($input =~ m/(\G[^;,\s"']+)/gc) {
+    if ($input =~ m/(\G[^;,\s""'']+)/gc) {
         return $1;
     }
     else {
@@ -441,7 +441,7 @@ sub read_name() {
 # Used for reading RADIUS attributes.
 sub read_string() {
     skip_space_and_comment;
-    if ($input =~ m/\G([^;,'"\n]+)/gc) {
+    if ($input =~ m/\G([^;,""''\n]+)/gc) {
         return $1;
     }
     else {
@@ -449,19 +449,34 @@ sub read_string() {
     }
 }
 
-sub read_expr_list(&) {
-    my ($fun) = @_;
+sub read_intersection();
+
+# Object representing 'user'. 
+# This is only 'active' while parsing src or dst of the rule of a policy.
+my $user_object = { active => 0, refcount => 0, elements => undef };
+
+sub read_union( $ ) {
+    my ($delimiter) = @_;
     my @vals;
+    my $count = $user_object->{refcount};
+    push @vals, read_intersection;
+    my $has_user_ref = $user_object->{refcount} > $count;
+    my $user_ref_error = 0;
     while (1) {
-        push @vals, &$fun;
-        last if check '\]';
+        last if check $delimiter;
         my $comma_seen = check ',';
 
         # Allow trailing comma.
-        last if check '\]';
+        last if check $delimiter;
 
-	$comma_seen or syntax_err "Comma expected in list of values";
+	$comma_seen or syntax_err "Comma expected in union of values";
+	$count = $user_object->{refcount};
+        push @vals, read_intersection;
+	$user_ref_error ||= $has_user_ref != ($user_object->{refcount} > $count);
     }
+    $user_ref_error and
+	error_atline "The subexpressions of union equally must\n",
+	" either reference 'user' or must not reference 'user'";
     return @vals;
 }
 
@@ -480,6 +495,10 @@ sub read_typed_name() {
     check_typed_name or syntax_err "Typed name expected";
 }
 
+
+# Compatibility mode: 'local' is equivalent to 'user' but implies 'foreach'.
+our $any_local_compatibilty;
+
 {
 
     # user@domain or @domain or user
@@ -493,12 +512,19 @@ sub read_typed_name() {
 # or interface:xxx.xxx or interface:xxx.xxx.xxx or interface:xxx.[xxx] 
 # or interface:[xxx:xxx, ...].[xxx] or interface:[managed & xxx:xxx, ...].[xxx]
 # or host:id:user@domain.network
-    sub read_typed_ext_name() {
-	skip_space_and_comment;
-	my $managed;
+    sub read_extended_name() {
+	if(my ($token) = check '(user|local)') {
+	    # Global variable for linking occurrences of 'user'.
+	    $user_object->{active} or 
+		syntax_err "Unexpected reference to '$token'";
+	    $user_object->{refcount}++;
+	    $any_local_compatibilty = 1 if $token eq 'local';
+	    return ['user', $user_object];
+	}
 	$input =~ m/\G([\w-]+):/gc or syntax_err "Type expected";
 	my $type = $1;
 	my $interface = $type eq 'interface';
+	my $managed;
 	my $name;
 	my $ext;
 	if($type eq 'host') {
@@ -514,15 +540,8 @@ sub read_typed_name() {
 	    if($interface && check 'managed') {
 		$managed = 1;
 		skip '&';
-		$name = [ read_expr_list \&read_intersection ];
 	    }
-	    elsif($type =~ /^(network|any)$/ && check 'local') {
-		$name = [ 'local' ];
-		skip '\]';
-	    }
-	    else {
-		$name = [ read_expr_list \&read_intersection ];
-	    }
+	    $name = [ read_union ']' ];
 	}
 	else {
 	    $name = read_identifier;
@@ -585,10 +604,10 @@ sub read_typed_name() {
 
 sub read_complement() {
     if(check '!') {
-	[ '!', read_typed_ext_name ];
+	[ '!', read_extended_name ];
     }
     else {
-	read_typed_ext_name;
+	read_extended_name;
     }
 }	
 	
@@ -1867,17 +1886,15 @@ sub read_service( $ ) {
 
 our %policies;
 
-sub read_user_or_intersection_list( $ ) {
+sub assign_union_allow_user( $ ) {
     my ($name) = @_;
     skip $name;
     skip '=';
-    if (check 'user') {
-        skip ';';
-        return 'user';
-    }
-    else {
-        return read_list \&read_intersection;
-    }
+    $user_object->{active} = 1;
+    $user_object->{refcount} = 0;
+    my @result = read_union ';';
+    $user_object->{active} = 0;
+    return \@result, $user_object->{refcount};
 }
 
 sub read_policy( $ ) {
@@ -1888,23 +1905,29 @@ sub read_policy( $ ) {
     if (my $description = check_description) {
         $policy->{description} = $description;
     }
-    my @elements = read_assign_list 'user', \&read_intersection;
+    
+    skip 'user';
+    skip '=';
+    if(check 'foreach') {
+	$policy->{foreach} = 1;
+    }
+    local $any_local_compatibilty = 0;
+    my @elements = read_list \&read_intersection;
     $policy->{user} = \@elements;
     while (1) {
         last if check '}';
         if (my $action = check_permit_deny) {
-            my $src = [ read_user_or_intersection_list 'src' ];
-            my $dst = [ read_user_or_intersection_list 'dst' ];
+            my ($src, $src_user) = assign_union_allow_user 'src';
+            my ($dst, $dst_user) = assign_union_allow_user 'dst';
             my $srv = [ read_assign_list 'srv', \&read_typed_name ];
-            if ($src->[0] eq 'user') {
-                $src = 'user';
-            }
-            if ($dst->[0] eq 'user') {
-                $dst = 'user';
-            }
-            if ($src ne 'user' && $dst ne 'user') {
-                err_msg "All rules of $policy->{name} must use keyword 'user'";
-            }
+            $src_user or $dst_user or 
+		error_atline "Rule must use keyword 'user'";
+	    if($policy->{foreach} and not ($src_user and $dst_user)) {
+		warn_msg "Rule of $name should reference 'user'",
+		" in 'src' and 'dst'\n",
+		" because policy has keyword 'foreach'";
+	    }
+	    $policy->{foreach} = 1 if $any_local_compatibilty;
             my $rule = {
                 policy => $policy,
                 action => $action,
@@ -1917,6 +1940,9 @@ sub read_policy( $ ) {
         else {
             syntax_err "Expected 'permit' or 'deny'";
         }
+    }
+    if($any_local_compatibilty and @{$policy->{rules}} > 1) {
+	syntax_err "Only one rule allowed in $name when using keyword 'local'";
     }
     return $policy;
 }
@@ -2225,7 +2251,6 @@ sub is_servicegroup( $ ) { ref($_[0]) eq 'Servicegroup'; }
 sub is_objectgroup( $ )  { ref($_[0]) eq 'Objectgroup'; }
 sub is_chain( $ )        { ref($_[0]) eq 'Chain'; }
 sub is_autointerface( $ ){ ref($_[0]) eq 'Autointerface'; }
-sub is_local( $ )        { ref($_[0]) eq 'Local'; }
 
 # Get VPN id of network object, if available.
 sub get_id( $ ) {
@@ -3450,6 +3475,12 @@ sub expand_group1( $$ ) {
 	    err_msg 
 		"Complement (!) ist only supported as part of intersection";
 	}
+	elsif($type eq 'user') {
+
+	    # Either a single object or an array of objects.
+	    my $elements = $name->{elements};
+	    push @objects, ref($elements) eq 'ARRAY' ? @$elements : $elements;
+	}
 	elsif($type eq 'interface') {
 	    if(ref $name) {
 		ref $ext 
@@ -3459,6 +3490,7 @@ sub expand_group1( $$ ) {
 		    expand_group1 $name, 
 		      "interface:[..].[$selector] of $context";
 		for my $object (@$sub_objects) {
+		    next if $object->{disabled};
 		    $object->{is_used} = 1;
 		    my $type = ref $object;
 		    if($type eq 'Network') {
@@ -3477,6 +3509,19 @@ sub expand_group1( $$ ) {
 			      get_auto_intf $object, $selector, $managed;
 			}
 		    }
+		    elsif($type eq 'Any') {
+			if($selector eq 'all') {
+
+			    # Attribute 'managed' can be ignored,
+			    # because all border interfaces of a security domain
+			    # are managed by definition.
+			    push @objects, @{$object->{interfaces}};
+			}
+			else {
+			    err_msg "Must not use interface:[any:..].[$selector]",
+			    " in $context";
+			}
+		    }
 		    elsif($type eq 'Interface') {
 			my $router = $object->{router};
 			if($managed and not $router->{managed}) {
@@ -3488,7 +3533,7 @@ sub expand_group1( $$ ) {
 			}
 			else {
 
-			    # Relabel with new selector.
+			    # Re-label with new selector.
 			    push @objects, get_auto_intf $router, $selector;
 			}
 		    }
@@ -3575,20 +3620,10 @@ sub expand_group1( $$ ) {
 	    }
 	}
 	elsif(ref $name) {
-	    $type =~ /^(network|any)$/
-		or err_msg "Unexpected '$type:[..]' in $context";
-
-	    # network:[local], any:[local]
-	    if(@$name == 1 and $name->[0] eq 'local') {
-		push @objects, new('Local', 
-				   name => "$type:[local]", 
-				   what => $type);
-		next;
-	    }
-
 	    my $sub_objects = expand_group1 $name, "$type:[..] of $context";
 	    if($type eq 'network') {
 		for my $object (@$sub_objects) {
+		    next if $object->{disabled};
 		    $object->{is_used} = 1;
 		    my $type = ref $object;
 		    if($type eq 'Area') {
@@ -3613,6 +3648,7 @@ sub expand_group1( $$ ) {
 	    }
 	    elsif ($type eq 'any') {
 		for my $object (@$sub_objects) {
+		    next if $object->{disabled};
 		    $object->{is_used} = 1;
 		    my $type = ref $object;
 		    if($type eq 'Area') {
@@ -3631,6 +3667,9 @@ sub expand_group1( $$ ) {
 			err_msg "Unexpected type '$type' in any:[..] of $context";
 		    }
 		}
+	    }
+	    else {
+		err_msg "Unexpected '$type:[..]' in $context";
 	    }
 	}
 
@@ -3933,41 +3972,19 @@ sub get_networks ( $ ) {
 sub expand_special ( $$$$ ) {
     my ($src, $dst, $flags, $context) = @_;
     my @result;
-    if(is_local $src) {
-	if (is_interface $dst and $dst->{router}->{managed}) {
+    if(is_autointerface $src) {
+	for my $interface (path_auto_interfaces $src, $dst) {
+	    if ($interface->{ip} eq 'short') {
+		err_msg "'$interface->{ip}' $interface->{name}",
+		" (from .[$src->{selector}])\n", 
+		" must not be used in rule of $context";
+	    }
+	    elsif ($interface->{ip} =~ /unnumbered/) {
 
-	    # Associated network or 'any' object of interface.
-	    return $dst->{$src->{what}};
-	}
-	else {
-	    err_msg "$src->{name} must only be used in conjunction",
-	            " with a distinct managed interface\n", 
-	            " but not with $dst->{name} in rule of $context";
-
-	    # No value, to prevent further errors.
-	    return ();
-	}
-    }
-    elsif(is_autointerface $src) {
-	if(is_local $dst) {
-
-	    # Error has already been reported above with swapped src and dst.
-	    return ();
-	}
-	else {
-	    for my $interface (path_auto_interfaces $src, $dst) {
-		if ($interface->{ip} eq 'short') {
-		    err_msg "'$interface->{ip}' $interface->{name}",
-		    " (from .[$src->{selector}])\n", 
-		    " must not be used in rule of $context";
-		}
-		elsif ($interface->{ip} =~ /unnumbered/) {
-		    
-		    # Ignore unnumbered interfaces.
-		}
-		else {
-		    push @result, $interface;
-		}
+		# Ignore unnumbered interfaces.
+	    }
+	    else {
+		push @result, $interface;
 	    }
 	}
     }
@@ -3975,11 +3992,6 @@ sub expand_special ( $$$$ ) {
 	@result = ($src);
     }
     if($flags->{path}) {
-	if(is_local $dst) {
-	    err_msg "$dst->{name} must not be used in rule with\n",
-	            " service having flag src_path or dst_path in $context";
-	    return ();
-	}
 	my %interfaces;
 	for my $src (@result) {
 	    my $fun = sub { 
@@ -4007,7 +4019,7 @@ sub expand_special ( $$$$ ) {
 	    if ($type eq 'Network') {
 		$network = $obj;
 	    }
-	    elsif ($type eq 'Subnet') {
+	    elsif ($type eq 'Subnet' or $type eq 'Host') {
 		if($obj->{id}) {
 		    push @other, $obj;
 		    next;
@@ -4044,7 +4056,7 @@ sub expand_special ( $$$$ ) {
 	    if ($type eq 'Network') {
 		$any = $obj->{any};
 	    }
-	    elsif ($type eq 'Subnet' or $type eq 'Interface') {
+	    elsif ($type eq 'Subnet' or $type eq 'Interface' or $type eq 'Host') {
 		$any = $obj->{network}->{any};
 	    }
 	    elsif ($type eq 'Any') {
@@ -4103,88 +4115,105 @@ sub warn_unenforceable ( $$$$ ) {
 # - Current context for error messages: name of policy or crypto object.
 # - Reference to hash with attributes deny, any, permit for storing
 #   resulting expanded rules of different type.
-sub expand_rules ( $$$ ) {
-    my ($rules_ref, $context, $result) = @_;
+# Optional, used when called from expand_policies:
+# - Reference to array of values. Occurrences of 'user' in rules 
+#   will be substituted by these values.
+# - Flag, indicating if values for 'user' are substituted as a whole or 
+#   a new rules is expanded for each element.
+# - Flag which will be passed on to expand_group.
+sub expand_rules ( $$$;$$$ ) {
+    my ($rules_ref, $context, $result, $user, $foreach, $convert_hosts) = @_;
 
     # For collecting resulting expanded rules.
     my ($deny, $any, $permit) = @{$result}{ 'deny', 'any', 'permit' };
 
     for my $unexpanded (@$rules_ref) {
-
         my $action = $unexpanded->{action};
-	for my $srv (@{ $unexpanded->{srv} }) {
-	    my $flags = $srv->{flags};
+	my $srv = expand_services $unexpanded->{srv}, "rule in $context";
+	for my $element ($foreach ? @$user : $user) {
+	    $user_object->{elements} = $element;
+	    my $src = expand_group($unexpanded->{src}, "src of rule in $context",
+				   $convert_hosts);
+	    my $dst = expand_group($unexpanded->{dst}, "dst of rule in $context",
+				   $convert_hosts);
 
-	    # We must not use a unspecified boolean value but values 0 or 1,
-	    # because this is used as a hash key in %rule_tree.
-	    my $stateless = $flags->{stateless} ? 1 : 0;
+	    for my $srv (@$srv) {
+		my $flags = $srv->{flags};
 
-	    my($src, $dst) = @{$unexpanded}{'src' , 'dst'};
-	    ($src, $dst) = ($dst, $src) if $flags->{reversed};
+		# We must not use a unspecified boolean value but values 0 or 1,
+		# because this is used as a hash key in %rule_tree.
+		my $stateless = $flags->{stateless} ? 1 : 0;
 
-	    # If $srv is duplicate of an identical service,
-	    # use the main service, but remember the original
-	    # one for debugging / comments.
-	    my $orig_srv;
+		my($src, $dst) = 
+		    $flags->{reversed} ? ($dst, $src) : ($src, $dst);
 
-	    # Prevent modification of original array.
-	    my $srv = $srv;
-	    if (my $main_srv = $srv->{main}) {
-		$orig_srv = $srv;
-		$srv      = $main_srv;
-	    }
-	    else {
-		my $proto = $srv->{proto};
-		if ($proto eq 'tcp' || $proto eq 'udp') {
+		# If $srv is duplicate of an identical service,
+		# use the main service, but remember the original
+		# one for debugging / comments.
+		my $orig_srv;
 
-		    # Remember unsplitted srv.
-		    $orig_srv  = $srv;
+		# Prevent modification of original array.
+		my $srv = $srv;
+		if (my $main_srv = $srv->{main}) {
+		    $orig_srv = $srv;
+		    $srv      = $main_srv;
+		}
+		else {
+		    my $proto = $srv->{proto};
+		    if ($proto eq 'tcp' || $proto eq 'udp') {
+
+			# Remember unsplitted srv.
+			$orig_srv  = $srv;
+		    }
+		}
+		$srv->{src_dst_range_list} or internal_err $srv->{name};
+		for my $src_dst_range (@{$srv->{src_dst_range_list}}) {
+		    my($src_range, $srv) = @$src_dst_range;
+		    for my $src (@$src) {
+			my $src_any = $obj2any{$src} || get_any $src;
+			for my $dst (@$dst) {
+			    my $dst_any = $obj2any{$dst} || get_any $dst;
+			    if ($src_any eq $dst_any) {
+				warn_unenforceable 
+				    $src, $dst, $src_any, $context;
+				next;
+			    }  
+			    my @src = 
+				expand_special 
+				    $src, $dst, $flags->{src}, $context
+				or next; # Prevent multiple error messages.
+			    my @dst = 
+				expand_special 
+				    $dst, $src, $flags->{dst}, $context;
+			    for my $src (@src) {
+				for my $dst (@dst) {
+				    my $rule = {
+					stateless => $stateless,
+					action    => $action,
+					src       => $src,
+					dst       => $dst,
+					src_range => $src_range,
+					srv       => $srv,
+					rule      => $unexpanded
+				    };
+				    $rule->{orig_srv} = $orig_srv if $orig_srv;
+				    $rule->{oneway} = 1 if $flags->{oneway};
+				    if ($action eq 'deny') {
+					push @$deny, $rule;
+				    }
+				    elsif (is_any($src) or is_any($dst)) {
+					push @$any, $rule;
+				    }
+				    else {
+					push @$permit, $rule;
+				    }
+				}
+			    }
+			}
+		    }
 		}
 	    }
-	    $srv->{src_dst_range_list} or internal_err $srv->{name};
-	    for my $src_dst_range (@{$srv->{src_dst_range_list}}) {
-		my($src_range, $srv) = @$src_dst_range;
-		for my $src (@$src) {
-		    my $src_any = $obj2any{$src} || get_any $src;
-		    for my $dst (@$dst) {
-			my $dst_any = $obj2any{$dst} || get_any $dst;
-			if ($src_any eq $dst_any) {
-			    warn_unenforceable $src, $dst, $src_any, $context;
-			    next;
-			}  
-			my @src = 
-			    expand_special $src, $dst, $flags->{src}, $context
-			  or next; # Prevent multiple error messages.
-			my @dst = 
-			    expand_special $dst, $src, $flags->{dst}, $context;
-			for my $src (@src) {
-			    for my $dst (@dst) {
-				my $rule = {
-				    stateless => $stateless,
-				    action    => $action,
-				    src       => $src,
-				    dst       => $dst,
-				    src_range => $src_range,
-				    srv       => $srv,
-				    rule      => $unexpanded
-				    };
-				$rule->{orig_srv} = $orig_srv if $orig_srv;
-				$rule->{oneway} = 1 if $flags->{oneway};
-				if ($action eq 'deny') {
-				    push @$deny, $rule;
-				}
-				elsif (is_any($src) or is_any($dst)) {
-				    push @$any, $rule;
-				}
-				else {
-				    push @$permit, $rule;
-				}
-                            }
-                        }
-                    }
-                }
-            }
-        }
+	}
     }
 
     # Result is indirectly returned using parameter $result.
@@ -4199,22 +4228,10 @@ sub expand_policies( ;$) {
     for my $key (sort keys %policies) {
         my $policy = $policies{$key};
         my $name   = $policy->{name};
-        my $user   = $policy->{user} = expand_group $policy->{user},
-          "user of $name", $convert_hosts;
-        for my $rule (@{ $policy->{rules} }) {
-            for my $where ('src', 'dst') {
-                if ($rule->{$where} eq 'user') {
-                    $rule->{$where} = $user;
-                }
-                else {
-                    $rule->{$where} =
-                      expand_group($rule->{$where}, "$where of rule in $name",
-                        $convert_hosts);
-                }
-            }
-            $rule->{srv} = expand_services $rule->{srv}, "rule in $name";
-        }
-        expand_rules $policy->{rules}, $name, \%expanded_rules;
+        my $user   = $policy->{user} = expand_group($policy->{user},
+						    "user of $name");
+	expand_rules($policy->{rules}, $name, \%expanded_rules, 
+		     $user, $policy->{foreach}, $convert_hosts);
     }
     for my $type ('deny', 'any', 'permit') {
         add_rules $expanded_rules{$type};
@@ -4770,7 +4787,8 @@ sub setany() {
 
         # Make results deterministic.
         @{ $any->{networks} } =
-          sort { $a->{ip} <=> $b->{ip} } @{ $any->{networks} };
+          sort { $a->{mask} <=> $b->{mask} || $a->{ip} <=> $b->{ip} } 
+	       @{ $any->{networks} };
     }
 
     # Automatically add an 'any' object to each security domain
@@ -4785,7 +4803,8 @@ sub setany() {
 
         # Make results deterministic.
         @{ $any->{networks} } =
-          sort { $a->{ip} <=> $b->{ip} } @{ $any->{networks} };
+          sort { $a->{mask} <=> $b->{mask} || $a->{ip} <=> $b->{ip} } 
+               @{ $any->{networks} };
     }
 
     check_vpn3k;
@@ -4866,6 +4885,9 @@ sub setany() {
         }
     }
     for my $area (@all_areas) {
+
+	# Make result deterministic. Needed for network:[area:xx].
+	@{$area->{anys}} = sort { $a->{name} cmp $b->{name} } @{$area->{anys}};
 
         # Tidy up: Delete unused attribute.
         delete $area->{intf_lookup};
@@ -6231,17 +6253,6 @@ sub expand_crypto () {
     mark_tunnels;
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
-
-	# Convert typed names in crypto rule to internal objects.
-        for my $rule (@{ $crypto->{rules} }) {
-            for my $where ('src', 'dst') {
-                $rule->{$where} = 
-
-		    # Expand and convert hosts to subnets.
-		    expand_group $rule->{$where}, "$where of rule in $name", 1;
-            }
-            $rule->{srv} = expand_services $rule->{srv}, "rule of $name";
-        }
         my (@deny, @any, @permit);
         my $result = $crypto->{expanded_rules} = {
             deny   => \@deny,
@@ -9415,7 +9426,7 @@ sub print_ezvpn( $ ) {
     my ($router)     = @_;
     my $model        = $router->{model};
     my $comment_char = $model->{comment_char};
-    %{$router->{auto_crypto_peer}} or 
+    ($router->{auto_crypto_peer} and %{$router->{auto_crypto_peer}}) or 
 	err_msg 
 	"EZVPN must only be used together with auto_crypto at $router->{name}";
     @{$router->{interfaces}} == 2 or
