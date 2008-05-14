@@ -129,9 +129,13 @@ system('rm', '-rf', $pdir);
 print STDERR "Saving policy $count\n";
 mkdir $pdir or die "Error: can't create $pdir: $!\n";
 
+# cvs update needs relative pathname for destination directory.
+# Hence we change into parent directory.
+chdir($pdir) or die "Error: during 'cd $pdir': $!\n";
+
 # Check out newest files from repository
 # into subdirectory "src" of policy directory.
-system('cvs', '-Q', 'checkout', '-d', "$psrc", $module) == 0 or
+system('cvs', '-Q', 'checkout', '-d', 'src', $module) == 0 or
     die "Error: can't checkout $policy to $psrc\n";
 
 # Sanity check that working copy of calling user 
