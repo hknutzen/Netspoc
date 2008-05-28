@@ -190,6 +190,19 @@ my %router_info = (
         no_crypto_filter    => 1,
         comment_char        => '!',
         has_interface_level => 1,
+	need_identity_nat   => 1,
+        no_filter_icmp_code => 1,
+    },
+
+    # Like PIX, but without identity NAT.
+    ASA => {
+        name                => 'ASA',
+        routing             => 'PIX',
+        filter              => 'PIX',
+        crypto              => 'PIX',
+        no_crypto_filter    => 1,
+        comment_char        => '!',
+        has_interface_level => 1,
         no_filter_icmp_code => 1,
     },
     Linux => {
@@ -7127,80 +7140,118 @@ sub check_and_convert_routes () {
     }
 }
 
-# Collect networks for generation of static commands.
+# Collect networks which need NAT commands.
 sub mark_networks_for_static( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
 
-    # No static needed for directly attached interface.
+    # No NAT needed for directly attached interface.
     return unless $out_intf;
-    my $router = $out_intf->{router};
-    return unless $router->{managed};
-    return unless $router->{model}->{has_interface_level};
 
-    # No static needed for traffic coming from the PIX itself.
+    # No NAT needed for traffic originating from the device itself.
     return unless $in_intf;
 
+    my $router = $out_intf->{router};
+    return unless $router->{managed};
+    my $model = $router->{model};
+    return unless $model->{has_interface_level};
+
     # We need in_hw and out_hw for
-    # - their names and for
-    # - getting the NAT domain
+    # - attaching attribute src_nat and
+    # - getting the NAT tag.
     my $in_hw  = $in_intf->{hardware};
     my $out_hw = $out_intf->{hardware};
-    my $dst    = $rule->{dst};
-
-    # dst has been added before; skip NAT calculation.
-    return if $out_hw->{static}->{$in_hw}->{$dst};
     if($in_hw->{level} == $out_hw->{level}) {
-	err_msg "Traffic to $rule->{dst}->{name} can't pass\n",
-	" from  $in_intf->{name} to $out_intf->{name},\n",
-	" because they have equal security levels.\n";
+	err_msg "Traffic of rule\n", print_rule $rule,
+	"\n can't pass from  $in_intf->{name} to $out_intf->{name},\n",
+	" which have equal security levels.\n";
     }
 
-    # This router and all routers from here to dst have been processed already.
-    # But we can't be sure about this, if we are walking inside a loop.
-    if (    $use_nonlocal_exit
-        and $out_hw->{static}->{$in_hw}->{$dst}
-        and not $in_intf->{in_loop})
-    {
+    my $identity_nat = $model->{need_identity_nat};
+    if($identity_nat) {
 
-        # Jump out of path_walk in sub find_active_routes_and_statics
-        no warnings "exiting";
-        next RULE;
+	# Static dst NAT is equivalent to reversed src NAT.
+	for my $dst (@{ $rule->{dst_net} }) {
+	    $out_hw->{src_nat}->{$in_hw}->{$dst} = $dst;
+	}
+	if ($in_hw->{level} > $out_hw->{level}) {
+	    $in_hw->{need_nat_0} = 1;
+	}
     }
 
-    if ($dst->{mask} == 0) {
-	err_msg "$router->{name} doesn't support static command for ",
-	  "mask 0.0.0.0 in dst of ", print_rule $rule;
+    # Not identity NAT, handle real dst NAT.
+    elsif(my $nat_tag = $in_hw->{bind_nat}) {
+	for my $dst (@{ $rule->{dst_net} }) {
+	    my $nat_info = $dst->{nat} or next;
+	    my $nat_net = $nat_info->{$nat_tag} or next;
+
+	    # Store reversed dst NAT for real translation.
+	    $out_hw->{src_nat}->{$in_hw}->{$dst} = $dst;
+	}
     }
 
-    # Put networks into a hash to prevent duplicates.
-    $out_hw->{static}->{$in_hw}->{$dst} = $dst;
+    # Handle real src NAT.
+    # Remember: 
+    # NAT tag for network located behind in_hw is attached to out_hw.
+    my $nat_tag = $out_hw->{bind_nat} or return;
+    for my $src (@{ $rule->{src_net} }) {
+	my $nat_info = $src->{nat} or next;
+	my $nat_net = $nat_info->{$nat_tag} or next;
 
-    # Do we need to generate "nat 0" for an interface?
-    if ($in_hw->{level} < $out_hw->{level}) {
-        $out_hw->{need_nat_0} = 1;
-    }
-    else {
+	# Store src NAT for real translation.
+	$in_hw->{src_nat}->{$out_hw}->{$src} = $src;
 
-        # Check, if there is a dynamic NAT of a dst address from higher
-        # to lower security level. We need this info to decide,
-        # if static commands with "identity mapping" and
-        # a "nat 0" command needs to be generated.
-        $out_hw->{need_always_static} and return;
+	if($identity_nat) {
 
-        # Remember: NAT tag for networks behind out_hw is attached to in_hw.
-        my $nat_tag = $in_hw->{bind_nat} or return;
-        if (   $dst->{nat}
-            && $dst->{nat}->{$nat_tag}
-            && $dst->{nat}->{$nat_tag}->{dynamic})
-        {
-            $out_hw->{need_always_static} = 1;
-            $out_hw->{need_nat_0}         = 1;
-        }
+	    # Check if there is a dynamic NAT of src address from lower
+	    # to higher security level. We need this info to decide,
+	    # if static commands with "identity mapping" and a "nat 0" command 
+	    # need to be generated.
+	    if($nat_net->{dynamic} and $in_hw->{level} < $out_hw->{level}) {
+		$in_hw->{need_identity_nat} = 1;
+		$in_hw->{need_nat_0}        = 1;
+	    }
+	}
     }
 }
 
-sub find_active_routes_and_statics () {
-    info "Finding routes and statics";
+sub find_statics () {
+    info "Finding statics";
+
+    # We only need to traverse the topology for each pair of
+    # src-(any/router), dst-(any/router)
+    my %any2any2rule;
+    my $pseudo_srv = { name => '--' };
+    for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{any} }) {
+        my ($src, $dst) = @{$rule}{qw(src dst)};
+        my $from = $obj2any{$src} || get_any $src;
+	my $to   = $obj2any{$dst} || get_any $dst;
+	$any2any2rule{$from}->{$to} ||= {
+	    src    => $from,
+	    dst    => $to,
+	    action => '--',
+	    srv    => $pseudo_srv,
+	    src_net => {},
+	    dst_net => {},
+	};	
+	my $rule = $any2any2rule{$from}->{$to};
+	for my $network (get_networks($src)) {
+	    $rule->{src_net}->{$network} = $network;
+	}
+	for my $network (get_networks($dst)) {
+	    $rule->{dst_net}->{$network} = $network;
+	}
+    }
+    for my $hash (values %any2any2rule) {
+	for my $rule (values %$hash) {
+	    $rule->{src_net} = [ values %{$rule->{src_net}} ];
+	    $rule->{dst_net} = [ values %{$rule->{dst_net}} ];
+	    path_walk($rule, \&mark_networks_for_static, 'Router');
+	}
+    }
+}
+
+sub find_active_routes () {
+    info "Finding routes";
     my %routing_tree;
     my $pseudo_srv = { name => '--' };
     my $fun = sub ( $$ ) {
@@ -7212,7 +7263,7 @@ sub find_active_routes_and_statics () {
         #   entries added.
         my $from = $obj2path{$src} || get_path $src;
 
-        # 'any' objects are expanded to all its contained networks
+        # 'any' objects are expanded to all its contained networks,
         # hosts and interfaces expand to its containing network.
         # Don't try to use an interface as destination of $pseudo_rule;
         # this would give wrong routes and statics, if a path restriction
@@ -7231,17 +7282,11 @@ sub find_active_routes_and_statics () {
             }
         }
     };
+
+    # Process both directions.
     for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{any} }) {
         $fun->($rule->{src}, $rule->{dst});
     }
-    for my $hash (values %routing_tree) {
-      RULE:
-        for my $pseudo_rule (values %$hash) {
-            path_walk($pseudo_rule, \&mark_networks_for_static, 'Router');
-        }
-    }
-
-    # Additionally process reverse direction for routing.
     for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{any} }) {
         $fun->($rule->{dst}, $rule->{src});
     }
@@ -7252,6 +7297,11 @@ sub find_active_routes_and_statics () {
         }
     }
     check_and_convert_routes;
+}
+
+sub find_active_routes_and_statics () {
+    find_statics;
+    find_active_routes;
 }
 
 sub ios_route_code( $ );
@@ -7384,19 +7434,16 @@ sub print_routes( $ ) {
 
 sub print_pix_static( $ ) {
     my ($router) = @_;
-    my %ref2hw;
     my $comment_char = $router->{model}->{comment_char};
-    print "$comment_char [ Static ]\n";
+    print "$comment_char [ NAT ]\n";
+
+    my @hardware = 
+	sort { $a->{level} <=> $b->{level} } @{ $router->{hardware} };
 
     # Print security level relation for each interface.
     print "! Security levels: ";
     my $prev_level;
-    for my $hardware (sort { $a->{level} <=> $b->{level} }
-        @{ $router->{hardware} })
-    {
-
-        # For getting reference back from key.
-        $ref2hw{$hardware} = $hardware;
+    for my $hardware (@hardware) {
         my $level = $hardware->{level};
         if (defined $prev_level) {
             print(($prev_level == $level) ? " = " : " < ");
@@ -7412,59 +7459,50 @@ sub print_pix_static( $ ) {
     # Hash of indexes for reusing of NAT pools.
     my %intf2net2mask2index;
 
-    for
-      my $out_hw (sort { $a->{level} <=> $b->{level} } @{ $router->{hardware} })
-    {
-        next unless $out_hw->{static};
-        my $out_name = $out_hw->{name};
-        my $out_nat  = $out_hw->{nat_map};
-        for my $in_hw (
-            sort { $a->{level} <=> $b->{level} }
-            map  { $ref2hw{$_} }
-
-            # Key is reference to hardware interface.
-            keys %{ $out_hw->{static} }
-          )
-        {
+    for my $in_hw (@hardware)    {
+        my $src_nat = $in_hw->{src_nat} or next;
+        my $in_name = $in_hw->{name};
+        my $in_nat  = $in_hw->{nat_map};
+        for my $out_hw (@hardware) {
 
             # Value is { net => net, .. }
-            my ($net_hash) = $out_hw->{static}->{$in_hw};
-            my $in_name    = $in_hw->{name};
-            my $in_nat     = $in_hw->{nat_map};
+	    my $net_hash = $src_nat->{$out_hw} or next;
+            my $out_name = $out_hw->{name};
+            my $out_nat  = $out_hw->{nat_map};
 
             # Sorting is only needed for getting output deterministic.
 	    # For equal addresses look at the NAT address.
             my @networks =
               sort {    $a->{ip} <=> $b->{ip} 
 		     || $a->{mask} <=> $b->{mask} 
-		     || $in_nat->{$a}->{ip} <=> $in_nat->{$b}->{ip} }
+		     || $out_nat->{$a}->{ip} <=> $out_nat->{$b}->{ip} }
               values %$net_hash;
 
             # Mark redundant network as deleted.
             # A network is redundant if some enclosing network is found
             # in both NAT domains of incoming and outgoing interface.
             for my $network (@networks) {
-                my $net = $network->{is_in}->{$in_nat};
+                my $net = $network->{is_in}->{$out_nat};
                 while ($net) {
                     my $net2;
                     if (    $net_hash->{$net}
-                        and $net2 = $network->{is_in}->{$out_nat}
+                        and $net2 = $network->{is_in}->{$in_nat}
                         and $net_hash->{$net2})
                     {
                         $network = undef;
                         last;
                     }
                     else {
-                        $net = $net->{is_in}->{$in_nat};
+                        $net = $net->{is_in}->{$out_nat};
                     }
                 }
             }
             for my $network (@networks) {
-                next unless defined $network;
+                next if not $network;
                 my ($in_ip, $in_mask, $in_dynamic) =
-                  @{ $in_nat->{$network} || $network }{ 'ip', 'mask', 'dynamic' };
+                  @{ $in_nat->{$network} || $network }{ qw(ip mask dynamic) };
                 my ($out_ip, $out_mask, $out_dynamic) =
-                  @{ $out_nat->{$network} || $network }{ 'ip', 'mask', 'dynamic' };
+                  @{ $out_nat->{$network} || $network }{ qw(ip mask dynamic) };
                 if ($in_mask == 0 || $out_mask == 0) {
                     err_msg "$router->{name} doesn't support static command for ",
                       "mask 0.0.0.0 of $network->{name}\n";
@@ -7477,37 +7515,37 @@ sub print_pix_static( $ ) {
 		    $out_dynamic = $in_dynamic = undef;
 		}
 
-                # We are talking about destination addresses.
-                if ($out_dynamic) {
-		    warn_msg "Ignoring NAT for dynamically translated ",
-		      "$network->{name}\n",
-			"at hardware $out_hw->{name} of $router->{name}";
+                # We are talking about source addresses.
+                if ($in_dynamic) {
+		    warn_msg "Duplicate NAT for already dynamically",
+		      " translated $network->{name}\n",
+			"at hardware $in_hw->{name} of $router->{name}";
                 }
-                elsif ($in_dynamic) {
+                if ($out_dynamic) {
 
 		    # Use a single "global" command if multiple networks are
 		    # mapped to a single pool.
 		    my $index = 
-			$intf2net2mask2index{$in_name}->{$in_ip}->{$in_mask};
+			$intf2net2mask2index{$out_name}->{$out_ip}->{$out_mask};
 		    if(not $index) {
 			$index = $nat_index++;
-			$intf2net2mask2index{$in_name}->{$in_ip}->{$in_mask} = 
-			    $index;
+			$intf2net2mask2index{$out_name}
+			->{$out_ip}->{$out_mask} = $index;
 
 			# global (outside) 1 \
 			#   10.70.167.0-10.70.167.255 netmask 255.255.255.0
 			# nat (inside) 1 141.4.136.0 255.255.252.0
-			my $max   = $in_ip | complement_32bit $in_mask;
-			my $mask  = print_ip $in_mask;
-			my $range = ($in_ip == $max) 
-			          ? print_ip($in_ip) 
-			          : print_ip($in_ip) . '-' . print_ip($max);
-			print "global ($in_name) $index $range netmask $mask\n";
+			my $max   = $out_ip | complement_32bit $out_mask;
+			my $mask  = print_ip $out_mask;
+			my $range = ($out_ip == $max) 
+			          ? print_ip($out_ip) 
+			          : print_ip($out_ip) . '-' . print_ip($max);
+			print "global ($out_name) $index $range netmask $mask\n";
 		    }
-                    my $out   = print_ip $out_ip;
-                    my $mask = print_ip $out_mask;
-		    print "nat ($out_name) $index $out $mask";
-                    print " outside" if $in_hw->{level} > $out_hw->{level};
+                    my $in   = print_ip $in_ip;
+                    my $mask = print_ip $in_mask;
+		    print "nat ($in_name) $index $in $mask";
+                    print " outside" if $in_hw->{level} < $out_hw->{level};
                     print "\n";
                     $nat_index++;
 
@@ -7515,21 +7553,22 @@ sub print_pix_static( $ ) {
                     for my $host (@{ $network->{subnets} },
 				  @{ $network->{interfaces} })
                     {
-                        if (my $in_ip = $host->{nat}->{$in_dynamic}) {
+                        if (my $out_ip = $host->{nat}->{$out_dynamic}) {
                             my $pair  = address($host, $out_nat);
                             my ($out_ip, $out_mask) = @$pair;
                             my $in    = print_ip $in_ip;
                             my $out   = print_ip $out_ip;
                             my $mask  = print_ip $out_mask;
-                            print "static ($out_name,$in_name) ",
-			    "$in $out netmask $mask\n";
+                            print "static ($in_name,$out_name) ",
+			    "$out $in netmask $mask\n";
                         }
                     }
                 }
-		# Both static or dynamic at other router.
+
+		# Static translation.
                 else { 
-                    if (   $in_hw->{level} < $out_hw->{level}
-                        || $out_hw->{need_always_static}
+                    if (   $in_hw->{level} > $out_hw->{level}
+                        || $in_hw->{need_identity_nat}
                         || $in_ip != $out_ip)
                     {
                         my $in   = print_ip $in_ip;
@@ -7538,13 +7577,13 @@ sub print_pix_static( $ ) {
 
                         # static (inside,outside) \
                         #   10.111.0.0 111.0.0.0 netmask 255.255.252.0
-                        print "static ($out_name,$in_name) ",
-                          "$in $out netmask $mask\n";
+                        print "static ($in_name,$out_name) ",
+                          "$out $in netmask $mask\n";
                     }
                 }
             }
         }
-        print "nat ($out_name) 0 0.0.0.0 0.0.0.0\n" if $out_hw->{need_nat_0};
+        print "nat ($in_name) 0 0.0.0.0 0.0.0.0\n" if $in_hw->{need_nat_0};
     }
 }
 
@@ -9294,6 +9333,7 @@ sub print_acls( $ ) {
         elsif ($filter eq 'PIX') {
             $intf_prefix = '';
             $prefix      = "access-list $acl_name";
+	    $prefix     .= ' extended' if $model->{name} eq 'ASA';
         }
         elsif ($filter eq 'iptables') {
             $intf_name   = "$hardware->{name}_self";
@@ -9696,6 +9736,7 @@ sub print_crypto( $ ) {
                 }
                 elsif ($crypto_type eq 'PIX') {
                     $prefix = "access-list $crypto_filter_name";
+		    $prefix .= ' extended' if $model->{name} eq 'ASA';
                 }
 		print_acl_add_deny 
 		    $router, $map, $nat_map, $model, $prefix, $prefix;
