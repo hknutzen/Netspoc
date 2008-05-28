@@ -8052,7 +8052,7 @@ sub cisco_srv_code( $$$ ) {
     my $proto = $srv->{proto};
 
     if ($proto eq 'ip') {
-        return ('ip', '', '');
+        return ('ip', undef, undef);
     }
     elsif ($proto eq 'tcp' or $proto eq 'udp') {
         my $port_code = sub ( $$ ) {
@@ -8063,26 +8063,28 @@ sub cisco_srv_code( $$$ ) {
 
             # PIX doesn't allow port 0; can port 0 be used anyhow?
             elsif ($v1 == 1 and $v2 == 65535) {
-                return ('');
+                return (undef);
             }
             elsif ($v2 == 65535) {
-                $v1--;
-                return "gt $v1";
+                return 'gt '.($v1-1);
             }
             elsif ($v1 == 1) {
-                $v2++;
-                return "lt $v2";
+                return 'lt '.($v2+1);
             }
             else {
                 return ("range $v1 $v2");
             }
         };
-        my $established = $srv->{established} ? ' established' : '';
-        return (
-            $proto,
-            $port_code->(@{ $src_range->{range} }),
-            $port_code->(@{ $srv->{range} }) . $established
-        );
+	my $dst_srv = $port_code->(@{ $srv->{range} });
+        if(my $established = $srv->{established}) {
+	    if(defined $dst_srv) {
+		$dst_srv .= ' established';
+	    }
+	    else {
+		$dst_srv = 'established';
+	    }
+	}
+        return ($proto, $port_code->(@{ $src_range->{range} }), $dst_srv);
     }
     elsif ($proto eq 'icmp') {
         if (defined(my $type = $srv->{type})) {
@@ -8097,22 +8099,22 @@ sub cisco_srv_code( $$$ ) {
                     # If we try to permit e.g. "port unreachable",
                     # "unreachable any" could pass the PIX.
                     $pix_srv_hole{ $srv->{name} }++;
-                    return ($proto, '', $type);
+                    return ($proto, undef, $type);
                 }
                 else {
-                    return ($proto, '', "$type $code");
+                    return ($proto, undef, "$type $code");
                 }
             }
             else {
-                return ($proto, '', $type);
+                return ($proto, undef, $type);
             }
         }
         else {
-            return ($proto, '', '');
+            return ($proto, undef, undef);
         }
     }
     else {
-        return ($proto, '', '');
+        return ($proto, undef, undef);
     }
 }
 
@@ -8125,7 +8127,10 @@ sub pix_self_code ( $$$$$$ ) {
     if ($proto eq 'icmp') {
         my ($proto_code, $src_port_code, $dst_port_code) =
           cisco_srv_code($src_range, $srv, $model);
-        return "icmp $action $src_code $dst_port_code $dst_intf";
+	my $result = "icmp $action $src_code";
+	$result .= " $dst_port_code" if defined $dst_port_code;
+	$result .= " $dst_intf";
+        return $result;
     }
     elsif ($proto eq 'tcp' and $action eq 'permit') {
         my @code;
@@ -8217,10 +8222,12 @@ sub acl_line( $$$$ ) {
 		# Traffic passing through the PIX.
 		my ($proto_code, $src_port_code, $dst_port_code) =
 		    cisco_srv_code($src_range, $srv, $model);
-		my $src_code = ios_code($spair);
-		my $dst_code = ios_code($dpair);
-		print "$prefix $action $proto_code ",
-		"$src_code $src_port_code $dst_code $dst_port_code\n";
+		my $result = "$prefix $action $proto_code";
+		$result .= ' ' . ios_code($spair);
+		$result .= " $src_port_code" if defined $src_port_code;
+		$result .= ' ' . ios_code($dpair);
+		$result .= " $dst_port_code" if defined $dst_port_code;
+		print "$result\n";
 	    }
 	    else {
 
@@ -8242,10 +8249,12 @@ sub acl_line( $$$$ ) {
 	    my $inv_mask = $filter_type eq 'IOS';
 	    my ($proto_code, $src_port_code, $dst_port_code) =
 		cisco_srv_code($src_range, $srv, $model);
-	    my $src_code = ios_code($spair, $inv_mask);
-	    my $dst_code = ios_code($dpair, $inv_mask);
-	    print "$prefix $action $proto_code ",
-	    "$src_code $src_port_code $dst_code $dst_port_code\n";
+	    my $result = "$prefix $action $proto_code";
+	    $result .= ' ' . ios_code($spair, $inv_mask);
+	    $result .= " $src_port_code" if defined $src_port_code;
+	    $result .= ' ' . ios_code($dpair, $inv_mask);
+	    $result .= " $dst_port_code" if defined $dst_port_code;
+	    print "$result\n";
 	}
 	elsif ($filter_type eq 'iptables') {
 	    my $action_code =
@@ -9114,11 +9123,12 @@ sub print_vpn3k( $ ) {
 		    @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
 		my ($proto_code, $src_port_code, $dst_port_code) =
 		    cisco_srv_code($src_range, $srv, $model);
-		my $src_code = ios_code(address($src, $nat_map), $inv_mask);
-		my $dst_code = ios_code(address($dst, $nat_map), $inv_mask);
-		push @acl_lines,
-		"$action $proto_code $src_code $src_port_code" .
-		    " $dst_code $dst_port_code";
+		my $result = "$action $proto_code";
+		$result .= ' ' . ios_code(address($src, $nat_map), $inv_mask);
+		$result .= " $src_port_code" if defined $src_port_code;
+		$result .= ' ' . ios_code(address($dst, $nat_map), $inv_mask);
+		$result .= " $dst_port_code" if defined $dst_port_code;
+		push @acl_lines, $result;
 	    }
 	    my $spair = address $src, $nat_map;
 	    my $src_code = ios_code($spair, $inv_mask);
