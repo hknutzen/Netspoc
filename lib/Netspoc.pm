@@ -1500,15 +1500,15 @@ sub read_router( $ ) {
               and error_atline "Redefining 'managed' attribute";
             my $managed;
             if (check ';') {
-                $managed = 'full';
+                $managed = 'standard';
             }
             elsif (check '=') {
                 my $value = read_identifier;
-                if ($value =~ /^full|secondary$/) {
+                if ($value =~ /^secondary|standard|full|primary$/) {
                     $managed = $value;
                 }
                 else {
-                    error_atline "Unknown managed device type";
+                    error_atline "Unknown 'managed' attribute";
                 }
                 check ';';
             }
@@ -1526,7 +1526,7 @@ sub read_router( $ ) {
             $router->{model} and error_atline "Redefining 'model' attribute";
 	    my $info = $router_info{$model};
 	    if(not $info) {
-		error_atline "Unknown router model '$model'";
+		error_atline "Unknown router model";
 		next;
 	    }
 	    my $extension_info = $info->{extension};
@@ -2534,7 +2534,7 @@ sub expand_splitted_services ( $ ) {
     }
 }
 
-# Service 'ip' is needed later for secondary rules and
+# Service 'ip' is needed later for implementing secondary rules and
 # automatically generated deny rules.
 my $srv_ip = { name => 'auto_srv:ip', proto => 'ip' };
 
@@ -6864,10 +6864,23 @@ sub gen_reverse_rules() {
 }
 
 ##############################################################################
-# Mark rules for secondary filters.
-# At secondary packet filter interfaces, packets are only checked for its
-# src and dst networks, if there is a full packet filter interface on the path
-# from src to dst, were the original rule is checked.
+# Mark rules for secondary filtering.
+# A rule is implemented at a device 
+# either as a 'typical' or as a 'secondary' filter.
+# A filter is called to be 'secondary' if it only checks 
+# for the source and destination network and not for the service.
+# A typical filter checks for full source and destination IP and 
+# for the service of the rule.
+#
+# There are four types of packet filters: secondary, standard, full, primary.
+# A rule is marked by two attributes which are determined by the type of
+# devices located on the path from source to destination.
+# - 'some_primary': at least one device is primary packet filter,
+# - 'some_non_secondary': at least one device is not secondary packet filter.
+# A rule is implemented as a secondary filter at a device if
+# - the device is secondary and the rule has attribute 'some_non_secondary' or
+# - the device is standard and the rule has attribute 'some_primary'.
+# Otherwise a rules is implemented typical.
 ##############################################################################
 
 sub get_any2( $ ) {
@@ -6897,7 +6910,7 @@ sub mark_secondary ( $$ ) {
     $any->{secondary_mark} = $mark;
     for my $in_interface (@{$any->{interfaces}}) {
 	my $router = $in_interface->{router};
-	next unless $router->{managed} eq 'secondary';
+	next if not $router->{managed} eq 'secondary';
 	for my $out_interface (@{$router->{interfaces}}) {
 	    next if $out_interface eq $in_interface;
 	    mark_secondary $out_interface->{any}, $mark;
@@ -6905,17 +6918,39 @@ sub mark_secondary ( $$ ) {
     }
 }
 
+# Mark security domain $any with $mark and 
+# additionally mark all security domains 
+# which are connected with $any by non-primary packet filters.
+sub mark_primary ( $$ );
+sub mark_primary ( $$ ) {
+    my ($any, $mark) = @_;
+    return if $any->{primary_mark};
+    $any->{primary_mark} = $mark;
+    for my $in_interface (@{$any->{interfaces}}) {
+	my $router = $in_interface->{router};
+	next if $router->{managed} eq 'primary';
+	for my $out_interface (@{$router->{interfaces}}) {
+	    next if $out_interface eq $in_interface;
+	    mark_primary $out_interface->{any}, $mark;
+	}
+    }
+}
+
 sub mark_secondary_rules() {
     info "Marking rules for secondary optimization";
 
-    my $secondary_mark = 0;
+    my $secondary_mark = 1;
+    my $primary_mark = 1;
     for my $any (@all_anys) {
-	next if $any->{secondary_mark};
-	$secondary_mark++;
-	mark_secondary $any, $secondary_mark;
+	if(not $any->{secondary_mark}) {
+	    mark_secondary $any, $secondary_mark++;
+	}
+	if(not $any->{primary_mark}) {
+	    mark_primary $any, $primary_mark++;
+	}
     }
 
-    # Mark only normal rules for optimization.
+    # Mark only normal rules for secondary optimization.
     # We can't change a deny rule from e.g. tcp to ip.
     # We can't change 'any' rules, because path is unknown.
     for my $rule (@{ $expanded_rules{permit} }) {
@@ -6927,7 +6962,10 @@ sub mark_secondary_rules() {
 	my $dst_any = get_any2 $rule->{dst};
 	
 	if($src_any->{secondary_mark} ne $dst_any->{secondary_mark}) {
-            $rule->{has_full_filter} = 1;
+            $rule->{some_non_secondary} = 1;
+	}
+	if($src_any->{primary_mark} ne $dst_any->{primary_mark}) {
+            $rule->{some_primary} = 1;
 	}
     }
 }
@@ -7743,8 +7781,9 @@ sub distribute_rule( $$$;$ ) {
                             # therefore the whole network can pass here.
                             # But attention, this assumption only holds,
                             # if the other router filters fully.
-                            # Hence disable 'secondary' optimization.
-                            undef $rule->{has_full_filter};
+                            # Hence disable optimization with secondary rules.
+                            undef $rule->{some_non_secondary};
+                            undef $rule->{some_primary};
 
                             # Make a copy of current rule, because the
                             # original rule must not be changed.
@@ -8775,8 +8814,9 @@ sub local_optimization() {
         for my $network (@{ $domain->{networks} }) {
             for my $interface (@{ $network->{interfaces} }) {
                 my $router = $interface->{router};
-                next unless $router->{managed};
-                my $secondary_router = $router->{managed} eq 'secondary';
+                my $managed = $router->{managed} or next;
+                my $secondary_filter = $managed eq 'secondary';
+		my $standard_filter  = $managed eq 'standard';
 		my $is_vpn3k         = $router->{model}->{filter} eq 'VPN3K';
                 my $hardware         = $interface->{hardware};
 
@@ -8845,11 +8885,12 @@ sub local_optimization() {
                             $action = 'deny';
                         }
 
-                        # Convert remaining rules to secondary rules,
+                        # Implement remaining rules as secondary rule,
                         # if possible.
-                        if ($secondary_router && $rule->{has_full_filter}) {
-                            $action = $rule->{action};
+                        if ($secondary_filter && $rule->{some_non_secondary} ||
+			    $standard_filter && $rule->{some_primary}) {
 
+                            $action = $rule->{action};
 			    $src = $rule->{src};
 
 			    # Single ID-hosts must not be converted to
@@ -8885,7 +8926,7 @@ sub local_optimization() {
 
                             # Add new rule to hash. If there are multiple
                             # rules which could be converted to the same
-                            # secondary rule, only the first one will be
+                            # weak filter, only the first one will be
                             # generated.
                             $hash{$action}->{$src}->{$dst}->{$srv_ip}
                               ->{$srv_ip} = $new_rule;
@@ -9748,6 +9789,8 @@ sub print_crypto( $ ) {
                     $prefix = "access-list $crypto_filter_name";
 		    $prefix .= ' extended' if $model->{name} eq 'ASA';
                 }
+		$map->{intf_rules} ||= [];
+		$map->{rules} ||= [];
 		print_acl_add_deny 
 		    $router, $map, $nat_map, $model, $prefix, $prefix;
             }
