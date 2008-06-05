@@ -9398,14 +9398,13 @@ sub print_acls( $ ) {
 
         # Post-processing for hardware interface
         if ($filter eq 'IOS') {
-            print "interface $hardware->{name}\n";
-            print " ip access-group $acl_name in\n";
+	    push @{ $hardware->{subcmd} }, "ip access-group $acl_name in";
         }
         elsif ($filter eq 'PIX') {
             print "access-group $acl_name in interface $hardware->{name}\n";
         }
 
-        # Empty line after each interface.
+        # Empty line after each ACL.
         print "\n";
     }
 
@@ -9562,10 +9561,10 @@ sub print_ezvpn( $ ) {
     print " xauth userid mode local\n";
 
     # Apply ezvpn to WAN and LAN interface.
-    print "interface $lan_hw->{name}\n";
-    print " crypto ipsec client ezvpn $ezvpn_name inside\n";
-    print "interface $wan_hw->{name}\n";
-    print " crypto ipsec client ezvpn $ezvpn_name\n";
+    push(@{ $lan_hw->{subcmd} },
+	 "crypto ipsec client ezvpn $ezvpn_name inside");
+    push(@{ $wan_hw->{subcmd} },
+	 "crypto ipsec client ezvpn $ezvpn_name");
 
     # Split tunnel ACL. It controls which traffic needs to be encrypted.
     print "ip access-list extended $crypto_acl_name\n";
@@ -9820,8 +9819,7 @@ sub print_crypto( $ ) {
             $pfs_group and print "$prefix set pfs $pfs_group\n";
         }
         if ($crypto_type eq 'IOS') {
-            print "interface $name\n";
-            print " crypto map $map_name\n";
+            push(@{ $hardware->{subcmd} }, "crypto map $map_name");
         }
         elsif ($crypto_type eq 'PIX') {
             print "crypto map $map_name interface $name\n";
@@ -9830,6 +9828,19 @@ sub print_crypto( $ ) {
     }
 }
 
+sub print_interface( $ ) {
+    my ($router) = @_;
+    for my $hardware (@{ $router->{hardware} }) {
+	my $subcmd = $hardware->{subcmd} or next;
+        my $name = $hardware->{name};
+	print "interface $name\n";
+	for my $cmd (@$subcmd) {
+	    print " $cmd\n";
+	}
+    }
+    print "\n";
+}
+    
 # Make output directory available.
 sub check_output_dir( $ ) {
     my ($dir) = @_;
@@ -9880,6 +9891,7 @@ sub print_code( $ ) {
 	# ACLs are changed for auto_crypto peers, hence print_crypto first.
         print_crypto $router;
         print_acls $router;
+	print_interface $router if $model->{name} eq 'IOS';
         print_pix_static $router if $model->{has_interface_level};
         print "$comment_char [ END $name ]\n\n";
 
