@@ -7880,16 +7880,24 @@ sub distribute_rule_at_dst( $$$ ) {
 
 # For each device, find the IP address which is used 
 # to manage the device from a central policy distribution point.
-# This is used to add a comment line with the IP address
-# to each generated code file.
-# This is to used when approving the generated code file.
+# This address is added as a comment line to each generated code file.
+# This is to used later when approving the generated code file.
 sub set_policy_distribution_ip () {
     return if not $policy_distribution_point;
     info "Setting policy distribution IP";
-    my @admin_srv;
-    for my $port (22, 23) {
-	if(my $srv = $srv_hash{tcp}->{"$port:$port"}) {
-	    push @admin_srv, $srv;
+    my %admin_srv;
+    for my $srv ($srv_hash{tcp}->{'22:22'}, $srv_hash{tcp}->{'23:23'}, 
+		 $srv_hash{tcp}->{'1:65535'}) {
+	while($srv) {
+	    $admin_srv{$srv} = $srv;
+	    $srv = $srv->{up};
+	}
+    }
+    my %pdp_src;
+    for my $pdp (map $_, @{$policy_distribution_point->{subnets}}) {
+	while($pdp) {
+	    $pdp_src{$pdp} = $pdp;
+	    $pdp = $pdp->{up};
 	}
     }
     my $nat_map = $policy_distribution_point->{nat_domain}->{nat_map};
@@ -7901,32 +7909,8 @@ sub set_policy_distribution_ip () {
 		    my($action, $src, $dst, $srv) = 
 			@{$rule}{qw(action src dst srv)};
 		    next if $action eq 'deny';
-		    my $match = 0;
-		  SRC:
-		    for my $x (@{$policy_distribution_point->{subnets}}) {
-			my $pdp = $x;
-			while(1) {
-			    if($pdp eq $src) {
-				$match = 1;
-				last SRC;
-			    }
-			    $pdp = $pdp->{up} or last;
-			}
-		    }
-		    next if not $match;
-		    $match = 0;
-		  SRV:
-		    for my $x (@admin_srv) {
-			my $admin_srv = $x;
-			while(1) {
-			    if($admin_srv eq $srv) {
-				$match = 1;
-				last SRV;
-			    }
-			    $admin_srv = $admin_srv->{up} or last;
-			}
-		    }
-		    next if not $match;
+		    next if not $pdp_src{$src};
+		    next if not $admin_srv{$srv};
 		    $interfaces{$dst} = $dst;
 		}
 	    }
@@ -7936,6 +7920,7 @@ sub set_policy_distribution_ip () {
 	    @result = values %interfaces;
 	}
 	else {
+#	    debug "$router->{name}: ", scalar keys %interfaces;
 	    my @front = path_auto_interfaces($router->{interfaces}->[0], 
 					     $policy_distribution_point);
 	    for my $front (@front) {
