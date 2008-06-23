@@ -1630,12 +1630,6 @@ sub read_router( $ ) {
                     $interface->{bind_nat} eq $hardware->{bind_nat}
                       or err_msg "All logical interfaces of $hw_name\n",
                       " at $router->{name} must use identical NAT binding";
-
-		    # Only one logical loopback interface 
-		    # must be bound to a hardware interface.
-		    $hardware->{loopback}
-		      and err_msg "Only one logical loopback interface must",
-		                  " be bound to $hw_name at $router->{name}";
                 }
                 else {
                     $hardware = { name => $hw_name };
@@ -1643,11 +1637,6 @@ sub read_router( $ ) {
                     push @{ $router->{hardware} }, $hardware;
                     if (my $nat = $interface->{bind_nat}) {
                         $hardware->{bind_nat} = $nat;
-                    }
-
-		    # Needed at hardware interface during code generation.
-                    if (my $loopback = $interface->{loopback}) {
-                        $hardware->{loopback} = $loopback;
                     }
                 }
                 $interface->{hardware} = $hardware;
@@ -9442,7 +9431,9 @@ sub print_acls( $ ) {
     }
 
     for my $hardware (@{ $router->{hardware} }) {
-	next if $hardware->{loopback};
+
+	# Ignore if all logical interfaces are loopback interfaces.
+	next if not grep { not $_->{loopback} } @{ $hardware->{interfaces} };
 
         # Force valid array reference to prevent error
 	# when checking for non empty array.
