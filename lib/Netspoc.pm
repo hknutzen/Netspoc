@@ -1240,7 +1240,6 @@ my %xxrp_info = (
 
 our %interfaces;
 my @virtual_interfaces;
-my @disabled_interfaces;
 my @auto_crypto_interfaces;
 my $global_active_pathrestriction = new('Pathrestriction', 
 					name => 'block_through_secondary',
@@ -1249,214 +1248,221 @@ my $global_active_pathrestriction = new('Pathrestriction',
 sub read_interface( $ ) {
     my ($name) = @_;
     my $interface = new('Interface', name => $name);
-    my @secondary_interfaces = ();
-    unless (check '=') {
 
-        # Short form of interface definition.
+    # Short form of interface definition.
+    if (not check '=') {
         skip ';';
         $interface->{ip} = 'short';
+	return $interface;
     }
-    else {
-        skip '{';
-        while (1) {
-            last if check '}';
-            if (my @ip = check_assign_list 'ip', \&read_ip) {
-                $interface->{ip} and error_atline "Duplicate attribute 'ip'";
-		$interface->{ip} = shift @ip;
 
-		# Build interface objects for secondary IP addresses.
-		# These objects are named interface:router.name.2, ...
-		my $counter = 2;
-		for my $ip (@ip) {
-		    push @secondary_interfaces,
-		    new('Interface', 
-			name => "$name.$counter", 
-			ip => $ip,
-			main_interface => $interface);
-		    $counter++;
-		}
+    my @secondary_interfaces = ();
+    my $virtual;
+    skip '{';
+    while (1) {
+	last if check '}';
+	if (my @ip = check_assign_list 'ip', \&read_ip) {
+	    $interface->{ip} and error_atline "Duplicate attribute 'ip'";
+	    $interface->{ip} = shift @ip;
 
+	    # Build interface objects for secondary IP addresses.
+	    # These objects are named interface:router.name.2, ...
+	    my $counter = 2;
+	    for my $ip (@ip) {
+		push @secondary_interfaces,
+		new('Interface', name => "$name.$counter", ip => $ip);
+		$counter++;
 	    }
-            elsif (check_flag 'unnumbered') {
-                $interface->{ip} and error_atline "Duplicate attribute 'ip'";
-                $interface->{ip} = 'unnumbered';
-            }
-            elsif (check_flag 'negotiated') {
-                $interface->{ip} and error_atline "Duplicate attribute 'ip'";
-                $interface->{ip} = 'negotiated';
-            }
-            elsif (check_flag 'loopback') {
-                $interface->{loopback} 
-		and error_atline "Duplicate attribute 'loopback'";
-                $interface->{loopback} = 1;
-            }
-            elsif (my $pair = check_typed_name) {
-                my ($type, $name2) = @$pair;
-                if ($type eq 'nat') {
-                    skip '=';
-                    skip '{';
-                    skip 'ip';
-                    skip '=';
-                    my $nat_ip = read_ip;
-                    skip ';';
-                    skip '}';
-                    $interface->{nat}->{$name2}
-                      and error_atline "Duplicate NAT definition";
-                    $interface->{nat}->{$name2} = $nat_ip;
-                }
-		elsif ($type eq 'secondary') {
 
-		    # Build new interface for secondary IP addresses.
-		    my $secondary = new('Interface', 
-					name => "$name.$name2",
-					main_interface => $interface);
-		    skip '=';
-		    skip '{';
-		    while (1) {
-			last if check '}';
-			if (my $ip = check_assign 'ip', \&read_ip) {
-			    $secondary->{ip}
-			      and error_atline "Duplicate IP address";
-			    $secondary->{ip} = $ip;
-			}
-			else {
-			    syntax_err "Expected attribute IP";
-			}
+	}
+	elsif (check_flag 'unnumbered') {
+	    $interface->{ip} and error_atline "Duplicate attribute 'ip'";
+	    $interface->{ip} = 'unnumbered';
+	}
+	elsif (check_flag 'negotiated') {
+	    $interface->{ip} and error_atline "Duplicate attribute 'ip'";
+	    $interface->{ip} = 'negotiated';
+	}
+	elsif (check_flag 'loopback') {
+	    $interface->{loopback} 
+	    and error_atline "Duplicate attribute 'loopback'";
+	    $interface->{loopback} = 1;
+	}
+
+	# Needed for the implicity defined network of 'loopback'.
+        elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
+            $interface->{subnet_of}
+              and error_atline "Duplicate attribute 'subnet_of'";
+            $interface->{subnet_of} = $pair;
+        }
+	elsif ($pair = check_typed_name) {
+	    my ($type, $name2) = @$pair;
+	    if ($type eq 'nat') {
+		skip '=';
+		skip '{';
+		skip 'ip';
+		skip '=';
+		my $nat_ip = read_ip;
+		skip ';';
+		skip '}';
+		$interface->{nat}->{$name2}
+		and error_atline "Duplicate NAT definition";
+		$interface->{nat}->{$name2} = $nat_ip;
+	    }
+	    elsif ($type eq 'secondary') {
+
+		# Build new interface for secondary IP addresses.
+		my $secondary = new('Interface', name => "$name.$name2");
+		skip '=';
+		skip '{';
+		while (1) {
+		    last if check '}';
+		    if (my $ip = check_assign 'ip', \&read_ip) {
+			$secondary->{ip} and error_atline "Duplicate IP address";
+			$secondary->{ip} = $ip;
 		    }
-		    $secondary->{ip} or error_atline "Missing IP address";
-		    push @secondary_interfaces, $secondary;
+		    else {
+			syntax_err "Expected attribute IP";
+		    }
 		}
-                else {
-                    syntax_err 
-			"Expected nat or secondary interface definition";
-                }
-            }
-            elsif (check 'virtual') {
-
-                # Read attributes of redundancy protocol (VRRP/HSRP).
-		my $virtual = new('Interface', 
-				  name => "$name.virtual",
-				  main_interface => $interface);
-                skip '=';
-                skip '{';
-                while (1) {
-                    last if check '}';
-                    if (my $ip = check_assign 'ip', \&read_ip) {
-                        $virtual->{ip}
-                          and error_atline "Duplicate virtual IP address";
-                        $virtual->{ip} = $ip;
-                    }
-                    elsif (my $type = check_assign 'type', \&read_name) {
-                        $xxrp_info{$type}
-                          or error_atline "Unknown redundancy protocol";
-                        $virtual->{type}
-                          and error_atline "Duplicate redundancy type";
-                        $virtual->{type} = $type;
-                    }
-                    elsif (my $id = check_assign 'id', \&read_name) {
-                        $id =~ /^\d+$/
-                          or error_atline "Redundancy ID must be numeric";
-                        $id < 256
-                          or error_atline "Redundancy ID must be < 256";
-                        $virtual->{id}
-                          and error_atline "Duplicate redundancy ID";
-                        $virtual->{id} = $id;
-                    }
-                    else {
-                        syntax_err "Expected valid attribute for virtual IP";
-                    }
-                }
-                $virtual->{ip} or error_atline "Missing virtual IP";
-                $virtual->{type}
-                  or error_atline "Missing type of redundancy protocol";
-                $interface->{virtual} and error_atline "Duplicate virtual IP";
-                $interface->{virtual} = $virtual;
-                push @virtual_interfaces, $interface;
-		push @secondary_interfaces, $virtual;
-            }
-            elsif (my $nat = check_assign 'nat', \&read_identifier) {
-
-                # Bind NAT to an interface.
-                $interface->{bind_nat}
-                  and error_atline "Duplicate NAT binding";
-                $interface->{bind_nat} = $nat;
-            }
-            elsif (my $hardware = check_assign 'hardware', \&read_name) {
-                $interface->{hardware}
-                  and error_atline "Duplicate definition of hardware";
-                $interface->{hardware} = $hardware;
-            }
-            elsif (my $protocol = check_assign 'routing', \&read_name) {
-                my $routing = $routing_info{$protocol}
-                  or error_atline "Unknown routing protocol";
-                $interface->{routing}
-                  and error_atline "Duplicate routing protocol";
-                $interface->{routing} = $routing;
-            }
-            elsif (my @pairs = check_assign_list 'reroute_permit',
-                \&read_typed_name)
-            {
-                $interface->{reroute_permit}
-                  and error_atline 'Duplicate definition of reroute_permit';
-                $interface->{reroute_permit} = \@pairs;
-            }
-            elsif (check_flag 'disabled') {
-                push @disabled_interfaces, $interface;
-            }
-            elsif (check_flag 'no_check') {
-                $interface->{no_check} = 1;
-            }
-	    elsif ($pair = check_assign 'auto_crypto', \&read_typed_name) {
-		$interface->{auto_crypto}
-		  and error_atline 'Duplicate definition of attribute auto_crypto';
-		$interface->{auto_crypto} = $pair;
-		push @auto_crypto_interfaces, $interface;
+		$secondary->{ip} or error_atline "Missing IP address";
+		push @secondary_interfaces, $secondary;
 	    }
-            else {
-                syntax_err 'Expected some valid attribute';
-            }
-        }
-        $interface->{ip} ||= 'short';
-        if ($interface->{nat}) {
-            if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
-                error_atline "No NAT supported for $interface->{ip} interface";
-            }
-        }
-	if($interface->{loopback}) {
-	    my %copy = %$interface;
-
-	    # Only these attributes are valid.
-	    delete @copy{'name', 'ip', 'nat', 'hardware', 'loopback'};
-	    if(keys %copy) {
-		my $attr = join ", ", map "'$_'", keys %copy;
-		error_atline "Invalid attributes $attr for loopback interface";
+	    else {
+		syntax_err "Expected nat or secondary interface definition";
 	    }
-	    if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
-                error_atline "Loopback interface must not be $interface->{ip}";
-            }
 	}
-        if ($interface->{virtual} 
-            and $interface->{ip} =~ /unnumbered|negotiated|short/) {
-              error_atline 
-                  "No virtual IP supported for $interface->{ip} interface";
-	}
-	if ($interface->{auto_crypto}) {
-	    if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
-                error_atline "No auto_crypto supported for",
-		" $interface->{ip} interface";
-            }
-	}
-	for my $secondary_interface (@secondary_interfaces) {
-	    $secondary_interface->{hardware} = $interface->{hardware};
-	    $secondary_interface->{bind_nat} = $interface->{bind_nat};
-	    $secondary_interface->{disabled} = $interface->{disabled};
+	elsif (check 'virtual') {
+	    $virtual and error_atline "Duplicate virtual interface";
 
-	    # No traffic must pass secondary interface.
-	    # If secondary interface is start- or endpoint of a path,
-	    # the corresponding router is entered by main interface.
-	    push @{ $secondary_interface->{path_restrict} }, 
-	      $global_active_pathrestriction;
+	    # Read attributes of redundancy protocol (VRRP/HSRP).
+	    $virtual = new('Interface', name => "$name.virtual");
+	    skip '=';
+	    skip '{';
+	    while (1) {
+		last if check '}';
+		if (my $ip = check_assign 'ip', \&read_ip) {
+		    $virtual->{ip} and error_atline "Duplicate virtual IP address";
+		    $virtual->{ip} = $ip;
+		}
+		elsif (my $type = check_assign 'type', \&read_name) {
+		    $xxrp_info{$type} or error_atline "Unknown redundancy protocol";
+		    $virtual->{redundancy_type}
+		    and error_atline "Duplicate redundancy type";
+		    $virtual->{redundancy_type} = $type;
+		}
+		elsif (my $id = check_assign 'id', \&read_name) {
+		    $id =~ /^\d+$/ or error_atline "Redundancy ID must be numeric";
+		    $id < 256 or error_atline "Redundancy ID must be < 256";
+		    $virtual->{redundancy_id}
+		    and error_atline "Duplicate redundancy ID";
+		    $virtual->{redundancy_id} = $id;
+		}
+		else {
+		    syntax_err "Expected valid attribute for virtual IP";
+		}
+	    }
+	    $virtual->{ip} or error_atline "Missing virtual IP";
+	    $virtual->{redundancy_type}
+	      or error_atline "Missing type of redundancy protocol";
 	}
+	elsif (my $nat = check_assign 'nat', \&read_identifier) {
+
+	    # Bind NAT to an interface.
+	    $interface->{bind_nat} and error_atline "Duplicate NAT binding";
+	    $interface->{bind_nat} = $nat;
+	}
+	elsif (my $hardware = check_assign 'hardware', \&read_name) {
+	    $interface->{hardware}
+	      and error_atline "Duplicate definition of hardware";
+	    $interface->{hardware} = $hardware;
+	}
+	elsif (my $protocol = check_assign 'routing', \&read_name) {
+	    my $routing = $routing_info{$protocol}
+	      or error_atline "Unknown routing protocol";
+	    $interface->{routing} and error_atline "Duplicate routing protocol";
+	    $interface->{routing} = $routing;
+	}
+	elsif (my @pairs = check_assign_list 'reroute_permit', \&read_typed_name) {
+	    $interface->{reroute_permit}
+	      and error_atline 'Duplicate definition of reroute_permit';
+	    $interface->{reroute_permit} = \@pairs;
+	}
+	elsif (check_flag 'disabled') {
+	    $interface->{disabled} = 1;
+	}
+	elsif (check_flag 'no_check') {
+	    $interface->{no_check} = 1;
+	}
+	elsif ($pair = check_assign 'auto_crypto', \&read_typed_name) {
+	    $interface->{auto_crypto}
+	    and error_atline 'Duplicate definition of attribute auto_crypto';
+	    $interface->{auto_crypto} = $pair;
+	    push @auto_crypto_interfaces, $interface;
+	}
+	else {
+	    syntax_err 'Expected some valid attribute';
+	}
+    }
+
+    # Switch virtual interface and main interface
+    # or take virtual interface as main interface if no main IP available.
+    # Subsequent code becomes simpler if virtual interface is main interface.
+    if($virtual) {
+	if(my $ip = $interface->{ip}) {
+	    if ($ip =~ /unnumbered|negotiated|short/) {
+		error_atline "No virtual IP supported for $ip interface";
+	    }
+
+	    # Move main IP to secondary.
+	    my $secondary = new('Interface', name => $interface->{name}, ip => $ip);
+	    push @secondary_interfaces, $secondary;
+	}
+	@{$interface}{qw(name ip redundancy_type redundancy_id)} = 
+	    @{$virtual}{qw(name ip redundancy_type redundancy_id)};
+	push @virtual_interfaces, $interface;
+    }
+    else {	    
+	$interface->{ip} ||= 'short';
+    }
+    if ($interface->{nat}) {
+	if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
+	    error_atline "No NAT supported for $interface->{ip} interface";
+	}
+    }
+    if($interface->{loopback}) {
+	my %copy = %$interface;
+
+	# Only these attributes are valid.
+	delete @copy{qw(name ip nat hardware loopback subnet_of
+			redundancy_type redundancy_id)};
+	if(keys %copy) {
+	    my $attr = join ", ", map "'$_'", keys %copy;
+	    error_atline "Invalid attributes $attr for loopback interface";
+	}
+	if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
+	    error_atline "Loopback interface must not be $interface->{ip}";
+	}
+    }
+    elsif($interface->{subnet_of}) {
+	error_atline "Attribute 'subnet_of' is only valid for loopback interface";
+    }
+    if ($interface->{auto_crypto}) {
+	if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
+	    error_atline "No auto_crypto supported for $interface->{ip} interface";
+	}
+    }
+    for my $secondary (@secondary_interfaces) {
+	$secondary->{main_interface} = $interface;
+	$secondary->{hardware} = $interface->{hardware};
+	$secondary->{bind_nat} = $interface->{bind_nat};
+	$secondary->{disabled} = $interface->{disabled};
+
+	# No traffic must pass secondary interface.
+	# If secondary interface is start- or endpoint of a path,
+	# the corresponding router is entered by main interface.
+	push @{ $secondary->{path_restrict} }, 
+	$global_active_pathrestriction;
     }
     return $interface, @secondary_interfaces;
 }
@@ -1598,8 +1604,48 @@ sub read_router( $ ) {
 		# Link interface with router object.
 		$interface->{router} = $router;
 
-		# Link interface with network name (will be resolved later).
-		$interface->{network} = $network;
+		# Automatically create a network for loopback interface.
+		if($interface->{loopback}) {
+		    my $name;
+		    my $net_name;
+
+		    # Special handling needed for virtual loopback interfaces.
+		    # The created network needs to be shared among a group of 
+		    # interfaces.
+		    if(my $virtual = $interface->{redundancy_type}) {
+
+			# Shared virtual loopback network gets name 
+			# 'virtual:netname'. Don't use standard name to prevent 
+			# network from getting referenced from rules.
+			$net_name = "virtual:$network";
+			$name = "network:$net_name";
+		    }
+		    else {
+
+			# Single loopback network needs not to get an unique name.
+			# Take an invalid name 'router.loopback' to prevent name
+			# clashes with real networks or other loopback networks.
+			$name = $interface->{name};
+			($net_name = $name) =~ s/^interface://;
+		    }
+		    if(not $networks{$net_name}) {
+			$networks{$net_name} =  
+			    new('Network',
+				name => $name,
+				ip => $interface->{ip},
+				mask => 0xffffffff,
+				
+				# Mark as automatically created.
+				loopback => 1,
+				subnet_of => $interface->{subnet_of});
+		    }
+		    $interface->{network} = $net_name;
+		}
+		else {
+
+		    # Link interface with network name (will be resolved later).
+		    $interface->{network} = $network;
+		}
 	    }
         }
     }
@@ -2736,44 +2782,17 @@ sub link_interface_with_net( $ ) {
     my ($interface) = @_;
     my $net_name    = $interface->{network};
     my $network     = $networks{$net_name};
-    if($interface->{loopback}) {
-	if($network) {
-	    err_msg "Don't define $network->{name}",
-	    " for loopback $interface->{name}";
-
-	    # Prevent further errors.
-	    delete $networks{$net_name};
-	}
-	$network = new('Network',
-		       name => $interface->{name},
-		       ip => $interface->{ip},
-		       mask => 0xffffffff,
-		       interfaces => [ $interface ]);
-
-	# Put network in hash of all networks.
-	# We use this when processing all networks. Use an invalid name 
-	# 'router:loopback' to prevent name clashes with real networks.
-	($net_name = $interface->{name}) =~ s/^interface://;
-	$networks{$net_name} = $network;
-	
-	# Mark networks which are attached to manged router.
-	# This attribute is used in loop_path_mark.
-	$network->{managed} = 1 if $interface->{router}->{managed};
-	$interface->{network} = $network;
-	return;
-    }
 
     unless ($network) {
-	my $msg = 
-	    "Referencing undefined network:$net_name from $interface->{name}";
-	if (grep { $interface eq $_ } @disabled_interfaces) {
+	my $msg = "Referencing undefined network:$net_name from $interface->{name}";
+	if ($interface->{disabled}) {
 	    warn_msg $msg;
 	}
 	else {
 	    err_msg $msg;
 
 	    # Prevent further errors.
-	    push @disabled_interfaces, $interface;
+	    $interface->{disabled} = 1;
 	}
 
 	# Prevent further errors.
@@ -2830,9 +2849,11 @@ sub link_interface_with_net( $ ) {
 	    "$network->{name}'s IP/mask";
 	}
 	if($mask == 0xffffffff) {
-	    warn_msg "$interface->{name} has address of its network.\n",
-	    " Remove definition of $network->{name}.\n",
-	    " Use attribute 'loopback' at interface definition instead.";
+	    if(not $network->{loopback}) {
+		warn_msg "$interface->{name} has address of its network.\n",
+		" Remove definition of $network->{name}.\n",
+		" Use attribute 'loopback' at interface definition instead.";
+	    }
 	}
 	else {
 	    if ($ip == $network_ip) {
@@ -2920,15 +2941,8 @@ sub link_topology() {
 			$route_intf = $interface;
 		    }
 		    if (my $old_intf = $ip{$ip}) {
-			unless ($old_intf->{main_interface}
-				and
-				$old_intf->{main_interface}->{virtual} 
-				eq $old_intf
-				and 
-				$interface->{main_interface}
-				and
-				$interface->{main_interface}->{virtual} 
-				eq $interface)
+			unless ($old_intf->{redundancy_type}
+				and $interface->{redundancy_type})
 			{
 			    err_msg "Duplicate IP address for",
 			    " $old_intf->{name} and $interface->{name}";
@@ -3083,12 +3097,8 @@ my @all_anys;
 my @all_areas;
 
 sub mark_disabled() {
+    my @disabled_interfaces = grep { $_->{disabled} } values %interfaces;
 
-    # Mark all disabled interfaces for the second pass to be able
-    # to detect loops.
-    for my $interface (@disabled_interfaces) {
-        $interface->{disabled} = 1;
-    }
     for my $interface (@disabled_interfaces) {
         next if $interface->{router}->{disabled};
         disable_behind($interface);
@@ -4933,63 +4943,57 @@ sub link_and_check_virtual_interfaces () {
     # Unrelated virtual interfaces with identical ID must be located
     # in different networks.
     my %same_id;
-    for my $i1 (@virtual_interfaces) {
-        unless ($i1->{router}->{loop}) {
-            warn_msg "Ignoring virtual IP of $i1->{name}\n",
-              " because it isn't located inside cyclic graph";
+    for my $virtual1 (@virtual_interfaces) {
+        unless ($virtual1->{router}->{loop}) {
+            warn_msg "Ignoring virtual IP of $virtual1->{name}\n",
+              " because it isn't located inside cyclic subgraph";
             next;
         }
-	my $virtual1 = $i1->{virtual};
         my $ip = $virtual1->{ip};
-	my $id1 = $virtual1->{id} || '';
-	if(my $virtual2 = $virtual{$ip}) {
-	    my $i2 = $virtual2->{interfaces}->[0];
-	    if(not $i1->{network} eq $i2->{network}) {
-		err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+	my $id1 = $virtual1->{redundancy_id} || '';
+	if(my $interfaces = $virtual{$ip}) {
+	    my $virtual2 = $interfaces->[0];
+	    if(not $virtual1->{network} eq $virtual2->{network}) {
+		err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
 		" are connected to different networks";
-
-		# Prevent further errors.
-		delete $i1->{virtual};
 		next;
 	    }
-	    if(not $virtual1->{type} eq $virtual2->{type}) {
-		err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+	    if(not $virtual1->{redundancy_type} eq $virtual2->{redundancy_type}) {
+		err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
 		" use different redundancy protocols";
 		next;
 	    }
-	    if(not $id1 eq ($virtual2->{id} || '')) {
-		err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+	    if(not $id1 eq ($virtual2->{redundancy_id} || '')) {
+		err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
 		" use different ID";
 		next;
 	    }
-	    if(not $i1->{router}->{loop} eq $i2->{router}->{loop}) {
-		err_msg "Virtual IP: $i1->{name} and $i2->{name}",
+	    if(not $virtual1->{router}->{loop} eq $virtual2->{router}->{loop}) {
+		err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
 		" are part of different cyclic subgraphs";
 		next;
 	    }
-	    push @{$virtual2->{interfaces}}, $i1;
-	    $i1->{virtual} = $virtual2;
+	    push @$interfaces, $virtual1;
+	    $virtual1->{redundancy_interfaces} = $interfaces;
 	}
 	else {
-	    push @{$virtual1->{interfaces}}, $i1;
-	    $virtual{$ip} = $virtual1;
+	    $virtual{$ip} = $virtual1->{redundancy_interfaces} = [ $virtual1 ];
 	    if ($id1) {
 		my $other;
 		if (    $other = $same_id{$id1}
-			and $i1->{network} eq $other->{network})
+			and $virtual1->{network} eq $other->{network})
 		{
 		    err_msg "Virtual IP:",
-		    " Unrelated $i1->{name} and $other->{name}",
+		    " Unrelated $virtual1->{name} and $other->{name}",
 		    " have identical ID";
 		}
 		else {
-		    $same_id{$id1} = $i1;
+		    $same_id{$id1} = $virtual1;
 		}
 	    }
 	}
     }
-    for my $virtual (values %virtual) {
-	my $interfaces = $virtual->{interfaces};
+    for my $interfaces (values %virtual) {
 	if(@$interfaces == 1) {
 	    err_msg "Virtual IP: Missing second interface for",
 	    " $interfaces->[0]->{name}";
@@ -4998,7 +5002,7 @@ sub link_and_check_virtual_interfaces () {
 
 	    # Automatically add pathrestriction to interfaces
 	    # belonging to $virtual.
-	    my $name = "auto-virtual-" . print_ip $virtual->{ip};
+	    my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
 	    my $restrict = new('Pathrestriction', name => $name);
 	    for my $interface (@$interfaces) {
 #		debug "pathrestriction $name at $interface->{name}";
@@ -5428,8 +5432,8 @@ sub intf_loop_path_mark ( $$ ) {
 	    # If current interface is part of a group of virtual
 	    # interfaces (VRRP, HSRP), 
 	    # prevent traffic through other interfaces of this group.
-	    if(my $virtual = $where->{virtual}) {
-		for my $interface (@{$virtual->{interfaces}}) {
+	    if(my $interfaces = $where->{redundancy_interfaces}) {
+		for my $interface (@$interfaces) {
 		    next if $interface eq $where;
 		    push @{ $interface->{path_restrict} }, 
 		    $global_active_pathrestriction;
@@ -5450,8 +5454,8 @@ sub intf_loop_path_mark ( $$ ) {
     # Remove temporary added path restrictions.
     for my $where ($from, $to) {
 	if(is_interface $where) {
-	    if(my $virtual = $where->{virtual}) {
-		for my $interface (@{$virtual->{interfaces}}) {
+	    if(my $interfaces = $where->{redundancy_interfaces}) {
+		for my $interface (@$interfaces) {
 		    next if $interface eq $where;
 		    pop @{ $interface->{path_restrict} };
 		}
@@ -7157,10 +7161,9 @@ sub check_and_convert_routes () {
 
                             # Network is reached via two different hops.
                             # Check if both are reached via the same virtual IP.
-                            if (    $hop->{virtual}
-                                and $hop2->{virtual}
-                                and $hop->{virtual}->{ip} eq
-                                $hop2->{virtual}->{ip})
+                            if (    $hop->{redundancy_type}
+                                and $hop2->{redundancy_type}
+                                and $hop->{ip} eq $hop2->{ip})
                             {
 
                                 # Prevent multiple identical routes to different
@@ -7412,15 +7415,7 @@ sub print_routes( $ ) {
             my $hop_addr =
                 $interface->{ip} =~ 'unnumbered|negotiated'
               ? $interface->{hardware}->{name}
-              : $hop->{virtual}
-              ?
-
-              # Take virtual IP if available.
-              print_ip $hop->{virtual}->{ip}
-              :
-
-              # Take IP address.
-              print_ip $hop->{ip};
+              : print_ip $hop->{ip};
 
             # A hash having all networks reachable via current hop
             # both as key and as value.
@@ -9405,8 +9400,7 @@ sub print_acls( $ ) {
             }
 
             # Handle multicast packets of redundancy protocols.
-            if (my $virtual = $interface->{virtual}) {
-                my $type      = $virtual->{type};
+            if (my $type      = $interface->{redundancy_type}) {
                 my $src       = $interface->{network};
                 my $dst       = $xxrp_info{$type}->{mcast};
                 my $srv       = $xxrp_info{$type}->{srv};
