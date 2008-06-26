@@ -2764,6 +2764,11 @@ sub link_areas() {
                     $obj->{router}->{managed}
                       or err_msg "Referencing unmanaged $obj->{name} ",
                       "from $area->{name}";
+
+		    # Reverse swapped main and virtual interface.
+		    if(my $main_interface = $obj->{main_interface}) {
+			$obj = $main_interface;
+		    }
                 }
                 else {
                     err_msg 
@@ -4776,6 +4781,9 @@ sub setarea1( $$$ ) {
             $lookup->{$interface} = 'found';
             next;
         }
+
+	# Ignore secondary or virtual interface, because we check main interface.
+	next if $interface->{main_interface};
 
         my $router = $interface->{router};
         for my $out_interface (@{ $router->{interfaces} }) {
