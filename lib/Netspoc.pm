@@ -9966,7 +9966,7 @@ sub print_code( $ ) {
 	# ACLs are changed for auto_crypto peers, hence print_crypto first.
         print_crypto $router;
         print_acls $router;
-	print_interface $router if $model->{name} eq 'IOS';
+	print_interface $router if $model->{name} =~ /^IOS/;
         print_pix_static $router if $model->{has_interface_level};
         print "$comment_char [ END $name ]\n\n";
 
