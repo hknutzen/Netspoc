@@ -3510,6 +3510,7 @@ sub expand_group1( $$ ) {
 	    push @objects, ref($elements) eq 'ARRAY' ? @$elements : $elements;
 	}
 	elsif($type eq 'interface') {
+	    my @check;
 	    if(ref $name) {
 		ref $ext 
 		    or err_msg "Must not use 'interface:[..].$ext' in $context";
@@ -3524,12 +3525,11 @@ sub expand_group1( $$ ) {
 		    if($type eq 'Network') {
 			if($selector eq 'all') {
 			    if($managed) {
-				push @objects, 
-				grep { $_->{router}->{managed} } 
-				@{$object->{interfaces}};
+				push @check, grep { $_->{router}->{managed} } 
+				                  @{$object->{interfaces}};
 			    }
 			    else {
-				push @objects, @{$object->{interfaces}};
+				push @check, @{$object->{interfaces}};
 			    }
 			}
 			else {
@@ -3543,11 +3543,11 @@ sub expand_group1( $$ ) {
 			    # Attribute 'managed' can be ignored,
 			    # because all border interfaces of a security domain
 			    # are managed by definition.
-			    push @objects, @{$object->{interfaces}};
+			    push @check, @{$object->{interfaces}};
 			}
 			else {
-			    err_msg "Must not use interface:[any:..].[$selector]",
-			    " in $context";
+			    err_msg "Must not use interface:",
+			    " [any:..].[$selector] in $context";
 			}
 		    }
 		    elsif($type eq 'Interface') {
@@ -3557,7 +3557,7 @@ sub expand_group1( $$ ) {
 			    # Do nothing.
 			}
 			elsif($selector eq 'all') {
-			    push @objects, @{$router->{interfaces}};
+			    push @check, @{$router->{interfaces}};
 			}
 			else {
 
@@ -3585,10 +3585,7 @@ sub expand_group1( $$ ) {
 			    map @{ $_->{unmanaged_routers} }, @{ $object->{anys} };
 			}
 			if ($selector eq 'all') {
-			    push @objects,
-			    grep { $_->{ip} ne 'unnumbered' }
-			    map @{ $_->{interfaces} },
-			    @routers;
+			    push @check, map @{ $_->{interfaces} }, @routers;
 			}
 			else {
 			    push @objects, 
@@ -3603,7 +3600,7 @@ sub expand_group1( $$ ) {
 				# This router has no managed interfaces.
 			    }
 			    elsif($selector eq 'all') {
-				push @objects, @{$obj->{interfaces}};
+				push @check, @{$obj->{interfaces}};
 			    }
 			    else {
 				push @objects, get_auto_intf $obj, $selector;
@@ -3628,7 +3625,7 @@ sub expand_group1( $$ ) {
 		    # Syntactically impossible.
 		    $managed and internal_err;
 		    if($selector eq 'all') {
-			push @objects, @{$router->{interfaces}};
+			push @check, @{$router->{interfaces}};
 		    }
 		    else {
 			push @objects, get_auto_intf $router, $selector;
@@ -3646,6 +3643,9 @@ sub expand_group1( $$ ) {
 	    else {
 		err_msg "Can't resolve '$type:$name.$ext' in $context"
 	    }
+
+	    # Silently remove unnumbered interfaces from automatic groups.
+	    push @objects,  grep { $_->{ip} ne 'unnumbered' } @check;
 	}
 	elsif(ref $name) {
 	    my $sub_objects = expand_group1 $name, "$type:[..] of $context";
@@ -3747,28 +3747,32 @@ sub expand_group( $$;$ ) {
     my ($obref, $context, $convert_hosts) = @_;
     my $aref = expand_group1 $obref, $context;
     for my $object (@$aref) {
+	my $ignore;
         if ($object->{disabled}) {
             $object = undef;
         }
         elsif (is_network $object) {
             if ($object->{ip} eq 'unnumbered') {
-                $object = undef;
+		$ignore = "unnumbered $object->{name}";
             }
             elsif ($object->{route_hint}) {
-                $object = undef;
+		$ignore = "$object->{name} having attribute 'route_hint'";
             }
 	    elsif ($object->{has_id_hosts}) {
-		err_msg "$object->{name} having ID-hosts must",
-		  " not be used in $context";
+		$ignore = "$object->{name} having ID-hosts";
 	    }
         }
         elsif (is_interface $object) {
             if ($object->{ip} =~ /short|unnumbered/) {
-                $object = undef;
+		$ignore = "$object->{ip} $object->{name}";
             }
         }
 	elsif(is_area $object) {
-	    err_msg "$object->{name} must not be used in $context";
+	    $ignore = $object->{name};
+	}
+	if($ignore) {
+	  $object = undef;
+	  warn_msg "Ignoring $ignore in $context";
 	}
     }
 
