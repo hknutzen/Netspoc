@@ -250,6 +250,12 @@ sub debug ( @ ) {
 # Name of current input file.
 our $file;
 
+# Rules and objects read from directories and files with 
+# special name 'xxx.private' are marked with attribute {private} = 'xxx'.
+# This variable is used to propagate the value from directories to its 
+# files and subdirectories.
+our $private;
+
 # Content of current file.
 our $input;
 
@@ -352,7 +358,7 @@ sub read_int() {
 # Conversion from netmask to prefix and vice versa.
 {
 
-    # initialize private variables of this block
+    # Initialize private variables of this block.
     my %mask2prefix;
     my %prefix2mask;
     for my $prefix (0 .. 32) {
@@ -846,7 +852,8 @@ sub check_radius_attributes() {
 
 sub read_host( $$ ) {
     my($name, $network_name) = @_;
-    my $host = new 'Host';
+    my $host = new('Host');
+    $host->{private} = $private if $private;
     if(my ($id) = ($name =~ /^host:id:(.*)$/)) {
 
 	# Make ID unique by appending name of enclosing network.
@@ -982,6 +989,7 @@ sub read_network( $ ) {
     # name of ID-hosts.
     (my $net_name = $name) =~ s/^network://;
     my $network = new('Network', name => $name);
+    $network->{private} = $private if $private;
     skip '=';
     skip '{';
     while (1) {
@@ -1405,7 +1413,7 @@ sub read_interface( $ ) {
 	}
     }
 
-    # Switch virtual interface and main interface
+    # Swap virtual interface and main interface
     # or take virtual interface as main interface if no main IP available.
     # Subsequent code becomes simpler if virtual interface is main interface.
     if($virtual) {
@@ -1417,6 +1425,9 @@ sub read_interface( $ ) {
 	    # Move main IP to secondary.
 	    my $secondary = new('Interface', name => $interface->{name}, ip => $ip);
 	    push @secondary_interfaces, $secondary;
+	    
+	    # But we need the original main interface wenn handling auto interfaces.
+	    $interface->{orig_main} = $secondary;
 	}
 	@{$interface}{qw(name ip redundancy_type redundancy_id)} = 
 	    @{$virtual}{qw(name ip redundancy_type redundancy_id)};
@@ -1604,6 +1615,11 @@ sub read_router( $ ) {
 		# Link interface with router object.
 		$interface->{router} = $router;
 
+		# Set private attribute of interface.
+		# If a loopback network is created below it doesn't need to get
+		# this attribute because the network can't be referenced.
+		$interface->{private} = $private if $private;
+
 		# Automatically create a network for loopback interface.
 		if($interface->{loopback}) {
 		    my $name;
@@ -1739,7 +1755,8 @@ our %anys;
 
 sub read_any( $ ) {
     my $name = shift;
-    my $any = new 'Any', name => $name;
+    my $any = new('Any', name => $name);
+    $any->{private} = $private if $private;
     skip '=';
     skip '{';
     if (my @owner = check_assign_list 'owner', \&read_name) {
@@ -1963,6 +1980,7 @@ sub read_policy( $ ) {
     skip '=';
     skip '{';
     my $policy = { name => $name, rules => [] };
+    $policy->{private} = $private if $private;
     if (my $description = check_description) {
         $policy->{description} = $description;
     }
@@ -2014,6 +2032,7 @@ sub read_pathrestriction( $ ) {
     my $name = shift;
     skip '=';
     my $restriction = new('Pathrestriction', name => $name);
+    $restriction->{private} = $private if $private;
     if (my $description = check_description) {
         $restriction->{description} = $description;
     }
@@ -2152,6 +2171,7 @@ sub read_crypto( $ ) {
     skip '=';
     skip '{';
     my $crypto = { name => $name };
+    $crypto->{private} = $private if $private;
     if (my $description = check_description) {
         $crypto->{description} = $description;
     }
@@ -2264,6 +2284,11 @@ sub read_file_or_dir( $;$ ) {
 
     # Undef input record separator.
     local $/;
+
+    # Find marker for private directories and files.
+    # Propagate marker to subdirectories.
+    local $private = ($path =~ m'([^/]*)\.private$') ? $1 :$private;
+
     if (-d $path) {
         local (*DIR);
 
@@ -2693,6 +2718,7 @@ sub expand_group( $$;$ );
 # Link 'any' objects with referenced objects.
 sub link_any() {
     for my $obj (values %anys) {
+	my $private1 = $obj->{private} || 'public';
         my ($type, $name) = @{$obj->{link}};
         if ($type eq 'network') {
             $obj->{link} = $networks{$name};
@@ -2725,7 +2751,13 @@ sub link_any() {
             $obj->{disabled} = 1;
             next;
         }
-        unless ($obj->{link}) {
+        if (my $network = $obj->{link}) {
+	    my $private2 = $network->{private} || 'public';
+	    $private1 eq $private2 or
+		err_msg "$private1 $obj->{name} must not be linked",
+		        " with $private2 $type:$name";
+	}
+	else {
             err_msg "Referencing undefined $type:$name from $obj->{name}";
             $obj->{disabled} = 1;
         }
@@ -2810,6 +2842,25 @@ sub link_interface_with_net( $ ) {
     # This attribute is used in loop_path_mark.
     $network->{managed} = 1 if $interface->{router}->{managed};
     $interface->{network} = $network;
+
+    # Private network must be connected to private interface of same context.
+    if(my $private1 = $network->{private}) {
+	if(my $private2 = $interface->{private}) {
+	    $private1 eq $private2 or
+		err_msg "$private2.private $interface->{name}",
+		" must not be connected to $private1.private $network->{name}";
+	}
+	else {
+		err_msg "Public $interface->{name} must not be connected to",
+		" $private1.private $network->{name}";
+	}
+    }
+
+    # Public network may connect to private interface. 
+    # The owner of a private context can prevent a public network from
+    # connecting to a private interface by simply connecting an own private
+    # network to the private interface.
+	    
     push @{ $network->{interfaces} }, $interface;
     if ($interface->{reroute_permit}) {
 	$interface->{reroute_permit} =
@@ -3209,9 +3260,8 @@ sub convert_hosts() {
         # Converts hosts and ranges to subnets.
         # Eliminate duplicate subnets.
         for my $host (@{ $network->{hosts} }) {
-            my $name = $host->{name};
-            my $nat  = $host->{nat};
-            my $id   = $host->{id};
+            my($name, $nat, $id, $private) = 
+		@{$host}{qw(name nat id private)};
             my @ip_mask;
             if ($host->{ips}) {
                 @ip_mask = map [ $_, 0xffffffff ], @{ $host->{ips} };
@@ -3262,8 +3312,9 @@ sub convert_hosts() {
                         network => $network,
                         ip      => $ip,
                         mask    => $mask,
-                        nat     => $nat
                     );
+		    $subnet->{nat} = $nat if $nat;
+		    $subnet->{private} = $private if $private;
 		    if ($id) {
 			$subnet->{id} = $id;
 			$subnet->{radius_attributes} =
@@ -3327,6 +3378,9 @@ sub convert_hosts() {
                                     ip      => $ip,
                                     mask    => $mask
                                 );
+				if(my $private = $subnet->{private}) {
+				    $up->{private} = $private if $private;
+				}
                                 $inv_prefix_aref[$up_inv_prefix]->{$ip} = $up;
                             }
                             $subnet->{up}   = $up;
@@ -4158,8 +4212,9 @@ sub warn_unenforceable ( $$$$ ) {
 # - Flag, indicating if values for 'user' are substituted as a whole or 
 #   a new rules is expanded for each element.
 # - Flag which will be passed on to expand_group.
-sub expand_rules ( $$$;$$$ ) {
-    my ($rules_ref, $context, $result, $user, $foreach, $convert_hosts) = @_;
+sub expand_rules ( $$$$;$$$ ) {
+    my ($rules_ref, $context, $result, $private, 
+	$user, $foreach, $convert_hosts) = @_;
 
     # For collecting resulting expanded rules.
     my ($deny, $any, $permit) = @{$result}{ 'deny', 'any', 'permit' };
@@ -4224,6 +4279,28 @@ sub expand_rules ( $$$;$$$ ) {
 				    $dst, $src, $flags->{dst}, $context;
 			    for my $src (@src) {
 				for my $dst (@dst) {
+				    if($private) {
+					my $src_p = $src->{private};
+					my $dst_p = $dst->{private};
+					$src_p and $src_p eq $private or 
+					$dst_p and $dst_p eq $private or
+					err_msg 
+					"Rule of $private.private $context",
+					" must reference at least one object",
+					" out of $private.private";
+				    }
+				    else {
+					$src->{private} and
+					    err_msg 
+					    "Rule of public $context must not",
+					    " reference $src->{name} of",
+					    " $src->{private}.private";
+					$dst->{private} and
+					    err_msg 
+					    "Rule of public $context must not",
+					    " reference $dst->{name} of",
+					    " $dst->{private}.private";
+				    }
 				    my $rule = {
 					stateless => $stateless,
 					action    => $action,
@@ -4267,8 +4344,9 @@ sub expand_policies( ;$) {
         my $name   = $policy->{name};
         my $user   = $policy->{user} = expand_group($policy->{user},
 						    "user of $name");
-	expand_rules($policy->{rules}, $name, \%expanded_rules, 
-		     $user, $policy->{foreach}, $convert_hosts);
+	expand_rules(
+	    $policy->{rules}, $name, \%expanded_rules, $policy->{private},
+	    $user, $policy->{foreach}, $convert_hosts);
     }
     for my $type ('deny', 'any', 'permit') {
         add_rules $expanded_rules{$type};
@@ -5034,6 +5112,7 @@ sub link_and_check_pathrestrictions() {
 	$restrict->{elements} = 
 	    expand_group $restrict->{elements}, $restrict->{name};
 	my $changed;
+	my $private = my $no_private = $restrict->{private};
         for my $obj (@{ $restrict->{elements} }) {
             if (is_interface $obj) {
 
@@ -5059,13 +5138,33 @@ sub link_and_check_pathrestrictions() {
 		  or warn_msg 
 		      "Ignoring $restrict->{name} at $obj->{name}\n",
 		      " because it isn't located inside cyclic graph";
+
+		# Private pathrestriction must reference at least one interface
+		# of its own context.
+		if($private) {
+		    if(my $obj_p = $obj->{private}) {
+			$private eq $obj_p and $no_private = 0;
+		    }
+		}
+		
+		# Public pathrestriction must not reference private interface.
+		else {
+		    if(my $obj_p = $obj->{private}) {
+			err_msg "Public $restrict->{name} must not reference",
+			        " $obj_p.private $obj->{name}";
+		    }
+		}
             }
             else {
-                err_msg "Must not reference $obj->{name} from $restrict->{name}";
+                err_msg "$restrict->{name} must not reference $obj->{name}";
 		$obj = undef;
 		$changed = 1;
             }
         }
+	if($no_private) {
+	    err_msg "$private.private $restrict->{name} must reference",
+	            " at least one interface out of $private.private";
+	}
 	if($changed) {
 	    $restrict->{elements} = grep $_, $restrict->{elements};
 	}
@@ -5958,21 +6057,22 @@ sub path_auto_interfaces( $$ ) {
     $from eq $to and return ();
     path_mark($from, $to) unless $from->{path}->{$to};
     if (my $exit = $from->{loop_exit}->{$to}) {
-	if($selector eq 'front') {
-	    @result = @{ $from->{loop_enter}->{$exit} };
-	}
-	else {
-	    my %front = map { $_ => 1 } @{ $from->{loop_enter}->{$exit} };
-	    @result = grep !$front{$_}, @{$from->{interfaces}};
-	}
+	@result = @{ $from->{loop_enter}->{$exit} };
     }
     else {
-	my $front = $from->{path}->{$to};
-	if($selector eq 'front') {
-	    @result = ($front);
-	}
-	else {
-	    @result = grep { $_ ne $front } @{$from->{interfaces}};
+	@result = ($from->{path}->{$to});
+    }
+    if($selector eq 'back') {
+	my %front = map { $_ => 1 } @result;
+	@result = grep !$front{$_}, @{$from->{interfaces}};
+    }
+
+    # If device has virtual interface, main and virtual interface are swapped.
+    # Swap it back here because we need the original main interface
+    # if an interface is used in a rule.
+    for my $interface (@result) {
+	if(my $orig = $interface->{orig_main}) {
+	    $interface = $orig;
 	}
     }
 #    debug "$from->{name}.[$selector] = ", join ',', map {$_->{name}} @result;
@@ -6064,6 +6164,7 @@ sub gen_tunnel_rules ( $$$ ) {
 sub mark_tunnels () {
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
+	my $private = $crypto->{private};
 
 	# List of tunnels ie. pairs of interfaces.
         my @pairs;
@@ -6136,6 +6237,29 @@ sub mark_tunnels () {
                 err_msg "$intf2->{name} must not be used in tunnel of $name\n",
                   " because its router is located inside a cyclic subgraph";
             }
+
+	    if($private) {
+		my $i1_p = $intf1->{private};
+		my $i2_p = $intf2->{private};
+		$i1_p and $i1_p eq $private or 
+		    $i2_p and $i2_p eq $private or
+		    err_msg 
+		    "Tunnel of $private.private $name",
+		    " must reference at least one object",
+		    " out of $private.private";
+	    }
+	    else {
+		$intf1->{private} and
+		    err_msg 
+		    "Tunnel of public $name must not",
+		    " reference $intf1->{name} of",
+		    " $intf1->{private}.private";
+		$intf2->{private} and
+		    err_msg 
+		    "Tunnel of public $name must not",
+		    " reference $intf2->{name} of",
+		    " $intf2->{private}.private";
+	    }
 
             # Subsequent code is needed for both directions.
             for my $pair ([ $intf1, $intf2 ], [ $intf2, $intf1 ]) {
@@ -6295,7 +6419,7 @@ sub expand_crypto () {
         };
 
         # This adds expanded rules to $result.
-        expand_rules $crypto->{rules}, $name, $result;
+        expand_rules($crypto->{rules}, $name, $result, $crypto->{private});
 
 	# Distribute rules to tunnels.
 	# ToDo:
