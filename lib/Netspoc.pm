@@ -9005,6 +9005,26 @@ sub join_ranges ( $) {
 
 sub local_optimization() {
     info "Optimizing locally";
+
+    # Prepare removal of duplicate occurences of the same IP address from
+    # a group of virtual interfaces.
+    # Bring the group of interfaces into an arbitrary order. 
+    # This used below to remove all but one interface.
+    for my $interface (@virtual_interfaces) {
+
+	# Interface has already been processed.
+	next if is_interface $interface->{up};
+	my $up;
+	for my $v_intf (@{$interface->{redundancy_interfaces}}) {
+
+	    # Set new value but first interface keeps standard attribute value.
+	    $v_intf->{up} = $up if $up;
+
+	    # Get  value for next interface.
+	    $up = $v_intf;
+	}
+    }
+
     for my $domain (@natdomains) {
         my $nat_map = $domain->{nat_map};
 
