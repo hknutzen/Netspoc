@@ -67,13 +67,11 @@ my $CVSROOT = '/usr/local/cvsroot';
 # Link to current policy.
 my $link = "$policydb/current";
 
-# Lock file for preventing concurrent updates.
+# The lock file for preventing concurrent updates.
 my $lock = "$policydb/LOCK";
 
-# Setup environment variables.
+# Set secure path.
 $ENV{PATH} = "/usr/local/bin:/usr/bin:/bin";
-$ENV{CVSROOT} = "/usr/local/cvsroot";
-$ENV{LANG} = 'de_DE@euro';
 
 # Lock policy database.
 sysopen LOCK, "$lock", O_RDONLY | O_CREAT or
