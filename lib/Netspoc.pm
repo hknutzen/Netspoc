@@ -1813,7 +1813,9 @@ sub read_group( $ ) {
     my $name = shift;
     skip '=';
     my @elements = read_list_or_null \&read_intersection;
-    return new('Group', name => $name, elements => \@elements);
+    my $group = new('Group', name => $name, elements => \@elements);
+    $group->{private} = $private if $private;
+    return $group;
 }
 
 our %servicegroups;
@@ -3787,6 +3789,18 @@ sub expand_group1( $$ ) {
 
 		    # Cache result for further references to the same group.
 		    $object->{elements} = $elements;
+
+		    # Private group must not reference private element of other
+		    # context.
+		    # Public group must not reference private element.
+		    my $private1 = $object->{private} || 'public';
+		    for my $element (@$elements) {
+			if(my $private2 = $element->{private}) {
+			    $private1 eq $private2 or
+				err_msg("$private1 $object->{name} must not",
+					" reference $private2 $element->{name}");
+			}
+		    }
 		}
 		push @objects, @$elements if $elements;
 	    }
