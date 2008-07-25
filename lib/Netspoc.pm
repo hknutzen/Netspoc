@@ -3643,7 +3643,9 @@ sub expand_group1( $$ ) {
 			my @routers = values %managed_routers;
 			if (not $managed) {
 			    push @routers,
-			    map @{ $_->{unmanaged_routers} }, @{ $object->{anys} };
+			    map { my $r = $_->{unmanaged_routers}; 
+				  $r ? @$r : () } 
+			    @{ $object->{anys} };
 			}
 			if ($selector eq 'all') {
 			    push @check, map @{ $_->{interfaces} }, @routers;
