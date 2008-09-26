@@ -6569,6 +6569,8 @@ sub check_any_src_rule( $$$ ) {
         return;
     }
 
+    my $dst_any = get_any $dst;
+
     # Check if reverse rule would need additional rules.
     if ($router->{model}->{stateless} and not $rule->{oneway}) {
         my $proto = $rule->{srv}->{proto};
@@ -6578,10 +6580,11 @@ sub check_any_src_rule( $$$ ) {
             for my $intf (@{ $router->{interfaces} }) {
                 next if $intf eq $in_intf;
 
-                # Nothing to be checked for the interface which is connected
-                # directly to the destination 'any' object.
-                next if $intf eq $out_intf;
+                # Nothing to be checked for an interface directly connected
+                # to the destination 'any' object.
                 my $any = $intf->{any};
+		next if $any eq $out_any;
+		next if $any eq $dst_any;
                 unless ($rule_tree{$stateless}->{$action}->{$any}->{$dst}->{$src_range}->{$srv})
                 {
                     err_missing_any $rule, $any, 'src', $router;
@@ -6589,7 +6592,6 @@ sub check_any_src_rule( $$$ ) {
             }
         }
     }
-    my $dst_any = get_any $dst;
 
     # Security domain of dst is directly connected with current router.
     # Hence there can't be any missing rules.
