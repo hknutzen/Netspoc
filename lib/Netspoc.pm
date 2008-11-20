@@ -1297,7 +1297,7 @@ sub read_interface( $ ) {
 	    $interface->{loopback} = 1;
 	}
 
-	# Needed for the implicity defined network of 'loopback'.
+	# Needed for the implicitly defined network of 'loopback'.
         elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
             $interface->{subnet_of}
               and error_atline "Duplicate attribute 'subnet_of'";
@@ -1653,7 +1653,7 @@ sub read_router( $ ) {
 				
 				# Mark as automatically created.
 				loopback => 1,
-				subnet_of => $interface->{subnet_of});
+				subnet_of => delete $interface->{subnet_of});
 		    }
 		    $interface->{network} = $net_name;
 		}
@@ -2886,7 +2886,7 @@ sub link_interface_with_net( $ ) {
         # Nothing to check: short interface may be linked to arbitrary network.
     }
     elsif ($ip eq 'unnumbered') {
-        $network->{ip} eq 'unnumbered'
+        $network_ip eq 'unnumbered'
           or err_msg "Unnumbered $interface->{name} must not be linked ",
           "to $network->{name}";
     }
@@ -2960,6 +2960,72 @@ sub link_auto_crypto() {
     }
 }
 
+sub link_subnet ( $$ ) {
+    my ($object, $parent) = @_;
+
+    my $context = sub {
+	!$parent
+	? $object->{name}
+	: ref $parent
+	? "$object->{name} of $parent->{name}"
+	: "$parent $object->{name}";
+    };
+    return if not $object->{subnet_of};
+    my ($type, $name) = @{ $object->{subnet_of} };
+    if ($type ne 'network') {
+	err_msg "Attribute 'subnet_of' of ", $context->(), "\n",
+	        " must not be linked to $type:$name";
+
+	# Prevent further errors;
+	delete $object->{subnet_of};
+	return;
+    }
+    my $network = $networks{$name};
+    if (not $network) {
+	warn_msg "Ignoring undefined network:$name",
+	" from attribute 'subnet_of'\n of ", $context->();
+
+	# Prevent further errors;
+	delete $object->{subnet_of};
+	return;
+    }
+    $object->{subnet_of} = $network;
+    my $ip = $network->{ip};
+    my $mask = $network->{mask};
+    my $sub_ip = $object->{ip};
+    debug $network->{name} if not defined $ip;
+    if($ip eq 'unnumbered') {
+	err_msg "Unnumbered $network->{name} must not be referenced from",
+	" attribute 'subnet_of'\n of ", $context->();
+
+	# Prevent further errors;
+	delete $object->{subnet_of};
+	return;
+    }
+
+    # $sub_mask needs not to be tested here, 
+    # because it has already been checked for $object.    
+    if(($sub_ip & $mask) != $ip) {
+	err_msg $context->(), " is subnet_of $network->{name}",
+	    " but its IP doesn't match thats IP/mask";
+    }
+
+    # Used to check for overlaps with hosts or interfaces of $network.
+    push @{ $network->{own_subnets} }, $object;
+}
+
+sub link_subnets () {
+    for my $network (values %networks) {
+	link_subnet $network, undef;
+        for my $nat (values %{ $network->{nat} }) {
+	    link_subnet $nat, $network;
+        }
+    }
+    for my $nat (values %global_nat) {
+	link_subnet $nat, 'global';
+    }
+}
+
 sub link_topology() {
     info "Linking topology";
     for my $interface (values %interfaces) {
@@ -2969,6 +3035,7 @@ sub link_topology() {
     link_areas;
     link_radius;
     link_auto_crypto;
+    link_subnets;
     for my $network (values %networks) {
         if (    $network->{ip} eq 'unnumbered'
             and $network->{interfaces}
@@ -2981,10 +3048,40 @@ sub link_topology() {
             }
         }
 
+        my %ip;
+
+	# All interfaces and hosts of a network must be located in that part 
+	# of the network which doesn't overlap with some subnet.
+	my $check_subnets = sub {
+	    my($ip1, $ip2, $object) = @_;
+	    for my $subnet (@{ $network->{own_subnets} }) {
+		my $sub_ip = $subnet->{ip};
+		my $sub_mask = $subnet->{mask};
+		if(($ip1 & $sub_mask) == $sub_ip ||
+		   $ip2 && 
+		   (($ip2 & $sub_mask) == $sub_ip ||
+		    ($ip1 <= $sub_ip && $sub_ip <= $ip2))) {
+
+		    # NAT to an interface address (masquerading) is allowed.
+		    if((my $nat_tag1 = $object->{bind_nat}) and 
+		       (my ($nat_tag2) = ($subnet->{name} =~ /^nat:(.*)$/)))
+		    {
+			if($nat_tag1 eq $nat_tag2 and
+			   $object->{ip} == $subnet->{ip} and 
+			   $subnet->{mask} == 0xffffffff)
+			{
+			    next;
+			}
+		    }
+		    err_msg "$object->{name}'s IP overlaps with subnet",
+		    " $subnet->{name}";
+		}
+	    }
+	};
+
         # 1. Check for duplicate interface addresses.
         # 2. Short interfaces must not be used, if a managed interface
         #    with static routing exists in the same network.
-        my %ip;
         my ($short_intf, $route_intf);
         for my $interface (@{ $network->{interfaces} }) {
             my $ip = $interface->{ip};
@@ -2998,6 +3095,7 @@ sub link_topology() {
 		    {
 			$route_intf = $interface;
 		    }
+		    $check_subnets->($ip, undef, $interface);
 		    if (my $old_intf = $ip{$ip}) {
 			unless ($old_intf->{redundancy_type}
 				and $interface->{redundancy_type})
@@ -3020,6 +3118,7 @@ sub link_topology() {
         for my $host (@{ $network->{hosts} }) {
             if (my $ips = $host->{ips}) {
                 for my $ip (@$ips) {
+		    $check_subnets->($ip, undef, $host);
                     if (my $other_device = $ip{$ip}) {
                         err_msg "Duplicate IP address for $other_device->{name}",
                           " and $host->{name}";
@@ -3030,6 +3129,7 @@ sub link_topology() {
                 }
             }
             elsif (my $range = $host->{range}) {
+		$check_subnets->($range->[0], $range->[1], $host);
                 for (my $ip = $range->[0] ; $ip <= $range->[1] ; $ip++) {
                     if (my $other_device = $ip{$ip}) {
 			is_host $other_device or
@@ -3037,61 +3137,6 @@ sub link_topology() {
 			    " and $host->{name}";
                     }
                 }
-            }
-        }
-        if ($network->{subnet_of}) {
-            my ($type, $name) = @{$network->{subnet_of}};
-            if ($type eq 'network') {
-                if (my $subnet = $networks{$name}) {
-                    $network->{subnet_of} = $subnet;
-                }
-                else {
-                    warn_msg "Ignoring undefined network:$name",
-                      " from attribute 'subnet_of'\n", " of $network->{name}";
-                }
-            }
-            else {
-                err_msg "Attribute 'subnet_of' of $network->{name}",
-                  " must not be linked to $type:$name";
-            }
-        }
-        for my $nat (values %{ $network->{nat} }) {
-            if ($nat->{subnet_of}) {
-                my ($type, $name) = @{$nat->{subnet_of}};
-                if ($type eq 'network') {
-                    if (my $subnet = $networks{$name}) {
-                        $nat->{subnet_of} = $subnet;
-                    }
-                    else {
-                        warn_msg "Ignoring undefined network:$name",
-                          " from attribute 'subnet_of'\n",
-                          " of $nat->{name} of $network->{name}";
-                    }
-                }
-                else {
-                    err_msg "Attribute 'subnet_of' of",
-                      " $nat->{name} of $network->{name}\n",
-                      " must not be linked to $type:$name";
-                }
-            }
-        }
-    }
-    for my $nat (values %global_nat) {
-        if ($nat->{subnet_of}) {
-            my ($type, $name) = @{$nat->{subnet_of}};
-            if ($type eq 'network') {
-                if (my $subnet = $networks{$name}) {
-                    $nat->{subnet_of} = $subnet;
-                }
-                else {
-                    warn_msg "Ignoring undefined network:$name",
-                      " from attribute 'subnet_of'\n",
-                      " of global $nat->{name}";
-                }
-            }
-            else {
-                err_msg "Attribute 'subnet_of' of global $nat->{name}",
-                  " must not be linked to $type:$name";
             }
         }
     }
@@ -4689,7 +4734,7 @@ sub find_subnets() {
                         if ($strict_subnets) {
 
 			    # Take original $bignet, because currently 
-			    # there's no way to specify a natted network
+			    # there's no method to specify a natted network
 			    # as value of subnet_of.
                             my $nat_subnet = $nat_map->{$subnet} || $subnet;
                             unless ($bignet->{route_hint}
