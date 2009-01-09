@@ -1252,6 +1252,13 @@ my $global_active_pathrestriction = new('Pathrestriction',
 					name => 'global_pathrestriction',
 					active_path => 1);
 
+# Tunnel networks which are already attached to tunnel interfaces 
+# at spoke devices.
+my %crypto2spokes;
+
+# Real interfaces at crypto hub, where tunnels are attached.
+my %crypto2hubs;
+
 sub read_interface( $ ) {
     my ($name) = @_;
     my $interface = new('Interface', name => $name);
@@ -1302,6 +1309,18 @@ sub read_interface( $ ) {
               and error_atline "Duplicate attribute 'subnet_of'";
             $interface->{subnet_of} = $pair;
         }
+	elsif($pair = check_assign 'hub', \&read_typed_name) {
+	    my ($type, $name2) = @$pair;
+	    $type eq 'crypto' or error_atline "Expected type crypto";
+	    $interface->{hub} and error_atline "Duplicate attribute 'hub'";
+	    $interface->{hub} = "$type:$name2";
+	}
+	elsif($pair = check_assign 'spoke', \&read_typed_name) {
+	    my ($type, $name2) = @$pair;
+	    $type eq 'crypto' or error_atline "Expected type crypto";
+	    $interface->{spoke} and error_atline "Duplicate attribute 'spoke'";
+	    $interface->{spoke} = "$type:$name2";
+	}
 	elsif ($pair = check_typed_name) {
 	    my ($type, $name2) = @$pair;
 	    if ($type eq 'nat') {
@@ -1451,6 +1470,49 @@ sub read_interface( $ ) {
     elsif($interface->{subnet_of}) {
 	error_atline "Attribute 'subnet_of' is only valid for loopback interface";
     }
+
+    # Generate tunnel interface.
+    # Substitute current interface with tunnel interface.
+    # This is a workaround for unmanaged devices:
+    # We want to restrict traffic through the real interface.
+    # But we can't add pathrestrictions to unmanaged devices.
+    # The real interface is
+    # - added later, if the device is known to be managed
+    # - removed, if the device is known to be unmanaged.
+    if(my $crypto = $interface->{spoke}) {
+	@secondary_interfaces and
+	    error_atline "Interface with attribute 'spoke'",
+	    " must not have secondary interfaces";
+	$interface->{hub} and
+	    error_atline "Interface with attribute 'spoke'",
+	    " must not have attribute 'hub'";
+	my ($router_name) = $name =~ /^interface:([^.]+)\./;
+	my $net_name = "tunnel:$router_name";
+	my $tunnel_intf = new('Interface', 
+			      name => "interface:$router_name.$net_name", 
+			      ip => 'tunnel',
+			      network => $net_name,
+			      real_interface => $interface);
+	for my $key (qw(hardware routing)) {
+	    $tunnel_intf->{$key} = $interface->{$key} if $interface->{$key};
+	}
+	$interface = $tunnel_intf;
+
+	# Create tunnel network.
+	my $tunnel_net = new('Network', 
+			     name => "network:$net_name", ip => 'tunnel');
+	$networks{$net_name} = $tunnel_net;
+
+	# Tunnel network will later be attached to crypto hub.
+	push @{$crypto2spokes{$crypto}}, $tunnel_net;
+    }
+    if(my $crypto = $interface->{hub}) {
+	if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
+	    error_atline "Crypto hub must not be $interface->{ip} interface";
+	}
+	push @{$crypto2hubs{$crypto}}, $interface;
+    }
+	
     for my $secondary (@secondary_interfaces) {
 	$secondary->{main_interface} = $interface;
 	$secondary->{hardware} = $interface->{hardware};
@@ -1583,13 +1645,6 @@ sub read_router( $ ) {
 	      error_atline "Duplicate attribute 'radius_attributes'";
 	    $router->{radius_attributes} = $radius_attributes;
 	}
-	elsif (my $auth_type = check_assign 'auth_type', \&read_identifier) {
-	    $auth_type =~ /^(?:local|radius)/ or
-		error_atline "Expected value: local|radius";
-	    $router->{auth_type} and
-	      error_atline "Duplicate attribute 'auth_type'";
-	    $router->{auth_type} = $auth_type;
-	}
         else {
             my $pair = read_typed_name;
             my ($type, $network) = @$pair;
@@ -1653,6 +1708,11 @@ sub read_router( $ ) {
 		    }
 		    $interface->{network} = $net_name;
 		}
+		elsif(my $real_intf = $interface->{real_interface}) {
+
+		    # Attribute {network} has already been set for $interface.
+		    $real_intf->{network} = $network;
+		}
 		else {
 
 		    # Link interface with network name (will be resolved later).
@@ -1666,11 +1726,28 @@ sub read_router( $ ) {
     if (my $managed = $router->{managed}) {
 
         unless ($router->{model}) {
-            err_msg "Missing 'model' for managed $name";
+            err_msg "Missing 'model' for managed $router->{name}";
 
             # Prevent further errors.
             $router->{model} = { name => 'unknown' };
         }
+
+	# Add real interfaces of tunnel interfaces,
+	# because now we know that the device is managed.
+	my @real_interfaces;
+        for my $interface (@{ $router->{interfaces} }) {
+	    if(my $real_interface = $interface->{real_interface}) {
+		(my $iname = $real_interface->{name}) =~ s/interface://;
+		if ($interfaces{$iname}) {
+		    error_atline "Redefining $real_interface->{name}";
+		}
+		$interfaces{$iname} = $real_interface;
+		$real_interface->{router} = $router;
+		$real_interface->{private} = $private if $private;
+		push @real_interfaces, $real_interface;
+	    }
+	}
+	push @{ $router->{interfaces} }, @real_interfaces;
 
         # Create objects representing hardware interfaces.
         # All logical interfaces using the same hardware are linked
@@ -1721,11 +1798,11 @@ sub read_router( $ ) {
         if ($router->{model}->{has_interface_level}) {
             set_pix_interface_level $router;
         }
-	my $auth_type = $router->{auth_type} || '';
 	if ($router->{model}->{name} eq 'VPN3K') {
-	    $auth_type eq 'radius' or
-		err_msg "Attribute 'auth_type' must have value 'radius'",
-		" for $name";
+ 	    $router->{radius_servers} or
+		err_msg "Attribute 'radius_servers' needs to be defined",
+  		" for $router->{name}";
+ 	    $router->{radius_attributes} ||= {};
 
 	    # Don't support NAT for VPN3K, otherwise code generation for vpn3k
 	    # devices will become more difficult.
@@ -1734,27 +1811,33 @@ sub read_router( $ ) {
 		" at interface of $router->{name}",
 		  " of type $router->{model}->{name}";
 	}
-	elsif($router->{model}->{name} eq 'ASA') {
-	    not $auth_type or $auth_type eq 'local' or
-		err_msg "Attribute 'auth_type' must have value 'local'",
-		" for $name"; 
-	}
 	else {
-	    if($auth_type) {
-		err_msg "Attribute 'auth_type' not allowed for $name";
-		$auth_type = undef;
-	    }
-	    $router->{radius_servers} and
-		err_msg "Attribute 'radius_servers' not allowed for $name";
+	    $router->{radius_attributes} and
+		err_msg "Attribute 'radius_attributes' is not allowed",
+		" for $router->{name}";
 	    grep { $_->{no_check} } @{$router->{interfaces}}
 	      and err_msg "Attribute 'no_check' is not allowed",
 		" at interface of $router->{name}";
 	}
-	if($auth_type eq 'radius') {
-	    if(not $router->{radius_servers}) {
-		err_msg "Attribute 'radius_servers' needs to be defined",
-		" for $name";
-		$router->{radius_attributes} = {};
+    }
+
+    # Unmanaged device.
+    else {
+	for my $interface (@{ $router->{interfaces} }) {
+
+	    # Internally, we remove the real interface to force traffic through
+	    # the tunnel. This is only save to remove, if the real interface can't be
+	    # referenced by a rule. This is enforced by this simplified restriction.
+	    if(my $real_interface = $interface->{real_interface}) {
+		$real_interface->{ip} =~ /^(?:negotiated|short|unnumbered)$/ or
+		    error_atline "Interface with attribute 'spoke'",
+		    " of unmanaged device must have 'negotiated|short|unnumbered'",
+		    " ip address";
+		delete $interface->{real_interface};
+	    }
+	    elsif($interface->{hub}) {
+		error_atline "Interface with attribute 'hub' must only be used",
+		" at managed device";
 	    }
 	}
     }
@@ -2189,19 +2272,6 @@ sub read_crypto( $ ) {
     }
     while (1) {
         last if check '}';
-#        if (my $action = check_permit_deny) {
-#            my $src = [ read_assign_list 'src', \&read_intersection ];
-#            my $dst = [ read_assign_list 'dst', \&read_intersection ];
-#            my $srv = [ read_assign_list 'srv', \&read_typed_name ];
-#            my $rule = {
-#                action => $action,
-#                src    => $src,
-#                dst    => $dst,
-#                srv    => $srv
-#            };
-#            push @{ $crypto->{rules} }, $rule;
-#        }
-#	els
 	if (check_flag 'tunnel_all') {
 	    $crypto->{tunnel_all} = 1;
 	}
@@ -2210,36 +2280,13 @@ sub read_crypto( $ ) {
               and error_atline "Redefining 'type' attribute";
             $crypto->{type} = $type;
         }
-        elsif (my @hubs = check_assign_list 'hub', \&read_intersection) {
-            $crypto->{hub}
-              and error_atline "Redefining 'hub' attribute";
-            $crypto->{hub} = \@hubs;
-        }
-        elsif (my @spokes = check_assign_list 'spoke', \&read_intersection) {
-            $crypto->{spoke}
-              and error_atline "Redefining 'spoke' attribute";
-            $crypto->{spoke} = \@spokes;
-        }
-#        elsif (my @mesh = check_assign_list 'mesh', \&read_intersection) {
-#            push @{ $crypto->{meshes} }, \@mesh;
-#        }
         else {
             syntax_err "Expected valid attribute or rule";
         }
     }
     $crypto->{type} or error_atline "Missing 'type' for $name";
-    $crypto->{rules} and $crypto->{tunnel_all} and
-	error_atline 
-	"Must not define both, rules and attribute 'tunnel_all' for $name";
-
-    # Hub and spoke must attributes must be used pairwise.
-    # But we can only do a rough estimate,
-    # because hub or spoke could be defined as an empty group.
-    if($crypto->{hub} or $crypto->{spoke}) {
-	$crypto->{spoke} or error_atline "Missing 'spoke' for $name";
-	$crypto->{hub} or error_atline "Missing 'hub' for $name";
-    }
-
+    $crypto->{tunnel_all} or
+	error_atline "Must define attribute 'tunnel_all' for $name";
     return $crypto;
 }
 
@@ -2857,7 +2904,7 @@ sub link_interface_with_net( $ ) {
 	return;
     }
 
-    # Mark networks which are attached to manged router.
+    # Mark networks which are attached to managed router.
     # This attribute is used in loop_path_mark.
     $network->{managed} = 1 if $interface->{router}->{managed};
     $interface->{network} = $network;
@@ -2898,9 +2945,11 @@ sub link_interface_with_net( $ ) {
     }
     my $ip = $interface->{ip};
     my $network_ip = $network->{ip};
-    if ($ip eq 'short') {
+    if ($ip =~ /^(?:short|tunnel)$/) {
 
-        # Nothing to check: short interface may be linked to arbitrary network.
+        # Nothing to check: 
+	# short interface may be linked to arbitrary network,
+	# tunnel interfaces and networks have been generated internally.
     }
     elsif ($ip eq 'unnumbered') {
         $network_ip eq 'unnumbered'
@@ -3096,7 +3145,7 @@ sub link_topology() {
                 $short_intf = $interface;
             }
             else {
-                unless ($ip =~ /unnumbered|negotiated/) {
+                unless ($ip =~ /^(?:unnumbered|negotiated|tunnel)$/) {
 		    if ($interface->{router}->{managed}
 			and not $interface->{routing})
 		    {
@@ -3309,7 +3358,7 @@ sub split_ip_range( $$ ) {
 sub convert_hosts() {
     info "Converting hosts to subnets";
     for my $network (@networks) {
-        next if $network->{ip} eq 'unnumbered';
+        next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
         my @inv_prefix_aref;
 
         # Converts hosts and ranges to subnets.
@@ -4439,12 +4488,8 @@ sub set_natdomain( $$$ );
 
 sub set_natdomain( $$$ ) {
     my ($network, $domain, $in_interface) = @_;
-    if ($network->{nat_domain}) {
-
-        # Found a loop inside a NAT domain.
-        return;
-    }
     $network->{nat_domain} = $domain;
+#    debug "$domain->{name}: $network->{name}";
     push @{ $domain->{networks} }, $network;
     my $nat_map = $domain->{nat_map};
     for my $interface (@{ $network->{interfaces} }) {
@@ -4452,6 +4497,8 @@ sub set_natdomain( $$$ ) {
         # Ignore interface where we reached this network.
         next if $interface eq $in_interface;
         my $router  = $interface->{router};
+	next if $router->{active_path};
+	$router->{active_path} = 1;
         my $managed = $router->{managed};
         my $nat_tag = $interface->{bind_nat} || 0;
         for my $out_interface (@{ $router->{interfaces} }) {
@@ -4462,7 +4509,7 @@ sub set_natdomain( $$$ ) {
                 # logical and hardware interfaces of managed routers.
                 if ($managed) {
 
-#	       debug "$domain->{name}: $out_interface->{name}";
+#		    debug "$domain->{name}: $out_interface->{name}";
                     $out_interface->{nat_map} =
                       $out_interface->{hardware}->{nat_map} = $nat_map;
                 }
@@ -4470,8 +4517,13 @@ sub set_natdomain( $$$ ) {
                 # Don't process interface where we reached this router.
                 next if $out_interface eq $interface;
 
+		my $next_net = $out_interface->{network};
+
+		# Found a loop inside a NAT domain.
+		next if $next_net->{nat_domain};
+
                 # Current nat domain continues behind this interface.
-                set_natdomain $out_interface->{network}, $domain,
+                set_natdomain $next_net, $domain,
                   $out_interface;
             }
             else {
@@ -4493,6 +4545,7 @@ sub set_natdomain( $$$ ) {
                 push @{ $router->{nat_domains} }, $domain;
             }
         }
+	$router->{active_path} = 0;
     }
 }
 
@@ -4699,7 +4752,7 @@ sub find_subnets() {
         my $nat_map = $domain->{nat_map};
         my %mask_ip_hash;
         for my $network (@networks) {
-            next if $network->{ip} eq 'unnumbered';
+            next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
             my $nat_network = $nat_map->{$network} || $network;
             my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
             if (my $old_net = $mask_ip_hash{$mask}->{$ip}) {
@@ -4823,18 +4876,14 @@ sub check_vpn3k () {
 	    err_msg "$router->{name} needs to have exactly on interface with",
 	    " attribute 'no_check'";
     }
-
-# Bei Tunnel zu unmanaged Gegenstelle liegen zwei Interfaces im gleichen 
-# Sicherheitsbereich.
-#
-#    for my $router (@managed_vpn3k) {
-#	if( not equal 
-#	        map { [ map { $_->{router} } @{$any2vpn3k_intf{$_->{any}}} ] } 
-#                @{$router->{interfaces}}) {
-#	    err_msg "Interfaces of $router->{name} must all be connected to",
-#	    " the same backup VPN3k devices.";
-#	}
-#    }
+    for my $router (@managed_vpn3k) {
+	if( not equal 
+	        map { [ map { $_->{router} } @{$any2vpn3k_intf{$_->{any}}} ] } 
+                @{$router->{interfaces}}) {
+	    err_msg "Interfaces of $router->{name} must all be connected to",
+	    " the same backup VPN3k devices.";
+	}
+    }
     for my $router (@unmanaged_vpn3k) {
 	my $any = $router->{interfaces}->[0]->{network}->{any};
 	for my $other (@{$any->{unmanaged_routers}}) {
@@ -4939,8 +4988,7 @@ sub setarea1( $$$ ) {
             next;
         }
 
-	# Ignore secondary or virtual interface, 
-	# because we check main interface.
+	# Ignore secondary or virtual interface, because we check main interface.
 	next if $interface->{main_interface};
 
 	# Ignore tunnel interface. We can't test for {real_interface} here
@@ -4995,6 +5043,8 @@ sub setany() {
 
     # Automatically add an 'any' object to each security domain
     # where none has been declared.
+    # Tunnel networks are added because they are part of the topology but
+    # not included in @networks.
     for my $network (@networks, @tunnels) {
         next if $network->{any};
         (my $name = $network->{name}) =~ s/^\w+:/auto_any:/;
@@ -5334,89 +5384,6 @@ sub setpath_obj( $$$ ) {
     return 0;
 }
 
-#ToDo:
-#- aktivieren in loop_path_mark1
-#- dort kann nur auf Test auf pathrestriction verzichtet werden,
-# wenn die temporären Pathrestrictions von intf_loop_path_mark 
-# anders gelöst werden.
-
-# $objects are routers and networks located inside $loop.
-sub set_loop_path ( $ ) {
-    my($objects) = @_;
-
-#    debug "Loop: $objects->[0]->{name}";
-
-    # Number of objects without the current object.
-    my $all_count = @$objects - 1;
-    for my $start_obj (@$objects) {
-#	debug "Obj: $start_obj->{name}";
-
-	# Free variables ob local subroutine defined below.
-	my $start_intf;
-	my %result;
-	my $get_reachable;
-	$get_reachable = sub {
-	    my($obj, $out_intf) = @_;
-
-	    # Check for second occurrence of path restriction.
-	    for my $restrict (@{ $out_intf->{path_restrict} }) {
-		if ($restrict->{active_path}) {
-		    
-#		    debug " effective $restrict->{name} at $out_intf->{name}";
-		    return;
-		}
-	    }
-	    my $get_next = is_router $obj ? 'network' : 'router';
-	    my $next_obj = $out_intf->{$get_next};
-	    if($next_obj eq $start_obj) {
-		return;
-	    }
-	    return if $result{$next_obj};
-
-#	    debug "Added: $next_obj->{name}";
-	    $result{$next_obj} = $next_obj;
-
-	    # Mark first occurrence of path restriction.
-	    for my $restrict (@{ $out_intf->{path_restrict} }) {
-		
-#		debug " enabled $restrict->{name} at $out_intf->{name}";
-		$restrict->{active_path} = 1;
-	    }
-	  INTERFACE:
-	    for my $next_intf (grep { $_->{in_loop} } 
-			       @{ $next_obj->{interfaces} }) 
-	    {
-		next if $next_intf eq $out_intf;
-		$get_reachable->($next_obj, $next_intf);
-	    }
-
-	    # Disable first occurrence of path restriction.
-	    for my $restrict (@{ $out_intf->{path_restrict} }) {
-		
-#		debug " disabled $restrict->{name} at $out_intf->{name}";
-		$restrict->{active_path} = undef;
-	    }
-	};
-	my $attr = is_network $start_obj ? 'path_to_network' : 'path_to_router';
-	for my $interface (grep { $_->{in_loop} } 
-			   @{ $start_obj->{interfaces} }) 
-	{
-		# Initialize free variables of subroutine $get_reachable.
-		$start_intf = $interface;
-		%result = ();
-		$get_reachable->($start_obj, $interface);
-		$interface->{$attr} =   keys %result == $all_count
-		                      ? undef
-				      : [ sort { $a->{name} cmp $b->{name} }
-					     values %result ];
-#		debug "$interface->{name}: ",
-#		$interface->{$attr}
-#		    ? join(',',map { $_->{name} } @{$interface->{$attr}})
-#		    : 'all';
-	}
-    }		    
-}
-
 sub setpath() {
     info "Preparing fast path traversal";
     
@@ -5452,9 +5419,6 @@ sub setpath() {
     # attributes {disabled} and {in_loop}.
     link_and_check_pathrestrictions;
 
-    # Collect objects per loop.
-    my %loop2objects;
-
     # Propagate loop starting point into all sub-loops.
     for my $obj (@loop_objects) {
         my $loop = $obj->{loop};
@@ -5477,18 +5441,11 @@ sub setpath() {
 
 #     debug "adjusting $obj->{name} distance to $loop->{distance}";
         $obj->{distance} = $loop->{distance};
-	push @{$loop2objects{$loop}}, $obj;
     }
 
     # This is called here because it needs attribute {loop}
     # which just has been adjusted.
     link_and_check_virtual_interfaces;
-
-    # Add attribute {path_obj} to loop objects for optimized traversal
-    # of loops.
-#    for my $loop_objects (values %loop2objects) {
-#	set_loop_path $loop_objects;
-#    }    
 }
 
 ####################################################################
@@ -5878,12 +5835,12 @@ sub path_mark( $$ ) {
     my ($src, $dst) = @_;
     my $from      = $src;
     my $to        = $dst;
+
+#    debug "path_mark $from->{name} --> $to->{name}";
     my $from_in   = $from;
     my $to_out    = undef;
     my $from_loop = $from->{loop};
     my $to_loop   = $to->{loop};
-
-#  debug "path_mark $from->{name} --> $to->{name}";
     while (1) {
 
         # Paths meet outside a loop or at the edge of a loop.
@@ -5977,119 +5934,6 @@ sub loop_path_walk( $$$$$$$ ) {
         for my $in_intf (@{ $loop_exit->{loop_leave}->{$loop_entry} }) {
             $fun->($rule, $in_intf, $out);
         }
-    }
-}
-
-# Find all rules in $rule_tree which are related to $rule and return
-# appertaining crypto maps.
-# Two rules r1 and r2 are related, if
-# - r1.src op r2.src and r1.dst op r2.dst and r1.srv op r2.srv
-# with op: <= or >=
-sub find_related_rules ( $$ ) {
-    my ($rule, $rule_tree) = @_;
-    my $result;
-    my $overlap;
-    my $src = $rule->{src};
-    my $check_dst = sub ( $$ ) {
-        my ($rule_tree, $above) = @_;
-        my $dst = $rule->{dst};
-        my $check_srv = sub ( $$ ) {
-            my ($rule_tree, $above) = @_;
-            my $srv = $rule->{srv};
-            my $check_src_range = sub ( $$ ) {
-                my ($rule_tree, $above) = @_;
-                my $src_range = $rule->{src_range};
-                if (my $aref = $rule_tree->{above}->{$src_range}) {
-                    for my $map (@$aref) {
-                        push @$result, $map;
-                        $overlap = 1;
-                    }
-                }
-                else {
-                    while (1) {
-                        if (my $map = $rule_tree->{$src_range}) {
-                            push @$result, $map;
-                            $overlap ||= $above;
-                            last;
-                        }
-                        $src_range = $src_range->{up} or last;
-                    }
-                }
-            };
-            if (my $aref = $rule_tree->{above}->{$srv}) {
-                for my $rule_tree (@$aref) {
-                    $check_src_range->($rule_tree, 1);
-                }
-            }
-            else {
-                while (1) {
-                    if (my $rule_tree = $rule_tree->{$srv}) {
-                        $check_src_range->($rule_tree, $above);
-                    }
-                    $srv = $srv->{up} or last;
-                }
-            }
-        };
-        if (my $aref = $rule_tree->{above}->{$dst}) {
-            for my $rule_tree (@$aref) {
-                $check_srv->($rule_tree, 1);
-            }
-        }
-        else {
-            while (1) {
-                if (my $rule_tree = $rule_tree->{$dst}) {
-                    $check_srv->($rule_tree, $above);
-                }
-                $dst = $dst->{up} or last;
-            }
-        }
-    };
-    if (my $aref = $rule_tree->{above}->{$src}) {
-        for my $rule_tree (@$aref) {
-            $check_dst->($rule_tree, 1);
-        }
-    }
-    else {
-        while (1) {
-            if (my $rule_tree = $rule_tree->{$src}) {
-                $check_dst->($rule_tree, 0);
-            }
-            $src = $src->{up} or last;
-        }
-    }
-    return $result ? ($result, $overlap) : ();
-}
-
-# Check if
-# - $rule matches rules in $rule_tree ($rule <= some element of $rule_tree) or
-# - $rule overlaps rules in $rule_tree
-#   ($rule has intersection with some element(s) of $rule_tree)
-sub crypto_match( $$ ) {
-    my ($rule, $rule_tree) = @_;
-    my $some_deny = 0;
-
-    # ToDo: What about deny- $rule.
-    if (my $deny_tree = $rule_tree->{deny}) {
-        if (my ($map_aref, $overlap) = find_related_rules $rule, $deny_tree) {
-            if (not $overlap) {
-
-                # Packets described by $rule never pass tunnel.
-                return ();
-            }
-            else {
-
-                # Some packets don't pass tunnel, but continue checking.
-                $some_deny = 1;
-            }
-        }
-    }
-    if (my ($map_aref, $overlap) = find_related_rules $rule,
-        $rule_tree->{permit})
-    {
-        return $map_aref, $overlap | $some_deny;
-    }
-    else {
-        return ();
     }
 }
 
@@ -6224,7 +6068,7 @@ sub path_auto_interfaces( $$ ) {
 }
 
 ########################################################################
-# Handling of crypto tunnels and crypto rules.
+# Handling of crypto tunnels.
 ########################################################################
 
 sub link_ipsec () {
@@ -6260,22 +6104,6 @@ sub link_crypto () {
         else {
             err_msg "Unknown type '$type' for $name";
         }
-
-        # Resolve tunnel endpoints to lists of interfaces.
-        for my $what ('hub', 'spoke') {
-            $crypto->{$what} = expand_group $crypto->{$what}, "$what of $name";
-            for my $element (@{ $crypto->{$what} }) {
-                next if is_interface $element or is_autointerface $element;
-                err_msg "Illegal element in $what of $name: $element->{name}";
-            }
-        }
-        for my $mesh (@{ $crypto->{meshes} }) {
-            $mesh = expand_group $mesh, "mesh of $name";
-            for my $element (@$mesh) {
-                next if is_interface $element or is_autointerface $element;
-                err_msg "Illegal element in mesh of $name: $element->{name}";
-            }
-        }
     }
 }
 
@@ -6302,58 +6130,24 @@ sub gen_tunnel_rules ( $$$ ) {
     return \@rules;
 }
 
-# Add crypto tunnels to topology.
+# Link tunnel networks with tunnel hubs.
+# ToDo: Are tunnels between different private contexts allowed?
 sub link_tunnels () {
 
-    # Collect interfaces where tunnel ends at unmanaged devices.
-    my %unmanaged_spoke_intf;
+    # Collect cleartext interfaces of all tunnels.
+    my @real_interfaces;
 
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
+ 	my $private = $crypto->{private};
+	my $real_hubs = delete $crypto2hubs{$name};
+	my $real_spokes = delete $crypto2spokes{$name};
+	$real_hubs and @$real_hubs or
+	    err_msg "No hubs have been defined for $name";
 
-	my $gen_tunnel_intf = sub {
-	    my ($interface) = @_;
-	    my($router, $store) = is_interface $interface
-		? ($interface->{router}, 'real_interface')
-		: ($interface->{object}, 'auto_interface');
-	    my $tunnel_intf = new('Interface', 
-				  name => "tunnel:$interface->{name}", 
-				  ip => 'tunnel',
-				  crypto => $crypto,
-				  router => $router,
-				  $store => $interface);
-	    push @{ $router->{interfaces} }, $tunnel_intf;
-	    $tunnel_intf;
-	};
-	my $gen_tunnel_net = sub {
-	    my (@interfaces) = @_;
-	    my $network = new('Network', 
-			      name => "network:$name",
-			      ip => 'tunnel',
-			      interfaces => \@interfaces);
-	    for my $interface (@interfaces) {
-		$interface->{network} = $network;
-	    }
-	    push @{$crypto->{tunnels}}, $network;
-	    push @tunnels, $network;
-	    $network;
-	};
-
-	# Check consistency of tunnel endpoints: 
-	# no auto interfaces of network allowed.
-	for my $intf ( @{ $crypto->{hub} }, @{ $crypto->{spoke} }) {
-	    my $router = $intf->{router} || $intf->{object};
-	    if(not is_router $router) {
-		err_msg "$intf->{name} can't be used",
-		" in tunnel endpoint of $name";
-		return;
-	    }
-	}
-	my $managed_hubs = 
-	    grep({ my $r = $_->{router} || $_->{object}; $r->{managed} }
-		  @{ $crypto->{hub} });
-	if($managed_hubs != @{ $crypto->{hub} }) {
-	    err_msg "All hubs of $name must be managed";
+	for my $real_hub (@$real_hubs) {
+	    $real_hub->{has_tunnel} = 1;
+	    push @real_interfaces, $real_hub;
 	}
 
 	# Generate a single tunnel from each spoke to a single hub.
@@ -6361,238 +6155,117 @@ sub link_tunnels () {
 	# a high availabilty cluster. In this case a single tunnel is created
 	# with all hubs as possible endpoints. Traffic between hubs is
 	# prevented by automatically added pathrestrictions.	
-        for my $spoke (@{ $crypto->{spoke} }) {
-	    if(is_autointerface $spoke) {
-		my $router = $spoke->{object};
-		not $router->{managed} and
-		    err_msg "$spoke->{name} not allowed for unmanaged device",
-		    " in $name";
+        for my $spoke_net (@$real_spokes) {
+	    (my $net_name = $spoke_net->{name}) =~ s/network://;
+	    push @{ $crypto->{tunnels} }, $spoke_net;
+	    my $spoke = $spoke_net->{interfaces}->[0];
+	    $spoke->{crypto} = $crypto;
+	    my $real_spoke = $spoke->{real_interface};
+	    if ($real_spoke) {
+		$real_spoke->{has_tunnel} = 1;
+		push @real_interfaces, $real_spoke;
 	    }
-	    my $tunnel_spoke = $gen_tunnel_intf->($spoke) or next;
-	    if(not $spoke->{router}->{managed}) {
-		$unmanaged_spoke_intf{$spoke} = $spoke;
-		delete $tunnel_spoke->{real_interface};
-	    }
+
 	    # Each spoke gets a fresh hub interface.
-	    my @tunnel_hubs = map { $gen_tunnel_intf->($_) } @{ $crypto->{hub} };
-	    $gen_tunnel_net->(@tunnel_hubs, $tunnel_spoke);
+	    my @hubs;
+	    for my $real_hub (@$real_hubs) {
+		my $router = $real_hub->{router};
+		my $hardware = $real_hub->{hardware};
+		(my $intf_name = $real_hub->{name}) =~ s/\..*$/.$net_name/;
+		my $hub = new('Interface', 
+			      name => $intf_name, 
+			      ip => 'tunnel',
+			      crypto => $crypto,
+			      hardware => $hardware,
+			      is_hub => 1,
+			      real_interface => $real_hub,
+			      router => $router,
+			      network => $spoke_net);
+		push @{ $router->{interfaces} }, $hub;
+		push @{ $hardware->{interfaces} }, $hub;
+		push @{ $spoke_net->{interfaces} }, $hub;
+		push @{ $hub->{peers} }, $spoke;
+		push @{$spoke->{peers}}, $hub;
+		push @hubs, $hub;
 
-	    # Automatically add pathrestriction between interfaces
-	    # of redundant spokes.
-	    if(@tunnel_hubs > 1 and $managed_hubs) {
-		my $name2 = "auto-restriction:$crypto->{name}";
-		my $restrict = new('Pathrestriction', name => $name2);
-		for my $tunnel_hub (@tunnel_hubs) {
-		    push @{ $tunnel_hub->{path_restrict} }, $restrict;
-		}
-	    }
-	    push @{$tunnel_spoke->{peers}}, @tunnel_hubs;
-	    for my $tunnel_hub (@tunnel_hubs) {
-		push @{ $tunnel_hub->{peers} }, $tunnel_spoke;
-		
-		# Need to distinguish between hub and spoke 
-		# for 'tunnel' all case.
-		$tunnel_hub->{is_hub} = 1 if $crypto->{tunnel_all};
-	    }
-        }
-
-#        for my $mesh (@{ $crypto->{meshes} }) {
-#            for my $intf1 (@$mesh) {
-#		my $tunnel_intf1 = $gen_tunnel_intf->($intf1) or next;
-#                for my $intf2 (@$mesh) {
-#		    next if $intf1 eq $intf2;
-#		    my $tunnel_intf2 = $gen_tunnel_intf->($intf2) or next;
-#		    $gen_tunnel_net->($tunnel_intf1, $tunnel_intf2);
-#		    push @{$tunnel_intf1->{peers}}, $tunnel_intf2;
-#		    push @{$tunnel_intf2->{peers}}, $tunnel_intf1;
-#                }
-#            }
-#        }
-    }
-
-    # Alter topology for unmanaged devices, with tunnel endpoint.
-    # The real interface is removed from the topology.
-    # This prevents, that different networks reachable via tunnel and 
-    # others reachable via cleartext are put into the same security domain.
-    for my $interface (values %unmanaged_spoke_intf) {
-	my $router = $interface->{router};
-	my $network = $interface->{network};
-	aref_delete($interface, $router->{interfaces});
-	aref_delete($interface, $network->{interfaces});
-    }
-}
-
-# 1. Determine tunnel endpoints from auto interfaces.
-# 2. Check private contexts.
-# 3. Add rules which permit crypto traffic.
-sub check_tunnels () {
-
-    # Temporary block all tunnel interfaces.
-    # We need this
-    # - while resolving tunnel endpoints which are defined by auto interfaces 
-    # - to check, if a valid path between real interfaces exists.
-    for my $crypto (values %crypto) {
-	for my $tunnel (@{ $crypto->{tunnels} }) {
-	    for my $interface (@{ $tunnel->{interfaces} }) {
-		next if not $interface->{router}->{managed};
-		push @{ $interface->{path_restrict} }, 
-		$global_active_pathrestriction;
-	    }
-	}
-    }
-
-    # Collect cleartext interfaces of all tunnels.
-    my %real_interfaces;
-
-    for my $crypto (values %crypto) {
-        my $name = $crypto->{name};
-	my $private = $crypto->{private};
-	for my $tunnel (@{ $crypto->{tunnels} }) {
-	    for my $interface (@{ $tunnel->{interfaces} }) {
-		next if not $interface->{router}->{managed};
-		my $auto_intf = delete $interface->{auto_interface};
-		for my $peer ( @{ $interface->{peers} }) {
-
-		    # Resolve auto interfaces used as tunnel endpoint.
-		    if($auto_intf) {
-			my $other = 
-			    $peer->{real_interface} || $peer->{auto_interface};
-			my @auto_intf = path_auto_interfaces $auto_intf, $other;
-
-			# Both interfaces have same router.
-			if(not @auto_intf) {
-			    err_msg "Tunnel of $name starts and ends",
-			    " at same $auto_intf->{router}->{name}";
-			}
-			elsif (@auto_intf > 1) {
-			    err_msg "Tunnel of $name starting at $other->{name}",
-			    " has multiple endpoints at $auto_intf->{name}";
-			}
-			my $real_intf = $auto_intf[0];
-			if(my $prev_real_intf = $interface->{real_interface}) {
-			    $prev_real_intf eq $real_intf or
-				err_msg "Tunnel of $name has inconsistent",
-				"  auto interface with multiple peers";
-			}
-			$interface->{real_interface} = $real_intf;
-		    }
-
-		    # Check if crypto traffic can pass between real interfaces.
-		    else {
-			my $real_intf = $interface->{real_interface};
-			my $other = 
-			    $peer->{auto_interface} || $peer->{real_interface};
-			my @auto_intf = path_auto_interfaces $real_intf, $other;
-
-			# Both interfaces have same router.
-			if(not @auto_intf) {
-			    err_msg "Tunnel of $name starts and ends",
-			    " at same $real_intf->{router}->{name}";
-			}
-			elsif (not grep { $_ eq $real_intf } @auto_intf) {
-			    err_msg "Tunnel of $name starts at wrong interface",
-			    " $real_intf->{name}";
-			}
-		    }
-		}
-
-		# Further validation.
-		my $real_intf = $interface->{real_interface};
-		$real_intf->{has_tunnel} = 1;
-		if ($real_intf->{ip} eq 'unnumbered') {
-		    err_msg "'$real_intf->{ip}' $real_intf->{name}\n",
-		    " must not be used in tunnel of $name";
-		}
-		if(not $private) {
-		    $real_intf->{private} and
-			err_msg 
-			"Tunnel of public $name must not",
-			" reference $real_intf->{name} of",
-			" $real_intf->{private}.private";
-		}
-		$interface->{hardware} = $real_intf->{hardware};
-	    }
-
-	    # Second loop, after auto interfaces have been resolved.
-	    for my $tunnel_intf1 (@{ $tunnel->{interfaces} }) {
-		my $intf1 = $tunnel_intf1->{real_interface};
-		$real_interfaces{$intf1} = $intf1;
-		for my $tunnel_intf2 ( @{ $tunnel_intf1->{peers} }) {
-		    my $intf2 = $tunnel_intf2->{real_interface};
-
-		    # Check private contexts.
-		    if($private) {	    
-			my $i1_p = $intf1->{private};
-			my $i2_p = $intf2->{private};
-			$i1_p and $i1_p eq $private or 
-			    $i2_p and $i2_p eq $private or
-			    err_msg 
-			    "Each tunnel of $private.private $name",
-			    " must reference at least one object",
-			    " out of $private.private";
-		    }
-
-		    # Add rules to permit crypto traffic 
-		    # between tunnel endpoints.
-		    # If one tunnel endpoint has no known IP address,
-		    # these rules have to be added manually.
-		    if($intf1->{ip} ne 'short' and $intf2->{ip} ne 'short') {
+		# Add rules to permit crypto traffic between tunnel endpoints.
+		# If one tunnel endpoint has no known IP address,
+		# these rules have to be added manually.
+		if($real_spoke and 
+		   $real_spoke->{ip} !~ /^(?:short|unnumbered)$/) 
+		{
+		    for my $pair ([$real_spoke, $real_hub], [$real_hub, $real_spoke])
+		    {
+			my ($intf1, $intf2) = @$pair;
+			next if $intf1->{ip} eq 'negotiated';
 			my $rules_ref = 
 			    gen_tunnel_rules $intf1, $intf2, $crypto->{type};
 			push @{ $expanded_rules{permit} }, @$rules_ref;
-			add_rules $rules_ref;
-		    }
 
-		    # Build data structure for efficient distribution of
-		    # crypto rules.
-		    # Store both tunnel start and end.
-		    if(not $crypto->{tunnel_all}) {
-			if(my $pair = $intf1->{tunnel}->{$intf2}) {
-			    err_msg "Duplicate tunnel",
-			    " between $intf1->{name} and $intf2->{name}\n",
-			    " defined in $pair->[0]->{crypto}->{name} and $name";
-			}
-			$intf1->{tunnel}->{$intf2} = 
-			    [$tunnel_intf1, $tunnel_intf2];
+			# add_rules $rules_ref will be applied during expand_policies.
 		    }
+		}
+
+		# No real spoke available for unmanaged devices.
+		my $spoke2 = $real_spoke || $spoke;
+		if($private) {
+		    my $s_p = $spoke2->{private};
+		    my $h_p = $real_hub->{private};
+		    $s_p and $s_p eq $private or 
+			$h_p and $h_p eq $private or
+			err_msg 
+			"Tunnel $spoke2->{name} to $real_hub->{name}",
+			" of $private.private $name",
+			" must reference at least one object",
+			" out of $private.private";
+		}
+		else {
+		    $spoke2->{private} and
+			err_msg 
+			"Tunnel of public $name must not",
+			" reference $spoke2->{name} of",
+			" $spoke2->{private}.private";
+		    $real_hub->{private} and
+			err_msg 
+			"Tunnel of public $name must not",
+			" reference $real_hub->{name} of",
+			" $real_hub->{private}.private";
+		}
+	    }
+
+	    # Automatically add pathrestriction between interfaces
+	    # of redundant hubs.
+	    if(@hubs > 1) {
+		my $name2 = "auto-restriction:$crypto->{name}";
+		my $restrict = new('Pathrestriction', name => $name2);
+		for my $hub (@hubs) {
+		    push @{ $hub->{path_restrict} }, $restrict;
 		}
 	    }
         }
     }
 
-    # Remove temporary added pathrestriction.
-    for my $crypto (values %crypto) {
-	for my $tunnel (@{ $crypto->{tunnels} }) {
-	    for my $interface (@{ $tunnel->{interfaces} }) {
-		pop @{ $interface->{path_restrict} };
-		if(not @{ $interface->{path_restrict} }) {
-		    delete  $interface->{path_restrict};
-		}
-
-		# Remove cached path info.
-		# We no longer know if the tunnel was defined by auto or by 
-		# real interface and hence clear path info for both.
-		for my $from ($interface->{router}, $interface->{real_interface})
-		{
-		    for my $peer (@{$interface->{peers}}) {
-			for my $to ($peer->{router}, $peer->{real_interface}) {
-			    $from->{loop_enter}->{$to}  = undef;
-			    $from->{path_tuples}->{$to} = undef;
-			    $to->{loop_leave}->{$from}  = undef;
-			}
-		    }
-		}
-	    }
+    # Check for undefined crypto references.
+    for my $crypto (keys %crypto2hubs) {
+	for my $interface (@{$crypto2hubs{$crypto}}) {
+	    err_msg "$interface->{name} references unknown $crypto";
+	}
+    }
+    for my $crypto (keys %crypto2spokes) {
+	for my $network (@{$crypto2spokes{$crypto}}) {
+	    err_msg "$network->{interfaces}->[0]->{name}",
+	    " references unknown $crypto";
 	}
     }
 
     # Automatically add pairwise pathrestriction between
     # real interface and all other interfaces of the same router.
     # This allows direct traffic to the real interface from outside,
-    # but no traffic from or to the real interface 
-    # passing the router.
-    for my $intf1 (values %real_interfaces) {
+    # but no traffic from or to the real interface passing the router.
+    for my $intf1 (@real_interfaces) {
 	next if $intf1->{no_check};
+	push @{ $intf1->{path_restrict} }, $global_active_pathrestriction;
+	next;
 	my $router = $intf1->{router};
 	for my $intf2 (@{ $router->{interfaces} }) {
 	    next if $intf2 eq $intf1;
@@ -6604,126 +6277,6 @@ sub check_tunnels () {
     }
 }
 
-# ToDo: Currently exactly one single tunnel must be found.
-# Later we should be able to find the longest tunnel out of multiple tunnels.
-# But overlapping tunnels must not be accepted, to avoid inconsistent paths.
-sub distribute_crypto_rule ( $$$ ) {
-    my ($rule, $in_intf, $out_intf) = @_;
-    my $crypto = $rule->{crypto};
-
-    # Check for a matching tunnel end.
-    if ($in_intf and $in_intf->{tunnel}) {
-        for my $start_inf (@{ $rule->{tunnel_start} }) {
-            if (my $pair = $start_inf->{tunnel}->{$in_intf}) {
-		my($tunnel_start, $tunnel_end) = @$pair;
-                $tunnel_end->{crypto} eq $crypto
-                  or err_msg 
-		  "Tunnel between $start_inf->{name} and $in_intf->{name}\n",
-                  " belongs to $tunnel_end->{crypto}->{name} but matching rule\n ",
-                  print_rule $rule, "\n", 
-		  " belongs to $crypto->{name}";
-                if (my $tunnel = $rule->{tunnel}) {
-                    err_msg "Multiple tunnels are matching rule\n ",
-                      print_rule $rule,
-                      "\n Tunnel: $tunnel->[0]->{name} -- $tunnel->[1]->{name}",
-                      "\n Tunnel: $start_inf->{name} -- $in_intf->{name}";
-                }
-                $rule->{tunnel} = $pair;
-debug "End:  $tunnel_start->{name}->$tunnel_end->{name}"
-            }
-        }
-    }
-
-    # Remember a tunnel start.
-    if ($out_intf and $out_intf->{tunnel}) {
-        push @{ $rule->{tunnel_start} }, $out_intf;
-debug "Start:$out_intf->{name}"
-    }
-}
-
-# Reverse a crypto rule and check if srv is valid for IPSec.
-sub reverse_rule ( $ ) {
-    my ($rule) = @_;
-    my ($action, $src, $dst, $src_range, $srv) =
-      @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
-    my $proto = $srv->{proto};
-    my $new_srv;
-    my $new_src_range = $srv_ip;
-    if ($proto eq 'tcp' || $proto eq 'udp') {
-        for my $range ($srv->{range}, $src_range->{range}) {
-            (        $range->[0] == $range->[1]
-                  || $range->[0] == 1 && $range->[1] == 65535)
-              or err_msg
-              "Crypto rule must not use $srv->{name} with port ranges";
-        }
-
-        # Swap src and dst range.
-        $new_src_range = $srv;
-        $new_srv       = $src_range;
-    }
-    elsif ($proto eq 'icmp') {
-        $srv->{type}
-          and err_msg 
-	      "Crypto rule must not use $srv->{name} with attribute 'type'";
-        $new_srv = $srv;
-    }
-    else {
-        $new_srv = $srv;
-    }
-    my $new_rule = {
-        action    => $action,
-        src       => $dst,
-        dst       => $src,
-        src_range => $new_src_range,
-        srv       => $new_srv
-    };
-}
-sub link_crypto_rule_with_tunnel ( $$$ ) {
-    my ($rule, $tunnel_start, $tunnel_end) = @_;
-    my $start = $tunnel_start->{real_interface};
-    my ($action, $src, $dst, $src_range, $srv) =
-	@{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
-    if (my $old_start =
-	$start->{crypto_rule_tree}->{$action}->{$src}->{$dst}
-	->{$src_range}->{$srv})
-    {
-	err_msg "Duplicate crypto rule at $start->{name}\n ",
-	print_rule $rule;
-    }
-
-    # crypto_rule_tree is used to efficiently decide,
-    # if a policy rule fully uses a tunnel or not.
-    $start->{crypto_rule_tree}->{$action}->{$src}->{$dst}->{$src_range}
-    ->{$srv} = $tunnel_start;
-
-    # Additionally add entries to crypto_rule_tree, which allow
-    # for efficient test, if a rule has intersection with some
-    # rule(s) in crypto_rule_tree.
-    my $subtree  = $start->{crypto_rule_tree}->{$action};
-    my $subtree2 = $subtree->{$src};
-    while ($src = $src->{up}) {
-	push @{ $subtree->{above}->{$src} }, $subtree2;
-    }
-    $subtree  = $subtree2;
-    $subtree2 = $subtree->{$dst};
-    while ($dst = $dst->{up}) {
-	push @{ $subtree->{above}->{$dst} }, $subtree2;
-    }
-    $subtree  = $subtree2;
-    $subtree2 = $subtree->{$src_range};
-    while ($src_range = $src_range->{up}) {
-	push @{ $subtree->{above}->{$src_range} }, $subtree2;
-    }
-    $subtree  = $subtree2;
-    $subtree2 = $subtree->{$srv};
-    while ($srv = $srv->{up}) {
-	push @{ $subtree->{above}->{$srv} }, $subtree2;
-    }
-
-    # Rules are stored additionally at tunnel_start for code generation.
-    push @{ $tunnel_start->{crypto_rules} }, $rule;
-}
-
 # Needed for crypto_rules,
 # for default route optimization,
 # while generating chains of iptables and
@@ -6732,13 +6285,11 @@ my $network_00 = new('Network', name => "network:0/0", ip => 0, mask => 0);
 
 sub expand_crypto () {
     info "Expanding crypto rules";
-    check_tunnels ();
 
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
 
-	# Add crypto rules to encrypt traffic for all networks at the remote
-	# location.
+	# Add crypto rules to encrypt traffic for all networks at the remote location.
 	if($crypto->{tunnel_all}) {
 	    for my $tunnel (@{ $crypto->{tunnels} }) {
 		for my $tunnel_intf (@{$tunnel->{interfaces}}) {
@@ -6761,6 +6312,8 @@ sub expand_crypto () {
 			    push @networks, $interface->{network};
 			}
 		    }
+
+		    # Traffic from spoke to hub(s).
 		    my $crypto_rules =
 			[ map { { action    => 'permit',
 				  src       => $_,
@@ -6769,6 +6322,8 @@ sub expand_crypto () {
 				  srv       => $srv_ip
 				  } } @networks ];
 		    $tunnel_intf->{crypto_rules} = $crypto_rules;
+
+		    # Traffic from hubs to spoke.
 		    $crypto_rules =
 			[ map { { action    => 'permit',
 				  src       => $network_00,
@@ -6781,53 +6336,6 @@ sub expand_crypto () {
 		    }
 		}
 	    }		    
-	    next;
-	}
-
-	my %tunnel_unused;
-        my (@deny, @any, @permit);
-        my $result = $crypto->{expanded_rules} = {
-            deny   => \@deny,
-            any    => \@any,
-            permit => \@permit
-        };
-
-        # This adds expanded rules to $result.
-        expand_rules($crypto->{rules}, $name, $result, $crypto->{private});
-
-	# Distribute rules to tunnels.
-	# ToDo:
-	# - Is special handling of deny rules necessary?
-	# - Check for matching high-level and low-level semantic of any rules.
-        for my $rule (@deny, @any, @permit) {
-            $rule->{crypto} = $crypto;
-
-            # Find tunnel where $rule is applicable.
-            path_walk($rule, \&distribute_crypto_rule);
-
-            # Remove helper attributes of &distribute_crypto_rule
-            delete $rule->{tunnel_start};
-	    delete $rule->{crypto};
-
-            if (my $pair = delete $rule->{tunnel}) {
-                my ($start, $end) = @$pair;
-		delete $tunnel_unused{$start->{real_interface}};
-		delete $tunnel_unused{$end->{real_interface}};
-                link_crypto_rule_with_tunnel $rule, $start, $end;
-                link_crypto_rule_with_tunnel 
-		    reverse_rule $rule, $end, $start;
-            }
-            else {
-                err_msg "No matching tunnel found for rule of $name\n ",
-                  print_rule $rule;
-            }
-        }
-
-	# Check that all tunnels endpoints are used.
-	if(not $crypto->{tunnel_all}) {
-	    for my $interface (values %tunnel_unused) {
-		err_msg "Unused tunnel at $interface->{name} of $crypto->{name}";
-	    }
 	}
     }
 
@@ -7436,14 +6944,15 @@ sub get_any2( $ ) {
 sub mark_secondary ( $$ );
 sub mark_secondary ( $$ ) {
     my ($any, $mark) = @_;
-    return if $any->{secondary_mark};
     $any->{secondary_mark} = $mark;
     for my $in_interface (@{$any->{interfaces}}) {
 	my $router = $in_interface->{router};
 	next if not $router->{managed} eq 'secondary';
 	for my $out_interface (@{$router->{interfaces}}) {
 	    next if $out_interface eq $in_interface;
-	    mark_secondary $out_interface->{any}, $mark;
+	    my $next_any = $out_interface->{any};
+	    next if $next_any->{secondary_mark};
+	    mark_secondary $next_any, $mark;
 	}
     }
 }
@@ -7454,14 +6963,15 @@ sub mark_secondary ( $$ ) {
 sub mark_primary ( $$ );
 sub mark_primary ( $$ ) {
     my ($any, $mark) = @_;
-    return if $any->{primary_mark};
     $any->{primary_mark} = $mark;
     for my $in_interface (@{$any->{interfaces}}) {
 	my $router = $in_interface->{router};
 	next if $router->{managed} eq 'primary';
 	for my $out_interface (@{$router->{interfaces}}) {
 	    next if $out_interface eq $in_interface;
-	    mark_primary $out_interface->{any}, $mark;
+	    my $next_any = $out_interface->{any};
+	    next if $next_any->{primary_mark};
+	    mark_primary $next_any, $mark;
 	}
     }
 }
@@ -7644,6 +7154,29 @@ sub check_and_convert_routes () {
     info "Checking for duplicate routes";
     for my $router (@managed_routers) {
 
+	# Adjust routes through VPN tunnel to cleartext interface.
+	for my $interface (@{ $router->{interfaces} }) {
+	    next if not $interface->{ip} eq 'tunnel';
+	    my $tunnel_routes = $interface->{routes};
+	    my $real_intf = $interface->{real_interface};
+	    for my $peer (@{ $real_intf->{peers} }) {
+		my $peer_net = $peer->{network};
+		
+		# Find hop to peer network and add tunnel networks to this hop.
+		for my $net_hash (values %{ $real_intf->{routes}}) {
+		    if($net_hash->{$peer_net}) {
+			for my $tunnel_net_hash (values %$tunnel_routes) {
+			    for my $tunnel_net (values %$tunnel_net_hash) {
+				$net_hash->{$tunnel_net} = $tunnel_net;
+			    }
+			}
+		    }
+		}
+	    }
+	    $interface->{hop} = {};
+	    $interface->{routes} = {};
+	}
+
         # Remember, via which local interface a network is reached.
         my %net2intf;
         for my $interface (@{ $router->{interfaces} }) {
@@ -7781,6 +7314,31 @@ sub mark_networks_for_static( $$$ ) {
     }
 }
 
+sub get_any3( $ ) {
+    my ($obj) = @_;
+    my $type = ref $obj;
+    if ($type eq 'Network') {
+        return $obj->{any};
+    }
+    elsif ($type eq 'Subnet') {
+        return $obj->{network}->{any};
+    }
+    elsif ($type eq 'Interface') {
+        if ($obj->{router}->{managed}) {
+            return $obj;
+        }
+        else {
+            return $obj->{network}->{any};
+        }
+    }
+    elsif ($type eq 'Any') {
+        return $obj;
+    }
+    else {
+	internal_err;
+    }
+}
+
 sub find_statics () {
     info "Finding statics";
 
@@ -7790,8 +7348,8 @@ sub find_statics () {
     my $pseudo_srv = { name => '--' };
     for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{any} }) {
         my ($src, $dst) = @{$rule}{qw(src dst)};
-        my $from = $obj2any{$src} || get_any $src;
-	my $to   = $obj2any{$dst} || get_any $dst;
+        my $from = get_any3 $src;
+	my $to   = get_any3 $dst;
 	$any2any2rule{$from}->{$to} ||= {
 	    src    => $from,
 	    dst    => $to,
@@ -7801,11 +7359,6 @@ sub find_statics () {
 	    dst_net => {},
 	};	
 	my $rule2 = $any2any2rule{$from}->{$to};
-	if($rule2->{dst}->{name} eq 'auto_any:DMZ_KFZ_Oldenburg' and
-	   $rule->{src}->{name} =~ /X400/
-	   ) {
-	    debug print_rule $rule;
-	}
 	for my $network (get_networks($src)) {
 	    $rule2->{src_net}->{$network} = $network;
 	}
@@ -7842,7 +7395,7 @@ sub find_active_routes () {
         # this would give wrong routes and statics, if a path restriction
         # is applied to this interface.
         for my $network (get_networks($dst)) {
-            next if $network->{ip} eq 'unnumbered';
+            next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
 #	    debug "$from->{name} -> $network->{name}";
             unless ($routing_tree{$from}->{$network}) {
                 my $pseudo_rule = {
@@ -7932,10 +7485,10 @@ sub print_routes( $ ) {
         my $nat_map = $interface->{nat_map};
         for my $hop (@{ $interface->{hop} }) {
 
-            # For unnumbered and negotiated networks use interface name 
+            # For unnumbered and negotiated interfaces use interface name 
 	    # as next hop.
             my $hop_addr =
-                $interface->{ip} =~ 'unnumbered|negotiated'
+                $interface->{ip} =~ /^(?:unnumbered|negotiated|tunnel)$/
               ? $interface->{hardware}->{name}
               : print_ip $hop->{ip};
 
@@ -8239,7 +7792,7 @@ sub distribute_rule( $$$ ) {
 	      : $in_intf->{hardware};
     my $aref;
 
-#   debug "$router->{name} store: $store->{name}";
+#    debug "$router->{name} store: $store->{name}";
     if (not $out_intf) {
 
         # Packets for the router itself.  For PIX we can only reach that
@@ -8322,16 +7875,18 @@ sub set_policy_distribution_ip () {
     my $nat_map = $policy_distribution_point->{nat_domain}->{nat_map};
     for my $router (@managed_routers) {
 	my %interfaces;
-	for my $hardware (@{ $router->{hardware} }) {
-	    for my $where ($hardware, @{ $hardware->{crypto_maps} }) {
-		for my $rule (@{ $where->{intf_rules} }) {
-		    my($action, $src, $dst, $srv) = 
-			@{$rule}{qw(action src dst srv)};
-		    next if $action eq 'deny';
-		    next if not $pdp_src{$src};
-		    next if not $admin_srv{$srv};
-		    $interfaces{$dst} = $dst;
-		}
+	for my $intf (@{ $router->{hardware} }, 
+			  grep { $_->{ip} eq 'tunnel' } 
+			  @{ $router->{interfaces} }) 
+	{
+	    next if not $intf->{intf_rules};
+	    for my $rule (@{ $intf->{intf_rules} }) {
+		my($action, $src, $dst, $srv) = 
+		    @{$rule}{qw(action src dst srv)};
+		next if $action eq 'deny';
+		next if not $pdp_src{$src};
+		next if not $admin_srv{$srv};
+		$interfaces{$dst} = $dst;
 	    }
 	}
 	my @result;
@@ -8348,10 +7903,13 @@ sub set_policy_distribution_ip () {
 		}
 	    }
 	    if(not @result) {
-		@result = grep({ $_->{ip} !~ /unnumbered|negotiated/ } @front);
+		@result = 
+		    grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel)$/ } 
+			 @front);
 		if(not @result) {
-		    @result = grep({ $_->{ip} !~ /unnumbered|negotiated/ } 
-				   @{ $router->{interfaces} });
+		    @result = 
+			grep({$_->{ip} !~ /^(?:unnumbered|negotiated|tunnel)$/}
+			     @{ $router->{interfaces} });
 		}
 	    }
 	}
@@ -9327,6 +8885,7 @@ sub local_optimization() {
 	}
     }
 
+    my %seen;
     for my $domain (@natdomains) {
         my $nat_map = $domain->{nat_map};
 
@@ -9342,11 +8901,12 @@ sub local_optimization() {
                 my $secondary_filter = $managed eq 'secondary';
 		my $standard_filter  = $managed eq 'standard';
 		my $is_vpn3k         = $router->{model}->{filter} eq 'VPN3K';
-                my $hardware         = $interface->{hardware};
+                my $hardware         = $interface->{ip} eq 'tunnel' 
+		                     ? $interface : $interface->{hardware};
 
                 # Do local optimization only once for each hardware interface.
-                next if $hardware->{seen};
-                $hardware->{seen} = 1;
+                next if $seen{$hardware};
+                $seen{$hardware} = 1;
                 for my $rules ('intf_rules', 'rules') {
                     my %hash;
                     my $changed = 0;
@@ -9490,7 +9050,7 @@ sub print_xml( $ ) {
 	    }
 	    else {
 
-		# Handle simple case sepratatly for formatting reasons.
+		# Handle simple case separately for formatting reasons.
 		print "<$tag>$arg</$tag>\n"
 	    }
 	}
@@ -9520,7 +9080,7 @@ sub print_vpn3k( $ ) {
     # Hence we can take nat_map of first hardware interface.
     my $nat_map = $router->{hardware}->[0]->{nat_map};
 
-    # Collection of networks, which are authenticated at current device,
+    # Set of networks, which are authenticated at current device,
     # but which are not protected by some other managed device.
     # Either network with VPN clients or VPN network.
     my %auto_deny_networks;
@@ -9552,50 +9112,59 @@ sub print_vpn3k( $ ) {
 	}
     }
 
-    # Check for duplicate IDs at different hosts
-    # coming into current interface.
-    my %id2src;
+    for my $interface (@{ $router->{interfaces} }) {
+	if($interface->{ip} eq 'tunnel') {
+	    my $hardware = $interface->{hardware};
 
-# ToDo:
-# Regeln prüfen.
-# Ankommend von Tunneln: Src muss ID haben.
-# Ankommend von Klartext: Dst muss ID haben.
+	    # Check for duplicate IDs at different hosts
+	    # coming into current interface.
+	    my %id2src;
+	    for my $rule (@{ $interface->{rules} }, @{$interface->{intf_rules}}) 
+	    {
+		my ($src, $dst) = @{$rule}{'src', 'dst'};
+		my $src_id = get_id $src;
+		if(not $src_id) {
+		    err_msg 
+			"Source of rule needs to have id at $router->{name}\n ",
+		    print_rule $rule;
+		    next;
+		}
 
-    for my $tunnel_intf (@{ $router->{interfaces} }) {
-	next if $tunnel_intf->{ip} ne 'tunnel';
-	my $hardware = $tunnel_intf->{hardware};
-	for my $rule (@{ $tunnel_intf->{rules} }, @{$tunnel_intf->{intf_rules}}) 
-	{
-	    my ($src, $dst) = @{$rule}{'src', 'dst'};
-	    my $src_id = get_id $src;
-	    if(not $src_id) {
-		err_msg "Source of rule needs to have id at $router->{name}\n ",
-		print_rule $rule;
-		next;
+		# Remember destination networks for VPN3K 
+		# split tunnel configuration.
+		my $dst_network = is_network $dst ? $dst : $dst->{network};
+		$hardware->{id_dst_networks}->{$src}->{$dst_network} = 
+		    $dst_network;
+
+		# Take enclosing ID network.
+		$src = $src->{network} if not $src->{id};
+
+		# Permit access to auto denied networks.
+		if ($auto_deny_networks{$dst_network}) {
+		    push @{$hardware->{id_src_rules}->{$src}}, $rule;
+		}
+
+		if (my $old_src = $id2src{$src_id}) {
+		    $old_src eq $src or
+			err_msg "$src->{name} and $old_src->{name}",
+			" must not have identical id:$src_id";
+		} 
+		else {
+		    $id2src{$src_id} = $src;
+
+		    # Collect all authenticated users or networks.
+		    push @{$hardware->{id_src}}, $src;
+		}
 	    }
-
-	    # Remember destination networks for VPN3K
-	    # split tunnel configuration.
-	    my $dst_network = is_network $dst ? $dst : $dst->{network};
-	    $hardware->{id_dst_networks}->{$src}->{$dst_network} = $dst_network;
-
-	    # Take enclosing ID network.
-	    $src = $src->{network} if not $src->{id};
-	    
-	    # Permit access to auto denied networks.
-	    if ($auto_deny_networks{$dst_network}) {
-		push @{$hardware->{id_src_rules}->{$src}}, $rule;
-	    }
-
-	    if (my $old_src = $id2src{$src_id}) {
-		$old_src eq $src or
-		    err_msg "$src->{name} and $old_src->{name}",
-		    " must not have identical id:$src_id";
-	    } 
-	    else {
-		$id2src{$src_id} = $src;
-		# Collect all authenticated users or networks.
-		push @{$hardware->{id_src}}, $src;
+	}
+	else {
+	    for my $rule (@{ $interface->{rules} }) {
+		my $dst = $rule->{dst};
+		my $dst_id = get_id $dst;
+		next if $dst_id;
+		err_msg 
+		    "Destination of rule needs to have id at $router->{name}\n ",
+		    print_rule $rule;
 	    }
 	}
     }
@@ -10025,9 +9594,9 @@ sub print_crypto( $ ) {
     # How often each ipsec definition is used.
     my %ipsec;
 
-    # Find, which ipsec definitions are used at current router.
-    for my $interface (grep { $_->{ip} eq 'tunnel' } @{ $router->{interfaces} }) 
-    {
+    # Find out which ipsec definitions are used at current router.
+    for my $interface (@{ $router->{interfaces} }) {
+	next if not $interface->{ip} eq 'tunnel';
 	my $ipsec = $interface->{crypto}->{type};
 	unless ($ipsec{$ipsec}++) {
 	    push @ipsec, $ipsec;
@@ -10163,13 +9732,12 @@ sub print_crypto( $ ) {
     }
 
     my %hardware2crypto;
-    for my $interface (grep { $_->{ip} eq 'tunnel' } @{ $router->{interfaces} }) 
-    {
-	my $hardware = $interface->{hardware}; 
-	push @{ $hardware->{crypto_interfaces} }, $interface;
+    for my $interface (@{ $router->{interfaces} }) {
+	next if not $interface->{ip} eq 'tunnel';
+	push @{ $hardware2crypto{$interface->{hardware}} }, $interface;
     }
     for my $hardware (@{ $router->{hardware} }) {
-	next if not $hardware->{crypto_interfaces};
+	next if not $hardware2crypto{$hardware};
         my $name = $hardware->{name};
 
         # Name of crypto map.
@@ -10180,7 +9748,7 @@ sub print_crypto( $ ) {
 
         # Crypto ACLs must obey NAT.
         my $nat_map = $hardware->{nat_map};
-        for my $interface (@{ $hardware->{crypto_interfaces} }) {
+        for my $interface (@{ $hardware2crypto{$hardware} }) {
             $seq_num++;
 
             # Print crypto ACL. It controls which traffic needs to be encrypted.
