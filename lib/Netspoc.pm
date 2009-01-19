@@ -2692,6 +2692,12 @@ sub expand_splitted_services ( $ ) {
 # automatically generated deny rules.
 my $srv_ip = { name => 'auto_srv:ip', proto => 'ip' };
 
+# Service 'ICMP any', needed in optimization of chains for iptables.
+my $srv_icmp = {
+    name  => 'auto_srv:icmp',
+    proto => 'icmp'
+};
+
 # Service 'TCP any'.
 my $srv_tcp = {
     name      => 'auto_srv:tcp',
@@ -2748,8 +2754,8 @@ sub order_services() {
     # $srv_tcp and $srv_udp need to be processed before all other TCP and UDP
     # services, because otherwise the range 1..65535 would get a misleading
     # name.
-    for my $srv ($srv_ip, $srv_tcp, $srv_udp, $srv_ike, $srv_natt, $srv_esp,
-        $srv_ah, values %services)
+    for my $srv ($srv_ip, $srv_icmp, $srv_tcp, $srv_udp, $srv_ike, $srv_natt, 
+		 $srv_esp, $srv_ah, values %services)
     {
         prepare_srv_ordering $srv;
     }
@@ -7917,6 +7923,110 @@ sub set_policy_distribution_ip () {
     }
 }
 
+sub add_router_acls () {
+    for my $router (@managed_routers) {
+	for my $hardware (@{ $router->{hardware} }) {
+	    for my $interface (@{ $hardware->{interfaces} }) {
+
+		# Current router is used as default router even for
+		# some internal networks.
+		if ($interface->{reroute_permit}) {
+		    for my $net (@{ $interface->{reroute_permit} }) {
+
+			# This is not allowed between different
+			# security domains.
+			if ($net->{any} ne $interface->{any}) {
+			    err_msg "Invalid reroute_permit for $net->{name} ",
+			    "at $interface->{name}: different security domains";
+			    next;
+			}
+
+			# Prepend to all other rules.
+			unshift(
+			    @{ $hardware->{rules} },
+			    {
+				action    => 'permit',
+				src       => $network_00,
+				dst       => $net,
+				src_range => $srv_ip,
+				srv       => $srv_ip
+			    }
+			    );
+		    }
+		}
+
+		# Is dynamic routing used?
+		if (my $routing = $interface->{routing}) {
+		    unless ($routing->{name} eq 'manual') {
+			my $srv       = $routing->{srv};
+			my $src_range = $srv_ip;
+			if (my $dst_range = $srv->{dst_range}) {
+			    $src_range = $srv->{src_range};
+			    $srv       = $srv->{dst_range};
+			}
+			my $network = $interface->{network};
+
+			# Permit multicast packets from current network.
+			for my $mcast (@{ $routing->{mcast} }) {
+			    push @{ $hardware->{intf_rules} },
+			    {
+				action    => 'permit',
+				src       => $network,
+				dst       => $mcast,
+				src_range => $src_range,
+				srv       => $srv
+			    };
+			    $ref2obj{$mcast} = $mcast;
+			    $ref2srv{$src_range} = $src_range;
+			    $ref2srv{$srv} = $srv;
+			}
+
+			# Additionally permit unicast packets.
+			# We use the network address as destination
+			# instead of the interface address,
+			# because we need fewer rules if the interface has
+			# multiple addresses.
+			push @{ $hardware->{intf_rules} },
+			{
+			    action    => 'permit',
+			    src       => $network,
+			    dst       => $network,
+			    src_range => $src_range,
+			    srv       => $srv
+			};
+		    }
+		}
+
+		# Handle multicast packets of redundancy protocols.
+		if (my $type      = $interface->{redundancy_type}) {
+		    my $network   = $interface->{network};
+		    my $mcast     = $xxrp_info{$type}->{mcast};
+		    my $srv       = $xxrp_info{$type}->{srv};
+		    my $src_range = $srv_ip;
+
+		    # Is srv TCP or UDP with destination port range?
+		    # Then use source port range as well.
+		    if (my $dst_range = $srv->{dst_range}) {
+			$src_range = $srv->{src_range};
+			$srv       = $dst_range;
+		    }
+		    push @{ $hardware->{intf_rules} },
+		    {
+			action    => 'permit',
+			src       => $network,
+			dst       => $mcast,
+			src_range => $src_range,
+			srv       => $srv
+		    };
+		    $ref2obj{$mcast} = $mcast;
+		    $ref2srv{$src_range} = $src_range;
+		    $ref2srv{$srv} = $srv;
+		}
+	    }
+	}
+    }
+}
+
 sub rules_distribution() {
     info "Distributing rules";
 
@@ -7974,7 +8084,7 @@ sub rules_distribution() {
           and (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
         path_walk($rule, \&distribute_rule, 'Router');
     }
-
+    add_router_acls();
     set_policy_distribution_ip();
 
     # Prepare rules for local_optimization.
@@ -8356,11 +8466,13 @@ sub acl_line( $$$$ ) {
 	    print "$result\n";
 	}
 	elsif ($filter_type eq 'iptables') {
-	    my $action_code =
-		is_chain $action ? $action->{name}
-	    : $action eq 'permit' ? 'ACCEPT'
+	    my $action_code = is_chain $action
+		            ? $action->{name} 
+	                    : $action eq 'permit' 
+			    ? 'ACCEPT'
 		: 'DROP';
-	    my $result = "$prefix -j $action_code";
+	    my $jump = $rule->{goto} ? '-g' : '-j';
+	    my $result = "$prefix $jump $action_code";
 	    if($spair->[1] != 0) {
 		$result .= ' -s ' . prefix_code($spair);
 	    }
@@ -8551,200 +8663,772 @@ sub find_object_groups ( $ ) {
     print "\n";
 }
 
-sub find_chains ( $ ) {
-    my ($router) = @_;
+# Handle iptables.
+#
+sub debug_bintree ( $;$ );
+sub debug_bintree ( $;$ ) {
+    my ($tree, $depth) = @_;
+    $depth ||= '';
+    my $ip = print_ip $tree->{ip};
+    my $mask = print_ip $tree->{mask};
+    my $subtree = $tree->{subtree} ? 'subtree' : '';;
+    debug $depth," $ip/$mask $subtree";
+    debug_bintree $tree->{lo},"${depth}l" if $tree->{lo};
+    debug_bintree $tree->{hi},"${depth}h" if $tree->{hi};
+}
 
-    # For collecting found chains.
-    my @chains;
+# Nodes are reverse sorted before being added to bintree.
+# Redundant nodes are discared while inserting.
+# A node with value of subtree S is discarded,
+# if some parent node already has subtree S.
+sub add_bintree ( $$ );
+sub add_bintree ( $$ ) {
+    my ($tree, $node) = @_;
+    my ($tree_ip, $tree_mask) = @{$tree}{ qw(ip mask) };
+    my ($node_ip, $node_mask) = @{$node}{ qw(ip mask) };
+    my $result;
 
-    # For generating names of chains.
-    my $counter = 1;
+    # The case where new node is larger than root node will never
+    # occur, because nodes are sorted before being added.
 
-    # Find groups in src / dst of rules.
-    for my $this ('dst', 'src') {
-        my $that = $this eq 'src' ? 'dst' : 'src';
-        my $tag  = "${this}_group";
+    if($tree_mask < $node_mask && ($node_ip & $tree_mask) == $tree_ip) {
 
-        # Find identical chains in identical NAT domain,
-        # with same action and size.
-        my %nat2action2size2group;
-        for my $hardware (@{ $router->{hardware} }) {
-            my %group_rule_tree;
+	# Optimization for this special case:
+	# Root of tree has atribute {subtree} which is identical to
+	# attribute {subtree} of current node.
+	# Node is known to be less than root node.
+	# Hence node together with its subtree can be discarded 
+	# because it is redundant compared to root node.
+	# ToDo:
+	# If this optimization had been done before merge_subtrees,
+	# it could have merged more subtrees.
+	if(not $tree->{subtree} or not $node->{subtree} or 
+	   $tree->{subtree} ne $node->{subtree}) {
+	    my $mask = ($tree_mask >> 1) | 0x80000000;
+	    my $branch = ($node_ip & $mask) == $tree_ip ? 'lo' : 'hi';
+	    if(my $subtree = $tree->{$branch}) {
+		$tree->{$branch} = add_bintree $subtree, $node;
+	    }
+	    else {
+		$tree->{$branch} = $node;
+	    }
+	}
+	$result = $tree;
+    }
 
-            # Find groups of rules with identical
-            # action, srv, src/dst and different dst/src.
-            for my $rule (@{ $hardware->{rules} }) {
+    # Different nodes with identical IP address.
+    # This occurs for two cases:
+    # 1. Different interfaces of redundancy protocols like VRRP or HSRP.
+    #    In this case, the subtrees should be identical.
+    # 2. Dynamic nat of different networks or hosts to a single address 
+    #    or range.
+    #    Currently this case isn't handled properly.
+    #    The first subtree is taken, the other ones are ignored.
+    #
+    # ToDo: Merge subtrees for case 2.
+    elsif($tree_mask == $node_mask && $tree_ip == $node_ip) {
+	my $sub1 = $tree->{subtree} || '';
+	my $sub2 = $node->{subtree} || '';
+	if($sub1 ne $sub2) {
+	    my $ip = print_ip $tree_ip;
+	    my $mask = print_ip $tree_mask;
+	    warn_msg "Inconsistent rules for iptables for $ip/$mask";
+	}
+	$result = $tree;
+    }
 
-                # Action may be reference to chain from first round.
-                my $action    = $rule->{action};
-                my $that      = $rule->{$that};
-                my $this      = $rule->{$this};
-                my $src_range = $rule->{src_range};
-                my $srv       = $rule->{srv};
-                $group_rule_tree{$action}->{$src_range}->{$srv}->{$that}
-                  ->{$this} = $rule;
+    # Create common root for tree and node.
+    else {
+	while(1) {
+	    $tree_mask = ($tree_mask & 0x7fffffff) << 1;
+	    last if ($node_ip & $tree_mask) == ($tree_ip & $tree_mask);
+	}
+	$result = new('Network', 
+		      ip => ($node_ip & $tree_mask), mask => $tree_mask);
+	@{$result}{qw(lo hi)} = 
+	    $node_ip < $tree_ip ? ($node, $tree) : ($tree, $node);
+    }
+
+    # Merge adjacent subnetworks.
+  MERGE:
+    {
+	$result->{subtree} and last;
+	my $lo = $result->{lo} or last;
+	my $hi = $result->{hi} or last;
+	my $mask = ($result->{mask} >> 1) | 0x80000000;
+	$lo->{mask} == $mask or last;
+	$hi->{mask} == $mask or last;
+	$lo->{subtree} and $hi->{subtree}or last;
+	$lo->{subtree} eq $hi->{subtree} or last;
+	for my $key (qw(lo hi)) {
+	    $lo->{$key} and last MERGE;
+	    $hi->{$key} and last MERGE;
+	}
+#	debug 'Merged: ', print_ip $lo->{ip},' ',
+#	print_ip $hi->{ip},'/',print_ip $hi->{mask};
+	$result->{subtree}= $lo->{subtree};
+	delete $result->{lo};
+	delete $result->{hi};
+    }
+    return $result;
+}
+
+# Build a binary tree for src/dst objects.
+sub gen_addr_bintree ( $$$ ) {
+    my($elements, $tree, $nat_map) = @_;
+
+    # Sort in reverse order my mask and then by ip.
+    my @nodes = 
+	sort { $b->{mask} <=> $a->{mask} || $b->{ip} <=> $a->{ip} }
+        map { my ($ip, $mask) = @{ address($_, $nat_map) };
+
+	      # The tree's node is a simplified network object with
+	      # missing attribute 'name' and extra 'subtree'.
+	      new('Network', 
+		  ip => $ip, 
+		  mask => $mask, 
+		  subtree => $tree->{$_} ) 
+	}
+        @$elements;
+    my $bintree = pop @nodes;
+    while(my $next = pop @nodes) {
+	$bintree = add_bintree $bintree, $next;
+    }
+
+    # Add attribute {noop} to node which doesn't add any
+    # test to generated rule.
+    $bintree->{noop} = 1 if $bintree->{mask} == 0;
+#    debug_bintree $bintree;
+    return $bintree;
+}
+
+# Build a tree for src-range/srv objects. Subtrees for tcp and udp
+# will be binary trees. Nodes have attributes {proto}, {range},
+# {type}, {code} like services (but without {name}).
+# Additional attributes for building the tree:
+# For tcp and udp:
+# {lo}, {hi} for subranges of current node.
+# For other services:
+# {seq} an array of ordered nodes for sub services of current node.
+# Elements of {lo} and {hi} or elements of {seq} are guaranteed to be
+# disjoint.
+# Additional attribute {subtree} is set with corresponding subtree of
+# service object if current node comes from a rule and wasn't inserted
+# for optimization.
+sub gen_srv_bintree ( $$ ) {
+    my($elements, $tree) = @_;
+
+    my $ip_srv;
+    my %top_srv;
+    my %sub_srv;
+
+    # Add all services directly below service 'ip' into hash %top_srv
+    # grouped by protocol.  Add services below top services or below
+    # other services of current set of services to hash %sub_srv.
+  SRV:
+    for my $srv (@$elements) {
+	my $proto = $srv->{proto};
+	if($proto eq 'ip') {
+	    $ip_srv = $srv;
             }
+	else {
+	    my $up = $srv->{up};
 
-            # Find groups >= $min_object_group_size,
-            # mark rules belonging to one group,
-            # put groups into an array / hash.
-            for my $href (values %group_rule_tree) {
+	    # Check if $srv is sub service of any other service of
+	    # current set. But handle direct sub services of 'ip' as
+	    # top services.
+	    while($up->{up}) {
+		if($tree->{$up}) {
 
-                # $href is {src_range => href, ...}
-                for my $href (values %$href) {
+		    # Found sub service of current set.
+		    push @{$sub_srv{$up}}, $srv;
+		    next SRV;
+		}
+		$up = $up->{up};
+	    }
 
-                    # $href is {srv => href, ...}
-                    for my $href (values %$href) {
+	    # Not a sub service (except possibly of IP).
+	    my $key = $proto =~ /^\d+$/ ? 'proto' : $proto;
+	    push @{$top_srv{$key}}, $srv;
+	}
+    }
 
-                        # $href is {src/dst => href, ...}
-                        for my $href (values %$href) {
+    # Collect subtrees for tcp, udp, proto and icmp.
+    my @seq;
 
-                            # $href is {dst/src => rule, ...}
-                            my $size = keys %$href;
-                            if ($size >= $min_object_group_size) {
-                                my $glue = {
+# Build subtree of tcp and udp services.
+    #
+    # We need not to handle 'tcp established' because it is only used
+    # for stateless routers, but iptables is stateful.
+    my $gen_lohitrees;
+    my $gen_rangetree;
+    $gen_lohitrees = sub {
+	my ($srv_aref) = @_;
+	if(not $srv_aref) {
+	    return(undef, undef);
+	}
+	elsif(@$srv_aref == 1) {
+	    my $srv = $srv_aref->[0];
+	    my ($lo, $hi) = $gen_lohitrees->($sub_srv{$srv});
+	    my $node = { proto => $srv->{proto}, 
+			 range => $srv->{range},
+			 subtree => $tree->{$srv}, 
+			 lo => $lo, hi => $hi };
+	    return($node, undef);
+	}
+	else {
+	    my @ranges = 
+		sort { $a->{range}->[0] <=> $b->{range}->[0] } @$srv_aref;
 
-                                    # Indicator, that no further rules need
-                                    # to be processed.
-                                    active => 0,
+	    # Split array in two halves.
+	    my $mid = int($#ranges / 2);
+	    my $left = [ @ranges[0 .. $mid] ];
+	    my $right = [ @ranges[$mid+1 .. $#ranges] ];
+	    return($gen_rangetree->($left), 
+		   $gen_rangetree->($right));
+	}
+    };
+    $gen_rangetree = sub {
+	my ($srv_aref) = @_;
+	my ($lo, $hi) = $gen_lohitrees->($srv_aref);
+	return $lo if not $hi;
+	my $proto = $lo->{proto};
 
-                                    # NAT map for address calculation.
-                                    nat_map => $hardware->{nat_map},
+	# Take low port from lower tree and high port from high tree.
+	my $range = [ $lo->{range}->[0], $hi->{range}->[1] ];
 
-                                    # object-ref => rule, ...
-                                    hash => $href
+	# Merge adjacent port ranges.
+	if($lo->{range}->[1] + 1 == $hi->{range}->[0] and
+	   $lo->{subtree} and $hi->{subtree} and
+	   $lo->{subtree} eq $hi->{subtree}) 
+	{
+#	    debug "Merged: $lo->{range}->[0]-$lo->{range}->[1]",
+#	    " $hi->{range}->[0]-$hi->{range}->[1]";
+	    { proto => $proto,
+	      range => $range, 
+	      subtree => $lo->{subtree} };
+	}
+	else {
+	    { proto => $proto,
+	      range => $range, 
+	      lo => $lo, hi => $hi };
+	}
+    };
+    for my $what (qw(tcp udp)) {
+	next if not $top_srv{$what};
+	push @seq, $gen_rangetree->($top_srv{$what});
+    }
+
+# Add single nodes for numeric protocols.
+    if(my $aref = $top_srv{proto}) {
+	for my $srv ( sort { $a->{proto} <=> $b->{proto} } @$aref) {
+	    my $node = { proto => $srv->{proto}, subtree => $tree->{$srv} };
+	    push @seq, $node;
+	}
+    }
+
+# Build subtree of icmp services.
+    if(my $icmp_aref = $top_srv{icmp}) {
+	my %type2srv;
+	my $icmp_any;
+
+	# If one service is 'icmp any' it is the only top service,
+	# all other icmp services are sub services.
+	if(not defined $icmp_aref->[0]->{type}) {
+	    $icmp_any = $icmp_aref->[0];
+	    $icmp_aref = $sub_srv{$icmp_any};
+	}
+
+	# Process icmp services having defined type and possibly defined code.
+	# Group services by type.
+	for my $srv (@$icmp_aref) {
+	    my $type = $srv->{type};
+	    push @{$type2srv{$type}}, $srv;
+	}
+
+	# Parameter is array of icmp services all having
+	# the same type and different but defined code.
+	# Return reference to array of nodes sorted by code.
+	my $gen_icmp_type_code_sorted = sub {
+	    my ($aref) = @_;
+	    [ map { { proto => 'icmp', 
+		      type => $_->{proto}, code => $_->{code}, 
+		      subtree => $tree->{$_} } }
+	      sort { $a->{code} <=> $b->{code} }
+	      @$aref ];
                                 };
 
-                                # All this rules have identical
-                                # action, srv, src/dst  and dst/src
-                                # and shall be replaced by a new chain.
-                                for my $rule (values %$href) {
-                                    $rule->{$tag} = $glue;
+	# For collecting subtrees of icmp subtree.
+	my @seq2;
+
+	# Process grouped icmp services having the same type.
+	for my $type (sort { $a <=> $b } keys %type2srv) {
+	    my $aref2 = $type2srv{$type};
+	    my $node2;
+
+	    # If there is more than one service,
+	    # all have same type and defined code.
+	    if(@$aref2 > 1) {
+		my $seq3 = $gen_icmp_type_code_sorted->($aref2);
+
+		# Add a node 'icmp type any' as root.
+		$node2 = { proto => 'icmp', type => $type,
+			   seq => $seq3, };
                                 }
+
+	    # One service 'icmp type any'.
+	    else {
+		my $srv = $aref2->[0];
+		$node2 = { proto => 'icmp', type => $type, 
+			   subtree => $tree->{$srv} };
+		if(my $aref3 = $sub_srv{$srv}) {
+		    $node2->{seq} = 
+			$gen_icmp_type_code_sorted->($aref3);
                             }
                         }
+	    push @seq2, $node2;
                     }
+
+	# Add root node for icmp subtree.
+	my $node;
+	if($icmp_any) {
+	    $node = { proto => 'icmp', seq => \@seq2,
+		      subtree => $tree->{$icmp_any} };
                 }
+	elsif(@seq2 > 1) {
+	    $node = { proto => 'icmp', seq => \@seq2 };
             }
+	else {
+	    $node = $seq2[0];
+	}
+	push @seq, $node;
         }
 
-        # Find a chain of same type and with identical elements or
-        # define a new one.
-        my $get_chain = sub ( $$ ) {
-            my ($glue, $action) = @_;
-            my $hash     = $glue->{hash};
-            my $nat_map  = $glue->{nat_map};
-            my @keys     = keys %$hash;
-            my $size     = @keys;
+# Add root node for whole tree.
+    my $bintree;
+    if($ip_srv) {
+	$bintree = { proto => 'ip', seq => \@seq,
+		     subtree => $tree->{$ip_srv} };
+    }
+    elsif(@seq > 1) {
+	$bintree = { proto => 'ip', seq => \@seq };
+    }
+    else {
+	$bintree = $seq[0];
+    }
 
- 	    # This occurs if optimization didn't work correctly.
- 	    if (grep { $_ eq $network_00 } @keys) {
- 		internal_err
- 		  "Unexpected $network_00->{name} in chain of $router->{name}";
+    # Add attribute {noop} to node which doesn't need any test in
+    # generated chain.
+    $bintree->{noop} = 1 if $bintree->{proto} eq 'ip';
+    return $bintree;
+}
+
+my %ref_type = ( 
+    srv => \%ref2srv, src_range => \%ref2srv, 
+    src => \%ref2obj, dst => \%ref2obj
+);
+$ref2srv{$srv_icmp} = $srv_icmp;
+
+sub print_chain_rule( $ ) {
+    my ($rule) = @_;
+    my $result = '';
+    if(my $action = $rule->{action}) {
+	$action = $action->{name} if is_chain $action;
+	$result = $action;
+    }
+    for my $what (qw(src dst)) {
+	my $node = $rule->{$what} or next;
+	$result .= " $what=";
+	$result .= print_ip $node->{ip};
+	$result .= "/";
+	$result .= print_ip $node->{mask};
+    }
+    for my $what (qw(src_range srv)) {
+	my $node = $rule->{$what} or next;
+	my $proto = $node->{proto};
+	my $spec = '';
+	if($proto eq 'icmp') { 
+	    for my $icmp_data (qw(type code)) {
+		if(my $data = $node->{$icmp_data}) {
+		    $spec .= "$data";
+		}
  	    }
+	}
+	elsif($proto =~ /udp|tcp/) {
+	    my($v1, $v2) = @{$node->{range}};
+	    if($v1 == $v2) {
+		$spec .= "$v1";
+	    }
+	    else {
+		$spec .= "$v1:$v2";
+	    }
+	}
+	$result .= " $what=$proto $spec";
+    }
+    if($rule->{goto}) {
+	$result .= " -g";
+    }
+    return $result;
+}
 
-            # Find chain with identical elements.
-            for my $chain (
-                @{ $nat2action2size2group{$nat_map}->{$action}->{$size} })
-            {
-                my $href = $chain->{hash};
-                my $eq   = 1;
+# ToDo:
+# - Redundante Regeln entfernen, wie bei local_optimization:
+#  - host, intf, net in any
+#  - Subnetz-Beziehung
+# - secondary Rules zusammenfassen
+# - bintrees von identischen Subtrees nur 1x generieren.
+#
+sub find_chains ( $$ ) {
+    my ($router, $hardware) = @_;
+
+    # For generating names of chains.
+    # Initialize if called first time.
+    $router->{chain_counter} ||= 1;
+
+    my $nat_map = $hardware->{nat_map};
+    for my $rule_type ('intf_rules', 'rules') {
+	my %cache;
+
+	my $print_tree;
+	$print_tree = sub {
+	    my($tree, $order, $depth) = @_;
+	    my $key = $order->[$depth];
+	    my $ref2x = $ref_type{$key};
+	    my @elements = map { $ref2x->{$_} } keys %$tree;
+	    for my $elem (@elements) {
+		debug ' ' x $depth, "$elem->{name}";
+		if($depth < $#$order) {
+		    $print_tree->($tree->{$elem}, $order, $depth+1);
+		}
+	    }
+	};		
+
+	my $insert_bintree  = sub {
+	    my($tree, $order, $depth) = @_;
+	    my $key = $order->[$depth];
+	    my $ref2x = $ref_type{$key};
+	    my @elements = map { $ref2x->{$_} } keys %$tree;
+
+	    # Put srv/src/dst objects at the root of some subtree into a
+	    # (binary) tree. This is used later to convert subsequent tests
+	    # for ip/mask or port ranges into more efficient nested chains.
+	    my $bintree;
+	    if($ref2x eq \%ref2obj) {
+		$bintree = gen_addr_bintree(\@elements, $tree, $nat_map);
+	    }
+	    else { # $ref2x eq \%ref2srv
+		$bintree = gen_srv_bintree(\@elements, $tree);
+	    }
+	    return $bintree;
+	};
+
+	# Used by $merge_subtrees1 to find identical subtrees.
+	# Use hash for efficient lookup.
+	my %depth2size2subtrees;
+	my %subtree2bintree;
+
+	# Find and merge identical subtrees.
+	my $merge_subtrees1 = sub {
+	    my($tree, $order, $depth) = @_;
+
+	  SUBTREE:
+	    for my $subtree (values %$tree) {
+		my @keys = keys %$subtree;
+		my $size = @keys;
+
+		# Find subtree with identical keys and values;
+	      FIND:
+		for my $subtree2 (@{ $depth2size2subtrees{$depth}->{$size} }) {
                 for my $key (@keys) {
-                    unless ($href->{$key}) {
-                        $eq = 0;
-                        last;
+			if (not $subtree2->{$key} or 
+			    $subtree2->{$key} ne $subtree->{$key}) {
+			    next FIND;
                     }
                 }
-                if ($eq) {
-                    return $chain;
+
+		    # Substitute current subtree with found subtree.
+		    $subtree = $subtree2bintree{$subtree2};
+		    next SUBTREE;
+
                 }
+
+		# Found a new subtree.
+		push @{ $depth2size2subtrees{$depth}->{$size} }, $subtree;
+		$subtree = $subtree2bintree{$subtree} =
+		    $insert_bintree->($subtree, $order, $depth+1);
             }
+	};
 
-            # Not found, build new chain.
+	my $merge_subtrees = sub {
+	    my($tree, $order) = @_;
 
-	    # A chain must not have "any" objects as elements.
-	    # Global_optimization should have shrinked them to a single element
-	    # which isn't further optimized at this point.
-	    # "any" objects have been converted to network:0/0 during
-	    # local_optimization. These don't have a ref2obj mapping.
-	    my $elements = [ map { $ref2obj{$_} or  
-				       internal_err "Unexpected network:0/0",
-				       " in chain of $router->{name}";
-			       } @keys ];
-            my $chain = new(
-                'Chain',
-                name     => "c$counter",
-                action   => $action,
-                where    => $this,
-                elements => $elements,
-                hash     => $hash,
-                nat_map  => $glue->{nat_map}
+	    # Process leaf nodes first.
+	    for my $href (values %$tree) {
+		for my $href (values %$href) {
+		    $merge_subtrees1->($href, $order, 2);
+		}
+	    }
+
+	    # Process nodes next to leaf nodes.
+	    for my $href (values %$tree) {
+		$merge_subtrees1->($href, $order, 1);
+	    }
+
+	    # Process nodes next to root.
+	    $merge_subtrees1->($tree, $order, 0);
+	    return $insert_bintree->($tree, $order, 0);
+	};
+
+	# Add new chain to current router.
+	my $new_chain = sub {
+	    my($rules) = @_;
+	    my $chain = 
+		new('Chain',
+		    name    => "c$router->{chain_counter}",
+		    rules   => $rules,
             );
-            push @{ $nat2action2size2group{$nat_map}->{$action}->{$size} },
+	    push @{ $router->{chains} }, $chain;
+	    $router->{chain_counter}++;
               $chain;
-            push @chains, $chain;
-            $counter++;
-            return $chain;
         };
 
-        # Build new list of rules using chains.
-        for my $hardware (@{ $router->{hardware} }) {
-            my @new_rules;
-            for my $rule (@{ $hardware->{rules} }) {
-                if (my $glue = $rule->{$tag}) {
+	my $gen_chain;
+	$gen_chain = sub {
+	    my($tree, $order, $depth) = @_;
+	    my $key = $order->[$depth];
+	    my @rules;
 
-#	       debug print_rule $rule;
-                    # Remove tag, otherwise a subsequent call to
-                    # find_object_groups or find_chains would become confused.
-                    delete $rule->{$tag};
-                    if ($glue->{active}) {
+	    # We need the original value later.
+	    my $bintree = $tree;
+	    while(1) {
+		my($hi, $lo, $seq, $subtree) = 
+		    @{$bintree}{qw(hi lo seq subtree)};
+		$seq = undef if $seq and not @$seq;
+		if(not $seq) {
+		    push @$seq, $hi if $hi;
+		    push @$seq, $lo if $lo;
+		}
+		if($subtree) {
+#		    if($order->[$depth+1]&& 
+#		       $order->[$depth+1] =~ /^(src|dst)$/) {
+#			debug $order->[$depth+1];
+#			debug_bintree $subtree; 
+#		    }
+		    my $rules = $cache{$subtree};
+		    if(not $rules) {
+			$rules = $depth+1 >= @$order 
+			       ? [ { action => $subtree } ]
+			       : $gen_chain->($subtree, $order, $depth + 1);
+			if(@$rules > 1 and not $bintree->{noop}) {
+			    my $chain = $new_chain->($rules);
+			    $rules = [ { action => $chain, goto => 1 } ];
+			}
+			$cache{$subtree} = $rules;
+		    }
 
-#		  debug " deleted: $glue->{chain}->{name}";
-                        next;
+		    my @add_keys;
+
+		    # Don't use "goto", if some tests for sub-nodes of 
+		    # $subtree are following.
+		    push @add_keys, (goto => 0) if $seq;
+		    push @add_keys, ($key => $bintree) if not $bintree->{noop};
+		    if(@add_keys) {
+
+			# Create a copy of each rule because we must not change
+			# the original cached rules.
+			push @rules, map { { %$_, @add_keys } } @$rules;
+		    }
+		    else {
+			push @rules, @$rules;
+		    }
+		}
+		last if not $seq;
+
+		# Take this value in next iteration.
+		$bintree = pop @$seq;
+
+		# Process remaining elements.
+		for my $node (@$seq) {
+		    my $rules = $gen_chain->($node, $order, $depth);
+		    push @rules, @$rules;
+		}
+	    }
+	    if(@rules > 1 and not $tree->{noop}) {
+
+		# Generate new chain. All elements of @seq are
+		# known to be disjoint. If one element has matched
+		# and branched to a chain, then the other elements
+		# need not be tested again. This is implemented by
+		# calling the chain using '-g' instead of the usual '-j'.
+		my $chain = $new_chain->(\@rules);
+		return [ { action => $chain, goto => 1, $key => $tree } ];
                     }
+	    else {
+		return \@rules;
+	    }
+	};
 
-                    # Action may be a previously found chain.
-                    my $chain = $get_chain->($glue, $rule->{action});
+	# Build rule trees. Generate and process separate tree for
+	# adjacent rules with same action.
+	my @rule_trees;
+	my %tree2order;
+	my $rules;
+	if($rules = $hardware->{$rule_type} and @$rules) {
+	    my $prev_action = $rules->[0]->{action};
+	    push @$rules, { action => 0 };
+	    my $start = my $i = 0;
+	    my $last = $#$rules;
+	    my %count;
+	    while(1) {
+	        my $rule = $rules->[$i];
+		my $action = $rule->{action};
+		if($action eq $prev_action) {
 
-#	       debug " generated: $chain->{name}";
-#              # Only needed while debugging.
-#              $glue->{chain} = $chain;
-                    $glue->{active} = 1;
-                    $rule = {
-                        action    => $chain,
-                        $this     => $network_00,
-                        $that     => $rule->{$that},
-                        src_range => $rule->{src_range},
-                        srv       => $rule->{srv}
-                    };
+		    # Count, which key has the largest number of
+		    # different values.
+		    for my $what (qw(src dst src_range srv)) {
+			$count{$what}{$rule->{$what}} = 1;
                 }
-                push @new_rules, $rule;
+		    $i++;
             }
-            $hardware->{rules} = \@new_rules;
-        }
-    }
+		else {
 
-    # Print chains of iptables.
-    for my $chain (@chains) {
+		    # Use key with smaller number of different values
+		    # first in rule tree. This gives smaller tree and
+		    # fewer tests in chains.
+		    my @test_order = 
+			sort { keys %{$count{$a}} <=> keys %{$count{$b}} }
+		    qw(src_range dst srv src);
+		    my $rule_tree;
+		    my $end = $i-1;
+		    for (my $j = $start; $j <= $end; $j++) {
+			my $rule = $rules->[$j];
+			if($rule->{srv}->{proto} eq 'icmp') {
+			    $rule->{src_range} = $srv_icmp;
+			}
+			my($action, $t1, $t2, $t3, $t4) = 
+			    @{$rule}{'action', @test_order};
+			$rule_tree->{$t1}->{$t2}->{$t3}->{$t4} = $action;
+		    }			
+		    push @rule_trees, $rule_tree;
+#		    debug join ', ', @test_order;
+		    $tree2order{$rule_tree} = \@test_order;
+		    last if not $action;
+		    $start = $i;
+		    $prev_action = $action;
+		}
+	    }
+	    $hardware->{$rule_type} = [];
+	}
+
+	for (my $i = 0; $i < @rule_trees; $i++) {
+	    my $tree = $rule_trees[$i];
+	    my $order = $tree2order{$tree};
+#	    $print_tree->($tree, $order, 0);
+	    $tree = $merge_subtrees->($tree, $order);
+	    my $result = $gen_chain->($tree, $order, 0);
+
+	    # Goto must not be used in last rule of rule tree which is
+	    # not the last tree.
+	    if($i != $#rule_trees) {
+		my $rule = $result->[$#$result];
+		delete $rule->{goto};
+	    }
+
+	    # Postprocess rules: Add missing attributes src_range,
+	    # srv, src, dst with no-op values.
+	    for my $rule (@$result) {
+		$rule->{src} ||= $network_00;
+		$rule->{dst} ||= $network_00;
+		my $srv = $rule->{srv};
+		my $src_range = $rule->{src_range};
+		if(not $srv and not $src_range) {
+		    $rule->{srv} = $rule->{src_range} = $srv_ip;
+        }
+		else {
+		    $rule->{srv} ||= $src_range->{proto} eq 'tcp'
+			           ? $srv_tcp->{dst_range}
+		                   : $src_range->{proto} eq 'udp'
+			           ? $srv_udp->{dst_range}
+		                   : $src_range->{proto} eq 'icmp'
+			           ? $srv_icmp
+		                   : $srv_ip;
+		    $rule->{src_range} ||= $srv->{proto} eq 'tcp'
+			                 ? $srv_tcp->{src_range}
+		                         : $srv->{proto} eq 'udp'
+					 ? $srv_udp->{src_range}
+		                         : $srv_ip;
+    }
+	    }
+	    push @{ $hardware->{$rule_type} }, @$result;
+	}
+    }
+}
+
+# Print chains of iptables.
+# Objects have already been normalized to ip/mask pairs.
+# NAT has already been applied.
+sub print_chains ( $ ) {
+    my($router) = @_;
+
+    # Declare chain names.
+    for my $chain (@{ $router->{chains} }) {
         my $name        = $chain->{name};
-        my $action      = $chain->{action};
-        my $action_code =
-            is_chain $action ? $action->{name}
-          : $action eq 'permit' ? 'ACCEPT'
-          : 'DROP';
-        my $nat_map = $chain->{nat_map};
-        print "iptables -N $name\n";
-        for my $pair (
-            sort { $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] }
-            map { address($_, $nat_map) } @{ $chain->{elements} }
-          )
-        {
-            my $obj_code = prefix_code($pair);
-            my $type = $chain->{where} eq 'src' ? '-s' : '-d';
-            print "iptables -A $name -j $action_code $type $obj_code\n";
-        }
+	print ":$name -\n";
     }
 
+    # Define chains.
+    for my $chain (@{ $router->{chains} }) {
+        my $name    = $chain->{name};
+	my $prefix = "-A $name";
+	for my $rule ( @{ $chain->{rules} }) {
+	    my $action = $rule->{action};
+	    my $action_code = is_chain $action
+		            ? $action->{name} 
+	                    : $action eq 'permit' 
+			    ? 'ACCEPT'
+          : 'DROP';
+	    my $jump = $rule->{goto} ? '-g' : '-j';
+	    my $result = "$jump $action_code";
+	    if(my $src = $rule->{src}) {
+		my $ip_mask = [ @{$src}{qw(ip mask)} ];
+		if($ip_mask->[1] != 0) {
+		    $result .= ' -s ' . prefix_code($ip_mask);
+		}
+	    }
+	    if(my $dst = $rule->{dst}) {
+		my $ip_mask = [ @{$dst}{qw(ip mask)} ];
+		if($ip_mask->[1] != 0) {
+		    $result .= ' -d ' . prefix_code($ip_mask);
+		}
+	    }
+	  BLOCK:
+        {
+		my $src_range = $rule->{src_range};
+		my $srv = $rule->{srv};
+		last BLOCK if not $src_range and not $srv;
+		last BLOCK if $srv and $srv->{proto} eq 'ip';
+		$src_range ||= $srv->{proto} eq 'tcp'
+		             ? $srv_tcp->{src_range}
+			     : $srv->{proto} eq 'udp'
+			     ? $srv_udp->{src_range}
+			     : $srv_ip;
+		if(not $srv) {
+		    last BLOCK if $src_range->{proto} eq 'ip';
+		    $srv = $src_range->{proto} eq 'tcp' 
+		         ? $srv_tcp->{dst_range}
+		         : $src_range->{proto} eq 'udp'
+		         ? $srv_udp->{dst_range}
+		         : $src_range->{proto} eq 'icmp'
+			 ? $srv_icmp
+		         : $srv_ip;
+		}		
+		debug "c ",print_rule $rule if not $src_range or not $srv;
+		$result .= ' ' . iptables_srv_code($src_range, $srv);
+	    }
+	    print "$prefix $result\n";
+        }
+    }
     # Empty line as delimiter.
     print "\n";
 }
@@ -8779,12 +9463,14 @@ sub join_ranges ( $ ) {
                         my $href      = $href->{$src_range_ref};
 
                         # Values of %$href are rules with identical
-                        # action/src/dst/src_port and a TCP or UDP service.  When
-                        # sorting these rules by low port number, rules with
-                        # adjacent services will placed side by side.  There can't
-                        # be overlaps, because they have been split in function
-                        # 'order_ranges'.  There can't be sub-ranges, because they
-                        # have been deleted as redundant above.
+                        # action/src/dst/src_port and a TCP or UDP
+                        # service.  When sorting these rules by low
+                        # port number, rules with adjacent services
+                        # will placed side by side.  There can't be
+                        # overlaps, because they have been split in
+                        # function 'order_ranges'.  There can't be
+                        # sub-ranges, because they have been deleted
+                        # as redundant above.
                         my @sorted =
                           sort {
                             $a->{srv}->{range}->[0] <=> $b->{srv}->{range}->[0]
@@ -8801,7 +9487,8 @@ sub join_ranges ( $ ) {
                                 # Found adjacent port ranges.
                                 if (my $range = delete $rule_a->{range}) {
 
-                                    # Extend range of previous two or more elements.
+                                    # Extend range of previous two or
+                                    # more elements.
                                     $range->[1] = $b2;
                                     $rule_b->{range} = $range;
                                 }
@@ -8812,8 +9499,9 @@ sub join_ranges ( $ ) {
                                 }
 
                                 # Mark previous rule as deleted.
-                                # Don't use attribute 'deleted', this may still be
-                                # set by global optimization pass.
+                                # Don't use attribute 'deleted', this
+                                # may still be set by global
+                                # optimization pass.
                                 $rule_a->{local_del} = 1;
                                 $changed = 1;
                             }
@@ -8882,6 +9570,9 @@ sub local_optimization() {
 	    $up = $v_intf;
 	}
     }
+ 
+    # Needed in find_chains.
+    $ref2obj{$network_00} = $network_00;
 
     my %seen;
     for my $domain (@natdomains) {
@@ -8905,6 +9596,10 @@ sub local_optimization() {
                 # Do local optimization only once for each hardware interface.
                 next if $seen{$hardware};
                 $seen{$hardware} = 1;
+		if($router->{model}->{filter} eq 'iptables') {
+		    find_chains $router, $hardware;
+		    next;
+		}
                 for my $rules ('intf_rules', 'rules') {
                     my %hash;
                     my $changed = 0;
@@ -9564,100 +10259,9 @@ sub print_acls( $ ) {
         find_object_groups($router) unless $router->{no_group_code};
     }
     elsif ($filter eq 'iptables') {
-        find_chains($router) unless $router->{no_group_code};
-    }
-
-    for my $hardware (@{ $router->{hardware} }) {
-        for my $interface (@{ $hardware->{interfaces} }) {
-
-            # Current router is used as default router even for some internal
-            # networks.
-            if ($interface->{reroute_permit}) {
-                for my $net (@{ $interface->{reroute_permit} }) {
-
-                    # This is not allowed between different security domains.
-                    if ($net->{any} ne $interface->{any}) {
-                        err_msg "Invalid reroute_permit for $net->{name} ",
-                          "at $interface->{name}: different security domains";
-                        next;
-                    }
-
-                    # Prepend to all other rules.
-                    unshift(
-                        @{ $hardware->{rules} },
-                        {
-                            action    => 'permit',
-                            src       => $network_00,
-                            dst       => $net,
-                            src_range => $srv_ip,
-                            srv       => $srv_ip
-                        }
-                    );
-                }
-            }
-
-            # Is dynamic routing used?
-            if (my $routing = $interface->{routing}) {
-                unless ($routing->{name} eq 'manual') {
-                    my $srv       = $routing->{srv};
-                    my $src_range = $srv_ip;
-                    if (my $dst_range = $srv->{dst_range}) {
-                        $src_range = $srv->{src_range};
-                        $srv       = $srv->{dst_range};
-                    }
-                    my $network = $interface->{network};
-
-                    # Permit multicast packets from current network.
-                    for my $mcast (@{ $routing->{mcast} }) {
-                        push @{ $hardware->{intf_rules} },
-                          {
-                            action    => 'permit',
-                            src       => $network,
-                            dst       => $mcast,
-                            src_range => $src_range,
-                            srv       => $srv
-                          };
-                    }
-
-                    # Additionally permit unicast packets.
-                    # We use the network address as destination
-                    # instead of the interface address,
-                    # because we need fewer rules if the interface has
-                    # multiple addresses.
-                    push @{ $hardware->{intf_rules} },
-                      {
-                        action    => 'permit',
-                        src       => $network,
-                        dst       => $network,
-                        src_range => $src_range,
-                        srv       => $srv
-                      };
-                }
-            }
-
-            # Handle multicast packets of redundancy protocols.
-            if (my $type      = $interface->{redundancy_type}) {
-                my $src       = $interface->{network};
-                my $dst       = $xxrp_info{$type}->{mcast};
-                my $srv       = $xxrp_info{$type}->{srv};
-                my $src_range = $srv_ip;
-
-		# Is srv TCP or UDP with destination port range?
-		# Then use source port range as well.
-                if (my $dst_range = $srv->{dst_range}) {
-                    $src_range = $srv->{src_range};
-                    $srv       = $srv->{dst_range};
-                }
-                push @{ $hardware->{intf_rules} },
-                  {
-                    action    => 'permit',
-                    src       => $src,
-                    dst       => $dst,
-                    src_range => $src_range,
-                    srv       => $srv
-                  };
-            }
-        }
+	print "iptables-restore <<EOF\n";
+	print "*filter\n";
+	print_chains $router;
     }
 
     for my $hardware (@{ $router->{hardware} }) {
@@ -9691,10 +10295,10 @@ sub print_acls( $ ) {
         }
         elsif ($filter eq 'iptables') {
             $intf_name   = "$hardware->{name}_self";
-            $intf_prefix = "iptables -A $intf_name";
-            $prefix      = "iptables -A $acl_name";
-            print "iptables -N $acl_name\n";
-            print "iptables -N $intf_name\n";
+            $intf_prefix = "-A $intf_name";
+            $prefix      = "-A $acl_name";
+            print ":$acl_name -\n";
+            print ":$intf_name -\n";
         }
 	print_acl_add_deny 
 	    $router, $hardware, $nat_map, $model, $intf_prefix, $prefix;
@@ -9713,26 +10317,22 @@ sub print_acls( $ ) {
 
     # Post-processing for all interfaces.
     if ($filter eq 'iptables') {
-        print "iptables -P INPUT DROP\n";
-        print "iptables -F INPUT\n";
-        print
-          "iptables -A INPUT -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
+	print ":INPUT DROP\n";
+	print ":FORWARD DROP\n";
+	print ":OUTPUT ACCEPT\n";
+        print "-A INPUT -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
         for my $hardware (@{ $router->{hardware} }) {
             my $if_name = "$hardware->{name}_self";
-            print "iptables -A INPUT -j $if_name -i $hardware->{name} \n";
+            print "-A INPUT -j $if_name -i $hardware->{name} \n";
         }
-        print "iptables -A INPUT -j DROP\n";
-
-        #
-        print "iptables -P FORWARD DROP\n";
-        print "iptables -F FORWARD\n";
-        print
-          "iptables -A FORWARD -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
+        print "-A INPUT -j DROP\n";
+        print "-A FORWARD -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
         for my $hardware (@{ $router->{hardware} }) {
             my $acl_name = "$hardware->{name}_in";
-            print "iptables -A FORWARD -j $acl_name -i $hardware->{name}\n";
+            print "-A FORWARD -j $acl_name -i $hardware->{name}\n";
         }
-        print "iptables -A FORWARD -j DROP\n";
+        print "-A FORWARD -j DROP\n";
+	print "EOF\n";
     }
 }
 
