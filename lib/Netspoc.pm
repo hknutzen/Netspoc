@@ -4167,9 +4167,6 @@ sub get_any( $ ) {
     elsif ($type eq 'Host') {
         $result = $obj->{network}->{any};
     }
-    elsif ($type eq 'Local') {
-        $result = $obj;    # A value, not equal to any other security domain.
-    }
     else {
         internal_err "unexpected $obj->{name}";
     }
