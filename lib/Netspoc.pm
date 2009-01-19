@@ -4471,6 +4471,14 @@ sub expand_rules ( $$$$;$$$ ) {
     # Result is indirectly returned using parameter $result.
 }
 
+sub print_rulecount () {
+    my $count = 0;
+    for my $type ('deny', 'any', 'permit') {
+        $count += grep { not $_->{deleted} } @{$expanded_rules{$type}};
+    }
+    info "Expanded rule count: $count";
+}
+
 sub expand_policies( ;$) {
     my ($convert_hosts) = @_;
     convert_hosts if $convert_hosts;
@@ -4486,6 +4494,7 @@ sub expand_policies( ;$) {
 	    $policy->{rules}, $name, \%expanded_rules, $policy->{private},
 	    $user, $policy->{foreach}, $convert_hosts);
     }
+    print_rulecount;
     for my $type ('deny', 'any', 'permit') {
         add_rules $expanded_rules{$type};
     }
@@ -7101,6 +7110,7 @@ sub optimize() {
     info "Optimizing globally";
     setup_ref2obj;
     optimize_rules \%rule_tree, \%rule_tree;
+    print_rulecount;
 }
 
 ########################################################################
