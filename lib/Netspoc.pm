@@ -6303,6 +6303,7 @@ sub expand_crypto () {
 	# Add crypto rules to encrypt traffic for all networks at the remote location.
 	if($crypto->{tunnel_all}) {
 	    for my $tunnel (@{ $crypto->{tunnels} }) {
+		next if $tunnel->{disabled}; 
 		for my $tunnel_intf (@{$tunnel->{interfaces}}) {
 		    next if $tunnel_intf->{is_hub};
 		    my @networks;
