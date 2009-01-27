@@ -3274,7 +3274,6 @@ my @managed_routers;
 my @managed_vpnhub;
 my @routers;
 my @networks;
-my @tunnels;
 my @all_anys;
 my @all_areas;
 
@@ -5058,7 +5057,7 @@ sub setany() {
     # where none has been declared.
     # Tunnel networks are added because they are part of the topology but
     # not included in @networks.
-    for my $network (@networks, @tunnels) {
+    for my $network (@networks) {
         next if $network->{any};
         (my $name = $network->{name}) =~ s/^\w+:/auto_any:/;
         my $any = new('Any', name => $name, link => $network);
@@ -5415,7 +5414,7 @@ sub setpath() {
     my @loop_objects;
 
     # Check if all objects are connected with net1.
-    for my $object (@networks, @tunnels, @routers) {
+    for my $object (@networks, @routers) {
 	if($object->{loop}) {
 	    push @loop_objects, $object;
 	    next;
