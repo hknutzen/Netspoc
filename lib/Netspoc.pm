@@ -4969,7 +4969,6 @@ sub setarea1( $$$ ) {
         # Found a loop.
         return;
     }
-    $any->{active_path} = 1;
 
     # Add any object to the corresponding area,
     # to have all any objects of an area available.
