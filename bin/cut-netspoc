@@ -2,7 +2,7 @@
 # cut-netspoc
 # Print parts of a netspoc configuration to stdout.
 # http://netspoc.berlios.de
-# (c) 2007 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+# (c) 2009 by Heinz Knutzen <heinzknutzen@users.berlios.de>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -75,7 +75,7 @@ my $config = shift @ARGV or usage;
 
 my %name2var = ( policy =>\%policies, );
 
-# Read names of policies and crypto definitions from command line.
+# Read names of policies from command line.
 for my $arg (@ARGV) {
     my ($type, $name) = split_typed_name $arg;
     my $ref = $name2var{$type} or usage;
@@ -100,7 +100,7 @@ for my $ref (values %name2var) {
 &expand_policies();
 die "Aborted with $error_counter error(s)\n" if $error_counter;
 
-# Process rules of policies and crypto definitions.
+# Process rules of policies.
 sub process_rules ( $ ) {
     my ($expanded_rules) = @_;
     for my $type ('deny', 'any', 'permit') {
@@ -153,18 +153,13 @@ for my $router (values %routers) {
 	    }
 	}
  
-	# Mark crypto definitions which have tunnel between interfaces of
-	# already marked routers.    
-	if (my $type = $interface->{auto_crypto}) {
+	# Mark crypto definitions which are referenced by
+	# already marked interfaces.    
+	if (my $crypto = $interface->{hub} || $interface->{spoke}) {
+	    $crypto->{is_used} = 1;
+	    my $type = $crypto->{type};
 	    $type->{is_used} = 1;
 	    $type->{key_exchange}->{is_used} = 1;
-	}
-	my $tunnel_info = $interface->{tunnel};
-	next unless $tunnel_info;
-	for my $crypto_map (values %$tunnel_info) {
-	    my $peer = $crypto_map->{peer};
-	    next unless $peer->{router}->{is_used};
-	    $crypto_map->{crypto}->{is_used} = 1;
 	}
     }
 
@@ -182,14 +177,6 @@ for my $router (values %routers) {
 	}
     }
 }
-
-for my $crypto (values %crypto) {
-    next unless $crypto->{is_used};
-    $crypto->{type}->{is_used} = 1;
-    $crypto->{type}->{key_exchange}->{is_used} = 1;
-    process_rules $crypto->{expanded_rules};
-}
-
 
 # Print marked parts of netspoc configuration.
 # Routers and networks have been marked by mark_topology.
