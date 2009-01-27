@@ -6199,24 +6199,6 @@ sub link_tunnels () {
 		push @{$spoke->{peers}}, $hub;
 		push @hubs, $hub;
 
-		# Add rules to permit crypto traffic between tunnel endpoints.
-		# If one tunnel endpoint has no known IP address,
-		# these rules have to be added manually.
-		if($real_spoke and 
-		   $real_spoke->{ip} !~ /^(?:short|unnumbered)$/) 
-		{
-		    for my $pair ([$real_spoke, $real_hub], [$real_hub, $real_spoke])
-		    {
-			my ($intf1, $intf2) = @$pair;
-			next if $intf1->{ip} eq 'negotiated';
-			my $rules_ref = 
-			    gen_tunnel_rules $intf1, $intf2, $crypto->{type};
-			push @{ $expanded_rules{permit} }, @$rules_ref;
-
-			# add_rules $rules_ref will be applied during expand_policies.
-		    }
-		}
-
 		# No real spoke available for unmanaged devices.
 		my $spoke2 = $real_spoke || $spoke;
 		if($private) {
@@ -6300,7 +6282,8 @@ sub expand_crypto () {
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
 
-	# Add crypto rules to encrypt traffic for all networks at the remote location.
+	# Add crypto rules to encrypt traffic for all networks 
+	# at the remote location.
 	if($crypto->{tunnel_all}) {
 	    for my $tunnel (@{ $crypto->{tunnels} }) {
 		next if $tunnel->{disabled}; 
@@ -6345,6 +6328,30 @@ sub expand_crypto () {
 				  } } @networks ];
 		    for my $peer (@{$tunnel_intf->{peers}}) {
 			$peer->{crypto_rules} = $crypto_rules;
+		    }
+		    
+		    # Add rules to permit crypto traffic between 
+		    # tunnel endpoints.
+		    # If one tunnel endpoint has no known IP address,
+		    # these rules have to be added manually.
+		    my $real_spoke = $tunnel_intf->{real_interface};
+		    if($real_spoke and 
+		       $real_spoke->{ip} !~ /^(?:short|unnumbered)$/) 
+		    {
+			for my $hub (@{$tunnel_intf->{peers}}) {
+			    my $real_hub = $hub->{real_interface};
+			    for my $pair ([$real_spoke, $real_hub], 
+					  [$real_hub, $real_spoke])
+			    {
+				my ($intf1, $intf2) = @$pair;
+				next if $intf1->{ip} eq 'negotiated';
+				my $rules_ref = 
+				    gen_tunnel_rules($intf1, $intf2, 
+						     $crypto->{type});
+				push @{ $expanded_rules{permit} }, @$rules_ref;
+				add_rules $rules_ref;
+			    }
+			}
 		    }
 		}
 	    }		    
