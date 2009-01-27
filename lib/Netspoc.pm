@@ -1261,10 +1261,11 @@ my $global_active_pathrestriction = new('Pathrestriction',
 					active_path => 1);
 
 # Tunnel networks which are already attached to tunnel interfaces 
-# at spoke devices.
+# at spoke devices. Key is crypto name, not crypto object.
 my %crypto2spokes;
 
 # Real interfaces at crypto hub, where tunnels are attached.
+# Key is crypto name, not crypto object.
 my %crypto2hubs;
 
 sub read_interface( $ ) {
@@ -1841,18 +1842,19 @@ sub read_router( $ ) {
 	for my $interface (@{ $router->{interfaces} }) {
 
 	    # Internally, we remove the real interface to force traffic through
-	    # the tunnel. This is only save to remove, if the real interface can't be
-	    # referenced by a rule. This is enforced by this simplified restriction.
+	    # the tunnel. This is only save to remove, if the real interface 
+	    # can't be referenced by a rule. 
+	    # This is enforced by this simplified restriction.
 	    if(my $real_interface = $interface->{real_interface}) {
 		$real_interface->{ip} =~ /^(?:negotiated|short|unnumbered)$/ or
 		    error_atline "Interface with attribute 'spoke'",
-		    " of unmanaged device must have 'negotiated|short|unnumbered'",
-		    " ip address";
+		    " of unmanaged device must have",
+		    " 'negotiated|short|unnumbered' ip address";
 		delete $interface->{real_interface};
 	    }
 	    elsif($interface->{hub}) {
-		error_atline "Interface with attribute 'hub' must only be used",
-		" at managed device";
+		error_atline "Interface with attribute 'hub' must only be",
+		" used at managed device";
 	    }
 	}
     }
@@ -6157,7 +6159,7 @@ sub link_tunnels () {
 	    err_msg "No hubs have been defined for $name";
 
 	for my $real_hub (@$real_hubs) {
-	    $real_hub->{has_tunnel} = 1;
+	    $real_hub->{hub} = $crypto;
 	    push @real_interfaces, $real_hub;
 	}
 
@@ -6173,7 +6175,7 @@ sub link_tunnels () {
 	    $spoke->{crypto} = $crypto;
 	    my $real_spoke = $spoke->{real_interface};
 	    if ($real_spoke) {
-		$real_spoke->{has_tunnel} = 1;
+		$real_spoke->{spoke} = $crypto;
 		push @real_interfaces, $real_spoke;
 	    }
 
@@ -6294,7 +6296,7 @@ sub expand_crypto () {
 		    my $managed = $router->{managed};
 		    for my $interface (@{ $router->{interfaces} }) {
 			next if $interface->{ip} eq 'tunnel';
-			next if $interface->{has_tunnel};
+			next if $interface->{spoke};
 			if($managed) {
 			    push @networks, @{$interface->{any}->{networks}};
 			}
@@ -8178,7 +8180,7 @@ sub address( $$ ) {
 	if ($obj->{ip} eq 'negotiated') {
             my ($network_ip, $network_mask) = @{$network}{ 'ip', 'mask' };
 	    if ($network_mask eq 0 and 
-		not $obj->{has_tunnel} and 
+		not $obj->{spoke} and 
 		not $obj->{no_check}) 
 	    {
 		err_msg "$obj->{name} has negotiated IP in range 0.0.0.0/0.\n",
@@ -9776,7 +9778,7 @@ sub prepare_vpn_src( $ ) {
     my %auto_deny_networks;
 
     for my $interface (@{ $router->{interfaces} }) {
-	next if $interface->{has_tunnel} and not $interface->{no_check};
+	next if $interface->{hub} and not $interface->{no_check};
 	if($interface->{ip} eq 'tunnel') {
 
 	    # Mark network of VPN clients or VPN networks behind
@@ -9786,7 +9788,7 @@ sub prepare_vpn_src( $ ) {
 		next if $router->{managed};
 		for my $out_intf (@{$router->{interfaces}}) {
 		    next if $out_intf->{ip} eq 'tunnel';
-		    next if $out_intf->{has_tunnel};
+		    next if $out_intf->{spoke};
 		    my $network = $out_intf->{network};
 		    $auto_deny_networks{$network} = $network;
 		}
