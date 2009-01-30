@@ -5800,13 +5800,14 @@ sub intf_loop_path_mark ( $$ ) {
 # {loop_enter}: interfaces of $from, where the subgraph is entered,
 # {path_tuples}: tuples of interfaces, which describe all valid paths,
 # {loop_leave}: interfaces of $to, where the subgraph is left.
+# Return value is true if a valid path was found.
 sub loop_path_mark ( $$$$$ ) {
     my ($from, $to, $from_in, $to_out, $dst) = @_;
 
 #  debug "loop_path_mark: $from->{name} -> $to->{name}";
 
     # This particular path through this subgraph is already known.
-    return if $from_in->{path}->{$dst};
+    return 1 if $from_in->{path}->{$dst};
 
     # When entering subgraph at $from_in we will leave it at $to_out.
     $from_in->{path}->{$dst} = $to_out;
@@ -5814,26 +5815,21 @@ sub loop_path_mark ( $$$$$ ) {
     # Corner case: 
     # Path starts at interface of that router, where subgraph is left. 
     # Don't mark this as loop-path; attribute path is sufficient.
-    return if is_interface $from and $from->{router} eq $to;
-    return if is_interface $to   and $from           eq $to->{router};
+    return 1 if is_interface $from and $from->{router} eq $to;
+    return 1 if is_interface $to   and $from           eq $to->{router};
 
     $from_in->{loop_entry}->{$dst} = $from;
     $from->{loop_exit}->{$dst}     = $to;
 
     # Path from $from to $to inside cyclic graph has been marked already.
-    return if $from->{loop_enter}->{$to};
+    return 1 if $from->{loop_enter}->{$to};
 
-    my $success;
-    
     if(is_interface $from or is_interface $to) {
-	$success = intf_loop_path_mark $from, $to;
+	return intf_loop_path_mark $from, $to;
     }
     else {
-	$success = loop_path_mark0 $from, $to;
+	return loop_path_mark0 $from, $to;
     }
-    $success
-      or err_msg "No valid path from $from->{name} to $to->{name}\n",
-      " (destination is $dst->{name})\n", " Too many path restrictions?";
 }
 
 # Mark path from src to dst.
@@ -5843,6 +5839,7 @@ sub loop_path_mark ( $$$$$ ) {
 # we place a reference to the next interface on the path to dst.
 # This reference is found at a key which is the reference to dst.
 # Additionally we attach this information to the src object.
+# Return value is true if a valid path was found.
 sub path_mark( $$ ) {
     my ($src, $dst) = @_;
     my $from      = $src;
@@ -5860,24 +5857,24 @@ sub path_mark( $$ ) {
 
 #	 debug " $from_in->{name} -> ".($to_out?$to_out->{name}:'');
             $from_in->{path}->{$dst} = $to_out;
-            return;
+            return 1;
         }
 
         # Paths meet inside a loop.
         if ($from_loop and $to_loop and $from_loop eq $to_loop) {
-            loop_path_mark($from, $to, $from_in, $to_out, $dst);
-            return;
+            return loop_path_mark($from, $to, $from_in, $to_out, $dst);
         }
         if ($from->{distance} >= $to->{distance}) {
 
             # Mark has already been set for a sub-path.
-            return if $from_in->{path}->{$dst};
+            return 1 if $from_in->{path}->{$dst};
             my $from_out = $from->{main};
             unless ($from_out) {
 
                 # $from_loop contains object which is loop's exit
                 $from_out = $from_loop->{main};
-                loop_path_mark($from, $from_loop, $from_in, $from_out, $dst);
+                loop_path_mark($from, $from_loop, $from_in, $from_out, $dst)
+		    or return 0;
             }
 
 #	 debug " $from_in->{name} -> ".($from_out?$from_out->{name}:'');
@@ -5890,7 +5887,8 @@ sub path_mark( $$ ) {
             my $to_in = $to->{main};
             unless ($to_in) {
                 $to_in = $to_loop->{main};
-                loop_path_mark($to_loop, $to, $to_in, $to_out, $dst);
+                loop_path_mark($to_loop, $to, $to_in, $to_out, $dst)
+		    or return 0;
             }
 
 #	 debug " $to_in->{name} -> ".($to_out?$to_out->{name}:'');
@@ -5979,7 +5977,12 @@ sub path_walk( $$;$ ) {
         $rule->{deleted} = $rule;
         return;
     }
-    path_mark($from, $to) unless $from->{path}->{$to};
+    if(not $from->{path}->{$to}) {
+	path_mark($from, $to) or
+	    err_msg "No valid path from $from->{name} to $to->{name}\n",
+	    " for rule ", print_rule $rule, "\n",
+	    " Check path restrictions and crypto interfaces.";
+    }
     my $in = undef;
     my $out;
     my $at_router = not($where && $where eq 'Network');
@@ -6037,23 +6040,25 @@ sub path_walk( $$;$ ) {
 
 # $src is an auto_interface or an interface.
 # $selector has value 'front' or 'back'.
-# Result the set of interfaces of $src located at the front or back side
+# Result is the set of interfaces of $src located at the front or back side
 # of the direction to $dst.
 sub path_auto_interfaces( $$ ) {
     my ($src, $dst) = @_;
     my @result;
-    my($selector, $managed);
-    if(is_autointerface $src) {
-	($src, $selector, $managed) = @{$src}{'object', 'selector', 'managed'};
-    }
-    else {
-	$selector = 'front';
-    }
-    $dst = $dst->{object} if is_autointerface $dst;
+    my($src2, $selector, $managed) = (is_autointerface $src) 
+	                           ? @{$src}{'object', 'selector', 'managed'}
+                                   : ($src, 'front', undef);
+    my $dst2 = is_autointerface $dst ?  $dst->{object} : $dst;
 	
-    my $from = $obj2path{$src} || get_path($src);
-    my $to   = $obj2path{$dst} || get_path($dst);
+    my $from = $obj2path{$src2} || get_path($src2);
+    my $to   = $obj2path{$dst2} || get_path($dst2);
     $from eq $to and return ();
+    if(not $from->{path}->{$to}) {
+	path_mark($from, $to) or
+	    err_msg "No valid path from $from->{name} to $to->{name}\n",
+	    " while resolving $src->{name} (destination is $dst->{name}).\n",
+	    " Check path restrictions and crypto interfaces.";
+    }
     path_mark($from, $to) unless $from->{path}->{$to};
     if (my $exit = $from->{loop_exit}->{$to}) {
 	@result = 
@@ -7142,7 +7147,7 @@ sub collect_route( $$$ ) {
 #    $info .= $in_intf->{name} if $in_intf;
 #    $info .= ' -> ';
 #    $info .= $out_intf->{name} if $out_intf;
-#    debug $info;;
+#    debug " $info";
     if ($in_intf and $out_intf) {
         return unless $in_intf->{router}->{managed};
 
@@ -7418,7 +7423,7 @@ sub find_active_routes () {
         # is applied to this interface.
         for my $network (get_networks($dst)) {
             next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
-#	    debug "$from->{name} -> $network->{name}";
+	    debug "$from->{name} -> $network->{name}";
             unless ($routing_tree{$from}->{$network}) {
                 my $pseudo_rule = {
                     src    => $from,
