@@ -5735,23 +5735,27 @@ sub intf_loop_path_mark ( $$ ) {
     $success or return 0;
 
     if($is_from_interface) {
-	for my $interface (@{$from->{router}->{interfaces}}) {
-	    next if $interface eq $from;
-	    if(delete $new_tuples->{$from}->{$interface}) {
-#		debug " del-path: $from->{name} -> $interface->{name}";
-#		debug " intf-enter: $interface->{name}";
-		push @{$from->{loop_enter}->{$to}}, $interface;
+	if(my $from_tuples = $new_tuples->{$from}) {
+	    for my $interface (@{$from->{router}->{interfaces}}) {
+		next if $interface eq $from;
+		if(delete $from_tuples->{$interface}) {
+#		    debug " del-path: $from->{name} -> $interface->{name}";
+#		    debug " intf-enter: $interface->{name}";
+		    push @{$from->{loop_enter}->{$to}}, $interface;
+		}
 	    }
 	}
 
 	my $enter_at_from = 0;
 
 	# Interface, where $from_net enters loop.
+	$key2obj{$from} = $from;
 	for my $interface (@$new_enter) {
 	    next if $interface eq $from;
 
 #	    debug " intf-loop: $from->{name} -> $interface->{name}";
 	    # Path through $from_net.
+	    $key2obj{$interface} = $interface;
 	    $new_tuples->{$from}->{$interface} = 0;
 	    $enter_at_from = 1;
 	}
@@ -5766,16 +5770,20 @@ sub intf_loop_path_mark ( $$ ) {
     if($is_to_interface) {
 	for my $interface (@{$to->{router}->{interfaces}}) {
 	    next if $interface eq $to;
-	    if(delete $new_tuples->{$interface}->{$to}) {
-#		debug " del-path: $interface->{name} -> $to->{name}";
-#		debug " intf-leave: $interface->{name}";
-		push @{$to->{loop_leave}->{$from}}, $interface;
+	    if(my $intf_tuples = $new_tuples->{$interface}) {
+		if(delete $intf_tuples->{$to}) {
+#		    debug " del-path: $interface->{name} -> $to->{name}";
+#		    debug " intf-leave: $interface->{name}";
+		    push @{$to->{loop_leave}->{$from}}, $interface;
+		}
 	    }
 	}
 	my $leave_at_to = 0;
+	$key2obj{$to} = $to;
 	for my $interface (@$new_leave) {
 	    next if $interface eq $to;
 #	    debug " intf-loop: $interface->{name} -> $to->{name}";
+	    $key2obj{$interface} = $interface;
 	    $new_tuples->{$interface}->{$to} = 0;
 	    $leave_at_to = 1;
 	}
@@ -5926,10 +5934,12 @@ sub loop_path_walk( $$$$$$$ ) {
 
 #  debug " loop_tuples";
     for my $in_intf_ref (keys %$tuples) {
-        my $in_intf = $key2obj{$in_intf_ref};
+        my $in_intf = $key2obj{$in_intf_ref} or 
+	    internal_err "Unknown in_intf at tuple";
         my $hash    = $tuples->{$in_intf_ref};
         for my $out_intf_ref (keys %$hash) {
-            my $out_intf  = $key2obj{$out_intf_ref};
+            my $out_intf  = $key2obj{$out_intf_ref} or 
+		internal_err "Unknown out_intf at tuple";
             my $at_router = $hash->{$out_intf_ref};
             $fun->($rule, $in_intf, $out_intf) 
 		if not $at_router xor $call_at_router;
@@ -7185,18 +7195,25 @@ sub check_and_convert_routes () {
 	    next if not $interface->{ip} eq 'tunnel';
 	    my $tunnel_routes = $interface->{routes};
 	    my $real_intf = $interface->{real_interface};
-	    for my $peer (@{ $real_intf->{peers} }) {
-		my $peer_net = $peer->{network};
+	    for my $peer (@{ $interface->{peers} }) {
+		my $real_peer = $peer->{real_interface} or next;
+		my $peer_net = $real_peer->{network};
+		my $found_peer;
 		
 		# Find hop to peer network and add tunnel networks to this hop.
 		for my $net_hash (values %{ $real_intf->{routes}}) {
 		    if($net_hash->{$peer_net}) {
+			$found_peer = 1;
 			for my $tunnel_net_hash (values %$tunnel_routes) {
 			    for my $tunnel_net (values %$tunnel_net_hash) {
 				$net_hash->{$tunnel_net} = $tunnel_net;
 			    }
 			}
 		    }
+		}
+		if(not $found_peer) {
+		    warn_msg "Missing cleartext route for",
+		    " $peer_net->{name} at $router->{name}";
 		}
 	    }
 	    $interface->{hop} = {};
@@ -7423,7 +7440,7 @@ sub find_active_routes () {
         # is applied to this interface.
         for my $network (get_networks($dst)) {
             next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
-	    debug "$from->{name} -> $network->{name}";
+#	    debug "$from->{name} -> $network->{name}";
             unless ($routing_tree{$from}->{$network}) {
                 my $pseudo_rule = {
                     src    => $from,
