@@ -6069,7 +6069,6 @@ sub path_auto_interfaces( $$ ) {
 	    " while resolving $src->{name} (destination is $dst->{name}).\n",
 	    " Check path restrictions and crypto interfaces.";
     }
-    path_mark($from, $to) unless $from->{path}->{$to};
     if (my $exit = $from->{loop_exit}->{$to}) {
 	@result = 
 	    grep { $_->{ip} ne 'tunnel' } @{ $from->{loop_enter}->{$exit} };
