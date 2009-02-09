@@ -4886,27 +4886,37 @@ sub equal (@) {
     }
     return 1;
 }
-	    
+ 
+# Cleartext interfaces of VPN cluster servers need to be attached
+# to the same security domain.
+# We need this to get consistent auto_deny_networks for all cluster members.
 sub check_vpnhub () {
-    my %any2vpnhub_intf;
+    my %hub2routers;
     for my $router (@managed_vpnhub) {
 	my $no_check_count = 0;
 	for my $interface (@{$router->{interfaces}}) {
-	    my $any = $interface->{any};
-	    push @{$any2vpnhub_intf{$any}}, $interface;
+	    if(my $hub = $interface->{hub}) {
+		push @{ $hub2routers{$hub} }, $router;
+	    }
 	    $interface->{no_check} and $no_check_count++;
 	}
 	$no_check_count == 1 or 
 	    err_msg "$router->{name} needs to have exactly on interface with",
 	    " attribute 'no_check'";
     }
-    for my $router (@managed_vpnhub) {
-	if( not equal 
-	        map { [ map { $_->{router} } @{$any2vpnhub_intf{$_->{any}}} ] } 
-                @{$router->{interfaces}}) {
-	    err_msg "Interfaces of $router->{name} must all be connected to",
-	    " the same backup VPN hubs.";
-	}
+    my $all_eq = sub {
+	my(@obj) = @_;
+	my $obj1 = pop @obj;
+	not grep { $_ ne $obj1 } @obj;
+    };
+    for my $routers (values %hub2routers) {
+	my @anys = 
+	    map { (grep { $_->{no_check} } @{ $_->{interfaces} })[0]->{any} } 
+	        @$routers;
+	$all_eq->(@anys) or
+	    err_msg "Cleartext interfaces of\n ",
+	    join(', ', map( { $_->{name} } @$routers)),
+	    "\n must all be connected to the same security domain.";
     }	
 }
 		
@@ -6048,7 +6058,7 @@ sub path_walk( $$;$ ) {
     }
 }
 
-# $src is an auto_interface or an interface.
+# $src is an auto_interface, interface or router.
 # $selector has value 'front' or 'back'.
 # Result is the set of interfaces of $src located at the front or back side
 # of the direction to $dst.
@@ -7938,7 +7948,7 @@ sub set_policy_distribution_ip () {
 	}
 	else {
 #	    debug "$router->{name}: ", scalar keys %interfaces;
-	    my @front = path_auto_interfaces($router->{interfaces}->[0], 
+	    my @front = path_auto_interfaces($router,
 					     $policy_distribution_point);
 	    for my $front (@front) {
 		if($interfaces{$front}) {
