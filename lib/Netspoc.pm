@@ -226,6 +226,7 @@ my %router_info = (
         stateless_self => 1,
 	routing        => 'none',
         filter         => 'VPN3K',
+	need_radius    => 1,
 	do_auth        => 1,
 	crypto         => 'ignore',
         comment_char   => '!',
@@ -1570,7 +1571,7 @@ sub set_pix_interface_level( $ ) {
 }
 
 # Routers which reference one or more RADIUS servers.
-my @auth_routers;
+my @radius_routers;
 
 our %routers;
 
@@ -1647,7 +1648,7 @@ sub read_router( $ ) {
 	    $router->{radius_servers} and
 	      error_atline "Redefining 'radius' attribute";
 	    $router->{radius_servers} = \@pairs;
-	    push @auth_routers, $router;
+	    push @radius_routers, $router;
 	}
 	elsif (my $radius_attributes = check_radius_attributes) {
 	    $router->{radius_attributes} and
@@ -1814,11 +1815,17 @@ sub read_router( $ ) {
         if ($router->{model}->{has_interface_level}) {
             set_pix_interface_level $router;
         }
-	if ($router->{model}->{do_auth}) {
+	if ($router->{model}->{need_radius}) {
  	    $router->{radius_servers} or
 		err_msg "Attribute 'radius_servers' needs to be defined",
   		" for $router->{name}";
- 	    $router->{radius_attributes} ||= {};
+	}
+	else {
+	    $router->{radius_servers} and
+		err_msg "Attribute 'radius_servers' is not allowed",
+		" for $router->{name}";
+	}
+	if($router->{model}->{do_auth}) {
 
 	    # Don't support NAT for VPN, otherwise code generation for vpn
 	    # devices will become more difficult.
@@ -1826,14 +1833,21 @@ sub read_router( $ ) {
 	      and err_msg "Attribute 'bind_nat' is not allowed",
 		" at interface of $router->{name}",
 		  " of type $router->{model}->{name}";
+
+	    grep({ $_->{no_check} } @{$router->{interfaces}}) == 1 or
+		err_msg 
+		"Exactly one interface needs to have attribute 'no_check'",
+		" at $router->{name}";
+
+ 	    $router->{radius_attributes} ||= {};
 	}
 	else {
-	    $router->{radius_attributes} and
-		err_msg "Attribute 'radius_attributes' is not allowed",
-		" for $router->{name}";
 	    grep { $_->{no_check} } @{$router->{interfaces}}
 	      and err_msg "Attribute 'no_check' is not allowed",
 		" at interface of $router->{name}";
+	    $router->{radius_attributes} and
+		err_msg "Attribute 'radius_attributes' is not allowed",
+		" for $router->{name}";
 	}
     }
 
@@ -3016,7 +3030,7 @@ sub link_interface_with_net( $ ) {
 
 # Link RADIUS servers referenced in authenticating routers.
 sub link_radius() {
-    for my $router (@auth_routers) {
+    for my $router (@radius_routers) {
 	next if $router->{disabled};
 
 	$router->{radius_servers} =
@@ -4893,16 +4907,11 @@ sub equal (@) {
 sub check_vpnhub () {
     my %hub2routers;
     for my $router (@managed_vpnhub) {
-	my $no_check_count = 0;
 	for my $interface (@{$router->{interfaces}}) {
 	    if(my $hub = $interface->{hub}) {
 		push @{ $hub2routers{$hub} }, $router;
 	    }
-	    $interface->{no_check} and $no_check_count++;
 	}
-	$no_check_count == 1 or 
-	    err_msg "$router->{name} needs to have exactly on interface with",
-	    " attribute 'no_check'";
     }
     my $all_eq = sub {
 	my(@obj) = @_;
