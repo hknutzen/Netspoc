@@ -6992,18 +6992,22 @@ sub mark_secondary ( $$ ) {
     for my $in_interface (@{$any->{interfaces}}) {
 	my $router = $in_interface->{router};
 	next if not $router->{managed} eq 'secondary';
+	next if $router->{active_path};
+	$router->{active_path} = 1;
 	for my $out_interface (@{$router->{interfaces}}) {
 	    next if $out_interface eq $in_interface;
 	    my $next_any = $out_interface->{any};
 	    next if $next_any->{secondary_mark};
 	    mark_secondary $next_any, $mark;
 	}
+	delete $router->{active_path};
     }
 }
 
 # Mark security domain $any with $mark and 
 # additionally mark all security domains 
 # which are connected with $any by non-primary packet filters.
+# Test for {active_path} has been added to prevent deep recursion.
 sub mark_primary ( $$ );
 sub mark_primary ( $$ ) {
     my ($any, $mark) = @_;
@@ -7011,12 +7015,15 @@ sub mark_primary ( $$ ) {
     for my $in_interface (@{$any->{interfaces}}) {
 	my $router = $in_interface->{router};
 	next if $router->{managed} eq 'primary';
+	next if $router->{active_path};
+	$router->{active_path} = 1;
 	for my $out_interface (@{$router->{interfaces}}) {
 	    next if $out_interface eq $in_interface;
 	    my $next_any = $out_interface->{any};
 	    next if $next_any->{primary_mark};
 	    mark_primary $next_any, $mark;
 	}
+	delete $router->{active_path};
     }
 }
 
