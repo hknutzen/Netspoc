@@ -7652,6 +7652,9 @@ sub print_pix_static( $ ) {
             my $out_name = $out_hw->{name};
             my $out_nat  = $out_hw->{nat_map};
 
+	    # Needed for "global (outside) interface" command.
+	    my $out_intf_ip = $out_hw->{interfaces}->[0]->{ip};
+
             # Sorting is only needed for getting output deterministic.
 	    # For equal addresses look at the NAT address.
             my @networks =
@@ -7713,16 +7716,26 @@ sub print_pix_static( $ ) {
 			$index = $nat_index++;
 			$intf2net2mask2index{$out_name}
 			->{$out_ip}->{$out_mask} = $index;
+			my $pool;
 
+			# global (outside) 1 interface
+			if($out_ip == $out_intf_ip && 
+			   $out_mask == 0xffffffff) 
+			{
+			    $pool = 'interface';
+			}
 			# global (outside) 1 \
 			#   10.70.167.0-10.70.167.255 netmask 255.255.255.0
 			# nat (inside) 1 141.4.136.0 255.255.252.0
-			my $max   = $out_ip | complement_32bit $out_mask;
-			my $mask  = print_ip $out_mask;
-			my $range = ($out_ip == $max) 
-			          ? print_ip($out_ip) 
-			          : print_ip($out_ip) . '-' . print_ip($max);
-			print "global ($out_name) $index $range netmask $mask\n";
+			else {
+			    my $max   = $out_ip | complement_32bit $out_mask;
+			    my $mask  = print_ip $out_mask;
+			    my $range = ($out_ip == $max) 
+				? print_ip($out_ip) 
+				: print_ip($out_ip) . '-' . print_ip($max);
+			    $pool = "$range netmask $mask";
+			}
+			print "global ($out_name) $index $pool\n";
 		    }
                     my $in   = print_ip $in_ip;
                     my $mask = print_ip $in_mask;
