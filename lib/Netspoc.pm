@@ -9821,6 +9821,7 @@ sub print_xml( $ ) {
 sub prepare_vpn_src( $ ) {
     my ($router) = @_;
     my %auto_deny_networks;
+    my $is_asavpn = $router->{model}->{crypto} eq 'ASA_VPN';
 
     for my $interface (@{ $router->{interfaces} }) {
 	next if $interface->{hub} and not $interface->{no_check};
@@ -9849,13 +9850,18 @@ sub prepare_vpn_src( $ ) {
 	}
     }
 
+
+    # Check for duplicate IDs at different hosts
+    # coming into current interface / current device.
+    my %id2src;
     for my $interface (@{ $router->{interfaces} }) {
+
+	# ASA_VPN can't distinguish different hosts with same ID
+	# coming into different interfaces.
+	%id2src = () if not $is_asavpn;
+
 	if($interface->{ip} eq 'tunnel') {
 	    my $hardware = $interface->{hardware};
-
-	    # Check for duplicate IDs at different hosts
-	    # coming into current interface.
-	    my %id2src;
 	    for my $rule (@{ $interface->{rules} }, @{$interface->{intf_rules}}) 
 	    {
 		my ($src, $dst) = @{$rule}{'src', 'dst'};
