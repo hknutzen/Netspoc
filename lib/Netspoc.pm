@@ -4887,20 +4887,6 @@ sub find_subnets() {
     }
 }
 
-sub equal (@) {
-    my($first, @rest) = @_;
-    my %hash = map { $_ => 1 } @$first;
-    my $size = keys %hash;
-
-    for my $list (@rest) {
-	@$list == $size or return 0;
-	for my $element (@$list) {
-	    $hash{$element} or return 0;
-	}
-    }
-    return 1;
-}
- 
 # Cleartext interfaces of VPN cluster servers need to be attached
 # to the same security domain.
 # We need this to get consistent auto_deny_networks for all cluster members.
