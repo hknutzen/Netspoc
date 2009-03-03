@@ -10226,7 +10226,7 @@ EOF
 			print_ip($src->{ip} | complement_32bit $src->{mask});
 		    print "crypto ca certificate map ca-map $user_counter\n";
 		    print " subject-name attr ea co $id\n";
-		    print "ip local $pool_name $ip-$max mask $mask\n";
+		    print "ip local pool $pool_name $ip-$max mask $mask\n";
 		    $attributes->{'vpn-filter'} = $filter_name;
 		    $attributes->{'address-pools'} = $pool_name;
 		    my $name = "VPN-group-$user_counter";
