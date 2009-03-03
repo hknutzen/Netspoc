@@ -10088,7 +10088,7 @@ EOF
     if(values %$auto_deny_networks) {
 	print "object-group network deny-networks\n";
 	for my $network (values %$auto_deny_networks) {
-	    print 'network-object ';
+	    print ' network-object ';
 	    print ios_code(address($network, $nat_map)), "\n";
 	}
 	print "\n";
