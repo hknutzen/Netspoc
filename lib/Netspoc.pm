@@ -10216,7 +10216,7 @@ EOF
 		    my $mask = print_ip complement_32bit $src->{mask};
 		    my $max = 
 			print_ip($src->{ip} | complement_32bit $src->{mask});
-		    print "crypto ca certificate map ca-map $user_counter\n";
+		    print "crypto ca certificate map ca-map-$user_counter 10\n";
 		    print " subject-name attr ea co $id\n";
 		    print "ip local pool $pool_name $ip-$max mask $mask\n";
 		    $attributes->{'vpn-filter'} = $filter_name;
@@ -10233,7 +10233,7 @@ tunnel-group $tunnel_group_name ipsec-attributes
  isakmp ikev1-user-authentication none
  peer-id-validate req
  trust-point ASDM_TrustPoint0
-tunnel-group-map ca-map $user_counter $tunnel_group_name
+tunnel-group-map ca-map-$user_counter 10 $tunnel_group_name
 
 EOF
   		}
