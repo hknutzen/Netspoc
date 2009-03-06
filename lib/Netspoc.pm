@@ -10095,7 +10095,12 @@ EOF
  	print "group-policy $name attributes\n";
  	for my $key (sort keys %$attributes) {
  	    my $value = $attributes->{$key};
- 	    print " $key value $value\n";
+	    if($key eq 'split-tunnel-policy') {
+		print " $key $value\n";
+	    }
+	    else {
+		print " $key value $value\n";
+	    }
  	}
     };
 
@@ -10148,9 +10153,14 @@ EOF
 		# Define split tunnel ACL.
 		# Use default value if not defined.
 		my $split_tunnel_policy = $attributes->{'split-tunnel-policy'};
-		$split_tunnel_policy ||= 'tunnelall';
-		if($split_tunnel_policy eq 'tunnelall') {
+		if(not $split_tunnel_policy) {
 		    # Do nothing.
+		}
+		elsif($split_tunnel_policy eq 'tunnelall') {
+
+		    # This is the default value. 
+		    # Prevent new group-policy to be created.
+		    delete $attributes->{'split-tunnel-policy'};
 		}
 		elsif($split_tunnel_policy eq 'tunnelspecified') {
 		    my @split_tunnel_nets = 
