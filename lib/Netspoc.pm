@@ -10205,7 +10205,7 @@ EOF
 		    print " vpn-framed-ip-address $ip $mask\n";
 		    print " service-type remote-access\n";
 		    print " vpn-filter value $filter_name\n";
-		    print " vpn-group-policy value $group_policy_name\n"
+		    print " vpn-group-policy $group_policy_name\n"
 			if $group_policy_name;
 		}
 		else {
@@ -10252,7 +10252,7 @@ EOF
 		print "username $id attributes\n";
 		print " service-type remote-access\n";
 		print " vpn-filter value $filter_name\n";
-		print " vpn-group-policy value $name\n";
+		print " vpn-group-policy $name\n";
   	    } else {
   		internal_err "Unexpected src $src->{name}";
   	    }
