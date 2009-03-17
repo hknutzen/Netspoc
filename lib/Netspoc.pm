@@ -10046,6 +10046,7 @@ sub print_asavpn ( $ )  {
     print <<"EOF";
 ! Used for all VPN users: single, suffix, hardware
 group-policy $global_group_name internal
+group-policy $global_group_name attributes
  pfs enable
 
 EOF
