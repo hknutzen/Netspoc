@@ -2398,6 +2398,7 @@ sub read_file_or_dir( $;$ ) {
             $file = "$path/$file";
             read_file_or_dir $file, $read_syntax;
         }
+	closedir DIR;
     }
     else {
         read_file $path, $read_syntax;
