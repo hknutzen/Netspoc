@@ -5266,59 +5266,59 @@ sub link_and_check_pathrestrictions() {
 	my $changed;
 	my $private = my $no_private = $restrict->{private};
         for my $obj (@{ $restrict->{elements} }) {
-            if (is_interface $obj) {
-
-                # Multiple restrictions may be applied to a single
-                # interface.
-                push @{ $obj->{path_restrict} }, $restrict;
-
-		# Pathrestriction must only be applied to interface
-		# of managed device. Otherwise the restriction possibly
-		# can't be enforced for 'any' objects.
-                $obj->{router}->{managed}
-                  or err_msg "Referencing unmanaged $obj->{name} ",
-                  "from $restrict->{name}";
-
-		# Pathrestrictions must not be applied to secondary interfaces
-		$obj->{main_interface} 
-		and err_msg "secondary $obj->{name} must not be used",
-		            " in pathrestriction";
-
-		# Interfaces with pathrestriction need to be located 
-		# inside cyclic graphs.
-		$obj->{in_loop}
-		  or warn_msg 
-		      "Ignoring $restrict->{name} at $obj->{name}\n",
-		      " because it isn't located inside cyclic graph";
-
-		# Private pathrestriction must reference at least one interface
-		# of its own context.
-		if($private) {
-		    if(my $obj_p = $obj->{private}) {
-			$private eq $obj_p and $no_private = 0;
-		    }
-		}
-		
-		# Public pathrestriction must not reference private interface.
-		else {
-		    if(my $obj_p = $obj->{private}) {
-			err_msg "Public $restrict->{name} must not reference",
-			        " $obj_p.private $obj->{name}";
-		    }
-		}
-            }
-            else {
+            if (not is_interface $obj) {
                 err_msg "$restrict->{name} must not reference $obj->{name}";
 		$obj = undef;
 		$changed = 1;
+		next;
             }
+
+	    # Add pathrestriction to interface.
+	    # Multiple restrictions may be applied to a single
+	    # interface.
+	    push @{ $obj->{path_restrict} }, $restrict;
+
+	    # Pathrestriction must only be applied to interface
+	    # of managed device. Otherwise the restriction possibly
+	    # can't be enforced for 'any' objects.
+	    $obj->{router}->{managed}
+	    or err_msg "Referencing unmanaged $obj->{name} ",
+	    "from $restrict->{name}";
+
+	    # Pathrestrictions must not be applied to secondary interfaces
+	    $obj->{main_interface} 
+	    and err_msg "secondary $obj->{name} must not be used",
+	    " in pathrestriction";
+
+	    # Interfaces with pathrestriction need to be located 
+	    # inside cyclic graphs.
+	    $obj->{in_loop}
+	    or warn_msg 
+		"Ignoring $restrict->{name} at $obj->{name}\n",
+		" because it isn't located inside cyclic graph";
+
+	    # Private pathrestriction must reference at least one interface
+	    # of its own context.
+	    if($private) {
+		if(my $obj_p = $obj->{private}) {
+		    $private eq $obj_p and $no_private = 0;
+		}
+	    }
+
+	    # Public pathrestriction must not reference private interface.
+	    else {
+		if(my $obj_p = $obj->{private}) {
+		    err_msg "Public $restrict->{name} must not reference",
+		    " $obj_p.private $obj->{name}";
+		}
+	    }
         }
 	if($no_private) {
 	    err_msg "$private.private $restrict->{name} must reference",
 	            " at least one interface out of $private.private";
 	}
 	if($changed) {
-	    $restrict->{elements} = grep $_, $restrict->{elements};
+	    $restrict->{elements} = [ grep $_, @{ $restrict->{elements} } ];
 	}
 	my $count = @{$restrict->{elements}};
 	if($count == 1) {
@@ -5328,6 +5328,25 @@ sub link_and_check_pathrestrictions() {
 	elsif($count == 0) {
 	    warn_msg "Ignoring $restrict->{name} without elements";
 	}
+
+	# Add pathrestriction to tunnel interfaces, 
+	# which belong to real interface.
+	# Don't count them as extra elements.
+	for my $interface (@{ $restrict->{elements} }) {
+	    next if not ($interface->{spoke} or $interface->{hub});
+
+	    # Don't add for no_check interface because traffic would
+	    # pass the pathrestriction two times.
+	    next if $interface->{no_check};
+	    my $router = $interface->{router};
+	    for my $intf (@{ $router->{interfaces} }) {
+		my $real_intf = $intf->{real_interface};
+		next if not $real_intf;
+		next if not $real_intf eq $interface;
+		push @{ $restrict->{elements} }, $intf;
+		push @{ $intf->{path_restrict} }, $restrict;
+	    }
+	}		
     }    
 }
 
