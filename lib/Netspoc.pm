@@ -1834,9 +1834,9 @@ sub read_router( $ ) {
 		" at interface of $router->{name}",
 		  " of type $router->{model}->{name}";
 
-	    grep({ $_->{no_check} } @{$router->{interfaces}}) == 1 or
+	    grep({ $_->{no_check} } @{$router->{interfaces}}) >= 1 or
 		err_msg 
-		"Exactly one interface needs to have attribute 'no_check'",
+		"At least one interface needs to have attribute 'no_check'",
 		" at $router->{name}";
 
  	    $router->{radius_attributes} ||= {};
