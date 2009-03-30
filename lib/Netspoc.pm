@@ -7301,7 +7301,8 @@ sub check_and_convert_routes () {
                             else {
                                 warn_msg
                                   "Two static routes for $network->{name}\n",
-                                  " at $interface->{name}";
+                                  " at $router->{name}",
+				  " via $hop->{name} and $hop2->{name}";
                             }
                         }
                         else {
