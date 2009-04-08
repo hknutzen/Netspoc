@@ -10266,17 +10266,7 @@ sub print_acl_add_deny ( $$$$$$ ) {
     my $filter  = $model->{filter};
 
     # Add deny rules.
-    if ($filter eq 'iptables') {
-	push @{ $hardware->{intf_rules} },
-	{
-	    action    => 'deny',
-	    src       => $network_00,
-	    dst       => $network_00,
-	    src_range => $srv_ip,
-	    srv       => $srv_ip
-	    };
-    }
-    elsif ($filter eq 'IOS' and @{ $hardware->{rules} }) {
+    if ($filter eq 'IOS' and @{ $hardware->{rules} }) {
 	for my $interface (@{ $router->{interfaces} }) {
 
 	    # Ignore 'unnumbered' interfaces.
@@ -10302,14 +10292,18 @@ sub print_acl_add_deny ( $$$$$$ ) {
 		};
 	}
     }
-    push @{ $hardware->{rules} },
-    {
-	action    => 'deny',
-	src       => $network_00,
-	dst       => $network_00,
-	src_range => $srv_ip,
-	srv       => $srv_ip
-	};
+
+    # Iptables already has deny rules at builtin chains.
+    if (not $filter eq 'iptables') {
+	push @{ $hardware->{rules} },
+	{
+	    action    => 'deny',
+	    src       => $network_00,
+	    dst       => $network_00,
+	    src_range => $srv_ip,
+	    srv       => $srv_ip
+	    };
+    }
 
     # Interface rules
     acl_line $hardware->{intf_rules}, $nat_map, $intf_prefix, $model;
