@@ -6328,6 +6328,7 @@ sub expand_crypto () {
 				    { name => "$peer->{name}.$id",
 				      ip => 'tunnel',
 				      src => $subnet,
+				      nat_map => $peer->{nat_map},
 				  };
 				}
 			    }
@@ -8660,87 +8661,73 @@ sub acl_line( $$$$ ) {
 
 my $min_object_group_size = 2;
 
-sub find_object_groups ( $ ) {
-    my ($router) = @_;
-
-    # For collecting found object-groups.
-    my @groups;
+sub find_object_groups ( $$ ) {
+    my ($router, $hardware) = @_;
 
     # Find identical groups in identical NAT domain and of same size.
-    my %nat2size2group;
-
-    # For generating names of object-groups.
-    my $counter = 1;
+    my $nat2size2group = ($router->{nat2size2group} ||= {});
+    $router->{obj_group_counter} ||= 0;
 
     # Find object-groups in src / dst of rules.
     for my $this ('src', 'dst') {
         my $that = $this eq 'src' ? 'dst' : 'src';
         my $tag = "${this}_group";
+	my %group_rule_tree;
 
-	# Take rules from
-	# - hardware interface for cleartext interfaces,
-	# - tunnel interface for hardware crypto clients,
-	# - virtual id interface for software clients.
-	my @hardware = @{ $router->{hardware} },
-	map { $_->{id_rules} ? values %{$_->{id_rules}} : $_ }
-	grep { $_->{ip} eq 'tunnel' } @{ $router->{interfcaes} };
-        for my $hardware (@hardware) {
-            my %group_rule_tree;
+	# Find groups of rules with identical
+	# action, srv, src/dst and different dst/src.
+	for my $rule (@{ $hardware->{rules} }) {
+	    my $action    = $rule->{action};
+	    my $that      = $rule->{$that};
+	    my $this      = $rule->{$this};
+	    my $srv       = $rule->{srv};
+	    my $src_range = $rule->{src_range};
+	    $group_rule_tree{$action}->{$src_range}->{$srv}->{$that}
+	    ->{$this} = $rule;
+	}
 
-            # Find groups of rules with identical
-            # action, srv, src/dst and different dst/src.
-            for my $rule (@{ $hardware->{rules} }) {
-                my $action    = $rule->{action};
-                my $that      = $rule->{$that};
-                my $this      = $rule->{$this};
-                my $srv       = $rule->{srv};
-                my $src_range = $rule->{src_range};
-                $group_rule_tree{$action}->{$src_range}->{$srv}->{$that}
-                  ->{$this} = $rule;
-            }
+	# Find groups >= $min_object_group_size,
+	# mark rules belonging to one group,
+	# put groups into an array / hash.
+	for my $href (values %group_rule_tree) {
 
-            # Find groups >= $min_object_group_size,
-            # mark rules belonging to one group,
-            # put groups into an array / hash.
-            for my $href (values %group_rule_tree) {
+	    # $href is {src_range => href, ...}
+	    for my $href (values %$href) {
 
-                # $href is {src_range => href, ...}
-                for my $href (values %$href) {
+		# $href is {srv => href, ...}
+		for my $href (values %$href) {
 
-                    # $href is {srv => href, ...}
-                    for my $href (values %$href) {
+		    # $href is {src/dst => href, ...}
+		    for my $href (values %$href) {
 
-                        # $href is {src/dst => href, ...}
-                        for my $href (values %$href) {
+			# $href is {dst/src => rule, ...}
+			my $size = keys %$href;
+			if ($size >= $min_object_group_size) {
+			    my $glue = {
 
-                            # $href is {dst/src => rule, ...}
-                            my $size = keys %$href;
-                            if ($size >= $min_object_group_size) {
-                                my $glue = {
+				# Indicator, that no further rules need
+				# to be processed.
+				active => 0,
 
-                                    # Indicator, that no further rules need
-                                    # to be processed.
-                                    active => 0,
+				# NAT map for address calculation.
+				nat_map => $hardware->{nat_map},
 
-                                    # NAT map for address calculation.
-                                    nat_map => $hardware->{nat_map},
-
-                                    # object-ref => rule, ...
-                                    hash => $href
+				# object-ref => rule, ...
+				hash => $href
                                 };
 
-                                # All this rules have identical
-                                # action, srv, src/dst  and dst/src
-                                # and shall be replaced by a new object group.
-                                for my $rule (values %$href) {
-                                    $rule->{$tag} = $glue;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+				# All this rules have identical
+				# action, srv, src/dst  and dst/src
+				# and shall be replaced by a new object group.
+			    for my $rule (values %$href) {
+				$rule->{$tag} = $glue;
+			    }
+			}
+		    }
+		}
+	    }
+	}
+
 
         # Find a group with identical elements or define a new one.
         my $get_group = sub ( $ ) {
@@ -8753,11 +8740,11 @@ sub find_object_groups ( $ ) {
 	    # This occurs if optimization didn't work correctly.
 	    if (grep { $_ eq $network_00 } @keys) {
 		internal_err
-		  "Unexpected $network_00->{name} in object-group of $router->{name}";
+		    "Unexpected $network_00->{name} in object-group of $router->{name}";
 	    }
 
             # Find group with identical elements.
-            for my $group (@{ $nat2size2group{$nat_map}->{$size} }) {
+            for my $group (@{ $nat2size2group->{$nat_map}->{$size} }) {
                 my $href = $group->{hash};
                 my $eq   = 1;
                 for my $key (@keys) {
@@ -8773,70 +8760,61 @@ sub find_object_groups ( $ ) {
 
             # Not found, build new group.
             my $group = new(
-                'Objectgroup',
-                name     => "g$counter",
-                elements => [ map { $ref2obj{$_} } @keys ],
-                hash     => $hash,
-                nat_map  => $glue->{nat_map}
-            );
-            push @{ $nat2size2group{$nat_map}->{$size} }, $group;
-            push @groups, $group;
-            $counter++;
+			    'Objectgroup',
+			    name     => "g$router->{obj_group_counter}",
+			    elements => [ map { $ref2obj{$_} } @keys ],
+			    hash     => $hash,
+			    nat_map  => $nat_map
+			    );
+            push @{ $nat2size2group->{$nat_map}->{$size} }, $group;
+
+	    # Print object-group.
+	    print "object-group network $group->{name}\n";
+	    for my $pair (
+			  sort { $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] }
+			  map { address($_, $nat_map) } @{ $group->{elements} }
+			  )
+	    {
+		my $adr = ios_code($pair);
+		print " network-object $adr\n";
+	    }
+            $router->{obj_group_counter}++;
             return $group;
         };
 
         # Build new list of rules using object groups.
-        for my $hardware (@hardware) {
-            my @new_rules;
-            for my $rule (@{ $hardware->{rules} }) {
-                if (my $glue = $rule->{$tag}) {
+	my @new_rules;
+	for my $rule (@{ $hardware->{rules} }) {
+	    if (my $glue = $rule->{$tag}) {
 
 #	       debug print_rule $rule;
-                    # Remove tag, otherwise call to find_object_groups
-                    # for another router would become confused.
-                    delete $rule->{$tag};
-                    if ($glue->{active}) {
+		# Remove tag, otherwise call to find_object_groups
+		# for another router would become confused.
+		delete $rule->{$tag};
+		if ($glue->{active}) {
 
 #		  debug " deleted: $glue->{group}->{name}";
-                        next;
-                    }
-                    my $group = $get_group->($glue);
+		    next;
+		}
+		my $group = $get_group->($glue);
 
 #	       debug " generated: $group->{name}";
 #              # Only needed when debugging.
 #              $glue->{group} = $group;
-	    
-                    $glue->{active} = 1;
-                    $rule = {
-                        action    => $rule->{action},
-                        $that     => $rule->{$that},
-                        $this     => $group,
-                        src_range => $rule->{src_range},
-                        srv       => $rule->{srv}
-                    };
-                }
-                push @new_rules, $rule;
-            }
-            $hardware->{rules} = \@new_rules;
-        }
-    }
 
-    # Print PIX object-groups.
-    for my $group (@groups) {
-        my $nat_map = $group->{nat_map};
-        print "object-group network $group->{name}\n";
-        for my $pair (
-            sort { $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] }
-            map { address($_, $nat_map) } @{ $group->{elements} }
-          )
-        {
-            my $adr = ios_code($pair);
-            print " network-object $adr\n";
-        }
+		$glue->{active} = 1;
+		$rule = {
+		    action    => $rule->{action},
+		    $that     => $rule->{$that},
+		    $this     => $group,
+		    src_range => $rule->{src_range},
+		    srv       => $rule->{srv}
+		};
+	    }
+	    push @new_rules, $rule;
+	}
+	$hardware->{rules} = \@new_rules;
     }
-
-    # Empty line as delimiter.
-    print "\n";
 }
 
 # Handle iptables.
@@ -10109,7 +10087,7 @@ sub print_vpn3k( $ ) {
 
 sub print_acl_add_deny ( $$$$$$ ) {
     my($router, $hardware, $nat_map, $model, $intf_prefix, $prefix) = @_;
-    my $filter  = $model->{filter};
+    my $filter = $model->{filter};
 
     # Add deny rules.
     if ($filter eq 'IOS' and @{ $hardware->{rules} }) {
@@ -10161,7 +10139,7 @@ sub print_acl_add_deny ( $$$$$$ ) {
 sub print_asavpn ( $ )  {
     my ($router) = @_;
     my $model = $router->{model};
-    my $nat_map = $router->{hardware}->[0]->{nat_map};  
+    my $nat_map = $router->{hardware}->[0]->{nat_map};
     my $global_group_name = 'global';
     print <<"EOF";
 ! Used for all VPN users: single, suffix, hardware
@@ -10222,17 +10200,6 @@ EOF
 		my $src = $id_intf->{src};
 		$user_counter++;
 		my $pool_name;
-
-		# Define filter ACL to be used in username or group-policy.
-		my $filter_name = "vpn-filter-$user_counter";
-		my $prefix = "access-list $filter_name extended";
-		my $intf_prefix = '';
-		$nat_map = undef;
-		print_acl_add_deny
-		    $router, $id_intf, $nat_map, $model, $intf_prefix, $prefix;
-
-  		my $ip = print_ip $src->{ip};
-		my $network = $src->{network};
 		my $attributes = 
 		{
 		    %{ $router->{radius_attributes} },
@@ -10285,10 +10252,16 @@ EOF
 		    }
 		    if(not $acl_name) {
 			$acl_name = "split-tunnel-$user_counter";
-			for my $network (@split_tunnel_nets) {
-			    my $line = "access-list $acl_name standard permit ";
-			    $line .= ios_code(address($network, $nat_map));
-			    print "$line\n";
+			if(@split_tunnel_nets) {
+			    for my $network (@split_tunnel_nets) {
+				my $line = 
+				    "access-list $acl_name standard permit ";
+				$line .= ios_code(address($network, $nat_map));
+				print "$line\n";
+			    }
+			}
+			else {
+			    print "access-list $acl_name standard deny any\n";
 			}
 			$split_t_cache{@split_tunnel_nets}->{$acl_name} = 
 			    \@split_tunnel_nets;
@@ -10302,6 +10275,19 @@ EOF
 		    err_msg "Unsupported value of 'split-tunnel-policy':",
 		    " $split_tunnel_policy";
 		}
+
+		find_object_groups($router, $id_intf);
+
+		# Define filter ACL to be used in username or group-policy.
+		my $filter_name = "vpn-filter-$user_counter";
+		my $prefix = "access-list $filter_name extended";
+		my $intf_prefix = '';
+		$nat_map = undef;
+		print_acl_add_deny
+		    $router, $id_intf, $nat_map, $model, $intf_prefix, $prefix;
+
+  		my $ip = print_ip $src->{ip};
+		my $network = $src->{network};
   		if ($src->{mask} == 0xffffffff) {
 		    $id =~ /^\@/
 			and err_msg "ID of $src->{name} must not start with",
@@ -10319,6 +10305,7 @@ EOF
 		    print " vpn-filter value $filter_name\n";
 		    print " vpn-group-policy $group_policy_name\n"
 			if $group_policy_name;
+		    print "\n";
 		}
 		else {
 		    $id =~ /^\@/
@@ -10349,12 +10336,14 @@ tunnel-group-map ca-map-$user_counter 10 $tunnel_group_name
 
 EOF
   		}
-		print "\n";
   	    }
 	}
   
 	# A VPN network.
 	else {
+
+	    find_object_groups($router, $interface);
+
 	    # Define filter ACL to be used in username or group-policy.
 	    my $filter_name = "vpn-filter-$user_counter";
 	    my $prefix = "access-list $filter_name extended";
@@ -10402,6 +10391,11 @@ sub print_acls( $ ) {
         # Force valid array reference to prevent error
 	# when checking for non empty array.
         $hardware->{rules} ||= [];
+
+	if ($filter eq 'PIX') {
+	    my $interfaces = [  @{ $router->{hardware} } ];
+	    find_object_groups($router, $hardware) unless $router->{no_group_code};
+	}
 
 	# Generate code.
         my $acl_name = "$hardware->{name}_in";
@@ -10835,11 +10829,6 @@ sub print_code( $ ) {
 	}
 
         print_routes $router;
-
-	# Object-Groups are used by crypto as well.
-	if ($router->{model}->{filter} eq 'PIX') {
-	    find_object_groups($router) unless $router->{no_group_code};
-	}
         print_crypto $router;
         print_acls $router;
 	print_interface $router if $model->{name} =~ /^IOS/;
