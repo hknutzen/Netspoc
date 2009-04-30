@@ -6287,6 +6287,8 @@ my $network_00 = new('Network', name => "network:0/0", ip => 0, mask => 0);
 sub expand_crypto () {
     info "Expanding crypto rules";
 
+    my %id2network;
+
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
 
@@ -6297,24 +6299,80 @@ sub expand_crypto () {
 		next if $tunnel->{disabled}; 
 		for my $tunnel_intf (@{$tunnel->{interfaces}}) {
 		    next if $tunnel_intf->{is_hub};
-		    my @networks;
 		    my $router = $tunnel_intf->{router};
 		    my $managed = $router->{managed};
+		    my @encrypted;
 		    for my $interface (@{ $router->{interfaces} }) {
 			next if $interface->{ip} eq 'tunnel';
 			next if $interface->{spoke};
-			if($managed) {
-			    push @networks, @{$interface->{any}->{networks}};
-			}
-			else {
-			    if(@{$interface->{network}->{interfaces}} > 1) {
-				err_msg "Unmanaged $router->{name} with",
-				" crypto tunnel must have exactly one network",
-				" at $interface->{name}";
+			
+			my $network = $interface->{network};
+			if($network->{has_id_hosts}) {
+			    $managed and
+				err_msg 
+				"$network->{name} having ID hosts must not",
+				" be located behind managed $router->{name}";
+			    
+			    # Rules for single software clients are stored 
+			    # individually at crypto hub interface.
+			    for my $host (@{$network->{hosts}}) {
+				my $id = $host->{id};
+				my $subnets = $host->{subnets};
+				@$subnets > 1 and
+				    err_msg 
+				    "$host->{name} with ID must expand to",
+				    "exactly one subnet";
+				my $subnet = $subnets->[0];
+				for my $peer (@{$tunnel_intf->{peers}}) {
+				    $peer->{id_rules}->{$id} = 
+				    { name => "$peer->{name}.$id",
+				      ip => 'tunnel',
+				      src => $subnet,
+				  };
+				}
 			    }
-			    push @networks, $interface->{network};
+			    push @encrypted, $network;
+			}
+			elsif(my $id = $network->{id}) {
+			    if(my $net2 = $id2network{$id}) {
+				err_msg "Same ID '$id' is used at",
+				" $network->{name} and $net2->{name}";
+			    }
+			    $id2network{$id} = $network;
+			    if(my $net2 =
+			       $tunnel_intf->{peers}->[0]->{peer_network})
+			    {
+				err_msg
+				    "Currently at most one network with ID",
+				    " needs to be attached to",
+				    " $router->{name} but got",
+				    "$network->{name} and $net2->{name}";
+			    }
+			    for my $peer (@{$tunnel_intf->{peers}}) {
+				$peer->{peer_network} = $network;
+			    }
+			    push @encrypted, $network;
+			}
+
+			# Only network with authentication ID will be 
+			# encrypted. 
+			# Other networks must not use the tunnel.
+			else {
+			    $managed or 
+				err_msg 
+				"$network->{name} without ID hosts must not",
+				" be located behind unmanaged",
+				" crypto spoke $router->{name}";
 			}
 		    }
+
+		    my $one_peer = $tunnel_intf->{peers}->[0];
+		    $one_peer->{id_rules} and $one_peer->{peer_network} and
+			err_msg "Must not use network with ID and host with ID",
+			" at $router->{name}";
+		    $one_peer->{id_rules} or $one_peer->{peer_network} or
+			err_msg "Must use network or host with ID",
+			" at $router->{name}";
 
 		    # Traffic from spoke to hub(s).
 		    my $crypto_rules =
@@ -6323,7 +6381,7 @@ sub expand_crypto () {
 				  dst       => $network_00,
 				  src_range => $srv_ip,
 				  srv       => $srv_ip
-				  } } @networks ];
+				  } } @encrypted ];
 		    $tunnel_intf->{crypto_rules} = $crypto_rules;
 
 		    # Traffic from hubs to spoke.
@@ -6333,7 +6391,7 @@ sub expand_crypto () {
 				  dst       => $_,
 				  src_range => $srv_ip,
 				  srv       => $srv_ip
-				  } } @networks ];
+				  } } @encrypted ];
 		    for my $peer (@{$tunnel_intf->{peers}}) {
 			$peer->{crypto_rules} = $crypto_rules;
 		    }
@@ -6365,6 +6423,32 @@ sub expand_crypto () {
 	    }		    
 	}
     }
+
+    # Check for duplicate IDs at different hosts
+    # coming into current hardware interface / current device.
+    for my $router (@managed_vpnhub) {
+	my $is_asavpn = $router->{model}->{crypto} eq 'ASA_VPN';
+	my %hardware2id2tunnel;
+	for my $interface (@{$router->{interfaces}}) {
+	    next if not $interface->{ip} eq 'tunnel';
+
+	    # ASA_VPN can't distinguish different hosts with same ID
+	    # coming into different hardware interfaces.
+	    my $hardware = $is_asavpn ? 'one4all' : $interface->{hardware};
+	    my $tunnel = $interface->{network};
+	    if(my $hash = $interface->{id_rules}) {
+		for my $id (values %$hash) {
+		    if(my $tunnel2 = $hardware2id2tunnel{$hardware}->{$id} ) {
+			err_msg "Using identical ID $id from different",
+			" $tunnel->{name} and $tunnel2->{name}";
+		    }
+		    else {
+			$hardware2id2tunnel{$hardware}->{$id} = $tunnel;
+		    }
+		}
+	    }
+	}
+    }	    
 
     # Hash only needed during expand_group and expand_rules.
     %auto_interfaces = ();
@@ -7847,6 +7931,37 @@ sub distribute_rule( $$$ ) {
               ? $in_intf->{real_interface}->{hardware}
               : $in_intf
 	      : $in_intf->{hardware};
+
+    # Rules for single software clients are stored individually.
+    # Consistency checks have already been done at expand_crypto.
+    if($in_intf->{ip} eq 'tunnel') {
+	if($in_intf->{is_hub}) {
+	    my $src = $rule->{src};
+	    if(my $id2rules = $store->{id_rules}) {
+		is_subnet $src or 
+		    internal_err "Expected host as src but got $src->{name}";
+		my $id = $src->{id} or 
+		    internal_err "$src->{name} must have ID";
+		$store = $id2rules->{$id} or
+		    internal_err "No entry for $id at id_rules";
+	    }
+	    else {
+		$src = $src->{network} if is_subnet $src || is_interface $src;
+		$src->{id} or
+		    err_msg 
+		    "Source of rule needs to have id at $in_intf->{name}\n ",
+		    print_rule $rule;
+	    }
+	}
+	else {
+	    my $dst = $rule->{dst};
+	    $dst = $dst->{network} if is_subnet $dst || is_interface $dst;
+	    $dst->{id} or
+		err_msg 
+		"Destination of rule needs to have id at $router->{name}\n ",
+		print_rule $rule;
+	}
+    }
     my $aref;
 
 #    debug "$router->{name} store: $store->{name}";
@@ -8561,7 +8676,15 @@ sub find_object_groups ( $ ) {
     for my $this ('src', 'dst') {
         my $that = $this eq 'src' ? 'dst' : 'src';
         my $tag = "${this}_group";
-        for my $hardware (@{ $router->{hardware} }) {
+
+	# Take rules from
+	# - hardware interface for cleartext interfaces,
+	# - tunnel interface for hardware crypto clients,
+	# - virtual id interface for software clients.
+	my @hardware = @{ $router->{hardware} },
+	map { $_->{id_rules} ? values %{$_->{id_rules}} : $_ }
+	grep { $_->{ip} eq 'tunnel' } @{ $router->{interfcaes} };
+        for my $hardware (@hardware) {
             my %group_rule_tree;
 
             # Find groups of rules with identical
@@ -8663,7 +8786,7 @@ sub find_object_groups ( $ ) {
         };
 
         # Build new list of rules using object groups.
-        for my $hardware (@{ $router->{hardware} }) {
+        for my $hardware (@hardware) {
             my @new_rules;
             for my $rule (@{ $hardware->{rules} }) {
                 if (my $glue = $rule->{$tag}) {
@@ -9637,7 +9760,13 @@ sub local_optimization() {
             $network->{up} = $network->{is_in}->{$nat_map} || $network_00;
         }
         for my $network (@{ $domain->{networks} }) {
-            for my $interface (@{ $network->{interfaces} }) {
+
+	    # Iterate over all interfaces attached to current network.
+	    # If interface is virtual tunnel for multiple software clients, 
+	    # take separate rules for each software client.
+            for my $interface 
+		(map { $_->{id_rules} ? values %{$_->{id_rules}} : $_ }
+		 @{ $network->{interfaces} }) {
                 my $router = $interface->{router};
                 my $managed = $router->{managed} or next;
                 my $secondary_filter = $managed eq 'secondary';
@@ -9807,11 +9936,28 @@ sub print_xml( $ ) {
     }
 }
 
-sub prepare_vpn_src( $ ) {
+sub print_vpn3k( $ ) {
     my ($router) = @_;
-    my %auto_deny_networks;
-    my $is_asavpn = $router->{model}->{crypto} eq 'ASA_VPN';
+    my $model = $router->{model};
 
+    # Build a hash of hashes of ... which will later be converted to XML.
+    my %vpn_config = ();
+    ($vpn_config{'vpn-device'} = $router->{name})  =~ s/^router://;
+    $vpn_config{'aaa-server'} =
+      [ map { { radius => print_ip $_->{ips}->[0] } }
+	    @{ $router->{radius_servers} } ];
+
+    # Build a sub structure of %vpn_config
+    my @entries = ();
+
+    # nat_map of all hardware interfaces is identical, because we don't allow
+    # bind_nat at vpn3k devices.
+    # Hence we can take nat_map of first hardware interface.
+    my $nat_map = $router->{hardware}->[0]->{nat_map};
+
+    # Find networks, which are attached to current device (cleartext or tunnel)
+    # but which are not protected by some other managed device.
+    my %auto_deny_networks;
     for my $interface (@{ $router->{interfaces} }) {
 	next if $interface->{hub} and not $interface->{no_check};
 	if($interface->{ip} eq 'tunnel') {
@@ -9838,111 +9984,82 @@ sub prepare_vpn_src( $ ) {
 	    }
 	}
     }
-
-
-    # Check for duplicate IDs at different hosts
-    # coming into current interface / current device.
-    my %id2src;
-    for my $interface (@{ $router->{interfaces} }) {
-
-	# ASA_VPN can't distinguish different hosts with same ID
-	# coming into different interfaces.
-	%id2src = () if not $is_asavpn;
-
-	if($interface->{ip} eq 'tunnel') {
-	    my $hardware = $interface->{hardware};
-	    for my $rule (@{ $interface->{rules} }, @{$interface->{intf_rules}}) 
-	    {
-		my ($src, $dst) = @{$rule}{'src', 'dst'};
-		my $src_id = get_id $src;
-		if(not $src_id) {
-		    err_msg 
-			"Source of rule needs to have id at $router->{name}\n ",
-		    print_rule $rule;
-		    next;
-		}
-
-		# Remember destination networks for VPN3K 
-		# split tunnel configuration.
-		my $dst_network = is_network $dst ? $dst : $dst->{network};
-		$hardware->{id_dst_networks}->{$src}->{$dst_network} = 
-		    $dst_network;
-
-		# Take enclosing ID network.
-		$src = $src->{network} if not $src->{id};
-
-		# Permit access to auto denied networks.
-		if ($auto_deny_networks{$dst_network}) {
-		    push @{$hardware->{id_src_rules}->{$src}}, $rule;
-		}
-
-		if (my $old_src = $id2src{$src_id}) {
-		    $old_src eq $src or
-			err_msg "$src->{name} and $old_src->{name}",
-			" must not have identical id:$src_id";
-		} 
-		else {
-		    $id2src{$src_id} = $src;
-
-		    # Collect all authenticated users or networks.
-		    push @{$hardware->{id_src}}, $src;
-		}
-	    }
-	}
-	else {
-	    for my $rule (@{ $interface->{rules} }) {
-		my $dst = $rule->{dst};
-		my $dst_id = get_id $dst;
-		next if $dst_id;
-		err_msg 
-		    "Destination of rule needs to have id at $router->{name}\n ",
-		    print_rule $rule;
-	    }
-	}
-    }
-    return \%auto_deny_networks;
-}
-
-sub print_vpn3k( $ ) {
-    my ($router) = @_;
-    my $model = $router->{model};
-
-    # Build a hash of hashes of ... which will later be converted to XML.
-    my %vpn_config = ();
-    ($vpn_config{'vpn-device'} = $router->{name})  =~ s/^router://;
-    $vpn_config{'aaa-server'} =
-      [ map { { radius => print_ip $_->{ips}->[0] } }
-	    @{ $router->{radius_servers} } ];
-
-    # Build a sub structure of %vpn_config
-    my @entries = ();
-
-    # nat_map of all hardware interfaces is identical, because we don't allow
-    # bind_nat at vpn3k devices.
-    # Hence we can take nat_map of first hardware interface.
-    my $nat_map = $router->{hardware}->[0]->{nat_map};
-
-    # Set of networks, which are authenticated at current device,
-    # but which are not protected by some other managed device.
-    # Either network with VPN clients or VPN network.
-    my $auto_deny_networks = prepare_vpn_src($router);
-
     my @deny_rules =
       map { "deny ip any $_" }
       sort
 	map { ios_code $_, 1 }
-	  map { address $_, $nat_map } values %$auto_deny_networks;
+	  map { address $_, $nat_map } values %auto_deny_networks;
 
-    for my $hardware (@{ $router->{hardware} }) {
-	my $src_aref = delete $hardware->{id_src} or next;
+    my $add_filter = sub {
+	my($entry, $intf, $src, $add_split_tunnel) = @_;
+	my @acl_lines;
+	my %split_tunnel_networks;
+	my $inv_mask = 1;
+	for my $rule (@{ $intf->{rules} }, @{$intf->{intf_rules}}) {
+	    my ($action, $src, $dst, $src_range, $srv) =
+		@{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
+	    my $dst_network = is_network $dst ? $dst : $dst->{network};
+	    if($add_split_tunnel) {
+		$split_tunnel_networks{$dst_network} = $dst_network;
+	    }
+
+	    # Permit access to auto denied networks.
+	    if ($auto_deny_networks{$dst_network}) {
+		my ($proto_code, $src_port_code, $dst_port_code) =
+		    cisco_srv_code($src_range, $srv, $model);
+		my $result = "$action $proto_code";
+		$result .= ' ' . ios_code(address($src, $nat_map), $inv_mask);
+		$result .= " $src_port_code" if defined $src_port_code;
+		$result .= ' ' . ios_code(address($dst, $nat_map), $inv_mask);
+		$result .= " $dst_port_code" if defined $dst_port_code;
+		push @acl_lines, $result;
+	    }
+	}
+	my $spair = address $src, $nat_map;
+	my $src_code = ios_code($spair, $inv_mask);
+	my $permit_rule = "permit ip $src_code any";
+	push @acl_lines, @deny_rules, $permit_rule;
+	$entry->{in_acl} = [ map { { ace => $_ } } @acl_lines ];
+	if ((my $lines = @acl_lines) > 39) {
+	    my $msg = "Too many ACL lines at $router->{name}" .
+		" for $src->{name}: $lines > 39";
+
+	    # Print error, but don't abort.
+	    print STDERR "Error: $msg\n";
+
+	    # Force generated config to be syntactically incorrect.
+	    $entry->{error} = $msg;
+	}
+
+	# Add split tunnel list.
+	if(values %split_tunnel_networks) {
+	    my @split_tunnel_networks;
+	    for my $network 
+		(sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
+		 values %split_tunnel_networks)
+	    {
+		my $ip = print_ip $network->{ip};
+		my $mask = print_ip complement_32bit $network->{mask};
+		push @split_tunnel_networks, { base => $ip, mask => $mask };
+	    }
+	    $entry->{split_tunnel_networks} =
+		[ map { { network => $_ } } @split_tunnel_networks ];
+	}
+    };
+
+    for my $interface (@{ $router->{interfaces} }) {
+	next if not $interface->{ip} eq 'tunnel';
+	my $hardware = $interface->{hardware};
         my $hw_name = $hardware->{name};
 
-	for my $src (@$src_aref) {
-	    my %entry;
-	    $entry{'Called-Station-Id'} = $hw_name;
+	# Many single VPN software clients terminate at one tunnel interface.
+	if(my $hash = $interface->{id_rules}) {
+	    for my $id (keys %$hash) {
+		my $id_intf = $hash->{$id};
+		my $src = $id_intf->{src};
+		my %entry;
+		$entry{'Called-Station-Id'} = $hw_name;
 
-	    # A single VPN host.
-	    if (is_subnet $src) {
 		my $id = $src->{id};
 		my $ip = print_ip $src->{ip};
 		if ($src->{mask} == 0xffffffff) {
@@ -9966,65 +10083,79 @@ sub print_vpn3k( $ ) {
 		   %{ $src->{radius_attributes}},
 		  };
 
-		# Add split tunnel list.
-		my @split_tunnel_networks;
-		for my $network 
-		    (sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
-		     values %{$hardware->{id_dst_networks}->{$src}}) {
-		    my $ip = print_ip $network->{ip};
-		    my $mask = print_ip complement_32bit $network->{mask};
-		    push @split_tunnel_networks, { base => $ip, mask => $mask };
-		}
-		$entry{split_tunnel_networks} =
-		  [ map { { network => $_ } } @split_tunnel_networks ];
+		$add_filter->(\%entry, $id_intf, $src, 'add_split_t');
+		push @entries, { user_entry => \%entry };
 	    }
+	}
 
-	    # A VPN network.
-	    elsif (is_network $src) {
-		my $id = $src->{id};
-		$entry{id} = $id;
-		$entry{inherited} = { %{ $router->{radius_attributes} },
-				      %{ $src->{radius_attributes}},
-				    };
-	    } else {
-		internal_err "Unexpected src $src->{name}";
-	    }
-
-	    my @acl_lines;
-	    my $inv_mask = 1;
-	    for my $rule (@{$hardware->{id_src_rules}->{$src}}) {
-		my ($action, $src, $dst, $src_range, $srv) =
-		    @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
-		my ($proto_code, $src_port_code, $dst_port_code) =
-		    cisco_srv_code($src_range, $srv, $model);
-		my $result = "$action $proto_code";
-		$result .= ' ' . ios_code(address($src, $nat_map), $inv_mask);
-		$result .= " $src_port_code" if defined $src_port_code;
-		$result .= ' ' . ios_code(address($dst, $nat_map), $inv_mask);
-		$result .= " $dst_port_code" if defined $dst_port_code;
-		push @acl_lines, $result;
-	    }
-	    my $spair = address $src, $nat_map;
-	    my $src_code = ios_code($spair, $inv_mask);
-	    my $permit_rule = "permit ip $src_code any";
-	    push @acl_lines, @deny_rules, $permit_rule;
- 	    $entry{in_acl} = [ map { { ace => $_ } } @acl_lines ];
+	# A VPN network behind a VPN hardware client.
+	else {
+	    my $src = $interface->{peer_network};
+	    my $id = $src->{id};
+	    my %entry;
+	    $entry{'Called-Station-Id'} = $hw_name;
+	    $entry{id} = $id;
+	    $entry{inherited} = { %{ $router->{radius_attributes} },
+				  %{ $src->{radius_attributes}},
+			      };
+	    $add_filter->(\%entry, $interface, $src);
 	    push @entries, { user_entry => \%entry };
-	    if ((my $lines = @acl_lines) > 39) {
-		my $msg = "Too many ACL lines at $router->{name}" .
-		  " for $src->{name}: $lines > 39";
-
-		# Print error, but don't abort.
-		print STDERR "Error: $msg\n";
-
-		# Force generated config to be syntactically incorrect.
-		$entry{error} = $msg;
-	    }
 	}
     }
     $vpn_config{entries} = \@entries;
     my $result = { 'vpn-config' => \%vpn_config };
     print_xml $result;
+}
+
+sub print_acl_add_deny ( $$$$$$ ) {
+    my($router, $hardware, $nat_map, $model, $intf_prefix, $prefix) = @_;
+    my $filter  = $model->{filter};
+
+    # Add deny rules.
+    if ($filter eq 'IOS' and @{ $hardware->{rules} }) {
+	for my $interface (@{ $router->{interfaces} }) {
+
+	    # Ignore 'unnumbered' interfaces.
+	    next if $interface->{ip} =~ /^(?:unnumbered|negotiated|tunnel)$/;
+	    internal_err "Managed router has short $interface->{name}"
+		if $interface->{ip} eq 'short';
+
+	    # IP of other interface may be unknown if dynamic NAT is used.
+	    if ($interface->{hardware} ne $hardware
+		and (my $nat_network = $nat_map->{ $interface->{network} }))
+	    {
+		next if $nat_network->{dynamic};
+	    }
+
+	    # Protect own interfaces.
+	    push @{ $hardware->{intf_rules} },
+	    {
+		action    => 'deny',
+		src       => $network_00,
+		dst       => $interface,
+		src_range => $srv_ip,
+		srv       => $srv_ip
+		};
+	}
+    }
+
+    # Iptables already has deny rules at builtin chains.
+    if (not $filter eq 'iptables') {
+	push @{ $hardware->{rules} },
+	{
+	    action    => 'deny',
+	    src       => $network_00,
+	    dst       => $network_00,
+	    src_range => $srv_ip,
+	    srv       => $srv_ip
+	    };
+    }
+
+    # Interface rules
+    acl_line $hardware->{intf_rules}, $nat_map, $intf_prefix, $model;
+
+    # Ordinary rules
+    acl_line $hardware->{rules}, $nat_map, $prefix, $model;
 }
 
 sub print_asavpn ( $ )  {
@@ -10062,21 +10193,6 @@ tunnel-group-map default-group $tunnel_group_name
 
 EOF
  
-
-    my @deny_rules;
-    my $auto_deny_networks = prepare_vpn_src($router);
-
-    # Print object group for auto_deny_networks.
-    if(values %$auto_deny_networks) {
-	print "object-group network deny-networks\n";
-	for my $network (values %$auto_deny_networks) {
-	    print ' network-object ';
-	    print ios_code(address($network, $nat_map)), "\n";
-	}
-	print "\n";
-	push @deny_rules, "deny ip any object-group deny-networks";
-    }
-
     my $print_group_policy = sub {
  	my($name, $attributes, $from) = @_;
  	print "group-policy $name internal";
@@ -10096,41 +10212,25 @@ EOF
 
     my %network2group_policy;
     my $user_counter = 0;
-    for my $hardware (@{ $router->{hardware} }) {
-  	my $src_aref = delete $hardware->{id_src} or next;
-	my $hw_name = $hardware->{name};
+    for my $interface (@{ $router->{interfaces} }) {
+	next if not $interface->{ip} eq 'tunnel';
 	my %split_t_cache;
 
-  	for my $src (@$src_aref) {
-	    $user_counter++;
-	    my $pool_name;
+	if(my $hash = $interface->{id_rules}) {
+	    for my $id (keys %$hash) {
+		my $id_intf = $hash->{$id};
+		my $src = $id_intf->{src};
+		$user_counter++;
+		my $pool_name;
 
-	    # Define filter ACL to be used in username or group-policy.
-	    my @acl_lines;
-	    my $filter_name = "vpn-filter-$user_counter";
-	    for my $rule (@{$hardware->{id_src_rules}->{$src}}) {
-		my ($action, $src, $dst, $src_range, $srv) =
-		    @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
-		my ($proto_code, $src_port_code, $dst_port_code) =
-		    cisco_srv_code($src_range, $srv, $model);
-		my $result = "$action $proto_code";
-		$result .= ' ' . ios_code(address($src, $nat_map));
-		$result .= " $src_port_code" if defined $src_port_code;
-		$result .= ' ' . ios_code(address($dst, $nat_map));
-		$result .= " $dst_port_code" if defined $dst_port_code;
-		push @acl_lines, $result;
-	    }
-	    my $spair = address $src, $nat_map;
-	    my $src_code = ios_code($spair);
-	    my $permit_rule = "permit ip $src_code any";
-	    push @acl_lines, @deny_rules, $permit_rule;
-	    for my $line (@acl_lines) {
-		print "access-list $filter_name $line\n";
-	    }
-  
-  	    # A single VPN host.
-  	    if (is_subnet $src) {
-  		my $id = $src->{id};
+		# Define filter ACL to be used in username or group-policy.
+		my $filter_name = "vpn-filter-$user_counter";
+		my $prefix = "access-list $filter_name extended";
+		my $intf_prefix = '';
+		$nat_map = undef;
+		print_acl_add_deny
+		    $router, $id_intf, $nat_map, $model, $intf_prefix, $prefix;
+
   		my $ip = print_ip $src->{ip};
 		my $network = $src->{network};
 		my $attributes = 
@@ -10153,10 +10253,22 @@ EOF
 		    delete $attributes->{'split-tunnel-policy'};
 		}
 		elsif($split_tunnel_policy eq 'tunnelspecified') {
+
+		    # Get destination networks for split tunnel configuration.
+		    my %split_tunnel_nets;
+		    for my $rule (@{ $id_intf->{rules} }, 
+				  @{ $id_intf->{intf_rules} }) 
+		    {
+			next if not $rule->{action} eq 'permit';
+			my $dst = $rule->{dst};
+			my $dst_network = 
+			    is_network $dst ? $dst : $dst->{network};
+			$split_tunnel_nets{$dst_network} = $dst_network;
+		    }
 		    my @split_tunnel_nets = 
 			sort 
 		    { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
-		    values %{$hardware->{id_dst_networks}->{$src}};
+		    values %split_tunnel_nets;
 		    my $acl_name;
 		    if(my $href = $split_t_cache{@split_tunnel_nets}) {
 		      CACHED_NETS:
@@ -10237,79 +10349,36 @@ tunnel-group-map ca-map-$user_counter 10 $tunnel_group_name
 
 EOF
   		}
+		print "\n";
   	    }
+	}
   
-  	    # A VPN network.
-  	    elsif (is_network $src) {
-  		my $id = $src->{id};
-		my $attributes = { %{ $router->{radius_attributes} }, 
-				   %{ $src->{radius_attributes} } 
-			       };
-		$attributes->{'vpn-filter'} = $filter_name;
-		my $name = "VPN-router-$user_counter";
-		$print_group_policy->($name, $attributes);
-		print "username $id nopassword\n";
-		print "username $id attributes\n";
-		print " service-type remote-access\n";
-		print " vpn-filter value $filter_name\n";
-		print " vpn-group-policy $name\n";
-  	    } else {
-  		internal_err "Unexpected src $src->{name}";
-  	    }
+	# A VPN network.
+	else {
+	    # Define filter ACL to be used in username or group-policy.
+	    my $filter_name = "vpn-filter-$user_counter";
+	    my $prefix = "access-list $filter_name extended";
+	    my $intf_prefix = '';
+	    $nat_map = undef;
+	    print_acl_add_deny
+		$router, $interface, $nat_map, $model, $intf_prefix, $prefix;
+
+	    my $src = $interface->{peer_network};
+	    my $id = $src->{id};
+	    my $attributes = { %{ $router->{radius_attributes} }, 
+			       %{ $src->{radius_attributes} } 
+			   };
+	    $attributes->{'vpn-filter'} = $filter_name;
+	    my $name = "VPN-router-$user_counter";
+	    $print_group_policy->($name, $attributes);
+	    print "username $id nopassword\n";
+	    print "username $id attributes\n";
+	    print " service-type remote-access\n";
+	    print " vpn-filter value $filter_name\n";
+	    print " vpn-group-policy $name\n";
 	    print "\n";
-  	}
-    }
-}
-
-sub print_acl_add_deny ( $$$$$$ ) {
-    my($router, $hardware, $nat_map, $model, $intf_prefix, $prefix) = @_;
-    my $filter  = $model->{filter};
-
-    # Add deny rules.
-    if ($filter eq 'IOS' and @{ $hardware->{rules} }) {
-	for my $interface (@{ $router->{interfaces} }) {
-
-	    # Ignore 'unnumbered' interfaces.
-	    next if $interface->{ip} =~ /^(?:unnumbered|negotiated|tunnel)$/;
-	    internal_err "Managed router has short $interface->{name}"
-		if $interface->{ip} eq 'short';
-
-	    # IP of other interface may be unknown if dynamic NAT is used.
-	    if ($interface->{hardware} ne $hardware
-		and (my $nat_network = $nat_map->{ $interface->{network} }))
-	    {
-		next if $nat_network->{dynamic};
-	    }
-
-	    # Protect own interfaces.
-	    push @{ $hardware->{intf_rules} },
-	    {
-		action    => 'deny',
-		src       => $network_00,
-		dst       => $interface,
-		src_range => $srv_ip,
-		srv       => $srv_ip
-		};
 	}
     }
-
-    # Iptables already has deny rules at builtin chains.
-    if (not $filter eq 'iptables') {
-	push @{ $hardware->{rules} },
-	{
-	    action    => 'deny',
-	    src       => $network_00,
-	    dst       => $network_00,
-	    src_range => $srv_ip,
-	    srv       => $srv_ip
-	    };
-    }
-
-    # Interface rules
-    acl_line $hardware->{intf_rules}, $nat_map, $intf_prefix, $model;
-
-    # Ordinary rules
-    acl_line $hardware->{rules}, $nat_map, $prefix, $model;
 }
 
 sub print_acls( $ ) {
@@ -10319,10 +10388,7 @@ sub print_acls( $ ) {
     my $comment_char = $model->{comment_char};
 
     print "$comment_char [ ACL ]\n";
-    if ($filter eq 'PIX') {
-        find_object_groups($router) unless $router->{no_group_code};
-    }
-    elsif ($filter eq 'iptables') {
+    if ($filter eq 'iptables') {
 	print "iptables-restore <<EOF\n";
 	print "*filter\n";
 	print_chains $router;
@@ -10767,7 +10833,13 @@ sub print_code( $ ) {
 	    printf("$comment_char [ IP = %s ]\n", 
 		   join(',', @{ $router->{admin_ip} }));
 	}
+
         print_routes $router;
+
+	# Object-Groups are used by crypto as well.
+	if ($router->{model}->{filter} eq 'PIX') {
+	    find_object_groups($router) unless $router->{no_group_code};
+	}
         print_crypto $router;
         print_acls $router;
 	print_interface $router if $model->{name} =~ /^IOS/;
