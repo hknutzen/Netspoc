@@ -917,7 +917,7 @@ sub read_host( $$ ) {
             }
         }
         else {
-            error_atline "Expected some valid attribute";
+            syntax_err "Unexpected attribute";
         }
     }
     $host->{ips} xor $host->{range}
