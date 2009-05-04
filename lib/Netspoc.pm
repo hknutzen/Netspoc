@@ -6370,7 +6370,7 @@ sub expand_crypto () {
 		    my $one_peer = $tunnel_intf->{peers}->[0];
 		    $one_peer->{id_rules} and $one_peer->{peer_network} and
 			err_msg "Must not use network with ID and host with ID",
-			" at $router->{name}";
+			" together at $router->{name}";
 		    $one_peer->{id_rules} or $one_peer->{peer_network} or
 			err_msg "Must use network or host with ID",
 			" at $router->{name}";
@@ -6425,7 +6425,7 @@ sub expand_crypto () {
 	}
     }
 
-    # Check for duplicate IDs at different hosts
+    # Check for duplicate IDs of different hosts
     # coming into current hardware interface / current device.
     for my $router (@managed_vpnhub) {
 	my $is_asavpn = $router->{model}->{crypto} eq 'ASA_VPN';
@@ -6438,7 +6438,7 @@ sub expand_crypto () {
 	    my $hardware = $is_asavpn ? 'one4all' : $interface->{hardware};
 	    my $tunnel = $interface->{network};
 	    if(my $hash = $interface->{id_rules}) {
-		for my $id (values %$hash) {
+		for my $id (keys %$hash) {
 		    if(my $tunnel2 = $hardware2id2tunnel{$hardware}->{$id} ) {
 			err_msg "Using identical ID $id from different",
 			" $tunnel->{name} and $tunnel2->{name}";
