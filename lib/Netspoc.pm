@@ -10136,6 +10136,31 @@ sub print_acl_add_deny ( $$$$$$ ) {
     acl_line $hardware->{rules}, $nat_map, $prefix, $model;
 }
 
+# Valid group-policy attributes.
+# Hash describes usage:
+# - need_value: value of attribute must have prefix 'value'
+# - also_user: attribute is applicable to 'username'
+# - internal: internally generated
+my %asa_vpn_attributes = 
+(
+ # group-policy attributes
+ banner => { need_value => 1, },
+ 'dns-server' => { need_value => 1, },
+ 'default-domain' => { need_value => 1 },
+ 'split-dns' => { need_value => 1 },
+ 'wins-server' =>  { need_value => 1 },
+ 'vpn-access-hours' => { also_user => 1 },
+ 'vpn-Idle-timeout' => { also_user => 1 },
+ 'vpn-session-timeout' => { also_user => 1 },
+ 'vpn-simultaneous-logins' => { also_user => 1 },
+ vlan => {},
+ 'address-pools' => { need_value => 1, internal => 1 },
+ 'split-tunnel-network-list' => { need_value => 1, internal => 1 },
+ 'split-tunnel-policy' => { internal => 1 },
+ 'vpn-filter' => { need_value => 1, internal => 1 },
+ );
+
+			  
 sub print_asavpn ( $ )  {
     my ($router) = @_;
     my $model = $router->{model};
@@ -10151,6 +10176,9 @@ EOF
 
     # Define tunnel group used for single VPN users.
     my $tunnel_group_name = 'VPN-single';
+    my $trust_point = delete $router->{radius_attributes}->{'trust-point'} or
+	err_msg 
+	"Missing 'trust-point' in radius_attributes of $router->{name}";
     print <<"EOF";
 ! Used for all single VPN users
 tunnel-group $tunnel_group_name type remote-access
@@ -10164,7 +10192,7 @@ tunnel-group $tunnel_group_name general-attributes
 tunnel-group $tunnel_group_name ipsec-attributes
  peer-id-validate req
  chain
- trust-point ASDM_TrustPoint4
+ trust-point $trust_point
 ! Disable extended authentication.
  isakmp ikev1-user-authentication none
 tunnel-group-map default-group $tunnel_group_name
@@ -10172,19 +10200,15 @@ tunnel-group-map default-group $tunnel_group_name
 EOF
  
     my $print_group_policy = sub {
- 	my($name, $attributes, $from) = @_;
- 	print "group-policy $name internal";
- 	print " from $from" if $from;
- 	print "\n";
+ 	my($name, $attributes) = @_;
+ 	print "group-policy $name internal\n";
  	print "group-policy $name attributes\n";
  	for my $key (sort keys %$attributes) {
  	    my $value = $attributes->{$key};
-	    if($key eq 'split-tunnel-policy') {
-		print " $key $value\n";
-	    }
-	    else {
-		print " $key value $value\n";
-	    }
+	    my $spec = $asa_vpn_attributes{$key} or
+		err_msg "unknown radius_attribute '$key' for $router->{name}";
+	    my $vstring = $spec->{need_value} ? 'value ' : '';
+	    print " $key $vstring$value\n";
  	}
     };
 
@@ -10320,18 +10344,42 @@ EOF
 		    print "ip local pool $pool_name $ip-$max mask $mask\n";
 		    $attributes->{'vpn-filter'} = $filter_name;
 		    $attributes->{'address-pools'} = $pool_name;
-		    my $name = "VPN-group-$user_counter";
-		    $print_group_policy->($name, $attributes);
+		    my $group_policy_name = "VPN-group-$user_counter";
+		    my %tunnel_gen_att;
+		    $tunnel_gen_att{'default-group-policy'} = 
+			$group_policy_name;
+		    if(my $auth_server = 
+		       delete $attributes->{'authentication-server-group'})
+		    {
+			$tunnel_gen_att{'authentication-server-group'} =
+			    $auth_server;
+		    }
+		    my %tunnel_ipsec_att;
+		    $tunnel_ipsec_att{isakmp} = 
+			'ikev1-user-authentication none';
+		    $tunnel_ipsec_att{'peer-id-validate'} = 'req';
+		    my $trustpoint2 = 
+			delete $attributes->{'trust-point'} || $trust_point;
+		    $tunnel_gen_att{'trust-point'} = $trustpoint2;
+		    $print_group_policy->($group_policy_name, $attributes);
 
 		    my $tunnel_group_name = "VPN-tunnel-$user_counter";
 		    print <<"EOF";
 tunnel-group $tunnel_group_name type remote-access
 tunnel-group $tunnel_group_name general-attributes
- default-group-policy $name
+EOF
+
+while (my($key, $value) = each %tunnel_gen_att) {
+    print " $key $value\n";
+}
+		    print <<"EOF";
 tunnel-group $tunnel_group_name ipsec-attributes
- isakmp ikev1-user-authentication none
- peer-id-validate req
- trust-point ASDM_TrustPoint0
+EOF
+
+while (my($key, $value) = each %tunnel_ipsec_att) {
+    print " $key $value\n";
+}
+		    print <<"EOF";
 tunnel-group-map ca-map-$user_counter 10 $tunnel_group_name
 
 EOF
@@ -10358,13 +10406,13 @@ EOF
 			       %{ $src->{radius_attributes} } 
 			   };
 	    $attributes->{'vpn-filter'} = $filter_name;
-	    my $name = "VPN-router-$user_counter";
-	    $print_group_policy->($name, $attributes);
+	    my $group_policy_name = "VPN-router-$user_counter";
+	    $print_group_policy->($group_policy_name, $attributes);
 	    print "username $id nopassword\n";
 	    print "username $id attributes\n";
 	    print " service-type remote-access\n";
 	    print " vpn-filter value $filter_name\n";
-	    print " vpn-group-policy $name\n";
+	    print " vpn-group-policy $group_policy_name\n";
 	    print "\n";
 	}
     }
