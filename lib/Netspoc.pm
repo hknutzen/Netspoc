@@ -7567,59 +7567,17 @@ sub print_routes( $ ) {
     my ($router)     = @_;
     my $type         = $router->{model}->{routing};
     my $comment_char = $router->{model}->{comment_char};
-    if ($auto_default_route) {
-
-        # Find interface and hop with largest number of routing entries.
-        my $max_intf;
-        my $max_hop;
-
-        # Substitute routes to one hop with a default route,
-        # if there are at least two entries.
-        my $max = 1;
-        for my $interface (@{ $router->{interfaces} }) {
-            if ($interface->{routing}) {
-
-                # If dynamic routing is activated for any interface
-                # of the current router, don't do this optimization at all.
-                $max_intf = undef;
-                last;
-            }
-            for my $hop (@{ $interface->{hop} }) {
-                my $count = keys %{ $interface->{routes}->{$hop} };
-                if ($count > $max) {
-                    $max_intf = $interface;
-                    $max_hop  = $hop;
-                    $max      = $count;
-                }
-            }
-        }
-        if ($max_intf && $max_hop) {
-
-            # Use default route for this direction.
-            $max_intf->{routes}->{$max_hop} = { $network_00 => $network_00 };
-        }
-    }
-    print "$comment_char [ Routing ]\n";
+    my $has_dyn_routing;
+    my %intf2hop2nets;
     for my $interface (@{ $router->{interfaces} }) {
-
-        # Don't generate static routing entries,
-        # if a dynamic routing protocol is activated
         if ($interface->{routing}) {
-            if ($comment_routes) {
-                print "$comment_char Routing $interface->{routing}->{name}",
-                  " at $interface->{name}\n";
-            }
+	    $has_dyn_routing = 1;
             next;
         }
         my $nat_map = $interface->{nat_map};
-        for my $hop (@{ $interface->{hop} }) {
 
-            # For unnumbered and negotiated interfaces use interface name 
-	    # as next hop.
-            my $hop_addr =
-                $interface->{ip} =~ /^(?:unnumbered|negotiated|tunnel)$/
-              ? $interface->{hardware}->{name}
-              : print_ip $hop->{ip};
+        for my $hop (@{ $interface->{hop} }) {
+	    $intf2hop2nets{$interface}->{$hop} = [];
 
             # A hash having all networks reachable via current hop
             # both as key and as value.
@@ -7642,6 +7600,62 @@ sub print_routes( $ ) {
                 if (my $bignet = $network->{is_in}->{$nat_map}) {
                     next if $net_hash->{$bignet};
                 }
+		push @{$intf2hop2nets{$interface}->{$hop}}, $network;
+	    }
+	}
+    }
+    if ($auto_default_route and not $has_dyn_routing) {
+
+        # Find interface and hop with largest number of routing entries.
+        my $max_intf;
+        my $max_hop;
+
+        # Substitute routes to one hop with a default route,
+        # if there are at least two entries.
+        my $max = 1;
+        for my $interface (@{ $router->{interfaces} }) {
+            for my $hop (@{ $interface->{hop} }) {
+                my $count = @{$intf2hop2nets{$interface}->{$hop}};
+                if ($count > $max) {
+                    $max_intf = $interface;
+                    $max_hop  = $hop;
+                    $max      = $count;
+                }
+            }
+        }
+        if ($max_intf && $max_hop) {
+
+            # Use default route for this direction.
+            $intf2hop2nets{$max_intf}->{$max_hop} = [ $network_00 ];
+        }
+    }
+    print "$comment_char [ Routing ]\n";
+    for my $interface (@{ $router->{interfaces} }) {
+
+        # Don't generate static routing entries,
+        # if a dynamic routing protocol is activated
+        if ($interface->{routing}) {
+            if ($comment_routes) {
+                print "$comment_char Routing $interface->{routing}->{name}",
+                  " at $interface->{name}\n";
+            }
+            next;
+        }
+
+        my $nat_map = $interface->{nat_map};
+        for my $hop (@{ $interface->{hop} }) {
+
+            # For unnumbered and negotiated interfaces use interface name 
+	    # as next hop.
+            my $hop_addr =
+                $interface->{ip} =~ /^(?:unnumbered|negotiated|tunnel)$/
+              ? $interface->{hardware}->{name}
+              : print_ip $hop->{ip};
+
+            # A hash having all networks reachable via current hop
+            # both as key and as value.
+            my $net_hash = $interface->{routes}->{$hop};
+            for my $network (@{$intf2hop2nets{$interface}->{$hop}})            {
                 if ($comment_routes) {
                     print "! route $network->{name} -> $hop->{name}\n";
                 }
