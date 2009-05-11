@@ -8653,7 +8653,7 @@ sub acl_line( $$$$ ) {
 		            ? $action->{name} 
 	                    : $action eq 'permit' 
 			    ? 'ACCEPT'
-		: 'DROP';
+			    : 'droplog';
 	    my $jump = $rule->{goto} ? '-g' : '-j';
 	    my $result = "$prefix $jump $action_code";
 	    if($spair->[1] != 0) {
@@ -9545,6 +9545,11 @@ sub print_chains ( $ ) {
 	print ":$name -\n";
     }
 
+    # Add user defined chain 'droplog'.
+    print ":droplog -\n";
+    print "-A droplog -j LOG --log-level debug\n";
+    print "-A droplog -j DROP\n";
+
     # Define chains.
     for my $chain (@{ $router->{chains} }) {
         my $name    = $chain->{name};
@@ -9555,7 +9560,7 @@ sub print_chains ( $ ) {
 		            ? $action->{name} 
 	                    : $action eq 'permit' 
 			    ? 'ACCEPT'
-          : 'DROP';
+                            : 'droplog';
 	    my $jump = $rule->{goto} ? '-g' : '-j';
 	    my $result = "$jump $action_code";
 	    if(my $src = $rule->{src}) {
@@ -10511,13 +10516,13 @@ sub print_acls( $ ) {
             my $if_name = "$hardware->{name}_self";
             print "-A INPUT -j $if_name -i $hardware->{name} \n";
         }
-        print "-A INPUT -j DROP\n";
+        print "-A INPUT -j droplog\n";
         print "-A FORWARD -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
         for my $hardware (@{ $router->{hardware} }) {
             my $acl_name = "$hardware->{name}_in";
             print "-A FORWARD -j $acl_name -i $hardware->{name}\n";
         }
-        print "-A FORWARD -j DROP\n";
+        print "-A FORWARD -j droplog\n";
 	print "EOF\n";
     }
 }
