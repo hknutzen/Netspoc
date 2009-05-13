@@ -10445,7 +10445,7 @@ sub print_acls( $ ) {
 
     print "$comment_char [ ACL ]\n";
     if ($filter eq 'iptables') {
-	print "iptables-restore <<EOF\n";
+	print "#!/usr/sbin/iptables-restore <<EOF\n";
 	print "*filter\n";
 	print_chains $router;
     }
