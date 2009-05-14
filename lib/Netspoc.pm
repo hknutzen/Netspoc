@@ -10029,19 +10029,17 @@ sub print_vpn3k( $ ) {
 	}
 
 	# Add split tunnel list.
-	if(values %split_tunnel_networks) {
-	    my @split_tunnel_networks;
-	    for my $network 
-		(sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
-		 values %split_tunnel_networks)
-	    {
-		my $ip = print_ip $network->{ip};
-		my $mask = print_ip complement_32bit $network->{mask};
-		push @split_tunnel_networks, { base => $ip, mask => $mask };
-	    }
-	    $entry->{split_tunnel_networks} =
-		[ map { { network => $_ } } @split_tunnel_networks ];
+	my @split_tunnel_networks;
+	for my $network 
+	    (sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
+	     values %split_tunnel_networks)
+	{
+	    my $ip = print_ip $network->{ip};
+	    my $mask = print_ip complement_32bit $network->{mask};
+	    push @split_tunnel_networks, { base => $ip, mask => $mask };
 	}
+	$entry->{split_tunnel_networks} =
+	    [ map { { network => $_ } } @split_tunnel_networks ];
     };
 
     for my $interface (@{ $router->{interfaces} }) {
@@ -10523,6 +10521,7 @@ sub print_acls( $ ) {
             print "-A FORWARD -j $acl_name -i $hardware->{name}\n";
         }
         print "-A FORWARD -j droplog\n";
+	print "COMMIT\n";
 	print "EOF\n";
     }
 }
