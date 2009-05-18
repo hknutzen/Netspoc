@@ -10406,7 +10406,7 @@ EOF
   
 	# A VPN network.
 	else {
-
+	    $user_counter++;
 	    find_object_groups($router, $interface);
 
 	    # Define filter ACL to be used in username or group-policy.
