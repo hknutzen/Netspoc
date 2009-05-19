@@ -208,6 +208,7 @@ my %router_info = (
 	{
 	    VPN => { crypto           => 'ASA_VPN',
 		     no_crypto_filter => 0,
+		     stateless_tunnel => 1,
 		     do_auth          => 1,
 		 },
 	},
@@ -6934,7 +6935,7 @@ sub gen_reverse_rules1 ( $ ) {
         {
 
             # Local function.
-            # It uses variable $has_stateless_router.
+            # It uses free variable $has_stateless_router.
             my $mark_reverse_rule = sub( $$$ ) {
                 my ($rule, $in_intf, $out_intf) = @_;
 
@@ -6946,17 +6947,15 @@ sub gen_reverse_rules1 ( $ ) {
                 return unless $router->{managed};
                 my $model = $router->{model};
 
-                # Source of current rule is current router.
-                if (not $in_intf) {
-                    if ($model->{stateless_self}) {
-                        $has_stateless_router = 1;
+                if ($model->{stateless}
 
-                        # Jump out of path_walk.
-                        no warnings "exiting";
-                        last PATH_WALK if $use_nonlocal_exit;
-                    }
-                }
-                elsif ($model->{stateless}) {
+		    # Source of current rule is current router.
+		    or not $in_intf and $model->{stateless_self}
+
+		    # Stateless tunnel interface of ASA-VPN.
+		    or $model->{stateless_tunnel} 
+		    and $out_intf->{ip} eq 'tunnel')
+		{
                     $has_stateless_router = 1;
 
                     # Jump out of path_walk.
@@ -7873,12 +7872,16 @@ sub distribute_rule( $$$ ) {
     return unless $router->{managed};
     my $model = $router->{model};
 
-    # Rules of type stateless must only be processed at stateless routers
-    # or at routers which are stateless for packets destined for
-    # their own interfaces.
+    # Rules of type stateless must only be processed at
+    # - stateless routers or
+    # - routers which are stateless for packets destined for
+    #   their own interfaces or
+    # - stateless tunnel interfaces of ASA-VPN.
     if ($rule->{stateless}) {
-        unless ($model->{stateless}
-            or not $out_intf and $model->{stateless_self})
+        if(not 
+	   ($model->{stateless}
+            or not $out_intf and $model->{stateless_self}
+	    or $model->{stateless_tunnel} and $in_intf->{ip} eq 'tunnel'))
         {
             return;
         }
