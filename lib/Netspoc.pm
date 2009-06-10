@@ -6330,6 +6330,9 @@ sub expand_crypto () {
 				      ip => 'tunnel',
 				      src => $subnet,
 				      nat_map => $peer->{nat_map},
+
+				      # Needed during local_optimization.
+				      router => $peer->{router},
 				  };
 				}
 			    }
@@ -9802,6 +9805,7 @@ sub local_optimization() {
                         my ($action, $src, $dst, $src_range, $srv) =
                           @{$rule}{ 'action', 'src', 'dst', 'src_range',
                             'srv' };
+
                         while (1) {
                             my $src = $src;
                             if (my $hash = $hash{$action}) {
@@ -9853,7 +9857,6 @@ sub local_optimization() {
                         # if possible.
                         if ($secondary_filter && $rule->{some_non_secondary} ||
 			    $standard_filter && $rule->{some_primary}) {
-
                             $action = $rule->{action};
 			    $src = $rule->{src};
 
