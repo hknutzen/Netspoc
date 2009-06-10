@@ -8475,7 +8475,7 @@ sub cisco_srv_code( $$$ ) {
 	    if($model->{filter} eq 'PIX') {
 		err_msg "Must not use 'established' at '$model->{name}'\n",
 		" - try model=secondary or \n",
-		" - don't use outgoing connection to VPN client".
+		" - don't use outgoing connection to VPN client";
 	    }
 	    if(defined $dst_srv) {
 		$dst_srv .= ' established';
