@@ -84,6 +84,7 @@ our @EXPORT = qw(
   is_servicegroup
   is_objectgroup
   is_chain
+  is_autointerface
   read_args
   read_netspoc
   read_file
