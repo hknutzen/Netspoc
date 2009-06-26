@@ -38,7 +38,10 @@ BEGIN {
 }
 use lib $path;
 use Netspoc;
-use locale;
+#use bytes;
+
+use Encode;
+
 
 ####################################################################
 # Main program
@@ -62,6 +65,9 @@ die "Aborted with $error_counter error(s)\n" if $error_counter;
 # Automatically terminate lines.
 $\ = "\n";
 
+# Encode output as Latin1.
+binmode(STDOUT, ":encoding(latin1)");
+
 my %model2type = (
     IOS    => [ 'pep.ios.router', '12.4' ],
     IOS_FW => [ 'pep.ios.router', '12.4', 'propFfs=yes' ],
@@ -73,6 +79,7 @@ my %model2type = (
 
 my @routers  = grep { not $_->{disabled} } values %routers;
 my @networks = grep { not $_->{disabled} } values %networks;
+my @hosts    = grep { not $_->{disabled} } values %hosts;
 my @groups   = values %groups;
 my @services = values %services;
 my @servicegroups = values %servicegroups;
@@ -81,24 +88,33 @@ my @policies = values %policies;
 my %used_name = ('internet' => 'Internet');
 
 # Solsoft needs unique names for all types recardless of case.
+# Name must be max. 80 characters long (incl. "/" of network/class)
+my $max = 79;
 sub get_name ( $ ) {
     my($in) = @_;
     my($type, $name) = split(':', $in, 2);
+    $name = substr($name, 0, $max);
     if($used_name{lc $name}) {
 	$name = $in if $type;
+	$name = substr($name, 0, $max);
 	my $counter = 1;
 	my $base = $name;
 	while($used_name{lc $name}) {
+	    my $extra = length($counter);
+	    $base = substr($base, 0, ($max - $extra));
 	    $name = "$base$counter";
 	    $counter++;
 	}
     }
     $used_name{lc $name} = $name;
+#    my $len = length($name);
+#    print STDERR "$len: $name" if $len > 80;
     return "\"$name\"";
 }	
 
 # Get router name before network names, because router name must not change.
-for my $aref (\@routers, \@networks, \@groups, \@services, \@servicegroups) {
+for my $aref (\@routers, \@networks, \@hosts, 
+	      \@groups, \@services, \@servicegroups) {
     for my $obj (@$aref) {
 	my $name = get_name $obj->{name};
 	$obj->{new_name} = $name;
@@ -200,9 +216,9 @@ for my $network (@networks) {
     print "network $name $addr";
     for my $host (@hosts) {
 	@addr = ();
-	my $host_name = $host->{name};
-	$host_name = (split(':', $host_name))[$host->{id} ? 2 : 1];
-	$host_name = "$name/\"$host_name\"";
+	my $host_name = "$name/$host->{new_name}";
+
+	# Full qualified name is used later in metaclasses.
 	$host->{new_name} = $host_name;
 	if(my $ips = $host->{ips}) {
 	    $addr = join ',', map { print_ip $_ } @$ips;
@@ -227,8 +243,22 @@ for my $router (@routers) {
     next if not $router->{managed};
     my $name = $router->{new_name};
     my $model = $router->{model};
-    my $type_info = $model2type{$model->{name}} or 
-	die "Can't handle $name with model=$model\n";
+    my $at_silan;
+    for my $interface (@{$router->{interfaces}}) {
+	my $network = $interface->{network};
+	if($network->{name} eq 'network:SI_LAN') {
+	    $at_silan = 1;
+	    last;
+	}
+    }
+    my $type_info;
+    if($at_silan) {
+	$type_info = $model2type{$model->{name}} or 
+	    die "Can't handle $name with model=$model\n";
+    }
+    else {
+	$type_info = ['pep.unknown', '0.0'];
+    }
     my($type, $version, $param) = @$type_info;
     my $append = $param ? " param($param)" : '';
     print "device $name $type $version$append";
@@ -273,10 +303,15 @@ for my $router (@routers) {
     @ips = map { print_ip $_ } @ips;
     my $addr = @ips ? join ',', @ips : 'void';
     print "nexus $name $addr";
+
+    # Prevent duplicate links from interfaces with multiple IP addresses.
+    my %duplicate;
     for my $interface (@{$router->{interfaces}}) {
 	my $network = $interface->{network};
 	next if $network->{master};
 	next if $network->{ip} eq 'tunnel';
+	next if $duplicate{$network};
+	$duplicate{$network} = 1;
 	my $net_name = $network->{new_name};
 	print "link $name $net_name";
     }
@@ -652,4 +687,9 @@ for my $policy (@policies) {
 	print "$action $srv_name $src - $dst param(note=\"$note\")";
     }
 }
+
+print "class test_labor/\"CM Designer\" 10.3.42.116";
+print "class test_labor/\"CM Server\" 10.3.42.211";
+
+print "# the end";
 
