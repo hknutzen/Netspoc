@@ -238,6 +238,9 @@ for my $network (@networks) {
     }
 }
 
+# Collect redundancy interfaces for generating limited path zones.
+my @redundancy_interfaces;
+
 # Print managed routers
 for my $router (@routers) {
     next if not $router->{managed};
@@ -245,6 +248,9 @@ for my $router (@routers) {
     my $model = $router->{model};
     my $at_silan;
     for my $interface (@{$router->{interfaces}}) {
+	if(my $redundancy_interfaces = $interface->{redundancy_interfaces}) {
+	    push @redundancy_interfaces, $redundancy_interfaces;
+	}
 	my $network = $interface->{network};
 	if($network->{name} eq 'network:SI_LAN') {
 	    $at_silan = 1;
@@ -687,6 +693,29 @@ for my $policy (@policies) {
 	print "$action $srv_name $src - $dst param(note=\"$note\")";
     }
 }
+
+print 'aggregate /steik40xn1',
+    ' "network:steik40an1","steik40an1_GRE" type(frontier)';
+print 'aggregate /Stala_Kiel_Verbindungen_mit_FHH_net',
+    ' "pixland-eist","pixland5","sidzsh" type(frontier)';
+print 'aggregate /Stala_Kiel_Verbindungen_mit_FHH_net2',
+    ' "network:lit_cloud","sipixhausa" type(frontier)';
+
+{
+    my %unique;
+    @redundancy_interfaces = 
+	grep { not $unique{$_}++ } @redundancy_interfaces;
+}
+
+my $zone_counter = 1; 
+for my $interfaces (@redundancy_interfaces) {
+    my @routers = map { $_->{router} } @$interfaces;
+    my $elements = join',', map { $_->{new_name} } @routers;
+    print "aggregate /zone$zone_counter",
+    " $elements type(frontier)";
+    $zone_counter++;
+}
+
 
 print "class test_labor/\"CM Designer\" 10.3.42.116";
 print "class test_labor/\"CM Server\" 10.3.42.211";
