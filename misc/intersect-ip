@@ -1,0 +1,119 @@
+#!/usr/bin/perl
+# intersect-ip
+#
+# Reads two lists of ip addresses
+# first list: ip or ip/prefix
+# second list: ip, ip1-ip2, ip/prefix
+#
+# Outputs all addresses of list2, which are contained in an element of list1.
+
+use strict;
+use warnings;
+use FindBin;
+use lib $FindBin::Bin;
+use Netspoc;
+
+####################################################################
+# Argument processing
+####################################################################
+sub usage() {
+    die "Usage: $0 [-v] ip-list1 [ip-list2]\n";
+}
+
+my $vice_versa;
+if($ARGV[0] eq '-v') {
+    shift;
+    $vice_versa = 1;
+}
+
+####################################################################
+# Argument to read_file; reads ip, ip-ip or ip/prefixlen
+# Each address is stored as an anonymous hash, 
+# thus we can add additional attributes later.
+####################################################################
+my @objects;
+sub read_ip_stream() {
+    my $ip = read_ip();
+    my $object = { ip => $ip };
+    if (Netspoc::check('-')) {
+	my $ip2 = read_ip();
+	$ip < $ip2 or 
+	    err_msg "Illegal range: ", print_ip $ip, '-', print_ip $ip2;
+	$object->{ip} = $ip;
+	$object->{ip2} = $ip2 ;
+	$object->{orig} = print_ip($ip).'-'.print_ip($ip2);
+    }
+    elsif(Netspoc::check('/')) {
+	my $prefixlen = Netspoc::read_int();
+	my $mask = Netspoc::prefix2mask($prefixlen);
+	$object->{ip} = $ip;
+	$object->{mask} = $mask;
+	$object->{orig} = print_ip($ip)."/$prefixlen";
+    }
+    else {
+	$object->{ip} = $ip;
+	$object->{orig} = print_ip($ip);
+    }
+    push @objects, $object;
+}
+
+# read from file
+my $list1 = shift or usage;# read from file
+my $list2 = shift || '-';
+
+# read a space separated list of ip addresses
+# Undef input record separator.
+local $/;
+&read_file($list1, \&read_ip_stream);
+my @list1 = @objects;
+@objects = ();
+&read_file($list2, \&read_ip_stream);
+my @list2 = @objects;
+@objects = ();
+
+# prepare efficient lookup of network objects of list1
+my %mask_ip_hash;
+for my $obj (@list1) {
+    my $ip = $obj->{ip};
+    my $ip2 = $obj->{ip2};
+    my $mask = $obj->{mask} || 0xffffffff;
+    if(defined $ip2) {
+	err_msg "Unexpected $obj->{orig} in list1";
+	next;
+    }
+    $mask_ip_hash{$mask}->{$ip} = $obj;
+}
+
+my @found;
+my @unknown;
+ OBJ:
+for my $obj (@list2) {
+    my $ip = $obj->{ip};
+    my $ip2 = $obj->{ip2};
+    my $mask = $obj->{mask} || 0xffffffff;
+
+    my $m = $mask;
+    my $i = $ip;
+    while($m) {
+	$i &= $m;
+	if(my $ip_hash = $mask_ip_hash{$m}) {
+	    if(my $net = $ip_hash->{$i}) {
+		if($ip2 && (($ip2 & $m) != $i)) {
+		}
+		else {
+		    push @found, $obj;
+		    next OBJ;
+		}
+	    }
+	}
+	# Clear upper bit, because left shift is undefined otherwise.
+	$m &= 0x7fffffff;
+	$m <<= 1;
+    }
+    push @unknown, $obj;
+}
+
+# Print result.
+for my $obj ($vice_versa ? @unknown : @found) {
+    print "$obj->{orig}\n";
+}
