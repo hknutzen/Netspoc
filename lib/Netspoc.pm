@@ -4804,9 +4804,53 @@ sub find_subnets() {
             next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
             my $nat_network = $nat_map->{$network} || $network;
             my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
+
+	    # Found two different networks with identical ip/mask.
+	    # in current NAT domain.
             if (my $old_net = $mask_ip_hash{$mask}->{$ip}) {
                 my $nat_old_net = $nat_map->{$old_net} || $old_net;
-                unless ($nat_old_net->{dynamic} and $nat_network->{dynamic}) {
+
+		# Prevent aliasing of loopabove.
+		my $network = $network;
+		my $error;
+                if ($nat_old_net->{dynamic} and $nat_network->{dynamic}) {
+
+		    # Dynamic NAT of different networks to a single new ip/mask is ok.
+		}
+		elsif($nat_old_net->{loopback} and $nat_network->{dynamic} or
+		      $nat_old_net->{dynamic} and $nat_network->{loopback}) {
+
+		    # Store loopback network, ignore natted network.
+		    if($nat_old_net->{dynamic}) {
+			$mask_ip_hash{$mask}->{$ip} = $network;
+			($old_net, $network) = ($network, $old_net);
+			($nat_old_net, $nat_network) = ($nat_network, $nat_old_net);
+		    }
+
+		    # Dynamic NAT to loopback interface is ok, 
+		    # if NAT is applied at device of loopback interface.
+		    # 
+		    # Check all interfaces of attached device.
+		    # Handle virtual loopback case as well.
+		    my $nat_tag1 = $nat_network->{dynamic};
+		    my $all_device_ok = 0;
+		    for my $loop_intf (@{$nat_old_net->{interfaces}}) {
+			my $this_device_ok = 0;
+			for my $all_intf (@{$loop_intf->{router}->{interfaces}}) {
+			    if(my $nat_tag2 = $all_intf->{bind_nat}) {
+				$this_device_ok = 1;
+			    }
+			}
+			$all_device_ok += $this_device_ok;
+		    }
+		    if($all_device_ok != @{$nat_old_net->{interfaces}}) {
+			$error = 1;
+		    }
+		}
+		else {
+		    $error = 1;
+		}
+		if($error) {
 		    my $name1 = $network->{name};
 		    my $name2 = $old_net->{name};
 		    my $nat1 = $nat_network->{name};
@@ -4817,6 +4861,8 @@ sub find_subnets() {
                 }
             }
             else {
+
+		# Store original network under NAT ip/mask.
                 $mask_ip_hash{$mask}->{$ip} = $network;
             }
         }
