@@ -8066,7 +8066,8 @@ sub set_policy_distribution_ip () {
 	    $pdp = $pdp->{up};
 	}
     }
-    my $nat_map = $policy_distribution_point->{nat_domain}->{nat_map};
+    my $nat_map = 
+	$policy_distribution_point->{network}->{nat_domain}->{nat_map};
     for my $router (@managed_routers) {
 	my %interfaces;
 	for my $intf (@{ $router->{hardware} }, 

@@ -34,27 +34,44 @@ if($ARGV[0] eq '-v') {
 my @objects;
 sub read_ip_stream() {
     my $ip = read_ip();
-    my $object = { ip => $ip };
     if (Netspoc::check('-')) {
 	my $ip2 = read_ip();
-	$ip < $ip2 or 
-	    err_msg "Illegal range: ", print_ip $ip, '-', print_ip $ip2;
-	$object->{ip} = $ip;
-	$object->{ip2} = $ip2 ;
-	$object->{orig} = print_ip($ip).'-'.print_ip($ip2);
+	my $orig = print_ip($ip).'-'.print_ip($ip2);
+	$ip <= $ip2 or err_msg "Illegal range: $orig";
+	my @ip_mask = Netspoc::split_ip_range($ip, $ip2);
+	for my $ip_mask (@ip_mask) {
+	    my $object = {};
+	    my ($ip, $mask) = @$ip_mask;
+	    my $orig;
+	    if($mask == 0xffffffff) {
+		$orig = print_ip($ip);
+	    }
+	    else {
+		my $end = (Netspoc::complement_32bit $mask) + $ip;
+		$orig = print_ip($ip).'-'.print_ip($end);
+	    }
+	    $object->{ip} = $ip;
+	    $object->{mask} = $mask;
+	    $object->{orig} = $orig;
+	    push @objects, $object;
+	}
     }
     elsif(Netspoc::check('/')) {
 	my $prefixlen = Netspoc::read_int();
 	my $mask = Netspoc::prefix2mask($prefixlen);
+	my $object = {};
 	$object->{ip} = $ip;
 	$object->{mask} = $mask;
 	$object->{orig} = print_ip($ip)."/$prefixlen";
+	push @objects, $object;
     }
     else {
+	my $object = {};
 	$object->{ip} = $ip;
+	$object->{mask} = 0xffffffff;
 	$object->{orig} = print_ip($ip);
+	push @objects, $object;
     }
-    push @objects, $object;
 }
 
 # read from file
@@ -75,12 +92,7 @@ my @list2 = @objects;
 my %mask_ip_hash;
 for my $obj (@list1) {
     my $ip = $obj->{ip};
-    my $ip2 = $obj->{ip2};
-    my $mask = $obj->{mask} || 0xffffffff;
-    if(defined $ip2) {
-	err_msg "Unexpected $obj->{orig} in list1";
-	next;
-    }
+    my $mask = $obj->{mask};
     $mask_ip_hash{$mask}->{$ip} = $obj;
 }
 
