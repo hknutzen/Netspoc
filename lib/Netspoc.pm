@@ -4793,6 +4793,7 @@ sub distribute_nat_info() {
 # Find subnetworks
 # Mark each network with the smallest network enclosing it.
 ####################################################################
+
 sub find_subnets() {
     info "Finding subnets";
     for my $domain (@natdomains) {
@@ -4800,6 +4801,8 @@ sub find_subnets() {
 #     debug "$domain->{name}";
         my $nat_map = $domain->{nat_map};
         my %mask_ip_hash;
+	my %identical;
+	my %key2obj;
         for my $network (@networks) {
             next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
             my $nat_network = $nat_map->{$network} || $network;
@@ -4810,7 +4813,7 @@ sub find_subnets() {
             if (my $old_net = $mask_ip_hash{$mask}->{$ip}) {
                 my $nat_old_net = $nat_map->{$old_net} || $old_net;
 
-		# Prevent aliasing of loopabove.
+		# Prevent aliasing of loop variable.
 		my $network = $network;
 		my $error;
                 if ($nat_old_net->{dynamic} and $nat_network->{dynamic}) {
@@ -4820,7 +4823,7 @@ sub find_subnets() {
 		elsif($nat_old_net->{loopback} and $nat_network->{dynamic} or
 		      $nat_old_net->{dynamic} and $nat_network->{loopback}) {
 
-		    # Store loopback network, ignore natted network.
+		    # Store loopback network, ignore translated network.
 		    if($nat_old_net->{dynamic}) {
 			$mask_ip_hash{$mask}->{$ip} = $network;
 			($old_net, $network) = ($network, $old_net);
@@ -4859,6 +4862,12 @@ sub find_subnets() {
 		    $name2 .= " with $nat2" if $name2 ne $nat2;
                     err_msg "$name1 and $name2 have identical ip/mask";
                 }
+		else {
+
+		    # Remember identical networks.
+		    $identical{$network} = $old_net;
+		    $key2obj{$network} = $network;
+		}
             }
             else {
 
@@ -4866,6 +4875,15 @@ sub find_subnets() {
                 $mask_ip_hash{$mask}->{$ip} = $network;
             }
         }
+	for my $net_key (keys %identical) {
+	    my $one_net = $identical{$net_key};
+	    while(my $next = $identical{$one_net}) {
+		$one_net = $next;
+	    }
+	    my $network = $key2obj{$net_key};
+	    $network->{is_identical}->{$nat_map} = $one_net;
+#	    debug "Identical: $network->{name}: $one_net->{name}";
+	}
 
         # Go from smaller to larger networks.
         for my $mask (reverse sort keys %mask_ip_hash) {
@@ -4873,6 +4891,7 @@ sub find_subnets() {
             # Network 0.0.0.0/0.0.0.0 can't be subnet.
             last if $mask == 0;
             for my $ip (keys %{ $mask_ip_hash{$mask} }) {
+
                 my $m = $mask;
                 my $i = $ip;
                 while ($m) {
@@ -4884,11 +4903,12 @@ sub find_subnets() {
                     $i &= $m;
                     if ($mask_ip_hash{$m}->{$i}) {
                         my $bignet = $mask_ip_hash{$m}->{$i};
-                        my $subnet = $mask_ip_hash{$mask}->{$ip};
+			my $subnet = $mask_ip_hash{$mask}->{$ip};
 
                         # Mark subnet relation.
                         # This may differ for different NAT domains.
                         $subnet->{is_in}->{$nat_map} = $bignet;
+
                         if ($strict_subnets) {
 
 			    # Take original $bignet, because currently 
@@ -7310,6 +7330,14 @@ sub collect_route( $$$ ) {
             next RULE;
         }
 
+	# Prevent duplicate routes for networks which are translated
+	# to the same ip address.
+	if(my $identical = $network->{is_identical}) {
+	    if(my $one_net = $identical->{$in_intf->{nat_map}}) {
+		$network = $one_net;
+	    }
+	}
+
 #	debug "Route at $in_intf->{name}: $network->{name} via $out_intf->{name}";
         $in_intf->{routes}->{$out_intf}->{$network} = $network;
 
@@ -7649,6 +7677,7 @@ sub print_routes( $ ) {
                 if (my $bignet = $network->{is_in}->{$nat_map}) {
                     next if $net_hash->{$bignet};
                 }
+		
 		push @{$intf2hop2nets{$interface}->{$hop}}, $network;
 	    }
 	}
@@ -7777,6 +7806,23 @@ sub print_pix_static( $ ) {
 
 	    # Needed for "global (outside) interface" command.
 	    my $out_intf_ip = $out_hw->{interfaces}->[0]->{ip};
+
+	    # Prevent duplicate entries from different networks translated
+	    # to an identical address.
+	    my @has_indentical;
+	    for my $network (values %$net_hash) {
+		my $identical = $network->{is_identical} or next;
+		my $in = $identical->{$in_nat};
+		my $out = $identical->{$out_nat};
+		if($in && $out && $in eq $out) {
+		    push @has_indentical, $network;
+		}
+	    }
+	    for my $network (@has_indentical) {
+		delete $net_hash->{$network};
+		my $one_net = $network->{is_identical}->{$out_nat};
+		$net_hash->{$one_net} = $one_net;
+	    }
 
             # Sorting is only needed for getting output deterministic.
 	    # For equal addresses look at the NAT address.
@@ -9655,7 +9701,7 @@ sub print_chains ( $ ) {
 			 ? $srv_icmp
 		         : $srv_ip;
 		}		
-		debug "c ",print_rule $rule if not $src_range or not $srv;
+#		debug "c ",print_rule $rule if not $src_range or not $srv;
 		$result .= ' ' . iptables_srv_code($src_range, $srv);
 	    }
 	    print "$prefix $result\n";
@@ -9813,8 +9859,12 @@ sub local_optimization() {
         # Subnet relation may be different for each NAT domain,
         # therefore it is set up again for each NAT domain.
         for my $network (@networks) {
-            $network->{up} = $network->{is_in}->{$nat_map} || $network_00;
+            $network->{up} = 
+		$network->{is_in}->{$nat_map} || 
+		$network->{is_identical}->{$nat_map} || 
+		$network_00;
         }
+
         for my $network (@{ $domain->{networks} }) {
 
 	    # Iterate over all interfaces attached to current network.
@@ -9838,6 +9888,7 @@ sub local_optimization() {
 		    find_chains $router, $hardware;
 		    next;
 		}
+#		debug "$router->{name}";
                 for my $rules ('intf_rules', 'rules') {
                     my %hash;
                     my $changed = 0;
@@ -9850,6 +9901,7 @@ sub local_optimization() {
                     }
                   RULE:
                     for my $rule (@{ $hardware->{$rules} }) {
+#			debug print_rule $rule;
                         my ($action, $src, $dst, $src_range, $srv) =
                           @{$rule}{ 'action', 'src', 'dst', 'src_range',
                             'srv' };
@@ -9875,6 +9927,8 @@ sub local_optimization() {
                                                                 unless ($rule eq
                                                                     $other_rule)
                                                                 {
+# debug "del:", print_rule $rule;
+# debug "oth:", print_rule $other_rule;
                                                                     $rule =
                                                                       undef;
                                                                     $changed =
@@ -9917,6 +9971,14 @@ sub local_optimization() {
 				# get_networks has a single result if
 				# not called with an 'any' object as argument.
 				$src = get_networks $src;
+
+				# Prevent duplicate ACLs for networks which 
+				# are translated to the same ip address.
+				if(my $identical = $src->{is_identical}) {
+				    if(my $one_net = $identical->{$nat_map}) {
+					$src = $one_net;
+				    }
+				}
 			    }
                             $dst = $rule->{dst};
                             if (not(is_interface $dst and
@@ -9926,6 +9988,11 @@ sub local_optimization() {
 				    $do_auth))
                             {
                                 $dst = get_networks $dst;
+				if(my $identical = $dst->{is_identical}) {
+				    if(my $one_net = $identical->{$nat_map}) {
+					$dst = $one_net;
+				    }
+				}
                             }
 
                             # Don't modify original rule, because the
@@ -9938,6 +10005,7 @@ sub local_optimization() {
                                 src_range => $srv_ip,
                                 srv       => $srv_ip,
                             };
+#			    debug "sec:", print_rule $new_rule;
 
                             # Add new rule to hash. If there are multiple
                             # rules which could be converted to the same
