@@ -10504,7 +10504,7 @@ EOF
 		    $tunnel_ipsec_att{'peer-id-validate'} = 'req';
 		    my $trustpoint2 = 
 			delete $attributes->{'trust-point'} || $trust_point;
-		    $tunnel_gen_att{'trust-point'} = $trustpoint2;
+		    $tunnel_ipsec_att{'trust-point'} = $trustpoint2;
 		    $print_group_policy->($group_policy_name, $attributes);
 
 		    my $tunnel_group_name = "VPN-tunnel-$user_counter";
