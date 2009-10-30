@@ -696,10 +696,12 @@ for my $policy (@policies) {
 
 print 'aggregate /steik40xn1',
     ' "network:steik40an1","steik40an1_GRE" type(frontier)';
-print 'aggregate /Stala_Kiel_Verbindungen_mit_FHH_net',
-    ' "pixland-eist","pixland5","sidzsh" type(frontier)';
-print 'aggregate /Stala_Kiel_Verbindungen_mit_FHH_net2',
+print 'aggregate /FHH_net',
+    ' "nakahhhr01","sidzsh" type(frontier)';
+print 'aggregate /FHH_net2',
     ' "network:lit_cloud","sipixhausa" type(frontier)';
+print 'aggregate /FHH_net3',
+    ' "FHH_Hamburg_Kopplung_Daten","sidzsh" type(frontier)';
 
 {
     my %unique;
@@ -717,8 +719,8 @@ for my $interfaces (@redundancy_interfaces) {
 }
 
 
-print "class test_labor/\"CM Designer\" 10.3.42.116";
-print "class test_labor/\"CM Server\" 10.3.42.211";
+print "class Test_Arne/\"SCM Designer\" 10.1.0.29";
+print "class Test_Arne/\"SCM Server\" 10.1.0.29";
 
 print "# the end";
 
