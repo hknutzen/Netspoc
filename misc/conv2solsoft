@@ -251,20 +251,21 @@ for my $router (@routers) {
 	if(my $redundancy_interfaces = $interface->{redundancy_interfaces}) {
 	    push @redundancy_interfaces, $redundancy_interfaces;
 	}
-	my $network = $interface->{network};
-	if($network->{name} eq 'network:SI_LAN') {
-	    $at_silan = 1;
-	    last;
-	}
+#	my $network = $interface->{network};
+#	if($network->{name} eq 'network:SI_LAN') {
+#	    $at_silan = 1;
+#	    last;
+#	}
     }
-    my $type_info;
-    if($at_silan) {
-	$type_info = $model2type{$model->{name}} or 
-	    die "Can't handle $name with model=$model\n";
-    }
-    else {
-	$type_info = ['pep.unknown', '0.0'];
-    }
+    my $type_info = $model2type{$model->{name}} || ['pep.unknown', '0.0'];
+#   if($at_silan) {
+#	$type_info = $model2type{$model->{name}} or 
+#	    die "Can't handle $name with model=$model\n";
+#    }
+#    else {
+#	$type_info = ['pep.unknown', '0.0'];
+#    }
+    
     my($type, $version, $param) = @$type_info;
     my $append = $param ? " param($param)" : '';
     print "device $name $type $version$append";
