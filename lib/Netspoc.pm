@@ -10232,10 +10232,42 @@ sub print_vpn3k( $ ) {
 sub print_acl_add_deny ( $$$$$$ ) {
     my($router, $hardware, $nat_map, $model, $intf_prefix, $prefix) = @_;
     my $filter = $model->{filter};
+	    
+    if ($filter eq 'IOS') {
 
-    # Add deny rules.
-    if ($filter eq 'IOS' and @{ $hardware->{rules} }) {
-	for my $interface (@{ $router->{interfaces} }) {
+	# Add deny rules to protect own interfaces.
+	# If a rule permits traffic to a directly connected network
+	# behind the device, this would accidently permit traffic 
+	# to an interface of this device as well.
+	my %need_protect;
+	my $protect_all;
+      RULE:
+	for my $rule (@{ $hardware->{rules} }) {
+	    next if $rule->{action} eq 'deny';
+	    my $dst = $rule->{dst};
+	    if(is_any $dst) {
+		$protect_all = 1;
+#		debug "Protect all $router->{name}:$hardware->{name}";
+		last RULE;
+	    }
+	    elsif(is_network $dst) {
+		
+		# Find interfaces of network or subnets of network, 
+		# which are directly attached to current router.
+		for my $net ($dst, 
+			     ($dst->{own_subnets}) ? @{ $dst->{own_subnets} } : () )
+		{
+		    for my $intf (grep { $_->{router} eq $router } 
+				  @{ $net->{interfaces} })
+		    {
+			$need_protect{$intf} = $intf;
+#			debug "Need protect $intf->{name} at $hardware->{name}";
+		    }
+		}
+	    }
+	}
+	for my $interface (@{ $router->{interfaces} } ) {
+	    next if not $protect_all and not $need_protect{$interface};
 
 	    # Ignore 'unnumbered' interfaces.
 	    next if $interface->{ip} =~ /^(?:unnumbered|negotiated|tunnel)$/;
