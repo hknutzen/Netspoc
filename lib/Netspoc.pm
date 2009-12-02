@@ -10245,24 +10245,25 @@ sub print_acl_add_deny ( $$$$$$ ) {
 	for my $rule (@{ $hardware->{rules} }) {
 	    next if $rule->{action} eq 'deny';
 	    my $dst = $rule->{dst};
-	    if(is_any $dst) {
+
+	    # - any has been converted to network_00 already.
+	    # - subnet/host and interface already have been checked to 
+	    #   have disjoint ip addresses to interfaces of current router.
+	    next if not is_network $dst;
+	    if($dst eq $network_00) {
 		$protect_all = 1;
 #		debug "Protect all $router->{name}:$hardware->{name}";
 		last RULE;
 	    }
-	    elsif(is_network $dst) {
-		
-		# Find interfaces of network or subnets of network, 
-		# which are directly attached to current router.
-		for my $net ($dst, 
-			     ($dst->{own_subnets}) ? @{ $dst->{own_subnets} } : () )
+
+	    # Find interfaces of network or subnets of network, 
+	    # which are directly attached to current router.
+	    for my $net ($dst, ($dst->{own_subnets}) ? @{ $dst->{own_subnets} } : () )
+	    {
+		for my $intf (grep { $_->{router} eq $router } @{ $net->{interfaces} })
 		{
-		    for my $intf (grep { $_->{router} eq $router } 
-				  @{ $net->{interfaces} })
-		    {
-			$need_protect{$intf} = $intf;
-#			debug "Need protect $intf->{name} at $hardware->{name}";
-		    }
+		    $need_protect{$intf} = $intf;
+#		    debug "Need protect $intf->{name} at $hardware->{name}";
 		}
 	    }
 	}
