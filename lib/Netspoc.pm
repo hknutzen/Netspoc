@@ -10327,7 +10327,7 @@ my %asa_vpn_attributes =
  'split-dns' => { need_value => 1 },
  'wins-server' =>  { need_value => 1 },
  'vpn-access-hours' => { also_user => 1 },
- 'vpn-Idle-timeout' => { also_user => 1 },
+ 'vpn-idle-timeout' => { also_user => 1 },
  'vpn-session-timeout' => { also_user => 1 },
  'vpn-simultaneous-logins' => { also_user => 1 },
  vlan => {},
