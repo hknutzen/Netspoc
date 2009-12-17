@@ -3137,11 +3137,12 @@ sub link_topology() {
             and $network->{interfaces}
             and @{ $network->{interfaces} } > 2)
         {
-            err_msg "Unnumbered $network->{name} is connected to",
-              " more than two interfaces:";
+            my $msg = "Unnumbered $network->{name} is connected to" .
+		" more than two interfaces:";
             for my $interface (@{ $network->{interfaces} }) {
-                print STDERR " $interface->{name}\n";
+                $msg .= "\n $interface->{name}";
             }
+	    err_msg $msg;
         }
 
         my %ip;
@@ -4329,7 +4330,13 @@ sub expand_special ( $$$$ ) {
 
 # This handles a rule between objects inside a single security domain or
 # between interfaces of a single managed router.
-sub warn_unenforceable ( $$$$ ) {
+# Show warning or error message if rule is between
+# - different interfaces or
+# - different networks or
+# - subnets/hosts of different networks.
+my %unenforceable_context2src2dst;
+my %enforceable_context;
+sub collect_unenforceable ( $$$$ ) {
     my ($src, $dst, $domain, $context) = @_;
 
     return if not $check_unenforceable;
@@ -4355,14 +4362,29 @@ sub warn_unenforceable ( $$$$ ) {
             return if $src->{network} eq $dst->{network};
         }
     }
+    $unenforceable_context2src2dst{$context}->{$src}->{$dst} ||= [ $src, $dst];
+}
 
-    # Show warning or error message if rule is between
-    # - different interfaces or
-    # - different networks or
-    # - subnets/hosts of different networks.
-    my $msg =
-      "Unenforceable rule of $context:\n src=$src->{name}; dst=$dst->{name}";
-    $check_unenforceable eq 'warn' ? warn_msg $msg : err_msg $msg;
+sub show_unenforceable () {
+    for my $context (sort keys %unenforceable_context2src2dst) {
+	my $msg;
+	if(not $enforceable_context{$context}) {
+	    $msg = "$context is fully unenforceable";
+	}
+	else {
+	    $msg = "$context has unenforceable rules:";
+	    my $hash = $unenforceable_context2src2dst{$context};
+	    for my $hash (values %$hash) {
+		for my $aref (values %$hash) {
+		    my($src, $dst) = @$aref;
+		    $msg .= "\n src=$src->{name}; dst=$dst->{name}";
+		}
+	    }
+	}
+	$check_unenforceable eq 'warn' ? warn_msg $msg : err_msg $msg;
+    }
+    %enforceable_context = ();
+    %unenforceable_context2src2dst = ();
 }
 
 # Parameters:
@@ -4430,10 +4452,14 @@ sub expand_rules ( $$$$;$$$ ) {
 			for my $dst (@$dst) {
 			    my $dst_any = $obj2any{$dst} || get_any $dst;
 			    if ($src_any eq $dst_any) {
-				warn_unenforceable 
+				collect_unenforceable 
 				    $src, $dst, $src_any, $context;
 				next;
-			    }  
+			    }
+
+			    # At least one rule is enforceable.
+			    # This is used to decide, if a policy is fully unenforceable.
+			    $enforceable_context{$context} = 1;
 			    my @src = 
 				expand_special 
 				    $src, $dst, $flags->{src}, $context
@@ -4493,6 +4519,7 @@ sub expand_rules ( $$$$;$$$ ) {
 	    }
 	}
     }
+    show_unenforceable;
 
     # Result is indirectly returned using parameter $result.
 }
