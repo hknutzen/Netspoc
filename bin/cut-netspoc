@@ -138,6 +138,16 @@ for my $area (values %areas) {
     }
 }
 
+# Mark networks which are referenced by 'any' objects.
+for my $any (values %anys) {
+    if($any->{is_used}) {
+
+	# Router isn't handled currently.
+	my $network = $any->{link};
+	$network->{is_used} = 1;
+    }
+}
+
 # Call this after topology has been marked.
 &expand_crypto();
 
