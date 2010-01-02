@@ -51,9 +51,9 @@ my($in_path, $out_dir) = &read_args();
 &link_topology();
 &mark_disabled();
 &distribute_nat_info();
-&find_subnets();
 &setany();
 &setpath();
+&find_subnets();
 &expand_policies(1);	# 1: expand hosts to subnets
 # Abort now, if there are syntax errors and simple semantic errors.
 die "Aborted with $error_counter error(s)\n" if $error_counter;
