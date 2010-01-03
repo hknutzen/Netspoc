@@ -439,8 +439,6 @@ be choosen.
  | network:&lt;name&gt;
  | any:&lt;name&gt; 
  | interface:&lt;name&gt;.&lt;name&gt;[[.&lt;name&gt;]]
- | network:[local]
- | any:[local]
  | group:&lt;name&gt; 
  | &lt;auto group&gt;
  }}
@@ -692,17 +690,19 @@ replaced.
 <PRE>
   policy:&lt;name&gt; = {
      [[ description = &lt;text_to_end_of_line&gt ]]
-     user = &lt;object set&gt;;
+     user = [[ foreach ]] &lt;object set&gt;;
      &lt;policy_rule&gt; * 
   }</PRE>
 <P>with</P>
 <PRE>
   &lt;policy_rule&gt; ::=
   {{ permit | deny }}
-        src = &lt;policy_object&gt;;
-        dst = &lt;policy_object&gt;;
+        src = &lt;object set with 'user'&gt;;
+        dst = &lt;object set with 'user'&gt;;
         srv = &lt;service&gt;, ... ;
-  &lt;policy_object&gt; ::= {{ user | &lt;object set&gt; }};</PRE>
+ &lt;object set with 'user'&gt; is like &lt;object set&gt; 
+   but with additional keyword 'user' allowed in &lt;network object&gt;
+</PRE>
 <UL>
 <LI>Order of rules doesn't matter.
 <LI>Deny rules override all permit rules.
@@ -710,8 +710,22 @@ replaced.
 <li>Policies are useful for documentation and reporting purposes. 
 <li>The rules of a policy must be related in that they all use the same source
 or destination object(s). This is enforced by the keyword "user" which
-must be used either as src or dst or both parts of a rule.
+must be referenced either from src or from dst or both parts of a rule.
+<li>Without the keyword "foreach", each occurrence of "user" is substituted 
+by the definition of "user". This is typically a group of values.
+<li>With the keyord "foreach", the substituton occurs repeatedly for 
+each element of the definition of "user". Used together with automatic groups, 
+this feature allows to define rules between elements and theis neighborhood.
 </UL>
+
+<h4>Example</h4>
+<pre>
+policy:ping_local = {
+ description = Allow ping to my devices from directly attached network
+ user = foreach interface:[group:my_devices].[all];
+ permit src = network:[user]; dst = user; srv = service:ping;
+}
+</pre>
 
 <h3><a name="restrict_def">Path restrictions</a></h3>
 <H4>Syntax</H4>
