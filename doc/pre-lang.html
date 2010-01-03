@@ -205,6 +205,7 @@ redefined by mistake.
           |
             range = &lt;ip-adr&gt; - &lt;ip-adr&gt;;
 	  }}
+          [[ policy_distribution_point; ]]
           &lt;NAT definition&gt; *
         }
 
@@ -224,6 +225,14 @@ or multiple hosts of a common network to an IP range.
 <LI>During code generation, an IP range is split into a number of
 subnetworks which cover the range. One ACL entry is generated for
 each subnetwork.
+
+<li>A single host inside the topology can be marked as
+"policy_distribution_point". This should be the device, which
+distributes the NetSPoC generated configuration to the packet filters.
+This allows Netspoc to know by which IP address a device is reached
+from the policy distribution point. This IP address is added as a
+comment to each generated device configuration. It can later be used to
+reach the device when deploying the configuration.
 </UL>
 
 <H3><A NAME="router_definition">Router definition</A></H3>
