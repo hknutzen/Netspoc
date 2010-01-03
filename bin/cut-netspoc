@@ -79,7 +79,7 @@ my %name2var = ( policy =>\%policies, );
 for my $arg (@ARGV) {
     my ($type, $name) = split_typed_name $arg;
     my $ref = $name2var{$type} or usage;
-    my $thing = $ref->{$name} or die "Unknown $arg\n";
+    my $thing = $ref->{$name} or fatal_err "Unknown $arg";
     $thing->{is_used} = 1;
 }
 
