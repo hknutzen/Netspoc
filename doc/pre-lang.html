@@ -255,15 +255,17 @@ description.
 <LI>Managed routers need to be precisely described since this
  information is needed for code generation later.
 <LI>The router model is used to generate correct code for different
- router models.<BR>Currently three models are supported:
+ router models.<BR>Currently four models are supported:
 <UL>
-<LI><code>PIX</code> for Cisco PIX firewalls
-<LI><code>IOS_FW</code> for Cisco IOS routers with state full inspection
-<li><code>IOS</code> for stateless Cisco IOS
+  <li><code>Linux</code> for Linux with iptables
+<LI><code>ASA</code> for Cisco ASA 
+<LI><code>PIX</code> for Cisco PIX 
+<li><code>IOS</code> for Cisco IOS routers
+<LI><code>IOS, FW</code> for Cisco IOS routers with statefull inspection
+<LI><code>IOS, EZVPN</code> for Cisco IOS routers with easy VPN
 </UL>
-<LI>NetSPoC generates optimized code using object groups for PIX firewalls and
-chains for iptables. Use flag <code>no_group_code</code> to disable this
-optimization. 
+<LI>NetSPoC generates optimized code using object groups for PIX firewalls. 
+Use flag <code>no_group_code</code> to disable this optimization. 
 <li>For IOS routers from version 12.3(8)T up, a separate access-list is used
 for filtering incoming traffic of crypto tunnels. Use
 attribute <code>no_crypto_filter</code> to enable the old behavior where
