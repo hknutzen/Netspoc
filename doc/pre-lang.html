@@ -232,7 +232,7 @@ each subnetwork.
   &lt;router definition&gt; ::=
   router:&lt;name&gt; = {
      {{
-        managed [[ = {{ full | secondary }} ]] ;
+        managed [[ = {{ primary | full | standard | secondary }} ]] ;
         model = &lt;name&gt;;
 	[[ no_group_code; ]]
 	[[ no_crypto_filter; ]]
@@ -248,9 +248,9 @@ each subnetwork.
   }</PRE>
 <UL>
 <li>A router can be managed or unmanaged.
-<li>Managed routers can be of type 'full' or of type 'secondary'. A
-type 'full' is assumed, if no value is given. See <A
-HREF="#secondary">secondary packet filters</A> below for a detailed
+<li>Managed routers can be of type 'primary', 'full', 'standard' or 
+of type 'secondary'. A type 'standard' is assumed, if no value is given. 
+See <A HREF="#secondary">secondary packet filters</A> below for a detailed
 description. 
 <LI>Managed routers need to be precisely described since this
  information is needed for code generation later.
@@ -847,23 +847,38 @@ interface where the NAT binding with this name occurs.
 </ol>
 
 <h2><a name="secondary">Secondary packet filters</a></h2>
-In a given topology we can get chains of managed packet filters
-on the path from src to dst. Each packet filter is a "full" packet
-filter by default, which does full filtering for each rule 
+
+In a given topology we can get chains of managed packet filters on the
+path from src to dst. By default, each device filters the same rules
 again and again.<br>
+
 A secondary packet filter gets a simpler rule set.<br>
+
 A given rule describes traffic starting at src and terminating at dst.
-If there is at least one full packet filter on the path from src to dst, all
-secondary packet filters on this path get a simplified ACL line for the current
-rule. This ACL line allows any IP packets from the src network to the dst
-network. This simplified filtering assures that the traffic comes from the
-right src and goes to the right dst.<br>
-If, for a given rule, there is a chain of secondary packet filters without a
-full packet filter, all devices do full filtering.<br>
-A secondary packet filter is declared with attribute
+If there is at least one none secondary packet filter on the path from
+src to dst, all secondary packet filters on this path get a simplified
+ACL line for the current rule. This ACL line allows any IP packets
+from the src network to the dst network. This simplified filtering
+assures that the traffic comes from the right src and goes to the
+right dst.
+
+<p>If, for a given rule, there is a chain of secondary packet filters without a
+none secondary filter, all devices do standard filtering.
+
+<p>A secondary packet filter is declared with attribute
 "managed = secondary". This can be useful if a router has not
 enough memory for storing a complete set of filter rules and most of
 the packets get fully filtered already by some other managed device.
+
+<p>If a device is marked as "managed = primary", all rules which pass
+this device, are implemented as secondary filters on other devices
+which are marked either as "standard" or as "secondary".  The effect
+of "primary" can be overridden by choosing the filter type "full" at
+an other device.  
+
+<p>The default filter type for devices which are simply marked as
+"managed" is "standard".
+
 <h2><a name="routing">Routing</a></h2>
 
 <h4>Static and dynamic routing</h4>
