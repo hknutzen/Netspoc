@@ -539,6 +539,9 @@ some or all interfaces of network:x.
 <li><code>interface:[interface:x.y].[&lt;selector&gt;]</code> is
 equivalent to <code>interface:x.&lt;selector&gt;</code>.
 
+<li><code>interface:[any:x].[all]</code> takes all border interfaces
+of security domain any:x.
+
 <li><code>interface:[area:x].[&lt;selector&gt;]</code> takes
 interfaces which are located <em>inside</em> area:x.<br>Note: Border
 interfaces are left out.
@@ -551,9 +554,18 @@ interface:x.y.
 <li><code>network:[network:x]</code> is equivalent to
 <code>network:x</code>.
 
+<li><code>network:[any:x]</code> takes all networks located inside security
+domain any:x.
+
+<li><code>network:[area:x]</code> takes all networks located inside
+area:x.
+
 <li><code>any:[interface:x.y], any:[host:x], any:[network:x],
 any:[any:x]</code> takes the security domain where the inner object is
 located.
+
+<li><code>any:[area:x]</code> takes all secutrity domains located
+inside area:x.
 
 <li>Auto interfaces, i.e. with selector [auto] must only be
   used at toplevel and not as inner object of other automatic
