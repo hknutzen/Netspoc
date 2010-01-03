@@ -501,27 +501,25 @@ reference network objects from particular parts of the topology.
  | any:[&lt;object set with area&gt;]
  }}
 
- &lt;selector&gt; ::= {{ front | back | all }}
+ &lt;selector&gt; ::= {{ auto | all }}
  &lt;object set with area&gt; is like &lt;object set&gt; 
    but with additional area:&lt;name&gt; in &lt;network object&gt;
 </PRE>
 <UL>
 
-<li>Special names [front], [back] and [all] can be used as network part in a
+<li>Special names [auto] and [all] can be used as network part in a
 reference to an interface.
 <ul>
 
- <li>[front] denotes the interface on the same side in respect to the
+ <li>[auto] denotes the interface on the same side in respect to the
     other object in a rule.  If a router is part of a cyclic subgraph
     then there can be multiple paths to the other object.  In this
-    case [front] denotes multiple interfaces.
+    case [auto] denotes multiple interfaces.
 
  <li>[all] denotes <em>all</em> interfaces of a router.<br>
  But note: Short interfaces (without known IP address) of unmanaged routers
     are excluded.
  
- <li>[back] is [all] without [front].
-
 </ul>
 
 <li>[managed & ...] restricts the result to interfaces of <em>managed</em>
@@ -555,12 +553,11 @@ interface:x.y.
 any:[any:x]</code> takes the security domain where the inner object is
 located.
 
-<li>Auto interfaces, i.e. with selector [front] or [back] must only be
+<li>Auto interfaces, i.e. with selector [auto] must only be
   used at toplevel and not as inner object of other automatic
   groups. There is one exception from this rule: <code>
-  interface:[interface:x.[s1]].[s2] </code> is
-  allowed. In this case the inner selector s1 is ignored and the outer
-  selector s2 is used.Anpassung an neues 
+  interface:[interface:x.[auto]].[auto] </code> is
+  allowed.
 
 </UL>
 
