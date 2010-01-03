@@ -187,8 +187,8 @@ directly for generating ACLs.
 active. Exceptions must be declared explictly:
 <UL>
 <LI>route_hint: This network can enclose other networks, but it must
-not have host definitions.
-<LI>subnet_of: The enclosing network must be stated explicitly.
+not have host definitions and must not be used in rules.
+<LI>subnet_of: The enclosing network is declared explicitly.
 </UL>
 This can be useful for a large topology, where a network can easily be
 redefined by mistake.
@@ -298,7 +298,7 @@ interface definition".
          [[ hardware = &lt;external_name&gt; ; ]]
 	 [[ routing = {{ EIGRP | OSPF | manual }} ; ]]
 	 [[ reroute_permit = network:&lt;name&gt;, ... ; ]]
-	 [[ loopback ; ]]
+	 [[ loopback ; [[ subnet_of = network:&lt;name&gt;; ]] ]]
          [[ disabled ; ]]
     }
 
@@ -362,6 +362,7 @@ interface definition".
  additional address of a router. Loopback interfaces of different
  routers may share the same name, e.g. interface:r1.loop and
  interface:r2.loop.
+<LI>subnet_of: The enclosing network is declared explicitly.
 
 <LI>An interface can be marked as disabled.
   See <A HREF="#disabling">Disabling part of the topology</A> below.
