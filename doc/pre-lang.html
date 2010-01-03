@@ -343,7 +343,7 @@ interface definition".
   interface by adding an incrementing number beginning with "2".
   E.g. <code>interface:router.name.2, interface:router.name.3, ...</code>.
 <li>A virtual interface defines a shared IP address and type of redundancy
-  protocol. See <a name="#virtual"> Virtual interfaces</a> for details.
+  protocol. See <a href="#virtual"> Virtual interfaces</a> for details.
 <LI>The 'hardware' attribute indicates, which hardware interface the router
   belongs to. This attribute is mandatory for managed routers.
 <LI>Multiple interfaces can belong to the same hardware interface.
@@ -953,23 +953,26 @@ Use "reroute_permit = network:b" at "interface:x.a" to permit any
 incoming traffic to network:b.
  
 <h2><a name="virtual">Virtual interface</a></h2>
-A virtual interface defines a shared IP address and type of redundancy
-protocol at two or more interfaces. Currently, redundancy protocols VRRP and
-HSRP are supported. 
+<p>A virtual interface defines a shared IP address and type of
+redundancy protocol at two or more interfaces. Currently, redundancy
+protocols VRRP and HSRP are supported.
 <ul>
 <li> The virtual IP address is used as destination when generating static
 routes.
-<li> Access control lists for the associated real interfaces are automatically
- augmented to permit incoming packets of the redundancy protocol.
+<li> Access control lists for the associated real interfaces are
+ automatically augmented to permit incoming packets of the redundancy
+ protocol.
 <Li> At least two interfaces with the same virtual IP are needed.
 <li> The set of interfaces with same virtual IP
 <ul>
 <li> must be linked to the same network and
 <li> must be part of the same cyclic subgraph.
 </ul>
-<li> A virtual IP must be different from normal IP address(es).
-<li> The 'id' attribute is optional. It is used for consistency checks but
-currently not used when generating code for managed devices.
+<li> A virtual IP must be different from real IP address(es).
+<li>It is possible to define an interface having only a virtual IP,
+but no real IP address.
+<li> The 'id' attribute is optional. It is used for consistency checks
+but currently not used when generating code for managed devices.
 </ul>
 
 <H2><A NAME="disabling">Disabling part of the topology</A></H2>
