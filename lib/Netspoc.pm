@@ -586,12 +586,7 @@ our $any_local_compatibilty;
 	    skip '\.';
 	    if(check '\[') {
 		my $selector = read_identifier;
-
-		# Convert 'auto' to 'front' 
-		# for compatibility with older versions.
-		$selector =~ s/^auto$/front/;
-		$selector =~/^(front|back|all)$/
-		    or syntax_err "Expected [front|back|all]";
+		$selector =~/^(auto|all)$/ or syntax_err "Expected [auto|all]";
 		$ext = [ $selector, $managed ];
 		skip '\]';
 	    }
@@ -3612,10 +3607,10 @@ my %name2object = (
 
 my %auto_interfaces;
 
-sub get_auto_intf ( $$;$) {
-    my($object, $selector, $managed) = @_;
+sub get_auto_intf ( $;$) {
+    my($object, $managed) = @_;
     $managed ||= 0;
-    my $result = $auto_interfaces{$object}->{$selector}->{$managed};
+    my $result = $auto_interfaces{$object}->{$managed};
     if(not $result) {
 	my $name;
 	if(is_router $object) {
@@ -3624,15 +3619,14 @@ sub get_auto_intf ( $$;$) {
 	else {
 	    $name = "[$object->{name}]";
 	}
-	$name = "interface:$name.[$selector]";
+	$name = "interface:$name.[auto]";
 	$result = new('Autointerface', 
 		      name => $name, 
 		      object => $object,
-		      selector => $selector,
 		      managed => $managed
 		  );
 	$result->{disabled} = 1 if $object->{disabled};
-	$auto_interfaces{$object}->{$selector}->{$managed} = $result;
+	$auto_interfaces{$object}->{$managed} = $result;
 #	debug $result->{name};
     }
     $result;
@@ -3743,7 +3737,7 @@ sub expand_group1( $$ ) {
 			}
 			else {
 			    push @objects,
-			      get_auto_intf $object, $selector, $managed;
+			      get_auto_intf $object, $managed;
 			}
 		    }
 		    elsif($type eq 'Any') {
@@ -3756,7 +3750,7 @@ sub expand_group1( $$ ) {
 			}
 			else {
 			    err_msg "Must not use interface:",
-			    " [any:..].[$selector] in $context";
+			    " [any:..].[auto] in $context";
 			}
 		    }
 		    elsif($type eq 'Interface') {
@@ -3769,9 +3763,7 @@ sub expand_group1( $$ ) {
 			    push @check, @{$router->{interfaces}};
 			}
 			else {
-
-			    # Re-label with new selector.
-			    push @objects, get_auto_intf $router, $selector;
+			    push @objects, get_auto_intf $router;
 			}
 		    }
 		    elsif($type eq 'Area') {
@@ -3799,8 +3791,7 @@ sub expand_group1( $$ ) {
 			    push @check, map @{ $_->{interfaces} }, @routers;
 			}
 			else {
-			    push @objects, 
-			      map { get_auto_intf $_, $selector } @routers;
+			    push @objects, map { get_auto_intf $_ } @routers;
 			}
 		    }
 		    elsif($type eq 'Autointerface') {
@@ -3814,7 +3805,7 @@ sub expand_group1( $$ ) {
 				push @check, @{$obj->{interfaces}};
 			    }
 			    else {
-				push @objects, get_auto_intf $obj, $selector;
+				push @objects, get_auto_intf $obj;
 			    }
 			}
 			else {
@@ -3839,7 +3830,7 @@ sub expand_group1( $$ ) {
 			push @check, @{$router->{interfaces}};
 		    }
 		    else {
-			push @objects, get_auto_intf $router, $selector;
+			push @objects, get_auto_intf $router;
 		    }
 		}
 		else {		
@@ -4171,7 +4162,7 @@ sub get_any( $ ) {
     my $type = ref $obj;
     my $result;
 
-    # A router or network with [front|back] selector.
+    # A router or network with [auto] interface.
     if ($type eq 'Autointerface') {
 	$obj = $obj->{object};
 	$type = ref $obj;
@@ -4238,7 +4229,7 @@ sub expand_special ( $$$$ ) {
 	for my $interface (path_auto_interfaces $src, $dst) {
 	    if ($interface->{ip} eq 'short') {
 		err_msg "'$interface->{ip}' $interface->{name}",
-		" (from .[$src->{selector}])\n", 
+		" (from .[auto])\n", 
 		" must not be used in rule of $context";
 	    }
 	    elsif ($interface->{ip} =~ /unnumbered/) {
@@ -6141,15 +6132,14 @@ sub path_walk( $$;$ ) {
 }
 
 # $src is an auto_interface, interface or router.
-# $selector has value 'front' or 'back'.
-# Result is the set of interfaces of $src located at the front or back side
+# Result is the set of interfaces of $src located at the front side
 # of the direction to $dst.
 sub path_auto_interfaces( $$ ) {
     my ($src, $dst) = @_;
     my @result;
-    my($src2, $selector, $managed) = (is_autointerface $src) 
-	                           ? @{$src}{'object', 'selector', 'managed'}
-                                   : ($src, 'front', undef);
+    my($src2, $managed) = (is_autointerface $src) 
+	                ? @{$src}{'object', 'managed'}
+                        : ($src, undef);
     my $dst2 = is_autointerface $dst ?  $dst->{object} : $dst;
 	
     my $from_store = $obj2path{$src2} || get_path $src2;
@@ -6160,20 +6150,19 @@ sub path_auto_interfaces( $$ ) {
     $from eq $to and return ();
     if(not $from_store->{path}->{$to_store}) {
 	path_mark($from, $to, $from_store, $to_store) or
-	    err_msg "No valid path from $from_store->{name} to $to_store->{name}\n",
+	    err_msg 
+	    "No valid path from $from_store->{name} to $to_store->{name}\n",
 	    " while resolving $src->{name} (destination is $dst->{name}).\n",
 	    " Check path restrictions and crypto interfaces.";
     }
-    if ($from_store->{loop_exit} and my $exit = $from_store->{loop_exit}->{$to_store}) {
+    if ($from_store->{loop_exit} and 
+	my $exit = $from_store->{loop_exit}->{$to_store}) 
+    {
 	@result = 
 	    grep { $_->{ip} ne 'tunnel' } @{ $from->{loop_enter}->{$exit} };
     }
     else {
 	@result = ($from_store->{path}->{$to_store});
-    }
-    if($selector eq 'back') {
-	my %front = map { $_ => 1 } @result;
-	@result = grep !$front{$_}, @{$from->{interfaces}};
     }
 
     # If device has virtual interface, main and virtual interface are swapped.
@@ -6184,7 +6173,7 @@ sub path_auto_interfaces( $$ ) {
 	    $interface = $orig;
 	}
     }
-#    debug "$from->{name}.[$selector] = ", join ',', map {$_->{name}} @result;
+#    debug "$from->{name}.[auto] = ", join ',', map {$_->{name}} @result;
     $managed ? grep { $_->{router}->{managed} } @result : @result;
 }
 
