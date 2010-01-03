@@ -69,6 +69,7 @@ our @EXPORT = qw(
   $store_description
   info
   err_msg
+  fatal_err
   read_ip
   print_ip
   show_version
@@ -310,6 +311,11 @@ sub error_atline( @ ) {
 sub err_msg( @ ) {
     print STDERR "Error: ", @_, "\n";
     check_abort;
+}
+
+sub fatal_err( @ ) {
+    print STDERR "Error: ", @_, "\n";
+    die "Aborted\n";
 }
 
 sub syntax_err( @ ) {
@@ -2363,7 +2369,7 @@ sub read_file( $$ ) {
     local $file = shift;
     my $read_syntax = shift;
     local *FILE;
-    open FILE, $file or die "Can't open $file: $!\n";
+    open FILE, $file or fatal_err "Can't open $file: $!";
 
     # Fill buffer with content of whole FILE.
     # Content is implicitly freed when subroutine is left.
@@ -2393,7 +2399,7 @@ sub read_file_or_dir( $;$ ) {
 
         # Strip trailing slash for nicer file names in messages.
         $path =~ s</$><>;
-        opendir DIR, $path or die "Can't opendir $path: $!\n";
+        opendir DIR, $path or fatal_err "Can't opendir $path: $!";
         while (my $file = readdir DIR) {
             next if $file eq '.' or $file eq '..';
             next if $file =~ m/$ignore_files/;
@@ -5529,7 +5535,7 @@ sub setpath() {
     info "Preparing fast path traversal";
     
     # Take a random network from @networks, name it "net1".
-    @networks or die "Error: Topology seems to be empty\n";
+    @networks or fatal_err "Topology seems to be empty";
     my $net1 = $networks[0];
 
     # Starting with net1, do a traversal of the whole topology
@@ -5539,29 +5545,30 @@ sub setpath() {
     # Third parameter is distance from $net1 to $net1.
     setpath_obj $net1, {}, 0;
 
-    # Collect all networks and routers located inside a cyclic graph.
-    my @loop_objects;
-
     # Check if all objects are connected with net1.
+    my @unconnected;
     for my $object (@networks, @routers) {
-	if($object->{loop}) {
-	    push @loop_objects, $object;
-	    next;
-	}
-        next if $object->{main};
-        err_msg "Found $object->{name} not be connected to $net1->{name}";
+        next if $object->{main} or $object->{loop};
+	push @unconnected, $object;
 
-        # Prevent further errors when calling
-        # path_auto_interfaces from expand_rules.
-        $object->{disabled} = 1;
+	# Ignore all other objects connected to the just found object.
+	setpath_obj $object, {}, 0;
+    }
+    if(@unconnected) {
+	my $msg = "Topology has unconnected parts:";
+	for my $object ($net1, @unconnected) {
+	    $msg .= "\n $object->{name}";
+	}
+	fatal_err $msg;
     }
 
     # This is called here and not at link_topology because it needs
     # attributes {disabled} and {in_loop}.
     link_and_check_pathrestrictions;
 
+    # Check all networks and routers located inside a cyclic graph.
     # Propagate loop starting point into all sub-loops.
-    for my $obj (@loop_objects) {
+    for my $obj (grep { $_->{loop} } @networks, @routers) {
         my $loop = $obj->{loop};
         my $next = $loop->{loop};
         if ($next ne $loop) {
@@ -11035,9 +11042,10 @@ sub print_interface( $ ) {
 sub check_output_dir( $ ) {
     my ($dir) = @_;
     unless (-e $dir) {
-	mkdir $dir or die "Abort: can't create output directory $dir: $!\n";
+	mkdir $dir or 
+	    fatal_err "Can't create output directory $dir: $!";
     }
-    -d $dir or die "Abort: $dir isn't a directory\n";
+    -d $dir or fatal_err "$dir isn't a directory";
 }
     
 # Print generated code for each managed router.
@@ -11064,7 +11072,8 @@ sub print_code( $ ) {
 	    # but check again for the case of a weird locale setting.
             $file =~ /^router:([^.\/ ]*)/;
             $file = "$dir/$1";
-            open STDOUT, ">$file" or die "Can't open $file: $!\n";
+            open STDOUT, ">$file" or 
+		fatal_err "Can't open $file for writing: $!";
         }
 
 	# Handle VPN3K separately;
@@ -11089,7 +11098,7 @@ sub print_code( $ ) {
         print "$comment_char [ END $name ]\n\n";
 
         if ($dir) {
-            close STDOUT or die "Can't close $file: $!\n";
+            close STDOUT or fatal_err "Can't close $file: $!";
         }
     }
     $warn_pix_icmp_code && warn_pix_icmp;
