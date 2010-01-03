@@ -1160,9 +1160,16 @@ is the relation of the security levels to each other.</P>
 </UL>
 <H2><A NAME="supported_devices">Supported devices</A></H2>
 <UL>
-<LI>PIX 
+
+<li>Linux 
+ <ul>
+  <li>iptables with highly optimized ruleset arranged into tree of chains.
+  <li>ip route
+ </ul>
+
+<LI>ASA, PIX 
 <ul>
-<li>access-list (conduit and outbound are not supported)
+<li>access-list
 <li>object-group
 <li>icmp, telnet, ssh, http
 <li>route
@@ -1177,14 +1184,9 @@ is the relation of the security levels to each other.</P>
  <li>ip access-list extended (rules for answer packets are added automatically)
  <li>ip route
  </ul>
-<li>Linux 
- <ul>
-  <li>iptables 
-  <li>ip route
- </ul>
 </UL>
 
-<P> Copyright (c) 2007, Heinz Knutzen 
+<P> Copyright (c) 2010, Heinz Knutzen 
 <A HREF="mailto:heinzknutzen@users.berlios.de">heinzknutzen@users.berlios.de</A></P>
 
 </BODY>
