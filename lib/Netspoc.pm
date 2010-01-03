@@ -531,10 +531,6 @@ sub read_typed_name() {
     check_typed_name or syntax_err "Typed name expected";
 }
 
-
-# Compatibility mode: 'local' is equivalent to 'user' but implies 'foreach'.
-our $any_local_compatibilty;
-
 {
 
     # user@domain or @domain or user
@@ -549,12 +545,11 @@ our $any_local_compatibilty;
 # or interface:[xxx:xxx, ...].[xxx] or interface:[managed & xxx:xxx, ...].[xxx]
 # or host:id:user@domain.network
     sub read_extended_name() {
-	if(my ($token) = check '(user|local)') {
+	if(check 'user') {
 	    # Global variable for linking occurrences of 'user'.
 	    $user_object->{active} or 
-		syntax_err "Unexpected reference to '$token'";
+		syntax_err "Unexpected reference to 'user'";
 	    $user_object->{refcount}++;
-	    $any_local_compatibilty = 1 if $token eq 'local';
 	    return ['user', $user_object];
 	}
 	$input =~ m/\G([\w-]+):/gc or syntax_err "Type expected";
@@ -2119,7 +2114,6 @@ sub read_policy( $ ) {
     if(check 'foreach') {
 	$policy->{foreach} = 1;
     }
-    local $any_local_compatibilty = 0;
     my @elements = read_list \&read_intersection;
     $policy->{user} = \@elements;
     while (1) {
@@ -2135,7 +2129,6 @@ sub read_policy( $ ) {
 		" in 'src' and 'dst'\n",
 		" because policy has keyword 'foreach'";
 	    }
-	    $policy->{foreach} = 1 if $any_local_compatibilty;
             my $rule = {
                 policy => $policy,
                 action => $action,
@@ -2148,9 +2141,6 @@ sub read_policy( $ ) {
         else {
             syntax_err "Expected 'permit' or 'deny'";
         }
-    }
-    if($any_local_compatibilty and @{$policy->{rules}} > 1) {
-	syntax_err "Only one rule allowed in $name when using keyword 'local'";
     }
     return $policy;
 }
