@@ -10615,9 +10615,20 @@ sub print_acls( $ ) {
     my $comment_char = $model->{comment_char};
 
     print "$comment_char [ ACL ]\n";
+
+    # Pre-processing for all interfaces.
     if ($filter eq 'iptables') {
 	print "#!/usr/sbin/iptables-restore <<EOF\n";
 	print "*filter\n";
+	print ":INPUT DROP\n";
+	print ":FORWARD DROP\n";
+	print ":OUTPUT ACCEPT\n";
+	for my $hardware (@{ $router->{hardware} }) {
+            my $if_name = "$hardware->{name}_self";
+            my $acl_name = "$hardware->{name}_in";
+            print ":$if_name -\n";
+            print ":$acl_name -\n";
+	}
 	print_chains $router;
     }
 
@@ -10632,7 +10643,9 @@ sub print_acls( $ ) {
 
 	if ($filter eq 'PIX') {
 	    my $interfaces = [  @{ $router->{hardware} } ];
-	    find_object_groups($router, $hardware) unless $router->{no_group_code};
+	    if(not $router->{no_group_code}) {
+		find_object_groups($router, $hardware);
+	    }
 	}
 
 	# Generate code.
@@ -10659,8 +10672,6 @@ sub print_acls( $ ) {
             $intf_name   = "$hardware->{name}_self";
             $intf_prefix = "-A $intf_name";
             $prefix      = "-A $acl_name";
-            print ":$acl_name -\n";
-            print ":$intf_name -\n";
         }
 	print_acl_add_deny 
 	    $router, $hardware, $nat_map, $model, $intf_prefix, $prefix;
@@ -10679,15 +10690,13 @@ sub print_acls( $ ) {
 
     # Post-processing for all interfaces.
     if ($filter eq 'iptables') {
-	print ":INPUT DROP\n";
-	print ":FORWARD DROP\n";
-	print ":OUTPUT ACCEPT\n";
         print "-A INPUT -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
         for my $hardware (@{ $router->{hardware} }) {
             my $if_name = "$hardware->{name}_self";
             print "-A INPUT -j $if_name -i $hardware->{name} \n";
         }
         print "-A INPUT -j droplog\n";
+
         print "-A FORWARD -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
         for my $hardware (@{ $router->{hardware} }) {
             my $acl_name = "$hardware->{name}_in";
