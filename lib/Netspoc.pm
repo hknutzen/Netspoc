@@ -7412,10 +7412,10 @@ sub check_and_convert_routes () {
                         if ($interface2 ne $interface) {
 
                             # Network is reached via two different
-                            # local interfaces.
-                            # Check if both have dynamic routing enabled.
-                            unless ($interface->{routing}
-                                and $interface2->{routing})
+                            # local interfaces.  Show warning if static
+                            # routing is enabled for both interfaces.
+                            if (not $interface->{routing}
+                                and not $interface2->{routing})
                             {
                                 warn_msg
                                   "Two static routes for $network->{name}\n",
