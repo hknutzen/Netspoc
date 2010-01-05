@@ -30,15 +30,15 @@ use warnings;
 require Exporter;
 use Getopt::Long;
 
-# Activate for perl 5.8.6 or above.
+# Activate for Perl 5.8.6 or above.
 # This automatically selects the encoding from your locale and
 # works even if UTF-8 is enabled.
 use open ':locale';
 
-# Activate for perl 5.8.0 or above if your input is UTF-8 encoded.
+# Activate for Perl 5.8.0 or above if your input is UTF-8 encoded.
 #use open ':utf8';
 
-# Activate for older perl versions with legacy encoding.
+# Activate for older Perl versions with legacy encoding.
 # We need this for German umlauts being part of \w.
 # Uncomment next line, if your files are latin1..9 encoded.
 use locale;
@@ -141,7 +141,7 @@ my $check_unenforceable = 0;
 my $auto_default_route = 1;
 
 # Ignore these names when reading directories:
-# - directory raw for prolog & epilogue files
+# - directory raw for prologue & epilogue files
 # - CVS and RCS directories
 # - CVS working files
 # - Editor backup files: emacs: *~
@@ -157,7 +157,7 @@ our $store_description = 0;
 # Print warning about ignored ICMP code fields at PIX firewalls.
 my $warn_pix_icmp_code = 0;
 
-# Use nonlocal function exit for efficiency.
+# Use non-local function exit for efficiency.
 # Perl profiler doesn't work if this is active.
 my $use_nonlocal_exit = 1;
 
@@ -267,7 +267,7 @@ our $file;
 # Rules and objects read from directories and files with
 # special name 'xxx.private' are marked with attribute {private} = 'xxx'.
 # This variable is used to propagate the value from directories to its
-# files and subdirectories.
+# files and sub-directories.
 our $private;
 
 # Content of current file.
@@ -337,12 +337,12 @@ sub internal_err( @ ) {
 # Progressive matching is used. \G is used to match current position.
 sub skip_space_and_comment() {
 
-    # Ignore trailing whitespace and comments.
+    # Ignore trailing white space and comments.
     while ($input =~ m'\G[ \t]*([#].*)?\n'gc) {
         $line++;
     }
 
-    # Ignore leading whitespace.
+    # Ignore leading white space.
     $input =~ m/\G[ \t]*/gc;
 }
 
@@ -514,7 +514,7 @@ sub read_union( $ ) {
           $has_user_ref != ($user_object->{refcount} > $count);
     }
     $user_ref_error
-      and error_atline "The subexpressions of union equally must\n",
+      and error_atline "The sub-expressions of union equally must\n",
       " either reference 'user' or must not reference 'user'";
     return @vals;
 }
@@ -974,7 +974,7 @@ sub read_nat( $ ) {
         }
         elsif (my $dynamic = check_flag 'dynamic') {
 
-            # $nat_tag is used later to lookup static translation
+            # $nat_tag is used later to look up static translation
             # of hosts inside a dynamically translated network.
             $nat->{dynamic} = $nat_tag;
         }
@@ -1092,7 +1092,7 @@ sub read_network( $ ) {
         # Use 'defined' here because mask may have value '0'.
         defined $mask or syntax_err "Missing network mask";
 
-        # Check if network ip matches mask.
+        # Check if network IP matches mask.
         if (($ip & $mask) != $ip) {
             error_atline "IP and mask don't match";
 
@@ -1104,7 +1104,7 @@ sub read_network( $ ) {
             # Link host with network.
             $host->{network} = $network;
 
-            # Check compatibility of host ip and network ip/mask.
+            # Check compatibility of host IP and network IP/mask.
             if ($host->{ips}) {
                 for my $host_ip (@{ $host->{ips} }) {
                     if ($ip != ($host_ip & $mask)) {
@@ -1150,7 +1150,7 @@ sub read_network( $ ) {
                     $nat->{mask} = $mask;
                 }
 
-                # Check if ip matches mask.
+                # Check if IP matches mask.
                 if (($nat->{ip} & $nat->{mask}) != $nat->{ip}) {
                     error_atline "IP for $nat->{name} of doesn't",
                       " match its mask";
@@ -1462,7 +1462,7 @@ sub read_interface( $ ) {
               new('Interface', name => $interface->{name}, ip => $ip);
             push @secondary_interfaces, $secondary;
 
-            # But we need the original main interface wenn handling auto interfaces.
+            # But we need the original main interface when handling auto interfaces.
             $interface->{orig_main} = $secondary;
         }
         @{$interface}{qw(name ip redundancy_type redundancy_id)} =
@@ -1801,7 +1801,7 @@ sub read_router( $ ) {
                     no warnings "uninitialized";
 
                     # All logical interfaces of one hardware interface
-                    # need to use the same nat binding,
+                    # need to use the same NAT binding,
                     # because NAT operates on hardware, not on logic.
                     $interface->{bind_nat} eq $hardware->{bind_nat}
                       or err_msg "All logical interfaces of $hw_name\n",
@@ -1851,7 +1851,7 @@ sub read_router( $ ) {
         }
         if ($router->{model}->{do_auth}) {
 
-            # Don't support NAT for VPN, otherwise code generation for vpn
+            # Don't support NAT for VPN, otherwise code generation for VPN
             # devices will become more difficult.
             grep { $_->{bind_nat} } @{ $router->{interfaces} }
               and err_msg "Attribute 'bind_nat' is not allowed",
@@ -2049,7 +2049,7 @@ sub read_proto_nr( $ ) {
         if ($nr == 1) {
             $srv->{proto} = 'icmp';
 
-            # No icmp type and code given.
+            # No ICMP type and code given.
         }
         elsif ($nr == 4) {
             $srv->{proto} = 'tcp';
@@ -2256,7 +2256,7 @@ sub read_attributed_object( $$ ) {
 }
 
 # Some attributes are currently commented out,
-# because they aren't supported by backendcurrently
+# because they aren't supported by back-end currently.
 my %isakmp_attributes = (
     identity      => { values => [qw( address fqdn )], },
     nat_traversal => {
@@ -2403,7 +2403,7 @@ sub read_file_or_dir( $;$ ) {
     local $/;
 
     # Find marker for private directories and files.
-    # Propagate marker to subdirectories.
+    # Propagate marker to sub-directories.
     local $private = ($path =~ m'([^/]*)\.private$') ? $1 : $private;
 
     if (-d $path) {
@@ -3032,7 +3032,7 @@ sub link_interface_with_net( $ ) {
     }
     else {
 
-        # Check compatibility of interface ip and network ip/mask.
+        # Check compatibility of interface IP and network IP/mask.
         my $mask = $network->{mask};
         if ($network_ip != ($ip & $mask)) {
             err_msg "$interface->{name}'s IP doesn't match ",
@@ -3068,7 +3068,7 @@ sub link_radius() {
             if (is_host $element) {
                 if ($element->{range} or @{ $element->{ips} } > 1) {
                     err_msg "$element->{name} must have single IP address\n",
-                      " because it is used as RADUIS server";
+                      " because it is used as RADIUS server";
                 }
             }
             else {
@@ -3123,7 +3123,7 @@ sub link_subnet ( $$ ) {
     # because it has already been checked for $object.
     if (($sub_ip & $mask) != $ip) {
         err_msg $context->(), " is subnet_of $network->{name}",
-          " but its IP doesn't match thats IP/mask";
+          " but its IP doesn't match that's IP/mask";
     }
 
     # Used to check for overlaps with hosts or interfaces of $network.
@@ -3737,7 +3737,7 @@ sub expand_group1( $$ ) {
             push @objects, grep { $result->{$_} } @{ $non_compl[0] };
         }
         elsif ($type eq '!') {
-            err_msg "Complement (!) ist only supported as part of intersection";
+            err_msg "Complement (!) is only supported as part of intersection";
         }
         elsif ($type eq 'user') {
 
@@ -4168,7 +4168,7 @@ my %rule_tree;
 # Hash for converting a reference of an service back to this service.
 my %ref2srv;
 
-# Add rules to %rule_tree for efficient lookup.
+# Add rules to %rule_tree for efficient look up.
 sub add_rules( $ ) {
     my ($rules_ref) = @_;
     for my $rule (@$rules_ref) {
@@ -4627,7 +4627,7 @@ sub set_natdomain( $$$ ) {
             my $out_nat_tag = $out_interface->{bind_nat} || 0;
             if ($out_nat_tag eq $nat_tag) {
 
-                # $nat_map will be collected at nat domains, but is needed at
+                # $nat_map will be collected at NAT domains, but is needed at
                 # logical and hardware interfaces of managed routers.
                 if ($managed) {
 
@@ -4644,7 +4644,7 @@ sub set_natdomain( $$$ ) {
                 # Found a loop inside a NAT domain.
                 next if $next_net->{nat_domain};
 
-                # Current nat domain continues behind this interface.
+                # Current NAT domain continues behind this interface.
                 set_natdomain $next_net, $domain, $out_interface;
             }
             else {
@@ -4862,7 +4862,7 @@ sub distribute_nat_info() {
 }
 
 ####################################################################
-# Find subnetworks
+# Find sub-networks
 # Mark each network with the smallest network enclosing it.
 ####################################################################
 
@@ -4880,7 +4880,7 @@ sub find_subnets() {
             my $nat_network = $nat_map->{$network} || $network;
             my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
 
-            # Found two different networks with identical ip/mask.
+            # Found two different networks with identical IP/mask.
             # in current NAT domain.
             if (my $old_net = $mask_ip_hash{$mask}->{$ip}) {
                 my $nat_old_net = $nat_map->{$old_net} || $old_net;
@@ -4890,7 +4890,7 @@ sub find_subnets() {
                 my $error;
                 if ($nat_old_net->{dynamic} and $nat_network->{dynamic}) {
 
-                    # Dynamic NAT of different networks to a single new ip/mask is ok.
+                    # Dynamic NAT of different networks to a single new IP/mask is OK.
                 }
                 elsif ($nat_old_net->{loopback} and $nat_network->{dynamic}
                     or $nat_old_net->{dynamic} and $nat_network->{loopback})
@@ -4904,7 +4904,7 @@ sub find_subnets() {
                           ($nat_network, $nat_old_net);
                     }
 
-                    # Dynamic NAT to loopback interface is ok,
+                    # Dynamic NAT to loopback interface is OK,
                     # if NAT is applied at device of loopback interface.
                     #
                     # Check all interfaces of attached device.
@@ -4936,7 +4936,7 @@ sub find_subnets() {
                     my $nat2  = $nat_old_net->{name};
                     $name1 .= " with $nat1" if $name1 ne $nat1;
                     $name2 .= " with $nat2" if $name2 ne $nat2;
-                    err_msg "$name1 and $name2 have identical ip/mask";
+                    err_msg "$name1 and $name2 have identical IP/mask";
                 }
                 else {
 
@@ -4947,7 +4947,7 @@ sub find_subnets() {
             }
             else {
 
-                # Store original network under NAT ip/mask.
+                # Store original network under NAT IP/mask.
                 $mask_ip_hash{$mask}->{$ip} = $network;
             }
         }
@@ -5042,7 +5042,7 @@ sub find_subnets() {
     }
 }
 
-# Cleartext interfaces of VPN cluster servers need to be attached
+# Clear-text interfaces of VPN cluster servers need to be attached
 # to the same security domain.
 # We need this to get consistent auto_deny_networks for all cluster members.
 sub check_vpnhub () {
@@ -5065,7 +5065,7 @@ sub check_vpnhub () {
             (grep { $_->{no_check} } @{ $_->{interfaces} })[0]->{any}
           } @$routers;
         $all_eq->(@anys)
-          or err_msg "Cleartext interfaces of\n ",
+          or err_msg "Clear-text interfaces of\n ",
           join(', ', map({ $_->{name} } @$routers)),
           "\n must all be connected to the same security domain.";
     }
@@ -5248,7 +5248,7 @@ sub setany() {
         }
         elsif (my $interfaces = $area->{border}) {
 
-            # For efficient lookup if some interface is border of current area.
+            # For efficient look up if some interface is border of current area.
             my %lookup;
             for my $interface (@$interfaces) {
                 $lookup{$interface} = 1;
@@ -5344,7 +5344,7 @@ sub link_and_check_virtual_interfaces () {
     for my $virtual1 (@virtual_interfaces) {
         unless ($virtual1->{router}->{loop}) {
             warn_msg "Ignoring virtual IP of $virtual1->{name}\n",
-              " because it isn't located inside cyclic subgraph";
+              " because it isn't located inside cyclic sub-graph";
             next;
         }
         my $ip = $virtual1->{ip};
@@ -5372,7 +5372,7 @@ sub link_and_check_virtual_interfaces () {
             if (not $virtual1->{router}->{loop} eq $virtual2->{router}->{loop})
             {
                 err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
-                  " are part of different cyclic subgraphs";
+                  " are part of different cyclic sub-graphs";
                 next;
             }
             push @$interfaces, $virtual1;
@@ -5569,7 +5569,7 @@ sub setpath_obj( $$$ ) {
     if ($loop_start) {
 
         # Mark every node of a cyclic graph with the graph's starting point
-        # or the starting point of a subgraph
+        # or the starting point of a sub-graph
         $obj->{loop} = $loop_start;
 
 #	debug "Loop($obj->{distance}): $obj->{name} -> $loop_start->{name}";
@@ -5821,13 +5821,13 @@ sub loop_path_mark1( $$$$$$$ ) {
     return $success;
 }
 
-# Mark paths inside a cyclic subgraph.
-# $from and $to are entry and exit objects of the subgraph.
-# The subgraph is entered at interface $from_in and left at interface $to_out.
+# Mark paths inside a cyclic sub-graph.
+# $from and $to are entry and exit objects of the sub-graph.
+# The sub-graph is entered at interface $from_in and left at interface $to_out.
 # For each pair of $from / $to, we collect attributes:
-# {loop_enter}: interfaces of $from, where the subgraph is entered,
+# {loop_enter}: interfaces of $from, where the sub-graph is entered,
 # {path_tuples}: tuples of interfaces, which describe all valid paths,
-# {loop_leave}: interfaces of $to, where the subgraph is left.
+# {loop_leave}: interfaces of $to, where the sub-graph is left.
 # Return value is true if a valid path was found.
 #
 # $from_store is the starting object of the whole path.
@@ -5836,7 +5836,7 @@ sub loop_path_mark1( $$$$$$$ ) {
 sub loop_path_mark ( $$$$$$ ) {
     my ($from, $to, $from_in, $to_out, $from_store, $to_store) = @_;
 
-    # This particular path through this subgraph is already known.
+    # This particular path through this sub-graph is already known.
     return 1 if $from_in->{path}->{$to_store};
 
     # Start and end interface or undef.
@@ -5910,7 +5910,7 @@ sub loop_path_mark ( $$$$$$ ) {
         last BLOCK if not $success;
         $success = 0;
 
-        # When entering subgraph at $from_in we will leave it at $to_out.
+        # When entering sub-graph at $from_in we will leave it at $to_out.
         $from_in->{path}->{$to_store} = $to_out;
 
         $from_in->{loop_entry}->{$to_store}    = $start_store;
@@ -6289,7 +6289,7 @@ sub link_crypto () {
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
 
-        # Convert name of ipsec definition to object with ipsec definition.
+        # Convert name of IPSec definition to object with IPSec definition.
         my ($type, $name2) = @{ $crypto->{type} };
 
         if ($type eq 'ipsec') {
@@ -6340,7 +6340,7 @@ sub gen_tunnel_rules ( $$$ ) {
 # ToDo: Are tunnels between different private contexts allowed?
 sub link_tunnels () {
 
-    # Collect cleartext interfaces of all tunnels.
+    # Collect clear-text interfaces of all tunnels.
     my @real_interfaces;
 
     for my $crypto (values %crypto) {
@@ -6358,7 +6358,7 @@ sub link_tunnels () {
 
         # Generate a single tunnel from each spoke to a single hub.
         # If there are multiple hubs, they are assumed to form
-        # a high availabilty cluster. In this case a single tunnel is created
+        # a high availability cluster. In this case a single tunnel is created
         # with all hubs as possible endpoints. Traffic between hubs is
         # prevented by automatically added pathrestrictions.
         for my $spoke_net (@$real_spokes) {
@@ -6723,7 +6723,7 @@ sub setup_ref2obj () {
 # This is, because at R2 we would get an automatically generated
 # reverse rule
 #  permit dst any1
-# which would accidently permit traffic to any4 as well.
+# which would accidentally permit traffic to any4 as well.
 sub check_any_src_rule( $$$ ) {
 
     # Function is called from path_walk.
@@ -7512,7 +7512,7 @@ sub collect_route( $$$ ) {
         }
 
         # Prevent duplicate routes for networks which are translated
-        # to the same ip address.
+        # to the same IP address.
         if (my $identical = $network->{is_identical}) {
             if (my $one_net = $identical->{ $in_intf->{nat_map} }) {
                 $network = $one_net;
@@ -7532,7 +7532,7 @@ sub check_and_convert_routes () {
     info "Checking for duplicate routes";
     for my $router (@managed_routers) {
 
-        # Adjust routes through VPN tunnel to cleartext interface.
+        # Adjust routes through VPN tunnel to clear-text interface.
         for my $interface (@{ $router->{interfaces} }) {
             next if not $interface->{ip} eq 'tunnel';
             my $tunnel_routes = $interface->{routes};
@@ -7554,7 +7554,7 @@ sub check_and_convert_routes () {
                     }
                 }
                 if (not $found_peer) {
-                    warn_msg "Missing cleartext route for",
+                    warn_msg "Missing clear-text route for",
                       " $peer_net->{name} at $router->{name}";
                 }
             }
@@ -8515,7 +8515,7 @@ sub rules_distribution() {
     %rule_tree = ();
 
     # Sort rules by reverse priority of service.
-    # This should be done late to get all auxilliary rules processed.
+    # This should be done late to get all auxiliary rules processed.
     for my $type ('deny', 'any', 'permit') {
         $expanded_rules{$type} =
           [ sort { ($b->{srv}->{prio} || 0) <=> ($a->{srv}->{prio} || 0) }
@@ -8587,7 +8587,7 @@ sub rules_distribution() {
 
 # Parameters:
 # obj: this address we want to know
-# network: look inside this nat domain
+# network: look inside this NAT domain
 # returns a list of [ ip, mask ] pairs
 sub address( $$ ) {
     my ($obj, $nat_map) = @_;
@@ -8637,7 +8637,7 @@ sub address( $$ ) {
 
         # Negotiated interfaces are dangerous:
         # If the attached network has address 0.0.0.0/0,
-        # we would accidently permit 'any'.
+        # we would accidentally permit 'any'.
         # We allow this only, if local networks are protected by tunnel_all.
         if ($obj->{ip} eq 'negotiated') {
             my ($network_ip, $network_mask) = @{$network}{ 'ip', 'mask' };
@@ -9148,9 +9148,9 @@ sub debug_bintree ( $;$ ) {
 }
 
 # Nodes are reverse sorted before being added to bintree.
-# Redundant nodes are discared while inserting.
-# A node with value of subtree S is discarded,
-# if some parent node already has subtree S.
+# Redundant nodes are discarded while inserting.
+# A node with value of sub-tree S is discarded,
+# if some parent node already has sub-tree S.
 sub add_bintree ( $$ );
 
 sub add_bintree ( $$ ) {
@@ -9165,7 +9165,7 @@ sub add_bintree ( $$ ) {
     if ($tree_mask < $node_mask && ($node_ip & $tree_mask) == $tree_ip) {
 
         # Optimization for this special case:
-        # Root of tree has atribute {subtree} which is identical to
+        # Root of tree has attribute {subtree} which is identical to
         # attribute {subtree} of current node.
         # Node is known to be less than root node.
         # Hence node together with its subtree can be discarded
@@ -9193,7 +9193,7 @@ sub add_bintree ( $$ ) {
     # This occurs for two cases:
     # 1. Different interfaces of redundancy protocols like VRRP or HSRP.
     #    In this case, the subtrees should be identical.
-    # 2. Dynamic nat of different networks or hosts to a single address
+    # 2. Dynamic NAT of different networks or hosts to a single address
     #    or range.
     #    Currently this case isn't handled properly.
     #    The first subtree is taken, the other ones are ignored.
@@ -9225,7 +9225,7 @@ sub add_bintree ( $$ ) {
           $node_ip < $tree_ip ? ($node, $tree) : ($tree, $node);
     }
 
-    # Merge adjacent subnetworks.
+    # Merge adjacent sub-networks.
   MERGE:
     {
         $result->{subtree} and last;
@@ -9255,7 +9255,7 @@ sub add_bintree ( $$ ) {
 sub gen_addr_bintree ( $$$ ) {
     my ($elements, $tree, $nat_map) = @_;
 
-    # Sort in reverse order my mask and then by ip.
+    # Sort in reverse order my mask and then by IP.
     my @nodes =
       sort { $b->{mask} <=> $a->{mask} || $b->{ip} <=> $a->{ip} }
       map {
@@ -9283,12 +9283,12 @@ sub gen_addr_bintree ( $$$ ) {
     return $bintree;
 }
 
-# Build a tree for src-range/srv objects. Subtrees for tcp and udp
+# Build a tree for src-range/srv objects. Sub-trees for tcp and udp
 # will be binary trees. Nodes have attributes {proto}, {range},
 # {type}, {code} like services (but without {name}).
 # Additional attributes for building the tree:
 # For tcp and udp:
-# {lo}, {hi} for subranges of current node.
+# {lo}, {hi} for sub-ranges of current node.
 # For other services:
 # {seq} an array of ordered nodes for sub services of current node.
 # Elements of {lo} and {hi} or elements of {seq} are guaranteed to be
@@ -9580,13 +9580,6 @@ sub print_chain_rule( $ ) {
     return $result;
 }
 
-# ToDo:
-# - Redundante Regeln entfernen, wie bei local_optimization:
-#  - host, intf, net in any
-#  - Subnetz-Beziehung
-# - secondary Rules zusammenfassen
-# - bintrees von identischen Subtrees nur 1x generieren.
-#
 sub find_chains ( $$ ) {
     my ($router, $hardware) = @_;
 
