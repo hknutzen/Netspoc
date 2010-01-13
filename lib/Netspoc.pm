@@ -2612,7 +2612,7 @@ sub order_ranges( $$ ) {
             if ($a2 >= $b2) {
                 $b->{up} = $a;
 
-#	    debug "$b->{name} [$b1-$b2] < $a->{name} [$a1-$a2]";
+#           debug "$b->{name} [$b1-$b2] < $a->{name} [$a1-$a2]";
                 $i = $check_subrange->($b, $b1, $b2, $i + 1);
 
                 # Stop at end of array.
@@ -2631,7 +2631,7 @@ sub order_ranges( $$ ) {
             my $y1 = $a2 + 1;
             my $y2 = $b2;
 
-#	 debug "$b->{name} [$b1-$b2] split into [$x1-$x2] and [$y1-$y2]";
+#        debug "$b->{name} [$b1-$b2] split into [$x1-$x2] and [$y1-$y2]";
             my $find_or_insert_range = sub( $$$$$ ) {
                 my ($a1, $a2, $i, $orig, $prefix) = @_;
                 while (1) {
@@ -2661,7 +2661,7 @@ sub order_ranges( $$ ) {
                         # Found identical range, return this one.
                         if ($a2 == $b2) {
 
-#		     debug "Splitted range is already defined: $b->{name}";
+#                    debug "Splitted range is already defined: $b->{name}";
                             return $b;
                         }
 
@@ -3109,7 +3109,7 @@ sub link_subnet ( $$ ) {
     my $ip     = $network->{ip};
     my $mask   = $network->{mask};
     my $sub_ip = $object->{ip};
-    debug $network->{name} if not defined $ip;
+#    debug $network->{name} if not defined $ip;
     if ($ip eq 'unnumbered') {
         err_msg "Unnumbered $network->{name} must not be referenced from",
           " attribute 'subnet_of'\n of ", $context->();
@@ -3305,7 +3305,7 @@ sub disable_behind( $ ) {
         # This stops at other entry of a loop as well.
         if ($interface->{disabled}) {
 
-#	 debug "Stop disabling at $interface->{name}";
+#        debug "Stop disabling at $interface->{name}";
             next;
         }
         $interface->{disabled} = 1;
@@ -3661,7 +3661,7 @@ sub get_auto_intf ( $;$) {
         $result->{disabled} = 1 if $object->{disabled};
         $auto_interfaces{$object}->{$managed} = $result;
 
-#	debug $result->{name};
+#       debug $result->{name};
     }
     $result;
 }
@@ -4048,7 +4048,7 @@ sub expand_group( $$;$ ) {
         my @other;
         for my $obj (grep { defined $_ and not $unique{$_}++ } @$aref) {
 
-#	    debug "group:$obj->{name}";
+#           debug "group:$obj->{name}";
             if (is_host $obj) {
                 push @subnets, @{ $obj->{subnets} };
             }
@@ -4196,7 +4196,7 @@ sub add_rules( $ ) {
             next;
         }
 
-#	debug "Add:", print_rule $rule;
+#       debug "Add:", print_rule $rule;
         $rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$src_range}
           ->{$srv} = $rule;
     }
@@ -4631,7 +4631,7 @@ sub set_natdomain( $$$ ) {
                 # logical and hardware interfaces of managed routers.
                 if ($managed) {
 
-#		    debug "$domain->{name}: $out_interface->{name}";
+#                   debug "$domain->{name}: $out_interface->{name}";
                     $out_interface->{nat_map} =
                       $out_interface->{hardware}->{nat_map} = $nat_map;
                 }
@@ -4786,14 +4786,14 @@ sub distribute_nat_info() {
                 next DOMAIN if $href->{$nat_tag};
             }
 
-#	 debug "$domain->{name}";
+#        debug "$domain->{name}";
             for my $network (@{ $domain->{networks} }) {
 
                 # If network has local NAT definition,
                 # then skip global NAT definition.
                 next if $network->{nat}->{$nat_tag};
 
-#	    debug "global nat:$nat_tag to $network->{name}";
+#           debug "global nat:$nat_tag to $network->{name}";
                 $network->{nat}->{$nat_tag} = $global;
 
                 # Needed for error messages.
@@ -4849,8 +4849,8 @@ sub distribute_nat_info() {
                     next if $nat_map->{$network};
                     $nat_map->{$network} = $network->{nat}->{$nat_tag};
 
-#	       debug " Map: $network->{name} -> ",
-#	       print_ip $nat_map->{$network}->{ip};
+#              debug " Map: $network->{name} -> ",
+#              print_ip $nat_map->{$network}->{ip};
                 }
             }
         }
@@ -4959,7 +4959,7 @@ sub find_subnets() {
             my $network = $key2obj{$net_key};
             $network->{is_identical}->{$nat_map} = $one_net;
 
-#	    debug "Identical: $network->{name}: $one_net->{name}";
+#           debug "Identical: $network->{name}: $one_net->{name}";
         }
 
         # Go from smaller to larger networks.
@@ -5408,7 +5408,7 @@ sub link_and_check_virtual_interfaces () {
             my $restrict = new('Pathrestriction', name => $name);
             for my $interface (@$interfaces) {
 
-#		debug "pathrestriction $name at $interface->{name}";
+#               debug "pathrestriction $name at $interface->{name}";
                 next if not $interface->{router}->{managed};
                 push @{ $interface->{path_restrict} }, $restrict;
             }
@@ -5453,7 +5453,7 @@ sub link_and_check_pathrestrictions() {
 
             # Interfaces with pathrestriction need to be located
             # inside or at the border of cyclic graphs.
-            $obj->{in_loop} || $obj->{router}->{loop} || $obj->{network}->{loop}
+            $obj->{loop} || $obj->{router}->{loop} || $obj->{network}->{loop}
               or warn_msg "Ignoring $restrict->{name} at $obj->{name}\n",
               " because it isn't located inside cyclic graph";
 
@@ -5504,7 +5504,7 @@ sub link_and_check_pathrestrictions() {
                 next if not $real_intf;
                 next if not $real_intf eq $interface;
 
-#		debug "Adding $restrict->{name} to $intf->{name}";
+#               debug "Adding $restrict->{name} to $intf->{name}";
                 push @{ $restrict->{elements} },  $intf;
                 push @{ $intf->{path_restrict} }, $restrict;
             }
@@ -5516,79 +5516,83 @@ sub link_and_check_pathrestrictions() {
 # Set paths for efficient topology traversal
 ####################################################################
 
+# Parameters:
+# $obj: a managed router or a network
+# $to_net1: interface of $obj; go this direction to reach net1
+# $distance: distance to net1
+# Return value:
+# - undef: found path is not part of a loop
+# - loop-marker: 
+#   - found path is part of a loop
+#   - a hash, which is referenced by all members of the loop
+#     with this attributes:
+#     - exit: that node of the loop where net1 is reached
+#     - distance: distance of the exit node + 1.
 sub setpath_obj( $$$ );
-
 sub setpath_obj( $$$ ) {
     my ($obj, $to_net1, $distance) = @_;
 
-    debug("-- $distance: $obj->{name} --> $to_net1->{name}");
-    # $obj: a managed router or a network
-    # $to_net1: interface of $obj; go this direction to reach net1
-    # $distance: distance to net1
-    # return value used in different manners:
-    # (1) a flag, indicating that the current path is part of a loop
-    # (2) that obj, which is starting point of the loop (as seen from net1)
+#    debug("-- $distance: $obj->{name} --> $to_net1->{name}");
     if ($obj->{active_path}) {
 
         # Found a loop; this is possibly exit of the loop to net1.
-	# Generate unique loop marker which references this object.
-        return { exit => $obj };
+        # Generate unique loop marker which references this object.
+        # Distance is needed for cluster navigation.
+        # We need a copy of the distance value inside the loop marker
+        # because distance at object is reset later to the value og the 
+	# cluster exit object.
+        # Wem must use an intermediate distance value for cluster_navigation to work.
+        return $to_net1->{loop} = { exit => $obj,
+                                    distance => $obj->{distance} + 1, };
     }
 
     # Mark current path for loop detection.
     $obj->{active_path} = 1;
     $obj->{distance}    = $distance;
 
-    my $loop_start;
-    my $loop_distance;
     my $get_next = is_router $obj ? 'network' : 'router';
     for my $interface (@{ $obj->{interfaces} }) {
 
         # Ignore interface where we reached this obj.
         next if $interface eq $to_net1;
 
-        # Ignore interface which is the other entry of a loop
-        # which is already marked.
-        next if $interface->{in_loop};
+        # Ignore interface which is the other entry of a loop which is
+        # already marked.
+        next if $interface->{loop};
         my $next = $interface->{$get_next};
-        if (my $loop = setpath_obj $next, $interface, $distance + 1) {
-	    my $loop_exit = $loop->{exit};
 
-	    # Exit of loop in direction to net1.
-	    if ($obj eq $loop_exit) {
+        # Increment by 2 because we need an intermediate value above.
+        if (my $loop = setpath_obj $next, $interface, $distance + 2) {
+            my $loop_obj = $loop->{exit};
 
-		# Mark with a dummy without reference to exit
-		$obj->{loop} = {};
-	    }
+            # Found exit of loop in direction to net1.
+            if ($obj eq $loop_obj) {
 
-	    # Intermediate loop node.
-	    elsif (my $loop2 = $obj->{loop}) {
-		if ($loop ne $loop2) {
-		    if(my $loop2_obj = $loop2->{exit}) {
-			my $loop2_dist = $loop2_obj->{distance};
-			my $loop_dist = $loop_obj->{distance};
-			if ($loop_dist < $loop2_dist) {
-			    $loop2->{redirect} = $loop;
-			    $obj->{loop} = $loop;
-			}
-			elsif ($loop_dist > $loop2_dist) {
-			    $loop->{redirect} = $loop2;
-			}
-			else {
-			    internal_err "Different loop marker with equal distance";
-			}
-		    }
+                # Mark with a different marker linking to itself.
+                # If current loop is part of a cluster, 
+                # this marker will be overwritten later.
+                # Otherwise this is the exit of a cluster of loops.
+                $obj->{loop} ||= { exit => $obj, distance => $distance, };
+            }
 
-		    # Overwrite dummy loop marker.
-		    else {
-			$obj->{loop} = $loop;
-		    }
-		}
-	    }
-	    else {
-		$obj->{loop} = $loop;
-	    }
-            $interface->{in_loop} = 1;
+            # Found intermediate loop node which was marked before.
+            elsif (my $loop2 = $obj->{loop}) {
+                if ($loop ne $loop2) {
+                    if ($loop->{distance} < $loop2->{distance}) {
+                        $loop2->{redirect} = $loop;
+                        $obj->{loop} = $loop;
+                    }
+                    else {
+                        $loop->{redirect} = $loop2;
+                    }
+                }
+            }
+
+            # Found intermediate loop node.
+            else {
+                $obj->{loop} = $loop;
+            }
+            $interface->{loop} = $loop;
         }
         else {
 
@@ -5597,31 +5601,38 @@ sub setpath_obj( $$$ ) {
         }
     }
     delete $obj->{active_path};
-    if($obj->{loop}) {
-	return $obj->{loop};
+    if($obj->{loop} and $obj->{loop}->{exit} ne $obj) {
+        return $obj->{loop};
 
     }
     else {
-	$obj->{main} = $to_net1;
-	return 0;
+        $obj->{main} = $to_net1;
+        return 0;
     }
 }
 
 # Find cluster of directly connected loops.
-# Find exit node of the cluster in direction to net1.
-# Add this exit node as marker to all loops belonging to one cluster.
-sub set_loop_cluster( $ ) {
+# Find exit node of the cluster in direction to net1;
+# Its loop attribute has a reference to the node itself.
+# Add this exit node as marker to all loops belonging to the cluster.
+sub set_loop_cluster {
     my ($loop) = @_;
     if(my $marker = $loop->{cluster_exit}) {
-	$marker;
+        return $marker;
     }
     else {
-	my $exit = $loop->{exit};
-	if($exit->{loop}) {
-	    set_loop_cluster($exit->{loop});
-	}
-	else {
-	    $loop->{cluster_exit} = $exit;
+        my $exit = $loop->{exit};
+
+        # Exit node has loop marker which references the node itself.
+        if ($exit->{loop} eq $loop) {
+#           debug "Loop $exit->{name}$loop is in cluster $exit->{name}";
+            return $loop->{cluster_exit} = $exit;
+        }
+        else {
+            my $cluster = set_loop_cluster($exit->{loop});
+#           debug "Loop $exit->{name}$loop is in cluster $cluster->{name}";
+            return $loop->{cluster_exit} = $cluster;
+        }
     }
 }
 
@@ -5657,25 +5668,35 @@ sub setpath() {
     }
 
     # This is called here and not at link_topology because it needs
-    # attributes {disabled} and {in_loop}.
+    # attributes {disabled} and {loop}.
     link_and_check_pathrestrictions;
 
-    # Check all networks and routers located inside a cyclic graph.
-    # Propagate loop exit into all sub-loops.
     for my $obj (@networks, @routers) {
         my $loop = $obj->{loop} or next;
-	while(my $next = delete $loop->{redirect}) {
-	    $loop = $next;
-	}
-	$obj->{loop} = $loop;
-    }
 
-    # Mark connected loops with identical cluster marker.
-    for my $obj (@networks, @routers) {
-        my $loop = $obj->{loop} or next;
-	if(not $loop->{cluster_exit}) {
-	    $loop->{cluster_exit} = set_loop_cluster($loop);
-	}
+        # Check all networks and routers located inside a cyclic
+        # graph. Propagate loop exit into sub-loops.
+        while (my $next = $loop->{redirect}) {
+#           debug "Redirect: $loop->{exit}->{name} -> $next->{exit}->{name}";
+            $loop = $next;
+        }
+        $obj->{loop} = $loop;
+
+        # Mark connected loops with cluster exit.
+        set_loop_cluster($loop);
+
+        # Set distance of loop objects to value of cluster exit.
+        $obj->{distance} = $loop->{cluster_exit}->{distance};
+    }
+    for my $router (@routers) {
+        for my $interface (@{$router->{interfaces}}) {
+            if(my $loop = $interface->{loop}) {
+                while (my $next = $loop->{redirect}) {
+                    $loop = $next;
+                }
+                $interface->{loop} = $loop;
+            }
+        }
     }
 
     # This is called here because it needs attribute {loop}
@@ -5743,12 +5764,12 @@ sub get_path( $ ) {
 # Converts hash key of reference back to reference.
 my %key2obj;
 
-sub loop_path_mark1( $$$$$$$ );
+sub cluster_path_mark1( $$$$$$$$ );
 
-sub loop_path_mark1( $$$$$$$ ) {
+sub cluster_path_mark1( $$$$$$$$ ) {
 
-    my ($obj, $in_intf, $end, $path_tuples, $loop_leave, $start_intf, $end_intf)
-      = @_;
+    my ($obj, $in_intf, $end, $path_tuples, $loop_leave, 
+        $start_intf, $end_intf, $navi) = @_;
     my @pathrestriction =
       $in_intf->{path_restrict}
       ? @{ $in_intf->{path_restrict} }
@@ -5776,13 +5797,13 @@ sub loop_path_mark1( $$$$$$$ ) {
         }
     }
 
-#  debug "loop_path_mark1: obj: $obj->{name},
+#  debug "cluster_path_mark1: obj: $obj->{name},
 #        in_intf: $in_intf->{name} to: $end->{name}";
     # Check for second occurrence of path restriction.
     for my $restrict (@pathrestriction) {
         if ($restrict->{active_path}) {
 
-#	    debug " effective $restrict->{name} at $in_intf->{name}";
+#           debug " effective $restrict->{name} at $in_intf->{name}";
             return 0;
         }
     }
@@ -5790,7 +5811,7 @@ sub loop_path_mark1( $$$$$$$ ) {
     # Don't walk loops.
     if ($obj->{active_path}) {
 
-#     debug " active: $obj->{name}";
+#       debug " active: $obj->{name}";
         return 0;
     }
 
@@ -5810,7 +5831,7 @@ sub loop_path_mark1( $$$$$$$ ) {
     # Mark first occurrence of path restriction.
     for my $restrict (@pathrestriction) {
 
-#	debug " enabled $restrict->{name} at $in_intf->{name}";
+#       debug " enabled $restrict->{name} at $in_intf->{name}";
         $restrict->{active_path} = 1;
     }
     my $get_next = is_router $obj ? 'network' : 'router';
@@ -5818,14 +5839,17 @@ sub loop_path_mark1( $$$$$$$ ) {
 
     # Fill hash for restoring reference from hash key.
     $key2obj{$in_intf} = $in_intf;
+    my $allowed = $navi->{$obj->{loop}};
     for my $interface (@{ $obj->{interfaces} }) {
-        next unless $interface->{in_loop};
         next if $interface eq $in_intf;
+        my $loop = $interface->{loop};
+	$allowed or internal_err "Loop with empty navigation";
+        next if not $loop or not $allowed->{$loop};
         my $next = $interface->{$get_next};
         if (
-            loop_path_mark1(
-                $next,       $interface,  $end, $path_tuples,
-                $loop_leave, $start_intf, $end_intf
+            cluster_path_mark1(
+                $next,       $interface,  $end,      $path_tuples,
+                $loop_leave, $start_intf, $end_intf, $navi
             )
           )
         {
@@ -5843,7 +5867,7 @@ sub loop_path_mark1( $$$$$$$ ) {
                 $path_tuples->{$in_intf}->{$interface} = is_router $obj;
             }
 
-#	 debug " loop: $in_intf->{name} -> $interface->{name}";
+#	    debug " loop: $in_intf->{name} -> $interface->{name}";
             $success = 1;
         }
     }
@@ -5856,117 +5880,67 @@ sub loop_path_mark1( $$$$$$$ ) {
     return $success;
 }
 
-sub add_path_tuples ( $$$$ ) {
-    my ($in_aref, $out_aref, $obj, $path_tuples) = @_;
-    if ($obj->{managed}) {
-	$is_router =  is_router $obj
-	for my $in_intf (@$in_aref) {
-	    for my $out_intf (@$out_aref) {
-		$path_tuples->{$in_intf}->{$out_intf} = $is_router;
-	    }
-	}
-    }
-}
-
-# Mark paths inside a cluster of loops.
+# Optimize navigation inside a cluster of loops.
+# Mark each loop marker
+# with the allowed loops to be gone to reach $to.
+# The direction is given as a loop object.
+# It can be used to look up interfaces which reference 
+# this loop object in attribute {loop}.
 # Return value: 
-# A hash with pairs: object -> subloop
-sub cluster_navigation( $$$$ ) {
-    my ($from, $to, $from_store, $to_store) = @_;
-
-    # Cluster is entered at $from through these interfaces.
-    my $cluster_enter;
-
-    # Cluster is left at $to through these interfaces.
-    my $cluster_leave;
-
-    my $enter0;
-    my $leave0;
-    my $path_tuples = $from_store->{path_tuples}->{$to_store} = {};
+# A hash with pairs: object -> loop-marker
+sub cluster_navigation( $$ ) {
+    my ($from, $to) = @_;
     my $from_loop = $from->{loop};
     my $to_loop   = $to->{loop};
 
-    while(1) {
+#    debug "Navi: $from->{name}, $to->{name}";
 
-	if ($from eq $to) {
-	    if ($cluster_enter) {
-		if ($cluster_leave) {
-		    add_path_tuples($leave0, $enter0, $from, $path_tuples);
-		}
-		else {
-		    $cluster_leave = $leave;
-		}
-	    }
-	    else {
-		$cluster_enter = $enter;
-		if (not $cluster_leave) {
-		    $cluster_leave = $leave;
-		}
-	    }
-	    last;
-	}
-	elsif ($from_loop eq $to_loop) {
-	    my ($enter, $leave) = 
-		loop_path_mark($from, $to, $path_tuples, $from_store, $to_store)
-		or return;
-	    if ($leave0) {
-		add_path_tuples($leave0, $enter, $from, $path_tuples);
-	    }
-	    else {
-		$cluster_enter = $enter;
-	    }
-	    if ($enter0) {
-		add_path_tuples($enter0, $leave, $to, $path_tuples);
-	    }
-	    else {
-		$cluster_leave = $leave;
-	    }
-	    last;
-	}
-	elsif ($from->{distance} >= $to->{distance}) {
-	    my $exit = $from_loop->{exit};
-	    my ($enter, $leave) = 
-		loop_path_mark($from, $exit, $path_tuples, $from_store, $to_store)
-		or return;
-	    if ($leave0) {
-		add_path_tuples($leave0, $enter, $from, $path_tuples);
-	    }
-	    else {
-		$cluster_enter = $enter;
-	    }
-	    $leave0 = $leave;
-	    $from = $exit;
-	    $from_loop = $from->{loop};
-	}
-	else {
-	    my $entry = $to_loop->{exit};
-	    my ($enter, $leave) = 
-		loop_path_mark($entry, $to, $path_tuples, $from_store, $to_store)
-		or return;
-	    if ($enter0) {
-		add_path_tuples($enter0, $leave, $to, $path_tuples);
-	    }
-	    else {
-		$cluster_leave = $leave;
-	    }
-	    $enter0 = $enter;
-	    $to = $entry;
-	    $to_loop = $to->{loop};
-	}
+    my $navi;
+    if(($navi = $from->{navi}->{$to}) and scalar keys %$navi) {
+	debug " Cached";
+	return $navi;
     }
-    
-    $from_store->{loop_enter}->{$to_store} = $cluster_enter;
-    $from_store->{loop_leave}->{$to_store} = $cluster_leave;
-    return 1;
+    $navi = $from->{navi}->{$to} = {};
+
+    while(1) {
+        if ($from_loop eq $to_loop) {
+	    last if $from eq $to;
+	    $navi->{$from_loop}->{$from_loop} = 1;
+	    debug "- Eq: $from_loop->{exit}->{name}$from_loop to itself";
+
+	    # Path $from -> $to goes through $from_loop and through $exit_loop.
+	    # Inside $exit_loop, enter only $from_loop, but no other loops.
+	    my $exit_loop = $from_loop->{exit}->{loop};
+	    $navi->{$exit_loop}->{$from_loop} = 1;
+	    debug "- Add $from_loop->{exit}->{name}$from_loop to exit $exit_loop->{exit}->{name}$exit_loop";
+            last;
+        }
+        elsif ($from_loop->{distance} >= $to_loop->{distance}) {
+	    $navi->{$from_loop}->{$from_loop} = 1;
+	    debug "- Fr: $from_loop->{exit}->{name}$from_loop to itself";
+	    $from = $from_loop->{exit};
+            $from_loop = $from->{loop};
+        }
+        else {
+	    $navi->{$to_loop}->{$to_loop} = 1;
+	    debug "- To: $to_loop->{exit}->{name}$to_loop to itself";
+	    $to = $to_loop->{exit};
+            my $entry_loop = $to->{loop};
+	    $navi->{$entry_loop}->{$to_loop} = 1;
+	    debug "- Add $to_loop->{exit}->{name}$to_loop to entry $entry_loop->{exit}->{name}$entry_loop";
+            $to_loop = $entry_loop;
+        }
+    }
+    $navi;
 }
 
-# Mark paths inside a cyclic sub-graph.
-# $from and $to are entry and exit objects of the sub-graph.
-# The sub-graph is entered at interface $from_in and left at interface $to_out.
+# Mark paths inside a cluster of loops.
+# $from and $to are entry and exit objects inside the cluster.
+# The cluster is entered at interface $from_in and left at interface $to_out.
 # For each pair of $from / $to, we collect attributes:
-# {loop_enter}: interfaces of $from, where the sub-graph is entered,
+# {loop_enter}: interfaces of $from, where the cluster is entered,
 # {path_tuples}: tuples of interfaces, which describe all valid paths,
-# {loop_leave}: interfaces of $to, where the sub-graph is left.
+# {loop_leave}: interfaces of $to, where the cluster is left.
 # Return value is true if a valid path was found.
 #
 # $from_store is the starting object of the whole path.
@@ -6010,13 +5984,13 @@ sub cluster_path_mark ( $$$$$$ ) {
 
     my $success = 1;
 
-#    debug "loop_path_mark: $start_store->{name} -> $end_store->{name}";
+#    debug "cluster_path_mark: $start_store->{name} -> $end_store->{name}";
 
     # Activate pathrestriction of interface at border of loop, if path starts
     # or ends outside the loop and enters the loop at such an interface.
     for my $intf ($from_in, $to_out) {
         if (    $intf
-            and not $intf->{in_loop}
+            and not $intf->{loop}
             and (my $restrictions = $intf->{path_restrict}))
         {
             for my $restrict (@$restrictions) {
@@ -6061,7 +6035,53 @@ sub cluster_path_mark ( $$$$$$ ) {
             $success = 1;
             last BLOCK;
         }
-	$success = cluster_path_mark1($from, $to, $start_store; $end_store);
+
+        my $loop_enter = $start_store->{loop_enter}->{$end_store} = [];
+
+        # Global variables.
+        my $path_tuples = $start_store->{path_tuples}->{$end_store} = {};
+        my $loop_leave  = $start_store->{loop_leave}->{$end_store}  = {};
+
+        my $navi = cluster_navigation($from, $to) or internal_err "Empty navi";
+#	use Dumpvalue;
+#	Dumpvalue->new->dumpValue($navi);
+
+        # Mark current path for loop detection.
+        $from->{active_path} = 1;
+        my $get_next = is_router $from ? 'network' : 'router';
+        my $allowed = $navi->{$from->{loop}}
+	or internal_err "Loop $from->{loop}->{exit}->{name}$from->{loop} with empty navi";
+        for my $interface (@{ $from->{interfaces} }) {
+            my $loop = $interface->{loop};
+            next if not $loop;
+	    if(not $allowed->{$loop}) {
+#		debug "No: $loop->{exit}->{name}$loop";
+		next;
+	    }
+
+            # Don't enter network which connects pair of virtual loopback
+            # interfaces.
+            next if $interface->{loopback};
+            my $next = $interface->{$get_next};
+
+#           debug " try: $from->{name} -> $interface->{name}";
+            if (
+                cluster_path_mark1(
+                    $next,       $interface,  $to,       $path_tuples,
+                    $loop_leave, $start_intf, $end_intf, $navi
+                )
+              )
+            {
+                $success = 1;
+                push @$loop_enter, $interface;
+
+#               debug " enter: $from->{name} -> $interface->{name}";
+            }
+        }
+        delete $from->{active_path};
+
+        # Convert hash of interfaces to array of interfaces.
+        $start_store->{loop_leave}->{$end_store} = [ values %$loop_leave ];
     }
 
     # Remove temporary added path restrictions.
@@ -6077,7 +6097,7 @@ sub cluster_path_mark ( $$$$$$ ) {
     # Disable pathrestriction at border of loop.
     for my $intf ($from_in, $to_out) {
         if (    $intf
-            and not $intf->{in_loop}
+            and not $intf->{loop}
             and (my $restrictions = $intf->{path_restrict}))
         {
             for my $restrict (@$restrictions) {
@@ -6094,7 +6114,7 @@ sub cluster_path_mark ( $$$$$$ ) {
 # If the path starts at an interface inside a cluster of loops 
 # or at the border of a cluster,
 # and the interface has a pathrestriction attached,
-# $from_store contains this interface.
+# then $from_store contains this interface.
 # If the path ends at an interface inside a loop or at the border of a loop,
 # $to_store contains this interface.
 # At each interface on the path from $from to $to,
@@ -6107,27 +6127,37 @@ sub path_mark( $$$$ ) {
 
 #    debug "path_mark $from_store->{name} --> $to_store->{name}";
 
-    # Use $from_store, not $from, because may differ depending on the start interface.
-    my $from_in   = $from_store;
-    my $to_out    = undef;
     my $from_loop = $from->{loop};
     my $to_loop   = $to->{loop};
+
+    # $from_store and $from differ if path starts at an interface
+    # with pathrestriction.
+    # Inside a loop, use $from_store, not $from, 
+    # because it may differ depending on the start interface.
+    # But outside a loop (pathrestriction is allowed at the border of a loop)
+    # only a single interface enters the loop.
+    # In this case we must not use the interface but the router,
+    # otherwise we would get an invalid {path}: 
+    # $from_store->{path}->{$to_store} = $from_store;
+    my $from_in   = $from_loop ? $from_store : $from;
+    my $to_out    = undef;
     while (1) {
 
+#        debug "Dist: $from->{distance} $from->{name} ->Dist: $to->{distance} $to->{name}";
         # Paths meet outside a loop or at the edge of a loop.
         if ($from eq $to) {
 
-#	 debug " $from_in->{name} -> ".($to_out ? $to_out->{name}:'');
+#            debug " $from_in->{name} -> ".($to_out ? $to_out->{name}:'');
             $from_in->{path}->{$to_store} = $to_out;
             return 1;
         }
 
         # Paths meet inside a loop.
-	if($from_loop && $to_loop && 
-	   $from_loop->{cluster_exit} == $to_loop->{cluster_exit}) 
-	{
-            return cluster_path_mark($from, $to, $from_in, $to_out, $from_store,
-                $to_store);
+        if($from_loop && $to_loop && 
+           $from_loop->{cluster_exit} eq $to_loop->{cluster_exit}) 
+        {
+            return cluster_path_mark($from, $to, $from_in, $to_out, 
+                                     $from_store, $to_store);
         }
 
         if ($from->{distance} >= $to->{distance}) {
@@ -6138,15 +6168,14 @@ sub path_mark( $$$$ ) {
             unless ($from_out) {
 
                 # $from_loop references object which is loop's exit.
-		my $exit = $from_loop->{cluster_exit};
+                my $exit = $from_loop->{cluster_exit};
                 $from_out = $exit->{main};
-                cluster_path_mark(
-                    $from,     $exit,       $from_in,
-                    $from_out, $from_store, $to_store
-                ) or return 0;
+                cluster_path_mark($from, $exit, $from_in, $from_out, 
+                                  $from_store, $to_store) 
+                  or return 0;
             }
 
-#	 debug " $from_in->{name} -> ".($from_out ? $from_out->{name}:'');
+#            debug " $from_in->{name} -> ".($from_out ? $from_out->{name}:'');
             $from_in->{path}->{$to_store} = $from_out;
             $from_in                      = $from_out;
             $from                         = $from_out->{main};
@@ -6155,13 +6184,14 @@ sub path_mark( $$$$ ) {
         else {
             my $to_in = $to->{main};
             unless ($to_in) {
-		my $entry = $to_loop->{cluster_exit};
+                my $entry = $to_loop->{cluster_exit};
                 $to_in = $entry->{main};
-                cluster_path_mark($entry, $to, $to_in, $to_out, $from_store, $to_store)
+                cluster_path_mark($entry, $to, $to_in, $to_out, 
+                                  $from_store, $to_store)
                   or return 0;
             }
 
-#	 debug " $to_in->{name} -> ".($to_out ? $to_out->{name}:'');
+#            debug " $to_in->{name} -> ".($to_out ? $to_out->{name}:'');
             $to_in->{path}->{$to_store} = $to_out;
             $to_out                     = $to_in;
             $to                         = $to_in->{main};
@@ -6174,10 +6204,10 @@ sub path_mark( $$$$ ) {
 sub loop_path_walk( $$$$$$$ ) {
     my ($in, $out, $loop_entry, $loop_exit, $call_at_router, $rule, $fun) = @_;
 
-#    my $info = "loop_path_walk: ";
-#    $info .= "$in->{name}->" if $in;
-#    $info .= "$loop_entry->{name}->$loop_exit->{name}";
-#    $info .= "->$out->{name}" if $out;
+    my $info = "loop_path_walk: ";
+    $info .= "$in->{name}->" if $in;
+    $info .= "$loop_entry->{name}->$loop_exit->{name}";
+    $info .= "->$out->{name}" if $out;
 #    debug $info;
 
     # Process entry of cyclic graph.
@@ -6241,11 +6271,11 @@ sub path_walk( $$;$ ) {
 #    debug(" start: $from->{name}, $to->{name}" . ($where?", at $where":''));
 #    my $fun2 = $fun;
 #    $fun = sub ( $$$ ) {
-#	my($rule, $in, $out) = @_;
-#	my $in_name = $in?$in->{name}:'-';
-#	my $out_name = $out?$out->{name}:'-';
-#	debug " Walk: $in_name, $out_name";
-#	$fun2->(@_);
+#       my($rule, $in, $out) = @_;
+#       my $in_name = $in?$in->{name}:'-';
+#       my $out_name = $out?$out->{name}:'-';
+#       debug " Walk: $in_name, $out_name";
+#       $fun2->(@_);
 #    };
     unless ($from and $to) {
         internal_err print_rule $rule;
@@ -6256,7 +6286,7 @@ sub path_walk( $$;$ ) {
         $rule->{deleted} = $rule;
         return;
     }
-    if (not $from_store->{path}->{$to_store}) {
+    if (not(($from->{loop} ? $from_store : $from)->{path}->{$to_store})) {
         path_mark($from, $to, $from_store, $to_store)
           or err_msg
           "No valid path from $from_store->{name} to $to_store->{name}\n",
@@ -6277,7 +6307,7 @@ sub path_walk( $$;$ ) {
             $rule, $fun);
         if (not $loop_out) {
 
-#	    debug "exit: path_walk: dst in loop";
+#           debug "exit: path_walk: dst in loop";
             return;
         }
 
@@ -6287,7 +6317,7 @@ sub path_walk( $$;$ ) {
         $out     = $in->{path}->{$to_store};
     }
     else {
-        $out = $from_store->{path}->{$to_store};
+        $out = $from->{path}->{$to_store};
     }
     while (1) {
         if (    $in
@@ -6300,7 +6330,7 @@ sub path_walk( $$;$ ) {
                 $rule, $fun);
             if (not $loop_out) {
 
-#		debug "exit: path_walk: reached dst in loop";
+#               debug "exit: path_walk: reached dst in loop";
                 return;
             }
             $call_it = not(is_network($loop_exit) xor $at_router);
@@ -6315,7 +6345,7 @@ sub path_walk( $$;$ ) {
             # End of path has been reached.
             if (not $out) {
 
-#		debug "exit: path_walk: reached dst";
+#               debug "exit: path_walk: reached dst";
                 return;
             }
             $call_it = !$call_it;
@@ -7612,7 +7642,7 @@ sub collect_route( $$$ ) {
         # But we can't be sure about this, if we are walking inside a loop.
         if (    $use_nonlocal_exit
             and $in_intf->{routes}->{$out_intf}->{$network}
-            and not $in_intf->{in_loop})
+            and not $in_intf->{loop})
         {
 
             # Jump out of path_walk in sub find_active_routes_and_statics
@@ -7628,7 +7658,7 @@ sub collect_route( $$$ ) {
             }
         }
 
-#	debug "Route at $in_intf->{name}: $network->{name} via $out_intf->{name}";
+#       debug "Route at $in_intf->{name}: $network->{name} via $out_intf->{name}";
         $in_intf->{routes}->{$out_intf}->{$network} = $network;
 
         # Store $out_intf itself, since we need to go back
@@ -7862,12 +7892,13 @@ sub find_statics () {
             $rule2->{dst_net}->{$network} = $network;
         }
     }
+    $DB::single = 2;
     for my $hash (values %any2any2rule) {
         for my $rule (values %$hash) {
             $rule->{src_net} = [ values %{ $rule->{src_net} } ];
             $rule->{dst_net} = [ values %{ $rule->{dst_net} } ];
 
-#	    debug "$rule->{src}->{name}, $rule->{dst}->{name}";
+#           debug "$rule->{src}->{name}, $rule->{dst}->{name}";
             path_walk($rule, \&mark_networks_for_static, 'Router');
         }
     }
@@ -7894,7 +7925,7 @@ sub find_active_routes () {
         for my $network (get_networks($dst)) {
             next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
 
-#	    debug "$from->{name} -> $network->{name}";
+#           debug "$from->{name} -> $network->{name}";
             unless ($routing_tree{$from}->{$network}) {
                 my $pseudo_rule = {
                     src    => $from,
@@ -8388,13 +8419,13 @@ sub distribute_rule( $$$ ) {
         # interface, where traffic enters the PIX.
         return if $model->{filter} eq 'PIX' and $rule->{dst} ne $in_intf;
 
-#	debug "$router->{name} intf_rule: ",print_rule $rule;
+#       debug "$router->{name} intf_rule: ",print_rule $rule;
 
         $aref = \@{ $store->{intf_rules} };
     }
     else {
 
-#	debug "$router->{name} rule: ",print_rule $rule;
+#       debug "$router->{name} rule: ",print_rule $rule;
         # Prevent duplicate rules, when path is splitting behind current
         # router. This might occur at the start or inside a cyclic graph.
         # Therefore check if last rule and current rule are identical.
@@ -8488,7 +8519,7 @@ sub set_policy_distribution_ip () {
         }
         else {
 
-#	    debug "$router->{name}: ", scalar keys %interfaces;
+#           debug "$router->{name}: ", scalar keys %interfaces;
             my @front =
               path_auto_interfaces($router, $policy_distribution_point);
             for my $front (@front) {
@@ -9211,18 +9242,18 @@ sub find_object_groups ( $$ ) {
         for my $rule (@{ $hardware->{rules} }) {
             if (my $glue = $rule->{$tag}) {
 
-#	       debug print_rule $rule;
+#              debug print_rule $rule;
                 # Remove tag, otherwise call to find_object_groups
                 # for another router would become confused.
                 delete $rule->{$tag};
                 if ($glue->{active}) {
 
-#		  debug " deleted: $glue->{group}->{name}";
+#                 debug " deleted: $glue->{group}->{name}";
                     next;
                 }
                 my $group = $get_group->($glue);
 
-#	       debug " generated: $group->{name}";
+#              debug " generated: $group->{name}";
 #              # Only needed when debugging.
 #              $glue->{group} = $group;
 
@@ -9251,9 +9282,9 @@ sub debug_bintree ( $;$ ) {
     my $ip      = print_ip $tree->{ip};
     my $mask    = print_ip $tree->{mask};
     my $subtree = $tree->{subtree} ? 'subtree' : '';
-    debug $depth, " $ip/$mask $subtree";
-    debug_bintree $tree->{lo}, "${depth}l" if $tree->{lo};
-    debug_bintree $tree->{hi}, "${depth}h" if $tree->{hi};
+#    debug $depth, " $ip/$mask $subtree";
+#    debug_bintree $tree->{lo}, "${depth}l" if $tree->{lo};
+#    debug_bintree $tree->{hi}, "${depth}h" if $tree->{hi};
 }
 
 # Nodes are reverse sorted before being added to bintree.
@@ -9351,8 +9382,8 @@ sub add_bintree ( $$ ) {
             $hi->{$key} and last MERGE;
         }
 
-#	debug 'Merged: ', print_ip $lo->{ip},' ',
-#	print_ip $hi->{ip},'/',print_ip $hi->{mask};
+#       debug 'Merged: ', print_ip $lo->{ip},' ',
+#       print_ip $hi->{ip},'/',print_ip $hi->{mask};
         $result->{subtree} = $lo->{subtree};
         delete $result->{lo};
         delete $result->{hi};
@@ -9496,8 +9527,8 @@ sub gen_srv_bintree ( $$ ) {
             and $lo->{subtree} eq $hi->{subtree})
         {
 
-#	    debug "Merged: $lo->{range}->[0]-$lo->{range}->[1]",
-#	    " $hi->{range}->[0]-$hi->{range}->[1]";
+#           debug "Merged: $lo->{range}->[0]-$lo->{range}->[1]",
+#           " $hi->{range}->[0]-$hi->{range}->[1]";
             {
                 proto   => $proto,
                 range   => $range,
@@ -9707,7 +9738,7 @@ sub find_chains ( $$ ) {
             my $ref2x    = $ref_type{$key};
             my @elements = map { $ref2x->{$_} } keys %$tree;
             for my $elem (@elements) {
-                debug ' ' x $depth, "$elem->{name}";
+#                debug ' ' x $depth, "$elem->{name}";
                 if ($depth < $#$order) {
                     $print_tree->($tree->{$elem}, $order, $depth + 1);
                 }
@@ -9822,11 +9853,11 @@ sub find_chains ( $$ ) {
                 }
                 if ($subtree) {
 
-#		    if($order->[$depth+1]&&
-#		       $order->[$depth+1] =~ /^(src|dst)$/) {
-#			debug $order->[$depth+1];
-#			debug_bintree $subtree;
-#		    }
+#                   if($order->[$depth+1]&&
+#                      $order->[$depth+1] =~ /^(src|dst)$/) {
+#                       debug $order->[$depth+1];
+#                       debug_bintree $subtree;
+#                   }
                     my $rules = $cache{$subtree};
                     if (not $rules) {
                         $rules =
@@ -9928,7 +9959,7 @@ sub find_chains ( $$ ) {
                     }
                     push @rule_trees, $rule_tree;
 
-#		    debug join ', ', @test_order;
+#                   debug join ', ', @test_order;
                     $tree2order{$rule_tree} = \@test_order;
                     last if not $action;
                     $start       = $i;
@@ -9942,7 +9973,7 @@ sub find_chains ( $$ ) {
             my $tree  = $rule_trees[$i];
             my $order = $tree2order{$tree};
 
-#	    $print_tree->($tree, $order, 0);
+#           $print_tree->($tree, $order, 0);
             $tree = $merge_subtrees->($tree, $order);
             my $result = $gen_chain->($tree, $order, 0);
 
@@ -10040,7 +10071,7 @@ sub print_chains ( $ ) {
                       :                                 $srv_ip;
                 }
 
-#		debug "c ",print_rule $rule if not $src_range or not $srv;
+#               debug "c ",print_rule $rule if not $src_range or not $srv;
                 $result .= ' ' . iptables_srv_code($src_range, $srv);
             }
             print "$prefix $result\n";
@@ -10231,7 +10262,7 @@ sub local_optimization() {
                     next;
                 }
 
-#		debug "$router->{name}";
+#               debug "$router->{name}";
                 for my $rules ('intf_rules', 'rules') {
                     my %hash;
                     my $changed = 0;
@@ -10245,7 +10276,7 @@ sub local_optimization() {
                   RULE:
                     for my $rule (@{ $hardware->{$rules} }) {
 
-#			debug print_rule $rule;
+#                       debug print_rule $rule;
                         my ($action, $src, $dst, $src_range, $srv) =
                           @{$rule}{ 'action', 'src', 'dst', 'src_range',
                             'srv' };
@@ -10357,7 +10388,7 @@ sub local_optimization() {
                                 srv       => $srv_ip,
                             };
 
-#			    debug "sec:", print_rule $new_rule;
+#                           debug "sec:", print_rule $new_rule;
 
                             # Add new rule to hash. If there are multiple
                             # rules which could be converted to the same
@@ -10610,7 +10641,7 @@ sub print_acl_add_deny ( $$$$$$ ) {
             if ($dst eq $network_00) {
                 $protect_all = 1;
 
-#		debug "Protect all $router->{name}:$hardware->{name}";
+#               debug "Protect all $router->{name}:$hardware->{name}";
                 last RULE;
             }
 
@@ -10624,7 +10655,7 @@ sub print_acl_add_deny ( $$$$$$ ) {
                 {
                     $need_protect{$intf} = $intf;
 
-#		    debug "Need protect $intf->{name} at $hardware->{name}";
+#                   debug "Need protect $intf->{name} at $hardware->{name}";
                 }
             }
         }
@@ -11459,16 +11490,16 @@ Usage: $0 [options] {in-directory | in-file | -} [out-directory]
 Compile all files from 'in-directory' or from a single 'in-file' or from STDIN.
 Output is generated in 'out-directory' or sent to STDOUT.
 Options:
--[no]comment_acls	Add comments to generated ACLs
--[no]comment_routes	Add comments to generated routes
--[no]auto_default_route	Use default route to minimize number of routing entries
--verbose		Show statistics and compilation steps
--quiet			Disable -verbose
--time_stamps		Show time stamps if verbose.
--max_errors=<n>		Abort after that number of errors
--ignore_files=<regexp>	Ignore some files inside in-directory
-			Default is '^(raw|CVS|RCS|\.#.*|.*~)$'
--strict_subnets=yes|no|warn	Subnets must be declared with 'subnet_of'
+-[no]comment_acls       Add comments to generated ACLs
+-[no]comment_routes     Add comments to generated routes
+-[no]auto_default_route Use default route to minimize number of routing entries
+-verbose                Show statistics and compilation steps
+-quiet                  Disable -verbose
+-time_stamps            Show time stamps if verbose.
+-max_errors=<n>         Abort after that number of errors
+-ignore_files=<regexp>  Ignore some files inside in-directory
+                        Default is '^(raw|CVS|RCS|\.#.*|.*~)$'
+-strict_subnets=yes|no|warn     Subnets must be declared with 'subnet_of'
 -allow_unused_groups=yes|no|warn
 -check_unenforceable=yes|no|warn
 MSG
