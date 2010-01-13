@@ -5897,7 +5897,7 @@ sub cluster_navigation( $$ ) {
 
     my $navi;
     if(($navi = $from->{navi}->{$to}) and scalar keys %$navi) {
-	debug " Cached";
+#	debug " Cached";
 	return $navi;
     }
     $navi = $from->{navi}->{$to} = {};
@@ -5906,28 +5906,28 @@ sub cluster_navigation( $$ ) {
         if ($from_loop eq $to_loop) {
 	    last if $from eq $to;
 	    $navi->{$from_loop}->{$from_loop} = 1;
-	    debug "- Eq: $from_loop->{exit}->{name}$from_loop to itself";
+#	    debug "- Eq: $from_loop->{exit}->{name}$from_loop to itself";
 
 	    # Path $from -> $to goes through $from_loop and through $exit_loop.
 	    # Inside $exit_loop, enter only $from_loop, but no other loops.
 	    my $exit_loop = $from_loop->{exit}->{loop};
 	    $navi->{$exit_loop}->{$from_loop} = 1;
-	    debug "- Add $from_loop->{exit}->{name}$from_loop to exit $exit_loop->{exit}->{name}$exit_loop";
+#	    debug "- Add $from_loop->{exit}->{name}$from_loop to exit $exit_loop->{exit}->{name}$exit_loop";
             last;
         }
         elsif ($from_loop->{distance} >= $to_loop->{distance}) {
 	    $navi->{$from_loop}->{$from_loop} = 1;
-	    debug "- Fr: $from_loop->{exit}->{name}$from_loop to itself";
+#	    debug "- Fr: $from_loop->{exit}->{name}$from_loop to itself";
 	    $from = $from_loop->{exit};
             $from_loop = $from->{loop};
         }
         else {
 	    $navi->{$to_loop}->{$to_loop} = 1;
-	    debug "- To: $to_loop->{exit}->{name}$to_loop to itself";
+#	    debug "- To: $to_loop->{exit}->{name}$to_loop to itself";
 	    $to = $to_loop->{exit};
             my $entry_loop = $to->{loop};
 	    $navi->{$entry_loop}->{$to_loop} = 1;
-	    debug "- Add $to_loop->{exit}->{name}$to_loop to entry $entry_loop->{exit}->{name}$entry_loop";
+#	    debug "- Add $to_loop->{exit}->{name}$to_loop to entry $entry_loop->{exit}->{name}$entry_loop";
             $to_loop = $entry_loop;
         }
     }
@@ -6080,6 +6080,21 @@ sub cluster_path_mark ( $$$$$$ ) {
         }
         delete $from->{active_path};
 
+	# Convert { intf->intf->node_type } to [ intf, intf, node_type ]
+	my $tuples_aref = [];
+	for my $in_intf_ref (keys %$path_tuples) {
+	    my $in_intf = $key2obj{$in_intf_ref}
+	    or internal_err "Unknown in_intf at tuple";
+	    my $hash = $path_tuples->{$in_intf_ref};
+	    for my $out_intf_ref (keys %$hash) {
+		my $out_intf = $key2obj{$out_intf_ref}
+		or internal_err "Unknown out_intf at tuple";
+		my $at_router = $hash->{$out_intf_ref};
+		push @$tuples_aref, [ $in_intf, $out_intf, $at_router ];
+	    }
+	}
+	$start_store->{path_tuples}->{$end_store} = $tuples_aref;
+
         # Convert hash of interfaces to array of interfaces.
         $start_store->{loop_leave}->{$end_store} = [ values %$loop_leave ];
     }
@@ -6224,20 +6239,12 @@ sub loop_path_walk( $$$$$$$ ) {
     }
 
     # Process paths inside cyclic graph.
-    my $tuples = $loop_entry->{path_tuples}->{$loop_exit};
+    my $path_tuples = $loop_entry->{path_tuples}->{$loop_exit};
 
 #  debug " loop_tuples";
-    for my $in_intf_ref (keys %$tuples) {
-        my $in_intf = $key2obj{$in_intf_ref}
-          or internal_err "Unknown in_intf at tuple";
-        my $hash = $tuples->{$in_intf_ref};
-        for my $out_intf_ref (keys %$hash) {
-            my $out_intf = $key2obj{$out_intf_ref}
-              or internal_err "Unknown out_intf at tuple";
-            my $at_router = $hash->{$out_intf_ref};
-            $fun->($rule, $in_intf, $out_intf)
-              if not $at_router xor $call_at_router;
-        }
+    for my $tuple (@$path_tuples) {
+	my ($in_intf, $out_intf, $at_router) = @$tuple;
+	$fun->($rule, $in_intf, $out_intf) if not $at_router xor $call_at_router;
     }
 
     # Process paths at exit of cyclic graph.
