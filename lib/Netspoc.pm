@@ -6036,11 +6036,9 @@ sub cluster_path_mark ( $$$$$$ ) {
             last BLOCK;
         }
 
-        my $loop_enter = $start_store->{loop_enter}->{$end_store} = [];
-
-        # Global variables.
-        my $path_tuples = $start_store->{path_tuples}->{$end_store} = {};
-        my $loop_leave  = $start_store->{loop_leave}->{$end_store}  = {};
+        my $loop_enter  = [];
+        my $path_tuples = {};
+        my $loop_leave  = {};
 
         my $navi = cluster_navigation($from, $to) or internal_err "Empty navi";
 #	use Dumpvalue;
@@ -6093,10 +6091,19 @@ sub cluster_path_mark ( $$$$$$ ) {
 		push @$tuples_aref, [ $in_intf, $out_intf, $at_router ];
 	    }
 	}
-	$start_store->{path_tuples}->{$end_store} = $tuples_aref;
 
         # Convert hash of interfaces to array of interfaces.
-        $start_store->{loop_leave}->{$end_store} = [ values %$loop_leave ];
+	$loop_leave =  [ values %$loop_leave ];
+
+	$start_store->{loop_enter}->{$end_store}  = $loop_enter;
+        $start_store->{loop_leave}->{$end_store}  = $loop_leave;
+	$start_store->{path_tuples}->{$end_store} = $tuples_aref;
+
+	# Add data for reverse path.
+	$end_store->{loop_enter}->{$start_store}  = $loop_leave;
+	$end_store->{loop_leave}->{$start_store}  = $loop_enter;
+	$end_store->{path_tuples}->{$start_store} = 
+	    [ map { [ @{$_}[1,0,2] ] } @$tuples_aref ];
     }
 
     # Remove temporary added path restrictions.
