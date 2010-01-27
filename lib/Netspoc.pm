@@ -1894,6 +1894,9 @@ sub read_router( $ ) {
                 error_atline "Interface with attribute 'hub' must only be",
                   " used at managed device";
             }
+	    if ($interface->{spoke}) {
+		$router->{semi_managed} = 1;
+	    }
         }
     }
     return $router;
@@ -2856,6 +2859,9 @@ sub link_any() {
                 $router->{managed}
                   and err_msg "$obj->{name} must not be linked to",
                   " managed $router->{name}";
+                $router->{semi_managed}
+                  and err_msg "$obj->{name} must not be linked to",
+                  " $router->{name} with pathrestriction";
 
                 # Take some network connected to this router.
                 # Since this router is unmanaged, all connected networks
@@ -2922,7 +2928,8 @@ sub link_areas() {
             $area->{border} = expand_group $area->{border}, $area->{name};
             for my $obj (@{ $area->{border} }) {
                 if (is_interface $obj) {
-                    $obj->{router}->{managed}
+		    my $router = $obj->{router};
+                    $router->{managed} or $router->{semi_managed}
                       or err_msg "Referencing unmanaged $obj->{name} ",
                       "from $area->{name}";
 
@@ -3141,6 +3148,177 @@ sub link_subnets () {
         link_subnet $nat, 'global';
     }
 }
+
+sub link_pathrestrictions() {
+    for my $restrict (values %pathrestrictions) {
+        $restrict->{elements} = expand_group $restrict->{elements},
+          $restrict->{name};
+        my $changed;
+        my $private = my $no_private = $restrict->{private};
+        for my $obj (@{ $restrict->{elements} }) {
+            if (not is_interface $obj) {
+                err_msg "$restrict->{name} must not reference $obj->{name}";
+                $obj     = undef;
+                $changed = 1;
+                next;
+            }
+
+            # Add pathrestriction to interface.
+            # Multiple restrictions may be applied to a single
+            # interface.
+            push @{ $obj->{path_restrict} }, $restrict;
+
+            # Unmanaged router with pathrestriction is handled special.
+	    # It is separating 'any' objects, but gets no code.
+	    my $router = $obj->{router};
+	    $router->{managed} or $router->{semi_managed} = 1;
+
+            # Pathrestrictions must not be applied to secondary interfaces
+            $obj->{main_interface}
+              and err_msg "secondary $obj->{name} must not be used",
+              " in pathrestriction";
+
+            # Private pathrestriction must reference at least one interface
+            # of its own context.
+            if ($private) {
+                if (my $obj_p = $obj->{private}) {
+                    $private eq $obj_p and $no_private = 0;
+                }
+            }
+
+            # Public pathrestriction must not reference private interface.
+            else {
+                if (my $obj_p = $obj->{private}) {
+                    err_msg "Public $restrict->{name} must not reference",
+                      " $obj_p.private $obj->{name}";
+                }
+            }
+	}
+        if ($no_private) {
+            err_msg "$private.private $restrict->{name} must reference",
+              " at least one interface out of $private.private";
+        }
+        if ($changed) {
+            $restrict->{elements} = [ grep $_, @{ $restrict->{elements} } ];
+        }
+        my $count = @{ $restrict->{elements} };
+        if ($count == 1) {
+            warn_msg
+              "Ignoring $restrict->{name} with only $restrict->{elements}->[0]->{name}";
+        }
+        elsif ($count == 0) {
+            warn_msg "Ignoring $restrict->{name} without elements";
+        }
+
+        # Add pathrestriction to tunnel interfaces,
+        # which belong to real interface.
+        # Don't count them as extra elements.
+        for my $interface (@{ $restrict->{elements} }) {
+            next if not($interface->{spoke} or $interface->{hub});
+
+            # Don't add for no_check interface because traffic would
+            # pass the pathrestriction two times.
+            next if $interface->{no_check};
+            my $router = $interface->{router};
+            for my $intf (@{ $router->{interfaces} }) {
+                my $real_intf = $intf->{real_interface};
+                next if not $real_intf;
+                next if not $real_intf eq $interface;
+
+#               debug "Adding $restrict->{name} to $intf->{name}";
+                push @{ $restrict->{elements} },  $intf;
+                push @{ $intf->{path_restrict} }, $restrict;
+            }
+        }
+    }
+}
+
+# Check consistency of virtual interfaces:
+# Interfaces with identical virtual IP must
+# - be connected to the same network,
+# - use the same redundancy protocol,
+# - use the same id (currently optional).
+# Link all virtual interface information to a single object.
+# Add a list of all member interfaces.
+sub link_virtual_interfaces () {
+    my %virtual;
+
+    # Unrelated virtual interfaces with identical ID must be located
+    # in different networks.
+    my %same_id;
+    for my $virtual1 (@virtual_interfaces) {
+        my $ip = $virtual1->{ip};
+        my $id1 = $virtual1->{redundancy_id} || '';
+        if (my $interfaces = $virtual{$ip}) {
+            my $virtual2 = $interfaces->[0];
+            if (not $virtual1->{network} eq $virtual2->{network}) {
+                err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
+                  " are connected to different networks";
+                next;
+            }
+            if ($virtual1->{router}->{managed} xor 
+		$virtual2->{router}->{managed})
+	    {
+                err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
+                  " must both be managed or both be unmanaged";
+                next;
+            }
+            if (
+                not $virtual1->{redundancy_type} eq
+                $virtual2->{redundancy_type})
+            {
+                err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
+                  " use different redundancy protocols";
+                next;
+            }
+            if (not $id1 eq ($virtual2->{redundancy_id} || '')) {
+                err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
+                  " use different ID";
+                next;
+            }
+            push @$interfaces, $virtual1;
+            $virtual1->{redundancy_interfaces} = $interfaces;
+        }
+        else {
+            $virtual{$ip} = $virtual1->{redundancy_interfaces} = [$virtual1];
+            if ($id1) {
+                my $other;
+                if (    $other = $same_id{$id1}
+                    and $virtual1->{network} eq $other->{network})
+                {
+                    err_msg "Virtual IP:",
+                      " Unrelated $virtual1->{name} and $other->{name}",
+                      " have identical ID";
+                }
+                else {
+                    $same_id{$id1} = $virtual1;
+                }
+            }
+        }
+    }
+    for my $interfaces (values %virtual) {
+        if (@$interfaces == 1) {
+            err_msg "Virtual IP: Missing second interface for",
+              " $interfaces->[0]->{name}";
+	    $interfaces->[0]->{redundancy_interfaces} = undef;
+	    next;
+        }
+
+	# Automatically add pathrestriction to managed interfaces
+	# belonging to $virtual.
+	# Pathrestriction would be useless for unmanaged device.
+        elsif ($interfaces->[0]->{router}->{managed}) {
+            my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
+            my $restrict = new('Pathrestriction', name => $name);
+            for my $interface (@$interfaces) {
+		
+#               debug "pathrestriction $name at $interface->{name}";
+                push @{ $interface->{path_restrict} }, $restrict;
+            }
+        }
+    }
+}
+
 sub link_ipsec ();
 sub link_crypto ();
 sub link_tunnels ();
@@ -3153,6 +3331,8 @@ sub link_topology() {
     link_ipsec;
     link_crypto;
     link_tunnels;
+    link_pathrestrictions;
+    link_virtual_interfaces;
     link_any;
     link_areas;
     link_radius;
@@ -3774,11 +3954,14 @@ sub expand_group1( $$ ) {
                     }
                     elsif ($type eq 'Any') {
                         if ($selector eq 'all') {
-
-                            # Attribute 'managed' can be ignored,
-                            # because all border interfaces of a security domain
-                            # are managed by definition.
-                            push @check, @{ $object->{interfaces} };
+                            if ($managed) {
+                                push @check,
+				  grep { $_->{router}->{managed} }
+				  @{ $object->{interfaces} };
+                            }
+                            else {
+				push @check, @{ $object->{interfaces} };
+			    }
                         }
                         else {
                             err_msg "Must not use interface:",
@@ -3800,9 +3983,9 @@ sub expand_group1( $$ ) {
                     }
                     elsif ($type eq 'Area') {
 
-                        # Fill hash with all managed routers
+                        # Fill hash with all border routers of security domains
                         # including border routers of current area.
-                        my %managed_routers =
+                        my %routers =
                           map {
                             my $router = $_->{router};
                             ($router => $router)
@@ -3812,10 +3995,13 @@ sub expand_group1( $$ ) {
                         # Remove border routers, because we only
                         # need routers _inside_ an area.
                         for my $interface (@{ $object->{border} }) {
-                            delete $managed_routers{ $interface->{router} };
+                            delete $routers{ $interface->{router} };
                         }
-                        my @routers = values %managed_routers;
-                        if (not $managed) {
+                        my @routers = values %routers;
+                        if ($managed) {
+			    @routers = grep { $_->{managed} } @routers;
+			}
+			else {
                             push @routers, map {
                                 my $r = $_->{unmanaged_routers};
                                 $r ? @$r : ()
@@ -4497,16 +4683,22 @@ sub expand_rules ( $$$$;$$$ ) {
                     my ($src_range, $srv) = @$src_dst_range;
                     for my $src (@$src) {
                         my $src_any = $obj2any{$src} || get_any $src;
+			my $src_any_cluster = $src_any->{any_cluster};
                         for my $dst (@$dst) {
                             my $dst_any = $obj2any{$dst} || get_any $dst;
-                            if ($src_any eq $dst_any) {
+			    my $dst_any_cluster = $dst_any->{any_cluster};
+                            if ($src_any eq $dst_any ||
+				$src_any_cluster && $dst_any_cluster &&
+				$src_any_cluster == $dst_any_cluster)
+			    {
                                 collect_unenforceable $src, $dst, $src_any,
                                   $context;
                                 next;
                             }
 
                             # At least one rule is enforceable.
-                            # This is used to decide, if a policy is fully unenforceable.
+                            # This is used to decide, if a policy is fully 
+			    # unenforceable.
                             $enforceable_context{$context} = 1;
                             my @src = expand_special $src, $dst, $flags->{src},
                               $context
@@ -5054,17 +5246,18 @@ sub check_vpnhub () {
             }
         }
     }
-    my $all_eq = sub {
+    my $all_eq_cluster = sub {
         my (@obj) = @_;
         my $obj1 = pop @obj;
-        not grep { $_ ne $obj1 } @obj;
+	my $cluster1 = $obj1->{any_cluster};
+        not grep { $_->{any_cluster} != $cluster1 } @obj;
     };
     for my $routers (values %hub2routers) {
         my @anys =
           map {
             (grep { $_->{no_check} } @{ $_->{interfaces} })[0]->{any}
           } @$routers;
-        $all_eq->(@anys)
+        $all_eq_cluster->(@anys)
           or err_msg "Clear-text interfaces of\n ",
           join(', ', map({ $_->{name} } @$routers)),
           "\n must all be connected to the same security domain.";
@@ -5072,6 +5265,10 @@ sub check_vpnhub () {
 }
 
 ####################################################################
+# Borders of security domains are
+# a) interfaces of managed devices and
+# b) interfaces of devices, which have at least one pathrestriction applied.
+#
 # For each security domain find its associated 'any' object or
 # generate a new one if none was declared.
 # Link each interface at the border of this security domain with
@@ -5104,7 +5301,7 @@ sub setany_network( $$$ ) {
         # Ignore interface where we reached this network.
         next if $interface eq $in_interface;
         my $router = $interface->{router};
-        if ($router->{managed}) {
+        if ($router->{managed} or $router->{semi_managed}) {
             $interface->{any} = $any;
             push @{ $any->{interfaces} }, $interface;
         }
@@ -5115,6 +5312,26 @@ sub setany_network( $$$ ) {
                 # Ignore interface where we reached this router.
                 next if $out_interface eq $interface;
                 setany_network $out_interface->{network}, $any, $out_interface;
+            }
+        }
+    }
+}
+
+# Mark cluster of 'any' objects which is connected by unmanaged devices.
+sub setany_cluster( $$$ );
+sub setany_cluster( $$$ ) {
+    my ($any, $in_interface, $counter) = @_;
+    $any->{any_cluster} = $counter;
+#    debug "$counter: $any->{name}";
+    for my $interface (@{ $any->{interfaces} }) {
+        next if $interface eq $in_interface;
+        my $router = $interface->{router};
+        if (not $router->{managed}) {
+            for my $out_interface (@{ $router->{interfaces} }) {
+                next if $out_interface eq $interface;
+		my $next = $out_interface->{any};
+		next if $next->{any_cluster};
+                setany_cluster $next, $out_interface, $counter;
             }
         }
     }
@@ -5207,17 +5424,10 @@ sub setany() {
         is_network $network
           or internal_err "unexpected object $network->{name}";
         setany_network $network, $any, 0;
-
-        # Make results deterministic.
-        @{ $any->{networks} } =
-          sort { $a->{mask} <=> $b->{mask} || $a->{ip} <=> $b->{ip} }
-          @{ $any->{networks} };
     }
 
     # Automatically add an 'any' object to each security domain
     # where none has been declared.
-    # Tunnel networks are added because they are part of the topology but
-    # not included in @networks.
     for my $network (@networks) {
         next if $network->{any};
         (my $name = $network->{name}) =~ s/^\w+:/auto_any:/;
@@ -5225,11 +5435,19 @@ sub setany() {
         $any->{networks} = [];
         push @all_anys, $any;
         setany_network $network, $any, 0;
+    }
+    my $cluster_counter = 1;
+    for my $any (@all_anys) {
 
         # Make results deterministic.
         @{ $any->{networks} } =
           sort { $a->{mask} <=> $b->{mask} || $a->{ip} <=> $b->{ip} }
           @{ $any->{networks} };
+
+	# Mark clusters of 'any' objects, which are connected by an
+	# unmanaged (semi_managed) device.
+	next if $any->{any_cluster};
+	setany_cluster($any, 0, $cluster_counter++);
     }
 
     check_vpnhub;
@@ -5327,187 +5545,52 @@ sub setany() {
 # Virtual interfaces
 ####################################################################
 
-# Check consistency of virtual interfaces:
-# Interfaces with identical virtual IP must
-# - be connected to the same network,
-# - be located inside the same loop,
-# - use the same redundancy protocol,
-# - use the same id (currently optional).
-# Link all virtual interface information to a single object.
-# Add a list of all member interfaces.
-sub link_and_check_virtual_interfaces () {
-    my %virtual;
+# Interfaces with identical virtual IP must be located inside the same loop.
+sub check_virtual_interfaces () {
+    my %seen;
+    my $all_eq = sub {
+        my (@obj) = @_;
+        my $obj1 = pop @obj;
+        not grep { $_ ne $obj1 } @obj;
+    };
+    for my $interface (@virtual_interfaces) {
+	my $related = $interface->{redundancy_interfaces};
 
-    # Unrelated virtual interfaces with identical ID must be located
-    # in different networks.
-    my %same_id;
-    for my $virtual1 (@virtual_interfaces) {
-        unless ($virtual1->{router}->{loop}) {
-            warn_msg "Ignoring virtual IP of $virtual1->{name}\n",
-              " because it isn't located inside cyclic sub-graph";
-            next;
-        }
-        my $ip = $virtual1->{ip};
-        my $id1 = $virtual1->{redundancy_id} || '';
-        if (my $interfaces = $virtual{$ip}) {
-            my $virtual2 = $interfaces->[0];
-            if (not $virtual1->{network} eq $virtual2->{network}) {
-                err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
-                  " are connected to different networks";
-                next;
-            }
-            if (
-                not $virtual1->{redundancy_type} eq
-                $virtual2->{redundancy_type})
-            {
-                err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
-                  " use different redundancy protocols";
-                next;
-            }
-            if (not $id1 eq ($virtual2->{redundancy_id} || '')) {
-                err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
-                  " use different ID";
-                next;
-            }
-            if (not $virtual1->{router}->{loop} eq $virtual2->{router}->{loop})
-            {
-                err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
-                  " are part of different cyclic sub-graphs";
-                next;
-            }
-            push @$interfaces, $virtual1;
-            $virtual1->{redundancy_interfaces} = $interfaces;
-        }
-        else {
-            $virtual{$ip} = $virtual1->{redundancy_interfaces} = [$virtual1];
-            if ($id1) {
-                my $other;
-                if (    $other = $same_id{$id1}
-                    and $virtual1->{network} eq $other->{network})
-                {
-                    err_msg "Virtual IP:",
-                      " Unrelated $virtual1->{name} and $other->{name}",
-                      " have identical ID";
-                }
-                else {
-                    $same_id{$id1} = $virtual1;
-                }
-            }
-        }
-    }
-    for my $interfaces (values %virtual) {
-        if (@$interfaces == 1) {
-            err_msg "Virtual IP: Missing second interface for",
-              " $interfaces->[0]->{name}";
-        }
-        else {
-
-            # Automatically add pathrestriction to interfaces
-            # belonging to $virtual.
-            my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
-            my $restrict = new('Pathrestriction', name => $name);
-            for my $interface (@$interfaces) {
-
-#               debug "pathrestriction $name at $interface->{name}";
-                next if not $interface->{router}->{managed};
-                push @{ $interface->{path_restrict} }, $restrict;
-            }
-        }
+	# Is not set, if other errors have been reported.
+	next if not $related;
+	
+	my $err;
+	for my $v (@$related) {
+	    next if $seen{$v};
+	    $seen{$v} = 1;
+	    if (not $v->{router}->{loop}) {
+		err_msg "Virtual IP of $v->{name}\n",
+		" must be located inside cyclic sub-graph";
+		$err = 1;
+		next;
+	    }
+	}
+	next if $err;
+	$all_eq->(map { $_->{loop} } @$related)
+	    or err_msg "Virtual interfaces\n ",
+	    join(', ', map({ $_->{name} } @$related)),
+	    "\n must all be part of the same cyclic sub-graph";
     }
 }
 
 ####################################################################
-# Link and check pathrestrictions
+# Check pathrestrictions
 ####################################################################
 
-sub link_and_check_pathrestrictions() {
+sub check_pathrestrictions() {
     for my $restrict (values %pathrestrictions) {
-        $restrict->{elements} = expand_group $restrict->{elements},
-          $restrict->{name};
-        my $changed;
-        my $private = my $no_private = $restrict->{private};
         for my $obj (@{ $restrict->{elements} }) {
-            if (not is_interface $obj) {
-                err_msg "$restrict->{name} must not reference $obj->{name}";
-                $obj     = undef;
-                $changed = 1;
-                next;
-            }
-
-            # Add pathrestriction to interface.
-            # Multiple restrictions may be applied to a single
-            # interface.
-            push @{ $obj->{path_restrict} }, $restrict;
-
-            # Pathrestriction must only be applied to interface
-            # of managed device. Otherwise the restriction possibly
-            # can't be enforced for 'any' objects.
-            $obj->{router}->{managed}
-              or err_msg "Referencing unmanaged $obj->{name} ",
-              "from $restrict->{name}";
-
-            # Pathrestrictions must not be applied to secondary interfaces
-            $obj->{main_interface}
-              and err_msg "secondary $obj->{name} must not be used",
-              " in pathrestriction";
 
             # Interfaces with pathrestriction need to be located
             # inside or at the border of cyclic graphs.
             $obj->{loop} || $obj->{router}->{loop} || $obj->{network}->{loop}
               or warn_msg "Ignoring $restrict->{name} at $obj->{name}\n",
               " because it isn't located inside cyclic graph";
-
-            # Private pathrestriction must reference at least one interface
-            # of its own context.
-            if ($private) {
-                if (my $obj_p = $obj->{private}) {
-                    $private eq $obj_p and $no_private = 0;
-                }
-            }
-
-            # Public pathrestriction must not reference private interface.
-            else {
-                if (my $obj_p = $obj->{private}) {
-                    err_msg "Public $restrict->{name} must not reference",
-                      " $obj_p.private $obj->{name}";
-                }
-            }
-        }
-        if ($no_private) {
-            err_msg "$private.private $restrict->{name} must reference",
-              " at least one interface out of $private.private";
-        }
-        if ($changed) {
-            $restrict->{elements} = [ grep $_, @{ $restrict->{elements} } ];
-        }
-        my $count = @{ $restrict->{elements} };
-        if ($count == 1) {
-            warn_msg
-              "Ignoring $restrict->{name} with only $restrict->{elements}->[0]->{name}";
-        }
-        elsif ($count == 0) {
-            warn_msg "Ignoring $restrict->{name} without elements";
-        }
-
-        # Add pathrestriction to tunnel interfaces,
-        # which belong to real interface.
-        # Don't count them as extra elements.
-        for my $interface (@{ $restrict->{elements} }) {
-            next if not($interface->{spoke} or $interface->{hub});
-
-            # Don't add for no_check interface because traffic would
-            # pass the pathrestriction two times.
-            next if $interface->{no_check};
-            my $router = $interface->{router};
-            for my $intf (@{ $router->{interfaces} }) {
-                my $real_intf = $intf->{real_interface};
-                next if not $real_intf;
-                next if not $real_intf eq $interface;
-
-#               debug "Adding $restrict->{name} to $intf->{name}";
-                push @{ $restrict->{elements} },  $intf;
-                push @{ $intf->{path_restrict} }, $restrict;
-            }
         }
     }
 }
@@ -5667,10 +5750,6 @@ sub setpath() {
         fatal_err $msg;
     }
 
-    # This is called here and not at link_topology because it needs
-    # attributes {disabled} and {loop}.
-    link_and_check_pathrestrictions;
-
     for my $obj (@networks, @routers) {
         my $loop = $obj->{loop} or next;
 
@@ -5699,9 +5778,10 @@ sub setpath() {
         }
     }
 
-    # This is called here because it needs attribute {loop}
-    # which just has been adjusted.
-    link_and_check_virtual_interfaces;
+    # This is called here and not at link_topology because it needs
+    # attribute {loop}.
+    check_pathrestrictions;
+    check_virtual_interfaces;
 }
 
 ####################################################################
@@ -6886,7 +6966,7 @@ sub check_any_src_rule( $$$ ) {
     # we just process the corresponding router,
     # thus we better use in_intf.
     my $router = $in_intf->{router};
-    return unless $router->{managed};
+    return unless $router->{managed} or $router->{semi_managed};
 
     # Check only for the first router, because next test will be done
     # for rule "permit any2 dst" anyway.
@@ -6969,7 +7049,7 @@ sub check_any_dst_rule( $$$ ) {
     # we just process the corresponding router,
     # thus we better use out_intf
     my $router = $out_intf->{router};
-    return unless $router->{managed};
+    return unless $router->{managed} or $router->{semi_managed};
 
     my $out_any = $out_intf->{any};
 
@@ -7050,6 +7130,9 @@ sub find_smaller_srv ( $$ ) {
 # In order to avoid this, a warning is generated if the last rule is not
 # explicitly defined.
 #
+# ToDo:
+# Do we need to check for {any_cluster} equality?
+#
 sub check_for_transient_any_rule () {
 
     # Collect info about unwanted implied rules.
@@ -7098,8 +7181,8 @@ sub check_for_transient_any_rule () {
                         my $smaller_src_range = find_smaller_srv $src_range1,
                           $src_range2;
 
-                        # If services are disjoint,
-                        # we do not have transient-any-problem for $rule and $rule2.
+                        # If services are disjoint, we do not have 
+			# transient-any-problem for $rule and $rule2.
                         next if not $smaller_srv or not $smaller_src_range;
 
                         # Force a unique value for boolean result.
@@ -7433,7 +7516,9 @@ sub mark_secondary ( $$ ) {
     $any->{secondary_mark} = $mark;
     for my $in_interface (@{ $any->{interfaces} }) {
         my $router = $in_interface->{router};
-        next if not $router->{managed} eq 'secondary';
+	if(my $managed = $router->{managed}) {
+	    next if $managed ne 'secondary';
+	}
         next if $router->{active_path};
         $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
@@ -7457,7 +7542,9 @@ sub mark_primary ( $$ ) {
     $any->{primary_mark} = $mark;
     for my $in_interface (@{ $any->{interfaces} }) {
         my $router = $in_interface->{router};
-        next if $router->{managed} eq 'primary';
+	if(my $managed = $router->{managed}) {
+	    next if $managed eq 'primary';
+	}
         next if $router->{active_path};
         $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
@@ -7864,7 +7951,7 @@ sub get_any3( $ ) {
         return $obj->{network}->{any};
     }
     elsif ($type eq 'Interface') {
-        if ($obj->{router}->{managed}) {
+        if ($obj->{router}->{managed} or $obj->{router}->{semi_managed}) {
             return $obj;
         }
         else {
@@ -8570,7 +8657,9 @@ sub add_router_acls () {
 
                         # This is not allowed between different
                         # security domains.
-                        if ($net->{any} ne $interface->{any}) {
+                        if ($net->{any}->{any_cluster} != 
+			    $interface->{any}->{any_cluster}) 
+			{
                             err_msg "Invalid reroute_permit for $net->{name} ",
                               "at $interface->{name}: different security domains";
                             next;
