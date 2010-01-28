@@ -2974,10 +2974,6 @@ sub link_interface_with_net( $ ) {
         $interface->{network} = undef;
         return;
     }
-
-    # Mark networks which are attached to managed router.
-    # This attribute is used in loop_path_mark.
-    $network->{managed} = 1 if $interface->{router}->{managed};
     $interface->{network} = $network;
 
     # Private network must be connected to private interface of same context.
@@ -3241,7 +3237,7 @@ sub link_pathrestrictions() {
 # Link all virtual interface information to a single object.
 # Add a list of all member interfaces.
 sub link_virtual_interfaces () {
-    my %virtual;
+    my %ip2virtual;
 
     # Unrelated virtual interfaces with identical ID must be located
     # in different networks.
@@ -3249,7 +3245,7 @@ sub link_virtual_interfaces () {
     for my $virtual1 (@virtual_interfaces) {
         my $ip = $virtual1->{ip};
         my $id1 = $virtual1->{redundancy_id} || '';
-        if (my $interfaces = $virtual{$ip}) {
+        if (my $interfaces = $ip2virtual{$ip}) {
             my $virtual2 = $interfaces->[0];
             if (not $virtual1->{network} eq $virtual2->{network}) {
                 err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
@@ -3276,11 +3272,15 @@ sub link_virtual_interfaces () {
                   " use different ID";
                 next;
             }
+
+	    # This changes value of %ip2virtual and all attributes 
+	    # {redundancy_interfaces} where this array is referenced.
             push @$interfaces, $virtual1;
             $virtual1->{redundancy_interfaces} = $interfaces;
         }
         else {
-            $virtual{$ip} = $virtual1->{redundancy_interfaces} = [$virtual1];
+            $ip2virtual{$ip} = 
+		$virtual1->{redundancy_interfaces} = [$virtual1];
             if ($id1) {
                 my $other;
                 if (    $other = $same_id{$id1}
@@ -3296,7 +3296,7 @@ sub link_virtual_interfaces () {
             }
         }
     }
-    for my $interfaces (values %virtual) {
+    for my $interfaces (values %ip2virtual) {
         if (@$interfaces == 1) {
             err_msg "Virtual IP: Missing second interface for",
               " $interfaces->[0]->{name}";
@@ -3305,7 +3305,7 @@ sub link_virtual_interfaces () {
         }
 
 	# Automatically add pathrestriction to managed interfaces
-	# belonging to $virtual.
+	# belonging to $ip2virtual.
 	# Pathrestriction would be useless for unmanaged device.
         elsif ($interfaces->[0]->{router}->{managed}) {
             my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
@@ -4478,6 +4478,7 @@ sub expand_special ( $$$$ ) {
         @result = ($src);
     }
     if ($flags->{path}) {
+ 	internal_err "Flag 'path' currently disabled";
         my %interfaces;
         for my $src (@result) {
             my $fun = sub {
@@ -5558,6 +5559,11 @@ sub check_virtual_interfaces () {
 
 	# Is not set, if other errors have been reported.
 	next if not $related;
+
+	# Loops inside a security domain are not known
+	# and therefore can't be checked.
+	my $router = $interface->{router};
+	next if not ($router->{managed} or $router->{semi_managed});
 	
 	my $err;
 	for my $v (@$related) {
@@ -5588,7 +5594,7 @@ sub check_pathrestrictions() {
 
             # Interfaces with pathrestriction need to be located
             # inside or at the border of cyclic graphs.
-            $obj->{loop} || $obj->{router}->{loop} || $obj->{network}->{loop}
+            $obj->{loop} || $obj->{router}->{loop} || $obj->{any}->{loop}
               or warn_msg "Ignoring $restrict->{name} at $obj->{name}\n",
               " because it isn't located inside cyclic graph";
         }
@@ -5600,32 +5606,33 @@ sub check_pathrestrictions() {
 ####################################################################
 
 # Parameters:
-# $obj: a managed router or a network
-# $to_net1: interface of $obj; go this direction to reach net1
-# $distance: distance to net1
+# $obj: a managed router or a 'any' object
+# $to_any1: interface of $obj; go this direction to reach any1
+# $distance: distance to any1
 # Return value:
 # - undef: found path is not part of a loop
 # - loop-marker: 
 #   - found path is part of a loop
 #   - a hash, which is referenced by all members of the loop
 #     with this attributes:
-#     - exit: that node of the loop where net1 is reached
+#     - exit: that node of the loop where any1 is reached
 #     - distance: distance of the exit node + 1.
 sub setpath_obj( $$$ );
 sub setpath_obj( $$$ ) {
-    my ($obj, $to_net1, $distance) = @_;
+    my ($obj, $to_any1, $distance) = @_;
 
-#    debug("-- $distance: $obj->{name} --> $to_net1->{name}");
+#    debug("-- $distance: $obj->{name} --> $to_any1->{name}");
     if ($obj->{active_path}) {
 
-        # Found a loop; this is possibly exit of the loop to net1.
+        # Found a loop; this is possibly exit of the loop to any1.
         # Generate unique loop marker which references this object.
         # Distance is needed for cluster navigation.
         # We need a copy of the distance value inside the loop marker
         # because distance at object is reset later to the value og the 
 	# cluster exit object.
-        # Wem must use an intermediate distance value for cluster_navigation to work.
-        return $to_net1->{loop} = { exit => $obj,
+        # We must use an intermediate distance value for cluster_navigation 
+	# to work.
+        return $to_any1->{loop} = { exit => $obj,
                                     distance => $obj->{distance} + 1, };
     }
 
@@ -5633,11 +5640,11 @@ sub setpath_obj( $$$ ) {
     $obj->{active_path} = 1;
     $obj->{distance}    = $distance;
 
-    my $get_next = is_router $obj ? 'network' : 'router';
+    my $get_next = is_router $obj ? 'any' : 'router';
     for my $interface (@{ $obj->{interfaces} }) {
 
         # Ignore interface where we reached this obj.
-        next if $interface eq $to_net1;
+        next if $interface eq $to_any1;
 
         # Ignore interface which is the other entry of a loop which is
         # already marked.
@@ -5648,7 +5655,7 @@ sub setpath_obj( $$$ ) {
         if (my $loop = setpath_obj $next, $interface, $distance + 2) {
             my $loop_obj = $loop->{exit};
 
-            # Found exit of loop in direction to net1.
+            # Found exit of loop in direction to any1.
             if ($obj eq $loop_obj) {
 
                 # Mark with a different marker linking to itself.
@@ -5689,13 +5696,13 @@ sub setpath_obj( $$$ ) {
 
     }
     else {
-        $obj->{main} = $to_net1;
+        $obj->{main} = $to_any1;
         return 0;
     }
 }
 
 # Find cluster of directly connected loops.
-# Find exit node of the cluster in direction to net1;
+# Find exit node of the cluster in direction to any1;
 # Its loop attribute has a reference to the node itself.
 # Add this exit node as marker to all loops belonging to the cluster.
 sub set_loop_cluster {
@@ -5722,20 +5729,20 @@ sub set_loop_cluster {
 sub setpath() {
     info "Preparing fast path traversal";
 
-    # Take a random network from @networks, name it "net1".
-    @networks or fatal_err "Topology seems to be empty";
-    my $net1 = $networks[0];
+    # Take a random object from @all_anys, name it "any1".
+    @all_anys or fatal_err "Topology seems to be empty";
+    my $any1 = $all_anys[0];
 
-    # Starting with net1, do a traversal of the whole topology
-    # to find a path from every network and router to net1.
+    # Starting with any1, do a traversal of the whole topology
+    # to find a path from every 'any' object and router to any1.
     # Second  parameter is used as placeholder for a not existing
     # starting interface. Value must be "true" and unequal to any interface.
-    # Third parameter is distance from $net1 to $net1.
-    setpath_obj $net1, {}, 0;
+    # Third parameter is distance from $any1 to $any1.
+    setpath_obj $any1, {}, 0;
 
-    # Check if all objects are connected with net1.
+    # Check if all objects are connected with any1.
     my @unconnected;
-    for my $object (@networks, @routers) {
+    for my $object (@all_anys, @managed_routers) {
         next if $object->{main} or $object->{loop};
         push @unconnected, $object;
 
@@ -5744,16 +5751,16 @@ sub setpath() {
     }
     if (@unconnected) {
         my $msg = "Topology has unconnected parts:";
-        for my $object ($net1, @unconnected) {
+        for my $object ($any1, @unconnected) {
             $msg .= "\n $object->{name}";
         }
         fatal_err $msg;
     }
 
-    for my $obj (@networks, @routers) {
+    for my $obj (@all_anys, @managed_routers) {
         my $loop = $obj->{loop} or next;
 
-        # Check all networks and routers located inside a cyclic
+        # Check all 'any' objects and routers located inside a cyclic
         # graph. Propagate loop exit into sub-loops.
         while (my $next = $loop->{redirect}) {
 #           debug "Redirect: $loop->{exit}->{name} -> $next->{exit}->{name}";
@@ -5767,7 +5774,7 @@ sub setpath() {
         # Set distance of loop objects to value of cluster exit.
         $obj->{distance} = $loop->{cluster_exit}->{distance};
     }
-    for my $router (@routers) {
+    for my $router (@managed_routers) {
         for my $interface (@{$router->{interfaces}}) {
             if(my $loop = $interface->{loop}) {
                 while (my $next = $loop->{redirect}) {
@@ -5795,43 +5802,50 @@ sub get_path( $ ) {
     my $type = ref $obj;
     my $result;
     if ($type eq 'Network') {
-        $result = $obj;
+        $result = $obj->{any};
     }
     elsif ($type eq 'Subnet') {
-        $result = $obj->{network};
+        $result = $obj->{network}->{any};
     }
     elsif ($type eq 'Interface') {
+ 	if($obj->{router}->{managed}) {
 
-        # If this is a secondary interface, we can't use it to enter
-        # the router, because it has an active pathrestriction attached.
-        # But it doesn't matter if we use the main interface instead.
-        my $obj2 = $obj->{main_interface} || $obj;
+	    # If this is a secondary interface, we can't use it to enter
+	    # the router, because it has an active pathrestriction attached.
+	    # But it doesn't matter if we use the main interface instead.
+	    my $obj2 = $obj->{main_interface} || $obj;
 
-        # Special handling needed if $src or $dst is interface
-        # which has pathrestriction attached.
-        if ($obj->{path_restrict}) {
-            $result = $obj2;
-        }
-        else {
-            $result = $obj2->{router};
-        }
+	    # Special handling needed if $src or $dst is interface
+	    # which has pathrestriction attached.
+	    if ($obj->{path_restrict}) {
+		$result = $obj2;
+	    }
+	    else {
+		$result = $obj2->{router};
+	    }
+	}
+	else {
+	    $result = $obj->{network}->{any};
+	}
     }
     elsif ($type eq 'Any') {
-
-        # We may take any network of this security domain,
-        # but attribute {link} is guaranteed to contain a valid network.
-        $result = $obj->{link};
-    }
-    elsif ($type eq 'Router') {
-
-        # This is only used, when called from path_auto_interfaces or
-        # from find_active_routes_and_statics.
         $result = $obj;
     }
-    elsif ($type eq 'Host') {
 
-        # This is only used, if Netspoc.pm is called from report.pl.
-        $result = $obj->{network};
+    # This is only used, when called from path_auto_interfaces or
+    # from find_active_routes_and_statics.
+    elsif ($type eq 'Router') {
+ 	if($obj->{managed}) {
+	    $result = $obj;
+	}
+	else {
+	    $result = $obj->{interfaces}->[0]->{network}->{any};  
+	}
+    }
+
+    # This is only used, if Netspoc.pm is called from report.pl.
+    elsif ($type eq 'Host') {
+        $result = $obj->{network}->{any};
     }
     else {
         internal_err "unexpected $obj->{name}";
@@ -5895,7 +5909,7 @@ sub cluster_path_mark1( $$$$$$$$ ) {
         return 0;
     }
 
-    # Found a path to router or network.
+    # Found a path to router or 'any' object.
     if ($obj eq $end) {
 
         # Mark interface where we leave the loop.
@@ -5914,7 +5928,7 @@ sub cluster_path_mark1( $$$$$$$$ ) {
 #       debug " enabled $restrict->{name} at $in_intf->{name}";
         $restrict->{active_path} = 1;
     }
-    my $get_next = is_router $obj ? 'network' : 'router';
+    my $get_next = is_router $obj ? 'any' : 'router';
     my $success = 0;
 
     # Fill hash for restoring reference from hash key.
@@ -5934,18 +5948,9 @@ sub cluster_path_mark1( $$$$$$$$ ) {
           )
         {
 
-            # Found a valid path from $next to $end
+            # Found a valid path from $next to $end.
             $key2obj{$interface} = $interface;
-
-            # Only add interface tuple of this object
-            # if it is a managed router
-            # or a network directly attached to a managed router.
-            # This is sufficient to get ACLs to managed routers
-            # and to find the next hop interfaces
-            # when generating static routes on managed routers.
-            if ($obj->{managed}) {
-                $path_tuples->{$in_intf}->{$interface} = is_router $obj;
-            }
+	    $path_tuples->{$in_intf}->{$interface} = is_router $obj;
 
 #	    debug " loop: $in_intf->{name} -> $interface->{name}";
             $success = 1;
@@ -6042,7 +6047,7 @@ sub cluster_path_mark ( $$$$$$ ) {
     # Check, if $from_store contains interface of current loop where path starts.
     my ($start_store, $end_store);
     if (is_interface $from_store
-        and ($from_store->{router} eq $from or $from_store->{network} eq $from))
+        and ($from_store->{router} eq $from or $from_store->{any} eq $from))
     {
         $start_intf  = $from_store;
         $start_store = $from_store;
@@ -6052,7 +6057,7 @@ sub cluster_path_mark ( $$$$$$ ) {
         $start_store = $from;
     }
     if (is_interface $to_store
-        and ($to_store->{router} eq $to or $to_store->{network} eq $to))
+        and ($to_store->{router} eq $to or $to_store->{any} eq $to))
     {
         $end_intf  = $to_store;
         $end_store = $to_store;
@@ -6126,9 +6131,10 @@ sub cluster_path_mark ( $$$$$$ ) {
 
         # Mark current path for loop detection.
         $from->{active_path} = 1;
-        my $get_next = is_router $from ? 'network' : 'router';
+        my $get_next = is_router $from ? 'any' : 'router';
         my $allowed = $navi->{$from->{loop}}
-	or internal_err "Loop $from->{loop}->{exit}->{name}$from->{loop} with empty navi";
+	or internal_err( "Loop $from->{loop}->{exit}->{name}$from->{loop}",
+			 " with empty navi");
         for my $interface (@{ $from->{interfaces} }) {
             my $loop = $interface->{loop};
             next if not $loop;
@@ -6139,7 +6145,7 @@ sub cluster_path_mark ( $$$$$$ ) {
 
             # Don't enter network which connects pair of virtual loopback
             # interfaces.
-            next if $interface->{loopback};
+            next if $interface->{loopback} and $get_next eq 'any';
             my $next = $interface->{$get_next};
 
 #           debug " try: $from->{name} -> $interface->{name}";
@@ -6211,7 +6217,7 @@ sub cluster_path_mark ( $$$$$$ ) {
 }
 
 # Mark path from $from to $to.
-# $from and $to are either a router or a network.
+# $from and $to are either a router or an 'any' object.
 # For a path without loops, $from_store equals $from and $to_store equals $to.
 # If the path starts at an interface inside a cluster of loops 
 # or at the border of a cluster,
@@ -6347,9 +6353,9 @@ sub loop_path_walk( $$$$$$$ ) {
     }
 }
 
-# Apply a function to a rule at every router or network
+# Apply a function to a rule at every router or 'any'
 # on the path from src to dst of the rule.
-# $where tells, where the function gets called: at 'Router' or 'Network'.
+# $where tells, where the function gets called: at 'Router' or 'Any'.
 sub path_walk( $$;$ ) {
     my ($rule, $fun, $where) = @_;
     internal_err "undefined rule" unless $rule;
@@ -6389,8 +6395,8 @@ sub path_walk( $$;$ ) {
     }
     my $in = undef;
     my $out;
-    my $at_router = not($where && $where eq 'Network');
-    my $call_it = (is_network($from) xor $at_router);
+    my $at_router = not($where && $where eq 'Any');
+    my $call_it   = (is_any($from) xor $at_router);
 
     # Path starts inside a cyclic graph.
     if ($from_store->{loop_exit}
@@ -6406,7 +6412,7 @@ sub path_walk( $$;$ ) {
         }
 
         # Continue behind loop.
-        $call_it = not(is_network($loop_exit) xor $at_router);
+        $call_it = not(is_any($loop_exit) xor $at_router);
         $in      = $loop_out;
         $out     = $in->{path}->{$to_store};
     }
@@ -6427,7 +6433,7 @@ sub path_walk( $$;$ ) {
 #               debug "exit: path_walk: reached dst in loop";
                 return;
             }
-            $call_it = not(is_network($loop_exit) xor $at_router);
+	    $call_it = not(is_any($loop_exit) xor $at_router);
             $in      = $loop_out;
             $out     = $in->{path}->{$to_store};
         }
@@ -6447,6 +6453,37 @@ sub path_walk( $$;$ ) {
             $out     = $in->{path}->{$to_store};
         }
     }
+}
+  
+my %border2router2auto;
+sub set_auto_intf_from_border ( $ ) {
+    my ($border) = @_;
+    my %active_path;
+    my $reach_from_border;
+    $reach_from_border = sub {
+      my($network, $in_intf, $result) = @_;
+      $active_path{$network} = 1;
+      for my $interface (@{ $network->{interfaces} }) {
+          next if $interface eq $in_intf;
+          next if $interface->{any};
+          my $router = $interface->{router};
+          next if $result->{$router}->{$interface};
+          $result->{$router}->{$interface} = $interface;
+          for my $out_intf (@{ $router->{interfaces} }) {
+              next if $out_intf eq $interface;
+              my $out_net = $out_intf->{network};
+#???              next if $active_path{$out_intf};
+              $reach_from_border->($out_net, $out_intf, $result);
+          }
+      }
+      $active_path{$network} = 0;
+    };
+    my $result = {};
+    $reach_from_border->($border->{network}, $border, $result);
+    for my $href (values %$result) {
+      $href = [ values %$href ];
+    }
+    $border2router2auto{$border} = $result;
 }
 
 # $src is an auto_interface, interface or router.
@@ -6482,6 +6519,20 @@ sub path_auto_interfaces( $$ ) {
     }
     else {
         @result = ($from_store->{path}->{$to_store});
+    }
+    my $router = is_router $src2 ? $src2 : $src2->{router};
+    if(is_any $from) {
+	my %result;
+	for my $border (@result) {
+	    if(not $border2router2auto{$border}) {
+		set_auto_intf_from_border($border);
+	    }
+	    my $auto_intf = $border2router2auto{$border}->{$router};
+	    for my $interface (@$auto_intf) {
+		$result{$interface} = $interface;
+	    }
+	}
+	@result = values %result;
     }
 
     # If device has virtual interface, main and virtual interface are swapped.
@@ -6966,7 +7017,6 @@ sub check_any_src_rule( $$$ ) {
     # we just process the corresponding router,
     # thus we better use in_intf.
     my $router = $in_intf->{router};
-    return unless $router->{managed} or $router->{semi_managed};
 
     # Check only for the first router, because next test will be done
     # for rule "permit any2 dst" anyway.
@@ -7049,7 +7099,6 @@ sub check_any_dst_rule( $$$ ) {
     # we just process the corresponding router,
     # thus we better use out_intf
     my $router = $out_intf->{router};
-    return unless $router->{managed} or $router->{semi_managed};
 
     my $out_any = $out_intf->{any};
 
@@ -7399,7 +7448,10 @@ sub gen_reverse_rules1 ( $ ) {
                 # Hence we don't need a reverse rule for current router.
                 return if not $out_intf;
                 my $router = $out_intf->{router};
-                return unless $router->{managed};
+
+		# It doesn't matter if a semi_managed device is stateless
+		# because no code is generated.
+		return if not $router->{managed};
                 my $model = $router->{model};
 
                 if (
@@ -7710,162 +7762,6 @@ sub optimize() {
     print_rulecount;
 }
 
-########################################################################
-# Routing
-# Add a component 'route' to each interface, which holds an array of
-# networks reachable using this interface as next hop.
-########################################################################
-
-# This function is called for each network on the path from src to dst
-# of $rule.
-# If $in_intf and $out_intf are both defined, packets traverse this network.
-# If $in_intf is not defined, there is no interface where we could add
-# routing entries.
-# If $out_intf is not defined, dst is this network;
-# hence dst is directly connected to $in_intf
-sub collect_route( $$$ ) {
-    my ($rule, $in_intf, $out_intf) = @_;
-
-#    debug "collect: $rule->{src}->{name} -> $rule->{dst}->{name}";
-#    my $info = '';
-#    $info .= $in_intf->{name} if $in_intf;
-#    $info .= ' -> ';
-#    $info .= $out_intf->{name} if $out_intf;
-#    debug " $info";
-    if ($in_intf and $out_intf) {
-        return unless $in_intf->{router}->{managed};
-
-        # Remember network which is reachable via $out_intf.
-        my $network = $rule->{dst};
-
-        # This router and all routers from here to dst have been processed
-        # already.
-        # But we can't be sure about this, if we are walking inside a loop.
-        if (    $use_nonlocal_exit
-            and $in_intf->{routes}->{$out_intf}->{$network}
-            and not $in_intf->{loop})
-        {
-
-            # Jump out of path_walk in sub find_active_routes_and_statics
-            no warnings "exiting";
-            next RULE;
-        }
-
-        # Prevent duplicate routes for networks which are translated
-        # to the same IP address.
-        if (my $identical = $network->{is_identical}) {
-            if (my $one_net = $identical->{ $in_intf->{nat_map} }) {
-                $network = $one_net;
-            }
-        }
-
-#       debug "Route at $in_intf->{name}: $network->{name} via $out_intf->{name}";
-        $in_intf->{routes}->{$out_intf}->{$network} = $network;
-
-        # Store $out_intf itself, since we need to go back
-        # from hash key to original object later.
-        $in_intf->{hop}->{$out_intf} = $out_intf;
-    }
-}
-
-sub check_and_convert_routes () {
-    info "Checking for duplicate routes";
-    for my $router (@managed_routers) {
-
-        # Adjust routes through VPN tunnel to clear-text interface.
-        for my $interface (@{ $router->{interfaces} }) {
-            next if not $interface->{ip} eq 'tunnel';
-            my $tunnel_routes = $interface->{routes};
-            my $real_intf     = $interface->{real_interface};
-            for my $peer (@{ $interface->{peers} }) {
-                my $real_peer = $peer->{real_interface} or next;
-                my $peer_net = $real_peer->{network};
-                my $found_peer;
-
-                # Find hop to peer network and add tunnel networks to this hop.
-                for my $net_hash (values %{ $real_intf->{routes} }) {
-                    if ($net_hash->{$peer_net}) {
-                        $found_peer = 1;
-                        for my $tunnel_net_hash (values %$tunnel_routes) {
-                            for my $tunnel_net (values %$tunnel_net_hash) {
-                                $net_hash->{$tunnel_net} = $tunnel_net;
-                            }
-                        }
-                    }
-                }
-                if (not $found_peer) {
-                    warn_msg "Missing clear-text route for",
-                      " $peer_net->{name} at $router->{name}";
-                }
-            }
-            $interface->{hop}    = {};
-            $interface->{routes} = {};
-        }
-
-        # Remember, via which local interface a network is reached.
-        my %net2intf;
-        for my $interface (@{ $router->{interfaces} }) {
-
-            # Remember, via which remote interface a network is reached.
-            my %net2hop;
-
-            # Convert to array, because hash isn't needed any longer.
-            # Array is sorted to get deterministic output.
-            $interface->{hop} =
-              [ sort { $a->{name} cmp $b->{name} }
-                  values %{ $interface->{hop} } ];
-            for my $hop (@{ $interface->{hop} }) {
-                for my $network (values %{ $interface->{routes}->{$hop} }) {
-                    if (my $interface2 = $net2intf{$network}) {
-                        if ($interface2 ne $interface) {
-
-                            # Network is reached via two different
-                            # local interfaces.  Show warning if static
-                            # routing is enabled for both interfaces.
-                            if (    not $interface->{routing}
-                                and not $interface2->{routing})
-                            {
-                                warn_msg
-                                  "Two static routes for $network->{name}\n",
-                                  " via $interface->{name} and ",
-                                  "$interface2->{name}";
-                            }
-                        }
-                    }
-                    else {
-                        $net2intf{$network} = $interface;
-                    }
-                    unless ($interface->{routing}) {
-                        if (my $hop2 = $net2hop{$network}) {
-
-                            # Network is reached via two different hops.
-                            # Check if both are reached via the same virtual IP.
-                            if (    $hop->{redundancy_type}
-                                and $hop2->{redundancy_type}
-                                and $hop->{ip} eq $hop2->{ip})
-                            {
-
-                                # Prevent multiple identical routes to different
-                                # interfaces with identical virtual IP.
-                                delete $interface->{routes}->{$hop}->{$network};
-                            }
-                            else {
-                                warn_msg
-                                  "Two static routes for $network->{name}\n",
-                                  " at $router->{name}",
-                                  " via $hop->{name} and $hop2->{name}";
-                            }
-                        }
-                        else {
-                            $net2hop{$network} = $hop;
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 # Collect networks which need NAT commands.
 sub mark_networks_for_static( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
@@ -8004,55 +7900,432 @@ sub find_statics () {
         }
     }
 }
+  
+########################################################################
+# Routing
+########################################################################
+
+# Set up data structure to find routing info inside a security domain.
+# Some definitions:
+# - Border interfaces are directly attached to the security domain.
+# - Border networks are located inside the security domain and are attached
+#   to border interfaces.
+# - All interfaces of border networks, which are not border interfaces, 
+#   are called hop interfaces, because they are used as next hop from
+#   border interfaces.
+# - A cluster is a maximal set of networks of the security domain,
+#   which is surrounded by hop interfaces.
+# For each border interface I and each network N inside the security domain
+# we need to find the hop interface H via which N is reached from I.
+# This is stored in an attribute {route_in_any} of I.
+sub set_routes_in_any ( $ ) {
+    my ($any) = @_;
+
+    # Mark border networks and hop interfaces.
+    my %border_networks;
+    my %hop_interfaces;
+    for my $in_interface (@{ $any->{interfaces} }) {
+	next if $in_interface->{main_interface};
+	my $network = $in_interface->{network};
+	next if $border_networks{$network};
+	$border_networks{$network} = $network;
+	for my $out_interface (@{ $network->{interfaces} }) {
+	    next if $out_interface->{any};
+	    next if $out_interface->{main_interface};
+	    $hop_interfaces{$out_interface} = $out_interface;
+	}
+    }
+    return if not keys %hop_interfaces;
+    my %hop2cluster;
+    my %cluster2borders;
+    my $set_cluster;
+    $set_cluster = sub {
+	my ($router, $in_intf, $cluster) = @_;
+	for my $interface (@{ $router->{interfaces} }) {
+	    next if $interface->{main_interface};
+	    if($hop_interfaces{$interface}) {
+		$hop2cluster{$interface} = $cluster;
+		my $network = $interface->{network};
+		$cluster2borders{$cluster}->{$network} = $network;
+		next;
+	    }
+	    next if $interface eq $in_intf;
+	    my $network = $interface->{network};
+	    next if $cluster->{$network};
+	    $cluster->{$network} = $network;
+	    for my $out_intf (@{ $network->{interfaces} }) {
+		next if $out_intf eq $interface;
+		next if $out_intf->{main_interface};
+		$set_cluster->($out_intf->{router}, $out_intf, $cluster);
+	    }
+	}
+    };
+    for my $interface (values %hop_interfaces) {
+	next if $hop2cluster{$interface};
+	my $cluster = {};
+	$set_cluster->($interface->{router}, $interface, $cluster);
+#	debug $interface->{name};
+#	debug join ',', map {$_->{name}} values %$cluster if keys %$cluster;
+    }
+
+    # Find all networks located behind a hop interface.
+    my %hop2networks;
+    my $set_networks_behind;
+    $set_networks_behind = sub {
+	my($hop, $in_border) = @_;
+	return if $hop2networks{$hop};
+	my $cluster = $hop2cluster{$hop};
+
+	# Add networks of directly attached cluster to result.
+	my @result = values %$cluster;
+
+	for my $border (values %{ $cluster2borders{$cluster} }) {
+	    next if $border eq $in_border;
+
+	    # Add other border networks to result.
+	    push @result, $border;
+	    for my $out_hop (@{ $border->{interfaces} }) {
+		next if not $hop_interfaces{$out_hop};
+		next if $hop2cluster{$out_hop} eq $cluster;
+		$set_networks_behind->($out_hop, $border);
+
+		# Add networks from clusters located behind 
+		# other border networks.
+		push @result, @{ $hop2networks{$out_hop} };
+	    }
+	}
+	$hop2networks{$hop} = \@result;
+    };
+    for my $border (values %border_networks) {
+	my @border_intf;
+	my @hop_intf;
+	for my $interface (@{ $border->{interfaces} }) {
+	    next if $interface->{main_interface};
+	    if($interface->{any}) {
+		push @border_intf, $interface;
+	    }
+	    else {
+		push @hop_intf, $interface;
+	    }
+	}
+	for my $hop (@hop_intf) {
+	    $set_networks_behind->($hop, $border);
+	    for my $interface (@border_intf) {
+		for my $network (@{ $hop2networks{$hop} }) {
+		    push @{ $interface->{route_in_any}->{$network} }, $hop;
+		}
+	    }
+	}
+    }
+}
+
+# A security domain is entered at $in_intf and exited at $out_intf.
+# Find the hop H to reach $out_intf from $in_intf.
+# Add routing entries at $in_intf that $dst_networks are reachable via H.
+sub add_path_routes ( $$$ ) {
+    my($in_intf, $out_intf, $dst_networks) = @_;
+    return if $in_intf->{routing};
+    my $out_net = $out_intf->{network};
+    my $hops = $in_intf->{route_in_any}->{$out_net} || [$out_intf];
+    for my $hop (@$hops) {
+	$in_intf->{hop}->{$hop} = $hop;
+	for my $network (@$dst_networks) {
+#	    debug "$in_intf->{name} -> $hop->{name}: $network->{name}";
+	    $in_intf->{routes}->{$hop}->{$network} = $network;
+	}
+    }
+}
+
+# A security domain is entered at $interface.
+# $dst_networks are located inside the security domain.
+# For each element N of $dst_networks find the next hop H to reach N.
+# Add routing entries at $interface that N is reachable via H.
+sub add_end_routes ( $$ ) {
+    my($interface, $dst_networks) = @_;
+    return if $interface->{routing};
+    my $intf_net = $interface->{network};
+    my $route_in_any = $interface->{route_in_any};
+    for my $network (@$dst_networks) {
+	next if $network eq $intf_net;
+	my $hops = $route_in_any->{$network} or
+	    internal_err 
+	    "Missing route for $network->{name} at $interface->{name}";
+	for my $hop (@$hops) {
+	    $interface->{hop}->{$hop} = $hop;
+#	    debug "$interface->{name} -> $hop->{name}: $network->{name}";
+	    $interface->{routes}->{$hop}->{$network} = $network;
+	}
+    }
+}
+
+# This function is called for each 'any' on the path from src to dst
+# of $rule.
+# If $in_intf and $out_intf are both defined, packets traverse this 'any'.
+# If $in_intf is not defined, the src is this 'any'.
+# If $out_intf is not defined, dst is this 'any';
+sub get_route_path( $$$ ) {
+    my ($rule, $in_intf, $out_intf) = @_;
+
+#    debug "collect: $rule->{src}->{name} -> $rule->{dst}->{name}";
+#    my $info = '';
+#    $info .= $in_intf->{name} if $in_intf;
+#    $info .= ' -> ';
+#    $info .= $out_intf->{name} if $out_intf;
+#    debug $info;;
+
+    if($in_intf and $out_intf) {
+	push @{ $rule->{path} }, [ $in_intf, $out_intf ];
+    }
+    elsif(not $in_intf) {
+	push @{$rule->{path_entries}}, $out_intf;
+    }
+    else {
+	push @{$rule->{path_exits}}, $in_intf;
+    }
+}
+
+sub check_and_convert_routes ();
 
 sub find_active_routes () {
     info "Finding routes";
+    for my $any (@all_anys) {
+	set_routes_in_any $any;
+    }
     my %routing_tree;
     my $pseudo_srv = { name => '--' };
-    my $fun = sub ( $$ ) {
-        my ($src, $dst) = @_;
-
-        # Don't apply get_network to $src, but use get_path instead:
-        # - It doesn't matter which network of an 'any' object is used.
-        # - We must preserve managed interfaces, since they may get routing
-        #   entries added.
-        my $from = $obj2path{$src} || get_path $src;
-
-        # 'any' objects are expanded to all its contained networks,
-        # hosts and interfaces expand to its containing network.
-        # Don't try to use an interface as destination of $pseudo_rule;
-        # this would give wrong routes and statics, if a path restriction
-        # is applied to this interface.
-        for my $network (get_networks($dst)) {
-            next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
-
-#           debug "$from->{name} -> $network->{name}";
-            unless ($routing_tree{$from}->{$network}) {
-                my $pseudo_rule = {
-                    src    => $from,
-                    dst    => $network,
-                    action => '--',
-                    srv    => $pseudo_srv,
-                };
-                $routing_tree{$from}->{$network} = $pseudo_rule;
-            }
-        }
-    };
-
-    # Process both directions.
     for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{any} }) {
-        $fun->($rule->{src}, $rule->{dst});
+        my ($src, $dst) = ($rule->{src}, $rule->{dst});
+
+	# Ignore deleted rules.
+	# Add the typical check for {managed_intf} 
+	# which covers the destination interface.
+	# Because we handle both directions at once,
+	# we would need an attribute {managed_intf} 
+	# for the source interface as well. But this attribute doesn't exist
+	# and we add an equivalent check for source.
+	if ($rule->{deleted}
+	    and (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf})
+	    and (not (is_interface $src and $src->{router}->{managed})
+		 or (is_interface $rule->{deleted}->{src} 
+		     and $rule->{deleted}->{src}->{router}->{managed}))) {
+	    next;
+	}
+	my $src_any = get_any2 $src;
+	my $dst_any = get_any2 $dst;
+
+	# Source interface is located in security domain of destination or
+	# destination interface is located in security domain of source.
+	# path_walk will do nothing.
+	if($src_any eq $dst_any) {
+	    for my $from ($src, $dst) {
+		my $to = $from eq $src ? $dst : $src;
+		next if not is_interface $from;
+		next if not $from->{any};
+		$from = $from->{main_interface} || $from;
+		my @networks = get_networks($to);
+		add_end_routes($from, \@networks);
+	    }
+	    next;
+	}
+	my $pseudo_rule;
+	if($pseudo_rule = $routing_tree{$src_any}->{$dst_any}) {
+	}
+	elsif($pseudo_rule = $routing_tree{$dst_any}->{$src_any}) {
+	    ($src, $dst) = ($dst, $src);
+	    ($src_any, $dst_any) = ($dst_any, $src_any);
+	}
+	else {
+	    $pseudo_rule = {
+		src    => $src_any,
+		dst    => $dst_any,
+		action => '--',
+		srv    => $pseudo_srv,
+	    };
+	    $routing_tree{$src_any}->{$dst_any} = $pseudo_rule;
+	}
+	my @src_networks = get_networks($src);
+        for my $network (@src_networks) {
+	    $pseudo_rule->{src_networks}->{$network} = $network;
+	}
+	my @dst_networks = get_networks($dst);
+        for my $network (@dst_networks) {
+	    $pseudo_rule->{dst_networks}->{$network} = $network;
+	}
+	if(is_interface $src and $src->{router}->{managed}) {
+	    $src = $src->{main_interface} || $src;
+	    $pseudo_rule->{src_interfaces}->{$src} = $src;
+	    for my $network (@dst_networks) {
+		$pseudo_rule->{src_intf2nets}->{$src}->{$network} = $network;
+	    }
+	}
+	if(is_interface $dst and $dst->{router}->{managed}) {
+	    $dst = $dst->{main_interface} || $dst;
+	    $pseudo_rule->{dst_interfaces}->{$dst} = $dst;
+	    for my $network (@src_networks) {
+		$pseudo_rule->{dst_intf2nets}->{$dst}->{$network} = $network;
+	    }
+	}
     }
-    for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{any} }) {
-        $fun->($rule->{dst}, $rule->{src});
-    }
-    for my $hash (values %routing_tree) {
-      RULE:
-        for my $pseudo_rule (values %$hash) {
-            path_walk($pseudo_rule, \&collect_route, 'Network');
-        }
+    for my $href (values %routing_tree) {
+	for my $pseudo_rule (values %$href) {
+	    path_walk($pseudo_rule, \&get_route_path, 'Any');
+	    my $src_networks = [ values %{ $pseudo_rule->{src_networks} } ];
+	    my $dst_networks = [ values %{ $pseudo_rule->{dst_networks} } ];
+	    my @src_interfaces =  values %{ $pseudo_rule->{src_interfaces} };
+	    my @dst_interfaces =  values %{ $pseudo_rule->{dst_interfaces} };
+	    for my $tuple (@{ $pseudo_rule->{path} }) {
+		my($in_intf, $out_intf) = @$tuple;
+		add_path_routes($in_intf, $out_intf, $dst_networks);
+		add_path_routes($out_intf, $in_intf, $src_networks);
+	    }
+	    for my $entry (@{ $pseudo_rule->{path_entries} }) {
+		for my $src_intf (@src_interfaces) {
+		    next if $src_intf->{router} eq $entry->{router};
+		    if(my $redun_intf = $src_intf->{redundancy_interfaces}) {
+			if(grep { $_->{router} eq $entry->{router} } 
+			   @$redun_intf)
+			{
+			    next;
+			}
+		    }
+		    my $intf_nets = 
+			[values %{$pseudo_rule->{src_intf2nets}->{$src_intf}}];
+		    add_path_routes($src_intf, $entry, $intf_nets);
+		}
+		add_end_routes($entry, $src_networks);	    
+	    }
+	    for my $exit (@{ $pseudo_rule->{path_exits} }) {
+		for my $dst_intf (@dst_interfaces) {
+		    next if $dst_intf->{router} eq $exit->{router};
+		    if(my $redun_intf = $dst_intf->{redundancy_interfaces}) {
+			if(grep { $_->{router} eq $exit->{router} } 
+			   @$redun_intf)
+			{
+			    next;
+			}
+		    }
+		    my $intf_nets = 
+			[values %{$pseudo_rule->{dst_intf2nets}->{$dst_intf}}];
+		    add_path_routes($dst_intf, $exit, $intf_nets);
+		}
+		add_end_routes($exit, $dst_networks);
+	    }
+	}
     }
     check_and_convert_routes;
+}
+
+sub check_and_convert_routes () {
+    info "Checking for duplicate routes";
+    for my $router (@managed_routers) {
+
+	# Adjust routes through VPN tunnel to cleartext interface.
+	for my $interface (@{ $router->{interfaces} }) {
+	    next if not $interface->{ip} eq 'tunnel';
+	    my $tunnel_routes = $interface->{routes};
+	    $interface->{routes} = $interface->{hop} = {};
+	    my $real_intf = $interface->{real_interface};
+	    next if $real_intf->{routing};
+	    for my $peer (@{ $real_intf->{peers} }) {
+		my $peer_net = $peer->{network};
+
+		# Find hop to peer network and add tunnel networks to this hop.
+		for my $net_hash (values %{ $real_intf->{routes}}) {
+		    if($net_hash->{$peer_net}) {
+			for my $tunnel_net_hash (values %$tunnel_routes) {
+			    for my $tunnel_net (values %$tunnel_net_hash) {
+				$net_hash->{$tunnel_net} = $tunnel_net;
+			    }
+			}
+		    }
+		}
+	    }
+	}
+
+        # Remember, via which local interface a network is reached.
+        my %net2intf;
+        for my $interface (@{ $router->{interfaces} }) {
+
+            # Remember, via which remote interface a network is reached.
+            my %net2hop;
+
+	    # Remember, via which remote redundancy interfaces a network
+	    # is reached. We use this to check, if alle members of a group
+	    # of redundancy interfaces are used to reach the network.
+	    # Otherwise it would be wrong to route to the virtual interface.
+	    my %net2group;
+
+            # Convert to array, because hash isn't needed any longer.
+            # Array is sorted to get deterministic output.
+            $interface->{hop} =
+		[ sort { $a->{name} cmp $b->{name} }
+                  values %{ $interface->{hop} } ];
+
+	    next if $interface->{loop} and $interface->{routing};
+            for my $hop (@{ $interface->{hop} }) {
+                for my $network (values %{ $interface->{routes}->{$hop} }) {
+                    if (my $interface2 = $net2intf{$network}) {
+                        if ($interface2 ne $interface) {
+
+                            # Network is reached via two different
+                            # local interfaces.  Show warning if static
+                            # routing is enabled for both interfaces.
+                            if (    not $interface->{routing}
+                                and not $interface2->{routing})
+                            {
+                                warn_msg
+				    "Two static routes for $network->{name}\n",
+				    " via $interface->{name} and ",
+				    "$interface2->{name}";
+                            }
+                        }
+                    }
+                    else {
+                        $net2intf{$network} = $interface;
+                    }
+                    unless ($interface->{routing}) {
+			my $group = $hop->{redundancy_interfaces} || '';
+			if($group) {
+			    push @{ $net2group{$network} }, $hop;
+			}
+                        if (my $hop2 = $net2hop{$network}) {
+
+                            # Network is reached via two different hops.
+                            # Check if both belong to same group 
+			    # of redundancy interfaces.
+			    my $group2 = $hop2->{redundancy_interfaces} || '';
+                            if ($group eq $group2) {
+
+                                # Prevent multiple identical routes to 
+				# different interfaces 
+				# with identical virtual IP.
+                                delete $interface->{routes}->{$hop}->{$network};
+                            }
+                            else {
+                                warn_msg
+				    "Two static routes for $network->{name}\n",
+				    " at $interface->{name}",
+				    " via $hop->{name} and $hop2->{name}";
+                            }
+                        }
+                        else {
+                            $net2hop{$network} = $hop;
+                        }
+                    }
+                }
+	    }
+	    for my $net_ref (keys %net2group) {
+		my $hops = $net2group{$net_ref};
+		my $hop1 = $hops->[0];
+		if(@$hops != @{ $hop1->{redundancy_interfaces}}) {
+		    my ($network) = grep { $_ eq $net_ref } 
+		                      values %{ $interface->{routes}->{$hop1} };
+		    warn_msg "$network->{name} is reached via $hop1->{name}",
+		    " but not via related redundancy interfaces";
+		}
+	    }
+	}
+    }
 }
 
 sub find_active_routes_and_statics () {
@@ -8083,6 +8356,22 @@ sub print_routes( $ ) {
             # A hash having all networks reachable via current hop
             # both as key and as value.
             my $net_hash = $interface->{routes}->{$hop};
+
+            # Prevent duplicate entries from different networks translated
+            # to an identical address.
+            my @has_indentical;
+            for my $network (values %$net_hash) {
+                my $identical = $network->{is_identical} or next;
+                if ($identical->{$nat_map}) {
+                    push @has_indentical, $network;
+                }
+            }
+            for my $network (@has_indentical) {
+                delete $net_hash->{$network};
+                my $one_net = $network->{is_identical}->{$nat_map};
+                $net_hash->{$one_net} = $one_net;
+            }
+
             for my $network
 
               # Sort networks by mask in reverse order,
@@ -8398,7 +8687,7 @@ sub distribute_rule( $$$ ) {
     # Outgoing packets from a router itself are never filtered.
     return unless $in_intf;
     my $router = $in_intf->{router};
-    return unless $router->{managed};
+    return if not $router->{managed};
     my $model = $router->{model};
 
     # Rules of type stateless must only be processed at
@@ -8545,8 +8834,6 @@ sub distribute_rule( $$$ ) {
 # the first router on the path from src to dst.
 sub distribute_rule_at_src( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
-    my $router = $in_intf->{router};
-    return unless $router->{managed};
     my $src = $rule->{src};
     is_any $src or internal_err "$src must be of type 'any'";
 
@@ -8560,8 +8847,6 @@ sub distribute_rule_at_src( $$$ ) {
 # the last router on the path from src to dst.
 sub distribute_rule_at_dst( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
-    my $router = $out_intf->{router};
-    return unless $router->{managed};
     my $dst = $rule->{dst};
     is_any $dst or internal_err "$dst must be of type 'any'";
 
@@ -9151,7 +9436,7 @@ sub acl_line( $$$$ ) {
         my ($action, $src, $dst, $src_range, $srv) =
           @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
         print "$model->{comment_char} " . print_rule($rule) . "\n"
-          if $comment_acls;
+	    if $comment_acls and $model->{filter} ne 'iptables';
         my $spair = address($src, $nat_map);
         my $dpair = address($dst, $nat_map);
         if ($filter_type eq 'PIX') {
