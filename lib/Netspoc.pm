@@ -432,7 +432,7 @@ sub read_ip_opt_prefixlen() {
             $len = $1;
         }
         else {
-            error_atline "Prefix length must be greater than 32";
+            error_atline "Prefix length must be <= 32";
         }
     }
     return $ip, $len;
@@ -1028,6 +1028,11 @@ sub read_network( $ ) {
             # Duplicate use of this flag doesn't matter.
             $network->{route_hint} = 1;
         }
+        elsif (check_flag 'crosslink') {
+
+            # Duplicate use of this flag doesn't matter.
+            $network->{crosslink} = 1;
+        }
         elsif (my $id = check_assign 'id', \&read_user_id) {
             $network->{id}
               and error_atline "Duplicate attribute 'id'";
@@ -1130,8 +1135,10 @@ sub read_network( $ ) {
             # after global NAT definitions have been processed.
         }
         if (@{ $network->{hosts} } and $network->{route_hint}) {
-            error_atline "network must not have host definitions\n",
-              " because it has attribute 'route_hint'";
+            error_atline "route_hint network must not have host definitions";
+        }
+        if (@{ $network->{hosts} } and $network->{crosslink}) {
+            error_atline "Crosslink network must not have host definitions";
         }
 
         # Check NAT definitions.
@@ -1836,6 +1843,7 @@ sub read_router( $ ) {
                 }
             }
         }
+
         if ($router->{model}->{has_interface_level}) {
             set_pix_interface_level $router;
         }
@@ -3351,6 +3359,37 @@ sub link_topology() {
             err_msg $msg;
         }
 
+	# A crosslink network combines two or more routers
+	# to one virtual router.
+	# No filtering occurs at the crosslink interfaces.
+	if ($network->{crosslink}) {
+	    my @managed_type;
+            for my $interface (@{ $network->{interfaces} }) {
+		my $router = $interface->{router};
+		if (my $managed = $router->{managed}) {
+		    push @managed_type, $managed;
+		}
+		else {
+		    err_msg "Crosslink $network->{name} must not be",
+		    "connected to unmanged $router->{name}";
+		}
+		my $hardware = $interface->{hardware};
+		@{ $hardware->{interfaces} } == 1 or
+		    err_msg 
+		    "Crosslink $network->{name} must be the only  network\n",
+		    " connected to $hardware->{name} of $router->{name}";
+		$interface->{crosslink} = 1;
+	    }
+
+	    # Ensure clear resposibility for filtering.
+	    if (@managed_type) {
+		my $first = pop @managed_type;
+		grep { $_ ne $first } @managed_type and
+		    err_msg "All routers at crosslink $network->{name}",
+		    " must have identical managed type";
+	    }		    
+	}
+
         my %ip;
 
         # All interfaces and hosts of a network must be located in that part
@@ -4082,17 +4121,19 @@ sub expand_group1( $$ ) {
                     my $type = ref $object;
                     if ($type eq 'Area') {
                         push @objects,
-                          grep { not $_->{route_hint} } map @{ $_->{networks} },
+                          grep { not $_->{route_hint} and not $_->{crosslink} }
+			  map @{ $_->{networks} },
                           @{ $object->{anys} };
                     }
                     elsif ($type eq 'Any') {
                         push @objects,
-                          grep { not $_->{route_hint} }
+                          grep { not $_->{route_hint} and not $_->{crosslink} }
                           @{ $object->{networks} };
                     }
                     elsif ($type eq 'Host' or $type eq 'Interface') {
 
-                        # Don't add implicitly defined network of loopback interface.
+                        # Don't add implicitly defined network 
+			# of loopback interface.
                         if (not $object->{loopback}) {
                             push @objects, $object->{network};
                         }
@@ -4211,6 +4252,9 @@ sub expand_group( $$;$ ) {
             }
             elsif ($object->{has_id_hosts}) {
                 $ignore = "$object->{name} having ID-hosts";
+            }
+            elsif ($object->{crosslink}) {
+                $ignore = "crosslink $object->{name}";
             }
         }
         elsif (is_interface $object) {
@@ -8930,10 +8974,30 @@ sub set_policy_distribution_ip () {
     }
 }
 
+my $permit_any_rule =  
+{
+    action    => 'permit',
+    src       => $network_00,
+    dst       => $network_00,
+    src_range => $srv_ip,
+    srv       => $srv_ip
+    };
+
 sub add_router_acls () {
     for my $router (@managed_routers) {
         for my $hardware (@{ $router->{hardware} }) {
             for my $interface (@{ $hardware->{interfaces} }) {
+
+		# Some managed devices are connected by a crosslink network.
+		# Permit any traffic at the internal crosslink interface.
+		if ($interface->{crosslink}) {
+
+		    # We can savely change rules at hardware interface
+		    # because it has been checked that no other logical
+		    # networks are attached to the same hardware.
+		    $hardware->{rules} = [ $permit_any_rule ];
+		    $hardware->{intf_rules} = [ $permit_any_rule ];
+		}
 
                 # Current router is used as default router even for
                 # some internal networks.
