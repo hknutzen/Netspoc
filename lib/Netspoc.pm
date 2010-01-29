@@ -3378,7 +3378,7 @@ sub link_topology() {
 		    err_msg 
 		    "Crosslink $network->{name} must be the only  network\n",
 		    " connected to $hardware->{name} of $router->{name}";
-		$interface->{crosslink} = 1;
+		$interface->{crosslink} = $hardware->{crosslink} = 1;
 	    }
 
 	    # Ensure clear resposibility for filtering.
@@ -8987,6 +8987,7 @@ sub add_router_acls () {
 		    # networks are attached to the same hardware.
 		    $hardware->{rules} = [ $permit_any_rule ];
 		    $hardware->{intf_rules} = [ $permit_any_rule ];
+		    next;
 		}
 
                 # Current router is used as default router even for
@@ -11126,6 +11127,9 @@ sub print_acl_add_deny ( $$$$$$ ) {
                 srv       => $srv_ip
               };
         }
+	if($hardware->{crosslink}) {
+	    $hardware->{intf_rules} = [];
+	}
     }
 
     # Iptables already has deny rules at builtin chains.
