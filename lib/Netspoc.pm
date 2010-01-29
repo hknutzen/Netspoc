@@ -6773,22 +6773,12 @@ sub link_tunnels () {
         }
     }
 
-    # Automatically add pairwise pathrestriction between
-    # real interface and all other interfaces of the same router.
+    # Automatically add active pathrestriction to the real interface.
     # This allows direct traffic to the real interface from outside,
     # but no traffic from or to the real interface passing the router.
     for my $intf1 (@real_interfaces) {
         next if $intf1->{no_check};
         push @{ $intf1->{path_restrict} }, $global_active_pathrestriction;
-        next;
-        my $router = $intf1->{router};
-        for my $intf2 (@{ $router->{interfaces} }) {
-            next if $intf2 eq $intf1;
-            my $name2 = "auto-restriction:$router->{name}";
-            my $restrict = new('Pathrestriction', name => $name2);
-            push @{ $intf1->{path_restrict} }, $restrict;
-            push @{ $intf2->{path_restrict} }, $restrict;
-        }
     }
 }
 
