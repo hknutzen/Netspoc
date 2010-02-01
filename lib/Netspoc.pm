@@ -6512,13 +6512,16 @@ sub set_auto_intf_from_border ( $ ) {
           next if $interface->{any};
           my $router = $interface->{router};
           next if $result->{$router}->{$interface};
+	  next if $active_path{$router};
+	  $active_path{$router} = 1;
           $result->{$router}->{$interface} = $interface;
           for my $out_intf (@{ $router->{interfaces} }) {
               next if $out_intf eq $interface;
               my $out_net = $out_intf->{network};
-#???              next if $active_path{$out_intf};
+              next if $active_path{$out_net};
               $reach_from_border->($out_net, $out_intf, $result);
           }
+	  $active_path{$router} = 0;
       }
       $active_path{$network} = 0;
     };
