@@ -8358,6 +8358,9 @@ sub check_and_convert_routes () {
 		if(@$hops != @{ $hop1->{redundancy_interfaces}}) {
 		    my ($network) = grep { $_ eq $net_ref } 
 		                      values %{ $interface->{routes}->{$hop1} };
+		    # Test for loopback isn't realy needed.
+		    # It's only a temporary hack to prevent some warnings.
+		    $network->{loopback} or
 		    warn_msg "$network->{name} is reached via $hop1->{name}",
 		    " but not via related redundancy interfaces";
 		}
