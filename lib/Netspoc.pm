@@ -11251,7 +11251,7 @@ EOF
                 # Define split tunnel ACL.
                 # Use default value if not defined.
                 my $split_tunnel_policy = $attributes->{'split-tunnel-policy'};
-                if (not $split_tunnel_policy) {
+                if (not defined $split_tunnel_policy) {
 
                     # Do nothing.
                 }
