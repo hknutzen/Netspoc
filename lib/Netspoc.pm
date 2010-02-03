@@ -5650,7 +5650,7 @@ sub check_pathrestrictions() {
 ####################################################################
 
 # Parameters:
-# $obj: a managed router or a 'any' object
+# $obj: a managed or semi-managed router or an 'any' object
 # $to_any1: interface of $obj; go this direction to reach any1
 # $distance: distance to any1
 # Return value:
@@ -5786,7 +5786,8 @@ sub setpath() {
 
     # Check if all objects are connected with any1.
     my @unconnected;
-    for my $object (@all_anys, @managed_routers) {
+    my @path_routers = grep { $_->{managed} || $_->{semi_managed} } @routers;
+    for my $object (@all_anys, @path_routers) {
         next if $object->{main} or $object->{loop};
         push @unconnected, $object;
 
@@ -5801,7 +5802,7 @@ sub setpath() {
         fatal_err $msg;
     }
 
-    for my $obj (@all_anys, @managed_routers) {
+    for my $obj (@all_anys, @path_routers) {
         my $loop = $obj->{loop} or next;
 
         # Check all 'any' objects and routers located inside a cyclic
@@ -5818,7 +5819,7 @@ sub setpath() {
         # Set distance of loop objects to value of cluster exit.
         $obj->{distance} = $loop->{cluster_exit}->{distance};
     }
-    for my $router (@managed_routers) {
+    for my $router (@path_routers) {
         for my $interface (@{$router->{interfaces}}) {
             if(my $loop = $interface->{loop}) {
                 while (my $next = $loop->{redirect}) {
