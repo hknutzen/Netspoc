@@ -189,8 +189,6 @@ my %router_info = (
         name                => 'PIX',
         routing             => 'PIX',
         filter              => 'PIX',
-        crypto              => 'PIX',
-        no_crypto_filter    => 1,
         comment_char        => '!',
         has_interface_level => 1,
         need_identity_nat   => 1,
@@ -202,7 +200,7 @@ my %router_info = (
         name                => 'ASA',
         routing             => 'PIX',
         filter              => 'PIX',
-        crypto              => 'PIX',
+        crypto              => 'ASA',
         no_crypto_filter    => 1,
         comment_char        => '!',
         has_interface_level => 1,
@@ -1504,46 +1502,13 @@ sub read_interface( $ ) {
         error_atline
           "Attribute 'subnet_of' is only valid for loopback interface";
     }
-
-    # Generate tunnel interface.
-    # Substitute current interface with tunnel interface.
-    # This is a workaround for unmanaged devices:
-    # We want to restrict traffic through the real interface.
-    # But we can't add pathrestrictions to unmanaged devices.
-    # The real interface is
-    # - added later, if the device is known to be managed
-    # - removed, if the device is known to be unmanaged.
     if (my $crypto = $interface->{spoke}) {
-        @secondary_interfaces
-          and error_atline "Interface with attribute 'spoke'",
-          " must not have secondary interfaces";
-        $interface->{hub}
-          and error_atline "Interface with attribute 'spoke'",
-          " must not have attribute 'hub'";
-        my ($router_name) = $name =~ /^interface:([^.]+)\./;
-        my $net_name      = "tunnel:$router_name";
-        my $tunnel_intf   = new(
-            'Interface',
-            name           => "interface:$router_name.$net_name",
-            ip             => 'tunnel',
-            network        => $net_name,
-            real_interface => $interface
-        );
-        for my $key (qw(hardware routing)) {
-            $tunnel_intf->{$key} = $interface->{$key} if $interface->{$key};
-        }
-        $interface = $tunnel_intf;
-
-        # Create tunnel network.
-        my $tunnel_net = new(
-            'Network',
-            name => "network:$net_name",
-            ip   => 'tunnel'
-        );
-        $networks{$net_name} = $tunnel_net;
-
-        # Tunnel network will later be attached to crypto hub.
-        push @{ $crypto2spokes{$crypto} }, $tunnel_net;
+	@secondary_interfaces
+	    and error_atline "Interface with attribute 'spoke'",
+	    " must not have secondary interfaces";
+	$interface->{hub}
+	  and error_atline "Interface with attribute 'spoke'",
+	  " must not have attribute 'hub'";
     }
     if (my $crypto = $interface->{hub}) {
         if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
@@ -1551,7 +1516,6 @@ sub read_interface( $ ) {
         }
         push @{ $crypto2hubs{$crypto} }, $interface;
     }
-
     for my $secondary (@secondary_interfaces) {
         $secondary->{main_interface} = $interface;
         $secondary->{hardware}       = $interface->{hardware};
@@ -1706,6 +1670,9 @@ sub read_router( $ ) {
                 # Link interface with router object.
                 $interface->{router} = $router;
 
+		# Link interface with network name (will be resolved later).
+		$interface->{network} = $network;
+
                 # Set private attribute of interface.
                 # If a loopback network is created below it doesn't need to get
                 # this attribute because the network can't be referenced.
@@ -1749,16 +1716,41 @@ sub read_router( $ ) {
                     }
                     $interface->{network} = $net_name;
                 }
-                elsif (my $real_intf = $interface->{real_interface}) {
 
-                    # Attribute {network} has already been set for $interface.
-                    $real_intf->{network} = $network;
-                }
-                else {
+		# Generate tunnel interface.
+		elsif (my $crypto = $interface->{spoke}) {
+		    my $net_name    = "tunnel:$rname";
+		    my $iname = "$rname.$net_name";
+		    my $tunnel_intf = new(
+					  'Interface',
+					  name           => "interface:$iname",
+					  ip             => 'tunnel',
+					  router         => $router,
+					  network        => $net_name,
+					  real_interface => $interface
+					  );
+		    for my $key (qw(hardware routing private)) {
+			if ($interface->{$key}) {
+			    $tunnel_intf->{$key} = $interface->{$key} 
+			}
+		    }
+		    if ($interfaces{$iname}) {
+			error_atline "Redefining $tunnel_intf->{name}";
+		    }
+		    $interfaces{$iname} = $tunnel_intf;
+		    push @{ $router->{interfaces} }, $tunnel_intf;
 
-                    # Link interface with network name (will be resolved later).
-                    $interface->{network} = $network;
-                }
+		    # Create tunnel network.
+		    my $tunnel_net = new(
+					 'Network',
+					 name => "network:$net_name",
+					 ip   => 'tunnel'
+					 );
+		    $networks{$net_name} = $tunnel_net;
+
+		    # Tunnel network will later be attached to crypto hub.
+		    push @{ $crypto2spokes{$crypto} }, $tunnel_net;
+		}
             }
         }
     }
@@ -1773,29 +1765,6 @@ sub read_router( $ ) {
             # Prevent further errors.
             $router->{model} = { name => 'unknown' };
         }
-
-        my @real_interfaces;
-        for my $interface (@{ $router->{interfaces} }) {
-
-            # Add real interfaces of tunnel interfaces,
-            # because now we know that the device is managed.
-            if (my $real_interface = $interface->{real_interface}) {
-                (my $iname = $real_interface->{name}) =~ s/interface://;
-                if ($interfaces{$iname}) {
-                    error_atline "Redefining $real_interface->{name}";
-                }
-                $interfaces{$iname} = $real_interface;
-                $real_interface->{router} = $router;
-                $real_interface->{private} = $private if $private;
-                push @real_interfaces, $real_interface;
-            }
-            if ($interface->{hub} or $interface->{spoke}) {
-                $model->{crypto}
-                  or err_msg "Crypto not supported for $router->{name}",
-                  " of type $model->{name}";
-            }
-        }
-        push @{ $router->{interfaces} }, @real_interfaces;
 
         # Create objects representing hardware interfaces.
         # All logical interfaces using the same hardware are linked
@@ -1842,6 +1811,11 @@ sub read_router( $ ) {
                     err_msg "Missing 'hardware' for $interface->{name}";
                 }
             }
+	    if ($interface->{hub} or $interface->{spoke}) {
+		$model->{crypto}
+		or err_msg "Crypto not supported for $router->{name}",
+		" of type $model->{name}";
+	    }
         }
 
         if ($router->{model}->{has_interface_level}) {
@@ -1881,24 +1855,15 @@ sub read_router( $ ) {
               and err_msg "Attribute 'radius_attributes' is not allowed",
               " for $router->{name}";
         }
+	if ($router->{model}->{no_crypto_filter}) {
+	    $router->{no_crypto_filter} = 1;
+	}
     }
 
     # Unmanaged device.
     else {
         for my $interface (@{ $router->{interfaces} }) {
-
-            # Internally, we remove the real interface to force traffic through
-            # the tunnel. This is only save to remove, if the real interface
-            # can't be referenced by a rule.
-            # This is enforced by this simplified restriction.
-            if (my $real_interface = $interface->{real_interface}) {
-                $real_interface->{ip} =~ /^(?:negotiated|short|unnumbered)$/
-                  or error_atline "Interface with attribute 'spoke'",
-                  " of unmanaged device must have",
-                  " 'negotiated|short|unnumbered' ip address";
-                delete $interface->{real_interface};
-            }
-            elsif ($interface->{hub}) {
+	    if ($interface->{hub}) {
                 error_atline "Interface with attribute 'hub' must only be",
                   " used at managed device";
             }
@@ -2276,7 +2241,7 @@ my %isakmp_attributes = (
         map     => { off => undef }
     },
     authentication => { values   => [qw( preshare rsasig )], },
-    encryption     => { values   => [qw( aes aes192 des 3des )], },
+    encryption     => { values   => [qw( aes aes192 aes256 des 3des )], },
     hash           => { values   => [qw( md5 sha )], },
     group          => { values   => [qw( 1 2 5 )], },
     lifetime       => { function => \&read_time_val, },
@@ -2292,7 +2257,7 @@ sub read_isakmp( $ ) {
 my %ipsec_attributes = (
     key_exchange   => { function => \&read_typed_name, },
     esp_encryption => {
-        values  => [qw( none aes aes192 des 3des )],
+        values  => [qw( none aes aes192 aes256 des 3des )],
         default => 'none',
         map     => { none => undef }
     },
@@ -3431,7 +3396,7 @@ sub link_topology() {
         for my $interface (@{ $network->{interfaces} }) {
             my $ip = $interface->{ip};
             if ($ip eq 'short') {
-                $short_intf = $interface;
+		$short_intf = $interface;
             }
             else {
                 unless ($ip =~ /^(?:unnumbered|negotiated|tunnel)$/) {
@@ -3599,8 +3564,11 @@ sub mark_disabled() {
             push @routers, $router;
             if ($router->{managed}) {
                 push @managed_routers, $router;
-                push @managed_vpnhub,  $router
-                  if grep { $_->{hub} } @{ $router->{interfaces} };
+		if (grep { $_->{hub} && $router->{model}->{do_auth} } 
+		    @{ $router->{interfaces} }) 
+		{
+		    push @managed_vpnhub,  $router;
+		}
             }
         }
     }
@@ -6699,10 +6667,7 @@ sub link_tunnels () {
             my $spoke = $spoke_net->{interfaces}->[0];
             $spoke->{crypto} = $crypto;
             my $real_spoke = $spoke->{real_interface};
-            if ($real_spoke) {
-                $real_spoke->{spoke} = $crypto;
-                push @real_interfaces, $real_spoke;
-            }
+	    $real_spoke->{spoke} = $crypto;
 
             # Each spoke gets a fresh hub interface.
             my @hubs;
@@ -6728,23 +6693,29 @@ sub link_tunnels () {
                 push @{ $spoke->{peers} },          $hub;
                 push @hubs, $hub;
 
-                # No real spoke available for unmanaged devices.
-                my $spoke2 = $real_spoke || $spoke;
+		# Dynamic crypto-map isn't implemented currently.
+		if ($real_spoke->{ip} eq 'negotiated') {
+		    if (not $router->{model}->{do_auth}) {
+			err_msg "$router->{name} can't establish crypto",
+			"tunnel to $real_spoke->{name} with negotiated IP";
+		    }
+		}
+
                 if ($private) {
-                    my $s_p = $spoke2->{private};
+                    my $s_p = $real_spoke->{private};
                     my $h_p = $real_hub->{private};
                     $s_p and $s_p eq $private
                       or $h_p and $h_p eq $private
-                      or err_msg "Tunnel $spoke2->{name} to $real_hub->{name}",
+                      or err_msg "Tunnel $real_spoke->{name} to $real_hub->{name}",
                       " of $private.private $name",
                       " must reference at least one object",
                       " out of $private.private";
                 }
                 else {
-                    $spoke2->{private}
+                    $real_spoke->{private}
                       and err_msg "Tunnel of public $name must not",
-                      " reference $spoke2->{name} of",
-                      " $spoke2->{private}.private";
+                      " reference $real_spoke->{name} of",
+                      " $real_spoke->{private}.private";
                     $real_hub->{private}
                       and err_msg "Tunnel of public $name must not",
                       " reference $real_hub->{name} of",
@@ -6752,6 +6723,38 @@ sub link_tunnels () {
                 }
             }
 
+	    # Remove real interface at virtual router with only 
+	    # software clients attached.
+	    # This is necessary, because we must not add pathrestriction
+	    # to this unmanaged device.
+	    my $router = $real_spoke->{router};
+	    my @other;
+	    my $has_id_hosts;
+	    for my $interface (@{ $router->{interfaces} }) {
+		my $network = $interface->{network};
+		if ($network->{has_id_hosts}) {
+		    $has_id_hosts = 1;
+		}
+		elsif($interface ne $real_spoke && 
+		      $interface->{ip} ne 'tunnel') 
+		{
+		    push @other, $interface;
+		}
+	    }
+	    if($has_id_hosts) {
+		@other and
+		    err_msg "Must not use network with ID hosts together with",
+		    " networks having no ID host: ", 
+		    join( ',', map {$_->{name}} @other);
+		aref_delete($real_spoke, $router->{interfaces});
+		aref_delete($real_spoke, $real_spoke->{network}->{interfaces});
+		delete $interfaces{$real_spoke};
+		
+	    }
+	    else {
+		push @real_interfaces, $real_spoke;
+	    }
+	    
             # Automatically add pathrestriction between interfaces
             # of redundant hubs.
             if (@hubs > 1) {
@@ -6845,36 +6848,28 @@ sub expand_crypto () {
                             }
                             push @encrypted, $network;
                         }
-                        elsif (my $id = $network->{id}) {
-                            if (my $net2 = $id2network{$id}) {
-                                err_msg "Same ID '$id' is used at",
-                                  " $network->{name} and $net2->{name}";
-                            }
-                            $id2network{$id} = $network;
-                            if (my $net2 =
-                                $tunnel_intf->{peers}->[0]->{peer_network})
-                            {
-                                err_msg
-                                  "Currently at most one network with ID",
-                                  " needs to be attached to",
-                                  " $router->{name} but got",
-                                  "$network->{name} and $net2->{name}";
-                            }
+                        else {
+			    if (my $id = $network->{id}) {
+				if (my $net2 = $id2network{$id}) {
+				    err_msg "Same ID '$id' is used at",
+				    " $network->{name} and $net2->{name}";
+				}
+				$id2network{$id} = $network;
+				if (my $net2 =
+				    $tunnel_intf->{peers}->[0]->{peer_network})
+				{
+				    err_msg
+					"Currently at most one network",
+					" with ID needs to be attached to",
+					" $router->{name} but got",
+					"$network->{name} and $net2->{name}";
+				}
+			    }
                             for my $peer (@{ $tunnel_intf->{peers} }) {
                                 $peer->{peer_network} = $network;
                             }
                             push @encrypted, $network;
-                        }
-
-                        # Only network with authentication ID will be
-                        # encrypted.
-                        # Other networks must not use the tunnel.
-                        else {
-                            $managed
-                              or err_msg
-                              "$network->{name} without ID hosts must not",
-                              " be located behind unmanaged",
-                              " crypto spoke $router->{name}";
+			    $network->{radius_attributes} = {};
                         }
                     }
 
@@ -6917,6 +6912,22 @@ sub expand_crypto () {
                     ];
                     for my $peer (@{ $tunnel_intf->{peers} }) {
                         $peer->{crypto_rules} = $crypto_rules;
+
+			# ID can only be checked at hub with attribute do_auth.
+			my $router = $peer->{router};
+			my $do_auth = $router->{model}->{do_auth};
+			for my $network (@encrypted) {
+			    if ($network->{has_id_hosts} || $network->{id}) {
+				$do_auth or
+				    err_msg "$router->{name} can't check IDs",
+				    " of $network->{name}";
+			    }
+			    else {
+				$do_auth and 
+				    err_msg "$router->{name} can only check",
+				    " network having ID, not $network->{name}";
+			    }
+			}
                     }
 
                     # Add rules to permit crypto traffic between
@@ -7927,7 +7938,6 @@ sub find_statics () {
             $rule2->{dst_net}->{$network} = $network;
         }
     }
-    $DB::single = 2;
     for my $hash (values %any2any2rule) {
         for my $rule (values %$hash) {
             $rule->{src_net} = [ values %{ $rule->{src_net} } ];
@@ -8806,7 +8816,7 @@ sub distribute_rule( $$$ ) {
     }
     my $store =
         $in_intf->{ip} eq 'tunnel'
-      ? $model->{no_crypto_filter}
+      ? $router->{no_crypto_filter}
           ? $in_intf->{real_interface}->{hardware}
           : $in_intf
       : $in_intf->{hardware};
@@ -8824,22 +8834,7 @@ sub distribute_rule( $$$ ) {
                 $store = $id2rules->{$id}
                   or internal_err "No entry for $id at id_rules";
             }
-            else {
-                $src = $src->{network} if is_subnet $src || is_interface $src;
-                $src->{id}
-                  or err_msg
-                  "Source of rule needs to have id at $in_intf->{name}\n ",
-                  print_rule $rule;
-            }
-        }
-        else {
-            my $dst = $rule->{dst};
-            $dst = $dst->{network} if is_subnet $dst || is_interface $dst;
-            $dst->{id}
-              or err_msg
-              "Destination of rule needs to have id at $router->{name}\n ",
-              print_rule $rule;
-        }
+	}
     }
     my $aref;
 
@@ -11434,12 +11429,12 @@ EOF
             $attributes->{'vpn-filter'} = $filter_name;
             my $group_policy_name = "VPN-router-$user_counter";
             $print_group_policy->($group_policy_name, $attributes);
-            print "username $id nopassword\n";
-            print "username $id attributes\n";
-            print " service-type remote-access\n";
-            print " vpn-filter value $filter_name\n";
-            print " vpn-group-policy $group_policy_name\n";
-            print "\n";
+	    print "username $id nopassword\n";
+	    print "username $id attributes\n";
+	    print " service-type remote-access\n";
+	    print " vpn-filter value $filter_name\n";
+	    print " vpn-group-policy $group_policy_name\n";
+	    print "\n";
         }
     }
 }
@@ -11663,7 +11658,8 @@ sub print_crypto( $ ) {
         print_asavpn $router;
         return;
     }
-    $crypto_type =~ /^(:?IOS|PIX)$/ or internal_err;
+    $crypto_type =~ /^(:?IOS|ASA)$/ 
+	or internal_err "Unexptected crypto type $crypto_type";
     if (@ipsec > 1) {
         err_msg "Only one ipsec definition supported at $router->{name}\n ",
           "but these are used: ", join ', ', map $_->{name}, @ipsec;
@@ -11685,7 +11681,7 @@ sub print_crypto( $ ) {
     if ($isakmp->{nat_traversal} and $isakmp->{nat_traversal} eq 'on') {
         print "$prefix nat-traversal\n";
     }
-    if ($crypto_type eq 'IOS') {
+    if ($crypto_type eq 'IOS' || $crypto_type eq 'ASA') {
         print "crypto isakmp policy 1\n";
         $prefix = '';
     }
@@ -11710,9 +11706,9 @@ sub print_crypto( $ ) {
     print "$prefix group $group\n";
 
     my $lifetime = $isakmp->{lifetime};
-    if ($lifetime != 86400 and $crypto_type eq 'IOS') {
 
-        # Don't print default value for backend IOS.
+    # Don't print default value for backend IOS.
+    if ($lifetime != 86400 or $crypto_type ne 'IOS') {
         print "$prefix lifetime $lifetime\n";
     }
 
@@ -11748,7 +11744,7 @@ sub print_crypto( $ ) {
         }
     }
 
-    # Syntax is identical for IOS and PIX.
+    # Syntax is identical for IOS and ASA.
     my $transform_name = 'Trans';
     print "crypto ipsec transform-set $transform_name $transform\n";
 
@@ -11769,11 +11765,21 @@ sub print_crypto( $ ) {
         err_msg "Unsupported pfs group for $crypto_type: $pfs_group";
     }
 
+    # Collect tunnel interfaces attached to one hardware interface.
     my %hardware2crypto;
     for my $interface (@{ $router->{interfaces} }) {
-        next if not $interface->{ip} eq 'tunnel';
-        push @{ $hardware2crypto{ $interface->{hardware} } }, $interface;
+        if ($interface->{ip} eq 'tunnel') {
+	    push @{ $hardware2crypto{ $interface->{hardware} } }, $interface;
+	}
     }
+
+    # Use interface access lists to filter incoming crypto traffic.
+    # Group policy and per-user authorization access list can't be used
+    # because they are stateless.
+    if ($crypto_type eq 'ASA') {
+	print "no sysopt connection permit-vpn\n";
+    }
+
     for my $hardware (@{ $router->{hardware} }) {
         next if not $hardware2crypto{$hardware};
         my $name = $hardware->{name};
@@ -11786,8 +11792,15 @@ sub print_crypto( $ ) {
 
         # Crypto ACLs must obey NAT.
         my $nat_map = $hardware->{nat_map};
-        for my $interface (@{ $hardware2crypto{$hardware} }) {
-            $seq_num++;
+
+	# Sort crypto maps by peer IP to get deterministic output.
+	my @tunnels =  sort { $a->{peers}->[0]->{real_interface}->{ip} <=>
+			      $b->{peers}->[0]->{real_interface}->{ip} } 
+	@{ $hardware2crypto{$hardware} };
+	
+	# Build crypto map for each tunnel interface.
+        for my $interface (@tunnels) {
+            $seq_num += 1;
 
             # Print crypto ACL. It controls which traffic needs to be encrypted.
             my $crypto_acl_name = "crypto-$name-$seq_num";
@@ -11796,8 +11809,8 @@ sub print_crypto( $ ) {
                 $prefix = '';
                 print "ip access-list extended $crypto_acl_name\n";
             }
-            elsif ($crypto_type eq 'PIX') {
-                $prefix = "access-list $crypto_acl_name";
+            elsif ($crypto_type eq 'ASA') {
+                $prefix = "access-list extended $crypto_acl_name";
             }
             else {
                 internal_err;
@@ -11808,48 +11821,77 @@ sub print_crypto( $ ) {
             # from crypto tunnel. This may be needed, if we don't fully trust
             # our peer.
             my $crypto_filter_name;
-            if ($interface->{intf_rules} || $interface->{rules}) {
+	    if ($router->{no_crypto_filter}) {
+		if (@{$interface->{intf_rules}} || @{$interface->{rules}}) {
+		    internal_err;
+		}
+	    }
+	    else {
                 $crypto_filter_name = "crypto-filter-$name-$seq_num";
                 if ($crypto_type eq 'IOS') {
                     $prefix = '';
                     print "ip access-list extended $crypto_filter_name\n";
                 }
-                elsif ($crypto_type eq 'PIX') {
-                    $prefix = "access-list $crypto_filter_name";
-                    $prefix .= ' extended' if $model->{name} eq 'ASA';
+                else {
+		    internal_err;
                 }
-                $interface->{intf_rules} ||= [];
-                $interface->{rules}      ||= [];
                 print_acl_add_deny $router, $interface, $nat_map, $model,
                   $prefix, $prefix;
             }
+
+	    # Define crypto map.
             if ($crypto_type eq 'IOS') {
                 $prefix = '';
                 print "crypto map $map_name $seq_num ipsec-isakmp\n";
             }
-            elsif ($crypto_type eq 'PIX') {
+            elsif ($crypto_type eq 'ASA') {
                 $prefix = "crypto map $map_name $seq_num";
                 print "$prefix ipsec-isakmp\n";
             }
-            print "$prefix match address $crypto_acl_name\n";
-            $crypto_filter_name
-              and print "$prefix set ip access-group $crypto_filter_name in\n";
-            for my $peer (@{ $interface->{peers} }) {
 
-                # Unnumbered, negotiated and short interfaces have been
-                # rejected already.
-                my $peer_ip = print_ip $peer->{real_interface}->{ip};
-                print "$prefix set peer $peer_ip\n";
-            }
+	    # Bind crypto ACL to crypto map.
+            print "$prefix match address $crypto_acl_name\n";
+
+	    # Bind crypto filter ACL to crypto map.
+            if ($crypto_filter_name) {
+		print "$prefix set ip access-group $crypto_filter_name in\n";
+	    }
+
+	    # Set crypto peers.
+	    # Unnumbered, negotiated and short interfaces have been
+	    # rejected already.
+	    if ($crypto_type eq 'IOS') {
+		for my $peer (@{ $interface->{peers} }) {
+		    my $peer_ip = print_ip $peer->{real_interface}->{ip};
+		    print "$prefix set peer $peer_ip\n";
+		}
+	    }
+	    elsif ($crypto_type eq 'ASA') {
+		print "$prefix set peer ", 
+		join(' ', map { print_ip $_->{real_interface}->{ip} } 
+		     @{ $interface->{peers} }),
+		"\n";
+	    }
+
             print "$prefix set transform-set $transform_name\n";
             $pfs_group and print "$prefix set pfs $pfs_group\n";
+
+	    if ($crypto_type eq 'ASA') {
+		for my $peer (@{ $interface->{peers} }) {
+		    my $peer_ip = print_ip $peer->{real_interface}->{ip};
+		    print "tunnel-group $peer_ip type ipsec-l2l\n";
+		    print "tunnel-group $peer_ip ipsec-attributes\n";
+		    print " preshared-key *\n";
+		    print " peer-id-validate nocheck\n";
+		}
+	    }
         }
         if ($crypto_type eq 'IOS') {
             push(@{ $hardware->{subcmd} }, "crypto map $map_name");
         }
-        elsif ($crypto_type eq 'PIX') {
+        elsif ($crypto_type eq 'ASA') {
             print "crypto map $map_name interface $name\n";
-            print "isakmp enable $name\n";
+            print "crypto isakmp enable $name\n";
         }
     }
 }
