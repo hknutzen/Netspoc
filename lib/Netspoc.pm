@@ -4606,6 +4606,12 @@ sub collect_unenforceable ( $$$$ ) {
             # have been expanded from a single host.
             return if $src->{network} eq $dst->{network};
         }
+	if (is_any $src or is_any $dst) {
+	    
+	    # This is a common case, which results from rules like
+	    # group:some_networks -> any:[group:some_networks]
+	    return if not (is_any $src and is_any $dst);
+	}
     }
     $unenforceable_context2src2dst{$context}->{$src}->{$dst} ||= [ $src, $dst ];
 }
