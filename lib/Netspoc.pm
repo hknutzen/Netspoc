@@ -130,7 +130,7 @@ my $strict_subnets = 'warn';
 
 # Check for unenforceable rules, i.e. no managed device between src and dst.
 # Possible values: 0,1,'warn';
-my $check_unenforceable = 0;
+my $check_unenforceable = 'warn';
 
 # Optimize the number of routing entries per router:
 # For each router find the hop, where the largest
