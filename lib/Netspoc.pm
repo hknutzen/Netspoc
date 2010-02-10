@@ -4172,9 +4172,6 @@ sub expand_group1( $$ ) {
                     $object->{is_used}  = 1;
                     $elements = expand_group1 $elements, "$type:$name";
 
-                    # Cache result for further references to the same group.
-                    $object->{elements} = $elements;
-
                     # Private group must not reference private element of other
                     # context.
                     # Public group must not reference private element.
@@ -4188,6 +4185,25 @@ sub expand_group1( $$ ) {
                               );
                         }
                     }
+
+		    # Detect and remove duplicate values in group.
+		    my %unique;
+		    my @duplicate;
+		    for my $obj (@$elements) {
+			if ($unique{$obj}++) {
+			    push @duplicate, $obj;
+			    $obj = undef;
+			}
+		    }
+		    if (@duplicate) {
+			$elements = [ grep { defined $_ } @$elements ];
+			my $msg =  "Duplicate elements in $type:$name:\n " .
+			    join("\n ", map { $_->{name} } @duplicate);
+			warn_msg $msg;
+		    }
+
+                    # Cache result for further references to the same group.
+                    $object->{elements} = $elements;
                 }
                 push @objects, @$elements if $elements;
             }
@@ -4239,12 +4255,26 @@ sub expand_group( $$;$ ) {
         }
     }
 
-    # For detecting and removing duplicate values.
+    # Detect and remove duplicate values in policy.
     my %unique;
+    my @duplicate;
+    for my $obj (@$aref) {
+	next if not defined $obj;
+	if ($unique{$obj}++) {
+	    push @duplicate, $obj;
+	    $obj = undef;
+	}
+    }
+    if (@duplicate) {
+	my $msg =  "Duplicate elements in $context:\n " .
+	    join("\n ", map { $_->{name} } @duplicate);
+	warn_msg $msg;
+    }
+    $aref = [ grep { defined $_ } @$aref ];
     if ($convert_hosts) {
         my @subnets;
         my @other;
-        for my $obj (grep { defined $_ and not $unique{$_}++ } @$aref) {
+        for my $obj (@$aref) {
 
 #           debug "group:$obj->{name}";
             if (is_host $obj) {
@@ -4258,7 +4288,7 @@ sub expand_group( $$;$ ) {
         return \@other;
     }
     else {
-        return [ grep { defined $_ and not $unique{$_}++ } @$aref ];
+        return $aref;
     }
 
 }
