@@ -8993,27 +8993,30 @@ sub distribute_rule( $$$ ) {
             }
         }
     }
-    my $store =
-        $in_intf->{ip} eq 'tunnel'
-      ? $router->{no_crypto_filter}
-          ? $in_intf->{real_interface}->{hardware}
-          : $in_intf
-      : $in_intf->{hardware};
 
-    # Rules for single software clients are stored individually.
-    # Consistency checks have already been done at expand_crypto.
+    my $store;
     if ($in_intf->{ip} eq 'tunnel') {
-        if ($in_intf->{is_hub}) {
-            my $src = $rule->{src};
-            if (my $id2rules = $store->{id_rules}) {
-                is_subnet $src
-                  or internal_err "Expected host as src but got $src->{name}";
-                my $id = $src->{id}
-                  or internal_err "$src->{name} must have ID";
-                $store = $id2rules->{$id}
-                  or internal_err "No entry for $id at id_rules";
-            }
+	if ($router->{no_crypto_filter}) {
+	    $store = $in_intf->{real_interface}->{hardware};
 	}
+
+	# Rules for single software clients are stored individually.
+	# Consistency checks have already been done at expand_crypto.
+        elsif (my $id2rules = $in_intf->{id_rules}) {
+	    my $src = $rule->{src};
+	    is_subnet $src
+		or internal_err "Expected host as src but got $src->{name}";
+	    my $id = $src->{id}
+	    or internal_err "$src->{name} must have ID";
+	    $store = $id2rules->{$id}
+                  or internal_err "No entry for $id at id_rules";
+	}
+	else {
+	    $store = $in_intf;
+	}
+    }
+    else {
+	$store = $in_intf->{hardware};
     }
     my $aref;
 
@@ -11340,8 +11343,8 @@ sub print_acl_add_deny ( $$$$$$ ) {
 my %asa_vpn_attributes = (
 
     # group-policy attributes
-    banner                    => { need_value => 1, },
-    'dns-server'              => { need_value => 1, },
+    banner                    => { need_value => 1 },
+    'dns-server'              => { need_value => 1 },
     'default-domain'          => { need_value => 1 },
     'split-dns'               => { need_value => 1 },
     'wins-server'             => { need_value => 1 },
@@ -11359,7 +11362,13 @@ my %asa_vpn_attributes = (
 sub print_asavpn ( $ ) {
     my ($router)          = @_;
     my $model             = $router->{model};
+    my $no_crypto_filter  = $router->{no_crypto_filter};
     my $nat_map           = $router->{hardware}->[0]->{nat_map};
+
+    if ($no_crypto_filter) {
+	print "! VPN traffic is filtered at interface ACL\n";
+	print "no sysopt connection permit-vpn\n";
+    }
     my $global_group_name = 'global';
     print <<"EOF";
 ! Used for all VPN users: single, suffix, hardware
@@ -11498,6 +11507,18 @@ EOF
                       " $split_tunnel_policy";
                 }
 
+		# Access list will be bound to cleartext interface.
+		# Only check for correct source address at vpn-filter.
+		if ($no_crypto_filter) {
+		    $id_intf->{intf_rules} and @{$id_intf->{intf_rules}} and
+			internal_err "VPN soft intf_rules"; 
+		    $id_intf->{rules} and @{$id_intf->{rules}} and 
+			internal_err "VPN soft rules";
+		    $id_intf->{intf_rules} = [];
+		    $id_intf->{rules} = 
+			[ { action => 'permit', src => $src, dst => $network_00,
+			    src_range => $srv_ip, srv => $srv_ip, } ];
+		};
                 find_object_groups($router, $id_intf);
 
                 # Define filter ACL to be used in username or group-policy.
@@ -11589,6 +11610,20 @@ EOF
         # A VPN network.
         else {
             $user_counter++;
+            my $src = $interface->{peer_network};
+
+	    # Access list will be bound to cleartext interface.
+	    # Only check for correct source address at vpn-filter.
+	    if ($no_crypto_filter) {
+		$interface->{intf_rules} and @{$interface->{intf_rules}} and
+		    internal_err "VPN network intf_rules";
+		$interface->{rules} and @{$interface->{rules}} and 
+		    internal_err "VPN network rules";
+		$interface->{intf_rules} = [];
+		$interface->{rules} = 
+		    [ { action => 'permit', src => $src, dst => $network_00,
+			src_range => $srv_ip, srv => $srv_ip, } ];
+	    };
             find_object_groups($router, $interface);
 
             # Define filter ACL to be used in username or group-policy.
@@ -11599,20 +11634,22 @@ EOF
             print_acl_add_deny $router, $interface, $nat_map, $model,
               $intf_prefix, $prefix;
 
-            my $src        = $interface->{peer_network};
             my $id         = $src->{id};
             my $attributes = {
                 %{ $router->{radius_attributes} },
                 %{ $src->{radius_attributes} }
             };
-            $attributes->{'vpn-filter'} = $filter_name;
-            my $group_policy_name = "VPN-router-$user_counter";
-            $print_group_policy->($group_policy_name, $attributes);
+
+            my $group_policy_name;
+	    if (keys %$attributes) {
+		$group_policy_name = "VPN-router-$user_counter";
+		$print_group_policy->($group_policy_name, $attributes);
+	    }
 	    print "username $id nopassword\n";
 	    print "username $id attributes\n";
 	    print " service-type remote-access\n";
 	    print " vpn-filter value $filter_name\n";
-	    print " vpn-group-policy $group_policy_name\n";
+	    print " vpn-group-policy $group_policy_name\n" if $group_policy_name;
 	    print "\n";
         }
     }
