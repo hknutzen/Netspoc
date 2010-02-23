@@ -103,6 +103,7 @@ our @EXPORT = qw(
   path_walk
   find_active_routes_and_statics
   check_any_rules
+  optimize_and_warn_deleted
   optimize
   distribute_nat_info
   gen_reverse_rules
@@ -131,6 +132,10 @@ my $strict_subnets = 'warn';
 # Check for unenforceable rules, i.e. no managed device between src and dst.
 # Possible values: 0,1,'warn';
 my $check_unenforceable = 'warn';
+
+# Check for duplicate or redundant rules.
+# Possible values: 0,1,'warn';
+my $check_duplicate_rules = 0;
 
 # Optimize the number of routing entries per router:
 # For each router find the hop, where the largest
@@ -4396,6 +4401,9 @@ my %rule_tree;
 # Hash for converting a reference of an service back to this service.
 my %ref2srv;
 
+# Collect deleted rules for further inspection.
+my @deleted_rules;
+
 # Add rules to %rule_tree for efficient look up.
 sub add_rules( $ ) {
     my ($rules_ref) = @_;
@@ -4421,6 +4429,7 @@ sub add_rules( $ ) {
 
             # Found identical rule.
             $rule->{deleted} = $old_rule;
+	    push @deleted_rules, $rule if $check_duplicate_rules;
             next;
         }
 
@@ -4668,6 +4677,137 @@ sub show_unenforceable () {
     %unenforceable_context2src2dst = ();
 }
 
+my %pname2oname2deleted;
+sub show_deleted_rules1 {
+    return if not @deleted_rules;
+    my %pname2file;
+    for my $rule (@deleted_rules) {
+	my $srv = $rule->{srv};
+	if ($srv->{proto} eq 'icmp') {
+	    my $type = $srv->{type};
+	    next if defined $type && ($type == 0 || $type == 8);
+	}
+	my $other = $rule->{deleted};
+	my $policy = $rule->{rule}->{policy};
+	my $pname = $policy->{name};
+	my $pfile = $policy->{file};
+	$pfile =~ s/.*?([^\/]+)$/$1/;
+	$pname2file{$pname} = $pfile;
+	my $opolicy = $other->{rule}->{policy};
+	my $oname = $opolicy->{name};
+	my $ofile = $opolicy->{file};
+	$ofile =~ s/.*?([^\/]+)$/$1/;
+	$pname2file{$oname} = $ofile;
+	push(@{ $pname2oname2deleted{$policy->{name}}->{$opolicy->{name}} }, 
+	     $rule);
+    }
+    my %used;
+    for my $type ('deny', 'any', 'permit') {
+        for my $rule (@{ $expanded_rules{$type} }) {
+	    next if $rule->{deleted};
+	    next if not $rule->{rule};		# Automatically generated.
+	    my $pname = $rule->{rule}->{policy}->{name};
+	    $used{$pname} = 1;
+	}
+    }
+    my $print = $check_duplicate_rules eq 'warn' ? \&warn_msg : \&err_msg;
+    for my $pname (sort keys %pname2oname2deleted) {
+	if (not $used{$pname}) {
+	    $print->("All rules of $pname are redundant");
+	}
+	my $hash = $pname2oname2deleted{$pname};
+	for my $oname (sort keys %$hash) {
+	    my $aref = $hash->{$oname};
+	    my $msg = "Duplicate rules in $pname and $oname:\n";
+	    $msg .= " Files: $pname2file{$pname} $pname2file{$oname}\n  ";
+	    $msg .= join("\n  ", map { print_rule $_ } @$aref);
+	    $print->($msg);
+	}
+    }
+    %pname2oname2deleted = ();
+
+    # Variable will be reused during sub optimize.
+    @deleted_rules = ();
+}
+
+sub show_deleted_rules2 {
+    return if not @deleted_rules;
+    my %pname2file;
+    my %used;
+    for my $rule (@deleted_rules) {
+	my $srv = $rule->{srv};
+	
+	# Ignore automatically generated rules from crypto.
+	next if not $rule->{rule};
+
+	# Currently, ignore ICMP echo and echo-reply.
+	if ($srv->{proto} eq 'icmp') {
+	    my $type = $srv->{type};
+	    next if defined $type && ($type == 0 || $type == 8);
+	}
+
+	my $policy = $rule->{rule}->{policy};
+	my $pname = $policy->{name};
+
+	# Rule is still needed at device of $rule->{dst}.
+	if ($rule->{managed_intf} and not $rule->{deleted}->{managed_intf}) {
+	    $used{$pname} = 1;
+	    next;
+	}
+
+	# Automtically generated reverse rule for stateless router is still needed.
+	my $src = $rule->{src};
+	if (is_interface($src)) {
+	    my $router = $src->{router};
+	    if ($router->{managed}) { # and $router->{model}->{stateless_self}) {
+		$used{$pname} = 1;
+		next;
+	    }
+	}
+
+	my $other = $rule->{deleted};
+	my $pfile = $policy->{file};
+	$pfile =~ s/.*?([^\/]+)$/$1/;
+	$pname2file{$pname} = $pfile;
+	my $opolicy = $other->{rule}->{policy};
+	my $oname = $opolicy->{name};
+	my $ofile = $opolicy->{file};
+	$ofile =~ s/.*?([^\/]+)$/$1/;
+	$pname2file{$oname} = $ofile;
+	push(@{ $pname2oname2deleted{$pname}->{$oname} }, 
+	     [ $rule, $other ]);
+    }
+    for my $type ('deny', 'any', 'permit') {
+        for my $rule (@{ $expanded_rules{$type} }) {
+	    next if $rule->{deleted};
+	    next if not $rule->{rule};		# Automatically generated.
+	    my $pname = $rule->{rule}->{policy}->{name};
+	    $used{$pname} = 1;
+	}
+    }
+    my $print = $check_duplicate_rules eq 'warn' ? \&warn_msg : \&err_msg;	    
+    for my $pname (sort keys %pname2oname2deleted) {
+	if (not $used{$pname}) {
+	    $print->("All rules of $pname are redundant");
+	}
+	my $hash = $pname2oname2deleted{$pname};
+	for my $oname (sort keys %$hash) {
+	    my $aref = $hash->{$oname};
+	    my $msg = "Redundant rules in $pname compared to $oname:\n";
+	    $msg .= " Files: $pname2file{$pname} $pname2file{$oname}\n  ";
+	    $msg .= join("\n  ", 
+			 map { my ($r, $o) = @$_; 
+			       print_rule($r) . "\n< " . print_rule($o); } 
+			 @$aref);
+	    $print->($msg);
+	}
+    }
+    %pname2oname2deleted = ();
+
+    # Variable will be reused during sub optimize.
+    @deleted_rules = ();
+}
+
 # Parameters:
 # - Reference to array of unexpanded rules.
 # - Current context for error messages: name of policy or crypto object.
@@ -4837,6 +4977,7 @@ sub expand_policies( ;$) {
     for my $type ('deny', 'any', 'permit') {
         add_rules $expanded_rules{$type};
     }
+    show_deleted_rules1();
 }
 
 ##############################################################################
@@ -6426,15 +6567,9 @@ sub path_walk( $$;$ ) {
 #       debug " Walk: $in_name, $out_name";
 #       $fun2->(@_);
 #    };
-    unless ($from and $to) {
-        internal_err print_rule $rule;
-    }
-    if ($from eq $to) {
+    $from and $to or internal_err print_rule $rule;
+    $from eq  $to and internal_err "Unenforceable:\n ", print_rule $rule;
 
-        # Don't process rule again later.
-        $rule->{deleted} = $rule;
-        return;
-    }
     if (not(($from->{loop} ? $from_store : $from)->{path}->{$to_store})) {
         path_mark($from, $to, $from_store, $to_store)
           or err_msg
@@ -6515,6 +6650,7 @@ sub set_auto_intf_from_border ( $ ) {
       for my $interface (@{ $network->{interfaces} }) {
           next if $interface eq $in_intf;
           next if $interface->{any};
+	  next if $interface->{orig_main};
           my $router = $interface->{router};
           next if $result->{$router}->{$interface};
 	  next if $active_path{$router};
@@ -6522,6 +6658,7 @@ sub set_auto_intf_from_border ( $ ) {
           $result->{$router}->{$interface} = $interface;
           for my $out_intf (@{ $router->{interfaces} }) {
               next if $out_intf eq $interface;
+	      next if $out_intf->{orig_main};
               my $out_net = $out_intf->{network};
               next if $active_path{$out_net};
               $reach_from_border->($out_net, $out_intf, $result);
@@ -7804,6 +7941,7 @@ sub optimize_rules( $$ ) {
                                                                                   {deleted}
                                                                                   =
                                                                                   $cmp_rule;
+										push @deleted_rules, $chg_rule if $check_duplicate_rules;
                                                                                 last;
                                                                             }
                                                                         }
@@ -7845,6 +7983,11 @@ sub optimize() {
     setup_ref2obj;
     optimize_rules \%rule_tree, \%rule_tree;
     print_rulecount;
+}
+
+sub optimize_and_warn_deleted() {
+    optimize();
+    show_deleted_rules2;
 }
 
 # Collect networks which need NAT commands.
@@ -12032,7 +12175,8 @@ Options:
                         Default is '^(raw|CVS|RCS|\.#.*|.*~)$'
 -strict_subnets=yes|no|warn     Subnets must be declared with 'subnet_of'
 -allow_unused_groups=yes|no|warn
--check_unenforceable=yes|no|warn
+-check_unenforceable_rules=yes|no|warn
+-check_duplicate_rules=yes|no|warn
 MSG
       ;
 }
@@ -12079,6 +12223,8 @@ sub read_args() {
       sub { my $value = $_[1]; $allow_unused_groups = check_tri $value },
       'check_unenforceable_rules=s' =>
       sub { my $value = $_[1]; $check_unenforceable = check_tri $value },
+      'check_duplicate_rules=s' =>
+      sub { my $value = $_[1]; $check_duplicate_rules = check_tri $value },
       or usage;
     my $main_file = shift @ARGV or usage;
 
