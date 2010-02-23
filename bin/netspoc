@@ -59,7 +59,7 @@ my($in_path, $out_dir) = &read_args();
 die "Aborted with $error_counter error(s)\n" if $error_counter;
 &expand_crypto();
 &check_unused_groups();
-&optimize();
+&optimize_and_warn_deleted();
 &check_any_rules();
 &find_active_routes_and_statics();
 &gen_reverse_rules();
