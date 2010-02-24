@@ -12029,7 +12029,7 @@ sub print_crypto( $ ) {
                 print "ip access-list extended $crypto_acl_name\n";
             }
             elsif ($crypto_type eq 'ASA') {
-                $prefix = "access-list extended $crypto_acl_name";
+                $prefix = "access-list $crypto_acl_name extended";
             }
             else {
                 internal_err;
@@ -12100,7 +12100,7 @@ sub print_crypto( $ ) {
 		    my $peer_ip = print_ip $peer->{real_interface}->{ip};
 		    print "tunnel-group $peer_ip type ipsec-l2l\n";
 		    print "tunnel-group $peer_ip ipsec-attributes\n";
-		    print " preshared-key *\n";
+		    print " pre-shared-key *\n";
 		    print " peer-id-validate nocheck\n";
 		}
 	    }
