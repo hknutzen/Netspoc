@@ -8995,14 +8995,12 @@ sub distribute_rule( $$$ ) {
     }
 
     my $store;
+    my $split_tunnel_store;
     if ($in_intf->{ip} eq 'tunnel') {
-	if ($router->{no_crypto_filter}) {
-	    $store = $in_intf->{real_interface}->{hardware};
-	}
 
 	# Rules for single software clients are stored individually.
 	# Consistency checks have already been done at expand_crypto.
-        elsif (my $id2rules = $in_intf->{id_rules}) {
+        if (my $id2rules = $in_intf->{id_rules}) {
 	    my $src = $rule->{src};
 	    is_subnet $src
 		or internal_err "Expected host as src but got $src->{name}";
@@ -9014,11 +9012,18 @@ sub distribute_rule( $$$ ) {
 	else {
 	    $store = $in_intf;
 	}
+
+	if ($router->{no_crypto_filter}) {
+
+	    # Rules are needed at tunnel for generating split tunnel ACL.
+	    $split_tunnel_store = $store if  $in_intf->{id_rules};
+	    $store = $in_intf->{real_interface}->{hardware};
+	}
     }
     else {
 	$store = $in_intf->{hardware};
     }
-    my $aref;
+    my $key;
 
 #    debug "$router->{name} store: $store->{name}";
     if (not $out_intf) {
@@ -9029,7 +9034,7 @@ sub distribute_rule( $$$ ) {
 
 #       debug "$router->{name} intf_rule: ",print_rule $rule;
 
-        $aref = \@{ $store->{intf_rules} };
+        $key = 'intf_rules';
     }
     else {
 
@@ -9039,13 +9044,15 @@ sub distribute_rule( $$$ ) {
         # Therefore check if last rule and current rule are identical.
         # This test can't easily be done at local_optimization,
         # because it wouldn't find IDENTICAL rules.
-        # Force auto-vivification.
-        $aref = \@{ $store->{rules} };
+        $key = 'rules';
     }
-    push @$aref, $rule
-      unless ($router->{loop})
-          and @$aref
-          and $aref->[$#$aref] eq $rule;
+
+    # Force auto-vivification.
+    my $aref = \@{ $store->{$key} };
+    if (not ($router->{loop} and @$aref and $aref->[$#$aref] eq $rule)) {
+	push @$aref, $rule;
+	push @{ $split_tunnel_store->{$key} }, $rule if $split_tunnel_store;
+    }	
 }
 
 # For rules with src=any:*, call distribute_rule only for
@@ -11508,12 +11515,8 @@ EOF
                 }
 
 		# Access list will be bound to cleartext interface.
-		# Only check for correct source address at vpn-filter.
+		# Only check for valid source address at vpn-filter.
 		if ($no_crypto_filter) {
-		    $id_intf->{intf_rules} and @{$id_intf->{intf_rules}} and
-			internal_err "VPN soft intf_rules"; 
-		    $id_intf->{rules} and @{$id_intf->{rules}} and 
-			internal_err "VPN soft rules";
 		    $id_intf->{intf_rules} = [];
 		    $id_intf->{rules} = 
 			[ { action => 'permit', src => $src, dst => $network_00,
@@ -11615,10 +11618,6 @@ EOF
 	    # Access list will be bound to cleartext interface.
 	    # Only check for correct source address at vpn-filter.
 	    if ($no_crypto_filter) {
-		$interface->{intf_rules} and @{$interface->{intf_rules}} and
-		    internal_err "VPN network intf_rules";
-		$interface->{rules} and @{$interface->{rules}} and 
-		    internal_err "VPN network rules";
 		$interface->{intf_rules} = [];
 		$interface->{rules} = 
 		    [ { action => 'permit', src => $src, dst => $network_00,
@@ -11880,6 +11879,10 @@ sub print_crypto( $ ) {
         err_msg "Only one ipsec definition supported at $router->{name}\n ",
           "but these are used: ", join ', ', map $_->{name}, @ipsec;
         return;
+    }
+    if ($crypto_type eq 'ASA') {
+	print "! VPN traffic is filtered at interface ACL\n";
+	print "no sysopt connection permit-vpn\n";
     }
     my $ipsec = $ipsec[0];
 
