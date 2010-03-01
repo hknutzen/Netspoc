@@ -2115,7 +2115,9 @@ sub read_policy( $ ) {
     if (my $description = check_description) {
         $policy->{description} = $description;
     }
-
+    if (my $other = check_assign 'overlaps', \&read_typed_name) {
+	$policy->{overlaps} = $other;
+    }
     skip 'user';
     skip '=';
     if (check 'foreach') {
@@ -4677,9 +4679,9 @@ sub show_unenforceable () {
     %unenforceable_context2src2dst = ();
 }
 
-my %pname2oname2deleted;
 sub show_deleted_rules1 {
     return if not @deleted_rules;
+    my %pname2oname2deleted;
     my %pname2file;
     for my $rule (@deleted_rules) {
 	my $srv = $rule->{srv};
@@ -4689,14 +4691,26 @@ sub show_deleted_rules1 {
 	}
 	my $other = $rule->{deleted};
 	my $policy = $rule->{rule}->{policy};
-	my $pname = $policy->{name};
-	my $pfile = $policy->{file};
-	$pfile =~ s/.*?([^\/]+)$/$1/;
-	$pname2file{$pname} = $pfile;
 	my $opolicy = $other->{rule}->{policy};
+	if (my $overlaps = $policy->{overlaps}) {
+	    if ($opolicy eq $overlaps) {
+		$policy->{overlaps_used} = 1;
+		next;
+	    }
+	}
+	if (my $overlaps = $opolicy->{overlaps}) {
+	    if ($policy eq $overlaps) {
+		$opolicy->{overlaps_used} = 1;
+		next;
+	    }
+	}
+	my $pname = $policy->{name};
 	my $oname = $opolicy->{name};
+	my $pfile = $policy->{file};
 	my $ofile = $opolicy->{file};
+	$pfile =~ s/.*?([^\/]+)$/$1/;
 	$ofile =~ s/.*?([^\/]+)$/$1/;
+	$pname2file{$pname} = $pfile;
 	$pname2file{$oname} = $ofile;
 	push(@{ $pname2oname2deleted{$policy->{name}}->{$opolicy->{name}} }, 
 	     $rule);
@@ -4724,7 +4738,6 @@ sub show_deleted_rules1 {
 	    $print->($msg);
 	}
     }
-    %pname2oname2deleted = ();
 
     # Variable will be reused during sub optimize.
     @deleted_rules = ();
@@ -4732,6 +4745,7 @@ sub show_deleted_rules1 {
 
 sub show_deleted_rules2 {
     return if not @deleted_rules;
+    my %pname2oname2deleted;
     my %pname2file;
     my %used;
     for my $rule (@deleted_rules) {
@@ -4755,24 +4769,31 @@ sub show_deleted_rules2 {
 	    next;
 	}
 
-	# Automtically generated reverse rule for stateless router is still needed.
+	# Automatically generated reverse rule for stateless router 
+	# is still needed, even for stateful routers for static routes.
 	my $src = $rule->{src};
 	if (is_interface($src)) {
 	    my $router = $src->{router};
-	    if ($router->{managed}) { # and $router->{model}->{stateless_self}) {
+	    if ($router->{managed}) {
 		$used{$pname} = 1;
 		next;
 	    }
 	}
 
 	my $other = $rule->{deleted};
-	my $pfile = $policy->{file};
-	$pfile =~ s/.*?([^\/]+)$/$1/;
-	$pname2file{$pname} = $pfile;
 	my $opolicy = $other->{rule}->{policy};
+	if (my $overlaps = $policy->{overlaps}) {
+	    if ($opolicy eq $overlaps) {
+		$policy->{overlaps_used} = 1;
+		next;
+	    }
+	}
 	my $oname = $opolicy->{name};
+	my $pfile = $policy->{file};
 	my $ofile = $opolicy->{file};
+	$pfile =~ s/.*?([^\/]+)$/$1/;
 	$ofile =~ s/.*?([^\/]+)$/$1/;
+	$pname2file{$pname} = $pfile;
 	$pname2file{$oname} = $ofile;
 	push(@{ $pname2oname2deleted{$pname}->{$oname} }, 
 	     [ $rule, $other ]);
@@ -4802,10 +4823,17 @@ sub show_deleted_rules2 {
 	    $print->($msg);
 	}
     }
-    %pname2oname2deleted = ();
 
-    # Variable will be reused during sub optimize.
+    # Free memory.
     @deleted_rules = ();
+
+    # Warn about unused {overlaps} declarations.
+    for my $key (sort keys %policies) {
+        my $policy = $policies{$key};
+	if ($policy->{overlaps} and not delete $policy->{overlaps_used}) {
+	    warn_msg "Useless 'overlaps' attribute in $policy->{name}";
+	}
+    }
 }
 
 # Parameters:
@@ -4968,6 +4996,16 @@ sub expand_policies( ;$) {
     for my $key (sort keys %policies) {
         my $policy = $policies{$key};
         my $name   = $policy->{name};
+	if (my $pair = $policy->{overlaps}) {
+	    my($type, $oname) = @$pair;
+	    $type eq 'policy' or 
+		err_msg "Unexpected type '$type' in attribute 'overlaps'",
+		" of $name";
+	    my $other = $policies{$oname} or
+		err_msg "Unknown '$type:$oname' in attribute 'overlaps'",
+		" of $name";
+	    $policy->{overlaps} = $other;
+	}
         my $user   = $policy->{user} =
           expand_group($policy->{user}, "user of $name");
         expand_rules($policy->{rules}, $name, \%expanded_rules,
