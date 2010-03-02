@@ -5000,13 +5000,17 @@ sub expand_policies( ;$) {
         my $name   = $policy->{name};
 	if (my $pair = $policy->{overlaps}) {
 	    my($type, $oname) = @$pair;
-	    $type eq 'policy' or 
+	    if ($type ne 'policy') {
 		err_msg "Unexpected type '$type' in attribute 'overlaps'",
 		" of $name";
-	    my $other = $policies{$oname} or
-		err_msg "Unknown '$type:$oname' in attribute 'overlaps'",
+	    }
+	    elsif ( my $other = $policies{$oname}) {
+		$policy->{overlaps} = $other;
+	    }
+	    else {
+		warn_msg "Unknown '$type:$oname' in attribute 'overlaps'",
 		" of $name";
-	    $policy->{overlaps} = $other;
+	    }
 	}
         my $user   = $policy->{user} =
           expand_group($policy->{user}, "user of $name");
