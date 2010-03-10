@@ -12102,7 +12102,6 @@ sub print_crypto( $ ) {
             }
             elsif ($crypto_type eq 'ASA') {
                 $prefix = "crypto map $map_name $seq_num";
-                print "$prefix ipsec-isakmp\n";
             }
 
 	    # Bind crypto ACL to crypto map.
