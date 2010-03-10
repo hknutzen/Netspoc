@@ -4717,20 +4717,8 @@ sub show_deleted_rules1 {
 	push(@{ $pname2oname2deleted{$policy->{name}}->{$opolicy->{name}} }, 
 	     $rule);
     }
-    my %used;
-    for my $type ('deny', 'any', 'permit') {
-        for my $rule (@{ $expanded_rules{$type} }) {
-	    next if $rule->{deleted};
-	    next if not $rule->{rule};		# Automatically generated.
-	    my $pname = $rule->{rule}->{policy}->{name};
-	    $used{$pname} = 1;
-	}
-    }
     my $print = $check_duplicate_rules eq 'warn' ? \&warn_msg : \&err_msg;
     for my $pname (sort keys %pname2oname2deleted) {
-	if (not $used{$pname}) {
-	    $print->("All rules of $pname are redundant");
-	}
 	my $hash = $pname2oname2deleted{$pname};
 	for my $oname (sort keys %$hash) {
 	    my $aref = $hash->{$oname};
@@ -4749,7 +4737,6 @@ sub show_deleted_rules2 {
     return if not @deleted_rules;
     my %pname2oname2deleted;
     my %pname2file;
-    my %used;
     for my $rule (@deleted_rules) {
 	my $srv = $rule->{srv};
 	
@@ -4767,7 +4754,6 @@ sub show_deleted_rules2 {
 
 	# Rule is still needed at device of $rule->{dst}.
 	if ($rule->{managed_intf} and not $rule->{deleted}->{managed_intf}) {
-	    $used{$pname} = 1;
 	    next;
 	}
 
@@ -4777,7 +4763,6 @@ sub show_deleted_rules2 {
 	if (is_interface($src)) {
 	    my $router = $src->{router};
 	    if ($router->{managed}) {
-		$used{$pname} = 1;
 		next;
 	    }
 	}
@@ -4800,19 +4785,8 @@ sub show_deleted_rules2 {
 	push(@{ $pname2oname2deleted{$pname}->{$oname} }, 
 	     [ $rule, $other ]);
     }
-    for my $type ('deny', 'any', 'permit') {
-        for my $rule (@{ $expanded_rules{$type} }) {
-	    next if $rule->{deleted};
-	    next if not $rule->{rule};		# Automatically generated.
-	    my $pname = $rule->{rule}->{policy}->{name};
-	    $used{$pname} = 1;
-	}
-    }
-    my $print = $check_duplicate_rules eq 'warn' ? \&warn_msg : \&err_msg;	    
+    my $print = $check_duplicate_rules eq 'warn' ? \&warn_msg : \&err_msg;
     for my $pname (sort keys %pname2oname2deleted) {
-	if (not $used{$pname}) {
-	    $print->("All rules of $pname are redundant");
-	}
 	my $hash = $pname2oname2deleted{$pname};
 	for my $oname (sort keys %$hash) {
 	    my $aref = $hash->{$oname};
