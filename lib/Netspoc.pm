@@ -2117,8 +2117,8 @@ sub read_policy( $ ) {
     if (my $description = check_description) {
         $policy->{description} = $description;
     }
-    if (my $other = check_assign 'overlaps', \&read_typed_name) {
-	$policy->{overlaps} = $other;
+    if (my @other = check_assign_list 'overlaps', \&read_typed_name) {
+	$policy->{overlaps} = \@other;
     }
     skip 'user';
     skip '=';
@@ -4685,6 +4685,7 @@ sub show_deleted_rules1 {
     return if not @deleted_rules;
     my %pname2oname2deleted;
     my %pname2file;
+  RULE:
     for my $rule (@deleted_rules) {
 	my $srv = $rule->{srv};
 	if ($srv->{proto} eq 'icmp') {
@@ -4695,15 +4696,19 @@ sub show_deleted_rules1 {
 	my $policy = $rule->{rule}->{policy};
 	my $opolicy = $other->{rule}->{policy};
 	if (my $overlaps = $policy->{overlaps}) {
-	    if ($opolicy eq $overlaps) {
-		$policy->{overlaps_used} = 1;
-		next;
+	    for my $overlap (@$overlaps) {
+		if ($opolicy eq $overlap) {
+		    $policy->{overlaps_used}->{$overlap} = $overlap;
+		    next RULE;
+		}
 	    }
 	}
 	if (my $overlaps = $opolicy->{overlaps}) {
-	    if ($policy eq $overlaps) {
-		$opolicy->{overlaps_used} = 1;
-		next;
+	    for my $overlap (@$overlaps) {
+		if ($policy eq $overlap) {
+		    $opolicy->{overlaps_used}->{$overlap} = $overlap;
+		    next RULE;
+		}
 	    }
 	}
 	my $pname = $policy->{name};
@@ -4737,6 +4742,7 @@ sub show_deleted_rules2 {
     return if not @deleted_rules;
     my %pname2oname2deleted;
     my %pname2file;
+  RULE:
     for my $rule (@deleted_rules) {
 	my $srv = $rule->{srv};
 	
@@ -4770,9 +4776,11 @@ sub show_deleted_rules2 {
 	my $other = $rule->{deleted};
 	my $opolicy = $other->{rule}->{policy};
 	if (my $overlaps = $policy->{overlaps}) {
-	    if ($opolicy eq $overlaps) {
-		$policy->{overlaps_used} = 1;
-		next;
+	    for my $overlap (@$overlaps) {
+		if ($opolicy eq $overlap) {
+		    $policy->{overlaps_used}->{$overlap} = $overlap;
+		    next RULE;
+		}
 	    }
 	}
 	my $oname = $opolicy->{name};
@@ -4806,8 +4814,13 @@ sub show_deleted_rules2 {
     # Warn about unused {overlaps} declarations.
     for my $key (sort keys %policies) {
         my $policy = $policies{$key};
-	if ($policy->{overlaps} and not delete $policy->{overlaps_used}) {
-	    warn_msg "Useless 'overlaps' attribute in $policy->{name}";
+	if (my $overlaps = $policy->{overlaps}) {
+	    my $used = delete $policy->{overlaps_used};
+	    for my $overlap (@$overlaps) {
+		$used->{$overlap} or
+		    warn_msg "Useless 'overlaps = $overlap->{name}'",
+		    " in $policy->{name}";
+	    }
 	}
     }
 }
@@ -4972,18 +4985,20 @@ sub expand_policies( ;$) {
     for my $key (sort keys %policies) {
         my $policy = $policies{$key};
         my $name   = $policy->{name};
-	if (my $pair = $policy->{overlaps}) {
-	    my($type, $oname) = @$pair;
-	    if ($type ne 'policy') {
-		err_msg "Unexpected type '$type' in attribute 'overlaps'",
-		" of $name";
-	    }
-	    elsif ( my $other = $policies{$oname}) {
-		$policy->{overlaps} = $other;
-	    }
-	    else {
-		warn_msg "Unknown '$type:$oname' in attribute 'overlaps'",
-		" of $name";
+	if (my $overlaps = $policy->{overlaps}) {
+	    for my $pair (@$overlaps) {
+		my($type, $oname) = @$pair;
+		if ($type ne 'policy') {
+		    err_msg "Unexpected type '$type' in attribute 'overlaps'",
+		    " of $name";
+		}
+		elsif ( my $other = $policies{$oname}) {
+		    $pair = $other;
+		}
+		else {
+		    warn_msg "Unknown '$type:$oname' in attribute 'overlaps'",
+		    " of $name";
+		}
 	    }
 	}
         my $user   = $policy->{user} =
