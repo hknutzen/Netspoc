@@ -133,9 +133,13 @@ my $strict_subnets = 'warn';
 # Possible values: 0,1,'warn';
 my $check_unenforceable = 'warn';
 
-# Check for duplicate or redundant rules.
+# Check for duplicate rules.
 # Possible values: 0,1,'warn';
-my $check_duplicate_rules = 0;
+my $check_duplicate_rules = 'warn';
+
+# Check for redundant rules.
+# Possible values: 0,1,'warn';
+my $check_redundant_rules = 0;
 
 # Optimize the number of routing entries per router:
 # For each router find the hop, where the largest
@@ -4793,7 +4797,7 @@ sub show_deleted_rules2 {
 	push(@{ $pname2oname2deleted{$pname}->{$oname} }, 
 	     [ $rule, $other ]);
     }
-    my $print = $check_duplicate_rules eq 'warn' ? \&warn_msg : \&err_msg;
+    my $print = $check_redundant_rules eq 'warn' ? \&warn_msg : \&err_msg;
     for my $pname (sort keys %pname2oname2deleted) {
 	my $hash = $pname2oname2deleted{$pname};
 	for my $oname (sort keys %$hash) {
@@ -7974,7 +7978,7 @@ sub optimize_rules( $$ ) {
                                                                                   {deleted}
                                                                                   =
                                                                                   $cmp_rule;
-										push @deleted_rules, $chg_rule if $check_duplicate_rules;
+										push @deleted_rules, $chg_rule if $check_redundant_rules;
                                                                                 last;
                                                                             }
                                                                         }
@@ -12251,6 +12255,7 @@ Options:
 -allow_unused_groups=yes|no|warn
 -check_unenforceable_rules=yes|no|warn
 -check_duplicate_rules=yes|no|warn
+-check_redundant_rules=yes|no|warn
 MSG
       ;
 }
@@ -12299,6 +12304,8 @@ sub read_args() {
       sub { my $value = $_[1]; $check_unenforceable = check_tri $value },
       'check_duplicate_rules=s' =>
       sub { my $value = $_[1]; $check_duplicate_rules = check_tri $value },
+      'check_redundant_rules=s' =>
+      sub { my $value = $_[1]; $check_redundant_rules = check_tri $value },
       or usage;
     my $main_file = shift @ARGV or usage;
 
