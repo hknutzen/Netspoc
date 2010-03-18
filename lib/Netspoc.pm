@@ -10349,48 +10349,6 @@ my %ref_type = (
 );
 $ref2srv{$srv_icmp} = $srv_icmp;
 
-sub print_chain_rule( $ ) {
-    my ($rule) = @_;
-    my $result = '';
-    if (my $action = $rule->{action}) {
-        $action = $action->{name} if is_chain $action;
-        $result = $action;
-    }
-    for my $what (qw(src dst)) {
-        my $node = $rule->{$what} or next;
-        $result .= " $what=";
-        $result .= print_ip $node->{ip};
-        $result .= "/";
-        $result .= print_ip $node->{mask};
-    }
-    for my $what (qw(src_range srv)) {
-        my $node  = $rule->{$what} or next;
-        my $proto = $node->{proto};
-        my $spec  = '';
-        if ($proto eq 'icmp') {
-            for my $icmp_data (qw(type code)) {
-                if (my $data = $node->{$icmp_data}) {
-                    $spec .= "$data";
-                }
-            }
-        }
-        elsif ($proto =~ /udp|tcp/) {
-            my ($v1, $v2) = @{ $node->{range} };
-            if ($v1 == $v2) {
-                $spec .= "$v1";
-            }
-            else {
-                $spec .= "$v1:$v2";
-            }
-        }
-        $result .= " $what=$proto $spec";
-    }
-    if ($rule->{goto}) {
-        $result .= " -g";
-    }
-    return $result;
-}
-
 sub find_chains ( $$ ) {
     my ($router, $hardware) = @_;
 
@@ -10682,6 +10640,14 @@ sub find_chains ( $$ ) {
     }
 }
 
+sub max {
+    my $max = shift(@_);
+    for my $el (@_) {
+	$max = $el if $max < $el;
+    }
+    return $max;
+}
+
 # Print chains of iptables.
 # Objects have already been normalized to ip/mask pairs.
 # NAT has already been applied.
@@ -10703,12 +10669,32 @@ sub print_chains ( $ ) {
     for my $chain (@{ $router->{chains} }) {
         my $name   = $chain->{name};
         my $prefix = "-A $name";
+#	my $steps = my $accept = my $deny = 0;
         for my $rule (@{ $chain->{rules} }) {
             my $action = $rule->{action};
             my $action_code =
                 is_chain $action ? $action->{name}
               : $action eq 'permit' ? 'ACCEPT'
               :                       'droplog';
+
+	    # Calculate maximal number of matches if
+	    # - some rules matches (accept) or
+	    # - all rules don't match (deny).
+#	    $steps += 1;
+#	    if ($action eq 'permit') {
+#		$accept = max($accept, $steps);
+#	    }
+#	    elsif ($action eq 'deny') {
+#		$deny = max($deny, $steps);
+#	    }
+#	    elsif ($rule->{goto}) {
+#		$accept = max($accept, $steps + $action->{a});
+#	    }
+#	    else {
+#		$accept = max($accept, $steps + $action->{a});
+#		$steps += $action->{d};
+#	    }
+
             my $jump = $rule->{goto} ? '-g' : '-j';
             my $result = "$jump $action_code";
             if (my $src = $rule->{src}) {
@@ -10747,6 +10733,10 @@ sub print_chains ( $ ) {
             }
             print "$prefix $result\n";
         }
+#	$deny = max($deny, $steps);
+#	$chain->{a} = $accept;
+#	$chain->{d} = $deny;
+#	print "# Max tests: Accept: $accept, Deny: $deny\n";
     }
 
     # Empty line as delimiter.
