@@ -4990,6 +4990,7 @@ sub expand_policies( ;$) {
         my $policy = $policies{$key};
         my $name   = $policy->{name};
 	if (my $overlaps = $policy->{overlaps}) {
+	    my @pobjects;
 	    for my $pair (@$overlaps) {
 		my($type, $oname) = @$pair;
 		if ($type ne 'policy') {
@@ -4997,13 +4998,14 @@ sub expand_policies( ;$) {
 		    " of $name";
 		}
 		elsif ( my $other = $policies{$oname}) {
-		    $pair = $other;
+		    push(@pobjects, $other);
 		}
 		else {
 		    warn_msg "Unknown '$type:$oname' in attribute 'overlaps'",
 		    " of $name";
 		}
 	    }
+	    $policy->{overlaps} = \@pobjects;
 	}
         my $user   = $policy->{user} =
           expand_group($policy->{user}, "user of $name");
