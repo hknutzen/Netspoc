@@ -5822,9 +5822,14 @@ sub check_pathrestrictions() {
 
             # Interfaces with pathrestriction need to be located
             # inside or at the border of cyclic graphs.
-            $obj->{loop} || $obj->{router}->{loop} || $obj->{any}->{loop}
-              or warn_msg "Ignoring $restrict->{name} at $obj->{name}\n",
-              " because it isn't located inside cyclic graph";
+            if (not ($obj->{loop} || 
+		     $obj->{router}->{loop} || 
+		     $obj->{any}->{loop})) 
+	    {
+		delete $obj->{path_restrict};
+		warn_msg "Ignoring $restrict->{name} at $obj->{name}\n",
+		" because it isn't located inside cyclic graph";
+	    }
         }
     }
 }
@@ -5856,7 +5861,7 @@ sub setpath_obj( $$$ ) {
         # Generate unique loop marker which references this object.
         # Distance is needed for cluster navigation.
         # We need a copy of the distance value inside the loop marker
-        # because distance at object is reset later to the value og the 
+        # because distance at object is reset later to the value of the 
 	# cluster exit object.
         # We must use an intermediate distance value for cluster_navigation 
 	# to work.
@@ -5943,12 +5948,12 @@ sub set_loop_cluster {
 
         # Exit node has loop marker which references the node itself.
         if ($exit->{loop} eq $loop) {
-#           debug "Loop $exit->{name}$loop is in cluster $exit->{name}";
+#           debug "Loop $exit->{name},$loop->{distance} is in cluster $exit->{name}";
             return $loop->{cluster_exit} = $exit;
         }
         else {
             my $cluster = set_loop_cluster($exit->{loop});
-#           debug "Loop $exit->{name}$loop is in cluster $cluster->{name}";
+#           debug "Loop $exit->{name},$loop->{distance} is in cluster $cluster->{name}";
             return $loop->{cluster_exit} = $cluster;
         }
     }
@@ -6404,6 +6409,7 @@ sub cluster_path_mark ( $$$$$$ ) {
 		or internal_err "Unknown out_intf at tuple";
 		my $at_router = $hash->{$out_intf_ref};
 		push @$tuples_aref, [ $in_intf, $out_intf, $at_router ];
+#		debug "Tuple: $in_intf->{name}, $out_intf->{name} $at_router";
 	    }
 	}
 
@@ -6470,13 +6476,13 @@ sub path_mark( $$$$ ) {
     # $from_store and $from differ if path starts at an interface
     # with pathrestriction.
     # Inside a loop, use $from_store, not $from, 
-    # because it may differ depending on the start interface.
+    # because the path may differ depending on the start interface.
     # But outside a loop (pathrestriction is allowed at the border of a loop)
-    # only a single interface enters the loop.
+    # we have only a single path which enters the loop.
     # In this case we must not use the interface but the router,
     # otherwise we would get an invalid {path}: 
     # $from_store->{path}->{$to_store} = $from_store;
-    my $from_in   = $from_loop ? $from_store : $from;
+    my $from_in   = $from_store->{loop} ? $from_store : $from;
     my $to_out    = undef;
     while (1) {
 
@@ -6541,10 +6547,10 @@ sub path_mark( $$$$ ) {
 sub loop_path_walk( $$$$$$$ ) {
     my ($in, $out, $loop_entry, $loop_exit, $call_at_router, $rule, $fun) = @_;
 
-    my $info = "loop_path_walk: ";
-    $info .= "$in->{name}->" if $in;
-    $info .= "$loop_entry->{name}->$loop_exit->{name}";
-    $info .= "->$out->{name}" if $out;
+#    my $info = "loop_path_walk: ";
+#    $info .= "$in->{name}->" if $in;
+#    $info .= "$loop_entry->{name}=>$loop_exit->{name}";
+#    $info .= "->$out->{name}" if $out;
 #    debug $info;
 
     # Process entry of cyclic graph.
@@ -6563,7 +6569,7 @@ sub loop_path_walk( $$$$$$$ ) {
     # Process paths inside cyclic graph.
     my $path_tuples = $loop_entry->{path_tuples}->{$loop_exit};
 
-#  debug " loop_tuples";
+#    debug " loop_tuples";
     for my $tuple (@$path_tuples) {
 	my ($in_intf, $out_intf, $at_router) = @$tuple;
 	$fun->($rule, $in_intf, $out_intf) if not $at_router xor $call_at_router;
