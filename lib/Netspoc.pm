@@ -2867,7 +2867,7 @@ sub link_any() {
             }
         }
         else {
-            err_msg "$obj->{name} must not be linked to '$type:$name'";
+            err_msg "$obj->{name} must not be linked to $type:$name";
             $obj->{disabled} = 1;
             next;
         }
@@ -3949,7 +3949,7 @@ sub expand_group1( $$ ) {
             my @check;
             if (ref $name) {
                 ref $ext
-                  or err_msg "Must not use 'interface:[..].$ext' in $context";
+                  or err_msg "Must not use interface:[..].$ext in $context";
                 my ($selector, $managed) = @$ext;
                 my $sub_objects = expand_group1 $name,
                   "interface:[..].[$selector] of $context";
@@ -3984,8 +3984,8 @@ sub expand_group1( $$ ) {
 			    }
                         }
                         else {
-                            err_msg "Must not use interface:",
-                              " [any:..].[auto] in $context";
+                            err_msg "Must not use",
+                              " interface:[any:..].[auto] in $context";
                         }
                     }
                     elsif ($type eq 'Interface') {
@@ -4076,7 +4076,7 @@ sub expand_group1( $$ ) {
                 }
                 else {
                     err_msg
-                      "Can't resolve '$type:$name.[$selector]' in $context";
+                      "Can't resolve $type:$name.[$selector] in $context";
                 }
             }
 
@@ -4085,7 +4085,7 @@ sub expand_group1( $$ ) {
                 push @objects, $interface;
             }
             else {
-                err_msg "Can't resolve '$type:$name.$ext' in $context";
+                err_msg "Can't resolve $type:$name.$ext in $context";
             }
 
             # Silently remove unnumbered and tunnel interfaces
@@ -4156,7 +4156,7 @@ sub expand_group1( $$ ) {
                 }
             }
             else {
-                err_msg "Unexpected '$type:[..]' in $context";
+                err_msg "Unexpected $type:[..] in $context";
             }
         }
 
@@ -4164,7 +4164,7 @@ sub expand_group1( $$ ) {
         elsif (my $object = $name2object{$type}->{$name}) {
 
             $ext
-              and err_msg "Unexpected '.$ext' after '$type:$name' in $context";
+              and err_msg "Unexpected '.$ext' after $type:$name in $context";
 
             # Split a group into its members.
             if (is_group $object) {
@@ -4226,7 +4226,7 @@ sub expand_group1( $$ ) {
 
         }
         else {
-            err_msg "Can't resolve '$type:$name' in $context";
+            err_msg "Can't resolve $type:$name in $context";
         }
     }
     return \@objects;
@@ -4357,7 +4357,7 @@ sub expand_services( $$ ) {
                 }
             }
             else {
-                err_msg "Can't resolve reference to '$type:$name' in $context";
+                err_msg "Can't resolve reference to $type:$name in $context";
                 next;
             }
         }
@@ -4384,12 +4384,12 @@ sub expand_services( $$ ) {
                 push @services, @$elements;
             }
             else {
-                err_msg "Can't resolve reference to '$type:$name' in $context";
+                err_msg "Can't resolve reference to $type:$name in $context";
                 next;
             }
         }
         else {
-            err_msg "Unknown type of '$type:$name' in $context";
+            err_msg "Unknown type of $type:$name in $context";
         }
     }
     return \@services;
@@ -5001,7 +5001,7 @@ sub expand_policies( ;$) {
 		    push(@pobjects, $other);
 		}
 		else {
-		    warn_msg "Unknown '$type:$oname' in attribute 'overlaps'",
+		    warn_msg "Unknown $type:$oname in attribute 'overlaps'",
 		    " of $name";
 		}
 	    }
@@ -6793,7 +6793,7 @@ sub link_ipsec () {
         my ($type, $name) = @{ $ipsec->{key_exchange} };
         if ($type eq 'isakmp') {
             my $isakmp = $isakmp{$name}
-              or err_msg "Can't resolve reference to '$type:$name'",
+              or err_msg "Can't resolve reference to $type:$name",
               " for $ipsec->{name}";
             $ipsec->{key_exchange} = $isakmp;
         }
@@ -6812,7 +6812,7 @@ sub link_crypto () {
 
         if ($type eq 'ipsec') {
             my $ipsec = $ipsec{$name2}
-              or err_msg "Can't resolve reference to '$type:$name2'",
+              or err_msg "Can't resolve reference to $type:$name2",
               " for $name";
             $crypto->{type} = $ipsec;
         }
