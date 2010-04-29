@@ -3928,7 +3928,8 @@ sub expand_group1( $$ ) {
                 $result = $intersection;
             }
             for my $element (@compl) {
-                delete $result->{$element};
+                delete $result->{$element}
+		or warn_msg "Useless delete of $element->{name} in $context";
             }
 
             # Put result into same order as the elements of first non
@@ -4089,9 +4090,13 @@ sub expand_group1( $$ ) {
             }
 
             # Silently remove unnumbered and tunnel interfaces
+	    # and interfaces to route_hint or crosslink networks
             # from automatic groups.
             push @objects,
-              grep { $_->{ip} !~ /^(?:unnumbered|tunnel)$/ } @check;
+              grep { $_->{ip} !~ /^(?:unnumbered|tunnel)$/
+		     and not $_->{network}->{route_hint}
+		     and not $_->{network}->{crosslink} } 
+	    @check;
         }
         elsif (ref $name) {
             my $sub_objects = expand_group1 $name, "$type:[..] of $context";
@@ -4116,7 +4121,9 @@ sub expand_group1( $$ ) {
                         # Don't add implicitly defined network 
 			# of loopback interface.
                         if (not $object->{loopback}) {
-                            push @objects, $object->{network};
+                            push @objects, 
+			    grep { not $_->{route_hint} and not $_->{crosslink} }
+			    $object->{network};
                         }
                     }
                     elsif ($type eq 'Network') {
