@@ -11960,6 +11960,9 @@ sub print_crypto( $ ) {
     }
 
     my $encryption = $isakmp->{encryption};
+    if ($crypto_type eq 'ASA' and $encryption =~ /^aes(\d+)$/) {
+	$encryption = "aes-$1";
+    }
     print "$prefix encryption $encryption\n";
     my $hash = $isakmp->{hash};
     print "$prefix hash $hash\n";
