@@ -3868,10 +3868,9 @@ sub get_auto_intf ( $;$) {
 
 # Get a reference to an array of network object descriptions and
 # return a reference to an array of network objects.
-sub expand_group1( $$ );
-
-sub expand_group1( $$ ) {
-    my ($aref, $context) = @_;
+sub expand_group1( $$;$ );
+sub expand_group1( $$;$ ) {
+    my ($aref, $context, $clean_autogrp) = @_;
     my @objects;
     for my $parts (@$aref) {
 
@@ -3902,7 +3901,9 @@ sub expand_group1( $$ ) {
                         $type = ref $_;
                         $_;
                     }
-                  } @{ expand_group1([$element1], "intersection of $context") };
+                  } @{ expand_group1([$element1], 
+				     "intersection of $context", 
+				     $clean_autogrp) };
 
                 if ($element->[0] eq '!') {
                     push @compl, @elements;
@@ -4090,40 +4091,33 @@ sub expand_group1( $$ ) {
             }
 
             # Silently remove unnumbered and tunnel interfaces
-	    # and interfaces to route_hint or crosslink networks
             # from automatic groups.
-            push @objects,
-              grep { $_->{ip} !~ /^(?:unnumbered|tunnel)$/
-		     and not $_->{network}->{route_hint}
-		     and not $_->{network}->{crosslink} } 
-	    @check;
+	    push @objects, 
+	          $clean_autogrp
+		? grep { $_->{ip} !~ /^(?:unnumbered|tunnel)$/ } @check
+		: grep { $_->{ip} ne 'tunnel' } @check;
         }
         elsif (ref $name) {
             my $sub_objects = expand_group1 $name, "$type:[..] of $context";
             if ($type eq 'network') {
+		my @check;
                 for my $object (@$sub_objects) {
                     next if $object->{disabled};
                     $object->{is_used} = 1;
                     my $type = ref $object;
                     if ($type eq 'Area') {
-                        push @objects,
-                          grep { not $_->{route_hint} and not $_->{crosslink} }
-			  map @{ $_->{networks} },
-                          @{ $object->{anys} };
+                        push @check,
+			  map { @{ $_->{networks} } } @{ $object->{anys} };
                     }
                     elsif ($type eq 'Any') {
-                        push @objects,
-                          grep { not $_->{route_hint} and not $_->{crosslink} }
-                          @{ $object->{networks} };
+                        push @check, @{ $object->{networks} };
                     }
                     elsif ($type eq 'Host' or $type eq 'Interface') {
 
                         # Don't add implicitly defined network 
 			# of loopback interface.
                         if (not $object->{loopback}) {
-                            push @objects, 
-			    grep { not $_->{route_hint} and not $_->{crosslink} }
-			    $object->{network};
+                            push @check, $object->{network};
                         }
                     }
                     elsif ($type eq 'Network') {
@@ -4134,6 +4128,14 @@ sub expand_group1( $$ ) {
                           "Unexpected type '$type' in network:[..] of $context";
                     }
                 }
+
+		# Silently remove route_hint and crosslink networks
+		# from automatic groups.
+		push @objects, 
+		      $clean_autogrp
+		    ? grep { not $_->{route_hint} and not $_->{crosslink} }
+	              @check
+		    : @check;
             }
             elsif ($type eq 'any') {
                 for my $object (@$sub_objects) {
@@ -4174,23 +4176,35 @@ sub expand_group1( $$ ) {
               and err_msg "Unexpected '.$ext' after $type:$name in $context";
 
             # Split a group into its members.
+	    # There may be two different versions depending of $clean_autogrp.
             if (is_group $object) {
-                my $elements = $object->{elements};
 
-                # Check for recursive definitions.
-                if ($elements eq 'recursive') {
-                    err_msg "Found recursion in definition of $context";
-                    $object->{elements} = $elements = [];
-                }
+		# Two differnt expanded values, depending on $clean_autogrp.
+		my $ext = $clean_autogrp ? 'clean' : 'noclean';
+		my $attr_name = "expanded_$ext";
 
-                # Detect, if group has already been converted from names to
-                # references.
-                unless ($object->{is_used}) {
+		my $elements;
 
-                    # Mark group for detection of recursive group definitions.
-                    $object->{elements} = 'recursive';
-                    $object->{is_used}  = 1;
-                    $elements = expand_group1 $elements, "$type:$name";
+		# Check for recursive definition.
+		if ($object->{recursive}) {
+		    err_msg "Found recursion in definition of $context";
+		    $object->{$attr_name} = $elements = [];
+		    delete $object->{recursive};
+		}
+
+                # Group has not been converted from names to references.
+                elsif (not $elements) {
+
+		    # Add marker for detection of recursive group definition.
+		    $object->{recursive} = 1;
+
+                    # Mark group as used.
+                    $object->{is_used} = 1;
+
+                    $elements = expand_group1($object->{elements}, 
+					      "$type:$name", 
+					      $clean_autogrp);
+		    delete $object->{recursive};
 
                     # Private group must not reference private element of other
                     # context.
@@ -4222,10 +4236,11 @@ sub expand_group1( $$ ) {
 			warn_msg $msg;
 		    }
 
-                    # Cache result for further references to the same group.
-                    $object->{elements} = $elements;
+                    # Cache result for further references to the same group
+		    # in same $clean_autogrp context.
+                    $object->{$attr_name} = $elements;
                 }
-                push @objects, @$elements if $elements;
+                push @objects, @$elements;
             }
             else {
                 push @objects, $object;
@@ -4241,7 +4256,7 @@ sub expand_group1( $$ ) {
 
 sub expand_group( $$;$ ) {
     my ($obref, $context, $convert_hosts) = @_;
-    my $aref = expand_group1 $obref, $context;
+    my $aref = expand_group1 $obref, $context, 'clean_autogrp';
     for my $object (@$aref) {
         my $ignore;
         if ($object->{disabled}) {
