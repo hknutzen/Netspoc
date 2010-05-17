@@ -1498,7 +1498,7 @@ sub read_interface( $ ) {
 
         # Only these attributes are valid.
         delete @copy{
-            qw(name ip nat hardware loopback subnet_of
+            qw(name ip nat bind_nat hardware loopback subnet_of
               redundancy_type redundancy_id)
           };
         if (keys %copy) {
