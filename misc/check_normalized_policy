@@ -1,0 +1,225 @@
+#!/usr/bin/perl
+# check_normalized_policies
+# A Network Security Policy Compiler
+# http://netspoc.berlios.de
+# (c) 2007 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+# $Id$
+
+use strict;
+use warnings;
+use File::Spec ();
+use File::Basename ();
+
+# Get directory of this script.
+# If this script is called setuid it is running in taint mode.
+# We can untaint the directory part of the script name,
+# because it is set by calling C wrapper script 
+# and can't be modified by the calling user.
+my $path;
+BEGIN {
+    $path = File::Basename::dirname(File::Spec->rel2abs($0));
+    $path =~ /(.*)/;	# untaint
+    $path = $1;
+}
+use lib $path;
+use Netspoc;
+
+sub usage() {
+    die "Usage: $0 {in-file | in-directory}\n";
+}
+my $in_path = shift @ARGV or usage;
+
+&show_version();
+&read_file_or_dir($in_path);
+&show_read_statistics();
+&order_services();
+&link_topology();
+&mark_disabled();
+&distribute_nat_info();
+&setany();
+&setpath();
+&find_subnets();
+
+sub warn_msg ( @ ) {
+    print STDERR "Warning: ", @_, "\n";
+}
+
+sub get_networks ( $$ ) {
+    my ($obj, $context) = @_;
+    my $type = ref $obj;
+    if ($type eq 'Network') {
+        $obj;
+    }
+    elsif ($type eq 'Subnet' or $type eq 'Host') {
+        $obj->{network};
+    }
+    elsif ($type eq 'Interface') {
+	my $router = $obj->{router};
+	if ($router->{managed}) {
+	    $router;
+	}
+	else {
+	    $obj->{network};
+	}
+    }
+    elsif ($type eq 'Any') {
+        @{ $obj->{networks} };
+    }
+    elsif ($type eq 'Autointerface') {
+	$obj->{object};
+    }
+    else {
+        warn_msg "unexpected $obj->{name} in $context";
+	$obj;
+    }
+}
+
+my %name2object = (
+    host      => \%hosts,
+    network   => \%networks,
+    interface => \%interfaces,
+    any       => \%anys,
+    group     => \%groups,
+    area      => \%areas,
+);
+
+for my $key (sort keys %policies) {
+    my $policy = $policies{$key};
+    my $pname   = $policy->{name};
+
+    # 'user' objects.
+    my $users = Netspoc::expand_group($policy->{user}, "user of $pname");
+
+    # Non 'user' objects.
+    my @objects;
+
+    # 'user' is src, dst or both.
+    my %user_is;
+    for my $rule (@{ $policy->{rules} }) {
+	for my $what (qw(src dst)) {
+	    for my $parts (@{ $rule->{$what} }) {
+		my $context = "$what of $pname";
+		my ($type, $name, $ext) = @$parts;
+		my $is_user; 
+
+		# user
+		if ( $type eq 'user') {
+		    $is_user = 1;
+		}
+
+		# any:[user], network:[user]
+		elsif (ref $name and @$name == 1 and $name->[0]->[0] eq 'user') {
+		    $is_user = 1;
+		}
+
+		# any:[..]
+		elsif ($type eq 'any' and ref $name) {
+		    my $sub_objects = 
+			Netspoc::expand_group1([ $parts ], "$type:[..] of $context");
+		    push @objects, @$sub_objects
+		}
+
+		# interface:...
+		elsif ($type eq 'interface') {
+
+		    # interface:[..].[all|auto]
+		    if (ref $ext) {
+			my ($selector, $managed) = @$ext;
+			if (my $router = $routers{$name}) {
+			    if ($selector eq 'all') {
+				push @objects, @{ $router->{interfaces} };
+			    }
+			    else {
+				push @objects, Netspoc::get_auto_intf $router;
+			    }
+			}
+			else {
+			    warn_msg
+				"Can't resolve '$type:$name.[$selector]'",
+				" in $context";
+			}
+		    }
+		    elsif (my $interface = $interfaces{"$name.$ext"}) {
+			push @objects, $interface;
+		    }
+		    else {
+			warn_msg 
+			    "Can't resolve '$type:$name.$ext' in $context";
+		    }
+		}
+
+		# type:name
+		elsif (my $object = $name2object{$type}->{$name}) {
+		    if (is_network $object or is_host $object) {
+			push @objects, $object;
+		    }
+		    elsif (is_group $object) {
+			my $elements = Netspoc::expand_group1([[$type, $name]],
+							      "$type:$name");
+			push @objects, @$elements;
+		    }
+		    else {
+			warn_msg "Unexpected $object->{name} in $context";
+		    }
+		}
+		else {
+		    warn_msg "Can't resolve '$type:$name' in $context";
+		}
+
+		# Remember, if user ist src and/or dst.
+		# But ignore user if service is echo or echo reply.
+		if ($is_user) {
+		    my $services = 
+			Netspoc::expand_services($rule->{srv}, $context);
+		    my $only_ping = 1;
+		    for my $service (@$services) {
+			if(not ($service->{proto} eq 'icmp' and
+				defined $service->{type} and
+				($service->{type} == 0 or 
+				 $service->{type} == 8)))
+			{
+			    $only_ping = 0;
+			}
+		    }
+		    $only_ping or $user_is{$what} = 1;
+		}
+	    }
+	}
+    }
+
+    
+    my %unique = map { $_ => $_ } @objects;
+    @objects = values %unique;
+    my $pcount = @objects;
+    my $ucount = @$users;
+    $pname =~ s/policy://;
+    my $file = $policy->{file} || '';
+    $file =~ s,.*/,,;
+    my $direction = 
+	$user_is{src} ? $user_is{dst} ? 'b' : 'i' : $user_is{dst} ? 'o' : '-';
+#    print "$pcount\t$ucount\t$direction\t$pname\t$file\n";
+
+# print "\t$pname\t$file\n";
+    my @net_or_router = map { get_networks($_, $pname) } @objects;
+    %unique = map { $_ => $_ } @net_or_router;
+    @net_or_router = values %unique;
+    my $ncount = @net_or_router;
+    if($ncount > 1) {
+	print "$ncount\t$pname\t$file\n";
+    }
+}
