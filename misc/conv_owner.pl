@@ -1,134 +1,158 @@
+#!/usr/bin/perl
+# Read from stdin or from files given as arguments.
+# Print to stdout.
 
 use strict;
 use warnings;
 
-my $in  = $ARGV[0];
-$in   ||= './topology';
-my $out = $ARGV[1];
-$out  ||= $in . '.new';
-#die "File $out exists!" if -e $out;
-my $oc  = 0; # owner-counter
 my %owners;
 my %admins;
 my %admin2name;
 
-open( IN,  "<$in" ) or die "Open failed: $!";
-open( OUT, ">$out" ) or die "Open failed: $!";
+# Read whole input at once.
+undef $/;
+my $data = <>;
 
-while ( <IN> ) {
+# Finde Toplevel area, network, any Deklarationen ggf. mit Kommentar davor.
+# Bestimme Position vor dem Kommentar als Einfügepunkt 
+# für die neue Owner-Deklaration.
+# Oder finde owner.
 
-    # Transfer comments to new file untouched.
-    if ( /^\s*\#/ ) {
-	print OUT;
-	next;
+# Gefundenen Owner durch Verweis auf Deklaration ersetzen.
+# Ganz neuer Owner:
+# Deklaration vor letzter Topelevel-Deklaration einfügen.
+
+# Einfügepunkt vor Toplevel-Deklaration
+my $top_insert;
+
+while ($data =~ 
+       m/\G
+       (?:.*\n)+? # alles davor, mindestens ein Zeilenende
+	
+       (?: # Klammer um Alternative: deklaration oder owner
+	# Toplevel-Deklaration ggf. mit Kommentar-Zeilen davor
+	(
+	 (?:\#.*\n)* # Kommentar-Zeilen
+	 \s*(?:area|any|network):\S+ # Toplevel-Deklaration
+	 )
+	
+	|
+	
+	# Owner-Zeile
+	(?:
+	 [^\n#]* # In der gleichen Zeile vor owner, Kommentare ignorieren
+	 owner\s*=\s*
+	 ([^;]+) # der alte owner Inhalt
+	 )
+	)
+       /mxgc) { 
+
+    # Found toplevel declaration, remember insert position.
+    if ($1) {
+	$top_insert = pos($data) - length($1);
+#	print STDERR "Found decl: '$1', top_insert = $top_insert\n";
     }
 
-    # Match owner declarations.
-    if ( my ( $pre, $declare, $owner, $post ) =
-	 /(.*)(owner\s*=\s*)([^;]+)\s*;(.*)$/ ) {
-	my @old_owners = split /\s*,\s*/, $owner;
+    # Convert owner. Insert owner declaration if needed.
+    elsif ($2) {
 
-	# Replace special chars @.-: with an underscore.
+	# Remember current \G position before changing $data.
+	my $pos = pos($data);
+
+#	print STDERR "Found owner: '$2'\n";
+	my $owner = lc $2;
+	my @old_owners = split /\s*,\s*/, $owner;
+	@old_owners or die "Missing owners\n";
+
+	# Replace special chars with an underscore.
 	# Associate original admin-email with replaced
 	# string in hash admin2name.
 	my @new_owners = map {
-	    my $replace = $_;
-	    ( $replace = $replace ) =~ s/[\@\.\-\:]+/_/g; # subst special chars
-	    ( $replace = $replace ) =~ s/\s*//g; # remove whitespace
-	    $admin2name{"admin:$replace"} = $_;
+
+	    # Leerzeichen am Anfang und Ende streichen.
+	    s/^\s*//;
+	    s/\s*$//;
+	    (my $replace = $_) =~ s/[^\w-]+/_/g;
+	    $admin2name{$replace} = $_;
 	    $replace;
 	} sort @old_owners;
 
-	my $new_owner = 'owner:' . $new_owners[0];
-	my $owner_admins = join ',', map { "admin:$_" } @new_owners;
+	# Take name from first admin.
+	# Add suffix "_g<n>" if group of admin with <n> members.
+	my $count = @new_owners;
+	my $new_owner = $new_owners[0];
+	$new_owner .= "_g$count" if $count > 1;
+	my $owner_admins = join ', ', @new_owners;
+	my $add_decl;
 	if ( my $admins = $owners{$new_owner} ) {
 	    if ( $owner_admins ne $admins ) {
 
 		# Create new unique name for owner.
-
-		#print "FOUND $new_owner with same name but " .
-		#    "different admins:\n";
-		#print "\tOLD: $admins \n\tNEW: $owner_admins\n";
-
 		my $nr = 0;
 		while ( $owners{$new_owner . '_' . ++$nr} ) {};
 		$new_owner = $new_owner . '_' . $nr;
-		#print "Set owner to $new_owner = $owner_admins\n";
 		$owners{$new_owner} = $owner_admins;
+		$add_decl = 1;
 	    }
 	}
 	else {
 	    $owners{$new_owner} = $owner_admins;
+	    $add_decl = 1;
 	}
 	
-	print OUT "$pre"  if $pre;
-	print OUT "$declare$new_owner;\n";
-	print OUT "$post\n" if $post =~ /\S+/;
-    }
-    else {
-	print OUT;
-    }
-}
+	# Change Owner
+	my $insert = $pos - length($owner);
+	substr($data, $insert, length($owner)) = $new_owner;
+	$pos = $pos - length($owner) + length($new_owner);
+#	print STDERR "New owner: $new_owner\n";
 
-print OUT "##### automatically generated owners ###################\n\n";
+	if ($add_decl) {
 
-for my $new_owner ( keys %owners ) {
-    print OUT "$new_owner = {\n";
-    print OUT " admins = " . $owners{$new_owner} . ";\n";
-    print OUT "}\n\n";
-}
+	    $top_insert
+		or die "Didn't found insert position for owner declaration\n";
 
-print OUT "##### automatically generated admins ###################\n\n";
+	    # Insert declarations:
+	    # - owner
+	    my $decl = "\n"
+		. "owner:$new_owner = {\n" 
+		. " admins = $owners{$new_owner};\n"
+		. "}\n\n";
 
-for my $owner ( keys %owners ) {
+	    # - admins.
+	    my @admins = split /, /, $owners{$new_owner};
+	    for my $admin_name ( @admins ) {
 
-    my @admins = split /\s*,\s*/, $owners{$owner};
+		# Only create admin once.
+		next if $admins{$admin_name}; 
+		$admins{$admin_name} = 1;
 
-    for my $admin_name ( @admins ) {
 
-	# only create admin once
-	next if $admins{$admin_name}; 
-	$admins{$admin_name} = 1;
-
-	print OUT "$admin_name = {\n";
-
-	# Construct name from email-prefix.
-	my $name  = '';
-	my $match = '';
-	my $admin = $admin2name{$admin_name}; # original admin-email
-	if ( $admin =~ /^([\w\-\.]+)\@/ ) {
-	    if ( ( $match = $1 ) =~ /^([\w\-]+)\.([\w\-]+)/ ) {
-		my $first_name = uppercase_name( $1 );
-		my $last_name  = uppercase_name( $2 );
-		$name = $first_name . ' ' . $last_name;
+		# Construct name from email prefix.
+		# Uppercase first letter of words.
+		my $admin = $admin2name{$admin_name}; # original admin-email
+		$admin =~ /^(.+)\@/ or die "Error: Invalid admin: '$admin'\n";
+		my $name = $1;
+		$name = 
+		    join(' ',
+			 map { join('-', map { ucfirst($_) } split(/-/, $_)) }
+			 split(/\./, $name));
+		
+		$decl .= "admin:$admin_name = {\n"
+		    . " name  = $name;\n"
+		    . " email = $admin;\n"
+		    . "}\n";
 	    }
-	    else {
-		$name = ucfirst( $match );
-	    }
-	}
-	else {
-	    die "Invalid admin:\"$admin\"\n";
+	    substr($data, $top_insert, 0) = $decl;
+	    $top_insert += length($decl);
+	    $pos += length($decl);
 	}
 
-	print OUT " name  = $name;\n";
-	print OUT " email = $admin;\n";
-	print OUT "}\n\n";
-    }
-}
- 
-close( IN  ) or die "Close failed: $!";
-close( OUT ) or die "Close failed: $!";
-
-
-# Uppercase first letter of normal names like "holger" and double
-# names with a dash like "hans-ulrich".
-# Returns "Holger" for the first and "Hans-Ulrich" for the latter.
-sub uppercase_name {
-    my $input = shift;
-    if ( $input =~ /^([^-]*)-([^-]*)$/ ) {
-	return ucfirst($1) . '-' . ucfirst($2);
+	# Update \G position.
+	pos($data) = $pos;
     }
     else {
-	return ucfirst( $input );
+	die "No match\n";
     }
 }
+
+print $data;
