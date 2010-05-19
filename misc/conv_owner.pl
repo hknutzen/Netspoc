@@ -33,7 +33,7 @@ while ($data =~
 	# Toplevel-Deklaration ggf. mit Kommentar-Zeilen davor
 	(
 	 (?:\#.*\n)* # Kommentar-Zeilen
-	 \s*(?:area|any|network):\S+ # Toplevel-Deklaration
+	 [ ]*(?:area|any|network):\S+ # Toplevel-Deklaration
 	 )
 	
 	|
@@ -113,13 +113,13 @@ while ($data =~
 
 	    # Insert declarations:
 	    # - owner
-	    my $decl = "\n"
-		. "owner:$new_owner = {\n" 
+	    my $decl = "owner:$new_owner = {\n" 
 		. " admins = $owners{$new_owner};\n"
 		. "}\n\n";
 
 	    # - admins.
 	    my @admins = split /, /, $owners{$new_owner};
+	    my $need_lf;
 	    for my $admin_name ( @admins ) {
 
 		# Only create admin once.
@@ -141,7 +141,10 @@ while ($data =~
 		    . " name  = $name;\n"
 		    . " email = $admin;\n"
 		    . "}\n";
+		$need_lf = 1;
 	    }
+	    $decl .= "\n" if $need_lf;
+	    
 	    substr($data, $top_insert, 0) = $decl;
 	    $top_insert += length($decl);
 	    $pos += length($decl);
