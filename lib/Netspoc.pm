@@ -53,6 +53,8 @@ our @EXPORT = qw(
   %networks
   %hosts
   %anys
+  %owners
+  %admins
   %areas
   %pathrestrictions
   %global_nat
@@ -2330,20 +2332,73 @@ sub read_crypto( $ ) {
     return $crypto;
 }
 
+our %owners;
+
+sub read_owner( $ ) {
+    my $name  = shift;
+    my $owner = new('Owner', name => $name);
+    skip '=';
+    skip '{';
+    if ( my @admins = check_assign_list 'admins', \&read_identifier ) {
+        $owner->{admins} = \@admins;
+    }
+    else {
+	error_atline "Expected attribute 'admins'.";
+    }
+    skip '}';
+    return $owner;
+}
+
+our %admins;
+
+sub read_admin( $ ) {
+    my $name  = shift;
+    my $admin = new('Admin', name => $name);
+    skip '=';
+    skip '{';
+    while (1) {
+        last if check '}';
+	if ( my $full_name = check_assign 'name', \&read_to_semicolon ) {
+	    $admin->{full_name} = $full_name;
+	}
+	elsif ( my $email = check_assign 'email', \&read_to_semicolon ) {
+	    $admin->{email} = $email;
+	}
+	else {
+	    error_atline "Expected attribute 'name' or 'email'.";
+	}
+    }
+    return $admin;
+}
+
+# For reading arbitrary names.
+# Don't be greedy in regex, to prevent reading over multiple semicolons.
+sub read_to_semicolon() {
+    skip_space_and_comment;
+    if ( $input =~ m/\G(.*?)(?=\s*;)/gco ) {
+	return $1;
+    }
+    else {
+	syntax_err "Expected string ending with semicolon!";
+    }
+}
+
 my %global_type = (
-    router          => [ \&read_router,          \%routers ],
-    network         => [ \&read_network,         \%networks ],
-    any             => [ \&read_any,             \%anys ],
-    area            => [ \&read_area,            \%areas ],
-    group           => [ \&read_group,           \%groups ],
-    service         => [ \&read_service,         \%services ],
-    servicegroup    => [ \&read_servicegroup,    \%servicegroups ],
-    policy          => [ \&read_policy,          \%policies ],
+    router          => [ \&read_router,          \%routers          ],
+    network         => [ \&read_network,         \%networks         ],
+    any             => [ \&read_any,             \%anys             ],
+    area            => [ \&read_area,            \%areas            ],
+    owner           => [ \&read_owner,           \%owners           ],
+    admin           => [ \&read_admin,           \%admins           ],
+    group           => [ \&read_group,           \%groups           ],
+    service         => [ \&read_service,         \%services         ],
+    servicegroup    => [ \&read_servicegroup,    \%servicegroups    ],
+    policy          => [ \&read_policy,          \%policies         ],
     pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
-    nat             => [ \&read_global_nat,      \%global_nat ],
-    isakmp          => [ \&read_isakmp,          \%isakmp ],
-    ipsec           => [ \&read_ipsec,           \%ipsec ],
-    crypto          => [ \&read_crypto,          \%crypto ],
+    nat             => [ \&read_global_nat,      \%global_nat       ],
+    isakmp          => [ \&read_isakmp,          \%isakmp           ],
+    ipsec           => [ \&read_ipsec,           \%ipsec            ],
+    crypto          => [ \&read_crypto,          \%crypto           ],
 );
 
 sub read_netspoc() {
@@ -2832,6 +2887,19 @@ sub set_src_dst_range_list ( $ ) {
 
 sub expand_group( $$;$ );
 
+sub link_owner {
+    my ($obj) = @_;
+    my $value = $obj->{owner};
+    if ($value && @$value && @$value == 1 && 
+	(my $owner = $owners{$value->[0]}))
+    {
+	$obj->{owner} = $owner;    
+    }
+    else {
+	delete $obj->{owner};
+    }
+}
+
 # Link 'any' objects with referenced objects.
 sub link_any() {
     for my $obj (values %anys) {
@@ -2881,6 +2949,7 @@ sub link_any() {
             err_msg "Referencing undefined $type:$name from $obj->{name}";
             $obj->{disabled} = 1;
         }
+	link_owner($obj);
     }
 }
 
@@ -2933,6 +3002,7 @@ sub link_areas() {
                 }
             }
         }
+	link_owner($area);
     }
 }
 
@@ -3325,6 +3395,7 @@ sub link_topology() {
     link_subnets;
 
     for my $network (values %networks) {
+	link_owner($network);
         if (    $network->{ip} eq 'unnumbered'
             and $network->{interfaces}
             and @{ $network->{interfaces} } > 2)
@@ -3439,6 +3510,7 @@ sub link_topology() {
             }
         }
         for my $host (@{ $network->{hosts} }) {
+	    link_owner($host);
             if (my $ips = $host->{ips}) {
                 for my $ip (@$ips) {
                     $check_subnets->($ip, undef, $host);
