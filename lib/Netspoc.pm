@@ -2887,7 +2887,20 @@ sub set_src_dst_range_list ( $ ) {
 
 sub expand_group( $$;$ );
 
-sub link_owner {
+sub link_owner () {
+    for my $owner (values %ipsec) {
+
+        # Convert names of admin objects to admin objects.
+	for my $name (@{ $owner->{admins} } ) {
+            my $admin = $admins{$name}
+              or err_msg "Can't resolve reference to '$name'",
+              " in attribute 'admins' of $owner->{name}";
+	    $name = $admin;
+        }
+    }
+}
+
+sub link_to_owner {
     my ($obj) = @_;
     my $value = $obj->{owner};
     if ($value && @$value && @$value == 1 && 
@@ -2949,7 +2962,7 @@ sub link_any() {
             err_msg "Referencing undefined $type:$name from $obj->{name}";
             $obj->{disabled} = 1;
         }
-	link_owner($obj);
+	link_to_owner($obj);
     }
 }
 
@@ -3002,7 +3015,7 @@ sub link_areas() {
                 }
             }
         }
-	link_owner($area);
+	link_to_owner($area);
     }
 }
 
@@ -3384,6 +3397,7 @@ sub link_topology() {
     for my $interface (values %interfaces) {
         link_interface_with_net($interface);
     }
+    link_owner;
     link_ipsec;
     link_crypto;
     link_tunnels;
@@ -3395,7 +3409,7 @@ sub link_topology() {
     link_subnets;
 
     for my $network (values %networks) {
-	link_owner($network);
+	link_to_owner($network);
         if (    $network->{ip} eq 'unnumbered'
             and $network->{interfaces}
             and @{ $network->{interfaces} } > 2)
@@ -3510,7 +3524,7 @@ sub link_topology() {
             }
         }
         for my $host (@{ $network->{hosts} }) {
-	    link_owner($host);
+	    link_to_owner($host);
             if (my $ips = $host->{ips}) {
                 for my $ip (@$ips) {
                     $check_subnets->($ip, undef, $host);
