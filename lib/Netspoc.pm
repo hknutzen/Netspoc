@@ -2887,8 +2887,8 @@ sub set_src_dst_range_list ( $ ) {
 
 sub expand_group( $$;$ );
 
-sub link_owner () {
-    for my $owner (values %owner) {
+sub link_owners () {
+    for my $owner (values %owners) {
 
         # Convert names of admin objects to admin objects.
 	for my $name (@{ $owner->{admins} } ) {
@@ -3397,7 +3397,7 @@ sub link_topology() {
     for my $interface (values %interfaces) {
         link_interface_with_net($interface);
     }
-    link_owner;
+    link_owners;
     link_ipsec;
     link_crypto;
     link_tunnels;
