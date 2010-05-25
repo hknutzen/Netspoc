@@ -2888,7 +2888,7 @@ sub set_src_dst_range_list ( $ ) {
 sub expand_group( $$;$ );
 
 sub link_owner () {
-    for my $owner (values %ipsec) {
+    for my $owner (values %owner) {
 
         # Convert names of admin objects to admin objects.
 	for my $name (@{ $owner->{admins} } ) {
