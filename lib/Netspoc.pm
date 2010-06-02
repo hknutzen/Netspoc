@@ -8606,18 +8606,59 @@ sub check_and_convert_routes () {
 	    $interface->{routes} = $interface->{hop} = {};
 	    my $real_intf = $interface->{real_interface};
 	    next if $real_intf->{routing};
-	    for my $peer (@{ $real_intf->{peers} }) {
-		my $peer_net = $peer->{network};
+	    for my $peer (@{ $interface->{peers} }) {
+		my $real_peer = $peer->{real_interface};
+		my $peer_net = $real_peer->{network};
 
 		# Find hop to peer network and add tunnel networks to this hop.
-		for my $net_hash (values %{ $real_intf->{routes}}) {
-		    if($net_hash->{$peer_net}) {
-			for my $tunnel_net_hash (values %$tunnel_routes) {
-			    for my $tunnel_net (values %$tunnel_net_hash) {
-				$net_hash->{$tunnel_net} = $tunnel_net;
-			    }
+		my $hop_routes;
+
+		# Special case: peer network is directly connected.
+		if ($real_intf->{network} eq $peer_net) {
+		    if ($real_peer->{ip} !~ /^(?:short|negotiated)$/) {
+			$hop_routes = 
+			    $real_intf->{routes}->{$real_peer} ||= {};
+			$real_intf->{hop}->{$real_peer} = $real_peer;
+		    }
+		}
+
+		# Search peer network behind all available hops.
+		else {
+		    for my $net_hash (values %{ $real_intf->{routes}}) {
+			if ($net_hash->{$peer_net}) {
+			    $hop_routes = $net_hash;
+			    last;
 			}
 		    }
+		}
+
+		if (not $hop_routes) {
+		    my $try_hops = $real_intf->{network}->{interfaces};
+
+		    # Try to guess default route, if only one hop is available.
+		    if (@$try_hops == 2) {
+			my ($hop) = grep { $_ ne $real_intf } @$try_hops;
+			if ($hop->{ip} !~ /^(?:short|negotiated)$/) {
+			    $hop_routes = $real_intf->{routes}->{$hop} ||= {};
+			    $real_intf->{hop}->{$hop} = $hop;
+			}
+		    }
+		}
+
+		# Use found hop to reach tunneled networks in $tunnel_routes.
+		if ($hop_routes) {
+		    for my $tunnel_net_hash (values %$tunnel_routes) {
+			for my $tunnel_net (values %$tunnel_net_hash) {
+			    $hop_routes->{$tunnel_net} = $tunnel_net;
+			}
+		    }
+		}
+
+		# Inform user that route will be missing.
+		else {
+		    warn_msg 
+			"Can't determine next hop while moving routes\n",
+			" of $interface->{name} to $real_intf->{name}.\n";
 		}
 	    }
 	}
