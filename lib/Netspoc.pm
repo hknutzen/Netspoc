@@ -12164,11 +12164,13 @@ sub print_crypto( $ ) {
     }
 
     my $pfs_group = $ipsec->{pfs_group};
-    if ($pfs_group =~ /^(1|2)$/) {
-        $pfs_group = "group$1";
-    }
-    else {
-        err_msg "Unsupported pfs group for $crypto_type: $pfs_group";
+    if ($pfs_group) {
+	if ($pfs_group =~ /^(1|2)$/) {
+	    $pfs_group = "group$1";
+	}
+	else {
+	    err_msg "Unsupported pfs group for $crypto_type: $pfs_group";
+	}
     }
 
     # Collect tunnel interfaces attached to one hardware interface.
