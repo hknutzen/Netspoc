@@ -476,7 +476,7 @@ sub read_identifier() {
     }
 }
 
-# Used for reading interface names and attribute 'owner'.
+# Used for reading interface names and attribute 'id'.
 sub read_name() {
     skip_space_and_comment;
     if ($input =~ m/(\G[^;,\s""'']+)/gc) {
@@ -897,9 +897,9 @@ sub read_host( $$ ) {
             $host->{range} and error_atline "Duplicate attribute 'range'";
             $host->{range} = [ $ip1, $ip2 ];
         }
-        elsif (my @owner = check_assign_list 'owner', \&read_name) {
+        elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $host->{owner} and error_atline "Duplicate attribute 'owner'";
-            $host->{owner} = \@owner;
+            $host->{owner} = $owner;
         }
         elsif (my $radius_attributes = check_radius_attributes) {
             $host->{radius_attributes}
@@ -1054,10 +1054,10 @@ sub read_network( $ ) {
               and error_atline "Duplicate attribute 'subnet_of'";
             $network->{subnet_of} = $pair;
         }
-        elsif (my @owner = check_assign_list 'owner', \&read_name) {
+        elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $network->{owner}
               and error_atline "Duplicate attribute 'owner'";
-            $network->{owner} = \@owner;
+            $network->{owner} = $owner;
         }
         elsif (my $radius_attributes = check_radius_attributes) {
             $network->{radius_attributes}
@@ -1896,8 +1896,8 @@ sub read_any( $ ) {
     $any->{private} = $private if $private;
     skip '=';
     skip '{';
-    if (my @owner = check_assign_list 'owner', \&read_name) {
-        $any->{owner} = \@owner;
+    if (my $owner = check_assign 'owner', \&read_identifier) {
+        $any->{owner} = $owner;
     }
     $any->{link} = read_assign 'link', \&read_typed_name;
     skip '}';
@@ -1925,9 +1925,9 @@ sub read_area( $ ) {
             $area->{anchor} and error_atline "Duplicate attribute 'anchor'";
             $area->{anchor} = $pair;
         }
-        elsif (my @owner = check_assign_list 'owner', \&read_name) {
+        elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $area->{owner} and error_atline "Duplicate attribute 'owner'";
-            $area->{owner} = \@owner;
+            $area->{owner} = $owner;
         }
         else {
             syntax_err "Expected some valid attribute";
@@ -2902,14 +2902,15 @@ sub link_owners () {
 
 sub link_to_owner {
     my ($obj) = @_;
-    my $value = $obj->{owner};
-    if ($value && @$value && @$value == 1 && 
-	(my $owner = $owners{$value->[0]}))
-    {
-	$obj->{owner} = $owner;    
-    }
-    else {
-	delete $obj->{owner};
+    if (my $value = $obj->{owner}) {
+	if (my $owner = $owners{$value}) {
+	    $obj->{owner} = $owner;    
+	}
+	else {
+	    err_msg "Can't resolve reference to '$value'",
+              " in attribute 'owner' of $obj->{name}";
+	    delete $obj->{owner};
+	}
     }
 }
 
