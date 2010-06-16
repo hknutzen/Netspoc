@@ -186,6 +186,7 @@ my %router_info = (
         stateless_self => 1,
         routing        => 'IOS',
         filter         => 'IOS',
+	has_out_acl    => 1,
         crypto         => 'IOS',
         comment_char   => '!',
         extension      => {
@@ -213,6 +214,7 @@ my %router_info = (
         name                => 'ASA',
         routing             => 'PIX',
         filter              => 'PIX',
+	has_out_acl         => 1,
         crypto              => 'ASA',
         no_crypto_filter    => 1,
         comment_char        => '!',
@@ -231,6 +233,7 @@ my %router_info = (
         name         => 'Linux',
         routing      => 'iproute',
         filter       => 'iptables',
+	has_out_acl  => 1,
         comment_char => '#',
     },
 
@@ -1333,9 +1336,10 @@ sub read_interface( $ ) {
             $interface->{ip} = 'negotiated';
         }
         elsif (check_flag 'loopback') {
-            $interface->{loopback}
-              and error_atline "Duplicate attribute 'loopback'";
             $interface->{loopback} = 1;
+        }
+        elsif (check_flag 'no_in_acl') {
+            $interface->{no_in_acl} = 1;
         }
 
         # Needed for the implicitly defined network of 'loopback'.
@@ -1649,6 +1653,9 @@ sub read_router( $ ) {
         elsif (check_flag 'no_crypto_filter') {
             $router->{no_crypto_filter} = 1;
         }
+        elsif (check_flag 'std_in_acl') {
+            $router->{std_in_acl} = 1;
+        }
         elsif (my @pairs = check_assign_list 'radius_servers',
             \&read_typed_name)
         {
@@ -1795,7 +1802,7 @@ sub read_router( $ ) {
                     $interface->{bind_nat} eq $hardware->{bind_nat}
                       or err_msg "All logical interfaces of $hw_name\n",
                       " at $router->{name} must use identical NAT binding";
-                }
+		}
                 else {
                     $hardware = { name => $hw_name };
                     $hardware{$hw_name} = $hardware;
@@ -1896,11 +1903,23 @@ sub read_any( $ ) {
     $any->{private} = $private if $private;
     skip '=';
     skip '{';
-    if (my $owner = check_assign 'owner', \&read_identifier) {
-        $any->{owner} = $owner;
+    while (1) {
+        last if check '}';
+	if (my $owner = check_assign 'owner', \&read_identifier) {
+            $any->{owner}
+	      and error_atline 'Duplicate definition of owner';
+	    $any->{owner} = $owner;
+	}
+	elsif (my $link = check_assign 'link', \&read_typed_name) {
+            $any->{link}
+	      and error_atline 'Duplicate definition of link';
+	    $any->{link} = $link;
+	}
+        elsif (check_flag 'no_in_acl') {
+            $any->{no_in_acl} = 1;
+        }
     }
-    $any->{link} = read_assign 'link', \&read_typed_name;
-    skip '}';
+    $any->{link} or err_msg "Attribute 'link' must be defined for $name";
     return $any;
 }
 
@@ -3422,37 +3441,6 @@ sub link_topology() {
             }
             err_msg $msg;
         }
-
-	# A crosslink network combines two or more routers
-	# to one virtual router.
-	# No filtering occurs at the crosslink interfaces.
-	if ($network->{crosslink}) {
-	    my @managed_type;
-            for my $interface (@{ $network->{interfaces} }) {
-		my $router = $interface->{router};
-		if (my $managed = $router->{managed}) {
-		    push @managed_type, $managed;
-		}
-		else {
-		    err_msg "Crosslink $network->{name} must not be",
-		    "connected to unmanged $router->{name}";
-		}
-		my $hardware = $interface->{hardware};
-		@{ $hardware->{interfaces} } == 1 or
-		    err_msg 
-		    "Crosslink $network->{name} must be the only  network\n",
-		    " connected to $hardware->{name} of $router->{name}";
-		$interface->{crosslink} = $hardware->{crosslink} = 1;
-	    }
-
-	    # Ensure clear resposibility for filtering.
-	    if (@managed_type) {
-		my $first = pop @managed_type;
-		grep { $_ ne $first } @managed_type and
-		    err_msg "All routers at crosslink $network->{name}",
-		    " must have identical managed type";
-	    }		    
-	}
 
         my %ip;
 
@@ -5602,6 +5590,130 @@ sub check_vpnhub () {
     }
 }
 
+sub check_no_in_acl () {
+    
+    # Propagate attribute 'no_in_acl' from 'any' objects to interfaces.
+    for my $any (@all_anys) {
+	next if not $any->{no_in_acl};
+#	debug "$any->{name} has attribute 'no_in_acl'";
+	for my $interface (@{ $any->{interfaces} }) {
+
+	    # Ignore secondary interface.
+	    next if $interface->{main_interface};
+
+	    my $router = $interface->{router};
+
+	    # Directly attached attribute 'no_in_acl' or 
+	    # attribute 'std_in_acl' at device overrides.
+	    if ($router->{std_in_acl} or
+		grep({ $_->{no_in_acl} and not ref $_->{no_in_acl} } 
+		     @{ $router->{interfaces} })) 
+	    {
+		next;
+	    }
+	    $interface->{no_in_acl} = $any;
+	}
+    }
+
+    # Move attribute 'no_in_acl' to hardware interface
+    # because ACLs operate on hardware, not on logic.
+    for my $router (@managed_routers) {
+
+	# At most one interface with 'no_in_acl' allowed.
+	# Move attribute to hardware interface.
+	my $counter = 0;
+        for my $interface (@{ $router->{interfaces} }) {
+	    if (delete $interface->{no_in_acl}) {
+		my $hardware = $interface->{hardware};
+		$hardware->{no_in_acl} = 1;
+
+		# Ignore secondary interface.
+		1 == grep({ not $_->{main_interface} } 
+			  @{ $hardware->{interfaces} }) or
+		    err_msg 
+		    "Only one $interface->{name} allowed at $hardware->{name}",
+		    " because it has attribute 'no_in_acl'";
+		$counter++;
+		$router->{no_in_acl} = $interface;
+	    }
+	}
+	next if not $counter;
+	$counter == 1 or
+	    err_msg "At most one interface of $router->{name}",
+	    " may use flag 'no_in_acl'";
+	$router->{model}->{has_out_acl} or
+	    err_msg "$router->{name} doesn't support outgoing ACL";
+
+	if (grep { $_->{hub} or $_->{spoke} } @{ $router->{interfaces} }) {
+	    err_msg "Don't use attribute 'no_in_acl' together",
+	    " with crypto tunnel at $router->{name}";
+	}
+
+	# Mark other hardware with attribute 'need_out_acl'.
+	for my $hardware (@{ $router->{hardware} }) {
+	    $hardware->{no_in_acl} or 
+		$hardware->{need_out_acl} = 1;
+	}
+    }	
+}
+
+# Check if all arguments are 'eq'.
+sub equal {
+    return 1 if not @_;
+    my $first = $_[0];
+    return not grep { $_ ne $first } @_[ 1 .. $#_ ];
+}
+
+# This uses attributes from sub check_no_in_acl.
+sub check_crosslink () {
+    for my $network (values %networks) {
+	next if not $network->{crosslink};
+
+	# A crosslink network combines two or more routers
+	# to one virtual router.
+	# No filtering occurs at the crosslink interfaces.
+	my @managed_type;
+	my $out_acl_count = 0;
+	my @no_in_acl_intf;
+	for my $interface (@{ $network->{interfaces} }) {
+	    my $router = $interface->{router};
+	    if (my $managed = $router->{managed}) {
+		push @managed_type, $managed;
+	    }
+	    else {
+		err_msg "Crosslink $network->{name} must not be",
+		"connected to unmanged $router->{name}";
+		next;
+	    }
+	    my $hardware = $interface->{hardware};
+	    @{ $hardware->{interfaces} } == 1 or
+		err_msg 
+		"Crosslink $network->{name} must be the only  network\n",
+		" connected to $hardware->{name} of $router->{name}";
+	    if ($hardware->{need_out_acl}) {
+		$out_acl_count++;
+	    }
+	    push @no_in_acl_intf, grep({ $_->{hardware}->{no_in_acl} }
+				       @{ $router->{interfaces} });
+	    $hardware->{crosslink} = 1;
+	}
+
+	# Ensure clear resposibility for filtering.
+	equal(@managed_type) or
+	    err_msg "All devices at crosslink $network->{name}",
+	    " must have identical managed type";
+
+	not $out_acl_count or
+	    $out_acl_count == @{ $network->{interfaces}} or
+	    err_msg "All interfaces must equally use or not use outgoing ACLs",
+	    " at crosslink $network->{name}";
+	equal(map { $_->{any} } @no_in_acl_intf) or
+	    err_msg "All interfaces with attribute 'no_in_acl'",
+	    " at routers connected by\n crosslink $network->{name}",
+	    " must be border of the same security domain";
+    }
+}
+
 ####################################################################
 # Borders of security domains are
 # a) interfaces of managed devices and
@@ -5774,6 +5886,7 @@ sub setany() {
         push @all_anys, $any;
         setany_network $network, $any, 0;
     }
+
     my $cluster_counter = 1;
     for my $any (@all_anys) {
 
@@ -5788,6 +5901,8 @@ sub setany() {
 	setany_cluster($any, 0, $cluster_counter++);
     }
 
+    check_no_in_acl;
+    check_crosslink;
     check_vpnhub;
 
     # Mark interfaces, which are border of some area.
@@ -7335,6 +7450,8 @@ sub setup_ref2obj () {
 ##############################################################################
 # Check if high-level and low-level semantics of rules with an 'any' object
 # as source or destination are equivalent.
+#
+# I. Typically, we only use incoming ACLs.
 # (A) rule "permit any:X dst"
 # high-level: all networks of security domain X get access to dst
 # low-level: like above, but additionally, the networks of
@@ -7345,6 +7462,20 @@ sub setup_ref2obj () {
 # low-level: like above, but additionally, src gets access to the networks of
 #            all security domains located directly behind all routers on the
 #            path from src to any:X
+#
+# II. Alternatively, we have a single interface Y (with attached any:Y)
+#     without ACL and all other interfaces having incoming and outgoing ACLs.
+# (A) rule "permit any:X dst"
+#  a)  any:X == any:Y: filtering occurs at outgoing ACL, good
+#  b)  any:X != any:Y: outgoing ACL would accidently permit any:Y->dst.
+#               bad, additional rule required: "permit any:Y->dst" 
+# (B) rule "permit src any:X"
+#  a)  src behind Y: filtering occurs at ougoing ACL, good
+#  b)  src not behind Y:
+#     1. any:X == any:Y: filtering occurs at incoming ACL at src and at
+#                        outgoing ACls of other non-any:X interfaces, good.
+#     2. any:X != any:Y: incoming ACL at src would permit src->any:Y, bad
+#                        additional rule required: "permit src->any:Y".
 ##############################################################################
 
 {
@@ -7389,11 +7520,6 @@ sub check_any_src_rule( $$$ ) {
     # Function is called from path_walk.
     my ($rule, $in_intf, $out_intf) = @_;
 
-    # out_intf may be undefined if dst is an interface and
-    # we just process the corresponding router,
-    # thus we better use in_intf.
-    my $router = $in_intf->{router};
-
     # Check only for the first router, because next test will be done
     # for rule "permit any2 dst" anyway.
     return unless $in_intf->{any} eq $rule->{src};
@@ -7418,26 +7544,63 @@ sub check_any_src_rule( $$$ ) {
     }
 
     my $dst_any = get_any $dst;
+    my $router  = $in_intf->{router};
+
+    # Check case II, outgoing ACL, (A),b).
+    my $no_acl_intf;
+    if ($no_acl_intf = $router->{no_in_acl} and $in_intf ne $no_acl_intf) {
+	my $no_acl_any = $no_acl_intf->{any};
+	if (not $rule_tree{$stateless}->{$action}->{$no_acl_any}->{$dst}
+	    ->{$src_range}->{$srv})
+	{
+	    err_missing_any $rule, $no_acl_any, 'src', $router;
+	}
+    }
 
     # Check if reverse rule would need additional rules.
     if ($router->{model}->{stateless} and not $rule->{oneway}) {
         my $proto = $rule->{srv}->{proto};
         if ($proto eq 'tcp' or $proto eq 'udp' or $proto eq 'ip') {
 
-            # Find security domains at all interfaces except the in_intf.
-            for my $intf (@{ $router->{interfaces} }) {
-                next if $intf eq $in_intf;
+	    # Check case II, outgoing ACL, (B), interface Y without ACL.
+	    if (my $no_acl_intf = $router->{no_in_acl}) {
+		my $no_acl_any = $no_acl_intf->{any};
 
-                # Nothing to be checked for an interface directly connected
-                # to the destination 'any' object.
-                my $any = $intf->{any};
-                next if $any eq $out_any;
-                next if $any eq $dst_any;
-                unless ($rule_tree{$stateless}->{$action}->{$any}->{$dst}
-                    ->{$src_range}->{$srv})
-                {
-                    err_missing_any $rule, $any, 'src', $router;
-                }
+		# a) dst behind Y
+		if ($no_acl_any eq $dst_any) {
+		}
+
+		# b) dst not behind Y
+		# any:X == any:Y
+		elsif ($no_acl_any eq $src) {
+		}
+
+		# any:X != any:Y
+		elsif (not $rule_tree{$stateless}->{$action}->{$no_acl_any}
+		       ->{$dst}->{$src_range}->{$srv})
+		{
+		    err_missing_any $rule, $no_acl_any, 'src', $router;
+		}
+	    }
+
+	    # Standard incoming ACL at all interfaces.
+	    else {
+
+		# Find security domains at all interfaces except the in_intf.
+		for my $intf (@{ $router->{interfaces} }) {
+		    next if $intf eq $in_intf;
+
+		    # Nothing to be checked for an interface directly connected
+		    # to the destination 'any' object.
+		    my $any = $intf->{any};
+		    next if $any eq $out_any;
+		    next if $any eq $dst_any;
+		    if (not $rule_tree{$stateless}->{$action}->{$any}->{$dst}
+			->{$src_range}->{$srv})
+		    {
+			err_missing_any $rule, $any, 'src', $router;
+		    }
+		}
             }
         }
     }
@@ -7445,7 +7608,9 @@ sub check_any_src_rule( $$$ ) {
     # Security domain of dst is directly connected with current router.
     # Hence there can't be any missing rules.
     return if $out_any eq $dst_any;
-    unless ($rule_tree{$stateless}->{$action}->{$out_any}->{$dst}->{$src_range}
+
+    # Check if rule "any2 -> dst" is defined.
+    if (not $rule_tree{$stateless}->{$action}->{$out_any}->{$dst}->{$src_range}
         ->{$srv})
     {
         err_missing_any $rule, $out_any, 'src', $router;
@@ -7471,25 +7636,42 @@ sub check_any_dst_rule( $$$ ) {
     # Function is called from path_walk.
     my ($rule, $in_intf, $out_intf) = @_;
 
-    # in_intf may be undefined if src is an interface and
-    # we just process the corresponding router,
-    # thus we better use out_intf
-    my $router = $out_intf->{router};
-
-    my $out_any = $out_intf->{any};
-
     # Source is interface of current router.
     return unless $in_intf;
 
-    my $in_any = $in_intf->{any};
+    my $in_any  = $in_intf->{any};
+    my $out_any = $out_intf->{any};
     my ($stateless, $action, $src, $dst, $src_range, $srv) =
       @{$rule}{ 'stateless', 'action', 'src', 'dst', 'src_range', 'srv' };
 
     # We only need to check last router on path.
-    return unless $rule->{dst} eq $out_any;
+    return unless $dst eq $out_any;
 
+    my $router  = $in_intf->{router};
     my $src_any = get_any $src;
 
+    # Check case II, outgoing ACL, (B), interface Y without ACL.
+    if (my $no_acl_intf = $router->{no_in_acl}) {
+	my $no_acl_any = $no_acl_intf->{any};
+
+	# a) src behind Y
+	if ($no_acl_any eq $src_any) {
+	}
+
+	# b) src not behind Y
+	# any:X == any:Y
+	elsif ($no_acl_any eq $dst) {
+	}
+
+	# any:X != any:Y
+	elsif (not $rule_tree{$stateless}->{$action}->{$src}->{$no_acl_any}
+	       ->{$src_range}->{$srv})
+	{
+	    err_missing_any $rule, $no_acl_any, 'dst', $router;
+	}
+	return;
+    }
+	
     # Find security domains at all interfaces except the in_intf.
     for my $intf (@{ $router->{interfaces} }) {
 
@@ -7500,8 +7682,8 @@ sub check_any_dst_rule( $$$ ) {
 
         # Nothing to be checked if src is directly attached to current router.
         next if $any eq $src_any;
-        unless ($rule_tree{$stateless}->{$action}->{$src}->{$any}->{$src_range}
-            ->{$srv})
+        if (not $rule_tree{$stateless}->{$action}->{$src}->{$any}
+            ->{$src_range}->{$srv})
         {
             err_missing_any $rule, $any, 'dst', $router;
         }
@@ -9189,6 +9371,22 @@ sub distribute_rule( $$$ ) {
         }
     }
 
+    my $key;
+    if (not $out_intf) {
+
+        # Packets for the router itself.  For PIX we can only reach that
+        # interface, where traffic enters the PIX.
+        return if $model->{filter} eq 'PIX' and $rule->{dst} ne $in_intf;
+
+        $key = 'intf_rules';
+    }
+    elsif ($in_intf->{hardware}->{no_in_acl}) {
+	$key = 'out_rules';
+    }
+    else {
+        $key = 'rules';
+    }
+
     my $store;
     my $split_tunnel_store;
     if ($in_intf->{ip} eq 'tunnel') {
@@ -9200,9 +9398,9 @@ sub distribute_rule( $$$ ) {
 	    is_subnet $src
 		or internal_err "Expected host as src but got $src->{name}";
 	    my $id = $src->{id}
-	    or internal_err "$src->{name} must have ID";
+	        or internal_err "$src->{name} must have ID";
 	    $store = $id2rules->{$id}
-                  or internal_err "No entry for $id at id_rules";
+                or internal_err "No entry for $id at id_rules";
 	}
 	else {
 	    $store = $in_intf;
@@ -9215,35 +9413,24 @@ sub distribute_rule( $$$ ) {
 	    $store = $in_intf->{real_interface}->{hardware};
 	}
     }
+    elsif ($key eq 'out_rules') {
+	$store = $out_intf->{hardware};
+    }
     else {
 	$store = $in_intf->{hardware};
     }
-    my $key;
 
-#    debug "$router->{name} store: $store->{name}";
-    if (not $out_intf) {
-
-        # Packets for the router itself.  For PIX we can only reach that
-        # interface, where traffic enters the PIX.
-        return if $model->{filter} eq 'PIX' and $rule->{dst} ne $in_intf;
-
-#       debug "$router->{name} intf_rule: ",print_rule $rule;
-
-        $key = 'intf_rules';
-    }
-    else {
-
-#       debug "$router->{name} rule: ",print_rule $rule;
-        # Prevent duplicate rules, when path is splitting behind current
-        # router. This might occur at the start or inside a cyclic graph.
-        # Therefore check if last rule and current rule are identical.
-        # This test can't easily be done at local_optimization,
-        # because it wouldn't find IDENTICAL rules.
-        $key = 'rules';
-    }
+#   debug "$router->{name} $key: ",print_rule $rule;
+#   debug "$router->{name} store: $store->{name}";
 
     # Force auto-vivification.
     my $aref = \@{ $store->{$key} };
+
+    # Prevent duplicate rules, when path is splitting behind current
+    # router. This might occur at the start or inside a cyclic graph.
+    # Therefore check if last rule and current rule are identical.
+    # This test can't easily be done at local_optimization,
+    # because it wouldn't find IDENTICAL rules.
     if (not ($router->{loop} and @$aref and $aref->[$#$aref] eq $rule)) {
 	push @$aref, $rule;
 	push @{ $split_tunnel_store->{$key} }, $rule if $split_tunnel_store;
@@ -9362,19 +9549,20 @@ my $permit_any_rule =
 sub add_router_acls () {
     for my $router (@managed_routers) {
         for my $hardware (@{ $router->{hardware} }) {
-            for my $interface (@{ $hardware->{interfaces} }) {
 
-		# Some managed devices are connected by a crosslink network.
-		# Permit any traffic at the internal crosslink interface.
-		if ($interface->{crosslink}) {
-
-		    # We can savely change rules at hardware interface
-		    # because it has been checked that no other logical
-		    # networks are attached to the same hardware.
-		    $hardware->{rules} = [ $permit_any_rule ];
-		    $hardware->{intf_rules} = [ $permit_any_rule ];
-		    next;
-		}
+	    # Some managed devices are connected by a crosslink network.
+	    # Permit any traffic at the internal crosslink interface.
+	    if ($hardware->{crosslink}) {
+		
+		# We can savely change rules at hardware interface
+		# because it has been checked that no other logical
+		# networks are attached to the same hardware.
+		$hardware->{rules} = [ $permit_any_rule ];
+		$hardware->{intf_rules} = [ $permit_any_rule ];
+		next;
+	    }
+	    
+	    for my $interface (@{ $hardware->{interfaces} }) {
 
                 # Current router is used as default router even for
                 # some internal networks.
@@ -9953,151 +10141,157 @@ sub find_object_groups ( $$ ) {
     my $nat2size2group = ($router->{nat2size2group} ||= {});
     $router->{obj_group_counter} ||= 0;
 
-    # Find object-groups in src / dst of rules.
-    for my $this ('src', 'dst') {
-        my $that = $this eq 'src' ? 'dst' : 'src';
-        my $tag = "${this}_group";
-        my %group_rule_tree;
+    for my $rule_type ('rules', 'out_rules') {
+	next if not $hardware->{$rule_type};
 
-        # Find groups of rules with identical
-        # action, srv, src/dst and different dst/src.
-        for my $rule (@{ $hardware->{rules} }) {
-            my $action    = $rule->{action};
-            my $that      = $rule->{$that};
-            my $this      = $rule->{$this};
-            my $srv       = $rule->{srv};
-            my $src_range = $rule->{src_range};
-            $group_rule_tree{$action}->{$src_range}->{$srv}->{$that}->{$this} =
-              $rule;
-        }
+	# Find object-groups in src / dst of rules.
+	for my $this ('src', 'dst') {
+	    my $that = $this eq 'src' ? 'dst' : 'src';
+	    my %group_rule_tree;
 
-        # Find groups >= $min_object_group_size,
-        # mark rules belonging to one group,
-        # put groups into an array / hash.
-        for my $href (values %group_rule_tree) {
+	    # Find groups of rules with identical
+	    # action, srv, src/dst and different dst/src.
+	    for my $rule (@{ $hardware->{$rule_type} }) {
+		my $action    = $rule->{action};
+		my $that      = $rule->{$that};
+		my $this      = $rule->{$this};
+		my $srv       = $rule->{srv};
+		my $src_range = $rule->{src_range};
+		$group_rule_tree{$action}->{$src_range}->{$srv}
+		->{$that}->{$this} = $rule;
+	    }
 
-            # $href is {src_range => href, ...}
-            for my $href (values %$href) {
+	    # Find groups >= $min_object_group_size,
+	    # mark rules belonging to one group,
+	    # put groups into an array / hash.
+	    for my $href (values %group_rule_tree) {
 
-                # $href is {srv => href, ...}
-                for my $href (values %$href) {
+		# $href is {src_range => href, ...}
+		for my $href (values %$href) {
 
-                    # $href is {src/dst => href, ...}
-                    for my $href (values %$href) {
+		    # $href is {srv => href, ...}
+		    for my $href (values %$href) {
 
-                        # $href is {dst/src => rule, ...}
-                        my $size = keys %$href;
-                        if ($size >= $min_object_group_size) {
-                            my $glue = {
+			# $href is {src/dst => href, ...}
+			for my $href (values %$href) {
 
-                                # Indicator, that no further rules need
-                                # to be processed.
-                                active => 0,
+			    # $href is {dst/src => rule, ...}
+			    my $size = keys %$href;
+			    if ($size >= $min_object_group_size) {
+				my $glue = {
 
-                                # NAT map for address calculation.
-                                nat_map => $hardware->{nat_map},
+				# Indicator, that no further rules need
+				# to be processed.
+				    active => 0,
 
-                                # object-ref => rule, ...
-                                hash => $href
-                            };
+				# NAT map for address calculation.
+				    nat_map => $hardware->{nat_map},
 
-                            # All this rules have identical
-                            # action, srv, src/dst  and dst/src
-                            # and shall be replaced by a new object group.
-                            for my $rule (values %$href) {
-                                $rule->{$tag} = $glue;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+				# object-ref => rule, ...
+				    hash => $href
+				    };
 
-        # Find a group with identical elements or define a new one.
-        my $get_group = sub ( $ ) {
-            my ($glue)  = @_;
-            my $hash    = $glue->{hash};
-            my $nat_map = $glue->{nat_map};
-            my @keys    = keys %$hash;
-            my $size    = @keys;
+				# All this rules have identical
+				# action, srv, src/dst  and dst/src
+				# and shall be replaced by a new object group.
+				for my $rule (values %$href) {
+				    $rule->{group_glue} = $glue;
+				}
+			    }
+			}
+		    }
+		}
+	    }
 
-            # This occurs if optimization didn't work correctly.
-            if (grep { $_ eq $network_00 } @keys) {
-                internal_err
-                  "Unexpected $network_00->{name} in object-group of $router->{name}";
-            }
+	    # Find a group with identical elements or define a new one.
+	    my $get_group = sub ( $ ) {
+		my ($glue)  = @_;
+		my $hash    = $glue->{hash};
+		my $nat_map = $glue->{nat_map};
+		my @keys    = keys %$hash;
+		my $size    = @keys;
 
-            # Find group with identical elements.
-            for my $group (@{ $nat2size2group->{$nat_map}->{$size} }) {
-                my $href = $group->{hash};
-                my $eq   = 1;
-                for my $key (@keys) {
-                    unless ($href->{$key}) {
-                        $eq = 0;
-                        last;
-                    }
-                }
-                if ($eq) {
-                    return $group;
-                }
-            }
+		# This occurs if optimization didn't work correctly.
+		if (grep { $_ eq $network_00 } @keys) {
+		    internal_err
+			"Unexpected $network_00->{name} in object-group",
+			" of $router->{name}";
+		}
 
-            # Not found, build new group.
-            my $group = new(
-                'Objectgroup',
-                name     => "g$router->{obj_group_counter}",
-                elements => [ map { $ref2obj{$_} } @keys ],
-                hash     => $hash,
-                nat_map  => $nat_map
-            );
-            push @{ $nat2size2group->{$nat_map}->{$size} }, $group;
+		# Find group with identical elements.
+		for my $group (@{ $nat2size2group->{$nat_map}->{$size} }) {
+		    my $href = $group->{hash};
+		    my $eq   = 1;
+		    for my $key (@keys) {
+			unless ($href->{$key}) {
+			    $eq = 0;
+			    last;
+			}
+		    }
+		    if ($eq) {
+			return $group;
+		    }
+		}
 
-            # Print object-group.
-            print "object-group network $group->{name}\n";
-            for my $pair (
-                sort { $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] }
-                map { address($_, $nat_map) } @{ $group->{elements} }
-              )
-            {
-                my $adr = ios_code($pair);
-                print " network-object $adr\n";
-            }
-            $router->{obj_group_counter}++;
-            return $group;
-        };
+		# Not found, build new group.
+		my $group = new(
+				'Objectgroup',
+				name     => "g$router->{obj_group_counter}",
+				elements => [ map { $ref2obj{$_} } @keys ],
+				hash     => $hash,
+				nat_map  => $nat_map
+				);
+		push @{ $nat2size2group->{$nat_map}->{$size} }, $group;
 
-        # Build new list of rules using object groups.
-        my @new_rules;
-        for my $rule (@{ $hardware->{rules} }) {
-            if (my $glue = $rule->{$tag}) {
+		# Print object-group.
+		print "object-group network $group->{name}\n";
+		for my $pair (
+			      sort({ $a->[0] <=> $b->[0] || 
+				     $a->[1] <=> $b->[1] }
+			      map({ address($_, $nat_map) } 
+				  @{ $group->{elements} }))
+			      )
+		{
+		    my $adr = ios_code($pair);
+		    print " network-object $adr\n";
+		}
+		$router->{obj_group_counter}++;
+		return $group;
+	    };
+
+	    # Build new list of rules using object groups.
+	    my @new_rules;
+	    for my $rule (@{ $hardware->{$rule_type} }) {
+
+		# Remove tag, otherwise call to find_object_groups
+		# for another router would become confused.
+		if (my $glue = delete $rule->{group_glue}) {
 
 #              debug print_rule $rule;
-                # Remove tag, otherwise call to find_object_groups
-                # for another router would become confused.
-                delete $rule->{$tag};
-                if ($glue->{active}) {
+		    if ($glue->{active}) {
 
 #                 debug " deleted: $glue->{group}->{name}";
-                    next;
-                }
-                my $group = $get_group->($glue);
+			next;
+		    }
+		    my $group = $get_group->($glue);
 
 #              debug " generated: $group->{name}";
 #              # Only needed when debugging.
 #              $glue->{group} = $group;
 
-                $glue->{active} = 1;
-                $rule = {
-                    action    => $rule->{action},
-                    $that     => $rule->{$that},
-                    $this     => $group,
-                    src_range => $rule->{src_range},
-                    srv       => $rule->{srv}
-                };
-            }
-            push @new_rules, $rule;
-        }
-        $hardware->{rules} = \@new_rules;
+		    $glue->{active} = 1;
+		    $rule = {
+			action    => $rule->{action},
+			$that     => $rule->{$that},
+			$this     => $group,
+			src_range => $rule->{src_range},
+			srv       => $rule->{srv}
+		    };
+		}
+		push @new_rules, $rule;
+	    }
+	    $hardware->{$rule_type} = \@new_rules;
+	}
     }
 }
 
@@ -10515,7 +10709,7 @@ sub find_chains ( $$ ) {
     $router->{chain_counter} ||= 1;
 
     my $nat_map = $hardware->{nat_map};
-    for my $rule_type ('intf_rules', 'rules') {
+    for my $rule_type ('intf_rules', 'rules', 'out_rules') {
         my %cache;
 
         my $print_tree;
@@ -10905,7 +11099,7 @@ sub print_chains ( $ ) {
 sub join_ranges ( $ ) {
     my ($hardware) = @_;
     my $changed;
-    for my $rules ('intf_rules', 'rules') {
+    for my $rules ('intf_rules', 'rules', 'out_rules') {
         my %hash = ();
         for my $rule (@{ $hardware->{$rules} }) {
             my ($action, $src, $dst, $src_range, $srv) =
@@ -11082,7 +11276,7 @@ sub local_optimization() {
                 }
 
 #               debug "$router->{name}";
-                for my $rules ('intf_rules', 'rules') {
+                for my $rules ('intf_rules', 'rules', 'out_rules') {
                     my %hash;
                     my $changed = 0;
                     for my $rule (@{ $hardware->{$rules} }) {
@@ -11436,6 +11630,15 @@ sub print_vpn3k( $ ) {
     print_xml $result;
 }
 
+my $deny_any_rule =  
+{
+    action    => 'deny',
+    src       => $network_00,
+    dst       => $network_00,
+    src_range => $srv_ip,
+    srv       => $srv_ip
+    };
+
 sub print_acl_add_deny ( $$$$$$ ) {
     my ($router, $hardware, $nat_map, $model, $intf_prefix, $prefix) = @_;
     my $filter = $model->{filter};
@@ -11446,13 +11649,18 @@ sub print_acl_add_deny ( $$$$$$ ) {
         # If a rule permits traffic to a directly connected network
         # behind the device, this would accidently permit traffic
         # to an interface of this device as well.
+
+	# This is needless if there is no such permit rule.
+	# Try to optimize this case.
         my %need_protect;
         my $protect_all;
       RULE:
         for my $rule (@{ $hardware->{rules} }) {
+
             next if $rule->{action} eq 'deny';
             my $dst = $rule->{dst};
 
+	    # We only need to check networks:
             # - any has been converted to network_00 already.
             # - subnet/host and interface already have been checked to
             #   have disjoint ip addresses to interfaces of current router.
@@ -11479,7 +11687,13 @@ sub print_acl_add_deny ( $$$$$$ ) {
             }
         }
         for my $interface (@{ $router->{interfaces} }) {
-            next if not $protect_all and not $need_protect{$interface};
+	    if (not $protect_all and not $need_protect{$interface}
+
+		# Interface with 'no_in_acl' gets 'permit any any' added
+		# and hence needs deny rules.
+		and not $hardware->{no_in_acl}) {
+		next;
+	    } 
 
             # Ignore 'unnumbered' interfaces.
             next if $interface->{ip} =~ /^(?:unnumbered|negotiated|tunnel)$/;
@@ -11508,16 +11722,11 @@ sub print_acl_add_deny ( $$$$$$ ) {
 	}
     }
 
+    # Add permit or deny rule at end of ACL.
     # Iptables already has deny rules at builtin chains.
     if (not $filter eq 'iptables') {
-        push @{ $hardware->{rules} },
-          {
-            action    => 'deny',
-            src       => $network_00,
-            dst       => $network_00,
-            src_range => $srv_ip,
-            srv       => $srv_ip
-          };
+	push(@{ $hardware->{rules} }, 
+	     $hardware->{no_in_acl} ? $permit_any_rule : $deny_any_rule);
     }
 
     # Interface rules
@@ -11856,9 +12065,15 @@ sub print_acls( $ ) {
         print ":OUTPUT ACCEPT\n";
         for my $hardware (@{ $router->{hardware} }) {
             my $if_name  = "$hardware->{name}_self";
-            my $acl_name = "$hardware->{name}_in";
             print ":$if_name -\n";
-            print ":$acl_name -\n";
+	    if (not $hardware->{no_in_acl}) {
+		my $acl_name = "$hardware->{name}_in";
+		print ":$acl_name -\n";
+	    }
+	    if ($hardware->{need_out_acl}) {
+		my $acl_name = "$hardware->{name}_out";
+		print ":$acl_name -\n";
+	    }
         }
         print_chains $router;
     }
@@ -11879,44 +12094,67 @@ sub print_acls( $ ) {
             }
         }
 
-        # Generate code.
-        my $acl_name = "$hardware->{name}_in";
-        my $intf_name;
-        my $prefix;
-        my $intf_prefix;
         my $nat_map = $hardware->{nat_map};
-        if ($comment_acls) {
 
-            # Name of first logical interface
-            print "$comment_char $hardware->{interfaces}->[0]->{name}\n";
-        }
-        if ($filter eq 'IOS') {
-            $intf_prefix = $prefix = '';
-            print "ip access-list extended $acl_name\n";
-        }
-        elsif ($filter eq 'PIX') {
-            $intf_prefix = '';
-            $prefix      = "access-list $acl_name";
-            $prefix .= ' extended' if $model->{name} eq 'ASA';
-        }
-        elsif ($filter eq 'iptables') {
-            $intf_name   = "$hardware->{name}_self";
-            $intf_prefix = "-A $intf_name";
-            $prefix      = "-A $acl_name";
-        }
-        print_acl_add_deny $router, $hardware, $nat_map, $model, $intf_prefix,
-          $prefix;
+	# Generate code for incoming and possibly for outgoing ACL.
+	for my $suffix ('in', 'out') {
+	    next if $suffix eq 'out' and not $hardware->{need_out_acl};
 
-        # Post-processing for hardware interface
-        if ($filter eq 'IOS') {
-            push @{ $hardware->{subcmd} }, "ip access-group $acl_name in";
-        }
-        elsif ($filter eq 'PIX') {
-            print "access-group $acl_name in interface $hardware->{name}\n";
-        }
+	    my $acl_name = "$hardware->{name}_$suffix";
+	    my $prefix;
+	    my $intf_prefix;
+	    if ($comment_acls) {
+	    
+		# Name of first logical interface
+		print "$comment_char $hardware->{interfaces}->[0]->{name}\n";
+	    }
+	    if ($filter eq 'IOS') {
+		$intf_prefix = $prefix = '';
+		print "ip access-list extended $acl_name\n";
+	    }
+	    elsif ($filter eq 'PIX') {
+		$intf_prefix = '';
+		$prefix      = "access-list $acl_name";
+		$prefix     .= ' extended' if $model->{name} eq 'ASA';
+	    }
+	    elsif ($filter eq 'iptables') {
+		my $intf_acl_name   = "$hardware->{name}_self";
+		$intf_prefix = "-A $intf_acl_name";
+		$prefix      = "-A $acl_name";
+	    }
 
-        # Empty line after each ACL.
-        print "\n";
+	    # Incoming ACL and protect own interfaces.
+	    if ($suffix eq 'in') {
+		print_acl_add_deny($router, $hardware, $nat_map, $model, 
+				   $intf_prefix, $prefix);
+	    }
+
+	    # Outgoing ACL
+	    else {
+
+		# Add deny rule at end of ACL.
+		# Iptables already has deny rules at builtin chains.
+		if (not $filter eq 'iptables') {
+		    push(@{ $hardware->{out_rules} }, $deny_any_rule);
+		}
+		if (my $out_rules = $hardware->{out_rules}) {
+		    acl_line $out_rules, $nat_map, $prefix, $model;
+		}
+	    }
+
+	    # Post-processing for hardware interface
+	    if ($filter eq 'IOS') {
+		push(@{ $hardware->{subcmd} }, 
+		     "ip access-group $acl_name $suffix");
+	    }
+	    elsif ($filter eq 'PIX') {
+		print "access-group $acl_name $suffix interface", 
+		" $hardware->{name}\n";
+	    }
+
+	    # Empty line after each ACL.
+	    print "\n";	
+	}
     }
 
     # Post-processing for all interfaces.
@@ -11930,8 +12168,14 @@ sub print_acls( $ ) {
 
         print "-A FORWARD -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
         for my $hardware (@{ $router->{hardware} }) {
-            my $acl_name = "$hardware->{name}_in";
-            print "-A FORWARD -j $acl_name -i $hardware->{name}\n";
+	    if (not $hardware->{no_in_acl}) {
+		my $acl_name = "$hardware->{name}_in";
+		print "-A FORWARD -j $acl_name -i $hardware->{name}\n";
+	    }
+	    if ($hardware->{need_out_acl}) {
+		my $acl_name = "$hardware->{name}_out";
+		print "-A FORWARD -j $acl_name -o $hardware->{name}\n";
+	    }
         }
         print "-A FORWARD -j droplog\n";
         print "COMMIT\n";
