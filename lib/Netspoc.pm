@@ -7466,16 +7466,18 @@ sub setup_ref2obj () {
 # II. Alternatively, we have a single interface Y (with attached any:Y)
 #     without ACL and all other interfaces having incoming and outgoing ACLs.
 # (A) rule "permit any:X dst"
-#  a)  any:X == any:Y: filtering occurs at outgoing ACL, good
-#  b)  any:X != any:Y: outgoing ACL would accidently permit any:Y->dst.
-#               bad, additional rule required: "permit any:Y->dst" 
+#  a)  dst behind Y: filtering occurs at incoming ACL of X, good.
+#  b)  dst not behind Y:
+#    1. any:X == any:Y: filtering occurs at outgoing ACL, good.
+#    2. any:X != any:Y: outgoing ACL would accidently permit any:Y->dst, bad.
+#                additional rule required: "permit any:Y->dst" 
 # (B) rule "permit src any:X"
 #  a)  src behind Y: filtering occurs at ougoing ACL, good
 #  b)  src not behind Y:
-#     1. any:X == any:Y: filtering occurs at incoming ACL at src and at
-#                        outgoing ACls of other non-any:X interfaces, good.
-#     2. any:X != any:Y: incoming ACL at src would permit src->any:Y, bad
-#                        additional rule required: "permit src->any:Y".
+#    1. any:X == any:Y: filtering occurs at incoming ACL at src and at
+#                       outgoing ACls of other non-any:X interfaces, good.
+#    2. any:X != any:Y: incoming ACL at src would permit src->any:Y, bad
+#                       additional rule required: "permit src->any:Y".
 ##############################################################################
 
 {
@@ -7546,12 +7548,22 @@ sub check_any_src_rule( $$$ ) {
     my $dst_any = get_any $dst;
     my $router  = $in_intf->{router};
 
-    # Check case II, outgoing ACL, (A),b).
+    # Check case II, outgoing ACL, (A)
     my $no_acl_intf;
-    if ($no_acl_intf = $router->{no_in_acl} and $in_intf ne $no_acl_intf) {
+    if ($no_acl_intf = $router->{no_in_acl}) {
 	my $no_acl_any = $no_acl_intf->{any};
-	if (not $rule_tree{$stateless}->{$action}->{$no_acl_any}->{$dst}
-	    ->{$src_range}->{$srv})
+
+	# a),  dst behind Y
+	if ($dst_any eq $no_acl_any) {
+	}
+
+	# b), 1. any:X == any:Y
+	elsif ($in_intf eq $no_acl_intf) {
+	}
+
+	# b), 2. any:X != any:Y
+	elsif (not $rule_tree{$stateless}->{$action}->{$no_acl_any}->{$dst}
+	       ->{$src_range}->{$srv})
 	{
 	    err_missing_any $rule, $no_acl_any, 'src', $router;
 	}
