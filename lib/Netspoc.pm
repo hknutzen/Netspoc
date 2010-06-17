@@ -12070,7 +12070,7 @@ sub print_acls( $ ) {
 
     # Pre-processing for all interfaces.
     if ($filter eq 'iptables') {
-        print "#!/usr/sbin/iptables-restore <<EOF\n";
+        print "#!/sbin/iptables-restore <<EOF\n";
         print "*filter\n";
         print ":INPUT DROP\n";
         print ":FORWARD DROP\n";
