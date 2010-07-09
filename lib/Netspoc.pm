@@ -12321,6 +12321,10 @@ sub print_crypto( $ ) {
           "but these are used: ", join ', ', map $_->{name}, @ipsec;
         return;
     }
+
+    # Use interface access lists to filter incoming crypto traffic.
+    # Group policy and per-user authorization access list can't be used
+    # because they are stateless.
     if ($crypto_type eq 'ASA') {
 	print "! VPN traffic is filtered at interface ACL\n";
 	print "no sysopt connection permit-vpn\n";
@@ -12436,13 +12440,6 @@ sub print_crypto( $ ) {
         if ($interface->{ip} eq 'tunnel') {
 	    push @{ $hardware2crypto{ $interface->{hardware} } }, $interface;
 	}
-    }
-
-    # Use interface access lists to filter incoming crypto traffic.
-    # Group policy and per-user authorization access list can't be used
-    # because they are stateless.
-    if ($crypto_type eq 'ASA') {
-	print "no sysopt connection permit-vpn\n";
     }
 
     for my $hardware (@{ $router->{hardware} }) {
