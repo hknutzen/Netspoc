@@ -11796,6 +11796,7 @@ EOF
     my $trust_point       = delete $router->{radius_attributes}->{'trust-point'}
       or err_msg
       "Missing 'trust-point' in radius_attributes of $router->{name}";
+
     print <<"EOF";
 ! Used for all single VPN users
 tunnel-group $tunnel_group_name type remote-access
@@ -11807,7 +11808,6 @@ tunnel-group $tunnel_group_name general-attributes
 ! Take username from email address field of certificate.
  username-from-certificate EA
 tunnel-group $tunnel_group_name ipsec-attributes
- peer-id-validate req
  chain
  trust-point $trust_point
 ! Disable extended authentication.
@@ -11986,7 +11986,9 @@ EOF
                     my %tunnel_ipsec_att;
                     $tunnel_ipsec_att{isakmp} =
                       'ikev1-user-authentication none';
-                    $tunnel_ipsec_att{'peer-id-validate'} = 'req';
+
+		    # Don't generate default value.
+                    ##$tunnel_ipsec_att{'peer-id-validate'} = 'req';
                     my $trustpoint2 = delete $attributes->{'trust-point'}
                       || $trust_point;
                     $tunnel_ipsec_att{'trust-point'} = $trustpoint2;
