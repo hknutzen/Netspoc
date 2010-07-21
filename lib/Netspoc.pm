@@ -9384,6 +9384,7 @@ sub distribute_rule( $$$ ) {
     }
 
     my $key;
+    my $in_intf_store;
     if (not $out_intf) {
 
         # Packets for the router itself.  For PIX we can only reach that
@@ -9392,8 +9393,11 @@ sub distribute_rule( $$$ ) {
 
         $key = 'intf_rules';
     }
-    elsif ($in_intf->{hardware}->{no_in_acl}) {
+    elsif ($out_intf->{hardware}->{need_out_acl}) {
 	$key = 'out_rules';
+	if (not $in_intf->{no_in_acl}) {
+	    $in_intf_store = $in_intf->{hardware};
+	}
     }
     else {
         $key = 'rules';
@@ -9446,6 +9450,7 @@ sub distribute_rule( $$$ ) {
     if (not ($router->{loop} and @$aref and $aref->[$#$aref] eq $rule)) {
 	push @$aref, $rule;
 	push @{ $split_tunnel_store->{$key} }, $rule if $split_tunnel_store;
+	push @{ $in_intf_store->{rules} }, $rule if $in_intf_store;
     }	
 }
 
