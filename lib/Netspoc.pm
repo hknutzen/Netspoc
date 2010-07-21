@@ -9395,7 +9395,7 @@ sub distribute_rule( $$$ ) {
     }
     elsif ($out_intf->{hardware}->{need_out_acl}) {
 	$key = 'out_rules';
-	if (not $in_intf->{no_in_acl}) {
+	if (not $in_intf->{hardware}->{no_in_acl}) {
 	    $in_intf_store = $in_intf->{hardware};
 	}
     }
