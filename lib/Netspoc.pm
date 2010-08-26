@@ -891,9 +891,9 @@ sub read_host( $$ ) {
     skip '{';
     while (1) {
         last if check '}';
-        if (my @ip = check_assign_list 'ip', \&read_ip) {
-            $host->{ips} and error_atline "Duplicate attribute 'ip'";
-            $host->{ips} = \@ip;
+        if (my $ip = check_assign 'ip', \&read_ip) {
+            $host->{ip} and error_atline "Duplicate attribute 'ip'";
+            $host->{ip} = $ip;
         }
         elsif (my ($ip1, $ip2) = check_assign_range 'range', \&read_ip) {
             $ip1 <= $ip2 or error_atline "Invalid IP range";
@@ -937,7 +937,7 @@ sub read_host( $$ ) {
             syntax_err "Unexpected attribute";
         }
     }
-    $host->{ips} xor $host->{range}
+    $host->{ip} xor $host->{range}
       or error_atline "Exactly one of attributes 'ip' and 'range' is needed";
 
     if ($host->{id}) {
@@ -953,11 +953,6 @@ sub read_host( $$ ) {
 
             # Look at print_pix_static before changing this.
             error_atline "No NAT supported for host with IP range";
-        }
-        elsif (@{ $host->{ips} } > 1) {
-
-            # Look at print_pix_static before changing this.
-            error_atline "No NAT supported for host with multiple IPs";
         }
     }
     return $host;
@@ -1124,12 +1119,10 @@ sub read_network( $ ) {
             $host->{network} = $network;
 
             # Check compatibility of host IP and network IP/mask.
-            if ($host->{ips}) {
-                for my $host_ip (@{ $host->{ips} }) {
-                    if ($ip != ($host_ip & $mask)) {
-                        error_atline
-                          "$host->{name}'s IP doesn't match network IP/mask";
-                    }
+            if (my $host_ip = $host->{ip}) {
+		if ($ip != ($host_ip & $mask)) {
+		    error_atline
+			"$host->{name}'s IP doesn't match network IP/mask";
                 }
             }
             elsif ($host->{range}) {
@@ -3168,7 +3161,7 @@ sub link_radius() {
           $router->{name};
         for my $element (@{ $router->{radius_servers} }) {
             if (is_host $element) {
-                if ($element->{range} or @{ $element->{ips} } > 1) {
+                if ($element->{range}) {
                     err_msg "$element->{name} must have single IP address\n",
                       " because it is used as RADIUS server";
                 }
@@ -3503,20 +3496,20 @@ sub check_ip_addresses {
             }
         }
         for my $host (@{ $network->{hosts} }) {
-            if (my $ips = $host->{ips}) {
-                for my $ip (@$ips) {
-                    $check_subnets->($ip, undef, $host);
-                    if (my $other_device = $ip{$ip}) {
-                        err_msg
-                          "Duplicate IP address for $other_device->{name}",
-                          " and $host->{name}";
-                    }
-                    else {
-                        $ip{$ip} = $host;
-                    }
-                }
+            if (my $ip = $host->{ip}) {
+		$check_subnets->($ip, undef, $host);
+		if (my $other_device = $ip{$ip}) {
+		    err_msg
+			"Duplicate IP address for $other_device->{name}",
+			" and $host->{name}";
+		}
+		else {
+		    $ip{$ip} = $host;
+		}
             }
-            elsif (my $range = $host->{range}) {
+        }
+        for my $host (@{ $network->{hosts} }) {
+            if (my $range = $host->{range}) {
                 $check_subnets->($range->[0], $range->[1], $host);
                 for (my $ip = $range->[0] ; $ip <= $range->[1] ; $ip++) {
                     if (my $other_device = $ip{$ip}) {
@@ -3717,8 +3710,8 @@ sub convert_hosts() {
         for my $host (@{ $network->{hosts} }) {
             my ($name, $nat, $id, $private) = @{$host}{qw(name nat id private)};
             my @ip_mask;
-            if ($host->{ips}) {
-                @ip_mask = map [ $_, 0xffffffff ], @{ $host->{ips} };
+            if (my $ip = $host->{ip}) {
+                @ip_mask = [ $ip, 0xffffffff ];
             }
             elsif ($host->{range}) {
                 my ($ip1, $ip2) = @{ $host->{range} };
@@ -11493,7 +11486,7 @@ sub print_vpn3k( $ ) {
     my %vpn_config = ();
     ($vpn_config{'vpn-device'} = $router->{name}) =~ s/^router://;
     $vpn_config{'aaa-server'} =
-      [ map { { radius => print_ip $_->{ips}->[0] } }
+      [ map { { radius => print_ip $_->{ip} } }
           @{ $router->{radius_servers} } ];
 
     # Build a sub structure of %vpn_config
