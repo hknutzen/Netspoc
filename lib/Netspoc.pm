@@ -2906,19 +2906,6 @@ sub set_src_dst_range_list ( $ ) {
 
 sub expand_group( $$;$ );
 
-sub link_owners () {
-    for my $owner (values %owners) {
-
-        # Convert names of admin objects to admin objects.
-	for my $name (@{ $owner->{admins} } ) {
-            my $admin = $admins{$name}
-              or err_msg "Can't resolve reference to '$name'",
-              " in attribute 'admins' of $owner->{name}";
-	    $name = $admin;
-        }
-    }
-}
-
 sub link_to_owner {
     my ($obj) = @_;
     if (my $value = $obj->{owner}) {
@@ -2930,6 +2917,28 @@ sub link_to_owner {
               " in attribute 'owner' of $obj->{name}";
 	    delete $obj->{owner};
 	}
+    }
+}
+
+sub link_owners () {
+    for my $owner (values %owners) {
+
+        # Convert names of admin objects to admin objects.
+	for my $name (@{ $owner->{admins} } ) {
+            my $admin = $admins{$name}
+              or err_msg "Can't resolve reference to '$name'",
+              " in attribute 'admins' of $owner->{name}";
+	    $name = $admin;
+        }
+    }
+    for my $network (values %networks) {
+	link_to_owner($network);
+        for my $host (@{ $network->{hosts} }) {
+	    link_to_owner($host);
+	}
+    }
+    for my $area (values %areas) {
+	link_to_owner($area);
     }
 }
 
@@ -3035,117 +3044,118 @@ sub link_areas() {
                 }
             }
         }
-	link_to_owner($area);
     }
 }
 
-# Link interface with network in both directions.
-sub link_interface_with_net( $ ) {
-    my ($interface) = @_;
-    my $net_name    = $interface->{network};
-    my $network     = $networks{$net_name};
+# Link interfaces with networks in both directions.
+sub link_interfaces {
+    for my $interface (values %interfaces) {
+	my $net_name    = $interface->{network};
+	my $network     = $networks{$net_name};
 
-    unless ($network) {
-        my $msg =
-          "Referencing undefined network:$net_name from $interface->{name}";
-        if ($interface->{disabled}) {
-            warn_msg $msg;
-        }
-        else {
-            err_msg $msg;
+	unless ($network) {
+	    my $msg = "Referencing undefined network:$net_name" .
+		" from $interface->{name}";
+	    if ($interface->{disabled}) {
+		warn_msg $msg;
+	    }
+	    else {
+		err_msg $msg;
 
-            # Prevent further errors.
-            $interface->{disabled} = 1;
-        }
+		# Prevent further errors.
+		$interface->{disabled} = 1;
+	    }
 
-        # Prevent further errors.
-        # This case is handled in disable_behind.
-        $interface->{network} = undef;
-        return;
-    }
-    $interface->{network} = $network;
+	    # Prevent further errors.
+	    # This case is handled in disable_behind.
+	    $interface->{network} = undef;
+	    return;
+	}
+	$interface->{network} = $network;
 
-    # Private network must be connected to private interface of same context.
-    if (my $private1 = $network->{private}) {
-        if (my $private2 = $interface->{private}) {
-            $private1 eq $private2
-              or err_msg "$private2.private $interface->{name}",
-              " must not be connected to $private1.private $network->{name}";
-        }
-        else {
-            err_msg "Public $interface->{name} must not be connected to",
-              " $private1.private $network->{name}";
-        }
-    }
+	# Private network must be connected to private interface 
+	# of same context.
+	if (my $private1 = $network->{private}) {
+	    if (my $private2 = $interface->{private}) {
+		$private1 eq $private2
+		    or err_msg "$private2.private $interface->{name} must not",
+		    " be connected to $private1.private $network->{name}";
+	    }
+	    else {
+		err_msg "Public $interface->{name} must not be connected to",
+		" $private1.private $network->{name}";
+	    }
+	}
 
-    # Public network may connect to private interface.
-    # The owner of a private context can prevent a public network from
-    # connecting to a private interface by simply connecting an own private
-    # network to the private interface.
+	# Public network may connect to private interface.
+	# The owner of a private context can prevent a public network from
+	# connecting to a private interface by simply connecting an own private
+	# network to the private interface.
 
-    push @{ $network->{interfaces} }, $interface;
-    if ($interface->{reroute_permit}) {
-        $interface->{reroute_permit} =
-          expand_group $interface->{reroute_permit},
-          "'reroute_permit' of $interface->{name}";
-        for my $obj (@{ $interface->{reroute_permit} }) {
+	push @{ $network->{interfaces} }, $interface;
+	if ($interface->{reroute_permit}) {
+	    $interface->{reroute_permit} =
+		expand_group $interface->{reroute_permit},
+		"'reroute_permit' of $interface->{name}";
+	    for my $obj (@{ $interface->{reroute_permit} }) {
 
-            if (not is_network $obj) {
-                err_msg
-                  "$obj->{name} not allowed in attribute 'reroute_permit'\n",
-                  " of $interface->{name}";
+		if (not is_network $obj) {
+		    err_msg "$obj->{name} not allowed in attribute",
+			" 'reroute_permit'\n of $interface->{name}";
 
-                # Prevent further errors.
-                delete $interface->{reroute_permit};
-            }
-        }
-    }
-    my $ip         = $interface->{ip};
-    my $network_ip = $network->{ip};
-    if ($ip =~ /^(?:short|tunnel)$/) {
+		    # Prevent further errors.
+		    delete $interface->{reroute_permit};
+		}
+	    }
+	}
+	my $ip         = $interface->{ip};
+	my $network_ip = $network->{ip};
+	if ($ip =~ /^(?:short|tunnel)$/) {
 
-        # Nothing to check:
-        # short interface may be linked to arbitrary network,
-        # tunnel interfaces and networks have been generated internally.
-    }
-    elsif ($ip eq 'unnumbered') {
-        $network_ip eq 'unnumbered'
-          or err_msg "Unnumbered $interface->{name} must not be linked ",
-          "to $network->{name}";
-    }
-    elsif ($network_ip eq 'unnumbered') {
-        err_msg "$interface->{name} must not be linked ",
-          "to unnumbered $network->{name}";
-    }
-    elsif ($ip eq 'negotiated') {
+	    # Nothing to check:
+	    # short interface may be linked to arbitrary network,
+	    # tunnel interfaces and networks have been generated internally.
+	}
+	elsif ($ip eq 'unnumbered') {
+	    $network_ip eq 'unnumbered'
+		or err_msg "Unnumbered $interface->{name} must not be linked ",
+		"to $network->{name}";
+	}
+	elsif ($network_ip eq 'unnumbered') {
+	    err_msg "$interface->{name} must not be linked ",
+	    "to unnumbered $network->{name}";
+	}
+	elsif ($ip eq 'negotiated') {
 
-        # Nothing to be checked: negotiated interface may be linked to
-        # any numbered network.
-    }
-    else {
+	    # Nothing to be checked: negotiated interface may be linked to
+	    # any numbered network.
+	}
+	else {
 
-        # Check compatibility of interface IP and network IP/mask.
-        my $mask = $network->{mask};
-        if ($network_ip != ($ip & $mask)) {
-            err_msg "$interface->{name}'s IP doesn't match ",
-              "$network->{name}'s IP/mask";
-        }
-        if ($mask == 0xffffffff) {
-            if (not $network->{loopback}) {
-                warn_msg "$interface->{name} has address of its network.\n",
-                  " Remove definition of $network->{name}.\n",
-                  " Use attribute 'loopback' at interface definition instead.";
-            }
-        }
-        else {
-            if ($ip == $network_ip) {
-                err_msg "$interface->{name} has address of its network";
-            }
-            my $broadcast = $network_ip + complement_32bit $mask;
-            if ($ip == $broadcast) {
-                err_msg "$interface->{name} has broadcast address";
-            }
-        }
+	    # Check compatibility of interface IP and network IP/mask.
+	    my $mask = $network->{mask};
+	    if ($network_ip != ($ip & $mask)) {
+		err_msg "$interface->{name}'s IP doesn't match ",
+		"$network->{name}'s IP/mask";
+	    }
+	    if ($mask == 0xffffffff) {
+		if (not $network->{loopback}) {
+		    warn_msg 
+			"$interface->{name} has address of its network.\n",
+			" Remove definition of $network->{name}.\n",
+			" Add attribute 'loopback' at interface definition.";
+		}
+	    }
+	    else {
+		if ($ip == $network_ip) {
+		    err_msg "$interface->{name} has address of its network";
+		}
+		my $broadcast = $network_ip + complement_32bit $mask;
+		if ($ip == $broadcast) {
+		    err_msg "$interface->{name} has broadcast address";
+		}
+	    }
+	}
     }
 }
 
@@ -3408,28 +3418,8 @@ sub link_virtual_interfaces () {
     }
 }
 
-sub link_ipsec ();
-sub link_crypto ();
-sub link_tunnels ();
-
-sub link_topology() {
-    info "Linking topology";
-    for my $interface (values %interfaces) {
-        link_interface_with_net($interface);
-    }
-    link_owners;
-    link_ipsec;
-    link_crypto;
-    link_tunnels;
-    link_pathrestrictions;
-    link_virtual_interfaces;
-    link_any;
-    link_areas;
-    link_radius;
-    link_subnets;
-
+sub check_ip_addresses {
     for my $network (values %networks) {
-	link_to_owner($network);
         if (    $network->{ip} eq 'unnumbered'
             and $network->{interfaces}
             and @{ $network->{interfaces} } > 2)
@@ -3513,7 +3503,6 @@ sub link_topology() {
             }
         }
         for my $host (@{ $network->{hosts} }) {
-	    link_to_owner($host);
             if (my $ips = $host->{ips}) {
                 for my $ip (@$ips) {
                     $check_subnets->($ip, undef, $host);
@@ -3540,6 +3529,26 @@ sub link_topology() {
             }
         }
     }
+}
+
+sub link_ipsec ();
+sub link_crypto ();
+sub link_tunnels ();
+
+sub link_topology() {
+    info "Linking topology";
+    link_interfaces;
+    link_ipsec;
+    link_crypto;
+    link_tunnels;
+    link_pathrestrictions;
+    link_virtual_interfaces;
+    link_any;
+    link_areas;
+    link_radius;
+    link_subnets;
+    link_owners;
+    check_ip_addresses();
 }
 
 ####################################################################
