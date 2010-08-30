@@ -817,7 +817,7 @@ sub check_assign_range($&) {
 # Delete an element from an array reference.
 # Return 1 if found, 0 otherwise.
 sub aref_delete( $$ ) {
-    my ($elt, $aref) = @_;
+    my ($aref, $elt) = @_;
     for (my $i = 0 ; $i < @$aref ; $i++) {
         if ($aref->[$i] eq $elt) {
             splice @$aref, $i, 1;
@@ -1042,6 +1042,11 @@ sub read_network( $ ) {
             # Duplicate use of this flag doesn't matter.
             $network->{crosslink} = 1;
         }
+        elsif (check_flag 'isolated_ports') {
+
+            # Duplicate use of this flag doesn't matter.
+            $network->{isolated_ports} = 1;
+        }
         elsif (my $id = check_assign 'id', \&read_user_id) {
             $network->{id}
               and error_atline "Duplicate attribute 'id'";
@@ -1147,9 +1152,12 @@ sub read_network( $ ) {
         if (@{ $network->{hosts} } and $network->{crosslink}) {
             error_atline "Crosslink network must not have host definitions";
         }
-
-        # Check NAT definitions.
         if ($network->{nat}) {
+	    $network->{isolated_ports} and 
+		error_atline("Attribute 'isolated_ports' isn't supported",
+			     " together with NAT");
+
+	    # Check NAT definitions.
             for my $nat (values %{ $network->{nat} }) {
                 if (defined $nat->{mask}) {
                     unless ($nat->{dynamic}) {
@@ -1318,7 +1326,6 @@ sub read_interface( $ ) {
                   new('Interface', name => "$name.$counter", ip => $ip);
                 $counter++;
             }
-
         }
         elsif (check_flag 'unnumbered') {
             $interface->{ip} and error_atline "Duplicate attribute 'ip'";
@@ -1457,6 +1464,9 @@ sub read_interface( $ ) {
         }
         elsif (check_flag 'no_check') {
             $interface->{no_check} = 1;
+        }
+        elsif (check_flag 'promiscuous_port') {
+            $interface->{promiscuous_port} = 1;
         }
         else {
             syntax_err 'Expected some valid attribute';
@@ -1883,7 +1893,11 @@ sub read_router( $ ) {
 	    if ($interface->{spoke}) {
 		$router->{semi_managed} = 1;
 	    }
-        }
+	    if ($interface->{promiscuous_port}) {
+		error_atline "Interface with attribute 'promiscuous_port'",
+		" must only be used at managed device";
+	    }
+	}
     }
     return $router;
 }
@@ -3600,6 +3614,144 @@ my @networks;
 my @all_anys;
 my @all_areas;
 
+# Transform topology for networks with isolated ports.
+# If a network has attribute 'isolated_ports',
+# hosts inside this network are not allowed to talk directly to each other.
+# Instead the traffic must go through an interface which is marked as 
+# 'promiscuous_port'.
+# To achieve the desired traffic flow, we transform the topology such 
+# that each host is moved to a separate /32 network.
+# Non promiscuous interfaces are isolated as well. They are handled like hosts
+# and get a separate network too.
+sub transform_isolated_ports {
+  NETWORK:
+    for my $network (@networks) {
+	if (not $network->{isolated_ports}) {
+	    for my $interface (@{ $network->{interfaces} }) {
+		$interface->{promiscuous_port} and
+		    warn_msg
+		       "Useless 'promiscuous_port' at $interface->{name}";
+	    }
+	    next;
+	}
+	$network->{ip} eq 'unnumbered' and internal_err;
+	my @promiscuous_ports;
+	my @isolated_interfaces;
+	my @secondary_isolated;
+	for my $interface (@{ $network->{interfaces} }) {
+	    if ($interface->{promiscuous_port}) {
+		push @promiscuous_ports, $interface;
+	    }
+	    elsif ($interface->{redundancy_type}) {
+		err_msg 
+		    "Redundant $interface->{name} must not be isolated port";
+	    }
+	    elsif ($interface->{main_interface}) {
+		push @secondary_isolated, $interface
+		    if not $interface->{main_interface}->{promiscuous_port};
+	    }
+	    else {
+		push @isolated_interfaces, $interface;
+	    }
+	}
+
+	if (not @promiscuous_ports) {
+	    err_msg("Missing 'promiscuous_port' for $network->{name}",
+		    " with 'isolated_ports'");
+
+	    # Abort transformation.
+	    next NETWORK;
+	}
+	elsif (@promiscuous_ports > 1) {
+	    equal(map { $_->{redundancy_interfaces} || 0 } @promiscuous_ports)
+		or err_msg "All 'promiscuous_port's of $network->{name}",
+		" need to be redundant to each other";
+	}
+ 	$network->{hosts} or @isolated_interfaces or
+	    warn_msg "Useless attribute 'isolated_ports' at $network->{name}";
+
+	for my $obj (@{ $network->{hosts} }, @isolated_interfaces) {
+	    my $ip = $obj->{ip};
+
+	    # Add separate network for each isolated host or interface.
+	    my $obj_name = $obj->{name};
+	    my $new_net = new(
+			      'Network',
+
+			      # Take name of $obj for artificial network.
+			      name => $obj_name,
+			      ip   => $ip,
+			      mask => 0xffffffff,
+			      subnet_of => $network,
+			      isolated => 1,
+			      );
+	    if (is_host($obj)) {
+		$new_net->{hosts} =  [ $obj ];
+	    }
+	    else {
+
+		#  Don't use unnumbered, negotiated, tunnel interfaces.
+		$ip =~ /^\w/ or internal_err;
+		$new_net->{interfaces} =  [ $obj ];
+		$obj->{network} = $new_net;
+	    }
+		
+	    push @{ $network->{own_subnets} }, $new_net;
+	    push @networks, $new_net;
+
+	    # Copy promiscuous interface(s) and use it to link new network 
+	    # with router.
+	    my @redundancy_interfaces;
+	    for my $interface (@promiscuous_ports) {
+		my $router = $interface->{router};
+		(my $router_name = $router->{name}) =~ s/^router://;
+		my $hardware = $interface->{hardware};
+		my $new_intf = new('Interface',
+				   name => "interface:$router_name.$obj_name",
+				   ip => $interface->{ip},
+				   hardware => $hardware,
+				   router => $router,
+				   network => $new_net,
+				   );
+		push @{ $hardware->{interfaces} }, $new_intf;
+		push @{ $new_net->{interfaces} }, $new_intf;
+		push @{ $router->{interfaces} }, $new_intf;
+		if ($interface->{redundancy_type}) {
+		    @{$new_intf}{qw(redundancy_type redundancy_id)} = 
+			@{$interface}{qw(redundancy_type redundancy_id)};
+		    push @redundancy_interfaces, $new_intf;
+		}
+	    }	
+
+	    # Automatically add pathrestriction to redundant interfaces.
+	    if (@redundancy_interfaces) {
+		my $restrict = new('Pathrestriction', 
+				   name => "auto-virtual-$obj_name");
+		for my $interface (@redundancy_interfaces) {
+		    push @{ $interface->{path_restrict} }, $restrict;
+#		    debug "pathrestriction at $interface->{name}";
+		    $interface->{redundancy_interfaces} = 
+			\@redundancy_interfaces;
+		}
+	    }
+	}
+
+	# Move secondary isolated interfaces to same artificial network
+	# where the corresponding main interface has been moved to.
+	for my $secondary (@secondary_isolated) {
+	    my $new_net = $secondary->{main_interface}->{network};
+	    push @{ $new_net->{interfaces} }, $secondary;
+	    $secondary->{network} = $new_net;
+	}
+
+	# Remove hosts and isolated interfaces from original network.
+	$network->{hosts} = undef;
+	for my $interface (@isolated_interfaces, @secondary_isolated) {
+	    aref_delete $network->{interfaces}, $interface;
+	}	
+    }
+}
+
 sub mark_disabled() {
     my @disabled_interfaces = grep { $_->{disabled} } values %interfaces;
 
@@ -3620,9 +3772,9 @@ sub mark_disabled() {
 
         # Delete disabled interfaces from routers.
         my $router = $interface->{router};
-        aref_delete($interface, $router->{interfaces});
+        aref_delete($router->{interfaces}, $interface);
         if ($router->{managed}) {
-            aref_delete($interface, $interface->{hardware}->{interfaces});
+            aref_delete($interface->{hardware}->{interfaces}, $interface);
         }
     }
     for my $obj (values %anys) {
@@ -3671,6 +3823,7 @@ sub mark_disabled() {
     if ($policy_distribution_point and $policy_distribution_point->{disabled}) {
         $policy_distribution_point = undef;
     }
+    transform_isolated_ports();
 }
 
 ####################################################################
@@ -6003,11 +6156,6 @@ sub setany() {
 # Interfaces with identical virtual IP must be located inside the same loop.
 sub check_virtual_interfaces () {
     my %seen;
-    my $all_eq = sub {
-        my (@obj) = @_;
-        my $obj1 = pop @obj;
-        not grep { $_ ne $obj1 } @obj;
-    };
     for my $interface (@virtual_interfaces) {
 	my $related = $interface->{redundancy_interfaces};
 
@@ -6031,7 +6179,7 @@ sub check_virtual_interfaces () {
 	    }
 	}
 	next if $err;
-	$all_eq->(map { $_->{loop} } @$related)
+	equal(map { $_->{loop} } @$related)
 	    or err_msg "Virtual interfaces\n ",
 	    join(', ', map({ $_->{name} } @$related)),
 	    "\n must all be part of the same cyclic sub-graph";
@@ -7190,8 +7338,8 @@ sub link_tunnels () {
 		    err_msg "Must not use network with ID hosts together with",
 		    " networks having no ID host: ", 
 		    join( ',', map {$_->{name}} @other);
-		aref_delete($real_spoke, $router->{interfaces});
-		aref_delete($real_spoke, $real_spoke->{network}->{interfaces});
+		aref_delete($router->{interfaces}, $real_spoke);
+		aref_delete($real_spoke->{network}->{interfaces}, $real_spoke);
 		delete $interfaces{$real_spoke};
 		
 	    }
@@ -9836,6 +9984,12 @@ sub address( $$ ) {
                 internal_err "Unexpected $obj->{name} with dynamic NAT";
             }
         }
+	elsif ($network->{isolated}) {
+
+	    # NAT not allowed for isolated ports. Take no bits from network, 
+	    # because secondary isolated ports don't match network.
+	    return [ $obj->{ip}, 0xffffffff ];
+	}
         else {
 
             # Take higher bits from network NAT, lower bits from original IP.
