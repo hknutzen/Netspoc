@@ -47,8 +47,8 @@ if($ARGV[0] eq '-n') {
     shift;
     $nat_net = shift or usage;
 }
-
 my $config = shift @ARGV or usage;
+my $name = shift or usage;
 
 # Read and process Netspoc configuration file or directory.
 &read_file_or_dir($config);
@@ -66,7 +66,6 @@ if($nat_net) {
     $nat_map = $net->{nat_domain}->{nat_map};
 }
 
-my $name = shift or usage;
 my $elements = Netspoc::expand_group([['group', $name]], $0, 'convert_hosts');
 my @pairs = map { Netspoc::address($_, $nat_map) } @$elements;
 for my $pair (sort { $a->[0] <=> $b->[0] } @pairs) {
