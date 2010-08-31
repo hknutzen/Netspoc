@@ -1,54 +1,101 @@
-#!/usr/bin/perl
-# print-group
-#
-# Prints the contents of a netspoc group as lines of ip or ip/prefixlen.
-#
-# Uses module Netspoc.pm,
-# a Network Security Policy Compiler
-# http://netspoc.berlios.de
-# (c) 2009 by Heinz Knutzen <heinzknutzen@users.berlios.de>
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-#
+#!/usr/bin/perl -CSDAL
+
+=head1 NAME
+
+print-group - Print contents of a netspoc group definition
+
+=head1 SYNOPSIS
+
+print-group [options] FILE|DIR 'group:name,...'
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-nat> network:name
+
+Uses network:name as reference when resolving IP address in a NAT environment.
+
+=item B<-help>
+
+Print a brief help message and exits.
+
+=item B<-man>
+
+Prints the manual page and exits.
+
+=back
+
+=head1 DESCRIPTION
+
+This program prints the contents of a netspoc group definition as lines of
+ip or ip/prefixlen. Group is a simple group, some automatic group, or a union,
+intersection, complement of simpler groups.
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+(c) 2010 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+
+This program uses module Netspoc.pm,
+a Network Security Policy Compiler,
+http://netspoc.berlios.de
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+=cut
 
 use strict;
 use warnings;
-use FindBin;
-use lib $FindBin::Bin;
 use Netspoc;
-use locale;
+use Getopt::Long;
+use Pod::Usage;
 
 
 ####################################################################
 # Argument processing
 ####################################################################
-sub usage() {
-    die "Usage: $0 [-n nat-net ] {in-file | in-directory} group-name\n";
-}
+
+my $nat_net;
+my $help;
+my $man;
+GetOptions ( 'nat=s' => \$nat_net,
+	     'help|?' => \$help,
+	     man => \$man,
+	     ) or pod2usage(2);
+pod2usage(1) if $help;
+pod2usage(-exitstatus => 0, -verbose => 2) if $man;
+
+my $config = shift @ARGV or pod2usage(2);
+my $name = shift @ARGV or pod2usage(2);
 
 ####################################################################
 # Main program
 ####################################################################
 
-my $nat_net;
-if($ARGV[0] eq '-n') {
-    shift;
-    $nat_net = shift or usage;
+# Parse group definition(s).
+$Netspoc::input = $name;
+$Netspoc::file = 'group definition';
+$Netspoc::line = 1;
+my @parsed;
+Netspoc::skip_space_and_comment();
+while (1) {
+    push @parsed, Netspoc::read_intersection;
+    Netspoc::skip_space_and_comment;
+    last if pos $Netspoc::input == length $Netspoc::input;
+    Netspoc::check(',');
 }
-my $config = shift @ARGV or usage;
-my $name = shift or usage;
 
 # Read and process Netspoc configuration file or directory.
 &read_file_or_dir($config);
@@ -59,15 +106,19 @@ my $name = shift or usage;
 &setpath();
 Netspoc::convert_hosts();
 
+# Find network for resolving NAT addresses.
 my $nat_map;
 if($nat_net) {
     my $net = $networks{$nat_net} or 
-	err_msg "Unknown network:$nat_net of option '-n'";
+	die "Unknown network:$nat_net of option '-n'\n";
     $nat_map = $net->{nat_domain}->{nat_map};
 }
 
-my $elements = Netspoc::expand_group([['group', $name]], $0, 'convert_hosts');
+# Expand group definition(s).
+my $elements = Netspoc::expand_group(\@parsed, $0, 'convert_hosts');
 my @pairs = map { Netspoc::address($_, $nat_map) } @$elements;
+
+# Sort and print results.
 for my $pair (sort { $a->[0] <=> $b->[0] } @pairs) {
     my ($ip, $mask) = @$pair;
     my $prefix = Netspoc::mask2prefix($mask);
