@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 
 =head1 Netspoc, a Network Security Policy Compiler
 
@@ -26,26 +25,15 @@ $Id$
 package Netspoc;
 use strict;
 use warnings;
-
-require Exporter;
 use Getopt::Long;
-
-# Activate for Perl 5.8.6 or above.
-# This automatically selects the encoding from your locale and
-# works even if UTF-8 is enabled.
-use open ':locale';
-
-# Activate for Perl 5.8.0 or above if your input is UTF-8 encoded.
-#use open ':utf8';
-
-# Activate for older Perl versions with legacy encoding.
-# We need this for German umlauts being part of \w.
-# Uncomment next line, if your files are latin1..9 encoded.
-use locale;
+use open qw(:std :utf8);
+use Encode;
+my $filename_encode = 'UTF-8';
 
 my $program = 'Network Security Policy Compiler';
 our $VERSION = sprintf "%d.%03d", q$Revision$ =~ /(\d+)/g;
 
+use Exporter;
 our @ISA    = qw(Exporter);
 our @EXPORT = qw(
   %routers
@@ -2483,7 +2471,7 @@ sub read_file_or_dir( $;$ ) {
         # Strip trailing slash for nicer file names in messages.
         $path =~ s</$><>;
         opendir DIR, $path or fatal_err "Can't opendir $path: $!";
-        while (my $file = readdir DIR) {
+        while (my $file = Encode::decode($filename_encode, readdir DIR)) {
             next if $file eq '.' or $file eq '..';
             next if $file =~ m/$ignore_files/;
             $file = "$path/$file";
