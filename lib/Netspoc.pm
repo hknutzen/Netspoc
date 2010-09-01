@@ -4538,7 +4538,9 @@ sub expand_group( $$;$ ) {
                 push @other, $obj;
             }
         }
-        push @other, @{ combine_subnets \@subnets };
+	push @other, ($convert_hosts eq 'no_combine')
+	           ? @subnets
+	           : @{ combine_subnets \@subnets };
         return \@other;
     }
     else {
