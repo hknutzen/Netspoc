@@ -115,7 +115,7 @@ if($nat_net) {
 }
 
 # Expand group definition(s).
-my $elements = Netspoc::expand_group(\@parsed, $0, 'convert_hosts');
+my $elements = Netspoc::expand_group(\@parsed, 'print-group', 'no_combine');
 my @pairs = map { Netspoc::address($_, $nat_map) } @$elements;
 
 # Sort and print results.
