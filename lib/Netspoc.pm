@@ -9823,6 +9823,29 @@ sub add_router_acls () {
     }
 }
 
+# At least for $srv_esp and $srv_ah the ACL lines need to have a fixed order.
+# Otherwise, 
+# - if the device is accessed over an IPSec tunnel
+# - and we change the ACL incrementally,
+# the connection may be lost.
+sub cmp_address {
+    my ($obj) = @_;
+    my $type = ref $obj;
+    if ($type eq 'Network' or $type eq 'Subnet') {
+	"$obj->{ip},$obj->{mask}";
+    }
+    elsif ($type eq 'Interface') {
+	"$obj->{ip},".0xffffffff;
+    }
+    elsif ($type eq 'Any') {
+        "0,0";
+    }
+    else {
+	internal_err;
+    }
+}
+    
+    
 sub rules_distribution() {
     info "Distributing rules";
 
@@ -9833,7 +9856,11 @@ sub rules_distribution() {
     # This should be done late to get all auxiliary rules processed.
     for my $type ('deny', 'any', 'permit') {
         $expanded_rules{$type} =
-          [ sort { ($b->{srv}->{prio} || 0) <=> ($a->{srv}->{prio} || 0) }
+          [ sort { ($b->{srv}->{prio} || 0) <=> ($a->{srv}->{prio} || 0) ||
+		       ($a->{srv}->{prio} || 0) &&
+		       (cmp_address($a->{src}) cmp cmp_address($b->{src}) ||
+			cmp_address($a->{dst}) cmp cmp_address($b->{dst}))
+		   }
               @{ $expanded_rules{$type} } ];
     }
 
