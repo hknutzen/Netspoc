@@ -246,18 +246,24 @@ for my $router (@routers) {
     next if not $router->{managed};
     my $name = $router->{new_name};
     my $model = $router->{model};
-    my $at_silan;
+    my $ignore;
     for my $interface (@{$router->{interfaces}}) {
 	if(my $redundancy_interfaces = $interface->{redundancy_interfaces}) {
 	    push @redundancy_interfaces, $redundancy_interfaces;
 	}
+	$ignore ||= $interface->{ip} eq 'negotiated';
+
 #	my $network = $interface->{network};
 #	if($network->{name} eq 'network:SI_LAN') {
 #	    $at_silan = 1;
 #	    last;
 #	}
+	
     }
-    my $type_info = $model2type{$model->{name}} || ['pep.unknown', '0.0'];
+    my $type_info = $model2type{$model->{name}};
+    if($ignore or not $type_info) {
+	$type_info = ['pep.unknown', '0.0'];
+    }
 #   if($at_silan) {
 #	$type_info = $model2type{$model->{name}} or 
 #	    die "Can't handle $name with model=$model\n";
@@ -279,6 +285,9 @@ for my $router (@routers) {
 	    my $level = $hardware->{level};
 	    if($level == 100) {
 		$append = 'param(domainType=inside)';
+	    }
+	    elsif($level != 0) {
+		$append = 'param(domainType=DMZ)';
 	    }
 	}
 	print "interface \"$hw_name\" $addr $net_name $append";
@@ -719,9 +728,13 @@ for my $interfaces (@redundancy_interfaces) {
     $zone_counter++;
 }
 
-
-print "class Test_Arne/\"SCM Designer\" 10.1.0.29";
-print "class Test_Arne/\"SCM Server\" 10.1.0.29";
+my $hausnetz = $networks{'DZ_Hausnetz'};
+while(my $master = $hausnetz->{master}) {
+    $hausnetz = $master;
+}
+my $hausnetz_name = $hausnetz->{new_name};
+print "class $hausnetz_name/\"SCM Designer\" 10.1.0.29";
+print "class $hausnetz_name/\"SCM Server\" 10.1.0.29";
 
 print "# the end";
 
