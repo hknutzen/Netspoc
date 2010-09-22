@@ -6639,11 +6639,15 @@ sub cluster_path_mark ( $$$$$$ ) {
     # Start and end interface or undef.
     # It is set, if the path starts / ends
     # - at an interface inside the loop or
-    # - at an interface of a router inside the loop and
+    # - at an interface at the border of the loop
+    #   (an interface of a router/any inside the loop)
     # - this interface has a pathrestriction attached.
     my ($start_intf, $end_intf);
 
-    # Check, if $from_store contains interface of current loop where path starts.
+    # Check, if loop is entered or left at interface with pathrestriction.
+    # - is $from_store located inside or at border of current loop?
+    # - does $from_in at border of current loop have pathrestriction ?
+    # dito for $to_store and $to_out.
     my ($start_store, $end_store);
     if (is_interface $from_store
         and ($from_store->{router} eq $from or $from_store->{any} eq $from))
@@ -6651,8 +6655,10 @@ sub cluster_path_mark ( $$$$$$ ) {
         $start_intf  = $from_store;
         $start_store = $from_store;
     }
+    elsif ($from_in and $from_in->{path_restrict}) {
+        $start_store = $from_in;
+    }
     else {
-        $start_intf  = undef;
         $start_store = $from;
     }
     if (is_interface $to_store
@@ -6661,8 +6667,10 @@ sub cluster_path_mark ( $$$$$$ ) {
         $end_intf  = $to_store;
         $end_store = $to_store;
     }
+    elsif ($to_out and $to_out->{path_restrict}) {
+        $end_store = $to_out;
+    }
     else {
-        $end_intf  = undef;
         $end_store = $to;
     }
 
