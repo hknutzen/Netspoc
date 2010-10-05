@@ -12731,7 +12731,7 @@ sub print_crypto( $ ) {
 		    my $peer_ip = print_ip $peer->{real_interface}->{ip};
 		    print "tunnel-group $peer_ip type ipsec-l2l\n";
 		    print "tunnel-group $peer_ip ipsec-attributes\n";
-		    print " pre-shared-key *\n";
+		    print " pre-shared-key *****\n";
 		    print " peer-id-validate nocheck\n";
 		}
 	    }
