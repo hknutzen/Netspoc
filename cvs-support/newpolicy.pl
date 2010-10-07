@@ -61,9 +61,6 @@ my $compiler = 'netspoc';
 # Name of cvs module in repository.
 my $module = 'netspoc';
 
-# Location of repository.
-my $CVSROOT = '/usr/local/cvsroot';
-
 # Link to current policy.
 my $link = "$policydb/current";
 
