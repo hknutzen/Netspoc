@@ -574,7 +574,7 @@ sub read_typed_name() {
                 syntax_err "Hostname expected";
             }
         }
-        elsif (check '\[') {
+        elsif ($input =~ m/ \G \[ /gcox) {
             my @list;
             if ($interface && check 'managed') {
                 $managed = 1;
@@ -582,12 +582,15 @@ sub read_typed_name() {
             }
             $name = [ read_union ']' ];
         }
+	elsif ($input =~ m/(\G[\w-]+)/gc) {
+	    $name = $1;
+	}
         else {
-            $name = read_identifier;
+	    syntax_err "Identifier or '[' expected";
         }
         if ($interface) {
-            skip '\.';
-            if (check '\[') {
+            $input =~ m/ \G \. /gcox or syntax_err "Expected '.'";
+            if ($input =~ m/ \G \[ /gcox) {
                 my $selector = read_identifier;
                 $selector =~ /^(auto|all)$/ or syntax_err "Expected [auto|all]";
                 $ext = [ $selector, $managed ];
@@ -595,7 +598,7 @@ sub read_typed_name() {
             }
             else {
                 $ext = read_identifier;
-                if (check '\.') {
+                if ($input =~ m/ \G \. /gcox) {
                     $ext .= '.' . read_identifier;
                 }
                 $managed
