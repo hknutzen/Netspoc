@@ -1,0 +1,392 @@
+#!/usr/bin/perl
+# anonymize
+# Print anonymized netspoc configuration to destination directory
+#
+# http://netspoc.berlios.de
+# (c) 2010 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+# $Id$
+
+use strict;
+use warnings;
+use Netspoc;
+use Data::Random::String;
+use open qw(:std :utf8);
+use utf8;
+use Encode;
+my $filename_encode = 'UTF-8';
+
+my $ignore_files = '^(raw|CVS|RCS|\.#.*|.*~)$';
+
+####################################################################
+# Argument processing
+####################################################################
+sub usage() {
+    die "Usage: $0 {in-file | in-directory} out-directory\n";
+}
+
+
+####################################################################
+# Main program
+####################################################################
+
+my $in = shift @ARGV or usage;
+my $out = shift @ARGV or usage;
+-e $out and fatal_err("$out already exists");
+
+# Read and process netspoc configuration data.
+info "Reading config";
+&read_file_or_dir($in);
+&link_topology();
+die "Aborted with $error_counter error(s)\n" if $error_counter;
+
+# Leave this characters unchanged.
+my $separator = qr/([-\@_.äöüß ]+)/;
+
+sub random {
+    my ($old) = @_;
+    my @parts = grep $_ ne '', split($separator, $old);
+    my $result = '';
+    for my $part (@parts) {
+	if ($part =~ $separator) {
+	    $result .= $part;
+	}
+	else {
+	    $result.= ucfirst lc
+		Data::Random::String
+		->create_random_string(length=> length($part), 
+				       contains=> 
+				       ($part =~ /^\d+$/) ?
+				       'numeric' :  
+				       ($part =~ /\d/) ?
+				       'alphanumeric' : 'alpha');
+	}
+    }
+    $result;
+}
+
+sub random2 {
+    my ($old) = @_;    
+    my $first = substr($old, 0, 2);
+    my $rest = substr($old, 2);
+    $first . random($rest);
+}
+
+my %subst;
+
+my %global_type = (
+		   router          => \%routers         ,
+		   network         => \%networks        ,
+		   any             => \%anys            ,
+		   area            => \%areas           ,
+		   owner           => \%owners          ,
+		   admin           => \%admins          ,
+		   group           => \%groups          ,
+		   service         => \%services        ,
+		   servicegroup    => \%servicegroups   ,
+		   policy          => \%policies        ,
+		   pathrestriction => \%pathrestrictions,
+		   nat             => \%global_nat      ,
+		   isakmp          => \%isakmp          ,
+		   ipsec           => \%ipsec           ,
+		   crypto          => \%crypto          ,
+		   host            => \%hosts           ,
+		   );
+
+sub setup_subst {
+    for my $type (keys %global_type) {
+	my $table = $global_type{$type};
+	for my $obj (values %$table) {
+	    my $name = $obj->{name};
+	    $name =~ s/^.*://;
+
+	    # Leave first two characters of policy name unchanged,
+	    # because sort order influences processing order.
+	    # Processing order needs to be unchanged for attribute 'overlaps'.
+	    my $renamed = $type eq 'policy' ? random2($name) : random($name);
+	    $subst{$type}->{$name} = $renamed;
+	}
+    }
+
+    for my $network (values %networks) {
+	my $net = $network->{name};
+	$net =~ s/^.*://;
+	my $rnet = $subst{network}->{$net};
+	for my $host (@{ $network->{hosts} }) {
+	    my $name = $host->{name};
+	    $name =~ s/^host://;
+	    if (my $domain = $host->{id}) {
+		my $rdomain;
+		if (not $rdomain = $subst{host}->{"id:$domain"}) {
+		    $rdomain = 'id:' . random($domain);
+		    $subst{host}->{"id:$domain"} = $rdomain;
+		}
+		$subst{host}->{"id:$domain.$net"} = "$rdomain.$rnet";
+	    }
+	    else {
+		my $renamed = random($name);
+		$subst{host}->{$name} = $renamed;
+	    }
+	}
+	if (my $href = $network->{nat}) {
+	    for my $nat_tag (keys %$href) {
+		next if $subst{nat}->{$nat_tag};
+		$subst{nat}->{$nat_tag} = random($nat_tag);
+	    }
+	}
+    }
+}
+
+# Key: "ip/mask", value: "new-ip/mask"
+my %ipsubst;
+
+# A nested hash table.
+# Key: 1., .., 4. octet of an IP address.
+# - value ist leerer Hash: Wert von Key ist irgendwo in Benutzung
+#   Wert von key darf nicht neu vergeben werden
+# - value hat Attribut 'new'
+#   - Wert von 'new' == key: Wert bleibt beim anonymisieren unverändert
+#     darf nicht neu vergeben werden
+#   - Wert von 'new' != key: Wert wird beim Anonymisieren umgesetzt
+#     Wert von Key darf neu vergeben werden
+# - Value hat Attribut 'used'
+#   Wert von Key ist bereits neu vergeben, darf nicht erneut vergeben werden
+my $oct_map = { 10 => { new => 10, },
+		192 => { new => 192, map => { 168 => { new => 168 } }, },
+	    };
+
+sub setup_ip {
+    my ($setup) = @_;
+
+    # Sort networks by size of mask, i.e. large subnets coming first.
+    for my $network ( sort { $a->{mask} <=> $b->{mask} } 
+		      map { $_, values %{ $_->{nat} } }
+		      grep { $_->{ip} !~ /^(?:unnumbered|tunnel)/ }
+		      values %networks) 
+    {
+	my $ip = $network->{ip};
+	my $mask = $network->{mask};
+	next if $mask == 0;
+	my $rip = $ip;
+
+	my $map = $oct_map;
+	for my $shift (24, 16, 8) {
+	    my $m = ($mask >> $shift) & 0xff;
+	    if ($m != 0xff) {
+		if ($m) {
+		    my $i = ($ip >> $shift) & $m;
+		    my $range = 0xff - $m;
+		    for my $x ($i .. $i+$range) {
+			$map->{$x}->{new} = $x;
+			my $pip = print_ip($ip);
+			Netspoc::debug "Fixed $x at $shift in $pip";
+		    }
+		}
+		last;
+	    }
+		
+	    my $i = ($ip >> $shift) & 0xff;
+	    my $hash = $map->{$i} ||= {};
+	    if (not $setup) {
+
+                # Don't change a 0 octet. This prevents substituition of 
+                # the supernet with the value of a subnet.
+                $hash->{new} = 0 if $i == 0;
+		my $new = $hash->{new};
+		if (not defined $new) {
+		    for my $n (128 .. 254, 1 .. 126) {
+			if ($map->{$n} and
+			    ( not $map->{$n}->{new} or
+                              $map->{$n}->{new} == $n or
+                              $map->{$n}->{used})
+			    ) 
+			{
+			    next;
+			}
+			$new = $n;
+			last;
+		    }
+		    if (not defined $new) {
+			my $pip = print_ip($ip);
+			fatal_err "Values exhausted for $pip at >> $shift";
+		    }
+		    $hash->{new} = $new;
+		    $map->{$new}->{used} = 1;
+		    Netspoc::debug "Change to $new at $shift";
+		}
+		my $roct = $new << $shift;
+		my $rmask = Netspoc::complement_32bit(0xff << $shift);
+		$rip = ($rip & $rmask) | $roct;
+	    }
+	    $map = $hash->{map} ||= {};
+	}
+	if (not $setup) {
+	    $ipsubst{"$ip/$mask"} = $rip;
+	    my $pip = print_ip($ip);
+	    my $pmask = print_ip($mask);
+	    my $prip = print_ip($rip);
+	    Netspoc::debug "$pip/$pmask -> $prip\n";
+	}
+    }
+}	
+
+sub subst_ip {
+    my ($in) = @_;
+    my $ip;
+
+    if ($in =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/) {
+        if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
+            fatal_err "Invalid IP address";
+        }
+        $ip = unpack 'N', pack 'C4', $1, $2, $3, $4;
+    }
+    else {
+        fatal_err "IP address expected";
+    }
+    my $result;
+    my $mask = 0xffffffff;
+    while ($mask) {
+	my $cip = $ip & $mask;
+	if (my $rip = $ipsubst{"$cip/$mask"}) {
+	    $result = $rip | $ip & Netspoc::complement_32bit($mask);
+	    last;
+	}
+	$mask &= 0x7fffffff;
+	$mask <<= 1;
+    }
+    if (defined $result) {
+	print_ip($result);
+    }
+    else {
+	$in;
+    }
+}
+
+sub process_file {
+    my ($in, $out) = @_;
+    local *FILE;
+    open FILE, $in or fatal_err "Can't open $in: $!";
+    my @input = <FILE>;
+    close FILE;
+    process(\@input);
+    open FILE, ">$out" or fatal_err "Can't create $out: $!";
+    print FILE @input;
+    close FILE;
+}
+
+sub process_file_or_dir {
+    my ($path, $out) = @_;
+    if (-d $path) {
+        local (*DIR);
+	mkdir($out);
+
+        # Strip trailing slash.
+        $path =~ s</$><>;
+        opendir DIR, $path or fatal_err "Can't opendir $path: $!";
+        while (my $file = Encode::decode($filename_encode, readdir DIR)) {
+            next if $file eq '.' or $file eq '..';
+            next if $file =~ m/$ignore_files/;
+	    my $rfile = 
+		($file =~ /^(:?rule|group|services|servicegroups|topology)$/) 
+		? $file : random2($file);
+            $file = "$path/$file";
+	    $rfile = "$out/$rfile";
+            process_file_or_dir($file, $rfile);
+        }
+        closedir DIR;
+    }
+    else {
+        process_file($path, $out);
+    }
+}
+
+sub subst {
+    my ($type, $name) = @_;
+    $type = 'admin' if $type eq 'admins';
+    if ($type eq 'interface') {
+	if ($name !~ /[.]/) {
+	    $subst{network}->{$name} || 
+
+		# Leave name of loopback interface unchanged.
+		$name;
+	}
+	elsif ($name =~ /^(.+?)[.](.+?)([.].*)?$/) {
+	    my $router = $1;
+	    my $net = $2;
+	    my $ext = $3 || '';
+	    my $rrouter = $subst{router}->{$router};
+	    my $rnet = $subst{network}->{$net} || $net;
+	    "$rrouter.$rnet$ext";
+	}
+	elsif($name =~ /^(.*?)[.]$/) {
+	    my $router = $1;
+	    my $rrouter = $subst{router}->{$1};
+	    "$rrouter.";
+	}
+	else {
+	    fatal_err("Unexpected $type:$name");
+	}
+	    
+    }
+    elsif (not $global_type{$type}) {
+	$name;
+    }
+    else {
+	$subst{$type}->{$name} or fatal_err "Unexpected $type:$name";
+    } 
+}
+
+sub subst_list {
+    my ($type, $list) = @_;
+    my @names = grep { $_ !~ /^$/ } split(/\s*,\s*/, $list);
+    join(', ', map { subst($type, $_) } @names);
+}
+    
+sub process {
+    my ($lines) = @_;
+    for my $line (@$lines) {
+
+	# Remove comments
+	$line =~ s/#.*//;
+
+	# Remove "description|name|email ="
+	$line =~ s/(:?description|name|email)\s*=.*//;
+	# Rename type:name
+	$line =~ s/([a-z]+):([-\w.\@:]+)/ "$1:" . subst($1, $2) /gex;
+	# Rename nat = name
+	$line =~ s/(nat\s*=\s*)([-\w.\@:]+)/ $1 . subst('nat', $2) /gex;
+	# Rename owner|admins = name, ... ;
+	$line =~ s/(owner|admins)(\s*=\s*)([^;]+)/ 
+	    "$1$2" . subst_list($1, $3) /gex;
+	# Sustitute IP addresses.
+	$line =~ s/(\d+\.\d+\.\d+\.\d+)/ subst_ip($1) /gex;
+        # Anonymize non standard hardware names having '-' or '_'.
+        $line =~ s/(hardware\s*=\s*)\S*[-_]\S*?(\d+)(?=[\s;])/$1dmz$2/gx;
+        # Anonymize VPN banner messages.
+        $line =~ s/((?:banner|CVPN3000-IPSec-Banner1)\s*=\s*)([^;]*)/ $1 . random($2) /gex;
+        # Anonymize ID of VPN network, but not numeric HSRP id.
+        $line =~ s/(?<=\s)(id\s*=\s*)([-\w.]*\@[-\w.]+)/ $1 . random($2) /gex;
+    }
+}
+
+info "Setup IP substituition";
+setup_ip(1);
+setup_ip();
+info "Setup name substituition";
+setup_subst();
+info "Substitute";
+process_file_or_dir($in, $out);
