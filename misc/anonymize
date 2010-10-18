@@ -239,7 +239,7 @@ sub setup_ip {
 	    my $pip = print_ip($ip);
 	    my $pmask = print_ip($mask);
 	    my $prip = print_ip($rip);
-	    Netspoc::debug "$pip/$pmask -> $prip\n";
+	    Netspoc::debug "$pip/$pmask -> $prip";
 	}
     }
 }	
