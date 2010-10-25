@@ -1651,6 +1651,10 @@ sub read_router( $ ) {
         elsif (check_flag 'std_in_acl') {
             $router->{std_in_acl} = 1;
         }
+        elsif (my $owner = check_assign 'owner', \&read_identifier) {
+            $router->{owner} and error_atline "Duplicate attribute 'owner'";
+            $router->{owner} = $owner;
+        }
         elsif (my @pairs = check_assign_list 'radius_servers',
             \&read_typed_name)
         {
@@ -1917,9 +1921,31 @@ sub read_any( $ ) {
         elsif (check_flag 'no_in_acl') {
             $any->{no_in_acl} = 1;
         }
+        else {
+            syntax_err "Expected some valid attribute";
+        }
     }
     $any->{link} or err_msg "Attribute 'link' must be defined for $name";
     return $any;
+}
+
+sub check_router_attributes() {
+    my $result = {};
+    check 'router_attributes'
+      or return undef;
+    skip '=';
+    skip '{';
+    while (1) {
+        last if check '}';
+        if (my $owner = check_assign 'owner', \&read_identifier) {
+            $result->{owner} and error_atline "Duplicate attribute 'owner'";
+            $result->{owner} = $owner;
+        }
+        else {
+            syntax_err "Unexpected attribute";
+        }
+    }
+    return $result;
 }
 
 our %areas;
@@ -1947,6 +1973,11 @@ sub read_area( $ ) {
             $area->{owner} and error_atline "Duplicate attribute 'owner'";
             $area->{owner} = $owner;
         }
+	elsif (my $router_attributes = check_router_attributes()) {
+            $area->{router_attributes} and 
+		error_atline "Duplicate attribute 'router_attributes'";
+            $area->{router_attributes} = $router_attributes;
+	}
         else {
             syntax_err "Expected some valid attribute";
         }
@@ -2936,8 +2967,17 @@ sub link_owners () {
 	    link_to_owner($host);
 	}
     }
+    for my $any (values %anys) {
+	link_to_owner($any);
+    }
     for my $area (values %areas) {
 	link_to_owner($area);
+	if (my $router_attributes = $area->{router_attributes}) {
+	    link_to_owner($router_attributes);
+	}
+    }
+    for my $router (values %routers) {
+	link_to_owner($router);
     }
 }
 
@@ -2990,7 +3030,6 @@ sub link_any() {
             err_msg "Referencing undefined $type:$name from $obj->{name}";
             $obj->{disabled} = 1;
         }
-	link_to_owner($obj);
     }
 }
 
@@ -6010,6 +6049,40 @@ sub setarea1( $$$ ) {
     }
 }
 
+sub inherit_router_attributes () {
+
+    # Areas can be nested. Proceed from small to larger ones.
+    for my $area (sort { @{$a->{anys}} <=> @{$b->{anys}} } values %areas) {
+	my $attributes = $area->{router_attributes} or next;
+
+	# Find managed routers _inside_ this are.
+	#
+        # Fill hash with all border routers of security domains
+        # including border routers of current area.
+        my %routers =
+          map {
+            my $router = $_->{router};
+            ($router => $router)
+          }
+          map @{ $_->{interfaces} }, @{ $area->{anys} };
+
+        # Remove border routers, because we only
+        # need routers inside this area.
+        for my $interface (@{ $area->{border} }) {
+            delete $routers{ $interface->{router} };
+        }
+
+	# Remove semi_managed routers.
+        my @routers = grep { $_->{managed} } values %routers;
+
+	for my $router (@routers) {
+	    for my $key (keys %$attributes) {
+		$router->{$key} ||= $attributes->{$key};
+	    }
+	}
+    }
+}
+
 sub setany() {
     info "Preparing security domains and areas";
     for my $any (@all_anys) {
@@ -6141,6 +6214,7 @@ sub setany() {
             delete $interface->{is_border};
         }
     }
+    inherit_router_attributes();
 }
 
 ####################################################################
