@@ -3511,7 +3511,16 @@ sub check_ip_addresses {
         for my $interface (@{ $network->{interfaces} }) {
             my $ip = $interface->{ip};
             if ($ip eq 'short') {
-		$short_intf = $interface;
+		my $restrict = $interface->{path_restrict};
+
+		# Ignore short interface with globally active pathrestriction
+		# where all traffic goes through a VPN tunnel.
+		if (not $restrict or 
+		    not grep({ $_ eq $global_active_pathrestriction } 
+			     @$restrict))
+		{
+		    $short_intf = $interface;
+		}
             }
             else {
                 unless ($ip =~ /^(?:unnumbered|negotiated|tunnel)$/) {
@@ -5959,16 +5968,24 @@ sub setany_network( $$$ ) {
 sub setany_cluster( $$$ );
 sub setany_cluster( $$$ ) {
     my ($any, $in_interface, $counter) = @_;
+    my $restrict;
     $any->{any_cluster} = $counter;
 #    debug "$counter: $any->{name}";
     for my $interface (@{ $any->{interfaces} }) {
         next if $interface eq $in_interface;
+
+	# Ignore interface with globally active pathrestriction
+	# where all traffic goes through a VPN tunnel.
+	next if $restrict = $interface->{path_restrict} and
+	    grep { $_ eq $global_active_pathrestriction } @$restrict;
         my $router = $interface->{router};
         if (not $router->{managed}) {
             for my $out_interface (@{ $router->{interfaces} }) {
                 next if $out_interface eq $interface;
 		my $next = $out_interface->{any};
 		next if $next->{any_cluster};
+		next if $restrict = $out_interface->{path_restrict} and
+		    grep { $_ eq $global_active_pathrestriction } @$restrict;
                 setany_cluster $next, $out_interface, $counter;
             }
         }
@@ -7409,19 +7426,12 @@ sub link_tunnels () {
 		    push @other, $interface;
 		}
 	    }
-	    if($has_id_hosts) {
-		@other and
-		    err_msg "Must not use network with ID hosts together with",
-		    " networks having no ID host: ", 
-		    join( ',', map {$_->{name}} @other);
-		aref_delete($router->{interfaces}, $real_spoke);
-		aref_delete($real_spoke->{network}->{interfaces}, $real_spoke);
-		delete $interfaces{$real_spoke};
-		
+	    if($has_id_hosts and @other) {
+		err_msg "Must not use network with ID hosts together with",
+		" networks having no ID host: ", 
+		join( ',', map {$_->{name}} @other);
 	    }
-	    else {
-		push @real_interfaces, $real_spoke;
-	    }
+	    push @real_interfaces, $real_spoke;
 	    
             # Automatically add pathrestriction between interfaces
             # of redundant hubs.
@@ -9054,15 +9064,17 @@ sub check_and_convert_routes () {
 		}
 
 		if (not $hop_routes) {
-		    my $try_hops = $real_intf->{network}->{interfaces};
 
 		    # Try to guess default route, if only one hop is available.
-		    if (@$try_hops == 2) {
-			my ($hop) = grep { $_ ne $real_intf } @$try_hops;
-			if ($hop->{ip} !~ /^(?:short|negotiated)$/) {
-			    $hop_routes = $real_intf->{routes}->{$hop} ||= {};
-			    $real_intf->{hop}->{$hop} = $hop;
-			}
+		    my @try_hops = 
+			grep({ $_ ne $real_intf }
+			     grep({ $_->{ip} !~ /^(?:short|negotiated)$/ }
+				  @{ $real_intf->{network}->{interfaces} }));
+
+		    if (@try_hops == 1) {
+			my $hop = $try_hops[0];
+			$hop_routes = $real_intf->{routes}->{$hop} ||= {};
+			$real_intf->{hop}->{$hop} = $hop;
 		    }
 		}
 
