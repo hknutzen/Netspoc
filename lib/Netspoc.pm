@@ -468,6 +468,17 @@ sub read_identifier() {
     }
 }
 
+# Pattrern for attribute "visible": "*" or "name*".
+sub read_owner_pattern() {
+    skip_space_and_comment;
+    if ($input =~ m/ ( \G [\w-]* [*] ) /gcx) {
+        return $1;
+    }
+    else {
+        syntax_err "Pattern '*' or 'name*' expected";
+    }
+}
+
 # Used for reading interface names and attribute 'id'.
 sub read_name() {
     skip_space_and_comment;
@@ -2165,23 +2176,38 @@ sub assign_union_allow_user( $ ) {
 
 sub read_policy( $ ) {
     my ($name) = @_;
-    skip '=';
-    skip '{';
     my $policy = { name => $name, rules => [] };
     $policy->{private} = $private if $private;
+    skip '=';
+    skip '{';
     if (my $description = check_description) {
-        $policy->{description} = $description;
+	$policy->{description} = $description;
     }
-    if (my @other = check_assign_list 'overlaps', \&read_typed_name) {
-	$policy->{overlaps} = \@other;
+    while (1) {
+        last if check 'user';
+	if (my @other = check_assign_list 'overlaps', \&read_typed_name) {
+            $policy->{overlaps} 
+	      and error_atline "Duplicate attribute 'overlaps'";
+	    $policy->{overlaps} = \@other;
+	}
+	elsif (my $visible = check_assign('visible', \&read_owner_pattern)) {
+            $policy->{visible} 
+	      and error_atline "Duplicate attribute 'visible'";
+	    $policy->{visible} = $visible;
+	}
+        else {
+            syntax_err "Expected some valid attribute or definition of 'user'";
+        }
     }
-    skip 'user';
+	
+    # 'user' has already been read above.
     skip '=';
     if (check 'foreach') {
         $policy->{foreach} = 1;
     }
     my @elements = read_list \&read_intersection;
     $policy->{user} = \@elements;
+
     while (1) {
         last if check '}';
         if (my $action = check_permit_deny) {
@@ -5283,6 +5309,8 @@ sub expand_policies( ;$) {
     for my $key (sort keys %policies) {
         my $policy = $policies{$key};
         my $name   = $policy->{name};
+
+	# Substitute policy name by policy object.
 	if (my $overlaps = $policy->{overlaps}) {
 	    my @pobjects;
 	    for my $pair (@$overlaps) {
@@ -5300,6 +5328,21 @@ sub expand_policies( ;$) {
 		}
 	    }
 	    $policy->{overlaps} = \@pobjects;
+	}
+
+	# Attribute "visible" is known to have value "*" or "name*".
+	# It must match prefix of some owner name.
+	# Change value to regex to simplify tests: # name* -> /^name.*$/
+	if (my $visible = $policy->{visible}) {
+	    if (my ($prefix) = ($visible =~ /^ (\S*) [*] $/x)) {
+		if ($prefix) {
+		    if (not grep { /^$prefix/ } keys %owners ) {
+			warn_msg "Attribute 'visible' of $name doesn't match" .
+			    " any owner";
+		    }
+		}
+		$policy->{visible} = qr/^$prefix.*$/;
+	    }		    
 	}
         my $user   = $policy->{user} =
           expand_group($policy->{user}, "user of $name");
