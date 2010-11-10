@@ -86,6 +86,7 @@ our @EXPORT = qw(
   mark_disabled
   find_subnets
   setany
+  set_policy_owner
   expand_policies
   expand_crypto
   check_unused_groups
@@ -2195,6 +2196,16 @@ sub read_policy( $ ) {
 	      and error_atline "Duplicate attribute 'visible'";
 	    $policy->{visible} = $visible;
 	}
+	elsif (my $multi_owner = check_flag('multi_owner')) {
+            $policy->{multi_owner} 
+	      and error_atline "Duplicate attribute 'multi_owner'";
+	    $policy->{multi_owner} = $multi_owner;
+	}
+	elsif (my $unknown_owner = check_flag('unknown_owner')) {
+            $policy->{unknown_owner} 
+	      and error_atline "Duplicate attribute 'unknown_owner'";
+	    $policy->{unknown_owner} = $unknown_owner;
+	}
         else {
             syntax_err "Expected some valid attribute or definition of 'user'";
         }
@@ -2227,7 +2238,8 @@ sub read_policy( $ ) {
                 action => $action,
                 src    => $src,
                 dst    => $dst,
-                srv    => $srv
+                srv    => $srv,
+		has_user => $src_user ? $dst_user ? 'both' : 'src' : 'dst',
             };
             push @{ $policy->{rules} }, $rule;
         }
@@ -5186,8 +5198,8 @@ sub expand_rules ( $$$$;$$$ ) {
                 # because this is used as a hash key in %rule_tree.
                 my $stateless = $flags->{stateless} ? 1 : 0;
 
-                my ($src, $dst) =
-                  $flags->{reversed} ? ($dst, $src) : ($src, $dst);
+		my ($src, $dst) =
+		  $flags->{reversed} ? ($dst, $src) : ($src, $dst);
 
                 # If $srv is duplicate of an identical service,
                 # use the main service, but remember the original
@@ -5259,6 +5271,7 @@ sub expand_rules ( $$$$;$$$ ) {
                                           " reference $dst->{name} of",
                                           " $dst->{private}.private";
                                     }
+
                                     my $rule = {
                                         stateless => $stateless,
                                         action    => $action,
@@ -5289,7 +5302,7 @@ sub expand_rules ( $$$$;$$$ ) {
     }
     show_unenforceable;
 
-    # Result is indirectly returned using parameter $result.
+    # Result is returned indirectly using parameter $result.
 }
 
 sub print_rulecount () {
@@ -5346,14 +5359,200 @@ sub expand_policies( ;$) {
 	}
         my $user   = $policy->{user} =
           expand_group($policy->{user}, "user of $name");
-        expand_rules($policy->{rules}, $name, \%expanded_rules,
-            $policy->{private}, $user, $policy->{foreach}, $convert_hosts);
+	expand_rules($policy->{rules}, $name, \%expanded_rules,
+		     $policy->{private}, $user, $policy->{foreach}, 
+		     $convert_hosts);
     }
     print_rulecount;
     for my $type ('deny', 'any', 'permit') {
         add_rules $expanded_rules{$type};
     }
     show_deleted_rules1();
+}
+
+##############################################################################
+# Distribute owner, identify policy owner
+##############################################################################
+
+sub propagate_owners {
+
+    # Areas can be nested. Proceed from small to larger ones.
+    for my $area (sort { @{$a->{anys}} <=> @{$b->{anys}} } values %areas) {
+	my $owner = $area->{owner} or next;
+	for my $any (@{ $area->{anys} }) {
+	    $any->{owner} ||= $owner;
+	}
+    }
+    for my $any (@all_anys) {
+	my $owner = $any->{owner} or next;
+	for my $network (@{ $any->{networks} }) {
+	    $network->{owner} ||= $owner;
+	}
+    }
+    for my $network (@networks) {
+	my $owner = $network->{owner} or next;
+	for my $host (@{ $network->{hosts} }) {
+	    $host->{owner} ||= $owner;
+	}
+	for my $interface (@{ $network->{interfaces} }) {
+	    if (not $interface->{router}->{managed}) {
+		$interface->{owner} ||= $owner;
+	    }
+	}
+    }
+    for my $router (@managed_routers) {
+	my $owner = $router->{owner} or next;
+	for my $interface (@{ $router->{interfaces} }) {
+	    $interface->{owner} = $owner;
+	}
+    }
+}	
+
+sub expand_auto_intf {
+    my ($src_aref, $dst_aref) = @_;
+    for (my $i = 0; $i < @$src_aref; $i++) {
+	my $src = $src_aref->[$i];
+	next if not is_autointerface($src);
+	my @new;
+	for my $dst (@$dst_aref) {
+	    push @new, Netspoc::path_auto_interfaces($src, $dst);
+	}
+
+	# Substitute auto interface by real interface.
+	splice(@$src_aref, $i, 1, @new)
+    }
+}
+
+  
+my %unknown2policies;
+my %unknown2unknown;
+sub show_unknown_owners {
+    for my $polices (values %unknown2policies) {
+	$polices = join(',', sort @$polices);
+    }
+  UNKNOWN:
+    for my $obj (values %unknown2unknown) {
+	my $up = $obj;
+	while($up = $up->{up}) {
+	    if ($unknown2policies{$up} and
+		$unknown2policies{$obj} eq $unknown2policies{$up}) 
+	    {
+		next UNKNOWN;
+	    }
+	}
+
+	# Derive owner of any object from its networks.
+	my $owner1;
+	if (is_any $obj) {
+	    for my $network (@{ $obj->{networks} }) {
+		if (my $owner = $network->{owner}) {
+		    if (not $owner1) {
+			$owner1 = $owner;
+			next;
+		    }
+		    elsif ($owner1 eq $owner) {
+			next;
+		    }
+		}
+		$owner1 = undef;
+		last;
+	    }
+	    next UNKNOWN if $owner1;
+	}
+	warn_msg "Unknown owner for $obj->{name} in $unknown2policies{$obj}";
+    }
+}
+
+sub set_policy_owner {
+    info "Checking policy owner";
+    
+    propagate_owners();
+
+    for my $key (sort keys %policies) {
+	my $policy = $policies{$key};
+	my $pname = $policy->{name};
+
+	my $users = expand_group($policy->{user}, "user of $pname");
+
+	# Non 'user' objects.
+	my @objects;
+
+	# Check, if policy contains a coupling rule with only "user" elements.
+	my $is_coupling = 0;
+
+	for my $rule (@{ $policy->{rules} }) {
+	    my $has_user = $rule->{has_user};
+	    if ($has_user eq 'both') {
+		$is_coupling = 1;
+		next;
+	    }
+	    for my $what (qw(src dst)) {
+		next if $what eq $has_user;
+		push(@objects, @{ expand_group($rule->{$what}, 
+							"$what of $pname") });
+	    }
+	}
+
+	# Expand auto interface to set of real interfaces.
+	expand_auto_intf(\@objects, $users);
+	expand_auto_intf($users, \@objects);
+
+	# Take elements of 'user' object, if policy has coupling rule.
+	if ($is_coupling) {
+	    push @objects, @$users;
+	}
+
+	# Remove duplicate objects;
+	my %objects = map { $_ => $_ } @objects;
+	@objects = values %objects;
+
+	# Collect policy owners and unknown owners;
+	my $policy_owners;
+	my $unknown_owners;
+
+	for my $obj (@objects) {
+	    my $owner = $obj->{owner};
+	    if ($owner) {
+		$policy_owners->{$owner} = $owner;
+	    }
+	    else {
+		$unknown_owners->{$obj} = $obj;
+	    }
+	}
+
+	$policy->{owners} = [ values %$policy_owners ];
+
+	# Check for multiple owners.
+	my $multi_count = $is_coupling
+	                ? 1
+	                : values %$policy_owners;
+	if ($multi_count > 1 xor $policy->{multi_owner}) {
+	    if ($policy->{multi_owner}) {
+		warn_msg "Useless use of attribute 'multi_owner' at $pname";
+	    }
+	    else {
+		my @names = sort(map { $_->{name} =~ /^owner:(.*)/; $1 }  
+				 values %$policy_owners);
+		warn_msg "$pname has multiple owners: ". join(', ', @names);
+	    }
+	}
+
+	# Check for unknown owners.
+	if (($unknown_owners and keys %$unknown_owners) xor 
+	    $policy->{unknown_owner}) 
+	{
+	    if ($policy->{unknown_owner}) {
+		warn_msg "Useless use of attribute 'unknown_owner' at $pname";
+	    }
+	    else {
+		for my $obj (values %$unknown_owners) {
+		    $unknown2unknown{$obj} = $obj;
+		    push @{ $unknown2policies{$obj} }, $pname;
+		}
+	    }
+	}
+    }
+    show_unknown_owners();
 }
 
 ##############################################################################
