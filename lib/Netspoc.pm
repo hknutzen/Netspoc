@@ -1,8 +1,14 @@
+package Netspoc;
 
-=head1 Netspoc, a Network Security Policy Compiler
+=head1 NAME
+
+Netspoc - A Network Security Policy Compiler
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+(C) 2010 by Heinz Knutzen <heinzknutzen@users.berlios.de>
 
 http://netspoc.berlios.de
-(C) 2010 by Heinz Knutzen <heinzknutzen@users.berlios.de>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -22,10 +28,8 @@ $Id$
 
 =cut
 
-package Netspoc;
 use strict;
 use warnings;
-use Getopt::Long;
 use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
@@ -57,6 +61,11 @@ our @EXPORT = qw(
   $error_counter
   $max_errors
   $store_description
+  get_config_keys
+  get_config_pattern
+  check_config_pair
+  read_config
+  set_config
   info
   err_msg
   fatal_err
@@ -76,7 +85,6 @@ our @EXPORT = qw(
   is_objectgroup
   is_chain
   is_autointerface
-  read_args
   read_netspoc
   read_file
   read_file_or_dir
@@ -107,30 +115,40 @@ our @EXPORT = qw(
 ####################################################################
 # User configurable options.
 ####################################################################
-my $verbose        = 1;
-my $comment_acls   = 0;
-my $comment_routes = 0;
 
-# Possible values: 0,1,'warn';
-my $allow_unused_groups = 'warn';
+# Valid values:
+# - Default: 0|1
+# - Option with name "check_*": 0,1,'warn' 
+#  - 0: no check
+#  - 1: throw an error if check fails
+#  - warn: print warning if check fails
+# - Option with name "max_*": integer
+# Other: string
+our %config =
+    (
+
+# Check for unused groups and servicegroups.
+     check_unused_groups => 'warn',
 
 # Allow subnets only
 # - if the enclosing network is marked as 'route_hint' or
 # - if the subnet is marked as 'subnet_of'
-# Possible values: 0,1,'warn';
-my $strict_subnets = 'warn';
+     check_subnets => 'warn',
 
 # Check for unenforceable rules, i.e. no managed device between src and dst.
-# Possible values: 0,1,'warn';
-my $check_unenforceable = 'warn';
+     check_unenforceable => 'warn',
 
 # Check for duplicate rules.
-# Possible values: 0,1,'warn';
-my $check_duplicate_rules = 'warn';
+     check_duplicate_rules => 'warn',
 
 # Check for redundant rules.
-# Possible values: 0,1,'warn';
-my $check_redundant_rules = 'warn';
+     check_redundant_rules => 'warn',
+
+# Check for policies where owner can't be derived.
+     check_policy_unknown_owner => 0,
+
+# Check for policies where multiple owners have been derived.
+     check_policy_multi_owner => 0,
 
 # Optimize the number of routing entries per router:
 # For each router find the hop, where the largest
@@ -138,32 +156,90 @@ my $check_redundant_rules = 'warn';
 # and replace them with a single default route.
 # This is only applicable for internal networks
 # which have no default route to the internet.
-my $auto_default_route = 1;
+     auto_default_route => 1,
+
+# Add comments to generated code.
+     comment_acls   => 0,
+     comment_routes => 0,
+
+# Print warning about ignored ICMP code fields at PIX firewalls.
+     warn_pix_icmp_code => 0,
 
 # Ignore these names when reading directories:
-# - directory raw for prologue & epilogue files
 # - CVS and RCS directories
 # - CVS working files
 # - Editor backup files: emacs: *~
-my $ignore_files = '^(raw|CVS|RCS|\.#.*|.*~)$';
+     ignore_files => '^(CVS|RCS|\.#.*|.*~)$',
 
 # Abort after this many errors.
-our $max_errors = 10;
+     max_errors => 10,
+
+# Print progress messages.
+     verbose => 1,
+
+# Print progress messages with time stamps.
+# Print "finished" with time stamp when finished.
+     time_stamps => 0,
+     );
+
+# Valid values for config options in %config.
+# Key is prefix or string "default".
+# Value is pattern for checking valid values.
+our %config_type =
+(
+ check_  => '0|1|warn',
+ max_    => '\d+',
+ ignore_ => '\S+',
+ _default => '0|1',
+ );
+
+sub get_config_keys {
+    keys %config;
+}
+
+sub valid_config_key {
+    my ($key) = @_;
+    exists $config{$key}
+}
+
+sub get_config_pattern {
+    my ($key) = @_;
+    my $pattern;
+    for my $prefix (keys %config_type) {
+	if ($key =~ /^$prefix/) {
+	    $pattern = $config_type{$prefix};
+	    last;
+	}
+    }
+    $pattern || $config_type{_default};
+}
+
+# Checks for valid config key/value pair.
+# Returns false on success, the expected pattern on failure.
+sub check_config_pair {
+    my ($key, $value) = @_;
+    my $pattern = get_config_pattern($key);
+    return($value =~ /^($pattern)$/ ? undef : $pattern);
+}
+
+# Set %config with pairs from one or more hashrefs. 
+# Rightmost hash overrides previous values with same key.
+sub set_config {
+    my (@hrefs) = @_;
+    for my $href (@hrefs) {
+	while (my ($key, $val) = each %$href) {
+	    $config{$key} = $val;
+	}
+    }
+}
 
 # Store descriptions as an attribute of policies.
 # This may be useful when called from a reporting tool.
-our $store_description = 0;
-
-# Print warning about ignored ICMP code fields at PIX firewalls.
-my $warn_pix_icmp_code = 0;
+our $store_description => 0;
 
 # Use non-local function exit for efficiency.
 # Perl profiler doesn't work if this is active.
-my $use_nonlocal_exit = 1;
-
-# Print time stamps at echo call to sub info.
-# Print "finished" with time stamp when finished.
-my $time_stamps = 0;
+my $use_nonlocal_exit => 1;
 
 ####################################################################
 # Attributes of supported router models
@@ -245,13 +321,12 @@ my %router_info = (
 # Error Reporting
 ####################################################################
 
-my $start_time;
+my $start_time = time();
 
 sub info ( @ ) {
-    return if not $verbose;
-    $start_time ||= time();
-    my $diff = time() - $start_time;
-    if ($time_stamps) {
+    return if not $config{verbose};
+    if ($config{time_stamps}) {
+	my $diff = time() - $start_time;
         printf STDERR "%3ds ", $diff;
     }
     print STDERR @_, "\n";
@@ -301,10 +376,10 @@ our $error_counter = 0;
 
 sub check_abort() {
     $error_counter++;
-    if ($error_counter == $max_errors) {
+    if ($error_counter == $config{max_errors}) {
         die "Aborted after $error_counter errors\n";
     }
-    elsif ($error_counter > $max_errors) {
+    elsif ($error_counter > $config{max_errors}) {
         die "Aborted\n";
     }
 }
@@ -342,7 +417,7 @@ sub internal_err( @ ) {
 sub skip_space_and_comment() {
 
     # Ignore trailing white space and comments.
-    while ($input =~ m'\G[ \t]*([#].*)?\n'gc) {
+    while ($input =~ m'\G[ \t]*(?:[#].*)?(?:\n|$)'gc) {
         $line++;
     }
 
@@ -2511,49 +2586,107 @@ sub read_netspoc() {
 sub read_file( $$ ) {
     local $file = shift;
     my $read_syntax = shift;
-    local *FILE;
-    open FILE, $file or fatal_err "Can't open $file: $!";
 
-    # Fill buffer with content of whole FILE.
+    # Read file as one large line.
+    local $/;
+
+    open my $fh, $file or fatal_err "Can't open $file: $!";
+
+    # Fill buffer with content of whole file.
     # Content is implicitly freed when subroutine is left.
-    local $input = <FILE>;
-    close FILE;
+    local $input = <$fh>;
+    close $fh;
     local $line = 1;
     while (skip_space_and_comment, pos $input != length $input) {
         &$read_syntax;
     }
 }
 
-sub read_file_or_dir( $;$ );
+# Try to read file 'config' in toplevel directory $path.
+sub read_config {
+    my ($path) = @_;
+    my %result;
+    my $read_config_data = sub {
+	my $key = read_identifier();
+	valid_config_key($key) or syntax_err "Invalid keyword";
+	skip('=');
+	my $val = read_identifier;
+	if (my $expected = check_config_pair($key, $val)) {
+	    syntax_err "Expected value matching '$expected'";
+	}
+	skip(';');
+	$result{$key} = $val;
+    };
+
+    if (-d $path) {
+	opendir(my $dh, $path) or fatal_err "Can't opendir $path: $!";
+	if (grep { $_ eq 'config' } readdir $dh) {
+	    $path = "$path/config";
+	    read_file $path, $read_config_data;
+	}
+	closedir $dh;
+    }
+    \%result;
+}
 
 sub read_file_or_dir( $;$ ) {
     my ($path, $read_syntax) = @_;
     $read_syntax ||= \&read_netspoc;
 
-    # Undef input record separator.
-    local $/;
+    # Handle toplevel file.
+    if ( not -d $path) {
+	read_file $path, $read_syntax;
+	return;
+    }
 
-    # Find marker for private directories and files.
-    # Propagate marker to sub-directories.
-    local $private = ($path =~ m'([^/]*)\.private$') ? $1 : $private;
+    # Recursively handle non toplevel files and directories.
+    # No special handling for "config", "raw" and "*.private".
+    my $read_nested_files;
+    $read_nested_files = sub {
+	my ($path, $read_syntax) = @_;
+	if (-d $path) {
+	    opendir(my $dh, $path) or fatal_err "Can't opendir $path: $!";
+	    while (my $file = Encode::decode($filename_encode, readdir $dh)) {
+		next if $file eq '.' or $file eq '..';
+		next if $file =~ m/$config{ignore_files}/o;
+		my $path = "$path/$file";
+		$read_nested_files->($path, $read_syntax);
+	    }
+	    closedir $dh;
+	}
+	else {
+	    read_file $path, $read_syntax;
+	}
+    };
 
-    if (-d $path) {
-        local (*DIR);
+    # Strip trailing slash for nicer file names in messages.
+    $path =~ s</$><>;
 
-        # Strip trailing slash for nicer file names in messages.
-        $path =~ s</$><>;
-        opendir DIR, $path or fatal_err "Can't opendir $path: $!";
-        while (my $file = Encode::decode($filename_encode, readdir DIR)) {
-            next if $file eq '.' or $file eq '..';
-            next if $file =~ m/$ignore_files/;
-            $file = "$path/$file";
-            read_file_or_dir $file, $read_syntax;
+    # Handle toplevel directory.
+    # Special handling for "config", "raw" and "*.private".
+    opendir(my $dh, $path) or fatal_err "Can't opendir $path: $!";
+    my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
+
+    for my $file (@files) {
+    
+	next if $file eq '.' or $file eq '..';
+	next if $file =~ m/$config{ignore_files}/o;
+
+	# Ignore file/directory 'raw' and 'config'.
+	next if $file eq 'config' or $file eq 'raw';
+
+	my $path = "$path/$file";
+
+	# Handle private directories and files.
+	if ($file =~ m'([^/]*)\.private$') {
+	    local $private = $1;
+            $read_nested_files->($path, $read_syntax);
         }
-        closedir DIR;
+	else {
+	    $read_nested_files->($path, $read_syntax);
+	}
     }
-    else {
-        read_file $path, $read_syntax;
-    }
+    closedir $dh;
 }
 
 sub show_read_statistics() {
@@ -4639,7 +4772,7 @@ sub expand_group( $$;$ ) {
 }
 
 sub check_unused_groups() {
-    if ($allow_unused_groups ne 1) {
+    if ($config{check_unused_groups}) {
         for my $obj (values %groups, values %servicegroups) {
             unless ($obj->{is_used}) {
                 my $msg;
@@ -4653,7 +4786,7 @@ sub check_unused_groups() {
                 else {
                     $msg = "unused empty $obj->{name}";
                 }
-                if ($allow_unused_groups eq 'warn') {
+                if ($config{check_unused_groups} eq 'warn') {
                     warn_msg $msg;
                 }
                 else {
@@ -4769,7 +4902,7 @@ sub add_rules( $ ) {
 
             # Found identical rule.
             $rule->{deleted} = $old_rule;
-	    push @deleted_rules, $rule if $check_duplicate_rules;
+	    push @deleted_rules, $rule if $config{check_duplicate_rules};
             next;
         }
 
@@ -4963,7 +5096,7 @@ my %enforceable_context;
 sub collect_unenforceable ( $$$$ ) {
     my ($src, $dst, $domain, $context) = @_;
 
-    return if not $check_unenforceable;
+    return if not $config{check_unenforceable};
 
     # A rule between identical objects is a common case
     # which results from rules with "src=user;dst=user;".
@@ -5011,7 +5144,7 @@ sub show_unenforceable () {
                 }
             }
         }
-        $check_unenforceable eq 'warn' ? warn_msg $msg : err_msg $msg;
+        $config{check_unenforceable} eq 'warn' ? warn_msg $msg : err_msg $msg;
     }
     %enforceable_context           = ();
     %unenforceable_context2src2dst = ();
@@ -5058,7 +5191,8 @@ sub show_deleted_rules1 {
 	push(@{ $pname2oname2deleted{$policy->{name}}->{$opolicy->{name}} }, 
 	     $rule);
     }
-    my $print = $check_duplicate_rules eq 'warn' ? \&warn_msg : \&err_msg;
+    my $print = 
+	$config{check_duplicate_rules} eq 'warn' ? \&warn_msg : \&err_msg;
     for my $pname (sort keys %pname2oname2deleted) {
 	my $hash = $pname2oname2deleted{$pname};
 	for my $oname (sort keys %$hash) {
@@ -5129,7 +5263,8 @@ sub show_deleted_rules2 {
 	push(@{ $pname2oname2deleted{$pname}->{$oname} }, 
 	     [ $rule, $other ]);
     }
-    my $print = $check_redundant_rules eq 'warn' ? \&warn_msg : \&err_msg;
+    my $print = 
+	$config{check_redundant_rules} eq 'warn' ? \&warn_msg : \&err_msg;
     for my $pname (sort keys %pname2oname2deleted) {
 	my $hash = $pname2oname2deleted{$pname};
 	for my $oname (sort keys %$hash) {
@@ -5430,6 +5565,9 @@ sub show_unknown_owners {
     for my $polices (values %unknown2policies) {
 	$polices = join(',', sort @$polices);
     }
+    my $print = $config{check_policy_unknown_owner} eq 'warn'
+	      ? \&warn_msg
+	      : \&err_msg;
   UNKNOWN:
     for my $obj (values %unknown2unknown) {
 	my $up = $obj;
@@ -5459,7 +5597,7 @@ sub show_unknown_owners {
 	    }
 	    next UNKNOWN if $owner1;
 	}
-	warn_msg "Unknown owner for $obj->{name} in $unknown2policies{$obj}";
+	$print->("Unknown owner for $obj->{name} in $unknown2policies{$obj}");
     }
 }
 
@@ -5531,9 +5669,14 @@ sub set_policy_owner {
 		warn_msg "Useless use of attribute 'multi_owner' at $pname";
 	    }
 	    else {
+		my $print = $config{check_policy_multi_owner}
+		          ? $config{check_policy_multi_owner} eq 'warn'
+			  ? \&warn_msg
+			  : \&err_msg
+			  : sub {};
 		my @names = sort(map { $_->{name} =~ /^owner:(.*)/; $1 }  
 				 values %$policy_owners);
-		warn_msg "$pname has multiple owners: ". join(', ', @names);
+		$print->("$pname has multiple owners: ". join(', ', @names));
 	    }
 	}
 
@@ -5545,9 +5688,11 @@ sub set_policy_owner {
 		warn_msg "Useless use of attribute 'unknown_owner' at $pname";
 	    }
 	    else {
-		for my $obj (values %$unknown_owners) {
-		    $unknown2unknown{$obj} = $obj;
-		    push @{ $unknown2policies{$obj} }, $pname;
+		if ($config{check_policy_unknown_owner}) {
+		    for my $obj (values %$unknown_owners) {
+			$unknown2unknown{$obj} = $obj;
+			push @{ $unknown2policies{$obj} }, $pname;
+		    }
 		}
 	    }
 	}
@@ -5943,7 +6088,7 @@ sub find_subnets() {
                         # This may differ for different NAT domains.
                         $subnet->{is_in}->{$nat_map} = $bignet;
 
-                        if ($strict_subnets) {
+                        if ($config{check_subnets}) {
 
                             # Take original $bignet, because currently
                             # there's no method to specify a natted network
@@ -5969,7 +6114,7 @@ sub find_subnets() {
                                   . " if desired, either declare attribute"
                                   . " 'subnet_of' or attribute 'route_hint'";
 
-                                if ($strict_subnets eq 'warn') {
+                                if ($config{check_subnets} eq 'warn') {
                                     warn_msg $msg;
                                 }
                                 else {
@@ -5987,13 +6132,15 @@ sub find_subnets() {
 
         # We must not set an arbitrary default route
         # if a network 0.0.0.0/0 exists and may be referenced in some rule.
-        if ($auto_default_route && (my $network = $mask_ip_hash{0}->{0})) {
+        if ($config{auto_default_route} && 
+	    (my $network = $mask_ip_hash{0}->{0})) 
+	{
             if (not $network->{route_hint}) {
                 err_msg "auto_default_route is set and $network->{name}",
                   " has IP address 0.0.0.0/0\n",
                   " either deactivate auto_default_route\n",
                   " or set attribute 'route_hint' of $network->{name}";
-                $auto_default_route = 0;
+                $config{auto_default_route} = 0;
             }
         }
     }
@@ -8767,7 +8914,7 @@ sub optimize_rules( $$ ) {
                                                                                   {deleted}
                                                                                   =
                                                                                   $cmp_rule;
-										push @deleted_rules, $chg_rule if $check_redundant_rules;
+										push @deleted_rules, $chg_rule if $config{check_redundant_rules};
                                                                                 last;
                                                                             }
                                                                         }
@@ -9497,7 +9644,7 @@ sub print_routes( $ ) {
             }
         }
     }
-    if ($auto_default_route and not $has_dyn_routing) {
+    if ($config{auto_default_route} and not $has_dyn_routing) {
 
         # Find interface and hop with largest number of routing entries.
         my $max_intf;
@@ -9528,7 +9675,7 @@ sub print_routes( $ ) {
         # Don't generate static routing entries,
         # if a dynamic routing protocol is activated
         if ($interface->{routing}) {
-            if ($comment_routes) {
+            if ($config{comment_routes}) {
                 print "$comment_char Routing $interface->{routing}->{name}",
                   " at $interface->{name}\n";
             }
@@ -9549,7 +9696,7 @@ sub print_routes( $ ) {
             # both as key and as value.
             my $net_hash = $interface->{routes}->{$hop};
             for my $network (@{ $intf2hop2nets{$interface}->{$hop} }) {
-                if ($comment_routes) {
+                if ($config{comment_routes}) {
                     print "! route $network->{name} -> $hop->{name}\n";
                 }
                 if ($type eq 'IOS') {
@@ -10595,7 +10742,7 @@ sub acl_line( $$$$ ) {
         my ($action, $src, $dst, $src_range, $srv) =
           @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
         print "$model->{comment_char} " . print_rule($rule) . "\n"
-	    if $comment_acls and $model->{filter} ne 'iptables';
+	    if $config{comment_acls} and $model->{filter} ne 'iptables';
         my $spair = address($src, $nat_map);
         my $dpair = address($dst, $nat_map);
         if ($filter_type eq 'PIX') {
@@ -12635,7 +12782,7 @@ sub print_acls( $ ) {
 	    my $acl_name = "$hardware->{name}_$suffix";
 	    my $prefix;
 	    my $intf_prefix;
-	    if ($comment_acls) {
+	    if ($config{comment_acls}) {
 	    
 		# Name of first logical interface
 		print "$comment_char $hardware->{interfaces}->[0]->{name}\n";
@@ -13155,98 +13302,8 @@ sub print_code( $ ) {
             close STDOUT or fatal_err "Can't close $file: $!";
         }
     }
-    $warn_pix_icmp_code && warn_pix_icmp;
-    info "Finished" if $time_stamps;
-}
-
-####################################################################
-# Argument processing
-####################################################################
-sub usage() {
-    die <<'MSG'
-Usage: $0 [options] {in-directory | in-file | -} [out-directory]
-Compile all files from 'in-directory' or from a single 'in-file' or from STDIN.
-Output is generated in 'out-directory' or sent to STDOUT.
-Options:
--[no]comment_acls       Add comments to generated ACLs
--[no]comment_routes     Add comments to generated routes
--[no]auto_default_route Use default route to minimize number of routing entries
--verbose                Show statistics and compilation steps
--quiet                  Disable -verbose
--time_stamps            Show time stamps if verbose.
--max_errors=<n>         Abort after that number of errors
--ignore_files=<regexp>  Ignore some files inside in-directory
-                        Default is '^(raw|CVS|RCS|\.#.*|.*~)$'
--strict_subnets=yes|no|warn     Subnets must be declared with 'subnet_of'
--allow_unused_groups=yes|no|warn
--check_unenforceable_rules=yes|no|warn
--check_duplicate_rules=yes|no|warn
--check_redundant_rules=yes|no|warn
-MSG
-      ;
-}
-
-sub check_tri( $ ) {
-    my ($val) = @_;
-    if ($val =~ /^(1|yes|true)$/i) {
-        return 1;
-    }
-    elsif ($val =~ /^(0|no|false)$/i) {
-        return 0;
-    }
-    elsif ($val =~ /^w(arn(ing)?)?$/i) {
-        return 'warn';
-    }
-    else {
-        die "Invalid value '$val', must be yes, no or warn\n";
-    }
-}
-
-sub read_args() {
-    GetOptions
-
-      # Simple option, variable is set to 1.
-      'verbose'     => \$verbose,
-      'quiet'       => sub { $verbose = 0 },
-      'time_stamps' => \$time_stamps,
-
-      # Negatable options; use as -xxx or -noxxx
-      'comment_acls!'       => \$comment_acls,
-      'comment_routes!'     => \$comment_routes,
-      'auto_default_route!' => \$auto_default_route,
-
-      # Option with integer value. Use as 'max_errors=4' or 'max_errors 4'.
-      'max_errors=i' => \$max_errors,
-
-      # Option with string value.
-      'ignore_files=s' => \$ignore_files,
-
-      # Function checks validity of string value.
-      'strict_subnets=s' =>
-      sub { my $value = $_[1]; $strict_subnets = check_tri $value },
-      'allow_unused_groups=s' =>
-      sub { my $value = $_[1]; $allow_unused_groups = check_tri $value },
-      'check_unenforceable_rules=s' =>
-      sub { my $value = $_[1]; $check_unenforceable = check_tri $value },
-      'check_duplicate_rules=s' =>
-      sub { my $value = $_[1]; $check_duplicate_rules = check_tri $value },
-      'check_redundant_rules=s' =>
-      sub { my $value = $_[1]; $check_redundant_rules = check_tri $value },
-      or usage;
-    my $main_file = shift @ARGV or usage;
-
-    # $out_dir is used to store compilation results:
-    # For each managed router with name X a corresponding file X
-    # is created in $out_dir.
-    # If $out_dir is missing, all code is printed to STDOUT.
-    my $out_dir = shift @ARGV;
-
-    # Strip trailing slash for nicer messages.
-    $out_dir and $out_dir =~ s</$><>;
-
-    # No further arguments allowed.
-    not @ARGV or usage;
-    return $main_file, $out_dir;
+    $config{warn_pix_icmp_code} && warn_pix_icmp;
+    info "Finished" if $config{time_stamps};
 }
 
 sub show_version() {
