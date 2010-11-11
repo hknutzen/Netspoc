@@ -1,35 +1,182 @@
 #!/usr/bin/perl
-# netspoc
-# A Network Security Policy Compiler
-# http://netspoc.berlios.de
-# (c) 2007 by Heinz Knutzen <heinzknutzen@users.berlios.de>
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-#
-# $Id$
+
+=head1 NAME
+
+Netspoc - A Network Security Policy Compiler
+
+=head1 SYNOPSIS
+
+netspoc [options] {in-directory | in-file | -} [out-directory]
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-check_unused_groups=0|1|warn>
+
+Check for unused groups and servicegroups.
+
+=item B<-check_subnets=0|1|warn>
+
+Check for subnets which aren't declared with 'subnet_of' or 'route_hint'.
+
+=item B<-check_unenforceable=0|1|warn>
+
+Check for unenforceable rules, i.e. no managed device between src and dst.
+
+=item B<-check_duplicate_rules=0|1|warn>
+
+Check for duplicate rules.
+
+=item B<-check_redundant_rules=0|1|warn>
+
+Check for redundant rules.
+
+=item B<-check_policy_unknown_owner=0|1|warn>
+
+Check for policies where owner can't be derived.
+
+=item B<-check_policy_multi_owner=0|1|warn>
+
+Check for policies where multiple owners have been derived.
+
+=item B<-[no]auto_default_route>
+
+Generate default route to minimize number of routing entries.
+
+=item B<-[no]comment_acls>
+
+Add comments to generated access lists.
+
+=item B<-[no]comment_routes>
+
+Add comments to generated route commands.
+
+=item B<-[no]warn_pix_icmp_code>
+
+Print warning about ignored ICMP code fields at PIX firewalls.
+
+=item B<-ignore_files={regex}>
+
+Ignore these names when reading directories.
+
+=item B<-max_errors={integer}>
+
+Abort after this many errors.
+
+=item B<-verbose>
+
+Print progress messages.
+
+=item B<-quiet>
+
+Don't print progress messages.
+
+=item B<-[no]time_stamps>
+
+Print progress messages with time stamps.
+
+=item B<-help>
+
+Print a brief help message and exits.
+
+=item B<-man>
+
+Prints the manual page and exits.
+
+=back
+
+=head1 DESCRIPTION
+
+Compile all files from 'in-directory' or from a single 'in-file' or from STDIN.
+Output is generated in 'out-directory' or sent to STDOUT.
+
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+(C) 2010 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+
+http://netspoc.berlios.de
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+$Id$
+
+=cut
 
 use strict;
 use warnings;
 use Netspoc;
+use Getopt::Long;
+use Pod::Usage;
+
+
+####################################################################
+# Argument processing
+# Get option names from %Netspoc::config.
+# Write options back to %Netspoc::config.
+####################################################################
+
+sub read_args() {
+    my %result;
+    my $setopt = sub {
+	my ($key, $val) = @_;
+	if (my $expected = check_config_pair($key, $val)) {
+	    die "Value '$val' invalid for option $key ($expected expected)\n";
+	}
+	$result{$key} = $val;
+    };
+
+    my %options;
+    for my $key (get_config_keys()) {
+	my $opt = get_config_pattern($key) eq '0|1' ? '!' : '=s';
+	$options{"$key$opt"} = $setopt;
+    }
+    $options{quiet} = sub { $result{verbose} = 0 };
+    $options{'help|?'} = sub { pod2usage(1) };
+    $options{man} = sub { pod2usage(-exitstatus => 0, -verbose => 2) };
+
+    GetOptions(%options) or pod2usage(2);
+
+    my $main_file = shift @ARGV or pod2usage(2);
+
+    # $out_dir is used to store compilation results.
+    # For each managed router with name X a corresponding file X
+    # is created in $out_dir.
+    # If $out_dir is missing, all code is printed to STDOUT.
+    my $out_dir = shift @ARGV;
+
+    # Strip trailing slash for nicer messages.
+    $out_dir and $out_dir =~ s</$><>;
+
+    # No further arguments allowed.
+    @ARGV and pod2usage(2);
+    return $main_file, $out_dir, \%result;
+}
 
 ####################################################################
 # Main program
 ####################################################################
 
-my($in_path, $out_dir) = &read_args();
+my($in_path, $out_dir, $cmd_config) = &read_args();
 &show_version();
+my $file_config = &read_config($in_path);
+
+# Command line arguments override options from 'config' file.
+# Rightmost overrides.
+&set_config($file_config, $cmd_config);
 &read_file_or_dir($in_path);
 &show_read_statistics();
 &order_services();
@@ -38,6 +185,7 @@ my($in_path, $out_dir) = &read_args();
 &distribute_nat_info();
 &setany();
 &setpath();
+&set_policy_owner();
 &find_subnets();
 &expand_policies(1);	# 1: expand hosts to subnets
 # Abort now, if there are syntax errors and simple semantic errors.
