@@ -453,41 +453,6 @@ sub read_int() {
     check_int or syntax_err "Integer expected";
 }
 
-# Conversion from netmask to prefix and vice versa.
-{
-
-    # Initialize private variables of this block.
-    my %mask2prefix;
-    my %prefix2mask;
-    for my $prefix (0 .. 32) {
-        my $mask = 2**32 - 2**(32 - $prefix);
-        $mask2prefix{$mask}   = $prefix;
-        $prefix2mask{$prefix} = $mask;
-    }
-
-    # Convert a network mask to a prefix ranging from 0 to 32.
-    sub mask2prefix( $ ) {
-        my $mask = shift;
-        if (defined(my $prefix = $mask2prefix{$mask})) {
-            return $prefix;
-        }
-        internal_err "Network mask ", print_ip $mask, " isn't a valid prefix";
-    }
-
-    sub prefix2mask( $ ) {
-        my $prefix = shift;
-        if (defined(my $mask = $prefix2mask{$prefix})) {
-            return $mask;
-        }
-        internal_err "Invalid prefix: $prefix";
-    }
-}
-
-sub complement_32bit( $ ) {
-    my ($ip) = @_;
-    return ~$ip & 0xffffffff;
-}
-
 # Read IP address. Internally it is stored as an integer.
 sub read_ip() {
     skip_space_and_comment;
@@ -532,6 +497,41 @@ sub print_ip( $ ) {
 sub print_ip_aref( $ ) {
     my $aref = shift;
     return map { print_ip $_; } @$aref;
+}
+
+# Conversion from netmask to prefix and vice versa.
+{
+
+    # Initialize private variables of this block.
+    my %mask2prefix;
+    my %prefix2mask;
+    for my $prefix (0 .. 32) {
+        my $mask = 2**32 - 2**(32 - $prefix);
+        $mask2prefix{$mask}   = $prefix;
+        $prefix2mask{$prefix} = $mask;
+    }
+
+    # Convert a network mask to a prefix ranging from 0 to 32.
+    sub mask2prefix( $ ) {
+        my $mask = shift;
+        if (defined(my $prefix = $mask2prefix{$mask})) {
+            return $prefix;
+        }
+        internal_err "Network mask ", print_ip $mask, " isn't a valid prefix";
+    }
+
+    sub prefix2mask( $ ) {
+        my $prefix = shift;
+        if (defined(my $mask = $prefix2mask{$prefix})) {
+            return $mask;
+        }
+        internal_err "Invalid prefix: $prefix";
+    }
+}
+
+sub complement_32bit( $ ) {
+    my ($ip) = @_;
+    return ~$ip & 0xffffffff;
 }
 
 sub read_identifier() {
