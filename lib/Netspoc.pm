@@ -3122,6 +3122,19 @@ sub link_to_owner {
 }
 
 sub link_owners () {
+
+    # One email address must not belong to different admins.
+    my %email2admin;
+    for my $admin (values %admins) {
+	if (my $admin2 = $email2admin{$admin->{email}}) {
+	    err_msg("Address $admin->{email} is used at",
+		     " $admin->{name} and $admin2->{name}");
+	}
+	else {
+	    $email2admin{$admin->{email}} = $admin;
+	}
+    }
+	
     for my $owner (values %owners) {
 
         # Convert names of admin objects to admin objects.
