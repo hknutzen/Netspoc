@@ -35,7 +35,7 @@ sub compile {
 }
 
 # Find lines in $data which equal elements in @find.
-# Output found line and subsequent lines up to empty line.
+# Output found line and subsequent lines up to empty line or comment line.
 sub get_block {
     my ($data, @find) = @_;
     map { chomp } @find;
@@ -48,7 +48,7 @@ sub get_block {
 	    $match = 1;
 	}
 	elsif ($match) {
-	    if($line =~ /^\s*$/) {
+	    if($line =~ m'^\s*([#!].*)?$') {
 		$match = 0;
 	    }
 	    else {
