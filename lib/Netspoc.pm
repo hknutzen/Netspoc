@@ -7411,8 +7411,18 @@ sub loop_path_walk( $$$$$$$ ) {
 
     # Process entry of cyclic graph.
     # Note: not .. xor is similar to eq, but operates on boolean values.
-    if (
-        not(is_router $loop_entry or is_interface $loop_entry)
+    if (not(is_router $loop_entry 
+	    or
+
+	    # $loop_entry is interface with pathrestriction of original
+	    # loop_entry.
+	    is_interface $loop_entry
+	    and
+
+	    # Take only interface which originally was a router.
+	    $loop_entry->{router} eq
+	    $loop_entry->{loop_enter}->{$loop_exit}->[0]->{router}
+	    )
         xor $call_at_router)
     {
 
@@ -7432,8 +7442,13 @@ sub loop_path_walk( $$$$$$$ ) {
     }
 
     # Process paths at exit of cyclic graph.
-    if (
-        not(is_router $loop_exit or is_interface $loop_exit)
+    if (not(is_router $loop_exit 
+	    or 
+	    is_interface $loop_exit 
+	    and
+	    $loop_exit->{router} eq
+	    $loop_entry->{loop_leave}->{$loop_exit}->[0]->{router}
+	    )
         xor $call_at_router)
     {
 
