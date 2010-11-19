@@ -171,12 +171,12 @@ sub read_args() {
 ####################################################################
 
 my($in_path, $out_dir, $cmd_config) = &read_args();
-&show_version();
 my $file_config = &read_config($in_path);
 
 # Command line arguments override options from 'config' file.
 # Rightmost overrides.
 &set_config($file_config, $cmd_config);
+&show_version();
 &read_file_or_dir($in_path);
 &show_read_statistics();
 &order_services();
