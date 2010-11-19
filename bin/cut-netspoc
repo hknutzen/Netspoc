@@ -188,6 +188,28 @@ for my $router (values %routers) {
     }
 }
 
+for my $obj (values %areas, values %anys,values %networks, values %hosts,
+	     values %routers) 
+{
+    next if not $obj->{is_used};
+    if (my $owner = $obj->{owner}) {
+	$owner->{is_used} = 1;
+    }
+}
+for my $area (values %areas) {
+    next if not $area->{is_used};
+    my $router_attributes = $area->{router_attributes} or next;
+    if (my $owner = $router_attributes->{owner}) {
+	$owner->{is_used} = 1;
+    }
+}
+for my $owner (values %owners) {
+    next if not $owner->{is_used};
+    for my $admin (@{ $owner->{admins} }) {
+	$admin->{is_used} = 1;
+    }
+}	
+    
 # Print marked parts of netspoc configuration.
 # Routers and networks have been marked by mark_topology.
 # Services have been marked while %expanded_rules have been processed above.
@@ -203,6 +225,8 @@ for my $object (
     values %isakmp,
     values %ipsec,
     values %crypto,
+    values %owners,
+    values %admins
   )
 {
     if ($object->{is_used}) {
