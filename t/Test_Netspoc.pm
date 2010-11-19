@@ -13,7 +13,7 @@ use File::Temp qw/ tempfile tempdir /;
 sub compile {
     my($config) = @_;
 
-    my ($fh, $filename) = tempfile();
+    my ($fh, $filename) = tempfile(UNLINK => 1);
     print $fh $config;
     close $fh;
 
