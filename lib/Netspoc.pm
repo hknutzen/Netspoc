@@ -1968,6 +1968,10 @@ sub read_router( $ ) {
 
     # Unmanaged device.
     else {
+	$router->{owner} and
+	    error_atline "Attribute 'owner' must only be used at",
+	    " managed device";
+
         for my $interface (@{ $router->{interfaces} }) {
 	    if ($interface->{hub}) {
                 error_atline "Interface with attribute 'hub' must only be",
