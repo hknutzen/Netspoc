@@ -67,6 +67,7 @@ our @EXPORT = qw(
   read_config
   set_config
   info
+  progress
   err_msg
   fatal_err
   read_ip
@@ -149,6 +150,9 @@ our %config =
 
 # Check for policies where multiple owners have been derived.
      check_policy_multi_owner => 0,
+
+# Check for transient any rules.
+     check_transient_any_rules => 0,
 
 # Optimize the number of routing entries per router:
 # For each router find the hop, where the largest
@@ -323,13 +327,17 @@ my %router_info = (
 
 my $start_time = time();
 
-sub info ( @ ) {
+sub info( @ ) {
+    print STDERR @_, "\n";
+}
+
+sub progress ( @ ) {
     return if not $config{verbose};
     if ($config{time_stamps}) {
 	my $diff = time() - $start_time;
         printf STDERR "%3ds ", $diff;
     }
-    print STDERR @_, "\n";
+    info @_;
 }
 
 sub warn_msg ( @ ) {
@@ -2713,8 +2721,7 @@ sub show_read_statistics() {
     my $sg = keys %servicegroups;
     my $p  = keys %policies;
     info "Read $r routers, $n networks, $h hosts";
-    info "Read $s services, $sg service groups";
-    info "Read $g groups, $p policies";
+    info "Read $p policies, $g groups, $s services, $sg service groups";
 }
 
 ##############################################################################
@@ -3064,7 +3071,7 @@ my $range_tcp_established;
 # Order services. We need this to simplify optimization.
 # Additionally add internal predefined services.
 sub order_services() {
-    info 'Arranging services';
+    progress 'Arranging services';
 
     # Internal services need to be processed before user defined services,
     # because we want to avoid handling of {main} for internal services.
@@ -3782,7 +3789,7 @@ sub link_crypto ();
 sub link_tunnels ();
 
 sub link_topology() {
-    info "Linking topology";
+    progress "Linking topology";
     link_interfaces;
     link_ipsec;
     link_crypto;
@@ -4092,7 +4099,7 @@ sub split_ip_range( $$ ) {
 }
 
 sub convert_hosts() {
-    info "Converting hosts to subnets";
+    progress "Converting hosts to subnets";
     for my $network (@networks) {
         next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
         my @inv_prefix_aref;
@@ -5479,7 +5486,7 @@ sub print_rulecount () {
 sub expand_policies( ;$) {
     my ($convert_hosts) = @_;
     convert_hosts if $convert_hosts;
-    info "Expanding policies";
+    progress "Expanding policies";
 
     # Sort by policy name to make output deterministic.
     for my $key (sort keys %policies) {
@@ -5527,6 +5534,7 @@ sub expand_policies( ;$) {
 		     $convert_hosts);
     }
     print_rulecount;
+    progress "Preparing Optimization";
     for my $type ('deny', 'any', 'permit') {
         add_rules $expanded_rules{$type};
     }
@@ -5645,7 +5653,7 @@ sub show_unknown_owners {
 }
 
 sub set_policy_owner {
-    info "Checking policy owner";
+    progress "Checking policy owner";
     
     propagate_owners();
 
@@ -5882,7 +5890,7 @@ sub distribute_nat1( $$$$ ) {
 my @natdomains;
 
 sub distribute_nat_info() {
-    info "Distributing NAT";
+    progress "Distributing NAT";
     my %nat_tag2networks;
 
     # Find NAT domains.
@@ -6012,7 +6020,7 @@ sub distribute_nat_info() {
 ####################################################################
 
 sub find_subnets() {
-    info "Finding subnets";
+    progress "Finding subnets";
     for my $domain (@natdomains) {
 
 #     debug "$domain->{name}";
@@ -6538,7 +6546,7 @@ sub inherit_router_attributes () {
 }
 
 sub setany() {
-    info "Preparing security domains and areas";
+    progress "Preparing security domains and areas";
     for my $any (@all_anys) {
         $any->{networks} = [];
         my $network = $any->{link};
@@ -6556,7 +6564,7 @@ sub setany() {
     # where none has been declared.
     for my $network (@networks) {
         next if $network->{any};
-        (my $name = $network->{name}) =~ s/^\w+:/auto_any:/;
+        my $name = "any:[$network->{name}]";
         my $any = new('Any', name => $name, link => $network);
         $any->{networks} = [];
         push @all_anys, $any;
@@ -6856,7 +6864,7 @@ sub set_loop_cluster {
 }
 
 sub setpath() {
-    info "Preparing fast path traversal";
+    progress "Preparing fast path traversal";
 
     # Take a random object from @all_anys, name it "any1".
     @all_anys or fatal_err "Topology seems to be empty";
@@ -7926,7 +7934,7 @@ sub link_tunnels () {
 my $network_00 = new('Network', name => "network:0/0", ip => 0, mask => 0);
 
 sub expand_crypto () {
-    info "Expanding crypto rules";
+    progress "Expanding crypto rules";
 
     my %id2network;
 
@@ -8561,11 +8569,30 @@ sub check_for_transient_any_rule () {
 # debug "Dst: ", print_rule $rule2;
                         my $src_policy = $rule->{rule}->{policy}->{name};
                         my $dst_policy = $rule2->{rule}->{policy}->{name};
-                        my $new =
-                          $missing_rule_tree{$src_policy}->{ $src1->{name} }
-                          ->{$dst_policy}->{ $dst2->{name} }
-                          ->{ $smaller_src_range->{name} }
-                          ->{ $smaller_srv->{name} }++;
+			my $srv_name = $smaller_srv->{name};
+			$srv_name =~ s/^.part_/[part]/;
+			if ($smaller_src_range ne $range_tcp_any
+			    and
+			    $smaller_src_range ne $srv_ip) 
+			{
+			    my ($p1, $p2) = @{ $smaller_src_range->{range} };
+			    if ($p1 != 1 or $p2 != 65535) {
+				$srv_name = "[src:$p1-$p2]$srv_name";
+			    }
+			}
+			my $new =
+			  not
+			  $missing_rule_tree
+			    { $src_policy }
+                          ->{ $dst_policy }
+
+			# The matching 'any' object.
+  			  ->{ $dst1->{name} }
+
+			# The missing rule
+			  ->{ $src1->{name} }
+			  ->{ $dst2->{name} }
+                          ->{ $srv_name }++;
                         $missing_count++ if $new;
                     }
                 }
@@ -8578,20 +8605,21 @@ sub check_for_transient_any_rule () {
 
     if ($missing_count) {
 
-        err_msg "Missing transient rules: $missing_count";
-
+	my $print = $config{check_transient_any_rules}  eq 'warn'
+	          ? \&warn_msg
+	          : \&err_msg;
+        $print->("Missing transient rules: $missing_count");
+	
         while (my ($src_policy, $hash) = each %missing_rule_tree) {
-            info "*Src-Policy: $src_policy";
-            while (my ($src, $hash) = each %$hash) {
-                info " Src: $src";
-                while (my ($dst_policy, $hash) = each %$hash) {
-                    info " *Dst-Policy: $dst_policy";
-                    while (my ($dst, $hash) = each %$hash) {
-                        info "  Dst: $dst";
-                        while (my ($src_range, $hash) = each %$hash) {
-                            while (my ($srv, $hash) = each %$hash) {
-                                info "   Srv: $srv";
-                            }
+	    while (my ($dst_policy, $hash) = each %$hash) {
+		while (my ($any, $hash) = each %$hash) {
+		    info "Rules of $src_policy and $dst_policy match at $any";
+		    info "Missing transient rules:";
+		    while (my ($src, $hash) = each %$hash) {
+			while (my ($dst, $hash) = each %$hash) {
+			    while (my ($srv, $hash) = each %$hash) {
+				info " permit src=$src; dst=$dst; srv=$srv";
+			    }
                         }
                     }
                 }
@@ -8599,6 +8627,7 @@ sub check_for_transient_any_rule () {
         }
     }
 }
+
 
 # Handling of any rules created by gen_reverse_rules.
 #
@@ -8644,7 +8673,7 @@ sub check_for_transient_any_rule () {
 #
 
 sub check_any_rules() {
-    info "Checking rules with 'any' objects";
+    progress "Checking rules with 'any' objects";
     for my $rule (@{ $expanded_rules{any} }) {
         next if $rule->{deleted};
         if (is_any($rule->{src})) {
@@ -8654,7 +8683,7 @@ sub check_any_rules() {
             path_walk($rule, \&check_any_dst_rule);
         }
     }
-    check_for_transient_any_rule;
+    check_for_transient_any_rule if $config{check_transient_any_rules};
 
     # no longer needed; free some memory.
     %obj2any = ();
@@ -8773,7 +8802,7 @@ sub gen_reverse_rules1 ( $ ) {
 }
 
 sub gen_reverse_rules() {
-    info "Generating reverse rules for stateless routers";
+    progress "Generating reverse rules for stateless routers";
     for my $type ('deny', 'any', 'permit') {
         gen_reverse_rules1 $expanded_rules{$type};
     }
@@ -8868,7 +8897,7 @@ sub mark_primary ( $$ ) {
 }
 
 sub mark_secondary_rules() {
-    info "Marking rules for secondary optimization";
+    progress "Marking rules for secondary optimization";
 
     my $secondary_mark = 1;
     my $primary_mark   = 1;
@@ -9015,7 +9044,7 @@ sub optimize_rules( $$ ) {
 }
 
 sub optimize() {
-    info "Optimizing globally";
+    progress "Optimizing globally";
     setup_ref2obj;
     optimize_rules \%rule_tree, \%rule_tree;
     print_rulecount;
@@ -9127,7 +9156,7 @@ sub get_any3( $ ) {
 }
 
 sub find_statics () {
-    info "Finding statics";
+    progress "Finding statics";
 
     # We only need to traverse the topology for each pair of
     # src-(any/router), dst-(any/router)
@@ -9350,7 +9379,7 @@ sub get_route_path( $$$ ) {
 sub check_and_convert_routes ();
 
 sub find_active_routes () {
-    info "Finding routes";
+    progress "Finding routes";
     for my $any (@all_anys) {
 	set_routes_in_any $any;
     }
@@ -9479,7 +9508,7 @@ sub find_active_routes () {
 }
 
 sub check_and_convert_routes () {
-    info "Checking for duplicate routes";
+    progress "Checking for duplicate routes";
     for my $router (@managed_routers) {
 
 	# Adjust routes through VPN tunnel to cleartext interface.
@@ -10176,7 +10205,7 @@ sub distribute_rule_at_dst( $$$ ) {
 # This is to used later when approving the generated code file.
 sub set_policy_distribution_ip () {
     return if not $policy_distribution_point;
-    info "Setting policy distribution IP";
+    progress "Setting policy distribution IP";
     my %admin_srv;
     for my $srv (
         $srv_hash{tcp}->{'22:22'},
@@ -10396,7 +10425,7 @@ sub cmp_address {
     
     
 sub rules_distribution() {
-    info "Distributing rules";
+    progress "Distributing rules";
 
     # Not longer used, free memory.
     %rule_tree = ();
@@ -11951,7 +11980,7 @@ sub join_ranges ( $ ) {
 }
 
 sub local_optimization() {
-    info "Optimizing locally";
+    progress "Optimizing locally";
 
     # Prepare removal of duplicate occurences of the same IP address from
     # a group of virtual interfaces.
@@ -13322,7 +13351,7 @@ sub print_code( $ ) {
         check_output_dir $dir;
     }
 
-    info "Printing code";
+    progress "Printing code";
     for my $router (@managed_routers) {
         my $model        = $router->{model};
         my $comment_char = $model->{comment_char};
@@ -13366,11 +13395,11 @@ sub print_code( $ ) {
         }
     }
     $config{warn_pix_icmp_code} && warn_pix_icmp;
-    info "Finished" if $config{time_stamps};
+    progress "Finished" if $config{time_stamps};
 }
 
 sub show_version() {
-    info "$program, version $VERSION";
+    progress "$program, version $VERSION";
 }
 
 1
