@@ -2505,13 +2505,20 @@ sub read_owner( $ ) {
     my $owner = new('Owner', name => $name);
     skip '=';
     skip '{';
-    if ( my @admins = check_assign_list 'admins', \&read_identifier ) {
-        $owner->{admins} = \@admins;
+    while (1) {
+        last if check '}';
+	if ( my @admins = check_assign_list 'admins', \&read_identifier ) {
+	    $owner->{admins}
+	      and error_atline "Redefining 'admins' attribute";
+	    $owner->{admins} = \@admins;
+	}
+	elsif (check_flag 'extend') {
+	    $owner->{extend} = 1;
+	}
+	else {
+	    error_atline "Expected attribute 'admins' or 'extend'.";
+	}
     }
-    else {
-	error_atline "Expected attribute 'admins'.";
-    }
-    skip '}';
     return $owner;
 }
 
@@ -2525,9 +2532,13 @@ sub read_admin( $ ) {
     while (1) {
         last if check '}';
 	if ( my $full_name = check_assign 'name', \&read_to_semicolon ) {
+	    $admin->{full_name}
+	      and error_atline "Redefining 'name' attribute";
 	    $admin->{full_name} = $full_name;
 	}
 	elsif ( my $email = check_assign 'email', \&read_to_semicolon ) {
+	    $admin->{email}
+	      and error_atline "Redefining 'email' attribute";
 	    $admin->{email} = $email;
 	}
 	else {
@@ -5526,19 +5537,34 @@ sub expand_policies( ;$) {
 # Distribute owner, identify policy owner
 ##############################################################################
 
+sub unique(@) {
+    return keys %{ {map { $_ => undef } @_}}; 
+}
+
+sub inherit_owner {
+    my ($obj, $owner) = @_;
+    if (not $obj->{owner}) {
+	$obj->{owner} = $owner;
+    }
+    elsif ($owner->{extend}) {
+	$obj->{owner}->{admins} = [ unique(@{ $obj->{owner}->{admins} },
+					   @{ $owner->{admins} }) ];
+    }
+}
+
 sub propagate_owners {
 
     # Areas can be nested. Proceed from small to larger ones.
     for my $area (sort { @{$a->{anys}} <=> @{$b->{anys}} } values %areas) {
 	my $owner = $area->{owner} or next;
 	for my $any (@{ $area->{anys} }) {
-	    $any->{owner} ||= $owner;
+	    inherit_owner($any, $owner);
 	}
     }
     for my $any (@all_anys) {
 	my $owner = $any->{owner} or next;
 	for my $network (@{ $any->{networks} }) {
-	    $network->{owner} ||= $owner;
+	    inherit_owner($network, $owner);
 	}
     }
     for my $network (@networks) {
@@ -5548,7 +5574,7 @@ sub propagate_owners {
 	}
 	for my $interface (@{ $network->{interfaces} }) {
 	    if (not $interface->{router}->{managed}) {
-		$interface->{owner} ||= $owner;
+		inherit_owner($interface, $owner);
 	    }
 	}
     }
@@ -6500,7 +6526,12 @@ sub inherit_router_attributes () {
 
 	for my $router (@routers) {
 	    for my $key (keys %$attributes) {
-		$router->{$key} ||= $attributes->{$key};
+		if ($key eq 'owner') {
+		    inherit_owner($router, $attributes->{$key});
+		}
+		else {
+		    $router->{$key} ||= $attributes->{$key};
+		}
 	    }
 	}
     }
