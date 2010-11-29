@@ -916,6 +916,21 @@ sub aref_delete( $$ ) {
     return 0;
 }
 
+# Compare two array references element wise.
+sub aref_eq ( $$ ) {
+    my ($a1, $a2) = @_;
+    return 0 if @$a1 ne @$a2;
+    for (my $i = 0; $i < @$a1; $i++) {
+        return 0 if $a1->[$i] ne $a2->[$i];
+    }
+    return 1;
+}
+
+# Unique union of all elements.
+sub unique(@) {
+	return keys %{ {map { $_ => undef } @_}}; 
+}
+
 ####################################################################
 # Creation of typed structures
 # Currently we don't use OO features;
@@ -1522,11 +1537,17 @@ sub read_interface( $ ) {
             $virtual->{redundancy_type}
               or error_atline "Missing type of redundancy protocol";
         }
-        elsif (my $nat = check_assign 'nat', \&read_identifier) {
+        elsif (my @tags = check_assign_list 'bind_nat', \&read_identifier) {
+            $interface->{bind_nat} and error_atline "Duplicate NAT binding";
+            $interface->{bind_nat} = [ unique sort @tags ];
+        }
+        
+        # Compatibility: old syntax was nat = ... and allowed a single tag.
+        elsif (my $tag = check_assign 'nat', \&read_identifier) {
 
             # Bind NAT to an interface.
             $interface->{bind_nat} and error_atline "Duplicate NAT binding";
-            $interface->{bind_nat} = $nat;
+            $interface->{bind_nat} = [ $tag ];
         }
         elsif (my $hardware = check_assign 'hardware', \&read_name) {
             $interface->{hardware}
@@ -1672,6 +1693,8 @@ sub set_pix_interface_level( $ ) {
 
 # Routers which reference one or more RADIUS servers.
 my @radius_routers;
+
+my $bind_nat0 = [];
 
 our %routers;
 
@@ -1888,12 +1911,12 @@ sub read_router( $ ) {
             if (my $hw_name = $interface->{hardware}) {
                 my $hardware;
                 if ($hardware = $hardware{$hw_name}) {
-                    no warnings "uninitialized";
 
                     # All logical interfaces of one hardware interface
                     # need to use the same NAT binding,
                     # because NAT operates on hardware, not on logic.
-                    $interface->{bind_nat} eq $hardware->{bind_nat}
+                    aref_eq($interface->{bind_nat} || $bind_nat0, 
+                            $hardware->{bind_nat} || $bind_nat0)
                       or err_msg "All logical interfaces of $hw_name\n",
                       " at $router->{name} must use identical NAT binding";
 		}
@@ -3693,11 +3716,11 @@ sub check_ip_addresses {
                 {
 
                     # NAT to an interface address (masquerading) is allowed.
-                    if (    (my $nat_tag1 = $object->{bind_nat})
+                    if (    (my $nat_tags = $object->{bind_nat})
                         and (my ($nat_tag2) = ($subnet->{name} =~ /^nat:(.*)$/))
                       )
                     {
-                        if (    $nat_tag1 eq $nat_tag2
+                        if (    grep { $_ eq $nat_tag2 } @$nat_tags
                             and $object->{ip} == $subnet->{ip}
                             and $subnet->{mask} == 0xffffffff)
                         {
@@ -5545,10 +5568,6 @@ sub expand_policies( ;$) {
 # Distribute owner, identify policy owner
 ##############################################################################
 
-sub unique(@) {
-    return keys %{ {map { $_ => undef } @_}}; 
-}
-
 sub inherit_owner {
     my ($obj, $owner) = @_;
     if (not $obj->{owner}) {
@@ -5775,10 +5794,12 @@ sub set_natdomain( $$$ ) {
         next if $router->{active_path};
         $router->{active_path} = 1;
         my $managed = $router->{managed};
-        my $nat_tag = $interface->{bind_nat} || 0;
+        my $nat_tags = $interface->{bind_nat} || $bind_nat0;
         for my $out_interface (@{ $router->{interfaces} }) {
-            my $out_nat_tag = $out_interface->{bind_nat} || 0;
-            if ($out_nat_tag eq $nat_tag) {
+            my $out_nat_tags = $out_interface->{bind_nat} || $bind_nat0;
+
+            # Current NAT domain continues behind $out_interface.
+            if (aref_eq($out_nat_tags, $nat_tags)) {
 
                 # $nat_map will be collected at NAT domains, but is needed at
                 # logical and hardware interfaces of managed routers.
@@ -5797,24 +5818,29 @@ sub set_natdomain( $$$ ) {
                 # Found a loop inside a NAT domain.
                 next if $next_net->{nat_domain};
 
-                # Current NAT domain continues behind this interface.
                 set_natdomain $next_net, $domain, $out_interface;
             }
+
+            # New NAT domain starts at some interface of current router.
+            # Remember NAT tag of current domain.
             else {
 
-                # New NAT domain starts at some interface of current router.
-                # Remember NAT tag of current domain.
-                if (my $old_nat_tag = $router->{nat_tag}->{$domain}) {
-                    if ($old_nat_tag ne $nat_tag) {
+                # If one router is connected to the same NAT domain
+                # by different interfaces, all interfaces must have 
+                # the same NAT binding. (This occurs only in loops).
+                if (my $old_nat_tags = $router->{nat_tags}->{$domain}) {
+                    if (not aref_eq($old_nat_tags, $nat_tags)) {
+                        my $old_tag_names = join(',', @$old_nat_tags);
+                        my $tag_names = join(',', @$nat_tags);
                         err_msg
                           "Inconsistent NAT in loop at $router->{name}:\n",
-                          "nat:$old_nat_tag vs. nat:$nat_tag";
+                          "nat:$old_tag_names vs. nat:$tag_names";
                     }
 
                     # NAT domain and router have been linked together already.
                     next;
                 }
-                $router->{nat_tag}->{$domain} = $nat_tag;
+                $router->{nat_tags}->{$domain} = $nat_tags;
                 push @{ $domain->{routers} },     $router;
                 push @{ $router->{nat_domains} }, $domain;
             }
@@ -5824,7 +5850,6 @@ sub set_natdomain( $$$ ) {
 }
 
 sub distribute_nat1( $$$$ );
-
 sub distribute_nat1( $$$$ ) {
     my ($domain, $nat_tag, $depth, $in_router) = @_;
 
@@ -5872,15 +5897,19 @@ sub distribute_nat1( $$$$ ) {
     # Distribute NAT tag to adjacent NAT domains.
     for my $router (@{ $domain->{routers} }) {
         next if $router eq $in_router;
-        my $our_nat_tag = $router->{nat_tag}->{$domain};
+        my $our_nat_tags = $router->{nat_tags}->{$domain};
 
         # Found another interface with same NAT binding.
         # This stops effect of current NAT tag.
-        next if $our_nat_tag and $our_nat_tag eq $nat_tag;
+        next if grep { $_ eq  $nat_tag } @$our_nat_tags;
+
         for my $out_domain (@{ $router->{nat_domains} }) {
             next if $out_domain eq $domain;
             my $depth = $depth;
-            $depth++ if $router->{nat_tag}->{$out_domain};
+
+            # Increase $depth if we enter a path where some other NAT
+            # is active.
+            $depth++ if $router->{nat_tags}->{$out_domain};
             distribute_nat1 $out_domain, $nat_tag, $depth, $router;
         }
     }
@@ -5892,12 +5921,16 @@ my @natdomains;
 sub distribute_nat_info() {
     progress "Distributing NAT";
     my %nat_tag2networks;
+    my @multi_nat_networks;
 
     # Find NAT domains.
     for my $network (@networks) {
         if (my $href = $network->{nat}) {
             for my $nat_tag (keys %$href) {
                 push @{ $nat_tag2networks{$nat_tag} }, $network;
+            }
+            if (keys %$href >= 2) {
+                push @multi_nat_networks, $network;
             }
         }
         next if $network->{nat_domain};
@@ -5918,14 +5951,28 @@ sub distribute_nat_info() {
     # Distribute NAT tags to NAT domains.
     for my $domain (@natdomains) {
         for my $router (@{ $domain->{routers} }) {
-            my $nat_tag = $router->{nat_tag}->{$domain} or next;
-            if ($nat_definitions{$nat_tag}) {
-                distribute_nat1 $domain, $nat_tag, 0, $router;
-                $nat_definitions{$nat_tag} = 'used';
+            my $nat_tags = $router->{nat_tags}->{$domain};
+            if (@$nat_tags >= 2) {
+                for my $network (@multi_nat_networks) {
+                    my $tags_hash = $network->{nat};
+                    if ((my @tags = grep({ $tags_hash->{$_} && $_ } 
+                                         @$nat_tags)) >=2) 
+                    {
+                        my $tags = join(',', @tags);
+                        err_msg "Must not use multiple NAT tags '$tags' of",
+                        " $network->{name} at interface of $router->{name}";
+                    }
+                }
             }
-            else {
-                warn_msg "Ignoring undefined nat:$nat_tag",
-                  " used at $router->{name}";
+            for my $nat_tag (@$nat_tags) {
+                if ($nat_definitions{$nat_tag}) {
+                    distribute_nat1 $domain, $nat_tag, 0, $router;
+                    $nat_definitions{$nat_tag} = 'used';
+                }
+                else {
+                    warn_msg "Ignoring undefined nat:$nat_tag",
+                    " used at $router->{name}";
+                }
             }
         }
     }
@@ -6059,18 +6106,23 @@ sub find_subnets() {
 
                     # Dynamic NAT to loopback interface is OK,
                     # if NAT is applied at device of loopback interface.
-                    #
-                    # Check all interfaces of attached device.
-                    # Handle virtual loopback case as well.
                     my $nat_tag1      = $nat_network->{dynamic};
                     my $all_device_ok = 0;
+
+                    # In case of virtual loopback, the loopback network
+                    # is attached to two or more routers.
+                    # Loop over these devices.
                     for my $loop_intf (@{ $nat_old_net->{interfaces} }) {
                         my $this_device_ok = 0;
+
+                        # Check all interfaces of attached device.
                         for
                           my $all_intf (@{ $loop_intf->{router}->{interfaces} })
                         {
-                            if (my $nat_tag2 = $all_intf->{bind_nat}) {
-                                $this_device_ok = 1;
+                            if (my $nat_tags = $all_intf->{bind_nat}) {
+                                if (grep { $_ eq $nat_tag1 } @$nat_tags) {
+                                    $this_device_ok = 1;
+                                }
                             }
                         }
                         $all_device_ok += $this_device_ok;
@@ -9095,10 +9147,10 @@ sub mark_networks_for_static( $$$ ) {
     }
 
     # Not identity NAT, handle real dst NAT.
-    elsif (my $nat_tag = $in_hw->{bind_nat}) {
+    elsif (my $nat_tags = $in_hw->{bind_nat}) {
         for my $dst (@{ $rule->{dst_net} }) {
-            my $nat_info = $dst->{nat}           or next;
-            my $nat_net  = $nat_info->{$nat_tag} or next;
+            my $nat_info = $dst->{nat} or next;
+            grep({ $nat_info->{$_} } @$nat_tags) or next;
 
             # Store reversed dst NAT for real translation.
             $out_hw->{src_nat}->{$in_hw}->{$dst} = $dst;
@@ -9108,10 +9160,14 @@ sub mark_networks_for_static( $$$ ) {
     # Handle real src NAT.
     # Remember:
     # NAT tag for network located behind in_hw is attached to out_hw.
-    my $nat_tag = $out_hw->{bind_nat} or return;
+    my $nat_tags = $out_hw->{bind_nat} or return;
     for my $src (@{ $rule->{src_net} }) {
-        my $nat_info = $src->{nat}           or next;
-        my $nat_net  = $nat_info->{$nat_tag} or next;
+        my $nat_info = $src->{nat} or next;
+
+	# We can be sure to get a single result.
+	# Binding for different NAT of a single network has been 
+	# rejected in distribute_nat_info.
+        my ($nat_net) = map({ $nat_info->{$_} || () } @$nat_tags) or next;
 
         # Store src NAT for real translation.
         $in_hw->{src_nat}->{$out_hw}->{$src} = $src;
