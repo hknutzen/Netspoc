@@ -928,7 +928,7 @@ sub aref_eq ( $$ ) {
 
 # Unique union of all elements.
 sub unique(@) {
-	return keys %{ {map { $_ => undef } @_}}; 
+	return values %{ {map { $_ => $_ } @_}}; 
 }
 
 ####################################################################
