@@ -1541,14 +1541,6 @@ sub read_interface( $ ) {
             $interface->{bind_nat} and error_atline "Duplicate NAT binding";
             $interface->{bind_nat} = [ unique sort @tags ];
         }
-        
-        # Compatibility: old syntax was nat = ... and allowed a single tag.
-        elsif (my $tag = check_assign 'nat', \&read_identifier) {
-
-            # Bind NAT to an interface.
-            $interface->{bind_nat} and error_atline "Duplicate NAT binding";
-            $interface->{bind_nat} = [ $tag ];
-        }
         elsif (my $hardware = check_assign 'hardware', \&read_name) {
             $interface->{hardware}
               and error_atline "Duplicate definition of hardware";
