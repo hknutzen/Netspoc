@@ -5561,47 +5561,89 @@ sub expand_policies( ;$) {
 ##############################################################################
 
 sub inherit_owner {
-    my ($obj, $owner) = @_;
-    if (not $obj->{owner}) {
+    my ($obj, $owner, $super, $inherited) = @_;
+    my $obj_owner = $obj->{owner};
+    if (not $obj_owner) {
 	$obj->{owner} = $owner;
+	$inherited->{$obj} = $super;
     }
-    elsif ($owner->{extend}) {
-	$obj->{owner}->{admins} = [ unique(@{ $obj->{owner}->{admins} },
-					   @{ $owner->{admins} }) ];
+    else {
+	if ($owner eq $obj_owner) {
+	    if (my $isuper = $inherited->{$super}) {
+		$super = $isuper;
+	    }
+	    warn_msg "Useless $owner->{name} at $obj->{name},\n",
+	    " it was already inherited from $super->{name}";
+	}
+	elsif ($owner->{extend}) {
+	    $obj->{owner}->{admins} = [ unique(@{ $obj->{owner}->{admins} },
+					       @{ $owner->{admins} }) ];
+	}
     }
 }
 
 sub propagate_owners {
 
+    my %used;
+    my $inherited = {};
+
     # Areas can be nested. Proceed from small to larger ones.
     for my $area (sort { @{$a->{anys}} <=> @{$b->{anys}} } values %areas) {
-	my $owner = $area->{owner} or next;
-	for my $any (@{ $area->{anys} }) {
-	    inherit_owner($any, $owner);
+	if (my $owner = $area->{owner}) {
+	    $used{$owner} = 1;
+	    for my $any (@{ $area->{anys} }) {
+		inherit_owner($any, $owner, $area, $inherited);
+	    }
 	}
+	if ($area->{router_attributes} and 
+	       (my $owner = $area->{router_attributes}->{owner}))
+	{
+	    $used{$owner} = 1;
+	    for my $router (area_managed_routers($area)) {
+		inherit_owner($router, $owner, $area, $inherited);
+	    }
+	}
+	
     }
     for my $any (@all_anys) {
 	my $owner = $any->{owner} or next;
+	$used{$owner} = 1;
 	for my $network (@{ $any->{networks} }) {
-	    inherit_owner($network, $owner);
+	    inherit_owner($network, $owner, $any, $inherited);
 	}
     }
     for my $network (@networks) {
-	my $owner = $network->{owner} or next;
 	for my $host (@{ $network->{hosts} }) {
-	    $host->{owner} ||= $owner;
+	    if (my $host_owner = $host->{owner}) {
+		$used{$host_owner} = 1;
+	    }
+	}
+	my $owner = $network->{owner} or next;
+	$used{$owner} = 1;
+	for my $host (@{ $network->{hosts} }) {
+	    inherit_owner($host, $owner, $network, $inherited);
 	}
 	for my $interface (@{ $network->{interfaces} }) {
 	    if (not $interface->{router}->{managed}) {
-		inherit_owner($interface, $owner);
+		inherit_owner($interface, $owner, $network, $inherited);
 	    }
 	}
     }
     for my $router (@managed_routers) {
 	my $owner = $router->{owner} or next;
+	$used{$owner} = 1;
 	for my $interface (@{ $router->{interfaces} }) {
 	    $interface->{owner} = $owner;
 	}
+    }
+    for my $owner (values %owners) {
+	for my $admin (@{ $owner->{admins} }) {
+	    $used{$admin} = 1;
+	}
+	$used{$owner} or warn_msg "Unused $owner->{name}";
+    }
+    for my $admin (values %admins) {
+	$used{$admin} or warn_msg "Unused $admin->{name}";
     }
 }	
 
@@ -6550,38 +6592,41 @@ sub setarea1( $$$ ) {
     }
 }
 
+
+# Find managed routers _inside_ an area.
+sub area_managed_routers {
+    my ($area) = @_;
+
+    # Fill hash with all border routers of security domains
+    # including border routers of current area.
+    my %routers =
+	map {
+            my $router = $_->{router};
+            ($router => $router)
+	    }
+    map @{ $_->{interfaces} }, @{ $area->{anys} };
+
+    # Remove border routers, because we only
+    # need routers inside this area.
+    for my $interface (@{ $area->{border} }) {
+	delete $routers{ $interface->{router} };
+    }
+
+    # Remove semi_managed routers.
+    return grep { $_->{managed} } values %routers;
+}
+    
 sub inherit_router_attributes () {
 
     # Areas can be nested. Proceed from small to larger ones.
     for my $area (sort { @{$a->{anys}} <=> @{$b->{anys}} } values %areas) {
 	my $attributes = $area->{router_attributes} or next;
-
-	# Find managed routers _inside_ this are.
-	#
-        # Fill hash with all border routers of security domains
-        # including border routers of current area.
-        my %routers =
-          map {
-            my $router = $_->{router};
-            ($router => $router)
-          }
-          map @{ $_->{interfaces} }, @{ $area->{anys} };
-
-        # Remove border routers, because we only
-        # need routers inside this area.
-        for my $interface (@{ $area->{border} }) {
-            delete $routers{ $interface->{router} };
-        }
-
-	# Remove semi_managed routers.
-        my @routers = grep { $_->{managed} } values %routers;
-
-	for my $router (@routers) {
+	$attributes->{owner} and keys %$attributes == 1 and next;
+	for my $router (area_managed_routers($area)) {
 	    for my $key (keys %$attributes) {
-		if ($key eq 'owner') {
-		    inherit_owner($router, $attributes->{$key});
-		}
-		else {
+
+		# Owner is handled in propagate_owners.
+		if (not $key eq 'owner') {
 		    $router->{$key} ||= $attributes->{$key};
 		}
 	    }
