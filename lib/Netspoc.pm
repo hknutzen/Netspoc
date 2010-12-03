@@ -780,7 +780,7 @@ sub check_description() {
         # Read up to end of line, but ignore ';' at EOL.
         # We must use '$' here to match EOL,
         # otherwise $line would be out of sync.
-        $input =~ m/\G(.*);?$/gcm;
+        $input =~ m/\G[ \t]*(.*?)[ \t]*;?$/gcm;
         return $store_description ? $1 : undef;
     }
     else {
