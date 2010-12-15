@@ -8589,8 +8589,9 @@ sub check_for_transient_any_rule () {
 			# transient-any-problem for $rule and $rule2.
                         next if not $smaller_srv or not $smaller_src_range;
 
+			# Stateless rule < stateful rule, hence use ||.
                         # Force a unique value for boolean result.
-                        my $stateless = ($stateless1 && $stateless2) + 0;
+                        my $stateless = ($stateless1 || $stateless2) + 0;
 
                         # Check for a rule with $src1 and $dst2 and
                         # with $smaller_service.
