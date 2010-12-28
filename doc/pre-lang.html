@@ -725,7 +725,7 @@ must be referenced either from src or from dst or both parts of a rule.
 by the definition of "user". This is typically a group of values.
 <li>With the keyord "foreach", the substituton occurs repeatedly for 
 each element of the definition of "user". Used together with automatic groups, 
-this feature allows to define rules between elements and theis neighborhood.
+this feature allows to define rules between elements and their neighborhood.
 </UL>
 
 <h4>Example</h4>
@@ -748,8 +748,6 @@ policy:ping_local = {
   subgraphs of the topology.
  <li>All paths running through two or more interfaces belonging to the
   same path restriction are discarded i. e. marked as invalid.
- <li>Only interfaces of managed routers can be used to define a 
-     pathrestriction .
  <li>Path restrictions must not be used to discard <em>all</em> paths
   between some source / destination pair. Use a policy with deny rules
   instead.
