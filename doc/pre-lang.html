@@ -970,7 +970,7 @@ routes.
 <li>It is possible to define an interface having only a virtual IP,
 but no real IP address.
 <li> The 'id' attribute is optional. It is used for consistency checks
-but currently not used when generating code for managed devices.
+but is currently not used when generating code for managed devices.
 </ul>
 
 <H2><A NAME="disabling">Disabling part of the topology</A></H2>
@@ -1156,6 +1156,7 @@ is the relation of the security levels to each other.</P>
 <LI>Routing
 <LI>NAT commands for some devices
 </UL>
+
 <H2><A NAME="supported_devices">Supported devices</A></H2>
 <UL>
 
@@ -1184,7 +1185,29 @@ is the relation of the security levels to each other.</P>
  </ul>
 </UL>
 
-<P> Copyright (c) 2010, Heinz Knutzen 
+<h2>Private configuration context</h2>
+
+The configuration for NetSPoC is typically spread to multiple files
+located inside a directory. For a large topology we might have
+multiple administrators with responsibility for only part of the
+topology. 
+<p>
+The concept of 'private' configuration contexts allows to partition
+the configuration files into different areas of responsibility.  All
+definitions inside a directory or a file named 'xxx.private' are
+marked as private for 'xxx'. All other definitions stay public.
+Private definitions have some restrictions to prevent inadvertent
+changes from other parts of a large set of configuration files:
+<ul>
+  <li>A private network object (host, network, interface, any) may
+only be referenced by private rules, groups, crypto definitions and
+pathrestrictions of the same context.
+  <li>Only a private interface may be attached to a private network;
+both must belong to the same private context.
+</ul>
+
+<p><img src="private-context.png" alt="Two private contexts and public context.">
+<P> Copyright (c) 2011, Heinz Knutzen 
 <A HREF="mailto:heinzknutzen@users.berlios.de">heinzknutzen@users.berlios.de</A></P>
 
 </BODY>
