@@ -97,17 +97,17 @@ some part of the topology.
 
 <h3>Crypto Definition</h3>
 
-A <a href="#crypto_syntax">crypto definition</a> consists of three parts:
+A <a href="#crypto_syntax">crypto definition</a> consists of two parts:
 <ol>
-<li>A definition of crypto tunnels.
-<li>A set of rules describing which traffic has to be encrypted.
-<li>A reference to another definition with details about the used
-encryption method. Currently only IPSec is supported.
+<li>A definition of crypto type (currently IPSec with ISAKMP).
+<li>Occurences of hub and spoke attributes at interfaces which define
+the actual tunnels between many VPN spokes and one (or two redundant)
+VPN hubs. The referenced crypto type defines the to be used crypto
+details.
 </ol>
 
-Crypto definitions are very powerful: A large number of crypto tunnels of
-either a hub and spoke topology or a fully meshed topology can be defined
-easily. 
+Crypto definitions are very powerful: A large number of crypto tunnels
+of a hub and spoke topology topology can be defined easily.
 
 <H2>Detailed description of network objects</H2>
 <P>The topology is built from networks and routers.
@@ -227,7 +227,7 @@ subnetworks which cover the range. One ACL entry is generated for
 each subnetwork.
 
 <li>A single host inside the topology can be marked as
-"policy_distribution_point". This should be the device, which
+"policy_distribution_point". This should be set to the device, which
 distributes the NetSPoC generated configuration to the packet filters.
 This allows Netspoc to know by which IP address a device is reached
 from the policy distribution point. This IP address is added as a
@@ -264,17 +264,20 @@ description.
 <LI>Managed routers need to be precisely described since this
  information is needed for code generation later.
 <LI>The router model is used to generate correct code for different
- router models.<BR>Currently four models are supported:
+ router models.<BR>Currently these models are supported:
 <UL>
-  <li><code>Linux</code> for Linux with iptables
-<LI><code>ASA</code> for Cisco ASA 
-<LI><code>PIX</code> for Cisco PIX 
-<li><code>IOS</code> for Cisco IOS routers
-<LI><code>IOS, FW</code> for Cisco IOS routers with statefull inspection
-<LI><code>IOS, EZVPN</code> for Cisco IOS routers with easy VPN
+  <li><code>Linux</code> for Linux with iptables,
+<LI><code>ASA</code> for Cisco ASA,
+<LI><code>ASA, VPN</code> for Cisco ASA with VPN tunnels authenticated
+by certificates,
+<LI><code>PIX</code> for Cisco PIX,
+<li><code>IOS</code> for Cisco IOS routers,
+<LI><code>IOS, FW</code> for Cisco IOS routers with statefull inspection,
+<LI><code>IOS, EZVPN</code> for Cisco IOS routers with easy VPN,
+  <li><code>VPN3K</code> for Cisco VPN 3000 devices.
 </UL>
 <LI>NetSPoC generates optimized code using object groups for PIX firewalls. 
-Use flag <code>no_group_code</code> to disable this optimization. 
+Use attribute <code>no_group_code</code> to disable this optimization. 
 <li>For IOS routers from version 12.3(8)T up, a separate access-list is used
 for filtering incoming traffic of crypto tunnels. Use
 attribute <code>no_crypto_filter</code> to enable the old behavior where
@@ -317,7 +320,7 @@ interface definition".
   &lt;NAT definition&gt; ::=
     nat:&lt;name&gt; = { ip = &lt;ip-adr&gt;; }
   &lt;NAT binding&gt; ::=
-    nat = &lt;name&gt;;
+    bind_nat = &lt;name&gt;, ... ;
 
   &lt;short interface definition&gt; ::=
     interface:&lt;name&gt;;
@@ -458,7 +461,7 @@ be choosen.
 <LI>An &lt;object set&gt; is used to define a set of elements. 
 
 <li>In the simplest case it is the union of comma separated
-&lt;network object&gt;s. 
+&lt;network object&gt;'s. 
 
 <li>More complicated sets can be build using intersection and
 complement. There are two restrictions:
@@ -471,7 +474,7 @@ complement. There are two restrictions:
 Intersection and complement is typically used to remove some elements
 from a given group of elements.
 
-<li>&lt;object set&gt;s are used in groups or as source or destination
+<li>&lt;object set&gt;'s are used to define groups or as source or destination
 of rules.
 
 <li> Hosts, networks and 'any' objects are referenced by the name of
@@ -484,12 +487,6 @@ name.
 <li>The name for referencing secondary interfaces has three parts: the
 router name, the network name and the name of the secondary interface
 from its definition.
-
-<li>network:[local] denotes the network, which is directly attached to
-an interface. This can only be used as source or destination in a rule
-where the counterpart is an interface.
-
-<li>any:[local] is similar to network:[local] but denotes the 'any' object.
 
 <li>A reference to a group is substituted by the elements of the <a
 href="#groups_def">group definition</a>.
@@ -597,7 +594,7 @@ other groups </UL>
  | udp [[[[&lt;range&gt; :]] &lt;range&gt]]
  | icmp [[&lt;int_1&gt;[[/&lt;int_2&gt;]]]] 
  | proto &lt;int&gt; 
- }} [[&lt;service flag&gt;]] ;</PRE>
+ }} [[&lt;service modifier&gt;]] ;</PRE>
 <p>with</p>
 <PRE> &lt;range&gt; ::= &lt;int_1&gt;[[-&lt;int_2&gt;]]
 </PRE>
@@ -650,10 +647,10 @@ destination port
 
 </ul>
 
-<h4>Service flags</h4>
+<h3>Service modifiers</h3>
 
-One or more &lt;service flag&gt;s can optionally be appended to a service
-definition. A &lt;service flag&gt; modifies the rule in which the
+One or more &lt;service modifier&gt;'s can optionally be appended to a service
+definition. A &lt;service modifier&gt; modifies the rule in which the
 corresponding service is used as follows.
 
 <dl>
@@ -664,24 +661,18 @@ to permit answer packets.
 
 <dt>reversed<dd>Source and destination are swapped.
 
-<dt>dst_path<dd>The rule is replaced by <em>n</em> rules where the destination
-is substituted by interfaces <em>i</em>. <em>i</em> is defined by this rule:
-Take from each packet filter on the path from source to destination that
-interface <em>i</em> which is headed in source direction.<br> This flag can be
-combined with flags dst_net or dst_any to not get the interface but the
-corresponding network or 'any' object.
-
-<dt>dst_net<dd>If destination of rule is a host or interface located in
-network <em>n</em> then replace destination by <em>n</em>. Otherwise let
-destination unchanged. Exception: hosts having a vpn id and interfaces of
+<dt>dst_net<dd>If destination of rule is a host or interface, find the
+enclosing network <em>n</em> and replace destination
+by <em>n</em>. Exception: hosts having a vpn id and interfaces of
 manged routers are left unchanged.
 
-<dt>dst_any<dd>First apply rules of flag dst_net above. If destination of rule
-is a network located in 'any' object <em>a</em> then replace destination by
-<em>a</em>. Otherwise let destination unchanged
+<dt>dst_any<dd>First apply rules of modifier dst_net above. If
+afterwards destination of rule is a network, find the enclosing 'any'
+object <em>a</em> and replace destination by
+<em>a</em>.
 
-<dt>src_path, src_net, src_any<dd>Equivalent to dst_* flags but with source
-replaced. 
+<dt>src_net, src_any<dd>Equivalent to dst_* modifiers but applied to
+source of rule.
 </dl>
 
 <H3><A NAME="groups_of_services">Groups of services</A></H3>
@@ -751,8 +742,10 @@ policy:ping_local = {
  <li>Path restrictions must not be used to discard <em>all</em> paths
   between some source / destination pair. Use a policy with deny rules
   instead.
- <li>A pathrestriction is automatically added for each group of interfaces
- belonging to a VRRP or HSRP cluster.
+ <li>A path restriction must only be applied to interfaces located
+   inside or at the border of a cyclic subgraph of the topology.
+ <li>A path restriction is automatically added for each group of
+   interfaces belonging to a VRRP or HSRP cluster.
 </ul>
 
 <h3><a name="global_NAT">Global NAT definition</a></h3>
@@ -851,7 +844,7 @@ interface where the NAT binding with this name occurs.
     addresses which are visible in the area of this interface.
 <li>The same is true when generating static routing entries.
 <li>For some types of devices NetSPoC is able to actually generate the
-   NAT translation rules. This is currently true for PIX firewalls.
+   NAT translation rules. This is currently true for Cisco ASA and PIX devices.
 </ol>
 
 <h2><a name="secondary">Secondary packet filters</a></h2>
@@ -971,6 +964,26 @@ routes.
 but no real IP address.
 <li> The 'id' attribute is optional. It is used for consistency checks
 but is currently not used when generating code for managed devices.
+</ul>
+
+<h2><a name="crosslink">Crosslink network</a></h2>
+<p>Add attribute <code>crosslink</code> to a define a  crosslink network.
+<p>A crosslink network combines two or more routers to a cluster of
+  routers. Filtering occurs only at the outside interfaces of the
+  cluster. The crosslink interfaces permit any traffic, because
+  traffic has already been filtered by some other device of the
+  cluster.  These characteristics are enforced for crosslink networks:
+<ul>
+  <li>No hosts must be defined inside a crosslink network.
+  <li>All attached routers are managed and have the same managed type
+    (secondary, standard, full, primary).
+  <li>A hardware interface attached to a crosslink interface has no
+    other logical networks attached.
+  <li>A crosslink network must not be used in rules.
+  <li>Crosslink networks are left out from network:[area:xx] and
+    network:[any:xx].
+  <li>A crosslink network is removed silently from automatic networks
+  of an interface.
 </ul>
 
 <H2><A NAME="disabling">Disabling part of the topology</A></H2>
