@@ -201,7 +201,7 @@ redefined by mistake.
         host:&lt;name&gt; = { 
           [[ owner = &lt;external_name&gt;, ... ; ]]  
 	  {{
-	    ip = &lt;ip-adr&gt;, ... ;
+	    ip = &lt;ip-adr&gt;;
           |
             range = &lt;ip-adr&gt; - &lt;ip-adr&gt;;
 	  }}
@@ -215,7 +215,7 @@ redefined by mistake.
 
 <UL>
 <LI>A host can only be defined inside a network definition.
-<LI>It has one or more IP addresses or
+<LI>It has one IP address or
 <LI>alternatively an ip address range with first address &lt; second address
 <LI>IP addresses must match ip/mask of the surrounding network.
 <LI>If used as source or destination of a rule, one ACL entry is
