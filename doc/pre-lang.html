@@ -886,6 +886,53 @@ an other device.
 <p>The default filter type for devices which are simply marked as
 "managed" is "standard".
 
+<h2>Outgoing ACL</h2>
+
+Per default, NetSPoC generates incoming access lists at each interface
+of a managed device. Use the attribute <code>no_in_acl</code> at one
+interface, to move the incoming ACL from this interface to outgoing
+ACLs at the other interfaces of the same device.
+<p>
+This is useful for situations like this:
+<ol>
+  <li>A packet filter connects multiple customers to some central
+    site.  Each customer needs to inspect the ACls of 'his' interface,
+    but must not see ACLs of the other customers.  Declaring the
+    interface to the central site with 'no_in_acl' adds outgoing ACL
+    to each customer interface.
+  <li>A packet filter has three interfaces A, B, C.  There is a rule
+    <code>permit network:A -> any:[network:B]</code>. With only
+    incoming ACLs, this would allow traffic "network:A ->
+    any:[network:C]" as well.  With attribute 'no_in_acl' at interface
+    A we get outgoing ACLs at interface B and C which permit traffic
+    to any:[network:B] but not to any:[network:C].
+</ol>
+For IOS there remains a minimal incoming ACL that filters traffic
+for the	device itself.
+<p>
+These restrictions apply:
+<ul>
+  <li>At most one interface with <code>no_in_acl</code> is allowed per
+  device.
+  <li>Multiple interfaces at the same hardware are not allowed if
+    <code>no_in_acl</code> is declared at some logical interface of
+    this hardware.
+  <li><code>no_in_acl</code> must not be used together with crypto
+    tunnels at the same device.
+  <li>All interfaces must equally use or not use outgoing ACLs at
+    a crosslink network.
+  <li>All interfaces with attribute <code>no_in_acl</code> at routers
+    connected by a crosslink network must be border of the same
+    security domain.
+</ul>
+Outgoing ACLs are supported for model IOS, Linux and ASA.  For
+convenience, the attribute <code>no_in_acl</code> can be added to an 'any'
+object. It is then inherited by all border interfaces of this 'any'
+object. Inheritance is stopped for devices which already have an
+attribute <code>no_in_acl</code> declared at some interface or have
+an attribute <code>std_in_acl</code> declared at the device level.
+
+
 <h2><a name="routing">Routing</a></h2>
 
 <h4>Static and dynamic routing</h4>
