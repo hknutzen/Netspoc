@@ -982,42 +982,39 @@ that interface. All occurrences of disabled network objects in groups and
 rules are silently discarded.</P>
 
 <h2><a name="encryption">Encryption</a></h2>
+
+Encrypted VPN tunnels are supported for
+<ol>
+  <li>remote access by tele worker with software VPN client,
+  <li>remote access from remote office with hardware VPN client or
+  <li>LAN to LAN tunnel.
+</ol>
+The type of encryption is defined by a <code> crypto </code> definition.
+
 <h3><a name="crypto_syntax">Syntax</a></h3>
 <pre>
   crypto:&lt;name&gt; = {
      [[ description = &lt;text_to_end_of_line&gt ]]
      type = ipsec:&lt;name&gt;;
-     [[ hub = &lt;object set&gt;;
-       spoke = &lt;object set&gt;;
-     ]]
-     mesh = &lt;object set&gt;; *
-     &lt;crypto_rule&gt; * 
+     tunnel_all;
   }</PRE>
-<P>with</P>
-<PRE>
-  &lt;crypto_rule&gt; ::=
-  {{ permit | deny }}
-        src = &lt;object set&gt;;
-        dst = &lt;object set&gt;;
-        srv = &lt;service&gt;, ... ;
-</PRE>
 
 <pre>
   ipsec:&lt;name&gt; = {
      key_exchange = isakmp:&lt;name&gt;;
-     esp_encryption = {{ aes | aes192 | des | 3des | none }};
+     esp_encryption = {{ aes | aes192 | aes256 | des | 3des | none }};
      esp_authentication = {{ md5_hmac | sha_hmac | none }};
      ah = {{ md5_hmac | sha_hmac | none }};
-     pfs_group = {{ 1 | 2 | 5 }};
+     pfs_group = {{ 1 | 2 | 5 | none}};
      lifetime = &lt;number&gt; &lt;timeunit&gt;;
   }</pre>
 
 <pre>
   isakmp:&lt;name&gt; = {
      identity = {{ address | fqdn }};
-     nat_traversal = {{ on | off }};
+     nat_traversal = {{ on | additional | off }};
      authentication = {{ preshare | rsasig }};
-     encryption = {{ aes | aes192 | des | 3des }};
+     encryption = {{ aes | aes192 | aes256 | des | 3des }};
      hash = {{ md5 | sha }};
      group = {{ 1 | 2 | 5 }};
      lifetime = &lt;number&gt; &lt;timeunit&gt;;
@@ -1028,10 +1025,24 @@ rules are silently discarded.</P>
     {{ sec | min | hour | day | secs | mins | hours | days }};
 </PRE>
 
-<h2>Remote access</h2>
+The actual crypto tunnels are defined by adding <code>hub</code>
+and <code>spoke</code> definitions to interfaces.
+<PRE>
+  interface:&lt;name1&gt; = {
+    ..
+    hub = crypto:&lt;name&gt;
+  }
 
-Support for remote access by tele worker or remote office has been
-implemented.
+  interface:&lt;name2&gt; = {
+    ..
+    spoke = crypto:&lt;name&gt;
+  }
+</PRE>
+
+model= ASA, VPN | VPN3K for remote access
+with no_check, 
+model = ASA for LAN to LAN
+<h2>Remote access</h2>
 
 <dl>
 <dt>Tele worker
@@ -1062,20 +1073,21 @@ implemented.
 </ul>
 </dl>
 
-This concept has been implemented for Cisco VPN 3000 devices which
-send authorization request to one or more radius servers. VPN is build
-using IPSec tunnels.
+This concept has been implemented for Cisco ASA and VPN 3000 (VPN3K)
+devices.  VPN3K send authorization request to one or more radius
+servers. ASA uses a local user database. VPN is build using IPSec
+tunnels.
 
 <h3>Cisco VPN 3000</h3>
 <dl>
-<dt>new type of router 
-<dd> type=vpn3k
+<dt>new router model 
+<dd> model=VPN3K
 <dt>additional attribute for router
 <dd> radius_servers=&lt;object set&gt;
 <dt>additional attributes for interface
 <dd><ul> 
-<li>auto_crypto=ipsec:&lt;name&gt;
-<li> no_check
+<li>hub=crypto:&lt;name&gt; as described above
+<li>no_check
 </ul>
 <dt>additional syntax for hosts
 <dd> host:id:certificate-name
@@ -1087,11 +1099,11 @@ using IPSec tunnels.
 <p>
 <h4>Additional restrictions</h4>
 <ul>
-<li>Router needs to have exactly on interface with attribute 'no_check'.
+<li>Router needs to have exactly one interface with attribute 'no_check'.
 <li>Source of rule must have ID when entering interface without attribute 'no_check',
 
-<li>Attribute 'radius_servers' needs to be defined for router of type
-vpn3k. Each element must be a host.
+<li>Attribute 'radius_servers' needs to be defined for router of model
+VPN3K. Each element must be a host.
 
 <li>A network having id hosts must not be used in a rule.
 </ul>
@@ -1103,7 +1115,7 @@ to append the name of the enclosing newtork to make the reference
 definite.  <code> host:id:&lt;name&gt; </code> is referenced as <code>
 host:id:&lt;name&gt;.&lt;network&gt; </code>
 
-<h4>Special handling of access lists at vpn3k device</h4>
+<h4>Special handling of access lists at VPN3K device</h4>
 <ul>
 <li>First use all regular rules were destination is in one of the denied
   networks below. 
