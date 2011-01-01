@@ -277,7 +277,13 @@ by certificates,
   <li><code>VPN3K</code> for Cisco VPN 3000 devices.
 </UL>
 <LI>NetSPoC generates optimized code using object groups for PIX firewalls. 
-Use attribute <code>no_group_code</code> to disable this optimization. 
+Use attribute <code>no_group_code</code> to disable this optimization.
+<li>For ASA,VPN devices, filtering of incoming traffic of crypto
+tunnels is done with a per vpn-filter. Use
+attribute <code>no_crypto_filter</code> to enable "no sysopt
+connection permit-vpn" which switches to filter the VPN traffic at the
+interface ACL. This attribute must be activated, if statefull
+filtering is needed.
 <li>For IOS routers from version 12.3(8)T up, a separate access-list is used
 for filtering incoming traffic of crypto tunnels. Use
 attribute <code>no_crypto_filter</code> to enable the old behavior where
@@ -1172,8 +1178,36 @@ name which is taken as the relative security level.<br> I.e 'DMZ-slot:4'
 It is not necessary the find the exact level; what we need to know
 is the relation of the security levels to each other.</P>
 
-<H2><A NAME="redundant_rules">Automatic deletion of redundant rules</A></H2>
-<P><em>Fully implemented, but documentation has to be done ...</em></P>
+<H2><A NAME="redundant_rules">Redundant rules</A></H2>
+<P>NetSPoC automatically detects and eliminates
+<ul>
+  <li>duplicate elements in groups,
+  <li>duplicate rules and
+  <li>redundant rules.
+</ul>
+Duplicate or redundant rules and elements should be avoided. If you
+later remove one of two redundant rules, it will be at least
+surprising that the traffic will still be permitted.
+<p>
+Per default, NetSPoC gives warnings for redundant rules and
+elements. But the behavior can be adjusted by command line switches and
+by attributes at policy definitions.
+<ul>
+  <li>Use command line
+  switch <code>-check_duplicate_rules_=0|1|warn</code> to globally
+  enable or disable checks for duplicate rules.
+  <li>Use command line
+  switch <code>-check_redundant_rules_=0|1|warn</code> to globally
+  enable or disable checks for redundant rules.
+  <li>Add attribute <code>overlaps = policy:&lt;name&gt;, ...;</code>
+  at a policy definition with names of other policies. If those other
+  policies have rules that are duplicate or redundant compared to some
+  rules of current policy, printing of warning / error messages is
+  disabled for this case.
+</ul>
+
+<h2>Unenforceable rules</h2>
+Use command line switch <code>-check_unenforceable=0|1|warn</code> to control the behavior if NetSPoC detects unenforceable rules.
 
 <H2><A NAME="generated_code">Generated Code</A></H2>
 <UL>
