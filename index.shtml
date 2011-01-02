@@ -53,7 +53,7 @@ width="124" height="32" border="0" alt="BerliOS Logo"></A>
 	
 <H1>NetSPoC</H1>
 <h3>a Network Security Policy Compiler</h3>
-<!--#include file="NEWS.html" -->
+<!--#include file="doc/NEWS.html" -->
 <!-- end content -->
 <p>&nbsp;</p>
 </td>
