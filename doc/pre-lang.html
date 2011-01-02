@@ -1322,6 +1322,20 @@ both must belong to the same private context.
 
 <p><img src="private-context.png" alt="Two private contexts and public context.">
 
+<h2>Changing default values of command line switches</h2>
+
+The behavior of netspoc can be adjusted using command line switches. See <a href="netspoc.html">man netspoc</a> for details.
+<p>
+You can change values for command line switches permanently for a
+project by adding a file named "config" in the toplevel directory of
+the Netspoc configuration. 
+<p>
+Format of the "config" file:
+<ul>
+  <li>Assignment <code>key = value;</code>. See <a href="netspoc.html">man netspoc</a> for valid keys / value pairs.
+  <li>Comment lines:  <code># ...</code>
+</ul>
+
 <h2>Owners and admins</h2>
 
 <P> Copyright (c) 2011, Heinz Knutzen 
