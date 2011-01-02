@@ -34,7 +34,7 @@ intersection, complement of simpler groups.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2010 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+(c) 2011 by Heinz Knutzen <heinzknutzen@users.berlios.de>
 
 This program uses module Netspoc.pm,
 a Network Security Policy Compiler,

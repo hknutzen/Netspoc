@@ -6,7 +6,7 @@ Netspoc - A Network Security Policy Compiler
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2010 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+(C) 2011 by Heinz Knutzen <heinzknutzen@users.berlios.de>
 
 http://netspoc.berlios.de
 
