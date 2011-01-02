@@ -1,17 +1,21 @@
 ToDo list for NetSPoC, a Network Security Policy Compiler
 
-- Describe syntax of host:id for vpn3k devices. 
+- Internally we have a large code base for approving the generated
+  code to  real devices and for comparing if the device
+  configuration has changed. Open source his code as well.
 
-- Only accept attribute "auto_crypto" at interface of router model vpn3k.
+- Add documentation for objects owner, admin and attribute visible.
+
+- Add more documentation for crypto tunnels with different
+  authentication methods (certificate, preshared key).
+
+- Describe syntax of host:id for vpn3k devices. 
 
 - Automatically add an internal rule which allows radius trafic from
   router of type vpn3k to its radius hosts.
 
-- Add a check for this situation: If network A is subnet of network B 
-  then B must not have hosts inside the address space of A.
-
-- Look if check_any_src/dst_rule works correctly 
-  at the endpoint of crypto tunnels.
+- Look if check_any_src/dst_rule works correctly at the endpoint of
+  crypto tunnels.
 
 - Don't silently ignore rules for interfaces of vpn3k.
 
@@ -24,21 +28,6 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
   problem for path_walk to find the matching tunnel, because some network is
   choosen as representative for the "any" object. Possible workaround:
   restrict tunnel endpoint to managed interface for this situation.
-
-- crypto access-group: Are rules stateful for IOS_FW?
-
-- crypto ACLs: Are they always stateless? For PIX? For racoon?
-  Do we need to automatically generate crypto ACLs for answer packets?
-
-- crypto_match: Are deny rules from policies are handled correctly?
-
-- crypto: Add support for crypto rules with action = "deny".
-
-- crypto: Add support for crypto rules with "any" object as src or dst.
-
-- crypto: We are using path_walk to distribute crypto rules to crypto tunnels.
-  Do we always get correct and determinstic results 
-  if there are nested tunnels? Do we detect this situation?
 
 - If a rule is affected by dynamic NAT and service has a defined source port,
   source port must be changed to unrestricted (1..65535).
@@ -56,14 +45,6 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
   of a rule. Instead we should use src-networks.
   Current results are only correct, because there are rules for both
   directions most of the time.
-
-- Bug with 'any' objects und path_walk: for cyclic topologies there are cases
-  where not all possible paths are found. This is, because we randomly pick
-  some network from the 'any' object and use this as source or destination.
-
-- find_active_routes_and_statics: 
-  why use different get_path and get_networks for source and destination
-  if later source and destination are swapped anyway?
 
 - Protect own interfaces: currently with NAT; is that ok?
   Do we need additional protection for the original IP addresses?
@@ -97,6 +78,32 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 ============================================================================
 Done:
 ============================================================================
+
+- crypto access-group: Are rules stateful for IOS_FW?
+
+- crypto ACLs: Are they always stateless? For PIX? For racoon?
+  Do we need to automatically generate crypto ACLs for answer packets?
+
+- crypto_match: Are deny rules from policies are handled correctly?
+
+- crypto: Add support for crypto rules with action = "deny".
+
+- crypto: Add support for crypto rules with "any" object as src or dst.
+
+- crypto: We are using path_walk to distribute crypto rules to crypto tunnels.
+  Do we always get correct and determinstic results 
+  if there are nested tunnels? Do we detect this situation?
+
+- Bug with 'any' objects und path_walk: for cyclic topologies there are cases
+  where not all possible paths are found. This is, because we randomly pick
+  some network from the 'any' object and use this as source or destination.
+
+- find_active_routes_and_statics: 
+  why use different get_path and get_networks for source and destination
+  if later source and destination are swapped anyway?
+
+- Add a check for this situation: If network A is subnet of network B 
+  then B must not have hosts inside the address space of A.
 
 - Automatically add a pathrestriction for all interfaces belonging to a single
   {virtual} IP address.

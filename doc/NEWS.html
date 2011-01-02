@@ -1,5 +1,104 @@
 <h2>News</h2>
 
+<h3>netspoc-3.2, January 02, 2011</h3>
+
+New features:
+<ul>
+  <Li>Support for Cisco ASA devices as packet filter, as VPN gateway
+  and for LAN-to-LAN IPSec tunnels.
+  <li>Support "easy VPN" at Cisco VPN clients.
+  <li>Generated chains for Linux iptables are highly optimized
+  now. Deeply nested chains are generated to minimize the number of
+  tests for each checked packet.
+  <li>Support port address translation (PAT) to an interface for PIX
+  and ASA.
+</ul>
+
+Language:
+<ul>
+  <li>Changed syntax for defining crypto tunnels to support multiple
+    VPN gateways.
+  <li>Renamed attribute "nat = .." at interface to "bind_nat = ..".
+    This allows better distinction between binding and definition of NAT.
+  <li>Allow multiple NAT tags at attribute bind_nat of an interface.
+    This simplifies definition of NAT for devices with multiple interfaces.
+  <li>Extended concept of secondary packet filter to "primary" packet
+    filter. All rules which pass a primary filter are implemented
+    as secondary filters on other devices
+  <li>Enhanced policy definitions to support template rule-sets which
+    operate individually on each element of "users". This uses new
+    keyword 'foreach' and nested expressions with 'user'. This concept
+    replaces 'any:[local]' from previous versions.
+  <li>Added automatic group "network:[any:xx]", the group of all
+    networks inside a security domain.
+  <li>Removed "interface:xx.[back]".  This was not widely used and
+    can easily be expressed with complement: "interface:xx.[all] & !
+    interface:xx.[auto]".
+  <li>Renamed "interface:xx.[front]" back to the old syntax
+    "interface:xx.[auto]" which was still valid syntax in previous
+    versions.
+  <li>Added attribute "crosslink" for networks.  A crosslink network
+    combines two or more routers to a cluster of routers. Filtering
+    occurs only at the outside interfaces of the cluster. The
+    crosslink interfaces permit any traffic because traffic has
+    already been filtered by some other device of the cluster.
+  <li>Added attribute "no_in_acl" for interfaces.  With this
+    attribute, no incoming ACL is generated for an interface.
+    Outgoing ACLs are added to all other interfaces of the same device
+    instead.
+  <li>Networks with isolated and promiscuous ports (RFC 5517) are
+    supported now. Added attribute "isolated_ports" at
+    networks and attribute "promiscuous_port" at interfaces.  If a
+    network has attribute "isolated_ports", hosts inside this network
+    are not allowed to talk directly to each other. Instead the
+    traffic must go through an interface which is marked as
+    "promiscuous_port".
+  <li>Hosts no longer support multiple IP addresses, but only single
+    IP addresses or ranges.
+  <li>Attribute "owner" no longer holds simple strings, but references
+    to one or more 'admin', which has name and email address.
+</ul>
+
+Other: 
+<ul>
+  <li>Added the concept of 'private' configuration contexts. This
+    allows to partition the configuration files in a multi user
+    environment such that one user can't define rules for network
+    objects which belong to another user.
+  <li>Added consistency check: All interfaces and hosts of a network
+    must be located in that part of the network which doesn't
+    overlap with some subnet.
+  <li>Pathrestriction at a border interface of a loop is supported
+    now.  Valid paths inside a loop can now be defined
+    individually depending on the interface where the loop is
+    entered.
+  <li>Unmanaged device is allowed to have pathrestriction now.
+  <li>Processing for large topology with clusters of loops has been
+    optimized.  A cluster of loops is a set of loops which are connected by a
+    single node (network or router).
+  <li>Checks for unenforceable, duplicate and redundant rules have been
+    added.
+  <li>A check for duplicate elements in groups has been added.
+  <li>iptables-restore is used now to load rules for iptables.
+  <li>Default values for command line options of netspoc can be
+    defined in a file named 'config' in toplevel directory of netspoc
+    configuration.
+  <li>Added command line tool "print-group" which reads a netspoc
+    configuration and prints the contents of a group.
+</ul>
+
+Bug fixes:
+
+<ul>
+  <li>The result of interface.xx.[back] was always empty if interface was
+    located inside a loop.
+  <li>There was a bug when printing the result of check for missing
+    transient any rules. The result was only printed if some rule was
+    missing more than once.
+  <li>Fixed bug in check for missing transient any rules when
+    comparing stateless rules.
+</ul>
+
 <h3>netspoc-3.1, January 2, 2008</h3>
 
 New features:
@@ -33,6 +132,9 @@ interfaces of a network. The group of security domains of an area.
 
 <li>Automatic groups of interfaces can be restricted to interfaces of
 managed devices.
+
+<li> Set operations "complement" and "intersection" are available to
+define new groups.
 
 <li>The concept of "auto" interfaces has been extended.
 interface:router.[back] denotes the interface(s) which are on the
