@@ -820,7 +820,7 @@ router:r_ext = {
  interface:intern = {
   ip = 10.1.1.1;
   # NAT binding
-  nat = bad128;
+  bind_nat = bad128;
  }
 }
 
@@ -836,6 +836,9 @@ which is seen when looking from the router to that interface.
 <p>Multiple NAT definitions can be given for a single network. These are bound
 to different interfaces to make different NAT definitions effective at
 different parts of the topology.
+
+<p>Multiple NAT definitions can be bound to single interface. This
+simplifies definition of NAT for devices with multiple interfaces.
 
 <p>For dynamic NAT, multiple networks can use identical NAT definitions. This
 is used to masquerade multiple networks to a single address space.
