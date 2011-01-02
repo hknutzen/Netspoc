@@ -1,34 +1,14 @@
-# Makefile for NetSPoC
+# Makefile for NetSPoC documentation
 
-all:	netspoc.man netspoc.html CSPM.html language.html
+all:	netspoc.html CSPM.html language.html
 
 language.html: pre-lang.html .hypertocrc
 	# hypertoc uses options from file .hypertocrc in current directory.
 	hypertoc --gen_anchors $< > $@
 	hypertoc --gen_toc --inline --overwrite --bak '' $@
 
-
-netspoc.man: netspoc.pod
-	pod2man -c "NetSPoC documentation" netspoc.pod >netspoc.man
-
-netspoc.html: netspoc.pod
-	pod2html netspoc.pod >netspoc.html
+netspoc.html: ../bin/netspoc
+	pod2html $< > $@
 
 CSPM.html: CSPM.pod
-	pod2html CSPM.pod >CSPM.html
-
-newpolicy: newpolicy.c
-
-append-commitlog: append-commitlog.c
-
-suid-cvs: suid-cvs.c
-
-current := $(shell cat VERSION)
-tar-file := $(current).tar.gz
-cwd := $(shell pwd)
-tar: $(tar-file)
-
-$(tar-file): Netspoc.pm netspoc COPYING INSTALL CSPM.html CSPM.pod ChangeLog Makefile NEWS.html TODO examples index.shtml overview.html license.html language.html netspoc.html netspoc.man netspoc.pod newpolicy.pl newpolicy.c append-commitlog.c suid-cvs.c cut-netspoc start-jobs VERSION
-	echo Building $(current)
-	cd ..;ln -snf $(cwd) $(current)
-	tar cvzf $@ -C .. --exclude=RCS $(addprefix $(current)/, $^)
+	pod2html $< > $@
