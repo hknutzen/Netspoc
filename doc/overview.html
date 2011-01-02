@@ -17,23 +17,20 @@ filters on the path from A to B.
 <P>Currently NetSPoC generates ACLs and static routing entries for
 <ul>
 <li>Cisco routers with or without firewall feature set,
-<li>PIX firewalls and 
+<li>Cisco ASA and PIX firewalls,
 <li>Linux iptables and ip route. 
 </ul>
 It supports network address translation, virtual IP addresses for
 redundancy protocols like VRRP and some dynamic routing protocols.
 
-<p>IPSec encryption is supported as well. A powerful syntax allows to easily
-define a large number of crypto tunnels of either a hub and spoke topology or
-a fully meshed topology. Crypto rules define which type of traffic needs to be
-encrypted. Crypto configuration for Cisco IOS routers and PIX firewalls is
-generated.
+<p>IPSec encryption is supported as well. Crypto configuration for
+Cisco IOS routers and ASA firewalls is generated.
 
 <P>NetSPoC's text based specification language is well suited for integration
 with CVS or other version control systems. A script is provided for tagging a
 policy and saving it to a policy database.
 
-<P>This software is actively developed with perl 5.8 under linux. It should be
+<P>This software is actively developed with perl 5.12 under linux. It should be
 portable to other platforms where perl is available.
 
 <HR>
