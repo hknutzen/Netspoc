@@ -9181,7 +9181,6 @@ sub mark_networks_for_static( $$$ ) {
     return unless $router->{managed};
     my $model = $router->{model};
     return unless $model->{has_interface_level};
-    return if $in_intf->{ip} eq 'tunnel' or $out_intf->{ip} eq 'tunnel';
 
     # We need in_hw and out_hw for
     # - attaching attribute src_nat and
@@ -9189,6 +9188,7 @@ sub mark_networks_for_static( $$$ ) {
     my $in_hw  = $in_intf->{hardware};
     my $out_hw = $out_intf->{hardware};
     if ($in_hw->{level} == $out_hw->{level}) {
+	return if $in_intf->{ip} eq 'tunnel' or $out_intf->{ip} eq 'tunnel';
         err_msg "Traffic of rule\n", print_rule $rule,
           "\n can't pass from  $in_intf->{name} to $out_intf->{name},\n",
           " which have equal security levels.\n";
