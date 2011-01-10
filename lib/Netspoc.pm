@@ -13164,7 +13164,9 @@ sub print_crypto( $ ) {
     }
 
     # List of ipsec definitions used at current router.
-    my @ipsec = unique(map  { $_->{crypto}->{type} }
+    # Sort entries by name to get deterministic output.
+    my @ipsec = sort { $a->{name} cmp $b->{name} }
+                 unique(map  { $_->{crypto}->{type} }
 		       grep { $_->{ip} eq 'tunnel' } 
 		       @{ $router->{interfaces} });
 
@@ -13172,7 +13174,9 @@ sub print_crypto( $ ) {
     return unless @ipsec;
 
     # List of isakmp definitions used at current router.
-    my @isakmp = unique(map { $_->{key_exchange} } @ipsec);
+    # Sort entries by name to get deterministic output.
+    my @isakmp = sort { $a->{name} cmp $b->{name} }
+                 unique(map { $_->{key_exchange} } @ipsec);
 
     my $comment_char = $model->{comment_char};
     print "$comment_char [ Crypto ]\n";
