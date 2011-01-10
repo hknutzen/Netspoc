@@ -329,11 +329,11 @@ my %router_info = (
 my $start_time = time();
 
 sub info( @ ) {
+    return if not $config{verbose};
     print STDERR @_, "\n";
 }
 
 sub progress ( @ ) {
-    return if not $config{verbose};
     if ($config{time_stamps}) {
 	my $diff = time() - $start_time;
         printf STDERR "%3ds ", $diff;
