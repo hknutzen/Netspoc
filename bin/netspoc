@@ -193,7 +193,7 @@ my $file_config = &read_config($in_path);
 &find_subnets();
 &expand_policies(1);	# 1: expand hosts to subnets
 # Abort now, if there are syntax errors and simple semantic errors.
-die "Aborted with $error_counter error(s)\n" if $error_counter;
+&abort_on_error();
 &expand_crypto();
 &check_unused_groups();
 &optimize_and_warn_deleted();
@@ -201,8 +201,8 @@ die "Aborted with $error_counter error(s)\n" if $error_counter;
 &find_active_routes_and_statics();
 &gen_reverse_rules();
 &mark_secondary_rules();
-die "Aborted with $error_counter error(s)\n" if $error_counter;
-$error_counter = $max_errors; # following errors abort immediately
+&abort_on_error();
+&set_abort_immediately();
 &optimize();
 &rules_distribution();
 &local_optimization();
