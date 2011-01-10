@@ -59,7 +59,6 @@ our @EXPORT = qw(
   %crypto
   %expanded_rules
   $error_counter
-  $max_errors
   $store_description
   get_config_keys
   get_config_pattern
@@ -68,6 +67,8 @@ our @EXPORT = qw(
   set_config
   info
   progress
+  abort_on_error
+  set_abort_immediately
   err_msg
   fatal_err
   read_ip
@@ -390,6 +391,14 @@ sub check_abort() {
     elsif ($error_counter > $config{max_errors}) {
         die "Aborted\n";
     }
+}
+
+sub abort_on_error {
+    die "Aborted with $error_counter error(s)\n" if $error_counter;
+}
+
+sub set_abort_immediately {
+    $error_counter = $config{max_errors};
 }
 
 sub error_atline( @ ) {
@@ -780,7 +789,7 @@ sub check_description() {
         # Read up to end of line, but ignore ';' at EOL.
         # We must use '$' here to match EOL,
         # otherwise $line would be out of sync.
-        $input =~ m/\G[ \t]*(.*?)[ \t]*;?$/gcm;
+        $input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*$/gcm;
         return $store_description ? $1 : undef;
     }
     else {
@@ -1450,11 +1459,12 @@ sub read_interface( $ ) {
               and error_atline "Duplicate attribute 'subnet_of'";
             $interface->{subnet_of} = $pair;
         }
-        elsif ($pair = check_assign 'hub', \&read_typed_name) {
-            my ($type, $name2) = @$pair;
-            $type eq 'crypto' or error_atline "Expected type crypto";
-            $interface->{hub} and error_atline "Duplicate attribute 'hub'";
-            $interface->{hub} = "$type:$name2";
+        elsif (my @pairs = check_assign_list 'hub', \&read_typed_name) {
+	    for my $pair (@pairs) {
+		my ($type, $name2) = @$pair;
+		$type eq 'crypto' or error_atline "Expected type crypto";
+		push @{$interface->{hub}}, "$type:$name2";
+	    }
         }
         elsif ($pair = check_assign 'spoke', \&read_typed_name) {
             my ($type, $name2) = @$pair;
@@ -1552,7 +1562,7 @@ sub read_interface( $ ) {
             $interface->{routing} and error_atline "Duplicate routing protocol";
             $interface->{routing} = $routing;
         }
-        elsif (my @pairs = check_assign_list 'reroute_permit',
+        elsif (@pairs = check_assign_list 'reroute_permit',
             \&read_typed_name)
         {
             $interface->{reroute_permit}
@@ -1630,11 +1640,13 @@ sub read_interface( $ ) {
 	  and error_atline "Interface with attribute 'spoke'",
 	  " must not have attribute 'hub'";
     }
-    if (my $crypto = $interface->{hub}) {
+    if (my $hubs = $interface->{hub}) {
         if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
             error_atline "Crypto hub must not be $interface->{ip} interface";
         }
-        push @{ $crypto2hubs{$crypto} }, $interface;
+	for my $crypto (@$hubs) {
+	    push @{ $crypto2hubs{$crypto} }, $interface;
+	}
     }
     for my $secondary (@secondary_interfaces) {
         $secondary->{main_interface} = $interface;
@@ -1858,7 +1870,7 @@ sub read_router( $ ) {
 					  network        => $net_name,
 					  real_interface => $interface
 					  );
-		    for my $key (qw(hardware routing private)) {
+		    for my $key (qw(hardware routing private bind_nat)) {
 			if ($interface->{$key}) {
 			    $tunnel_intf->{$key} = $interface->{$key} 
 			}
@@ -2437,18 +2449,22 @@ sub read_attributed_object( $$ ) {
 
 # Some attributes are currently commented out,
 # because they aren't supported by back-end currently.
-my %isakmp_attributes = (
-    identity      => { values => [qw( address fqdn )], },
-    nat_traversal => {
-        values  => [qw( on additional off )],
-        default => 'off',
-        map     => { off => undef }
-    },
-    authentication => { values   => [qw( preshare rsasig )], },
-    encryption     => { values   => [qw( aes aes192 aes256 des 3des )], },
-    hash           => { values   => [qw( md5 sha )], },
-    group          => { values   => [qw( 1 2 5 )], },
-    lifetime       => { function => \&read_time_val, },
+my %isakmp_attributes = 
+    (
+     identity      => { values => [qw( address fqdn )], },
+     nat_traversal => {
+	 values  => [qw( on additional off )],
+	 default => 'off',
+	 map     => { off => undef }
+     },
+     authentication => { values   => [qw( preshare rsasig )], },
+     encryption     => { values   => [qw( aes aes192 aes256 des 3des )], },
+     hash           => { values   => [qw( md5 sha )], },
+     group          => { values   => [qw( 1 2 5 )], },
+     lifetime       => { function => \&read_time_val, },
+     trust_point    => { function  => \&read_identifier,
+			 default => 'none',
+			 map     => { none => undef } },
 );
 
 our %isakmp;
@@ -6290,8 +6306,10 @@ sub check_vpnhub () {
     my %hub2routers;
     for my $router (@managed_vpnhub) {
         for my $interface (@{ $router->{interfaces} }) {
-            if (my $hub = $interface->{hub}) {
-                push @{ $hub2routers{$hub} }, $router;
+            if (my $hubs = $interface->{hub}) {
+		for my $hub (@$hubs) {
+		    push @{ $hub2routers{$hub} }, $router;
+		}
             }
         }
     }
@@ -7885,10 +7903,13 @@ sub link_tunnels () {
         $real_hubs and @$real_hubs
           or err_msg "No hubs have been defined for $name";
 
+	# Substitute crypto name by crypto object.
         for my $real_hub (@$real_hubs) {
-            $real_hub->{hub} = $crypto;
-            push @real_interfaces, $real_hub;
+	    for my $hub (@{ $real_hub->{hub} }) {
+		$hub eq $name and $hub = $crypto;
+	    }
         }
+	push @real_interfaces, @$real_hubs;
 
         # Generate a single tunnel from each spoke to a single hub.
         # If there are multiple hubs, they are assumed to form
@@ -7920,6 +7941,7 @@ sub link_tunnels () {
                     router         => $router,
                     network        => $spoke_net
                 );
+		$hub->{bind_nat} = $real_hub->{bind_nat} if $hub->{bind_nat};
                 push @{ $router->{interfaces} },    $hub;
                 push @{ $hardware->{interfaces} },  $hub;
                 push @{ $spoke_net->{interfaces} }, $hub;
@@ -10323,6 +10345,8 @@ sub set_policy_distribution_ip () {
       $policy_distribution_point->{network}->{nat_domain}->{nat_map};
     for my $router (@managed_routers) {
         my %interfaces;
+
+	# Find interfaces where some rule permits management traffic.
         for my $intf (@{ $router->{hardware} },
             grep { $_->{ip} eq 'tunnel' } @{ $router->{interfaces} })
         {
@@ -10337,6 +10361,8 @@ sub set_policy_distribution_ip () {
             }
         }
         my @result;
+
+	# Ready, if exactly one management interface was found.
         if (keys %interfaces == 1) {
             @result = values %interfaces;
         }
@@ -10345,25 +10371,31 @@ sub set_policy_distribution_ip () {
 #           debug "$router->{name}: ", scalar keys %interfaces;
             my @front =
               path_auto_interfaces($router, $policy_distribution_point);
+
+	    # If multiple management interfaces were found, take that which is
+	    # directed into policy_distribution_point.
             for my $front (@front) {
                 if ($interfaces{$front}) {
                     push @result, $front;
                 }
             }
-            if (not @result) {
-                @result =
-                  grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel)$/ }
-                    @front);
-                if (not @result) {
-                    @result =
-                      grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel)$/ }
-                        @{ $router->{interfaces} });
-                }
-            }
-        }
+	    
+	    # Try all management interfaces.
+	    @result = values %interfaces if not @result;
 
+	    # Try all interfaces directed to policy_distribution_point.
+	    @result = grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel)$/ }
+			   @front) if not @result;
+	    
+	    # Try all interfaces.
+	    @result = grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel)$/ }
+			   @{ $router->{interfaces} }) if not @result;
+	}
+
+	# Prefer loopback interface if available.
         $router->{admin_ip} =
-          [ map { print_ip((address($_, $nat_map))->[0]) } @result ];
+          [ map { print_ip((address($_, $nat_map))->[0]) } 
+	    sort { ($b->{loopback}||'') cmp ($a->{loopback}||'') } @result ];
     }
 }
 
@@ -12644,9 +12676,10 @@ EOF
 
     # Define tunnel group used for single VPN users.
     my $tunnel_group_name = 'VPN-single';
-    my $trust_point       = delete $router->{radius_attributes}->{'trust-point'}
-      or err_msg
-      "Missing 'trust-point' in radius_attributes of $router->{name}";
+    my $trust_point       = 
+	delete $router->{radius_attributes}->{'trust-point'}
+    or err_msg
+	"Missing 'trust-point' in radius_attributes of $router->{name}";
 
     print <<"EOF";
 ! Used for all single VPN users
@@ -13131,36 +13164,16 @@ sub print_crypto( $ ) {
     }
 
     # List of ipsec definitions used at current router.
-    my @ipsec;
-
-    # How often each ipsec definition is used.
-    my %ipsec;
-
-    # Find out which ipsec definitions are used at current router.
-    for my $interface (@{ $router->{interfaces} }) {
-        next if not $interface->{ip} eq 'tunnel';
-        my $ipsec = $interface->{crypto}->{type};
-        unless ($ipsec{$ipsec}++) {
-            push @ipsec, $ipsec;
-        }
-    }
+    my @ipsec = unique(map  { $_->{crypto}->{type} }
+		       grep { $_->{ip} eq 'tunnel' } 
+		       @{ $router->{interfaces} });
 
     # Return if no crypto is used at current router.
     return unless @ipsec;
 
     # List of isakmp definitions used at current router.
-    my @isakmp;
+    my @isakmp = unique(map { $_->{key_exchange} } @ipsec);
 
-    # How often each isakmp definition is used.
-    my %isakmp;
-
-    # Find, which isakmp definitions are used at current router.
-    for my $ipsec (@ipsec) {
-        my $isakmp = $ipsec->{key_exchange};
-        unless ($isakmp{$isakmp}++) {
-            push @isakmp, $isakmp;
-        }
-    }
     my $comment_char = $model->{comment_char};
     print "$comment_char [ Crypto ]\n";
     if ($crypto_type eq 'ASA_VPN') {
@@ -13169,11 +13182,6 @@ sub print_crypto( $ ) {
     }
     $crypto_type =~ /^(:?IOS|ASA)$/ 
 	or internal_err "Unexptected crypto type $crypto_type";
-    if (@ipsec > 1) {
-        err_msg "Only one ipsec definition supported at $router->{name}\n ",
-          "but these are used: ", join ', ', map $_->{name}, @ipsec;
-        return;
-    }
 
     # Use interface access lists to filter incoming crypto traffic.
     # Group policy and per-user authorization access list can't be used
@@ -13182,109 +13190,101 @@ sub print_crypto( $ ) {
 	print "! VPN traffic is filtered at interface ACL\n";
 	print "no sysopt connection permit-vpn\n";
     }
-    my $ipsec = $ipsec[0];
 
     # Handle ISAKMP definition.
-    my $isakmp = $ipsec->{key_exchange};
+    my @identity = unique(map { $_->{identity} } @isakmp);
+    @identity > 1 and 
+	err_msg "All isakmp definitions used at $router->{name}",
+	"must use the same value for attribute 'identity'";
+    my $identity = $identity[0];
+    my @nat_traversal = unique(grep { defined $_ } 
+			       map { $_->{nat_traversal} } @isakmp);
+    @nat_traversal > 1 and 
+	err_msg "All isakmp definitions used at $router->{name}",
+	"must use the same value for attribute 'nat_traversal'";
+			  
     my $prefix = $crypto_type eq 'IOS' ? 'crypto isakmp' : 'isakmp';
-
-    my $identity = $isakmp->{identity};
     $identity = 'hostname' if $identity eq 'fqdn';
-    if ($identity ne 'address' and $crypto_type eq 'IOS') {
-
-        # Don't print default value for backend IOS.
-        print "$prefix identity $identity\n";
-    }
-    if ($isakmp->{nat_traversal} and $isakmp->{nat_traversal} eq 'on') {
-        print "$prefix nat-traversal\n";
-    }
-    if ($crypto_type eq 'IOS' || $crypto_type eq 'ASA') {
-        print "crypto isakmp policy 1\n";
-        $prefix = '';
-    }
-    else {
-        $prefix = "isakmp policy 1";
-    }
-
-    my $authentication = $isakmp->{authentication};
-    $authentication =~ s/preshare/pre-share/;
-    $authentication =~ s/rsasig/rsa-sig/;
-    if ($authentication ne 'rsa-sig' and $crypto_type eq 'IOS') {
-
-        # Don't print default value for backend IOS.
-        print "$prefix authentication $authentication\n";
-    }
-
-    my $encryption = $isakmp->{encryption};
-    if ($crypto_type eq 'ASA' and $encryption =~ /^aes(\d+)$/) {
-	$encryption = "aes-$1";
-    }
-    print "$prefix encryption $encryption\n";
-    my $hash = $isakmp->{hash};
-    print "$prefix hash $hash\n";
-    my $group = $isakmp->{group};
-    print "$prefix group $group\n";
-
-    my $lifetime = $isakmp->{lifetime};
 
     # Don't print default value for backend IOS.
-    if ($lifetime != 86400 or $crypto_type ne 'IOS') {
-        print "$prefix lifetime $lifetime\n";
+    if (not ($identity eq 'address' and $crypto_type eq 'IOS')) {
+	print "$prefix identity $identity\n";
+    }
+    if (@nat_traversal and $nat_traversal[0] eq 'on') {
+	print "$prefix nat-traversal\n";
+    }
+    my $isakmp_count = 0;
+    for my $isakmp (@isakmp) {
+	$isakmp_count++;
+	print "crypto isakmp policy $isakmp_count\n";
+
+	my $authentication = $isakmp->{authentication};
+	$authentication =~ s/preshare/pre-share/;
+	$authentication =~ s/rsasig/rsa-sig/;
+
+        # Don't print default value for backend IOS.
+	if (not ($authentication eq 'rsa-sig' and $crypto_type eq 'IOS')) {
+	    print " authentication $authentication\n";
+	}
+
+	my $encryption = $isakmp->{encryption};
+	if ($crypto_type eq 'ASA' and $encryption =~ /^aes(\d+)$/) {
+	    $encryption = "aes-$1";
+	}
+	print " encryption $encryption\n";
+	my $hash = $isakmp->{hash};
+	print " hash $hash\n";
+	my $group = $isakmp->{group};
+	print " group $group\n";
+
+	my $lifetime = $isakmp->{lifetime};
+
+	# Don't print default value for backend IOS.
+	if (not ($lifetime == 86400 and $crypto_type eq 'IOS')) {
+	    print " lifetime $lifetime\n";
+	}
     }
 
     # Handle IPSEC definition.
-    my $transform = '';
-    if (my $ah = $ipsec->{ah}) {
-        if ($ah =~ /^(md5|sha)_hmac$/) {
-            $transform .= "ah-$1-hmac ";
-        }
-        else {
-            err_msg "Unsupported IPSec AH method for $crypto_type: $ah";
-        }
-    }
-    if (not(my $esp = $ipsec->{esp_encryption})) {
-        $transform .= 'esp-null ';
-    }
-    elsif ($esp =~ /^(aes|des|3des)$/) {
-        $transform .= "esp-$1 ";
-    }
-    elsif ($esp =~ /^aes(192|256)$/) {
-        $transform .= "esp-aes-$1 ";
-    }
-    else {
-        err_msg "Unsupported IPSec ESP method for $crypto_type: $esp";
-    }
-    if (my $esp_ah = $ipsec->{esp_authentication}) {
-        if ($esp_ah =~ /^(md5|sha)_hmac$/) {
-            $transform .= "esp-$1-hmac";
-        }
-        else {
-            err_msg
-              "Unsupported IPSec ESP auth. method for $crypto_type: $esp_ah";
-        }
-    }
-
-    # Syntax is identical for IOS and ASA.
-    my $transform_name = 'Trans';
-    print "crypto ipsec transform-set $transform_name $transform\n";
-
-    my $ipsec_lifetime = $ipsec->{lifetime};
-    if ($ipsec_lifetime != 3600 and $crypto_type eq 'IOS') {
-
-        # Don't print default value for backend IOS.
-        print
-          "crypto ipsec security-association lifetime seconds $ipsec_lifetime",
-          ;
-    }
-
-    my $pfs_group = $ipsec->{pfs_group};
-    if ($pfs_group) {
-	if ($pfs_group =~ /^(1|2)$/) {
-	    $pfs_group = "group$1";
+    my $transform_count = 0;
+    my %ipsec2trans_name;
+    for my $ipsec (@ipsec) {
+	$transform_count++;
+	my $transform = '';
+	if (my $ah = $ipsec->{ah}) {
+	    if ($ah =~ /^(md5|sha)_hmac$/) {
+		$transform .= "ah-$1-hmac ";
+	    }
+	    else {
+		err_msg "Unsupported IPSec AH method for $crypto_type: $ah";
+	    }
+	}
+	if (not(my $esp = $ipsec->{esp_encryption})) {
+	    $transform .= 'esp-null ';
+	}
+	elsif ($esp =~ /^(aes|des|3des)$/) {
+	    $transform .= "esp-$1 ";
+	}
+	elsif ($esp =~ /^aes(192|256)$/) {
+	    $transform .= "esp-aes-$1 ";
 	}
 	else {
-	    err_msg "Unsupported pfs group for $crypto_type: $pfs_group";
+	    err_msg "Unsupported IPSec ESP method for $crypto_type: $esp";
 	}
+	if (my $esp_ah = $ipsec->{esp_authentication}) {
+	    if ($esp_ah =~ /^(md5|sha)_hmac$/) {
+		$transform .= "esp-$1-hmac";
+	    }
+	    else {
+		err_msg "Unsupported IPSec ESP auth. method for",
+		" $crypto_type: $esp_ah";
+	    }
+	}
+
+	# Syntax is identical for IOS and ASA.
+	my $transform_name = "Trans$transform_count";
+	$ipsec2trans_name{$ipsec} = $transform_name;
+	print "crypto ipsec transform-set $transform_name $transform\n";
     }
 
     # Collect tunnel interfaces attached to one hardware interface.
@@ -13315,9 +13315,13 @@ sub print_crypto( $ ) {
 	
 	# Build crypto map for each tunnel interface.
         for my $interface (@tunnels) {
-            $seq_num += 1;
+            $seq_num++;
 
-            # Print crypto ACL. It controls which traffic needs to be encrypted.
+	    my $ipsec = $interface->{crypto}->{type};
+	    my $isakmp = $ipsec->{key_exchange};
+
+            # Print crypto ACL. 
+	    # It controls which traffic needs to be encrypted.
             my $crypto_acl_name = "crypto-$name-$seq_num";
             my $prefix;
             if ($crypto_type eq 'IOS') {
@@ -13387,16 +13391,46 @@ sub print_crypto( $ ) {
 		"\n";
 	    }
 
+	    my $transform_name = $ipsec2trans_name{$ipsec};
             print "$prefix set transform-set $transform_name\n";
-            $pfs_group and print "$prefix set pfs $pfs_group\n";
+
+	    if (my $pfs_group = $ipsec->{pfs_group}) {
+		if ($pfs_group =~ /^(1|2)$/) {
+		    $pfs_group = "group$1";
+		}
+		else {
+		    err_msg "Unsupported pfs group for $crypto_type: $pfs_group";
+		}
+		print "$prefix set pfs $pfs_group\n";
+	    }
+
+	    if (my $lifetime = $ipsec->{lifetime}) {
+		
+		# Don't print default value for backend IOS.
+		if (not ($lifetime == 3600 and $crypto_type eq 'IOS')) {
+		    print "$prefix set security-association" . 
+			" lifetime seconds $lifetime\n";
+		}
+	    }
 
 	    if ($crypto_type eq 'ASA') {
+		my $authentication = $isakmp->{authentication};
 		for my $peer (@{ $interface->{peers} }) {
 		    my $peer_ip = print_ip $peer->{real_interface}->{ip};
 		    print "tunnel-group $peer_ip type ipsec-l2l\n";
 		    print "tunnel-group $peer_ip ipsec-attributes\n";
-		    print " pre-shared-key *****\n";
-		    print " peer-id-validate nocheck\n";
+		    if ($authentication eq 'preshare') {
+			print " pre-shared-key *****\n";
+			print " peer-id-validate nocheck\n";
+		    }
+		    elsif ($authentication eq 'rsasig') {
+			my $trust_point = $isakmp->{trust_point} or
+			    err_msg "Missing 'trust_point' in",
+			    " isakmp attributes for $router->{name}";
+			print " chain\n";
+			print " trust-point $trust_point\n";
+			print " isakmp ikev1-user-authentication none\n";
+		    }
 		}
 	    }
         }
