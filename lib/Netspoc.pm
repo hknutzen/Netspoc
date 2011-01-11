@@ -60,6 +60,7 @@ our @EXPORT = qw(
   %expanded_rules
   $error_counter
   $store_description
+  store_description
   get_config_keys
   get_config_pattern
   check_config_pair
@@ -238,9 +239,22 @@ sub set_config {
     }
 }
 
-# Store descriptions as an attribute of policies.
+# Store descriptions as an attribute of definitions.
 # This may be useful when called from a reporting tool.
 our $store_description => 0;
+
+# New interface, modified by sub store_description.
+my $new_store_description => 0;
+
+sub store_description {
+    my ($set) = @_;
+    if (defined $set) {
+	$new_store_description = $set;
+    }
+    else {
+	$new_store_description;
+    }
+}
 
 # Use non-local function exit for efficiency.
 # Perl profiler doesn't work if this is active.
@@ -789,12 +803,19 @@ sub check_description() {
         # Read up to end of line, but ignore ';' at EOL.
         # We must use '$' here to match EOL,
         # otherwise $line would be out of sync.
-        $input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*$/gcm;
-        return $store_description ? $1 : undef;
+        $input =~ m/\G([ \t]*(.*?)[ \t]*;?[ \t]*)$/gcm;
+
+	# Old interface for report, includes leading and trailing whitespace.
+	if ($store_description) {
+	    return $1;
+	}
+
+	# New interface without leading and trailing whitespace.
+	elsif (store_description()) {
+	    return $2;
+	}
     }
-    else {
-        return undef;
-    }
+    return undef;
 }
 
 # Check if one of the keywords 'permit' or 'deny' is available.
