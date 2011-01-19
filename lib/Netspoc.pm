@@ -4819,9 +4819,6 @@ sub expand_group( $$;$ ) {
             elsif ($object->{route_hint}) {
                 $ignore = "$object->{name} having attribute 'route_hint'";
             }
-            elsif ($object->{has_id_hosts}) {
-                $ignore = "$object->{name} having ID-hosts";
-            }
             elsif ($object->{crosslink}) {
                 $ignore = "crosslink $object->{name}";
             }
@@ -10332,44 +10329,47 @@ sub distribute_rule( $$$ ) {
         $key = 'rules';
     }
 
-    my $store;
     if ($in_intf->{ip} eq 'tunnel') {
 
 	# Rules for single software clients are stored individually.
 	# Consistency checks have already been done at expand_crypto.
+	# Rules are needed at tunnel for generating split tunnel ACL
+	# regardless of $router->{no_crypto_filter} value.
         if (my $id2rules = $in_intf->{id_rules}) {
 	    my $src = $rule->{src};
-	    is_subnet $src
-		or internal_err "Expected host as src but got $src->{name}";
-	    my $id = $src->{id}
-	        or internal_err "$src->{name} must have ID";
-	    $store = $id2rules->{$id}
-                or internal_err "No entry for $id at id_rules";
-	}
-	else {
-	    $store = $in_intf;
+	    if (is_subnet $src) {
+		my $id = $src->{id}
+	           or internal_err "$src->{name} must have ID";
+		my $id_intf = $id2rules->{$id}
+                   or internal_err "No entry for $id at id_rules";
+		push @{ $id_intf->{$key} }, $rule;
+	    }
+	    elsif (is_network $src) {
+		$src->{has_id_hosts} or
+		    internal_err "$src->{name} must have ID-hosts";
+		for my $id_intf (values %$id2rules) {
+		    push @{ $id_intf->{$key} }, $rule;
+		}
+	    }
+	    else {
+		internal_err 
+		    "Expected host or network as src but got $src->{name}";
+	    }
 	}
 
 	if ($router->{no_crypto_filter}) {
-
-	    # Rules are needed at tunnel for generating split tunnel ACL.
-	    if ($in_intf->{id_rules}) {
-		push @{ $store->{$key} }, $rule;
-	    } 
-	    $store = $in_intf->{real_interface}->{hardware};
+	    push @{ $in_intf->{real_interface}->{hardware}->{$key} }, $rule;
+	}
+	elsif (not $in_intf->{id_rules}) {
+	    push @{ $in_intf->{$key} }, $rule;
 	}
     }
     elsif ($key eq 'out_rules') {
-	$store = $out_intf->{hardware};
+	push @{ $out_intf->{hardware}->{$key} }, $rule;
     }
     else {
-	$store = $in_intf->{hardware};
+	push @{ $in_intf->{hardware}->{$key} }, $rule;
     }
-
-#   debug "$router->{name} $key: ",print_rule $rule;
-#   debug "$router->{name} store: $store->{name}";
-
-    push @{ $store->{$key} }, $rule;
 }
 
 # For rules with src=any:*, call distribute_rule only for
