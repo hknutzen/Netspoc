@@ -13407,8 +13407,9 @@ sub print_crypto( $ ) {
 	}
 
 	my $encryption = $isakmp->{encryption};
-	if ($crypto_type eq 'ASA' and $encryption =~ /^aes(\d+)$/) {
-	    $encryption = "aes-$1";
+	if ($encryption =~ /^aes(\d+)$/) {
+	    my $len = $crypto_type eq 'ASA' ? "-$1" : " $1";
+	    $encryption = "aes$len";
 	}
 	print " encryption $encryption\n";
 	my $hash = $isakmp->{hash};
@@ -13445,7 +13446,8 @@ sub print_crypto( $ ) {
 	    $transform .= "esp-$1 ";
 	}
 	elsif ($esp =~ /^aes(192|256)$/) {
-	    $transform .= "esp-aes-$1 ";
+	    my $len = $crypto_type eq 'ASA' ? "-$1" : " $1";
+	    $transform .= "esp-aes$len ";
 	}
 	else {
 	    err_msg "Unsupported IPSec ESP method for $crypto_type: $esp";
