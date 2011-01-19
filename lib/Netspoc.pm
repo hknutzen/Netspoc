@@ -268,6 +268,7 @@ my %router_info = (
         name           => 'IOS',
         stateless      => 1,
         stateless_self => 1,
+	stateless_icmp => 1,
         routing        => 'IOS',
         filter         => 'IOS',
 	has_out_acl    => 1,
@@ -286,6 +287,7 @@ my %router_info = (
     },
     PIX => {
         name                => 'PIX',
+	stateless_icmp      => 1,
         routing             => 'PIX',
         filter              => 'PIX',
         comment_char        => '!',
@@ -297,6 +299,7 @@ my %router_info = (
     # Like PIX, but without identity NAT.
     ASA => {
         name                => 'ASA',
+	stateless_icmp      => 1,
         routing             => 'PIX',
         filter              => 'PIX',
 	has_out_acl         => 1,
@@ -327,6 +330,7 @@ my %router_info = (
         name           => 'VPN3K',
         stateless      => 1,
         stateless_self => 1,
+	stateless_icmp => 1,
         routing        => 'none',
         filter         => 'VPN3K',
         need_radius    => 1,
@@ -2218,6 +2222,9 @@ sub read_icmp_type_code( $ ) {
         }
         else {
             $srv->{type} = $type;
+	    if ($type == 0 || $type == 3 || $type == 11) {
+		$srv->{flags}->{stateless_icmp} = 1;
+	    }
         }
     }
     else {
@@ -2383,6 +2390,19 @@ sub read_policy( $ ) {
         }
     }
     return $policy;
+}
+
+our %global;
+
+sub read_global( $ ) {
+    my ($name) = @_;
+    skip '=';
+    (my $action = $name) =~ s/^global://;
+    $action eq 'permit' or error_atline "Unexpected name, use 'global:permit'";
+    my $srv = [ read_list \&read_typed_name ];
+    return { name   => $name,
+	     action => $action,
+	     srv    => $srv };
 }
 
 our %pathrestrictions;
@@ -2631,6 +2651,7 @@ my %global_type = (
     service         => [ \&read_service,         \%services         ],
     servicegroup    => [ \&read_servicegroup,    \%servicegroups    ],
     policy          => [ \&read_policy,          \%policies         ],
+    global          => [ \&read_global,          \%global           ],
     pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
     nat             => [ \&read_global_nat,      \%global_nat       ],
     isakmp          => [ \&read_isakmp,          \%isakmp           ],
@@ -2806,6 +2827,7 @@ sub print_rule( $ ) {
     my $extra = '';
     $extra .= " $rule->{for_router}" if $rule->{for_router};
     $extra .= " stateless"           if $rule->{stateless};
+    $extra .= " stateless_icmp"      if $rule->{stateless_icmp};
     my $srv = exists $rule->{orig_srv} ? 'orig_srv' : 'srv';
     my $action = $rule->{action};
     $action = $action->{name} if is_chain $action;
@@ -5383,6 +5405,9 @@ sub show_deleted_rules2 {
     }
 }
 
+# Hash of services to permit globally at any device.
+my %global_permit;
+
 # Parameters:
 # - Reference to array of unexpanded rules.
 # - Current context for error messages: name of policy or crypto object.
@@ -5404,6 +5429,21 @@ sub expand_rules ( $$$$;$$$ ) {
     for my $unexpanded (@$rules_ref) {
         my $action = $unexpanded->{action};
         my $srv = expand_services $unexpanded->{srv}, "rule in $context";
+	if (keys %global_permit and $action eq 'permit') {
+	  SRV:
+	    for my $srv (@$srv) {
+		my $up = $srv;
+		while ($up) {
+		    if ($global_permit{$up}) {
+			warn_msg "$srv->{name} in $context is redundant",
+			" to global:permit";
+			$srv = undef;
+			next SRV;
+		    }
+		    $up = $up->{up};
+		}
+	    }
+	}
         for my $element ($foreach ? @$user : $user) {
             $user_object->{elements} = $element;
             my $src =
@@ -5414,6 +5454,7 @@ sub expand_rules ( $$$$;$$$ ) {
                 $convert_hosts);
 
             for my $srv (@$srv) {
+		next if not $srv;
                 my $flags = $srv->{flags};
 
                 # We must not use a unspecified boolean value but values 0 or 1,
@@ -5505,6 +5546,8 @@ sub expand_rules ( $$$$;$$$ ) {
                                     };
                                     $rule->{orig_srv} = $orig_srv if $orig_srv;
                                     $rule->{oneway} = 1 if $flags->{oneway};
+				    $rule->{stateless_icmp} = 1 
+					if $flags->{stateless_icmp};
                                     if ($action eq 'deny') {
                                         push @$deny, $rule;
                                     }
@@ -5539,6 +5582,13 @@ sub expand_policies( ;$) {
     my ($convert_hosts) = @_;
     convert_hosts if $convert_hosts;
     progress "Expanding policies";
+
+    # Handle global:permit.
+    if (my $global = $global{permit}) {
+	%global_permit = map({ $_ => $_ } 
+			     @{ expand_services($global->{srv}, 
+						"$global->{name}")});
+    }
 
     # Sort by policy name to make output deterministic.
     for my $key (sort keys %policies) {
@@ -8083,12 +8133,16 @@ sub expand_crypto () {
                     my $router  = $tunnel_intf->{router};
                     my $managed = $router->{managed};
                     my @encrypted;
+		    my $has_id_network;
+		    my $has_id_hosts;
+		    my $has_other_network;
                     for my $interface (@{ $router->{interfaces} }) {
                         next if $interface->{ip} eq 'tunnel';
                         next if $interface->{spoke};
 
                         my $network = $interface->{network};
                         if ($network->{has_id_hosts}) {
+			    $has_id_hosts = 1;
                             $managed
                               and err_msg
                               "$network->{name} having ID hosts must not",
@@ -8125,34 +8179,33 @@ sub expand_crypto () {
 				    " $network->{name} and $net2->{name}";
 				}
 				$id2network{$id} = $network;
-				if (my $net2 =
-				    $tunnel_intf->{peers}->[0]->{peer_network})
-				{
-				    err_msg
-					"Currently at most one network",
-					" with ID needs to be attached to",
-					" $router->{name} but got",
-					"$network->{name} and $net2->{name}";
-				}
+				$has_id_network = 1;
 			    }
-                            for my $peer (@{ $tunnel_intf->{peers} }) {
-                                $peer->{peer_network} = $network;
-                            }
+			    else {
+				$has_other_network = 1;
+			    }
                             push @encrypted, $network;
 			    $network->{radius_attributes} = {};
                         }
                     }
-
-                    my $one_peer = $tunnel_intf->{peers}->[0];
-                    $one_peer->{id_rules}
-                      and $one_peer->{peer_network}
+		    if ($has_id_network and $has_other_network) {
+			err_msg
+			    "Must not use network with ID and other network",
+			    " together at $router->{name}";
+		    }
+                    $has_id_hosts and $has_other_network
                       and err_msg
-                      "Must not use network with ID and host with ID",
-                      " together at $router->{name}";
-                    $one_peer->{id_rules}
-                      or $one_peer->{peer_network}
+                      "Must not use host with ID and network",
+                      " together at $tunnel_intf->{name}: ",
+		      join(', ', map { $_->{name} } @encrypted);
+                    $has_id_hosts or $has_id_network or $has_other_network
                       or err_msg "Must use network or host with ID",
-                      " at $router->{name}";
+			" at $tunnel_intf->{name}: ",
+			join(', ', map { $_->{name} } @encrypted);
+
+		    for my $peer (@{ $tunnel_intf->{peers} }) {
+			$peer->{peer_networks} = \@encrypted;
+		    }
 
                     # Traffic from spoke to hub(s).
                     my $crypto_rules = [
@@ -10181,6 +10234,10 @@ sub distribute_rule( $$$ ) {
         }
     }
 
+    # Rules of type stateless_icmp must only be processed at routers
+    # which don't handle stateless_icmp automatically;
+    return if $rule->{stateless_icmp} and not $model->{stateless_icmp};
+
     # Rules to managed interfaces must be processed
     # at the corresponding router even if they are marked as deleted,
     # because code for interfaces is placed before the 'normal' code.
@@ -10194,7 +10251,8 @@ sub distribute_rule( $$$ ) {
     }
 
     # Validate dynamic NAT.
-    if (my $nat_map = $in_intf->{nat_map}) {
+    my $nat_map = $in_intf->{nat_map};
+    if ($nat_map and keys %$nat_map) {
         for my $where ('src', 'dst') {
             my $obj = $rule->{$where};
             if (is_subnet $obj || is_interface $obj) {
@@ -10240,19 +10298,34 @@ sub distribute_rule( $$$ ) {
     }
 
     my $key;
-    my $in_intf_store;
     if (not $out_intf) {
 
         # Packets for the router itself.  For PIX we can only reach that
         # interface, where traffic enters the PIX.
-        return if $model->{filter} eq 'PIX' and $rule->{dst} ne $in_intf;
+	if ($model->{filter} eq 'PIX') {
+	    my $dst = $rule->{dst};
+	    if ($dst eq $in_intf) {
+	    }
+	    elsif ($dst eq $network_00 or $dst eq $in_intf->{network}) {
 
+		# Change destination in $rule to interface
+		# because pix_self_code needs interface.
+		#
+		# Make a copy of current rule, because the
+		# original rule must not be changed.
+		$rule = {%$rule};
+		$rule->{dst} = $in_intf;
+	    }
+	    else {
+		return;
+	    }		
+	}
         $key = 'intf_rules';
     }
     elsif ($out_intf->{hardware}->{need_out_acl}) {
 	$key = 'out_rules';
 	if (not $in_intf->{hardware}->{no_in_acl}) {
-	    $in_intf_store = $in_intf->{hardware};
+	    push @{ $in_intf->{hardware}->{rules} }, $rule;
 	}
     }
     else {
@@ -10260,7 +10333,6 @@ sub distribute_rule( $$$ ) {
     }
 
     my $store;
-    my $split_tunnel_store;
     if ($in_intf->{ip} eq 'tunnel') {
 
 	# Rules for single software clients are stored individually.
@@ -10281,7 +10353,9 @@ sub distribute_rule( $$$ ) {
 	if ($router->{no_crypto_filter}) {
 
 	    # Rules are needed at tunnel for generating split tunnel ACL.
-	    $split_tunnel_store = $store if  $in_intf->{id_rules};
+	    if ($in_intf->{id_rules}) {
+		push @{ $store->{$key} }, $rule;
+	    } 
 	    $store = $in_intf->{real_interface}->{hardware};
 	}
     }
@@ -10295,19 +10369,7 @@ sub distribute_rule( $$$ ) {
 #   debug "$router->{name} $key: ",print_rule $rule;
 #   debug "$router->{name} store: $store->{name}";
 
-    # Force auto-vivification.
-    my $aref = \@{ $store->{$key} };
-
-    # Prevent duplicate rules, when path is splitting behind current
-    # router. This might occur at the start or inside a cyclic graph.
-    # Therefore check if last rule and current rule are identical.
-    # This test can't easily be done at local_optimization,
-    # because it wouldn't find IDENTICAL rules.
-    if (not ($router->{loop} and @$aref and $aref->[$#$aref] eq $rule)) {
-	push @$aref, $rule;
-	push @{ $split_tunnel_store->{$key} }, $rule if $split_tunnel_store;
-	push @{ $in_intf_store->{rules} }, $rule if $in_intf_store;
-    }	
+    push @{ $store->{$key} }, $rule;
 }
 
 # For rules with src=any:*, call distribute_rule only for
@@ -10570,6 +10632,76 @@ sub cmp_address {
     }
 }
     
+sub distribute_global_permit {
+    for my $srv (sort { $a->{name} cmp $b->{name} } values %global_permit) {
+	my $stateless = $srv->{flags} && $srv->{flags}->{stateless};
+	my $stateless_icmp = $srv->{flags} && $srv->{flags}->{stateless_icmp};
+	$srv = $srv->{main} if $srv->{main};
+	$srv->{src_dst_range_list} or internal_err $srv->{name};
+	for my $src_dst_range (@{ $srv->{src_dst_range_list} }) {
+	    my ($src_range, $srv) = @$src_dst_range;
+	    $ref2srv{$src_range} = $src_range;
+	    $ref2srv{$srv}       = $srv;
+	    my $rule = { action => 'permit',
+			 src => $network_00,
+			 dst => $network_00,
+			 src_range => $src_range,
+			 srv => $srv,
+			 stateless => $stateless,
+			 stateless_icmp => $stateless_icmp,
+		     };
+	    for my $router (@managed_routers) {
+		my $is_ios = ($router->{model}->{filter} eq 'IOS');
+	      INTERFACE:
+		for my $in_intf (@{ $router->{interfaces} }) {
+		    if (my $restrictions = $in_intf->{path_restrict}) {
+			for my $restrict (@$restrictions) {
+			    next INTERFACE if $restrict->{active_path};
+			}
+		    }
+
+		    # At VPN hub, don't permit any -> any, but only traffic
+		    # from each encrypted network.
+		    if ($in_intf->{is_hub}) {
+			my $id_rules = $in_intf->{id_rules};
+			for my $src ($id_rules
+				     ? map({ $_->{src} } values %$id_rules )
+				     : @{ $in_intf->{peer_networks} }) 
+		    {
+			    my $rule = { %$rule };
+			    $rule->{src} = $src;
+			    for my $out_intf (@{ $router->{interfaces} }) {
+				next if $out_intf eq $in_intf;
+				next if $out_intf->{ip} eq 'tunnel' and
+				    not $out_intf->{no_check};
+
+				# Traffic traverses the device.
+				# Traffic for the device itself isn't needed
+				# at VPN hub.
+				distribute_rule($rule, $in_intf, $out_intf);
+			    }			    
+			}
+		    }
+		    else {
+			for my $out_intf (@{ $router->{interfaces} }) {
+			    next if $out_intf eq $in_intf;
+
+			    # For IOS print this rule only once
+			    # at interface block.
+			    next if $is_ios;
+
+			    # Traffic traverses the device.
+			    distribute_rule($rule, $in_intf, $out_intf);
+			}
+
+			# Traffic for the device itself.
+			distribute_rule($rule, $in_intf, undef);
+		    }
+		}
+	    }
+	}
+    }
+}
     
 sub rules_distribution() {
     progress "Distributing rules";
@@ -10594,6 +10726,9 @@ sub rules_distribution() {
         next if $rule->{deleted};
         path_walk($rule, \&distribute_rule);
     }
+
+    # handle global permit after deny rules.
+    distribute_global_permit();
 
     # Rules with 'any' object as src or dst.
     for my $rule (@{ $expanded_rules{any} }) {
@@ -11856,7 +11991,7 @@ sub find_chains ( $$ ) {
                     }
                     push @rule_trees, $rule_tree;
 
-#                   debug join ', ', @test_order;
+#		    debug join ', ', @test_order;
                     $tree2order{$rule_tree} = \@test_order;
                     last if not $action;
                     $start       = $i;
@@ -12199,11 +12334,23 @@ sub local_optimization() {
                         my ($action, $src, $dst, $src_range, $srv) =
                           @{$rule}{ 'action', 'src', 'dst', 'src_range',
                             'srv' };
-                        $hash{$action}->{$src}->{$dst}->{$src_range}->{$srv} =
-                          $rule;
+
+			# Prevent duplicate code from duplicate rules,
+			# resulting from loops or global:permit.
+			if ($hash{$action}
+			    ->{$src}->{$dst}->{$src_range}->{$srv}) 
+			{
+			    $rule = undef;
+			    $changed = 1;
+			}
+			else {
+			    $hash{$action}
+			    ->{$src}->{$dst}->{$src_range}->{$srv} = $rule;
+			}
                     }
                   RULE:
                     for my $rule (@{ $hardware->{$rules} }) {
+			next if not $rule;
 
 #                       debug print_rule $rule;
                         my ($action, $src, $dst, $src_range, $srv) =
@@ -12438,7 +12585,9 @@ sub print_vpn3k( $ ) {
             my ($action, $src, $dst, $src_range, $srv) =
               @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
             my $dst_network = is_network $dst ? $dst : $dst->{network};
-            if ($add_split_tunnel) {
+
+	    # Add split tunnel networks, but not for 'any' from global:permit.
+            if ($add_split_tunnel and $dst_network ne $network_00) {
                 $split_tunnel_networks{$dst_network} = $dst_network;
             }
 
@@ -12528,7 +12677,7 @@ sub print_vpn3k( $ ) {
 
         # A VPN network behind a VPN hardware client.
         else {
-            my $src = $interface->{peer_network};
+            my $src = $interface->{peer_networks}->[0];
             my $id  = $src->{id};
             my %entry;
             $entry{'Called-Station-Id'} = $hw_name;
@@ -12607,7 +12756,8 @@ sub print_acl_add_deny ( $$$$$$ ) {
 
 		# Interface with 'no_in_acl' gets 'permit any any' added
 		# and hence needs deny rules.
-		and not $hardware->{no_in_acl}) {
+		and not $hardware->{no_in_acl}) 
+	    {
 		next;
 	    } 
 
@@ -12776,6 +12926,10 @@ EOF
                         my $dst = $rule->{dst};
                         my $dst_network =
                           is_network $dst ? $dst : $dst->{network};
+
+			# Dont add 'any' (resulting from global:permit)
+			# to split_tunnel networks.
+			next if $dst_network eq $network_00;
                         $split_tunnel_nets{$dst_network} = $dst_network;
                     }
                     my @split_tunnel_nets =
@@ -12926,7 +13080,7 @@ EOF
         # A VPN network.
         else {
             $user_counter++;
-            my $src = $interface->{peer_network};
+            my $src = $interface->{peer_networks}->[0];
 
 	    # Access list will be bound to cleartext interface.
 	    # Only check for correct source address at vpn-filter.
