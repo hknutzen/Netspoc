@@ -10347,8 +10347,8 @@ sub distribute_rule( $$$ ) {
 	    elsif (is_network $src) {
 		$src->{has_id_hosts} or
 		    internal_err "$src->{name} must have ID-hosts";
-		for my $id_intf (values %$id2rules) {
-		    push @{ $id_intf->{$key} }, $rule;
+		for my $id (map { $_->{id} } @{ $src->{hosts} }) {
+		    push @{ $id2rules->{$id}->{$key} }, $rule;
 		}
 	    }
 	    else {
