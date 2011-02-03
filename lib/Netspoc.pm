@@ -5644,6 +5644,16 @@ sub expand_policies( ;$) {
 # Distribute owner, identify policy owner
 ##############################################################################
 
+# Inheritance:
+# 1.
+# Object without owner inherits owner from enclosing object
+# 2.
+# Owner with attribute {extend} inherits its admins to all included objects.
+
+# ToDo:
+# Consistency check needed.
+# If an owner inherits from other owners at one occurrence,
+# all other occurences of this owner need to inherit from the same owners.
 sub inherit_owner {
     my ($obj, $owner, $super, $inherited) = @_;
     my $obj_owner = $obj->{owner};
@@ -5651,24 +5661,53 @@ sub inherit_owner {
 	$obj->{owner} = $owner;
 	$inherited->{$obj} = $super;
     }
+    elsif ($owner eq $obj_owner) {
+	while (my $isuper = $inherited->{$super}) {
+	    $super = $isuper;
+	}
+	warn_msg "Useless $owner->{name} at $obj->{name},\n",
+	" it was already inherited from $super->{name}";
+    }
+
+    # Inherit admins to current owner from owner with attribute {extend}.
     else {
-	if ($owner eq $obj_owner) {
-	    if (my $isuper = $inherited->{$super}) {
-		$super = $isuper;
+	my $ext_owner;
+
+	# a) Directly from enclosing object.
+	if ($owner->{extend}) {
+	    $ext_owner = $owner;
+	}
+
+	# b) Find owner with attribute {extend} at some higher level.
+	else {
+	    while (1) {
+		$super = $inherited->{$super} or return;
+		if ($super->{owner}->{extend}) {
+		    $ext_owner = $super->{owner};
+		    last;
+		}
 	    }
-	    warn_msg "Useless $owner->{name} at $obj->{name},\n",
-	    " it was already inherited from $super->{name}";
 	}
-	elsif ($owner->{extend}) {
-	    $obj->{owner}->{admins} = [ unique(@{ $obj->{owner}->{admins} },
-					       @{ $owner->{admins} }) ];
-	}
+#  debug "Inherit $ext_owner->{name} to $obj->{owner}->{name} at $obj->{name}";
+	$obj->{owner}->{admins} = [ unique(@{ $obj->{owner}->{admins} },
+					   @{ $ext_owner->{admins} }) ];
+	$inherited->{$obj} = $super;
     }
 }
 
 sub propagate_owners {
-
     my %used;
+
+    # Relation:  obj1 => obj2
+    # 1.
+    #    obj1 had an empty owner, therefore owner of obj1 was inherited 
+    #    from obj2,
+    #     used for better error messages.
+    # 2.
+    #    obj1 had owner, but admins had been extended by admins of owner 
+    #    of obj2 (having attribute 'extend')
+    #    These additional admins need to added
+    #    to owners of all objects located inside obj1
     my $inherited = {};
 
     # Areas can be nested. Proceed from small to larger ones.
