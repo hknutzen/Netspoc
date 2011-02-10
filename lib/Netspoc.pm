@@ -153,6 +153,9 @@ our %config =
 # Check for policies where multiple owners have been derived.
      check_policy_multi_owner => 0,
 
+# Check for inconsistent use of attributes 'extend' and 'extend_only' in owner.
+     check_owner_extend => 0,
+
 # Check for transient any rules.
      check_transient_any_rules => 0,
 
@@ -2592,11 +2595,15 @@ sub read_owner( $ ) {
 	      and error_atline "Redefining 'admins' attribute";
 	    $owner->{admins} = \@admins;
 	}
+	elsif (check_flag 'extend_only') {
+	    $owner->{extend_only} = 1;
+	}
 	elsif (check_flag 'extend') {
 	    $owner->{extend} = 1;
 	}
 	else {
-	    error_atline "Expected attribute 'admins' or 'extend'.";
+	    error_atline 
+		"Expected attribute 'admins', 'extend' or 'extend_only'.";
 	}
     }
     return $owner;
@@ -5644,121 +5651,184 @@ sub expand_policies( ;$) {
 # Distribute owner, identify policy owner
 ##############################################################################
 
-# Inheritance:
-# 1.
-# Object without owner inherits owner from enclosing object
-# 2.
-# Owner with attribute {extend} inherits its admins to all included objects.
-
-# ToDo:
-# Consistency check needed.
-# If an owner inherits from other owners at one occurrence,
-# all other occurences of this owner need to inherit from the same owners.
-sub inherit_owner {
-    my ($obj, $owner, $super, $inherited) = @_;
-    my $obj_owner = $obj->{owner};
-    if (not $obj_owner) {
-	$obj->{owner} = $owner;
-	$inherited->{$obj} = $super;
-    }
-    elsif ($owner eq $obj_owner) {
-	while (my $isuper = $inherited->{$super}) {
-	    $super = $isuper;
-	}
-	warn_msg "Useless $owner->{name} at $obj->{name},\n",
-	" it was already inherited from $super->{name}";
-    }
-
-    # Inherit admins to current owner from owner with attribute {extend}.
-    else {
-	my $ext_owner;
-
-	# a) Directly from enclosing object.
-	if ($owner->{extend}) {
-	    $ext_owner = $owner;
-	}
-
-	# b) Find owner with attribute {extend} at some higher level.
-	else {
-	    while (1) {
-		$super = $inherited->{$super} or return;
-		if ($super->{owner}->{extend}) {
-		    $ext_owner = $super->{owner};
-		    last;
-		}
-	    }
-	}
-#  debug "Inherit $ext_owner->{name} to $obj->{owner}->{name} at $obj->{name}";
-	$obj->{owner}->{admins} = [ unique(@{ $obj->{owner}->{admins} },
-					   @{ $ext_owner->{admins} }) ];
-	$inherited->{$obj} = $super;
-    }
-}
-
 sub propagate_owners {
-    my %used;
 
-    # Relation:  obj1 => obj2
-    # 1.
-    #    obj1 had an empty owner, therefore owner of obj1 was inherited 
-    #    from obj2,
-    #     used for better error messages.
-    # 2.
-    #    obj1 had owner, but admins had been extended by admins of owner 
-    #    of obj2 (having attribute 'extend')
-    #    These additional admins need to added
-    #    to owners of all objects located inside obj1
-    my $inherited = {};
-
-    # Areas can be nested. Proceed from small to larger ones.
-    for my $area (sort { @{$a->{anys}} <=> @{$b->{anys}} } values %areas) {
-	if (my $owner = $area->{owner}) {
-	    $used{$owner} = 1;
-	    for my $any (@{ $area->{anys} }) {
-		inherit_owner($any, $owner, $area, $inherited);
-	    }
-	}
-	if ($area->{router_attributes} and 
-	       (my $owner = $area->{router_attributes}->{owner}))
-	{
-	    $used{$owner} = 1;
-	    for my $router (area_managed_routers($area)) {
-		inherit_owner($router, $owner, $area, $inherited);
-	    }
-	}
+    # An any object can be part of multiple areas.
+    # Find the smallest enclosing area.
+    my %any2area;
+    for my $any (@all_anys) {
+	my @areas = values %{ $any->{areas} } or next;
+        @areas = sort { @{ $a->{anys} } <=> @{ $b->{anys} } } @areas;
+	$any2area{$any} = $areas[0];
+    }	
 	
+    # Build tree from inheritance relation:
+    # area -> [area|any, ..]
+    # any  -> [network, ..]
+    # network -> [host|interface, ..]
+    my %tree;
+    my %is_child;
+    my %ref2obj;
+    my $add_node = sub {
+	my ($super, $sub) = @_;
+	push @{ $tree{$super} }, $sub;
+	$is_child{$sub} = 1;
+	$ref2obj{$sub} = $sub;
+	$ref2obj{$super} = $super;
+    };
+    
+    # Find subset relation between areas.
+    for my $area (values %areas) {
+	if (my $super = $area->{subset_of}) {
+	    $add_node->($super, $area);
+	}
+    }
+
+    # Find direct subset relation between areas and any objects.
+    for my $area (values %areas) {
+	for my $any (@{ $area->{anys} }) {
+	    if ($any2area{$any} eq $area) {
+		$add_node->($area, $any);
+	    }
+	}
     }
     for my $any (@all_anys) {
-	my $owner = $any->{owner} or next;
-	$used{$owner} = 1;
 	for my $network (@{ $any->{networks} }) {
-	    inherit_owner($network, $owner, $any, $inherited);
+	    $add_node->($any, $network);
 	}
     }
     for my $network (@networks) {
 	for my $host (@{ $network->{hosts} }) {
-	    if (my $host_owner = $host->{owner}) {
-		$used{$host_owner} = 1;
-	    }
-	}
-	my $owner = $network->{owner} or next;
-	$used{$owner} = 1;
-	for my $host (@{ $network->{hosts} }) {
-	    inherit_owner($host, $owner, $network, $inherited);
+	    $add_node->($network, $host);
 	}
 	for my $interface (@{ $network->{interfaces} }) {
 	    if (not $interface->{router}->{managed}) {
-		inherit_owner($interface, $owner, $network, $inherited);
+		$add_node->($network, $interface);
 	    }
 	}
     }
-    for my $router (@managed_routers) {
-	my $owner = $router->{owner} or next;
-	$used{$owner} = 1;
-	for my $interface (@{ $router->{interfaces} }) {
-	    $interface->{owner} = $owner;
+
+    # Find root nodes.
+    my @root_nodes = map {$ref2obj{$_} } grep { not $is_child{$_} } keys %tree;
+
+
+    # owner->node->[owner, .. ]
+    my %extended;
+    my %used;
+
+    # upper_owner: owner object without attribute extend_only or undef
+    # extend: a list of owners with attribute extend
+    # extend_only: a list of owners with attribute extend_only
+    my $inherit;
+    $inherit = sub {
+	my ($node, $upper_owner, $extend, $extend_only) = @_;
+	my $owner = $node->{owner};
+	if (not $owner) {
+	    $node->{owner} = $upper_owner;
+	}
+	else {
+	    $used{$owner} = 1;
+	    if ($upper_owner) {
+		if ($owner eq $upper_owner) {
+		    warn_msg  "Useless $owner->{name} at $node->{name},\n",
+		    " it was already inherited from $upper_owner->{name}";
+		}
+		if ($upper_owner->{extend}) {
+		    push @$extend, $upper_owner;
+		}
+	    }
+	    $upper_owner = $owner;
+	    $extended{$owner}->{$node} = $extend_only;
+	    push @{ $extended{$owner}->{$node} }, @$extend if $extend;
+	}
+
+	my $childs = $tree{$node} or return;
+	if ($upper_owner) {
+	    if ($upper_owner->{extend_only}) {
+		push @$extend_only, $upper_owner;
+		$upper_owner = undef;
+	    }
+	}		
+	for my $child (@$childs) {
+	    $inherit->($child, $upper_owner, $extend, $extend_only);
+	}
+    };
+    for my $node (@root_nodes) {
+	$inherit->($node, undef, undef, undef);
+    }
+
+    # Collect extended owners and check for inconsistent extensions.
+    for my $owner (values %owners) {
+	my $href = $extended{$owner} or next;
+	my $node1;
+	my $ext1;
+	my $combined;
+	for my $ref (keys %$href) {
+	    my $node = $ref2obj{$ref};
+	    my $ext = { map({ ($_, $_) } @{ $href->{$ref} || [] }) };
+	    if ($node1) {
+		my $differ;
+		if (keys %$ext != keys %$ext1) {
+		    $differ = 1;
+		}
+		else {
+		    for my $ref (keys %$ext) {
+			if (not $ext1->{$ref}) {
+			    $differ = 1;
+			    last;
+			}
+		    }
+		}
+		if ($differ) {
+		    if ($config{check_owner_extend}) {
+			warn_msg "$owner->{name} inherits inconsistently:",
+			"\n - at $node1->{name}: ", 
+			join(', ', map { $_->{name} } values %$ext1),
+			"\n - at $node->{name}: ", 
+			join(', ', map { $_->{name} } values %$ext);
+		    }
+		    $combined = { %$ext, %$combined };
+		}
+	    }
+	    else {
+		($node1, $ext1) = ($node, $ext);
+		$combined = $ext1;
+	    }
+	}
+	if (keys %$ext1) {
+	    $owner->{extended_by} = [ values %$combined ];
 	}
     }
+
+    # Handle {router_attributes}->{owner} separately.
+    # Areas can be nested. Proceed from small to larger ones.
+    for my $area (sort { @{$a->{anys}} <=> @{$b->{anys}} } values %areas) {
+ 	if ($area->{router_attributes} and 
+	    (my $owner = $area->{router_attributes}->{owner}))
+ 	{
+ 	    $used{$owner} = 1;
+ 	    for my $router (area_managed_routers($area)) {
+		if (my $r_owner = $router->{owner}) {
+		    if ($r_owner eq $owner) {
+			warn_msg  
+			    "Useless $r_owner->{name} at $router->{name},\n",
+			    " it was already inherited from $area->{name}";
+		    }
+		}
+		else {
+		    $router->{owner} = $owner;
+		}
+  	    }
+  	}
+    }
+    for my $router (@managed_routers) {
+ 	my $owner = $router->{owner} or next;
+	$used{$owner} = 1;
+	for my $interface (@{ $router->{interfaces} }) {
+ 	    $interface->{owner} = $owner;
+	}
+    }
+
     for my $owner (values %owners) {
 	for my $admin (@{ $owner->{admins} }) {
 	    $used{$admin} = 1;
@@ -5768,7 +5838,7 @@ sub propagate_owners {
     for my $admin (values %admins) {
 	$used{$admin} or warn_msg "Unused $admin->{name}";
     }
-}	
+}
 
 sub expand_auto_intf {
     my ($src_aref, $dst_aref) = @_;
