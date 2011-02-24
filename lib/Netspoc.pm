@@ -2300,7 +2300,7 @@ sub read_service( $ ) {
             $service->{flags}->{$flag} = 1;
         }
         else {
-            error_atline "Unknown flag '$flag' in definition of $name";
+            syntax_err "Unknown flag '$flag'";
         }
     }
     skip ';';
@@ -2602,8 +2602,7 @@ sub read_owner( $ ) {
 	    $owner->{extend} = 1;
 	}
 	else {
-	    error_atline 
-		"Expected attribute 'admins', 'extend' or 'extend_only'.";
+	    syntax_err "Expected attribute 'admins', 'extend' or 'extend_only'.";
 	}
     }
     return $owner;
@@ -2629,7 +2628,7 @@ sub read_admin( $ ) {
 	    $admin->{email} = $email;
 	}
 	else {
-	    error_atline "Expected attribute 'name' or 'email'.";
+	    syntax_err "Expected attribute 'name' or 'email'.";
 	}
     }
     return $admin;
