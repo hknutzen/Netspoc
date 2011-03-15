@@ -2625,7 +2625,9 @@ sub read_admin( $ ) {
 	elsif ( my $email = check_assign 'email', \&read_to_semicolon ) {
 	    $admin->{email}
 	      and error_atline "Redefining 'email' attribute";
-	    $admin->{email} = $email;
+
+	    # Normalize email to lower case.
+	    $admin->{email} = lc $email;
 	}
 	else {
 	    syntax_err "Expected attribute 'name' or 'email'.";
