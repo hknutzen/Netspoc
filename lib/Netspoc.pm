@@ -5720,7 +5720,7 @@ sub propagate_owners {
     # extend_only: a list of owners with attribute extend_only
     my $inherit;
     $inherit = sub {
-	my ($node, $upper_owner, $extend, $extend_only) = @_;
+	my ($node, $upper_owner, $upper_node, $extend, $extend_only) = @_;
 	my $owner = $node->{owner};
 	if (not $owner) {
 	    $node->{owner} = $upper_owner;
@@ -5730,13 +5730,14 @@ sub propagate_owners {
 	    if ($upper_owner) {
 		if ($owner eq $upper_owner) {
 		    warn_msg  "Useless $owner->{name} at $node->{name},\n",
-		    " it was already inherited from $upper_owner->{name}";
+		    " it was already inherited from $upper_node->{name}";
 		}
 		if ($upper_owner->{extend}) {
 		    push @$extend, $upper_owner;
 		}
 	    }
 	    $upper_owner = $owner;
+	    $upper_node = $node;
 	    $extended{$owner}->{$node} = $extend_only;
 	    push @{ $extended{$owner}->{$node} }, @$extend if $extend;
 	}
@@ -5746,14 +5747,16 @@ sub propagate_owners {
 	    if ($upper_owner->{extend_only}) {
 		push @$extend_only, $upper_owner;
 		$upper_owner = undef;
+		$upper_node = undef;
 	    }
 	}		
 	for my $child (@$childs) {
-	    $inherit->($child, $upper_owner, $extend, $extend_only);
+	    $inherit
+		->($child, $upper_owner, $upper_node, $extend, $extend_only);
 	}
     };
     for my $node (@root_nodes) {
-	$inherit->($node, undef, undef, undef);
+	$inherit->($node, undef, undef, undef, undef);
     }
 
     # Collect extended owners and check for inconsistent extensions.
