@@ -148,6 +148,15 @@ for my $any (values %anys) {
     }
 }
 
+# Mark hosts inside networks.
+for my $network (values %networks) {
+    if($network->{is_used}) {
+	for my $host (@{ $network->{hosts} }) {
+	    $host->{is_used} = 1;
+	}
+    }
+}
+
 # Call this after topology has been marked.
 &expand_crypto();
 
