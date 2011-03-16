@@ -484,7 +484,7 @@ sub export_anys {
 	    map { { name => $_->{name},
 		    owner => owner_for_object($_), } } 
 	@$aref;
-	export("per_owner/$owner/anys", \@data);
+	export("owner/$owner/anys", \@data);
     }
 }
 
@@ -507,7 +507,7 @@ sub export_networks {
 		    owner => scalar owner_for_object($_), } }
 	grep { not $_->{loopback} }
 	@$aref;
-	export("per_owner/$owner/networks", \@data);
+	export("owner/$owner/networks", \@data);
 
 	# Export hosts.
 	for my $network (@$aref) {
@@ -530,7 +530,7 @@ sub export_networks {
 			       ip =>  ip_for_object($_),
 			       owner => owner_for_object($_), } } 
 	    @$hosts;
-	    export("per_owner/$owner/hosts/$net_name", \@data);
+	    export("owner/$owner/hosts/$net_name", \@data);
 	}
     }
 }
@@ -563,11 +563,12 @@ sub export_services {
 	my $href = $service_info{$type};
 	for my $owner (keys %$href) {
 	    progress("$owner");
+	    my @details;
 	    for my $policy ( sort by_name 
 			     values %{ $href->{$owner} })
 	    { 
 		(my $pname = $policy->{name}) =~ s/policy://;
-		my $details = {
+		push @details, {
 		    name => $pname,
 		    description => $_->{description},
 		    owner => $owner,
@@ -607,11 +608,11 @@ sub export_services {
 				 ip    => ip_for_object($_, $nat_map),
 				 owner => scalar owner_for_object($_),
 			     } } @users;
-		my $path = "per_owner/$owner/services/$type/$pname";
-		export("$path/details", $details);
+		my $path = "owner/$owner/services/$pname";
 		export("$path/rules", \@rules);
 		export("$path/users", \@users);
 	    }
+	    export("owner/$owner/service_list/$type", \@details);
 	}
     }
 }
@@ -625,7 +626,7 @@ sub export_owners {
     for my $name ( keys %owners ) {
 	my $owner = $owners{$name};
 	my @emails;
-	my @e_owner;
+	my @e_owners;
 	for my $admin ( @{ $owner->{admins} } ) {
 
 	    # Normalize email to lower case.
@@ -642,15 +643,18 @@ sub export_owners {
 		    $email2owners{$email}->{$name} = $name;
 		}
 		(my $e_name = $e_owner->{name}) =~ s/^owner://;
-		push @e_owner, $e_name;
+		push @e_owners, $e_name;
 	    }
 	}
-	export("owner/$name", { emails         => [ sort @emails ], 
-				extended_owner => [ sort @e_owner ] });
+	export("owner/$name/emails", 
+	       [ map { { email => $_ } } sort @emails ]);
+	export("owner/$name/extended_by", 
+	       [ map { { name => $_ } } sort @e_owners ]);
     }
     for my $email (keys %email2owners) {
 	my $href = $email2owners{$email};
-	export("email/$email", [ sort values %$href ]);
+	export("email/$email/owners", 
+	       [ map { { name => $_ } } sort values %$href ]);
     }
 }
 
