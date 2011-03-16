@@ -164,12 +164,20 @@ for my $router (values %routers) {
 	}
  
 	# Mark crypto definitions which are referenced by
-	# already marked interfaces.    
-	if (my $crypto = $interface->{hub} || $interface->{spoke}) {
+	# already marked interfaces.  
+	my $mark_crypto = sub {
+	    my ($crypto) = @_;
 	    $crypto->{is_used} = 1;
 	    my $type = $crypto->{type};
 	    $type->{is_used} = 1;
 	    $type->{key_exchange}->{is_used} = 1;
+	};
+	
+	if (my $aref = $interface->{hub}) {
+	    $mark_crypto->($_) for @$aref;
+	}
+	elsif (my $crypto = $interface->{spoke}) {
+	    $mark_crypto->($crypto);
 	}
     }
 
