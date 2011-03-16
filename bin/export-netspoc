@@ -208,6 +208,62 @@ sub expand_auto_intf {
     }
 }
 
+sub proto_descr {
+    my ($protocols) = @_;
+    my @result;
+    for my $proto0 (@$protocols) {
+	my $protocol = $proto0;
+	$protocol = $protocol->{main} if $protocol->{main};
+	my $desc = my $ptype = $protocol->{proto};
+	if ($ptype eq 'tcp' or $ptype eq 'udp') {
+	    my $port_code = sub ( $$ ) {
+		my ($v1, $v2) = @_;
+		if ($v1 == $v2) {
+		    return $v1;
+		}
+		elsif ($v1 == 1 and $v2 == 65535) {
+		    return '';
+		}
+		else {
+		    return "$v1-$v2";
+		}
+	    };
+	    my $sport  = $port_code->(@{ $protocol->{src_range}->{range} });
+	    my $dport  = $port_code->(@{ $protocol->{dst_range}->{range} });
+	    if ($sport) {
+		$desc .= " $sport:$dport";
+	    }
+	    elsif ($dport) {
+		$desc .= " $dport";
+	    }
+	}
+	elsif ($ptype eq 'icmp') {
+	    if (defined(my $type = $protocol->{type})) {
+		if (defined(my $code = $protocol->{code})) {
+		    $desc .= " $type/$code";
+		}
+		else {
+		    $desc .= " $type";
+		}
+	    }
+	}
+	if (my $flags = $protocol->{flags}) {
+	    for my $key (sort keys %$flags) {
+		next if $key eq 'stateless_icmp';
+		if ($key eq 'src' or $key eq 'dst') {
+		    for my $part (sort keys %{$flags->{$key}}) {
+			$desc .= ", ${key}_$part";
+		    }
+		}
+		else {
+		    $desc .= ", $key";
+		}
+	    }
+	}
+	push @result, $desc;
+    }
+    \@result;
+}
 
 sub find_visibility {
     my ($owners, $uowners) = @_;
@@ -273,6 +329,9 @@ sub setup_policy_info {
 		# This changes {expanded_src} and {expanded_dst} as well.
 		expand_auto_intf($all, $users);
 	    }
+	    $rule->{expanded_srv} =
+		proto_descr(Netspoc::expand_services($rule->{srv}, 
+						     "rule in $pname"));
 	}
 
 	# Expand auto interface to set of real interfaces.
@@ -480,63 +539,6 @@ sub export_networks {
 # Services, rules, users
 ####################################################################
 
-sub proto_descr {
-    my ($protocols) = @_;
-    my @result;
-    for my $proto0 (@$protocols) {
-	my $protocol = $proto0;
-	$protocol = $protocol->{main} if $protocol->{main};
-	my $desc = my $ptype = $protocol->{proto};
-	if ($ptype eq 'tcp' or $ptype eq 'udp') {
-	    my $port_code = sub ( $$ ) {
-		my ($v1, $v2) = @_;
-		if ($v1 == $v2) {
-		    return $v1;
-		}
-		elsif ($v1 == 1 and $v2 == 65535) {
-		    return '';
-		}
-		else {
-		    return "$v1-$v2";
-		}
-	    };
-	    my $sport  = $port_code->(@{ $protocol->{src_range}->{range} });
-	    my $dport  = $port_code->(@{ $protocol->{dst_range}->{range} });
-	    if ($sport) {
-		$desc .= " $sport:$dport";
-	    }
-	    elsif ($dport) {
-		$desc .= " $dport";
-	    }
-	}
-	elsif ($ptype eq 'icmp') {
-	    if (defined(my $type = $protocol->{type})) {
-		if (defined(my $code = $protocol->{code})) {
-		    $desc .= " $type/$code";
-		}
-		else {
-		    $desc .= " $type";
-		}
-	    }
-	}
-	if (my $flags = $protocol->{flags}) {
-	    for my $key (sort keys %$flags) {
-		next if $key eq 'stateless_icmp';
-		if ($key eq 'src' or $key eq 'dst') {
-		    for my $part (sort keys %{$flags->{$key}}) {
-			$desc .= ", ${key}_$part";
-		    }
-		}
-		else {
-		    $desc .= ", $key";
-		}
-	    }
-	}
-	push @result, $desc;
-    }
-    \@result;
-}
-
 sub export_services {
     my (%owner, %user, %visible);
     for my $policy (values %policies) {
@@ -580,8 +582,7 @@ sub export_services {
 						  $nat_map),
 			    dst => ip_for_objects($_->{expanded_dst}, 
 						  $nat_map),
-			    srv => proto_descr(Netspoc::expand_services($_->{srv}, 
-									"rule in $_")),
+			    srv => $_->{expanded_srv},
 			}
 		    } @{ $policy->{rules} };
 		my @users = @{ $policy->{expanded_user} };
