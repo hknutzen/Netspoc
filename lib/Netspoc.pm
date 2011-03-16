@@ -5712,8 +5712,8 @@ sub propagate_owners {
     # Find root nodes.
     my @root_nodes = map {$ref2obj{$_} } grep { not $is_child{$_} } keys %tree;
 
-
-    # owner->node->[owner, .. ]
+    # owner is extended by e_owner at node.
+    # owner->node->[e_owner, .. ]
     my %extended;
     my %used;
 
@@ -5735,19 +5735,18 @@ sub propagate_owners {
 		    " it was already inherited from $upper_node->{name}";
 		}
 		if ($upper_owner->{extend}) {
-		    push @$extend, $upper_owner;
+		    $extend = [ @$extend, $upper_owner ];
 		}
 	    }
 	    $upper_owner = $owner;
 	    $upper_node = $node;
-	    $extended{$owner}->{$node} = $extend_only;
-	    push @{ $extended{$owner}->{$node} }, @$extend if $extend;
+	    $extended{$owner}->{$node} = [ @$extend, @$extend_only ];
 	}
 
 	my $childs = $tree{$node} or return;
 	if ($upper_owner) {
 	    if ($upper_owner->{extend_only}) {
-		push @$extend_only, $upper_owner;
+		$extend_only = [ @$extend_only, $upper_owner ];
 		$upper_owner = undef;
 		$upper_node = undef;
 	    }
@@ -5758,7 +5757,7 @@ sub propagate_owners {
 	}
     };
     for my $node (@root_nodes) {
-	$inherit->($node, undef, undef, undef, undef);
+	$inherit->($node, undef, undef, [], []);
     }
 
     # Collect extended owners and check for inconsistent extensions.
