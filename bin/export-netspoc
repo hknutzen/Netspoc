@@ -296,7 +296,7 @@ sub find_visibility {
 my $policy_info;
 
 sub setup_policy_info {
-    Netspoc::info("Setup policy info");
+    progress("Setup policy info");
     for my $policy (values %policies) {
 	my $pname = $policy->{name};
 
@@ -366,7 +366,7 @@ sub setup_policy_info {
 ######################################################################
 
 sub setup_sub_owners {
-    Netspoc::info("Setup sub owners");
+    progress("Setup sub owners");
     for my $host (values %hosts) {
 	$host->{disabled} and next;
 	my $host_owner = $host->{owner} or next;
@@ -412,7 +412,7 @@ sub setup_sub_owners {
 ######################################################################
 
 sub setup_owner2nat {
-    Netspoc::info("Setup NAT for owner");
+    progress("Setup NAT for owner");
     my %owner2net;
     for my $network (values %networks) {
 	$network->{disabled} and next;
@@ -559,19 +559,18 @@ sub export_services {
 			 user  => \%user,
 			 visible => \%visible 
 			 );
-    for my $type (keys %service_info) {
+    for my $type (sort keys %service_info) {
+	progress("- $type");
 	my $href = $service_info{$type};
-	for my $owner (keys %$href) {
-	    progress("$owner");
+	for my $owner (sort keys %$href) {
+#	    progress("$owner");
 	    my @details;
-	    for my $policy ( sort by_name 
-			     values %{ $href->{$owner} })
-	    { 
+	    for my $policy ( sort by_name values %{ $href->{$owner} }) { 
 		(my $pname = $policy->{name}) =~ s/policy://;
 		push @details, {
 		    name => $pname,
-		    description => $_->{description},
-		    owner => $owner,
+		    description => $policy->{description},
+		    owner => join(',', @{ $policy->{owners} }),
 		}; 
 		my $nat_map = $owner2nat_map{$owner};
 		my @rules = 
@@ -586,8 +585,11 @@ sub export_services {
 			    srv => $_->{expanded_srv},
 			}
 		    } @{ $policy->{rules} };
-		my @users = @{ $policy->{expanded_user} };
-		if ($type eq 'visible') {
+		my @users;
+		if ($type eq 'owner') {
+		    @users = @{ $policy->{expanded_user} };
+		}
+		elsif ($type eq 'user') {
 		    @users = 
 			grep { 
 			    my $uowner = owner_for_object($_);
@@ -602,7 +604,10 @@ sub export_services {
 				0;
 			    }
 			}
-		    @users;
+		    @{ $policy->{expanded_user} };
+		}
+		else {
+		    @users = ();
 		}
 		@users = map { { name  => $_->{name},
 				 ip    => ip_for_object($_, $nat_map),
@@ -677,7 +682,6 @@ sub init_data {
     set_policy_owner();
     setup_owner2nat();
     setup_policy_info();
-    Netspoc::info("Ready");
 }
 
 
@@ -695,3 +699,4 @@ progress("Networks");
 export_networks();
 progress("Services");
 export_services();
+progress("Ready");
