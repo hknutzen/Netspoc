@@ -1114,7 +1114,10 @@ sub read_nat( $ ) {
             $nat->{mask} and error_atline "Duplicate IP mask";
             $nat->{mask} = $mask;
         }
-        elsif (my $dynamic = check_flag 'dynamic') {
+        elsif (check_flag 'hidden') {
+            $nat->{hidden} = 1;
+        }
+        elsif (check_flag 'dynamic') {
 
             # $nat_tag is used later to look up static translation
             # of hosts inside a dynamically translated network.
@@ -1129,7 +1132,18 @@ sub read_nat( $ ) {
             syntax_err "Expected some valid NAT attribute";
         }
     }
-    $nat->{ip} or error_atline "Missing IP address";
+    if ($nat->{hidden}) {
+	for my $key (keys %$nat) {
+	    next if grep { $key eq $_ } qw( name hidden);
+	    error_atline "Hidden NAT must not use attribute $key";
+	}
+
+	# This simplifies error checks for overlapping addresses.
+	$nat->{dynamic} = $nat_tag;
+    }
+    else {
+	$nat->{ip} or error_atline "Missing IP address";
+    }
     return $nat;
 }
 
@@ -1292,6 +1306,7 @@ sub read_network( $ ) {
 
 	    # Check NAT definitions.
             for my $nat (values %{ $network->{nat} }) {
+		next if $nat->{hidden};
                 if (defined $nat->{mask}) {
                     unless ($nat->{dynamic}) {
                         $nat->{mask} == $mask
@@ -6169,12 +6184,19 @@ sub distribute_no_nat_set {
                                 # Prevent transition from dynamic back to 
                                 # static NAT for current network.
                                 if ($href->{$multi}->{dynamic} and
-                                    not $href->{$nat_tag}->{dynamic})
+                                    not $href->{$nat_tag}->{dynamic} and
+				    not $href->{$nat_tag}->{hidden})
                                 {
                                     my $net_name = $href->{$multi}->{name};
-                                    err_msg "NAT changes from dynamic to",
-                                    " static for $net_name at $router->{name}";
+                                    err_msg "Must not change NAT",
+				    " from dynamic to static",
+				    " for $net_name at $router->{name}";
                                 }
+				elsif ($href->{$multi}->{hidden}) {
+                                    my $net_name = $href->{$multi}->{name};
+                                    err_msg "Must not change hidden NAT",
+				    " for $net_name at $router->{name}";
+				}
                             }
 			}
 		    }
@@ -6408,6 +6430,7 @@ sub find_subnets() {
         for my $network (@networks) {
             next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
             my $nat_network = get_nat_network($network, $no_nat_set);
+	    next if $nat_network->{hidden};
             my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
 
             # Found two different networks with identical IP/mask.
@@ -9340,37 +9363,75 @@ sub mark_secondary_rules() {
               and
               (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
 
-        my $result;
-      WHERE:
+        my $dynamic_nat;
         for my $where ('src', 'dst') {
             my $obj = $rule->{$where};
-            (is_subnet $obj || is_interface $obj) or next;
-            my $network = $obj->{network};
+            my $type = ref $obj;
+	    next if $type eq 'Any';
+            my $network = ($type eq 'Network') 
+                        ? $obj
+			: $obj->{network};
             my $nat_hash = $network->{nat} or next;
             my $other = $where eq 'src' ? $rule->{dst} : $rule->{src};
-
-            my $type = ref $other;
-            my $nat_domain = ($type eq 'Network') 
+	    my $otype = ref $other;
+            my $nat_domain = ($otype eq 'Network') 
                            ? $other->{nat_domain}
-                           : ($type eq 'Subnet' or $type eq 'Interface')
+                           : ($otype eq 'Subnet' or $otype eq 'Interface')
                            ? $other->{network}->{nat_domain}
-                           : undef;	# Type eq 'Any'
+                           : undef;	# $otype eq 'Any'
             my $no_nat_set = $nat_domain ? $nat_domain->{no_nat_set} : {};
+	    my $hidden;
+	    my $dynamic;
             for my $nat_tag (keys %$nat_hash) {
                 next if $no_nat_set->{$nat_tag};
                 my $nat_network = $nat_hash->{$nat_tag};
 
-                # Network has dynamic NAT.
-                $nat_network->{dynamic} or next;
+                # Network is hidden by NAT.
+                if ($nat_network->{hidden} and not $hidden) {
+		    if ($nat_domain) {
+			$hidden = 1;
+		    }
 
-                # Host / interface doesn't have static NAT.
-                $obj->{nat}->{$nat_tag} and next;
-                $result = $result ? "$result,$where" : $where;
-#                debug "dynamic_nat: $where at ", print_rule $rule;
-                next WHERE;
-            }
+		    # Other is any, check interface where any is entered.
+		    else {
+			my @interfaces;
+			path_walk ($rule, sub {
+			    my ($rule, $in_intf, $out_intf) = @_;
+			    push @interfaces, $out_intf 
+				if $out_intf->{any} eq $other;
+			});
+			for my $interface (@interfaces)
+			{
+			    my $no_nat_set = $interface->{no_nat_set};
+			    next if $no_nat_set->{$nat_tag};
+			    my $nat_network = $nat_hash->{$nat_tag};
+			    if ($nat_network->{hidden}) {
+				$hidden = 1;
+			    }			    
+			}
+		    }
+		    if ($hidden) {
+			err_msg "$obj->{name} is hidden by NAT in rule\n ",
+			print_rule $rule;
+		    }
+		}
+
+		# Network has dynamic NAT.
+		# Host / interface doesn't have static NAT.
+		if ($nat_network->{dynamic} and
+		    $type eq 'Subnet' or $type eq 'Interface' and
+		    not $obj->{nat}->{$nat_tag} and 
+		    not $dynamic) 
+		{
+		    $dynamic_nat = $dynamic_nat 
+			         ? "$dynamic_nat,$where" 
+				 : $where;
+#		    debug "dynamic_nat: $where at ", print_rule $rule;
+		    $dynamic = 1;
+		}
+	    }
         }
-        $rule->{dynamic_nat} = $result if $result;
+        $rule->{dynamic_nat} = $dynamic_nat if $dynamic_nat;
     }                        
 }
 
