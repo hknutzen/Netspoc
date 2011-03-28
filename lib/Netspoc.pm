@@ -6075,16 +6075,23 @@ sub set_natdomain( $$$ ) {
         $router->{active_path} = 0;
     }
 }
-  
+
+# Distribute no_nat_sets from NAT domain to NAT domain.
+# Collect a used boud nat_tags in $nat_bound as 
+#  nat_tag => router->{name} => used
 sub distribute_no_nat_set;
 sub distribute_no_nat_set {
     my ($domain, $no_nat_set, $in_router, $nat_bound) = @_;
 
-    return if not $no_nat_set or not keys %$no_nat_set;
+    if (not $no_nat_set or not keys %$no_nat_set) {
 
-    my $tags = join(',',keys %$no_nat_set);
-    debug "distribute $tags to $domain->{name}" 
-	. ($in_router ? " from $in_router->{name}" : '');
+#        debug "Emtpy tags at $domain->{name}";
+        return;
+    }
+
+#    my $tags = join(',',keys %$no_nat_set);
+#    debug "distribute $tags to $domain->{name}" 
+#	. ($in_router ? " from $in_router->{name}" : '');
     if ($domain->{active_path}) {
 
 #	debug "$domain->{name} loop";
@@ -6110,8 +6117,8 @@ sub distribute_no_nat_set {
 
 	for my $tag (@$in_nat_tags) {
 	    if (my $href = $no_nat_set->{$tag}) {
-		my $name = (%$href)[1]->{name};
-		err_msg "$name is translated by $tag,\n",
+		my $net_name = (values %$href)[0]->{name};
+		err_msg "$net_name is translated by $tag,\n",
 		" but is located inside the translation domain of $tag.\n",
 		" Probably $tag was bound to wrong interface",
 		" at $router->{name}.";
@@ -6135,12 +6142,11 @@ sub distribute_no_nat_set {
 			if (@$aref >= 2) {
 			    my $tags = join(',', @$aref);
 			    my $net_name = 
-				(%{ $next_no_nat_set{$aref->[0]} })[1]
+				(values %{ $next_no_nat_set{$aref->[0]} })[0]
 				->{name};
 			    err_msg 
 				"Must not use multiple NAT tags '$tags'",
-				" of $net_name at interface",
-				" of $router->{name}";
+				" of $net_name at $router->{name}";
 			}
 		    }
 		}
@@ -6154,9 +6160,22 @@ sub distribute_no_nat_set {
 		    # Add other tags again if one of a group of tags 
 		    # was removed.
 		    if (keys %$href >= 2) {
+                        
 			for my $multi (keys %$href) {
 			    next if $multi eq $nat_tag;
-			    $next_no_nat_set{$multi} = $href;
+                            if (not $next_no_nat_set{$multi}) {
+                                $next_no_nat_set{$multi} = $href;
+
+                                # Prevent transition from dynamic back to 
+                                # static NAT for current network.
+                                if ($href->{$multi}->{dynamic} and
+                                    not $href->{$nat_tag}->{dynamic})
+                                {
+                                    my $net_name = $href->{$multi}->{name};
+                                    err_msg "NAT changes from dynamic to",
+                                    " static for $net_name at $router->{name}";
+                                }
+                            }
 			}
 		    }
 		}
@@ -6182,7 +6201,7 @@ sub keys_equal {
 sub distribute_nat_info() {
     progress "Distributing NAT";
 
-    # Initial value for each NAt domain, distributed by distribute_no_nat_set.
+    # Initial value for each NAT domain, distributed by distribute_no_nat_set.
     my %no_nat_set;
 
     # A hash with all defined NAT tags as keys and a href as value.
@@ -6293,79 +6312,6 @@ sub distribute_nat_info() {
     # Distribute no_nat_set to neighbor NAT domains.
     for my $domain (@natdomains) {
 	distribute_no_nat_set($domain, $no_nat_set{$domain}, 0, \%nat_bound);
-    }
-
-    my @working = (); #@natdomains;
-    while (my $domain = shift @working) {
-        my $no_nat_set = $domain->{no_nat_set};
-	keys %$no_nat_set or next;
-        for my $router (@{ $domain->{routers} }) {
-            my $in_nat_tags = $router->{nat_tags}->{$domain};
-            for my $tag (@$in_nat_tags) {
-                if (my $href = $no_nat_set->{$tag}) {
-                    my $name = (%$href)[1]->{name};
-                    err_msg "$name is translated by $tag,\n",
-                        " but is located inside the translation domain",
-                        " of $tag.\n",
-                        " Probably $tag was bound to wrong interface",
-		        " at $router->{name}.";
-		}
-	    }
-            for my $out_dom (@{ $router->{nat_domains} }) {
-                next if $out_dom eq $domain;
-                my %next_no_nat_set = %$no_nat_set;
-                my $nat_tags = $router->{nat_tags}->{$out_dom};
-                if (@$nat_tags >= 2) {
-                    
-                    # href -> [nat_tag, ..]
-                    my %multi;
-                    for my $tag (@$nat_tags) {
-                        if (keys %{ $next_no_nat_set{$tag} } >=2) {
-                            push @{ $multi{$next_no_nat_set{$tag}} }, $tag;
-                        }
-                    }
-                    if (keys %multi) {
-                        for my $aref (values %multi) {
-                            if (@$aref >= 2) {
-                                my $tags = join(',', @$aref);
-                                my $net_name = 
-                                    (%{ $next_no_nat_set{$aref->[0]} })[1]
-				    ->{name};
-                                err_msg 
-                                    "Must not use multiple NAT tags '$tags'",
-				    " of $net_name at interface",
-				    " of $router->{name}";
-                            }
-                        }
-                    }
-                }
-
-		# NAT binding removes tag from no_nat_set.
-                for my $nat_tag (@$nat_tags) {
-                    if (my $href = delete $next_no_nat_set{$nat_tag}) {
-			$nat_bound{$nat_tag}->{$router->{name}} = 'used';
-
-                        # Add other tags again if one of a group of tags 
-                        # was removed.
-                        if (keys %$href >= 2) {
-                            for my $multi (keys %$href) {
-                                next if $multi eq $nat_tag;
-                                $next_no_nat_set{$multi} = $href;
-                            }
-                        }
-                    }
-                }
-                my $out_no_nat = $out_dom->{no_nat_set};
-                my $changed;
-                for my $tag (keys %next_no_nat_set) {
-                    next if $out_no_nat->{$tag};
-#		    debug "Move $tag from $domain->{name} to $out_dom->{name}";
-                    $out_no_nat->{$tag} = $next_no_nat_set{$tag};
-                    $changed = 1;
-                }
-                push @working, $out_dom if $changed;
-            }
-        }
     }
 
     # Distribute global NAT to all networks where it is applicable.
@@ -9380,6 +9326,52 @@ sub mark_secondary_rules() {
             $rule->{some_primary} = 1;
         }
     }
+
+    # Find rules where dynamic NAT is applied to host or interface at
+    # src or dst on path to other end of rule.
+    # Mark found rule with attribute {dynamic_nat} and value src|dst|src,dst.
+    progress "Marking rules with dynamic NAT";
+    for my $rule (@{ $expanded_rules{permit} }, 
+                  @{ $expanded_rules{any} }, 
+                  @{ $expanded_rules{deny} }) 
+    {
+        next
+          if $rule->{deleted}
+              and
+              (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
+
+        my $result;
+      WHERE:
+        for my $where ('src', 'dst') {
+            my $obj = $rule->{$where};
+            (is_subnet $obj || is_interface $obj) or next;
+            my $network = $obj->{network};
+            my $nat_hash = $network->{nat} or next;
+            my $other = $where eq 'src' ? $rule->{dst} : $rule->{src};
+
+            my $type = ref $other;
+            my $nat_domain = ($type eq 'Network') 
+                           ? $other->{nat_domain}
+                           : ($type eq 'Subnet' or $type eq 'Interface')
+                           ? $other->{network}->{nat_domain}
+                           : undef;	# Type eq 'Any'
+            my $no_nat_set = $nat_domain ? $nat_domain->{no_nat_set} : {};
+            for my $nat_tag (keys %$nat_hash) {
+                next if $no_nat_set->{$nat_tag};
+                my $nat_network = $nat_hash->{$nat_tag};
+
+                # Network has dynamic NAT.
+                $nat_network->{dynamic} or next;
+
+                # Host / interface doesn't have static NAT.
+                $obj->{nat}->{$nat_tag} and next;
+                $result = $result ? "$result,$where" : $where;
+#                debug "dynamic_nat: $where at ", print_rule $rule;
+                next WHERE;
+            }
+        }
+        $rule->{dynamic_nat} = $result if $result;
+    }                        
 }
 
 ##############################################################################
@@ -10518,51 +10510,42 @@ sub distribute_rule( $$$ ) {
     }
 
     # Validate dynamic NAT.
-    my $no_nat_set = $in_intf->{no_nat_set};
+    if (my $dynamic_nat = $rule->{dynamic_nat}) {
+        my $no_nat_set = $in_intf->{no_nat_set};
+        for my $where (split(/,/, $dynamic_nat)) {
+            my $obj = $rule->{$where};
+            my $network = $obj->{network};
+	    my $nat_network = get_nat_network($network, $no_nat_set);
+            next if $nat_network eq $network;
+            my $nat_tag = $nat_network->{dynamic} or next;
 
-    while(my $where = 0) { #for my $where ('src', 'dst') {
-	my $obj = $rule->{$where};
-	if (is_subnet $obj || is_interface $obj) {
-	    my $network = $obj->{network};
-	    if ((my $nat_network = get_nat_network($network, $no_nat_set)) 
-		!= $network) 
-	    {
-		if (my $nat_tag = $nat_network->{dynamic}) {
+            # Ignore object with static translation.
+            next if $obj->{nat}->{$nat_tag};
 
-		    # Doesn't have a static translation.
-		    unless ($obj->{nat}->{$nat_tag}) {
-			my $intf = $where eq 'src' ? $in_intf : $out_intf;
+            # Object is located in the same security domain, hence
+            # there is no other managed router in between.
+            # $intf could have value 'undef' if $obj is interface of
+            # current router and destination of rule.
+            my $intf = $where eq 'src' ? $in_intf : $out_intf;
+            if (!$intf || $network->{any} eq $intf->{any}) {
+                err_msg "$obj->{name} needs static translation",
+                " for nat:$nat_tag\n",
+                " to be valid in rule\n ", print_rule $rule;
+            }
 
-			# Object is located in the same security domain,
-			# hence there is no other managed router
-			# in between.
-			# $intf could have value 'undef' if $obj is
-			# interface of current router and destination of rule.
-			if (!$intf || $network->{any} eq $intf->{any}) {
-			    err_msg "$obj->{name} needs static translation",
-			    " for nat:$nat_tag\n",
-			    " to be valid in rule\n ", print_rule $rule;
-			}
+            # Otherwise, filtering occurs at other router, therefore
+            # the whole network can pass here.
+            # But attention, this assumption only holds, if the other
+            # router filters fully.  Hence disable optimization of
+            # secondary rules.
+            delete $rule->{some_non_secondary};
+            delete $rule->{some_primary};
 
-			# Otherwise, filtering occurs at other router,
-			# therefore the whole network can pass here.
-			# But attention, this assumption only holds,
-			# if the other router filters fully.
-			# Hence disable optimization with secondary rules.
-			undef $rule->{some_non_secondary};
-			undef $rule->{some_primary};
-
-			# Make a copy of current rule, because the
-			# original rule must not be changed.
-			$rule = {%$rule};
-
-			# Permit whole network, because no static address
-			# is known.
-			$rule->{$where} = $network;
-		    }
-		}
-	    }
-	}
+            # Permit whole network, because no static address is known.
+            # Make a copy of current rule, because the original rule
+            # must not be changed.
+            $rule = {%$rule, $where => $network};
+        }
     }
 
     my $key;
