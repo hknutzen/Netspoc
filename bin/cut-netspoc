@@ -48,20 +48,52 @@ sub read_netspoc_with_src () {
     return $object;
 }
 
-# This function is called by path_walk to mark all networks and routers
-# on path from src to dst of $rule with attribute {is_used}.
-sub mark_topology( $$$ ) {
-    my ($rule, $in_intf, $out_intf) = @_;
-    my $router = ($in_intf || $out_intf)->{router};
-    $router->{is_used} = 1;
 
-    # Not only networks on path, but all connected networks need to be marked
-    # to get a valid topology.
+# Not only networks on path, but all connected networks need to be marked
+# to get a valid topology.
+sub mark_adjacent_networks {
+    my ($router) =@_;
     for my $interface (@{ $router->{interfaces} }) {
         $interface->{network}->{is_used} = 1;
     }
 }
 
+# This function is called by path_walk to mark all managed routers and
+# adjacent networks on path from src to dst of $rule with attribute {is_used}.
+sub mark_topology( $$$ ) {
+    my ($rule, $in_intf, $out_intf) = @_;
+    my $router = ($in_intf || $out_intf)->{router};
+    $router->{is_used} = 1;
+    mark_adjacent_networks($router);
+}
+
+# Mark unmanaged routers and adjacent networks.
+sub path_unmanaged {
+    my ($obj, $in_interface) = @_;
+    if ($obj->{is_used}) {
+	return 1;
+    }
+    for my $interface (@{ $obj->{interfaces} }) {
+        next if $interface eq $in_interface;
+        my $next = $interface->{is_network($obj) ? 'router' : 'network'};
+	if (path_unmanaged($next, $interface)) {
+	    $obj->{is_used} = 1;
+	    if (is_router($obj)) {
+		mark_adjacent_networks($obj);
+	    }		    
+	}
+    }
+}
+
+sub mark_unmanaged {
+    for my $network (values %networks) {
+	for my $interface (@{ $network->{interfaces} }) {
+	    my $router = $interface->{router};
+	    path_unmanaged($router, $interface);
+	}
+    }
+}	
+	
 ####################################################################
 # Main program
 ####################################################################
@@ -107,9 +139,24 @@ sub process_rules ( $ ) {
 	for my $rule (@{ $expanded_rules->{$type} }) {
 	    for my $where ('src', 'dst') {
 
-		# path_walk only handles networks and routes,
-		# therefore 'any' objects need to be marked separately.
-		is_any $rule->{$where} and $rule->{$where}->{is_used} = 1;
+		# path_walk only handles managed routers and adjacent networks.
+		# Mark all objects additionally here.
+		my $obj = $rule->{$where};
+		my $type = ref $obj;
+		if ($type eq 'Any' || $type eq 'Network') {
+		    $obj->{is_used} = 1;
+		}
+		elsif ($type eq 'Subnet') {
+		    $obj->{network}->{is_used} = 1;
+		}
+		elsif ($type eq 'Interface') {
+		    my $router = $obj->{router};
+		    $router->{is_used} = 1;
+		    mark_adjacent_networks($router);
+		}
+		else {
+		    fatal_err "Unexpected type $type";
+		}		    
 	    }
 	    &path_walk($rule, \&mark_topology);
 	    if($rule->{orig_srv}){
@@ -147,6 +194,9 @@ for my $any (values %anys) {
 	$network->{is_used} = 1;
     }
 }
+
+# Mark unmanaged parts of topology.
+mark_unmanaged();
 
 # Mark hosts inside networks.
 for my $network (values %networks) {
