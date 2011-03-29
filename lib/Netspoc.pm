@@ -6343,12 +6343,16 @@ sub distribute_nat_info() {
     }
 
     # Distribute global NAT to all networks where it is applicable.
+    # Add other NAT tags at networks where global NAT is added,
+    # to no_nat_set of NAT domain where global NAT is applicable.
     for my $nat_tag (keys %global_nat) {
         my $global = $global_nat{$nat_tag};
-      DOMAIN:
+	my @applicable;
+	my %add;
         for my $domain (@natdomains) {
             if (not $domain->{no_nat_set}->{$nat_tag}) {
-                next DOMAIN;
+		push @applicable, $domain;
+		next;
             }
 
 #	    debug "$domain->{name}";
@@ -6359,6 +6363,7 @@ sub distribute_nat_info() {
                 next if $network->{nat}->{$nat_tag};
 
 #		debug "global nat:$nat_tag to $network->{name}";
+		@add{keys %{ $network->{nat} }} = values %{ $network->{nat} };
                 $network->{nat}->{$nat_tag} = { 
 		    %$global, 
 
@@ -6366,6 +6371,9 @@ sub distribute_nat_info() {
 		    name => "nat:$nat_tag($network->{name})", };
             }
         }
+	for my $domain (@applicable) {
+	    @{$domain->{no_nat_set}}{keys %add} = values %add;
+	}
     }
 
     # Check compatibility of host/interface and network NAT.
