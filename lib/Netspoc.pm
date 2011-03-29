@@ -4571,22 +4571,27 @@ sub expand_group1( $$;$ ) {
                         }
                     }
                     elsif ($type eq 'Area') {
+                        my @routers;
 
-                        # Fill hash with all border routers of security domains
-                        # including border routers of current area.
-                        my %routers =
-                          map {
-                            my $router = $_->{router};
-                            ($router => $router)
-                          }
-                          map @{ $_->{interfaces} }, @{ $object->{anys} };
-
-                        # Remove border routers, because we only
-                        # need routers _inside_ an area.
+                        # Prevent duplicates and border routers.
+                        my %seen;
+                        
+                        # Don't add border routers of this area.
                         for my $interface (@{ $object->{border} }) {
-                            delete $routers{ $interface->{router} };
+                            $seen{ $interface->{router} } = 1;
                         }
-                        my @routers = values %routers;
+
+                        # Add border routers of security domains inside 
+                        # current area.
+                        for my $router (map $_->{router},
+                                        map @{ $_->{interfaces} }, 
+                                        @{ $object->{anys} })
+                        {
+                            if (not $seen{$router}) {
+                                push @routers, $router;
+                                $seen{$router} = 1;
+                            }
+                        }
                         if ($managed) {
 			    @routers = grep { $_->{managed} } @routers;
 			}
@@ -5814,7 +5819,8 @@ sub propagate_owners {
 
     # Handle {router_attributes}->{owner} separately.
     # Areas can be nested. Proceed from small to larger ones.
-    for my $area (sort { @{$a->{anys}} <=> @{$b->{anys}} } values %areas) {
+    for my $area (sort { @{$a->{anys}} <=> @{$b->{anys}} } 
+		  grep { not $_->{disabled} } values %areas) {
  	if ($area->{router_attributes} and 
 	    (my $owner = $area->{router_attributes}->{owner}))
  	{
@@ -6942,7 +6948,8 @@ sub area_managed_routers {
 sub inherit_router_attributes () {
 
     # Areas can be nested. Proceed from small to larger ones.
-    for my $area (sort { @{$a->{anys}} <=> @{$b->{anys}} } values %areas) {
+    for my $area (sort { @{$a->{anys}} <=> @{$b->{anys}} }
+		  grep { not $_->{disabled} } values %areas) {
 	my $attributes = $area->{router_attributes} or next;
 	$attributes->{owner} and keys %$attributes == 1 and next;
 	for my $router (area_managed_routers($area)) {
