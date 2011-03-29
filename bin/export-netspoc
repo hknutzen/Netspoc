@@ -55,10 +55,10 @@ sub is_numeric {
     $value =~ /^\d+$/; 
 }
 
-# Store nat_map for each owner.
-# This is the intersection of all nat_maps of that nat_domains
+# Store no_nat_set for each owner.
+# This is the union of all no_nat_sets of that nat_domains
 # where networks of an owner are located.
-my %owner2nat_map;
+my %owner2no_nat_set;
 
 # Take higher bits from network NAT, lower bits from original IP.
 # This works with and without NAT.
@@ -68,7 +68,7 @@ sub nat {
 }
 
 sub ip_for_object {
-    my ($obj, $nat_map) = @_;
+    my ($obj, $no_nat_set) = @_;
 
 # This code is a modified copy of Netspoc::address.
 # - It needs to handle objects of type 'Host' instead of 'Subnet'.
@@ -76,10 +76,11 @@ sub ip_for_object {
 # - It returns strings of textual ip/mask, not pairs of numbers.
     my $type = ref $obj;
     if ($type eq 'Network') {
-        $obj = $nat_map->{$obj} || $obj;
-
-        # ToDo: Is it OK to permit a dynamic address as destination?
-        if ($obj->{ip} eq 'unnumbered') {
+        $obj = Netspoc::get_nat_network($obj, $no_nat_set);
+        if ($obj->{hidden}) {
+            internal_err "Unexpected hidden $obj->{name}\n";
+        }
+        elsif ($obj->{ip} eq 'unnumbered') {
             internal_err "Unexpected unnumbered $obj->{name}\n";
         }
         else {
@@ -88,7 +89,7 @@ sub ip_for_object {
     }
     elsif ($type eq 'Host') {
         my $network = $obj->{network};
-        $network = $nat_map->{$network} || $network;
+        $network = Netspoc::get_nat_network($network, $no_nat_set);
         if (my $nat_tag = $network->{dynamic}) {
             if (my $ip = $obj->{nat}->{$nat_tag}) {
 
@@ -117,7 +118,7 @@ sub ip_for_object {
         }
 
         my $network = $obj->{network};
-        $network = $nat_map->{$network} || $network;
+        $network = Netspoc::get_nat_network($network, $no_nat_set);
 
         if ($obj->{ip} eq 'negotiated') {
 
@@ -143,8 +144,8 @@ sub ip_for_object {
 }
 
 sub ip_for_objects {
-    my ($objects, $nat_map) = @_;
-    [ map { ip_for_object($_, $nat_map) } @$objects ];
+    my ($objects, $no_nat_set) = @_;
+    [ map { ip_for_object($_, $no_nat_set) } @$objects ];
 }
 
 # Check if all arguments are 'eq'.
@@ -199,8 +200,13 @@ sub expand_auto_intf {
 	my $src = $src_aref->[$i];
 	next if not is_autointerface($src);
 	my @new;
+	my %seen;
 	for my $dst (@$dst_aref) {
-	    push @new, Netspoc::path_auto_interfaces($src, $dst);
+	    for my $interface (Netspoc::path_auto_interfaces($src, $dst)) {
+		if (not $seen{$interface}++) {
+		    push @new, $interface;
+		}
+	    }
 	}
 
 	# Substitute auto interface by real interfaces.
@@ -408,7 +414,7 @@ sub setup_sub_owners {
 ######################################################################
 # Setup NAT
 # - relate each network to its owner and sub_owners
-# - build a nat_map for each owner, where own networks are'nt translated
+# - build a no_nat_set for each owner, where own networks are'nt translated
 ######################################################################
 
 sub setup_owner2nat {
@@ -437,28 +443,12 @@ sub setup_owner2nat {
 #	    }
 #	}
 
-	# Build intersecton of nat_maps
-	my $result = $nat_domains[0]->{nat_map};
-	for my $dom (@nat_domains[ 1 .. $#nat_domains ]) {
-	    my $nat_map = $dom->{nat_map};
-	    my $intersection;
-	    for my $key (%$nat_map) {
-		if ($result->{$key}) {
-		    $intersection->{$key} = $nat_map->{$key};
-		    if ($nat_map->{$key} ne $result->{$key}) {
-			my $nat1 = $result->{$key};
-			my $nat2 = $nat_map->{$key};
-			my $ip1 = Netspoc::print_ip($nat1->{ip});
-			my $ip2 = Netspoc::print_ip($nat2->{ip});
-			print "Inconsistent NAT for $owner_name\n";
-			print " - $nat1->{name}, $ip1\n";
-			print " - $nat2->{name}, $ip2\n";
-		    }
-		}
-	    }
-	    $result = $intersection;
-	}
-	$owner2nat_map{$owner_name} = $result;
+	# Build union of no_nat_sets
+	$owner2no_nat_set{$owner_name} = 
+	{ map(%{ $_->{no_nat_set} }, @nat_domains) };
+#	Netspoc::debug 
+#	    "$owner_name: ", 
+#	    join(',', sort keys %{$owner2no_nat_set{$owner_name}});
     }
 }
 
@@ -497,13 +487,14 @@ sub export_networks {
 	}
     }
     for my $owner (keys %owner2obj) {
+	my $no_nat_set = $owner2no_nat_set{$owner};
 	my $aref = $owner2obj{$owner};
 
 	# Export networks.
 	my @data = 
 	    sort by_name 
 	    map { { name => $_->{name},
-		    ip => ip_for_object($_),
+		    ip => ip_for_object($_, $no_nat_set),
 		    owner => scalar owner_for_object($_), } }
 	grep { not $_->{loopback} }
 	@$aref;
@@ -526,9 +517,10 @@ sub export_networks {
 				   $host_owner and $host_owner eq $owner } 
 			    @{ $network->{hosts} } ];
 	    }
-	    my @data = map { { name => $_->{name},
-			       ip =>  ip_for_object($_),
-			       owner => owner_for_object($_), } } 
+	    my @data = sort by_name
+		map { { name => $_->{name},
+			ip =>  ip_for_object($_, $no_nat_set),
+			owner => owner_for_object($_), } } 
 	    @$hosts;
 	    export("owner/$owner/hosts/$net_name", \@data);
 	}
@@ -572,16 +564,16 @@ sub export_services {
 		    description => $policy->{description},
 		    owner => join(',', @{ $policy->{owners} }),
 		}; 
-		my $nat_map = $owner2nat_map{$owner};
+		my $no_nat_set = $owner2no_nat_set{$owner};
 		my @rules = 
 		    map {
 			{ 
 			    action => $_->{action},
 			    has_user => $_->{has_user},
 			    src => ip_for_objects($_->{expanded_src}, 
-						  $nat_map),
+						  $no_nat_set),
 			    dst => ip_for_objects($_->{expanded_dst}, 
-						  $nat_map),
+						  $no_nat_set),
 			    srv => $_->{expanded_srv},
 			}
 		    } @{ $policy->{rules} };
@@ -609,10 +601,11 @@ sub export_services {
 		else {
 		    @users = ();
 		}
-		@users = map { { name  => $_->{name},
-				 ip    => ip_for_object($_, $nat_map),
-				 owner => scalar owner_for_object($_),
-			     } } @users;
+		@users = sort by_name
+		    map { { name  => $_->{name},
+			    ip    => ip_for_object($_, $no_nat_set),
+			    owner => scalar owner_for_object($_),
+			} } @users;
 		my $path = "owner/$owner/services/$pname";
 		export("$path/rules", \@rules);
 		export("$path/users", \@users);
