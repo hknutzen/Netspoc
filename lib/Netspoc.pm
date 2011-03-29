@@ -3404,7 +3404,7 @@ sub link_interfaces {
 	    # Prevent further errors.
 	    # This case is handled in disable_behind.
 	    $interface->{network} = undef;
-	    return;
+	    next;
 	}
 	$interface->{network} = $network;
 
