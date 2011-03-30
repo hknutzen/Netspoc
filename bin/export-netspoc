@@ -30,9 +30,8 @@ sub internal_err {
 
 sub create_dirs {
     my ($path) = @_;
+    $path = "$out_dir/$path";
     my @parts = split('/', $path);
-    pop @parts;
-    return if not @parts;
     my $name = shift @parts;
     check_output_dir($name);
     for my $part (@parts) {
@@ -44,7 +43,6 @@ sub create_dirs {
 sub export {
     my ($path, $data) = @_;
     $path = "$out_dir/$path";
-    create_dirs($path);
     open (my $fh, '>', $path) or die "Can't open $path\n";
     print $fh to_json($data, {utf8 => 1, pretty => 1, canonical => 1});
     close $fh or die "Can't close $path\n";
@@ -501,6 +499,7 @@ sub export_networks {
 	export("owner/$owner/networks", \@data);
 
 	# Export hosts.
+	create_dirs("owner/$owner/hosts");
 	for my $network (@$aref) {
 	    (my $net_name = $network->{name}) =~ s/^network://;
 	    my $net_owner = owner_for_object($network);
@@ -517,12 +516,16 @@ sub export_networks {
 				   $host_owner and $host_owner eq $owner } 
 			    @{ $network->{hosts} } ];
 	    }
-	    my @data = sort by_name
-		map { { name => $_->{name},
-			ip =>  ip_for_object($_, $no_nat_set),
-			owner => owner_for_object($_), } } 
-	    @$hosts;
-	    export("owner/$owner/hosts/$net_name", \@data);
+
+	    # Only write data, if any host is available.
+	    if (@$hosts) {
+		my @data = sort by_name
+		    map { { name => $_->{name},
+			    ip =>  ip_for_object($_, $no_nat_set),
+			    owner => owner_for_object($_), } } 
+		@$hosts;
+		export("owner/$owner/hosts/$net_name", \@data);
+	    }
 	}
     }
 }
@@ -625,6 +628,7 @@ sub export_owners {
 	my $owner = $owners{$name};
 	my @emails;
 	my @e_owners;
+	create_dirs("owner/$name");
 	for my $admin ( @{ $owner->{admins} } ) {
 
 	    # Normalize email to lower case.
@@ -651,6 +655,7 @@ sub export_owners {
     }
     for my $email (keys %email2owners) {
 	my $href = $email2owners{$email};
+	create_dirs("email/$email");
 	export("email/$email/owners", 
 	       [ map { { name => $_ } } sort values %$href ]);
     }
