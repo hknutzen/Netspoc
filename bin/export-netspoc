@@ -559,6 +559,8 @@ sub export_services {
 	my $href = $service_info{$type};
 	for my $owner (sort keys %$href) {
 #	    progress("$owner");
+	    create_dirs("owner/$owner/services");
+	    create_dirs("owner/$owner/service_list");
 	    my @details;
 	    for my $policy ( sort by_name values %{ $href->{$owner} }) { 
 		(my $pname = $policy->{name}) =~ s/policy://;
@@ -610,6 +612,7 @@ sub export_services {
 			    owner => scalar owner_for_object($_),
 			} } @users;
 		my $path = "owner/$owner/services/$pname";
+		create_dirs($path);
 		export("$path/rules", \@rules);
 		export("$path/users", \@users);
 	    }
