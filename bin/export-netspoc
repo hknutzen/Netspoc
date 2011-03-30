@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use JSON;
 use Netspoc;
+use open qw(:std :utf8);
 
 sub usage {
     die "Usage: $0 netspoc-data out-directory\n";
@@ -45,6 +46,14 @@ sub export {
     $path = "$out_dir/$path";
     open (my $fh, '>', $path) or die "Can't open $path\n";
     print $fh to_json($data, {utf8 => 1, pretty => 1, canonical => 1});
+    close $fh or die "Can't close $path\n";
+}
+  
+sub export_string {
+    my ($path, $string) = @_;
+    $path = "$out_dir/$path";
+    open (my $fh, '>', $path) or die "Can't open $path\n";
+    print $fh $string;
     close $fh or die "Can't close $path\n";
 }
     
@@ -97,7 +106,7 @@ sub ip_for_object {
             else {
 
                 # Dynamic NAT, take whole network.
-		join(' ', 
+		join('/', 
 		     print_ip($network->{ip}), print_ip($network->{mask}));
 	    }
         }
@@ -121,7 +130,20 @@ sub ip_for_object {
         if ($obj->{ip} eq 'negotiated') {
 
 	    # Take whole network.
-	    join(' ', print_ip($network->{ip}), print_ip($network->{mask}));
+	    join('/', print_ip($network->{ip}), print_ip($network->{mask}));
+        }
+	elsif (my $nat_tag = $network->{dynamic}) {
+            if (my $ip = $obj->{nat}->{$nat_tag}) {
+
+                # Single static NAT IP for this interface.
+		print_ip($ip);
+            }
+            else {
+
+                # Dynamic NAT, take whole network.
+		join('/', 
+		     print_ip($network->{ip}), print_ip($network->{mask}));
+	    }
         }
 	elsif ($network->{isolated}) {
 
@@ -315,6 +337,9 @@ sub setup_policy_info {
 
 	for my $rule (@{ $policy->{rules} }) {
 	    my $has_user = $rule->{has_user};
+	    $rule->{expanded_srv} =
+		proto_descr(Netspoc::expand_services($rule->{srv}, 
+						     "rule in $pname"));
 	    if ($has_user eq 'both') {
 		$is_coupling = 1;
 		next;
@@ -333,9 +358,6 @@ sub setup_policy_info {
 		# This changes {expanded_src} and {expanded_dst} as well.
 		expand_auto_intf($all, $users);
 	    }
-	    $rule->{expanded_srv} =
-		proto_descr(Netspoc::expand_services($rule->{srv}, 
-						     "rule in $pname"));
 	}
 
 	# Expand auto interface to set of real interfaces.
@@ -353,7 +375,11 @@ sub setup_policy_info {
 
 
 	# Input: owner objects, output: owner names
-	my $owners = $policy->{owners} = owners_for_objects(\@objects);
+	my $owners = owners_for_objects(\@objects);
+
+	# Add artificial owner :unknown if owner is unknown.
+	push @$owners, ':unknown' if not @$owners;
+	$policy->{owners} = $owners;
 	$policy->{sub_owners} = sub_owners_for_objects(\@objects);
 	my $uowners = $policy->{uowners} = $is_coupling ? [] : owners_for_objects($users);
 	$policy->{sub_uowners} = $is_coupling ? [] : sub_owners_for_objects($users);
@@ -564,24 +590,40 @@ sub export_services {
 	    my @details;
 	    for my $policy ( sort by_name values %{ $href->{$owner} }) { 
 		(my $pname = $policy->{name}) =~ s/policy://;
+		my $powners = $policy->{owners};
+		my $powner1 = $policy->{owners}->[0];
+		my $path = "owner/$owner/services/$pname";
+		create_dirs($path);
+
 		push @details, {
 		    name => $pname,
 		    description => $policy->{description},
 		    owner => join(',', @{ $policy->{owners} }),
 		}; 
+
 		my $no_nat_set = $owner2no_nat_set{$owner};
-		my @rules = 
-		    map {
-			{ 
-			    action => $_->{action},
-			    has_user => $_->{has_user},
-			    src => ip_for_objects($_->{expanded_src}, 
-						  $no_nat_set),
-			    dst => ip_for_objects($_->{expanded_dst}, 
-						  $no_nat_set),
-			    srv => $_->{expanded_srv},
-			}
-		    } @{ $policy->{rules} };
+		if ($owner eq $powner1) {
+		    my @rules = 
+			map {
+			    { 
+				action => $_->{action},
+				has_user => $_->{has_user},
+				src => ip_for_objects($_->{expanded_src}, 
+						      $no_nat_set),
+				dst => ip_for_objects($_->{expanded_dst}, 
+						      $no_nat_set),
+				srv => $_->{expanded_srv},
+			    }
+			} @{ $policy->{rules} };
+		    export("$path/rules", \@rules);
+		}
+
+		# Write name of real owner. This is used like a symbolic link
+		# to find the real rules file.
+		else {
+		    export_string("$path/rulesx", $powner1);
+		}
+
 		my @users;
 		if ($type eq 'owner') {
 		    @users = @{ $policy->{expanded_user} };
@@ -606,15 +648,15 @@ sub export_services {
 		else {
 		    @users = ();
 		}
-		@users = sort by_name
-		    map { { name  => $_->{name},
-			    ip    => ip_for_object($_, $no_nat_set),
-			    owner => scalar owner_for_object($_),
-			} } @users;
-		my $path = "owner/$owner/services/$pname";
-		create_dirs($path);
-		export("$path/rules", \@rules);
-		export("$path/users", \@users);
+
+		if (@users) {
+		    @users = sort by_name
+			map { { name  => $_->{name},
+				ip    => ip_for_object($_, $no_nat_set),
+				owner => scalar owner_for_object($_),
+			    } } @users;
+		    export("$path/users", \@users);
+		}
 	    }
 	    export("owner/$owner/service_list/$type", \@details);
 	}
