@@ -67,12 +67,15 @@ sub mark_topology( $$$ ) {
     mark_adjacent_networks($router);
 }
 
-# Mark unmanaged routers and adjacent networks.
+# Mark unmanaged routers and adjacent networks 
+# between marked and managed parts of topology.
 sub path_unmanaged {
     my ($obj, $in_interface) = @_;
-    if ($obj->{is_used}) {
-	return 1;
-    }
+    return 1 if $obj->{is_used};
+    return 0 if $obj->{managed};
+    return 0 if $obj->{active_path};
+
+    $obj->{active_path} = 1;
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_interface;
         my $next = $interface->{is_network($obj) ? 'router' : 'network'};
@@ -83,10 +86,13 @@ sub path_unmanaged {
 	    }		    
 	}
     }
+    $obj->{active_path} = 0;
+    return 0;
 }
 
 sub mark_unmanaged {
     for my $network (values %networks) {
+	next if $network->{is_used};
 	for my $interface (@{ $network->{interfaces} }) {
 	    my $router = $interface->{router};
 	    path_unmanaged($router, $interface);
