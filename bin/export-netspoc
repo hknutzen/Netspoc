@@ -56,7 +56,12 @@ sub export_string {
     print $fh $string;
     close $fh or die "Can't close $path\n";
 }
-    
+
+# Unique union of all elements.
+sub unique(@) {
+	return values %{ {map { $_ => $_ } @_}}; 
+}
+
 sub is_numeric { 
     my ($value) = @_;
     $value =~ /^\d+$/; 
@@ -349,30 +354,31 @@ sub setup_policy_info {
 		next if $what eq $has_user;
 		my $all = 
 
-		    # Store expanded src and dst for later use in get_rules
+		    # Store expanded src and dst for later use 
+		    # in export_services.
 		    $rule->{"expanded_$what"} =
 		    Netspoc::expand_group($rule->{$what}, "$what of $pname");
-		push(@objects, @$all);
 
 		# Expand auto interface to set of real interfaces.
 		# This changes {expanded_src} and {expanded_dst} as well.
 		expand_auto_intf($all, $users);
+		push(@objects, @$all);
 	    }
 	}
+
+	@objects = unique(@objects);
 
 	# Expand auto interface to set of real interfaces.
 	# This changes {expanded_user} as well.
 	expand_auto_intf($users, \@objects);
 
+	# Store current values for later use in export_services.
+	$policy->{objects} = [ @objects ];
+
 	# Take elements of 'user' object, if policy has coupling rule.
 	if ($is_coupling) {
-	    push @objects, @$users;
+	    @objects = unique(@objects, @$users);
 	}
-
-	# Remove duplicate objects;
-	my %objects = map { $_ => $_ } @objects;
-	@objects = values %objects;
-
 
 	# Input: owner objects, output: owner names
 	my $owners = owners_for_objects(\@objects);
@@ -603,19 +609,22 @@ sub export_services {
 
 		my $no_nat_set = $owner2no_nat_set{$owner};
 		if ($owner eq $powner1) {
-		    my @rules = 
-			map {
-			    { 
-				action => $_->{action},
-				has_user => $_->{has_user},
-				src => ip_for_objects($_->{expanded_src}, 
-						      $no_nat_set),
-				dst => ip_for_objects($_->{expanded_dst}, 
-						      $no_nat_set),
-				srv => $_->{expanded_srv},
-			    }
-			} @{ $policy->{rules} };
-		    export("$path/rules", \@rules);
+		    my @rules = map {
+			{ 
+			    action => $_->{action},
+			    has_user => $_->{has_user},
+			    src => [ map $_->{name}, @{ $_->{expanded_src} } ],
+			    dst => [ map $_->{name}, @{ $_->{expanded_dst} } ],
+			    srv => $_->{expanded_srv},
+			}
+		    } @{ $policy->{rules} };
+		    my %objects = map { 
+			$_->{name} =>
+			{ ip => ip_for_object($_, $no_nat_set),
+			  owner => scalar owner_for_object($_), } 
+		    } @{ $policy->{objects} };
+		    export("$path/rules", 
+			   { rules => \@rules, objects => \%objects });
 		}
 
 		# Write name of real owner. This is used like a symbolic link
