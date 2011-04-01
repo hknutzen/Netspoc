@@ -80,7 +80,7 @@ sub nat {
 }
 
 sub ip_for_object {
-    my ($obj, $no_nat_set) = @_;
+    my ($obj) = @_;
 
 # This code is a modified copy of Netspoc::address.
 # - It needs to handle objects of type 'Host' instead of 'Subnet'.
@@ -88,12 +88,12 @@ sub ip_for_object {
 # - It returns strings of textual ip/mask, not pairs of numbers.
     my $type = ref $obj;
     if ($type eq 'Network') {
-        $obj = Netspoc::get_nat_network($obj, $no_nat_set);
+#        $obj = Netspoc::get_nat_network($obj, $no_nat_set);
         if ($obj->{hidden}) {
             internal_err "Unexpected hidden $obj->{name}\n";
         }
         elsif ($obj->{ip} eq 'unnumbered') {
-            internal_err "Unexpected unnumbered $obj->{name}\n";
+            "unnumbered";
         }
         else {
 	    join('/', print_ip($obj->{ip}), print_ip($obj->{mask}));
@@ -101,7 +101,7 @@ sub ip_for_object {
     }
     elsif ($type eq 'Host') {
         my $network = $obj->{network};
-        $network = Netspoc::get_nat_network($network, $no_nat_set);
+#        $network = Netspoc::get_nat_network($network, $no_nat_set);
         if (my $nat_tag = $network->{dynamic}) {
             if (my $ip = $obj->{nat}->{$nat_tag}) {
 
@@ -130,7 +130,7 @@ sub ip_for_object {
         }
 
         my $network = $obj->{network};
-        $network = Netspoc::get_nat_network($network, $no_nat_set);
+#        $network = Netspoc::get_nat_network($network, $no_nat_set);
 
         if ($obj->{ip} eq 'negotiated') {
 
@@ -168,10 +168,10 @@ sub ip_for_object {
     }
 }
 
-sub ip_for_objects {
-    my ($objects, $no_nat_set) = @_;
-    [ map { ip_for_object($_, $no_nat_set) } @$objects ];
-}
+#sub ip_for_objects {
+#    my ($objects, $no_nat_set) = @_;
+#    [ map { ip_for_object($_, $no_nat_set) } @$objects ];
+#}
 
 # Check if all arguments are 'eq'.
 sub equal {
@@ -324,7 +324,8 @@ sub find_visibility {
     $visibility;
 }
 
-my $policy_info;
+# All objects referenced in rules and in networks and hosts of owners.
+my %all_objects;
 
 sub setup_policy_info {
     progress("Setup policy info");
@@ -372,8 +373,8 @@ sub setup_policy_info {
 	# This changes {expanded_user} as well.
 	expand_auto_intf($users, \@objects);
 
-	# Store current values for later use in export_services.
-	$policy->{objects} = [ @objects ];
+	# Store referenced objects for later use during export.
+	@all_objects{@objects, @$users} = (@objects, @$users);
 
 	# Take elements of 'user' object, if policy has coupling rule.
 	if ($is_coupling) {
@@ -493,17 +494,14 @@ sub export_anys {
     my %owner2obj;
     for my $obj (values %anys) {
 	next if $obj->{disabled};
+	$all_objects{$obj} = $obj;
 	for my $owner (owner_for_object($obj), sub_owners_for_object($obj)) {
 	    push @{ $owner2obj{$owner} }, $obj;
 	}
     }
     for my $owner (keys %owner2obj) {
 	my $aref = $owner2obj{$owner};
-	my @data = 
-	    sort by_name 
-	    map { { name => $_->{name},
-		    owner => owner_for_object($_), } } 
-	@$aref;
+	my @data = sort map $_->{name}, @$aref;
 	export("owner/$owner/anys", \@data);
     }
 }
@@ -512,6 +510,9 @@ sub export_networks {
     my %owner2obj;
     for my $obj (values %networks) {
 	next if $obj->{disabled};
+	next if $obj->{loopback};
+	next if $obj->{ip} eq 'tunnel';
+	$all_objects{$obj} = $obj;
 	for my $owner (owner_for_object($obj), sub_owners_for_object($obj)) {
 	    push @{ $owner2obj{$owner} }, $obj;
 	}
@@ -521,13 +522,7 @@ sub export_networks {
 	my $aref = $owner2obj{$owner};
 
 	# Export networks.
-	my @data = 
-	    sort by_name 
-	    map { { name => $_->{name},
-		    ip => ip_for_object($_, $no_nat_set),
-		    owner => scalar owner_for_object($_), } }
-	grep { not $_->{loopback} }
-	@$aref;
+	my @data = sort map $_->{name}, @$aref;
 	export("owner/$owner/networks", \@data);
 
 	# Export hosts.
@@ -551,11 +546,8 @@ sub export_networks {
 
 	    # Only write data, if any host is available.
 	    if (@$hosts) {
-		my @data = sort by_name
-		    map { { name => $_->{name},
-			    ip =>  ip_for_object($_, $no_nat_set),
-			    owner => owner_for_object($_), } } 
-		@$hosts;
+		@all_objects{@$hosts} = @$hosts;
+		my @data = sort map $_->{name}, @$hosts;
 		export("owner/$owner/hosts/$net_name", \@data);
 	    }
 	}
@@ -618,13 +610,7 @@ sub export_services {
 			    srv => $_->{expanded_srv},
 			}
 		    } @{ $policy->{rules} };
-		    my %objects = map { 
-			$_->{name} =>
-			{ ip => ip_for_object($_, $no_nat_set),
-			  owner => scalar owner_for_object($_), } 
-		    } @{ $policy->{objects} };
-		    export("$path/rules", 
-			   { rules => \@rules, objects => \%objects });
+		    export("$path/rules", \@rules);
 		}
 
 		# Write name of real owner. This is used like a symbolic link
@@ -659,17 +645,27 @@ sub export_services {
 		}
 
 		if (@users) {
-		    @users = sort by_name
-			map { { name  => $_->{name},
-				ip    => ip_for_object($_, $no_nat_set),
-				owner => scalar owner_for_object($_),
-			    } } @users;
+		    @users = sort map $_->{name}, @users;
 		    export("$path/users", \@users);
 		}
 	    }
 	    export("owner/$owner/service_list/$type", \@details);
 	}
     }
+}
+
+####################################################################
+# Export all objects referenced by rules, users and owners.
+####################################################################
+
+sub export_objects {
+    my %objects = map { 
+	$_->{name} =>
+	{ ip    => ip_for_object($_),
+	  owner => scalar owner_for_object($_),
+      } 
+    } values %all_objects;
+    export("objects", \%objects);
 }
 
 ####################################################################
@@ -751,4 +747,6 @@ progress("Networks");
 export_networks();
 progress("Services");
 export_services();
+progress("Objects");
+export_objects();
 progress("Ready");
