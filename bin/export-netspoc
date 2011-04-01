@@ -559,66 +559,59 @@ sub export_networks {
 ####################################################################
 
 sub export_services {
-    my (%owner, %user, %visible);
-    for my $policy (values %policies) {
+    my %phash;
+    my %owner2type2phash;
+    for my $policy (sort by_name values %policies) {
 	for my $owner (@{ $policy->{owners} }, @{ $policy->{sub_owners} }) {
-	    $owner{$owner}->{$policy} = $policy;
+	    $owner2type2phash{$owner}->{owner}->{$policy} = $policy;
 	}
 	for my $owner (@{ $policy->{uowners} }, @{ $policy->{sub_uowners} }) {
-	    $owner{$owner}->{$policy} or 
-		$user{$owner}->{$policy} = $policy;
+	    if (not $owner2type2phash{$owner}->{owner}->{$policy}) {
+		$owner2type2phash{$owner}->{user}->{$policy} = $policy;
+	    }
 	}
 	for my $owner (keys %owners) {
-	    $owner{$owner}->{$policy} or $user{$owner}->{$policy} or
-		$policy->{visible} and $owner =~ /^$policy->{visible}/ and 
-		$visible{$owner}->{$policy} = $policy;
+	    if (not ($owner2type2phash{$owner}->{owner}->{$policy} or 
+		     $owner2type2phash{$owner}->{user}->{$policy})) 
+	    {
+		if ($policy->{visible} and $owner =~ /^$policy->{visible}/) {
+		    $owner2type2phash{$owner}->{visible}->{$policy} = $policy;
+		}
+	    }
 	}
+	my $details = {
+	    description => $policy->{description},
+	    owner => $policy->{owners},
+	};
+	if (@{ $policy->{sub_owners} }) {
+	    $details->{sub_owners} = $policy->{sub_owners};
+	}
+	my @rules = map {
+	    { 
+		action => $_->{action},
+		has_user => $_->{has_user},
+		src => [ map $_->{name}, @{ $_->{expanded_src} } ],
+		dst => [ map $_->{name}, @{ $_->{expanded_dst} } ],
+		srv => $_->{expanded_srv},
+	    }
+	} @{ $policy->{rules} };
+	(my $pname = $policy->{name}) =~ s/policy://;
+	$phash{$pname} = { details => $details, rules => \@rules };
     }
-    my %service_info = ( owner => \%owner,
-			 user  => \%user,
-			 visible => \%visible 
-			 );
-    for my $type (sort keys %service_info) {
-	progress("- $type");
-	my $href = $service_info{$type};
-	for my $owner (sort keys %$href) {
-#	    progress("$owner");
-	    create_dirs("owner/$owner/services");
-	    create_dirs("owner/$owner/service_list");
-	    my @details;
-	    for my $policy ( sort by_name values %{ $href->{$owner} }) { 
+    export("policies", \%phash);
+
+    for my $owner (sort keys %owner2type2phash) {
+	my $type2phash = $owner2type2phash{$owner};
+	my %type2pnames;
+	create_dirs("owner/$owner");
+	for my $type (sort keys %$type2phash) {
+	    my $policies = [ sort by_name values %{ $type2phash->{$type} } ];
+	    my $pnames = $type2pnames{$type} = [];
+	    create_dirs("owner/$owner/users");
+	    for my $policy (@$policies) { 
 		(my $pname = $policy->{name}) =~ s/policy://;
-		my $powners = $policy->{owners};
-		my $powner1 = $policy->{owners}->[0];
-		my $path = "owner/$owner/services/$pname";
-		create_dirs($path);
-
-		push @details, {
-		    name => $pname,
-		    description => $policy->{description},
-		    owner => join(',', @{ $policy->{owners} }),
-		}; 
-
-		my $no_nat_set = $owner2no_nat_set{$owner};
-		if ($owner eq $powner1) {
-		    my @rules = map {
-			{ 
-			    action => $_->{action},
-			    has_user => $_->{has_user},
-			    src => [ map $_->{name}, @{ $_->{expanded_src} } ],
-			    dst => [ map $_->{name}, @{ $_->{expanded_dst} } ],
-			    srv => $_->{expanded_srv},
-			}
-		    } @{ $policy->{rules} };
-		    export("$path/rules", \@rules);
-		}
-
-		# Write name of real owner. This is used like a symbolic link
-		# to find the real rules file.
-		else {
-		    export_string("$path/rulesx", $powner1);
-		}
-
+		push @$pnames, $pname;
+		next if $type eq 'visible';
 		my @users;
 		if ($type eq 'owner') {
 		    @users = @{ $policy->{expanded_user} };
@@ -640,17 +633,11 @@ sub export_services {
 			}
 		    @{ $policy->{expanded_user} };
 		}
-		else {
-		    @users = ();
-		}
-
-		if (@users) {
-		    @users = sort map $_->{name}, @users;
-		    export("$path/users", \@users);
-		}
+		@users = sort map $_->{name}, @users;
+		export("owner/$owner/users/$pname", \@users);
 	    }
-	    export("owner/$owner/service_list/$type", \@details);
 	}
+	export("owner/$owner/service_lists", \%type2pnames);
     }
 }
 
