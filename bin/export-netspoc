@@ -67,11 +67,6 @@ sub is_numeric {
     $value =~ /^\d+$/; 
 }
 
-# Store no_nat_set for each owner.
-# This is the union of all no_nat_sets of that nat_domains
-# where networks of an owner are located.
-my %owner2no_nat_set;
-
 # Take higher bits from network NAT, lower bits from original IP.
 # This works with and without NAT.
 sub nat {
@@ -79,8 +74,10 @@ sub nat {
     $network->{ip} | $ip & Netspoc::complement_32bit ($network->{mask});
 }
 
-sub ip_for_object {
+sub ip_nat_for_object {
     my ($obj) = @_;
+    my $ip;
+    my $nat;
 
 # This code is a modified copy of Netspoc::address.
 # - It needs to handle objects of type 'Host' instead of 'Subnet'.
@@ -88,90 +85,113 @@ sub ip_for_object {
 # - It returns strings of textual ip/mask, not pairs of numbers.
     my $type = ref $obj;
     if ($type eq 'Network') {
-#        $obj = Netspoc::get_nat_network($obj, $no_nat_set);
-        if ($obj->{hidden}) {
-            internal_err "Unexpected hidden $obj->{name}\n";
-        }
-        elsif ($obj->{ip} eq 'unnumbered') {
-            "unnumbered";
-        }
-        else {
-	    join('/', print_ip($obj->{ip}), print_ip($obj->{mask}));
-        }
+	my $get_ip = sub {
+	    my ($obj) = @_;
+	    if ($obj->{hidden}) {
+		'hidden';
+	    }
+	    elsif ($obj->{ip} eq 'unnumbered') {
+		'nnumbered'
+		}
+	    else {
+		join('/', print_ip($obj->{ip}), print_ip($obj->{mask}));
+	    }
+	};
+	$ip = $get_ip->($obj);
+	if (my $hash = $obj->{nat}) {
+	    for my $tag (keys %$hash) {
+		my $nat_obj = $hash->{$tag};
+		$nat->{$tag} = $get_ip->($nat_obj);
+	    }
+	}
     }
     elsif ($type eq 'Host') {
-        my $network = $obj->{network};
-#        $network = Netspoc::get_nat_network($network, $no_nat_set);
-        if (my $nat_tag = $network->{dynamic}) {
-            if (my $ip = $obj->{nat}->{$nat_tag}) {
+	my $get_ip = sub {
+	    my ($obj, $network) = @_;
+	    if (my $nat_tag = $network->{dynamic}) {
+		if ($obj->{nat} and (my $ip = $obj->{nat}->{$nat_tag})) {
 
-                # Single static NAT IP for this host.
-		print_ip($ip);
-            }
-            else {
-
-                # Dynamic NAT, take whole network.
-		join('/', 
-		     print_ip($network->{ip}), print_ip($network->{mask}));
-	    }
-        }
-        else {
-	    if ( my $range = $obj->{range} ) {
-		join('-', map { print_ip(nat($_, $network)) } @$range);
+		    # Single static NAT IP for this host.
+		    print_ip($ip);
+		}
+		else {
+		    
+		    # Dynamic NAT, take whole network.
+		    join('/', 
+			 print_ip($network->{ip}), print_ip($network->{mask}));
+		}
 	    }
 	    else {
-		print_ip(nat($obj->{ip}, $network));
+		if ( my $range = $obj->{range} ) {
+		    join('-', map { print_ip(nat($_, $network)) } @$range);
+		}
+		else {
+		    print_ip(nat($obj->{ip}, $network));
+		}
+	    }
+	};
+        my $network = $obj->{network};
+	$ip = $get_ip->($obj, $network);
+	if (my $hash = $network->{nat}) {
+	    for my $tag (keys %$hash) {
+		my $nat_obj = $hash->{$tag};
+		$nat->{$tag} = $get_ip->($obj, $nat_obj);
 	    }
 	}
     }
     elsif ($type eq 'Interface') {
-        if ($obj->{ip} =~ /unnumbered|short/) {
-            internal_err "Unexpected $obj->{ip} $obj->{name}\n";
-        }
+	my $get_ip = sub {
+	    my ($obj, $network) = @_;
+	    if ($obj->{ip} =~ /unnumbered|short/) {
+		$obj->{ip};
+	    }
+	    elsif ($obj->{ip} eq 'negotiated') {
 
-        my $network = $obj->{network};
-#        $network = Netspoc::get_nat_network($network, $no_nat_set);
-
-        if ($obj->{ip} eq 'negotiated') {
-
-	    # Take whole network.
-	    join('/', print_ip($network->{ip}), print_ip($network->{mask}));
-        }
-	elsif (my $nat_tag = $network->{dynamic}) {
-            if (my $ip = $obj->{nat}->{$nat_tag}) {
-
-                # Single static NAT IP for this interface.
-		print_ip($ip);
-            }
-            else {
-
-                # Dynamic NAT, take whole network.
+		# Take whole network.
 		join('/', 
 		     print_ip($network->{ip}), print_ip($network->{mask}));
 	    }
-        }
-	elsif ($network->{isolated}) {
+	    elsif (my $nat_tag = $network->{dynamic}) {
+		if (my $ip = $obj->{nat}->{$nat_tag}) {
 
-	    # NAT not allowed for isolated ports. Take no bits from network, 
-	    # because secondary isolated ports don't match network.
-	    print_ip($obj->{ip});
-	}
-        else {
-	    print_ip(nat($obj->{ip}, $network));
+		    # Single static NAT IP for this interface.
+		    print_ip($ip);
+		}
+		else {
+		    
+		    # Dynamic NAT, take whole network.
+		    join('/', 
+			 print_ip($network->{ip}), print_ip($network->{mask}));
+		}
+	    }
+	    elsif ($network->{isolated}) {
+
+		# NAT not allowed for isolated ports. 
+		# Take no bits from network, because secondary isolated ports 
+		# don't match network.
+		print_ip($obj->{ip});
+	    }
+	    else {
+		print_ip(nat($obj->{ip}, $network));
+	    }
+	};
+        my $network = $obj->{network};
+	$ip = $get_ip->($obj, $network);
+	if (my $hash = $network->{nat}) {
+	    for my $tag (keys %$hash) {
+		my $nat_obj = $hash->{$tag};
+		$nat->{$tag} = $get_ip->($obj, $nat_obj);
+	    }
 	}
     }
     elsif ( Netspoc::is_any( $obj ) ) {
-	print_ip( 0 );
+	$ip = print_ip( 0 );
     }
     else {
         internal_err "Unexpected object $obj->{name}";
     }
+    return $nat ? ( ip => $ip, nat => $nat ) : ( ip => $ip );
 }
-
-#sub ip_for_objects {
-#    my ($objects, $no_nat_set) = @_;
-#    [ map { ip_for_object($_, $no_nat_set) } @$objects ];
-#}
 
 # Check if all arguments are 'eq'.
 sub equal {
@@ -443,13 +463,13 @@ sub setup_sub_owners {
 }
 
 ######################################################################
-# Setup NAT
+# Export no-NAT-set
 # - relate each network to its owner and sub_owners
 # - build a no_nat_set for each owner, where own networks are'nt translated
 ######################################################################
 
-sub setup_owner2nat {
-    progress("Setup NAT for owner");
+sub export_no_nat_set {
+    progress("Export no-NAT-sets");
     my %owner2net;
     for my $network (values %networks) {
 	$network->{disabled} and next;
@@ -475,11 +495,10 @@ sub setup_owner2nat {
 #	}
 
 	# Build union of no_nat_sets
-	$owner2no_nat_set{$owner_name} = 
-	{ map(%{ $_->{no_nat_set} }, @nat_domains) };
-#	Netspoc::debug 
-#	    "$owner_name: ", 
-#	    join(',', sort keys %{$owner2no_nat_set{$owner_name}});
+	my $result = [ sort(unique(map(keys(%{ $_->{no_nat_set} }), 
+				       @nat_domains))) ];
+#	Netspoc::debug "$owner_name: ", join(',', sort @$result);
+	export("owner/$owner_name/no_nat_set", $result);
     }
 }
 
@@ -488,9 +507,8 @@ sub setup_owner2nat {
 # sub_owner.
 ####################################################################
 
-sub by_name { $a->{name} cmp $b->{name} }
-
 sub export_anys {
+    progress("Export any objects");
     my %owner2obj;
     for my $obj (values %anys) {
 	next if $obj->{disabled};
@@ -507,6 +525,7 @@ sub export_anys {
 }
 
 sub export_networks {
+    progress("export networks");
     my %owner2obj;
     for my $obj (values %networks) {
 	next if $obj->{disabled};
@@ -518,7 +537,6 @@ sub export_networks {
 	}
     }
     for my $owner (keys %owner2obj) {
-	my $no_nat_set = $owner2no_nat_set{$owner};
 	my $aref = $owner2obj{$owner};
 
 	# Export networks.
@@ -558,7 +576,10 @@ sub export_networks {
 # Services, rules, users
 ####################################################################
 
+sub by_name { $a->{name} cmp $b->{name} }
+
 sub export_services {
+    progress("export services");
     my %phash;
     my %owner2type2phash;
     for my $policy (sort by_name values %policies) {
@@ -598,8 +619,9 @@ sub export_services {
 	(my $pname = $policy->{name}) =~ s/policy://;
 	$phash{$pname} = { details => $details, rules => \@rules };
     }
-    export("policies", \%phash);
+    export("services", \%phash);
 
+    progress("Export users");
     for my $owner (sort keys %owner2type2phash) {
 	my $type2phash = $owner2type2phash{$owner};
 	my %type2pnames;
@@ -646,11 +668,15 @@ sub export_services {
 ####################################################################
 
 sub export_objects {
+    progress("Export objects");
     my %objects = map { 
-	$_->{name} =>
-	{ ip    => ip_for_object($_),
-	  owner => scalar owner_for_object($_),
-      } 
+	$_->{name} => { 
+
+
+	    # Add key 'ip' and optionally key 'nat'.
+	    ip_nat_for_object($_),
+	    owner => scalar owner_for_object($_),
+	} 
     } values %all_objects;
     export("objects", \%objects);
 }
@@ -660,6 +686,7 @@ sub export_objects {
 ####################################################################
 
 sub export_owners {
+    progress("Export owners");
     my %email2owners;
     for my $name ( keys %owners ) {
 	my $owner = $owners{$name};
@@ -712,10 +739,10 @@ sub init_data {
     setup_sub_owners();
     distribute_nat_info();
     find_subnets();
+    create_dirs('');
     setany();
     setpath();
     set_policy_owner();
-    setup_owner2nat();
     setup_policy_info();
 }
 
@@ -726,14 +753,10 @@ sub init_data {
 
 set_config({time_stamps => 1});
 init_data();
-progress("Owners");
 export_owners();
-progress("Anys");
 export_anys();
-progress("Networks");
 export_networks();
-progress("Services");
 export_services();
-progress("Objects");
 export_objects();
+export_no_nat_set();
 progress("Ready");
