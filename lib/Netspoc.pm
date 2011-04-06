@@ -6691,7 +6691,7 @@ sub check_no_in_acl () {
 		1 == grep({ not $_->{main_interface} } 
 			  @{ $hardware->{interfaces} }) or
 		    err_msg 
-		    "Only one $interface->{name} allowed at $hardware->{name}",
+		    "Only one logical interface allowed at $hardware->{name}",
 		    " because it has attribute 'no_in_acl'";
 		$counter++;
 		$router->{no_in_acl} = $interface;
