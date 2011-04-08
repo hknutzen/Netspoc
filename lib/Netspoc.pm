@@ -324,7 +324,7 @@ my %router_info = (
         name         => 'Linux',
         routing      => 'iproute',
         filter       => 'iptables',
-	has_out_acl  => 1,
+	has_io_acl  => 1,
         comment_char => '#',
     },
 
@@ -8813,9 +8813,14 @@ sub check_any_dst_rule( $$$ ) {
 	}
 	return;
     }
-	
-    # Find security domains at all interfaces except the in_intf.
-    for my $intf (@{ $router->{interfaces} }) {
+
+    # Check security domains at all interfaces except the out_intf.
+    # For devices which have rules for each pair of incoming and outgoing
+    # interfaces we only need to check the direct path.
+    for my $intf (  $router->{model}->{has_io_acl} 
+		  ? ($in_intf) 
+		  : @{ $router->{interfaces} }) 
+    {
 
         # Nothing to be checked for the interface which is connected
         # directly to the destination 'any' object.
@@ -10697,6 +10702,12 @@ sub distribute_rule( $$$ ) {
     elsif ($key eq 'out_rules') {
 	push @{ $out_intf->{hardware}->{$key} }, $rule;
     }
+
+    # Remember outgoing interface.
+    elsif ($key eq 'rules' and $model->{has_io_acl}) {
+	push @{ $in_intf->{hardware}->{io_rules}
+	       ->{$out_intf->{hardware}->{name}} }, $rule;
+    }
     else {
 	push @{ $in_intf->{hardware}->{$key} }, $rule;
     }
@@ -10823,6 +10834,7 @@ my $permit_any_rule =
 
 sub add_router_acls () {
     for my $router (@managed_routers) {
+	my $has_io_acl = $router->{model}->{has_io_acl};
         for my $hardware (@{ $router->{hardware} }) {
 
 	    # Some managed devices are connected by a crosslink network.
@@ -10832,7 +10844,16 @@ sub add_router_acls () {
 		# We can savely change rules at hardware interface
 		# because it has been checked that no other logical
 		# networks are attached to the same hardware.
-		$hardware->{rules} = [ $permit_any_rule ];
+		#
+		# Substitute rules for each outgoing interface.
+		if ($has_io_acl) {
+		    for my $rules (values %{ $hardware->{io_rules} }) {
+			$rules = [ $permit_any_rule ];
+		    }
+		}
+		else {
+		    $hardware->{rules} = [ $permit_any_rule ];
+		}
 		$hardware->{intf_rules} = [ $permit_any_rule ];
 		next;
 	    }
@@ -10856,7 +10877,11 @@ sub add_router_acls () {
 
                         # Prepend to all other rules.
                         unshift(
-                            @{ $hardware->{rules} },
+                            @{  $has_io_acl
+
+				# Incoming and outgoing interface are equal.
+			      ? $hardware->{io_rules}->{$hardware->{name}} 
+			      : $hardware->{rules} },
                             {
                                 action    => 'permit',
                                 src       => $network_00,
@@ -11437,14 +11462,14 @@ sub iptables_srv_code( $$ ) {
     }
 }
 
-sub acl_line( $$$$ ) {
+sub cisco_acl_line {
     my ($rules_aref, $no_nat_set, $prefix, $model) = @_;
     my $filter_type = $model->{filter};
     for my $rule (@$rules_aref) {
         my ($action, $src, $dst, $src_range, $srv) =
           @{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
         print "$model->{comment_char} " . print_rule($rule) . "\n"
-	    if $config{comment_acls} and $model->{filter} ne 'iptables';
+	    if $config{comment_acls};
         my $spair = address($src, $no_nat_set);
         my $dpair = address($dst, $no_nat_set);
         if ($filter_type eq 'PIX') {
@@ -11485,24 +11510,6 @@ sub acl_line( $$$$ ) {
             $result .= " $src_port_code" if defined $src_port_code;
             $result .= ' ' . ios_code($dpair, $inv_mask);
             $result .= " $dst_port_code" if defined $dst_port_code;
-            print "$result\n";
-        }
-        elsif ($filter_type eq 'iptables') {
-            my $action_code =
-                is_chain $action ? $action->{name}
-              : $action eq 'permit' ? 'ACCEPT'
-              :                       'droplog';
-            my $jump = $rule->{goto} ? '-g' : '-j';
-            my $result = "$prefix $jump $action_code";
-            if ($spair->[1] != 0) {
-                $result .= ' -s ' . prefix_code($spair);
-            }
-            if ($dpair->[1] != 0) {
-                $result .= ' -d ' . prefix_code($dpair);
-            }
-            if ($srv ne $srv_ip) {
-                $result .= ' ' . iptables_srv_code($src_range, $srv);
-            }
             print "$result\n";
         }
         else {
@@ -12088,7 +12095,11 @@ sub find_chains ( $$ ) {
     $router->{chain_counter} ||= 1;
 
     my $no_nat_set = $hardware->{no_nat_set};
-    for my $rule_type ('intf_rules', 'rules', 'out_rules') {
+    my @rule_arefs = values %{ $hardware->{io_rules} };
+    my $intf_rules = $hardware->{intf_rules};
+    push @rule_arefs, $intf_rules if $intf_rules;
+
+    for my $rules (@rule_arefs) {
         my %cache;
 
         my $print_tree;
@@ -12279,8 +12290,7 @@ sub find_chains ( $$ ) {
         # adjacent rules with same action.
         my @rule_trees;
         my %tree2order;
-        my $rules;
-        if ($rules = $hardware->{$rule_type} and @$rules) {
+        if ($rules and @$rules) {
             my $prev_action = $rules->[0]->{action};
             push @$rules, { action => 0 };
             my $start = my $i = 0;
@@ -12326,7 +12336,7 @@ sub find_chains ( $$ ) {
                     $prev_action = $action;
                 }
             }
-            $hardware->{$rule_type} = [];
+            @$rules = ();
         }
 
         for (my $i = 0 ; $i < @rule_trees ; $i++) {
@@ -12366,7 +12376,7 @@ sub find_chains ( $$ ) {
                       :                          $srv_ip;
                 }
             }
-            push @{ $hardware->{$rule_type} }, @$result;
+            push @$rules, @$result;
         }
     }
 }
@@ -13038,7 +13048,7 @@ my $deny_any_rule =
     srv       => $srv_ip
     };
 
-sub print_acl_add_deny ( $$$$$$ ) {
+sub print_cisco_acl_add_deny ( $$$$$$ ) {
     my ($router, $hardware, $no_nat_set, $model, $intf_prefix, $prefix) = @_;
     my $filter = $model->{filter};
 
@@ -13123,17 +13133,14 @@ sub print_acl_add_deny ( $$$$$$ ) {
     }
 
     # Add permit or deny rule at end of ACL.
-    # Iptables already has deny rules at builtin chains.
-    if (not $filter eq 'iptables') {
-	push(@{ $hardware->{rules} }, 
-	     $hardware->{no_in_acl} ? $permit_any_rule : $deny_any_rule);
-    }
+    push(@{ $hardware->{rules} }, 
+	 $hardware->{no_in_acl} ? $permit_any_rule : $deny_any_rule);
 
     # Interface rules
-    acl_line $hardware->{intf_rules}, $no_nat_set, $intf_prefix, $model;
+    cisco_acl_line($hardware->{intf_rules}, $no_nat_set, $intf_prefix, $model);
 
     # Ordinary rules
-    acl_line $hardware->{rules}, $no_nat_set, $prefix, $model;
+    cisco_acl_line($hardware->{rules}, $no_nat_set, $prefix, $model);
 }
 
 # Valid group-policy attributes.
@@ -13331,8 +13338,8 @@ EOF
 
 # Why was NAT disabled?
 #                $nat_map = undef;
-                print_acl_add_deny $router, $id_intf, $no_nat_set, $model,
-                  $intf_prefix, $prefix;
+                print_cisco_acl_add_deny $router, $id_intf, $no_nat_set, 
+		$model, $intf_prefix, $prefix;
 
                 my $ip      = print_ip $src->{ip};
                 my $network = $src->{network};
@@ -13436,7 +13443,7 @@ EOF
 
 # Why was NAT disabled?
 #            $nat_map = undef;
-            print_acl_add_deny $router, $interface, $no_nat_set, $model,
+            print_cisco_acl_add_deny $router, $interface, $no_nat_set, $model,
               $intf_prefix, $prefix;
 
             my $id         = $src->{id};
@@ -13460,35 +13467,94 @@ EOF
     }
 }
 
-sub print_acls( $ ) {
-    my ($router)     = @_;
+sub iptables_acl_line {
+    my ($rule, $no_nat_set, $prefix) = @_;
+    my ($action, $src, $dst, $src_range, $srv) =
+	@{$rule}{ 'action', 'src', 'dst', 'src_range', 'srv' };
+    my $spair = address($src, $no_nat_set);
+    my $dpair = address($dst, $no_nat_set);
+    my $action_code = is_chain $action 
+	? $action->{name} : $action eq 'permit' ? 'ACCEPT' : 'droplog';
+    my $jump = $rule->{goto} ? '-g' : '-j';
+    my $result = "$prefix $jump $action_code";
+    if ($spair->[1] != 0) {
+	$result .= ' -s ' . prefix_code($spair);
+    }
+    if ($dpair->[1] != 0) {
+	$result .= ' -d ' . prefix_code($dpair);
+    }
+    if ($srv ne $srv_ip) {
+	$result .= ' ' . iptables_srv_code($src_range, $srv);
+    }
+    print "$result\n";
+}
+
+sub print_iptables_acls {
+    my ($router) = @_;
     my $model        = $router->{model};
     my $filter       = $model->{filter};
     my $comment_char = $model->{comment_char};
 
-    print "$comment_char [ ACL ]\n";
-
     # Pre-processing for all interfaces.
-    if ($filter eq 'iptables') {
-        print "#!/sbin/iptables-restore <<EOF\n";
-        print "*filter\n";
-        print ":INPUT DROP\n";
-        print ":FORWARD DROP\n";
-        print ":OUTPUT ACCEPT\n";
-        for my $hardware (@{ $router->{hardware} }) {
-            my $if_name  = "$hardware->{name}_self";
-            print ":$if_name -\n";
-	    if (not $hardware->{no_in_acl}) {
-		my $acl_name = "$hardware->{name}_in";
-		print ":$acl_name -\n";
+    print "#!/sbin/iptables-restore <<EOF\n";
+    print "*filter\n";
+    print ":INPUT DROP\n";
+    print ":FORWARD DROP\n";
+    print ":OUTPUT ACCEPT\n";
+    print "-A INPUT -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
+    print "-A FORWARD -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
+    print_chains $router;
+
+    for my $hardware (@{ $router->{hardware} }) {
+
+        # Ignore if all logical interfaces are loopback interfaces.
+        next if not grep { not $_->{loopback} } @{ $hardware->{interfaces} };
+        my $no_nat_set = $hardware->{no_nat_set};
+	if ($config{comment_acls}) {
+
+	    # Name of first logical interface
+	    print "$comment_char $hardware->{interfaces}->[0]->{name}\n";
+	}
+
+	# Print chain and declaration for interface rules.
+	# Add call to chain in INPUT chain.
+	my $intf_acl_name = "$hardware->{name}_self";
+	print ":$intf_acl_name -\n";
+	print "-A INPUT -j $intf_acl_name -i $hardware->{name} \n";
+	my $intf_prefix = "-A $intf_acl_name";
+	for my $rule (@{ $hardware->{intf_rules} }) {
+	    iptables_acl_line($rule, $no_nat_set, $intf_prefix);
+	}
+
+	# Print chain and declaration for forward rules.
+	# Add call to chain in FORRWARD chain.
+	# One chain for each pair of in_intf / out_intf.
+	my $rules_hash = $hardware->{io_rules};
+	for my $out_hw (sort keys %$rules_hash) {
+	    my $acl_name = "$hardware->{name}_$out_hw";
+	    print ":$acl_name -\n";
+	    print "-A FORWARD -j $acl_name -i $hardware->{name}\n";
+	    my $prefix     = "-A $acl_name";
+	    my $rules_aref = $rules_hash->{$out_hw};
+	    for my $rule (@$rules_aref) {
+		iptables_acl_line($rule, $no_nat_set, $prefix, $model);
 	    }
-	    if ($hardware->{need_out_acl}) {
-		my $acl_name = "$hardware->{name}_out";
-		print ":$acl_name -\n";
-	    }
-        }
-        print_chains $router;
+	}
+
+	# Empty line after each chain.
+	print "\n";
     }
+    print "-A INPUT -j droplog\n";
+    print "-A FORWARD -j droplog\n";
+    print "COMMIT\n";
+    print "EOF\n";
+}
+
+sub print_cisco_acls {
+    my ($router)     = @_;
+    my $model        = $router->{model};
+    my $filter       = $model->{filter};
+    my $comment_char = $model->{comment_char};
 
     for my $hardware (@{ $router->{hardware} }) {
 
@@ -13529,28 +13595,21 @@ sub print_acls( $ ) {
 		$prefix      = "access-list $acl_name";
 		$prefix     .= ' extended' if $model->{name} eq 'ASA';
 	    }
-	    elsif ($filter eq 'iptables') {
-		my $intf_acl_name   = "$hardware->{name}_self";
-		$intf_prefix = "-A $intf_acl_name";
-		$prefix      = "-A $acl_name";
-	    }
 
 	    # Incoming ACL and protect own interfaces.
 	    if ($suffix eq 'in') {
-		print_acl_add_deny($router, $hardware, $no_nat_set, $model, 
-				   $intf_prefix, $prefix);
+		print_cisco_acl_add_deny($router, $hardware, $no_nat_set, 
+					 $model, $intf_prefix, $prefix);
 	    }
 
 	    # Outgoing ACL
 	    else {
 
 		# Add deny rule at end of ACL.
-		# Iptables already has deny rules at builtin chains.
-		if (not $filter eq 'iptables') {
-		    push(@{ $hardware->{out_rules} }, $deny_any_rule);
-		}
+		push(@{ $hardware->{out_rules} }, $deny_any_rule);
+
 		if (my $out_rules = $hardware->{out_rules}) {
-		    acl_line $out_rules, $no_nat_set, $prefix, $model;
+		    cisco_acl_line($out_rules, $no_nat_set, $prefix, $model);
 		}
 	    }
 
@@ -13568,30 +13627,20 @@ sub print_acls( $ ) {
 	    print "\n";	
 	}
     }
+}
 
-    # Post-processing for all interfaces.
+sub print_acls {
+    my ($router)     = @_;
+    my $model        = $router->{model};
+    my $filter       = $model->{filter};
+    my $comment_char = $model->{comment_char};
+    print "$comment_char [ ACL ]\n";
+
     if ($filter eq 'iptables') {
-        print "-A INPUT -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
-        for my $hardware (@{ $router->{hardware} }) {
-            my $if_name = "$hardware->{name}_self";
-            print "-A INPUT -j $if_name -i $hardware->{name} \n";
-        }
-        print "-A INPUT -j droplog\n";
-
-        print "-A FORWARD -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
-        for my $hardware (@{ $router->{hardware} }) {
-	    if (not $hardware->{no_in_acl}) {
-		my $acl_name = "$hardware->{name}_in";
-		print "-A FORWARD -j $acl_name -i $hardware->{name}\n";
-	    }
-	    if ($hardware->{need_out_acl}) {
-		my $acl_name = "$hardware->{name}_out";
-		print "-A FORWARD -j $acl_name -o $hardware->{name}\n";
-	    }
-        }
-        print "-A FORWARD -j droplog\n";
-        print "COMMIT\n";
-        print "EOF\n";
+	print_iptables_acls($router);
+    }
+    else {
+	print_cisco_acls($router);
     }
 }
 
@@ -13650,7 +13699,7 @@ sub print_ezvpn( $ ) {
     print "ip access-list extended $crypto_acl_name\n";
     my $no_nat_set = $wan_hw->{no_nat_set};
     my $prefix  = '';
-    acl_line $tunnel_intf->{crypto_rules}, $no_nat_set, $prefix, $model;
+    cisco_acl_line($tunnel_intf->{crypto_rules}, $no_nat_set, $prefix, $model);
 
     # Crypto filter ACL.
     $prefix = '';
@@ -13658,8 +13707,8 @@ sub print_ezvpn( $ ) {
     $prefix = '';
     $tunnel_intf->{rules} ||= [];
     print "ip access-list extended $crypto_filter_name\n";
-    print_acl_add_deny $router, $tunnel_intf, $no_nat_set, $model, $prefix,
-      $prefix;
+    print_cisco_acl_add_deny $router, $tunnel_intf, $no_nat_set, $model, 
+      $prefix, $prefix;
 
     # Bind crypto filter ACL to virtual template.
     print "interface Virtual-Template$virtual_interface_number type tunnel\n";
@@ -13854,7 +13903,8 @@ sub print_crypto( $ ) {
             else {
                 internal_err;
             }
-            acl_line $interface->{crypto_rules}, $no_nat_set, $prefix, $model;
+            cisco_acl_line($interface->{crypto_rules}, $no_nat_set, $prefix, 
+			   $model);
 
             # Print filter ACL. It controls which traffic is allowed to leave
             # from crypto tunnel. This may be needed, if we don't fully trust
@@ -13874,8 +13924,8 @@ sub print_crypto( $ ) {
                 else {
 		    internal_err;
                 }
-                print_acl_add_deny $router, $interface, $no_nat_set, $model,
-                  $prefix, $prefix;
+                print_cisco_acl_add_deny $router, $interface, $no_nat_set, 
+		  $model, $prefix, $prefix;
             }
 
 	    # Define crypto map.
