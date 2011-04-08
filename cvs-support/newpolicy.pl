@@ -83,7 +83,7 @@ if (not flock(LOCK, LOCK_EX | LOCK_NB)) {
 }
 
 # Write user and time to lockfile for better error message.
-my $user =  $pwentry[1] or die "Can't get user name for UID $real_uid";
+my $user =  $pwentry[0] or die "Can't get user name for UID $real_uid";
 open(my $fh, '>', $lock) or die "Can't open $lock for writing: $!";
 my $status = "Started by $user at " . localtime() . "\n";
 print $fh $status;
