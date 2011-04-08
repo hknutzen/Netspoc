@@ -1224,7 +1224,7 @@ sub read_network( $ ) {
             my $pair = read_typed_name;
             my ($type, $nat_name) = @$pair;
             if ($type eq 'nat') {
-                my $nat = read_nat "$type:$nat_name";
+                my $nat = read_nat "nat:$nat_name";
 		$nat->{name} .= "($name)";
                 $network->{nat}->{$nat_name}
                   and error_atline "Duplicate NAT definition";
@@ -3785,7 +3785,8 @@ sub check_ip_addresses {
 
                     # NAT to an interface address (masquerading) is allowed.
                     if (    (my $nat_tags = $object->{bind_nat})
-                        and (my ($nat_tag2) = ($subnet->{name} =~ /^nat:(.*)$/))
+                        and (my ($nat_tag2) = 
+			     ($subnet->{name} =~ /^nat:(.*)\(/))
                       )
                     {
                         if (    grep { $_ eq $nat_tag2 } @$nat_tags
@@ -3795,6 +3796,17 @@ sub check_ip_addresses {
                             next;
                         }
                     }
+
+		    # Multiple interfaces with identical address
+		    # allowed on same device.
+		    my @interfaces;
+		    if (is_interface($object) and
+			@interfaces = grep { $_->{ip} eq $ip1 }
+			    @{ $subnet->{interfaces} } and
+			$object->{router} eq $interfaces[0]->{router})
+		    {
+			next;
+		    }
                     warn_msg "$object->{name}'s IP overlaps with subnet",
                       " $subnet->{name}";
                 }
