@@ -6613,20 +6613,6 @@ sub find_subnets() {
                 }
             }
         }
-
-        # We must not set an arbitrary default route
-        # if a network 0.0.0.0/0 exists and may be referenced in some rule.
-        if ($config{auto_default_route} && 
-	    (my $network = $mask_ip_hash{0}->{0})) 
-	{
-            if (not $network->{route_hint}) {
-                err_msg "auto_default_route is set and $network->{name}",
-                  " has IP address 0.0.0.0/0\n",
-                  " either deactivate auto_default_route\n",
-                  " or set attribute 'route_hint' of $network->{name}";
-                $config{auto_default_route} = 0;
-            }
-        }
     }
 }
 
@@ -10215,69 +10201,73 @@ sub ios_route_code( $ );
 sub prefix_code( $ );
 sub address( $$ );
 
+sub numerically { $a <=> $b }
+
 sub print_routes( $ ) {
     my ($router)     = @_;
     my $type         = $router->{model}->{routing};
     my $comment_char = $router->{model}->{comment_char};
-    my $has_dyn_routing;
+    my $do_auto_default_route = $config{auto_default_route};
     my %intf2hop2nets;
     for my $interface (@{ $router->{interfaces} }) {
         if ($interface->{routing}) {
-            $has_dyn_routing = 1;
+            $do_auto_default_route = 0;
             next;
         }
         my $no_nat_set = $interface->{no_nat_set};
 
         for my $hop (@{ $interface->{hop} }) {
-            $intf2hop2nets{$interface}->{$hop} = [];
+            my %mask_ip_hash;
 
             # A hash having all networks reachable via current hop
             # both as key and as value.
             my $net_hash = $interface->{routes}->{$hop};
+            for my $network ( values %$net_hash ) {
+		my $nat_network = get_nat_network($network, $no_nat_set);
+		my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
+		if ($ip == 0 and $mask == 0) {
+		    $do_auto_default_route = 1;
+		}
 
-            # Prevent duplicate entries from different networks translated
-            # to an identical address.
-            my @has_indentical;
-            for my $network (values %$net_hash) {
-                my $identical = $network->{is_identical} or next;
-                if ($identical->{$no_nat_set}) {
-                    push @has_indentical, $network;
-                }
-            }
-            for my $network (@has_indentical) {
-                delete $net_hash->{$network};
-                my $one_net = $network->{is_identical}->{$no_nat_set};
-                $net_hash->{$one_net} = $one_net;
-            }
+		# Implicitly overwrite duplicate networks.
+                $mask_ip_hash{$mask}->{$ip} = $nat_network;
+            } 
 
-            for my $network
+	    # Find and remove duplicate networks.
+	    # Go from smaller to larger networks.
+	    my @netinfo;
+	    for my $mask (reverse sort keys %mask_ip_hash) {
 
-              # Sort networks by mask in reverse order,
-              # i.e. small networks coming first and
-              # for equal mask by IP address.
-              # For equal addresses look at the NAT address.
-              # We need this to make the output deterministic
-              (
-                sort {
-                         $b->{mask} <=> $a->{mask}
-                      || $a->{ip} <=> $b->{ip}
-                      || get_nat_network($a, $no_nat_set)->{ip} <=> 
-			  get_nat_network($b, $no_nat_set)->{ip}
-                } values %$net_hash
-              )
-            {
+		# Network 0.0.0.0/0.0.0.0 can't be subnet.
+		last if $mask == 0;
+	      NETWORK:
+		for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) 
+		{
 
-                # Network is redundant, if directly enclosing network
-                # is located behind same hop.
-                if (my $bignet = $network->{is_in}->{$no_nat_set}) {
-                    next if $net_hash->{$bignet};
-                }
+		    my $m = $mask;
+		    my $i = $ip;
+		    while ($m) {
 
-                push @{ $intf2hop2nets{$interface}->{$hop} }, $network;
-            }
+			# Clear upper bit, because left shift is undefined 
+			# otherwise.
+			$m &= 0x7fffffff;
+			$m <<= 1;
+			$i &= $m;
+			if ($mask_ip_hash{$m}->{$i}) {
+
+			    # Network {$mask}->{$ip} is redundant.
+			    # It is covered by {$m}->{$i}.
+			    next NETWORK;
+			}
+		    }
+		    push(@netinfo, 
+			 [ $ip, $mask, $mask_ip_hash{$mask}->{$ip} ]);
+		}
+	    }
+	    $intf2hop2nets{$interface}->{$hop} = \@netinfo;
         }
     }
-    if ($config{auto_default_route} and not $has_dyn_routing) {
+    if ($do_auto_default_route) {
 
         # Find interface and hop with largest number of routing entries.
         my $max_intf;
@@ -10299,7 +10289,7 @@ sub print_routes( $ ) {
         if ($max_intf && $max_hop) {
 
             # Use default route for this direction.
-            $intf2hop2nets{$max_intf}->{$max_hop} = [$network_00];
+            $intf2hop2nets{$max_intf}->{$max_hop} = [[0, 0]];
         }
     }
     print "$comment_char [ Routing ]\n";
@@ -10315,7 +10305,6 @@ sub print_routes( $ ) {
             next;
         }
 
-        my $no_nat_set = $interface->{no_nat_set};
         for my $hop (@{ $interface->{hop} }) {
 
             # For unnumbered and negotiated interfaces use interface name
@@ -10325,24 +10314,21 @@ sub print_routes( $ ) {
               ? $interface->{hardware}->{name}
               : print_ip $hop->{ip};
 
-            # A hash having all networks reachable via current hop
-            # both as key and as value.
-            my $net_hash = $interface->{routes}->{$hop};
-            for my $network (@{ $intf2hop2nets{$interface}->{$hop} }) {
+            for my $netinfo (@{ $intf2hop2nets{$interface}->{$hop} }) {
                 if ($config{comment_routes}) {
-                    print "! route $network->{name} -> $hop->{name}\n";
+                    print "! route $netinfo->[2] -> $hop->{name}\n";
                 }
                 if ($type eq 'IOS') {
-                    my $adr = ios_route_code(address($network, $no_nat_set));
+                    my $adr = ios_route_code($netinfo);
                     print "ip route $adr $hop_addr\n";
                 }
                 elsif ($type eq 'PIX') {
-                    my $adr = ios_route_code(address($network, $no_nat_set));
+                    my $adr = ios_route_code($netinfo);
                     print
                       "route $interface->{hardware}->{name} $adr $hop_addr\n";
                 }
                 elsif ($type eq 'iproute') {
-                    my $adr = prefix_code(address($network, $no_nat_set));
+                    my $adr = prefix_code($netinfo);
                     print "ip route add $adr via $hop_addr\n";
                 }
                 elsif ($type eq 'none') {
