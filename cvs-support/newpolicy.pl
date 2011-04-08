@@ -73,8 +73,22 @@ $ENV{PATH} = "/usr/local/bin:/usr/bin:/bin";
 # Lock policy database.
 sysopen LOCK, "$lock", O_RDONLY | O_CREAT or
     die "Error: can't open $lock: $!";
-flock(LOCK, LOCK_EX | LOCK_NB) or die "Abort: Another $0 is running\n";
+if (not flock(LOCK, LOCK_EX | LOCK_NB)) {
 
+    # Read user and time from lockfile.
+    open(my $fh, '<', $lock) or die "Can't open $lock for reading: $!";
+    my $status = <$fh>;
+    close $fh;
+    die "Abort: Another $0 is running. $status\n";
+}
+
+# Write user and time to lockfile for better error message.
+my $user =  $pwentry[1] or die "Can't get user name for UID $real_uid";
+open(my $fh, '>', $lock) or die "Can't open $lock for writing: $!";
+my $status = "Started by $user at " . localtime() . "\n";
+print $fh $status;
+close $fh;
+    
 # Read current policy name from POLICY file from repository.
 my $fcount;
 if(open POLICY, "cvs -Q checkout -p $module/POLICY|") {
