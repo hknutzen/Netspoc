@@ -3671,21 +3671,17 @@ sub link_pathrestrictions() {
 # Link all virtual interface information to a single object.
 # Add a list of all member interfaces.
 sub link_virtual_interfaces () {
-    my %ip2virtual;
+    my %ip2net2virtual;
 
     # Unrelated virtual interfaces with identical ID must be located
     # in different networks.
     my %same_id;
     for my $virtual1 (@virtual_interfaces) {
         my $ip = $virtual1->{ip};
+	my $net = $virtual1->{network};
         my $id1 = $virtual1->{redundancy_id} || '';
-        if (my $interfaces = $ip2virtual{$ip}) {
+        if (my $interfaces = $ip2net2virtual{$net}->{$ip}) {
             my $virtual2 = $interfaces->[0];
-            if (not $virtual1->{network} eq $virtual2->{network}) {
-                err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
-                  " are connected to different networks";
-                next;
-            }
             if ($virtual1->{router}->{managed} xor 
 		$virtual2->{router}->{managed})
 	    {
@@ -3707,13 +3703,13 @@ sub link_virtual_interfaces () {
                 next;
             }
 
-	    # This changes value of %ip2virtual and all attributes 
+	    # This changes value of %ip2net2virtual and all attributes 
 	    # {redundancy_interfaces} where this array is referenced.
             push @$interfaces, $virtual1;
             $virtual1->{redundancy_interfaces} = $interfaces;
         }
         else {
-            $ip2virtual{$ip} = 
+            $ip2net2virtual{$net}->{$ip} = 
 		$virtual1->{redundancy_interfaces} = [$virtual1];
             if ($id1) {
                 my $other;
@@ -3730,26 +3726,28 @@ sub link_virtual_interfaces () {
             }
         }
     }
-    for my $interfaces (values %ip2virtual) {
-        if (@$interfaces == 1) {
-            err_msg "Virtual IP: Missing second interface for",
-              " $interfaces->[0]->{name}";
-	    $interfaces->[0]->{redundancy_interfaces} = undef;
-	    next;
-        }
+    for my $href (values %ip2net2virtual) {
+	for my $interfaces (values %$href) {
+	    if (@$interfaces == 1) {
+		err_msg "Virtual IP: Missing second interface for",
+		" $interfaces->[0]->{name}";
+		$interfaces->[0]->{redundancy_interfaces} = undef;
+		next;
+	    }
 
-	# Automatically add pathrestriction to managed interfaces
-	# belonging to $ip2virtual.
-	# Pathrestriction would be useless for unmanaged device.
-        elsif ($interfaces->[0]->{router}->{managed}) {
-            my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
-            my $restrict = new('Pathrestriction', name => $name);
-            for my $interface (@$interfaces) {
-		
+	    # Automatically add pathrestriction to managed interfaces
+	    # belonging to $ip2net2virtual.
+	    # Pathrestriction would be useless for unmanaged device.
+	    elsif ($interfaces->[0]->{router}->{managed}) {
+		my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
+		my $restrict = new('Pathrestriction', name => $name);
+		for my $interface (@$interfaces) {
+
 #               debug "pathrestriction $name at $interface->{name}";
-                push @{ $interface->{path_restrict} }, $restrict;
-            }
-        }
+		    push @{ $interface->{path_restrict} }, $restrict;
+		}
+	    }
+	}
     }
 }
 
@@ -3797,15 +3795,25 @@ sub check_ip_addresses {
                         }
                     }
 
-		    # Multiple interfaces with identical address
-		    # allowed on same device.
+		    # Multiple interfaces with identical address are
+		    # allowed on same device or 
+		    # for redundancy group belonging to same device.
 		    my @interfaces;
 		    if (is_interface($object) and
 			@interfaces = grep { $_->{ip} eq $ip1 }
-			    @{ $subnet->{interfaces} } and
-			$object->{router} eq $interfaces[0]->{router})
+			    @{ $subnet->{interfaces} })
 		    {
-			next;
+			my $interface = $interfaces[0];
+			my $router = $object->{router};
+			if ($router eq $interface->{router}) {
+			    next;
+			}
+			my $r_intf = $interface->{redundancy_interfaces};
+			if ($r_intf and 
+			    grep { $_->{router} eq $router } @$r_intf) 
+			{
+			    next;
+			}
 		    }
                     warn_msg "$object->{name}'s IP overlaps with subnet",
                       " $subnet->{name}";
