@@ -45,7 +45,7 @@ sub export {
     my ($path, $data) = @_;
     $path = "$out_dir/$path";
     open (my $fh, '>', $path) or die "Can't open $path\n";
-    print $fh to_json($data, {utf8 => 1, pretty => 1, canonical => 1});
+    print $fh to_json($data, {pretty => 1, canonical => 1});
     close $fh or die "Can't close $path\n";
 }
   
@@ -625,11 +625,10 @@ sub export_services {
     for my $owner (sort keys %owner2type2phash) {
 	my $type2phash = $owner2type2phash{$owner};
 	my %type2pnames;
-	create_dirs("owner/$owner");
+	my %policy2users;
 	for my $type (sort keys %$type2phash) {
 	    my $policies = [ sort by_name values %{ $type2phash->{$type} } ];
 	    my $pnames = $type2pnames{$type} = [];
-	    create_dirs("owner/$owner/users");
 	    for my $policy (@$policies) { 
 		(my $pname = $policy->{name}) =~ s/policy://;
 		push @$pnames, $pname;
@@ -656,10 +655,12 @@ sub export_services {
 		    @{ $policy->{expanded_user} };
 		}
 		@users = sort map $_->{name}, @users;
-		export("owner/$owner/users/$pname", \@users);
+		$policy2users{$pname} = \@users;
 	    }
 	}
+	create_dirs("owner/$owner");
 	export("owner/$owner/service_lists", \%type2pnames);
+	export("owner/$owner/users", \%policy2users);
     }
 }
 
