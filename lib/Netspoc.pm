@@ -1293,9 +1293,6 @@ sub read_network( $ ) {
             # Compatibility of host and network NAT will be checked later,
             # after global NAT definitions have been processed.
         }
-        if (@{ $network->{hosts} } and $network->{route_hint}) {
-            error_atline "route_hint network must not have host definitions";
-        }
         if (@{ $network->{hosts} } and $network->{crosslink}) {
             error_atline "Crosslink network must not have host definitions";
         }
@@ -3767,60 +3764,6 @@ sub check_ip_addresses {
 
         my %ip;
 
-        # All interfaces and hosts of a network must be located in that part
-        # of the network which doesn't overlap with some subnet.
-        my $check_subnets = sub {
-            my ($ip1, $ip2, $object) = @_;
-            for my $subnet (@{ $network->{own_subnets} }) {
-                my $sub_ip   = $subnet->{ip};
-                my $sub_mask = $subnet->{mask};
-                if (
-                    ($ip1 & $sub_mask) == $sub_ip
-                    || $ip2 && (($ip2 & $sub_mask) == $sub_ip
-                        || ($ip1 <= $sub_ip && $sub_ip <= $ip2))
-                  )
-                {
-
-                    # NAT to an interface address (masquerading) is allowed.
-                    if (    (my $nat_tags = $object->{bind_nat})
-                        and (my ($nat_tag2) = 
-			     ($subnet->{name} =~ /^nat:(.*)\(/))
-                      )
-                    {
-                        if (    grep { $_ eq $nat_tag2 } @$nat_tags
-                            and $object->{ip} == $subnet->{ip}
-                            and $subnet->{mask} == 0xffffffff)
-                        {
-                            next;
-                        }
-                    }
-
-		    # Multiple interfaces with identical address are
-		    # allowed on same device or 
-		    # for redundancy group belonging to same device.
-		    my @interfaces;
-		    if (is_interface($object) and
-			@interfaces = grep { $_->{ip} eq $ip1 }
-			    @{ $subnet->{interfaces} })
-		    {
-			my $interface = $interfaces[0];
-			my $router = $object->{router};
-			if ($router eq $interface->{router}) {
-			    next;
-			}
-			my $r_intf = $interface->{redundancy_interfaces};
-			if ($r_intf and 
-			    grep { $_->{router} eq $router } @$r_intf) 
-			{
-			    next;
-			}
-		    }
-                    warn_msg "$object->{name}'s IP overlaps with subnet",
-                      " $subnet->{name}";
-                }
-            }
-        };
-
         # 1. Check for duplicate interface addresses.
         # 2. Short interfaces must not be used, if a managed interface
         #    with static routing exists in the same network.
@@ -3846,7 +3789,6 @@ sub check_ip_addresses {
                     {
                         $route_intf = $interface;
                     }
-                    $check_subnets->($ip, undef, $interface);
                     if (my $old_intf = $ip{$ip}) {
                         unless ($old_intf->{redundancy_type}
                             and $interface->{redundancy_type})
@@ -3868,7 +3810,6 @@ sub check_ip_addresses {
         }
         for my $host (@{ $network->{hosts} }) {
             if (my $ip = $host->{ip}) {
-		$check_subnets->($ip, undef, $host);
 		if (my $other_device = $ip{$ip}) {
 		    err_msg
 			"Duplicate IP address for $other_device->{name}",
@@ -3880,8 +3821,7 @@ sub check_ip_addresses {
             }
         }
         for my $host (@{ $network->{hosts} }) {
-            if (my $range = $host->{range}) {
-                $check_subnets->($range->[0], $range->[1], $host);
+            if (my $range = $host->{range}) { 
                 for (my $ip = $range->[0] ; $ip <= $range->[1] ; $ip++) {
                     if (my $other_device = $ip{$ip}) {
                         is_host $other_device
@@ -6452,8 +6392,77 @@ sub get_nat_network {
     return $network;
 }
 
+# All interfaces and hosts of a network must be located in that part
+# of the network which doesn't overlap with some subnet.
+sub check_subnets {
+    my ($network, $subnet) = @_;
+    my $check = sub {
+	my ($ip1, $ip2, $object) = @_;
+	my $sub_ip   = $subnet->{ip};
+	my $sub_mask = $subnet->{mask};
+	if (
+	    ($ip1 & $sub_mask) == $sub_ip
+	    || $ip2 && (($ip2 & $sub_mask) == $sub_ip
+			|| ($ip1 <= $sub_ip && $sub_ip <= $ip2))
+	    )
+	{
+
+	    # NAT to an interface address (masquerading) is allowed.
+	    if (    (my $nat_tags = $object->{bind_nat})
+		    and (my ($nat_tag2) = 
+			 ($subnet->{name} =~ /^nat:(.*)\(/))
+		    )
+	    {
+		if (    grep { $_ eq $nat_tag2 } @$nat_tags
+			and $object->{ip} == $subnet->{ip}
+			and $subnet->{mask} == 0xffffffff)
+		{
+		    next;
+		}
+	    }
+
+	    # Multiple interfaces with identical address are
+	    # allowed on same device or 
+	    # for redundancy group belonging to same device.
+	    my @interfaces;
+	    if (is_interface($object) and
+		@interfaces = grep { $_->{ip} eq $ip1 }
+		@{ $subnet->{interfaces} })
+	    {
+		my $interface = $interfaces[0];
+		my $router = $object->{router};
+		if ($router eq $interface->{router}) {
+		    next;
+		}
+		my $r_intf = $interface->{redundancy_interfaces};
+		if ($r_intf and 
+		    grep { $_->{router} eq $router } @$r_intf) 
+		{
+		    next;
+		}
+	    }
+	    warn_msg "$object->{name}'s IP overlaps with subnet",
+	    " $subnet->{name}";
+	}
+    };
+    for my $interface (@{ $network->{interfaces} }) {
+	my $ip = $interface->{ip};
+	next if $ip =~ /^\w/;
+	$check->($ip, undef, $interface);
+    }
+    for my $host (@{ $network->{hosts} }) {
+	if (my $ip = $host->{ip}) {
+	    $check->($ip, undef, $host);
+	}
+	elsif (my $range = $host->{range}) { 
+	    $check->($range->[0], $range->[1], $host);
+	}
+    }
+}	    
+
 sub find_subnets() {
     progress "Finding subnets";
+    my %seen;
     for my $domain (@natdomains) {
 
 #     debug "$domain->{name}";
@@ -6570,41 +6579,34 @@ sub find_subnets() {
                     if ($mask_ip_hash{$m}->{$i}) {
                         my $bignet = $mask_ip_hash{$m}->{$i};
                         my $subnet = $mask_ip_hash{$mask}->{$ip};
+			my $nat_subnet = get_nat_network($subnet, $no_nat_set);
+			my $nat_bignet = get_nat_network($bignet, $no_nat_set);
 
                         # Mark subnet relation.
                         # This may differ for different NAT domains.
                         $subnet->{is_in}->{$no_nat_set} = $bignet;
 
+			last if $seen{$nat_bignet}->{$nat_subnet};
+			$seen{$nat_bignet}->{$nat_subnet} = 1;
                         if ($config{check_subnets}) {
 
                             # Take original $bignet, because currently
                             # there's no method to specify a natted network
                             # as value of subnet_of.
-                            my $nat_subnet = 
-				get_nat_network($subnet, $no_nat_set);
-                            unless ($bignet->{route_hint}
-                                or $nat_subnet->{subnet_of}
-                                and $nat_subnet->{subnet_of} eq $bignet)
+                            if (not ($bignet->{route_hint}
+				     or $nat_subnet->{subnet_of}
+				     and $nat_subnet->{subnet_of} eq $bignet))
                             {
 
                                 # Prevent multiple error messages in different
                                 # NAT domains.
                                 $nat_subnet->{subnet_of} = $bignet;
 
-                                my $subname = $subnet->{name};
-                                my $bigname = $bignet->{name};
-                                my $subnat  = get_nat_network($subnet, 
-							      $no_nat_set);
-                                my $bignat  = get_nat_network($bignet,
-							      $no_nat_set);
-                                $subname .= " with $subnat->{name}" 
-				    if $subnat ne $subnet;
-                                $bigname .= " with $bignat->{name}" 
-				    if $bignat ne $bignet;
                                 my $msg =
-                                    "$subname is subnet of $bigname\n"
-                                  . " if desired, either declare attribute"
-                                  . " 'subnet_of' or attribute 'route_hint'";
+                                    "$nat_subnet->{name} is subnet of"
+				    . " $nat_bignet->{name}\n"
+				    . " if desired, either declare attribute"
+				    . " 'subnet_of' or attribute 'route_hint'";
 
                                 if ($config{check_subnets} eq 'warn') {
                                     warn_msg $msg;
@@ -6614,6 +6616,8 @@ sub find_subnets() {
                                 }
                             }
                         }
+
+			check_subnets($nat_bignet, $nat_subnet);
 
                         # We only need to find the smallest enclosing network.
                         last;
@@ -12762,9 +12766,12 @@ sub local_optimization() {
                             # Single ID-hosts must not be converted to
                             # network at authenticating router.
                             if (
-                                not(    is_subnet $src
-                                    and $src->{id}
-                                    and $do_auth)
+                                not(is_interface $src
+                                    and $src->{network}->{route_hint})
+                                and not(is_subnet $src
+                                    and ($src->{id}
+				    and $do_auth
+				    or  $src->{network}->{route_hint}))
                               )
                             {
 
@@ -12785,10 +12792,12 @@ sub local_optimization() {
                             $dst = $rule->{dst};
                             if (
                                 not(is_interface $dst
-                                    and $dst->{router} eq $router)
+                                    and ($dst->{router} eq $router
+					 or $dst->{network}->{route_hint}))
                                 and not(is_subnet $dst
-                                    and $dst->{id}
-                                    and $do_auth)
+                                    and ($dst->{id}
+                                    and $do_auth
+				    or  $dst->{network}->{route_hint}))
                               )
                             {
                                 $dst = get_networks $dst;
