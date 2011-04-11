@@ -138,8 +138,8 @@ system('rm', '-rf', $pdir);
 print STDERR "Saving policy $count\n";
 mkdir $pdir or die "Error: can't create $pdir: $!\n";
 
-# cvs update needs relative pathname for destination directory.
-# Hence we change into parent directory.
+# In server mode, cvs commands need relative pathnames.
+# Hence change into parent directory.
 chdir($pdir) or die "Error: during 'cd $pdir': $!\n";
 
 # Check out newest files from repository
@@ -167,8 +167,9 @@ close COMPILE;
 # Compiled successfully.
 if ($? == 0) {
 
-    # Update POLICY file of current version
-    my $pfile = "$psrc/POLICY";
+    # Update POLICY file of current version.
+    # Use relative pathname.
+    my $pfile = "src/POLICY";
     system('cvs', 'edit', $pfile) == 0 or die "Aborted\n";
     open  PFILE, ">", $pfile or die "Can't open $pfile: $!\n";
     print PFILE "# $policy # Current policy, don't edit manually!\n";
@@ -176,7 +177,7 @@ if ($? == 0) {
     system('cvs', 'commit', '-m', $policy , $pfile) == 0 or die "Aborted\n";
 
     # Add tags to files of current version.
-    system('cvs', '-Q', 'tag', $policy, $psrc) == 0 or die "Aborted\n";
+    system('cvs', '-Q', 'tag', $policy, 'src') == 0 or die "Aborted\n";
 
     # Mark new policy as current.
     chdir $policydb or die "Error: can't cd to $policydb: $!\n";
