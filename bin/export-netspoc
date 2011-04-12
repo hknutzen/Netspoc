@@ -522,28 +522,29 @@ sub export_assets {
     my %result;
 
     my $export_networks = sub {
-	my ($networks, $owner) = @_;
+	my ($networks, $owner, $own_any) = @_;
 	my %sub_result;
 	for my $net (@$networks) {
 	    next if $net->{disabled};
 	    next if $net->{loopback};
 	    next if $net->{ip} eq 'tunnel';
 	    my $net_name = $net->{name};
-	    my $net_owner = owner_for_object($net);
+	    my $net_owner = owner_for_object($net) || '';
 
-	    # Export hosts.
-	    my $hosts = $net->{hosts};
+	    # Export hosts and interfaces.
+	    my @childs = (@{ $net->{hosts} }, @{ $net->{interfaces} });
 
-	    # Show only own hosts in foreign network.
-	    if (not $net_owner or $net_owner ne $owner) {
-		$hosts = [ grep { my $host_owner = owner_for_object($_);
-				   $host_owner and $host_owner eq $owner } 
-			    @$hosts ];
+	    # Show only own childs in foreign network.
+	    my $own_network = $net_owner eq $owner;
+	    if (not $own_network and not $own_any) {
+		@childs = 
+		    grep { my $o = owner_for_object($_); $o and $o eq $owner } 
+		         @childs;
 	    }
 
-	    @all_objects{@$hosts} = @$hosts;
-	    my @data = sort map $_->{name}, @$hosts;
-	    $sub_result{$net_name} = { hosts => \@data };
+	    @all_objects{@childs} = @childs;
+	    @childs = sort map $_->{name}, @childs;
+	    $sub_result{$net_name} = \@childs;
 	}
 	return \%sub_result;
     };
@@ -552,14 +553,15 @@ sub export_assets {
 	next if $any->{disabled};
 	$all_objects{$any} = $any;
 	my $any_name = $any->{name};
-	my $any_owner = owner_for_object($any);
+	my $any_owner = owner_for_object($any) || '';
 	for my $owner (owner_for_object($any), sub_owners_for_object($any)) {
 	    
 	    # Export networks.
 	    my $networks = $any->{networks};
 
 	    # Show only own or sub_own networks in foreign any object.
-	    if (not $any_owner or $any_owner ne $owner) {
+	    my $own_any = $any_owner eq $owner;
+	    if (not $own_any) {
 		$networks = 
 		    [ grep 
 		      grep({ $owner eq $_ } 
@@ -569,7 +571,7 @@ sub export_assets {
 
 	    @all_objects{@$networks} = @$networks;
             $result{$owner}->{anys}->{$any_name}->{networks} = 
-		$export_networks->($networks, $owner);
+		$export_networks->($networks, $owner, $own_any);
 	}
     }
 
