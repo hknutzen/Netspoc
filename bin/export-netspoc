@@ -422,8 +422,13 @@ sub setup_policy_info {
 # belonging to other owners.
 ######################################################################
 
+# We can't use %anys from Netspoc.pm because it only holds names any objects.
+# But we need all any objects like any:[network:XX] here.
+my @all_anys;
+
 sub setup_sub_owners {
     progress("Setup sub owners");
+    my %all_anys;
     for my $host (values %hosts) {
 	$host->{disabled} and next;
 	my $host_owner = $host->{owner} or next;
@@ -431,6 +436,7 @@ sub setup_sub_owners {
 	my $net_owner = $network->{owner};
 	if ( not ($net_owner and $host_owner eq $net_owner)) {
 	    $network->{sub_owners}->{$host_owner} = $host_owner;
+#	    Netspoc::debug "$network->{name} : $host_owner->{name}";
 	}
     }
     for my $network (values %networks) {
@@ -439,24 +445,28 @@ sub setup_sub_owners {
 	if (my $hash = $network->{sub_owners}) {
 	    @owners = values %$hash;
 
-	    # Substitute hash by array. Use a copy because @owner is changed below.
+	    # Substitute hash by array. 
+	    # Use a copy because @owner is changed below.
 	    $network->{sub_owners} = [ @owners ];
 	}
 	if (my $net_owner = $network->{owner}) {
 	    push @owners, $net_owner;
 	}
 	my $any = $network->{any};
+	$all_anys{$any} = $any;
 	my $any_owner = $any->{owner};
 	for my $owner (@owners) {
 	    if ( not ($any_owner and $owner eq $any_owner)) {
 		$any->{sub_owners}->{$owner} = $owner;
+#		Netspoc::debug "$any->{name} : $owner->{name}";
 	    }
 	}
     }
 
     # Substitute hash by array.
-    for my $any (values %anys) {
-	if (my $hash = $any->{sub_owner}) {
+    @all_anys = values %all_anys;
+    for my $any (@all_anys) {
+	if (my $hash = $any->{sub_owners}) {
 	    $any->{sub_owners} = [ values %$hash ];
 	}
     }
@@ -507,68 +517,65 @@ sub export_no_nat_set {
 # sub_owner.
 ####################################################################
 
-sub export_anys {
-    progress("Export any objects");
-    my %owner2obj;
-    for my $obj (values %anys) {
-	next if $obj->{disabled};
-	$all_objects{$obj} = $obj;
-	for my $owner (owner_for_object($obj), sub_owners_for_object($obj)) {
-	    push @{ $owner2obj{$owner} }, $obj;
-	}
-    }
-    for my $owner (keys %owner2obj) {
-	my $aref = $owner2obj{$owner};
-	my @data = sort map $_->{name}, @$aref;
-	export("owner/$owner/anys", \@data);
-    }
-}
+sub export_assets {
+    progress("Export assets");
+    my %result;
 
-sub export_networks {
-    progress("export networks");
-    my %owner2obj;
-    for my $obj (values %networks) {
-	next if $obj->{disabled};
-	next if $obj->{loopback};
-	next if $obj->{ip} eq 'tunnel';
-	$all_objects{$obj} = $obj;
-	for my $owner (owner_for_object($obj), sub_owners_for_object($obj)) {
-	    push @{ $owner2obj{$owner} }, $obj;
-	}
-    }
-    for my $owner (keys %owner2obj) {
-	my $aref = $owner2obj{$owner};
+    my $export_networks = sub {
+	my ($networks, $owner) = @_;
+	my %sub_result;
+	for my $net (@$networks) {
+	    next if $net->{disabled};
+	    next if $net->{loopback};
+	    next if $net->{ip} eq 'tunnel';
+	    my $net_name = $net->{name};
+	    my $net_owner = owner_for_object($net);
 
-	# Export networks.
-	my @data = sort map $_->{name}, @$aref;
-	export("owner/$owner/networks", \@data);
+	    # Export hosts.
+	    my $hosts = $net->{hosts};
 
-	# Export hosts.
-	create_dirs("owner/$owner/hosts");
-	for my $network (@$aref) {
-	    (my $net_name = $network->{name}) =~ s/^network://;
-	    my $net_owner = owner_for_object($network);
-	    my $hosts;
-
-	    # Show all hosts in own network.
-	    if ($net_owner and $net_owner eq $owner) {
-		$hosts = $network->{hosts};
-	    }
-
-	    # Show only own hosts in other network.
-	    else {
+	    # Show only own hosts in foreign network.
+	    if (not $net_owner or $net_owner ne $owner) {
 		$hosts = [ grep { my $host_owner = owner_for_object($_);
 				   $host_owner and $host_owner eq $owner } 
-			    @{ $network->{hosts} } ];
+			    @$hosts ];
 	    }
 
-	    # Only write data, if any host is available.
-	    if (@$hosts) {
-		@all_objects{@$hosts} = @$hosts;
-		my @data = sort map $_->{name}, @$hosts;
-		export("owner/$owner/hosts/$net_name", \@data);
-	    }
+	    @all_objects{@$hosts} = @$hosts;
+	    my @data = sort map $_->{name}, @$hosts;
+	    $sub_result{$net_name} = { hosts => \@data };
 	}
+	return \%sub_result;
+    };
+
+    for my $any (values @all_anys) {
+	next if $any->{disabled};
+	$all_objects{$any} = $any;
+	my $any_name = $any->{name};
+	my $any_owner = owner_for_object($any);
+	for my $owner (owner_for_object($any), sub_owners_for_object($any)) {
+	    
+	    # Export networks.
+	    my $networks = $any->{networks};
+
+	    # Show only own or sub_own networks in foreign any object.
+	    if (not $any_owner or $any_owner ne $owner) {
+		$networks = 
+		    [ grep 
+		      grep({ $owner eq $_ } 
+			   owner_for_object($_), sub_owners_for_object($_)), 
+		      @$networks ];
+	    }
+
+	    @all_objects{@$networks} = @$networks;
+            $result{$owner}->{anys}->{$any_name}->{networks} = 
+		$export_networks->($networks, $owner);
+	}
+    }
+
+    for my $owner (keys %result) {
+	my $hash = $result{$owner};
+	export("owner/$owner/assets", $hash);
     }
 }
 
@@ -737,12 +744,11 @@ sub init_data {
     order_services();
     link_topology();
     mark_disabled();
-    setup_sub_owners();
     distribute_nat_info();
     find_subnets();
-    create_dirs('');
     setany();
     setpath();
+    setup_sub_owners();
     set_policy_owner();
     setup_policy_info();
 }
@@ -754,9 +760,9 @@ sub init_data {
 
 set_config({time_stamps => 1});
 init_data();
+create_dirs('');
 export_owners();
-export_anys();
-export_networks();
+export_assets();
 export_services();
 export_objects();
 export_no_nat_set();
