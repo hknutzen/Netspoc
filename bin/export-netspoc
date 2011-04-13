@@ -727,12 +727,11 @@ sub export_owners {
 	export("owner/$name/extended_by", 
 	       [ map { { name => $_ } } sort @e_owners ]);
     }
-    for my $email (keys %email2owners) {
-	my $href = $email2owners{$email};
-	create_dirs("email/$email");
-	export("email/$email/owners", 
-	       [ map { { name => $_ } } sort values %$href ]);
-    }
+    
+    # Substitute hash by array.
+    $_ = [ values(%$_) ] for values %email2owners;
+
+    export("email", \%email2owners);
 }
 
 ####################################################################
