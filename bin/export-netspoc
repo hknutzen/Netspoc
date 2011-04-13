@@ -731,7 +731,7 @@ sub export_owners {
     }
     
     # Substitute hash by array.
-    $_ = [ values(%$_) ] for values %email2owners;
+    $_ = [ sort values(%$_) ] for values %email2owners;
 
     export("email", \%email2owners);
 }
