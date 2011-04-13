@@ -5628,6 +5628,31 @@ sub expand_policies( ;$) {
 
 sub propagate_owners {
 
+    # Inversed inheritance:
+    # If an 'any' object has no direct owner
+    # and if all contained networks have the same owner,
+    # then set owner of this 'any' object to the one owner.
+    my %any_got_net_owners;
+  ANY:
+    for my $any (@all_anys) {
+	next if $any->{owner};
+	my $owner;
+	for my $network (@{ $any->{networks} }) {
+	    my $net_owner = $network->{owner};
+	    next ANY if not $net_owner;
+	    if ($owner) {
+		next ANY if $net_owner ne $owner;
+	    }
+	    else {
+		$owner = $net_owner;
+	    }
+	}
+	if ($owner) {
+	    $any->{owner} = $owner; 
+	    $any_got_net_owners{$any} = 1;
+	}
+    }
+
     # An any object can be part of multiple areas.
     # Find the smallest enclosing area.
     my %any2area;
@@ -5704,7 +5729,9 @@ sub propagate_owners {
 	else {
 	    $used{$owner} = 1;
 	    if ($upper_owner) {
-		if ($owner eq $upper_owner) {
+		if ($owner eq $upper_owner 
+		    and not $any_got_net_owners{$upper_node}) 
+		{
 		    warn_msg  "Useless $owner->{name} at $node->{name},\n",
 		    " it was already inherited from $upper_node->{name}";
 		}
