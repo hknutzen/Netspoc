@@ -508,6 +508,7 @@ sub export_no_nat_set {
 	my $result = [ sort(unique(map(keys(%{ $_->{no_nat_set} }), 
 				       @nat_domains))) ];
 #	Netspoc::debug "$owner_name: ", join(',', sort @$result);
+	create_dirs("owner/$owner_name");
 	export("owner/$owner_name/no_nat_set", $result);
     }
 }
@@ -577,6 +578,7 @@ sub export_assets {
 
     for my $owner (keys %result) {
 	my $hash = $result{$owner};
+	create_dirs("owner/$owner");
 	export("owner/$owner/assets", $hash);
     }
 }
@@ -674,7 +676,7 @@ sub export_services {
 }
 
 ####################################################################
-# Export all objects referenced by rules, users and owners.
+# Export all objects referenced by rules, users and assets.
 ####################################################################
 
 sub export_objects {
