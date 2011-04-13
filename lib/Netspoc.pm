@@ -5179,12 +5179,15 @@ sub expand_special ( $$$$ ) {
 # - different networks or
 # - subnets/hosts of different networks.
 my %unenforceable_context2src2dst;
+my %unenforceable_context;
 my %enforceable_context;
 
 sub collect_unenforceable ( $$$$ ) {
     my ($src, $dst, $domain, $context) = @_;
 
     return if not $config{check_unenforceable};
+
+    $unenforceable_context{$context} = 1;
 
     # A rule between identical objects is a common case
     # which results from rules with "src=user;dst=user;".
@@ -5197,14 +5200,18 @@ sub collect_unenforceable ( $$$$ ) {
         return if is_autointerface $src or is_autointerface $dst;
     }
     else {
-        if (   is_subnet $src and is_subnet $dst
-            or is_host $src and is_host $dst )
+        if (is_subnet $src and is_subnet $dst)
         {
 
-            # For rules with different subnets of a single network no warning
-            # is shown, because at this point we don't know if the subnets
-            # have been expanded from a single host.
-            return if $src->{network} eq $dst->{network};
+	    # Rule between identical ranges may have been split into
+	    # different subnets. But the resulting subnets would be adjacent.
+            if ($src->{network} eq $dst->{network}) {
+		my ($a, $b) = 
+		    $src->{ip} > $dst->{ip} ? ($dst, $src) : ($src, $dst);
+		if ($a->{ip} + complement_32bit($a->{mask}) + 1 == $b->{ip}) {
+		    return;
+		}
+	    }
         }
 	if (is_any $src or is_any $dst) {
 	    
@@ -5213,10 +5220,16 @@ sub collect_unenforceable ( $$$$ ) {
 	    return if not (is_any $src and is_any $dst);
 	}
     }
+    delete $unenforceable_context{$context};
     $unenforceable_context2src2dst{$context}->{$src}->{$dst} ||= [ $src, $dst ];
 }
 
 sub show_unenforceable () {
+    for my $context (sort keys %unenforceable_context) {
+        next if $unenforceable_context2src2dst{$context};
+        my $msg = "$context is fully unenforceable";
+        $config{check_unenforceable} eq 'warn' ? warn_msg $msg : err_msg $msg;
+    }
     for my $context (sort keys %unenforceable_context2src2dst) {
         my $msg;
         if (not $enforceable_context{$context}) {
@@ -5235,6 +5248,7 @@ sub show_unenforceable () {
         $config{check_unenforceable} eq 'warn' ? warn_msg $msg : err_msg $msg;
     }
     %enforceable_context           = ();
+    %unenforceable_context         = ();
     %unenforceable_context2src2dst = ();
 }
 
