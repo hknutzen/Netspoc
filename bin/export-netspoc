@@ -724,34 +724,36 @@ sub export_owners {
     export("email", \%email2owners);
 }
 
+sub copy_policy_file {
+    my $policy_file = "$netspoc_data/POLICY";
+    system("cp -p $policy_file $out_dir") == 0 or
+	err_msg "Can't copy $policy_file";
+}
+
 ####################################################################
 # Initialize Netspoc data
 ####################################################################
-sub init_data {
-    set_config({time_stamps => 1});
+set_config({time_stamps => 1});
 
-    # Set global config variable of Netspoc to store attribute 'description'.
-    store_description(1);
-    read_file_or_dir($netspoc_data);
-    order_services();
-    link_topology();
-    mark_disabled();
-    distribute_nat_info();
-    find_subnets();
-    setany();
-    setpath();
-    setup_sub_owners();
-    set_policy_owner();
-    setup_policy_info();
-}
-
+# Set global config variable of Netspoc to store attribute 'description'.
+store_description(1);
+read_file_or_dir($netspoc_data);
+order_services();
+link_topology();
+mark_disabled();
+distribute_nat_info();
+find_subnets();
+setany();
+setpath();
+setup_sub_owners();
+set_policy_owner();
+setup_policy_info();
 
 ####################################################################
 # Export data
 ####################################################################
-
-init_data();
 create_dirs('');
+copy_policy_file();
 export_owners();
 export_assets();
 export_services();
