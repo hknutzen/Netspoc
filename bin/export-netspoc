@@ -6,18 +6,19 @@ use JSON;
 use Netspoc;
 use open qw(:std :utf8);
 
+my $VERSION = 
+    ( split ' ', '$Id$' )[2];
+
 sub usage {
     die "Usage: $0 netspoc-data out-directory\n";
 }
 
-# Configuration data.
+# Argument processing.
 my $netspoc_data = shift @ARGV or usage();
 my $out_dir = shift @ARGV or usage();
 
 # Remove trailing slash.
 $out_dir =~ s,/$,,;
-
-my $VERSION = ( split ' ', '$Id$' )[2];
 
 sub abort {
     my ($msg) = @_;
@@ -48,23 +49,10 @@ sub export {
     print $fh to_json($data, {pretty => 1, canonical => 1});
     close $fh or die "Can't close $path\n";
 }
-  
-sub export_string {
-    my ($path, $string) = @_;
-    $path = "$out_dir/$path";
-    open (my $fh, '>', $path) or die "Can't open $path\n";
-    print $fh $string;
-    close $fh or die "Can't close $path\n";
-}
 
 # Unique union of all elements.
 sub unique(@) {
 	return values %{ {map { $_ => $_ } @_}}; 
-}
-
-sub is_numeric { 
-    my ($value) = @_;
-    $value =~ /^\d+$/; 
 }
 
 # Take higher bits from network NAT, lower bits from original IP.
@@ -740,6 +728,7 @@ sub export_owners {
 # Initialize Netspoc data
 ####################################################################
 sub init_data {
+    set_config({time_stamps => 1});
 
     # Set global config variable of Netspoc to store attribute 'description'.
     store_description(1);
@@ -761,7 +750,6 @@ sub init_data {
 # Export data
 ####################################################################
 
-set_config({time_stamps => 1});
 init_data();
 create_dirs('');
 export_owners();
