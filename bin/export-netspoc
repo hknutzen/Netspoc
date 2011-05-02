@@ -477,13 +477,23 @@ sub export_no_nat_set {
 	    $owner2net{$owner_name}->{$network} = $network;
 	}
     }
+    my %owner2no_nat_set;
+    my %all_nat_tags;
+    $owner2net{$_} ||= {} for keys %owners;
     for my $owner_name (sort keys %owner2net) {
 	my %nat_domains;
 	for my $network (values %{ $owner2net{$owner_name} }) {
 	    my $nat_domain = $network->{nat_domain};
 	    $nat_domains{$nat_domain} = $nat_domain;
 	}
-	my @nat_domains = values %nat_domains;	
+	my @nat_domains = values %nat_domains;
+	if (not @nat_domains) {
+
+	    # Special value 'undef' marks owner without any networks.
+	    # This will be changed to all_nat_tags below.
+	    $owner2no_nat_set{$owner_name} = undef;
+	    next;
+	}
 #	if ((my $count = @nat_domains) > 1) {
 #	    print "$owner_name has $count nat_domains\n";
 #	    for my $network (values %{ $owner2net{$owner_name} }) {
@@ -493,11 +503,17 @@ sub export_no_nat_set {
 #	}
 
 	# Build union of no_nat_sets
-	my $result = [ sort(unique(map(keys(%{ $_->{no_nat_set} }), 
-				       @nat_domains))) ];
-#	Netspoc::debug "$owner_name: ", join(',', sort @$result);
+	my $no_nat_set = [ sort(unique(map(keys(%{ $_->{no_nat_set} }), 
+					   @nat_domains))) ];
+#	Netspoc::debug "$owner_name: ", join(',', sort @$no_nat_set);
+	$owner2no_nat_set{$owner_name} = $no_nat_set;
+	@all_nat_tags{@$no_nat_set} = @$no_nat_set;
+    }
+    my @all_nat_tags = sort values %all_nat_tags;
+    for my $owner_name (keys %owner2no_nat_set) {
+	my $no_nat_set = $owner2no_nat_set{$owner_name} || \@all_nat_tags;
 	create_dirs("owner/$owner_name");
-	export("owner/$owner_name/no_nat_set", $result);
+	export("owner/$owner_name/no_nat_set", $no_nat_set);
     }
 }
 
@@ -564,6 +580,7 @@ sub export_assets {
 	}
     }
 
+    $result{$_} ||= {} for keys %owners;
     for my $owner (keys %result) {
 	my $hash = $result{$owner};
 	create_dirs("owner/$owner");
@@ -621,8 +638,9 @@ sub export_services {
     export("services", \%phash);
 
     progress("Export users");
-    for my $owner (sort keys %owner2type2phash) {
-	my $type2phash = $owner2type2phash{$owner};
+    $owner2type2phash{$_} ||= {} for keys %owners;
+    for my $owner (qw(owner user visible)) {
+	my $type2phash = $owner2type2phash{$owner} || {};
 	my %type2pnames;
 	my %policy2users;
 	for my $type (sort keys %$type2phash) {
@@ -726,7 +744,7 @@ sub export_owners {
 
 sub copy_policy_file {
     my $policy_file = "$netspoc_data/POLICY";
-    system("cp -p $policy_file $out_dir") == 0 or
+    system("cp -pf $policy_file $out_dir") == 0 or
 	err_msg "Can't copy $policy_file";
 }
 
