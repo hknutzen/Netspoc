@@ -595,7 +595,7 @@ sub export_assets {
 sub by_name { $a->{name} cmp $b->{name} }
 
 sub export_services {
-    progress("export services");
+    progress("Export services");
     my %phash;
     my %owner2type2phash;
     for my $policy (sort by_name values %policies) {
@@ -637,13 +637,13 @@ sub export_services {
     }
     export("services", \%phash);
 
-    progress("Export users");
+    progress("Export users and service_lists");
     $owner2type2phash{$_} ||= {} for keys %owners;
-    for my $owner (qw(owner user visible)) {
+    for my $owner (sort keys %owner2type2phash) {
 	my $type2phash = $owner2type2phash{$owner} || {};
 	my %type2pnames;
 	my %policy2users;
-	for my $type (sort keys %$type2phash) {
+	for my $type (qw(owner user visible)) {
 	    my $policies = [ sort by_name values %{ $type2phash->{$type} } ];
 	    my $pnames = $type2pnames{$type} = [];
 	    for my $policy (@$policies) { 
