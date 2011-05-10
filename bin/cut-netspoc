@@ -76,6 +76,7 @@ sub path_unmanaged {
     return 0 if $obj->{active_path};
 
     $obj->{active_path} = 1;
+    my $result = 0;
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_interface;
         my $next = $interface->{is_network($obj) ? 'router' : 'network'};
@@ -83,11 +84,12 @@ sub path_unmanaged {
 	    $obj->{is_used} = 1;
 	    if (is_router($obj)) {
 		mark_adjacent_networks($obj);
-	    }		    
+	    }
+	    $result = 1;
 	}
     }
     $obj->{active_path} = 0;
-    return 0;
+    return $result;
 }
 
 sub mark_unmanaged {
