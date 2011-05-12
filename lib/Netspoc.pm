@@ -7448,10 +7448,9 @@ sub get_path( $ ) {
         $result = $obj;
     }
 
-    # This is only used, when called from path_auto_interfaces or
-    # from find_active_routes_and_statics.
+    # This is only used, when called from path_auto_interfaces.
     elsif ($type eq 'Router') {
- 	if($obj->{managed}) {
+ 	if($obj->{managed} || $obj->{semi_managed}) {
 	    $result = $obj;
 	}
 	else {
