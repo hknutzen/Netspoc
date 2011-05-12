@@ -5178,6 +5178,8 @@ sub expand_special ( $$$$ ) {
 # - different interfaces or
 # - different networks or
 # - subnets/hosts of different networks.
+# Rules between identical objects are silently ignored.
+# But a message is shown if a policy only has rules between identical objects.
 my %unenforceable_context2src2dst;
 my %unenforceable_context;
 my %enforceable_context;
@@ -5203,8 +5205,11 @@ sub collect_unenforceable ( $$$$ ) {
         if (is_subnet $src and is_subnet $dst)
         {
 
-	    # Rule between identical ranges may have been split into
-	    # different subnets. But the resulting subnets would be adjacent.
+	    # For rules with different subnets of a single network we don't 
+	    # know if the subnets have been split from a single range.
+	    # E.g. range 1-4 becomes four subnets 1,2-3,4
+	    # For most splits the resulting subnets would be adjacent.
+	    # Hence we check for adjacency.
             if ($src->{network} eq $dst->{network}) {
 		my ($a, $b) = 
 		    $src->{ip} > $dst->{ip} ? ($dst, $src) : ($src, $dst);
@@ -5226,7 +5231,9 @@ sub collect_unenforceable ( $$$$ ) {
 
 sub show_unenforceable () {
     for my $context (sort keys %unenforceable_context) {
-        next if $unenforceable_context2src2dst{$context};
+        next if 
+	    $unenforceable_context2src2dst{$context} or 
+	    $enforceable_context{$context};
         my $msg = "$context is fully unenforceable";
         $config{check_unenforceable} eq 'warn' ? warn_msg $msg : err_msg $msg;
     }
