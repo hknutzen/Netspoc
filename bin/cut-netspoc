@@ -64,6 +64,7 @@ sub mark_topology( $$$ ) {
     my ($rule, $in_intf, $out_intf) = @_;
     my $router = ($in_intf || $out_intf)->{router};
     $router->{is_used} = 1;
+#    Netspoc::debug "Used $router->{name}";
     mark_adjacent_networks($router);
 }
 
@@ -73,22 +74,22 @@ sub path_unmanaged {
     my ($obj, $in_interface) = @_;
     return 1 if $obj->{is_used};
     return 0 if $obj->{managed};
-    return 0 if $obj->{active_path};
+    return 0 if $obj->{is_checked};
 
-    $obj->{active_path} = 1;
+    $obj->{is_checked} = 1;
     my $result = 0;
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_interface;
         my $next = $interface->{is_network($obj) ? 'router' : 'network'};
 	if (path_unmanaged($next, $interface)) {
 	    $obj->{is_used} = 1;
+#	    Netspoc::debug "Marked $obj->{name}";
 	    if (is_router($obj)) {
 		mark_adjacent_networks($obj);
 	    }
 	    $result = 1;
 	}
     }
-    $obj->{active_path} = 0;
     return $result;
 }
 
@@ -152,13 +153,16 @@ sub process_rules ( $ ) {
 		my $obj = $rule->{$where};
 		my $type = ref $obj;
 		if ($type eq 'Any' || $type eq 'Network') {
+#		    Netspoc::debug "Used $obj->{name}";
 		    $obj->{is_used} = 1;
 		}
 		elsif ($type eq 'Subnet') {
 		    $obj->{network}->{is_used} = 1;
+#		    Netspoc::debug "Used $obj->{network}->{name}";
 		}
 		elsif ($type eq 'Interface') {
 		    my $router = $obj->{router};
+#		    Netspoc::debug "Used $router->{name}";
 		    $router->{is_used} = 1;
 		    mark_adjacent_networks($router);
 		}
