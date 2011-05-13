@@ -13571,6 +13571,8 @@ sub print_iptables_acls {
 
         # Ignore if all logical interfaces are loopback interfaces.
         next if not grep { not $_->{loopback} } @{ $hardware->{interfaces} };
+
+	my $in_hw = $hardware->{name};
         my $no_nat_set = $hardware->{no_nat_set};
 	if ($config{comment_acls}) {
 
@@ -13580,9 +13582,9 @@ sub print_iptables_acls {
 
 	# Print chain and declaration for interface rules.
 	# Add call to chain in INPUT chain.
-	my $intf_acl_name = "$hardware->{name}_self";
+	my $intf_acl_name = "${in_hw}_self";
 	print ":$intf_acl_name -\n";
-	print "-A INPUT -j $intf_acl_name -i $hardware->{name} \n";
+	print "-A INPUT -j $intf_acl_name -i $in_hw\n";
 	my $intf_prefix = "-A $intf_acl_name";
 	for my $rule (@{ $hardware->{intf_rules} }) {
 	    iptables_acl_line($rule, $no_nat_set, $intf_prefix);
@@ -13593,9 +13595,9 @@ sub print_iptables_acls {
 	# One chain for each pair of in_intf / out_intf.
 	my $rules_hash = $hardware->{io_rules};
 	for my $out_hw (sort keys %$rules_hash) {
-	    my $acl_name = "$hardware->{name}_$out_hw";
+	    my $acl_name = "${in_hw}_$out_hw";
 	    print ":$acl_name -\n";
-	    print "-A FORWARD -j $acl_name -i $hardware->{name}\n";
+	    print "-A FORWARD -j $acl_name -i $in_hw -o $out_hw\n";
 	    my $prefix     = "-A $acl_name";
 	    my $rules_aref = $rules_hash->{$out_hw};
 	    for my $rule (@$rules_aref) {
