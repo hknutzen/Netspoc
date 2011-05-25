@@ -107,16 +107,16 @@ while (1) {
 Netspoc::convert_hosts();
 
 # Find network for resolving NAT addresses.
-my $nat_map;
+my $no_nat_set;
 if($nat_net) {
     my $net = $networks{$nat_net} or 
 	die "Unknown network:$nat_net of option '-n'\n";
-    $nat_map = $net->{nat_domain}->{nat_map};
+    $no_nat_set = $net->{nat_domain}->{no_nat_set};
 }
 
 # Expand group definition(s).
 my $elements = Netspoc::expand_group(\@parsed, 'print-group', 'no_combine');
-my @pairs = map { Netspoc::address($_, $nat_map) } @$elements;
+my @pairs = map { Netspoc::address($_, $no_nat_set) } @$elements;
 
 # Sort and print results.
 for my $pair (sort { $a->[0] <=> $b->[0] } @pairs) {
