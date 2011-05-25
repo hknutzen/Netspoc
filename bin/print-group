@@ -12,7 +12,7 @@ print-group [options] FILE|DIR 'group:name,...'
 
 =over 4
 
-=item B<-nat> network:name
+=item B<-nat> name
 
 Uses network:name as reference when resolving IP address in a NAT environment.
 
