@@ -118,6 +118,8 @@ if($nat_net) {
 my $elements = Netspoc::expand_group(\@parsed, 'print-group', 'no_combine');
 my @pairs = map { Netspoc::address($_, $no_nat_set) } @$elements;
 
+abort_on_error();
+
 # Sort and print results.
 for my $pair (sort { $a->[0] <=> $b->[0] } @pairs) {
     my ($ip, $mask) = @$pair;
