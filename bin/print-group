@@ -2,11 +2,18 @@
 
 =head1 NAME
 
-print-group - Print contents of a netspoc group definition
+print-group - Show elements of a netspoc group definition
 
 =head1 SYNOPSIS
 
 print-group [options] FILE|DIR 'group:name,...'
+
+=head1 DESCRIPTION
+
+This program prints the elements of a netspoc group definition.  By default it
+shows a line with IP/prefixlen and name for each element separated by tab
+character. Group is a simple group, some automatic group, or a union or
+intersection or complement of simpler groups.
 
 =head1 OPTIONS
 
@@ -15,6 +22,14 @@ print-group [options] FILE|DIR 'group:name,...'
 =item B<-nat> name
 
 Uses network:name as reference when resolving IP address in a NAT environment.
+
+=item B<-name>
+
+Show only name of elements
+
+=item B<-ip>
+
+Show only IP address of elements
 
 =item B<-help>
 
@@ -25,12 +40,6 @@ Print a brief help message and exits.
 Prints the manual page and exits.
 
 =back
-
-=head1 DESCRIPTION
-
-This program prints the contents of a netspoc group definition as lines of
-ip or ip/prefixlen. Group is a simple group, some automatic group, or a union,
-intersection, complement of simpler groups.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
@@ -68,14 +77,19 @@ use Pod::Usage;
 ####################################################################
 
 my $nat_net;
+my $show_ip;
+my $show_name;
 my $help;
 my $man;
-GetOptions ( 'nat=s' => \$nat_net,
+GetOptions ( 'nat=s'  => \$nat_net,
+	     'ip!'    => \$show_ip,
+	     'name!' => \$show_name,
 	     'help|?' => \$help,
 	     man => \$man,
 	     ) or pod2usage(2);
 pod2usage(1) if $help;
 pod2usage(-exitstatus => 0, -verbose => 2) if $man;
+$show_ip or $show_name or $show_ip = $show_name = 1;
 
 my $config = shift @ARGV or pod2usage(2);
 my $name = shift @ARGV or pod2usage(2);
@@ -116,19 +130,27 @@ if($nat_net) {
 
 # Expand group definition(s).
 my $elements = Netspoc::expand_group(\@parsed, 'print-group', 'no_combine');
-my @pairs = map { Netspoc::address($_, $no_nat_set) } @$elements;
+my @info = map { my $v = Netspoc::address($_, $no_nat_set); 
+		 $v->[2] = $_->{name};
+		 $v } @$elements;
 
 abort_on_error();
 
 # Sort and print results.
-for my $pair (sort { $a->[0] <=> $b->[0] } @pairs) {
-    my ($ip, $mask) = @$pair;
-    my $prefix = Netspoc::mask2prefix($mask);
-    print print_ip($ip);
-    if($prefix != 32) {
-	print "/$prefix";
+for my $triple (sort { $a->[0] <=> $b->[0] } @info) {
+    my ($ip, $mask, $name) = @$triple;
+    if ($show_ip) {
+	my $prefix = Netspoc::mask2prefix($mask);
+	print print_ip($ip);
+	if($prefix != 32) {
+	    print "/$prefix";
+	}
+    }
+    if ($show_name) {
+	print "\t" if $show_ip;
+	print "$name";
     }
     print "\n";
 }
-	
+
 
