@@ -13429,7 +13429,7 @@ EOF
                       or err_msg "ID of $src->{name} must start with",
                       " character '\@'";
                     $pool_name = "pool-$user_counter";
-                    my $mask = print_ip complement_32bit $src->{mask};
+                    my $mask = print_ip $src->{mask};
                     my $max =
                       print_ip($src->{ip} | complement_32bit $src->{mask});
                     print "crypto ca certificate map ca-map-$user_counter 10\n";
