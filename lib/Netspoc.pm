@@ -802,27 +802,26 @@ sub read_time_val() {
     return $int * $factor;
 }
 
-sub check_description() {
+sub add_description {
+    my ($obj) = @_;
     skip_space_and_comment;
-    if (check 'description') {
-        skip '=';
+    check 'description' or return;
+    skip '=';
 
-        # Read up to end of line, but ignore ';' at EOL.
-        # We must use '$' here to match EOL,
-        # otherwise $line would be out of sync.
-        $input =~ m/\G([ \t]*(.*?)[ \t]*;?[ \t]*)$/gcm;
+    # Read up to end of line, but ignore ';' at EOL.
+    # We must use '$' here to match EOL,
+    # otherwise $line would be out of sync.
+    $input =~ m/\G([ \t]*(.*?)[ \t]*;?[ \t]*)$/gcm;
 
-	# Old interface for report, includes leading and trailing whitespace.
-	if ($store_description) {
-	    return $1;
-	}
-
-	# New interface without leading and trailing whitespace.
-	elsif (store_description()) {
-	    return $2;
-	}
+    # Old interface for report, includes leading and trailing whitespace.
+    if ($store_description) {
+	$obj->{description} = $1;
     }
-    return undef;
+
+    # New interface without leading and trailing whitespace.
+    elsif (store_description()) {
+	$obj->{description} = $2;
+    }
 }
 
 # Check if one of the keywords 'permit' or 'deny' is available.
@@ -1022,6 +1021,7 @@ sub read_host( $$ ) {
     $host->{name} = $name;
     skip '=';
     skip '{';
+    add_description($host);
     while (1) {
         last if check '}';
         if (my $ip = check_assign 'ip', \&read_ip) {
@@ -1159,6 +1159,7 @@ sub read_network( $ ) {
     $network->{private} = $private if $private;
     skip '=';
     skip '{';
+    add_description($network);
     while (1) {
         last if check '}';
         if (my ($ip, $prefixlen) = check_assign 'ip', \&read_ip_opt_prefixlen) {
@@ -1457,6 +1458,7 @@ sub read_interface( $ ) {
     my @secondary_interfaces = ();
     my $virtual;
     skip '{';
+    add_description($interface);
     while (1) {
         last if check '}';
         if (my @ip = check_assign_list 'ip', \&read_ip) {
@@ -1744,6 +1746,7 @@ sub read_router( $ ) {
     my $router = new('Router', name => $name);
     skip '=';
     skip '{';
+    add_description($router);
     while (1) {
         last if check '}';
         if (check 'managed') {
@@ -2066,6 +2069,7 @@ sub read_any( $ ) {
     $any->{private} = $private if $private;
     skip '=';
     skip '{';
+    add_description($any);
     while (1) {
         last if check '}';
 	if (my $owner = check_assign 'owner', \&read_identifier) {
@@ -2115,6 +2119,7 @@ sub read_area( $ ) {
     my $area = new('Area', name => $name);
     skip '=';
     skip '{';
+    add_description($area);
     while (1) {
         last if check '}';
         if (my @elements = check_assign_list 'border', \&read_intersection) {
@@ -2158,9 +2163,11 @@ our %groups;
 sub read_group( $ ) {
     my $name = shift;
     skip '=';
-    my @elements = read_list_or_null \&read_intersection;
-    my $group = new('Group', name => $name, elements => \@elements);
+    my $group = new('Group', name => $name);
     $group->{private} = $private if $private;
+    add_description($group);
+    my @elements = read_list_or_null \&read_intersection;
+    $group->{elements} = \@elements;
     return $group;
 }
 
@@ -2332,9 +2339,7 @@ sub read_policy( $ ) {
     $policy->{private} = $private if $private;
     skip '=';
     skip '{';
-    if (my $description = check_description) {
-	$policy->{description} = $description;
-    }
+    add_description($policy);
     while (1) {
         last if check 'user';
 	if (my @other = check_assign_list 'overlaps', \&read_typed_name) {
@@ -2421,9 +2426,7 @@ sub read_pathrestriction( $ ) {
     skip '=';
     my $restriction = new('Pathrestriction', name => $name);
     $restriction->{private} = $private if $private;
-    if (my $description = check_description) {
-        $restriction->{description} = $description;
-    }
+    add_description($restriction);
     my @elements = read_list \&read_intersection;
     $restriction->{elements} = \@elements;
     return $restriction;
@@ -2453,6 +2456,7 @@ sub read_attributed_object( $$ ) {
     my $object = { name => $name };
     skip '=';
     skip '{';
+    add_description($object);
     while (1) {
         last if check '}';
         my $attribute = read_identifier;
@@ -2564,9 +2568,7 @@ sub read_crypto( $ ) {
     skip '{';
     my $crypto = { name => $name };
     $crypto->{private} = $private if $private;
-    if (my $description = check_description) {
-        $crypto->{description} = $description;
-    }
+    add_description($crypto);
     while (1) {
         last if check '}';
         if (check_flag 'tunnel_all') {
@@ -2594,6 +2596,7 @@ sub read_owner( $ ) {
     my $owner = new('Owner', name => $name);
     skip '=';
     skip '{';
+    add_description($owner);
     while (1) {
         last if check '}';
 	if ( my @admins = check_assign_list 'admins', \&read_identifier ) {
@@ -2621,6 +2624,7 @@ sub read_admin( $ ) {
     my $admin = new('Admin', name => $name);
     skip '=';
     skip '{';
+    add_description($admin);
     while (1) {
         last if check '}';
 	if ( my $full_name = check_assign 'name', \&read_to_semicolon ) {
