@@ -10873,9 +10873,10 @@ sub set_policy_distribution_ip () {
 	    @result = grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel)$/ }
 			   @front) if not @result;
 	    
-	    # Try all interfaces.
-	    @result = grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel)$/ }
-			   @{ $router->{interfaces} }) if not @result;
+	    if (not @result) {
+		warn_msg("No IP found to reach $router->{name}");
+		next;
+	    }
 	}
 
 	# Prefer loopback interface if available.
