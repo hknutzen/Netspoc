@@ -274,6 +274,7 @@ my %router_info = (
 	stateless_icmp => 1,
         routing        => 'IOS',
         filter         => 'IOS',
+	can_vrf        => 1,
 	has_out_acl    => 1,
         crypto         => 'IOS',
         comment_char   => '!',
@@ -343,9 +344,21 @@ my %router_info = (
     },
 );
 
-####################################################################
-# Error Reporting
-####################################################################
+# All arguments are true.
+#sub all { $_ || return 0 for @_; 1 }
+sub all { 
+    for my $e (@_) {
+	$_ || return 0;
+    }
+    1;
+}
+
+# All arguments are 'eq'.
+sub equal {
+    return 1 if not @_;
+    my $first = $_[0];
+    return not grep { $_ ne $first } @_[ 1 .. $#_ ];
+}
 
 my $start_time = time();
 
@@ -647,15 +660,15 @@ sub read_union( $ ) {
     return @vals;
 }
 
-# Check for xxx:xxx
+# Check for xxx:xxx | router:xx@xx
 sub check_typed_name() {
     skip_space_and_comment;
-    if ($input =~ m/(\G\w+):([\w-]+)/gc) {
-        return [ $1, $2 ];
-    }
-    else {
-        return undef;
-    }
+    my ($type) = $input =~ m/ \G (\w+) : /gcx or return undef;
+    my ($name) = $type eq 'router' 
+	       ? $input =~ m/ \G ( [\w-]+ (?: \@ [\w-]+ )? ) /gcx
+	       : $input =~ m/ \G ( [\w-]+ ) /gcx
+	       or return undef;
+    return [ $type, $name ];
 }
 
 sub read_typed_name() {
@@ -672,9 +685,14 @@ sub read_typed_name() {
     my $hostname_regex = qr/(?:id:$id_regex|[\w-]+)/;
 
 # Check for xxx:xxx or xxx:[xxx:xxx, ...]
-# or interface:xxx.xxx or interface:xxx.xxx.xxx or interface:xxx.[xxx]
-# or interface:[xxx:xxx, ...].[xxx] or interface:[managed & xxx:xxx, ...].[xxx]
+# or interface:rrr.xxx 
+# or interface:rrr.xxx.xxx 
+# or interface:rrr.[xxx]
+# or interface:[xxx:xxx, ...].[xxx] 
+# or interface:[managed & xxx:xxx, ...].[xxx]
 # or host:id:user@domain.network
+#
+# with rrr = xxx | xxx@xxx
     sub read_extended_name() {
         if (check 'user') {
 
@@ -707,7 +725,10 @@ sub read_typed_name() {
             }
             $name = [ read_union ']' ];
         }
-	elsif ($input =~ m/(\G[\w-]+)/gc) {
+	elsif ($interface && 
+	       $input =~ m/ \G ( [\w-]+ (?: \@ [\w-]+ ) ) /gcx ||
+	       $input =~ m/ \G ( [\w-]+ ) /gcx) 
+	{
 	    $name = $1;
 	}
         else {
@@ -1741,9 +1762,13 @@ our %routers;
 sub read_router( $ ) {
     my $name = shift;
 
-    # Router name without prefix "router:" is needed to build interface name.
-    (my $rname = $name) =~ s/^router://;
-    my $router = new('Router', name => $name);
+    # Extract
+    # - router name without prefix "router:", needed to build interface name
+    # - optional vrf name
+    my ($rname, $device_name, $vrf) = 
+	$name =~ /^ router : ( (.*?) (?: \@ (.*) )? ) $/x;
+    my $router = new('Router', name => $name, device_name => $device_name);
+    $router->{vrf} = $vrf if $vrf;
     skip '=';
     skip '{';
     add_description($router);
@@ -1943,6 +1968,10 @@ sub read_router( $ ) {
             # Prevent further errors.
             $router->{model} = { name => 'unknown' };
         }
+	
+	$router->{vrf} and not $model->{can_vrf} and
+	    err_msg("Must not use VRF at $router->{name}",
+		    " of type $model->{name}");
 
         # Create objects representing hardware interfaces.
         # All logical interfaces using the same hardware are linked
@@ -4102,19 +4131,50 @@ sub mark_disabled() {
             }
         }
     }
+    my %name2vrf;
     for my $router (values %routers) {
-        unless ($router->{disabled}) {
-            push @routers, $router;
-            if ($router->{managed}) {
-                push @managed_routers, $router;
-		if (grep { $_->{hub} && $router->{model}->{do_auth} } 
-		    @{ $router->{interfaces} }) 
-		{
-		    push @managed_vpnhub,  $router;
-		}
-            }
+        next if $router->{disabled};
+	push @routers, $router;
+	my $device_name = $router->{device_name};
+	push @{ $name2vrf{$device_name} }, $router;
+	if ($router->{managed}) {
+	    push @managed_routers, $router;
+	    if (grep { $_->{hub} && $router->{model}->{do_auth} } 
+		@{ $router->{interfaces} }) 
+	    {
+		push @managed_vpnhub,  $router;
+	    }
         }
     }
+
+    # Collect vrf instances belonging to one device.
+    for my $aref (values %name2vrf) {
+	next if @$aref == 1;
+	all(map $_->{managed}, @$aref) or
+	    err_msg("All VRF instances of router:$aref->[0]->{device_name}",
+		    " must be managed");
+	equal(map $_->{model}->{name}, @$aref) or
+	    err_msg("All VRF instances of router:$aref->[0]->{device_name}",
+		    " must have identical model");
+
+	my %hardware;
+	for my $router (@$aref) {
+	    for my $hardware (@{ $router->{hardware} }) {
+		my $name = $hardware->{name};
+		if (my $other = $hardware{$name}) {
+		    err_msg("Duplicate hardware '$name' at",
+			    " $other->{name} and $router->{name}");
+		}
+		else {
+		    $hardware{$name} = $router;
+		}
+	    }
+	}
+	for my $router (@$aref) {
+	    $router->{vrf_members} = $aref;
+	}
+    }
+
     for my $network (values %networks) {
         unless ($network->{disabled}) {
             push @networks, $network;
@@ -6777,13 +6837,6 @@ sub check_no_in_acl () {
 		$hardware->{need_out_acl} = 1;
 	}
     }	
-}
-
-# Check if all arguments are 'eq'.
-sub equal {
-    return 1 if not @_;
-    my $first = $_[0];
-    return not grep { $_ ne $first } @_[ 1 .. $#_ ];
 }
 
 # This uses attributes from sub check_no_in_acl.
@@ -10269,6 +10322,7 @@ sub numerically { $a <=> $b }
 sub print_routes( $ ) {
     my ($router)     = @_;
     my $type         = $router->{model}->{routing};
+    my $vrf          = $router->{vrf};
     my $comment_char = $router->{model}->{comment_char};
     my $do_auto_default_route = $config{auto_default_route};
     my %intf2hop2nets;
@@ -10356,6 +10410,10 @@ sub print_routes( $ ) {
         }
     }
     print "$comment_char [ Routing ]\n";
+
+    # Prepare extension for IOS route command.
+    $vrf = $vrf ? "vrf $vrf " : '';
+
     for my $interface (@{ $router->{interfaces} }) {
 
         # Don't generate static routing entries,
@@ -10384,7 +10442,7 @@ sub print_routes( $ ) {
                 }
                 if ($type eq 'IOS') {
                     my $adr = ios_route_code($netinfo);
-                    print "ip route $adr $hop_addr\n";
+                    print "ip route $vrf$adr $hop_addr\n";
                 }
                 elsif ($type eq 'PIX') {
                     my $adr = ios_route_code($netinfo);
@@ -10808,18 +10866,16 @@ sub distribute_rule_at_dst( $$$ ) {
 sub set_policy_distribution_ip () {
     return if not $policy_distribution_point;
     progress "Setting policy distribution IP";
+
+    # Find all TCP ranges which include port 22 and 23.
+    my @admin_tcp_keys = grep({ my ($p1, $p2) = split(':', $_); 
+				$p1 <= 22 && 22 <= $p2 || 
+				    $p1 <= 23 && 23 <= $p2; }
+			      keys %{ $srv_hash{tcp} });
+    my @srv_list = (@{$srv_hash{tcp}}{@admin_tcp_keys}, $srv_hash{ip});
     my %admin_srv;
-    for my $srv (
-        $srv_hash{tcp}->{'22:22'},
-        $srv_hash{tcp}->{'23:23'},
-        $srv_hash{tcp}->{'1:65535'}
-      )
-    {
-        while ($srv) {
-            $admin_srv{$srv} = $srv;
-            $srv = $srv->{up};
-        }
-    }
+    @admin_srv{@srv_list} = @srv_list;
+
     my %pdp_src;
     for my $pdp (map $_, @{ $policy_distribution_point->{subnets} }) {
         while ($pdp) {
@@ -10859,7 +10915,7 @@ sub set_policy_distribution_ip () {
               path_auto_interfaces($router, $policy_distribution_point);
 
 	    # If multiple management interfaces were found, take that which is
-	    # directed into policy_distribution_point.
+	    # directed to policy_distribution_point.
             for my $front (@front) {
                 if ($interfaces{$front}) {
                     push @result, $front;
@@ -10869,14 +10925,13 @@ sub set_policy_distribution_ip () {
 	    # Try all management interfaces.
 	    @result = values %interfaces if not @result;
 
-	    # Try all interfaces directed to policy_distribution_point.
-	    @result = grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel)$/ }
-			   @front) if not @result;
+#	    # Try all interfaces directed to policy_distribution_point.
+#	    @result = grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel)$/ }
+#			   @front) if not @result;
 	    
-	    if (not @result) {
-		warn_msg("No IP found to reach $router->{name}");
-		next;
-	    }
+	    # Don't set {admin_ip} if no address is found.
+	    # Warning is printed later when all VRFs are joined.
+	    next if not @result;
 	}
 
 	# Prefer loopback interface if available.
@@ -11185,8 +11240,11 @@ sub rules_distribution() {
               (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
         path_walk($rule, \&distribute_rule, 'Router');
     }
-    add_router_acls();
+
+    # Find management IP of device before ACL lines are cleared for
+    # crosslink interfaces during add_router_acls.
     set_policy_distribution_ip();
+    add_router_acls();
 
     # Prepare rules for local_optimization.
     for my $rule (@{ $expanded_rules{any} }) {
@@ -14086,8 +14144,13 @@ sub print_crypto( $ ) {
 
 sub print_interface( $ ) {
     my ($router) = @_;
+    my $vrf_subcmd;
+    if (my $vrf = $router->{vrf}) {
+	$vrf_subcmd = "ip vrf forwarding $vrf";
+    }
     for my $hardware (@{ $router->{hardware} }) {
-        my $subcmd = $hardware->{subcmd} or next;
+	unshift @{ $hardware->{subcmd} }, $vrf_subcmd if $vrf_subcmd;
+        my $subcmd = $hardware->{subcmd} || [];
         my $name = $hardware->{name};
         print "interface $name\n";
         for my $cmd (@$subcmd) {
@@ -14120,44 +14183,66 @@ sub print_code( $ ) {
     }
 
     progress "Printing code";
+    my %seen;
     for my $router (@managed_routers) {
-        my $model        = $router->{model};
-        my $comment_char = $model->{comment_char};
-        my $name         = $router->{name};
+	next if $seen{$router};
+        my $device_name = $router->{device_name};
         if ($dir) {
-            my $file = $name;
+            my $file = $device_name;
 
             # Untaint $file. It has already been checked for word characters,
             # but check again for the case of a weird locale setting.
-            $file =~ /^router:([^.\/ ]*)/;
+            $file =~ /^(.*)/;
             $file = "$dir/$1";
             open STDOUT, ">$file"
               or fatal_err "Can't open $file for writing: $!";
         }
 
-        # Handle VPN3K separately;
-        if ($model->{filter} eq 'VPN3K') {
-            print_vpn3k $router;
-            next;
-        }
+	my $vrf_members = $router->{vrf_members};
+	if ($vrf_members) {
+	    if (not grep $_->{admin_ip}, @$vrf_members) {
+		warn_msg("No IP found to reach router:$device_name");
+	    }
 
-        print "$comment_char Generated by $program, version $VERSION\n\n";
-        print "$comment_char [ BEGIN $name ]\n";
-	print "$comment_char [ NewApprove ]\n" if $model->{add_n};
-	print "$comment_char [ OldApprove ]\n" if $model->{add_o};
-        print "$comment_char [ Model = $model->{name} ]\n";
-        if ($policy_distribution_point) {
-            printf("$comment_char [ IP = %s ]\n",
-                join(',', @{ $router->{admin_ip} }));
-        }
+	    # Print VRF instance with known admin_ip first.
+	    $vrf_members = 
+		[ 
+		  sort { 
+		      not($a->{admin_ip}) <=> not($b->{admin_ip})
+			  || $a->{name} cmp $b->{name}
+		  } 
+		  @$vrf_members ];
+	}
+	for my $vrouter ($vrf_members ? @$vrf_members : ($router) ) {
+	    $seen{$vrouter} = 1;
+	    my $model        = $router->{model};
+	    my $comment_char = $model->{comment_char};
+	    my $name         = $vrouter->{name};
 
-        print_routes $router;
-        print_crypto $router;
-        print_acls $router;
-        print_interface $router if $model->{name} =~ /^IOS/;
-        print_pix_static $router if $model->{has_interface_level};
-        print "$comment_char [ END $name ]\n\n";
+	    # Handle VPN3K separately;
+	    if ($model->{filter} eq 'VPN3K') {
+		print_vpn3k $vrouter;
+		next;
+	    }
 
+	    print "$comment_char Generated by $program, version $VERSION\n\n";
+	    print "$comment_char [ BEGIN $name ]\n";
+	    print "$comment_char [ NewApprove ]\n" if $model->{add_n};
+	    print "$comment_char [ OldApprove ]\n" if $model->{add_o};
+	    print "$comment_char [ Model = $model->{name} ]\n";
+	    if ($policy_distribution_point) {
+		if (my $ips = $vrouter->{admin_ip}) {
+		    printf("$comment_char [ IP = %s ]\n", join(',', @$ips));
+		}
+	    }
+	    
+	    print_routes $vrouter;
+	    print_crypto $vrouter;
+	    print_acls $vrouter;
+	    print_interface $vrouter if $model->{name} =~ /^IOS/;
+	    print_pix_static $vrouter if $model->{has_interface_level};
+	    print "$comment_char [ END $name ]\n\n";
+	}
         if ($dir) {
             close STDOUT or fatal_err "Can't close $file: $!";
         }
