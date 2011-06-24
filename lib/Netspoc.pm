@@ -345,13 +345,7 @@ my %router_info = (
 );
 
 # All arguments are true.
-#sub all { $_ || return 0 for @_; 1 }
-sub all { 
-    for my $e (@_) {
-	$_ || return 0;
-    }
-    1;
-}
+sub all { $_ || return 0 for @_; 1 }
 
 # All arguments are 'eq'.
 sub equal {
