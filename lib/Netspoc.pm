@@ -2609,13 +2609,19 @@ sub read_crypto( $ ) {
             $crypto->{type} = $type;
         }
         else {
-            syntax_err "Expected valid attribute or rule";
+            syntax_err "Expected valid attribute";
         }
     }
     $crypto->{type} or error_atline "Missing 'type' for $name";
     $crypto->{tunnel_all}
       or error_atline "Must define attribute 'tunnel_all' for $name";
     return $crypto;
+}
+
+sub find_duplicates {
+    my %dupl;
+    $dupl{$_}++ for @_;
+    return grep { $dupl{$_} > 1 } keys %dupl;
 }
 
 our %owners;
@@ -2633,6 +2639,12 @@ sub read_owner( $ ) {
 	      and error_atline "Redefining 'admins' attribute";
 	    $owner->{admins} = \@admins;
 	}
+	elsif ( my @watchers = check_assign_list 'watchers', \&read_identifier )
+	{
+	    $owner->{watchers}
+	      and error_atline "Redefining 'watchers' attribute";
+	    $owner->{watchers} = \@watchers;
+	}
 	elsif (check_flag 'extend_only') {
 	    $owner->{extend_only} = 1;
 	}
@@ -2640,8 +2652,14 @@ sub read_owner( $ ) {
 	    $owner->{extend} = 1;
 	}
 	else {
-	    syntax_err "Expected attribute 'admins', 'extend' or 'extend_only'.";
+	    syntax_err "Expected valid attribute";
 	}
+    }
+    $owner->{admins} or error_atline "Missing attribute 'admins'";
+    if (my @duplicates = find_duplicates(@{ $owner->{admins} }, 
+					  @{ $owner->{watchers} }))
+    {
+	error_atline "Duplicate admins: ", join(', ', @duplicates);
     }
     return $owner;
 }
@@ -3280,12 +3298,18 @@ sub link_owners () {
 	
     for my $owner (values %owners) {
 
-        # Convert names of admin objects to admin objects.
-	for my $name (@{ $owner->{admins} } ) {
-            my $admin = $admins{$name}
-              or err_msg "Can't resolve reference to '$name'",
-              " in attribute 'admins' of $owner->{name}";
-	    $name = $admin;
+        # Convert names of admin and watcher objects to admin objects.
+	for my $attr (qw( admins watchers )) {
+	    for my $name (@{ $owner->{$attr} } ) {
+		if (my $admin = $admins{$name}) {
+		    $name = $admin;
+		}
+		else {
+		    err_msg "Can't resolve reference to '$name'",
+		    " in attribute '$attr' of $owner->{name}";
+		    $name = { name => 'unknown' };
+		}
+	    }
         }
     }
     for my $network (values %networks) {
@@ -5920,8 +5944,10 @@ sub propagate_owners {
     }
 
     for my $owner (values %owners) {
-	for my $admin (@{ $owner->{admins} }) {
-	    $used{$admin} = 1;
+	for my $attr (qw( admins watchers )) {
+	    for my $admin (@{ $owner->{$attr} }) {
+		$used{$admin} = 1;
+	    }
 	}
 	$used{$owner} or warn_msg "Unused $owner->{name}";
     }
