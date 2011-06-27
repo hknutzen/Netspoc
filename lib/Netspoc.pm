@@ -1762,7 +1762,12 @@ sub read_router( $ ) {
     my ($rname, $device_name, $vrf) = 
 	$name =~ /^ router : ( (.*?) (?: \@ (.*) )? ) $/x;
     my $router = new('Router', name => $name, device_name => $device_name);
-    $router->{vrf} = $vrf if $vrf;
+    if(defined $vrf) {
+
+	# VRF value "0" would be interpreted as false by perl.
+	$vrf or err_at_line "Must not use '$vrf' as VRF value";
+	$router->{vrf} = $vrf;
+    }
     skip '=';
     skip '{';
     add_description($router);
