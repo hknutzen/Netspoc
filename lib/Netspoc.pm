@@ -1765,7 +1765,7 @@ sub read_router( $ ) {
     if(defined $vrf) {
 
 	# VRF value "0" would be interpreted as false by perl.
-	$vrf or err_at_line "Must not use '$vrf' as VRF value";
+	$vrf or error_atline "Must not use '$vrf' as VRF value";
 	$router->{vrf} = $vrf;
     }
     skip '=';
@@ -14169,16 +14169,39 @@ sub print_crypto( $ ) {
 
 sub print_interface( $ ) {
     my ($router) = @_;
-    my $vrf_subcmd;
-    if (my $vrf = $router->{vrf}) {
-	$vrf_subcmd = "ip vrf forwarding $vrf";
-    }
     for my $hardware (@{ $router->{hardware} }) {
-	unshift @{ $hardware->{subcmd} }, $vrf_subcmd if $vrf_subcmd;
-        my $subcmd = $hardware->{subcmd} || [];
+	my @subcmd;
+	my $secondary;
+	my $addr_cmd;
+	for my $intf (@{ $hardware->{interfaces} }) {
+	    my $ip = $intf->{ip};
+	    if ($ip eq 'tunnel') {
+		next;
+	    }
+	    elsif ($ip eq 'unnumbered') {
+		$addr_cmd = 'ip unnumbered';
+	    }
+	    elsif ($ip eq 'negotiated') {
+		$addr_cmd = 'ip address negotiated';
+	    }
+	    else {
+		my $addr = print_ip($ip);
+		my $mask = print_ip($intf->{network}->{mask});
+		$addr_cmd = "ip address $addr $mask";
+		$addr_cmd .= ' secondary' if $secondary;
+	    }
+	    push @subcmd, $addr_cmd;
+	    $secondary = 1;
+	}
+	if (my $vrf = $router->{vrf}) {
+	    push @subcmd, "ip vrf forwarding $vrf";
+	}	
+        if (my $other = $hardware->{subcmd}) {
+	    push @subcmd, @$other;
+	}
         my $name = $hardware->{name};
         print "interface $name\n";
-        for my $cmd (@$subcmd) {
+        for my $cmd (@subcmd) {
             print " $cmd\n";
         }
     }
