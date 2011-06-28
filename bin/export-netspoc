@@ -718,6 +718,13 @@ sub export_owners {
 	    $email2owners{$email}->{$name} = $name;
 	    push @emails, $email;
 	}
+	if (my $watchers = $owner->{watchers}) {
+	    for my $admin ( @$watchers ) {
+
+		# Watchers are allowed to login, but aren't shown as owner.
+		$email2owners{$email}->{$name} = $name;
+	    }
+	}
 	if (my $aref = $owner->{extended_by}) {
 	    for my $e_owner (@$aref) {
 		for my $admin ( @{ $e_owner->{admins} } ) {
