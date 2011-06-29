@@ -8503,6 +8503,24 @@ sub link_tunnels () {
 # for local optimization.
 my $network_00 = new('Network', name => "network:0/0", ip => 0, mask => 0);
 
+sub crypto_behind {
+    my ($interface, $managed) = @_;
+    if ($managed) {
+	my $any_networks = $interface->{any}->{networks};
+	@$any_networks;
+    }
+    else {
+	my $network = $interface->{network};
+
+	# Currently, we only support one network.
+	@{ $network->{interfaces} } == 1 or
+	    err_msg
+	    "Exactly one network must be located behind",
+	    "unmanaged crypto $interface->{name}";
+	($network);
+    }
+}
+	
 sub expand_crypto () {
     progress "Expanding crypto rules";
 
@@ -8529,12 +8547,16 @@ sub expand_crypto () {
                         next if $interface->{spoke};
 
                         my $network = $interface->{network};
+			my @all_networks = crypto_behind($interface, $managed);
                         if ($network->{has_id_hosts}) {
 			    $has_id_hosts = 1;
                             $managed
                               and err_msg
                               "$network->{name} having ID hosts must not",
                               " be located behind managed $router->{name}";
+
+			    # Must not have multiple networks.
+			    @all_networks > 1 and internal_err;
 
                             # Rules for single software clients are stored
                             # individually at crypto hub interface.
@@ -8562,17 +8584,22 @@ sub expand_crypto () {
                         }
                         else {
 			    if (my $id = $network->{id}) {
+				@all_networks > 1 and
+				    err_msg "Only one network supported",
+				    "at crypto $interface->{name} with ID";
+
 				if (my $net2 = $id2network{$id}) {
 				    err_msg "Same ID '$id' is used at",
 				    " $network->{name} and $net2->{name}";
 				}
 				$id2network{$id} = $network;
 				$has_id_network = 1;
+				push @encrypted, $network;
 			    }
 			    else {
 				$has_other_network = 1;
+				push @encrypted, @all_networks;
 			    }
-                            push @encrypted, $network;
 			    $network->{radius_attributes} = {};
                         }
                     }
