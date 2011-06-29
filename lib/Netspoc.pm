@@ -8362,6 +8362,9 @@ sub link_tunnels () {
         $real_hubs and @$real_hubs
           or err_msg "No hubs have been defined for $name";
 
+        $real_spokes and @$real_spokes
+          or warn_msg "No spokes have been defined for $name";
+
 	# Substitute crypto name by crypto object.
         for my $real_hub (@$real_hubs) {
 	    for my $hub (@{ $real_hub->{hub} }) {
