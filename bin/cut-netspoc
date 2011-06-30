@@ -95,7 +95,7 @@ sub path_unmanaged {
 
 sub mark_unmanaged {
     for my $network (values %networks) {
-	next if $network->{is_used};
+	next if not $network->{is_used};
 	for my $interface (@{ $network->{interfaces} }) {
 	    my $router = $interface->{router};
 	    path_unmanaged($router, $interface);
