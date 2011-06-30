@@ -8509,13 +8509,16 @@ my $network_00 = new('Network', name => "network:0/0", ip => 0, mask => 0);
 sub crypto_behind {
     my ($interface, $managed) = @_;
     if ($managed) {
-	my $any_networks = $interface->{any}->{networks};
+	my $any = $interface->{any};
+	@{ $any->{interfaces} } == 1 or
+	    err_msg
+	    "Exactly one security domain must be located behind",
+	    "managed crypto $interface->{name}";
+	my $any_networks = $any->{networks};
 	@$any_networks;
     }
     else {
 	my $network = $interface->{network};
-
-	# Currently, we only support one network.
 	@{ $network->{interfaces} } == 1 or
 	    err_msg
 	    "Exactly one network must be located behind",
