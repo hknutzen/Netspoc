@@ -712,14 +712,13 @@ sub export_owners {
 	my @e_owners;
 	create_dirs("owner/$name");
 	for my $admin ( @{ $owner->{admins} } ) {
-
-	    # Normalize email to lower case.
-	    my $email = lc $admin->{email};
+	    my $email = $admin->{email};
 	    $email2owners{$email}->{$name} = $name;
 	    push @emails, $email;
 	}
 	if (my $watchers = $owner->{watchers}) {
 	    for my $admin ( @$watchers ) {
+		my $email = $admin->{email};
 
 		# Watchers are allowed to login, but aren't shown as owner.
 		$email2owners{$email}->{$name} = $name;
@@ -728,9 +727,7 @@ sub export_owners {
 	if (my $aref = $owner->{extended_by}) {
 	    for my $e_owner (@$aref) {
 		for my $admin ( @{ $e_owner->{admins} } ) {
-
-		    # Normalize email to lower case.
-		    my $email = lc $admin->{email};
+		    my $email = $admin->{email};
 		    $email2owners{$email}->{$name} = $name;
 		}
 		(my $e_name = $e_owner->{name}) =~ s/^owner://;
