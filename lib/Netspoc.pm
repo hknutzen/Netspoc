@@ -2337,7 +2337,7 @@ sub read_service( $ ) {
         if ($flag =~ /^(src|dst)_(path|net|any)$/) {
             $service->{flags}->{$1}->{$2} = 1;
         }
-        elsif ($flag =~ /^(?:stateless|reversed|oneway)/) {
+        elsif ($flag =~ /^(?:stateless|reversed|oneway|overlaps)/) {
             $service->{flags}->{$flag} = 1;
         }
         else {
@@ -5352,12 +5352,12 @@ sub show_deleted_rules1 {
     my %pname2file;
   RULE:
     for my $rule (@deleted_rules) {
-	my $srv = $rule->{srv};
-	if ($srv->{proto} eq 'icmp') {
-	    my $type = $srv->{type};
-	    next if defined $type && ($type == 0 || $type == 8);
-	}
 	my $other = $rule->{deleted};
+
+	my $srv1 = $rule->{orig_srv} || $rule->{srv};
+	my $srv2 = $other->{orig_srv} || $other->{srv};
+	next if $srv1->{flags}->{overlaps} && $srv2->{flags}->{overlaps};
+
 	my $policy = $rule->{rule}->{policy};
 	my $opolicy = $other->{rule}->{policy};
 	if (my $overlaps = $policy->{overlaps}) {
@@ -5384,8 +5384,7 @@ sub show_deleted_rules1 {
 	$ofile =~ s/.*?([^\/]+)$/$1/;
 	$pname2file{$pname} = $pfile;
 	$pname2file{$oname} = $ofile;
-	push(@{ $pname2oname2deleted{$policy->{name}}->{$opolicy->{name}} }, 
-	     $rule);
+	push(@{ $pname2oname2deleted{$pname}->{$oname} }, $rule);
     }
     my $print = 
 	$config{check_duplicate_rules} eq 'warn' ? \&warn_msg : \&err_msg;
@@ -5410,19 +5409,14 @@ sub show_deleted_rules2 {
     my %pname2file;
   RULE:
     for my $rule (@deleted_rules) {
-	my $srv = $rule->{srv};
+	my $other = $rule->{deleted};
 	
 	# Ignore automatically generated rules from crypto.
 	next if not $rule->{rule};
 
-	# Currently, ignore ICMP echo and echo-reply.
-	if ($srv->{proto} eq 'icmp') {
-	    my $type = $srv->{type};
-	    next if defined $type && ($type == 0 || $type == 8);
-	}
-
-	my $policy = $rule->{rule}->{policy};
-	my $pname = $policy->{name};
+	my $srv1 = $rule->{orig_srv} || $rule->{srv};
+	my $srv2 = $other->{orig_srv} || $other->{srv};
+	next if $srv1->{flags}->{overlaps} && $srv2->{flags}->{overlaps};
 
 	# Rule is still needed at device of $rule->{dst}.
 	if ($rule->{managed_intf} and not $rule->{deleted}->{managed_intf}) {
@@ -5439,7 +5433,7 @@ sub show_deleted_rules2 {
 	    }
 	}
 
-	my $other = $rule->{deleted};
+	my $policy = $rule->{rule}->{policy};
 	my $opolicy = $other->{rule}->{policy};
 	if (my $overlaps = $policy->{overlaps}) {
 	    for my $overlap (@$overlaps) {
@@ -5449,6 +5443,7 @@ sub show_deleted_rules2 {
 		}
 	    }
 	}
+	my $pname = $policy->{name};
 	my $oname = $opolicy->{name};
 	my $pfile = $policy->{file};
 	my $ofile = $opolicy->{file};
@@ -8360,7 +8355,7 @@ sub link_tunnels () {
         my $real_hubs   = delete $crypto2hubs{$name};
         my $real_spokes = delete $crypto2spokes{$name};
         $real_hubs and @$real_hubs
-          or err_msg "No hubs have been defined for $name";
+          or warn_msg "No hubs have been defined for $name";
 
         $real_spokes and @$real_spokes
           or warn_msg "No spokes have been defined for $name";
