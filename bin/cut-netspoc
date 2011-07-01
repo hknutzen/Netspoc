@@ -139,7 +139,7 @@ for my $ref (values %name2var) {
 &setany();
 &setpath();
 &expand_policies(1);
-die "Aborted with $error_counter error(s)\n" if $error_counter;
+&abort_on_error();
 
 # Process rules of policies.
 sub process_rules ( $ ) {
