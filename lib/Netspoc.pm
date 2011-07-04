@@ -6537,7 +6537,7 @@ sub distribute_nat_info() {
 
 sub get_nat_network {
     my ($network, $no_nat_set) = @_;
-    if (my $href = $network->{nat}) {
+    if (my $href = $network->{nat} and $no_nat_set) {
 	for my $tag (keys %$href) {
 	    next if $no_nat_set->{$tag};
 	    return $href->{$tag}
