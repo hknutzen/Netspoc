@@ -30,7 +30,7 @@ use utf8;
 use Encode;
 my $filename_encode = 'UTF-8';
 
-my $ignore_files = '^(raw|CVS|RCS|\.#.*|.*~)$';
+my $ignore_files = '^(raw|config|CVS|RCS|\.#.*|.*~)$';
 
 ####################################################################
 # Argument processing
@@ -55,7 +55,7 @@ info "Reading config";
 die "Aborted with $error_counter error(s)\n" if $error_counter;
 
 # Leave this characters unchanged.
-my $separator = qr/([-\@_.äöüß ]+)/;
+my $separator = qr/([-\@_.äöüß ,;]+)/;
 
 sub random {
     my ($old) = @_;
@@ -117,7 +117,11 @@ sub setup_subst {
 	    # Leave first two characters of policy name unchanged,
 	    # because sort order influences processing order.
 	    # Processing order needs to be unchanged for attribute 'overlaps'.
-	    my $renamed = $type eq 'policy' ? random2($name) : random($name);
+	    my $renamed = $type eq 'policy' 
+                        ? random2($name) 
+                        : $name =~ /^(?:TCP|UDP|IP|ICMP)(?:[-_\d]*|_ALL)$/
+                        ? $name
+                        : random($name);
 	    $subst{$type}->{$name} = $renamed;
 	}
     }
@@ -250,7 +254,7 @@ sub subst_ip {
 
     if ($in =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/) {
         if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
-            fatal_err "Invalid IP address";
+            fatal_err "Invalid IP address: $in";
         }
         $ip = unpack 'N', pack 'C4', $1, $2, $3, $4;
     }
@@ -279,6 +283,7 @@ sub subst_ip {
 sub process_file {
     my ($in, $out) = @_;
     local *FILE;
+    print STDERR "File $in\n";
     open FILE, $in or fatal_err "Can't open $in: $!";
     my @input = <FILE>;
     close FILE;
@@ -303,6 +308,7 @@ sub process_file_or_dir {
 	    my $rfile = 
 		($file =~ /^(:?rule|group|services|servicegroups|topology)$/) 
 		? $file : random2($file);
+#            $rfile = $file;
             $file = "$path/$file";
 	    $rfile = "$out/$rfile";
             process_file_or_dir($file, $rfile);
@@ -352,8 +358,33 @@ sub subst {
 
 sub subst_list {
     my ($type, $list) = @_;
+    $list =~ s/\s*$//;
     my @names = grep { $_ !~ /^$/ } split(/\s*,\s*/, $list);
     join(', ', map { subst($type, $_) } @names);
+}
+
+my %known_hw = (
+    bri => 1,
+    dialer => 1,
+    ethernet => 1,
+    fastethernet => 1,
+    gigabitethernet => 1,
+    inside => 1,
+    loopback => 1,
+    management => 1,
+    outside => 1,
+    serial => 1,
+    state => 1,
+    tunnel => 1,
+    vlan => 1,
+    );
+
+sub subst_hw {
+    my ($name) = @_;
+    $name =~ s/\s*$//;
+    my ($root, $ext) = $name =~ m/^(.*?)([\d\/:]*)$/ or 
+        fatal_err("Unexpected hardware: $name");
+    return $known_hw{lc $root} ? $name : "dmz$ext";
 }
     
 sub process {
@@ -363,23 +394,24 @@ sub process {
 	# Remove comments
 	$line =~ s/#.*//;
 
-	# Remove "description|name|email ="
-	$line =~ s/(:?description|name|email)\s*=.*//;
 	# Rename type:name
 	$line =~ s/([a-z]+):([-\w.\@:]+)/ "$1:" . subst($1, $2) /gex;
 	# Rename nat = name
-	$line =~ s/(nat\s*=\s*)([-\w.\@:]+)/ $1 . subst('nat', $2) /gex;
+	$line =~ s/(bind_nat\s*=\s*)([^;]+)/ 
+             $1 . subst_list('nat', $2) /gex;
 	# Rename owner|admins = name, ... ;
 	$line =~ s/(owner|admins)(\s*=\s*)([^;]+)/ 
 	    "$1$2" . subst_list($1, $3) /gex;
 	# Sustitute IP addresses.
 	$line =~ s/(\d+\.\d+\.\d+\.\d+)/ subst_ip($1) /gex;
-        # Anonymize non standard hardware names having '-' or '_'.
-        $line =~ s/(hardware\s*=\s*)\S*[-_]\S*?(\d+)(?=[\s;])/$1dmz$2/gx;
+        # Anonymize non standard hardware names.
+        $line =~ s/(hardware\s*=\s*)([^;]+)/$1 . subst_hw($2)/gex;
         # Anonymize VPN banner messages.
         $line =~ s/((?:banner|CVPN3000-IPSec-Banner1)\s*=\s*)([^;]*)/ $1 . random($2) /gex;
         # Anonymize ID of VPN network, but not numeric HSRP id.
         $line =~ s/(?<=\s)(id\s*=\s*)([-\w.]*\@[-\w.]+)/ $1 . random($2) /gex;
+	# Rename "description|name|email ="
+	$line =~ s/((?:description|name|email)\s*=\s*)(.*)/ $1 . random($2)/gex;
     }
 }
 
