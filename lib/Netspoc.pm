@@ -702,14 +702,8 @@ sub read_typed_name() {
         my $managed;
         my $name;
         my $ext;
-        if ($type eq 'host') {
-
-            if ($input =~ m/\G($hostname_regex)/gco) {
-                $name = $1;
-            }
-            else {
-                syntax_err "Hostname expected";
-            }
+        if ($type eq 'host' && $input =~ m/\G($hostname_regex)/gco) {
+	    $name = $1;
         }
         elsif ($input =~ m/ \G \[ /gcox) {
             my @list;
@@ -4717,65 +4711,93 @@ sub expand_group1( $$;$ ) {
 		: grep { $_->{ip} ne 'tunnel' } @check;
         }
         elsif (ref $name) {
-            my $sub_objects = expand_group1 $name, "$type:[..] of $context";
-            if ($type eq 'network') {
-		my @check;
-                for my $object (@$sub_objects) {
-                    next if $object->{disabled};
-                    $object->{is_used} = 1;
-                    my $type = ref $object;
-                    if ($type eq 'Area') {
-                        push @check,
-			  map { @{ $_->{networks} } } @{ $object->{anys} };
-                    }
-                    elsif ($type eq 'Any') {
-                        push @check, @{ $object->{networks} };
-                    }
-                    elsif ($type eq 'Host' or $type eq 'Interface') {
+            my $sub_objects = 
+		[ map { $_->{is_used} = 1; $_; }
+		  grep { not($_->{disabled}) }
+		  @{ expand_group1($name, "$type:[..] of $context") } ];
+	    my $get_anys = sub {
+		my ($object) = @_;
+		my @objects;
+		my $type = ref $object;
+		if ($type eq 'Area') {
+		    push @objects, @{ $object->{anys} };
+		}
+		elsif ($type eq 'Any') {
+		    push @objects, $object;
+		}
+		else {
+		    return undef;
+		}
+		return \@objects;
+	    };
+	    my $get_networks = sub {
+		my ($object) = @_;
+		my @objects;
+		my $type = ref $object;
+		if ($type eq 'Network') {
+		    push @objects, $object;
+		}
+		elsif ($type eq 'Host' or $type eq 'Interface') {
 
-                        # Don't add implicitly defined network 
-			# of loopback interface.
-                        if (not $object->{loopback}) {
-                            push @check, $object->{network};
-                        }
-                    }
-                    elsif ($type eq 'Network') {
-                        push @objects, $object;
-                    }
+		    # Don't add implicitly defined network 
+		    # of loopback interface.
+		    if (not $object->{loopback}) {
+			push @objects, $object->{network};
+		    }
+		}
+		elsif (my $anys = $get_anys->($object)) {
+		    push @objects, map { @{ $_->{networks} } } @$anys;
+		}
+		else {
+		    return undef;
+		}
+		return \@objects;
+	    };
+	    if ($type eq 'host') {
+                for my $object (@$sub_objects) {
+		    my $type = ref $object;
+		    if ($type eq 'Host') {
+			push @objects, $object;
+		    }
+		    elsif ($type ne 'Interface' and
+			   my $networks = $get_networks->($object)) 
+		    {
+			push @objects, map @{ $_->{hosts} }, @$networks;
+		    }
                     else {
                         err_msg
-                          "Unexpected type '$type' in network:[..] of $context";
+                          "Unexpected type '$type' in host:[..] of $context";
                     }
-                }
+		}
+	    }
+	    elsif ($type eq 'network') {
+		my @check;
+                for my $object (@$sub_objects) {
+		    if (my $networks = $get_networks->($object)) {
 
-		# Silently remove route_hint and crosslink networks
-		# from automatic groups.
-		push @objects, 
-		      $clean_autogrp
-		    ? grep { not $_->{route_hint} and not $_->{crosslink} }
-	              @check
-		    : @check;
+			# Silently remove route_hint and crosslink networks
+			# from automatic groups.
+			push @objects, 
+			      $clean_autogrp
+			    ? grep { not($_->{route_hint} or $_->{crosslink}) }
+			      @$networks
+			    : @$networks;
+		    }
+		    else {
+			my $type = ref $object;
+			err_msg("Unexpected type '$type' in network:[..] of",
+				" $context");
+		    }
+                }
             }
             elsif ($type eq 'any') {
                 for my $object (@$sub_objects) {
-                    next if $object->{disabled};
-                    $object->{is_used} = 1;
                     my $type = ref $object;
-                    if ($type eq 'Area') {
-                        push @objects, @{ $object->{anys} };
-                    }
-                    elsif ($type eq 'Any') {
-                        push @objects, $object;
-                    }
-                    elsif ($type eq 'Host' or $type eq 'Interface') {
-
-                        # Don't add implicitly defined network of loopback interface.
-                        if (not $object->{loopback}) {
-                            push @objects, $object->{network}->{any};
-                        }
-                    }
-                    elsif ($type eq 'Network') {
-                        push @objects, $object->{any};
+		    if (my $anys = $get_anys->($object)) {
+			push @objects, @$anys;
+		    }
+                    elsif (my $networks = $get_networks->($object)) {
+			push @objects, map($_->{any}, @$networks);
                     }
                     else {
                         err_msg
@@ -11357,7 +11379,7 @@ sub address( $$ ) {
             return [ $ip, $obj->{mask} ];
         }
     }
-    if ($type eq 'Interface') {
+    elsif ($type eq 'Interface') {
         if ($obj->{ip} =~ /unnumbered|short/) {
             internal_err "Unexpected $obj->{ip} $obj->{name}\n";
         }
