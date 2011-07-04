@@ -709,6 +709,7 @@ sub export_owners {
     for my $name ( keys %owners ) {
 	my $owner = $owners{$name};
 	my @emails;
+	my @watchers;
 	my @e_owners;
 	create_dirs("owner/$name");
 	for my $admin ( @{ $owner->{admins} } ) {
@@ -722,6 +723,7 @@ sub export_owners {
 
 		# Watchers are allowed to login, but aren't shown as owner.
 		$email2owners{$email}->{$name} = $name;
+		push @watchers, $email;
 	    }
 	}
 	if (my $aref = $owner->{extended_by}) {
@@ -736,6 +738,8 @@ sub export_owners {
 	}
 	export("owner/$name/emails", 
 	       [ map { { email => $_ } } sort @emails ]);
+	export("owner/$name/watchers", 
+	       [ map { { email => $_ } } sort @watchers ]);
 	export("owner/$name/extended_by", 
 	       [ map { { name => $_ } } sort @e_owners ]);
     }
