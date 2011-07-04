@@ -23,6 +23,10 @@ intersection or complement of simpler groups.
 
 Uses network:name as reference when resolving IP address in a NAT environment.
 
+=item B<-unused> 
+
+Show only elements not used in any rules.
+
 =item B<-name>
 
 Show only name of elements
@@ -77,11 +81,13 @@ use Pod::Usage;
 ####################################################################
 
 my $nat_net;
+my $show_unused;
 my $show_ip;
 my $show_name;
 my $help;
 my $man;
 GetOptions ( 'nat=s'  => \$nat_net,
+	     'unused' => \$show_unused,
 	     'ip!'    => \$show_ip,
 	     'name!' => \$show_name,
 	     'help|?' => \$help,
@@ -119,6 +125,7 @@ while (1) {
 &setany();
 &setpath();
 Netspoc::convert_hosts();
+&abort_on_error();
 
 # Find network for resolving NAT addresses.
 my $no_nat_set;
@@ -130,6 +137,31 @@ if($nat_net) {
 
 # Expand group definition(s).
 my $elements = Netspoc::expand_group(\@parsed, 'print-group', 'no_combine');
+
+# Find unused objects by marking used objects.
+if ($show_unused) {
+    &order_services();
+    &expand_policies(0);
+    &abort_on_error();
+    for my $type ('deny', 'any', 'permit') {
+	for my $rule (@{ $expanded_rules{$type} }) {
+	    for my $where ('src', 'dst') {
+		my $obj = $rule->{$where};
+		if (is_host $obj) {
+		    for my $subnet (@{ $obj->{subnets} }) {
+			$subnet->{is_used} = 1;
+		    }
+		}
+		else {
+		    $obj->{is_used} = 1;
+		}
+	    }
+	}
+    }
+    $elements = [ grep(not($_->{is_used}), @$elements) ];
+}
+
+# Collect IP address, mask and name.
 my @info = map { my $v = Netspoc::address($_, $no_nat_set); 
 		 $v->[2] = $_->{name};
 		 $v } @$elements;
