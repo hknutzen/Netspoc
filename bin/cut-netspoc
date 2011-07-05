@@ -284,7 +284,7 @@ for my $area (values %areas) {
 }
 for my $owner (values %owners) {
     next if not $owner->{is_used};
-    for my $admin (@{ $owner->{admins} }) {
+    for my $admin (@{ $owner->{admins} }, @{ $owner->{watchers} }) {
 	$admin->{is_used} = 1;
     }
 }	
