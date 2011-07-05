@@ -6885,6 +6885,7 @@ sub check_no_in_acl () {
 sub check_crosslink () {
     for my $network (values %networks) {
 	next if not $network->{crosslink};
+	next if $network->{disabled};
 
 	# A crosslink network combines two or more routers
 	# to one virtual router.
