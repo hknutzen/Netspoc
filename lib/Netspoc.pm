@@ -8921,6 +8921,7 @@ sub check_any_src_rule( $$$ ) {
 		# Find security domains at all interfaces except the in_intf.
 		for my $intf (@{ $router->{interfaces} }) {
 		    next if $intf eq $in_intf;
+		    next if $intf->{loopback};
 
 		    # Nothing to be checked for an interface directly connected
 		    # to the destination 'any' object.
@@ -9015,6 +9016,7 @@ sub check_any_dst_rule( $$$ ) {
         # Nothing to be checked for the interface which is connected
         # directly to the destination 'any' object.
         next if $intf eq $out_intf;
+	next if $intf->{loopback};
         my $any = $intf->{any};
 
         # Nothing to be checked if src is directly attached to current router.
