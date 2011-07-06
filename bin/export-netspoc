@@ -752,8 +752,10 @@ sub export_owners {
 
 sub copy_policy_file {
     my $policy_file = "$netspoc_data/POLICY";
-    system("cp -pf $policy_file $out_dir") == 0 or
-	err_msg "Can't copy $policy_file";
+    if ( -f $policy_file) {
+	system("cp -pf $policy_file $out_dir") == 0 or
+	    abort "Can't copy $policy_file";
+    }
 }
 
 ####################################################################
