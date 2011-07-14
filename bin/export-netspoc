@@ -55,6 +55,8 @@ sub unique(@) {
 	return values %{ {map { $_ => $_ } @_}}; 
 }
 
+sub by_name { $a->{name} cmp $b->{name} }
+
 # Take higher bits from network NAT, lower bits from original IP.
 # This works with and without NAT.
 sub nat {
@@ -200,7 +202,8 @@ sub owner_for_object {
 sub sub_owners_for_object {	
     my ($object) = @_;
     if (my $aref = $object->{sub_owners}) {
-	return map { (my $name = $_->{name}) =~ s/^owner://; $name } @$aref;
+	return 
+	    sort map { (my $name = $_->{name}) =~ s/^owner://; $name } @$aref;
     }
     return ();
 }
@@ -213,7 +216,7 @@ sub owners_for_objects {
 	    $owners{$name} = $name;
 	}
     }
-    return [ values %owners ];
+    return [ sort values %owners ];
 }
 
 sub sub_owners_for_objects {	
@@ -555,7 +558,7 @@ sub export_assets {
 	return \%sub_result;
     };
 
-    for my $any (values @all_anys) {
+    for my $any (@all_anys) {
 	next if $any->{disabled};
 	$all_objects{$any} = $any;
 	my $any_name = $any->{name};
@@ -592,8 +595,6 @@ sub export_assets {
 ####################################################################
 # Services, rules, users
 ####################################################################
-
-sub by_name { $a->{name} cmp $b->{name} }
 
 sub export_services {
     progress("Export services");
