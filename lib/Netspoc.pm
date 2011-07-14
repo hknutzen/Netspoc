@@ -4771,7 +4771,6 @@ sub expand_group1( $$;$ ) {
 		}
 	    }
 	    elsif ($type eq 'network') {
-		my @check;
                 for my $object (@$sub_objects) {
 		    if (my $networks = $get_networks->($object)) {
 
@@ -7027,7 +7026,9 @@ sub setarea1( $$$ ) {
 
     # Add any object to the corresponding area,
     # to have all any objects of an area available.
-    push @{ $area->{anys} }, $any;
+    if (not $any->{loopback}) {
+	push @{ $area->{anys} }, $any;
+    }
 
     # This will be used to prevent duplicate traversal of loops and
     # later to check for duplicate and overlapping areas.
@@ -7150,6 +7151,8 @@ sub setany() {
     for my $network (@networks) {
         next if $network->{any};
         my $name = "any:[$network->{name}]";
+
+	# ToDo: Avoid name of loopback interface of unmanaged device.
         my $any = new('Any', name => $name, link => $network);
         $any->{networks} = [];
         push @all_anys, $any;
@@ -7163,6 +7166,12 @@ sub setany() {
         @{ $any->{networks} } =
           sort { $a->{mask} <=> $b->{mask} || $a->{ip} <=> $b->{ip} }
           @{ $any->{networks} };
+
+	# Mark 'any' object which consists only of a loopback network.
+	if (@{ $any->{networks} } == 1) {
+	    my ($network) = @{ $any->{networks} };
+	    $any->{loopback} = 1 if $network->{loopback};
+	}
 
 	# Mark clusters of 'any' objects, which are connected by an
 	# unmanaged (semi_managed) device.
