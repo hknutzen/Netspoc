@@ -202,8 +202,7 @@ sub owner_for_object {
 sub sub_owners_for_object {	
     my ($object) = @_;
     if (my $aref = $object->{sub_owners}) {
-	return 
-	    sort map { (my $name = $_->{name}) =~ s/^owner://; $name } @$aref;
+	return map { (my $name = $_->{name}) =~ s/^owner://; $name } @$aref;
     }
     return ();
 }
@@ -227,7 +226,7 @@ sub sub_owners_for_objects {
 	    $owners{$name} = $name;
 	}
     }
-    return [ values %owners ];
+    return [ sort values %owners ];
 }
 
 sub expand_auto_intf {
@@ -414,7 +413,7 @@ sub setup_policy_info {
 # belonging to other owners.
 ######################################################################
 
-# We can't use %anys from Netspoc.pm because it only holds names any objects.
+# We can't use %anys from Netspoc.pm because it only holds named any objects.
 # But we need all any objects like any:[network:XX] here.
 my @all_anys;
 
@@ -560,6 +559,7 @@ sub export_assets {
 
     for my $any (@all_anys) {
 	next if $any->{disabled};
+	next if $any->{loopback};
 	$all_objects{$any} = $any;
 	my $any_name = $any->{name};
 	my $any_owner = owner_for_object($any) || '';
