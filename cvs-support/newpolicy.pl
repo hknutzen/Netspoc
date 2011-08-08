@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # newpolicy -- integrates NetSPoC with CVS
 # http://netspoc.berlios.de
-# (c) 2007 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+# (c) 2011 by Heinz Knutzen <heinzknutzen@users.berlios.de>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -144,7 +144,8 @@ chdir($pdir) or die "Error: during 'cd $pdir': $!\n";
 
 # Check out newest files from repository
 # into subdirectory "src" of policy directory.
-system('cvs', '-Q', 'checkout', '-d', 'src', $module) == 0 or
+# Prune empty directories.
+system('cvs', '-Q', 'checkout', '-P', '-d', 'src', $module) == 0 or
     die "Error: can't checkout $policy to $psrc\n";
 
 # Sanity check that working copy of calling user 
