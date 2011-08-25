@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
-use Test::More tests => 2;
+use Test::More;
 use lib 't';
 use Test_Netspoc;
 
@@ -170,3 +170,6 @@ my $head3 = (split /\n/, $out3)[0];
 
 is_deeply(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3, 
 	  $title);
+
+############################################################
+done_testing;

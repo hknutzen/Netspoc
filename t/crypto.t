@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
-use Test::More tests => 3;
+use Test::More;
 use lib 't';
 use Test_Netspoc;
 
@@ -189,3 +189,6 @@ my $compiled = compile($in);
 is_deeply(get_block($compiled, $head1), $out1, "$title: Crypto");
 is_deeply(get_block($compiled, $head2), $out2, "$title: ACL");
 is_deeply(get_block($compiled, $head3), $out3, "$title: NAT");
+
+############################################################
+done_testing;
