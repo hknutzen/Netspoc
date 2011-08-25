@@ -10577,11 +10577,15 @@ sub print_pix_static( $ ) {
     }
     print "\n";
 
-    # Index for naming NAT pools. This is also referenced in "nat" command.
-    my $nat_index = 1;
+    # Index for linking "global" and "nat" commands.
+    my $dyn_index = 1;
 
     # Hash of indexes for reusing of NAT pools.
-    my %intf2net2mask2index;
+    my %global2index;
+
+    # Hash of indexes for creating only a single "nat" command if mapped at
+    # different interfaces.
+    my %nat2index;
 
     for my $in_hw (@hardware) {
         my $src_nat = $in_hw->{src_nat} or next;
@@ -10674,12 +10678,18 @@ sub print_pix_static( $ ) {
 
                     # Use a single "global" command if multiple networks are
                     # mapped to a single pool.
-                    my $index =
-                      $intf2net2mask2index{$out_name}->{$out_ip}->{$out_mask};
-                    if (not $index) {
-                        $index = $nat_index++;
-                        $intf2net2mask2index{$out_name}->{$out_ip}
-                          ->{$out_mask} = $index;
+		    my $global_index = 
+			$global2index{$out_name}->{$out_ip}->{$out_mask};
+
+		    # Use a single "nat" command if one network is mapped to
+		    # different pools at different interfaces.
+		    my $nat_index = $nat2index{$in_name}->{$in_ip}->{$in_mask};
+		    $global_index and $nat_index and internal_err;
+
+                    my $index = $global_index || $nat_index || $dyn_index++;
+                    if (not $global_index) {
+                        $global2index{$out_name}->{$out_ip}->{$out_mask} = 
+			    $index;
                         my $pool;
 
                         # global (outside) 1 interface
@@ -10703,12 +10713,15 @@ sub print_pix_static( $ ) {
                         }
                         print "global ($out_name) $index $pool\n";
                     }
-                    my $in   = print_ip $in_ip;
-                    my $mask = print_ip $in_mask;
-                    print "nat ($in_name) $index $in $mask";
-                    print " outside" if $in_hw->{level} < $out_hw->{level};
-                    print "\n";
-                    $nat_index++;
+
+		    if (not $nat_index) {
+			$nat2index{$in_name}->{$in_ip}->{$in_mask} = $index;
+			my $in   = print_ip $in_ip;
+			my $mask = print_ip $in_mask;
+			print "nat ($in_name) $index $in $mask";
+			print " outside" if $in_hw->{level} < $out_hw->{level};
+			print "\n";
+		    }
 
                     # Check for static NAT entries of hosts and interfaces.
                     for my $host (@{ $network->{subnets} },
