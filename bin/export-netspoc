@@ -254,7 +254,6 @@ sub proto_descr {
     my @result;
     for my $proto0 (@$protocols) {
 	my $protocol = $proto0;
-	$protocol = $protocol->{main} if $protocol->{main};
 	my $desc = my $ptype = $protocol->{proto};
 	if ($ptype eq 'tcp' or $ptype eq 'udp') {
 	    my $port_code = sub ( $$ ) {
