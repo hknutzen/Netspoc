@@ -319,6 +319,9 @@ my %router_info = (
                 stateless_tunnel => 1,
                 do_auth          => 1,
             },
+	    '8.4' => {
+		v8_4 => 1,
+	    },
         },
     },
     Linux => {
@@ -600,7 +603,7 @@ sub read_owner_pattern() {
     }
 }
 
-# Used for reading interface names and attribute 'id'.
+# Used for reading interface name, model and attribute 'id'.
 sub read_name() {
     skip_space_and_comment;
     if ($input =~ m/(\G[^;,\s""'']+)/gc) {
@@ -1790,8 +1793,8 @@ sub read_router( $ ) {
             }
             $router->{managed} = $managed;
         }
-        elsif (my ($model, @attributes) = check_assign_list 'model',
-            \&read_identifier)
+        elsif (my ($model, @attributes) = check_assign_list('model',
+							    \&read_name))
         {
             my @attr2;
             ($model, @attr2) = split /_/, $model;
@@ -13431,9 +13434,23 @@ tunnel-group $tunnel_group_name general-attributes
  username-from-certificate EA
 tunnel-group $tunnel_group_name ipsec-attributes
  chain
+EOF
+
+    if ($model->{v8_4}) {
+print <<"EOF";
+ ikev1 trust-point $trust_point
+! Disable extended authentication.
+ ikev1 user-authentication none
+EOF
+    }
+    else {
+print <<"EOF";
  trust-point $trust_point
 ! Disable extended authentication.
  isakmp ikev1-user-authentication none
+EOF
+    }
+    print <<"EOF";
 tunnel-group-map default-group $tunnel_group_name
 
 EOF
@@ -13602,25 +13619,24 @@ EOF
                     $attributes->{'vpn-filter'}    = $filter_name;
                     $attributes->{'address-pools'} = $pool_name;
                     my $group_policy_name = "VPN-group-$user_counter";
-                    my %tunnel_gen_att;
-                    $tunnel_gen_att{'default-group-policy'} =
-                      $group_policy_name;
-
+                    my @tunnel_gen_att =
+			("default-group-policy $group_policy_name");
                     if (my $auth_server =
                         delete $attributes->{'authentication-server-group'})
                     {
-                        $tunnel_gen_att{'authentication-server-group'} =
-                          $auth_server;
+			push(@tunnel_gen_att, 
+			     "authentication-server-group $auth_server");
                     }
-                    my %tunnel_ipsec_att;
-                    $tunnel_ipsec_att{isakmp} =
-                      'ikev1-user-authentication none';
 
-		    # Don't generate default value.
-                    ##$tunnel_ipsec_att{'peer-id-validate'} = 'req';
-                    my $trustpoint2 = delete $attributes->{'trust-point'}
-                      || $trust_point;
-                    $tunnel_ipsec_att{'trust-point'} = $trustpoint2;
+                    my $trustpoint2 = 
+			delete $attributes->{'trust-point'} || $trust_point;
+                    my @tunnel_ipsec_att = 
+			$model->{v8_4} 
+		      ? ("ikev1 trust-point $trustpoint2",
+			 'ikev1 user-authentication none')
+		      : ("trust-point $trustpoint2",
+			 'isakmp ikev1-user-authentication none');
+
                     $print_group_policy->($group_policy_name, $attributes);
 
                     my $tunnel_group_name = "VPN-tunnel-$user_counter";
@@ -13629,15 +13645,15 @@ tunnel-group $tunnel_group_name type remote-access
 tunnel-group $tunnel_group_name general-attributes
 EOF
 
-                    while (my ($key, $value) = each %tunnel_gen_att) {
-                        print " $key $value\n";
+                    for my $line (@tunnel_gen_att) {
+                        print " $line\n";
                     }
                     print <<"EOF";
 tunnel-group $tunnel_group_name ipsec-attributes
 EOF
 
-                    while (my ($key, $value) = each %tunnel_ipsec_att) {
-                        print " $key $value\n";
+                    for my $line (@tunnel_ipsec_att) {
+                        print " $line\n";
                     }
                     print <<"EOF";
 tunnel-group-map ca-map-$user_counter 10 $tunnel_group_name
@@ -14218,7 +14234,12 @@ sub print_crypto( $ ) {
 		    print "tunnel-group $peer_ip type ipsec-l2l\n";
 		    print "tunnel-group $peer_ip ipsec-attributes\n";
 		    if ($authentication eq 'preshare') {
-			print " pre-shared-key *****\n";
+			if ($model->{v8_4}) {
+			    print " ikev1 pre-shared-key xxx\n";
+			}
+			else {
+			    print " pre-shared-key *****\n";
+			}
 			print " peer-id-validate nocheck\n";
 		    }
 		    elsif ($authentication eq 'rsasig') {
@@ -14226,8 +14247,14 @@ sub print_crypto( $ ) {
 			    err_msg "Missing 'trust_point' in",
 			    " isakmp attributes for $router->{name}";
 			print " chain\n";
-			print " trust-point $trust_point\n";
-			print " isakmp ikev1-user-authentication none\n";
+			if ($model->{v8_4}) {
+			    print " ikev1 trust-point $trust_point\n";
+			    print " ikev1 user-authentication none\n";
+			}
+			else {
+			    print " trust-point $trust_point\n";
+			    print " isakmp ikev1-user-authentication none\n";
+			}
 		    }
 		}
 	    }
