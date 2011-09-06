@@ -4138,7 +4138,12 @@ sub mark_disabled() {
     }
     for my $area (values %areas) {
         if (my $anchor = $area->{anchor}) {
-            push @all_areas, $area if not $anchor->{disabled};
+	    if ($anchor->{disabled}) {
+                $area->{disabled} = 1;
+	    }
+	    else {
+		push @all_areas, $area;
+	    }
         }
         else {
             $area->{border} =
