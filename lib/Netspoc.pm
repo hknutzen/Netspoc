@@ -4749,7 +4749,12 @@ sub expand_group1( $$;$ ) {
 		    }
 		}
 		elsif (my $anys = $get_anys->($object)) {
-		    push @objects, map { @{ $_->{networks} } } @$anys;
+
+		    # Don't add implicitly defined network 
+		    # of loopback interface.
+		    push(@objects, 
+			 grep { not($_->{loopback}) }
+			 map  { @{ $_->{networks} } } @$anys);
 		}
 		else {
 		    return undef;
@@ -6961,9 +6966,10 @@ sub setany_network( $$$ ) {
 
     # Add network to the corresponding 'any' object,
     # to have all networks of a security domain available.
-    # Unnumbered networks are left out here because
-    # they aren't a valid src or dst.
-    unless ($network->{ip} =~ /^(?:unnumbered|tunnel)$/) {
+    # Unnumbered or tunnel network is left out here because
+    # it isn't valid src or dst.
+    # Loopback network must be preserved because it is needed for routing.
+    if (not($network->{ip} =~ /^(?:unnumbered|tunnel)$/)) {
         push @{ $any->{networks} }, $network;
     }
     for my $interface (@{ $network->{interfaces} }) {
