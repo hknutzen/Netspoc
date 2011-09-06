@@ -7336,7 +7336,8 @@ sub check_pathrestrictions() {
             # inside or at the border of cyclic graphs.
             if (not ($obj->{loop} || 
 		     $obj->{router}->{loop} || 
-		     $obj->{any}->{loop})) 
+		     $obj->{any}->{loop} ||
+		     $obj->{disabled})) 
 	    {
 		delete $obj->{path_restrict};
 		warn_msg "Ignoring $restrict->{name} at $obj->{name}\n",
