@@ -4545,6 +4545,7 @@ sub expand_group1( $$;$ ) {
                 $result = $intersection;
             }
             for my $element (@compl) {
+		next if $element->{disabled};
                 delete $result->{$element}
 		or warn_msg "Useless delete of $element->{name} in $context";
             }
