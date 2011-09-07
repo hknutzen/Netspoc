@@ -5252,7 +5252,7 @@ sub expand_special ( $$$$ ) {
                 }
             }
             elsif ($type eq 'Interface') {
-                if ($obj->{router}->{managed}) {
+                if ($obj->{router}->{managed} || $obj->{loopback}) {
                     push @other, $obj;
                     next;
                 }
