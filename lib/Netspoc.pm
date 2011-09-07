@@ -2886,9 +2886,11 @@ sub get_id( $ ) {
 sub print_rule( $ ) {
     my ($rule) = @_;
     my $extra = '';
+    my $policy = $rule->{rule} && $rule->{rule}->{policy};
     $extra .= " $rule->{for_router}" if $rule->{for_router};
     $extra .= " stateless"           if $rule->{stateless};
     $extra .= " stateless_icmp"      if $rule->{stateless_icmp};
+    $extra .= " of $policy->{name}"  if $policy;
     my $srv = exists $rule->{orig_srv} ? 'orig_srv' : 'srv';
     my $action = $rule->{action};
     $action = $action->{name} if is_chain $action;
