@@ -82,7 +82,13 @@ sub ip_nat_for_object {
 	    }
 	    elsif ($obj->{ip} eq 'unnumbered') {
 		$obj->{ip}
-		}
+	    }
+
+	    # Don't print mask for loopback network. It needs to have
+	    # exactly the same address as the corresponding loopback interface.
+	    elsif ($obj->{loopback}) {
+		print_ip($obj->{ip});
+	    }
 	    else {
 		join('/', print_ip($obj->{ip}), print_ip($obj->{mask}));
 	    }
