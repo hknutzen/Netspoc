@@ -4749,20 +4749,10 @@ sub expand_group1( $$;$ ) {
 		    push @objects, $object;
 		}
 		elsif ($type eq 'Host' or $type eq 'Interface') {
-
-		    # Don't add implicitly defined network 
-		    # of loopback interface.
-		    if (not $object->{loopback}) {
-			push @objects, $object->{network};
-		    }
+		    push @objects, $object->{network};
 		}
 		elsif (my $anys = $get_anys->($object)) {
-
-		    # Don't add implicitly defined network 
-		    # of loopback interface.
-		    push(@objects, 
-			 grep { not($_->{loopback}) }
-			 map  { @{ $_->{networks} } } @$anys);
+		    push(@objects, map  { @{ $_->{networks} } } @$anys);
 		}
 		else {
 		    return undef;
@@ -7043,9 +7033,7 @@ sub setarea1( $$$ ) {
 
     # Add any object to the corresponding area,
     # to have all any objects of an area available.
-    if (not $any->{loopback}) {
-	push @{ $area->{anys} }, $any;
-    }
+    push @{ $area->{anys} }, $any;
 
     # This will be used to prevent duplicate traversal of loops and
     # later to check for duplicate and overlapping areas.
@@ -10827,6 +10815,9 @@ sub distribute_rule( $$$ ) {
         # No code needed if it is deleted by another rule to the same interface.
         return if $rule->{deleted}->{managed_intf};
     }
+
+    # Don't generate code for src any:[interface:r.loopback] at router:r.
+    return if $in_intf->{loopback};
 
     # Validate dynamic NAT.
     if (my $dynamic_nat = $rule->{dynamic_nat}) {
