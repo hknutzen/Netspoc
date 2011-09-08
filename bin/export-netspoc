@@ -81,7 +81,7 @@ sub ip_nat_for_object {
 		'hidden';
 	    }
 	    elsif ($obj->{ip} eq 'unnumbered') {
-		'nnumbered'
+		$obj->{ip}
 		}
 	    else {
 		join('/', print_ip($obj->{ip}), print_ip($obj->{mask}));
