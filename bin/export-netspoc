@@ -110,7 +110,7 @@ sub ip_nat_for_object {
 		    # Single static NAT IP for this host.
 		    print_ip($ip);
 		}
-		elseif ($network->{hidden}) {
+		elsif ($network->{hidden}) {
 		    'hidden';
 		}
 		else {
