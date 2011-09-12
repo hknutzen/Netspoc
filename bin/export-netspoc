@@ -110,8 +110,11 @@ sub ip_nat_for_object {
 		    # Single static NAT IP for this host.
 		    print_ip($ip);
 		}
+		elseif ($network->{hidden}) {
+		    'hidden';
+		}
 		else {
-		    
+
 		    # Dynamic NAT, take whole network.
 		    join('/', 
 			 print_ip($network->{ip}), print_ip($network->{mask}));
