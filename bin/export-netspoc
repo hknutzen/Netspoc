@@ -264,7 +264,7 @@ sub expand_auto_intf {
 sub proto_descr {
     my ($protocols) = @_;
     my @result;
-    for my $proto0 (sort by_name @$protocols) {
+    for my $proto0 (@$protocols) {
 	my $protocol = $proto0;
 	my $desc = my $ptype = $protocol->{proto};
 	if ($ptype eq 'tcp' or $ptype eq 'udp') {
@@ -315,6 +315,7 @@ sub proto_descr {
 	}
 	push @result, $desc;
     }
+    @result = sort @result;
     \@result;
 }
 
