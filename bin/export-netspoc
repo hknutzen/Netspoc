@@ -258,7 +258,7 @@ sub expand_auto_intf {
 sub proto_descr {
     my ($protocols) = @_;
     my @result;
-    for my $proto0 (@$protocols) {
+    for my $proto0 (sort by_name @$protocols) {
 	my $protocol = $proto0;
 	my $desc = my $ptype = $protocol->{proto};
 	if ($ptype eq 'tcp' or $ptype eq 'udp') {
@@ -373,8 +373,10 @@ sub setup_policy_info {
 
 		    # Store expanded src and dst for later use 
 		    # in export_services.
-		    $rule->{"expanded_$what"} =
-		    Netspoc::expand_group($rule->{$what}, "$what of $pname");
+		    $rule->{"expanded_$what"} = 
+		    [ sort by_name
+		    @{ Netspoc::expand_group($rule->{$what}, 
+					     "$what of $pname") } ];
 
 		# Expand auto interface to set of real interfaces.
 		# This changes {expanded_src} and {expanded_dst} as well.
