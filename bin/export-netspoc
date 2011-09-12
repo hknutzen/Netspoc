@@ -156,6 +156,9 @@ sub ip_nat_for_object {
 		    # Single static NAT IP for this interface.
 		    print_ip($ip);
 		}
+		elsif ($network->{hidden}) {
+		    'hidden';
+		}
 		else {
 		    
 		    # Dynamic NAT, take whole network.
