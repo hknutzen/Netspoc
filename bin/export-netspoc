@@ -575,6 +575,11 @@ sub export_assets {
     for my $any (@all_anys) {
 	next if $any->{disabled};
 	next if $any->{loopback};
+	if(@{ $any->{networks} } == 1 and 
+	   $any->{networks}->[0]->{ip} eq 'tunnel') 
+	{
+	    next;
+	}
 	$all_objects{$any} = $any;
 	my $any_name = $any->{name};
 	my $any_owner = owner_for_object($any) || '';
