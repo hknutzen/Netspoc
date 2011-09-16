@@ -3863,6 +3863,7 @@ sub check_ip_addresses {
                   " a managed $route_intf->{name} with static routing enabled.";
             }
         }
+	my %range;
         for my $host (@{ $network->{hosts} }) {
             if (my $ip = $host->{ip}) {
 		if (my $other_device = $ip{$ip}) {
@@ -3874,6 +3875,17 @@ sub check_ip_addresses {
 		    $ip{$ip} = $host;
 		}
             }
+	    elsif (my $range = $host->{range}) {
+		my ($from, $to) = @$range;
+		if (my $other_device = $range{$from}->{$to}) {
+		    err_msg
+			"Duplicate IP range for $other_device->{name}",
+			" and $host->{name}";
+		}
+		else {
+		    $range{$from}->{$to} = $host;
+		}
+	    }
         }
         for my $host (@{ $network->{hosts} }) {
             if (my $range = $host->{range}) { 
