@@ -12177,23 +12177,25 @@ sub gen_srv_bintree ( $$ ) {
             and $hi->{subtree}
             and $lo->{subtree} eq $hi->{subtree})
         {
-
-#           debug "Merged: $lo->{range}->[0]-$lo->{range}->[1]",
-#           " $hi->{range}->[0]-$hi->{range}->[1]";
-            {
-                proto   => $proto,
-                range   => $range,
-                subtree => $lo->{subtree}
-            };
+	    my @hilo = grep(defined($_), 
+			    $lo->{lo},$lo->{hi}, $hi->{lo}, $hi->{hi});
+	    if (@hilo <= 2) {
+#		debug "Merged: $lo->{range}->[0]-$lo->{range}->[1]",
+#		" $hi->{range}->[0]-$hi->{range}->[1]";
+		my $node = { proto   => $proto,
+			     range   => $range,
+			     subtree => $lo->{subtree}
+			 };
+		$node->{lo} = shift @hilo if @hilo;
+		$node->{hi} = shift @hilo if @hilo;
+		return $node;
+	    }
         }
-        else {
-            {
-                proto => $proto,
-                range => $range,
-                lo    => $lo,
-                hi    => $hi
-            };
-        }
+	return({ proto => $proto,
+		 range => $range,
+		 lo    => $lo,
+		 hi    => $hi
+		 });
     };
     for my $what (qw(tcp udp)) {
         next if not $top_srv{$what};
