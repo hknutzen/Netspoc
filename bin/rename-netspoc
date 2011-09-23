@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # rename-netspoc
-#
+# 
 #
 # http://netspoc.berlios.de
 # (c) 2011 by Heinz Knutzen <heinzknutzen@users.berlios.de>
@@ -34,7 +34,7 @@ my $ignore_files = '^(raw|config|CVS|RCS|\.#.*|.*~)$';
 # Argument processing
 ####################################################################
 sub usage() {
-    die "Usage: $0 {in-file | in-directory} type old-name new-name\n";
+    die "Usage: $0 {in-file | in-directory} type:old-name type:new-name\n";
 }
  
 sub debug ( @ ) {
@@ -45,53 +45,53 @@ sub fatal_err( @ ) {
     print STDERR "Error: ", @_, "\n";
     die "Aborted\n";
 }
- 
-# Extension for te
-my $backup_extension = '.#bak';
- 
-####################################################################
-# Main program
-####################################################################
- 
+
+my %global_type = 
+    map { $_ => 1 } qw( 
+router network  host any group area policy
+owner admin service servicegroup pathrestriction nat isakmp ipsec crypto 
+);
+
 my %subst;
- 
-my %global_type = (
-                                  router          => 1,
-                                  network         => 1,
-                                  any             => 1,
-                                  area            => 1,
-                                  owner           => 1,
-                                  admin           => 1,
-                                  group           => 1,
-                                  service         => 1,
-                                  servicegroup    => 1,
-                                  policy          => 1,
-                                  pathrestriction => 1,
-                                  nat             => 1,
-                                  isakmp          => 1,
-                                  ipsec           => 1,
-                                  crypto          => 1,
-                                  host            => 1,
-                                  );
- 
+
+# Fill %subst with arrays of search/replace pairs for given type.
 sub setup_subst {
     my ($type, $search, $replace) = @_;
     $global_type{$type} or fatal_err("Unknown type $type");
-    $search =~ /^[\w-]+$/ or fatal_err "Illagal search string";
-    $replace =~ /^[\w-]+$/ or fatal_err "Illagal replace string";
-    push @{ $subst{$type} }, [$search, $replace];
+
+    # Quote pattern metacharacters.
+    $search = qr/\Q$search\E/;
+
+    # Escape perl sigils in replace string, because we apply eval on it.
+    $replace =~ s/([@%\$])/\\$1/g;
+
+    # Standard for all types.
+    push @{ $subst{$type} }, [qr/$search/, $replace];
+
+    # Network name occurs in interface name and in id: hosts.
     if ($type eq 'network') {
         push(@{ $subst{interface} },
              [ qr/([\w@-]+\.)$search(.*)?/, '$1'.$replace.'$2' ]);
         push(@{ $subst{host} },
-             [ qr/(.*\.)$search/, '$1'.$replace ]);
+             [ qr/(id:.*\.)$search/, '$1'.$replace ]);
     }
+
+    # Router name occurs in interface name.
     elsif ($type eq 'router') {
         push(@{ $subst{interface} }, [ qr/$search([.@].*)/, $replace.'$1' ]);
     }
+
+    # Name of id: host is extended with some network name.
+    elsif ($type eq 'host') {
+        push(@{ $subst{host} }, [ qr/$search([.][\w-]+)/, $replace.'$1' ]);
+    }
+
+    # NAT is applied with bind_nat.
     elsif ($type eq 'nat') {
         $subst{bind_nat} = $subst{nat};
     }
+
+    # Admin attribute is named "admins" in definition of owner.
     elsif ($type eq 'admin') {
         $subst{admins} = $subst{admin};
     }
@@ -104,7 +104,7 @@ sub subst {
                 my ($search, $replace) = @$pair;
                 if ($name =~ /^$search$/) {
  
-                    # Eval $1, .. inside $replace.
+                    # Eval special variables $1, $2, .. inside $replace.
                     return eval("\"$replace\"");
                 }
     }
@@ -118,10 +118,14 @@ sub process {
     for my $line (@$lines) {
         my $copy = '';
         my $line_changed;
+      TOKEN:
         while(1) {
 
-            # Substitute list of ", name ..."
+            # Handle list of names 
+            # - after "name = "
+            # - and on new line.
             if ($type_list) {
+              LIST:
                 while (1) {
 
                     # Read list element.
@@ -142,14 +146,14 @@ sub process {
                         $copy .= $1;
                     }
                     else {
-                        last;
+                        last LIST;
                     }                    
                 }
 
                 # Whitespace or comment at end of line doesn't terminate list.
                 if ($line =~ /\G (\s* (?:[#].*)? ) $/gcx) {
                     $copy .= $1;
-                    last;
+                    last TOKEN;
                 }
 
                 # Everything else terminates list.
@@ -158,13 +162,15 @@ sub process {
                 }
             }
 
-            # Find next "type:name" or "type = name"
-            elsif ($line =~ /\G (.*?) (\w+) (:|\s*=\s*) ([-\w.\@:]+) /gcx) {
+            # Find next "type:name" or "type = name".
+            elsif ($line =~ /\G (.*?) (\w+) (:|\s*=\s*) /gcx) {
                 $copy .= "$1$2$3";
                 my $type = $2;
-                $type_list = ($3 eq ':') ? undef : $subst{$type} ? $type : undef;
-                my $name = $4;
-                if (my $new = subst($2, $name)) {
+                next if not $subst{$type};
+                next if $type_list = ($3 eq ':') ? undef : $type;
+                $line =~ /\G  ([-\w.\@:]+) /gcx or next;
+                my $name = $1;
+                if (my $new = subst($type, $name)) {
                     $copy .= $new;
                     $line_changed = 1;
                 }
@@ -172,9 +178,11 @@ sub process {
                     $copy .= $name;
                 }
             }
+
+            # Ignore rest of line of nothing matches.
             else {
-                $line =~ /\G (.+) / and $copy .= $1;
-                last;
+                $line =~ /\G (.+) /gcsx and $copy .= $1;
+                last TOKEN;
             }
         }
         if ($line_changed) {
@@ -187,16 +195,15 @@ sub process {
  
 sub process_file {
     my ($path) = @_;
-    debug "File $path";
+#    debug "File $path";
     open(my $file, '<', $path) or fatal_err "Can't open $path: $!";
     my @input = <$file>;
     close $file;
     if (process(\@input)) {
-                my $backup = "$path.$backup_extension";
-                unlink($path) or fatal_err "can't remove $path: $!\n";
-                open($file, '>', $path) or fatal_err "Can't create $path: $!";
-                print $file @input;
-                close $file;
+        unlink($path) or fatal_err "Can't remove $path: $!\n";
+        open($file, '>', $path) or fatal_err "Can't create $path: $!";
+        print $file @input;
+        close $file;
     }
 }
  
@@ -220,11 +227,16 @@ sub process_file_or_dir {
         process_file($path);
     }
 }
- 
+
+####################################################################
+# Main program
+####################################################################
  
 my $path = shift @ARGV or usage;
-my $type = shift @ARGV or usage;
-my $search = shift @ARGV or usage;
-my $replace = shift @ARGV or usage;
-setup_subst($type, $search, $replace);
+my $old = shift @ARGV or usage;
+my $new = shift @ARGV or usage;
+my ($type, $old_name) = split(/:/, $old, 2);
+my ($n_type, $new_name) = split(/:/, $new, 2);
+$type eq $n_type or fatal_err "Types '$type' and '$n_type' must be identical";
+setup_subst($type, $old_name, $new_name);
 process_file_or_dir($path);
