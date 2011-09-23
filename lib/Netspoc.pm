@@ -682,14 +682,14 @@ sub read_typed_name() {
     my $hostname_regex = qr/(?:id:$id_regex|[\w-]+)/;
 
 # Check for xxx:xxx or xxx:[xxx:xxx, ...]
-# or interface:rrr.xxx 
-# or interface:rrr.xxx.xxx 
-# or interface:rrr.[xxx]
+# or interface:r@v.xxx 
+# or interface:r@v.xxx.xxx 
+# or interface:r@v.[xxx]
 # or interface:[xxx:xxx, ...].[xxx] 
 # or interface:[managed & xxx:xxx, ...].[xxx]
 # or host:id:user@domain.network
 #
-# with rrr = xxx | xxx@xxx
+# with r@v = xxx | xxx@xxx
     sub read_extended_name() {
         if (check 'user') {
 
@@ -716,8 +716,7 @@ sub read_typed_name() {
             }
             $name = [ read_union ']' ];
         }
-	elsif ($interface && 
-	       $input =~ m/ \G ( [\w-]+ (?: \@ [\w-]+ ) ) /gcx ||
+	elsif ($interface && $input =~ m/ \G ( [\w-]+ (?: \@ [\w-]+ ) ) /gcx ||
 	       $input =~ m/ \G ( [\w-]+ ) /gcx) 
 	{
 	    $name = $1;
