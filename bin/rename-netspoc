@@ -110,72 +110,59 @@ sub subst {
     }
     return undef;
 }
- 
-sub subst_list {
-    my ($type, $list) = @_;
-    my $changed;
- 
-    # Remove spaces.
-    $list =~ s/\s*//g;
- 
-    # Split at comma.
-    my @names = grep { $_ !~ /^$/ } split(/,/, $list);
-    my @new;
-    for my $name (@names) {
-                if (my $new = subst($type, $name)) {
-                    $changed = 1;
-                    push @new, $new;
-                } else {
-                    push @new, $name;
-                }
-    }
-    return $changed ? join(', ', @new) : undef;
-}
-   
+
 sub process {
     my ($lines) = @_;
     my $changed;
+    my $type_list;
     for my $line (@$lines) {
         my $copy = '';
         my $line_changed;
-
-        my $subst_list = sub {
-            my ($type) = @_;
-            while (1) {
-
-                # Read list element ", name".
-                if ($line =~ /\G (\s*,\s*) ([-\w.\@:]+) /gcx) {
-                    $copy .= $1;
-                    my $name = $2;
-                    if (my $new = subst($type, $name)) {
-                        $copy .= $new;
-                        $line_changed = 1;
-                    }
-                    else {
-                        $copy .= $name;
-                    }
-                }
-                else {
-                    last;
-                }                    
-            }
-        };
-
-        my $in_list;
         while(1) {
 
-            if (my $type = $in_list) {
-                $subs_list->($type);
-                if (/\G (#.*) /gcx) {
+            # Substitute list of ", name ..."
+            if ($type_list) {
+                while (1) {
+
+                    # Read list element.
+                    if ($line =~ /\G (\s*) ([-\w.\@:]+) /gcx) {
+                        $copy .= $1;
+                        my $name = $2;
+                        if (my $new = subst($type_list, $name)) {
+                            $copy .= $new;
+                            $line_changed = 1;
+                        }
+                        else {
+                            $copy .= $name;
+                        }
+                    }
+
+                    # Read comma.
+                    elsif ($line =~ /\G (\s*,\s*) /gcx) {
+                        $copy .= $1;
+                    }
+                    else {
+                        last;
+                    }                    
+                }
+
+                # Whitespace or comment at end of line doesn't terminate list.
+                if ($line =~ /\G (\s* (?:[#].*)? ) $/gcx) {
                     $copy .= $1;
-                    $line = $copy;
                     last;
                 }
+
+                # Everything else terminates list.
+                else {
+                    $type_list = undef;
+                }
+            }
+
             # Find next "type:name" or "type = name"
-            if ($line =~ /\G (.*?) (\w+) (:|\s*=\s*) ([-\w.\@:]+) /gcx) {
+            elsif ($line =~ /\G (.*?) (\w+) (:|\s*=\s*) ([-\w.\@:]+) /gcx) {
                 $copy .= "$1$2$3";
                 my $type = $2;
-                my $is_list = ($3 ne ':');
+                $type_list = ($3 eq ':') ? undef : $subst{$type} ? $type : undef;
                 my $name = $4;
                 if (my $new = subst($2, $name)) {
                     $copy .= $new;
@@ -184,48 +171,16 @@ sub process {
                 else {
                     $copy .= $name;
                 }
-                if ($is_list) {
-                    $in_list = $type;
-                }
-            }
-
-            # type:name
-            if ($line =~ /\G (.*?) ([a-z]+) (:) ([-\w.\@:]+)/gcx) {
-                $copy .= "$1$2$3";
-                my $name = $4;
-                if (my $new = subst($2, $name)) {
-                    $copy .= $new;
-                    $line_changed = 1;
-                }
-                else {
-                    $copy .= $name;
-                }
-            }
-
-            # owner = name
-            elsif ($line =~ 
-                   /\G (.*?) (admins|bind_nat|owner) (\s*=\s*) ([^;]+)/gcx) 
-            {
-                $copy .= "$1$2$3";
-                my $list = $4;
-                if (my $new = subst_list($2, $list)) {
-                    $copy .= $new;
-                    $line_changed = 1;
-                }
-                else {
-                    $copy .= $list;
-                }
-            }
-            elsif (not $line_changed) {
-                last;
             }
             else {
-                $copy .= substr($line, pos($line));
-                $line = $copy;
+                $line =~ /\G (.+) / and $copy .= $1;
                 last;
             }
         }
-        $changed ||= $line_changed;
+        if ($line_changed) {
+            $line = $copy;
+            $changed = 1;
+        }
     }
     return $changed;
 }
