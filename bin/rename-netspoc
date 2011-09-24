@@ -69,8 +69,13 @@ sub setup_subst {
 
     # Network name occurs in interface name and in id: hosts.
     if ($type eq 'network') {
+
+        # Definition of interface inside definition of router.
+        push(@{ $subst{interface} }, [ qr/$search/, $replace ]);
+
+        # Reference to interface ouside of definition of router.
         push(@{ $subst{interface} },
-             [ qr/([\w@-]+\.)$search(.*)?/, '$1'.$replace.'$2' ]);
+             [ qr/([\w@-]+\.)$search(\..*)?/, '$1'.$replace.'$2' ]);
         push(@{ $subst{host} },
              [ qr/(id:.*\.)$search/, '$1'.$replace ]);
     }
