@@ -103,16 +103,18 @@ sub setup_subst {
  
 sub subst {
     my ($type, $name) = @_;
-    my $aref = $subst{$type} or return;
+    my $aref = $subst{$type} or return $name;
     for my $pair (@$aref) {
-                my ($search, $replace) = @$pair;
-                if ($name =~ /^$search$/) {
- 
-                    # Eval special variables $1, $2, .. inside $replace.
-                    return eval("\"$replace\"");
-                }
+        my ($search, $replace) = @$pair;
+        if ($name =~ /^$search$/) {
+            
+            # Eval special variables $1, $2, .. inside $replace.
+            # Optional captures may be undefined.
+            no warnings 'uninitialized';
+            $name = eval("\"$replace\"");
+        }
     }
-    return undef;
+    return $name;
 }
 
 sub process {
@@ -136,13 +138,9 @@ sub process {
                     if ($line =~ /\G (\s*) ([-\w.\@:]+) /gcx) {
                         $copy .= $1;
                         my $name = $2;
-                        if (my $new = subst($type_list, $name)) {
-                            $copy .= $new;
-                            $line_changed++;
-                        }
-                        else {
-                            $copy .= $name;
-                        }
+                        my $new = subst($type_list, $name);
+                        $copy .= $new;
+                        $line_changed++ if $name ne $new;
                     }
 
                     # Read comma.
@@ -174,13 +172,9 @@ sub process {
                 next if $type_list = ($3 eq ':') ? undef : $type;
                 $line =~ /\G  ([-\w.\@:]+) /gcx or next;
                 my $name = $1;
-                if (my $new = subst($type, $name)) {
-                    $copy .= $new;
-                    $line_changed++;
-                }
-                else {
-                    $copy .= $name;
-                }
+                my $new = subst($type, $name);
+                $copy .= $new;
+                $line_changed++ if $name ne $new;
             }
 
             # Ignore rest of line of nothing matches.
