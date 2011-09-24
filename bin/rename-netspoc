@@ -47,9 +47,13 @@ sub fatal_err( @ ) {
 
 my %global_type = 
     map { $_ => 1 } qw( 
-router network  host any group area policy
+router network host any group area policy
 owner admin service servicegroup pathrestriction nat isakmp ipsec crypto 
 );
+
+# NAT is applied with bind_nat.
+# Admin attribute is named "admins" in definition of owner.
+my %aliases = ( nat => 'bind_nat', admin => 'admins' );
 
 my %subst;
 
@@ -90,14 +94,8 @@ sub setup_subst {
         push(@{ $subst{host} }, [ qr/$search([.][\w-]+)/, $replace.'$1' ]);
     }
 
-    # NAT is applied with bind_nat.
-    elsif ($type eq 'nat') {
-        $subst{bind_nat} = $subst{nat};
-    }
-
-    # Admin attribute is named "admins" in definition of owner.
-    elsif ($type eq 'admin') {
-        $subst{admins} = $subst{admin};
+    elsif (my $other = $aliases{$type}) {
+         push @{ $subst{$other} }, [qr/$search/, $replace];
     }
 }
  
