@@ -37,9 +37,8 @@ sub usage() {
     die "Usage: $0 {in-file | in-directory} type:old-name type:new-name\n";
 }
  
-sub debug ( @ ) {
-    print STDERR @_, "\n";
-}
+sub debug { print STDERR @_, "\n"; }
+sub info  { print STDERR @_, "\n"; }
  
 sub fatal_err( @ ) {
     print STDERR "Error: ", @_, "\n";
@@ -113,11 +112,11 @@ sub subst {
 
 sub process {
     my ($lines) = @_;
-    my $changed;
+    my $changed = 0;
     my $type_list;
     for my $line (@$lines) {
         my $copy = '';
-        my $line_changed;
+        my $line_changed = 0;
       TOKEN:
         while(1) {
 
@@ -134,7 +133,7 @@ sub process {
                         my $name = $2;
                         if (my $new = subst($type_list, $name)) {
                             $copy .= $new;
-                            $line_changed = 1;
+                            $line_changed++;
                         }
                         else {
                             $copy .= $name;
@@ -172,7 +171,7 @@ sub process {
                 my $name = $1;
                 if (my $new = subst($type, $name)) {
                     $copy .= $new;
-                    $line_changed = 1;
+                    $line_changed++;
                 }
                 else {
                     $copy .= $name;
@@ -187,7 +186,7 @@ sub process {
         }
         if ($line_changed) {
             $line = $copy;
-            $changed = 1;
+            $changed += $line_changed;
         }
     }
     return $changed;
@@ -199,7 +198,8 @@ sub process_file {
     open(my $file, '<', $path) or fatal_err "Can't open $path: $!";
     my @input = <$file>;
     close $file;
-    if (process(\@input)) {
+    if (my $count = process(\@input)) {
+        info "$count changes in $path";
         unlink($path) or fatal_err "Can't remove $path: $!\n";
         open($file, '>', $path) or fatal_err "Can't create $path: $!";
         print $file @input;
