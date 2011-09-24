@@ -217,7 +217,7 @@ sub process {
                 $line_changed++ if $name ne $new;
             }
 
-            # Ignore rest of line of nothing matches.
+            # Ignore rest of line if nothing matches.
             else {
                 $line =~ /\G (.+) /gcsx and $copy .= $1;
                 last TOKEN;
