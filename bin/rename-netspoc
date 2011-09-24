@@ -34,7 +34,7 @@ my $ignore_files = '^(raw|config|CVS|RCS|\.#.*|.*~)$';
 # Argument processing
 ####################################################################
 sub usage() {
-    die "Usage: $0 {in-file | in-directory} type:old-name type:new-name\n";
+    die "Usage: $0 {in-file | in-directory} TYPE:OLD-NAME TYPE:NEW-NAME ...\n";
 }
  
 sub debug { print STDERR @_, "\n"; }
@@ -233,10 +233,16 @@ sub process_file_or_dir {
 ####################################################################
  
 my $path = shift @ARGV or usage;
-my $old = shift @ARGV or usage;
-my $new = shift @ARGV or usage;
-my ($type, $old_name) = split(/:/, $old, 2);
-my ($n_type, $new_name) = split(/:/, $new, 2);
-$type eq $n_type or fatal_err "Types '$type' and '$n_type' must be identical";
-setup_subst($type, $old_name, $new_name);
+
+# Process search/replace pairs.
+@ARGV or usage();
+while (@ARGV) {
+    my $old = shift @ARGV;
+    my $new = shift @ARGV or fatal_err "Missing replace string for '$old'";
+    my ($type, $old_name) = ($old =~ /^(\w+):(.*)$/) or usage();
+    my ($n_type, $new_name) = ($new =~ /^(\w+):(.*)$/) or usage();
+    $type eq $n_type or 
+        fatal_err "Types '$type' and '$n_type' must be identical";
+    setup_subst($type, $old_name, $new_name);
+}
 process_file_or_dir($path);
