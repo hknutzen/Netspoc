@@ -192,13 +192,15 @@ sub process {
 sub process_file {
     my ($path) = @_;
 #    debug "File $path";
-    open(my $file, '<', $path) or fatal_err "Can't open $path: $!";
+    open(my $file, $path) or fatal_err "Can't open $path: $!";
     my @input = <$file>;
     close $file;
     if (my $count = process(\@input)) {
-        info "$count changes in $path";
-        unlink($path) or fatal_err "Can't remove $path: $!\n";
-        open($file, '>', $path) or fatal_err "Can't create $path: $!";
+        if ($path ne '-') {
+            info "$count changes in $path";
+            unlink($path) or fatal_err "Can't remove $path: $!\n";
+        }
+        open($file, ">$path") or fatal_err "Can't create $path: $!";
         print $file @input;
         close $file;
     }
