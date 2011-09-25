@@ -121,7 +121,7 @@ sub setup_subst {
 
         # Reference to interface ouside of definition of router.
         push(@{ $subst{interface} },
-             [ qr/([\w@-]+\.)$search(\..*)?/, '$1'.$replace.'$2' ]);
+             [ qr/([\w@-]+\.)$search((?:\..*)?)/, '$1'.$replace.'$2' ]);
         push(@{ $subst{host} },
              [ qr/(id:.*\.)$search/, '$1'.$replace ]);
     }
@@ -146,13 +146,10 @@ sub subst {
     my $aref = $subst{$type} or return $name;
     for my $pair (@$aref) {
         my ($search, $replace) = @$pair;
-        if ($name =~ /^$search$/) {
-            
-            # Eval special variables $1, $2, .. inside $replace.
-            # Optional captures may be undefined.
-            no warnings 'uninitialized';
-            $name = eval("\"$replace\"");
-        }
+
+        # 1. eval gives double quoted string.
+        # 2. eval interpolates $1, $2 inside quoted string.
+        $name =~ s/^$search$/"qq($replace)"/ee;
     }
     return $name;
 }
