@@ -6,19 +6,31 @@ rename-netspoc - Rename one or more objects in netspoc files
 
 =head1 SYNOPSIS
 
-rename-netspoc [options] FILE|DIR TYPE:OLD-NAME TYPE:NEW-NAME ...
+rename-netspoc [options] FILE|DIR SUBSTITUTION ...
 
 =head1 DESCRIPTION
 
-This program reads a netspoc configuration and one or more rename
-pairs. It substitutes found objects with its replacement in each
-file. Changes are done in place, no backup files are created. But only
-changed files are touched. If FILE is `-', read standard input and
-write to standard output.
+This program reads a netspoc configuration and one or more
+SUBSTITUTIONS. It substitutes found objects with its replacement in
+each file. Changes are done in place, no backup files are created. But
+only changed files are touched. If FILE is `-', read standard input
+and write to standard output.
 
-The program knows about netspoc syntax and tries best to find and
-replace all occurences of one object even as part of other object
-names, e.g. network name occurs inside name of interface.
+=head1 SUBSTITUTION
+
+A SUBSTITUTION is a pair of typed names "type:NAME1" "type:NAME2".
+NAME1 is searched and replaced by NAME2. Both types of a single
+SUBSTITUTION must use the same type. Multiple SUBSTITUTIONS can be applied in a single run of rename-netspoc.
+
+A typed name can use any valid type and name in netspoc syntax.
+Valid types are: B<router network host any group area policy owner
+admin service servicegroup pathrestriction nat isakmp ipsec crypto>.
+
+A SUBSTITUTION of type B<network> also changes B<interface> and B<host:id>
+which reference the given network.  A SUBSTITUTION of type B<router>
+also changes B<interfaces> which reference the given router.
+A SUBSTITUTION of type B<nat> also changes the corresponding B<bind_nat> list.
+A SUBSTITUTION of type B<admin> also changes the corresponding B<admins> list.
 
 =head1 OPTIONS
 
@@ -26,10 +38,10 @@ names, e.g. network name occurs inside name of interface.
 
 =item B<-f> file
 
-Read rename pairs from file.
+Read SUBSTITUTIONS from file.
 If - is specified, read from standard input. 
 
-=item B<-q> file
+=item B<-q>
 
 Quiet, don't print status messages.
 
