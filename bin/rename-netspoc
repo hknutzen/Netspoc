@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -CSDAL
 
 =head1 NAME
 
@@ -202,7 +202,7 @@ sub process {
                 }
 
                 # Whitespace or comment at end of line doesn't terminate list.
-                if ($line =~ /\G (\s* (?:[#].*)? ) $/gcx) {
+                if ($line =~ /\G (\s* (?:[#].*)? ) $/gcsx) {
                     $copy .= $1;
                     last TOKEN;
                 }
