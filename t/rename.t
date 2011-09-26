@@ -28,7 +28,7 @@ my $title = 'Rename network';
 my $in = <<END;
 network:Test =  { ip = 10.9.1.0/24; }
 group:G = interface:r.Test, # comment
-    host:id:h.Test,
+    host:id:h\@dom.top.Test,
     network:Test,
     ;
 END
@@ -36,7 +36,7 @@ END
 my $out = <<END;
 network:Toast =  { ip = 10.9.1.0/24; }
 group:G = interface:r.Toast, # comment
-    host:id:h.Toast,
+    host:id:h\@dom.top.Toast,
     network:Toast,
     ;
 END
@@ -129,6 +129,44 @@ END
 
 eq_or_diff(run($in, 'admin:foo admin:Foo admin:baz admin:BAZ'), 
 	   $out, $title);
+
+############################################################
+$title = 'Read substitutions from file';
+############################################################
+
+my $subst = <<END;
+host:abc host:a1
+owner:foo owner:bar
+admin:tick admin:t1
+admin:ticks admin:t2
+admin:ick admin:_
+network:net network:xxxx
+END
+my ($in_fh, $filename) = tempfile(UNLINK => 1);
+print $in_fh $subst;
+close $in_fh;
+
+$in = <<END;;
+admin:ticks admin:ick
+admin:tick
+owner:foo = { admins = ick,
+ ticks, tick;}
+network:net = { owner = foo; 
+ host:abc;
+}
+END
+
+$out = <<END;;
+admin:t2 admin:_
+admin:t1
+owner:bar = { admins = _,
+ t2, t1;}
+network:xxxx = { owner = bar; 
+ host:a1;
+}
+END
+
+eq_or_diff(run($in, "-f $filename"), $out, $title);
 
 ############################################################
 done_testing;
