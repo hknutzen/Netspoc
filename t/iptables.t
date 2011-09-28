@@ -84,7 +84,7 @@ eq_or_diff(get_block($compiled, $head1), $out1, $title);
 eq_or_diff(get_block($compiled, $head2), $out2, $title);
 
 ############################################################
-my $title = 'Un-merged port range with sub-range for iptables';
+$title = 'Un-merged port range with sub-range for iptables';
 ############################################################
 
 # Ranges 10-49 and 50-60 can't be merged,
@@ -109,17 +109,17 @@ $out1 = <<END;
 -A c5 -g c3 -p tcp --dport 30:37
 END
 
-my $out2 = <<END;
+$out2 = <<END;
 :eth0_br0 -
 -A FORWARD -j eth0_br0 -i eth0 -o br0
 -A eth0_br0 -g c5 -d 10.4.4.0/24 -p tcp --dport 10:60
 END
 
 
-my $head1 = (split /\n/, $out1)[0];
-my $head2 = (split /\n/, $out2)[0];
+$head1 = (split /\n/, $out1)[0];
+$head2 = (split /\n/, $out2)[0];
 
-my $compiled = compile($in);
+$compiled = compile($in);
 eq_or_diff(get_block($compiled, $head1), $out1, $title);
 eq_or_diff(get_block($compiled, $head2), $out2, $title);
 
