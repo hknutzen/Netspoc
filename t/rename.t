@@ -44,6 +44,28 @@ END
 eq_or_diff(run($in, 'network:Test network:Toast'), $out, $title);
 
 ############################################################
+my $title = 'Rename network to name with leading digit';
+############################################################
+
+my $in = <<END;
+network:Test =  { ip = 10.9.1.0/24; }
+group:G = interface:r.Test, # comment
+    host:id:h\@dom.top.Test,
+    network:Test,
+    ;
+END
+
+my $out = <<END;
+network:1_2_3_0_Test =  { ip = 10.9.1.0/24; }
+group:G = interface:r.1_2_3_0_Test, # comment
+    host:id:h\@dom.top.1_2_3_0_Test,
+    network:1_2_3_0_Test,
+    ;
+END
+
+eq_or_diff(run($in, 'network:Test network:1_2_3_0_Test'), $out, $title);
+
+############################################################
 $title = 'Rename router';
 ############################################################
 
