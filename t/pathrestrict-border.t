@@ -2,6 +2,7 @@
 
 use strict;
 use Test::More;
+use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
@@ -81,7 +82,7 @@ END
 my $head1 = (split /\n/, $out1)[0];
 my $head2 = (split /\n/, $out2)[0];
 
-is_deeply(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
 
 ############################################################
 $title = 'Pathrestriction at border of loop (at any)';
@@ -127,6 +128,7 @@ network:Trans = { ip = 10.5.6.0/24; }
 router:Kunde = {
  managed;
  model = IOS, FW;
+ log_deny;
  interface:Trans = { ip = 10.5.6.70; hardware = E0; }
  interface:Schulung = { ip = 10.9.2.1; hardware = E1; }
 }
@@ -155,20 +157,20 @@ END
 
 $out2 = <<END;
 ip access-list extended E0_in
- deny ip any any
+ deny ip any any log
 END
 
 my $out3 = <<END;
 ip access-list extended E1_in
  permit ip 10.9.2.0 0.0.0.255 10.9.1.0 0.0.0.255
- deny ip any any
+ deny ip any any log
 END
 
 $head1 = (split /\n/, $out1)[0];
 $head2 = (split /\n/, $out2)[0];
 my $head3 = (split /\n/, $out3)[0];
 
-is_deeply(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3, 
+eq_or_diff(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3, 
 	  $title);
 
 ############################################################
