@@ -273,6 +273,7 @@ my %router_info = (
         routing        => 'IOS',
         filter         => 'IOS',
         can_vrf        => 1,
+        can_log_deny   => 1,
         has_out_acl    => 1,
         crypto         => 'IOS',
         comment_char   => '!',
@@ -1822,6 +1823,9 @@ sub read_router( $ ) {
         elsif (check_flag 'std_in_acl') {
             $router->{std_in_acl} = 1;
         }
+        elsif (check_flag 'log_deny') {
+            $router->{log_deny} = 1;
+        }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $router->{owner} and error_atline "Duplicate attribute 'owner'";
             $router->{owner} = $owner;
@@ -1959,6 +1963,11 @@ sub read_router( $ ) {
         $router->{vrf}
           and not $model->{can_vrf}
           and err_msg("Must not use VRF at $router->{name}",
+            " of type $model->{name}");
+
+        $router->{log_deny}
+          and not $model->{can_log_deny}
+          and err_msg("Must not use attribute 'log_deny' at $router->{name}",
             " of type $model->{name}");
 
         # Create objects representing hardware interfaces.
@@ -11783,7 +11792,8 @@ sub iptables_srv_code( $$ ) {
 }
 
 sub cisco_acl_line {
-    my ($rules_aref, $no_nat_set, $prefix, $model) = @_;
+    my ($router, $rules_aref, $no_nat_set, $prefix) = @_;
+    my $model = $router->{model};
     my $filter_type = $model->{filter};
     for my $rule (@$rules_aref) {
         my ($action, $src, $dst, $src_range, $srv) =
@@ -11830,6 +11840,7 @@ sub cisco_acl_line {
             $result .= " $src_port_code" if defined $src_port_code;
             $result .= ' ' . ios_code($dpair, $inv_mask);
             $result .= " $dst_port_code" if defined $dst_port_code;
+            $result .= " log" if $router->{log_deny} and $action eq 'deny';
             print "$result\n";
         }
         else {
@@ -13478,10 +13489,11 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
     );
 
     # Interface rules
-    cisco_acl_line($hardware->{intf_rules}, $no_nat_set, $intf_prefix, $model);
+    cisco_acl_line($router, $hardware->{intf_rules},
+                   $no_nat_set, $intf_prefix);
 
     # Ordinary rules
-    cisco_acl_line($hardware->{rules}, $no_nat_set, $prefix, $model);
+    cisco_acl_line($router, $hardware->{rules}, $no_nat_set, $prefix);
 }
 
 # Valid group-policy attributes.
@@ -13986,7 +13998,7 @@ sub print_cisco_acls {
                 push(@{ $hardware->{out_rules} }, $deny_any_rule);
 
                 if (my $out_rules = $hardware->{out_rules}) {
-                    cisco_acl_line($out_rules, $no_nat_set, $prefix, $model);
+                    cisco_acl_line($router, $out_rules, $no_nat_set, $prefix);
                 }
             }
 
@@ -14078,7 +14090,8 @@ sub print_ezvpn( $ ) {
     print "ip access-list extended $crypto_acl_name\n";
     my $no_nat_set = $wan_hw->{no_nat_set};
     my $prefix     = '';
-    cisco_acl_line($tunnel_intf->{crypto_rules}, $no_nat_set, $prefix, $model);
+    cisco_acl_line($router, $tunnel_intf->{crypto_rules}, 
+                   $no_nat_set, $prefix);
 
     # Crypto filter ACL.
     $prefix = '';
@@ -14286,8 +14299,8 @@ sub print_crypto( $ ) {
             else {
                 internal_err;
             }
-            cisco_acl_line($interface->{crypto_rules},
-                $no_nat_set, $prefix, $model);
+            cisco_acl_line($router,$interface->{crypto_rules},
+                           $no_nat_set, $prefix);
 
             # Print filter ACL. It controls which traffic is allowed to leave
             # from crypto tunnel. This may be needed, if we don't fully trust
