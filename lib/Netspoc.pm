@@ -9722,8 +9722,8 @@ sub mark_secondary_rules() {
 
                 # Network has dynamic NAT.
                 # Host / interface doesn't have static NAT.
-                if (   $nat_network->{dynamic} and $type eq 'Subnet'
-                    or $type eq 'Interface'
+                if (    $nat_network->{dynamic}
+                    and ($type eq 'Subnet' or $type eq 'Interface')
                     and not $obj->{nat}->{$nat_tag}
                     and not $dynamic)
                 {
