@@ -6654,6 +6654,33 @@ sub check_subnets {
     }
 }
 
+# Dynamic NAT to loopback interface is OK,
+# if NAT is applied at device of loopback interface.
+sub nat_to_loopback_ok {
+    my ($loopback_network, $nat_network) = @_;
+
+    my $nat_tag1      = $nat_network->{dynamic};
+    my $all_device_ok = 0;
+
+    # In case of virtual loopback, the loopback network
+    # is attached to two or more routers.
+    # Loop over these devices.
+    for my $loop_intf (@{ $loopback_network->{interfaces} }) {
+        my $this_device_ok = 0;
+
+        # Check all interfaces of attached device.
+        for my $all_intf (@{ $loop_intf->{router}->{interfaces} }) {
+            if (my $nat_tags = $all_intf->{bind_nat}) {
+                if (grep { $_ eq $nat_tag1 } @$nat_tags) {
+                    $this_device_ok = 1;
+                }
+            }
+        }
+        $all_device_ok += $this_device_ok;
+    }
+    return($all_device_ok == @{ $loopback_network->{interfaces} });
+}
+
 sub find_subnets() {
     progress "Finding subnets";
     my %seen;
@@ -6674,53 +6701,17 @@ sub find_subnets() {
             # in current NAT domain.
             if (my $old_net = $mask_ip_hash{$mask}->{$ip}) {
                 my $nat_old_net = get_nat_network($old_net, $no_nat_set);
-
-                # Prevent aliasing of loop variable.
-                my $network = $network;
                 my $error;
                 if ($nat_old_net->{dynamic} and $nat_network->{dynamic}) {
 
                     # Dynamic NAT of different networks
                     # to a single new IP/mask is OK.
                 }
-                elsif ($nat_old_net->{loopback} and $nat_network->{dynamic}
-                    or $nat_old_net->{dynamic} and $nat_network->{loopback})
-                {
-
-                    # Store loopback network, ignore translated network.
-                    if ($nat_old_net->{dynamic}) {
-                        $mask_ip_hash{$mask}->{$ip} = $network;
-                        ($old_net, $network) = ($network, $old_net);
-                        ($nat_old_net, $nat_network) =
-                          ($nat_network, $nat_old_net);
-                    }
-
-                    # Dynamic NAT to loopback interface is OK,
-                    # if NAT is applied at device of loopback interface.
-                    my $nat_tag1      = $nat_network->{dynamic};
-                    my $all_device_ok = 0;
-
-                    # In case of virtual loopback, the loopback network
-                    # is attached to two or more routers.
-                    # Loop over these devices.
-                    for my $loop_intf (@{ $nat_old_net->{interfaces} }) {
-                        my $this_device_ok = 0;
-
-                        # Check all interfaces of attached device.
-                        for
-                          my $all_intf (@{ $loop_intf->{router}->{interfaces} })
-                        {
-                            if (my $nat_tags = $all_intf->{bind_nat}) {
-                                if (grep { $_ eq $nat_tag1 } @$nat_tags) {
-                                    $this_device_ok = 1;
-                                }
-                            }
-                        }
-                        $all_device_ok += $this_device_ok;
-                    }
-                    if ($all_device_ok != @{ $nat_old_net->{interfaces} }) {
-                        $error = 1;
-                    }
+                elsif ($old_net->{loopback} and $nat_network->{dynamic}) {
+                    nat_to_loopback_ok($old_net, $nat_network) or $error = 1;
+                }
+                elsif ($nat_old_net->{dynamic} and $network->{loopback}) {
+                    nat_to_loopback_ok($network, $nat_old_net) or $error = 1;
                 }
                 else {
                     $error = 1;
@@ -6733,8 +6724,14 @@ sub find_subnets() {
                 else {
 
                     # Remember identical networks.
-                    $identical{$network} = $old_net;
-                    $key2obj{$network}   = $network;
+                    # Put loopback network first in list.
+                    $identical{$old_net} ||= [ $old_net ];
+                    if ($network->{loopback}) {
+                        unshift @{ $identical{$old_net} }, $network;
+                    }
+                    else {
+                        push @{ $identical{$old_net} }, $network;
+                    }
                 }
             }
             else {
@@ -6743,17 +6740,19 @@ sub find_subnets() {
                 $mask_ip_hash{$mask}->{$ip} = $network;
             }
         }
-        for my $net_key (keys %identical) {
-            my $one_net = $identical{$net_key};
-            while (my $next = $identical{$one_net}) {
-                $one_net = $next;
+
+        # Link identical networks to one representative one.
+        # Loopback network is preferred. This is needed 
+        # to get correct relationship during local_optimization.
+        for my $networks (values %identical) {
+            my $one_net = shift @$networks;
+            for my $network (@$networks) {
+                $network->{is_identical}->{$no_nat_set} = $one_net;
+
+#               debug "Identical: $network->{name}: $one_net->{name}";
             }
-            my $network = $key2obj{$net_key};
-            $network->{is_identical}->{$no_nat_set} = $one_net;
-
-#           debug "Identical: $network->{name}: $one_net->{name}";
         }
-
+                
         # Go from smaller to larger networks.
         for my $mask (reverse sort keys %mask_ip_hash) {
 
@@ -12969,13 +12968,31 @@ sub local_optimization() {
     for my $domain (@natdomains) {
         my $no_nat_set = $domain->{no_nat_set};
 
+        # Collect nat networks identical to some loopback network.
+        my %loopback2nat;
+
         # Subnet relation may be different for each NAT domain,
         # therefore it is set up again for each NAT domain.
         for my $network (@networks) {
+            my $identical = $network->{is_identical}->{$no_nat_set};
+            if ($identical and $identical->{loopback}) {
+                push @{ $loopback2nat{$identical} }, $network;
+                next;
+            }
             $network->{up} =
-                 $network->{is_in}->{$no_nat_set}
-              || $network->{is_identical}->{$no_nat_set}
-              || $network_00;
+                 $network->{is_in}->{$no_nat_set} || $identical || $network_00;
+        }
+        
+        # Build relation:
+        # loopback interface < loopback network < nat to loopback network.
+        # This is needed to recognize a loopback interface and 
+        # a "nat to loopback network" as identical.
+        for my $ref (keys %loopback2nat) {
+            my $loopback = $ref2obj{$ref};
+            for my $network (@{ $loopback2nat{$loopback} }) {
+                $network->{up} = $loopback->{up};
+                $loopback->{up} = $network;
+            }
         }
 
         for my $network (@{ $domain->{networks} }) {
@@ -13143,28 +13160,42 @@ sub local_optimization() {
                                 }
                             }
 
-                            # Don't modify original rule, because the
-                            # identical rule is referenced at different
-                            # routers.
-                            my $new_rule = {
-                                action    => $action,
-                                src       => $src,
-                                dst       => $dst,
-                                src_range => $srv_ip,
-                                srv       => $srv_ip,
-                            };
-
-#                           debug "sec:", print_rule $new_rule;
-
                             # Add new rule to hash. If there are multiple
                             # rules which could be converted to the same
-                            # weak filter, only the first one will be
+                            # secondary rule, only the first one will be
                             # generated.
-                            $hash{$action}->{$src}->{$dst}->{$srv_ip}
-                              ->{$srv_ip} = $new_rule;
+			    if (my $old = $hash{$action}->{$src}->{$dst}
+				            ->{$srv_ip}->{$srv_ip})
+			    {
 
-                            # This changes @{$hardware->{$rules}} !
-                            $rule = $new_rule;
+				if ($old ne $rule) {
+#				    debug "sec delete: ", print_rule $rule;
+
+				    $rule    = undef;
+				    $changed = 1;
+				}
+			    }
+			    else {
+
+				# Don't modify original rule, because the
+				# identical rule is referenced at different
+				# routers.
+				my $new_rule = {
+				    action    => $action,
+				    src       => $src,
+				    dst       => $dst,
+				    src_range => $srv_ip,
+				    srv       => $srv_ip,
+				};
+
+#				debug "sec: ", print_rule $new_rule;
+
+				$hash{$action}->{$src}->{$dst}->{$srv_ip}
+                                  ->{$srv_ip} = $new_rule;
+
+				# This changes @{$hardware->{$rules}} !
+				$rule = $new_rule;
+			    }
                         }
                     }
                     if ($changed) {
