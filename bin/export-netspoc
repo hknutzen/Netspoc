@@ -20,6 +20,10 @@ my $out_dir = shift @ARGV or usage();
 # Remove trailing slash.
 $out_dir =~ s,/$,,;
 
+# Copy version information from this file and
+# take modification date for all newly created files.
+my $policy_file = "$netspoc_data/POLICY";
+
 sub abort {
     my ($msg) = @_;
     die "$msg\n";
@@ -772,8 +776,8 @@ sub export_owners {
 }
 
 sub copy_policy_file {
-    my $policy_file = "$netspoc_data/POLICY";
     if ( -f $policy_file) {
+        system("find $out_dir -type f -exec touch -r $policy_file {} \\;");
 	system("cp -pf $policy_file $out_dir") == 0 or
 	    abort "Can't copy $policy_file";
     }
@@ -782,7 +786,7 @@ sub copy_policy_file {
 ####################################################################
 # Initialize Netspoc data
 ####################################################################
-set_config({time_stamps => 1});
+set_config({time_stamps => 1, max_errors => 9999});
 
 # Set global config variable of Netspoc to store attribute 'description'.
 store_description(1);
@@ -802,10 +806,10 @@ setup_policy_info();
 # Export data
 ####################################################################
 create_dirs('');
-copy_policy_file();
 export_owners();
 export_assets();
 export_services();
 export_objects();
 export_no_nat_set();
+copy_policy_file();
 progress("Ready");
