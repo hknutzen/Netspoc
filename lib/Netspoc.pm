@@ -1990,7 +1990,7 @@ sub read_router( $ ) {
                       " at $router->{name} must use identical NAT binding";
                 }
                 else {
-                    $hardware = { name => $hw_name };
+                    $hardware = { name => $hw_name, loopback => 1 };
                     $hardware{$hw_name} = $hardware;
                     push @{ $router->{hardware} }, $hardware;
                     if (my $nat = $interface->{bind_nat}) {
@@ -1998,6 +1998,12 @@ sub read_router( $ ) {
                     }
                 }
                 $interface->{hardware} = $hardware;
+
+                # Hardware keeps attribute {loopback} only if all
+                # interfaces have attribute {loopback}.
+                if (! $interface->{loopback}) {
+                    delete $hardware->{loopback};
+                }
 
                 # Remember, which logical interfaces are bound
                 # to which hardware.
@@ -13924,7 +13930,7 @@ sub print_iptables_acls {
     for my $hardware (@{ $router->{hardware} }) {
 
         # Ignore if all logical interfaces are loopback interfaces.
-        next if not grep { not $_->{loopback} } @{ $hardware->{interfaces} };
+        next if $hardware->{loopback};
 
         my $in_hw      = $hardware->{name};
         my $no_nat_set = $hardware->{no_nat_set};
@@ -13977,7 +13983,7 @@ sub print_cisco_acls {
     for my $hardware (@{ $router->{hardware} }) {
 
         # Ignore if all logical interfaces are loopback interfaces.
-        next if not grep { not $_->{loopback} } @{ $hardware->{interfaces} };
+        next if $hardware->{loopback};
 
         # Force valid array reference to prevent error
         # when checking for non empty array.
@@ -14456,6 +14462,7 @@ sub print_crypto( $ ) {
 
 sub print_interface( $ ) {
     my ($router) = @_;
+    my $stateful = not $router->{model}->{stateless};
     for my $hardware (@{ $router->{hardware} }) {
         my @subcmd;
         my $secondary;
@@ -14482,6 +14489,13 @@ sub print_interface( $ ) {
         }
         if (my $vrf = $router->{vrf}) {
             push @subcmd, "ip vrf forwarding $vrf";
+        }
+
+        # Add "ip inspect" as marker, that stateful filtering is expected.
+        # The command is known to be incomplete, "X" is only used as 
+        # placeholder.
+        if ($stateful && ! $hardware->{loopback}) {
+            push @subcmd, "ip inspect X in";
         }
         if (my $other = $hardware->{subcmd}) {
             push @subcmd, @$other;
