@@ -2029,6 +2029,12 @@ sub read_router( $ ) {
                   or err_msg "Crypto not supported for $router->{name}",
                   " of model $model->{name}";
             }
+            if ($interface->{no_check} and
+                not ($interface->{hub} and $router->{model}->{do_auth})) 
+            {
+                delete $interface->{no_check};
+                warn_msg "Ignoring attribute 'no_check' at $interface->{name}";
+            }
         }
 
         if ($router->{model}->{has_interface_level}) {
@@ -2053,17 +2059,9 @@ sub read_router( $ ) {
               " at interface of $router->{name}",
               " of model $router->{model}->{name}";
 
-            grep({ $_->{no_check} } @{ $router->{interfaces} }) >= 1
-              or err_msg
-              "At least one interface needs to have attribute 'no_check'",
-              " at $router->{name}";
-
             $router->{radius_attributes} ||= {};
         }
         else {
-            grep { $_->{no_check} } @{ $router->{interfaces} }
-              and err_msg "Attribute 'no_check' is not allowed",
-              " at interface of $router->{name}";
             $router->{radius_attributes}
               and err_msg "Attribute 'radius_attributes' is not allowed",
               " for $router->{name}";
@@ -6853,7 +6851,9 @@ sub check_vpnhub () {
     };
     for my $routers (values %hub2routers) {
         my @anys = map {
-            (grep { $_->{no_check} } @{ $_->{interfaces} })[0]->{any}
+            map { $_->{any} }
+            grep { $_->{no_check} || ! ($_->{hub} || $_->{ip} eq 'tunnel') } 
+            @{ $_->{interfaces} }
         } @$routers;
         $all_eq_cluster->(@anys)
           or err_msg "Clear-text interfaces of\n ",
@@ -11358,9 +11358,7 @@ sub distribute_global_permit {
                             $rule->{src} = $src;
                             for my $out_intf (@{ $router->{interfaces} }) {
                                 next if $out_intf eq $in_intf;
-                                next
-                                  if $out_intf->{ip} eq 'tunnel'
-                                      and not $out_intf->{no_check};
+                                next if $out_intf->{ip} eq 'tunnel';
 
                                 # Traffic traverses the device.
                                 # Traffic for the device itself isn't needed
@@ -11532,10 +11530,7 @@ sub address( $$ ) {
         # We allow this only, if local networks are protected by tunnel_all.
         if ($obj->{ip} eq 'negotiated') {
             my ($network_ip, $network_mask) = @{$network}{ 'ip', 'mask' };
-            if (    $network_mask eq 0
-                and not $obj->{spoke}
-                and not $obj->{no_check})
-            {
+            if (    $network_mask eq 0 and not $obj->{spoke}) {
                 err_msg "$obj->{name} has negotiated IP in range 0.0.0.0/0.\n",
                   "This is only allowed for interfaces protected by 'tunnel_all'.";
             }
