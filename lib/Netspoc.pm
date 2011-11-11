@@ -266,7 +266,6 @@ my $use_nonlocal_exit => 1;
 ####################################################################
 my %router_info = (
     IOS => {
-        name           => 'IOS',
         stateless      => 1,
         stateless_self => 1,
         stateless_icmp => 1,
@@ -279,14 +278,10 @@ my %router_info = (
         comment_char   => '!',
         extension      => {
             EZVPN => { crypto => 'EZVPN' },
-            FW    => {
-                name      => 'IOS_FW',
-                stateless => 0
-            },
+            FW    => { stateless => 0 },
         },
     },
     PIX => {
-        name                => 'PIX',
         stateless_icmp      => 1,
         routing             => 'PIX',
         filter              => 'PIX',
@@ -298,7 +293,6 @@ my %router_info = (
 
     # Like PIX, but without identity NAT.
     ASA => {
-        name                => 'ASA',
         stateless_icmp      => 1,
         routing             => 'PIX',
         filter              => 'PIX',
@@ -319,7 +313,6 @@ my %router_info = (
         },
     },
     Linux => {
-        name         => 'Linux',
         routing      => 'iproute',
         filter       => 'iptables',
         has_io_acl   => 1,
@@ -328,7 +321,6 @@ my %router_info = (
 
     # Cisco VPN 3000 Concentrator including RADIUS config.
     VPN3K => {
-        name           => 'VPN3K',
         stateless      => 1,
         stateless_self => 1,
         stateless_icmp => 1,
@@ -340,6 +332,14 @@ my %router_info = (
         comment_char   => '!',
     },
 );
+for my $model (keys %router_info) {
+
+    # Is changed for model with extension. Used in error messages.
+    $router_info{$model}->{name} = $model;
+
+    # Is left unchanged with extensions. Used in header of generated files.
+    $router_info{$model}->{class} = $model;
+}
 
 # All arguments are true.
 sub all { $_ || return 0 for @_; 1 }
@@ -1799,7 +1799,7 @@ sub read_router( $ ) {
             }
             my $extension_info = $info->{extension};
             if (@attributes and not $extension_info) {
-                error_atline "Unexpected extension for this model";
+                error_atline "No extension expected for this model";
                 next;
             }
 
@@ -1811,6 +1811,7 @@ sub read_router( $ ) {
             if (@ext_list) {
                 $info = { %$info, @ext_list };
                 delete $info->{extension};
+                $info->{name} = join(', ', $model, sort @attributes);
             }
             $router->{model} = $info;
         }
@@ -1963,12 +1964,12 @@ sub read_router( $ ) {
         $router->{vrf}
           and not $model->{can_vrf}
           and err_msg("Must not use VRF at $router->{name}",
-            " of type $model->{name}");
+            " of model $model->{name}");
 
         $router->{log_deny}
           and not $model->{can_log_deny}
           and err_msg("Must not use attribute 'log_deny' at $router->{name}",
-            " of type $model->{name}");
+            " of model $model->{name}");
 
         # Create objects representing hardware interfaces.
         # All logical interfaces using the same hardware are linked
@@ -2026,7 +2027,7 @@ sub read_router( $ ) {
             if ($interface->{hub} or $interface->{spoke}) {
                 $model->{crypto}
                   or err_msg "Crypto not supported for $router->{name}",
-                  " of type $model->{name}";
+                  " of model $model->{name}";
             }
         }
 
@@ -2050,7 +2051,7 @@ sub read_router( $ ) {
             grep { $_->{bind_nat} } @{ $router->{interfaces} }
               and err_msg "Attribute 'bind_nat' is not allowed",
               " at interface of $router->{name}",
-              " of type $router->{model}->{name}";
+              " of model $router->{model}->{name}";
 
             grep({ $_->{no_check} } @{ $router->{interfaces} }) >= 1
               or err_msg
@@ -11664,7 +11665,7 @@ sub cisco_srv_code( $$$ ) {
         if (my $established = $srv->{established}) {
             if ($model->{filter} eq 'PIX') {
                 err_msg "Must not use 'established' at '$model->{name}'\n",
-                  " - try model=secondary or \n",
+                  " - try 'managed=secondary' or \n",
                   " - don't use outgoing connection to VPN client";
             }
             if (defined $dst_srv) {
@@ -11680,7 +11681,7 @@ sub cisco_srv_code( $$$ ) {
         if (defined(my $type = $srv->{type})) {
             if (defined(my $code = $srv->{code})) {
                 if ($model->{filter} eq 'VPN3K') {
-                    err_msg "$model->{name} device can handle",
+                    err_msg "Device of model $model->{name} can handle",
                       " only simple ICMP\n but not $srv->{name}";
                 }
                 if ($model->{no_filter_icmp_code}) {
@@ -14017,7 +14018,7 @@ sub print_cisco_acls {
             elsif ($filter eq 'PIX') {
                 $intf_prefix = '';
                 $prefix      = "access-list $acl_name";
-                $prefix .= ' extended' if $model->{name} eq 'ASA';
+                $prefix .= ' extended' if $model->{class} eq 'ASA';
             }
 
             # Incoming ACL and protect own interfaces.
@@ -14575,7 +14576,7 @@ sub print_code( $ ) {
 
             print "$comment_char Generated by $program, version $VERSION\n\n";
             print "$comment_char [ BEGIN $name ]\n";
-            print "$comment_char [ Model = $model->{name} ]\n";
+            print "$comment_char [ Model = $model->{class} ]\n";
             if ($policy_distribution_point) {
                 if (my $ips = $vrouter->{admin_ip}) {
                     printf("$comment_char [ IP = %s ]\n", join(',', @$ips));
@@ -14585,7 +14586,7 @@ sub print_code( $ ) {
             print_routes $vrouter;
             print_crypto $vrouter;
             print_acls $vrouter;
-            print_interface $vrouter if $model->{name} =~ /^IOS/;
+            print_interface $vrouter if $model->{class} eq 'IOS';
             print_pix_static $vrouter if $model->{has_interface_level};
             print "$comment_char [ END $name ]\n\n";
         }
