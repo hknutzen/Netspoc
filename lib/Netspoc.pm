@@ -6830,12 +6830,13 @@ sub find_subnets() {
     }
 }
 
-# Clear-text interfaces of VPN cluster servers need to be attached
+# Clear-text interfaces of VPN3K cluster servers need to be attached
 # to the same security domain.
 # We need this to get consistent auto_deny_networks for all cluster members.
 sub check_vpnhub () {
     my %hub2routers;
     for my $router (@managed_vpnhub) {
+        next if not $router->{model}->{filter} eq 'VPN3K';
         for my $interface (@{ $router->{interfaces} }) {
             if (my $hubs = $interface->{hub}) {
                 for my $hub (@$hubs) {
