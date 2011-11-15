@@ -10967,6 +10967,10 @@ sub distribute_rule( $$$ ) {
             }
             elsif ($dst eq $network_00 or $dst eq $in_intf->{network}) {
 
+                # Ignore rule, because generated code would permit traffic
+                # to cleartext interface as well.
+                return if $in_intf->{ip} eq 'tunnel';
+
                 # Change destination in $rule to interface
                 # because pix_self_code needs interface.
                 #
@@ -10975,6 +10979,8 @@ sub distribute_rule( $$$ ) {
                 $rule = {%$rule};
                 $rule->{dst} = $in_intf;
             }
+
+            # Silently ignore everything else.
             else {
                 return;
             }
@@ -11315,6 +11321,16 @@ sub cmp_address {
     }
 }
 
+sub has_global_restrict {
+    my ($interface) = @_;
+    if (my $restrictions = $interface->{path_restrict}) {
+        for my $restrict (@$restrictions) {
+            return 1 if $restrict->{active_path};
+        }
+    }
+    return;
+}
+
 sub distribute_global_permit {
     for my $srv (sort { $a->{name} cmp $b->{name} } values %global_permit) {
         my $stateless      = $srv->{flags} && $srv->{flags}->{stateless};
@@ -11336,13 +11352,8 @@ sub distribute_global_permit {
             };
             for my $router (@managed_routers) {
                 my $is_ios = ($router->{model}->{filter} eq 'IOS');
-              INTERFACE:
                 for my $in_intf (@{ $router->{interfaces} }) {
-                    if (my $restrictions = $in_intf->{path_restrict}) {
-                        for my $restrict (@$restrictions) {
-                            next INTERFACE if $restrict->{active_path};
-                        }
-                    }
+                    next if has_global_restrict($in_intf);
 
                     # At VPN hub, don't permit any -> any, but only traffic
                     # from each encrypted network.
@@ -11374,6 +11385,8 @@ sub distribute_global_permit {
                             # For IOS print this rule only once
                             # at interface block.
                             next if $is_ios;
+
+                            next if has_global_restrict($out_intf);
 
                             # Traffic traverses the device.
                             distribute_rule($rule, $in_intf, $out_intf);
