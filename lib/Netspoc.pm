@@ -11382,10 +11382,20 @@ sub distribute_global_permit {
                         for my $out_intf (@{ $router->{interfaces} }) {
                             next if $out_intf eq $in_intf;
 
-                            # For IOS print this rule only once
-                            # at interface block.
-                            next if $is_ios;
+                            # For IOS print this rule only once at interface 
+                            # filter rules (for incoming ACL).
+                            if($is_ios) {
+                                my $out_hw = $out_intf->{hardware};
 
+                                # For interface with outgoing ACLs
+                                # we need to add the rule.
+                                # distribute_rule would add rule to incoming,
+                                # hence we add rule directly to outgoing rules.
+                                if ($out_hw->{need_out_acl}) {
+                                    push @{ $out_hw->{out_rules} }, $rule;
+                                }
+                                next;
+                            }
                             next if has_global_restrict($out_intf);
 
                             # Traffic traverses the device.
