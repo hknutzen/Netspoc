@@ -14416,7 +14416,8 @@ sub print_crypto( $ ) {
             }
 
             my $transform_name = $ipsec2trans_name{$ipsec};
-            print "$prefix set transform-set $transform_name\n";
+	    my $extra = ($crypto_type eq 'ASA' && $model->{v8_4} ) ? 'ikev1 ' : '';
+	    print "$prefix set ${extra}transform-set $transform_name\n";
 
             if (my $pfs_group = $ipsec->{pfs_group}) {
                 if ($pfs_group =~ /^(1|2)$/) {
