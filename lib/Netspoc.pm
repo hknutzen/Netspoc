@@ -10980,6 +10980,11 @@ sub distribute_rule( $$$ ) {
                 $rule->{dst} = $in_intf;
             }
 
+            # Permit management access through tunnel.
+            # On ASA device use command "management-access".
+            elsif($in_intf->{ip} eq 'tunnel') {
+            }
+
             # Silently ignore everything else.
             else {
                 return;
