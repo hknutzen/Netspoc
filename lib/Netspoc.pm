@@ -2339,7 +2339,7 @@ sub read_service( $ ) {
     }
     while (check ',') {
         my $flag = read_identifier;
-        if ($flag =~ /^(src|dst)_(path|net|any)$/) {
+        if ($flag =~ /^(src|dst)_(net|any)$/) {
             $service->{flags}->{$1}->{$2} = 1;
         }
         elsif ($flag =~ /^(?:stateless|reversed|oneway|overlaps)/) {
@@ -5233,26 +5233,6 @@ sub expand_special ( $$$$ ) {
     }
     else {
         @result = ($src);
-    }
-    if ($flags->{path}) {
-        internal_err "Flag 'path' currently disabled";
-        my %interfaces;
-        for my $src (@result) {
-            my $fun = sub {
-                my ($rule, $in_intf, $out_intf) = @_;
-                if ($in_intf) {
-                    $interfaces{$in_intf} = $in_intf;
-                }
-            };
-            my $pseudo_rule = {
-                src => is_autointerface $src ? $src->{object} : $src,
-                dst => is_autointerface $dst ? $dst->{object} : $dst,
-                action => '--',
-                srv    => $srv_ip,
-            };
-            path_walk $pseudo_rule, $fun, 'Network';
-        }
-        @result = grep { $_->{ip} !~ /unnumbered|short/ } values %interfaces;
     }
     if ($flags->{net}) {
         my %networks;
