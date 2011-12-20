@@ -4651,13 +4651,7 @@ sub expand_group1( $$;$ ) {
                 my $element1 = $element->[0] eq '!' ? $element->[1] : $element;
                 my @elements =
                   map {
-                    if (ref $_ =~ /Local|Autointerface/)
-                    {
-                        err_msg "$_->{name} not allowed in intersection of",
-                          " $context";
-                        ();
-                    }
-                    elsif ($type and ref $_ ne $type) {
+                    if ($type and ref $_ ne $type) {
                         err_msg "All elements must be of same type",
                           " in intersection of $context";
                         ();
