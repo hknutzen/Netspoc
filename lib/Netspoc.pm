@@ -14589,8 +14589,9 @@ sub print_crypto( $ ) {
             }
 
             my $transform_name = $ipsec2trans_name{$ipsec};
-	    my $extra = ($crypto_type eq 'ASA' && $model->{v8_4} ) ? 'ikev1 ' : '';
-	    print "$prefix set ${extra}transform-set $transform_name\n";
+	    my $extra_ikev1 = ($crypto_type eq 'ASA' && $model->{v8_4}) 
+                            ? 'ikev1 ' : '';
+	    print "$prefix set ${extra_ikev1}transform-set $transform_name\n";
 
             if (my $pfs_group = $ipsec->{pfs_group}) {
                 if ($pfs_group =~ /^(1|2)$/) {
@@ -14619,12 +14620,7 @@ sub print_crypto( $ ) {
                     print "tunnel-group $peer_ip type ipsec-l2l\n";
                     print "tunnel-group $peer_ip ipsec-attributes\n";
                     if ($authentication eq 'preshare') {
-                        if ($model->{v8_4}) {
-                            print " ikev1 pre-shared-key xxx\n";
-                        }
-                        else {
-                            print " pre-shared-key *****\n";
-                        }
+                        print " ${extra_ikev1}pre-shared-key *****\n";
                         print " peer-id-validate nocheck\n";
                     }
                     elsif ($authentication eq 'rsasig') {
@@ -14632,12 +14628,11 @@ sub print_crypto( $ ) {
                           or err_msg "Missing 'trust_point' in",
                           " isakmp attributes for $router->{name}";
                         print " chain\n";
+                        print " ${extra_ikev1}trust-point $trust_point\n";
                         if ($model->{v8_4}) {
-                            print " ikev1 trust-point $trust_point\n";
                             print " ikev1 user-authentication none\n";
                         }
                         else {
-                            print " trust-point $trust_point\n";
                             print " isakmp ikev1-user-authentication none\n";
                         }
                     }
