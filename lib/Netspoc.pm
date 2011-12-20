@@ -651,13 +651,15 @@ sub read_union( $ ) {
     return @vals;
 }
 
-# Check for xxx:xxx | router:xx@xx
+# Check for xxx:xxx | router:xx@xx | network:xx/xx | interface:xx/xx
 sub check_typed_name() {
     skip_space_and_comment;
     my ($type) = $input =~ m/ \G (\w+) : /gcx or return undef;
     my ($name) =
         $type eq 'router'
       ? $input =~ m/ \G ( [\w-]+ (?: \@ [\w-]+ )? ) /gcx
+      : ($type eq 'network' or $type eq 'interface')
+      ? $input =~ m/ \G ( [\w-]+ (?: \/ [\w-]+ )? ) /gcx
       : $input =~ m/ \G ( [\w-]+ ) /gcx
       or return undef;
     return [ $type, $name ];
@@ -674,17 +676,20 @@ sub read_typed_name() {
     my $user_regex     = qr/[\w-]+(?:\.[\w-]+)*/;
     my $user_id_regex  = qr/$user_regex(?:$domain_regex)?/;
     my $id_regex       = qr/$user_id_regex|$domain_regex/;
-    my $hostname_regex = qr/(?:id:$id_regex|[\w-]+)/;
+    my $hostname_regex = qr/(?: id:$id_regex | [\w-]+ )/x;
+    my $network_regex  = qr/(?: [\w-]+ (?: \/ [\w-]+ )? )/x;
 
 # Check for xxx:xxx or xxx:[xxx:xxx, ...]
-# or interface:r@v.xxx
-# or interface:r@v.xxx.xxx
-# or interface:r@v.[xxx]
+# or interface:xxx.xxx
+# or interface:xxx.xxx.xxx
+# or interface:xxx.[xxx]
+# or interface:r@v. ...
+# or interface:....xxx/ppp...
 # or interface:[xxx:xxx, ...].[xxx]
 # or interface:[managed & xxx:xxx, ...].[xxx]
+# or network:xxx/ppp
 # or host:id:user@domain.network
 #
-# with r@v = xxx | xxx@xxx
     sub read_extended_name() {
         if (check 'user') {
 
@@ -700,16 +705,23 @@ sub read_typed_name() {
         my $managed;
         my $name;
         my $ext;
-        if ($type eq 'host' && $input =~ m/\G($hostname_regex)/gco) {
-            $name = $1;
-        }
-        elsif ($input =~ m/ \G \[ /gcox) {
+        if ($input =~ m/ \G \[ /gcox) {
             my @list;
             if ($interface && check 'managed') {
                 $managed = 1;
                 skip '&';
             }
             $name = [ read_union ']' ];
+        }
+        elsif ($type eq 'host') {
+            $input =~ m/ \G ( $hostname_regex ) /gcox
+                or syntax_err "Name or ID-name expected";
+            $name = $1;
+        }
+        elsif ($type eq 'network') {
+            $input =~ m/ \G ( $network_regex ) /gcox
+                or syntax_err "Name or bridged name expected";
+            $name = $1;
         }
         elsif ($interface && $input =~ m/ \G ( [\w-]+ (?: \@ [\w-]+ ) ) /gcx
             || $input =~ m/ \G ( [\w-]+ ) /gcx)
@@ -728,7 +740,9 @@ sub read_typed_name() {
                 skip '\]';
             }
             else {
-                $ext = read_identifier;
+                $input =~ m/ \G ( $network_regex ) /gcox
+                    or syntax_err "Name or bridged name expected";
+                $ext = $1;
                 if ($input =~ m/ \G \. /gcox) {
                     $ext .= '.' . read_identifier;
                 }
@@ -1163,6 +1177,9 @@ sub read_network( $ ) {
     (my $net_name = $name) =~ s/^network://;
     my $network = new('Network', name => $name);
     $network->{private} = $private if $private;
+    if ($net_name =~ m,^(.*)/,) {
+        $network->{bridged} = $1;
+    }
     skip '=';
     skip '{';
     add_description($network);
@@ -1229,13 +1246,13 @@ sub read_network( $ ) {
         }
         else {
             my $pair = read_typed_name;
-            my ($type, $nat_name) = @$pair;
+            my ($type, $name2) = @$pair;
             if ($type eq 'nat') {
-                my $nat = read_nat "nat:$nat_name";
+                my $nat = read_nat "nat:$name2";
                 $nat->{name} .= "($name)";
-                $network->{nat}->{$nat_name}
+                $network->{nat}->{$name2}
                   and error_atline "Duplicate NAT definition";
-                $network->{nat}->{$nat_name} = $nat;
+                $network->{nat}->{$name2} = $nat;
             }
             else {
                 syntax_err "Expected NAT or host definition";
@@ -1248,13 +1265,27 @@ sub read_network( $ ) {
 
     # Use 'defined' here because IP may have value '0'.
     defined $ip or syntax_err "Missing network IP";
+
     if ($ip eq 'unnumbered') {
+        my %ok = (ip => 1, name => 1);
 
         # Unnumbered network must not have any other attributes.
         for my $key (keys %$network) {
-            next if $key eq 'ip' or $key eq 'name';
+            next if $ok{$key};
             error_atline "Unnumbered $network->{name} must not have ",
                 ($key eq 'hosts') ? "host definition"
+              : ($key eq 'nat')   ? "nat definition"
+              :                     "attribute '$key'";
+        }
+    }
+    elsif ($network->{bridged}) {
+        my %ok = (ip => 1, mask => 1, bridged => 1, name => 1);
+
+        # Bridged network must not have any other attributes.
+        for my $key (keys %$network) {
+            next if $ok{$key};
+            error_atline "Bridged $network->{name} must not have ",
+                ($key eq 'hosts') ? "host definition (not implemented)"
               : ($key eq 'nat')   ? "nat definition"
               :                     "attribute '$key'";
         }
@@ -1333,7 +1364,7 @@ sub read_network( $ ) {
                     $nat->{ip} &= $nat->{mask};
                 }
             }
-        }
+        }  
 
         # Check and mark networks with ID-hosts.
         if (my $id_hosts_count = grep { $_->{id} } @{ $network->{hosts} }) {
@@ -1504,7 +1535,7 @@ sub read_interface( $ ) {
         elsif (my @pairs = check_assign_list 'hub', \&read_typed_name) {
             for my $pair (@pairs) {
                 my ($type, $name2) = @$pair;
-                $type eq 'crypto' or error_atline "Expected type crypto";
+                $type eq 'crypto' or error_atline "Expected type 'crypto'";
                 push @{ $interface->{hub} }, "$type:$name2";
             }
         }
@@ -1623,12 +1654,16 @@ sub read_interface( $ ) {
         }
     }
 
+    if ($name =~ m,/,) {
+        $interface->{ip} ||= 'bridged';
+    }
+
     # Swap virtual interface and main interface
     # or take virtual interface as main interface if no main IP available.
     # Subsequent code becomes simpler if virtual interface is main interface.
     if ($virtual) {
         if (my $ip = $interface->{ip}) {
-            if ($ip =~ /unnumbered|negotiated|short/) {
+            if ($ip =~ /unnumbered|negotiated|short|bridged/) {
                 error_atline "No virtual IP supported for $ip interface";
             }
 
@@ -1637,7 +1672,8 @@ sub read_interface( $ ) {
               new('Interface', name => $interface->{name}, ip => $ip);
             push @secondary_interfaces, $secondary;
 
-            # But we need the original main interface when handling auto interfaces.
+            # But we need the original main interface 
+            # when handling auto interfaces.
             $interface->{orig_main} = $secondary;
         }
         @{$interface}{qw(name ip redundancy_type redundancy_id)} =
@@ -1648,7 +1684,7 @@ sub read_interface( $ ) {
         $interface->{ip} ||= 'short';
     }
     if ($interface->{nat}) {
-        if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
+        if ($interface->{ip} =~ /unnumbered|negotiated|short|bridged/) {
             error_atline "No NAT supported for $interface->{ip} interface";
         }
     }
@@ -1664,7 +1700,7 @@ sub read_interface( $ ) {
             my $attr = join ", ", map "'$_'", keys %copy;
             error_atline "Invalid attributes $attr for loopback interface";
         }
-        if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
+        if ($interface->{ip} =~ /unnumbered|negotiated|short|bridged/) {
             error_atline "Loopback interface must not be $interface->{ip}";
         }
     }
@@ -1672,6 +1708,13 @@ sub read_interface( $ ) {
         error_atline
           "Attribute 'subnet_of' is only valid for loopback interface";
     }
+    if ($interface->{ip} eq 'bridged') {
+        my %ok =(ip => 1, hardware => 1, name => 1);
+        if(my @extra = grep(not($ok{$_}), keys %$interface)) {
+            my $attr = join ", ", map "'$_'", @extra;
+            error_atline "Invalid attributes $attr for bridged interface";
+        }
+    }            
     if (my $crypto = $interface->{spoke}) {
         @secondary_interfaces
           and error_atline "Interface with attribute 'spoke'",
@@ -1681,7 +1724,7 @@ sub read_interface( $ ) {
           " must not have attribute 'hub'";
     }
     if (my $hubs = $interface->{hub}) {
-        if ($interface->{ip} =~ /unnumbered|negotiated|short/) {
+        if ($interface->{ip} =~ /unnumbered|negotiated|short|bridged/) {
             error_atline "Crypto hub must not be $interface->{ip} interface";
         }
         for my $crypto (@$hubs) {
@@ -2073,6 +2116,7 @@ sub read_router( $ ) {
 
     # Unmanaged device.
     else {
+        my $bridged;
         $router->{owner}
           and error_atline "Attribute 'owner' must only be used at",
           " managed device";
@@ -2089,6 +2133,15 @@ sub read_router( $ ) {
                 error_atline "Interface with attribute 'promiscuous_port'",
                   " must only be used at managed device";
             }
+            if ($interface->{ip} eq 'bridged') {
+                $bridged = 1;
+            }
+        }
+
+        # Unmanaged bridge would complicate generation of static routes.
+        if ($bridged) {
+            error_atline 
+                "Bridged interfaces must only be used at managed device";
         }
     }
     return $router;
@@ -3471,6 +3524,7 @@ sub link_interfaces {
             $interface->{network} = undef;
             next;
         }
+
         $interface->{network} = $network;
 
         # Private network must be connected to private interface
@@ -3529,6 +3583,11 @@ sub link_interfaces {
 
             # Nothing to be checked: negotiated interface may be linked to
             # any numbered network.
+        }
+        elsif ($ip eq 'bridged') {
+            
+            # Nothing to be checked: attribute 'bridged' is set automatically
+            # for an interface without IP and linked to bridged network.
         }
         else {
 
@@ -4130,6 +4189,66 @@ sub transform_isolated_ports {
     }
 }
 
+# Group bridged networks by prefix of name.
+# Each group
+# - must have the same IP address and mask,
+# - must have at least two members,
+# - must be adjacent
+# - linked by bridged interfaces
+# - IP addresses of hosts must be disjoint (to be done).
+# Each router having a bridged interface 
+# must connect at least two bridged networks of the same group.
+sub check_bridged_networks {
+    my %prefix2net;
+    for my $network (@networks) {
+        my $prefix = $network->{bridged} or next;
+        $prefix2net{$prefix}->{$network} = $network;;
+    }
+    for my $prefix (keys %prefix2net) {
+        if (my $network = $networks{$prefix}) {
+            err_msg("Must not define $network->{name} together with",
+                    " bridged networks with same name");
+        }
+    }
+    for my $href (values %prefix2net) {
+        my @group = values %$href;
+        my $net1 = pop(@group);
+        @group or warn_msg "Bridged $net1->{name} must not be used solitary";
+        my %seen;
+        my @next = ($net1);
+        my ($ip1, $mask1) = @{$net1}{qw(ip mask)};
+        while (my $network = pop(@next)) {
+            my ($ip, $mask) = @{$network}{qw(ip mask)};
+            $ip == $ip1 and $mask == $mask1 
+                or err_msg("$net1->{name} and $network->{name} must have",
+                           " identical ip/mask");
+            $href->{$network} = 'connected';
+            for my $in_intf (@{$network->{interfaces}}) {
+                next if $in_intf->{ip} ne 'bridged';
+                my $router = $in_intf->{router};
+                next if $seen{$router};
+                my $count = 1;
+                $seen{$router} = $router;
+                for my $out_intf (@{$router->{interfaces}}) {
+                    next if $out_intf eq $in_intf;
+                    next if $out_intf->{ip} ne 'bridged';
+                    my $next_net = $out_intf->{network};
+                    next if not $href->{$next_net};
+                    push(@next, $out_intf->{network});
+                    $count++;
+                }
+                $count > 1 
+                   or err_msg "$router->{name} can't bridge a single network";
+            }
+        }
+        for my $network (@group) {
+            $href->{$network} eq 'connected'
+                or err_msg("$network->{name} and $net1->{name}",
+                           " must be connected by bridge");
+        }
+    }
+}
+
 sub mark_disabled() {
     my @disabled_interfaces = grep { $_->{disabled} } values %interfaces;
 
@@ -4236,9 +4355,11 @@ sub mark_disabled() {
         }
     }
     @virtual_interfaces = grep { not $_->{disabled} } @virtual_interfaces;
-    if ($policy_distribution_point and $policy_distribution_point->{disabled}) {
+    if ($policy_distribution_point and $policy_distribution_point->{disabled}) 
+    {
         $policy_distribution_point = undef;
     }
+    check_bridged_networks();
     transform_isolated_ports();
 }
 
@@ -4745,11 +4866,11 @@ sub expand_group1( $$;$ ) {
                 err_msg "Can't resolve $type:$name.$ext in $context";
             }
 
-            # Silently remove unnumbered and tunnel interfaces
+            # Silently remove unnumbered, bridged and tunnel interfaces
             # from automatic groups.
             push @objects,
               $clean_autogrp
-              ? grep { $_->{ip} !~ /^(?:unnumbered|tunnel)$/ } @check
+              ? grep { $_->{ip} !~ /^(?:unnumbered|bridged|tunnel)$/ } @check
               : grep { $_->{ip} ne 'tunnel' } @check;
         }
         elsif (ref $name) {
@@ -6697,6 +6818,11 @@ sub find_subnets() {
                 }
                 elsif ($nat_old_net->{dynamic} and $network->{loopback}) {
                     nat_to_loopback_ok($network, $nat_old_net) or $error = 1;
+                }
+                elsif (($network->{bridged} || 0 ) eq 
+                       ($old_net->{bridged} || 1))
+                {
+                    # Parts of bridged network have identical IP by design.
                 }
                 else {
                     $error = 1;
@@ -10322,8 +10448,61 @@ sub find_active_routes () {
     check_and_convert_routes;
 }
 
+# Parameters:
+# - a bridged interface with IP address, not usable as hop.
+# - the network for which the hop was found.
+# Result:
+# - one or more layer 3 interfaces, usable as hop.
+# Non optimized version.
+# Doesn't matter as long we have only a few bridged networks
+# or don't use static routing at the border of bridged networks.
+sub fix_bridged_hops;
+sub fix_bridged_hops {
+    my ($hop, $network) = @_;
+    my @result;
+    my $router = $hop->{router};
+    for my $interface (@{ $router->{interfaces} }) {
+        next if $interface eq $hop;
+      HOP:
+        for my $hop2 (values %{ $interface->{hop} }) {
+            for my $network2 ( values %{ $interface->{routes}->{$hop2} }) {
+                if ($network eq $network2) {
+                    if ($hop2->{ip} eq 'bridge') {
+                        push @result, fix_bridged_hops($hop2, $network);
+                    }
+                    else {
+                        push @result, $hop2;
+                    }
+                    next HOP;
+                }
+            }
+        }
+    }
+    return @result;
+}
+
 sub check_and_convert_routes () {
     progress "Checking for duplicate routes";
+
+    # Fix routes to bridged interfaces without IP address.
+    for my $router (@managed_routers) {
+        for my $interface (@{ $router->{interfaces} }) {
+            next if not $interface->{network}->{bridged};
+            for my $hop (values %{ $interface->{hop} }) {
+                next if $hop->{ip} ne 'bridged';
+                for my $network (values %{ $interface->{routes}->{$hop} }) {
+                    my @real_hop = fix_bridged_hops($hop, $network);
+                    for my $rhop (@real_hop) {
+                        $interface->{hop}->{$rhop} = $rhop;
+                        $interface->{routes}->{$rhop}->{$network} = $network;
+                    }
+                }
+                delete $interface->{hop}->{$hop};
+                delete $interface->{routes}->{$hop};
+            }
+        }
+    }
+
     for my $router (@managed_routers) {
 
         # Adjust routes through VPN tunnel to cleartext interface.
@@ -10392,6 +10571,7 @@ sub check_and_convert_routes () {
 
         # Remember, via which local interface a network is reached.
         my %net2intf;
+
         for my $interface (@{ $router->{interfaces} }) {
 
             # Remember, via which remote interface a network is reached.
@@ -10501,6 +10681,7 @@ sub print_routes( $ ) {
     my $do_auto_default_route = $config{auto_default_route};
     my %intf2hop2nets;
     for my $interface (@{ $router->{interfaces} }) {
+        next if $interface->{ip} eq 'bridged';
         if ($interface->{routing}) {
             $do_auto_default_route = 0;
             next;
@@ -10566,6 +10747,7 @@ sub print_routes( $ ) {
         # if there are at least two entries.
         my $max = 1;
         for my $interface (@{ $router->{interfaces} }) {
+            next if $interface->{ip} eq 'bridged';
             for my $hop (@{ $interface->{hop} }) {
                 my $count = @{ $intf2hop2nets{$interface}->{$hop} };
                 if ($count > $max) {
@@ -10587,6 +10769,7 @@ sub print_routes( $ ) {
     $vrf = $vrf ? "vrf $vrf " : '';
 
     for my $interface (@{ $router->{interfaces} }) {
+        next if $interface->{ip} eq 'bridged';
 
         # Don't generate static routing entries,
         # if a dynamic routing protocol is activated
@@ -11388,6 +11571,7 @@ sub distribute_global_permit {
                         }
 
                         # Traffic for the device itself.
+                        next if $in_intf->{ip} eq 'bridged';
                         distribute_rule($rule, $in_intf, undef);
                     }
                 }
@@ -13498,7 +13682,11 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
             }
 
             # Ignore 'unnumbered' interfaces.
-            next if $interface->{ip} =~ /^(?:unnumbered|negotiated|tunnel)$/;
+            if ($interface->{ip} =~ 
+                /^(?:unnumbered|negotiated|tunnel|bridged)$/)
+            {
+                next;
+            } 
             internal_err "Managed router has short $interface->{name}"
               if $interface->{ip} eq 'short';
 
