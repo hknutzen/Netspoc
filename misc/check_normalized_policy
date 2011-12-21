@@ -89,18 +89,25 @@ sub get_networks ( $$ ) {
     }
 }
 
-my %name2object = (
-    host      => \%hosts,
-    network   => \%networks,
-    interface => \%interfaces,
-    any       => \%anys,
-    group     => \%groups,
-    area      => \%areas,
-);
+sub propagate_owner {
+    for my $area (values %areas) {
+	if (my $owner = $area->{owner}) {
+	    for my $any (@{ $area->{anys} }) {
+		$any->{owner} ||= $owner;
+	    }
+	}
+    }
+}	
+
+&propagate_owner();
 
 for my $key (sort keys %policies) {
     my $policy = $policies{$key};
     my $pname   = $policy->{name};
+    if ($policy->{foreach}) {
+	warn_msg "Ignoring $pname with attribute 'foreach'";
+	next;
+    }
 
     # 'user' objects.
     my $users = Netspoc::expand_group($policy->{user}, "user of $pname");
@@ -127,58 +134,10 @@ for my $key (sort keys %policies) {
 		    $is_user = 1;
 		}
 
-		# any:[..]
-		elsif ($type eq 'any' and ref $name) {
-		    my $sub_objects = 
-			Netspoc::expand_group1([ $parts ], "$type:[..] of $context");
-		    push @objects, @$sub_objects
-		}
-
-		# interface:...
-		elsif ($type eq 'interface') {
-
-		    # interface:[..].[all|auto]
-		    if (ref $ext) {
-			my ($selector, $managed) = @$ext;
-			if (my $router = $routers{$name}) {
-			    if ($selector eq 'all') {
-				push @objects, @{ $router->{interfaces} };
-			    }
-			    else {
-				push @objects, Netspoc::get_auto_intf $router;
-			    }
-			}
-			else {
-			    warn_msg
-				"Can't resolve '$type:$name.[$selector]'",
-				" in $context";
-			}
-		    }
-		    elsif (my $interface = $interfaces{"$name.$ext"}) {
-			push @objects, $interface;
-		    }
-		    else {
-			warn_msg 
-			    "Can't resolve '$type:$name.$ext' in $context";
-		    }
-		}
-
-		# type:name
-		elsif (my $object = $name2object{$type}->{$name}) {
-		    if (is_network $object or is_host $object) {
-			push @objects, $object;
-		    }
-		    elsif (is_group $object) {
-			my $elements = Netspoc::expand_group1([[$type, $name]],
-							      "$type:$name");
-			push @objects, @$elements;
-		    }
-		    else {
-			warn_msg "Unexpected $object->{name} in $context";
-		    }
-		}
+		# Hopefully without 'user'.
 		else {
-		    warn_msg "Can't resolve '$type:$name' in $context";
+		    my $elements = Netspoc::expand_group1([$parts], $context);
+		    push @objects, @$elements;
 		}
 
 		# Remember, if user ist src and/or dst.
@@ -214,12 +173,20 @@ for my $key (sort keys %policies) {
 	$user_is{src} ? $user_is{dst} ? 'b' : 'i' : $user_is{dst} ? 'o' : '-';
 #    print "$pcount\t$ucount\t$direction\t$pname\t$file\n";
 
-# print "\t$pname\t$file\n";
     my @net_or_router = map { get_networks($_, $pname) } @objects;
     %unique = map { $_ => $_ } @net_or_router;
     @net_or_router = values %unique;
     my $ncount = @net_or_router;
-    if($ncount > 1) {
-	print "$ncount\t$pname\t$file\n";
+
+    my @owner_any_or_managed = 
+	map {   is_network $_ 
+	      ? $_->{owner} || $_->{any}->{owner} || $_->{any} 
+	      : 'managed' } @net_or_router;
+    %unique = map { $_ => $_ } @owner_any_or_managed;
+    @owner_any_or_managed = values %unique;
+    my $ocount = @owner_any_or_managed;
+
+    if($ocount > 1) {
+	print "$ocount\t$ncount\t$pname\t$file\n";
     }
 }
