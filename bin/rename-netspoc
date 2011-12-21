@@ -284,8 +284,10 @@ sub setup_pattern {
         my $old = shift @pattern;
         my $new = shift @pattern or 
             fatal_err "Missing replace string for '$old'";
-        my ($type, $old_name) = ($old =~ /^(\w+):(.*)$/) or pod2usage(2);
-        my ($n_type, $new_name) = ($new =~ /^(\w+):(.*)$/) or pod2usage(2);
+        my ($type, $old_name) = ($old =~ /^(\w+):(.*)$/) or 
+            fatal_err "Missing type in '$old'";
+        my ($n_type, $new_name) = ($new =~ /^(\w+):(.*)$/) or 
+            fatal_err "Missing type in '$new'";
         $type eq $n_type or 
             fatal_err "Types '$type' and '$n_type' must be identical";
         setup_subst($type, $old_name, $new_name);
