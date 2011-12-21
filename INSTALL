@@ -1,3 +1,9 @@
-# INSTALL file for NetSPoC
+You can install this module in the usual Perl fashion:
 
-Copy netspoc and Netspoc.pm into any directory of your $PATH.
+	perl Makefile.PL
+	make
+	make test
+	make install
+
+Copyright (c) 2011 by Heinz Knutzen. All rights reserved.
+
