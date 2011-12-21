@@ -1,0 +1,25 @@
+# File: examples/loop
+#
+# Test policies for topology with loop
+
+service:IP = ip;
+service:http = tcp 80;
+
+policy:egypt_ip = {
+ user = network:egypt;
+ permit src=any:north,any:east,any:ocean,any:mediteran,any:south;
+        dst=user;
+        srv=service:IP;
+}
+policy:marocco_web = {
+ user = host:asterix;
+ permit src=user;
+        dst=interface:agadir.[auto];
+        srv=service:http;
+}
+policy:admin_from_south = {
+ user = interface:paris.ocean;
+ permit src=any:south,any:mediteran;
+        dst=user;
+        srv=service:http;
+}

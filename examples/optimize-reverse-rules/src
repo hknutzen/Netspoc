@@ -1,0 +1,27 @@
+#
+# Optimization of reverse rules with stateless packet filters.
+
+network:a = { ip = 10.1.1.0/24; }
+
+# Stateless packet filter.
+router:r = {
+ model = IOS;
+ managed;
+ interface:a = { ip = 10.1.1.1; hardware = eth0; }
+ interface:b = { ip = 10.2.2.2; hardware = eth1; }
+}
+
+network:b = { ip = 10.2.2.0/24; }
+
+
+service:tcp = tcp;
+service:http = tcp 80;
+
+# Reverse rule of (1) is redundant compared to (2).
+policy:test = {
+ user = network:a;
+ # (1)
+ permit src = user; dst = network:b; srv = service:http;
+ # (2)
+ permit src = network:b; dst = user; srv = service:tcp;
+}

@@ -1,0 +1,53 @@
+# File: examples/interface-rules
+#
+# Test case, were interfaces are src and dst of rules.
+
+# At rome, rule (A1) won't be optimized away
+# although it seems to be redundant compared to (C1)
+# This is because NetSPoC automatically protects
+# interfaces of managed routers.
+
+service:http = tcp 80;
+service:telnet = tcp 23;
+service:TCP_All = tcp;
+
+policy:admin_outdside = {
+ user = interface:rome.south;
+# (A1)
+ permit src=interface:paris.north;
+        dst=user;
+        srv=service:http;
+# (A2)
+ permit src=user;
+        dst=interface:paris.north;
+        srv=service:http;
+}
+
+# (B)
+policy:admin_inside = {
+ user = interface:rome.mediteran, interface:paris.mediteran;
+ permit src=user;
+        dst=user;
+        srv=service:http;
+}
+
+policy:traffic_north = {
+# (C1)
+ user = network:south;
+ permit src=network:north;
+        dst=user;
+        srv=service:TCP_All;
+
+# (C2)
+ permit src = user;
+        dst = network:north;
+        srv = service:http;
+
+# Rule (D) will be optimized away at rome,
+# but not at paris, because dst is interface of router:paris.
+
+# (D)
+ permit src = user;
+        dst = interface:paris.north;
+        srv = service:telnet;
+}
