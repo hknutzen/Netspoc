@@ -1,7 +1,7 @@
 # Makefile for examples
 
 find := $(shell find . -maxdepth 1 -type d)
-dirs := $(filter-out RCS code . , $(find:./%=%))
+dirs := $(filter-out CVS code . , $(find:./%=%))
 codedirs := $(dirs:%=code/%)
 
 all:	$(codedirs)
