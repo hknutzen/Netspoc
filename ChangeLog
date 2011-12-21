@@ -1,10 +1,1167 @@
+2010-12-15  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Fixed bug in check_for_transient_any_rule when comparing stateless
+	rules.
+
+2010-12-03  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Removed white space around "description" lines.
+
+2010-12-02  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Added check for unused owner and admins and for redundant owners.
+	{router_attributes}->{owner} is now handled in propagate_owners.
+
+	* Netspoc.pm: Removed compatibility with "nat = .." syntax.
+
+2010-12-01  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Fixed sub unique: must use 'values' not 'keys', otherwise references
+	are destroyed.
+
+2010-11-29  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Renamed attribute "nat = .." at interface to "bind_nat = ..".
+	This allows better distinction between binding and definition of NAT.
+	(Old syntax "nat = .." is still accepted currently.)
+
+	Allow multiple NAT tags at attribute bind_nat of an interface.
+	This simplifies definition of NAT for devices with multiple interfaces.
+	Multiple NAT tags at an interface must not be used to define
+	inconsistent translations for the same network.
+
+	Example: Device with 3 attached networks a, b, c,
+	each being translated to an external address when passing the device.
+	Previously, the external address has to be defined multiple times for
+	each destination.
+
+	network:a = {
+	 ip = ip_orig;
+	 nat:for_b = { ip = a_ext; }
+	 nat:for_c = { ip = a_ext; }
+	}
+	router:r = {
+	 interface:a = { nat = for_a; }
+	 interface:b = { nat = for_b; }
+	 interface:c = { nat = for_c; }
+
+	The new version allows to reuse a single translation for multiple
+	destinations.
+
+	network:a = {
+	 ip = ip_orig;
+	 nat:from_a = { ip = a_ext; }
+	}
+	router:r = {
+	 interface:a = { bind_nat = from_b, from_c; }
+	 interface:b = { bind_nat = from_a, from_c; }
+	 interface:c = { bind_nat = from_a, From_b; }
+
+	Defined a new internal function aref_eq.
+	Fixed a validation in find_subnets. Dynamic NAT to loopback interface
+	is now checked fully.
+
+2010-11-26  heinz  <heinz@Buero>
+
+	* netspoc: Added help text for "check_transient_any_rules".
+
+	* Netspoc.pm:
+	There was a bug when printing the result of check for missing transient
+	any rules. The result was only printed if some rule was missing more
+	than once.
+	This has been fixed.
+	The error message for missing transient any rules has been clarified.
+	Checking of transient any rules has been made configurable and
+	currently is disabled by default.
+
+	* Netspoc.pm: Added attribute 'extend' to owner.
+	Per default, an owner is inherited from the enclosing any/area only
+	if the current object doesn't define an owner itself.
+	If the owner at the enclosing object has attribute 'extend', the admins
+	of this owner extend the owner of the current object.
+	Added check for duplicate attributes while reading admin.
+
+2010-11-24  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Refuse attribute 'owner' at unmanaged router.
+
+2010-11-19  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Check that one email address does not belong to different admins.
+
+	* cut-netspoc: Added owners and admins.
+
+	* netspoc:
+	Moved call to show_version after argument and config handling to make
+	"-quiet" effective.
+
+	* Netspoc.pm:
+	There was a bug in loop_path_walk. If a loop entry or exit was an
+	'any' object and the in / out interface had a pathrestriction applied,
+	and $call_at_router was true,
+	then the function argument was accidently applied to the any object.
+	This has been fixed.
+
+2010-11-12  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Moved definition of mask2prefix and prefix2mask behind definition of
+	print_ip.
+
+2010-11-11  heinz  <heinz@Buero>
+
+	* netspoc:
+	Command line handling has been moved into this file from Netspoc.pm.
+	Improved usage and help messages.
+	Use Pod::Usage to show usage and help messages.
+
+	* Netspoc.pm:
+	Added new config options to control warning messages for owners:
+	- check_policy_unknown_owner = 0|1|warn
+	- check_policy_multi_owner = 0|1|warn
+	Changed handling of config options:
+	- Options can be defined in a file names 'config' in toplevel directory
+	  of netspoc input.
+	- Command line handling has been moved to main program 'netspoc'.
+	- Command line options override options from config file.
+	- Options are stored in a global hash %config. This replaces single
+	  global variables, which had been used before.
+	New subroutines to handle config options:
+	- get_config_keys
+	- get_config_pattern
+	- check_config_pair
+	- read_config
+	- set_config
+	Directories 'raw' and '*.private' get only special handling in toplevel
+	directory. This fixes a possible security issue with '*.private'.
+	Removed 'raw' from ignore_files.
+	Variable $start_time is initialized during module loading now,
+	not at first call to info().
+	Changed skip_space_and_comment to handle comment at end of file with
+	missing linefeed.
+	No longer use typeglobs as filehandle and dirhandle but use local
+	variables instead.
+
+2010-11-10  heinz  <heinz@Buero>
+
+	* Netspoc.pm: New exported subroutine set_policy_owner which
+	- propagates owners in topology:
+	  area -> any -> network -> host | interface
+	- deduces the owner of each policy from owners of topology objects,
+	- gives warning for policy with multiple or unknown owners.
+	New syntax attributes for policy
+	- 'multi_owner' suppresses warnings about multiple owners,
+	- 'unknown_owner' suppresses warnings about unknown owners.
+	New internal attribute 'has_user' with values 'both', 'src', 'dst'
+	at rules of policies.
+
+2010-11-05  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Implemented new attribute 'visible' for policy.
+	The value is used by netspoc-web to decide if a policy is visible
+	by some owner who curently isn't a user of the policy.
+	Valid values are "*" or "<prefix>*".
+	This matches all owner names or owner names which are prefix.
+
+2010-11-01  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	No longer delete cleartext connection to router with ID hosts.
+	Ignore interface with global active pathrestriction
+	- when checking short interface for missing IP for routing,
+	- when finding any-clusters connected by semin managed routers.
+	Ignore short and negotiated interface when trying to guess route for
+	encrypted traffic.
+
+2010-10-25  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Attribute 'owner' for router.
+	Attribute 'router_attributes' for area. Currently only with 'owner' as
+	sub-attribute.
+	Managed router inherits 'router_attributes' from area.
+	router_attributes from smaller area override equal attribute from
+	enclosing area.
+
+2010-10-07  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Don't use subroutines skip, check, read_identifier
+	while reading Token of extended name. Otherwise we would
+	accidently allow whitespace inside a token.
+
+2010-10-05  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Fixed generated 'pre-shared-key' command: use '*****' instead of '*'.
+
+2010-09-30  heinz  <heinz@Buero>
+
+	* missing-approve: Don't abort on error.
+	Handle bz2 and tbz, tbz optionally including *.gz files.
+
+2010-09-22  heinz  <heinz@Buero>
+
+	* Netspoc.pm: A pathrestriction at border of loop wasn't handled
+	correctly, if path didn't start / end at this interface, but only
+	passed through this interface.  This has been fixed.
+
+2010-09-15  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Fixed order for ACL lines with service esp or ah.
+
+2010-09-01  heinz  <heinz@Buero>
+
+	* print-group: Don't combine adjacent hosts.
+
+	* Netspoc.pm: If 3rd parameter of expand_group has value
+	'no_combine', hosts are converted to subnets, but adjacent subnets
+	are not combined. This is currently used from program print-group.
+
+2010-08-31  heinz  <heinz@Buero>
+
+	* print-group:
+	Uses parser of Netspoc to analyze group names from command line.
+	Supports automatic groups as well as union, complement, intersection.
+	Added documentation for Pod::Usage.
+	Added perl parameters "-CSDAL" to allow unicode names in command line.
+	Removed "use locale" and "use lib".
+
+	* netspoc: Removed fiddling with use lib. Netspoc.pm now has to be
+	installed into a standard location.
+
+	* Netspoc.pm:
+	- use open qw(:std :utf8) instead of ':locale'.
+	- No longer use locale, this may change the order of rules in ACLs.
+	- Write use Exporter instead of require Exporter.
+	- use Encode and convert result of readdir by Encode::decode to 'UTF-8'.
+	- Removed the hashbang line from this perl module.
+
+2010-08-30  heinz  <heinz@Buero>
+
+	* print-group: Abort faster on error.
+
+	* Netspoc.pm: Added migration flag "o" to model of router
+	definition.  This adds a line "[ OldApprove ]" to the generated
+	code of marked device.
+
+	* Netspoc.pm:
+	Add support for attribute 'isolated_ports' at networks and attribute
+	'promiscuous_port' at interfaces.
+	If a network has attribute 'isolated_ports', hosts inside this network
+	are not	allowed to talk directly to each other. Instead the traffic
+	must go through	an interface which is marked as 'promiscuous_port'.
+	Non promiscuous interfaces are isolated as well.
+	They are handled like hosts.
+	Swapped parameters of sub aref_delete.
+	Substituted local anonymous function  $all_eq by global sub equal.
+
+2010-08-26  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Hosts no longer support multiple IP addresses, but
+	only single IP addresses or ranges.
+
+	* Netspoc.pm: Tidy up link_topology.
+
+2010-07-21  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Fixed bugfix in previous version.
+
+	* Netspoc.pm: The implementation of "no_in_acl" had a bug.
+	Outgoing ACLs included only ACL lines from the "no_in_acl"
+	interface.  But ACL lines for traffic from other interfaces was
+	missing in the outgoing ACL. This has been fixed.
+
+2010-07-14  heinz  <heinz@Buero>
+
+	* Netspoc.pm: No longer generate 'peer-id-validate req' for
+	'tunnel-group ipsec-attributes', because it is the default value.
+
+2010-07-09  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Removed duplicate "no sysopt connection permit-vpn" in print_crypto
+
+2010-06-17  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Changed /usr/sbin/iptables-restore to
+	/sbin/iptables-restore in Linux output, because this is the
+	standard path for debian lenny.
+
+2010-06-16  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Fixed check for any rules with no_in_acl.
+	Changed test from
+	(A) rule "permit any:X dst"
+	 a)  any:X == any:Y: filtering occurs at outgoing ACL, good
+	 b)  any:X != any:Y: outgoing ACL would accidently permit any:Y->dst.
+	              bad, additional rule required: "permit any:Y->dst"
+	to
+	(A) rule "permit any:X dst"
+	 a)  dst behind Y: filtering occurs at incoming ACL of X, good.
+	 b)  dst not behind Y:
+	   1. any:X == any:Y: filtering occurs at outgoing ACL, good.
+	   2. any:X != any:Y: outgoing ACL would accidently permit any:Y->dst, bad.
+	               additional rule required: "permit any:Y->dst"
+
+	* Netspoc.pm: Added new attribute 'no_in_acl' for interfaces.
+	With this attribute, no incoming ACL is generated for an interface.
+	Outgoing ACLs are added to all other interfaces of the same device
+	instead.
+	This is useful for situations like this:
+	1. A packet filter connects multiple customers with some central site.
+	   Each customer needs to inspect the ACls of 'his' interface,
+	   but must not see ACLs of the other customers.
+	   Declaring the interface to the central site with 'no_in_acl' adds
+	   outgoing ACL to each customer interface.
+	2. A packet filter has three interfaces A, B, C.
+	   There is a rule "permit network:A -> any:[network:B]"
+	   With only incoming ACLs this would allow traffic
+	   "network:A -> any:[network:C]" as well.
+	   With attribute 'no_in_acl' at interface A we get outgoing ACLs
+	   at interface B and C wich permit traffic to any:[network:B]
+	   but not to any:[network:C].
+	For IOS there remains a minimal incoming ACL that filters traffic
+	for the	device itself.
+	These restrictions apply:
+	- At most one interface with 'no_in_acl' is allowed per device.
+	- Multiple interfaces at the same hardware are not allowed if
+	  'no_in_acl' is declared at some logical interface of this hardware.
+	- 'no_in_acl' must not be used together with crypto tunnels at
+	  the same device.
+	- All interfaces must equally use or not use outgoing ACLs at
+	  a crosslink network.
+	- All interfaces with attribute 'no_in_acl' at routers connected by a
+	  crosslink network must be border of the same security domain.
+	Outgoing ACLs are supported for model IOS, Linux and ASA.
+	For convenience, the attribute 'no_in_acl' can be added to an 'any'
+	object.	It is then inherited by all border interfaces of this 'any'
+	object. Inheritance is stopped for devices which already have an
+	attribute 'no_in_acl' declared at some interface or have an
+	attribute 'std_in_acl' declared at the device level.
+	Consistency check for any rules has been changed at devices which use
+	attribute 'no_in_acl' at some interface.
+	Let's assume, we have a single interface Y (with attached any:Y)
+	without ACL and all other interfaces having incoming and outgoing ACLs.
+	(A) rule "permit any:X dst"
+	  - any:X == any:Y: filtering occurs at outgoing ACL, good.
+	  - any:X != any:Y: outgoing ACL would accidently
+	                                 permit any:Y -> dst, bad.
+	                    We require to additionally define
+	                                 "permit any:Y -> dst".
+	(B) rule "permit src any:X"
+	  - src behind Y: filtering occurs at ougoing ACLs, good.
+	  - src not behind Y:
+	    - any:X == any:Y: filtering occurs at incoming ACL at src and at
+	                      outgoing ACls of other non-any:X interfaces, good.
+	    - any:X != any:Y: incoming ACL at src would accidently
+	                                  permit src -> any:Y,
+	                      bad, additional rule required:
+	                                  "permit src -> any:Y".
+
+2010-06-04  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Invalid owner names are no longer silently ignored.
+
+2010-06-02  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Fixed crypto without pfs.
+
+	* Netspoc.pm: Fixed bug in code of check_and_convert_routes which
+	adjusts routes through VPN tunnel to cleartext interface.
+
+2010-05-25  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Fixed another bug in link_owner.
+	Renamed it to link_owners.
+
+	* Netspoc.pm: Fixed bug in link_owner
+
+2010-05-21  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Fixed missing references to admin objectes inside owner objects.
+
+2010-05-19  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Add owner objects and admin objects to syntax.
+	Owner objects are referenced by the owner attribute of network objects.
+	Admin objects are referenced by the admins attribute of owner objects.
+	New sub link_owner substitutes name of owner object by the object
+	itself.	Currently invalid owner names are silently ignored.
+
+2010-05-17  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Allow attribute bind_nat for loopback interface.
+	This can be necessary, because even a loopback interface establishes a
+	separate NAT domain.
+	We would need a NAT binding to hide one of two duplicate networks.
+
+2010-05-07  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Fixed removal of useless elements from automatic
+	groups.  Now, these elements (like route_hint networks) are
+	removed later, when the result is returned to rule processing and
+	not on intermediate results.
+
+2010-05-05  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Fix isakmp encryption for ASA from aesxxx to aes-xxx.
+
+2010-04-29  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Warn for useless deletes of elements with "& !".
+	Silently remove interfaces to route_hint or crosslink networks
+	from automatic groups.
+	Silently remove route_hint or crosslink networks from
+	automatic network of interface.
+
+2010-03-31  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Removed superfluous '' in warn and error messages.
+
+	* Netspoc.pm: Bug fixes:
+	- delete pathrestriction from interface if it isn't located inside
+	  or at the border of cyclic graph.
+	- in "sub path_mark", fixed test for interface with pathrestriction at
+	  border of cyclic graph
+
+2010-03-29  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Fixed bug when "overlaps" declaration references unknown policy.
+
+2010-03-18  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Removed unused definition of sub print_chain_rule.
+	Added code to calculate maximal number of matches in iptables
+	(is commented out).
+
+2010-03-16  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Changed default value for command line option
+	-check_redundant_rules to 'warn'.
+
+2010-03-10  heinz  <heinz@Buero>
+
+	* Netspoc.pm: "crypto map crypto-outside map-name seq-num ipsec-isakmp"
+	is no longer generated for ASA.
+
+	* Netspoc.pm: New command line option -check_redundant_rules.
+	Changed default value for -check_duplicate_rules to 'warn'.
+
+	* Netspoc.pm: Permit multiple values for attribute 'overlaps'.
+
+	* Netspoc.pm: Removed check for fully redundant rules.
+
+2010-03-02  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Only warning if unknown policy is referenced in "overlaps = ..".
+
+2010-03-01  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Added migration flag "n" to model of router
+	definition.  This adds a line "[ NewApprove ]" to the generated
+	code of marked device.
+
+	* Netspoc.pm:
+	New declaration "overlaps = policy:other_name;" in policy.
+	It suppresses warning about duplicate or redundant rules
+	between current policy and other policy.
+	For redundant rules the other policy must be the policy with larger
+	rules.
+
+2010-02-24  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Fixed bugs in syntax for ASA with LAN-to-LAN IPSec.
+
+	* Netspoc.pm: Fixed bug in version 2.393:
+	For VPN software clients, rules must be distributed to both,
+	id_intf and cleartext interface.
+	Rules at id_intf are needed to generate split tunnel ACLs.
+	Added command "no sysopt connection permit-vpn" for crypto of ASA
+	(without VPN).
+
+2010-02-23  heinz  <heinz@Buero>
+
+	* netspoc:
+	Call "optimize_and_warn_deleted" instead of "optimize" for the first
+	optimization pass.
+
+	* Netspoc.pm:
+	Attribute 'no_crypto_filter' is now applicable to model 'ASA, VPN'.
+	If activated it generates:
+	- command "no sysopt connection permit-vpn"
+	- simpler vpn-filter ACL which only checks the source address
+	- Traffic is filtered at standard interface ACL.
+	Fixed a bug with vpn-filter for VPN networks:
+	The filter is no longer applied to both username and group-policy,
+	but only to username.
+
+	* Netspoc.pm: Added checks for duplicate and redundant rules:
+	- new command line switch "-check_duplicate_rules"
+	- new exported function sub optimize_and_warn_deleted
+	Fixed bug:
+	When calculating auto interfaces,
+	ignore secondary interfaces at unmanaged devices.
+
+2010-02-10  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Give warning for duplicate elements in group or policy.
+
+2010-02-08  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Unenforceable rules give warnings now.
+
+	* Netspoc.pm: Ignore unenforceable rules from / to any when other
+	end is inside this any.
+
+2010-02-05  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Support LAN-to-LAN IPSec tunnels with pre-shared key at ASA device.
+	- peer must have fixed IP address
+	- peer can be managed or unmanaged device
+	- traffic is filtered at interface access list
+	  using 'no sysopt connection permit-vpn'.
+	  vpn-filter ACLs can't be used because they are stateless.
+	No longer support crypto tunnel at PIX device.
+	Support encryption aes256 for isakmp and ipsec.
+
+2010-02-03  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Temporarily disabled warning for inconsistent routing through redundancy
+	interfaces in case of loopback network.
+
+	* Netspoc.pm: No longer support "split-tunnel-policy 0".
+
+	* Netspoc.pm: Fixed a bug in setpath.
+	Attribute {distance} was not set correctly at semi_managed routers.
+
+2010-02-01  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Fixed bug in set_auto_intf_from_border
+
+2010-01-29  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Added missing 'next;' when generating 'permit ip any any' for crosslink.
+	Optimized code for IOS and crosslink.
+
+	* Netspoc.pm: Removed dead code for adding pathrestrictions to
+	cleartext interface of crypto tunnel.
+
+	* Netspoc.pm: Added attribute "crosslink" for networks.
+	A crosslink network combines two or more routers to a cluster of
+	routers. Filtering occurs only at the outside interfaces of the
+	cluster. The crosslink interfaces permit any traffic, because traffic
+	has already been filtered by some other device of the cluster.
+	These characteristics are enforced for crosslink networks:
+	- no hosts must be defined inside
+	- all attached routers are managed and have the same managed type
+	  (secondary, standard, full, primary)
+	- a hardware interface attached to a crosslink interface
+	  has no other logical networks attached.
+	- a crosslink network must not be used in rules
+	- crosslink networks are left out from
+	  network:[area:xx] and network:[any:xx]
+
+2010-01-28  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Optimized path_walk.
+	old: network,router,network,router
+	new: any,router,any,router.
+	New optimized code to find auto-interfaces and routes inside
+	'any' objects.
+	Rule flag "path" is currently broken, will be removed probably.
+	Never add comments to iptables because we have no one-to-one mapping.
+
+2010-01-27  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Allow unmanaged devices with pathrestrictions.
+	Internally, these devices are marked as semi_managed.
+	Groups of 'any' objects which are connected by semi_managed devices
+	share a common 'any cluster' mark.
+	Checks for
+	- unenforceable rules
+	- cluster of VPN hubs
+	- reroute_permit
+	have been changed to any_cluster checks.
+
+2010-01-15  heinz  <heinz@Buero>
+
+	* Netspoc.pm: When marking a path inside a loop, add data for the
+	reverse path as well to reduce runtime.
+
+2010-01-13  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Convert value of {path_tuples} only once from hash to array.
+
+	* Netspoc.pm: Optimize navigation inside a cluster of loops.
+	A cluster of loops are loops which are connected by a single node
+	(network or router).
+	Previously, a cluster of loops was handled like a single loop.
+	This was inefficient for large clusters, because path finding is slow.
+	Path finding inside a cluster is implemented more efficiently now by
+	using the tree structure of the loops inside the cluster.
+
+2010-01-05  Heinz Knutzen  <hk@Buero>
+
+	* Netspoc.pm: Spell checked.
+
+	* Netspoc.pm: perltidy, copyright 2010
+
+	* Netspoc.pm: Two static routes via different interfaces:
+	Show warning only if static routing is enabled for both interfaces.
+
+	* Netspoc.pm:
+	For a loopback interface, no ACL is generated.  In this case, at
+	iptables devices, wrong code was generated, which called the non
+	existent ACL. This has been fixed.
+	Additionally, all declarations of chains have been moved to the top
+	of the output.
+
+2010-01-03  Heinz Knutzen  <hk@Buero>
+
+	* Netspoc.pm: Removed $any_local_compatibilty. any:[local] isn't
+	valid syntax any longer.
+
+	* Netspoc.pm: Removed "interface:xx.[back]".
+	This was not widely used and can easily be expressed with complement:
+	"interface:xx.[all] & ! interface:xx.[auto]".
+	Renamed "interface:xx.[front]" back to the old syntax
+	"interface:xx.[auto]" which was still valid syntax in previous versions.
+
+	* cut-netspoc: Call fatal_err in case of unknown policy.
+
+	* Netspoc.pm: Better error message if topology has unconnected parts:
+	show only a single object of each part.
+	New subroutine fatal_err is called instead of "die".
+
+	* netspoc:
+	Call &find_subnets after &setpath to prevent irritating error messages
+	in case of an unconnected topology.
+
+	* cut-netspoc: Mark network which is referenced by marked 'any' object.
+
+2010-01-02  Heinz Knutzen  <hk@Buero>
+
+	* cut-netspoc:
+	Call expand_policies such that hosts are converted to subnets,
+	because this is needed by expand_crypto.
+
+2009-12-17  heinz  <heinz@Buero>
+
+	* Netspoc.pm: More compact message for unenforceable rules.
+	For fully unenforceable policy only name of the policy,
+	but no single src / dst pairs are printed.
+
+2009-12-16  heinz  <heinz@Buero>
+
+	* missing-approve: New file.
+
+2009-12-03  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Fixed wrong case: 'vpn-Idle-timeout' -> 'vpn-idle-timeout'
+
+2009-12-02  heinz  <heinz@Buero>
+
+	* Netspoc.pm: A bug had been introduced in revision 2.364:
+	Too many deny rules for protecting interfaces of a router had been
+	removed	because the test for any rules didn't work.
+	This has been fixed.
+
+2009-12-01  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Only generate deny rules to protect interface of IOS
+	router, if a rule permits traffic to a directly connected network
+	behind the device.
+
+2009-09-18  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Print 'trust-point' to ipsec-attributes and not to
+	general-attributes for ID ranges as well.
+
+2009-07-22  heinz  <heinz@Buero>
+
+	* Netspoc.pm: New attribute {is_identical} for networks, similar
+	to {is_in}.  This is used to prevent duplicate code lines for
+	routes, static and ACLs.  Duplicate lines occured for the case of
+	different networks being translated to one identical address.
+
+2009-07-21  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Allow dynamic NAT to single IP adress of loopback interface of NAT
+	device.
+
+	* Netspoc.pm:
+	Fixed small bug with nat_map of policy_distribution_point.
+
+2009-06-30  heinz  <heinz@Buero>
+
+	* print-group: New file.
+
+2009-06-16  heinz  <heinz@Buero>
+
+	* Netspoc.pm: exported is_autointerface
+
+2009-06-10  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Fixed handling of internal atribute {id_rules} which
+	is used to collect ACLs of VPN users. Now local_optimization is
+	applied to these ACLs as well.
+
+	* Netspoc.pm: Fixed syntax error.
+
+2009-05-29  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Abort, if 'established' would be needed at ASA-VPN.
+
+2009-05-19  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Added support for stateless tunnel interfaces of ASA VPN.
+
+2009-05-18  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Bug fix:
+	all vpn-filter of hardware clients accidently got the same name.
+
+2009-05-14  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Generate split_tunnel_networks even if list is empty.
+
+2009-05-13  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Fixed path of iptables-restore for IPTables.
+
+2009-05-11  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	IPTables: Define chain droplog and use it instead of DROP.
+
+2009-05-08  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Optimized generation of default route.
+
+2009-05-05  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Better check radius_attributes of ASA-VPN.
+	Additional values are supported now,
+	like trust-point and authentication-server-group.
+
+2009-05-04  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Fixed check for duplicate IDs of different hosts coming into current
+	hardware interface / current device.
+
+2009-04-30  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Generate object-groups for ACLs of VPN users as well.
+	Object-groups are no longer printed in one block, but are located
+	before the ACL where they are referenced first.
+	den verwendenden ACLs generiert.
+
+	* Netspoc.pm: Fixed parser: error_atline -> syntax_err
+
+	* Netspoc.pm: Already check for duplicate IDs in expand_crypto.
+	Already distribute rules for single software VPN clients in
+	rules_distribution.
+	VPN configuration for a VPN user is still generated even if ACL
+	is empty.
+	Generate standard ACL for VPN user at ASA VPN. No longer do special
+	optimization which is done at VPN3K devices.
+
+2009-04-08  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Don't add extra deny rules at interface specific chains.
+	Deny rules at builtin chains are sufficient.
+
+2009-04-07  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Pathrestriction at a border interface of a loop is supported now.
+	Valid paths inside a loop can now be defined individually depending
+	on the interface where the loop is entered.
+	sub intf_loop_path_mark has been removed.
+	It has been substituted by an additional test in loop_path_mark1,
+	which checks the special situation where a path starts or ends at
+	an interface with pathrestriction.
+
+2009-03-30  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Better warn message for two static routes to different hops.
+
+	* Netspoc.pm: Allow more than one no_check interface.
+
+2009-03-27  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Add pathrestriction to tunnel interfaces, which
+	belong to real interface which has a pathrestriction.
+
+2009-03-19  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Added closedir to sub read_file_or_dir
+
+2009-03-17  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Fixed syntax for group-policy $global_group_name
+
+2009-03-06  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Removed "value" from "split-tunnel-policy value tunnelspecified"
+
+	* Netspoc.pm: Removed "value" from "vpn-group-policy value $name"
+
+	* Netspoc.pm:
+	Changed "crypto ca certificate map" and "tunnel-group-map" commands.
+	No longer generate one big command with a single name and different
+	indexes	for different users, but a single command with different name
+	and fixed index for each user.
+
+2009-03-03  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Check for duplicate ID at ASA_VPN device.
+
+	* Netspoc.pm: Removed unused sub equal.
+
+	* Netspoc.pm: ASA-VPN: fixed "ip local pool"
+
+	* Netspoc.pm: Printing of object-groups of ASA-VPN:
+	indent network-objects.
+
+2009-02-13  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Support port address translation (PAT) to an interface for PIX and ASA.
+
+2009-02-09  heinz  <heinz@Buero>
+
+	* Netspoc.pm: No attribute 'radius_servers' for model ASA,VPN.
+	Check for exactly one interface with attribute no_check is done while
+	parsing.
+
+	* Netspoc.pm: Fixed mark_primary, mark_secondary: Test
+	for {active_path} has been added to prevent deep recursion.
+
+	* Netspoc.pm: Fixed check_vpnhub: test only 'no_check' interfaces.
+	Fixed set_policy_distribution_ip: start with router, instead of
+	arbitrary interface when searching interface to
+	policy distribution point.
+
+2009-02-03  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Removed duplicate path_mark in path_auto_interfaces.
+
+2009-02-02  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Fixed bug in intf_loop_path_mark:
+	some interfaces were missing from %key2obj.
+	Better error checking in loop_path_walk.
+	Better error checking while generating routes for encrypted traffic.
+
+2009-01-30  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Better error message if no valid path was found.
+
+2009-01-27  heinz  <heinz@Buero>
+
+	* cut-netspoc: Adapted to new implementation of crypto tunnels.
+
+	* Netspoc.pm: Removed unused variable @tunnels.
+
+	* Netspoc.pm:
+	Attribute {hub} and {spoke} now reference a crypto object and
+	no longer a crypto name.
+	Removed attribute {has_tunnel}. Check {hub} und {spoke} instead.
+
+	* Netspoc.pm:
+	Moved execution of gen_tunnel_rules from link_tunnels to expand_crypto,
+	to prevent rules for disabled tunnels.
+
+	* Netspoc.pm: Ignore disabled tunnel in expand crypto.
+
+	* Netspoc.pm:
+	Removed useless $any->{active_path} = 1; in sub setarea1.
+
+2009-01-19  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Print number of expanded rules before and after optimization
+
+	* Netspoc.pm: Generate optimized chains for iptables. Large
+	chains are split into smaller ones using bisection. The number of
+	tests for each checked packed is largely reduced. Syntax for
+	iptables has been changed to be used by iptables-restore.
+
+	* Netspoc.pm: Removed unused code
+	 elsif ($type eq 'Local') { ... }
+
+	* Netspoc.pm: Support for ASA as VPN-concentrator.
+
+2009-01-09  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Conversion from auto_crypto to tunnel_all.
+	This allows to assign VPN clients to different VPN servers.
+	New syntax:
+	At interface of vpn server: hub = crypto:name
+	At interface of VPN client: spoke = crypto:name
+	'name' is used to connect client and server.
+	Attribut 'auto_crypto' at VPN server isn't needed any longer.
+	Attributes 'hub', 'spoke' und 'mesh' cease to exist in crypto
+	definition, because they move to interface definition.
+	The crypto definition has a new  attribute 'tunnel_all'.
+	It defines that all traffic will be encrypted.
+	The previous crypto rules, which defined to be encrypted traffic
+	are no longer supported.
+	A cluster of VPN servers is defined by adding the same value for 'hub'
+	at each server interface.
+	The tunnel between spoke and hub is implemented internally
+	by two interfaces and one network with IP 'tunnel'.
+	This leads to a significant increase of cyclic parts of the topology.
+	Surprisingly it didn't increase the runtime of "path_mark"
+	significantly. Hence, we don't need to do more optimization here.
+
+2008-11-20  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Added consistency check:
+	All interfaces and hosts of a network must be located in that part
+	of the network which doesn't overlap with some subnet.
+
+2008-11-10  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Make result of intersection deterministic.
+
+2008-09-26  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Relaxed a too strong check for consistent 'any'
+	rules in a topology with HSRP and stateless routers.
+
+2008-07-25  heinz  <heinz@Buero>
+
+	* Netspoc.pm: fixed interface:[area:xx].[front|all]
+	It didn't work for area with only managed devices.
+
+2008-07-14  heinz  <heinz@Buero>
+
+	* Netspoc.pm: New check for groups:
+	Private group must not reference private element of other context.
+	Public group must not reference private element.
+
+2008-07-02  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Prepare removal of duplicate occurences of the same IP address from
+	a group of virtual interfaces.
+	Bring the group of interfaces into an arbitrary order.
+	This is used in local_optimization to remove all but one interface.
+
+2008-06-27  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Fixed a bug which was introduced in revision 2.302:
+	Answers to packets sent by a device itself weren't permitted any longer.
+	This prevented e.g. NTP from working.
+
+	Added the concept of 'private' configuration contexts.  All
+	definitions inside a directory or a file named 'xxx.private' are
+	marked as private for 'xxx'. All other definitions stay public.
+	Private definitions have some restrictions to prevent inadvertent
+	changes from other parts of a large set of configuration files:
+	- a private network object (host, network, interface, any) may only be
+	  referenced by private rules, crypto definitions and pathrestrictions
+	  of the same context.
+	- only a private interface may be attached to a private network;
+	  both must belong to the same private context.
+
+2008-06-26  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Fixed bug with secondary interfaces and area
+	definition.  A secondary interface is ignored now, when searching
+	borders of an area.
+
+	* Netspoc.pm: Fixed bug which was introduced in revision 2.298.
+	No interface commands were printed for devices with type IOS_FW
+
+	* Netspoc.pm:
+	If a network with attribute 'route_hint' or an unnumbered network or
+	interface is explicitily placed into a rule or group it is no longer
+	silently discarded but a warn message is printed.
+
+2008-06-24  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	- Support virtual at interface without an IP address.
+	- Support virtual loopback interface
+	- Support attribute 'subnet_of' for loopback interface.
+	- Internally handle a virtual interface as the main interface
+	  if available.
+	- Simplified handling of internally created network for loopback
+	  interfaces.
+	- Simplified handling of 'disabled' interfaces.
+
+2008-06-23  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Allow multiple loopback interfaces per hardware interface.
+	Allow loopback interface additionally to standard interface.
+
+2008-06-11  Heinz Knutzen  <hk@Buero>
+
+	* Netspoc.pm: Optimized set_policy_distribution_ip.
+
+2008-06-10  Heinz Knutzen  <hk@Buero>
+
+	* Netspoc.pm: New attribute policy_distribution_point for hosts.
+	Mark the netspoc server with this attribute.
+	If used, it adds a comment to the generated code file
+	with that IP address of the device which is used to reach
+	the device from the netspoc server.
+
+2008-06-05  heinz  <heinz@Buero>
+
+	* Netspoc.pm: No longer print multiple interface commands for IOS.
+
+2008-06-01  Heinz Knutzen  <hk@Buero>
+
+	* Netspoc.pm:
+	New filter types 'primary' and 'standard' have been introduced for
+	managed devices.
+	If a device is marked as primary, all rules which pass this device,
+	are implemented as secondary filters on other devices which are marked
+	either as 'standard' or as 'secondary'.
+	The effect of 'primary' can be overridden by choosing the filter type
+	'full' at an other device.
+	The default filter type for devices which are simply marked as
+	'managed' was changed from 'full' to 'standard'.
+
+2008-05-28  Heinz Knutzen  <hk@Buero>
+
+	* Netspoc.pm:
+	removed duplicate whitespace in generated Cisco access-lists.
+
+	* Netspoc.pm: Added support for Cisco ASA.
+	- uses keyword 'extended' in access-lists.
+	- no identity NAT commands are generated.
+	Reworked NAT code.
+	Fixed a minor bug in NAT code:
+	static src NAT was missing, if only outgoing traffic occured.
+
+2008-04-29  heinz  <heinz@Buero>
+
+	* Netspoc.pm: New syntax:
+	- "foreach" keyword in "user" definition of a policy.
+	- Usage of keyword "user" in rules is now allowed in nested
+	  expressions.
+	- any:[user] together with "foreach" is the new notation
+	  for any:[local]
+	Example:
+	policy:test = {
+	 user = foreach group:some_networks;
+	 permit src = user;
+	        dst = network:[interface:[interface:[user].[all]].[all]];
+		srv = service:ip;
+	}
+	==> every network of group:some_networks is allowed to talk with
+	its neighbor networks.
+	- Implemented compatibility mode:
+	  'local' is equivalent to 'user' but implies 'foreach'.
+	  In this caes, a policy must have exactly one rule.
+	- Additional test for "disabled" in expand_group1.
+	- Support for interface:[any:..].[all] in expand_group1.
+	- Make results more deterministic:
+	  sort {networks} of 'any' objects not only by IP, but by mask and IP.
+	  sort {anys} of ares by name to get deterministic
+	  results for network:[area:xx]
+	- Duplicated single and double quotes in character classes of regexes
+	  to not confuse syntax highlighting.
+
+2008-01-17  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Better error message vor unconnected part of the
+	topology.
+
+	* Netspoc.pm: Fixed bug for intersection with more than two elements.
+
+2008-01-14  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Bug fix: use hardware interface name, not logical
+	interface name in EZVPN ACL.
+
+	* Netspoc.pm: check_unused_groups didn't work since version
+	2.274. This has been fixed.  Removed newly introduced check for
+	unused areas.
+
+2008-01-11  heinz  <heinz@Buero>
+
+	* Netspoc.pm: bug fix: result of interface.xx.[back] was always
+	empty if interface was located inside a loop.
+
+	* Netspoc.pm: add attribute is_used to objects which are
+	referenced in automatic group definitions to get consistent
+	results with cut-netspoc.
+
+	* cut-netspoc: handle attribute reroute_permit
+
+2008-01-10  heinz  <heinz@Buero>
+
+	* Netspoc.pm: Added automatic group network:[any:xx].
+
+2008-01-09  heinz  <heinz@Buero>
+
+	* Netspoc.pm:
+	Put attribute 'managed' at network which is directly attached to a
+	managed	router.  Put only interfaces into path_tuples where the
+	corresponding object has attribute 'managed'. This is sufficient
+	to get ACLs to managed routers and to find the next hop interfaces
+	when generating static routes on managed routers.
+
+	* Netspoc.pm:
+	Better error handling for disabled interface without attached network.
+
+	* Netspoc.pm:
+	changed model->{name} back to "IOS_FW" for "model = IOS, FW"
+
+	* Netspoc.pm:
+	Support "easy vpn" for IOS router.
+	Only implemented for auto_crypto case.
+	Activate easy vpn by adding attribute "EZVPN" to model name:
+	"model = IOS, EZVPN;"
+	Introduced attributes for router names.
+	Currently attributes "EZVPN" and "FW" are supported for model "IOS".
+	Model "IOS_FW" should now be written as "IOS, FW".
+	Crypto ACLs for EZVPN and crypto maps for IOS now get deny rules
+	to protect router's own interfaces.
+
+2008-01-07  Heinz Knutzen  <hk@Buero>
+
+	* Netspoc.pm:
+	moved EOF test from skip_space_and_comment to read_file to improve
+	performance for perl 5.10.0
+
 2008-01-01  Heinz Knutzen  <hk@home>
 
         * Makefile: added script start-jobs to tar-file
 
         * index.html: Copyright 2008
 
-        * pre-lang.html: 
+        * pre-lang.html:
 	- loopback interfaces
         - automatic groups
         - object set for area,  pathrestriction, radius_servers
@@ -13,12 +1170,12 @@
 
         * Makefile: add to tar-file: *.c files, newpolicy.pl
 
-        * Makefile: added rules to compile C programs: 
+        * Makefile: added rules to compile C programs:
 	newpolicy, append-commitlog, suid-cvs
-	
-        * Netspoc.pm: 
+
+        * Netspoc.pm:
 	Bugfix: Use read_intersection instead of read_complement for area,
-	policy, pathrestriction, crypto tunnel and rule.  
+	policy, pathrestriction, crypto tunnel and rule.
 	Bugfix: Correct data structure for mesh of crypto tunnels.
 
 2007-12-30  Heinz Knutzen  <hk@home>
@@ -103,7 +1260,7 @@
         * Netspoc.pm: removed debug statement in expand_group
 
         * Netspoc.pm:
-        expand_group: leave order of elements untouched when removing 
+        expand_group: leave order of elements untouched when removing
 	duplicates.
 
         * Netspoc.pm: first try with complement and inverted groups,
@@ -112,7 +1269,7 @@
 
 2007-12-07  heinz  <heinz@home>
 
-        * Netspoc.pm: 
+        * Netspoc.pm:
 	A VPN router for remote office can now be used as a backup
 	mechanism for larger locations. But only traffic from the directly
 	attached network is allowed to cross the VPN router. This can be
@@ -170,7 +1327,7 @@
         - no every objects
         - group any:local no longer exists.
 
-        * Netspoc.pm: 
+        * Netspoc.pm:
 	- Extended auto interfaces:
           - added [back] to denote interfaces at the back side.
           - renamed [auto] to [front]
@@ -192,17 +1349,17 @@
           - any:[network:xx]
           - any:[any:xx]
             The security domain where the inner object is located.
-          - Additionally, a list of objects or groups may be given 
+          - Additionally, a list of objects or groups may be given
 	    as value in brackets
             e.g. network:[host:x1, host:x2, group:other_hosts]
           - interface:[managed & ... ].[all|front|back]
             Result is restricted to managed interfaces.
         - Restriction for auto interfaces:
-          Auto interfaces, i.e. with [front] or [back] must only be used 
+          Auto interfaces, i.e. with [front] or [back] must only be used
 	  at toplevel and not as inner object of other automatic objects.
           There is one exception from this rule:
-          interface:[interface:xx.[front|back]].[xx] is allowed. 
-	  In this case the inner selector is ignored and the outer 
+          interface:[interface:xx.[front|back]].[xx] is allowed.
+	  In this case the inner selector is ignored and the outer
 	  selector xx is used.
         - An area can now be defined with anchor but without auto_border
           to simplify definition of an area containing the whole topology.
@@ -212,7 +1369,7 @@
           use it to define an equivalent set of interafces:
           interface:[managed & area:all].[xx] and interface:[area:all].[xx]
         - any:[all] is no longer supported, use any:[area:all] instead.
-        - 'every' objects are no longer supported, 
+        - 'every' objects are no longer supported,
 	  use network:[area:xx] instead.
         - Groups can now be used to define interfaces of pathrestriction.
 
@@ -239,7 +1396,7 @@
 	The rule is replaced by n rules where the destination is
 	substituted by interfaces i. i is defined by this rule: Take from
 	each packet filter on the path from source to destination that
-	interface i which is headed in source direction.  
+	interface i which is headed in source direction.
 	This flag can be combined with flags dst_net or dst_any to not get
 	the interface but the corresponding network or 'any' object.
         - dst-net
@@ -301,7 +1458,7 @@
         when printing routing and static commands.
 
         * Netspoc.pm:
-        PIX global command: 
+        PIX global command:
 	If pool consists of one single IP, use "IP", not "IP-IP"
 
         * Netspoc.pm:
@@ -325,7 +1482,7 @@
         * Netspoc.pm:
         VPN3K devices can't handle access lists with check for ICMP type.
         Only simple ICMP can be checked for.
-        Netspoc aborts now if it would generate code which VPN3K devices 
+        Netspoc aborts now if it would generate code which VPN3K devices
 	can't handle.
 
 2007-07-18  Heinz Knutzen  <hk@home>
@@ -346,7 +1503,7 @@
         This naming scheme is used, if a list of ip addresses is specified
 	for an interface. Alternatively, individual names can be given by
 	a new syntax:
-        interface:name = { 
+        interface:name = {
 	 ip = 1.2.3.4;
 	 secondary:name2 = { ip = 1.2.3.99; }
         }
@@ -373,7 +1530,7 @@
 	only for $expanded_rules{any}
 
 	* Netspoc.pm: Fixed a bug in path_walk.
-	The case were two different loops touch each other directly 
+	The case were two different loops touch each other directly
 	wasn't handled.	This can occur if one loop starts at a network and
 	the other one at a router and router an network are directly connected.
 
@@ -402,7 +1559,7 @@
 	* Netspoc.pm: Better formatting of time stamp
 
 	* Netspoc.pm: New command line option "-time_stamps".
-	Adds time stamps in seconds when printing compilation steps 
+	Adds time stamps in seconds when printing compilation steps
 	in verbose mode.
 
 2007-03-29  heinz  <heinz@home>
@@ -439,7 +1596,7 @@
 	then this implies
 	 permit XX YY
 	which may not have been wanted.
-	Netspoc now looks for this situation and aborts if the implied rule 
+	Netspoc now looks for this situation and aborts if the implied rule
 	is not explicitly defined.
 
 
@@ -461,12 +1618,12 @@
 	* Netspoc.pm:
 	Disabled interface wasn't fully disabled when routing=OSPF.
 
-	* Netspoc.pm: 
+	* Netspoc.pm:
 	- New attribute {interfaces} at virtual interfaces.
-	- Pathrestrictions are added automatically for each set of 
+	- Pathrestrictions are added automatically for each set of
 	  virtual interfaces.
 	- Special handling for paths starting or ending at an interface inside
-	  a subgraph. For routing and pathrestrictions the interface must be 
+	  a subgraph. For routing and pathrestrictions the interface must be
 	  handled as part of the attached network.
 	  But for ACLs it must be handled as part of the attached router.
 
@@ -481,7 +1638,7 @@
 2007-01-17  Heinz Knutzen  <hk@home>
 
 	* Netspoc.pm: find_object_groups / find_chains:
-	used nat_map instead of bind_nat because both are equivalent 
+	used nat_map instead of bind_nat because both are equivalent
 	at a single router.
 
 	* Netspoc.pm: find_object_groups / find_chains:
@@ -503,8 +1660,8 @@
 	* Netspoc.pm: Removed unsed variable declaration and related comment.
 
 	* Netspoc.pm:
-	Error messages for identical networks or networks with undeclared 
-	subnet relation no longer use name of NAT domain, 
+	Error messages for identical networks or networks with undeclared
+	subnet relation no longer use name of NAT domain,
 	but nat:tag from original syntax.
 
 2007-01-03  Heinz Knutzen  <hk@home>
@@ -516,7 +1673,7 @@
 2007-01-02  Heinz Knutzen  <hk@home>
 
 	* Netspoc.pm: Code cleanup.
-	- New sub set_src_dst_range_list which fills new attribute 
+	- New sub set_src_dst_range_list which fills new attribute
 	  src_dst_range_list of services. This is called from expand_services.
 	- New attribute is used in expand_rules instead of repeated calls
 	  to expand_splitted_services.
@@ -539,13 +1696,13 @@
 2006-12-30  Heinz Knutzen  <hk@home>
 
 	* Netspoc.pm: Code cleanup.
-	- Extracted code from sub setpath to new function 
+	- Extracted code from sub setpath to new function
 	  check_virtual_interfaces.
 	- Clarified arguments to call of setpath_obj inside sub setpath.
 
 2006-12-04  heinz  <heinz@home>
 
-	* Netspoc.pm: 
+	* Netspoc.pm:
 	- Model VPN3K no longer needs to be managed 'secondary'.
 	- In distribute_rule:
 	  Mark VPN network with applicable vpn3k devices,
@@ -553,8 +1710,8 @@
 	- Better formatting of XML code vor VPN3K.
 	- Generate deny rules for auto_deny_networks at VPN3K.
 	- Generate split-tunnel networks at VPN3K.
-	- Check for maximum of 39 ACL lines at VPN3K 
-	  (to prevent to large RADIUS packets).
+	- Check for maximum of 39 ACL lines at VPN3K
+	  (to prevent too large RADIUS packets).
 
 2006-11-09  heinz  <heinz@home>
 
@@ -566,7 +1723,7 @@
 
 2006-10-12  heinz  <heinz@home>
 
-	* Netspoc.pm: 
+	* Netspoc.pm:
 	Added new syntax to select interfaces of an area.
 	interface:[managed & area:name].[x] or
 	interface:[all & area:name].[x] with [x] from [all] or [auto].
@@ -599,7 +1756,7 @@
 	New ref2srv for services.
 
 	* Netspoc.pm:
-	Bug fix: Added missing "static" entries at pix devices for networks 
+	Bug fix: Added missing "static" entries at pix devices for networks
 	which have a dynamic NAT at some other device.
 
 2006-07-03  heinz  <heinz@home>
@@ -609,13 +1766,13 @@
 2006-06-02  heinz  <heinz@home>
 
 	* Netspoc.pm:
-	find_subnets: Take original $bignet, 
+	find_subnets: Take original $bignet,
 	not the NATted one in subnet_of test.
 
 2006-05-03  heinz  <heinz@home>
 
 	* Netspoc.pm:
-	Fixed bug with ref2obj and networks from optimization 
+	Fixed bug with ref2obj and networks from optimization
 	of secondary routers.
 
 2006-03-14  heinz  <heinz@home>
@@ -630,22 +1787,22 @@
 
 	* Netspoc.pm:
 	Fixed a bug in parser.
-	Lists of values must be separated by comma, 
+	Lists of values must be separated by comma,
 	only whitespace isn't valid any longer.
-	
+
 	* Netspoc.pm:
 	Better handling of negotiated interfaces.
 
 2006-03-02  heinz  <heinz@home>
 
 	* Netspoc.pm: Generate code for ID hosts, even if no_check is active.
-	
+
 	* Netspoc.pm:
 	Fixed bug in check for identical IP addresses of virtual interfaces.
 
 	* Netspoc.pm: Support of nat traversal for ipsec.
 
-	* Netspoc.pm: Fixed bug in auto_crypto, not only a network 
+	* Netspoc.pm: Fixed bug in auto_crypto, not only a network
 	but also a host triggers tunnel creation.
 
 2006-03-01  heinz  <heinz@home>
@@ -660,26 +1817,26 @@
 
 	* Netspoc.pm:
 	added support for IPSec attributes identity, 2x lifetime and
-	authentication. But no code is generated for IOS 
+	authentication. But no code is generated for IOS
 	if default values are used.
 
 2006-02-27  heinz  <heinz@home>
 
 	* Netspoc.pm:
-	dropped support for IPSec attributes identity, 2x lifetime and 
+	dropped support for IPSec attributes identity, 2x lifetime and
 	authentication.
 
 2006-02-24  heinz  <heinz@home>
 
 	* Netspoc.pm:
-	Generally, no  auto_default_route is generated if a network 0.0.0.0/0 
-	is defined. 
+	Generally, no  auto_default_route is generated if a network 0.0.0.0/0
+	is defined.
 	This has been relaxed, if network 0.0.0.0/0 has a route_hint.
 
 	* Netspoc.pm: IP / mask of network now can have value 0.
 
 	* Netspoc.pm: added support of negotiated Interface.
-	automatically add rules which permit encrypted traffic 
+	automatically add rules which permit encrypted traffic
 	of auto_crypto tunnels.
 
 2006-02-21  heinz  <heinz@home>
@@ -693,7 +1850,7 @@
 
 2006-01-18  heinz  <heinz@home>
 
-	* Netspoc.pm: code cleanup: 
+	* Netspoc.pm: code cleanup:
 	Left only one call of loop_path_walk in path_walk.
 
 2006-01-12  heinz  <heinz@home>
@@ -722,8 +1879,8 @@
 2005-11-01  heinz  <heinz@home>
 
 	* Netspoc.pm:
-	Better error checking when trying to access a dynamically 
-	NATed interface. 
+	Better error checking when trying to access a dynamically
+	NATed interface.
 
 2005-10-24  heinz  <heinz@home>
 
@@ -748,7 +1905,7 @@
 
 	* VERSION:
 	* TODO:
-	* NEWS.html: 
+	* NEWS.html:
 	Prepare version 3.0.
 
 	* index.html: Mentioned crypto. Removed links to email addresses
@@ -780,7 +1937,7 @@
 	* pre-lang.html:
 	Added  "owner" to syntax of network, host, any and area.
 	Introduced ", ..." as syntax element to denote a comma separated
-	list of one or more elements. 
+	list of one or more elements.
 	Substituted <xxx list> by <xxx>, ...
 
 	* pre-lang.html: Renamed interface_name to external_name where
@@ -788,7 +1945,7 @@
 
 	* Netspoc.pm: read_string: String must not contain space or single
 	or double quotes. This applies to names of hardware interface and
-	owner. 
+	owner.
 
 	* pre-lang.html: ip/prefix syntax for network and NAT definition.
 
@@ -805,19 +1962,19 @@
 
 	* cut-netspoc: Better usage message.
 
-	* netspoc.pod: Added description for new options. 
+	* netspoc.pod: Added description for new options.
 	Used some formatting codes.
 
 2005-09-09  Heinz Knutzen  <hk@home>
 
 	* netspoc.pod: Added documentation for reading from STDIN and writing
-	to STDOUT. 
+	to STDOUT.
 
-	* Makefile: pod2html no longer generates bad html anchors. 
+	* Makefile: pod2html no longer generates bad html anchors.
 	Postprocessing with
 	perl -pe 's/="([^"]*)">/($_=$1,tr.A-Za-z0-9#..cd,qq.="$_">.)/e'
 	isn't needed any longer and indeed it rendered external links
-	useless. 
+	useless.
 
 	* Netspoc.pm:
 	Interfaces of unmanaged router must not have attribute "managed"
