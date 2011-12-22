@@ -54,9 +54,9 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 - Documentation: add examples for network address translation and path
   restriction. 
 
-- We have a HTML interface for NetSPoC including a graphical representation of
-  the topology, using the graphviz library (http://www.graphviz.org/). Need to
-  publish this as open source.
+- We have a HTML interface for NetSPoC showing a graphical representation of
+  the topology, using the JavaScript InfoVis Toolkit (http://www.thejit.org/). 
+  Need to publish this as open source.
 
 - Generate NAT code for other devices than PIX.
 
