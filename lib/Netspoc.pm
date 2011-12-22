@@ -4206,8 +4206,9 @@ sub check_bridged_networks {
     }
     for my $prefix (keys %prefix2net) {
         if (my $network = $networks{$prefix}) {
-            err_msg("Must not define $network->{name} together with",
-                    " bridged networks with same name");
+            $network->{disabled} or
+                err_msg("Must not define $network->{name} together with",
+                        " bridged networks of same name");
         }
     }
     for my $href (values %prefix2net) {
