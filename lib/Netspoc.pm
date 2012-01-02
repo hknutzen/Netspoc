@@ -576,6 +576,11 @@ sub complement_32bit( $ ) {
     return ~$ip & 0xffffffff;
 }
 
+sub match_ip {
+    my ($ip1, $ip, $mask) = @_;
+    return ($ip == ($ip1 & $mask));
+}
+
 sub read_identifier() {
     skip_space_and_comment;
     if ($input =~ m/(\G[\w-]+)/gc) {
@@ -1297,7 +1302,7 @@ sub read_network( $ ) {
         defined $mask or syntax_err "Missing network mask";
 
         # Check if network IP matches mask.
-        if (($ip & $mask) != $ip) {
+        if (not(match_ip($ip, $ip, $mask))) {
             error_atline "IP and mask don't match";
 
             # Prevent further errors.
@@ -1310,15 +1315,15 @@ sub read_network( $ ) {
 
             # Check compatibility of host IP and network IP/mask.
             if (my $host_ip = $host->{ip}) {
-                if ($ip != ($host_ip & $mask)) {
+                if (not(match_ip($host_ip, $ip, $mask))) {
                     error_atline
                       "$host->{name}'s IP doesn't match network IP/mask";
                 }
             }
             elsif ($host->{range}) {
                 my ($ip1, $ip2) = @{ $host->{range} };
-                if (   $ip != ($ip1 & $mask)
-                    or $ip != ($ip2 & $mask))
+                if (not(match_ip($ip1, $ip, $mask) and
+                        match_ip($ip2, $ip, $mask)))
                 {
                     error_atline "$host->{name}'s IP range doesn't match",
                       " network IP/mask";
@@ -1356,7 +1361,7 @@ sub read_network( $ ) {
                 }
 
                 # Check if IP matches mask.
-                if (($nat->{ip} & $nat->{mask}) != $nat->{ip}) {
+                if (not(match_ip($nat->{ip}, $nat->{ip}, $nat->{mask}))) {
                     error_atline "IP for $nat->{name} of doesn't",
                       " match its mask";
 
@@ -1761,6 +1766,13 @@ sub set_pix_interface_level( $ ) {
         elsif ($hwname eq 'outside') {
             $level = 0;
         }
+
+        # Used internally for IP of ASA in bridged mode.
+        elsif ($hwname eq 'device' and 
+               $hardware->{interfaces}->[0]->{is_layer3}) 
+        {
+            $level = 100;
+        }
         else {
             unless (($level) =
                     ($hwname =~ /(\d+)$/)
@@ -1915,80 +1927,6 @@ sub read_router( $ ) {
                 # If a loopback network is created below it doesn't need to get
                 # this attribute because the network can't be referenced.
                 $interface->{private} = $private if $private;
-
-                # Automatically create a network for loopback interface.
-                if ($interface->{loopback}) {
-                    my $name;
-                    my $net_name;
-
-                    # Special handling needed for virtual loopback interfaces.
-                    # The created network needs to be shared among a group of
-                    # interfaces.
-                    if (my $virtual = $interface->{redundancy_type}) {
-
-                        # Shared virtual loopback network gets name
-                        # 'virtual:netname'. Don't use standard name to prevent
-                        # network from getting referenced from rules.
-                        $net_name = "virtual:$network";
-                        $name     = "network:$net_name";
-                    }
-                    else {
-
-                        # Single loopback network needs not to get an unique name.
-                        # Take an invalid name 'router.loopback' to prevent name
-                        # clashes with real networks or other loopback networks.
-                        $name = $interface->{name};
-                        ($net_name = $name) =~ s/^interface://;
-                    }
-                    if (not $networks{$net_name}) {
-                        $networks{$net_name} = new(
-                            'Network',
-                            name => $name,
-                            ip   => $interface->{ip},
-                            mask => 0xffffffff,
-
-                            # Mark as automatically created.
-                            loopback  => 1,
-                            subnet_of => delete $interface->{subnet_of}
-                        );
-                    }
-                    $interface->{network} = $net_name;
-                }
-
-                # Generate tunnel interface.
-                elsif (my $crypto = $interface->{spoke}) {
-                    my $net_name    = "tunnel:$rname";
-                    my $iname       = "$rname.$net_name";
-                    my $tunnel_intf = new(
-                        'Interface',
-                        name           => "interface:$iname",
-                        ip             => 'tunnel',
-                        router         => $router,
-                        network        => $net_name,
-                        real_interface => $interface
-                    );
-                    for my $key (qw(hardware routing private bind_nat)) {
-                        if ($interface->{$key}) {
-                            $tunnel_intf->{$key} = $interface->{$key};
-                        }
-                    }
-                    if ($interfaces{$iname}) {
-                        error_atline "Redefining $tunnel_intf->{name}";
-                    }
-                    $interfaces{$iname} = $tunnel_intf;
-                    push @{ $router->{interfaces} }, $tunnel_intf;
-
-                    # Create tunnel network.
-                    my $tunnel_net = new(
-                        'Network',
-                        name => "network:$net_name",
-                        ip   => 'tunnel'
-                    );
-                    $networks{$net_name} = $tunnel_net;
-
-                    # Tunnel network will later be attached to crypto hub.
-                    push @{ $crypto2spokes{$crypto} }, $tunnel_net;
-                }
             }
         }
     }
@@ -2080,6 +2018,126 @@ sub read_router( $ ) {
             }
         }
 
+        # Collect bridged interfaces of this device and check
+        # existence of corresponding layer3 device.
+        my %layer3_seen;
+        for my $interface (@{ $router->{interfaces} }) {
+            next if not $interface->{ip} eq 'bridged';
+            (my $layer3_name = $interface->{name}) =~ s/^interface:(.*)\/.*/$1/;
+            my $layer3_intf;
+            if (exists $layer3_seen{$layer3_name}) {
+                $layer3_intf = $layer3_seen{$layer3_name};
+            }
+            elsif ($layer3_intf = $interfaces{$layer3_name}) {
+
+                # Mark layer3 interface as loopback interface internally,
+                # because we only have layer2 networks and no layer3 network.
+                $layer3_intf->{loopback} = 1;
+
+                # Mark layer3 interface as such to prevent warning in 
+                # check_subnets.
+                $layer3_intf->{is_layer3} = 1;
+
+                if ($layer3_intf->{ip} =~ 
+                    /unnumbered|negotiated|short|bridged/) 
+                {
+                    err_msg("Layer3 $layer3_intf->{name}",
+                            " must not be $interface->{ip}");
+                }
+                if ($model->{class} eq 'ASA') {
+                    $layer3_intf->{hardware}->{name} eq 'device' or
+                        err_msg("Layer3 $interface->{name} must use 'hardware'",
+                                " named 'device' for model 'ASA'");
+                }
+            }
+            else {
+                err_msg("Must define interface:$layer3_name for corresponding",
+                        " bridge interfaces");
+            }
+
+            # Link bridged interface to corresponding layer3 interface.
+            # Used for
+            $interface->{layer3_interface} = $layer3_intf;
+            $layer3_seen{$layer3_name} = $layer3_intf;
+        }
+
+        for my $interface (@{ $router->{interfaces} }) {
+
+            # Automatically create a network for loopback interface.
+            if ($interface->{loopback}) {
+                my $name;
+                my $net_name;
+
+                # Special handling needed for virtual loopback interfaces.
+                # The created network needs to be shared among a group of
+                # interfaces.
+                if (my $virtual = $interface->{redundancy_type}) {
+
+                    # Shared virtual loopback network gets name
+                    # 'virtual:netname'. Don't use standard name to prevent
+                    # network from getting referenced from rules.
+                    $net_name = "virtual:$interface->{network}";
+                    $name     = "network:$net_name";
+                }
+                else {
+
+                    # Single loopback network needs not to get an unique name.
+                    # Take an invalid name 'router.loopback' to prevent name
+                    # clashes with real networks or other loopback networks.
+                    $name = $interface->{name};
+                    ($net_name = $name) =~ s/^interface://;
+                }
+                if (not $networks{$net_name}) {
+                    $networks{$net_name} = new(
+                        'Network',
+                        name => $name,
+                        ip   => $interface->{ip},
+                        mask => 0xffffffff,
+
+                        # Mark as automatically created.
+                        loopback  => 1,
+                        subnet_of => delete $interface->{subnet_of},
+                        is_layer3 => $interface->{is_layer3},
+                        );
+                }
+                $interface->{network} = $net_name;
+            }
+
+            # Generate tunnel interface.
+            elsif (my $crypto = $interface->{spoke}) {
+                my $net_name    = "tunnel:$rname";
+                my $iname       = "$rname.$net_name";
+                my $tunnel_intf = new(
+                    'Interface',
+                    name           => "interface:$iname",
+                    ip             => 'tunnel',
+                    router         => $router,
+                    network        => $net_name,
+                    real_interface => $interface
+                    );
+                for my $key (qw(hardware routing private bind_nat)) {
+                    if ($interface->{$key}) {
+                        $tunnel_intf->{$key} = $interface->{$key};
+                    }
+                }
+                if ($interfaces{$iname}) {
+                    error_atline "Redefining $tunnel_intf->{name}";
+                }
+                $interfaces{$iname} = $tunnel_intf;
+                push @{ $router->{interfaces} }, $tunnel_intf;
+
+                # Create tunnel network.
+                my $tunnel_net = new(
+                    'Network',
+                    name => "network:$net_name",
+                    ip   => 'tunnel'
+                    );
+                $networks{$net_name} = $tunnel_net;
+
+                # Tunnel network will later be attached to crypto hub.
+                push @{ $crypto2spokes{$crypto} }, $tunnel_net;
+            }
+        }
         if ($router->{model}->{has_interface_level}) {
             set_pix_interface_level $router;
         }
@@ -2526,7 +2584,7 @@ sub read_global_nat( $ ) {
     my $name = shift;
     my $nat  = read_nat $name;
     if (defined $nat->{mask}) {
-        if (($nat->{ip} & $nat->{mask}) != $nat->{ip}) {
+        if (not(match_ip($nat->{ip}, $nat->{ip}, $nat->{mask}))) {
             error_atline "Global $nat->{name}'s IP doesn't match its mask";
             $nat->{ip} &= $nat->{mask};
         }
@@ -3593,7 +3651,7 @@ sub link_interfaces {
 
             # Check compatibility of interface IP and network IP/mask.
             my $mask = $network->{mask};
-            if ($network_ip != ($ip & $mask)) {
+            if (not(match_ip($ip, $network_ip, $mask))) {
                 err_msg "$interface->{name}'s IP doesn't match ",
                   "$network->{name}'s IP/mask";
             }
@@ -3682,7 +3740,7 @@ sub link_subnet ( $$ ) {
 
     # $sub_mask needs not to be tested here,
     # because it has already been checked for $object.
-    if (($sub_ip & $mask) != $ip) {
+    if (not(match_ip($sub_ip, $ip, $mask))) {
         err_msg $context->(), " is subnet_of $network->{name}",
           " but its IP doesn't match that's IP/mask";
     }
@@ -4195,7 +4253,7 @@ sub transform_isolated_ports {
 # - must have at least two members,
 # - must be adjacent
 # - linked by bridged interfaces
-# - IP addresses of hosts must be disjoint (to be done).
+# - IP addresses of hosts must be disjoint (ToDo).
 # Each router having a bridged interface 
 # must connect at least two bridged networks of the same group.
 sub check_bridged_networks {
@@ -4218,6 +4276,9 @@ sub check_bridged_networks {
         my %seen;
         my @next = ($net1);
         my ($ip1, $mask1) = @{$net1}{qw(ip mask)};
+
+        # Mark all networks connected directly or indirectly with $net1
+        # by a bridge as 'connected' in $href.
         while (my $network = pop(@next)) {
             my ($ip, $mask) = @{$network}{qw(ip mask)};
             $ip == $ip1 and $mask == $mask1 
@@ -4230,6 +4291,11 @@ sub check_bridged_networks {
                 next if $seen{$router};
                 my $count = 1;
                 $seen{$router} = $router;
+                if (my $layer3_intf = $in_intf->{layer3_interface}) {
+                    match_ip($layer3_intf->{ip}, $ip, $mask) or
+                        err_msg("$layer3_intf->{name}'s IP doesn't match",
+                                "IP/mask of bridged networks");
+                }
                 for my $out_intf (@{$router->{interfaces}}) {
                     next if $out_intf eq $in_intf;
                     next if $out_intf->{ip} ne 'bridged';
@@ -6644,7 +6710,7 @@ sub distribute_nat_info() {
                     {
                         my $obj_ip = $obj->{nat}->{$nat_tag};
                         my ($ip, $mask) = @{$nat_info}{ 'ip', 'mask' };
-                        if ($ip != ($obj_ip & $mask)) {
+                        if (not(match_ip($obj_ip, $ip, $mask))) {
                             err_msg "nat:$nat_tag: $obj->{name}'s IP ",
                               "doesn't match $network->{name}'s IP/mask";
                         }
@@ -6696,9 +6762,9 @@ sub check_subnets {
         my $sub_ip   = $subnet->{ip};
         my $sub_mask = $subnet->{mask};
         if (
-            ($ip1 & $sub_mask) == $sub_ip
-            || $ip2 && (($ip2 & $sub_mask) == $sub_ip
-                || ($ip1 <= $sub_ip && $sub_ip <= $ip2))
+            match_ip($ip1, $sub_ip, $sub_mask)
+            || $ip2 && (match_ip($ip2, $sub_ip, $sub_mask)
+                        || ($ip1 <= $sub_ip && $sub_ip <= $ip2))
           )
         {
 
@@ -6895,7 +6961,8 @@ sub find_subnets() {
                             if (
                                 not(   $bignet->{route_hint}
                                     or $nat_subnet->{subnet_of}
-                                    and $nat_subnet->{subnet_of} eq $bignet)
+                                       and $nat_subnet->{subnet_of} eq $bignet
+                                    or $nat_subnet->{is_layer3})
                               )
                             {
 
@@ -12231,7 +12298,7 @@ sub add_bintree ( $$ ) {
     # The case where new node is larger than root node will never
     # occur, because nodes are sorted before being added.
 
-    if ($tree_mask < $node_mask && ($node_ip & $tree_mask) == $tree_ip) {
+    if ($tree_mask < $node_mask && match_ip($node_ip, $tree_ip, $tree_mask)) {
 
         # Optimization for this special case:
         # Root of tree has attribute {subtree} which is identical to
@@ -12247,7 +12314,7 @@ sub add_bintree ( $$ ) {
             or $tree->{subtree} ne $node->{subtree})
         {
             my $mask = ($tree_mask >> 1) | 0x80000000;
-            my $branch = ($node_ip & $mask) == $tree_ip ? 'lo' : 'hi';
+            my $branch = match_ip($node_ip, $tree_ip, $mask) ? 'lo' : 'hi';
             if (my $subtree = $tree->{$branch}) {
                 $tree->{$branch} = add_bintree $subtree, $node;
             }
