@@ -6660,7 +6660,7 @@ sub distribute_nat_info() {
     }
     for my $tag (keys %nat_tags2multi) {
         $nat_bound{$tag}
-          or warn_msg "nat:$tag is defined, but not bound to any interafce";
+          or warn_msg "nat:$tag is defined, but not bound to any interface";
     }
     for my $tag (keys %nat_bound) {
         my $href = $nat_bound{$tag};
