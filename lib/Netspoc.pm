@@ -2059,84 +2059,6 @@ sub read_router( $ ) {
             $interface->{layer3_interface} = $layer3_intf;
             $layer3_seen{$layer3_name} = $layer3_intf;
         }
-
-        for my $interface (@{ $router->{interfaces} }) {
-
-            # Automatically create a network for loopback interface.
-            if ($interface->{loopback}) {
-                my $name;
-                my $net_name;
-
-                # Special handling needed for virtual loopback interfaces.
-                # The created network needs to be shared among a group of
-                # interfaces.
-                if (my $virtual = $interface->{redundancy_type}) {
-
-                    # Shared virtual loopback network gets name
-                    # 'virtual:netname'. Don't use standard name to prevent
-                    # network from getting referenced from rules.
-                    $net_name = "virtual:$interface->{network}";
-                    $name     = "network:$net_name";
-                }
-                else {
-
-                    # Single loopback network needs not to get an unique name.
-                    # Take an invalid name 'router.loopback' to prevent name
-                    # clashes with real networks or other loopback networks.
-                    $name = $interface->{name};
-                    ($net_name = $name) =~ s/^interface://;
-                }
-                if (not $networks{$net_name}) {
-                    $networks{$net_name} = new(
-                        'Network',
-                        name => $name,
-                        ip   => $interface->{ip},
-                        mask => 0xffffffff,
-
-                        # Mark as automatically created.
-                        loopback  => 1,
-                        subnet_of => delete $interface->{subnet_of},
-                        is_layer3 => $interface->{is_layer3},
-                        );
-                }
-                $interface->{network} = $net_name;
-            }
-
-            # Generate tunnel interface.
-            elsif (my $crypto = $interface->{spoke}) {
-                my $net_name    = "tunnel:$rname";
-                my $iname       = "$rname.$net_name";
-                my $tunnel_intf = new(
-                    'Interface',
-                    name           => "interface:$iname",
-                    ip             => 'tunnel',
-                    router         => $router,
-                    network        => $net_name,
-                    real_interface => $interface
-                    );
-                for my $key (qw(hardware routing private bind_nat)) {
-                    if ($interface->{$key}) {
-                        $tunnel_intf->{$key} = $interface->{$key};
-                    }
-                }
-                if ($interfaces{$iname}) {
-                    error_atline "Redefining $tunnel_intf->{name}";
-                }
-                $interfaces{$iname} = $tunnel_intf;
-                push @{ $router->{interfaces} }, $tunnel_intf;
-
-                # Create tunnel network.
-                my $tunnel_net = new(
-                    'Network',
-                    name => "network:$net_name",
-                    ip   => 'tunnel'
-                    );
-                $networks{$net_name} = $tunnel_net;
-
-                # Tunnel network will later be attached to crypto hub.
-                push @{ $crypto2spokes{$crypto} }, $tunnel_net;
-            }
-        }
         if ($router->{model}->{has_interface_level}) {
             set_pix_interface_level $router;
         }
@@ -2201,6 +2123,85 @@ sub read_router( $ ) {
                 "Bridged interfaces must only be used at managed device";
         }
     }
+
+    for my $interface (@{ $router->{interfaces} }) {
+
+        # Automatically create a network for loopback interface.
+        if ($interface->{loopback}) {
+            my $name;
+            my $net_name;
+
+            # Special handling needed for virtual loopback interfaces.
+            # The created network needs to be shared among a group of
+            # interfaces.
+            if (my $virtual = $interface->{redundancy_type}) {
+
+                # Shared virtual loopback network gets name
+                # 'virtual:netname'. Don't use standard name to prevent
+                # network from getting referenced from rules.
+                $net_name = "virtual:$interface->{network}";
+                $name     = "network:$net_name";
+            }
+            else {
+
+                # Single loopback network needs not to get an unique name.
+                # Take an invalid name 'router.loopback' to prevent name
+                # clashes with real networks or other loopback networks.
+                $name = $interface->{name};
+                ($net_name = $name) =~ s/^interface://;
+            }
+            if (not $networks{$net_name}) {
+                $networks{$net_name} = new(
+                    'Network',
+                    name => $name,
+                    ip   => $interface->{ip},
+                    mask => 0xffffffff,
+
+                    # Mark as automatically created.
+                    loopback  => 1,
+                    subnet_of => delete $interface->{subnet_of},
+                    is_layer3 => $interface->{is_layer3},
+                    );
+            }
+            $interface->{network} = $net_name;
+        }
+
+        # Generate tunnel interface.
+        elsif (my $crypto = $interface->{spoke}) {
+            my $net_name    = "tunnel:$rname";
+            my $iname       = "$rname.$net_name";
+            my $tunnel_intf = new(
+                'Interface',
+                name           => "interface:$iname",
+                ip             => 'tunnel',
+                router         => $router,
+                network        => $net_name,
+                real_interface => $interface
+                );
+            for my $key (qw(hardware routing private bind_nat)) {
+                if ($interface->{$key}) {
+                    $tunnel_intf->{$key} = $interface->{$key};
+                }
+            }
+            if ($interfaces{$iname}) {
+                error_atline "Redefining $tunnel_intf->{name}";
+            }
+            $interfaces{$iname} = $tunnel_intf;
+            push @{ $router->{interfaces} }, $tunnel_intf;
+
+            # Create tunnel network.
+            my $tunnel_net = new(
+                'Network',
+                name => "network:$net_name",
+                ip   => 'tunnel'
+                );
+            $networks{$net_name} = $tunnel_net;
+
+            # Tunnel network will later be attached to crypto hub.
+            push @{ $crypto2spokes{$crypto} }, $tunnel_net;
+        }
+    }
+
     return $router;
 }
 
