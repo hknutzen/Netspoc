@@ -7128,6 +7128,10 @@ sub check_crosslink () {
               " connected to $hardware->{name} of $router->{name}";
             if ($hardware->{need_out_acl}) {
                 $out_acl_count++;
+
+                # Delete attribute, because crosslink interfaces must
+                # not get ACLs.
+                delete $hardware->{need_out_acl};
             }
             push @no_in_acl_intf,
               grep({ $_->{hardware}->{no_in_acl} } @{ $router->{interfaces} });
