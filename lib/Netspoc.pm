@@ -14289,9 +14289,8 @@ sub print_cisco_acls {
                 # Add deny rule at end of ACL.
                 push(@{ $hardware->{out_rules} }, $deny_any_rule);
 
-                if (my $out_rules = $hardware->{out_rules}) {
-                    cisco_acl_line($router, $out_rules, $no_nat_set, $prefix);
-                }
+                my $out_rules = $hardware->{out_rules};
+                cisco_acl_line($router, $out_rules, $no_nat_set, $prefix);
             }
 
             # Post-processing for hardware interface
