@@ -13868,11 +13868,16 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
         }
     }
 
-    # Add permit or deny rule at end of ACL.
-    push(
-        @{ $hardware->{rules} },
-        $hardware->{no_in_acl} ? $permit_any_rule : $deny_any_rule
-    );
+    # Add permit or deny rule at end of ACL 
+    # unless the previous rule is 'permit ip any any'.
+    if (!@{ $hardware->{rules} } || 
+        $hardware->{rules}->[-1] ne $permit_any_rule) 
+    {
+        push(
+            @{ $hardware->{rules} },
+            $hardware->{no_in_acl} ? $permit_any_rule : $deny_any_rule
+       );
+    }
 
     # Interface rules
     cisco_acl_line($router, $hardware->{intf_rules},
