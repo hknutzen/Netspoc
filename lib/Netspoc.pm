@@ -13766,10 +13766,21 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
         my $intf_hash = $router->{crosslink_intf_hash};
 
         # Add deny rules to protect own interfaces.
-
         # If a rule permits traffic to a directly connected network
         # behind the device, this would accidently permit traffic
         # to an interface of this device as well.
+
+        # Deny rule is needless if there is a rule which permits any
+        # traffic to the interface.
+        my %no_protect;
+        for my $rule (@{ $hardware->{intf_rules} }) {
+            next if $rule->{action} eq 'deny';
+            next if $rule->{src} ne $network_00;
+            next if $rule->{srv} ne $srv_ip;
+            my $dst = $rule->{dst};
+            $no_protect{$dst} = 1 if $intf_hash->{$dst};
+        }
+
         # Deny rule is needless if there is no such permit rule.
         # Try to optimize this case.
         my %need_protect;
@@ -13808,7 +13819,9 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
 
         my %seen;
         for my $interface (@$interfaces) {
-            if (    not $protect_all
+            if ($no_protect{$interface}
+                or
+                    not $protect_all
                 and not $need_protect{$interface}
 
                 # Interface with 'no_in_acl' gets 'permit any any' added
