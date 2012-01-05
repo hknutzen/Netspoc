@@ -273,6 +273,7 @@ my %router_info = (
         can_vrf        => 1,
         can_log_deny   => 1,
         has_out_acl    => 1,
+        need_protect   => 1,
         crypto         => 'IOS',
         comment_char   => '!',
         extension      => {
@@ -7101,6 +7102,11 @@ sub check_no_in_acl () {
 
 # This uses attributes from sub check_no_in_acl.
 sub check_crosslink () {
+
+    # Collect cluster of routers connected by crosslink networks,
+    # but only for IOS routers having attribute "need_protect".
+    my %crosslink_routers;
+
     for my $network (values %networks) {
         next if not $network->{crosslink};
         next if $network->{disabled};
@@ -7115,6 +7121,9 @@ sub check_crosslink () {
             my $router = $interface->{router};
             if (my $managed = $router->{managed}) {
                 push @managed_type, $managed;
+                if($router->{model}->{need_protect}) {
+                    $crosslink_routers{$router} = $router;
+                }
             }
             else {
                 err_msg "Crosslink $network->{name} must not be",
@@ -7151,6 +7160,48 @@ sub check_crosslink () {
           or err_msg "All interfaces with attribute 'no_in_acl'",
           " at routers connected by\n crosslink $network->{name}",
           " must be border of the same security domain";
+    }
+
+    # Find clusters of routers connected directly or indirectly by
+    # crosslink networks.
+    my %cluster;
+    my %seen;
+    my $walk;
+    $walk = sub {
+        my ($router) = @_;
+        $cluster{$router} = $router;
+        $seen{$router} = $router;
+        for my $in_intf (@{ $router->{interfaces} }) {
+            my $network = $in_intf->{network};
+            next if not $network->{crosslink};
+            next if $network->{disabled};
+            for my $out_intf (@{ $network->{interfaces} }) {
+                next if $out_intf eq $in_intf;
+                my $router2 = $out_intf->{router};
+                next if $cluster{$router2};
+                $walk->($router2);
+            }
+        }
+    };
+
+    # Collect all interfaces of cluster and add to each cluster member
+    # - as list used in "protect own interfaces"
+    # - as hash used in fast lookup in distribute_rule and "protect ..".
+    for my $router (values %crosslink_routers) {
+        next if $seen{$router};
+        %cluster = ();
+        $walk->($router);
+        my @crosslink_interfaces = 
+            map { @{ $_->{interfaces} } }
+
+            # Sort to make output deterministic.
+            sort { $a->{name} cmp $b->{name} }
+            values %cluster;
+        my %crosslink_intf_hash = map { $_ => $_ } @crosslink_interfaces;
+        for my $router2 (values %cluster) {
+            $router2->{crosslink_interfaces} = \@crosslink_interfaces;
+            $router2->{crosslink_intf_hash} = \%crosslink_intf_hash;
+        }
     }
 }
 
@@ -11186,12 +11237,16 @@ sub distribute_rule( $$$ ) {
     }
 
     my $key;
-    if (not $out_intf) {
+    my $dst = $rule->{dst};
+    my $intf_hash = $router->{crosslink_intf_hash};
+
+    # Packets for the router itself or for some interface of a
+    # crosslinked cluster of routers (only IOS with "need_protect").
+    if (!$out_intf || $intf_hash && $intf_hash->{$dst}) {
 
         # Packets for the router itself.  For PIX we can only reach that
         # interface, where traffic enters the PIX.
         if ($model->{filter} eq 'PIX') {
-            my $dst = $rule->{dst};
             if ($dst eq $in_intf) {
             }
             elsif ($dst eq $network_00 or $dst eq $in_intf->{network}) {
@@ -11347,6 +11402,10 @@ sub set_policy_distribution_ip () {
                 next if $action eq 'deny';
                 next if not $pdp_src{$src};
                 next if not $admin_srv{$srv};
+                next if not is_interface($dst);
+
+                # Filter out traffic to other devices of crosslink cluster.
+                next if not $dst->{router} eq $router;
                 $interfaces{$dst} = $dst;
             }
         }
@@ -13403,6 +13462,9 @@ sub local_optimization() {
                                 not(
                                     is_interface $dst
                                     and (  $dst->{router} eq $router
+                                        or ($router->{crosslink_intf_hash}
+                                            and $router->{crosslink_intf_hash}
+                                            ->{$dst})
                                         or $dst->{network}->{route_hint})
                                 )
                                 and not(
@@ -13693,18 +13755,27 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
 
     if ($filter eq 'IOS') {
 
+        # Routers connected by crosslink networks are handled like one
+        # large router. Protect the collected interfaces of the whole
+        # cluster at each entry.
+        my $interfaces = 
+            $router->{crosslink_interfaces} || $router->{interfaces};
+        $router->{crosslink_intf_hash} ||= { 
+            map { $_ => $_ } @{ $router->{interfaces} } 
+        };
+        my $intf_hash = $router->{crosslink_intf_hash};
+
         # Add deny rules to protect own interfaces.
+
         # If a rule permits traffic to a directly connected network
         # behind the device, this would accidently permit traffic
         # to an interface of this device as well.
-
-        # This is needless if there is no such permit rule.
+        # Deny rule is needless if there is no such permit rule.
         # Try to optimize this case.
         my %need_protect;
         my $protect_all;
       RULE:
         for my $rule (@{ $hardware->{rules} }) {
-
             next if $rule->{action} eq 'deny';
             my $dst = $rule->{dst};
 
@@ -13725,8 +13796,8 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
             for my $net ($dst,
                 ($dst->{own_subnets}) ? @{ $dst->{own_subnets} } : ())
             {
-                for my $intf (grep { $_->{router} eq $router }
-                    @{ $net->{interfaces} })
+                for my $intf (grep { $intf_hash->{$_} } 
+                              @{ $net->{interfaces} })
                 {
                     $need_protect{$intf} = $intf;
 
@@ -13734,9 +13805,10 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
                 }
             }
         }
-        for my $interface (@{ $router->{interfaces} }) {
-            if (
-                    not $protect_all
+
+        my %seen;
+        for my $interface (@$interfaces) {
+            if (    not $protect_all
                 and not $need_protect{$interface}
 
                 # Interface with 'no_in_acl' gets 'permit any any' added
@@ -13761,6 +13833,11 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
                 my $nat_network =
                   get_nat_network($interface->{network}, $no_nat_set);
                 next if $nat_network->{dynamic};
+            }
+            if ($interface->{redundancy_interfaces} and
+                $seen{$interface->{redundancy_interfaces}}++)
+            {
+                next;
             }
 
             # Protect own interfaces.
