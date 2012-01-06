@@ -8423,6 +8423,7 @@ sub path_walk( $$;$ ) {
     my $to_store   = $obj2path{$dst}       || get_path $dst;
     my $from       = $from_store->{router} || $from_store;
     my $to         = $to_store->{router}   || $to_store;
+    my $path_store = $from_store->{loop} ? $from_store : $from;
 
 #    debug print_rule $rule;
 #    debug(" start: $from->{name}, $to->{name}" . ($where?", at $where":''));
@@ -8437,7 +8438,7 @@ sub path_walk( $$;$ ) {
     $from and $to or internal_err print_rule $rule;
     $from eq $to and internal_err "Unenforceable:\n ", print_rule $rule;
 
-    if (not(($from->{loop} ? $from_store : $from)->{path}->{$to_store})) {
+    if (not($path_store->{path}->{$to_store})) {
         path_mark($from, $to, $from_store, $to_store)
           or err_msg
           "No valid path from $from_store->{name} to $to_store->{name}\n",
@@ -8453,7 +8454,7 @@ sub path_walk( $$;$ ) {
     if ($from_store->{loop_exit}
         and my $loop_exit = $from_store->{loop_exit}->{$to_store})
     {
-        my $loop_out = $from_store->{path}->{$to_store};
+        my $loop_out = $path_store->{path}->{$to_store};
         loop_path_walk($in, $loop_out, $from_store, $loop_exit, $at_router,
             $rule, $fun);
         if (not $loop_out) {
@@ -8468,7 +8469,7 @@ sub path_walk( $$;$ ) {
         $out     = $in->{path}->{$to_store};
     }
     else {
-        $out = $from->{path}->{$to_store};
+        $out = $path_store->{path}->{$to_store};
     }
     while (1) {
         if (    $in

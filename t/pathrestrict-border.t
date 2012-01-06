@@ -174,4 +174,82 @@ eq_or_diff(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3,
 	  $title);
 
 ############################################################
+$title = 'Pathrestriction at border of nested loop';
+############################################################
+
+# Soll auch bei verschachtelter Loop den Pfad finden.
+
+$in = <<END;
+network:top = { ip = 10.1.1.0/24;}
+network:cnt = { ip = 10.3.1.240/30;}
+
+router:c1 = {
+ managed;
+ model = IOS;
+ interface:top = { ip = 10.1.1.1; hardware = Vlan13; }
+ interface:lft = { ip = 10.3.1.245; hardware = Ethernet1; routing = manual; }
+ interface:cnt = { ip = 10.3.1.241; hardware = Ethernet2; routing = manual; }
+ interface:mng = { ip = 10.3.1.249; hardware = Ethernet3; }
+}
+router:c2 = {
+ managed;
+ model = IOS;
+ interface:top = { ip = 10.1.1.2; hardware = Vlan14; }
+ interface:rgt = { ip = 10.3.1.129; hardware = Ethernet4; routing = manual; }
+ interface:cnt = { ip = 10.3.1.242; hardware = Ethernet5; routing = manual; }
+}
+network:mng = { ip = 10.3.1.248/30;}
+network:lft = { ip = 10.3.1.244/30;}
+network:rgt = { ip = 10.3.1.128/30;}
+
+router:k2 = {
+ interface:rgt  = {ip = 10.3.1.130;}
+ interface:lft  = {ip = 10.3.1.246;}
+ interface:dst;
+}
+network:dst = { ip = 10.3.1.252/30;}
+
+pathrestriction:a = interface:c1.lft, interface:k2.rgt;
+pathrestriction:mng = interface:c1.mng, interface:c2.top;
+
+service:IP = ip;
+
+policy:intra = {
+ user = any:[network:dst], any:[network:top], any:[network:cnt],
+        any:[network:rgt], any:[network:lft];
+ permit src = interface:c1.mng;
+        dst = user;
+        srv = service:IP;
+}
+END
+
+$out1 = <<END;
+ip access-list extended Ethernet4_in
+ permit ip any host 10.3.1.249
+ deny ip any any
+END
+
+$out2 = <<END;
+ip access-list extended Ethernet5_in
+ deny ip any host 10.1.1.2
+ deny ip any host 10.3.1.129
+ deny ip any host 10.3.1.242
+ permit ip host 10.3.1.249 any
+ deny ip any any
+END
+
+$out3 = <<END;
+ip access-list extended Vlan13_in
+ permit ip any host 10.3.1.249
+ deny ip any any
+END
+
+$head1 = (split /\n/, $out1)[0];
+$head2 = (split /\n/, $out2)[0];
+$head3 = (split /\n/, $out3)[0];
+
+eq_or_diff(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3, 
+	  $title);
+
+############################################################
 done_testing;
