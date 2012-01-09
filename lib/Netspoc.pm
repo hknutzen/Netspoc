@@ -13772,14 +13772,18 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
         # to an interface of this device as well.
 
         # Deny rule is needless if there is a rule which permits any
-        # traffic to the interface.
+        # traffic to the interface or
+        # to one interface of a redundancy group.
         my %no_protect;
+        my %seen;
         for my $rule (@{ $hardware->{intf_rules} }) {
             next if $rule->{action} eq 'deny';
             next if $rule->{src} ne $network_00;
             next if $rule->{srv} ne $srv_ip;
             my $dst = $rule->{dst};
             $no_protect{$dst} = 1 if $intf_hash->{$dst};
+            $seen{$dst->{redundancy_interfaces}}++ 
+                if $dst->{redundancy_interfaces};
         }
 
         # Deny rule is needless if there is no such permit rule.
@@ -13818,7 +13822,6 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
             }
         }
 
-        my %seen;
         for my $interface (@$interfaces) {
             if ($no_protect{$interface}
                 or
