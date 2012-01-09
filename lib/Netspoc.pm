@@ -11183,13 +11183,18 @@ sub distribute_rule( $$$ ) {
     # which don't handle stateless_icmp automatically;
     return if $rule->{stateless_icmp} and not $model->{stateless_icmp};
 
-    # Rules to managed interfaces must be processed
-    # at the corresponding router even if they are marked as deleted,
-    # because code for interfaces is placed before the 'normal' code.
+    my $dst = $rule->{dst};
+    my $intf_hash = $router->{crosslink_intf_hash};
+
+    # Rule to managed interface must be processed
+    # - at the corresponding router or
+    # - at the edge of a cluster of crosslinked routers
+    # even if the rule is marked as deleted,
+    # because code for interface is placed separately into {intf_rules}.
     if ($rule->{deleted}) {
 
-        # We are on an intermediate router if $out_intf is defined.
-        return if $out_intf;
+        # We are at an intermediate router.
+        return if $out_intf and (! $intf_hash || ! $intf_hash->{$dst});
 
         # No code needed if it is deleted by another rule to the same interface.
         return if $rule->{deleted}->{managed_intf};
@@ -11238,8 +11243,6 @@ sub distribute_rule( $$$ ) {
     }
 
     my $key;
-    my $dst = $rule->{dst};
-    my $intf_hash = $router->{crosslink_intf_hash};
 
     # Packets for the router itself or for some interface of a
     # crosslinked cluster of routers (only IOS with "need_protect").
