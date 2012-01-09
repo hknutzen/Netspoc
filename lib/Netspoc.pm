@@ -13756,25 +13756,25 @@ my $deny_any_rule = {
 sub print_cisco_acl_add_deny ( $$$$$$ ) {
     my ($router, $hardware, $no_nat_set, $model, $intf_prefix, $prefix) = @_;
     my $filter = $model->{filter};
-    my $is_permit_any;
+    my $permit_any;
     
     my $rules = $hardware->{rules} ||= [];
     if (@$rules and @$rules == 1) {
         my ($action, $src, $dst, $srv) =
             @{$rules->[0]}{ 'action', 'src', 'dst', 'srv' };
-        $is_permit_any = 
+        $permit_any = 
             $action eq 'permit' && $src eq $network_00 && $dst eq $network_00 
             && $srv eq $srv_ip;
     }
 
     # Add permit or deny rule at end of ACL 
     # unless the previous rule is 'permit ip any any'.
-    if (! $is_permit_any) {
+    if (! $permit_any) {
         push(
             @{ $hardware->{rules} },
             $hardware->{no_in_acl} ? $permit_any_rule : $deny_any_rule
        );
-        $is_permit_any = $hardware->{no_in_acl};
+        $permit_any = $hardware->{no_in_acl};
     }
 
     if ($filter eq 'IOS') {
@@ -13797,8 +13797,10 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
         # Deny rule is needless if there is a rule which permits any
         # traffic to the interface or
         # to one interface of a redundancy group.
+        # The permit rule can be deleted if there is a permit any any rule.
         my %no_protect;
         my %seen;
+        my $changed;
         for my $rule (@{ $hardware->{intf_rules} }) {
             next if $rule->{action} eq 'deny';
             next if $rule->{src} ne $network_00;
@@ -13807,6 +13809,14 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
             $no_protect{$dst} = 1 if $intf_hash->{$dst};
             $seen{$dst->{redundancy_interfaces}}++ 
                 if $dst->{redundancy_interfaces};
+            if ($permit_any) {
+                $rule = undef;
+                $changed = 1;
+            }
+        }
+        if ($changed) {
+            $hardware->{intf_rules} =
+                [ grep { defined $_ } @{ $hardware->{intf_rules} } ];
         }
 
         # Deny rule is needless if there is no such permit rule.
