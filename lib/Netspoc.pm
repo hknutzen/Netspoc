@@ -13756,6 +13756,26 @@ my $deny_any_rule = {
 sub print_cisco_acl_add_deny ( $$$$$$ ) {
     my ($router, $hardware, $no_nat_set, $model, $intf_prefix, $prefix) = @_;
     my $filter = $model->{filter};
+    my $is_permit_any;
+    
+    my $rules = $hardware->{rules} ||= [];
+    if (@$rules and @$rules == 1) {
+        my ($action, $src, $dst, $srv) =
+            @{$rules->[0]}{ 'action', 'src', 'dst', 'srv' };
+        $is_permit_any = 
+            $action eq 'permit' && $src eq $network_00 && $dst eq $network_00 
+            && $srv eq $srv_ip;
+    }
+
+    # Add permit or deny rule at end of ACL 
+    # unless the previous rule is 'permit ip any any'.
+    if (! $is_permit_any) {
+        push(
+            @{ $hardware->{rules} },
+            $hardware->{no_in_acl} ? $permit_any_rule : $deny_any_rule
+       );
+        $is_permit_any = $hardware->{no_in_acl};
+    }
 
     if ($filter eq 'IOS') {
 
@@ -13873,17 +13893,6 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
         if ($hardware->{crosslink}) {
             $hardware->{intf_rules} = [];
         }
-    }
-
-    # Add permit or deny rule at end of ACL 
-    # unless the previous rule is 'permit ip any any'.
-    if (!@{ $hardware->{rules} } || 
-        $hardware->{rules}->[-1] ne $permit_any_rule) 
-    {
-        push(
-            @{ $hardware->{rules} },
-            $hardware->{no_in_acl} ? $permit_any_rule : $deny_any_rule
-       );
     }
 
     # Interface rules
