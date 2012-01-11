@@ -11436,12 +11436,8 @@ sub set_policy_distribution_ip () {
             # Try all management interfaces.
             @result = values %interfaces if not @result;
 
-#	    # Try all interfaces directed to policy_distribution_point.
-#	    @result = grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel)$/ }
-#			   @front) if not @result;
-
             # Don't set {admin_ip} if no address is found.
-            # Warning is printed later when all VRFs are joined.
+            # Warning is printed below.
             next if not @result;
         }
 
@@ -11450,6 +11446,29 @@ sub set_policy_distribution_ip () {
             map { print_ip((address($_, $no_nat_set))->[0]) }
             sort { ($b->{loopback} || '') cmp($a->{loopback} || '') } @result
         ];
+    }
+    my %seen;
+    for my $router (@managed_routers) {
+        next if $seen{$router};
+        my $unreachable;
+        if (my $vrf_members = $router->{vrf_members}) {
+            grep $_->{admin_ip}, @$vrf_members or 
+                $unreachable = "at least one VRF of $router->{device_name}";
+
+            # Print VRF instance with known admin_ip first.
+            $router->{vrf_members} = [
+                sort {
+                    not($a->{admin_ip}) <=> not($b->{admin_ip})
+                      || $a->{name} cmp $b->{name}
+                  } @$vrf_members
+            ];
+        }
+        else {
+            $router->{admin_ip} or $unreachable = $router->{name};
+        }
+        $unreachable and 
+            warn_msg("Missing rule to reach $unreachable",
+                     " from policy_distribution_point");
     }
 }
 
@@ -14923,19 +14942,6 @@ sub print_code( $ ) {
         }
 
         my $vrf_members = $router->{vrf_members};
-        if ($vrf_members) {
-            if (not grep $_->{admin_ip}, @$vrf_members) {
-                warn_msg("No IP found to reach router:$device_name");
-            }
-
-            # Print VRF instance with known admin_ip first.
-            $vrf_members = [
-                sort {
-                    not($a->{admin_ip}) <=> not($b->{admin_ip})
-                      || $a->{name} cmp $b->{name}
-                  } @$vrf_members
-            ];
-        }
         for my $vrouter ($vrf_members ? @$vrf_members : ($router)) {
             $seen{$vrouter} = 1;
             my $model        = $router->{model};
