@@ -11112,12 +11112,12 @@ sub print_pix_static( $ ) {
                     for my $host (@{ $network->{subnets} },
                         @{ $network->{interfaces} })
                     {
-                        if (my $out_ip = $host->{nat}->{$out_dynamic}) {
-                            my $pair = address($host, $out_nat);
-                            my ($out_ip, $out_mask) = @$pair;
-                            my $in   = print_ip $in_ip;
-                            my $out  = print_ip $out_ip;
-                            my $mask = print_ip $out_mask;
+                        if (my $out_host_ip = $host->{nat}->{$out_dynamic}) {
+                            my $pair = address($host, $in_nat);
+                            my ($in_host_ip, $in_host_mask) = @$pair;
+                            my $in   = print_ip $in_host_ip;
+                            my $mask = print_ip $in_host_mask;
+                            my $out  = print_ip $out_host_ip;
                             print "static ($in_name,$out_name) ",
                               "$out $in netmask $mask\n";
                         }
