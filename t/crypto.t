@@ -2,6 +2,7 @@
 
 use strict;
 use Test::More;
+use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
@@ -186,9 +187,9 @@ my $head2 = (split /\n/, $out2)[0];
 my $head3 = (split /\n/, $out3)[0];
 
 my $compiled = compile($in);
-is_deeply(get_block($compiled, $head1), $out1, "$title: Crypto");
-is_deeply(get_block($compiled, $head2), $out2, "$title: ACL");
-is_deeply(get_block($compiled, $head3), $out3, "$title: NAT");
+eq_or_diff(get_block($compiled, $head1), $out1, "$title: Crypto");
+eq_or_diff(get_block($compiled, $head2), $out2, "$title: ACL");
+eq_or_diff(get_block($compiled, $head3), $out3, "$title: NAT");
 
 ############################################################
 done_testing;

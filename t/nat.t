@@ -2,6 +2,7 @@
 
 use strict;
 use Test::More;
+use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
@@ -47,7 +48,7 @@ END
 
 my $head1 = (split /\n/, $out1)[0];
 
-is_deeply(get_block(compile($in), $head1), $out1, $title);
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
 done_testing;
