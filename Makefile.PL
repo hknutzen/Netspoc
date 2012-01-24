@@ -11,21 +11,36 @@ use ExtUtils::MakeMaker 6.30;
 my %WriteMakefileArgs = (
   "ABSTRACT" => "A Network Security Policy Compiler",
   "AUTHOR" => "Heinz Knutzen <heinz.knutzen\@dataport.de>",
-  "BUILD_REQUIRES" => {},
+  "BUILD_REQUIRES" => {
+    "File::Temp" => 0,
+    "Test::Differences" => 0,
+    "Test::More" => 0
+  },
   "CONFIGURE_REQUIRES" => {
     "ExtUtils::MakeMaker" => "6.30"
   },
   "DISTNAME" => "Netspoc",
   "EXE_FILES" => [
     "bin/print-group",
-    "bin/rename-netspoc",
     "bin/cut-netspoc",
-    "bin/netspoc"
+    "bin/netspoc",
+    "bin/rename-netspoc"
   ],
   "LICENSE" => "gpl",
   "NAME" => "Netspoc",
-  "PREREQ_PM" => {},
-  "VERSION" => "3.003",
+  "PREREQ_PM" => {
+    "Encode" => 0,
+    "Exporter" => 0,
+    "FindBin" => 0,
+    "Getopt::Long" => 0,
+    "Pod::Usage" => 0,
+    "locale" => 0,
+    "open" => 0,
+    "strict" => 0,
+    "utf8" => 0,
+    "warnings" => 0
+  },
+  "VERSION" => "3.004",
   "test" => {
     "TESTS" => "t/*.t"
   }

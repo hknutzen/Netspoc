@@ -2,7 +2,10 @@
 abstract: 'A Network Security Policy Compiler'
 author:
   - 'Heinz Knutzen <heinz.knutzen@dataport.de>'
-build_requires: {}
+build_requires:
+  File::Temp: 0
+  Test::Differences: 0
+  Test::More: 0
 configure_requires:
   ExtUtils::MakeMaker: 6.30
 dynamic_config: 0
@@ -12,4 +15,15 @@ meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
 name: Netspoc
-version: 3.003
+requires:
+  Encode: 0
+  Exporter: 0
+  FindBin: 0
+  Getopt::Long: 0
+  Pod::Usage: 0
+  locale: 0
+  open: 0
+  strict: 0
+  utf8: 0
+  warnings: 0
+version: 3.004

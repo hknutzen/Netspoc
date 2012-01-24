@@ -32,7 +32,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.003'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.004'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -10938,29 +10938,85 @@ sub print_routes( $ ) {
 }
 
 ##############################################################################
-# 'static' commands for pix firewalls
+# NAT commands
 ##############################################################################
 
-sub print_pix_static( $ ) {
-    my ($router) = @_;
-    my $comment_char = $router->{model}->{comment_char};
+sub print_nat1 {
+    my ($router, $print_dynamic, $print_static_host, $print_static) = @_;
+    my $model = $router->{model};
+    my $comment_char = $model->{comment_char};
     print "$comment_char [ NAT ]\n";
 
     my @hardware =
       sort { $a->{level} <=> $b->{level} } @{ $router->{hardware} };
 
-    # Print security level relation for each interface.
-    print "! Security levels: ";
-    my $prev_level;
-    for my $hardware (@hardware) {
-        my $level = $hardware->{level};
-        if (defined $prev_level) {
-            print(($prev_level == $level) ? " = " : " < ");
+    for my $in_hw (@hardware) {
+        my $src_nat = $in_hw->{src_nat} or next;
+        my $in_nat  = $in_hw->{no_nat_set};
+        for my $out_hw (@hardware) {
+
+            # Value is { net => net, .. }
+            my $net_hash = $src_nat->{$out_hw} or next;
+            my $out_nat  = $out_hw->{no_nat_set};
+
+            # Sorting is only needed for getting output deterministic.
+            # For equal addresses look at the NAT address.
+            my @networks =
+              sort {
+                     $a->{ip} <=> $b->{ip}
+                  || $a->{mask} <=> $b->{mask}
+                  || get_nat_network($a, $out_nat)
+                  ->{ip} <=> get_nat_network($b, $out_nat)->{ip}
+              } values %$net_hash;
+
+            for my $network (@networks) {
+                my ($in_ip, $in_mask, $in_dynamic) =
+                  @{ get_nat_network($network, $in_nat) }{qw(ip mask dynamic)};
+                my ($out_ip, $out_mask, $out_dynamic) =
+                  @{ get_nat_network($network, $out_nat) }{qw(ip mask dynamic)};
+
+                # Ignore dynamic translation, which doesn't occur at
+                # current router
+                if (    $out_dynamic
+                    and $in_dynamic
+                    and $out_dynamic eq $in_dynamic)
+                {
+                    $out_dynamic = $in_dynamic = undef;
+                }
+
+                # We are talking about source addresses.
+                if ($in_dynamic) {
+                    warn_msg "Duplicate NAT for already dynamically",
+                      " translated $network->{name}\n",
+                      "at hardware $in_hw->{name} of $router->{name}";
+                }
+                if ($out_dynamic) {
+                    $print_dynamic->($in_hw, $in_ip, $in_mask,
+                                     $out_hw, $out_ip, $out_mask);
+
+                    # Check for static NAT entries of hosts and interfaces.
+                    for my $host (@{ $network->{subnets} },
+                        @{ $network->{interfaces} })
+                    {
+                        if (my $out_host_ip = $host->{nat}->{$out_dynamic}) {
+                            my $pair = address($host, $in_nat);
+                            my ($in_host_ip, $in_host_mask) = @$pair;
+                            $print_static_host->($in_hw, $in_host_ip, 
+                                                 $in_host_mask, 
+                                                 $out_hw, $out_host_ip);
+                        }
+                    }
+                }
+                else {
+                    $print_static->($in_hw, $in_ip, $in_mask, $out_hw, $out_ip);
+                }
+            }
         }
-        print $hardware->{name};
-        $prev_level = $level;
     }
-    print "\n";
+}
+
+sub print_pix_static {
+    my ($router) = @_;
 
     # Index for linking "global" and "nat" commands.
     my $dyn_index = 1;
@@ -10972,22 +11028,155 @@ sub print_pix_static( $ ) {
     # different interfaces.
     my %nat2index;
 
+    my $print_dynamic = sub {
+        my ($in_hw, $in_ip, $in_mask, $out_hw, $out_ip, $out_mask) = @_;
+        my $in_name  = $in_hw->{name};           
+        my $out_name = $out_hw->{name};
+
+        # Use a single "global" command if multiple networks are
+        # mapped to a single pool.
+        my $global_index = $global2index{$out_name}->{$out_ip}->{$out_mask};
+
+        # Use a single "nat" command if one network is mapped to
+        # different pools at different interfaces.
+        my $nat_index = $nat2index{$in_name}->{$in_ip}->{$in_mask};
+        $global_index and $nat_index and internal_err;
+
+        my $index = $global_index || $nat_index || $dyn_index++;
+        if (not $global_index) {
+            $global2index{$out_name}->{$out_ip}->{$out_mask} = $index;
+            my $pool;
+
+            # global (outside) 1 interface
+            my $out_intf_ip = $out_hw->{interfaces}->[0]->{ip};
+            if (   $out_ip == $out_intf_ip && $out_mask == 0xffffffff) {
+                $pool = 'interface';
+            }
+
+            # global (outside) 1 10.7.6.0-10.7.6.255 netmask 255.255.255.0
+            # nat (inside) 1 14.4.36.0 255.255.252.0
+            else {
+                my $max  = $out_ip | complement_32bit $out_mask;
+                my $mask = print_ip $out_mask;
+                my $range = ($out_ip == $max)
+                          ? print_ip($out_ip)
+                          : print_ip($out_ip) . '-' . print_ip($max);
+                $pool = "$range netmask $mask";
+            }
+            print "global ($out_name) $index $pool\n";
+        }
+
+        if (not $nat_index) {
+            $nat2index{$in_name}->{$in_ip}->{$in_mask} = $index;
+            my $in   = print_ip $in_ip;
+            my $mask = print_ip $in_mask;
+            print "nat ($in_name) $index $in $mask";
+            print " outside" if $in_hw->{level} < $out_hw->{level};
+            print "\n";
+        }
+    };
+    my $print_static_host = sub {
+        my ($in_hw, $in_host_ip, $in_host_mask, $out_hw, $out_host_ip) = @_;
+        my $in_name  = $in_hw->{name};         
+        my $out_name = $out_hw->{name};
+        my $in   = print_ip $in_host_ip;
+        my $mask = print_ip $in_host_mask;
+        my $out  = print_ip $out_host_ip;
+        print "static ($in_name,$out_name) $out $in netmask $mask\n";
+    };
+    my $print_static = sub {
+        my ($in_hw, $in_ip, $in_mask, $out_hw, $out_ip) = @_;
+        if (   $in_hw->{level} > $out_hw->{level}
+            || $in_hw->{need_identity_nat}
+            || $in_ip != $out_ip)
+        {
+            my $in_name  = $in_hw->{name};         
+            my $out_name = $out_hw->{name};
+            my $in   = print_ip $in_ip;
+            my $out  = print_ip $out_ip;
+            my $mask = print_ip $in_mask;
+
+            # static (inside,outside) \
+            #   10.111.0.0 111.0.0.0 netmask 255.255.252.0
+            print "static ($in_name,$out_name) $out $in netmask $mask\n";
+        }
+    };
+    print_nat1($router, $print_dynamic, $print_static_host, $print_static);
+    for my $in_hw (@{ $router->{hardware} }) {
+        next if not $in_hw->{need_nat_0};
+        print "nat ($in_hw->{name}) 0 0.0.0.0 0.0.0.0\n";
+    }
+}
+
+sub print_asa_nat {
+    my ($router) = @_;
+
+    # Hash for re-using object definitions.
+    my %objects;
+    my $get_obj = sub {
+        my ($ip, $mask) = @_;
+        my ($p_ip) = print_ip($ip);
+        my ($p_mask) = print_ip($mask);
+        my $name = "${p_ip}_${p_mask}";
+        if (not $objects{$name}) {
+            print "object network $name\n";
+            print " subnet $p_ip $p_mask\n";
+            $objects{$name} = $name;
+        }
+        return $name;
+    };
+
+    my $print_dynamic = sub {
+        my ($in_hw, $in_ip, $in_mask, $out_hw, $out_ip, $out_mask) = @_;
+        my $in_name  = $in_hw->{name};           
+        my $out_name = $out_hw->{name};
+        my $out_obj;
+
+        # NAT to interface
+        my $out_intf_ip = $out_hw->{interfaces}->[0]->{ip};
+        if ($out_ip == $out_intf_ip && $out_mask == 0xffffffff) {
+            $out_obj = 'interface';
+        }
+        else {
+            $out_obj = $get_obj->($out_ip, $out_mask);
+        }
+        my $in_obj = $get_obj->($in_ip, $in_mask);
+        print("nat ($in_name,$out_name) source dynamic $in_obj $out_obj\n");
+    };
+    my $print_static_host = sub {
+        my ($in_hw, $in_host_ip, $in_host_mask, $out_hw, $out_host_ip) = @_;
+        my $in_name      = $in_hw->{name};      
+        my $out_name     = $out_hw->{name};
+        my $in_host_obj  = $get_obj->($in_host_ip, $in_host_mask);
+        my $out_host_obj = $get_obj->($out_host_ip, $in_host_mask);
+        print("nat ($in_name,$out_name) source static",
+              " $in_host_obj $out_host_obj\n");
+    };
+    my $print_static = sub {
+        my ($in_hw, $in_ip, $in_mask, $out_hw, $out_ip) = @_;
+        my $in_name  = $in_hw->{name};         
+        my $out_name = $out_hw->{name};     
+        my $in_obj   = $get_obj->($in_ip, $in_mask);
+        my $out_obj  = $get_obj->($out_ip, $in_mask);
+        print("nat ($in_name,$out_name) source static $in_obj $out_obj\n");
+    };
+    print_nat1($router, $print_dynamic, $print_static_host, $print_static);
+}
+
+sub optimize_nat_networks {
+    my ($router) = @_;
+    my @hardware = @{ $router->{hardware} };
     for my $in_hw (@hardware) {
         my $src_nat = $in_hw->{src_nat} or next;
-        my $in_name = $in_hw->{name};
         my $in_nat  = $in_hw->{no_nat_set};
         for my $out_hw (@hardware) {
 
             # Value is { net => net, .. }
             my $net_hash = $src_nat->{$out_hw} or next;
-            my $out_name = $out_hw->{name};
             my $out_nat  = $out_hw->{no_nat_set};
 
-            # Needed for "global (outside) interface" command.
-            my $out_intf_ip = $out_hw->{interfaces}->[0]->{ip};
-
-            # Prevent duplicate entries from different networks translated
-            # to an identical address.
+            # Prevent duplicate entries from different networks
+            # translated to one identical address.
             my @has_indentical;
             for my $network (values %$net_hash) {
                 my $identical = $network->{is_identical} or next;
@@ -11003,20 +11192,10 @@ sub print_pix_static( $ ) {
                 $net_hash->{$one_net} = $one_net;
             }
 
-            # Sorting is only needed for getting output deterministic.
-            # For equal addresses look at the NAT address.
-            my @networks =
-              sort {
-                     $a->{ip} <=> $b->{ip}
-                  || $a->{mask} <=> $b->{mask}
-                  || get_nat_network($a, $out_nat)
-                  ->{ip} <=> get_nat_network($b, $out_nat)->{ip}
-              } values %$net_hash;
-
-            # Mark redundant network as deleted.
+            # Remove redundant networks.
             # A network is redundant if some enclosing network is found
             # in both NAT domains of incoming and outgoing interface.
-            for my $network (@networks) {
+            for my $network (values %$net_hash) {
                 my $net = $network->{is_in}->{$out_nat};
                 while ($net) {
                     my $net2;
@@ -11024,7 +11203,7 @@ sub print_pix_static( $ ) {
                         and $net2 = $network->{is_in}->{$in_nat}
                         and $net_hash->{$net2})
                     {
-                        $network = undef;
+                        delete $net_hash->{$network};
                         last;
                     }
                     else {
@@ -11032,117 +11211,25 @@ sub print_pix_static( $ ) {
                     }
                 }
             }
-            for my $network (@networks) {
-                next if not $network;
-                my ($in_ip, $in_mask, $in_dynamic) =
-                  @{ get_nat_network($network, $in_nat) }{qw(ip mask dynamic)};
-                my ($out_ip, $out_mask, $out_dynamic) =
-                  @{ get_nat_network($network, $out_nat) }{qw(ip mask dynamic)};
-                if ($in_mask == 0 || $out_mask == 0) {
-                    err_msg
-                      "$router->{name} doesn't support static command for ",
-                      "mask 0.0.0.0 of $network->{name}\n";
-                }
-
-                # Ignore dynamic translation, which doesn't occur
-                # at current router
-                if (    $out_dynamic
-                    and $in_dynamic
-                    and $out_dynamic eq $in_dynamic)
-                {
-                    $out_dynamic = $in_dynamic = undef;
-                }
-
-                # We are talking about source addresses.
-                if ($in_dynamic) {
-                    warn_msg "Duplicate NAT for already dynamically",
-                      " translated $network->{name}\n",
-                      "at hardware $in_hw->{name} of $router->{name}";
-                }
-                if ($out_dynamic) {
-
-                    # Use a single "global" command if multiple networks are
-                    # mapped to a single pool.
-                    my $global_index =
-                      $global2index{$out_name}->{$out_ip}->{$out_mask};
-
-                    # Use a single "nat" command if one network is mapped to
-                    # different pools at different interfaces.
-                    my $nat_index = $nat2index{$in_name}->{$in_ip}->{$in_mask};
-                    $global_index and $nat_index and internal_err;
-
-                    my $index = $global_index || $nat_index || $dyn_index++;
-                    if (not $global_index) {
-                        $global2index{$out_name}->{$out_ip}->{$out_mask} =
-                          $index;
-                        my $pool;
-
-                        # global (outside) 1 interface
-                        if (   $out_ip == $out_intf_ip
-                            && $out_mask == 0xffffffff)
-                        {
-                            $pool = 'interface';
-                        }
-
-                        # global (outside) 1 \
-                        #   10.70.167.0-10.70.167.255 netmask 255.255.255.0
-                        # nat (inside) 1 141.4.136.0 255.255.252.0
-                        else {
-                            my $max  = $out_ip | complement_32bit $out_mask;
-                            my $mask = print_ip $out_mask;
-                            my $range =
-                              ($out_ip == $max)
-                              ? print_ip($out_ip)
-                              : print_ip($out_ip) . '-' . print_ip($max);
-                            $pool = "$range netmask $mask";
-                        }
-                        print "global ($out_name) $index $pool\n";
-                    }
-
-                    if (not $nat_index) {
-                        $nat2index{$in_name}->{$in_ip}->{$in_mask} = $index;
-                        my $in   = print_ip $in_ip;
-                        my $mask = print_ip $in_mask;
-                        print "nat ($in_name) $index $in $mask";
-                        print " outside" if $in_hw->{level} < $out_hw->{level};
-                        print "\n";
-                    }
-
-                    # Check for static NAT entries of hosts and interfaces.
-                    for my $host (@{ $network->{subnets} },
-                        @{ $network->{interfaces} })
-                    {
-                        if (my $out_ip = $host->{nat}->{$out_dynamic}) {
-                            my $pair = address($host, $out_nat);
-                            my ($out_ip, $out_mask) = @$pair;
-                            my $in   = print_ip $in_ip;
-                            my $out  = print_ip $out_ip;
-                            my $mask = print_ip $out_mask;
-                            print "static ($in_name,$out_name) ",
-                              "$out $in netmask $mask\n";
-                        }
-                    }
-                }
-
-                # Static translation.
-                else {
-                    if (   $in_hw->{level} > $out_hw->{level}
-                        || $in_hw->{need_identity_nat}
-                        || $in_ip != $out_ip)
-                    {
-                        my $in   = print_ip $in_ip;
-                        my $out  = print_ip $out_ip;
-                        my $mask = print_ip $in_mask;
-
-                        # static (inside,outside) \
-                        #   10.111.0.0 111.0.0.0 netmask 255.255.252.0
-                        print "static ($in_name,$out_name) ",
-                          "$out $in netmask $mask\n";
-                    }
-                }
-            }
         }
-        print "nat ($in_name) 0 0.0.0.0 0.0.0.0\n" if $in_hw->{need_nat_0};
+    }
+}
+
+sub print_nat {
+    my ($router) = @_;
+    my $model = $router->{model};
+
+    # NAT commands not implemented for other models.
+    return if not $model->{has_interface_level};
+
+    optimize_nat_networks($router);
+    if ($model->{v8_4}) {
+
+        
+        print_asa_nat($router);
+    }
+    else {
+        print_pix_static($router);
     }
 }
 
@@ -11436,12 +11523,8 @@ sub set_policy_distribution_ip () {
             # Try all management interfaces.
             @result = values %interfaces if not @result;
 
-#	    # Try all interfaces directed to policy_distribution_point.
-#	    @result = grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel)$/ }
-#			   @front) if not @result;
-
             # Don't set {admin_ip} if no address is found.
-            # Warning is printed later when all VRFs are joined.
+            # Warning is printed below.
             next if not @result;
         }
 
@@ -11450,6 +11533,29 @@ sub set_policy_distribution_ip () {
             map { print_ip((address($_, $no_nat_set))->[0]) }
             sort { ($b->{loopback} || '') cmp($a->{loopback} || '') } @result
         ];
+    }
+    my %seen;
+    for my $router (@managed_routers) {
+        next if $seen{$router};
+        my $unreachable;
+        if (my $vrf_members = $router->{vrf_members}) {
+            grep $_->{admin_ip}, @$vrf_members or 
+                $unreachable = "at least one VRF of $router->{device_name}";
+
+            # Print VRF instance with known admin_ip first.
+            $router->{vrf_members} = [
+                sort {
+                    not($a->{admin_ip}) <=> not($b->{admin_ip})
+                      || $a->{name} cmp $b->{name}
+                  } @$vrf_members
+            ];
+        }
+        else {
+            $router->{admin_ip} or $unreachable = $router->{name};
+        }
+        $unreachable and 
+            warn_msg("Missing rule to reach $unreachable",
+                     " from policy_distribution_point");
     }
 }
 
@@ -14923,19 +15029,6 @@ sub print_code( $ ) {
         }
 
         my $vrf_members = $router->{vrf_members};
-        if ($vrf_members) {
-            if (not grep $_->{admin_ip}, @$vrf_members) {
-                warn_msg("No IP found to reach router:$device_name");
-            }
-
-            # Print VRF instance with known admin_ip first.
-            $vrf_members = [
-                sort {
-                    not($a->{admin_ip}) <=> not($b->{admin_ip})
-                      || $a->{name} cmp $b->{name}
-                  } @$vrf_members
-            ];
-        }
         for my $vrouter ($vrf_members ? @$vrf_members : ($router)) {
             $seen{$vrouter} = 1;
             my $model        = $router->{model};
@@ -14961,7 +15054,7 @@ sub print_code( $ ) {
             print_crypto $vrouter;
             print_acls $vrouter;
             print_interface $vrouter if $model->{class} eq 'IOS';
-            print_pix_static $vrouter if $model->{has_interface_level};
+            print_nat $vrouter;
             print "$comment_char [ END $name ]\n\n";
         }
         if ($dir) {
