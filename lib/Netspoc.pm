@@ -6941,7 +6941,7 @@ sub find_subnets() {
                     # otherwise.
                     $m &= 0x7fffffff;
                     $m <<= 1;
-                    $i &= $m;
+                    $i = $i & $m; # Perl bug #108480 prevents use of "&=".
                     if ($mask_ip_hash{$m}->{$i}) {
                         my $bignet     = $mask_ip_hash{$m}->{$i};
                         my $subnet     = $mask_ip_hash{$mask}->{$ip};
@@ -10841,7 +10841,7 @@ sub print_routes( $ ) {
                         # otherwise.
                         $m &= 0x7fffffff;
                         $m <<= 1;
-                        $i &= $m;
+                        $i = $i & $m;  # Perl bug #108480.
                         if ($mask_ip_hash{$m}->{$i}) {
 
                             # Network {$mask}->{$ip} is redundant.
