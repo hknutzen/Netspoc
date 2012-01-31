@@ -11089,14 +11089,36 @@ sub print_asa_nat {
 
     # Hash for re-using object definitions.
     my %objects;
-    my $get_obj = sub {
+
+    my $subnet_obj = sub {
         my ($ip, $mask) = @_;
-        my ($p_ip) = print_ip($ip);
-        my ($p_mask) = print_ip($mask);
+        my $p_ip = print_ip($ip);
+        my $p_mask = print_ip($mask);
         my $name = "${p_ip}_${p_mask}";
         if (not $objects{$name}) {
             print "object network $name\n";
             print " subnet $p_ip $p_mask\n";
+            $objects{$name} = $name;
+        }
+        return $name;
+    };
+    my $range_obj = sub {
+        my ($ip, $mask) = @_;
+        my $max = $ip | complement_32bit $mask;
+        my $p_ip = print_ip($ip);
+        my $name = $p_ip;
+        my $sub_cmd;
+        if ($ip == $max) {
+            $sub_cmd = "host $p_ip";
+        }
+        else {
+            my $p_max = print_ip($max);
+            $name .= "-$p_max";
+            $sub_cmd = "range $p_ip $p_max";
+        }
+        if (not $objects{$name}) {
+            print "object network $name\n";
+            print " $sub_cmd\n";
             $objects{$name} = $name;
         }
         return $name;
@@ -11114,17 +11136,17 @@ sub print_asa_nat {
             $out_obj = 'interface';
         }
         else {
-            $out_obj = $get_obj->($out_ip, $out_mask);
+            $out_obj = $range_obj->($out_ip, $out_mask);
         }
-        my $in_obj = $get_obj->($in_ip, $in_mask);
+        my $in_obj = $subnet_obj->($in_ip, $in_mask);
         print("nat ($in_name,$out_name) source dynamic $in_obj $out_obj\n");
     };
     my $print_static_host = sub {
         my ($in_hw, $in_host_ip, $in_host_mask, $out_hw, $out_host_ip) = @_;
         my $in_name      = $in_hw->{name};      
         my $out_name     = $out_hw->{name};
-        my $in_host_obj  = $get_obj->($in_host_ip, $in_host_mask);
-        my $out_host_obj = $get_obj->($out_host_ip, $in_host_mask);
+        my $in_host_obj  = $subnet_obj->($in_host_ip, $in_host_mask);
+        my $out_host_obj = $subnet_obj->($out_host_ip, $in_host_mask);
         print("nat ($in_name,$out_name) source static",
               " $in_host_obj $out_host_obj\n");
     };
@@ -11132,8 +11154,8 @@ sub print_asa_nat {
         my ($in_hw, $in_ip, $in_mask, $out_hw, $out_ip) = @_;
         my $in_name  = $in_hw->{name};         
         my $out_name = $out_hw->{name};     
-        my $in_obj   = $get_obj->($in_ip, $in_mask);
-        my $out_obj  = $get_obj->($out_ip, $in_mask);
+        my $in_obj   = $subnet_obj->($in_ip, $in_mask);
+        my $out_obj  = $subnet_obj->($out_ip, $in_mask);
         print("nat ($in_name,$out_name) source static $in_obj $out_obj\n");
     };
     print_nat1($router, $print_dynamic, $print_static_host, $print_static);
