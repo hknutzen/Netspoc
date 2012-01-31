@@ -13998,8 +13998,9 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
 # Valid group-policy attributes.
 # Hash describes usage:
 # - need_value: value of attribute must have prefix 'value'
-# - also_user: attribute is applicable to 'username'
-# - internal: internally generated
+# - also_user: attribute is also applicable to 'username'
+# - internal: internally generated, not allowed from config
+# - tg_general: attribute is only applicable to 'tunnel-group general-attributes'
 my %asa_vpn_attributes = (
 
     # group-policy attributes
@@ -14017,6 +14018,9 @@ my %asa_vpn_attributes = (
     'split-tunnel-network-list' => { need_value => 1, internal => 1 },
     'split-tunnel-policy'       => { internal   => 1 },
     'vpn-filter'                => { need_value => 1, internal => 1 },
+    'authentication-server-group' => { tg_general => 1 },
+    'authorization-server-group'  => { tg_general => 1 },
+    'username-from-certificate'   => { tg_general => 1 },
 );
 
 sub print_asavpn ( $ ) {
@@ -14083,7 +14087,8 @@ EOF
         print "group-policy $name attributes\n";
         for my $key (sort keys %$attributes) {
             my $value = $attributes->{$key};
-            my $spec  = $asa_vpn_attributes{$key}
+            my $spec  = $asa_vpn_attributes{$key};
+            not $spec or $spec->{tg_general}
               or err_msg "unknown radius_attribute '$key' for $router->{name}";
             my $vstring = $spec->{need_value} ? 'value ' : '';
             print " $key $vstring$value\n";
@@ -14250,11 +14255,12 @@ EOF
                     my @tunnel_gen_att =
                       ("default-group-policy $group_policy_name");
 
-                    if (my $auth_server =
-                        delete $attributes->{'authentication-server-group'})
-                    {
-                        push(@tunnel_gen_att,
-                            "authentication-server-group $auth_server");
+                    # Select attributes for tunnel-group general-attributes.
+                    for my $key (sort keys %$attributes) {
+                        if ($asa_vpn_attributes{$key}->{tg_general}) {
+                            my $value = delete $attributes->{$key};
+                            push(@tunnel_gen_att, "$key $value");
+                        }
                     }
 
                     my $trustpoint2 = delete $attributes->{'trust-point'}
