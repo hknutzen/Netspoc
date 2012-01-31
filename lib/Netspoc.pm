@@ -14110,7 +14110,7 @@ EOF
         for my $key (sort keys %$attributes) {
             my $value = $attributes->{$key};
             my $spec  = $asa_vpn_attributes{$key};
-            not $spec or $spec->{tg_general}
+            $spec and not $spec->{tg_general}
               or err_msg "unknown radius_attribute '$key' for $router->{name}";
             my $vstring = $spec->{need_value} ? 'value ' : '';
             print " $key $vstring$value\n";
