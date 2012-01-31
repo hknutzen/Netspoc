@@ -6758,10 +6758,9 @@ sub get_nat_network {
 # of the network which doesn't overlap with some subnet.
 sub check_subnets {
     my ($network, $subnet) = @_;
+    my ($sub_ip, $sub_mask) = @{$subnet}{qw(ip mask)};
     my $check = sub {
         my ($ip1, $ip2, $object) = @_;
-        my $sub_ip   = $subnet->{ip};
-        my $sub_mask = $subnet->{mask};
         if (
             match_ip($ip1, $sub_ip, $sub_mask)
             || $ip2 && (match_ip($ip2, $sub_ip, $sub_mask)
@@ -6777,30 +6776,7 @@ sub check_subnets {
                     and $object->{ip} == $subnet->{ip}
                     and $subnet->{mask} == 0xffffffff)
                 {
-                    next;
-                }
-            }
-
-            # Multiple interfaces with identical address are
-            # allowed on same device or
-            # for redundancy group belonging to same device.
-            my @interfaces;
-            if (
-                is_interface($object)
-                and @interfaces =
-                grep { $_->{ip} eq $ip1 } @{ $subnet->{interfaces} }
-              )
-            {
-                my $interface = $interfaces[0];
-                my $router    = $object->{router};
-                if ($router eq $interface->{router}) {
-                    next;
-                }
-                my $r_intf = $interface->{redundancy_interfaces};
-                if ($r_intf
-                    and grep { $_->{router} eq $router } @$r_intf)
-                {
-                    next;
+                    return;
                 }
             }
             warn_msg "$object->{name}'s IP overlaps with subnet",
@@ -6809,7 +6785,7 @@ sub check_subnets {
     };
     for my $interface (@{ $network->{interfaces} }) {
         my $ip = $interface->{ip};
-        next if $ip =~ /^\w/;
+        next if $ip =~ /^(?:unnumbered|negotiated|tunnel|short)$/;
         $check->($ip, undef, $interface);
     }
     for my $host (@{ $network->{hosts} }) {
