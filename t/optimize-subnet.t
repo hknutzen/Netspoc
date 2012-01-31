@@ -13,7 +13,7 @@ my $title = 'Optimize subnet at secondary packet filter';
 my $in = <<END;
 network:sub = { ip = 10.1.7.32/27; subnet_of = network:customer; }
 
-router:r = { interface:sub; interface:customer = { ip = 10.1.7.33; } }
+router:r = { interface:sub; interface:customer = { ip = 10.1.7.30; } }
 
 network:customer = { ip = 10.1.7.0/24; }
 

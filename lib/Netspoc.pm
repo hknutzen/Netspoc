@@ -32,7 +32,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.004'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.005'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -6758,10 +6758,9 @@ sub get_nat_network {
 # of the network which doesn't overlap with some subnet.
 sub check_subnets {
     my ($network, $subnet) = @_;
+    my ($sub_ip, $sub_mask) = @{$subnet}{qw(ip mask)};
     my $check = sub {
         my ($ip1, $ip2, $object) = @_;
-        my $sub_ip   = $subnet->{ip};
-        my $sub_mask = $subnet->{mask};
         if (
             match_ip($ip1, $sub_ip, $sub_mask)
             || $ip2 && (match_ip($ip2, $sub_ip, $sub_mask)
@@ -6777,30 +6776,7 @@ sub check_subnets {
                     and $object->{ip} == $subnet->{ip}
                     and $subnet->{mask} == 0xffffffff)
                 {
-                    next;
-                }
-            }
-
-            # Multiple interfaces with identical address are
-            # allowed on same device or
-            # for redundancy group belonging to same device.
-            my @interfaces;
-            if (
-                is_interface($object)
-                and @interfaces =
-                grep { $_->{ip} eq $ip1 } @{ $subnet->{interfaces} }
-              )
-            {
-                my $interface = $interfaces[0];
-                my $router    = $object->{router};
-                if ($router eq $interface->{router}) {
-                    next;
-                }
-                my $r_intf = $interface->{redundancy_interfaces};
-                if ($r_intf
-                    and grep { $_->{router} eq $router } @$r_intf)
-                {
-                    next;
+                    return;
                 }
             }
             warn_msg "$object->{name}'s IP overlaps with subnet",
@@ -6809,7 +6785,7 @@ sub check_subnets {
     };
     for my $interface (@{ $network->{interfaces} }) {
         my $ip = $interface->{ip};
-        next if $ip =~ /^\w/;
+        next if $ip =~ /^(?:unnumbered|negotiated|tunnel|short)$/;
         $check->($ip, undef, $interface);
     }
     for my $host (@{ $network->{hosts} }) {
@@ -6941,7 +6917,7 @@ sub find_subnets() {
                     # otherwise.
                     $m &= 0x7fffffff;
                     $m <<= 1;
-                    $i &= $m;
+                    $i = $i & $m; # Perl bug #108480 prevents use of "&=".
                     if ($mask_ip_hash{$m}->{$i}) {
                         my $bignet     = $mask_ip_hash{$m}->{$i};
                         my $subnet     = $mask_ip_hash{$mask}->{$ip};
@@ -10841,7 +10817,7 @@ sub print_routes( $ ) {
                         # otherwise.
                         $m &= 0x7fffffff;
                         $m <<= 1;
-                        $i &= $m;
+                        $i = $i & $m;  # Perl bug #108480.
                         if ($mask_ip_hash{$m}->{$i}) {
 
                             # Network {$mask}->{$ip} is redundant.
@@ -11113,14 +11089,36 @@ sub print_asa_nat {
 
     # Hash for re-using object definitions.
     my %objects;
-    my $get_obj = sub {
+
+    my $subnet_obj = sub {
         my ($ip, $mask) = @_;
-        my ($p_ip) = print_ip($ip);
-        my ($p_mask) = print_ip($mask);
+        my $p_ip = print_ip($ip);
+        my $p_mask = print_ip($mask);
         my $name = "${p_ip}_${p_mask}";
         if (not $objects{$name}) {
             print "object network $name\n";
             print " subnet $p_ip $p_mask\n";
+            $objects{$name} = $name;
+        }
+        return $name;
+    };
+    my $range_obj = sub {
+        my ($ip, $mask) = @_;
+        my $max = $ip | complement_32bit $mask;
+        my $p_ip = print_ip($ip);
+        my $name = $p_ip;
+        my $sub_cmd;
+        if ($ip == $max) {
+            $sub_cmd = "host $p_ip";
+        }
+        else {
+            my $p_max = print_ip($max);
+            $name .= "-$p_max";
+            $sub_cmd = "range $p_ip $p_max";
+        }
+        if (not $objects{$name}) {
+            print "object network $name\n";
+            print " $sub_cmd\n";
             $objects{$name} = $name;
         }
         return $name;
@@ -11138,17 +11136,17 @@ sub print_asa_nat {
             $out_obj = 'interface';
         }
         else {
-            $out_obj = $get_obj->($out_ip, $out_mask);
+            $out_obj = $range_obj->($out_ip, $out_mask);
         }
-        my $in_obj = $get_obj->($in_ip, $in_mask);
+        my $in_obj = $subnet_obj->($in_ip, $in_mask);
         print("nat ($in_name,$out_name) source dynamic $in_obj $out_obj\n");
     };
     my $print_static_host = sub {
         my ($in_hw, $in_host_ip, $in_host_mask, $out_hw, $out_host_ip) = @_;
         my $in_name      = $in_hw->{name};      
         my $out_name     = $out_hw->{name};
-        my $in_host_obj  = $get_obj->($in_host_ip, $in_host_mask);
-        my $out_host_obj = $get_obj->($out_host_ip, $in_host_mask);
+        my $in_host_obj  = $subnet_obj->($in_host_ip, $in_host_mask);
+        my $out_host_obj = $subnet_obj->($out_host_ip, $in_host_mask);
         print("nat ($in_name,$out_name) source static",
               " $in_host_obj $out_host_obj\n");
     };
@@ -11156,8 +11154,8 @@ sub print_asa_nat {
         my ($in_hw, $in_ip, $in_mask, $out_hw, $out_ip) = @_;
         my $in_name  = $in_hw->{name};         
         my $out_name = $out_hw->{name};     
-        my $in_obj   = $get_obj->($in_ip, $in_mask);
-        my $out_obj  = $get_obj->($out_ip, $in_mask);
+        my $in_obj   = $subnet_obj->($in_ip, $in_mask);
+        my $out_obj  = $subnet_obj->($out_ip, $in_mask);
         print("nat ($in_name,$out_name) source static $in_obj $out_obj\n");
     };
     print_nat1($router, $print_dynamic, $print_static_host, $print_static);
@@ -14022,8 +14020,9 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
 # Valid group-policy attributes.
 # Hash describes usage:
 # - need_value: value of attribute must have prefix 'value'
-# - also_user: attribute is applicable to 'username'
-# - internal: internally generated
+# - also_user: attribute is also applicable to 'username'
+# - internal: internally generated, not allowed from config
+# - tg_general: attribute is only applicable to 'tunnel-group general-attributes'
 my %asa_vpn_attributes = (
 
     # group-policy attributes
@@ -14041,6 +14040,9 @@ my %asa_vpn_attributes = (
     'split-tunnel-network-list' => { need_value => 1, internal => 1 },
     'split-tunnel-policy'       => { internal   => 1 },
     'vpn-filter'                => { need_value => 1, internal => 1 },
+    'authentication-server-group' => { tg_general => 1 },
+    'authorization-server-group'  => { tg_general => 1 },
+    'username-from-certificate'   => { tg_general => 1 },
 );
 
 sub print_asavpn ( $ ) {
@@ -14107,7 +14109,8 @@ EOF
         print "group-policy $name attributes\n";
         for my $key (sort keys %$attributes) {
             my $value = $attributes->{$key};
-            my $spec  = $asa_vpn_attributes{$key}
+            my $spec  = $asa_vpn_attributes{$key};
+            $spec and not $spec->{tg_general}
               or err_msg "unknown radius_attribute '$key' for $router->{name}";
             my $vstring = $spec->{need_value} ? 'value ' : '';
             print " $key $vstring$value\n";
@@ -14274,11 +14277,12 @@ EOF
                     my @tunnel_gen_att =
                       ("default-group-policy $group_policy_name");
 
-                    if (my $auth_server =
-                        delete $attributes->{'authentication-server-group'})
-                    {
-                        push(@tunnel_gen_att,
-                            "authentication-server-group $auth_server");
+                    # Select attributes for tunnel-group general-attributes.
+                    for my $key (sort keys %$attributes) {
+                        if ($asa_vpn_attributes{$key}->{tg_general}) {
+                            my $value = delete $attributes->{$key};
+                            push(@tunnel_gen_att, "$key $value");
+                        }
                     }
 
                     my $trustpoint2 = delete $attributes->{'trust-point'}

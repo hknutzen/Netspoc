@@ -100,15 +100,15 @@ END
 
 $out1 = <<END;
 ! [ NAT ]
-object network 1.1.1.1_255.255.255.255
- subnet 1.1.1.1 255.255.255.255
+object network 1.1.1.1
+ host 1.1.1.1
 object network 10.9.1.0_255.255.255.0
  subnet 10.9.1.0 255.255.255.0
-nat (inside,outside) source dynamic 10.9.1.0_255.255.255.0 1.1.1.1_255.255.255.255
-nat (inside,DMZ50) source dynamic 10.9.1.0_255.255.255.0 1.1.1.1_255.255.255.255
-object network 9.9.9.8_255.255.255.252
- subnet 9.9.9.8 255.255.255.252
-nat (inside,DMZ70) source dynamic 10.9.1.0_255.255.255.0 9.9.9.8_255.255.255.252
+nat (inside,outside) source dynamic 10.9.1.0_255.255.255.0 1.1.1.1
+nat (inside,DMZ50) source dynamic 10.9.1.0_255.255.255.0 1.1.1.1
+object network 9.9.9.8-9.9.9.11
+ range 9.9.9.8 9.9.9.11
+nat (inside,DMZ70) source dynamic 10.9.1.0_255.255.255.0 9.9.9.8-9.9.9.11
 END
 
 $head1 = (split /\n/, $out1)[0];
@@ -213,11 +213,11 @@ END
 
 $out1 = <<END;
 ! [ NAT ]
-object network 1.1.1.16_255.255.255.240
- subnet 1.1.1.16 255.255.255.240
+object network 1.1.1.16-1.1.1.31
+ range 1.1.1.16 1.1.1.31
 object network 10.9.1.0_255.255.255.0
  subnet 10.9.1.0 255.255.255.0
-nat (inside,outside) source dynamic 10.9.1.0_255.255.255.0 1.1.1.16_255.255.255.240
+nat (inside,outside) source dynamic 10.9.1.0_255.255.255.0 1.1.1.16-1.1.1.31
 object network 10.9.1.33_255.255.255.255
  subnet 10.9.1.33 255.255.255.255
 object network 1.1.1.23_255.255.255.255

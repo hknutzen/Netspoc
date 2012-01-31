@@ -60,7 +60,7 @@ crypto:sts2 = {
 
 network:intern = { 
  ip = 10.1.1.0/24;
- host:netspoc = { ip = 10.1.1.111; policy_distribution_point; }
+ host:netspoc = { ip = 10.1.1.111; }
 }
 
 router:asavpn = {
