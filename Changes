@@ -1,4 +1,12 @@
 {{$NEXT}}
 
+3.005     2012-01-31 16:53:10 Europe/Berlin
+- Fixed dynamic NAT for ASA 8.4, use range and host in out-objects.
+- Support new radius_attributes 
+  authorization-server-group, username-from-certificate 
+  for tunnel-group general-attributes. 
+- Fixed check for overlap of interface with subnet.
+- Added workaround for bug #108480 of perl 5.14 series.
+
 3.004     2012-01-24 18:22:13 Europe/Berlin
-        Added support for changed NAT commands of ASA version 8.4.
+- Added support for changed NAT commands of ASA version 8.4.
