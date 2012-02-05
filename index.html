@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='utf-8'>
+
+  <title>hknutzen/Netspoc @ GitHub</title>
+
+  <style type="text/css">
+    body {
+      margin-top: 1.0em;
+      background-color: #FFFFFF;
+      font-family: Helvetica, Arial, FreeSans, san-serif;
+      color: #000000;
+    }
+    #container {
+      margin: 0 auto;
+      width: 700px;
+    }
+    h1 { font-size: 3.8em; color: #000000; margin-bottom: 3px; }
+    h1 .small { font-size: 0.4em; }
+    h1 a { text-decoration: none }
+    h2 { font-size: 1.5em; color: #000000; }
+    h3 { text-align: center; color: #000000; }
+    a { color: #000000; }
+    .description { font-size: 1.2em; margin-bottom: 30px; margin-top: 30px; font-style: italic;}
+    .download { float: right; }
+    pre { background: #000; color: #fff; padding: 15px;}
+    hr { border: 0; width: 80%; border-bottom: 1px solid #aaa}
+    .footer { text-align:center; padding-top:30px; font-style: italic; }
+  </style>
+</head>
+
+<body>
+  <a href="https://github.com/hknutzen/Netspoc"><img style="position: absolute; top: 0; right: 0; border: 0;" src="http://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub" /></a>
+
+  <div id="container">
+
+    <div class="download">
+      <a href="https://github.com/hknutzen/Netspoc/zipball/master">
+        <img border="0" width="90" src="https://github.com/images/modules/download/zip.png"></a>
+      <a href="https://github.com/hknutzen/Netspoc/tarball/master">
+        <img border="0" width="90" src="https://github.com/images/modules/download/tar.png"></a>
+    </div>
+
+    <h1><a href="https://github.com/hknutzen/Netspoc">Netspoc</a>
+      <span class="small">by <a href="https://github.com/hknutzen">hknutzen</a></span></h1>
+
+    <div class="description">
+      A network security policy compiler
+    </div>
+
+    
+      <p>NetSPoC is a tool for security managment of large computer networks with different security domains. It generates configuration files for packet filters controlling the borders of security domains.
+
+NetSPoC provides its own language for describing the security policy and topology of a network. The security policy is a set of rules that state which packets are allowed to pass the network and which not. NetSPoC is topology aware: a rule for traffic from A to B is automatically applied to all managed packet filters on the path from A to B.
+
+Currently NetSPoC generates ACLs and static routing entries for
+
+    Cisco routers with or without firewall feature set,
+    Cisco ASA and PIX firewalls,
+    Linux iptables and ip route. 
+
+It supports network address translation, virtual IP addresses for redundancy protocols like VRRP and some dynamic routing protocols.
+
+IPSec encryption is supported as well. Crypto configuration for Cisco IOS routers and ASA firewalls is generated.
+
+NetSPoC's text based specification language is well suited for integration with CVS or other version control systems. A script is provided for tagging a policy and saving it to a policy database.
+
+This software is actively developed with perl 5.12 under linux. It should be portable to other platforms where perl is available. </p>
+    
+
+    
+
+    
+      <h2>Install</h2>
+      <p>You can install this module in the usual Perl fashion:
+
+        perl Makefile.PL
+        make
+        make test
+        make install
+</p>
+    
+
+    
+      <h2>License</h2>
+      <p>GPL2+</p>
+    
+
+    
+      <h2>Authors</h2>
+      <p>Heinz Knutzen (heinz.knutzen@dataport.de)<br/>Heinz Knutzen (heinz.knutzen@gmx.de)<br/>      </p>
+    
+
+    
+      <h2>Contact</h2>
+      <p>Heinz Knutzen (heinz.knutzen@gmx.de)<br/>      </p>
+    
+
+    <h2>Download</h2>
+    <p>
+      You can download this project in either
+      <a href="https://github.com/hknutzen/Netspoc/zipball/master">zip</a> or
+      <a href="https://github.com/hknutzen/Netspoc/tarball/master">tar formats.
+    </p>
+    <p>You can also clone the project with <a href="http://git-scm.com">Git</a>
+      by running:
+      <pre>$ git clone git://github.com/hknutzen/Netspoc</pre>
+    </p>
+
+    <div class="footer">
+      get the source code on GitHub : <a href="https://github.com/hknutzen/Netspoc">hknutzen/Netspoc</a>
+    </div>
+
+  </div>
+
+</body>
+</html>
