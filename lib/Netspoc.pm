@@ -2524,7 +2524,14 @@ sub read_policy( $ ) {
         if (my $action = check_permit_deny) {
             my ($src, $src_user) = assign_union_allow_user 'src';
             my ($dst, $dst_user) = assign_union_allow_user 'dst';
-            my $srv = [ read_assign_list 'srv', \&read_typed_name ];
+            my $srv;
+            if (check 'srv') {
+                check '=';
+                $srv = [ read_list(\&read_typed_name) ];
+            }
+            else {
+                $srv = [ read_assign_list('prt', \&read_typed_name) ];
+            }
             $src_user
               or $dst_user
               or error_atline "Rule must use keyword 'user'";
@@ -2831,7 +2838,9 @@ my %global_type = (
     admin           => [ \&read_admin,           \%admins ],
     group           => [ \&read_group,           \%groups ],
     service         => [ \&read_service,         \%services ],
+    protocol        => [ \&read_service,         \%services ],
     servicegroup    => [ \&read_servicegroup,    \%servicegroups ],
+    protocolgroup   => [ \&read_servicegroup,    \%servicegroups ],
     policy          => [ \&read_policy,          \%policies ],
     global          => [ \&read_global,          \%global ],
     pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
@@ -5225,7 +5234,7 @@ sub expand_services( $$ ) {
     my @services;
     for my $pair (@$aref) {
         my ($type, $name) = @$pair;
-        if ($type eq 'service') {
+        if ($type eq 'service' || $type eq 'protocol') {
             if (my $srv = $services{$name}) {
                 push @services, $srv;
 
@@ -5242,7 +5251,7 @@ sub expand_services( $$ ) {
                 next;
             }
         }
-        elsif ($type eq 'servicegroup') {
+        elsif ($type eq 'servicegroup' || $type eq 'protocolgroup') {
             if (my $srvgroup = $servicegroups{$name}) {
                 my $elements = $srvgroup->{elements};
                 if ($elements eq 'recursive') {
