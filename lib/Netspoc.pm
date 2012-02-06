@@ -32,7 +32,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.005'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.006'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -1024,8 +1024,7 @@ sub check_radius_attributes() {
     while (1) {
         last if check '}';
         my $key = read_identifier;
-        skip '=';
-        my $val = read_string;
+        my $val = check('=') ? read_string : undef;
         skip ';';
         $result->{$key} and error_atline "Duplicate attribute '$key'";
         $result->{$key} = $val;
@@ -2525,7 +2524,14 @@ sub read_policy( $ ) {
         if (my $action = check_permit_deny) {
             my ($src, $src_user) = assign_union_allow_user 'src';
             my ($dst, $dst_user) = assign_union_allow_user 'dst';
-            my $srv = [ read_assign_list 'srv', \&read_typed_name ];
+            my $srv;
+            if (check 'srv') {
+                check '=';
+                $srv = [ read_list(\&read_typed_name) ];
+            }
+            else {
+                $srv = [ read_assign_list('prt', \&read_typed_name) ];
+            }
             $src_user
               or $dst_user
               or error_atline "Rule must use keyword 'user'";
@@ -2832,7 +2838,9 @@ my %global_type = (
     admin           => [ \&read_admin,           \%admins ],
     group           => [ \&read_group,           \%groups ],
     service         => [ \&read_service,         \%services ],
+    protocol        => [ \&read_service,         \%services ],
     servicegroup    => [ \&read_servicegroup,    \%servicegroups ],
+    protocolgroup   => [ \&read_servicegroup,    \%servicegroups ],
     policy          => [ \&read_policy,          \%policies ],
     global          => [ \&read_global,          \%global ],
     pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
@@ -5226,7 +5234,7 @@ sub expand_services( $$ ) {
     my @services;
     for my $pair (@$aref) {
         my ($type, $name) = @$pair;
-        if ($type eq 'service') {
+        if ($type eq 'service' || $type eq 'protocol') {
             if (my $srv = $services{$name}) {
                 push @services, $srv;
 
@@ -5243,7 +5251,7 @@ sub expand_services( $$ ) {
                 next;
             }
         }
-        elsif ($type eq 'servicegroup') {
+        elsif ($type eq 'servicegroup' || $type eq 'protocolgroup') {
             if (my $srvgroup = $servicegroups{$name}) {
                 my $elements = $srvgroup->{elements};
                 if ($elements eq 'recursive') {
@@ -14042,6 +14050,7 @@ my %asa_vpn_attributes = (
     'vpn-filter'                => { need_value => 1, internal => 1 },
     'authentication-server-group' => { tg_general => 1 },
     'authorization-server-group'  => { tg_general => 1 },
+    'authorization-required'      => { tg_general => 1 },
     'username-from-certificate'   => { tg_general => 1 },
 );
 
@@ -14112,8 +14121,12 @@ EOF
             my $spec  = $asa_vpn_attributes{$key};
             $spec and not $spec->{tg_general}
               or err_msg "unknown radius_attribute '$key' for $router->{name}";
-            my $vstring = $spec->{need_value} ? 'value ' : '';
-            print " $key $vstring$value\n";
+            my $out = $key;
+            if (defined($value)) {
+                $out .= ' value' if $spec->{need_value};
+                $out .= " $value";
+            }
+            print " $out\n";
         }
     };
 
@@ -14281,7 +14294,8 @@ EOF
                     for my $key (sort keys %$attributes) {
                         if ($asa_vpn_attributes{$key}->{tg_general}) {
                             my $value = delete $attributes->{$key};
-                            push(@tunnel_gen_att, "$key $value");
+                            my $out = defined($value) ? "$key $value" : $key;
+                            push(@tunnel_gen_att, $out);
                         }
                     }
 

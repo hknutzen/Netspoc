@@ -45,11 +45,11 @@ network:server = {
  host:s11 = { ip = 10.1.2.11; }
 }
 
-service:Echo = icmp 8;
+protocol:Echo = icmp 8;
 
 policy:p1 = {
  user = network:sub;
- permit src = user; dst = host:s10; srv = service:Echo;
+ permit src = user; dst = host:s10; prt = service:Echo;
 }
 
 policy:p2 = {
@@ -77,7 +77,7 @@ $title = 'Optimize subnet at secondary packet filter';
 ############################################################
 
 $in =~ s/managed = secondary/managed/ms;
-$in =~ s/(service:Echo = icmp 8)/$1, dst_net/;
+$in =~ s/(protocol:Echo = icmp 8)/$1, dst_net/;
 
 my $out2 = <<END;
 ! [ ACL ]
