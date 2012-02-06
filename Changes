@@ -1,5 +1,11 @@
 {{$NEXT}}
 
+3.006     2012-02-06 14:12:09 Europe/Berlin
+- Support new radius_attribute "authorization-required"
+  for tunnel-group general-attributes.
+- We will migrate 'service' to 'protocol', 'srv' to 'prt', 'servicegroup'
+  to 'protocolgroup'. This version allows both keywords interchangeably.
+
 3.005     2012-01-31 16:53:10 Europe/Berlin
 - Fixed dynamic NAT for ASA 8.4, use range and host in out-objects.
 - Support new radius_attributes 
