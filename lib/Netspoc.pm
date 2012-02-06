@@ -1024,8 +1024,7 @@ sub check_radius_attributes() {
     while (1) {
         last if check '}';
         my $key = read_identifier;
-        skip '=';
-        my $val = read_string;
+        my $val = check('=') ? read_string : undef;
         skip ';';
         $result->{$key} and error_atline "Duplicate attribute '$key'";
         $result->{$key} = $val;
@@ -14042,6 +14041,7 @@ my %asa_vpn_attributes = (
     'vpn-filter'                => { need_value => 1, internal => 1 },
     'authentication-server-group' => { tg_general => 1 },
     'authorization-server-group'  => { tg_general => 1 },
+    'authorization-required'      => { tg_general => 1 },
     'username-from-certificate'   => { tg_general => 1 },
 );
 
@@ -14112,8 +14112,12 @@ EOF
             my $spec  = $asa_vpn_attributes{$key};
             $spec and not $spec->{tg_general}
               or err_msg "unknown radius_attribute '$key' for $router->{name}";
-            my $vstring = $spec->{need_value} ? 'value ' : '';
-            print " $key $vstring$value\n";
+            my $out = $key;
+            if (defined($value)) {
+                $out .= ' value' if $spec->{need_value};
+                $out .= " $value";
+            }
+            print " $out\n";
         }
     };
 
@@ -14281,7 +14285,8 @@ EOF
                     for my $key (sort keys %$attributes) {
                         if ($asa_vpn_attributes{$key}->{tg_general}) {
                             my $value = delete $attributes->{$key};
-                            push(@tunnel_gen_att, "$key $value");
+                            my $out = defined($value) ? "$key $value" : $key;
+                            push(@tunnel_gen_att, $out);
                         }
                     }
 
