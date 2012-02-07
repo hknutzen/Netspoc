@@ -4614,7 +4614,7 @@ sub convert_hosts() {
                     # Search for enclosing subnet.
                     for (my $j = $i + 1 ; $j < @inv_prefix_aref ; $j++) {
                         my $mask = prefix2mask(32 - $j);
-                        $ip &= $mask;
+                        $ip = $i & $mask; # Perl bug #108480
                         if (my $up = $inv_prefix_aref[$j]->{$ip}) {
                             $subnet->{up} = $up;
                             last;
