@@ -10975,8 +10975,6 @@ sub print_nat1 {
                       "at hardware $in_hw->{name} of $router->{name}";
                 }
                 if ($out_dynamic) {
-                    $print_dynamic->($in_hw, $in_ip, $in_mask,
-                                     $out_hw, $out_ip, $out_mask);
 
                     # Check for static NAT entries of hosts and interfaces.
                     for my $host (@{ $network->{subnets} },
@@ -10990,6 +10988,8 @@ sub print_nat1 {
                                                  $out_hw, $out_host_ip);
                         }
                     }
+                    $print_dynamic->($in_hw, $in_ip, $in_mask,
+                                     $out_hw, $out_ip, $out_mask);
                 }
                 else {
                     $print_static->($in_hw, $in_ip, $in_mask, $out_hw, $out_ip);
