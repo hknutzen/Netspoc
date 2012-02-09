@@ -11155,7 +11155,7 @@ sub print_asa_nat {
         my $out_name     = $out_hw->{name};
         my $in_host_obj  = $subnet_obj->($in_host_ip, $in_host_mask);
         my $out_host_obj = $subnet_obj->($out_host_ip, $in_host_mask);
-        print("nat ($in_name,$out_name) source static",
+        print("nat ($in_name,$out_name) 1 source static",
               " $in_host_obj $out_host_obj\n");
     };
     my $print_static = sub {
