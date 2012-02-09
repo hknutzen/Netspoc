@@ -11136,6 +11136,7 @@ sub print_asa_nat {
         my ($in_hw, $in_ip, $in_mask, $out_hw, $out_ip, $out_mask) = @_;
         my $in_name  = $in_hw->{name};           
         my $out_name = $out_hw->{name};
+        my $in_obj = $subnet_obj->($in_ip, $in_mask);
         my $out_obj;
 
         # NAT to interface
@@ -11146,7 +11147,6 @@ sub print_asa_nat {
         else {
             $out_obj = $range_obj->($out_ip, $out_mask);
         }
-        my $in_obj = $subnet_obj->($in_ip, $in_mask);
         print("nat ($in_name,$out_name) source dynamic $in_obj $out_obj\n");
     };
     my $print_static_host = sub {
