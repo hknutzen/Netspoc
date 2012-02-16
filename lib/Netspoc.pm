@@ -2843,6 +2843,7 @@ my %global_type = (
     group           => [ \&read_group,           \%groups ],
     protocol        => [ \&read_service,         \%services ],
     protocolgroup   => [ \&read_servicegroup,    \%servicegroups ],
+    service         => [ \&read_policy,          \%policies ],
     policy          => [ \&read_policy,          \%policies ],
     global          => [ \&read_global,          \%global ],
     pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
@@ -5922,7 +5923,8 @@ sub expand_policies( ;$) {
             my @pobjects;
             for my $pair (@$overlaps) {
                 my ($type, $oname) = @$pair;
-                if ($type ne 'policy') {
+                if ($type ne 'service' || 
+                    $config{old_syntax} && $type ne 'policy') {
                     err_msg "Unexpected type '$type' in attribute 'overlaps'",
                       " of $name";
                 }
