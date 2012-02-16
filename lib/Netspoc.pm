@@ -187,6 +187,10 @@ our %config = (
 # Print progress messages with time stamps.
 # Print "finished" with time stamp when finished.
     time_stamps => 0,
+
+# Use old syntax srv, service, servicegroup, policy 
+# instead of     prt, protocol, protocolgroup, service
+    old_syntax => 0,
 );
 
 # Valid values for config options in %config.
@@ -2525,7 +2529,7 @@ sub read_policy( $ ) {
             my ($src, $src_user) = assign_union_allow_user 'src';
             my ($dst, $dst_user) = assign_union_allow_user 'dst';
             my $srv;
-            if (check 'srv') {
+            if ($config{old_syntax} and check 'srv') {
                 check '=';
                 $srv = [ read_list(\&read_typed_name) ];
             }
@@ -2837,9 +2841,7 @@ my %global_type = (
     owner           => [ \&read_owner,           \%owners ],
     admin           => [ \&read_admin,           \%admins ],
     group           => [ \&read_group,           \%groups ],
-    service         => [ \&read_service,         \%services ],
     protocol        => [ \&read_service,         \%services ],
-    servicegroup    => [ \&read_servicegroup,    \%servicegroups ],
     protocolgroup   => [ \&read_servicegroup,    \%servicegroups ],
     policy          => [ \&read_policy,          \%policies ],
     global          => [ \&read_global,          \%global ],
@@ -2919,6 +2921,11 @@ sub read_config {
 sub read_file_or_dir( $;$ ) {
     my ($path, $read_syntax) = @_;
     $read_syntax ||= \&read_netspoc;
+
+    if ($config{old_syntax}) {
+        $global_type{service} = $global_type{protocol};
+        $global_type{servicegroup} = $global_type{protocolgroup};
+    }
 
     # Handle toplevel file.
     if (not -d $path) {
@@ -5234,7 +5241,7 @@ sub expand_services( $$ ) {
     my @services;
     for my $pair (@$aref) {
         my ($type, $name) = @$pair;
-        if ($type eq 'service' || $type eq 'protocol') {
+        if ($type eq 'protocol' || $config{old_syntax} && $type eq 'service') {
             if (my $srv = $services{$name}) {
                 push @services, $srv;
 
@@ -5251,7 +5258,9 @@ sub expand_services( $$ ) {
                 next;
             }
         }
-        elsif ($type eq 'servicegroup' || $type eq 'protocolgroup') {
+        elsif ($type eq 'protocolgroup' || 
+               $config{old_syntax} && $type eq 'servicegroup') 
+        {
             if (my $srvgroup = $servicegroups{$name}) {
                 my $elements = $srvgroup->{elements};
                 if ($elements eq 'recursive') {
