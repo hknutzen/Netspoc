@@ -496,11 +496,13 @@ sub check_int() {
 }
 
 sub read_int() {
-    check_int or syntax_err "Integer expected";
+    my $result = check_int();
+    defined $result or syntax_err "Integer expected";
+    return $result;
 }
 
 # Read IP address. Internally it is stored as an integer.
-sub read_ip() {
+sub check_ip {
     skip_space_and_comment;
     if ($input =~ m/\G(\d+)\.(\d+)\.(\d+)\.(\d+)/gc) {
         if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
@@ -509,23 +511,37 @@ sub read_ip() {
         return unpack 'N', pack 'C4', $1, $2, $3, $4;
     }
     else {
-        syntax_err "IP address expected";
+        return undef;
     }
 }
 
-# Read IP address with optional prefix length: x.x.x.x or x.x.x.x/n.
-sub read_ip_opt_prefixlen() {
+sub read_ip() {
+    my $result = check_ip();
+    defined $result or syntax_err "IP address expected";
+    return $result;
+}
+
+sub read_mask {
+    my $mask = read_ip();
+    defined mask2prefix($mask) or syntax_err "IP mask isn't a valid prefix";
+    return $mask;
+}
+
+# Read IP address with optional prefix length or mask: 
+# x.x.x.x or x.x.x.x/n or x.x.x.x/m.m.m.m
+sub read_ip_opt_mask() {
     my $ip  = read_ip;
-    my $len = undef;
-    if ($input =~ m/\G\/(\d+)/gc) {
-        if ($1 <= 32) {
-            $len = $1;
-        }
-        else {
-            error_atline "Prefix length must be <= 32";
-        }
+    check('/') or return $ip;
+    my $mask = check_ip();
+    if (defined $mask) {
+        defined mask2prefix($mask) or 
+            syntax_err "IP mask isn't a valid prefix";
     }
-    return $ip, $len;
+    else {
+        $mask = prefix2mask(read_int());
+        defined $mask or error_atline "Invalid prefix";
+    }
+    return $ip, $mask;
 }
 
 sub gen_ip( $$$$ ) {
@@ -560,18 +576,12 @@ sub print_ip_aref( $ ) {
     # Convert a network mask to a prefix ranging from 0 to 32.
     sub mask2prefix( $ ) {
         my $mask = shift;
-        if (defined(my $prefix = $mask2prefix{$mask})) {
-            return $prefix;
-        }
-        internal_err "Network mask ", print_ip $mask, " isn't a valid prefix";
+        return $mask2prefix{$mask};
     }
 
     sub prefix2mask( $ ) {
         my $prefix = shift;
-        if (defined(my $mask = $prefix2mask{$prefix})) {
-            return $mask;
-        }
-        internal_err "Invalid prefix: $prefix";
+        return $prefix2mask{$prefix};
     }
 }
 
@@ -953,12 +963,12 @@ sub check_assign_list($&) {
     return ();
 }
 
-sub check_assign_range($&) {
-    my ($token, $fun) = @_;
+sub check_assign_pair($$&) {
+    my ($token, $delimiter, $fun) = @_;
     if (check $token) {
         skip '=';
         my $v1 = &$fun;
-        skip '-';
+        skip $delimiter;
         my $v2 = &$fun;
         skip ';';
         return $v1, $v2;
@@ -1056,10 +1066,14 @@ sub read_host( $$ ) {
             $host->{ip} and error_atline "Duplicate attribute 'ip'";
             $host->{ip} = $ip;
         }
-        elsif (my ($ip1, $ip2) = check_assign_range 'range', \&read_ip) {
+        elsif (my ($ip1, $ip2) = check_assign_pair('range', '-', \&read_ip)) {
             $ip1 <= $ip2 or error_atline "Invalid IP range";
             $host->{range} and error_atline "Duplicate attribute 'range'";
             $host->{range} = [ $ip1, $ip2 ];
+        }
+        elsif (($ip, my $mask) = check_assign('subnet', \&read_ip_opt_mask)) {
+            $host->{subnet} and error_atline "Duplicate attribute 'subnet'";
+            $host->{subnet} = [ $ip, $mask ];
         }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $host->{owner} and error_atline "Duplicate attribute 'owner'";
@@ -1098,9 +1112,16 @@ sub read_host( $$ ) {
             syntax_err "Unexpected attribute";
         }
     }
+    if (my $subnet = delete $host->{subnet}) {
+        my ($ip, $mask) = @$subnet;
+        my $broadcast = $ip + complement_32bit $mask;
+        $host->{range} and 
+            error_atline "Must not define both, 'range' and 'subnet'";
+        $host->{range} = [ $ip, $broadcast ];
+    }
     $host->{ip} xor $host->{range}
-      or error_atline "Exactly one of attributes 'ip' and 'range' is needed";
-
+      or error_atline("Exactly one of attributes 'ip' and 'range' is needed");
+        
     if ($host->{id}) {
         $host->{radius_attributes} ||= {};
     }
@@ -1110,10 +1131,12 @@ sub read_host( $$ ) {
           "Attribute 'radius_attributes' is not allowed for $name";
     }
     if ($host->{nat}) {
-        if ($host->{range}) {
+        for my $what (qw(range subnet)) {
+            if ($host->{$what}) {
 
-            # Look at print_pix_static before changing this.
-            error_atline "No NAT supported for host with IP range";
+                # Look at print_pix_static before changing this.
+                error_atline "No NAT supported for host with '$what'";
+            }
         }
     }
     return $host;
@@ -1129,16 +1152,15 @@ sub read_nat( $ ) {
     skip '{';
     while (1) {
         last if check '}';
-        if (my ($ip, $prefixlen) = check_assign 'ip', \&read_ip_opt_prefixlen) {
-            if ($prefixlen) {
-                my $mask = prefix2mask $prefixlen;
+        if (my ($ip, $mask) = check_assign 'ip', \&read_ip_opt_mask) {
+            if (defined $mask) {
                 $nat->{mask} and error_atline "Duplicate IP mask";
                 $nat->{mask} = $mask;
             }
             $nat->{ip} and error_atline "Duplicate IP address";
             $nat->{ip} = $ip;
         }
-        elsif (my $mask = check_assign 'mask', \&read_ip) {
+        elsif ($mask = check_assign 'mask', \&read_mask) {
             $nat->{mask} and error_atline "Duplicate IP mask";
             $nat->{mask} = $mask;
         }
@@ -1193,16 +1215,15 @@ sub read_network( $ ) {
     add_description($network);
     while (1) {
         last if check '}';
-        if (my ($ip, $prefixlen) = check_assign 'ip', \&read_ip_opt_prefixlen) {
-            if (defined $prefixlen) {
-                my $mask = prefix2mask $prefixlen;
+        if (my ($ip, $mask) = check_assign 'ip', \&read_ip_opt_mask) {
+            if (defined $mask) {
                 defined $network->{mask} and error_atline "Duplicate IP mask";
                 $network->{mask} = $mask;
             }
             $network->{ip} and error_atline "Duplicate IP address";
             $network->{ip} = $ip;
         }
-        elsif (defined(my $mask = check_assign 'mask', \&read_ip)) {
+        elsif (defined($mask = check_assign 'mask', \&read_mask)) {
             defined $network->{mask} and error_atline "Duplicate IP mask";
             $network->{mask} = $mask;
         }
