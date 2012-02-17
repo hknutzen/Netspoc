@@ -1616,7 +1616,8 @@ sub read_interface( $ ) {
             $virtual and error_atline "Duplicate virtual interface";
 
             # Read attributes of redundancy protocol (VRRP/HSRP).
-            $virtual = new('Interface', name => "$name.virtual");
+            $virtual = new('Interface', 
+                           name => "$name.virtual", redundant => 1 );
             skip '=';
             skip '{';
             while (1) {
@@ -1646,8 +1647,6 @@ sub read_interface( $ ) {
                 }
             }
             $virtual->{ip} or error_atline "Missing virtual IP";
-            $virtual->{redundancy_type}
-              or error_atline "Missing type of redundancy protocol";
         }
         elsif (my @tags = check_assign_list 'bind_nat', \&read_identifier) {
             $interface->{bind_nat} and error_atline "Duplicate NAT binding";
@@ -1705,8 +1704,8 @@ sub read_interface( $ ) {
             # when handling auto interfaces.
             $interface->{orig_main} = $secondary;
         }
-        @{$interface}{qw(name ip redundancy_type redundancy_id)} =
-          @{$virtual}{qw(name ip redundancy_type redundancy_id)};
+        @{$interface}{qw(name ip redundant redundancy_type redundancy_id)} =
+          @{$virtual}{qw(name ip redundant redundancy_type redundancy_id)};
         push @virtual_interfaces, $interface;
     }
     else {
@@ -1723,7 +1722,7 @@ sub read_interface( $ ) {
         # Only these attributes are valid.
         delete @copy{
             qw(name ip nat bind_nat hardware loopback subnet_of
-              redundancy_type redundancy_id)
+              redundant redundancy_type redundancy_id)
           };
         if (keys %copy) {
             my $attr = join ", ", map "'$_'", keys %copy;
@@ -2159,7 +2158,7 @@ sub read_router( $ ) {
             # Special handling needed for virtual loopback interfaces.
             # The created network needs to be shared among a group of
             # interfaces.
-            if (my $virtual = $interface->{redundancy_type}) {
+            if ($interface->{redundant}) {
 
                 # Shared virtual loopback network gets name
                 # 'virtual:netname'. Don't use standard name to prevent
@@ -3909,9 +3908,9 @@ sub link_virtual_interfaces () {
                   " must both be managed or both be unmanaged";
                 next;
             }
-            if (
-                not $virtual1->{redundancy_type} eq
-                $virtual2->{redundancy_type})
+            if ($virtual1->{redundancy_type} && $virtual2->{redundancy_type}
+                &&
+                $virtual1->{redundancy_type} ne $virtual2->{redundancy_type})
             {
                 err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
                   " use different redundancy protocols";
@@ -4013,8 +4012,8 @@ sub check_ip_addresses {
                         $route_intf = $interface;
                     }
                     if (my $old_intf = $ip{$ip}) {
-                        unless ($old_intf->{redundancy_type}
-                            and $interface->{redundancy_type})
+                        unless ($old_intf->{redundant}
+                            and $interface->{redundant})
                         {
                             err_msg "Duplicate IP address for",
                               " $old_intf->{name} and $interface->{name}";
@@ -4172,7 +4171,7 @@ sub transform_isolated_ports {
             if ($interface->{promiscuous_port}) {
                 push @promiscuous_ports, $interface;
             }
-            elsif ($interface->{redundancy_type}) {
+            elsif ($interface->{redundant}) {
                 err_msg
                   "Redundant $interface->{name} must not be isolated port";
             }
@@ -4248,9 +4247,9 @@ sub transform_isolated_ports {
                 push @{ $hardware->{interfaces} }, $new_intf;
                 push @{ $new_net->{interfaces} },  $new_intf;
                 push @{ $router->{interfaces} },   $new_intf;
-                if ($interface->{redundancy_type}) {
-                    @{$new_intf}{qw(redundancy_type redundancy_id)} =
-                      @{$interface}{qw(redundancy_type redundancy_id)};
+                if ($interface->{redundant}) {
+                    @{$new_intf}{qw(redundant redundancy_type redundancy_id)} =
+                      @{$interface}{qw(redundant redundancy_type redundancy_id)};
                     push @redundancy_interfaces, $new_intf;
                 }
             }
