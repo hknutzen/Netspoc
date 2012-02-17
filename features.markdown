@@ -2,7 +2,7 @@
 layout: default
 ---
 
-## Features
+# Features
 
 - Supports Cisco and Linux devices
   - Chains for iptables.

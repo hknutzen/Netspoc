@@ -2,7 +2,7 @@
 layout: default
 ---
 
-## Benefits
+# Benefits
 
 1. Consistent rules among different devices are ensured.
 1. Changes of the ruleset are easily deployed.
