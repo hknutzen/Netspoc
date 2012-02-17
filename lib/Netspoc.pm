@@ -5923,8 +5923,7 @@ sub expand_policies( ;$) {
             my @pobjects;
             for my $pair (@$overlaps) {
                 my ($type, $oname) = @$pair;
-                if ($type ne 'service' || 
-                    $config{old_syntax} && $type ne 'policy') {
+                if (not($type eq 'service' || $type eq 'policy')) {
                     err_msg "Unexpected type '$type' in attribute 'overlaps'",
                       " of $name";
                 }
