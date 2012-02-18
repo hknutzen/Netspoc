@@ -17,7 +17,7 @@ central ruleset, using a description of your network topology.
 <div class="list" markdown="1">
  <img src="intro-topo.png"/>
 
-### Topology
+#### Topology
 
 You define your topology as a graph of networks connected by packet
 filters and routers.
@@ -27,7 +27,7 @@ filters and routers.
 <div class="list" markdown="1">
  <img src="intro-rules.png"/>
 
-### Rules
+#### Rules
 
 You define rules which describe the traffic allowed to flow inside
 your topology.
@@ -37,7 +37,7 @@ your topology.
 <div class="list" markdown="1">
  <img src="intro-topo-with-rules.png"/>
 
-### Find paths
+#### Find paths
 
 Netspoc processes each rule and finds the path from source 
 to destination.
@@ -47,7 +47,7 @@ to destination.
 <div class="list" markdown="1">
  <img src="intro-topo-with-rules-covered.png"/>
 
-### Distribute rules and generate code
+#### Distribute rules and generate code
 
 Netspoc automatically distributes rules to packet filters and
 generates device specific filter rules for each packet filter inside
