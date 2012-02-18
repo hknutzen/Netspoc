@@ -14,33 +14,44 @@ central ruleset, using a description of your network topology.
 
 <div class="gallery">
 
-<div class="list">
+<div class="list" markdown="1">
  <img src="intro-topo.png"/>
 
-<p>You define your topology as a graph of networks connected by packet
-filters and routers.</p>
+### Topology
+
+You define your topology as a graph of networks connected by packet
+filters and routers.
+
 </div>
 
-<div class="list">
+<div class="list" markdown="1">
  <img src="intro-rules.png"/>
 
-<p>You define rules which describe the traffic allowed to flow inside your
-topology.</p>
+### Rules
+
+You define rules which describe the traffic allowed to flow inside
+your topology.
+
 </div>
 
-<div class="list">
+<div class="list" markdown="1">
  <img src="intro-topo-with-rules.png"/>
 
-<p>Netspoc processes each rule and finds the path from source 
-to destination.</p>
+### Find paths
+
+Netspoc processes each rule and finds the path from source 
+to destination.
+
 </div>
 
-<div class="list">
+<div class="list" markdown="1">
  <img src="intro-topo-with-rules-covered.png"/>
 
-<p>Netspoc automatically distributes rules to packet filters and
+### Distribute rules and generate code
+
+Netspoc automatically distributes rules to packet filters and
 generates device specific filter rules for each packet filter inside
-the topology.</p>
+the topology.
 </div>
 
 </div>
