@@ -6,7 +6,8 @@ layout: default
 
 ## About
 
-Netspoc manages all the packet filter devices inside your
+Netspoc is [free](https://github.com/hknutzen/Netspoc/raw/releases/LICENSE)
+software to manage all the packet filter devices inside your
 network topology.  Filter rules for each device are generated from one
 central ruleset, using a description of your network topology.
 
