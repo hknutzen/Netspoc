@@ -3135,7 +3135,7 @@ sub print_rule( $ ) {
     return
         $action
       . " src=$rule->{src}->{name}; dst=$rule->{dst}->{name}; "
-      . "srv=$rule->{$srv}->{name};$extra";
+      . "prt=$rule->{$srv}->{name};$extra";
 }
 
 ##############################################################################
