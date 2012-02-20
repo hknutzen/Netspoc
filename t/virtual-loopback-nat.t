@@ -70,18 +70,18 @@ network:server = {
  nat:extern = { ip = 193.1.1.2/32; dynamic; }
 }
 
-service:Echo = icmp 8;
+protocol:Echo = icmp 8;
 
-policy:p1 = {
+service:p1 = {
  user = network:customer;
  permit src = user;
         dst = interface:b1.extern.virtual, interface:b2.extern.virtual;
-        srv = service:Echo;
+        prt = protocol:Echo;
 }
 
-policy:p2 = {
+service:p2 = {
  user = network:customer;
- permit src = user; dst = network:server; srv = service:Echo;
+ permit src = user; dst = network:server; prt = protocol:Echo;
 }
 END
 

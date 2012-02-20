@@ -119,10 +119,10 @@ network:lan2a = {
  nat:lan2a = { ip = 10.99.22.0/24;}
 }
 
-service:http = tcp 80;
-policy:test = {
+protocol:http = tcp 80;
+service:test = {
  user = network:lan1, network:lan2, network:lan2a;
- permit src = user; dst = network:intern; srv = service:http; 
+ permit src = user; dst = network:intern; prt = protocol:http; 
 }
 END
 
