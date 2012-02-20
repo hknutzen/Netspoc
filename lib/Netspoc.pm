@@ -673,7 +673,8 @@ sub read_union( $ ) {
 # Check for xxx:xxx | router:xx@xx | network:xx/xx | interface:xx/xx
 sub check_typed_name() {
     skip_space_and_comment;
-    my ($type) = $input =~ m/ \G (\w+) : /gcx or return undef;
+    $input =~ m/ \G (\w+) : /gcx or return undef;
+    my $type = $1;
     my ($name) =
         $type eq 'router'
       ? $input =~ m/ \G ( [\w-]+ (?: \@ [\w-]+ )? ) /gcx
