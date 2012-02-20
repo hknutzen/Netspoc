@@ -2467,7 +2467,8 @@ sub gen_service_name {
         };
         my $src_port = $port_name->(@{ $service->{src_range} });
         my $dst_port = $port_name->(@{ $service->{dst_range} });
-        my $port = "$src_port:" if $src_port;
+        my $port;
+        $port = "$src_port:" if $src_port;
         $port .= "$dst_port" if $dst_port;
         $name .= " $port" if $port;
     }
