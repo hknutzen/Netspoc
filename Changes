@@ -1,3 +1,23 @@
+3.007     2012-02-20 15:54:32 Europe/Berlin
+- Print host NAT first if used together with dynamic NAT.
+  Print host NAT for ASA 8.4 with line number 1.
+- Allow simple protocol descriptions like 'tcp <port>' directly in rules and 
+  protocolgroups now.
+- Attribute 'type' of virtual interfaces is optional now. If omitted, 
+  no code to permit the redunancy protocol is generated.
+- New attribute 'subnet' for hosts as alternate syntax to define a range.
+  Syntax is "subnet = ip/{prefix|mask}".
+- Generalized reading of mask for network and nat.
+  Added ip = i.i.i.i/m.m.m.m as valid syntax.
+- Disabled old syntax srv, service, servicegroup.
+  Old syntax can still be enabled using command line switch 'old_syntax'.
+- Prepare migration of keyword 'policy' to 'service'.
+  We will change 'policy:' to 'service:'. This version allows both
+  keywords interchangeable.
+- Fixed bug in parser which allowed accepted names like type:xx:name 
+  by mistake.
+- Fixed another occurence of bug #108480 in perl versions 5.14.*.
+
 3.006     2012-02-06 14:12:09 Europe/Berlin
 - Support new radius_attribute "authorization-required"
   for tunnel-group general-attributes.

@@ -47,14 +47,14 @@ network:server = {
 
 protocol:Echo = icmp 8;
 
-policy:p1 = {
+service:p1 = {
  user = network:sub;
- permit src = user; dst = host:s10; prt = service:Echo;
+ permit src = user; dst = host:s10; prt = protocol:Echo;
 }
 
-policy:p2 = {
+service:p2 = {
  user = network:customer;
- permit src = user; dst = host:s11; srv = service:Echo;
+ permit src = user; dst = host:s11; prt = protocol:Echo;
 }
 END
 

@@ -35,23 +35,23 @@ router:nak = {
 
 network:Hosting = { ip = 10.4.4.0/24; }
 
-service:TCP_30-37 = tcp 30-37;
-service:TCP_40-47 = tcp 40-47;
-service:TCP_51-53 = tcp 51-53;
-policy:p40-47 = {
+protocol:TCP_30-37 = tcp 30-37;
+protocol:TCP_40-47 = tcp 40-47;
+protocol:TCP_51-53 = tcp 51-53;
+service:p40-47 = {
  user = network:Firewall, network:RAS;
  permit src = user; 
 	dst = network:Hosting;
-	srv = service:TCP_30-37, service:TCP_51-53;
+	prt = protocol:TCP_30-37, protocol:TCP_51-53;
 }
 
-service:TCP_10-49 = tcp 10-49;
-service:TCP_50-60 = tcp 50-60;
-policy:p10-60 = {
+protocol:TCP_10-49 = tcp 10-49;
+protocol:TCP_50-60 = tcp 50-60;
+service:p10-60 = {
  user = network:Trans, network:StPeter, network:Hoernum;
  permit src = user;
         dst = network:Hosting;
-        srv = service:TCP_10-49, service:TCP_50-60;
+        prt = protocol:TCP_10-49, protocol:TCP_50-60;
 }
 END
 
@@ -90,7 +90,7 @@ $title = 'Un-merged port range with sub-range for iptables';
 # Ranges 10-49 and 50-60 can't be merged,
 # because they have three childs 30-37,40-47,51-53
 # and a merged range can have at most two childs.
-$in =~ s/(service:TCP_30-37,) (service:TCP_51-53)/$1 service:TCP_40-47, $2/;
+$in =~ s/(protocol:TCP_30-37,) (protocol:TCP_51-53)/$1 protocol:TCP_40-47, $2/;
 
 $out1 = <<END;
 -A droplog -j LOG --log-level debug

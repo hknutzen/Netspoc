@@ -32,7 +32,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.006'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.007'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -187,6 +187,10 @@ our %config = (
 # Print progress messages with time stamps.
 # Print "finished" with time stamp when finished.
     time_stamps => 0,
+
+# Use old syntax srv, service, servicegroup, policy 
+# instead of     prt, protocol, protocolgroup, service
+    old_syntax => 0,
 );
 
 # Valid values for config options in %config.
@@ -492,11 +496,13 @@ sub check_int() {
 }
 
 sub read_int() {
-    check_int or syntax_err "Integer expected";
+    my $result = check_int();
+    defined $result or syntax_err "Integer expected";
+    return $result;
 }
 
 # Read IP address. Internally it is stored as an integer.
-sub read_ip() {
+sub check_ip {
     skip_space_and_comment;
     if ($input =~ m/\G(\d+)\.(\d+)\.(\d+)\.(\d+)/gc) {
         if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
@@ -505,23 +511,37 @@ sub read_ip() {
         return unpack 'N', pack 'C4', $1, $2, $3, $4;
     }
     else {
-        syntax_err "IP address expected";
+        return undef;
     }
 }
 
-# Read IP address with optional prefix length: x.x.x.x or x.x.x.x/n.
-sub read_ip_opt_prefixlen() {
+sub read_ip() {
+    my $result = check_ip();
+    defined $result or syntax_err "IP address expected";
+    return $result;
+}
+
+sub read_mask {
+    my $mask = read_ip();
+    defined mask2prefix($mask) or syntax_err "IP mask isn't a valid prefix";
+    return $mask;
+}
+
+# Read IP address with optional prefix length or mask: 
+# x.x.x.x or x.x.x.x/n or x.x.x.x/m.m.m.m
+sub read_ip_opt_mask() {
     my $ip  = read_ip;
-    my $len = undef;
-    if ($input =~ m/\G\/(\d+)/gc) {
-        if ($1 <= 32) {
-            $len = $1;
-        }
-        else {
-            error_atline "Prefix length must be <= 32";
-        }
+    check('/') or return $ip;
+    my $mask = check_ip();
+    if (defined $mask) {
+        defined mask2prefix($mask) or 
+            syntax_err "IP mask isn't a valid prefix";
     }
-    return $ip, $len;
+    else {
+        $mask = prefix2mask(read_int());
+        defined $mask or error_atline "Invalid prefix";
+    }
+    return $ip, $mask;
 }
 
 sub gen_ip( $$$$ ) {
@@ -556,18 +576,12 @@ sub print_ip_aref( $ ) {
     # Convert a network mask to a prefix ranging from 0 to 32.
     sub mask2prefix( $ ) {
         my $mask = shift;
-        if (defined(my $prefix = $mask2prefix{$mask})) {
-            return $prefix;
-        }
-        internal_err "Network mask ", print_ip $mask, " isn't a valid prefix";
+        return $mask2prefix{$mask};
     }
 
     sub prefix2mask( $ ) {
         my $prefix = shift;
-        if (defined(my $mask = $prefix2mask{$prefix})) {
-            return $mask;
-        }
-        internal_err "Invalid prefix: $prefix";
+        return $prefix2mask{$prefix};
     }
 }
 
@@ -659,7 +673,8 @@ sub read_union( $ ) {
 # Check for xxx:xxx | router:xx@xx | network:xx/xx | interface:xx/xx
 sub check_typed_name() {
     skip_space_and_comment;
-    my ($type) = $input =~ m/ \G (\w+) : /gcx or return undef;
+    $input =~ m/ \G (\w+) : /gcx or return undef;
+    my $type = $1;
     my ($name) =
         $type eq 'router'
       ? $input =~ m/ \G ( [\w-]+ (?: \@ [\w-]+ )? ) /gcx
@@ -949,12 +964,12 @@ sub check_assign_list($&) {
     return ();
 }
 
-sub check_assign_range($&) {
-    my ($token, $fun) = @_;
+sub check_assign_pair($$&) {
+    my ($token, $delimiter, $fun) = @_;
     if (check $token) {
         skip '=';
         my $v1 = &$fun;
-        skip '-';
+        skip $delimiter;
         my $v2 = &$fun;
         skip ';';
         return $v1, $v2;
@@ -1052,10 +1067,14 @@ sub read_host( $$ ) {
             $host->{ip} and error_atline "Duplicate attribute 'ip'";
             $host->{ip} = $ip;
         }
-        elsif (my ($ip1, $ip2) = check_assign_range 'range', \&read_ip) {
+        elsif (my ($ip1, $ip2) = check_assign_pair('range', '-', \&read_ip)) {
             $ip1 <= $ip2 or error_atline "Invalid IP range";
             $host->{range} and error_atline "Duplicate attribute 'range'";
             $host->{range} = [ $ip1, $ip2 ];
+        }
+        elsif (($ip, my $mask) = check_assign('subnet', \&read_ip_opt_mask)) {
+            $host->{subnet} and error_atline "Duplicate attribute 'subnet'";
+            $host->{subnet} = [ $ip, $mask ];
         }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $host->{owner} and error_atline "Duplicate attribute 'owner'";
@@ -1094,9 +1113,16 @@ sub read_host( $$ ) {
             syntax_err "Unexpected attribute";
         }
     }
+    if (my $subnet = delete $host->{subnet}) {
+        my ($ip, $mask) = @$subnet;
+        my $broadcast = $ip + complement_32bit $mask;
+        $host->{range} and 
+            error_atline "Must not define both, 'range' and 'subnet'";
+        $host->{range} = [ $ip, $broadcast ];
+    }
     $host->{ip} xor $host->{range}
-      or error_atline "Exactly one of attributes 'ip' and 'range' is needed";
-
+      or error_atline("Exactly one of attributes 'ip' and 'range' is needed");
+        
     if ($host->{id}) {
         $host->{radius_attributes} ||= {};
     }
@@ -1106,10 +1132,12 @@ sub read_host( $$ ) {
           "Attribute 'radius_attributes' is not allowed for $name";
     }
     if ($host->{nat}) {
-        if ($host->{range}) {
+        for my $what (qw(range subnet)) {
+            if ($host->{$what}) {
 
-            # Look at print_pix_static before changing this.
-            error_atline "No NAT supported for host with IP range";
+                # Look at print_pix_static before changing this.
+                error_atline "No NAT supported for host with '$what'";
+            }
         }
     }
     return $host;
@@ -1125,16 +1153,15 @@ sub read_nat( $ ) {
     skip '{';
     while (1) {
         last if check '}';
-        if (my ($ip, $prefixlen) = check_assign 'ip', \&read_ip_opt_prefixlen) {
-            if ($prefixlen) {
-                my $mask = prefix2mask $prefixlen;
+        if (my ($ip, $mask) = check_assign 'ip', \&read_ip_opt_mask) {
+            if (defined $mask) {
                 $nat->{mask} and error_atline "Duplicate IP mask";
                 $nat->{mask} = $mask;
             }
             $nat->{ip} and error_atline "Duplicate IP address";
             $nat->{ip} = $ip;
         }
-        elsif (my $mask = check_assign 'mask', \&read_ip) {
+        elsif ($mask = check_assign 'mask', \&read_mask) {
             $nat->{mask} and error_atline "Duplicate IP mask";
             $nat->{mask} = $mask;
         }
@@ -1189,16 +1216,15 @@ sub read_network( $ ) {
     add_description($network);
     while (1) {
         last if check '}';
-        if (my ($ip, $prefixlen) = check_assign 'ip', \&read_ip_opt_prefixlen) {
-            if (defined $prefixlen) {
-                my $mask = prefix2mask $prefixlen;
+        if (my ($ip, $mask) = check_assign 'ip', \&read_ip_opt_mask) {
+            if (defined $mask) {
                 defined $network->{mask} and error_atline "Duplicate IP mask";
                 $network->{mask} = $mask;
             }
             $network->{ip} and error_atline "Duplicate IP address";
             $network->{ip} = $ip;
         }
-        elsif (defined(my $mask = check_assign 'mask', \&read_ip)) {
+        elsif (defined($mask = check_assign 'mask', \&read_mask)) {
             defined $network->{mask} and error_atline "Duplicate IP mask";
             $network->{mask} = $mask;
         }
@@ -1591,7 +1617,8 @@ sub read_interface( $ ) {
             $virtual and error_atline "Duplicate virtual interface";
 
             # Read attributes of redundancy protocol (VRRP/HSRP).
-            $virtual = new('Interface', name => "$name.virtual");
+            $virtual = new('Interface', 
+                           name => "$name.virtual", redundant => 1 );
             skip '=';
             skip '{';
             while (1) {
@@ -1621,8 +1648,6 @@ sub read_interface( $ ) {
                 }
             }
             $virtual->{ip} or error_atline "Missing virtual IP";
-            $virtual->{redundancy_type}
-              or error_atline "Missing type of redundancy protocol";
         }
         elsif (my @tags = check_assign_list 'bind_nat', \&read_identifier) {
             $interface->{bind_nat} and error_atline "Duplicate NAT binding";
@@ -1680,8 +1705,8 @@ sub read_interface( $ ) {
             # when handling auto interfaces.
             $interface->{orig_main} = $secondary;
         }
-        @{$interface}{qw(name ip redundancy_type redundancy_id)} =
-          @{$virtual}{qw(name ip redundancy_type redundancy_id)};
+        @{$interface}{qw(name ip redundant redundancy_type redundancy_id)} =
+          @{$virtual}{qw(name ip redundant redundancy_type redundancy_id)};
         push @virtual_interfaces, $interface;
     }
     else {
@@ -1698,7 +1723,7 @@ sub read_interface( $ ) {
         # Only these attributes are valid.
         delete @copy{
             qw(name ip nat bind_nat hardware loopback subnet_of
-              redundancy_type redundancy_id)
+              redundant redundancy_type redundancy_id)
           };
         if (keys %copy) {
             my $attr = join ", ", map "'$_'", keys %copy;
@@ -2134,7 +2159,7 @@ sub read_router( $ ) {
             # Special handling needed for virtual loopback interfaces.
             # The created network needs to be shared among a group of
             # interfaces.
-            if (my $virtual = $interface->{redundancy_type}) {
+            if ($interface->{redundant}) {
 
                 # Shared virtual loopback network gets name
                 # 'virtual:netname'. Don't use standard name to prevent
@@ -2320,7 +2345,7 @@ our %servicegroups;
 sub read_servicegroup( $ ) {
     my $name = shift;
     skip '=';
-    my @pairs = read_list_or_null \&read_typed_name;
+    my @pairs = read_list_or_null \&read_typed_name_or_simple_service;
     return new('Servicegroup', name => $name, elements => \@pairs);
 }
 
@@ -2420,12 +2445,67 @@ sub read_proto_nr( $ ) {
     }
 }
 
+sub gen_service_name {
+    my ($service) = @_;
+    my $proto = $service->{proto};
+    my $name = $proto;
+    
+    if ($proto eq 'ip') {
+    }
+    elsif ($proto eq 'tcp' or $proto eq 'udp') {
+        my $port_name = sub {
+            my ($v1, $v2) = @_;
+            if ($v1 == $v2) {
+                return ($v1);
+            }
+            elsif ($v1 == 1 and $v2 == 65535) {
+                return ('');
+            }
+            else {
+                return ("$v1-$v2");
+            }
+        };
+        my $src_port = $port_name->(@{ $service->{src_range} });
+        my $dst_port = $port_name->(@{ $service->{dst_range} });
+        my $port = "$src_port:" if $src_port;
+        $port .= "$dst_port" if $dst_port;
+        $name .= " $port" if $port;
+    }
+    elsif ($proto eq 'icmp') {
+        if (defined(my $type = $service->{type})) {
+            if (defined(my $code = $service->{code})) {
+                $name = "$proto $type/$code";
+            }
+            else {
+                $name = "$proto $type";
+            }
+        }
+    }
+    else {
+        $name = "proto $proto";
+    }
+    return $name;    
+}
+
 our %services;
 
-sub read_service( $ ) {
+sub cache_anonymous_service {
+    my ($service) = @_;
+    my $name = gen_service_name($service);
+    if (my $cached = $services{$name}) {
+        return $cached;
+    }
+    else {
+        $service->{name} = $name;
+        $service->{is_used} = 1;
+        $services{$name} = $service;
+        return $service;
+    }
+}
+
+sub read_simple_service {
     my $name = shift;
-    my $service = { name => $name };
-    skip '=';
+    my $service = {};
     if (check 'ip') {
         $service->{proto} = 'ip';
     }
@@ -2446,8 +2526,19 @@ sub read_service( $ ) {
     }
     else {
         my $string = read_name;
-        error_atline "Unknown protocol $string in definition of $name";
+        error_atline "Unknown protocol '$string'";
     }
+    if ($name) {
+        $service->{name} = $name;
+    }
+    else {
+        $service = cache_anonymous_service($service);
+    }
+    return $service;
+}
+
+sub check_service_flags {
+    my ($service) = @_;
     while (check ',') {
         my $flag = read_identifier;
         if ($flag =~ /^(src|dst)_(net|any)$/) {
@@ -2460,6 +2551,17 @@ sub read_service( $ ) {
             syntax_err "Unknown flag '$flag'";
         }
     }
+}
+
+sub read_typed_name_or_simple_service {
+    return(check_typed_name() || read_simple_service());
+}
+
+sub read_service( $ ) {
+    my $name = shift;
+    skip '=';
+    my $service = read_simple_service($name);
+    check_service_flags($service);
     skip ';';
     return $service;
 }
@@ -2525,12 +2627,14 @@ sub read_policy( $ ) {
             my ($src, $src_user) = assign_union_allow_user 'src';
             my ($dst, $dst_user) = assign_union_allow_user 'dst';
             my $srv;
-            if (check 'srv') {
+            if ($config{old_syntax} and check 'srv') {
                 check '=';
-                $srv = [ read_list(\&read_typed_name) ];
+                $srv = [ read_list(\&read_typed_name_or_simple_service) ];
             }
             else {
-                $srv = [ read_assign_list('prt', \&read_typed_name) ];
+                $srv = [ read_assign_list('prt', 
+                                          \&read_typed_name_or_simple_service) 
+                       ];
             }
             $src_user
               or $dst_user
@@ -2837,10 +2941,9 @@ my %global_type = (
     owner           => [ \&read_owner,           \%owners ],
     admin           => [ \&read_admin,           \%admins ],
     group           => [ \&read_group,           \%groups ],
-    service         => [ \&read_service,         \%services ],
     protocol        => [ \&read_service,         \%services ],
-    servicegroup    => [ \&read_servicegroup,    \%servicegroups ],
     protocolgroup   => [ \&read_servicegroup,    \%servicegroups ],
+    service         => [ \&read_policy,          \%policies ],
     policy          => [ \&read_policy,          \%policies ],
     global          => [ \&read_global,          \%global ],
     pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
@@ -2919,6 +3022,11 @@ sub read_config {
 sub read_file_or_dir( $;$ ) {
     my ($path, $read_syntax) = @_;
     $read_syntax ||= \&read_netspoc;
+
+    if ($config{old_syntax}) {
+        $global_type{service} = $global_type{protocol};
+        $global_type{servicegroup} = $global_type{protocolgroup};
+    }
 
     # Handle toplevel file.
     if (not -d $path) {
@@ -3880,9 +3988,9 @@ sub link_virtual_interfaces () {
                   " must both be managed or both be unmanaged";
                 next;
             }
-            if (
-                not $virtual1->{redundancy_type} eq
-                $virtual2->{redundancy_type})
+            if ($virtual1->{redundancy_type} && $virtual2->{redundancy_type}
+                &&
+                $virtual1->{redundancy_type} ne $virtual2->{redundancy_type})
             {
                 err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
                   " use different redundancy protocols";
@@ -3984,8 +4092,8 @@ sub check_ip_addresses {
                         $route_intf = $interface;
                     }
                     if (my $old_intf = $ip{$ip}) {
-                        unless ($old_intf->{redundancy_type}
-                            and $interface->{redundancy_type})
+                        unless ($old_intf->{redundant}
+                            and $interface->{redundant})
                         {
                             err_msg "Duplicate IP address for",
                               " $old_intf->{name} and $interface->{name}";
@@ -4143,7 +4251,7 @@ sub transform_isolated_ports {
             if ($interface->{promiscuous_port}) {
                 push @promiscuous_ports, $interface;
             }
-            elsif ($interface->{redundancy_type}) {
+            elsif ($interface->{redundant}) {
                 err_msg
                   "Redundant $interface->{name} must not be isolated port";
             }
@@ -4219,9 +4327,9 @@ sub transform_isolated_ports {
                 push @{ $hardware->{interfaces} }, $new_intf;
                 push @{ $new_net->{interfaces} },  $new_intf;
                 push @{ $router->{interfaces} },   $new_intf;
-                if ($interface->{redundancy_type}) {
-                    @{$new_intf}{qw(redundancy_type redundancy_id)} =
-                      @{$interface}{qw(redundancy_type redundancy_id)};
+                if ($interface->{redundant}) {
+                    @{$new_intf}{qw(redundant redundancy_type redundancy_id)} =
+                      @{$interface}{qw(redundant redundancy_type redundancy_id)};
                     push @redundancy_interfaces, $new_intf;
                 }
             }
@@ -4614,7 +4722,7 @@ sub convert_hosts() {
                     # Search for enclosing subnet.
                     for (my $j = $i + 1 ; $j < @inv_prefix_aref ; $j++) {
                         my $mask = prefix2mask(32 - $j);
-                        $ip &= $mask;
+                        $ip = $ip & $mask; # Perl bug #108480
                         if (my $up = $inv_prefix_aref[$j]->{$ip}) {
                             $subnet->{up} = $up;
                             last;
@@ -5233,8 +5341,13 @@ sub expand_services( $$ ) {
     my ($aref, $context) = @_;
     my @services;
     for my $pair (@$aref) {
+        if (ref($pair) eq 'HASH') {
+            push @services, $pair;
+            $pair->{src_dst_range_list} || set_src_dst_range_list($pair);
+            next;
+        }
         my ($type, $name) = @$pair;
-        if ($type eq 'service' || $type eq 'protocol') {
+        if ($type eq 'protocol' || $config{old_syntax} && $type eq 'service') {
             if (my $srv = $services{$name}) {
                 push @services, $srv;
 
@@ -5242,16 +5355,16 @@ sub expand_services( $$ ) {
                 $srv->{is_used} = 1;
 
                 # Used in expand_rules.
-                if (not $srv->{src_dst_range_list}) {
-                    set_src_dst_range_list($srv);
-                }
+                $srv->{src_dst_range_list} || set_src_dst_range_list($srv);
             }
             else {
                 err_msg "Can't resolve reference to $type:$name in $context";
                 next;
             }
         }
-        elsif ($type eq 'servicegroup' || $type eq 'protocolgroup') {
+        elsif ($type eq 'protocolgroup' || 
+               $config{old_syntax} && $type eq 'servicegroup') 
+        {
             if (my $srvgroup = $servicegroups{$name}) {
                 my $elements = $srvgroup->{elements};
                 if ($elements eq 'recursive') {
@@ -5913,7 +6026,7 @@ sub expand_policies( ;$) {
             my @pobjects;
             for my $pair (@$overlaps) {
                 my ($type, $oname) = @$pair;
-                if ($type ne 'policy') {
+                if (not($type eq 'service' || $type eq 'policy')) {
                     err_msg "Unexpected type '$type' in attribute 'overlaps'",
                       " of $name";
                 }
@@ -10975,8 +11088,6 @@ sub print_nat1 {
                       "at hardware $in_hw->{name} of $router->{name}";
                 }
                 if ($out_dynamic) {
-                    $print_dynamic->($in_hw, $in_ip, $in_mask,
-                                     $out_hw, $out_ip, $out_mask);
 
                     # Check for static NAT entries of hosts and interfaces.
                     for my $host (@{ $network->{subnets} },
@@ -10990,6 +11101,8 @@ sub print_nat1 {
                                                  $out_hw, $out_host_ip);
                         }
                     }
+                    $print_dynamic->($in_hw, $in_ip, $in_mask,
+                                     $out_hw, $out_ip, $out_mask);
                 }
                 else {
                     $print_static->($in_hw, $in_ip, $in_mask, $out_hw, $out_ip);
@@ -11136,6 +11249,7 @@ sub print_asa_nat {
         my ($in_hw, $in_ip, $in_mask, $out_hw, $out_ip, $out_mask) = @_;
         my $in_name  = $in_hw->{name};           
         my $out_name = $out_hw->{name};
+        my $in_obj = $subnet_obj->($in_ip, $in_mask);
         my $out_obj;
 
         # NAT to interface
@@ -11146,7 +11260,6 @@ sub print_asa_nat {
         else {
             $out_obj = $range_obj->($out_ip, $out_mask);
         }
-        my $in_obj = $subnet_obj->($in_ip, $in_mask);
         print("nat ($in_name,$out_name) source dynamic $in_obj $out_obj\n");
     };
     my $print_static_host = sub {
@@ -11155,7 +11268,7 @@ sub print_asa_nat {
         my $out_name     = $out_hw->{name};
         my $in_host_obj  = $subnet_obj->($in_host_ip, $in_host_mask);
         my $out_host_obj = $subnet_obj->($out_host_ip, $in_host_mask);
-        print("nat ($in_name,$out_name) source static",
+        print("nat ($in_name,$out_name) 1 source static",
               " $in_host_obj $out_host_obj\n");
     };
     my $print_static = sub {

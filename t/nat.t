@@ -37,13 +37,13 @@ network:X = { ip = 10.9.2.0/24; }
 network:Y = { ip = 10.9.3.0/24; }
 network:Z = { ip = 10.9.4.0/24; }
 
-service:IP = ip;
+protocol:IP = ip;
 
-policy:test = {
+service:test = {
  user = network:X, network:Y, network:Z;
  permit src = user; 
 	dst = network:Test;
-	srv = service:IP;
+	prt = protocol:IP;
 }
 END
 
@@ -88,22 +88,22 @@ network:X = { ip = 10.9.2.0/24; }
 network:Y = { ip = 10.9.3.0/24; }
 network:Z = { ip = 10.9.4.0/24; }
 
-service:IP = ip;
+protocol:IP = ip;
 
-policy:test = {
+service:test = {
  user = network:X, network:Y, network:Z;
  permit src = user; 
 	dst = network:Test;
-	srv = service:IP;
+	prt = protocol:IP;
 }
 END
 
 $out1 = <<END;
 ! [ NAT ]
-object network 1.1.1.1
- host 1.1.1.1
 object network 10.9.1.0_255.255.255.0
  subnet 10.9.1.0 255.255.255.0
+object network 1.1.1.1
+ host 1.1.1.1
 nat (inside,outside) source dynamic 10.9.1.0_255.255.255.0 1.1.1.1
 nat (inside,DMZ50) source dynamic 10.9.1.0_255.255.255.0 1.1.1.1
 object network 9.9.9.8-9.9.9.11
@@ -138,14 +138,11 @@ router:filter = {
 
 network:X = { ip = 10.9.3.0/24; }
 
-service:IP = ip;
-service:HTTP = tcp 80;
-
-policy:test = {
+service:test = {
  user = network:X;
- permit src = user;   dst = host:H;       srv = service:IP;
- permit src = host:H; dst = user;         srv = service:HTTP;
- permit src = user;   dst = network:Test; srv = service:HTTP;
+ permit src = user;   dst = host:H;       prt = ip;
+ permit src = host:H; dst = user;         prt = tcp 80;
+ permit src = user;   dst = network:Test; prt = tcp 80;
 }
 END
 
@@ -164,9 +161,9 @@ END
 
 $out3 = <<END;
 ! [ NAT ]
+static (inside,outside) 1.1.1.23 10.9.1.33 netmask 255.255.255.255
 global (outside) 1 1.1.1.16-1.1.1.31 netmask 255.255.255.240
 nat (inside) 1 10.9.1.0 255.255.255.0
-static (inside,outside) 1.1.1.23 10.9.1.33 netmask 255.255.255.255
 END
 
 $head1 = (split /\n/, $out1)[0];
@@ -200,29 +197,29 @@ router:filter = {
 
 network:X = { ip = 10.9.3.0/24; }
 
-service:IP = ip;
-service:HTTP = tcp 80;
+protocol:IP = ip;
+protocol:HTTP = tcp 80;
 
-policy:test = {
+service:test = {
  user = network:X;
- permit src = user;   dst = host:H;       srv = service:IP;
- permit src = host:H; dst = user;         srv = service:HTTP;
- permit src = user;   dst = network:Test; srv = service:HTTP;
+ permit src = user;   dst = host:H;       prt = protocol:IP;
+ permit src = host:H; dst = user;         prt = protocol:HTTP;
+ permit src = user;   dst = network:Test; prt = protocol:HTTP;
 }
 END
 
 $out1 = <<END;
 ! [ NAT ]
-object network 1.1.1.16-1.1.1.31
- range 1.1.1.16 1.1.1.31
-object network 10.9.1.0_255.255.255.0
- subnet 10.9.1.0 255.255.255.0
-nat (inside,outside) source dynamic 10.9.1.0_255.255.255.0 1.1.1.16-1.1.1.31
 object network 10.9.1.33_255.255.255.255
  subnet 10.9.1.33 255.255.255.255
 object network 1.1.1.23_255.255.255.255
  subnet 1.1.1.23 255.255.255.255
-nat (inside,outside) source static 10.9.1.33_255.255.255.255 1.1.1.23_255.255.255.255
+nat (inside,outside) 1 source static 10.9.1.33_255.255.255.255 1.1.1.23_255.255.255.255
+object network 10.9.1.0_255.255.255.0
+ subnet 10.9.1.0 255.255.255.0
+object network 1.1.1.16-1.1.1.31
+ range 1.1.1.16 1.1.1.31
+nat (inside,outside) source dynamic 10.9.1.0_255.255.255.0 1.1.1.16-1.1.1.31
 END
 
 $head1 = (split /\n/, $out1)[0];

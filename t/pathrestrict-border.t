@@ -55,13 +55,13 @@ pathrestriction:restrict =
  interface:Kunde.Schulung,
 ;
 
-service:IP = ip;
+protocol:IP = ip;
 
-policy:test = {
+service:test = {
  user = network:Schulung, network:X;
  permit src = user; 
 	dst = network:Test;
-	srv = service:IP;
+	prt = protocol:IP;
 }
 END
 
@@ -141,13 +141,13 @@ pathrestriction:restrict =
  interface:Kunde.Trans,
 ;
 
-service:IP = ip;
+protocol:IP = ip;
 
-policy:test = {
+service:test = {
  user = network:Schulung;
  permit src = user; 
 	dst = network:Test;
-	srv = service:IP;
+	prt = protocol:IP;
 }
 END
 
@@ -212,14 +212,14 @@ network:dst = { ip = 10.3.1.252/30;}
 pathrestriction:a = interface:c1.lft, interface:k2.rgt;
 pathrestriction:mng = interface:c1.mng, interface:c2.top;
 
-service:IP = ip;
+protocol:IP = ip;
 
-policy:intra = {
+service:intra = {
  user = any:[network:dst], any:[network:top], any:[network:cnt],
         any:[network:rgt], any:[network:lft];
  permit src = interface:c1.mng;
         dst = user;
-        srv = service:IP;
+        prt = protocol:IP;
 }
 END
 
