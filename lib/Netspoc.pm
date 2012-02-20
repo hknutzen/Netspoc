@@ -2344,7 +2344,7 @@ our %servicegroups;
 sub read_servicegroup( $ ) {
     my $name = shift;
     skip '=';
-    my @pairs = read_list_or_null \&read_typed_name;
+    my @pairs = read_list_or_null \&read_typed_name_or_simple_service;
     return new('Servicegroup', name => $name, elements => \@pairs);
 }
 
@@ -2444,12 +2444,67 @@ sub read_proto_nr( $ ) {
     }
 }
 
+sub gen_service_name {
+    my ($service) = @_;
+    my $proto = $service->{proto};
+    my $name = $proto;
+    
+    if ($proto eq 'ip') {
+    }
+    elsif ($proto eq 'tcp' or $proto eq 'udp') {
+        my $port_name = sub {
+            my ($v1, $v2) = @_;
+            if ($v1 == $v2) {
+                return ($v1);
+            }
+            elsif ($v1 == 1 and $v2 == 65535) {
+                return ('');
+            }
+            else {
+                return ("$v1-$v2");
+            }
+        };
+        my $src_port = $port_name->(@{ $service->{src_range} });
+        my $dst_port = $port_name->(@{ $service->{dst_range} });
+        my $port = "$src_port:" if $src_port;
+        $port .= "$dst_port" if $dst_port;
+        $name .= " $port" if $port;
+    }
+    elsif ($proto eq 'icmp') {
+        if (defined(my $type = $service->{type})) {
+            if (defined(my $code = $service->{code})) {
+                $name = "$proto $type/$code";
+            }
+            else {
+                $name = "$proto $type";
+            }
+        }
+    }
+    else {
+        $name = "proto $proto";
+    }
+    return $name;    
+}
+
 our %services;
 
-sub read_service( $ ) {
+sub cache_anonymous_service {
+    my ($service) = @_;
+    my $name = gen_service_name($service);
+    if (my $cached = $services{$name}) {
+        return $cached;
+    }
+    else {
+        $service->{name} = $name;
+        $service->{is_used} = 1;
+        $services{$name} = $service;
+        return $service;
+    }
+}
+
+sub read_simple_service {
     my $name = shift;
-    my $service = { name => $name };
-    skip '=';
+    my $service = {};
     if (check 'ip') {
         $service->{proto} = 'ip';
     }
@@ -2470,8 +2525,19 @@ sub read_service( $ ) {
     }
     else {
         my $string = read_name;
-        error_atline "Unknown protocol $string in definition of $name";
+        error_atline "Unknown protocol '$string'";
     }
+    if ($name) {
+        $service->{name} = $name;
+    }
+    else {
+        $service = cache_anonymous_service($service);
+    }
+    return $service;
+}
+
+sub check_service_flags {
+    my ($service) = @_;
     while (check ',') {
         my $flag = read_identifier;
         if ($flag =~ /^(src|dst)_(net|any)$/) {
@@ -2484,6 +2550,17 @@ sub read_service( $ ) {
             syntax_err "Unknown flag '$flag'";
         }
     }
+}
+
+sub read_typed_name_or_simple_service {
+    return(check_typed_name() || read_simple_service());
+}
+
+sub read_service( $ ) {
+    my $name = shift;
+    skip '=';
+    my $service = read_simple_service($name);
+    check_service_flags($service);
     skip ';';
     return $service;
 }
@@ -2551,10 +2628,12 @@ sub read_policy( $ ) {
             my $srv;
             if ($config{old_syntax} and check 'srv') {
                 check '=';
-                $srv = [ read_list(\&read_typed_name) ];
+                $srv = [ read_list(\&read_typed_name_or_simple_service) ];
             }
             else {
-                $srv = [ read_assign_list('prt', \&read_typed_name) ];
+                $srv = [ read_assign_list('prt', 
+                                          \&read_typed_name_or_simple_service) 
+                       ];
             }
             $src_user
               or $dst_user
@@ -5261,6 +5340,11 @@ sub expand_services( $$ ) {
     my ($aref, $context) = @_;
     my @services;
     for my $pair (@$aref) {
+        if (ref($pair) eq 'HASH') {
+            push @services, $pair;
+            $pair->{src_dst_range_list} || set_src_dst_range_list($pair);
+            next;
+        }
         my ($type, $name) = @$pair;
         if ($type eq 'protocol' || $config{old_syntax} && $type eq 'service') {
             if (my $srv = $services{$name}) {
@@ -5270,9 +5354,7 @@ sub expand_services( $$ ) {
                 $srv->{is_used} = 1;
 
                 # Used in expand_rules.
-                if (not $srv->{src_dst_range_list}) {
-                    set_src_dst_range_list($srv);
-                }
+                $srv->{src_dst_range_list} || set_src_dst_range_list($srv);
             }
             else {
                 err_msg "Can't resolve reference to $type:$name in $context";
