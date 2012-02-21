@@ -7,16 +7,15 @@
 
 ##Overview
 
-###Policies
+###Service
 
-
-- A policy is a set of related rules. 
-- Network objects and service definitions are used in rules to
+- A service is a set of related rules. 
+- Network objects and protocols are used in rules to
 describe network traffic which can or must not pass from source to
 destination.
-- All rules of a single policy must refer to the same network
+- All rules of a single service must refer to the same network
 objects in their source or destination.
-- Policies have a name which can be used for documentation or
+- Services have a name which can be used for documentation or
 reporting purposes.
 
 
@@ -27,7 +26,7 @@ reporting purposes.
 - Can be used as source and destination of rules.
 
 
-###Service Definitions
+###Protocol Definitions
 
 - have a name
 - describe properties of network traffic as they typically can be
@@ -42,10 +41,10 @@ filtered by packet filters (i.e. type of protocol, port number)
 network objects.
 
 
-###Service Groups
+###Protocol Groups
 
 - have a name
-- are used to group service definitions
+- are used to group protocol definitions
 - are used in rules
 
 
@@ -530,17 +529,17 @@ inside area:x.
 - A group can be empty 
 - A group can be defined by means of other groups 
 
-###Services
+###Protocols
 ####Syntax
 
-    service:<name> = 
+    protocol:<name> = 
     {{
       ip 
     | tcp [[[[<range> :]] <range&gt]]
     | udp [[[[<range> :]] <range&gt]]
     | icmp [[<int_1>[[/<int_2>]]]] 
     | proto <int> 
-    }} [[<service modifier>]] ;
+    }} [[<protocol modifier>]] ;
 
 with
 
@@ -583,17 +582,17 @@ protocol
     destination and back. For stateless packet filters, a rule with reversed
     addresses and reversed port numbers is generated.
 
-- For service IP and stateless packet filters, a rules with reversed
+- For protocol IP and stateless packet filters, a rules with reversed
     addresses is generated. This is needed to get an unified handling for TCP,
     UDP and IP.
 
 
 
-###Service modifiers
+###Protocol modifiers
 
-One or more &lt;service modifier&gt;'s can optionally be appended to a service
-definition. A &lt;service modifier&gt; modifies the rule in which the
-corresponding service is used as follows.
+One or more &lt;protocol modifier&gt;'s can optionally be appended to a protocol
+definition. A &lt;protocol modifier&gt; modifies the rule in which the
+corresponding protocol is used as follows.
 
 
 stateless
@@ -623,43 +622,43 @@ src_any
 :Equivalent to dst_* modifiers but applied to
 source of rule.
 
-###Groups of services
+###Groups of protocols
 ####Syntax
 
-    servicegroup:<name> = <service>, ... ;
+    protocolgroup:<name> = <protocol>, ... ;
 
 with
 
-    <service> ::= {{ service:<name> | servicegroup:<name> }}
+    <protocol> ::= {{ protocol:<name> | protocolgroup:<name> }}
 
-- A servicegroup can be empty.
-- A servicegroup can be defined by means of other servicegroups.
+- A protocolgroup can be empty.
+- A protocolgroup can be defined by means of other protocolgroups.
 
 
-###Policies
+###Services
 ####Syntax
 
-    policy:<name> = {
+    service:<name> = {
        [[ description = <text_to_end_of_line&gt ]]
        user = [[ foreach ]] <object set>;
-       <policy_rule> * 
+       <service_rule> * 
     }
 
 with
 
-    <policy_rule> ::=
+    <service_rule> ::=
     {{ permit | deny }}
           src = <object set with 'user'>;
           dst = <object set with 'user'>;
-          srv = <service>, ... ;
+          prt = <protocol>, ... ;
     <object set with 'user'> is like <object set> 
      but with additional keyword 'user' allowed in <network object>
 
 - Order of rules doesn't matter.
 - Deny rules override all permit rules.
-- Policies give a descriptive name to a group of related rules. 
-- Policies are useful for documentation and reporting purposes. 
-- The rules of a policy must be related in that they all use the same source
+- Services give a descriptive name to a group of related rules. 
+- Services are useful for documentation and reporting purposes. 
+- The rules of a service must be related in that they all use the same source
 or destination object(s). This is enforced by the keyword "user" which
 must be referenced either from src or from dst or both parts of a rule.
 - Without the keyword "foreach", each occurrence of "user" is substituted 
@@ -671,10 +670,10 @@ this feature allows to define rules between elements and their neighborhood.
 
 ####Example
 
-    policy:ping_local = {
+    service:ping_local = {
      description = Allow ping to my devices from directly attached network
      user = foreach interface:[group:my_devices].[all];
-     permit src = network:[user]; dst = user; srv = service:ping;
+     permit src = network:[user]; dst = user; prt = protocol:ping;
     }
 
 ###Path restrictions
@@ -689,7 +688,7 @@ this feature allows to define rules between elements and their neighborhood.
  - All paths running through two or more interfaces belonging to the
   same path restriction are discarded i. e. marked as invalid.
  - Path restrictions must not be used to discard *all* paths
-  between some source / destination pair. Use a policy with deny rules
+  between some source / destination pair. Use a service with deny rules
   instead.
  - A path restriction must only be applied to interfaces located
    inside or at the border of a cyclic subgraph of the topology.
@@ -1215,7 +1214,7 @@ surprising that the traffic will still be permitted.
 
 Per default, NetSPoC gives warnings for redundant rules and
 elements. But the behavior can be adjusted by command line switches and
-by attributes at policy definitions.
+by attributes at service definitions.
 
 - Use command line
 switch `-check_duplicate_rules_=0|1|warn` to globally
@@ -1223,10 +1222,10 @@ enable or disable checks for duplicate rules.
 - Use command line
 switch `-check_redundant_rules_=0|1|warn` to globally
 enable or disable checks for redundant rules.
-- Add attribute `overlaps = policy:<name>, ...;`
-at a policy definition with names of other policies. If those other
-policies have rules that are duplicate or redundant compared to some
-rules of current policy, printing of warning / error messages is
+- Add attribute `overlaps = service:<name>, ...;`
+at a service definition with names of other services. If those other
+services have rules that are duplicate or redundant compared to some
+rules of current service, printing of warning / error messages is
 disabled for this case.
 
 
