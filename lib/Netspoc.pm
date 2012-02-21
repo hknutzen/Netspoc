@@ -131,6 +131,9 @@ our %config = (
 # Check for unused groups and servicegroups.
     check_unused_groups => 'warn',
 
+# Check for unused protocol definitions.
+    check_unused_protocols => 0,
+
 # Allow subnets only
 # - if the enclosing network is marked as 'route_hint' or
 # - if the subnet is marked as 'subnet_of'
@@ -5326,6 +5329,14 @@ sub check_unused_groups() {
                 else {
                     err_msg $msg;
                 }
+            }
+        }
+    }
+    if (my $conf = $config{check_unused_protocols}) {
+        for my $proto (values %services) {
+            if (not $proto->{is_used}) {
+                my $msg = "unused $proto->{name}";
+                $conf eq 'warn' ? warn_msg $msg : err_msg $msg;
             }
         }
     }

@@ -16,6 +16,10 @@ netspoc [options] {in-directory | in-file | -} [out-directory]
 
 Check for unused groups and servicegroups.
 
+=item B<-check_unused_protocols=0|1|warn>
+
+Check for unused potocol definitions.
+
 =item B<-check_subnets=0|1|warn>
 
 Check for subnets which aren't declared with 'subnet_of' or 'route_hint'.
