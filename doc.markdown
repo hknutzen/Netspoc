@@ -122,18 +122,19 @@ of the left part.
 ###Network Definition
 ####Syntax
 
-    network:<name> = {
-       [[ owner = <external_name>, ... ; ]]
-       {{
-           ip = <ip-adr><mask>;
-           <network NAT definition> *
-           [[ route_hint; ]]
-           [[ subnet_of = network:<name>; ]]
-           <host definition> *
-       |
-           unnumbered
-       }}
-    }
+    <network definition> ::=
+      network:<name> = {
+         [[ owner = <external_name>, ... ; ]]
+         {{
+             ip = <ip-adr><mask>;
+             <network NAT definition> *
+             [[ route_hint; ]]
+             [[ subnet_of = network:<name>; ]]
+             <host definition> *
+         |
+             unnumbered
+         }}
+      }
 
 with
 
@@ -356,14 +357,15 @@ interface definition".
 ###'Any' object definition
 ####Syntax
 
-    any:<name> = { 
-        [[ owner = <external_name>, ... ; ]]
-        link = {{ 
-                  network:<name>; 
-               |  
-                  router:<name>; 
-               }} 
-    }
+    <any object defintion> ::=
+      any:<name> = { 
+          [[ owner = <external_name>, ... ; ]]
+          link = {{ 
+                    network:<name>; 
+                 |  
+                    router:<name>; 
+                 }} 
+      }
 
 - An 'any' definition is used to represent all networks of a security domain.
 - It must not be linked to a managed router.
@@ -378,14 +380,15 @@ intervening networks get access as well.
 ###Area definition
 ####Syntax
 
-    area:<name> = {
-     [[ owner = <external_name>, ... ; ]]
-     [[ auto_border; ]]
-     {{ 
-       border = <object set> ; 
-     | anchor = network:<name>;
-     }}
-    }
+    <area definition> ::=
+      area:<name> = {
+       [[ owner = <external_name>, ... ; ]]
+       [[ auto_border; ]]
+       {{ 
+         border = <object set> ; 
+       | anchor = network:<name>;
+       }}
+      }
 
 - Use attribute `border` to define interfaces which are the
 border of the area.
@@ -524,27 +527,35 @@ inside area:x.
 
 ###Groups of network objects
 ####Syntax 
-    group:<name> = <object set>;
+
+    <group definition> ::=
+      group:<name> = <object set>;
 
 - A group can be empty 
 - A group can be defined by means of other groups 
 
-###Protocols
+###Protocol definition
 ####Syntax
 
-    protocol:<name> = 
+    <protocol definition> ::=
+      protocol:<name> = <simple protocol> [[,<protocol modifier>]]* ;
+
+with
+
+    
+    <simple protocol> ::= 
     {{
       ip 
     | tcp [[[[<range> :]] <range>]]
     | udp [[[[<range> :]] <range>]]
     | icmp [[<int_1>[[/<int_2>]]]] 
     | proto <int> 
-    }} [[<protocol modifier>]] ;
-
-with
+    }}
 
     <range> ::= <int_1>[[-<int_2>]]
 
+    <protocol modifier> ::= 
+    {{stateless|oneway|reversed|src_net|dst_net|src_any|dst_any}}
 
 
 tcp
@@ -590,7 +601,7 @@ protocol
 
 ###Protocol modifiers
 
-One or more &lt;protocol modifier&gt;'s can optionally be appended to a protocol
+One or more &lt;protocol modifier&gt;s can optionally be appended to a protocol
 definition. A &lt;protocol modifier&gt; modifies the rule in which the
 corresponding protocol is used as follows.
 
@@ -625,34 +636,37 @@ source of rule.
 ###Groups of protocols
 ####Syntax
 
-    protocolgroup:<name> = <protocol>, ... ;
+    <protocol group definition> :=
+      protocolgroup:<name> = <protocol>, ... ;
 
 with
 
-    <protocol> ::= {{ protocol:<name> | protocolgroup:<name> }}
+    <protocol> ::= 
+      {{ protocol:<name> | protocolgroup:<name> | <simple protocol>}}
 
 - A protocolgroup can be empty.
 - A protocolgroup can be defined by means of other protocolgroups.
 
 
-###Services
+###Service definition
 ####Syntax
 
-    service:<name> = {
-       [[ description = <text_to_end_of_line> ]]
-       user = [[ foreach ]] <object set>;
-       <service_rule> * 
-    }
+    <service definition> ::=
+      service:<name> = {
+         [[ description = <text_to_end_of_line> ]]
+         user = [[ foreach ]] <object set>;
+         <service_rule> * 
+      }
 
 with
 
     <service_rule> ::=
-    {{ permit | deny }}
-          src = <object set with 'user'>;
-          dst = <object set with 'user'>;
-          prt = <protocol>, ... ;
-    <object set with 'user'> is like <object set> 
-     but with additional keyword 'user' allowed in <network object>
+      {{ permit | deny }}
+            src = <object set with 'user'>;
+            dst = <object set with 'user'>;
+            prt = <protocol>, ... ;
+      <object set with 'user'> is like <object set> 
+       but with additional keyword 'user' allowed in <network object>
 
 - Order of rules doesn't matter.
 - Deny rules override all permit rules.
