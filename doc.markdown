@@ -406,9 +406,9 @@ be choosen.
 
     <object set> ::= 
        {{ <network object> | <intersection> }} , ...
-    <intersection&gt ::= 
+    <intersection> ::= 
        <network object>  &  <complement> [[ & <complement> ...]]
-    <complement&gt ::=
+    <complement> ::=
        [[!]] <network object>
 
     <network object> ::=
@@ -535,8 +535,8 @@ inside area:x.
     protocol:<name> = 
     {{
       ip 
-    | tcp [[[[<range> :]] <range&gt]]
-    | udp [[[[<range> :]] <range&gt]]
+    | tcp [[[[<range> :]] <range>]]
+    | udp [[[[<range> :]] <range>]]
     | icmp [[<int_1>[[/<int_2>]]]] 
     | proto <int> 
     }} [[<protocol modifier>]] ;
@@ -639,7 +639,7 @@ with
 ####Syntax
 
     service:<name> = {
-       [[ description = <text_to_end_of_line&gt ]]
+       [[ description = <text_to_end_of_line> ]]
        user = [[ foreach ]] <object set>;
        <service_rule> * 
     }
@@ -680,7 +680,7 @@ this feature allows to define rules between elements and their neighborhood.
 ####Syntax
 
     pathrestriction:<name> = 
-      [[ description = <text_to_end_of_line&gt ]]
+      [[ description = <text_to_end_of_line> ]]
       <object set> ;
 
  - Path restrictions are used to restrict paths inside cyclic
@@ -1036,7 +1036,7 @@ The type of encryption is defined by a ` crypto ` definition.
 ###Syntax {#crypto_syntax}
 
     crypto:<name> = {
-       [[ description = <text_to_end_of_line&gt ]]
+       [[ description = <text_to_end_of_line> ]]
        type = ipsec:<name>;
        tunnel_all;
     }
