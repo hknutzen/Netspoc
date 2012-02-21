@@ -60,7 +60,7 @@ some part of the topology.
 
 ###Crypto Definition
 
-A <a href="#crypto_syntax">crypto definition</a> consists of two parts:
+A [crypto definition](#encryption) consists of two parts:
 
 1. definition of crypto type (currently IPSec with ISAKMP).
 1. Occurrences of hub and spoke attributes at interfaces which define
@@ -229,7 +229,7 @@ reach the device when deploying the configuration.
 - A router can be managed or unmanaged.
 - Managed routers can be of type 'primary', 'full', 'standard' or 
 of type 'secondary'. A type 'standard' is assumed, if no value is given. 
-See <A HREF="#secondary_packet_filters">secondary packet filters</A> below for a detailed
+See [secondary packet filters](#secondary_packet_filters) below for a detailed
 description. 
 - Managed routers need to be precisely described since this
  information is needed for code generation later.
@@ -321,7 +321,7 @@ interface definition".
   interface by adding an incrementing number beginning with "2".
   E.g. `interface:router.name.2, interface:router.name.3, ...`.
 - A virtual interface defines a shared IP address and type of redundancy
-  protocol. See <a href="#virtual_interface"> Virtual interfaces</a> for details.
+  protocol. See [Virtual interfaces](#virtual_interface) for details.
 - The 'hardware' attribute indicates, which hardware interface the router
   belongs to. This attribute is mandatory for managed routers.
 - Multiple interfaces can belong to the same hardware interface.
@@ -333,7 +333,7 @@ interface definition".
 - If `routing=manual`, no routing code is generated at all. Some
   other means has to be used to configure routing for this interface.
 -  For a description of attribute 'reroute_permit', 
- see <a href="#rerouting">Rerouting inside of security domains</a> below.
+ see [Rerouting inside of security domains](#rerouting) below.
 -  Use attribute 'loopback' to define a loopback interface. A
  loopback interface is not linked to a network, but only used as an
  additional address of a router. Loopback interfaces of different
@@ -341,7 +341,7 @@ interface definition".
  interface:r2.loop.
 - subnet_of: The enclosing network is declared explicitly.
 - An interface can be marked as disabled.
-  See <A HREF="#disabling">Disabling part of the topology</A> below.
+  See [Disabling part of the topology](#disabling) below.
 - For interface definitions of unmanaged routers all attributes
   can be left out.
 - An interface definition without any attributes is called a "short
@@ -374,7 +374,7 @@ interface definition".
 enumeration of all networks of a security domain.
 - NetSPoC checks that additional any rules are definet to ensure that
 intervening networks get access as well.
-- See <A HREF="#handling_any">Handling of 'any' objects</A> for details.
+- See [Handling of 'any' objects](#handling_any) for details.
 
 
 ###Area definition
@@ -722,9 +722,9 @@ this feature allows to define rules between elements and their neighborhood.
 with `<mask>` defined as [above](#network_definition)
 
 
-A global NAT definition can be used as a shortcut for applying multiple
-identical dynamic NAT definitions to all networks in some area. See <a
-href="#NAT">network address translation</a> for details.
+A global NAT definition can be used as a shortcut for applying
+multiple identical dynamic NAT definitions to all networks in some
+area. See [network address translation](#NAT) for details.
 
 ##Network address translation (NAT) {#NAT}
 
@@ -892,9 +892,9 @@ device.
 - `no_in_acl` must not be used together with crypto
   tunnels at the same device.
 - All interfaces must equally use or not use outgoing ACLs at
-  a <a href="#crosslink_network">crosslink network</a>.
+  a [crosslink network](#crosslink_network).
 - All interfaces with attribute `no_in_acl` at routers
-  connected by a <a href="#crosslink_network">crosslink network</a> must be
+  connected by a [crosslink network](#crosslink_network) must be
   border of the same security domain.
 
 Outgoing ACLs are supported for model IOS, Linux and ASA.  For
@@ -1043,7 +1043,7 @@ Encrypted VPN tunnels are supported for
 
 1. access by tele worker with software VPN client,
 2. access from remote office with hardware VPN client or
-3. to LAN tunnel.
+3. LAN to LAN tunnel.
 
 The type of encryption is defined by a ` crypto ` definition.
 
