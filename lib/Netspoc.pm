@@ -5309,35 +5309,23 @@ sub expand_group( $$;$ ) {
 }
 
 sub check_unused_groups() {
-    if ($config{check_unused_groups}) {
-        for my $obj (values %groups, values %servicegroups) {
-            unless ($obj->{is_used}) {
-                my $msg;
-                if (is_area $obj) {
-                    $msg = "unused $obj->{name}";
-                }
-                elsif (my $size = @{ $obj->{elements} }) {
-                    $msg = "unused $obj->{name} with $size element"
-                      . ($size == 1 ? '' : 's');
-                }
-                else {
-                    $msg = "unused empty $obj->{name}";
-                }
-                if ($config{check_unused_groups} eq 'warn') {
-                    warn_msg $msg;
-                }
-                else {
-                    err_msg $msg;
-                }
-            }
+    my $check = sub {
+        my($hash, $print_type) = @_;
+        my $print = $print_type eq 'warn' ? \&warn_msg : \&err_msg;
+        for my $name (sort keys %$hash) {
+            my $value = $hash->{$name};
+            next if $value->{is_used};
+            $print->("unused $value->{name}");
+        }
+    };
+    if (my $conf = $config{check_unused_groups}) {
+        for my $hash (\%groups, \%servicegroups) {
+            $check->($hash, $conf);
         }
     }
     if (my $conf = $config{check_unused_protocols}) {
-        for my $proto (values %services) {
-            if (not $proto->{is_used}) {
-                my $msg = "unused $proto->{name}";
-                $conf eq 'warn' ? warn_msg $msg : err_msg $msg;
-            }
+        for my $hash (\%services) {
+            $check->($hash, $conf);
         }
     }
 
