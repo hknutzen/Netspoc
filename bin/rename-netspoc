@@ -23,8 +23,8 @@ NAME1 is searched and replaced by NAME2. Both types of a single
 SUBSTITUTION must use the same type. Multiple SUBSTITUTIONS can be applied in a single run of rename-netspoc.
 
 A typed name can use any valid type and name in netspoc syntax.
-Valid types are: B<router network host any group area policy owner
-admin service servicegroup pathrestriction nat isakmp ipsec crypto>.
+Valid types are: B<router network host any group area service owner
+admin protocol protocolgroup pathrestriction nat isakmp ipsec crypto>.
 
 A SUBSTITUTION of type B<network> also changes B<interface> and B<host:id>
 which reference the given network.  A SUBSTITUTION of type B<router>
@@ -101,8 +101,9 @@ sub fatal_err( @ ) {
 
 my %global_type = 
     map { $_ => 1 } qw( 
-router network host any group area policy
-owner admin service servicegroup pathrestriction nat isakmp ipsec crypto 
+router network host any group area service
+owner admin protocol protocolgroup pathrestriction nat isakmp ipsec crypto
+policy servicegroup
 );
 
 # NAT is applied with bind_nat.
