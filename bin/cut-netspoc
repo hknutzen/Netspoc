@@ -33,7 +33,7 @@ use locale;
 # Argument processing
 ####################################################################
 sub usage() {
-    die "Usage: $0 {in-file | in-directory} policy:name ...\n";
+    die "Usage: $0 {in-file | in-directory} service:name ...\n";
 }
 
 # Enhanced version of read_netspoc, which stores source code of each
@@ -114,7 +114,10 @@ my $config = shift @ARGV or usage;
 # Remember source code of each global definition.
 &read_file_or_dir($config, \&read_netspoc_with_src);
 
-my %name2var = ( policy =>\%policies, );
+my %name2var = ( service => \%policies, 
+
+                 # Still support old syntax.
+                 policy  =>\%policies);
 
 # Read names of policies from command line.
 for my $arg (@ARGV) {
@@ -291,8 +294,8 @@ for my $owner (values %owners) {
     
 # Print marked parts of netspoc configuration.
 # Routers and networks have been marked by mark_topology.
-# Services have been marked while %expanded_rules have been processed above.
-# Groups and servicegroups objects have been marked during expand_policies.
+# Protocols have been marked while %expanded_rules have been processed above.
+# Groups and protocolroups objects have been marked during expand_policies.
 for my $object (
     values %routers,
     values %networks,
@@ -352,7 +355,7 @@ if (keys %global_nat) {
     }
 }
 
-# All unwanted policies have already been deleted above.
-for my $policy (values %policies) {
-    print $policy->{src_code}, "\n";
+# All unwanted services have already been deleted above.
+for my $service (values %policies) {
+    print $service->{src_code}, "\n";
 }
