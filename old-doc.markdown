@@ -1,12 +1,5 @@
 # Documentation
 
-
-* Table of content
-{:toc}
-
-
-##Overview
-
 ###Service
 
 - A service is a set of related rules. 
