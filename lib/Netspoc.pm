@@ -2948,7 +2948,6 @@ my %global_type = (
     protocol        => [ \&read_service,         \%services ],
     protocolgroup   => [ \&read_servicegroup,    \%servicegroups ],
     service         => [ \&read_policy,          \%policies ],
-    policy          => [ \&read_policy,          \%policies ],
     global          => [ \&read_global,          \%global ],
     pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
     nat             => [ \&read_global_nat,      \%global_nat ],
@@ -3028,7 +3027,8 @@ sub read_file_or_dir( $;$ ) {
     $read_syntax ||= \&read_netspoc;
 
     if ($config{old_syntax}) {
-        $global_type{service} = $global_type{protocol};
+        $global_type{policy}       = $global_type{service};
+        $global_type{service}      = $global_type{protocol};
         $global_type{servicegroup} = $global_type{protocolgroup};
     }
 
@@ -6026,7 +6026,9 @@ sub expand_policies( ;$) {
             my @pobjects;
             for my $pair (@$overlaps) {
                 my ($type, $oname) = @$pair;
-                if (not($type eq 'service' || $type eq 'policy')) {
+                if (not($type eq 'service' || 
+                        $config{old_syntax} && $type eq 'policy')) 
+                {
                     err_msg "Unexpected type '$type' in attribute 'overlaps'",
                       " of $name";
                 }
