@@ -169,6 +169,9 @@ sub read_args() {
 
     my $main_file = shift @ARGV or pod2usage(2);
 
+    # Strip trailing slash for nicer messages.
+    $main_file =~ s</$><>;
+
     # $out_dir is used to store compilation results.
     # For each managed router with name X a corresponding file X
     # is created in $out_dir.
@@ -220,3 +223,4 @@ my $file_config = &read_config($in_path);
 &rules_distribution();
 &local_optimization();
 &print_code($out_dir);
+Netspoc::copy_raw($in_path, $out_dir);

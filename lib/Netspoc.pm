@@ -3058,9 +3058,6 @@ sub read_file_or_dir( $;$ ) {
         }
     };
 
-    # Strip trailing slash for nicer file names in messages.
-    $path =~ s</$><>;
-
     # Handle toplevel directory.
     # Special handling for "config", "raw" and "*.private".
     opendir(my $dh, $path) or fatal_err "Can't opendir $path: $!";
@@ -15207,6 +15204,36 @@ sub print_code( $ ) {
     }
     $config{warn_pix_icmp_code} && warn_pix_icmp;
     progress "Finished" if $config{time_stamps};
+}
+
+sub copy_raw {
+    my ($in_path, $out_dir) = @_;
+    return if not -d $in_path;
+    my $raw_dir = "$in_path/raw";
+    return if not -d $raw_dir;
+
+    my %routers = map { $_->{device_name} => 1 }  @managed_routers;
+
+    opendir(my $dh, $raw_dir) or fatal_err "Can't opendir $raw_dir: $!";
+    while (my $file = Encode::decode($filename_encode, readdir $dh)) {
+        next if $file eq '.' or $file eq '..';
+        next if $file =~ m/$config{ignore_files}/o;
+
+        # Untaint $file.
+        my ($raw_file) = ($file =~ /^(.*)/);
+        my $raw_path = "$raw_dir/$raw_file";
+        if (not -f $raw_path) {
+            warn_msg "Ignoring $raw_path";
+            next;
+        }
+        if (not $routers{$file}) {
+            warn_msg "Found unused $raw_path";
+            next;
+        }
+        my $copy = "$out_dir/$raw_file.raw";
+        system("cp $raw_path $copy") == 0 or
+            err_msg "Can't copy $raw_path to $copy";
+    }
 }
 
 sub show_version() {
