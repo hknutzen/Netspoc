@@ -35,6 +35,10 @@ Show only name of elements
 
 Show only IP address of elements
 
+=item B<-owner>
+
+Show owner of elements.
+
 =item B<-help>
 
 Prints a brief help message and exits.
@@ -84,12 +88,14 @@ my $nat_net;
 my $show_unused;
 my $show_ip;
 my $show_name;
+my $show_owner;
 my $help;
 my $man;
 GetOptions ( 'nat=s'  => \$nat_net,
 	     'unused' => \$show_unused,
 	     'ip!'    => \$show_ip,
-	     'name!' => \$show_name,
+	     'name!'  => \$show_name,
+             'owner!' => \$show_owner,
 	     'help|?' => \$help,
 	     man => \$man,
 	     ) or pod2usage(2);
@@ -123,6 +129,9 @@ while (1) {
 &mark_disabled();
 &distribute_nat_info();
 &setany();
+if ($show_owner) {
+    Netspoc::propagate_owners();
+}
 &setpath();
 Netspoc::convert_hosts();
 &abort_on_error();
@@ -164,25 +173,27 @@ if ($show_unused) {
 # Collect IP address, mask and name.
 my @info = map { my $v = Netspoc::address($_, $no_nat_set); 
 		 $v->[2] = $_->{name};
+                 $v->[3] = $_->{owner}->{name} if $show_owner && $_->{owner};
 		 $v } @$elements;
 
 abort_on_error();
 
-# Sort and print results.
-for my $triple (sort { $a->[0] <=> $b->[0] } @info) {
-    my ($ip, $mask, $name) = @$triple;
+# Sort by IP address and print results.
+for my $aref (sort { $a->[0] <=> $b->[0] } @info) {
+    my ($ip, $mask, $name, $owner) = @$aref;
+    my @result;
     if ($show_ip) {
 	my $prefix = Netspoc::mask2prefix($mask);
-	print print_ip($ip);
-	if($prefix != 32) {
-	    print "/$prefix";
-	}
+	push @result, (print_ip($ip) . ($prefix == 32 ? '' : "/$prefix"));
     }
     if ($show_name) {
-	print "\t" if $show_ip;
-	print "$name";
+        push @result, $name;
     }
-    print "\n";
+    if ($show_owner) {
+        $owner ||= 'none';
+        push @result, $owner;
+    }
+    print join("\t", @result), "\n";
 }
 
 
