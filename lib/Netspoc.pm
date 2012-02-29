@@ -15231,7 +15231,7 @@ sub copy_raw {
             next;
         }
         my $copy = "$out_dir/$raw_file.raw";
-        system("cp $raw_path $copy") == 0 or
+        system("cp -f $raw_path $copy") == 0 or
             err_msg "Can't copy $raw_path to $copy";
     }
 }
