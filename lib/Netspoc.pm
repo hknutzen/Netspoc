@@ -4586,7 +4586,8 @@ sub convert_hosts() {
         # Converts hosts and ranges to subnets.
         # Eliminate duplicate subnets.
         for my $host (@{ $network->{hosts} }) {
-            my ($name, $nat, $id, $private) = @{$host}{qw(name nat id private)};
+            my ($name, $nat, $id, $private, $owner) = 
+                @{$host}{qw(name nat id private owner)};
             my @ip_mask;
             if (my $ip = $host->{ip}) {
                 @ip_mask = [ $ip, 0xffffffff ];
@@ -4603,9 +4604,9 @@ sub convert_hosts() {
                 my $inv_prefix = 32 - mask2prefix $mask;
                 if (my $other_subnet = $inv_prefix_aref[$inv_prefix]->{$ip}) {
                     my $nat2 = $other_subnet->{nat};
+                    my $nat_error;
                     if ($nat xor $nat2) {
-                        err_msg "Inconsistent NAT definition for",
-                          "$other_subnet->{name} and $host->{name}";
+                        $nat_error = 1;
                     }
                     elsif ($nat and $nat2) {
 
@@ -4617,16 +4618,25 @@ sub convert_hosts() {
                                 unless ($nat2->{$name}
                                     and $nat->{$name} eq $nat2->{$name})
                                 {
-                                    err_msg "Inconsistent NAT definition for",
-                                      "$other_subnet->{name} and $host->{name}";
+                                    $nat_error = 1;
                                     last;
                                 }
                             }
                         }
                         else {
-                            err_msg "Inconsistent NAT definition for",
-                              "$other_subnet->{name} and $host->{name}";
+                            $nat_error = 1;
                         }
+                    }
+                    $nat_error and 
+                        err_msg "Inconsistent NAT definition for",
+                          " $other_subnet->{name} and $host->{name}";
+
+                    my $owner2 = $other_subnet->{owner};
+                    if (($owner xor $owner2) ||
+                        $owner && $owner2 && $owner ne $owner2) 
+                    {
+                        err_msg "Inconsistent owner definition for",
+                          " $other_subnet->{name} and $host->{name}";
                     }
                     push @{ $host->{subnets} }, $other_subnet;
                 }
@@ -4640,6 +4650,7 @@ sub convert_hosts() {
                     );
                     $subnet->{nat}     = $nat     if $nat;
                     $subnet->{private} = $private if $private;
+                    $subnet->{owner}   = $owner   if $owner;
                     if ($id) {
                         $subnet->{id} = $id;
                         $subnet->{radius_attributes} =
