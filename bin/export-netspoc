@@ -657,7 +657,7 @@ sub export_services {
 		srv => $_->{expanded_srv},
 	    }
 	} @{ $policy->{rules} };
-	(my $pname = $policy->{name}) =~ s/policy://;
+	(my $pname = $policy->{name}) =~ s/^\w+://;
 	$phash{$pname} = { details => $details, rules => \@rules };
     }
     export("services", \%phash);
@@ -672,7 +672,7 @@ sub export_services {
 	    my $policies = [ sort by_name values %{ $type2phash->{$type} } ];
 	    my $pnames = $type2pnames{$type} = [];
 	    for my $policy (@$policies) { 
-		(my $pname = $policy->{name}) =~ s/policy://;
+		(my $pname = $policy->{name}) =~ s/^\w+://;
 		push @$pnames, $pname;
 		next if $type eq 'visible';
 		my @users;
