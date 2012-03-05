@@ -14197,22 +14197,22 @@ group-policy $global_group_name attributes
 EOF
 
     # Define tunnel group used for single VPN users.
-    my $tunnel_group_name = 'VPN-single';
+    my $default_tunnel_group = 'VPN-single';
     my $trust_point       = delete $router->{radius_attributes}->{'trust-point'}
       or err_msg
       "Missing 'trust-point' in radius_attributes of $router->{name}";
 
     print <<"EOF";
 ! Used for all single VPN users
-tunnel-group $tunnel_group_name type remote-access
-tunnel-group $tunnel_group_name general-attributes
+tunnel-group $default_tunnel_group type remote-access
+tunnel-group $default_tunnel_group general-attributes
 ! Use internal user database
  authorization-server-group LOCAL
  default-group-policy $global_group_name
  authorization-required
 ! Take username from email address field of certificate.
  username-from-certificate EA
-tunnel-group $tunnel_group_name ipsec-attributes
+tunnel-group $default_tunnel_group ipsec-attributes
  chain
 EOF
 
@@ -14221,6 +14221,8 @@ EOF
  ikev1 trust-point $trust_point
 ! Disable extended authentication.
  ikev1 user-authentication none
+tunnel-group $default_tunnel_group webvpn-attributes
+ authentication certificate
 EOF
     }
     else {
@@ -14231,7 +14233,7 @@ EOF
 EOF
     }
     print <<"EOF";
-tunnel-group-map default-group $tunnel_group_name
+tunnel-group-map default-group $default_tunnel_group
 
 EOF
 
@@ -14254,6 +14256,8 @@ EOF
     };
 
     my %network2group_policy;
+    my %cert_group_map;
+    my %single_cert_map;
     my $user_counter = 0;
     for my $interface (@{ $router->{interfaces} }) {
         next if not $interface->{ip} eq 'tunnel';
@@ -14378,9 +14382,19 @@ EOF
                 my $ip      = print_ip $src->{ip};
                 my $network = $src->{network};
                 if ($src->{mask} == 0xffffffff) {
-                    $id =~ /^\@/
-                      and err_msg "ID of $src->{name} must not start with",
-                      " character '\@'";
+                    if (my ($name, $domain) = ($id =~ /^(.*?)(\@.*)$/)) {
+                        $name or err_msg("ID of $src->{name} must not start",
+                                         " with character '\@'");
+
+                        # For anyconnect clients.
+                        if ($model->{v8_4}) {
+                            $single_cert_map{$domain} = 1;
+                        }
+                    }
+                    else {
+                        err_msg("ID of $src->{name} must contain",
+                                " character '\@'");
+                    }
                     my $mask = print_ip $network->{mask};
                     my $group_policy_name;
                     if (%$attributes) {
@@ -14404,7 +14418,8 @@ EOF
                     my $mask = print_ip $src->{mask};
                     my $max =
                       print_ip($src->{ip} | complement_32bit $src->{mask});
-                    print "crypto ca certificate map ca-map-$user_counter 10\n";
+                    my $map_name = "ca-map-$user_counter";
+                    print "crypto ca certificate map $map_name 10\n";
                     print " subject-name attr ea co $id\n";
                     print "ip local pool $pool_name $ip-$max mask $mask\n";
                     $attributes->{'vpn-filter'}    = $filter_name;
@@ -14453,6 +14468,16 @@ EOF
                     for my $line (@tunnel_ipsec_att) {
                         print " $line\n";
                     }
+
+                    # For anyconnect clients.
+                    if ($model->{v8_4}) {
+                        print <<"EOF";
+tunnel-group $tunnel_group_name webvpn-attributes
+ authentication certificate
+EOF
+                        $cert_group_map{$map_name} = $tunnel_group_name;
+                    }
+
                     print <<"EOF";
 tunnel-group-map ca-map-$user_counter 10 $tunnel_group_name
 
@@ -14510,6 +14535,22 @@ EOF
             print " vpn-group-policy $group_policy_name\n"
               if $group_policy_name;
             print "\n";
+        }
+    }
+
+    # Generate certificate-group-map for anyconnect/ikev2 clients.
+    if (keys %cert_group_map or keys %single_cert_map) {
+        for my $id (sort keys %single_cert_map) {
+            $user_counter++;
+            my $map_name = "ca-map-$user_counter";
+            print "crypto ca certificate map $map_name 10\n";
+            print " subject-name attr ea co $id\n";
+            $cert_group_map{$map_name} = $default_tunnel_group;
+        }
+        print "webvpn\n";
+        for my $map_name (sort keys %cert_group_map) {
+            my $tunnel_group_map = $cert_group_map{$map_name};
+            print " certificate-group-map $map_name 10 $tunnel_group_map\n";
         }
     }
 }
