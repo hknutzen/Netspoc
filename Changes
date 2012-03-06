@@ -1,7 +1,27 @@
 {{$NEXT}}
 
+3.008     2012-03-06 16:53:55 Europe/Berlin
+
+3.008     2012-03-06 14:57:30 Europe/Berlin
+
+3.008     2012-03-06 14:31:00 Europe/Berlin
+
+3.008     2012-03-06 10:47:26 Europe/Berlin
+
+- Added support for anyconnect clients of ASA 8.4.
+- Added flag 'disabled' to disable a service.
+- Copy raw files to output directory for better integration 
+  with Netspoc-Approve.
+- Check for unused raw files. 
+  Check can be configured using option '-check_raw=0|1|warn'.
+- Added option '-check_unused_protocols=0|1|warn'.
+- Check overlapping ranges for consistent owner.
+- Disabled old syntax 'policy:'.
+  Old syntax can still be enabled using command line switch 'old_syntax'.
+- Added option '-owner' to command 'print-group'.
+
 3.007     2012-02-20 15:54:32 Europe/Berlin
-- Print host NAT first if used together with dynamic NAT.
+- Print host NAT commands first if used together with dynamic NAT.
   Print host NAT for ASA 8.4 with line number 1.
 - Allow simple protocol descriptions like 'tcp <port>' directly in rules and 
   protocolgroups now.
