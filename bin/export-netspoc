@@ -357,6 +357,7 @@ my %all_objects;
 sub setup_policy_info {
     progress("Setup policy info");
     for my $policy (values %policies) {
+        next if $policy->{disabled};
 	my $pname = $policy->{name};
 
 	my $users = $policy->{expanded_user} =
@@ -624,6 +625,7 @@ sub export_services {
     my %phash;
     my %owner2type2phash;
     for my $policy (sort by_name values %policies) {
+        next if $policy->{disabled};
 	for my $owner (@{ $policy->{owners} }, @{ $policy->{sub_owners} }) {
 	    $owner2type2phash{$owner}->{owner}->{$policy} = $policy;
 	}
