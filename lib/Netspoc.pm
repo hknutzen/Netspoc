@@ -15259,16 +15259,18 @@ sub print_code( $ ) {
 sub copy_raw {
     my ($in_path, $out_dir) = @_;
     return if not -d $in_path;
+    return if not $out_dir;
+
+    # Untaint $in_path, $out_dir. This is necessary if running setuid.
+    # Trusted because set by setuid wrapper.
+    $in_path =~ /(.*)/;
+    $in_path = $1;
+    $out_dir =~ /(.*)/;
+    $out_dir = $1;
+    check_output_dir $out_dir;
+
     my $raw_dir = "$in_path/raw";
     return if not -d $raw_dir;
-
-    # Untaint $out_dir. This is necessary if running setuid.
-    # We trust $out_dir because it is set by setuid wrapper.
-    if ($out_dir) {
-        $out_dir =~ /(.*)/;
-        $out_dir = $1;
-        check_output_dir $out_dir;
-    }
 
     # Clean PATH if run in taint mode.
     $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
