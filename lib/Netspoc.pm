@@ -15262,6 +15262,14 @@ sub copy_raw {
     my $raw_dir = "$in_path/raw";
     return if not -d $raw_dir;
 
+    # Untaint $out_dir. This is necessary if running setuid.
+    # We trust $out_dir because it is set by setuid wrapper.
+    if ($out_dir) {
+        $out_dir =~ /(.*)/;
+        $out_dir = $1;
+        check_output_dir $out_dir;
+    }
+
     my %routers = map { $_->{device_name} => 1 }  @managed_routers;
 
     opendir(my $dh, $raw_dir) or fatal_err "Can't opendir $raw_dir: $!";
