@@ -30,7 +30,6 @@
 #   - then we know, it is updated and all changes are commited, 
 #   - aborts if not
 # - compiles the new policy
-# - tags extracted configuration with new policy tag
 # - marks new policy in policy db as current
 #
 # $Id$
@@ -176,9 +175,6 @@ if ($? == 0) {
     print PFILE "# $policy # Current policy, don't edit manually!\n";
     close PFILE;
     system('cvs', 'commit', '-m', $policy , $pfile) == 0 or die "Aborted\n";
-
-    # Add tags to files of current version.
-    system('cvs', '-Q', 'tag', $policy, 'src') == 0 or die "Aborted\n";
 
     # Mark new policy as current.
     chdir $policydb or die "Error: can't cd to $policydb: $!\n";

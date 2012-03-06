@@ -32,7 +32,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.007'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.008'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -131,6 +131,9 @@ our %config = (
 # Check for unused groups and servicegroups.
     check_unused_groups => 'warn',
 
+# Check for unused protocol definitions.
+    check_unused_protocols => 0,
+
 # Allow subnets only
 # - if the enclosing network is marked as 'route_hint' or
 # - if the subnet is marked as 'subnet_of'
@@ -156,6 +159,9 @@ our %config = (
 
 # Check for transient any rules.
     check_transient_any_rules => 0,
+
+# Check for unused raw files.
+    check_raw => 'warn',
 
 # Optimize the number of routing entries per router:
 # For each router find the hop, where the largest
@@ -2467,7 +2473,8 @@ sub gen_service_name {
         };
         my $src_port = $port_name->(@{ $service->{src_range} });
         my $dst_port = $port_name->(@{ $service->{dst_range} });
-        my $port = "$src_port:" if $src_port;
+        my $port;
+        $port = "$src_port:" if $src_port;
         $port .= "$dst_port" if $dst_port;
         $name .= " $port" if $port;
     }
@@ -2598,15 +2605,18 @@ sub read_policy( $ ) {
               and error_atline "Duplicate attribute 'visible'";
             $policy->{visible} = $visible;
         }
-        elsif (my $multi_owner = check_flag('multi_owner')) {
+        elsif (check_flag('multi_owner')) {
             $policy->{multi_owner}
               and error_atline "Duplicate attribute 'multi_owner'";
-            $policy->{multi_owner} = $multi_owner;
+            $policy->{multi_owner} = 1;
         }
-        elsif (my $unknown_owner = check_flag('unknown_owner')) {
+        elsif (check_flag('unknown_owner')) {
             $policy->{unknown_owner}
               and error_atline "Duplicate attribute 'unknown_owner'";
-            $policy->{unknown_owner} = $unknown_owner;
+            $policy->{unknown_owner} = 1;
+        }
+        elsif (check_flag('disabled')) {
+            $policy->{disabled} = 1;
         }
         else {
             syntax_err "Expected some valid attribute or definition of 'user'";
@@ -2944,7 +2954,6 @@ my %global_type = (
     protocol        => [ \&read_service,         \%services ],
     protocolgroup   => [ \&read_servicegroup,    \%servicegroups ],
     service         => [ \&read_policy,          \%policies ],
-    policy          => [ \&read_policy,          \%policies ],
     global          => [ \&read_global,          \%global ],
     pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
     nat             => [ \&read_global_nat,      \%global_nat ],
@@ -3024,7 +3033,8 @@ sub read_file_or_dir( $;$ ) {
     $read_syntax ||= \&read_netspoc;
 
     if ($config{old_syntax}) {
-        $global_type{service} = $global_type{protocol};
+        $global_type{policy}       = $global_type{service};
+        $global_type{service}      = $global_type{protocol};
         $global_type{servicegroup} = $global_type{protocolgroup};
     }
 
@@ -3053,9 +3063,6 @@ sub read_file_or_dir( $;$ ) {
             read_file $path, $read_syntax;
         }
     };
-
-    # Strip trailing slash for nicer file names in messages.
-    $path =~ s</$><>;
 
     # Handle toplevel directory.
     # Special handling for "config", "raw" and "*.private".
@@ -3135,7 +3142,7 @@ sub print_rule( $ ) {
     return
         $action
       . " src=$rule->{src}->{name}; dst=$rule->{dst}->{name}; "
-      . "srv=$rule->{$srv}->{name};$extra";
+      . "prt=$rule->{$srv}->{name};$extra";
 }
 
 ##############################################################################
@@ -4582,7 +4589,8 @@ sub convert_hosts() {
         # Converts hosts and ranges to subnets.
         # Eliminate duplicate subnets.
         for my $host (@{ $network->{hosts} }) {
-            my ($name, $nat, $id, $private) = @{$host}{qw(name nat id private)};
+            my ($name, $nat, $id, $private, $owner) = 
+                @{$host}{qw(name nat id private owner)};
             my @ip_mask;
             if (my $ip = $host->{ip}) {
                 @ip_mask = [ $ip, 0xffffffff ];
@@ -4599,9 +4607,9 @@ sub convert_hosts() {
                 my $inv_prefix = 32 - mask2prefix $mask;
                 if (my $other_subnet = $inv_prefix_aref[$inv_prefix]->{$ip}) {
                     my $nat2 = $other_subnet->{nat};
+                    my $nat_error;
                     if ($nat xor $nat2) {
-                        err_msg "Inconsistent NAT definition for",
-                          "$other_subnet->{name} and $host->{name}";
+                        $nat_error = 1;
                     }
                     elsif ($nat and $nat2) {
 
@@ -4613,16 +4621,25 @@ sub convert_hosts() {
                                 unless ($nat2->{$name}
                                     and $nat->{$name} eq $nat2->{$name})
                                 {
-                                    err_msg "Inconsistent NAT definition for",
-                                      "$other_subnet->{name} and $host->{name}";
+                                    $nat_error = 1;
                                     last;
                                 }
                             }
                         }
                         else {
-                            err_msg "Inconsistent NAT definition for",
-                              "$other_subnet->{name} and $host->{name}";
+                            $nat_error = 1;
                         }
+                    }
+                    $nat_error and 
+                        err_msg "Inconsistent NAT definition for",
+                          " $other_subnet->{name} and $host->{name}";
+
+                    my $owner2 = $other_subnet->{owner};
+                    if (($owner xor $owner2) ||
+                        $owner && $owner2 && $owner ne $owner2) 
+                    {
+                        err_msg "Inconsistent owner definition for",
+                          " $other_subnet->{name} and $host->{name}";
                     }
                     push @{ $host->{subnets} }, $other_subnet;
                 }
@@ -4636,6 +4653,7 @@ sub convert_hosts() {
                     );
                     $subnet->{nat}     = $nat     if $nat;
                     $subnet->{private} = $private if $private;
+                    $subnet->{owner}   = $owner   if $owner;
                     if ($id) {
                         $subnet->{id} = $id;
                         $subnet->{radius_attributes} =
@@ -5305,27 +5323,23 @@ sub expand_group( $$;$ ) {
 }
 
 sub check_unused_groups() {
-    if ($config{check_unused_groups}) {
-        for my $obj (values %groups, values %servicegroups) {
-            unless ($obj->{is_used}) {
-                my $msg;
-                if (is_area $obj) {
-                    $msg = "unused $obj->{name}";
-                }
-                elsif (my $size = @{ $obj->{elements} }) {
-                    $msg = "unused $obj->{name} with $size element"
-                      . ($size == 1 ? '' : 's');
-                }
-                else {
-                    $msg = "unused empty $obj->{name}";
-                }
-                if ($config{check_unused_groups} eq 'warn') {
-                    warn_msg $msg;
-                }
-                else {
-                    err_msg $msg;
-                }
-            }
+    my $check = sub {
+        my($hash, $print_type) = @_;
+        my $print = $print_type eq 'warn' ? \&warn_msg : \&err_msg;
+        for my $name (sort keys %$hash) {
+            my $value = $hash->{$name};
+            next if $value->{is_used};
+            $print->("unused $value->{name}");
+        }
+    };
+    if (my $conf = $config{check_unused_groups}) {
+        for my $hash (\%groups, \%servicegroups) {
+            $check->($hash, $conf);
+        }
+    }
+    if (my $conf = $config{check_unused_protocols}) {
+        for my $hash (\%services) {
+            $check->($hash, $conf);
         }
     }
 
@@ -5844,9 +5858,9 @@ my %global_permit;
 # - Flag, indicating if values for 'user' are substituted as a whole or
 #   a new rules is expanded for each element.
 # - Flag which will be passed on to expand_group.
-sub expand_rules ( $$$$;$$$ ) {
+sub expand_rules {
     my ($rules_ref, $context, $result, $private, $user, $foreach,
-        $convert_hosts) = @_;
+        $convert_hosts, $disabled) = @_;
 
     # For collecting resulting expanded rules.
     my ($deny, $any, $permit) = @{$result}{ 'deny', 'any', 'permit' };
@@ -5960,6 +5974,7 @@ sub expand_rules ( $$$$;$$$ ) {
                                           " reference $dst->{name} of",
                                           " $dst->{private}.private";
                                     }
+                                    next if $disabled;
 
                                     my $rule = {
                                         stateless => $stateless,
@@ -6026,7 +6041,9 @@ sub expand_policies( ;$) {
             my @pobjects;
             for my $pair (@$overlaps) {
                 my ($type, $oname) = @$pair;
-                if (not($type eq 'service' || $type eq 'policy')) {
+                if (not($type eq 'service' || 
+                        $config{old_syntax} && $type eq 'policy')) 
+                {
                     err_msg "Unexpected type '$type' in attribute 'overlaps'",
                       " of $name";
                 }
@@ -6055,10 +6072,12 @@ sub expand_policies( ;$) {
                 $policy->{visible} = qr/^$prefix.*$/;
             }
         }
+
         my $user = $policy->{user} =
           expand_group($policy->{user}, "user of $name");
         expand_rules($policy->{rules}, $name, \%expanded_rules,
-            $policy->{private}, $user, $policy->{foreach}, $convert_hosts);
+            $policy->{private}, $user, $policy->{foreach}, 
+            $convert_hosts, $policy->{disabled});
     }
     print_rulecount;
     progress "Preparing Optimization";
@@ -14187,22 +14206,22 @@ group-policy $global_group_name attributes
 EOF
 
     # Define tunnel group used for single VPN users.
-    my $tunnel_group_name = 'VPN-single';
+    my $default_tunnel_group = 'VPN-single';
     my $trust_point       = delete $router->{radius_attributes}->{'trust-point'}
       or err_msg
       "Missing 'trust-point' in radius_attributes of $router->{name}";
 
     print <<"EOF";
 ! Used for all single VPN users
-tunnel-group $tunnel_group_name type remote-access
-tunnel-group $tunnel_group_name general-attributes
+tunnel-group $default_tunnel_group type remote-access
+tunnel-group $default_tunnel_group general-attributes
 ! Use internal user database
  authorization-server-group LOCAL
  default-group-policy $global_group_name
  authorization-required
 ! Take username from email address field of certificate.
  username-from-certificate EA
-tunnel-group $tunnel_group_name ipsec-attributes
+tunnel-group $default_tunnel_group ipsec-attributes
  chain
 EOF
 
@@ -14211,6 +14230,8 @@ EOF
  ikev1 trust-point $trust_point
 ! Disable extended authentication.
  ikev1 user-authentication none
+tunnel-group $default_tunnel_group webvpn-attributes
+ authentication certificate
 EOF
     }
     else {
@@ -14221,7 +14242,7 @@ EOF
 EOF
     }
     print <<"EOF";
-tunnel-group-map default-group $tunnel_group_name
+tunnel-group-map default-group $default_tunnel_group
 
 EOF
 
@@ -14244,6 +14265,8 @@ EOF
     };
 
     my %network2group_policy;
+    my %cert_group_map;
+    my %single_cert_map;
     my $user_counter = 0;
     for my $interface (@{ $router->{interfaces} }) {
         next if not $interface->{ip} eq 'tunnel';
@@ -14368,9 +14391,19 @@ EOF
                 my $ip      = print_ip $src->{ip};
                 my $network = $src->{network};
                 if ($src->{mask} == 0xffffffff) {
-                    $id =~ /^\@/
-                      and err_msg "ID of $src->{name} must not start with",
-                      " character '\@'";
+                    if (my ($name, $domain) = ($id =~ /^(.*?)(\@.*)$/)) {
+                        $name or err_msg("ID of $src->{name} must not start",
+                                         " with character '\@'");
+
+                        # For anyconnect clients.
+                        if ($model->{v8_4}) {
+                            $single_cert_map{$domain} = 1;
+                        }
+                    }
+                    else {
+                        err_msg("ID of $src->{name} must contain",
+                                " character '\@'");
+                    }
                     my $mask = print_ip $network->{mask};
                     my $group_policy_name;
                     if (%$attributes) {
@@ -14394,7 +14427,8 @@ EOF
                     my $mask = print_ip $src->{mask};
                     my $max =
                       print_ip($src->{ip} | complement_32bit $src->{mask});
-                    print "crypto ca certificate map ca-map-$user_counter 10\n";
+                    my $map_name = "ca-map-$user_counter";
+                    print "crypto ca certificate map $map_name 10\n";
                     print " subject-name attr ea co $id\n";
                     print "ip local pool $pool_name $ip-$max mask $mask\n";
                     $attributes->{'vpn-filter'}    = $filter_name;
@@ -14443,6 +14477,16 @@ EOF
                     for my $line (@tunnel_ipsec_att) {
                         print " $line\n";
                     }
+
+                    # For anyconnect clients.
+                    if ($model->{v8_4}) {
+                        print <<"EOF";
+tunnel-group $tunnel_group_name webvpn-attributes
+ authentication certificate
+EOF
+                        $cert_group_map{$map_name} = $tunnel_group_name;
+                    }
+
                     print <<"EOF";
 tunnel-group-map ca-map-$user_counter 10 $tunnel_group_name
 
@@ -14500,6 +14544,22 @@ EOF
             print " vpn-group-policy $group_policy_name\n"
               if $group_policy_name;
             print "\n";
+        }
+    }
+
+    # Generate certificate-group-map for anyconnect/ikev2 clients.
+    if (keys %cert_group_map or keys %single_cert_map) {
+        for my $id (sort keys %single_cert_map) {
+            $user_counter++;
+            my $map_name = "ca-map-$user_counter";
+            print "crypto ca certificate map $map_name 10\n";
+            print " subject-name attr ea co $id\n";
+            $cert_group_map{$map_name} = $default_tunnel_group;
+        }
+        print "webvpn\n";
+        for my $map_name (sort keys %cert_group_map) {
+            my $tunnel_group_map = $cert_group_map{$map_name};
+            print " certificate-group-map $map_name 10 $tunnel_group_map\n";
         }
     }
 }
@@ -15194,6 +15254,39 @@ sub print_code( $ ) {
     }
     $config{warn_pix_icmp_code} && warn_pix_icmp;
     progress "Finished" if $config{time_stamps};
+}
+
+sub copy_raw {
+    my ($in_path, $out_dir) = @_;
+    return if not -d $in_path;
+    my $raw_dir = "$in_path/raw";
+    return if not -d $raw_dir;
+
+    my %routers = map { $_->{device_name} => 1 }  @managed_routers;
+
+    opendir(my $dh, $raw_dir) or fatal_err "Can't opendir $raw_dir: $!";
+    while (my $file = Encode::decode($filename_encode, readdir $dh)) {
+        next if $file eq '.' or $file eq '..';
+        next if $file =~ m/$config{ignore_files}/o;
+
+        # Untaint $file.
+        my ($raw_file) = ($file =~ /^(.*)/);
+        my $raw_path = "$raw_dir/$raw_file";
+        if (not -f $raw_path) {
+            warn_msg "Ignoring $raw_path";
+            next;
+        }
+        if (not $routers{$file}) {
+            if (my $conf = $config{check_raw}) {
+                my $msg = "Found unused $raw_path";
+                $conf eq 'warn' ? warn_msg $msg : err_msg $msg;
+            }
+            next;
+        }
+        my $copy = "$out_dir/$raw_file.raw";
+        system("cp -f $raw_path $copy") == 0 or
+            err_msg "Can't copy $raw_path to $copy";
+    }
 }
 
 sub show_version() {

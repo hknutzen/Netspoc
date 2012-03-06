@@ -16,6 +16,10 @@ netspoc [options] {in-directory | in-file | -} [out-directory]
 
 Check for unused groups and servicegroups.
 
+=item B<-check_unused_protocols=0|1|warn>
+
+Check for unused potocol definitions.
+
 =item B<-check_subnets=0|1|warn>
 
 Check for subnets which aren't declared with 'subnet_of' or 'route_hint'.
@@ -47,6 +51,10 @@ Check for inconsistent use of attributes 'extend' and 'extend_only' in owner.
 =item B<-check_transient_any_rules=0|1|warn>
 
 Check for transient any rules.
+
+=item B<-check_raw=0|1|warn>
+
+Check for unused raw files.
 
 =item B<-[no]auto_default_route>
 
@@ -165,6 +173,9 @@ sub read_args() {
 
     my $main_file = shift @ARGV or pod2usage(2);
 
+    # Strip trailing slash for nicer messages.
+    $main_file =~ s</$><>;
+
     # $out_dir is used to store compilation results.
     # For each managed router with name X a corresponding file X
     # is created in $out_dir.
@@ -216,3 +227,4 @@ my $file_config = &read_config($in_path);
 &rules_distribution();
 &local_optimization();
 &print_code($out_dir);
+Netspoc::copy_raw($in_path, $out_dir);
