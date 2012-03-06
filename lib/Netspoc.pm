@@ -160,6 +160,9 @@ our %config = (
 # Check for transient any rules.
     check_transient_any_rules => 0,
 
+# Check for unused raw files.
+    check_raw => 'warn',
+
 # Optimize the number of routing entries per router:
 # For each router find the hop, where the largest
 # number of routing entries points to
@@ -15268,7 +15271,10 @@ sub copy_raw {
             next;
         }
         if (not $routers{$file}) {
-            warn_msg "Found unused $raw_path";
+            if (my $conf = $config{check_raw}) {
+                my $msg = "Found unused $raw_path";
+                $conf eq 'warn' ? warn_msg $msg : err_msg $msg;
+            }
             next;
         }
         my $copy = "$out_dir/$raw_file.raw";

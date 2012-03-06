@@ -52,6 +52,10 @@ Check for inconsistent use of attributes 'extend' and 'extend_only' in owner.
 
 Check for transient any rules.
 
+=item B<-check_raw=0|1|warn>
+
+Check for unused raw files.
+
 =item B<-[no]auto_default_route>
 
 Generate default route to minimize number of routing entries.
