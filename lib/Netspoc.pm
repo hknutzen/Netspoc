@@ -2605,15 +2605,18 @@ sub read_policy( $ ) {
               and error_atline "Duplicate attribute 'visible'";
             $policy->{visible} = $visible;
         }
-        elsif (my $multi_owner = check_flag('multi_owner')) {
+        elsif (check_flag('multi_owner')) {
             $policy->{multi_owner}
               and error_atline "Duplicate attribute 'multi_owner'";
-            $policy->{multi_owner} = $multi_owner;
+            $policy->{multi_owner} = 1;
         }
-        elsif (my $unknown_owner = check_flag('unknown_owner')) {
+        elsif (check_flag('unknown_owner')) {
             $policy->{unknown_owner}
               and error_atline "Duplicate attribute 'unknown_owner'";
-            $policy->{unknown_owner} = $unknown_owner;
+            $policy->{unknown_owner} = 1;
+        }
+        elsif (check_flag('disabled')) {
+            $policy->{disabled} = 1;
         }
         else {
             syntax_err "Expected some valid attribute or definition of 'user'";
@@ -5855,9 +5858,9 @@ my %global_permit;
 # - Flag, indicating if values for 'user' are substituted as a whole or
 #   a new rules is expanded for each element.
 # - Flag which will be passed on to expand_group.
-sub expand_rules ( $$$$;$$$ ) {
+sub expand_rules {
     my ($rules_ref, $context, $result, $private, $user, $foreach,
-        $convert_hosts) = @_;
+        $convert_hosts, $disabled) = @_;
 
     # For collecting resulting expanded rules.
     my ($deny, $any, $permit) = @{$result}{ 'deny', 'any', 'permit' };
@@ -5971,6 +5974,7 @@ sub expand_rules ( $$$$;$$$ ) {
                                           " reference $dst->{name} of",
                                           " $dst->{private}.private";
                                     }
+                                    next if $disabled;
 
                                     my $rule = {
                                         stateless => $stateless,
@@ -6068,10 +6072,12 @@ sub expand_policies( ;$) {
                 $policy->{visible} = qr/^$prefix.*$/;
             }
         }
+
         my $user = $policy->{user} =
           expand_group($policy->{user}, "user of $name");
         expand_rules($policy->{rules}, $name, \%expanded_rules,
-            $policy->{private}, $user, $policy->{foreach}, $convert_hosts);
+            $policy->{private}, $user, $policy->{foreach}, 
+            $convert_hosts, $policy->{disabled});
     }
     print_rulecount;
     progress "Preparing Optimization";
