@@ -15270,6 +15270,9 @@ sub copy_raw {
         check_output_dir $out_dir;
     }
 
+    # Clean PATH if run in taint mode.
+    $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
+
     my %routers = map { $_->{device_name} => 1 }  @managed_routers;
 
     opendir(my $dh, $raw_dir) or fatal_err "Can't opendir $raw_dir: $!";
