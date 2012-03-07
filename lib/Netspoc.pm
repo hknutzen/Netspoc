@@ -11564,32 +11564,6 @@ sub distribute_rule( $$$ ) {
     }
 }
 
-# For rules with src=any:*, call distribute_rule only for
-# the first router on the path from src to dst.
-sub distribute_rule_at_src( $$$ ) {
-    my ($rule, $in_intf, $out_intf) = @_;
-    my $src = $rule->{src};
-    is_any $src or internal_err "$src must be of type 'any'";
-
-    # Rule is only processed at the first router on the path.
-    if ($in_intf->{any} eq $src) {
-        &distribute_rule(@_);
-    }
-}
-
-# For rules with dst=any:*, call distribute_rule only for
-# the last router on the path from src to dst.
-sub distribute_rule_at_dst( $$$ ) {
-    my ($rule, $in_intf, $out_intf) = @_;
-    my $dst = $rule->{dst};
-    is_any $dst or internal_err "$dst must be of type 'any'";
-
-    # Rule is only processed at the last router on the path.
-    if ($out_intf->{any} eq $dst) {
-        &distribute_rule(@_);
-    }
-}
-
 # For each device, find the IP address which is used
 # to manage the device from a central policy distribution point.
 # This address is added as a comment line to each generated code file.
@@ -11995,15 +11969,15 @@ sub rules_distribution() {
                 # by a managed router.
                 # See check_any_both_rule above for details.
                 if ($rule->{any_are_neighbors}) {
-                    path_walk($rule, \&distribute_rule_at_dst);
+                    path_walk($rule, \&distribute_rule);
                 }
             }
             else {
-                path_walk($rule, \&distribute_rule_at_src);
+                path_walk($rule, \&distribute_rule);
             }
         }
         elsif (is_any $rule->{dst}) {
-            path_walk($rule, \&distribute_rule_at_dst);
+            path_walk($rule, \&distribute_rule);
         }
         else {
             internal_err "unexpected rule ", print_rule $rule, "\n";
