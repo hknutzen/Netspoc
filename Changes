@@ -2,12 +2,6 @@
 
 3.008     2012-03-06 16:53:55 Europe/Berlin
 
-3.008     2012-03-06 14:57:30 Europe/Berlin
-
-3.008     2012-03-06 14:31:00 Europe/Berlin
-
-3.008     2012-03-06 10:47:26 Europe/Berlin
-
 - Added support for anyconnect clients of ASA 8.4.
 - Added flag 'disabled' to disable a service.
 - Copy raw files to output directory for better integration 
