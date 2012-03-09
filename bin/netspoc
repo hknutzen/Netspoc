@@ -48,9 +48,9 @@ Check for policies where multiple owners have been derived.
 
 Check for inconsistent use of attributes 'extend' and 'extend_only' in owner.
 
-=item B<-check_transient_any_rules=0|1|warn>
+=item B<-check_transient_aggregate_rules=0|1|warn>
 
-Check for transient any rules.
+Check for transient aggregate rules.
 
 =item B<-check_raw=0|1|warn>
 
@@ -207,17 +207,17 @@ my $file_config = &read_config($in_path);
 &link_topology();
 &mark_disabled();
 &distribute_nat_info();
-&setany();
+&set_zone();
 &setpath();
-&set_policy_owner();
 &find_subnets();
+&set_policy_owner();
 &expand_policies(1);	# 1: expand hosts to subnets
 # Abort now, if there are syntax errors and simple semantic errors.
 &abort_on_error();
 &expand_crypto();
 &check_unused_groups();
 &optimize_and_warn_deleted();
-&check_any_rules();
+&check_aggregate_rules();
 &find_active_routes_and_statics();
 &gen_reverse_rules();
 &mark_secondary_rules();
