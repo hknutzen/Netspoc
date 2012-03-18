@@ -9694,7 +9694,7 @@ sub check_aggregate_src_rule( $$$ ) {
 
                 # zone X != zone Y
                 else {
-                    check_aggregate_in_zone($rule, 'src', $no_acl_intf);
+                    check_aggregate_in_zone($rule, 'src', $no_acl_intf, 1);
                 }
             }
 
@@ -9711,7 +9711,7 @@ sub check_aggregate_src_rule( $$$ ) {
                     my $zone = $intf->{zone};
                     next if $zone eq $out_zone;
                     next if $zone eq $dst_zone;
-                    check_aggregate_in_zone($rule, 'src', $intf);
+                    check_aggregate_in_zone($rule, 'src', $intf, 1);
                 }
             }
         }
@@ -10076,7 +10076,6 @@ sub check_for_transient_aggregate_rule {
 # i.e. r1 would permit dst to zone1 and zone3, but should only 
 # permit dst to zone1.
 # Hence we can skip check_aggregate_dst_rule for this situation.
-# (Case b isn't implemented currently.)
 #
 
 # Mark zones connected by stateless or secondary packet filters or by
