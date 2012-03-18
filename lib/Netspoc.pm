@@ -2570,7 +2570,7 @@ sub check_service_flags {
         if ($flag =~ /^(src|dst)_(net|zone)$/) {
             $service->{flags}->{$1}->{$2} = 1;
         }
-        elsif ($flag =~ /^(?:stateless|reversed|oneway|overlaps)/) {
+        elsif ($flag =~ /^(?:stateless|reversed|oneway|overlaps|no_check_aggregate_rules)/) {
             $service->{flags}->{$flag} = 1;
         }
         else {
@@ -5939,6 +5939,8 @@ sub expand_rules {
                                     };
                                     $rule->{orig_srv} = $orig_srv if $orig_srv;
                                     $rule->{oneway} = 1 if $flags->{oneway};
+                                    $rule->{no_check_aggregate_rules} = 1
+                                        if $flags->{no_check_aggregate_rules};
                                     $rule->{stateless_icmp} = 1
                                       if $flags->{stateless_icmp};
                                     if ($action eq 'deny') {
@@ -9657,7 +9659,7 @@ sub check_aggregate_src_rule( $$$ ) {
         my $proto = $rule->{srv}->{proto};
 
         # Reverse rule wouldn't allow too much traffic, if a non
-        # secondarystateful device filters between src and dst.
+        # secondary stateful device filters between src and dst.
         # If dst is interface, {stateful_mark} is undef
         # - if device is semi_managed, take mark of attached network 
         # - if device is secondary managed, take mark of attached network
@@ -10107,7 +10109,7 @@ sub check_aggregate_rules() {
     }
     for my $rule (@{ $expanded_rules{aggregate} }) {
         next if $rule->{deleted};
-        next if $rule->{srv}->{proto} eq 'icmp';
+        next if $rule->{no_check_aggregate_rules};
         if ($rule->{src}->{is_supernet}) {
             path_walk($rule, \&check_aggregate_src_rule);
         }
