@@ -156,6 +156,9 @@ our %config = (
 # Check for inconsistent use of attributes 'extend' and 'extend_only' in owner.
     check_owner_extend => 0,
 
+# Check for missing aggregate rules.
+    check_aggregate_rules => 'warn',
+
 # Check for transient aggregate rules.
     check_transient_aggregate_rules => 0,
 
@@ -10101,25 +10104,28 @@ sub mark_stateful {
 
 sub check_aggregate_rules() {
     progress "Checking rules with aggregate objects";
-    my $stateful_mark = 1;
-    for my $zone (@all_zones) {
-        if (not $zone->{stateful_mark}) {
-            mark_stateful($zone, $stateful_mark++);
+    if ($config{check_aggregate_rules}) {
+        my $stateful_mark = 1;
+        for my $zone (@all_zones) {
+            if (not $zone->{stateful_mark}) {
+                mark_stateful($zone, $stateful_mark++);
+            }
         }
-    }
-    for my $rule (@{ $expanded_rules{aggregate} }) {
-        next if $rule->{deleted};
-        next if $rule->{no_check_aggregate_rules};
-        if ($rule->{src}->{is_supernet}) {
-            path_walk($rule, \&check_aggregate_src_rule);
-        }
-        if ($rule->{dst}->{is_supernet}) {
-            path_walk($rule, \&check_aggregate_dst_rule);
+        for my $rule (@{ $expanded_rules{aggregate} }) {
+            next if $rule->{deleted};
+            next if $rule->{no_check_aggregate_rules};
+            if ($rule->{src}->{is_supernet}) {
+                path_walk($rule, \&check_aggregate_src_rule);
+            }
+            if ($rule->{dst}->{is_supernet}) {
+                path_walk($rule, \&check_aggregate_dst_rule);
+            }
         }
         %missing_aggregate = ();
     }
-    check_for_transient_aggregate_rule() 
-        if $config{check_transient_aggregate_rules};
+    if ($config{check_transient_aggregate_rules}) {
+        check_for_transient_aggregate_rule() 
+    }
 
     # no longer needed; free some memory.
     %obj2zone = ();

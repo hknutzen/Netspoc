@@ -48,6 +48,10 @@ Check for policies where multiple owners have been derived.
 
 Check for inconsistent use of attributes 'extend' and 'extend_only' in owner.
 
+=item B<-check_aggregate_rules=0|1|warn>
+
+Check for missing aggregate rules.
+
 =item B<-check_transient_aggregate_rules=0|1|warn>
 
 Check for transient aggregate rules.
