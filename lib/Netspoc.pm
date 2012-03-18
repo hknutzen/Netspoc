@@ -9650,10 +9650,29 @@ sub check_aggregate_src_rule( $$$ ) {
         }
     }
 
-    # Check if reverse rule would need additional rules.
-    if ($router->{model}->{stateless} and not $rule->{oneway}) {
+    # Check if reverse rule would be created and would need additional rules.
+    if ($router->{model}->{stateless} && ! $rule->{oneway})
+
+    {
         my $proto = $rule->{srv}->{proto};
-        if ($proto eq 'tcp' or $proto eq 'udp' or $proto eq 'ip') {
+
+        # Reverse rule wouldn't allow too much traffic, if a non
+        # secondarystateful device filters between src and dst.
+        # If dst is interface, {stateful_mark} is undef
+        # - if device is semi_managed, take mark of attached network 
+        # - if device is secondary managed, take mark of attached network
+        # - else take value -1, different from all marks.
+        my $m1 = get_zone($rule->{src})->{stateful_mark};
+        my $m2 = $dst_zone->{stateful_mark};
+        if (! $m2) {
+            my $managed = $dst->{router}->{managed};
+            $m2 = ! $managed || $managed eq 'secondary'
+                ? $dst->{network}->{zone} 
+                : -1;
+        }
+        if (($proto eq 'tcp' || $proto eq 'udp' || $proto eq 'ip') &&
+            $m1 == $m2)
+        {
 
             # Check case II, outgoing ACL, (B), interface Y without ACL.
             if (my $no_acl_intf = $router->{no_in_acl}) {
@@ -10010,6 +10029,8 @@ sub check_for_transient_aggregate_rule {
 }
 
 # Handling of aggregate rules created by gen_reverse_rules.
+# This is not needed if a stateful and not secondary packet filter is
+# located on the path between src and dst.
 #
 # 1. dst is aggregate
 #
@@ -10053,10 +10074,40 @@ sub check_for_transient_aggregate_rule {
 # (Case b isn't implemented currently.)
 #
 
+# Mark zones connected by stateless or secondary packet filters or by
+# semi_managed devices.
+sub mark_stateful {
+    my ($zone, $mark) = @_;
+    $zone->{stateful_mark} = $mark;
+    for my $in_interface (@{ $zone->{interfaces} }) {
+        my $router = $in_interface->{router};
+        if ($router->{managed}) {
+            next if ! $router->{model}->{stateless} && 
+                    $router->{managed} ne 'secondary';
+        }
+        next if $router->{active_path};
+        $router->{active_path} = 1;
+        for my $out_interface (@{ $router->{interfaces} }) {
+            next if $out_interface eq $in_interface;
+            my $next_zone = $out_interface->{zone};
+            next if $next_zone->{stateful_mark};
+            mark_stateful($next_zone, $mark);
+        }
+        delete $router->{active_path};
+    }
+}
+
 sub check_aggregate_rules() {
     progress "Checking rules with aggregate objects";
+    my $stateful_mark = 1;
+    for my $zone (@all_zones) {
+        if (not $zone->{stateful_mark}) {
+            mark_stateful($zone, $stateful_mark++);
+        }
+    }
     for my $rule (@{ $expanded_rules{aggregate} }) {
         next if $rule->{deleted};
+        next if $rule->{srv}->{proto} eq 'icmp';
         if ($rule->{src}->{is_supernet}) {
             path_walk($rule, \&check_aggregate_src_rule);
         }
@@ -10065,7 +10116,8 @@ sub check_aggregate_rules() {
         }
         %missing_aggregate = ();
     }
-    check_for_transient_aggregate_rule() if $config{check_transient_aggregate_rules};
+    check_for_transient_aggregate_rule() 
+        if $config{check_transient_aggregate_rules};
 
     # no longer needed; free some memory.
     %obj2zone = ();
