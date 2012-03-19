@@ -10290,6 +10290,7 @@ sub mark_secondary ( $$ );
 sub mark_secondary ( $$ ) {
     my ($zone, $mark) = @_;
     $zone->{secondary_mark} = $mark;
+#    debug "$zone->{name} $mark";
     for my $in_interface (@{ $zone->{interfaces} }) {
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
@@ -10350,14 +10351,18 @@ sub mark_secondary_rules() {
     # Mark only normal rules for secondary optimization.
     # We can't change a deny rule from e.g. tcp to ip.
     # We can't change aggregate rules, because path is unknown.
-    for my $rule (@{ $expanded_rules{permit} }) {
+    for my $rule (@{ $expanded_rules{permit} }, 
+                  @{ $expanded_rules{aggregate} }) 
+    {
         next
           if $rule->{deleted}
               and
               (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
-
-        my $src_zone = get_zone2 $rule->{src};
-        my $dst_zone = get_zone2 $rule->{dst};
+        
+        my ($src, $dst) = @{$rule}{qw(src dst)};
+        next if $src->{is_aggregate} || $dst->{is_aggregate};
+        my $src_zone = get_zone2($src);
+        my $dst_zone = get_zone2($dst);
 
         if ($src_zone->{secondary_mark} ne $dst_zone->{secondary_mark}) {
             $rule->{some_non_secondary} = 1;
