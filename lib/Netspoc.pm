@@ -4890,14 +4890,14 @@ sub expand_group1( $$;$ ) {
                     if ($type eq 'Network') {
                         if ($selector eq 'all') {
                             if ($object->{is_aggregate}) {
-                                
-                                # Take managed interfaces of all subnets.
-                                # This gives border interfaces of the zone, 
-                                # which belong to aggregate.
-                                push @check,
-                                  grep { $_->{router}->{managed} }
-                                  map { @{ $_->{interfaces} } }
-                                  @{ $object->{networks} };
+
+                                # We can't simply take 
+                                # aggregate -> networks -> interfaces,
+                                # because subnets may be missing.
+                                $object->{mask} == 0 or
+                                    err_msg "interface:[aggregate:xx] is only",
+                                      " implemented for aggregate with mask 0";
+                                push @check, @{ $object->{zone}->{interfaces} };
                             }
                             elsif ($managed) {
                                 push @check,
