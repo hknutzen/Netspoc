@@ -6954,6 +6954,64 @@ sub nat_to_loopback_ok {
     return($all_device_ok == $device_count);
 }
 
+sub check_subnet_nat {
+    my ($a, $b) = @_;
+    my $a_tags = $a->{nat};
+    my $b_tags = $b->{nat};
+    return if $b->{is_aggregate} && $b->{mask} == 0;
+    return if ! keys %$a_tags && ! keys %$b_tags;
+    my @a_only = grep { ! $b_tags->{$_} } keys %$a_tags;
+    my @b_only = grep { ! $a_tags->{$_} } keys %$b_tags;
+
+    # Additional NAT for subnet is ok if it is applied inside the
+    # current zone at b network.
+    if (@a_only == 1) {
+        my $tag = $a_only[0];
+        my $no_nat_set = $b->{nat_domain}->{no_nat_set};
+        if (! $no_nat_set->{$tag}) {
+            @a_only = ();
+        }
+    }
+    my @msg;
+    if (@a_only) {
+        push @msg, "Only $a->{name} has " . join (', ', map("nat:$_", @a_only));
+    }
+    if (@b_only) {
+        push @msg, "Only $b->{name} has " . join (', ', map("nat:$_", @b_only));
+    }
+    for my $tag (keys %$b_tags) {
+        next if ! $a_tags->{$tag};
+        my $a_nat = $a_tags->{$tag};
+        my $b_nat = $b_tags->{$tag};
+        if ($a_nat->{dynamic} xor $b_nat->{dynamic}) {
+            push @msg, "Must equally use 'dynamic' for nat:$tag";
+            next;
+        }
+        if ($a_nat->{dynamic}) {
+            if (! ($a_nat->{ip} == $b_nat->{ip} && 
+                   $a_nat->{mask} == $b_nat->{mask}))
+            {
+                push @msg, "Must use identical ip/mask for nat:$tag";
+                next;
+            }
+        }
+        else {
+            my $ip =
+              $b_nat->{ip} | $a->{ip} & complement_32bit $b_nat->{mask};
+            if ($ip != $a_nat->{ip}) {
+                push @msg, "Must translate to same addresses for nat:$tag";
+                next;
+            }
+        }
+    }
+
+    if (@msg) {
+        warn_msg(join("\n ",
+                      "Inconsistent NAT for $a->{name} < $b->{name}",
+                      @msg));
+    }
+}
+
 sub numerically { $a <=> $b }
 
 # Find relation between networks:
@@ -7084,18 +7142,9 @@ sub find_subnets() {
                                      ? @{ $subnet->{networks} || [] }
                                      : ($subnet));
 
-                                # Subnet relation inside a zone with
-                                # NAT isn't well defined.
-                                if ((keys %{ $subnet->{nat} } || 
-                                     keys %{ $orig_big->{nat} }) &&
-                                    $zone->{has_multi_nat}) 
-                                {
-                                    err_msg 
-                                        "Must not use $subnet->{name}",
-                                        " and $orig_big->{name} with NAT\n",
-                                        " in $zone->{name}",
-                                        " having multiple NAT domains";
-                                }
+                                # Check for consistent NAT at subnet relation.
+                                check_subnet_nat($subnet, $orig_big);
+
                                 last if $find_zone_relation;
                             }
                             else {
@@ -7769,16 +7818,6 @@ sub set_zone {
         @{ $zone->{networks} } =
           sort { $a->{mask} <=> $b->{mask} || $a->{ip} <=> $b->{ip} }
           @{ $zone->{networks} };
-
-        # Mark zone which has more than one NAT domain visible at it's
-        # border. Isolated NAT domain, not connected to some managed
-        # device doesn't count.
-        if ((my $interfaces = $zone->{interfaces} || 0) > 1) {
-            my %hash = map { $_->{no_nat_set} ? ($_->{no_nat_set} => 1) : () } 
-                           @$interfaces;
-            my $count = keys %hash;
-            $zone->{has_multi_nat} = $count if $count > 1;
-        }
 
         # Mark clusters of zones, which are connected by an unmanaged
         # (semi_managed) device.
