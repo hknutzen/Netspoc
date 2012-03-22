@@ -7162,16 +7162,21 @@ sub find_subnets() {
                         # This may differ for different NAT domains.
                         $subnet->{is_in}->{$no_nat_set} = $bignet;
 
-                        # Mark network having subnets.
-                        # Collect rules having src or dst with subnets into
-                        # $expanded_rules->{supernet}
-                        $bignet->{is_supernet} = 1;
-
                         if ($seen{$nat_bignet}->{$nat_subnet}) {
                             next if $find_zone_relation;
                             last;
                         }
                         $seen{$nat_bignet}->{$nat_subnet} = 1;
+
+                        # Mark network having subnets.  Rules having
+                        # src or dst with subnets are collected into
+                        # $expanded_rules->{supernet}
+                        if (! $bignet->{is_supernet}) {
+                            $bignet->{is_supernet} = 1;
+                            for my $network (@{ $identical{$bignet} }) {
+                                $network->{is_supernet} = 1;
+                            }
+                        }
 
                         if ($config{check_subnets}) {
 
