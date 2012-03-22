@@ -2279,9 +2279,14 @@ sub read_aggregate {
         }
     }
     $aggregate->{link} or err_msg "Attribute 'link' must be defined for $name";
-    $aggregate->{ip} ||= 0;
-    $aggregate->{mask} ||= 0;
-    if ($aggregate->{mask}) {
+    my $ip = $aggregate->{ip} ||= 0;
+    my $mask = $aggregate->{mask} ||= 0;
+    if ($mask) {
+
+        # Check if aggregate IP matches mask.
+        if (not(match_ip($ip, $ip, $mask))) {
+            error_atline "IP and mask don't match";
+        }
         $aggregate->{owner} and
             error_atline "Must not define 'owner' if mask is set";
         $aggregate->{no_in_acl} and
