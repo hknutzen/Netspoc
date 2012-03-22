@@ -9512,8 +9512,10 @@ sub find_supernet {
 # String: More than one network found and no supernet exists.
 #         String has the name of first two networks.
 sub find_zone_network {
-    my ($zone, $other) = @_;
-    my ($ip, $mask) = @{$other}{qw(ip mask)};
+    my ($interface, $zone, $other) = @_;
+    my $no_nat_set = $interface->{no_nat_set};
+    my $nat_other = get_nat_network($other, $no_nat_set);
+    my ($ip, $mask) = @{$nat_other}{qw(ip mask)};
     my $key = "$ip/$mask";
     if (my $aggregate = $zone->{ipmask2aggregate}->{$key}) {
         return $aggregate;
@@ -9526,7 +9528,8 @@ sub find_zone_network {
     my $networks = $zone->{networks};
     my $result = 0;
     for my $network (@$networks) {
-        my ($i, $m) = @{$network}{qw(ip mask)};
+        my $nat_network = get_nat_network($network, $no_nat_set);
+        my ($i, $m) = @{$nat_network}{qw(ip mask)};
         next if $i  =~ /^(?:unnumbered|tunnel)$/;
 
 # ToDo: check also for supernet
@@ -9556,8 +9559,8 @@ sub find_zone_network {
 # []   : Multiple networks match, but no supernet exists.
 # [N, ..]: Array reference to networks which match $other (ascending order).
 sub find_matching_aggregate {
-    my ($zone, $other) = @_;
-    my $net_or_count = find_zone_network($zone, $other);
+    my ($interface, $zone, $other) = @_;
+    my $net_or_count = find_zone_network($interface, $zone, $other);
 
     # No network or aggregate matches.
     # $other wont match in current zone.
@@ -9588,15 +9591,22 @@ sub find_matching_aggregate {
 # Prevent multiple error messages about missing aggregate rules;
 my %missing_aggregate;
 
+# $rule: the rule to be checked 
+# $where: has value 'src' or 'dst'
+# $interface: interface, where traffic reaches the device,
+#             this is used to determine no_nat_set
+# $zone: The zone to be checked.
+#        If $where is 'src', then $zone is attached to $interface
+#        If $where is 'dst', then $zone is at other side of device.
+# $reversed: (optional) the check is for reversed rule at stateless device
 sub check_aggregate_in_zone {
-    my ($rule, $where, $interface, $reversed) = @_;
+    my ($rule, $where, $interface, $zone, $reversed) = @_;
 
     my ($stateless, $action, $src, $dst, $src_range, $srv) =
         @{$rule}{qw(stateless action src dst src_range srv)};
     my $other = $where eq 'src' ? $src : $dst;
-    my $zone = $interface->{zone};
 
-    my $networks = find_matching_aggregate($zone, $other);
+    my $networks = find_matching_aggregate($interface, $zone, $other);
     return if not $networks;
     my $extra;
     if (! ref($networks)) {
@@ -9651,10 +9661,6 @@ sub check_aggregate_src_rule( $$$ ) {
     # Function is called from path_walk.
     my ($rule, $in_intf, $out_intf) = @_;
 
-    # Check only for the first router, because next test will be done
-    # for rule "permit aggregate2 dst" anyway.
-##    return unless $in_intf->{zone} eq $rule->{src}->{zone};
-
     # Destination is interface of current router and therefore there is
     # nothing to be checked.
     return unless $out_intf;
@@ -9690,9 +9696,11 @@ sub check_aggregate_src_rule( $$$ ) {
 
         # b), 2. zone X != zone Y
         else {
-            check_aggregate_in_zone($rule, 'src', $no_acl_intf);
+            check_aggregate_in_zone($rule, 'src', $no_acl_intf, $no_acl_zone);
         }
     }
+    my $src = $rule->{src};
+    my $src_zone = $src->{zone};
 
     # Check if reverse rule would be created and would need additional rules.
     if ($router->{model}->{stateless} && ! $rule->{oneway})
@@ -9706,7 +9714,7 @@ sub check_aggregate_src_rule( $$$ ) {
         # - if device is semi_managed, take mark of attached network 
         # - if device is secondary managed, take mark of attached network
         # - else take value -1, different from all marks.
-        my $m1 = get_zone($rule->{src})->{stateful_mark};
+        my $m1 = get_zone($src)->{stateful_mark};
         my $m2 = $dst_zone->{stateful_mark};
         if (! $m2) {
             my $managed = $dst->{router}->{managed};
@@ -9728,12 +9736,13 @@ sub check_aggregate_src_rule( $$$ ) {
 
                 # b) dst not behind Y
                 # zone X == zone Y
-                elsif ($no_acl_zone eq $rule->{src}->{zone}) {
+                elsif ($no_acl_zone eq $src_zone) {
                 }
 
                 # zone X != zone Y
                 else {
-                    check_aggregate_in_zone($rule, 'src', $no_acl_intf, 1);
+                    check_aggregate_in_zone($rule, 'src', 
+                                            $no_acl_intf, $no_acl_zone, 1);
                 }
             }
 
@@ -9746,22 +9755,23 @@ sub check_aggregate_src_rule( $$$ ) {
                     next if $intf->{loopback};
 
                     # Nothing to be checked for an interface directly
-                    # connected to the destination zone.
+                    # connected to src or dst.
                     my $zone = $intf->{zone};
-                    next if $zone eq $out_zone;
+                    next if $zone eq $src_zone;
                     next if $zone eq $dst_zone;
-                    check_aggregate_in_zone($rule, 'src', $intf, 1);
+                    check_aggregate_in_zone($rule, 'src', $intf, $zone, 1);
                 }
             }
         }
     }
 
-    # Security zone of dst is directly connected to current router.
-    # Hence there can't be any missing rules.
-    return if $out_zone eq $dst_zone;
+    # Nothing to do at first router.
+    # zone2 is checked at R2, because we need the no_nat_set at R2.
+    my $zone = $in_intf->{zone};
+    return if $src_zone eq $zone;
 
     # Check if rule "aggregate2 -> dst" is defined.
-    check_aggregate_in_zone($rule, 'src', $out_intf);
+    check_aggregate_in_zone($rule, 'src', $in_intf, $zone);
 }
 
 # If such rule is defined
@@ -9790,14 +9800,10 @@ sub check_aggregate_dst_rule( $$$ ) {
     my $router = $in_intf->{router};
     return if not $router->{managed};
 
-    my $in_zone  = $in_intf->{zone};
-    my $out_zone = $out_intf->{zone};
     my $src = $rule->{src};
-
-    # We only need to check last router on path.
-##    return unless $dst eq $out_zone;
-
     my $src_zone = get_zone($src);
+    my $dst = $rule->{dst};
+    my $dst_zone = $dst->{zone};
 
     # Check case II, outgoing ACL, (B), interface Y without ACL.
     if (my $no_acl_intf = $router->{no_in_acl}) {
@@ -9809,12 +9815,12 @@ sub check_aggregate_dst_rule( $$$ ) {
 
         # b) src not behind Y
         # zone X == zone Y
-        elsif ($no_acl_zone eq $rule->{dst}->{zone}) {
+        elsif ($no_acl_zone eq $dst_zone) {
         }
 
         # zone X != zone Y
         else {
-            check_aggregate_in_zone($rule, 'dst', $no_acl_intf);
+            check_aggregate_in_zone($rule, 'dst', $in_intf, $no_acl_zone);
         }
         return;
     }
@@ -9829,15 +9835,15 @@ sub check_aggregate_dst_rule( $$$ ) {
       )
     {
 
-        # Nothing to be checked for the interface which is connected
-        # directly to the destination zone.
-        next if $intf eq $out_intf;
+        # Check each intermediate zone only once at outgoing interface.
+        next if $intf eq $in_intf;
         next if $intf->{loopback};
-        my $zone = $intf->{zone};
 
-        # Nothing to be checked if src is directly attached to current router.
+        # Don't check interface where src or dst is attached.
+        my $zone = $intf->{zone};
         next if $zone eq $src_zone;
-        check_aggregate_in_zone($rule, 'dst', $intf);
+        next if $zone eq $dst_zone;
+        check_aggregate_in_zone($rule, 'dst', $in_intf, $zone);
     }
 }
 
