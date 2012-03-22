@@ -9532,8 +9532,9 @@ sub find_zone_network {
         my ($i, $m) = @{$nat_network}{qw(ip mask)};
         next if $i  =~ /^(?:unnumbered|tunnel)$/;
 
-# ToDo: check also for supernet
-        if ($m >= $mask && match_ip($i, $ip, $mask)) {
+        if ($m >= $mask && match_ip($i, $ip, $mask) ||
+            $m < $mask && match_ip($ip, $i, $m))
+        {
 
             # Found first matching network.
             if (! $result) {
@@ -9694,6 +9695,9 @@ sub check_aggregate_src_rule( $$$ ) {
         elsif ($in_intf eq $no_acl_intf) {
         }
 
+        elsif (has_global_restrict($no_acl_intf)) {
+        }
+
         # b), 2. zone X != zone Y
         else {
             check_aggregate_in_zone($rule, 'src', $no_acl_intf, $no_acl_zone);
@@ -9739,6 +9743,9 @@ sub check_aggregate_src_rule( $$$ ) {
                 elsif ($no_acl_zone eq $src_zone) {
                 }
 
+                elsif (has_global_restrict($no_acl_intf)) {
+                }
+
                 # zone X != zone Y
                 else {
                     check_aggregate_in_zone($rule, 'src', 
@@ -9759,6 +9766,7 @@ sub check_aggregate_src_rule( $$$ ) {
                     my $zone = $intf->{zone};
                     next if $zone eq $src_zone;
                     next if $zone eq $dst_zone;
+                    next if has_global_restrict($intf);
                     check_aggregate_in_zone($rule, 'src', $intf, $zone, 1);
                 }
             }
@@ -9818,6 +9826,9 @@ sub check_aggregate_dst_rule( $$$ ) {
         elsif ($no_acl_zone eq $dst_zone) {
         }
 
+        elsif (has_global_restrict($no_acl_intf)) {
+        }
+
         # zone X != zone Y
         else {
             check_aggregate_in_zone($rule, 'dst', $in_intf, $no_acl_zone);
@@ -9843,6 +9854,7 @@ sub check_aggregate_dst_rule( $$$ ) {
         my $zone = $intf->{zone};
         next if $zone eq $src_zone;
         next if $zone eq $dst_zone;
+        next if has_global_restrict($intf);
         check_aggregate_in_zone($rule, 'dst', $in_intf, $zone);
     }
 }
