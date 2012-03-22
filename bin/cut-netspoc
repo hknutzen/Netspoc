@@ -203,7 +203,7 @@ for my $area (values %areas) {
 }
 
 # Mark networks inside aggregates.
-for my $zone (@Netspoc::all_zones) {
+for my $zone (values %zones) {
     for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
         if($aggregate->{is_used}) {
             for my $network (@{ $aggregate->{networks} }) {
