@@ -102,7 +102,7 @@ our @EXPORT = qw(
   setpath
   path_walk
   find_active_routes_and_statics
-  check_aggregate_rules
+  check_supernet_rules
   optimize_and_warn_deleted
   optimize
   distribute_nat_info
@@ -156,11 +156,11 @@ our %config = (
 # Check for inconsistent use of attributes 'extend' and 'extend_only' in owner.
     check_owner_extend => 0,
 
-# Check for missing aggregate rules.
-    check_aggregate_rules => 'warn',
+# Check for missing supernet rules.
+    check_supernet_rules => 'warn',
 
-# Check for transient aggregate rules.
-    check_transient_aggregate_rules => 0,
+# Check for transient supernet rules.
+    check_transient_supernet_rules => 0,
 
 # Check for unused raw files.
     check_raw => 'warn',
@@ -2575,10 +2575,10 @@ sub check_service_flags {
     my ($service) = @_;
     while (check ',') {
         my $flag = read_identifier;
-        if ($flag =~ /^(src|dst)_(net|zone)$/) {
+        if ($flag =~ /^(src|dst)_(net|any)$/) {
             $service->{flags}->{$1}->{$2} = 1;
         }
-        elsif ($flag =~ /^(?:stateless|reversed|oneway|overlaps|no_check_aggregate_rules)/) {
+        elsif ($flag =~ /^(?:stateless|reversed|oneway|overlaps|no_check_supernet_rules)/) {
             $service->{flags}->{$flag} = 1;
         }
         else {
@@ -2973,7 +2973,6 @@ sub read_to_semicolon() {
 my %global_type = (
     router          => [ \&read_router,          \%routers ],
     network         => [ \&read_network,         \%networks ],
-    aggregate       => [ \&read_aggregate,       \%aggregates ],
     any             => [ \&read_aggregate,       \%aggregates ],
     area            => [ \&read_area,            \%areas ],
     owner           => [ \&read_owner,           \%owners ],
@@ -3142,11 +3141,11 @@ sub is_interface( $ )     { ref($_[0]) eq 'Interface'; }
 sub is_host( $ )          { ref($_[0]) eq 'Host'; }
 sub is_subnet( $ )        { ref($_[0]) eq 'Subnet'; }
 sub is_area( $ )          { ref($_[0]) eq 'Area'; }
+sub is_zone( $ )          { ref($_[0]) eq 'Zone'; }
 sub is_group( $ )         { ref($_[0]) eq 'Group'; }
 sub is_servicegroup( $ )  { ref($_[0]) eq 'Servicegroup'; }
 sub is_objectgroup( $ )   { ref($_[0]) eq 'Objectgroup'; }
 sub is_chain( $ )         { ref($_[0]) eq 'Chain'; }
-sub is_zone( $ )          { ref($_[0]) eq 'Zone'; }
 sub is_autointerface( $ ) { ref($_[0]) eq 'Autointerface'; }
 
 # Get VPN id of network object, if available.
@@ -4202,8 +4201,8 @@ my @managed_routers;
 my @managed_vpnhub;
 my @routers;
 my @networks;
-my @all_zones;
-my @all_areas;
+my @zones;
+my @areas;
 
 # Transform topology for networks with isolated ports.
 # If a network has attribute 'isolated_ports',
@@ -4446,14 +4445,14 @@ sub mark_disabled() {
                 $area->{disabled} = 1;
             }
             else {
-                push @all_areas, $area;
+                push @areas, $area;
             }
         }
         else {
             $area->{border} =
               [ grep { not $_->{disabled} } @{ $area->{border} } ];
             if (@{ $area->{border} }) {
-                push @all_areas, $area;
+                push @areas, $area;
             }
             else {
                 $area->{disabled} = 1;
@@ -4767,7 +4766,6 @@ my %name2object = (
     host      => \%hosts,
     network   => \%networks,
     interface => \%interfaces,
-    aggregate => \%aggregates,
     any       => \%aggregates,
     group     => \%groups,
     area      => \%areas,
@@ -4900,8 +4898,10 @@ sub expand_group1( $$;$ ) {
                                 # aggregate -> networks -> interfaces,
                                 # because subnets may be missing.
                                 $object->{mask} == 0 or
-                                    err_msg "interface:[aggregate:xx] is only",
-                                      " implemented for aggregate with mask 0";
+                                    err_msg "Must not use",
+                                      " interface:[..].[all]\n",
+                                      " with $object->{name} having ip/mask\n",
+                                      " in $context";
                                 push @check, @{ $object->{zone}->{interfaces} };
                             }
                             elsif ($managed) {
@@ -4916,7 +4916,7 @@ sub expand_group1( $$;$ ) {
                         else {
                             if ($object->{is_aggregate}) {
                                 err_msg "Must not use",
-                                  " interface:[aggregate:..].[auto]",
+                                  " interface:[any:..].[auto]",
                                   " in $context";
                             }
                             else {
@@ -5113,7 +5113,7 @@ sub expand_group1( $$;$ ) {
                     }
                 }
             }
-            elsif ($type eq 'aggregate' || $type eq 'any') {
+            elsif ($type eq 'any') {
                 for my $object (@$sub_objects) {
                     my $type = ref $object;
                     if (my $aggregates = $get_aggregates->($object)) {
@@ -5124,7 +5124,7 @@ sub expand_group1( $$;$ ) {
                     }
                     else {
                         err_msg
-                            "Unexpected type '$type' in aggregate:[..]",
+                            "Unexpected type '$type' in any:[..]",
                             " of $context";
                     }
                 }
@@ -5381,9 +5381,9 @@ sub expand_services( $$ ) {
 
 sub path_auto_interfaces( $$ );
 
-# Hash with attributes deny, aggregate, permit for storing
+# Hash with attributes deny, supernet, permit for storing
 # expanded rules of different type.
-our %expanded_rules = (deny => [], aggregate => [], permit => []);
+our %expanded_rules = (deny => [], supernet => [], permit => []);
 
 # Hash for ordering all rules:
 # $rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$src_range}->{$srv}
@@ -5553,7 +5553,7 @@ sub expand_special ( $$$$ ) {
         }
         @result = (@other, values %networks);
     }
-    if ($flags->{zone}) {
+    if ($flags->{any}) {
         my %zones;
         for my $obj (@result) {
             my $type = ref $obj;
@@ -5624,7 +5624,7 @@ sub collect_unenforceable ( $$$$ ) {
     {
 
         # This is a common case, which results from rules like
-        # group:some_networks -> aggregate:[group:some_networks]
+        # group:some_networks -> any:[group:some_networks]
         return if not($src->{is_aggregate} and $dst->{is_aggregate});
     }
     delete $unenforceable_context{$context};
@@ -5810,7 +5810,7 @@ my %global_permit;
 # Parameters:
 # - Reference to array of unexpanded rules.
 # - Current context for error messages: name of policy or crypto object.
-# - Reference to hash with attributes deny, aggregate, permit for storing
+# - Reference to hash with attributes deny, supernet, permit for storing
 #   resulting expanded rules of different type.
 # Optional, used when called from expand_policies:
 # - Reference to array of values. Occurrences of 'user' in rules
@@ -5823,7 +5823,7 @@ sub expand_rules {
         $convert_hosts, $disabled) = @_;
 
     # For collecting resulting expanded rules.
-    my ($deny, $aggregate, $permit) = @{$result}{ 'deny', 'aggregate', 'permit' };
+    my ($deny, $supernet, $permit) = @{$result}{ 'deny', 'supernet', 'permit' };
 
     for my $unexpanded (@$rules_ref) {
         my $action = $unexpanded->{action};
@@ -5947,8 +5947,8 @@ sub expand_rules {
                                     };
                                     $rule->{orig_srv} = $orig_srv if $orig_srv;
                                     $rule->{oneway} = 1 if $flags->{oneway};
-                                    $rule->{no_check_aggregate_rules} = 1
-                                        if $flags->{no_check_aggregate_rules};
+                                    $rule->{no_check_supernet_rules} = 1
+                                        if $flags->{no_check_supernet_rules};
                                     $rule->{stateless_icmp} = 1
                                       if $flags->{stateless_icmp};
                                     if ($action eq 'deny') {
@@ -5962,7 +5962,7 @@ sub expand_rules {
 
 ) 
                                     {
-                                        push @$aggregate, $rule;
+                                        push @$supernet, $rule;
                                     }
                                     else {
                                         push @$permit, $rule;
@@ -5982,7 +5982,7 @@ sub expand_rules {
 
 sub print_rulecount () {
     my $count = 0;
-    for my $type ('deny', 'aggregate', 'permit') {
+    for my $type ('deny', 'supernet', 'permit') {
         $count += grep { not $_->{deleted} } @{ $expanded_rules{$type} };
     }
     info "Expanded rule count: $count";
@@ -6050,7 +6050,7 @@ sub expand_policies( ;$) {
     }
     print_rulecount;
     progress "Preparing Optimization";
-    for my $type ('deny', 'aggregate', 'permit') {
+    for my $type ('deny', 'supernet', 'permit') {
         add_rules $expanded_rules{$type};
     }
     show_deleted_rules1();
@@ -6063,7 +6063,7 @@ sub expand_policies( ;$) {
 sub propagate_owners {
     my %zone_got_net_owners;
   ZONE:
-    for my $zone (@all_zones) {
+    for my $zone (@zones) {
 
         # Owner of zone is set at aggregate with ip 0/0.
         if (my $any = $zone->{ipmask2aggregate}->{'0/0'}) {
@@ -6096,7 +6096,7 @@ sub propagate_owners {
     # A zone can be part of multiple areas.
     # Find the smallest enclosing area.
     my %zone2area;
-    for my $zone (@all_zones) {
+    for my $zone (@zones) {
         my @areas = values %{ $zone->{areas} } or next;
         @areas = sort { @{ $a->{zones} } <=> @{ $b->{zones} } } @areas;
         $zone2area{$zone} = $areas[0];
@@ -6160,7 +6160,7 @@ sub propagate_owners {
     };
 
     # Find subset relation between zones and networks.
-    for my $zone (@all_zones) {
+    for my $zone (@zones) {
         for my $network (@{ $zone->{networks} }) {
             $add_node->($zone, $network);
             $add_subnets->($network);
@@ -6290,7 +6290,7 @@ sub propagate_owners {
     }
 
     # Inherit owner from enclosing network or zone to aggregate.
-    for my $zone (@all_zones) {
+    for my $zone (@zones) {
         for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
             next if $aggregate->{owner};
             my $up = $aggregate;
@@ -7164,7 +7164,7 @@ sub find_subnets() {
 
                         # Mark network having subnets.
                         # Collect rules having src or dst with subnets into
-                        # $expanded_rules->{aggregate}
+                        # $expanded_rules->{supernet}
                         $bignet->{is_supernet} = 1;
 
                         if ($seen{$nat_bignet}->{$nat_subnet}) {
@@ -7217,7 +7217,7 @@ sub find_subnets() {
         }
     }
 
-    for my $zone (@all_zones) {
+    for my $zone (@zones) {
 
         # Remove subnets of non-aggregate networks.
         my $is_subnet;
@@ -7279,7 +7279,7 @@ sub check_vpnhub () {
 sub check_no_in_acl () {
 
     # Propagate attribute 'no_in_acl' from zones to interfaces.
-    for my $zone (@all_zones) {
+    for my $zone (@zones) {
         next if not $zone->{no_in_acl};
 
 #	debug "$zone->{name} has attribute 'no_in_acl'";
@@ -7581,7 +7581,10 @@ sub link_aggregates {
             $aggregate->{disabled} = 1;
         }
     }
-    for my $zone (@all_zones) {
+
+    # Add one aggregate to each zone where non has been defined,
+    # to be used in implcit aggregates any:[..].
+    for my $zone (@zones) {
         my $key = '0/0';
         next if $zone->{ipmask2aggregate}->{'0/0'};
         next if ! @{ $zone->{networks} };
@@ -7590,9 +7593,8 @@ sub link_aggregates {
         # {up} relation wouldn't be well defined.
         next if grep { $_->{mask} == 0 } @{ $zone->{networks} };
 
-        (my $name = $zone->{name}) =~ s/^zone:\[(.*)\]$/aggregate:[$1]/;
         my $aggregate = new('Network', 
-                            name => $name, is_aggregate => 1, 
+                            name => $zone->{name}, is_aggregate => 1, 
                             ip => 0, mask => 0);
         link_aggregate_to_zone($aggregate, $zone, $key);
     }        
@@ -7608,7 +7610,7 @@ sub get_any00 {
         fatal_err "Use $net00->{name} instead of aggregate:[..]";
     }
     else {
-        fatal_err("Can't use aggregate in $zone->{name}\n",
+        fatal_err("Can't use any:[..] in $zone->{name}\n",
                   " having no network with IP address");
     }
 }
@@ -7804,12 +7806,12 @@ sub set_zone {
     progress "Preparing security zones and areas";
 
     # Create zone objects.
+    # It gets name of corresponding aggregate with ip 0/0.
     for my $network (@networks) {
         next if $network->{zone};
-        my $name = "zone:[$network->{name}]";
-        my $zone = new('Zone', name => $name);
-        $zone->{networks} = [];
-        push @all_zones, $zone;
+        my $name = "any:[$network->{name}]";
+        my $zone = new('Zone', name => $name, networks => []);
+        push @zones, $zone;
         set_zone1($network, $zone, 0);
 
         # Mark zone which consists only of a loopback network.
@@ -7817,7 +7819,7 @@ sub set_zone {
     }
 
     my $cluster_counter = 1;
-    for my $zone (@all_zones) {
+    for my $zone (@zones) {
 
         # Make results deterministic.
         @{ $zone->{networks} } =
@@ -7836,13 +7838,13 @@ sub set_zone {
 
     # Mark interfaces, which are border of some area.
     # This is needed to locate auto_borders.
-    for my $area (@all_areas) {
+    for my $area (@areas) {
         next unless $area->{border};
         for my $interface (@{ $area->{border} }) {
             $interface->{is_border} = 1;
         }
     }
-    for my $area (@all_areas) {
+    for my $area (@areas) {
         if (my $network = $area->{anchor}) {
             set_area1 $network->{zone}, $area, 0;
         }
@@ -7871,7 +7873,7 @@ sub set_zone {
 
     # Find subset relation between areas.
     # Complain about duplicate and overlapping areas.
-    for my $zone (@all_zones) {
+    for my $zone (@zones) {
         $zone->{areas} or next;
 
         # Ignore empty hash.
@@ -7911,7 +7913,7 @@ sub set_zone {
             $small = $next;
         }
     }
-    for my $area (@all_areas) {
+    for my $area (@areas) {
 
         # Make result deterministic. Needed for network:[area:xx].
         @{ $area->{zones} } =
@@ -8122,9 +8124,9 @@ sub set_loop_cluster {
 sub setpath() {
     progress "Preparing fast path traversal";
 
-    # Take a random object from @all_zones, name it "zone1".
-    @all_zones or fatal_err "Topology seems to be empty";
-    my $zone1 = $all_zones[0];
+    # Take a random object from @zones, name it "zone1".
+    @zones or fatal_err "Topology seems to be empty";
+    my $zone1 = $zones[0];
 
     # Starting with zone1, do a traversal of the whole topology
     # to find a path from every zone and router to zone1.
@@ -8136,7 +8138,7 @@ sub setpath() {
     # Check if all objects are connected with zone1.
     my @unconnected;
     my @path_routers = grep { $_->{managed} || $_->{semi_managed} } @routers;
-    for my $object (@all_zones, @path_routers) {
+    for my $object (@zones, @path_routers) {
         next if $object->{main} or $object->{loop};
         push @unconnected, $object;
 
@@ -8151,7 +8153,7 @@ sub setpath() {
         fatal_err $msg;
     }
 
-    for my $obj (@all_zones, @path_routers) {
+    for my $obj (@zones, @path_routers) {
         my $loop = $obj->{loop} or next;
 
         # Check all zones and routers located inside a cyclic
@@ -8726,7 +8728,7 @@ sub path_mark( $$$$ ) {
 
 # Walk paths inside cyclic graph
 sub loop_path_walk( $$$$$$$ ) {
-    my ($in, $out, $loop_entry, $loop_exit, $call_at_router, $rule, $fun) = @_;
+    my ($in, $out, $loop_entry, $loop_exit, $call_at_zone, $rule, $fun) = @_;
 
 #    my $info = "loop_path_walk: ";
 #    $info .= "$in->{name}->" if $in;
@@ -8735,21 +8737,20 @@ sub loop_path_walk( $$$$$$$ ) {
 #    debug $info;
 
     # Process entry of cyclic graph.
-    # Note: not .. xor is similar to eq, but operates on boolean values.
     if (
-        not(
-            is_router $loop_entry
-            or
+        (
+         is_router $loop_entry
+         or
 
-            # $loop_entry is interface with pathrestriction of original
-            # loop_entry.
-            is_interface $loop_entry
-            and
+         # $loop_entry is interface with pathrestriction of original
+         # loop_entry.
+         is_interface $loop_entry
+         and
 
-            # Take only interface which originally was a router.
-            $loop_entry->{router} eq
-            $loop_entry->{loop_enter}->{$loop_exit}->[0]->{router}
-        ) xor $call_at_router
+         # Take only interface which originally was a router.
+         $loop_entry->{router} eq
+         $loop_entry->{loop_enter}->{$loop_exit}->[0]->{router}
+        ) xor $call_at_zone
       )
     {
 
@@ -8766,16 +8767,16 @@ sub loop_path_walk( $$$$$$$ ) {
     for my $tuple (@$path_tuples) {
         my ($in_intf, $out_intf, $at_router) = @$tuple;
         $fun->($rule, $in_intf, $out_intf)
-          if not $at_router xor $call_at_router;
+          if $at_router xor $call_at_zone;
     }
 
     # Process paths at exit of cyclic graph.
     if (
-        not(   is_router $loop_exit
-            or is_interface $loop_exit
-            and $loop_exit->{router} eq
-            $loop_entry->{loop_leave}->{$loop_exit}->[0]->{router})
-        xor $call_at_router
+        (   is_router $loop_exit
+         or is_interface $loop_exit
+         and $loop_exit->{router} eq
+         $loop_entry->{loop_leave}->{$loop_exit}->[0]->{router})
+        xor $call_at_zone
       )
     {
 
@@ -8789,7 +8790,7 @@ sub loop_path_walk( $$$$$$$ ) {
 # Apply a function to a rule at every router or zone on the path from
 # src to dst of the rule.
 # $where tells, where the function gets called: at 'Router' or 'Zone'.
-# Default is 'Zone'.
+# Default is 'Router'.
 sub path_walk( $$;$ ) {
     my ($rule, $fun, $where) = @_;
     internal_err "undefined rule" unless $rule;
@@ -8824,15 +8825,15 @@ sub path_walk( $$;$ ) {
     }
     my $in = undef;
     my $out;
-    my $at_router = not($where && $where eq 'Zone');
-    my $call_it = (is_zone($from) xor $at_router);
+    my $at_zone = $where && $where eq 'Zone';
+    my $call_it = (is_router($from) xor $at_zone);
 
     # Path starts inside a cyclic graph.
     if ($from_store->{loop_exit}
         and my $loop_exit = $from_store->{loop_exit}->{$to_store})
     {
         my $loop_out = $path_store->{path}->{$to_store};
-        loop_path_walk($in, $loop_out, $from_store, $loop_exit, $at_router,
+        loop_path_walk($in, $loop_out, $from_store, $loop_exit, $at_zone,
             $rule, $fun);
         if (not $loop_out) {
 
@@ -8841,7 +8842,7 @@ sub path_walk( $$;$ ) {
         }
 
         # Continue behind loop.
-        $call_it = not(is_zone($loop_exit) xor $at_router);
+        $call_it = not(is_router($loop_exit) xor $at_zone);
         $in      = $loop_out;
         $out     = $in->{path}->{$to_store};
     }
@@ -8855,14 +8856,14 @@ sub path_walk( $$;$ ) {
         {
             my $loop_exit = $loop_entry->{loop_exit}->{$to_store};
             my $loop_out  = $in->{path}->{$to_store};
-            loop_path_walk($in, $loop_out, $loop_entry, $loop_exit, $at_router,
+            loop_path_walk($in, $loop_out, $loop_entry, $loop_exit, $at_zone,
                 $rule, $fun);
             if (not $loop_out) {
 
 #               debug "exit: path_walk: reached dst in loop";
                 return;
             }
-            $call_it = not(is_zone($loop_exit) xor $at_router);
+            $call_it = not(is_router($loop_exit) xor $at_zone);
             $in      = $loop_out;
             $out     = $in->{path}->{$to_store};
         }
@@ -8957,7 +8958,7 @@ sub path_auto_interfaces( $$ ) {
         @result = ($from_store->{path}->{$to_store});
     }
     my $router = is_router $src2 ? $src2 : $src2->{router};
-    if (is_zone $from) {
+    if (! is_router($from)) {
         my %result;
         for my $border (@result) {
             if (not $border2router2auto{$border}) {
@@ -9457,37 +9458,37 @@ sub setup_ref2obj () {
 }
 
 ##############################################################################
-# Check if high-level and low-level semantics of rules with an aggregate
+# Check if high-level and low-level semantics of rules with an supernet
 # as source or destination are equivalent.
 #
 # I. Typically, we only use incoming ACLs.
-# (A) rule "permit aggregate:X dst"
-# high-level: aggregate:X in zone X get access to dst
-# low-level: like above, but additionally, the networks matching aggregate:X
+# (A) rule "permit any:X dst"
+# high-level: any:X in zone X get access to dst
+# low-level: like above, but additionally, the networks matching any:X
 #            in all zones on the path from zone X to dst get access to dst.
-# (B) rule permit src aggregate:X
-# high-level: src gets access to aggregate:X in zone X
+# (B) rule permit src any:X
+# high-level: src gets access to any:X in zone X
 # low-level: like above, but additionally, src gets access to all networks
-#            matching aggregate:X in all zones located directly behind 
+#            matching any:X in all zones located directly behind 
 #            all routers on the path from src to zone X.
 #
 # II. Alternatively, we have a single interface Y (with attached zone Y)
 #     without ACL and all other interfaces having incoming and outgoing ACLs.
-# (A) rule "permit aggregate:X dst"
+# (A) rule "permit any:X dst"
 #  a)  dst behind Y: filtering occurs at incoming ACL of X, good.
 #  b)  dst not behind Y:
 #    1. zone X == zone Y: filtering occurs at outgoing ACL, good.
 #    2. zone X != zone Y: outgoing ACL would accidently 
-#                permit aggregate:Y->dst, bad.
-#                Additional rule required: "permit aggregate:Y->dst"
-# (B) rule "permit src aggregate:X"
+#                permit any:Y->dst, bad.
+#                Additional rule required: "permit any:Y->dst"
+# (B) rule "permit src any:X"
 #  a)  src behind Y: filtering occurs at ougoing ACL, good
 #  b)  src not behind Y:
 #    1. zone X == zone Y: filtering occurs at incoming ACL at src and 
 #                at outgoing ACls of other non-zone X interfaces, good.
 #    2. zone X != zone Y: incoming ACL at src would permit 
-#                src->aggregate:Y, bad
-#                Additional rule required: "permit src->aggregate:Y".
+#                src->any:Y, bad
+#                Additional rule required: "permit src->any:Y".
 ##############################################################################
 
 sub find_supernet {
@@ -9564,7 +9565,7 @@ sub find_zone_network {
 # undef: No network of zone matches $other.
 # []   : Multiple networks match, but no supernet exists.
 # [N, ..]: Array reference to networks which match $other (ascending order).
-sub find_matching_aggregate {
+sub find_matching_supernet {
     my ($interface, $zone, $other) = @_;
     my $net_or_count = find_zone_network($interface, $zone, $other);
 
@@ -9594,8 +9595,8 @@ sub find_matching_aggregate {
 
 
 
-# Prevent multiple error messages about missing aggregate rules;
-my %missing_aggregate;
+# Prevent multiple error messages about missing supernet rules;
+my %missing_supernet;
 
 # $rule: the rule to be checked 
 # $where: has value 'src' or 'dst'
@@ -9605,14 +9606,14 @@ my %missing_aggregate;
 #        If $where is 'src', then $zone is attached to $interface
 #        If $where is 'dst', then $zone is at other side of device.
 # $reversed: (optional) the check is for reversed rule at stateless device
-sub check_aggregate_in_zone {
+sub check_supernet_in_zone {
     my ($rule, $where, $interface, $zone, $reversed) = @_;
 
     my ($stateless, $action, $src, $dst, $src_range, $srv) =
         @{$rule}{qw(stateless action src dst src_range srv)};
     my $other = $where eq 'src' ? $src : $dst;
 
-    my $networks = find_matching_aggregate($interface, $zone, $other);
+    my $networks = find_matching_supernet($interface, $zone, $other);
     return if not $networks;
     my $extra;
     if (! ref($networks)) {
@@ -9631,38 +9632,38 @@ sub check_aggregate_in_zone {
     }
 
     my $service = $rule->{rule}->{policy};
-    return if $missing_aggregate{$interface}->{$service};
-    $missing_aggregate{$interface}->{$service} = 1;
+    return if $missing_supernet{$interface}->{$service};
+    $missing_supernet{$interface}->{$service} = 1;
 
     $rule = print_rule $rule;
     $reversed = $reversed ? 'reversed ' : '';
-    my $print = $config{check_aggregate_rules} eq 'warn' 
+    my $print = $config{check_supernet_rules} eq 'warn' 
               ? \&warn_msg : \&err_msg;
-    $print->("Missing rule for ${reversed}aggregate rule.\n", 
+    $print->("Missing rule for ${reversed}supernet rule.\n", 
              " $rule\n",
              " can't be effective at $interface->{name}.\n",
              " $extra as $where.");
 }
 
 # If such rule is defined
-#  permit aggregate1 dst
+#  permit supernet1 dst
 #
 # and topology is like this:
 #
-# aggregate1-R1-zone2-R2-zone3-R3-dst
+# supernet1-R1-zone2-R2-zone3-R3-dst
 #               zone4-/
 #
 # additional rules need to be defined as well:
-#  permit aggregate:[zone2] dst
-#  permit aggregate:[zone3] dst
+#  permit supernet(zone2) dst
+#  permit supernet(zone3) dst
 #
 # If R2 is stateless, we need one more rule to be defined:
-#  permit aggregate:[zone4] dst
+#  permit supernet(zone4) dst
 # This is so, because at R2 we would get an automatically generated
 # reverse rule
-#  permit dst aggregate1
-# which would accidentally permit traffic to aggregate:[zone4] as well.
-sub check_aggregate_src_rule( $$$ ) {
+#  permit dst supernet1
+# which would accidentally permit traffic to supernet:[zone4] as well.
+sub check_supernet_src_rule( $$$ ) {
 
     # Function is called from path_walk.
     my ($rule, $in_intf, $out_intf) = @_;
@@ -9680,10 +9681,10 @@ sub check_aggregate_src_rule( $$$ ) {
     my $dst_zone = get_zone($dst);
     if ($dst->{is_supernet} && $out_zone eq $dst_zone) {
 
-        # Both src and dst are aggregates and are directly connected
+        # Both src and dst are supernets and are directly connected
         # at current router. Hence there can't be any missing rules.
         # Note: Additional checks will be done for this situation at
-        # check_aggregate_dst_rule
+        # check_supernet_dst_rule
         return;
     }
 
@@ -9705,7 +9706,7 @@ sub check_aggregate_src_rule( $$$ ) {
 
         # b), 2. zone X != zone Y
         else {
-            check_aggregate_in_zone($rule, 'src', $no_acl_intf, $no_acl_zone);
+            check_supernet_in_zone($rule, 'src', $no_acl_intf, $no_acl_zone);
         }
     }
     my $src = $rule->{src};
@@ -9753,7 +9754,7 @@ sub check_aggregate_src_rule( $$$ ) {
 
                 # zone X != zone Y
                 else {
-                    check_aggregate_in_zone($rule, 'src', 
+                    check_supernet_in_zone($rule, 'src', 
                                             $no_acl_intf, $no_acl_zone, 1);
                 }
             }
@@ -9772,7 +9773,7 @@ sub check_aggregate_src_rule( $$$ ) {
                     next if $zone eq $src_zone;
                     next if $zone eq $dst_zone;
                     next if has_global_restrict($intf);
-                    check_aggregate_in_zone($rule, 'src', $intf, $zone, 1);
+                    check_supernet_in_zone($rule, 'src', $intf, $zone, 1);
                 }
             }
         }
@@ -9783,12 +9784,12 @@ sub check_aggregate_src_rule( $$$ ) {
     my $zone = $in_intf->{zone};
     return if $src_zone eq $zone;
 
-    # Check if rule "aggregate2 -> dst" is defined.
-    check_aggregate_in_zone($rule, 'src', $in_intf, $zone);
+    # Check if rule "supernet2 -> dst" is defined.
+    check_supernet_in_zone($rule, 'src', $in_intf, $zone);
 }
 
 # If such rule is defined
-#  permit src aggregate5
+#  permit src supernet5
 #
 # and topology is like this:
 #
@@ -9797,11 +9798,11 @@ sub check_aggregate_src_rule( $$$ ) {
 #      \-zone1
 #
 # additional rules need to be defined as well:
-#  permit src aggregate1
-#  permit src aggregate2
-#  permit src aggregate3
-#  permit src aggregate4
-sub check_aggregate_dst_rule( $$$ ) {
+#  permit src supernet1
+#  permit src supernet2
+#  permit src supernet3
+#  permit src supernet4
+sub check_supernet_dst_rule( $$$ ) {
 
     # Function is called from path_walk.
     my ($rule, $in_intf, $out_intf) = @_;
@@ -9836,7 +9837,7 @@ sub check_aggregate_dst_rule( $$$ ) {
 
         # zone X != zone Y
         else {
-            check_aggregate_in_zone($rule, 'dst', $in_intf, $no_acl_zone);
+            check_supernet_in_zone($rule, 'dst', $in_intf, $no_acl_zone);
         }
         return;
     }
@@ -9860,7 +9861,7 @@ sub check_aggregate_dst_rule( $$$ ) {
         next if $zone eq $src_zone;
         next if $zone eq $dst_zone;
         next if has_global_restrict($intf);
-        check_aggregate_in_zone($rule, 'dst', $in_intf, $zone);
+        check_supernet_in_zone($rule, 'dst', $in_intf, $zone);
     }
 }
 
@@ -9900,11 +9901,11 @@ sub find_smaller_srv ( $$ ) {
 }
 
 # Example:
-# XX--R1--aggregate:A--R2--R3--R4--YY
+# XX--R1--any:A--R2--R3--R4--YY
 #
 # If we have rules
-#   permit XX aggregate:A
-#   permit aggregate:B YY
+#   permit XX any:A
+#   permit any:B YY
 # and
 #   the intersection I of A and B isn't empty
 # and
@@ -9920,11 +9921,11 @@ sub find_smaller_srv ( $$ ) {
 #
 
 # Collect info about unwanted implied rules.
-sub check_for_transient_aggregate_rule {
+sub check_for_transient_supernet_rule {
     my %missing_rule_tree;
     my $missing_count = 0;
 
-    for my $rule (@{ $expanded_rules{aggregate} }) {
+    for my $rule (@{ $expanded_rules{supernet} }) {
         next if $rule->{deleted};
         next if $rule->{action} ne 'permit';
         my $dst = $rule->{dst};
@@ -9937,8 +9938,8 @@ sub check_for_transient_aggregate_rule {
         my ($stateless1, $src1, $dst1, $src_range1, $srv1) =
           @$rule{ 'stateless', 'src', 'dst', 'src_range', 'srv' };
 
-        # Find all rules with aggregate as source, which intersects with $dst1.
-        progress('ToDo: finish check transient aggregate rules');
+        # Find all rules with supernet as source, which intersects with $dst1.
+        progress('ToDo: finish check transient supernet rules');
         my $src2 = $dst1;
         for my $stateless2 (1, 0) {
             while (my ($dst2_str, $hash) =
@@ -9968,7 +9969,7 @@ sub check_for_transient_aggregate_rule {
                           $src_range2;
 
                         # If services are disjoint, we do not have
-                        # transient-aggregate-problem for $rule and $rule2.
+                        # transient-supernet-problem for $rule and $rule2.
                         next if not $smaller_srv or not $smaller_src_range;
 
                         # Stateless rule < stateful rule, hence use ||.
@@ -10054,7 +10055,7 @@ sub check_for_transient_aggregate_rule {
                         my $new =
                           not $missing_rule_tree{$src_policy}->{$dst_policy}
 
-                          # The matching aggregate object.
+                          # The matching supernet object.
                           ->{ $dst1->{name} }
 
                           # The missing rule
@@ -10072,15 +10073,15 @@ sub check_for_transient_aggregate_rule {
     if ($missing_count) {
 
         my $print =
-          $config{check_transient_aggregate_rules} eq 'warn'
+          $config{check_transient_supernet_rules} eq 'warn'
           ? \&warn_msg
           : \&err_msg;
         $print->("Missing transient rules: $missing_count");
 
         while (my ($src_policy, $hash) = each %missing_rule_tree) {
             while (my ($dst_policy, $hash) = each %$hash) {
-                while (my ($aggregate, $hash) = each %$hash) {
-                    info "Rules of $src_policy and $dst_policy match at $aggregate";
+                while (my ($supernet, $hash) = each %$hash) {
+                    info "Rules of $src_policy and $dst_policy match at $supernet";
                     info "Missing transient rules:";
                     while (my ($src, $hash) = each %$hash) {
                         while (my ($dst, $hash) = each %$hash) {
@@ -10095,49 +10096,49 @@ sub check_for_transient_aggregate_rule {
     }
 }
 
-# Handling of aggregate rules created by gen_reverse_rules.
+# Handling of supernet rules created by gen_reverse_rules.
 # This is not needed if a stateful and not secondary packet filter is
 # located on the path between src and dst.
 #
-# 1. dst is aggregate
+# 1. dst is supernet
 #
-# src--r1:stateful--dst1=aggregate1--r2:stateless--dst2=aggregate2
+# src--r1:stateful--dst1=supernet1--r2:stateless--dst2=supernet2
 #
 # gen_reverse_rule will create one additional rule
-# aggregate2-->src, but not a rule aggregate1-->src, because r1 is stateful.
-# check_aggregate_src_rule would complain, that aggregate1-->src is missing.
+# supernet2-->src, but not a rule supernet1-->src, because r1 is stateful.
+# check_supernet_src_rule would complain, that supernet1-->src is missing.
 # But that doesn't matter, because r1 would permit answer packets
-# from aggregate2 anyway, because it's stateful.
-# Hence we can skip check_aggregate_src_rule for this situation.
+# from supernet2 anyway, because it's stateful.
+# Hence we can skip check_supernet_src_rule for this situation.
 #
-# 2. src is aggregate
+# 2. src is supernet
 #
 # a) no stateful router on the path between stateless routers and dst.
 #
 #             zone2---\
-# src=aggregate1--r1:stateless--dst
+# src=supernet1--r1:stateless--dst
 #
-# gen_reverse_rules will create one additional rule dst-->aggregate1.
-# check_aggregate_dst_rule would complain about a missing rule
+# gen_reverse_rules will create one additional rule dst-->supernet1.
+# check_supernet_dst_rule would complain about a missing rule
 # dst-->zone2.
-# To prevent this situation, check_aggregate_src_rule checks for a rule
+# To prevent this situation, check_supernet_src_rule checks for a rule
 # zone2 --> dst
 #
 # b) at least one stateful router on the path between
 #    stateless router and dst.
 #
 #               zone3---\
-# src1=aggregate1--r1:stateless--src2=aggregate2--r2:stateful--dst
+# src1=supernet1--r1:stateless--src2=supernet2--r2:stateful--dst
 #
 # gen_reverse_rules will create one additional rule
-# dst-->aggregate1, but not dst-->aggregate2 because second router is stateful.
-# check_aggregate_dst_rule would complain about missing rules
-# dst-->aggregate2 and dst-->aggregate3.
+# dst-->supernet1, but not dst-->supernet2 because second router is stateful.
+# check_supernet_dst_rule would complain about missing rules
+# dst-->supernet2 and dst-->supernet3.
 # But answer packets back from dst have been filtered by r2 already,
 # hence it doesn't hurt if the rules at r1 are a bit too relaxed,
 # i.e. r1 would permit dst to zone1 and zone3, but should only 
 # permit dst to zone1.
-# Hence we can skip check_aggregate_dst_rule for this situation.
+# Hence we can skip check_supernet_dst_rule for this situation.
 #
 
 # Mark zones connected by stateless or secondary packet filters or by
@@ -10163,29 +10164,29 @@ sub mark_stateful {
     }
 }
 
-sub check_aggregate_rules() {
-    progress "Checking rules with aggregate objects";
-    if ($config{check_aggregate_rules}) {
+sub check_supernet_rules() {
+    progress "Checking rules with supernet objects";
+    if ($config{check_supernet_rules}) {
         my $stateful_mark = 1;
-        for my $zone (@all_zones) {
+        for my $zone (@zones) {
             if (not $zone->{stateful_mark}) {
                 mark_stateful($zone, $stateful_mark++);
             }
         }
-        for my $rule (@{ $expanded_rules{aggregate} }) {
+        for my $rule (@{ $expanded_rules{supernet} }) {
             next if $rule->{deleted};
-            next if $rule->{no_check_aggregate_rules};
+            next if $rule->{no_check_supernet_rules};
             if ($rule->{src}->{is_supernet}) {
-                path_walk($rule, \&check_aggregate_src_rule);
+                path_walk($rule, \&check_supernet_src_rule);
             }
             if ($rule->{dst}->{is_supernet}) {
-                path_walk($rule, \&check_aggregate_dst_rule);
+                path_walk($rule, \&check_supernet_dst_rule);
             }
         }
-        %missing_aggregate = ();
+        %missing_supernet = ();
     }
-    if ($config{check_transient_aggregate_rules}) {
-        check_for_transient_aggregate_rule() 
+    if ($config{check_transient_supernet_rules}) {
+        check_for_transient_supernet_rule() 
     }
 
     # no longer needed; free some memory.
@@ -10305,7 +10306,7 @@ sub gen_reverse_rules1 ( $ ) {
 
 sub gen_reverse_rules() {
     progress "Generating reverse rules for stateless routers";
-    for my $type ('deny', 'aggregate', 'permit') {
+    for my $type ('deny', 'supernet', 'permit') {
         gen_reverse_rules1 $expanded_rules{$type};
     }
 }
@@ -10401,7 +10402,7 @@ sub mark_secondary_rules() {
 
     my $secondary_mark = 1;
     my $primary_mark   = 1;
-    for my $zone (@all_zones) {
+    for my $zone (@zones) {
         if (not $zone->{secondary_mark}) {
             mark_secondary $zone, $secondary_mark++;
         }
@@ -10412,9 +10413,9 @@ sub mark_secondary_rules() {
 
     # Mark only normal rules for secondary optimization.
     # We can't change a deny rule from e.g. tcp to ip.
-    # We can't change aggregate rules, because path is unknown.
+    # We can't change supernet rules, because path is unknown.
     for my $rule (@{ $expanded_rules{permit} }, 
-                  @{ $expanded_rules{aggregate} }) 
+                  @{ $expanded_rules{supernet} }) 
     {
         next
           if $rule->{deleted}
@@ -10440,7 +10441,7 @@ sub mark_secondary_rules() {
     progress "Marking rules with dynamic NAT";
     for my $rule (
         @{ $expanded_rules{permit} },
-        @{ $expanded_rules{aggregate} },
+        @{ $expanded_rules{supernet} },
         @{ $expanded_rules{deny} }
       )
     {
@@ -10761,7 +10762,7 @@ sub find_statics () {
     my %zone2zone2rule;
     my $pseudo_srv = { name => '--' };
     for my $rule (@{ $expanded_rules{permit} }, 
-                  @{ $expanded_rules{aggregate} }) 
+                  @{ $expanded_rules{supernet} }) 
     {
         my ($src, $dst) = @{$rule}{qw(src dst)};
         my $from = get_zone3 $src;
@@ -10983,13 +10984,13 @@ sub check_and_convert_routes ();
 
 sub find_active_routes () {
     progress "Finding routes";
-    for my $zone (@all_zones) {
+    for my $zone (@zones) {
         set_routes_in_zone $zone;
     }
     my %routing_tree;
     my $pseudo_srv = { name => '--' };
     for my $rule (@{ $expanded_rules{permit} }, 
-                  @{ $expanded_rules{aggregate} }) 
+                  @{ $expanded_rules{supernet} }) 
     {
         my ($src, $dst) = ($rule->{src}, $rule->{dst});
 
@@ -11860,7 +11861,7 @@ sub distribute_rule( $$$ ) {
         return if $rule->{deleted}->{managed_intf};
     }
 
-    # Don't generate code for src aggregate:[interface:r.loopback] at router:r.
+    # Don't generate code for src any:[interface:r.loopback] at router:r.
     return if $in_intf->{loopback};
 
     # Validate dynamic NAT.
@@ -12367,7 +12368,7 @@ sub rules_distribution() {
 
     # Sort rules by reverse priority of service.
     # This should be done late to get all auxiliary rules processed.
-    for my $type ('deny', 'aggregate', 'permit') {
+    for my $type ('deny', 'supernet', 'permit') {
         $expanded_rules{$type} = [
             sort {
                      ($b->{srv}->{prio} || 0) <=> ($a->{srv}->{prio} || 0)
@@ -12388,7 +12389,7 @@ sub rules_distribution() {
     distribute_global_permit();
 
     # Permit rules
-    for my $rule (@{ $expanded_rules{aggregate} }, 
+    for my $rule (@{ $expanded_rules{supernet} }, 
                   @{ $expanded_rules{permit} })
     {
         next
@@ -12406,7 +12407,7 @@ sub rules_distribution() {
     # Prepare rules for local_optimization.
     # Aggregates with mask 0 are converted to network_00, to be able
     # to compare with interally generated rules which use network_00.
-    for my $rule (@{ $expanded_rules{aggregate} }) {
+    for my $rule (@{ $expanded_rules{supernet} }) {
         next if $rule->{deleted} and not $rule->{managed_intf};
         my($src, $dst) = @{$rule}{qw(src dst)};
         $rule->{src} = $network_00 if is_network($src) && $src->{mask} == 0;
