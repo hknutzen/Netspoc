@@ -5955,12 +5955,7 @@ sub expand_rules {
                                         push @$deny, $rule;
                                     }
                                     elsif ($src->{is_supernet} ||
-                                           $dst->{is_supernet} ||
-                                           $src->{is_aggregate} ||
-                                           $dst->{is_aggregate}
-
-
-) 
+                                           $dst->{is_supernet}) 
                                     {
                                         push @$supernet, $rule;
                                     }
