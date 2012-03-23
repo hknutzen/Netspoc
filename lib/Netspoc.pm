@@ -32,7 +32,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.008'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.009'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -1581,6 +1581,11 @@ sub read_interface( $ ) {
             $interface->{spoke} and error_atline "Duplicate attribute 'spoke'";
             $interface->{spoke} = "$type:$name2";
         }
+        elsif (my $id = check_assign 'id', \&read_user_id) {
+            $interface->{id}
+              and error_atline "Duplicate attribute 'id'";
+            $interface->{id} = $id;
+        }
         elsif ($pair = check_typed_name) {
             my ($type, $name2) = @$pair;
             if ($type eq 'nat') {
@@ -1757,6 +1762,10 @@ sub read_interface( $ ) {
         $interface->{hub}
           and error_atline "Interface with attribute 'spoke'",
           " must not have attribute 'hub'";
+    }
+    else {
+        $interface->{id} and 
+          error_atline "Attribute 'id' is only valid for 'spoke' interface";
     }
     if (my $hubs = $interface->{hub}) {
         if ($interface->{ip} =~ /unnumbered|negotiated|short|bridged/) {
@@ -2209,7 +2218,7 @@ sub read_router( $ ) {
                 network        => $net_name,
                 real_interface => $interface
                 );
-            for my $key (qw(hardware routing private bind_nat)) {
+            for my $key (qw(hardware routing private bind_nat id)) {
                 if ($interface->{$key}) {
                     $tunnel_intf->{$key} = $interface->{$key};
                 }
@@ -3120,13 +3129,6 @@ sub is_servicegroup( $ )  { ref($_[0]) eq 'Servicegroup'; }
 sub is_objectgroup( $ )   { ref($_[0]) eq 'Objectgroup'; }
 sub is_chain( $ )         { ref($_[0]) eq 'Chain'; }
 sub is_autointerface( $ ) { ref($_[0]) eq 'Autointerface'; }
-
-# Get VPN id of network object, if available.
-sub get_id( $ ) {
-    my ($obj) = @_;
-    return $obj->{id}
-      || (is_subnet $obj || is_interface $obj) && $obj->{network}->{id};
-}
 
 sub print_rule( $ ) {
     my ($rule) = @_;
@@ -8977,7 +8979,7 @@ sub crypto_behind {
 sub expand_crypto () {
     progress "Expanding crypto rules";
 
-    my %id2network;
+    my %id2interface;
 
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
@@ -9040,20 +9042,24 @@ sub expand_crypto () {
                                 @all_networks > 1
                                   and err_msg "Only one network supported",
                                   "at crypto $interface->{name} with ID";
-
-                                if (my $net2 = $id2network{$id}) {
-                                    err_msg "Same ID '$id' is used at",
-                                      " $network->{name} and $net2->{name}";
-                                }
-                                $id2network{$id} = $network;
+                                $tunnel_intf->{id} and
+                                  err_msg "Must no use ID both at",
+                                    " $network->{name} and at",
+                                    " $interface->{name}";
+                                $tunnel_intf->{id} = $id;
                                 $has_id_network = 1;
-                                push @encrypted, $network;
                             }
                             else {
                                 $has_other_network = 1;
-                                push @encrypted, @all_networks;
                             }
-                            $network->{radius_attributes} = {};
+                            push @encrypted, @all_networks;
+                            if (my $id = $interface->{id}) {
+                                if (my $intf2 = $id2interface{$id}) {
+                                    err_msg "Same ID '$id' is used at",
+                                      " $interface->{name} and $intf2->{name}";
+                                }
+                                $id2interface{$id} = $interface;
+                            }
                         }
                     }
                     if ($has_id_network and $has_other_network) {
@@ -9063,15 +9069,15 @@ sub expand_crypto () {
                     }
                     $has_id_hosts
                       and $has_other_network
-                      and err_msg "Must not use host with ID and network",
-                      " together at $tunnel_intf->{name}: ",
-                      join(', ', map { $_->{name} } @encrypted);
-                         $has_id_hosts
+                      and err_msg("Must not use host with ID and network",
+                                  " together at $tunnel_intf->{name}: ",
+                                  join(', ', map { $_->{name} } @encrypted));
+                    $has_id_hosts
                       or $has_id_network
                       or $has_other_network
-                      or err_msg "Must use network or host with ID",
-                      " at $tunnel_intf->{name}: ",
-                      join(', ', map { $_->{name} } @encrypted);
+                      or err_msg("Must use network or host with ID",
+                                 " at $tunnel_intf->{name}: ",
+                                 join(', ', map { $_->{name} } @encrypted));
 
                     for my $peer (@{ $tunnel_intf->{peers} }) {
                         $peer->{peer_networks} = \@encrypted;
@@ -9109,17 +9115,20 @@ sub expand_crypto () {
                         # ID can only be checked at hub with attribute do_auth.
                         my $router  = $peer->{router};
                         my $do_auth = $router->{model}->{do_auth};
-                        for my $network (@encrypted) {
-                            if ($network->{has_id_hosts} || $network->{id}) {
-                                $do_auth
-                                  or err_msg "$router->{name} can't check IDs",
-                                  " of $network->{name}";
-                            }
-                            else {
-                                $do_auth
-                                  and err_msg "$router->{name} can only check",
-                                  " network having ID, not $network->{name}";
-                            }
+                        if ($tunnel_intf->{id}) {
+                            $do_auth
+                                or err_msg "$router->{name} can't check IDs",
+                                " of $tunnel_intf->{name}";
+                        }
+                        elsif ($encrypted[0]->{has_id_hosts}) {
+                            $do_auth
+                                or err_msg "$router->{name} can't check IDs",
+                                " of $tunnel_intf->{name}";
+                        }
+                        elsif($do_auth) {
+                            err_msg "$router->{name} can only check",
+                                  " interface or host having ID",
+                                  " at $tunnel_intf->{name}";
                         }
                     }
 
@@ -11564,32 +11573,6 @@ sub distribute_rule( $$$ ) {
     }
 }
 
-# For rules with src=any:*, call distribute_rule only for
-# the first router on the path from src to dst.
-sub distribute_rule_at_src( $$$ ) {
-    my ($rule, $in_intf, $out_intf) = @_;
-    my $src = $rule->{src};
-    is_any $src or internal_err "$src must be of type 'any'";
-
-    # Rule is only processed at the first router on the path.
-    if ($in_intf->{any} eq $src) {
-        &distribute_rule(@_);
-    }
-}
-
-# For rules with dst=any:*, call distribute_rule only for
-# the last router on the path from src to dst.
-sub distribute_rule_at_dst( $$$ ) {
-    my ($rule, $in_intf, $out_intf) = @_;
-    my $dst = $rule->{dst};
-    is_any $dst or internal_err "$dst must be of type 'any'";
-
-    # Rule is only processed at the last router on the path.
-    if ($out_intf->{any} eq $dst) {
-        &distribute_rule(@_);
-    }
-}
-
 # For each device, find the IP address which is used
 # to manage the device from a central policy distribution point.
 # This address is added as a comment line to each generated code file.
@@ -11995,15 +11978,15 @@ sub rules_distribution() {
                 # by a managed router.
                 # See check_any_both_rule above for details.
                 if ($rule->{any_are_neighbors}) {
-                    path_walk($rule, \&distribute_rule_at_dst);
+                    path_walk($rule, \&distribute_rule);
                 }
             }
             else {
-                path_walk($rule, \&distribute_rule_at_src);
+                path_walk($rule, \&distribute_rule);
             }
         }
         elsif (is_any $rule->{dst}) {
-            path_walk($rule, \&distribute_rule_at_dst);
+            path_walk($rule, \&distribute_rule);
         }
         else {
             internal_err "unexpected rule ", print_rule $rule, "\n";
@@ -13971,16 +13954,15 @@ sub print_vpn3k( $ ) {
 
         # A VPN network behind a VPN hardware client.
         else {
-            my $src = $interface->{peer_networks}->[0];
-            my $id  = $src->{id};
+            my $id  = $interface->{peers}->[0]->{id} or
+              internal_err "Missing ID at $interface->{peers}->[0]->{name}";
             my %entry;
             $entry{'Called-Station-Id'} = $hw_name;
             $entry{id}                  = $id;
-            $entry{inherited}           = {
-                %{ $router->{radius_attributes} },
-                %{ $src->{radius_attributes} },
-            };
-            $add_filter->(\%entry, $interface, $src);
+            $entry{inherited}           = $router->{radius_attributes};
+            for my $src (@{ $interface->{peer_networks} }) {
+                $add_filter->(\%entry, $interface, $src);
+            }
             push @entries, { user_entry => \%entry };
         }
     }
@@ -14193,12 +14175,10 @@ sub print_asavpn ( $ ) {
     my $no_nat_set       = $router->{hardware}->[0]->{no_nat_set};
 
     if ($no_crypto_filter) {
-        print "! VPN traffic is filtered at interface ACL\n";
         print "no sysopt connection permit-vpn\n";
     }
     my $global_group_name = 'global';
     print <<"EOF";
-! Used for all VPN users: single, suffix, hardware
 group-policy $global_group_name internal
 group-policy $global_group_name attributes
  pfs enable
@@ -14212,14 +14192,11 @@ EOF
       "Missing 'trust-point' in radius_attributes of $router->{name}";
 
     print <<"EOF";
-! Used for all single VPN users
 tunnel-group $default_tunnel_group type remote-access
 tunnel-group $default_tunnel_group general-attributes
-! Use internal user database
  authorization-server-group LOCAL
  default-group-policy $global_group_name
  authorization-required
-! Take username from email address field of certificate.
  username-from-certificate EA
 tunnel-group $default_tunnel_group ipsec-attributes
  chain
@@ -14228,7 +14205,6 @@ EOF
     if ($model->{v8_4}) {
         print <<"EOF";
  ikev1 trust-point $trust_point
-! Disable extended authentication.
  ikev1 user-authentication none
 tunnel-group $default_tunnel_group webvpn-attributes
  authentication certificate
@@ -14237,7 +14213,6 @@ EOF
     else {
         print <<"EOF";
  trust-point $trust_point
-! Disable extended authentication.
  isakmp ikev1-user-authentication none
 EOF
     }
@@ -14351,9 +14326,6 @@ EOF
                         }
                         $split_t_cache{@split_tunnel_nets}->{$acl_name} =
                           \@split_tunnel_nets;
-                    }
-                    else {
-                        print "! Use cached $acl_name\n";
                     }
                     $attributes->{'split-tunnel-network-list'} = $acl_name;
                 }
@@ -14498,39 +14470,33 @@ EOF
         # A VPN network.
         else {
             $user_counter++;
-            my $src = $interface->{peer_networks}->[0];
 
             # Access list will be bound to cleartext interface.
             # Only check for correct source address at vpn-filter.
             if ($no_crypto_filter) {
                 $interface->{intf_rules} = [];
-                $interface->{rules}      = [
-                    {
-                        action    => 'permit',
-                        src       => $src,
-                        dst       => $network_00,
-                        src_range => $srv_ip,
-                        srv       => $srv_ip,
-                    }
-                ];
+                $interface->{rules} = 
+                    [ map { {
+                             action    => 'permit',
+                             src       => $_,
+                             dst       => $network_00,
+                             src_range => $srv_ip,
+                             srv       => $srv_ip,
+                        } } @{ $interface->{peer_networks} } ];
+                find_object_groups($router, $interface);
             }
-            find_object_groups($router, $interface);
 
             # Define filter ACL to be used in username or group-policy.
             my $filter_name = "vpn-filter-$user_counter";
             my $prefix      = "access-list $filter_name extended";
             my $intf_prefix = '';
 
-# Why was NAT disabled?
-#            $nat_map = undef;
             print_cisco_acl_add_deny $router, $interface, $no_nat_set, $model,
               $intf_prefix, $prefix;
 
-            my $id         = $src->{id};
-            my $attributes = {
-                %{ $router->{radius_attributes} },
-                %{ $src->{radius_attributes} }
-            };
+            my $id = $interface->{peers}->[0]->{id} or
+              internal_err "Missing ID at $interface->{peers}->[0]->{name}";
+            my $attributes = $router->{radius_attributes};
 
             my $group_policy_name;
             if (keys %$attributes) {
@@ -14760,11 +14726,6 @@ sub print_ezvpn( $ ) {
     my ($tunnel_intf) = @tunnel_intf;
     my $wan_intf = $tunnel_intf->{real_interface};
     my @lan_intf = grep { $_ ne $wan_intf and $_ ne $tunnel_intf } @interfaces;
-    @lan_intf == 1
-      or err_msg
-      "Exactly 1 LAN interface expected for $router->{name} with EZVPN";
-    my ($lan_intf) = @lan_intf;
-    my ($wan_hw, $lan_hw) = ($wan_intf->{hardware}, $lan_intf->{hardware});
     print "$comment_char [ Crypto ]\n";
 
     # Ezvpn configuration.
@@ -14795,8 +14756,12 @@ sub print_ezvpn( $ ) {
     print " xauth userid mode local\n";
 
     # Apply ezvpn to WAN and LAN interface.
-    push(@{ $lan_hw->{subcmd} },
-        "crypto ipsec client ezvpn $ezvpn_name inside");
+    for my $lan_intf (@lan_intf) {
+        my $lan_hw = $lan_intf->{hardware};
+        push(@{ $lan_hw->{subcmd} },
+             "crypto ipsec client ezvpn $ezvpn_name inside");
+    }
+    my $wan_hw = $wan_intf->{hardware};
     push(@{ $wan_hw->{subcmd} }, "crypto ipsec client ezvpn $ezvpn_name");
 
     # Split tunnel ACL. It controls which traffic needs to be encrypted.
