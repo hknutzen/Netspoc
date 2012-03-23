@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, @out);
+my ($title, $in, @out, $compiled);
 
 ############################################################
 $title = 'ASA with two crypto hubs and NAT';
@@ -188,7 +188,7 @@ my $head1 = (split /\n/, $out1)[0];
 my $head2 = (split /\n/, $out2)[0];
 my $head3 = (split /\n/, $out3)[0];
 
-my $compiled = compile($in);
+$compiled = compile($in);
 eq_or_diff(get_block($compiled, $head1), $out1, "$title: Crypto");
 eq_or_diff(get_block($compiled, $head2), $out2, "$title: ACL");
 eq_or_diff(get_block($compiled, $head3), $out3, "$title: NAT");
@@ -256,7 +256,7 @@ router:vpn = {
  interface:internet = {
   negotiated;
   spoke = crypto:vpn;
-  id = abc@123.45;
+  id = abc\@123.45;
   hardware = e1;
  }
  interface:lan2 = {
@@ -299,8 +299,8 @@ object-group network g0
  network-object 10.99.3.0 255.255.255.0
 access-list vpn-filter-1 extended permit ip object-group g0 any
 access-list vpn-filter-1 extended deny ip any any
-username abc@123.45 nopassword
-username abc@123.45 attributes
+username abc\@123.45 nopassword
+username abc\@123.45 attributes
  service-type remote-access
  vpn-filter value vpn-filter-1
 END
@@ -361,7 +361,7 @@ interface e3
  ip access-group e3_in in
 END
 
-my $compiled = compile($in);
+$compiled = compile($in);
 for my $i (0 .. $#out) {
     my $out = $out[$i];
     my $head = (split /\n/, $out)[0];
