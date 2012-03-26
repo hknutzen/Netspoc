@@ -5033,7 +5033,7 @@ sub expand_group1( $$;$ ) {
             # Silently remove unnumbered, bridged and tunnel interfaces
             # from automatic groups.
             push @objects,
-              grep { $_->{ip} !~ /^(?:tunnel|aggregate)$/ }
+              grep { $_->{ip} ne 'tunnel' }
               $clean_autogrp
               ? grep { $_->{ip} !~ /^(?:unnumbered|bridged)$/ } @check
               : @check;
@@ -6910,7 +6910,7 @@ sub check_subnets {
     };
     for my $interface (@{ $network->{interfaces} }) {
         my $ip = $interface->{ip};
-        next if $ip =~ /^(?:unnumbered|negotiated|tunnel|short|aggregate)$/;
+        next if $ip =~ /^(?:unnumbered|negotiated|tunnel|short)$/;
         $check->($ip, undef, $interface);
     }
     for my $host (@{ $network->{hosts} }) {
@@ -6936,7 +6936,6 @@ sub nat_to_loopback_ok {
     # is attached to two or more routers.
     # Loop over these devices.
     for my $loop_intf (@{ $loopback_network->{interfaces} }) {
-        next if $loop_intf->{ip} eq 'aggregate';
         $device_count++;
         my $this_device_ok = 0;
 
@@ -7463,31 +7462,6 @@ sub check_crosslink () {
 
 sub link_aggregate_to_zone {
     my ($aggregate, $zone, $key) = @_;
-
-    # Add aggregate to an arbitrary unmanaged router
-    # inside the zone. Create one if none exists.
-    my $router;
-    if ($zone->{unmanaged_routers}) {
-        $router = $zone->{unmanaged_routers}->[0];
-    }
-    else {
-        my ($network) = $zone->{networks}->[0];
-        $router = new('Router', name => 'aggregate');
-        $zone->{unmanaged_routers} = [ $router ];
-        my $interface = new('Interface', 
-                            name => 'aggregate', 
-                            ip => 'aggregate');
-        $router->{interfaces} = [ $interface ];
-        push @{ $network->{interfaces} }, $interface;
-    }
-
-    # Add aggregate to artificial interface of unmanaged router.
-    my $interface = new('Interface', 
-                        name => 'aggregate', 
-                        ip => 'aggregate',
-                        network => $aggregate);
-    $aggregate->{interfaces} = [ $interface ];
-    push @{ $router->{interfaces} }, $interface;
 
     # Link aggregate with zone.
     $aggregate->{zone} = $zone;
@@ -9229,7 +9203,7 @@ sub crypto_behind {
     }
     else {
         my $network = $interface->{network};
-        1 == grep { $_->{ip} ne 'aggregate' } @{ $network->{interfaces} }
+        1 == @{ $network->{interfaces} }
           or err_msg "Exactly one network must be located behind",
           " unmanaged crypto $interface->{name}";
         ($network);
@@ -11214,7 +11188,7 @@ sub check_and_convert_routes () {
                     # Try to guess default route, if only one hop is available.
                     my @try_hops =
                       grep({ $_ ne $real_intf }
-                        grep({ $_->{ip} !~ /^(?:short|negotiated|aggregate)$/ }
+                        grep({ $_->{ip} !~ /^(?:short|negotiated)$/ }
                             @{ $real_intf->{network}->{interfaces} }));
 
                     if (@try_hops == 1) {
@@ -12467,7 +12441,7 @@ sub address( $$ ) {
         }
     }
     elsif ($type eq 'Interface') {
-        if ($obj->{ip} =~ /^(unnumbered|short|aggregate)$/) {
+        if ($obj->{ip} =~ /^(unnumbered|short)$/) {
             internal_err "Unexpected $obj->{ip} $obj->{name}\n";
         }
 
