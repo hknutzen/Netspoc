@@ -6059,14 +6059,7 @@ sub propagate_owners {
     my %zone_got_net_owners;
   ZONE:
     for my $zone (@zones) {
-
-        # Owner of zone is set at aggregate with ip 0/0.
-        if (my $any = $zone->{ipmask2aggregate}->{'0/0'}) {
-            if (my $owner = $any->{owner}) {
-                $zone->{owner} = $owner;
-                next;
-            }
-        }
+        next if $zone->{owner};
 
         # Inversed inheritance: If a zone has no direct owner and if
         # all contained real topelevel networks have the same owner,
@@ -7547,6 +7540,13 @@ sub link_aggregates {
                 err_msg 
                     "Duplicate $other->{name} and $aggregate->{name}",
                     " in $zone->{name}";
+            }
+
+            # Aggregate with ip 0/0 is used to set attributes of zone.
+            if ($mask == 0) {
+                for my $attr (qw(owner no_in_acl)) {
+                $zone->{$attr} = $aggregate->{$attr} if $aggregate->{$attr}; 
+                }
             }
             link_aggregate_to_zone($aggregate, $zone, $key);
         }
