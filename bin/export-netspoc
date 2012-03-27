@@ -601,9 +601,13 @@ sub export_assets {
         # Ignore empty zone with only tunnel or unnumbered networks.
         next if not @{ $zone->{networks} };
 
+        # All aggregates can be used in rules.
+        for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
+            $all_objects{$aggregate} = $aggregate;
+        }
+
         # Zone with network 0/0 doesn't have an aggregate 0/0.
         my $any = $zone->{ipmask2aggregate}->{'0/0'};
-	$all_objects{$any} = $any if $any;
 	my $zone_name = $any ? $any->{name} : $zone->{name};
 	my $zone_owner = owner_for_object($zone) || '';
 	for my $owner (owner_for_object($zone), sub_owners_for_object($zone)) {
