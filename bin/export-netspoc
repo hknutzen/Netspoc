@@ -93,6 +93,12 @@ sub ip_nat_for_object {
 	    elsif ($obj->{loopback}) {
 		print_ip($obj->{ip});
 	    }
+
+            # Print no mask for aggregate with mask 0, for compatibility
+            # with old version.
+            elsif ($obj->{is_aggregate} && $obj->{mask} == 0) {
+		print_ip($obj->{ip});
+	    }
 	    else {
 		join('/', print_ip($obj->{ip}), print_ip($obj->{mask}));
 	    }
@@ -189,9 +195,6 @@ sub ip_nat_for_object {
 		$nat->{$tag} = $get_ip->($obj, $nat_obj);
 	    }
 	}
-    }
-    elsif ( Netspoc::is_any( $obj ) ) {
-	$ip = print_ip( 0 );
     }
     else {
         internal_err "Unexpected object $obj->{name}";
@@ -432,13 +435,14 @@ sub setup_policy_info {
 # belonging to other owners.
 ######################################################################
 
-# We can't use %anys from Netspoc.pm because it only holds named any objects.
-# But we need all any objects like any:[network:XX] here.
-my @all_anys;
+# We can't use %aggregates from Netspoc.pm because it only holds named
+# aggregates.  But we need unnamed aggregates like any:[network:XX]
+# as well.
+my @all_zones;
 
 sub setup_sub_owners {
     progress("Setup sub owners");
-    my %all_anys;
+    my %all_zones;
     for my $host (values %hosts) {
 	$host->{disabled} and next;
 	my $host_owner = $host->{owner} or next;
@@ -456,28 +460,28 @@ sub setup_sub_owners {
 	    @owners = values %$hash;
 
 	    # Substitute hash by array. 
-	    # Use a copy because @owner is changed below.
+	    # Use a copy because @owners is changed below.
 	    $network->{sub_owners} = [ @owners ];
 	}
 	if (my $net_owner = $network->{owner}) {
 	    push @owners, $net_owner;
 	}
-	my $any = $network->{any};
-	$all_anys{$any} = $any;
-	my $any_owner = $any->{owner};
+	my $zone = $network->{zone};
+	$all_zones{$zone} = $zone;
+	my $zone_owner = $zone->{owner};
 	for my $owner (@owners) {
-	    if ( not ($any_owner and $owner eq $any_owner)) {
-		$any->{sub_owners}->{$owner} = $owner;
-#		Netspoc::debug "$any->{name} : $owner->{name}";
+	    if ( not ($zone_owner and $owner eq $zone_owner)) {
+		$zone->{sub_owners}->{$owner} = $owner;
+#		Netspoc::debug "$zone->{name} : $owner->{name}";
 	    }
 	}
     }
 
     # Substitute hash by array.
-    @all_anys = values %all_anys;
-    for my $any (@all_anys) {
-	if (my $hash = $any->{sub_owners}) {
-	    $any->{sub_owners} = [ values %$hash ];
+    @all_zones = values %all_zones;
+    for my $zone (@all_zones) {
+	if (my $hash = $zone->{sub_owners}) {
+	    $zone->{sub_owners} = [ values %$hash ];
 	}
     }
 }
@@ -540,16 +544,29 @@ sub export_no_nat_set {
 }
 
 ####################################################################
-# Export hosts, networks and 'any' objects for each owner and
-# sub_owner.
+# Export hosts, networks and zones (represented by aggregate 0/0) for
+# each owner and sub_owner.
 ####################################################################
+
+# {networks} only contains toplevel networks.
+# Add subnets recursively.
+sub add_subnetworks {
+    my ($networks) = @_;
+    my @sub_networks;
+    for my $network (@$networks) {
+        if (my $sub = $network->{networks}) {
+            push @sub_networks, @{ add_subnetworks($sub) };
+        }
+    }
+    return @sub_networks ? [ @$networks, @sub_networks ] : $networks;
+}
 
 sub export_assets {
     progress("Export assets");
     my %result;
 
     my $export_networks = sub {
-	my ($networks, $owner, $own_any) = @_;
+	my ($networks, $owner, $own_zone) = @_;
 	my %sub_result;
 	for my $net (@$networks) {
 	    next if $net->{disabled};
@@ -564,7 +581,7 @@ sub export_assets {
 
 	    # Show only own childs in foreign network.
 	    my $own_network = $net_owner eq $owner;
-	    if (not $own_network and not $own_any) {
+	    if (not $own_network and not $own_zone) {
 		@childs = 
 		    grep { my $o = owner_for_object($_); $o and $o eq $owner } 
 		         @childs;
@@ -577,25 +594,27 @@ sub export_assets {
 	return \%sub_result;
     };
 
-    for my $any (@all_anys) {
-	next if $any->{disabled};
-	next if $any->{loopback};
-	if(@{ $any->{networks} } == 1 and 
-	   $any->{networks}->[0]->{ip} eq 'tunnel') 
-	{
-	    next;
-	}
-	$all_objects{$any} = $any;
-	my $any_name = $any->{name};
-	my $any_owner = owner_for_object($any) || '';
-	for my $owner (owner_for_object($any), sub_owners_for_object($any)) {
-	    
-	    # Export networks.
-	    my $networks = $any->{networks};
+    for my $zone (@all_zones) {
+	next if $zone->{disabled};
+	next if $zone->{loopback};
 
-	    # Show only own or sub_own networks in foreign any object.
-	    my $own_any = $any_owner eq $owner;
-	    if (not $own_any) {
+        # Ignore empty zone with only tunnel or unnumbered networks.
+        next if not @{ $zone->{networks} };
+
+        # Zone with network 0/0 doesn't have an aggregate 0/0.
+        my $any = $zone->{ipmask2aggregate}->{'0/0'};
+	$all_objects{$any} = $any if $any;
+	my $zone_name = $any ? $any->{name} : $zone->{name};
+	my $zone_owner = owner_for_object($zone) || '';
+	for my $owner (owner_for_object($zone), sub_owners_for_object($zone)) {
+
+	    # Export networks.
+            # Set $networks inside the loop, because it is changed below.
+            my $networks = add_subnetworks($zone->{networks});
+
+	    # Show only own or sub_own networks in foreign zone.
+	    my $own_zone = $zone_owner eq $owner;
+	    if (not $own_zone) {
 		$networks = 
 		    [ grep 
 		      grep({ $owner eq $_ } 
@@ -603,8 +622,8 @@ sub export_assets {
 		      @$networks ];
 	    }
 
-            $result{$owner}->{anys}->{$any_name}->{networks} = 
-		$export_networks->($networks, $owner, $own_any);
+            $result{$owner}->{anys}->{$zone_name}->{networks} = 
+		$export_networks->($networks, $owner, $own_zone);
 	}
     }
 
@@ -797,9 +816,9 @@ order_services();
 link_topology();
 mark_disabled();
 distribute_nat_info();
-find_subnets();
-setany();
+set_zone();
 setpath();
+find_subnets();
 setup_sub_owners();
 set_policy_owner();
 setup_policy_info();
