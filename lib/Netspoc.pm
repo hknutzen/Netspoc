@@ -6293,6 +6293,7 @@ sub propagate_owners {
         $used{$owner} = 1;
         for my $interface (@{ $router->{interfaces} }) {
             $interface->{owner} = $owner;
+            $interface->{network}->{owner} = $owner if $interface->{loopback};
         }
     }
 
