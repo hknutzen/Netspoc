@@ -7789,7 +7789,8 @@ sub set_zone {
         set_zone1($network, $zone, 0);
 
         # Mark zone which consists only of a loopback network.
-        $zone->{loopback} = 1 if $network->{loopback};
+        $zone->{loopback} = 1 
+            if $network->{loopback} && @{ $zone->{networks} } == 1;
     }
 
     my $cluster_counter = 1;
