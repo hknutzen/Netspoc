@@ -139,15 +139,17 @@ for my $ref (values %name2var) {
 &order_services();
 &link_topology();
 &mark_disabled();
-&setany();
+&distribute_nat_info();
+&set_zone();
 &setpath();
+&find_subnets();
 &expand_policies(1);
 &abort_on_error();
 
 # Process rules of policies.
 sub process_rules ( $ ) {
     my ($expanded_rules) = @_;
-    for my $type ('deny', 'any', 'permit') {
+    for my $type ('deny', 'aggregate', 'permit') {
 	for my $rule (@{ $expanded_rules->{$type} }) {
 	    for my $where ('src', 'dst') {
 
@@ -155,7 +157,7 @@ sub process_rules ( $ ) {
 		# Mark all objects additionally here.
 		my $obj = $rule->{$where};
 		my $type = ref $obj;
-		if ($type eq 'Any' || $type eq 'Network') {
+		if ($type eq 'Network') {
 #		    Netspoc::debug "Used $obj->{name}";
 		    $obj->{is_used} = 1;
 		}
@@ -200,13 +202,14 @@ for my $area (values %areas) {
     }
 }
 
-# Mark networks which are referenced by 'any' objects.
-for my $any (values %anys) {
-    if($any->{is_used}) {
-
-	# Router isn't handled currently.
-	my $network = $any->{link};
-	$network->{is_used} = 1;
+# Mark networks inside aggregates.
+for my $zone (values %zones) {
+    for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
+        if($aggregate->{is_used}) {
+            for my $network (@{ $aggregate->{networks} }) {
+                $network->{is_used} = 1;
+            }
+        }
     }
 }
 
@@ -270,7 +273,7 @@ for my $router (values %routers) {
     }
 }
 
-for my $obj (values %areas, values %anys,values %networks, values %hosts,
+for my $obj (values %areas, values %Netspoc::aggregates,values %networks, values %hosts,
 	     values %routers) 
 {
     next if not $obj->{is_used};
@@ -299,7 +302,7 @@ for my $owner (values %owners) {
 for my $object (
     values %routers,
     values %networks,
-    values %anys,
+    values %Netspoc::aggregates,
     values %areas,
     values %groups,
     values %services,
