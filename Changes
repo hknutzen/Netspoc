@@ -1,5 +1,34 @@
 {{$NEXT}}
 
+3.010     2012-03-28 15:03:18 Europe/Berlin
+
+- Syntax for aggregates is extended to have an optional ip/mask
+  any:X = { link = network:Y; ip = i.i.i.i/n; }
+  If no ip is given, it defaults to 0/0.
+  This generates aggregated ACLs with ip/mask, 
+  effectively allowing all matching networks to pass.
+- Automatic group  network:[any:X]  holds all networks matching any:X 
+  inside the security zone, where any:X is defined.
+- Attribute 'route_hint' of network is changed to 'has_subnets'.
+  This allows the network to have subnets.
+  Networks with 'has_subnets' can now be used in rules and are allowed 
+  to have hosts.
+- Improvements in checks for missing rules on path:
+  - checks are applied now to all rules having supernets 
+    as source or destination.
+  - checks for automatically generated reverse rules at stateless devices
+    are left out, if there is some stateful managed device on path.
+  - if only a single network matches in a zone, it is sufficient 
+    to have a rule with this single network. 
+    It is no longer required to use an aggregate with the same size 
+    as in the original rule.
+- The modifier 'no_check_supernet_rules' can be added to protocol definitions.
+  This disables check for missing rules for rules having such a protocol.
+- Redundant rules from networks in subnet relation are detected now 
+  and a warning is given.
+- Attribute 'owner' is inherited from a network to its subnets.
+- Networks in subnet relation are checked to have consistent NAT definition.
+
 3.009     2012-03-23 14:05:22 Europe/Berlin
 
 - Added support for two or more networks behind EZVPN devices.
