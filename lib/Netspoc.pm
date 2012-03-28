@@ -6957,12 +6957,17 @@ sub check_subnet_nat {
     my @b_only = grep { ! $a_tags->{$_} } keys %$b_tags;
 
     # Additional NAT for subnet is ok if it is applied inside the
-    # current zone at b network.
+    # current zone at b network and translates a into subnet of b.
     if (@a_only == 1) {
         my $tag = $a_only[0];
         my $no_nat_set = $b->{nat_domain}->{no_nat_set};
         if (! $no_nat_set->{$tag}) {
-            @a_only = ();
+            my $nat_a = get_nat_network($a, $no_nat_set);
+            if ( $nat_a->{mask} > $b->{mask} &&
+                 match_ip($nat_a->{ip}, $b->{ip}, $b->{mask})) 
+            {
+                @a_only = ();
+            }
         }
     }
     my @msg;
