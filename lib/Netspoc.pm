@@ -52,7 +52,7 @@ our @EXPORT = qw(
   %groups
   %protocols
   %protocolgroups
-  %policies
+  %services
   %isakmp
   %ipsec
   %crypto
@@ -95,8 +95,8 @@ our @EXPORT = qw(
   mark_disabled
   find_subnets
   set_zone
-  set_policy_owner
-  expand_policies
+  set_service_owner
+  expand_services
   expand_crypto
   check_unused_groups
   setpath
@@ -147,11 +147,11 @@ our %config = (
 # Check for redundant rules.
     check_redundant_rules => 'warn',
 
-# Check for policies where owner can't be derived.
-    check_policy_unknown_owner => 0,
+# Check for services where owner can't be derived.
+    check_service_unknown_owner => 0,
 
-# Check for policies where multiple owners have been derived.
-    check_policy_multi_owner => 0,
+# Check for services where multiple owners have been derived.
+    check_service_multi_owner => 0,
 
 # Check for inconsistent use of attributes 'extend' and 'extend_only' in owner.
     check_owner_extend => 0,
@@ -649,7 +649,7 @@ sub read_string() {
 sub read_intersection();
 
 # Object representing 'user'.
-# This is only 'active' while parsing src or dst of the rule of a policy.
+# This is only 'active' while parsing src or dst of the rule of a service.
 my $user_object = { active => 0, refcount => 0, elements => undef };
 
 sub read_union( $ ) {
@@ -2609,7 +2609,7 @@ sub read_protocol( $ ) {
     return $protocol;
 }
 
-our %policies;
+our %services;
 
 sub assign_union_allow_user( $ ) {
     my ($name) = @_;
@@ -2622,37 +2622,37 @@ sub assign_union_allow_user( $ ) {
     return \@result, $user_object->{refcount};
 }
 
-sub read_policy( $ ) {
+sub read_service( $ ) {
     my ($name) = @_;
-    my $policy = { name => $name, rules => [] };
-    $policy->{private} = $private if $private;
+    my $service = { name => $name, rules => [] };
+    $service->{private} = $private if $private;
     skip '=';
     skip '{';
-    add_description($policy);
+    add_description($service);
     while (1) {
         last if check 'user';
         if (my @other = check_assign_list 'overlaps', \&read_typed_name) {
-            $policy->{overlaps}
+            $service->{overlaps}
               and error_atline "Duplicate attribute 'overlaps'";
-            $policy->{overlaps} = \@other;
+            $service->{overlaps} = \@other;
         }
         elsif (my $visible = check_assign('visible', \&read_owner_pattern)) {
-            $policy->{visible}
+            $service->{visible}
               and error_atline "Duplicate attribute 'visible'";
-            $policy->{visible} = $visible;
+            $service->{visible} = $visible;
         }
         elsif (check_flag('multi_owner')) {
-            $policy->{multi_owner}
+            $service->{multi_owner}
               and error_atline "Duplicate attribute 'multi_owner'";
-            $policy->{multi_owner} = 1;
+            $service->{multi_owner} = 1;
         }
         elsif (check_flag('unknown_owner')) {
-            $policy->{unknown_owner}
+            $service->{unknown_owner}
               and error_atline "Duplicate attribute 'unknown_owner'";
-            $policy->{unknown_owner} = 1;
+            $service->{unknown_owner} = 1;
         }
         elsif (check_flag('disabled')) {
-            $policy->{disabled} = 1;
+            $service->{disabled} = 1;
         }
         else {
             syntax_err "Expected some valid attribute or definition of 'user'";
@@ -2662,10 +2662,10 @@ sub read_policy( $ ) {
     # 'user' has already been read above.
     skip '=';
     if (check 'foreach') {
-        $policy->{foreach} = 1;
+        $service->{foreach} = 1;
     }
     my @elements = read_list \&read_intersection;
-    $policy->{user} = \@elements;
+    $service->{user} = \@elements;
 
     while (1) {
         last if check '}';
@@ -2685,26 +2685,26 @@ sub read_policy( $ ) {
             $src_user
               or $dst_user
               or error_atline "Rule must use keyword 'user'";
-            if ($policy->{foreach} and not($src_user and $dst_user)) {
+            if ($service->{foreach} and not($src_user and $dst_user)) {
                 warn_msg "Rule of $name should reference 'user'",
                   " in 'src' and 'dst'\n",
-                  " because policy has keyword 'foreach'";
+                  " because service has keyword 'foreach'";
             }
             my $rule = {
-                policy   => $policy,
+                service   => $service,
                 action   => $action,
                 src      => $src,
                 dst      => $dst,
                 prt      => $prt,
                 has_user => $src_user ? $dst_user ? 'both' : 'src' : 'dst',
             };
-            push @{ $policy->{rules} }, $rule;
+            push @{ $service->{rules} }, $rule;
         }
         else {
             syntax_err "Expected 'permit' or 'deny'";
         }
     }
-    return $policy;
+    return $service;
 }
 
 our %global;
@@ -2989,7 +2989,7 @@ my %global_type = (
     group           => [ \&read_group,           \%groups ],
     protocol        => [ \&read_protocol,         \%protocols ],
     protocolgroup   => [ \&read_protocolgroup,    \%protocolgroups ],
-    service         => [ \&read_policy,          \%policies ],
+    service         => [ \&read_service,          \%services ],
     global          => [ \&read_global,          \%global ],
     pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
     nat             => [ \&read_global_nat,      \%global_nat ],
@@ -3134,9 +3134,9 @@ sub show_read_statistics() {
     my $g  = keys %groups;
     my $s  = keys %protocols;
     my $sg = keys %protocolgroups;
-    my $p  = keys %policies;
+    my $p  = keys %services;
     info "Read $r routers, $n networks, $h hosts";
-    info "Read $p policies, $g groups, $s protocols, $sg protocol groups";
+    info "Read $p services, $g groups, $s protocols, $sg protocol groups";
 }
 
 ##############################################################################
@@ -3160,11 +3160,11 @@ sub is_autointerface( $ ) { ref($_[0]) eq 'Autointerface'; }
 sub print_rule( $ ) {
     my ($rule) = @_;
     my $extra = '';
-    my $policy = $rule->{rule} && $rule->{rule}->{policy};
+    my $service = $rule->{rule} && $rule->{rule}->{service};
     $extra .= " $rule->{for_router}" if $rule->{for_router};
     $extra .= " stateless"           if $rule->{stateless};
     $extra .= " stateless_icmp"      if $rule->{stateless_icmp};
-    $extra .= " of $policy->{name}"  if $policy;
+    $extra .= " of $service->{name}"  if $service;
     my $prt = exists $rule->{orig_prt} ? 'orig_prt' : 'prt';
     my $action = $rule->{action};
     $action = $action->{name} if is_chain $action;
@@ -5251,7 +5251,7 @@ sub expand_group( $$;$ ) {
         }
     }
 
-    # Detect and remove duplicate values in policy.
+    # Detect and remove duplicate values in group.
     my %unique;
     my @duplicate;
     for my $obj (@$aref) {
@@ -5584,7 +5584,7 @@ sub expand_special ( $$$$ ) {
 # - different networks or
 # - subnets/hosts of different networks.
 # Rules between identical objects are silently ignored.
-# But a message is shown if a policy only has rules between identical objects.
+# But a message is shown if a service only has rules between identical objects.
 my %unenforceable_context2src2dst;
 my %unenforceable_context;
 my %enforceable_context;
@@ -5675,28 +5675,28 @@ sub show_deleted_rules1 {
         my $prt2 = $other->{orig_prt} || $other->{prt};
         next if $prt1->{flags}->{overlaps} && $prt2->{flags}->{overlaps};
 
-        my $policy  = $rule->{rule}->{policy};
-        my $opolicy = $other->{rule}->{policy};
-        if (my $overlaps = $policy->{overlaps}) {
+        my $service  = $rule->{rule}->{service};
+        my $oservice = $other->{rule}->{service};
+        if (my $overlaps = $service->{overlaps}) {
             for my $overlap (@$overlaps) {
-                if ($opolicy eq $overlap) {
-                    $policy->{overlaps_used}->{$overlap} = $overlap;
+                if ($oservice eq $overlap) {
+                    $service->{overlaps_used}->{$overlap} = $overlap;
                     next RULE;
                 }
             }
         }
-        if (my $overlaps = $opolicy->{overlaps}) {
+        if (my $overlaps = $oservice->{overlaps}) {
             for my $overlap (@$overlaps) {
-                if ($policy eq $overlap) {
-                    $opolicy->{overlaps_used}->{$overlap} = $overlap;
+                if ($service eq $overlap) {
+                    $oservice->{overlaps_used}->{$overlap} = $overlap;
                     next RULE;
                 }
             }
         }
-        my $pname = $policy->{name};
-        my $oname = $opolicy->{name};
-        my $pfile = $policy->{file};
-        my $ofile = $opolicy->{file};
+        my $pname = $service->{name};
+        my $oname = $oservice->{name};
+        my $pfile = $service->{file};
+        my $ofile = $oservice->{file};
         $pfile =~ s/.*?([^\/]+)$/$1/;
         $ofile =~ s/.*?([^\/]+)$/$1/;
         $pname2file{$pname} = $pfile;
@@ -5750,20 +5750,20 @@ sub show_deleted_rules2 {
             }
         }
 
-        my $policy  = $rule->{rule}->{policy};
-        my $opolicy = $other->{rule}->{policy};
-        if (my $overlaps = $policy->{overlaps}) {
+        my $service  = $rule->{rule}->{service};
+        my $oservice = $other->{rule}->{service};
+        if (my $overlaps = $service->{overlaps}) {
             for my $overlap (@$overlaps) {
-                if ($opolicy eq $overlap) {
-                    $policy->{overlaps_used}->{$overlap} = $overlap;
+                if ($oservice eq $overlap) {
+                    $service->{overlaps_used}->{$overlap} = $overlap;
                     next RULE;
                 }
             }
         }
-        my $pname = $policy->{name};
-        my $oname = $opolicy->{name};
-        my $pfile = $policy->{file};
-        my $ofile = $opolicy->{file};
+        my $pname = $service->{name};
+        my $oname = $oservice->{name};
+        my $pfile = $service->{file};
+        my $ofile = $oservice->{file};
         $pfile =~ s/.*?([^\/]+)$/$1/;
         $ofile =~ s/.*?([^\/]+)$/$1/;
         $pname2file{$pname} = $pfile;
@@ -5793,14 +5793,14 @@ sub show_deleted_rules2 {
     @deleted_rules = ();
 
     # Warn about unused {overlaps} declarations.
-    for my $key (sort keys %policies) {
-        my $policy = $policies{$key};
-        if (my $overlaps = $policy->{overlaps}) {
-            my $used = delete $policy->{overlaps_used};
+    for my $key (sort keys %services) {
+        my $service = $services{$key};
+        if (my $overlaps = $service->{overlaps}) {
+            my $used = delete $service->{overlaps_used};
             for my $overlap (@$overlaps) {
                 $used->{$overlap}
                   or warn_msg "Useless 'overlaps = $overlap->{name}'",
-                  " in $policy->{name}";
+                  " in $service->{name}";
             }
         }
     }
@@ -5811,10 +5811,10 @@ my %global_permit;
 
 # Parameters:
 # - Reference to array of unexpanded rules.
-# - Current context for error messages: name of policy or crypto object.
+# - Current context for error messages: name of service or crypto object.
 # - Reference to hash with attributes deny, supernet, permit for storing
 #   resulting expanded rules of different type.
-# Optional, used when called from expand_policies:
+# Optional, used when called from expand_services:
 # - Reference to array of values. Occurrences of 'user' in rules
 #   will be substituted by these values.
 # - Flag, indicating if values for 'user' are substituted as a whole or
@@ -5904,7 +5904,7 @@ sub expand_rules {
                             }
 
                             # At least one rule is enforceable.
-                            # This is used to decide, if a policy is fully
+                            # This is used to decide, if a service is fully
                             # unenforceable.
                             $enforceable_context{$context} = 1;
                             my @src = expand_special $src, $dst, $flags->{src},
@@ -5985,10 +5985,10 @@ sub print_rulecount () {
     info "Expanded rule count: $count";
 }
 
-sub expand_policies( ;$) {
+sub expand_services( ;$) {
     my ($convert_hosts) = @_;
     convert_hosts if $convert_hosts;
-    progress "Expanding policies";
+    progress "Expanding services";
 
     # Handle global:permit.
     if (my $global = $global{permit}) {
@@ -5997,13 +5997,13 @@ sub expand_policies( ;$) {
             @{ expand_protocols($global->{prt}, "$global->{name}") });
     }
 
-    # Sort by policy name to make output deterministic.
-    for my $key (sort keys %policies) {
-        my $policy = $policies{$key};
-        my $name   = $policy->{name};
+    # Sort by service name to make output deterministic.
+    for my $key (sort keys %services) {
+        my $service = $services{$key};
+        my $name   = $service->{name};
 
-        # Substitute policy name by policy object.
-        if (my $overlaps = $policy->{overlaps}) {
+        # Substitute service name by service object.
+        if (my $overlaps = $service->{overlaps}) {
             my @pobjects;
             for my $pair (@$overlaps) {
                 my ($type, $oname) = @$pair;
@@ -6013,7 +6013,7 @@ sub expand_policies( ;$) {
                     err_msg "Unexpected type '$type' in attribute 'overlaps'",
                       " of $name";
                 }
-                elsif (my $other = $policies{$oname}) {
+                elsif (my $other = $services{$oname}) {
                     push(@pobjects, $other);
                 }
                 else {
@@ -6021,13 +6021,13 @@ sub expand_policies( ;$) {
                       " of $name";
                 }
             }
-            $policy->{overlaps} = \@pobjects;
+            $service->{overlaps} = \@pobjects;
         }
 
         # Attribute "visible" is known to have value "*" or "name*".
         # It must match prefix of some owner name.
         # Change value to regex to simplify tests: # name* -> /^name.*$/
-        if (my $visible = $policy->{visible}) {
+        if (my $visible = $service->{visible}) {
             if (my ($prefix) = ($visible =~ /^ (\S*) [*] $/x)) {
                 if ($prefix) {
                     if (not grep { /^$prefix/ } keys %owners) {
@@ -6035,15 +6035,15 @@ sub expand_policies( ;$) {
                           . " any owner";
                     }
                 }
-                $policy->{visible} = qr/^$prefix.*$/;
+                $service->{visible} = qr/^$prefix.*$/;
             }
         }
 
-        my $user = $policy->{user} =
-          expand_group($policy->{user}, "user of $name");
-        expand_rules($policy->{rules}, $name, \%expanded_rules,
-            $policy->{private}, $user, $policy->{foreach}, 
-            $convert_hosts, $policy->{disabled});
+        my $user = $service->{user} =
+          expand_group($service->{user}, "user of $name");
+        expand_rules($service->{rules}, $name, \%expanded_rules,
+            $service->{private}, $user, $service->{foreach}, 
+            $convert_hosts, $service->{disabled});
     }
     print_rulecount;
     progress "Preparing Optimization";
@@ -6054,7 +6054,7 @@ sub expand_policies( ;$) {
 }
 
 ##############################################################################
-# Distribute owner, identify policy owner
+# Distribute owner, identify service owner
 ##############################################################################
 
 sub propagate_owners {
@@ -6327,49 +6327,49 @@ sub expand_auto_intf {
     }
 }
 
-my %unknown2policies;
+my %unknown2services;
 my %unknown2unknown;
 
 sub show_unknown_owners {
-    for my $polices (values %unknown2policies) {
+    for my $polices (values %unknown2services) {
         $polices = join(',', sort @$polices);
     }
     my $print =
-      $config{check_policy_unknown_owner} eq 'warn'
+      $config{check_service_unknown_owner} eq 'warn'
       ? \&warn_msg
       : \&err_msg;
   UNKNOWN:
     for my $obj (values %unknown2unknown) {
         my $up = $obj;
         while ($up = $up->{up}) {
-            if (    $unknown2policies{$up}
-                and $unknown2policies{$obj} eq $unknown2policies{$up})
+            if (    $unknown2services{$up}
+                and $unknown2services{$obj} eq $unknown2services{$up})
             {
                 next UNKNOWN;
             }
         }
-        $print->("Unknown owner for $obj->{name} in $unknown2policies{$obj}");
+        $print->("Unknown owner for $obj->{name} in $unknown2services{$obj}");
     }
 }
 
-sub set_policy_owner {
-    progress "Checking policy owner";
+sub set_service_owner {
+    progress "Checking service owner";
 
     propagate_owners();
 
-    for my $key (sort keys %policies) {
-        my $policy = $policies{$key};
-        my $pname  = $policy->{name};
+    for my $key (sort keys %services) {
+        my $service = $services{$key};
+        my $pname  = $service->{name};
 
-        my $users = expand_group($policy->{user}, "user of $pname");
+        my $users = expand_group($service->{user}, "user of $pname");
 
         # Non 'user' objects.
         my @objects;
 
-        # Check, if policy contains a coupling rule with only "user" elements.
+        # Check, if service contains a coupling rule with only "user" elements.
         my $is_coupling = 0;
 
-        for my $rule (@{ $policy->{rules} }) {
+        for my $rule (@{ $service->{rules} }) {
             my $has_user = $rule->{has_user};
             if ($has_user eq 'both') {
                 $is_coupling = 1;
@@ -6386,7 +6386,7 @@ sub set_policy_owner {
         expand_auto_intf(\@objects, $users);
         expand_auto_intf($users,    \@objects);
 
-        # Take elements of 'user' object, if policy has coupling rule.
+        # Take elements of 'user' object, if service has coupling rule.
         if ($is_coupling) {
             push @objects, @$users;
         }
@@ -6395,57 +6395,57 @@ sub set_policy_owner {
         my %objects = map { $_ => $_ } @objects;
         @objects = values %objects;
 
-        # Collect policy owners and unknown owners;
-        my $policy_owners;
+        # Collect service owners and unknown owners;
+        my $service_owners;
         my $unknown_owners;
 
         for my $obj (@objects) {
             my $owner = $obj->{owner};
             if ($owner) {
-                $policy_owners->{$owner} = $owner;
+                $service_owners->{$owner} = $owner;
             }
             else {
                 $unknown_owners->{$obj} = $obj;
             }
         }
 
-        $policy->{owners} = [ values %$policy_owners ];
+        $service->{owners} = [ values %$service_owners ];
 
         # Check for multiple owners.
         my $multi_count =
           $is_coupling
           ? 1
-          : values %$policy_owners;
-        if ($multi_count > 1 xor $policy->{multi_owner}) {
-            if ($policy->{multi_owner}) {
+          : values %$service_owners;
+        if ($multi_count > 1 xor $service->{multi_owner}) {
+            if ($service->{multi_owner}) {
                 warn_msg "Useless use of attribute 'multi_owner' at $pname";
             }
             else {
                 my $print =
-                    $config{check_policy_multi_owner}
-                  ? $config{check_policy_multi_owner} eq 'warn'
+                    $config{check_service_multi_owner}
+                  ? $config{check_service_multi_owner} eq 'warn'
                       ? \&warn_msg
                       : \&err_msg
                   : sub { };
                 my @names =
                   sort(map { $_->{name} =~ /^owner:(.*)/; $1 }
-                      values %$policy_owners);
+                      values %$service_owners);
                 $print->("$pname has multiple owners:\n " . join(', ', @names));
             }
         }
 
         # Check for unknown owners.
         if (($unknown_owners and keys %$unknown_owners)
-            xor $policy->{unknown_owner})
+            xor $service->{unknown_owner})
         {
-            if ($policy->{unknown_owner}) {
+            if ($service->{unknown_owner}) {
                 warn_msg "Useless use of attribute 'unknown_owner' at $pname";
             }
             else {
-                if ($config{check_policy_unknown_owner}) {
+                if ($config{check_service_unknown_owner}) {
                     for my $obj (values %$unknown_owners) {
                         $unknown2unknown{$obj} = $obj;
-                        push @{ $unknown2policies{$obj} }, $pname;
+                        push @{ $unknown2services{$obj} }, $pname;
                     }
                 }
             }
@@ -9621,7 +9621,7 @@ sub check_supernet_in_zone {
         $extra = "Tried " . join(', ', map($_->{name}, @$networks));
     }
 
-    my $service = $rule->{rule}->{policy};
+    my $service = $rule->{rule}->{service};
     return if $missing_supernet{$interface}->{$service};
     $missing_supernet{$interface}->{$service} = 1;
 
@@ -10030,8 +10030,8 @@ sub check_for_transient_supernet_rule {
 
 # debug "Src: ", print_rule $rule;
 # debug "Dst: ", print_rule $rule2;
-                        my $src_policy = $rule->{rule}->{policy}->{name};
-                        my $dst_policy = $rule2->{rule}->{policy}->{name};
+                        my $src_service = $rule->{rule}->{service}->{name};
+                        my $dst_service = $rule2->{rule}->{service}->{name};
                         my $prt_name   = $smaller_prt->{name};
                         $prt_name =~ s/^.part_/[part]/;
                         if (    $smaller_src_range ne $range_tcp_any
@@ -10043,7 +10043,7 @@ sub check_for_transient_supernet_rule {
                             }
                         }
                         my $new =
-                          not $missing_rule_tree{$src_policy}->{$dst_policy}
+                          not $missing_rule_tree{$src_service}->{$dst_service}
 
                           # The matching supernet object.
                           ->{ $dst1->{name} }
@@ -10068,10 +10068,10 @@ sub check_for_transient_supernet_rule {
           : \&err_msg;
         $print->("Missing transient rules: $missing_count");
 
-        while (my ($src_policy, $hash) = each %missing_rule_tree) {
-            while (my ($dst_policy, $hash) = each %$hash) {
+        while (my ($src_service, $hash) = each %missing_rule_tree) {
+            while (my ($dst_service, $hash) = each %$hash) {
                 while (my ($supernet, $hash) = each %$hash) {
-                    info "Rules of $src_policy and $dst_policy match at $supernet";
+                    info "Rules of $src_service and $dst_service match at $supernet";
                     info "Missing transient rules:";
                     while (my ($src, $hash) = each %$hash) {
                         while (my ($dst, $hash) = each %$hash) {

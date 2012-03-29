@@ -114,12 +114,12 @@ my $config = shift @ARGV or usage;
 # Remember source code of each global definition.
 &read_file_or_dir($config, \&read_netspoc_with_src);
 
-my %name2var = ( service => \%policies, 
+my %name2var = ( service => \%services, 
 
                  # Still support old syntax.
-                 policy  =>\%policies);
+                 policy  =>\%services);
 
-# Read names of policies from command line.
+# Read names of services from command line.
 for my $arg (@ARGV) {
     my ($type, $name) = split_typed_name $arg;
     my $ref = $name2var{$type} or usage;
@@ -143,10 +143,10 @@ for my $ref (values %name2var) {
 &set_zone();
 &setpath();
 &find_subnets();
-&expand_policies(1);
+&expand_services(1);
 &abort_on_error();
 
-# Process rules of policies.
+# Process rules of services.
 sub process_rules ( $ ) {
     my ($expanded_rules) = @_;
     for my $type ('deny', 'aggregate', 'permit') {
@@ -185,7 +185,7 @@ sub process_rules ( $ ) {
     }
 }
 
-# Mark parts of topology which are referenced by rules of policies.
+# Mark parts of topology which are referenced by rules of services.
 process_rules \%expanded_rules;
 
 # Mark interfaces which are referenced by areas.
@@ -298,7 +298,7 @@ for my $owner (values %owners) {
 # Print marked parts of netspoc configuration.
 # Routers and networks have been marked by mark_topology.
 # Protocols have been marked while %expanded_rules have been processed above.
-# Groups and protocolroups objects have been marked during expand_policies.
+# Groups and protocolroups objects have been marked during expand_services.
 for my $object (
     values %routers,
     values %networks,
@@ -359,6 +359,6 @@ if (keys %global_nat) {
 }
 
 # All unwanted services have already been deleted above.
-for my $service (values %policies) {
+for my $service (values %services) {
     print $service->{src_code}, "\n";
 }

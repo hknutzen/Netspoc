@@ -36,13 +36,13 @@ Check for duplicate rules.
 
 Check for redundant rules.
 
-=item B<-check_policy_unknown_owner=0|1|warn>
+=item B<-check_service_unknown_owner=0|1|warn>
 
-Check for policies where owner can't be derived.
+Check for services where owner can't be derived.
 
-=item B<-check_policy_multi_owner=0|1|warn>
+=item B<-check_service_multi_owner=0|1|warn>
 
-Check for policies where multiple owners have been derived.
+Check for services where multiple owners have been derived.
 
 =item B<-check_owner_extend=0|1|warn>
 
@@ -214,8 +214,8 @@ my $file_config = &read_config($in_path);
 &set_zone();
 &setpath();
 &find_subnets();
-&set_policy_owner();
-&expand_policies(1);	# 1: expand hosts to subnets
+&set_service_owner();
+&expand_services(1);	# 1: expand hosts to subnets
 # Abort now, if there are syntax errors and simple semantic errors.
 &abort_on_error();
 &expand_crypto();
