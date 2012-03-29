@@ -14,7 +14,7 @@ netspoc [options] {in-directory | in-file | -} [out-directory]
 
 =item B<-check_unused_groups=0|1|warn>
 
-Check for unused groups and servicegroups.
+Check for unused groups and protocolgroups.
 
 =item B<-check_unused_protocols=0|1|warn>
 
@@ -207,7 +207,7 @@ my $file_config = &read_config($in_path);
 &show_version();
 &read_file_or_dir($in_path);
 &show_read_statistics();
-&order_services();
+&order_protocols();
 &link_topology();
 &mark_disabled();
 &distribute_nat_info();

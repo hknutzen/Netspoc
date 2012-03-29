@@ -136,7 +136,7 @@ for my $ref (values %name2var) {
     }
 }
 
-&order_services();
+&order_protocols();
 &link_topology();
 &mark_disabled();
 &distribute_nat_info();
@@ -176,10 +176,10 @@ sub process_rules ( $ ) {
 		}		    
 	    }
 	    &path_walk($rule, \&mark_topology);
-	    if($rule->{orig_srv}){
-		$rule->{orig_srv}->{is_used} = 1;
+	    if($rule->{orig_prt}){
+		$rule->{orig_prt}->{is_used} = 1;
 	    } else {
-		$rule->{srv}->{is_used} = 1;
+		$rule->{prt}->{is_used} = 1;
 	    }
 	}
     }
@@ -235,7 +235,7 @@ for my $router (values %routers) {
 	# Mark networks referenced in attribute reroute_permit.
 	if ($interface->{reroute_permit}) {
 	    for my $net (@{ $interface->{reroute_permit} }) {
-		my $rule = {src => $interface, dst => $net, srv => {}};
+		my $rule = {src => $interface, dst => $net, prt => {}};
 		&path_walk($rule, \&mark_topology);
 	    }
 	}
@@ -267,7 +267,7 @@ for my $router (values %routers) {
 	    my ($src) = 
 		Netspoc::path_auto_interfaces($router->{interfaces}->[0], 
 					     $host);
-	    my $rule = {src => $src, dst => $host, srv => {}};
+	    my $rule = {src => $src, dst => $host, prt => {}};
 	    &path_walk($rule, \&mark_topology);
 	}
     }
@@ -305,8 +305,8 @@ for my $object (
     values %Netspoc::aggregates,
     values %areas,
     values %groups,
-    values %services,
-    values %servicegroups,
+    values %protocols,
+    values %protocolgroups,
     values %isakmp,
     values %ipsec,
     values %crypto,
