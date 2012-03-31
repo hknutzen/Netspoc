@@ -13948,9 +13948,6 @@ sub local_optimization() {
     for my $domain (@natdomains) {
         my $no_nat_set = $domain->{no_nat_set};
 
-        # Collect nat networks identical to some loopback network.
-        my %loopback2nat;
-
         # Subnet relation may be different for each NAT domain,
         # therefore it is set up again for each NAT domain.
         for my $network (@networks) {
