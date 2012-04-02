@@ -7109,7 +7109,7 @@ sub find_subnets() {
         # original network in zone.
         my %identical_in_zone;
         for my $networks (values %identical) {
-            my $one_net = shift @$networks;
+            my $one_net = shift(@$networks);
             for my $network (@$networks) {
                 $network->{is_identical}->{$no_nat_set} = $one_net;
                 $identical_in_zone{$one_net}->{ $network->{zone} } = $network;
@@ -7239,19 +7239,33 @@ sub find_subnets() {
 
     for my $zone (@zones) {
 
-        # Remove subnets of non-aggregate networks.
-        my $is_subnet;
-        $is_subnet = sub {
+        # For each subnet N find the largest non-aggregate network
+        # {max_up_net}, which encloses N. This is used in secondary
+        # optimization.
+        my $set_max_net;
+        $set_max_net = sub {
             my ($subnet) = @_;
-            if (my $network = $subnet->{up}) {
-                if (!$network->{is_aggregate}) {
-                    return 1;
-                }
-                return $is_subnet->($network);
+            return undef if not $subnet;
+            if (my $max_net = $subnet->{max_up_net}) {
+                return $max_net;
             }
-            return 0;
+            if (my $max_net = $set_max_net->($subnet->{up})) {
+                if (! $subnet->{is_aggregate}) {
+                    $subnet->{max_up_net} = $max_net;
+#                    debug "$subnet->{name} max_up $max_net->{name}";
+                }
+                return $max_net;
+            }
+            if ($subnet->{is_aggregate}) {
+                return undef;
+            }
+            return $subnet;
         };
-        $zone->{networks} = [ grep(!$is_subnet->($_), @{ $zone->{networks} }) ];
+        $set_max_net->($_) for  @{ $zone->{networks} };
+
+        # Remove subnets of non-aggregate networks.
+        $zone->{networks} = 
+            [ grep(!$_->{max_up_net}, @{ $zone->{networks} }) ];
 
         # Check for empty aggregates
         for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
@@ -9225,7 +9239,12 @@ sub link_tunnels () {
 # for default route optimization,
 # while generating chains of iptables and
 # for local optimization.
-my $network_00 = new('Network', name => "network:0/0", ip => 0, mask => 0);
+my $network_00 = new('Network', 
+                     name => "network:0/0", 
+                     ip => 0, 
+                     mask => 0,
+                     is_aggregate => 1,
+                     is_supernet => 1);
 
 sub crypto_behind {
     my ($interface, $managed) = @_;
@@ -13114,7 +13133,7 @@ sub add_bintree ( $$ ) {
 sub gen_addr_bintree ( $$$ ) {
     my ($elements, $tree, $no_nat_set) = @_;
 
-    # Sort in reverse order my mask and then by IP.
+    # Sort in reverse order by mask and then by IP.
     my @nodes =
       sort { $b->{mask} <=> $a->{mask} || $b->{ip} <=> $a->{ip} }
       map {
@@ -13417,6 +13436,45 @@ sub find_chains ( $$ ) {
     push @rule_arefs, $intf_rules if $intf_rules;
 
     for my $rules (@rule_arefs) {
+
+        # Change rules to allow optimization of objects having
+        # identical IP adress.
+        for my $rule (@$rules) {
+            for my $what (qw(src dst)) {
+                my $obj = $rule->{$what};
+
+                # Loopback interface is converted to loopback network,
+                # if other networks with same address exist.
+                if ($obj->{loopback}) {
+                    if (!($rules eq 'intf_rules' && $what eq 'dst')) {
+                        $obj = $obj->{network};
+                    }
+                }
+
+                # Identical networks from dynamic NAT and
+                # from identical aggregates.
+                if (my $identical = $obj->{is_identical}) {
+                    if (my $other = $identical->{$no_nat_set}) {
+                        $obj = $other;
+                    }
+                }
+
+                # Identical redundancy interfaces.
+                elsif (my $aref = $obj->{redundancy_interfaces}) {
+                    if (!($rules eq 'intf_rules' && $what eq 'dst')) {
+                        $obj = $aref->[0];
+                    }
+                }
+                else {
+                    next;
+                }
+
+                # Don't change rules of devices in other NAT
+                # domain where we may have other relation.
+                $rule = { %$rule, $what => $obj };
+            }
+        }
+
         my %cache;
 
         my $print_tree;
@@ -13639,7 +13697,11 @@ sub find_chains ( $$ ) {
                     for (my $j = $start ; $j <= $end ; $j++) {
                         my $rule = $rules->[$j];
                         if ($rule->{prt}->{proto} eq 'icmp') {
-                            $rule->{src_range} = $prt_icmp;
+
+                            # Change copy, because original rule is
+                            # referenced at other devices and must be
+                            # unchanged.
+                            $rule = { %$rule, src_range => $prt_icmp };
                         }
                         my ($action, $t1, $t2, $t3, $t4) =
                           @{$rule}{ 'action', @test_order };
@@ -13919,42 +13981,31 @@ sub join_ranges ( $ ) {
     }
 }
 
+#use Time::HiRes qw ( time );
 sub local_optimization() {
     progress "Optimizing locally";
-
-    # Prepare removal of duplicate occurences of the same IP address from
-    # a group of virtual interfaces.
-    # Bring the group of interfaces into an arbitrary order.
-    # This used below to remove all but one interface.
-    for my $interface (@virtual_interfaces) {
-
-        # Interface has already been processed.
-        next if is_interface $interface->{up};
-        my $up;
-        for my $v_intf (@{ $interface->{redundancy_interfaces} }) {
-
-            # Set new value but first interface keeps standard attribute value.
-            $v_intf->{up} = $up if $up;
-
-            # Get  value for next interface.
-            $up = $v_intf;
-        }
-    }
 
     # Needed in find_chains.
     $ref2obj{$network_00} = $network_00;
 
     my %seen;
+    my %time;
+    my %r2rules;
+    my %r2id;
+    my %r2del;
+    my %r2sec;
     for my $domain (@natdomains) {
         my $no_nat_set = $domain->{no_nat_set};
 
         # Subnet relation may be different for each NAT domain,
         # therefore it is set up again for each NAT domain.
         for my $network (@networks) {
-            $network->{up} =
-                 $network->{is_in}->{$no_nat_set}
-              || $network->{is_identical}->{$no_nat_set}
-              || $network_00;
+            next if !  $network->{mask} || $network->{mask} == 0;
+            my $up = $network->{is_in}->{$no_nat_set};
+            if (!$up || $up->{mask} == 0) {
+                $up = $network_00;
+            }
+            $network->{up} = $up;
         }
 
         for my $network (@{ $domain->{networks} }) {
@@ -13984,50 +14035,95 @@ sub local_optimization() {
                     next;
                 }
 
+#               my $rname = $router->{name};
 #               debug "$router->{name}";
                 for my $rules ('intf_rules', 'rules', 'out_rules') {
-                    my %hash;
+
+#                    my $t1 = time();
+
+                    # For supernet / aggregate rules used in optimization.
+                    my %hash;	
+
+                    # For finding duplicate rules having src or dst
+                    # which exist as different objects with identical
+                    # ip address.
+                    my %id_hash;
+
+                    # For finding duplicate secondary rules.
+                    my %id_hash2;
+
                     my $changed = 0;
                     for my $rule (@{ $hardware->{$rules} }) {
-                        my ($src, $dst) = @{$rule}{ 'src', 'dst' };
 
-                        # Insert changed copy of rule to allow optimization
-                        # of identical networks..
-                        my $copy;
-                        if (my $other = $src->{is_identical}->{$no_nat_set}) {
-                            $src  = $other;
-                            $copy = 1;
+                        # Change rule to allow optimization of objects
+                        # having identical IP adress.
+                        for my $what (qw(src dst)) {
+                            my $obj = $rule->{$what};
+
+                            # Loopback interface is converted to
+                            # loopback network, if other networks with
+                            # same address exist.
+                            if ($obj->{loopback}) {
+                                if (!($rules eq 'intf_rules' && $what eq 'dst'))
+                                {
+                                    $obj = $obj->{network};
+                                }
+                            }
+
+                            # Identical networks from dynamic NAT and
+                            # from identical aggregates.
+                            if (my $identical = $obj->{is_identical}) {
+                                if (my $other = $identical->{$no_nat_set}) {
+                                    $obj = $other;
+                                }
+                            }
+
+                            # Identical redundancy interfaces.
+                            elsif (my $aref = $obj->{redundancy_interfaces}) {
+                                if (!($rules eq 'intf_rules' && $what eq 'dst'))
+                                {
+                                    $obj = $aref->[0];
+                                }
+                            }
+                            else {
+                                next;
+                            }
+
+                            # Don't change rules of devices in other
+                            # NAT domain where we may have other
+                            # relation.
+                            $rule = { %$rule, $what => $obj };
                         }
-                        if (my $other = $dst->{is_identical}->{$no_nat_set}) {
-                            $dst  = $other;
-                            $copy = 1;
-                        }
-                        if ($copy) {
+                        my ($src, $dst, $action, $src_range, $prt) =
+                          @{$rule}
+                           { 'src', 'dst', 'action', 'src_range', 'prt' };
 
-#                            debug "pre  ", print_rule $rule;
-                            $rule = { %$rule, src => $src, dst => $dst };
-
-#                            debug "post ", print_rule $rule;
-                        }
-                        my ($action, $src_range, $prt) =
-                          @{$rule}{ 'action', 'src_range', 'prt' };
-
-                        # Prevent duplicate code from duplicate rules,
-                        # resulting from loops or global:permit.
-                        if ($hash{$action}->{$src}->{$dst}->{$src_range}
-                            ->{$prt})
+                        # Remove duplicate rules.
+                        if ($id_hash{$action}->{$src}->{$dst}->{$src_range}
+                              ->{$prt})
                         {
                             $rule    = undef;
                             $changed = 1;
+#                            $r2id{$rname}++;
+                            next;
                         }
-                        else {
+                        $id_hash{$action}->{$src}->{$dst}->{$src_range}
+                          ->{$prt} = $rule;
+                        if (   $src->{is_supernet} 
+                            || $dst->{is_supernet}
+                            || $rule->{stateless}) 
+                        {
                             $hash{$action}->{$src}->{$dst}->{$src_range}
                               ->{$prt} = $rule;
                         }
                     }
+#                    my $t2 = time();
+#                    $time{$rname}[0] += $t2-$t1;
                   RULE:
                     for my $rule (@{ $hardware->{$rules} }) {
                         next if not $rule;
+#                        my $t3 = time();
+#                        $r2rules{$rname}++;
 
 #                       debug print_rule $rule;
                         my ($action, $src, $dst, $src_range, $prt) =
@@ -14060,8 +14156,10 @@ sub local_optimization() {
 # debug "oth:", print_rule $other_rule;
                                                                     $rule =
                                                                       undef;
+#                                                                    $r2del{$rname}++;
                                                                     $changed =
                                                                       1;
+#                        $time{$rname}[1] += time()-$t3;
                                                                     next RULE;
                                                                 }
                                                             }
@@ -14083,22 +14181,28 @@ sub local_optimization() {
                             last if $action eq 'deny';
                             $action = 'deny';
                         }
+#                        my $t4 = time();
+#                        $time{$rname}[1] += $t4-$t3;
 
                         # Implement remaining rules as secondary rule,
                         # if possible.
                         if (   $secondary_filter && $rule->{some_non_secondary}
                             || $standard_filter && $rule->{some_primary})
                         {
-                            $action = $rule->{action};
-                            $src    = $rule->{src};
+                            $rule->{action} eq 'permit' or internal_err;
+                            $src = $rule->{src};
 
                             # Single ID-hosts must not be converted to
                             # network at authenticating router.
                             if (!$do_auth || !is_subnet $src || !$src->{id}) {
 
-                                # host, interface -> network
-                                $src = $src->{network}
-                                  if is_subnet($src) || is_interface($src);
+                                # Change to largest supernet in zone.
+                                if (is_subnet($src) || is_interface($src)) {
+                                    $src = $src->{network};
+                                }
+                                if (my $max = $src->{max_up_net}) {
+                                    $src = $max;
+                                }
 
                                 # Prevent duplicate ACLs for networks which
                                 # are translated to the same ip address.
@@ -14124,8 +14228,13 @@ sub local_optimization() {
                                 not($do_auth && is_subnet $dst && $dst->{id})
                               )
                             {
-                                $dst = $dst->{network}
-                                  if is_subnet($dst) || is_interface($dst);
+                                # Change to largest supernet in zone.
+                                if (is_subnet($dst) || is_interface($dst)) {
+                                    $dst = $dst->{network};
+                                }
+                                if (my $max = $dst->{max_up_net}) {
+                                    $dst = $max;
+                                }
                                 if (my $identical = $dst->{is_identical}) {
                                     if (my $one_net = $identical->{$no_nat_set})
                                     {
@@ -14138,10 +14247,7 @@ sub local_optimization() {
                             # rules which could be converted to the same
                             # secondary rule, only the first one will be
                             # generated.
-                            if (my $old =
-                                $hash{$action}->{$src}->{$dst}->{$prt_ip}
-                                ->{$prt_ip})
-                            {
+                            if (my $old = $id_hash2{$src}->{$dst}) {
 
                                 if ($old ne $rule) {
 
@@ -14149,6 +14255,7 @@ sub local_optimization() {
 
                                     $rule    = undef;
                                     $changed = 1;
+#                                    $r2sec{$rname}++;
                                 }
                             }
                             else {
@@ -14157,7 +14264,7 @@ sub local_optimization() {
                                 # identical rule is referenced at different
                                 # routers.
                                 my $new_rule = {
-                                    action    => $action,
+                                    action    => 'permit',
                                     src       => $src,
                                     dst       => $dst,
                                     src_range => $prt_ip,
@@ -14165,14 +14272,22 @@ sub local_optimization() {
                                 };
 
 #				debug "sec: ", print_rule $new_rule;
+                                $id_hash2{$src}->{$dst} = $new_rule;
 
-                                $hash{$action}->{$src}->{$dst}->{$prt_ip}
-                                  ->{$prt_ip} = $new_rule;
+                                # This only works if smaller rule isn't
+                                # already processed.
+                                if ($src->{is_supernet} || $dst->{is_supernet})
+                                {
+                                    $hash{permit}->{$src}->{$dst}->{$prt_ip}
+                                      ->{$prt_ip} = $new_rule;
+                                }
 
                                 # This changes @{$hardware->{$rules}} !
                                 $rule = $new_rule;
                             }
                         }
+#                        my $t5 = time();
+#                        $time{$rname}[2] += $t5-$t4;
                     }
                     if ($changed) {
                         $hardware->{$rules} =
@@ -14183,10 +14298,58 @@ sub local_optimization() {
                 # Join adjacent port ranges.  This must be called after local
                 # optimization has been finished because protocols will be
                 # overlapping again after joining.
+#                my $t6 = time();
                 join_ranges $hardware;
+#                $time{$rname}[3] += time() - $t6;
             }
         }
     }
+#    my ($orules, $oid, $odel, $osec, $arules, $aid, $adel, $asec, 
+#        @otime, @atime);
+#    my $f = '%-12s %7i %7i %7i %7i %.3f %.3f %.3f %.3f %.3f';
+#    for my $aref (values %time) {
+#        $aref->[4] = $aref->[0] + $aref->[1] + $aref->[2] + $aref->[3];
+#        $atime[0] += $aref->[0];
+#        $atime[1] += $aref->[1];
+#        $atime[2] += $aref->[2];
+#        $atime[3] += $aref->[3];
+#        $atime[4] += $aref->[4];
+#    }
+#    for my $name (sort { $time{$a}[4] <=> $time{$b}[4] } keys %time) {
+#        my $pre = $time{$name}[0];
+#        my $while = $time{$name}[1];
+#        my $secon = $time{$name}[2];
+#        my $join = $time{$name}[3];
+#        my $sum = $time{$name}[4];
+#        my $rules = $r2rules{$name};
+#        my $id = $r2id{$name} || 0;
+#        my $del = $r2del{$name} || 0;
+#        my $sec = $r2sec{$name} || 0;
+#        $arules += $rules;
+#        $aid += $id;
+#        $adel += $del;
+#        $asec += $sec;
+#        if ($sum < 0.5) {
+#            $otime[0] += $pre;
+#            $otime[1] += $while;
+#            $otime[2] += $secon;
+#            $otime[3] += $join;
+#            $otime[4] += $sum;
+#            $orules += $rules;
+#            $odel += $del;
+#            $oid += $id;
+#            $osec += $sec;
+#        }
+#        else {
+#            $name =~ s/^router://;
+#            debug sprintf( $f, $name, $rules, $id, $del, $sec,
+#                           $pre, $while, $secon, $join, $sum);
+#        }
+#    }
+#    debug sprintf( $f, 'other', $orules, $oid, $odel, $osec, 
+#        $otime[0], $otime[1], $otime[2], $otime[3], $otime[4]);
+#    debug sprintf( $f, 'all', $arules, $aid, $adel, $asec,
+#                   $atime[0], $atime[1], $atime[2], $atime[3], $atime[4]);
 }
 
 sub print_xml( $ );
