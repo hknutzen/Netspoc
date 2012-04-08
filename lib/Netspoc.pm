@@ -4829,29 +4829,40 @@ sub expand_group1( $$;$ ) {
         if ($type eq '&') {
             my @non_compl;
             my @compl;
-            my $type;
+            my %router2intf;
             for my $element (@$name) {
                 my $element1 = $element->[0] eq '!' ? $element->[1] : $element;
-                my @elements =
-                  map {
-                    if ($type and ref $_ ne $type)
-                    {
-                        err_msg "All elements must be of same type",
-                          " in intersection of $context";
-                        ();
-                    }
-                    else {
-                        $_->{is_used} = 1;
-                        $type = ref $_;
-                        $_;
-                    }
-                  } @{
+                my @elements = 
+                  map { $_->{is_used} = 1; $_; }
+                  @{
                     expand_group1(
                         [$element1], "intersection of $context",
                         $clean_autogrp
                     )
                   };
-
+                for my $obj (@elements) {
+                    my $type = ref $obj;
+                    my $router;
+                    if ($type eq 'Interface') {
+                        $router = $obj->{router};
+                    }
+                    elsif ($type eq 'Autointerface') {
+                        $router = $obj->{object};
+                        is_router($router) or next;
+                    }
+                    else {
+                        next;
+                    }
+                    if (my $other = $router2intf{$router}) {
+                        if (ref($other) ne $type) {
+                            err_msg("Must not use $obj->{name} and", 
+                                    " $other->{name} together in $context");
+                        }
+                    }
+                    else {
+                        $router2intf{$router} = $obj;
+                    }
+                }
                 if ($element->[0] eq '!') {
                     push @compl, @elements;
                 }
