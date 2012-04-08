@@ -5128,9 +5128,22 @@ sub expand_group1( $$;$ ) {
 
                         # Silently remove crosslink networks from
                         # automatic groups.
+                        # Change loopback network to loopback interface.
                         push @objects,
                           $clean_autogrp
-                          ? grep { not($_->{crosslink}) } @$networks
+                          ? map { if ($_->{loopback}) {
+                                      my $interfaces = $_->{interfaces};
+                                      if (@$interfaces > 1) {
+                                          warn_msg("Must not use $_->{name},",
+                                                   " use interfaces instead");
+                                      }
+                                      $interfaces->[0];
+                                  }
+                                  else {
+                                      $_;
+                                  }
+                            }
+                            grep { not($_->{crosslink}) } @$networks
                           : @$networks;
                     }
                     else {
