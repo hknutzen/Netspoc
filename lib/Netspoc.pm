@@ -14125,7 +14125,10 @@ sub local_optimization() {
 
                             # Identical redundancy interfaces.
                             elsif (my $aref = $obj->{redundancy_interfaces}) {
-                                if (!($rules eq 'intf_rules' && $what eq 'dst'))
+                                if (!($rules eq 'intf_rules' && $what eq 'dst')
+                                    || (   $router->{crosslink_intf_hash}
+                                        && $router->{crosslink_intf_hash}
+                                            ->{$aref->[0]}))
                                 {
                                     $obj = $aref->[0];
                                 }
