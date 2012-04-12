@@ -7088,6 +7088,19 @@ sub find_subnets() {
                     if ($old_net->{zone} eq $network->{zone}) {
                         $error = 1;
                     }
+                    else {
+                        if (! $old_net->{is_aggregate}) {
+
+                            # This network has aggregate (with
+                            # subnets) in other zone. Hence this
+                            # network must not be used in secondary
+                            # optimization.
+                            $old_net->{has_other_subnet} = 1;
+                        }
+                        elsif (! $network->{is_aggregate}) {
+                            $network->{has_other_subnet} = 1;
+                        }
+                    }
                 }
                 elsif ($nat_old_net->{dynamic} and $nat_network->{dynamic}) {
 
@@ -7189,6 +7202,10 @@ sub find_subnets() {
                                 # Check for consistent NAT at subnet relation.
                                 check_subnet_nat($subnet, $orig_big);
 
+                                if ($subnet->{has_other_subnet}) {
+                                    $orig_big->{has_other_subnet} = 1;
+                                }
+
                                 last if $find_zone_relation;
                             }
                             else {
@@ -7206,6 +7223,10 @@ sub find_subnets() {
                             last;
                         }
                         $seen{$nat_bignet}->{$nat_subnet} = 1;
+
+                        if ($bignet->{zone} ne $subnet->{zone}) {
+                            $bignet->{has_other_subnet} = 1;
+                        }
 
                         # Mark network having subnets.  Rules having
                         # src or dst with subnets are collected into
@@ -7264,26 +7285,26 @@ sub find_subnets() {
     for my $zone (@zones) {
 
         # For each subnet N find the largest non-aggregate network
-        # {max_up_net}, which encloses N. This is used in secondary
-        # optimization.
+        # which encloses N. If one exists, store it in
+        # {max_up_net}. This is used in secondary optimization.
         my $set_max_net;
         $set_max_net = sub {
-            my ($subnet) = @_;
-            return undef if not $subnet;
-            if (my $max_net = $subnet->{max_up_net}) {
+            my ($network) = @_;
+            return undef if not $network;
+            if (my $max_net = $network->{max_up_net}) {
                 return $max_net;
             }
-            if (my $max_net = $set_max_net->($subnet->{up})) {
-                if (! $subnet->{is_aggregate}) {
-                    $subnet->{max_up_net} = $max_net;
-#                    debug "$subnet->{name} max_up $max_net->{name}";
+            if (my $max_net = $set_max_net->($network->{up})) {
+                if (! $network->{is_aggregate}) {
+                    $network->{max_up_net} = $max_net;
+#                    debug "$network->{name} max_up $max_net->{name}";
                 }
                 return $max_net;
             }
-            if ($subnet->{is_aggregate}) {
+            if ($network->{is_aggregate}) {
                 return undef;
             }
-            return $subnet;
+            return $network;
         };
         $set_max_net->($_) for  @{ $zone->{networks} };
 
@@ -14214,55 +14235,62 @@ sub local_optimization() {
                             || $standard_filter && $rule->{some_primary})
                         {
                             $rule->{action} eq 'permit' or internal_err;
-                            $src = $rule->{src};
+                            my ($src, $dst) = @{$rule}{qw(src dst)};
 
-                            # Single ID-hosts must not be converted to
-                            # network at authenticating router.
-                            if (!$do_auth || !is_subnet $src || !$src->{id}) {
+                            # Replace obj by largest supernet in zone,
+                            # which has no subnet in other zone.
+                            # We must not change to network having subnet in
+                            # other zone, because then we had to do
+                            # check_supernet_rules for newly created
+                            # secondary rules.
+                            for my $ref (\$src, \$dst) {
 
-                                # Change to largest supernet in zone.
-                                if (is_subnet($src) || is_interface($src)) {
-                                    $src = $src->{network};
+                                # Single ID-hosts must not be converted to
+                                # network at authenticating router.
+                                if ($do_auth && is_subnet($$ref) && $$ref->{id})
+                                {
+                                    next;
                                 }
-                                if (my $max = $src->{max_up_net}) {
-                                    $src = $max;
+                                if ($$ref eq $dst 
+                                    && is_interface($dst)
+                                    && (
+                                        $dst->{router} eq $router
+                                        || (    $router->{crosslink_intf_hash}
+                                            and $router->{crosslink_intf_hash}
+                                            ->{$dst})
+                                       )
+                                    ) {
+                                    next;
+                                }
+                                if (is_subnet($$ref) || is_interface($$ref)) {
+                                    my $net = $$ref->{network};
+                                    next if $net->{has_other_subnet};
+                                    $$ref = $net;
+                                }
+                                if (my $max = $$ref->{max_up_net}) {
+                                    if ($max->{has_other_subnet}) {
+                                        my $net = $$ref;
+                                        while (my $up = $net->{up}) {
+                                            if ($up->{has_other_subnet}) {
+                                                last;
+                                            }
+                                            else {
+                                                $net = $up;
+                                            }
+                                        }
+                                        $$ref = $net;
+                                    }
+                                    else {
+                                        $$ref = $max;
+                                    }
                                 }
 
                                 # Prevent duplicate ACLs for networks which
                                 # are translated to the same ip address.
-                                if (my $identical = $src->{is_identical}) {
+                                if (my $identical = $$ref->{is_identical}) {
                                     if (my $one_net = $identical->{$no_nat_set})
                                     {
-                                        $src = $one_net;
-                                    }
-                                }
-                            }
-                            $dst = $rule->{dst};
-                            if (
-                                not(
-                                    is_interface $dst
-                                    and (
-                                        $dst->{router} eq $router
-                                        or (    $router->{crosslink_intf_hash}
-                                            and $router->{crosslink_intf_hash}
-                                            ->{$dst})
-                                    )
-                                )
-                                and
-                                not($do_auth && is_subnet $dst && $dst->{id})
-                              )
-                            {
-                                # Change to largest supernet in zone.
-                                if (is_subnet($dst) || is_interface($dst)) {
-                                    $dst = $dst->{network};
-                                }
-                                if (my $max = $dst->{max_up_net}) {
-                                    $dst = $max;
-                                }
-                                if (my $identical = $dst->{is_identical}) {
-                                    if (my $one_net = $identical->{$no_nat_set})
-                                    {
-                                        $dst = $one_net;
+                                        $$ref = $one_net;
                                     }
                                 }
                             }
