@@ -1936,7 +1936,7 @@ sub read_router( $ ) {
             \&read_typed_name)
         {
             $router->{radius_servers}
-              and error_atline "Redefining 'radius' attribute";
+              and error_atline "Duplicate attribute 'radius_servers'";
             $router->{radius_servers} = \@pairs;
             push @radius_routers, $router;
         }
