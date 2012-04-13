@@ -5519,25 +5519,6 @@ sub get_zone( $ ) {
 
 sub path_walk( $$;$ );
 
-sub get_networks {
-    my ($obj) = @_;
-    my $type = ref $obj;
-    if ($type eq 'Network') {
-        if ($obj->{is_aggregate}) {
-            @{ $obj->{networks} };
-        }
-        else {
-            $obj;
-        }
-    }
-    elsif ($type eq 'Subnet' or $type eq 'Interface') {
-        $obj->{network};
-    }
-    else {
-        internal_err "unexpected $obj->{name}";
-    }
-}
-
 sub expand_special ( $$$$ ) {
     my ($src, $dst, $flags, $context) = @_;
     my @result;
@@ -10842,6 +10823,25 @@ sub get_zone3( $ ) {
     }
 }
 
+sub get_networks {
+    my ($obj) = @_;
+    my $type = ref $obj;
+    if ($type eq 'Network') {
+        if ($obj->{is_aggregate}) {
+            @{ $obj->{networks} };
+        }
+        else {
+            $obj;
+        }
+    }
+    elsif ($type eq 'Subnet' or $type eq 'Interface') {
+        $obj->{network};
+    }
+    else {
+        internal_err "unexpected $obj->{name}";
+    }
+}
+
 sub find_statics () {
     progress "Finding statics";
 
@@ -10884,6 +10884,44 @@ sub find_statics () {
 ########################################################################
 # Routing
 ########################################################################
+
+# Get networks for routing.
+# Add largest supernet inside the zone, if available.
+# This is needed, because we use the supernet in 
+# secondary optimization too.
+# Moreover this reduces the number of routing entries.
+# It isn't sufficient to solely use the supernet because network and supernet 
+# can have different next hops at end of path.
+# For an aggregate, take all matching networks inside the zone.
+# These are supernets by design.
+
+sub get_route_networks {
+    my ($obj) = @_;
+    my $type = ref $obj;
+    if ($type eq 'Network') {
+        if ($obj->{is_aggregate}) {
+            @{ $obj->{networks} };
+        }
+        elsif (my $max = $obj->{max_up_net}) {
+            ($max, $obj);
+        }
+        else {
+            $obj;
+        }
+    }
+    elsif ($type eq 'Subnet' or $type eq 'Interface') {
+        my $net = $obj->{network};
+        if (my $max = $net->{max_up_net}) {
+            ($max, $net);
+        }
+        else {
+            $net;
+        }
+    }
+    else {
+        internal_err "unexpected $obj->{name}";
+    }
+}
 
 # Set up data structure to find routing info inside a security zone.
 # Some definitions:
@@ -11111,7 +11149,7 @@ sub find_active_routes () {
                 next if not is_interface $from;
                 next if not $from->{zone};
                 $from = $from->{main_interface} || $from;
-                my @networks = get_networks($to);
+                my @networks = get_route_networks($to);
                 add_end_routes($from, \@networks);
             }
             next;
@@ -11132,11 +11170,11 @@ sub find_active_routes () {
             };
             $routing_tree{$src_zone}->{$dst_zone} = $pseudo_rule;
         }
-        my @src_networks = get_networks($src);
+        my @src_networks = get_route_networks($src);
         for my $network (@src_networks) {
             $pseudo_rule->{src_networks}->{$network} = $network;
         }
-        my @dst_networks = get_networks($dst);
+        my @dst_networks = get_route_networks($dst);
         for my $network (@dst_networks) {
             $pseudo_rule->{dst_networks}->{$network} = $network;
         }
