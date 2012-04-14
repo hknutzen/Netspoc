@@ -698,10 +698,10 @@ sub read_typed_name() {
 
 {
 
-    # user@domain or @domain or user
+    # user@domain or @domain
     my $domain_regex   = qr/@(?:[\w-]+\.)+[\w-]+/;
     my $user_regex     = qr/[\w-]+(?:\.[\w-]+)*/;
-    my $user_id_regex  = qr/$user_regex(?:$domain_regex)?/;
+    my $user_id_regex  = qr/$user_regex$domain_regex/;
     my $id_regex       = qr/$user_id_regex|$domain_regex/;
     my $hostname_regex = qr/(?: id:$id_regex | [\w-]+ )/x;
     my $network_regex  = qr/(?: [\w-]+ (?: \/ [\w-]+ )? )/x;
@@ -784,7 +784,7 @@ sub read_typed_name() {
         }
     }
 
-# user@domain or user
+# user@domain
     sub read_user_id() {
         skip_space_and_comment;
         if ($input =~ m/\G($user_id_regex)/gco) {
@@ -795,7 +795,7 @@ sub read_typed_name() {
         }
     }
 
-# host:xxx or host:id:user@domain or host:id:@domain or host:id:user
+# host:xxx or host:id:user@domain or host:id:@domain 
     sub check_hostname() {
         skip_space_and_comment;
         if ($input =~ m/\G host:/gcx) {
