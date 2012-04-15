@@ -2726,7 +2726,7 @@ sub read_global( $ ) {
     skip '=';
     (my $action = $name) =~ s/^global://;
     $action eq 'permit' or error_atline "Unexpected name, use 'global:permit'";
-    my $prt = [ read_list \&read_typed_name ];
+    my $prt = [ read_list  \&read_typed_name_or_simple_protocol ];
     return {
         name   => $name,
         action => $action,
