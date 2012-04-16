@@ -2,19 +2,26 @@
 
 ###General syntax
 
-    <name> is built from one ore more alphanumerical utf8 characters together
-    with hyphen and underscore.
+`<name>` is built from one ore more alphanumerical utf8 characters together
+with hyphen and underscore.  
+`<external name>` is built from any characters, 
+but not whitespace, no delimiters `;,=` and no quotes `"'`.  
+`<string>` is like `<external name>`, but with space characters included.
 
-    <external_name> is built from any characters, 
-    but not whitespace, no delimiters [;,=] and no quotes ["'].
+`... *   `
+: zero or more occurences
 
-    <string> is like <external_name>, but with space characters included.
+`.. | .. `
+: alternatives
 
-    ... *   : zero or more occurences
-    .. | .. : alternatives
-    [...]   : optional part
-    (...)   : to clarify scope of * and |
-    "[", "]": real bracket characters
+`[...]   `
+: optional part
+
+`(...)   `
+: to clarify scope of * and |
+
+`"[", "]"`
+: real bracket characters
 
 ###Network definition
 
@@ -89,7 +96,7 @@
          [ <virtual interface definition>       ]
          <host NAT> *
          [ bind_nat = <name>(, <name>)*;        ]
-         [ hardware = <external_name>;          ]
+         [ hardware = <external name>;          ]
          [ no_in_acl;                           ]
          [ routing = ( EIGRP | OSPF | manual ); ]
          [ reroute_permit = <object set>;       ]
@@ -228,7 +235,7 @@ with
     <global permit> ::=
       global:permit = <protocol>(, <protocol>)*;
 
-###Path restrictions
+###Path restriction
 
     pathrestriction:<name> = 
       [ <description> ]
