@@ -310,6 +310,7 @@ sub proto_descr {
 	    for my $key (sort keys %$flags) {
 		next if $key eq 'stateless_icmp';
 		next if $key eq 'overlaps';
+		next if $key eq 'no_check_supernet_rules';
 		if ($key eq 'src' or $key eq 'dst') {
 		    for my $part (sort keys %{$flags->{$key}}) {
 			$desc .= ", ${key}_$part";
