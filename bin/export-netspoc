@@ -357,25 +357,25 @@ sub find_visibility {
 # All objects referenced in rules and in networks and hosts of owners.
 my %all_objects;
 
-sub setup_policy_info {
-    progress("Setup policy info");
-    for my $policy (values %policies) {
-        next if $policy->{disabled};
-	my $pname = $policy->{name};
+sub setup_service_info {
+    progress("Setup service info");
+    for my $service (values %services) {
+        next if $service->{disabled};
+	my $pname = $service->{name};
 
-	my $users = $policy->{expanded_user} =
-	    Netspoc::expand_group($policy->{user}, "user of $pname");
+	my $users = $service->{expanded_user} =
+	    Netspoc::expand_group($service->{user}, "user of $pname");
 
 	# Non 'user' objects.
 	my @objects;
 
-	# Check, if policy contains a coupling rule with only "user" elements.
+	# Check, if service contains a coupling rule with only "user" elements.
 	my $is_coupling = 0;
 
-	for my $rule (@{ $policy->{rules} }) {
+	for my $rule (@{ $service->{rules} }) {
 	    my $has_user = $rule->{has_user};
-	    $rule->{expanded_srv} =
-		proto_descr(Netspoc::expand_services($rule->{srv}, 
+	    $rule->{expanded_prt} =
+		proto_descr(Netspoc::expand_protocols($rule->{prt}, 
 						     "rule in $pname"));
 	    if ($has_user eq 'both') {
 		$is_coupling = 1;
@@ -387,7 +387,7 @@ sub setup_policy_info {
 		my $all = 
 
 		    # Store expanded src and dst for later use 
-		    # in export_services.
+		    # in export_protocols.
 		    $rule->{"expanded_$what"} = 
 		    [ sort by_name
 		    @{ Netspoc::expand_group($rule->{$what}, 
@@ -409,7 +409,7 @@ sub setup_policy_info {
 	# Store referenced objects for later use during export.
 	@all_objects{@objects, @$users} = (@objects, @$users);
 
-	# Take elements of 'user' object, if policy has coupling rule.
+	# Take elements of 'user' object, if service has coupling rule.
 	if ($is_coupling) {
 	    @objects = unique(@objects, @$users);
 	}
@@ -419,14 +419,14 @@ sub setup_policy_info {
 
 	# Add artificial owner :unknown if owner is unknown.
 	push @$owners, ':unknown' if not @$owners;
-	$policy->{owners} = $owners;
-	$policy->{sub_owners} = sub_owners_for_objects(\@objects);
-	my $uowners = $policy->{uowners} = $is_coupling ? [] : owners_for_objects($users);
-	$policy->{sub_uowners} = $is_coupling ? [] : sub_owners_for_objects($users);
+	$service->{owners} = $owners;
+	$service->{sub_owners} = sub_owners_for_objects(\@objects);
+	my $uowners = $service->{uowners} = $is_coupling ? [] : owners_for_objects($users);
+	$service->{sub_uowners} = $is_coupling ? [] : sub_owners_for_objects($users);
 
 	# Für Übergangszeit aus aktueller Benutzung bestimmen.
-	$policy->{visible} ||= find_visibility($owners, $uowners);
-	$policy->{visible} and $policy->{visible} =~ s/\*$/.*/;
+	$service->{visible} ||= find_visibility($owners, $uowners);
+	$service->{visible} and $service->{visible} =~ s/\*$/.*/;
     }
 }
 
@@ -647,31 +647,31 @@ sub export_services {
     progress("Export services");
     my %phash;
     my %owner2type2phash;
-    for my $policy (sort by_name values %policies) {
-        next if $policy->{disabled};
-	for my $owner (@{ $policy->{owners} }, @{ $policy->{sub_owners} }) {
-	    $owner2type2phash{$owner}->{owner}->{$policy} = $policy;
+    for my $service (sort by_name values %services) {
+        next if $service->{disabled};
+	for my $owner (@{ $service->{owners} }, @{ $service->{sub_owners} }) {
+	    $owner2type2phash{$owner}->{owner}->{$service} = $service;
 	}
-	for my $owner (@{ $policy->{uowners} }, @{ $policy->{sub_uowners} }) {
-	    if (not $owner2type2phash{$owner}->{owner}->{$policy}) {
-		$owner2type2phash{$owner}->{user}->{$policy} = $policy;
+	for my $owner (@{ $service->{uowners} }, @{ $service->{sub_uowners} }) {
+	    if (not $owner2type2phash{$owner}->{owner}->{$service}) {
+		$owner2type2phash{$owner}->{user}->{$service} = $service;
 	    }
 	}
 	for my $owner (keys %owners) {
-	    if (not ($owner2type2phash{$owner}->{owner}->{$policy} or 
-		     $owner2type2phash{$owner}->{user}->{$policy})) 
+	    if (not ($owner2type2phash{$owner}->{owner}->{$service} or 
+		     $owner2type2phash{$owner}->{user}->{$service})) 
 	    {
-		if ($policy->{visible} and $owner =~ /^$policy->{visible}/) {
-		    $owner2type2phash{$owner}->{visible}->{$policy} = $policy;
+		if ($service->{visible} and $owner =~ /^$service->{visible}/) {
+		    $owner2type2phash{$owner}->{visible}->{$service} = $service;
 		}
 	    }
 	}
 	my $details = {
-	    description => $policy->{description},
-	    owner => $policy->{owners},
+	    description => $service->{description},
+	    owner => $service->{owners},
 	};
-	if (@{ $policy->{sub_owners} }) {
-	    $details->{sub_owners} = $policy->{sub_owners};
+	if (@{ $service->{sub_owners} }) {
+	    $details->{sub_owners} = $service->{sub_owners};
 	}
 	my @rules = map {
 	    { 
@@ -679,10 +679,10 @@ sub export_services {
 		has_user => $_->{has_user},
 		src => [ map $_->{name}, @{ $_->{expanded_src} } ],
 		dst => [ map $_->{name}, @{ $_->{expanded_dst} } ],
-		srv => $_->{expanded_srv},
+		srv => $_->{expanded_prt},
 	    }
-	} @{ $policy->{rules} };
-	(my $pname = $policy->{name}) =~ s/^\w+://;
+	} @{ $service->{rules} };
+	(my $pname = $service->{name}) =~ s/^\w+://;
 	$phash{$pname} = { details => $details, rules => \@rules };
     }
     export("services", \%phash);
@@ -692,17 +692,17 @@ sub export_services {
     for my $owner (sort keys %owner2type2phash) {
 	my $type2phash = $owner2type2phash{$owner} || {};
 	my %type2pnames;
-	my %policy2users;
+	my %service2users;
 	for my $type (qw(owner user visible)) {
-	    my $policies = [ sort by_name values %{ $type2phash->{$type} } ];
+	    my $services = [ sort by_name values %{ $type2phash->{$type} } ];
 	    my $pnames = $type2pnames{$type} = [];
-	    for my $policy (@$policies) { 
-		(my $pname = $policy->{name}) =~ s/^\w+://;
+	    for my $service (@$services) { 
+		(my $pname = $service->{name}) =~ s/^\w+://;
 		push @$pnames, $pname;
 		next if $type eq 'visible';
 		my @users;
 		if ($type eq 'owner') {
-		    @users = @{ $policy->{expanded_user} };
+		    @users = @{ $service->{expanded_user} };
 		}
 		elsif ($type eq 'user') {
 		    @users = 
@@ -719,15 +719,15 @@ sub export_services {
 				0;
 			    }
 			}
-		    @{ $policy->{expanded_user} };
+		    @{ $service->{expanded_user} };
 		}
 		@users = sort map $_->{name}, @users;
-		$policy2users{$pname} = \@users;
+		$service2users{$pname} = \@users;
 	    }
 	}
 	create_dirs("owner/$owner");
 	export("owner/$owner/service_lists", \%type2pnames);
-	export("owner/$owner/users", \%policy2users);
+	export("owner/$owner/users", \%service2users);
     }
 }
 
@@ -816,7 +816,7 @@ set_config({time_stamps => 1, max_errors => 9999});
 # Set global config variable of Netspoc to store attribute 'description'.
 store_description(1);
 read_file_or_dir($netspoc_data);
-order_services();
+order_protocols();
 link_topology();
 mark_disabled();
 distribute_nat_info();
@@ -824,8 +824,8 @@ set_zone();
 setpath();
 find_subnets();
 setup_sub_owners();
-set_policy_owner();
-setup_policy_info();
+set_service_owner();
+setup_service_info();
 
 ####################################################################
 # Export data
