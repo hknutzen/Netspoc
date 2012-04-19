@@ -14286,11 +14286,24 @@ sub local_optimization() {
                             # secondary rules.
                             for my $ref (\$src, \$dst) {
 
-                                # Single ID-hosts must not be converted to
-                                # network at authenticating router.
-                                if ($do_auth && is_subnet($$ref) && $$ref->{id})
-                                {
-                                    next;
+                                # Restrict secondary optimization at
+                                # authenticating router to prevent
+                                # unauthorized access with spoofed IP
+                                # address.
+                                if ($do_auth) {
+                                    my $type = ref($$ref);
+
+                                    # Single ID-hosts must not be
+                                    # converted to network.
+                                    if ($type eq 'Subnet') {
+                                        next if $$ref->{id};
+                                    }
+
+                                    # Network with ID-hosts must not
+                                    # be optimized at all.
+                                    elsif ($type eq 'Network') {
+                                        next RULE if $$ref->{has_id_hosts};
+                                    }
                                 }
                                 if ($$ref eq $dst 
                                     && is_interface($dst)
