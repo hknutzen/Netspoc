@@ -9999,6 +9999,7 @@ sub check_for_transient_supernet_rule {
     for my $rule (@{ $expanded_rules{supernet} }) {
         next if $rule->{deleted};
         next if $rule->{action} ne 'permit';
+        next if $rule->{no_check_supernet_rules};
         my $dst = $rule->{dst};
         next if not $dst->{is_supernet};
 
@@ -10010,7 +10011,6 @@ sub check_for_transient_supernet_rule {
           @$rule{ 'stateless', 'src', 'dst', 'src_range', 'prt' };
 
         # Find all rules with supernet as source, which intersects with $dst1.
-        progress('ToDo: finish check transient supernet rules');
         my $src2 = $dst1;
         for my $stateless2 (1, 0) {
             while (my ($dst2_str, $hash) =
@@ -10030,8 +10030,9 @@ sub check_for_transient_supernet_rule {
                 while (my ($src_range2_str, $hash) = each %$hash) {
                   RULE2:
                     while (my ($prt2_str, $rule2) = each %$hash) {
+                        next if $rule2->{no_check_supernet_rules};
 
-                        my $prt2       = $rule2->{prt};
+                        my $prt2 = $rule2->{prt};
                         my $src_range2 = $rule2->{src_range};
 
                         # Find smaller protocol of two rules found.
@@ -10048,7 +10049,7 @@ sub check_for_transient_supernet_rule {
                         my $stateless = ($stateless1 || $stateless2) + 0;
 
                         # Check for a rule with $src1 and $dst2 and
-                        # with $smaller_protocol.
+                        # with $smaller_prt.
                         while (1) {
                             my $action = 'permit';
                             if (my $hash = $rule_tree{$stateless}) {
