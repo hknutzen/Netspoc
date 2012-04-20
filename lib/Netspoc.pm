@@ -10323,6 +10323,7 @@ sub gen_reverse_rules1 ( $ ) {
                     # Stateless tunnel interface of ASA-VPN.
                     or $model->{stateless_tunnel}
                     and $out_intf->{ip} eq 'tunnel'
+                    and not $router->{no_crypto_filter}
                   )
                 {
                     $has_stateless_router = 1;
@@ -11961,7 +11962,9 @@ sub distribute_rule( $$$ ) {
         if (
             not(   $model->{stateless}
                 or not $out_intf and $model->{stateless_self}
-                or $model->{stateless_tunnel} and $in_intf->{ip} eq 'tunnel')
+                or     $model->{stateless_tunnel} 
+                   and $in_intf->{ip} eq 'tunnel'
+                   and not $router->{no_crypto_filter})
           )
         {
             return;
@@ -12735,8 +12738,8 @@ sub cisco_prt_code( $$$ ) {
         if (my $established = $prt->{established}) {
             if ($model->{filter} eq 'PIX') {
                 err_msg "Must not use 'established' at '$model->{name}'\n",
-                  " - try 'managed=secondary' or \n",
-                  " - don't use outgoing connection to VPN client";
+                  " - don't use outgoing TCP connection to VPN client or \n",
+                  " - try attribute 'no_crypto_filter'";
             }
             if (defined $dst_prt) {
                 $dst_prt .= ' established';
