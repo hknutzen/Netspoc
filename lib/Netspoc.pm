@@ -148,10 +148,10 @@ our %config = (
     check_redundant_rules => 'warn',
 
 # Check for services where owner can't be derived.
-    check_service_unknown_owner => 0,
+    check_service_unknown_owner => 'warn',
 
 # Check for services where multiple owners have been derived.
-    check_service_multi_owner => 0,
+    check_service_multi_owner => 'warn',
 
 # Check for inconsistent use of attributes 'extend' and 'extend_only' in owner.
     check_owner_extend => 0,
@@ -199,6 +199,10 @@ our %config = (
 # Use old syntax srv, service, servicegroup, policy
 # instead of     prt, protocol, protocolgroup, service
     old_syntax => 0,
+
+# Unused, eases migration 
+    check_policy_multi_owner => 0,
+    check_policy_unknown_owner => 0,
 );
 
 # Valid values for config options in %config.
