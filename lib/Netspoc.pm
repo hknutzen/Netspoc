@@ -7441,14 +7441,10 @@ sub check_crosslink () {
             my $hardware = $interface->{hardware};
             @{ $hardware->{interfaces} } == 1
               or err_msg
-              "Crosslink $network->{name} must be the only  network\n",
+              "Crosslink $network->{name} must be the only network\n",
               " connected to $hardware->{name} of $router->{name}";
             if ($hardware->{need_out_acl}) {
                 $out_acl_count++;
-
-                # Delete attribute, because crosslink interfaces must
-                # not get ACLs.
-                delete $hardware->{need_out_acl};
             }
             push @no_in_acl_intf,
               grep({ $_->{hardware}->{no_in_acl} } @{ $router->{interfaces} });
@@ -12274,6 +12270,9 @@ sub add_router_acls () {
                 }
                 else {
                     $hardware->{rules} = [$permit_any_rule];
+                    if ($hardware->{need_out_acl}) {
+                        $hardware->{out_rules} = [$permit_any_rule];
+                    }
                 }
                 $hardware->{intf_rules} = [$permit_any_rule];
                 next;
@@ -15379,11 +15378,12 @@ sub print_cisco_acls {
 
             # Outgoing ACL
             else {
+                my $out_rules = $hardware->{out_rules} ||= [];
 
-                # Add deny rule at end of ACL.
-                push(@{ $hardware->{out_rules} }, $deny_any_rule);
-
-                my $out_rules = $hardware->{out_rules};
+                # Add deny rule at end of ACL if not 'permit ip any any'
+                if (!(@$out_rules && $out_rules->[-1] eq $permit_any_rule)) {
+                    push(@$out_rules, $deny_any_rule);
+                }
                 cisco_acl_line($router, $out_rules, $no_nat_set, $prefix);
             }
 
