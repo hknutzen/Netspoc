@@ -10,6 +10,7 @@ our @EXPORT = qw(compile get_block);
 use Test::More;
 use File::Temp qw/ tempfile tempdir /;
 
+my $options = '-quiet -check_redundant_rules=0 -check_service_unknown_owner=0';
 sub compile {
     my($config) = @_;
 
@@ -17,7 +18,7 @@ sub compile {
     print $fh $config;
     close $fh;
 
-    my $cmd = "perl -I lib bin/netspoc -quiet $filename";
+    my $cmd = "perl -I lib bin/netspoc $options $filename";
     open(COMPILE, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
     # Undef input record separator to read all output at once.

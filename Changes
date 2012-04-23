@@ -1,3 +1,41 @@
+3.011     2012-04-23 13:11:16 Europe/Berlin
+
+- Use largest supernet in zone for routing.
+  Add largest supernet inside the zone, if available. This is needed,
+  because we use the supernet in secondary optimization too. Moreover
+  this reduces the number of routing entries. It isn't sufficient to
+  solely use the supernet because network and supernet can have
+  different next hops at end of path. For an aggregate, take all
+  matching networks inside the zone. These are supernets by design.
+- network:[<loopback-interface>] results in an interface now.
+  The loopback network is never used. This fixes some ACLs.
+- Relaxed check for types in intersection of group.
+  Different types of objects are permitted in intersection now.
+  But interface and auto-interface of same router are still rejected.
+- Improved runtime of local optimization.
+- Fixed secondary optimization: no longer use a network which has
+  subnet in other zones. We must not change to network having subnet
+  in other zone, because then we had to do check_supernet_rules for
+  newly created secondary rules.
+- Improved secondary optimization: Use largest supernet in zone.
+- Don't apply secondary optimization to network with ID-hosts.
+  This could lead to unwanted permission if software client uses spoofed
+  IP address.
+- No longer generate reverse rules for ASA,VPN with no_crypto_filter
+  ASA,VPN with no_crypto_filter attribute set, use ACL at cleartext interface.
+  Hence no reverse rules are needed.
+- Allow simple protocols in global:permit.
+- Internally renamed attributes and exported global variables,
+  e.g. %poliocies -> %services, srv -> prt.
+- Removed unused syntax for host:id:user (without @domain)
+- Rules using protocol with attribute no_check_supernet_rules 
+  aren't checked for transient supernet rules.
+- Changed default values for config options:    
+  check_service_unknown_owner => 'warn',
+  check_service_multi_owner => 'warn',
+  Permit and ignore old options check_policy_multi_owner,
+  check_policy_unknown_owner to ease migration.
+
 3.010     2012-03-28 15:03:18 Europe/Berlin
 
 - Syntax for aggregates is extended to have an optional ip/mask

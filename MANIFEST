@@ -69,4 +69,5 @@ t/nat.t
 t/optimize-subnet.t
 t/pathrestrict-border.t
 t/rename.t
+t/secondary.t
 t/virtual-loopback-nat.t
