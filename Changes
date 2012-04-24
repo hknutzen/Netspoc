@@ -1,3 +1,15 @@
+3.012     2012-04-24 14:25:46 Europe/Berlin
+
+- Fixed bug with no_in_acl together with crosslink.
+  This fixes useless permit rules at interface with attribute 'no_in_acl'
+  if a device had both 'no_in_acl' interface and crosslink interface.
+  In this case, the crosslink interface now gets ougoing ACL with
+  "permit ip any any".
+- Two small fixes in check for use of hidden object in rule.
+- Bug fix: Copy attribute "routing" to secondary interface.
+  Otherwise static routes would be generated for interface with 
+  dynamic routing enabled.
+
 3.011     2012-04-23 13:11:16 Europe/Berlin
 
 - Use largest supernet in zone for routing.
