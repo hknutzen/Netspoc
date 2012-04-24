@@ -1788,9 +1788,9 @@ sub read_interface( $ ) {
     }
     for my $secondary (@secondary_interfaces) {
         $secondary->{main_interface} = $interface;
-        $secondary->{hardware}       = $interface->{hardware};
-        $secondary->{bind_nat}       = $interface->{bind_nat};
-        $secondary->{disabled}       = $interface->{disabled};
+        for my $key (qw(hardware bind_nat routing disabled)) {
+            $secondary->{$key} = $interface->{$key} if $interface->{$key};
+        }
 
         # No traffic must pass secondary interface.
         # If secondary interface is start- or endpoint of a path,
