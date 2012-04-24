@@ -10557,7 +10557,7 @@ sub mark_secondary_rules() {
                             sub {
                                 my ($rule, $in_intf, $out_intf) = @_;
                                 push @interfaces, $out_intf
-                                  if $out_intf->{any} eq $other;
+                                  if $out_intf->{zone} eq $other;
                             }
                         );
                         for my $interface (@interfaces) {
