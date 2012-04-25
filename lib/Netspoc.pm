@@ -199,10 +199,6 @@ our %config = (
 # Use old syntax srv, service, servicegroup, policy
 # instead of     prt, protocol, protocolgroup, service
     old_syntax => 0,
-
-# Unused, eases migration 
-    check_policy_multi_owner => 0,
-    check_policy_unknown_owner => 0,
 );
 
 # Valid values for config options in %config.
