@@ -1080,10 +1080,6 @@ sub read_host( $$ ) {
             $host->{range} and error_atline "Duplicate attribute 'range'";
             $host->{range} = [ $ip1, $ip2 ];
         }
-        elsif (($ip, my $mask) = check_assign('subnet', \&read_ip_opt_mask)) {
-            $host->{subnet} and error_atline "Duplicate attribute 'subnet'";
-            $host->{subnet} = [ $ip, $mask ];
-        }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $host->{owner} and error_atline "Duplicate attribute 'owner'";
             $host->{owner} = $owner;
@@ -1120,13 +1116,6 @@ sub read_host( $$ ) {
         else {
             syntax_err "Unexpected attribute";
         }
-    }
-    if (my $subnet = delete $host->{subnet}) {
-        my ($ip, $mask) = @$subnet;
-        my $broadcast = $ip + complement_32bit $mask;
-        $host->{range}
-          and error_atline "Must not define both, 'range' and 'subnet'";
-        $host->{range} = [ $ip, $broadcast ];
     }
     $host->{ip} xor $host->{range}
       or error_atline("Exactly one of attributes 'ip' and 'range' is needed");
