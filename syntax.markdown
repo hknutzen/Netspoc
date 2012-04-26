@@ -1,3 +1,7 @@
+---
+layout: default
+---
+
 ## Syntax for Netspoc Policy Language
 
 ###General syntax
