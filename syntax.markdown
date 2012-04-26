@@ -360,5 +360,4 @@ of correspondig VPN concentrator.
       ..
     }
 
-Copyright &copy; 2012, Heinz Knutzen 
-<A HREF="mailto:heinz.knutzen@googlemail.com">heinz.knutzen@googlemail.com</A>
+
