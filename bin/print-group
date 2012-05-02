@@ -150,8 +150,8 @@ my $elements = Netspoc::expand_group(\@parsed, 'print-group', 'no_combine');
 
 # Find unused objects by marking used objects.
 if ($show_unused) {
-    &order_services();
-    &expand_policies(0);
+    &order_protocols();
+    &expand_services(0);
     &abort_on_error();
     for my $type ('deny', 'supernet', 'permit') {
 	for my $rule (@{ $expanded_rules{$type} }) {
