@@ -21,7 +21,7 @@ single file.
 We start with a simple example having one service and a topology which
 only consist of a few networks.
 
-### Service for a WWW service
+### Service for a WWW server
 
 A `service` defines one or more related rules which describe access to
 (or from) a ressource.
