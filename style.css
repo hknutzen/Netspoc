@@ -1,5 +1,5 @@
 body {
-  font: 14px Helvetica Neue;
+  font: 14px "Helvetica Neue", Helvetica, sans-serif;
   text-rendering: optimizeLegibility;
   margin-top: 1em;
   overflow-y: scroll;
