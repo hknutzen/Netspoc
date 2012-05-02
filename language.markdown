@@ -2,7 +2,7 @@
 layout: default
 ---
 
-# Policy language for Netspoc
+# Policy language
 
 ## Introduction
 
