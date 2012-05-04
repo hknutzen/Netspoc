@@ -21,7 +21,7 @@ single file.
 We start with a simple example having one service and a topology which
 only consist of a few networks.
 
-### Service for a WWW server
+### Service to access WWW servers
 
 A `service` defines one or more related rules which describe access to
 (or from) a ressource.
@@ -37,7 +37,7 @@ A `service` defines one or more related rules which describe access to
     }
 
 This service has a single rule. It permits a set of users as
-source to access a destination server with protocol `tcp 80`.
+source to access a destination network with protocol `tcp 80`.
 
 In general, all rules of a service must reference the keyword
 `user`. This ensures that the rules operate on the same ressource.
