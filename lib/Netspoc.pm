@@ -10730,12 +10730,6 @@ sub mark_networks_for_static( $$$ ) {
     # - getting the NAT tag.
     my $in_hw  = $in_intf->{hardware};
     my $out_hw = $out_intf->{hardware};
-    if ($in_hw->{level} == $out_hw->{level}) {
-        return if $in_intf->{ip} eq 'tunnel' or $out_intf->{ip} eq 'tunnel';
-        err_msg "Traffic of rule\n", print_rule $rule,
-          "\n can't pass from  $in_intf->{name} to $out_intf->{name},\n",
-          " which have equal security levels.\n";
-    }
 
     my $identity_nat = $model->{need_identity_nat};
     if ($identity_nat) {
