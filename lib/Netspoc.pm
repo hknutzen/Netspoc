@@ -1801,13 +1801,6 @@ sub set_pix_interface_level( $ ) {
         elsif ($hwname =~ 'outside') {
             $level = 0;
         }
-
-        # Used internally for IP of ASA in bridged mode.
-        elsif ( $hwname eq 'device'
-            and $hardware->{interfaces}->[0]->{is_layer3})
-        {
-            $level = 100;
-        }
         elsif (($level) = ($hwname =~ /(\d+)$/) and $level <= 100) {
         }
         else {
