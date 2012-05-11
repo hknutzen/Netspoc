@@ -1826,7 +1826,7 @@ sub set_pix_interface_level {
         elsif (($level) = ($hwname =~ /(\d+)$/) and $level <= 100) {
         }
         else {
-            $level = 0;
+            $level = 50;
         }
         $hardware->{level} = $level;
     }
