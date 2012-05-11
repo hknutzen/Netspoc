@@ -1795,10 +1795,10 @@ sub set_pix_interface_level( $ ) {
     for my $hardware (@{ $router->{hardware} }) {
         my $hwname = $hardware->{name};
         my $level;
-        if ($hwname eq 'inside') {
+        if ($hwname =~ 'inside') {
             $level = 100;
         }
-        elsif ($hwname eq 'outside') {
+        elsif ($hwname =~ 'outside') {
             $level = 0;
         }
 
