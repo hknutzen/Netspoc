@@ -1808,18 +1808,10 @@ sub set_pix_interface_level( $ ) {
         {
             $level = 100;
         }
+        elsif (($level) = ($hwname =~ /(\d+)$/) and $level <= 100) {
+        }
         else {
-            unless (($level) =
-                    ($hwname =~ /(\d+)$/)
-                and 0 < $level
-                and $level < 100)
-            {
-                err_msg "Can't derive PIX security level for ",
-                  "$hardware->{interfaces}->[0]->{name}\n",
-                  " Interface name should contain a number",
-                  " which is used as level";
-                $level = 0;
-            }
+            $level = 0;
         }
         $hardware->{level} = $level;
     }
