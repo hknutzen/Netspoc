@@ -1579,6 +1579,14 @@ sub read_interface( $ ) {
               and error_atline "Duplicate attribute 'id'";
             $interface->{id} = $id;
         }
+        elsif (my $level = check_assign 'security_level', \&read_int) {
+            $level > 100 and 
+                error_atline 
+                  "Maximum value for attribute security_level is 100";
+            defined $interface->{security_level}
+              and error_atline "Duplicate attribute 'security_level'";
+            $interface->{security_level} = $level;
+        }
         elsif ($pair = check_typed_name) {
             my ($type, $name2) = @$pair;
             if ($type eq 'nat') {
@@ -1786,21 +1794,35 @@ sub read_interface( $ ) {
 }
 
 # PIX firewalls have a security level associated with each interface.
-# We don't want to expand our syntax to state them explicitly,
-# but instead we try to derive the level from the interface name.
-# It is not necessary the find the exact level; what we need to know
-# is the relation of the security levels to each other.
-sub set_pix_interface_level( $ ) {
+# Use attribute 'security_level' or
+# try to derive the level from the interface name.
+sub set_pix_interface_level {
     my ($router) = @_;
     for my $hardware (@{ $router->{hardware} }) {
         my $hwname = $hardware->{name};
         my $level;
-        if ($hwname =~ 'inside') {
+        if (my @levels = grep(defined($_), 
+                              map($_->{security_level}, 
+                                  @{ $hardware->{interfaces} }))) 
+        {
+            if (@levels > 2 && ! equal(@levels)) {
+                err_msg "Must not use different values",
+                " for attribute 'security_level\n",
+                " at $router->{name}, hardware $hwname: ", join(',', @levels);
+            }
+            else {
+                $level = $levels[0];
+            }
+        }
+        elsif ($hwname =~ 'inside') {
             $level = 100;
         }
         elsif ($hwname =~ 'outside') {
             $level = 0;
         }
+
+        # It is not necessary the find the exact level; what we need to know
+        # is the relation of the security levels to each other.
         elsif (($level) = ($hwname =~ /(\d+)$/) and $level <= 100) {
         }
         else {
@@ -2025,6 +2047,12 @@ sub read_router( $ ) {
                     err_msg "Missing 'hardware' for $interface->{name}";
                 }
             }
+            if (defined $interface->{security_level} && 
+                ! $model->{has_interface_level}) 
+            {
+                warn_msg("Ignoring attribute 'security_level'",
+                         " at $interface->{name}");
+            }
             if ($interface->{hub} or $interface->{spoke}) {
                 $model->{crypto}
                   or err_msg "Crypto not supported for $router->{name}",
@@ -2083,10 +2111,10 @@ sub read_router( $ ) {
             $interface->{layer3_interface} = $layer3_intf;
             $layer3_seen{$layer3_name} = $layer3_intf;
         }
-        if ($router->{model}->{has_interface_level}) {
-            set_pix_interface_level $router;
+        if ($model->{has_interface_level}) {
+            set_pix_interface_level($router);
         }
-        if ($router->{model}->{need_radius}) {
+        if ($model->{need_radius}) {
             $router->{radius_servers}
               or err_msg "Attribute 'radius_servers' needs to be defined",
               " for $router->{name}";
