@@ -128,11 +128,12 @@ while (1) {
 &link_topology();
 &mark_disabled();
 &distribute_nat_info();
-&setany();
+&set_zone();
 if ($show_owner) {
     Netspoc::propagate_owners();
 }
 &setpath();
+&find_subnets();
 Netspoc::convert_hosts();
 &abort_on_error();
 
@@ -149,10 +150,10 @@ my $elements = Netspoc::expand_group(\@parsed, 'print-group', 'no_combine');
 
 # Find unused objects by marking used objects.
 if ($show_unused) {
-    &order_services();
-    &expand_policies(0);
+    &order_protocols();
+    &expand_services(0);
     &abort_on_error();
-    for my $type ('deny', 'any', 'permit') {
+    for my $type ('deny', 'supernet', 'permit') {
 	for my $rule (@{ $expanded_rules{$type} }) {
 	    for my $where ('src', 'dst') {
 		my $obj = $rule->{$where};

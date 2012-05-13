@@ -10,7 +10,7 @@ our @EXPORT = qw(compile get_block);
 use Test::More;
 use File::Temp qw/ tempfile tempdir /;
 
-my $options = '-quiet -check_redundant_rules=0';
+my $options = '-quiet -check_redundant_rules=0 -check_service_unknown_owner=0';
 sub compile {
     my($config) = @_;
 

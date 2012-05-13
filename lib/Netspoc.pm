@@ -148,10 +148,10 @@ our %config = (
     check_redundant_rules => 'warn',
 
 # Check for services where owner can't be derived.
-    check_service_unknown_owner => 0,
+    check_service_unknown_owner => 'warn',
 
 # Check for services where multiple owners have been derived.
-    check_service_multi_owner => 0,
+    check_service_multi_owner => 'warn',
 
 # Check for inconsistent use of attributes 'extend' and 'extend_only' in owner.
     check_owner_extend => 0,
@@ -1080,10 +1080,6 @@ sub read_host( $$ ) {
             $host->{range} and error_atline "Duplicate attribute 'range'";
             $host->{range} = [ $ip1, $ip2 ];
         }
-        elsif (($ip, my $mask) = check_assign('subnet', \&read_ip_opt_mask)) {
-            $host->{subnet} and error_atline "Duplicate attribute 'subnet'";
-            $host->{subnet} = [ $ip, $mask ];
-        }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $host->{owner} and error_atline "Duplicate attribute 'owner'";
             $host->{owner} = $owner;
@@ -1120,13 +1116,6 @@ sub read_host( $$ ) {
         else {
             syntax_err "Unexpected attribute";
         }
-    }
-    if (my $subnet = delete $host->{subnet}) {
-        my ($ip, $mask) = @$subnet;
-        my $broadcast = $ip + complement_32bit $mask;
-        $host->{range}
-          and error_atline "Must not define both, 'range' and 'subnet'";
-        $host->{range} = [ $ip, $broadcast ];
     }
     $host->{ip} xor $host->{range}
       or error_atline("Exactly one of attributes 'ip' and 'range' is needed");
@@ -1590,6 +1579,14 @@ sub read_interface( $ ) {
               and error_atline "Duplicate attribute 'id'";
             $interface->{id} = $id;
         }
+        elsif (my $level = check_assign 'security_level', \&read_int) {
+            $level > 100 and 
+                error_atline 
+                  "Maximum value for attribute security_level is 100";
+            defined $interface->{security_level}
+              and error_atline "Duplicate attribute 'security_level'";
+            $interface->{security_level} = $level;
+        }
         elsif ($pair = check_typed_name) {
             my ($type, $name2) = @$pair;
             if ($type eq 'nat') {
@@ -1784,9 +1781,9 @@ sub read_interface( $ ) {
     }
     for my $secondary (@secondary_interfaces) {
         $secondary->{main_interface} = $interface;
-        $secondary->{hardware}       = $interface->{hardware};
-        $secondary->{bind_nat}       = $interface->{bind_nat};
-        $secondary->{disabled}       = $interface->{disabled};
+        for my $key (qw(hardware bind_nat routing disabled)) {
+            $secondary->{$key} = $interface->{$key} if $interface->{$key};
+        }
 
         # No traffic must pass secondary interface.
         # If secondary interface is start- or endpoint of a path,
@@ -1797,40 +1794,39 @@ sub read_interface( $ ) {
 }
 
 # PIX firewalls have a security level associated with each interface.
-# We don't want to expand our syntax to state them explicitly,
-# but instead we try to derive the level from the interface name.
-# It is not necessary the find the exact level; what we need to know
-# is the relation of the security levels to each other.
-sub set_pix_interface_level( $ ) {
+# Use attribute 'security_level' or
+# try to derive the level from the interface name.
+sub set_pix_interface_level {
     my ($router) = @_;
     for my $hardware (@{ $router->{hardware} }) {
         my $hwname = $hardware->{name};
         my $level;
-        if ($hwname eq 'inside') {
+        if (my @levels = grep(defined($_), 
+                              map($_->{security_level}, 
+                                  @{ $hardware->{interfaces} }))) 
+        {
+            if (@levels > 2 && ! equal(@levels)) {
+                err_msg "Must not use different values",
+                " for attribute 'security_level\n",
+                " at $router->{name}, hardware $hwname: ", join(',', @levels);
+            }
+            else {
+                $level = $levels[0];
+            }
+        }
+        elsif ($hwname =~ 'inside') {
             $level = 100;
         }
-        elsif ($hwname eq 'outside') {
+        elsif ($hwname =~ 'outside') {
             $level = 0;
         }
 
-        # Used internally for IP of ASA in bridged mode.
-        elsif ( $hwname eq 'device'
-            and $hardware->{interfaces}->[0]->{is_layer3})
-        {
-            $level = 100;
+        # It is not necessary the find the exact level; what we need to know
+        # is the relation of the security levels to each other.
+        elsif (($level) = ($hwname =~ /(\d+)$/) and $level <= 100) {
         }
         else {
-            unless (($level) =
-                    ($hwname =~ /(\d+)$/)
-                and 0 < $level
-                and $level < 100)
-            {
-                err_msg "Can't derive PIX security level for ",
-                  "$hardware->{interfaces}->[0]->{name}\n",
-                  " Interface name should contain a number",
-                  " which is used as level";
-                $level = 0;
-            }
+            $level = 50;
         }
         $hardware->{level} = $level;
     }
@@ -2051,6 +2047,12 @@ sub read_router( $ ) {
                     err_msg "Missing 'hardware' for $interface->{name}";
                 }
             }
+            if (defined $interface->{security_level} && 
+                ! $model->{has_interface_level}) 
+            {
+                warn_msg("Ignoring attribute 'security_level'",
+                         " at $interface->{name}");
+            }
             if ($interface->{hub} or $interface->{spoke}) {
                 $model->{crypto}
                   or err_msg "Crypto not supported for $router->{name}",
@@ -2109,10 +2111,10 @@ sub read_router( $ ) {
             $interface->{layer3_interface} = $layer3_intf;
             $layer3_seen{$layer3_name} = $layer3_intf;
         }
-        if ($router->{model}->{has_interface_level}) {
-            set_pix_interface_level $router;
+        if ($model->{has_interface_level}) {
+            set_pix_interface_level($router);
         }
-        if ($router->{model}->{need_radius}) {
+        if ($model->{need_radius}) {
             $router->{radius_servers}
               or err_msg "Attribute 'radius_servers' needs to be defined",
               " for $router->{name}";
@@ -7437,14 +7439,10 @@ sub check_crosslink () {
             my $hardware = $interface->{hardware};
             @{ $hardware->{interfaces} } == 1
               or err_msg
-              "Crosslink $network->{name} must be the only  network\n",
+              "Crosslink $network->{name} must be the only network\n",
               " connected to $hardware->{name} of $router->{name}";
             if ($hardware->{need_out_acl}) {
                 $out_acl_count++;
-
-                # Delete attribute, because crosslink interfaces must
-                # not get ACLs.
-                delete $hardware->{need_out_acl};
             }
             push @no_in_acl_intf,
               grep({ $_->{hardware}->{no_in_acl} } @{ $router->{interfaces} });
@@ -9995,6 +9993,7 @@ sub check_for_transient_supernet_rule {
     for my $rule (@{ $expanded_rules{supernet} }) {
         next if $rule->{deleted};
         next if $rule->{action} ne 'permit';
+        next if $rule->{no_check_supernet_rules};
         my $dst = $rule->{dst};
         next if not $dst->{is_supernet};
 
@@ -10006,7 +10005,6 @@ sub check_for_transient_supernet_rule {
           @$rule{ 'stateless', 'src', 'dst', 'src_range', 'prt' };
 
         # Find all rules with supernet as source, which intersects with $dst1.
-        progress('ToDo: finish check transient supernet rules');
         my $src2 = $dst1;
         for my $stateless2 (1, 0) {
             while (my ($dst2_str, $hash) =
@@ -10026,8 +10024,9 @@ sub check_for_transient_supernet_rule {
                 while (my ($src_range2_str, $hash) = each %$hash) {
                   RULE2:
                     while (my ($prt2_str, $rule2) = each %$hash) {
+                        next if $rule2->{no_check_supernet_rules};
 
-                        my $prt2       = $rule2->{prt};
+                        my $prt2 = $rule2->{prt};
                         my $src_range2 = $rule2->{src_range};
 
                         # Find smaller protocol of two rules found.
@@ -10044,7 +10043,7 @@ sub check_for_transient_supernet_rule {
                         my $stateless = ($stateless1 || $stateless2) + 0;
 
                         # Check for a rule with $src1 and $dst2 and
-                        # with $smaller_protocol.
+                        # with $smaller_prt.
                         while (1) {
                             my $action = 'permit';
                             if (my $hash = $rule_tree{$stateless}) {
@@ -10323,6 +10322,7 @@ sub gen_reverse_rules1 ( $ ) {
                     # Stateless tunnel interface of ASA-VPN.
                     or $model->{stateless_tunnel}
                     and $out_intf->{ip} eq 'tunnel'
+                    and not $router->{no_crypto_filter}
                   )
                 {
                     $has_stateless_router = 1;
@@ -10554,8 +10554,9 @@ sub mark_secondary_rules() {
                             $rule,
                             sub {
                                 my ($rule, $in_intf, $out_intf) = @_;
-                                push @interfaces, $out_intf
-                                  if $out_intf->{any} eq $other;
+                                if ($out_intf && $out_intf->{zone} eq $other) {
+                                    push @interfaces, $out_intf;
+                                }
                             }
                         );
                         for my $interface (@interfaces) {
@@ -10742,12 +10743,6 @@ sub mark_networks_for_static( $$$ ) {
     # - getting the NAT tag.
     my $in_hw  = $in_intf->{hardware};
     my $out_hw = $out_intf->{hardware};
-    if ($in_hw->{level} == $out_hw->{level}) {
-        return if $in_intf->{ip} eq 'tunnel' or $out_intf->{ip} eq 'tunnel';
-        err_msg "Traffic of rule\n", print_rule $rule,
-          "\n can't pass from  $in_intf->{name} to $out_intf->{name},\n",
-          " which have equal security levels.\n";
-    }
 
     my $identity_nat = $model->{need_identity_nat};
     if ($identity_nat) {
@@ -11961,7 +11956,9 @@ sub distribute_rule( $$$ ) {
         if (
             not(   $model->{stateless}
                 or not $out_intf and $model->{stateless_self}
-                or $model->{stateless_tunnel} and $in_intf->{ip} eq 'tunnel')
+                or     $model->{stateless_tunnel} 
+                   and $in_intf->{ip} eq 'tunnel'
+                   and not $router->{no_crypto_filter})
           )
         {
             return;
@@ -12266,6 +12263,9 @@ sub add_router_acls () {
                 }
                 else {
                     $hardware->{rules} = [$permit_any_rule];
+                    if ($hardware->{need_out_acl}) {
+                        $hardware->{out_rules} = [$permit_any_rule];
+                    }
                 }
                 $hardware->{intf_rules} = [$permit_any_rule];
                 next;
@@ -12735,8 +12735,8 @@ sub cisco_prt_code( $$$ ) {
         if (my $established = $prt->{established}) {
             if ($model->{filter} eq 'PIX') {
                 err_msg "Must not use 'established' at '$model->{name}'\n",
-                  " - try 'managed=secondary' or \n",
-                  " - don't use outgoing connection to VPN client";
+                  " - don't use outgoing TCP connection to VPN client or \n",
+                  " - try attribute 'no_crypto_filter'";
             }
             if (defined $dst_prt) {
                 $dst_prt .= ' established';
@@ -14286,11 +14286,24 @@ sub local_optimization() {
                             # secondary rules.
                             for my $ref (\$src, \$dst) {
 
-                                # Single ID-hosts must not be converted to
-                                # network at authenticating router.
-                                if ($do_auth && is_subnet($$ref) && $$ref->{id})
-                                {
-                                    next;
+                                # Restrict secondary optimization at
+                                # authenticating router to prevent
+                                # unauthorized access with spoofed IP
+                                # address.
+                                if ($do_auth) {
+                                    my $type = ref($$ref);
+
+                                    # Single ID-hosts must not be
+                                    # converted to network.
+                                    if ($type eq 'Subnet') {
+                                        next if $$ref->{id};
+                                    }
+
+                                    # Network with ID-hosts must not
+                                    # be optimized at all.
+                                    elsif ($type eq 'Network') {
+                                        next RULE if $$ref->{has_id_hosts};
+                                    }
                                 }
                                 if ($$ref eq $dst 
                                     && is_interface($dst)
@@ -15358,11 +15371,12 @@ sub print_cisco_acls {
 
             # Outgoing ACL
             else {
+                my $out_rules = $hardware->{out_rules} ||= [];
 
-                # Add deny rule at end of ACL.
-                push(@{ $hardware->{out_rules} }, $deny_any_rule);
-
-                my $out_rules = $hardware->{out_rules};
+                # Add deny rule at end of ACL if not 'permit ip any any'
+                if (!(@$out_rules && $out_rules->[-1] eq $permit_any_rule)) {
+                    push(@$out_rules, $deny_any_rule);
+                }
                 cisco_acl_line($router, $out_rules, $no_nat_set, $prefix);
             }
 
