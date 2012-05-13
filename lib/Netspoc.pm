@@ -7728,9 +7728,8 @@ sub get_any00 {
 # Get set of aggregate of a zone cluster.
 sub get_cluster_aggregates {
     my ($zone, $ip, $mask) = @_;
-    my $zones = $zone->{zone_cluster};
     my $key = "$ip/$mask";
-    return map($_->{ipmask2aggregate}->{$key}, @zones);
+    return map($_->{ipmask2aggregate}->{$key}, @{ $zone->{zone_cluster} });
 }
 
 sub set_zone1 {
