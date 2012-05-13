@@ -7571,7 +7571,7 @@ sub link_aggregate_to_zone {
 # domains have been set up. But before find_subnets calculates {up}
 # and {networks} relation.
 sub link_aggregates {
-    my %aggregate2cluster;
+    my @aggregates_in_cluster;
     for my $aggregate (values %aggregates) {
         my $private1 = $aggregate->{private} || 'public';
         my $private2;
@@ -7646,15 +7646,15 @@ sub link_aggregates {
                       " in $zone->{name}";
                 }
             }
+            if ($cluster) {
+                push(@aggregates_in_cluster, $aggregate);
+            }
 
             # Aggregate with ip 0/0 is used to set attributes of zone.
             if ($mask == 0) {
                 for my $attr (qw(owner no_in_acl)) {
                     $zone->{$attr} = $aggregate->{$attr} if $aggregate->{$attr};
                 }
-            }
-            elsif ($cluster) {
-                $aggregate2cluster{$aggregate} = $cluster;
             }
             link_aggregate_to_zone($aggregate, $zone, $key);
         }
@@ -7665,7 +7665,8 @@ sub link_aggregates {
     }
 
     # Duplicate aggregate to all zones of a cluster.
-    while (my ($aggregate, $cluster) = each %aggregate2cluster) {
+    for my $aggregate (@aggregates_in_cluster) {
+        my $cluster = $aggregate->{zone}->{zone_cluster};
         my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
         my $key = "$ip/$mask";
         for my $zone (@$cluster) {
