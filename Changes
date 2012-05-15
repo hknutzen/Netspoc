@@ -1,3 +1,26 @@
+3.013     2012-05-15 11:04:49 Europe/Berlin
+
+- Fixed bug with duplicate elements in object-groups.
+  A pair of redundancy interfaces wasn't detected as identical
+  - if these interfaces were loopback interfaces and
+  - if the corresponding loopback network didn't have 
+    any identical network from NAT or from aggregates.
+- Fixed bug with missing networks in automatic group
+  if security zone had pathrestriction at unmanaged device.
+  Now, network:[any:X] holds all networks inside zone of any:X,
+  regardless of pathrestrictions defined at unmanaged devices
+  inside the zone.
+- Removed recently introduced attribute 'subnet' for hosts.
+  It should be replaced by real networks with attribute 'subnet_of'.
+- Changed handling of security levels for ASA / PIX:
+  - Introduced attribute 'security_level' at interface to 
+    explicitly set the security level.
+  - Derive security level if interface name is matching 
+    'inside' or 'outside'. Previously it had to be equal.
+  - No longer abort, if no security level is given, 
+    but use value 50 as default.
+  - Allow traffic between equal security levels.
+
 3.012     2012-04-24 14:25:46 Europe/Berlin
 
 - Fixed bug with no_in_acl together with crosslink.

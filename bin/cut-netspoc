@@ -148,7 +148,7 @@ for my $ref (values %name2var) {
 # Process rules of services.
 sub process_rules ( $ ) {
     my ($expanded_rules) = @_;
-    for my $type ('deny', 'aggregate', 'permit') {
+    for my $type ('deny', 'supernet', 'permit') {
 	for my $rule (@{ $expanded_rules->{$type} }) {
 	    for my $where ('src', 'dst') {
 

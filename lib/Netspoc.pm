@@ -32,7 +32,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.012'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.013'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -199,10 +199,6 @@ our %config = (
 # Use old syntax srv, service, servicegroup, policy
 # instead of     prt, protocol, protocolgroup, service
     old_syntax => 0,
-
-# Unused, eases migration 
-    check_policy_multi_owner => 0,
-    check_policy_unknown_owner => 0,
 );
 
 # Valid values for config options in %config.
@@ -1084,10 +1080,6 @@ sub read_host( $$ ) {
             $host->{range} and error_atline "Duplicate attribute 'range'";
             $host->{range} = [ $ip1, $ip2 ];
         }
-        elsif (($ip, my $mask) = check_assign('subnet', \&read_ip_opt_mask)) {
-            $host->{subnet} and error_atline "Duplicate attribute 'subnet'";
-            $host->{subnet} = [ $ip, $mask ];
-        }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $host->{owner} and error_atline "Duplicate attribute 'owner'";
             $host->{owner} = $owner;
@@ -1124,13 +1116,6 @@ sub read_host( $$ ) {
         else {
             syntax_err "Unexpected attribute";
         }
-    }
-    if (my $subnet = delete $host->{subnet}) {
-        my ($ip, $mask) = @$subnet;
-        my $broadcast = $ip + complement_32bit $mask;
-        $host->{range}
-          and error_atline "Must not define both, 'range' and 'subnet'";
-        $host->{range} = [ $ip, $broadcast ];
     }
     $host->{ip} xor $host->{range}
       or error_atline("Exactly one of attributes 'ip' and 'range' is needed");
@@ -1594,6 +1579,14 @@ sub read_interface( $ ) {
               and error_atline "Duplicate attribute 'id'";
             $interface->{id} = $id;
         }
+        elsif (my $level = check_assign 'security_level', \&read_int) {
+            $level > 100 and 
+                error_atline 
+                  "Maximum value for attribute security_level is 100";
+            defined $interface->{security_level}
+              and error_atline "Duplicate attribute 'security_level'";
+            $interface->{security_level} = $level;
+        }
         elsif ($pair = check_typed_name) {
             my ($type, $name2) = @$pair;
             if ($type eq 'nat') {
@@ -1801,40 +1794,39 @@ sub read_interface( $ ) {
 }
 
 # PIX firewalls have a security level associated with each interface.
-# We don't want to expand our syntax to state them explicitly,
-# but instead we try to derive the level from the interface name.
-# It is not necessary the find the exact level; what we need to know
-# is the relation of the security levels to each other.
-sub set_pix_interface_level( $ ) {
+# Use attribute 'security_level' or
+# try to derive the level from the interface name.
+sub set_pix_interface_level {
     my ($router) = @_;
     for my $hardware (@{ $router->{hardware} }) {
         my $hwname = $hardware->{name};
         my $level;
-        if ($hwname eq 'inside') {
+        if (my @levels = grep(defined($_), 
+                              map($_->{security_level}, 
+                                  @{ $hardware->{interfaces} }))) 
+        {
+            if (@levels > 2 && ! equal(@levels)) {
+                err_msg "Must not use different values",
+                " for attribute 'security_level\n",
+                " at $router->{name}, hardware $hwname: ", join(',', @levels);
+            }
+            else {
+                $level = $levels[0];
+            }
+        }
+        elsif ($hwname =~ 'inside') {
             $level = 100;
         }
-        elsif ($hwname eq 'outside') {
+        elsif ($hwname =~ 'outside') {
             $level = 0;
         }
 
-        # Used internally for IP of ASA in bridged mode.
-        elsif ( $hwname eq 'device'
-            and $hardware->{interfaces}->[0]->{is_layer3})
-        {
-            $level = 100;
+        # It is not necessary the find the exact level; what we need to know
+        # is the relation of the security levels to each other.
+        elsif (($level) = ($hwname =~ /(\d+)$/) and $level <= 100) {
         }
         else {
-            unless (($level) =
-                    ($hwname =~ /(\d+)$/)
-                and 0 < $level
-                and $level < 100)
-            {
-                err_msg "Can't derive PIX security level for ",
-                  "$hardware->{interfaces}->[0]->{name}\n",
-                  " Interface name should contain a number",
-                  " which is used as level";
-                $level = 0;
-            }
+            $level = 50;
         }
         $hardware->{level} = $level;
     }
@@ -2055,6 +2047,12 @@ sub read_router( $ ) {
                     err_msg "Missing 'hardware' for $interface->{name}";
                 }
             }
+            if (defined $interface->{security_level} && 
+                ! $model->{has_interface_level}) 
+            {
+                warn_msg("Ignoring attribute 'security_level'",
+                         " at $interface->{name}");
+            }
             if ($interface->{hub} or $interface->{spoke}) {
                 $model->{crypto}
                   or err_msg "Crypto not supported for $router->{name}",
@@ -2113,10 +2111,10 @@ sub read_router( $ ) {
             $interface->{layer3_interface} = $layer3_intf;
             $layer3_seen{$layer3_name} = $layer3_intf;
         }
-        if ($router->{model}->{has_interface_level}) {
-            set_pix_interface_level $router;
+        if ($model->{has_interface_level}) {
+            set_pix_interface_level($router);
         }
-        if ($router->{model}->{need_radius}) {
+        if ($model->{need_radius}) {
             $router->{radius_servers}
               or err_msg "Attribute 'radius_servers' needs to be defined",
               " for $router->{name}";
@@ -5081,7 +5079,8 @@ sub expand_group1( $$;$ ) {
                 my @objects;
                 my $type = ref $object;
                 if ($type eq 'Area') {
-                    push @objects, map (get_any00($_), @{ $object->{zones} });
+                    push @objects, 
+                      unique(map (get_any00($_), @{ $object->{zones} }));
                 }
                 elsif ($type eq 'Network' && $object->{is_aggregate}) {
                     push @objects, $object;
@@ -5159,7 +5158,6 @@ sub expand_group1( $$;$ ) {
             }
             elsif ($type eq 'any') {
                 for my $object (@$sub_objects) {
-                    my $type = ref $object;
                     if (my $aggregates = $get_aggregates->($object)) {
                         push @objects, @$aggregates;
                     }
@@ -5167,6 +5165,7 @@ sub expand_group1( $$;$ ) {
                         push @objects, map(get_any00($_->{zone}), @$networks);
                     }
                     else {
+                        my $type = ref $object;
                         err_msg
                           "Unexpected type '$type' in any:[..]",
                           " of $context";
@@ -5251,6 +5250,14 @@ sub expand_group1( $$;$ ) {
                 }
                 push @objects, @$elements;
             }
+
+            # Substitute aggregate by aggregate set of zone cluster.
+            elsif ($object->{is_aggregate} && $object->{zone}->{zone_cluster}) {
+                my ($ip, $mask) = @{$object}{qw(ip mask)};
+                push(@objects, 
+                     get_cluster_aggregates($object->{zone}, $ip, $mask));
+            }
+
             else {
                 push @objects, $object;
             }
@@ -5919,7 +5926,7 @@ sub expand_rules {
                             if (   $src_zone eq $dst_zone
                                 || $src_zone_cluster
                                 && $dst_zone_cluster
-                                && $src_zone_cluster == $dst_zone_cluster)
+                                && $src_zone_cluster eq $dst_zone_cluster)
                             {
                                 collect_unenforceable $src, $dst, $src_zone,
                                   $context;
@@ -7267,6 +7274,7 @@ sub find_subnets() {
         }
     }
 
+    my %key2cluster;
     for my $zone (@zones) {
 
         # For each subnet N find the largest non-aggregate network
@@ -7298,10 +7306,33 @@ sub find_subnets() {
             [ grep(!$_->{max_up_net}, @{ $zone->{networks} }) ];
 
         # Check for empty aggregates
-        for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
-            $aggregate->{networks} && @{ $aggregate->{networks} }
-              or warn_msg "$aggregate->{name} doesn't match any networks";
+        for my $key (keys %{ $zone->{ipmask2aggregate} }) {
+            my $aggregate = $zone->{ipmask2aggregate}->{$key};
+            if (!($aggregate->{networks} && @{ $aggregate->{networks} })) {
+                if (my $cluster = $zone->{zone_cluster}) {
+
+                    # Check later
+                    $key2cluster{$key} = $cluster;
+                }
+                else {
+                    warn_msg "$aggregate->{name} doesn't match any networks";
+                }
+            }
         }
+    }
+
+    # Some but not all equivalent aggregates inside a zone cluster can
+    # be empty.
+    while (my($key, $cluster) = each %key2cluster) {
+        my $aggregate;
+        my $ok;
+        for my $zone (@$cluster) {
+            $aggregate = $zone->{ipmask2aggregate}->{$key};
+            if ($aggregate->{networks} && @{ $aggregate->{networks} }) {
+                $ok = 1;
+            }
+        }
+        $ok or warn_msg "$aggregate->{name} doesn't match any networks";
     }
 }
 
@@ -7323,8 +7354,8 @@ sub check_vpnhub () {
     my $all_eq_cluster = sub {
         my (@obj)    = @_;
         my $obj1     = pop @obj;
-        my $cluster1 = $obj1->{zone_cluster};
-        not grep { $_->{zone_cluster} != $cluster1 } @obj;
+        my $cluster1 = $obj1->{zone_cluster} || $obj1;
+        not grep { ($_->{zone_cluster} || $_) ne $cluster1 } @obj;
     };
     for my $routers (values %hub2routers) {
         my @zones = map {
@@ -7538,6 +7569,7 @@ sub link_aggregate_to_zone {
 # domains have been set up. But before find_subnets calculates {up}
 # and {networks} relation.
 sub link_aggregates {
+    my @aggregates_in_cluster;
     for my $aggregate (values %aggregates) {
         my $private1 = $aggregate->{private} || 'public';
         my $private2;
@@ -7603,10 +7635,17 @@ sub link_aggregates {
 
             my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
             my $key = "$ip/$mask";
-            if (my $other = $zone->{ipmask2aggregate}->{$key}) {
-                err_msg
-                  "Duplicate $other->{name} and $aggregate->{name}",
-                  " in $zone->{name}";
+
+            my $cluster = $zone->{zone_cluster};
+            for my $zone2 ($cluster ? @$cluster : ($zone)) {
+                if (my $other = $zone2->{ipmask2aggregate}->{$key}) {
+                    err_msg
+                      "Duplicate $other->{name} and $aggregate->{name}",
+                      " in $zone->{name}";
+                }
+            }
+            if ($cluster) {
+                push(@aggregates_in_cluster, $aggregate);
             }
 
             # Aggregate with ip 0/0 is used to set attributes of zone.
@@ -7623,7 +7662,19 @@ sub link_aggregates {
         }
     }
 
-    # Add one aggregate to each zone where non has been defined,
+    # Duplicate aggregate to all zones of a cluster.
+    for my $aggregate (@aggregates_in_cluster) {
+        my $cluster = $aggregate->{zone}->{zone_cluster};
+        my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
+        my $key = "$ip/$mask";
+        for my $zone (@$cluster) {
+            next if $zone->{ipmask2aggregate}->{$key};
+            my $aggregate2 = new('Network', %$aggregate);
+            link_aggregate_to_zone($aggregate2, $zone, $key);
+        }
+    }        
+
+    # Add one aggregate to each zone where none has been defined,
     # to be used in implcit aggregates any:[..].
     for my $zone (@zones) {
         my $key = '0/0';
@@ -7632,7 +7683,14 @@ sub link_aggregates {
 
         # Don't define aggregate und network with same IP.
         # {up} relation wouldn't be well defined.
-        next if grep { $_->{mask} == 0 } @{ $zone->{networks} };
+        if (my $cluster = $zone->{zone_cluster}) {
+            if (grep { $_->{mask} == 0 } map(@{ $_->{networks} }, @$cluster)) {
+                next;
+            }
+        }
+        elsif (grep { $_->{mask} == 0 } @{ $zone->{networks} }) {
+            next;
+        }
 
         my $aggregate = new(
             'Network',
@@ -7645,14 +7703,18 @@ sub link_aggregates {
     }
 }
 
-# Find aggregate or network with ip 0/0 in zone.
+# Find aggregate in zone.
+# If zone is part of a zone_cluster, 
+# return aggregate for each zone of the cluster.
 sub get_any00 {
     my ($zone) = @_;
     if (my $aggregate = $zone->{ipmask2aggregate}->{'0/0'}) {
-        return $aggregate;
+        return(  $zone->{zone_cluster} 
+               ? get_cluster_aggregates($zone, 0, 0) 
+               : $aggregate);
     }
     if (my ($net00) = grep { $_->{mask} == 0 } @{ $zone->{networks} }) {
-        fatal_err "Use $net00->{name} instead of aggregate:[..]";
+        fatal_err "Use $net00->{name} instead of any:[..]";
     }
     else {
         fatal_err(
@@ -7660,6 +7722,13 @@ sub get_any00 {
             " having no network with IP address"
         );
     }
+}
+
+# Get set of aggregate of a zone cluster.
+sub get_cluster_aggregates {
+    my ($zone, $ip, $mask) = @_;
+    my $key = "$ip/$mask";
+    return map($_->{ipmask2aggregate}->{$key}, @{ $zone->{zone_cluster} });
 }
 
 sub set_zone1 {
@@ -7702,13 +7771,13 @@ sub set_zone1 {
     }
 }
 
-# Mark cluster of zones which are connected by semi_managed devices.
+# Collect cluster of zones which are connected by semi_managed devices.
 sub set_zone_cluster {
-    my ($zone, $in_interface, $counter) = @_;
+    my ($zone, $in_interface, $zone_aref) = @_;
     my $restrict;
-    $zone->{zone_cluster} = $counter;
+    push @$zone_aref, $zone;
+    $zone->{zone_cluster} = $zone_aref;
 
-#    debug "$counter: $zone->{name}";
     for my $interface (@{ $zone->{interfaces} }) {
         next if $interface eq $in_interface;
 
@@ -7727,7 +7796,7 @@ sub set_zone_cluster {
                   if $restrict = $out_interface->{path_restrict}
                       and grep { $_ eq $global_active_pathrestriction }
                       @$restrict;
-                set_zone_cluster($next, $out_interface, $counter);
+                set_zone_cluster($next, $out_interface, $zone_aref);
             }
         }
     }
@@ -7867,7 +7936,6 @@ sub set_zone {
           if $network->{loopback} && @{ $zone->{networks} } == 1;
     }
 
-    my $cluster_counter = 1;
     for my $zone (@zones) {
 
         # Make results deterministic.
@@ -7875,10 +7943,15 @@ sub set_zone {
           sort { $a->{mask} <=> $b->{mask} || $a->{ip} <=> $b->{ip} }
           @{ $zone->{networks} };
 
-        # Mark clusters of zones, which are connected by an unmanaged
-        # (semi_managed) device.
+        # Collect clusters of zones, which are connected by an unmanaged
+        # (semi_managed) device into attribute {zone_cluster}.
+        # This attribute is only set, if the cluster has more than one element.
         next if $zone->{zone_cluster};
-        set_zone_cluster($zone, 0, $cluster_counter++);
+        my $cluster = [];
+        set_zone_cluster($zone, 0, $cluster);
+        delete $zone->{zone_cluster} if 1 == @$cluster;
+#       debug 'cluster: ', join(',',map($_->{name}, @{$zone->{zone_cluster}})) 
+#           if $zone->{zone_cluster};
     }
 
     check_no_in_acl;
@@ -10745,12 +10818,6 @@ sub mark_networks_for_static( $$$ ) {
     # - getting the NAT tag.
     my $in_hw  = $in_intf->{hardware};
     my $out_hw = $out_intf->{hardware};
-    if ($in_hw->{level} == $out_hw->{level}) {
-        return if $in_intf->{ip} eq 'tunnel' or $out_intf->{ip} eq 'tunnel';
-        err_msg "Traffic of rule\n", print_rule $rule,
-          "\n can't pass from  $in_intf->{name} to $out_intf->{name},\n",
-          " which have equal security levels.\n";
-    }
 
     my $identity_nat = $model->{need_identity_nat};
     if ($identity_nat) {
@@ -12288,8 +12355,10 @@ sub add_router_acls () {
 
                         # This is not allowed between different
                         # security zones.
-                        if ($net->{zone}->{zone_cluster} !=
-                            $interface->{zone}->{zone_cluster})
+                        my $net_zone = $net->{zone};
+                        my $intf_zone = $interface->{zone};
+                        if (($net_zone->{zone_cluster} || $net_zone) ne
+                            ($intf_zone->{zone_cluster} || $intf_zone))
                         {
                             err_msg "Invalid reroute_permit for $net->{name} ",
                               "at $interface->{name}: different security zones";
@@ -14147,23 +14216,27 @@ sub local_optimization() {
                     for my $rule (@{ $hardware->{$rules} }) {
 
                         # Change rule to allow optimization of objects
-                        # having identical IP adress.
+                        # having identical IP address.
                         for my $what (qw(src dst)) {
                             my $obj = $rule->{$what};
 
+                            # Holds original obj or loopback network
+                            # of original interface.
+                            my $net = $obj;
+
                             # Loopback interface is converted to
-                            # loopback network, if other networks with
-                            # same address exist.
+                            # loopback network below, only if other
+                            # networks with identical address exist.
                             if ($obj->{loopback}) {
                                 if (!($rules eq 'intf_rules' && $what eq 'dst'))
                                 {
-                                    $obj = $obj->{network};
+                                    $net = $obj->{network};
                                 }
                             }
 
                             # Identical networks from dynamic NAT and
                             # from identical aggregates.
-                            if (my $identical = $obj->{is_identical}) {
+                            if (my $identical = $net->{is_identical}) {
                                 if (my $other = $identical->{$no_nat_set}) {
                                     $obj = $other;
                                 }
