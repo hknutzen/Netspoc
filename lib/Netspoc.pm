@@ -14139,23 +14139,27 @@ sub local_optimization() {
                     for my $rule (@{ $hardware->{$rules} }) {
 
                         # Change rule to allow optimization of objects
-                        # having identical IP adress.
+                        # having identical IP address.
                         for my $what (qw(src dst)) {
                             my $obj = $rule->{$what};
 
+                            # Holds original obj or loopback network
+                            # of original interface.
+                            my $net = $obj;
+
                             # Loopback interface is converted to
-                            # loopback network, if other networks with
-                            # same address exist.
+                            # loopback network below, only if other
+                            # networks with identical address exist.
                             if ($obj->{loopback}) {
                                 if (!($rules eq 'intf_rules' && $what eq 'dst'))
                                 {
-                                    $obj = $obj->{network};
+                                    $net = $obj->{network};
                                 }
                             }
 
                             # Identical networks from dynamic NAT and
                             # from identical aggregates.
-                            if (my $identical = $obj->{is_identical}) {
+                            if (my $identical = $net->{is_identical}) {
                                 if (my $other = $identical->{$no_nat_set}) {
                                     $obj = $other;
                                 }
