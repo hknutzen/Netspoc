@@ -5079,7 +5079,8 @@ sub expand_group1( $$;$ ) {
                 my @objects;
                 my $type = ref $object;
                 if ($type eq 'Area') {
-                    push @objects, map (get_any00($_), @{ $object->{zones} });
+                    push @objects, 
+                      unique(map (get_any00($_), @{ $object->{zones} }));
                 }
                 elsif ($type eq 'Network' && $object->{is_aggregate}) {
                     push @objects, $object;
@@ -5157,7 +5158,6 @@ sub expand_group1( $$;$ ) {
             }
             elsif ($type eq 'any') {
                 for my $object (@$sub_objects) {
-                    my $type = ref $object;
                     if (my $aggregates = $get_aggregates->($object)) {
                         push @objects, @$aggregates;
                     }
@@ -5165,6 +5165,7 @@ sub expand_group1( $$;$ ) {
                         push @objects, map(get_any00($_->{zone}), @$networks);
                     }
                     else {
+                        my $type = ref $object;
                         err_msg
                           "Unexpected type '$type' in any:[..]",
                           " of $context";
@@ -5249,6 +5250,14 @@ sub expand_group1( $$;$ ) {
                 }
                 push @objects, @$elements;
             }
+
+            # Substitute aggregate by aggregate set of zone cluster.
+            elsif ($object->{is_aggregate} && $object->{zone}->{zone_cluster}) {
+                my ($ip, $mask) = @{$object}{qw(ip mask)};
+                push(@objects, 
+                     get_cluster_aggregates($object->{zone}, $ip, $mask));
+            }
+
             else {
                 push @objects, $object;
             }
@@ -5917,7 +5926,7 @@ sub expand_rules {
                             if (   $src_zone eq $dst_zone
                                 || $src_zone_cluster
                                 && $dst_zone_cluster
-                                && $src_zone_cluster == $dst_zone_cluster)
+                                && $src_zone_cluster eq $dst_zone_cluster)
                             {
                                 collect_unenforceable $src, $dst, $src_zone,
                                   $context;
@@ -7265,6 +7274,7 @@ sub find_subnets() {
         }
     }
 
+    my %key2cluster;
     for my $zone (@zones) {
 
         # For each subnet N find the largest non-aggregate network
@@ -7296,10 +7306,33 @@ sub find_subnets() {
             [ grep(!$_->{max_up_net}, @{ $zone->{networks} }) ];
 
         # Check for empty aggregates
-        for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
-            $aggregate->{networks} && @{ $aggregate->{networks} }
-              or warn_msg "$aggregate->{name} doesn't match any networks";
+        for my $key (keys %{ $zone->{ipmask2aggregate} }) {
+            my $aggregate = $zone->{ipmask2aggregate}->{$key};
+            if (!($aggregate->{networks} && @{ $aggregate->{networks} })) {
+                if (my $cluster = $zone->{zone_cluster}) {
+
+                    # Check later
+                    $key2cluster{$key} = $cluster;
+                }
+                else {
+                    warn_msg "$aggregate->{name} doesn't match any networks";
+                }
+            }
         }
+    }
+
+    # Some but not all equivalent aggregates inside a zone cluster can
+    # be empty.
+    while (my($key, $cluster) = each %key2cluster) {
+        my $aggregate;
+        my $ok;
+        for my $zone (@$cluster) {
+            $aggregate = $zone->{ipmask2aggregate}->{$key};
+            if ($aggregate->{networks} && @{ $aggregate->{networks} }) {
+                $ok = 1;
+            }
+        }
+        $ok or warn_msg "$aggregate->{name} doesn't match any networks";
     }
 }
 
@@ -7321,8 +7354,8 @@ sub check_vpnhub () {
     my $all_eq_cluster = sub {
         my (@obj)    = @_;
         my $obj1     = pop @obj;
-        my $cluster1 = $obj1->{zone_cluster};
-        not grep { $_->{zone_cluster} != $cluster1 } @obj;
+        my $cluster1 = $obj1->{zone_cluster} || $obj1;
+        not grep { ($_->{zone_cluster} || $_) ne $cluster1 } @obj;
     };
     for my $routers (values %hub2routers) {
         my @zones = map {
@@ -7536,6 +7569,7 @@ sub link_aggregate_to_zone {
 # domains have been set up. But before find_subnets calculates {up}
 # and {networks} relation.
 sub link_aggregates {
+    my @aggregates_in_cluster;
     for my $aggregate (values %aggregates) {
         my $private1 = $aggregate->{private} || 'public';
         my $private2;
@@ -7601,10 +7635,17 @@ sub link_aggregates {
 
             my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
             my $key = "$ip/$mask";
-            if (my $other = $zone->{ipmask2aggregate}->{$key}) {
-                err_msg
-                  "Duplicate $other->{name} and $aggregate->{name}",
-                  " in $zone->{name}";
+
+            my $cluster = $zone->{zone_cluster};
+            for my $zone2 ($cluster ? @$cluster : ($zone)) {
+                if (my $other = $zone2->{ipmask2aggregate}->{$key}) {
+                    err_msg
+                      "Duplicate $other->{name} and $aggregate->{name}",
+                      " in $zone->{name}";
+                }
+            }
+            if ($cluster) {
+                push(@aggregates_in_cluster, $aggregate);
             }
 
             # Aggregate with ip 0/0 is used to set attributes of zone.
@@ -7621,7 +7662,19 @@ sub link_aggregates {
         }
     }
 
-    # Add one aggregate to each zone where non has been defined,
+    # Duplicate aggregate to all zones of a cluster.
+    for my $aggregate (@aggregates_in_cluster) {
+        my $cluster = $aggregate->{zone}->{zone_cluster};
+        my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
+        my $key = "$ip/$mask";
+        for my $zone (@$cluster) {
+            next if $zone->{ipmask2aggregate}->{$key};
+            my $aggregate2 = new('Network', %$aggregate);
+            link_aggregate_to_zone($aggregate2, $zone, $key);
+        }
+    }        
+
+    # Add one aggregate to each zone where none has been defined,
     # to be used in implcit aggregates any:[..].
     for my $zone (@zones) {
         my $key = '0/0';
@@ -7630,7 +7683,14 @@ sub link_aggregates {
 
         # Don't define aggregate und network with same IP.
         # {up} relation wouldn't be well defined.
-        next if grep { $_->{mask} == 0 } @{ $zone->{networks} };
+        if (my $cluster = $zone->{zone_cluster}) {
+            if (grep { $_->{mask} == 0 } map(@{ $_->{networks} }, @$cluster)) {
+                next;
+            }
+        }
+        elsif (grep { $_->{mask} == 0 } @{ $zone->{networks} }) {
+            next;
+        }
 
         my $aggregate = new(
             'Network',
@@ -7643,14 +7703,18 @@ sub link_aggregates {
     }
 }
 
-# Find aggregate or network with ip 0/0 in zone.
+# Find aggregate in zone.
+# If zone is part of a zone_cluster, 
+# return aggregate for each zone of the cluster.
 sub get_any00 {
     my ($zone) = @_;
     if (my $aggregate = $zone->{ipmask2aggregate}->{'0/0'}) {
-        return $aggregate;
+        return(  $zone->{zone_cluster} 
+               ? get_cluster_aggregates($zone, 0, 0) 
+               : $aggregate);
     }
     if (my ($net00) = grep { $_->{mask} == 0 } @{ $zone->{networks} }) {
-        fatal_err "Use $net00->{name} instead of aggregate:[..]";
+        fatal_err "Use $net00->{name} instead of any:[..]";
     }
     else {
         fatal_err(
@@ -7658,6 +7722,13 @@ sub get_any00 {
             " having no network with IP address"
         );
     }
+}
+
+# Get set of aggregate of a zone cluster.
+sub get_cluster_aggregates {
+    my ($zone, $ip, $mask) = @_;
+    my $key = "$ip/$mask";
+    return map($_->{ipmask2aggregate}->{$key}, @{ $zone->{zone_cluster} });
 }
 
 sub set_zone1 {
@@ -7700,13 +7771,13 @@ sub set_zone1 {
     }
 }
 
-# Mark cluster of zones which are connected by semi_managed devices.
+# Collect cluster of zones which are connected by semi_managed devices.
 sub set_zone_cluster {
-    my ($zone, $in_interface, $counter) = @_;
+    my ($zone, $in_interface, $zone_aref) = @_;
     my $restrict;
-    $zone->{zone_cluster} = $counter;
+    push @$zone_aref, $zone;
+    $zone->{zone_cluster} = $zone_aref;
 
-#    debug "$counter: $zone->{name}";
     for my $interface (@{ $zone->{interfaces} }) {
         next if $interface eq $in_interface;
 
@@ -7725,7 +7796,7 @@ sub set_zone_cluster {
                   if $restrict = $out_interface->{path_restrict}
                       and grep { $_ eq $global_active_pathrestriction }
                       @$restrict;
-                set_zone_cluster($next, $out_interface, $counter);
+                set_zone_cluster($next, $out_interface, $zone_aref);
             }
         }
     }
@@ -7865,7 +7936,6 @@ sub set_zone {
           if $network->{loopback} && @{ $zone->{networks} } == 1;
     }
 
-    my $cluster_counter = 1;
     for my $zone (@zones) {
 
         # Make results deterministic.
@@ -7873,10 +7943,15 @@ sub set_zone {
           sort { $a->{mask} <=> $b->{mask} || $a->{ip} <=> $b->{ip} }
           @{ $zone->{networks} };
 
-        # Mark clusters of zones, which are connected by an unmanaged
-        # (semi_managed) device.
+        # Collect clusters of zones, which are connected by an unmanaged
+        # (semi_managed) device into attribute {zone_cluster}.
+        # This attribute is only set, if the cluster has more than one element.
         next if $zone->{zone_cluster};
-        set_zone_cluster($zone, 0, $cluster_counter++);
+        my $cluster = [];
+        set_zone_cluster($zone, 0, $cluster);
+        delete $zone->{zone_cluster} if 1 == @$cluster;
+#       debug 'cluster: ', join(',',map($_->{name}, @{$zone->{zone_cluster}})) 
+#           if $zone->{zone_cluster};
     }
 
     check_no_in_acl;
@@ -12280,8 +12355,10 @@ sub add_router_acls () {
 
                         # This is not allowed between different
                         # security zones.
-                        if ($net->{zone}->{zone_cluster} !=
-                            $interface->{zone}->{zone_cluster})
+                        my $net_zone = $net->{zone};
+                        my $intf_zone = $interface->{zone};
+                        if (($net_zone->{zone_cluster} || $net_zone) ne
+                            ($intf_zone->{zone_cluster} || $intf_zone))
                         {
                             err_msg "Invalid reroute_permit for $net->{name} ",
                               "at $interface->{name}: different security zones";
