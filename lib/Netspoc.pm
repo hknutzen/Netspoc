@@ -4500,7 +4500,7 @@ sub mark_disabled() {
         equal(map not($_->{managed}), @$aref)
           or err_msg("All VRF instances of router:$aref->[0]->{device_name}",
             " must equally be managed or unmanaged");
-        equal(map $_->{model}->{name}, @$aref)
+        equal(map $_->{managed} ? $_->{model}->{name} : (), @$aref)
           or err_msg("All VRF instances of router:$aref->[0]->{device_name}",
             " must have identical model");
 
