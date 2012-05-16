@@ -6938,7 +6938,7 @@ sub check_subnets {
     };
     for my $interface (@{ $network->{interfaces} }) {
         my $ip = $interface->{ip};
-        next if $ip =~ /^(?:unnumbered|negotiated|tunnel|short)$/;
+        next if $ip =~ /^(?:unnumbered|negotiated|tunnel|short|bridged)$/;
         $check->($ip, undef, $interface);
     }
     for my $host (@{ $network->{hosts} }) {
