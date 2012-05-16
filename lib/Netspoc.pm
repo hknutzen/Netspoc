@@ -15407,6 +15407,9 @@ sub print_cisco_acls {
         # Ignore if all logical interfaces are loopback interfaces.
         next if $hardware->{loopback};
 
+        # Ignore layer3 interface of ASA.
+        next if$hardware->{name} eq 'device' && $model->{class} eq 'ASA';
+
         # Force valid array reference to prevent error
         # when checking for non empty array.
         $hardware->{rules} ||= [];
