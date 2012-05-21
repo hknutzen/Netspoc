@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+- Bugfix: Don't check bridged interface for
+          IP address overlapping with subnet.
+
 3.013     2012-05-15 11:04:49 Europe/Berlin
 
 - Fixed bug with duplicate elements in object-groups.
