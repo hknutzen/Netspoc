@@ -7482,7 +7482,7 @@ sub check_crosslink () {
             $hardware->{crosslink} = 1;
         }
 
-        # Ensure clear resposibility for filtering.
+        # Ensure clear responsibility for filtering.
         equal(@managed_type)
           or err_msg "All devices at crosslink $network->{name}",
           " must have identical managed type";
