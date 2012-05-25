@@ -7304,36 +7304,11 @@ sub find_subnets() {
         # Remove subnets of non-aggregate networks.
         $zone->{networks} = 
             [ grep(!$_->{max_up_net}, @{ $zone->{networks} }) ];
-
-        # Check for empty aggregates
-        for my $key (keys %{ $zone->{ipmask2aggregate} }) {
-            my $aggregate = $zone->{ipmask2aggregate}->{$key};
-            if (!($aggregate->{networks} && @{ $aggregate->{networks} })) {
-                if (my $cluster = $zone->{zone_cluster}) {
-
-                    # Check later
-                    $key2cluster{$key} = $cluster;
-                }
-                else {
-                    warn_msg "$aggregate->{name} doesn't match any networks";
-                }
-            }
-        }
     }
 
-    # Some but not all equivalent aggregates inside a zone cluster can
-    # be empty.
-    while (my($key, $cluster) = each %key2cluster) {
-        my $aggregate;
-        my $ok;
-        for my $zone (@$cluster) {
-            $aggregate = $zone->{ipmask2aggregate}->{$key};
-            if ($aggregate->{networks} && @{ $aggregate->{networks} }) {
-                $ok = 1;
-            }
-        }
-        $ok or warn_msg "$aggregate->{name} doesn't match any networks";
-    }
+    # It is valid to have an aggregate in a zone which has no matching
+    # networks. This can be useful to add optimization rules at an
+    # intermediate device.
 }
 
 # Clear-text interfaces of VPN3K cluster servers need to be attached
