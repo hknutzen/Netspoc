@@ -1579,7 +1579,8 @@ sub read_interface( $ ) {
               and error_atline "Duplicate attribute 'id'";
             $interface->{id} = $id;
         }
-        elsif (my $level = check_assign 'security_level', \&read_int) {
+        elsif (defined(my $level = check_assign 'security_level', \&read_int)) 
+        {
             $level > 100 and 
                 error_atline 
                   "Maximum value for attribute security_level is 100";
