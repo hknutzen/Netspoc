@@ -9833,18 +9833,21 @@ sub check_supernet_src_rule( $$$ ) {
         my $proto = $rule->{prt}->{proto};
 
         # Reverse rule wouldn't allow too much traffic, if a non
-        # secondary stateful device filters between src and dst.
-        # If dst is interface, {stateful_mark} is undef
-        # - if device is semi_managed, take mark of attached network
+        # secondary stateful device filters between current device and dst.
+        # This is true if $out_zone and $dst_zone have different
+        # {stateful_mark}.
+        # If dst is managed interface, {stateful_mark} is undef
         # - if device is secondary managed, take mark of attached network
         # - else take value -1, different from all marks.
-        my $m1 = get_zone($src)->{stateful_mark};
+        # $src is supernet (not an interface) by definition 
+        # and hence $m1 is well defined.
+        my $m1 = $out_zone->{stateful_mark};
         my $m2 = $dst_zone->{stateful_mark};
         if (!$m2) {
             my $managed = $dst->{router}->{managed};
             $m2 =
-               !$managed || $managed eq 'secondary'
-              ? $dst->{network}->{zone}
+                $managed eq 'secondary'
+              ? $dst->{network}->{zone}->{stateful_mark}
               : -1;
         }
         if (($proto eq 'tcp' || $proto eq 'udp' || $proto eq 'ip')
