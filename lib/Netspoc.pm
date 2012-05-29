@@ -6097,10 +6097,11 @@ sub propagate_owners {
         next if $zone->{owner};
 
         # Inversed inheritance: If a zone has no direct owner and if
-        # all contained real topelevel networks have the same owner,
+        # all contained real toplevel networks have the same owner,
         # then set owner of this zone to the one owner.
         my $owner;
         for my $network (@{ $zone->{networks} }) {
+            next if $network->{loopback};
             my $net_owner = $network->{owner};
             next ZONE if not $net_owner;
             if ($owner) {
