@@ -215,8 +215,7 @@ pathrestriction:mng = interface:c1.mng, interface:c2.top;
 protocol:IP = ip;
 
 service:intra = {
- user = any:[network:dst], any:[network:top], any:[network:cnt],
-        any:[network:rgt], any:[network:lft];
+ user = any:[network:dst], any:[network:top], any:[network:cnt];
  permit src = interface:c1.mng;
         dst = user;
         prt = protocol:IP;
