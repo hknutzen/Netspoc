@@ -58,7 +58,6 @@ our @EXPORT = qw(
   %crypto
   %expanded_rules
   $error_counter
-  $store_description
   store_description
   get_config_keys
   get_config_pattern
@@ -251,12 +250,8 @@ sub set_config {
     }
 }
 
-# Store descriptions as an attribute of definitions.
-# This may be useful when called from a reporting tool.
-our $store_description => 0;
-
-# New interface, modified by sub store_description.
-my $new_store_description => 0;
+# Modified only by sub store_description.
+my $new_store_description = 0;
 
 sub store_description {
     my ($set) = @_;
@@ -859,16 +854,9 @@ sub add_description {
     # Read up to end of line, but ignore ';' at EOL.
     # We must use '$' here to match EOL,
     # otherwise $line would be out of sync.
-    $input =~ m/\G([ \t]*(.*?)[ \t]*;?[ \t]*)$/gcm;
-
-    # Old interface for report, includes leading and trailing whitespace.
-    if ($store_description) {
+    $input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*$/gcm;
+    if (store_description()) {
         $obj->{description} = $1;
-    }
-
-    # New interface without leading and trailing whitespace.
-    elsif (store_description()) {
-        $obj->{description} = $2;
     }
 }
 
