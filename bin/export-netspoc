@@ -487,6 +487,19 @@ sub setup_sub_owners {
     }
 }
 
+my $master_owner;
+
+sub find_master_owner {
+    for my $owner (values %owners) {
+        if ($owner->{show_all}) {
+            (my $name = $owner->{name}) =~ s/^owner://;
+            $master_owner = $name;
+            progress("Found master owner: $name");
+            last;
+        }
+    }
+}
+
 ######################################################################
 # Export no-NAT-set
 # - relate each network to its owner and sub_owners
@@ -611,25 +624,30 @@ sub export_assets {
         my $any = $zone->{ipmask2aggregate}->{'0/0'};
 	my $zone_name = $any ? $any->{name} : $zone->{name};
 	my $zone_owner = owner_for_object($zone) || '';
+        my $networks = add_subnetworks($zone->{networks});
 	for my $owner (owner_for_object($zone), sub_owners_for_object($zone)) {
-
-	    # Export networks.
-            # Set $networks inside the loop, because it is changed below.
-            my $networks = add_subnetworks($zone->{networks});
 
 	    # Show only own or sub_own networks in foreign zone.
 	    my $own_zone = $zone_owner eq $owner;
+            my $own_networks;
 	    if (not $own_zone) {
-		$networks = 
+		$own_networks = 
 		    [ grep 
 		      grep({ $owner eq $_ } 
 			   owner_for_object($_), sub_owners_for_object($_)), 
 		      @$networks ];
 	    }
+            else {
+                $own_networks = $networks;
+            }
 
             $result{$owner}->{anys}->{$zone_name}->{networks} = 
-		$export_networks->($networks, $owner, $own_zone);
+		$export_networks->($own_networks, $owner, $own_zone);
 	}
+        if ($master_owner) {
+             $result{$master_owner}->{anys}->{$zone_name}->{networks} = 
+	         $export_networks->($networks, $master_owner, 1);
+        }
     }
 
     $result{$_} ||= {} for keys %owners;
@@ -650,23 +668,26 @@ sub export_services {
     my %owner2type2phash;
     for my $service (sort by_name values %services) {
         next if $service->{disabled};
-	for my $owner (@{ $service->{owners} }, @{ $service->{sub_owners} }) {
-	    $owner2type2phash{$owner}->{owner}->{$service} = $service;
+        if ($master_owner) {
+            $owner2type2phash{$master_owner}->{owner}->{$service} = $service;
 	}
-	for my $owner (@{ $service->{uowners} }, @{ $service->{sub_uowners} }) {
-	    if (not $owner2type2phash{$owner}->{owner}->{$service}) {
-		$owner2type2phash{$owner}->{user}->{$service} = $service;
-	    }
-	}
-	for my $owner (keys %owners) {
-	    if (not ($owner2type2phash{$owner}->{owner}->{$service} or 
-		     $owner2type2phash{$owner}->{user}->{$service})) 
-	    {
-		if ($service->{visible} and $owner =~ /^$service->{visible}/) {
-		    $owner2type2phash{$owner}->{visible}->{$service} = $service;
-		}
-	    }
-	}
+        for my $owner (@{ $service->{owners} }, @{ $service->{sub_owners} }) {
+            $owner2type2phash{$owner}->{owner}->{$service} = $service;
+        }          
+        for my $owner (@{ $service->{uowners} }, @{ $service->{sub_uowners} }) {
+            if (not $owner2type2phash{$owner}->{owner}->{$service}) {
+                $owner2type2phash{$owner}->{user}->{$service} = $service;
+            }
+        }
+        for my $owner (keys %owners) {
+            if (not ($owner2type2phash{$owner}->{owner}->{$service} or 
+                     $owner2type2phash{$owner}->{user}->{$service})) 
+            {
+                if ($service->{visible} and $owner =~ /^$service->{visible}/) {
+                    $owner2type2phash{$owner}->{visible}->{$service} = $service;
+                }
+            }
+        }
 	my $details = {
 	    description => $service->{description},
 	    owner => $service->{owners},
@@ -827,6 +848,7 @@ find_subnets();
 setup_sub_owners();
 set_service_owner();
 setup_service_info();
+find_master_owner();
 
 ####################################################################
 # Export data
