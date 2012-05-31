@@ -61,7 +61,7 @@ routers. Unmanaged routers are only used to connect networks.
     router:X = {
      managed;
      model = IOS, FW;
-     interface:To-Backbone = { ip = 10.126.4.0; hardware = FastEthernet1; }
+     interface:To-Backbone = { ip = 10.126.4.1; hardware = FastEthernet1; }
      interface:Transfer    = { ip = 10.1.1.9;   hardware = FastEthernet0; }
     }
 
