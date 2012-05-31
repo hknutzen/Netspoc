@@ -3644,7 +3644,6 @@ sub link_areas() {
                 if (is_interface $obj) {
                     my $router = $obj->{router};
                     $router->{managed}
-                      or $router->{semi_managed}
                       or err_msg "Referencing unmanaged $obj->{name} ",
                       "from $area->{name}";
 
