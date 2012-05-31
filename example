@@ -1,0 +1,38 @@
+
+    service:WWW-access = {
+     description = Access of customers to WWW servers network
+     user = network:Customer_X1, network:Customer_7;
+     permit src = user;
+            dst = network:WWW-Servers;
+            prt = tcp 80;
+    }
+
+    network:Customer_X1 = { ip = 10.6.1.0/24; }
+    router:Backbone-X = {
+     interface:Customer_X1;
+     interface:To-Backbone = { ip = 10.126.4.2; }
+    }
+    network:To-Backbone = { ip = 10.126.4.0/30; }
+    router:X = {
+     managed;
+     model = IOS, FW;
+     interface:To-Backbone = { ip = 10.126.4.1; hardware = FastEthernet1; }
+     interface:Transfer    = { ip = 10.1.1.9;   hardware = FastEthernet0; }
+    }
+
+    network:Customer_7 = { ip = 10.5.7.0/24; }
+    router:Y = {
+     managed;
+     model = IOS;
+     interface:Customer_7 = { ip = 10.5.7.1; hardware = FastEthernet1; }
+     interface:Transfer   = { ip = 10.1.1.8; hardware = FastEthernet0; }
+    }
+
+    network:Transfer = { ip = 10.1.1.0/24; }
+    router:WWW = {
+     managed;
+     model = ASA;
+     interface:Transfer    = { ip = 10.1.1.109; hardware = GigabitEthernet0; }
+     interface:WWW-Servers = { ip = 10.2.3.1;   hardware = GigabitEthernet1; }
+    }
+    network:WWW-Servers = { ip = 10.2.3.0/24; }

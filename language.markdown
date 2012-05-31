@@ -75,6 +75,8 @@ routers. Unmanaged routers are only used to connect networks.
 
     network:Transfer = { ip = 10.1.1.0/24; }
     router:WWW = {
+     managed;
+     model = ASA;
      interface:Transfer    = { ip = 10.1.1.109; hardware = GigabitEthernet0; }
      interface:WWW-Servers = { ip = 10.2.3.1;   hardware = GigabitEthernet1; }
     }
@@ -90,6 +92,23 @@ device specific code:
    with stateful inspection enabled.
 2. Each interface needs an IP address.
 3. `hardware` of an interface gives the device's denotation of that interface.
+
+### Apply Netspoc to an example
+
+Save both, service and topology into a file named [example](example) and call Netspoc like this:
+
+    netspoc example code
+
+This generates configuration files for [device X](code/X),
+[device Y](code/Y) and [device WWW](code/WWW) 
+in a newly created directory `code`.
+
+The generated files contain commands to configure packet filters rules
+and static routes matching the model of each device.
+
+* Since device Y uses stateless packet filters, Netspoc automatically
+  generates a rule to permit answer packets.
+* For device of model ASA, object-groups are used.
 
 ### To be continued
 
