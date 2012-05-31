@@ -2928,6 +2928,9 @@ sub read_owner( $ ) {
         elsif (check_flag 'extend') {
             $owner->{extend} = 1;
         }
+        elsif (check_flag 'show_all') {
+            $owner->{show_all} = 1;
+        }
         else {
             syntax_err "Expected valid attribute";
         }
@@ -6080,8 +6083,12 @@ sub expand_services( ;$) {
 
 sub propagate_owners {
     my %zone_got_net_owners;
+    my %clusters;
   ZONE:
     for my $zone (@zones) {
+        if (my $cluster = $zone->{zone_cluster}) {
+            $clusters{$cluster} = $cluster;
+        }
         next if $zone->{owner};
 
         # Inversed inheritance: If a zone has no direct owner and if
@@ -6090,6 +6097,7 @@ sub propagate_owners {
         my $owner;
         for my $network (@{ $zone->{networks} }) {
             next if $network->{loopback};
+            next if $network->{ip} eq 'tunnel';
             my $net_owner = $network->{owner};
             next ZONE if not $net_owner;
             if ($owner) {
@@ -6104,6 +6112,38 @@ sub propagate_owners {
             $zone_got_net_owners{$zone} = 1;
         }
     }
+
+    # Check for consistent owners of zone clusters.
+    for my $cluster (values %clusters) {
+        my @explicit_owner_zones = 
+            grep { $_->{owner} && ! $zone_got_net_owners{$_} } @$cluster;
+        my @implicit_owner_zones = 
+            grep { $_->{owner} && $zone_got_net_owners{$_} } @$cluster;
+
+        # Explicit owners for zones must all be equal inside the cluster.
+        # The one owner is used for other zones inside the cluster as well.
+        if (@explicit_owner_zones) {
+            equal(@explicit_owner_zones) or
+                internal_err("Unexpected different owners in ", 
+                             join(',', map($_->{name}, @explicit_owner_zones)));
+            my $owner = $explicit_owner_zones[0];
+            $_->{owner} = $owner for @implicit_owner_zones;
+#            debug "Change to $owner->{name}";
+#            debug $_->{name} for @implicit_owner_zones;
+        }
+
+        # Implicit owner from networks is only valid, if the same owner
+        # is found for all zones of cluster.
+        elsif (@implicit_owner_zones) {
+            if (! (@implicit_owner_zones == @$cluster
+                   && equal(@implicit_owner_zones))) 
+            {
+                $_->{owner} = undef for @implicit_owner_zones;
+#                debug "Reset owner";
+#                debug $_->{name} for @implicit_owner_zones;
+            }
+        }
+    }  
 
     # A zone can be part of multiple areas.
     # Find the smallest enclosing area.
@@ -6233,6 +6273,7 @@ sub propagate_owners {
     }
 
     # Collect extended owners and check for inconsistent extensions.
+    # Check owner with attribute {show_all}.
     for my $owner (values %owners) {
         my $href = $extended{$owner} or next;
         my $node1;
@@ -6273,6 +6314,18 @@ sub propagate_owners {
         if (keys %$ext1) {
             $owner->{extended_by} = [ values %$combined ];
         }
+        if ($owner->{show_all}) {
+            if (@root_nodes == 1 && (my $root = $root_nodes[0])) {
+                my $root_owner = $root->{owner} || '';
+                if ($root_owner eq $owner && is_area($root)) {
+                    if (@{$root->{zones}} == @zones) {
+                        next;
+                    }
+                }
+            }
+            err_msg("Attribute 'show_all' is only valid for owner of area",
+                    " which spans the whole topology.");
+        }            
     }
 
     # Handle {router_attributes}->{owner} separately.
