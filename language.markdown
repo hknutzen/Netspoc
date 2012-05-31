@@ -101,14 +101,14 @@ Save both, service and topology into a file named [example](example) and call Ne
 
 This generates configuration files for [device X](code/X),
 [device Y](code/Y) and [device WWW](code/WWW) 
-in a newly created directory `code`.
+in a newly created directory named `code`.
 
 The generated files contain commands to configure packet filters rules
 and static routes matching the model of each device.
 
 * Since device Y uses stateless packet filters, Netspoc automatically
   generates a rule to permit answer packets.
-* For device of model ASA, object-groups are used.
+* For device of model ASA, object-groups are created.
 
 ### To be continued
 
