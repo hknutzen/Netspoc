@@ -1,3 +1,16 @@
+3.014     2012-06-05 10:47:03 Europe/Berlin
+
+- Fixed order of generated ACL from automatic group network:[area:X]
+- No longer allow border of area at unmanaged interface
+  having pathrestriction. Otherwise we get inconsistent owners 
+  for zones having pathrestriction at unmanaged device.
+- Introduced new attribute 'show_all' for owner.
+  This is used in Netspoc-Web to have an owner which sees 
+  the whole topology and all services. This attribute is only valid 
+  for the owner of an area which spans the whole topology.
+- Added check for useless pathrestriction at unmanaged interfaces.
+- Minor bugfixes.
+
 3.013     2012-05-15 11:04:49 Europe/Berlin
 
 - Fixed bug with duplicate elements in object-groups.

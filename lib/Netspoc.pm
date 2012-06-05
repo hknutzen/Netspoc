@@ -32,7 +32,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.013'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.014'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -58,7 +58,6 @@ our @EXPORT = qw(
   %crypto
   %expanded_rules
   $error_counter
-  $store_description
   store_description
   get_config_keys
   get_config_pattern
@@ -251,12 +250,8 @@ sub set_config {
     }
 }
 
-# Store descriptions as an attribute of definitions.
-# This may be useful when called from a reporting tool.
-our $store_description => 0;
-
-# New interface, modified by sub store_description.
-my $new_store_description => 0;
+# Modified only by sub store_description.
+my $new_store_description = 0;
 
 sub store_description {
     my ($set) = @_;
@@ -859,16 +854,9 @@ sub add_description {
     # Read up to end of line, but ignore ';' at EOL.
     # We must use '$' here to match EOL,
     # otherwise $line would be out of sync.
-    $input =~ m/\G([ \t]*(.*?)[ \t]*;?[ \t]*)$/gcm;
-
-    # Old interface for report, includes leading and trailing whitespace.
-    if ($store_description) {
+    $input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*$/gcm;
+    if (store_description()) {
         $obj->{description} = $1;
-    }
-
-    # New interface without leading and trailing whitespace.
-    elsif (store_description()) {
-        $obj->{description} = $2;
     }
 }
 
@@ -1011,8 +999,10 @@ sub aref_eq ( $$ ) {
 }
 
 # Unique union of all elements.
+# Preserves originnal order.
 sub unique(@) {
-    return values %{ { map { $_ => $_ } @_ } };
+    my %seen;
+    return grep { ! $seen{ $_ }++ } @_;
 }
 
 ####################################################################
@@ -1579,7 +1569,8 @@ sub read_interface( $ ) {
               and error_atline "Duplicate attribute 'id'";
             $interface->{id} = $id;
         }
-        elsif (my $level = check_assign 'security_level', \&read_int) {
+        elsif (defined(my $level = check_assign 'security_level', \&read_int)) 
+        {
             $level > 100 and 
                 error_atline 
                   "Maximum value for attribute security_level is 100";
@@ -2939,6 +2930,9 @@ sub read_owner( $ ) {
         elsif (check_flag 'extend') {
             $owner->{extend} = 1;
         }
+        elsif (check_flag 'show_all') {
+            $owner->{show_all} = 1;
+        }
         else {
             syntax_err "Expected valid attribute";
         }
@@ -3652,7 +3646,6 @@ sub link_areas() {
                 if (is_interface $obj) {
                     my $router = $obj->{router};
                     $router->{managed}
-                      or $router->{semi_managed}
                       or err_msg "Referencing unmanaged $obj->{name} ",
                       "from $area->{name}";
 
@@ -4500,7 +4493,7 @@ sub mark_disabled() {
         equal(map not($_->{managed}), @$aref)
           or err_msg("All VRF instances of router:$aref->[0]->{device_name}",
             " must equally be managed or unmanaged");
-        equal(map $_->{model}->{name}, @$aref)
+        equal(map $_->{managed} ? $_->{model}->{name} : (), @$aref)
           or err_msg("All VRF instances of router:$aref->[0]->{device_name}",
             " must have identical model");
 
@@ -6091,15 +6084,21 @@ sub expand_services( ;$) {
 
 sub propagate_owners {
     my %zone_got_net_owners;
+    my %clusters;
   ZONE:
     for my $zone (@zones) {
+        if (my $cluster = $zone->{zone_cluster}) {
+            $clusters{$cluster} = $cluster;
+        }
         next if $zone->{owner};
 
         # Inversed inheritance: If a zone has no direct owner and if
-        # all contained real topelevel networks have the same owner,
+        # all contained real toplevel networks have the same owner,
         # then set owner of this zone to the one owner.
         my $owner;
         for my $network (@{ $zone->{networks} }) {
+            next if $network->{loopback};
+            next if $network->{ip} eq 'tunnel';
             my $net_owner = $network->{owner};
             next ZONE if not $net_owner;
             if ($owner) {
@@ -6114,6 +6113,38 @@ sub propagate_owners {
             $zone_got_net_owners{$zone} = 1;
         }
     }
+
+    # Check for consistent owners of zone clusters.
+    for my $cluster (values %clusters) {
+        my @explicit_owner_zones = 
+            grep { $_->{owner} && ! $zone_got_net_owners{$_} } @$cluster;
+        my @implicit_owner_zones = 
+            grep { $_->{owner} && $zone_got_net_owners{$_} } @$cluster;
+
+        # Explicit owners for zones must all be equal inside the cluster.
+        # The one owner is used for other zones inside the cluster as well.
+        if (@explicit_owner_zones) {
+            equal(@explicit_owner_zones) or
+                internal_err("Unexpected different owners in ", 
+                             join(',', map($_->{name}, @explicit_owner_zones)));
+            my $owner = $explicit_owner_zones[0];
+            $_->{owner} = $owner for @implicit_owner_zones;
+#            debug "Change to $owner->{name}";
+#            debug $_->{name} for @implicit_owner_zones;
+        }
+
+        # Implicit owner from networks is only valid, if the same owner
+        # is found for all zones of cluster.
+        elsif (@implicit_owner_zones) {
+            if (! (@implicit_owner_zones == @$cluster
+                   && equal(@implicit_owner_zones))) 
+            {
+                $_->{owner} = undef for @implicit_owner_zones;
+#                debug "Reset owner";
+#                debug $_->{name} for @implicit_owner_zones;
+            }
+        }
+    }  
 
     # A zone can be part of multiple areas.
     # Find the smallest enclosing area.
@@ -6243,6 +6274,7 @@ sub propagate_owners {
     }
 
     # Collect extended owners and check for inconsistent extensions.
+    # Check owner with attribute {show_all}.
     for my $owner (values %owners) {
         my $href = $extended{$owner} or next;
         my $node1;
@@ -6283,6 +6315,18 @@ sub propagate_owners {
         if (keys %$ext1) {
             $owner->{extended_by} = [ values %$combined ];
         }
+        if ($owner->{show_all}) {
+            if (@root_nodes == 1 && (my $root = $root_nodes[0])) {
+                my $root_owner = $root->{owner} || '';
+                if ($root_owner eq $owner && is_area($root)) {
+                    if (@{$root->{zones}} == @zones) {
+                        next;
+                    }
+                }
+            }
+            err_msg("Attribute 'show_all' is only valid for owner of area",
+                    " which spans the whole topology.");
+        }            
     }
 
     # Handle {router_attributes}->{owner} separately.
@@ -6938,7 +6982,7 @@ sub check_subnets {
     };
     for my $interface (@{ $network->{interfaces} }) {
         my $ip = $interface->{ip};
-        next if $ip =~ /^(?:unnumbered|negotiated|tunnel|short)$/;
+        next if $ip =~ /^(?:unnumbered|negotiated|tunnel|short|bridged)$/;
         $check->($ip, undef, $interface);
     }
     for my $host (@{ $network->{hosts} }) {
@@ -7304,36 +7348,11 @@ sub find_subnets() {
         # Remove subnets of non-aggregate networks.
         $zone->{networks} = 
             [ grep(!$_->{max_up_net}, @{ $zone->{networks} }) ];
-
-        # Check for empty aggregates
-        for my $key (keys %{ $zone->{ipmask2aggregate} }) {
-            my $aggregate = $zone->{ipmask2aggregate}->{$key};
-            if (!($aggregate->{networks} && @{ $aggregate->{networks} })) {
-                if (my $cluster = $zone->{zone_cluster}) {
-
-                    # Check later
-                    $key2cluster{$key} = $cluster;
-                }
-                else {
-                    warn_msg "$aggregate->{name} doesn't match any networks";
-                }
-            }
-        }
     }
 
-    # Some but not all equivalent aggregates inside a zone cluster can
-    # be empty.
-    while (my($key, $cluster) = each %key2cluster) {
-        my $aggregate;
-        my $ok;
-        for my $zone (@$cluster) {
-            $aggregate = $zone->{ipmask2aggregate}->{$key};
-            if ($aggregate->{networks} && @{ $aggregate->{networks} }) {
-                $ok = 1;
-            }
-        }
-        $ok or warn_msg "$aggregate->{name} doesn't match any networks";
-    }
+    # It is valid to have an aggregate in a zone which has no matching
+    # networks. This can be useful to add optimization rules at an
+    # intermediate device.
 }
 
 # Clear-text interfaces of VPN3K cluster servers need to be attached
@@ -7482,7 +7501,7 @@ sub check_crosslink () {
             $hardware->{crosslink} = 1;
         }
 
-        # Ensure clear resposibility for filtering.
+        # Ensure clear responsibility for filtering.
         equal(@managed_type)
           or err_msg "All devices at crosslink $network->{name}",
           " must have identical managed type";
@@ -7812,7 +7831,7 @@ sub set_area1 {
         return;
     }
 
-    # Add zone to the corresponding area, to have all zone of an area
+    # Add zone to the corresponding area, to have all zones of an area
     # available.
     push @{ $area->{zones} }, $zone;
 
@@ -8094,7 +8113,8 @@ sub check_virtual_interfaces () {
 
 sub check_pathrestrictions() {
     for my $restrict (values %pathrestrictions) {
-        for my $obj (@{ $restrict->{elements} }) {
+        my $elements = $restrict->{elements};
+        for my $obj (@$elements) {
 
             # Interfaces with pathrestriction need to be located
             # inside or at the border of cyclic graphs.
@@ -8108,6 +8128,14 @@ sub check_pathrestrictions() {
                 delete $obj->{path_restrict};
                 warn_msg "Ignoring $restrict->{name} at $obj->{name}\n",
                   " because it isn't located inside cyclic graph";
+            }
+        }
+        if (! grep($_->{router}->{managed}, @$elements)) {
+            if (equal(map($_->{zone}->{zone_cluster} || '', @$elements))) 
+            {
+                warn_msg("Useless $restrict->{name}\n",
+                         " All interfaces are unmanaged and",
+                         " located inside the same security zone");
             }
         }
     }
@@ -9858,18 +9886,21 @@ sub check_supernet_src_rule( $$$ ) {
         my $proto = $rule->{prt}->{proto};
 
         # Reverse rule wouldn't allow too much traffic, if a non
-        # secondary stateful device filters between src and dst.
-        # If dst is interface, {stateful_mark} is undef
-        # - if device is semi_managed, take mark of attached network
+        # secondary stateful device filters between current device and dst.
+        # This is true if $out_zone and $dst_zone have different
+        # {stateful_mark}.
+        # If dst is managed interface, {stateful_mark} is undef
         # - if device is secondary managed, take mark of attached network
         # - else take value -1, different from all marks.
-        my $m1 = get_zone($src)->{stateful_mark};
+        # $src is supernet (not an interface) by definition 
+        # and hence $m1 is well defined.
+        my $m1 = $out_zone->{stateful_mark};
         my $m2 = $dst_zone->{stateful_mark};
         if (!$m2) {
             my $managed = $dst->{router}->{managed};
             $m2 =
-               !$managed || $managed eq 'secondary'
-              ? $dst->{network}->{zone}
+                $managed eq 'secondary'
+              ? $dst->{network}->{zone}->{stateful_mark}
               : -1;
         }
         if (($proto eq 'tcp' || $proto eq 'udp' || $proto eq 'ip')
@@ -15406,6 +15437,9 @@ sub print_cisco_acls {
 
         # Ignore if all logical interfaces are loopback interfaces.
         next if $hardware->{loopback};
+
+        # Ignore layer3 interface of ASA.
+        next if$hardware->{name} eq 'device' && $model->{class} eq 'ASA';
 
         # Force valid array reference to prevent error
         # when checking for non empty array.
