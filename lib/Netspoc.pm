@@ -999,8 +999,10 @@ sub aref_eq ( $$ ) {
 }
 
 # Unique union of all elements.
+# Preserves originnal order.
 sub unique(@) {
-    return values %{ { map { $_ => $_ } @_ } };
+    my %seen;
+    return grep { ! $seen{ $_ }++ } @_;
 }
 
 ####################################################################
@@ -7829,7 +7831,7 @@ sub set_area1 {
         return;
     }
 
-    # Add zone to the corresponding area, to have all zone of an area
+    # Add zone to the corresponding area, to have all zones of an area
     # available.
     push @{ $area->{zones} }, $zone;
 
