@@ -8113,7 +8113,8 @@ sub check_virtual_interfaces () {
 
 sub check_pathrestrictions() {
     for my $restrict (values %pathrestrictions) {
-        for my $obj (@{ $restrict->{elements} }) {
+        my $elements = $restrict->{elements};
+        for my $obj (@$elements) {
 
             # Interfaces with pathrestriction need to be located
             # inside or at the border of cyclic graphs.
@@ -8127,6 +8128,14 @@ sub check_pathrestrictions() {
                 delete $obj->{path_restrict};
                 warn_msg "Ignoring $restrict->{name} at $obj->{name}\n",
                   " because it isn't located inside cyclic graph";
+            }
+        }
+        if (! grep($_->{router}->{managed}, @$elements)) {
+            if (equal(map($_->{zone}->{zone_cluster} || '', @$elements))) 
+            {
+                warn_msg("Useless $restrict->{name}\n",
+                         " All interfaces are unmanaged and",
+                         " located inside the same security zone");
             }
         }
     }
