@@ -32,7 +32,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.014'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.015'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -790,7 +790,7 @@ sub read_typed_name() {
         }
     }
 
-# host:xxx or host:id:user@domain or host:id:@domain 
+# host:xxx or host:id:user@domain or host:id:@domain
     sub check_hostname() {
         skip_space_and_comment;
         if ($input =~ m/\G host:/gcx) {
@@ -1002,7 +1002,7 @@ sub aref_eq ( $$ ) {
 # Preserves originnal order.
 sub unique(@) {
     my %seen;
-    return grep { ! $seen{ $_ }++ } @_;
+    return grep { !$seen{$_}++ } @_;
 }
 
 ####################################################################
@@ -1569,11 +1569,10 @@ sub read_interface( $ ) {
               and error_atline "Duplicate attribute 'id'";
             $interface->{id} = $id;
         }
-        elsif (defined(my $level = check_assign 'security_level', \&read_int)) 
-        {
-            $level > 100 and 
-                error_atline 
-                  "Maximum value for attribute security_level is 100";
+        elsif (defined(my $level = check_assign 'security_level', \&read_int)) {
+            $level > 100
+              and error_atline
+              "Maximum value for attribute security_level is 100";
             defined $interface->{security_level}
               and error_atline "Duplicate attribute 'security_level'";
             $interface->{security_level} = $level;
@@ -1792,14 +1791,15 @@ sub set_pix_interface_level {
     for my $hardware (@{ $router->{hardware} }) {
         my $hwname = $hardware->{name};
         my $level;
-        if (my @levels = grep(defined($_), 
-                              map($_->{security_level}, 
-                                  @{ $hardware->{interfaces} }))) 
+        if (
+            my @levels = grep(defined($_),
+                map($_->{security_level}, @{ $hardware->{interfaces} }))
+          )
         {
-            if (@levels > 2 && ! equal(@levels)) {
+            if (@levels > 2 && !equal(@levels)) {
                 err_msg "Must not use different values",
-                " for attribute 'security_level\n",
-                " at $router->{name}, hardware $hwname: ", join(',', @levels);
+                  " for attribute 'security_level\n",
+                  " at $router->{name}, hardware $hwname: ", join(',', @levels);
             }
             else {
                 $level = $levels[0];
@@ -2038,11 +2038,11 @@ sub read_router( $ ) {
                     err_msg "Missing 'hardware' for $interface->{name}";
                 }
             }
-            if (defined $interface->{security_level} && 
-                ! $model->{has_interface_level}) 
+            if (defined $interface->{security_level}
+                && !$model->{has_interface_level})
             {
                 warn_msg("Ignoring attribute 'security_level'",
-                         " at $interface->{name}");
+                    " at $interface->{name}");
             }
             if ($interface->{hub} or $interface->{spoke}) {
                 $model->{crypto}
@@ -2719,7 +2719,7 @@ sub read_global( $ ) {
     skip '=';
     (my $action = $name) =~ s/^global://;
     $action eq 'permit' or error_atline "Unexpected name, use 'global:permit'";
-    my $prt = [ read_list  \&read_typed_name_or_simple_protocol ];
+    my $prt = [ read_list \&read_typed_name_or_simple_protocol ];
     return {
         name   => $name,
         action => $action,
@@ -2882,6 +2882,9 @@ sub read_crypto( $ ) {
         last if check '}';
         if (check_flag 'tunnel_all') {
             $crypto->{tunnel_all} = 1;
+        }
+        elsif (check_flag 'detailed_crypto_acl') {
+            $crypto->{detailed_crypto_acl} = 1;
         }
         elsif (my $type = check_assign 'type', \&read_typed_name) {
             $crypto->{type}
@@ -4827,9 +4830,8 @@ sub expand_group1( $$;$ ) {
             my %router2intf;
             for my $element (@$name) {
                 my $element1 = $element->[0] eq '!' ? $element->[1] : $element;
-                my @elements = 
-                  map { $_->{is_used} = 1; $_; }
-                  @{
+                my @elements =
+                  map { $_->{is_used} = 1; $_; } @{
                     expand_group1(
                         [$element1], "intersection of $context",
                         $clean_autogrp
@@ -4850,8 +4852,10 @@ sub expand_group1( $$;$ ) {
                     }
                     if (my $other = $router2intf{$router}) {
                         if (ref($other) ne $type) {
-                            err_msg("Must not use $obj->{name} and", 
-                                    " $other->{name} together in $context");
+                            err_msg(
+                                "Must not use $obj->{name} and",
+                                " $other->{name} together in $context"
+                            );
                         }
                     }
                     else {
@@ -5072,7 +5076,7 @@ sub expand_group1( $$;$ ) {
                 my @objects;
                 my $type = ref $object;
                 if ($type eq 'Area') {
-                    push @objects, 
+                    push @objects,
                       unique(map (get_any00($_), @{ $object->{zones} }));
                 }
                 elsif ($type eq 'Network' && $object->{is_aggregate}) {
@@ -5125,21 +5129,24 @@ sub expand_group1( $$;$ ) {
                         # Silently remove crosslink networks from
                         # automatic groups.
                         # Change loopback network to loopback interface.
-                        push @objects,
-                          $clean_autogrp
-                          ? map { if ($_->{loopback}) {
-                                      my $interfaces = $_->{interfaces};
-                                      if (@$interfaces > 1) {
-                                          warn_msg("Must not use $_->{name},",
-                                                   " use interfaces instead");
-                                      }
-                                      $interfaces->[0];
-                                  }
-                                  else {
-                                      $_;
-                                  }
+                        push @objects, $clean_autogrp
+                          ? map {
+                            if ($_->{loopback})
+                            {
+                                my $interfaces = $_->{interfaces};
+                                if (@$interfaces > 1) {
+                                    warn_msg(
+                                        "Must not use $_->{name},",
+                                        " use interfaces instead"
+                                    );
+                                }
+                                $interfaces->[0];
                             }
-                            grep { not($_->{crosslink}) } @$networks
+                            else {
+                                $_;
+                            }
+                          }
+                          grep { not($_->{crosslink}) } @$networks
                           : @$networks;
                     }
                     else {
@@ -5247,8 +5254,8 @@ sub expand_group1( $$;$ ) {
             # Substitute aggregate by aggregate set of zone cluster.
             elsif ($object->{is_aggregate} && $object->{zone}->{zone_cluster}) {
                 my ($ip, $mask) = @{$object}{qw(ip mask)};
-                push(@objects, 
-                     get_cluster_aggregates($object->{zone}, $ip, $mask));
+                push(@objects,
+                    get_cluster_aggregates($object->{zone}, $ip, $mask));
             }
 
             else {
@@ -6116,19 +6123,20 @@ sub propagate_owners {
 
     # Check for consistent owners of zone clusters.
     for my $cluster (values %clusters) {
-        my @explicit_owner_zones = 
-            grep { $_->{owner} && ! $zone_got_net_owners{$_} } @$cluster;
-        my @implicit_owner_zones = 
-            grep { $_->{owner} && $zone_got_net_owners{$_} } @$cluster;
+        my @explicit_owner_zones =
+          grep { $_->{owner} && !$zone_got_net_owners{$_} } @$cluster;
+        my @implicit_owner_zones =
+          grep { $_->{owner} && $zone_got_net_owners{$_} } @$cluster;
 
         # Explicit owners for zones must all be equal inside the cluster.
         # The one owner is used for other zones inside the cluster as well.
         if (@explicit_owner_zones) {
-            equal(@explicit_owner_zones) or
-                internal_err("Unexpected different owners in ", 
-                             join(',', map($_->{name}, @explicit_owner_zones)));
+            equal(@explicit_owner_zones)
+              or internal_err("Unexpected different owners in ",
+                join(',', map($_->{name}, @explicit_owner_zones)));
             my $owner = $explicit_owner_zones[0];
             $_->{owner} = $owner for @implicit_owner_zones;
+
 #            debug "Change to $owner->{name}";
 #            debug $_->{name} for @implicit_owner_zones;
         }
@@ -6136,15 +6144,20 @@ sub propagate_owners {
         # Implicit owner from networks is only valid, if the same owner
         # is found for all zones of cluster.
         elsif (@implicit_owner_zones) {
-            if (! (@implicit_owner_zones == @$cluster
-                   && equal(@implicit_owner_zones))) 
+            if (
+                !(
+                    @implicit_owner_zones == @$cluster
+                    && equal(@implicit_owner_zones)
+                )
+              )
             {
                 $_->{owner} = undef for @implicit_owner_zones;
+
 #                debug "Reset owner";
 #                debug $_->{name} for @implicit_owner_zones;
             }
         }
-    }  
+    }
 
     # A zone can be part of multiple areas.
     # Find the smallest enclosing area.
@@ -6319,14 +6332,14 @@ sub propagate_owners {
             if (@root_nodes == 1 && (my $root = $root_nodes[0])) {
                 my $root_owner = $root->{owner} || '';
                 if ($root_owner eq $owner && is_area($root)) {
-                    if (@{$root->{zones}} == @zones) {
+                    if (@{ $root->{zones} } == @zones) {
                         next;
                     }
                 }
             }
             err_msg("Attribute 'show_all' is only valid for owner of area",
-                    " which spans the whole topology.");
-        }            
+                " which spans the whole topology.");
+        }
     }
 
     # Handle {router_attributes}->{owner} separately.
@@ -7125,7 +7138,7 @@ sub find_subnets() {
                         $error = 1;
                     }
                     else {
-                        if (! $old_net->{is_aggregate}) {
+                        if (!$old_net->{is_aggregate}) {
 
                             # This network has aggregate (with
                             # subnets) in other zone. Hence this
@@ -7133,7 +7146,7 @@ sub find_subnets() {
                             # optimization.
                             $old_net->{has_other_subnet} = 1;
                         }
-                        elsif (! $network->{is_aggregate}) {
+                        elsif (!$network->{is_aggregate}) {
                             $network->{has_other_subnet} = 1;
                         }
                     }
@@ -7332,8 +7345,9 @@ sub find_subnets() {
                 return $max_net;
             }
             if (my $max_net = $set_max_net->($network->{up})) {
-                if (! $network->{is_aggregate}) {
+                if (!$network->{is_aggregate}) {
                     $network->{max_up_net} = $max_net;
+
 #                    debug "$network->{name} max_up $max_net->{name}";
                 }
                 return $max_net;
@@ -7343,11 +7357,10 @@ sub find_subnets() {
             }
             return $network;
         };
-        $set_max_net->($_) for  @{ $zone->{networks} };
+        $set_max_net->($_) for @{ $zone->{networks} };
 
         # Remove subnets of non-aggregate networks.
-        $zone->{networks} = 
-            [ grep(!$_->{max_up_net}, @{ $zone->{networks} }) ];
+        $zone->{networks} = [ grep(!$_->{max_up_net}, @{ $zone->{networks} }) ];
     }
 
     # It is valid to have an aggregate in a zone which has no matching
@@ -7371,8 +7384,8 @@ sub check_vpnhub () {
         }
     }
     my $all_eq_cluster = sub {
-        my (@obj)    = @_;
-        my $obj1     = pop @obj;
+        my (@obj) = @_;
+        my $obj1 = pop @obj;
         my $cluster1 = $obj1->{zone_cluster} || $obj1;
         not grep { ($_->{zone_cluster} || $_) ne $cluster1 } @obj;
     };
@@ -7691,7 +7704,7 @@ sub link_aggregates {
             my $aggregate2 = new('Network', %$aggregate);
             link_aggregate_to_zone($aggregate2, $zone, $key);
         }
-    }        
+    }
 
     # Add one aggregate to each zone where none has been defined,
     # to be used in implcit aggregates any:[..].
@@ -7723,14 +7736,16 @@ sub link_aggregates {
 }
 
 # Find aggregate in zone.
-# If zone is part of a zone_cluster, 
+# If zone is part of a zone_cluster,
 # return aggregate for each zone of the cluster.
 sub get_any00 {
     my ($zone) = @_;
     if (my $aggregate = $zone->{ipmask2aggregate}->{'0/0'}) {
-        return(  $zone->{zone_cluster} 
-               ? get_cluster_aggregates($zone, 0, 0) 
-               : $aggregate);
+        return (
+            $zone->{zone_cluster}
+            ? get_cluster_aggregates($zone, 0, 0)
+            : $aggregate
+        );
     }
     if (my ($net00) = grep { $_->{mask} == 0 } @{ $zone->{networks} }) {
         fatal_err "Use $net00->{name} instead of any:[..]";
@@ -7969,7 +7984,8 @@ sub set_zone {
         my $cluster = [];
         set_zone_cluster($zone, 0, $cluster);
         delete $zone->{zone_cluster} if 1 == @$cluster;
-#       debug 'cluster: ', join(',',map($_->{name}, @{$zone->{zone_cluster}})) 
+
+#       debug 'cluster: ', join(',',map($_->{name}, @{$zone->{zone_cluster}}))
 #           if $zone->{zone_cluster};
     }
 
@@ -8130,12 +8146,13 @@ sub check_pathrestrictions() {
                   " because it isn't located inside cyclic graph";
             }
         }
-        if (! grep($_->{router}->{managed}, @$elements)) {
-            if (equal(map($_->{zone}->{zone_cluster} || '', @$elements))) 
-            {
-                warn_msg("Useless $restrict->{name}\n",
-                         " All interfaces are unmanaged and",
-                         " located inside the same security zone");
+        if (!grep($_->{router}->{managed}, @$elements)) {
+            if (equal(map($_->{zone}->{zone_cluster} || '', @$elements))) {
+                warn_msg(
+                    "Useless $restrict->{name}\n",
+                    " All interfaces are unmanaged and",
+                    " located inside the same security zone"
+                );
             }
         }
     }
@@ -9328,6 +9345,13 @@ sub link_tunnels () {
             }
             push @real_interfaces, $real_spoke;
 
+            if ($router->{managed} && $crypto->{detailed_crypto_acl}) {
+                err_msg(
+                    "Attribute 'detailed_crypto_acl' is not",
+                    " allowed for managed spoke $router->{name}"
+                );
+            }
+
             # Automatically add pathrestriction between interfaces
             # of redundant hubs.
             if (@hubs > 1) {
@@ -9366,12 +9390,14 @@ sub link_tunnels () {
 # for default route optimization,
 # while generating chains of iptables and
 # for local optimization.
-my $network_00 = new('Network', 
-                     name => "network:0/0", 
-                     ip => 0, 
-                     mask => 0,
-                     is_aggregate => 1,
-                     is_supernet => 1);
+my $network_00 = new(
+    'Network',
+    name         => "network:0/0",
+    ip           => 0,
+    mask         => 0,
+    is_aggregate => 1,
+    is_supernet  => 1
+);
 
 sub crypto_behind {
     my ($interface, $managed) = @_;
@@ -9501,36 +9527,6 @@ sub expand_crypto () {
 
                     for my $peer (@{ $tunnel_intf->{peers} }) {
                         $peer->{peer_networks} = \@encrypted;
-                    }
-
-                    # Traffic from spoke to hub(s).
-                    my $crypto_rules = [
-                        map {
-                            {
-                                action    => 'permit',
-                                src       => $_,
-                                dst       => $network_00,
-                                src_range => $prt_ip,
-                                prt       => $prt_ip
-                            }
-                          } @encrypted
-                    ];
-                    $tunnel_intf->{crypto_rules} = $crypto_rules;
-
-                    # Traffic from hubs to spoke.
-                    $crypto_rules = [
-                        map {
-                            {
-                                action    => 'permit',
-                                src       => $network_00,
-                                dst       => $_,
-                                src_range => $prt_ip,
-                                prt       => $prt_ip
-                            }
-                          } @encrypted
-                    ];
-                    for my $peer (@{ $tunnel_intf->{peers} }) {
-                        $peer->{crypto_rules} = $crypto_rules;
 
                         # ID can only be checked at hub with attribute do_auth.
                         my $router  = $peer->{router};
@@ -9892,7 +9888,7 @@ sub check_supernet_src_rule( $$$ ) {
         # If dst is managed interface, {stateful_mark} is undef
         # - if device is secondary managed, take mark of attached network
         # - else take value -1, different from all marks.
-        # $src is supernet (not an interface) by definition 
+        # $src is supernet (not an interface) by definition
         # and hence $m1 is well defined.
         my $m1 = $out_zone->{stateful_mark};
         my $m2 = $dst_zone->{stateful_mark};
@@ -10132,7 +10128,7 @@ sub check_for_transient_supernet_rule {
                     while (my ($prt2_str, $rule2) = each %$hash) {
                         next if $rule2->{no_check_supernet_rules};
 
-                        my $prt2 = $rule2->{prt};
+                        my $prt2       = $rule2->{prt};
                         my $src_range2 = $rule2->{src_range};
 
                         # Find smaller protocol of two rules found.
@@ -10988,10 +10984,10 @@ sub find_statics () {
 
 # Get networks for routing.
 # Add largest supernet inside the zone, if available.
-# This is needed, because we use the supernet in 
+# This is needed, because we use the supernet in
 # secondary optimization too.
 # Moreover this reduces the number of routing entries.
-# It isn't sufficient to solely use the supernet because network and supernet 
+# It isn't sufficient to solely use the supernet because network and supernet
 # can have different next hops at end of path.
 # For an aggregate, take all matching networks inside the zone.
 # These are supernets by design.
@@ -12062,9 +12058,9 @@ sub distribute_rule( $$$ ) {
         if (
             not(   $model->{stateless}
                 or not $out_intf and $model->{stateless_self}
-                or     $model->{stateless_tunnel} 
-                   and $in_intf->{ip} eq 'tunnel'
-                   and not $router->{no_crypto_filter})
+                or $model->{stateless_tunnel}
+                and $in_intf->{ip} eq 'tunnel'
+                and not $router->{no_crypto_filter})
           )
         {
             return;
@@ -12213,7 +12209,9 @@ sub distribute_rule( $$$ ) {
         if ($router->{no_crypto_filter}) {
             push @{ $in_intf->{real_interface}->{hardware}->{$key} }, $rule;
         }
-        elsif (not $in_intf->{id_rules}) {
+
+        # Rules are needed at tunnel for generating detailed_crypto_acl.
+        if (not $in_intf->{id_rules}) {
             push @{ $in_intf->{$key} }, $rule;
         }
     }
@@ -12386,7 +12384,7 @@ sub add_router_acls () {
 
                         # This is not allowed between different
                         # security zones.
-                        my $net_zone = $net->{zone};
+                        my $net_zone  = $net->{zone};
                         my $intf_zone = $interface->{zone};
                         if (($net_zone->{zone_cluster} || $net_zone) ne
                             ($intf_zone->{zone_cluster} || $intf_zone))
@@ -14191,7 +14189,7 @@ sub local_optimization() {
         # Subnet relation may be different for each NAT domain,
         # therefore it is set up again for each NAT domain.
         for my $network (@networks) {
-            next if !  $network->{mask} || $network->{mask} == 0;
+            next if !$network->{mask} || $network->{mask} == 0;
             my $up = $network->{is_in}->{$no_nat_set};
             if (!$up || $up->{mask} == 0) {
                 $up = $network_00;
@@ -14233,7 +14231,7 @@ sub local_optimization() {
 #                    my $t1 = time();
 
                     # For supernet / aggregate rules used in optimization.
-                    my %hash;	
+                    my %hash;
 
                     # For finding duplicate rules having src or dst
                     # which exist as different objects with identical
@@ -14275,10 +14273,12 @@ sub local_optimization() {
 
                             # Identical redundancy interfaces.
                             elsif (my $aref = $obj->{redundancy_interfaces}) {
-                                if (!($rules eq 'intf_rules' && $what eq 'dst')
+                                if (
+                                    !($rules eq 'intf_rules' && $what eq 'dst')
                                     || (   $router->{crosslink_intf_hash}
                                         && $router->{crosslink_intf_hash}
-                                            ->{$aref->[0]}))
+                                        ->{ $aref->[0] })
+                                  )
                                 {
                                     $obj = $aref->[0];
                                 }
@@ -14293,33 +14293,36 @@ sub local_optimization() {
                             $rule = { %$rule, $what => $obj };
                         }
                         my ($src, $dst, $action, $src_range, $prt) =
-                          @{$rule}
-                           { 'src', 'dst', 'action', 'src_range', 'prt' };
+                          @{$rule}{ 'src', 'dst', 'action', 'src_range',
+                            'prt' };
 
                         # Remove duplicate rules.
                         if ($id_hash{$action}->{$src}->{$dst}->{$src_range}
-                              ->{$prt})
+                            ->{$prt})
                         {
                             $rule    = undef;
                             $changed = 1;
+
 #                            $r2id{$rname}++;
                             next;
                         }
                         $id_hash{$action}->{$src}->{$dst}->{$src_range}
                           ->{$prt} = $rule;
-                        if (   $src->{is_supernet} 
+                        if (   $src->{is_supernet}
                             || $dst->{is_supernet}
-                            || $rule->{stateless}) 
+                            || $rule->{stateless})
                         {
                             $hash{$action}->{$src}->{$dst}->{$src_range}
                               ->{$prt} = $rule;
                         }
                     }
+
 #                    my $t2 = time();
 #                    $time{$rname}[0] += $t2-$t1;
                   RULE:
                     for my $rule (@{ $hardware->{$rules} }) {
                         next if not $rule;
+
 #                        my $t3 = time();
 #                        $r2rules{$rname}++;
 
@@ -14354,9 +14357,11 @@ sub local_optimization() {
 # debug "oth:", print_rule $other_rule;
                                                                     $rule =
                                                                       undef;
+
 #                                                                    $r2del{$rname}++;
                                                                     $changed =
                                                                       1;
+
 #                        $time{$rname}[1] += time()-$t3;
                                                                     next RULE;
                                                                 }
@@ -14379,6 +14384,7 @@ sub local_optimization() {
                             last if $action eq 'deny';
                             $action = 'deny';
                         }
+
 #                        my $t4 = time();
 #                        $time{$rname}[1] += $t4-$t3;
 
@@ -14417,15 +14423,17 @@ sub local_optimization() {
                                         next RULE if $$ref->{has_id_hosts};
                                     }
                                 }
-                                if ($$ref eq $dst 
+                                if (
+                                       $$ref eq $dst
                                     && is_interface($dst)
                                     && (
                                         $dst->{router} eq $router
                                         || (    $router->{crosslink_intf_hash}
                                             and $router->{crosslink_intf_hash}
                                             ->{$dst})
-                                       )
-                                    ) {
+                                    )
+                                  )
+                                {
                                     next;
                                 }
                                 if (is_subnet($$ref) || is_interface($$ref)) {
@@ -14473,6 +14481,7 @@ sub local_optimization() {
 
                                     $rule    = undef;
                                     $changed = 1;
+
 #                                    $r2sec{$rname}++;
                                 }
                             }
@@ -14504,6 +14513,7 @@ sub local_optimization() {
                                 $rule = $new_rule;
                             }
                         }
+
 #                        my $t5 = time();
 #                        $time{$rname}[2] += $t5-$t4;
                     }
@@ -14518,11 +14528,13 @@ sub local_optimization() {
                 # overlapping again after joining.
 #                my $t6 = time();
                 join_ranges $hardware;
+
 #                $time{$rname}[3] += time() - $t6;
             }
         }
     }
-#    my ($orules, $oid, $odel, $osec, $arules, $aid, $adel, $asec, 
+
+#    my ($orules, $oid, $odel, $osec, $arules, $aid, $adel, $asec,
 #        @otime, @atime);
 #    my $f = '%-12s %7i %7i %7i %7i %.3f %.3f %.3f %.3f %.3f';
 #    for my $aref (values %time) {
@@ -14564,7 +14576,7 @@ sub local_optimization() {
 #                           $pre, $while, $secon, $join, $sum);
 #        }
 #    }
-#    debug sprintf( $f, 'other', $orules, $oid, $odel, $osec, 
+#    debug sprintf( $f, 'other', $orules, $oid, $odel, $osec,
 #        $otime[0], $otime[1], $otime[2], $otime[3], $otime[4]);
 #    debug sprintf( $f, 'all', $arules, $aid, $adel, $asec,
 #                   $atime[0], $atime[1], $atime[2], $atime[3], $atime[4]);
@@ -14945,6 +14957,29 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
     cisco_acl_line($router, $hardware->{rules}, $no_nat_set, $prefix);
 }
 
+# Parameter: Interface
+# Analyzes dst of all rules collected at this interface.
+# Result:
+# Array reference to list of all networks which are allowed
+# to pass this interface.
+sub get_split_tunnel_nets {
+    my ($interface) = @_;
+
+    my %split_tunnel_nets;
+    for my $rule (@{ $interface->{rules} }, @{ $interface->{intf_rules} }) {
+        next if not $rule->{action} eq 'permit';
+        my $dst = $rule->{dst};
+        my $dst_network = is_network $dst ? $dst : $dst->{network};
+
+        # Dont add 'any' (resulting from global:permit)
+        # to split_tunnel networks.
+        next if $dst_network->{mask} == 0;
+        $split_tunnel_nets{$dst_network} = $dst_network;
+    }
+    return [ sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
+          values %split_tunnel_nets ];
+}
+
 # Valid group-policy attributes.
 # Hash describes usage:
 # - need_value: value of attribute must have prefix 'value'
@@ -15079,35 +15114,15 @@ EOF
                     delete $attributes->{'split-tunnel-policy'};
                 }
                 elsif ($split_tunnel_policy eq 'tunnelspecified') {
-
-                    # Get destination networks for split tunnel configuration.
-                    my %split_tunnel_nets;
-                    for my $rule (@{ $id_intf->{rules} },
-                        @{ $id_intf->{intf_rules} })
-                    {
-                        next if not $rule->{action} eq 'permit';
-                        my $dst = $rule->{dst};
-                        my $dst_network =
-                          is_network $dst ? $dst : $dst->{network};
-
-                        # Dont add 'any' (resulting from global:permit)
-                        # to split_tunnel networks.
-                        next if $dst_network->{mask} == 0;
-                        $split_tunnel_nets{$dst_network} = $dst_network;
-                    }
-                    my @split_tunnel_nets =
-                      sort {
-                             $a->{ip} <=> $b->{ip}
-                          || $a->{mask} <=> $b->{mask}
-                      } values %split_tunnel_nets;
+                    my $split_tunnel_nets = get_split_tunnel_nets($id_intf);
                     my $acl_name;
-                    if (my $href = $split_t_cache{@split_tunnel_nets}) {
+                    if (my $href = $split_t_cache{@$split_tunnel_nets}) {
                       CACHED_NETS:
                         for my $cached_name (keys %$href) {
                             my $cached_nets = $href->{$cached_name};
                             for (my $i = 0 ; $i < @$cached_nets ; $i++) {
-                                if ($split_tunnel_nets[$i] ne $cached_nets->[$i]
-                                  )
+                                if ($split_tunnel_nets->[$i] ne
+                                    $cached_nets->[$i])
                                 {
                                     next CACHED_NETS;
                                 }
@@ -15118,8 +15133,8 @@ EOF
                     }
                     if (not $acl_name) {
                         $acl_name = "split-tunnel-$user_counter";
-                        if (@split_tunnel_nets) {
-                            for my $network (@split_tunnel_nets) {
+                        if (@$split_tunnel_nets) {
+                            for my $network (@$split_tunnel_nets) {
                                 my $line =
                                   "access-list $acl_name standard permit ";
                                 $line .=
@@ -15130,8 +15145,8 @@ EOF
                         else {
                             print "access-list $acl_name standard deny any\n";
                         }
-                        $split_t_cache{@split_tunnel_nets}->{$acl_name} =
-                          \@split_tunnel_nets;
+                        $split_t_cache{@$split_tunnel_nets}->{$acl_name} =
+                          $split_tunnel_nets;
                     }
                     $attributes->{'split-tunnel-network-list'} = $acl_name;
                 }
@@ -15439,7 +15454,7 @@ sub print_cisco_acls {
         next if $hardware->{loopback};
 
         # Ignore layer3 interface of ASA.
-        next if$hardware->{name} eq 'device' && $model->{class} eq 'ASA';
+        next if $hardware->{name} eq 'device' && $model->{class} eq 'ASA';
 
         # Force valid array reference to prevent error
         # when checking for non empty array.
@@ -15528,6 +15543,26 @@ sub print_acls {
     }
 }
 
+sub gen_crypto_rules {
+    my ($local, $remote) = @_;
+    my @crypto_rules;
+    for my $src (@$local) {
+        for my $dst (@$remote) {
+            push(
+                @crypto_rules,
+                {
+                    action    => 'permit',
+                    src       => $src,
+                    dst       => $dst,
+                    src_range => $prt_ip,
+                    prt       => $prt_ip
+                }
+            );
+        }
+    }
+    return \@crypto_rules;
+}
+
 sub print_ezvpn( $ ) {
     my ($router)     = @_;
     my $model        = $router->{model};
@@ -15580,11 +15615,17 @@ sub print_ezvpn( $ ) {
     my $wan_hw = $wan_intf->{hardware};
     push(@{ $wan_hw->{subcmd} }, "crypto ipsec client ezvpn $ezvpn_name");
 
-    # Split tunnel ACL. It controls which traffic needs to be encrypted.
+    # Crypto ACL controls which traffic needs to be encrypted.
+    $tunnel_intf->{crypto}->{detailed_crypto_acl}
+      and internal_err("Unexpected attribute 'detailed_crypto_acl'",
+        " at $router->{name}");
+    my $crypto_rules =
+      gen_crypto_rules($tunnel_intf->{peers}->[0]->{peer_networks},
+        [$network_00]);
     print "ip access-list extended $crypto_acl_name\n";
     my $no_nat_set = $wan_hw->{no_nat_set};
     my $prefix     = '';
-    cisco_acl_line($router, $tunnel_intf->{crypto_rules}, $no_nat_set, $prefix);
+    cisco_acl_line($router, $crypto_rules, $no_nat_set, $prefix);
 
     # Crypto filter ACL.
     $prefix = '';
@@ -15775,7 +15816,8 @@ sub print_crypto( $ ) {
         for my $interface (@tunnels) {
             $seq_num++;
 
-            my $ipsec  = $interface->{crypto}->{type};
+            my $crypto = $interface->{crypto};
+            my $ipsec  = $crypto->{type};
             my $isakmp = $ipsec->{key_exchange};
 
             # Print crypto ACL.
@@ -15792,19 +15834,24 @@ sub print_crypto( $ ) {
             else {
                 internal_err;
             }
-            cisco_acl_line($router, $interface->{crypto_rules},
-                $no_nat_set, $prefix);
+
+            # Print crypto ACL,
+            # - either generic from remote network to any or
+            # - detailed to all networks which are used in rules.
+            my $is_hub   = $interface->{is_hub};
+            my $hub      = $is_hub ? $interface : $interface->{peers}->[0];
+            my $detailed = $crypto->{detailed_crypto_acl};
+            my $local = $detailed ? get_split_tunnel_nets($hub) : [$network_00];
+            my $remote = $hub->{peer_networks};
+            $is_hub or ($local, $remote) = ($remote, $local);
+            my $crypto_rules = gen_crypto_rules($local, $remote);
+            cisco_acl_line($router, $crypto_rules, $no_nat_set, $prefix);
 
             # Print filter ACL. It controls which traffic is allowed to leave
             # from crypto tunnel. This may be needed, if we don't fully trust
             # our peer.
             my $crypto_filter_name;
-            if ($router->{no_crypto_filter}) {
-                if (@{ $interface->{intf_rules} } || @{ $interface->{rules} }) {
-                    internal_err;
-                }
-            }
-            else {
+            if (!$router->{no_crypto_filter}) {
                 $crypto_filter_name = "crypto-filter-$name-$seq_num";
                 if ($crypto_type eq 'IOS') {
                     $prefix = '';

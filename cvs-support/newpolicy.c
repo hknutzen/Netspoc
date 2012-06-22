@@ -1,10 +1,5 @@
 /* Wrapper script for newpolicy.pl				*/
 /* This should be installed setuid and setgid.			*/
-/* 	$Id$	*/
-
-#ifndef lint
-static char vcid[] = "$Id$";
-#endif /* lint */
 
 #include <stdio.h>
 #include <stdlib.h>
