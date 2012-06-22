@@ -1,5 +1,16 @@
 {{$NEXT}}
 
+3.015     2012-06-22 11:31:59 Europe/Berlin
+
+- Introduced new attribute 'detailed_crypto_acl' for crypto definition.
+  This changes generated crypto ACL at VPN hub from
+    permit ip any <destination networks>
+  to
+    permit ip <used local networks> <destination networks>
+  Used local networks are automatically derived from current filter rules.
+  This attribute is only valid if remote device is unmanaged.
+  It is used if "any" can't be configured at remote device.
+
 3.014     2012-06-05 10:47:03 Europe/Berlin
 
 - Fixed order of generated ACL from automatic group network:[area:X]
