@@ -2883,6 +2883,9 @@ sub read_crypto( $ ) {
         if (check_flag 'tunnel_all') {
             $crypto->{tunnel_all} = 1;
         }
+        elsif (check_flag 'detailed_crypto_acl') {
+            $crypto->{detailed_crypto_acl} = 1;
+        }
         elsif (my $type = check_assign 'type', \&read_typed_name) {
             $crypto->{type}
               and error_atline "Redefining 'type' attribute";
@@ -5128,7 +5131,8 @@ sub expand_group1( $$;$ ) {
                         # Change loopback network to loopback interface.
                         push @objects, $clean_autogrp
                           ? map {
-                            if ($_->{loopback}) {
+                            if ($_->{loopback})
+                            {
                                 my $interfaces = $_->{interfaces};
                                 if (@$interfaces > 1) {
                                     warn_msg(
@@ -9341,6 +9345,13 @@ sub link_tunnels () {
             }
             push @real_interfaces, $real_spoke;
 
+            if ($router->{managed} && $crypto->{detailed_crypto_acl}) {
+                err_msg(
+                    "Attribute 'detailed_crypto_acl' is not",
+                    " allowed for managed spoke $router->{name}"
+                );
+            }
+
             # Automatically add pathrestriction between interfaces
             # of redundant hubs.
             if (@hubs > 1) {
@@ -9516,36 +9527,6 @@ sub expand_crypto () {
 
                     for my $peer (@{ $tunnel_intf->{peers} }) {
                         $peer->{peer_networks} = \@encrypted;
-                    }
-
-                    # Traffic from spoke to hub(s).
-                    my $crypto_rules = [
-                        map {
-                            {
-                                action    => 'permit',
-                                src       => $_,
-                                dst       => $network_00,
-                                src_range => $prt_ip,
-                                prt       => $prt_ip
-                            }
-                          } @encrypted
-                    ];
-                    $tunnel_intf->{crypto_rules} = $crypto_rules;
-
-                    # Traffic from hubs to spoke.
-                    $crypto_rules = [
-                        map {
-                            {
-                                action    => 'permit',
-                                src       => $network_00,
-                                dst       => $_,
-                                src_range => $prt_ip,
-                                prt       => $prt_ip
-                            }
-                          } @encrypted
-                    ];
-                    for my $peer (@{ $tunnel_intf->{peers} }) {
-                        $peer->{crypto_rules} = $crypto_rules;
 
                         # ID can only be checked at hub with attribute do_auth.
                         my $router  = $peer->{router};
@@ -12228,7 +12209,9 @@ sub distribute_rule( $$$ ) {
         if ($router->{no_crypto_filter}) {
             push @{ $in_intf->{real_interface}->{hardware}->{$key} }, $rule;
         }
-        elsif (not $in_intf->{id_rules}) {
+
+        # Rules are needed at tunnel for generating detailed_crypto_acl.
+        if (not $in_intf->{id_rules}) {
             push @{ $in_intf->{$key} }, $rule;
         }
     }
@@ -14974,6 +14957,29 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
     cisco_acl_line($router, $hardware->{rules}, $no_nat_set, $prefix);
 }
 
+# Parameter: Interface
+# Analyzes dst of all rules collected at this interface.
+# Result:
+# Array reference to list of all networks which are allowed
+# to pass this interface.
+sub get_split_tunnel_nets {
+    my ($interface) = @_;
+
+    my %split_tunnel_nets;
+    for my $rule (@{ $interface->{rules} }, @{ $interface->{intf_rules} }) {
+        next if not $rule->{action} eq 'permit';
+        my $dst = $rule->{dst};
+        my $dst_network = is_network $dst ? $dst : $dst->{network};
+
+        # Dont add 'any' (resulting from global:permit)
+        # to split_tunnel networks.
+        next if $dst_network->{mask} == 0;
+        $split_tunnel_nets{$dst_network} = $dst_network;
+    }
+    return [ sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
+          values %split_tunnel_nets ];
+}
+
 # Valid group-policy attributes.
 # Hash describes usage:
 # - need_value: value of attribute must have prefix 'value'
@@ -15108,35 +15114,15 @@ EOF
                     delete $attributes->{'split-tunnel-policy'};
                 }
                 elsif ($split_tunnel_policy eq 'tunnelspecified') {
-
-                    # Get destination networks for split tunnel configuration.
-                    my %split_tunnel_nets;
-                    for my $rule (@{ $id_intf->{rules} },
-                        @{ $id_intf->{intf_rules} })
-                    {
-                        next if not $rule->{action} eq 'permit';
-                        my $dst = $rule->{dst};
-                        my $dst_network =
-                          is_network $dst ? $dst : $dst->{network};
-
-                        # Dont add 'any' (resulting from global:permit)
-                        # to split_tunnel networks.
-                        next if $dst_network->{mask} == 0;
-                        $split_tunnel_nets{$dst_network} = $dst_network;
-                    }
-                    my @split_tunnel_nets =
-                      sort {
-                             $a->{ip} <=> $b->{ip}
-                          || $a->{mask} <=> $b->{mask}
-                      } values %split_tunnel_nets;
+                    my $split_tunnel_nets = get_split_tunnel_nets($id_intf);
                     my $acl_name;
-                    if (my $href = $split_t_cache{@split_tunnel_nets}) {
+                    if (my $href = $split_t_cache{@$split_tunnel_nets}) {
                       CACHED_NETS:
                         for my $cached_name (keys %$href) {
                             my $cached_nets = $href->{$cached_name};
                             for (my $i = 0 ; $i < @$cached_nets ; $i++) {
-                                if ($split_tunnel_nets[$i] ne $cached_nets->[$i]
-                                  )
+                                if ($split_tunnel_nets->[$i] ne
+                                    $cached_nets->[$i])
                                 {
                                     next CACHED_NETS;
                                 }
@@ -15147,8 +15133,8 @@ EOF
                     }
                     if (not $acl_name) {
                         $acl_name = "split-tunnel-$user_counter";
-                        if (@split_tunnel_nets) {
-                            for my $network (@split_tunnel_nets) {
+                        if (@$split_tunnel_nets) {
+                            for my $network (@$split_tunnel_nets) {
                                 my $line =
                                   "access-list $acl_name standard permit ";
                                 $line .=
@@ -15159,8 +15145,8 @@ EOF
                         else {
                             print "access-list $acl_name standard deny any\n";
                         }
-                        $split_t_cache{@split_tunnel_nets}->{$acl_name} =
-                          \@split_tunnel_nets;
+                        $split_t_cache{@$split_tunnel_nets}->{$acl_name} =
+                          $split_tunnel_nets;
                     }
                     $attributes->{'split-tunnel-network-list'} = $acl_name;
                 }
@@ -15557,6 +15543,26 @@ sub print_acls {
     }
 }
 
+sub gen_crypto_rules {
+    my ($local, $remote) = @_;
+    my @crypto_rules;
+    for my $src (@$local) {
+        for my $dst (@$remote) {
+            push(
+                @crypto_rules,
+                {
+                    action    => 'permit',
+                    src       => $src,
+                    dst       => $dst,
+                    src_range => $prt_ip,
+                    prt       => $prt_ip
+                }
+            );
+        }
+    }
+    return \@crypto_rules;
+}
+
 sub print_ezvpn( $ ) {
     my ($router)     = @_;
     my $model        = $router->{model};
@@ -15609,11 +15615,17 @@ sub print_ezvpn( $ ) {
     my $wan_hw = $wan_intf->{hardware};
     push(@{ $wan_hw->{subcmd} }, "crypto ipsec client ezvpn $ezvpn_name");
 
-    # Split tunnel ACL. It controls which traffic needs to be encrypted.
+    # Crypto ACL controls which traffic needs to be encrypted.
+    $tunnel_intf->{crypto}->{detailed_crypto_acl}
+      and internal_err("Unexpected attribute 'detailed_crypto_acl'",
+        " at $router->{name}");
+    my $crypto_rules =
+      gen_crypto_rules($tunnel_intf->{peers}->[0]->{peer_networks},
+        [$network_00]);
     print "ip access-list extended $crypto_acl_name\n";
     my $no_nat_set = $wan_hw->{no_nat_set};
     my $prefix     = '';
-    cisco_acl_line($router, $tunnel_intf->{crypto_rules}, $no_nat_set, $prefix);
+    cisco_acl_line($router, $crypto_rules, $no_nat_set, $prefix);
 
     # Crypto filter ACL.
     $prefix = '';
@@ -15804,7 +15816,8 @@ sub print_crypto( $ ) {
         for my $interface (@tunnels) {
             $seq_num++;
 
-            my $ipsec  = $interface->{crypto}->{type};
+            my $crypto = $interface->{crypto};
+            my $ipsec  = $crypto->{type};
             my $isakmp = $ipsec->{key_exchange};
 
             # Print crypto ACL.
@@ -15821,19 +15834,24 @@ sub print_crypto( $ ) {
             else {
                 internal_err;
             }
-            cisco_acl_line($router, $interface->{crypto_rules},
-                $no_nat_set, $prefix);
+
+            # Print crypto ACL,
+            # - either generic from remote network to any or
+            # - detailed to all networks which are used in rules.
+            my $is_hub   = $interface->{is_hub};
+            my $hub      = $is_hub ? $interface : $interface->{peers}->[0];
+            my $detailed = $crypto->{detailed_crypto_acl};
+            my $local = $detailed ? get_split_tunnel_nets($hub) : [$network_00];
+            my $remote = $hub->{peer_networks};
+            $is_hub or ($local, $remote) = ($remote, $local);
+            my $crypto_rules = gen_crypto_rules($local, $remote);
+            cisco_acl_line($router, $crypto_rules, $no_nat_set, $prefix);
 
             # Print filter ACL. It controls which traffic is allowed to leave
             # from crypto tunnel. This may be needed, if we don't fully trust
             # our peer.
             my $crypto_filter_name;
-            if ($router->{no_crypto_filter}) {
-                if (@{ $interface->{intf_rules} } || @{ $interface->{rules} }) {
-                    internal_err;
-                }
-            }
-            else {
+            if (!$router->{no_crypto_filter}) {
                 $crypto_filter_name = "crypto-filter-$name-$seq_num";
                 if ($crypto_type eq 'IOS') {
                     $prefix = '';

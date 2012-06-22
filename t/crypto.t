@@ -58,6 +58,7 @@ crypto:sts1 = {
 crypto:sts2 = {
  type = ipsec:3desSHA;
  tunnel_all;
+ detailed_crypto_acl;
 }
 
 network:intern = { 
@@ -124,7 +125,7 @@ network:lan2a = {
 protocol:http = tcp 80;
 service:test = {
  user = network:lan1, network:lan2, network:lan2a;
- permit src = user; dst = network:intern; prt = protocol:http; 
+ permit src = user; dst = host:netspoc; prt = protocol:http; 
 }
 END
 
@@ -155,8 +156,8 @@ tunnel-group 172.16.1.2 ipsec-attributes
  chain
  trust-point ASDM_TrustPoint3
  isakmp ikev1-user-authentication none
-access-list crypto-outside-2 extended permit ip any 10.99.2.0 255.255.255.0
-access-list crypto-outside-2 extended permit ip any 192.168.22.0 255.255.255.0
+access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
+access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
 crypto map crypto-outside 2 match address crypto-outside-2
 crypto map crypto-outside 2 set peer 172.16.2.2
 crypto map crypto-outside 2 set transform-set Trans1
@@ -175,7 +176,7 @@ object-group network g0
  network-object 10.99.1.0 255.255.255.0
  network-object 10.99.2.0 255.255.255.0
  network-object 192.168.22.0 255.255.255.0
-access-list outside_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80
+access-list outside_in extended permit tcp object-group g0 host 10.1.1.111 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 END
