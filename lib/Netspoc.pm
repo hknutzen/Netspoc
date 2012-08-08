@@ -6063,8 +6063,8 @@ sub expand_services( ;$) {
             if (my ($prefix) = ($visible =~ /^ (\S*) [*] $/x)) {
                 if ($prefix) {
                     if (not grep { /^$prefix/ } keys %owners) {
-                        warn_msg "Attribute 'visible' of $name doesn't match"
-                          . " any owner";
+                        warn_msg "Attribute 'visible' of $name doesn't match",
+                          " any owner";
                     }
                 }
                 $service->{visible} = qr/^$prefix.*$/;
@@ -8149,7 +8149,7 @@ sub check_pathrestrictions() {
         if (!grep($_->{router}->{managed}, @$elements)) {
             if (equal(map($_->{zone}->{zone_cluster} || '', @$elements))) {
                 warn_msg(
-                    "Useless $restrict->{name}\n",
+                    "Useless $restrict->{name}.\n",
                     " All interfaces are unmanaged and",
                     " located inside the same security zone"
                 );
@@ -11458,7 +11458,7 @@ sub check_and_convert_routes () {
                 # Inform user that route will be missing.
                 else {
                     warn_msg "Can't determine next hop while moving routes\n",
-                      " of $interface->{name} to $real_intf->{name}.\n";
+                      " of $interface->{name} to $real_intf->{name}\n";
                 }
             }
         }
@@ -11497,8 +11497,8 @@ sub check_and_convert_routes () {
                             {
                                 warn_msg
                                   "Two static routes for $network->{name}\n",
-                                  " via $interface->{name} and ",
-                                  "$interface2->{name}";
+                                  " via $interface->{name} and",
+                                  " $interface2->{name}";
                             }
                         }
                     }
@@ -11762,7 +11762,7 @@ sub print_nat1 {
                 if ($in_dynamic) {
                     warn_msg "Duplicate NAT for already dynamically",
                       " translated $network->{name}\n",
-                      "at hardware $in_hw->{name} of $router->{name}";
+                      " at hardware $in_hw->{name} of $router->{name}";
                 }
                 if ($out_dynamic) {
 
@@ -15689,7 +15689,7 @@ sub print_crypto( $ ) {
     my @identity = unique(map { $_->{identity} } @isakmp);
     @identity > 1
       and err_msg "All isakmp definitions used at $router->{name}",
-      "must use the same value for attribute 'identity'";
+      " must use the same value for attribute 'identity'";
     my $identity      = $identity[0];
     my @nat_traversal = unique(
         grep { defined $_ }
@@ -15697,7 +15697,7 @@ sub print_crypto( $ ) {
     );
     @nat_traversal > 1
       and err_msg "All isakmp definitions used at $router->{name}",
-      "must use the same value for attribute 'nat_traversal'";
+      " must use the same value for attribute 'nat_traversal'";
 
     my $prefix = $crypto_type eq 'IOS' ? 'crypto isakmp' : 'isakmp';
     $identity = 'hostname' if $identity eq 'fqdn';
