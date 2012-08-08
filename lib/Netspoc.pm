@@ -13257,22 +13257,18 @@ sub add_bintree ( $$ ) {
     }
 
     # Different nodes with identical IP address.
-    # This occurs for two cases:
+    # This shouldn't occur, because different nodes have already 
+    # been converted to an unique object:
     # 1. Different interfaces of redundancy protocols like VRRP or HSRP.
-    #    In this case, the subtrees should be identical.
     # 2. Dynamic NAT of different networks or hosts to a single address
     #    or range.
-    #    Currently this case isn't handled properly.
-    #    The first subtree is taken, the other ones are ignored.
-    #
-    # ToDo: Merge subtrees for case 2.
     elsif ($tree_mask == $node_mask && $tree_ip == $node_ip) {
         my $sub1 = $tree->{subtree} || '';
         my $sub2 = $node->{subtree} || '';
         if ($sub1 ne $sub2) {
             my $ip   = print_ip $tree_ip;
             my $mask = print_ip $tree_mask;
-            warn_msg "Inconsistent rules for iptables for $ip/$mask";
+            internal_err "Inconsistent rules for iptables for $ip/$mask";
         }
         $result = $tree;
     }
@@ -13628,6 +13624,9 @@ sub find_chains ( $$ ) {
 
         # Change rules to allow optimization of objects having
         # identical IP adress.
+        # This is crucial for correct operation of sub add_bintree.
+        # Otherwise internal_err "Inconsistent rules for iptables"
+        # would be triggered.
         for my $rule (@$rules) {
             for my $what (qw(src dst)) {
                 my $obj = $rule->{$what};
