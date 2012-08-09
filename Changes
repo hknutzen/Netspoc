@@ -1,3 +1,12 @@
+3.016     2012-08-09 15:43:38 Europe/Berlin
+
+- Fixed parser for reading ip address in
+  any:X = { link = network:Y; ip = i.i.i.i/n; }
+- Optimize redundant port for iptables.
+  This is necessary for cases where global optimization doesn't work
+  because similar rules are applied to different objects which get the
+  same IP from NAT.
+
 3.015     2012-06-22 11:31:59 Europe/Berlin
 
 - Introduced new attribute 'detailed_crypto_acl' for crypto definition.

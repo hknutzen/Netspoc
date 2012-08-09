@@ -6,11 +6,12 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
+my ($title, $in, $out1, $out2, $head1, $head2, $compiled);
 ############################################################
-my $title = 'Merge port range with sub-range for iptables';
+$title = 'Merge port range with sub-range for iptables';
 ############################################################
 
-my $in = <<END;
+$in = <<END;
 network:RAS      = { ip = 10.2.2.0/24; }
 network:Hoernum  = { ip = 10.3.3.128/29; }
 network:StPeter  = { ip = 10.3.3.120/29; }
@@ -35,27 +36,22 @@ router:nak = {
 
 network:Hosting = { ip = 10.4.4.0/24; }
 
-protocol:TCP_30-37 = tcp 30-37;
-protocol:TCP_40-47 = tcp 40-47;
-protocol:TCP_51-53 = tcp 51-53;
 service:p40-47 = {
  user = network:Firewall, network:RAS;
  permit src = user; 
 	dst = network:Hosting;
-	prt = protocol:TCP_30-37, protocol:TCP_51-53;
+	prt = tcp 30-37, tcp 51-53;
 }
 
-protocol:TCP_10-49 = tcp 10-49;
-protocol:TCP_50-60 = tcp 50-60;
 service:p10-60 = {
  user = network:Trans, network:StPeter, network:Hoernum;
  permit src = user;
         dst = network:Hosting;
-        prt = protocol:TCP_10-49, protocol:TCP_50-60;
+        prt = tcp 10-49, tcp 50-60;
 }
 END
 
-my $out1 = <<END;
+$out1 = <<END;
 -A droplog -j LOG --log-level debug
 -A droplog -j DROP
 -A c1 -j ACCEPT -s 10.3.3.128/29
@@ -69,17 +65,17 @@ my $out1 = <<END;
 -A c4 -g c3 -p tcp --dport 30:37
 END
 
-my $out2 = <<END;
+$out2 = <<END;
 :eth0_br0 -
 -A FORWARD -j eth0_br0 -i eth0 -o br0
 -A eth0_br0 -g c4 -d 10.4.4.0/24 -p tcp --dport 10:60
 END
 
 
-my $head1 = (split /\n/, $out1)[0];
-my $head2 = (split /\n/, $out2)[0];
+$head1 = (split /\n/, $out1)[0];
+$head2 = (split /\n/, $out2)[0];
 
-my $compiled = compile($in);
+$compiled = compile($in);
 eq_or_diff(get_block($compiled, $head1), $out1, $title);
 eq_or_diff(get_block($compiled, $head2), $out2, $title);
 
@@ -90,7 +86,7 @@ $title = 'Un-merged port range with sub-range for iptables';
 # Ranges 10-49 and 50-60 can't be merged,
 # because they have three childs 30-37,40-47,51-53
 # and a merged range can have at most two childs.
-$in =~ s/(protocol:TCP_30-37,) (protocol:TCP_51-53)/$1 protocol:TCP_40-47, $2/;
+$in =~ s/(tcp 30-37,) (tcp 51-53)/$1 tcp 40-47, $2/;
 
 $out1 = <<END;
 -A droplog -j LOG --log-level debug
@@ -123,6 +119,59 @@ $compiled = compile($in);
 eq_or_diff(get_block($compiled, $head1), $out1, $title);
 eq_or_diff(get_block($compiled, $head2), $out2, $title);
 
+############################################################
+$title = 'Optimize redundant port for iptables';
+############################################################
+
+# Port isn't already optimized during global optimization if rule is
+# applied to different objects which got the same IP from NAT.
+
+$in = <<END;
+network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
+network:B = { ip = 10.3.3.128/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
+
+router:ras = {
+ interface:A = { ip = 10.3.3.121;}
+ interface:B = { ip = 10.3.3.129;}
+ interface:Trans = { ip = 10.1.1.2; bind_nat = C;}
+}
+
+network:Trans = { ip = 10.1.1.0/24;}
+
+router:nak = {
+ managed;
+ model = Linux;
+ interface:Trans    = { ip = 10.1.1.1; hardware = eth0; }
+ interface:Hosting  = { ip = 10.4.4.1; hardware = br0; }
+}
+
+network:Hosting = { ip = 10.4.4.0/24; }
+
+service:A = {
+ user = network:A;
+ permit src = user; 
+	dst = network:Hosting;
+	prt = tcp 55;
+}
+
+service:B = {
+ user = network:B;
+ permit src = user;
+        dst = network:Hosting;
+        prt = tcp 50-60;
+}
+END
+
+$out1 = <<END;
+:eth0_br0 -
+-A FORWARD -j eth0_br0 -i eth0 -o br0
+-A eth0_br0 -j ACCEPT -s 10.2.2.0/24 -d 10.4.4.0/24 -p tcp --dport 50:60
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+$compiled = compile($in);
+eq_or_diff(get_block($compiled, $head1), $out1, $title);
 
 ############################################################
 done_testing;

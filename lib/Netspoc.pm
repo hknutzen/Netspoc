@@ -32,7 +32,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.015'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.016'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -2271,7 +2271,7 @@ sub read_aggregate {
             defined $aggregate->{mask} and error_atline "Duplicate IP mask";
             $aggregate->{mask} = $mask;
         }
-        if (my $owner = check_assign 'owner', \&read_identifier) {
+        elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $aggregate->{owner}
               and error_atline 'Duplicate definition of owner';
             $aggregate->{owner} = $owner;
@@ -6063,8 +6063,8 @@ sub expand_services( ;$) {
             if (my ($prefix) = ($visible =~ /^ (\S*) [*] $/x)) {
                 if ($prefix) {
                     if (not grep { /^$prefix/ } keys %owners) {
-                        warn_msg "Attribute 'visible' of $name doesn't match"
-                          . " any owner";
+                        warn_msg "Attribute 'visible' of $name doesn't match",
+                          " any owner";
                     }
                 }
                 $service->{visible} = qr/^$prefix.*$/;
@@ -8149,7 +8149,7 @@ sub check_pathrestrictions() {
         if (!grep($_->{router}->{managed}, @$elements)) {
             if (equal(map($_->{zone}->{zone_cluster} || '', @$elements))) {
                 warn_msg(
-                    "Useless $restrict->{name}\n",
+                    "Useless $restrict->{name}.\n",
                     " All interfaces are unmanaged and",
                     " located inside the same security zone"
                 );
@@ -11458,7 +11458,7 @@ sub check_and_convert_routes () {
                 # Inform user that route will be missing.
                 else {
                     warn_msg "Can't determine next hop while moving routes\n",
-                      " of $interface->{name} to $real_intf->{name}.\n";
+                      " of $interface->{name} to $real_intf->{name}\n";
                 }
             }
         }
@@ -11497,8 +11497,8 @@ sub check_and_convert_routes () {
                             {
                                 warn_msg
                                   "Two static routes for $network->{name}\n",
-                                  " via $interface->{name} and ",
-                                  "$interface2->{name}";
+                                  " via $interface->{name} and",
+                                  " $interface2->{name}";
                             }
                         }
                     }
@@ -11762,7 +11762,7 @@ sub print_nat1 {
                 if ($in_dynamic) {
                     warn_msg "Duplicate NAT for already dynamically",
                       " translated $network->{name}\n",
-                      "at hardware $in_hw->{name} of $router->{name}";
+                      " at hardware $in_hw->{name} of $router->{name}";
                 }
                 if ($out_dynamic) {
 
@@ -13257,22 +13257,18 @@ sub add_bintree ( $$ ) {
     }
 
     # Different nodes with identical IP address.
-    # This occurs for two cases:
+    # This shouldn't occur, because different nodes have already 
+    # been converted to an unique object:
     # 1. Different interfaces of redundancy protocols like VRRP or HSRP.
-    #    In this case, the subtrees should be identical.
     # 2. Dynamic NAT of different networks or hosts to a single address
     #    or range.
-    #    Currently this case isn't handled properly.
-    #    The first subtree is taken, the other ones are ignored.
-    #
-    # ToDo: Merge subtrees for case 2.
     elsif ($tree_mask == $node_mask && $tree_ip == $node_ip) {
         my $sub1 = $tree->{subtree} || '';
         my $sub2 = $node->{subtree} || '';
         if ($sub1 ne $sub2) {
             my $ip   = print_ip $tree_ip;
             my $mask = print_ip $tree_mask;
-            warn_msg "Inconsistent rules for iptables for $ip/$mask";
+            internal_err "Inconsistent rules for iptables for $ip/$mask";
         }
         $result = $tree;
     }
@@ -13386,10 +13382,17 @@ sub gen_prt_bintree ( $$ ) {
             # current set. But handle direct sub protocols of 'ip' as
             # top protocols.
             while ($up->{up}) {
-                if ($tree->{$up}) {
+                if (my $subtree = $tree->{$up}) {
 
                     # Found sub protocol of current set.
-                    push @{ $sub_prt{$up} }, $prt;
+                    # Optimization:
+                    # Ignore the sub protocol if both protocols 
+                    # have identical subtrees.
+                    # This happens for different objects having identical IP
+                    # from NAT or from redundant interfaces.
+                    if ($tree->{$prt} ne $subtree) {
+                        push @{ $sub_prt{$up} }, $prt;
+                    }
                     next PRT;
                 }
                 $up = $up->{up};
@@ -13628,6 +13631,9 @@ sub find_chains ( $$ ) {
 
         # Change rules to allow optimization of objects having
         # identical IP adress.
+        # This is crucial for correct operation of sub add_bintree.
+        # Otherwise internal_err "Inconsistent rules for iptables"
+        # would be triggered.
         for my $rule (@$rules) {
             for my $what (qw(src dst)) {
                 my $obj = $rule->{$what};
@@ -15689,7 +15695,7 @@ sub print_crypto( $ ) {
     my @identity = unique(map { $_->{identity} } @isakmp);
     @identity > 1
       and err_msg "All isakmp definitions used at $router->{name}",
-      "must use the same value for attribute 'identity'";
+      " must use the same value for attribute 'identity'";
     my $identity      = $identity[0];
     my @nat_traversal = unique(
         grep { defined $_ }
@@ -15697,7 +15703,7 @@ sub print_crypto( $ ) {
     );
     @nat_traversal > 1
       and err_msg "All isakmp definitions used at $router->{name}",
-      "must use the same value for attribute 'nat_traversal'";
+      " must use the same value for attribute 'nat_traversal'";
 
     my $prefix = $crypto_type eq 'IOS' ? 'crypto isakmp' : 'isakmp';
     $identity = 'hostname' if $identity eq 'fqdn';
