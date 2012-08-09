@@ -2271,7 +2271,7 @@ sub read_aggregate {
             defined $aggregate->{mask} and error_atline "Duplicate IP mask";
             $aggregate->{mask} = $mask;
         }
-        if (my $owner = check_assign 'owner', \&read_identifier) {
+        elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $aggregate->{owner}
               and error_atline 'Duplicate definition of owner';
             $aggregate->{owner} = $owner;
