@@ -13382,10 +13382,17 @@ sub gen_prt_bintree ( $$ ) {
             # current set. But handle direct sub protocols of 'ip' as
             # top protocols.
             while ($up->{up}) {
-                if ($tree->{$up}) {
+                if (my $subtree = $tree->{$up}) {
 
                     # Found sub protocol of current set.
-                    push @{ $sub_prt{$up} }, $prt;
+                    # Optimization:
+                    # Ignore the sub protocol if both protocols 
+                    # have identical subtrees.
+                    # This happens for different objects having identical IP
+                    # from NAT or from redundant interfaces.
+                    if ($tree->{$prt} ne $subtree) {
+                        push @{ $sub_prt{$up} }, $prt;
+                    }
                     next PRT;
                 }
                 $up = $up->{up};

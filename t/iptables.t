@@ -120,12 +120,12 @@ eq_or_diff(get_block($compiled, $head1), $out1, $title);
 eq_or_diff(get_block($compiled, $head2), $out2, $title);
 
 ############################################################
-$title = 'Un-optimized redundant port for iptables';
+$title = 'Optimize redundant port for iptables';
 ############################################################
 
-# Port isn't recognized as redundant 
-# if rule is applied to different objects
-# which got the same IP from NAT.
+# Port isn't already optimized during global optimization if rule is
+# applied to different objects which got the same IP from NAT.
+
 $in = <<END;
 network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 network:B = { ip = 10.3.3.128/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
@@ -163,24 +163,15 @@ service:B = {
 END
 
 $out1 = <<END;
--A droplog -j LOG --log-level debug
--A droplog -j DROP
--A c1 -j ACCEPT -p tcp --dport 50:60
--A c1 -j ACCEPT -p tcp --dport 55
-END
-
-$out2 = <<END;
 :eth0_br0 -
 -A FORWARD -j eth0_br0 -i eth0 -o br0
--A eth0_br0 -g c1 -s 10.2.2.0/24 -d 10.4.4.0/24 -p tcp --dport 50:60
+-A eth0_br0 -j ACCEPT -s 10.2.2.0/24 -d 10.4.4.0/24 -p tcp --dport 50:60
 END
 
 $head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
 
 $compiled = compile($in);
 eq_or_diff(get_block($compiled, $head1), $out1, $title);
-eq_or_diff(get_block($compiled, $head2), $out2, $title);
 
 ############################################################
 done_testing;
