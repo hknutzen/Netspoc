@@ -7211,28 +7211,35 @@ sub find_subnets() {
             last if $mask == 0;
             for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
 
-                my $subnet = $mask_ip_hash{$mask}->{$ip};
+                my $subnet0 = $mask_ip_hash{$mask}->{$ip};
+                my @identical_sub = ($subnet0);
+                if (my $hash = $identical_in_zone{$subnet0}) {
+                    push(@identical_sub, values %$hash);
+                }
 
-                # Find {up} relation between networks inside the same zone.
-                my $zone = $subnet->{zone};
-                my $in_zone =
-                  $zone->{interfaces}->[0]->{no_nat_set} eq $no_nat_set;
+                for my $subnet (@identical_sub) {
 
-                # {is_in} and {up} might differ. Continue with loop,
-                # if first match is only {is_in}.
-                my $find_zone_relation;
+                    # Find {up} relation between networks inside the same zone.
+                    my $zone = $subnet->{zone};
+                    my $in_zone =
+                      $zone->{interfaces}->[0]->{no_nat_set} eq $no_nat_set;
 
-                my $m = $mask;
-                my $i = $ip;
-                while ($m) {
+                    # {is_in} and {up} might differ. Continue with loop,
+                    # if first match is only {is_in}.
+                    my $find_zone_relation;
 
-                    # Clear upper bit, because left shift is undefined
-                    # otherwise.
-                    $m &= 0x7fffffff;
-                    $m <<= 1;
-                    $i = $i & $m;    # Perl bug #108480 prevents use of "&=".
-                    if ($mask_ip_hash{$m}->{$i}) {
-                        my $bignet     = $mask_ip_hash{$m}->{$i};
+                    my $m = $mask;
+                    my $i = $ip;
+                    while ($m) {
+
+                        # Clear upper bit, because left shift is undefined
+                        # otherwise.
+                        $m &= 0x7fffffff;
+                        $m <<= 1;
+                        $i = $i & $m;  # Perl bug #108480 prevents use of "&=".
+                        my $bignet = $mask_ip_hash{$m}->{$i};
+                        next if not $bignet;
+
                         my $nat_subnet = get_nat_network($subnet, $no_nat_set);
                         my $nat_bignet = get_nat_network($bignet, $no_nat_set);
 
