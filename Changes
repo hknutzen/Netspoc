@@ -1,3 +1,7 @@
+3.017     2012-08-10 14:26:49 Europe/Berlin
+
+- Fixed bug with multiple aggregates having same IP.
+
 3.016     2012-08-09 15:43:38 Europe/Berlin
 
 - Fixed parser for reading ip address in
