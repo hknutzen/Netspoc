@@ -6368,6 +6368,19 @@ sub propagate_owners {
         }
     }
 
+    for my $router (@managed_routers) {
+        my $owner = $router->{owner} or next;
+        $used{$owner} = 1;
+        for my $interface (@{ $router->{interfaces} }) {
+            $interface->{owner} = $owner;
+            if ($interface->{loopback}) {
+                my $network = $interface->{network};
+                $network->{owner} = $owner;
+                $network->{zone}->{owner} = $owner;
+            }
+        }
+    }
+
     # Inherit owner from enclosing network or zone to aggregate.
     for my $zone (@zones) {
         for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
@@ -6377,14 +6390,6 @@ sub propagate_owners {
                 last if !$up->{is_aggregate};
             }
             $aggregate->{owner} = ($up ? $up : $zone)->{owner};
-        }
-    }
-    for my $router (@managed_routers) {
-        my $owner = $router->{owner} or next;
-        $used{$owner} = 1;
-        for my $interface (@{ $router->{interfaces} }) {
-            $interface->{owner} = $owner;
-            $interface->{network}->{owner} = $owner if $interface->{loopback};
         }
     }
 
