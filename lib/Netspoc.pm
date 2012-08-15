@@ -10093,6 +10093,8 @@ sub find_smaller_prt ( $$ ) {
 # ToDo:
 # Do we need to check for {zone_cluster} equality?
 #
+# Currently we only check aggregates/supernets with mask = 0.
+# Checking of other aggregates is too complicate (NAT, intersection).
 
 # Collect info about unwanted implied rules.
 sub check_for_transient_supernet_rule {
@@ -10105,6 +10107,9 @@ sub check_for_transient_supernet_rule {
         next if $rule->{no_check_supernet_rules};
         my $dst = $rule->{dst};
         next if not $dst->{is_supernet};
+
+        # Check only 0/0 aggregates.
+        next if $dst->{mask} != 0;
 
         # A leaf security zone has only one interface.
         # It can't lead to unwanted rule chains.
