@@ -32,7 +32,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.017'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.018'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -6368,6 +6368,19 @@ sub propagate_owners {
         }
     }
 
+    for my $router (@managed_routers) {
+        my $owner = $router->{owner} or next;
+        $used{$owner} = 1;
+        for my $interface (@{ $router->{interfaces} }) {
+            $interface->{owner} = $owner;
+            if ($interface->{loopback}) {
+                my $network = $interface->{network};
+                $network->{owner} = $owner;
+                $network->{zone}->{owner} = $owner;
+            }
+        }
+    }
+
     # Inherit owner from enclosing network or zone to aggregate.
     for my $zone (@zones) {
         for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
@@ -6377,14 +6390,6 @@ sub propagate_owners {
                 last if !$up->{is_aggregate};
             }
             $aggregate->{owner} = ($up ? $up : $zone)->{owner};
-        }
-    }
-    for my $router (@managed_routers) {
-        my $owner = $router->{owner} or next;
-        $used{$owner} = 1;
-        for my $interface (@{ $router->{interfaces} }) {
-            $interface->{owner} = $owner;
-            $interface->{network}->{owner} = $owner if $interface->{loopback};
         }
     }
 
@@ -10093,6 +10098,8 @@ sub find_smaller_prt ( $$ ) {
 # ToDo:
 # Do we need to check for {zone_cluster} equality?
 #
+# Currently we only check aggregates/supernets with mask = 0.
+# Checking of other aggregates is too complicate (NAT, intersection).
 
 # Collect info about unwanted implied rules.
 sub check_for_transient_supernet_rule {
@@ -10105,6 +10112,9 @@ sub check_for_transient_supernet_rule {
         next if $rule->{no_check_supernet_rules};
         my $dst = $rule->{dst};
         next if not $dst->{is_supernet};
+
+        # Check only 0/0 aggregates.
+        next if $dst->{mask} != 0;
 
         # A leaf security zone has only one interface.
         # It can't lead to unwanted rule chains.
