@@ -1,5 +1,10 @@
 {{$NEXT}}
 
+3.018     2012-08-15 14:22:45 Europe/Berlin
+
+- Only check aggregates/supernets with mask = 0 for transient any rules.
+- Get owner of zone at loopback interface from owner of interface.
+
 3.017     2012-08-10 14:26:49 Europe/Berlin
 
 - Fixed bug with multiple aggregates having same IP.
