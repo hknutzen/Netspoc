@@ -2809,8 +2809,6 @@ sub read_attributed_object( $$ ) {
     return $object;
 }
 
-# Some attributes are currently commented out,
-# because they aren't supported by back-end currently.
 my %isakmp_attributes = (
     identity      => { values => [qw( address fqdn )], },
     nat_traversal => {
