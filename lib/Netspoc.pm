@@ -9340,7 +9340,7 @@ sub link_tunnels () {
             for my $interface (@{ $router->{interfaces} }) {
                 my $network = $interface->{network};
                 if ($network->{has_id_hosts}) {
-                    $has_id_hosts = 1;
+                    $has_id_hosts = $network;
                 }
                 elsif ($interface ne $real_spoke
                     && $interface->{ip} ne 'tunnel')
@@ -9349,8 +9349,8 @@ sub link_tunnels () {
                 }
             }
             if ($has_id_hosts and @other) {
-                err_msg "Must not use network with ID hosts together with",
-                  " networks having no ID host: ",
+                err_msg "Must not use $has_id_hosts->{name} with ID hosts",
+                  " together with networks having no ID host: ",
                   join(',', map { $_->{name} } @other);
             }
             push @real_interfaces, $real_spoke;
