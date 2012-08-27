@@ -1234,11 +1234,6 @@ sub read_network( $ ) {
             # Duplicate use of this flag doesn't matter.
             $network->{isolated_ports} = 1;
         }
-        elsif (my $id = check_assign 'id', \&read_user_id) {
-            $network->{id}
-              and error_atline "Duplicate attribute 'id'";
-            $network->{id} = $id;
-        }
         elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
             $network->{subnet_of}
               and error_atline "Duplicate attribute 'subnet_of'";
@@ -1394,13 +1389,6 @@ sub read_network( $ ) {
 
             # Mark network.
             $network->{has_id_hosts} = 1;
-
-            $network->{id}
-              and error_atline
-              "Must not use attribute 'id' at $network->{name}\n",
-              " when hosts with ID are defined inside";
-        }
-        if ($network->{id} or $network->{has_id_hosts}) {
             $network->{radius_attributes} ||= {};
         }
         else {
@@ -9462,7 +9450,6 @@ sub expand_crypto () {
                     my $router  = $tunnel_intf->{router};
                     my $managed = $router->{managed};
                     my @encrypted;
-                    my $has_id_network;
                     my $has_id_hosts;
                     my $has_other_network;
                     for my $interface (@{ $router->{interfaces} }) {
@@ -9506,20 +9493,7 @@ sub expand_crypto () {
                             push @encrypted, $network;
                         }
                         else {
-                            if (my $id = $network->{id}) {
-                                @all_networks > 1
-                                  and err_msg "Only one network supported",
-                                  "at crypto $interface->{name} with ID";
-                                $tunnel_intf->{id}
-                                  and err_msg "Must no use ID both at",
-                                  " $network->{name} and at",
-                                  " $interface->{name}";
-                                $tunnel_intf->{id} = $id;
-                                $has_id_network = 1;
-                            }
-                            else {
-                                $has_other_network = 1;
-                            }
+                            $has_other_network = 1;
                             push @encrypted, @all_networks;
                             if (my $id = $interface->{id}) {
                                 if (my $intf2 = $id2interface{$id}) {
@@ -9530,11 +9504,6 @@ sub expand_crypto () {
                             }
                         }
                     }
-                    if ($has_id_network and $has_other_network) {
-                        err_msg
-                          "Must not use network with ID and other network",
-                          " together at $router->{name}";
-                    }
                     $has_id_hosts
                       and $has_other_network
                       and err_msg(
@@ -9543,7 +9512,6 @@ sub expand_crypto () {
                         join(', ', map { $_->{name} } @encrypted)
                       );
                          $has_id_hosts
-                      or $has_id_network
                       or $has_other_network
                       or err_msg(
                         "Must use network or host with ID",
