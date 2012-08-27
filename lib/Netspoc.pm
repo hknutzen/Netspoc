@@ -4632,6 +4632,22 @@ sub convert_hosts() {
                     $subnet->{private} = $private if $private;
                     $subnet->{owner}   = $owner   if $owner;
                     if ($id) {
+                        if ($mask == 0xffffffff) {
+                            if (my ($name, $dom) = ($id =~ /^(.*?)(\@.*)$/)) {
+                                $name
+                                    or err_msg("ID of $name must not start", 
+                                               " with character '\@'");
+                            }
+                            else {
+                                err_msg("ID of $name must contain",
+                                        " character '\@'");
+                            }
+                        }
+                        else {
+                            $id =~ /^\@/
+                                or err_msg("ID of $name must start",
+                                           " with character '\@'");
+                        }
                         $subnet->{id} = $id;
                         $subnet->{radius_attributes} =
                           $host->{radius_attributes};
@@ -14762,9 +14778,6 @@ sub print_vpn3k( $ ) {
                 my $id = $src->{id};
                 my $ip = print_ip $src->{ip};
                 if ($src->{mask} == 0xffffffff) {
-                    $id =~ /^\@/
-                      and err_msg
-                      "ID of $src->{name} must not start with character '\@'";
 
                     $entry{id} = $id;
                     $entry{'Framed-IP-Address'} = $ip;
@@ -15205,20 +15218,13 @@ EOF
                 my $ip      = print_ip $src->{ip};
                 my $network = $src->{network};
                 if ($src->{mask} == 0xffffffff) {
-                    if (my ($name, $domain) = ($id =~ /^(.*?)(\@.*)$/)) {
-                        $name
-                          or err_msg("ID of $src->{name} must not start",
-                            " with character '\@'");
 
-                        # For anyconnect clients.
-                        if ($model->{v8_4}) {
-                            $single_cert_map{$domain} = 1;
-                        }
+                    # For anyconnect clients.
+                    if ($model->{v8_4}) {
+                        my ($name, $domain) = ($id =~ /^(.*?)(\@.*)$/);
+                        $single_cert_map{$domain} = 1;
                     }
-                    else {
-                        err_msg("ID of $src->{name} must contain",
-                            " character '\@'");
-                    }
+
                     my $mask = print_ip $network->{mask};
                     my $group_policy_name;
                     if (%$attributes) {
@@ -15235,9 +15241,6 @@ EOF
                     print "\n";
                 }
                 else {
-                    $id =~ /^\@/
-                      or err_msg "ID of $src->{name} must start with",
-                      " character '\@'";
                     $pool_name = "pool-$user_counter";
                     my $mask = print_ip $src->{mask};
                     my $max =
