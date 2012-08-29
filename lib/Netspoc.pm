@@ -7721,7 +7721,7 @@ sub link_aggregates {
     }
 
     # Add one aggregate to each zone where none has been defined,
-    # to be used in implcit aggregates any:[..].
+    # to be used in implicit aggregates any:[..].
     for my $zone (@zones) {
         my $key = '0/0';
         next if $zone->{ipmask2aggregate}->{'0/0'};
