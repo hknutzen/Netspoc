@@ -608,6 +608,15 @@ sub export_assets {
 	return \%sub_result;
     };
 
+    # Different zones can use the same name from ipmask2aggregate
+    # '0/0' if the belong to the same zone_cluster. 
+    # Hence augment existing hash.
+    my $add_networks_hash = sub {
+        my ($owner, $name, $hash) = @_;
+        @{ $result{$owner}->{anys}->{$name}->{networks} }{ keys %$hash } =
+            values %$hash;
+    };
+
     for my $zone (@all_zones) {
 	next if $zone->{disabled};
 	next if $zone->{loopback};
@@ -640,13 +649,16 @@ sub export_assets {
             else {
                 $own_networks = $networks;
             }
-
-            $result{$owner}->{anys}->{$zone_name}->{networks} = 
-		$export_networks->($own_networks, $owner, $own_zone);
+            $add_networks_hash->(
+                $owner, 
+                $zone_name, 
+                $export_networks->($own_networks, $owner, $own_zone));
 	}
         if ($master_owner) {
-             $result{$master_owner}->{anys}->{$zone_name}->{networks} = 
-	         $export_networks->($networks, $master_owner, 1);
+            $add_networks_hash->(
+                $master_owner, 
+                $zone_name,
+                $export_networks->($networks, $master_owner, 1));
         }
     }
 
@@ -845,8 +857,8 @@ distribute_nat_info();
 set_zone();
 setpath();
 find_subnets();
-setup_sub_owners();
 set_service_owner();
+setup_sub_owners();
 setup_service_info();
 find_master_owner();
 
