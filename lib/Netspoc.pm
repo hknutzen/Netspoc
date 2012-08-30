@@ -9397,7 +9397,7 @@ sub link_tunnels () {
     # Automatically add active pathrestriction to the real interface.
     # This allows direct traffic to the real interface from outside,
     # but no traffic from or to the real interface passing the router.
-    for my $intf1 (@real_interfaces) {
+    for my $intf1 (unique(@real_interfaces)) {
         next if $intf1->{no_check};
         push @{ $intf1->{path_restrict} }, $global_active_pathrestriction;
     }
