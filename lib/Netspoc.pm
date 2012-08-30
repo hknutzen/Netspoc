@@ -1749,11 +1749,11 @@ sub read_interface( $ ) {
         $interface->{id}
           and error_atline "Attribute 'id' is only valid for 'spoke' interface";
     }
-    if (my $hubs = $interface->{hub}) {
+    if (my $crypto_list = $interface->{hub}) {
         if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
             error_atline "Crypto hub must not be $interface->{ip} interface";
         }
-        for my $crypto (@$hubs) {
+        for my $crypto (@$crypto_list) {
             push @{ $crypto2hubs{$crypto} }, $interface;
         }
     }
