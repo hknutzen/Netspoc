@@ -15690,7 +15690,7 @@ sub print_crypto( $ ) {
       and err_msg "All isakmp definitions used at $router->{name}",
       " must use the same value for attribute 'nat_traversal'";
 
-    my $prefix = $crypto_type eq 'IOS' ? 'crypto isakmp' : 'isakmp';
+    my $prefix = 'crypto isakmp';
     $identity = 'hostname' if $identity eq 'fqdn';
 
     # Don't print default value for backend IOS.
