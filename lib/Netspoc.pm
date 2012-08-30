@@ -15685,10 +15685,7 @@ sub print_crypto( $ ) {
       and err_msg "All isakmp definitions used at $router->{name}",
       " must use the same value for attribute 'identity'";
     my $identity      = $identity[0];
-    my @nat_traversal = unique(
-        grep { defined $_ }
-        map  { $_->{nat_traversal} } @isakmp
-    );
+    my @nat_traversal = unique(map  { $_->{nat_traversal} || '' } @isakmp);
     @nat_traversal > 1
       and err_msg "All isakmp definitions used at $router->{name}",
       " must use the same value for attribute 'nat_traversal'";
