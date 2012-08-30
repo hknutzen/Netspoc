@@ -15747,7 +15747,8 @@ sub print_crypto( $ ) {
                 $transform .= "ah-$1-hmac ";
             }
             else {
-                err_msg "Unsupported IPSec AH method for $crypto_type: $ah";
+                internal_err
+                    "Unsupported IPSec AH method for $crypto_type: $ah";
             }
         }
         if (not(my $esp = $ipsec->{esp_encryption})) {
@@ -15761,14 +15762,14 @@ sub print_crypto( $ ) {
             $transform .= "esp-aes$len ";
         }
         else {
-            err_msg "Unsupported IPSec ESP method for $crypto_type: $esp";
+            internal_err "Unsupported IPSec ESP method for $crypto_type: $esp";
         }
         if (my $esp_ah = $ipsec->{esp_authentication}) {
             if ($esp_ah =~ /^(md5|sha)_hmac$/) {
                 $transform .= "esp-$1-hmac";
             }
             else {
-                err_msg "Unsupported IPSec ESP auth. method for",
+                internal_err "Unsupported IPSec ESP auth. method for",
                   " $crypto_type: $esp_ah";
             }
         }
