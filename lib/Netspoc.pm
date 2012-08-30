@@ -1957,20 +1957,21 @@ sub read_router( $ ) {
         my $model = $router->{model};
 
         unless ($model) {
-            err_msg "Missing 'model' for managed $router->{name}";
+            err_msg "Missing 'model' for managed $name";
 
             # Prevent further errors.
-            $router->{model} = { name => 'unknown' };
+            $model = 'unknown';
+            $router->{model} = { name => $model };
         }
 
         $router->{vrf}
           and not $model->{can_vrf}
-          and err_msg("Must not use VRF at $router->{name}",
+          and err_msg("Must not use VRF at $name",
             " of model $model->{name}");
 
         $router->{log_deny}
           and not $model->{can_log_deny}
-          and err_msg("Must not use attribute 'log_deny' at $router->{name}",
+          and err_msg("Must not use attribute 'log_deny' at $name",
             " of model $model->{name}");
 
         # Create objects representing hardware interfaces.
@@ -1990,7 +1991,7 @@ sub read_router( $ ) {
                         $hardware->{bind_nat}  || $bind_nat0
                       )
                       or err_msg "All logical interfaces of $hw_name\n",
-                      " at $router->{name} must use identical NAT binding";
+                      " at $name must use identical NAT binding";
                 }
                 else {
                     $hardware = { name => $hw_name, loopback => 1 };
@@ -2034,11 +2035,11 @@ sub read_router( $ ) {
             }
             if ($interface->{hub} or $interface->{spoke}) {
                 $model->{crypto}
-                  or err_msg "Crypto not supported for $router->{name}",
+                  or err_msg "Crypto not supported for $name",
                   " of model $model->{name}";
             }
             if ($interface->{no_check}
-                and not($interface->{hub} and $router->{model}->{do_auth}))
+                and not($interface->{hub} and $model->{do_auth}))
             {
                 delete $interface->{no_check};
                 warn_msg "Ignoring attribute 'no_check' at $interface->{name}";
@@ -2096,30 +2097,33 @@ sub read_router( $ ) {
         if ($model->{need_radius}) {
             $router->{radius_servers}
               or err_msg "Attribute 'radius_servers' needs to be defined",
-              " for $router->{name}";
+              " for $name";
         }
         else {
             $router->{radius_servers}
               and err_msg "Attribute 'radius_servers' is not allowed",
-              " for $router->{name}";
+              " for $name";
         }
-        if ($router->{model}->{do_auth}) {
+        if ($model->{do_auth}) {
+
+            grep { $_->{hub} } @{ $router->{interfaces} }
+              or err_msg "Attribute 'hub' needs to be defined",
+              "  at an interface of $name of model $model->{name}";
 
             # Don't support NAT for VPN, otherwise code generation for VPN
             # devices will become more difficult.
             grep { $_->{bind_nat} } @{ $router->{interfaces} }
               and err_msg "Attribute 'bind_nat' is not allowed",
-              " at interface of $router->{name}",
-              " of model $router->{model}->{name}";
+              " at interface of $name of model $model->{name}";
 
             $router->{radius_attributes} ||= {};
         }
         else {
             $router->{radius_attributes}
               and err_msg "Attribute 'radius_attributes' is not allowed",
-              " for $router->{name}";
+              " for $name";
         }
-        if ($router->{model}->{no_crypto_filter}) {
+        if ($model->{no_crypto_filter}) {
             $router->{no_crypto_filter} = 1;
         }
     }
@@ -4468,8 +4472,7 @@ sub mark_disabled() {
         push @{ $name2vrf{$device_name} }, $router;
         if ($router->{managed}) {
             push @managed_routers, $router;
-            if (grep { $_->{hub} && $router->{model}->{do_auth} }
-                @{ $router->{interfaces} })
+            if ($router->{model}->{do_auth})
             {
                 push @managed_vpnhub, $router;
             }
