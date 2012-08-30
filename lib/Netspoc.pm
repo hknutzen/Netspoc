@@ -9262,8 +9262,8 @@ sub link_tunnels () {
 
         # Substitute crypto name by crypto object.
         for my $real_hub (@$real_hubs) {
-            for my $hub (@{ $real_hub->{hub} }) {
-                $hub eq $name and $hub = $crypto;
+            for my $crypto_name (@{ $real_hub->{hub} }) {
+                $crypto_name eq $name and $crypto_name = $crypto;
             }
         }
         push @real_interfaces, @$real_hubs;
