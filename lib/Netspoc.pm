@@ -2790,7 +2790,7 @@ sub read_attributed_object( $$ ) {
             }
         }
 
-        # Convert to from syntax to internal values, e.g. 'none' => undef.
+        # Convert from syntax to internal values, e.g. 'none' => undef.
         if (my $map = $description->{map}) {
             my $value = $object->{$attribute};
             if (exists $map->{$value}) {
@@ -2802,7 +2802,13 @@ sub read_attributed_object( $$ ) {
 }
 
 my %isakmp_attributes = (
-    identity      => { values => [qw( address fqdn )], },
+
+    # This one is ignored and is optional.
+    identity      => { 
+        values  => [qw( address fqdn )], 
+        default => 'none',
+        map     => { none => undef }
+    },
     nat_traversal => {
         values  => [qw( on additional off )],
         default => 'off',
@@ -15679,27 +15685,6 @@ sub print_crypto( $ ) {
         print "no sysopt connection permit-vpn\n";
     }
 
-    # Handle ISAKMP definition.
-    my @identity = unique(map { $_->{identity} } @isakmp);
-    @identity > 1
-      and err_msg "All isakmp definitions used at $router->{name}",
-      " must use the same value for attribute 'identity'";
-    my $identity      = $identity[0];
-    my @nat_traversal = unique(map  { $_->{nat_traversal} || '' } @isakmp);
-    @nat_traversal > 1
-      and err_msg "All isakmp definitions used at $router->{name}",
-      " must use the same value for attribute 'nat_traversal'";
-
-    my $prefix = 'crypto isakmp';
-    $identity = 'hostname' if $identity eq 'fqdn';
-
-    # Don't print default value for backend IOS.
-    if (not($identity eq 'address' and $crypto_type eq 'IOS')) {
-        print "$prefix identity $identity\n";
-    }
-    if (@nat_traversal and $nat_traversal[0] eq 'on') {
-        print "$prefix nat-traversal\n";
-    }
     my $isakmp_count = 0;
     for my $isakmp (@isakmp) {
         $isakmp_count++;
