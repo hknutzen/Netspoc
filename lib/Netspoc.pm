@@ -9443,131 +9443,129 @@ sub expand_crypto () {
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
 
-        # Add crypto rules to encrypt traffic for all networks
-        # at the remote location.
-        if ($crypto->{tunnel_all}) {
-            for my $tunnel (@{ $crypto->{tunnels} }) {
-                next if $tunnel->{disabled};
-                for my $tunnel_intf (@{ $tunnel->{interfaces} }) {
-                    next if $tunnel_intf->{is_hub};
-                    my $router  = $tunnel_intf->{router};
-                    my $managed = $router->{managed};
-                    my @encrypted;
-                    my $has_id_hosts;
-                    my $has_other_network;
-                    for my $interface (@{ $router->{interfaces} }) {
-                        next if $interface->{ip} eq 'tunnel';
-                        next if $interface->{spoke};
+        # Do consistency checks and
+        # add rules which allow encrypted traffic.
+        for my $tunnel (@{ $crypto->{tunnels} }) {
+            next if $tunnel->{disabled};
+            for my $tunnel_intf (@{ $tunnel->{interfaces} }) {
+                next if $tunnel_intf->{is_hub};
+                my $router  = $tunnel_intf->{router};
+                my $managed = $router->{managed};
+                my @encrypted;
+                my $has_id_hosts;
+                my $has_other_network;
+                for my $interface (@{ $router->{interfaces} }) {
+                    next if $interface->{ip} eq 'tunnel';
+                    next if $interface->{spoke};
 
-                        my $network = $interface->{network};
-                        my @all_networks = crypto_behind($interface, $managed);
-                        if ($network->{has_id_hosts}) {
-                            $has_id_hosts = 1;
-                            $managed
+                    my $network = $interface->{network};
+                    my @all_networks = crypto_behind($interface, $managed);
+                    if ($network->{has_id_hosts}) {
+                        $has_id_hosts = 1;
+                        $managed
+                          and err_msg
+                          "$network->{name} having ID hosts must not",
+                          " be located behind managed $router->{name}";
+
+                        # Must not have multiple networks.
+                        @all_networks > 1 and internal_err;
+
+                        # Rules for single software clients are stored
+                        # individually at crypto hub interface.
+                        for my $host (@{ $network->{hosts} }) {
+                            my $id      = $host->{id};
+                            my $subnets = $host->{subnets};
+                            @$subnets > 1
                               and err_msg
-                              "$network->{name} having ID hosts must not",
-                              " be located behind managed $router->{name}";
+                              "$host->{name} with ID must expand to",
+                              "exactly one subnet";
+                            my $subnet = $subnets->[0];
+                            for my $peer (@{ $tunnel_intf->{peers} }) {
+                                $peer->{id_rules}->{$id} = {
+                                    name       => "$peer->{name}.$id",
+                                    ip         => 'tunnel',
+                                    src        => $subnet,
+                                    no_nat_set => $peer->{no_nat_set},
 
-                            # Must not have multiple networks.
-                            @all_networks > 1 and internal_err;
-
-                            # Rules for single software clients are stored
-                            # individually at crypto hub interface.
-                            for my $host (@{ $network->{hosts} }) {
-                                my $id      = $host->{id};
-                                my $subnets = $host->{subnets};
-                                @$subnets > 1
-                                  and err_msg
-                                  "$host->{name} with ID must expand to",
-                                  "exactly one subnet";
-                                my $subnet = $subnets->[0];
-                                for my $peer (@{ $tunnel_intf->{peers} }) {
-                                    $peer->{id_rules}->{$id} = {
-                                        name       => "$peer->{name}.$id",
-                                        ip         => 'tunnel',
-                                        src        => $subnet,
-                                        no_nat_set => $peer->{no_nat_set},
-
-                                        # Needed during local_optimization.
-                                        router => $peer->{router},
-                                    };
-                                }
+                                    # Needed during local_optimization.
+                                    router => $peer->{router},
+                                };
                             }
-                            push @encrypted, $network;
                         }
-                        else {
-                            $has_other_network = 1;
-                            push @encrypted, @all_networks;
-                            if (my $id = $interface->{id}) {
-                                if (my $intf2 = $id2interface{$id}) {
-                                    err_msg "Same ID '$id' is used at",
-                                      " $interface->{name} and $intf2->{name}";
-                                }
-                                $id2interface{$id} = $interface;
+                        push @encrypted, $network;
+                    }
+                    else {
+                        $has_other_network = 1;
+                        push @encrypted, @all_networks;
+                        if (my $id = $interface->{id}) {
+                            if (my $intf2 = $id2interface{$id}) {
+                                err_msg "Same ID '$id' is used at",
+                                  " $interface->{name} and $intf2->{name}";
                             }
+                            $id2interface{$id} = $interface;
                         }
                     }
-                    $has_id_hosts
-                      and $has_other_network
-                      and err_msg(
-                        "Must not use host with ID and network",
-                        " together at $tunnel_intf->{name}: ",
-                        join(', ', map { $_->{name} } @encrypted)
-                      );
-                         $has_id_hosts
-                      or $has_other_network
-                      or err_msg(
-                        "Must use network or host with ID",
-                        " at $tunnel_intf->{name}: ",
-                        join(', ', map { $_->{name} } @encrypted)
-                      );
+                }
+                $has_id_hosts
+                  and $has_other_network
+                  and err_msg(
+                    "Must not use host with ID and network",
+                    " together at $tunnel_intf->{name}: ",
+                    join(', ', map { $_->{name} } @encrypted)
+                  );
+                     $has_id_hosts
+                  or $has_other_network
+                  or err_msg(
+                    "Must use network or host with ID",
+                    " at $tunnel_intf->{name}: ",
+                    join(', ', map { $_->{name} } @encrypted)
+                  );
 
-                    for my $peer (@{ $tunnel_intf->{peers} }) {
-                        $peer->{peer_networks} = \@encrypted;
+                for my $peer (@{ $tunnel_intf->{peers} }) {
+                    $peer->{peer_networks} = \@encrypted;
 
-                        # ID can only be checked at hub with attribute do_auth.
-                        my $router  = $peer->{router};
-                        my $do_auth = $router->{model}->{do_auth};
-                        if ($tunnel_intf->{id}) {
-                            $do_auth
-                              or err_msg "$router->{name} can't check IDs",
-                              " of $tunnel_intf->{name}";
-                        }
-                        elsif ($encrypted[0]->{has_id_hosts}) {
-                            $do_auth
-                              or err_msg "$router->{name} can't check IDs",
-                              " of $tunnel_intf->{name}";
-                        }
-                        elsif ($do_auth) {
-                            err_msg "$router->{name} can only check",
-                              " interface or host having ID",
-                              " at $tunnel_intf->{name}";
-                        }
+                    # ID can only be checked at hub with attribute do_auth.
+                    my $router  = $peer->{router};
+                    my $do_auth = $router->{model}->{do_auth};
+                    if ($tunnel_intf->{id}) {
+                        $do_auth
+                          or err_msg "$router->{name} can't check IDs",
+                          " of $tunnel_intf->{name}";
                     }
+                    elsif ($encrypted[0]->{has_id_hosts}) {
+                        $do_auth
+                          or err_msg "$router->{name} can't check IDs",
+                          " of $tunnel_intf->{name}";
+                    }
+                    elsif ($do_auth) {
+                        err_msg "$router->{name} can only check",
+                          " interface or host having ID",
+                          " at $tunnel_intf->{name}";
+                    }
+                }
 
-                    # Add rules to permit crypto traffic between
-                    # tunnel endpoints.
-                    # If one tunnel endpoint has no known IP address,
-                    # these rules have to be added manually.
-                    my $real_spoke = $tunnel_intf->{real_interface};
-                    if (    $real_spoke
-                        and $real_spoke->{ip} !~ /^(?:short|unnumbered)$/)
-                    {
-                        for my $hub (@{ $tunnel_intf->{peers} }) {
-                            my $real_hub = $hub->{real_interface};
-                            for my $pair (
-                                [ $real_spoke, $real_hub ],
-                                [ $real_hub,   $real_spoke ]
-                              )
-                            {
-                                my ($intf1, $intf2) = @$pair;
-                                next if $intf1->{ip} eq 'negotiated';
-                                my $rules_ref =
-                                  gen_tunnel_rules($intf1, $intf2,
-                                    $crypto->{type});
-                                push @{ $expanded_rules{permit} }, @$rules_ref;
-                                add_rules $rules_ref;
-                            }
+                # Add rules to permit crypto traffic between
+                # tunnel endpoints.
+                # If one tunnel endpoint has no known IP address,
+                # these rules have to be added manually.
+                my $real_spoke = $tunnel_intf->{real_interface};
+                if (    $real_spoke
+                    and $real_spoke->{ip} !~ /^(?:short|unnumbered)$/)
+                {
+                    for my $hub (@{ $tunnel_intf->{peers} }) {
+                        my $real_hub = $hub->{real_interface};
+                        for my $pair (
+                            [ $real_spoke, $real_hub ],
+                            [ $real_hub,   $real_spoke ]
+                          )
+                        {
+                            my ($intf1, $intf2) = @$pair;
+                            next if $intf1->{ip} eq 'negotiated';
+                            my $rules_ref =
+                              gen_tunnel_rules($intf1, $intf2,
+                                $crypto->{type});
+                            push @{ $expanded_rules{permit} }, @$rules_ref;
+                            add_rules $rules_ref;
                         }
                     }
                 }
@@ -12712,12 +12710,13 @@ sub address( $$ ) {
         # Negotiated interfaces are dangerous:
         # If the attached network has address 0.0.0.0/0,
         # we would accidentally permit 'any'.
-        # We allow this only, if local networks are protected by tunnel_all.
+        # We allow this only, if local networks are protected by crypto.
         if ($obj->{ip} eq 'negotiated') {
             my ($network_ip, $network_mask) = @{$network}{ 'ip', 'mask' };
             if ($network_mask eq 0 and not $obj->{spoke}) {
                 err_msg "$obj->{name} has negotiated IP in range 0.0.0.0/0.\n",
-                  "This is only allowed for interfaces protected by 'tunnel_all'.";
+                  " This is only allowed for interface",
+                  " protected by crypto spoke";
             }
             return [ $network_ip, $network_mask ];
         }
