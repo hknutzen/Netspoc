@@ -312,7 +312,6 @@ my %router_info = (
         extension           => {
             VPN => {
                 crypto           => 'ASA_VPN',
-                no_crypto_filter => 0,
                 stateless_tunnel => 1,
                 do_auth          => 1,
             },
@@ -10454,11 +10453,6 @@ sub gen_reverse_rules1 ( $ ) {
 
                     # Source of current rule is current router.
                     or not $in_intf and $model->{stateless_self}
-
-                    # Stateless tunnel interface of ASA-VPN.
-                    or $model->{stateless_tunnel}
-                    and $out_intf->{ip} eq 'tunnel'
-                    and not $router->{no_crypto_filter}
                   )
                 {
                     $has_stateless_router = 1;
@@ -12091,10 +12085,7 @@ sub distribute_rule( $$$ ) {
     if ($rule->{stateless}) {
         if (
             not(   $model->{stateless}
-                or not $out_intf and $model->{stateless_self}
-                or $model->{stateless_tunnel}
-                and $in_intf->{ip} eq 'tunnel'
-                and not $router->{no_crypto_filter})
+                or not $out_intf and $model->{stateless_self})
           )
         {
             return;
@@ -12853,11 +12844,6 @@ sub cisco_prt_code( $$$ ) {
         };
         my $dst_prt = $port_code->(@{ $prt->{range} });
         if (my $established = $prt->{established}) {
-            if ($model->{filter} eq 'PIX') {
-                err_msg "Must not use 'established' at '$model->{name}'\n",
-                  " - don't use outgoing TCP connection to VPN client or \n",
-                  " - try attribute 'no_crypto_filter'";
-            }
             if (defined $dst_prt) {
                 $dst_prt .= ' established';
             }
@@ -15029,12 +15015,9 @@ my %asa_vpn_attributes = (
 sub print_asavpn ( $ ) {
     my ($router)         = @_;
     my $model            = $router->{model};
-    my $no_crypto_filter = $router->{no_crypto_filter};
     my $no_nat_set       = $router->{hardware}->[0]->{no_nat_set};
 
-    if ($no_crypto_filter) {
-        print "no sysopt connection permit-vpn\n";
-    }
+    print "no sysopt connection permit-vpn\n";
     my $global_group_name = 'global';
     print <<"EOF";
 group-policy $global_group_name internal
@@ -15174,18 +15157,16 @@ EOF
 
                 # Access list will be bound to cleartext interface.
                 # Only check for valid source address at vpn-filter.
-                if ($no_crypto_filter) {
-                    $id_intf->{intf_rules} = [];
-                    $id_intf->{rules}      = [
-                        {
-                            action    => 'permit',
-                            src       => $src,
-                            dst       => $network_00,
-                            src_range => $prt_ip,
-                            prt       => $prt_ip,
-                        }
-                    ];
-                }
+                $id_intf->{intf_rules} = [];
+                $id_intf->{rules}      = [
+                    {
+                        action    => 'permit',
+                        src       => $src,
+                        dst       => $network_00,
+                        src_range => $prt_ip,
+                        prt       => $prt_ip,
+                    }
+                ];
                 find_object_groups($router, $id_intf);
 
                 # Define filter ACL to be used in username or group-policy.
@@ -15302,21 +15283,19 @@ EOF
 
             # Access list will be bound to cleartext interface.
             # Only check for correct source address at vpn-filter.
-            if ($no_crypto_filter) {
-                $interface->{intf_rules} = [];
-                $interface->{rules}      = [
-                    map {
-                        {
-                            action    => 'permit',
-                            src       => $_,
-                            dst       => $network_00,
-                            src_range => $prt_ip,
-                            prt       => $prt_ip,
-                        }
-                      } @{ $interface->{peer_networks} }
-                ];
-                find_object_groups($router, $interface);
-            }
+            $interface->{intf_rules} = [];
+            $interface->{rules}      = [
+                map {
+                    {
+                        action    => 'permit',
+                        src       => $_,
+                        dst       => $network_00,
+                        src_range => $prt_ip,
+                        prt       => $prt_ip,
+                    }
+                  } @{ $interface->{peer_networks} }
+            ];
+            find_object_groups($router, $interface);
 
             # Define filter ACL to be used in username or group-policy.
             my $filter_name = "vpn-filter-$user_counter";
