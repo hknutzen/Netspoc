@@ -3745,9 +3745,18 @@ sub link_interfaces {
               "to unnumbered $network->{name}";
         }
         elsif ($ip eq 'negotiated') {
+            my $network_mask = $network->{mask};
 
-            # Nothing to be checked: negotiated interface may be linked to
-            # any numbered network.
+            # Negotiated interfaces are dangerous: If the attached
+            # network has address 0.0.0.0/0, we would accidentally
+            # permit 'any'.  We allow this only, if local networks are
+            # protected by crypto.
+            if ($network_mask eq 0 and not $interface->{spoke}) {
+                err_msg "$interface->{name} has negotiated IP",
+                  " in range 0.0.0.0/0.\n",
+                  " This is only allowed for interface",
+                  " protected by crypto spoke";
+            }
         }
         elsif ($ip eq 'bridged') {
 
@@ -12720,17 +12729,8 @@ sub address( $$ ) {
 
         my $network = get_nat_network($obj->{network}, $no_nat_set);
 
-        # Negotiated interfaces are dangerous:
-        # If the attached network has address 0.0.0.0/0,
-        # we would accidentally permit 'any'.
-        # We allow this only, if local networks are protected by crypto.
         if ($obj->{ip} eq 'negotiated') {
             my ($network_ip, $network_mask) = @{$network}{ 'ip', 'mask' };
-            if ($network_mask eq 0 and not $obj->{spoke}) {
-                err_msg "$obj->{name} has negotiated IP in range 0.0.0.0/0.\n",
-                  " This is only allowed for interface",
-                  " protected by crypto spoke";
-            }
             return [ $network_ip, $network_mask ];
         }
         if (my $nat_tag = $network->{dynamic}) {
