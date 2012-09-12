@@ -9485,7 +9485,14 @@ sub expand_crypto () {
                 my $has_id_hosts;
                 my $has_other_network;
                 for my $interface (@{ $router->{interfaces} }) {
-                    next if $interface->{ip} eq 'tunnel';
+                    next if $interface eq $tunnel_intf;
+                    if ($interface->{ip} eq 'tunnel') {
+                        if ($managed && $router->{model}->{crypto} eq 'EZVPN') {
+                            err_msg "Exactly 1 crypto tunnel expected",
+                                " for $router->{name} with EZVPN";
+                        }
+                        next;
+                    }
                     next if $interface->{spoke};
 
                     my $network = $interface->{network};
@@ -15538,9 +15545,7 @@ sub print_ezvpn( $ ) {
     my $comment_char = $model->{comment_char};
     my @interfaces   = @{ $router->{interfaces} };
     my @tunnel_intf = grep { $_->{ip} eq 'tunnel' } @interfaces;
-    @tunnel_intf == 1
-      or err_msg
-      "Exactly 1 crypto tunnel expected for $router->{name} with EZVPN";
+    @tunnel_intf == 1 or internal_err;
     my ($tunnel_intf) = @tunnel_intf;
     my $wan_intf = $tunnel_intf->{real_interface};
     my @lan_intf = grep { $_ ne $wan_intf and $_ ne $tunnel_intf } @interfaces;
