@@ -7594,6 +7594,24 @@ sub check_crosslink () {
     }
 }
 
+# Reroute permit is not allowed between different security zones.
+sub check_reroute_permit {
+    for my $zone (@zones) {
+        for my $interface (@{ $zone->{interfaces} }) {
+            my $networks = $interface->{reroute_permit} or next;
+            for my $net (@$networks) {
+                my $net_zone = $net->{zone};
+                if (($net_zone->{zone_cluster} || $net_zone) ne
+                    ($zone->{zone_cluster} || $zone))
+                {
+                    err_msg "Invalid reroute_permit for $net->{name} ",
+                    "at $interface->{name}: different security zones";
+                }
+            }
+        }
+    }    
+}
+
 ####################################################################
 # Borders of security zones are
 # a) interfaces of managed devices and
@@ -8014,6 +8032,7 @@ sub set_zone {
 
     check_no_in_acl;
     check_crosslink;
+    check_reroute_permit;
     check_vpnhub;
 
     # Mark interfaces, which are border of some area.
@@ -12387,18 +12406,6 @@ sub add_router_acls () {
                 # some internal networks.
                 if ($interface->{reroute_permit}) {
                     for my $net (@{ $interface->{reroute_permit} }) {
-
-                        # This is not allowed between different
-                        # security zones.
-                        my $net_zone  = $net->{zone};
-                        my $intf_zone = $interface->{zone};
-                        if (($net_zone->{zone_cluster} || $net_zone) ne
-                            ($intf_zone->{zone_cluster} || $intf_zone))
-                        {
-                            err_msg "Invalid reroute_permit for $net->{name} ",
-                              "at $interface->{name}: different security zones";
-                            next;
-                        }
 
                         # Prepend to all other rules.
                         unshift(
