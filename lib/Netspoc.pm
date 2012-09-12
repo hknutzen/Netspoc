@@ -11791,11 +11791,6 @@ sub print_nat1 {
                 }
 
                 # We are talking about source addresses.
-                if ($in_dynamic) {
-                    warn_msg "Duplicate NAT for already dynamically",
-                      " translated $network->{name}\n",
-                      " at hardware $in_hw->{name} of $router->{name}";
-                }
                 if ($out_dynamic) {
 
                     # Check for static NAT entries of hosts and interfaces.
