@@ -130,7 +130,7 @@ service:test = {
 END
 
 my $out1 = <<END;
-isakmp identity address
+no sysopt connection permit-vpn
 crypto isakmp policy 1
  authentication pre-share
  encryption 3des
