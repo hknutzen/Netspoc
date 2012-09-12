@@ -176,9 +176,6 @@ our %config = (
     comment_acls   => 0,
     comment_routes => 0,
 
-# Print warning about ignored ICMP code fields at PIX firewalls.
-    warn_pix_icmp_code => 0,
-
 # Ignore these names when reading directories:
 # - CVS and RCS directories
 # - CVS working files
@@ -12799,19 +12796,6 @@ sub prefix_code( $ ) {
     return $prefix_code == 32 ? $ip_code : "$ip_code/$prefix_code";
 }
 
-my %pix_prt_hole;
-
-# Print warnings about the PIX protocol hole.
-sub warn_pix_icmp() {
-    if (%pix_prt_hole) {
-        warn_msg "Ignored the code field of the following ICMP protocols\n",
-          " while generating code for pix firewalls:";
-        while (my ($name, $count) = each %pix_prt_hole) {
-            print STDERR " $name: $count times\n";
-        }
-    }
-}
-
 # Returns 3 values for building an IOS or PIX ACL:
 # permit <val1> <src> <val2> <dst> <val3>
 sub cisco_prt_code( $$$ ) {
@@ -12857,8 +12841,7 @@ sub cisco_prt_code( $$$ ) {
         if (defined(my $type = $prt->{type})) {
             if (defined(my $code = $prt->{code})) {
                 if ($model->{filter} eq 'VPN3K') {
-                    # Device of model VPN3K can't handle the ICMP code
-                    # field.
+                    # VPN3K can't handle the ICMP code field.
                     return ($proto, undef, $type);
                 }
                 if ($model->{no_filter_icmp_code}) {
@@ -12866,7 +12849,6 @@ sub cisco_prt_code( $$$ ) {
                     # PIX can't handle the ICMP code field.
                     # If we try to permit e.g. "port unreachable",
                     # "unreachable any" could pass the PIX.
-                    $pix_prt_hole{ $prt->{name} }++;
                     return ($proto, undef, $type);
                 }
                 else {
@@ -16043,7 +16025,6 @@ sub print_code( $ ) {
             close STDOUT or fatal_err "Can't close $file: $!";
         }
     }
-    $config{warn_pix_icmp_code} && warn_pix_icmp;
     progress "Finished" if $config{time_stamps};
 }
 
