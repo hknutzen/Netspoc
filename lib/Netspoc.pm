@@ -12857,8 +12857,9 @@ sub cisco_prt_code( $$$ ) {
         if (defined(my $type = $prt->{type})) {
             if (defined(my $code = $prt->{code})) {
                 if ($model->{filter} eq 'VPN3K') {
-                    err_msg "Device of model $model->{name} can handle",
-                      " only simple ICMP\n but not $prt->{name}";
+                    # Device of model VPN3K can't handle the ICMP code
+                    # field.
+                    return ($proto, undef, $type);
                 }
                 if ($model->{no_filter_icmp_code}) {
 
