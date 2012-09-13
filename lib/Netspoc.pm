@@ -8200,7 +8200,10 @@ sub check_pathrestrictions() {
             }
         }
         if (!grep($_->{router}->{managed}, @$elements)) {
-            if (equal(map($_->{zone}->{zone_cluster} || '', @$elements))) {
+
+            # Unmanaged router with pathrestriction is known to be
+            # part of zone_cluster.
+            if (equal(map($_->{zone}->{zone_cluster}, @$elements))) {
                 warn_msg(
                     "Useless $restrict->{name}.\n",
                     " All interfaces are unmanaged and",
