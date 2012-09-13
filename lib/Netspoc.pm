@@ -10681,24 +10681,16 @@ sub mark_secondary_rules() {
                         $hidden = 1;
                     }
 
-                    # Other is aggregate, check interface where zone is entered.
+                    # Other is aggregate.
+                    # Check no_nat_set of all NAT domains inside the zone.
                     else {
-                        my @interfaces;
-                        path_walk(
-                            $rule,
-                            sub {
-                                my ($rule, $in_intf, $out_intf) = @_;
-                                if ($out_intf && $out_intf->{zone} eq $other) {
-                                    push @interfaces, $out_intf;
-                                }
-                            }
-                        );
-                        for my $interface (@interfaces) {
+                        for my $interface (@{ $other->{zone}->{interfaces} }) {
                             my $no_nat_set = $interface->{no_nat_set};
                             next if $no_nat_set->{$nat_tag};
                             my $nat_network = $nat_hash->{$nat_tag};
                             if ($nat_network->{hidden}) {
                                 $hidden = 1;
+                                last;
                             }
                         }
                     }
