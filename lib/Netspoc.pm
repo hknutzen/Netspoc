@@ -6741,18 +6741,18 @@ sub distribute_no_nat_set {
 
                                 # Prevent transition from dynamic back to
                                 # static NAT for current network.
-                                if (    $href->{$multi}->{dynamic}
+                                if ($href->{$multi}->{hidden}) {
+                                    my $net_name = $href->{$multi}->{name};
+                                    err_msg "Must not change hidden NAT",
+                                      " for $net_name at $router->{name}";
+                                }
+                                elsif (    $href->{$multi}->{dynamic}
                                     and not $href->{$nat_tag}->{dynamic}
                                     and not $href->{$nat_tag}->{hidden})
                                 {
                                     my $net_name = $href->{$multi}->{name};
                                     err_msg "Must not change NAT",
                                       " from dynamic to static",
-                                      " for $net_name at $router->{name}";
-                                }
-                                elsif ($href->{$multi}->{hidden}) {
-                                    my $net_name = $href->{$multi}->{name};
-                                    err_msg "Must not change hidden NAT",
                                       " for $net_name at $router->{name}";
                                 }
                             }
