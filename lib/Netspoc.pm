@@ -7606,9 +7606,7 @@ sub check_reroute_permit {
             my $networks = $interface->{reroute_permit} or next;
             for my $net (@$networks) {
                 my $net_zone = $net->{zone};
-                if (($net_zone->{zone_cluster} || $net_zone) ne
-                    ($zone->{zone_cluster} || $zone))
-                {
+                if (!zone_eq($net_zone, $zone)) {
                     err_msg "Invalid reroute_permit for $net->{name} ",
                     "at $interface->{name}: different security zones";
                 }
@@ -7880,6 +7878,14 @@ sub set_zone_cluster {
             }
         }
     }
+}
+
+# Two zones are zone_eq, if
+# - zones are equal or
+# - both belong to the same zone cluster.
+sub zone_eq {
+    my ($zone1, $zone2) = @_;
+    ($zone1->{zone_cluster} || $zone1) eq ($zone2->{zone_cluster} || $zone2);
 }
 
 # Collect all zones belonging to an area.
@@ -12125,7 +12131,7 @@ sub distribute_rule( $$$ ) {
             # $intf could have value 'undef' if $obj is interface of
             # current router and destination of rule.
             my $intf = $where eq 'src' ? $in_intf : $out_intf;
-            if (!$intf || $network->{zone} eq $intf->{zone}) {
+            if (!$intf || zone_eq($network->{zone}, $intf->{zone})) {
                 err_msg "$obj->{name} needs static translation",
                   " for nat:$nat_tag\n", " to be valid in rule\n ",
                   print_rule $rule;
