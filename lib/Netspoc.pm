@@ -10680,30 +10680,31 @@ sub mark_secondary_rules() {
             my $hidden;
             my $dynamic;
 
+          TAG:
             for my $nat_tag (keys %$nat_hash) {
-                next if $no_nat_set->{$nat_tag};
+
+                # Find $nat_tag which is effective at $other.
+                # - simple: $other is host or network, $nat_domain is known.
+                # - loop: $other is aggregate.
+                #         Check all NAT domains inside the zone.
+                if ($nat_domain) {
+                    next if $no_nat_set->{$nat_tag};
+                }
+                else {
+                    for my $interface (@{ $other->{zone}->{interfaces} }) {
+                        my $no_nat_set = $interface->{no_nat_set};
+                        next TAG if $no_nat_set->{$nat_tag};
+                        last;
+                    }
+                }
+
                 my $nat_network = $nat_hash->{$nat_tag};
 
                 # Network is hidden by NAT.
                 if ($nat_network->{hidden} and not $hidden) {
-                    if ($nat_domain) {
-                        $hidden = 1;
-                    }
-
-                    # Other is aggregate.
-                    # Check no_nat_set of all NAT domains inside the zone.
-                    else {
-                        for my $interface (@{ $other->{zone}->{interfaces} }) {
-                            my $no_nat_set = $interface->{no_nat_set};
-                            next if $no_nat_set->{$nat_tag};
-                            $hidden = 1;
-                            last;
-                        }
-                    }
-                    if ($hidden) {
-                        err_msg "$obj->{name} is hidden by NAT in rule\n ",
-                          print_rule $rule;
-                    }
+                    $hidden = 1;
+                    err_msg("$obj->{name} is hidden by NAT in rule\n ",
+                            print_rule $rule);
                 }
 
                 # Network has dynamic NAT.
@@ -10713,6 +10714,30 @@ sub mark_secondary_rules() {
                     and not $obj->{nat}->{$nat_tag}
                     and not $dynamic)
                 {
+                    # Check error condition: Dynamic NAT address is
+                    # used in ACL at managed router at the border of
+                    # the zone of $obj. 
+                    # $intf could have value 'undef' if $obj is interface of
+                    # current router and destination of rule.
+                    my $check = sub {
+                        my ($rule, $in_intf, $out_intf) = @_;
+                        my $no_nat_set = $in_intf->{no_nat_set};
+                        my $nat_network = 
+                            get_nat_network($network, $no_nat_set);
+                        my $nat_tag = $nat_network->{dynamic};
+                        return if not $nat_tag;
+                        return if $obj->{nat}->{$nat_tag};
+                        my $intf = $where eq 'src' ? $in_intf : $out_intf;
+                        if (!$intf || 
+                            zone_eq($network->{zone}, $intf->{zone}))
+                        {
+                            err_msg "$obj->{name} needs static translation",
+                                " for nat:$nat_tag to be valid in rule\n ",
+                            print_rule $rule;
+                        }
+                    };
+                    path_walk($rule, $check);
+                        
                     $dynamic_nat =
                       $dynamic_nat
                       ? "$dynamic_nat,$where"
@@ -12125,17 +12150,6 @@ sub distribute_rule( $$$ ) {
 
             # Ignore object with static translation.
             next if $obj->{nat}->{$nat_tag};
-
-            # Object is located in the same security zone, hence
-            # there is no other managed router in between.
-            # $intf could have value 'undef' if $obj is interface of
-            # current router and destination of rule.
-            my $intf = $where eq 'src' ? $in_intf : $out_intf;
-            if (!$intf || zone_eq($network->{zone}, $intf->{zone})) {
-                err_msg "$obj->{name} needs static translation",
-                  " for nat:$nat_tag\n", " to be valid in rule\n ",
-                  print_rule $rule;
-            }
 
             # Otherwise, filtering occurs at other router, therefore
             # the whole network can pass here.
