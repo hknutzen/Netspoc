@@ -10696,11 +10696,8 @@ sub mark_secondary_rules() {
                         for my $interface (@{ $other->{zone}->{interfaces} }) {
                             my $no_nat_set = $interface->{no_nat_set};
                             next if $no_nat_set->{$nat_tag};
-                            my $nat_network = $nat_hash->{$nat_tag};
-                            if ($nat_network->{hidden}) {
-                                $hidden = 1;
-                                last;
-                            }
+                            $hidden = 1;
+                            last;
                         }
                     }
                     if ($hidden) {
