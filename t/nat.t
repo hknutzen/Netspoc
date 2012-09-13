@@ -227,4 +227,36 @@ $head1 = (split /\n/, $out1)[0];
 eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
+$title = 'Check rule with any to hidden NAT';
+############################################################
+
+$in = <<END;
+network:Test =  {
+ ip = 10.0.0.0/24; 
+ nat:C = { hidden; }
+}
+
+router:filter = {
+ managed;
+ model = ASA, 8.4;
+ interface:Test = { ip = 10.0.0.2; hardware = inside; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C; }
+}
+
+network:X = { ip = 10.8.3.0/24; }
+
+service:test = {
+ user = any:[network:X];
+ permit src = user;   dst = network:Test; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Error: network:Test is hidden by NAT in rule
+ permit src=any:[network:X]; dst=network:Test; prt=tcp 80; of service:test
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
 done_testing;
