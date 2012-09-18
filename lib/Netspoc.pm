@@ -11562,7 +11562,7 @@ sub check_and_convert_routes () {
                         $net2intf{$network} = $interface;
                     }
                     unless ($interface->{routing}) {
-                        my $group = $hop->{redundancy_interfaces} || '';
+                        my $group = $hop->{redundancy_interfaces};
                         if ($group) {
                             push @{ $net2group{$network} }, $hop;
                         }
@@ -11571,8 +11571,8 @@ sub check_and_convert_routes () {
                             # Network is reached via two different hops.
                             # Check if both belong to same group
                             # of redundancy interfaces.
-                            my $group2 = $hop2->{redundancy_interfaces} || '';
-                            if ($group eq $group2) {
+                            my $group2 = $hop2->{redundancy_interfaces};
+                            if ($group && $group2 && $group eq $group2) {
 
                                 # Prevent multiple identical routes to
                                 # different interfaces
