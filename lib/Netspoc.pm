@@ -11601,17 +11601,24 @@ sub check_and_convert_routes () {
             for my $net_ref (keys %net2group) {
                 my $hops = $net2group{$net_ref};
                 my $hop1 = $hops->[0];
-                if (@$hops != @{ $hop1->{redundancy_interfaces} }) {
-                    my ($network) =
-                      grep { $_ eq $net_ref }
-                      values %{ $interface->{routes}->{$hop1} };
+                next if @$hops == @{ $hop1->{redundancy_interfaces} };
+                my $network = $interface->{routes}->{$hop1}->{$net_ref};
 
-                    # Test for loopback isn't really needed.
-                    # It's only a temporary hack to prevent some warnings.
-                    $network->{loopback}
-                      or warn_msg
-                      "$network->{name} is reached via $hop1->{name}",
-                      " but not via related redundancy interfaces";
+                # A network is routed to a single physical interface.
+                # It is probably a loopback interface of the same device.
+                # Move hop from virtual to physical interface.
+                if (@$hops == 1 && (my $phys_hop = $hop1->{orig_main})) {
+                    delete $interface->{routes}->{$hop1}->{$net_ref};
+                    $interface->{routes}->{$phys_hop}->{$network} = $network;
+                    my $aref = $interface->{hop};
+                    if (!grep { $_ eq $phys_hop } @$aref) {
+                        push @$aref, $phys_hop;
+                    }
+                }
+                else {
+                    warn_msg
+                        "$network->{name} is reached via $hop1->{name}\n",
+                        " but not via all related redundancy interfaces";
                 }
             }
         }
