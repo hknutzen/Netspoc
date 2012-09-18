@@ -11083,8 +11083,8 @@ sub get_route_networks {
 # - All interfaces of border networks, which are not border interfaces,
 #   are called hop interfaces, because they are used as next hop from
 #   border interfaces.
-# - A cluster is a maximal set of networks of the security zone,
-#   which is surrounded by hop interfaces.
+# - A cluster is a maximal set of connected networks of the security zone,
+#   which is surrounded by hop interfaces. A cluster can be empty.
 # For each border interface I and each network N inside the security zone
 # we need to find the hop interface H via which N is reached from I.
 # This is stored in an attribute {route_in_zone} of I.
@@ -11135,8 +11135,8 @@ sub set_routes_in_zone ( $ ) {
         my $cluster = {};
         $set_cluster->($interface->{router}, $interface, $cluster);
 
-#	debug $interface->{name};
-#	debug join ',', map {$_->{name}} values %$cluster if keys %$cluster;
+#	debug "Cluster: $interface->{name} ",
+#            join ',', map {$_->{name}} values %$cluster;
     }
 
     # Find all networks located behind a hop interface.
@@ -11149,6 +11149,7 @@ sub set_routes_in_zone ( $ ) {
 
         # Add networks of directly attached cluster to result.
         my @result = values %$cluster;
+        $hop2networks{$hop} = \@result;
 
         for my $border (values %{ $cluster2borders{$cluster} }) {
             next if $border eq $in_border;
@@ -11165,7 +11166,7 @@ sub set_routes_in_zone ( $ ) {
                 push @result, @{ $hop2networks{$out_hop} };
             }
         }
-        $hop2networks{$hop} = \@result;
+#	debug "Hop: $hop->{name} ", join ',', map {$_->{name}} @result;
     };
     for my $border (values %border_networks) {
         my @border_intf;
