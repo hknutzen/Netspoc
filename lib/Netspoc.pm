@@ -9593,7 +9593,7 @@ sub expand_crypto () {
                 # Add rules to permit crypto traffic between
                 # tunnel endpoints.
                 # If one tunnel endpoint has no known IP address,
-                # these rules have to be added manually.
+                # some rules have to be added manually.
                 my $real_spoke = $tunnel_intf->{real_interface};
                 if (    $real_spoke
                     and $real_spoke->{ip} !~ /^(?:short|unnumbered)$/)
@@ -9606,6 +9606,9 @@ sub expand_crypto () {
                           )
                         {
                             my ($intf1, $intf2) = @$pair;
+
+                            # Don't generate incoming ACL from unknown
+                            # address.
                             next if $intf1->{ip} eq 'negotiated';
                             my $rules_ref =
                               gen_tunnel_rules($intf1, $intf2,
@@ -11511,10 +11514,13 @@ sub check_and_convert_routes () {
                     }
                 }
 
-                # Inform user that route will be missing.
+                # This should never happen, because the route is known 
+                # for the encrypted traffic which is allowed 
+                # by gen_tunnel_rules (even for negotiated interface).
                 else {
-                    warn_msg "Can't determine next hop while moving routes\n",
-                      " of $interface->{name} to $real_intf->{name}\n";
+                    internal_err
+                      "Can't determine next hop while moving routes\n",
+                      " of $interface->{name} to $real_intf->{name}";
                 }
             }
         }
