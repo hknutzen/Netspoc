@@ -88,7 +88,7 @@ router:extern = {
  interface:internet;
 }
 
-network:internet = { ip = 0.0.0.0/0; route_hint; }
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
 
 router:vpn1 = {
  interface:internet = {
@@ -249,7 +249,7 @@ router:extern = {
  interface:internet;
 }
 
-network:internet = { ip = 0.0.0.0/0; route_hint; }
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
 
 router:vpn = {
  managed;

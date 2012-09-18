@@ -1215,7 +1215,7 @@ sub read_network( $ ) {
             defined $network->{ip} and error_atline "Duplicate IP address";
             $network->{ip} = 'unnumbered';
         }
-        elsif (check_flag 'has_subnets' || check_flag 'route_hint') {
+        elsif (check_flag 'has_subnets') {
 
             # Duplicate use of this flag doesn't matter.
             $network->{has_subnets} = 1;
