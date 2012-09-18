@@ -11659,7 +11659,7 @@ sub print_routes( $ ) {
                 my $nat_network = get_nat_network($network, $no_nat_set);
                 my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
                 if ($ip == 0 and $mask == 0) {
-                    $do_auto_default_route = 1;
+                    $do_auto_default_route = 0;
                 }
 
                 # Implicitly overwrite duplicate networks.
@@ -11670,9 +11670,6 @@ sub print_routes( $ ) {
             # Go from smaller to larger networks.
             my @netinfo;
             for my $mask (reverse sort keys %mask_ip_hash) {
-
-                # Network 0.0.0.0/0.0.0.0 can't be subnet.
-                last if $mask == 0;
               NETWORK:
                 for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
 
