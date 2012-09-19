@@ -4029,6 +4029,23 @@ sub link_virtual_interfaces () {
                 next;
             }
 
+            # A virtual interface is used as hop for static routing.
+            # Therefore a network behind this interface must be reachable
+            # via all virtual interfaces of the group.
+            # This can only be guaranteed, if pathrestrictions are identical
+            # on all interfaces.
+            # Exception in routing code:
+            # If the group has ony two interfaces, the one or other
+            # physical interface can be used as hop.
+            if (   @$interfaces >= 3
+                && grep { $_->{path_restrict} } 
+                   map { @{ $_->{router}->{interfaces} } } @$interfaces)
+            {
+                err_msg("Pathrestriction not supported for",
+                        " group of 3 or more virtual interfaces\n ",
+                        join(',', map($interfaces->{name}, @$interfaces)));
+            }
+
             # Automatically add pathrestriction to managed interfaces
             # belonging to $ip2net2virtual.
             # Pathrestriction would be useless for unmanaged device.
@@ -11616,7 +11633,11 @@ sub check_and_convert_routes () {
                     }
                 }
                 else {
-                    warn_msg
+
+                    # This can't occur, because we reject group of
+                    # more than 3 virtual interfaces together with
+                    # pathrestrictions.
+                    internal_err
                         "$network->{name} is reached via $hop1->{name}\n",
                         " but not via all related redundancy interfaces";
                 }
