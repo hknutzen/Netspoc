@@ -1,5 +1,14 @@
 {{$NEXT}}
 
+3.019     2012-09-20 11:02:33 Europe/Berlin
+
+- No longer generate IPSec commands "isakmp identity", "isakmp nat-traversal"
+- Removed option warn_pix_icmp_code. ICMP code is ignored silently now.
+- Many consistency checks have been moved to an earlier phase 
+  of the comilation process.
+- Fixed some minor bugs.
+- Added more test cases.
+
 3.018     2012-08-15 14:22:45 Europe/Berlin
 
 - Only check aggregates/supernets with mask = 0 for transient any rules.
