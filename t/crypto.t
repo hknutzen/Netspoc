@@ -88,7 +88,7 @@ router:extern = {
  interface:internet;
 }
 
-network:internet = { ip = 0.0.0.0/0; route_hint; }
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
 
 router:vpn1 = {
  interface:internet = {
@@ -130,7 +130,7 @@ service:test = {
 END
 
 my $out1 = <<END;
-isakmp identity address
+no sysopt connection permit-vpn
 crypto isakmp policy 1
  authentication pre-share
  encryption 3des
@@ -249,7 +249,7 @@ router:extern = {
  interface:internet;
 }
 
-network:internet = { ip = 0.0.0.0/0; route_hint; }
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
 
 router:vpn = {
  managed;

@@ -5,34 +5,41 @@ use strict;
 use warnings;
 
 our @ISA    = qw(Exporter);
-our @EXPORT = qw(compile get_block);
+our @EXPORT = qw(compile compile_err get_block);
 
 use Test::More;
-use File::Temp qw/ tempfile tempdir /;
+use IPC::Run3;
 
 my $options = '-quiet -check_redundant_rules=0 -check_service_unknown_owner=0';
+
+sub run {
+    my($input) = @_;
+
+    my $cmd = "perl -I lib bin/netspoc $options -";
+    my ($stdout, $stderr);
+    run3($cmd, \$input, \$stdout, \$stderr);
+    my $status = $?;
+    return($status, $stdout, $stderr);
+}
+
 sub compile {
-    my($config) = @_;
+    my($input) = @_;
+    my ($status, $stdout, $stderr) = run($input);
 
-    my ($fh, $filename) = tempfile(UNLINK => 1);
-    print $fh $config;
-    close $fh;
+    # 0: Success, 1: compare found diffs
+    $status == 0 || $status == 1 or 
+	    die "Status from compile $status\n";
+    $stderr and die "Unexpected output on STDERR:\n$stderr\n";
+    return($stdout);
+}
 
-    my $cmd = "perl -I lib bin/netspoc $options $filename";
-    open(COMPILE, '-|', $cmd) or die "Can't execute $cmd: $!\n";
-
-    # Undef input record separator to read all output at once.
-    $/ = undef;
-    my $output = <COMPILE>;
-    if (not close(COMPILE)) {
-	$! and  die "Syserr closing pipe from $cmd: $!\n";
-	my $exit_value = $? >> 8;
-
-	# 0: Success, 1: compare found diffs
- 	$exit_value == 0 || $exit_value == 1 or 
-	    die "Status from $cmd: $exit_value\n";
+sub compile_err {
+    my($input) = @_;
+    my ($status, $stdout, $stderr) = run($input);
+    if ($stderr) {
+        $stderr =~ s/\nAborted with \d+ error\(s\)$//ms;
     }
-    return($output);
+    return($stderr);
 }
 
 # Find lines in $data which equal elements in @find.

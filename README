@@ -1,9 +1,9 @@
 
 
 This archive contains the distribution Netspoc,
-version 3.018:
+version 3.019:
 
-  A Network Security Policy Compiler
+  Generates rules for many firewalls from a central ruleset.
 
 This software is Copyright (c) 2012 by Heinz Knutzen.
 

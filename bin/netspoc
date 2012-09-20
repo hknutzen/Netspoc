@@ -72,10 +72,6 @@ Add comments to generated access lists.
 
 Add comments to generated route commands.
 
-=item B<-[no]warn_pix_icmp_code>
-
-Print warning about ignored ICMP code fields at PIX firewalls.
-
 =item B<-ignore_files={regex}>
 
 Ignore these names when reading directories.

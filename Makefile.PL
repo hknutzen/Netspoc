@@ -9,10 +9,11 @@ use ExtUtils::MakeMaker 6.30;
 
 
 my %WriteMakefileArgs = (
-  "ABSTRACT" => "A Network Security Policy Compiler",
+  "ABSTRACT" => "Generates rules for many firewalls from a central ruleset.",
   "AUTHOR" => "Heinz Knutzen <heinz.knutzen\@dataport.de>",
   "BUILD_REQUIRES" => {
     "File::Temp" => 0,
+    "IPC::Run3" => 0,
     "Test::Differences" => 0,
     "Test::More" => 0
   },
@@ -40,7 +41,7 @@ my %WriteMakefileArgs = (
     "utf8" => 0,
     "warnings" => 0
   },
-  "VERSION" => "3.018",
+  "VERSION" => "3.019",
   "test" => {
     "TESTS" => "t/*.t"
   }

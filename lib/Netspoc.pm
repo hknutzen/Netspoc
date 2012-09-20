@@ -32,7 +32,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.018'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.019'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -176,9 +176,6 @@ our %config = (
     comment_acls   => 0,
     comment_routes => 0,
 
-# Print warning about ignored ICMP code fields at PIX firewalls.
-    warn_pix_icmp_code => 0,
-
 # Ignore these names when reading directories:
 # - CVS and RCS directories
 # - CVS working files
@@ -312,7 +309,6 @@ my %router_info = (
         extension           => {
             VPN => {
                 crypto           => 'ASA_VPN',
-                no_crypto_filter => 0,
                 stateless_tunnel => 1,
                 do_auth          => 1,
             },
@@ -1219,7 +1215,7 @@ sub read_network( $ ) {
             defined $network->{ip} and error_atline "Duplicate IP address";
             $network->{ip} = 'unnumbered';
         }
-        elsif (check_flag 'has_subnets' || check_flag 'route_hint') {
+        elsif (check_flag 'has_subnets') {
 
             # Duplicate use of this flag doesn't matter.
             $network->{has_subnets} = 1;
@@ -1233,11 +1229,6 @@ sub read_network( $ ) {
 
             # Duplicate use of this flag doesn't matter.
             $network->{isolated_ports} = 1;
-        }
-        elsif (my $id = check_assign 'id', \&read_user_id) {
-            $network->{id}
-              and error_atline "Duplicate attribute 'id'";
-            $network->{id} = $id;
         }
         elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
             $network->{subnet_of}
@@ -1394,13 +1385,6 @@ sub read_network( $ ) {
 
             # Mark network.
             $network->{has_id_hosts} = 1;
-
-            $network->{id}
-              and error_atline
-              "Must not use attribute 'id' at $network->{name}\n",
-              " when hosts with ID are defined inside";
-        }
-        if ($network->{id} or $network->{has_id_hosts}) {
             $network->{radius_attributes} ||= {};
         }
         else {
@@ -1761,11 +1745,11 @@ sub read_interface( $ ) {
         $interface->{id}
           and error_atline "Attribute 'id' is only valid for 'spoke' interface";
     }
-    if (my $hubs = $interface->{hub}) {
+    if (my $crypto_list = $interface->{hub}) {
         if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
             error_atline "Crypto hub must not be $interface->{ip} interface";
         }
-        for my $crypto (@$hubs) {
+        for my $crypto (@$crypto_list) {
             push @{ $crypto2hubs{$crypto} }, $interface;
         }
     }
@@ -1969,20 +1953,21 @@ sub read_router( $ ) {
         my $model = $router->{model};
 
         unless ($model) {
-            err_msg "Missing 'model' for managed $router->{name}";
+            err_msg "Missing 'model' for managed $name";
 
             # Prevent further errors.
-            $router->{model} = { name => 'unknown' };
+            $model = 'unknown';
+            $router->{model} = { name => $model };
         }
 
         $router->{vrf}
           and not $model->{can_vrf}
-          and err_msg("Must not use VRF at $router->{name}",
+          and err_msg("Must not use VRF at $name",
             " of model $model->{name}");
 
         $router->{log_deny}
           and not $model->{can_log_deny}
-          and err_msg("Must not use attribute 'log_deny' at $router->{name}",
+          and err_msg("Must not use attribute 'log_deny' at $name",
             " of model $model->{name}");
 
         # Create objects representing hardware interfaces.
@@ -2002,7 +1987,7 @@ sub read_router( $ ) {
                         $hardware->{bind_nat}  || $bind_nat0
                       )
                       or err_msg "All logical interfaces of $hw_name\n",
-                      " at $router->{name} must use identical NAT binding";
+                      " at $name must use identical NAT binding";
                 }
                 else {
                     $hardware = { name => $hw_name, loopback => 1 };
@@ -2046,11 +2031,11 @@ sub read_router( $ ) {
             }
             if ($interface->{hub} or $interface->{spoke}) {
                 $model->{crypto}
-                  or err_msg "Crypto not supported for $router->{name}",
+                  or err_msg "Crypto not supported for $name",
                   " of model $model->{name}";
             }
             if ($interface->{no_check}
-                and not($interface->{hub} and $router->{model}->{do_auth}))
+                and not($interface->{hub} and $model->{do_auth}))
             {
                 delete $interface->{no_check};
                 warn_msg "Ignoring attribute 'no_check' at $interface->{name}";
@@ -2108,30 +2093,33 @@ sub read_router( $ ) {
         if ($model->{need_radius}) {
             $router->{radius_servers}
               or err_msg "Attribute 'radius_servers' needs to be defined",
-              " for $router->{name}";
+              " for $name";
         }
         else {
             $router->{radius_servers}
               and err_msg "Attribute 'radius_servers' is not allowed",
-              " for $router->{name}";
+              " for $name";
         }
-        if ($router->{model}->{do_auth}) {
+        if ($model->{do_auth}) {
+
+            grep { $_->{hub} } @{ $router->{interfaces} }
+              or err_msg "Attribute 'hub' needs to be defined",
+              "  at an interface of $name of model $model->{name}";
 
             # Don't support NAT for VPN, otherwise code generation for VPN
             # devices will become more difficult.
             grep { $_->{bind_nat} } @{ $router->{interfaces} }
               and err_msg "Attribute 'bind_nat' is not allowed",
-              " at interface of $router->{name}",
-              " of model $router->{model}->{name}";
+              " at interface of $name of model $model->{name}";
 
             $router->{radius_attributes} ||= {};
         }
         else {
             $router->{radius_attributes}
               and err_msg "Attribute 'radius_attributes' is not allowed",
-              " for $router->{name}";
+              " for $name";
         }
-        if ($router->{model}->{no_crypto_filter}) {
+        if ($model->{no_crypto_filter}) {
             $router->{no_crypto_filter} = 1;
         }
     }
@@ -2798,7 +2786,7 @@ sub read_attributed_object( $$ ) {
             }
         }
 
-        # Convert to from syntax to internal values, e.g. 'none' => undef.
+        # Convert from syntax to internal values, e.g. 'none' => undef.
         if (my $map = $description->{map}) {
             my $value = $object->{$attribute};
             if (exists $map->{$value}) {
@@ -2809,10 +2797,14 @@ sub read_attributed_object( $$ ) {
     return $object;
 }
 
-# Some attributes are currently commented out,
-# because they aren't supported by back-end currently.
 my %isakmp_attributes = (
-    identity      => { values => [qw( address fqdn )], },
+
+    # This one is ignored and is optional.
+    identity      => { 
+        values  => [qw( address fqdn )], 
+        default => 'none',
+        map     => { none => undef }
+    },
     nat_traversal => {
         values  => [qw( on additional off )],
         default => 'off',
@@ -3749,9 +3741,18 @@ sub link_interfaces {
               "to unnumbered $network->{name}";
         }
         elsif ($ip eq 'negotiated') {
+            my $network_mask = $network->{mask};
 
-            # Nothing to be checked: negotiated interface may be linked to
-            # any numbered network.
+            # Negotiated interfaces are dangerous: If the attached
+            # network has address 0.0.0.0/0, we would accidentally
+            # permit 'any'.  We allow this only, if local networks are
+            # protected by crypto.
+            if ($network_mask eq 0 and not $interface->{spoke}) {
+                err_msg "$interface->{name} has negotiated IP",
+                  " in range 0.0.0.0/0.\n",
+                  " This is only allowed for interface",
+                  " protected by crypto spoke";
+            }
         }
         elsif ($ip eq 'bridged') {
 
@@ -4026,6 +4027,23 @@ sub link_virtual_interfaces () {
                   " $interfaces->[0]->{name}";
                 $interfaces->[0]->{redundancy_interfaces} = undef;
                 next;
+            }
+
+            # A virtual interface is used as hop for static routing.
+            # Therefore a network behind this interface must be reachable
+            # via all virtual interfaces of the group.
+            # This can only be guaranteed, if pathrestrictions are identical
+            # on all interfaces.
+            # Exception in routing code:
+            # If the group has ony two interfaces, the one or other
+            # physical interface can be used as hop.
+            if (   @$interfaces >= 3
+                && grep { $_->{path_restrict} } 
+                   map { @{ $_->{router}->{interfaces} } } @$interfaces)
+            {
+                err_msg("Pathrestriction not supported for",
+                        " group of 3 or more virtual interfaces\n ",
+                        join(',', map($interfaces->{name}, @$interfaces)));
             }
 
             # Automatically add pathrestriction to managed interfaces
@@ -4482,8 +4500,7 @@ sub mark_disabled() {
         push @{ $name2vrf{$device_name} }, $router;
         if ($router->{managed}) {
             push @managed_routers, $router;
-            if (grep { $_->{hub} && $router->{model}->{do_auth} }
-                @{ $router->{interfaces} })
+            if ($router->{model}->{do_auth})
             {
                 push @managed_vpnhub, $router;
             }
@@ -4634,6 +4651,22 @@ sub convert_hosts() {
                     $subnet->{private} = $private if $private;
                     $subnet->{owner}   = $owner   if $owner;
                     if ($id) {
+                        if ($mask == 0xffffffff) {
+                            if (my ($name, $dom) = ($id =~ /^(.*?)(\@.*)$/)) {
+                                $name
+                                    or err_msg("ID of $name must not start", 
+                                               " with character '\@'");
+                            }
+                            else {
+                                err_msg("ID of $name must contain",
+                                        " character '\@'");
+                            }
+                        }
+                        else {
+                            $id =~ /^\@/
+                                or err_msg("ID of $name must start",
+                                           " with character '\@'");
+                        }
                         $subnet->{id} = $id;
                         $subnet->{radius_attributes} =
                           $host->{radius_attributes};
@@ -6725,18 +6758,18 @@ sub distribute_no_nat_set {
 
                                 # Prevent transition from dynamic back to
                                 # static NAT for current network.
-                                if (    $href->{$multi}->{dynamic}
+                                if ($href->{$multi}->{hidden}) {
+                                    my $net_name = $href->{$multi}->{name};
+                                    err_msg "Must not change hidden NAT",
+                                      " for $net_name at $router->{name}";
+                                }
+                                elsif (    $href->{$multi}->{dynamic}
                                     and not $href->{$nat_tag}->{dynamic}
                                     and not $href->{$nat_tag}->{hidden})
                                 {
                                     my $net_name = $href->{$multi}->{name};
                                     err_msg "Must not change NAT",
                                       " from dynamic to static",
-                                      " for $net_name at $router->{name}";
-                                }
-                                elsif ($href->{$multi}->{hidden}) {
-                                    my $net_name = $href->{$multi}->{name};
-                                    err_msg "Must not change hidden NAT",
                                       " for $net_name at $router->{name}";
                                 }
                             }
@@ -7583,6 +7616,22 @@ sub check_crosslink () {
     }
 }
 
+# Reroute permit is not allowed between different security zones.
+sub check_reroute_permit {
+    for my $zone (@zones) {
+        for my $interface (@{ $zone->{interfaces} }) {
+            my $networks = $interface->{reroute_permit} or next;
+            for my $net (@$networks) {
+                my $net_zone = $net->{zone};
+                if (!zone_eq($net_zone, $zone)) {
+                    err_msg "Invalid reroute_permit for $net->{name} ",
+                    "at $interface->{name}: different security zones";
+                }
+            }
+        }
+    }    
+}
+
 ####################################################################
 # Borders of security zones are
 # a) interfaces of managed devices and
@@ -7719,7 +7768,7 @@ sub link_aggregates {
     }
 
     # Add one aggregate to each zone where none has been defined,
-    # to be used in implcit aggregates any:[..].
+    # to be used in implicit aggregates any:[..].
     for my $zone (@zones) {
         my $key = '0/0';
         next if $zone->{ipmask2aggregate}->{'0/0'};
@@ -7846,6 +7895,14 @@ sub set_zone_cluster {
             }
         }
     }
+}
+
+# Two zones are zone_eq, if
+# - zones are equal or
+# - both belong to the same zone cluster.
+sub zone_eq {
+    my ($zone1, $zone2) = @_;
+    ($zone1->{zone_cluster} || $zone1) eq ($zone2->{zone_cluster} || $zone2);
 }
 
 # Collect all zones belonging to an area.
@@ -8003,6 +8060,7 @@ sub set_zone {
 
     check_no_in_acl;
     check_crosslink;
+    check_reroute_permit;
     check_vpnhub;
 
     # Mark interfaces, which are border of some area.
@@ -8159,7 +8217,10 @@ sub check_pathrestrictions() {
             }
         }
         if (!grep($_->{router}->{managed}, @$elements)) {
-            if (equal(map($_->{zone}->{zone_cluster} || '', @$elements))) {
+
+            # Unmanaged router with pathrestriction is known to be
+            # part of zone_cluster.
+            if (equal(map($_->{zone}->{zone_cluster}, @$elements))) {
                 warn_msg(
                     "Useless $restrict->{name}.\n",
                     " All interfaces are unmanaged and",
@@ -9257,8 +9318,8 @@ sub link_tunnels () {
 
         # Substitute crypto name by crypto object.
         for my $real_hub (@$real_hubs) {
-            for my $hub (@{ $real_hub->{hub} }) {
-                $hub eq $name and $hub = $crypto;
+            for my $crypto_name (@{ $real_hub->{hub} }) {
+                $crypto_name eq $name and $crypto_name = $crypto;
             }
         }
         push @real_interfaces, @$real_hubs;
@@ -9342,7 +9403,7 @@ sub link_tunnels () {
             for my $interface (@{ $router->{interfaces} }) {
                 my $network = $interface->{network};
                 if ($network->{has_id_hosts}) {
-                    $has_id_hosts = 1;
+                    $has_id_hosts = $network;
                 }
                 elsif ($interface ne $real_spoke
                     && $interface->{ip} ne 'tunnel')
@@ -9351,8 +9412,8 @@ sub link_tunnels () {
                 }
             }
             if ($has_id_hosts and @other) {
-                err_msg "Must not use network with ID hosts together with",
-                  " networks having no ID host: ",
+                err_msg "Must not use $has_id_hosts->{name} with ID hosts",
+                  " together with networks having no ID host: ",
                   join(',', map { $_->{name} } @other);
             }
             push @real_interfaces, $real_spoke;
@@ -9392,7 +9453,7 @@ sub link_tunnels () {
     # Automatically add active pathrestriction to the real interface.
     # This allows direct traffic to the real interface from outside,
     # but no traffic from or to the real interface passing the router.
-    for my $intf1 (@real_interfaces) {
+    for my $intf1 (unique(@real_interfaces)) {
         next if $intf1->{no_check};
         push @{ $intf1->{path_restrict} }, $global_active_pathrestriction;
     }
@@ -9438,151 +9499,139 @@ sub expand_crypto () {
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
 
-        # Add crypto rules to encrypt traffic for all networks
-        # at the remote location.
-        if ($crypto->{tunnel_all}) {
-            for my $tunnel (@{ $crypto->{tunnels} }) {
-                next if $tunnel->{disabled};
-                for my $tunnel_intf (@{ $tunnel->{interfaces} }) {
-                    next if $tunnel_intf->{is_hub};
-                    my $router  = $tunnel_intf->{router};
-                    my $managed = $router->{managed};
-                    my @encrypted;
-                    my $has_id_network;
-                    my $has_id_hosts;
-                    my $has_other_network;
-                    for my $interface (@{ $router->{interfaces} }) {
-                        next if $interface->{ip} eq 'tunnel';
-                        next if $interface->{spoke};
+        # Do consistency checks and
+        # add rules which allow encrypted traffic.
+        for my $tunnel (@{ $crypto->{tunnels} }) {
+            next if $tunnel->{disabled};
+            for my $tunnel_intf (@{ $tunnel->{interfaces} }) {
+                next if $tunnel_intf->{is_hub};
+                my $router  = $tunnel_intf->{router};
+                my $managed = $router->{managed};
+                my @encrypted;
+                my $has_id_hosts;
+                my $has_other_network;
+                for my $interface (@{ $router->{interfaces} }) {
+                    next if $interface eq $tunnel_intf;
+                    if ($interface->{ip} eq 'tunnel') {
+                        if ($managed && $router->{model}->{crypto} eq 'EZVPN') {
+                            err_msg "Exactly 1 crypto tunnel expected",
+                                " for $router->{name} with EZVPN";
+                        }
+                        next;
+                    }
+                    next if $interface->{spoke};
 
-                        my $network = $interface->{network};
-                        my @all_networks = crypto_behind($interface, $managed);
-                        if ($network->{has_id_hosts}) {
-                            $has_id_hosts = 1;
-                            $managed
+                    my $network = $interface->{network};
+                    my @all_networks = crypto_behind($interface, $managed);
+                    if ($network->{has_id_hosts}) {
+                        $has_id_hosts = 1;
+                        $managed
+                          and err_msg
+                          "$network->{name} having ID hosts must not",
+                          " be located behind managed $router->{name}";
+
+                        # Must not have multiple networks.
+                        @all_networks > 1 and internal_err;
+
+                        # Rules for single software clients are stored
+                        # individually at crypto hub interface.
+                        for my $host (@{ $network->{hosts} }) {
+                            my $id      = $host->{id};
+                            my $subnets = $host->{subnets};
+                            @$subnets > 1
                               and err_msg
-                              "$network->{name} having ID hosts must not",
-                              " be located behind managed $router->{name}";
+                              "$host->{name} with ID must expand to",
+                              "exactly one subnet";
+                            my $subnet = $subnets->[0];
+                            for my $peer (@{ $tunnel_intf->{peers} }) {
+                                $peer->{id_rules}->{$id} = {
+                                    name       => "$peer->{name}.$id",
+                                    ip         => 'tunnel',
+                                    src        => $subnet,
+                                    no_nat_set => $peer->{no_nat_set},
 
-                            # Must not have multiple networks.
-                            @all_networks > 1 and internal_err;
-
-                            # Rules for single software clients are stored
-                            # individually at crypto hub interface.
-                            for my $host (@{ $network->{hosts} }) {
-                                my $id      = $host->{id};
-                                my $subnets = $host->{subnets};
-                                @$subnets > 1
-                                  and err_msg
-                                  "$host->{name} with ID must expand to",
-                                  "exactly one subnet";
-                                my $subnet = $subnets->[0];
-                                for my $peer (@{ $tunnel_intf->{peers} }) {
-                                    $peer->{id_rules}->{$id} = {
-                                        name       => "$peer->{name}.$id",
-                                        ip         => 'tunnel',
-                                        src        => $subnet,
-                                        no_nat_set => $peer->{no_nat_set},
-
-                                        # Needed during local_optimization.
-                                        router => $peer->{router},
-                                    };
-                                }
+                                    # Needed during local_optimization.
+                                    router => $peer->{router},
+                                };
                             }
-                            push @encrypted, $network;
                         }
-                        else {
-                            if (my $id = $network->{id}) {
-                                @all_networks > 1
-                                  and err_msg "Only one network supported",
-                                  "at crypto $interface->{name} with ID";
-                                $tunnel_intf->{id}
-                                  and err_msg "Must no use ID both at",
-                                  " $network->{name} and at",
-                                  " $interface->{name}";
-                                $tunnel_intf->{id} = $id;
-                                $has_id_network = 1;
+                        push @encrypted, $network;
+                    }
+                    else {
+                        $has_other_network = 1;
+                        push @encrypted, @all_networks;
+                        if (my $id = $interface->{id}) {
+                            if (my $intf2 = $id2interface{$id}) {
+                                err_msg "Same ID '$id' is used at",
+                                  " $interface->{name} and $intf2->{name}";
                             }
-                            else {
-                                $has_other_network = 1;
-                            }
-                            push @encrypted, @all_networks;
-                            if (my $id = $interface->{id}) {
-                                if (my $intf2 = $id2interface{$id}) {
-                                    err_msg "Same ID '$id' is used at",
-                                      " $interface->{name} and $intf2->{name}";
-                                }
-                                $id2interface{$id} = $interface;
-                            }
+                            $id2interface{$id} = $interface;
                         }
                     }
-                    if ($has_id_network and $has_other_network) {
-                        err_msg
-                          "Must not use network with ID and other network",
-                          " together at $router->{name}";
+                }
+                $has_id_hosts
+                  and $has_other_network
+                  and err_msg(
+                    "Must not use host with ID and network",
+                    " together at $tunnel_intf->{name}: ",
+                    join(', ', map { $_->{name} } @encrypted)
+                  );
+                     $has_id_hosts
+                  or $has_other_network
+                  or err_msg(
+                    "Must use network or host with ID",
+                    " at $tunnel_intf->{name}: ",
+                    join(', ', map { $_->{name} } @encrypted)
+                  );
+
+                for my $peer (@{ $tunnel_intf->{peers} }) {
+                    $peer->{peer_networks} = \@encrypted;
+
+                    # ID can only be checked at hub with attribute do_auth.
+                    my $router  = $peer->{router};
+                    my $do_auth = $router->{model}->{do_auth};
+                    if ($tunnel_intf->{id}) {
+                        $do_auth
+                          or err_msg "$router->{name} can't check IDs",
+                          " of $tunnel_intf->{name}";
                     }
-                    $has_id_hosts
-                      and $has_other_network
-                      and err_msg(
-                        "Must not use host with ID and network",
-                        " together at $tunnel_intf->{name}: ",
-                        join(', ', map { $_->{name} } @encrypted)
-                      );
-                         $has_id_hosts
-                      or $has_id_network
-                      or $has_other_network
-                      or err_msg(
-                        "Must use network or host with ID",
-                        " at $tunnel_intf->{name}: ",
-                        join(', ', map { $_->{name} } @encrypted)
-                      );
-
-                    for my $peer (@{ $tunnel_intf->{peers} }) {
-                        $peer->{peer_networks} = \@encrypted;
-
-                        # ID can only be checked at hub with attribute do_auth.
-                        my $router  = $peer->{router};
-                        my $do_auth = $router->{model}->{do_auth};
-                        if ($tunnel_intf->{id}) {
-                            $do_auth
-                              or err_msg "$router->{name} can't check IDs",
-                              " of $tunnel_intf->{name}";
-                        }
-                        elsif ($encrypted[0]->{has_id_hosts}) {
-                            $do_auth
-                              or err_msg "$router->{name} can't check IDs",
-                              " of $tunnel_intf->{name}";
-                        }
-                        elsif ($do_auth) {
-                            err_msg "$router->{name} can only check",
-                              " interface or host having ID",
-                              " at $tunnel_intf->{name}";
-                        }
+                    elsif ($encrypted[0]->{has_id_hosts}) {
+                        $do_auth
+                          or err_msg "$router->{name} can't check IDs",
+                          " of $tunnel_intf->{name}";
                     }
+                    elsif ($do_auth) {
+                        err_msg "$router->{name} can only check",
+                          " interface or host having ID",
+                          " at $tunnel_intf->{name}";
+                    }
+                }
 
-                    # Add rules to permit crypto traffic between
-                    # tunnel endpoints.
-                    # If one tunnel endpoint has no known IP address,
-                    # these rules have to be added manually.
-                    my $real_spoke = $tunnel_intf->{real_interface};
-                    if (    $real_spoke
-                        and $real_spoke->{ip} !~ /^(?:short|unnumbered)$/)
-                    {
-                        for my $hub (@{ $tunnel_intf->{peers} }) {
-                            my $real_hub = $hub->{real_interface};
-                            for my $pair (
-                                [ $real_spoke, $real_hub ],
-                                [ $real_hub,   $real_spoke ]
-                              )
-                            {
-                                my ($intf1, $intf2) = @$pair;
-                                next if $intf1->{ip} eq 'negotiated';
-                                my $rules_ref =
-                                  gen_tunnel_rules($intf1, $intf2,
-                                    $crypto->{type});
-                                push @{ $expanded_rules{permit} }, @$rules_ref;
-                                add_rules $rules_ref;
-                            }
+                # Add rules to permit crypto traffic between
+                # tunnel endpoints.
+                # If one tunnel endpoint has no known IP address,
+                # some rules have to be added manually.
+                my $real_spoke = $tunnel_intf->{real_interface};
+                if (    $real_spoke
+                    and $real_spoke->{ip} !~ /^(?:short|unnumbered)$/)
+                {
+                    for my $hub (@{ $tunnel_intf->{peers} }) {
+                        my $real_hub = $hub->{real_interface};
+                        for my $pair (
+                            [ $real_spoke, $real_hub ],
+                            [ $real_hub,   $real_spoke ]
+                          )
+                        {
+                            my ($intf1, $intf2) = @$pair;
+
+                            # Don't generate incoming ACL from unknown
+                            # address.
+                            next if $intf1->{ip} eq 'negotiated';
+                            my $rules_ref =
+                              gen_tunnel_rules($intf1, $intf2,
+                                $crypto->{type});
+                            push @{ $expanded_rules{permit} }, @$rules_ref;
+                            add_rules $rules_ref;
                         }
                     }
                 }
@@ -10437,11 +10486,6 @@ sub gen_reverse_rules1 ( $ ) {
 
                     # Source of current rule is current router.
                     or not $in_intf and $model->{stateless_self}
-
-                    # Stateless tunnel interface of ASA-VPN.
-                    or $model->{stateless_tunnel}
-                    and $out_intf->{ip} eq 'tunnel'
-                    and not $router->{no_crypto_filter}
                   )
                 {
                     $has_stateless_router = 1;
@@ -10656,41 +10700,31 @@ sub mark_secondary_rules() {
             my $hidden;
             my $dynamic;
 
+          TAG:
             for my $nat_tag (keys %$nat_hash) {
-                next if $no_nat_set->{$nat_tag};
+
+                # Find $nat_tag which is effective at $other.
+                # - simple: $other is host or network, $nat_domain is known.
+                # - loop: $other is aggregate.
+                #         Check all NAT domains inside the zone.
+                if ($nat_domain) {
+                    next if $no_nat_set->{$nat_tag};
+                }
+                else {
+                    for my $interface (@{ $other->{zone}->{interfaces} }) {
+                        my $no_nat_set = $interface->{no_nat_set};
+                        next TAG if $no_nat_set->{$nat_tag};
+                        last;
+                    }
+                }
+
                 my $nat_network = $nat_hash->{$nat_tag};
 
                 # Network is hidden by NAT.
                 if ($nat_network->{hidden} and not $hidden) {
-                    if ($nat_domain) {
-                        $hidden = 1;
-                    }
-
-                    # Other is aggregate, check interface where zone is entered.
-                    else {
-                        my @interfaces;
-                        path_walk(
-                            $rule,
-                            sub {
-                                my ($rule, $in_intf, $out_intf) = @_;
-                                if ($out_intf && $out_intf->{zone} eq $other) {
-                                    push @interfaces, $out_intf;
-                                }
-                            }
-                        );
-                        for my $interface (@interfaces) {
-                            my $no_nat_set = $interface->{no_nat_set};
-                            next if $no_nat_set->{$nat_tag};
-                            my $nat_network = $nat_hash->{$nat_tag};
-                            if ($nat_network->{hidden}) {
-                                $hidden = 1;
-                            }
-                        }
-                    }
-                    if ($hidden) {
-                        err_msg "$obj->{name} is hidden by NAT in rule\n ",
-                          print_rule $rule;
-                    }
+                    $hidden = 1;
+                    err_msg("$obj->{name} is hidden by NAT in rule\n ",
+                            print_rule $rule);
                 }
 
                 # Network has dynamic NAT.
@@ -10700,6 +10734,30 @@ sub mark_secondary_rules() {
                     and not $obj->{nat}->{$nat_tag}
                     and not $dynamic)
                 {
+                    # Check error condition: Dynamic NAT address is
+                    # used in ACL at managed router at the border of
+                    # the zone of $obj. 
+                    # $intf could have value 'undef' if $obj is interface of
+                    # current router and destination of rule.
+                    my $check = sub {
+                        my ($rule, $in_intf, $out_intf) = @_;
+                        my $no_nat_set = $in_intf->{no_nat_set};
+                        my $nat_network = 
+                            get_nat_network($network, $no_nat_set);
+                        my $nat_tag = $nat_network->{dynamic};
+                        return if not $nat_tag;
+                        return if $obj->{nat}->{$nat_tag};
+                        my $intf = $where eq 'src' ? $in_intf : $out_intf;
+                        if (!$intf || 
+                            zone_eq($network->{zone}, $intf->{zone}))
+                        {
+                            err_msg "$obj->{name} needs static translation",
+                                " for nat:$nat_tag to be valid in rule\n ",
+                            print_rule $rule;
+                        }
+                    };
+                    path_walk($rule, $check);
+                        
                     $dynamic_nat =
                       $dynamic_nat
                       ? "$dynamic_nat,$where"
@@ -11045,8 +11103,8 @@ sub get_route_networks {
 # - All interfaces of border networks, which are not border interfaces,
 #   are called hop interfaces, because they are used as next hop from
 #   border interfaces.
-# - A cluster is a maximal set of networks of the security zone,
-#   which is surrounded by hop interfaces.
+# - A cluster is a maximal set of connected networks of the security zone,
+#   which is surrounded by hop interfaces. A cluster can be empty.
 # For each border interface I and each network N inside the security zone
 # we need to find the hop interface H via which N is reached from I.
 # This is stored in an attribute {route_in_zone} of I.
@@ -11097,8 +11155,8 @@ sub set_routes_in_zone ( $ ) {
         my $cluster = {};
         $set_cluster->($interface->{router}, $interface, $cluster);
 
-#	debug $interface->{name};
-#	debug join ',', map {$_->{name}} values %$cluster if keys %$cluster;
+#	debug "Cluster: $interface->{name} ",
+#            join ',', map {$_->{name}} values %$cluster;
     }
 
     # Find all networks located behind a hop interface.
@@ -11111,6 +11169,7 @@ sub set_routes_in_zone ( $ ) {
 
         # Add networks of directly attached cluster to result.
         my @result = values %$cluster;
+        $hop2networks{$hop} = \@result;
 
         for my $border (values %{ $cluster2borders{$cluster} }) {
             next if $border eq $in_border;
@@ -11127,7 +11186,7 @@ sub set_routes_in_zone ( $ ) {
                 push @result, @{ $hop2networks{$out_hop} };
             }
         }
-        $hop2networks{$hop} = \@result;
+#	debug "Hop: $hop->{name} ", join ',', map {$_->{name}} @result;
     };
     for my $border (values %border_networks) {
         my @border_intf;
@@ -11472,10 +11531,13 @@ sub check_and_convert_routes () {
                     }
                 }
 
-                # Inform user that route will be missing.
+                # This should never happen, because the route is known 
+                # for the encrypted traffic which is allowed 
+                # by gen_tunnel_rules (even for negotiated interface).
                 else {
-                    warn_msg "Can't determine next hop while moving routes\n",
-                      " of $interface->{name} to $real_intf->{name}\n";
+                    internal_err
+                      "Can't determine next hop while moving routes\n",
+                      " of $interface->{name} to $real_intf->{name}";
                 }
             }
         }
@@ -11523,7 +11585,7 @@ sub check_and_convert_routes () {
                         $net2intf{$network} = $interface;
                     }
                     unless ($interface->{routing}) {
-                        my $group = $hop->{redundancy_interfaces} || '';
+                        my $group = $hop->{redundancy_interfaces};
                         if ($group) {
                             push @{ $net2group{$network} }, $hop;
                         }
@@ -11532,8 +11594,8 @@ sub check_and_convert_routes () {
                             # Network is reached via two different hops.
                             # Check if both belong to same group
                             # of redundancy interfaces.
-                            my $group2 = $hop2->{redundancy_interfaces} || '';
-                            if ($group eq $group2) {
+                            my $group2 = $hop2->{redundancy_interfaces};
+                            if ($group && $group2 && $group eq $group2) {
 
                                 # Prevent multiple identical routes to
                                 # different interfaces
@@ -11556,17 +11618,28 @@ sub check_and_convert_routes () {
             for my $net_ref (keys %net2group) {
                 my $hops = $net2group{$net_ref};
                 my $hop1 = $hops->[0];
-                if (@$hops != @{ $hop1->{redundancy_interfaces} }) {
-                    my ($network) =
-                      grep { $_ eq $net_ref }
-                      values %{ $interface->{routes}->{$hop1} };
+                next if @$hops == @{ $hop1->{redundancy_interfaces} };
+                my $network = $interface->{routes}->{$hop1}->{$net_ref};
 
-                    # Test for loopback isn't really needed.
-                    # It's only a temporary hack to prevent some warnings.
-                    $network->{loopback}
-                      or warn_msg
-                      "$network->{name} is reached via $hop1->{name}",
-                      " but not via related redundancy interfaces";
+                # A network is routed to a single physical interface.
+                # It is probably a loopback interface of the same device.
+                # Move hop from virtual to physical interface.
+                if (@$hops == 1 && (my $phys_hop = $hop1->{orig_main})) {
+                    delete $interface->{routes}->{$hop1}->{$net_ref};
+                    $interface->{routes}->{$phys_hop}->{$network} = $network;
+                    my $aref = $interface->{hop};
+                    if (!grep { $_ eq $phys_hop } @$aref) {
+                        push @$aref, $phys_hop;
+                    }
+                }
+                else {
+
+                    # This can't occur, because we reject group of
+                    # more than 3 virtual interfaces together with
+                    # pathrestrictions.
+                    internal_err
+                        "$network->{name} is reached via $hop1->{name}\n",
+                        " but not via all related redundancy interfaces";
                 }
             }
         }
@@ -11607,7 +11680,7 @@ sub print_routes( $ ) {
                 my $nat_network = get_nat_network($network, $no_nat_set);
                 my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
                 if ($ip == 0 and $mask == 0) {
-                    $do_auto_default_route = 1;
+                    $do_auto_default_route = 0;
                 }
 
                 # Implicitly overwrite duplicate networks.
@@ -11618,9 +11691,6 @@ sub print_routes( $ ) {
             # Go from smaller to larger networks.
             my @netinfo;
             for my $mask (reverse sort keys %mask_ip_hash) {
-
-                # Network 0.0.0.0/0.0.0.0 can't be subnet.
-                last if $mask == 0;
               NETWORK:
                 for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
 
@@ -11776,11 +11846,6 @@ sub print_nat1 {
                 }
 
                 # We are talking about source addresses.
-                if ($in_dynamic) {
-                    warn_msg "Duplicate NAT for already dynamically",
-                      " translated $network->{name}\n",
-                      " at hardware $in_hw->{name} of $router->{name}";
-                }
                 if ($out_dynamic) {
 
                     # Check for static NAT entries of hosts and interfaces.
@@ -12074,10 +12139,7 @@ sub distribute_rule( $$$ ) {
     if ($rule->{stateless}) {
         if (
             not(   $model->{stateless}
-                or not $out_intf and $model->{stateless_self}
-                or $model->{stateless_tunnel}
-                and $in_intf->{ip} eq 'tunnel'
-                and not $router->{no_crypto_filter})
+                or not $out_intf and $model->{stateless_self})
           )
         {
             return;
@@ -12120,17 +12182,6 @@ sub distribute_rule( $$$ ) {
 
             # Ignore object with static translation.
             next if $obj->{nat}->{$nat_tag};
-
-            # Object is located in the same security zone, hence
-            # there is no other managed router in between.
-            # $intf could have value 'undef' if $obj is interface of
-            # current router and destination of rule.
-            my $intf = $where eq 'src' ? $in_intf : $out_intf;
-            if (!$intf || $network->{zone} eq $intf->{zone}) {
-                err_msg "$obj->{name} needs static translation",
-                  " for nat:$nat_tag\n", " to be valid in rule\n ",
-                  print_rule $rule;
-            }
 
             # Otherwise, filtering occurs at other router, therefore
             # the whole network can pass here.
@@ -12398,18 +12449,6 @@ sub add_router_acls () {
                 # some internal networks.
                 if ($interface->{reroute_permit}) {
                     for my $net (@{ $interface->{reroute_permit} }) {
-
-                        # This is not allowed between different
-                        # security zones.
-                        my $net_zone  = $net->{zone};
-                        my $intf_zone = $interface->{zone};
-                        if (($net_zone->{zone_cluster} || $net_zone) ne
-                            ($intf_zone->{zone_cluster} || $intf_zone))
-                        {
-                            err_msg "Invalid reroute_permit for $net->{name} ",
-                              "at $interface->{name}: different security zones";
-                            next;
-                        }
 
                         # Prepend to all other rules.
                         unshift(
@@ -12724,16 +12763,8 @@ sub address( $$ ) {
 
         my $network = get_nat_network($obj->{network}, $no_nat_set);
 
-        # Negotiated interfaces are dangerous:
-        # If the attached network has address 0.0.0.0/0,
-        # we would accidentally permit 'any'.
-        # We allow this only, if local networks are protected by tunnel_all.
         if ($obj->{ip} eq 'negotiated') {
             my ($network_ip, $network_mask) = @{$network}{ 'ip', 'mask' };
-            if ($network_mask eq 0 and not $obj->{spoke}) {
-                err_msg "$obj->{name} has negotiated IP in range 0.0.0.0/0.\n",
-                  "This is only allowed for interfaces protected by 'tunnel_all'.";
-            }
             return [ $network_ip, $network_mask ];
         }
         if (my $nat_tag = $network->{dynamic}) {
@@ -12811,19 +12842,6 @@ sub prefix_code( $ ) {
     return $prefix_code == 32 ? $ip_code : "$ip_code/$prefix_code";
 }
 
-my %pix_prt_hole;
-
-# Print warnings about the PIX protocol hole.
-sub warn_pix_icmp() {
-    if (%pix_prt_hole) {
-        warn_msg "Ignored the code field of the following ICMP protocols\n",
-          " while generating code for pix firewalls:";
-        while (my ($name, $count) = each %pix_prt_hole) {
-            print STDERR " $name: $count times\n";
-        }
-    }
-}
-
 # Returns 3 values for building an IOS or PIX ACL:
 # permit <val1> <src> <val2> <dst> <val3>
 sub cisco_prt_code( $$$ ) {
@@ -12856,11 +12874,6 @@ sub cisco_prt_code( $$$ ) {
         };
         my $dst_prt = $port_code->(@{ $prt->{range} });
         if (my $established = $prt->{established}) {
-            if ($model->{filter} eq 'PIX') {
-                err_msg "Must not use 'established' at '$model->{name}'\n",
-                  " - don't use outgoing TCP connection to VPN client or \n",
-                  " - try attribute 'no_crypto_filter'";
-            }
             if (defined $dst_prt) {
                 $dst_prt .= ' established';
             }
@@ -12874,15 +12887,14 @@ sub cisco_prt_code( $$$ ) {
         if (defined(my $type = $prt->{type})) {
             if (defined(my $code = $prt->{code})) {
                 if ($model->{filter} eq 'VPN3K') {
-                    err_msg "Device of model $model->{name} can handle",
-                      " only simple ICMP\n but not $prt->{name}";
+                    # VPN3K can't handle the ICMP code field.
+                    return ($proto, undef, $type);
                 }
                 if ($model->{no_filter_icmp_code}) {
 
                     # PIX can't handle the ICMP code field.
                     # If we try to permit e.g. "port unreachable",
                     # "unreachable any" could pass the PIX.
-                    $pix_prt_hole{ $prt->{name} }++;
                     return ($proto, undef, $type);
                 }
                 else {
@@ -14764,9 +14776,6 @@ sub print_vpn3k( $ ) {
                 my $id = $src->{id};
                 my $ip = print_ip $src->{ip};
                 if ($src->{mask} == 0xffffffff) {
-                    $id =~ /^\@/
-                      and err_msg
-                      "ID of $src->{name} must not start with character '\@'";
 
                     $entry{id} = $id;
                     $entry{'Framed-IP-Address'} = $ip;
@@ -15035,12 +15044,9 @@ my %asa_vpn_attributes = (
 sub print_asavpn ( $ ) {
     my ($router)         = @_;
     my $model            = $router->{model};
-    my $no_crypto_filter = $router->{no_crypto_filter};
     my $no_nat_set       = $router->{hardware}->[0]->{no_nat_set};
 
-    if ($no_crypto_filter) {
-        print "no sysopt connection permit-vpn\n";
-    }
+    print "no sysopt connection permit-vpn\n";
     my $global_group_name = 'global';
     print <<"EOF";
 group-policy $global_group_name internal
@@ -15180,18 +15186,16 @@ EOF
 
                 # Access list will be bound to cleartext interface.
                 # Only check for valid source address at vpn-filter.
-                if ($no_crypto_filter) {
-                    $id_intf->{intf_rules} = [];
-                    $id_intf->{rules}      = [
-                        {
-                            action    => 'permit',
-                            src       => $src,
-                            dst       => $network_00,
-                            src_range => $prt_ip,
-                            prt       => $prt_ip,
-                        }
-                    ];
-                }
+                $id_intf->{intf_rules} = [];
+                $id_intf->{rules}      = [
+                    {
+                        action    => 'permit',
+                        src       => $src,
+                        dst       => $network_00,
+                        src_range => $prt_ip,
+                        prt       => $prt_ip,
+                    }
+                ];
                 find_object_groups($router, $id_intf);
 
                 # Define filter ACL to be used in username or group-policy.
@@ -15207,20 +15211,13 @@ EOF
                 my $ip      = print_ip $src->{ip};
                 my $network = $src->{network};
                 if ($src->{mask} == 0xffffffff) {
-                    if (my ($name, $domain) = ($id =~ /^(.*?)(\@.*)$/)) {
-                        $name
-                          or err_msg("ID of $src->{name} must not start",
-                            " with character '\@'");
 
-                        # For anyconnect clients.
-                        if ($model->{v8_4}) {
-                            $single_cert_map{$domain} = 1;
-                        }
+                    # For anyconnect clients.
+                    if ($model->{v8_4}) {
+                        my ($name, $domain) = ($id =~ /^(.*?)(\@.*)$/);
+                        $single_cert_map{$domain} = 1;
                     }
-                    else {
-                        err_msg("ID of $src->{name} must contain",
-                            " character '\@'");
-                    }
+
                     my $mask = print_ip $network->{mask};
                     my $group_policy_name;
                     if (%$attributes) {
@@ -15237,9 +15234,6 @@ EOF
                     print "\n";
                 }
                 else {
-                    $id =~ /^\@/
-                      or err_msg "ID of $src->{name} must start with",
-                      " character '\@'";
                     $pool_name = "pool-$user_counter";
                     my $mask = print_ip $src->{mask};
                     my $max =
@@ -15318,21 +15312,19 @@ EOF
 
             # Access list will be bound to cleartext interface.
             # Only check for correct source address at vpn-filter.
-            if ($no_crypto_filter) {
-                $interface->{intf_rules} = [];
-                $interface->{rules}      = [
-                    map {
-                        {
-                            action    => 'permit',
-                            src       => $_,
-                            dst       => $network_00,
-                            src_range => $prt_ip,
-                            prt       => $prt_ip,
-                        }
-                      } @{ $interface->{peer_networks} }
-                ];
-                find_object_groups($router, $interface);
-            }
+            $interface->{intf_rules} = [];
+            $interface->{rules}      = [
+                map {
+                    {
+                        action    => 'permit',
+                        src       => $_,
+                        dst       => $network_00,
+                        src_range => $prt_ip,
+                        prt       => $prt_ip,
+                    }
+                  } @{ $interface->{peer_networks} }
+            ];
+            find_object_groups($router, $interface);
 
             # Define filter ACL to be used in username or group-policy.
             my $filter_name = "vpn-filter-$user_counter";
@@ -15592,9 +15584,7 @@ sub print_ezvpn( $ ) {
     my $comment_char = $model->{comment_char};
     my @interfaces   = @{ $router->{interfaces} };
     my @tunnel_intf = grep { $_->{ip} eq 'tunnel' } @interfaces;
-    @tunnel_intf == 1
-      or err_msg
-      "Exactly 1 crypto tunnel expected for $router->{name} with EZVPN";
+    @tunnel_intf == 1 or internal_err;
     my ($tunnel_intf) = @tunnel_intf;
     my $wan_intf = $tunnel_intf->{real_interface};
     my @lan_intf = grep { $_ ne $wan_intf and $_ ne $tunnel_intf } @interfaces;
@@ -15708,30 +15698,6 @@ sub print_crypto( $ ) {
         print "no sysopt connection permit-vpn\n";
     }
 
-    # Handle ISAKMP definition.
-    my @identity = unique(map { $_->{identity} } @isakmp);
-    @identity > 1
-      and err_msg "All isakmp definitions used at $router->{name}",
-      " must use the same value for attribute 'identity'";
-    my $identity      = $identity[0];
-    my @nat_traversal = unique(
-        grep { defined $_ }
-        map  { $_->{nat_traversal} } @isakmp
-    );
-    @nat_traversal > 1
-      and err_msg "All isakmp definitions used at $router->{name}",
-      " must use the same value for attribute 'nat_traversal'";
-
-    my $prefix = $crypto_type eq 'IOS' ? 'crypto isakmp' : 'isakmp';
-    $identity = 'hostname' if $identity eq 'fqdn';
-
-    # Don't print default value for backend IOS.
-    if (not($identity eq 'address' and $crypto_type eq 'IOS')) {
-        print "$prefix identity $identity\n";
-    }
-    if (@nat_traversal and $nat_traversal[0] eq 'on') {
-        print "$prefix nat-traversal\n";
-    }
     my $isakmp_count = 0;
     for my $isakmp (@isakmp) {
         $isakmp_count++;
@@ -15776,7 +15742,8 @@ sub print_crypto( $ ) {
                 $transform .= "ah-$1-hmac ";
             }
             else {
-                err_msg "Unsupported IPSec AH method for $crypto_type: $ah";
+                internal_err
+                    "Unsupported IPSec AH method for $crypto_type: $ah";
             }
         }
         if (not(my $esp = $ipsec->{esp_encryption})) {
@@ -15790,14 +15757,14 @@ sub print_crypto( $ ) {
             $transform .= "esp-aes$len ";
         }
         else {
-            err_msg "Unsupported IPSec ESP method for $crypto_type: $esp";
+            internal_err "Unsupported IPSec ESP method for $crypto_type: $esp";
         }
         if (my $esp_ah = $ipsec->{esp_authentication}) {
             if ($esp_ah =~ /^(md5|sha)_hmac$/) {
                 $transform .= "esp-$1-hmac";
             }
             else {
-                err_msg "Unsupported IPSec ESP auth. method for",
+                internal_err "Unsupported IPSec ESP auth. method for",
                   " $crypto_type: $esp_ah";
             }
         }
@@ -16102,7 +16069,6 @@ sub print_code( $ ) {
             close STDOUT or fatal_err "Can't close $file: $!";
         }
     }
-    $config{warn_pix_icmp_code} && warn_pix_icmp;
     progress "Finished" if $config{time_stamps};
 }
 
@@ -16148,7 +16114,7 @@ sub copy_raw {
         }
         my $copy = "$out_dir/$raw_file.raw";
         system("cp -f $raw_path $copy") == 0
-          or err_msg "Can't copy $raw_path to $copy";
+          or fatal_err "Can't copy $raw_path to $copy";
     }
 }
 

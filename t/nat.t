@@ -227,4 +227,90 @@ $head1 = (split /\n/, $out1)[0];
 eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
+$title = 'Check rule with any to hidden NAT';
+############################################################
+
+$in = <<END;
+network:Test =  {
+ ip = 10.0.0.0/24; 
+ nat:C = { hidden; }
+}
+
+router:filter = {
+ managed;
+ model = ASA, 8.4;
+ interface:Test = { ip = 10.0.0.2; hardware = inside; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C; }
+}
+
+network:X = { ip = 10.8.3.0/24; }
+
+service:test = {
+ user = any:[network:X];
+ permit src = user; dst = network:Test; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Error: network:Test is hidden by NAT in rule
+ permit src=any:[network:X]; dst=network:Test; prt=tcp 80; of service:test
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'Check rule with host and dynamic NAT';
+############################################################
+
+$in = <<END;
+network:Test =  {
+ ip = 10.9.1.0/24; 
+ nat:C = { ip = 1.9.2.0; dynamic;}
+ host:H = { ip = 10.9.1.33; }
+}
+
+router:C = {
+ managed; #1
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = inside;}
+ interface:Trans = { ip = 10.0.0.1; hardware = outside; bind_nat = C;}
+}
+network:Trans = { ip = 10.0.0.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Trans = {
+  ip = 10.0.0.2;
+  hardware = inside;
+ }
+ interface:X = { ip = 10.8.3.1; hardware = outside; }
+}
+
+network:X = { ip = 10.8.3.0/24; }
+
+service:test = {
+ user = network:X;
+ permit src = user;   dst = host:H;       prt = tcp 80;
+ permit src = host:H; dst = user;         prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Error: host:H needs static translation for nat:C to be valid in rule
+ permit src=network:X; dst=host:H; prt=tcp 80; of service:test
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+$in =~ s/managed; \#1//;
+$out1 = <<END;
+Error: host:H needs static translation for nat:C to be valid in rule
+ permit src=network:X; dst=host:H; prt=tcp 80; of service:test
+Error: host:H needs static translation for nat:C to be valid in rule
+ permit src=host:H; dst=network:X; prt=tcp 80; of service:test
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
 done_testing;
