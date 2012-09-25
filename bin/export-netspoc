@@ -832,6 +832,15 @@ sub export_owners {
     $_ = [ sort values(%$_) ] for values %email2owners;
 
     export("email", \%email2owners);
+
+    my %owner2alias;
+    for my $name (keys %owners) {
+	my $owner = $owners{$name};
+        if (my $alias = $owner->{alias}) {
+            $owner2alias{$name} = $alias;
+        }
+    }
+    export('owner2alias', \%owner2alias);
 }
 
 sub copy_policy_file {
