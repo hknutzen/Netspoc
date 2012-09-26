@@ -2909,7 +2909,12 @@ sub read_owner( $ ) {
     add_description($owner);
     while (1) {
         last if check '}';
-        if (my @admins = check_assign_list 'admins', \&read_identifier) {
+        if (my $alias = check_assign('alias', \&read_string)) {
+            $owner->{alias}
+              and error_atline "Redefining 'alias' attribute";
+            $owner->{alias} = $alias;
+        }
+        elsif (my @admins = check_assign_list 'admins', \&read_identifier) {
             $owner->{admins}
               and error_atline "Redefining 'admins' attribute";
             $owner->{admins} = \@admins;
@@ -3573,7 +3578,22 @@ sub link_owners () {
         }
     }
 
-    for my $owner (values %owners) {
+    my %alias2owner;
+    for my $name (keys %owners) {
+        my $owner = $owners{$name};
+
+        # Check for unique alias names.
+        my $alias = $owner->{alias} || $name;
+        if (my $other = $alias2owner{$alias}) {
+            my $descr1 = $owner->{name};
+            $owner->{alias} and $descr1 .= " with alias '$owner->{alias}'";
+            my $descr2 = $other->{name};
+            $other->{alias} and $descr2 .= " with alias '$other->{alias}'";
+            err_msg "Name conflict between owners\n - $descr1\n - $descr2";
+        }
+        else {
+            $alias2owner{$alias} = $owner;
+        }
 
         # Convert names of admin and watcher objects to admin objects.
         for my $attr (qw( admins watchers )) {
