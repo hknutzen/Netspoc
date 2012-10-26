@@ -15815,7 +15815,7 @@ sub print_crypto( $ ) {
         # Sequence number for parts of crypto map with different peers.
         my $seq_num = 0;
 
-        # Crypto ACLs must obey NAT.
+        # Crypto ACLs and peer IP must obey NAT.
         my $no_nat_set = $hardware->{no_nat_set};
 
         # Sort crypto maps by peer IP to get deterministic output.
@@ -15898,14 +15898,16 @@ sub print_crypto( $ ) {
             # rejected already.
             if ($crypto_type eq 'IOS') {
                 for my $peer (@{ $interface->{peers} }) {
-                    my $peer_ip = print_ip $peer->{real_interface}->{ip};
+                    my $peer_ip = prefix_code(address($peer->{real_interface}, 
+                                                      $no_nat_set));
                     print "$prefix set peer $peer_ip\n";
                 }
             }
             elsif ($crypto_type eq 'ASA') {
                 print "$prefix set peer ",
                   join(' ',
-                    map { print_ip $_->{real_interface}->{ip} }
+                    map { prefix_code(address($_->{real_interface}, 
+                                              $no_nat_set)) }
                       @{ $interface->{peers} }),
                   "\n";
             }
@@ -15938,7 +15940,8 @@ sub print_crypto( $ ) {
             if ($crypto_type eq 'ASA') {
                 my $authentication = $isakmp->{authentication};
                 for my $peer (@{ $interface->{peers} }) {
-                    my $peer_ip = print_ip $peer->{real_interface}->{ip};
+                    my $peer_ip = prefix_code(address($peer->{real_interface},
+                                                      $no_nat_set));
                     print "tunnel-group $peer_ip type ipsec-l2l\n";
                     print "tunnel-group $peer_ip ipsec-attributes\n";
                     if ($authentication eq 'preshare') {
