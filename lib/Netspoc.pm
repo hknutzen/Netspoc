@@ -6626,6 +6626,10 @@ sub set_natdomain( $$$ ) {
 
         # Ignore interface where we reached this network.
         next if $interface eq $in_interface;
+
+        # Ignore interface with globally active pathrestriction
+        # where all traffic goes through a VPN tunnel.
+        next if check_global_active_pathrestriction($interface);
         my $router = $interface->{router};
         next if $router->{active_path};
         $router->{active_path} = 1;
@@ -6651,6 +6655,7 @@ sub set_natdomain( $$$ ) {
 
                 # Don't process interface where we reached this router.
                 next if $out_interface eq $interface;
+                next if check_global_active_pathrestriction($out_interface);
 
                 my $next_net = $out_interface->{network};
 
