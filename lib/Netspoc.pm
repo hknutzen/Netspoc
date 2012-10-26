@@ -7100,7 +7100,7 @@ sub check_subnet_nat {
     my ($a, $b) = @_;
     my $a_tags = $a->{nat};
     my $b_tags = $b->{nat};
-    return if $b->{is_aggregate} && $b->{mask} == 0;
+    return if $b->{mask} == 0;
     return if !keys %$a_tags && !keys %$b_tags;
     my @a_only = grep { !$b_tags->{$_} } keys %$a_tags;
     my @b_only = grep { !$a_tags->{$_} } keys %$b_tags;
