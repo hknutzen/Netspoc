@@ -6668,7 +6668,7 @@ sub set_natdomain( $$$ ) {
                 if (my $old_nat_tags = $router->{nat_tags}->{$domain}) {
                     if (not aref_eq($old_nat_tags, $nat_tags)) {
                         my $old_tag_names = join(',', @$old_nat_tags);
-                        my $tag_names     = join(',', @$nat_tags);
+                        my $tag_names     = join(',', @$nat_tags) || '(none)';
                         err_msg
                           "Inconsistent NAT in loop at $router->{name}:\n",
                           " nat:$old_tag_names vs. nat:$tag_names";
