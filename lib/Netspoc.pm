@@ -1476,6 +1476,12 @@ my $global_active_pathrestriction = new(
     active_path => 1
 );
 
+sub check_global_active_pathrestriction {
+    my ($interface) = @_;
+    my $restrict = $interface->{path_restrict} or return;
+    return(grep { $_ eq $global_active_pathrestriction } @$restrict);
+}
+
 # Tunnel networks which are already attached to tunnel interfaces
 # at spoke devices. Key is crypto name, not crypto object.
 my %crypto2spokes;
@@ -4105,14 +4111,10 @@ sub check_ip_addresses {
         for my $interface (@{ $network->{interfaces} }) {
             my $ip = $interface->{ip};
             if ($ip eq 'short') {
-                my $restrict = $interface->{path_restrict};
 
                 # Ignore short interface with globally active pathrestriction
                 # where all traffic goes through a VPN tunnel.
-                if (   not $restrict
-                    or not
-                    grep({ $_ eq $global_active_pathrestriction } @$restrict))
-                {
+                if (! check_global_active_pathrestriction($interface)) {
                     $short_intf = $interface;
                 }
             }
@@ -7898,19 +7900,14 @@ sub set_zone_cluster {
 
         # Ignore interface with globally active pathrestriction
         # where all traffic goes through a VPN tunnel.
-        next
-          if $restrict = $interface->{path_restrict}
-              and grep { $_ eq $global_active_pathrestriction } @$restrict;
+        next if check_global_active_pathrestriction($interface);
         my $router = $interface->{router};
         if (not $router->{managed}) {
             for my $out_interface (@{ $router->{interfaces} }) {
                 next if $out_interface eq $interface;
                 my $next = $out_interface->{zone};
                 next if $next->{zone_cluster};
-                next
-                  if $restrict = $out_interface->{path_restrict}
-                      and grep { $_ eq $global_active_pathrestriction }
-                      @$restrict;
+                next if check_global_active_pathrestriction($out_interface);
                 set_zone_cluster($next, $out_interface, $zone_aref);
             }
         }
