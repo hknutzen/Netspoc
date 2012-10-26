@@ -6671,7 +6671,7 @@ sub set_natdomain( $$$ ) {
                         my $tag_names     = join(',', @$nat_tags);
                         err_msg
                           "Inconsistent NAT in loop at $router->{name}:\n",
-                          "nat:$old_tag_names vs. nat:$tag_names";
+                          " nat:$old_tag_names vs. nat:$tag_names";
                     }
 
                     # NAT domain and router have been linked together already.
