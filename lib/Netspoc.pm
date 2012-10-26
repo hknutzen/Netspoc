@@ -15609,6 +15609,8 @@ sub print_ezvpn( $ ) {
     @tunnel_intf == 1 or internal_err;
     my ($tunnel_intf) = @tunnel_intf;
     my $wan_intf = $tunnel_intf->{real_interface};
+    my $wan_hw = $wan_intf->{hardware};
+    my $no_nat_set = $wan_hw->{no_nat_set};
     my @lan_intf = grep { $_ ne $wan_intf and $_ ne $tunnel_intf } @interfaces;
     print "$comment_char [ Crypto ]\n";
 
@@ -15625,7 +15627,8 @@ sub print_ezvpn( $ ) {
 
         # Unnumbered, negotiated and short interfaces have been
         # rejected already.
-        my $peer_ip = print_ip $peer->{real_interface}->{ip};
+        my $peer_ip = prefix_code(address($peer->{real_interface}, 
+                                          $no_nat_set));
         print " peer $peer_ip\n";
     }
 
@@ -15647,7 +15650,6 @@ sub print_ezvpn( $ ) {
             "crypto ipsec client ezvpn $ezvpn_name inside"
         );
     }
-    my $wan_hw = $wan_intf->{hardware};
     push(@{ $wan_hw->{subcmd} }, "crypto ipsec client ezvpn $ezvpn_name");
 
     # Crypto ACL controls which traffic needs to be encrypted.
@@ -15658,7 +15660,6 @@ sub print_ezvpn( $ ) {
       gen_crypto_rules($tunnel_intf->{peers}->[0]->{peer_networks},
         [$network_00]);
     print "ip access-list extended $crypto_acl_name\n";
-    my $no_nat_set = $wan_hw->{no_nat_set};
     my $prefix     = '';
     cisco_acl_line($router, $crypto_rules, $no_nat_set, $prefix);
 
