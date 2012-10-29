@@ -9541,8 +9541,16 @@ sub expand_crypto () {
                         }
                         next;
                     }
-                    next if $interface->{spoke};
-
+                    if ($interface->{spoke}) {
+                        if (my $id = $interface->{id}) {
+                            if (my $intf2 = $id2interface{$id}) {
+                                err_msg "Same ID '$id' is used at",
+                                  " $interface->{name} and $intf2->{name}";
+                            }
+                            $id2interface{$id} = $interface;
+                        }
+                        next;
+                    }
                     my $network = $interface->{network};
                     my @all_networks = crypto_behind($interface, $managed);
                     if ($network->{has_id_hosts}) {
@@ -9582,13 +9590,6 @@ sub expand_crypto () {
                     else {
                         $has_other_network = 1;
                         push @encrypted, @all_networks;
-                        if (my $id = $interface->{id}) {
-                            if (my $intf2 = $id2interface{$id}) {
-                                err_msg "Same ID '$id' is used at",
-                                  " $interface->{name} and $intf2->{name}";
-                            }
-                            $id2interface{$id} = $interface;
-                        }
                     }
                 }
                 $has_id_hosts
