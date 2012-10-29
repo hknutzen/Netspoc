@@ -11579,14 +11579,8 @@ sub check_and_convert_routes () {
             # Otherwise it would be wrong to route to the virtual interface.
             my %net2group;
 
-            # Convert to array, because hash isn't needed any longer.
-            # Array is sorted to get deterministic output.
-            $interface->{hop} =
-              [ sort { $a->{name} cmp $b->{name} }
-                  values %{ $interface->{hop} } ];
-
             next if $interface->{loop} and $interface->{routing};
-            for my $hop (@{ $interface->{hop} }) {
+            for my $hop (values %{ $interface->{hop} }) {
                 for my $network (values %{ $interface->{routes}->{$hop} }) {
                     if (my $interface2 = $net2intf{$network}) {
                         if ($interface2 ne $interface) {
@@ -11650,10 +11644,7 @@ sub check_and_convert_routes () {
                 if (@$hops == 1 && (my $phys_hop = $hop1->{orig_main})) {
                     delete $interface->{routes}->{$hop1}->{$net_ref};
                     $interface->{routes}->{$phys_hop}->{$network} = $network;
-                    my $aref = $interface->{hop};
-                    if (!grep { $_ eq $phys_hop } @$aref) {
-                        push @$aref, $phys_hop;
-                    }
+                    $interface->{hop}->{$phys_hop} = $phys_hop;
                 }
                 else {
 
@@ -11665,6 +11656,12 @@ sub check_and_convert_routes () {
                         " but not via all related redundancy interfaces";
                 }
             }
+
+            # Convert to array, because hash isn't needed any longer.
+            # Array is sorted to get deterministic output.
+            $interface->{hop} =
+              [ sort { $a->{name} cmp $b->{name} }
+                  values %{ $interface->{hop} } ];
         }
     }
 }
