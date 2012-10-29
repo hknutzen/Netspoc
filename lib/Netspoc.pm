@@ -4798,21 +4798,28 @@ sub convert_hosts() {
 
 # Find adjacent subnets and substitute them by their enclosing subnet.
 sub combine_subnets ( $ ) {
-    my ($aref) = @_;
-    my %hash;
-    for my $subnet (@$aref) {
-        $hash{$subnet} = $subnet;
-    }
-    for my $subnet (@$aref) {
-        my $neighbor;
-        if ($neighbor = $subnet->{neighbor} and $hash{$neighbor}) {
-            my $up = $subnet->{up};
-            unless ($hash{$up}) {
-                $hash{$up} = $up;
-                push @$aref, $up;
+    my ($subnets) = @_;
+    my %hash = map { $_ => $_ } @$subnets;
+    my $extra;
+    while(1) {
+        for my $subnet (@$subnets) {
+            my $neighbor;
+            if ($neighbor = $subnet->{neighbor} and $hash{$neighbor}) {
+                my $up = $subnet->{up};
+                unless ($hash{$up}) {
+                    $hash{$up} = $up;
+                    push @$extra, $up;
+                }
+                delete $hash{$subnet};
+                delete $hash{$neighbor};
             }
-            delete $hash{$subnet};
-            delete $hash{$neighbor};
+        }
+        if ($extra) {
+            $subnets = $extra;
+            $extra = undef;
+        }
+        else {
+            last;
         }
     }
 
@@ -5373,12 +5380,22 @@ sub expand_group( $$;$ ) {
     $aref = [ grep { defined $_ } @$aref ];
     if ($convert_hosts) {
         my @subnets;
+        my %subnet2host;
         my @other;
         for my $obj (@$aref) {
 
 #           debug "group:$obj->{name}";
             if (is_host $obj) {
-                push @subnets, @{ $obj->{subnets} };
+                for my $subnet (@{ $obj->{subnets} }) {
+                    if (my $host = $subnet2host{$subnet}) {
+                        warn_msg "$obj->{name} and $host->{name}",
+                           " overlap in $context";
+                    }
+                    else {
+                        $subnet2host{$subnet} = $obj;
+                        push @subnets, $subnet;
+                    }
+                }
             }
             else {
                 push @other, $obj;
