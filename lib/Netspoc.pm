@@ -32,7 +32,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.019'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.020'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -1476,6 +1476,12 @@ my $global_active_pathrestriction = new(
     active_path => 1
 );
 
+sub check_global_active_pathrestriction {
+    my ($interface) = @_;
+    my $restrict = $interface->{path_restrict} or return;
+    return(grep { $_ eq $global_active_pathrestriction } @$restrict);
+}
+
 # Tunnel networks which are already attached to tunnel interfaces
 # at spoke devices. Key is crypto name, not crypto object.
 my %crypto2spokes;
@@ -2909,7 +2915,12 @@ sub read_owner( $ ) {
     add_description($owner);
     while (1) {
         last if check '}';
-        if (my @admins = check_assign_list 'admins', \&read_identifier) {
+        if (my $alias = check_assign('alias', \&read_string)) {
+            $owner->{alias}
+              and error_atline "Redefining 'alias' attribute";
+            $owner->{alias} = $alias;
+        }
+        elsif (my @admins = check_assign_list 'admins', \&read_identifier) {
             $owner->{admins}
               and error_atline "Redefining 'admins' attribute";
             $owner->{admins} = \@admins;
@@ -3573,7 +3584,22 @@ sub link_owners () {
         }
     }
 
-    for my $owner (values %owners) {
+    my %alias2owner;
+    for my $name (keys %owners) {
+        my $owner = $owners{$name};
+
+        # Check for unique alias names.
+        my $alias = $owner->{alias} || $name;
+        if (my $other = $alias2owner{$alias}) {
+            my $descr1 = $owner->{name};
+            $owner->{alias} and $descr1 .= " with alias '$owner->{alias}'";
+            my $descr2 = $other->{name};
+            $other->{alias} and $descr2 .= " with alias '$other->{alias}'";
+            err_msg "Name conflict between owners\n - $descr1\n - $descr2";
+        }
+        else {
+            $alias2owner{$alias} = $owner;
+        }
 
         # Convert names of admin and watcher objects to admin objects.
         for my $attr (qw( admins watchers )) {
@@ -4085,14 +4111,10 @@ sub check_ip_addresses {
         for my $interface (@{ $network->{interfaces} }) {
             my $ip = $interface->{ip};
             if ($ip eq 'short') {
-                my $restrict = $interface->{path_restrict};
 
                 # Ignore short interface with globally active pathrestriction
                 # where all traffic goes through a VPN tunnel.
-                if (   not $restrict
-                    or not
-                    grep({ $_ eq $global_active_pathrestriction } @$restrict))
-                {
+                if (! check_global_active_pathrestriction($interface)) {
                     $short_intf = $interface;
                 }
             }
@@ -4776,21 +4798,31 @@ sub convert_hosts() {
 
 # Find adjacent subnets and substitute them by their enclosing subnet.
 sub combine_subnets ( $ ) {
-    my ($aref) = @_;
-    my %hash;
-    for my $subnet (@$aref) {
-        $hash{$subnet} = $subnet;
-    }
-    for my $subnet (@$aref) {
-        my $neighbor;
-        if ($neighbor = $subnet->{neighbor} and $hash{$neighbor}) {
-            my $up = $subnet->{up};
-            unless ($hash{$up}) {
-                $hash{$up} = $up;
-                push @$aref, $up;
+    my ($subnets) = @_;
+    my %hash = map { $_ => $_ } @$subnets;
+    my @extra;
+    while(1) {
+        for my $subnet (@$subnets) {
+            my $neighbor;
+            if ($neighbor = $subnet->{neighbor} and $hash{$neighbor}) {
+                my $up = $subnet->{up};
+                unless ($hash{$up}) {
+                    $hash{$up} = $up;
+                    push @extra, $up;
+                }
+                delete $hash{$subnet};
+                delete $hash{$neighbor};
             }
-            delete $hash{$subnet};
-            delete $hash{$neighbor};
+        }
+        if (@extra) {
+
+            # Try again to combine subnets with extra subnets.
+            # This version isn't optimized.
+            push @$subnets, @extra;
+            @extra = ();
+        }
+        else {
+            last;
         }
     }
 
@@ -5351,12 +5383,22 @@ sub expand_group( $$;$ ) {
     $aref = [ grep { defined $_ } @$aref ];
     if ($convert_hosts) {
         my @subnets;
+        my %subnet2host;
         my @other;
         for my $obj (@$aref) {
 
 #           debug "group:$obj->{name}";
             if (is_host $obj) {
-                push @subnets, @{ $obj->{subnets} };
+                for my $subnet (@{ $obj->{subnets} }) {
+                    if (my $host = $subnet2host{$subnet}) {
+                        warn_msg "$obj->{name} and $host->{name}",
+                           " overlap in $context";
+                    }
+                    else {
+                        $subnet2host{$subnet} = $obj;
+                        push @subnets, $subnet;
+                    }
+                }
             }
             else {
                 push @other, $obj;
@@ -6604,6 +6646,10 @@ sub set_natdomain( $$$ ) {
 
         # Ignore interface where we reached this network.
         next if $interface eq $in_interface;
+
+        # Ignore interface with globally active pathrestriction
+        # where all traffic goes through a VPN tunnel.
+        next if check_global_active_pathrestriction($interface);
         my $router = $interface->{router};
         next if $router->{active_path};
         $router->{active_path} = 1;
@@ -6629,6 +6675,7 @@ sub set_natdomain( $$$ ) {
 
                 # Don't process interface where we reached this router.
                 next if $out_interface eq $interface;
+                next if check_global_active_pathrestriction($out_interface);
 
                 my $next_net = $out_interface->{network};
 
@@ -6648,10 +6695,10 @@ sub set_natdomain( $$$ ) {
                 if (my $old_nat_tags = $router->{nat_tags}->{$domain}) {
                     if (not aref_eq($old_nat_tags, $nat_tags)) {
                         my $old_tag_names = join(',', @$old_nat_tags);
-                        my $tag_names     = join(',', @$nat_tags);
+                        my $tag_names     = join(',', @$nat_tags) || '(none)';
                         err_msg
                           "Inconsistent NAT in loop at $router->{name}:\n",
-                          "nat:$old_tag_names vs. nat:$tag_names";
+                          " nat:$old_tag_names vs. nat:$tag_names";
                     }
 
                     # NAT domain and router have been linked together already.
@@ -7080,7 +7127,7 @@ sub check_subnet_nat {
     my ($a, $b) = @_;
     my $a_tags = $a->{nat};
     my $b_tags = $b->{nat};
-    return if $b->{is_aggregate} && $b->{mask} == 0;
+    return if $b->{mask} == 0;
     return if !keys %$a_tags && !keys %$b_tags;
     my @a_only = grep { !$b_tags->{$_} } keys %$a_tags;
     my @b_only = grep { !$a_tags->{$_} } keys %$b_tags;
@@ -7878,19 +7925,14 @@ sub set_zone_cluster {
 
         # Ignore interface with globally active pathrestriction
         # where all traffic goes through a VPN tunnel.
-        next
-          if $restrict = $interface->{path_restrict}
-              and grep { $_ eq $global_active_pathrestriction } @$restrict;
+        next if check_global_active_pathrestriction($interface);
         my $router = $interface->{router};
         if (not $router->{managed}) {
             for my $out_interface (@{ $router->{interfaces} }) {
                 next if $out_interface eq $interface;
                 my $next = $out_interface->{zone};
                 next if $next->{zone_cluster};
-                next
-                  if $restrict = $out_interface->{path_restrict}
-                      and grep { $_ eq $global_active_pathrestriction }
-                      @$restrict;
+                next if check_global_active_pathrestriction($out_interface);
                 set_zone_cluster($next, $out_interface, $zone_aref);
             }
         }
@@ -9519,8 +9561,16 @@ sub expand_crypto () {
                         }
                         next;
                     }
-                    next if $interface->{spoke};
-
+                    if ($interface->{spoke}) {
+                        if (my $id = $interface->{id}) {
+                            if (my $intf2 = $id2interface{$id}) {
+                                err_msg "Same ID '$id' is used at",
+                                  " $interface->{name} and $intf2->{name}";
+                            }
+                            $id2interface{$id} = $interface;
+                        }
+                        next;
+                    }
                     my $network = $interface->{network};
                     my @all_networks = crypto_behind($interface, $managed);
                     if ($network->{has_id_hosts}) {
@@ -9560,13 +9610,6 @@ sub expand_crypto () {
                     else {
                         $has_other_network = 1;
                         push @encrypted, @all_networks;
-                        if (my $id = $interface->{id}) {
-                            if (my $intf2 = $id2interface{$id}) {
-                                err_msg "Same ID '$id' is used at",
-                                  " $interface->{name} and $intf2->{name}";
-                            }
-                            $id2interface{$id} = $interface;
-                        }
                     }
                 }
                 $has_id_hosts
@@ -11556,14 +11599,8 @@ sub check_and_convert_routes () {
             # Otherwise it would be wrong to route to the virtual interface.
             my %net2group;
 
-            # Convert to array, because hash isn't needed any longer.
-            # Array is sorted to get deterministic output.
-            $interface->{hop} =
-              [ sort { $a->{name} cmp $b->{name} }
-                  values %{ $interface->{hop} } ];
-
             next if $interface->{loop} and $interface->{routing};
-            for my $hop (@{ $interface->{hop} }) {
+            for my $hop (values %{ $interface->{hop} }) {
                 for my $network (values %{ $interface->{routes}->{$hop} }) {
                     if (my $interface2 = $net2intf{$network}) {
                         if ($interface2 ne $interface) {
@@ -11627,10 +11664,7 @@ sub check_and_convert_routes () {
                 if (@$hops == 1 && (my $phys_hop = $hop1->{orig_main})) {
                     delete $interface->{routes}->{$hop1}->{$net_ref};
                     $interface->{routes}->{$phys_hop}->{$network} = $network;
-                    my $aref = $interface->{hop};
-                    if (!grep { $_ eq $phys_hop } @$aref) {
-                        push @$aref, $phys_hop;
-                    }
+                    $interface->{hop}->{$phys_hop} = $phys_hop;
                 }
                 else {
 
@@ -11642,6 +11676,12 @@ sub check_and_convert_routes () {
                         " but not via all related redundancy interfaces";
                 }
             }
+
+            # Convert to array, because hash isn't needed any longer.
+            # Array is sorted to get deterministic output.
+            $interface->{hop} =
+              [ sort { $a->{name} cmp $b->{name} }
+                  values %{ $interface->{hop} } ];
         }
     }
 }
@@ -11657,16 +11697,26 @@ sub address( $$ );
 
 sub print_routes( $ ) {
     my ($router)              = @_;
-    my $type                  = $router->{model}->{routing};
+    my $model                 = $router->{model};
+    my $type                  = $model->{routing};
     my $vrf                   = $router->{vrf};
-    my $comment_char          = $router->{model}->{comment_char};
+    my $comment_char          = $model->{comment_char};
     my $do_auto_default_route = $config{auto_default_route};
+    my $crypto_type           = $model->{crypto} || '';
     my %intf2hop2nets;
     for my $interface (@{ $router->{interfaces} }) {
         next if $interface->{ip} eq 'bridged';
         if ($interface->{routing}) {
             $do_auto_default_route = 0;
             next;
+        }
+
+        my $optimize = 1;
+
+        # ASA with site-to-site VPN needs individual routes for each peer.
+        if ($interface->{hub} && $crypto_type eq 'ASA') {
+            $do_auto_default_route = 0;
+            $optimize = 0;
         }
         my $no_nat_set = $interface->{no_nat_set};
 
@@ -11694,20 +11744,22 @@ sub print_routes( $ ) {
               NETWORK:
                 for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
 
-                    my $m = $mask;
-                    my $i = $ip;
-                    while ($m) {
-
-                        # Clear upper bit, because left shift is undefined
-                        # otherwise.
-                        $m &= 0x7fffffff;
-                        $m <<= 1;
-                        $i = $i & $m;    # Perl bug #108480.
-                        if ($mask_ip_hash{$m}->{$i}) {
-
-                            # Network {$mask}->{$ip} is redundant.
-                            # It is covered by {$m}->{$i}.
-                            next NETWORK;
+                    if ($optimize) {
+                        my $m = $mask;
+                        my $i = $ip;
+                        while ($m) {
+                            
+                            # Clear upper bit, because left shift is undefined
+                            # otherwise.
+                            $m &= 0x7fffffff;
+                            $m <<= 1;
+                            $i = $i & $m;    # Perl bug #108480.
+                            if ($mask_ip_hash{$m}->{$i}) {
+                                
+                                # Network {$mask}->{$ip} is redundant.
+                                # It is covered by {$m}->{$i}.
+                                next NETWORK;
+                            }
                         }
                     }
                     push(@netinfo, [ $ip, $mask, $mask_ip_hash{$mask}->{$ip} ]);
@@ -15587,6 +15639,8 @@ sub print_ezvpn( $ ) {
     @tunnel_intf == 1 or internal_err;
     my ($tunnel_intf) = @tunnel_intf;
     my $wan_intf = $tunnel_intf->{real_interface};
+    my $wan_hw = $wan_intf->{hardware};
+    my $no_nat_set = $wan_hw->{no_nat_set};
     my @lan_intf = grep { $_ ne $wan_intf and $_ ne $tunnel_intf } @interfaces;
     print "$comment_char [ Crypto ]\n";
 
@@ -15603,7 +15657,8 @@ sub print_ezvpn( $ ) {
 
         # Unnumbered, negotiated and short interfaces have been
         # rejected already.
-        my $peer_ip = print_ip $peer->{real_interface}->{ip};
+        my $peer_ip = prefix_code(address($peer->{real_interface}, 
+                                          $no_nat_set));
         print " peer $peer_ip\n";
     }
 
@@ -15625,7 +15680,6 @@ sub print_ezvpn( $ ) {
             "crypto ipsec client ezvpn $ezvpn_name inside"
         );
     }
-    my $wan_hw = $wan_intf->{hardware};
     push(@{ $wan_hw->{subcmd} }, "crypto ipsec client ezvpn $ezvpn_name");
 
     # Crypto ACL controls which traffic needs to be encrypted.
@@ -15636,7 +15690,6 @@ sub print_ezvpn( $ ) {
       gen_crypto_rules($tunnel_intf->{peers}->[0]->{peer_networks},
         [$network_00]);
     print "ip access-list extended $crypto_acl_name\n";
-    my $no_nat_set = $wan_hw->{no_nat_set};
     my $prefix     = '';
     cisco_acl_line($router, $crypto_rules, $no_nat_set, $prefix);
 
@@ -15793,7 +15846,7 @@ sub print_crypto( $ ) {
         # Sequence number for parts of crypto map with different peers.
         my $seq_num = 0;
 
-        # Crypto ACLs must obey NAT.
+        # Crypto ACLs and peer IP must obey NAT.
         my $no_nat_set = $hardware->{no_nat_set};
 
         # Sort crypto maps by peer IP to get deterministic output.
@@ -15876,14 +15929,16 @@ sub print_crypto( $ ) {
             # rejected already.
             if ($crypto_type eq 'IOS') {
                 for my $peer (@{ $interface->{peers} }) {
-                    my $peer_ip = print_ip $peer->{real_interface}->{ip};
+                    my $peer_ip = prefix_code(address($peer->{real_interface}, 
+                                                      $no_nat_set));
                     print "$prefix set peer $peer_ip\n";
                 }
             }
             elsif ($crypto_type eq 'ASA') {
                 print "$prefix set peer ",
                   join(' ',
-                    map { print_ip $_->{real_interface}->{ip} }
+                    map { prefix_code(address($_->{real_interface}, 
+                                              $no_nat_set)) }
                       @{ $interface->{peers} }),
                   "\n";
             }
@@ -15916,7 +15971,8 @@ sub print_crypto( $ ) {
             if ($crypto_type eq 'ASA') {
                 my $authentication = $isakmp->{authentication};
                 for my $peer (@{ $interface->{peers} }) {
-                    my $peer_ip = print_ip $peer->{real_interface}->{ip};
+                    my $peer_ip = prefix_code(address($peer->{real_interface},
+                                                      $no_nat_set));
                     print "tunnel-group $peer_ip type ipsec-l2l\n";
                     print "tunnel-group $peer_ip ipsec-attributes\n";
                     if ($authentication eq 'preshare') {

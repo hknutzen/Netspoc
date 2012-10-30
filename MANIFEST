@@ -64,9 +64,13 @@ misc/intersect-ip
 misc/perltidyrc
 t/Test_Netspoc.pm
 t/crypto.t
+t/host-range.t
+t/host-range.t~
 t/iptables.t
 t/nat.t
 t/optimize-subnet.t
+t/owner.t
+t/owner.t~
 t/pathrestrict-border.t
 t/rename.t
 t/secondary.t

@@ -1,9 +1,25 @@
+3.020     2012-10-30 11:51:32 Europe/Berlin
+
+- When generating static routes for an interface of ASA with site-to-site VPN,
+  the device needs an explicit route for each peer. 
+  This has been implemented.
+- Added support for NAT of tunneled IPSec traffic.
+- No longer reject NAT for a network located inside the security zone 
+  of a network with mask 0 (the Internet).
+- New attribute 'alias' for owners.
+  This is used to display an alternate / changed name in Netspoc-Web.
+- If overlapping host ranges are added to a group, a warning is printed now.
+- Joining of adjacent subnets didn't work in some cases. This has been fixed.
+- Fixed check for duplicate id at different VPN interfaces.
+- Fixed nondeterminism when printing host routes to physical interface 
+  of XRRP group.
+
 3.019     2012-09-20 11:02:33 Europe/Berlin
 
 - No longer generate IPSec commands "isakmp identity", "isakmp nat-traversal"
 - Removed option warn_pix_icmp_code. ICMP code is ignored silently now.
 - Many consistency checks have been moved to an earlier phase 
-  of the comilation process.
+  of the compilation process.
 - Fixed some minor bugs.
 - Added more test cases.
 

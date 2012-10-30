@@ -370,4 +370,153 @@ for my $i (0 .. $#out) {
 }
 
 ############################################################
+$title = 'NAT of IPSec traffic at ASA 8.4 and NAT of VPN network at IOS';
+############################################################
+
+$in = <<END;
+
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha_hmac;
+ pfs_group = 2;
+ lifetime = 3600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ nat_traversal = additional;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 43200 sec;
+ trust_point =  ASDM_TrustPoint3;
+}
+
+crypto:sts = {
+ type = ipsec:aes256SHA;
+ tunnel_all;
+}
+
+network:intern = { 
+ ip = 10.1.1.0/24;
+ host:netspoc = { ip = 10.1.1.111; }
+}
+
+router:asavpn = {
+ model = ASA, 8.4;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101; 
+  hardware = inside;
+ }
+ interface:dmz = { 
+  ip = 1.2.3.2; 
+  hub = crypto:sts;
+  hardware = outside; 
+ }
+}
+
+network:dmz = { ip = 1.2.3.0/25; }
+
+router:extern = { 
+ interface:dmz = { ip = 1.2.3.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:firewall = {
+ interface:internet = { bind_nat = vpn1; }
+ interface:dmz1 = { ip = 10.254.254.144; }
+}
+
+network:dmz1 = {
+ ip = 10.254.254.0/24; 
+ nat:vpn1 = { ip = 1.2.3.129/32; dynamic; }
+}
+
+router:vpn1 = {
+ managed;
+ model = IOS;
+ interface:dmz1 = {
+  ip = 10.254.254.6;
+  nat:vpn1 = { ip = 1.2.3.129; }
+  spoke = crypto:sts;
+  bind_nat = lan1;
+  hardware = GigabitEthernet0;
+ }
+ interface:lan1 = {
+  ip = 10.99.1.1;
+  hardware = Fastethernet8;
+ }
+}
+
+network:lan1 = { 
+ ip = 10.99.1.0/24; 
+ nat:lan1 = { ip = 10.10.10.0/24; }
+}
+
+protocol:http = tcp 80;
+service:test = {
+ user = network:lan1;
+ permit src = user; dst = host:netspoc; prt = protocol:http; 
+}
+END
+
+@out =  ();
+$out[0] = <<END;
+access-list crypto-outside-1 extended permit ip any 10.10.10.0 255.255.255.0
+crypto map crypto-outside 1 match address crypto-outside-1
+crypto map crypto-outside 1 set peer 1.2.3.129
+crypto map crypto-outside 1 set ikev1 transform-set Trans1
+crypto map crypto-outside 1 set pfs group2
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+tunnel-group 1.2.3.129 type ipsec-l2l
+tunnel-group 1.2.3.129 ipsec-attributes
+ chain
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+crypto map crypto-outside interface outside
+crypto isakmp enable outside
+END
+
+$out[1] = <<END;
+access-list outside_in extended permit tcp 10.10.10.0 255.255.255.0 host 10.1.1.111 eq 80
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
+END
+
+$out[2] = <<END;
+ip access-list extended crypto-GigabitEthernet0-1
+ permit ip 10.10.10.0 0.0.0.255 any
+ip access-list extended crypto-filter-GigabitEthernet0-1
+ deny ip any host 10.10.10.1
+ permit tcp host 10.1.1.111 10.10.10.0 0.0.0.255 established
+ deny ip any any
+crypto map crypto-GigabitEthernet0 1 ipsec-isakmp
+ match address crypto-GigabitEthernet0-1
+ set ip access-group crypto-filter-GigabitEthernet0-1 in
+ set peer 1.2.3.2
+ set transform-set Trans1
+ set pfs group2
+END
+
+$out[3] = <<END;
+ip access-list extended GigabitEthernet0_in
+ permit 50 host 1.2.3.2 host 1.2.3.129
+ permit udp host 1.2.3.2 eq 500 host 1.2.3.129 eq 500
+ permit udp host 1.2.3.2 eq 4500 host 1.2.3.129 eq 4500
+ deny ip any any
+END
+
+$compiled = compile($in);
+for my $i (0 .. $#out) {
+    my $out = $out[$i];
+    my $head = (split /\n/, $out)[0];
+    eq_or_diff(get_block($compiled, $head), $out, "$title: $i");
+}
+
+############################################################
 done_testing;
