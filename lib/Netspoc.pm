@@ -11694,16 +11694,26 @@ sub address( $$ );
 
 sub print_routes( $ ) {
     my ($router)              = @_;
-    my $type                  = $router->{model}->{routing};
+    my $model                 = $router->{model};
+    my $type                  = $model->{routing};
     my $vrf                   = $router->{vrf};
-    my $comment_char          = $router->{model}->{comment_char};
+    my $comment_char          = $model->{comment_char};
     my $do_auto_default_route = $config{auto_default_route};
+    my $crypto_type           = $model->{crypto} || '';
     my %intf2hop2nets;
     for my $interface (@{ $router->{interfaces} }) {
         next if $interface->{ip} eq 'bridged';
         if ($interface->{routing}) {
             $do_auto_default_route = 0;
             next;
+        }
+
+        my $optimize = 1;
+
+        # ASA with site-to-site VPN needs individual routes for each peer.
+        if ($interface->{hub} && $crypto_type eq 'ASA') {
+            $do_auto_default_route = 0;
+            $optimize = 0;
         }
         my $no_nat_set = $interface->{no_nat_set};
 
@@ -11731,20 +11741,22 @@ sub print_routes( $ ) {
               NETWORK:
                 for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
 
-                    my $m = $mask;
-                    my $i = $ip;
-                    while ($m) {
-
-                        # Clear upper bit, because left shift is undefined
-                        # otherwise.
-                        $m &= 0x7fffffff;
-                        $m <<= 1;
-                        $i = $i & $m;    # Perl bug #108480.
-                        if ($mask_ip_hash{$m}->{$i}) {
-
-                            # Network {$mask}->{$ip} is redundant.
-                            # It is covered by {$m}->{$i}.
-                            next NETWORK;
+                    if ($optimize) {
+                        my $m = $mask;
+                        my $i = $ip;
+                        while ($m) {
+                            
+                            # Clear upper bit, because left shift is undefined
+                            # otherwise.
+                            $m &= 0x7fffffff;
+                            $m <<= 1;
+                            $i = $i & $m;    # Perl bug #108480.
+                            if ($mask_ip_hash{$m}->{$i}) {
+                                
+                                # Network {$mask}->{$ip} is redundant.
+                                # It is covered by {$m}->{$i}.
+                                next NETWORK;
+                            }
                         }
                     }
                     push(@netinfo, [ $ip, $mask, $mask_ip_hash{$mask}->{$ip} ]);
