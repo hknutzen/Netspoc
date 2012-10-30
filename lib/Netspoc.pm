@@ -4800,7 +4800,7 @@ sub convert_hosts() {
 sub combine_subnets ( $ ) {
     my ($subnets) = @_;
     my %hash = map { $_ => $_ } @$subnets;
-    my $extra;
+    my @extra;
     while(1) {
         for my $subnet (@$subnets) {
             my $neighbor;
@@ -4808,15 +4808,18 @@ sub combine_subnets ( $ ) {
                 my $up = $subnet->{up};
                 unless ($hash{$up}) {
                     $hash{$up} = $up;
-                    push @$extra, $up;
+                    push @extra, $up;
                 }
                 delete $hash{$subnet};
                 delete $hash{$neighbor};
             }
         }
-        if ($extra) {
-            $subnets = $extra;
-            $extra = undef;
+        if (@extra) {
+
+            # Try again to combine subnets with extra subnets.
+            # This version isn't optimized.
+            push @$subnets, @extra;
+            @extra = ();
         }
         else {
             last;
