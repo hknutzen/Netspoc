@@ -11600,7 +11600,8 @@ sub check_and_convert_routes () {
             my %net2group;
 
             next if $interface->{loop} and $interface->{routing};
-            for my $hop (values %{ $interface->{hop} }) {
+            for my $hop ( sort { $a->{name} cmp $b->{name} }
+                          values %{ $interface->{hop} }) {
                 for my $network (values %{ $interface->{routes}->{$hop} }) {
                     if (my $interface2 = $net2intf{$network}) {
                         if ($interface2 ne $interface) {
