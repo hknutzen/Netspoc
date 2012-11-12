@@ -4002,13 +4002,6 @@ sub link_virtual_interfaces () {
         my $id1 = $virtual1->{redundancy_id} || '';
         if (my $interfaces = $ip2net2virtual{$net}->{$ip}) {
             my $virtual2 = $interfaces->[0];
-            if ($virtual1->{router}->{managed}
-                xor $virtual2->{router}->{managed})
-            {
-                err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
-                  " must both be managed or both be unmanaged";
-                next;
-            }
             if (   $virtual1->{redundancy_type}
                 && $virtual2->{redundancy_type}
                 && $virtual1->{redundancy_type} ne $virtual2->{redundancy_type})
@@ -4072,16 +4065,19 @@ sub link_virtual_interfaces () {
                         join(',', map($interfaces->{name}, @$interfaces)));
             }
 
-            # Automatically add pathrestriction to managed interfaces
-            # belonging to $ip2net2virtual.
-            # Pathrestriction would be useless for unmanaged device.
-            elsif ($interfaces->[0]->{router}->{managed}) {
+            # Automatically add pathrestriction to interfaces
+            # belonging to $ip2net2virtual, if at least one interface
+            # is managed.
+            # Pathrestriction would be useless if all devices are unmanaged.
+            elsif (grep { $_->{router}->{managed} } @$interfaces) {
                 my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
                 my $restrict = new('Pathrestriction', name => $name);
                 for my $interface (@$interfaces) {
 
-#               debug "pathrestriction $name at $interface->{name}";
+#                   debug "pathrestriction $name at $interface->{name}";
                     push @{ $interface->{path_restrict} }, $restrict;
+                    my $router = $interface->{router};
+                    $router->{managed} or $router->{semi_managed} = 1;
                 }
             }
         }
@@ -6714,7 +6710,7 @@ sub set_natdomain( $$$ ) {
 }
 
 # Distribute no_nat_sets from NAT domain to NAT domain.
-# Collect a used boud nat_tags in $nat_bound as
+# Collect bound nat_tags in $nat_bound as
 #  nat_tag => router->{name} => used
 sub distribute_no_nat_set;
 
@@ -7696,6 +7692,11 @@ sub link_aggregate_to_zone {
     # Link aggregate with zone.
     $aggregate->{zone} = $zone;
     $zone->{ipmask2aggregate}->{$key} = $aggregate;
+
+    # Must be initialized, even if aggregate contains no networks.
+    # Take a new array for each aggregate, otherwise we would share
+    # the same array between different aggregates.
+    $aggregate->{networks} = [];
 
     if ($zone->{disabled}) {
         $aggregate->{disabled} = 1;
