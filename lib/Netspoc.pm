@@ -32,7 +32,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.020'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.021'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -312,6 +312,7 @@ my %router_info = (
                 stateless_tunnel => 1,
                 do_auth          => 1,
             },
+            EZVPN => { crypto    => 'ASA_EZVPN' },
             '8.4' => { v8_4 => 1, },
         },
     },
@@ -602,6 +603,27 @@ sub read_identifier() {
     else {
         syntax_err "Identifier expected";
     }
+}
+
+sub check_email() {
+    skip_space_and_comment;
+
+    # Only 7 bit ASCII
+    # Local part definition from wikipedia, 
+    # without space and other quoted characters
+    use bytes;
+    if ($input =~ m/(\G [\w.!\#$%&'*+\/=?^_`{|}~-]+ \@ [\w.-]+ )/gcx) {
+
+        # Normalize email to lower case.
+        return lc($1);
+    }
+    else {
+        return;
+    }
+}
+
+sub read_email {
+    check_email or syntax_err "Email address expected (ASCII only)";
 }
 
 # Pattrern for attribute "visible": "*" or "name*".
@@ -2907,6 +2929,10 @@ sub find_duplicates {
 
 our %owners;
 
+sub read_email_or_identifier {
+    return(check_email() || read_identifier);
+}
+
 sub read_owner( $ ) {
     my $name = shift;
     my $owner = new('Owner', name => $name);
@@ -2920,12 +2946,16 @@ sub read_owner( $ ) {
               and error_atline "Redefining 'alias' attribute";
             $owner->{alias} = $alias;
         }
-        elsif (my @admins = check_assign_list 'admins', \&read_identifier) {
+        elsif (my @admins = check_assign_list('admins', 
+                                              \&read_email_or_identifier))
+        {
             $owner->{admins}
               and error_atline "Redefining 'admins' attribute";
             $owner->{admins} = \@admins;
         }
-        elsif (my @watchers = check_assign_list 'watchers', \&read_identifier) {
+        elsif (my @watchers = check_assign_list('watchers', 
+                                                \&read_email_or_identifier))
+        {
             $owner->{watchers}
               and error_atline "Redefining 'watchers' attribute";
             $owner->{watchers} = \@watchers;
@@ -2944,10 +2974,19 @@ sub read_owner( $ ) {
         }
     }
     $owner->{admins} or error_atline "Missing attribute 'admins'";
-    if (my @duplicates =
-        find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} }))
-    {
-        error_atline "Duplicate admins: ", join(', ', @duplicates);
+    if (find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} })) {
+        for my $what (qw(admins watchers)) {
+            if (my @emails = find_duplicates(@{ $owner->{$what} })) {
+                $owner->{$what} = [ unique(@{ $owner->{$what} }) ];
+                error_atline "Duplicate $what: ", join(', ', @emails);
+            }
+        }
+        if (my @duplicates =
+            find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} }))
+        {
+            error_atline("Duplicates in admins and watchers: ", 
+                         join(', ', @duplicates));
+        }
     }
     return $owner;
 }
@@ -2967,12 +3006,10 @@ sub read_admin( $ ) {
               and error_atline "Redefining 'name' attribute";
             $admin->{full_name} = $full_name;
         }
-        elsif (my $email = check_assign 'email', \&read_to_semicolon) {
+        elsif (my $email = check_assign 'email', \&read_email) {
             $admin->{email}
               and error_atline "Redefining 'email' attribute";
-
-            # Normalize email to lower case.
-            $admin->{email} = lc $email;
+            $admin->{email} = $email;
         }
         else {
             syntax_err "Expected attribute 'name' or 'email'.";
@@ -3601,19 +3638,27 @@ sub link_owners () {
             $alias2owner{$alias} = $owner;
         }
 
-        # Convert names of admin and watcher objects to admin objects.
+        # Convert names of admin and watcher objects to email address
+        # of admin objects.
         for my $attr (qw( admins watchers )) {
-            for my $name (@{ $owner->{$attr} }) {
-                if (my $admin = $admins{$name}) {
-                    $name = $admin;
+            for my $email (@{ $owner->{$attr} }) {
+
+                # Has already been read in new syntax as email address.
+                next if $email =~ /\@/;
+                if (my $admin = $admins{$email}) {
+                    $email = $admin->{email};
+                    $admin->{used} = 1;
                 }
                 else {
-                    err_msg "Can't resolve reference to '$name'",
+                    err_msg "Can't resolve reference to '$email'",
                       " in attribute '$attr' of $owner->{name}";
-                    $name = { name => 'unknown' };
+                    $email = 'unknown';
                 }
             }
         }
+    }
+    for my $admin (values %admins) {
+        delete $admin->{used} or warn_msg "Unused $admin->{name}";
     }
     for my $network (values %networks) {
         link_to_owner($network);
@@ -4002,13 +4047,6 @@ sub link_virtual_interfaces () {
         my $id1 = $virtual1->{redundancy_id} || '';
         if (my $interfaces = $ip2net2virtual{$net}->{$ip}) {
             my $virtual2 = $interfaces->[0];
-            if ($virtual1->{router}->{managed}
-                xor $virtual2->{router}->{managed})
-            {
-                err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
-                  " must both be managed or both be unmanaged";
-                next;
-            }
             if (   $virtual1->{redundancy_type}
                 && $virtual2->{redundancy_type}
                 && $virtual1->{redundancy_type} ne $virtual2->{redundancy_type})
@@ -4072,16 +4110,19 @@ sub link_virtual_interfaces () {
                         join(',', map($interfaces->{name}, @$interfaces)));
             }
 
-            # Automatically add pathrestriction to managed interfaces
-            # belonging to $ip2net2virtual.
-            # Pathrestriction would be useless for unmanaged device.
-            elsif ($interfaces->[0]->{router}->{managed}) {
+            # Automatically add pathrestriction to interfaces
+            # belonging to $ip2net2virtual, if at least one interface
+            # is managed.
+            # Pathrestriction would be useless if all devices are unmanaged.
+            elsif (grep { $_->{router}->{managed} } @$interfaces) {
                 my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
                 my $restrict = new('Pathrestriction', name => $name);
                 for my $interface (@$interfaces) {
 
-#               debug "pathrestriction $name at $interface->{name}";
+#                   debug "pathrestriction $name at $interface->{name}";
                     push @{ $interface->{path_restrict} }, $restrict;
+                    my $router = $interface->{router};
+                    $router->{managed} or $router->{semi_managed} = 1;
                 }
             }
         }
@@ -6467,17 +6508,8 @@ sub propagate_owners {
             $aggregate->{owner} = ($up ? $up : $zone)->{owner};
         }
     }
-
     for my $owner (values %owners) {
-        for my $attr (qw( admins watchers )) {
-            for my $admin (@{ $owner->{$attr} }) {
-                $used{$admin} = 1;
-            }
-        }
         $used{$owner} or warn_msg "Unused $owner->{name}";
-    }
-    for my $admin (values %admins) {
-        $used{$admin} or warn_msg "Unused $admin->{name}";
     }
 }
 
@@ -6714,7 +6746,7 @@ sub set_natdomain( $$$ ) {
 }
 
 # Distribute no_nat_sets from NAT domain to NAT domain.
-# Collect a used boud nat_tags in $nat_bound as
+# Collect bound nat_tags in $nat_bound as
 #  nat_tag => router->{name} => used
 sub distribute_no_nat_set;
 
@@ -7696,6 +7728,11 @@ sub link_aggregate_to_zone {
     # Link aggregate with zone.
     $aggregate->{zone} = $zone;
     $zone->{ipmask2aggregate}->{$key} = $aggregate;
+
+    # Must be initialized, even if aggregate contains no networks.
+    # Take a new array for each aggregate, otherwise we would share
+    # the same array between different aggregates.
+    $aggregate->{networks} = [];
 
     if ($zone->{disabled}) {
         $aggregate->{disabled} = 1;
@@ -11600,7 +11637,8 @@ sub check_and_convert_routes () {
             my %net2group;
 
             next if $interface->{loop} and $interface->{routing};
-            for my $hop (values %{ $interface->{hop} }) {
+            for my $hop ( sort { $a->{name} cmp $b->{name} }
+                          values %{ $interface->{hop} }) {
                 for my $network (values %{ $interface->{routes}->{$hop} }) {
                     if (my $interface2 = $net2intf{$network}) {
                         if ($interface2 ne $interface) {
@@ -15098,7 +15136,6 @@ sub print_asavpn ( $ ) {
     my $model            = $router->{model};
     my $no_nat_set       = $router->{hardware}->[0]->{no_nat_set};
 
-    print "no sysopt connection permit-vpn\n";
     my $global_group_name = 'global';
     print <<"EOF";
 group-policy $global_group_name internal
@@ -15633,7 +15670,6 @@ sub gen_crypto_rules {
 sub print_ezvpn( $ ) {
     my ($router)     = @_;
     my $model        = $router->{model};
-    my $comment_char = $model->{comment_char};
     my @interfaces   = @{ $router->{interfaces} };
     my @tunnel_intf = grep { $_->{ip} eq 'tunnel' } @interfaces;
     @tunnel_intf == 1 or internal_err;
@@ -15642,7 +15678,6 @@ sub print_ezvpn( $ ) {
     my $wan_hw = $wan_intf->{hardware};
     my $no_nat_set = $wan_hw->{no_nat_set};
     my @lan_intf = grep { $_ ne $wan_intf and $_ ne $tunnel_intf } @interfaces;
-    print "$comment_char [ Crypto ]\n";
 
     # Ezvpn configuration.
     my $ezvpn_name               = 'vpn';
@@ -15713,10 +15748,6 @@ sub print_crypto( $ ) {
     my $model = $router->{model};
     my $crypto_type = $model->{crypto} || '';
     return if $crypto_type eq 'ignore';
-    if ($crypto_type eq 'EZVPN') {
-        print_ezvpn $router;
-        return;
-    }
 
     # List of ipsec definitions used at current router.
     # Sort entries by name to get deterministic output.
@@ -15736,20 +15767,33 @@ sub print_crypto( $ ) {
 
     my $comment_char = $model->{comment_char};
     print "$comment_char [ Crypto ]\n";
-    if ($crypto_type eq 'ASA_VPN') {
-        print_asavpn $router;
+
+    if ($crypto_type eq 'EZVPN') {
+        print_ezvpn $router;
         return;
     }
-    $crypto_type =~ /^(:?IOS|ASA)$/
-      or internal_err "Unexptected crypto type $crypto_type";
 
     # Use interface access lists to filter incoming crypto traffic.
     # Group policy and per-user authorization access list can't be used
     # because they are stateless.
-    if ($crypto_type eq 'ASA') {
+    if ($crypto_type =~ /^ASA/) {
         print "! VPN traffic is filtered at interface ACL\n";
         print "no sysopt connection permit-vpn\n";
     }
+
+    if ($crypto_type eq 'ASA_VPN') {
+        print_asavpn $router;
+        return;
+    }
+
+    # Crypto config for ASA as EZVPN client is configured manually once.
+    # No config is generated by netspoc.
+    if ($crypto_type eq 'ASA_EZVPN') {
+        return;
+    }
+
+    $crypto_type =~ /^(:?IOS|ASA)$/
+      or internal_err "Unexptected crypto type $crypto_type";
 
     my $isakmp_count = 0;
     for my $isakmp (@isakmp) {

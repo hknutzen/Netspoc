@@ -1,3 +1,14 @@
+3.021     2012-11-13 14:37:55 Europe/Berlin
+
+- Use email address directly as admins / watchers attributes of owner.
+  Old syntax with admin:xx is still supported.
+- Support ASA as EZVPN client: model = ASA, EZVPN
+  This assumes, that appropriate commands vpdn and vpnclient 
+  have been configured manually.
+- Allow virtual interface between managed and unmanaged router.
+- Again fixed nondeterminism when printing host routes to physical interface 
+  of XRRP group.
+
 3.020     2012-10-30 11:51:32 Europe/Berlin
 
 - When generating static routes for an interface of ASA with site-to-site VPN,

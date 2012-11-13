@@ -22,9 +22,10 @@ requires:
   FindBin: 0
   Getopt::Long: 0
   Pod::Usage: 0
+  bytes: 0
   locale: 0
   open: 0
   strict: 0
   utf8: 0
   warnings: 0
-version: 3.020
+version: 3.021
