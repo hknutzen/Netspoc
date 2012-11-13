@@ -605,6 +605,27 @@ sub read_identifier() {
     }
 }
 
+sub check_email() {
+    skip_space_and_comment;
+
+    # Only 7 bit ASCII
+    # Local part definition from wikipedia, 
+    # without space and other quoted characters
+    use bytes;
+    if ($input =~ m/(\G [\w.!\#$%&'*+\/=?^_`{|}~-]+ \@ [\w.-]+ )/gcx) {
+
+        # Normalize email to lower case.
+        return lc($1);
+    }
+    else {
+        return;
+    }
+}
+
+sub read_email {
+    check_email or syntax_err "Email address expected (ASCII only)";
+}
+
 # Pattrern for attribute "visible": "*" or "name*".
 sub read_owner_pattern() {
     skip_space_and_comment;
@@ -2908,6 +2929,10 @@ sub find_duplicates {
 
 our %owners;
 
+sub read_email_or_identifier {
+    return(check_email() || read_identifier);
+}
+
 sub read_owner( $ ) {
     my $name = shift;
     my $owner = new('Owner', name => $name);
@@ -2921,12 +2946,16 @@ sub read_owner( $ ) {
               and error_atline "Redefining 'alias' attribute";
             $owner->{alias} = $alias;
         }
-        elsif (my @admins = check_assign_list 'admins', \&read_identifier) {
+        elsif (my @admins = check_assign_list('admins', 
+                                              \&read_email_or_identifier))
+        {
             $owner->{admins}
               and error_atline "Redefining 'admins' attribute";
             $owner->{admins} = \@admins;
         }
-        elsif (my @watchers = check_assign_list 'watchers', \&read_identifier) {
+        elsif (my @watchers = check_assign_list('watchers', 
+                                                \&read_email_or_identifier))
+        {
             $owner->{watchers}
               and error_atline "Redefining 'watchers' attribute";
             $owner->{watchers} = \@watchers;
@@ -2945,10 +2974,19 @@ sub read_owner( $ ) {
         }
     }
     $owner->{admins} or error_atline "Missing attribute 'admins'";
-    if (my @duplicates =
-        find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} }))
-    {
-        error_atline "Duplicate admins: ", join(', ', @duplicates);
+    if (find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} })) {
+        for my $what (qw(admins watchers)) {
+            if (my @emails = find_duplicates(@{ $owner->{$what} })) {
+                $owner->{$what} = [ unique(@{ $owner->{$what} }) ];
+                error_atline "Duplicate $what: ", join(', ', @emails);
+            }
+        }
+        if (my @duplicates =
+            find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} }))
+        {
+            error_atline("Duplicates in admins and watchers: ", 
+                         join(', ', @duplicates));
+        }
     }
     return $owner;
 }
@@ -2968,12 +3006,10 @@ sub read_admin( $ ) {
               and error_atline "Redefining 'name' attribute";
             $admin->{full_name} = $full_name;
         }
-        elsif (my $email = check_assign 'email', \&read_to_semicolon) {
+        elsif (my $email = check_assign 'email', \&read_email) {
             $admin->{email}
               and error_atline "Redefining 'email' attribute";
-
-            # Normalize email to lower case.
-            $admin->{email} = lc $email;
+            $admin->{email} = $email;
         }
         else {
             syntax_err "Expected attribute 'name' or 'email'.";
@@ -3602,19 +3638,27 @@ sub link_owners () {
             $alias2owner{$alias} = $owner;
         }
 
-        # Convert names of admin and watcher objects to admin objects.
+        # Convert names of admin and watcher objects to email address
+        # of admin objects.
         for my $attr (qw( admins watchers )) {
-            for my $name (@{ $owner->{$attr} }) {
-                if (my $admin = $admins{$name}) {
-                    $name = $admin;
+            for my $email (@{ $owner->{$attr} }) {
+
+                # Has already been read in new syntax as email address.
+                next if $email =~ /\@/;
+                if (my $admin = $admins{$email}) {
+                    $email = $admin->{email};
+                    $admin->{used} = 1;
                 }
                 else {
-                    err_msg "Can't resolve reference to '$name'",
+                    err_msg "Can't resolve reference to '$email'",
                       " in attribute '$attr' of $owner->{name}";
-                    $name = { name => 'unknown' };
+                    $email = 'unknown';
                 }
             }
         }
+    }
+    for my $admin (values %admins) {
+        delete $admin->{used} or warn_msg "Unused $admin->{name}";
     }
     for my $network (values %networks) {
         link_to_owner($network);
@@ -6464,17 +6508,8 @@ sub propagate_owners {
             $aggregate->{owner} = ($up ? $up : $zone)->{owner};
         }
     }
-
     for my $owner (values %owners) {
-        for my $attr (qw( admins watchers )) {
-            for my $admin (@{ $owner->{$attr} }) {
-                $used{$admin} = 1;
-            }
-        }
         $used{$owner} or warn_msg "Unused $owner->{name}";
-    }
-    for my $admin (values %admins) {
-        $used{$admin} or warn_msg "Unused $admin->{name}";
     }
 }
 
