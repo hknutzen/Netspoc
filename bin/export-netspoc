@@ -784,7 +784,7 @@ sub export_objects {
 }
 
 ####################################################################
-# find Email -> Admin -> Owner
+# find Email -> Owner
 ####################################################################
 
 sub export_owners {
@@ -796,14 +796,12 @@ sub export_owners {
 	my @watchers;
 	my @e_owners;
 	create_dirs("owner/$name");
-	for my $admin ( @{ $owner->{admins} } ) {
-	    my $email = $admin->{email};
+	for my $email ( @{ $owner->{admins} } ) {
 	    $email2owners{$email}->{$name} = $name;
 	    push @emails, $email;
 	}
 	if (my $watchers = $owner->{watchers}) {
-	    for my $admin ( @$watchers ) {
-		my $email = $admin->{email};
+	    for my $email ( @$watchers ) {
 
 		# Watchers are allowed to login, but aren't shown as owner.
 		$email2owners{$email}->{$name} = $name;
@@ -812,8 +810,7 @@ sub export_owners {
 	}
 	if (my $aref = $owner->{extended_by}) {
 	    for my $e_owner (@$aref) {
-		for my $admin ( @{ $e_owner->{admins} } ) {
-		    my $email = $admin->{email};
+		for my $email ( @{ $e_owner->{admins} } ) {
 		    $email2owners{$email}->{$name} = $name;
 		}
 		(my $e_name = $e_owner->{name}) =~ s/^owner://;
