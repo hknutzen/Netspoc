@@ -106,7 +106,7 @@ policy servicegroup
 
 # NAT is applied with bind_nat.
 # Admin attribute is named "admins" in definition of owner.
-my %aliases = ( nat => 'bind_nat', admin => 'admins' );
+my %aliases = ( nat => ['bind_nat'], admin => ['admins', 'watchers'] );
 
 my %subst;
 
@@ -147,8 +147,10 @@ sub setup_subst {
         push(@{ $subst{host} }, [ qr/$search([.][\w-]+)/, $replace.'${1}' ]);
     }
 
-    elsif (my $other = $aliases{$type}) {
-         push @{ $subst{$other} }, [qr/$search/, $replace];
+    elsif (my $list = $aliases{$type}) {
+        for my $other (@$list) {
+            push @{ $subst{$other} }, [qr/$search/, $replace];
+        }
     }
 }
  
