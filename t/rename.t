@@ -134,22 +134,22 @@ END
 eq_or_diff(run($in, 'nat:NAT-1 nat:NAT-2'), $out, $title);
 
 ############################################################
-$title = 'Rename admin';
+$title = 'Rename umlauts';
 ############################################################
 
 $in = <<END;
-owner:x = { admins = foo,bar, baz; }
-admin:foo
-admin:baz
+owner:Maaß
+owner:Wittmüß
+owner = Maaß, Wittmuess
 END
 
 $out = <<END;
-owner:x = { admins = Foo,bar, BAZ; }
-admin:Foo
-admin:BAZ
+owner:Maass
+owner:Wittmüß
+owner = Maass, Wittmüß
 END
 
-eq_or_diff(run($in, 'admin:foo admin:Foo admin:baz admin:BAZ'), 
+eq_or_diff(run($in, 'owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß'), 
 	   $out, $title);
 
 ############################################################
@@ -158,10 +158,10 @@ $title = 'Read substitutions from file';
 
 my $subst = <<END;
 host:abc host:a1
-owner:foo owner:bar
-admin:tick admin:t1
-admin:ticks admin:t2
-admin:ick admin:_
+owner:foo owner:büro
+nat:tick nat:t1
+nat:ticks nat:t2
+nat:ick nat:_
 network:net network:xxxx
 END
 my ($in_fh, $filename) = tempfile(UNLINK => 1);
@@ -169,9 +169,9 @@ print $in_fh $subst;
 close $in_fh;
 
 $in = <<END;;
-admin:ticks admin:ick
-admin:tick
-owner:foo = { admins = ick,
+nat:ticks nat:ick
+nat:tick
+interface:net = { bind_nat = ick,
  ticks, tick;}
 network:net = { owner = foo; 
  host:abc;
@@ -179,11 +179,11 @@ network:net = { owner = foo;
 END
 
 $out = <<END;;
-admin:t2 admin:_
-admin:t1
-owner:bar = { admins = _,
+nat:t2 nat:_
+nat:t1
+interface:xxxx = { bind_nat = _,
  t2, t1;}
-network:xxxx = { owner = bar; 
+network:xxxx = { owner = büro; 
  host:a1;
 }
 END
