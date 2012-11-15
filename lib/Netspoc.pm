@@ -28,6 +28,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 use strict;
 use warnings;
+use Module::Load::Conditional qw(can_load);
+my $can_json = can_load( modules => {JSON => 0.0} ) and JSON->import();
 use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
@@ -1006,6 +1008,11 @@ sub unique(@) {
 # Currently we don't use OO features;
 # We use 'bless' only to give each structure a distinct type.
 ####################################################################
+
+# A hash, describing, which parts are read fom JSON.
+# Possible keys:
+# - owner
+my $from_json;
 
 # Create a new structure of given type;
 # initialize it with key / value pairs.
@@ -2926,6 +2933,10 @@ sub read_owner( $ ) {
             $owner->{admins} = \@admins;
         }
         elsif (my @watchers = check_assign_list('watchers', \&read_name)) {
+            if ($from_json->{watchers}) {
+                error_atline 
+                    "Watchers must only be defined in JSON/ directory";
+            }
             $owner->{watchers}
               and error_atline "Redefining 'watchers' attribute";
             $owner->{watchers} = \@watchers;
@@ -3043,6 +3054,62 @@ sub read_config {
     \%result;
 }
 
+sub read_json_watchers {
+    my ($path) = @_;
+    opendir(my $dh, $path) or fatal_err "Can't opendir $path: $!";
+    my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
+    closedir $dh;
+    for my $owner_name (@files) {
+        next if $owner_name eq '.' or $owner_name eq '..';
+        next if $owner_name =~ m/$config{ignore_files}/o;
+        my $path = "$path/$owner_name";
+        opendir(my $dh, $path) or fatal_err "Can't opendir $path: $!";
+        my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
+        closedir $dh;
+        for my $file (@files) {
+            next if $file eq '.' or $file eq '..';
+            next if $file =~ m/$config{ignore_files}/o;
+            my $path = "$path/$file";
+            if ($file ne 'watchers') {
+                err_msg "Ignoring $path";
+                next;
+            }
+            open (my $fh, '<', $path) or fatal_err "Can't open $path";
+            my $data;
+            {
+                local $/ = undef;
+                $data = from_json( <$fh> );
+            }
+            close($fh);
+            my $owner = $owners{$owner_name};
+            if (! $owner) {
+                err_msg "Referencing unknown owner:$owner_name in $path";
+                next;
+            }
+            $owner->{watchers} and 
+                err_msg "Redefinig watcher of owner:$owner_name from $path";
+            $owner->{watchers} = $data;
+        }
+    }
+}
+       
+sub read_json {
+    my ($path) = @_;
+    opendir(my $dh, $path) or fatal_err "Can't opendir $path: $!";
+    my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
+    closedir $dh;
+    for my $file (@files) {
+        next if $file eq '.' or $file eq '..';
+        next if $file =~ m/$config{ignore_files}/o;
+        my $path = "$path/$file";
+        if ($file ne 'owner') {
+            err_msg "Ignoring $path";
+            next;
+        }
+        read_json_watchers($path);
+    }    
+}
+
 sub read_file_or_dir( $;$ ) {
     my ($path, $read_syntax) = @_;
     $read_syntax ||= \&read_netspoc;
@@ -3080,17 +3147,27 @@ sub read_file_or_dir( $;$ ) {
     };
 
     # Handle toplevel directory.
-    # Special handling for "config", "raw" and "*.private".
+    # Special handling for "config", "raw", "JSON" and "*.private".
     opendir(my $dh, $path) or fatal_err "Can't opendir $path: $!";
     my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
+    closedir $dh;
 
+    if (grep { $_ eq 'JSON' } @files) {
+        $can_json or 
+            fatal_err "JSON module must be installed to read $path/JSON";
+        $from_json = {};
+        if (-e "$path/JSON/owner") {
+            $from_json->{watchers} = 1;
+        }
+    }
+        
     for my $file (@files) {
 
         next if $file eq '.' or $file eq '..';
         next if $file =~ m/$config{ignore_files}/o;
 
-        # Ignore file/directory 'raw' and 'config'.
-        next if $file eq 'config' or $file eq 'raw';
+        # Ignore special files/directories.
+        next if $file =~ /^(config|raw|JSON)$/;
 
         my $path = "$path/$file";
 
@@ -3099,11 +3176,15 @@ sub read_file_or_dir( $;$ ) {
             local $private = $1;
             $read_nested_files->($path, $read_syntax);
         }
+
+        # Handle standard directories and files.
         else {
             $read_nested_files->($path, $read_syntax);
         }
     }
-    closedir $dh;
+    if ($from_json) {
+        read_json("$path/JSON");
+    }
 }
 
 sub show_read_statistics() {
@@ -3560,10 +3641,13 @@ sub link_owners () {
                 # Only 7 bit ASCII
                 # Local part definition from wikipedia, 
                 # without space and other quoted characters
-                use bytes;
-                $email =~ m/^ [\w.!\#$%&'*+\/=?^_`{|}~-]+ \@ [\w.-]+ $/x or
-                    err_msg("Invalid email address (ASCII only)",
-                            " in $attr of $owner->{name}: $email");
+                do {
+                    use bytes;
+                    $email =~ 
+                        m/^ [\w.!\#$%&'*+\/=?^_`{|}~-]+ \@ [\w.-]+ $/x;
+                }
+                or err_msg("Invalid email address (ASCII only)",
+                           " in $attr of $owner->{name}: $email");
 
                 # Normalize email to lower case.
                 $email = lc($email);
