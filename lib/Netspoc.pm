@@ -192,10 +192,6 @@ our %config = (
 # Print progress messages with time stamps.
 # Print "finished" with time stamp when finished.
     time_stamps => 0,
-
-# Use old syntax srv, service, servicegroup, policy
-# instead of     prt, protocol, protocolgroup, service
-    old_syntax => 0,
 );
 
 # Valid values for config options in %config.
@@ -2676,18 +2672,11 @@ sub read_service( $ ) {
         if (my $action = check_permit_deny) {
             my ($src, $src_user) = assign_union_allow_user 'src';
             my ($dst, $dst_user) = assign_union_allow_user 'dst';
-            my $prt;
-            if ($config{old_syntax} and check 'srv') {
-                check '=';
-                $prt = [ read_list(\&read_typed_name_or_simple_protocol) ];
-            }
-            else {
-                $prt = [
+            my $prt = [
                     read_assign_list(
                         'prt', \&read_typed_name_or_simple_protocol
                     )
-                ];
-            }
+               ];
             $src_user
               or $dst_user
               or error_atline "Rule must use keyword 'user'";
@@ -3113,12 +3102,6 @@ sub read_json {
 sub read_file_or_dir( $;$ ) {
     my ($path, $read_syntax) = @_;
     $read_syntax ||= \&read_netspoc;
-
-    if ($config{old_syntax}) {
-        $global_type{policy}       = $global_type{service};
-        $global_type{service}      = $global_type{protocol};
-        $global_type{servicegroup} = $global_type{protocolgroup};
-    }
 
     # Handle toplevel file.
     if (not -d $path) {
@@ -5507,7 +5490,7 @@ sub expand_protocols( $$ ) {
             next;
         }
         my ($type, $name) = @$pair;
-        if ($type eq 'protocol' || $config{old_syntax} && $type eq 'protocol') {
+        if ($type eq 'protocol') {
             if (my $prt = $protocols{$name}) {
                 push @protocols, $prt;
 
@@ -5522,9 +5505,7 @@ sub expand_protocols( $$ ) {
                 next;
             }
         }
-        elsif ($type eq 'protocolgroup'
-            || $config{old_syntax} && $type eq 'protocolgroup')
-        {
+        elsif ($type eq 'protocolgroup') {
             if (my $prtgroup = $protocolgroups{$name}) {
                 my $elements = $prtgroup->{elements};
                 if ($elements eq 'recursive') {
@@ -6165,11 +6146,7 @@ sub expand_services( ;$) {
             my @pobjects;
             for my $pair (@$overlaps) {
                 my ($type, $oname) = @$pair;
-                if (
-                    not(   $type eq 'service'
-                        || $config{old_syntax} && $type eq 'policy')
-                  )
-                {
+                if (! $type eq 'service') {
                     err_msg "Unexpected type '$type' in attribute 'overlaps'",
                       " of $name";
                 }
