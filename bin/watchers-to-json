@@ -117,7 +117,7 @@ sub process {
 
             my $watchers = join('', @watchers);
             $watchers =~ s/\s//g;
-            my @emails = split(/,/, $watchers);
+            my @emails = sort split(/,/, $watchers);
             write_watchers($owner, @emails);
             $erase = 0;
             @watchers = ();
