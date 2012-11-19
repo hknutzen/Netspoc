@@ -1007,7 +1007,7 @@ sub unique(@) {
 
 # A hash, describing, which parts are read fom JSON.
 # Possible keys:
-# - owner
+# - watchers
 my $from_json;
 
 # Create a new structure of given type;
@@ -3138,7 +3138,7 @@ sub read_file_or_dir( $;$ ) {
     if (grep { $_ eq 'JSON' } @files) {
         $can_json or 
             fatal_err "JSON module must be installed to read $path/JSON";
-        $from_json = {};
+        $from_json = { JSON => 1 };
         if (-e "$path/JSON/owner") {
             $from_json->{watchers} = 1;
         }
@@ -3165,7 +3165,7 @@ sub read_file_or_dir( $;$ ) {
             $read_nested_files->($path, $read_syntax);
         }
     }
-    if ($from_json) {
+    if (keys %$from_json) {
         read_json("$path/JSON");
     }
 }
