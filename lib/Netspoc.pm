@@ -266,42 +266,44 @@ my $use_nonlocal_exit => 1;
 ####################################################################
 my %router_info = (
     IOS => {
-        routing        => 'IOS',
-        filter         => 'IOS',
-        stateless      => 1,
-        stateless_self => 1,
-        stateless_icmp => 1,
-        inversed_acl_mask => 1,
-        can_vrf        => 1,
-        can_log_deny   => 1,
-        has_out_acl    => 1,
-        need_protect   => 1,
-        crypto         => 'IOS',
-        print_interface => 1,
-        comment_char   => '!',
-        extension      => {
+        routing             => 'IOS',
+        filter              => 'IOS',
+        stateless           => 1,
+        stateless_self      => 1,
+        stateless_icmp      => 1,
+        inversed_acl_mask   => 1,
+        can_vrf             => 1,
+        can_log_deny        => 1,
+        has_out_acl         => 1,
+        need_protect        => 1,
+        crypto              => 'IOS',
+        print_interface     => 1,
+        comment_char        => '!',
+        extension           => {
             EZVPN => { crypto    => 'EZVPN' },
             FW    => { stateless => 0 },
         },
     },
     'NX-OS' => {
-        routing        => 'NX-OS',
-        filter         => 'NX-OS',
-        stateless      => 1,
-        stateless_self => 1,
-        stateless_icmp => 1,
-        inversed_acl_mask => 1,
-        use_prefix     => 1,
-        can_log_deny   => 1,
-        has_out_acl    => 1,
-        need_protect   => 1,
-        print_interface => 1,
-        comment_char   => '!',
+        routing             => 'NX-OS',
+        filter              => 'NX-OS',
+        stateless           => 1,
+        stateless_self      => 1,
+        stateless_icmp      => 1,
+        can_objectgroup     => 1,
+        inversed_acl_mask   => 1,
+        use_prefix          => 1,
+        can_log_deny        => 1,
+        has_out_acl         => 1,
+        need_protect        => 1,
+        print_interface     => 1,
+        comment_char        => '!',
     },
     PIX => {
-        stateless_icmp      => 1,
         routing             => 'PIX',
         filter              => 'PIX',
+        stateless_icmp      => 1,
+        can_objectgroup     => 1,
         comment_char        => '!',
         has_interface_level => 1,
         need_identity_nat   => 1,
@@ -310,10 +312,11 @@ my %router_info = (
 
     # Like PIX, but without identity NAT.
     ASA => {
-        stateless_icmp      => 1,
         routing             => 'PIX',
         filter              => 'PIX',
+        stateless_icmp      => 1,
         has_out_acl         => 1,
+        can_objectgroup     => 1,
         crypto              => 'ASA',
         no_crypto_filter    => 1,
         comment_char        => '!',
@@ -12904,7 +12907,9 @@ sub address( $$ ) {
 sub cisco_acl_addr( $$ ) {
     my ($pair, $model) = @_;
     if (is_objectgroup $pair) {
-        return "object-group $pair->{name}";
+        my $keyword = 
+            $model->{filter} eq 'NX-OS' ? 'addrgroup' : 'object-group';
+        return "$keyword $pair->{name}";
     }
     else {
         my ($ip, $mask) = @$pair;
@@ -13166,11 +13171,17 @@ my $min_object_group_size = 2;
 sub find_object_groups ( $$ ) {
     my ($router, $hardware) = @_;
     my $model = $router->{model};
+    my $keyword = $model->{filter} eq 'NX-OS' 
+                ? 'object-group ip address'
+                : 'object-group network';
 
     # Find identical groups in identical NAT domain and of same size.
     my $nat2size2group = ($router->{nat2size2group} ||= {});
     $router->{obj_group_counter} ||= 0;
 
+    # Leave 'intf_rules' untouched, because they are handled
+    # indivually for ASA, PIX. 
+    # NX-OS needs them indivually when optimizing need_protect.
     for my $rule_type ('rules', 'out_rules') {
         next if not $hardware->{$rule_type};
 
@@ -13279,7 +13290,7 @@ sub find_object_groups ( $$ ) {
                 push @{ $nat2size2group->{$no_nat_set}->{$size} }, $group;
 
                 # Print object-group.
-                print "object-group network $group->{name}\n";
+                print "$keyword $group->{name}\n";
                 for my $pair (
                     sort({ $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] }
                         map({ address($_, $no_nat_set) }
@@ -15575,7 +15586,7 @@ sub print_cisco_acls {
         # when checking for non empty array.
         $hardware->{rules} ||= [];
 
-        if ($filter eq 'PIX') {
+        if ($model->{can_objectgroup}) {
             my $interfaces = [ @{ $router->{hardware} } ];
             if (not $router->{no_group_code}) {
                 find_object_groups($router, $hardware);
