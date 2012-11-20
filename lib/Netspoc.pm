@@ -266,21 +266,37 @@ my $use_nonlocal_exit => 1;
 ####################################################################
 my %router_info = (
     IOS => {
+        routing        => 'IOS',
+        filter         => 'IOS',
         stateless      => 1,
         stateless_self => 1,
         stateless_icmp => 1,
-        routing        => 'IOS',
-        filter         => 'IOS',
+        inversed_acl_mask => 1,
         can_vrf        => 1,
         can_log_deny   => 1,
         has_out_acl    => 1,
         need_protect   => 1,
         crypto         => 'IOS',
+        print_interface => 1,
         comment_char   => '!',
         extension      => {
             EZVPN => { crypto    => 'EZVPN' },
             FW    => { stateless => 0 },
         },
+    },
+    'NX-OS' => {
+        routing        => 'NX-OS',
+        filter         => 'NX-OS',
+        stateless      => 1,
+        stateless_self => 1,
+        stateless_icmp => 1,
+        inversed_acl_mask => 1,
+        use_prefix     => 1,
+        can_log_deny   => 1,
+        has_out_acl    => 1,
+        need_protect   => 1,
+        print_interface => 1,
+        comment_char   => '!',
     },
     PIX => {
         stateless_icmp      => 1,
@@ -7588,7 +7604,7 @@ sub check_no_in_acl () {
 sub check_crosslink () {
 
     # Collect cluster of routers connected by crosslink networks,
-    # but only for IOS routers having attribute "need_protect".
+    # but only for Cisco routers having attribute "need_protect".
     my %crosslink_routers;
 
     for my $network (values %networks) {
@@ -11856,6 +11872,10 @@ sub print_routes( $ ) {
                     my $adr = ios_route_code($netinfo);
                     print "ip route $vrf$adr $hop_addr\n";
                 }
+                elsif ($type eq 'NX-OS') {
+                    my $adr = prefix_code($netinfo);
+                    print "ip route $adr $hop_addr\n";
+                }
                 elsif ($type eq 'PIX') {
                     my $adr = ios_route_code($netinfo);
                     print
@@ -12280,7 +12300,7 @@ sub distribute_rule( $$$ ) {
     my $key;
 
     # Packets for the router itself or for some interface of a
-    # crosslinked cluster of routers (only IOS with "need_protect").
+    # crosslinked cluster of routers (only IOS, NX-OS with "need_protect").
     if (!$out_intf || $intf_hash && $intf_hash->{$dst}) {
 
         # Packets for the router itself.  For PIX we can only reach that
@@ -12670,7 +12690,7 @@ sub distribute_global_permit {
                 stateless_icmp => $stateless_icmp,
             };
             for my $router (@managed_routers) {
-                my $is_ios = ($router->{model}->{filter} eq 'IOS');
+                my $need_protect = $router->{model}->{need_protect};
                 for my $in_intf (@{ $router->{interfaces} }) {
                     next if has_global_restrict($in_intf);
 
@@ -12701,9 +12721,10 @@ sub distribute_global_permit {
                         for my $out_intf (@{ $router->{interfaces} }) {
                             next if $out_intf eq $in_intf;
 
-                            # For IOS print this rule only once at interface
-                            # filter rules (for incoming ACL).
-                            if ($is_ios) {
+                            # For IOS and NX-OS print this rule only
+                            # once at interface filter rules below
+                            # (for incoming ACL).
+                            if ($need_protect) {
                                 my $out_hw = $out_intf->{hardware};
 
                                 # For interface with outgoing ACLs
@@ -12879,10 +12900,9 @@ sub address( $$ ) {
     }
 }
 
-# Given an IP and mask, return its address in IOS syntax.
-# If optional third parameter is true, use inverted netmask for IOS ACLs.
-sub ios_code( $;$ ) {
-    my ($pair, $inv_mask) = @_;
+# Given an IP and mask, return its address in Cisco syntax.
+sub cisco_acl_addr( $$ ) {
+    my ($pair, $model) = @_;
     if (is_objectgroup $pair) {
         return "object-group $pair->{name}";
     }
@@ -12895,9 +12915,12 @@ sub ios_code( $;$ ) {
         elsif ($mask == 0) {
             return "any";
         }
+        elsif ($model->{use_prefix}) {
+            return prefix_code($pair);
+        }
         else {
-            my $mask_code =
-              print_ip($inv_mask ? complement_32bit $mask : $mask);
+            $mask = complement_32bit($mask) if $model->{inversed_acl_mask};
+            my $mask_code = print_ip($mask);
             return "$ip_code $mask_code";
         }
     }
@@ -12921,7 +12944,7 @@ sub prefix_code( $ ) {
     return $prefix_code == 32 ? $ip_code : "$ip_code/$prefix_code";
 }
 
-# Returns 3 values for building an IOS or PIX ACL:
+# Returns 3 values for building a Cisco ACL:
 # permit <val1> <src> <val2> <dst> <val3>
 sub cisco_prt_code( $$$ ) {
     my ($src_range, $prt, $model) = @_;
@@ -13099,9 +13122,9 @@ sub cisco_acl_line {
                 my ($proto_code, $src_port_code, $dst_port_code) =
                   cisco_prt_code($src_range, $prt, $model);
                 my $result = "$prefix $action $proto_code";
-                $result .= ' ' . ios_code($spair);
+                $result .= ' ' . cisco_acl_addr($spair, $model);
                 $result .= " $src_port_code" if defined $src_port_code;
-                $result .= ' ' . ios_code($dpair);
+                $result .= ' ' . cisco_acl_addr($dpair, $model);
                 $result .= " $dst_port_code" if defined $dst_port_code;
                 print "$result\n";
             }
@@ -13121,14 +13144,13 @@ sub cisco_acl_line {
                 }
             }
         }
-        elsif ($filter_type eq 'IOS') {
-            my $inv_mask = $filter_type eq 'IOS';
+        elsif ($filter_type =~ /^(:?IOS|NX-OS)$/) {
             my ($proto_code, $src_port_code, $dst_port_code) =
               cisco_prt_code($src_range, $prt, $model);
             my $result = "$prefix $action $proto_code";
-            $result .= ' ' . ios_code($spair, $inv_mask);
+            $result .= ' ' . cisco_acl_addr($spair, $model);
             $result .= " $src_port_code" if defined $src_port_code;
-            $result .= ' ' . ios_code($dpair, $inv_mask);
+            $result .= ' ' . cisco_acl_addr($dpair, $model);
             $result .= " $dst_port_code" if defined $dst_port_code;
             $result .= " log" if $router->{log_deny} and $action eq 'deny';
             print "$result\n";
@@ -13143,6 +13165,7 @@ my $min_object_group_size = 2;
 
 sub find_object_groups ( $$ ) {
     my ($router, $hardware) = @_;
+    my $model = $router->{model};
 
     # Find identical groups in identical NAT domain and of same size.
     my $nat2size2group = ($router->{nat2size2group} ||= {});
@@ -13263,7 +13286,7 @@ sub find_object_groups ( $$ ) {
                             @{ $group->{elements} }))
                   )
                 {
-                    my $adr = ios_code($pair);
+                    my $adr = cisco_acl_addr($pair, $model);
                     print " network-object $adr\n";
                 }
                 $router->{obj_group_counter}++;
@@ -14777,14 +14800,13 @@ sub print_vpn3k( $ ) {
     my @deny_rules =
       map { "deny ip any $_" }
       sort
-      map { ios_code $_, 1 }
+      map { cisco_acl_addr $_, $model }
       map { address($_, $no_nat_set) } values %auto_deny_networks;
 
     my $add_filter = sub {
         my ($entry, $intf, $src, $add_split_tunnel) = @_;
         my @acl_lines;
         my %split_tunnel_networks;
-        my $inv_mask = 1;
         for my $rule (@{ $intf->{rules} }, @{ $intf->{intf_rules} }) {
             my ($action, $src, $dst, $src_range, $prt) =
               @{$rule}{ 'action', 'src', 'dst', 'src_range', 'prt' };
@@ -14801,16 +14823,16 @@ sub print_vpn3k( $ ) {
                   cisco_prt_code($src_range, $prt, $model);
                 my $result = "$action $proto_code";
                 $result .=
-                  ' ' . ios_code(address($src, $no_nat_set), $inv_mask);
+                  ' ' . cisco_acl_addr(address($src, $no_nat_set), $model);
                 $result .= " $src_port_code" if defined $src_port_code;
                 $result .=
-                  ' ' . ios_code(address($dst, $no_nat_set), $inv_mask);
+                  ' ' . cisco_acl_addr(address($dst, $no_nat_set), $model);
                 $result .= " $dst_port_code" if defined $dst_port_code;
                 push @acl_lines, $result;
             }
         }
         my $spair = address($src, $no_nat_set);
-        my $src_code = ios_code($spair, $inv_mask);
+        my $src_code = cisco_acl_addr($spair, $model);
         my $permit_rule = "permit ip $src_code any";
         push @acl_lines, @deny_rules, $permit_rule;
         $entry->{in_acl} = [ map { { ace => $_ } } @acl_lines ];
@@ -14907,7 +14929,6 @@ my $deny_any_rule = {
 
 sub print_cisco_acl_add_deny ( $$$$$$ ) {
     my ($router, $hardware, $no_nat_set, $model, $intf_prefix, $prefix) = @_;
-    my $filter = $model->{filter};
     my $permit_any;
 
     my $rules = $hardware->{rules} ||= [];
@@ -14933,7 +14954,7 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
         $permit_any = $hardware->{no_in_acl};
     }
 
-    if ($filter eq 'IOS') {
+    if ($router->{model}->{need_protect}) {
 
         # Routers connected by crosslink networks are handled like one
         # large router. Protect the collected interfaces of the whole
@@ -15245,7 +15266,9 @@ EOF
                                 my $line =
                                   "access-list $acl_name standard permit ";
                                 $line .=
-                                  ios_code(address($network, $no_nat_set));
+                                  cisco_acl_addr(address($network, 
+                                                         $no_nat_set), 
+                                                 $model);
                                 print "$line\n";
                             }
                         }
@@ -15475,7 +15498,6 @@ sub iptables_acl_line {
 sub print_iptables_acls {
     my ($router)     = @_;
     my $model        = $router->{model};
-    my $filter       = $model->{filter};
     my $comment_char = $model->{comment_char};
 
     # Pre-processing for all interfaces.
@@ -15578,6 +15600,10 @@ sub print_cisco_acls {
                 $intf_prefix = $prefix = '';
                 print "ip access-list extended $acl_name\n";
             }
+            elsif ($filter eq 'NX-OS') {
+                $intf_prefix = $prefix = '';
+                print "ip access-list $acl_name\n";
+            }
             elsif ($filter eq 'PIX') {
                 $intf_prefix = '';
                 $prefix      = "access-list $acl_name";
@@ -15604,7 +15630,7 @@ sub print_cisco_acls {
             }
 
             # Post-processing for hardware interface
-            if ($filter eq 'IOS') {
+            if ($filter eq 'IOS' || $filter eq 'NX-OS') {
                 push(
                     @{ $hardware->{subcmd} },
                     "ip access-group $acl_name $suffix"
@@ -16040,7 +16066,9 @@ sub print_crypto( $ ) {
 
 sub print_interface( $ ) {
     my ($router) = @_;
-    my $stateful = not $router->{model}->{stateless};
+    my $model = $router->{model};
+    my $class = $model->{class};
+    my $stateful = not $model->{stateless};
     for my $hardware (@{ $router->{hardware} }) {
         my @subcmd;
         my $secondary;
@@ -16055,6 +16083,11 @@ sub print_interface( $ ) {
             }
             elsif ($ip eq 'negotiated') {
                 $addr_cmd = 'ip address negotiated';
+            }
+            elsif ($model->{use_prefix}) {
+                my $addr = print_ip($ip);
+                my $mask = mask2prefix($intf->{network}->{mask});
+                $addr_cmd = "ip address $addr/$mask";
             }
             else {
                 my $addr = print_ip($ip);
@@ -16079,6 +16112,10 @@ sub print_interface( $ ) {
             push @subcmd, @$other;
         }
         my $name = $hardware->{name};
+
+        # Split name for NX-OS: "ethernet3/4" -> "ethernet 3/4"
+        $name =~ s/(\d+)/ $1/ if ($class eq 'NX-OS');
+
         print "interface $name\n";
         for my $cmd (@subcmd) {
             print " $cmd\n";
@@ -16150,7 +16187,7 @@ sub print_code( $ ) {
             print_routes $vrouter;
             print_crypto $vrouter;
             print_acls $vrouter;
-            print_interface $vrouter if $model->{class} eq 'IOS';
+            print_interface $vrouter if $model->{print_interface};
             print_nat $vrouter;
             print "$comment_char [ END $name ]\n\n";
         }
