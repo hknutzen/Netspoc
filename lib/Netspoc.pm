@@ -613,7 +613,7 @@ sub read_owner_pattern() {
     }
 }
 
-# Used for reading interface name, model and attribute 'id'.
+# Used for reading hardware name, model, admins, watchers.
 sub read_name() {
     skip_space_and_comment;
     if ($input =~ m/(\G[^;,\s""'']+)/gc) {
@@ -624,7 +624,7 @@ sub read_name() {
     }
 }
 
-# Used for reading RADIUS attributes.
+# Used for reading alias name or radius attributes.
 sub read_string() {
     skip_space_and_comment;
     if ($input =~ m/\G([^;,""''\n]+)/gc) {
@@ -1626,14 +1626,14 @@ sub read_interface( $ ) {
                       and error_atline "Duplicate virtual IP address";
                     $virtual->{ip} = $ip;
                 }
-                elsif (my $type = check_assign 'type', \&read_name) {
+                elsif (my $type = check_assign 'type', \&read_identifier) {
                     $xxrp_info{$type}
                       or error_atline "Unknown redundancy protocol";
                     $virtual->{redundancy_type}
                       and error_atline "Duplicate redundancy type";
                     $virtual->{redundancy_type} = $type;
                 }
-                elsif (my $id = check_assign 'id', \&read_name) {
+                elsif (my $id = check_assign 'id', \&read_identifier) {
                     $id =~ /^\d+$/
                       or error_atline "Redundancy ID must be numeric";
                     $id < 256 or error_atline "Redundancy ID must be < 256";
@@ -1656,7 +1656,7 @@ sub read_interface( $ ) {
               and error_atline "Duplicate definition of hardware";
             $interface->{hardware} = $hardware;
         }
-        elsif (my $protocol = check_assign 'routing', \&read_name) {
+        elsif (my $protocol = check_assign 'routing', \&read_identifier) {
             my $routing = $routing_info{$protocol}
               or error_atline "Unknown routing protocol";
             $interface->{routing} and error_atline "Duplicate routing protocol";
