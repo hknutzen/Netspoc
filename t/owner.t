@@ -13,16 +13,14 @@ $title = 'Check for owners with duplicate alias names';
 ############################################################
 
 $in = <<END;
-admin:a = { email = a\@b.c; }
-
 owner:xx = {
  alias = X Quadrat;
- admins = a;
+ admins = a\@b.c;
 }
 
 owner:x2 = {
  alias = X Quadrat;
- admins = a;
+ admins = a\@b.c;
 }
 END
 
@@ -41,15 +39,13 @@ $title = 'Check for owners with conflicting name and alias name';
 ############################################################
 
 $in = <<END;
-admin:a = { email = a\@b.c; }
-
 owner:y = {
  alias = z;
- admins = a;
+ admins = a\@b.c;
 }
 
 owner:z = {
- admins = a;
+ admins = a\@b.c;
 }
 END
 
