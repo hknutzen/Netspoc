@@ -86,7 +86,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
       }
     
     <filter type> ::= primary | full | standard | secondary
-    <model> ::= Linux | ASA | ASA,8.4 | PIX | IOS | IOS,FW
+    <model> ::= Linux | ASA | ASA,8.4 | PIX | IOS | IOS,FW | NX-OS
     <VRF-name> ::= <name>
 
 ###Interface definition
