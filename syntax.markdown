@@ -106,6 +106,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ loopback;                            ]
          [ subnet_of = network:<name>;          ]
          [ promiscuous_port;                    ]
+         [ security_level = <int>;              ]
          [ disabled;                            ]
       }
 
@@ -254,6 +255,19 @@ where `<object set>` must expand to interfaces.
       dynamic;
       [ subnet_of = network:<name>; ]
     }
+
+###Owner definition
+
+    owner:<name> = {
+      [ alias = <string>; ]
+      admins = <email>(, <email>)*;
+      [ watchers = <email>(, <email>)*; ]
+      [ extend;      ]
+      [ extend_only; ]
+      [ show_all;    ]
+    }
+    
+    <email> ::= a valid email address
 
 ##Encryption
 
