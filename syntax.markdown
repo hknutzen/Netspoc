@@ -118,7 +118,7 @@ here `<object set>` must expand to networks.
       virtual = { 
            ip = <ip>;
            [ type = ( VRRP | HSRP ); ]
-           [ id = <int>;       ]
+           [ id = <int>;             ]
       }
 
     <short interface definition> ::=
