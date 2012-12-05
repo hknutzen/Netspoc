@@ -267,7 +267,7 @@ where `<object set>` must expand to interfaces.
       [ show_all;    ]
     }
     
-    <email> ::= a valid email address
+    <email> ::= some valid email address
 
 ##Encryption
 
@@ -277,6 +277,7 @@ where `<object set>` must expand to interfaces.
       [ <description> ]
       type = ipsec:<name>;
       tunnel_all;
+      [ detailed_crypto_acl; ]
     }
 
     ipsec:<name> = {
