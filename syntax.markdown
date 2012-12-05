@@ -252,7 +252,6 @@ where `<object set>` must expand to interfaces.
     nat:<name> = { 
       ip = <ip-net>; 
       dynamic;
-      [ hidden;                     ]
       [ subnet_of = network:<name>; ]
     }
 
