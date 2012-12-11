@@ -110,7 +110,80 @@ and static routes matching the model of each device.
   generates a rule to permit answer packets.
 * For device of model ASA, object-groups are created.
 
-### To be continued
+## Defining services
 
+Rules describe, which traffic is permitted to flow between different
+network objects. In Netspoc, related rules are grouped into services.
+All rules belonging to a service must use the same source or destination
+object(s). This is enforced by the keyword "user" which must be
+referenced either from src or from dst or both parts of a rule.
 
+### Rules
+
+A rule permits or denies traffic of some protocol to flow from source
+to destination. Source and destination are one or more objects from
+the topology.
+
+It doesn't matter in which order the rules are written. Netspoc places
+deny rules always in front of all permit rules.
+
+### Protocols
+
+Simple protocols like "tcp 80", "udp 161-162", "protocol 50" can be
+used directly in rules.
+
+You can define named protocols like
+
+    protocol:HTTP = tcp 80;
+
+and use "protocol:HTTP" instead of "tcp 80" in a rule.
+
+#### Details
+
+For TCP and UDP, if two ranges are given, they describe source and
+destination port.
+
+Only one rule is needed to permit a TCP connection from source to
+destination. Answer packets are automatically allowed. For stateful
+packet filters, this is done at the device. For stateless packet
+filters, netspoc automatically generates a rule which allowes any TCP
+traffic from destination to source with flag "established" i.e. no SYN
+flag set.
+
+Similarly, only one rule is needed to let UDP packets pass from
+source to destination and back. For stateless packet filters, a rule
+with reversed addresses and reversed port numbers is generated.
+
+For service IP and stateless packet filters, a rules with reversed
+addresses is automatically generated. This is done to get an
+consistent handling for TCP, UDP and IP.
+
+### Protocol modifiers
+
+One or more protocol modifiers can optionally be appended to a named
+protocol definition. A protocol modifier modifies the rule in which
+the corresponding protocol is used as follows:
+
+stateless
+: The rule is only applied to stateless devices. 
+
+oneway
+: At stateless devices, don't automatically generate rules to permit 
+answer packets. 
+
+reversed
+: Source and destination are swapped. 
+
+dst_net
+: If destination of rule is a host or interface, find the enclosing
+network N and replace destination by N. Exception: hosts having a
+VPN id and interfaces of manged routers are left unchanged.
+
+dst_any
+: First apply rules of modifier dst_net above. If afterwards the
+destination of rule is a network, find the aggregate of the
+enclosing security zone X and replace destination by X.
+
+src_net, src_any
+: Equivalent to dst_* modifiers but applied to source of rule. 
 
