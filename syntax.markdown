@@ -68,7 +68,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 
     <host NAT> ::= nat:<name> = { ip = <ip>; }
 
-
 ###Router definition
 
     <router definition> ::=
@@ -85,9 +84,9 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          <short interface definition> *
       }
     
+    <VRF-name>    ::= <name>
     <filter type> ::= primary | full | standard | secondary
-    <model> ::= Linux | ASA | ASA,8.4 | PIX | IOS | IOS,FW | NX-OS
-    <VRF-name> ::= <name>
+    <model>       ::= Linux | ASA | ASA,8.4 | PIX | IOS | IOS,FW | NX-OS
 
 ###Interface definition
 
