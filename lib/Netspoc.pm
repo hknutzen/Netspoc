@@ -293,6 +293,7 @@ my %router_info = (
         can_objectgroup     => 1,
         inversed_acl_mask   => 1,
         use_prefix          => 1,
+        can_vrf             => 1,
         can_log_deny        => 1,
         has_out_acl         => 1,
         need_protect        => 1,
@@ -11842,8 +11843,8 @@ sub print_routes( $ ) {
     }
     print "$comment_char [ Routing ]\n";
 
-    # Prepare extension for IOS route command.
-    $vrf = $vrf ? "vrf $vrf " : '';
+    my $ios_vrf = $vrf ? "vrf $vrf " : '' if $type eq 'IOS';
+    my $nxos_prefix = '';
 
     for my $interface (@{ $router->{interfaces} }) {
         next if $interface->{ip} eq 'bridged';
@@ -11876,8 +11877,15 @@ sub print_routes( $ ) {
                     print "ip route $vrf$adr $hop_addr\n";
                 }
                 elsif ($type eq 'NX-OS') {
+                    if ($vrf && ! $nxos_prefix) {
+
+                        # Print "vrf context" only once
+                        # and indent "ip route" commands.
+                        print "vrf context $vrf\n";
+                        $nxos_prefix = ' ';
+                    }
                     my $adr = prefix_code($netinfo);
-                    print "ip route $adr $hop_addr\n";
+                    print "${nxos_prefix}ip route $adr $hop_addr\n";
                 }
                 elsif ($type eq 'PIX') {
                     my $adr = ios_route_code($netinfo);
@@ -16110,7 +16118,12 @@ sub print_interface( $ ) {
             $secondary = 1;
         }
         if (my $vrf = $router->{vrf}) {
-            push @subcmd, "ip vrf forwarding $vrf";
+            if ($class eq 'NX-OS') {
+                push @subcmd, "vrf member $vrf";
+            }
+            else {
+                push @subcmd, "ip vrf forwarding $vrf";
+            }
         }
 
         # Add "ip inspect" as marker, that stateful filtering is expected.
