@@ -4122,7 +4122,7 @@ sub link_virtual_interfaces () {
             {
                 err_msg("Pathrestriction not supported for",
                         " group of 3 or more virtual interfaces\n ",
-                        join(',', map($interfaces->{name}, @$interfaces)));
+                        join(',', map($_->{name}, @$interfaces)));
             }
 
             # Automatically add pathrestriction to interfaces
