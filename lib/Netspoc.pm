@@ -13122,6 +13122,7 @@ sub cisco_acl_line {
     my ($router, $rules_aref, $no_nat_set, $prefix) = @_;
     my $model       = $router->{model};
     my $filter_type = $model->{filter};
+    my $numbered    = 10;
     for my $rule (@$rules_aref) {
         my ($action, $src, $dst, $src_range, $prt) =
           @{$rule}{ 'action', 'src', 'dst', 'src_range', 'prt' };
@@ -13130,33 +13131,16 @@ sub cisco_acl_line {
         my $spair = address($src, $no_nat_set);
         my $dpair = address($dst, $no_nat_set);
         if ($filter_type eq 'PIX') {
-            if ($prefix) {
 
-                # Traffic passing through the PIX.
-                my ($proto_code, $src_port_code, $dst_port_code) =
-                  cisco_prt_code($src_range, $prt, $model);
-                my $result = "$prefix $action $proto_code";
-                $result .= ' ' . cisco_acl_addr($spair, $model);
-                $result .= " $src_port_code" if defined $src_port_code;
-                $result .= ' ' . cisco_acl_addr($dpair, $model);
-                $result .= " $dst_port_code" if defined $dst_port_code;
-                print "$result\n";
-            }
-            else {
-
-                # Traffic for the PIX itself.
-                if (my $code = pix_self_code $action, $spair, $dst, $src_range,
-                    $prt, $model)
-                {
-
-                    # Attention: $code might have multiple lines.
-                    print "$code\n";
-                }
-                else {
-
-                    # Other rules are ignored silently.
-                }
-            }
+            # Only traffic passing through the PIX.
+            my ($proto_code, $src_port_code, $dst_port_code) =
+                cisco_prt_code($src_range, $prt, $model);
+            my $result = "$prefix $action $proto_code";
+            $result .= ' ' . cisco_acl_addr($spair, $model);
+            $result .= " $src_port_code" if defined $src_port_code;
+            $result .= ' ' . cisco_acl_addr($dpair, $model);
+            $result .= " $dst_port_code" if defined $dst_port_code;
+            print "$result\n";
         }
         elsif ($filter_type =~ /^(:?IOS|NX-OS)$/) {
             my ($proto_code, $src_port_code, $dst_port_code) =
@@ -13167,6 +13151,10 @@ sub cisco_acl_line {
             $result .= ' ' . cisco_acl_addr($dpair, $model);
             $result .= " $dst_port_code" if defined $dst_port_code;
             $result .= " log" if $router->{log_deny} and $action eq 'deny';
+            if ($filter_type eq 'NX-OS') {
+                $result = " $numbered$result";
+                $numbered += 10;
+            }
             print "$result\n";
         }
         else {
@@ -13180,9 +13168,11 @@ my $min_object_group_size = 2;
 sub find_object_groups ( $$ ) {
     my ($router, $hardware) = @_;
     my $model = $router->{model};
-    my $keyword = $model->{filter} eq 'NX-OS' 
+    my $is_nxos = $model->{filter} eq 'NX-OS';
+    my $keyword = $is_nxos
                 ? 'object-group ip address'
                 : 'object-group network';
+    my $numbered = 10;
 
     # Find identical groups in identical NAT domain and of same size.
     my $nat2size2group = ($router->{nat2size2group} ||= {});
@@ -13307,7 +13297,13 @@ sub find_object_groups ( $$ ) {
                   )
                 {
                     my $adr = cisco_acl_addr($pair, $model);
-                    print " network-object $adr\n";
+                    if ($is_nxos) {
+                        print " $numbered $adr\n";
+                        $numbered += 10;
+                    }
+                    else {
+                        print " network-object $adr\n";
+                    }
                 }
                 $router->{obj_group_counter}++;
                 return $group;
@@ -14947,8 +14943,8 @@ my $deny_any_rule = {
     prt       => $prt_ip
 };
 
-sub print_cisco_acl_add_deny ( $$$$$$ ) {
-    my ($router, $hardware, $no_nat_set, $model, $intf_prefix, $prefix) = @_;
+sub print_cisco_acl_add_deny {
+    my ($router, $hardware, $no_nat_set, $model, $prefix) = @_;
     my $permit_any;
 
     my $rules = $hardware->{rules} ||= [];
@@ -15101,12 +15097,17 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
             $hardware->{intf_rules} = [];
         }
     }
+    else {
+      $hardware->{intf_rules} = [];
+    }  
 
-    # Interface rules
-    cisco_acl_line($router, $hardware->{intf_rules}, $no_nat_set, $intf_prefix);
-
-    # Ordinary rules
-    cisco_acl_line($router, $hardware->{rules}, $no_nat_set, $prefix);
+    # Concatenate Interface rules and ordinary rules.
+    my $intf_rules = $hardware->{intf_rules};
+    my $all_rules = $hardware->{rules};
+    if (@$intf_rules) {
+        $all_rules = [ @$intf_rules, @$rules ];
+    }
+    cisco_acl_line($router, $all_rules, $no_nat_set, $prefix);
 }
 
 # Parameter: Interface
@@ -15322,12 +15323,11 @@ EOF
                 # Define filter ACL to be used in username or group-policy.
                 my $filter_name = "vpn-filter-$user_counter";
                 my $prefix      = "access-list $filter_name extended";
-                my $intf_prefix = '';
 
 # Why was NAT disabled?
 #                $nat_map = undef;
                 print_cisco_acl_add_deny $router, $id_intf, $no_nat_set, $model,
-                  $intf_prefix, $prefix;
+                  $prefix;
 
                 my $ip      = print_ip $src->{ip};
                 my $network = $src->{network};
@@ -15450,10 +15450,9 @@ EOF
             # Define filter ACL to be used in username or group-policy.
             my $filter_name = "vpn-filter-$user_counter";
             my $prefix      = "access-list $filter_name extended";
-            my $intf_prefix = '';
 
             print_cisco_acl_add_deny $router, $interface, $no_nat_set, $model,
-              $intf_prefix, $prefix;
+              $prefix;
 
             my $id = $interface->{peers}->[0]->{id}
               or internal_err "Missing ID at $interface->{peers}->[0]->{name}";
@@ -15610,22 +15609,20 @@ sub print_cisco_acls {
 
             my $acl_name = "$hardware->{name}_$suffix";
             my $prefix;
-            my $intf_prefix;
             if ($config{comment_acls}) {
 
                 # Name of first logical interface
                 print "$comment_char $hardware->{interfaces}->[0]->{name}\n";
             }
             if ($filter eq 'IOS') {
-                $intf_prefix = $prefix = '';
+                $prefix = '';
                 print "ip access-list extended $acl_name\n";
             }
             elsif ($filter eq 'NX-OS') {
-                $intf_prefix = $prefix = '';
+                $prefix = '';
                 print "ip access-list $acl_name\n";
             }
             elsif ($filter eq 'PIX') {
-                $intf_prefix = '';
                 $prefix      = "access-list $acl_name";
                 $prefix .= ' extended' if $model->{class} eq 'ASA';
             }
@@ -15633,8 +15630,7 @@ sub print_cisco_acls {
             # Incoming ACL and protect own interfaces.
             if ($suffix eq 'in') {
                 print_cisco_acl_add_deny(
-                    $router, $hardware,    $no_nat_set,
-                    $model,  $intf_prefix, $prefix
+                    $router, $hardware, $no_nat_set, $model, $prefix
                 );
             }
 
@@ -15766,11 +15762,10 @@ sub print_ezvpn( $ ) {
     # Crypto filter ACL.
     $prefix = '';
     $tunnel_intf->{intf_rules} ||= [];
-    $prefix = '';
     $tunnel_intf->{rules} ||= [];
     print "ip access-list extended $crypto_filter_name\n";
-    print_cisco_acl_add_deny $router, $tunnel_intf, $no_nat_set, $model,
-      $prefix, $prefix;
+    print_cisco_acl_add_deny($router, $tunnel_intf, $no_nat_set, $model,
+                             $prefix);
 
     # Bind crypto filter ACL to virtual template.
     print "interface Virtual-Template$virtual_interface_number type tunnel\n";
@@ -15982,8 +15977,8 @@ sub print_crypto( $ ) {
                 else {
                     internal_err;
                 }
-                print_cisco_acl_add_deny $router, $interface, $no_nat_set,
-                  $model, $prefix, $prefix;
+                print_cisco_acl_add_deny($router, $interface, $no_nat_set,
+                                         $model, $prefix);
             }
 
             # Define crypto map.
