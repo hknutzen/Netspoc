@@ -11875,7 +11875,7 @@ sub print_routes( $ ) {
                 }
                 if ($type eq 'IOS') {
                     my $adr = ios_route_code($netinfo);
-                    print "ip route $vrf$adr $hop_addr\n";
+                    print "ip route $ios_vrf$adr $hop_addr\n";
                 }
                 elsif ($type eq 'NX-OS') {
                     if ($vrf && ! $nxos_prefix) {
