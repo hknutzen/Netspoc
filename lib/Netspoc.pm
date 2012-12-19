@@ -342,15 +342,16 @@ my %router_info = (
 
     # Cisco VPN 3000 Concentrator including RADIUS config.
     VPN3K => {
-        stateless      => 1,
-        stateless_self => 1,
-        stateless_icmp => 1,
-        routing        => 'none',
-        filter         => 'VPN3K',
-        need_radius    => 1,
-        do_auth        => 1,
-        crypto         => 'ignore',
-        comment_char   => '!',
+        stateless           => 1,
+        stateless_self      => 1,
+        stateless_icmp      => 1,
+        routing             => 'none',
+        filter              => 'VPN3K',
+        inversed_acl_mask   => 1,
+        need_radius         => 1,
+        do_auth             => 1,
+        crypto              => 'ignore',
+        comment_char        => '!',
     },
 );
 for my $model (keys %router_info) {
