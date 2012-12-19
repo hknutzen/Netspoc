@@ -287,12 +287,6 @@ for my $area (values %areas) {
 	$owner->{is_used} = 1;
     }
 }
-for my $owner (values %owners) {
-    next if not $owner->{is_used};
-    for my $admin (@{ $owner->{admins} }, @{ $owner->{watchers} }) {
-	$admin->{is_used} = 1;
-    }
-}	
     
 # Print marked parts of netspoc configuration.
 # Routers and networks have been marked by mark_topology.
@@ -309,8 +303,7 @@ for my $object (
     values %isakmp,
     values %ipsec,
     values %crypto,
-    values %owners,
-    values %admins
+    values %owners
   )
 {
     if ($object->{is_used}) {
