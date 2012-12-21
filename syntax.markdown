@@ -200,7 +200,7 @@ here `<object set>` must expand to networks.
     <protocol modifier> ::= 
       stateless | oneway | reversed 
       | src_net | dst_net | src_any | dst_any
-      | no_check_supernet_rules
+      | overlaps | no_check_supernet_rules
 
 ###Groups of protocols
 
