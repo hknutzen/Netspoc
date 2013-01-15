@@ -4102,12 +4102,6 @@ sub link_virtual_interfaces () {
     }
     for my $href (values %ip2net2virtual) {
         for my $interfaces (values %$href) {
-            if (@$interfaces == 1) {
-                err_msg "Virtual IP: Missing second interface for",
-                  " $interfaces->[0]->{name}";
-                $interfaces->[0]->{redundancy_interfaces} = undef;
-                next;
-            }
 
             # A virtual interface is used as hop for static routing.
             # Therefore a network behind this interface must be reachable
