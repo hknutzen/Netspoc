@@ -15589,7 +15589,6 @@ sub print_cisco_acls {
         $hardware->{rules} ||= [];
 
         if ($model->{can_objectgroup}) {
-            my $interfaces = [ @{ $router->{hardware} } ];
             if (not $router->{no_group_code}) {
                 find_object_groups($router, $hardware);
             }
