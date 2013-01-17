@@ -28,11 +28,13 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 use strict;
 use warnings;
+use Module::Load::Conditional qw(can_load);
+my $can_json = can_load( modules => {JSON => 0.0} ) and JSON->import();
 use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.021'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.022'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -45,7 +47,6 @@ our @EXPORT = qw(
   %hosts
   %zones
   %owners
-  %admins
   %areas
   %pathrestrictions
   %global_nat
@@ -191,10 +192,6 @@ our %config = (
 # Print progress messages with time stamps.
 # Print "finished" with time stamp when finished.
     time_stamps => 0,
-
-# Use old syntax srv, service, servicegroup, policy
-# instead of     prt, protocol, protocolgroup, service
-    old_syntax => 0,
 );
 
 # Valid values for config options in %config.
@@ -269,26 +266,45 @@ my $use_nonlocal_exit => 1;
 ####################################################################
 my %router_info = (
     IOS => {
-        stateless      => 1,
-        stateless_self => 1,
-        stateless_icmp => 1,
-        routing        => 'IOS',
-        filter         => 'IOS',
-        can_vrf        => 1,
-        can_log_deny   => 1,
-        has_out_acl    => 1,
-        need_protect   => 1,
-        crypto         => 'IOS',
-        comment_char   => '!',
-        extension      => {
+        routing             => 'IOS',
+        filter              => 'IOS',
+        stateless           => 1,
+        stateless_self      => 1,
+        stateless_icmp      => 1,
+        inversed_acl_mask   => 1,
+        can_vrf             => 1,
+        can_log_deny        => 1,
+        has_out_acl         => 1,
+        need_protect        => 1,
+        crypto              => 'IOS',
+        print_interface     => 1,
+        comment_char        => '!',
+        extension           => {
             EZVPN => { crypto    => 'EZVPN' },
             FW    => { stateless => 0 },
         },
     },
-    PIX => {
+    'NX-OS' => {
+        routing             => 'NX-OS',
+        filter              => 'NX-OS',
+        stateless           => 1,
+        stateless_self      => 1,
         stateless_icmp      => 1,
+        can_objectgroup     => 1,
+        inversed_acl_mask   => 1,
+        use_prefix          => 1,
+        can_vrf             => 1,
+        can_log_deny        => 1,
+        has_out_acl         => 1,
+        need_protect        => 1,
+        print_interface     => 1,
+        comment_char        => '!',
+    },
+    PIX => {
         routing             => 'PIX',
         filter              => 'PIX',
+        stateless_icmp      => 1,
+        can_objectgroup     => 1,
         comment_char        => '!',
         has_interface_level => 1,
         need_identity_nat   => 1,
@@ -297,10 +313,11 @@ my %router_info = (
 
     # Like PIX, but without identity NAT.
     ASA => {
-        stateless_icmp      => 1,
         routing             => 'PIX',
         filter              => 'PIX',
+        stateless_icmp      => 1,
         has_out_acl         => 1,
+        can_objectgroup     => 1,
         crypto              => 'ASA',
         no_crypto_filter    => 1,
         comment_char        => '!',
@@ -325,15 +342,16 @@ my %router_info = (
 
     # Cisco VPN 3000 Concentrator including RADIUS config.
     VPN3K => {
-        stateless      => 1,
-        stateless_self => 1,
-        stateless_icmp => 1,
-        routing        => 'none',
-        filter         => 'VPN3K',
-        need_radius    => 1,
-        do_auth        => 1,
-        crypto         => 'ignore',
-        comment_char   => '!',
+        stateless           => 1,
+        stateless_self      => 1,
+        stateless_icmp      => 1,
+        routing             => 'none',
+        filter              => 'VPN3K',
+        inversed_acl_mask   => 1,
+        need_radius         => 1,
+        do_auth             => 1,
+        crypto              => 'ignore',
+        comment_char        => '!',
     },
 );
 for my $model (keys %router_info) {
@@ -605,27 +623,6 @@ sub read_identifier() {
     }
 }
 
-sub check_email() {
-    skip_space_and_comment;
-
-    # Only 7 bit ASCII
-    # Local part definition from wikipedia, 
-    # without space and other quoted characters
-    use bytes;
-    if ($input =~ m/(\G [\w.!\#$%&'*+\/=?^_`{|}~-]+ \@ [\w.-]+ )/gcx) {
-
-        # Normalize email to lower case.
-        return lc($1);
-    }
-    else {
-        return;
-    }
-}
-
-sub read_email {
-    check_email or syntax_err "Email address expected (ASCII only)";
-}
-
 # Pattrern for attribute "visible": "*" or "name*".
 sub read_owner_pattern() {
     skip_space_and_comment;
@@ -637,7 +634,7 @@ sub read_owner_pattern() {
     }
 }
 
-# Used for reading interface name, model and attribute 'id'.
+# Used for reading hardware name, model, admins, watchers.
 sub read_name() {
     skip_space_and_comment;
     if ($input =~ m/(\G[^;,\s""'']+)/gc) {
@@ -648,7 +645,7 @@ sub read_name() {
     }
 }
 
-# Used for reading RADIUS attributes.
+# Used for reading alias name or radius attributes.
 sub read_string() {
     skip_space_and_comment;
     if ($input =~ m/\G([^;,""''\n]+)/gc) {
@@ -1028,6 +1025,11 @@ sub unique(@) {
 # Currently we don't use OO features;
 # We use 'bless' only to give each structure a distinct type.
 ####################################################################
+
+# A hash, describing, which parts are read fom JSON.
+# Possible keys:
+# - watchers
+my $from_json;
 
 # Create a new structure of given type;
 # initialize it with key / value pairs.
@@ -1645,14 +1647,14 @@ sub read_interface( $ ) {
                       and error_atline "Duplicate virtual IP address";
                     $virtual->{ip} = $ip;
                 }
-                elsif (my $type = check_assign 'type', \&read_name) {
+                elsif (my $type = check_assign 'type', \&read_identifier) {
                     $xxrp_info{$type}
                       or error_atline "Unknown redundancy protocol";
                     $virtual->{redundancy_type}
                       and error_atline "Duplicate redundancy type";
                     $virtual->{redundancy_type} = $type;
                 }
-                elsif (my $id = check_assign 'id', \&read_name) {
+                elsif (my $id = check_assign 'id', \&read_identifier) {
                     $id =~ /^\d+$/
                       or error_atline "Redundancy ID must be numeric";
                     $id < 256 or error_atline "Redundancy ID must be < 256";
@@ -1675,7 +1677,7 @@ sub read_interface( $ ) {
               and error_atline "Duplicate definition of hardware";
             $interface->{hardware} = $hardware;
         }
-        elsif (my $protocol = check_assign 'routing', \&read_name) {
+        elsif (my $protocol = check_assign 'routing', \&read_identifier) {
             my $routing = $routing_info{$protocol}
               or error_atline "Unknown routing protocol";
             $interface->{routing} and error_atline "Duplicate routing protocol";
@@ -2691,18 +2693,11 @@ sub read_service( $ ) {
         if (my $action = check_permit_deny) {
             my ($src, $src_user) = assign_union_allow_user 'src';
             my ($dst, $dst_user) = assign_union_allow_user 'dst';
-            my $prt;
-            if ($config{old_syntax} and check 'srv') {
-                check '=';
-                $prt = [ read_list(\&read_typed_name_or_simple_protocol) ];
-            }
-            else {
-                $prt = [
+            my $prt = [
                     read_assign_list(
                         'prt', \&read_typed_name_or_simple_protocol
                     )
-                ];
-            }
+               ];
             $src_user
               or $dst_user
               or error_atline "Rule must use keyword 'user'";
@@ -2929,10 +2924,6 @@ sub find_duplicates {
 
 our %owners;
 
-sub read_email_or_identifier {
-    return(check_email() || read_identifier);
-}
-
 sub read_owner( $ ) {
     my $name = shift;
     my $owner = new('Owner', name => $name);
@@ -2946,16 +2937,16 @@ sub read_owner( $ ) {
               and error_atline "Redefining 'alias' attribute";
             $owner->{alias} = $alias;
         }
-        elsif (my @admins = check_assign_list('admins', 
-                                              \&read_email_or_identifier))
-        {
+        elsif (my @admins = check_assign_list('admins', \&read_name)) {
             $owner->{admins}
               and error_atline "Redefining 'admins' attribute";
             $owner->{admins} = \@admins;
         }
-        elsif (my @watchers = check_assign_list('watchers', 
-                                                \&read_email_or_identifier))
-        {
+        elsif (my @watchers = check_assign_list('watchers', \&read_name)) {
+            if ($from_json->{watchers}) {
+                error_atline 
+                    "Watchers must only be defined in JSON/ directory";
+            }
             $owner->{watchers}
               and error_atline "Redefining 'watchers' attribute";
             $owner->{watchers} = \@watchers;
@@ -2974,48 +2965,7 @@ sub read_owner( $ ) {
         }
     }
     $owner->{admins} or error_atline "Missing attribute 'admins'";
-    if (find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} })) {
-        for my $what (qw(admins watchers)) {
-            if (my @emails = find_duplicates(@{ $owner->{$what} })) {
-                $owner->{$what} = [ unique(@{ $owner->{$what} }) ];
-                error_atline "Duplicate $what: ", join(', ', @emails);
-            }
-        }
-        if (my @duplicates =
-            find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} }))
-        {
-            error_atline("Duplicates in admins and watchers: ", 
-                         join(', ', @duplicates));
-        }
-    }
     return $owner;
-}
-
-our %admins;
-
-sub read_admin( $ ) {
-    my $name = shift;
-    my $admin = new('Admin', name => $name);
-    skip '=';
-    skip '{';
-    add_description($admin);
-    while (1) {
-        last if check '}';
-        if (my $full_name = check_assign 'name', \&read_to_semicolon) {
-            $admin->{full_name}
-              and error_atline "Redefining 'name' attribute";
-            $admin->{full_name} = $full_name;
-        }
-        elsif (my $email = check_assign 'email', \&read_email) {
-            $admin->{email}
-              and error_atline "Redefining 'email' attribute";
-            $admin->{email} = $email;
-        }
-        else {
-            syntax_err "Expected attribute 'name' or 'email'.";
-        }
-    }
-    return $admin;
 }
 
 # For reading arbitrary names.
@@ -3036,7 +2986,6 @@ my %global_type = (
     any             => [ \&read_aggregate,       \%aggregates ],
     area            => [ \&read_area,            \%areas ],
     owner           => [ \&read_owner,           \%owners ],
-    admin           => [ \&read_admin,           \%admins ],
     group           => [ \&read_group,           \%groups ],
     protocol        => [ \&read_protocol,        \%protocols ],
     protocolgroup   => [ \&read_protocolgroup,   \%protocolgroups ],
@@ -3115,15 +3064,65 @@ sub read_config {
     \%result;
 }
 
+sub read_json_watchers {
+    my ($path) = @_;
+    opendir(my $dh, $path) or fatal_err "Can't opendir $path: $!";
+    my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
+    closedir $dh;
+    for my $owner_name (@files) {
+        next if $owner_name eq '.' or $owner_name eq '..';
+        next if $owner_name =~ m/$config{ignore_files}/o;
+        my $path = "$path/$owner_name";
+        opendir(my $dh, $path) or fatal_err "Can't opendir $path: $!";
+        my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
+        closedir $dh;
+        for my $file (@files) {
+            next if $file eq '.' or $file eq '..';
+            next if $file =~ m/$config{ignore_files}/o;
+            my $path = "$path/$file";
+            if ($file ne 'watchers') {
+                err_msg "Ignoring $path";
+                next;
+            }
+            open (my $fh, '<', $path) or fatal_err "Can't open $path";
+            my $data;
+            {
+                local $/ = undef;
+                $data = from_json( <$fh> );
+            }
+            close($fh);
+            my $owner = $owners{$owner_name};
+            if (! $owner) {
+                err_msg "Referencing unknown owner:$owner_name in $path";
+                next;
+            }
+            $owner->{watchers} and 
+                err_msg "Redefinig watcher of owner:$owner_name from $path";
+            $owner->{watchers} = $data;
+        }
+    }
+}
+       
+sub read_json {
+    my ($path) = @_;
+    opendir(my $dh, $path) or fatal_err "Can't opendir $path: $!";
+    my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
+    closedir $dh;
+    for my $file (@files) {
+        next if $file eq '.' or $file eq '..';
+        next if $file =~ m/$config{ignore_files}/o;
+        my $path = "$path/$file";
+        if ($file ne 'owner') {
+            err_msg "Ignoring $path";
+            next;
+        }
+        read_json_watchers($path);
+    }    
+}
+
 sub read_file_or_dir( $;$ ) {
     my ($path, $read_syntax) = @_;
     $read_syntax ||= \&read_netspoc;
-
-    if ($config{old_syntax}) {
-        $global_type{policy}       = $global_type{service};
-        $global_type{service}      = $global_type{protocol};
-        $global_type{servicegroup} = $global_type{protocolgroup};
-    }
 
     # Handle toplevel file.
     if (not -d $path) {
@@ -3152,17 +3151,27 @@ sub read_file_or_dir( $;$ ) {
     };
 
     # Handle toplevel directory.
-    # Special handling for "config", "raw" and "*.private".
+    # Special handling for "config", "raw", "JSON" and "*.private".
     opendir(my $dh, $path) or fatal_err "Can't opendir $path: $!";
     my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
+    closedir $dh;
 
+    if (grep { $_ eq 'JSON' } @files) {
+        $can_json or 
+            fatal_err "JSON module must be installed to read $path/JSON";
+        $from_json = { JSON => 1 };
+        if (-e "$path/JSON/owner") {
+            $from_json->{watchers} = 1;
+        }
+    }
+        
     for my $file (@files) {
 
         next if $file eq '.' or $file eq '..';
         next if $file =~ m/$config{ignore_files}/o;
 
-        # Ignore file/directory 'raw' and 'config'.
-        next if $file eq 'config' or $file eq 'raw';
+        # Ignore special files/directories.
+        next if $file =~ /^(config|raw|JSON)$/;
 
         my $path = "$path/$file";
 
@@ -3171,11 +3180,15 @@ sub read_file_or_dir( $;$ ) {
             local $private = $1;
             $read_nested_files->($path, $read_syntax);
         }
+
+        # Handle standard directories and files.
         else {
             $read_nested_files->($path, $read_syntax);
         }
     }
-    closedir $dh;
+    if (keys %$from_json) {
+        read_json("$path/JSON");
+    }
 }
 
 sub show_read_statistics() {
@@ -3607,20 +3620,6 @@ sub link_to_owner {
 
 sub link_owners () {
 
-    # One email address must not belong to different admins.
-    my %email2admin;
-    for my $admin (values %admins) {
-        if (my $admin2 = $email2admin{ $admin->{email} }) {
-            err_msg(
-                "Address $admin->{email} is used at",
-                " $admin->{name} and $admin2->{name}"
-            );
-        }
-        else {
-            $email2admin{ $admin->{email} } = $admin;
-        }
-    }
-
     my %alias2owner;
     for my $name (keys %owners) {
         my $owner = $owners{$name};
@@ -3638,27 +3637,44 @@ sub link_owners () {
             $alias2owner{$alias} = $owner;
         }
 
-        # Convert names of admin and watcher objects to email address
-        # of admin objects.
+        # Check email addresses in admins and watchers.
         for my $attr (qw( admins watchers )) {
             for my $email (@{ $owner->{$attr} }) {
 
-                # Has already been read in new syntax as email address.
-                next if $email =~ /\@/;
-                if (my $admin = $admins{$email}) {
-                    $email = $admin->{email};
-                    $admin->{used} = 1;
+                # Check email syntax.
+                # Only 7 bit ASCII
+                # Local part definition from wikipedia, 
+                # without space and other quoted characters
+                do {
+                    use bytes;
+                    $email =~ 
+                        m/^ [\w.!\#$%&'*+\/=?^_`{|}~-]+ \@ [\w.-]+ $/x;
                 }
-                else {
-                    err_msg "Can't resolve reference to '$email'",
-                      " in attribute '$attr' of $owner->{name}";
-                    $email = 'unknown';
-                }
+                or err_msg("Invalid email address (ASCII only)",
+                           " in $attr of $owner->{name}: $email");
+
+                # Normalize email to lower case.
+                $email = lc($email);
             }
         }
-    }
-    for my $admin (values %admins) {
-        delete $admin->{used} or warn_msg "Unused $admin->{name}";
+
+        # Check for duplicate email addresses
+        # in admins, watchers and between admins and watchers.
+        if (find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} })) {
+            for my $attr (qw(admins watchers)) {
+                if (my @emails = find_duplicates(@{ $owner->{$attr} })) {
+                    $owner->{$attr} = [ unique(@{ $owner->{$attr} }) ];
+                    err_msg("Duplicates in $attr of $owner->{name}: ", 
+                              join(', ', @emails));
+                }
+            }
+            if (my @duplicates =
+                find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} }))
+            {
+                err_msg("Duplicates in admins/watchers of $owner->{name}: ", 
+                          join(', ', @duplicates));
+            }
+        }
     }
     for my $network (values %networks) {
         link_to_owner($network);
@@ -4086,12 +4102,6 @@ sub link_virtual_interfaces () {
     }
     for my $href (values %ip2net2virtual) {
         for my $interfaces (values %$href) {
-            if (@$interfaces == 1) {
-                err_msg "Virtual IP: Missing second interface for",
-                  " $interfaces->[0]->{name}";
-                $interfaces->[0]->{redundancy_interfaces} = undef;
-                next;
-            }
 
             # A virtual interface is used as hop for static routing.
             # Therefore a network behind this interface must be reachable
@@ -4107,7 +4117,7 @@ sub link_virtual_interfaces () {
             {
                 err_msg("Pathrestriction not supported for",
                         " group of 3 or more virtual interfaces\n ",
-                        join(',', map($interfaces->{name}, @$interfaces)));
+                        join(',', map($_->{name}, @$interfaces)));
             }
 
             # Automatically add pathrestriction to interfaces
@@ -5495,7 +5505,7 @@ sub expand_protocols( $$ ) {
             next;
         }
         my ($type, $name) = @$pair;
-        if ($type eq 'protocol' || $config{old_syntax} && $type eq 'protocol') {
+        if ($type eq 'protocol') {
             if (my $prt = $protocols{$name}) {
                 push @protocols, $prt;
 
@@ -5510,9 +5520,7 @@ sub expand_protocols( $$ ) {
                 next;
             }
         }
-        elsif ($type eq 'protocolgroup'
-            || $config{old_syntax} && $type eq 'protocolgroup')
-        {
+        elsif ($type eq 'protocolgroup') {
             if (my $prtgroup = $protocolgroups{$name}) {
                 my $elements = $prtgroup->{elements};
                 if ($elements eq 'recursive') {
@@ -6153,11 +6161,7 @@ sub expand_services( ;$) {
             my @pobjects;
             for my $pair (@$overlaps) {
                 my ($type, $oname) = @$pair;
-                if (
-                    not(   $type eq 'service'
-                        || $config{old_syntax} && $type eq 'policy')
-                  )
-                {
+                if (! $type eq 'service') {
                     err_msg "Unexpected type '$type' in attribute 'overlaps'",
                       " of $name";
                 }
@@ -7599,7 +7603,7 @@ sub check_no_in_acl () {
 sub check_crosslink () {
 
     # Collect cluster of routers connected by crosslink networks,
-    # but only for IOS routers having attribute "need_protect".
+    # but only for Cisco routers having attribute "need_protect".
     my %crosslink_routers;
 
     for my $network (values %networks) {
@@ -11834,8 +11838,8 @@ sub print_routes( $ ) {
     }
     print "$comment_char [ Routing ]\n";
 
-    # Prepare extension for IOS route command.
-    $vrf = $vrf ? "vrf $vrf " : '';
+    my $ios_vrf = $vrf ? "vrf $vrf " : '' if $type eq 'IOS';
+    my $nxos_prefix = '';
 
     for my $interface (@{ $router->{interfaces} }) {
         next if $interface->{ip} eq 'bridged';
@@ -11865,7 +11869,18 @@ sub print_routes( $ ) {
                 }
                 if ($type eq 'IOS') {
                     my $adr = ios_route_code($netinfo);
-                    print "ip route $vrf$adr $hop_addr\n";
+                    print "ip route $ios_vrf$adr $hop_addr\n";
+                }
+                elsif ($type eq 'NX-OS') {
+                    if ($vrf && ! $nxos_prefix) {
+
+                        # Print "vrf context" only once
+                        # and indent "ip route" commands.
+                        print "vrf context $vrf\n";
+                        $nxos_prefix = ' ';
+                    }
+                    my $adr = prefix_code($netinfo);
+                    print "${nxos_prefix}ip route $adr $hop_addr\n";
                 }
                 elsif ($type eq 'PIX') {
                     my $adr = ios_route_code($netinfo);
@@ -12291,7 +12306,7 @@ sub distribute_rule( $$$ ) {
     my $key;
 
     # Packets for the router itself or for some interface of a
-    # crosslinked cluster of routers (only IOS with "need_protect").
+    # crosslinked cluster of routers (only IOS, NX-OS with "need_protect").
     if (!$out_intf || $intf_hash && $intf_hash->{$dst}) {
 
         # Packets for the router itself.  For PIX we can only reach that
@@ -12681,7 +12696,7 @@ sub distribute_global_permit {
                 stateless_icmp => $stateless_icmp,
             };
             for my $router (@managed_routers) {
-                my $is_ios = ($router->{model}->{filter} eq 'IOS');
+                my $need_protect = $router->{model}->{need_protect};
                 for my $in_intf (@{ $router->{interfaces} }) {
                     next if has_global_restrict($in_intf);
 
@@ -12712,9 +12727,10 @@ sub distribute_global_permit {
                         for my $out_intf (@{ $router->{interfaces} }) {
                             next if $out_intf eq $in_intf;
 
-                            # For IOS print this rule only once at interface
-                            # filter rules (for incoming ACL).
-                            if ($is_ios) {
+                            # For IOS and NX-OS print this rule only
+                            # once at interface filter rules below
+                            # (for incoming ACL).
+                            if ($need_protect) {
                                 my $out_hw = $out_intf->{hardware};
 
                                 # For interface with outgoing ACLs
@@ -12890,12 +12906,13 @@ sub address( $$ ) {
     }
 }
 
-# Given an IP and mask, return its address in IOS syntax.
-# If optional third parameter is true, use inverted netmask for IOS ACLs.
-sub ios_code( $;$ ) {
-    my ($pair, $inv_mask) = @_;
+# Given an IP and mask, return its address in Cisco syntax.
+sub cisco_acl_addr( $$ ) {
+    my ($pair, $model) = @_;
     if (is_objectgroup $pair) {
-        return "object-group $pair->{name}";
+        my $keyword = 
+            $model->{filter} eq 'NX-OS' ? 'addrgroup' : 'object-group';
+        return "$keyword $pair->{name}";
     }
     else {
         my ($ip, $mask) = @$pair;
@@ -12906,9 +12923,12 @@ sub ios_code( $;$ ) {
         elsif ($mask == 0) {
             return "any";
         }
+        elsif ($model->{use_prefix}) {
+            return prefix_code($pair);
+        }
         else {
-            my $mask_code =
-              print_ip($inv_mask ? complement_32bit $mask : $mask);
+            $mask = complement_32bit($mask) if $model->{inversed_acl_mask};
+            my $mask_code = print_ip($mask);
             return "$ip_code $mask_code";
         }
     }
@@ -12932,7 +12952,7 @@ sub prefix_code( $ ) {
     return $prefix_code == 32 ? $ip_code : "$ip_code/$prefix_code";
 }
 
-# Returns 3 values for building an IOS or PIX ACL:
+# Returns 3 values for building a Cisco ACL:
 # permit <val1> <src> <val2> <dst> <val3>
 sub cisco_prt_code( $$$ ) {
     my ($src_range, $prt, $model) = @_;
@@ -13096,6 +13116,7 @@ sub cisco_acl_line {
     my ($router, $rules_aref, $no_nat_set, $prefix) = @_;
     my $model       = $router->{model};
     my $filter_type = $model->{filter};
+    my $numbered    = 10;
     for my $rule (@$rules_aref) {
         my ($action, $src, $dst, $src_range, $prt) =
           @{$rule}{ 'action', 'src', 'dst', 'src_range', 'prt' };
@@ -13104,44 +13125,30 @@ sub cisco_acl_line {
         my $spair = address($src, $no_nat_set);
         my $dpair = address($dst, $no_nat_set);
         if ($filter_type eq 'PIX') {
-            if ($prefix) {
 
-                # Traffic passing through the PIX.
-                my ($proto_code, $src_port_code, $dst_port_code) =
-                  cisco_prt_code($src_range, $prt, $model);
-                my $result = "$prefix $action $proto_code";
-                $result .= ' ' . ios_code($spair);
-                $result .= " $src_port_code" if defined $src_port_code;
-                $result .= ' ' . ios_code($dpair);
-                $result .= " $dst_port_code" if defined $dst_port_code;
-                print "$result\n";
-            }
-            else {
-
-                # Traffic for the PIX itself.
-                if (my $code = pix_self_code $action, $spair, $dst, $src_range,
-                    $prt, $model)
-                {
-
-                    # Attention: $code might have multiple lines.
-                    print "$code\n";
-                }
-                else {
-
-                    # Other rules are ignored silently.
-                }
-            }
+            # Only traffic passing through the PIX.
+            my ($proto_code, $src_port_code, $dst_port_code) =
+                cisco_prt_code($src_range, $prt, $model);
+            my $result = "$prefix $action $proto_code";
+            $result .= ' ' . cisco_acl_addr($spair, $model);
+            $result .= " $src_port_code" if defined $src_port_code;
+            $result .= ' ' . cisco_acl_addr($dpair, $model);
+            $result .= " $dst_port_code" if defined $dst_port_code;
+            print "$result\n";
         }
-        elsif ($filter_type eq 'IOS') {
-            my $inv_mask = $filter_type eq 'IOS';
+        elsif ($filter_type =~ /^(:?IOS|NX-OS)$/) {
             my ($proto_code, $src_port_code, $dst_port_code) =
               cisco_prt_code($src_range, $prt, $model);
             my $result = "$prefix $action $proto_code";
-            $result .= ' ' . ios_code($spair, $inv_mask);
+            $result .= ' ' . cisco_acl_addr($spair, $model);
             $result .= " $src_port_code" if defined $src_port_code;
-            $result .= ' ' . ios_code($dpair, $inv_mask);
+            $result .= ' ' . cisco_acl_addr($dpair, $model);
             $result .= " $dst_port_code" if defined $dst_port_code;
             $result .= " log" if $router->{log_deny} and $action eq 'deny';
+            if ($filter_type eq 'NX-OS') {
+                $result = " $numbered$result";
+                $numbered += 10;
+            }
             print "$result\n";
         }
         else {
@@ -13154,11 +13161,20 @@ my $min_object_group_size = 2;
 
 sub find_object_groups ( $$ ) {
     my ($router, $hardware) = @_;
+    my $model = $router->{model};
+    my $is_nxos = $model->{filter} eq 'NX-OS';
+    my $keyword = $is_nxos
+                ? 'object-group ip address'
+                : 'object-group network';
+    my $numbered = 10;
 
     # Find identical groups in identical NAT domain and of same size.
     my $nat2size2group = ($router->{nat2size2group} ||= {});
     $router->{obj_group_counter} ||= 0;
 
+    # Leave 'intf_rules' untouched, because they are handled
+    # indivually for ASA, PIX. 
+    # NX-OS needs them indivually when optimizing need_protect.
     for my $rule_type ('rules', 'out_rules') {
         next if not $hardware->{$rule_type};
 
@@ -13267,15 +13283,21 @@ sub find_object_groups ( $$ ) {
                 push @{ $nat2size2group->{$no_nat_set}->{$size} }, $group;
 
                 # Print object-group.
-                print "object-group network $group->{name}\n";
+                print "$keyword $group->{name}\n";
                 for my $pair (
                     sort({ $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] }
                         map({ address($_, $no_nat_set) }
                             @{ $group->{elements} }))
                   )
                 {
-                    my $adr = ios_code($pair);
-                    print " network-object $adr\n";
+                    my $adr = cisco_acl_addr($pair, $model);
+                    if ($is_nxos) {
+                        print " $numbered $adr\n";
+                        $numbered += 10;
+                    }
+                    else {
+                        print " network-object $adr\n";
+                    }
                 }
                 $router->{obj_group_counter}++;
                 return $group;
@@ -14788,14 +14810,13 @@ sub print_vpn3k( $ ) {
     my @deny_rules =
       map { "deny ip any $_" }
       sort
-      map { ios_code $_, 1 }
+      map { cisco_acl_addr $_, $model }
       map { address($_, $no_nat_set) } values %auto_deny_networks;
 
     my $add_filter = sub {
         my ($entry, $intf, $src, $add_split_tunnel) = @_;
         my @acl_lines;
         my %split_tunnel_networks;
-        my $inv_mask = 1;
         for my $rule (@{ $intf->{rules} }, @{ $intf->{intf_rules} }) {
             my ($action, $src, $dst, $src_range, $prt) =
               @{$rule}{ 'action', 'src', 'dst', 'src_range', 'prt' };
@@ -14812,16 +14833,16 @@ sub print_vpn3k( $ ) {
                   cisco_prt_code($src_range, $prt, $model);
                 my $result = "$action $proto_code";
                 $result .=
-                  ' ' . ios_code(address($src, $no_nat_set), $inv_mask);
+                  ' ' . cisco_acl_addr(address($src, $no_nat_set), $model);
                 $result .= " $src_port_code" if defined $src_port_code;
                 $result .=
-                  ' ' . ios_code(address($dst, $no_nat_set), $inv_mask);
+                  ' ' . cisco_acl_addr(address($dst, $no_nat_set), $model);
                 $result .= " $dst_port_code" if defined $dst_port_code;
                 push @acl_lines, $result;
             }
         }
         my $spair = address($src, $no_nat_set);
-        my $src_code = ios_code($spair, $inv_mask);
+        my $src_code = cisco_acl_addr($spair, $model);
         my $permit_rule = "permit ip $src_code any";
         push @acl_lines, @deny_rules, $permit_rule;
         $entry->{in_acl} = [ map { { ace => $_ } } @acl_lines ];
@@ -14916,9 +14937,8 @@ my $deny_any_rule = {
     prt       => $prt_ip
 };
 
-sub print_cisco_acl_add_deny ( $$$$$$ ) {
-    my ($router, $hardware, $no_nat_set, $model, $intf_prefix, $prefix) = @_;
-    my $filter = $model->{filter};
+sub print_cisco_acl_add_deny {
+    my ($router, $hardware, $no_nat_set, $model, $prefix) = @_;
     my $permit_any;
 
     my $rules = $hardware->{rules} ||= [];
@@ -14944,7 +14964,7 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
         $permit_any = $hardware->{no_in_acl};
     }
 
-    if ($filter eq 'IOS') {
+    if ($router->{model}->{need_protect}) {
 
         # Routers connected by crosslink networks are handled like one
         # large router. Protect the collected interfaces of the whole
@@ -15071,12 +15091,17 @@ sub print_cisco_acl_add_deny ( $$$$$$ ) {
             $hardware->{intf_rules} = [];
         }
     }
+    else {
+      $hardware->{intf_rules} = [];
+    }  
 
-    # Interface rules
-    cisco_acl_line($router, $hardware->{intf_rules}, $no_nat_set, $intf_prefix);
-
-    # Ordinary rules
-    cisco_acl_line($router, $hardware->{rules}, $no_nat_set, $prefix);
+    # Concatenate Interface rules and ordinary rules.
+    my $intf_rules = $hardware->{intf_rules};
+    my $all_rules = $hardware->{rules};
+    if (@$intf_rules) {
+        $all_rules = [ @$intf_rules, @$rules ];
+    }
+    cisco_acl_line($router, $all_rules, $no_nat_set, $prefix);
 }
 
 # Parameter: Interface
@@ -15256,7 +15281,9 @@ EOF
                                 my $line =
                                   "access-list $acl_name standard permit ";
                                 $line .=
-                                  ios_code(address($network, $no_nat_set));
+                                  cisco_acl_addr(address($network, 
+                                                         $no_nat_set), 
+                                                 $model);
                                 print "$line\n";
                             }
                         }
@@ -15290,12 +15317,11 @@ EOF
                 # Define filter ACL to be used in username or group-policy.
                 my $filter_name = "vpn-filter-$user_counter";
                 my $prefix      = "access-list $filter_name extended";
-                my $intf_prefix = '';
 
 # Why was NAT disabled?
 #                $nat_map = undef;
                 print_cisco_acl_add_deny $router, $id_intf, $no_nat_set, $model,
-                  $intf_prefix, $prefix;
+                  $prefix;
 
                 my $ip      = print_ip $src->{ip};
                 my $network = $src->{network};
@@ -15418,10 +15444,9 @@ EOF
             # Define filter ACL to be used in username or group-policy.
             my $filter_name = "vpn-filter-$user_counter";
             my $prefix      = "access-list $filter_name extended";
-            my $intf_prefix = '';
 
             print_cisco_acl_add_deny $router, $interface, $no_nat_set, $model,
-              $intf_prefix, $prefix;
+              $prefix;
 
             my $id = $interface->{peers}->[0]->{id}
               or internal_err "Missing ID at $interface->{peers}->[0]->{name}";
@@ -15486,7 +15511,6 @@ sub iptables_acl_line {
 sub print_iptables_acls {
     my ($router)     = @_;
     my $model        = $router->{model};
-    my $filter       = $model->{filter};
     my $comment_char = $model->{comment_char};
 
     # Pre-processing for all interfaces.
@@ -15564,8 +15588,7 @@ sub print_cisco_acls {
         # when checking for non empty array.
         $hardware->{rules} ||= [];
 
-        if ($filter eq 'PIX') {
-            my $interfaces = [ @{ $router->{hardware} } ];
+        if ($model->{can_objectgroup}) {
             if (not $router->{no_group_code}) {
                 find_object_groups($router, $hardware);
             }
@@ -15579,18 +15602,20 @@ sub print_cisco_acls {
 
             my $acl_name = "$hardware->{name}_$suffix";
             my $prefix;
-            my $intf_prefix;
             if ($config{comment_acls}) {
 
                 # Name of first logical interface
                 print "$comment_char $hardware->{interfaces}->[0]->{name}\n";
             }
             if ($filter eq 'IOS') {
-                $intf_prefix = $prefix = '';
+                $prefix = '';
                 print "ip access-list extended $acl_name\n";
             }
+            elsif ($filter eq 'NX-OS') {
+                $prefix = '';
+                print "ip access-list $acl_name\n";
+            }
             elsif ($filter eq 'PIX') {
-                $intf_prefix = '';
                 $prefix      = "access-list $acl_name";
                 $prefix .= ' extended' if $model->{class} eq 'ASA';
             }
@@ -15598,8 +15623,7 @@ sub print_cisco_acls {
             # Incoming ACL and protect own interfaces.
             if ($suffix eq 'in') {
                 print_cisco_acl_add_deny(
-                    $router, $hardware,    $no_nat_set,
-                    $model,  $intf_prefix, $prefix
+                    $router, $hardware, $no_nat_set, $model, $prefix
                 );
             }
 
@@ -15615,7 +15639,7 @@ sub print_cisco_acls {
             }
 
             # Post-processing for hardware interface
-            if ($filter eq 'IOS') {
+            if ($filter eq 'IOS' || $filter eq 'NX-OS') {
                 push(
                     @{ $hardware->{subcmd} },
                     "ip access-group $acl_name $suffix"
@@ -15731,11 +15755,10 @@ sub print_ezvpn( $ ) {
     # Crypto filter ACL.
     $prefix = '';
     $tunnel_intf->{intf_rules} ||= [];
-    $prefix = '';
     $tunnel_intf->{rules} ||= [];
     print "ip access-list extended $crypto_filter_name\n";
-    print_cisco_acl_add_deny $router, $tunnel_intf, $no_nat_set, $model,
-      $prefix, $prefix;
+    print_cisco_acl_add_deny($router, $tunnel_intf, $no_nat_set, $model,
+                             $prefix);
 
     # Bind crypto filter ACL to virtual template.
     print "interface Virtual-Template$virtual_interface_number type tunnel\n";
@@ -15947,8 +15970,8 @@ sub print_crypto( $ ) {
                 else {
                     internal_err;
                 }
-                print_cisco_acl_add_deny $router, $interface, $no_nat_set,
-                  $model, $prefix, $prefix;
+                print_cisco_acl_add_deny($router, $interface, $no_nat_set,
+                                         $model, $prefix);
             }
 
             # Define crypto map.
@@ -16051,7 +16074,9 @@ sub print_crypto( $ ) {
 
 sub print_interface( $ ) {
     my ($router) = @_;
-    my $stateful = not $router->{model}->{stateless};
+    my $model = $router->{model};
+    my $class = $model->{class};
+    my $stateful = not $model->{stateless};
     for my $hardware (@{ $router->{hardware} }) {
         my @subcmd;
         my $secondary;
@@ -16067,6 +16092,11 @@ sub print_interface( $ ) {
             elsif ($ip eq 'negotiated') {
                 $addr_cmd = 'ip address negotiated';
             }
+            elsif ($model->{use_prefix}) {
+                my $addr = print_ip($ip);
+                my $mask = mask2prefix($intf->{network}->{mask});
+                $addr_cmd = "ip address $addr/$mask";
+            }
             else {
                 my $addr = print_ip($ip);
                 my $mask = print_ip($intf->{network}->{mask});
@@ -16077,7 +16107,12 @@ sub print_interface( $ ) {
             $secondary = 1;
         }
         if (my $vrf = $router->{vrf}) {
-            push @subcmd, "ip vrf forwarding $vrf";
+            if ($class eq 'NX-OS') {
+                push @subcmd, "vrf member $vrf";
+            }
+            else {
+                push @subcmd, "ip vrf forwarding $vrf";
+            }
         }
 
         # Add "ip inspect" as marker, that stateful filtering is expected.
@@ -16090,6 +16125,10 @@ sub print_interface( $ ) {
             push @subcmd, @$other;
         }
         my $name = $hardware->{name};
+
+        # Split name for NX-OS: "ethernet3/4" -> "ethernet 3/4"
+#        $name =~ s/(\d+)/ $1/ if ($class eq 'NX-OS');
+
         print "interface $name\n";
         for my $cmd (@subcmd) {
             print " $cmd\n";
@@ -16161,7 +16200,7 @@ sub print_code( $ ) {
             print_routes $vrouter;
             print_crypto $vrouter;
             print_acls $vrouter;
-            print_interface $vrouter if $model->{class} eq 'IOS';
+            print_interface $vrouter if $model->{print_interface};
             print_nat $vrouter;
             print "$comment_char [ END $name ]\n\n";
         }

@@ -22,6 +22,7 @@ my %WriteMakefileArgs = (
   },
   "DISTNAME" => "Netspoc",
   "EXE_FILES" => [
+    "bin/watchers-to-json",
     "bin/print-group",
     "bin/cut-netspoc",
     "bin/netspoc",
@@ -32,8 +33,11 @@ my %WriteMakefileArgs = (
   "PREREQ_PM" => {
     "Encode" => 0,
     "Exporter" => 0,
+    "File::Path" => 0,
     "FindBin" => 0,
     "Getopt::Long" => 0,
+    "JSON" => 0,
+    "Module::Load::Conditional" => 0,
     "Pod::Usage" => 0,
     "bytes" => 0,
     "locale" => 0,
@@ -42,7 +46,7 @@ my %WriteMakefileArgs = (
     "utf8" => 0,
     "warnings" => 0
   },
-  "VERSION" => "3.021",
+  "VERSION" => "3.022",
   "test" => {
     "TESTS" => "t/*.t"
   }

@@ -19,8 +19,11 @@ name: Netspoc
 requires:
   Encode: 0
   Exporter: 0
+  File::Path: 0
   FindBin: 0
   Getopt::Long: 0
+  JSON: 0
+  Module::Load::Conditional: 0
   Pod::Usage: 0
   bytes: 0
   locale: 0
@@ -28,4 +31,4 @@ requires:
   strict: 0
   utf8: 0
   warnings: 0
-version: 3.021
+version: 3.022

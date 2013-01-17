@@ -80,11 +80,6 @@ Ignore these names when reading directories.
 
 Abort after this many errors.
 
-=item B<-old_syntax>
-
-Use old syntax srv, service, servicegroup, policy 
-instead of     prt, protocol, protocolgroup, service.
-
 =item B<-verbose>
 
 Print progress messages.

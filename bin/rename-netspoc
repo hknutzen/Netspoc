@@ -30,7 +30,6 @@ A SUBSTITUTION of type B<network> also changes B<interface> and B<host:id>
 which reference the given network.  A SUBSTITUTION of type B<router>
 also changes B<interfaces> which reference the given router.
 A SUBSTITUTION of type B<nat> also changes the corresponding B<bind_nat> list.
-A SUBSTITUTION of type B<admin> also changes the corresponding B<admins> list.
 
 =head1 OPTIONS
 
@@ -100,13 +99,12 @@ sub fatal_err( @ ) {
 my %global_type = 
     map { $_ => 1 } qw( 
 router network host any group area service
-owner admin protocol protocolgroup pathrestriction nat isakmp ipsec crypto
+owner protocol protocolgroup pathrestriction nat isakmp ipsec crypto
 policy servicegroup
 );
 
 # NAT is applied with bind_nat.
-# Admin attribute is named "admins" in definition of owner.
-my %aliases = ( nat => ['bind_nat'], admin => ['admins', 'watchers'] );
+my %aliases = ( nat => ['bind_nat'] );
 
 my %subst;
 

@@ -1,0 +1,175 @@
+#!/usr/local/bin/perl
+
+=head1 NAME
+
+watchers-to-json - Convert watchers inside owners from human to JSON format
+
+=cut
+
+
+use strict;
+use warnings;
+use open qw(:std :utf8);
+use utf8;
+use Encode;
+use File::Path qw(make_path);
+use JSON;
+my $filename_encode = 'UTF-8';
+ 
+my $ignore_files = '^(raw|config|JSON|CVS|RCS|\.#.*|.*~)$';
+
+# Path to netspoc directory.
+my $path;
+
+sub debug { print STDERR '*** ', @_, "\n"; }
+sub debug0 { print STDERR @_; }
+sub info  { print STDERR '*** ', @_, "\n"; }
+ 
+sub fatal_err( @ ) {
+    print STDERR "Error: ", @_, "\n";
+    die "Aborted\n";
+}
+
+sub write_watchers {
+    my ($owner, @emails) = @_;
+    my $json_dir = "$path/JSON/owner/$owner";
+    make_path($json_dir);
+    my $json_path = "$json_dir/watchers";
+    if (-e $json_path) {
+        fatal_err "$json_path already exists";
+    }
+    open(my $fh, '>', $json_path) or fatal_err "Can't open $json_path: $!";
+    print( $fh to_json(\@emails, { utf8  => 1, pretty => 1 } ));
+    close($fh) or fatal_err "Can't close $json_path: $!";
+    debug("Created $json_path");
+}
+
+sub process {
+    my ($lines) = @_;
+    my @result;
+    my $changed;
+    my $owner;
+    my @watchers;
+    my $write_watchers;
+    my $erase;
+    
+    for my $line (@$lines) {
+        my $remove = 0;
+
+        # owner definition starts, optionally with end marker on same line
+        if ($line =~ /^ [^#]* owner: ([-\w]+) ( [^#]* \} )? /x) {
+            $owner = $1 if not $2;
+            if ($line =~ /^ [^#]* watcher \s*=\s* /x) {
+                fatal_err "Watcher must start on a fresh line";
+            }
+        }
+        
+        # owner definition ends
+        elsif ($line =~ /^ [^#]* \} /x) {
+            $owner = undef;
+        }
+
+        else {
+
+            # watcher list starts
+            if ($line =~ /\G ([^#]*) watchers \s*=\s* /gcx) {
+                my $prefix = $1;
+                if ($prefix !~ /^\s*$/) {
+                    fatal_err "Watchers must start on a fresh line";
+                }
+                $erase = 1;
+                $remove = 1;
+            }
+
+            # watcher list continues
+            if ($erase) {
+                $remove = 1;
+                if ($line =~ /\G ( [^#;]* ) (;?) (.*) $/gcx) {
+                    push @watchers, $1;
+                    my $end = $2;
+                    my $suffix = $3;
+                    if ($suffix !~ /^ \s* ([#].*)? $/x) {
+                        fatal_err 
+                            "Watchers must not be mixed with other definitions";
+                    }
+                    if ($end) {
+                        $write_watchers = 1;
+                    }
+                }
+                else {
+                    fatal_err "Internal: $line";
+                }
+            }
+
+            # Other code remains unchanged
+        }
+                
+        
+        if ($remove) {
+            chomp $line;
+            debug "Deleted: $line";
+            $changed = 1;
+        }
+        else {
+            push @result, $line;
+        }
+        if ($write_watchers) {
+
+            my $watchers = join('', @watchers);
+            $watchers =~ s/\s//g;
+            my @emails = sort split(/,/, $watchers);
+            write_watchers($owner, @emails);
+            $erase = 0;
+            @watchers = ();
+            $write_watchers = undef;
+        }
+    }
+    return $changed ? \@result : undef;
+}
+
+sub process_file {
+    my ($path) = @_;
+    open(my $file, $path) or fatal_err "Can't open $path: $!";
+    my @input = <$file>;
+    close $file;
+#    debug "File $path";
+    if (my $result = process(\@input)) {
+        my $diff = @input - @$result;
+        debug "$diff lines erased in $path";
+        if ($path ne '-') {
+            unlink($path) or fatal_err "Can't remove $path: $!\n";
+        }
+        open($file, ">$path") or fatal_err "Can't create $path: $!";
+        print $file @$result;
+        close $file;
+    }
+}
+ 
+sub process_file_or_dir {
+    my ($path) = @_;
+    if (-d $path) {
+        local (*DIR);
+ 
+        # Strip trailing slash.
+        $path =~ s</$><>;
+        opendir DIR, $path or fatal_err "Can't opendir $path: $!";
+        while (my $file = Encode::decode($filename_encode, readdir DIR)) {
+            next if $file eq '.' or $file eq '..';
+            next if $file =~ m/$ignore_files/;
+            $file = "$path/$file";
+            process_file_or_dir($file);
+        }
+        closedir DIR;
+    }
+    else {
+        process_file($path);
+    }
+}
+
+####################################################################
+# Argument processing
+####################################################################
+$path = shift @ARGV or fatal_err "Missing path";
+
+# Do processing.
+process_file_or_dir($path);

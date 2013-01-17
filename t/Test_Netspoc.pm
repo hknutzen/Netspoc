@@ -25,10 +25,7 @@ sub run {
 sub compile {
     my($input) = @_;
     my ($status, $stdout, $stderr) = run($input);
-
-    # 0: Success, 1: compare found diffs
-    $status == 0 || $status == 1 or 
-	    die "Status from compile $status\n";
+    $status == 0 or die "Unexpected status: $status\n";
     $stderr and die "Unexpected output on STDERR:\n$stderr\n";
     return($stdout);
 }
