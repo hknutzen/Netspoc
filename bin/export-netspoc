@@ -713,7 +713,7 @@ sub export_services {
 		has_user => $_->{has_user},
 		src => [ map $_->{name}, @{ $_->{expanded_src} } ],
 		dst => [ map $_->{name}, @{ $_->{expanded_dst} } ],
-		srv => $_->{expanded_prt},
+		prt => $_->{expanded_prt},
 	    }
 	} @{ $service->{rules} };
 	(my $pname = $service->{name}) =~ s/^\w+://;
