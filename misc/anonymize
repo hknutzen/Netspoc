@@ -386,13 +386,19 @@ sub subst_hw {
         fatal_err("Unexpected hardware: $name");
     return $known_hw{lc $root} ? $name : "dmz$ext";
 }
-    
+
+sub del_char {
+    my ($string) = @_;
+    $string =~ s/[^-\s#.,;:_\/*+]/ /g;
+    return $string;
+}
+
 sub process {
     my ($lines) = @_;
     for my $line (@$lines) {
 
-	# Remove comments
-	$line =~ s/#.*//;
+	# Clean up comments
+	$line =~ s/(\#.*)/ del_char($1) /gex;
 
 	# Rename type:name
 	$line =~ s/([a-z]+):([-\w.\@:]+)/ "$1:" . subst($1, $2) /gex;
