@@ -5676,7 +5676,7 @@ sub expand_special ( $$$$ ) {
         @result = ($src);
     }
     if ($flags->{net}) {
-        my %networks;
+        my @networks;
         my @other;
         for my $obj (@result) {
             my $type = ref $obj;
@@ -5705,9 +5705,9 @@ sub expand_special ( $$$$ ) {
             else {
                 internal_err "unexpected $obj->{name}";
             }
-            $networks{$network} = $network if $network->{ip} ne 'unnumbered';
+            push @networks, $network if $network->{ip} ne 'unnumbered';
         }
-        @result = (@other, values %networks);
+        @result = (@other, unique(@networks));
     }
     if ($flags->{any}) {
         my %zones;
@@ -8635,7 +8635,7 @@ sub cluster_path_mark1( $$$$$$$$ ) {
     if ($obj eq $end) {
 
         # Mark interface where we leave the loop.
-        $loop_leave->{$in_intf} = $in_intf;
+        push @$loop_leave, $in_intf;
 
 #     debug " leave: $in_intf->{name} -> $end->{name}";
         return 1;
@@ -8859,7 +8859,7 @@ sub cluster_path_mark ( $$$$$$ ) {
 
         my $loop_enter  = [];
         my $path_tuples = {};
-        my $loop_leave  = {};
+        my $loop_leave  = [];
 
         my $navi = cluster_navigation($from, $to) or internal_err "Empty navi";
 
@@ -8918,8 +8918,8 @@ sub cluster_path_mark ( $$$$$$ ) {
             }
         }
 
-        # Convert hash of interfaces to array of interfaces.
-        $loop_leave = [ values %$loop_leave ];
+        # Remove duplicates, which occur from nested loops..
+        $loop_leave = [ unique(@$loop_leave) ];
 
         $start_store->{loop_enter}->{$end_store}  = $loop_enter;
         $start_store->{loop_leave}->{$end_store}  = $loop_leave;
