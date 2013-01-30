@@ -3749,8 +3749,9 @@ sub link_areas() {
 }
 
 # Link interfaces with networks in both directions.
-sub link_interfaces {
-    for my $interface (values %interfaces) {
+sub link_interfaces1 {
+    my ($router) = @_;
+    for my $interface (@{ $router->{interfaces} }) {
         my $net_name = $interface->{network};
         my $network  = $networks{$net_name};
 
@@ -3871,6 +3872,15 @@ sub link_interfaces {
                 }
             }
         }
+    }
+}
+
+# Iterate of all interfaces of all routers.
+# Don't use values %interfaces because we want to traverse the interfaces
+# in a deterministic order.
+sub link_interfaces {
+    for my $name (sort keys %routers) {
+        link_interfaces1($routers{$name});
     }
 }
 
@@ -7689,7 +7699,7 @@ sub check_crosslink () {
         my @crosslink_interfaces =
           map { @{ $_->{interfaces} } }
 
-          # Sort to make output deterministic.
+          # Sort by router name to make output deterministic.
           sort { $a->{name} cmp $b->{name} } values %cluster;
         my %crosslink_intf_hash = map { $_ => $_ } @crosslink_interfaces;
         for my $router2 (values %cluster) {
@@ -8224,10 +8234,6 @@ sub set_zone {
         }
     }
     for my $area (@areas) {
-
-        # Make result deterministic. Needed for network:[area:xx].
-        @{ $area->{zones} } =
-          sort { $a->{name} cmp $b->{name} } @{ $area->{zones} };
 
         # Tidy up: Delete unused attribute.
         delete $area->{intf_lookup};
