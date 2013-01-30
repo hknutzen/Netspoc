@@ -2173,6 +2173,10 @@ sub read_router( $ ) {
                 error_atline "Interface with attribute 'promiscuous_port'",
                   " must only be used at managed device";
             }
+            if (delete $interface->{reroute_permit}) {
+                warn_msg "Ignoring attribute 'reroute_permit'",
+                  " at unmanaged $interface->{name}";
+            }
             if ($interface->{ip} eq 'bridged') {
                 $bridged = 1;
             }
