@@ -12491,8 +12491,11 @@ sub set_policy_distribution_ip () {
                 }
             }
 
-            # Try all management interfaces.
-            @result = values %interfaces if not @result;
+            # Take all management interfaces.
+            # Preserve original order of router interfaces.
+            if (! @result) {
+                @result = grep { $interfaces{$_} } @{ $router->{interfaces} };
+            }
 
             # Don't set {admin_ip} if no address is found.
             # Warning is printed below.
