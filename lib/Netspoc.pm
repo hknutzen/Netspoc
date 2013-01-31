@@ -4580,7 +4580,8 @@ sub mark_disabled() {
         }
     }
     my %name2vrf;
-    for my $router (values %routers) {
+    for my $name (sort keys %routers) {
+        my $router = $routers{$name};
         next if $router->{disabled};
         push @routers, $router;
         my $device_name = $router->{device_name};
@@ -4624,11 +4625,26 @@ sub mark_disabled() {
         }
     }
 
-    for my $network (values %networks) {
-        unless ($network->{disabled}) {
-            push @networks, $network;
+    # Collect networks into @networks.
+    # We need a deterministic order. 
+    # Don't sort by name because code shouldn't change if a network is renamed.
+    # Derive order from order of routers and interfaces.
+    my %seen;
+    for my $router (@routers) {
+        for my $interface (@{ $router->{interfaces} }) {
+            next if $interface->{disabled};
+            my $network = $interface->{network};
+            $seen{$network}++ or push @networks, $network;
         }
     }
+
+    # Find networks not connected to any router.
+    for my $network (values %networks) {
+        next if $network->{disabled};
+        $seen{$network} or 
+            err_msg("$network->{name} isn't connected to any router");
+    }
+
     @virtual_interfaces = grep { not $_->{disabled} } @virtual_interfaces;
     if ($policy_distribution_point and $policy_distribution_point->{disabled}) {
         $policy_distribution_point = undef;
@@ -8137,11 +8153,6 @@ sub set_zone {
     }
 
     for my $zone (@zones) {
-
-        # Make results deterministic.
-        @{ $zone->{networks} } =
-          sort { $a->{mask} <=> $b->{mask} || $a->{ip} <=> $b->{ip} }
-          @{ $zone->{networks} };
 
         # Collect clusters of zones, which are connected by an unmanaged
         # (semi_managed) device into attribute {zone_cluster}.
