@@ -14416,26 +14416,23 @@ sub local_optimization() {
                         # having identical IP address.
                         for my $what (qw(src dst)) {
                             my $obj = $rule->{$what};
+                            my $obj_changed;
 
-                            # Holds original obj or loopback network
-                            # of original interface.
-                            my $net = $obj;
-
-                            # Loopback interface is converted to
-                            # loopback network below, only if other
-                            # networks with identical address exist.
-                            if ($obj->{loopback}) {
+                            # Change loopback interface to loopback network.
+                            if ($obj->{loopback} && is_interface($obj)) {
                                 if (!($rules eq 'intf_rules' && $what eq 'dst'))
                                 {
-                                    $net = $obj->{network};
+                                    $obj = $obj->{network};
+                                    $obj_changed = 1;
                                 }
                             }
 
                             # Identical networks from dynamic NAT and
                             # from identical aggregates.
-                            if (my $identical = $net->{is_identical}) {
+                            if (my $identical = $obj->{is_identical}) {
                                 if (my $other = $identical->{$no_nat_set}) {
                                     $obj = $other;
+                                    $obj_changed = 1;
                                 }
                             }
 
@@ -14449,11 +14446,11 @@ sub local_optimization() {
                                   )
                                 {
                                     $obj = $aref->[0];
+                                    $obj_changed = 1;
                                 }
                             }
-                            else {
-                                next;
-                            }
+
+                            $obj_changed or next;
 
                             # Don't change rules of devices in other
                             # NAT domain where we may have other
