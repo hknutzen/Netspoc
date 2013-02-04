@@ -7916,15 +7916,16 @@ sub link_aggregates {
 
 # Find aggregate in zone.
 # If zone is part of a zone_cluster,
-# return aggregate for each zone of the cluster.
+# return aggregates for each zone of the cluster.
 sub get_any00 {
     my ($zone) = @_;
-    if (my $aggregate = $zone->{ipmask2aggregate}->{'0/0'}) {
-        return (
-            $zone->{zone_cluster}
-            ? get_cluster_aggregates($zone, 0, 0)
-            : $aggregate
-        );
+    if($zone->{zone_cluster}) {
+        if (my @aggregates = get_cluster_aggregates($zone, 0, 0)) {
+            return @aggregates;
+        }
+    }
+    elsif (my $aggregate = $zone->{ipmask2aggregate}->{'0/0'}) {
+        return $aggregate;
     }
     if (my ($net00) = grep { $_->{mask} == 0 } @{ $zone->{networks} }) {
         fatal_err "Use $net00->{name} instead of any:[..]";
@@ -7937,11 +7938,12 @@ sub get_any00 {
     }
 }
 
-# Get set of aggregate of a zone cluster.
+# Get set of aggregates of a zone cluster.
+# Ignore zone having no aggregate from unnumbered network.
 sub get_cluster_aggregates {
     my ($zone, $ip, $mask) = @_;
     my $key = "$ip/$mask";
-    return map($_->{ipmask2aggregate}->{$key}, @{ $zone->{zone_cluster} });
+    return map($_->{ipmask2aggregate}->{$key}||(), @{ $zone->{zone_cluster} });
 }
 
 sub set_zone1 {
