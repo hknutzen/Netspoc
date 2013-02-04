@@ -223,23 +223,23 @@ service:intra = {
 END
 
 $out1 = <<END;
-ip access-list extended Ethernet4_in
+ip access-list extended Vlan13_in
  permit ip any host 10.3.1.249
  deny ip any any
 END
 
 $out2 = <<END;
+ip access-list extended Ethernet4_in
+ permit ip any host 10.3.1.249
+ deny ip any any
+END
+
+$out3 = <<END;
 ip access-list extended Ethernet5_in
  deny ip any host 10.1.1.2
  deny ip any host 10.3.1.129
  deny ip any host 10.3.1.242
  permit ip host 10.3.1.249 any
- deny ip any any
-END
-
-$out3 = <<END;
-ip access-list extended Vlan13_in
- permit ip any host 10.3.1.249
  deny ip any any
 END
 
