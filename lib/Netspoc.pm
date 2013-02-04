@@ -16118,7 +16118,7 @@ sub print_interface( $ ) {
                 next;
             }
             elsif ($ip eq 'unnumbered') {
-                $addr_cmd = 'ip unnumbered';
+                $addr_cmd = 'ip unnumbered X';
             }
             elsif ($ip eq 'negotiated') {
                 $addr_cmd = 'ip address negotiated';
