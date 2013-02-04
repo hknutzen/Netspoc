@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.022'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.023'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -1736,6 +1736,14 @@ sub read_interface( $ ) {
             error_atline "No NAT supported for $interface->{ip} interface";
         }
     }
+    if ((my $routing = $interface->{routing}) && 
+        $interface->{ip} eq 'unnumbered')
+    {
+        my $rname = $routing->{name};
+        $rname ne 'manual' and
+            error_atline(
+                "Routing $rname not supported for unnumbered interface");
+    }
     if ($interface->{loopback}) {
         my %copy = %$interface;
 
@@ -2172,6 +2180,10 @@ sub read_router( $ ) {
             if ($interface->{promiscuous_port}) {
                 error_atline "Interface with attribute 'promiscuous_port'",
                   " must only be used at managed device";
+            }
+            if (delete $interface->{reroute_permit}) {
+                warn_msg "Ignoring attribute 'reroute_permit'",
+                  " at unmanaged $interface->{name}";
             }
             if ($interface->{ip} eq 'bridged') {
                 $bridged = 1;
@@ -3749,8 +3761,9 @@ sub link_areas() {
 }
 
 # Link interfaces with networks in both directions.
-sub link_interfaces {
-    for my $interface (values %interfaces) {
+sub link_interfaces1 {
+    my ($router) = @_;
+    for my $interface (@{ $router->{interfaces} }) {
         my $net_name = $interface->{network};
         my $network  = $networks{$net_name};
 
@@ -3871,6 +3884,15 @@ sub link_interfaces {
                 }
             }
         }
+    }
+}
+
+# Iterate of all interfaces of all routers.
+# Don't use values %interfaces because we want to traverse the interfaces
+# in a deterministic order.
+sub link_interfaces {
+    for my $name (sort keys %routers) {
+        link_interfaces1($routers{$name});
     }
 }
 
@@ -4566,7 +4588,8 @@ sub mark_disabled() {
         }
     }
     my %name2vrf;
-    for my $router (values %routers) {
+    for my $name (sort keys %routers) {
+        my $router = $routers{$name};
         next if $router->{disabled};
         push @routers, $router;
         my $device_name = $router->{device_name};
@@ -4610,11 +4633,26 @@ sub mark_disabled() {
         }
     }
 
-    for my $network (values %networks) {
-        unless ($network->{disabled}) {
-            push @networks, $network;
+    # Collect networks into @networks.
+    # We need a deterministic order. 
+    # Don't sort by name because code shouldn't change if a network is renamed.
+    # Derive order from order of routers and interfaces.
+    my %seen;
+    for my $router (@routers) {
+        for my $interface (@{ $router->{interfaces} }) {
+            next if $interface->{disabled};
+            my $network = $interface->{network};
+            $seen{$network}++ or push @networks, $network;
         }
     }
+
+    # Find networks not connected to any router.
+    for my $network (values %networks) {
+        next if $network->{disabled};
+        $seen{$network} or 
+            err_msg("$network->{name} isn't connected to any router");
+    }
+
     @virtual_interfaces = grep { not $_->{disabled} } @virtual_interfaces;
     if ($policy_distribution_point and $policy_distribution_point->{disabled}) {
         $policy_distribution_point = undef;
@@ -5676,7 +5714,7 @@ sub expand_special ( $$$$ ) {
         @result = ($src);
     }
     if ($flags->{net}) {
-        my %networks;
+        my @networks;
         my @other;
         for my $obj (@result) {
             my $type = ref $obj;
@@ -5705,9 +5743,9 @@ sub expand_special ( $$$$ ) {
             else {
                 internal_err "unexpected $obj->{name}";
             }
-            $networks{$network} = $network if $network->{ip} ne 'unnumbered';
+            push @networks, $network if $network->{ip} ne 'unnumbered';
         }
-        @result = (@other, values %networks);
+        @result = (@other, unique(@networks));
     }
     if ($flags->{any}) {
         my %zones;
@@ -7689,7 +7727,7 @@ sub check_crosslink () {
         my @crosslink_interfaces =
           map { @{ $_->{interfaces} } }
 
-          # Sort to make output deterministic.
+          # Sort by router name to make output deterministic.
           sort { $a->{name} cmp $b->{name} } values %cluster;
         my %crosslink_intf_hash = map { $_ => $_ } @crosslink_interfaces;
         for my $router2 (values %cluster) {
@@ -7886,15 +7924,16 @@ sub link_aggregates {
 
 # Find aggregate in zone.
 # If zone is part of a zone_cluster,
-# return aggregate for each zone of the cluster.
+# return aggregates for each zone of the cluster.
 sub get_any00 {
     my ($zone) = @_;
-    if (my $aggregate = $zone->{ipmask2aggregate}->{'0/0'}) {
-        return (
-            $zone->{zone_cluster}
-            ? get_cluster_aggregates($zone, 0, 0)
-            : $aggregate
-        );
+    if($zone->{zone_cluster}) {
+        if (my @aggregates = get_cluster_aggregates($zone, 0, 0)) {
+            return @aggregates;
+        }
+    }
+    elsif (my $aggregate = $zone->{ipmask2aggregate}->{'0/0'}) {
+        return $aggregate;
     }
     if (my ($net00) = grep { $_->{mask} == 0 } @{ $zone->{networks} }) {
         fatal_err "Use $net00->{name} instead of any:[..]";
@@ -7907,11 +7946,12 @@ sub get_any00 {
     }
 }
 
-# Get set of aggregate of a zone cluster.
+# Get set of aggregates of a zone cluster.
+# Ignore zone having no aggregate from unnumbered network.
 sub get_cluster_aggregates {
     my ($zone, $ip, $mask) = @_;
     my $key = "$ip/$mask";
-    return map($_->{ipmask2aggregate}->{$key}, @{ $zone->{zone_cluster} });
+    return map($_->{ipmask2aggregate}->{$key}||(), @{ $zone->{zone_cluster} });
 }
 
 sub set_zone1 {
@@ -8124,11 +8164,6 @@ sub set_zone {
 
     for my $zone (@zones) {
 
-        # Make results deterministic.
-        @{ $zone->{networks} } =
-          sort { $a->{mask} <=> $b->{mask} || $a->{ip} <=> $b->{ip} }
-          @{ $zone->{networks} };
-
         # Collect clusters of zones, which are connected by an unmanaged
         # (semi_managed) device into attribute {zone_cluster}.
         # This attribute is only set, if the cluster has more than one element.
@@ -8224,10 +8259,6 @@ sub set_zone {
         }
     }
     for my $area (@areas) {
-
-        # Make result deterministic. Needed for network:[area:xx].
-        @{ $area->{zones} } =
-          sort { $a->{name} cmp $b->{name} } @{ $area->{zones} };
 
         # Tidy up: Delete unused attribute.
         delete $area->{intf_lookup};
@@ -8635,7 +8666,7 @@ sub cluster_path_mark1( $$$$$$$$ ) {
     if ($obj eq $end) {
 
         # Mark interface where we leave the loop.
-        $loop_leave->{$in_intf} = $in_intf;
+        push @$loop_leave, $in_intf;
 
 #     debug " leave: $in_intf->{name} -> $end->{name}";
         return 1;
@@ -8859,7 +8890,7 @@ sub cluster_path_mark ( $$$$$$ ) {
 
         my $loop_enter  = [];
         my $path_tuples = {};
-        my $loop_leave  = {};
+        my $loop_leave  = [];
 
         my $navi = cluster_navigation($from, $to) or internal_err "Empty navi";
 
@@ -8918,8 +8949,8 @@ sub cluster_path_mark ( $$$$$$ ) {
             }
         }
 
-        # Convert hash of interfaces to array of interfaces.
-        $loop_leave = [ values %$loop_leave ];
+        # Remove duplicates, which occur from nested loops..
+        $loop_leave = [ unique(@$loop_leave) ];
 
         $start_store->{loop_enter}->{$end_store}  = $loop_enter;
         $start_store->{loop_leave}->{$end_store}  = $loop_leave;
@@ -12470,8 +12501,11 @@ sub set_policy_distribution_ip () {
                 }
             }
 
-            # Try all management interfaces.
-            @result = values %interfaces if not @result;
+            # Take all management interfaces.
+            # Preserve original order of router interfaces.
+            if (! @result) {
+                @result = grep { $interfaces{$_} } @{ $router->{interfaces} };
+            }
 
             # Don't set {admin_ip} if no address is found.
             # Warning is printed below.
@@ -14395,26 +14429,23 @@ sub local_optimization() {
                         # having identical IP address.
                         for my $what (qw(src dst)) {
                             my $obj = $rule->{$what};
+                            my $obj_changed;
 
-                            # Holds original obj or loopback network
-                            # of original interface.
-                            my $net = $obj;
-
-                            # Loopback interface is converted to
-                            # loopback network below, only if other
-                            # networks with identical address exist.
-                            if ($obj->{loopback}) {
+                            # Change loopback interface to loopback network.
+                            if ($obj->{loopback} && is_interface($obj)) {
                                 if (!($rules eq 'intf_rules' && $what eq 'dst'))
                                 {
-                                    $net = $obj->{network};
+                                    $obj = $obj->{network};
+                                    $obj_changed = 1;
                                 }
                             }
 
                             # Identical networks from dynamic NAT and
                             # from identical aggregates.
-                            if (my $identical = $net->{is_identical}) {
+                            if (my $identical = $obj->{is_identical}) {
                                 if (my $other = $identical->{$no_nat_set}) {
                                     $obj = $other;
+                                    $obj_changed = 1;
                                 }
                             }
 
@@ -14428,11 +14459,11 @@ sub local_optimization() {
                                   )
                                 {
                                     $obj = $aref->[0];
+                                    $obj_changed = 1;
                                 }
                             }
-                            else {
-                                next;
-                            }
+
+                            $obj_changed or next;
 
                             # Don't change rules of devices in other
                             # NAT domain where we may have other
@@ -16087,7 +16118,7 @@ sub print_interface( $ ) {
                 next;
             }
             elsif ($ip eq 'unnumbered') {
-                $addr_cmd = 'ip unnumbered';
+                $addr_cmd = 'ip unnumbered X';
             }
             elsif ($ip eq 'negotiated') {
                 $addr_cmd = 'ip address negotiated';

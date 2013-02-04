@@ -3,7 +3,7 @@
 # Print anonymized netspoc configuration to destination directory
 #
 # http://netspoc.berlios.de
-# (c) 2010 by Heinz Knutzen <heinzknutzen@users.berlios.de>
+# (c) 2013 by Heinz Knutzen <heinzknutzen@users.berlios.de>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -91,14 +91,13 @@ my %subst;
 my %global_type = (
 		   router          => \%routers         ,
 		   network         => \%networks        ,
-		   any             => \%anys            ,
+		   any             => \%Netspoc::aggregates ,
 		   area            => \%areas           ,
 		   owner           => \%owners          ,
-		   admin           => \%admins          ,
 		   group           => \%groups          ,
+		   protocol        => \%protocols       ,
+		   protocolgroup   => \%protocolgroups  ,
 		   service         => \%services        ,
-		   servicegroup    => \%servicegroups   ,
-		   policy          => \%policies        ,
 		   pathrestriction => \%pathrestrictions,
 		   nat             => \%global_nat      ,
 		   isakmp          => \%isakmp          ,
@@ -114,10 +113,10 @@ sub setup_subst {
 	    my $name = $obj->{name};
 	    $name =~ s/^.*://;
 
-	    # Leave first two characters of policy name unchanged,
+	    # Leave first two characters of service name unchanged,
 	    # because sort order influences processing order.
 	    # Processing order needs to be unchanged for attribute 'overlaps'.
-	    my $renamed = $type eq 'policy' 
+	    my $renamed = $type eq 'service'
                         ? random2($name) 
                         : $name =~ /^(?:TCP|UDP|IP|ICMP)(?:[-_\d]*|_ALL)$/
                         ? $name
@@ -306,7 +305,8 @@ sub process_file_or_dir {
             next if $file eq '.' or $file eq '..';
             next if $file =~ m/$ignore_files/;
 	    my $rfile = 
-		($file =~ /^(:?rule|group|services|servicegroups|topology)$/) 
+		($file =~ 
+                 /^(:?rule|group|protocols|protocolgroups|topology)$/) 
 		? $file : random2($file);
 #            $rfile = $file;
             $file = "$path/$file";
@@ -386,21 +386,27 @@ sub subst_hw {
         fatal_err("Unexpected hardware: $name");
     return $known_hw{lc $root} ? $name : "dmz$ext";
 }
-    
+
+sub del_char {
+    my ($string) = @_;
+    $string =~ s/[^-\s#.,;:_\/*+]/ /g;
+    return $string;
+}
+
 sub process {
     my ($lines) = @_;
     for my $line (@$lines) {
 
-	# Remove comments
-	$line =~ s/#.*//;
+	# Clean up comments
+	$line =~ s/(\#.*)/ del_char($1) /gex;
 
 	# Rename type:name
 	$line =~ s/([a-z]+):([-\w.\@:]+)/ "$1:" . subst($1, $2) /gex;
 	# Rename nat = name
 	$line =~ s/(bind_nat\s*=\s*)([^;]+)/ 
              $1 . subst_list('nat', $2) /gex;
-	# Rename owner|admins = name, ... ;
-	$line =~ s/(owner|admins)(\s*=\s*)([^;]+)/ 
+	# Rename owner = name, ... ;
+	$line =~ s/(owner)(\s*=\s*)([^;]+)/ 
 	    "$1$2" . subst_list($1, $3) /gex;
 	# Sustitute IP addresses.
 	$line =~ s/(\d+\.\d+\.\d+\.\d+)/ subst_ip($1) /gex;
@@ -410,8 +416,10 @@ sub process {
         $line =~ s/((?:banner|CVPN3000-IPSec-Banner1)\s*=\s*)([^;]*)/ $1 . random($2) /gex;
         # Anonymize ID of VPN network, but not numeric HSRP id.
         $line =~ s/(?<=\s)(id\s*=\s*)([-\w.]*\@[-\w.]+)/ $1 . random($2) /gex;
-	# Rename "description|name|email ="
-	$line =~ s/((?:description|name|email)\s*=\s*)(.*)/ $1 . random($2)/gex;
+	# Rename "description ="
+	$line =~ s/((?:description)\s*=\s*)(.*)/ $1 . random($2)/gex;
+        # Rename email addresses but not router:name@VRF
+        $line =~ s/([=,\s]) ([-.\w]+\@[-.\w]+) ([,;\s])/ $1.random($2).$3 /gex;
     }
 }
 
