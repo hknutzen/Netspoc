@@ -27,6 +27,7 @@ use Netspoc;
 #use open ':locale';
 use locale;
 
+# VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
