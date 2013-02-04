@@ -9,7 +9,7 @@ use Test_Netspoc;
 my ($title, $in, $out, @out, $head, $compiled);
 
 ############################################################
-my $title = 'Zone cluster with unnumbered network';
+$title = 'Zone cluster with unnumbered network';
 ############################################################
 
 $in = <<END;
