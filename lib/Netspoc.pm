@@ -1736,6 +1736,14 @@ sub read_interface( $ ) {
             error_atline "No NAT supported for $interface->{ip} interface";
         }
     }
+    if ((my $routing = $interface->{routing}) && 
+        $interface->{ip} eq 'unnumbered')
+    {
+        my $rname = $routing->{name};
+        $rname ne 'manual' and
+            error_atline(
+                "Routing $rname not supported for unnumbered interface");
+    }
     if ($interface->{loopback}) {
         my %copy = %$interface;
 
