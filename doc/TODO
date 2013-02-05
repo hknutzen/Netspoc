@@ -9,15 +9,8 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 - Add more documentation for crypto tunnels with different
   authentication methods (certificate, preshared key).
 
-- Describe syntax of host:id for vpn3k devices. 
-
-- Automatically add an internal rule which allows radius trafic from
-  router of type vpn3k to its radius hosts.
-
 - Look if check_any_src/dst_rule works correctly at the endpoint of
   crypto tunnels.
-
-- Don't silently ignore rules for interfaces of vpn3k.
 
 - Crypto: Read pairs of [ address preshared_key ] from a separate file.
 

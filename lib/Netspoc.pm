@@ -339,20 +339,6 @@ my %router_info = (
         has_io_acl   => 1,
         comment_char => '#',
     },
-
-    # Cisco VPN 3000 Concentrator including RADIUS config.
-    VPN3K => {
-        stateless           => 1,
-        stateless_self      => 1,
-        stateless_icmp      => 1,
-        routing             => 'none',
-        filter              => 'VPN3K',
-        inversed_acl_mask   => 1,
-        need_radius         => 1,
-        do_auth             => 1,
-        crypto              => 'ignore',
-        comment_char        => '!',
-    },
 );
 for my $model (keys %router_info) {
 
@@ -1845,9 +1831,6 @@ sub set_pix_interface_level {
     }
 }
 
-# Routers which reference one or more RADIUS servers.
-my @radius_routers;
-
 my $bind_nat0 = [];
 
 our %routers;
@@ -1940,14 +1923,6 @@ sub read_router( $ ) {
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $router->{owner} and error_atline "Duplicate attribute 'owner'";
             $router->{owner} = $owner;
-        }
-        elsif (my @pairs = check_assign_list 'radius_servers',
-            \&read_typed_name)
-        {
-            $router->{radius_servers}
-              and error_atline "Duplicate attribute 'radius_servers'";
-            $router->{radius_servers} = \@pairs;
-            push @radius_routers, $router;
         }
         elsif (my $radius_attributes = check_radius_attributes) {
             $router->{radius_attributes}
@@ -2127,16 +2102,6 @@ sub read_router( $ ) {
         }
         if ($model->{has_interface_level}) {
             set_pix_interface_level($router);
-        }
-        if ($model->{need_radius}) {
-            $router->{radius_servers}
-              or err_msg "Attribute 'radius_servers' needs to be defined",
-              " for $name";
-        }
-        else {
-            $router->{radius_servers}
-              and err_msg "Attribute 'radius_servers' is not allowed",
-              " for $name";
         }
         if ($model->{do_auth}) {
 
@@ -3896,27 +3861,6 @@ sub link_interfaces {
     }
 }
 
-# Link RADIUS servers referenced in authenticating routers.
-sub link_radius() {
-    for my $router (@radius_routers) {
-        next if $router->{disabled};
-
-        $router->{radius_servers} = expand_group $router->{radius_servers},
-          $router->{name};
-        for my $element (@{ $router->{radius_servers} }) {
-            if (is_host $element) {
-                if ($element->{range}) {
-                    err_msg "$element->{name} must have single IP address\n",
-                      " because it is used as RADIUS server";
-                }
-            }
-            else {
-                err_msg "$element->{name} can't be used as RADIUS server";
-            }
-        }
-    }
-}
-
 sub link_subnet ( $$ ) {
     my ($object, $parent) = @_;
 
@@ -4267,7 +4211,6 @@ sub link_topology() {
     link_pathrestrictions;
     link_virtual_interfaces;
     link_areas;
-    link_radius;
     link_subnets;
     link_owners;
     check_ip_addresses();
@@ -7534,40 +7477,6 @@ sub find_subnets() {
     # intermediate device.
 }
 
-# Clear-text interfaces of VPN3K cluster servers need to be attached
-# to the same security zone.
-# We need this to get consistent auto_deny_networks for all cluster members.
-sub check_vpnhub () {
-    my %hub2routers;
-    for my $router (@managed_vpnhub) {
-        next if not $router->{model}->{filter} eq 'VPN3K';
-        for my $interface (@{ $router->{interfaces} }) {
-            if (my $hubs = $interface->{hub}) {
-                for my $hub (@$hubs) {
-                    push @{ $hub2routers{$hub} }, $router;
-                }
-            }
-        }
-    }
-    my $all_eq_cluster = sub {
-        my (@obj) = @_;
-        my $obj1 = pop @obj;
-        my $cluster1 = $obj1->{zone_cluster} || $obj1;
-        not grep { ($_->{zone_cluster} || $_) ne $cluster1 } @obj;
-    };
-    for my $routers (values %hub2routers) {
-        my @zones = map {
-            map { $_->{zone} }
-              grep { $_->{no_check} || !($_->{hub} || $_->{ip} eq 'tunnel') }
-              @{ $_->{interfaces} }
-        } @$routers;
-        $all_eq_cluster->(@zones)
-          or err_msg "Clear-text interfaces of\n ",
-          join(', ', map({ $_->{name} } @$routers)),
-          "\n must all be connected to the same security zone.";
-    }
-}
-
 sub check_no_in_acl () {
 
     # Propagate attribute 'no_in_acl' from zones to interfaces.
@@ -8179,7 +8088,6 @@ sub set_zone {
     check_no_in_acl;
     check_crosslink;
     check_reroute_permit;
-    check_vpnhub;
 
     # Mark interfaces, which are border of some area.
     # This is needed to locate auto_borders.
@@ -13030,10 +12938,6 @@ sub cisco_prt_code( $$$ ) {
     elsif ($proto eq 'icmp') {
         if (defined(my $type = $prt->{type})) {
             if (defined(my $code = $prt->{code})) {
-                if ($model->{filter} eq 'VPN3K') {
-                    # VPN3K can't handle the ICMP code field.
-                    return ($proto, undef, $type);
-                }
                 if ($model->{no_filter_icmp_code}) {
 
                     # PIX can't handle the ICMP code field.
@@ -14760,206 +14664,6 @@ sub local_optimization() {
 #                   $atime[0], $atime[1], $atime[2], $atime[3], $atime[4]);
 }
 
-sub print_xml( $ );
-
-sub print_xml( $ ) {
-    my ($arg) = @_;
-    my $ref = ref $arg;
-    if (not $ref) {
-        print "$arg";
-    }
-    elsif ($ref eq 'HASH') {
-        for my $tag (sort keys %$arg) {
-            my $arg = $arg->{$tag};
-            if (ref $arg) {
-                print "<$tag>\n";
-                print_xml $arg;
-                print "</$tag>\n";
-            }
-            else {
-
-                # Handle simple case separately for formatting reasons.
-                print "<$tag>$arg</$tag>\n";
-            }
-        }
-    }
-    else {
-        for my $element (@$arg) {
-            print_xml $element;
-        }
-    }
-}
-
-sub print_vpn3k( $ ) {
-    my ($router) = @_;
-    my $model = $router->{model};
-
-    # Build a hash of hashes of ... which will later be converted to XML.
-    my %vpn_config = ();
-    ($vpn_config{'vpn-device'} = $router->{name}) =~ s/^router://;
-    $vpn_config{'aaa-server'} =
-      [ map { { radius => print_ip $_->{ip} } }
-          @{ $router->{radius_servers} } ];
-
-    # Build a sub structure of %vpn_config
-    my @entries = ();
-
-    # no_nat_set of all hardware interfaces is identical,
-    # because we don't allow bind_nat at vpn3k devices.
-    # Hence we can take no_nat_set of first hardware interface.
-    my $no_nat_set = $router->{hardware}->[0]->{no_nat_set};
-
-    # Find networks, which are attached to current device (cleartext or tunnel)
-    # but which are not protected by some other managed device.
-    my %auto_deny_networks;
-    for my $interface (@{ $router->{interfaces} }) {
-        next if $interface->{hub} and not $interface->{no_check};
-        if ($interface->{ip} eq 'tunnel') {
-
-            # Mark network of VPN clients or VPN networks behind
-            # unmanaged router to be protected by deny rules.
-            for my $peer (@{ $interface->{peers} }) {
-                my $router = $peer->{router};
-                next if $router->{managed};
-                for my $out_intf (@{ $router->{interfaces} }) {
-                    next if $out_intf->{ip} eq 'tunnel';
-                    next if $out_intf->{spoke};
-                    my $network = $out_intf->{network};
-                    $auto_deny_networks{$network} = $network;
-                }
-            }
-        }
-        else {
-
-            # Add all networks in security zone
-            # located at cleartext interface.
-            for my $network (@{ $interface->{zone}->{networks} }) {
-                $auto_deny_networks{$network} = $network;
-            }
-        }
-    }
-    my @deny_rules =
-      map { "deny ip any $_" }
-      sort
-      map { cisco_acl_addr $_, $model }
-      map { address($_, $no_nat_set) } values %auto_deny_networks;
-
-    my $add_filter = sub {
-        my ($entry, $intf, $src, $add_split_tunnel) = @_;
-        my @acl_lines;
-        my %split_tunnel_networks;
-        for my $rule (@{ $intf->{rules} }, @{ $intf->{intf_rules} }) {
-            my ($action, $src, $dst, $src_range, $prt) =
-              @{$rule}{ 'action', 'src', 'dst', 'src_range', 'prt' };
-            my $dst_network = is_network $dst ? $dst : $dst->{network};
-
-            # Add split tunnel networks, but not for 'any' from global:permit.
-            if ($add_split_tunnel and $dst_network->{mask} != 0) {
-                $split_tunnel_networks{$dst_network} = $dst_network;
-            }
-
-            # Permit access to auto denied networks.
-            if ($auto_deny_networks{$dst_network}) {
-                my ($proto_code, $src_port_code, $dst_port_code) =
-                  cisco_prt_code($src_range, $prt, $model);
-                my $result = "$action $proto_code";
-                $result .=
-                  ' ' . cisco_acl_addr(address($src, $no_nat_set), $model);
-                $result .= " $src_port_code" if defined $src_port_code;
-                $result .=
-                  ' ' . cisco_acl_addr(address($dst, $no_nat_set), $model);
-                $result .= " $dst_port_code" if defined $dst_port_code;
-                push @acl_lines, $result;
-            }
-        }
-        my $spair = address($src, $no_nat_set);
-        my $src_code = cisco_acl_addr($spair, $model);
-        my $permit_rule = "permit ip $src_code any";
-        push @acl_lines, @deny_rules, $permit_rule;
-        $entry->{in_acl} = [ map { { ace => $_ } } @acl_lines ];
-        if ((my $lines = @acl_lines) > 39) {
-            my $msg = "Too many ACL lines at $router->{name}"
-              . " for $src->{name}: $lines > 39";
-
-            # Print error, but don't abort.
-            print STDERR "Error: $msg\n";
-
-            # Force generated config to be syntactically incorrect.
-            $entry->{error} = $msg;
-        }
-
-        # Add split tunnel list.
-        my @split_tunnel_networks;
-        for my $network (
-            sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
-            values %split_tunnel_networks)
-        {
-            my $ip   = print_ip $network->{ip};
-            my $mask = print_ip complement_32bit $network->{mask};
-            push @split_tunnel_networks, { base => $ip, mask => $mask };
-        }
-        $entry->{split_tunnel_networks} =
-          [ map { { network => $_ } } @split_tunnel_networks ];
-    };
-
-    for my $interface (@{ $router->{interfaces} }) {
-        next if not $interface->{ip} eq 'tunnel';
-        my $hardware = $interface->{hardware};
-        my $hw_name  = $hardware->{name};
-
-        # Many single VPN software clients terminate at one tunnel interface.
-        if (my $hash = $interface->{id_rules}) {
-            for my $id (keys %$hash) {
-                my $id_intf = $hash->{$id};
-                my $src     = $id_intf->{src};
-                my %entry;
-                $entry{'Called-Station-Id'} = $hw_name;
-
-                my $id = $src->{id};
-                my $ip = print_ip $src->{ip};
-                if ($src->{mask} == 0xffffffff) {
-
-                    $entry{id} = $id;
-                    $entry{'Framed-IP-Address'} = $ip;
-                }
-                else {
-                    $id =~ /^\@/
-                      or err_msg
-                      "ID of $src->{name} must start with character '\@'";
-                    $entry{suffix} = $id;
-                    my $mask = print_ip complement_32bit $src->{mask};
-                    $entry{network} = { base => $ip, mask => $mask };
-                }
-                $entry{inherited} = {
-                    %{ $router->{radius_attributes} },
-                    %{ $src->{network}->{radius_attributes} },
-                    %{ $src->{radius_attributes} },
-                };
-
-                $add_filter->(\%entry, $id_intf, $src, 'add_split_t');
-                push @entries, { user_entry => \%entry };
-            }
-        }
-
-        # A VPN network behind a VPN hardware client.
-        else {
-            my $id = $interface->{peers}->[0]->{id}
-              or internal_err "Missing ID at $interface->{peers}->[0]->{name}";
-            my %entry;
-            $entry{'Called-Station-Id'} = $hw_name;
-            $entry{id}                  = $id;
-            $entry{inherited}           = $router->{radius_attributes};
-            for my $src (@{ $interface->{peer_networks} }) {
-                $add_filter->(\%entry, $interface, $src);
-            }
-            push @entries, { user_entry => \%entry };
-        }
-    }
-    $vpn_config{entries} = \@entries;
-    my $result = { 'vpn-config' => \%vpn_config };
-    print_xml $result;
-}
-
 my $deny_any_rule = {
     action    => 'deny',
     src       => $network_00,
@@ -15801,7 +15505,6 @@ sub print_crypto( $ ) {
     my ($router) = @_;
     my $model = $router->{model};
     my $crypto_type = $model->{crypto} || '';
-    return if $crypto_type eq 'ignore';
 
     # List of ipsec definitions used at current router.
     # Sort entries by name to get deterministic output.
@@ -16212,12 +15915,6 @@ sub print_code( $ ) {
             my $model        = $router->{model};
             my $comment_char = $model->{comment_char};
             my $name         = $vrouter->{name};
-
-            # Handle VPN3K separately;
-            if ($model->{filter} eq 'VPN3K') {
-                print_vpn3k $vrouter;
-                next;
-            }
 
             print "$comment_char Generated by $program, version $version\n\n";
             print "$comment_char [ BEGIN $name ]\n";
