@@ -2629,7 +2629,12 @@ sub read_service( $ ) {
     add_description($service);
     while (1) {
         last if check 'user';
-        if (my @other = check_assign_list 'overlaps', \&read_typed_name) {
+        if (my $owner = check_assign 'owner', \&read_identifier) {
+            $service->{owner}
+              and error_atline "Duplicate attribute 'owner'";
+            $service->{owner} = $owner;
+        }
+        elsif (my @other = check_assign_list 'overlaps', \&read_typed_name) {
             $service->{overlaps}
               and error_atline "Duplicate attribute 'overlaps'";
             $service->{overlaps} = \@other;
@@ -3670,6 +3675,9 @@ sub link_owners () {
     }
     for my $router (values %routers) {
         link_to_owner($router);
+    }
+    for my $service (values %services) {
+        link_to_owner($service);
     }
 }
 
@@ -6577,15 +6585,11 @@ sub set_service_owner {
             push @objects, @$users;
         }
 
-        # Remove duplicate objects;
-        my %objects = map { $_ => $_ } @objects;
-        @objects = values %objects;
-
         # Collect service owners and unknown owners;
         my $service_owners;
         my $unknown_owners;
 
-        for my $obj (@objects) {
+        for my $obj (unique @objects) {
             my $owner = $obj->{owner};
             if ($owner) {
                 $service_owners->{$owner} = $owner;
@@ -6596,6 +6600,14 @@ sub set_service_owner {
         }
 
         $service->{owners} = [ values %$service_owners ];
+
+        # Check for redundant service owner.
+        # Allow dedicated service owner, if we have multiple owners 
+        # from @objects.
+        if (my $owner = $service->{owner}) {
+            keys %$service_owners == 1 && $service_owners->{$owner} and
+                warn_msg "Useless $owner->{name} at $service->{name}";
+        }
 
         # Check for multiple owners.
         my $multi_count =
