@@ -687,27 +687,27 @@ sub export_assets {
 
 sub export_services {
     progress("Export services");
-    my %phash;
-    my %owner2type2phash;
+    my %shash;
+    my %owner2type2shash;
     for my $service (sort by_name values %services) {
         next if $service->{disabled};
         if ($master_owner) {
-            $owner2type2phash{$master_owner}->{owner}->{$service} = $service;
+            $owner2type2shash{$master_owner}->{owner}->{$service} = $service;
 	}
         for my $owner (@{ $service->{owners} }, @{ $service->{sub_owners} }) {
-            $owner2type2phash{$owner}->{owner}->{$service} = $service;
+            $owner2type2shash{$owner}->{owner}->{$service} = $service;
         }          
         for my $owner (@{ $service->{uowners} }, @{ $service->{sub_uowners} }) {
-            if (not $owner2type2phash{$owner}->{owner}->{$service}) {
-                $owner2type2phash{$owner}->{user}->{$service} = $service;
+            if (not $owner2type2shash{$owner}->{owner}->{$service}) {
+                $owner2type2shash{$owner}->{user}->{$service} = $service;
             }
         }
         for my $owner (keys %owners) {
-            if (not ($owner2type2phash{$owner}->{owner}->{$service} or 
-                     $owner2type2phash{$owner}->{user}->{$service})) 
+            if (not ($owner2type2shash{$owner}->{owner}->{$service} or 
+                     $owner2type2shash{$owner}->{user}->{$service})) 
             {
                 if ($service->{visible} and $owner =~ /^$service->{visible}/) {
-                    $owner2type2phash{$owner}->{visible}->{$service} = $service;
+                    $owner2type2shash{$owner}->{visible}->{$service} = $service;
                 }
             }
         }
@@ -727,23 +727,23 @@ sub export_services {
 		prt => $_->{expanded_prt},
 	    }
 	} @{ $service->{rules} };
-	(my $pname = $service->{name}) =~ s/^\w+://;
-	$phash{$pname} = { details => $details, rules => \@rules };
+	(my $sname = $service->{name}) =~ s/^\w+://;
+	$shash{$sname} = { details => $details, rules => \@rules };
     }
-    export("services", \%phash);
+    export("services", \%shash);
 
     progress("Export users and service_lists");
-    $owner2type2phash{$_} ||= {} for keys %owners;
-    for my $owner (sort keys %owner2type2phash) {
-	my $type2phash = $owner2type2phash{$owner} || {};
-	my %type2pnames;
+    $owner2type2shash{$_} ||= {} for keys %owners;
+    for my $owner (sort keys %owner2type2shash) {
+	my $type2shash = $owner2type2shash{$owner} || {};
+	my %type2snames;
 	my %service2users;
 	for my $type (qw(owner user visible)) {
-	    my $services = [ sort by_name values %{ $type2phash->{$type} } ];
-	    my $pnames = $type2pnames{$type} = [];
+	    my $services = [ sort by_name values %{ $type2shash->{$type} } ];
+	    my $snames = $type2snames{$type} = [];
 	    for my $service (@$services) { 
-		(my $pname = $service->{name}) =~ s/^\w+://;
-		push @$pnames, $pname;
+		(my $sname = $service->{name}) =~ s/^\w+://;
+		push @$snames, $sname;
 		next if $type eq 'visible';
 		my @users;
 		if ($type eq 'owner') {
@@ -767,11 +767,11 @@ sub export_services {
 		    @{ $service->{expanded_user} };
 		}
 		@users = sort map $_->{name}, @users;
-		$service2users{$pname} = \@users;
+		$service2users{$sname} = \@users;
 	    }
 	}
 	create_dirs("owner/$owner");
-	export("owner/$owner/service_lists", \%type2pnames);
+	export("owner/$owner/service_lists", \%type2snames);
 	export("owner/$owner/users", \%service2users);
     }
 }
