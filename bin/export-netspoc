@@ -274,6 +274,7 @@ sub proto_descr {
     for my $proto0 (@$protocols) {
 	my $protocol = $proto0;
 	my $desc = my $ptype = $protocol->{proto};
+        my $num;
 	if ($ptype eq 'tcp' or $ptype eq 'udp') {
 	    my $port_code = sub ( $$ ) {
 		my ($v1, $v2) = @_;
@@ -294,6 +295,7 @@ sub proto_descr {
 	    }
 	    elsif ($dport) {
 		$desc .= " $dport";
+                ($num) = split('-', $dport)
 	    }
 	}
 	elsif ($ptype eq 'icmp') {
@@ -304,6 +306,7 @@ sub proto_descr {
 		else {
 		    $desc .= " $type";
 		}
+                $num = $type;
 	    }
 	}
 	if (my $flags = $protocol->{flags}) {
@@ -321,9 +324,17 @@ sub proto_descr {
 		}
 	    }
 	}
-	push @result, $desc;
+        $num ||= 0;
+	push @result, [ $desc, $ptype, $num ];
     }
-    @result = sort @result;
+    @result = 
+        map { $_->[0] }
+
+        # Sort by protocol, port/type, all (if proto and num are equal)
+        sort { $a->[1] cmp $b->[1] || 
+               $a->[2] <=> $b->[2] || 
+               $a->[0] cmp $b->[0] }
+        @result;
     \@result;
 }
 
