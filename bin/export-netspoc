@@ -428,6 +428,7 @@ sub setup_service_info {
 
 	# Input: owner objects, output: owner names
 	my $owners = owners_for_objects(\@objects);
+        $service->{manager} = owner_for_object($service) if $service->{owner};
 
 	# Add artificial owner :unknown if owner is unknown.
 	push @$owners, ':unknown' if not @$owners;
@@ -694,7 +695,10 @@ sub export_services {
         if ($master_owner) {
             $owner2type2shash{$master_owner}->{owner}->{$service} = $service;
 	}
-        for my $owner (@{ $service->{owners} }, @{ $service->{sub_owners} }) {
+        for my $owner ($service->{manager} || (),
+                       @{ $service->{owners} }, 
+                       @{ $service->{sub_owners} }) 
+        {
             $owner2type2shash{$owner}->{owner}->{$service} = $service;
         }          
         for my $owner (@{ $service->{uowners} }, @{ $service->{sub_uowners} }) {
@@ -715,6 +719,9 @@ sub export_services {
 	    description => $service->{description},
 	    owner => $service->{owners},
 	};
+        if ($service->{manager}) {
+            $details->{manager} = $service->{manager};
+        }
 	if (@{ $service->{sub_owners} }) {
 	    $details->{sub_owners} = $service->{sub_owners};
 	}
