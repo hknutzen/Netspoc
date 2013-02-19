@@ -2629,10 +2629,10 @@ sub read_service( $ ) {
     add_description($service);
     while (1) {
         last if check 'user';
-        if (my $owner = check_assign 'owner', \&read_identifier) {
-            $service->{owner}
-              and error_atline "Duplicate attribute 'owner'";
-            $service->{owner} = $owner;
+        if (my $sub_owner = check_assign 'sub_owner', \&read_identifier) {
+            $service->{sub_owner}
+              and error_atline "Duplicate attribute 'sub_owner'";
+            $service->{sub_owner} = $sub_owner;
         }
         elsif (my @other = check_assign_list 'overlaps', \&read_typed_name) {
             $service->{overlaps}
@@ -3587,15 +3587,16 @@ sub set_src_dst_range_list ( $ ) {
 sub expand_group( $$;$ );
 
 sub link_to_owner {
-    my ($obj) = @_;
-    if (my $value = $obj->{owner}) {
+    my ($obj, $key) = @_;
+    $key ||= 'owner';
+    if (my $value = $obj->{$key}) {
         if (my $owner = $owners{$value}) {
-            $obj->{owner} = $owner;
+            $obj->{$key} = $owner;
         }
         else {
             err_msg "Can't resolve reference to '$value'",
               " in attribute 'owner' of $obj->{name}";
-            delete $obj->{owner};
+            delete $obj->{$key};
         }
     }
 }
@@ -3677,7 +3678,7 @@ sub link_owners () {
         link_to_owner($router);
     }
     for my $service (values %services) {
-        link_to_owner($service);
+        link_to_owner($service, 'sub_owner');
     }
 }
 
@@ -6604,9 +6605,9 @@ sub set_service_owner {
         # Check for redundant service owner.
         # Allow dedicated service owner, if we have multiple owners 
         # from @objects.
-        if (my $owner = $service->{owner}) {
-            keys %$service_owners == 1 && $service_owners->{$owner} and
-                warn_msg "Useless $owner->{name} at $service->{name}";
+        if (my $sub_owner = $service->{sub_owner}) {
+            keys %$service_owners == 1 && $service_owners->{$sub_owner} and
+                warn_msg "Useless $sub_owner->{name} at $service->{name}";
         }
 
         # Check for multiple owners.
