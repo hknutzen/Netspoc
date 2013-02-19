@@ -518,7 +518,7 @@ sub find_master_owner {
 ######################################################################
 # Export no-NAT-set
 # - relate each network to its owner and part_owners
-# - build a no_nat_set for each owner, where own networks are'nt translated
+# - build a no_nat_set for each owner, where own networks aren't translated
 ######################################################################
 
 sub export_no_nat_set {
