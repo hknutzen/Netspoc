@@ -273,8 +273,7 @@ by certificates,
 <LI><code>PIX</code> for Cisco PIX,
 <li><code>IOS</code> for Cisco IOS routers,
 <LI><code>IOS, FW</code> for Cisco IOS routers with statefull inspection,
-<LI><code>IOS, EZVPN</code> for Cisco IOS routers with easy VPN,
-  <li><code>VPN3K</code> for Cisco VPN 3000 devices.
+<LI><code>IOS, EZVPN</code> for Cisco IOS routers with easy VPN.
 </UL>
 <LI>NetSPoC generates optimized code using object groups for PIX firewalls. 
 Use attribute <code>no_group_code</code> to disable this optimization.
@@ -1116,7 +1115,7 @@ and <code>spoke</code> definitions to interfaces.
   }
 </PRE>
 
-model= ASA, VPN | VPN3K for remote access
+model= ASA, VPN for remote access
 with no_check, 
 model = ASA for LAN to LAN
 <h2>Remote access</h2>
@@ -1150,61 +1149,34 @@ model = ASA for LAN to LAN
 </ul>
 </dl>
 
-This concept has been implemented for Cisco ASA and VPN 3000 (VPN3K)
-devices.  VPN3K send authorization request to one or more radius
-servers. ASA uses a local user database. VPN is build using IPSec
-tunnels.
+This concept has been implemented for Cisco ASA devices. ASA uses a
+local user database. VPN is build using IPSec tunnels.
 
-<h3>Cisco VPN 3000</h3>
+<h3>Cisco ASA as VPN hub</h3>
 <dl>
-<dt>new router model 
-<dd> model=VPN3K
-<dt>additional attribute for router
-<dd> radius_servers=&lt;object set&gt;
-<dt>additional attributes for interface
-<dd><ul> 
-<li>hub=crypto:&lt;name&gt; as described above
-<li>no_check
-</ul>
+<dt>router model 
+<dd> model=ASA, VPN;
+<dt>additional syntax for interface
+<dd> attribute 'no_check' allows encrypted and unencrypted traffic.
 <dt>additional syntax for hosts
 <dd> host:id:certificate-name
-<dt>additional attribute for network
+<dt>additional attribute for spoke interface
 <dd> id=&lt;user[[@domain]]&gt;
-<dt>additional optional attribute at host with id, network with id, network having id hosts and router of type vpn3k
+<dt>additional optional attribute at host with id, network having id hosts and router of type ASA,VPN
 <dd> radius_attributes={&lt;key&gt;=&lt;value&gt;;*}
 </dl>
 <p>
 <h4>Additional restrictions</h4>
 <ul>
-<li>Router needs to have exactly one interface with attribute 'no_check'.
-<li>Source of rule must have ID when entering interface without attribute 'no_check',
-
-<li>Attribute 'radius_servers' needs to be defined for router of model
-VPN3K. Each element must be a host.
-
 <li>A network having id hosts must not be used in a rule.
 </ul>
 
 <p>
 Multiple instances if one host:id:&lt;name&gt; can get defined in
 different networks of a topology. When referencing an id host, one has
-to append the name of the enclosing newtork to make the reference
+to append the name of the enclosing network to make the reference
 definite.  <code> host:id:&lt;name&gt; </code> is referenced as <code>
 host:id:&lt;name&gt;.&lt;network&gt; </code>
-
-<h4>Special handling of access lists at VPN3K device</h4>
-<ul>
-<li>First use all regular rules were destination is in one of the denied
-  networks below. 
-<li>Deny access to all networks, which talk to the vpn3k device, but
-  which are not protected by some managed device; i.e.
-  <ul>
-  <li> container network of id hosts,
-  <li>network of remote office with unmanged VPN router
-  <li>networks attached to the 'no_check' interface of the vpn3k device.
-  </ul>
-<li>Permit any traffic from IP address of remote host or network.
-</ul>
 
 <H2><A NAME="handling_any">Handling of 'any' objects</A></H2>
 <P>The meaning of 'any' is different in a NetSPoC rule from that in an ACL.
