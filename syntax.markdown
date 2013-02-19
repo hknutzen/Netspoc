@@ -219,6 +219,7 @@ here `<object set>` must expand to networks.
          [ disabled;                  ]
          [ multi_owner;               ]
          [ unknown_owner;             ]
+         [ sub_owner = <name>;        ]
          user = [ foreach ] <object set>;
          <rule> * 
       }
