@@ -725,9 +725,12 @@ sub export_services {
         if ($service->{sub_owner}) {
             $details->{sub_owner} = $service->{sub_owner};
         }
-	if (@{ $service->{part_owners} }) {
-	    $details->{part_owners} = $service->{part_owners};
-	}
+
+# Currently not used in backend.
+#	if (@{ $service->{part_owners} }) {
+#	    $details->{part_owners} = $service->{part_owners};
+#	}
+
 	my @rules = map {
 	    { 
 		action => $_->{action},
