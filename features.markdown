@@ -6,13 +6,13 @@ layout: default
 
 - Supports Cisco and Linux devices
   - Chains for iptables.
-  - Access lists for ASA, PIX
-  - Access list for IOS with and without Firewall Feature Set.
+  - Access lists for ASA, PIX, NX-OS
+  - Access lists for IOS with and without Firewall Feature Set.
 - Rules are optimized globally 
   - Adjacent IP ranges and port ranges are joined.
   - Redundant rules are removed and optionally warned about.
 - Highly optimized chains for iptables are generated.
-- Object-groups for ASA and PIX are generated.
+- Object-groups for ASA, PIX and NX-OS are generated.
 - IPSec configuration for Cisco ASA, ASA v8.4 and IOS is generated.
 - Commands for static routing are generated (optionally).
 - Network address translation (NAT) is supported.
