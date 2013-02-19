@@ -1,5 +1,18 @@
 {{$NEXT}}
 
+3.024     2013-02-19 10:11:28 Europe/Berlin
+
+- Added attribute 'sub_owner' to service definition.
+  Typically, the owner is definied at networks (or hosts).
+  A service S implicitly inherits its owner from a network N,
+  if S defines access to objects of network N.
+  The owner of network N can delegate the user management 
+  of a service S to some owner X.
+  In this use case, S gets an explicit sub_owner X.
+  X is only allowed to change users of S.
+  X is not allowed to change the definition of S.
+- Removed support for model VPN3K (Cisco VPN 3000)
+
 3.023     2013-02-04 16:34:46 Europe/Berlin
 
 - Better handling of unnumbered interface at managed device.
