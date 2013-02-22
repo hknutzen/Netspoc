@@ -41,8 +41,8 @@ sub create_dirs {
     my $name = shift @parts;
     check_output_dir($name);
     for my $part (@parts) {
-	$name .= "/$part";
-	check_output_dir($name);
+        $name .= "/$part";
+        check_output_dir($name);
     }
 }
 
@@ -56,7 +56,7 @@ sub export {
 
 # Unique union of all elements.
 sub unique(@) {
-	return values %{ {map { $_ => $_ } @_}}; 
+        return values %{ {map { $_ => $_ } @_}}; 
 }
 
 sub by_name { $a->{name} cmp $b->{name} }
@@ -79,122 +79,122 @@ sub ip_nat_for_object {
 # - It returns strings of textual ip/mask, not pairs of numbers.
     my $type = ref $obj;
     if ($type eq 'Network') {
-	my $get_ip = sub {
-	    my ($obj) = @_;
-	    if ($obj->{hidden}) {
-		'hidden';
-	    }
-	    elsif ($obj->{ip} eq 'unnumbered') {
-		$obj->{ip}
-	    }
+        my $get_ip = sub {
+            my ($obj) = @_;
+            if ($obj->{hidden}) {
+                'hidden';
+            }
+            elsif ($obj->{ip} eq 'unnumbered') {
+                $obj->{ip}
+            }
 
-	    # Don't print mask for loopback network. It needs to have
-	    # exactly the same address as the corresponding loopback interface.
-	    elsif ($obj->{loopback}) {
-		print_ip($obj->{ip});
-	    }
+            # Don't print mask for loopback network. It needs to have
+            # exactly the same address as the corresponding loopback interface.
+            elsif ($obj->{loopback}) {
+                print_ip($obj->{ip});
+            }
 
             # Print no mask for aggregate with mask 0, for compatibility
             # with old version.
             elsif ($obj->{is_aggregate} && $obj->{mask} == 0) {
-		print_ip($obj->{ip});
-	    }
-	    else {
-		join('/', print_ip($obj->{ip}), print_ip($obj->{mask}));
-	    }
-	};
-	$ip = $get_ip->($obj);
-	if (my $hash = $obj->{nat}) {
-	    for my $tag (keys %$hash) {
-		my $nat_obj = $hash->{$tag};
-		$nat->{$tag} = $get_ip->($nat_obj);
-	    }
-	}
+                print_ip($obj->{ip});
+            }
+            else {
+                join('/', print_ip($obj->{ip}), print_ip($obj->{mask}));
+            }
+        };
+        $ip = $get_ip->($obj);
+        if (my $hash = $obj->{nat}) {
+            for my $tag (keys %$hash) {
+                my $nat_obj = $hash->{$tag};
+                $nat->{$tag} = $get_ip->($nat_obj);
+            }
+        }
     }
     elsif ($type eq 'Host') {
-	my $get_ip = sub {
-	    my ($obj, $network) = @_;
-	    if (my $nat_tag = $network->{dynamic}) {
-		if ($obj->{nat} and (my $ip = $obj->{nat}->{$nat_tag})) {
+        my $get_ip = sub {
+            my ($obj, $network) = @_;
+            if (my $nat_tag = $network->{dynamic}) {
+                if ($obj->{nat} and (my $ip = $obj->{nat}->{$nat_tag})) {
 
-		    # Single static NAT IP for this host.
-		    print_ip($ip);
-		}
-		elsif ($network->{hidden}) {
-		    'hidden';
-		}
-		else {
+                    # Single static NAT IP for this host.
+                    print_ip($ip);
+                }
+                elsif ($network->{hidden}) {
+                    'hidden';
+                }
+                else {
 
-		    # Dynamic NAT, take whole network.
-		    join('/', 
-			 print_ip($network->{ip}), print_ip($network->{mask}));
-		}
-	    }
-	    else {
-		if ( my $range = $obj->{range} ) {
-		    join('-', map { print_ip(nat($_, $network)) } @$range);
-		}
-		else {
-		    print_ip(nat($obj->{ip}, $network));
-		}
-	    }
-	};
+                    # Dynamic NAT, take whole network.
+                    join('/', 
+                         print_ip($network->{ip}), print_ip($network->{mask}));
+                }
+            }
+            else {
+                if ( my $range = $obj->{range} ) {
+                    join('-', map { print_ip(nat($_, $network)) } @$range);
+                }
+                else {
+                    print_ip(nat($obj->{ip}, $network));
+                }
+            }
+        };
         my $network = $obj->{network};
-	$ip = $get_ip->($obj, $network);
-	if (my $hash = $network->{nat}) {
-	    for my $tag (keys %$hash) {
-		my $nat_obj = $hash->{$tag};
-		$nat->{$tag} = $get_ip->($obj, $nat_obj);
-	    }
-	}
+        $ip = $get_ip->($obj, $network);
+        if (my $hash = $network->{nat}) {
+            for my $tag (keys %$hash) {
+                my $nat_obj = $hash->{$tag};
+                $nat->{$tag} = $get_ip->($obj, $nat_obj);
+            }
+        }
     }
     elsif ($type eq 'Interface') {
-	my $get_ip = sub {
-	    my ($obj, $network) = @_;
-	    if ($obj->{ip} =~ /unnumbered|short/) {
-		$obj->{ip};
-	    }
-	    elsif ($obj->{ip} eq 'negotiated') {
+        my $get_ip = sub {
+            my ($obj, $network) = @_;
+            if ($obj->{ip} =~ /unnumbered|short/) {
+                $obj->{ip};
+            }
+            elsif ($obj->{ip} eq 'negotiated') {
 
-		# Take whole network.
-		join('/', 
-		     print_ip($network->{ip}), print_ip($network->{mask}));
-	    }
-	    elsif (my $nat_tag = $network->{dynamic}) {
-		if (my $ip = $obj->{nat}->{$nat_tag}) {
+                # Take whole network.
+                join('/', 
+                     print_ip($network->{ip}), print_ip($network->{mask}));
+            }
+            elsif (my $nat_tag = $network->{dynamic}) {
+                if (my $ip = $obj->{nat}->{$nat_tag}) {
 
-		    # Single static NAT IP for this interface.
-		    print_ip($ip);
-		}
-		elsif ($network->{hidden}) {
-		    'hidden';
-		}
-		else {
-		    
-		    # Dynamic NAT, take whole network.
-		    join('/', 
-			 print_ip($network->{ip}), print_ip($network->{mask}));
-		}
-	    }
-	    elsif ($network->{isolated}) {
+                    # Single static NAT IP for this interface.
+                    print_ip($ip);
+                }
+                elsif ($network->{hidden}) {
+                    'hidden';
+                }
+                else {
+                    
+                    # Dynamic NAT, take whole network.
+                    join('/', 
+                         print_ip($network->{ip}), print_ip($network->{mask}));
+                }
+            }
+            elsif ($network->{isolated}) {
 
-		# NAT not allowed for isolated ports. 
-		# Take no bits from network, because secondary isolated ports 
-		# don't match network.
-		print_ip($obj->{ip});
-	    }
-	    else {
-		print_ip(nat($obj->{ip}, $network));
-	    }
-	};
+                # NAT not allowed for isolated ports. 
+                # Take no bits from network, because secondary isolated ports 
+                # don't match network.
+                print_ip($obj->{ip});
+            }
+            else {
+                print_ip(nat($obj->{ip}, $network));
+            }
+        };
         my $network = $obj->{network};
-	$ip = $get_ip->($obj, $network);
-	if (my $hash = $network->{nat}) {
-	    for my $tag (keys %$hash) {
-		my $nat_obj = $hash->{$tag};
-		$nat->{$tag} = $get_ip->($obj, $nat_obj);
-	    }
-	}
+        $ip = $get_ip->($obj, $network);
+        if (my $hash = $network->{nat}) {
+            for my $tag (keys %$hash) {
+                my $nat_obj = $hash->{$tag};
+                $nat->{$tag} = $get_ip->($obj, $nat_obj);
+            }
+        }
     }
     else {
         internal_err "Unexpected object $obj->{name}";
@@ -209,41 +209,41 @@ sub equal {
     return not grep { $_ ne $first } @_[ 1 .. $#_ ];
 }
 
-sub owner_for_object {	
+sub owner_for_object {  
     my ($object) = @_;
     if (my $owner_obj = $object->{owner}) {
-	(my $name = $owner_obj->{name}) =~ s/^owner://;
-	return $name;
+        (my $name = $owner_obj->{name}) =~ s/^owner://;
+        return $name;
     }
     return ();
 }
 
-sub part_owners_for_object {	
+sub part_owners_for_object {    
     my ($object) = @_;
     if (my $aref = $object->{part_owners}) {
-	return map { (my $name = $_->{name}) =~ s/^owner://; $name } @$aref;
+        return map { (my $name = $_->{name}) =~ s/^owner://; $name } @$aref;
     }
     return ();
 }
 
-sub owners_for_objects {	
+sub owners_for_objects {        
     my ($objects) = @_;
     my %owners;
     for my $object (@$objects) {
-	if (my $name = owner_for_object($object)) {
-	    $owners{$name} = $name;
-	}
+        if (my $name = owner_for_object($object)) {
+            $owners{$name} = $name;
+        }
     }
     return [ sort values %owners ];
 }
 
-sub part_owners_for_objects {	
+sub part_owners_for_objects {   
     my ($objects) = @_;
     my %owners;
     for my $object (@$objects) {
-	for my $name (part_owners_for_object($object)) {
-	    $owners{$name} = $name;
-	}
+        for my $name (part_owners_for_object($object)) {
+            $owners{$name} = $name;
+        }
     }
     return [ sort values %owners ];
 }
@@ -251,20 +251,20 @@ sub part_owners_for_objects {
 sub expand_auto_intf {
     my ($src_aref, $dst_aref) = @_;
     for (my $i = 0; $i < @$src_aref; $i++) {
-	my $src = $src_aref->[$i];
-	next if not is_autointerface($src);
-	my @new;
-	my %seen;
-	for my $dst (@$dst_aref) {
-	    for my $interface (Netspoc::path_auto_interfaces($src, $dst)) {
-		if (not $seen{$interface}++) {
-		    push @new, $interface;
-		}
-	    }
-	}
+        my $src = $src_aref->[$i];
+        next if not is_autointerface($src);
+        my @new;
+        my %seen;
+        for my $dst (@$dst_aref) {
+            for my $interface (Netspoc::path_auto_interfaces($src, $dst)) {
+                if (not $seen{$interface}++) {
+                    push @new, $interface;
+                }
+            }
+        }
 
-	# Substitute auto interface by real interfaces.
-	splice(@$src_aref, $i, 1, @new)
+        # Substitute auto interface by real interfaces.
+        splice(@$src_aref, $i, 1, @new)
     }
 }
 
@@ -272,60 +272,60 @@ sub proto_descr {
     my ($protocols) = @_;
     my @result;
     for my $proto0 (@$protocols) {
-	my $protocol = $proto0;
-	my $desc = my $ptype = $protocol->{proto};
+        my $protocol = $proto0;
+        my $desc = my $ptype = $protocol->{proto};
         my $num;
-	if ($ptype eq 'tcp' or $ptype eq 'udp') {
-	    my $port_code = sub ( $$ ) {
-		my ($v1, $v2) = @_;
-		if ($v1 == $v2) {
-		    return $v1;
-		}
-		elsif ($v1 == 1 and $v2 == 65535) {
-		    return '';
-		}
-		else {
-		    return "$v1-$v2";
-		}
-	    };
-	    my $sport  = $port_code->(@{ $protocol->{src_range}->{range} });
-	    my $dport  = $port_code->(@{ $protocol->{dst_range}->{range} });
-	    if ($sport) {
-		$desc .= " $sport:$dport";
-	    }
-	    elsif ($dport) {
-		$desc .= " $dport";
+        if ($ptype eq 'tcp' or $ptype eq 'udp') {
+            my $port_code = sub ( $$ ) {
+                my ($v1, $v2) = @_;
+                if ($v1 == $v2) {
+                    return $v1;
+                }
+                elsif ($v1 == 1 and $v2 == 65535) {
+                    return '';
+                }
+                else {
+                    return "$v1-$v2";
+                }
+            };
+            my $sport  = $port_code->(@{ $protocol->{src_range}->{range} });
+            my $dport  = $port_code->(@{ $protocol->{dst_range}->{range} });
+            if ($sport) {
+                $desc .= " $sport:$dport";
+            }
+            elsif ($dport) {
+                $desc .= " $dport";
                 ($num) = split('-', $dport)
-	    }
-	}
-	elsif ($ptype eq 'icmp') {
-	    if (defined(my $type = $protocol->{type})) {
-		if (defined(my $code = $protocol->{code})) {
-		    $desc .= " $type/$code";
-		}
-		else {
-		    $desc .= " $type";
-		}
+            }
+        }
+        elsif ($ptype eq 'icmp') {
+            if (defined(my $type = $protocol->{type})) {
+                if (defined(my $code = $protocol->{code})) {
+                    $desc .= " $type/$code";
+                }
+                else {
+                    $desc .= " $type";
+                }
                 $num = $type;
-	    }
-	}
-	if (my $flags = $protocol->{flags}) {
-	    for my $key (sort keys %$flags) {
-		next if $key eq 'stateless_icmp';
-		next if $key eq 'overlaps';
-		next if $key eq 'no_check_supernet_rules';
-		if ($key eq 'src' or $key eq 'dst') {
-		    for my $part (sort keys %{$flags->{$key}}) {
-			$desc .= ", ${key}_$part";
-		    }
-		}
-		else {
-		    $desc .= ", $key";
-		}
-	    }
-	}
+            }
+        }
+        if (my $flags = $protocol->{flags}) {
+            for my $key (sort keys %$flags) {
+                next if $key eq 'stateless_icmp';
+                next if $key eq 'overlaps';
+                next if $key eq 'no_check_supernet_rules';
+                if ($key eq 'src' or $key eq 'dst') {
+                    for my $part (sort keys %{$flags->{$key}}) {
+                        $desc .= ", ${key}_$part";
+                    }
+                }
+                else {
+                    $desc .= ", $key";
+                }
+            }
+        }
         $num ||= 0;
-	push @result, [ $desc, $ptype, $num ];
+        push @result, [ $desc, $ptype, $num ];
     }
     @result = 
         map { $_->[0] }
@@ -345,23 +345,23 @@ sub find_visibility {
     my @extra_uowners = grep { not $hash{$_} } @$uowners;
     my @DA_extra = grep({ $_ =~ /^DA_/ } @extra_uowners);
     my @other_extra = grep({ $_ !~ /^DA_/ } @extra_uowners);
-			   
+                           
     # No known owner or owner of users.
     if (not @$owners and not @$uowners) {
-	# Default: private
+        # Default: private
     }
     # Set of uowners is subset of owners.
     elsif (not @extra_uowners) {
-	# Default: private
+        # Default: private
     }
     # Restricted visibility
     elsif (@other_extra <= 2) {
-	if (@DA_extra >= 3) {
-	    $visibility = 'DA_*';
-	}
+        if (@DA_extra >= 3) {
+            $visibility = 'DA_*';
+        }
     }
     else {
-	$visibility = '*';
+        $visibility = '*';
     }
     $visibility;
 }
@@ -373,76 +373,76 @@ sub setup_service_info {
     progress("Setup service info");
     for my $service (values %services) {
         next if $service->{disabled};
-	my $pname = $service->{name};
+        my $pname = $service->{name};
 
-	my $users = $service->{expanded_user} =
-	    Netspoc::expand_group($service->{user}, "user of $pname");
+        my $users = $service->{expanded_user} =
+            Netspoc::expand_group($service->{user}, "user of $pname");
 
-	# Non 'user' objects.
-	my @objects;
+        # Non 'user' objects.
+        my @objects;
 
-	# Check, if service contains a coupling rule with only "user" elements.
-	my $is_coupling = 0;
+        # Check, if service contains a coupling rule with only "user" elements.
+        my $is_coupling = 0;
 
-	for my $rule (@{ $service->{rules} }) {
-	    my $has_user = $rule->{has_user};
-	    $rule->{expanded_prt} =
-		proto_descr(Netspoc::expand_protocols($rule->{prt}, 
-						     "rule in $pname"));
-	    if ($has_user eq 'both') {
-		$is_coupling = 1;
-		next;
-	    }
-	    for my $what (qw(src dst)) {
+        for my $rule (@{ $service->{rules} }) {
+            my $has_user = $rule->{has_user};
+            $rule->{expanded_prt} =
+                proto_descr(Netspoc::expand_protocols($rule->{prt}, 
+                                                     "rule in $pname"));
+            if ($has_user eq 'both') {
+                $is_coupling = 1;
+                next;
+            }
+            for my $what (qw(src dst)) {
 
-		next if $what eq $has_user;
-		my $all = 
+                next if $what eq $has_user;
+                my $all = 
 
-		    # Store expanded src and dst for later use 
-		    # in export_protocols.
-		    $rule->{"expanded_$what"} = 
-		    [ sort by_name
-		    @{ Netspoc::expand_group($rule->{$what}, 
-					     "$what of $pname") } ];
+                    # Store expanded src and dst for later use 
+                    # in export_protocols.
+                    $rule->{"expanded_$what"} = 
+                    [ sort by_name
+                    @{ Netspoc::expand_group($rule->{$what}, 
+                                             "$what of $pname") } ];
 
-		# Expand auto interface to set of real interfaces.
-		# This changes {expanded_src} and {expanded_dst} as well.
-		expand_auto_intf($all, $users);
-		push(@objects, @$all);
-	    }
-	}
+                # Expand auto interface to set of real interfaces.
+                # This changes {expanded_src} and {expanded_dst} as well.
+                expand_auto_intf($all, $users);
+                push(@objects, @$all);
+            }
+        }
 
-	@objects = unique(@objects);
+        @objects = unique(@objects);
 
-	# Expand auto interface to set of real interfaces.
-	# This changes {expanded_user} as well.
-	expand_auto_intf($users, \@objects);
+        # Expand auto interface to set of real interfaces.
+        # This changes {expanded_user} as well.
+        expand_auto_intf($users, \@objects);
 
-	# Store referenced objects for later use during export.
-	@all_objects{@objects, @$users} = (@objects, @$users);
+        # Store referenced objects for later use during export.
+        @all_objects{@objects, @$users} = (@objects, @$users);
 
-	# Take elements of 'user' object, if service has coupling rule.
-	if ($is_coupling) {
-	    @objects = unique(@objects, @$users);
-	}
+        # Take elements of 'user' object, if service has coupling rule.
+        if ($is_coupling) {
+            @objects = unique(@objects, @$users);
+        }
 
-	# Input: owner objects, output: owner names
-	my $owners = owners_for_objects(\@objects); 
+        # Input: owner objects, output: owner names
+        my $owners = owners_for_objects(\@objects); 
         if ($service->{sub_owner}) {
             $service->{sub_owner} = $service->{sub_owner}->{name};
             $service->{sub_owner} =~ s/^owner://;
         }
 
-	# Add artificial owner :unknown if owner is unknown.
-	push @$owners, ':unknown' if not @$owners;
-	$service->{owners} = $owners;
-	$service->{part_owners} = part_owners_for_objects(\@objects);
-	my $uowners = $service->{uowners} = $is_coupling ? [] : owners_for_objects($users);
-	$service->{part_uowners} = $is_coupling ? [] : part_owners_for_objects($users);
+        # Add artificial owner :unknown if owner is unknown.
+        push @$owners, ':unknown' if not @$owners;
+        $service->{owners} = $owners;
+        $service->{part_owners} = part_owners_for_objects(\@objects);
+        my $uowners = $service->{uowners} = $is_coupling ? [] : owners_for_objects($users);
+        $service->{part_uowners} = $is_coupling ? [] : part_owners_for_objects($users);
 
-	# Für Übergangszeit aus aktueller Benutzung bestimmen.
-	$service->{visible} ||= find_visibility($owners, $uowners);
-	$service->{visible} and $service->{visible} =~ s/\*$/.*/;
+        # Für Übergangszeit aus aktueller Benutzung bestimmen.
+        $service->{visible} ||= find_visibility($owners, $uowners);
+        $service->{visible} and $service->{visible} =~ s/\*$/.*/;
     }
 }
 
@@ -460,45 +460,45 @@ sub setup_part_owners {
     progress("Setup sub owners");
     my %all_zones;
     for my $host (values %hosts) {
-	$host->{disabled} and next;
-	my $host_owner = $host->{owner} or next;
-	my $network = $host->{network};
-	my $net_owner = $network->{owner};
-	if ( not ($net_owner and $host_owner eq $net_owner)) {
-	    $network->{part_owners}->{$host_owner} = $host_owner;
-#	    Netspoc::debug "$network->{name} : $host_owner->{name}";
-	}
+        $host->{disabled} and next;
+        my $host_owner = $host->{owner} or next;
+        my $network = $host->{network};
+        my $net_owner = $network->{owner};
+        if ( not ($net_owner and $host_owner eq $net_owner)) {
+            $network->{part_owners}->{$host_owner} = $host_owner;
+#           Netspoc::debug "$network->{name} : $host_owner->{name}";
+        }
     }
     for my $network (values %networks) {
-	$network->{disabled} and next;
-	my @owners;
-	if (my $hash = $network->{part_owners}) {
-	    @owners = values %$hash;
+        $network->{disabled} and next;
+        my @owners;
+        if (my $hash = $network->{part_owners}) {
+            @owners = values %$hash;
 
-	    # Substitute hash by array. 
-	    # Use a copy because @owners is changed below.
-	    $network->{part_owners} = [ @owners ];
-	}
-	if (my $net_owner = $network->{owner}) {
-	    push @owners, $net_owner;
-	}
-	my $zone = $network->{zone};
-	$all_zones{$zone} = $zone;
-	my $zone_owner = $zone->{owner};
-	for my $owner (@owners) {
-	    if ( not ($zone_owner and $owner eq $zone_owner)) {
-		$zone->{part_owners}->{$owner} = $owner;
-#		Netspoc::debug "$zone->{name} : $owner->{name}";
-	    }
-	}
+            # Substitute hash by array. 
+            # Use a copy because @owners is changed below.
+            $network->{part_owners} = [ @owners ];
+        }
+        if (my $net_owner = $network->{owner}) {
+            push @owners, $net_owner;
+        }
+        my $zone = $network->{zone};
+        $all_zones{$zone} = $zone;
+        my $zone_owner = $zone->{owner};
+        for my $owner (@owners) {
+            if ( not ($zone_owner and $owner eq $zone_owner)) {
+                $zone->{part_owners}->{$owner} = $owner;
+#               Netspoc::debug "$zone->{name} : $owner->{name}";
+            }
+        }
     }
 
     # Substitute hash by array.
     @all_zones = values %all_zones;
     for my $zone (@all_zones) {
-	if (my $hash = $zone->{part_owners}) {
-	    $zone->{part_owners} = [ values %$hash ];
-	}
+        if (my $hash = $zone->{part_owners}) {
+            $zone->{part_owners} = [ values %$hash ];
+        }
     }
 }
 
@@ -525,50 +525,50 @@ sub export_no_nat_set {
     progress("Export no-NAT-sets");
     my %owner2net;
     for my $network (values %networks) {
-	$network->{disabled} and next;
-	for my $owner_name 
-	    (owner_for_object($network), part_owners_for_object($network))
-	{
-	    $owner2net{$owner_name}->{$network} = $network;
-	}
+        $network->{disabled} and next;
+        for my $owner_name 
+            (owner_for_object($network), part_owners_for_object($network))
+        {
+            $owner2net{$owner_name}->{$network} = $network;
+        }
     }
     my %owner2no_nat_set;
     my %all_nat_tags;
     $owner2net{$_} ||= {} for keys %owners;
     for my $owner_name (sort keys %owner2net) {
-	my %nat_domains;
-	for my $network (values %{ $owner2net{$owner_name} }) {
-	    my $nat_domain = $network->{nat_domain};
-	    $nat_domains{$nat_domain} = $nat_domain;
-	}
-	my @nat_domains = values %nat_domains;
-	if (not @nat_domains) {
+        my %nat_domains;
+        for my $network (values %{ $owner2net{$owner_name} }) {
+            my $nat_domain = $network->{nat_domain};
+            $nat_domains{$nat_domain} = $nat_domain;
+        }
+        my @nat_domains = values %nat_domains;
+        if (not @nat_domains) {
 
-	    # Special value 'undef' marks owner without any networks.
-	    # This will be changed to all_nat_tags below.
-	    $owner2no_nat_set{$owner_name} = undef;
-	    next;
-	}
-#	if ((my $count = @nat_domains) > 1) {
-#	    print "$owner_name has $count nat_domains\n";
-#	    for my $network (values %{ $owner2net{$owner_name} }) {
-#		my $d = $network->{nat_domain};
-#		print " - $d->{name}: $network->{name}\n";
-#	    }
-#	}
+            # Special value 'undef' marks owner without any networks.
+            # This will be changed to all_nat_tags below.
+            $owner2no_nat_set{$owner_name} = undef;
+            next;
+        }
+#       if ((my $count = @nat_domains) > 1) {
+#           print "$owner_name has $count nat_domains\n";
+#           for my $network (values %{ $owner2net{$owner_name} }) {
+#               my $d = $network->{nat_domain};
+#               print " - $d->{name}: $network->{name}\n";
+#           }
+#       }
 
-	# Build union of no_nat_sets
-	my $no_nat_set = [ sort(unique(map(keys(%{ $_->{no_nat_set} }), 
-					   @nat_domains))) ];
-#	Netspoc::debug "$owner_name: ", join(',', sort @$no_nat_set);
-	$owner2no_nat_set{$owner_name} = $no_nat_set;
-	@all_nat_tags{@$no_nat_set} = @$no_nat_set;
+        # Build union of no_nat_sets
+        my $no_nat_set = [ sort(unique(map(keys(%{ $_->{no_nat_set} }), 
+                                           @nat_domains))) ];
+#       Netspoc::debug "$owner_name: ", join(',', sort @$no_nat_set);
+        $owner2no_nat_set{$owner_name} = $no_nat_set;
+        @all_nat_tags{@$no_nat_set} = @$no_nat_set;
     }
     my @all_nat_tags = sort values %all_nat_tags;
     for my $owner_name (keys %owner2no_nat_set) {
-	my $no_nat_set = $owner2no_nat_set{$owner_name} || \@all_nat_tags;
-	create_dirs("owner/$owner_name");
-	export("owner/$owner_name/no_nat_set", $no_nat_set);
+        my $no_nat_set = $owner2no_nat_set{$owner_name} || \@all_nat_tags;
+        create_dirs("owner/$owner_name");
+        export("owner/$owner_name/no_nat_set", $no_nat_set);
     }
 }
 
@@ -595,32 +595,32 @@ sub export_assets {
     my %result;
 
     my $export_networks = sub {
-	my ($networks, $owner, $own_zone) = @_;
-	my %sub_result;
-	for my $net (@$networks) {
-	    next if $net->{disabled};
-	    next if $net->{loopback};
-	    next if $net->{ip} eq 'tunnel';
-	    $all_objects{$net} = $net;
-	    my $net_name = $net->{name};
-	    my $net_owner = owner_for_object($net) || '';
+        my ($networks, $owner, $own_zone) = @_;
+        my %sub_result;
+        for my $net (@$networks) {
+            next if $net->{disabled};
+            next if $net->{loopback};
+            next if $net->{ip} eq 'tunnel';
+            $all_objects{$net} = $net;
+            my $net_name = $net->{name};
+            my $net_owner = owner_for_object($net) || '';
 
-	    # Export hosts and interfaces.
-	    my @childs = (@{ $net->{hosts} }, @{ $net->{interfaces} });
+            # Export hosts and interfaces.
+            my @childs = (@{ $net->{hosts} }, @{ $net->{interfaces} });
 
-	    # Show only own childs in foreign network.
-	    my $own_network = $net_owner eq $owner;
-	    if (not $own_network and not $own_zone) {
-		@childs = 
-		    grep { my $o = owner_for_object($_); $o and $o eq $owner } 
-		         @childs;
-	    }
+            # Show only own childs in foreign network.
+            my $own_network = $net_owner eq $owner;
+            if (not $own_network and not $own_zone) {
+                @childs = 
+                    grep { my $o = owner_for_object($_); $o and $o eq $owner } 
+                         @childs;
+            }
 
-	    @all_objects{@childs} = @childs;
-	    @childs = sort map $_->{name}, @childs;
-	    $sub_result{$net_name} = \@childs;
-	}
-	return \%sub_result;
+            @all_objects{@childs} = @childs;
+            @childs = sort map $_->{name}, @childs;
+            $sub_result{$net_name} = \@childs;
+        }
+        return \%sub_result;
     };
 
     # Different zones can use the same name from ipmask2aggregate
@@ -633,8 +633,8 @@ sub export_assets {
     };
 
     for my $zone (@all_zones) {
-	next if $zone->{disabled};
-	next if $zone->{loopback};
+        next if $zone->{disabled};
+        next if $zone->{loopback};
 
         # Ignore empty zone with only tunnel or unnumbered networks.
         next if not @{ $zone->{networks} };
@@ -646,21 +646,21 @@ sub export_assets {
 
         # Zone with network 0/0 doesn't have an aggregate 0/0.
         my $any = $zone->{ipmask2aggregate}->{'0/0'};
-	my $zone_name = $any ? $any->{name} : $zone->{name};
-	my $zone_owner = owner_for_object($zone) || '';
+        my $zone_name = $any ? $any->{name} : $zone->{name};
+        my $zone_owner = owner_for_object($zone) || '';
         my $networks = add_subnetworks($zone->{networks});
-	for my $owner (owner_for_object($zone), part_owners_for_object($zone)) {
+        for my $owner (owner_for_object($zone), part_owners_for_object($zone)) {
 
-	    # Show only own or sub_own networks in foreign zone.
-	    my $own_zone = $zone_owner eq $owner;
+            # Show only own or sub_own networks in foreign zone.
+            my $own_zone = $zone_owner eq $owner;
             my $own_networks;
-	    if (not $own_zone) {
-		$own_networks = 
-		    [ grep 
-		      grep({ $owner eq $_ } 
-			   owner_for_object($_), part_owners_for_object($_)), 
-		      @$networks ];
-	    }
+            if (not $own_zone) {
+                $own_networks = 
+                    [ grep 
+                      grep({ $owner eq $_ } 
+                           owner_for_object($_), part_owners_for_object($_)), 
+                      @$networks ];
+            }
             else {
                 $own_networks = $networks;
             }
@@ -668,7 +668,7 @@ sub export_assets {
                 $owner, 
                 $zone_name, 
                 $export_networks->($own_networks, $owner, $own_zone));
-	}
+        }
         if ($master_owner) {
             $add_networks_hash->(
                 $master_owner, 
@@ -679,9 +679,9 @@ sub export_assets {
 
     $result{$_} ||= {} for keys %owners;
     for my $owner (keys %result) {
-	my $hash = $result{$owner};
-	create_dirs("owner/$owner");
-	export("owner/$owner/assets", $hash);
+        my $hash = $result{$owner};
+        create_dirs("owner/$owner");
+        export("owner/$owner/assets", $hash);
     }
 }
 
@@ -697,7 +697,7 @@ sub export_services {
         next if $service->{disabled};
         if ($master_owner) {
             $owner2type2shash{$master_owner}->{owner}->{$service} = $service;
-	}
+        }
         for my $owner ($service->{sub_owner} || (),
                        @{ $service->{owners} }, 
                        @{ $service->{part_owners} }) 
@@ -719,74 +719,74 @@ sub export_services {
                 }
             }
         }
-	my $details = {
-	    description => $service->{description},
-	    owner => $service->{owners},
-	};
+        my $details = {
+            description => $service->{description},
+            owner => $service->{owners},
+        };
         if ($service->{sub_owner}) {
             $details->{sub_owner} = $service->{sub_owner};
         }
 
 # Currently not used in backend.
-#	if (@{ $service->{part_owners} }) {
-#	    $details->{part_owners} = $service->{part_owners};
-#	}
+#       if (@{ $service->{part_owners} }) {
+#           $details->{part_owners} = $service->{part_owners};
+#       }
 
-	my @rules = map {
-	    { 
-		action => $_->{action},
-		has_user => $_->{has_user},
-		src => [ map $_->{name}, @{ $_->{expanded_src} } ],
-		dst => [ map $_->{name}, @{ $_->{expanded_dst} } ],
-		prt => $_->{expanded_prt},
-	    }
-	} @{ $service->{rules} };
-	(my $sname = $service->{name}) =~ s/^\w+://;
-	$shash{$sname} = { details => $details, rules => \@rules };
+        my @rules = map {
+            { 
+                action => $_->{action},
+                has_user => $_->{has_user},
+                src => [ map $_->{name}, @{ $_->{expanded_src} } ],
+                dst => [ map $_->{name}, @{ $_->{expanded_dst} } ],
+                prt => $_->{expanded_prt},
+            }
+        } @{ $service->{rules} };
+        (my $sname = $service->{name}) =~ s/^\w+://;
+        $shash{$sname} = { details => $details, rules => \@rules };
     }
     export("services", \%shash);
 
     progress("Export users and service_lists");
     $owner2type2shash{$_} ||= {} for keys %owners;
     for my $owner (sort keys %owner2type2shash) {
-	my $type2shash = $owner2type2shash{$owner} || {};
-	my %type2snames;
-	my %service2users;
-	for my $type (qw(owner user visible)) {
-	    my $services = [ sort by_name values %{ $type2shash->{$type} } ];
-	    my $snames = $type2snames{$type} = [];
-	    for my $service (@$services) { 
-		(my $sname = $service->{name}) =~ s/^\w+://;
-		push @$snames, $sname;
-		next if $type eq 'visible';
-		my @users;
-		if ($type eq 'owner') {
-		    @users = @{ $service->{expanded_user} };
-		}
-		elsif ($type eq 'user') {
-		    @users = 
-			grep { 
-			    my $uowner = owner_for_object($_);
-			    if ($uowner && $uowner eq $owner) {
-				1;
-			    }
-			    elsif (my $part_owners = $_->{part_owners}) {
-				grep { $_->{name} eq "owner:$owner" } 
-				@$part_owners;
-			    }
-			    else {
-				0;
-			    }
-			}
-		    @{ $service->{expanded_user} };
-		}
-		@users = sort map $_->{name}, @users;
-		$service2users{$sname} = \@users;
-	    }
-	}
-	create_dirs("owner/$owner");
-	export("owner/$owner/service_lists", \%type2snames);
-	export("owner/$owner/users", \%service2users);
+        my $type2shash = $owner2type2shash{$owner} || {};
+        my %type2snames;
+        my %service2users;
+        for my $type (qw(owner user visible)) {
+            my $services = [ sort by_name values %{ $type2shash->{$type} } ];
+            my $snames = $type2snames{$type} = [];
+            for my $service (@$services) { 
+                (my $sname = $service->{name}) =~ s/^\w+://;
+                push @$snames, $sname;
+                next if $type eq 'visible';
+                my @users;
+                if ($type eq 'owner') {
+                    @users = @{ $service->{expanded_user} };
+                }
+                elsif ($type eq 'user') {
+                    @users = 
+                        grep { 
+                            my $uowner = owner_for_object($_);
+                            if ($uowner && $uowner eq $owner) {
+                                1;
+                            }
+                            elsif (my $part_owners = $_->{part_owners}) {
+                                grep { $_->{name} eq "owner:$owner" } 
+                                @$part_owners;
+                            }
+                            else {
+                                0;
+                            }
+                        }
+                    @{ $service->{expanded_user} };
+                }
+                @users = sort map $_->{name}, @users;
+                $service2users{$sname} = \@users;
+            }
+        }
+        create_dirs("owner/$owner");
+        export("owner/$owner/service_lists", \%type2snames);
+        export("owner/$owner/users", \%service2users);
     }
 }
 
@@ -797,13 +797,13 @@ sub export_services {
 sub export_objects {
     progress("Export objects");
     my %objects = map { 
-	$_->{name} => { 
+        $_->{name} => { 
 
 
-	    # Add key 'ip' and optionally key 'nat'.
-	    ip_nat_for_object($_),
-	    owner => scalar owner_for_object($_),
-	} 
+            # Add key 'ip' and optionally key 'nat'.
+            ip_nat_for_object($_),
+            owner => scalar owner_for_object($_),
+        } 
     } values %all_objects;
     export("objects", \%objects);
 }
@@ -816,38 +816,38 @@ sub export_owners {
     progress("Export owners");
     my %email2owners;
     for my $name ( keys %owners ) {
-	my $owner = $owners{$name};
-	my @emails;
-	my @watchers;
-	my @e_owners;
-	create_dirs("owner/$name");
-	for my $email ( @{ $owner->{admins} } ) {
-	    $email2owners{$email}->{$name} = $name;
-	    push @emails, $email;
-	}
-	if (my $watchers = $owner->{watchers}) {
-	    for my $email ( @$watchers ) {
+        my $owner = $owners{$name};
+        my @emails;
+        my @watchers;
+        my @e_owners;
+        create_dirs("owner/$name");
+        for my $email ( @{ $owner->{admins} } ) {
+            $email2owners{$email}->{$name} = $name;
+            push @emails, $email;
+        }
+        if (my $watchers = $owner->{watchers}) {
+            for my $email ( @$watchers ) {
 
-		# Watchers are allowed to login, but aren't shown as owner.
-		$email2owners{$email}->{$name} = $name;
-		push @watchers, $email;
-	    }
-	}
-	if (my $aref = $owner->{extended_by}) {
-	    for my $e_owner (@$aref) {
-		for my $email ( @{ $e_owner->{admins} } ) {
-		    $email2owners{$email}->{$name} = $name;
-		}
-		(my $e_name = $e_owner->{name}) =~ s/^owner://;
-		push @e_owners, $e_name;
-	    }
-	}
-	export("owner/$name/emails", 
-	       [ map { { email => $_ } } sort @emails ]);
-	export("owner/$name/watchers", 
-	       [ map { { email => $_ } } sort @watchers ]);
-	export("owner/$name/extended_by", 
-	       [ map { { name => $_ } } sort @e_owners ]);
+                # Watchers are allowed to login, but aren't shown as owner.
+                $email2owners{$email}->{$name} = $name;
+                push @watchers, $email;
+            }
+        }
+        if (my $aref = $owner->{extended_by}) {
+            for my $e_owner (@$aref) {
+                for my $email ( @{ $e_owner->{admins} } ) {
+                    $email2owners{$email}->{$name} = $name;
+                }
+                (my $e_name = $e_owner->{name}) =~ s/^owner://;
+                push @e_owners, $e_name;
+            }
+        }
+        export("owner/$name/emails", 
+               [ map { { email => $_ } } sort @emails ]);
+        export("owner/$name/watchers", 
+               [ map { { email => $_ } } sort @watchers ]);
+        export("owner/$name/extended_by", 
+               [ map { { name => $_ } } sort @e_owners ]);
     }
     
     # Substitute hash by array.
@@ -857,7 +857,7 @@ sub export_owners {
 
     my %owner2alias;
     for my $name (keys %owners) {
-	my $owner = $owners{$name};
+        my $owner = $owners{$name};
         if (my $alias = $owner->{alias}) {
             $owner2alias{$name} = $alias;
         }
@@ -868,8 +868,8 @@ sub export_owners {
 sub copy_policy_file {
     if ( -f $policy_file) {
         system("find $out_dir -type f -exec touch -r $policy_file {} \\;");
-	system("cp -pf $policy_file $out_dir") == 0 or
-	    abort "Can't copy $policy_file";
+        system("cp -pf $policy_file $out_dir") == 0 or
+            abort "Can't copy $policy_file";
     }
 }
 
