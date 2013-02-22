@@ -438,7 +438,7 @@ sub setup_service_info {
 	$service->{owners} = $owners;
 	$service->{part_owners} = part_owners_for_objects(\@objects);
 	my $uowners = $service->{uowners} = $is_coupling ? [] : owners_for_objects($users);
-	$service->{sub_uowners} = $is_coupling ? [] : part_owners_for_objects($users);
+	$service->{part_uowners} = $is_coupling ? [] : part_owners_for_objects($users);
 
 	# Für Übergangszeit aus aktueller Benutzung bestimmen.
 	$service->{visible} ||= find_visibility($owners, $uowners);
@@ -704,7 +704,8 @@ sub export_services {
         {
             $owner2type2shash{$owner}->{owner}->{$service} = $service;
         }          
-        for my $owner (@{ $service->{uowners} }, @{ $service->{sub_uowners} }) {
+        for my $owner (@{ $service->{uowners} }, @{ $service->{part_uowners} }) 
+        {
             if (not $owner2type2shash{$owner}->{owner}->{$service}) {
                 $owner2type2shash{$owner}->{user}->{$service} = $service;
             }
