@@ -169,6 +169,7 @@ here `<object set>` must expand to networks.
     | interface:"[" [ managed & ] <object set with area>"]"."["<selector>"]"
     | network:"["<object set with area>"]"
     | any:"["<object set with area>"]"
+    | host:"["<object set with area>"]"
 
     <selector> ::= auto | all
     <object set with area> is like <object set> 
