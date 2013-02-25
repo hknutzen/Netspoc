@@ -3411,12 +3411,12 @@ sub order_ranges( $$ ) {
                         }
 
                         # New range is larger than current range and therefore
-                        # must be inserted before current one.
+                        # must be inserted in front of current one.
                         last;
                     }
 
                     # New range starts at lower position than current one.
-                    # It must be inserted before current range.
+                    # It must be inserted in front of current range.
                     last;
                 }
                 my $new = {
