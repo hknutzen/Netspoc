@@ -15956,7 +15956,6 @@ sub print_code( $ ) {
             close STDOUT or fatal_err "Can't close $file: $!";
         }
     }
-    progress "Finished" if $config{time_stamps};
 }
 
 sub copy_raw {
@@ -16007,6 +16006,10 @@ sub copy_raw {
 
 sub show_version() {
     progress "$program, version $version";
+}
+
+sub show_finished() {
+    progress "Finished" if $config{time_stamps};
 }
 
 1
