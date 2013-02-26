@@ -16001,7 +16001,7 @@ sub copy_raw {
         }
         my $copy = "$out_dir/$raw_file.raw";
         system("cp -f $raw_path $copy") == 0
-          or fatal_err "Can't copy $raw_path to $copy";
+          or fatal_err "Can't copy $raw_path to $copy: $!";
     }
 }
 
