@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.024'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.025'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -1637,7 +1637,7 @@ sub read_interface( $ ) {
                     $xxrp_info{$type}
                       or error_atline "Unknown redundancy protocol";
                     $virtual->{redundancy_type}
-                      and error_atline "Duplicate redundancy type";
+                      and error_atline "Duplicate redundancy protocol";
                     $virtual->{redundancy_type} = $type;
                 }
                 elsif (my $id = check_assign 'id', \&read_identifier) {
@@ -1653,6 +1653,8 @@ sub read_interface( $ ) {
                 }
             }
             $virtual->{ip} or error_atline "Missing virtual IP";
+            $virtual->{redundancy_id} && !$virtual->{redundancy_type} and
+                syntax_err "Redundancy ID is given without redundancy protocol";
         }
         elsif (my @tags = check_assign_list 'bind_nat', \&read_identifier) {
             $interface->{bind_nat} and error_atline "Duplicate NAT binding";
@@ -4019,29 +4021,32 @@ sub link_pathrestrictions() {
     }
 }
 
-# Check consistency of virtual interfaces:
-# Interfaces with identical virtual IP must
-# - be connected to the same network,
-# - use the same redundancy protocol,
-# - use the same id (currently optional).
-# Link all virtual interface information to a single object.
-# Add a list of all member interfaces.
+# Collect groups of virtual interfaces
+# - be connected to the same network and
+# - having the same IP address.
+# Link all virtual interfaces to the group of member interfaces.
+# Check consistency:
+# - Member interfaces must use identical protocol and identical ID.
+# - The same ID must not be used by some other group
+#   - connected to the same network
+#   - emploing the same redundancy type
 sub link_virtual_interfaces () {
-    my %ip2net2virtual;
 
-    # Unrelated virtual interfaces with identical ID must be located
-    # in different networks.
-    my %same_id;
+    # Collect array of virtual interfaces with same IP at same network.
+    my %net2ip2virtual;
+
+    # Hash table to look up first virtual interface of a group
+    # inside the same network and using the same ID and type.
+    my %net2id2type2virtual;
     for my $virtual1 (@virtual_interfaces) {
-        my $ip  = $virtual1->{ip};
-        my $net = $virtual1->{network};
-        my $id1 = $virtual1->{redundancy_id} || '';
-        if (my $interfaces = $ip2net2virtual{$net}->{$ip}) {
+        my $ip    = $virtual1->{ip};
+        my $net   = $virtual1->{network};
+        my $type1 = $virtual1->{redundancy_type} || '';
+        my $id1   = $virtual1->{redundancy_id} || '';
+        if (my $interfaces = $net2ip2virtual{$net}->{$ip}) {
             my $virtual2 = $interfaces->[0];
-            if (   $virtual1->{redundancy_type}
-                && $virtual2->{redundancy_type}
-                && $virtual1->{redundancy_type} ne $virtual2->{redundancy_type})
-            {
+            my $type2 = $virtual2->{redundancy_type} || '';
+            if ($type1 ne $type2) {
                 err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
                   " use different redundancy protocols";
                 next;
@@ -4052,30 +4057,32 @@ sub link_virtual_interfaces () {
                 next;
             }
 
-            # This changes value of %ip2net2virtual and all attributes
+            # This changes value of %net2ip2virtual and all attributes
             # {redundancy_interfaces} where this array is referenced.
             push @$interfaces, $virtual1;
             $virtual1->{redundancy_interfaces} = $interfaces;
         }
         else {
-            $ip2net2virtual{$net}->{$ip} = $virtual1->{redundancy_interfaces} =
+            $net2ip2virtual{$net}->{$ip} = $virtual1->{redundancy_interfaces} =
               [$virtual1];
+
+            # Check for identical ID used at unrelated virtual interfaces
+            # inside the same network.
             if ($id1) {
-                my $other;
-                if (    $other = $same_id{$id1}
-                    and $virtual1->{network} eq $other->{network})
+                if (my $virtual2 = 
+                    $net2id2type2virtual{$net}->{$id1}->{$type1}) 
                 {
                     err_msg "Virtual IP:",
-                      " Unrelated $virtual1->{name} and $other->{name}",
-                      " have identical ID";
+                      " Unrelated $virtual1->{name} and $virtual2->{name}",
+                      " use identical ID";
                 }
                 else {
-                    $same_id{$id1} = $virtual1;
+                    $net2id2type2virtual{$net}->{$id1}->{$type1} = $virtual1;
                 }
             }
         }
     }
-    for my $href (values %ip2net2virtual) {
+    for my $href (values %net2ip2virtual) {
         for my $interfaces (values %$href) {
 
             # A virtual interface is used as hop for static routing.
@@ -4096,7 +4103,7 @@ sub link_virtual_interfaces () {
             }
 
             # Automatically add pathrestriction to interfaces
-            # belonging to $ip2net2virtual, if at least one interface
+            # belonging to $net2ip2virtual, if at least one interface
             # is managed.
             # Pathrestriction would be useless if all devices are unmanaged.
             elsif (grep { $_->{router}->{managed} } @$interfaces) {
@@ -4558,9 +4565,6 @@ sub mark_disabled() {
     # Collect vrf instances belonging to one device.
     for my $aref (values %name2vrf) {
         next if @$aref == 1;
-        equal(map not($_->{managed}), @$aref)
-          or err_msg("All VRF instances of router:$aref->[0]->{device_name}",
-            " must equally be managed or unmanaged");
         equal(map $_->{managed} ? $_->{model}->{name} : (), @$aref)
           or err_msg("All VRF instances of router:$aref->[0]->{device_name}",
             " must have identical model");
@@ -15949,7 +15953,6 @@ sub print_code( $ ) {
             close STDOUT or fatal_err "Can't close $file: $!";
         }
     }
-    progress "Finished" if $config{time_stamps};
 }
 
 sub copy_raw {
@@ -15994,12 +15997,16 @@ sub copy_raw {
         }
         my $copy = "$out_dir/$raw_file.raw";
         system("cp -f $raw_path $copy") == 0
-          or fatal_err "Can't copy $raw_path to $copy";
+          or fatal_err "Can't copy $raw_path to $copy: $!";
     }
 }
 
 sub show_version() {
     progress "$program, version $version";
+}
+
+sub show_finished() {
+    progress "Finished" if $config{time_stamps};
 }
 
 1
