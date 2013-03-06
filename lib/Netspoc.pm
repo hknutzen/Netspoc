@@ -4565,9 +4565,6 @@ sub mark_disabled() {
     # Collect vrf instances belonging to one device.
     for my $aref (values %name2vrf) {
         next if @$aref == 1;
-        equal(map not($_->{managed}), @$aref)
-          or err_msg("All VRF instances of router:$aref->[0]->{device_name}",
-            " must equally be managed or unmanaged");
         equal(map $_->{managed} ? $_->{model}->{name} : (), @$aref)
           or err_msg("All VRF instances of router:$aref->[0]->{device_name}",
             " must have identical model");
