@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.025'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.026'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -4552,9 +4552,9 @@ sub mark_disabled() {
         next if $router->{disabled};
         push @routers, $router;
         my $device_name = $router->{device_name};
-        push @{ $name2vrf{$device_name} }, $router;
         if ($router->{managed}) {
             push @managed_routers, $router;
+            push @{ $name2vrf{$device_name} }, $router;
             if ($router->{model}->{do_auth})
             {
                 push @managed_vpnhub, $router;
