@@ -4552,9 +4552,9 @@ sub mark_disabled() {
         next if $router->{disabled};
         push @routers, $router;
         my $device_name = $router->{device_name};
-        push @{ $name2vrf{$device_name} }, $router;
         if ($router->{managed}) {
             push @managed_routers, $router;
+            push @{ $name2vrf{$device_name} }, $router;
             if ($router->{model}->{do_auth})
             {
                 push @managed_vpnhub, $router;
