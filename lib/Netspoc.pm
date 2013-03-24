@@ -7940,15 +7940,17 @@ sub set_zone_cluster {
         # where all traffic goes through a VPN tunnel.
         next if check_global_active_pathrestriction($interface);
         my $router = $interface->{router};
-        if (not $router->{managed}) {
-            for my $out_interface (@{ $router->{interfaces} }) {
-                next if $out_interface eq $interface;
-                my $next = $out_interface->{zone};
-                next if $next->{zone_cluster};
-                next if check_global_active_pathrestriction($out_interface);
-                set_zone_cluster($next, $out_interface, $zone_aref);
-            }
+        next if $router->{managed};
+        next if $router->{active_path};
+        $router->{active_path} = 1;
+        for my $out_interface (@{ $router->{interfaces} }) {
+            next if $out_interface eq $interface;
+            my $next = $out_interface->{zone};
+            next if $next->{zone_cluster};
+            next if check_global_active_pathrestriction($out_interface);
+            set_zone_cluster($next, $out_interface, $zone_aref);
         }
+        delete $router->{active_path};
     }
 }
 
