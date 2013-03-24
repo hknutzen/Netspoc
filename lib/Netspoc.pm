@@ -7911,14 +7911,20 @@ sub set_zone1 {
             push @{ $zone->{interfaces} }, $interface;
         }
         else {
+
+            # Traverse each unmanaged router only once.
+            next if $router->{active_path};
+            $router->{active_path} = 1;
             push @{ $zone->{unmanaged_routers} }, $router;
             for my $out_interface (@{ $router->{interfaces} }) {
 
                 # Ignore interface where we reached this router.
                 next if $out_interface eq $interface;
                 next if $out_interface->{disabled};
-                set_zone1($out_interface->{network}, $zone, $out_interface);
+                set_zone1($out_interface->{network}, $zone, 
+                          $out_interface);
             }
+            delete $router->{active_path};
         }
     }
 }
