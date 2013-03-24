@@ -222,3 +222,4 @@ my $file_config = &read_config($in_path);
 &local_optimization();
 &print_code($out_dir);
 Netspoc::copy_raw($in_path, $out_dir);
+Netspoc::show_finished();

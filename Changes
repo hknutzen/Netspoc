@@ -1,5 +1,14 @@
 {{$NEXT}}
 
+3.026     2013-03-08 11:49:38 Europe/Berlin
+
+- Fixed minor bug: Handle only managed routers of a VRF.
+  This prevents warning messages "uninitialized value".
+
+3.025     2013-03-06 15:19:51 Europe/Berlin
+
+ - Allow mixed managed and unmanaged VRFs on the same device.
+
 3.024     2013-02-19 10:11:28 Europe/Berlin
 
 - Added attribute 'sub_owner' to service definition.

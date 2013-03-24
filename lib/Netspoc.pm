@@ -4552,9 +4552,9 @@ sub mark_disabled() {
         next if $router->{disabled};
         push @routers, $router;
         my $device_name = $router->{device_name};
-        push @{ $name2vrf{$device_name} }, $router;
         if ($router->{managed}) {
             push @managed_routers, $router;
+            push @{ $name2vrf{$device_name} }, $router;
             if ($router->{model}->{do_auth})
             {
                 push @managed_vpnhub, $router;
@@ -4565,9 +4565,6 @@ sub mark_disabled() {
     # Collect vrf instances belonging to one device.
     for my $aref (values %name2vrf) {
         next if @$aref == 1;
-        equal(map not($_->{managed}), @$aref)
-          or err_msg("All VRF instances of router:$aref->[0]->{device_name}",
-            " must equally be managed or unmanaged");
         equal(map $_->{managed} ? $_->{model}->{name} : (), @$aref)
           or err_msg("All VRF instances of router:$aref->[0]->{device_name}",
             " must have identical model");
@@ -15962,7 +15959,6 @@ sub print_code( $ ) {
             close STDOUT or fatal_err "Can't close $file: $!";
         }
     }
-    progress "Finished" if $config{time_stamps};
 }
 
 sub copy_raw {
@@ -16007,12 +16003,16 @@ sub copy_raw {
         }
         my $copy = "$out_dir/$raw_file.raw";
         system("cp -f $raw_path $copy") == 0
-          or fatal_err "Can't copy $raw_path to $copy";
+          or fatal_err "Can't copy $raw_path to $copy: $!";
     }
 }
 
 sub show_version() {
     progress "$program, version $version";
+}
+
+sub show_finished() {
+    progress "Finished" if $config{time_stamps};
 }
 
 1
