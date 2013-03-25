@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.026'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.027'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -3411,12 +3411,12 @@ sub order_ranges( $$ ) {
                         }
 
                         # New range is larger than current range and therefore
-                        # must be inserted before current one.
+                        # must be inserted in front of current one.
                         last;
                     }
 
                     # New range starts at lower position than current one.
-                    # It must be inserted before current range.
+                    # It must be inserted in front of current range.
                     last;
                 }
                 my $new = {
@@ -7908,14 +7908,20 @@ sub set_zone1 {
             push @{ $zone->{interfaces} }, $interface;
         }
         else {
+
+            # Traverse each unmanaged router only once.
+            next if $router->{active_path};
+            $router->{active_path} = 1;
             push @{ $zone->{unmanaged_routers} }, $router;
             for my $out_interface (@{ $router->{interfaces} }) {
 
                 # Ignore interface where we reached this router.
                 next if $out_interface eq $interface;
                 next if $out_interface->{disabled};
-                set_zone1($out_interface->{network}, $zone, $out_interface);
+                set_zone1($out_interface->{network}, $zone, 
+                          $out_interface);
             }
+            delete $router->{active_path};
         }
     }
 }
@@ -7934,15 +7940,17 @@ sub set_zone_cluster {
         # where all traffic goes through a VPN tunnel.
         next if check_global_active_pathrestriction($interface);
         my $router = $interface->{router};
-        if (not $router->{managed}) {
-            for my $out_interface (@{ $router->{interfaces} }) {
-                next if $out_interface eq $interface;
-                my $next = $out_interface->{zone};
-                next if $next->{zone_cluster};
-                next if check_global_active_pathrestriction($out_interface);
-                set_zone_cluster($next, $out_interface, $zone_aref);
-            }
+        next if $router->{managed};
+        next if $router->{active_path};
+        $router->{active_path} = 1;
+        for my $out_interface (@{ $router->{interfaces} }) {
+            next if $out_interface eq $interface;
+            my $next = $out_interface->{zone};
+            next if $next->{zone_cluster};
+            next if check_global_active_pathrestriction($out_interface);
+            set_zone_cluster($next, $out_interface, $zone_aref);
         }
+        delete $router->{active_path};
     }
 }
 
