@@ -49,9 +49,9 @@ to destination.
 <div class="list">
  <a href="intro-topo-with-rules-covered.png"><img src="intro-topo-with-rules-covered.png"/></a>
 
-#### Distribute rules and generate code
+#### Collect rules and generate code
 
-Netspoc automatically distributes rules to packet filters and
+Netspoc automatically collects the rules for each packet filter and
 generates device specific filter rules for each packet filter inside
 the topology.
 
