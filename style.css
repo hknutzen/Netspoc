@@ -62,7 +62,7 @@ pre {
 
 .content .gallery a:hover img {
   border-color: steelblue;
-  width: 338px;
+  width: auto;
 }
 
 .list {
