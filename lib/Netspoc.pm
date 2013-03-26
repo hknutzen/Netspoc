@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.027'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.028'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -11179,6 +11179,8 @@ sub set_routes_in_zone ( $ ) {
     my $set_cluster;
     $set_cluster = sub {
         my ($router, $in_intf, $cluster) = @_;
+        return if $router->{active_path};
+        $router->{active_path} = 1;
         for my $interface (@{ $router->{interfaces} }) {
             next if $interface->{main_interface};
             if ($hop_interfaces{$interface}) {
@@ -11197,6 +11199,7 @@ sub set_routes_in_zone ( $ ) {
                 $set_cluster->($out_intf->{router}, $out_intf, $cluster);
             }
         }
+        delete $router->{active_path};
     };
     for my $interface (values %hop_interfaces) {
         next if $hop2cluster{$interface};
