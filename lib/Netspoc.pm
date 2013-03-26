@@ -11179,6 +11179,8 @@ sub set_routes_in_zone ( $ ) {
     my $set_cluster;
     $set_cluster = sub {
         my ($router, $in_intf, $cluster) = @_;
+        return if $router->{active_path};
+        $router->{active_path} = 1;
         for my $interface (@{ $router->{interfaces} }) {
             next if $interface->{main_interface};
             if ($hop_interfaces{$interface}) {
@@ -11197,6 +11199,7 @@ sub set_routes_in_zone ( $ ) {
                 $set_cluster->($out_intf->{router}, $out_intf, $cluster);
             }
         }
+        delete $router->{active_path};
     };
     for my $interface (values %hop_interfaces) {
         next if $hop2cluster{$interface};
