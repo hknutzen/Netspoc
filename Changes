@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+3.028     2013-03-26 12:08:23 Europe/Berlin
+
+- Fixed minor bug: Prevent deep recursion in set_routes_in_zone.
+
 3.027     2013-03-25 13:07:19 Europe/Berlin
 
 - Fixed minor bug: Prevent deep recursion in set_zone1 and set_zone_cluster.
