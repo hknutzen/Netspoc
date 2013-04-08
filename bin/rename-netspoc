@@ -30,6 +30,7 @@ A SUBSTITUTION of type B<network> also changes B<interface> and B<host:id>
 which reference the given network.  A SUBSTITUTION of type B<router>
 also changes B<interfaces> which reference the given router.
 A SUBSTITUTION of type B<nat> also changes the corresponding B<bind_nat> list.
+A SUBSTITUTION of type B<owner> also changes the corresponding B<sub_owner>.
 
 =head1 OPTIONS
 
@@ -106,7 +107,9 @@ policy servicegroup
 );
 
 # NAT is applied with bind_nat.
-my %aliases = ( nat => ['bind_nat'] );
+# Owner is optionally referenced as sub_owner.
+my %aliases = ( nat   => ['bind_nat'],
+                owner => ['sub_owner'], );
 
 my %subst;
 
