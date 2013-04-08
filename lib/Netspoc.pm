@@ -6353,7 +6353,6 @@ sub propagate_owners {
     # owner is extended by e_owner at node.
     # owner->node->[e_owner, .. ]
     my %extended;
-    my %used;
 
     # upper_owner: owner object without attribute extend_only or undef
     # extend: a list of owners with attribute extend
@@ -6366,7 +6365,7 @@ sub propagate_owners {
             $node->{owner} = $upper_owner;
         }
         else {
-            $used{$owner} = 1;
+            $owner->{is_used} = 1;
             if ($upper_owner) {
                 if ($owner eq $upper_owner
                     and not $zone_got_net_owners{$upper_node})
@@ -6466,7 +6465,7 @@ sub propagate_owners {
         if ($area->{router_attributes}
             and (my $owner = $area->{router_attributes}->{owner}))
         {
-            $used{$owner} = 1;
+            $owner->{is_used} = 1;
             for my $router (area_managed_routers($area)) {
                 if (my $r_owner = $router->{owner}) {
                     if ($r_owner eq $owner) {
@@ -6484,7 +6483,7 @@ sub propagate_owners {
 
     for my $router (@managed_routers) {
         my $owner = $router->{owner} or next;
-        $used{$owner} = 1;
+        $owner->{is_used} = 1;
         for my $interface (@{ $router->{interfaces} }) {
             $interface->{owner} = $owner;
             if ($interface->{loopback}) {
@@ -6505,9 +6504,6 @@ sub propagate_owners {
             }
             $aggregate->{owner} = ($up ? $up : $zone)->{owner};
         }
-    }
-    for my $owner (values %owners) {
-        $used{$owner} or warn_msg "Unused $owner->{name}";
     }
 }
 
@@ -6610,6 +6606,7 @@ sub set_service_owner {
         # Allow dedicated service owner, if we have multiple owners 
         # from @objects.
         if (my $sub_owner = $service->{sub_owner}) {
+            $sub_owner->{is_used} = 1;
             keys %$service_owners == 1 && $service_owners->{$sub_owner} and
                 warn_msg "Useless $sub_owner->{name} at $service->{name}";
         }
@@ -6654,6 +6651,13 @@ sub set_service_owner {
             }
         }
     }
+
+    # Show unused owners.
+    # Remove attribute {is_used}, which isn't needed any longer.
+    for my $owner (values %owners) {
+        delete $owner->{is_used} or warn_msg "Unused $owner->{name}";
+    }
+
     show_unknown_owners();
 }
 
