@@ -1,8 +1,6 @@
 # Makefile for cvs-support
 
-all:	newpolicy append-commitlog suid-cvs
-
-newpolicy: newpolicy.c
+all:	append-commitlog suid-cvs
 
 append-commitlog: append-commitlog.c
 
