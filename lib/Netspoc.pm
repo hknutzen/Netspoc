@@ -3633,7 +3633,7 @@ sub link_owners () {
                 do {
                     use bytes;
                     $email =~ 
-                        m/^ [\w.!\#$%&'*+\/=?^_`{|}~-]+ \@ [\w.-]+ $/x;
+                        m/^ [\w.!\#$%&''*+\/=?^_``{|}~-]+ \@ [\w.-]+ $/x;
                 }
                 or err_msg("Invalid email address (ASCII only)",
                            " in $attr of $owner->{name}: $email");
