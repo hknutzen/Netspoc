@@ -148,7 +148,7 @@ our %config = (
     check_redundant_rules => 'warn',
 
 # Check for services where owner can't be derived.
-    check_service_unknown_owner => 'warn',
+    check_service_unknown_owner => 0,
 
 # Check for services where multiple owners have been derived.
     check_service_multi_owner => 'warn',
