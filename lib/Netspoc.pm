@@ -4605,8 +4605,14 @@ sub mark_disabled() {
     # Find networks not connected to any router.
     for my $network (values %networks) {
         next if $network->{disabled};
-        $seen{$network} or 
-            err_msg("$network->{name} isn't connected to any router");
+        if (! $seen{$network}) {
+            if (keys %networks > 1) {
+                err_msg("$network->{name} isn't connected to any router");
+            }
+            else {
+                push @networks, $network;
+            }
+        }
     }
 
     @virtual_interfaces = grep { not $_->{disabled} } @virtual_interfaces;
