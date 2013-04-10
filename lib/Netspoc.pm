@@ -7170,8 +7170,10 @@ sub check_subnet_nat {
     my @a_only = grep { !$b_tags->{$_} } keys %$a_tags;
     my @b_only = grep { !$a_tags->{$_} } keys %$b_tags;
 
-    # Additional NAT for subnet is ok if it is applied inside the
-    # current zone at b network and translates a into subnet of b.
+    # Additional NAT for subnet a is ok if 
+    # 1. it is applied inside the current zone at network b and 
+    # 2. translates a into subnet of b
+    # 3. is equally (not) applied at all interfaces of the zone of a.
     if (@a_only == 1) {
         my $tag        = $a_only[0];
         my $no_nat_set = $b->{nat_domain}->{no_nat_set};
@@ -7180,7 +7182,11 @@ sub check_subnet_nat {
             if ($nat_a->{mask} > $b->{mask}
                 && match_ip($nat_a->{ip}, $b->{ip}, $b->{mask}))
             {
-                @a_only = ();
+                if ( equal(map($_->{no_nat_set}->{$tag} || 0, 
+                               @{ $a->{zone}->{interfaces} })))
+                {
+                    @a_only = ();
+                }
             }
         }
     }
@@ -7344,13 +7350,16 @@ sub find_subnets() {
 
                     # Find {up} relation between networks inside the same zone.
                     my $zone = $subnet->{zone};
-                    my $in_zone =
-                      $zone->{interfaces}->[0]->{no_nat_set} eq $no_nat_set;
+
+                    # Does current NAT domain overlap with zone of $subnet.
+                    my $in_zone = grep({ $_->{no_nat_set} eq $no_nat_set } 
+                                       @{ $zone->{interfaces} });
 
                     # {is_in} and {up} might differ. Continue with loop,
                     # if first match is only {is_in}.
                     my $find_zone_relation;
 
+                    # Find networks which include current subnet.
                     my $m = $mask;
                     my $i = $ip;
                     while ($m) {
@@ -7369,7 +7378,7 @@ sub find_subnets() {
                         if ($in_zone || $find_zone_relation) {
                             my $orig_big = $identical_in_zone{$bignet}->{$zone}
                               || $bignet;
-                            if ($subnet->{zone} eq $orig_big->{zone}) {
+                            if ($zone eq $orig_big->{zone}) {
                                 $subnet->{up} = $orig_big;
                                 push(
                                     @{ $orig_big->{networks} },
