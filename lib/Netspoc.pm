@@ -6732,11 +6732,11 @@ sub set_natdomain( $$$ ) {
                 # the same NAT binding. (This occurs only in loops).
                 if (my $old_nat_tags = $router->{nat_tags}->{$domain}) {
                     if (not aref_eq($old_nat_tags, $nat_tags)) {
-                        my $old_tag_names = join(',', @$old_nat_tags);
-                        my $tag_names     = join(',', @$nat_tags) || '(none)';
+                        my $old_names = join(',', @$old_nat_tags) || '(none)';
+                        my $new_names = join(',', @$nat_tags)     || '(none)';
                         err_msg
                           "Inconsistent NAT in loop at $router->{name}:\n",
-                          " nat:$old_tag_names vs. nat:$tag_names";
+                          " nat:$old_names vs. nat:$new_names";
                     }
 
                     # NAT domain and router have been linked together already.
