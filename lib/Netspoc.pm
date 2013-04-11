@@ -8266,6 +8266,7 @@ sub check_virtual_interfaces () {
 sub check_pathrestrictions() {
     for my $restrict (values %pathrestrictions) {
         my $elements = $restrict->{elements};
+        next if ! @$elements;
         for my $obj (@$elements) {
 
             # Interfaces with pathrestriction need to be located
