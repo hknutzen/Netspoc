@@ -1971,8 +1971,7 @@ sub read_router( $ ) {
             err_msg "Missing 'model' for managed $name";
 
             # Prevent further errors.
-            $model = 'unknown';
-            $router->{model} = { name => $model };
+            $router->{model} = { name => 'unknown' };
         }
 
         $router->{vrf}
