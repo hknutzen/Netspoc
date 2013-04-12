@@ -7179,6 +7179,15 @@ sub numerically { $a <=> $b }
 sub find_subnets() {
     progress "Finding subnets";
     my %seen;
+
+    my %zone_has_no_nat_set;
+    for my $zone (@zones) {
+        for my $interface (@{ $zone->{interfaces} }) {
+            my $no_nat_set = $interface->{no_nat_set};
+            $zone_has_no_nat_set{$zone}->{$no_nat_set} = 1;
+        }
+    }
+
     for my $domain (@natdomains) {
 
 #     debug "$domain->{name}";
@@ -7289,8 +7298,7 @@ sub find_subnets() {
                     # Does current NAT domain overlap with zone of $subnet.
                     # Ignore a NAT domain, if it has no connection
                     # to border of zone.
-                    my $in_zone = grep({ $_->{no_nat_set} eq $no_nat_set } 
-                                       @{ $zone->{interfaces} });
+                    my $in_zone = $zone_has_no_nat_set{$zone}->{$no_nat_set};
 
                     # {is_in} and {up} might differ. Continue with loop,
                     # if first match is only {is_in}.
