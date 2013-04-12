@@ -6942,8 +6942,9 @@ sub distribute_nat_info() {
                         my $name2 = (%$href2)[1]->{name};
                         err_msg
                           "If multiple NAT tags are used at one network,\n",
-                          " the same NAT tags must be used together at all",
-                          " other networks.\n", " - $name: $tags\n",
+                          " these NAT tags must also be used together at",
+                          " other networks:\n", 
+                          " - $name: $tags\n",
                           " - $name2: $tags2";
                         $err = 1;
                     }
@@ -7166,77 +7167,6 @@ sub nat_to_loopback_ok {
     return ($all_device_ok == $device_count);
 }
 
-sub check_subnet_nat {
-    my ($a, $b) = @_;
-    my $a_tags = $a->{nat};
-    my $b_tags = $b->{nat};
-    return if $b->{mask} == 0;
-    return if !keys %$a_tags && !keys %$b_tags;
-    my @a_only = grep { !$b_tags->{$_} } keys %$a_tags;
-    my @b_only = grep { !$a_tags->{$_} } keys %$b_tags;
-
-    # Additional NAT for subnet a is ok if 
-    # 1. it is applied inside the current zone at network b and 
-    # 2. translates a into subnet of b
-    # 3. is equally (not) applied at all interfaces of the zone of a.
-    if (@a_only == 1) {
-        my $tag        = $a_only[0];
-        my $no_nat_set = $b->{nat_domain}->{no_nat_set};
-        if (!$no_nat_set->{$tag}) {
-            my $nat_a = get_nat_network($a, $no_nat_set);
-            if ($nat_a->{mask} > $b->{mask}
-                && match_ip($nat_a->{ip}, $b->{ip}, $b->{mask}))
-            {
-                if ( equal(map($_->{no_nat_set}->{$tag} || 0, 
-                               @{ $a->{zone}->{interfaces} })))
-                {
-                    @a_only = ();
-                }
-            }
-        }
-    }
-    my @msg;
-    if (@a_only) {
-        push @msg, "Only $a->{name} has " . join(', ', map("nat:$_", @a_only));
-    }
-    if (@b_only) {
-        push @msg, "Only $b->{name} has " . join(', ', map("nat:$_", @b_only));
-    }
-    for my $tag (keys %$b_tags) {
-        next if !$a_tags->{$tag};
-        my $a_nat = $a_tags->{$tag};
-        my $b_nat = $b_tags->{$tag};
-        if ($a_nat->{dynamic} xor $b_nat->{dynamic}) {
-            push @msg, "Must equally use 'dynamic' for nat:$tag";
-            next;
-        }
-        if ($a_nat->{dynamic}) {
-            if (
-                !(
-                       $a_nat->{ip} == $b_nat->{ip}
-                    && $a_nat->{mask} == $b_nat->{mask}
-                )
-              )
-            {
-                push @msg, "Must use identical ip/mask for nat:$tag";
-                next;
-            }
-        }
-        else {
-            my $ip = $b_nat->{ip} | $a->{ip} & complement_32bit $b_nat->{mask};
-            if ($ip != $a_nat->{ip}) {
-                push @msg, "Must translate to same addresses for nat:$tag";
-                next;
-            }
-        }
-    }
-
-    if (@msg) {
-        warn_msg(
-            join("\n ", "Inconsistent NAT for $a->{name} < $b->{name}", @msg));
-    }
-}
-
 sub numerically { $a <=> $b }
 
 # Find relation between networks:
@@ -7357,6 +7287,8 @@ sub find_subnets() {
                     my $zone = $subnet->{zone};
 
                     # Does current NAT domain overlap with zone of $subnet.
+                    # Ignore a NAT domain, if it has no connection
+                    # to border of zone.
                     my $in_zone = grep({ $_->{no_nat_set} eq $no_nat_set } 
                                        @{ $zone->{interfaces} });
 
@@ -7384,16 +7316,31 @@ sub find_subnets() {
                             my $orig_big = $identical_in_zone{$bignet}->{$zone}
                               || $bignet;
                             if ($zone eq $orig_big->{zone}) {
-                                $subnet->{up} = $orig_big;
-                                push(
-                                    @{ $orig_big->{networks} },
-                                    $subnet->{is_aggregate}
-                                    ? @{ $subnet->{networks} || [] }
-                                    : ($subnet)
-                                );
+                                my $other_big = $subnet->{up};
 
-                                # Check for consistent NAT at subnet relation.
-                                check_subnet_nat($subnet, $orig_big);
+                                # Subnet relation inside first and
+                                # probably only NAT domain.
+                                if (!$other_big) {
+                                    $subnet->{up} = $orig_big;
+                                    push(
+                                        @{ $orig_big->{networks} },
+                                        $subnet->{is_aggregate}
+                                        ? @{ $subnet->{networks} || [] }
+                                        : ($subnet)
+                                        );
+                                }
+
+                                # Multiple NAT domains inside one security zone.
+                                elsif ($orig_big ne $other_big) {
+                                    err_msg 
+                                        "$subnet->{name} must have a distinct",
+                                        " subnet relation",
+                                        " in security zone $zone->{name}.\n",
+                                        " But it has different supernets:\n",
+                                        " - $orig_big->{name}\n",
+                                        " - $other_big->{name}\n",
+                                        " Check bind_nat inside the zone.";
+                                }
 
                                 if ($subnet->{has_other_subnet}) {
                                     $orig_big->{has_other_subnet} = 1;
