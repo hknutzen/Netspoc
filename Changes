@@ -1,5 +1,13 @@
 {{$NEXT}}
 
+3.029     2013-04-17 15:53:38 Europe/Berlin
+
+  - Fixed duplicate ACL line from unmanaged virtual interface.
+  - Fixed superfluous warning on unused owner.
+  - Changed default: check_service_unknown_owner = 0 (was 'warn').
+  - Minor fixes with NAT and minimal topology.
+  - Moved programs newpolicy and newpolicy.pl to project Netspoc-Approve.
+
 3.028     2013-03-26 12:08:23 Europe/Berlin
 
 - Fixed minor bug: Prevent deep recursion in set_routes_in_zone.
