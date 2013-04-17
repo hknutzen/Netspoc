@@ -8466,7 +8466,8 @@ sub get_path( $ ) {
         $result = $obj->{network}->{zone};
     }
     elsif ($type eq 'Interface') {
-        if ($obj->{router}->{managed}) {
+        my $router = $obj->{router};
+        if ($router->{managed} || $router->{semi_managed}) {
 
             # If this is a secondary interface, we can't use it to enter
             # the router, because it has an active pathrestriction attached.
