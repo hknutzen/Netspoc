@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.028'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.029'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -148,7 +148,7 @@ our %config = (
     check_redundant_rules => 'warn',
 
 # Check for services where owner can't be derived.
-    check_service_unknown_owner => 'warn',
+    check_service_unknown_owner => 0,
 
 # Check for services where multiple owners have been derived.
     check_service_multi_owner => 'warn',
@@ -1971,8 +1971,7 @@ sub read_router( $ ) {
             err_msg "Missing 'model' for managed $name";
 
             # Prevent further errors.
-            $model = 'unknown';
-            $router->{model} = { name => $model };
+            $router->{model} = { name => 'unknown' };
         }
 
         $router->{vrf}
@@ -3633,7 +3632,7 @@ sub link_owners () {
                 do {
                     use bytes;
                     $email =~ 
-                        m/^ [\w.!\#$%&'*+\/=?^_`{|}~-]+ \@ [\w.-]+ $/x;
+                        m/^ [\w.!\#$%&''*+\/=?^_``{|}~-]+ \@ [\w.-]+ $/x;
                 }
                 or err_msg("Invalid email address (ASCII only)",
                            " in $attr of $owner->{name}: $email");
@@ -4605,8 +4604,14 @@ sub mark_disabled() {
     # Find networks not connected to any router.
     for my $network (values %networks) {
         next if $network->{disabled};
-        $seen{$network} or 
-            err_msg("$network->{name} isn't connected to any router");
+        if (! $seen{$network}) {
+            if (keys %networks > 1) {
+                err_msg("$network->{name} isn't connected to any router");
+            }
+            else {
+                push @networks, $network;
+            }
+        }
     }
 
     @virtual_interfaces = grep { not $_->{disabled} } @virtual_interfaces;
@@ -6353,7 +6358,6 @@ sub propagate_owners {
     # owner is extended by e_owner at node.
     # owner->node->[e_owner, .. ]
     my %extended;
-    my %used;
 
     # upper_owner: owner object without attribute extend_only or undef
     # extend: a list of owners with attribute extend
@@ -6366,7 +6370,7 @@ sub propagate_owners {
             $node->{owner} = $upper_owner;
         }
         else {
-            $used{$owner} = 1;
+            $owner->{is_used} = 1;
             if ($upper_owner) {
                 if ($owner eq $upper_owner
                     and not $zone_got_net_owners{$upper_node})
@@ -6466,7 +6470,7 @@ sub propagate_owners {
         if ($area->{router_attributes}
             and (my $owner = $area->{router_attributes}->{owner}))
         {
-            $used{$owner} = 1;
+            $owner->{is_used} = 1;
             for my $router (area_managed_routers($area)) {
                 if (my $r_owner = $router->{owner}) {
                     if ($r_owner eq $owner) {
@@ -6484,7 +6488,7 @@ sub propagate_owners {
 
     for my $router (@managed_routers) {
         my $owner = $router->{owner} or next;
-        $used{$owner} = 1;
+        $owner->{is_used} = 1;
         for my $interface (@{ $router->{interfaces} }) {
             $interface->{owner} = $owner;
             if ($interface->{loopback}) {
@@ -6505,9 +6509,6 @@ sub propagate_owners {
             }
             $aggregate->{owner} = ($up ? $up : $zone)->{owner};
         }
-    }
-    for my $owner (values %owners) {
-        $used{$owner} or warn_msg "Unused $owner->{name}";
     }
 }
 
@@ -6610,6 +6611,7 @@ sub set_service_owner {
         # Allow dedicated service owner, if we have multiple owners 
         # from @objects.
         if (my $sub_owner = $service->{sub_owner}) {
+            $sub_owner->{is_used} = 1;
             keys %$service_owners == 1 && $service_owners->{$sub_owner} and
                 warn_msg "Useless $sub_owner->{name} at $service->{name}";
         }
@@ -6654,6 +6656,13 @@ sub set_service_owner {
             }
         }
     }
+
+    # Show unused owners.
+    # Remove attribute {is_used}, which isn't needed any longer.
+    for my $owner (values %owners) {
+        delete $owner->{is_used} or warn_msg "Unused $owner->{name}";
+    }
+
     show_unknown_owners();
 }
 
@@ -6728,11 +6737,11 @@ sub set_natdomain( $$$ ) {
                 # the same NAT binding. (This occurs only in loops).
                 if (my $old_nat_tags = $router->{nat_tags}->{$domain}) {
                     if (not aref_eq($old_nat_tags, $nat_tags)) {
-                        my $old_tag_names = join(',', @$old_nat_tags);
-                        my $tag_names     = join(',', @$nat_tags) || '(none)';
+                        my $old_names = join(',', @$old_nat_tags) || '(none)';
+                        my $new_names = join(',', @$nat_tags)     || '(none)';
                         err_msg
                           "Inconsistent NAT in loop at $router->{name}:\n",
-                          " nat:$old_tag_names vs. nat:$tag_names";
+                          " nat:$old_names vs. nat:$new_names";
                     }
 
                     # NAT domain and router have been linked together already.
@@ -6933,8 +6942,9 @@ sub distribute_nat_info() {
                         my $name2 = (%$href2)[1]->{name};
                         err_msg
                           "If multiple NAT tags are used at one network,\n",
-                          " the same NAT tags must be used together at all",
-                          " other networks.\n", " - $name: $tags\n",
+                          " these NAT tags must also be used together at",
+                          " other networks:\n", 
+                          " - $name: $tags\n",
                           " - $name2: $tags2";
                         $err = 1;
                     }
@@ -7157,71 +7167,6 @@ sub nat_to_loopback_ok {
     return ($all_device_ok == $device_count);
 }
 
-sub check_subnet_nat {
-    my ($a, $b) = @_;
-    my $a_tags = $a->{nat};
-    my $b_tags = $b->{nat};
-    return if $b->{mask} == 0;
-    return if !keys %$a_tags && !keys %$b_tags;
-    my @a_only = grep { !$b_tags->{$_} } keys %$a_tags;
-    my @b_only = grep { !$a_tags->{$_} } keys %$b_tags;
-
-    # Additional NAT for subnet is ok if it is applied inside the
-    # current zone at b network and translates a into subnet of b.
-    if (@a_only == 1) {
-        my $tag        = $a_only[0];
-        my $no_nat_set = $b->{nat_domain}->{no_nat_set};
-        if (!$no_nat_set->{$tag}) {
-            my $nat_a = get_nat_network($a, $no_nat_set);
-            if ($nat_a->{mask} > $b->{mask}
-                && match_ip($nat_a->{ip}, $b->{ip}, $b->{mask}))
-            {
-                @a_only = ();
-            }
-        }
-    }
-    my @msg;
-    if (@a_only) {
-        push @msg, "Only $a->{name} has " . join(', ', map("nat:$_", @a_only));
-    }
-    if (@b_only) {
-        push @msg, "Only $b->{name} has " . join(', ', map("nat:$_", @b_only));
-    }
-    for my $tag (keys %$b_tags) {
-        next if !$a_tags->{$tag};
-        my $a_nat = $a_tags->{$tag};
-        my $b_nat = $b_tags->{$tag};
-        if ($a_nat->{dynamic} xor $b_nat->{dynamic}) {
-            push @msg, "Must equally use 'dynamic' for nat:$tag";
-            next;
-        }
-        if ($a_nat->{dynamic}) {
-            if (
-                !(
-                       $a_nat->{ip} == $b_nat->{ip}
-                    && $a_nat->{mask} == $b_nat->{mask}
-                )
-              )
-            {
-                push @msg, "Must use identical ip/mask for nat:$tag";
-                next;
-            }
-        }
-        else {
-            my $ip = $b_nat->{ip} | $a->{ip} & complement_32bit $b_nat->{mask};
-            if ($ip != $a_nat->{ip}) {
-                push @msg, "Must translate to same addresses for nat:$tag";
-                next;
-            }
-        }
-    }
-
-    if (@msg) {
-        warn_msg(
-            join("\n ", "Inconsistent NAT for $a->{name} < $b->{name}", @msg));
-    }
-}
-
 sub numerically { $a <=> $b }
 
 # Find relation between networks:
@@ -7234,6 +7179,15 @@ sub numerically { $a <=> $b }
 sub find_subnets() {
     progress "Finding subnets";
     my %seen;
+
+    my %zone_has_no_nat_set;
+    for my $zone (@zones) {
+        for my $interface (@{ $zone->{interfaces} }) {
+            my $no_nat_set = $interface->{no_nat_set};
+            $zone_has_no_nat_set{$zone}->{$no_nat_set} = 1;
+        }
+    }
+
     for my $domain (@natdomains) {
 
 #     debug "$domain->{name}";
@@ -7340,13 +7294,17 @@ sub find_subnets() {
 
                     # Find {up} relation between networks inside the same zone.
                     my $zone = $subnet->{zone};
-                    my $in_zone =
-                      $zone->{interfaces}->[0]->{no_nat_set} eq $no_nat_set;
+
+                    # Does current NAT domain overlap with zone of $subnet.
+                    # Ignore a NAT domain, if it has no connection
+                    # to border of zone.
+                    my $in_zone = $zone_has_no_nat_set{$zone}->{$no_nat_set};
 
                     # {is_in} and {up} might differ. Continue with loop,
                     # if first match is only {is_in}.
                     my $find_zone_relation;
 
+                    # Find networks which include current subnet.
                     my $m = $mask;
                     my $i = $ip;
                     while ($m) {
@@ -7365,17 +7323,32 @@ sub find_subnets() {
                         if ($in_zone || $find_zone_relation) {
                             my $orig_big = $identical_in_zone{$bignet}->{$zone}
                               || $bignet;
-                            if ($subnet->{zone} eq $orig_big->{zone}) {
-                                $subnet->{up} = $orig_big;
-                                push(
-                                    @{ $orig_big->{networks} },
-                                    $subnet->{is_aggregate}
-                                    ? @{ $subnet->{networks} || [] }
-                                    : ($subnet)
-                                );
+                            if ($zone eq $orig_big->{zone}) {
+                                my $other_big = $subnet->{up};
 
-                                # Check for consistent NAT at subnet relation.
-                                check_subnet_nat($subnet, $orig_big);
+                                # Subnet relation inside first and
+                                # probably only NAT domain.
+                                if (!$other_big) {
+                                    $subnet->{up} = $orig_big;
+                                    push(
+                                        @{ $orig_big->{networks} },
+                                        $subnet->{is_aggregate}
+                                        ? @{ $subnet->{networks} || [] }
+                                        : ($subnet)
+                                        );
+                                }
+
+                                # Multiple NAT domains inside one security zone.
+                                elsif ($orig_big ne $other_big) {
+                                    err_msg 
+                                        "$subnet->{name} must have a distinct",
+                                        " subnet relation",
+                                        " in security zone $zone->{name}.\n",
+                                        " But it has different supernets:\n",
+                                        " - $orig_big->{name}\n",
+                                        " - $other_big->{name}\n",
+                                        " Check bind_nat inside the zone.";
+                                }
 
                                 if ($subnet->{has_other_subnet}) {
                                     $orig_big->{has_other_subnet} = 1;
@@ -8247,6 +8220,7 @@ sub check_virtual_interfaces () {
 sub check_pathrestrictions() {
     for my $restrict (values %pathrestrictions) {
         my $elements = $restrict->{elements};
+        next if ! @$elements;
         for my $obj (@$elements) {
 
             # Interfaces with pathrestriction need to be located
@@ -8492,7 +8466,8 @@ sub get_path( $ ) {
         $result = $obj->{network}->{zone};
     }
     elsif ($type eq 'Interface') {
-        if ($obj->{router}->{managed}) {
+        my $router = $obj->{router};
+        if ($router->{managed} || $router->{semi_managed}) {
 
             # If this is a secondary interface, we can't use it to enter
             # the router, because it has an active pathrestriction attached.

@@ -18,8 +18,6 @@ cvs-support/append-commitlog.c
 cvs-support/cvs-SETXID_SUPPORT.patch
 cvs-support/cvs-log.pl
 cvs-support/loginfo
-cvs-support/newpolicy.c
-cvs-support/newpolicy.pl
 cvs-support/suid-cvs.c
 dist.ini
 doc/CSPM.pod
@@ -78,3 +76,5 @@ t/secondary.t
 t/unnumbered.t
 t/unnumbered.t~
 t/virtual-loopback-nat.t
+t/virtual-pathrestrict.t
+t/virtual-pathrestrict.t~

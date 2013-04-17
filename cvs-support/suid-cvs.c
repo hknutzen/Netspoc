@@ -8,7 +8,7 @@ static char vcid[] = "$Id$";
 
 #include <stdio.h>
 
-char program[] = "/usr/bin/cvs";
+char program[] = "/usr/local/bin/cvs";
 
 void usage( void ) {
     fprintf(stderr, "Usage: suid-cvs server\n");
