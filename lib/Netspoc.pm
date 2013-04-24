@@ -2097,7 +2097,7 @@ sub read_router( $ ) {
             }
 
             # Link bridged interface to corresponding layer3 interface.
-            # Used for
+            # Used in path_auto_interfaces.
             $interface->{layer3_interface} = $layer3_intf;
             $layer3_seen{$layer3_name} = $layer3_intf;
         }
@@ -9235,13 +9235,25 @@ sub path_auto_interfaces( $$ ) {
         @result = values %result;
     }
 
-    # If device has virtual interface, main and virtual interface are swapped.
-    # Swap it back here because we need the original main interface
-    # if an interface is used in a rule.
+    my $bridged_count = 0;
     for my $interface (@result) {
+
+        # If device has virtual interface, main and virtual interface
+        # are swapped.  Swap it back here because we need the
+        # original main interface if an interface is used in a rule.
         if (my $orig = $interface->{orig_main}) {
             $interface = $orig;
         }
+
+        # Change bridge interface to layer3 interface.
+        # Prevent duplicate layer3 interface.
+        elsif (my $layer3_intf = $interface->{layer3_interface}) {
+            $interface = $layer3_intf;
+            $bridged_count++;
+        }
+    }
+    if ($bridged_count > 1) {
+        @result = unique(@result);
     }
 
 #    debug "$from->{name}.[auto] = ", join ',', map {$_->{name}} @result;
@@ -12273,7 +12285,8 @@ sub distribute_rule( $$$ ) {
 
             # Permit management access through tunnel.
             # On ASA device use command "management-access".
-            elsif ($in_intf->{ip} eq 'tunnel') {
+            # Permit management access through bridged interface.
+            elsif ($in_intf->{ip} =~ /^(?:tunnel|bridged)/) {
             }
 
             # Silently ignore everything else.
