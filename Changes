@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+3.030     2013-04-24 16:47:17 Europe/Berlin
+
+ - Fixed access to layer3 interface of bridged ASA.
+
 3.029     2013-04-17 15:53:38 Europe/Berlin
 
   - Fixed duplicate ACL line from unmanaged virtual interface.
