@@ -1,0 +1,77 @@
+#!/usr/bin/perl
+
+use strict;
+use Test::More;
+use Test::Differences;
+use lib 't';
+use Test_Netspoc;
+
+my ($title, $in, $out, @out, $head, $compiled);
+
+############################################################
+$title = 'Admin access to bridge';
+############################################################
+
+my $topology = <<END;
+
+network:intern = { 
+ ip = 10.1.1.0/24;
+ host:netspoc = { ip = 10.1.1.111; policy_distribution_point;}
+}
+
+router:asa = {
+ model = ASA;
+ #managed;
+ interface:intern = {
+  ip = 10.1.1.101; 
+  hardware = inside;
+ }
+ interface:dmz/left = { 
+  ip = 192.168.0.101; 
+  hardware = outside;
+ }
+}
+
+network:dmz/left = { ip = 192.168.0.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:dmz = { ip = 192.168.0.9; hardware = device; }
+ interface:dmz/left = { hardware = inside; }
+ interface:dmz/right = { hardware = outside; }
+}
+
+network:dmz/right = { ip = 192.168.0.0/24;}
+
+router:extern = { 
+ interface:dmz/right = { ip = 192.168.0.1; }
+ interface:extern;
+}
+
+network:extern = { ip = 10.9.9.0/24; }
+END
+
+$in = $topology . 
+<<END;
+service:admin = {
+ user =  #interface:bridge.dmz, 
+         interface:bridge.[auto],
+         #interface:bridge.[all],
+         ;
+ permit src = network:intern; dst = user; prt = tcp 22; 
+}
+END
+
+$out = <<END;
+ip access-list extended Ethernet2_in
+ permit icmp 10.1.0.0 0.0.0.255 host 10.9.32.1 17
+ deny ip any any
+END
+
+$head = (split /\n/, $out)[0];
+
+eq_or_diff(get_block(compile($in), $head), $out, $title);
+
+############################################################
+done_testing;

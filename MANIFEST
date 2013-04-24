@@ -62,6 +62,8 @@ misc/find-ip
 misc/intersect-ip
 misc/perltidyrc
 t/Test_Netspoc.pm
+t/bridged.t
+t/bridged.t~
 t/crypto.t
 t/host-range.t
 t/host-range.t~
