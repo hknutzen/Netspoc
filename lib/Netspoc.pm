@@ -361,24 +361,24 @@ sub equal {
 
 my $start_time = time();
 
-sub info( @ ) {
+sub info {
     return if not $config{verbose};
     print STDERR @_, "\n";
 }
 
-sub progress ( @ ) {
+sub progress {
     if ($config{time_stamps}) {
         my $diff = time() - $start_time;
         printf STDERR "%3ds ", $diff;
     }
-    info @_;
+    info(@_);
 }
 
-sub warn_msg ( @ ) {
+sub warn_msg {
     print STDERR "Warning: ", @_, "\n";
 }
 
-sub debug ( @ ) {
+sub debug {
     print STDERR @_, "\n";
 }
 
@@ -397,7 +397,7 @@ our $input;
 # Current line number of input file.
 our $line;
 
-sub context() {
+sub context {
     my $context;
     if (pos $input == length $input) {
         $context = 'at EOF';
@@ -410,13 +410,13 @@ sub context() {
     return qq/ at line $line of $file, $context\n/;
 }
 
-sub at_line() {
+sub at_line {
     return qq/ at line $line of $file\n/;
 }
 
 our $error_counter = 0;
 
-sub check_abort() {
+sub check_abort {
     $error_counter++;
     if ($error_counter == $config{max_errors}) {
         die "Aborted after $error_counter errors\n";
@@ -434,26 +434,26 @@ sub set_abort_immediately {
     $error_counter = $config{max_errors};
 }
 
-sub error_atline( @ ) {
-    print STDERR "Error: ", @_, at_line;
-    check_abort;
+sub error_atline {
+    print STDERR "Error: ", @_, at_line();
+    check_abort();
 }
 
-sub err_msg( @ ) {
+sub err_msg {
     print STDERR "Error: ", @_, "\n";
-    check_abort;
+    check_abort();
 }
 
-sub fatal_err( @ ) {
+sub fatal_err {
     print STDERR "Error: ", @_, "\n";
     die "Aborted\n";
 }
 
-sub syntax_err( @ ) {
-    die "Syntax error: ", @_, context;
+sub syntax_err {
+    die "Syntax error: ", @_, context();
 }
 
-sub internal_err( @ ) {
+sub internal_err {
     my ($package, $file, $line, $sub) = caller 1;
     die "Internal error in $sub: ", @_, "\n";
 }
@@ -464,7 +464,7 @@ sub internal_err( @ ) {
 
 # $input is used as input buffer, it holds content of current input file.
 # Progressive matching is used. \G is used to match current position.
-sub skip_space_and_comment() {
+sub skip_space_and_comment {
 
     # Ignore trailing white space and comments.
     while ($input =~ m'\G[ \t]*(?:[#].*)?(?:\n|$)'gc) {
@@ -476,20 +476,20 @@ sub skip_space_and_comment() {
 }
 
 # Check for a string and skip if available.
-sub check( $ ) {
+sub check {
     my $token = shift;
     skip_space_and_comment;
     return $input =~ m/\G$token/gc;
 }
 
 # Skip a string.
-sub skip ( $ ) {
+sub skip {
     my $token = shift;
     check $token or syntax_err "Expected '$token'";
 }
 
 # Check, if an integer is available.
-sub check_int() {
+sub check_int {
     skip_space_and_comment;
     if ($input =~ m/\G(\d+)/gc) {
         return $1;
@@ -499,7 +499,7 @@ sub check_int() {
     }
 }
 
-sub read_int() {
+sub read_int {
     my $result = check_int();
     defined $result or syntax_err "Integer expected";
     return $result;
@@ -510,7 +510,7 @@ sub check_ip {
     skip_space_and_comment;
     if ($input =~ m/\G(\d+)\.(\d+)\.(\d+)\.(\d+)/gc) {
         if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
-            error_atline "Invalid IP address";
+            error_atline("Invalid IP address");
         }
         return unpack 'N', pack 'C4', $1, $2, $3, $4;
     }
@@ -519,7 +519,7 @@ sub check_ip {
     }
 }
 
-sub read_ip() {
+sub read_ip {
     my $result = check_ip();
     defined $result or syntax_err "IP address expected";
     return $result;
@@ -533,7 +533,7 @@ sub read_mask {
 
 # Read IP address with optional prefix length or mask:
 # x.x.x.x or x.x.x.x/n or x.x.x.x/m.m.m.m
-sub read_ip_opt_mask() {
+sub read_ip_opt_mask {
     my $ip = read_ip;
     check('/') or return $ip;
     my $mask = check_ip();
@@ -543,24 +543,24 @@ sub read_ip_opt_mask() {
     }
     else {
         $mask = prefix2mask(read_int());
-        defined $mask or error_atline "Invalid prefix";
+        defined $mask or error_atline("Invalid prefix");
     }
     return $ip, $mask;
 }
 
-sub gen_ip( $$$$ ) {
+sub gen_ip {
     return unpack 'N', pack 'C4', @_;
 }
 
 # Convert IP address from internal integer representation to
 # readable string.
-sub print_ip( $ ) {
+sub print_ip {
     my $ip = shift;
     return sprintf "%vd", pack 'N', $ip;
 }
 
 # Generate a list of IP strings from an ref of an array of integers.
-sub print_ip_aref( $ ) {
+sub print_ip_aref {
     my $aref = shift;
     return map { print_ip $_; } @$aref;
 }
@@ -578,18 +578,18 @@ sub print_ip_aref( $ ) {
     }
 
     # Convert a network mask to a prefix ranging from 0 to 32.
-    sub mask2prefix( $ ) {
+    sub mask2prefix {
         my $mask = shift;
         return $mask2prefix{$mask};
     }
 
-    sub prefix2mask( $ ) {
+    sub prefix2mask {
         my $prefix = shift;
         return $prefix2mask{$prefix};
     }
 }
 
-sub complement_32bit( $ ) {
+sub complement_32bit {
     my ($ip) = @_;
     return ~$ip & 0xffffffff;
 }
@@ -599,7 +599,7 @@ sub match_ip {
     return ($ip == ($ip1 & $mask));
 }
 
-sub read_identifier() {
+sub read_identifier {
     skip_space_and_comment;
     if ($input =~ m/(\G[\w-]+)/gc) {
         return $1;
@@ -610,7 +610,7 @@ sub read_identifier() {
 }
 
 # Pattrern for attribute "visible": "*" or "name*".
-sub read_owner_pattern() {
+sub read_owner_pattern {
     skip_space_and_comment;
     if ($input =~ m/ ( \G [\w-]* [*] ) /gcx) {
         return $1;
@@ -621,7 +621,7 @@ sub read_owner_pattern() {
 }
 
 # Used for reading hardware name, model, admins, watchers.
-sub read_name() {
+sub read_name {
     skip_space_and_comment;
     if ($input =~ m/(\G[^;,\s""'']+)/gc) {
         return $1;
@@ -632,7 +632,7 @@ sub read_name() {
 }
 
 # Used for reading alias name or radius attributes.
-sub read_string() {
+sub read_string {
     skip_space_and_comment;
     if ($input =~ m/\G([^;,""''\n]+)/gc) {
         return $1;
@@ -642,17 +642,15 @@ sub read_string() {
     }
 }
 
-sub read_intersection();
-
 # Object representing 'user'.
 # This is only 'active' while parsing src or dst of the rule of a service.
 my $user_object = { active => 0, refcount => 0, elements => undef };
 
-sub read_union( $ ) {
+sub read_union {
     my ($delimiter) = @_;
     my @vals;
     my $count = $user_object->{refcount};
-    push @vals, read_intersection;
+    push @vals, read_intersection();
     my $has_user_ref   = $user_object->{refcount} > $count;
     my $user_ref_error = 0;
     while (1) {
@@ -664,18 +662,18 @@ sub read_union( $ ) {
 
         $comma_seen or syntax_err "Comma expected in union of values";
         $count = $user_object->{refcount};
-        push @vals, read_intersection;
+        push @vals, read_intersection();
         $user_ref_error ||=
           $has_user_ref != ($user_object->{refcount} > $count);
     }
     $user_ref_error
-      and error_atline "The sub-expressions of union equally must\n",
-      " either reference 'user' or must not reference 'user'";
+      and error_atline("The sub-expressions of union equally must\n",
+                       " either reference 'user' or must not reference 'user'");
     return @vals;
 }
 
 # Check for xxx:xxx | router:xx@xx | network:xx/xx | interface:xx/xx
-sub check_typed_name() {
+sub check_typed_name {
     skip_space_and_comment;
     $input =~ m/ \G (\w+) : /gcx or return undef;
     my $type = $1;
@@ -688,7 +686,7 @@ sub check_typed_name() {
     return [ $type, $name ];
 }
 
-sub read_typed_name() {
+sub read_typed_name {
     check_typed_name or syntax_err "Typed name expected";
 }
 
@@ -713,7 +711,7 @@ sub read_typed_name() {
 # or network:xxx/ppp
 # or host:id:user@domain.network
 #
-    sub read_extended_name() {
+    sub read_extended_name {
 
         if (check 'user') {
 
@@ -781,7 +779,7 @@ sub read_typed_name() {
     }
 
 # user@domain
-    sub read_user_id() {
+    sub read_user_id {
         skip_space_and_comment;
         if ($input =~ m/\G($user_id_regex)/gco) {
             return $1;
@@ -792,7 +790,7 @@ sub read_typed_name() {
     }
 
 # host:xxx or host:id:user@domain or host:id:@domain
-    sub check_hostname() {
+    sub check_hostname {
         skip_space_and_comment;
         if ($input =~ m/\G host:/gcx) {
             if ($input =~ m/\G($hostname_regex)/gco) {
@@ -808,7 +806,7 @@ sub read_typed_name() {
     }
 }
 
-sub read_complement() {
+sub read_complement {
     if (check '!') {
         [ '!', read_extended_name ];
     }
@@ -817,7 +815,7 @@ sub read_complement() {
     }
 }
 
-sub read_intersection() {
+sub read_intersection {
     my @result = read_complement;
     while (check '&') {
         push @result, read_complement;
@@ -839,7 +837,7 @@ for my $key (keys %timeunits) {
 }
 
 # Read time value in different units, return seconds.
-sub read_time_val() {
+sub read_time_val {
     my $int    = read_int;
     my $unit   = read_identifier;
     my $factor = $timeunits{$unit} or syntax_err "Invalid time unit";
@@ -862,7 +860,7 @@ sub add_description {
 }
 
 # Check if one of the keywords 'permit' or 'deny' is available.
-sub check_permit_deny() {
+sub check_permit_deny {
     skip_space_and_comment;
     if ($input =~ m/\G(permit|deny)/gc) {
         return $1;
@@ -872,14 +870,14 @@ sub check_permit_deny() {
     }
 }
 
-sub split_typed_name( $ ) {
+sub split_typed_name {
     my ($name) = @_;
 
     # Split at first colon; the name may contain further colons.
     split /[:]/, $name, 2;
 }
 
-sub check_flag( $ ) {
+sub check_flag {
     my $token = shift;
     if (check $token) {
         skip ';';
@@ -890,7 +888,7 @@ sub check_flag( $ ) {
     }
 }
 
-sub read_assign($&) {
+sub read_assign {
     my ($token, $fun) = @_;
     skip $token;
     skip '=';
@@ -906,7 +904,7 @@ sub read_assign($&) {
     }
 }
 
-sub check_assign($&) {
+sub check_assign {
     my ($token, $fun) = @_;
     if (check $token) {
         skip '=';
@@ -924,7 +922,7 @@ sub check_assign($&) {
     return;
 }
 
-sub read_list(&) {
+sub read_list {
     my ($fun) = @_;
     my @vals;
     while (1) {
@@ -940,19 +938,19 @@ sub read_list(&) {
     return @vals;
 }
 
-sub read_list_or_null(&) {
+sub read_list_or_null {
     return () if check ';';
     &read_list(@_);
 }
 
-sub read_assign_list($&) {
+sub read_assign_list {
     my ($token, $fun) = @_;
     skip $token;
     skip '=';
     &read_list($fun);
 }
 
-sub check_assign_list($&) {
+sub check_assign_list {
     my ($token, $fun) = @_;
     if (check $token) {
         skip '=';
@@ -961,7 +959,7 @@ sub check_assign_list($&) {
     return ();
 }
 
-sub check_assign_pair($$&) {
+sub check_assign_pair {
     my ($token, $delimiter, $fun) = @_;
     if (check $token) {
         skip '=';
@@ -976,13 +974,13 @@ sub check_assign_pair($$&) {
 
 # Delete an element from an array reference.
 # Return 1 if found, 0 otherwise.
-sub aref_delete( $$ ) {
+sub aref_delete {
     my ($aref, $elt) = @_;
     for (my $i = 0 ; $i < @$aref ; $i++) {
         if ($aref->[$i] eq $elt) {
             splice @$aref, $i, 1;
 
-#debug "aref_delete: $elt->{name}";
+#debug("aref_delete: $elt->{name}");
             return 1;
         }
     }
@@ -990,7 +988,7 @@ sub aref_delete( $$ ) {
 }
 
 # Compare two array references element wise.
-sub aref_eq ( $$ ) {
+sub aref_eq  {
     my ($a1, $a2) = @_;
     return 0 if @$a1 ne @$a2;
     for (my $i = 0 ; $i < @$a1 ; $i++) {
@@ -1001,7 +999,7 @@ sub aref_eq ( $$ ) {
 
 # Unique union of all elements.
 # Preserves originnal order.
-sub unique(@) {
+sub unique {
     my %seen;
     return grep { !$seen{$_}++ } @_;
 }
@@ -1019,7 +1017,7 @@ my $from_json;
 
 # Create a new structure of given type;
 # initialize it with key / value pairs.
-sub new( $@ ) {
+sub new {
     my $type = shift;
     my $self = {@_};
     return bless $self, $type;
@@ -1034,7 +1032,7 @@ our %hosts;
 # to managed devices.
 my $policy_distribution_point;
 
-sub check_radius_attributes() {
+sub check_radius_attributes {
     my $result = {};
     check 'radius_attributes'
       or return undef;
@@ -1045,13 +1043,13 @@ sub check_radius_attributes() {
         my $key = read_identifier;
         my $val = check('=') ? read_string : undef;
         skip ';';
-        $result->{$key} and error_atline "Duplicate attribute '$key'";
+        $result->{$key} and error_atline("Duplicate attribute '$key'");
         $result->{$key} = $val;
     }
     return $result;
 }
 
-sub read_host( $$ ) {
+sub read_host {
     my ($name, $network_name) = @_;
     my $host = new('Host');
     $host->{private} = $private if $private;
@@ -1068,27 +1066,27 @@ sub read_host( $$ ) {
     while (1) {
         last if check '}';
         if (my $ip = check_assign 'ip', \&read_ip) {
-            $host->{ip} and error_atline "Duplicate attribute 'ip'";
+            $host->{ip} and error_atline("Duplicate attribute 'ip'");
             $host->{ip} = $ip;
         }
         elsif (my ($ip1, $ip2) = check_assign_pair('range', '-', \&read_ip)) {
-            $ip1 <= $ip2 or error_atline "Invalid IP range";
-            $host->{range} and error_atline "Duplicate attribute 'range'";
+            $ip1 <= $ip2 or error_atline("Invalid IP range");
+            $host->{range} and error_atline("Duplicate attribute 'range'");
             $host->{range} = [ $ip1, $ip2 ];
         }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
-            $host->{owner} and error_atline "Duplicate attribute 'owner'";
+            $host->{owner} and error_atline("Duplicate attribute 'owner'");
             $host->{owner} = $owner;
         }
         elsif (my $radius_attributes = check_radius_attributes) {
             $host->{radius_attributes}
-              and error_atline "Duplicate attribute 'radius_attributes'";
+              and error_atline("Duplicate attribute 'radius_attributes'");
             $host->{radius_attributes} = $radius_attributes;
         }
         elsif (check_flag 'policy_distribution_point') {
             $policy_distribution_point
-              and error_atline
-              "'policy_distribution_point' must be defined only once";
+              and error_atline("'policy_distribution_point' must be defined",
+                               " only once");
             $policy_distribution_point = $host;
         }
         elsif (my $pair = check_typed_name) {
@@ -1102,7 +1100,7 @@ sub read_host( $$ ) {
                 skip ';';
                 skip '}';
                 $host->{nat}->{$name}
-                  and error_atline "Duplicate NAT definition";
+                  and error_atline("Duplicate NAT definition");
                 $host->{nat}->{$name} = $nat_ip;
             }
             else {
@@ -1121,22 +1119,22 @@ sub read_host( $$ ) {
     }
     else {
         $host->{radius_attributes}
-          and error_atline
-          "Attribute 'radius_attributes' is not allowed for $name";
+          and error_atline("Attribute 'radius_attributes' is not allowed",
+                           " for $name");
     }
     if ($host->{nat}) {
         for my $what (qw(range subnet)) {
             if ($host->{$what}) {
 
                 # Look at print_pix_static before changing this.
-                error_atline "No NAT supported for host with '$what'";
+                error_atline("No NAT supported for host with '$what'");
             }
         }
     }
     return $host;
 }
 
-sub read_nat( $ ) {
+sub read_nat {
     my $name = shift;
 
     # Currently this needs not to be blessed.
@@ -1148,14 +1146,14 @@ sub read_nat( $ ) {
         last if check '}';
         if (my ($ip, $mask) = check_assign 'ip', \&read_ip_opt_mask) {
             if (defined $mask) {
-                $nat->{mask} and error_atline "Duplicate IP mask";
+                $nat->{mask} and error_atline("Duplicate IP mask");
                 $nat->{mask} = $mask;
             }
-            $nat->{ip} and error_atline "Duplicate IP address";
+            $nat->{ip} and error_atline("Duplicate IP address");
             $nat->{ip} = $ip;
         }
         elsif ($mask = check_assign 'mask', \&read_mask) {
-            $nat->{mask} and error_atline "Duplicate IP mask";
+            $nat->{mask} and error_atline("Duplicate IP mask");
             $nat->{mask} = $mask;
         }
         elsif (check_flag 'hidden') {
@@ -1169,7 +1167,7 @@ sub read_nat( $ ) {
         }
         elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
             $nat->{subnet_of}
-              and error_atline "Duplicate attribute 'subnet_of'";
+              and error_atline("Duplicate attribute 'subnet_of'");
             $nat->{subnet_of} = $pair;
         }
         else {
@@ -1179,21 +1177,21 @@ sub read_nat( $ ) {
     if ($nat->{hidden}) {
         for my $key (keys %$nat) {
             next if grep { $key eq $_ } qw( name hidden );
-            error_atline "Hidden NAT must not use attribute $key";
+            error_atline("Hidden NAT must not use attribute $key");
         }
 
         # This simplifies error checks for overlapping addresses.
         $nat->{dynamic} = $nat_tag;
     }
     else {
-        $nat->{ip} or error_atline "Missing IP address";
+        $nat->{ip} or error_atline("Missing IP address");
     }
     return $nat;
 }
 
 our %networks;
 
-sub read_network( $ ) {
+sub read_network {
     my $name = shift;
 
     # Network name without prefix "network:" is needed to build
@@ -1211,18 +1209,18 @@ sub read_network( $ ) {
         last if check '}';
         if (my ($ip, $mask) = check_assign 'ip', \&read_ip_opt_mask) {
             if (defined $mask) {
-                defined $network->{mask} and error_atline "Duplicate IP mask";
+                defined $network->{mask} and error_atline("Duplicate IP mask");
                 $network->{mask} = $mask;
             }
-            $network->{ip} and error_atline "Duplicate IP address";
+            $network->{ip} and error_atline("Duplicate IP address");
             $network->{ip} = $ip;
         }
         elsif (defined($mask = check_assign 'mask', \&read_mask)) {
-            defined $network->{mask} and error_atline "Duplicate IP mask";
+            defined $network->{mask} and error_atline("Duplicate IP mask");
             $network->{mask} = $mask;
         }
         elsif (check_flag 'unnumbered') {
-            defined $network->{ip} and error_atline "Duplicate IP address";
+            defined $network->{ip} and error_atline("Duplicate IP address");
             $network->{ip} = 'unnumbered';
         }
         elsif (check_flag 'has_subnets') {
@@ -1242,24 +1240,24 @@ sub read_network( $ ) {
         }
         elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
             $network->{subnet_of}
-              and error_atline "Duplicate attribute 'subnet_of'";
+              and error_atline("Duplicate attribute 'subnet_of'");
             $network->{subnet_of} = $pair;
         }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $network->{owner}
-              and error_atline "Duplicate attribute 'owner'";
+              and error_atline("Duplicate attribute 'owner'");
             $network->{owner} = $owner;
         }
         elsif (my $radius_attributes = check_radius_attributes) {
             $network->{radius_attributes}
-              and error_atline "Duplicate attribute 'radius_attributes'";
+              and error_atline("Duplicate attribute 'radius_attributes'");
             $network->{radius_attributes} = $radius_attributes;
         }
         elsif (my $string = check_hostname) {
             my $host = read_host $string, $net_name;
             push @{ $network->{hosts} }, $host;
             my ($dummy, $host_name) = split_typed_name $host->{name};
-            $hosts{$host_name} and error_atline "Duplicate host:$host_name";
+            $hosts{$host_name} and error_atline("Duplicate host:$host_name");
             $hosts{$host_name} = $host;
         }
         else {
@@ -1269,7 +1267,7 @@ sub read_network( $ ) {
                 my $nat = read_nat "nat:$name2";
                 $nat->{name} .= "($name)";
                 $network->{nat}->{$name2}
-                  and error_atline "Duplicate NAT definition";
+                  and error_atline("Duplicate NAT definition");
                 $network->{nat}->{$name2} = $nat;
             }
             else {
@@ -1290,10 +1288,10 @@ sub read_network( $ ) {
         # Unnumbered network must not have any other attributes.
         for my $key (keys %$network) {
             next if $ok{$key};
-            error_atline "Unnumbered $network->{name} must not have ",
-                ($key eq 'hosts') ? "host definition"
-              : ($key eq 'nat')   ? "nat definition"
-              :                     "attribute '$key'";
+            error_atline("Unnumbered $network->{name} must not have ",
+                           ($key eq 'hosts') ? "host definition"
+                         : ($key eq 'nat')   ? "nat definition"
+                         :                     "attribute '$key'");
         }
     }
     elsif ($network->{bridged}) {
@@ -1302,10 +1300,11 @@ sub read_network( $ ) {
         # Bridged network must not have any other attributes.
         for my $key (keys %$network) {
             next if $ok{$key};
-            error_atline "Bridged $network->{name} must not have ",
+            error_atline(
+              "Bridged $network->{name} must not have ",
                 ($key eq 'hosts') ? "host definition (not implemented)"
               : ($key eq 'nat')   ? "nat definition"
-              :                     "attribute '$key'";
+              :                     "attribute '$key'");
         }
     }
     else {
@@ -1316,7 +1315,7 @@ sub read_network( $ ) {
 
         # Check if network IP matches mask.
         if (not(match_ip($ip, $ip, $mask))) {
-            error_atline "IP and mask don't match";
+            error_atline("IP and mask don't match");
 
             # Prevent further errors.
             $network->{ip} &= $mask;
@@ -1329,8 +1328,8 @@ sub read_network( $ ) {
             # Check compatibility of host IP and network IP/mask.
             if (my $host_ip = $host->{ip}) {
                 if (not(match_ip($host_ip, $ip, $mask))) {
-                    error_atline
-                      "$host->{name}'s IP doesn't match network IP/mask";
+                    error_atline("$host->{name}'s IP doesn't match".
+                                 " network IP/mask");
                 }
             }
             elsif ($host->{range}) {
@@ -1340,8 +1339,8 @@ sub read_network( $ ) {
                         and match_ip($ip2, $ip, $mask))
                   )
                 {
-                    error_atline "$host->{name}'s IP range doesn't match",
-                      " network IP/mask";
+                    error_atline("$host->{name}'s IP range doesn't match",
+                                 " network IP/mask");
                 }
             }
             else {
@@ -1352,7 +1351,7 @@ sub read_network( $ ) {
             # after global NAT definitions have been processed.
         }
         if (@{ $network->{hosts} } and $network->{crosslink}) {
-            error_atline "Crosslink network must not have host definitions";
+            error_atline("Crosslink network must not have host definitions");
         }
         if ($network->{nat}) {
             $network->{isolated_ports}
@@ -1365,8 +1364,8 @@ sub read_network( $ ) {
                 if (defined $nat->{mask}) {
                     unless ($nat->{dynamic}) {
                         $nat->{mask} == $mask
-                          or error_atline "Mask for non dynamic $nat->{name}",
-                          " must be equal to network mask";
+                          or error_atline("Mask for non dynamic $nat->{name}",
+                                          " must be equal to network mask");
                     }
                 }
                 else {
@@ -1377,8 +1376,8 @@ sub read_network( $ ) {
 
                 # Check if IP matches mask.
                 if (not(match_ip($nat->{ip}, $nat->{ip}, $nat->{mask}))) {
-                    error_atline "IP for $nat->{name} of doesn't",
-                      " match its mask";
+                    error_atline("IP for $nat->{name} of doesn't",
+                                 " match its mask");
 
                     # Prevent further errors.
                     $nat->{ip} &= $nat->{mask};
@@ -1391,7 +1390,7 @@ sub read_network( $ ) {
 
             # If one host has ID, all hosts must have ID.
             @{ $network->{hosts} } == $id_hosts_count
-              or error_atline "All hosts must have ID in $name";
+              or error_atline("All hosts must have ID in $name");
 
             # Mark network.
             $network->{has_id_hosts} = 1;
@@ -1399,8 +1398,8 @@ sub read_network( $ ) {
         }
         else {
             $network->{radius_attributes}
-              and error_atline
-              "Attribute 'radius_attributes' is not allowed for $name";
+              and error_atline("Attribute 'radius_attributes' is",
+                               " not allowed for $name");
         }
     }
     return $network;
@@ -1500,7 +1499,7 @@ my %crypto2spokes;
 # Key is crypto name, not crypto object.
 my %crypto2hubs;
 
-sub read_interface( $ ) {
+sub read_interface {
     my ($name) = @_;
     my $interface = new('Interface', name => $name);
 
@@ -1518,7 +1517,7 @@ sub read_interface( $ ) {
     while (1) {
         last if check '}';
         if (my @ip = check_assign_list 'ip', \&read_ip) {
-            $interface->{ip} and error_atline "Duplicate attribute 'ip'";
+            $interface->{ip} and error_atline("Duplicate attribute 'ip'");
             $interface->{ip} = shift @ip;
 
             # Build interface objects for secondary IP addresses.
@@ -1531,11 +1530,11 @@ sub read_interface( $ ) {
             }
         }
         elsif (check_flag 'unnumbered') {
-            $interface->{ip} and error_atline "Duplicate attribute 'ip'";
+            $interface->{ip} and error_atline("Duplicate attribute 'ip'");
             $interface->{ip} = 'unnumbered';
         }
         elsif (check_flag 'negotiated') {
-            $interface->{ip} and error_atline "Duplicate attribute 'ip'";
+            $interface->{ip} and error_atline("Duplicate attribute 'ip'");
             $interface->{ip} = 'negotiated';
         }
         elsif (check_flag 'loopback') {
@@ -1548,33 +1547,33 @@ sub read_interface( $ ) {
         # Needed for the implicitly defined network of 'loopback'.
         elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
             $interface->{subnet_of}
-              and error_atline "Duplicate attribute 'subnet_of'";
+              and error_atline("Duplicate attribute 'subnet_of'");
             $interface->{subnet_of} = $pair;
         }
         elsif (my @pairs = check_assign_list 'hub', \&read_typed_name) {
             for my $pair (@pairs) {
                 my ($type, $name2) = @$pair;
-                $type eq 'crypto' or error_atline "Expected type 'crypto'";
+                $type eq 'crypto' or error_atline("Expected type 'crypto'");
                 push @{ $interface->{hub} }, "$type:$name2";
             }
         }
         elsif ($pair = check_assign 'spoke', \&read_typed_name) {
             my ($type, $name2) = @$pair;
-            $type eq 'crypto' or error_atline "Expected type crypto";
-            $interface->{spoke} and error_atline "Duplicate attribute 'spoke'";
+            $type eq 'crypto' or error_atline("Expected type crypto");
+            $interface->{spoke} and error_atline("Duplicate attribute 'spoke'");
             $interface->{spoke} = "$type:$name2";
         }
         elsif (my $id = check_assign 'id', \&read_user_id) {
             $interface->{id}
-              and error_atline "Duplicate attribute 'id'";
+              and error_atline("Duplicate attribute 'id'");
             $interface->{id} = $id;
         }
         elsif (defined(my $level = check_assign 'security_level', \&read_int)) {
             $level > 100
-              and error_atline
-              "Maximum value for attribute security_level is 100";
+              and error_atline("Maximum value for attribute security_level",
+                               " is 100");
             defined $interface->{security_level}
-              and error_atline "Duplicate attribute 'security_level'";
+              and error_atline("Duplicate attribute 'security_level'");
             $interface->{security_level} = $level;
         }
         elsif ($pair = check_typed_name) {
@@ -1588,7 +1587,7 @@ sub read_interface( $ ) {
                 skip ';';
                 skip '}';
                 $interface->{nat}->{$name2}
-                  and error_atline "Duplicate NAT definition";
+                  and error_atline("Duplicate NAT definition");
                 $interface->{nat}->{$name2} = $nat_ip;
             }
             elsif ($type eq 'secondary') {
@@ -1601,14 +1600,14 @@ sub read_interface( $ ) {
                     last if check '}';
                     if (my $ip = check_assign 'ip', \&read_ip) {
                         $secondary->{ip}
-                          and error_atline "Duplicate IP address";
+                          and error_atline("Duplicate IP address");
                         $secondary->{ip} = $ip;
                     }
                     else {
                         syntax_err "Expected attribute IP";
                     }
                 }
-                $secondary->{ip} or error_atline "Missing IP address";
+                $secondary->{ip} or error_atline("Missing IP address");
                 push @secondary_interfaces, $secondary;
             }
             else {
@@ -1616,7 +1615,7 @@ sub read_interface( $ ) {
             }
         }
         elsif (check 'virtual') {
-            $virtual and error_atline "Duplicate virtual interface";
+            $virtual and error_atline("Duplicate virtual interface");
 
             # Read attributes of redundancy protocol (VRRP/HSRP).
             $virtual = new(
@@ -1630,50 +1629,51 @@ sub read_interface( $ ) {
                 last if check '}';
                 if (my $ip = check_assign 'ip', \&read_ip) {
                     $virtual->{ip}
-                      and error_atline "Duplicate virtual IP address";
+                      and error_atline("Duplicate virtual IP address");
                     $virtual->{ip} = $ip;
                 }
                 elsif (my $type = check_assign 'type', \&read_identifier) {
                     $xxrp_info{$type}
-                      or error_atline "Unknown redundancy protocol";
+                      or error_atline("Unknown redundancy protocol");
                     $virtual->{redundancy_type}
-                      and error_atline "Duplicate redundancy protocol";
+                      and error_atline("Duplicate redundancy protocol");
                     $virtual->{redundancy_type} = $type;
                 }
                 elsif (my $id = check_assign 'id', \&read_identifier) {
                     $id =~ /^\d+$/
-                      or error_atline "Redundancy ID must be numeric";
-                    $id < 256 or error_atline "Redundancy ID must be < 256";
+                      or error_atline("Redundancy ID must be numeric");
+                    $id < 256 or error_atline("Redundancy ID must be < 256");
                     $virtual->{redundancy_id}
-                      and error_atline "Duplicate redundancy ID";
+                      and error_atline("Duplicate redundancy ID");
                     $virtual->{redundancy_id} = $id;
                 }
                 else {
                     syntax_err "Expected valid attribute for virtual IP";
                 }
             }
-            $virtual->{ip} or error_atline "Missing virtual IP";
+            $virtual->{ip} or error_atline("Missing virtual IP");
             $virtual->{redundancy_id} && !$virtual->{redundancy_type} and
                 syntax_err "Redundancy ID is given without redundancy protocol";
         }
         elsif (my @tags = check_assign_list 'bind_nat', \&read_identifier) {
-            $interface->{bind_nat} and error_atline "Duplicate NAT binding";
+            $interface->{bind_nat} and error_atline("Duplicate NAT binding");
             $interface->{bind_nat} = [ unique sort @tags ];
         }
         elsif (my $hardware = check_assign 'hardware', \&read_name) {
             $interface->{hardware}
-              and error_atline "Duplicate definition of hardware";
+              and error_atline("Duplicate definition of hardware");
             $interface->{hardware} = $hardware;
         }
         elsif (my $protocol = check_assign 'routing', \&read_identifier) {
             my $routing = $routing_info{$protocol}
-              or error_atline "Unknown routing protocol";
-            $interface->{routing} and error_atline "Duplicate routing protocol";
+              or error_atline("Unknown routing protocol");
+            $interface->{routing} 
+              and error_atline("Duplicate routing protocol");
             $interface->{routing} = $routing;
         }
         elsif (@pairs = check_assign_list 'reroute_permit', \&read_typed_name) {
             $interface->{reroute_permit}
-              and error_atline 'Duplicate definition of reroute_permit';
+              and error_atline('Duplicate definition of reroute_permit');
             $interface->{reroute_permit} = \@pairs;
         }
         elsif (check_flag 'disabled') {
@@ -1686,7 +1686,7 @@ sub read_interface( $ ) {
             $interface->{promiscuous_port} = 1;
         }
         else {
-            syntax_err 'Expected some valid attribute';
+            syntax_err('Expected some valid attribute');
         }
     }
 
@@ -1700,7 +1700,7 @@ sub read_interface( $ ) {
     if ($virtual) {
         if (my $ip = $interface->{ip}) {
             if ($ip =~ /^(unnumbered|negotiated|short|bridged)$/) {
-                error_atline "No virtual IP supported for $ip interface";
+                error_atline("No virtual IP supported for $ip interface");
             }
 
             # Move main IP to secondary.
@@ -1721,7 +1721,7 @@ sub read_interface( $ ) {
     }
     if ($interface->{nat}) {
         if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
-            error_atline "No NAT supported for $interface->{ip} interface";
+            error_atline("No NAT supported for $interface->{ip} interface");
         }
     }
     if ((my $routing = $interface->{routing}) && 
@@ -1729,8 +1729,8 @@ sub read_interface( $ ) {
     {
         my $rname = $routing->{name};
         $rname ne 'manual' and
-            error_atline(
-                "Routing $rname not supported for unnumbered interface");
+            error_atline("Routing $rname not supported",
+                         " for unnumbered interface");
     }
     if ($interface->{loopback}) {
         my %copy = %$interface;
@@ -1742,38 +1742,38 @@ sub read_interface( $ ) {
           };
         if (keys %copy) {
             my $attr = join ", ", map "'$_'", keys %copy;
-            error_atline "Invalid attributes $attr for loopback interface";
+            error_atline("Invalid attributes $attr for loopback interface");
         }
         if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
-            error_atline "Loopback interface must not be $interface->{ip}";
+            error_atline("Loopback interface must not be $interface->{ip}");
         }
     }
     elsif ($interface->{subnet_of}) {
-        error_atline
-          "Attribute 'subnet_of' is only valid for loopback interface";
+        error_atline("Attribute 'subnet_of' is only valid",
+                     " for loopback interface");
     }
     if ($interface->{ip} eq 'bridged') {
         my %ok = (ip => 1, hardware => 1, name => 1);
         if (my @extra = grep(not($ok{$_}), keys %$interface)) {
             my $attr = join ", ", map "'$_'", @extra;
-            error_atline "Invalid attributes $attr for bridged interface";
+            error_atline("Invalid attributes $attr for bridged interface");
         }
     }
     if (my $crypto = $interface->{spoke}) {
         @secondary_interfaces
-          and error_atline "Interface with attribute 'spoke'",
-          " must not have secondary interfaces";
+          and error_atline("Interface with attribute 'spoke'",
+                           " must not have secondary interfaces");
         $interface->{hub}
-          and error_atline "Interface with attribute 'spoke'",
-          " must not have attribute 'hub'";
+          and error_atline("Interface with attribute 'spoke'",
+                           " must not have attribute 'hub'");
     }
     else {
         $interface->{id}
-          and error_atline "Attribute 'id' is only valid for 'spoke' interface";
+          and error_atline("Attribute 'id' is only valid for 'spoke' interface");
     }
     if (my $crypto_list = $interface->{hub}) {
         if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
-            error_atline "Crypto hub must not be $interface->{ip} interface";
+            error_atline("Crypto hub must not be $interface->{ip} interface");
         }
         for my $crypto (@$crypto_list) {
             push @{ $crypto2hubs{$crypto} }, $interface;
@@ -1837,7 +1837,7 @@ my $bind_nat0 = [];
 
 our %routers;
 
-sub read_router( $ ) {
+sub read_router {
     my $name = shift;
 
     # Extract
@@ -1849,7 +1849,7 @@ sub read_router( $ ) {
     if (defined $vrf) {
 
         # VRF value "0" would be interpreted as false by perl.
-        $vrf or error_atline "Must not use '$vrf' as VRF value";
+        $vrf or error_atline("Must not use '$vrf' as VRF value");
         $router->{vrf} = $vrf;
     }
     skip '=';
@@ -1859,7 +1859,7 @@ sub read_router( $ ) {
         last if check '}';
         if (check 'managed') {
             $router->{managed}
-              and error_atline "Redefining 'managed' attribute";
+              and error_atline("Redefining 'managed' attribute");
             my $managed;
             if (check ';') {
                 $managed = 'standard';
@@ -1870,8 +1870,8 @@ sub read_router( $ ) {
                     $managed = $value;
                 }
                 else {
-                    error_atline
-                      "Expected value: secondary|standard|full|primary";
+                    error_atline("Expected value:",
+                                 " secondary|standard|full|primary");
                 }
                 check ';';
             }
@@ -1886,21 +1886,21 @@ sub read_router( $ ) {
             my @attr2;
             ($model, @attr2) = split /_/, $model;
             push @attributes, @attr2;
-            $router->{model} and error_atline "Redefining 'model' attribute";
+            $router->{model} and error_atline("Redefining 'model' attribute");
             my $info = $router_info{$model};
             if (not $info) {
-                error_atline "Unknown router model";
+                error_atline("Unknown router model");
                 next;
             }
             my $extension_info = $info->{extension};
             if (@attributes and not $extension_info) {
-                error_atline "No extension expected for this model";
+                error_atline("No extension expected for this model");
                 next;
             }
 
             my @ext_list = map {
                 my $ext = $extension_info->{$_};
-                $ext or error_atline "Unknown extension $_";
+                $ext or error_atline("Unknown extension $_");
                 $ext ? %$ext : ();
             } @attributes;
             if (@ext_list) {
@@ -1923,12 +1923,12 @@ sub read_router( $ ) {
             $router->{log_deny} = 1;
         }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
-            $router->{owner} and error_atline "Duplicate attribute 'owner'";
+            $router->{owner} and error_atline("Duplicate attribute 'owner'");
             $router->{owner} = $owner;
         }
         elsif (my $radius_attributes = check_radius_attributes) {
             $router->{radius_attributes}
-              and error_atline "Duplicate attribute 'radius_attributes'";
+              and error_atline("Duplicate attribute 'radius_attributes'");
             $router->{radius_attributes} = $radius_attributes;
         }
         else {
@@ -1943,7 +1943,7 @@ sub read_router( $ ) {
                 push @{ $router->{interfaces} }, $interface;
                 ($iname = $interface->{name}) =~ s/interface://;
                 if ($interfaces{$iname}) {
-                    error_atline "Redefining $interface->{name}";
+                    error_atline("Redefining $interface->{name}");
                 }
 
                 # Assign interface to global hash of interfaces.
@@ -2052,7 +2052,7 @@ sub read_router( $ ) {
                 and not($interface->{hub} and $model->{do_auth}))
             {
                 delete $interface->{no_check};
-                warn_msg "Ignoring attribute 'no_check' at $interface->{name}";
+                warn_msg("Ignoring attribute 'no_check' at $interface->{name}");
             }
         }
 
@@ -2132,24 +2132,24 @@ sub read_router( $ ) {
     else {
         my $bridged;
         $router->{owner}
-          and error_atline "Attribute 'owner' must only be used at",
-          " managed device";
+          and error_atline("Attribute 'owner' must only be used at",
+                           " managed device");
 
         for my $interface (@{ $router->{interfaces} }) {
             if ($interface->{hub}) {
-                error_atline "Interface with attribute 'hub' must only be",
-                  " used at managed device";
+                error_atline("Interface with attribute 'hub' must only be",
+                             " used at managed device");
             }
             if ($interface->{spoke}) {
                 $router->{semi_managed} = 1;
             }
             if ($interface->{promiscuous_port}) {
-                error_atline "Interface with attribute 'promiscuous_port'",
-                  " must only be used at managed device";
+                error_atline("Interface with attribute 'promiscuous_port'",
+                             " must only be used at managed device");
             }
             if (delete $interface->{reroute_permit}) {
-                warn_msg "Ignoring attribute 'reroute_permit'",
-                  " at unmanaged $interface->{name}";
+                warn_msg("Ignoring attribute 'reroute_permit'",
+                         " at unmanaged $interface->{name}");
             }
             if ($interface->{ip} eq 'bridged') {
                 $bridged = 1;
@@ -2158,8 +2158,8 @@ sub read_router( $ ) {
 
         # Unmanaged bridge would complicate generation of static routes.
         if ($bridged) {
-            error_atline
-              "Bridged interfaces must only be used at managed device";
+            error_atline("Bridged interfaces must only be used",
+                         " at managed device");
         }
     }
 
@@ -2223,7 +2223,7 @@ sub read_router( $ ) {
                 }
             }
             if ($interfaces{$iname}) {
-                error_atline "Redefining $tunnel_intf->{name}";
+                error_atline("Redefining $tunnel_intf->{name}");
             }
             $interfaces{$iname} = $tunnel_intf;
             push @{ $router->{interfaces} }, $tunnel_intf;
@@ -2257,24 +2257,25 @@ sub read_aggregate {
         last if check '}';
         if (my ($ip, $mask) = check_assign 'ip', \&read_ip_opt_mask) {
             if (defined $mask) {
-                defined $aggregate->{mask} and error_atline "Duplicate IP mask";
+                defined $aggregate->{mask} 
+                  and error_atline("Duplicate IP mask");
                 $aggregate->{mask} = $mask;
             }
-            $aggregate->{ip} and error_atline "Duplicate IP address";
+            $aggregate->{ip} and error_atline("Duplicate IP address");
             $aggregate->{ip} = $ip;
         }
         elsif (defined($mask = check_assign 'mask', \&read_mask)) {
-            defined $aggregate->{mask} and error_atline "Duplicate IP mask";
+            defined $aggregate->{mask} and error_atline("Duplicate IP mask");
             $aggregate->{mask} = $mask;
         }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $aggregate->{owner}
-              and error_atline 'Duplicate definition of owner';
+              and error_atline('Duplicate definition of owner');
             $aggregate->{owner} = $owner;
         }
         elsif (my $link = check_assign 'link', \&read_typed_name) {
             $aggregate->{link}
-              and error_atline 'Duplicate definition of link';
+              and error_atline('Duplicate definition of link');
             $aggregate->{link} = $link;
         }
         elsif (check_flag 'no_in_acl') {
@@ -2291,17 +2292,17 @@ sub read_aggregate {
 
         # Check if aggregate IP matches mask.
         if (not(match_ip($ip, $ip, $mask))) {
-            error_atline "IP and mask don't match";
+            error_atline("IP and mask don't match");
         }
         $aggregate->{owner}
-          and error_atline "Must not define 'owner' if mask is set";
+          and error_atline("Must not define 'owner' if mask is set");
         $aggregate->{no_in_acl}
-          and error_atline "Must not define 'no_in_acl' if mask is set";
+          and error_atline("Must not define 'no_in_acl' if mask is set");
     }
     return $aggregate;
 }
 
-sub check_router_attributes() {
+sub check_router_attributes {
     my $result = {};
     check 'router_attributes'
       or return undef;
@@ -2310,7 +2311,7 @@ sub check_router_attributes() {
     while (1) {
         last if check '}';
         if (my $owner = check_assign 'owner', \&read_identifier) {
-            $result->{owner} and error_atline "Duplicate attribute 'owner'";
+            $result->{owner} and error_atline("Duplicate attribute 'owner'");
             $result->{owner} = $owner;
         }
         else {
@@ -2322,7 +2323,7 @@ sub check_router_attributes() {
 
 our %areas;
 
-sub read_area( $ ) {
+sub read_area {
     my $name = shift;
     my $area = new('Area', name => $name);
     skip '=';
@@ -2332,23 +2333,23 @@ sub read_area( $ ) {
         last if check '}';
         if (my @elements = check_assign_list 'border', \&read_intersection) {
             $area->{border}
-              and error_atline 'Duplicate definition of border';
+              and error_atline('Duplicate definition of border');
             $area->{border} = \@elements;
         }
         elsif (check_flag 'auto_border') {
             $area->{auto_border} = 1;
         }
         elsif (my $pair = check_assign 'anchor', \&read_typed_name) {
-            $area->{anchor} and error_atline "Duplicate attribute 'anchor'";
+            $area->{anchor} and error_atline("Duplicate attribute 'anchor'");
             $area->{anchor} = $pair;
         }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
-            $area->{owner} and error_atline "Duplicate attribute 'owner'";
+            $area->{owner} and error_atline("Duplicate attribute 'owner'");
             $area->{owner} = $owner;
         }
         elsif (my $router_attributes = check_router_attributes()) {
             $area->{router_attributes}
-              and error_atline "Duplicate attribute 'router_attributes'";
+              and error_atline("Duplicate attribute 'router_attributes'");
             $area->{router_attributes} = $router_attributes;
         }
         else {
@@ -2368,7 +2369,7 @@ sub read_area( $ ) {
 
 our %groups;
 
-sub read_group( $ ) {
+sub read_group {
     my $name = shift;
     skip '=';
     my $group = new('Group', name => $name);
@@ -2381,7 +2382,7 @@ sub read_group( $ ) {
 
 our %protocolgroups;
 
-sub read_protocolgroup( $ ) {
+sub read_protocolgroup {
     my $name = shift;
     skip '=';
     my @pairs = read_list_or_null \&read_typed_name_or_simple_protocol;
@@ -2392,15 +2393,15 @@ sub read_protocolgroup( $ ) {
 # Don't allocate memory again and again.
 my $aref_tcp_any = [ 1, 65535 ];
 
-sub read_port_range() {
+sub read_port_range {
     if (defined(my $port1 = check_int)) {
-        error_atline "Too large port number $port1" if $port1 > 65535;
-        error_atline "Invalid port number '0'" if $port1 == 0;
+        error_atline("Too large port number $port1") if $port1 > 65535;
+        error_atline("Invalid port number '0'") if $port1 == 0;
         if (check '-') {
             if (defined(my $port2 = check_int)) {
-                error_atline "Too large port number $port2" if $port2 > 65535;
-                error_atline "Invalid port number '0'" if $port2 == 0;
-                error_atline "Invalid port range $port1-$port2"
+                error_atline("Too large port number $port2") if $port2 > 65535;
+                error_atline("Invalid port number '0'") if $port2 == 0;
+                error_atline("Invalid port range $port1-$port2")
                   if $port1 > $port2;
                 return [ $port1, $port2 ];
             }
@@ -2417,7 +2418,7 @@ sub read_port_range() {
     }
 }
 
-sub read_port_ranges( $ ) {
+sub read_port_ranges {
     my ($prt) = @_;
     my $range = read_port_range;
     if (check ':') {
@@ -2430,13 +2431,13 @@ sub read_port_ranges( $ ) {
     }
 }
 
-sub read_icmp_type_code( $ ) {
+sub read_icmp_type_code {
     my ($prt) = @_;
     if (defined(my $type = check_int)) {
-        error_atline "Too large ICMP type $type" if $type > 255;
+        error_atline("Too large ICMP type $type") if $type > 255;
         if (check '/') {
             if (defined(my $code = check_int)) {
-                error_atline "Too large ICMP code $code" if $code > 255;
+                error_atline("Too large ICMP code $code") if $code > 255;
                 $prt->{type} = $type;
                 $prt->{code} = $code;
             }
@@ -2457,11 +2458,11 @@ sub read_icmp_type_code( $ ) {
     }
 }
 
-sub read_proto_nr( $ ) {
+sub read_proto_nr {
     my ($prt) = @_;
     if (defined(my $nr = check_int)) {
-        error_atline "Too large protocol number $nr" if $nr > 255;
-        error_atline "Invalid protocol number '0'"   if $nr == 0;
+        error_atline("Too large protocol number $nr") if $nr > 255;
+        error_atline("Invalid protocol number '0'")   if $nr == 0;
         if ($nr == 1) {
             $prt->{proto} = 'icmp';
 
@@ -2566,7 +2567,7 @@ sub read_simple_protocol {
     }
     else {
         my $string = read_name;
-        error_atline "Unknown protocol '$string'";
+        error_atline("Unknown protocol '$string'");
     }
     if ($name) {
         $protocol->{name} = $name;
@@ -2599,7 +2600,7 @@ sub read_typed_name_or_simple_protocol {
     return (check_typed_name() || read_simple_protocol());
 }
 
-sub read_protocol( $ ) {
+sub read_protocol {
     my $name = shift;
     skip '=';
     my $protocol = read_simple_protocol($name);
@@ -2610,7 +2611,7 @@ sub read_protocol( $ ) {
 
 our %services;
 
-sub assign_union_allow_user( $ ) {
+sub assign_union_allow_user {
     my ($name) = @_;
     skip $name;
     skip '=';
@@ -2621,7 +2622,7 @@ sub assign_union_allow_user( $ ) {
     return \@result, $user_object->{refcount};
 }
 
-sub read_service( $ ) {
+sub read_service {
     my ($name) = @_;
     my $service = { name => $name, rules => [] };
     $service->{private} = $private if $private;
@@ -2632,27 +2633,27 @@ sub read_service( $ ) {
         last if check 'user';
         if (my $sub_owner = check_assign 'sub_owner', \&read_identifier) {
             $service->{sub_owner}
-              and error_atline "Duplicate attribute 'sub_owner'";
+              and error_atline("Duplicate attribute 'sub_owner'");
             $service->{sub_owner} = $sub_owner;
         }
         elsif (my @other = check_assign_list 'overlaps', \&read_typed_name) {
             $service->{overlaps}
-              and error_atline "Duplicate attribute 'overlaps'";
+              and error_atline("Duplicate attribute 'overlaps'");
             $service->{overlaps} = \@other;
         }
         elsif (my $visible = check_assign('visible', \&read_owner_pattern)) {
             $service->{visible}
-              and error_atline "Duplicate attribute 'visible'";
+              and error_atline("Duplicate attribute 'visible'");
             $service->{visible} = $visible;
         }
         elsif (check_flag('multi_owner')) {
             $service->{multi_owner}
-              and error_atline "Duplicate attribute 'multi_owner'";
+              and error_atline("Duplicate attribute 'multi_owner'");
             $service->{multi_owner} = 1;
         }
         elsif (check_flag('unknown_owner')) {
             $service->{unknown_owner}
-              and error_atline "Duplicate attribute 'unknown_owner'";
+              and error_atline("Duplicate attribute 'unknown_owner'");
             $service->{unknown_owner} = 1;
         }
         elsif (check_flag('disabled')) {
@@ -2683,11 +2684,11 @@ sub read_service( $ ) {
                ];
             $src_user
               or $dst_user
-              or error_atline "Rule must use keyword 'user'";
+              or error_atline("Rule must use keyword 'user'");
             if ($service->{foreach} and not($src_user and $dst_user)) {
-                warn_msg "Rule of $name should reference 'user'",
-                  " in 'src' and 'dst'\n",
-                  " because service has keyword 'foreach'";
+                warn_msg("Rule of $name should reference 'user'",
+                         " in 'src' and 'dst'\n",
+                         " because service has keyword 'foreach'");
             }
             my $rule = {
                 service  => $service,
@@ -2708,11 +2709,11 @@ sub read_service( $ ) {
 
 our %global;
 
-sub read_global( $ ) {
+sub read_global {
     my ($name) = @_;
     skip '=';
     (my $action = $name) =~ s/^global://;
-    $action eq 'permit' or error_atline "Unexpected name, use 'global:permit'";
+    $action eq 'permit' or error_atline("Unexpected name, use 'global:permit'");
     my $prt = [ read_list \&read_typed_name_or_simple_protocol ];
     return {
         name   => $name,
@@ -2723,7 +2724,7 @@ sub read_global( $ ) {
 
 our %pathrestrictions;
 
-sub read_pathrestriction( $ ) {
+sub read_pathrestriction {
     my $name = shift;
     skip '=';
     my $restriction = new('Pathrestriction', name => $name);
@@ -2736,24 +2737,24 @@ sub read_pathrestriction( $ ) {
 
 our %global_nat;
 
-sub read_global_nat( $ ) {
+sub read_global_nat {
     my $name = shift;
     my $nat  = read_nat $name;
     if (defined $nat->{mask}) {
         if (not(match_ip($nat->{ip}, $nat->{ip}, $nat->{mask}))) {
-            error_atline "Global $nat->{name}'s IP doesn't match its mask";
+            error_atline("Global $nat->{name}'s IP doesn't match its mask");
             $nat->{ip} &= $nat->{mask};
         }
     }
     else {
-        error_atline "Missing mask for global $nat->{name}";
+        error_atline("Missing mask for global $nat->{name}");
     }
     $nat->{dynamic}
-      or error_atline "Global $nat->{name} must be dynamic";
+      or error_atline("Global $nat->{name} must be dynamic");
     return $nat;
 }
 
-sub read_attributed_object( $$ ) {
+sub read_attributed_object {
     my ($name, $attr_descr) = @_;
     my $object = { name => $name };
     skip '=';
@@ -2778,7 +2779,7 @@ sub read_attributed_object( $$ ) {
             internal_err;
         }
         skip ';';
-        $object->{$attribute} and error_atline "Duplicate attribute";
+        $object->{$attribute} and error_atline("Duplicate attribute");
         $object->{$attribute} = $val;
     }
     for my $attribute (keys %$attr_descr) {
@@ -2788,7 +2789,7 @@ sub read_attributed_object( $$ ) {
                 $object->{$attribute} = $default;
             }
             else {
-                error_atline "Missing '$attribute' for $object->{name}";
+                error_atline("Missing '$attribute' for $object->{name}");
             }
         }
 
@@ -2830,7 +2831,7 @@ my %isakmp_attributes = (
 
 our %isakmp;
 
-sub read_isakmp( $ ) {
+sub read_isakmp {
     my ($name) = @_;
     return read_attributed_object $name, \%isakmp_attributes;
 }
@@ -2862,14 +2863,14 @@ my %ipsec_attributes = (
 
 our %ipsec;
 
-sub read_ipsec( $ ) {
+sub read_ipsec {
     my ($name) = @_;
     return read_attributed_object $name, \%ipsec_attributes;
 }
 
 our %crypto;
 
-sub read_crypto( $ ) {
+sub read_crypto {
     my ($name) = @_;
     skip '=';
     skip '{';
@@ -2886,16 +2887,16 @@ sub read_crypto( $ ) {
         }
         elsif (my $type = check_assign 'type', \&read_typed_name) {
             $crypto->{type}
-              and error_atline "Redefining 'type' attribute";
+              and error_atline("Redefining 'type' attribute");
             $crypto->{type} = $type;
         }
         else {
             syntax_err "Expected valid attribute";
         }
     }
-    $crypto->{type} or error_atline "Missing 'type' for $name";
+    $crypto->{type} or error_atline("Missing 'type' for $name");
     $crypto->{tunnel_all}
-      or error_atline "Must define attribute 'tunnel_all' for $name";
+      or error_atline("Must define attribute 'tunnel_all' for $name");
     return $crypto;
 }
 
@@ -2907,7 +2908,7 @@ sub find_duplicates {
 
 our %owners;
 
-sub read_owner( $ ) {
+sub read_owner {
     my $name = shift;
     my $owner = new('Owner', name => $name);
     skip '=';
@@ -2917,21 +2918,21 @@ sub read_owner( $ ) {
         last if check '}';
         if (my $alias = check_assign('alias', \&read_string)) {
             $owner->{alias}
-              and error_atline "Redefining 'alias' attribute";
+              and error_atline("Redefining 'alias' attribute");
             $owner->{alias} = $alias;
         }
         elsif (my @admins = check_assign_list('admins', \&read_name)) {
             $owner->{admins}
-              and error_atline "Redefining 'admins' attribute";
+              and error_atline("Redefining 'admins' attribute");
             $owner->{admins} = \@admins;
         }
         elsif (my @watchers = check_assign_list('watchers', \&read_name)) {
             if ($from_json->{watchers}) {
-                error_atline 
-                    "Watchers must only be defined in JSON/ directory";
+                error_atline("Watchers must only be defined",
+                             " in JSON/ directory");
             }
             $owner->{watchers}
-              and error_atline "Redefining 'watchers' attribute";
+              and error_atline("Redefining 'watchers' attribute");
             $owner->{watchers} = \@watchers;
         }
         elsif (check_flag 'extend_only') {
@@ -2947,13 +2948,13 @@ sub read_owner( $ ) {
             syntax_err "Expected valid attribute";
         }
     }
-    $owner->{admins} or error_atline "Missing attribute 'admins'";
+    $owner->{admins} or error_atline("Missing attribute 'admins'");
     return $owner;
 }
 
 # For reading arbitrary names.
 # Don't be greedy in regex, to prevent reading over multiple semicolons.
-sub read_to_semicolon() {
+sub read_to_semicolon {
     skip_space_and_comment;
     if ($input =~ m/\G(.*?)(?=\s*;)/gco) {
         return $1;
@@ -2981,7 +2982,7 @@ my %global_type = (
     crypto          => [ \&read_crypto,          \%crypto ],
 );
 
-sub read_netspoc() {
+sub read_netspoc {
 
     # Check for global definitions.
     my $pair = check_typed_name or syntax_err '';
@@ -2992,7 +2993,7 @@ sub read_netspoc() {
     my $result = $fun->("$type:$name");
     $result->{file} = $file;
     if ($hash->{$name}) {
-        error_atline "Redefining $type:$name";
+        error_atline("Redefining $type:$name");
     }
 
     # Result is not used in this module but can be useful
@@ -3001,14 +3002,14 @@ sub read_netspoc() {
 }
 
 # Read input from file and process it by function which is given as argument.
-sub read_file( $$ ) {
+sub read_file {
     local $file = shift;
     my $read_syntax = shift;
 
     # Read file as one large line.
     local $/;
 
-    open my $fh, $file or fatal_err "Can't open $file: $!";
+    open(my $fh, $file) or fatal_err "Can't open $file: $!";
 
     # Fill buffer with content of whole file.
     # Content is implicitly freed when subroutine is left.
@@ -3103,7 +3104,7 @@ sub read_json {
     }    
 }
 
-sub read_file_or_dir( $;$ ) {
+sub read_file_or_dir {
     my ($path, $read_syntax) = @_;
     $read_syntax ||= \&read_netspoc;
 
@@ -3174,7 +3175,7 @@ sub read_file_or_dir( $;$ ) {
     }
 }
 
-sub show_read_statistics() {
+sub show_read_statistics {
     my $n  = keys %networks;
     my $h  = keys %hosts;
     my $r  = keys %routers;
@@ -3182,8 +3183,8 @@ sub show_read_statistics() {
     my $s  = keys %protocols;
     my $sg = keys %protocolgroups;
     my $p  = keys %services;
-    info "Read $r routers, $n networks, $h hosts";
-    info "Read $p services, $g groups, $s protocols, $sg protocol groups";
+    info("Read $r routers, $n networks, $h hosts");
+    info("Read $p services, $g groups, $s protocols, $sg protocol groups");
 }
 
 ##############################################################################
@@ -3191,20 +3192,20 @@ sub show_read_statistics() {
 ##############################################################################
 
 # Type checking functions
-sub is_network( $ )       { ref($_[0]) eq 'Network'; }
-sub is_router( $ )        { ref($_[0]) eq 'Router'; }
-sub is_interface( $ )     { ref($_[0]) eq 'Interface'; }
-sub is_host( $ )          { ref($_[0]) eq 'Host'; }
-sub is_subnet( $ )        { ref($_[0]) eq 'Subnet'; }
-sub is_area( $ )          { ref($_[0]) eq 'Area'; }
-sub is_zone( $ )          { ref($_[0]) eq 'Zone'; }
-sub is_group( $ )         { ref($_[0]) eq 'Group'; }
-sub is_protocolgroup( $ ) { ref($_[0]) eq 'Protocolgroup'; }
-sub is_objectgroup( $ )   { ref($_[0]) eq 'Objectgroup'; }
-sub is_chain( $ )         { ref($_[0]) eq 'Chain'; }
-sub is_autointerface( $ ) { ref($_[0]) eq 'Autointerface'; }
+sub is_network       { ref($_[0]) eq 'Network'; }
+sub is_router        { ref($_[0]) eq 'Router'; }
+sub is_interface     { ref($_[0]) eq 'Interface'; }
+sub is_host          { ref($_[0]) eq 'Host'; }
+sub is_subnet        { ref($_[0]) eq 'Subnet'; }
+sub is_area          { ref($_[0]) eq 'Area'; }
+sub is_zone          { ref($_[0]) eq 'Zone'; }
+sub is_group         { ref($_[0]) eq 'Group'; }
+sub is_protocolgroup { ref($_[0]) eq 'Protocolgroup'; }
+sub is_objectgroup   { ref($_[0]) eq 'Objectgroup'; }
+sub is_chain         { ref($_[0]) eq 'Chain'; }
+sub is_autointerface { ref($_[0]) eq 'Autointerface'; }
 
-sub print_rule( $ ) {
+sub print_rule {
     my ($rule) = @_;
     my $extra = '';
     my $service = $rule->{rule} && $rule->{rule}->{service};
@@ -3214,7 +3215,7 @@ sub print_rule( $ ) {
     $extra .= " of $service->{name}" if $service;
     my $prt = exists $rule->{orig_prt} ? 'orig_prt' : 'prt';
     my $action = $rule->{action};
-    $action = $action->{name} if is_chain $action;
+    $action = $action->{name} if is_chain($action);
     return
         $action
       . " src=$rule->{src}->{name}; dst=$rule->{dst}->{name}; "
@@ -3226,7 +3227,7 @@ sub print_rule( $ ) {
 ##############################################################################
 my %prt_hash;
 
-sub prepare_prt_ordering( $ ) {
+sub prepare_prt_ordering {
     my ($prt) = @_;
     my $proto = $prt->{proto};
     my $main_prt;
@@ -3283,7 +3284,7 @@ sub prepare_prt_ordering( $ ) {
     }
 }
 
-sub order_icmp( $$ ) {
+sub order_icmp {
     my ($hash, $up) = @_;
 
     # Handle 'icmp any'.
@@ -3304,7 +3305,7 @@ sub order_icmp( $$ ) {
     }
 }
 
-sub order_proto( $$ ) {
+sub order_proto {
     my ($hash, $up) = @_;
     for my $prt (values %$hash) {
         $prt->{up} = $up;
@@ -3313,7 +3314,7 @@ sub order_proto( $$ ) {
 
 # Link each port range with the smallest port range which includes it.
 # If no including range is found, link it with the next larger protocol.
-sub order_ranges( $$ ) {
+sub order_ranges {
     my ($range_href, $up) = @_;
     my @sorted =
 
@@ -3330,7 +3331,7 @@ sub order_ranges( $$ ) {
     # if end of array is reached.
     my $check_subrange;
 
-    $check_subrange = sub ( $$$$ ) {
+    $check_subrange = sub  {
         my ($a, $a1, $a2, $i) = @_;
         while (1) {
             return if $i == @sorted;
@@ -3356,7 +3357,7 @@ sub order_ranges( $$ ) {
             if ($a2 >= $b2) {
                 $b->{up} = $a;
 
-#           debug "$b->{name} [$b1-$b2] < $a->{name} [$a1-$a2]";
+#           debug("$b->{name} [$b1-$b2] < $a->{name} [$a1-$a2]");
                 $i = $check_subrange->($b, $b1, $b2, $i + 1);
 
                 # Stop at end of array.
@@ -3375,8 +3376,8 @@ sub order_ranges( $$ ) {
             my $y1 = $a2 + 1;
             my $y2 = $b2;
 
-#        debug "$b->{name} [$b1-$b2] split into [$x1-$x2] and [$y1-$y2]";
-            my $find_or_insert_range = sub( $$$$$ ) {
+#        debug("$b->{name} [$b1-$b2] split into [$x1-$x2] and [$y1-$y2]");
+            my $find_or_insert_range = sub {
                 my ($a1, $a2, $i, $orig, $prefix) = @_;
                 while (1) {
                     if ($i == @sorted) {
@@ -3405,7 +3406,7 @@ sub order_ranges( $$ ) {
                         # Found identical range, return this one.
                         if ($a2 == $b2) {
 
-#                    debug "Splitted range is already defined: $b->{name}";
+#                    debug("Splitted range is already defined: $b->{name}");
                             return $b;
                         }
 
@@ -3457,9 +3458,7 @@ sub order_ranges( $$ ) {
     $check_subrange->($a, $a1, $a2, 1) and internal_err;
 }
 
-sub expand_splitted_protocols ( $ );
-
-sub expand_splitted_protocols ( $ ) {
+sub expand_splitted_protocols  {
     my ($prt) = @_;
     if (my $split = $prt->{split}) {
         my ($prt1, $prt2) = @$split;
@@ -3528,8 +3527,8 @@ my $range_tcp_established;
 
 # Order protocols. We need this to simplify optimization.
 # Additionally add internal predefined protocols.
-sub order_protocols() {
-    progress 'Arranging protocols';
+sub order_protocols {
+    progress('Arranging protocols');
 
     # Internal protocols need to be processed before user defined protocols,
     # because we want to avoid handling of {main} for internal protocols.
@@ -3563,7 +3562,7 @@ sub order_protocols() {
 }
 
 # Used in expand_protocols.
-sub set_src_dst_range_list ( $ ) {
+sub set_src_dst_range_list  {
     my ($prt) = @_;
     $prt = $prt->{main} if $prt->{main};
     my $proto = $prt->{proto};
@@ -3585,7 +3584,7 @@ sub set_src_dst_range_list ( $ ) {
 # Link topology elements each with another
 ####################################################################
 
-sub expand_group( $$;$ );
+sub expand_group;
 
 sub link_to_owner {
     my ($obj, $key) = @_;
@@ -3602,7 +3601,7 @@ sub link_to_owner {
     }
 }
 
-sub link_owners () {
+sub link_owners {
 
     my %alias2owner;
     for my $name (keys %owners) {
@@ -3684,7 +3683,7 @@ sub link_owners () {
 }
 
 # Link areas with referenced interfaces or network.
-sub link_areas() {
+sub link_areas {
     for my $area (values %areas) {
         if ($area->{anchor}) {
             my @elements =
@@ -3746,7 +3745,7 @@ sub link_interfaces1 {
             my $msg = "Referencing undefined network:$net_name"
               . " from $interface->{name}";
             if ($interface->{disabled}) {
-                warn_msg $msg;
+                warn_msg($msg);
             }
             else {
                 err_msg $msg;
@@ -3768,12 +3767,13 @@ sub link_interfaces1 {
         if (my $private1 = $network->{private}) {
             if (my $private2 = $interface->{private}) {
                 $private1 eq $private2
-                  or err_msg "$private2.private $interface->{name} must not",
-                  " be connected to $private1.private $network->{name}";
+                  or err_msg("$private2.private $interface->{name} must not",
+                             " be connected to $private1.private",
+                             " $network->{name}");
             }
             else {
-                err_msg "Public $interface->{name} must not be connected to",
-                  " $private1.private $network->{name}";
+                err_msg("Public $interface->{name} must not be connected to",
+                        " $private1.private $network->{name}");
             }
         }
 
@@ -3785,13 +3785,13 @@ sub link_interfaces1 {
         push @{ $network->{interfaces} }, $interface;
         if ($interface->{reroute_permit}) {
             $interface->{reroute_permit} =
-              expand_group $interface->{reroute_permit},
-              "'reroute_permit' of $interface->{name}";
+              expand_group($interface->{reroute_permit},
+                           "'reroute_permit' of $interface->{name}");
             for my $obj (@{ $interface->{reroute_permit} }) {
 
-                if (not is_network $obj) {
-                    err_msg "$obj->{name} not allowed in attribute",
-                      " 'reroute_permit'\n of $interface->{name}";
+                if (not is_network($obj)) {
+                    err_msg("$obj->{name} not allowed in attribute",
+                            " 'reroute_permit'\n of $interface->{name}");
 
                     # Prevent further errors.
                     delete $interface->{reroute_permit};
@@ -3808,12 +3808,12 @@ sub link_interfaces1 {
         }
         elsif ($ip eq 'unnumbered') {
             $network_ip eq 'unnumbered'
-              or err_msg "Unnumbered $interface->{name} must not be linked ",
-              "to $network->{name}";
+              or err_msg("Unnumbered $interface->{name} must not be linked ",
+                         "to $network->{name}");
         }
         elsif ($network_ip eq 'unnumbered') {
-            err_msg "$interface->{name} must not be linked ",
-              "to unnumbered $network->{name}";
+            err_msg("$interface->{name} must not be linked ",
+                    "to unnumbered $network->{name}");
         }
         elsif ($ip eq 'negotiated') {
             my $network_mask = $network->{mask};
@@ -3823,10 +3823,10 @@ sub link_interfaces1 {
             # permit 'any'.  We allow this only, if local networks are
             # protected by crypto.
             if ($network_mask eq 0 and not $interface->{spoke}) {
-                err_msg "$interface->{name} has negotiated IP",
-                  " in range 0.0.0.0/0.\n",
-                  " This is only allowed for interface",
-                  " protected by crypto spoke";
+                err_msg("$interface->{name} has negotiated IP",
+                        " in range 0.0.0.0/0.\n",
+                        " This is only allowed for interface",
+                        " protected by crypto spoke");
             }
         }
         elsif ($ip eq 'bridged') {
@@ -3839,23 +3839,24 @@ sub link_interfaces1 {
             # Check compatibility of interface IP and network IP/mask.
             my $mask = $network->{mask};
             if (not(match_ip($ip, $network_ip, $mask))) {
-                err_msg "$interface->{name}'s IP doesn't match ",
-                  "$network->{name}'s IP/mask";
+                err_msg("$interface->{name}'s IP doesn't match ",
+                        "$network->{name}'s IP/mask");
             }
             if ($mask == 0xffffffff) {
                 if (not $network->{loopback}) {
-                    warn_msg "$interface->{name} has address of its network.\n",
-                      " Remove definition of $network->{name}.\n",
-                      " Add attribute 'loopback' at interface definition.";
+                    warn_msg("$interface->{name} has address of its network.\n",
+                             " Remove definition of $network->{name}.\n",
+                             " Add attribute 'loopback' at",
+                             " interface definition.");
                 }
             }
             else {
                 if ($ip == $network_ip) {
-                    err_msg "$interface->{name} has address of its network";
+                    err_msg("$interface->{name} has address of its network");
                 }
                 my $broadcast = $network_ip + complement_32bit $mask;
                 if ($ip == $broadcast) {
-                    err_msg "$interface->{name} has broadcast address";
+                    err_msg("$interface->{name} has broadcast address");
                 }
             }
         }
@@ -3871,7 +3872,7 @@ sub link_interfaces {
     }
 }
 
-sub link_subnet ( $$ ) {
+sub link_subnet  {
     my ($object, $parent) = @_;
 
     my $context = sub {
@@ -3891,8 +3892,8 @@ sub link_subnet ( $$ ) {
     }
     my $network = $networks{$name};
     if (not $network) {
-        warn_msg "Ignoring undefined network:$name",
-          " from attribute 'subnet_of'\n of ", $context->();
+        warn_msg("Ignoring undefined network:$name",
+                 " from attribute 'subnet_of'\n of ", $context->());
 
         # Prevent further errors;
         delete $object->{subnet_of};
@@ -3903,7 +3904,7 @@ sub link_subnet ( $$ ) {
     my $mask   = $network->{mask};
     my $sub_ip = $object->{ip};
 
-#    debug $network->{name} if not defined $ip;
+#    debug($network->{name}) if not defined $ip;
     if ($ip eq 'unnumbered') {
         err_msg "Unnumbered $network->{name} must not be referenced from",
           " attribute 'subnet_of'\n of ", $context->();
@@ -3924,7 +3925,7 @@ sub link_subnet ( $$ ) {
     push @{ $network->{own_subnets} }, $object;
 }
 
-sub link_subnets () {
+sub link_subnets  {
     for my $network (values %networks) {
         link_subnet $network, undef;
         for my $nat (values %{ $network->{nat} }) {
@@ -3936,14 +3937,14 @@ sub link_subnets () {
     }
 }
 
-sub link_pathrestrictions() {
+sub link_pathrestrictions {
     for my $restrict (values %pathrestrictions) {
         $restrict->{elements} = expand_group $restrict->{elements},
           $restrict->{name};
         my $changed;
         my $private = my $no_private = $restrict->{private};
         for my $obj (@{ $restrict->{elements} }) {
-            if (not is_interface $obj) {
+            if (not is_interface($obj)) {
                 err_msg "$restrict->{name} must not reference $obj->{name}";
                 $obj     = undef;
                 $changed = 1;
@@ -3990,11 +3991,11 @@ sub link_pathrestrictions() {
         }
         my $count = @{ $restrict->{elements} };
         if ($count == 1) {
-            warn_msg
-              "Ignoring $restrict->{name} with only $restrict->{elements}->[0]->{name}";
+            warn_msg("Ignoring $restrict->{name} with only",
+                     " $restrict->{elements}->[0]->{name}");
         }
         elsif ($count == 0) {
-            warn_msg "Ignoring $restrict->{name} without elements";
+            warn_msg("Ignoring $restrict->{name} without elements");
         }
 
         # Add pathrestriction to tunnel interfaces,
@@ -4012,7 +4013,7 @@ sub link_pathrestrictions() {
                 next if not $real_intf;
                 next if not $real_intf eq $interface;
 
-#               debug "Adding $restrict->{name} to $intf->{name}";
+#               debug("Adding $restrict->{name} to $intf->{name}");
                 push @{ $restrict->{elements} },  $intf;
                 push @{ $intf->{path_restrict} }, $restrict;
             }
@@ -4029,7 +4030,7 @@ sub link_pathrestrictions() {
 # - The same ID must not be used by some other group
 #   - connected to the same network
 #   - emploing the same redundancy type
-sub link_virtual_interfaces () {
+sub link_virtual_interfaces  {
 
     # Collect array of virtual interfaces with same IP at same network.
     my %net2ip2virtual;
@@ -4110,7 +4111,7 @@ sub link_virtual_interfaces () {
                 my $restrict = new('Pathrestriction', name => $name);
                 for my $interface (@$interfaces) {
 
-#                   debug "pathrestriction $name at $interface->{name}";
+#                   debug("pathrestriction $name at $interface->{name}");
                     push @{ $interface->{path_restrict} }, $restrict;
                     my $router = $interface->{router};
                     $router->{managed} or $router->{semi_managed} = 1;
@@ -4202,10 +4203,10 @@ sub check_ip_addresses {
             if (my $range = $host->{range}) {
                 for (my $ip = $range->[0] ; $ip <= $range->[1] ; $ip++) {
                     if (my $other_device = $ip{$ip}) {
-                        is_host $other_device
-                          or err_msg
-                          "Duplicate IP address for $other_device->{name}",
-                          " and $host->{name}";
+                        is_host($other_device)
+                          or err_msg("Duplicate IP address for",
+                                     " $other_device->{name}",
+                                     " and $host->{name}");
                     }
                 }
             }
@@ -4213,12 +4214,12 @@ sub check_ip_addresses {
     }
 }
 
-sub link_ipsec ();
-sub link_crypto ();
-sub link_tunnels ();
+sub link_ipsec;
+sub link_crypto;
+sub link_tunnels;
 
-sub link_topology() {
-    progress "Linking topology";
+sub link_topology {
+    progress('Linking topology');
     link_interfaces;
     link_ipsec;
     link_crypto;
@@ -4243,17 +4244,17 @@ sub link_topology() {
 # otherwise the whole topology will get disabled.
 ####################################################################
 
-sub disable_behind( $ );
+sub disable_behind;
 
-sub disable_behind( $ ) {
+sub disable_behind {
     my ($in_interface) = @_;
 
-#  debug "disable_behind $in_interface->{name}";
+#  debug("disable_behind $in_interface->{name}");
     $in_interface->{disabled} = 1;
     my $network = $in_interface->{network};
     if (not $network or $network->{disabled}) {
 
-#     debug "Stop disabling at $network->{name}";
+#      debug("Stop disabling at $network->{name}");
         return;
     }
     $network->{disabled} = 1;
@@ -4266,7 +4267,7 @@ sub disable_behind( $ ) {
         # This stops at other entry of a loop as well.
         if ($interface->{disabled}) {
 
-#        debug "Stop disabling at $interface->{name}";
+#        debug("Stop disabling at $interface->{name}");
             next;
         }
         $interface->{disabled} = 1;
@@ -4302,8 +4303,8 @@ sub transform_isolated_ports {
         if (not $network->{isolated_ports}) {
             for my $interface (@{ $network->{interfaces} }) {
                 $interface->{promiscuous_port}
-                  and warn_msg
-                  "Useless 'promiscuous_port' at $interface->{name}";
+                  and warn_msg("Useless 'promiscuous_port' at",
+                               " $interface->{name}");
             }
             next;
         }
@@ -4342,7 +4343,7 @@ sub transform_isolated_ports {
         }
         $network->{hosts}
           or @isolated_interfaces
-          or warn_msg "Useless attribute 'isolated_ports' at $network->{name}";
+          or warn_msg("Useless attribute 'isolated_ports' at $network->{name}");
 
         for my $obj (@{ $network->{hosts} }, @isolated_interfaces) {
             my $ip = $obj->{ip};
@@ -4406,7 +4407,7 @@ sub transform_isolated_ports {
                 for my $interface (@redundancy_interfaces) {
                     push @{ $interface->{path_restrict} }, $restrict;
 
-#		    debug "pathrestriction at $interface->{name}";
+#		    debug("pathrestriction at $interface->{name}");
                     $interface->{redundancy_interfaces} =
                       \@redundancy_interfaces;
                 }
@@ -4454,7 +4455,7 @@ sub check_bridged_networks {
     for my $href (values %prefix2net) {
         my @group = values %$href;
         my $net1  = pop(@group);
-        @group or warn_msg "Bridged $net1->{name} must not be used solitary";
+        @group or warn_msg("Bridged $net1->{name} must not be used solitary");
         my %seen;
         my @next = ($net1);
         my ($ip1, $mask1) = @{$net1}{qw(ip mask)};
@@ -4500,7 +4501,7 @@ sub check_bridged_networks {
     }
 }
 
-sub mark_disabled() {
+sub mark_disabled {
     my @disabled_interfaces = grep { $_->{disabled} } values %interfaces;
 
     for my $interface (@disabled_interfaces) {
@@ -4632,7 +4633,7 @@ sub mark_disabled() {
 my @inverse_masks = map { complement_32bit prefix2mask $_ } (0 .. 32);
 
 # Convert an IP range to a set of covering IP/mask pairs.
-sub split_ip_range( $$ ) {
+sub split_ip_range {
     my ($low, $high) = @_;
     my @result;
   IP:
@@ -4648,8 +4649,8 @@ sub split_ip_range( $$ ) {
     return @result;
 }
 
-sub convert_hosts() {
-    progress "Converting hosts to subnets";
+sub convert_hosts {
+    progress('Converting hosts to subnets');
     for my $network (@networks) {
         next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
         my @inv_prefix_aref;
@@ -4846,7 +4847,7 @@ sub convert_hosts() {
 }
 
 # Find adjacent subnets and substitute them by their enclosing subnet.
-sub combine_subnets ( $ ) {
+sub combine_subnets  {
     my ($subnets) = @_;
     my %hash = map { $_ => $_ } @$subnets;
     my @extra;
@@ -4901,7 +4902,7 @@ my %name2object = (
 
 my %auto_interfaces;
 
-sub get_auto_intf ( $;$) {
+sub get_auto_intf {
     my ($object, $managed) = @_;
     $managed ||= 0;
     my $result = $auto_interfaces{$object}->{$managed};
@@ -4923,16 +4924,16 @@ sub get_auto_intf ( $;$) {
         $result->{disabled} = 1 if $object->{disabled};
         $auto_interfaces{$object}->{$managed} = $result;
 
-#       debug $result->{name};
+#       debug($result->{name});
     }
     $result;
 }
 
 # Get a reference to an array of network object descriptions and
 # return a reference to an array of network objects.
-sub expand_group1( $$;$ );
+sub expand_group1;
 
-sub expand_group1( $$;$ ) {
+sub expand_group1 {
     my ($aref, $context, $clean_autogrp) = @_;
     my @objects;
     for my $parts (@$aref) {
@@ -5002,7 +5003,7 @@ sub expand_group1( $$;$ ) {
             for my $element (@compl) {
                 next if $element->{disabled};
                 delete $result->{$element}
-                  or warn_msg "Useless delete of $element->{name} in $context";
+                  or warn_msg("Useless delete of $element->{name} in $context");
             }
 
             # Put result into same order as the elements of first non
@@ -5355,7 +5356,7 @@ sub expand_group1( $$;$ ) {
                         $elements = [ grep { defined $_ } @$elements ];
                         my $msg = "Duplicate elements in $type:$name:\n "
                           . join("\n ", map { $_->{name} } @duplicate);
-                        warn_msg $msg;
+                        warn_msg($msg);
                     }
 
                     # Cache result for further references to the same group
@@ -5384,7 +5385,7 @@ sub expand_group1( $$;$ ) {
     return \@objects;
 }
 
-sub expand_group( $$;$ ) {
+sub expand_group {
     my ($obref, $context, $convert_hosts) = @_;
     my $aref = expand_group1 $obref, $context, 'clean_autogrp';
     for my $object (@$aref) {
@@ -5410,7 +5411,7 @@ sub expand_group( $$;$ ) {
         }
         if ($ignore) {
             $object = undef;
-            warn_msg "Ignoring $ignore in $context";
+            warn_msg("Ignoring $ignore in $context");
         }
     }
 
@@ -5427,7 +5428,7 @@ sub expand_group( $$;$ ) {
     if (@duplicate) {
         my $msg = "Duplicate elements in $context:\n "
           . join("\n ", map { $_->{name} } @duplicate);
-        warn_msg $msg;
+        warn_msg($msg);
     }
     $aref = [ grep { defined $_ } @$aref ];
     if ($convert_hosts) {
@@ -5436,12 +5437,12 @@ sub expand_group( $$;$ ) {
         my @other;
         for my $obj (@$aref) {
 
-#           debug "group:$obj->{name}";
+#           debug("group:$obj->{name}");
             if (is_host $obj) {
                 for my $subnet (@{ $obj->{subnets} }) {
                     if (my $host = $subnet2host{$subnet}) {
-                        warn_msg "$obj->{name} and $host->{name}",
-                           " overlap in $context";
+                        warn_msg("$obj->{name} and $host->{name}",
+                                 " overlap in $context");
                     }
                     else {
                         $subnet2host{$subnet} = $obj;
@@ -5464,7 +5465,7 @@ sub expand_group( $$;$ ) {
 
 }
 
-sub check_unused_groups() {
+sub check_unused_groups {
     my $check = sub {
         my ($hash, $print_type) = @_;
         my $print = $print_type eq 'warn' ? \&warn_msg : \&err_msg;
@@ -5491,9 +5492,9 @@ sub check_unused_groups() {
 #   %areas = ();
 }
 
-sub expand_protocols( $$ );
+sub expand_protocols;
 
-sub expand_protocols( $$ ) {
+sub expand_protocols {
     my ($aref, $context) = @_;
     my @protocols;
     for my $pair (@$aref) {
@@ -5552,7 +5553,7 @@ sub expand_protocols( $$ ) {
     return \@protocols;
 }
 
-sub path_auto_interfaces( $$ );
+sub path_auto_interfaces;
 
 # Hash with attributes deny, supernet, permit for storing
 # expanded rules of different type.
@@ -5570,7 +5571,7 @@ my %ref2prt;
 my @deleted_rules;
 
 # Add rules to %rule_tree for efficient look up.
-sub add_rules( $ ) {
+sub add_rules {
     my ($rules_ref) = @_;
     for my $rule (@$rules_ref) {
         my ($stateless, $action, $src, $dst, $src_range, $prt) =
@@ -5598,7 +5599,7 @@ sub add_rules( $ ) {
             next;
         }
 
-#       debug "Add:", print_rule $rule;
+#       debug("Add:", print_rule $rule);
         $rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$src_range}
           ->{$prt} = $rule;
     }
@@ -5606,7 +5607,7 @@ sub add_rules( $ ) {
 
 my %obj2zone;
 
-sub get_zone( $ ) {
+sub get_zone {
     my ($obj) = @_;
     my $type = ref $obj;
     my $result;
@@ -5650,9 +5651,9 @@ sub get_zone( $ ) {
     $obj2zone{$obj} = $result;
 }
 
-sub path_walk( $$;$ );
+sub path_walk;
 
-sub expand_special ( $$$$ ) {
+sub expand_special  {
     my ($src, $dst, $flags, $context) = @_;
     my @result;
     if (is_autointerface $src) {
@@ -5741,7 +5742,7 @@ my %unenforceable_context2src2dst;
 my %unenforceable_context;
 my %enforceable_context;
 
-sub collect_unenforceable ( $$$$ ) {
+sub collect_unenforceable  {
     my ($src, $dst, $zone, $context) = @_;
 
     return if not $config{check_unenforceable};
@@ -5756,9 +5757,9 @@ sub collect_unenforceable ( $$$$ ) {
 
         # Auto interface is assumed to be identical
         # to each other interface of a single router.
-        return if is_autointerface $src or is_autointerface $dst;
+        return if is_autointerface($src) or is_autointerface($dst);
     }
-    elsif (is_subnet $src and is_subnet $dst) {
+    elsif (is_subnet $src and is_subnet($dst)) {
 
         # For rules with different subnets of a single network we don't
         # know if the subnets have been split from a single range.
@@ -5772,8 +5773,8 @@ sub collect_unenforceable ( $$$$ ) {
             }
         }
     }
-    elsif (is_network $src && $src->{is_aggregate}
-        || is_network $dst && $dst->{is_aggregate})
+    elsif (is_network($src) && $src->{is_aggregate}
+        || is_network($dst) && $dst->{is_aggregate})
     {
 
         # This is a common case, which results from rules like
@@ -5784,13 +5785,13 @@ sub collect_unenforceable ( $$$$ ) {
     $unenforceable_context2src2dst{$context}->{$src}->{$dst} ||= [ $src, $dst ];
 }
 
-sub show_unenforceable () {
+sub show_unenforceable  {
     for my $context (sort keys %unenforceable_context) {
         next
           if $unenforceable_context2src2dst{$context}
               or $enforceable_context{$context};
         my $msg = "$context is fully unenforceable";
-        $config{check_unenforceable} eq 'warn' ? warn_msg $msg : err_msg $msg;
+        $config{check_unenforceable} eq 'warn' ? warn_msg($msg) : err_msg($msg);
     }
     for my $context (sort keys %unenforceable_context2src2dst) {
         my $msg;
@@ -5807,7 +5808,7 @@ sub show_unenforceable () {
                 }
             }
         }
-        $config{check_unenforceable} eq 'warn' ? warn_msg $msg : err_msg $msg;
+        $config{check_unenforceable} eq 'warn' ? warn_msg($msg) : err_msg($msg);
     }
     %enforceable_context           = ();
     %unenforceable_context         = ();
@@ -5950,8 +5951,8 @@ sub show_deleted_rules2 {
             my $used = delete $service->{overlaps_used};
             for my $overlap (@$overlaps) {
                 $used->{$overlap}
-                  or warn_msg "Useless 'overlaps = $overlap->{name}'",
-                  " in $service->{name}";
+                  or warn_msg("Useless 'overlaps = $overlap->{name}'",
+                              " in $service->{name}");
             }
         }
     }
@@ -5988,8 +5989,8 @@ sub expand_rules {
                 my $up = $prt;
                 while ($up) {
                     if ($global_permit{$up}) {
-                        warn_msg "$prt->{name} in $context is redundant",
-                          " to global:permit";
+                        warn_msg("$prt->{name} in $context is redundant",
+                                 " to global:permit");
                         $prt = undef;
                         next PRT;
                     }
@@ -6129,18 +6130,18 @@ sub expand_rules {
     # Result is returned indirectly using parameter $result.
 }
 
-sub print_rulecount () {
+sub print_rulecount  {
     my $count = 0;
     for my $type ('deny', 'supernet', 'permit') {
         $count += grep { not $_->{deleted} } @{ $expanded_rules{$type} };
     }
-    info "Expanded rule count: $count";
+    info("Expanded rule count: $count");
 }
 
-sub expand_services( ;$) {
+sub expand_services {
     my ($convert_hosts) = @_;
     convert_hosts if $convert_hosts;
-    progress "Expanding services";
+    progress('Expanding services');
 
     # Handle global:permit.
     if (my $global = $global{permit}) {
@@ -6167,8 +6168,8 @@ sub expand_services( ;$) {
                     push(@pobjects, $other);
                 }
                 else {
-                    warn_msg "Unknown $type:$oname in attribute 'overlaps'",
-                      " of $name";
+                    warn_msg("Unknown $type:$oname in attribute 'overlaps'",
+                             " of $name");
                 }
             }
             $service->{overlaps} = \@pobjects;
@@ -6181,8 +6182,8 @@ sub expand_services( ;$) {
             if (my ($prefix) = ($visible =~ /^ (\S*) [*] $/x)) {
                 if ($prefix) {
                     if (not grep { /^$prefix/ } keys %owners) {
-                        warn_msg "Attribute 'visible' of $name doesn't match",
-                          " any owner";
+                        warn_msg("Attribute 'visible' of $name doesn't match",
+                                 " any owner");
                     }
                 }
                 $service->{visible} = qr/^$prefix.*$/;
@@ -6196,7 +6197,7 @@ sub expand_services( ;$) {
             $service->{disabled});
     }
     print_rulecount;
-    progress "Preparing Optimization";
+    progress('Preparing Optimization');
     for my $type ('deny', 'supernet', 'permit') {
         add_rules $expanded_rules{$type};
     }
@@ -6255,8 +6256,8 @@ sub propagate_owners {
             my $owner = $explicit_owner_zones[0];
             $_->{owner} = $owner for @implicit_owner_zones;
 
-#            debug "Change to $owner->{name}";
-#            debug $_->{name} for @implicit_owner_zones;
+#            debug("Change to $owner->{name}");
+#            debug($_->{name}) for @implicit_owner_zones;
         }
 
         # Implicit owner from networks is only valid, if the same owner
@@ -6271,8 +6272,8 @@ sub propagate_owners {
             {
                 $_->{owner} = undef for @implicit_owner_zones;
 
-#                debug "Reset owner";
-#                debug $_->{name} for @implicit_owner_zones;
+#                debug("Reset owner");
+#                debug($_->{name}) for @implicit_owner_zones;
             }
         }
     }
@@ -6374,8 +6375,9 @@ sub propagate_owners {
                 if ($owner eq $upper_owner
                     and not $zone_got_net_owners{$upper_node})
                 {
-                    warn_msg "Useless $owner->{name} at $node->{name},\n",
-                      " it was already inherited from $upper_node->{name}";
+                    warn_msg("Useless $owner->{name} at $node->{name},\n",
+                             " it was already inherited from",
+                             " $upper_node->{name}");
                 }
                 if ($upper_owner->{extend}) {
                     $extend = [ @$extend, $upper_owner ];
@@ -6428,11 +6430,11 @@ sub propagate_owners {
                 }
                 if ($differ) {
                     if ($config{check_owner_extend}) {
-                        warn_msg "$owner->{name} inherits inconsistently:",
-                          "\n - at $node1->{name}: ",
-                          join(', ', map { $_->{name} } values %$ext1),
-                          "\n - at $node->{name}: ",
-                          join(', ', map { $_->{name} } values %$ext);
+                        warn_msg("$owner->{name} inherits inconsistently:",
+                                 "\n - at $node1->{name}: ",
+                                 join(', ', map { $_->{name} } values %$ext1),
+                                 "\n - at $node->{name}: ",
+                                 join(', ', map { $_->{name} } values %$ext));
                     }
                     $combined = { %$ext, %$combined };
                 }
@@ -6473,9 +6475,9 @@ sub propagate_owners {
             for my $router (area_managed_routers($area)) {
                 if (my $r_owner = $router->{owner}) {
                     if ($r_owner eq $owner) {
-                        warn_msg
+                        warn_msg(
                           "Useless $r_owner->{name} at $router->{name},\n",
-                          " it was already inherited from $area->{name}";
+                          " it was already inherited from $area->{name}");
                     }
                 }
                 else {
@@ -6552,7 +6554,7 @@ sub show_unknown_owners {
 }
 
 sub set_service_owner {
-    progress "Checking service owner";
+    progress('Checking service owner');
 
     propagate_owners();
 
@@ -6612,7 +6614,7 @@ sub set_service_owner {
         if (my $sub_owner = $service->{sub_owner}) {
             $sub_owner->{is_used} = 1;
             keys %$service_owners == 1 && $service_owners->{$sub_owner} and
-                warn_msg "Useless $sub_owner->{name} at $service->{name}";
+                warn_msg("Useless $sub_owner->{name} at $service->{name}");
         }
 
         # Check for multiple owners.
@@ -6622,7 +6624,7 @@ sub set_service_owner {
           : values %$service_owners;
         if ($multi_count > 1 xor $service->{multi_owner}) {
             if ($service->{multi_owner}) {
-                warn_msg "Useless use of attribute 'multi_owner' at $pname";
+                warn_msg("Useless use of attribute 'multi_owner' at $pname");
             }
             else {
                 my $print =
@@ -6643,7 +6645,7 @@ sub set_service_owner {
             xor $service->{unknown_owner})
         {
             if ($service->{unknown_owner}) {
-                warn_msg "Useless use of attribute 'unknown_owner' at $pname";
+                warn_msg("Useless use of attribute 'unknown_owner' at $pname");
             }
             else {
                 if ($config{check_service_unknown_owner}) {
@@ -6659,7 +6661,7 @@ sub set_service_owner {
     # Show unused owners.
     # Remove attribute {is_used}, which isn't needed any longer.
     for my $owner (values %owners) {
-        delete $owner->{is_used} or warn_msg "Unused $owner->{name}";
+        delete $owner->{is_used} or warn_msg("Unused $owner->{name}");
     }
 
     show_unknown_owners();
@@ -6675,13 +6677,13 @@ sub set_service_owner {
 # at current network.
 # NAT Domain: a maximal area of our topology (a set of connected networks)
 # where the no-NAT-set is identical at each network.
-sub set_natdomain( $$$ );
+sub set_natdomain;
 
-sub set_natdomain( $$$ ) {
+sub set_natdomain {
     my ($network, $domain, $in_interface) = @_;
     $network->{nat_domain} = $domain;
 
-#    debug "$domain->{name}: $network->{name}";
+#    debug("$domain->{name}: $network->{name}");
     push @{ $domain->{networks} }, $network;
     my $no_nat_set = $domain->{no_nat_set};
     for my $interface (@{ $network->{interfaces} }) {
@@ -6709,7 +6711,7 @@ sub set_natdomain( $$$ ) {
                 # {up} relation between subnets.
                 if ($managed) {
 
-#                   debug "$domain->{name}: $out_interface->{name}";
+#                   debug("$domain->{name}: $out_interface->{name}");
                     $out_interface->{no_nat_set} = $no_nat_set;
                     $out_interface->{hardware}->{no_nat_set} = $no_nat_set
                       if $router->{managed};
@@ -6765,16 +6767,16 @@ sub distribute_no_nat_set {
 
     if (not $no_nat_set or not keys %$no_nat_set) {
 
-#        debug "Emtpy tags at $domain->{name}";
+#        debug("Emtpy tags at $domain->{name}");
         return;
     }
 
 #    my $tags = join(',',keys %$no_nat_set);
-#    debug "distribute $tags to $domain->{name}"
-#	. ($in_router ? " from $in_router->{name}" : '');
+#    debug("distribute $tags to $domain->{name}"
+#	   . ($in_router ? " from $in_router->{name}" : ''));
     if ($domain->{active_path}) {
 
-#	debug "$domain->{name} loop";
+#	debug("$domain->{name} loop");
         # Found a loop
         return;
     }
@@ -6884,8 +6886,8 @@ sub keys_equal {
     return 1;
 }
 
-sub distribute_nat_info() {
-    progress "Distributing NAT";
+sub distribute_nat_info {
+    progress('Distributing NAT');
 
     # Initial value for each NAT domain, distributed by distribute_no_nat_set.
     my %no_nat_set;
@@ -6907,7 +6909,7 @@ sub distribute_nat_info() {
         if (not $domain) {
             (my $name = $network->{name}) =~ s/^network:/nat_domain:/;
 
-#	    debug "$name";
+#	    debug("$name");
             $domain = new(
                 'nat_domain',
                 name       => $name,
@@ -6919,7 +6921,7 @@ sub distribute_nat_info() {
             set_natdomain $network, $domain, 0;
         }
 
-#	debug "$domain->{name}: $network->{name}";
+#	debug("$domain->{name}: $network->{name}");
 
         # Collect all NAT tags defined inside one NAT domain.
         # Check consistency of grouped NAT tags at one network.
@@ -6952,7 +6954,7 @@ sub distribute_nat_info() {
                     $nat_tags2multi{$nat_tag} = $href;
                 }
 
-#		debug "$domain->{name} no_nat_set: $nat_tag";
+#		debug("$domain->{name} no_nat_set: $nat_tag");
                 $no_nat_set{$domain}->{$nat_tag} = $href;
             }
         }
@@ -7014,14 +7016,14 @@ sub distribute_nat_info() {
                 next;
             }
 
-#	    debug "$domain->{name}";
+#	    debug("$domain->{name}");
             for my $network (@{ $domain->{networks} }) {
 
                 # If network has local NAT definition,
                 # then skip global NAT definition.
                 next if $network->{nat}->{$nat_tag};
 
-#		debug "global nat:$nat_tag to $network->{name}";
+#		debug("global nat:$nat_tag to $network->{name}");
                 @add{ keys %{ $network->{nat} } } = values %{ $network->{nat} };
                 $network->{nat}->{$nat_tag} = {
                     %$global,
@@ -7065,13 +7067,13 @@ sub distribute_nat_info() {
     }
     for my $tag (keys %nat_tags2multi) {
         $nat_bound{$tag}
-          or warn_msg "nat:$tag is defined, but not bound to any interface";
+          or warn_msg("nat:$tag is defined, but not bound to any interface");
     }
     for my $tag (keys %nat_bound) {
         my $href = $nat_bound{$tag};
         for my $router_name (keys %$href) {
             $href->{$router_name} eq 'used'
-              or warn_msg "Ignoring useless nat:$tag bound at $router_name";
+              or warn_msg("Ignoring useless nat:$tag bound at $router_name");
         }
     }
 }
@@ -7117,8 +7119,8 @@ sub check_subnets {
                     return;
                 }
             }
-            warn_msg "$object->{name}'s IP overlaps with subnet",
-              " $subnet->{name}";
+            warn_msg("$object->{name}'s IP overlaps with subnet",
+                     " $subnet->{name}");
         }
     };
     for my $interface (@{ $network->{interfaces} }) {
@@ -7175,8 +7177,8 @@ sub numerically { $a <=> $b }
 # - $subnet->{is_in}->{$no_nat_set} = $bignet;
 # - $net1->{is_identical}->{$no_nat_set} = $net2
 
-sub find_subnets() {
-    progress "Finding subnets";
+sub find_subnets {
+    progress('Finding subnets');
     my %seen;
 
     my %zone_has_no_nat_set;
@@ -7189,7 +7191,7 @@ sub find_subnets() {
 
     for my $domain (@natdomains) {
 
-#     debug "$domain->{name}";
+#     debug("$domain->{name}");
         my $no_nat_set = $domain->{no_nat_set};
         my %mask_ip_hash;
         my %identical;
@@ -7272,7 +7274,7 @@ sub find_subnets() {
                 $network->{is_identical}->{$no_nat_set} = $one_net;
                 $identical_in_zone{$one_net}->{ $network->{zone} } = $network;
 
-#               debug "Identical: $network->{name}: $one_net->{name}";
+#               debug("Identical: $network->{name}: $one_net->{name}");
             }
         }
 
@@ -7410,10 +7412,10 @@ sub find_subnets() {
                                   . " 'subnet_of' or attribute 'has_subnets'";
 
                                 if ($config{check_subnets} eq 'warn') {
-                                    warn_msg $msg;
+                                    warn_msg($msg);
                                 }
                                 else {
-                                    err_msg $msg;
+                                    err_msg($msg);
                                 }
                             }
                         }
@@ -7446,7 +7448,7 @@ sub find_subnets() {
                 if (!$network->{is_aggregate}) {
                     $network->{max_up_net} = $max_net;
 
-#                    debug "$network->{name} max_up $max_net->{name}";
+#                    debug("$network->{name} max_up $max_net->{name}");
                 }
                 return $max_net;
             }
@@ -7466,13 +7468,13 @@ sub find_subnets() {
     # intermediate device.
 }
 
-sub check_no_in_acl () {
+sub check_no_in_acl  {
 
     # Propagate attribute 'no_in_acl' from zones to interfaces.
     for my $zone (@zones) {
         next if not $zone->{no_in_acl};
 
-#	debug "$zone->{name} has attribute 'no_in_acl'";
+#	debug("$zone->{name} has attribute 'no_in_acl'");
         for my $interface (@{ $zone->{interfaces} }) {
 
             # Ignore secondary interface.
@@ -7536,7 +7538,7 @@ sub check_no_in_acl () {
 }
 
 # This uses attributes from sub check_no_in_acl.
-sub check_crosslink () {
+sub check_crosslink  {
 
     # Collect cluster of routers connected by crosslink networks,
     # but only for Cisco routers having attribute "need_protect".
@@ -7834,7 +7836,7 @@ sub get_any00 {
         return $aggregate;
     }
     if (my ($net00) = grep { $_->{mask} == 0 } @{ $zone->{networks} }) {
-        fatal_err "Use $net00->{name} instead of any:[..]";
+        fatal_err("Use $net00->{name} instead of any:[..]");
     }
     else {
         fatal_err(
@@ -7861,7 +7863,7 @@ sub set_zone1 {
     }
     $network->{zone} = $zone;
 
-#    debug "$network->{name}: $zone->{name}";
+#    debug("$network->{name}: $zone->{name}");
 
     # Add network to the zone, to have all networks of a security zone
     # available.  Unnumbered or tunnel network is left out here
@@ -7890,8 +7892,7 @@ sub set_zone1 {
                 # Ignore interface where we reached this router.
                 next if $out_interface eq $interface;
                 next if $out_interface->{disabled};
-                set_zone1($out_interface->{network}, $zone, 
-                          $out_interface);
+                set_zone1($out_interface->{network}, $zone, $out_interface);
             }
             delete $router->{active_path};
         }
@@ -7997,8 +7998,8 @@ sub set_area1 {
 
             # Found another border of current area from wrong side.
             elsif ($lookup->{$out_interface}) {
-                err_msg "Inconsistent definition of $area->{name}",
-                  " in loop at $out_interface->{name}";
+                err_msg("Inconsistent definition of $area->{name}",
+                        " in loop at $out_interface->{name}");
                 next;
             }
             set_area1($out_interface->{zone}, $area, $out_interface);
@@ -8029,7 +8030,7 @@ sub area_managed_routers {
     return grep { $_->{managed} } values %routers;
 }
 
-sub inherit_router_attributes () {
+sub inherit_router_attributes  {
 
     # Areas can be nested. Proceed from small to larger ones.
     for my $area (
@@ -8052,7 +8053,7 @@ sub inherit_router_attributes () {
 }
 
 sub set_zone {
-    progress "Preparing security zones and areas";
+    progress('Preparing security zones and areas');
 
     # Create zone objects.
     # It gets name of corresponding aggregate with ip 0/0.
@@ -8078,13 +8079,13 @@ sub set_zone {
         set_zone_cluster($zone, 0, $cluster);
         delete $zone->{zone_cluster} if 1 == @$cluster;
 
-#       debug 'cluster: ', join(',',map($_->{name}, @{$zone->{zone_cluster}}))
+#       debug('cluster: ', join(',',map($_->{name}, @{$zone->{zone_cluster}})))
 #           if $zone->{zone_cluster};
     }
 
-    check_no_in_acl;
-    check_crosslink;
-    check_reroute_permit;
+    check_no_in_acl();
+    check_crosslink();
+    check_reroute_permit();
 
     # Mark interfaces, which are border of some area.
     # This is needed to locate auto_borders.
@@ -8096,7 +8097,7 @@ sub set_zone {
     }
     for my $area (@areas) {
         if (my $network = $area->{anchor}) {
-            set_area1 $network->{zone}, $area, 0;
+            set_area1($network->{zone}, $area, 0);
         }
         elsif (my $interfaces = $area->{border}) {
 
@@ -8111,14 +8112,14 @@ sub set_zone {
             $lookup{$start} = 'found';
             set_area1($start->{zone}, $area, $start);
             if (my @bad_intf = grep { $lookup{$_} ne 'found' } @$interfaces) {
-                err_msg "Invalid border of $area->{name}\n ", join "\n ",
-                  map $_->{name}, @bad_intf;
+                err_msg("Invalid border of $area->{name}\n ", join "\n ",
+                        map $_->{name}, @bad_intf);
                 $area->{border} =
                   [ grep { $lookup{$_} eq 'found' } @$interfaces ];
             }
         }
 
-#     debug "$area->{name}:\n ", join "\n ", map $_->{name}, @{$area->{zones}};
+#     debug("$area->{name}:\n ", join "\n ", map $_->{name}, @{$area->{zones}});
     }
 
     # Find subset relation between areas.
@@ -8137,8 +8138,8 @@ sub set_zone {
             my $next = shift @areas;
             if (my $big = $small->{subset_of}) {
                 $big eq $next
-                  or internal_err "$small->{name} is subset of",
-                  " $big->{name} and $next->{name}";
+                  or internal_err("$small->{name} is subset of",
+                                  " $big->{name} and $next->{name}");
             }
             else {
 
@@ -8147,13 +8148,13 @@ sub set_zone {
                 for my $zone (@{ $small->{zones} }) {
                     unless ($zone->{areas}->{$small}) {
                         $ok = 0;
-                        err_msg "Overlapping $small->{name} and $next->{name}";
+                        err_msg("Overlapping $small->{name} and $next->{name}");
                         last;
                     }
                 }
                 if ($ok) {
                     if (@{ $small->{zones} } == @{ $next->{zones} }) {
-                        err_msg "Duplicate $small->{name} and $next->{name}";
+                        err_msg("Duplicate $small->{name} and $next->{name}");
                     }
                     else {
                         $small->{subset_of} = $next;
@@ -8180,7 +8181,7 @@ sub set_zone {
 ####################################################################
 
 # Interfaces with identical virtual IP must be located inside the same loop.
-sub check_virtual_interfaces () {
+sub check_virtual_interfaces  {
     my %seen;
     for my $interface (@virtual_interfaces) {
         my $related = $interface->{redundancy_interfaces};
@@ -8198,17 +8199,17 @@ sub check_virtual_interfaces () {
             next if $seen{$v};
             $seen{$v} = 1;
             if (not $v->{router}->{loop}) {
-                err_msg "Virtual IP of $v->{name}\n",
-                  " must be located inside cyclic sub-graph";
+                err_msg("Virtual IP of $v->{name}\n",
+                        " must be located inside cyclic sub-graph");
                 $err = 1;
                 next;
             }
         }
         next if $err;
         equal(map { $_->{loop} } @$related)
-          or err_msg "Virtual interfaces\n ",
-          join(', ', map({ $_->{name} } @$related)),
-          "\n must all be part of the same cyclic sub-graph";
+          or err_msg("Virtual interfaces\n ",
+                     join(', ', map({ $_->{name} } @$related)),
+                     "\n must all be part of the same cyclic sub-graph");
     }
 }
 
@@ -8216,7 +8217,7 @@ sub check_virtual_interfaces () {
 # Check pathrestrictions
 ####################################################################
 
-sub check_pathrestrictions() {
+sub check_pathrestrictions {
     for my $restrict (values %pathrestrictions) {
         my $elements = $restrict->{elements};
         next if ! @$elements;
@@ -8232,8 +8233,8 @@ sub check_pathrestrictions() {
               )
             {
                 delete $obj->{path_restrict};
-                warn_msg "Ignoring $restrict->{name} at $obj->{name}\n",
-                  " because it isn't located inside cyclic graph";
+                warn_msg("Ignoring $restrict->{name} at $obj->{name}\n",
+                         " because it isn't located inside cyclic graph");
             }
         }
         if (!grep($_->{router}->{managed}, @$elements)) {
@@ -8267,9 +8268,9 @@ sub check_pathrestrictions() {
 #     with this attributes:
 #     - exit: that node of the loop where zone1 is reached
 #     - distance: distance of the exit node + 1.
-sub setpath_obj( $$$ );
+sub setpath_obj;
 
-sub setpath_obj( $$$ ) {
+sub setpath_obj {
     my ($obj, $to_zone1, $distance) = @_;
 
 #    debug("-- $distance: $obj->{name} --> $to_zone1->{name}");
@@ -8293,7 +8294,7 @@ sub setpath_obj( $$$ ) {
     $obj->{active_path} = 1;
     $obj->{distance}    = $distance;
 
-    my $get_next = is_router $obj ? 'zone' : 'router';
+    my $get_next = is_router($obj) ? 'zone' : 'router';
     for my $interface (@{ $obj->{interfaces} }) {
 
         # Ignore interface where we reached this obj.
@@ -8305,7 +8306,7 @@ sub setpath_obj( $$$ ) {
         my $next = $interface->{$get_next};
 
         # Increment by 2 because we need an intermediate value above.
-        if (my $loop = setpath_obj $next, $interface, $distance + 2) {
+        if (my $loop = setpath_obj($next, $interface, $distance + 2)) {
             my $loop_obj = $loop->{exit};
 
             # Found exit of loop in direction to zone1.
@@ -8369,23 +8370,23 @@ sub set_loop_cluster {
         # Exit node has loop marker which references the node itself.
         if ($exit->{loop} eq $loop) {
 
-#           debug "Loop $exit->{name},$loop->{distance} is in cluster $exit->{name}";
+#           debug("Loop $exit->{name},$loop->{distance} is in cluster $exit->{name}");
             return $loop->{cluster_exit} = $exit;
         }
         else {
             my $cluster = set_loop_cluster($exit->{loop});
 
-#           debug "Loop $exit->{name},$loop->{distance} is in cluster $cluster->{name}";
+#           debug("Loop $exit->{name},$loop->{distance} is in cluster $cluster->{name}");
             return $loop->{cluster_exit} = $cluster;
         }
     }
 }
 
-sub setpath() {
-    progress "Preparing fast path traversal";
+sub setpath {
+    progress('Preparing fast path traversal');
 
     # Take a random object from @zones, name it "zone1".
-    @zones or fatal_err "Topology seems to be empty";
+    @zones or fatal_err("Topology seems to be empty");
     my $zone1 = $zones[0];
 
     # Starting with zone1, do a traversal of the whole topology
@@ -8393,7 +8394,7 @@ sub setpath() {
     # Second  parameter is used as placeholder for a not existing
     # starting interface. Value must be "true" and unequal to any interface.
     # Third parameter is distance from $zone1 to $zone1.
-    setpath_obj $zone1, {}, 0;
+    setpath_obj($zone1, {}, 0);
 
     # Check if all objects are connected with zone1.
     my @unconnected;
@@ -8403,14 +8404,14 @@ sub setpath() {
         push @unconnected, $object;
 
         # Ignore all other objects connected to the just found object.
-        setpath_obj $object, {}, 0;
+        setpath_obj($object, {}, 0);
     }
     if (@unconnected) {
         my $msg = "Topology has unconnected parts:";
         for my $object ($zone1, @unconnected) {
             $msg .= "\n $object->{name}";
         }
-        fatal_err $msg;
+        fatal_err($msg);
     }
 
     for my $obj (@zones, @path_routers) {
@@ -8420,7 +8421,7 @@ sub setpath() {
         # graph. Propagate loop exit into sub-loops.
         while (my $next = $loop->{redirect}) {
 
-#           debug "Redirect: $loop->{exit}->{name} -> $next->{exit}->{name}";
+#           debug("Redirect: $loop->{exit}->{name} -> $next->{exit}->{name}");
             $loop = $next;
         }
         $obj->{loop} = $loop;
@@ -8454,7 +8455,7 @@ sub setpath() {
 
 my %obj2path;
 
-sub get_path( $ ) {
+sub get_path {
     my ($obj) = @_;
     my $type = ref $obj;
     my $result;
@@ -8510,16 +8511,16 @@ sub get_path( $ ) {
         internal_err "unexpected $obj->{name}";
     }
 
-#    debug "get_path: $obj->{name} -> $result->{name}";
+#    debug("get_path: $obj->{name} -> $result->{name}");
     $obj2path{$obj} = $result;
 }
 
 # Converts hash key of reference back to reference.
 my %key2obj;
 
-sub cluster_path_mark1( $$$$$$$$ );
+sub cluster_path_mark1;
 
-sub cluster_path_mark1( $$$$$$$$ ) {
+sub cluster_path_mark1 {
 
     my ($obj, $in_intf, $end, $path_tuples, $loop_leave, $start_intf, $end_intf,
         $navi)
@@ -8551,13 +8552,13 @@ sub cluster_path_mark1( $$$$$$$$ ) {
         }
     }
 
-#  debug "cluster_path_mark1: obj: $obj->{name},
-#        in_intf: $in_intf->{name} to: $end->{name}";
+#  debug("cluster_path_mark1: obj: $obj->{name},
+#        in_intf: $in_intf->{name} to: $end->{name}");
     # Check for second occurrence of path restriction.
     for my $restrict (@pathrestriction) {
         if ($restrict->{active_path}) {
 
-#           debug " effective $restrict->{name} at $in_intf->{name}";
+#           debug(" effective $restrict->{name} at $in_intf->{name}");
             return 0;
         }
     }
@@ -8565,7 +8566,7 @@ sub cluster_path_mark1( $$$$$$$$ ) {
     # Don't walk loops.
     if ($obj->{active_path}) {
 
-#       debug " active: $obj->{name}";
+#       debug(" active: $obj->{name}");
         return 0;
     }
 
@@ -8575,7 +8576,7 @@ sub cluster_path_mark1( $$$$$$$$ ) {
         # Mark interface where we leave the loop.
         push @$loop_leave, $in_intf;
 
-#     debug " leave: $in_intf->{name} -> $end->{name}";
+#     debug(" leave: $in_intf->{name} -> $end->{name}");
         return 1;
     }
 
@@ -8585,10 +8586,10 @@ sub cluster_path_mark1( $$$$$$$$ ) {
     # Mark first occurrence of path restriction.
     for my $restrict (@pathrestriction) {
 
-#       debug " enabled $restrict->{name} at $in_intf->{name}";
+#       debug(" enabled $restrict->{name} at $in_intf->{name}");
         $restrict->{active_path} = 1;
     }
-    my $get_next = is_router $obj ? 'zone' : 'router';
+    my $get_next = is_router($obj) ? 'zone' : 'router';
     my $success = 0;
 
     # Fill hash for restoring reference from hash key.
@@ -8610,16 +8611,16 @@ sub cluster_path_mark1( $$$$$$$$ ) {
 
             # Found a valid path from $next to $end.
             $key2obj{$interface} = $interface;
-            $path_tuples->{$in_intf}->{$interface} = is_router $obj;
+            $path_tuples->{$in_intf}->{$interface} = is_router($obj);
 
-#	    debug " loop: $in_intf->{name} -> $interface->{name}";
+#	    debug(" loop: $in_intf->{name} -> $interface->{name}");
             $success = 1;
         }
     }
     delete $obj->{active_path};
     for my $restrict (@pathrestriction) {
 
-#     debug " disabled $restrict->{name} at $in_intf->{name}";
+#     debug(" disabled $restrict->{name} at $in_intf->{name}");
         $restrict->{active_path} = undef;
     }
     return $success;
@@ -8633,17 +8634,17 @@ sub cluster_path_mark1( $$$$$$$$ ) {
 # this loop object in attribute {loop}.
 # Return value:
 # A hash with pairs: object -> loop-marker
-sub cluster_navigation( $$ ) {
+sub cluster_navigation {
     my ($from, $to) = @_;
     my $from_loop = $from->{loop};
     my $to_loop   = $to->{loop};
 
-#    debug "Navi: $from->{name}, $to->{name}";
+#    debug("Navi: $from->{name}, $to->{name}");
 
     my $navi;
     if (($navi = $from->{navi}->{$to}) and scalar keys %$navi) {
 
-#	debug " Cached";
+#	debug(" Cached");
         return $navi;
     }
     $navi = $from->{navi}->{$to} = {};
@@ -8653,32 +8654,32 @@ sub cluster_navigation( $$ ) {
             last if $from eq $to;
             $navi->{$from_loop}->{$from_loop} = 1;
 
-#	    debug "- Eq: $from_loop->{exit}->{name}$from_loop to itself";
+#	    debug("- Eq: $from_loop->{exit}->{name}$from_loop to itself");
 
             # Path $from -> $to goes through $from_loop and through $exit_loop.
             # Inside $exit_loop, enter only $from_loop, but no other loops.
             my $exit_loop = $from_loop->{exit}->{loop};
             $navi->{$exit_loop}->{$from_loop} = 1;
 
-#	    debug "- Add $from_loop->{exit}->{name}$from_loop to exit $exit_loop->{exit}->{name}$exit_loop";
+#	    debug("- Add $from_loop->{exit}->{name}$from_loop to exit $exit_loop->{exit}->{name}$exit_loop");
             last;
         }
         elsif ($from_loop->{distance} >= $to_loop->{distance}) {
             $navi->{$from_loop}->{$from_loop} = 1;
 
-#	    debug "- Fr: $from_loop->{exit}->{name}$from_loop to itself";
+#	    debug("- Fr: $from_loop->{exit}->{name}$from_loop to itself");
             $from      = $from_loop->{exit};
             $from_loop = $from->{loop};
         }
         else {
             $navi->{$to_loop}->{$to_loop} = 1;
 
-#	    debug "- To: $to_loop->{exit}->{name}$to_loop to itself";
+#	    debug("- To: $to_loop->{exit}->{name}$to_loop to itself");
             $to = $to_loop->{exit};
             my $entry_loop = $to->{loop};
             $navi->{$entry_loop}->{$to_loop} = 1;
 
-#	    debug "- Add $to_loop->{exit}->{name}$to_loop to entry $entry_loop->{exit}->{name}$entry_loop";
+#	    debug("- Add $to_loop->{exit}->{name}$to_loop to entry $entry_loop->{exit}->{name}$entry_loop");
             $to_loop = $entry_loop;
         }
     }
@@ -8697,7 +8698,7 @@ sub cluster_navigation( $$ ) {
 # $from_store is the starting object of the whole path.
 # If the path starts at an interface of a loop and it has a pathrestriction attached,
 # $from_store contains this interface.
-sub cluster_path_mark ( $$$$$$ ) {
+sub cluster_path_mark  {
     my ($from, $to, $from_in, $to_out, $from_store, $to_store) = @_;
 
     # This particular path through this sub-graph is already known.
@@ -8716,7 +8717,7 @@ sub cluster_path_mark ( $$$$$$ ) {
     # - does $from_in at border of current loop have pathrestriction ?
     # dito for $to_store and $to_out.
     my ($start_store, $end_store);
-    if (is_interface $from_store
+    if (is_interface($from_store)
         and ($from_store->{router} eq $from or $from_store->{zone} eq $from))
     {
         $start_intf  = $from_store;
@@ -8728,7 +8729,7 @@ sub cluster_path_mark ( $$$$$$ ) {
     else {
         $start_store = $from;
     }
-    if (is_interface $to_store
+    if (is_interface($to_store)
         and ($to_store->{router} eq $to or $to_store->{zone} eq $to))
     {
         $end_intf  = $to_store;
@@ -8743,7 +8744,7 @@ sub cluster_path_mark ( $$$$$$ ) {
 
     my $success = 1;
 
-#    debug "cluster_path_mark: $start_store->{name} -> $end_store->{name}";
+#    debug("cluster_path_mark: $start_store->{name} -> $end_store->{name}");
 
     # Activate pathrestriction of interface at border of loop, if path starts
     # or ends outside the loop and enters the loop at such an interface.
@@ -8806,7 +8807,7 @@ sub cluster_path_mark ( $$$$$$ ) {
 
         # Mark current path for loop detection.
         $from->{active_path} = 1;
-        my $get_next = is_router $from ? 'zone' : 'router';
+        my $get_next = is_router($from) ? 'zone' : 'router';
         my $allowed = $navi->{ $from->{loop} }
           or internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
             " with empty navi");
@@ -8815,7 +8816,7 @@ sub cluster_path_mark ( $$$$$$ ) {
             next if not $loop;
             if (not $allowed->{$loop}) {
 
-#		debug "No: $loop->{exit}->{name}$loop";
+#		debug("No: $loop->{exit}->{name}$loop");
                 next;
             }
 
@@ -8824,7 +8825,7 @@ sub cluster_path_mark ( $$$$$$ ) {
             next if $interface->{loopback} and $get_next eq 'zone';
             my $next = $interface->{$get_next};
 
-#           debug " try: $from->{name} -> $interface->{name}";
+#           debug(" try: $from->{name} -> $interface->{name}");
             if (
                 cluster_path_mark1(
                     $next,       $interface,  $to,       $path_tuples,
@@ -8835,7 +8836,7 @@ sub cluster_path_mark ( $$$$$$ ) {
                 $success = 1;
                 push @$loop_enter, $interface;
 
-#               debug " enter: $from->{name} -> $interface->{name}";
+#               debug(" enter: $from->{name} -> $interface->{name}");
             }
         }
         delete $from->{active_path};
@@ -8852,7 +8853,7 @@ sub cluster_path_mark ( $$$$$$ ) {
                 my $at_router = $hash->{$out_intf_ref};
                 push @$tuples_aref, [ $in_intf, $out_intf, $at_router ];
 
-#		debug "Tuple: $in_intf->{name}, $out_intf->{name} $at_router";
+#		debug("Tuple: $in_intf->{name}, $out_intf->{name} $at_router");
             }
         }
 
@@ -8908,10 +8909,10 @@ sub cluster_path_mark ( $$$$$$ ) {
 # This reference is found in a hash at attribute {path}.
 # Additionally we attach the path attribute to the src object.
 # Return value is true if a valid path was found.
-sub path_mark( $$$$ ) {
+sub path_mark {
     my ($from, $to, $from_store, $to_store) = @_;
 
-#    debug "path_mark $from_store->{name} --> $to_store->{name}";
+#    debug("path_mark $from_store->{name} --> $to_store->{name}");
 
     my $from_loop = $from->{loop};
     my $to_loop   = $to->{loop};
@@ -8929,11 +8930,11 @@ sub path_mark( $$$$ ) {
     my $to_out = undef;
     while (1) {
 
-#        debug "Dist: $from->{distance} $from->{name} ->Dist: $to->{distance} $to->{name}";
+#        debug("Dist: $from->{distance} $from->{name} ->Dist: $to->{distance} $to->{name}");
         # Paths meet outside a loop or at the edge of a loop.
         if ($from eq $to) {
 
-#            debug " $from_in->{name} -> ".($to_out ? $to_out->{name}:'');
+#            debug(" $from_in->{name} -> ".($to_out ? $to_out->{name}:''));
             $from_in->{path}->{$to_store} = $to_out;
             return 1;
         }
@@ -8962,7 +8963,7 @@ sub path_mark( $$$$ ) {
                   or return 0;
             }
 
-#            debug " $from_in->{name} -> ".($from_out ? $from_out->{name}:'');
+#            debug(" $from_in->{name} -> ".($from_out ? $from_out->{name}:''));
             $from_in->{path}->{$to_store} = $from_out;
             $from_in                      = $from_out;
             $from                         = $from_out->{main};
@@ -8978,7 +8979,7 @@ sub path_mark( $$$$ ) {
                   or return 0;
             }
 
-#            debug " $to_in->{name} -> ".($to_out ? $to_out->{name}:'');
+#            debug(" $to_in->{name} -> ".($to_out ? $to_out->{name}:''));
             $to_in->{path}->{$to_store} = $to_out;
             $to_out                     = $to_in;
             $to                         = $to_in->{main};
@@ -8988,24 +8989,24 @@ sub path_mark( $$$$ ) {
 }
 
 # Walk paths inside cyclic graph
-sub loop_path_walk( $$$$$$$ ) {
+sub loop_path_walk {
     my ($in, $out, $loop_entry, $loop_exit, $call_at_zone, $rule, $fun) = @_;
 
 #    my $info = "loop_path_walk: ";
 #    $info .= "$in->{name}->" if $in;
 #    $info .= "$loop_entry->{name}=>$loop_exit->{name}";
 #    $info .= "->$out->{name}" if $out;
-#    debug $info;
+#    debug($info);
 
     # Process entry of cyclic graph.
     if (
         (
-            is_router $loop_entry
+            is_router($loop_entry)
             or
 
             # $loop_entry is interface with pathrestriction of original
             # loop_entry.
-            is_interface $loop_entry
+            is_interface($loop_entry)
             and
 
             # Take only interface which originally was a router.
@@ -9015,7 +9016,7 @@ sub loop_path_walk( $$$$$$$ ) {
       )
     {
 
-#     debug " loop_enter";
+#     debug8" loop_enter");
         for my $out_intf (@{ $loop_entry->{loop_enter}->{$loop_exit} }) {
             $fun->($rule, $in, $out_intf);
         }
@@ -9024,7 +9025,7 @@ sub loop_path_walk( $$$$$$$ ) {
     # Process paths inside cyclic graph.
     my $path_tuples = $loop_entry->{path_tuples}->{$loop_exit};
 
-#    debug " loop_tuples";
+#    debug(" loop_tuples");
     for my $tuple (@$path_tuples) {
         my ($in_intf, $out_intf, $at_router) = @$tuple;
         $fun->($rule, $in_intf, $out_intf)
@@ -9034,15 +9035,15 @@ sub loop_path_walk( $$$$$$$ ) {
     # Process paths at exit of cyclic graph.
     if (
         (
-               is_router $loop_exit
-            or is_interface $loop_exit
+               is_router($loop_exit)
+            or is_interface($loop_exit)
             and $loop_exit->{router} eq
             $loop_entry->{loop_leave}->{$loop_exit}->[0]->{router}
         ) xor $call_at_zone
       )
     {
 
-#     debug " loop_leave";
+#     debug(" loop_leave");
         for my $in_intf (@{ $loop_entry->{loop_leave}->{$loop_exit} }) {
             $fun->($rule, $in_intf, $out);
         }
@@ -9053,7 +9054,7 @@ sub loop_path_walk( $$$$$$$ ) {
 # src to dst of the rule.
 # $where tells, where the function gets called: at 'Router' or 'Zone'.
 # Default is 'Router'.
-sub path_walk( $$;$ ) {
+sub path_walk {
     my ($rule, $fun, $where) = @_;
     internal_err "undefined rule" unless $rule;
     my $src = $rule->{src};
@@ -9065,14 +9066,14 @@ sub path_walk( $$;$ ) {
     my $to         = $to_store->{router}   || $to_store;
     my $path_store = $from_store->{loop} ? $from_store : $from;
 
-#    debug print_rule $rule;
+#    debug(print_rule $rule);
 #    debug(" start: $from->{name}, $to->{name}" . ($where?", at $where":''));
 #    my $fun2 = $fun;
-#    $fun = sub ( $$$ ) {
+#    $fun = sub  {
 #       my($rule, $in, $out) = @_;
 #       my $in_name = $in?$in->{name}:'-';
 #       my $out_name = $out?$out->{name}:'-';
-#       debug " Walk: $in_name, $out_name";
+#       debug(" Walk: $in_name, $out_name");
 #       $fun2->(@_);
 #    };
     $from and $to or internal_err print_rule $rule;
@@ -9099,7 +9100,7 @@ sub path_walk( $$;$ ) {
             $fun);
         if (not $loop_out) {
 
-#           debug "exit: path_walk: dst in loop";
+#           debug("exit: path_walk: dst in loop");
             return;
         }
 
@@ -9122,7 +9123,7 @@ sub path_walk( $$;$ ) {
                 $rule, $fun);
             if (not $loop_out) {
 
-#               debug "exit: path_walk: reached dst in loop";
+#               debug("exit: path_walk: reached dst in loop");
                 return;
             }
             $call_it = not(is_router($loop_exit) xor $at_zone);
@@ -9137,7 +9138,7 @@ sub path_walk( $$;$ ) {
             # End of path has been reached.
             if (not $out) {
 
-#               debug "exit: path_walk: reached dst";
+#               debug("exit: path_walk: reached dst");
                 return;
             }
             $call_it = !$call_it;
@@ -9149,7 +9150,7 @@ sub path_walk( $$;$ ) {
 
 my %border2router2auto;
 
-sub set_auto_intf_from_border ( $ ) {
+sub set_auto_intf_from_border  {
     my ($border) = @_;
     my %active_path;
     my $reach_from_border;
@@ -9188,14 +9189,14 @@ sub set_auto_intf_from_border ( $ ) {
 # $src is an auto_interface, interface or router.
 # Result is the set of interfaces of $src located at the front side
 # of the direction to $dst.
-sub path_auto_interfaces( $$ ) {
+sub path_auto_interfaces {
     my ($src, $dst) = @_;
     my @result;
     my ($src2, $managed) =
-      (is_autointerface $src)
+      is_autointerface($src)
       ? @{$src}{ 'object', 'managed' }
       : ($src, undef);
-    my $dst2 = is_autointerface $dst ? $dst->{object} : $dst;
+    my $dst2 = is_autointerface($dst) ? $dst->{object} : $dst;
 
     my $from_store = $obj2path{$src2}      || get_path $src2;
     my $to_store   = $obj2path{$dst2}      || get_path $dst2;
@@ -9219,7 +9220,7 @@ sub path_auto_interfaces( $$ ) {
     else {
         @result = ($from_store->{path}->{$to_store});
     }
-    my $router = is_router $src2 ? $src2 : $src2->{router};
+    my $router = is_router($src2) ? $src2 : $src2->{router};
     if (!is_router($from)) {
         my %result;
         for my $border (@result) {
@@ -9255,7 +9256,7 @@ sub path_auto_interfaces( $$ ) {
         @result = unique(@result);
     }
 
-#    debug "$from->{name}.[auto] = ", join ',', map {$_->{name}} @result;
+#    debug("$from->{name}.[auto] = ", join ',', map {$_->{name}} @result);
     $managed ? grep { $_->{router}->{managed} } @result : @result;
 }
 
@@ -9263,7 +9264,7 @@ sub path_auto_interfaces( $$ ) {
 # Handling of crypto tunnels.
 ########################################################################
 
-sub link_ipsec () {
+sub link_ipsec  {
     for my $ipsec (values %ipsec) {
 
         # Convert name of ISAKMP definition to object with ISAKMP definition.
@@ -9280,7 +9281,7 @@ sub link_ipsec () {
     }
 }
 
-sub link_crypto () {
+sub link_crypto  {
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
 
@@ -9300,7 +9301,7 @@ sub link_crypto () {
 }
 
 # Generate rules to permit crypto traffic between tunnel endpoints.
-sub gen_tunnel_rules ( $$$ ) {
+sub gen_tunnel_rules  {
     my ($intf1, $intf2, $ipsec) = @_;
     my $use_ah = $ipsec->{ah};
     my $use_esp = $ipsec->{esp_authentication} || $ipsec->{esp_encryption};
@@ -9333,7 +9334,7 @@ sub gen_tunnel_rules ( $$$ ) {
 
 # Link tunnel networks with tunnel hubs.
 # ToDo: Are tunnels between different private contexts allowed?
-sub link_tunnels () {
+sub link_tunnels  {
 
     # Collect clear-text interfaces of all tunnels.
     my @real_interfaces;
@@ -9344,10 +9345,10 @@ sub link_tunnels () {
         my $real_hubs   = delete $crypto2hubs{$name};
         my $real_spokes = delete $crypto2spokes{$name};
         $real_hubs and @$real_hubs
-          or warn_msg "No hubs have been defined for $name";
+          or warn_msg("No hubs have been defined for $name");
 
         $real_spokes and @$real_spokes
-          or warn_msg "No spokes have been defined for $name";
+          or warn_msg("No spokes have been defined for $name");
 
         # Substitute crypto name by crypto object.
         for my $real_hub (@$real_hubs) {
@@ -9524,8 +9525,8 @@ sub crypto_behind {
     }
 }
 
-sub expand_crypto () {
-    progress "Expanding crypto rules";
+sub expand_crypto  {
+    progress('Expanding crypto rules');
 
     my %id2interface;
 
@@ -9706,7 +9707,7 @@ sub expand_crypto () {
 # Hash for converting a reference of an object back to this object.
 my %ref2obj;
 
-sub setup_ref2obj () {
+sub setup_ref2obj  {
     for my $network (@networks) {
         $ref2obj{$network} = $network;
         for my $obj (@{ $network->{subnets} }, @{ $network->{interfaces} }) {
@@ -9921,7 +9922,7 @@ sub check_supernet_in_zone {
 # reverse rule
 #  permit dst supernet1
 # which would accidentally permit traffic to supernet:[zone4] as well.
-sub check_supernet_src_rule( $$$ ) {
+sub check_supernet_src_rule {
 
     # Function is called from path_walk.
     my ($rule, $in_intf, $out_intf) = @_;
@@ -10064,7 +10065,7 @@ sub check_supernet_src_rule( $$$ ) {
 #  permit src supernet2
 #  permit src supernet3
 #  permit src supernet4
-sub check_supernet_dst_rule( $$$ ) {
+sub check_supernet_dst_rule {
 
     # Function is called from path_walk.
     my ($rule, $in_intf, $out_intf) = @_;
@@ -10131,7 +10132,7 @@ sub check_supernet_dst_rule( $$$ ) {
 # Cache results.
 my %smaller_prt;
 
-sub find_smaller_prt ( $$ ) {
+sub find_smaller_prt  {
     my ($prt1, $prt2) = @_;
 
     if ($prt1 eq $prt2) {
@@ -10276,7 +10277,7 @@ sub check_for_transient_supernet_rule {
                                                                       )
                                                                     {
 
-# debug print_rule $other_rule;
+# debug(print_rule $other_rule);
                                                                         next
                                                                           RULE2;
                                                                     }
@@ -10306,8 +10307,8 @@ sub check_for_transient_supernet_rule {
                             $stateless = 0;
                         }
 
-# debug "Src: ", print_rule $rule;
-# debug "Dst: ", print_rule $rule2;
+# debug("Src: ", print_rule $rule);
+# debug("Dst: ", print_rule $rule2);
                         my $src_service = $rule->{rule}->{service}->{name};
                         my $dst_service = $rule2->{rule}->{service}->{name};
                         my $prt_name    = $smaller_prt->{name};
@@ -10351,11 +10352,11 @@ sub check_for_transient_supernet_rule {
                 while (my ($supernet, $hash) = each %$hash) {
                     info
                       "Rules of $src_service and $dst_service match at $supernet";
-                    info "Missing transient rules:";
+                    info("Missing transient rules:");
                     while (my ($src, $hash) = each %$hash) {
                         while (my ($dst, $hash) = each %$hash) {
                             while (my ($prt, $hash) = each %$hash) {
-                                info " permit src=$src; dst=$dst; prt=$prt";
+                                info(" permit src=$src; dst=$dst; prt=$prt");
                             }
                         }
                     }
@@ -10434,8 +10435,8 @@ sub mark_stateful {
     }
 }
 
-sub check_supernet_rules() {
-    progress "Checking rules with supernet objects";
+sub check_supernet_rules {
+    progress('Checking rules with supernet objects');
     if ($config{check_supernet_rules}) {
         my $stateful_mark = 1;
         for my $zone (@zones) {
@@ -10471,7 +10472,7 @@ sub check_supernet_rules() {
 # without range checking but with checking for 'established` flag.
 ##############################################################################
 
-sub gen_reverse_rules1 ( $ ) {
+sub gen_reverse_rules1  {
     my ($rule_aref) = @_;
     my @extra_rules;
     for my $rule (@$rule_aref) {
@@ -10501,7 +10502,7 @@ sub gen_reverse_rules1 ( $ ) {
 
             # Local function.
             # It uses free variable $has_stateless_router.
-            my $mark_reverse_rule = sub( $$$ ) {
+            my $mark_reverse_rule = sub {
                 my ($rule, $in_intf, $out_intf) = @_;
 
                 # Destination of current rule is current router.
@@ -10570,8 +10571,8 @@ sub gen_reverse_rules1 ( $ ) {
     add_rules \@extra_rules;
 }
 
-sub gen_reverse_rules() {
-    progress "Generating reverse rules for stateless routers";
+sub gen_reverse_rules {
+    progress('Generating reverse rules for stateless routers');
     for my $type ('deny', 'supernet', 'permit') {
         gen_reverse_rules1 $expanded_rules{$type};
     }
@@ -10597,7 +10598,7 @@ sub gen_reverse_rules() {
 # Otherwise a rules is implemented typical.
 ##############################################################################
 
-sub get_zone2( $ ) {
+sub get_zone2 {
     my ($obj) = @_;
     my $type = ref $obj;
     if ($type eq 'Network') {
@@ -10614,13 +10615,13 @@ sub get_zone2( $ ) {
 # Mark security zone $zone with $mark and
 # additionally mark all security zones
 # which are connected with $zone by secondary packet filters.
-sub mark_secondary ( $$ );
+sub mark_secondary;
 
-sub mark_secondary ( $$ ) {
+sub mark_secondary  {
     my ($zone, $mark) = @_;
     $zone->{secondary_mark} = $mark;
 
-#    debug "$zone->{name} $mark";
+#    debug("$zone->{name} $mark");
     for my $in_interface (@{ $zone->{interfaces} }) {
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
@@ -10642,9 +10643,9 @@ sub mark_secondary ( $$ ) {
 # additionally mark all security zones
 # which are connected with $zone by non-primary packet filters.
 # Test for {active_path} has been added to prevent deep recursion.
-sub mark_primary ( $$ );
+sub mark_primary;
 
-sub mark_primary ( $$ ) {
+sub mark_primary  {
     my ($zone, $mark) = @_;
     $zone->{primary_mark} = $mark;
     for my $in_interface (@{ $zone->{interfaces} }) {
@@ -10664,8 +10665,8 @@ sub mark_primary ( $$ ) {
     }
 }
 
-sub mark_secondary_rules() {
-    progress "Marking rules for secondary optimization";
+sub mark_secondary_rules {
+    progress('Marking rules for secondary optimization');
 
     my $secondary_mark = 1;
     my $primary_mark   = 1;
@@ -10704,7 +10705,7 @@ sub mark_secondary_rules() {
     # Find rules where dynamic NAT is applied to host or interface at
     # src or dst on path to other end of rule.
     # Mark found rule with attribute {dynamic_nat} and value src|dst|src,dst.
-    progress "Marking rules with dynamic NAT";
+    progress('Marking rules with dynamic NAT');
     for my $rule (
         @{ $expanded_rules{permit} },
         @{ $expanded_rules{supernet} },
@@ -10797,7 +10798,7 @@ sub mark_secondary_rules() {
                       ? "$dynamic_nat,$where"
                       : $where;
 
-#		    debug "dynamic_nat: $where at ", print_rule $rule;
+#		    debug("dynamic_nat: $where at ", print_rule $rule);
                     $dynamic = 1;
                 }
             }
@@ -10811,7 +10812,7 @@ sub mark_secondary_rules() {
 # rules which are overlapped by a more general rule
 ##############################################################################
 
-sub optimize_rules( $$ ) {
+sub optimize_rules {
     my ($cmp_hash, $chg_hash) = @_;
     while (my ($stateless, $chg_hash) = each %$chg_hash) {
         while (1) {
@@ -10874,8 +10875,8 @@ sub optimize_rules( $$ ) {
                                                                               )
                                                                             {
 
-# debug "Del:", print_rule $chg_rule;
-# debug "Oth:", print_rule $cmp_rule;
+# debug("Del:", print_rule $chg_rule);
+# debug("Oth:", print_rule $cmp_rule);
                                                                                 $chg_rule
                                                                                   ->
                                                                                   {deleted}
@@ -10922,20 +10923,20 @@ sub optimize_rules( $$ ) {
     }
 }
 
-sub optimize() {
-    progress "Optimizing globally";
+sub optimize {
+    progress('Optimizing globally');
     setup_ref2obj;
     optimize_rules \%rule_tree, \%rule_tree;
     print_rulecount;
 }
 
-sub optimize_and_warn_deleted() {
+sub optimize_and_warn_deleted {
     optimize();
     show_deleted_rules2;
 }
 
 # Collect networks which need NAT commands.
-sub mark_networks_for_static( $$$ ) {
+sub mark_networks_for_static {
     my ($rule, $in_intf, $out_intf) = @_;
 
     # No NAT needed for directly attached interface.
@@ -11007,7 +11008,7 @@ sub mark_networks_for_static( $$$ ) {
     }
 }
 
-sub get_zone3( $ ) {
+sub get_zone3 {
     my ($obj) = @_;
     my $type = ref $obj;
     if ($type eq 'Network') {
@@ -11048,8 +11049,8 @@ sub get_networks {
     }
 }
 
-sub find_statics () {
-    progress "Finding statics";
+sub find_statics  {
+    progress('Finding statics');
 
     # We only need to traverse the topology for each pair of
     # src-(zone/router), dst-(zone/router)
@@ -11081,7 +11082,7 @@ sub find_statics () {
             $rule->{src_net} = [ values %{ $rule->{src_net} } ];
             $rule->{dst_net} = [ values %{ $rule->{dst_net} } ];
 
-#           debug "$rule->{src}->{name}, $rule->{dst}->{name}";
+#           debug("$rule->{src}->{name}, $rule->{dst}->{name}");
             path_walk($rule, \&mark_networks_for_static, 'Router');
         }
     }
@@ -11142,7 +11143,7 @@ sub get_route_networks {
 # For each border interface I and each network N inside the security zone
 # we need to find the hop interface H via which N is reached from I.
 # This is stored in an attribute {route_in_zone} of I.
-sub set_routes_in_zone ( $ ) {
+sub set_routes_in_zone  {
     my ($zone) = @_;
 
     # Mark border networks and hop interfaces.
@@ -11192,8 +11193,8 @@ sub set_routes_in_zone ( $ ) {
         my $cluster = {};
         $set_cluster->($interface->{router}, $interface, $cluster);
 
-#	debug "Cluster: $interface->{name} ",
-#            join ',', map {$_->{name}} values %$cluster;
+#	debug("Cluster: $interface->{name} ",
+#             join ',', map {$_->{name}} values %$cluster);
     }
 
     # Find all networks located behind a hop interface.
@@ -11223,7 +11224,7 @@ sub set_routes_in_zone ( $ ) {
                 push @result, @{ $hop2networks{$out_hop} };
             }
         }
-#	debug "Hop: $hop->{name} ", join ',', map {$_->{name}} @result;
+#	debug("Hop: $hop->{name} ", join ',', map {$_->{name}} @result);
     };
     for my $border (values %border_networks) {
         my @border_intf;
@@ -11251,7 +11252,7 @@ sub set_routes_in_zone ( $ ) {
 # A security zone is entered at $in_intf and exited at $out_intf.
 # Find the hop H to reach $out_intf from $in_intf.
 # Add routing entries at $in_intf that $dst_networks are reachable via H.
-sub add_path_routes ( $$$ ) {
+sub add_path_routes  {
     my ($in_intf, $out_intf, $dst_networks) = @_;
     return if $in_intf->{routing};
     my $out_net = $out_intf->{network};
@@ -11260,7 +11261,7 @@ sub add_path_routes ( $$$ ) {
         $in_intf->{hop}->{$hop} = $hop;
         for my $network (@$dst_networks) {
 
-#	    debug "$in_intf->{name} -> $hop->{name}: $network->{name}";
+#	    debug("$in_intf->{name} -> $hop->{name}: $network->{name}");
             $in_intf->{routes}->{$hop}->{$network} = $network;
         }
     }
@@ -11270,7 +11271,7 @@ sub add_path_routes ( $$$ ) {
 # $dst_networks are located inside the security zone.
 # For each element N of $dst_networks find the next hop H to reach N.
 # Add routing entries at $interface that N is reachable via H.
-sub add_end_routes ( $$ ) {
+sub add_end_routes  {
     my ($interface, $dst_networks) = @_;
     return if $interface->{routing};
     my $intf_net      = $interface->{network};
@@ -11283,7 +11284,7 @@ sub add_end_routes ( $$ ) {
         for my $hop (@$hops) {
             $interface->{hop}->{$hop} = $hop;
 
-#	    debug "$interface->{name} -> $hop->{name}: $network->{name}";
+#	    debug("$interface->{name} -> $hop->{name}: $network->{name}");
             $interface->{routes}->{$hop}->{$network} = $network;
         }
     }
@@ -11294,15 +11295,15 @@ sub add_end_routes ( $$ ) {
 # If $in_intf and $out_intf are both defined, packets traverse this zone.
 # If $in_intf is not defined, the src is this zone.
 # If $out_intf is not defined, dst is this zone;
-sub get_route_path( $$$ ) {
+sub get_route_path {
     my ($rule, $in_intf, $out_intf) = @_;
 
-#    debug "collect: $rule->{src}->{name} -> $rule->{dst}->{name}";
+#    debug("collect: $rule->{src}->{name} -> $rule->{dst}->{name}");
 #    my $info = '';
 #    $info .= $in_intf->{name} if $in_intf;
 #    $info .= ' -> ';
 #    $info .= $out_intf->{name} if $out_intf;
-#    debug $info;;
+#    debug($info);
 
     if ($in_intf and $out_intf) {
         push @{ $rule->{path} }, [ $in_intf, $out_intf ];
@@ -11315,10 +11316,10 @@ sub get_route_path( $$$ ) {
     }
 }
 
-sub check_and_convert_routes ();
+sub check_and_convert_routes;
 
-sub find_active_routes () {
-    progress "Finding routes";
+sub find_active_routes  {
+    progress('Finding routes');
     for my $zone (@zones) {
         set_routes_in_zone $zone;
     }
@@ -11356,7 +11357,7 @@ sub find_active_routes () {
         if ($src_zone eq $dst_zone) {
             for my $from ($src, $dst) {
                 my $to = $from eq $src ? $dst : $src;
-                next if not is_interface $from;
+                next if not is_interface($from);
                 next if not $from->{zone};
                 $from = $from->{main_interface} || $from;
                 my @networks = get_route_networks($to);
@@ -11488,8 +11489,8 @@ sub fix_bridged_hops {
     return @result;
 }
 
-sub check_and_convert_routes () {
-    progress "Checking for duplicate routes";
+sub check_and_convert_routes  {
+    progress('Checking for duplicate routes');
 
     # Fix routes to bridged interfaces without IP address.
     for my $router (@managed_routers) {
@@ -11606,10 +11607,11 @@ sub check_and_convert_routes () {
                             if (    not $interface->{routing}
                                 and not $interface2->{routing})
                             {
-                                warn_msg
+                                warn_msg (
                                   "Two static routes for $network->{name}\n",
                                   " via $interface->{name} and",
-                                  " $interface2->{name}";
+                                  " $interface2->{name}"
+                                );
                             }
                         }
                     }
@@ -11635,10 +11637,11 @@ sub check_and_convert_routes () {
                                 delete $interface->{routes}->{$hop}->{$network};
                             }
                             else {
-                                warn_msg
+                                warn_msg (
                                   "Two static routes for $network->{name}\n",
                                   " at $interface->{name}",
-                                  " via $hop->{name} and $hop2->{name}";
+                                  " via $hop->{name} and $hop2->{name}"
+                                );
                             }
                         }
                         else {
@@ -11681,16 +11684,16 @@ sub check_and_convert_routes () {
     }
 }
 
-sub find_active_routes_and_statics () {
+sub find_active_routes_and_statics  {
     find_statics;
     find_active_routes;
 }
 
-sub ios_route_code( $ );
-sub prefix_code( $ );
-sub address( $$ );
+sub ios_route_code;
+sub prefix_code;
+sub address;
 
-sub print_routes( $ ) {
+sub print_routes {
     my ($router)              = @_;
     my $model                 = $router->{model};
     my $type                  = $model->{routing};
@@ -11791,7 +11794,8 @@ sub print_routes( $ ) {
     }
     print "$comment_char [ Routing ]\n";
 
-    my $ios_vrf = $vrf ? "vrf $vrf " : '' if $type eq 'IOS';
+    my $ios_vrf;
+    $ios_vrf = $vrf ? "vrf $vrf " : '' if $type eq 'IOS';
     my $nxos_prefix = '';
 
     for my $interface (@{ $router->{interfaces} }) {
@@ -12176,7 +12180,7 @@ sub print_nat {
 # Distributing rules to managed devices
 ##############################################################################
 
-sub distribute_rule( $$$ ) {
+sub distribute_rule {
     my ($rule, $in_intf, $out_intf) = @_;
 
     # Traffic from src reaches this router via in_intf
@@ -12360,9 +12364,9 @@ sub distribute_rule( $$$ ) {
 # to manage the device from a central policy distribution point.
 # This address is added as a comment line to each generated code file.
 # This is to used later when approving the generated code file.
-sub set_policy_distribution_ip () {
+sub set_policy_distribution_ip  {
     return if not $policy_distribution_point;
-    progress "Setting policy distribution IP";
+    progress('Setting policy distribution IP');
 
     # Find all TCP ranges which include port 22 and 23.
     my @admin_tcp_keys = grep({
@@ -12412,7 +12416,7 @@ sub set_policy_distribution_ip () {
         }
         else {
 
-#           debug "$router->{name}: ", scalar keys %interfaces;
+#           debug("$router->{name}: ", scalar keys %interfaces);
             my @front =
               path_auto_interfaces($router, $policy_distribution_point);
 
@@ -12461,7 +12465,7 @@ sub set_policy_distribution_ip () {
             $router->{admin_ip} or $unreachable = $router->{name};
         }
         $unreachable
-          and warn_msg(
+          and warn_msg (
             "Missing rule to reach $unreachable",
             " from policy_distribution_point"
           );
@@ -12476,7 +12480,7 @@ my $permit_any_rule = {
     prt       => $prt_ip
 };
 
-sub add_router_acls () {
+sub add_router_acls  {
     for my $router (@managed_routers) {
         my $has_io_acl = $router->{model}->{has_io_acl};
         for my $hardware (@{ $router->{hardware} }) {
@@ -12715,8 +12719,8 @@ sub distribute_global_permit {
     }
 }
 
-sub rules_distribution() {
-    progress "Distributing rules";
+sub rules_distribution {
+    progress('Distributing rules');
 
     # Not longer used, free memory.
     %rule_tree = ();
@@ -12782,7 +12786,7 @@ sub rules_distribution() {
 # obj: this address we want to know
 # network: look inside this NAT domain
 # returns a list of [ ip, mask ] pairs
-sub address( $$ ) {
+sub address {
     my ($obj, $no_nat_set) = @_;
     my $type = ref $obj;
     if ($type eq 'Network') {
@@ -12864,7 +12868,7 @@ sub address( $$ ) {
 }
 
 # Given an IP and mask, return its address in Cisco syntax.
-sub cisco_acl_addr( $$ ) {
+sub cisco_acl_addr {
     my ($pair, $model) = @_;
     if (is_objectgroup $pair) {
         my $keyword = 
@@ -12891,7 +12895,7 @@ sub cisco_acl_addr( $$ ) {
     }
 }
 
-sub ios_route_code( $ ) {
+sub ios_route_code {
     my ($pair) = @_;
     my ($ip, $mask) = @$pair;
     my $ip_code   = print_ip($ip);
@@ -12901,7 +12905,7 @@ sub ios_route_code( $ ) {
 
 # Given an IP and mask, return its address
 # as "x.x.x.x/x" or "x.x.x.x" if prefix == 32.
-sub prefix_code( $ ) {
+sub prefix_code {
     my ($pair) = @_;
     my ($ip, $mask) = @$pair;
     my $ip_code     = print_ip($ip);
@@ -12911,7 +12915,7 @@ sub prefix_code( $ ) {
 
 # Returns 3 values for building a Cisco ACL:
 # permit <val1> <src> <val2> <dst> <val3>
-sub cisco_prt_code( $$$ ) {
+sub cisco_prt_code {
     my ($src_range, $prt, $model) = @_;
     my $proto = $prt->{proto};
 
@@ -12919,7 +12923,7 @@ sub cisco_prt_code( $$$ ) {
         return ('ip', undef, undef);
     }
     elsif ($proto eq 'tcp' or $proto eq 'udp') {
-        my $port_code = sub ( $$ ) {
+        my $port_code = sub  {
             my ($v1, $v2) = @_;
             if ($v1 == $v2) {
                 return ("eq $v1");
@@ -12978,7 +12982,7 @@ sub cisco_prt_code( $$$ ) {
 }
 
 # Code filtering traffic with PIX as destination.
-sub pix_self_code ( $$$$$$ ) {
+sub pix_self_code  {
     my ($action, $spair, $dst, $src_range, $prt, $model) = @_;
     my $src_code = ios_route_code $spair;
     my $dst_intf = $dst->{hardware}->{name};
@@ -13011,7 +13015,7 @@ sub pix_self_code ( $$$$$$ ) {
 }
 
 # Returns iptables code for filtering a protocol.
-sub iptables_prt_code( $$ ) {
+sub iptables_prt_code {
     my ($src_range, $prt) = @_;
     my $proto = $prt->{proto};
 
@@ -13019,7 +13023,7 @@ sub iptables_prt_code( $$ ) {
         return '';
     }
     elsif ($proto eq 'tcp' or $proto eq 'udp') {
-        my $port_code = sub ( $$ ) {
+        my $port_code = sub  {
             my ($v1, $v2) = @_;
             if ($v1 == $v2) {
                 return $v1;
@@ -13112,7 +13116,7 @@ sub cisco_acl_line {
 
 my $min_object_group_size = 2;
 
-sub find_object_groups ( $$ ) {
+sub find_object_groups  {
     my ($router, $hardware) = @_;
     my $model = $router->{model};
     my $is_nxos = $model->{filter} eq 'NX-OS';
@@ -13191,7 +13195,7 @@ sub find_object_groups ( $$ ) {
             }
 
             # Find a group with identical elements or define a new one.
-            my $get_group = sub ( $ ) {
+            my $get_group = sub  {
                 my ($glue)     = @_;
                 my $hash       = $glue->{hash};
                 my $no_nat_set = $glue->{no_nat_set};
@@ -13264,15 +13268,15 @@ sub find_object_groups ( $$ ) {
                 # for another router would become confused.
                 if (my $glue = delete $rule->{group_glue}) {
 
-#              debug print_rule $rule;
+#              debug(print_rule $rule);
                     if ($glue->{active}) {
 
-#                 debug " deleted: $glue->{group}->{name}";
+#                 debug(" deleted: $glue->{group}->{name}");
                         next;
                     }
                     my $group = $get_group->($glue);
 
-#              debug " generated: $group->{name}";
+#              debug(" generated: $group->{name}");
 #              # Only needed when debugging.
 #              $glue->{group} = $group;
 
@@ -13294,27 +13298,25 @@ sub find_object_groups ( $$ ) {
 
 # Handle iptables.
 #
-sub debug_bintree ( $;$ );
-
-sub debug_bintree ( $;$ ) {
+sub debug_bintree {
     my ($tree, $depth) = @_;
     $depth ||= '';
     my $ip      = print_ip $tree->{ip};
     my $mask    = print_ip $tree->{mask};
     my $subtree = $tree->{subtree} ? 'subtree' : '';
 
-#    debug $depth, " $ip/$mask $subtree";
-#    debug_bintree $tree->{lo}, "${depth}l" if $tree->{lo};
-#    debug_bintree $tree->{hi}, "${depth}h" if $tree->{hi};
+#    debug($depth, " $ip/$mask $subtree");
+#    debug_bintree($tree->{lo}, "${depth}l") if $tree->{lo};
+#    debug_bintree($tree->{hi}, "${depth}h") if $tree->{hi};
 }
 
 # Nodes are reverse sorted before being added to bintree.
 # Redundant nodes are discarded while inserting.
 # A node with value of sub-tree S is discarded,
 # if some parent node already has sub-tree S.
-sub add_bintree ( $$ );
+sub add_bintree;
 
-sub add_bintree ( $$ ) {
+sub add_bintree  {
     my ($tree,    $node)      = @_;
     my ($tree_ip, $tree_mask) = @{$tree}{qw(ip mask)};
     my ($node_ip, $node_mask) = @{$node}{qw(ip mask)};
@@ -13399,8 +13401,8 @@ sub add_bintree ( $$ ) {
             $hi->{$key} and last MERGE;
         }
 
-#       debug 'Merged: ', print_ip $lo->{ip},' ',
-#       print_ip $hi->{ip},'/',print_ip $hi->{mask};
+#       debug('Merged: ', print_ip $lo->{ip},' ',
+#             print_ip $hi->{ip},'/',print_ip $hi->{mask});
         $result->{subtree} = $lo->{subtree};
         delete $result->{lo};
         delete $result->{hi};
@@ -13409,7 +13411,7 @@ sub add_bintree ( $$ ) {
 }
 
 # Build a binary tree for src/dst objects.
-sub gen_addr_bintree ( $$$ ) {
+sub gen_addr_bintree  {
     my ($elements, $tree, $no_nat_set) = @_;
 
     # Sort in reverse order by mask and then by IP.
@@ -13436,7 +13438,7 @@ sub gen_addr_bintree ( $$$ ) {
     # generated rule.
     $bintree->{noop} = 1 if $bintree->{mask} == 0;
 
-#    debug_bintree $bintree;
+#    debug_bintree($bintree);
     return $bintree;
 }
 
@@ -13453,7 +13455,7 @@ sub gen_addr_bintree ( $$$ ) {
 # Additional attribute {subtree} is set with corresponding subtree of
 # protocol object if current node comes from a rule and wasn't inserted
 # for optimization.
-sub gen_prt_bintree ( $$ ) {
+sub gen_prt_bintree  {
     my ($elements, $tree) = @_;
 
     my $ip_prt;
@@ -13554,8 +13556,8 @@ sub gen_prt_bintree ( $$ ) {
               grep(defined($_), $lo->{lo}, $lo->{hi}, $hi->{lo}, $hi->{hi});
             if (@hilo <= 2) {
 
-#		debug "Merged: $lo->{range}->[0]-$lo->{range}->[1]",
-#		" $hi->{range}->[0]-$hi->{range}->[1]";
+#		debug("Merged: $lo->{range}->[0]-$lo->{range}->[1]",
+#		      " $hi->{range}->[0]-$hi->{range}->[1]");
                 my $node = {
                     proto   => $proto,
                     range   => $range,
@@ -13709,7 +13711,7 @@ my %ref_type = (
 );
 $ref2prt{$prt_icmp} = $prt_icmp;
 
-sub find_chains ( $$ ) {
+sub find_chains  {
     my ($router, $hardware) = @_;
 
     # For generating names of chains.
@@ -13774,7 +13776,7 @@ sub find_chains ( $$ ) {
             my @elements = map { $ref2x->{$_} } keys %$tree;
             for my $elem (@elements) {
 
-#                debug ' ' x $depth, "$elem->{name}";
+#                debug(' ' x $depth, "$elem->{name}");
                 if ($depth < $#$order) {
                     $print_tree->($tree->{$elem}, $order, $depth + 1);
                 }
@@ -13891,8 +13893,8 @@ sub find_chains ( $$ ) {
 
 #                   if($order->[$depth+1]&&
 #                      $order->[$depth+1] =~ /^(src|dst)$/) {
-#                       debug $order->[$depth+1];
-#                       debug_bintree $subtree;
+#                       debug($order->[$depth+1]);
+#                       debug_bintree($subtree);
 #                   }
                     my $rules = $cache{$subtree};
                     if (not $rules) {
@@ -13918,7 +13920,7 @@ sub find_chains ( $$ ) {
                         # Create a copy of each rule because we must not change
                         # the original cached rules.
                         push @rules, map {
-                            { %$_, @add_keys }
+                            { (%$_, @add_keys) }
                         } @$rules;
                     }
                     else {
@@ -13998,7 +14000,7 @@ sub find_chains ( $$ ) {
                     }
                     push @rule_trees, $rule_tree;
 
-#		    debug join ', ', @test_order;
+#		    debug(join ', ', @test_order);
                     $tree2order{$rule_tree} = \@test_order;
                     last if not $action;
                     $start       = $i;
@@ -14061,7 +14063,7 @@ sub max {
 # Print chains of iptables.
 # Objects have already been normalized to ip/mask pairs.
 # NAT has already been applied.
-sub print_chains ( $ ) {
+sub print_chains  {
     my ($router) = @_;
 
     # Declare chain names.
@@ -14084,7 +14086,7 @@ sub print_chains ( $ ) {
         for my $rule (@{ $chain->{rules} }) {
             my $action = $rule->{action};
             my $action_code =
-                is_chain $action ? $action->{name}
+                is_chain($action) ? $action->{name}
               : $action eq 'permit' ? 'ACCEPT'
               :                       'droplog';
 
@@ -14139,7 +14141,7 @@ sub print_chains ( $ ) {
                       :                                 $prt_ip;
                 }
 
-#               debug "c ",print_rule $rule if not $src_range or not $prt;
+#               debug("c ",print_rule $rule) if not $src_range or not $prt;
                 $result .= ' ' . iptables_prt_code($src_range, $prt);
             }
             print "$prefix $result\n";
@@ -14156,7 +14158,7 @@ sub print_chains ( $ ) {
 }
 
 # Find adjacent port ranges.
-sub join_ranges ( $ ) {
+sub join_ranges  {
     my ($hardware) = @_;
     my $changed;
     for my $rules ('intf_rules', 'rules', 'out_rules') {
@@ -14271,8 +14273,8 @@ sub join_ranges ( $ ) {
 }
 
 #use Time::HiRes qw ( time );
-sub local_optimization() {
-    progress "Optimizing locally";
+sub local_optimization {
+    progress('Optimizing locally');
 
     # Needed in find_chains.
     $ref2obj{$network_00} = $network_00;
@@ -14325,7 +14327,7 @@ sub local_optimization() {
                 }
 
 #               my $rname = $router->{name};
-#               debug "$router->{name}";
+#               debug("$router->{name}");
                 for my $rules ('intf_rules', 'rules', 'out_rules') {
 
 #                    my $t1 = time();
@@ -14423,7 +14425,7 @@ sub local_optimization() {
 #                        my $t3 = time();
 #                        $r2rules{$rname}++;
 
-#                       debug print_rule $rule;
+#                       debug8print_rule $rule);
                         my ($action, $src, $dst, $src_range, $prt) =
                           @{$rule}{ 'action', 'src', 'dst', 'src_range',
                             'prt' };
@@ -14450,8 +14452,8 @@ sub local_optimization() {
                                                                     $other_rule)
                                                                 {
 
-# debug "del:", print_rule $rule;
-# debug "oth:", print_rule $other_rule;
+# debug("del:", print_rule $rule);
+# debug("oth:", print_rule $other_rule);
                                                                     $rule =
                                                                       undef;
 
@@ -14574,7 +14576,7 @@ sub local_optimization() {
 
                                 if ($old ne $rule) {
 
-#				    debug "sec delete: ", print_rule $rule;
+#				    debug("sec delete: ", print_rule $rule);
 
                                     $rule    = undef;
                                     $changed = 1;
@@ -14595,7 +14597,7 @@ sub local_optimization() {
                                     prt       => $prt_ip,
                                 };
 
-#				debug "sec: ", print_rule $new_rule;
+#				debug("sec: ", print_rule $new_rule);
                                 $id_hash2{$src}->{$dst} = $new_rule;
 
                                 # This only works if smaller rule isn't
@@ -14669,14 +14671,14 @@ sub local_optimization() {
 #        }
 #        else {
 #            $name =~ s/^router://;
-#            debug sprintf( $f, $name, $rules, $id, $del, $sec,
-#                           $pre, $while, $secon, $join, $sum);
+#            debug(sprintf( $f, $name, $rules, $id, $del, $sec,
+#                           $pre, $while, $secon, $join, $sum));
 #        }
 #    }
-#    debug sprintf( $f, 'other', $orules, $oid, $odel, $osec,
-#        $otime[0], $otime[1], $otime[2], $otime[3], $otime[4]);
-#    debug sprintf( $f, 'all', $arules, $aid, $adel, $asec,
-#                   $atime[0], $atime[1], $atime[2], $atime[3], $atime[4]);
+#    debug(sprintf( $f, 'other', $orules, $oid, $odel, $osec,
+#                   $otime[0], $otime[1], $otime[2], $otime[3], $otime[4]));
+#    debug(sprintf( $f, 'all', $arules, $aid, $adel, $asec,
+#                   $atime[0], $atime[1], $atime[2], $atime[3], $atime[4]));
 }
 
 my $deny_any_rule = {
@@ -14740,7 +14742,7 @@ sub print_cisco_acl_add_deny {
         for my $rule (@{ $hardware->{intf_rules} }) {
             next if $rule->{action} eq 'deny';
             my $src = $rule->{src};
-            next if not is_network $src;
+            next if not is_network($src);
             next if $src->{mask} != 0;
             next if $rule->{prt} ne $prt_ip;
             my $dst = $rule->{dst};
@@ -14770,11 +14772,11 @@ sub print_cisco_acl_add_deny {
             # We only need to check networks:
             # - subnet/host and interface already have been checked to
             #   have disjoint ip addresses to interfaces of current router.
-            next if not is_network $dst;
+            next if not is_network($dst);
             if ($dst->{mask} == 0) {
                 $protect_all = 1;
 
-#               debug "Protect all $router->{name}:$hardware->{name}";
+#               debug("Protect all $router->{name}:$hardware->{name}");
                 last RULE;
             }
 
@@ -14787,7 +14789,7 @@ sub print_cisco_acl_add_deny {
                 {
                     $need_protect{$intf} = $intf;
 
-#                   debug "Need protect $intf->{name} at $hardware->{name}";
+#                   debug("Need protect $intf->{name} at $hardware->{name}");
                 }
             }
         }
@@ -14866,7 +14868,7 @@ sub get_split_tunnel_nets {
     for my $rule (@{ $interface->{rules} }, @{ $interface->{intf_rules} }) {
         next if not $rule->{action} eq 'permit';
         my $dst = $rule->{dst};
-        my $dst_network = is_network $dst ? $dst : $dst->{network};
+        my $dst_network = is_network($dst) ? $dst : $dst->{network};
 
         # Dont add 'any' (resulting from global:permit)
         # to split_tunnel networks.
@@ -14906,7 +14908,7 @@ my %asa_vpn_attributes = (
     'username-from-certificate'   => { tg_general => 1 },
 );
 
-sub print_asavpn ( $ ) {
+sub print_asavpn  {
     my ($router)         = @_;
     my $model            = $router->{model};
     my $no_nat_set       = $router->{hardware}->[0]->{no_nat_set};
@@ -15241,7 +15243,7 @@ sub iptables_acl_line {
     my $spair = address($src, $no_nat_set);
     my $dpair = address($dst, $no_nat_set);
     my $action_code =
-        is_chain $action ? $action->{name}
+        is_chain($action) ? $action->{name}
       : $action eq 'permit' ? 'ACCEPT'
       :                       'droplog';
     my $jump = $rule->{goto} ? '-g' : '-j';
@@ -15441,7 +15443,7 @@ sub gen_crypto_rules {
     return \@crypto_rules;
 }
 
-sub print_ezvpn( $ ) {
+sub print_ezvpn {
     my ($router)     = @_;
     my $model        = $router->{model};
     my @interfaces   = @{ $router->{interfaces} };
@@ -15516,7 +15518,7 @@ sub print_ezvpn( $ ) {
       and print " ip access-group $crypto_filter_name in\n";
 }
 
-sub print_crypto( $ ) {
+sub print_crypto {
     my ($router) = @_;
     my $model = $router->{model};
     my $crypto_type = $model->{crypto} || '';
@@ -15821,7 +15823,7 @@ sub print_crypto( $ ) {
     }
 }
 
-sub print_interface( $ ) {
+sub print_interface {
     my ($router) = @_;
     my $model = $router->{model};
     my $class = $model->{class};
@@ -15887,7 +15889,7 @@ sub print_interface( $ ) {
 }
 
 # Make output directory available.
-sub check_output_dir( $ ) {
+sub check_output_dir {
     my ($dir) = @_;
     unless (-e $dir) {
         mkdir $dir
@@ -15897,7 +15899,7 @@ sub check_output_dir( $ ) {
 }
 
 # Print generated code for each managed router.
-sub print_code( $ ) {
+sub print_code {
     my ($dir) = @_;
 
     # Untaint $dir. This is necessary if running setuid.
@@ -15908,7 +15910,7 @@ sub print_code( $ ) {
         check_output_dir $dir;
     }
 
-    progress "Printing code";
+    progress('Printing code');
     my %seen;
     for my $router (@managed_routers) {
         next if $seen{$router};
@@ -15983,13 +15985,13 @@ sub copy_raw {
         my ($raw_file) = ($file =~ /^(.*)/);
         my $raw_path = "$raw_dir/$raw_file";
         if (not -f $raw_path) {
-            warn_msg "Ignoring $raw_path";
+            warn_msg("Ignoring $raw_path");
             next;
         }
         if (not $routers{$file}) {
             if (my $conf = $config{check_raw}) {
                 my $msg = "Found unused $raw_path";
-                $conf eq 'warn' ? warn_msg $msg : err_msg $msg;
+                $conf eq 'warn' ? warn_msg($msg) : err_msg($msg);
             }
             next;
         }
@@ -15999,12 +16001,12 @@ sub copy_raw {
     }
 }
 
-sub show_version() {
-    progress "$program, version $version";
+sub show_version {
+    progress("$program, version $version");
 }
 
-sub show_finished() {
-    progress "Finished" if $config{time_stamps};
+sub show_finished {
+    progress('Finished') if $config{time_stamps};
 }
 
 1
