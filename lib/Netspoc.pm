@@ -4838,8 +4838,7 @@ sub convert_hosts() {
         }
 
         # Attribute {up} has been set for all subnets now.
-        # Do the same for interfaces and the network itself.
-#        $network->{up} = $network->{any};
+        # Do the same for interfaces.
         for my $interface (@{ $network->{interfaces} }) {
             $interface->{up} = $network;
         }
