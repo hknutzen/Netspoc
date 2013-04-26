@@ -1651,7 +1651,7 @@ sub read_interface {
                 }
             }
             $virtual->{ip} or error_atline("Missing virtual IP");
-            $virtual->{redundancy_id} && !$virtual->{redundancy_type} and
+            ($virtual->{redundancy_id} && !$virtual->{redundancy_type}) and
                 syntax_err "Redundancy ID is given without redundancy protocol";
         }
         elsif (my @tags = check_assign_list 'bind_nat', \&read_identifier) {
@@ -1740,7 +1740,7 @@ sub read_interface {
               redundant redundancy_type redundancy_id)
           };
         if (keys %copy) {
-            my $attr = join ", ", map "'$_'", keys %copy;
+            my $attr = join ", ", map { "'$_'" } keys %copy;
             error_atline("Invalid attributes $attr for loopback interface");
         }
         if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
@@ -1753,8 +1753,8 @@ sub read_interface {
     }
     if ($interface->{ip} eq 'bridged') {
         my %ok = (ip => 1, hardware => 1, name => 1);
-        if (my @extra = grep(not($ok{$_}), keys %$interface)) {
-            my $attr = join ", ", map "'$_'", @extra;
+        if (my @extra = grep { !$ok{$_} } keys %$interface) {
+            my $attr = join ", ", map { "'$_'" } @extra;
             error_atline("Invalid attributes $attr for bridged interface");
         }
     }
@@ -1801,8 +1801,8 @@ sub set_pix_interface_level {
         my $hwname = $hardware->{name};
         my $level;
         if (
-            my @levels = grep(defined($_),
-                map($_->{security_level}, @{ $hardware->{interfaces} }))
+            my @levels = grep { defined($_) }
+                map { $_->{security_level} } @{ $hardware->{interfaces} }
           )
         {
             if (@levels > 2 && !equal(@levels)) {
@@ -3985,7 +3985,7 @@ sub link_pathrestrictions {
               " at least one interface out of $private.private";
         }
         if ($changed) {
-            $restrict->{elements} = [ grep $_, @{ $restrict->{elements} } ];
+            $restrict->{elements} = [ grep { $_ } @{ $restrict->{elements} } ];
         }
         my $count = @{ $restrict->{elements} };
         if ($count == 1) {
@@ -4097,7 +4097,7 @@ sub link_virtual_interfaces  {
             {
                 err_msg("Pathrestriction not supported for",
                         " group of 3 or more virtual interfaces\n ",
-                        join(',', map($_->{name}, @$interfaces)));
+                        join(',', map { $_->{name} } @$interfaces));
             }
 
             # Automatically add pathrestriction to interfaces
@@ -4563,9 +4563,9 @@ sub mark_disabled {
     # Collect vrf instances belonging to one device.
     for my $aref (values %name2vrf) {
         next if @$aref == 1;
-        equal(map $_->{managed} ? $_->{model}->{name} : (), @$aref)
+        equal(map { $_->{managed} ? $_->{model}->{name} : () } @$aref)
           or err_msg("All VRF instances of router:$aref->[0]->{device_name}",
-            " must have identical model");
+                     " must have identical model");
 
         my %hardware;
         for my $router (@$aref) {
@@ -5091,8 +5091,8 @@ sub expand_group1 {
                         # Add border routers of security zones inside
                         # current area.
                         for my $router (
-                            map $_->{router},
-                            map @{ $_->{interfaces} },
+                            map { $_->{router} }
+                            map { @{ $_->{interfaces} } }
                             @{ $object->{zones} }
                           )
                         {
@@ -5111,7 +5111,7 @@ sub expand_group1 {
                             } @{ $object->{zones} };
                         }
                         if ($selector eq 'all') {
-                            push @check, map @{ $_->{interfaces} }, @routers;
+                            push @check, map { @{ $_->{interfaces} } } @routers;
                         }
                         else {
                             push @objects, map { get_auto_intf $_ } @routers;
@@ -5190,7 +5190,7 @@ sub expand_group1 {
                 my $type = ref $object;
                 if ($type eq 'Area') {
                     push @objects,
-                      unique(map (get_any00($_), @{ $object->{zones} }));
+                      unique(map { get_any00($_) } @{ $object->{zones} });
                 }
                 elsif ($type eq 'Network' && $object->{is_aggregate}) {
                     push @objects, $object;
@@ -5227,7 +5227,7 @@ sub expand_group1 {
                     elsif ($type ne 'Interface'
                         and my $networks = $get_networks->($object))
                     {
-                        push @objects, map @{ $_->{hosts} }, @$networks;
+                        push @objects, map { @{ $_->{hosts} } } @$networks;
                     }
                     else {
                         err_msg
@@ -5275,7 +5275,7 @@ sub expand_group1 {
                         push @objects, @$aggregates;
                     }
                     elsif (my $networks = $get_networks->($object)) {
-                        push @objects, map(get_any00($_->{zone}), @$networks);
+                        push @objects, map { get_any00($_->{zone}) } @$networks;
                     }
                     else {
                         my $type = ref $object;
@@ -5723,7 +5723,7 @@ sub expand_special  {
             }
             $zones{$zone} = $zone;
         }
-        @result = map(get_any00($_), values %zones);
+        @result = map { get_any00($_) } values %zones;
     }
     return @result;
 }
@@ -6250,7 +6250,7 @@ sub propagate_owners {
         if (@explicit_owner_zones) {
             equal(@explicit_owner_zones)
               or internal_err("Unexpected different owners in ",
-                join(',', map($_->{name}, @explicit_owner_zones)));
+                join(',', map { $_->{name} } @explicit_owner_zones));
             my $owner = $explicit_owner_zones[0];
             $_->{owner} = $owner for @implicit_owner_zones;
 
@@ -6611,7 +6611,7 @@ sub set_service_owner {
         # from @objects.
         if (my $sub_owner = $service->{sub_owner}) {
             $sub_owner->{is_used} = 1;
-            keys %$service_owners == 1 && $service_owners->{$sub_owner} and
+            (keys %$service_owners == 1 && $service_owners->{$sub_owner}) and
                 warn_msg("Useless $sub_owner->{name} at $service->{name}");
         }
 
@@ -7458,7 +7458,8 @@ sub find_subnets {
         $set_max_net->($_) for @{ $zone->{networks} };
 
         # Remove subnets of non-aggregate networks.
-        $zone->{networks} = [ grep(!$_->{max_up_net}, @{ $zone->{networks} }) ];
+        $zone->{networks} = 
+            [ grep { !$_->{max_up_net} } @{ $zone->{networks} } ];
     }
 
     # It is valid to have an aggregate in a zone which has no matching
@@ -7801,7 +7802,9 @@ sub link_aggregates {
         # Don't define aggregate und network with same IP.
         # {up} relation wouldn't be well defined.
         if (my $cluster = $zone->{zone_cluster}) {
-            if (grep { $_->{mask} == 0 } map(@{ $_->{networks} }, @$cluster)) {
+            if (grep { $_->{mask} == 0 } 
+                map { @{ $_->{networks} } } @$cluster)
+            {
                 next;
             }
         }
@@ -7849,7 +7852,8 @@ sub get_any00 {
 sub get_cluster_aggregates {
     my ($zone, $ip, $mask) = @_;
     my $key = "$ip/$mask";
-    return map($_->{ipmask2aggregate}->{$key}||(), @{ $zone->{zone_cluster} });
+    return 
+        map { $_->{ipmask2aggregate}->{$key}||() } @{ $zone->{zone_cluster} };
 }
 
 sub set_zone1 {
@@ -8016,7 +8020,7 @@ sub area_managed_routers {
         my $router = $_->{router};
         ($router => $router)
       }
-      map @{ $_->{interfaces} }, @{ $area->{zones} };
+      map { @{ $_->{interfaces} } } @{ $area->{zones} };
 
     # Remove border routers, because we only
     # need routers inside this area.
@@ -8111,7 +8115,7 @@ sub set_zone {
             set_area1($start->{zone}, $area, $start);
             if (my @bad_intf = grep { $lookup{$_} ne 'found' } @$interfaces) {
                 err_msg("Invalid border of $area->{name}\n ", join "\n ",
-                        map $_->{name}, @bad_intf);
+                        map { $_->{name} } @bad_intf);
                 $area->{border} =
                   [ grep { $lookup{$_} eq 'found' } @$interfaces ];
             }
@@ -8235,11 +8239,11 @@ sub check_pathrestrictions {
                          " because it isn't located inside cyclic graph");
             }
         }
-        if (!grep($_->{router}->{managed}, @$elements)) {
+        if (!grep { $_->{router}->{managed} } @$elements) {
 
             # Unmanaged router with pathrestriction is known to be
             # part of zone_cluster.
-            if (equal(map($_->{zone}->{zone_cluster}, @$elements))) {
+            if (equal(map { $_->{zone}->{zone_cluster} } @$elements)) {
                 warn_msg(
                     "Useless $restrict->{name}.\n",
                     " All interfaces are unmanaged and",
@@ -9883,7 +9887,7 @@ sub check_supernet_in_zone {
                 return;
             }
         }
-        $extra = "Tried " . join(', ', map($_->{name}, @$networks));
+        $extra = "Tried " . join(', ', map { $_->{name} } @$networks);
     }
 
     my $service = $rule->{rule}->{service};
@@ -10524,7 +10528,7 @@ sub gen_reverse_rules1  {
                     $has_stateless_router = 1;
 
                     # Jump out of path_walk.
-                    no warnings "exiting";
+                    no warnings "exiting";	## no critic
                     last PATH_WALK if $use_nonlocal_exit;
                 }
             };
@@ -12375,7 +12379,7 @@ sub set_policy_distribution_ip  {
     @admin_prt{@prt_list} = @prt_list;
 
     my %pdp_src;
-    for my $pdp (map $_, @{ $policy_distribution_point->{subnets} }) {
+    for my $pdp (map { $_ } @{ $policy_distribution_point->{subnets} }) {
         while ($pdp) {
             $pdp_src{$pdp} = $pdp;
             $pdp = $pdp->{up};
@@ -12446,14 +12450,14 @@ sub set_policy_distribution_ip  {
         next if $seen{$router};
         my $unreachable;
         if (my $vrf_members = $router->{vrf_members}) {
-            grep $_->{admin_ip}, @$vrf_members
+            grep { $_->{admin_ip} } @$vrf_members
               or $unreachable = "at least one VRF of $router->{device_name}";
 
             # Print VRF instance with known admin_ip first.
             $router->{vrf_members} = [
                 sort {
-                    not($a->{admin_ip}) <=> not($b->{admin_ip})
-                      || $a->{name} cmp $b->{name}
+                    !$a->{admin_ip} <=> !$b->{admin_ip}
+                    || $a->{name} cmp $b->{name}
                   } @$vrf_members
             ];
         }
@@ -13516,7 +13520,7 @@ sub gen_prt_bintree  {
             and $lo->{subtree} eq $hi->{subtree})
         {
             my @hilo =
-              grep(defined($_), $lo->{lo}, $lo->{hi}, $hi->{lo}, $hi->{hi});
+              grep { defined $_ } $lo->{lo}, $lo->{hi}, $hi->{lo}, $hi->{hi};
             if (@hilo <= 2) {
 
 #		debug("Merged: $lo->{range}->[0]-$lo->{range}->[1]",
@@ -13984,7 +13988,7 @@ sub find_chains  {
             # Goto must not be used in last rule of rule tree which is
             # not the last tree.
             if ($i != $#rule_trees) {
-                my $rule = $result->[$#$result];
+                my $rule = $result->[-1];
                 delete $rule->{goto};
             }
 
