@@ -15935,7 +15935,7 @@ sub copy_raw {
     return if not -d $raw_dir;
 
     # Clean PATH if run in taint mode.
-    $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
+    $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin'; ## no critic
 
     my %routers = map { $_->{device_name} => 1 } @managed_routers;
 
@@ -15972,7 +15972,7 @@ sub show_finished {
     progress('Finished') if $config{time_stamps};
 }
 
-1
+1;
 
 #  LocalWords:  Netspoc Knutzen internet CVS IOS iproute iptables STDERR Perl
 #  LocalWords:  netmask EOL ToDo IPSec unicast utf hk src dst ICMP IPs EIGRP
