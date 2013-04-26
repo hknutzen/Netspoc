@@ -1343,7 +1343,7 @@ sub read_network {
                 }
             }
             else {
-                internal_err;
+                internal_err();
             }
 
             # Compatibility of host and network NAT will be checked later,
@@ -2774,7 +2774,7 @@ sub read_attributed_object {
             $val = &$fun;
         }
         else {
-            internal_err;
+            internal_err();
         }
         skip ';';
         $object->{$attribute} and error_atline("Duplicate attribute");
@@ -3447,7 +3447,7 @@ sub order_ranges {
     };
 
     # Array wont be empty because $prt_tcp and $prt_udp are defined internally.
-    @sorted or internal_err "Unexpected empty array";
+    @sorted or internal_err("Unexpected empty array");
 
     my $a = $sorted[0];
     $a->{up} = $up;
@@ -3456,18 +3456,19 @@ sub order_ranges {
     # Ranges "TCP any" and "UDP any" 1..65535 are defined internally,
     # they include all other ranges.
     $a1 == 1 and $a2 == 65535
-      or internal_err "Expected $a->{name} to have range 1..65535";
+      or internal_err("Expected $a->{name} to have range 1..65535");
 
     # There can't be any port which isn't included by ranges "TCP any"
     # or "UDP any".
-    $check_subrange->($a, $a1, $a2, 1) and internal_err;
+    $check_subrange->($a, $a1, $a2, 1) and internal_err();
 }
 
 sub expand_splitted_protocols  {
     my ($prt) = @_;
     if (my $split = $prt->{split}) {
         my ($prt1, $prt2) = @$split;
-        return expand_splitted_protocols $prt1, expand_splitted_protocols $prt2;
+        return (expand_splitted_protocols($prt1), 
+                expand_splitted_protocols($prt2));
     }
     else {
         return $prt;
@@ -4313,7 +4314,7 @@ sub transform_isolated_ports {
             }
             next;
         }
-        $network->{ip} eq 'unnumbered' and internal_err;
+        $network->{ip} eq 'unnumbered' and internal_err();
         my @promiscuous_ports;
         my @isolated_interfaces;
         my @secondary_isolated;
@@ -4371,7 +4372,7 @@ sub transform_isolated_ports {
             else {
 
                 #  Don't use unnumbered, negotiated, tunnel interfaces.
-                $ip =~ /^\w/ or internal_err;
+                $ip =~ /^\w/ or internal_err();
                 $new_net->{interfaces} = [$obj];
                 $obj->{network}        = $new_net;
             }
@@ -4674,7 +4675,7 @@ sub convert_hosts {
                 @ip_mask = split_ip_range $ip1, $ip2;
             }
             else {
-                internal_err "unexpected host type";
+                internal_err("unexpected host type");
             }
             for my $ip_mask (@ip_mask) {
                 my ($ip, $mask) = @$ip_mask;
@@ -5156,7 +5157,7 @@ sub expand_group1 {
                 if (my $router = $routers{$name}) {
 
                     # Syntactically impossible.
-                    $managed and internal_err;
+                    $managed and internal_err();
                     if ($selector eq 'all') {
                         push @check, @{ $router->{interfaces} };
                     }
@@ -5651,7 +5652,7 @@ sub get_zone {
         $result = $obj->{network}->{zone};
     }
     else {
-        internal_err "unexpected $obj->{name}";
+        internal_err("unexpected $obj->{name}");
     }
     $obj2zone{$obj} = $result;
 }
@@ -5707,7 +5708,7 @@ sub expand_special  {
                 }
             }
             else {
-                internal_err "unexpected $obj->{name}";
+                internal_err("unexpected $obj->{name}");
             }
             push @networks, $network if $network->{ip} ne 'unnumbered';
         }
@@ -5726,7 +5727,7 @@ sub expand_special  {
                 $zone = $obj->{network}->{zone};
             }
             else {
-                internal_err "unexpected $obj->{name}";
+                internal_err("unexpected $obj->{name}");
             }
             $zones{$zone} = $zone;
         }
@@ -6042,7 +6043,7 @@ sub expand_rules {
                         $orig_prt = $prt;
                     }
                 }
-                $prt->{src_dst_range_list} or internal_err $prt->{name};
+                $prt->{src_dst_range_list} or internal_err($prt->{name});
                 for my $src_dst_range (@{ $prt->{src_dst_range_list} }) {
                     my ($src_range, $prt) = @$src_dst_range;
                     for my $src (@$src) {
@@ -8517,7 +8518,7 @@ sub get_path {
         $result = $obj->{network}->{zone};
     }
     else {
-        internal_err "unexpected $obj->{name}";
+        internal_err("unexpected $obj->{name}");
     }
 
 #    debug("get_path: $obj->{name} -> $result->{name}");
@@ -8607,7 +8608,7 @@ sub cluster_path_mark1 {
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_intf;
         my $loop = $interface->{loop};
-        $allowed or internal_err "Loop with empty navigation";
+        $allowed or internal_err("Loop with empty navigation");
         next if not $loop or not $allowed->{$loop};
         my $next = $interface->{$get_next};
         if (
@@ -8809,7 +8810,8 @@ sub cluster_path_mark  {
         my $path_tuples = {};
         my $loop_leave  = [];
 
-        my $navi = cluster_navigation($from, $to) or internal_err "Empty navi";
+        my $navi = cluster_navigation($from, $to) 
+          or internal_err("Empty navi");
 
 #	use Dumpvalue;
 #	Dumpvalue->new->dumpValue($navi);
@@ -8854,11 +8856,11 @@ sub cluster_path_mark  {
         my $tuples_aref = [];
         for my $in_intf_ref (keys %$path_tuples) {
             my $in_intf = $key2obj{$in_intf_ref}
-              or internal_err "Unknown in_intf at tuple";
+              or internal_err("Unknown in_intf at tuple");
             my $hash = $path_tuples->{$in_intf_ref};
             for my $out_intf_ref (keys %$hash) {
                 my $out_intf = $key2obj{$out_intf_ref}
-                  or internal_err "Unknown out_intf at tuple";
+                  or internal_err("Unknown out_intf at tuple");
                 my $at_router = $hash->{$out_intf_ref};
                 push @$tuples_aref, [ $in_intf, $out_intf, $at_router ];
 
@@ -9065,7 +9067,7 @@ sub loop_path_walk {
 # Default is 'Router'.
 sub path_walk {
     my ($rule, $fun, $where) = @_;
-    internal_err "undefined rule" unless $rule;
+    internal_err("undefined rule") unless $rule;
     my $src = $rule->{src};
     my $dst = $rule->{dst};
 
@@ -9085,8 +9087,8 @@ sub path_walk {
 #       debug(" Walk: $in_name, $out_name");
 #       $fun2->(@_);
 #    };
-    $from and $to or internal_err print_rule $rule;
-    $from eq $to and internal_err "Unenforceable:\n ", print_rule $rule;
+    $from and $to or internal_err(print_rule $rule);
+    $from eq $to and internal_err("Unenforceable:\n ", print_rule $rule);
 
     if (not($path_store->{path}->{$to_store})) {
         path_mark($from, $to, $from_store, $to_store)
@@ -9582,7 +9584,7 @@ sub expand_crypto  {
                           " be located behind managed $router->{name}";
 
                         # Must not have multiple networks.
-                        @all_networks > 1 and internal_err;
+                        @all_networks > 1 and internal_err();
 
                         # Rules for single software clients are stored
                         # individually at crypto hub interface.
@@ -10559,7 +10561,7 @@ sub gen_reverse_rules1  {
                 $new_src_range = $rule->{src_range};
             }
             else {
-                internal_err;
+                internal_err();
             }
             my $new_rule = {
 
@@ -11035,7 +11037,7 @@ sub get_zone3 {
         }
     }
     else {
-        internal_err;
+        internal_err();
     }
 }
 
@@ -11054,7 +11056,7 @@ sub get_networks {
         $obj->{network};
     }
     else {
-        internal_err "unexpected $obj->{name}";
+        internal_err("unexpected $obj->{name}");
     }
 }
 
@@ -11135,7 +11137,7 @@ sub get_route_networks {
         }
     }
     else {
-        internal_err "unexpected $obj->{name}";
+        internal_err("unexpected $obj->{name}");
     }
 }
 
@@ -11288,8 +11290,8 @@ sub add_end_routes  {
     for my $network (@$dst_networks) {
         next if $network eq $intf_net;
         my $hops = $route_in_zone->{$network}
-          or internal_err
-          "Missing route for $network->{name} at $interface->{name}";
+          or internal_err("Missing route for $network->{name}",
+                          " at $interface->{name}");
         for my $hop (@$hops) {
             $interface->{hop}->{$hop} = $hop;
 
@@ -11582,9 +11584,10 @@ sub check_and_convert_routes  {
                 # for the encrypted traffic which is allowed 
                 # by gen_tunnel_rules (even for negotiated interface).
                 else {
-                    internal_err
+                    internal_err(
                       "Can't determine next hop while moving routes\n",
-                      " of $interface->{name} to $real_intf->{name}";
+                      " of $interface->{name} to $real_intf->{name}"
+                    );
                 }
             }
         }
@@ -11678,9 +11681,10 @@ sub check_and_convert_routes  {
                     # This can't occur, because we reject group of
                     # more than 3 virtual interfaces together with
                     # pathrestrictions.
-                    internal_err
+                    internal_err(
                         "$network->{name} is reached via $hop1->{name}\n",
-                        " but not via all related redundancy interfaces";
+                        " but not via all related redundancy interfaces"
+                    );
                 }
             }
 
@@ -11862,7 +11866,7 @@ sub print_routes {
                     # Do nothing.
                 }
                 else {
-                    internal_err "unexpected routing type '$type'";
+                    internal_err("unexpected routing type '$type'");
                 }
             }
         }
@@ -11970,7 +11974,7 @@ sub print_pix_static {
         # Use a single "nat" command if one network is mapped to
         # different pools at different interfaces.
         my $nat_index = $nat2index{$in_name}->{$in_ip}->{$in_mask};
-        $global_index and $nat_index and internal_err;
+        $global_index and $nat_index and internal_err();
 
         my $index = $global_index || $nat_index || $dyn_index++;
         if (not $global_index) {
@@ -12326,21 +12330,21 @@ sub distribute_rule {
             my $src = $rule->{src};
             if (is_subnet $src) {
                 my $id = $src->{id}
-                  or internal_err "$src->{name} must have ID";
+                  or internal_err("$src->{name} must have ID");
                 my $id_intf = $id2rules->{$id}
-                  or internal_err "No entry for $id at id_rules";
+                  or internal_err("No entry for $id at id_rules");
                 push @{ $id_intf->{$key} }, $rule;
             }
             elsif (is_network $src) {
                 $src->{has_id_hosts}
-                  or internal_err "$src->{name} must have ID-hosts";
+                  or internal_err("$src->{name} must have ID-hosts");
                 for my $id (map { $_->{id} } @{ $src->{hosts} }) {
                     push @{ $id2rules->{$id}->{$key} }, $rule;
                 }
             }
             else {
-                internal_err
-                  "Expected host or network as src but got $src->{name}";
+                internal_err(
+                  "Expected host or network as src but got $src->{name}");
             }
         }
 
@@ -12630,7 +12634,7 @@ sub cmp_address {
         "$obj->{ip}," . 0xffffffff;
     }
     else {
-        internal_err;
+        internal_err();
     }
 }
 
@@ -12649,7 +12653,7 @@ sub distribute_global_permit {
         my $stateless      = $prt->{flags} && $prt->{flags}->{stateless};
         my $stateless_icmp = $prt->{flags} && $prt->{flags}->{stateless_icmp};
         $prt = $prt->{main} if $prt->{main};
-        $prt->{src_dst_range_list} or internal_err $prt->{name};
+        $prt->{src_dst_range_list} or internal_err($prt->{name});
         for my $src_dst_range (@{ $prt->{src_dst_range_list} }) {
             my ($src_range, $prt) = @$src_dst_range;
             $ref2prt{$src_range} = $src_range;
@@ -12801,7 +12805,7 @@ sub address {
 
         # ToDo: Is it OK to permit a dynamic address as destination?
         if ($obj->{ip} eq 'unnumbered') {
-            internal_err "Unexpected unnumbered $obj->{name}\n";
+            internal_err("Unexpected unnumbered $obj->{name}");
         }
         else {
             return [ $obj->{ip}, $obj->{mask} ];
@@ -12818,7 +12822,7 @@ sub address {
             else {
 
                 # This has been converted to the  whole network before.
-                internal_err "Unexpected $obj->{name} with dynamic NAT";
+                internal_err("Unexpected $obj->{name} with dynamic NAT");
             }
         }
         else {
@@ -12832,7 +12836,7 @@ sub address {
     }
     elsif ($type eq 'Interface') {
         if ($obj->{ip} =~ /^(unnumbered|short)$/) {
-            internal_err "Unexpected $obj->{ip} $obj->{name}\n";
+            internal_err("Unexpected $obj->{ip} $obj->{name}");
         }
 
         my $network = get_nat_network($obj->{network}, $no_nat_set);
@@ -12848,7 +12852,7 @@ sub address {
                 return [ $ip, 0xffffffff ];
             }
             else {
-                internal_err "Unexpected $obj->{name} with dynamic NAT";
+                internal_err("Unexpected $obj->{name} with dynamic NAT");
             }
         }
         elsif ($network->{isolated}) {
@@ -12870,7 +12874,7 @@ sub address {
         $obj;
     }
     else {
-        internal_err "Unexpected object $obj->{name}";
+        internal_err("Unexpected object $obj->{name}");
     }
 }
 
@@ -13021,8 +13025,9 @@ sub iptables_prt_code {
         $result .= " --sport $sport" if $sport;
         $result .= " --dport $dport" if $dport;
         $prt->{established}
-          and internal_err "Unexpected protocol $prt->{name} with",
-          " 'established' flag while generating code for iptables";
+          and internal_err("Unexpected protocol $prt->{name} with",
+                           " 'established' flag while generating code",
+                           " for iptables");
         return $result;
     }
     elsif ($proto eq 'icmp') {
@@ -13083,7 +13088,7 @@ sub cisco_acl_line {
             print "$result\n";
         }
         else {
-            internal_err "Unknown filter_type $filter_type";
+            internal_err("Unknown filter_type $filter_type");
         }
     }
 }
@@ -13183,9 +13188,8 @@ sub find_object_groups  {
                   )
                 {
                     my $names = join(', ', map { $_->{name} } @aggregates);
-                    internal_err
-                      "Unexpected $names in object-group",
-                      " of $router->{name}";
+                    internal_err("Unexpected $names in object-group",
+                                 " of $router->{name}");
                 }
 
                 # Find group with identical elements.
@@ -13338,7 +13342,7 @@ sub add_bintree  {
         if ($sub1 ne $sub2) {
             my $ip   = print_ip $tree_ip;
             my $mask = print_ip $tree_mask;
-            internal_err "Inconsistent rules for iptables for $ip/$mask";
+            internal_err("Inconsistent rules for iptables for $ip/$mask");
         }
         $result = $tree;
     }
@@ -13702,7 +13706,7 @@ sub find_chains  {
         # Change rules to allow optimization of objects having
         # identical IP adress.
         # This is crucial for correct operation of sub add_bintree.
-        # Otherwise internal_err "Inconsistent rules for iptables"
+        # Otherwise internal_err("Inconsistent rules for iptables")
         # would be triggered.
         for my $rule (@$rules) {
             for my $what (qw(src dst)) {
@@ -14466,7 +14470,7 @@ sub local_optimization {
                         if (   $secondary_filter && $rule->{some_non_secondary}
                             || $standard_filter && $rule->{some_primary})
                         {
-                            $rule->{action} eq 'permit' or internal_err;
+                            $rule->{action} eq 'permit' or internal_err();
                             my ($src, $dst) = @{$rule}{qw(src dst)};
 
                             # Replace obj by largest supernet in zone,
@@ -14788,7 +14792,7 @@ sub print_cisco_acl_add_deny {
             {
                 next;
             }
-            internal_err "Managed router has short $interface->{name}"
+            internal_err("Managed router has short $interface->{name}")
               if $interface->{ip} eq 'short';
 
             # IP of other interface may be unknown if dynamic NAT is used.
@@ -15175,7 +15179,7 @@ EOF
               $prefix;
 
             my $id = $interface->{peers}->[0]->{id}
-              or internal_err "Missing ID at $interface->{peers}->[0]->{name}";
+              or internal_err("Missing ID at $interface->{peers}->[0]->{name}");
             my $attributes = $router->{radius_attributes};
 
             my $group_policy_name;
@@ -15422,7 +15426,7 @@ sub print_ezvpn {
     my $model        = $router->{model};
     my @interfaces   = @{ $router->{interfaces} };
     my @tunnel_intf = grep { $_->{ip} eq 'tunnel' } @interfaces;
-    @tunnel_intf == 1 or internal_err;
+    @tunnel_intf == 1 or internal_err();
     my ($tunnel_intf) = @tunnel_intf;
     my $wan_intf = $tunnel_intf->{real_interface};
     my $wan_hw = $wan_intf->{hardware};
@@ -15541,7 +15545,7 @@ sub print_crypto {
     }
 
     $crypto_type =~ /^(:?IOS|ASA)$/
-      or internal_err "Unexptected crypto type $crypto_type";
+      or internal_err("Unexptected crypto type $crypto_type");
 
     my $isakmp_count = 0;
     for my $isakmp (@isakmp) {
@@ -15587,8 +15591,8 @@ sub print_crypto {
                 $transform .= "ah-$1-hmac ";
             }
             else {
-                internal_err
-                    "Unsupported IPSec AH method for $crypto_type: $ah";
+                internal_err(
+                    "Unsupported IPSec AH method for $crypto_type: $ah");
             }
         }
         if (not(my $esp = $ipsec->{esp_encryption})) {
@@ -15602,15 +15606,15 @@ sub print_crypto {
             $transform .= "esp-aes$len ";
         }
         else {
-            internal_err "Unsupported IPSec ESP method for $crypto_type: $esp";
+            internal_err("Unsupported IPSec ESP method for $crypto_type: $esp");
         }
         if (my $esp_ah = $ipsec->{esp_authentication}) {
             if ($esp_ah =~ /^(md5|sha)_hmac$/) {
                 $transform .= "esp-$1-hmac";
             }
             else {
-                internal_err "Unsupported IPSec ESP auth. method for",
-                  " $crypto_type: $esp_ah";
+                internal_err("Unsupported IPSec ESP auth. method for",
+                             " $crypto_type: $esp_ah");
             }
         }
 
@@ -15667,7 +15671,7 @@ sub print_crypto {
                 $prefix = "access-list $crypto_acl_name extended";
             }
             else {
-                internal_err;
+                internal_err();
             }
 
             # Print crypto ACL,
@@ -15693,7 +15697,7 @@ sub print_crypto {
                     print "ip access-list extended $crypto_filter_name\n";
                 }
                 else {
-                    internal_err;
+                    internal_err();
                 }
                 print_cisco_acl_add_deny($router, $interface, $no_nat_set,
                                          $model, $prefix);
