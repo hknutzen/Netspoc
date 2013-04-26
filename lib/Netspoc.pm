@@ -3006,13 +3006,20 @@ sub read_file {
 
     # Read file as one large line.
     local $/;
+    local $input;
 
-    open(my $fh, $file) or fatal_err "Can't open $file: $!";
+    if (defined $file) {
+        open(my $fh, '<', $file) or fatal_err "Can't open $file: $!";
 
-    # Fill buffer with content of whole file.
-    # Content is implicitly freed when subroutine is left.
-    local $input = <$fh>;
-    close $fh;
+        # Fill buffer with content of whole file.
+        # Content is implicitly freed when subroutine is left.
+        $input = <$fh>;
+        close $fh;
+    }
+    else {
+        $file = 'STDIN';
+        $input = <>;
+    }
     local $line = 1;
     while (skip_space_and_comment, pos $input != length $input) {
         &$read_syntax;
@@ -3035,7 +3042,7 @@ sub read_config {
         $result{$key} = $val;
     };
 
-    if (-d $path) {
+    if (defined $path && -d $path) {
         opendir(my $dh, $path) or fatal_err "Can't opendir $path: $!";
         if (grep { $_ eq 'config' } readdir $dh) {
             $path = "$path/config";
@@ -3107,8 +3114,8 @@ sub read_file_or_dir {
     $read_syntax ||= \&read_netspoc;
 
     # Handle toplevel file.
-    if (not -d $path) {
-        read_file $path, $read_syntax;
+    if (!(defined $path && -d $path)) {
+        read_file($path, $read_syntax);
         return;
     }
 
@@ -15889,7 +15896,7 @@ sub print_code {
             # but check again for the case of a weird locale setting.
             $file =~ /^(.*)/;
             $file = "$dir/$1";
-            open STDOUT, ">$file"
+            open(STDOUT, '>', $file)
               or fatal_err "Can't open $file for writing: $!";
         }
 
@@ -15924,8 +15931,8 @@ sub print_code {
 
 sub copy_raw {
     my ($in_path, $out_dir) = @_;
-    return if not -d $in_path;
-    return if not $out_dir;
+    return if ! (defined $in_path && -d $in_path);
+    return if ! defined $out_dir;
 
     # Untaint $in_path, $out_dir. This is necessary if running setuid.
     # Trusted because set by setuid wrapper.

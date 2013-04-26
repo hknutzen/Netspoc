@@ -6,7 +6,7 @@ Netspoc - A Network Security Policy Compiler
 
 =head1 SYNOPSIS
 
-netspoc [options] {in-directory | in-file | -} [out-directory]
+netspoc [options] [in-directory | in-file] [out-directory]
 
 =head1 OPTIONS
 
@@ -110,7 +110,7 @@ Output is generated in 'out-directory' or sent to STDOUT.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2012 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2013 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -165,10 +165,10 @@ sub read_args() {
 
     GetOptions(%options) or pod2usage(2);
 
-    my $main_file = shift @ARGV or pod2usage(2);
+    my $main_file = shift @ARGV;
 
     # Strip trailing slash for nicer messages.
-    $main_file =~ s</$><>;
+    defined $main_file and $main_file =~ s</$><>;
 
     # $out_dir is used to store compilation results.
     # For each managed router with name X a corresponding file X
@@ -177,7 +177,7 @@ sub read_args() {
     my $out_dir = shift @ARGV;
 
     # Strip trailing slash for nicer messages.
-    $out_dir and $out_dir =~ s</$><>;
+    defined $out_dir and $out_dir =~ s</$><>;
 
     # No further arguments allowed.
     @ARGV and pod2usage(2);
