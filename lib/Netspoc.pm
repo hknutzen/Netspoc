@@ -12277,9 +12277,7 @@ sub distribute_rule {
                 # to cleartext interface as well.
                 return if $in_intf->{ip} eq 'tunnel';
 
-                # Change destination in $rule to interface
-                # because pix_self_code needs interface.
-                #
+                # Change destination in $rule to interface.
                 # Make a copy of current rule, because the
                 # original rule must not be changed.
                 $rule = {%$rule};
@@ -12978,39 +12976,6 @@ sub cisco_prt_code {
     }
     else {
         return ($proto, undef, undef);
-    }
-}
-
-# Code filtering traffic with PIX as destination.
-sub pix_self_code  {
-    my ($action, $spair, $dst, $src_range, $prt, $model) = @_;
-    my $src_code = ios_route_code $spair;
-    my $dst_intf = $dst->{hardware}->{name};
-    my $proto    = $prt->{proto};
-    if ($proto eq 'icmp') {
-        my ($proto_code, $src_port_code, $dst_port_code) =
-          cisco_prt_code($src_range, $prt, $model);
-        my $result = "icmp $action $src_code";
-        $result .= " $dst_port_code" if defined $dst_port_code;
-        $result .= " $dst_intf";
-        return $result;
-    }
-    elsif ($proto eq 'tcp' and $action eq 'permit') {
-        my @code;
-        my ($v1, $v2) = @{ $prt->{range} };
-        if ($v1 <= 23 && 23 <= $v2) {
-            push @code, "telnet $src_code $dst_intf";
-        }
-        if ($v1 <= 22 && 22 <= $v2) {
-            push @code, "ssh $src_code $dst_intf";
-        }
-        if ($v1 <= 80 && 80 <= $v2) {
-            push @code, "http $src_code $dst_intf";
-        }
-        return join "\n", @code;
-    }
-    else {
-        return undef;
     }
 }
 
