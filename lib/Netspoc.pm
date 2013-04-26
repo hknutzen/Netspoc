@@ -495,7 +495,7 @@ sub check_int {
         return $1;
     }
     else {
-        return undef;
+        return;
     }
 }
 
@@ -515,7 +515,7 @@ sub check_ip {
         return unpack 'N', pack 'C4', $1, $2, $3, $4;
     }
     else {
-        return undef;
+        return;
     }
 }
 
@@ -675,14 +675,14 @@ sub read_union {
 # Check for xxx:xxx | router:xx@xx | network:xx/xx | interface:xx/xx
 sub check_typed_name {
     skip_space_and_comment;
-    $input =~ m/ \G (\w+) : /gcx or return undef;
+    $input =~ m/ \G (\w+) : /gcx or return;
     my $type = $1;
     my ($name) =
       $type eq 'router' ? $input =~ m/ \G ( [\w-]+ (?: \@ [\w-]+ )? ) /gcx
       : ($type eq 'network' or $type eq 'interface')
       ? $input =~ m/ \G ( [\w-]+ (?: \/ [\w-]+ )? ) /gcx
       : $input =~ m/ \G ( [\w-]+ ) /gcx
-      or return undef;
+      or return;
     return [ $type, $name ];
 }
 
@@ -801,7 +801,7 @@ sub read_typed_name {
             }
         }
         else {
-            return undef;
+            return;
         }
     }
 }
@@ -866,7 +866,7 @@ sub check_permit_deny {
         return $1;
     }
     else {
-        return undef;
+        return;
     }
 }
 
@@ -884,7 +884,7 @@ sub check_flag {
         return 1;
     }
     else {
-        return undef;
+        return;
     }
 }
 
@@ -1034,8 +1034,7 @@ my $policy_distribution_point;
 
 sub check_radius_attributes {
     my $result = {};
-    check 'radius_attributes'
-      or return undef;
+    check 'radius_attributes' or return;
     skip '=';
     skip '{';
     while (1) {
@@ -2304,8 +2303,7 @@ sub read_aggregate {
 
 sub check_router_attributes {
     my $result = {};
-    check 'router_attributes'
-      or return undef;
+    check 'router_attributes' or return;
     skip '=';
     skip '{';
     while (1) {
@@ -5198,7 +5196,7 @@ sub expand_group1 {
                     push @objects, $object;
                 }
                 else {
-                    return undef;
+                    return;
                 }
                 return \@objects;
             };
@@ -5216,7 +5214,7 @@ sub expand_group1 {
                     push(@objects, map { @{ $_->{networks} } } @$aggregates);
                 }
                 else {
-                    return undef;
+                    return;
                 }
                 return \@objects;
             };
@@ -7440,7 +7438,7 @@ sub find_subnets {
         my $set_max_net;
         $set_max_net = sub {
             my ($network) = @_;
-            return undef if not $network;
+            return if not $network;
             if (my $max_net = $network->{max_up_net}) {
                 return $max_net;
             }
@@ -7453,7 +7451,7 @@ sub find_subnets {
                 return $max_net;
             }
             if ($network->{is_aggregate}) {
-                return undef;
+                return;
             }
             return $network;
         };
@@ -9760,7 +9758,7 @@ sub find_supernet {
             $net1 = $net1->{up};
         }
         return $net1 if $net1 eq $net2;
-        $net2 = $net2->{up} or return undef;
+        $net2 = $net2->{up} or return;
 
     }
 }
@@ -9831,7 +9829,7 @@ sub find_matching_supernet {
     # No network or aggregate matches.
     # $other wont match in current zone.
     if (!$net_or_count) {
-        return undef;
+        return;
     }
 
     # More than one network matches and no supernet exists.
