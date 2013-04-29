@@ -768,12 +768,11 @@ sub read_typed_name {
         my $name;
         my $ext;
         if ($input =~ m/ \G \[ /gcox) {
-            my @list;
             if ($interface && check 'managed') {
                 $managed = 1;
                 skip '&';
             }
-            $name = [ read_union ']' ];
+            $name = [ read_union(']') ];
         }
         elsif ($type eq 'host') {
             $input =~ m/ \G ( $hostname_regex ) /gcox
@@ -7515,7 +7514,6 @@ sub find_subnets {
         }
     }
 
-    my %key2cluster;
     for my $zone (@zones) {
 
         # For each subnet N find the largest non-aggregate network
@@ -14392,11 +14390,13 @@ sub local_optimization {
     $ref2obj{$network_00} = $network_00;
 
     my %seen;
-    my %time;
-    my %r2rules;
-    my %r2id;
-    my %r2del;
-    my %r2sec;
+
+# For debugging only
+#    my %time;
+#    my %r2rules;
+#    my %r2id;
+#    my %r2del;
+#    my %r2sec;
     for my $domain (@natdomains) {
         my $no_nat_set = $domain->{no_nat_set};
 
@@ -15090,7 +15090,6 @@ EOF
         }
     };
 
-    my %network2group_policy;
     my %cert_group_map;
     my %single_cert_map;
     my $user_counter = 0;
