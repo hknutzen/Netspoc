@@ -6712,7 +6712,7 @@ sub set_service_owner {
                       : \&err_msg
                   : sub { };
                 my @names =
-                  sort(map { $_->{name} =~ /^owner:(.*)/; $1 }
+                  sort(map { ($_->{name} =~ /^owner:(.*)/)[0] }
                       values %$service_owners);
                 $print->("$pname has multiple owners:\n " . join(', ', @names));
             }
@@ -16028,9 +16028,8 @@ sub print_code {
     # Untaint $dir. This is necessary if running setuid.
     # We can trust value of $dir because it is set by setuid wrapper.
     if ($dir) {
-        $dir =~ /(.*)/;
-        $dir = $1;
-        check_output_dir $dir;
+        ($dir) = ($dir =~ /(.*)/);
+        check_output_dir($dir);
     }
 
     progress('Printing code');
@@ -16086,11 +16085,9 @@ sub copy_raw {
 
     # Untaint $in_path, $out_dir. This is necessary if running setuid.
     # Trusted because set by setuid wrapper.
-    $in_path =~ /(.*)/;
-    $in_path = $1;
-    $out_dir =~ /(.*)/;
-    $out_dir = $1;
-    check_output_dir $out_dir;
+    ($in_path) = ($in_path =~ /(.*)/);
+    ($out_dir) = ($out_dir =~ /(.*)/);
+    check_output_dir($out_dir);
 
     my $raw_dir = "$in_path/raw";
     return if not -d $raw_dir;
