@@ -3877,7 +3877,7 @@ sub link_interfaces1 {
             # network has address 0.0.0.0/0, we would accidentally
             # permit 'any'.  We allow this only, if local networks are
             # protected by crypto.
-            if ($network_mask eq 0 and not $interface->{spoke}) {
+            if ($network_mask == 0 && !$interface->{spoke}) {
                 err_msg("$interface->{name} has negotiated IP",
                         " in range 0.0.0.0/0.\n",
                         " This is only allowed for interface",
@@ -12763,7 +12763,7 @@ sub cmp_address {
         return "$obj->{ip},$obj->{mask}";
     }
     elsif ($type eq 'Interface') {
-        return "$obj->{ip}," . 0xffffffff;
+        return("$obj->{ip}," . 0xffffffff); ## no critic (MismatchedOperators)
     }
     else {
         internal_err();
