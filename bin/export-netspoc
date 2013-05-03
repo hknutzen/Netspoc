@@ -564,8 +564,8 @@ sub export_no_nat_set {
 #       }
 
         # Build union of no_nat_sets
-        my $no_nat_set = [ sort(unique(map { keys(%{ $_->{no_nat_set} } } 
-                                           @nat_domains))) ];
+        my $no_nat_set = [ sort(unique(map { keys(%{ $_->{no_nat_set} }) } 
+                                           @nat_domains)) ];
 #       Netspoc::debug "$owner_name: ", join(',', sort @$no_nat_set);
         $owner2no_nat_set{$owner_name} = $no_nat_set;
         @all_nat_tags{@$no_nat_set} = @$no_nat_set;
