@@ -564,7 +564,7 @@ sub export_no_nat_set {
 #       }
 
         # Build union of no_nat_sets
-        my $no_nat_set = [ sort(unique(map(keys(%{ $_->{no_nat_set} }), 
+        my $no_nat_set = [ sort(unique(map { keys(%{ $_->{no_nat_set} } } 
                                            @nat_domains))) ];
 #       Netspoc::debug "$owner_name: ", join(',', sort @$no_nat_set);
         $owner2no_nat_set{$owner_name} = $no_nat_set;
@@ -624,7 +624,7 @@ sub export_assets {
             }
 
             @all_objects{@childs} = @childs;
-            @childs = sort map $_->{name}, @childs;
+            @childs = sort map { $_->{name} } @childs;
             $sub_result{$net_name} = \@childs;
         }
         return \%sub_result;
@@ -664,8 +664,8 @@ sub export_assets {
             if (not $own_zone) {
                 $own_networks = 
                     [ grep 
-                      grep({ $owner eq $_ } 
-                           owner_for_object($_), part_owners_for_object($_)), 
+                      { grep({ $owner eq $_ } 
+                             owner_for_object($_), part_owners_for_object($_)) }
                       @$networks ];
             }
             else {
@@ -744,8 +744,8 @@ sub export_services {
             { 
                 action => $_->{action},
                 has_user => $_->{has_user},
-                src => [ map $_->{name}, @{ $_->{expanded_src} } ],
-                dst => [ map $_->{name}, @{ $_->{expanded_dst} } ],
+                src => [ map { $_->{name} } @{ $_->{expanded_src} } ],
+                dst => [ map { $_->{name} } @{ $_->{expanded_dst} } ],
                 prt => $_->{expanded_prt},
             }
         } @{ $service->{rules} };
@@ -788,7 +788,7 @@ sub export_services {
                         }
                     @{ $service->{expanded_user} };
                 }
-                @users = sort map $_->{name}, @users;
+                @users = sort map { $_->{name} } @users;
                 $service2users{$sname} = \@users;
             }
         }
