@@ -44,6 +44,7 @@ sub create_dirs {
         $name .= "/$part";
         Netspoc::check_output_dir($name);
     }
+    return;
 }
 
 sub export {
@@ -52,20 +53,21 @@ sub export {
     open (my $fh, '>', $path) or die "Can't open $path\n";
     print $fh to_json($data, {pretty => 1, canonical => 1});
     close $fh or die "Can't close $path\n";
+    return;
 }
 
 # Unique union of all elements.
 sub unique {
-        return values %{ {map { $_ => $_ } @_}}; 
+    return values %{ {map { $_ => $_ } @_}}; 
 }
 
-sub by_name { $a->{name} cmp $b->{name} }
+sub by_name { return($a->{name} cmp $b->{name}) }
 
 # Take higher bits from network NAT, lower bits from original IP.
 # This works with and without NAT.
 sub nat {
     my ($ip, $network) = @_;
-    $network->{ip} | $ip & Netspoc::complement_32bit ($network->{mask});
+    return($network->{ip} | $ip & Netspoc::complement_32bit ($network->{mask}));
 }
 
 sub ip_nat_for_object {
@@ -266,6 +268,7 @@ sub expand_auto_intf {
         # Substitute auto interface by real interfaces.
         splice(@$src_aref, $i, 1, @new)
     }
+    return;
 }
 
 sub proto_descr {
@@ -335,7 +338,7 @@ sub proto_descr {
                $a->[2] <=> $b->[2] || 
                $a->[0] cmp $b->[0] }
         @result;
-    \@result;
+    return \@result;
 }
 
 sub find_visibility {
@@ -363,7 +366,7 @@ sub find_visibility {
     else {
         $visibility = '*';
     }
-    $visibility;
+    return $visibility;
 }
 
 # All objects referenced in rules and in networks and hosts of owners.
@@ -444,6 +447,7 @@ sub setup_service_info {
         $service->{visible} ||= find_visibility($owners, $uowners);
         $service->{visible} and $service->{visible} =~ s/\*$/.*/;
     }
+    return;
 }
 
 ######################################################################
@@ -500,6 +504,7 @@ sub setup_part_owners {
             $zone->{part_owners} = [ values %$hash ];
         }
     }
+    return;
 }
 
 my $master_owner;
@@ -513,6 +518,7 @@ sub find_master_owner {
             last;
         }
     }
+    return;
 }
 
 ######################################################################
@@ -570,6 +576,7 @@ sub export_no_nat_set {
         create_dirs("owner/$owner_name");
         export("owner/$owner_name/no_nat_set", $no_nat_set);
     }
+    return;
 }
 
 ####################################################################
@@ -683,6 +690,7 @@ sub export_assets {
         create_dirs("owner/$owner");
         export("owner/$owner/assets", $hash);
     }
+    return;
 }
 
 ####################################################################
@@ -788,6 +796,7 @@ sub export_services {
         export("owner/$owner/service_lists", \%type2snames);
         export("owner/$owner/users", \%service2users);
     }
+    return;
 }
 
 ####################################################################
@@ -806,6 +815,7 @@ sub export_objects {
         } 
     } values %all_objects;
     export("objects", \%objects);
+    return;
 }
 
 ####################################################################
@@ -863,6 +873,7 @@ sub export_owners {
         }
     }
     export('owner2alias', \%owner2alias);
+    return;
 }
 
 sub copy_policy_file {
@@ -871,6 +882,7 @@ sub copy_policy_file {
         system("cp -pf $policy_file $out_dir") == 0 or
             abort "Can't copy $policy_file";
     }
+    return;
 }
 
 ####################################################################
