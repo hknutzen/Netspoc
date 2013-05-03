@@ -55,7 +55,7 @@ sub export {
 }
 
 # Unique union of all elements.
-sub unique(@) {
+sub unique {
         return values %{ {map { $_ => $_ } @_}}; 
 }
 
