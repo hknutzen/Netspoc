@@ -216,11 +216,11 @@ here `<object set>` must expand to networks.
     <service definition> ::=
       service:<name> = {
          [ <description>              ]
-         [ overlaps = service:<name>; ]
          [ disabled;                  ]
          [ multi_owner;               ]
          [ unknown_owner;             ]
          [ sub_owner = <name>;        ]
+         [ overlaps = service:<name>(, service:<name>)*; ]
          user = [ foreach ] <object set>;
          <rule> * 
       }
