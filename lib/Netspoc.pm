@@ -11747,7 +11747,7 @@ sub print_routes( $ ) {
                             
                             # Clear upper bit, because left shift is undefined
                             # otherwise.
-                            $m &= 0x7fffffff;
+                            $m = $m & 0x7fffffff;
                             $m <<= 1;
                             $i = $i & $m;    # Perl bug #108480.
                             if ($mask_ip_hash{$m}->{$i}) {
