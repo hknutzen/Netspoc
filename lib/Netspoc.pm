@@ -5306,7 +5306,7 @@ sub expand_group1( $$;$ ) {
                 my $ext = $clean_autogrp ? 'clean' : 'noclean';
                 my $attr_name = "expanded_$ext";
 
-                my $elements;
+                my $elements = $object->{$attr_name};
 
                 # Check for recursive definition.
                 if ($object->{recursive}) {
