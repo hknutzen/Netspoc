@@ -3783,21 +3783,7 @@ sub link_interfaces1 {
         # network to the private interface.
 
         push @{ $network->{interfaces} }, $interface;
-        if ($interface->{reroute_permit}) {
-            $interface->{reroute_permit} =
-              expand_group $interface->{reroute_permit},
-              "'reroute_permit' of $interface->{name}";
-            for my $obj (@{ $interface->{reroute_permit} }) {
 
-                if (not is_network $obj) {
-                    err_msg "$obj->{name} not allowed in attribute",
-                      " 'reroute_permit'\n of $interface->{name}";
-
-                    # Prevent further errors.
-                    delete $interface->{reroute_permit};
-                }
-            }
-        }
         my $ip         = $interface->{ip};
         my $network_ip = $network->{ip};
         if ($ip =~ /^(?:short|tunnel)$/) {
@@ -7169,6 +7155,8 @@ sub nat_to_loopback_ok {
 
 sub numerically { $a <=> $b }
 
+sub link_reroute_permit;
+
 # Find relation between networks:
 # For networks inside one zone:
 # - $subnet->{up} = $bignet;
@@ -7465,6 +7453,9 @@ sub find_subnets() {
     # It is valid to have an aggregate in a zone which has no matching
     # networks. This can be useful to add optimization rules at an
     # intermediate device.
+
+    # Call late after $zone->{networks} has been set up.
+    link_reroute_permit;
 }
 
 sub check_no_in_acl () {
@@ -7636,18 +7627,36 @@ sub check_crosslink () {
     }
 }
 
+# Group of reroute_permit networks must be expanded late, after areas,
+# aggregates and subnets have been set up. Otherwise automatic groups
+# wouldn't work.
+#
 # Reroute permit is not allowed between different security zones.
-sub check_reroute_permit {
+sub link_reroute_permit {
     for my $zone (@zones) {
         for my $interface (@{ $zone->{interfaces} }) {
-            my $networks = $interface->{reroute_permit} or next;
-            for my $net (@$networks) {
-                my $net_zone = $net->{zone};
-                if (!zone_eq($net_zone, $zone)) {
-                    err_msg "Invalid reroute_permit for $net->{name} ",
-                    "at $interface->{name}: different security zones";
+            my $group = $interface->{reroute_permit} or next;
+            $group =
+              expand_group($group, "'reroute_permit' of $interface->{name}");
+            my @checked;
+            for my $obj (@$group) {
+                if (is_network($obj)) {
+                    my $net_zone = $obj->{zone};
+                    if (!zone_eq($net_zone, $zone)) {
+                        err_msg("Invalid reroute_permit for $obj->{name} ",
+                                "at $interface->{name}:",
+                                " different security zones");
+                    }
+                    else {
+                        push @checked, $obj;
+                    }
+                }
+                else {
+                    err_msg("$obj->{name} not allowed in attribute",
+                            " 'reroute_permit' of $interface->{name}");
                 }
             }
+            $interface->{reroute_permit} = \@checked;
         }
     }    
 }
@@ -8085,7 +8094,6 @@ sub set_zone {
 
     check_no_in_acl;
     check_crosslink;
-    check_reroute_permit;
 
     # Mark interfaces, which are border of some area.
     # This is needed to locate auto_borders.
