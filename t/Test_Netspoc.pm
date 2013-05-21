@@ -15,7 +15,7 @@ my $options = '-quiet -check_redundant_rules=0 -check_service_unknown_owner=0';
 sub run {
     my($input) = @_;
 
-    my $cmd = "perl -I lib bin/netspoc $options -";
+    my $cmd = "perl -I lib bin/netspoc $options";
     my ($stdout, $stderr);
     run3($cmd, \$input, \$stdout, \$stderr);
     my $status = $?;
