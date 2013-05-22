@@ -3657,7 +3657,9 @@ sub link_to_owner {
 sub link_owners {
 
     my %alias2owner;
-    for my $name (keys %owners) {
+
+    # Use sort to get deterministic error messages.
+    for my $name (sort keys %owners) {
         my $owner = $owners{$name};
 
         # Check for unique alias names.
