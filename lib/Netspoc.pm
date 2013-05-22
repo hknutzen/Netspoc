@@ -3055,7 +3055,8 @@ sub read_file {
         $input = <>;
     }
     local $line = 1;
-    while (skip_space_and_comment, pos $input != length $input) {
+    my $length = length $input;
+    while (skip_space_and_comment, pos $input != $length) {
         &$read_syntax;
     }
     return;
