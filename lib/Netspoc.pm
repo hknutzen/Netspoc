@@ -588,8 +588,8 @@ sub read_ip_opt_mask {
 }
 
 sub gen_ip {
-    my ($string) = @_;
-    return unpack 'N', pack 'C4', $string;
+    my ($byte1, $byte2, $byte3, $byte4) = @_;
+    return unpack 'N', pack('C4', $byte1, $byte2, $byte3, $byte4);
 }
 
 # Convert IP address from internal integer representation to
