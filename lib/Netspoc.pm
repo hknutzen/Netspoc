@@ -15108,7 +15108,7 @@ EOF
         my %split_t_cache;
 
         if (my $hash = $interface->{id_rules}) {
-            for my $id (keys %$hash) {
+            for my $id (sort keys %$hash) {
                 my $id_intf = $hash->{$id};
                 my $src     = $id_intf->{src};
                 $user_counter++;
