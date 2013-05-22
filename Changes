@@ -6,23 +6,23 @@
 
 3.029     2013-04-17 15:53:38 Europe/Berlin
 
-  - Fixed duplicate ACL line from unmanaged virtual interface.
-  - Fixed superfluous warning on unused owner.
-  - Changed default: check_service_unknown_owner = 0 (was 'warn').
-  - Minor fixes with NAT and minimal topology.
-  - Moved programs newpolicy and newpolicy.pl to project Netspoc-Approve.
+ - Fixed duplicate ACL line from unmanaged virtual interface.
+ - Fixed superfluous warning on unused owner.
+ - Changed default: check_service_unknown_owner = 0 (was 'warn').
+ - Minor fixes with NAT and minimal topology.
+ - Moved programs newpolicy and newpolicy.pl to project Netspoc-Approve.
 
 3.028     2013-03-26 12:08:23 Europe/Berlin
 
-- Fixed minor bug: Prevent deep recursion in set_routes_in_zone.
+ - Fixed minor bug: Prevent deep recursion in set_routes_in_zone.
 
 3.027     2013-03-25 13:07:19 Europe/Berlin
 
-- Fixed minor bug: Prevent deep recursion in set_zone1 and set_zone_cluster.
+ - Fixed minor bug: Prevent deep recursion in set_zone1 and set_zone_cluster.
 
 3.026     2013-03-08 11:49:38 Europe/Berlin
 
-- Fixed minor bug: Handle only managed routers of a VRF.
+ - Fixed minor bug: Handle only managed routers of a VRF.
   This prevents warning messages "uninitialized value".
 
 3.025     2013-03-06 15:19:51 Europe/Berlin
@@ -31,16 +31,16 @@
 
 3.024     2013-02-19 10:11:28 Europe/Berlin
 
-- Added attribute 'sub_owner' to service definition.
-  Typically, the owner is definied at networks (or hosts).
-  A service S implicitly inherits its owner from a network N,
-  if S defines access to objects of network N.
-  The owner of network N can delegate the user management 
-  of a service S to some owner X.
-  In this use case, S gets an explicit sub_owner X.
-  X is only allowed to change users of S.
-  X is not allowed to change the definition of S.
-- Removed support for model VPN3K (Cisco VPN 3000)
+ - Added attribute 'sub_owner' to service definition.
+   Typically, the owner is definied at networks (or hosts).
+   A service S implicitly inherits its owner from a network N,
+   if S defines access to objects of network N.
+   The owner of network N can delegate the user management 
+   of a service S to some owner X.
+   In this use case, S gets an explicit sub_owner X.
+   X is only allowed to change users of S.
+   X is not allowed to change the definition of S.
+ - Removed support for model VPN3K (Cisco VPN 3000)
 
 3.023     2013-02-04 16:34:46 Europe/Berlin
 
