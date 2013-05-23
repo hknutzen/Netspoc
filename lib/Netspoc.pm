@@ -717,12 +717,26 @@ sub check_typed_name {
     skip_space_and_comment;
     $input =~ m/ \G (\w+) : /gcx or return;
     my $type = $1;
-    my ($name) =
-      $type eq 'router' ? $input =~ m/ \G ( [\w-]+ (?: \@ [\w-]+ )? ) /gcx
-      : ($type eq 'network' or $type eq 'interface')
-      ? $input =~ m/ \G ( [\w-]+ (?: \/ [\w-]+ )? ) /gcx
-      : $input =~ m/ \G ( [\w-]+ ) /gcx
-      or return;
+    my ($name, $separator);
+    if ($input =~ m' \G ( [\w-]+ (?: ( [@/] ) [\w-]+ )? ) 'gcx) {
+        $name = $1;
+        $separator = $2;
+    }
+    else {
+        syntax_err("Invalid token");
+    }
+
+    if ($separator) {
+        if ($type eq 'router') {
+            $separator eq '@' or syntax_err("Invalid token");
+        }
+        elsif ($type eq 'network' or $type eq 'interface') {
+            $separator eq '/' or syntax_err("Invalid token");
+        }
+        else {
+            syntax_err("Invalid token");
+        }
+    }
     return [ $type, $name ];
 }
 
