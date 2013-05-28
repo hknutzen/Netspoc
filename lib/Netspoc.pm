@@ -2334,9 +2334,16 @@ sub read_aggregate {
         }
     }
     $aggregate->{link} or err_msg("Attribute 'link' must be defined for $name");
-    my $ip   = $aggregate->{ip}   ||= 0;
-    my $mask = $aggregate->{mask} ||= 0;
-    if ($mask) {
+    my $ip   = $aggregate->{ip};
+    my $mask = $aggregate->{mask};
+    if (defined $ip xor defined $mask) {
+        defined $ip and syntax_err('Missing mask');
+        defind $mask and syntax_err('Missing IP');
+    }
+    elsif (! defined $ip) {
+        $aggregate->{ip} = $aggregate->{mask} = 0;
+    }
+    else {
 
         # Check if aggregate IP matches mask.
         if (not(match_ip($ip, $ip, $mask))) {
