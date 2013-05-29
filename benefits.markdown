@@ -23,7 +23,7 @@ layout: default
    version control.
 
 1. Multiple adminstrators can change the configuration simultaniously 
-   if version controll is set up.
+   if version control is set up.
 
 1. Comprehensive consistency checks are implemented.
 
