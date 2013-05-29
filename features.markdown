@@ -22,8 +22,8 @@ layout: default
 - Powerful rules language 
    - Groups can be defined and reused in different rules.
    - Automatic groups utilize relationships of the topology.
-- Allows to define a secondary packet filter which get simpler rules 
-  if a data stream has already been filtert at some other device.
+- Allows to define a secondary packet filter which gets simpler rules 
+  if a data stream has already been filtered at some other device.
 - Complex topologies with redundant paths are supported.
 - Pathrestrictions allow to restrict paths inside a redundant topology.
 - Supports network with isolated ports where traffic is entered and exited 
