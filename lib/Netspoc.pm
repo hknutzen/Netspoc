@@ -5858,6 +5858,13 @@ sub collect_unenforceable  {
         # This is a common case, which results from rules like
         # group:some_networks -> any:[group:some_networks]
         return if not($src->{is_aggregate} and $dst->{is_aggregate});
+
+        # Both are aggregates,
+        # - belonging to same zone cluster and
+        # - having identical ip and mask
+        return if (zone_eq($src->{zone}, $dst->{zone})
+                && $src->{ip} == $dst->{ip}
+                && $src->{mask} == $dst->{mask});
     }
     delete $unenforceable_context{$context};
     $unenforceable_context2src2dst{$context}->{$src}->{$dst} ||= [ $src, $dst ];
