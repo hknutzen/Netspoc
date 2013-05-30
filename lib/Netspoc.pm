@@ -8356,9 +8356,11 @@ sub check_virtual_interfaces  {
 ####################################################################
 
 sub check_pathrestrictions {
+  RESTRICT:
     for my $restrict (values %pathrestrictions) {
         my $elements = $restrict->{elements};
         next if ! @$elements;
+        my $deleted;
         for my $obj (@$elements) {
 
             # Interfaces with pathrestriction need to be located
@@ -8371,22 +8373,59 @@ sub check_pathrestrictions {
               )
             {
                 delete $obj->{path_restrict};
+                $obj = undef;
+                $deleted = 1;
                 warn_msg("Ignoring $restrict->{name} at $obj->{name}\n",
                          " because it isn't located inside cyclic graph");
             }
         }
-        if (!grep { $_->{router}->{managed} } @$elements) {
+        if ($deleted) {
+            $elements = $restrict->{elements} = [ grep { $_ } @$elements ];
+        }
+        next if ! @$elements;
 
-            # Unmanaged router with pathrestriction is known to be
-            # part of zone_cluster.
-            if (equal(map { $_->{zone}->{zone_cluster} } @$elements)) {
-                warn_msg(
-                    "Useless $restrict->{name}.\n",
-                    " All interfaces are unmanaged and",
-                    " located inside the same security zone"
-                );
+        # Check for useless pathrestriction where all interfaces
+        # are located inside a loop with all routers unmanaged.
+        #
+        # Some router is managed.
+        grep { $_->{router}->{managed} } @$elements and next;
+
+        # Different zones or zone_clusters, hence some router is managed.
+        equal(map { $_->{zone_cluster} || $_ } map { $_->{zone} } @$elements)
+            or next;
+
+        # If there exists some neigbour zone or zone_cluster, located
+        # inside the same loop, then some router is managed.
+        # Interface is known to have attribute {loop}, 
+        # because it is unmanaged and has pathrestriction.
+        my $element = $elements->[0];
+        my $loop = $element->{loop};
+        my $zone = $element->{zone};
+        my $zone_cluster = $zone->{zone_cluster} || [ $zone ];
+        for my $zone1 (@$zone_cluster) {
+            for my $interface (@{ $zone->{interfaces} }) {
+                my $router = $interface->{router};
+                for my $interface2 (@{ $router->{interfaces} }) {
+                    my $zone2 = $interface2->{zone};
+                    next if $zone2 eq $zone;
+                    if (my $cluster2 = $zone2->{zone_cluster}) {
+                        next if $cluster2 eq $zone_cluster;
+                    }
+                    if (my $loop2 = $zone2->{loop}) {
+                        if ($loop eq $loop2) {
+                        
+                            # Found other zone in same loop.
+                            next RESTRICT;
+                        }
+                    }
+                }
             }
         }
+        
+        warn_msg("Useless $restrict->{name}.\n",
+                 " All interfaces are unmanaged and",
+                 " located inside the same security zone"
+            );
     }
     return;
 }
