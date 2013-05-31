@@ -741,7 +741,7 @@ sub check_typed_name {
 }
 
 sub read_typed_name {
-    return check_typed_name or syntax_err("Typed name expected");
+    return check_typed_name || syntax_err("Typed name expected");
 }
 
 {
