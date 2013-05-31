@@ -1,0 +1,9 @@
+
+severity = 4
+#verbose  = 8
+include = ProhibitUnusedVariables ProhibitMismatchedOperators ProhibitCaptureWithoutTest
+
+[Subroutines::RequireFinalReturn]
+terminal_funcs = syntax_err fatal_err internal_err
+[RegularExpressions::ProhibitCaptureWithoutTest]
+exception_source = syntax_err
