@@ -1,5 +1,15 @@
 {{$NEXT}}
 
+3.031     2013-05-31 10:15:14 Europe/Berlin
+
+ - Fixed check for useless pathrestriction inside security zone.
+ - Fixed check for unenforceable rules between security zone with 
+   pathrestriction at unmanaged device.
+ - Fixed syntax check for aggregate.
+ - netspoc now reads from stdin, if no arg is given.
+   Filename "-" for reading stdin isn't supported any longer.
+ - Fixed performance and tests for perl5.18.0.
+
 3.030     2013-04-24 16:47:17 Europe/Berlin
 
  - Fixed access to layer3 interface of bridged ASA.
