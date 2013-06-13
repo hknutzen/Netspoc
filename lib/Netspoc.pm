@@ -6032,7 +6032,10 @@ sub show_deleted_rules2 {
     # Free memory.
     @deleted_rules = ();
 
-    # Warn about unused {overlaps} declarations.
+    return;
+}
+
+sub warn_unused_overlaps {
     for my $key (sort keys %services) {
         my $service = $services{$key};
         if (my $overlaps = $service->{overlaps}) {
@@ -11134,7 +11137,8 @@ sub optimize {
 
 sub optimize_and_warn_deleted {
     optimize();
-    show_deleted_rules2;
+    show_deleted_rules2();
+    warn_unused_overlaps();
     return;
 }
 
