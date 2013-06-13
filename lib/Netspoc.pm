@@ -10879,8 +10879,8 @@ sub mark_secondary_rules {
     }
 
     # Mark only normal rules for secondary optimization.
-    # We can't change a deny rule from e.g. tcp to ip.
-    # We can't change supernet rules, because path is unknown.
+    # Don't modify a deny rule from e.g. tcp to ip.
+    # Don't modify supernet rules, because path isn't fully known.
     for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{supernet} })
     {
         next
