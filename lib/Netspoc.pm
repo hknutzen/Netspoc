@@ -2012,7 +2012,7 @@ sub read_router {
     }
 
     # Detailed interface processing for managed routers.
-    if (my $managed = $router->{managed}) {
+    if ($router->{managed}) {
         my $model = $router->{model};
 
         unless ($model) {
