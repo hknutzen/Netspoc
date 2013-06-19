@@ -7837,8 +7837,8 @@ sub check_managed_local {
 
                         # All routers of a cluster must have same values in
                         # {filter_only}.
-                        my $k ||= join(',', map({ join('/', @$_) } 
-                                                @$filter_only));
+                        $k ||= join(',', map({ join('/', @$_) } 
+                                             @$filter_only));
                         my $k2 = join(',', map({ join('/', @$_) } 
                                                @{ $router2->{filter_only} }));
                         $k2 eq $k or 
@@ -7862,7 +7862,8 @@ sub check_managed_local {
             warn_msg("Useless $ip/$prefix in attribute 'filter_only'",
                      " of $router->{name}");
         }
-    }                
+    }
+    return;
 }
 
 # group of reroute_permit networks must be expanded late, after areas,
@@ -14639,7 +14640,8 @@ sub remove_non_local_rules {
         }
         $changed and 
             $hardware->{$rules} = [ grep { $_ } @{ $hardware->{$rules} } ];
-    }                          
+    }
+    return;
 }
 
 # Add deny and permit rules at device which filters only locally.
@@ -14702,6 +14704,7 @@ sub add_local_deny_rules {
         my $rules = $hardware->{$attr};
         push @$rules, @filter_rules, $permit_any_rule;
     }
+    return;
 }
 
 #use Time::HiRes qw ( time );
