@@ -582,9 +582,15 @@ sub read_ip_opt_mask {
     }
     else {
         $mask = prefix2mask(read_int());
-        defined $mask or error_atline("Invalid prefix");
+        defined $mask or syntax_err("Invalid prefix");
     }
     return $ip, $mask;
+}
+
+sub read_ip_prefix_pair {
+    my ($ip, $mask) = read_ip_opt_mask();
+    defined $mask or syntax_err("Missing prefix len");
+    return [ $ip, $mask ];
 }
 
 sub gen_ip {
@@ -1914,12 +1920,12 @@ sub read_router {
             }
             elsif (check '=') {
                 my $value = read_identifier;
-                if ($value =~ /^(?:secondary|standard|full|primary)$/) {
+                if ($value =~ /^(?:secondary|standard|full|primary|local)$/) {
                     $managed = $value;
                 }
                 else {
                     error_atline("Expected value:",
-                                 " secondary|standard|full|primary");
+                                 " secondary|standard|full|primary|local");
                 }
                 check ';';
             }
@@ -1927,6 +1933,21 @@ sub read_router {
                 syntax_err("Expected ';' or '='");
             }
             $router->{managed} = $managed;
+        }
+        elsif (my @filter_only = check_assign_list('filter_only', 
+                                                   \&read_ip_prefix_pair)) 
+        {
+            $router->{filter_only}
+              and error_atline("Redefining 'filter_only' attribute");
+            for my $pair (@filter_only) {
+                my ($ip, $mask) = @$pair;
+                match_ip($ip, $ip, $mask) or
+                    error_atline("IP and mask don't match");
+
+                # Prevent further errors.
+                $pair->[0] &= $mask;
+            }
+            $router->{filter_only} = \@filter_only;
         }
         elsif (my ($model, @attributes) =
             check_assign_list('model', \&read_name))
@@ -2012,7 +2033,7 @@ sub read_router {
     }
 
     # Detailed interface processing for managed routers.
-    if ($router->{managed}) {
+    if (my $managed = $router->{managed}) {
         my $model = $router->{model};
 
         unless ($model) {
@@ -2022,6 +2043,13 @@ sub read_router {
             $router->{model} = { name => 'unknown' };
         }
 
+        if ($managed eq 'local') {
+            $router->{filter_only} or
+                err_msg("Missing attribut 'filter_only' for $name");
+            $model->{has_io_acl} and
+                err_msg("Must not use 'managed = local' at $name",
+                        " of model $model->{name}");
+        }
         $router->{vrf}
           and not $model->{can_vrf}
           and err_msg("Must not use VRF at $name",
@@ -2151,6 +2179,11 @@ sub read_router {
         }
         if ($model->{has_interface_level}) {
             set_pix_interface_level($router);
+        }
+        if ($managed eq 'local') {
+            grep { $_->{bind_nat} } @{ $router->{interfaces} }
+              and err_msg "Attribute 'bind_nat' is not allowed",
+              " at interface of $name with 'managed = local'";
         }
         if ($model->{do_auth}) {
 
@@ -7573,7 +7606,8 @@ sub find_subnets {
     # intermediate device.
 
     # Call late after $zone->{networks} has been set up.
-    link_reroute_permit;
+    link_reroute_permit();
+    check_managed_local();
     return;
 }
 
@@ -7748,7 +7782,90 @@ sub check_crosslink  {
     return;
 }
 
-# Group of reroute_permit networks must be expanded late, after areas,
+sub check_managed_local {
+    my %seen;
+    for my $router (@managed_routers) {
+        $router->{managed} eq 'local' or next;
+        next if $seen{$router};
+
+        # Networks of current cluster matching {filter_only}.
+        my %matched;
+
+        my $walk;
+        $walk = sub {
+            my ($router) = @_;
+            my $filter_only = $router->{filter_only};
+            my $k;
+            $seen{$router} = $router;
+            for my $in_intf (@{ $router->{interfaces} }) {
+                my $no_nat_set = $in_intf->{no_nat_set};
+                my $zone0 = $in_intf->{zone};
+                my $cluster = $zone0->{zone_cluster};
+                for my $zone ($cluster ? @$cluster : ($zone0)) {
+                    next if $zone->{disabled};
+                    next if $seen{$zone};
+
+                    # All networks in local zone must match {filter_only}.
+                  NETWORK:
+                    for my $network (@{ $zone->{networks} }, 
+                                     values %{ $zone->{ipmask2aggregate} }) 
+                    {
+                        # Crosslink network won't be used in any rule.
+                        next if $network->{crosslink};
+                        my ($ip, $mask) = @{ address($network, $no_nat_set) };
+
+                        # Ignore aggregate 0/0 which is available in
+                        # every zone.
+                        next if $mask == 0 && $network->{is_aggregate};
+                        for my $pair (@$filter_only) {
+                            my ($i, $m) = @$pair;
+                            if ($mask >= $m && match_ip($ip, $i, $m)) {
+                                $matched{"$i/$m"} = 1;
+                                next NETWORK;
+                            }
+                        }
+                        err_msg("$network->{name} doesn't match attribute",
+                                " 'filter_only' of $router->{name}");
+                    }
+                    $seen{$zone} = $zone;
+                    for my $out_intf (@{ $zone->{interfaces} }) {
+                        next if $out_intf eq $in_intf;
+                        my $router2 = $out_intf->{router};
+                        next if not $router2->{managed};
+                        next if not $router2->{managed} eq 'local';
+                        next if $seen{$router2};
+
+                        # All routers of a cluster must have same values in
+                        # {filter_only}.
+                        my $k ||= join(',', map({ join('/', @$_) } 
+                                                @$filter_only));
+                        my $k2 = join(',', map({ join('/', @$_) } 
+                                               @{ $router2->{filter_only} }));
+                        $k2 eq $k or 
+                            err_msg("$router->{name} and $router2->{name}",
+                                    " must have identical values in",
+                                    " attribute 'filter_only'");
+
+                        $walk->($router2);
+                    }
+                }
+            }
+        };
+
+        $walk->($router);
+
+        for my $pair (@{ $router->{filter_only} }) {
+            my ($i, $m) = @$pair;
+            $matched{"$i/$m"} and next;
+            my $ip = print_ip($i);
+            my $prefix = mask2prefix($m);
+            warn_msg("Useless $ip/$prefix in attribute 'filter_only'",
+                     " of $router->{name}");
+        }
+    }                
+}
+
+# group of reroute_permit networks must be expanded late, after areas,
 # aggregates and subnets have been set up. Otherwise automatic groups
 # wouldn't work.
 #
@@ -8397,7 +8514,7 @@ sub check_pathrestrictions {
         equal(map { $_->{zone_cluster} || $_ } map { $_->{zone} } @$elements)
             or next;
 
-        # If there exists some neigbour zone or zone_cluster, located
+        # If there exists some neighbour zone or zone_cluster, located
         # inside the same loop, then some router is managed.
         # Interface is known to have attribute {loop}, 
         # because it is unmanaged and has pathrestriction.
@@ -10184,7 +10301,7 @@ sub check_supernet_src_rule {
         if (!$m2) {
             my $managed = $dst->{router}->{managed};
             $m2 =
-                $managed eq 'secondary'
+                $managed =~ /^(?:secondary|local)$/
               ? $dst->{network}->{zone}->{stateful_mark}
               : -1;
         }
@@ -10617,7 +10734,7 @@ sub mark_stateful {
         if ($router->{managed}) {
             next
               if !$router->{model}->{stateless}
-                  && $router->{managed} ne 'secondary';
+                  && $router->{managed} !~ /^(?:secondary|local)$/;
         }
         next if $router->{active_path};
         $router->{active_path} = 1;
@@ -10825,7 +10942,7 @@ sub mark_secondary  {
     for my $in_interface (@{ $zone->{interfaces} }) {
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
-            next if $managed ne 'secondary';
+            next if $managed !~ /^(?:secondary|local)$/;
         }
         next if $router->{active_path};
         $router->{active_path} = 1;
@@ -13090,7 +13207,7 @@ sub address {
         return $obj;
     }
     else {
-        internal_err("Unexpected object $obj->{name}");
+        internal_err("Unexpected object", ref $obj);
     }
 }
 
@@ -13428,7 +13545,8 @@ sub find_object_groups  {
                 my $group = new(
                     'Objectgroup',
                     name       => "g$router->{obj_group_counter}",
-                    elements   => [ map { $ref2obj{$_} } @keys ],
+                    elements   => [ map { $ref2obj{$_} || internal_err($_) } 
+                                    @keys ],
                     hash       => $hash,
                     no_nat_set => $no_nat_set
                 );
@@ -14464,6 +14582,128 @@ sub join_ranges  {
     return;
 }
 
+# Reuse network objects at different interfaces, 
+# so we get reused object-groups.
+my %filter_networks;
+
+sub get_filter_network {
+    my ($ip, $mask) = @_;
+    my $key = "$ip/$mask";
+    my $net = $filter_networks{$key};
+    if (!$net) {
+        $net = new('Network', ip => $ip, mask => $mask);
+        $filter_networks{$key} = $net;
+        $ref2obj{$net} = $net;
+    }
+    return $net;
+}
+
+# Remove rules on device which filters only locally.
+sub remove_non_local_rules {
+    my ($router, $hardware) = @_;
+    $router->{managed} eq 'local' or return;
+
+    my $no_nat_set = $hardware->{no_nat_set};
+    my $filter_only = $router->{filter_only};
+    for my $rules ('rules', 'out_rules') {
+        my $changed;
+        for my $rule (@{ $hardware->{$rules} }) {
+
+            # Don't remove deny rule
+            next if $rule->{action} ne 'permit';
+            my $both_match = 0;
+            for my $what (qw(src dst)) {
+                my $obj = $rule->{$what};
+                my ($ip, $mask) = @{ address($obj, $no_nat_set) };
+                for my $pair (@$filter_only) {
+                    my ($i, $m) = @$pair;
+
+                    # src/dst matches filter_only.
+                    if ($mask > $m) {
+                        match_ip($ip, $i, $m) and $both_match++;
+                    }
+
+                    # filter_only matches src/dst.
+                    elsif (match_ip($i, $ip, $mask)) {
+                        $both_match++;
+                    }
+                }
+            }
+
+            # Either src or dst or both are extern.
+            # The rule will not be filtered at this device.
+            if ($both_match < 2) {
+                $rule = undef;
+                $changed = 1;
+            }
+        }
+        $changed and 
+            $hardware->{$rules} = [ grep { $_ } @{ $hardware->{$rules} } ];
+    }                          
+}
+
+# Add deny and permit rules at device which filters only locally.
+sub add_local_deny_rules {
+    my ($router, $hardware) = @_;
+    $router->{managed} eq 'local' or return;
+    $hardware->{crosslink} and return;
+
+    my $filter_only = $router->{filter_only};
+    my @dst_networks = map { get_filter_network(@$_) } @$filter_only;
+
+    for my $attr (qw(rules out_rules)) {
+
+        next if $attr eq 'rules' && $hardware->{no_in_acl};
+        next if $attr eq 'out_rules' && ! $hardware->{need_out_acl};
+
+        # If attached zone has only one connection to this firewall
+        # than we don't need to check the source address.  It has
+        # already been checked, that all networks of this zone match
+        # {filter_only}.
+        my $check = sub {
+            $attr eq 'out_rules' and return;
+            for my $interface (@{ $hardware->{interfaces} }) {
+                my $zone = $interface->{zone};
+                $zone->{zone_cluster} and return;
+
+                # Ignore real interface of virtual interface.
+                my @interfaces = grep({ ! $_->{main_interface} }
+                                      @{ $zone->{interfaces} });
+
+                if (@interfaces > 1) {
+
+
+                    # Multilpe interfaces belonging to one redundancy
+                    # group can't be used to cross the zone.
+                    my @redundant = 
+                        grep { $_ } 
+                        map { $_->{redundancy_interfaces} } @interfaces;
+                    @redundant == @interfaces and equal(@redundant) 
+                        or return;
+                }
+            }
+            return 1;
+        };
+        my @src_networks = $check->() ? ($network_00) : @dst_networks;
+
+        my @filter_rules;
+        for my $src (@src_networks) {
+            for my $dst (@dst_networks) {
+                push(@filter_rules, 
+                     {
+                         action    => 'deny',
+                         src       => $src,
+                         dst       => $dst,
+                         src_range => $prt_ip,
+                         prt       => $prt_ip
+                     });
+            }
+        }
+        my $rules = $hardware->{$attr};
+        push @$rules, @filter_rules, $permit_any_rule;
+    }
+}
+
 #use Time::HiRes qw ( time );
 sub local_optimization {
     progress('Optimizing locally');
@@ -14515,10 +14755,13 @@ sub local_optimization {
                 # Do local optimization only once for each hardware interface.
                 next if $seen{$hardware};
                 $seen{$hardware} = 1;
+
                 if ($router->{model}->{filter} eq 'iptables') {
                     find_chains $router, $hardware;
                     next;
                 }
+
+                remove_non_local_rules($router, $hardware);
 
 #               my $rname = $router->{name};
 #               debug("$router->{name}");
@@ -14816,11 +15059,13 @@ sub local_optimization {
                     }
                 }
 
+                add_local_deny_rules($router, $hardware);
+
                 # Join adjacent port ranges.  This must be called after local
-                # optimization has been finished because protocols will be
+                # optimization has been finished, because protocols will be
                 # overlapping again after joining.
 #                my $t6 = time();
-                join_ranges $hardware;
+                join_ranges($hardware);
 
 #                $time{$rname}[3] += time() - $t6;
             }
@@ -14890,9 +15135,9 @@ sub print_cisco_acl_add_deny {
     my $permit_any;
 
     my $rules = $hardware->{rules} ||= [];
-    if (@$rules and @$rules == 1) {
+    if (@$rules) {
         my ($action, $src, $dst, $prt) =
-          @{ $rules->[0] }{ 'action', 'src', 'dst', 'prt' };
+          @{ $rules->[-1] }{ 'action', 'src', 'dst', 'prt' };
         $permit_any =
              $action eq 'permit'
           && is_network($src)
