@@ -144,7 +144,7 @@ use Pod::Usage;
 # Write options back to %Netspoc::config.
 ####################################################################
 
-sub read_args() {
+sub read_args {
     my %result;
     my $setopt = sub {
 	my ($key, $val) = @_;

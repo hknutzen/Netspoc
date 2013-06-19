@@ -169,7 +169,7 @@ if ($show_unused) {
 	    }
 	}
     }
-    $elements = [ grep(not($_->{is_used}), @$elements) ];
+    $elements = [ grep { not($_->{is_used}) } @$elements ];
 }
 
 # Collect IP address, mask and name.

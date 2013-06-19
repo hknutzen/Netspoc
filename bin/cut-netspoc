@@ -32,13 +32,13 @@ use locale;
 ####################################################################
 # Argument processing
 ####################################################################
-sub usage() {
+sub usage {
     die "Usage: $0 {in-file | in-directory} service:name ...\n";
 }
 
 # Enhanced version of read_netspoc, which stores source code of each
 # global definition.
-sub read_netspoc_with_src () {
+sub read_netspoc_with_src {
     my $pre    = pos $Netspoc::input;
     my $object = &read_netspoc();
     my $post   = pos $Netspoc::input;
@@ -56,16 +56,18 @@ sub mark_adjacent_networks {
     for my $interface (@{ $router->{interfaces} }) {
         $interface->{network}->{is_used} = 1;
     }
+    return;
 }
 
 # This function is called by path_walk to mark all managed routers and
 # adjacent networks on path from src to dst of $rule with attribute {is_used}.
-sub mark_topology( $$$ ) {
+sub mark_topology {
     my ($rule, $in_intf, $out_intf) = @_;
     my $router = ($in_intf || $out_intf)->{router};
     $router->{is_used} = 1;
 #    Netspoc::debug "Used $router->{name}";
     mark_adjacent_networks($router);
+    return;
 }
 
 # Mark unmanaged routers and adjacent networks 
@@ -101,6 +103,7 @@ sub mark_unmanaged {
 	    path_unmanaged($router, $interface);
 	}
     }
+    return;
 }	
 	
 ####################################################################
@@ -147,7 +150,7 @@ for my $ref (values %name2var) {
 &abort_on_error();
 
 # Process rules of services.
-sub process_rules ( $ ) {
+sub process_rules {
     my ($expanded_rules) = @_;
     for my $type ('deny', 'supernet', 'permit') {
 	for my $rule (@{ $expanded_rules->{$type} }) {
@@ -183,10 +186,11 @@ sub process_rules ( $ ) {
 	    }
 	}
     }
+    return;
 }
 
 # Mark parts of topology which are referenced by rules of services.
-process_rules \%expanded_rules;
+process_rules(\%expanded_rules);
 
 # Mark interfaces which are referenced by areas.
 for my $area (values %areas) {
@@ -196,7 +200,7 @@ for my $area (values %areas) {
         }
         else {
             for my $interface (@{ $area->{border} }) {
-                mark_topology undef, $interface, undef;
+                mark_topology(undef, $interface, undef);
             }
         }
     }
