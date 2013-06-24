@@ -136,7 +136,7 @@ use Netspoc;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '3.031'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.032'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -144,7 +144,7 @@ our $VERSION = '3.031'; # VERSION: inserted by DZP::OurPkgVersion
 # Write options back to %Netspoc::config.
 ####################################################################
 
-sub read_args() {
+sub read_args {
     my %result;
     my $setopt = sub {
 	my ($key, $val) = @_;

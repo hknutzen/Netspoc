@@ -68,6 +68,8 @@ t/crypto.t
 t/host-range.t
 t/host-range.t~
 t/iptables.t
+t/local-filter.t
+t/local-filter.t~
 t/nat.t
 t/optimize-subnet.t
 t/owner.t
@@ -80,3 +82,5 @@ t/unnumbered.t~
 t/virtual-loopback-nat.t
 t/virtual-pathrestrict.t
 t/virtual-pathrestrict.t~
+tidyall.ini
+tidyall.ini~

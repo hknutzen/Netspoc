@@ -79,7 +79,7 @@ use Netspoc;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '3.031'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.032'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -169,7 +169,7 @@ if ($show_unused) {
 	    }
 	}
     }
-    $elements = [ grep(not($_->{is_used}), @$elements) ];
+    $elements = [ grep { not($_->{is_used}) } @$elements ];
 }
 
 # Collect IP address, mask and name.
