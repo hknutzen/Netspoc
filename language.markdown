@@ -551,6 +551,50 @@ an other device.
 The default filter type for devices which are simply marked as
 "managed" is "standard".
 
+##Local packet filters
+
+Suppose you have some local networks with IP addresses 10.11.1.0/24, 10.11.2.0/24, …,
+belonging to some larger IP address range 10.11.0.0/16.
+All these networks are supposed to be connected by one or more local packet filters.
+There are external networks with other IP addresses.
+Standard packet filters connect the external networks with some local networks.
+
+In this topology, the local packet filter needs only to check packets, 
+where source and destination address match 10.11.0.0/16. 
+All other packages from or to external IP addresses can pass unfiltered, 
+because these packets have already been filtered by standard packet filters.
+
+A local packet filter is declared with attribute "managed = local".
+An additional attribute "filter_only" defines the list of the to be filtered IP address ranges.
+
+For a local packet filter with "filter_only = 10.11.0.0/16;", Netspoc generates reduced ACLs:
+
+- standard deny rules (if used)
+- permit traffic between local networks 
+- deny ip 10.11.0.0/16 10.11.0.0/16
+- permit ip any any
+
+A packet filter is declared as "local" for two purposes:
+
+1. Get a reduced number of ACL entries for devices not capable to handle many ACL entries.
+2. Allow external traffic, which enters through some other packet-filter not managed by Netspoc.
+
+All networks located inside a security zone connected to a local packet filter must match "filter_only". 
+But other security zones are allowed to contain networks matching "filter_onlly". 
+In this case, the optimization becomes less effective. Multiple local packet filters connected directly, 
+without a standard packet filter in between, must use the same values for "filter_only".
+
+If traffic is filtered only by one secondary and one local packet filter 
+then the secondary filter does standard filtering.
+
+If attribute "filter_only" has N values, then we would get NxN deny rules for each source/destination pair. 
+But for a leaf security zone, only connected to one local packet filter, we already know 
+that each source address matches “filter_only”. Hence we deny any source address in this case:
+
+- deny ip any 10.11.0.0/16
+
+
+
 ##Outgoing ACL
 
 By default, Netspoc generates incoming access lists at each interface
