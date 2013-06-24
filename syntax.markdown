@@ -75,6 +75,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ <description> ]
          managed; | managed = <filter type>;
          model = <model>;
+         [ filter_only = <ip-prefix>(, <ip-prefix>)*;
          [ no_group_code;    ]
          [ no_crypto_filter; ]
          [ std_in_acl;       ]
@@ -85,8 +86,9 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
       }
     
     <VRF-name>    ::= <name>
-    <filter type> ::= primary | full | standard | secondary
+    <filter type> ::= primary | full | standard | secondary | local
     <model>       ::= Linux | ASA | ASA,8.4 | PIX | IOS | IOS,FW | NX-OS
+    <ip-prefix>   ::= <ip>/<prefix-len>
 
 ###Interface definition
 
