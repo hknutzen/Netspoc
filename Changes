@@ -1,5 +1,19 @@
 {{$NEXT}}
 
+3.032     2013-06-24 15:05:25 Europe/Berlin
+
+ - New 'managed = local' option for device that filters only local traffic.
+   A list of local ip/prefix pairs is given in new attribute 'filter_only'.
+   All attached networks, not filtered by some other non-local
+   packet filter, must match some ip of 'filter_only'.
+   Only traffic with source and destination matching 'filter_only'
+   is filtered. All other traffic passes unfiltered.
+   This is implemented by adding deny and permit rules:
+   - permit local traffic
+   - deny local traffic
+   - permit any other traffic
+ - Fixed check for unused 'overlaps' declarations.
+
 3.031     2013-05-31 10:15:14 Europe/Berlin
 
  - Fixed check for useless pathrestriction inside security zone.
