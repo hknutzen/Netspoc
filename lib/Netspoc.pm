@@ -301,6 +301,22 @@ my %router_info = (
         print_interface     => 1,
         comment_char        => '!',
     },
+    'ACE' => {
+        routing             => 'IOS',
+        filter              => 'ACE',
+        stateless           => 0,
+        stateless_self      => 0,
+        stateless_icmp      => 1,
+        can_objectgroup     => 1,
+        inversed_acl_mask   => 0,
+        use_prefix          => 0,
+        can_vrf             => 0,
+        can_log_deny        => 0,
+        has_out_acl         => 1,
+        need_protect        => 1,
+        print_interface     => 1,
+        comment_char        => '!',
+    },
     PIX => {
         routing             => 'PIX',
         filter              => 'PIX',
@@ -13406,7 +13422,7 @@ sub cisco_acl_line {
             $result .= " $dst_port_code" if defined $dst_port_code;
             print "$result\n";
         }
-        elsif ($filter_type =~ /^(:?IOS|NX-OS)$/) {
+        elsif ($filter_type =~ /^(:?IOS|NX-OS|ACE)$/) {
             my ($proto_code, $src_port_code, $dst_port_code) =
               cisco_prt_code($src_range, $prt, $model);
             my $result = "$prefix $action $proto_code";
@@ -15814,6 +15830,10 @@ sub print_cisco_acls {
                 $prefix = '';
                 print "ip access-list $acl_name\n";
             }
+            elsif ($filter eq 'ACE') {
+                $prefix = '';
+                print "access-list $acl_name extended\n";
+            }
             elsif ($filter eq 'PIX') {
                 $prefix      = "access-list $acl_name";
                 $prefix .= ' extended' if $model->{class} eq 'ASA';
@@ -15842,6 +15862,12 @@ sub print_cisco_acls {
                 push(
                     @{ $hardware->{subcmd} },
                     "ip access-group $acl_name $suffix"
+                );
+            }
+            elsif ($filter eq 'ACE') {
+                push(
+                    @{ $hardware->{subcmd} },
+                    "access-group $acl_name ${suffix}put"
                 );
             }
             elsif ($filter eq 'PIX') {
@@ -16320,7 +16346,7 @@ sub print_interface {
         # Add "ip inspect" as marker, that stateful filtering is expected.
         # The command is known to be incomplete, "X" is only used as
         # placeholder.
-        if ($stateful && !$hardware->{loopback}) {
+        if ($class eq 'IOS' && $stateful && !$hardware->{loopback}) {
             push @subcmd, "ip inspect X in";
         }
         if (my $other = $hardware->{subcmd}) {
