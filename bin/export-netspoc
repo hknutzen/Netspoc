@@ -153,7 +153,7 @@ sub ip_nat_for_object {
     elsif ($type eq 'Interface') {
         my $get_ip = sub {
             my ($obj, $network) = @_;
-            if ($obj->{ip} =~ /unnumbered|short/) {
+            if ($obj->{ip} =~ /unnumbered|short|bridged/) {
                 $obj->{ip};
             }
             elsif ($obj->{ip} eq 'negotiated') {
