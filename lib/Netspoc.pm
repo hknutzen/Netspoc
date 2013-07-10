@@ -6084,8 +6084,9 @@ sub warn_unused_overlaps {
     return;
 }
 
-# Hash of protocols to permit globally at any device.
-my %global_permit;
+# List of protocols to permit globally at any device.
+my @global_permit;
+my %global_permit_dst_range_list;
 
 # Parameters:
 # - Reference to array of unexpanded rules.
@@ -6108,22 +6109,7 @@ sub expand_rules {
 
     for my $unexpanded (@$rules_ref) {
         my $action = $unexpanded->{action};
-        my $prt = expand_protocols $unexpanded->{prt}, "rule in $context";
-        if (keys %global_permit and $action eq 'permit') {
-          PRT:
-            for my $prt (@$prt) {
-                my $up = $prt;
-                while ($up) {
-                    if ($global_permit{$up}) {
-                        warn_msg("$prt->{name} in $context is redundant",
-                                 " to global:permit");
-                        $prt = undef;
-                        next PRT;
-                    }
-                    $up = $up->{up};
-                }
-            }
-        }
+        my $prt_list = expand_protocols $unexpanded->{prt}, "rule in $context";
         for my $element ($foreach ? @$user : $user) {
             $user_object->{elements} = $element;
             my $src =
@@ -6132,9 +6118,7 @@ sub expand_rules {
             my $dst =
               expand_group($unexpanded->{dst}, "dst of rule in $context",
                 $convert_hosts);
-
-            for my $prt (@$prt) {
-                next if not $prt;
+            for my $prt (@$prt_list) {
                 my $flags = $prt->{flags};
 
                 # We must not use a unspecified boolean value but values 0 or 1,
@@ -6166,6 +6150,21 @@ sub expand_rules {
                 $prt->{src_dst_range_list} or internal_err($prt->{name});
                 for my $src_dst_range (@{ $prt->{src_dst_range_list} }) {
                     my ($src_range, $prt) = @$src_dst_range;
+
+                    if (keys %global_permit_dst_range_list && 
+                        $action eq 'permit') 
+                    {
+                        my $up = $prt;
+                        while ($up) {
+                            if ($global_permit_dst_range_list{$up}) {
+                                warn_msg("$prt->{name} in $context",
+                                         " is redundant to global:permit");
+                                last;
+                            }
+                            $up = $up->{up};
+                        }
+                    }
+
                     for my $src (@$src) {
                         my $src_zone = $obj2zone{$src} || get_zone $src;
                         my $src_zone_cluster = $src_zone->{zone_cluster};
@@ -6273,9 +6272,19 @@ sub expand_services {
 
     # Handle global:permit.
     if (my $global = $global{permit}) {
-        %global_permit =
-          map({ $_ => $_ }
-            @{ expand_protocols($global->{prt}, "$global->{name}") });
+        @global_permit =
+            @{ expand_protocols($global->{prt}, "$global->{name}") };
+        for my $prt (@global_permit) {
+            my $main_prt = $prt->{main} || $prt;
+            $main_prt->{src_dst_range_list} or internal_err($main_prt->{name});
+            for my $src_dst_range (@{ $main_prt->{src_dst_range_list} }) {
+                my ($src_range, $dst_prt) = @$src_dst_range;
+                ($src_range->{range} && $src_range->{range} ne $aref_tcp_any ||
+                 $dst_prt->{range} && $dst_prt->{range} ne $aref_tcp_any) and
+                 err_msg("Must not use ports in global permit: $prt->{name}");
+                $global_permit_dst_range_list{$dst_prt} = $dst_prt;
+            }
+        }
     }
 
     # Sort by service name to make output deterministic.
@@ -12982,7 +12991,7 @@ sub has_global_restrict {
 }
 
 sub distribute_global_permit {
-    for my $prt (sort { $a->{name} cmp $b->{name} } values %global_permit) {
+    for my $prt (sort { $a->{name} cmp $b->{name} } @global_permit) {
         my $stateless      = $prt->{flags} && $prt->{flags}->{stateless};
         my $stateless_icmp = $prt->{flags} && $prt->{flags}->{stateless_icmp};
         $prt = $prt->{main} if $prt->{main};
