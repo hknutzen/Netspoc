@@ -11938,6 +11938,7 @@ sub check_and_convert_routes  {
             my %net2group;
 
             next if $interface->{loop} and $interface->{routing};
+            next if $interface->{ip} eq 'bridged';
             for my $hop ( sort { $a->{name} cmp $b->{name} }
                           values %{ $interface->{hop} }) {
                 for my $network (values %{ $interface->{routes}->{$hop} }) {
