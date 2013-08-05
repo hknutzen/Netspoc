@@ -11798,7 +11798,7 @@ sub find_active_routes  {
 }
 
 # Parameters:
-# - a bridged interface with IP address, not usable as hop.
+# - a bridged interface without an IP address, not usable as hop.
 # - the network for which the hop was found.
 # Result:
 # - one or more layer 3 interfaces, usable as hop.
