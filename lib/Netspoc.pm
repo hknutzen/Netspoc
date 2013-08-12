@@ -10100,6 +10100,7 @@ sub find_zone_network {
     my ($interface, $zone, $other) = @_;
     my $no_nat_set = $interface->{no_nat_set};
     my $nat_other = get_nat_network($other, $no_nat_set);
+    return 0 if $nat_other->{hidden};
     my ($ip, $mask) = @{$nat_other}{qw(ip mask)};
     my $key = "$ip/$mask";
     if (my $aggregate = $zone->{ipmask2aggregate}->{$key}) {
