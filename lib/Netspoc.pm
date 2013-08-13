@@ -6092,15 +6092,15 @@ my %global_permit_dst_range_list;
 
 # Parameters:
 # - Reference to array of unexpanded rules.
-# - Current context for error messages: name of service or crypto object.
+# - Current context for error messages: name of service.
 # - Reference to hash with attributes deny, supernet, permit for storing
 #   resulting expanded rules of different type.
-# Optional, used when called from expand_services:
 # - Reference to array of values. Occurrences of 'user' in rules
 #   will be substituted by these values.
 # - Flag, indicating if values for 'user' are substituted as a whole or
 #   a new rules is expanded for each element.
 # - Flag which will be passed on to expand_group.
+# - Flag, indicating the service is disabled.
 sub expand_rules {
     my ($rules_ref, $context, $result, $private, $user, $foreach,
         $convert_hosts, $disabled)
