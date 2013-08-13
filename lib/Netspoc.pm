@@ -5977,7 +5977,7 @@ sub show_deleted_rules1 {
         push(@{ $pname2oname2deleted{$pname}->{$oname} }, $rule);
     }
     if (my $action = $config{check_duplicate_rules}) {
-        my $print = $action ? \&warn_msg : \&err_msg;
+        my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
         for my $pname (sort keys %pname2oname2deleted) {
             my $hash = $pname2oname2deleted{$pname};
             for my $oname (sort keys %$hash) {
