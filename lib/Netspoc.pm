@@ -6178,6 +6178,7 @@ sub expand_rules {
                                 && $dst_zone_cluster
                                 && $src_zone_cluster eq $dst_zone_cluster)
                             {
+                                next if $disabled;
                                 collect_unenforceable $src, $dst, $src_zone,
                                   $context;
                                 next;
