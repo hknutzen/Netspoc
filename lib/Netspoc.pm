@@ -5706,7 +5706,7 @@ sub add_rules {
 
             # Found identical rule.
             $rule->{deleted} = $old_rule;
-            push @deleted_rules, $rule if $config{check_duplicate_rules};
+            push @deleted_rules, $rule;
             next;
         }
 
@@ -5976,16 +5976,17 @@ sub show_deleted_rules1 {
         $pname2file{$oname} = $ofile;
         push(@{ $pname2oname2deleted{$pname}->{$oname} }, $rule);
     }
-    my $print =
-      $config{check_duplicate_rules} eq 'warn' ? \&warn_msg : \&err_msg;
-    for my $pname (sort keys %pname2oname2deleted) {
-        my $hash = $pname2oname2deleted{$pname};
-        for my $oname (sort keys %$hash) {
-            my $aref = $hash->{$oname};
-            my $msg  = "Duplicate rules in $pname and $oname:\n";
-            $msg .= " Files: $pname2file{$pname} $pname2file{$oname}\n  ";
-            $msg .= join("\n  ", map { print_rule $_ } @$aref);
-            $print->($msg);
+    if (my $action = $config{check_duplicate_rules}) {
+        my $print = $action ? \&warn_msg : \&err_msg;
+        for my $pname (sort keys %pname2oname2deleted) {
+            my $hash = $pname2oname2deleted{$pname};
+            for my $oname (sort keys %$hash) {
+                my $aref = $hash->{$oname};
+                my $msg  = "Duplicate rules in $pname and $oname:\n";
+                $msg .= " Files: $pname2file{$pname} $pname2file{$oname}\n  ";
+                $msg .= join("\n  ", map { print_rule $_ } @$aref);
+                $print->($msg);
+            }
         }
     }
 
@@ -6044,22 +6045,23 @@ sub show_deleted_rules2 {
         $pname2file{$oname} = $ofile;
         push(@{ $pname2oname2deleted{$pname}->{$oname} }, [ $rule, $other ]);
     }
-    my $print =
-      $config{check_redundant_rules} eq 'warn' ? \&warn_msg : \&err_msg;
-    for my $pname (sort keys %pname2oname2deleted) {
-        my $hash = $pname2oname2deleted{$pname};
-        for my $oname (sort keys %$hash) {
-            my $aref = $hash->{$oname};
-            my $msg  = "Redundant rules in $pname compared to $oname:\n";
-            $msg .= " Files: $pname2file{$pname} $pname2file{$oname}\n  ";
-            $msg .= join(
-                "\n  ",
-                map {
-                    my ($r, $o) = @$_;
-                    print_rule($r) . "\n< " . print_rule($o);
-                  } @$aref
-            );
-            $print->($msg);
+    if (my $action = $config{check_redundant_rules}) {
+        my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
+        for my $pname (sort keys %pname2oname2deleted) {
+            my $hash = $pname2oname2deleted{$pname};
+            for my $oname (sort keys %$hash) {
+                my $aref = $hash->{$oname};
+                my $msg  = "Redundant rules in $pname compared to $oname:\n";
+                $msg .= " Files: $pname2file{$pname} $pname2file{$oname}\n  ";
+                $msg .= join(
+                    "\n  ",
+                    map {
+                        my ($r, $o) = @$_;
+                        print_rule($r) . "\n< " . print_rule($o);
+                    } @$aref
+                    );
+                $print->($msg);
+            }
         }
     }
 
@@ -11216,9 +11218,7 @@ sub optimize_rules {
                                                                                   $cmp_rule;
                                                                                 push
                                                                                   @deleted_rules,
-                                                                                  $chg_rule
-                                                                                  if
-                                                                                    $config{check_redundant_rules};
+                                                                                  $chg_rule;
                                                                                 last;
                                                                             }
                                                                         }
