@@ -113,7 +113,7 @@ my $name = shift @ARGV or pod2usage(2);
 
 # Parse group definition(s).
 $Netspoc::input = $name;
-$Netspoc::file = 'group definition';
+$Netspoc::current_file = 'group definition';
 $Netspoc::line = 1;
 my @parsed;
 Netspoc::skip_space_and_comment();
