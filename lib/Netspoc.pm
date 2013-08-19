@@ -5350,13 +5350,14 @@ sub expand_group1 {
                 }
             }
             elsif ($type eq 'network') {
+                my @list;
                 for my $object (@$sub_objects) {
                     if (my $networks = $get_networks->($object)) {
 
                         # Silently remove crosslink networks from
                         # automatic groups.
                         # Change loopback network to loopback interface.
-                        push @objects, $clean_autogrp
+                        push @list, $clean_autogrp
                           ? map {
                             if ($_->{loopback})
                             {
@@ -5382,14 +5383,19 @@ sub expand_group1 {
                             " $context");
                     }
                 }
+
+                # Ignore duplicate networks resulting from different
+                # interfaces connected to the same network.
+                push @objects, unique(@list);
             }
             elsif ($type eq 'any') {
+                my @list;
                 for my $object (@$sub_objects) {
                     if (my $aggregates = $get_aggregates->($object)) {
-                        push @objects, @$aggregates;
+                        push @list, @$aggregates;
                     }
                     elsif (my $networks = $get_networks->($object)) {
-                        push @objects, map { get_any00($_->{zone}) } @$networks;
+                        push @list, map { get_any00($_->{zone}) } @$networks;
                     }
                     else {
                         my $type = ref $object;
@@ -5398,6 +5404,10 @@ sub expand_group1 {
                           " of $context";
                     }
                 }
+
+                # Ignore duplicate aggregates resulting from different
+                # interfaces connected to the same aggregate.
+                push @objects, unique(@list);
             }
             else {
                 err_msg("Unexpected $type:[..] in $context");
