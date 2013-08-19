@@ -16321,6 +16321,7 @@ sub print_interface {
                 my $addr = print_ip($ip);
                 my $mask = mask2prefix($intf->{network}->{mask});
                 $addr_cmd = "ip address $addr/$mask";
+                $addr_cmd .= ' secondary' if $secondary;
             }
             else {
                 my $addr = print_ip($ip);
