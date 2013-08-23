@@ -350,6 +350,78 @@ for my $model (keys %router_info) {
     $router_info{$model}->{class} = $model;
 }
 
+# Definition of dynamic routing protocols.
+# Protocols below need not to be ordered using order_protocols
+# since they are only used at code generation time.
+my %routing_info = (
+    EIGRP => {
+        name  => 'EIGRP',
+        prt   => { name => 'auto_prt:EIGRP', proto => 88 },
+        mcast => [
+            new(
+                'Network',
+                name => "auto_network:EIGRP_multicast",
+                ip   => gen_ip(224, 0, 0, 10),
+                mask => gen_ip(255, 255, 255, 255)
+            )
+        ]
+    },
+    OSPF => {
+        name  => 'OSPF',
+        prt   => { name => 'auto_prt:OSPF', proto => 89 },
+        mcast => [
+            new(
+                'Network',
+                name => "auto_network:OSPF_multicast5",
+                ip   => gen_ip(224, 0, 0, 5),
+                mask => gen_ip(255, 255, 255, 255),
+            ),
+            new(
+                'Network',
+                name => "auto_network:OSPF_multicast6",
+                ip   => gen_ip(224, 0, 0, 6),
+                mask => gen_ip(255, 255, 255, 255)
+            )
+        ]
+    },
+    manual => { name => 'manual' },
+);
+
+# Definition of redundancy protocols.
+my %xxrp_info = (
+    VRRP => {
+        prt   => { name => 'auto_prt:VRRP', proto => 112 },
+        mcast => new(
+            'Network',
+            name => "auto_network:VRRP_multicast",
+            ip   => gen_ip(224, 0, 0, 18),
+            mask => gen_ip(255, 255, 255, 255)
+        )
+    },
+    HSRP => {
+        prt => {
+            name      => 'auto_prt:HSRP',
+            proto     => 'udp',
+            src_range => {
+                name  => 'auto_prt:HSRP',
+                proto => 'udp',
+                range => [ 1, 65535 ]
+            },
+            dst_range => {
+                name  => 'auto_prt:HSRP',
+                proto => 'udp',
+                range => [ 1985, 1985 ]
+            }
+        },
+        mcast => new(
+            'Network',
+            name => "auto_network:HSRP_multicast",
+            ip   => gen_ip(224, 0, 0, 2),
+            mask => gen_ip(255, 255, 255, 255)
+        )
+    }
+);
+
 ## no critic (RequireArgUnpacking)
 
 # All arguments are true.
@@ -1102,6 +1174,13 @@ sub check_radius_attributes {
     return $result;
 }
 
+sub check_routing {
+    my $protocol = check_assign('routing', \&read_identifier) or return;
+    my $routing = $routing_info{$protocol}
+      or error_atline('Unknown routing protocol');
+    return $routing;
+}
+
 sub read_host {
     my ($name, $network_name) = @_;
     my $host = new('Host');
@@ -1458,78 +1537,6 @@ sub read_network {
     return $network;
 }
 
-# Definition of dynamic routing protocols.
-# Protocols below need not to be ordered using order_protocols
-# since they are only used at code generation time.
-my %routing_info = (
-    EIGRP => {
-        name  => 'EIGRP',
-        prt   => { name => 'auto_prt:EIGRP', proto => 88 },
-        mcast => [
-            new(
-                'Network',
-                name => "auto_network:EIGRP_multicast",
-                ip   => gen_ip(224, 0, 0, 10),
-                mask => gen_ip(255, 255, 255, 255)
-            )
-        ]
-    },
-    OSPF => {
-        name  => 'OSPF',
-        prt   => { name => 'auto_prt:OSPF', proto => 89 },
-        mcast => [
-            new(
-                'Network',
-                name => "auto_network:OSPF_multicast5",
-                ip   => gen_ip(224, 0, 0, 5),
-                mask => gen_ip(255, 255, 255, 255),
-            ),
-            new(
-                'Network',
-                name => "auto_network:OSPF_multicast6",
-                ip   => gen_ip(224, 0, 0, 6),
-                mask => gen_ip(255, 255, 255, 255)
-            )
-        ]
-    },
-    manual => { name => 'manual' },
-);
-
-# Definition of redundancy protocols.
-my %xxrp_info = (
-    VRRP => {
-        prt   => { name => 'auto_prt:VRRP', proto => 112 },
-        mcast => new(
-            'Network',
-            name => "auto_network:VRRP_multicast",
-            ip   => gen_ip(224, 0, 0, 18),
-            mask => gen_ip(255, 255, 255, 255)
-        )
-    },
-    HSRP => {
-        prt => {
-            name      => 'auto_prt:HSRP',
-            proto     => 'udp',
-            src_range => {
-                name  => 'auto_prt:HSRP',
-                proto => 'udp',
-                range => [ 1, 65535 ]
-            },
-            dst_range => {
-                name  => 'auto_prt:HSRP',
-                proto => 'udp',
-                range => [ 1985, 1985 ]
-            }
-        },
-        mcast => new(
-            'Network',
-            name => "auto_network:HSRP_multicast",
-            ip   => gen_ip(224, 0, 0, 2),
-            mask => gen_ip(255, 255, 255, 255)
-        )
-    }
-);
-
 our %interfaces;
 my @virtual_interfaces;
 my $global_active_pathrestriction = new(
@@ -1717,11 +1724,9 @@ sub read_interface {
               and error_atline("Duplicate definition of hardware");
             $interface->{hardware} = $hardware;
         }
-        elsif (my $protocol = check_assign 'routing', \&read_identifier) {
-            my $routing = $routing_info{$protocol}
-              or error_atline("Unknown routing protocol");
+        elsif (my $routing = check_routing()) {
             $interface->{routing} 
-              and error_atline("Duplicate routing protocol");
+              and error_atline("Duplicate attribute 'routing'");
             $interface->{routing} = $routing;
         }
         elsif (@pairs = check_assign_list 'reroute_permit', \&read_typed_name) {
@@ -1776,14 +1781,6 @@ sub read_interface {
         if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
             error_atline("No NAT supported for $interface->{ip} interface");
         }
-    }
-    if ((my $routing = $interface->{routing}) && 
-        $interface->{ip} eq 'unnumbered')
-    {
-        my $rname = $routing->{name};
-        $rname ne 'manual' and
-            error_atline("Routing $rname not supported",
-                         " for unnumbered interface");
     }
     if ($interface->{loopback}) {
         my %copy = %$interface;
@@ -1991,6 +1988,11 @@ sub read_router {
         elsif (check_flag 'log_deny') {
             $router->{log_deny} = 1;
         }
+        elsif (my $routing = check_routing()) {
+            $router->{routing} 
+              and error_atline("Duplicate attribute 'routing'");
+            $router->{routing} = $routing;
+        }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $router->{owner} and error_atline("Duplicate attribute 'owner'");
             $router->{owner} = $owner;
@@ -2035,6 +2037,7 @@ sub read_router {
     # Detailed interface processing for managed routers.
     if (my $managed = $router->{managed}) {
         my $model = $router->{model};
+        my $all_routing = $router->{routing};
 
         unless ($model) {
             err_msg("Missing 'model' for managed $name");
@@ -2112,6 +2115,19 @@ sub read_router {
                     # have a hardware name.
                     err_msg("Missing 'hardware' for $interface->{name}");
                 }
+            }
+
+            # Interface inherits routing attribute from router.
+            if ($all_routing) {
+                $interface->{routing} ||= $all_routing;
+            }
+            if ((my $routing = $interface->{routing}) && 
+                $interface->{ip} eq 'unnumbered')
+            {
+                my $rname = $routing->{name};
+                $rname eq 'manual' or
+                    error_atline("Routing $rname not supported",
+                                 " for unnumbered interface");
             }
             if (defined $interface->{security_level}
                 && !$model->{has_interface_level})
