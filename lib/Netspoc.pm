@@ -925,10 +925,10 @@ sub read_typed_name {
         skip_space_and_comment;
         if ($input =~ m/\G host:/gcx) {
             if ($input =~ m/\G($hostname_regex)/gco) {
-                return "host:$1";
+                return $1;
             }
             else {
-                syntax_err("Hostname expected");
+                syntax_err('Hostname expected');
             }
         }
         else {
@@ -1002,6 +1002,15 @@ sub check_permit_deny {
     }
 }
 
+sub check_nat_name {
+    skip_space_and_comment;
+    if ($input =~ m/\G nat:([\w-]+)/gcx) {
+        return $1;
+    }
+    else {
+        return;
+    }
+}
 sub split_typed_name {
     my ($name) = @_;
 
@@ -1316,7 +1325,12 @@ sub read_nat {
         $nat->{dynamic} = $nat_tag;
     }
     else {
-        $nat->{ip} or error_atline("Missing IP address");
+        defined($nat->{ip}) or error_atline("Missing IP address");
+        if (defined $nat->{mask}) {
+            if (not(match_ip($nat->{ip}, $nat->{ip}, $nat->{mask}))) {
+                error_atline("$nat->{name}'s IP doesn't match its mask");
+            }
+        }
     }
     return $nat;
 }
@@ -1385,26 +1399,20 @@ sub read_network {
               and error_atline("Duplicate attribute 'radius_attributes'");
             $network->{radius_attributes} = $radius_attributes;
         }
-        elsif (my $string = check_hostname) {
-            my $host = read_host $string, $net_name;
+        elsif (my $host_name = check_hostname()) {
+            my $host = read_host("host:$host_name", $net_name);
             push @{ $network->{hosts} }, $host;
-            my ($dummy, $host_name) = split_typed_name $host->{name};
+            $host_name = (split_typed_name($host->{name}))[1];
             $hosts{$host_name} and error_atline("Duplicate host:$host_name");
             $hosts{$host_name} = $host;
         }
-        else {
-            my $pair = read_typed_name;
-            my ($type, $name2) = @$pair;
-            if ($type eq 'nat') {
-                my $nat = read_nat "nat:$name2";
-                $nat->{name} .= "($name)";
-                $network->{nat}->{$name2}
-                  and error_atline("Duplicate NAT definition");
-                $network->{nat}->{$name2} = $nat;
-            }
-            else {
-                syntax_err("Expected NAT or host definition");
-            }
+        elsif (my $nat_name = check_nat_name()) {
+            my $nat = read_nat("nat:$nat_name");
+            $nat->{name} .= "($name)";
+            $network->{nat}->{$nat_name}
+              and error_atline("Duplicate NAT definition");
+            $network->{nat}->{$nat_name} = $nat;
+ 
         }
     }
 
@@ -1508,7 +1516,7 @@ sub read_network {
 
                 # Check if IP matches mask.
                 if (not(match_ip($nat->{ip}, $nat->{ip}, $nat->{mask}))) {
-                    error_atline("IP for $nat->{name} of doesn't",
+                    error_atline("IP for $nat->{name} doesn't",
                                  " match its mask");
 
                     # Prevent further errors.
@@ -2455,6 +2463,15 @@ sub read_area {
               and error_atline("Duplicate attribute 'router_attributes'");
             $area->{router_attributes} = $router_attributes;
         }
+        elsif (my $nat_name = check_nat_name()) {
+            my $nat = read_nat("nat:$nat_name");
+            defined $nat->{mask} or $nat->{hidden}
+              or error_atline("Missing mask for $nat->{name}");
+            $nat->{dynamic} or error_atline("$nat->{name} must be dynamic");
+            $area->{nat}->{$nat_name}
+              and error_atline("Duplicate NAT definition");
+            $area->{nat}->{$nat_name} = $nat;
+        }
         else {
             syntax_err("Expected some valid attribute");
         }
@@ -2842,25 +2859,6 @@ sub read_pathrestriction {
     return $restriction;
 }
 
-our %global_nat;
-
-sub read_global_nat {
-    my $name = shift;
-    my $nat  = read_nat $name;
-    if (defined $nat->{mask}) {
-        if (not(match_ip($nat->{ip}, $nat->{ip}, $nat->{mask}))) {
-            error_atline("Global $nat->{name}'s IP doesn't match its mask");
-            $nat->{ip} &= $nat->{mask};
-        }
-    }
-    else {
-        error_atline("Missing mask for global $nat->{name}");
-    }
-    $nat->{dynamic}
-      or error_atline("Global $nat->{name} must be dynamic");
-    return $nat;
-}
-
 sub read_attributed_object {
     my ($name, $attr_descr) = @_;
     my $object = { name => $name };
@@ -3077,7 +3075,6 @@ my %global_type = (
     service         => [ \&read_service,         \%services ],
     global          => [ \&read_global,          \%global ],
     pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
-    nat             => [ \&read_global_nat,      \%global_nat ],
     isakmp          => [ \&read_isakmp,          \%isakmp ],
     ipsec           => [ \&read_ipsec,           \%ipsec ],
     crypto          => [ \&read_crypto,          \%crypto ],
@@ -4047,11 +4044,13 @@ sub link_subnets  {
     for my $network (values %networks) {
         link_subnet $network, undef;
         for my $nat (values %{ $network->{nat} }) {
-            link_subnet $nat, $network;
+            link_subnet($nat, $network);
         }
     }
-    for my $nat (values %global_nat) {
-        link_subnet $nat, 'global';
+    for my $area (values %areas) {
+        for my $nat (values %{ $area->{nat} }) {
+            link_subnet($nat, $area);
+        }
     }
     return;
 }
@@ -7078,9 +7077,10 @@ sub distribute_nat_info {
 
     # Find NAT domains.
     for my $network (@networks) {
+        next if $network->{is_aggregate};
         my $domain = $network->{nat_domain};
         if (not $domain) {
-            (my $name = $network->{name}) =~ s/^network:/nat_domain:/;
+            (my $name = $network->{name}) =~ s/^\w+:/nat_domain:/;
 
 #	    debug("$name");
             $domain = new(
@@ -7133,12 +7133,6 @@ sub distribute_nat_info {
         }
     }
 
-    # Find location where nat_tag of global NAT is bound.
-    # Add this nat_tag to attribute {no_nat_set} of other NAT domains
-    # at same router, where this global NAT is not active.
-    # The added nat_tag will be distributed to all NAT domains where
-    # global NAT is not active.
-    #
     # Find all bound nat_tags for error checks.
     my %dom_routers;
     for my $domain (@natdomains) {
@@ -7147,26 +7141,10 @@ sub distribute_nat_info {
         }
     }
     for my $router (values %dom_routers) {
-        my %global;
         for my $domain (@{ $router->{nat_domains} }) {
             my $nat_tags = $router->{nat_tags}->{$domain};
             for my $tag (@$nat_tags) {
-                if (my $global = $global_nat{$tag}) {
-                    $global{$tag} = $global;
-                }
                 $nat_bound{$tag}->{ $router->{name} } = 1;
-            }
-        }
-
-        # Handle router where global NAT tag is bound at one interface.
-        # Add this tag to no_nat_set of NAT domains connected to this router
-        # at other interfaces.
-        for my $tag (keys %global) {
-            for my $domain (@{ $router->{nat_domains} }) {
-                my $nat_tags = $router->{nat_tags}->{$domain};
-                if (not grep { $tag eq $_ } @$nat_tags) {
-                    $no_nat_set{$domain}->{$tag} = { $tag => $global{$tag} };
-                }
             }
         }
     }
@@ -7174,41 +7152,6 @@ sub distribute_nat_info {
     # Distribute no_nat_set to neighbor NAT domains.
     for my $domain (@natdomains) {
         distribute_no_nat_set($domain, $no_nat_set{$domain}, 0, \%nat_bound);
-    }
-
-    # Distribute global NAT to all networks where it is applicable.
-    # Add other NAT tags at networks where global NAT is added,
-    # to no_nat_set of NAT domain where global NAT is applicable.
-    for my $nat_tag (keys %global_nat) {
-        my $global = $global_nat{$nat_tag};
-        my @applicable;
-        my %add;
-        for my $domain (@natdomains) {
-            if (not $domain->{no_nat_set}->{$nat_tag}) {
-                push @applicable, $domain;
-                next;
-            }
-
-#	    debug("$domain->{name}");
-            for my $network (@{ $domain->{networks} }) {
-
-                # If network has local NAT definition,
-                # then skip global NAT definition.
-                next if $network->{nat}->{$nat_tag};
-
-#		debug("global nat:$nat_tag to $network->{name}");
-                @add{ keys %{ $network->{nat} } } = values %{ $network->{nat} };
-                $network->{nat}->{$nat_tag} = {
-                    %$global,
-
-                    # Needed for error messages.
-                    name => "nat:$nat_tag($network->{name})",
-                };
-            }
-        }
-        for my $domain (@applicable) {
-            @{ $domain->{no_nat_set} }{ keys %add } = values %add;
-        }
     }
 
     # Check compatibility of host/interface and network NAT.
@@ -8326,7 +8269,55 @@ sub area_managed_routers {
     return grep { $_->{managed} } values %routers;
 }
 
-sub inherit_router_attributes  {
+# Distribute router_attributes
+sub inherit_router_attributes {
+    my ($area) = @_;
+    my $attributes = $area->{router_attributes} or return;
+    $attributes->{owner} and keys %$attributes == 1 and return;
+    for my $router (area_managed_routers($area)) {
+        for my $key (keys %$attributes) {
+
+            # Owner is handled in propagate_owners.
+            if (not $key eq 'owner') {
+                $router->{$key} ||= $attributes->{$key};
+            }
+        }
+    }
+    return;
+}
+
+# Distribute NAT from zone to networks.
+sub inherit_nat {
+    my ($area) = @_;
+
+    my $hash = $area->{nat} or return;
+    for my $nat_tag (keys %$hash) {
+        my $nat = $hash->{$nat_tag};
+        for my $zone (@{ $area->{zones} }) {
+            for my $network (@{ $zone->{networks} }) {
+
+                # Ignore NAT definition from area
+                # if network has local NAT definition or 
+                # has already inherited from smaller area.
+                next if $network->{nat}->{$nat_tag};
+
+                next if $network->{ip} eq 'unnumbered';
+                next if $network->{isolated_ports};
+
+                # Copy NAT defintion; append name of network.
+                $network->{nat}->{$nat_tag} = {
+                    %$nat,
+
+                    # Needed for error messages.
+                    name => "nat:$nat_tag($network->{name})",
+                };
+            }
+        }
+    }
+    return;
+}
+
+sub inherit_attributes_from_area {
 
     # Areas can be nested. Proceed from small to larger ones.
     for my $area (
@@ -8334,17 +8325,8 @@ sub inherit_router_attributes  {
         grep { not $_->{disabled} } values %areas
       )
     {
-        my $attributes = $area->{router_attributes} or next;
-        $attributes->{owner} and keys %$attributes == 1 and next;
-        for my $router (area_managed_routers($area)) {
-            for my $key (keys %$attributes) {
-
-                # Owner is handled in propagate_owners.
-                if (not $key eq 'owner') {
-                    $router->{$key} ||= $attributes->{$key};
-                }
-            }
-        }
+        inherit_router_attributes($area);
+        inherit_nat($area);
     }
     return;
 }
@@ -8469,7 +8451,7 @@ sub set_zone {
         }
     }
     link_aggregates();
-    inherit_router_attributes();
+    inherit_attributes_from_area();
     return;
 }
 

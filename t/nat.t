@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out1, $head1, $out2, $head2, $out3, $head3);
+my ($title, $in, $out1, $head1, $out2, $head2, $out3, $head3, $compiled);
 
 ############################################################
 $title = 'Multiple dynamic NAT at ASA';
@@ -308,6 +308,80 @@ Error: host:H needs static translation for nat:C to be valid in rule
  permit src=network:X; dst=host:H; prt=tcp 80; of service:test
 Error: host:H needs static translation for nat:C to be valid in rule
  permit src=host:H; dst=network:X; prt=tcp 80; of service:test
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'NAT from overlapping areas';
+############################################################
+
+$in = <<END;
+area:A = {
+ border = interface:r1.a1;
+ nat:hide = { ip = 10.99.99.8/30; dynamic; }
+}
+area:B = {
+ border = interface:r2.b1;
+ nat:hide = { hidden; }
+}
+
+network:a1 = { ip = 10.4.4.0/24; }
+router:r1 =  {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:a1 = { ip = 10.4.4.1; hardware = e1; }
+ interface:b1 = { ip = 10.2.2.1; hardware = e0; }
+}
+network:b2 = { ip = 10.3.3.0/24; }
+router:u = { interface:b2; interface:b1; }
+network:b1 = { ip = 10.2.2.0/24; nat:hide = {ip = 10.22.22.0/24;} }
+router:r2 = {
+ managed;
+ model = IOS,FW;
+ routing = manual;
+ interface:b1 = { ip = 10.2.2.2; hardware = e0; }
+ interface:X = { ip = 10.1.1.2; hardware = e1; bind_nat = hide; }
+}
+network:X = { ip = 10.1.1.0/24; }
+
+service:test = {
+ user = network:a1, network:b1; #, network:b2;
+ permit src = user; dst = network:X; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+access-list e1_in extended permit tcp 10.4.4.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list e1_in extended deny ip any any
+access-group e1_in in interface e1
+END
+
+$out2 = <<END;
+ip access-list extended e0_in
+ deny ip any host 10.1.1.2
+ permit tcp 10.4.4.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 80
+ permit tcp 10.2.2.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 80
+ deny ip any any
+END
+
+$head1 = (split /\n/, $out1)[0];
+$head2 = (split /\n/, $out2)[0];
+
+$compiled = compile($in);
+eq_or_diff(get_block($compiled, $head1), $out1, $title);
+eq_or_diff(get_block($compiled, $head2), $out2, $title);
+
+############################################################
+$title = 'Use hidden NAT from overlapping areas';
+############################################################
+
+$in =~ s/; #//;
+
+$out1 = <<END;
+Error: network:b2 is hidden by NAT in rule
+ permit src=network:b2; dst=network:X; prt=tcp 80; of service:test
 END
 
 eq_or_diff(compile_err($in), $out1, $title);
