@@ -336,7 +336,7 @@ router:r1 =  {
 }
 network:b2 = { ip = 10.3.3.0/24; }
 router:u = { interface:b2; interface:b1; }
-network:b1 = { ip = 10.2.2.0/24; nat:hide = {ip = 10.22.22.0/24;} }
+network:b1 = { ip = 10.2.2.0/24; nat:hide = { identity; } }
 router:r2 = {
  managed;
  model = IOS,FW;
@@ -348,21 +348,21 @@ network:X = { ip = 10.1.1.0/24; }
 
 service:test = {
  user = network:a1, network:b1; #, network:b2;
- permit src = user; dst = network:X; prt = tcp 80;
+ permit src = network:X; dst = user; prt = tcp 80;
 }
 END
 
 $out1 = <<END;
-access-list e1_in extended permit tcp 10.4.4.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
-access-list e1_in extended deny ip any any
-access-group e1_in in interface e1
+access-list e0_in extended permit tcp 10.1.1.0 255.255.255.0 10.4.4.0 255.255.255.0 eq 80
+access-list e0_in extended deny ip any any
+access-group e0_in in interface e0
 END
 
 $out2 = <<END;
-ip access-list extended e0_in
- deny ip any host 10.1.1.2
- permit tcp 10.4.4.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 80
- permit tcp 10.2.2.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 80
+ip access-list extended e1_in
+ deny ip any host 10.2.2.2
+ permit tcp 10.1.1.0 0.0.0.255 10.99.99.8 0.0.0.3 eq 80
+ permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
  deny ip any any
 END
 
@@ -381,7 +381,7 @@ $in =~ s/; #//;
 
 $out1 = <<END;
 Error: network:b2 is hidden by NAT in rule
- permit src=network:b2; dst=network:X; prt=tcp 80; of service:test
+ permit src=network:X; dst=network:b2; prt=tcp 80; of service:test
 END
 
 eq_or_diff(compile_err($in), $out1, $title);

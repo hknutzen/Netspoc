@@ -1300,6 +1300,9 @@ sub read_nat {
         elsif (check_flag 'hidden') {
             $nat->{hidden} = 1;
         }
+        elsif (check_flag 'identity') {
+            $nat->{identity} = 1;
+        }
         elsif (check_flag 'dynamic') {
 
             # $nat_tag is used later to look up static translation
@@ -1323,6 +1326,12 @@ sub read_nat {
 
         # This simplifies error checks for overlapping addresses.
         $nat->{dynamic} = $nat_tag;
+    }
+    elsif ($nat->{identity}) {
+        for my $key (keys %$nat) {
+            next if grep { $key eq $_ } qw( name identity );
+            error_atline("Identity NAT must not use attribute $key");
+        }
     }
     else {
         defined($nat->{ip}) or error_atline("Missing IP address");
@@ -1406,12 +1415,12 @@ sub read_network {
             $hosts{$host_name} and error_atline("Duplicate host:$host_name");
             $hosts{$host_name} = $host;
         }
-        elsif (my $nat_name = check_nat_name()) {
-            my $nat = read_nat("nat:$nat_name");
+        elsif (my $nat_tag = check_nat_name()) {
+            my $nat = read_nat("nat:$nat_tag");
             $nat->{name} .= "($name)";
-            $network->{nat}->{$nat_name}
+            $network->{nat}->{$nat_tag}
               and error_atline("Duplicate NAT definition");
-            $network->{nat}->{$nat_name} = $nat;
+            $network->{nat}->{$nat_tag} = $nat->{identity} ? $network : $nat;
  
         }
     }
@@ -1435,7 +1444,7 @@ sub read_network {
         }
     }
     elsif ($network->{bridged}) {
-        my %ok = (ip => 1, mask => 1, bridged => 1, name => 1);
+        my %ok = (ip => 1, mask => 1, bridged => 1, name => 1, nat => 1);
 
         # Bridged network must not have any other attributes.
         for my $key (keys %$network) {
@@ -1445,6 +1454,14 @@ sub read_network {
                 ($key eq 'hosts') ? "host definition (not implemented)"
               : ($key eq 'nat')   ? "nat definition"
               :                     "attribute '$key'");
+        }
+
+        # Only identity NAT allowed
+        if (my $hash = $network->{nat}) {
+            for my $nat (values %$hash) {
+                $nat eq $network or 
+                  error_atline "Only identity NAT allowed in bridged network";
+            }
         }
     }
     else {
@@ -1811,7 +1828,7 @@ sub read_interface {
                      " for loopback interface");
     }
     if ($interface->{ip} eq 'bridged') {
-        my %ok = (ip => 1, hardware => 1, name => 1);
+        my %ok = (ip => 1, hardware => 1, name => 1, bind_nat => 1);
         if (my @extra = grep { !$ok{$_} } keys %$interface) {
             my $attr = join ", ", map { "'$_'" } @extra;
             error_atline("Invalid attributes $attr for bridged interface");
@@ -8304,13 +8321,24 @@ sub inherit_nat {
                 next if $network->{ip} eq 'unnumbered';
                 next if $network->{isolated_ports};
 
-                # Copy NAT defintion; append name of network.
-                $network->{nat}->{$nat_tag} = {
-                    %$nat,
+                if ($nat->{identify}) {
+                    $network->{nat}->{$nat_tag} = $network;
+                }
+                else {
 
-                    # Needed for error messages.
-                    name => "nat:$nat_tag($network->{name})",
-                };
+                    $network->{ip} eq 'bridged' and
+                        err_msg("Must not inherit nat:$nat_tag",
+                                " at bridged $network->{name}",
+                                " from $area->{name}");
+
+                    # Copy NAT defintion; append name of network.
+                    $network->{nat}->{$nat_tag} = {
+                        %$nat,
+                        
+                        # Needed for error messages.
+                        name => "nat:$nat_tag($network->{name})",
+                    };
+                }
             }
         }
     }
