@@ -13558,9 +13558,11 @@ sub find_object_groups  {
 
             my $calc_ip_mask_strings = sub {
                 my ($keys, $no_nat_set) = @_;
-                return(sort map({ join('/', @{ address($_, $no_nat_set) }) } 
-                                map({ $ref2obj{$_} || internal_err($_) } 
-                                    @$keys)));
+                return(map { join('/', @$_) }
+                       sort { $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] }
+                       map { address($_, $no_nat_set) }
+                       map { $ref2obj{$_} || internal_err($_) }
+                       @$keys);
             };
 
             my $build_group = sub {
