@@ -13486,10 +13486,9 @@ sub find_object_groups  {
     my $keyword = $is_nxos
                 ? 'object-group ip address'
                 : 'object-group network';
-    my $numbered = 10;
 
-    # Find identical groups in identical NAT domain and of same size.
-    my $nat2size2group = ($router->{nat2size2group} ||= {});
+    # Find identical groups of same size.
+    my $size2first2group_hash = ($router->{size2first2group_hash} ||= {});
     $router->{obj_group_counter} ||= 0;
 
     # Leave 'intf_rules' untouched, because they are handled
@@ -13557,59 +13556,34 @@ sub find_object_groups  {
                 }
             }
 
-            # Find a group with identical elements or define a new one.
-            my $get_group = sub  {
-                my ($glue)     = @_;
-                my $hash       = $glue->{hash};
-                my $no_nat_set = $glue->{no_nat_set};
-                my @keys       = keys %$hash;
-                my $size       = @keys;
+            my $calc_ip_mask_strings = sub {
+                my ($keys, $no_nat_set) = @_;
+                return(sort map({ join('/', @{ address($_, $no_nat_set) }) } 
+                                map({ $ref2obj{$_} || internal_err($_) } 
+                                    @$keys)));
+            };
 
-                # This occurs if optimization didn't work correctly.
-                if (
-                    my @aggregates =
-                    grep { is_network($_) && $_->{mask} == 0 } @keys
-                  )
-                {
-                    my $names = join(', ', map { $_->{name} } @aggregates);
-                    internal_err("Unexpected $names in object-group",
-                                 " of $router->{name}");
-                }
-
-                # Find group with identical elements.
-                for my $group (@{ $nat2size2group->{$no_nat_set}->{$size} }) {
-                    my $href = $group->{hash};
-                    my $eq   = 1;
-                    for my $key (@keys) {
-                        unless ($href->{$key}) {
-                            $eq = 0;
-                            last;
-                        }
-                    }
-                    if ($eq) {
-                        return $group;
-                    }
-                }
-
-                # Not found, build new group.
+            my $build_group = sub {
+                my ($ip_mask_strings) = @_;
                 my $group = new(
                     'Objectgroup',
                     name       => "g$router->{obj_group_counter}",
-                    elements   => [ map { $ref2obj{$_} || internal_err($_) } 
-                                    @keys ],
-                    hash       => $hash,
-                    no_nat_set => $no_nat_set
+                    elements   => $ip_mask_strings,
+                    hash       => { map { $_ => 1 } @$ip_mask_strings },
                 );
-                push @{ $nat2size2group->{$no_nat_set}->{$size} }, $group;
+                $router->{obj_group_counter}++;
 
                 # Print object-group.
+                my $numbered = 10;
                 print "$keyword $group->{name}\n";
-                for my $pair (
-                    sort({ $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] }
-                        map({ address($_, $no_nat_set) }
-                            @{ $group->{elements} }))
-                  )
-                {
+                for my $ip_mask ( @$ip_mask_strings ) {
+                    my $pair = [ split '/', $ip_mask ];
+
+                    # Reject network with mask = 0 in group.
+                    # This occurs if optimization didn't work correctly.
+                    $pair->[1] == 0 and
+                        internal_err("Unexpected object with mask 0",
+                                     " in object-group of $router->{name}");
                     my $adr = cisco_acl_addr($pair, $model);
                     if ($is_nxos) {
                         print " $numbered $adr\n";
@@ -13619,7 +13593,76 @@ sub find_object_groups  {
                         print " network-object $adr\n";
                     }
                 }
-                $router->{obj_group_counter}++;
+                return $group;
+            };
+
+            # Find group with identical elements or define a new one.
+            my $get_group = sub  {
+                my ($glue)     = @_;
+                my $hash       = $glue->{hash};
+                my $no_nat_set = $glue->{no_nat_set};
+
+                # Keys are sorted by their internal address to get
+                # some "first" element. 
+                # This element is useable for hashing, because addresses
+                # are known to be fix during program execution.
+                my @keys       = sort keys %$hash;
+                my $first      = $keys[0];
+                my $size       = @keys;
+
+                # Find group with identical elements.
+              HASH:
+                for my $group_hash 
+                    (@{ $size2first2group_hash->{$size}->{$first} }) 
+                {
+                    my $href = $group_hash->{hash};
+
+                    # Check elements for equality.
+                    for my $key (@keys) {
+                        $href->{$key} or next HASH;
+                    }
+
+                    # Found $group_hash with matching elements.
+                    # Check for existing group in current NAT domain.
+                    my $nat2group = $group_hash->{nat2group};
+                    if (my $group = $nat2group->{$no_nat_set}) {
+                        return $group;
+                    }
+
+                    my @ip_mask_strings = 
+                        $calc_ip_mask_strings->(\@keys, $no_nat_set);
+
+                    # Check for matching group in other NAT domains.
+                  GROUP:
+                    for my $group (values %$nat2group) {
+                        my $href = $group->{hash};
+
+                        # Check NATed addresses for equality.
+                        for my $key (@ip_mask_strings) {
+                            $href->{$key} or next GROUP;
+                        }
+
+                        # Found matching group.
+                        $nat2group->{$no_nat_set} = $group;
+                        return $group;
+                    }
+                    
+                    # No group found, build new group.
+                    my $group = $build_group->(\@ip_mask_strings);
+                    $nat2group->{$no_nat_set} = $group;
+                    return $group;
+                }
+
+                # No group hash found, build new group hash with new group.
+                my @ip_mask_strings = 
+                    $calc_ip_mask_strings->(\@keys, $no_nat_set);
+                my $group = $build_group->(\@ip_mask_strings);
+                my $group_hash = {
+                    hash      => $hash,
+                    nat2group => { $no_nat_set => $group },
+                };
+                push(@{ $size2first2group_hash->{$size}->{$first} }, 
+                     $group_hash);
                 return $group;
             };
 
