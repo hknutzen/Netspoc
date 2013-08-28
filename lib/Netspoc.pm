@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.033'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.034'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -13558,9 +13558,11 @@ sub find_object_groups  {
 
             my $calc_ip_mask_strings = sub {
                 my ($keys, $no_nat_set) = @_;
-                return(sort map({ join('/', @{ address($_, $no_nat_set) }) } 
-                                map({ $ref2obj{$_} || internal_err($_) } 
-                                    @$keys)));
+                return(map { join('/', @$_) }
+                       sort { $a->[0] <=> $b->[0] || $a->[1] <=> $b->[1] }
+                       map { address($_, $no_nat_set) }
+                       map { $ref2obj{$_} || internal_err($_) }
+                       @$keys);
             };
 
             my $build_group = sub {
