@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+3.034     2013-08-28 17:57:24 Europe/Berlin
+
+ - Fixed wrongly sorted IP addresses in object-groups introduced in 3.033.
+
 3.033     2013-08-28 16:26:33 Europe/Berlin
 
  - A NAT definition can be given at an area now.
