@@ -1,5 +1,38 @@
 {{$NEXT}}
 
+3.033     2013-08-28 16:26:33 Europe/Berlin
+
+ - A NAT definition can be given at an area now.
+   This applies the NAT definition to all networks inside the area, 
+   which don't already have a NAT definition.
+   Only dynamic and hidden NAT can be used here.
+   NAT definitions from multiple areas are applied from smaller areas first.
+ - The concept of identity NAT has been introduced.
+   Use "nat:x = { identity; }' to define identity NAT,
+   i.e. the address remains unchanged.
+   Identity NAT is used to mask a network from the NAT definition of an area.
+ - A bridged network can be given a NAT definition now, but only identity NAT
+   is permitted.
+ - NAT can be bound to a bridged interface now. 
+   Only hidden NAT should be used here.
+ - Global NAT isn't supported any longer. 
+   This should be migrated to NAT at area.
+ - New router attribute 'routing'.
+   This value is inherited by all interfaces having no router attribute
+   of their own.
+ - Permit email address 'guest' for anonymous login in policy-web.
+ - No longer allow ports in global permit.
+ - Object-groups are reused even if used in ACLs bound to interfaces 
+   in different NAT doamains.
+ - Fixed check for redundant rules with global permit.
+ - Fixed check for useless overlaps. 
+   Check is done even if check for duplicate / redundant rules is disabled.
+ - Fixed check for unenforceable rules. Don't check disabled services.
+ - Ignore bridged interface in check for duplicate routes.
+ - Ignore duplicate networks and aggregates in automatic group resulting
+   from different interfaces connected to the same object.
+ - Mark secondary ip address as 'secondary' in generated code for NX-OS.
+
 3.032     2013-06-24 15:05:25 Europe/Berlin
 
  - New 'managed = local' option for device that filters only local traffic.
