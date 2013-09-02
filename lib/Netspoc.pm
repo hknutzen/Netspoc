@@ -1417,11 +1417,16 @@ sub read_network {
         }
         elsif (my $nat_tag = check_nat_name()) {
             my $nat = read_nat("nat:$nat_tag");
-            $nat->{name} .= "($name)";
-            $network->{nat}->{$nat_tag}
+            ($network->{nat} && $network->{nat}->{$nat_tag} ||
+             $network->{identity_nat} && $network->{identity_nat}->{$nat_tag})
               and error_atline("Duplicate NAT definition");
-            $network->{nat}->{$nat_tag} = $nat->{identity} ? $network : $nat;
- 
+            if ($nat->{identity}) {
+                $network->{identity_nat}->{$nat_tag} = $nat;
+            } 
+            else {
+                $nat->{name} .= "($name)";
+                $network->{nat}->{$nat_tag} = $nat;
+            } 
         }
     }
 
@@ -1444,7 +1449,8 @@ sub read_network {
         }
     }
     elsif ($network->{bridged}) {
-        my %ok = (ip => 1, mask => 1, bridged => 1, name => 1, nat => 1);
+        my %ok = 
+            (ip => 1, mask => 1, bridged => 1, name => 1, identity_nat => 1);
 
         # Bridged network must not have any other attributes.
         for my $key (keys %$network) {
@@ -1454,14 +1460,6 @@ sub read_network {
                 ($key eq 'hosts') ? "host definition (not implemented)"
               : ($key eq 'nat')   ? "nat definition"
               :                     "attribute '$key'");
-        }
-
-        # Only identity NAT allowed
-        if (my $hash = $network->{nat}) {
-            for my $nat (values %$hash) {
-                $nat eq $network or 
-                  error_atline "Only identity NAT allowed in bridged network";
-            }
         }
     }
     else {
@@ -8317,6 +8315,9 @@ sub inherit_nat {
                 # if network has local NAT definition or 
                 # has already inherited from smaller area.
                 next if $network->{nat}->{$nat_tag};
+
+                # Ignore network with identity NAT.
+                next if $network->{identity_nat}->{$nat_tag};
 
                 next if $network->{ip} eq 'unnumbered';
                 next if $network->{isolated_ports};
