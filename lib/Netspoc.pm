@@ -7302,6 +7302,7 @@ sub nat_to_loopback_ok {
 }
 
 sub numerically { return $a <=> $b }
+sub by_name     { return $a->{name} cmp $b->{name} }
 
 sub link_reroute_permit;
 
@@ -7769,7 +7770,7 @@ sub check_crosslink  {
           map { @{ $_->{interfaces} } }
 
           # Sort by router name to make output deterministic.
-          sort { $a->{name} cmp $b->{name} } values %cluster;
+          sort by_name values %cluster;
         my %crosslink_intf_hash = map { $_ => $_ } @crosslink_interfaces;
         for my $router2 (values %cluster) {
             $router2->{crosslink_interfaces} = \@crosslink_interfaces;
@@ -11978,8 +11979,7 @@ sub check_and_convert_routes  {
 
             next if $interface->{loop} and $interface->{routing};
             next if $interface->{ip} eq 'bridged';
-            for my $hop ( sort { $a->{name} cmp $b->{name} }
-                          values %{ $interface->{hop} }) {
+            for my $hop ( sort by_name values %{ $interface->{hop} }) {
                 for my $network (values %{ $interface->{routes}->{$hop} }) {
                     if (my $interface2 = $net2intf{$network}) {
                         if ($interface2 ne $interface) {
@@ -12062,8 +12062,7 @@ sub check_and_convert_routes  {
             # Convert to array, because hash isn't needed any longer.
             # Array is sorted to get deterministic output.
             $interface->{hop} =
-              [ sort { $a->{name} cmp $b->{name} }
-                  values %{ $interface->{hop} } ];
+              [ sort by_name values %{ $interface->{hop} } ];
         }
     }
     return;
@@ -13031,7 +13030,7 @@ sub has_global_restrict {
 }
 
 sub distribute_global_permit {
-    for my $prt (sort { $a->{name} cmp $b->{name} } @global_permit) {
+    for my $prt (sort by_name @global_permit) {
         my $stateless      = $prt->{flags} && $prt->{flags}->{stateless};
         my $stateless_icmp = $prt->{flags} && $prt->{flags}->{stateless_icmp};
         $prt = $prt->{main} if $prt->{main};
@@ -16070,7 +16069,7 @@ sub print_crypto {
 
     # List of ipsec definitions used at current router.
     # Sort entries by name to get deterministic output.
-    my @ipsec = sort { $a->{name} cmp $b->{name} } unique(
+    my @ipsec = sort by_name unique(
         map { $_->{crypto}->{type} }
         grep { $_->{ip} eq 'tunnel' } @{ $router->{interfaces} }
     );
@@ -16080,9 +16079,7 @@ sub print_crypto {
 
     # List of isakmp definitions used at current router.
     # Sort entries by name to get deterministic output.
-    my @isakmp =
-      sort { $a->{name} cmp $b->{name} }
-      unique(map { $_->{key_exchange} } @ipsec);
+    my @isakmp = sort by_name unique(map { $_->{key_exchange} } @ipsec);
 
     my $comment_char = $model->{comment_char};
     print "$comment_char [ Crypto ]\n";
