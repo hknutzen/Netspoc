@@ -9588,7 +9588,7 @@ sub path_auto_interfaces {
                 $result{$interface} = $interface;
             }
         }
-        @result = values %result;
+        @result = sort by_name values %result;
     }
 
     my $bridged_count = 0;
