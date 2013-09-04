@@ -145,6 +145,7 @@ here `<object set>` must expand to networks.
          border = <object set>; | anchor = network:<name>;
          [ auto_border;    ]
          [ owner = <name>; ]
+         <network NAT> *
          [ <default router attributes> ]
       }
 
@@ -152,6 +153,8 @@ here `<object set>` must expand to networks.
       router_attributes = {
         [ owner = <name>; ]
       }
+
+where `<network NAT>` must be hidden or dynamic.
 
 ###Set of objects
 
@@ -250,14 +253,6 @@ with
     ;
 
 where `<object set>` must expand to interfaces.
-
-###Global NAT definition
-
-    nat:<name> = { 
-      ip = <ip-net>; 
-      dynamic;
-      [ subnet_of = network:<name>; ]
-    }
 
 ###Owner definition
 
