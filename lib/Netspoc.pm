@@ -9510,7 +9510,7 @@ sub set_auto_intf_from_border  {
     my $reach_from_border;
     $reach_from_border = sub {
         my ($network, $in_intf, $result) = @_;
-        next if $result->{$network}->{$in_intf};
+        return if $result->{$network}->{$in_intf};
         $active_path{$network} = 1;
         $result->{$network}->{$in_intf} = $in_intf;
         for my $interface (@{ $network->{interfaces} }) {
