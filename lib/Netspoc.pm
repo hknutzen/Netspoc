@@ -1225,9 +1225,6 @@ sub read_host {
             $host->{radius_attributes} = $radius_attributes;
         }
         elsif (check_flag 'policy_distribution_point') {
-            $policy_distribution_point
-              and error_atline("'policy_distribution_point' must be defined",
-                               " only once");
             $policy_distribution_point = $host;
         }
         elsif (my $pair = check_typed_name) {
@@ -2789,13 +2786,9 @@ sub read_service {
             $service->{visible} = $visible;
         }
         elsif (check_flag('multi_owner')) {
-            $service->{multi_owner}
-              and error_atline("Duplicate attribute 'multi_owner'");
             $service->{multi_owner} = 1;
         }
         elsif (check_flag('unknown_owner')) {
-            $service->{unknown_owner}
-              and error_atline("Duplicate attribute 'unknown_owner'");
             $service->{unknown_owner} = 1;
         }
         elsif (check_flag('disabled')) {
