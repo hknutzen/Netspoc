@@ -5925,20 +5925,23 @@ sub collect_unenforceable  {
             }
         }
     }
-    elsif (is_network($src) && $src->{is_aggregate}
-        || is_network($dst) && $dst->{is_aggregate})
-    {
-
-        # This is a common case, which results from rules like
-        # group:some_networks -> any:[group:some_networks]
-        return if not($src->{is_aggregate} and $dst->{is_aggregate});
+    elsif ($src->{is_aggregate} && $dst->{is_aggregate}) {
 
         # Both are aggregates,
         # - belonging to same zone cluster and
         # - having identical ip and mask
         return if (zone_eq($src->{zone}, $dst->{zone})
-                && $src->{ip} == $dst->{ip}
-                && $src->{mask} == $dst->{mask});
+                   && $src->{ip} == $dst->{ip}
+                   && $src->{mask} == $dst->{mask});
+    }
+    elsif ($src->{is_aggregate} && $src->{mask} == 0) {
+
+        # This is a common case, which results from rules like
+        # group:some_networks -> any:[group:some_networks]
+        return if zone_eq($src->{zone}, get_zone($dst))
+    }
+    elsif($dst->{is_aggregate} && $dst->{mask} == 0 ) {
+        return if zone_eq($dst->{zone}, get_zone($src))
     }
     delete $unenforceable_context{$context};
     $unenforceable_context2src2dst{$context}->{$src}->{$dst} ||= [ $src, $dst ];
