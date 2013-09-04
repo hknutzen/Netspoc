@@ -76,6 +76,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          managed; | managed = <filter type>;
          model = <model>;
          [ filter_only = <ip-prefix>(, <ip-prefix>)*; ]
+         [ routing = ( EIGRP | OSPF | manual );       ]
          [ no_group_code;    ]
          [ no_crypto_filter; ]
          [ std_in_acl;       ]
