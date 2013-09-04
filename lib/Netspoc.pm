@@ -5945,21 +5945,20 @@ sub collect_unenforceable  {
     return;
 }
 
-sub show_unenforceable  {
+sub show_unenforceable {
+    my $print = $config{check_unenforceable} eq 'warn' ? \&warn_msg : \&err_msg;
     for my $context (sort keys %unenforceable_context) {
         next
           if $unenforceable_context2src2dst{$context}
               or $enforceable_context{$context};
-        my $msg = "$context is fully unenforceable";
-        $config{check_unenforceable} eq 'warn' ? warn_msg($msg) : err_msg($msg);
+        $print->("$context is fully unenforceable");
     }
     for my $context (sort keys %unenforceable_context2src2dst) {
-        my $msg;
         if (not $enforceable_context{$context}) {
-            $msg = "$context is fully unenforceable";
+            $print->("$context is fully unenforceable");
         }
         else {
-            $msg = "$context has unenforceable rules:";
+            my $msg = "$context has unenforceable rules:";
             my $hash = $unenforceable_context2src2dst{$context};
             for my $hash (values %$hash) {
                 for my $aref (values %$hash) {
@@ -5967,8 +5966,8 @@ sub show_unenforceable  {
                     $msg .= "\n src=$src->{name}; dst=$dst->{name}";
                 }
             }
+            $print->($msg);
         }
-        $config{check_unenforceable} eq 'warn' ? warn_msg($msg) : err_msg($msg);
     }
     %enforceable_context           = ();
     %unenforceable_context         = ();
