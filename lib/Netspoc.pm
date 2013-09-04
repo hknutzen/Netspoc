@@ -9503,7 +9503,7 @@ sub path_walk {
     return;
 }
 
-my %border2router2auto;
+my %border2obj2auto;
 
 sub set_auto_intf_from_border  {
     my ($border) = @_;
@@ -9511,7 +9511,9 @@ sub set_auto_intf_from_border  {
     my $reach_from_border;
     $reach_from_border = sub {
         my ($network, $in_intf, $result) = @_;
+        next if $result->{$network}->{$in_intf};
         $active_path{$network} = 1;
+        $result->{$network}->{$in_intf} = $in_intf;
         for my $interface (@{ $network->{interfaces} }) {
             next if $interface eq $in_intf;
             next if $interface->{zone};
@@ -9538,7 +9540,7 @@ sub set_auto_intf_from_border  {
     for my $href (values %$result) {
         $href = [ values %$href ];
     }
-    $border2router2auto{$border} = $result;
+    $border2obj2auto{$border} = $result;
     return;
 }
 
@@ -9576,14 +9578,17 @@ sub path_auto_interfaces {
     else {
         @result = ($from_store->{path}->{$to_store});
     }
-    my $router = is_router($src2) ? $src2 : $src2->{router};
+
+    # Find auto interface inside zone.
+    # $src is located inside some zone.
+    # $src2 is known to be unmanaged router or network.
     if (!is_router($from)) {
         my %result;
         for my $border (@result) {
-            if (not $border2router2auto{$border}) {
+            if (not $border2obj2auto{$border}) {
                 set_auto_intf_from_border($border);
             }
-            my $auto_intf = $border2router2auto{$border}->{$router};
+            my $auto_intf = $border2obj2auto{$border}->{$src2};
             for my $interface (@$auto_intf) {
                 $result{$interface} = $interface;
             }
