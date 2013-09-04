@@ -2398,6 +2398,9 @@ sub read_aggregate {
               and error_atline('Duplicate definition of link');
             $aggregate->{link} = $link;
         }
+        elsif (check_flag 'has_unenforceable') {
+            $aggregate->{has_unenforceable} = 1;
+        }
         elsif (check_flag 'no_in_acl') {
             $aggregate->{no_in_acl} = 1;
         }
@@ -2421,10 +2424,10 @@ sub read_aggregate {
         if (not(match_ip($ip, $ip, $mask))) {
             error_atline("IP and mask don't match");
         }
-        $aggregate->{owner}
-          and error_atline("Must not define 'owner' if mask is set");
-        $aggregate->{no_in_acl}
-          and error_atline("Must not define 'no_in_acl' if mask is set");
+        for my $key (keys %$aggregate) {
+            next if grep { $key eq $_ } qw( name ip mask link is_aggregate);
+            error_atline("Must not use attribute $key if mask is set");
+        }
     }
     return $aggregate;
 }
@@ -5898,6 +5901,7 @@ sub collect_unenforceable  {
     my ($src, $dst, $zone, $context) = @_;
 
     return if not $config{check_unenforceable};
+    return if $zone->{has_unenforceable};
 
     $unenforceable_context{$context} = 1;
 
@@ -8018,7 +8022,7 @@ sub link_aggregates {
 
             # Aggregate with ip 0/0 is used to set attributes of zone.
             if ($mask == 0) {
-                for my $attr (qw(owner no_in_acl)) {
+                for my $attr (qw(owner no_in_acl has_unenforceable)) {
                     $zone->{$attr} = $aggregate->{$attr} if $aggregate->{$attr};
                 }
             }
