@@ -266,7 +266,7 @@ where `<object set>` must expand to interfaces.
       [ show_all;    ]
     }
     
-    <email> ::= some valid email address
+    <email> ::= some valid email address or 'guest'
 
 ##Encryption
 
