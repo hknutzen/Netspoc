@@ -44,7 +44,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 
     <network NAT> ::=
       nat:<name> = { 
-         ip = <ip-net>; |  hidden;
+         ip = <ip-net>; |  hidden; | identity;
          [ dynamic;                    ]
          [ subnet_of = network:<name>; ]
       }
