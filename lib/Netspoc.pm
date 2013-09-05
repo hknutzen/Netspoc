@@ -5892,10 +5892,6 @@ sub expand_special  {
 # - subnets/hosts of different networks.
 # Rules between identical objects are silently ignored.
 # But a message is shown if a service only has rules between identical objects.
-my %unenforceable_context2src2dst;
-my %unenforceable_context;
-my %enforceable_context;
-
 sub collect_unenforceable  {
     my ($src, $dst, $zone, $service) = @_;
 
@@ -6002,6 +5998,7 @@ sub warn_useless_unenforceable {
         $zone->{seen_unenforceable} or
             warn_msg("Useless attribute 'has_unenforceable' at $zone->{name}");
     }
+    return;
 }
 
 sub show_deleted_rules1 {
