@@ -2791,6 +2791,9 @@ sub read_service {
         elsif (check_flag('unknown_owner')) {
             $service->{unknown_owner} = 1;
         }
+        elsif (check_flag('has_unenforceable')) {
+            $service->{has_unenforceable} = 1;
+        }
         elsif (check_flag('disabled')) {
             $service->{disabled} = 1;
         }
@@ -5891,12 +5894,18 @@ my %unenforceable_context;
 my %enforceable_context;
 
 sub collect_unenforceable  {
-    my ($src, $dst, $zone, $context) = @_;
+    my ($src, $dst, $zone, $service) = @_;
 
-    return if not $config{check_unenforceable};
-    return if $zone->{has_unenforceable};
+    if ($zone->{has_unenforceable}) {
+        $zone->{seen_unenforceable} = 1;
 
-    $unenforceable_context{$context} = 1;
+        # Prevent warning "fully unenforceable".
+        $service->{seen_enforceable} = 1;
+        return;
+    }
+
+    my $context = $service->{name};
+    $service->{silent_unenforceable} = 1;
 
     # A rule between identical objects is a common case
     # which results from rules with "src=user;dst=user;".
@@ -5940,39 +5949,56 @@ sub collect_unenforceable  {
     elsif($dst->{is_aggregate} && $dst->{mask} == 0 ) {
         return if zone_eq($dst->{zone}, get_zone($src))
     }
-    delete $unenforceable_context{$context};
-    $unenforceable_context2src2dst{$context}->{$src}->{$dst} ||= [ $src, $dst ];
+    $service->{silent_unenforceable} = 0;
+    $service->{seen_unenforceable}->{$src}->{$dst} ||= [ $src, $dst ];
     return;
 }
 
 sub show_unenforceable {
-    my $print = $config{check_unenforceable} eq 'warn' ? \&warn_msg : \&err_msg;
-    for my $context (sort keys %unenforceable_context) {
-        next
-          if $unenforceable_context2src2dst{$context}
-              or $enforceable_context{$context};
-        $print->("$context is fully unenforceable");
+    my ($service) = @_;
+    my $context = $service->{name};
+
+    if (   $service->{has_unenforceable} 
+        && ! $service->{seen_unenforceable}
+        && ! $service->{silent_unenforceable}) 
+    {
+        warn_msg("Useless attribute 'has_unenforceable' at $context");
+        return; 
     }
-    for my $context (sort keys %unenforceable_context2src2dst) {
-        if (not $enforceable_context{$context}) {
+    return if ! $config{check_unenforceable};
+    return if $service->{has_unenforceable};
+    return if $service->{disabled};
+
+    my $print = $config{check_unenforceable} eq 'warn' ? \&warn_msg : \&err_msg;
+
+    if (! delete $service->{seen_enforceable}) {
+        
+        # Don't warn on empty service without any expanded rules.
+        if ($service->{seen_unenforceable} || $service->{silent_unenforceable}) 
+        {
             $print->("$context is fully unenforceable");
         }
-        else {
-            my $msg = "$context has unenforceable rules:";
-            my $hash = $unenforceable_context2src2dst{$context};
-            for my $hash (values %$hash) {
-                for my $aref (values %$hash) {
-                    my ($src, $dst) = @$aref;
-                    $msg .= "\n src=$src->{name}; dst=$dst->{name}";
-                }
-            }
-            $print->($msg);
-        }
     }
-    %enforceable_context           = ();
-    %unenforceable_context         = ();
-    %unenforceable_context2src2dst = ();
+    elsif (my $hash = delete $service->{seen_unenforceable}) {
+        my $msg = "$context has unenforceable rules:";
+        for my $hash (values %$hash) {
+            for my $aref (values %$hash) {
+                my ($src, $dst) = @$aref;
+                $msg .= "\n src=$src->{name}; dst=$dst->{name}";
+            }
+        }
+        $print->($msg);
+    }
+    delete $service->{silent_unenforceable};
     return;
+}
+
+sub warn_useless_unenforceable {
+    for my $zone (@zones) {
+        $zone->{has_unenforceable} or next;
+        $zone->{seen_unenforceable} or
+            warn_msg("Useless attribute 'has_unenforceable' at $zone->{name}");
+    }
 }
 
 sub show_deleted_rules1 {
@@ -6131,19 +6157,20 @@ my %global_permit_dst_range_list;
 
 # Parameters:
 # - Reference to array of unexpanded rules.
-# - Current context for error messages: name of service.
+# - The service.
 # - Reference to hash with attributes deny, supernet, permit for storing
 #   resulting expanded rules of different type.
 # - Reference to array of values. Occurrences of 'user' in rules
 #   will be substituted by these values.
-# - Flag, indicating if values for 'user' are substituted as a whole or
-#   a new rules is expanded for each element.
 # - Flag which will be passed on to expand_group.
-# - Flag, indicating the service is disabled.
 sub expand_rules {
-    my ($rules_ref, $context, $result, $private, $user, $foreach,
-        $convert_hosts, $disabled)
-      = @_;
+    my ($service, $result, $convert_hosts) = @_;
+    my $rules_ref = $service->{rules};
+    my $user      = $service->{user};
+    my $context   = $service->{name};
+    my $disabled  = $service->{disabled};
+    my $private   = $service->{private};
+    my $foreach   = $service->{foreach};
 
     # For collecting resulting expanded rules.
     my ($deny, $supernet, $permit) = @{$result}{ 'deny', 'supernet', 'permit' };
@@ -6217,16 +6244,16 @@ sub expand_rules {
                                 && $dst_zone_cluster
                                 && $src_zone_cluster eq $dst_zone_cluster)
                             {
-                                next if $disabled;
-                                collect_unenforceable $src, $dst, $src_zone,
-                                  $context;
+                                collect_unenforceable(
+                                    $src, $dst, $src_zone, $service);
                                 next;
                             }
 
                             # At least one rule is enforceable.
                             # This is used to decide, if a service is fully
                             # unenforceable.
-                            $enforceable_context{$context} = 1;
+                            $service->{seen_enforceable} = 1;
+
                             my @src = expand_special $src, $dst, $flags->{src},
                               $context
                               or next;    # Prevent multiple error messages.
@@ -6292,7 +6319,7 @@ sub expand_rules {
             }
         }
     }
-    show_unenforceable;
+    show_unenforceable($service);
 
     # Result is returned indirectly using parameter $result.
     return;
@@ -6369,12 +6396,10 @@ sub expand_services {
             }
         }
 
-        my $user = $service->{user} =
-          expand_group($service->{user}, "user of $name");
-        expand_rules($service->{rules}, $name, \%expanded_rules,
-            $service->{private}, $user, $service->{foreach}, $convert_hosts,
-            $service->{disabled});
+        $service->{user} = expand_group($service->{user}, "user of $name");
+        expand_rules($service, \%expanded_rules, $convert_hosts);
     }
+    warn_useless_unenforceable();
     print_rulecount;
     progress('Preparing Optimization');
     for my $type ('deny', 'supernet', 'permit') {
