@@ -1425,6 +1425,9 @@ sub read_network {
                 $network->{nat}->{$nat_tag} = $nat;
             } 
         }
+        else {
+            syntax_err("Expected some valid attribute");
+        }
     }
 
     # Network needs at least IP and mask to be defined.
