@@ -6421,6 +6421,9 @@ sub propagate_owners {
         if (my $cluster = $zone->{zone_cluster}) {
             $clusters{$cluster} = $cluster;
         }
+
+        # If an explicit owner was set, it has been set for
+        # the whole cluster in link_aggregates.
         next if $zone->{owner};
 
         # Inversed inheritance: If a zone has no direct owner and if
@@ -6440,46 +6443,29 @@ sub propagate_owners {
             }
         }
         if ($owner) {
+#            debug("Inversed inherit: $zone->{name} $owner->{name}");
             $zone->{owner} = $owner;
             $zone_got_net_owners{$zone} = 1;
         }
     }
 
-    # Check for consistent owners of zone clusters.
+    # Check for consistent implicit owners of zone clusters.
+    # Implicit owner from networks is only valid, if the same owner
+    # is found for all zones of cluster.
     for my $cluster (values %clusters) {
-        my @explicit_owner_zones =
-          grep { $_->{owner} && !$zone_got_net_owners{$_} } @$cluster;
-        my @implicit_owner_zones =
-          grep { $_->{owner} && $zone_got_net_owners{$_} } @$cluster;
+        my @implicit_owner_zones = grep { $zone_got_net_owners{$_} } @$cluster
+            or next;
+        if (
+            !(
+                @implicit_owner_zones == @$cluster
+                && equal(map { $_->{owner} } @implicit_owner_zones)
+            )
+          )
+        {
+            $_->{owner} = undef for @implicit_owner_zones;
 
-        # Explicit owners for zones must all be equal inside the cluster.
-        # The one owner is used for other zones inside the cluster as well.
-        if (@explicit_owner_zones) {
-            equal(@explicit_owner_zones)
-              or internal_err("Unexpected different owners in ",
-                join(',', map { $_->{name} } @explicit_owner_zones));
-            my $owner = $explicit_owner_zones[0];
-            $_->{owner} = $owner for @implicit_owner_zones;
-
-#            debug("Change to $owner->{name}");
+#            debug("Reset owner");
 #            debug($_->{name}) for @implicit_owner_zones;
-        }
-
-        # Implicit owner from networks is only valid, if the same owner
-        # is found for all zones of cluster.
-        elsif (@implicit_owner_zones) {
-            if (
-                !(
-                    @implicit_owner_zones == @$cluster
-                    && equal(@implicit_owner_zones)
-                )
-              )
-            {
-                $_->{owner} = undef for @implicit_owner_zones;
-
-#                debug("Reset owner");
-#                debug($_->{name}) for @implicit_owner_zones;
-            }
         }
     }
 
@@ -8040,8 +8026,12 @@ sub link_aggregates {
 
             # Aggregate with ip 0/0 is used to set attributes of zone.
             if ($mask == 0) {
-                for my $attr (qw(owner no_in_acl has_unenforceable)) {
-                    $zone->{$attr} = $aggregate->{$attr} if $aggregate->{$attr};
+                for my $zone2 ($cluster ? @$cluster : ($zone)) {
+                    for my $attr (qw(owner no_in_acl has_unenforceable)) {
+                        if ($aggregate->{$attr}) {
+                            $zone2->{$attr} = $aggregate->{$attr};
+                        }
+                    }
                 }
             }
             link_aggregate_to_zone($aggregate, $zone, $key);
@@ -8059,6 +8049,7 @@ sub link_aggregates {
         my $key = "$ip/$mask";
         for my $zone (@$cluster) {
             next if $zone->{ipmask2aggregate}->{$key};
+#            debug("Dupl. $aggregate->{name} to $zone->{name}");
             my $aggregate2 = new('Network', %$aggregate);
             link_aggregate_to_zone($aggregate2, $zone, $key);
         }
