@@ -2424,6 +2424,8 @@ sub read_aggregate {
         if (not(match_ip($ip, $ip, $mask))) {
             error_atline("IP and mask don't match");
         }
+    }
+    if ($mask) {
         for my $key (keys %$aggregate) {
             next if grep { $key eq $_ } qw( name ip mask link is_aggregate);
             error_atline("Must not use attribute $key if mask is set");
