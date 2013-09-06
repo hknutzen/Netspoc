@@ -1,4 +1,3 @@
-# $Id$
 package Test_Netspoc;
 
 use strict;
