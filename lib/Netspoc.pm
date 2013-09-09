@@ -5899,9 +5899,7 @@ sub collect_unenforceable  {
 
     if ($zone->{has_unenforceable}) {
         $zone->{seen_unenforceable} = 1;
-
-        # Prevent warning "fully unenforceable".
-        $service->{seen_enforceable} = 1;
+        $service->{silent_unenforceable} = 1;
         return;
     }
 
@@ -5950,7 +5948,6 @@ sub collect_unenforceable  {
     elsif($dst->{is_aggregate} && $dst->{mask} == 0 ) {
         return if zone_eq($dst->{zone}, get_zone($src))
     }
-    $service->{silent_unenforceable} = 0;
     $service->{seen_unenforceable}->{$src}->{$dst} ||= [ $src, $dst ];
     return;
 }
@@ -5959,19 +5956,18 @@ sub show_unenforceable {
     my ($service) = @_;
     my $context = $service->{name};
 
-    if (   $service->{has_unenforceable} 
-        && ! $service->{seen_unenforceable}
-        && ! $service->{silent_unenforceable}) 
+    if ($service->{has_unenforceable} &&
+        (! $service->{seen_unenforceable} || ! $service->{seen_enforceable})) 
     {
         warn_msg("Useless attribute 'has_unenforceable' at $context");
-        return; 
     }
     return if ! $config{check_unenforceable};
-    return if $service->{has_unenforceable};
     return if $service->{disabled};
 
     my $print = $config{check_unenforceable} eq 'warn' ? \&warn_msg : \&err_msg;
 
+    # Warning about fully unenforceable service can't be disabled with
+    # attribute has_unenforceable.
     if (! delete $service->{seen_enforceable}) {
         
         # Don't warn on empty service without any expanded rules.
@@ -5979,8 +5975,11 @@ sub show_unenforceable {
         {
             $print->("$context is fully unenforceable");
         }
+        return;
     }
-    elsif (my $hash = delete $service->{seen_unenforceable}) {
+    return if $service->{has_unenforceable};
+
+    if (my $hash = delete $service->{seen_unenforceable}) {
         my $msg = "$context has unenforceable rules:";
         for my $hash (values %$hash) {
             for my $aref (values %$hash) {
