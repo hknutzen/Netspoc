@@ -70,7 +70,7 @@ my $head1 = (split /\n/, $out1)[0];
 eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
-$title = 'Optimize subnet at secondary packet filter';
+$title = 'Optimize subnet for protocol with flag dst_net';
 ############################################################
 
 $in =~ s/managed = secondary/managed/ms;
