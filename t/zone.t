@@ -92,5 +92,35 @@ END
 eq_or_diff(compile_err($in), $out, $title);
 
 ############################################################
+$title = 'Duplicate IP from NAT in zone';
+############################################################
+
+$in = <<END;
+network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
+network:B = { ip = 10.3.3.128/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
+
+router:ras = {
+ interface:A = { ip = 10.3.3.121; }
+ interface:B = { ip = 10.3.3.129; }
+ interface:Trans = { ip = 10.1.1.2; bind_nat = C; }
+}
+
+network:Trans = { ip = 10.1.1.0/24;}
+
+router:filter1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; }
+}
+END
+
+$out = <<END;
+Error: network:B and network:A have identical IP/mask inside any:[network:Trans]
+END
+
+eq_or_diff(compile_err($in), $out, $title);
+
+############################################################
 
 done_testing;
