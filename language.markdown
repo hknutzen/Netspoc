@@ -2,6 +2,10 @@
 layout: default
 ---
 
+
+* Table of Content
+{:toc}
+
 # Policy language
 
 ## Introduction
@@ -14,7 +18,6 @@ some network resource and its users.
 
 The policy is either read from all files inside a directory or from a
 single file.
-
 
 ## Getting started
 
