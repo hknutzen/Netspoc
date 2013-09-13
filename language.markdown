@@ -149,7 +149,7 @@ destination port.
 Only one rule is needed to permit a TCP connection from source to
 destination. Answer packets are automatically allowed. For stateful
 packet filters, this is done at the device. For stateless packet
-filters, netspoc automatically generates a rule which allowes any TCP
+filters, netspoc automatically generates a rule which allows any TCP
 traffic from destination to source with flag "established" i.e. no SYN
 flag set.
 
@@ -198,7 +198,7 @@ Currently these router models are supported:
 - `ASA, VPN` for Cisco ASA with VPN tunnels authenticated by certificates,
 - `NX-OS` for Cisco Nexus devices,
 - `IOS` for Cisco IOS routers,
-- `IOS, FW` for Cisco IOS routers with statefull inspection,
+- `IOS, FW` for Cisco IOS routers with stateful inspection,
 - `IOS, EZVPN` for Cisco IOS routers with easy VPN,
 - `PIX` for Cisco PIX.
 
@@ -211,10 +211,10 @@ In Netspoc's policy language, interfaces have no name of their own.
 Instead a network name is used to indicate which network an interface
 is linked to.
 
-Vendor specic interface names like 'eth0' or 'FastEthernet3' are put
+Vendor specific interface names like 'eth0' or 'FastEthernet3' are put
 into the 'hardware' attribute. This attribute is mandatory for managed
 routers.  If multiple logical IP networks are attached to a single
-hardware, these are modeled as different Netspoc interfaces, using the
+hardware, these are modelled as different Netspoc interfaces, using the
 same hardware attribute.
 
 An interface can have one or more IP addresses. All of them must match
@@ -273,7 +273,7 @@ A named aggregate can optionally be restricted to a network match.
 This is best be explained by an example.  
 Suppose, a security zone has a large number of networks.  A part of
 these networks has IP addresses 10.42.x.0/24.  You can create wildcard
-ACLs matching 10.42.0.0/16 by definig a named aggregate with attribute
+ACLs matching 10.42.0.0/16 by defining a named aggregate with attribute
 `ip = 10.42.0.0/16;`. This aggregate matches all networks inside the
 corresponding security zone with matching IP addresses.
 
@@ -351,7 +351,7 @@ area:x.
 any:[any:x]` takes the security zone wherein the inner object is
 located.
 
-- `any:[area:x]` takes all secutrity zone located
+- `any:[area:x]` takes all security zone located
 inside area:x.
 
 - `interface:[network:x].[<selector>]` 
@@ -376,7 +376,7 @@ network:[host:a, host:b] ` is equivalent to ` network:[host:a],
 network:[host:b] `.
 
 - Auto interfaces, i.e. with selector \[auto\] must only be
-  used at toplevel and not as inner object of other automatic
+  used at top-level and not as inner object of other automatic
   groups. There is one exception from this rule: `
   interface:[interface:x.[auto]].[auto] ` is
   allowed.
@@ -386,7 +386,7 @@ network:[host:b] `.
 
 A named protocol group defines a set of simple or named protocols.  A
 Protocol group can reference other protocol groups and it can be
-empty.  Intersection and comlement is not defined for protocol groups.
+empty.  Intersection and complement is not defined for protocol groups.
 
 ##Areas
 
@@ -406,7 +406,7 @@ of other areas.
 Use attribute `anchor` without `auto_border` to
 define an area which stretches across the whole topology.
 Exactly one attribute of `border` and `anchor` must
-be choosen.
+be chosen.
 Only interfaces of managed routers must be given as `border`.
 
 `network:[area:X]` denotes the group of all networks inside area X.
@@ -439,12 +439,12 @@ some other side this address is translated to a different address.
 Currently, Netspoc supports static and dynamic NAT for whole
 networks.
 
-For static NAT, the translated address uses the same netmask as the
+For static NAT, the translated address uses the same net-mask as the
 original network. The translation is automatically applied to all host and
 interface definitions of the translated network. A separate NAT
 definition for hosts or interfaces is not permitted in this case.
 
-For dynamic NAT, the translated address can have a different netmask than
+For dynamic NAT, the translated address can have a different net-mask than
 the original network. Typically a smaller network is used for translation. IP
 addresses are translated dynamically, hence hosts and interfaces of this
 network are not addressable from outside. But a dynamic translation of a network
@@ -580,7 +580,7 @@ A packet filter is declared as "local" for two purposes:
 2. Allow external traffic, which enters through some other packet-filter not managed by Netspoc.
 
 All networks located inside a security zone connected to a local packet filter must match "filter_only". 
-But other security zones are allowed to contain networks matching "filter_onlly". 
+But other security zones are allowed to contain networks matching "filter_only". 
 In this case, the optimization becomes less effective. Multiple local packet filters connected directly, 
 without a standard packet filter in between, must use the same values for "filter_only".
 
@@ -658,10 +658,10 @@ source of a rule, routing entries are generated, since stateful packet
 filters implicitly allow answer packets back to the source.
 
 If an aggregate is used in a rule, routing entries are generated for
-all networks wich are located inside the corresponding security
+all networks which are located inside the corresponding security
 zone.
 
-An interface of an unmanged router must have an IP address, if
+An interface of an unmanaged router must have an IP address, if
 there is some managed interface with static routing enabled in the same
 network. We need this requirement for getting all routing entries
 generated.
@@ -685,9 +685,9 @@ automatically inserting a default route. For each device it finds the
 hop, where the largest number of routing entries points to and replaces
 them with a single default route to this hop.
 
-This behavior can be switched on or off by option `--auto_default_route`.
+This behaviour can be switched on or off by option `--auto_default_route`.
 
-This behavior is automatically disabled for a device
+This behaviour is automatically disabled for a device
 
 - where at least one interface has dynamic routing enabled or
 - if already a real static route to some network with IP 0.0.0.0/0 was found.
@@ -718,7 +718,7 @@ permit any incoming traffic to network:b.
 ##Virtual interfaces {#virtual_interface}
 
 A virtual interface defines a shared IP address between a group of two
-or more redundancy interfaces. The virtual interafce definition is
+or more redundancy interfaces. The virtual interface definition is
 repeated at each member of the group of redundancy interfaces.
 
 The virtual interface can be referenced in rules by appending
@@ -797,10 +797,10 @@ src_net, src_any
 
 ## Keyword "foreach" in services
 
-With the keyord "foreach", the substituton of keyword "user" occurs
+With the keyword "foreach", the substitution of keyword "user" occurs
 repeatedly for each element of the definition of "user". Used together
 with automatic groups, this feature allows to define rules between
-elements and their neighborhood.
+elements and their neighbourhood.
 
 ####Example
 
@@ -812,10 +812,10 @@ elements and their neighborhood.
 
 ## Subnet relation between networks
 
-All networks must be disjunct if option 'check_subnets' is
+All networks must be disjunctive if option 'check_subnets' is
 active. This can be useful for a large topology, where a network can
 easily be redefined by mistake.  Exceptions must be declared
-explictly:
+explicitly:
 
 - has_subnets: This network can enclose other networks.
 - subnet_of: The enclosing network is declared explicitly.
