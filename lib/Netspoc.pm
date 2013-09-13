@@ -7341,24 +7341,58 @@ sub find_subnets_in_zone {
     progress('Finding subnets in zone');
     for my $zone (@zones) {
 
+        # Check NAT inside zone.
+        # Find networks of zone which use a NATed address inside the zone.
+        # - Use this NATed address in subnet checks.
+        # - If a subnet relation exists, then this NAT must be unique inside
+        #   the zone.
+        my @no_nat_sets = 
+            unique map { $_->{no_nat_set} } @{ $zone->{interfaces} };
+
         # Add networks of zone to %mask_ip_hash.
         my %mask_ip_hash;
+
+        # A networks has different NAT addresses inside the zone.
+        my %net2nat_count;
+
+        # Found that many subnet relations.
+        my %net2up_count;
+
         for my $network (@{ $zone->{networks} }, 
                          values %{ $zone->{ipmask2aggregate} }) 
         {
             next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
-            my ($ip, $mask) = @{$network}{ 'ip', 'mask' };
 
-            # Found two different networks with identical IP/mask.
-            if (my $other_net = $mask_ip_hash{$mask}->{$ip}) {
-                my $name1 = $network->{name};
-                my $name2 = $other_net->{name};
-                err_msg("$name1 and $name2 have identical IP/mask");
+            my @nat_networks = 
+                unique map { get_nat_network($network, $_) } @no_nat_sets;
+            if (@nat_networks > 1) {
+                $net2nat_count{$network} = @nat_networks;
             }
-            else {
+            for my $nat_network (@nat_networks) {
+                next if $nat_network->{hidden};
+                my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
 
-                # Store network under IP/mask.
-                $mask_ip_hash{$mask}->{$ip} = $network;
+                # Found two different networks with identical IP/mask.
+                if (my $other_net = $mask_ip_hash{$mask}->{$ip}) {
+
+                    # Different no_nat_sets map to the same network.
+                    if ($other_net eq $network) {
+                        $net2nat_count{$network}--;
+                        if (1 == $net2nat_count{$network}) {
+                            delete $net2nat_count{$network};
+                        }
+                        next;
+                    }
+                    my $name1 = $network->{name};
+                    my $name2 = $other_net->{name};
+                    err_msg("$name1 and $name2 have identical IP/mask",
+                            " inside $zone->{name}");
+                }
+                else {
+
+                    # Store network under IP/mask.
+                    $mask_ip_hash{$mask}->{$ip} = $network;
+                }
             }
         }
 
@@ -7386,6 +7420,21 @@ sub find_subnets_in_zone {
                     my $bignet = $mask_ip_hash{$m}->{$i};
                     next if not $bignet;
 
+                    if ($net2nat_count{$subnet}) {
+                        $net2up_count{$subnet}++;
+                    }
+
+                    # Check for ambiguous subnet relation of network
+                    # with different NAT addresses.
+                    if (my $other = $subnet->{up}) {
+                        if ($other ne $bignet) {
+                            err_msg("Ambiguous subnet relation from NAT.\n",
+                                    " $subnet->{name} is subnet of",
+                                    " $other->{name} and $bignet->{name}");
+                        }
+                        last;                        
+                    }
+
                     $subnet->{up} = $bignet;
 #                    debug "$subnet->{name} -up-> $bignet->{name}";
                     push(
@@ -7407,6 +7456,24 @@ sub find_subnets_in_zone {
                     last;
                 }
             }
+        }
+
+        # Check for ambiguous subnet relation.
+        for my $net_hash (keys %net2nat_count) {
+            my $up_count = $net2up_count{$net_hash};
+            next if ! $up_count;
+            my $nat_count = $net2nat_count{$net_hash};
+            next if $up_count == $nat_count;
+
+            # Find original network from hash.
+            my ($network) = grep({ $_ eq $net_hash } 
+                                 @{ $zone->{networks} }, 
+                                 values %{ $zone->{ipmask2aggregate} });
+
+            my $bignet = $network->{up};
+            err_msg("Ambiguous subnet relation from NAT.\n",
+                    " $network->{name} is subnet of $bignet->{name},\n",
+                    " but has no subnet relation in other NAT domain.");
         }
 
         # For each subnet N find the largest non-aggregate network
@@ -7587,12 +7654,10 @@ sub find_subnets_in_nat_domain {
                         # $expanded_rules->{supernet}
                         if (!$bignet->{is_supernet}) {
                             if(!$bignet->{is_supernet}) {
-                                debug "super: $bignet->{name} of $subnet->{name}";
                                 $bignet->{is_supernet} = 1;
                             }
                             for my $network (@{ $identical{$bignet} }) {
                                 if(!$network->{is_supernet}) {
-                                    debug "super+: $network->{name}";
                                     $network->{is_supernet} = 1;
                                 }
                             }
@@ -14987,6 +15052,7 @@ sub local_optimization {
                         }
                         $id_hash{$action}->{$src}->{$dst}->{$src_range}
                           ->{$prt} = $rule;
+
                         if (   $src->{is_supernet}
                             || $dst->{is_supernet}
                             || $rule->{stateless})
@@ -15005,7 +15071,7 @@ sub local_optimization {
 #                        my $t3 = time();
 #                        $r2rules{$rname}++;
 
-#                       debug8print_rule $rule);
+#                       debug(print_rule $rule);
                         my ($action, $src, $dst, $src_range, $prt) =
                           @{$rule}{ 'action', 'src', 'dst', 'src_range',
                             'prt' };
