@@ -116,3 +116,21 @@ h1 {
 .highlight pre {
   overflow-x: auto;
 }
+
+.maruku_toc {
+  float: left;
+  width: 230px;
+  margin-left: -240px;
+  margin-top: 6em;
+  white-space: nowrap;
+  overflow: hidden;
+  color: steelblue;
+  background-color: rgb(228, 237, 247);
+  border-radius: 6px 6px 6px 6px;
+}
+
+.maruku_toc ul {
+  text-indent: 0em;
+  padding-left: .5em;
+  padding-top: 4px;
+}
