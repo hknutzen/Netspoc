@@ -9553,24 +9553,23 @@ sub set_auto_intf_from_border  {
     my $reach_from_border;
     $reach_from_border = sub {
         my ($network, $in_intf, $result) = @_;
-        return if $result->{$network}->{$in_intf};
         $active_path{$network} = 1;
         $result->{$network}->{$in_intf} = $in_intf;
+#        debug "$network->{name}: $in_intf->{name}";
         for my $interface (@{ $network->{interfaces} }) {
             next if $interface eq $in_intf;
             next if $interface->{zone};
             next if $interface->{orig_main};
             my $router = $interface->{router};
-            next if $result->{$router}->{$interface};
             next if $active_path{$router};
             $active_path{$router} = 1;
             $result->{$router}->{$interface} = $interface;
+#            debug "$router->{name}: $interface->{name}";
 
             for my $out_intf (@{ $router->{interfaces} }) {
                 next if $out_intf eq $interface;
                 next if $out_intf->{orig_main};
                 my $out_net = $out_intf->{network};
-                next if $active_path{$out_net};
                 $reach_from_border->($out_net, $out_intf, $result);
             }
             $active_path{$router} = 0;
@@ -9659,7 +9658,7 @@ sub path_auto_interfaces {
         @result = unique(@result);
     }
 
-#    debug("$from->{name}.[auto] = ", join ',', map {$_->{name}} @result);
+#    debug("$src2->{name}.[auto] = ", join ',', map {$_->{name}} @result);
     return($managed ? grep { $_->{router}->{managed} } @result : @result);
 }
 
