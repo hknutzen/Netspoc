@@ -14,7 +14,8 @@ $title = 'Secondary optimization to largest safe network';
 
 $in = <<END;
 network:all_10 = { ip = 10.0.0.0/8; has_subnets; }
-network:super = { ip = 10.1.0.0/16;}
+network:super = { ip = 10.1.0.0/16; has_subnets; }
+any:10_1_0-1 = { ip = 10.1.0.0/17; link = network:super; }
 
 router:u = {
  interface:all_10;
