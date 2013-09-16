@@ -596,7 +596,7 @@ sub check {
 # Skip a string.
 sub skip {
     my $token = shift;
-    return check $token or syntax_err("Expected '$token'");
+    return(check $token or syntax_err("Expected '$token'"));
 }
 
 # Check, if an integer is available.
