@@ -2,9 +2,12 @@
 layout: default
 ---
 
-## Syntax for Netspoc Policy Language
+* Table of Content
+{:toc}
 
-###General syntax
+# Netspoc Policy Language
+
+##General syntax
 
 `<name>` is built from one ore more alphanumerical utf8 characters together
 with hyphen and underscore.  
@@ -27,7 +30,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 `"[", "]"`
 : real bracket characters
 
-###Network definition
+##Network definition
 
     <network definition> ::=
       network:<name>[/<bridge-part>] = {
@@ -55,7 +58,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     <ip>          ::= n.n.n.n with 0 <= n <= 255
     <prefix-len>  ::= 0 | 1 | 2 | ... | 32
 
-###Host definition
+##Host definition
 
     <host definition> ::=
       host:<name> = { 
@@ -68,7 +71,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 
     <host NAT> ::= nat:<name> = { ip = <ip>; }
 
-###Router definition
+##Router definition
 
     <router definition> ::=
       router:<name>[@<VRF-name>] = {
@@ -91,7 +94,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     <model>       ::= Linux | ASA | ASA,8.4 | PIX | IOS | IOS,FW | NX-OS
     <ip-prefix>   ::= <ip>/<prefix-len>
 
-###Interface definition
+##Interface definition
 
     <interface definition> ::= 
       interface:<name>[/<bridge-part>] = {
@@ -127,7 +130,7 @@ here `<object set>` must expand to networks.
     <short interface definition> ::=
       interface:<name>;
 
-### Aggregate definition
+## Aggregate definition
 
     <aggregate defintion> ::=
       any:<name> = { 
@@ -138,7 +141,7 @@ here `<object set>` must expand to networks.
          [ no_in_acl;      ]
       }
 
-### Area definition
+## Area definition
 
     <area definition> ::=
       area:<name> = {
@@ -157,7 +160,7 @@ here `<object set>` must expand to networks.
 
 where `<network NAT>` must be hidden or dynamic.
 
-###Set of objects
+##Set of objects
 
     <object set>   ::= <intersection> | <object set>,<intersection>
     <intersection> ::= <complement> | <intersection>&<complement>
@@ -168,7 +171,7 @@ where `<network NAT>` must be hidden or dynamic.
       | group:<name> | <auto group>
 
 
-###Automatic group
+##Automatic group
 
     <auto group> ::=
       interface:<name>."["<selector>"]"
@@ -182,13 +185,13 @@ where `<network NAT>` must be hidden or dynamic.
       but with additional area:<name> allowed in <network object>
 
 
-###Group definition
+##Group definition
 
     <group definition> ::=
       group:<name> = <object set>;
 
 
-###Protocol definition
+##Protocol definition
 
     <protocol definition> ::=
       protocol:<name> = <simple protocol>|<modified protocol>;
@@ -209,7 +212,7 @@ where `<network NAT>` must be hidden or dynamic.
       | src_net | dst_net | src_any | dst_any
       | overlaps | no_check_supernet_rules
 
-###Groups of protocols
+##Groups of protocols
 
     <protocol group definition> ::=
       protocolgroup:<name> = <protocol>(, <protocol>)*;
@@ -217,7 +220,7 @@ where `<network NAT>` must be hidden or dynamic.
     <protocol> ::= protocol:<name> | protocolgroup:<name> | <simple protocol>
 
 
-###Service definition
+##Service definition
 
     <service definition> ::=
       service:<name> = {
@@ -241,12 +244,12 @@ with
       <object set with 'user'> is like <object set> 
        but with additional keyword 'user' allowed in <network object>
 
-###Global permit
+##Global permit
 
     <global permit> ::=
       global:permit = <protocol>(, <protocol>)*;
 
-###Path restriction
+##Path restriction
 
     pathrestriction:<name> = 
       [ <description> ]
@@ -255,7 +258,7 @@ with
 
 where `<object set>` must expand to interfaces.
 
-###Owner definition
+##Owner definition
 
     owner:<name> = {
       [ alias = <string>; ]
@@ -268,9 +271,9 @@ where `<object set>` must expand to interfaces.
     
     <email> ::= some valid email address or 'guest'
 
-##Encryption
+#Encryption
 
-###Crypto definition
+##Crypto definition
 
     crypto:<name> = { 
       [ <description> ]
@@ -302,7 +305,7 @@ with
 
     <timeunit> ::= sec | min | hour | day | secs | mins | hours | days
 
-### Tunnel definition
+## Tunnel definition
 
     interface:<name1> = {
       ..
@@ -350,7 +353,7 @@ in attribute `radius_attributes`.
         [ username-from-certificate = <string>;   ]
       }
 
-###Software client
+##Software client
 
     <Software client> ::=
       host:id:<cert-name> = { .. }
@@ -364,7 +367,7 @@ Host definition of software client and correspondig network definition
 can have `<radius-attributes>`, which augment or overwrite attributes
 of correspondig VPN concentrator.
 
-### Hardware client
+## Hardware client
 
     interface:<name> = {
       ..
