@@ -271,9 +271,9 @@ where `<object set>` must expand to interfaces.
     
     <email> ::= some valid email address or 'guest'
 
-#Encryption
+##Encryption
 
-##Crypto definition
+###Crypto definition
 
     crypto:<name> = { 
       [ <description> ]
@@ -305,7 +305,7 @@ with
 
     <timeunit> ::= sec | min | hour | day | secs | mins | hours | days
 
-## Tunnel definition
+### Tunnel definition
 
     interface:<name1> = {
       ..
@@ -353,7 +353,7 @@ in attribute `radius_attributes`.
         [ username-from-certificate = <string>;   ]
       }
 
-##Software client
+###Software client
 
     <Software client> ::=
       host:id:<cert-name> = { .. }
@@ -367,7 +367,7 @@ Host definition of software client and correspondig network definition
 can have `<radius-attributes>`, which augment or overwrite attributes
 of correspondig VPN concentrator.
 
-## Hardware client
+### Hardware client
 
     interface:<name> = {
       ..
