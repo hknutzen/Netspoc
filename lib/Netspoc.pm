@@ -8130,7 +8130,18 @@ sub link_implicit_aggregate_to_zone {
             $update_agg_relation->();
         }
     };
+    my $set_owner = sub {
+        my $up = $aggregate->{up};
+        my $owner;
+        while ($up) {
+            $owner = $up->{owner} and last;
+            $up = $up->{up};
+        }
+        $owner ||= $zone->{owner};
+        $aggregate->{owner} = $owner;
+    };
     $update_relation->($zone->{networks});
+    $set_owner->();
     link_aggregate_to_zone($aggregate, $zone, $key);
     return;
 }
