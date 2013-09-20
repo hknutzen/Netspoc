@@ -134,7 +134,7 @@ if ($show_owner) {
     Netspoc::propagate_owners();
 }
 &setpath();
-&find_subnets();
+Netspoc::find_subnets_in_zone();
 Netspoc::convert_hosts();
 &abort_on_error();
 
