@@ -145,7 +145,7 @@ for my $ref (values %name2var) {
 &distribute_nat_info();
 &set_zone();
 &setpath();
-&find_subnets();
+Netspoc::find_subnets_in_zone();
 &expand_services(1);
 &abort_on_error();
 
