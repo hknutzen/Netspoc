@@ -162,11 +162,12 @@ END
 
 eq_or_diff(compile_err($in), $out, $title);
 
-$in =~ s#\Qnat:C = { ip = 10.1.1.8/29; }\E#nat:C = { ip = 10.2.2.8/29; }#;
+$in =~ s|\Qnat:C = { ip = 10.1.1.8/29; }\E|nat:C = { ip = 10.2.2.8/29; }|;
 
 $out = <<END;
 Error: Ambiguous subnet relation from NAT.
- network:B is subnet of any:[network:B] and network:A
+ network:B is subnet of network:A,
+ but has no subnet relation in other NAT domain.
 END
 
 eq_or_diff(compile_err($in), $out, $title);

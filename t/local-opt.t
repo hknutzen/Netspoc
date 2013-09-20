@@ -9,6 +9,65 @@ use Test_Netspoc;
 my ($title, $in, $out1, $head1, $out2, $head2, $out3, $head3);
 
 ############################################################
+$title = 'Aggregates with identcal IP';
+############################################################
+
+$in = <<END;
+network:N1 = { ip = 10.4.6.0/24;}
+
+router:R1 = {
+ managed;
+ model = IOS, FW;
+ interface:N1 = {ip = 10.4.6.3;hardware = Vlan1;}
+ interface:T1 = {ip = 10.6.8.46;hardware = Vlan2;}
+}
+network:T1 = { ip = 10.6.8.44/30;}
+
+router:U = {
+ interface:T1 = {ip = 10.6.8.45;}
+ interface:T2 = {ip = 10.6.8.1;}
+}
+network:T2 = { ip = 10.6.8.0/30;}
+
+router:R2 = {
+ managed;
+ model = IOS, FW;
+ interface:T2 = {ip = 10.6.8.2;hardware = Vlan3;}
+ interface:N2 = {ip = 10.5.1.1;hardware = Vlan4;}
+}
+network:N2 = {ip = 10.5.1.0/30;}
+
+any:ANY_G27 = {ip = 0.0.0.0/0; link = network:T1;}
+
+service:Test = {
+ user = network:N1;
+ permit src = user;	
+	dst = any:ANY_G27, any:[ip = 0.0.0.0/0 & network:N2];
+	prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+ip access-list extended Vlan1_in
+ deny ip any host 10.4.6.3
+ deny ip any host 10.6.8.46
+ permit tcp 10.4.6.0 0.0.0.255 any eq 80
+ deny ip any any
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+
+############################################################
+$title = 'Aggregates in subnet relation';
+############################################################
+
+$in =~ s|ip = 0.0.0.0/0 &|ip = 10.0.0.0/8 &|;
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+
+############################################################
 $title = 'Redundant port';
 ############################################################
 
