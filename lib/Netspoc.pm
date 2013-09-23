@@ -5868,6 +5868,7 @@ sub expand_special  {
             push @networks, $network if $network->{ip} ne 'unnumbered';
         }
         @result = (@other, unique(@networks));
+#        debug "special: ", join(', ', map { $_->{name} } @result);
     }
     if ($flags->{any}) {
         my %zones;
@@ -10418,6 +10419,7 @@ sub find_zone_network {
             }
         }
     }
+#    debug "zone_network:", ref($result) ? $result->{name} : $result;
     return ($zone->{ipmask2net}->{$key} = $result);
 }
 
@@ -10451,6 +10453,7 @@ sub find_matching_supernet {
         push @result, $up;
         $up = $up->{up};
     }
+#    debug "matching:", join(',', map { $_->{name} } @result);
     return \@result;
 }
 
@@ -15210,6 +15213,7 @@ sub local_optimization {
 #                        $r2rules{$rname}++;
 
 #                       debug(print_rule $rule);
+#                       debug "is_supernet" if $rule->{dst}->{is_supernet};
                         my ($action, $src, $dst, $src_range, $prt) =
                           @{$rule}{ 'action', 'src', 'dst', 'src_range',
                             'prt' };
