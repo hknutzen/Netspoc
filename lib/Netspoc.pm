@@ -10558,6 +10558,7 @@ sub check_supernet_src_rule {
         # check_supernet_dst_rule
         return;
     }
+    my $in_zone = $in_intf->{zone};
 
     # Check case II, outgoing ACL, (A)
     my $no_acl_intf;
@@ -10569,7 +10570,7 @@ sub check_supernet_src_rule {
         }
 
         # b), 1. zone X == zone Y
-        elsif ($in_intf eq $no_acl_intf) {
+        elsif ($in_zone eq $no_acl_zone) {
         }
 
         elsif (has_global_restrict($no_acl_intf)) {
@@ -10656,11 +10657,10 @@ sub check_supernet_src_rule {
 
     # Nothing to do at first router.
     # zone2 is checked at R2, because we need the no_nat_set at R2.
-    my $zone = $in_intf->{zone};
-    return if $src_zone eq $zone;
+    return if $src_zone eq $in_zone;
 
     # Check if rule "supernet2 -> dst" is defined.
-    check_supernet_in_zone($rule, 'src', $in_intf, $zone);
+    check_supernet_in_zone($rule, 'src', $in_intf, $in_zone);
     return;
 }
 

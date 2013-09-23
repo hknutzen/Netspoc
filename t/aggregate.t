@@ -226,11 +226,63 @@ END
 $out1 = <<END;
 Warning: Missing rule for supernet rule.
  permit src=any:[ip=10.0.0.0/8 & network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
- can't be effective at interface:filter1.Trans.
+ can\'t be effective at interface:filter1.Trans.
  Tried network:N1 as src.
 END
 
 eq_or_diff(compile_err($in), $out1, $title);
+
+
+############################################################
+$title = 'Loop with no_in_acl and in_zone eq no_in_zone';
+############################################################
+
+$in = <<END;
+network:Test = { ip = 10.1.0.0/16; }
+
+router:u = {
+ interface:Test;
+ interface:Trans1;
+ interface:Trans2;
+}
+
+network:Trans1 = { ip = 192.168.1.0/29; }
+network:Trans2 = { ip = 192.168.2.0/29; }
+
+router:filter = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:Trans1 = { ip = 192.168.1.2; hardware = Vlan4; no_in_acl; }
+ interface:Trans2 = { ip = 192.168.2.2; hardware = Vlan5; }
+ interface:Kunde = { ip = 10.1.1.1; hardware = Vlan6; }
+ interface:sub = { ip = 10.1.1.33; hardware = Vlan7; }
+}
+network:Kunde = { ip = 10.1.1.0/24; subnet_of = network:Test; }
+network:sub = { ip = 10.1.1.32/29; subnet_of = network:Kunde; }
+
+service:test = {
+ user = any:[network:Test];
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+access-list Vlan5_in extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
+access-list Vlan5_in extended deny ip any any
+access-group Vlan5_in in interface Vlan5
+END
+
+$out2 = <<END;
+access-list Vlan6_out extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
+access-list Vlan6_out extended deny ip any any
+access-group Vlan6_out out interface Vlan6
+END
+
+$head1 = (split /\n/, $out1)[0];
+$head2 = (split /\n/, $out2)[0];
+
+eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
 
 ############################################################
 
