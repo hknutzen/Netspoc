@@ -6349,7 +6349,7 @@ sub split_expanded_rule_types {
     %expanded_rules = (deny => \@deny,
                        permit => \@permit,
                        supernet => \@supernet);
-
+    return;
 }
 
 sub expand_services {
