@@ -24,8 +24,14 @@ sub run {
 sub compile {
     my($input) = @_;
     my ($status, $stdout, $stderr) = run($input);
-    $status == 0 or return("Failed:\n$stderr\n");
-    $stderr and return("Unexpected output on STDERR:\n$stderr\n");
+    if ($status != 0) {
+        print STDERR "Failed:\n$stderr\n";
+        return '';
+    }
+    if ($stderr) {
+        print STDERR "Unexpected output on STDERR:\n$stderr\n";
+        return '';
+    }
     return($stdout);
 }
 
