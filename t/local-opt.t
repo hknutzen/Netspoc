@@ -119,10 +119,7 @@ END
 
 $head1 = (split /\n/, $out1)[0];
 
-TODO: {
-    local $TODO = 'Upper ports are missing from %hash, see {is_supernet}';
-    eq_or_diff(get_block(compile($in), $head1), $out1, $title);
-}
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
 $title = 'Redundant host';
