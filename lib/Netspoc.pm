@@ -10482,24 +10482,18 @@ sub check_supernet_in_zone {
         $extra = "No supernet available for $networks";
     }
     else {
-        my @missing;
-        for my $network (@$networks) {
 
-            # Ignore aggregate without any matching network.
-            if ($network->{is_aggregate} && ! @{ $network->{networks} }) {
-                next;
-            }
-            
-            # Check if matching networks / aggregates have rule.
+        # $networks holds matching network and all its supernets.
+        # Find first matching rule.
+        for my $network (@$networks) {
             ($where eq 'src' ? $src : $dst) = $network;
-            if (! $rule_tree{$stateless}->{$action}->{$src}->{$dst}
+            if ($rule_tree{$stateless}->{$action}->{$src}->{$dst}
                 ->{$src_range}->{$prt})
             {
-                push @missing, $network;
+                return;
             }
         }
-        return if ! @missing;
-        $extra = "Tried " . join(', ', map { $_->{name} } @missing);
+        $extra = "Tried " . join(', ', map { $_->{name} } @$networks);
     }
 
     my $service = $rule->{rule}->{service};
