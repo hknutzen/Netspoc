@@ -7518,6 +7518,9 @@ sub find_subnets_in_zone {
 # Find subnet relation inside a NAT domain.
 # - $subnet->{is_in}->{$no_nat_set} = $bignet;
 # - $net1->{is_identical}->{$no_nat_set} = $net2
+#
+# Mark networks, having subnet in other zone: $bignet->{has_other_subnet}
+# If set, this prevents secondary optimization.
 sub find_subnets_in_nat_domain {
     progress('Finding subnets in NAT domain');
     my %seen;
@@ -7638,14 +7641,8 @@ sub find_subnets_in_nat_domain {
                         $subnet->{is_in}->{$no_nat_set} = $bignet;
 #                        debug "$subnet->{name} -is_in-> $bignet->{name}";
 
-                        if ($bignet->{zone} eq $subnet->{zone}) {
-                            if ($subnet->{has_other_subnet}) {
-#                                debug "has other1: $bignet->{name}";
-                                $bignet->{has_other_subnet} = 1;
-                            }
-                        }
-                        else {
-#                            debug "has other2: $bignet->{name}";
+                        if ($bignet->{zone} ne $subnet->{zone}) {
+#                            debug "has other: $bignet->{name}";
                             $bignet->{has_other_subnet} = 1;
                         }
 
