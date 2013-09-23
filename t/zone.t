@@ -173,5 +173,52 @@ END
 eq_or_diff(compile_err($in), $out, $title);
 
 ############################################################
+$title = 'No secondary optimization for network with subnet in other zone';
+############################################################
+
+$in = <<END;
+network:A = { 
+ ip = 10.3.3.0/25;
+ host:h = { ip = 10.3.3.5; }
+}
+network:sub = { ip = 10.3.3.8/29; subnet_of = network:A; }
+
+router:secondary = {
+ managed = secondary;
+ model = IOS_FW;
+ routing = manual;
+ interface:A = { ip = 10.3.3.1; hardware = VLAN1; }
+ interface:sub = { ip = 10.3.3.9; hardware = VLAN9; }
+ interface:Trans = { ip = 10.1.1.2; hardware = VLAN2; }
+}
+
+network:Trans = { ip = 10.1.1.0/24; }
+
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; }
+ interface:Customer = { ip = 10.9.9.1; hardware = VLAN2; }
+}
+
+network:Customer = { ip = 10.9.9.0/24; }
+
+service:test = {
+ user = host:h;
+ permit src = user; dst = network:Customer; prt = tcp 80;
+}
+END
+
+$out = <<END;
+ip access-list extended VLAN1_in
+ permit ip host 10.3.3.5 10.9.9.0 0.0.0.255
+ deny ip any any
+END
+
+$head = (split /\n/, $out)[0];
+
+eq_or_diff(get_block(compile($in), $head), $out, $title);
+
+############################################################
 
 done_testing;

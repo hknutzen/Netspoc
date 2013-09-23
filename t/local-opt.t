@@ -125,4 +125,62 @@ TODO: {
 }
 
 ############################################################
+$title = 'Redundant host';
+############################################################
+
+$in = <<END;
+network:A = { ip = 10.3.3.0/25; host:a = { ip = 10.3.3.3; } }
+network:sub = { ip = 10.3.3.8/29; subnet_of = network:A; }
+
+router:secondary = {
+ managed = secondary;
+ model = IOS_FW;
+ routing = manual;
+ interface:A = { ip = 10.3.3.1; hardware = VLAN1; }
+ interface:sub = { ip = 10.3.3.9; hardware = VLAN9; }
+ interface:Trans = { ip = 10.1.1.2; hardware = VLAN2; no_in_acl;}
+}
+
+network:Trans = { ip = 10.1.1.0/24; }
+
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; bind_nat = dyn; }
+ interface:Customer1 = { ip = 10.8.8.1; hardware = VLAN8; }
+ interface:Customer2 = { ip = 10.9.9.1; hardware = VLAN9; }
+}
+
+network:Customer1 = { ip = 10.8.8.0/24; nat:dyn = { ip = 10.7.7.0/24; dynamic; } }
+network:Customer2 = { ip = 10.9.9.0/24; nat:dyn = { ip = 10.7.7.0/24; dynamic; } }
+
+service:test1 = {
+ user = host:a;
+ permit src = network:Customer1; dst = user; prt = tcp 80;
+}
+
+service:test2 = {
+ user = network:A;
+ permit src = network:Customer2; dst = user; prt = tcp 81;
+}
+END
+
+$out1 = <<END;
+ip access-list extended VLAN1_out
+ permit ip 10.7.7.0 0.0.0.255 10.3.3.0 0.0.0.127
+ deny ip any any
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+TODO: {
+    local $TODO = "Redundant host rule isn't recognized, because protocol of network rule is changed afterwards.";
+    eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+}
+
+# Change order of rules.
+$in =~ s/test2/test0/;
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+
+############################################################
 done_testing;

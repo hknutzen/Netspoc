@@ -96,4 +96,17 @@ $out = '';
 eq_or_diff(compile_err($in), $out, $title);
 
 ############################################################
+$title = 'Redundant owner at bridged network';
+############################################################
+
+$in =~ s|(network:VLAN_40_41/41 = \{)|$1 owner = xx; |;
+
+$out = <<END;
+Warning: Useless owner:xx at any:[network:VLAN_40_41/41],
+ it was already inherited from area:all
+END
+
+eq_or_diff(compile_err($in), $out, $title);
+
+############################################################
 done_testing;
