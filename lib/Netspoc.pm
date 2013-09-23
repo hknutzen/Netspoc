@@ -10405,6 +10405,7 @@ sub find_zone_network {
             # Found first matching network.
             if (!$result) {
                 $result = $network;
+                next;
             }
 
             # Search a common supernet of two networks
