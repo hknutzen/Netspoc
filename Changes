@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+3.036     2013-09-24 12:27:39 Europe/Berlin
+
+ - Fixed bug with nested implicit aggregates.
+
 3.035     2013-09-24 10:48:16 Europe/Berlin
 
  - Added support for implicit matching aggregates,
