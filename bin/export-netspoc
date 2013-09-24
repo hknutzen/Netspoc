@@ -899,7 +899,7 @@ Netspoc::mark_disabled();
 Netspoc::set_zone();
 Netspoc::distribute_nat_info();
 Netspoc::setpath();
-Netspoc::find_subnets();
+Netspoc::find_subnets_in_zone();
 Netspoc::set_service_owner();
 setup_part_owners();
 setup_service_info();
