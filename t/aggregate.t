@@ -116,7 +116,7 @@ $head1 = (split /\n/, $out1)[0];
 eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
-$title = 'Permit aggregate at unnumbered interface';
+$title = 'Check aggregate at unnumbered interface';
 ############################################################
 
 $in = <<END;
@@ -143,26 +143,18 @@ service:test = {
  permit src = user; dst = network:Test; prt = tcp 80;
 }
 
-# any:trans is ignored in check for missing aggregate rules.
+# if any:trans is defined, a rule must be present.
 any:Trans = { link = network:Trans; }
 END
 
 $out1 = <<END;
-access-list Vlan2_in extended permit tcp any 10.9.1.0 255.255.255.0 eq 80
-access-list Vlan2_in extended deny ip any any
-access-group Vlan2_in in interface Vlan2
+Warning: Missing rule for supernet rule.
+ permit src=any:[network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
+ can't be effective at interface:filter1.Trans.
+ Tried any:Trans as src.
 END
 
-$out2 = <<END;
-access-list Vlan4_in extended permit tcp any 10.9.1.0 255.255.255.0 eq 80
-access-list Vlan4_in extended deny ip any any
-access-group Vlan4_in in interface Vlan4
-END
-
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+eq_or_diff(compile_err($in), $out1, $title);
 
 ############################################################
 $title = 'Permit matching aggregate at non matching interface';
