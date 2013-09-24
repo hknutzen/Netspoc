@@ -128,14 +128,14 @@ while (1) {
 &read_file_or_dir($config);
 &link_topology();
 &mark_disabled();
-&distribute_nat_info();
 &set_zone();
-if ($show_owner) {
-    Netspoc::propagate_owners();
-}
+&distribute_nat_info();
 &setpath();
 Netspoc::find_subnets_in_zone();
 Netspoc::convert_hosts();
+if ($show_owner) {
+    Netspoc::propagate_owners();
+}
 &abort_on_error();
 
 # Find network for resolving NAT addresses.
