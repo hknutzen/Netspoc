@@ -150,7 +150,7 @@ END
 $out1 = <<END;
 Warning: Missing rule for supernet rule.
  permit src=any:[network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
- can't be effective at interface:filter1.Trans.
+ can\'t be effective at interface:filter1.Trans.
  Tried any:Trans as src.
 END
 
@@ -224,7 +224,6 @@ END
 
 eq_or_diff(compile_err($in), $out1, $title);
 
-
 ############################################################
 $title = 'Loop with no_in_acl and in_zone eq no_in_zone';
 ############################################################
@@ -275,6 +274,74 @@ $head1 = (split /\n/, $out1)[0];
 $head2 = (split /\n/, $out2)[0];
 
 eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+
+############################################################
+$title = 'Nested aggregates';
+############################################################
+
+$in = <<END;
+
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Trans = { unnumbered; hardware = Vlan2; }
+}
+
+network:Trans = { unnumbered; }
+
+router:u = {
+ interface:Trans;
+ interface:Kunde1;
+ interface:Kunde2;
+ interface:Kunde3;
+}
+network:Kunde1 = { ip = 10.1.1.0/24; }
+network:Kunde2 = { ip = 10.1.2.0/24; }
+network:Kunde3 = { ip = 10.1.3.0/24; }
+
+service:test1 = {
+ user = any:[ip=10.1.0.0/23 & network:Trans];
+ permit src = user; dst = network:Test; prt = tcp 80;
+}
+
+service:test2 = {
+ user = any:[ip=10.1.0.0/22 & network:Trans];
+ permit src = user; dst = network:Test; prt = tcp 81;
+}
+END
+
+$out1 = <<END;
+access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.254.0 10.9.1.0 255.255.255.0 eq 80
+access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.252.0 10.9.1.0 255.255.255.0 eq 81
+access-list Vlan2_in extended deny ip any any
+access-group Vlan2_in in interface Vlan2
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+
+############################################################
+$title = 'Redundant rules with nested aggregates';
+############################################################
+
+$in .= <<END;
+service:test3 = {
+ user = any:[ip=10.1.0.0/16 & network:Trans];
+ permit src = user; dst = network:Test; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Warning: Redundant rules in service:test1 compared to service:test3:
+ Files: STDIN STDIN
+  permit src=any:[ip=10.1.0.0/23 & network:Trans]; dst=network:Test; prt=tcp 80; of service:test1
+< permit src=any:[ip=10.1.0.0/16 & network:Trans]; dst=network:Test; prt=tcp 80; of service:test3
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
 
 ############################################################
 

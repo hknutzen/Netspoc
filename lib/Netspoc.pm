@@ -8099,7 +8099,7 @@ sub link_implicit_aggregate_to_zone {
                     if ($up2 eq $aggregate) {
                         next NETWORK;
                     }
-                    my ($u2_ip, $u2_mask) = @{$up2}->{qw(ip mask)};
+                    my ($u2_ip, $u2_mask) = @{$up2}{qw(ip mask)};
                     if ($mask < $u2_mask && match_ip($u2_ip, $ip, $mask)) {
                         $up = $up2;
                         next;
