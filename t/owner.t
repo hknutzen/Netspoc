@@ -60,4 +60,53 @@ END
 eq_or_diff(compile_err($in), $out, $title);
 
 ############################################################
+$title = 'Owner at bridged network';
+############################################################
+
+$in = <<END;
+owner:xx = {
+ admins = a\@b.c;
+}
+
+area:all = { owner = xx; anchor = network:VLAN_40_41/40; }
+
+network:VLAN_40_41/40 = { ip = 10.2.1.96/28; }
+
+router:asa = {
+ managed;
+ model = ASA;
+
+ interface:VLAN_40_41/40 = { hardware = outside; }
+ interface:VLAN_40_41/41 = { hardware = inside; }
+ interface:VLAN_40_41 = { ip = 10.2.1.99; hardware = device; }
+}
+
+network:VLAN_40_41/41 = { ip = 10.2.1.96/28; }
+
+service:test = {
+ user = network:VLAN_40_41/40;
+ permit src = user; 
+        dst = interface:asa.VLAN_40_41; 
+        prt = ip;
+}
+END
+
+$out = '';
+
+eq_or_diff(compile_err($in), $out, $title);
+
+############################################################
+$title = 'Redundant owner at bridged network';
+############################################################
+
+$in =~ s|(network:VLAN_40_41/41 = \{)|$1 owner = xx; |;
+
+$out = <<END;
+Warning: Useless owner:xx at any:[network:VLAN_40_41/41],
+ it was already inherited from area:all
+END
+
+eq_or_diff(compile_err($in), $out, $title);
+
+############################################################
 done_testing;

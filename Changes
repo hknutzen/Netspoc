@@ -1,3 +1,23 @@
+3.035     2013-09-24 10:48:16 Europe/Berlin
+
+ - Added support for implicit matching aggregates,
+   to denote all matching networks inside an area or inside a zone.
+   E.g. any:[ip = 10.8.0.0/16 & area:x]
+ - Added new keyword 'has_unenforceable;' to selectively suppress 
+   warnings about unenforceable rules.
+   - If added to a service, unenforceable rules of this service
+     are silently ignored.
+   - If added to a security zone (i.e aggregate with mask = 0),
+     all unenforceable rules with source and destination inside this zone
+     are silently ignored.
+ - Bridged network supports attribute 'owner' now.
+ - Fixed bug: auto interface of network can be used now.
+   i.e interface:[network.x].[auto]
+ - Attributes of aggregate are now propagated into all zones of
+   a cluster of zones.
+ - Fixed endless loop when parsing "network:x={host}"
+ - Identity NAT no longer generates NAT rules for device.
+
 3.034     2013-08-28 17:57:24 Europe/Berlin
 
  - Fixed wrongly sorted IP addresses in object-groups introduced in 3.033.

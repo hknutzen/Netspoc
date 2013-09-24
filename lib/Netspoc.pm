@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.034'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.035'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -93,9 +93,9 @@ our @EXPORT = qw(
   order_protocols
   link_topology
   mark_disabled
-  find_subnets
   set_zone
   set_service_owner
+  find_subnets
   expand_services
   expand_crypto
   check_unused_groups
@@ -478,6 +478,7 @@ sub warn_msg {
 }
 
 sub debug {
+    return if not $config{verbose};
     print STDERR @_, "\n";
     return;
 }
@@ -596,7 +597,7 @@ sub check {
 # Skip a string.
 sub skip {
     my $token = shift;
-    return check $token or syntax_err("Expected '$token'");
+    return(check $token or syntax_err("Expected '$token'"));
 }
 
 # Check, if an integer is available.
@@ -662,6 +663,10 @@ sub read_ip_opt_mask {
 sub read_ip_prefix_pair {
     my ($ip, $mask) = read_ip_opt_mask();
     defined $mask or syntax_err("Missing prefix len");
+    match_ip($ip, $ip, $mask) or error_atline("IP and mask don't match");
+
+    # Prevent further errors.
+    $ip &= $mask;
     return [ $ip, $mask ];
 }
 
@@ -712,6 +717,7 @@ sub complement_32bit {
     return ~$ip & 0xffffffff;
 }
 
+# Check if $ip1 is located inside network $ip/$mask.
 sub match_ip {
     my ($ip1, $ip, $mask) = @_;
     return ($ip == ($ip1 & $mask));
@@ -840,6 +846,7 @@ sub read_typed_name {
 # or interface:....xxx/ppp...
 # or interface:[xxx:xxx, ...].[xxx]
 # or interface:[managed & xxx:xxx, ...].[xxx]
+# or any:[ ip = n.n.n.n/len & xxx:xxx, ...]
 # or network:xxx/ppp
 # or host:id:user@domain.network
 #
@@ -860,8 +867,13 @@ sub read_typed_name {
         my $name;
         my $ext;
         if ($input =~ m/ \G \[ /gcox) {
-            if ($interface && check 'managed') {
+            if ($interface && check('managed')) {
                 $managed = 1;
+                skip '&';
+            }
+            elsif ($type eq 'any' && check('ip')) {
+                skip '=';
+                $ext = read_ip_prefix_pair();
                 skip '&';
             }
             $name = [ read_union(']') ];
@@ -902,11 +914,8 @@ sub read_typed_name {
                 $managed
                   and syntax_err("Keyword 'managed' not allowed");
             }
-            return [ $type, $name, $ext ];
         }
-        else {
-            return [ $type, $name ];
-        }
+        return $ext ? [ $type, $name, $ext ] : [ $type, $name ];
     }
 
 # user@domain
@@ -1225,9 +1234,6 @@ sub read_host {
             $host->{radius_attributes} = $radius_attributes;
         }
         elsif (check_flag 'policy_distribution_point') {
-            $policy_distribution_point
-              and error_atline("'policy_distribution_point' must be defined",
-                               " only once");
             $policy_distribution_point = $host;
         }
         elsif (my $pair = check_typed_name) {
@@ -1417,11 +1423,19 @@ sub read_network {
         }
         elsif (my $nat_tag = check_nat_name()) {
             my $nat = read_nat("nat:$nat_tag");
-            $nat->{name} .= "($name)";
-            $network->{nat}->{$nat_tag}
+            ($network->{nat} && $network->{nat}->{$nat_tag} ||
+             $network->{identity_nat} && $network->{identity_nat}->{$nat_tag})
               and error_atline("Duplicate NAT definition");
-            $network->{nat}->{$nat_tag} = $nat->{identity} ? $network : $nat;
- 
+            if ($nat->{identity}) {
+                $network->{identity_nat}->{$nat_tag} = $nat;
+            } 
+            else {
+                $nat->{name} .= "($name)";
+                $network->{nat}->{$nat_tag} = $nat;
+            } 
+        }
+        else {
+            syntax_err("Expected some valid attribute");
         }
     }
 
@@ -1444,7 +1458,8 @@ sub read_network {
         }
     }
     elsif ($network->{bridged}) {
-        my %ok = (ip => 1, mask => 1, bridged => 1, name => 1, nat => 1);
+        my %ok = (ip => 1, mask => 1, bridged => 1, name => 1, 
+                  identity_nat => 1, owner => 1);
 
         # Bridged network must not have any other attributes.
         for my $key (keys %$network) {
@@ -1454,14 +1469,6 @@ sub read_network {
                 ($key eq 'hosts') ? "host definition (not implemented)"
               : ($key eq 'nat')   ? "nat definition"
               :                     "attribute '$key'");
-        }
-
-        # Only identity NAT allowed
-        if (my $hash = $network->{nat}) {
-            for my $nat (values %$hash) {
-                $nat eq $network or 
-                  error_atline "Only identity NAT allowed in bridged network";
-            }
         }
     }
     else {
@@ -1961,14 +1968,6 @@ sub read_router {
         {
             $router->{filter_only}
               and error_atline("Redefining 'filter_only' attribute");
-            for my $pair (@filter_only) {
-                my ($ip, $mask) = @$pair;
-                match_ip($ip, $ip, $mask) or
-                    error_atline("IP and mask don't match");
-
-                # Prevent further errors.
-                $pair->[0] &= $mask;
-            }
             $router->{filter_only} = \@filter_only;
         }
         elsif (my ($model, @attributes) =
@@ -2400,6 +2399,9 @@ sub read_aggregate {
               and error_atline('Duplicate definition of link');
             $aggregate->{link} = $link;
         }
+        elsif (check_flag 'has_unenforceable') {
+            $aggregate->{has_unenforceable} = 1;
+        }
         elsif (check_flag 'no_in_acl') {
             $aggregate->{no_in_acl} = 1;
         }
@@ -2423,10 +2425,12 @@ sub read_aggregate {
         if (not(match_ip($ip, $ip, $mask))) {
             error_atline("IP and mask don't match");
         }
-        $aggregate->{owner}
-          and error_atline("Must not define 'owner' if mask is set");
-        $aggregate->{no_in_acl}
-          and error_atline("Must not define 'no_in_acl' if mask is set");
+    }
+    if ($mask) {
+        for my $key (keys %$aggregate) {
+            next if grep { $key eq $_ } qw( name ip mask link is_aggregate);
+            error_atline("Must not use attribute $key if mask is set");
+        }
     }
     return $aggregate;
 }
@@ -2788,14 +2792,13 @@ sub read_service {
             $service->{visible} = $visible;
         }
         elsif (check_flag('multi_owner')) {
-            $service->{multi_owner}
-              and error_atline("Duplicate attribute 'multi_owner'");
             $service->{multi_owner} = 1;
         }
         elsif (check_flag('unknown_owner')) {
-            $service->{unknown_owner}
-              and error_atline("Duplicate attribute 'unknown_owner'");
             $service->{unknown_owner} = 1;
+        }
+        elsif (check_flag('has_unenforceable')) {
+            $service->{has_unenforceable} = 1;
         }
         elsif (check_flag('disabled')) {
             $service->{disabled} = 1;
@@ -5331,12 +5334,12 @@ sub expand_group1 {
                   @{ expand_group1($name, "$type:[..] of $context") }
             ];
             my $get_aggregates = sub {
-                my ($object) = @_;
+                my ($object, $ip, $mask) = @_;
                 my @objects;
                 my $type = ref $object;
                 if ($type eq 'Area') {
-                    push @objects,
-                      unique(map { get_any00($_) } @{ $object->{zones} });
+                    push @objects, unique(map({ get_any($_, $ip, $mask) } 
+                                              @{ $object->{zones} }));
                 }
                 elsif ($type eq 'Network' && $object->{is_aggregate}) {
                     push @objects, $object;
@@ -5356,7 +5359,7 @@ sub expand_group1 {
                 elsif ($type eq 'Network' && !$object->{is_aggregate}) {
                     push @objects, $object;
                 }
-                elsif (my $aggregates = $get_aggregates->($object)) {
+                elsif (my $aggregates = $get_aggregates->($object, 0, 0)) {
                     push(@objects, map { @{ $_->{networks} } } @$aggregates);
                 }
                 else {
@@ -5421,13 +5424,17 @@ sub expand_group1 {
                 push @objects, unique(@list);
             }
             elsif ($type eq 'any') {
+                my ($ip, $mask) = $ext ? @$ext : (0, 0);
                 my @list;
                 for my $object (@$sub_objects) {
-                    if (my $aggregates = $get_aggregates->($object)) {
+                    if (my $aggregates = 
+                        $get_aggregates->($object, $ip, $mask)) 
+                    {
                         push @list, @$aggregates;
                     }
                     elsif (my $networks = $get_networks->($object)) {
-                        push @list, map { get_any00($_->{zone}) } @$networks;
+                        push @list, map({ get_any($_->{zone}, $ip, $mask) } 
+                                        @$networks);
                     }
                     else {
                         my $type = ref $object;
@@ -5710,14 +5717,14 @@ sub path_auto_interfaces;
 
 # Hash with attributes deny, supernet, permit for storing
 # expanded rules of different type.
-our %expanded_rules = (deny => [], supernet => [], permit => []);
+our %expanded_rules;
 
 # Hash for ordering all rules:
 # $rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$src_range}->{$prt}
 #  = $rule;
 my %rule_tree;
 
-# Hash for converting a reference of an protocol back to this protocol.
+# Hash for converting a reference of a protocol back to this protocol.
 my %ref2prt;
 
 # Collect deleted rules for further inspection.
@@ -5726,6 +5733,7 @@ my @deleted_rules;
 # Add rules to %rule_tree for efficient look up.
 sub add_rules {
     my ($rules_ref) = @_;
+
     for my $rule (@$rules_ref) {
         my ($stateless, $action, $src, $dst, $src_range, $prt) =
           @{$rule}{ 'stateless', 'action', 'src', 'dst', 'src_range', 'prt' };
@@ -5861,6 +5869,7 @@ sub expand_special  {
             push @networks, $network if $network->{ip} ne 'unnumbered';
         }
         @result = (@other, unique(@networks));
+#        debug "special: ", join(', ', map { $_->{name} } @result);
     }
     if ($flags->{any}) {
         my %zones;
@@ -5879,7 +5888,7 @@ sub expand_special  {
             }
             $zones{$zone} = $zone;
         }
-        @result = map { get_any00($_) } values %zones;
+        @result = map { get_any($_, 0, 0) } values %zones;
     }
     return @result;
 }
@@ -5892,16 +5901,17 @@ sub expand_special  {
 # - subnets/hosts of different networks.
 # Rules between identical objects are silently ignored.
 # But a message is shown if a service only has rules between identical objects.
-my %unenforceable_context2src2dst;
-my %unenforceable_context;
-my %enforceable_context;
-
 sub collect_unenforceable  {
-    my ($src, $dst, $zone, $context) = @_;
+    my ($src, $dst, $zone, $service) = @_;
 
-    return if not $config{check_unenforceable};
+    if ($zone->{has_unenforceable}) {
+        $zone->{seen_unenforceable} = 1;
+        $service->{silent_unenforceable} = 1;
+        return;
+    }
 
-    $unenforceable_context{$context} = 1;
+    my $context = $service->{name};
+    $service->{silent_unenforceable} = 1;
 
     # A rule between identical objects is a common case
     # which results from rules with "src=user;dst=user;".
@@ -5927,54 +5937,75 @@ sub collect_unenforceable  {
             }
         }
     }
-    elsif (is_network($src) && $src->{is_aggregate}
-        || is_network($dst) && $dst->{is_aggregate})
-    {
-
-        # This is a common case, which results from rules like
-        # group:some_networks -> any:[group:some_networks]
-        return if not($src->{is_aggregate} and $dst->{is_aggregate});
+    elsif ($src->{is_aggregate} && $dst->{is_aggregate}) {
 
         # Both are aggregates,
         # - belonging to same zone cluster and
         # - having identical ip and mask
         return if (zone_eq($src->{zone}, $dst->{zone})
-                && $src->{ip} == $dst->{ip}
-                && $src->{mask} == $dst->{mask});
+                   && $src->{ip} == $dst->{ip}
+                   && $src->{mask} == $dst->{mask});
     }
-    delete $unenforceable_context{$context};
-    $unenforceable_context2src2dst{$context}->{$src}->{$dst} ||= [ $src, $dst ];
+    elsif ($src->{is_aggregate} && $src->{mask} == 0) {
+
+        # This is a common case, which results from rules like
+        # group:some_networks -> any:[group:some_networks]
+        return if zone_eq($src->{zone}, get_zone($dst))
+    }
+    elsif($dst->{is_aggregate} && $dst->{mask} == 0 ) {
+        return if zone_eq($dst->{zone}, get_zone($src))
+    }
+    $service->{seen_unenforceable}->{$src}->{$dst} ||= [ $src, $dst ];
     return;
 }
 
-sub show_unenforceable  {
-    for my $context (sort keys %unenforceable_context) {
-        next
-          if $unenforceable_context2src2dst{$context}
-              or $enforceable_context{$context};
-        my $msg = "$context is fully unenforceable";
-        $config{check_unenforceable} eq 'warn' ? warn_msg($msg) : err_msg($msg);
+sub show_unenforceable {
+    my ($service) = @_;
+    my $context = $service->{name};
+
+    if ($service->{has_unenforceable} &&
+        (! $service->{seen_unenforceable} || ! $service->{seen_enforceable})) 
+    {
+        warn_msg("Useless attribute 'has_unenforceable' at $context");
     }
-    for my $context (sort keys %unenforceable_context2src2dst) {
-        my $msg;
-        if (not $enforceable_context{$context}) {
-            $msg = "$context is fully unenforceable";
+    return if ! $config{check_unenforceable};
+    return if $service->{disabled};
+
+    my $print = $config{check_unenforceable} eq 'warn' ? \&warn_msg : \&err_msg;
+
+    # Warning about fully unenforceable service can't be disabled with
+    # attribute has_unenforceable.
+    if (! delete $service->{seen_enforceable}) {
+        
+        # Don't warn on empty service without any expanded rules.
+        if ($service->{seen_unenforceable} || $service->{silent_unenforceable}) 
+        {
+            $print->("$context is fully unenforceable");
         }
-        else {
-            $msg = "$context has unenforceable rules:";
-            my $hash = $unenforceable_context2src2dst{$context};
-            for my $hash (values %$hash) {
-                for my $aref (values %$hash) {
-                    my ($src, $dst) = @$aref;
-                    $msg .= "\n src=$src->{name}; dst=$dst->{name}";
-                }
+        return;
+    }
+    return if $service->{has_unenforceable};
+
+    if (my $hash = delete $service->{seen_unenforceable}) {
+        my $msg = "$context has unenforceable rules:";
+        for my $hash (values %$hash) {
+            for my $aref (values %$hash) {
+                my ($src, $dst) = @$aref;
+                $msg .= "\n src=$src->{name}; dst=$dst->{name}";
             }
         }
-        $config{check_unenforceable} eq 'warn' ? warn_msg($msg) : err_msg($msg);
+        $print->($msg);
     }
-    %enforceable_context           = ();
-    %unenforceable_context         = ();
-    %unenforceable_context2src2dst = ();
+    delete $service->{silent_unenforceable};
+    return;
+}
+
+sub warn_useless_unenforceable {
+    for my $zone (@zones) {
+        $zone->{has_unenforceable} or next;
+        $zone->{seen_unenforceable} or
+            warn_msg("Useless attribute 'has_unenforceable' at $zone->{name}");
+    }
     return;
 }
 
@@ -6134,22 +6165,20 @@ my %global_permit_dst_range_list;
 
 # Parameters:
 # - Reference to array of unexpanded rules.
-# - Current context for error messages: name of service.
+# - The service.
 # - Reference to hash with attributes deny, supernet, permit for storing
 #   resulting expanded rules of different type.
 # - Reference to array of values. Occurrences of 'user' in rules
 #   will be substituted by these values.
-# - Flag, indicating if values for 'user' are substituted as a whole or
-#   a new rules is expanded for each element.
 # - Flag which will be passed on to expand_group.
-# - Flag, indicating the service is disabled.
 sub expand_rules {
-    my ($rules_ref, $context, $result, $private, $user, $foreach,
-        $convert_hosts, $disabled)
-      = @_;
-
-    # For collecting resulting expanded rules.
-    my ($deny, $supernet, $permit) = @{$result}{ 'deny', 'supernet', 'permit' };
+    my ($service, $result, $convert_hosts) = @_;
+    my $rules_ref = $service->{rules};
+    my $user      = $service->{user};
+    my $context   = $service->{name};
+    my $disabled  = $service->{disabled};
+    my $private   = $service->{private};
+    my $foreach   = $service->{foreach};
 
     for my $unexpanded (@$rules_ref) {
         my $action = $unexpanded->{action};
@@ -6220,16 +6249,16 @@ sub expand_rules {
                                 && $dst_zone_cluster
                                 && $src_zone_cluster eq $dst_zone_cluster)
                             {
-                                next if $disabled;
-                                collect_unenforceable $src, $dst, $src_zone,
-                                  $context;
+                                collect_unenforceable(
+                                    $src, $dst, $src_zone, $service);
                                 next;
                             }
 
                             # At least one rule is enforceable.
                             # This is used to decide, if a service is fully
                             # unenforceable.
-                            $enforceable_context{$context} = 1;
+                            $service->{seen_enforceable} = 1;
+
                             my @src = expand_special $src, $dst, $flags->{src},
                               $context
                               or next;    # Prevent multiple error messages.
@@ -6276,17 +6305,8 @@ sub expand_rules {
                                       if $flags->{no_check_supernet_rules};
                                     $rule->{stateless_icmp} = 1
                                       if $flags->{stateless_icmp};
-                                    if ($action eq 'deny') {
-                                        push @$deny, $rule;
-                                    }
-                                    elsif ($src->{is_supernet}
-                                        || $dst->{is_supernet})
-                                    {
-                                        push @$supernet, $rule;
-                                    }
-                                    else {
-                                        push @$permit, $rule;
-                                    }
+
+                                    push @$result, $rule;
                                 }
                             }
                         }
@@ -6295,7 +6315,7 @@ sub expand_rules {
             }
         }
     }
-    show_unenforceable;
+    show_unenforceable($service);
 
     # Result is returned indirectly using parameter $result.
     return;
@@ -6307,6 +6327,29 @@ sub print_rulecount  {
         $count += grep { not $_->{deleted} } @{ $expanded_rules{$type} };
     }
     info("Expanded rule count: $count");
+    return;
+}
+
+sub split_expanded_rule_types {
+    my ($rules_aref) = @_;
+
+    my (@deny, @permit, @supernet);
+
+    for my $rule (@$rules_aref) {
+        if ($rule->{action} eq 'deny') {
+            push @deny, $rule;
+        }
+        elsif ($rule->{src}->{is_supernet} || $rule->{dst}->{is_supernet}) {
+            push @supernet, $rule;
+        }
+        else {
+            push @permit, $rule;
+        }
+    }
+
+    %expanded_rules = (deny => \@deny,
+                       permit => \@permit,
+                       supernet => \@supernet);
     return;
 }
 
@@ -6331,6 +6374,8 @@ sub expand_services {
             }
         }
     }
+
+    my $expanded_rules_aref = [];
 
     # Sort by service name to make output deterministic.
     for my $key (sort keys %services) {
@@ -6372,18 +6417,20 @@ sub expand_services {
             }
         }
 
-        my $user = $service->{user} =
-          expand_group($service->{user}, "user of $name");
-        expand_rules($service->{rules}, $name, \%expanded_rules,
-            $service->{private}, $user, $service->{foreach}, $convert_hosts,
-            $service->{disabled});
+        $service->{user} = expand_group($service->{user}, "user of $name");
+        expand_rules($service, $expanded_rules_aref, $convert_hosts);
     }
-    print_rulecount;
+
+    warn_useless_unenforceable();
+    info("Expanded rule count: ", scalar @$expanded_rules_aref);
+
     progress('Preparing Optimization');
-    for my $type ('deny', 'supernet', 'permit') {
-        add_rules $expanded_rules{$type};
-    }
+    add_rules($expanded_rules_aref);
     show_deleted_rules1();
+
+    # Set attribute {is_supernet} before calling split_expanded_rule_types.
+    find_subnets_in_nat_domain();
+    split_expanded_rule_types($expanded_rules_aref);
     return;
 }
 
@@ -6399,6 +6446,9 @@ sub propagate_owners {
         if (my $cluster = $zone->{zone_cluster}) {
             $clusters{$cluster} = $cluster;
         }
+
+        # If an explicit owner was set, it has been set for
+        # the whole cluster in link_aggregates.
         next if $zone->{owner};
 
         # Inversed inheritance: If a zone has no direct owner and if
@@ -6418,46 +6468,29 @@ sub propagate_owners {
             }
         }
         if ($owner) {
+#            debug("Inversed inherit: $zone->{name} $owner->{name}");
             $zone->{owner} = $owner;
             $zone_got_net_owners{$zone} = 1;
         }
     }
 
-    # Check for consistent owners of zone clusters.
+    # Check for consistent implicit owners of zone clusters.
+    # Implicit owner from networks is only valid, if the same owner
+    # is found for all zones of cluster.
     for my $cluster (values %clusters) {
-        my @explicit_owner_zones =
-          grep { $_->{owner} && !$zone_got_net_owners{$_} } @$cluster;
-        my @implicit_owner_zones =
-          grep { $_->{owner} && $zone_got_net_owners{$_} } @$cluster;
+        my @implicit_owner_zones = grep { $zone_got_net_owners{$_} } @$cluster
+            or next;
+        if (
+            !(
+                @implicit_owner_zones == @$cluster
+                && equal(map { $_->{owner} } @implicit_owner_zones)
+            )
+          )
+        {
+            $_->{owner} = undef for @implicit_owner_zones;
 
-        # Explicit owners for zones must all be equal inside the cluster.
-        # The one owner is used for other zones inside the cluster as well.
-        if (@explicit_owner_zones) {
-            equal(@explicit_owner_zones)
-              or internal_err("Unexpected different owners in ",
-                join(',', map { $_->{name} } @explicit_owner_zones));
-            my $owner = $explicit_owner_zones[0];
-            $_->{owner} = $owner for @implicit_owner_zones;
-
-#            debug("Change to $owner->{name}");
+#            debug("Reset owner");
 #            debug($_->{name}) for @implicit_owner_zones;
-        }
-
-        # Implicit owner from networks is only valid, if the same owner
-        # is found for all zones of cluster.
-        elsif (@implicit_owner_zones) {
-            if (
-                !(
-                    @implicit_owner_zones == @$cluster
-                    && equal(@implicit_owner_zones)
-                )
-              )
-            {
-                $_->{owner} = undef for @implicit_owner_zones;
-
-#                debug("Reset owner");
-#                debug($_->{name}) for @implicit_owner_zones;
-            }
         }
     }
 
@@ -7232,6 +7265,7 @@ sub get_nat_network {
 # of the network which doesn't overlap with some subnet.
 sub check_subnets {
     my ($network, $subnet)   = @_;
+    return if $network->{is_aggregate} || $subnet->{is_aggregate};
     my ($sub_ip,  $sub_mask) = @{$subnet}{qw(ip mask)};
     my $check = sub {
         my ($ip1, $ip2, $object) = @_;
@@ -7304,27 +7338,200 @@ sub nat_to_loopback_ok {
 }
 
 sub numerically { return $a <=> $b }
+sub by_name     { return $a->{name} cmp $b->{name} }
 
 sub link_reroute_permit;
 
-# Find relation between networks:
-# For networks inside one zone:
+# Compatibilty for export.pl of NetspocWeb
+sub find_subnets {
+    find_subnets_in_zone();
+    return;
+}
+
+# Find subnet relation between networks inside a zone.
 # - $subnet->{up} = $bignet;
-# Inside a NAT domain:
+sub find_subnets_in_zone {
+    progress('Finding subnets in zone');
+    for my $zone (@zones) {
+
+        # Check NAT inside zone.
+        # Find networks of zone which use a NATed address inside the zone.
+        # - Use this NATed address in subnet checks.
+        # - If a subnet relation exists, then this NAT must be unique inside
+        #   the zone.
+        my @no_nat_sets = 
+            unique map { $_->{no_nat_set} } @{ $zone->{interfaces} };
+
+        # Add networks of zone to %mask_ip_hash.
+        my %mask_ip_hash;
+
+        # A networks has different NAT addresses inside the zone.
+        my %net2nat_count;
+
+        # Found that many subnet relations.
+        my %net2up_count;
+
+        for my $network (@{ $zone->{networks} }, 
+                         values %{ $zone->{ipmask2aggregate} }) 
+        {
+            next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
+
+            my @nat_networks = 
+                unique map { get_nat_network($network, $_) } @no_nat_sets;
+            if (@nat_networks > 1) {
+                $net2nat_count{$network} = @nat_networks;
+            }
+            for my $nat_network (@nat_networks) {
+                next if $nat_network->{hidden};
+                my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
+
+                # Found two different networks with identical IP/mask.
+                if (my $other_net = $mask_ip_hash{$mask}->{$ip}) {
+
+                    # Different no_nat_sets map to the same network.
+                    if ($other_net eq $network) {
+                        $net2nat_count{$network}--;
+                        if (1 == $net2nat_count{$network}) {
+                            delete $net2nat_count{$network};
+                        }
+                        next;
+                    }
+                    my $name1 = $network->{name};
+                    my $name2 = $other_net->{name};
+                    err_msg("$name1 and $name2 have identical IP/mask",
+                            " inside $zone->{name}");
+                }
+                else {
+
+                    # Store network under IP/mask.
+                    $mask_ip_hash{$mask}->{$ip} = $network;
+                }
+            }
+        }
+
+        # Compare networks of zone.
+        # Go from smaller to larger networks.
+        for my $mask (reverse sort keys %mask_ip_hash) {
+
+            # Network 0.0.0.0/0.0.0.0 can't be subnet.
+            last if $mask == 0;
+
+            for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
+
+                my $subnet = $mask_ip_hash{$mask}->{$ip};
+
+                # Find networks which include current subnet.
+                my $m = $mask;
+                my $i = $ip;
+                while ($m) {
+
+                    # Clear upper bit, because left shift is undefined
+                    # otherwise.
+                    $m &= 0x7fffffff;
+                    $m <<= 1;
+                    $i = $i & $m;  # Perl bug #108480 prevents use of "&=".
+                    my $bignet = $mask_ip_hash{$m}->{$i};
+                    next if not $bignet;
+
+                    if ($net2nat_count{$subnet}) {
+                        $net2up_count{$subnet}++;
+                    }
+
+                    # Check for ambiguous subnet relation of network
+                    # with different NAT addresses.
+                    if (my $other = $subnet->{up}) {
+                        if ($other ne $bignet) {
+                            err_msg("Ambiguous subnet relation from NAT.\n",
+                                    " $subnet->{name} is subnet of",
+                                    " $other->{name} and $bignet->{name}");
+                        }
+                        last;                        
+                    }
+
+                    $subnet->{up} = $bignet;
+#                    debug "$subnet->{name} -up-> $bignet->{name}";
+                    push(
+                        @{ $bignet->{networks} },
+                        $subnet->{is_aggregate}
+                        ? @{ $subnet->{networks} || [] }
+                        : ($subnet)
+                        );
+
+                    check_subnets($bignet, $subnet);
+
+                    # We only need to find the smallest enclosing network.
+                    last;
+                }
+            }
+        }
+
+        # Check for ambiguous subnet relation.
+        for my $net_hash (keys %net2nat_count) {
+            my $up_count = $net2up_count{$net_hash};
+            next if ! $up_count;
+            my $nat_count = $net2nat_count{$net_hash};
+            next if $up_count == $nat_count;
+
+            # Find original network from hash.
+            my ($network) = grep({ $_ eq $net_hash } 
+                                 @{ $zone->{networks} }, 
+                                 values %{ $zone->{ipmask2aggregate} });
+
+            my $bignet = $network->{up};
+            err_msg("Ambiguous subnet relation from NAT.\n",
+                    " $network->{name} is subnet of $bignet->{name},\n",
+                    " but has no subnet relation in other NAT domain.");
+        }
+
+        # For each subnet N find the largest non-aggregate network
+        # which encloses N. If one exists, store it in
+        # {max_up_net}. This is used in secondary optimization.
+        my $set_max_net;
+        $set_max_net = sub {
+            my ($network) = @_;
+            return if not $network;
+            if (my $max_net = $network->{max_up_net}) {
+                return $max_net;
+            }
+            if (my $max_net = $set_max_net->($network->{up})) {
+                if (!$network->{is_aggregate}) {
+                    $network->{max_up_net} = $max_net;
+
+#                    debug("$network->{name} max_up $max_net->{name}");
+                }
+                return $max_net;
+            }
+            if ($network->{is_aggregate}) {
+                return;
+            }
+            return $network;
+        };
+        $set_max_net->($_) for @{ $zone->{networks} };
+
+        # Remove subnets of non-aggregate networks.
+        $zone->{networks} = 
+            [ grep { !$_->{max_up_net} } @{ $zone->{networks} } ];
+    }
+
+    # It is valid to have an aggregate in a zone which has no matching
+    # networks. This can be useful to add optimization rules at an
+    # intermediate device.
+
+    # Call late after $zone->{networks} has been set up.
+    link_reroute_permit();
+    check_managed_local();
+    return;
+}
+
+# Find subnet relation inside a NAT domain.
 # - $subnet->{is_in}->{$no_nat_set} = $bignet;
 # - $net1->{is_identical}->{$no_nat_set} = $net2
-
-sub find_subnets {
-    progress('Finding subnets');
+#
+# Mark networks, having subnet in other zone: $bignet->{has_other_subnet}
+# If set, this prevents secondary optimization.
+sub find_subnets_in_nat_domain {
+    progress('Finding subnets in NAT domain');
     my %seen;
-
-    my %zone_has_no_nat_set;
-    for my $zone (@zones) {
-        for my $interface (@{ $zone->{interfaces} }) {
-            my $no_nat_set = $interface->{no_nat_set};
-            $zone_has_no_nat_set{$zone}->{$no_nat_set} = 1;
-        }
-    }
 
     for my $domain (@natdomains) {
 
@@ -7332,7 +7539,6 @@ sub find_subnets {
         my $no_nat_set = $domain->{no_nat_set};
         my %mask_ip_hash;
         my %identical;
-        my %key2obj;
         for my $network (@networks) {
             next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
             my $nat_network = get_nat_network($network, $no_nat_set);
@@ -7401,46 +7607,26 @@ sub find_subnets {
         }
 
         # Link identical networks to one representative one.
-        #
-        # Build hash to go back from representative network to
-        # original network in zone.
-        my %identical_in_zone;
         for my $networks (values %identical) {
+            $_->{is_supernet} = 1 for @$networks;
             my $one_net = shift(@$networks);
             for my $network (@$networks) {
                 $network->{is_identical}->{$no_nat_set} = $one_net;
-                $identical_in_zone{$one_net}->{ $network->{zone} } = $network;
-
 #               debug("Identical: $network->{name}: $one_net->{name}");
             }
         }
+
 
         # Go from smaller to larger networks.
         for my $mask (reverse sort keys %mask_ip_hash) {
 
             # Network 0.0.0.0/0.0.0.0 can't be subnet.
             last if $mask == 0;
+
             for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
 
                 my $subnet0 = $mask_ip_hash{$mask}->{$ip};
-                my @identical_sub = ($subnet0);
-                if (my $hash = $identical_in_zone{$subnet0}) {
-                    push(@identical_sub, values %$hash);
-                }
-
-                for my $subnet (@identical_sub) {
-
-                    # Find {up} relation between networks inside the same zone.
-                    my $zone = $subnet->{zone};
-
-                    # Does current NAT domain overlap with zone of $subnet.
-                    # Ignore a NAT domain, if it has no connection
-                    # to border of zone.
-                    my $in_zone = $zone_has_no_nat_set{$zone}->{$no_nat_set};
-
-                    # {is_in} and {up} might differ. Continue with loop,
-                    # if first match is only {is_in}.
-                    my $find_zone_relation;
+                for my $subnet ($subnet0, @{ $identical{$subnet0} }) {
 
                     # Find networks which include current subnet.
                     my $m = $mask;
@@ -7458,71 +7644,25 @@ sub find_subnets {
                         my $nat_subnet = get_nat_network($subnet, $no_nat_set);
                         my $nat_bignet = get_nat_network($bignet, $no_nat_set);
 
-                        if ($in_zone || $find_zone_relation) {
-                            my $orig_big = $identical_in_zone{$bignet}->{$zone}
-                              || $bignet;
-                            if ($zone eq $orig_big->{zone}) {
-                                my $other_big = $subnet->{up};
-
-                                # Subnet relation inside first and
-                                # probably only NAT domain.
-                                if (!$other_big) {
-                                    $subnet->{up} = $orig_big;
-                                    push(
-                                        @{ $orig_big->{networks} },
-                                        $subnet->{is_aggregate}
-                                        ? @{ $subnet->{networks} || [] }
-                                        : ($subnet)
-                                        );
-                                }
-
-                                # Multiple NAT domains inside one security zone.
-                                elsif ($orig_big ne $other_big) {
-                                    err_msg 
-                                        "$subnet->{name} must have a distinct",
-                                        " subnet relation",
-                                        " in security zone $zone->{name}.\n",
-                                        " But it has different supernets:\n",
-                                        " - $orig_big->{name}\n",
-                                        " - $other_big->{name}\n",
-                                        " Check bind_nat inside the zone.";
-                                }
-
-                                if ($subnet->{has_other_subnet}) {
-                                    $orig_big->{has_other_subnet} = 1;
-                                }
-
-                                last if $find_zone_relation;
-                            }
-                            else {
-                                next if $find_zone_relation;
-                                $find_zone_relation = 1;
-                            }
-                        }
-
                         # Mark subnet relation.
                         # This may differ for different NAT domains.
                         $subnet->{is_in}->{$no_nat_set} = $bignet;
-
-                        if ($seen{$nat_bignet}->{$nat_subnet}) {
-                            next if $find_zone_relation;
-                            last;
-                        }
-                        $seen{$nat_bignet}->{$nat_subnet} = 1;
+#                        debug "$subnet->{name} -is_in-> $bignet->{name}";
 
                         if ($bignet->{zone} ne $subnet->{zone}) {
+#                            debug "has other: $bignet->{name}";
                             $bignet->{has_other_subnet} = 1;
                         }
 
                         # Mark network having subnets.  Rules having
                         # src or dst with subnets are collected into
                         # $expanded_rules->{supernet}
-                        if (!$bignet->{is_supernet}) {
-                            $bignet->{is_supernet} = 1;
-                            for my $network (@{ $identical{$bignet} }) {
-                                $network->{is_supernet} = 1;
-                            }
+                        $bignet->{is_supernet} = 1;
+
+                        if ($seen{$nat_bignet}->{$nat_subnet}) {
+                            last;
                         }
+                        $seen{$nat_bignet}->{$nat_subnet} = 1;
 
                         if ($config{check_subnets}) {
 
@@ -7531,6 +7671,7 @@ sub find_subnets {
                             # as value of subnet_of.
                             if (
                                 not(   $bignet->{is_aggregate}
+                                    or $subnet->{is_aggregate}
                                     or $bignet->{has_subnets}
                                     or $nat_subnet->{subnet_of}
                                     and $nat_subnet->{subnet_of} eq $bignet
@@ -7558,55 +7699,12 @@ sub find_subnets {
                         }
 
                         check_subnets($nat_bignet, $nat_subnet);
-
-                        # We only need to find the smallest enclosing network.
-                        # But continue if we haven't found the {up} relation.
-                        last if !$find_zone_relation;
+                        last;
                     }
                 }
             }
         }
     }
-
-    for my $zone (@zones) {
-
-        # For each subnet N find the largest non-aggregate network
-        # which encloses N. If one exists, store it in
-        # {max_up_net}. This is used in secondary optimization.
-        my $set_max_net;
-        $set_max_net = sub {
-            my ($network) = @_;
-            return if not $network;
-            if (my $max_net = $network->{max_up_net}) {
-                return $max_net;
-            }
-            if (my $max_net = $set_max_net->($network->{up})) {
-                if (!$network->{is_aggregate}) {
-                    $network->{max_up_net} = $max_net;
-
-#                    debug("$network->{name} max_up $max_net->{name}");
-                }
-                return $max_net;
-            }
-            if ($network->{is_aggregate}) {
-                return;
-            }
-            return $network;
-        };
-        $set_max_net->($_) for @{ $zone->{networks} };
-
-        # Remove subnets of non-aggregate networks.
-        $zone->{networks} = 
-            [ grep { !$_->{max_up_net} } @{ $zone->{networks} } ];
-    }
-
-    # It is valid to have an aggregate in a zone which has no matching
-    # networks. This can be useful to add optimization rules at an
-    # intermediate device.
-
-    # Call late after $zone->{networks} has been set up.
-    link_reroute_permit();
-    check_managed_local();
     return;
 }
 
@@ -7771,7 +7869,7 @@ sub check_crosslink  {
           map { @{ $_->{interfaces} } }
 
           # Sort by router name to make output deterministic.
-          sort { $a->{name} cmp $b->{name} } values %cluster;
+          sort by_name values %cluster;
         my %crosslink_intf_hash = map { $_ => $_ } @crosslink_interfaces;
         for my $router2 (values %cluster) {
             $router2->{crosslink_interfaces} = \@crosslink_interfaces;
@@ -7921,7 +8019,7 @@ sub link_aggregate_to_zone {
     # Must be initialized, even if aggregate contains no networks.
     # Take a new array for each aggregate, otherwise we would share
     # the same array between different aggregates.
-    $aggregate->{networks} = [];
+    $aggregate->{networks} ||= [];
 
     if ($zone->{disabled}) {
         $aggregate->{disabled} = 1;
@@ -7932,9 +8030,130 @@ sub link_aggregate_to_zone {
     return;
 }
 
+# Update relations {networks} and {up} for implicitly defined aggregates.
+sub link_implicit_aggregate_to_zone {
+    my ($aggregate, $zone, $key) = @_;
+    my ($ip, $mask) = split '/', $key;
+
+    my $update_agg_relation = sub {
+
+        # All aggregates without any sub networks.
+        my @other_agg = grep({ my $n = $_->{networks}; !$n || !@$n; } 
+                             values %{ $zone->{ipmask2aggregate} });
+
+        # Aggregates which are subnet of new aggregate.
+        my @sub_agg = grep({ $mask < $_->{mask} && 
+                                 match_ip($_->{ip}, $ip, $mask) } @other_agg);
+        return if !@sub_agg;
+
+        # Sort by mask to find some largest subnet.
+        my @sorted = sort { $a->{mask} <=> $b->{mask} } @sub_agg;
+        my ($largest) = @sorted;
+
+        # Find all subnets pointing to the same larger element.
+        # Thus we exclude all sub-subnets.
+        my $up = $largest->{up} || '';
+        my @direct_sub = grep { $_->{up} || '' eq $up } @sorted;
+        $aggregate->{up} = $up if $up;
+        $_->{up} = $aggregate for @direct_sub;
+        return;
+    };
+    my $update_relation;
+    $update_relation = sub {
+        my ($networks) = @_;
+        my $found;
+      NETWORK:
+        for my $network (@$networks) {
+            my ($i, $m) = @{$network}{qw(ip mask)};
+
+            # Network is subnet of aggregate.
+            if ($mask < $m && match_ip($i, $ip, $mask)) {
+                $found = 1;
+                push @{ $aggregate->{networks} }, $network;
+
+                # Other aggregate where network is subnet.
+                my $up = $network->{up};
+
+                # Network isn't subnet of any other aggregate.
+                if (! $up) {
+                    $network->{up} = $aggregate;
+                    next NETWORK;
+                }
+            
+                my ($u_ip, $u_mask) = @{$up}{qw(ip mask)};
+
+                # New aggregate is subnet of other aggregate.
+                if ($u_mask < $mask && match_ip($ip, $u_ip, $u_mask)) {
+                    $aggregate->{up} = $up;
+                    $network->{up} = $aggregate;
+                    next NETWORK;
+                }
+
+                # Other aggregate is subnet of new aggregate.
+                # Find largest {up}, still contained in new aggregate.
+                my $up2;
+                while($up2 = $up->{up}) {
+
+                    # Aggregate has already been inserted before, 
+                    # when processing some other network of zone.
+                    if ($up2 eq $aggregate) {
+                        next NETWORK;
+                    }
+                    my ($u2_ip, $u2_mask) = @{$up2}->{qw(ip mask)};
+                    if ($mask < $u2_mask && match_ip($u2_ip, $ip, $mask)) {
+                        $up = $up2;
+                        next;
+                    }
+                    last;
+                }
+                $aggregate->{up} = $up2 if $up2;
+                $up->{up} = $aggregate;
+            }
+
+            # Aggregate is subnet of network.
+            # Check sub-networks of network.
+            elsif ($m < $mask && match_ip($ip, $i, $m)) {
+                $found = 1;
+                my $sub_networks = $network->{networks};
+                if ($sub_networks && @$sub_networks) {
+                    $update_relation->($sub_networks);
+                }
+                else {
+                    $update_agg_relation->();
+                    $aggregate->{up} ||= $network;
+                }
+
+                # No need to check other networks, because aggregate
+                # can't be subnet of multiple networks.
+                last NETWORK;
+            }
+        }
+
+        # Aggregate doesn't match any network.
+        # Check if other aggregate matches new aggregate.
+        if (! $found) {
+            $update_agg_relation->();
+        }
+    };
+    my $set_owner = sub {
+        my $up = $aggregate->{up};
+        my $owner;
+        while ($up) {
+            $owner = $up->{owner} and last;
+            $up = $up->{up};
+        }
+        $owner ||= $zone->{owner};
+        $aggregate->{owner} = $owner;
+    };
+    $update_relation->($zone->{networks});
+    $set_owner->();
+    link_aggregate_to_zone($aggregate, $zone, $key);
+    return;
+}
+
 # Link aggregate to zone.  This is called late, after zones and NAT
-# domains have been set up. But before find_subnets calculates {up}
-# and {networks} relation.
+# domains have been set up. But before find_subnets_in_zone calculates
+# {up} and {networks} relation.
 sub link_aggregates {
     my @aggregates_in_cluster;
     for my $aggregate (values %aggregates) {
@@ -7946,7 +8165,6 @@ sub link_aggregates {
         my $zone;
       BLOCK:
         {
-
             if ($type eq 'network') {
                 my $network = $networks{$name};
                 if (not $network) {
@@ -8017,8 +8235,12 @@ sub link_aggregates {
 
             # Aggregate with ip 0/0 is used to set attributes of zone.
             if ($mask == 0) {
-                for my $attr (qw(owner no_in_acl)) {
-                    $zone->{$attr} = $aggregate->{$attr} if $aggregate->{$attr};
+                for my $zone2 ($cluster ? @$cluster : ($zone)) {
+                    for my $attr (qw(owner no_in_acl has_unenforceable)) {
+                        if ($aggregate->{$attr}) {
+                            $zone2->{$attr} = $aggregate->{$attr};
+                        }
+                    }
                 }
             }
             link_aggregate_to_zone($aggregate, $zone, $key);
@@ -8028,72 +8250,92 @@ sub link_aggregates {
             $aggregate->{disabled} = 1;
         }
     }
-
-    # Duplicate aggregate to all zones of a cluster.
     for my $aggregate (@aggregates_in_cluster) {
-        my $cluster = $aggregate->{zone}->{zone_cluster};
-        my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
-        my $key = "$ip/$mask";
-        for my $zone (@$cluster) {
-            next if $zone->{ipmask2aggregate}->{$key};
-            my $aggregate2 = new('Network', %$aggregate);
-            link_aggregate_to_zone($aggregate2, $zone, $key);
-        }
-    }
-
-    # Add one aggregate to each zone where none has been defined,
-    # to be used in implicit aggregates any:[..].
-    for my $zone (@zones) {
-        my $key = '0/0';
-        next if $zone->{ipmask2aggregate}->{'0/0'};
-        next if !@{ $zone->{networks} };
-
-        # Don't define aggregate und network with same IP.
-        # {up} relation wouldn't be well defined.
-        if (my $cluster = $zone->{zone_cluster}) {
-            if (grep { $_->{mask} == 0 } 
-                map { @{ $_->{networks} } } @$cluster)
-            {
-                next;
-            }
-        }
-        elsif (grep { $_->{mask} == 0 } @{ $zone->{networks} }) {
-            next;
-        }
-
-        my $aggregate = new(
-            'Network',
-            name         => $zone->{name},
-            is_aggregate => 1,
-            ip           => 0,
-            mask         => 0
-        );
-        link_aggregate_to_zone($aggregate, $zone, $key);
+        duplicate_aggregate_to_cluster($aggregate);
     }
     return;
 }
 
-# Find aggregate in zone.
-# If zone is part of a zone_cluster,
-# return aggregates for each zone of the cluster.
-sub get_any00 {
-    my ($zone) = @_;
-    if($zone->{zone_cluster}) {
-        if (my @aggregates = get_cluster_aggregates($zone, 0, 0)) {
-            return @aggregates;
+# Duplicate aggregate to all zones of a cluster.
+# Aggregate may be a non aggregate network, 
+# e.g. a network with ip/mask 0/0.
+sub duplicate_aggregate_to_cluster {
+    my ($aggregate, $implicit) = @_;
+
+    my $cluster = $aggregate->{zone}->{zone_cluster};
+    my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
+    my $key = "$ip/$mask";
+    for my $zone (@$cluster) {
+        next if $zone->{ipmask2aggregate}->{$key};
+#        debug("Dupl. $aggregate->{name} to $zone->{name}");
+        my $aggregate2 = new(
+            'Network',
+            name         => $aggregate->{name},
+            is_aggregate => 1,
+            ip           => $aggregate->{ip},
+            mask         => $aggregate->{mask},
+            );
+        if ($implicit) {
+            link_implicit_aggregate_to_zone($aggregate2, $zone, $key);
+        }
+        else {
+            link_aggregate_to_zone($aggregate2, $zone, $key);
         }
     }
-    elsif (my $aggregate = $zone->{ipmask2aggregate}->{'0/0'}) {
-        return $aggregate;
+    return;
+}
+
+# Find aggregate referenced from any:[..].
+# Creates new anonymous aggregate if missing.
+# If zone is part of a zone_cluster,
+# return aggregates for each zone of the cluster.
+sub get_any {
+    my ($zone, $ip, $mask) = @_;
+    my $key = "$ip/$mask";
+    my $cluster = $zone->{zone_cluster};
+    if (!$zone->{ipmask2aggregate}->{$key}) {
+
+        # Check, if there is a network with same IP as the requested
+        # aggregate.  If found, don't create a new aggregate in zone,
+        # but use the network instead. Otherwise {up} relation
+        # wouldn't be well defined.
+        if (my @networks = grep({ $_->{mask} == $mask && $_->{ip} == $ip } 
+                                map { @{ $_->{networks} } }
+                                $cluster ? @$cluster : ($zone)))
+        {
+            @networks > 1 and internal_err;
+            my ($network) = @networks;
+            my $zone2 = $network->{zone};
+
+            # Handle $network like an aggregate.
+            $zone2->{ipmask2aggregate}->{$key} = $network;
+
+            # Create aggregates in cluster, using the name of the network.
+            duplicate_aggregate_to_cluster($network, 1) if $cluster;
+        }
+        else {
+
+            # any:[network:x] => any:[ip=i.i.i.i/pp & network:x]
+            my $p_ip = print_ip($ip);
+            my $prefix = mask2prefix($mask);
+            my $name = $zone->{name};
+            $name =~ s/\[/[ip=$p_ip\/$prefix & / if $prefix != 0;
+            my $aggregate = new(
+                'Network',
+                name         => $name,
+                is_aggregate => 1,
+                ip           => $ip,
+                mask         => $mask,
+                );
+            link_implicit_aggregate_to_zone($aggregate, $zone, $key);
+            duplicate_aggregate_to_cluster($aggregate, 1) if $cluster;
+        };
     }
-    if (my ($net00) = grep { $_->{mask} == 0 } @{ $zone->{networks} }) {
-        fatal_err("Use $net00->{name} instead of any:[..]");
+    if ($cluster) {
+        return get_cluster_aggregates($zone, $ip, $mask);
     }
     else {
-        fatal_err(
-            "Can't use any:[..] in $zone->{name}\n",
-            " having no network with IP address"
-        );
+        return $zone->{ipmask2aggregate}->{$key};
     }
 }
 
@@ -8115,7 +8357,7 @@ sub set_zone1 {
     }
     $network->{zone} = $zone;
 
-#    debug("$network->{name}: $zone->{name}");
+#    debug("$network->{name} in $zone->{name}");
 
     # Add network to the zone, to have all networks of a security zone
     # available.  Unnumbered or tunnel network is left out here
@@ -8317,6 +8559,9 @@ sub inherit_nat {
                 # if network has local NAT definition or 
                 # has already inherited from smaller area.
                 next if $network->{nat}->{$nat_tag};
+
+                # Ignore network with identity NAT.
+                next if $network->{identity_nat}->{$nat_tag};
 
                 next if $network->{ip} eq 'unnumbered';
                 next if $network->{isolated_ports};
@@ -9501,7 +9746,7 @@ sub path_walk {
     return;
 }
 
-my %border2router2auto;
+my %border2obj2auto;
 
 sub set_auto_intf_from_border  {
     my ($border) = @_;
@@ -9510,21 +9755,22 @@ sub set_auto_intf_from_border  {
     $reach_from_border = sub {
         my ($network, $in_intf, $result) = @_;
         $active_path{$network} = 1;
+        $result->{$network}->{$in_intf} = $in_intf;
+#        debug "$network->{name}: $in_intf->{name}";
         for my $interface (@{ $network->{interfaces} }) {
             next if $interface eq $in_intf;
             next if $interface->{zone};
             next if $interface->{orig_main};
             my $router = $interface->{router};
-            next if $result->{$router}->{$interface};
             next if $active_path{$router};
             $active_path{$router} = 1;
             $result->{$router}->{$interface} = $interface;
+#            debug "$router->{name}: $interface->{name}";
 
             for my $out_intf (@{ $router->{interfaces} }) {
                 next if $out_intf eq $interface;
                 next if $out_intf->{orig_main};
                 my $out_net = $out_intf->{network};
-                next if $active_path{$out_net};
                 $reach_from_border->($out_net, $out_intf, $result);
             }
             $active_path{$router} = 0;
@@ -9536,7 +9782,7 @@ sub set_auto_intf_from_border  {
     for my $href (values %$result) {
         $href = [ values %$href ];
     }
-    $border2router2auto{$border} = $result;
+    $border2obj2auto{$border} = $result;
     return;
 }
 
@@ -9574,19 +9820,22 @@ sub path_auto_interfaces {
     else {
         @result = ($from_store->{path}->{$to_store});
     }
-    my $router = is_router($src2) ? $src2 : $src2->{router};
+
+    # Find auto interface inside zone.
+    # $src is located inside some zone.
+    # $src2 is known to be unmanaged router or network.
     if (!is_router($from)) {
         my %result;
         for my $border (@result) {
-            if (not $border2router2auto{$border}) {
+            if (not $border2obj2auto{$border}) {
                 set_auto_intf_from_border($border);
             }
-            my $auto_intf = $border2router2auto{$border}->{$router};
+            my $auto_intf = $border2obj2auto{$border}->{$src2};
             for my $interface (@$auto_intf) {
                 $result{$interface} = $interface;
             }
         }
-        @result = values %result;
+        @result = sort by_name values %result;
     }
 
     my $bridged_count = 0;
@@ -9610,7 +9859,7 @@ sub path_auto_interfaces {
         @result = unique(@result);
     }
 
-#    debug("$from->{name}.[auto] = ", join ',', map {$_->{name}} @result);
+#    debug("$src2->{name}.[auto] = ", join ',', map {$_->{name}} @result);
     return($managed ? grep { $_->{router}->{managed} } @result : @result);
 }
 
@@ -10164,6 +10413,7 @@ sub find_zone_network {
             # Found first matching network.
             if (!$result) {
                 $result = $network;
+                next;
             }
 
             # Search a common supernet of two networks
@@ -10176,6 +10426,7 @@ sub find_zone_network {
             }
         }
     }
+#    debug "zone_network:", ref($result) ? $result->{name} : $result;
     return ($zone->{ipmask2net}->{$key} = $result);
 }
 
@@ -10209,6 +10460,7 @@ sub find_matching_supernet {
         push @result, $up;
         $up = $up->{up};
     }
+#    debug "matching:", join(',', map { $_->{name} } @result);
     return \@result;
 }
 
@@ -10237,10 +10489,13 @@ sub check_supernet_in_zone {
         $extra = "No supernet available for $networks";
     }
     else {
+
+        # $networks holds matching network and all its supernets.
+        # Find first matching rule.
         for my $network (@$networks) {
             ($where eq 'src' ? $src : $dst) = $network;
-            if ($rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$src_range}
-                ->{$prt})
+            if ($rule_tree{$stateless}->{$action}->{$src}->{$dst}
+                ->{$src_range}->{$prt})
             {
                 return;
             }
@@ -10307,6 +10562,7 @@ sub check_supernet_src_rule {
         # check_supernet_dst_rule
         return;
     }
+    my $in_zone = $in_intf->{zone};
 
     # Check case II, outgoing ACL, (A)
     my $no_acl_intf;
@@ -10318,7 +10574,7 @@ sub check_supernet_src_rule {
         }
 
         # b), 1. zone X == zone Y
-        elsif ($in_intf eq $no_acl_intf) {
+        elsif ($in_zone eq $no_acl_zone) {
         }
 
         elsif (has_global_restrict($no_acl_intf)) {
@@ -10405,11 +10661,10 @@ sub check_supernet_src_rule {
 
     # Nothing to do at first router.
     # zone2 is checked at R2, because we need the no_nat_set at R2.
-    my $zone = $in_intf->{zone};
-    return if $src_zone eq $zone;
+    return if $src_zone eq $in_zone;
 
     # Check if rule "supernet2 -> dst" is defined.
-    check_supernet_in_zone($rule, 'src', $in_intf, $zone);
+    check_supernet_in_zone($rule, 'src', $in_intf, $in_zone);
     return;
 }
 
@@ -11977,8 +12232,7 @@ sub check_and_convert_routes  {
 
             next if $interface->{loop} and $interface->{routing};
             next if $interface->{ip} eq 'bridged';
-            for my $hop ( sort { $a->{name} cmp $b->{name} }
-                          values %{ $interface->{hop} }) {
+            for my $hop ( sort by_name values %{ $interface->{hop} }) {
                 for my $network (values %{ $interface->{routes}->{$hop} }) {
                     if (my $interface2 = $net2intf{$network}) {
                         if ($interface2 ne $interface) {
@@ -12061,8 +12315,7 @@ sub check_and_convert_routes  {
             # Convert to array, because hash isn't needed any longer.
             # Array is sorted to get deterministic output.
             $interface->{hop} =
-              [ sort { $a->{name} cmp $b->{name} }
-                  values %{ $interface->{hop} } ];
+              [ sort by_name values %{ $interface->{hop} } ];
         }
     }
     return;
@@ -13030,7 +13283,7 @@ sub has_global_restrict {
 }
 
 sub distribute_global_permit {
-    for my $prt (sort { $a->{name} cmp $b->{name} } @global_permit) {
+    for my $prt (sort by_name @global_permit) {
         my $stateless      = $prt->{flags} && $prt->{flags}->{stateless};
         my $stateless_icmp = $prt->{flags} && $prt->{flags}->{stateless_icmp};
         $prt = $prt->{main} if $prt->{main};
@@ -13157,7 +13410,7 @@ sub rules_distribution {
 
     # Prepare rules for local_optimization.
     # Aggregates with mask 0 are converted to network_00, to be able
-    # to compare with interally generated rules which use network_00.
+    # to compare with internally generated rules which use network_00.
     for my $rule (@{ $expanded_rules{supernet} }) {
         next if $rule->{deleted} and not $rule->{managed_intf};
         my ($src, $dst) = @{$rule}{qw(src dst)};
@@ -14941,6 +15194,7 @@ sub local_optimization {
                         }
                         $id_hash{$action}->{$src}->{$dst}->{$src_range}
                           ->{$prt} = $rule;
+
                         if (   $src->{is_supernet}
                             || $dst->{is_supernet}
                             || $rule->{stateless})
@@ -14959,7 +15213,8 @@ sub local_optimization {
 #                        my $t3 = time();
 #                        $r2rules{$rname}++;
 
-#                       debug8print_rule $rule);
+#                       debug(print_rule $rule);
+#                       debug "is_supernet" if $rule->{dst}->{is_supernet};
                         my ($action, $src, $dst, $src_range, $prt) =
                           @{$rule}{ 'action', 'src', 'dst', 'src_range',
                             'prt' };
@@ -16069,7 +16324,7 @@ sub print_crypto {
 
     # List of ipsec definitions used at current router.
     # Sort entries by name to get deterministic output.
-    my @ipsec = sort { $a->{name} cmp $b->{name} } unique(
+    my @ipsec = sort by_name unique(
         map { $_->{crypto}->{type} }
         grep { $_->{ip} eq 'tunnel' } @{ $router->{interfaces} }
     );
@@ -16079,9 +16334,7 @@ sub print_crypto {
 
     # List of isakmp definitions used at current router.
     # Sort entries by name to get deterministic output.
-    my @isakmp =
-      sort { $a->{name} cmp $b->{name} }
-      unique(map { $_->{key_exchange} } @ipsec);
+    my @isakmp = sort by_name unique(map { $_->{key_exchange} } @ipsec);
 
     my $comment_char = $model->{comment_char};
     print "$comment_char [ Crypto ]\n";

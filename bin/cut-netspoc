@@ -27,7 +27,7 @@ use Netspoc;
 #use open ':locale';
 use locale;
 
-our $VERSION = '3.034'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.035'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -142,10 +142,10 @@ for my $ref (values %name2var) {
 &order_protocols();
 &link_topology();
 &mark_disabled();
-&distribute_nat_info();
 &set_zone();
+&distribute_nat_info();
 &setpath();
-&find_subnets();
+Netspoc::find_subnets_in_zone();
 &expand_services(1);
 &abort_on_error();
 

@@ -79,7 +79,7 @@ use Netspoc;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '3.034'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.035'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -128,14 +128,14 @@ while (1) {
 &read_file_or_dir($config);
 &link_topology();
 &mark_disabled();
-&distribute_nat_info();
 &set_zone();
+&distribute_nat_info();
+&setpath();
+Netspoc::find_subnets_in_zone();
+Netspoc::convert_hosts();
 if ($show_owner) {
     Netspoc::propagate_owners();
 }
-&setpath();
-&find_subnets();
-Netspoc::convert_hosts();
 &abort_on_error();
 
 # Find network for resolving NAT addresses.
