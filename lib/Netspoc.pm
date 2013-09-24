@@ -95,6 +95,7 @@ our @EXPORT = qw(
   mark_disabled
   set_zone
   set_service_owner
+  find_subnets
   expand_services
   expand_crypto
   check_unused_groups
@@ -7340,6 +7341,12 @@ sub numerically { return $a <=> $b }
 sub by_name     { return $a->{name} cmp $b->{name} }
 
 sub link_reroute_permit;
+
+# Compatibilty for export.pl of NetspocWeb
+sub find_subnets {
+    find_subnets_in_zone();
+    return;
+}
 
 # Find subnet relation between networks inside a zone.
 # - $subnet->{up} = $bignet;
