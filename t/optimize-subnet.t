@@ -101,7 +101,8 @@ END
 
 $head1 = (split /\n/, $out1)[0];
 
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+eq_or_diff(get_block(compile($in, '-check_redundant_rules=0'), $head1), 
+           $out1, $title);
 
 ############################################################
 $title = 'Optimize subnet of NAT network in zone';

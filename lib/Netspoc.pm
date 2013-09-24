@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.035'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.036'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -8099,7 +8099,7 @@ sub link_implicit_aggregate_to_zone {
                     if ($up2 eq $aggregate) {
                         next NETWORK;
                     }
-                    my ($u2_ip, $u2_mask) = @{$up2}->{qw(ip mask)};
+                    my ($u2_ip, $u2_mask) = @{$up2}{qw(ip mask)};
                     if ($mask < $u2_mask && match_ip($u2_ip, $ip, $mask)) {
                         $up = $up2;
                         next;

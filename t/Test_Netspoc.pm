@@ -9,12 +9,13 @@ our @EXPORT = qw(compile compile_err get_block);
 use Test::More;
 use IPC::Run3;
 
-my $options = '-quiet -check_redundant_rules=0 -check_service_unknown_owner=0';
+my $default_options = '-quiet';
 
 sub run {
-    my($input) = @_;
+    my($input, $options) = @_;
 
-    my $cmd = "perl -I lib bin/netspoc $options";
+    my $cmd = "perl -I lib bin/netspoc $default_options";
+    $cmd .= " $options" if $options;
     my ($stdout, $stderr);
     run3($cmd, \$input, \$stdout, \$stderr);
     my $status = $?;
@@ -22,8 +23,8 @@ sub run {
 }
 
 sub compile {
-    my($input) = @_;
-    my ($status, $stdout, $stderr) = run($input);
+    my($input, $options) = @_;
+    my ($status, $stdout, $stderr) = run($input, $options);
     if ($status != 0) {
         print STDERR "Failed:\n$stderr\n";
         return '';
@@ -36,8 +37,8 @@ sub compile {
 }
 
 sub compile_err {
-    my($input) = @_;
-    my ($status, $stdout, $stderr) = run($input);
+    my($input, $options) = @_;
+    my ($status, $stdout, $stderr) = run($input, $options);
     if ($stderr) {
         $stderr =~ s/\nAborted with \d+ error\(s\)$//ms;
     }
