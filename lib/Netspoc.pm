@@ -9612,7 +9612,7 @@ sub loop_path_walk {
       )
     {
 
-#     debug8" loop_enter");
+#     debug(" loop_enter");
         for my $out_intf (@{ $loop_entry->{loop_enter}->{$loop_exit} }) {
             $fun->($rule, $in, $out_intf);
         }
