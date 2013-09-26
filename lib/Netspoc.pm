@@ -335,10 +335,11 @@ my %router_info = (
         },
     },
     Linux => {
-        routing      => 'iproute',
-        filter       => 'iptables',
-        has_io_acl   => 1,
-        comment_char => '#',
+        routing          => 'iproute',
+        filter           => 'iptables',
+        has_io_acl       => 1,
+        comment_char     => '#',
+        can_managed_host => 1,
     },
 );
 for my $model (keys %router_info) {
@@ -1199,6 +1200,101 @@ sub check_routing {
     return $routing;
 }
 
+sub check_managed {
+    check('managed') or return;
+    my $managed;
+    if (check ';') {
+        $managed = 'standard';
+    }
+    elsif (check '=') {
+        my $value = read_identifier;
+        if ($value =~ /^(?:secondary|standard|full|primary|local)$/) {
+            $managed = $value;
+        }
+        else {
+            error_atline("Expected value:",
+                         " secondary|standard|full|primary|local");
+        }
+        check ';';
+    }
+    else {
+        syntax_err("Expected ';' or '='");
+    }
+    return $managed;
+}
+
+sub check_model {
+    my ($model, @attributes) = check_assign_list('model', \&read_name)
+        or return;
+    my @attr2;
+    ($model, @attr2) = split /_/, $model;
+    push @attributes, @attr2;
+    my $info = $router_info{$model};
+    if (not $info) {
+        error_atline("Unknown router model");
+        next;
+    }
+    my $extension_info = $info->{extension};
+    if (@attributes and not $extension_info) {
+        error_atline("No extension expected for this model");
+        next;
+    }
+
+    my @ext_list = map {
+        my $ext = $extension_info->{$_};
+        $ext or error_atline("Unknown extension $_");
+        $ext ? %$ext : ();
+    } @attributes;
+    if (@ext_list) {
+        $info = { %$info, @ext_list };
+        delete $info->{extension};
+        $info->{name} = join(', ', $model, sort @attributes);
+    }
+    return $info;
+}
+
+my @managed_routers;
+
+# Managed host is stored internally as an interface.
+# The interface gets an artificial router.
+# Both, router and interface get name "host:xx".
+sub host_as_interface {
+    my ($host) = @_;
+    my $name = $host->{name};
+    my $model = delete $host->{model};
+    my $hw_name = delete $host->{hardware};
+    if (!$model) {
+        err_msg("Missing 'model' for managed $host->{name}");
+        
+        # Prevent further errors.
+        $host->{model} = { name => 'unknown' };
+    }
+    if (! $hw_name) {
+        err_msg("Missing 'hardware' for $name");
+    }
+    $model->{can_managed_host} 
+      or err_msg("Must not use model $model->{name} at managed $name");
+
+    # Use device_name with "host:.." prefix to prevent name clash with 
+    # real routers.
+    my $router = new('Router', name => $name, device_name => $name);
+    $router->{managed} = delete $host->{managed};
+    $router->{model} = $model;
+    my $interface = new('Interface', %$host);
+    $interface->{router} = $router;
+    my $hardware = { name => $hw_name, interfaces => [ $interface ] };
+    $interface->{hardware} = $hardware;
+    $interface->{routing} = $routing_info{manual};
+    $router->{interfaces} = [ $interface ];
+    $router->{hardware}   = [ $hardware ];
+
+    # Don't add to %routers
+    # - Name lookup isn't needed.
+    # - Linking with network isn't needed.
+    push @managed_routers, $router;
+    return $interface;
+}
+
 sub read_host {
     my ($name, $network_name) = @_;
     my $host = new('Host');
@@ -1223,6 +1319,24 @@ sub read_host {
             $ip1 <= $ip2 or error_atline("Invalid IP range");
             $host->{range} and error_atline("Duplicate attribute 'range'");
             $host->{range} = [ $ip1, $ip2 ];
+        }
+
+        # Currently, only simple 'managed' attribute,
+        # because 'secondary' and 'local' isn't supported by Linux.
+        elsif (my $managed = check_managed()) {
+            $host->{managed} and error_atline("Duplicate attribute 'managed'");
+            $managed eq 'standard' 
+              or error_atline("Only 'managed=standard' is supported");
+            $host->{managed} = 'standard';
+        }
+        elsif (my $model = check_model()) {
+            $host->{model} and error_atline("Duplicate attribute 'model'");
+            $host->{model} = $model;
+        }
+        elsif (my $hardware = check_assign('hardware', \&read_name)) {
+            $host->{hardware}
+              and error_atline("Duplicate definition of hardware");
+            $host->{hardware} = $hardware;
         }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $host->{owner} and error_atline("Duplicate attribute 'owner'");
@@ -1277,6 +1391,17 @@ sub read_host {
                 error_atline("No NAT supported for host with '$what'");
             }
         }
+    }
+    if ($host->{managed}) {
+        my %ok = ( name => 1, ip => 1, nat => 1, 
+                   managed => 1, model => 1, hardware => 1);
+        for my $key (keys %$host) {
+            next if $ok{$key};
+            error_atline("Managed $host->{name} must not have ",
+                           ($key eq 'nat') ? "nat definition"
+                         :                   "attribute '$key'");
+        }
+        return host_as_interface($host);
     }
     return $host;
 }
@@ -1416,8 +1541,20 @@ sub read_network {
         }
         elsif (my $host_name = check_hostname()) {
             my $host = read_host("host:$host_name", $net_name);
-            push @{ $network->{hosts} }, $host;
-            $host_name = (split_typed_name($host->{name}))[1];
+            if (is_host($host)) {
+                push @{ $network->{hosts} }, $host;
+                $host_name = (split_typed_name($host->{name}))[1];
+            }
+
+            # Managed host is stored as interface internally.
+            elsif (is_interface($host)) {
+                $host->{network} = $network;
+                push @{ $network->{interfaces} }, $host;
+                check_interface_ip($host, $network);
+            }
+            else {
+                internal_err;
+            }
             $hosts{$host_name} and error_atline("Duplicate host:$host_name");
             $hosts{$host_name} = $host;
         }
@@ -1940,65 +2077,21 @@ sub read_router {
     add_description($router);
     while (1) {
         last if check '}';
-        if (check 'managed') {
-            $router->{managed}
+        if (my $managed = check_managed()) {
+            $router->{managed} 
               and error_atline("Redefining 'managed' attribute");
-            my $managed;
-            if (check ';') {
-                $managed = 'standard';
-            }
-            elsif (check '=') {
-                my $value = read_identifier;
-                if ($value =~ /^(?:secondary|standard|full|primary|local)$/) {
-                    $managed = $value;
-                }
-                else {
-                    error_atline("Expected value:",
-                                 " secondary|standard|full|primary|local");
-                }
-                check ';';
-            }
-            else {
-                syntax_err("Expected ';' or '='");
-            }
             $router->{managed} = $managed;
         }
         elsif (my @filter_only = check_assign_list('filter_only', 
                                                    \&read_ip_prefix_pair)) 
         {
             $router->{filter_only}
-              and error_atline("Redefining 'filter_only' attribute");
+              and error_atline("Duplicate attribute 'filter_only'");
             $router->{filter_only} = \@filter_only;
         }
-        elsif (my ($model, @attributes) =
-            check_assign_list('model', \&read_name))
-        {
-            my @attr2;
-            ($model, @attr2) = split /_/, $model;
-            push @attributes, @attr2;
-            $router->{model} and error_atline("Redefining 'model' attribute");
-            my $info = $router_info{$model};
-            if (not $info) {
-                error_atline("Unknown router model");
-                next;
-            }
-            my $extension_info = $info->{extension};
-            if (@attributes and not $extension_info) {
-                error_atline("No extension expected for this model");
-                next;
-            }
-
-            my @ext_list = map {
-                my $ext = $extension_info->{$_};
-                $ext or error_atline("Unknown extension $_");
-                $ext ? %$ext : ();
-            } @attributes;
-            if (@ext_list) {
-                $info = { %$info, @ext_list };
-                delete $info->{extension};
-                $info->{name} = join(', ', $model, sort @attributes);
-            }
-            $router->{model} = $info;
+        elsif (my $model = check_model()) {
+            $router->{model} and error_atline("Duplicate attribute 'model'");
+            $router->{model} = $model;
         }
         elsif (check_flag 'no_group_code') {
             $router->{no_group_code} = 1;
@@ -3929,67 +4022,72 @@ sub link_interfaces1 {
         # network to the private interface.
 
         push @{ $network->{interfaces} }, $interface;
+        check_interface_ip($interface, $network);
+    }
+    return;
+}
 
-        my $ip         = $interface->{ip};
-        my $network_ip = $network->{ip};
-        if ($ip =~ /^(?:short|tunnel)$/) {
+sub check_interface_ip {
+    my ($interface, $network) = @_;
+    my $ip         = $interface->{ip};
+    my $network_ip = $network->{ip};
+    if ($ip =~ /^(?:short|tunnel)$/) {
 
-            # Nothing to check:
-            # short interface may be linked to arbitrary network,
-            # tunnel interfaces and networks have been generated internally.
-        }
-        elsif ($ip eq 'unnumbered') {
-            $network_ip eq 'unnumbered'
-              or err_msg("Unnumbered $interface->{name} must not be linked ",
-                         "to $network->{name}");
-        }
-        elsif ($network_ip eq 'unnumbered') {
-            err_msg("$interface->{name} must not be linked ",
-                    "to unnumbered $network->{name}");
-        }
-        elsif ($ip eq 'negotiated') {
-            my $network_mask = $network->{mask};
+        # Nothing to check:
+        # short interface may be linked to arbitrary network,
+        # tunnel interfaces and networks have been generated internally.
+    }
+    elsif ($ip eq 'unnumbered') {
+        $network_ip eq 'unnumbered'
+          or err_msg("Unnumbered $interface->{name} must not be linked ",
+                     "to $network->{name}");
+    }
+    elsif ($network_ip eq 'unnumbered') {
+        err_msg("$interface->{name} must not be linked ",
+                "to unnumbered $network->{name}");
+    }
+    elsif ($ip eq 'negotiated') {
+        my $network_mask = $network->{mask};
 
-            # Negotiated interfaces are dangerous: If the attached
-            # network has address 0.0.0.0/0, we would accidentally
-            # permit 'any'.  We allow this only, if local networks are
-            # protected by crypto.
-            if ($network_mask == 0 && !$interface->{spoke}) {
-                err_msg("$interface->{name} has negotiated IP",
-                        " in range 0.0.0.0/0.\n",
-                        " This is only allowed for interface",
-                        " protected by crypto spoke");
+        # Negotiated interfaces are dangerous: If the attached
+        # network has address 0.0.0.0/0, we would accidentally
+        # permit 'any'.  We allow this only, if local networks are
+        # protected by crypto.
+        if ($network_mask == 0 && !$interface->{spoke}) {
+            err_msg("$interface->{name} has negotiated IP",
+                    " in range 0.0.0.0/0.\n",
+                    " This is only allowed for interface",
+                    " protected by crypto spoke");
+        }
+    }
+    elsif ($ip eq 'bridged') {
+
+        # Nothing to be checked: attribute 'bridged' is set automatically
+        # for an interface without IP and linked to bridged network.
+    }
+    else {
+
+        # Check compatibility of interface IP and network IP/mask.
+        my $mask = $network->{mask};
+        if (not(match_ip($ip, $network_ip, $mask))) {
+            err_msg("$interface->{name}'s IP doesn't match ",
+                    "$network->{name}'s IP/mask");
+        }
+        if ($mask == 0xffffffff) {
+            if (not $network->{loopback}) {
+                warn_msg("$interface->{name} has address of its network.\n",
+                         " Remove definition of $network->{name}.\n",
+                         " Add attribute 'loopback' at",
+                         " interface definition.");
             }
-        }
-        elsif ($ip eq 'bridged') {
-
-            # Nothing to be checked: attribute 'bridged' is set automatically
-            # for an interface without IP and linked to bridged network.
         }
         else {
-
-            # Check compatibility of interface IP and network IP/mask.
-            my $mask = $network->{mask};
-            if (not(match_ip($ip, $network_ip, $mask))) {
-                err_msg("$interface->{name}'s IP doesn't match ",
-                        "$network->{name}'s IP/mask");
+            if ($ip == $network_ip) {
+                err_msg("$interface->{name} has address of its network");
             }
-            if ($mask == 0xffffffff) {
-                if (not $network->{loopback}) {
-                    warn_msg("$interface->{name} has address of its network.\n",
-                             " Remove definition of $network->{name}.\n",
-                             " Add attribute 'loopback' at",
-                             " interface definition.");
-                }
-            }
-            else {
-                if ($ip == $network_ip) {
-                    err_msg("$interface->{name} has address of its network");
-                }
-                my $broadcast = $network_ip + complement_32bit $mask;
-                if ($ip == $broadcast) {
-                    err_msg("$interface->{name} has broadcast address");
-                }
+            my $broadcast = $network_ip + complement_32bit $mask;
+            if ($ip == $broadcast) {
+                err_msg("$interface->{name} has broadcast address");
             }
         }
     }
@@ -4424,7 +4522,7 @@ sub disable_behind {
 }
 
 # Lists of network objects which are left over after disabling.
-my @managed_routers;
+#my @managed_routers;	# defined above
 my @managed_vpnhub;
 my @routers;
 my @networks;
