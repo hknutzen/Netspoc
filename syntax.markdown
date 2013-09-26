@@ -181,7 +181,7 @@ where `<network NAT>` must be hidden or dynamic.
       interface:<name>."["<selector>"]"
     | interface:"[" [ managed & ] <object set with area>"]"."["<selector>"]"
     | network:"["<object set with area>"]"
-    | any:"["<object set with area>"]"
+    | any:"[" [ ip = <ip-net> & ] <object set with area>"]"
     | host:"["<object set with area>"]"
 
     <selector> ::= auto | all
