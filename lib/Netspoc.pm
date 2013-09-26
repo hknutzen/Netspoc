@@ -16166,6 +16166,7 @@ sub print_iptables_acls {
     print ":OUTPUT ACCEPT\n";
     print "-A INPUT -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
     print "-A FORWARD -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
+    print "-A INPUT -j ACCEPT -i lo\n";
     print_chains $router;
 
     for my $hardware (@{ $router->{hardware} }) {
