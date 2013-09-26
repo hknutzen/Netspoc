@@ -67,6 +67,9 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ owner = <name>;            ]
          [ policy_distribution_point; ]
          <host NAT> *
+         [ managed;                   ]
+         [ model = Linux;             ]
+         [ hardware = <external name>;]
       }
 
     <host NAT> ::= nat:<name> = { ip = <ip>; }
