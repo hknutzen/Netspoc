@@ -79,8 +79,8 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     <router definition> ::=
       router:<name>[@<VRF-name>] = {
          [ <description> ]
-         managed; | managed = <filter type>;
-         model = <model>;
+         [ managed; | managed = <filter type>;         ]
+         [ model = <model>;                           ]
          [ filter_only = <ip-prefix>(, <ip-prefix>)*; ]
          [ routing = ( EIGRP | OSPF | manual );       ]
          [ no_group_code;    ]
