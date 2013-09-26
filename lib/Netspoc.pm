@@ -8254,7 +8254,8 @@ sub link_implicit_aggregate_to_zone {
 # {up} and {networks} relation.
 sub link_aggregates {
     my @aggregates_in_cluster;
-    for my $aggregate (values %aggregates) {
+    for my $key (sort keys %aggregates) {
+        my $aggregate = $aggregates{$key};
         my $private1 = $aggregate->{private} || 'public';
         my $private2;
         my ($type, $name) = @{ delete($aggregate->{link}) };
