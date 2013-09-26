@@ -139,9 +139,10 @@ here `<object set>` must expand to networks.
       any:<name> = { 
          [ <description> ]
          link = ( network:<name> | router:<name> ); 
-         [ ip = <ip-net>;  ]
-         [ owner = <name>; ]
-         [ no_in_acl;      ]
+         [ ip = <ip-net>;     ]
+         [ owner = <name>;    ]
+         [ has_unenforceable; ]
+         [ no_in_acl;         ]
       }
 
 ## Area definition
@@ -232,6 +233,7 @@ where `<network NAT>` must be hidden or dynamic.
          [ multi_owner;               ]
          [ unknown_owner;             ]
          [ sub_owner = <name>;        ]
+         [ has_unenforceable;         ]
          [ overlaps = service:<name>(, service:<name>)*; ]
          user = [ foreach ] <object set>;
          <rule> * 
