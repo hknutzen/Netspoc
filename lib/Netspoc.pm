@@ -7747,7 +7747,13 @@ sub find_subnets_in_nat_domain {
                         $subnet->{is_in}->{$no_nat_set} = $bignet;
 #                        debug "$subnet->{name} -is_in-> $bignet->{name}";
 
-                        if ($bignet->{zone} ne $subnet->{zone}) {
+                        if ($bignet->{zone} eq $subnet->{zone}) {
+                            if ($subnet->{has_other_subnet}) {
+#                                debug "has other1: $bignet->{name}";
+                                $bignet->{has_other_subnet} = 1;
+                            }
+                        }
+                        else {
 #                            debug "has other: $bignet->{name}";
                             $bignet->{has_other_subnet} = 1;
                         }
