@@ -9,7 +9,7 @@ use Test_Netspoc;
 my ($title, $in, $out1, $out2, $out3, $head1, $head2, $head3);
 
 ############################################################
-my $title = 'Optimize subnet at secondary packet filter';
+$title = 'Optimize subnet at secondary packet filter';
 ############################################################
 
 $in = <<END;

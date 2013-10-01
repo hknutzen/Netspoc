@@ -1,3 +1,20 @@
+3.037     2013-10-01 18:29:12 Europe/Berlin
+
+ - Added support for managed Linux hosts to generate ACLs for servers.
+   Example
+    host:h = {
+     ip = 1.2.3.4;
+     model = Linux;
+     managed;
+     hardware = eth1;
+    }
+   This creates a file "host:h" with IPTables rules in out-directory.
+ - When generating rules for IPTables, the INPUT chain now gets a rule 
+   to accept traffic on interface lo: "-A INPUT -j ACCEPT -i lo".
+ - Fixed too optimistic secondary optimization, 
+   with network S2 in one zone, S1 and N in other zone and S2 < S1 < N.
+   (Bug was introduced in v3.035).
+
 3.036     2013-09-24 12:27:39 Europe/Berlin
 
  - Fixed bug with nested implicit aggregates.

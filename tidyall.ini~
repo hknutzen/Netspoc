@@ -1,3 +1,0 @@
-[PerlCritic]
-select = lib/**/*.pm
-select = bin/*.pl bin/get-netspoc-approve-conf

@@ -12,7 +12,7 @@ my ($title, $topo, $in, $out1, $head1, $out2, $head2, $out3, $head3, $compiled);
 $title = 'Implicit aggregate over 3 networks';
 ############################################################
 
-my $topo = <<END;
+$topo = <<END;
 area:test = { border = interface:filter.Trans; }
 
 network:A = { ip = 10.3.3.0/25; }

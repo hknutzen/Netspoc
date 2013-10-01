@@ -63,9 +63,7 @@ misc/intersect-ip
 misc/perltidyrc
 t/Test_Netspoc.pm
 t/aggregate.t
-t/aggregate.t~
 t/auto_intf.t
-t/auto_intf.t~
 t/bridged.t
 t/crypto.t
 t/global-permit.t
@@ -73,7 +71,7 @@ t/host-range.t
 t/iptables.t
 t/local-filter.t
 t/local-opt.t
-t/local-opt.t~
+t/managed-host.t
 t/nat.t
 t/optimize-subnet.t
 t/owner.t
@@ -81,11 +79,8 @@ t/pathrestrict-border.t
 t/rename.t
 t/secondary.t
 t/unenforceable.t
-t/unenforceable.t~
 t/unnumbered.t
 t/virtual-loopback-nat.t
 t/virtual-pathrestrict.t
 t/zone.t
-t/zone.t~
 tidyall.ini
-tidyall.ini~

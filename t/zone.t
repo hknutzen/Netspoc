@@ -43,7 +43,7 @@ any:Trans2 = { link = network:Trans2; }
 END
 
 $out = <<END;
-Error: Duplicate any:Trans2 and any:Trans1 in any:[network:Trans1]
+Error: Duplicate any:Trans1 and any:Trans2 in any:[network:Trans2]
 END
 
 eq_or_diff(compile_err($in), $out, $title);
