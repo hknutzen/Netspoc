@@ -852,6 +852,19 @@ sub export_owners {
                 push @e_owners, $e_name;
             }
         }
+    
+        # Add master owner to other owners not having extended_by, 
+        # i.e. sub_owner
+        if ($master_owner) {
+            my $m_owner = $Netspoc::owners{$master_owner};
+            for my $email ( @{ $m_owner->{admins} } ) {
+                $email2owners{$email}->{$name} = $name;
+            }
+            if (!grep { $_ eq $master_owner } @e_owners) {
+                push @e_owners, $master_owner;
+            }
+        }
+
         export("owner/$name/emails", 
                [ map { { email => $_ } } sort @emails ]);
         export("owner/$name/watchers", 
@@ -859,7 +872,7 @@ sub export_owners {
         export("owner/$name/extended_by", 
                [ map { { name => $_ } } sort @e_owners ]);
     }
-    
+        
     # Substitute hash by array.
     $_ = [ sort values(%$_) ] for values %email2owners;
 
