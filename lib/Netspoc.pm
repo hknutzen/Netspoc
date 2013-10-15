@@ -9541,6 +9541,9 @@ sub cluster_path_mark  {
         }
         delete $from->{active_path};
 
+        # Don't store incomplete result.
+        last BLOCK if not $success;
+
         # Convert { intf->intf->node_type } to [ intf, intf, node_type ]
         my $tuples_aref = [];
         for my $in_intf_ref (keys %$path_tuples) {
@@ -9781,12 +9784,16 @@ sub path_walk {
     $from and $to or internal_err(print_rule $rule);
     $from eq $to and internal_err("Unenforceable:\n ", print_rule $rule);
 
-    if (not($path_store->{path}->{$to_store})) {
-        path_mark($from, $to, $from_store, $to_store)
-          or err_msg
-          "No valid path from $from_store->{name} to $to_store->{name}\n",
-          " for rule ", print_rule $rule, "\n",
-          " Check path restrictions and crypto interfaces.";
+    if (!$path_store->{path}->{$to_store}) {
+        if (!path_mark($from, $to, $from_store, $to_store)) {
+            err_msg("No valid path\n",
+                    " from $from_store->{name}\n",
+                    " to $to_store->{name}\n",
+                    " for rule ", print_rule($rule), "\n",
+                    " Check path restrictions and crypto interfaces.");
+            delete $path_store->{path}->{$to_store};
+            return;
+        }
     }
     my $in = undef;
     my $out;
@@ -9909,12 +9916,17 @@ sub path_auto_interfaces {
     my $to         = $to_store->{router}   || $to_store;
 
     $from eq $to and return ();
-    if (not $from_store->{path}->{$to_store}) {
-        path_mark($from, $to, $from_store, $to_store)
-          or err_msg
-          "No valid path from $from_store->{name} to $to_store->{name}\n",
-          " while resolving $src->{name} (destination is $dst->{name}).\n",
-          " Check path restrictions and crypto interfaces.";
+    if (!$from_store->{path}->{$to_store}) {
+        if (!path_mark($from, $to, $from_store, $to_store)) {
+            err_msg("No valid path\n",
+                    " from $from_store->{name}\n",
+                    " to $to_store->{name}\n",
+                    " while resolving $src->{name}",
+                    " (destination is $dst->{name}).\n",
+                    " Check path restrictions and crypto interfaces.");
+            delete $from_store->{path}->{$to_store};
+            return;
+        }
     }
     if ($from_store->{loop_exit}
         and my $exit = $from_store->{loop_exit}->{$to_store})
