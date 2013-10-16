@@ -39,6 +39,10 @@ Show only IP address of elements
 
 Show owner of elements.
 
+=item B<-quiet>
+
+Don't print progress messages.
+
 =item B<-help>
 
 Prints a brief help message and exits.
@@ -90,6 +94,7 @@ my $show_unused;
 my $show_ip;
 my $show_name;
 my $show_owner;
+my $quiet;
 my $help;
 my $man;
 GetOptions ( 'nat=s'  => \$nat_net,
@@ -97,6 +102,7 @@ GetOptions ( 'nat=s'  => \$nat_net,
 	     'ip!'    => \$show_ip,
 	     'name!'  => \$show_name,
              'owner!' => \$show_owner,
+             'quiet!' => \$quiet,
 	     'help|?' => \$help,
 	     man => \$man,
 	     ) or pod2usage(2);
@@ -110,6 +116,8 @@ my $name = shift @ARGV or pod2usage(2);
 ####################################################################
 # Main program
 ####################################################################
+
+&set_config({ verbose => !$quiet });
 
 # Parse group definition(s).
 $Netspoc::input = $name;
