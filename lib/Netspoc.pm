@@ -2784,27 +2784,27 @@ sub cache_anonymous_protocol {
 sub read_simple_protocol {
     my $name     = shift;
     my $protocol = {};
-    if (check 'ip') {
+    my $proto = read_identifier();
+    if ($proto eq 'ip') {
         $protocol->{proto} = 'ip';
     }
-    elsif (check 'tcp') {
+    elsif ($proto eq 'tcp') {
         $protocol->{proto} = 'tcp';
         read_port_ranges($protocol);
     }
-    elsif (check 'udp') {
+    elsif ($proto eq 'udp') {
         $protocol->{proto} = 'udp';
         read_port_ranges $protocol;
     }
-    elsif (check 'icmp') {
+    elsif ($proto eq 'icmp') {
         $protocol->{proto} = 'icmp';
         read_icmp_type_code $protocol;
     }
-    elsif (check 'proto') {
+    elsif ($proto eq 'proto') {
         read_proto_nr $protocol;
     }
     else {
-        my $string = read_name;
-        error_atline("Unknown protocol '$string'");
+        error_atline("Unknown protocol '$proto'");
     }
     if ($name) {
         $protocol->{name} = $name;
