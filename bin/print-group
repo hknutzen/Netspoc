@@ -173,7 +173,9 @@ if ($show_unused) {
 }
 
 # Collect IP address, mask and name.
-my @info = map { my $v = Netspoc::address($_, $no_nat_set); 
+my @info = map { my $v = is_autointerface($_) 
+                       ? [ -1, -1] 
+                       : Netspoc::address($_, $no_nat_set); 
 		 $v->[2] = $_->{name};
                  $v->[3] = $_->{owner}->{name} if $show_owner && $_->{owner};
 		 $v } @$elements;
@@ -185,8 +187,13 @@ for my $aref (sort { $a->[0] <=> $b->[0] } @info) {
     my ($ip, $mask, $name, $owner) = @$aref;
     my @result;
     if ($show_ip) {
-	my $prefix = Netspoc::mask2prefix($mask);
-	push @result, (print_ip($ip) . ($prefix == 32 ? '' : "/$prefix"));
+        if (-1 == $ip) {
+            push @result, 'unknown';
+        }
+        else {
+            my $prefix = Netspoc::mask2prefix($mask);
+            push @result, (print_ip($ip) . ($prefix == 32 ? '' : "/$prefix"));
+        }
     }
     if ($show_name) {
         push @result, $name;
