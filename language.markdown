@@ -848,3 +848,39 @@ Netspoc generates optimized code using object-groups for Cisco ASA and
 PIX firewalls.  Use router attribute `no_group_code` to disable this
 optimization.
 
+## Defining crypto tunnels
+
+A crypto tunnel between two interfaces is defined by marking one
+interface with attribute `hub` and the other one with attribute
+`spoke`. The value of both attributes is the name of a crypto
+type. This name is used for two purposes:
+
+1. Hub and spoke definitions using the same crypto type are linked together.
+2. Technical details of the crypto tunnel are defined in the 
+   corresponding crypto defintion.
+
+A large number of crypto tunnels of a hub and spoke topology can be
+defined easily.  If only a single tunnel is needed, one interface is
+arbitrarily marked as hub.
+
+Define two hubs for a redundant pair of VPN hubs.
+
+Encrypted VPN tunnels are supported for
+
+- remote access by tele worker with software VPN client,
+- remote access from remote office with hardware VPN client or
+- LAN to LAN tunnel.
+
+
+### Access lists at crypto tunnels
+
+For ASA,VPN devices, filtering of incoming traffic of crypto tunnels
+is done with a per vpn-filter. Use attribute `no_crypto_filter` to
+enable "no sysopt connection permit-vpn" which switches to filter the
+VPN traffic at the interface ACL. This attribute must be activated, if
+statefull filtering is needed.
+
+For IOS routers from version 12.3(8)T up, a separate access-list is used
+for filtering incoming traffic of crypto tunnels. Use
+attribute `no_crypto_filter` to enable the old behavior where
+crypto traffic is filtered by access-lists of interfaces.
