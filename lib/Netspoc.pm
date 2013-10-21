@@ -11213,6 +11213,7 @@ sub check_supernet_rules {
 sub gen_reverse_rules1  {
     my ($rule_aref) = @_;
     my @extra_rules;
+    my %cache;
     for my $rule (@$rule_aref) {
         if ($rule->{deleted}) {
             my $src = $rule->{src};
@@ -11234,41 +11235,48 @@ sub gen_reverse_rules1  {
         #   wrong results.
         next if $proto eq 'tcp' and $rule->{action} eq 'deny';
 
-        my $has_stateless_router;
-      PATH_WALK:
-        {
+        my $src = $rule->{src};
+        my $dst = $rule->{dst};
+        my $from_store = $obj2path{$src} || get_path $src;
+        my $to_store   = $obj2path{$dst} || get_path $dst;
+        my $has_stateless_router = $cache{$from_store}->{$to_store};
+        if (!defined $has_stateless_router) {
+          PATH_WALK:
+            {
 
-            # Local function.
-            # It uses free variable $has_stateless_router.
-            my $mark_reverse_rule = sub {
-                my ($rule, $in_intf, $out_intf) = @_;
+                # Local function.
+                # It uses free variable $has_stateless_router.
+                my $mark_reverse_rule = sub {
+                    my ($rule, $in_intf, $out_intf) = @_;
 
-                # Destination of current rule is current router.
-                # Outgoing packets from a router itself are never filtered.
-                # Hence we don't need a reverse rule for current router.
-                return if not $out_intf;
-                my $router = $out_intf->{router};
+                    # Destination of current rule is current router.
+                    # Outgoing packets from a router itself are never filtered.
+                    # Hence we don't need a reverse rule for current router.
+                    return if not $out_intf;
+                    my $router = $out_intf->{router};
 
-                # It doesn't matter if a semi_managed device is stateless
-                # because no code is generated.
-                return if not $router->{managed};
-                my $model = $router->{model};
+                    # It doesn't matter if a semi_managed device is stateless
+                    # because no code is generated.
+                    return if not $router->{managed};
+                    my $model = $router->{model};
 
-                if (
-                    $model->{stateless}
+                    if (
+                        $model->{stateless}
 
-                    # Source of current rule is current router.
-                    or not $in_intf and $model->{stateless_self}
-                  )
-                {
-                    $has_stateless_router = 1;
+                        # Source of current rule is current router.
+                        or not $in_intf and $model->{stateless_self}
+                        )
+                    {
+                        $has_stateless_router = 1;
 
-                    # Jump out of path_walk.
-                    no warnings "exiting";	## no critic (ProhibitNoWarn)
-                    last PATH_WALK if $use_nonlocal_exit;
-                }
-            };
-            path_walk($rule, $mark_reverse_rule);
+                        # Jump out of path_walk.
+                        no warnings "exiting"; ## no critic (ProhibitNoWarn)
+                        last PATH_WALK if $use_nonlocal_exit;
+                    }
+                };
+                path_walk($rule, $mark_reverse_rule);
+            }
+            $cache{$from_store}->{$to_store} = $has_stateless_router || 0;
         }
         if ($has_stateless_router) {
             my $new_src_range;
