@@ -67,6 +67,9 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ owner = <name>;            ]
          [ policy_distribution_point; ]
          <host NAT> *
+         [ managed;                   ]
+         [ model = Linux;             ]
+         [ hardware = <external name>;]
       }
 
     <host NAT> ::= nat:<name> = { ip = <ip>; }
@@ -76,8 +79,8 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     <router definition> ::=
       router:<name>[@<VRF-name>] = {
          [ <description> ]
-         managed; | managed = <filter type>;
-         model = <model>;
+         [ managed; | managed = <filter type>;         ]
+         [ model = <model>;                           ]
          [ filter_only = <ip-prefix>(, <ip-prefix>)*; ]
          [ routing = ( EIGRP | OSPF | manual );       ]
          [ no_group_code;    ]
@@ -136,9 +139,10 @@ here `<object set>` must expand to networks.
       any:<name> = { 
          [ <description> ]
          link = ( network:<name> | router:<name> ); 
-         [ ip = <ip-net>;  ]
-         [ owner = <name>; ]
-         [ no_in_acl;      ]
+         [ ip = <ip-net>;     ]
+         [ owner = <name>;    ]
+         [ has_unenforceable; ]
+         [ no_in_acl;         ]
       }
 
 ## Area definition
@@ -177,7 +181,7 @@ where `<network NAT>` must be hidden or dynamic.
       interface:<name>."["<selector>"]"
     | interface:"[" [ managed & ] <object set with area>"]"."["<selector>"]"
     | network:"["<object set with area>"]"
-    | any:"["<object set with area>"]"
+    | any:"[" [ ip = <ip-net> & ] <object set with area>"]"
     | host:"["<object set with area>"]"
 
     <selector> ::= auto | all
@@ -229,6 +233,7 @@ where `<network NAT>` must be hidden or dynamic.
          [ multi_owner;               ]
          [ unknown_owner;             ]
          [ sub_owner = <name>;        ]
+         [ has_unenforceable;         ]
          [ overlaps = service:<name>(, service:<name>)*; ]
          user = [ foreach ] <object set>;
          <rule> * 

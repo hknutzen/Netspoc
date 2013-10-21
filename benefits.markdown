@@ -14,7 +14,7 @@ layout: default
 
 1. Optimized code is generated.
 
-1. The compiler is optimzed for speed. It is scalable to 
+1. The compiler is optimized for speed. It is scalable to 
    large installations with 
    more than 1000 managed devices 
    and thousands of rulesets.
