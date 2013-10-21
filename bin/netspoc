@@ -200,10 +200,10 @@ my $file_config = &read_config($in_path);
 &order_protocols();
 &link_topology();
 &mark_disabled();
-&distribute_nat_info();
 &set_zone();
+&distribute_nat_info();
 &setpath();
-&find_subnets();
+Netspoc::find_subnets_in_zone();
 &set_service_owner();
 &expand_services(1);	# 1: expand hosts to subnets
 # Abort now, if there are syntax errors and simple semantic errors.

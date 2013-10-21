@@ -131,9 +131,11 @@ network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 network:B = { ip = 10.3.3.128/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 
 router:ras = {
- interface:A = { ip = 10.3.3.121;}
- interface:B = { ip = 10.3.3.129;}
- interface:Trans = { ip = 10.1.1.2; bind_nat = C;}
+ managed;
+ model = IOS_FW;
+ interface:A = { ip = 10.3.3.121; hardware = Fe0; }
+ interface:B = { ip = 10.3.3.129; hardware = Fe1; }
+ interface:Trans = { ip = 10.1.1.2; bind_nat = C; hardware = Fe2; }
 }
 
 network:Trans = { ip = 10.1.1.0/24;}
