@@ -85,7 +85,7 @@ use open qw(:std :utf8);
 use utf8;
 use Encode;
 
-our $VERSION = '3.037'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.038'; # VERSION: inserted by DZP::OurPkgVersion
 my $filename_encode = 'UTF-8';
  
 my $ignore_files = '^(raw|config|CVS|RCS|\.#.*|.*~)$';

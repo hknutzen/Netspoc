@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.037'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.038'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -2784,27 +2784,27 @@ sub cache_anonymous_protocol {
 sub read_simple_protocol {
     my $name     = shift;
     my $protocol = {};
-    if (check 'ip') {
+    my $proto = read_identifier();
+    if ($proto eq 'ip') {
         $protocol->{proto} = 'ip';
     }
-    elsif (check 'tcp') {
+    elsif ($proto eq 'tcp') {
         $protocol->{proto} = 'tcp';
         read_port_ranges($protocol);
     }
-    elsif (check 'udp') {
+    elsif ($proto eq 'udp') {
         $protocol->{proto} = 'udp';
         read_port_ranges $protocol;
     }
-    elsif (check 'icmp') {
+    elsif ($proto eq 'icmp') {
         $protocol->{proto} = 'icmp';
         read_icmp_type_code $protocol;
     }
-    elsif (check 'proto') {
+    elsif ($proto eq 'proto') {
         read_proto_nr $protocol;
     }
     else {
-        my $string = read_name;
-        error_atline("Unknown protocol '$string'");
+        error_atline("Unknown protocol '$proto'");
     }
     if ($name) {
         $protocol->{name} = $name;
@@ -9541,6 +9541,9 @@ sub cluster_path_mark  {
         }
         delete $from->{active_path};
 
+        # Don't store incomplete result.
+        last BLOCK if not $success;
+
         # Convert { intf->intf->node_type } to [ intf, intf, node_type ]
         my $tuples_aref = [];
         for my $in_intf_ref (keys %$path_tuples) {
@@ -9781,12 +9784,16 @@ sub path_walk {
     $from and $to or internal_err(print_rule $rule);
     $from eq $to and internal_err("Unenforceable:\n ", print_rule $rule);
 
-    if (not($path_store->{path}->{$to_store})) {
-        path_mark($from, $to, $from_store, $to_store)
-          or err_msg
-          "No valid path from $from_store->{name} to $to_store->{name}\n",
-          " for rule ", print_rule $rule, "\n",
-          " Check path restrictions and crypto interfaces.";
+    if (!$path_store->{path}->{$to_store}) {
+        if (!path_mark($from, $to, $from_store, $to_store)) {
+            err_msg("No valid path\n",
+                    " from $from_store->{name}\n",
+                    " to $to_store->{name}\n",
+                    " for rule ", print_rule($rule), "\n",
+                    " Check path restrictions and crypto interfaces.");
+            delete $path_store->{path}->{$to_store};
+            return;
+        }
     }
     my $in = undef;
     my $out;
@@ -9909,12 +9916,17 @@ sub path_auto_interfaces {
     my $to         = $to_store->{router}   || $to_store;
 
     $from eq $to and return ();
-    if (not $from_store->{path}->{$to_store}) {
-        path_mark($from, $to, $from_store, $to_store)
-          or err_msg
-          "No valid path from $from_store->{name} to $to_store->{name}\n",
-          " while resolving $src->{name} (destination is $dst->{name}).\n",
-          " Check path restrictions and crypto interfaces.";
+    if (!$from_store->{path}->{$to_store}) {
+        if (!path_mark($from, $to, $from_store, $to_store)) {
+            err_msg("No valid path\n",
+                    " from $from_store->{name}\n",
+                    " to $to_store->{name}\n",
+                    " while resolving $src->{name}",
+                    " (destination is $dst->{name}).\n",
+                    " Check path restrictions and crypto interfaces.");
+            delete $from_store->{path}->{$to_store};
+            return;
+        }
     }
     if ($from_store->{loop_exit}
         and my $exit = $from_store->{loop_exit}->{$to_store})
@@ -11201,6 +11213,7 @@ sub check_supernet_rules {
 sub gen_reverse_rules1  {
     my ($rule_aref) = @_;
     my @extra_rules;
+    my %cache;
     for my $rule (@$rule_aref) {
         if ($rule->{deleted}) {
             my $src = $rule->{src};
@@ -11222,41 +11235,48 @@ sub gen_reverse_rules1  {
         #   wrong results.
         next if $proto eq 'tcp' and $rule->{action} eq 'deny';
 
-        my $has_stateless_router;
-      PATH_WALK:
-        {
+        my $src = $rule->{src};
+        my $dst = $rule->{dst};
+        my $from_store = $obj2path{$src} || get_path $src;
+        my $to_store   = $obj2path{$dst} || get_path $dst;
+        my $has_stateless_router = $cache{$from_store}->{$to_store};
+        if (!defined $has_stateless_router) {
+          PATH_WALK:
+            {
 
-            # Local function.
-            # It uses free variable $has_stateless_router.
-            my $mark_reverse_rule = sub {
-                my ($rule, $in_intf, $out_intf) = @_;
+                # Local function.
+                # It uses free variable $has_stateless_router.
+                my $mark_reverse_rule = sub {
+                    my ($rule, $in_intf, $out_intf) = @_;
 
-                # Destination of current rule is current router.
-                # Outgoing packets from a router itself are never filtered.
-                # Hence we don't need a reverse rule for current router.
-                return if not $out_intf;
-                my $router = $out_intf->{router};
+                    # Destination of current rule is current router.
+                    # Outgoing packets from a router itself are never filtered.
+                    # Hence we don't need a reverse rule for current router.
+                    return if not $out_intf;
+                    my $router = $out_intf->{router};
 
-                # It doesn't matter if a semi_managed device is stateless
-                # because no code is generated.
-                return if not $router->{managed};
-                my $model = $router->{model};
+                    # It doesn't matter if a semi_managed device is stateless
+                    # because no code is generated.
+                    return if not $router->{managed};
+                    my $model = $router->{model};
 
-                if (
-                    $model->{stateless}
+                    if (
+                        $model->{stateless}
 
-                    # Source of current rule is current router.
-                    or not $in_intf and $model->{stateless_self}
-                  )
-                {
-                    $has_stateless_router = 1;
+                        # Source of current rule is current router.
+                        or not $in_intf and $model->{stateless_self}
+                        )
+                    {
+                        $has_stateless_router = 1;
 
-                    # Jump out of path_walk.
-                    no warnings "exiting";	## no critic (ProhibitNoWarn)
-                    last PATH_WALK if $use_nonlocal_exit;
-                }
-            };
-            path_walk($rule, $mark_reverse_rule);
+                        # Jump out of path_walk.
+                        no warnings "exiting"; ## no critic (ProhibitNoWarn)
+                        last PATH_WALK if $use_nonlocal_exit;
+                    }
+                };
+                path_walk($rule, $mark_reverse_rule);
+            }
+            $cache{$from_store}->{$to_store} = $has_stateless_router || 0;
         }
         if ($has_stateless_router) {
             my $new_src_range;

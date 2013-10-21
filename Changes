@@ -1,3 +1,12 @@
+3.038     2013-10-21 16:23:09 Europe/Berlin
+
+ - print-group no longer aborts when printing IP address of auto interface, 
+   but prints "unknown".
+ - print-group now supports option "-quiet".
+ - Better error handling.
+ - Improved runtime performance when generating reverse rules 
+   for stateless routers.
+
 3.037     2013-10-01 18:29:12 Europe/Berlin
 
  - Added support for managed Linux hosts to generate ACLs for servers.
