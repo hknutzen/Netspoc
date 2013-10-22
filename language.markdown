@@ -505,10 +505,11 @@ simplifies definition of NAT for devices with multiple interfaces.
 For dynamic NAT, multiple networks can use identical NAT definitions. This
 is used to masquerade multiple networks to a single address space.
 
-A global NAT definition can be used as a shortcut for applying multiple
-identical dynamic NAT definitions to all networks located *in front of* that
-interface where the NAT binding with this name occurs.
-
+Use dynamic NAT as attribute of an area definition, to apply the same
+NAT definition to all networks located inside the area. If some
+networks of the area already have a NAT defintion with the same name,
+the original definition is retained.  Use identity NAT at network
+level to exempt some network from NAT at area level.
 
 Netspoc needs to know about NAT for this reasons:
 
