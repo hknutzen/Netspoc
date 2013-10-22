@@ -855,7 +855,7 @@ sub export_owners {
     
         # Add master owner to other owners not having extended_by, 
         # i.e. sub_owner
-        if ($master_owner) {
+        if ($master_owner && $name ne $master_owner) {
             my $m_owner = $Netspoc::owners{$master_owner};
             for my $email ( @{ $m_owner->{admins} } ) {
                 $email2owners{$email}->{$name} = $name;
