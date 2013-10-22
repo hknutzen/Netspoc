@@ -905,3 +905,18 @@ For IOS routers from version 12.3(8)T up, a separate access-list is used
 for filtering incoming traffic of crypto tunnels. Use
 attribute `no_crypto_filter` to enable the old behavior where
 crypto traffic is filtered by access-lists of interfaces.
+
+
+## Changing default values of command line switches
+
+The behavior of Netspoc can be adjusted using command line switches. 
+See `man netspoc` for details.
+
+You can change values for command line switches permanently for a
+project by adding a file named "config" in the toplevel directory of
+the Netspoc configuration. 
+
+Format of the "config" file:
+
+- Assignment `key = value;`. See `man netspoc` for valid keys / value pairs.
+- Comment lines:  <code># ...</code>
