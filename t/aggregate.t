@@ -374,8 +374,6 @@ Warning: Redundant rules in service:test compared to service:test:
 < permit src=any:[ip=10.1.0.0/16 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
 END
 
-$head1 = (split /\n/, $out1)[0];
-
 eq_or_diff(compile_err($in), $out1, $title);
 
 ############################################################
@@ -409,7 +407,45 @@ Warning: Redundant rules in service:test compared to service:test:
 < permit src=any:[ip=10.1.0.0/16 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
 END
 
-$head1 = (split /\n/, $out1)[0];
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'Redundant matching aggregates as subnet of network';
+############################################################
+
+$in = <<END;
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Kunde = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+
+network:Kunde = { ip = 10.1.1.0/24; }
+
+service:test1 = {
+ user = any:[ip=10.9.1.0/26 & network:Test],
+        network:Test;
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+
+service:test2 = {
+ user = any:[ip=10.9.1.0/25 & network:Test];
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Warning: Redundant rules in service:test1 compared to service:test2:
+ Files: STDIN STDIN
+  permit src=any:[ip=10.9.1.0/26 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
+< permit src=any:[ip=10.9.1.0/25 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test2
+Warning: Redundant rules in service:test2 compared to service:test1:
+ Files: STDIN STDIN
+  permit src=any:[ip=10.9.1.0/25 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test2
+< permit src=network:Test; dst=network:Kunde; prt=tcp 80; of service:test1
+END
 
 eq_or_diff(compile_err($in), $out1, $title);
 
