@@ -8153,21 +8153,36 @@ sub link_implicit_aggregate_to_zone {
         my @other_agg = grep({ my $n = $_->{networks}; !$n || !@$n; } 
                              values %{ $zone->{ipmask2aggregate} });
 
-        # Aggregates which are subnet of new aggregate.
-        my @sub_agg = grep({ $mask < $_->{mask} && 
-                                 match_ip($_->{ip}, $ip, $mask) } @other_agg);
-        return if !@sub_agg;
+        # Found aggregates which are subnet of new aggregate.
+        # Insert new aggregate between subnet and the next larger element.
+        if (my @sub_agg = grep({ $mask < $_->{mask} && 
+                                 match_ip($_->{ip}, $ip, $mask) } @other_agg))
+        {
 
-        # Sort by mask to find some largest subnet.
-        my @sorted = sort { $a->{mask} <=> $b->{mask} } @sub_agg;
-        my ($largest) = @sorted;
+            # Sort by mask to find some largest subnet.
+            my @sorted = sort { $a->{mask} <=> $b->{mask} } @sub_agg;
+            my ($largest) = @sorted;
 
-        # Find all subnets pointing to the same larger element.
-        # Thus we exclude all sub-subnets.
-        my $up = $largest->{up} || '';
-        my @direct_sub = grep { $_->{up} || '' eq $up } @sorted;
-        $aggregate->{up} = $up if $up;
-        $_->{up} = $aggregate for @direct_sub;
+            # Find all subnets pointing to the same next larger element.
+            # Thus we exclude all sub-subnets.
+            my $up = $largest->{up} || '';
+            my @direct_sub = grep { $_->{up} || '' eq $up } @sub_agg;
+            $aggregate->{up} = $up if $up;
+            $_->{up} = $aggregate for @direct_sub;
+        }
+
+        # Found aggregates which are supernet of new aggregate.
+        # Insert new aggregate below smallest supernet.
+        elsif(my @sup_agg = grep({ $mask > $_->{mask} && 
+                                       match_ip($ip, $_->{ip}, $_->{mask}) } 
+                                 @other_agg))
+        {
+
+            # Sort reversed by mask to find smallest supernet.
+            my @sorted = sort { $b->{mask} <=> $a->{mask} } @sup_agg;
+            my ($smallest) = @sorted;
+            $aggregate->{up} = $smallest;
+        }
         return;
     };
     my $update_relation;

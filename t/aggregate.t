@@ -324,7 +324,7 @@ $head1 = (split /\n/, $out1)[0];
 eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
-$title = 'Redundant rules with nested aggregates';
+$title = 'Redundant nested aggregates';
 ############################################################
 
 $in .= <<END;
@@ -340,6 +340,76 @@ Warning: Redundant rules in service:test1 compared to service:test3:
   permit src=any:[ip=10.1.0.0/23 & network:Trans]; dst=network:Test; prt=tcp 80; of service:test1
 < permit src=any:[ip=10.1.0.0/16 & network:Trans]; dst=network:Test; prt=tcp 80; of service:test3
 END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'Redundant nested aggregates without matching network (1)';
+############################################################
+
+# Larger aggregate is inserted first.
+$in = <<END;
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Kunde = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+
+network:Kunde = { ip = 10.1.1.0/24; }
+
+service:test = {
+ user = any:[ip=10.1.0.0/16 & network:Test],
+        any:[ip=10.1.0.0/17 & network:Test],
+        ;
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Warning: Redundant rules in service:test compared to service:test:
+ Files: STDIN STDIN
+  permit src=any:[ip=10.1.0.0/17 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
+< permit src=any:[ip=10.1.0.0/16 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'Redundant nested aggregates without matching network (2)';
+############################################################
+
+# Small aggregate is inserted first.
+$in = <<END;
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Kunde = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+
+network:Kunde = { ip = 10.1.1.0/24; }
+
+service:test = {
+ user = any:[ip=10.1.0.0/17 & network:Test],
+        any:[ip=10.1.0.0/16 & network:Test],
+        ;
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Warning: Redundant rules in service:test compared to service:test:
+ Files: STDIN STDIN
+  permit src=any:[ip=10.1.0.0/17 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
+< permit src=any:[ip=10.1.0.0/16 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
+END
+
+$head1 = (split /\n/, $out1)[0];
 
 eq_or_diff(compile_err($in), $out1, $title);
 
