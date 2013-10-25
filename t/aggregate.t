@@ -344,5 +344,36 @@ END
 eq_or_diff(compile_err($in), $out1, $title);
 
 ############################################################
+$title = 'Matching aggregate of implicit aggregate';
+############################################################
+
+$in = <<END;
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Kunde = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+
+network:Kunde = { ip = 10.1.1.0/24; }
+
+service:test = {
+ user = any:[ip=10.1.0.0/16 & any:[network:Test]];
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+access-list Vlan1_in extended permit tcp 10.1.0.0 255.255.0.0 10.1.1.0 255.255.255.0 eq 80
+access-list Vlan1_in extended deny ip any any
+access-group Vlan1_in in interface Vlan1
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+
+############################################################
 
 done_testing;

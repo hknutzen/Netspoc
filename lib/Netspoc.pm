@@ -5440,7 +5440,7 @@ sub expand_group1 {
                                               @{ $object->{zones} }));
                 }
                 elsif ($type eq 'Network' && $object->{is_aggregate}) {
-                    push @objects, $object;
+                    push @objects, get_any($object->{zone}, $ip, $mask);
                 }
                 else {
                     return;
@@ -5454,8 +5454,16 @@ sub expand_group1 {
                 if ($type eq 'Host' or $type eq 'Interface') {
                     push @objects, $object->{network};
                 }
-                elsif ($type eq 'Network' && !$object->{is_aggregate}) {
-                    push @objects, $object;
+                elsif ($type eq 'Network') {
+                    if (!$object->{is_aggregate}) {
+                        push @objects, $object;
+                    }
+
+                    # Take aggregate directly. Below it would be
+                    # changed to non matching aggregate with IP 0/0.
+                    else {
+                        push @objects, @{ $object->{networks} };
+                    }
                 }
                 elsif (my $aggregates = $get_aggregates->($object, 0, 0)) {
                     push(@objects, map { @{ $_->{networks} } } @$aggregates);
