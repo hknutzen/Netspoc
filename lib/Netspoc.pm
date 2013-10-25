@@ -15091,14 +15091,13 @@ sub remove_non_local_rules {
                 for my $pair (@$filter_only) {
                     my ($i, $m) = @$pair;
 
-                    # src/dst matches filter_only.
-                    if ($mask > $m) {
-                        match_ip($ip, $i, $m) and $both_match++;
-                    }
-
+                    # src/dst matches filter_only or
                     # filter_only matches src/dst.
-                    elsif (match_ip($i, $ip, $mask)) {
+                    if ($mask > $m && match_ip($ip, $i, $m) ||
+                        match_ip($i, $ip, $mask)) 
+                    {
                         $both_match++;
+                        last;
                     }
                 }
             }
