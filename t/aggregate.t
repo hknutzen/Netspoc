@@ -450,6 +450,42 @@ END
 eq_or_diff(compile_err($in), $out1, $title);
 
 ############################################################
+$title = 'Mixed redundant matching aggregates';
+############################################################
+
+# Check for sub aggregate, even if sub-network was found
+$in = <<END;
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Kunde = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+
+network:Kunde = { ip = 10.1.1.0/24; }
+
+service:test1 = {
+ user = any:[ip=10.1.1.0/26 & network:Test];
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+
+service:test2 = {
+ user = any:[ip=10.0.0.0/8 & network:Test];
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Warning: Redundant rules in service:test1 compared to service:test2:
+ Files: STDIN STDIN
+  permit src=any:[ip=10.1.1.0/26 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
+< permit src=any:[ip=10.0.0.0/8 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test2
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
 $title = 'Matching aggregate of implicit aggregate';
 ############################################################
 
