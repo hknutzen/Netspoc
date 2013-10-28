@@ -8151,7 +8151,8 @@ sub link_implicit_aggregate_to_zone {
 
         # All aggregates without any sub networks.
         my @other_agg = grep({ my $n = $_->{networks}; !$n || !@$n; } 
-                             values %{ $zone->{ipmask2aggregate} });
+                             values %{ $zone->{ipmask2aggregate} })
+            or return;
 
         # Found aggregates which are subnet of new aggregate.
         # Insert new aggregate between subnet and the next larger element.
@@ -8188,14 +8189,12 @@ sub link_implicit_aggregate_to_zone {
     my $update_relation;
     $update_relation = sub {
         my ($networks) = @_;
-        my $found;
       NETWORK:
         for my $network (@$networks) {
             my ($i, $m) = @{$network}{qw(ip mask)};
 
             # Network is subnet of aggregate.
             if ($mask < $m && match_ip($i, $ip, $mask)) {
-                $found = 1;
                 push @{ $aggregate->{networks} }, $network;
 
                 # Other aggregate where network is subnet.
@@ -8240,14 +8239,12 @@ sub link_implicit_aggregate_to_zone {
             # Aggregate is subnet of network.
             # Check sub-networks of network.
             elsif ($m < $mask && match_ip($ip, $i, $m)) {
-                $found = 1;
                 my $sub_networks = $network->{networks};
                 if ($sub_networks && @$sub_networks) {
                     $update_relation->($sub_networks);
                 }
                 else {
-                    $update_agg_relation->();
-                    $aggregate->{up} ||= $network;
+                    $aggregate->{up} = $network;
                 }
 
                 # No need to check other networks, because aggregate
@@ -8256,11 +8253,8 @@ sub link_implicit_aggregate_to_zone {
             }
         }
 
-        # Aggregate doesn't match any network.
-        # Check if other aggregate matches new aggregate.
-        if (! $found) {
-            $update_agg_relation->();
-        }
+        # Check if aggregate having no subnets, matches new aggregate.
+        $update_agg_relation->();
     };
     my $set_owner = sub {
         my $up = $aggregate->{up};
