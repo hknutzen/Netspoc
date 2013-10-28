@@ -96,10 +96,15 @@ $title = 'Implicit aggregate between 2 networks';
 $in = <<END;
 $topo
 
-service:test = {
+service:test1 = {
  user = any:[ip=10.3.3.0/26 & area:test];
  permit src = user; dst = network:Customer; prt = tcp 80;
  permit src = network:[user]; dst = network:Customer; prt = tcp 81;
+}
+service:test2 = {
+ overlaps = service:test1;
+ user = network:sub;
+ permit src = user; dst = network:Customer; prt = tcp 81;
 }
 END
 
@@ -484,6 +489,39 @@ Warning: Redundant rules in service:test1 compared to service:test2:
 END
 
 eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'Mixed implicit and explicit aggregates';
+############################################################
+
+$in = <<END;
+any:10_0_0_0    = { ip = 10.0.0.0/8;    link = network:Test; }
+any:10_253_0_0  = { ip = 10.253.0.0/16; link = network:Test; }
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Kunde = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+
+network:Kunde = { ip = 10.1.1.0/24; }
+
+service:test1 = {
+ user = any:[network:Test];
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+access-list Vlan1_in extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
+access-list Vlan1_in extended deny ip any any
+access-group Vlan1_in in interface Vlan1
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
 $title = 'Matching aggregate of implicit aggregate';
