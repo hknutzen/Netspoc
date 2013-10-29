@@ -8142,132 +8142,68 @@ sub link_aggregate_to_zone {
     return;
 }
 
-# Update relations {networks} and {up} for implicitly defined aggregates.
+# Update relations {networks}, {up} and {owner} for implicitly defined
+# aggregates.
+# Remember:
+# {up} is relation inside set of all networks and aggregates.
+# {networks} is attribute of aggregates and networks, 
+#            but value is list of networks.
 sub link_implicit_aggregate_to_zone {
     my ($aggregate, $zone, $key) = @_;
     my ($ip, $mask) = split '/', $key;
 
-    my $update_agg_relation = sub {
-
-        # All aggregates without any sub networks.
-        my @other_agg = grep({ my $n = $_->{networks}; !$n || !@$n; } 
-                             values %{ $zone->{ipmask2aggregate} })
-            or return;
-
-        # Found aggregates which are subnet of new aggregate.
-        # Insert new aggregate between subnet and the next larger element.
-        if (my @sub_agg = grep({ $mask < $_->{mask} && 
-                                 match_ip($_->{ip}, $ip, $mask) } @other_agg))
-        {
-
-            # Sort by mask to find some largest subnet.
-            my @sorted = sort { $a->{mask} <=> $b->{mask} } @sub_agg;
-            my ($largest) = @sorted;
-
-            # Find all subnets pointing to the same next larger element.
-            # Thus we exclude all sub-subnets.
-            my $up = $largest->{up} || '';
-            my @direct_sub = grep { $_->{up} || '' eq $up } @sub_agg;
-            $aggregate->{up} = $up if $up;
-            $_->{up} = $aggregate for @direct_sub;
-        }
-
-        # Found aggregates which are supernet of new aggregate.
-        # Insert new aggregate below smallest supernet.
-        elsif(my @sup_agg = grep({ $mask > $_->{mask} && 
-                                       match_ip($ip, $_->{ip}, $_->{mask}) } 
-                                 @other_agg))
-        {
-
-            # Sort reversed by mask to find smallest supernet.
-            my @sorted = sort { $b->{mask} <=> $a->{mask} } @sup_agg;
-            my ($smallest) = @sorted;
-            $aggregate->{up} = $smallest;
-        }
-        return;
+    # Collect all aggregates, networks and subnets of current zone.
+    my @objects = values %{ $zone->{ipmask2aggregate} };
+    my $add_subnets;
+    $add_subnets = sub {
+        my ($network) = @_;
+        my $subnets = $network->{networks} or return;
+        push @objects, @$subnets;
+        $add_subnets->($_) for @$subnets;
     };
-    my $update_relation;
-    $update_relation = sub {
-        my ($networks) = @_;
-      NETWORK:
-        for my $network (@$networks) {
-            my ($i, $m) = @{$network}{qw(ip mask)};
+    push @objects, @{ $zone->{networks} };
+    $add_subnets->($_) for @{ $zone->{networks} };
+    
+    # Collect all objects being larger and smaller than new aggregate.
+    my @larger  = grep { $_->{mask} < $mask } @objects;
+    my @smaller = grep { $_->{mask} > $mask } @objects;
 
-            # Network is subnet of aggregate.
-            if ($mask < $m && match_ip($i, $ip, $mask)) {
-                push @{ $aggregate->{networks} }, $network;
+    # Find subnets of new aggregate.
+    for my $obj (@smaller) {
+        my ($i, $m) = @{$obj}{qw(ip mask)};
+        match_ip($i, $ip, $mask) or next;
 
-                # Other aggregate where network is subnet.
-                my $up = $network->{up};
-
-                # Network isn't subnet of any other aggregate.
-                if (! $up) {
-                    $network->{up} = $aggregate;
-                    next NETWORK;
-                }
-            
-                my ($u_ip, $u_mask) = @{$up}{qw(ip mask)};
-
-                # New aggregate is subnet of other aggregate.
-                if ($u_mask < $mask && match_ip($ip, $u_ip, $u_mask)) {
-                    $aggregate->{up} = $up;
-                    $network->{up} = $aggregate;
-                    next NETWORK;
-                }
-
-                # Other aggregate is subnet of new aggregate.
-                # Find largest {up}, still contained in new aggregate.
-                my $up2;
-                while($up2 = $up->{up}) {
-
-                    # Aggregate has already been inserted before, 
-                    # when processing some other network of zone.
-                    if ($up2 eq $aggregate) {
-                        next NETWORK;
-                    }
-                    my ($u2_ip, $u2_mask) = @{$up2}{qw(ip mask)};
-                    if ($mask < $u2_mask && match_ip($u2_ip, $ip, $mask)) {
-                        $up = $up2;
-                        next;
-                    }
-                    last;
-                }
-                $aggregate->{up} = $up2 if $up2;
-                $up->{up} = $aggregate;
-            }
-
-            # Aggregate is subnet of network.
-            # Check sub-networks of network.
-            elsif ($m < $mask && match_ip($ip, $i, $m)) {
-                my $sub_networks = $network->{networks};
-                if ($sub_networks && @$sub_networks) {
-                    $update_relation->($sub_networks);
-                }
-                else {
-                    $aggregate->{up} = $network;
-                }
-
-                # No need to check other networks, because aggregate
-                # can't be subnet of multiple networks.
-                last NETWORK;
-            }
+        # Ignore sub-subnets, i.e. supernet is smaller than new aggregate.
+        if (my $up = $obj->{up}) {
+            last if $up->{mask} >= $mask;
         }
+        $obj->{up} = $aggregate;
+#        debug "$obj->{name} -up1-> $aggregate->{name}";
+        push(@{ $aggregate->{networks} }, 
+             $obj->{is_aggregate} ? @{ $obj->{networks} } : $obj);
+    }
 
-        # Check if aggregate having no subnets, matches new aggregate.
-        $update_agg_relation->();
-    };
-    my $set_owner = sub {
-        my $up = $aggregate->{up};
-        my $owner;
-        while ($up) {
-            $owner = $up->{owner} and last;
-            $up = $up->{up};
-        }
-        $owner ||= $zone->{owner};
-        $aggregate->{owner} = $owner;
-    };
-    $update_relation->($zone->{networks});
-    $set_owner->();
+    # Find supernet of new aggregate.
+    # Iterate from smaller to larger supernets.
+    # Stop after smallest supernet has been found.
+    for my $obj (sort { $a->{mask} < $b->{mask} } @larger) {
+        my ($i, $m) = @{$obj}{qw(ip mask)};
+        match_ip($ip, $i, $m) or next;
+        $aggregate->{up} = $obj;
+#        debug "$aggregate->{name} -up2-> $obj->{name}";
+        last;
+    }
+
+    # Inherit owner from smallest supernet having owner or from zone.
+    my $up = $aggregate->{up};
+    my $owner;
+    while ($up) {
+        $owner = $up->{owner} and last;
+        $up = $up->{up};
+    }
+    $owner ||= $zone->{owner};
+    $owner and $aggregate->{owner} = $owner;
+
     link_aggregate_to_zone($aggregate, $zone, $key);
     return;
 }
