@@ -45,11 +45,9 @@ our @EXPORT = qw(
   %interfaces
   %networks
   %hosts
-  %zones
   %owners
   %areas
   %pathrestrictions
-  %global_nat
   %groups
   %protocols
   %protocolgroups
