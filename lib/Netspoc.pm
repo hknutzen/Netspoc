@@ -16828,8 +16828,8 @@ sub print_interface {
         }
         my $name = $hardware->{name};
 
-        # Split name for NX-OS: "ethernet3/4" -> "ethernet 3/4"
-#        $name =~ s/(\d+)/ $1/ if ($class eq 'NX-OS');
+        # Split name for ACE: "vlan3029" -> "vlan 3029"
+        $name =~ s/(\d+)/ $1/ if ($class eq 'ACE');
 
         print "interface $name\n";
         for my $cmd (@subcmd) {
