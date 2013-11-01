@@ -7671,6 +7671,11 @@ sub find_subnets_in_zone {
         # Remove subnets of non-aggregate networks.
         $zone->{networks} = 
             [ grep { !$_->{max_up_net} } @{ $zone->{networks} } ];
+
+        # Propagate managed hosts to aggregates.
+        for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
+            add_managed_hosts_to_aggregate($aggregate);
+        } 
     }
 
     # It is valid to have an aggregate in a zone which has no matching
@@ -8164,6 +8169,34 @@ sub link_reroute_permit {
     return;  
 }
 
+sub add_managed_hosts_to_aggregate {
+    my ($aggregate) = @_;
+
+    # Collect managed hosts of sub-networks.
+    my $networks = $aggregate->{networks};
+    if (@$networks) {
+        for my $network (@$networks) {
+            my $managed_hosts = $network->{managed_hosts} or next;
+            push(@{ $aggregate->{managed_hosts} }, @$managed_hosts);
+        }
+    }
+    
+    # Collect matching managed hosts of all networks of zone.
+    # Ignore sub-networks of aggregate, because they would have been
+    # found in $networks above.
+    else {
+        my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
+        my $zone = $aggregate->{zone};
+        for my $network (@{ $zone->{networks} }) {
+            next if $network->{mask} > $mask ;
+            my $managed_hosts = $network->{managed_hosts} or next;
+            push(@{ $aggregate->{managed_hosts} }, 
+                 grep { match_ip($_->{ip}, $ip, $mask) } @$managed_hosts);
+        }
+    }
+    return;
+}
+
 ####################################################################
 # Borders of security zones are
 # a) interfaces of managed devices and
@@ -8185,28 +8218,7 @@ sub link_aggregate_to_zone {
     # Must be initialized, even if aggregate contains no networks.
     # Take a new array for each aggregate, otherwise we would share
     # the same array between different aggregates.
-    my $networks = $aggregate->{networks} ||= [];
-
-    # Collect managed hosts of sub-networks.
-    if (@$networks) {
-        for my $network (@$networks) {
-            my $managed_hosts = $network->{managed_hosts} or next;
-            push(@{ $aggregate->{managed_hosts} }, @$managed_hosts);
-        }
-    }
-    
-    # Collect matching managed hosts of all networks of zone.
-    # Ignore sub-networks of aggregate, because they would have been
-    # found in $networks above.
-    else {
-        my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
-        for my $network (@{ $zone->{networks} }) {
-            next if $network->{mask} > $mask ;
-            my $managed_hosts = $network->{managed_hosts} or next;
-            push(@{ $aggregate->{managed_hosts} }, 
-                 grep { match_ip($_->{ip}, $ip, $mask) } @$managed_hosts);
-        }
-    }
+    $aggregate->{networks} ||= [];
 
     if ($zone->{disabled}) {
         $aggregate->{disabled} = 1;
@@ -8280,6 +8292,7 @@ sub link_implicit_aggregate_to_zone {
     $owner and $aggregate->{owner} = $owner;
 
     link_aggregate_to_zone($aggregate, $zone, $key);
+    add_managed_hosts_to_aggregate($aggregate);
     return;
 }
 
