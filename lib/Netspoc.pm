@@ -1549,6 +1549,9 @@ sub read_network {
                 $host->{network} = $network;
                 push @{ $network->{interfaces} }, $host;
                 check_interface_ip($host, $network);
+
+                # For use in expand_group.
+                push @{ $network->{managed_hosts} }, $host;
             }
             else {
                 internal_err;
@@ -5650,9 +5653,33 @@ sub expand_group1 {
     return \@objects;
 }
 
+# Remove and warn about duplicate values in group.
+# Remove undefined values as well.
+sub remove_duplicates {
+    my ($aref, $context) = @_;
+    my %seen;
+    my @duplicate;
+    for my $obj (@$aref) {
+        next if not defined $obj;
+        if ($seen{$obj}++) {
+            push @duplicate, $obj;
+            $obj = undef;
+        }
+    }
+    if (@duplicate) {
+        my $msg = "Duplicate elements in $context:\n "
+          . join("\n ", map { $_->{name} } @duplicate);
+        warn_msg($msg);
+    }
+    $aref = [ grep { defined $_ } @$aref ];
+    return $aref;
+}
+
 sub expand_group {
     my ($obref, $context, $convert_hosts) = @_;
     my $aref = expand_group1 $obref, $context, 'clean_autogrp';
+
+    # Ignore unusable objects.
     for my $object (@$aref) {
         my $ignore;
         if ($object->{disabled}) {
@@ -5680,22 +5707,8 @@ sub expand_group {
         }
     }
 
-    # Detect and remove duplicate values in group.
-    my %unique;
-    my @duplicate;
-    for my $obj (@$aref) {
-        next if not defined $obj;
-        if ($unique{$obj}++) {
-            push @duplicate, $obj;
-            $obj = undef;
-        }
-    }
-    if (@duplicate) {
-        my $msg = "Duplicate elements in $context:\n "
-          . join("\n ", map { $_->{name} } @duplicate);
-        warn_msg($msg);
-    }
-    $aref = [ grep { defined $_ } @$aref ];
+    $aref = remove_duplicates($aref, $context);
+
     if ($convert_hosts) {
         my @subnets;
         my %subnet2host;
@@ -5997,6 +6010,21 @@ sub expand_special  {
     return @result;
 }
 
+# Add managed hosts of networks and aggregates.
+sub add_managed_hosts {
+    my ($aref, $context) = @_;
+    my @extra;
+    for my $object (@$aref) {
+        my $managed_hosts = $object->{managed_hosts} or next;
+        push @extra, @$managed_hosts;
+    }
+    if (@extra) {
+        push @$aref, @extra;
+        $aref = remove_duplicates($aref, $context);
+    }
+    return $aref;
+}
+
 # This handles a rule between objects inside a single security zone or
 # between interfaces of a single managed router.
 # Show warning or error message if rule is between
@@ -6056,8 +6084,14 @@ sub collect_unenforceable  {
         # group:some_networks -> any:[group:some_networks]
         return if zone_eq($src->{zone}, get_zone($dst))
     }
-    elsif($dst->{is_aggregate} && $dst->{mask} == 0 ) {
+    elsif ($dst->{is_aggregate} && $dst->{mask} == 0 ) {
         return if zone_eq($dst->{zone}, get_zone($src))
+    }
+    elsif ($dst->{managed_hosts}) {
+
+        # Network or aggregate was only used for its managed_hosts
+        # to be added automatically in expand_group.
+        return;
     }
     $service->{seen_unenforceable}->{$src}->{$dst} ||= [ $src, $dst ];
     return;
@@ -6292,9 +6326,10 @@ sub expand_rules {
             my $src =
               expand_group($unexpanded->{src}, "src of rule in $context",
                 $convert_hosts);
+            my $dst_context =  "dst of rule in $context";
             my $dst =
-              expand_group($unexpanded->{dst}, "dst of rule in $context",
-                $convert_hosts);
+              expand_group($unexpanded->{dst}, $dst_context, $convert_hosts);
+            $dst = add_managed_hosts($dst, $dst_context);
             for my $prt (@$prt_list) {
                 my $flags = $prt->{flags};
 
@@ -8129,7 +8164,28 @@ sub link_aggregate_to_zone {
     # Must be initialized, even if aggregate contains no networks.
     # Take a new array for each aggregate, otherwise we would share
     # the same array between different aggregates.
-    $aggregate->{networks} ||= [];
+    my $networks = $aggregate->{networks} ||= [];
+
+    # Collect managed hosts of sub-networks.
+    if (@$networks) {
+        for my $network (@$networks) {
+            my $managed_hosts = $network->{managed_hosts} or next;
+            push(@{ $aggregate->{managed_hosts} }, @$managed_hosts);
+        }
+    }
+    
+    # Collect matching managed hosts of all networks of zone.
+    # Ignore sub-networks of aggregate, because they would have been
+    # found in $networks above.
+    else {
+        my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
+        for my $network (@{ $zone->{networks} }) {
+            next if $network->{mask} > $mask ;
+            my $managed_hosts = $network->{managed_hosts} or next;
+            push(@{ $aggregate->{managed_hosts} }, 
+                 grep { match_ip($_->{ip}, $ip, $mask) } @$managed_hosts);
+        }
+    }
 
     if ($zone->{disabled}) {
         $aggregate->{disabled} = 1;

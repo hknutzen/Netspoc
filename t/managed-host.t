@@ -22,7 +22,6 @@ service:test = {
  user = network:N;
  permit src = user; dst = host:h1; prt = tcp 80;
 }
-
 END
 
 $out1 = <<END;
@@ -50,7 +49,6 @@ service:test = {
  user = host:h2;
  permit src = user; dst = host:h1; prt = tcp 80;
 }
-
 END
 
 $out1 = <<END;
@@ -68,6 +66,110 @@ $head1 = (split /\n/, $out1)[0];
 $head2 = (split /\n/, $out2)[0];
 
 eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+
+############################################################
+$title = 'Automatically add managed host to destination network';
+############################################################
+
+$in = <<END;
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
+}
+
+service:test = {
+ user = network:N;
+ permit src = user; dst = user; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+:eth0_self -
+-A INPUT -j eth0_self -i eth0
+-A eth0_self -j ACCEPT -s 10.1.1.0/24 -d 10.1.1.10 -p tcp --dport 80
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+
+############################################################
+$title = 'Detect duplicate automatic and manual managed host';
+############################################################
+
+$in = <<END;
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
+}
+
+service:test = {
+ user = network:N, host:h1;
+ permit src = user; dst = user; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Warning: Duplicate elements in dst of rule in service:test:
+ host:h1
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'Automatically add managed host to destination aggregate ';
+############################################################
+
+$in = <<END;
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
+}
+
+service:test = {
+ user = any:[ip=10.0.0.0/8 & network:N];
+ permit src = user; dst = user; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+:eth0_self -
+-A INPUT -j eth0_self -i eth0
+-A eth0_self -j ACCEPT -s 10.0.0.0/8 -d 10.1.1.10 -p tcp --dport 80
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+
+############################################################
+$title = 'Filter managed host in destination aggregate ';
+############################################################
+
+$in = <<END;
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = Linux; ip = 10.1.1.10;  hardware = eth0; }
+ host:h2 = { managed; model = Linux; ip = 10.1.1.222; hardware = eth1; }
+}
+
+service:test = {
+ user = any:[ip=10.1.1.0/28 & network:N];
+ permit src = user; dst = user; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+:eth0_self -
+-A INPUT -j eth0_self -i eth0
+-A eth0_self -j ACCEPT -s 10.1.1.0/28 -d 10.1.1.10 -p tcp --dport 80
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
 $title = 'NAT with managed host';
