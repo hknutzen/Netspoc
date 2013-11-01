@@ -845,6 +845,7 @@ sub read_typed_name {
 # or interface:....xxx/ppp...
 # or interface:[xxx:xxx, ...].[xxx]
 # or interface:[managed & xxx:xxx, ...].[xxx]
+# or host:[managed & xxx:xxx, ...]
 # or any:[ ip = n.n.n.n/len & xxx:xxx, ...]
 # or network:xxx/ppp
 # or host:id:user@domain.network
@@ -862,12 +863,11 @@ sub read_typed_name {
         $input =~ m/\G([\w-]+):/gc or syntax_err("Type expected");
         my $type = $1;
         my $interface = $type eq 'interface';
-        my $managed;
         my $name;
         my $ext;
         if ($input =~ m/ \G \[ /gcox) {
-            if ($interface && check('managed')) {
-                $managed = 1;
+            if (($interface || $type eq 'host') && check('managed')) {
+                $ext = 1;
                 skip '&';
             }
             elsif ($type eq 'any' && check('ip')) {
@@ -900,18 +900,19 @@ sub read_typed_name {
             if ($input =~ m/ \G \[ /gcox) {
                 my $selector = read_identifier;
                 $selector =~ /^(auto|all)$/ or syntax_err("Expected [auto|all]");
-                $ext = [ $selector, $managed ];
+                $ext = [ $selector, $ext ];
                 skip '\]';
             }
             else {
+                $ext and syntax_err("Keyword 'managed' not allowed");
                 $input =~ m/ \G ( $network_regex ) /gcox
                   or syntax_err("Name or bridged name expected");
                 $ext = $1;
+
+                # ID of secondary interface.
                 if ($input =~ m/ \G \. /gcox) {
                     $ext .= '.' . read_identifier;
                 }
-                $managed
-                  and syntax_err("Keyword 'managed' not allowed");
             }
         }
         return $ext ? [ $type, $name, $ext ] : [ $type, $name ];
@@ -1283,6 +1284,7 @@ sub host_as_interface {
     my $hardware = { name => $hw_name, interfaces => [ $interface ] };
     $interface->{hardware} = $hardware;
     $interface->{routing} = $routing_info{manual};
+    $interface->{is_managed_host} = 1;
     $router->{interfaces} = [ $interface ];
     $router->{hardware}   = [ $hardware ];
 
@@ -5475,23 +5477,42 @@ sub expand_group1 {
                 return \@objects;
             };
             if ($type eq 'host') {
+                my $managed = $ext;
+                my @hosts;
                 for my $object (@$sub_objects) {
                     my $type = ref $object;
                     if ($type eq 'Host') {
-                        push @objects, $object;
+                        push @hosts, $object;
                     }
-                    elsif ($type ne 'Interface'
-                        and my $networks = $get_networks->($object))
-                    {
-                        push @objects, map { @{ $_->{hosts} } } @$networks;
+                    elsif ($type eq 'Interface') {
+                        if ($object->{is_managed_host}) {
+                            push @hosts, $object;
+                        }
+                        else {
+                            err_msg
+                              "Unexpected interface in host:[..] of $context";
+                        }
+                    }
+                    elsif (my $networks = $get_networks->($object)) {
+                        for my $network (@$networks) {
+                            push @hosts, @{ $network->{hosts} };
+                            if (my $managed_hosts = $network->{managed_hosts}) {
+                                push @hosts, @$managed_hosts;
+                            }
+                        }
                     }
                     else {
                         err_msg
                           "Unexpected type '$type' in host:[..] of $context";
                     }
                 }
+                if ($managed) {
+                    @hosts = grep { $_->{is_managed_host} } @hosts;
+                }
+                push @objects, @hosts;
             }
             elsif ($type eq 'network') {
+                $ext and internal_err;
                 my @list;
                 for my $object (@$sub_objects) {
                     if (my $networks = $get_networks->($object)) {

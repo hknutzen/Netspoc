@@ -215,6 +215,48 @@ $head2 = (split /\n/, $out2)[0];
 eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
 
 ############################################################
+$title = "Automatic managed and unmanaged hosts from network";
+############################################################
+
+$in = <<END;
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed = secondary;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:N = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
+ host:h2 = {          model = Linux; ip = 10.1.1.11; hardware = eth0; }
+}
+service:test1 = {
+ user = host:[network:N];
+ permit src = network:Test; dst = user; prt = tcp 81;
+}
+service:test2 = {
+ user = host:[managed & network:N];
+ permit src = network:Test; dst = user; prt = tcp 82;
+}
+service:test3 = {
+ user =  host:[network:N] &! host:[managed & network:N];
+ permit src = network:Test; dst = user; prt = tcp 83;
+}
+END
+$out1 = <<END;
+access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.11 eq 81
+access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.10 range 81 82
+access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.11 eq 83
+access-list Vlan1_in extended deny ip any any
+access-group Vlan1_in in interface Vlan1
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+
+############################################################
 $title = "Managed host doesn't count as full filter";
 ############################################################
 
