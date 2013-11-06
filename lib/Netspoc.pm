@@ -13280,9 +13280,11 @@ sub set_policy_distribution_ip  {
                     || $a->{name} cmp $b->{name}
                   } @$vrf_members
             ];
+            $seen{$_} = 1 for @$vrf_members;
         }
         else {
             $router->{admin_ip} or $unreachable = $router->{name};
+            $seen{$router} = 1;
         }
         $unreachable
           and warn_msg (
