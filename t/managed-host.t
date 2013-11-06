@@ -345,4 +345,66 @@ END
 eq_or_diff(compile_err($in), $out1, $title);
 
 ############################################################
+$title = "Multi homed managed host";
+############################################################
+
+$in = <<END;
+network:Test = {
+ ip = 10.9.1.0/24;
+ host:t10 = { ip = 10.9.1.10; }
+ host:t20 = { ip = 10.9.1.20; }
+ host:t30 = { ip = 10.9.1.30; }
+ host:s = {
+  ip = 10.9.1.9;
+  managed; model = Linux; hardware = eth0; server_name = hugo; }
+}
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:N = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { 
+  ip = 10.1.1.10; 
+  managed; model = Linux; hardware = eth1; server_name = hugo; }
+}
+service:test = {
+ user = host:t10, host:t20, host:t30;
+ permit src = user; dst = host:s, host:h1; prt = tcp 22;
+}
+END
+
+$out1 = <<END;
+:c1 -
+:c2 -
+-A c1 -j ACCEPT -s 10.9.1.30
+-A c1 -j ACCEPT -s 10.9.1.20
+-A c2 -g c1 -s 10.9.1.16/28
+-A c2 -j ACCEPT -s 10.9.1.10
+END
+
+$out2 = <<END;
+:eth0_self -
+-A INPUT -j eth0_self -i eth0
+-A eth0_self -g c2 -s 10.9.1.0/27 -d 10.9.1.9 -p tcp --dport 22
+END
+
+$out3 = <<END;
+:c3 -
+:c4 -
+-A c3 -j ACCEPT -s 10.9.1.30
+-A c3 -j ACCEPT -s 10.9.1.20
+-A c4 -g c3 -s 10.9.1.16/28
+-A c4 -j ACCEPT -s 10.9.1.10
+END
+
+$head1 = (split /\n/, $out1)[0];
+$head2 = (split /\n/, $out2)[0];
+$head3 = (split /\n/, $out3)[0];
+
+eq_or_diff(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3, $title);
+
+############################################################
 done_testing;

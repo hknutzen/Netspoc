@@ -52,8 +52,6 @@ service:p10-60 = {
 END
 
 $out1 = <<END;
--A droplog -j LOG --log-level debug
--A droplog -j DROP
 -A c1 -j ACCEPT -s 10.3.3.128/29
 -A c1 -j ACCEPT -s 10.3.3.120/29
 -A c2 -g c1 -s 10.3.3.0/24
@@ -89,8 +87,6 @@ $title = 'Un-merged port range with sub-range for iptables';
 $in =~ s/(tcp 30-37,) (tcp 51-53)/$1 tcp 40-47, $2/;
 
 $out1 = <<END;
--A droplog -j LOG --log-level debug
--A droplog -j DROP
 -A c1 -j ACCEPT -s 10.3.3.128/29
 -A c1 -j ACCEPT -s 10.3.3.120/29
 -A c2 -g c1 -s 10.3.3.0/24

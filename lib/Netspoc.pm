@@ -14910,11 +14910,6 @@ sub print_chains  {
         print ":$name -\n";
     }
 
-    # Add user defined chain 'droplog'.
-    print ":droplog -\n";
-    print "-A droplog -j LOG --log-level debug\n";
-    print "-A droplog -j DROP\n";
-
     # Define chains.
     for my $chain (@{ $router->{chains} }) {
         my $name   = $chain->{name};
@@ -16236,12 +16231,13 @@ sub iptables_acl_line {
     return;
 }
 
-sub print_iptables_acls {
-    my ($router)     = @_;
-    my $model        = $router->{model};
+# Pre-processing for all interfaces.
+sub print_prefix {
+    my ($router) = @_;
+    my $model    = $router->{model};
+    return if $model->{filter} ne 'iptables';
     my $comment_char = $model->{comment_char};
-
-    # Pre-processing for all interfaces.
+    print "$comment_char [ PREFIX ]\n";
     print "#!/sbin/iptables-restore <<EOF\n";
     print "*filter\n";
     print ":INPUT DROP\n";
@@ -16250,6 +16246,33 @@ sub print_iptables_acls {
     print "-A INPUT -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
     print "-A FORWARD -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
     print "-A INPUT -j ACCEPT -i lo\n";
+
+    # Add user defined chain 'droplog'.
+    print ":droplog -\n";
+    print "-A droplog -j LOG --log-level debug\n";
+    print "-A droplog -j DROP\n";
+    print "\n";
+    return;
+}
+
+sub print_suffix {
+    my ($router) = @_;
+    my $model    = $router->{model};
+    return if $model->{filter} ne 'iptables';
+    my $comment_char = $model->{comment_char};
+    print "$comment_char [ SUFFIX ]\n";
+    print "-A INPUT -j droplog\n";
+    print "-A FORWARD -j droplog\n";
+    print "COMMIT\n";
+    print "EOF\n";
+    return;
+}
+
+sub print_iptables_acls {
+    my ($router)     = @_;
+    my $model        = $router->{model};
+    my $comment_char = $model->{comment_char};
+
     print_chains $router;
 
     for my $hardware (@{ $router->{hardware} }) {
@@ -16293,10 +16316,6 @@ sub print_iptables_acls {
         # Empty line after each chain.
         print "\n";
     }
-    print "-A INPUT -j droplog\n";
-    print "-A FORWARD -j droplog\n";
-    print "COMMIT\n";
-    print "EOF\n";
     return;
 }
 
@@ -16909,6 +16928,7 @@ sub print_code {
         }
 
         my $vrf_members = $router->{vrf_members};
+        my $need_prefix = 1;
         for my $vrouter ($vrf_members ? @$vrf_members : ($router)) {
             $seen{$vrouter} = 1;
             my $model        = $router->{model};
@@ -16924,6 +16944,10 @@ sub print_code {
                 }
             }
 
+            if ($need_prefix) {
+                print_prefix($router);
+                $need_prefix = 0;
+            }
             print_routes $vrouter;
             print_crypto $vrouter;
             print_acls $vrouter;
@@ -16931,6 +16955,7 @@ sub print_code {
             print_nat $vrouter;
             print "$comment_char [ END $name ]\n\n";
         }
+        print_suffix($router);
         if ($dir) {
             close STDOUT or fatal_err("Can't close $dir/$device_name: $!");
         }
