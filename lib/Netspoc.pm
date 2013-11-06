@@ -4841,8 +4841,10 @@ sub mark_disabled {
                 }
             }
         }
+        my $shared_hash = {};
         for my $router (@$aref) {
             $router->{vrf_members} = $aref;
+            $router->{vrf_shared_data} = $shared_hash;
         }
     }
 
@@ -13921,7 +13923,7 @@ sub find_object_groups  {
 
     # Find identical groups of same size.
     my $size2first2group_hash = ($router->{size2first2group_hash} ||= {});
-    $router->{obj_group_counter} ||= 0;
+    $router->{vrf_shared_data}->{obj_group_counter} ||= 0;
 
     # Leave 'intf_rules' untouched, because they are handled
     # indivually for ASA, PIX. 
@@ -13999,13 +14001,14 @@ sub find_object_groups  {
 
             my $build_group = sub {
                 my ($ip_mask_strings) = @_;
+                my $counter = $router->{vrf_shared_data}->{obj_group_counter}++;
+
                 my $group = new(
                     'Objectgroup',
-                    name       => "g$router->{obj_group_counter}",
+                    name       => "g$counter",
                     elements   => $ip_mask_strings,
                     hash       => { map { $_ => 1 } @$ip_mask_strings },
                 );
-                $router->{obj_group_counter}++;
 
                 # Print object-group.
                 my $numbered = 10;
@@ -14558,7 +14561,7 @@ sub find_chains  {
 
     # For generating names of chains.
     # Initialize if called first time.
-    $router->{chain_counter} ||= 1;
+    $router->{vrf_shared_data}->{chain_counter} ||= 1;
 
     my $no_nat_set = $hardware->{no_nat_set};
     my @rule_arefs = values %{ $hardware->{io_rules} };
@@ -14705,13 +14708,13 @@ sub find_chains  {
         # Add new chain to current router.
         my $new_chain = sub {
             my ($rules) = @_;
+            my $counter = $router->{vrf_shared_data}->{chain_counter}++;
             my $chain = new(
                 'Chain',
-                name  => "c$router->{chain_counter}",
+                name  => "c$counter",
                 rules => $rules,
             );
             push @{ $router->{chains} }, $chain;
-            $router->{chain_counter}++;
             $chain;
         };
 
