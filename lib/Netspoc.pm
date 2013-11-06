@@ -4799,15 +4799,13 @@ sub mark_disabled {
             }
         }
     }
-    my %name2vrf;
+
     for my $name (sort keys %routers) {
         my $router = $routers{$name};
         next if $router->{disabled};
         push @routers, $router;
-        my $device_name = $router->{device_name};
         if ($router->{managed}) {
             push @managed_routers, $router;
-            push @{ $name2vrf{$device_name} }, $router;
             if ($router->{model}->{do_auth})
             {
                 push @managed_vpnhub, $router;
@@ -4816,6 +4814,12 @@ sub mark_disabled {
     }
 
     # Collect vrf instances belonging to one device.
+    # This includes different managed hosts with identical server_name.
+    my %name2vrf;
+    for my $router (@managed_routers) {
+        my $device_name = $router->{device_name};
+        push @{ $name2vrf{$device_name} }, $router;
+    }        
     for my $aref (values %name2vrf) {
         next if @$aref == 1;
         equal(map { $_->{managed} ? $_->{model}->{name} : () } @$aref)
