@@ -1276,7 +1276,9 @@ sub host_as_interface {
 
     # Use device_name with "host:.." prefix to prevent name clash with 
     # real routers.
-    my $router = new('Router', name => $name, device_name => $name);
+    my $device_name = 
+        $host->{server_name} ? "host:$host->{server_name}" : $name;
+    my $router = new('Router', name => $name, device_name => $device_name);
     $router->{managed} = delete $host->{managed};
     $router->{model} = $model;
     my $interface = new('Interface', %$host);
@@ -1338,6 +1340,11 @@ sub read_host {
               and error_atline("Duplicate definition of hardware");
             $host->{hardware} = $hardware;
         }
+        elsif (my $server_name = check_assign('server_name', \&read_name)) {
+            $host->{server_name}
+              and error_atline("Duplicate definition of server_name");
+            $host->{server_name} = $server_name;
+        }            
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $host->{owner} and error_atline("Duplicate attribute 'owner'");
             $host->{owner} = $owner;
@@ -1394,7 +1401,7 @@ sub read_host {
     }
     if ($host->{managed}) {
         my %ok = ( name => 1, ip => 1, nat => 1, 
-                   managed => 1, model => 1, hardware => 1);
+                   managed => 1, model => 1, hardware => 1, server_name => 1);
         for my $key (keys %$host) {
             next if $ok{$key};
             error_atline("Managed $host->{name} must not have ",
