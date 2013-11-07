@@ -12519,6 +12519,7 @@ sub print_routes {
     my $do_auto_default_route = $config{auto_default_route};
     my $crypto_type           = $model->{crypto} || '';
     my %intf2hop2nets;
+    my @interfaces;
     for my $interface (@{ $router->{interfaces} }) {
         next if $interface->{ip} eq 'bridged';
         if ($interface->{routing}) {
@@ -12526,6 +12527,7 @@ sub print_routes {
             next;
         }
 
+        push @interfaces, $interface;
         my $optimize = 1;
 
         # ASA with site-to-site VPN needs individual routes for each peer.
@@ -12583,6 +12585,7 @@ sub print_routes {
             $intf2hop2nets{$interface}->{$hop} = \@netinfo;
         }
     }
+    return if not @interfaces;
     if ($do_auto_default_route) {
 
         # Find interface and hop with largest number of routing entries.
@@ -12592,8 +12595,7 @@ sub print_routes {
         # Substitute routes to one hop with a default route,
         # if there are at least two entries.
         my $max = 1;
-        for my $interface (@{ $router->{interfaces} }) {
-            next if $interface->{ip} eq 'bridged';
+        for my $interface (@interfaces) {
             for my $hop (@{ $interface->{hop} }) {
                 my $count = @{ $intf2hop2nets{$interface}->{$hop} };
                 if ($count > $max) {
@@ -12615,19 +12617,7 @@ sub print_routes {
     $ios_vrf = $vrf ? "vrf $vrf " : '' if $type eq 'IOS';
     my $nxos_prefix = '';
 
-    for my $interface (@{ $router->{interfaces} }) {
-        next if $interface->{ip} eq 'bridged';
-
-        # Don't generate static routing entries,
-        # if a dynamic routing protocol is activated
-        if ($interface->{routing}) {
-            if ($config{comment_routes}) {
-                print "$comment_char Routing $interface->{routing}->{name}",
-                  " at $interface->{name}\n";
-            }
-            next;
-        }
-
+    for my $interface (@interfaces) {
         for my $hop (@{ $interface->{hop} }) {
 
             # For unnumbered and negotiated interfaces use interface name
