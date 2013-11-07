@@ -78,8 +78,6 @@ eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 $title = 'Multiple larger rules, one suppressed';
 ############################################################
 
-# A warning should be printed for redundant rules of service:test
-
 $in = <<END;
 $topo
 service:test = {
@@ -100,10 +98,8 @@ Warning: Redundant rules in service:test compared to service:test:
 < permit src=network:N; dst=network:Test; prt=tcp 22; of service:test
 END
 
-TODO: {
-    local $TODO = "Redundant rules inside service:test aren't recognizedognized";
-    eq_or_diff(compile_err($in), $out1, $title);
-}
+eq_or_diff(compile_err($in), $out1, $title);
+
 ############################################################
 
 done_testing;
