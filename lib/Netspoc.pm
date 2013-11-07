@@ -6240,46 +6240,59 @@ sub show_deleted_rules1 {
     return;
 }
 
+sub collect_redundant_rules {
+    my ($rule, $other) = @_;
+
+    # Ignore automatically generated rules from crypto or from reverse rules.
+    return if !$rule->{rule};
+    return if !$other->{rule};
+
+    my $prt1 = $rule->{orig_prt}  || $rule->{prt};
+    my $prt2 = $other->{orig_prt} || $other->{prt};
+    return if $prt1->{flags}->{overlaps} && $prt2->{flags}->{overlaps};
+
+    # Rule is still needed at device of $rule->{dst}.
+    if ($rule->{managed_intf} and not $rule->{deleted}->{managed_intf}) {
+        return;
+    }
+
+    # Automatically generated reverse rule for stateless router
+    # is still needed, even for stateful routers for static routes.
+    my $src = $rule->{src};
+    if (is_interface($src)) {
+        my $router = $src->{router};
+        if ($router->{managed}) {
+            return;
+        }
+    }
+
+    my $service  = $rule->{rule}->{service};
+    my $oservice = $other->{rule}->{service};
+    if (!$oservice) {
+        debug "d:", print_rule $rule;
+        debug "o:", print_rule $other;
+    }
+    if (my $overlaps = $service->{overlaps}) {
+        for my $overlap (@$overlaps) {
+            if ($oservice eq $overlap) {
+                $service->{overlaps_used}->{$overlap} = $overlap;
+                return;
+            }
+        }
+    }
+    push @deleted_rules, [ $rule, $other ];
+    return;
+}
+
 sub show_deleted_rules2 {
     return if not @deleted_rules;
     my %pname2oname2deleted;
     my %pname2file;
-  RULE:
-    for my $rule (@deleted_rules) {
-        my $other = $rule->{deleted};
-
-        # Ignore automatically generated rules from crypto.
-        next if not $rule->{rule};
-
-        my $prt1 = $rule->{orig_prt}  || $rule->{prt};
-        my $prt2 = $other->{orig_prt} || $other->{prt};
-        next if $prt1->{flags}->{overlaps} && $prt2->{flags}->{overlaps};
-
-        # Rule is still needed at device of $rule->{dst}.
-        if ($rule->{managed_intf} and not $rule->{deleted}->{managed_intf}) {
-            next;
-        }
-
-        # Automatically generated reverse rule for stateless router
-        # is still needed, even for stateful routers for static routes.
-        my $src = $rule->{src};
-        if (is_interface($src)) {
-            my $router = $src->{router};
-            if ($router->{managed}) {
-                next;
-            }
-        }
+    for my $pair (@deleted_rules) {
+        my ($rule, $other) = @$pair;
 
         my $service  = $rule->{rule}->{service};
         my $oservice = $other->{rule}->{service};
-        if (my $overlaps = $service->{overlaps}) {
-            for my $overlap (@$overlaps) {
-                if ($oservice eq $overlap) {
-                    $service->{overlaps_used}->{$overlap} = $overlap;
-                    next RULE;
-                }
-            }
-        }
         my $pname = $service->{name};
         my $oname = $oservice->{name};
         my $pfile = $service->{file};
@@ -11656,10 +11669,10 @@ sub optimize_rules {
                                                                     values
                                                                     %$chg_hash)
                                                                 {
-                                                                    next
-                                                                      if
-                                                                        $chg_rule
-                                                                          ->{deleted};
+#                                                                    next
+#                                                                      if
+#                                                                        $chg_rule
+#                                                                          ->{deleted};
                                                                     my $prt =
                                                                       $chg_rule
                                                                       ->{prt};
@@ -11672,13 +11685,13 @@ sub optimize_rules {
                                                                             }
                                                                           )
                                                                         {
-                                                                            unless
+                                                                            if
                                                                               (
-                                                                                $cmp_rule
-                                                                                eq
-                                                                                $chg_rule
+                                                                               $cmp_rule
+                                                                               ne
+                                                                               $chg_rule
                                                                               )
-                                                                            {
+                                                                          {
 
 # debug("Del:", print_rule $chg_rule);
 # debug("Oth:", print_rule $cmp_rule);
@@ -11687,9 +11700,9 @@ sub optimize_rules {
                                                                                   {deleted}
                                                                                   =
                                                                                   $cmp_rule;
-                                                                                push
-                                                                                  @deleted_rules,
-                                                                                  $chg_rule;
+                                                                                collect_redundant_rules(
+                                                                                    $chg_rule, 
+                                                                                    $cmp_rule);
                                                                                 last;
                                                                             }
                                                                         }
