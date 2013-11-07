@@ -12528,6 +12528,7 @@ sub print_header {
     my $comment_char = $router->{model}->{comment_char};
     my $where = $router->{vrf_members} ? " for $router->{name}" : '';
     print "$comment_char [ $what$where ]\n";
+    return;
 }
 
 sub print_routes {
