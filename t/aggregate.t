@@ -442,6 +442,10 @@ service:test2 = {
 END
 
 $out1 = <<END;
+Warning: Redundant rules in service:test1 compared to service:test1:
+ Files: STDIN STDIN
+  permit src=any:[ip=10.9.1.0/26 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
+< permit src=network:Test; dst=network:Kunde; prt=tcp 80; of service:test1
 Warning: Redundant rules in service:test1 compared to service:test2:
  Files: STDIN STDIN
   permit src=any:[ip=10.9.1.0/26 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
