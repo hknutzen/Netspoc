@@ -16251,6 +16251,16 @@ sub print_acl_prefix {
     my $comment_char = $model->{comment_char};
     print "$comment_char [ PREFIX ]\n";
     print "#!/sbin/iptables-restore <<EOF\n";
+
+    # Excempt loopback packets from connection tracking.
+    print "*raw\n";
+    print ":PREROUTING ACCEPT\n";
+    print ":OUTPUT ACCEPT\n";
+    print "-A PREROUTING -i lo -j NOTRACK\n";
+    print "-A OUTPUT -o lo -j NOTRACK\n";
+    print "COMMIT\n";
+
+    # Start filter table
     print "*filter\n";
     print ":INPUT DROP\n";
     print ":FORWARD DROP\n";
