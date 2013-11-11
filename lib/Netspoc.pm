@@ -1231,12 +1231,12 @@ sub check_model {
     my $info = $router_info{$model};
     if (not $info) {
         error_atline("Unknown router model");
-        next;
+        return;
     }
     my $extension_info = $info->{extension};
     if (@attributes and not $extension_info) {
         error_atline("No extension expected for this model");
-        next;
+        return;
     }
 
     my @ext_list = map {
