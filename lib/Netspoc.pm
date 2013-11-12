@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.038'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.039'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -45,11 +45,9 @@ our @EXPORT = qw(
   %interfaces
   %networks
   %hosts
-  %zones
   %owners
   %areas
   %pathrestrictions
-  %global_nat
   %groups
   %protocols
   %protocolgroups
@@ -296,6 +294,22 @@ my %router_info = (
         use_prefix          => 1,
         can_vrf             => 1,
         can_log_deny        => 1,
+        has_out_acl         => 1,
+        need_protect        => 1,
+        print_interface     => 1,
+        comment_char        => '!',
+    },
+    'ACE' => {
+        routing             => 'IOS',
+        filter              => 'ACE',
+        stateless           => 0,
+        stateless_self      => 0,
+        stateless_icmp      => 1,
+        can_objectgroup     => 1,
+        inversed_acl_mask   => 0,
+        use_prefix          => 0,
+        can_vrf             => 0,
+        can_log_deny        => 0,
         has_out_acl         => 1,
         need_protect        => 1,
         print_interface     => 1,
@@ -847,6 +861,7 @@ sub read_typed_name {
 # or interface:....xxx/ppp...
 # or interface:[xxx:xxx, ...].[xxx]
 # or interface:[managed & xxx:xxx, ...].[xxx]
+# or host:[managed & xxx:xxx, ...]
 # or any:[ ip = n.n.n.n/len & xxx:xxx, ...]
 # or network:xxx/ppp
 # or host:id:user@domain.network
@@ -864,12 +879,11 @@ sub read_typed_name {
         $input =~ m/\G([\w-]+):/gc or syntax_err("Type expected");
         my $type = $1;
         my $interface = $type eq 'interface';
-        my $managed;
         my $name;
         my $ext;
         if ($input =~ m/ \G \[ /gcox) {
-            if ($interface && check('managed')) {
-                $managed = 1;
+            if (($interface || $type eq 'host') && check('managed')) {
+                $ext = 1;
                 skip '&';
             }
             elsif ($type eq 'any' && check('ip')) {
@@ -902,18 +916,19 @@ sub read_typed_name {
             if ($input =~ m/ \G \[ /gcox) {
                 my $selector = read_identifier;
                 $selector =~ /^(auto|all)$/ or syntax_err("Expected [auto|all]");
-                $ext = [ $selector, $managed ];
+                $ext = [ $selector, $ext ];
                 skip '\]';
             }
             else {
+                $ext and syntax_err("Keyword 'managed' not allowed");
                 $input =~ m/ \G ( $network_regex ) /gcox
                   or syntax_err("Name or bridged name expected");
                 $ext = $1;
+
+                # ID of secondary interface.
                 if ($input =~ m/ \G \. /gcox) {
                     $ext .= '.' . read_identifier;
                 }
-                $managed
-                  and syntax_err("Keyword 'managed' not allowed");
             }
         }
         return $ext ? [ $type, $name, $ext ] : [ $type, $name ];
@@ -1232,13 +1247,11 @@ sub check_model {
     my $info = $router_info{$model};
     if (not $info) {
         error_atline("Unknown router model");
-        next;
+
+        # Prevent further errors.
+        return { name => $model };;
     }
-    my $extension_info = $info->{extension};
-    if (@attributes and not $extension_info) {
-        error_atline("No extension expected for this model");
-        next;
-    }
+    my $extension_info = $info->{extension} || {};
 
     my @ext_list = map {
         my $ext = $extension_info->{$_};
@@ -1277,7 +1290,9 @@ sub host_as_interface {
 
     # Use device_name with "host:.." prefix to prevent name clash with 
     # real routers.
-    my $router = new('Router', name => $name, device_name => $name);
+    my $device_name = 
+        $host->{server_name} ? "host:$host->{server_name}" : $name;
+    my $router = new('Router', name => $name, device_name => $device_name);
     $router->{managed} = delete $host->{managed};
     $router->{model} = $model;
     my $interface = new('Interface', %$host);
@@ -1285,6 +1300,7 @@ sub host_as_interface {
     my $hardware = { name => $hw_name, interfaces => [ $interface ] };
     $interface->{hardware} = $hardware;
     $interface->{routing} = $routing_info{manual};
+    $interface->{is_managed_host} = 1;
     $router->{interfaces} = [ $interface ];
     $router->{hardware}   = [ $hardware ];
 
@@ -1338,6 +1354,11 @@ sub read_host {
               and error_atline("Duplicate definition of hardware");
             $host->{hardware} = $hardware;
         }
+        elsif (my $server_name = check_assign('server_name', \&read_name)) {
+            $host->{server_name}
+              and error_atline("Duplicate definition of server_name");
+            $host->{server_name} = $server_name;
+        }            
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
             $host->{owner} and error_atline("Duplicate attribute 'owner'");
             $host->{owner} = $owner;
@@ -1394,7 +1415,7 @@ sub read_host {
     }
     if ($host->{managed}) {
         my %ok = ( name => 1, ip => 1, nat => 1, 
-                   managed => 1, model => 1, hardware => 1);
+                   managed => 1, model => 1, hardware => 1, server_name => 1);
         for my $key (keys %$host) {
             next if $ok{$key};
             error_atline("Managed $host->{name} must not have ",
@@ -1551,6 +1572,9 @@ sub read_network {
                 $host->{network} = $network;
                 push @{ $network->{interfaces} }, $host;
                 check_interface_ip($host, $network);
+
+                # For use in expand_group.
+                push @{ $network->{managed_hosts} }, $host;
             }
             else {
                 internal_err;
@@ -4789,15 +4813,13 @@ sub mark_disabled {
             }
         }
     }
-    my %name2vrf;
+
     for my $name (sort keys %routers) {
         my $router = $routers{$name};
         next if $router->{disabled};
         push @routers, $router;
-        my $device_name = $router->{device_name};
         if ($router->{managed}) {
             push @managed_routers, $router;
-            push @{ $name2vrf{$device_name} }, $router;
             if ($router->{model}->{do_auth})
             {
                 push @managed_vpnhub, $router;
@@ -4806,6 +4828,12 @@ sub mark_disabled {
     }
 
     # Collect vrf instances belonging to one device.
+    # This includes different managed hosts with identical server_name.
+    my %name2vrf;
+    for my $router (@managed_routers) {
+        my $device_name = $router->{device_name};
+        push @{ $name2vrf{$device_name} }, $router;
+    }        
     for my $aref (values %name2vrf) {
         next if @$aref == 1;
         equal(map { $_->{managed} ? $_->{model}->{name} : () } @$aref)
@@ -4827,8 +4855,10 @@ sub mark_disabled {
                 }
             }
         }
+        my $shared_hash = {};
         for my $router (@$aref) {
             $router->{vrf_members} = $aref;
+            $router->{vrf_shared_data} = $shared_hash;
         }
     }
 
@@ -5440,7 +5470,7 @@ sub expand_group1 {
                                               @{ $object->{zones} }));
                 }
                 elsif ($type eq 'Network' && $object->{is_aggregate}) {
-                    push @objects, $object;
+                    push @objects, get_any($object->{zone}, $ip, $mask);
                 }
                 else {
                     return;
@@ -5454,8 +5484,16 @@ sub expand_group1 {
                 if ($type eq 'Host' or $type eq 'Interface') {
                     push @objects, $object->{network};
                 }
-                elsif ($type eq 'Network' && !$object->{is_aggregate}) {
-                    push @objects, $object;
+                elsif ($type eq 'Network') {
+                    if (!$object->{is_aggregate}) {
+                        push @objects, $object;
+                    }
+
+                    # Take aggregate directly. Below it would be
+                    # changed to non matching aggregate with IP 0/0.
+                    else {
+                        push @objects, @{ $object->{networks} };
+                    }
                 }
                 elsif (my $aggregates = $get_aggregates->($object, 0, 0)) {
                     push(@objects, map { @{ $_->{networks} } } @$aggregates);
@@ -5466,23 +5504,42 @@ sub expand_group1 {
                 return \@objects;
             };
             if ($type eq 'host') {
+                my $managed = $ext;
+                my @hosts;
                 for my $object (@$sub_objects) {
                     my $type = ref $object;
                     if ($type eq 'Host') {
-                        push @objects, $object;
+                        push @hosts, $object;
                     }
-                    elsif ($type ne 'Interface'
-                        and my $networks = $get_networks->($object))
-                    {
-                        push @objects, map { @{ $_->{hosts} } } @$networks;
+                    elsif ($type eq 'Interface') {
+                        if ($object->{is_managed_host}) {
+                            push @hosts, $object;
+                        }
+                        else {
+                            err_msg
+                              "Unexpected interface in host:[..] of $context";
+                        }
+                    }
+                    elsif (my $networks = $get_networks->($object)) {
+                        for my $network (@$networks) {
+                            push @hosts, @{ $network->{hosts} };
+                            if (my $managed_hosts = $network->{managed_hosts}) {
+                                push @hosts, @$managed_hosts;
+                            }
+                        }
                     }
                     else {
                         err_msg
                           "Unexpected type '$type' in host:[..] of $context";
                     }
                 }
+                if ($managed) {
+                    @hosts = grep { $_->{is_managed_host} } @hosts;
+                }
+                push @objects, @hosts;
             }
             elsif ($type eq 'network') {
+                $ext and internal_err;
                 my @list;
                 for my $object (@$sub_objects) {
                     if (my $networks = $get_networks->($object)) {
@@ -5644,9 +5701,33 @@ sub expand_group1 {
     return \@objects;
 }
 
+# Remove and warn about duplicate values in group.
+# Remove undefined values as well.
+sub remove_duplicates {
+    my ($aref, $context) = @_;
+    my %seen;
+    my @duplicate;
+    for my $obj (@$aref) {
+        next if not defined $obj;
+        if ($seen{$obj}++) {
+            push @duplicate, $obj;
+            $obj = undef;
+        }
+    }
+    if (@duplicate) {
+        my $msg = "Duplicate elements in $context:\n "
+          . join("\n ", map { $_->{name} } @duplicate);
+        warn_msg($msg);
+    }
+    $aref = [ grep { defined $_ } @$aref ];
+    return $aref;
+}
+
 sub expand_group {
     my ($obref, $context, $convert_hosts) = @_;
     my $aref = expand_group1 $obref, $context, 'clean_autogrp';
+
+    # Ignore unusable objects.
     for my $object (@$aref) {
         my $ignore;
         if ($object->{disabled}) {
@@ -5674,22 +5755,8 @@ sub expand_group {
         }
     }
 
-    # Detect and remove duplicate values in group.
-    my %unique;
-    my @duplicate;
-    for my $obj (@$aref) {
-        next if not defined $obj;
-        if ($unique{$obj}++) {
-            push @duplicate, $obj;
-            $obj = undef;
-        }
-    }
-    if (@duplicate) {
-        my $msg = "Duplicate elements in $context:\n "
-          . join("\n ", map { $_->{name} } @duplicate);
-        warn_msg($msg);
-    }
-    $aref = [ grep { defined $_ } @$aref ];
+    $aref = remove_duplicates($aref, $context);
+
     if ($convert_hosts) {
         my @subnets;
         my %subnet2host;
@@ -5991,6 +6058,21 @@ sub expand_special  {
     return @result;
 }
 
+# Add managed hosts of networks and aggregates.
+sub add_managed_hosts {
+    my ($aref, $context) = @_;
+    my @extra;
+    for my $object (@$aref) {
+        my $managed_hosts = $object->{managed_hosts} or next;
+        push @extra, @$managed_hosts;
+    }
+    if (@extra) {
+        push @$aref, @extra;
+        $aref = remove_duplicates($aref, $context);
+    }
+    return $aref;
+}
+
 # This handles a rule between objects inside a single security zone or
 # between interfaces of a single managed router.
 # Show warning or error message if rule is between
@@ -6050,8 +6132,14 @@ sub collect_unenforceable  {
         # group:some_networks -> any:[group:some_networks]
         return if zone_eq($src->{zone}, get_zone($dst))
     }
-    elsif($dst->{is_aggregate} && $dst->{mask} == 0 ) {
+    elsif ($dst->{is_aggregate} && $dst->{mask} == 0 ) {
         return if zone_eq($dst->{zone}, get_zone($src))
+    }
+    elsif ($dst->{managed_hosts}) {
+
+        # Network or aggregate was only used for its managed_hosts
+        # to be added automatically in expand_group.
+        return;
     }
     $service->{seen_unenforceable}->{$src}->{$dst} ||= [ $src, $dst ];
     return;
@@ -6166,46 +6254,59 @@ sub show_deleted_rules1 {
     return;
 }
 
+sub collect_redundant_rules {
+    my ($rule, $other) = @_;
+
+    # Ignore automatically generated rules from crypto or from reverse rules.
+    return if !$rule->{rule};
+    return if !$other->{rule};
+
+    my $prt1 = $rule->{orig_prt}  || $rule->{prt};
+    my $prt2 = $other->{orig_prt} || $other->{prt};
+    return if $prt1->{flags}->{overlaps} && $prt2->{flags}->{overlaps};
+
+    # Rule is still needed at device of $rule->{dst}.
+    if ($rule->{managed_intf} and not $rule->{deleted}->{managed_intf}) {
+        return;
+    }
+
+    # Automatically generated reverse rule for stateless router
+    # is still needed, even for stateful routers for static routes.
+    my $src = $rule->{src};
+    if (is_interface($src)) {
+        my $router = $src->{router};
+        if ($router->{managed}) {
+            return;
+        }
+    }
+
+    my $service  = $rule->{rule}->{service};
+    my $oservice = $other->{rule}->{service};
+    if (!$oservice) {
+        debug "d:", print_rule $rule;
+        debug "o:", print_rule $other;
+    }
+    if (my $overlaps = $service->{overlaps}) {
+        for my $overlap (@$overlaps) {
+            if ($oservice eq $overlap) {
+                $service->{overlaps_used}->{$overlap} = $overlap;
+                return;
+            }
+        }
+    }
+    push @deleted_rules, [ $rule, $other ];
+    return;
+}
+
 sub show_deleted_rules2 {
     return if not @deleted_rules;
     my %pname2oname2deleted;
     my %pname2file;
-  RULE:
-    for my $rule (@deleted_rules) {
-        my $other = $rule->{deleted};
-
-        # Ignore automatically generated rules from crypto.
-        next if not $rule->{rule};
-
-        my $prt1 = $rule->{orig_prt}  || $rule->{prt};
-        my $prt2 = $other->{orig_prt} || $other->{prt};
-        next if $prt1->{flags}->{overlaps} && $prt2->{flags}->{overlaps};
-
-        # Rule is still needed at device of $rule->{dst}.
-        if ($rule->{managed_intf} and not $rule->{deleted}->{managed_intf}) {
-            next;
-        }
-
-        # Automatically generated reverse rule for stateless router
-        # is still needed, even for stateful routers for static routes.
-        my $src = $rule->{src};
-        if (is_interface($src)) {
-            my $router = $src->{router};
-            if ($router->{managed}) {
-                next;
-            }
-        }
+    for my $pair (@deleted_rules) {
+        my ($rule, $other) = @$pair;
 
         my $service  = $rule->{rule}->{service};
         my $oservice = $other->{rule}->{service};
-        if (my $overlaps = $service->{overlaps}) {
-            for my $overlap (@$overlaps) {
-                if ($oservice eq $overlap) {
-                    $service->{overlaps_used}->{$overlap} = $overlap;
-                    next RULE;
-                }
-            }
-        }
         my $pname = $service->{name};
         my $oname = $oservice->{name};
         my $pfile = $service->{file};
@@ -6286,9 +6387,10 @@ sub expand_rules {
             my $src =
               expand_group($unexpanded->{src}, "src of rule in $context",
                 $convert_hosts);
+            my $dst_context =  "dst of rule in $context";
             my $dst =
-              expand_group($unexpanded->{dst}, "dst of rule in $context",
-                $convert_hosts);
+              expand_group($unexpanded->{dst}, $dst_context, $convert_hosts);
+            $dst = add_managed_hosts($dst, $dst_context);
             for my $prt (@$prt_list) {
                 my $flags = $prt->{flags};
 
@@ -7609,6 +7711,11 @@ sub find_subnets_in_zone {
         # Remove subnets of non-aggregate networks.
         $zone->{networks} = 
             [ grep { !$_->{max_up_net} } @{ $zone->{networks} } ];
+
+        # Propagate managed hosts to aggregates.
+        for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
+            add_managed_hosts_to_aggregate($aggregate);
+        } 
     }
 
     # It is valid to have an aggregate in a zone which has no matching
@@ -8102,6 +8209,34 @@ sub link_reroute_permit {
     return;  
 }
 
+sub add_managed_hosts_to_aggregate {
+    my ($aggregate) = @_;
+
+    # Collect managed hosts of sub-networks.
+    my $networks = $aggregate->{networks};
+    if (@$networks) {
+        for my $network (@$networks) {
+            my $managed_hosts = $network->{managed_hosts} or next;
+            push(@{ $aggregate->{managed_hosts} }, @$managed_hosts);
+        }
+    }
+    
+    # Collect matching managed hosts of all networks of zone.
+    # Ignore sub-networks of aggregate, because they would have been
+    # found in $networks above.
+    else {
+        my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
+        my $zone = $aggregate->{zone};
+        for my $network (@{ $zone->{networks} }) {
+            next if $network->{mask} > $mask ;
+            my $managed_hosts = $network->{managed_hosts} or next;
+            push(@{ $aggregate->{managed_hosts} }, 
+                 grep { match_ip($_->{ip}, $ip, $mask) } @$managed_hosts);
+        }
+    }
+    return;
+}
+
 ####################################################################
 # Borders of security zones are
 # a) interfaces of managed devices and
@@ -8134,124 +8269,70 @@ sub link_aggregate_to_zone {
     return;
 }
 
-# Update relations {networks} and {up} for implicitly defined aggregates.
+# Update relations {networks}, {up} and {owner} for implicitly defined
+# aggregates.
+# Remember:
+# {up} is relation inside set of all networks and aggregates.
+# {networks} is attribute of aggregates and networks, 
+#            but value is list of networks.
 sub link_implicit_aggregate_to_zone {
     my ($aggregate, $zone, $key) = @_;
     my ($ip, $mask) = split '/', $key;
 
-    my $update_agg_relation = sub {
-
-        # All aggregates without any sub networks.
-        my @other_agg = grep({ my $n = $_->{networks}; !$n || !@$n; } 
-                             values %{ $zone->{ipmask2aggregate} });
-
-        # Aggregates which are subnet of new aggregate.
-        my @sub_agg = grep({ $mask < $_->{mask} && 
-                                 match_ip($_->{ip}, $ip, $mask) } @other_agg);
-        return if !@sub_agg;
-
-        # Sort by mask to find some largest subnet.
-        my @sorted = sort { $a->{mask} <=> $b->{mask} } @sub_agg;
-        my ($largest) = @sorted;
-
-        # Find all subnets pointing to the same larger element.
-        # Thus we exclude all sub-subnets.
-        my $up = $largest->{up} || '';
-        my @direct_sub = grep { $_->{up} || '' eq $up } @sorted;
-        $aggregate->{up} = $up if $up;
-        $_->{up} = $aggregate for @direct_sub;
-        return;
+    # Collect all aggregates, networks and subnets of current zone.
+    my @objects = values %{ $zone->{ipmask2aggregate} };
+    my $add_subnets;
+    $add_subnets = sub {
+        my ($network) = @_;
+        my $subnets = $network->{networks} or return;
+        push @objects, @$subnets;
+        $add_subnets->($_) for @$subnets;
     };
-    my $update_relation;
-    $update_relation = sub {
-        my ($networks) = @_;
-        my $found;
-      NETWORK:
-        for my $network (@$networks) {
-            my ($i, $m) = @{$network}{qw(ip mask)};
+    push @objects, @{ $zone->{networks} };
+    $add_subnets->($_) for @{ $zone->{networks} };
+    
+    # Collect all objects being larger and smaller than new aggregate.
+    my @larger  = grep { $_->{mask} < $mask } @objects;
+    my @smaller = grep { $_->{mask} > $mask } @objects;
 
-            # Network is subnet of aggregate.
-            if ($mask < $m && match_ip($i, $ip, $mask)) {
-                $found = 1;
-                push @{ $aggregate->{networks} }, $network;
+    # Find subnets of new aggregate.
+    for my $obj (@smaller) {
+        my ($i, $m) = @{$obj}{qw(ip mask)};
+        match_ip($i, $ip, $mask) or next;
 
-                # Other aggregate where network is subnet.
-                my $up = $network->{up};
-
-                # Network isn't subnet of any other aggregate.
-                if (! $up) {
-                    $network->{up} = $aggregate;
-                    next NETWORK;
-                }
-            
-                my ($u_ip, $u_mask) = @{$up}{qw(ip mask)};
-
-                # New aggregate is subnet of other aggregate.
-                if ($u_mask < $mask && match_ip($ip, $u_ip, $u_mask)) {
-                    $aggregate->{up} = $up;
-                    $network->{up} = $aggregate;
-                    next NETWORK;
-                }
-
-                # Other aggregate is subnet of new aggregate.
-                # Find largest {up}, still contained in new aggregate.
-                my $up2;
-                while($up2 = $up->{up}) {
-
-                    # Aggregate has already been inserted before, 
-                    # when processing some other network of zone.
-                    if ($up2 eq $aggregate) {
-                        next NETWORK;
-                    }
-                    my ($u2_ip, $u2_mask) = @{$up2}{qw(ip mask)};
-                    if ($mask < $u2_mask && match_ip($u2_ip, $ip, $mask)) {
-                        $up = $up2;
-                        next;
-                    }
-                    last;
-                }
-                $aggregate->{up} = $up2 if $up2;
-                $up->{up} = $aggregate;
-            }
-
-            # Aggregate is subnet of network.
-            # Check sub-networks of network.
-            elsif ($m < $mask && match_ip($ip, $i, $m)) {
-                $found = 1;
-                my $sub_networks = $network->{networks};
-                if ($sub_networks && @$sub_networks) {
-                    $update_relation->($sub_networks);
-                }
-                else {
-                    $update_agg_relation->();
-                    $aggregate->{up} ||= $network;
-                }
-
-                # No need to check other networks, because aggregate
-                # can't be subnet of multiple networks.
-                last NETWORK;
-            }
+        # Ignore sub-subnets, i.e. supernet is smaller than new aggregate.
+        if (my $up = $obj->{up}) {
+            last if $up->{mask} >= $mask;
         }
+        $obj->{up} = $aggregate;
+#        debug "$obj->{name} -up1-> $aggregate->{name}";
+        push(@{ $aggregate->{networks} }, 
+             $obj->{is_aggregate} ? @{ $obj->{networks} } : $obj);
+    }
 
-        # Aggregate doesn't match any network.
-        # Check if other aggregate matches new aggregate.
-        if (! $found) {
-            $update_agg_relation->();
-        }
-    };
-    my $set_owner = sub {
-        my $up = $aggregate->{up};
-        my $owner;
-        while ($up) {
-            $owner = $up->{owner} and last;
-            $up = $up->{up};
-        }
-        $owner ||= $zone->{owner};
-        $aggregate->{owner} = $owner;
-    };
-    $update_relation->($zone->{networks});
-    $set_owner->();
+    # Find supernet of new aggregate.
+    # Iterate from smaller to larger supernets.
+    # Stop after smallest supernet has been found.
+    for my $obj (sort { $a->{mask} < $b->{mask} } @larger) {
+        my ($i, $m) = @{$obj}{qw(ip mask)};
+        match_ip($ip, $i, $m) or next;
+        $aggregate->{up} = $obj;
+#        debug "$aggregate->{name} -up2-> $obj->{name}";
+        last;
+    }
+
+    # Inherit owner from smallest supernet having owner or from zone.
+    my $up = $aggregate->{up};
+    my $owner;
+    while ($up) {
+        $owner = $up->{owner} and last;
+        $up = $up->{up};
+    }
+    $owner ||= $zone->{owner};
+    $owner and $aggregate->{owner} = $owner;
+
     link_aggregate_to_zone($aggregate, $zone, $key);
+    add_managed_hosts_to_aggregate($aggregate);
     return;
 }
 
@@ -11602,10 +11683,10 @@ sub optimize_rules {
                                                                     values
                                                                     %$chg_hash)
                                                                 {
-                                                                    next
-                                                                      if
-                                                                        $chg_rule
-                                                                          ->{deleted};
+#                                                                    next
+#                                                                      if
+#                                                                        $chg_rule
+#                                                                          ->{deleted};
                                                                     my $prt =
                                                                       $chg_rule
                                                                       ->{prt};
@@ -11618,13 +11699,13 @@ sub optimize_rules {
                                                                             }
                                                                           )
                                                                         {
-                                                                            unless
+                                                                            if
                                                                               (
-                                                                                $cmp_rule
-                                                                                eq
-                                                                                $chg_rule
+                                                                               $cmp_rule
+                                                                               ne
+                                                                               $chg_rule
                                                                               )
-                                                                            {
+                                                                          {
 
 # debug("Del:", print_rule $chg_rule);
 # debug("Oth:", print_rule $cmp_rule);
@@ -11633,9 +11714,9 @@ sub optimize_rules {
                                                                                   {deleted}
                                                                                   =
                                                                                   $cmp_rule;
-                                                                                push
-                                                                                  @deleted_rules,
-                                                                                  $chg_rule;
+                                                                                collect_redundant_rules(
+                                                                                    $chg_rule, 
+                                                                                    $cmp_rule);
                                                                                 last;
                                                                             }
                                                                         }
@@ -12456,6 +12537,14 @@ sub ios_route_code;
 sub prefix_code;
 sub address;
 
+sub print_header {
+    my ($router, $what) = @_;
+    my $comment_char = $router->{model}->{comment_char};
+    my $where = $router->{vrf_members} ? " for $router->{name}" : '';
+    print "$comment_char [ $what$where ]\n";
+    return;
+}
+
 sub print_routes {
     my ($router)              = @_;
     my $model                 = $router->{model};
@@ -12465,6 +12554,7 @@ sub print_routes {
     my $do_auto_default_route = $config{auto_default_route};
     my $crypto_type           = $model->{crypto} || '';
     my %intf2hop2nets;
+    my @interfaces;
     for my $interface (@{ $router->{interfaces} }) {
         next if $interface->{ip} eq 'bridged';
         if ($interface->{routing}) {
@@ -12472,6 +12562,7 @@ sub print_routes {
             next;
         }
 
+        push @interfaces, $interface;
         my $optimize = 1;
 
         # ASA with site-to-site VPN needs individual routes for each peer.
@@ -12529,6 +12620,7 @@ sub print_routes {
             $intf2hop2nets{$interface}->{$hop} = \@netinfo;
         }
     }
+    return if not @interfaces;
     if ($do_auto_default_route) {
 
         # Find interface and hop with largest number of routing entries.
@@ -12538,8 +12630,7 @@ sub print_routes {
         # Substitute routes to one hop with a default route,
         # if there are at least two entries.
         my $max = 1;
-        for my $interface (@{ $router->{interfaces} }) {
-            next if $interface->{ip} eq 'bridged';
+        for my $interface (@interfaces) {
             for my $hop (@{ $interface->{hop} }) {
                 my $count = @{ $intf2hop2nets{$interface}->{$hop} };
                 if ($count > $max) {
@@ -12555,25 +12646,13 @@ sub print_routes {
             $intf2hop2nets{$max_intf}->{$max_hop} = [ [ 0, 0 ] ];
         }
     }
-    print "$comment_char [ Routing ]\n";
+    print_header($router, 'Routing');
 
     my $ios_vrf;
     $ios_vrf = $vrf ? "vrf $vrf " : '' if $type eq 'IOS';
     my $nxos_prefix = '';
 
-    for my $interface (@{ $router->{interfaces} }) {
-        next if $interface->{ip} eq 'bridged';
-
-        # Don't generate static routing entries,
-        # if a dynamic routing protocol is activated
-        if ($interface->{routing}) {
-            if ($config{comment_routes}) {
-                print "$comment_char Routing $interface->{routing}->{name}",
-                  " at $interface->{name}\n";
-            }
-            next;
-        }
-
+    for my $interface (@interfaces) {
         for my $hop (@{ $interface->{hop} }) {
 
             # For unnumbered and negotiated interfaces use interface name
@@ -12632,7 +12711,8 @@ sub print_nat1 {
     my ($router, $print_dynamic, $print_static_host, $print_static) = @_;
     my $model        = $router->{model};
     my $comment_char = $model->{comment_char};
-    print "$comment_char [ NAT ]\n";
+
+    print_header($router, 'NAT');
 
     my @hardware =
       sort { $a->{level} <=> $b->{level} } @{ $router->{hardware} };
@@ -13228,9 +13308,11 @@ sub set_policy_distribution_ip  {
                     || $a->{name} cmp $b->{name}
                   } @$vrf_members
             ];
+            $seen{$_} = 1 for @$vrf_members;
         }
         else {
             $router->{admin_ip} or $unreachable = $router->{name};
+            $seen{$router} = 1;
         }
         $unreachable
           and warn_msg (
@@ -13833,7 +13915,7 @@ sub cisco_acl_line {
             $result .= " $dst_port_code" if defined $dst_port_code;
             print "$result\n";
         }
-        elsif ($filter_type =~ /^(:?IOS|NX-OS)$/) {
+        elsif ($filter_type =~ /^(:?IOS|NX-OS|ACE)$/) {
             my ($proto_code, $src_port_code, $dst_port_code) =
               cisco_prt_code($src_range, $prt, $model);
             my $result = "$prefix $action $proto_code";
@@ -13867,7 +13949,7 @@ sub find_object_groups  {
 
     # Find identical groups of same size.
     my $size2first2group_hash = ($router->{size2first2group_hash} ||= {});
-    $router->{obj_group_counter} ||= 0;
+    $router->{vrf_shared_data}->{obj_group_counter} ||= 0;
 
     # Leave 'intf_rules' untouched, because they are handled
     # indivually for ASA, PIX. 
@@ -13945,13 +14027,14 @@ sub find_object_groups  {
 
             my $build_group = sub {
                 my ($ip_mask_strings) = @_;
+                my $counter = $router->{vrf_shared_data}->{obj_group_counter}++;
+
                 my $group = new(
                     'Objectgroup',
-                    name       => "g$router->{obj_group_counter}",
+                    name       => "g$counter",
                     elements   => $ip_mask_strings,
                     hash       => { map { $_ => 1 } @$ip_mask_strings },
                 );
-                $router->{obj_group_counter}++;
 
                 # Print object-group.
                 my $numbered = 10;
@@ -14504,7 +14587,7 @@ sub find_chains  {
 
     # For generating names of chains.
     # Initialize if called first time.
-    $router->{chain_counter} ||= 1;
+    $router->{vrf_shared_data}->{chain_counter} ||= 1;
 
     my $no_nat_set = $hardware->{no_nat_set};
     my @rule_arefs = values %{ $hardware->{io_rules} };
@@ -14651,13 +14734,13 @@ sub find_chains  {
         # Add new chain to current router.
         my $new_chain = sub {
             my ($rules) = @_;
+            my $counter = $router->{vrf_shared_data}->{chain_counter}++;
             my $chain = new(
                 'Chain',
-                name  => "c$router->{chain_counter}",
+                name  => "c$counter",
                 rules => $rules,
             );
             push @{ $router->{chains} }, $chain;
-            $router->{chain_counter}++;
             $chain;
         };
 
@@ -14852,11 +14935,6 @@ sub print_chains  {
         my $name = $chain->{name};
         print ":$name -\n";
     }
-
-    # Add user defined chain 'droplog'.
-    print ":droplog -\n";
-    print "-A droplog -j LOG --log-level debug\n";
-    print "-A droplog -j DROP\n";
 
     # Define chains.
     for my $chain (@{ $router->{chains} }) {
@@ -15091,14 +15169,13 @@ sub remove_non_local_rules {
                 for my $pair (@$filter_only) {
                     my ($i, $m) = @$pair;
 
-                    # src/dst matches filter_only.
-                    if ($mask > $m) {
-                        match_ip($ip, $i, $m) and $both_match++;
-                    }
-
+                    # src/dst matches filter_only or
                     # filter_only matches src/dst.
-                    elsif (match_ip($i, $ip, $mask)) {
+                    if ($mask > $m && match_ip($ip, $i, $m) ||
+                        match_ip($i, $ip, $mask)) 
+                    {
                         $both_match++;
+                        last;
                     }
                 }
             }
@@ -16180,13 +16257,24 @@ sub iptables_acl_line {
     return;
 }
 
-sub print_iptables_acls {
-    my ($router)     = @_;
-    my $model        = $router->{model};
+# Pre-processing for all interfaces.
+sub print_acl_prefix {
+    my ($router) = @_;
+    my $model    = $router->{model};
+    return if $model->{filter} ne 'iptables';
     my $comment_char = $model->{comment_char};
-
-    # Pre-processing for all interfaces.
+    print "$comment_char [ PREFIX ]\n";
     print "#!/sbin/iptables-restore <<EOF\n";
+
+    # Excempt loopback packets from connection tracking.
+    print "*raw\n";
+    print ":PREROUTING ACCEPT\n";
+    print ":OUTPUT ACCEPT\n";
+    print "-A PREROUTING -i lo -j NOTRACK\n";
+    print "-A OUTPUT -o lo -j NOTRACK\n";
+    print "COMMIT\n";
+
+    # Start filter table
     print "*filter\n";
     print ":INPUT DROP\n";
     print ":FORWARD DROP\n";
@@ -16194,6 +16282,33 @@ sub print_iptables_acls {
     print "-A INPUT -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
     print "-A FORWARD -j ACCEPT -m state --state ESTABLISHED,RELATED\n";
     print "-A INPUT -j ACCEPT -i lo\n";
+
+    # Add user defined chain 'droplog'.
+    print ":droplog -\n";
+    print "-A droplog -j LOG --log-level debug\n";
+    print "-A droplog -j DROP\n";
+    print "\n";
+    return;
+}
+
+sub print_acl_suffix {
+    my ($router) = @_;
+    my $model    = $router->{model};
+    return if $model->{filter} ne 'iptables';
+    my $comment_char = $model->{comment_char};
+    print "$comment_char [ SUFFIX ]\n";
+    print "-A INPUT -j droplog\n";
+    print "-A FORWARD -j droplog\n";
+    print "COMMIT\n";
+    print "EOF\n";
+    return;
+}
+
+sub print_iptables_acls {
+    my ($router)     = @_;
+    my $model        = $router->{model};
+    my $comment_char = $model->{comment_char};
+
     print_chains $router;
 
     for my $hardware (@{ $router->{hardware} }) {
@@ -16237,10 +16352,6 @@ sub print_iptables_acls {
         # Empty line after each chain.
         print "\n";
     }
-    print "-A INPUT -j droplog\n";
-    print "-A FORWARD -j droplog\n";
-    print "COMMIT\n";
-    print "EOF\n";
     return;
 }
 
@@ -16289,6 +16400,10 @@ sub print_cisco_acls {
                 $prefix = '';
                 print "ip access-list $acl_name\n";
             }
+            elsif ($filter eq 'ACE') {
+                $prefix = '';
+                print "access-list $acl_name extended\n";
+            }
             elsif ($filter eq 'PIX') {
                 $prefix      = "access-list $acl_name";
                 $prefix .= ' extended' if $model->{class} eq 'ASA';
@@ -16319,6 +16434,12 @@ sub print_cisco_acls {
                     "ip access-group $acl_name $suffix"
                 );
             }
+            elsif ($filter eq 'ACE') {
+                push(
+                    @{ $hardware->{subcmd} },
+                    "access-group $acl_name ${suffix}put"
+                );
+            }
             elsif ($filter eq 'PIX') {
                 print "access-group $acl_name $suffix interface",
                   " $hardware->{name}\n";
@@ -16336,7 +16457,7 @@ sub print_acls {
     my $model        = $router->{model};
     my $filter       = $model->{filter};
     my $comment_char = $model->{comment_char};
-    print "$comment_char [ ACL ]\n";
+    print_header($router, 'ACL');
 
     if ($filter eq 'iptables') {
         print_iptables_acls($router);
@@ -16463,7 +16584,7 @@ sub print_crypto {
     my @isakmp = sort by_name unique(map { $_->{key_exchange} } @ipsec);
 
     my $comment_char = $model->{comment_char};
-    print "$comment_char [ Crypto ]\n";
+    print_header($router, 'Crypto');
 
     if ($crypto_type eq 'EZVPN') {
         print_ezvpn $router;
@@ -16750,6 +16871,7 @@ sub print_crypto {
 sub print_interface {
     my ($router) = @_;
     my $model = $router->{model};
+    return if !$model->{print_interface};
     my $class = $model->{class};
     my $stateful = not $model->{stateless};
     for my $hardware (@{ $router->{hardware} }) {
@@ -16794,7 +16916,7 @@ sub print_interface {
         # Add "ip inspect" as marker, that stateful filtering is expected.
         # The command is known to be incomplete, "X" is only used as
         # placeholder.
-        if ($stateful && !$hardware->{loopback}) {
+        if ($class eq 'IOS' && $stateful && !$hardware->{loopback}) {
             push @subcmd, "ip inspect X in";
         }
         if (my $other = $hardware->{subcmd}) {
@@ -16802,8 +16924,8 @@ sub print_interface {
         }
         my $name = $hardware->{name};
 
-        # Split name for NX-OS: "ethernet3/4" -> "ethernet 3/4"
-#        $name =~ s/(\d+)/ $1/ if ($class eq 'NX-OS');
+        # Split name for ACE: "vlan3029" -> "vlan 3029"
+        $name =~ s/(\d+)/ $1/ if ($class eq 'ACE');
 
         print "interface $name\n";
         for my $cmd (@subcmd) {
@@ -16852,29 +16974,35 @@ sub print_code {
               or fatal_err("Can't open $file for writing: $!");
         }
 
-        my $vrf_members = $router->{vrf_members};
-        for my $vrouter ($vrf_members ? @$vrf_members : ($router)) {
-            $seen{$vrouter} = 1;
-            my $model        = $router->{model};
-            my $comment_char = $model->{comment_char};
-            my $name         = $vrouter->{name};
-
-            print "$comment_char Generated by $program, version $version\n\n";
-            print "$comment_char [ BEGIN $name ]\n";
-            print "$comment_char [ Model = $model->{class} ]\n";
-            if ($policy_distribution_point) {
-                if (my $ips = $vrouter->{admin_ip}) {
-                    printf("$comment_char [ IP = %s ]\n", join(',', @$ips));
-                }
+        my $model        = $router->{model};
+        my $comment_char = $model->{comment_char};
+        my $vrf_members  = $router->{vrf_members} || [ $router ];
+        print "$comment_char Generated by $program, version $version\n\n";
+        print "$comment_char [ BEGIN $device_name ]\n";
+        print "$comment_char [ Model = $model->{class} ]\n";
+        if ($policy_distribution_point) {
+            my @ips = map({ my $ips = $_->{admin_ip}; $ips ? @$ips : (); }
+                          @$vrf_members);
+            if (@ips) {
+                printf("$comment_char [ IP = %s ]\n", join(',', @ips));
             }
-
-            print_routes $vrouter;
-            print_crypto $vrouter;
-            print_acls $vrouter;
-            print_interface $vrouter if $model->{print_interface};
-            print_nat $vrouter;
-            print "$comment_char [ END $name ]\n\n";
         }
+        my $per_vrf = sub {
+            my($call) = @_;
+            for my $vrouter (@$vrf_members) {
+                $call->($vrouter);
+            }
+        };
+        $seen{$_} = 1 for @$vrf_members;
+        $per_vrf->(\&print_routes);
+        $per_vrf->(\&print_crypto);
+        print_acl_prefix($router);
+        $per_vrf->(\&print_acls);
+        print_acl_suffix($router);
+        $per_vrf->(\&print_interface);
+        $per_vrf->(\&print_nat);
+
+        print "$comment_char [ END $device_name ]\n\n";
         if ($dir) {
             close STDOUT or fatal_err("Can't close $dir/$device_name: $!");
         }

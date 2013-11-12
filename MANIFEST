@@ -22,14 +22,9 @@ cvs-support/loginfo
 cvs-support/suid-cvs.c
 dist.ini
 doc/CSPM.pod
-doc/Makefile
 doc/NEWS.html
 doc/Short-Changes
 doc/TODO
-doc/index.html
-doc/license.html
-doc/netspoc.pod
-doc/overview.html
 doc/pre-lang.html
 doc/private-context.dia
 examples/Makefile
@@ -52,7 +47,6 @@ examples/optimize/topology
 examples/realistic/realistic
 examples/service-modifiers/service-modifiers
 examples/topology
-index.shtml
 lib/Netspoc.pm
 misc/anonymize
 misc/conv2solsoft
@@ -74,7 +68,11 @@ t/local-opt.t
 t/managed-host.t
 t/nat.t
 t/optimize-subnet.t
+t/overlaps.t
+t/overlaps.t~
 t/owner.t
+t/parser.t
+t/parser.t~
 t/pathrestrict-border.t
 t/rename.t
 t/secondary.t
@@ -82,5 +80,7 @@ t/unenforceable.t
 t/unnumbered.t
 t/virtual-loopback-nat.t
 t/virtual-pathrestrict.t
+t/vrf.t
+t/vrf.t~
 t/zone.t
 tidyall.ini

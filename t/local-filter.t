@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out1, $head1, $out2, $head2, $out3, $head3);
+my ($title, $topo, $in, $out1, $head1, $out2, $head2, $out3, $head3);
 
 ############################################################
 $title = 'Non matching mask of filter_only attribute';
@@ -74,42 +74,6 @@ Warning: Useless 10.62.3.0/24 in attribute 'filter_only' of router:d32
 END
 
 eq_or_diff(compile_err($in), $out1, $title);
-
-############################################################
-$title = 'Reuse object groups for deny rules';
-############################################################
-
-$in = <<END;
-network:n1 = { ip = 10.62.1.32/27; }
-router:d32 = {
- model = ASA;
- managed = local;
- filter_only = 10.62.1.0/24, 10.62.2.0/24;#, 10.62.3.0/24;
- interface:n1 = { ip = 10.62.1.33; hardware = vlan1; }
- interface:n2 = { ip = 10.62.2.1; hardware = vlan2; }
-}
-network:n2 = { ip = 10.62.2.0/27; }
-END
-
-$out1 = <<END;
-object-group network g0
- network-object 10.62.1.0 255.255.255.0
- network-object 10.62.2.0 255.255.255.0
-access-list vlan1_in extended deny ip any object-group g0
-access-list vlan1_in extended permit ip any any
-access-group vlan1_in in interface vlan1
-END
-
-$out2 = <<END;
-access-list vlan2_in extended deny ip any object-group g0
-access-list vlan2_in extended permit ip any any
-access-group vlan2_in in interface vlan2
-END
-
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
 
 ############################################################
 $title = 'NAT not allowed';
@@ -190,6 +154,109 @@ Error: any:n1_10_62 doesn\'t match attribute \'filter_only\' of router:d32
 END
 
 eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'Reuse object groups for deny rules';
+############################################################
+
+$topo = <<END;
+network:n1 = { ip = 10.62.1.32/27; }
+
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only = 10.62.0.0/21, 10.62.241.0/24;
+ interface:n1 = { ip = 10.62.1.33; hardware = vlan1; }
+ interface:trans = { ip = 10.62.241.1; hardware = vlan2; }
+}
+
+network:trans = { ip = 10.62.241.0/29; }
+
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:trans = { ip = 10.62.241.2; hardware = inside; }
+ interface:extern = { ip = 10.125.3.1; hardware = outside; }
+}
+
+network:extern = { ip = 10.125.3.0/24; }
+END
+
+$in = $topo;
+$out1 = <<END;
+object-group network g0
+ network-object 10.62.0.0 255.255.248.0
+ network-object 10.62.241.0 255.255.255.0
+access-list vlan1_in extended deny ip any object-group g0
+access-list vlan1_in extended permit ip any any
+access-group vlan1_in in interface vlan1
+END
+
+$out2 = <<END;
+access-list vlan2_in extended deny ip object-group g0 object-group g0
+access-list vlan2_in extended permit ip any any
+access-group vlan2_in in interface vlan2
+END
+
+$head1 = (split /\n/, $out1)[0];
+$head2 = (split /\n/, $out2)[0];
+
+eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+
+############################################################
+$title = "Supernet to extern";
+############################################################
+
+$in = <<END;
+$topo
+service:Test = {
+ user = any:[ip = 10.60.0.0/14 & network:n1, network:trans];
+ permit src = user;
+        dst = network:extern;
+        prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+object-group network g0
+ network-object 10.62.0.0 255.255.248.0
+ network-object 10.62.241.0 255.255.255.0
+access-list vlan1_in extended deny ip any object-group g0
+access-list vlan1_in extended permit ip any any
+access-group vlan1_in in interface vlan1
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+
+############################################################
+$title = "Supernet to local";
+############################################################
+
+$in = <<END;
+$topo
+service:Test = { 
+ user = any:[ip = 10.60.0.0/14 & network:n1];
+ permit src = user;
+        dst = network:trans;
+        prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+object-group network g0
+ network-object 10.62.0.0 255.255.248.0
+ network-object 10.62.241.0 255.255.255.0
+access-list vlan1_in extended permit tcp 10.60.0.0 255.252.0.0 10.62.241.0 255.255.255.248 eq 80
+access-list vlan1_in extended deny ip any object-group g0
+access-list vlan1_in extended permit ip any any
+access-group vlan1_in in interface vlan1
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
 $title = "Crosslink";

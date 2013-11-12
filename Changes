@@ -1,3 +1,33 @@
+3.039     2013-11-12 11:07:43 Europe/Berlin
+
+ - Access to contained managed hosts is implicitly permitted now, 
+   if a rule permits traffic to a network or aggregate.
+   Support for managed hosts had been added recently. A rule which permits
+   access to a network, implictly permits access to hosts of this
+   network. Until now, access to each managed host had to be permitted
+   explicitly. This was counterintuitive.
+ - Added attribute 'server_name' for managed hosts. 
+   This attribute has two use cases: 
+   1. Change the name of the generated code file. 
+      This name will also be checked by Netspoc-Approve.
+   2. Define multi-homed severs. Each interface of the server is defined 
+      by a single host. All hosts are linked together by using 
+      the same name in 'server_name'.
+ - Added support to select managed hosts of a network.
+   Syntax is: host:[managed & ...]
+ - Show warnings for all pairs of redundant rules. 
+   Previously, only one larger rule was shown for each redundant rule.
+ - Generated code for Linux now excempts loopback packets from connection 
+   tracking in table 'raw'.
+ - Added preliminary support for Cisco ACE. Activate with 'model = ACE'.
+ - Fixed object-group names in generated code for NX-OS 
+   with multiple VRF contexts.
+ - Fixed host:[...] without keyword 'managed' to include managed hosts.
+ - Fixed any:[ip=i.i.i.i/m & any:[...]] to use mask of outer aggregate.
+ - Fixed subnet relation between matching aggregates.
+ - Fixed souperflous non local ACLs at device with managed=local.
+ - Fixed cut-netspoc to correctly use security zones.
+
 3.038     2013-10-21 16:23:09 Europe/Berlin
 
  - print-group no longer aborts when printing IP address of auto interface, 

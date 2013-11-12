@@ -27,7 +27,7 @@ use Netspoc;
 #use open ':locale';
 use locale;
 
-our $VERSION = '3.038'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.039'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -105,6 +105,20 @@ sub mark_unmanaged {
     }
     return;
 }	
+
+# We can't use %aggregates from Netspoc.pm because it only holds named
+# aggregates. But we need unnamed aggregates like any:[network:XX]
+# as well.
+my @all_zones;
+sub get_zones {
+    my %all_zones;
+    for my $network (values %Netspoc::networks) {
+        my $zone = $network->{zone};
+        $all_zones{$zone} = $zone;
+    }
+    @all_zones = values %all_zones;
+    return;
+}
 	
 ####################################################################
 # Main program
@@ -207,7 +221,8 @@ for my $area (values %areas) {
 }
 
 # Mark networks inside aggregates.
-for my $zone (values %zones) {
+get_zones();
+for my $zone (@all_zones) {
     for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
         if($aggregate->{is_used}) {
             for my $network (@{ $aggregate->{networks} }) {
@@ -339,20 +354,6 @@ for my $restrict (values %pathrestrictions) {
         print " $interface->{name},\n";
     }
     print ";\n";
-}
-
-# Find global NAT definitions which are bound by used interfaces.
-if (keys %global_nat) {
-    my %used_nat;
-    for my $interface (values %interfaces) {
-        $interface->{router}->{is_used} or next;
-        my $nat_tag = $interface->{bind_nat} or next;
-        $used_nat{$nat_tag} = 1;
-    }
-    for my $nat_tag (keys %global_nat) {
-        next unless $used_nat{$nat_tag};
-        print $global_nat{$nat_tag}->{src_code}, "\n";
-    }
 }
 
 # All unwanted services have already been deleted above.

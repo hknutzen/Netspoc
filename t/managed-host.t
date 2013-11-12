@@ -22,7 +22,6 @@ service:test = {
  user = network:N;
  permit src = user; dst = host:h1; prt = tcp 80;
 }
-
 END
 
 $out1 = <<END;
@@ -50,7 +49,6 @@ service:test = {
  user = host:h2;
  permit src = user; dst = host:h1; prt = tcp 80;
 }
-
 END
 
 $out1 = <<END;
@@ -68,6 +66,121 @@ $head1 = (split /\n/, $out1)[0];
 $head2 = (split /\n/, $out2)[0];
 
 eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+
+############################################################
+$title = 'Automatically add managed host to destination network';
+############################################################
+
+$in = <<END;
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
+}
+
+service:test = {
+ user = network:N;
+ permit src = user; dst = user; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+:eth0_self -
+-A INPUT -j eth0_self -i eth0
+-A eth0_self -j ACCEPT -s 10.1.1.0/24 -d 10.1.1.10 -p tcp --dport 80
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+
+############################################################
+$title = 'Detect duplicate automatic and manual managed host';
+############################################################
+
+$in = <<END;
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
+}
+
+service:test = {
+ user = network:N, host:h1;
+ permit src = user; dst = user; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Warning: Duplicate elements in dst of rule in service:test:
+ host:h1
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'Automatically add managed host to destination aggregate ';
+############################################################
+
+$in = <<END;
+any:10 = { ip=10.0.0.0/8; link = network:N; }
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
+}
+
+service:test1 = {
+ user = any:10;
+ permit src = user; dst = user; prt = tcp 80;
+}
+service:test2 = {
+ user = any:[ip=10.1.0.0/16 & network:N];
+ permit src = user; dst = user; prt = tcp 81;
+}
+END
+
+$out1 = <<END;
+-A c1 -j ACCEPT -s 10.1.0.0/16 -p tcp --dport 81
+-A c1 -j ACCEPT -s 10.0.0.0/8 -p tcp --dport 80
+END
+
+$out2 = <<END;
+:eth0_self -
+-A INPUT -j eth0_self -i eth0
+-A eth0_self -g c1 -d 10.1.1.10 -p tcp --dport 80:81
+END
+
+$head1 = (split /\n/, $out1)[0];
+$head2 = (split /\n/, $out2)[0];
+
+eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+
+############################################################
+$title = 'Filter managed host in destination aggregate ';
+############################################################
+
+$in = <<END;
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = Linux; ip = 10.1.1.10;  hardware = eth0; }
+ host:h2 = { managed; model = Linux; ip = 10.1.1.222; hardware = eth1; }
+}
+
+service:test = {
+ user = any:[ip=10.1.1.0/28 & network:N];
+ permit src = user; dst = user; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+:eth0_self -
+-A INPUT -j eth0_self -i eth0
+-A eth0_self -j ACCEPT -s 10.1.1.0/28 -d 10.1.1.10 -p tcp --dport 80
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
 $title = 'NAT with managed host';
@@ -111,6 +224,48 @@ $head1 = (split /\n/, $out1)[0];
 $head2 = (split /\n/, $out2)[0];
 
 eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+
+############################################################
+$title = "Automatic managed and unmanaged hosts from network";
+############################################################
+
+$in = <<END;
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed = secondary;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:N = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
+ host:h2 = {          model = Linux; ip = 10.1.1.11; hardware = eth0; }
+}
+service:test1 = {
+ user = host:[network:N];
+ permit src = network:Test; dst = user; prt = tcp 81;
+}
+service:test2 = {
+ user = host:[managed & network:N];
+ permit src = network:Test; dst = user; prt = tcp 82;
+}
+service:test3 = {
+ user =  host:[network:N] &! host:[managed & network:N];
+ permit src = network:Test; dst = user; prt = tcp 83;
+}
+END
+$out1 = <<END;
+access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.11 eq 81
+access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.10 range 81 82
+access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.11 eq 83
+access-list Vlan1_in extended deny ip any any
+access-group Vlan1_in in interface Vlan1
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
 $title = "Managed host doesn't count as full filter";
@@ -188,6 +343,68 @@ Error: Duplicate IP address for host:h1 and host:h3
 END
 
 eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = "Multi homed managed host";
+############################################################
+
+$in = <<END;
+network:Test = {
+ ip = 10.9.1.0/24;
+ host:t10 = { ip = 10.9.1.10; }
+ host:t20 = { ip = 10.9.1.20; }
+ host:t30 = { ip = 10.9.1.30; }
+ host:s = {
+  ip = 10.9.1.9;
+  managed; model = Linux; hardware = eth0; server_name = hugo; }
+}
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:N = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { 
+  ip = 10.1.1.10; 
+  managed; model = Linux; hardware = eth1; server_name = hugo; }
+}
+service:test = {
+ user = host:t10, host:t20, host:t30;
+ permit src = user; dst = host:s, host:h1; prt = tcp 22;
+}
+END
+
+$out1 = <<END;
+:c1 -
+:c2 -
+-A c1 -j ACCEPT -s 10.9.1.30
+-A c1 -j ACCEPT -s 10.9.1.20
+-A c2 -g c1 -s 10.9.1.16/28
+-A c2 -j ACCEPT -s 10.9.1.10
+END
+
+$out2 = <<END;
+:eth0_self -
+-A INPUT -j eth0_self -i eth0
+-A eth0_self -g c2 -s 10.9.1.0/27 -d 10.9.1.9 -p tcp --dport 22
+END
+
+$out3 = <<END;
+:c3 -
+:c4 -
+-A c3 -j ACCEPT -s 10.9.1.30
+-A c3 -j ACCEPT -s 10.9.1.20
+-A c4 -g c3 -s 10.9.1.16/28
+-A c4 -j ACCEPT -s 10.9.1.10
+END
+
+$head1 = (split /\n/, $out1)[0];
+$head2 = (split /\n/, $out2)[0];
+$head3 = (split /\n/, $out3)[0];
+
+eq_or_diff(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3, $title);
 
 ############################################################
 done_testing;

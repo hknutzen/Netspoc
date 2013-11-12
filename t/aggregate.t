@@ -96,10 +96,15 @@ $title = 'Implicit aggregate between 2 networks';
 $in = <<END;
 $topo
 
-service:test = {
+service:test1 = {
  user = any:[ip=10.3.3.0/26 & area:test];
  permit src = user; dst = network:Customer; prt = tcp 80;
  permit src = network:[user]; dst = network:Customer; prt = tcp 81;
+}
+service:test2 = {
+ overlaps = service:test1;
+ user = network:sub;
+ permit src = user; dst = network:Customer; prt = tcp 81;
 }
 END
 
@@ -324,7 +329,7 @@ $head1 = (split /\n/, $out1)[0];
 eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
-$title = 'Redundant rules with nested aggregates';
+$title = 'Redundant nested aggregates';
 ############################################################
 
 $in .= <<END;
@@ -342,6 +347,216 @@ Warning: Redundant rules in service:test1 compared to service:test3:
 END
 
 eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'Redundant nested aggregates without matching network (1)';
+############################################################
+
+# Larger aggregate is inserted first.
+$in = <<END;
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Kunde = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+
+network:Kunde = { ip = 10.1.1.0/24; }
+
+service:test = {
+ user = any:[ip=10.1.0.0/16 & network:Test],
+        any:[ip=10.1.0.0/17 & network:Test],
+        ;
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Warning: Redundant rules in service:test compared to service:test:
+ Files: STDIN STDIN
+  permit src=any:[ip=10.1.0.0/17 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
+< permit src=any:[ip=10.1.0.0/16 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'Redundant nested aggregates without matching network (2)';
+############################################################
+
+# Small aggregate is inserted first.
+$in = <<END;
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Kunde = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+
+network:Kunde = { ip = 10.1.1.0/24; }
+
+service:test = {
+ user = any:[ip=10.1.0.0/17 & network:Test],
+        any:[ip=10.1.0.0/16 & network:Test],
+        ;
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Warning: Redundant rules in service:test compared to service:test:
+ Files: STDIN STDIN
+  permit src=any:[ip=10.1.0.0/17 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
+< permit src=any:[ip=10.1.0.0/16 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'Redundant matching aggregates as subnet of network';
+############################################################
+
+$in = <<END;
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Kunde = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+
+network:Kunde = { ip = 10.1.1.0/24; }
+
+service:test1 = {
+ user = any:[ip=10.9.1.0/26 & network:Test],
+        network:Test;
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+
+service:test2 = {
+ user = any:[ip=10.9.1.0/25 & network:Test];
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Warning: Redundant rules in service:test1 compared to service:test1:
+ Files: STDIN STDIN
+  permit src=any:[ip=10.9.1.0/26 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
+< permit src=network:Test; dst=network:Kunde; prt=tcp 80; of service:test1
+Warning: Redundant rules in service:test1 compared to service:test2:
+ Files: STDIN STDIN
+  permit src=any:[ip=10.9.1.0/26 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
+< permit src=any:[ip=10.9.1.0/25 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test2
+Warning: Redundant rules in service:test2 compared to service:test1:
+ Files: STDIN STDIN
+  permit src=any:[ip=10.9.1.0/25 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test2
+< permit src=network:Test; dst=network:Kunde; prt=tcp 80; of service:test1
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'Mixed redundant matching aggregates';
+############################################################
+
+# Check for sub aggregate, even if sub-network was found
+$in = <<END;
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Kunde = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+
+network:Kunde = { ip = 10.1.1.0/24; }
+
+service:test1 = {
+ user = any:[ip=10.1.1.0/26 & network:Test];
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+
+service:test2 = {
+ user = any:[ip=10.0.0.0/8 & network:Test];
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Warning: Redundant rules in service:test1 compared to service:test2:
+ Files: STDIN STDIN
+  permit src=any:[ip=10.1.1.0/26 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
+< permit src=any:[ip=10.0.0.0/8 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test2
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'Mixed implicit and explicit aggregates';
+############################################################
+
+$in = <<END;
+any:10_0_0_0    = { ip = 10.0.0.0/8;    link = network:Test; }
+any:10_253_0_0  = { ip = 10.253.0.0/16; link = network:Test; }
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Kunde = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+
+network:Kunde = { ip = 10.1.1.0/24; }
+
+service:test1 = {
+ user = any:[network:Test];
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+access-list Vlan1_in extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
+access-list Vlan1_in extended deny ip any any
+access-group Vlan1_in in interface Vlan1
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+
+############################################################
+$title = 'Matching aggregate of implicit aggregate';
+############################################################
+
+$in = <<END;
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Kunde = { ip = 10.1.1.1; hardware = Vlan2; }
+}
+
+network:Kunde = { ip = 10.1.1.0/24; }
+
+service:test = {
+ user = any:[ip=10.1.0.0/16 & any:[network:Test]];
+ permit src = user; dst = network:Kunde; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+access-list Vlan1_in extended permit tcp 10.1.0.0 255.255.0.0 10.1.1.0 255.255.255.0 eq 80
+access-list Vlan1_in extended deny ip any any
+access-group Vlan1_in in interface Vlan1
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
 
