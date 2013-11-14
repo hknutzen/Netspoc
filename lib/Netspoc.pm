@@ -6350,6 +6350,7 @@ sub warn_unused_overlaps {
         if (my $overlaps = $service->{overlaps}) {
             my $used = delete $service->{overlaps_used};
             for my $overlap (@$overlaps) {
+                next if $overlap->{disabled};
                 $used->{$overlap}
                   or warn_msg("Useless 'overlaps = $overlap->{name}'",
                               " in $service->{name}");
