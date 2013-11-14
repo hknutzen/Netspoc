@@ -228,13 +228,13 @@ with negotiated IP is used in a rule, the address range of the
 attached network is taken.
 
 Additional IP addresses can be defined using a secondary
-interface. A secondary interface is referenced as
-`interface:<router-name>.<network-name>.<secondary-name>`.
+interface. 
 Another method to define secondary interfaces is by giving two or more IP
 addresses to the primary interface. This implicitly defines secondary
 interfaces with a name which is derived from the name of the primary
 interface by adding an incrementing number beginning with "2".
-E.g. `interface:router.name.2, interface:router.name.3, ...`.
+This is equivalent to define 
+`secondary:2 = {...}, secondary:3 = {...}, ...`.
 
 A virtual interface defines a shared IP address between two or more
 routers. See [Virtual interfaces](#virtual_interface) for details.
@@ -295,10 +295,11 @@ respective definition.
 
 When referencing interfaces, we need to use a different syntax
 than for interface definitions: the router name followed by a network
-name.  
+name `interface:<router-name>.<network-name>`.
 A reference to a secondary interface has three parts: the
 router name, the network name and the name of the secondary interface
-from its definition.
+from its definition
+`interface:<router-name>.<network-name>.<secondary-name>`.
 
 ## Groups
 
