@@ -13903,7 +13903,7 @@ sub cisco_acl_line {
           if $config{comment_acls};
         my $spair = address($src, $no_nat_set);
         my $dpair = address($dst, $no_nat_set);
-        if ($filter_type eq 'PIX') {
+        if ($filter_type =~ /^(PIX|ACE)$/) {
 
             # Only traffic passing through the PIX.
             my ($proto_code, $src_port_code, $dst_port_code) =
@@ -13915,7 +13915,7 @@ sub cisco_acl_line {
             $result .= " $dst_port_code" if defined $dst_port_code;
             print "$result\n";
         }
-        elsif ($filter_type =~ /^(:?IOS|NX-OS|ACE)$/) {
+        elsif ($filter_type =~ /^(:?IOS|NX-OS)$/) {
             my ($proto_code, $src_port_code, $dst_port_code) =
               cisco_prt_code($src_range, $prt, $model);
             my $result = "$prefix $action $proto_code";
@@ -13942,8 +13942,8 @@ my $min_object_group_size = 2;
 sub find_object_groups  {
     my ($router, $hardware) = @_;
     my $model = $router->{model};
-    my $is_nxos = $model->{filter} eq 'NX-OS';
-    my $keyword = $is_nxos
+    my $filter_type = $model->{filter};
+    my $keyword = $filter_type eq 'NX-OS'
                 ? 'object-group ip address'
                 : 'object-group network';
 
@@ -14048,9 +14048,12 @@ sub find_object_groups  {
                         internal_err("Unexpected object with mask 0",
                                      " in object-group of $router->{name}");
                     my $adr = cisco_acl_addr($pair, $model);
-                    if ($is_nxos) {
+                    if ($filter_type eq 'NX-OS') {
                         print " $numbered $adr\n";
                         $numbered += 10;
+                    }
+                    elsif ($filter_type eq 'ACE') {
+                        print " $adr\n";
                     }
                     else {
                         print " network-object $adr\n";
@@ -16401,8 +16404,7 @@ sub print_cisco_acls {
                 print "ip access-list $acl_name\n";
             }
             elsif ($filter eq 'ACE') {
-                $prefix = '';
-                print "access-list $acl_name extended\n";
+                $prefix = "access-list $acl_name extended";
             }
             elsif ($filter eq 'PIX') {
                 $prefix      = "access-list $acl_name";
@@ -16437,7 +16439,7 @@ sub print_cisco_acls {
             elsif ($filter eq 'ACE') {
                 push(
                     @{ $hardware->{subcmd} },
-                    "access-group $acl_name ${suffix}put"
+                    "access-group ${suffix}put $acl_name"
                 );
             }
             elsif ($filter eq 'PIX') {
