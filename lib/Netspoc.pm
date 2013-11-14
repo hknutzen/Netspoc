@@ -6346,6 +6346,7 @@ sub show_deleted_rules2 {
 sub warn_unused_overlaps {
     for my $key (sort keys %services) {
         my $service = $services{$key};
+        next if $service->{disabled};
         if (my $overlaps = $service->{overlaps}) {
             my $used = delete $service->{overlaps_used};
             for my $overlap (@$overlaps) {
