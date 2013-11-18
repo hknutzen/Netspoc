@@ -48,4 +48,26 @@ END
 eq_or_diff(compile_err($in), $out1, $title);
 
 ############################################################
+$title = "Missing hardware at interface";
+############################################################
+
+# Processing of attribute 'no_in_acl' internally uses value of
+# hardware.
+
+$in = <<END;
+router:R = {
+ managed; 
+ model = ASA;
+ interface:N = { ip = 10.1.1.1; no_in_acl; }
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out1 = <<END;
+Error: Missing 'hardware' for interface:R.N
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
 done_testing;

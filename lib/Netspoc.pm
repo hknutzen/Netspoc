@@ -2209,41 +2209,9 @@ sub read_router {
         # to the same hardware object.
         my %hardware;
         for my $interface (@{ $router->{interfaces} }) {
-            if (my $hw_name = $interface->{hardware}) {
-                my $hardware;
-                if ($hardware = $hardware{$hw_name}) {
+            my $hw_name = $interface->{hardware};
 
-                    # All logical interfaces of one hardware interface
-                    # need to use the same NAT binding,
-                    # because NAT operates on hardware, not on logic.
-                    aref_eq(
-                        $interface->{bind_nat} || $bind_nat0,
-                        $hardware->{bind_nat}  || $bind_nat0
-                      )
-                      or err_msg "All logical interfaces of $hw_name\n",
-                      " at $name must use identical NAT binding";
-                }
-                else {
-                    $hardware = { name => $hw_name, loopback => 1 };
-                    $hardware{$hw_name} = $hardware;
-                    push @{ $router->{hardware} }, $hardware;
-                    if (my $nat = $interface->{bind_nat}) {
-                        $hardware->{bind_nat} = $nat;
-                    }
-                }
-                $interface->{hardware} = $hardware;
-
-                # Hardware keeps attribute {loopback} only if all
-                # interfaces have attribute {loopback}.
-                if (!$interface->{loopback}) {
-                    delete $hardware->{loopback};
-                }
-
-                # Remember, which logical interfaces are bound
-                # to which hardware.
-                push @{ $hardware->{interfaces} }, $interface;
-            }
-            else {
+            if (!$hw_name) {
 
                 # Managed router must not have short interface.
                 if ($interface->{ip} eq 'short') {
@@ -2256,7 +2224,43 @@ sub read_router {
                     # have a hardware name.
                     err_msg("Missing 'hardware' for $interface->{name}");
                 }
+
+                # Prevent further errors.
+                $hw_name = 'unknown';
             }
+
+            my $hardware;
+            if ($hardware = $hardware{$hw_name}) {
+
+                # All logical interfaces of one hardware interface
+                # need to use the same NAT binding,
+                # because NAT operates on hardware, not on logic.
+                aref_eq(
+                    $interface->{bind_nat} || $bind_nat0,
+                    $hardware->{bind_nat}  || $bind_nat0
+                  )
+                  or err_msg "All logical interfaces of $hw_name\n",
+                  " at $name must use identical NAT binding";
+            }
+            else {
+                $hardware = { name => $hw_name, loopback => 1 };
+                $hardware{$hw_name} = $hardware;
+                push @{ $router->{hardware} }, $hardware;
+                if (my $nat = $interface->{bind_nat}) {
+                    $hardware->{bind_nat} = $nat;
+                }
+            }
+            $interface->{hardware} = $hardware;
+
+            # Hardware keeps attribute {loopback} only if all
+            # interfaces have attribute {loopback}.
+            if (!$interface->{loopback}) {
+                delete $hardware->{loopback};
+            }
+
+            # Remember, which logical interfaces are bound
+            # to which hardware.
+            push @{ $hardware->{interfaces} }, $interface;
 
             # Interface inherits routing attribute from router.
             if ($all_routing) {
