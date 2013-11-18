@@ -15847,16 +15847,15 @@ sub print_cisco_acl_add_deny {
             $hardware->{intf_rules} = [];
         }
     }
+
+    # ASA and PIX ignore rules for own interfaces.
     else {
       $hardware->{intf_rules} = [];
     }  
 
-    # Concatenate Interface rules and ordinary rules.
+    # Concatenate interface rules and ordinary rules.
     my $intf_rules = $hardware->{intf_rules};
-    my $all_rules = $hardware->{rules};
-    if (@$intf_rules) {
-        $all_rules = [ @$intf_rules, @$rules ];
-    }
+    my $all_rules = @$intf_rules? [ @$intf_rules, @$rules ] : $rules;
     cisco_acl_line($router, $all_rules, $no_nat_set, $prefix);
     return;
 }
