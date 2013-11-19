@@ -4180,9 +4180,6 @@ sub link_subnet  {
         err_msg $context->(), " is subnet_of $network->{name}",
           " but its IP doesn't match that's IP/mask";
     }
-
-    # Used to check for overlaps with hosts or interfaces of $network.
-    push @{ $network->{own_subnets} }, $object;
     return;
 }
 
@@ -4639,8 +4636,6 @@ sub transform_isolated_ports {
                 $new_net->{interfaces} = [$obj];
                 $obj->{network}        = $new_net;
             }
-
-            push @{ $network->{own_subnets} }, $new_net;
             push @networks, $new_net;
 
             # Copy promiscuous interface(s) and use it to link new network
@@ -15777,23 +15772,23 @@ sub print_cisco_acl_add_deny {
             # - subnet/host and interface already have been checked to
             #   have disjoint ip addresses to interfaces of current router.
             next if not is_network($dst);
+              
             if ($dst->{mask} == 0) {
                 $protect_all = 1;
 
-#               debug("Protect all $router->{name}:$hardware->{name}");
+#               debug("Protect all $router->{name}: $hardware->{name}");
                 last RULE;
             }
 
-            # Find interfaces of network or subnets of network,
-            # which are directly attached to current router.
-            for my $net ($dst,
-                ($dst->{own_subnets}) ? @{ $dst->{own_subnets} } : ())
-            {
-                for my $intf (grep { $intf_hash->{$_} } @{ $net->{interfaces} })
-                {
+            my ($ip, $mask) = @{ address($dst, $no_nat_set) };
+            for my $intf (values %$intf_hash) {
+                next if $intf->{ip} =~ 
+                        /^(unnumbered|negotiated|tunnel|bridged)$/;
+                my $i = address($intf, $no_nat_set)->[0];
+                if (match_ip($i, $ip, $mask)) {
                     $need_protect{$intf} = $intf;
 
-#                   debug("Need protect $intf->{name} at $hardware->{name}");
+#                   debug("Protect $intf->{name} at $hardware->{name}");
                 }
             }
         }
