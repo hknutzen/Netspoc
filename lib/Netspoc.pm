@@ -15722,6 +15722,9 @@ sub print_cisco_acl_add_deny {
         # cluster at each entry.
         my $interfaces = $router->{crosslink_interfaces}
           || $router->{interfaces};
+
+        # Set crosslink_intf_hash even for routers not part of a
+        # crosslink cluster.
         $router->{crosslink_intf_hash} ||=
           { map { $_ => $_ } @{ $router->{interfaces} } };
         my $intf_hash = $router->{crosslink_intf_hash};
