@@ -7993,7 +7993,7 @@ sub check_no_in_acl  {
 # This uses attributes from sub check_no_in_acl.
 sub check_crosslink  {
 
-    # Collect cluster of routers connected by crosslink networks,
+    # Collect routers connected by crosslink networks,
     # but only for Cisco routers having attribute "need_protect".
     my %crosslink_routers;
 
@@ -8049,7 +8049,8 @@ sub check_crosslink  {
     }
 
     # Find clusters of routers connected directly or indirectly by
-    # crosslink networks.
+    # crosslink networks and having at least one device with
+    # "need_protect".
     my %cluster;
     my %seen;
     my $walk;
@@ -8070,8 +8071,9 @@ sub check_crosslink  {
         }
     };
 
-    # Collect all interfaces of cluster and add to each cluster member
-    # - as list used in "protect own interfaces"
+    # Collect all interfaces of cluster belonging to device of type
+    # "need_protect" and add to each cluster member 
+    # - as list used in "protect own interfaces" 
     # - as hash used in fast lookup in distribute_rule and "protect ..".
     for my $router (values %crosslink_routers) {
         next if $seen{$router};
@@ -8079,6 +8081,7 @@ sub check_crosslink  {
         $walk->($router);
         my @crosslink_interfaces =
           map { @{ $_->{interfaces} } }
+          grep { $crosslink_routers{$_} }
 
           # Sort by router name to make output deterministic.
           sort by_name values %cluster;
@@ -15715,7 +15718,11 @@ sub print_cisco_acl_add_deny {
         $permit_any = $hardware->{no_in_acl};
     }
 
-    if ($router->{model}->{need_protect}) {
+    if ($router->{model}->{need_protect} || 
+
+        # ASA protects IOS router behind crosslink interface.
+        $router->{crosslink_intf_hash}) 
+    {
 
         # Routers connected by crosslink networks are handled like one
         # large router. Protect the collected interfaces of the whole
