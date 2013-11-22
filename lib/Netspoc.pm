@@ -13689,7 +13689,7 @@ sub address {
             my ($network_ip, $network_mask) = @{$network}{ 'ip', 'mask' };
             return [ $network_ip, $network_mask ];
         }
-        if (my $nat_tag = $network->{dynamic}) {
+        elsif (my $nat_tag = $network->{dynamic}) {
             if (my $ip = $obj->{nat}->{$nat_tag}) {
 
                 # Single static NAT IP for this interface.
