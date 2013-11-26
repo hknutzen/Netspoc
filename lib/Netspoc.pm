@@ -1800,6 +1800,9 @@ sub read_interface {
         elsif (check_flag 'no_in_acl') {
             $interface->{no_in_acl} = 1;
         }
+        elsif (check_flag 'dhcp_server') {
+            $interface->{dhcp_server} = 1;
+        }
 
         # Needed for the implicitly defined network of 'loopback'.
         elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
@@ -3775,6 +3778,14 @@ my $prt_udp = {
     dst_range => $aref_tcp_any
 };
 
+# DHCP server.
+my $prt_bootps = {
+    name      => 'auto_prt:bootps',
+    proto     => 'udp',
+    src_range => $aref_tcp_any,
+    dst_range => [ 67, 67]
+};
+
 # IPSec: Internet key exchange.
 # Source and destination port (range) is set to 500.
 my $prt_ike = {
@@ -3817,7 +3828,7 @@ sub order_protocols {
     # name.
     for my $prt (
         $prt_ip,  $prt_icmp, $prt_tcp,
-        $prt_udp, $prt_ike,  $prt_natt,
+        $prt_udp, $prt_bootps, $prt_ike,  $prt_natt,
         $prt_esp, $prt_ah,   values %protocols
       )
     {
@@ -13483,6 +13494,18 @@ sub add_router_acls  {
                     $ref2obj{$mcast}     = $mcast;
                     $ref2prt{$src_range} = $src_range;
                     $ref2prt{$prt}       = $prt;
+                }
+
+                # Handle DHCP requests.
+                if ($interface->{dhcp_server}) {
+                    push @{ $hardware->{intf_rules} },
+                      {
+                        action    => 'permit',
+                        src       => $network_00,
+                        dst       => $network_00,
+                        src_range => $prt_bootps->{src_range},
+                        prt       => $prt_bootps->{dst_range}
+                      };
                 }
             }
         }
