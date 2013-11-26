@@ -9,7 +9,7 @@ use Test_Netspoc;
 my ($title, $topo, $in, $out1, $head1, $out2, $head2, $out3, $head3);
 
 ############################################################
-$title = "Protect interfaces of router";
+$title = "Protect interface if network behind is accessed";
 ############################################################
 
 $in = <<END;
@@ -146,6 +146,38 @@ $head1 = (split /\n/, $out1)[0];
 eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
+$title = "VIP doesn't need protection";
+############################################################
+
+$in = <<END;
+network:U = { ip = 10.1.1.0/24; }
+router:R = {
+ managed; 
+ model = ACE;
+ interface:U = { ip = 10.1.1.1; hardware = e0; }
+ interface:V = { ip = 10.3.3.3; vip; }
+ interface:N = { ip = 10.2.2.1; hardware = e1; }
+}
+network:N = { ip = 10.2.2.0/24; }
+
+service:test = {
+    user = any:[network:N], any:[interface:R.V];
+    permit src = network:U; dst = user; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+access-list e0_in extended deny ip any host 10.1.1.1
+access-list e0_in extended deny ip any host 10.2.2.1
+access-list e0_in extended permit tcp 10.1.1.0 255.255.255.0 any eq 80
+access-list e0_in extended deny ip any any
+END
+
+$head1 = (split /\n/, $out1)[0];
+
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+
+############################################################
 $title = "Protect interfaces of crosslink cluster";
 ############################################################
 
@@ -200,11 +232,13 @@ router:R1 = {
  interface:U = { ip = 10.1.1.1; hardware = e0; }
  interface:C = { ip = 10.9.9.1; hardware = e1; }
 }
+area:CVN = { border = interface:R1.C; }
 network:C = { ip = 10.9.9.0/29; crosslink; }
 router:R2 = {
  managed; 
- model = IOS;
+ model = ACE;
  interface:C = { ip = 10.9.9.2; hardware = e2; }
+ interface:V = { ip = 10.3.3.3; vip; }
  interface:N = { ip = 10.2.2.1; hardware = e3; }
 }
 network:N = { ip = 10.2.2.0/24; }
@@ -212,7 +246,7 @@ network:N = { ip = 10.2.2.0/24; }
 service:test = {
     user = network:U;
     permit src = user; 
-           dst = any:[network:N], any:[network:C]; 
+    dst = any:[area:CVN];
            prt = tcp 80;
 }
 END
@@ -226,9 +260,7 @@ access-group e0_in in interface e0
 END
 
 $out2 = <<END;
-ip access-list extended e3_in
- permit tcp any 10.1.1.0 0.0.0.255 established
- deny ip any any
+access-list e3_in extended deny ip any any
 END
 
 $head1 = (split /\n/, $out1)[0];

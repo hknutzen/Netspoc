@@ -310,6 +310,7 @@ my %router_info = (
         use_prefix          => 0,
         can_vrf             => 0,
         can_log_deny        => 0,
+        has_vip             => 1,
         has_out_acl         => 1,
         need_protect        => 1,
         print_interface     => 1,
@@ -1793,6 +1794,9 @@ sub read_interface {
         elsif (check_flag 'loopback') {
             $interface->{loopback} = 1;
         }
+        elsif (check_flag 'vip') {
+            $interface->{vip} = 1;
+        }
         elsif (check_flag 'no_in_acl') {
             $interface->{no_in_acl} = 1;
         }
@@ -1975,13 +1979,19 @@ sub read_interface {
             error_atline("No NAT supported for $interface->{ip} interface");
         }
     }
+    if ($interface->{vip}) {
+        $interface->{loopback} = 1;
+        $interface->{hardware} and 
+            error_atline("'vip' interface must not have attribute 'hardware'");
+        $interface->{hardware} = 'VIP';
+    }
     if ($interface->{loopback}) {
         my %copy = %$interface;
 
         # Only these attributes are valid.
         delete @copy{
             qw(name ip nat bind_nat hardware loopback subnet_of
-              redundant redundancy_type redundancy_id)
+              redundant redundancy_type redundancy_id vip)
           };
         if (keys %copy) {
             my $attr = join ", ", map { "'$_'" } keys %copy;
@@ -2209,6 +2219,11 @@ sub read_router {
         # to the same hardware object.
         my %hardware;
         for my $interface (@{ $router->{interfaces} }) {
+            $interface->{vip} 
+              and not $model->{has_vip} 
+              and err_msg("Must not use attribute 'vip' at $name",
+                " of $model->{name}");
+
             my $hw_name = $interface->{hardware};
 
             if (!$hw_name) {
@@ -2249,6 +2264,13 @@ sub read_router {
                 if (my $nat = $interface->{bind_nat}) {
                     $hardware->{bind_nat} = $nat;
                 }
+
+                # Hardware name 'VIP' is used internally at loadbalancers.
+                    $hw_name eq 'VIP' 
+                and $model->{has_vip} 
+                and not $interface->{vip} 
+                and err_msg("Must not use hardware 'VIP' at",
+                            " $interface->{name}");
             }
             $interface->{hardware} = $hardware;
 
@@ -8080,6 +8102,7 @@ sub check_crosslink  {
         %cluster = ();
         $walk->($router);
         my @crosslink_interfaces =
+          grep { !$_->{vip} }
           map { @{ $_->{interfaces} } }
           grep { $crosslink_routers{$_} }
 
@@ -10847,7 +10870,7 @@ sub check_supernet_src_rule {
                 # Find security zones at all interfaces except the in_intf.
                 for my $intf (@{ $router->{interfaces} }) {
                     next if $intf eq $in_intf;
-                    next if $intf->{loopback};
+                    next if $intf->{loopback} && ! $intf->{vip};
 
                     # Nothing to be checked for an interface directly
                     # connected to src or dst.
@@ -10936,7 +10959,7 @@ sub check_supernet_dst_rule {
 
         # Check each intermediate zone only once at outgoing interface.
         next if $intf eq $in_intf;
-        next if $intf->{loopback};
+        next if $intf->{loopback} && ! $intf->{vip};
 
         # Don't check interface where src or dst is attached.
         my $zone = $intf->{zone};
@@ -13257,6 +13280,9 @@ sub set_policy_distribution_ip  {
 
                 # Filter out traffic to other devices of crosslink cluster.
                 next if not $dst->{router} eq $router;
+
+                # Loadbalancer VIP can't be used to access device.
+                next if $dst->{vip};
                 $interfaces{$dst} = $dst;
             }
         }
@@ -15727,8 +15753,13 @@ sub print_cisco_acl_add_deny {
         # Routers connected by crosslink networks are handled like one
         # large router. Protect the collected interfaces of the whole
         # cluster at each entry.
-        my $interfaces = $router->{crosslink_interfaces}
-          || $router->{interfaces};
+        my $interfaces = $router->{crosslink_interfaces};
+        if (!$interfaces) {
+            $interfaces = $router->{interfaces};
+            if ($model->{has_vip}) {
+                $interfaces = [ grep { !$_->{vip} } @$interfaces ];
+            }
+        }
 
         # Set crosslink_intf_hash even for routers not part of a
         # crosslink cluster.
@@ -16887,6 +16918,8 @@ sub print_interface {
     my $class = $model->{class};
     my $stateful = not $model->{stateless};
     for my $hardware (@{ $router->{hardware} }) {
+        my $name = $hardware->{name};
+        next if $name eq 'VIP' and $model->{has_vip};
         my @subcmd;
         my $secondary;
         my $addr_cmd;
@@ -16934,7 +16967,6 @@ sub print_interface {
         if (my $other = $hardware->{subcmd}) {
             push @subcmd, @$other;
         }
-        my $name = $hardware->{name};
 
         # Split name for ACE: "vlan3029" -> "vlan 3029"
         $name =~ s/(\d+)/ $1/ if ($class eq 'ACE');
