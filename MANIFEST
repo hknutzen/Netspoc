@@ -12,6 +12,8 @@ VERSION
 bin/cut-netspoc
 bin/netspoc
 bin/print-group
+bin/print-service
+bin/print-service~
 bin/rename-netspoc
 bin/watchers-to-json
 cvs-support/Makefile
@@ -57,6 +59,8 @@ misc/intersect-ip
 misc/perltidyrc
 t/Test_Netspoc.pm
 t/aggregate.t
+t/any-multicast-interface.t
+t/any-multicast-interface.t~
 t/auto_intf.t
 t/bridged.t
 t/crypto.t
@@ -67,13 +71,14 @@ t/local-filter.t
 t/local-opt.t
 t/managed-host.t
 t/nat.t
+t/need-protect.t~
 t/optimize-subnet.t
 t/overlaps.t
-t/overlaps.t~
 t/owner.t
 t/parser.t
-t/parser.t~
 t/pathrestrict-border.t
+t/protect-interfaces.t
+t/protect-interfaces.t~
 t/rename.t
 t/secondary.t
 t/unenforceable.t
@@ -81,6 +86,5 @@ t/unnumbered.t
 t/virtual-loopback-nat.t
 t/virtual-pathrestrict.t
 t/vrf.t
-t/vrf.t~
 t/zone.t
 tidyall.ini

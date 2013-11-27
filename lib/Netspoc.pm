@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.039'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.040'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -310,6 +310,7 @@ my %router_info = (
         use_prefix          => 0,
         can_vrf             => 0,
         can_log_deny        => 0,
+        has_vip             => 1,
         has_out_acl         => 1,
         need_protect        => 1,
         print_interface     => 1,
@@ -1793,8 +1794,14 @@ sub read_interface {
         elsif (check_flag 'loopback') {
             $interface->{loopback} = 1;
         }
+        elsif (check_flag 'vip') {
+            $interface->{vip} = 1;
+        }
         elsif (check_flag 'no_in_acl') {
             $interface->{no_in_acl} = 1;
+        }
+        elsif (check_flag 'dhcp_server') {
+            $interface->{dhcp_server} = 1;
         }
 
         # Needed for the implicitly defined network of 'loopback'.
@@ -1975,13 +1982,19 @@ sub read_interface {
             error_atline("No NAT supported for $interface->{ip} interface");
         }
     }
+    if ($interface->{vip}) {
+        $interface->{loopback} = 1;
+        $interface->{hardware} and 
+            error_atline("'vip' interface must not have attribute 'hardware'");
+        $interface->{hardware} = 'VIP';
+    }
     if ($interface->{loopback}) {
         my %copy = %$interface;
 
         # Only these attributes are valid.
         delete @copy{
             qw(name ip nat bind_nat hardware loopback subnet_of
-              redundant redundancy_type redundancy_id)
+              redundant redundancy_type redundancy_id vip)
           };
         if (keys %copy) {
             my $attr = join ", ", map { "'$_'" } keys %copy;
@@ -2209,41 +2222,14 @@ sub read_router {
         # to the same hardware object.
         my %hardware;
         for my $interface (@{ $router->{interfaces} }) {
-            if (my $hw_name = $interface->{hardware}) {
-                my $hardware;
-                if ($hardware = $hardware{$hw_name}) {
+            $interface->{vip} 
+              and not $model->{has_vip} 
+              and err_msg("Must not use attribute 'vip' at $name",
+                " of $model->{name}");
 
-                    # All logical interfaces of one hardware interface
-                    # need to use the same NAT binding,
-                    # because NAT operates on hardware, not on logic.
-                    aref_eq(
-                        $interface->{bind_nat} || $bind_nat0,
-                        $hardware->{bind_nat}  || $bind_nat0
-                      )
-                      or err_msg "All logical interfaces of $hw_name\n",
-                      " at $name must use identical NAT binding";
-                }
-                else {
-                    $hardware = { name => $hw_name, loopback => 1 };
-                    $hardware{$hw_name} = $hardware;
-                    push @{ $router->{hardware} }, $hardware;
-                    if (my $nat = $interface->{bind_nat}) {
-                        $hardware->{bind_nat} = $nat;
-                    }
-                }
-                $interface->{hardware} = $hardware;
+            my $hw_name = $interface->{hardware};
 
-                # Hardware keeps attribute {loopback} only if all
-                # interfaces have attribute {loopback}.
-                if (!$interface->{loopback}) {
-                    delete $hardware->{loopback};
-                }
-
-                # Remember, which logical interfaces are bound
-                # to which hardware.
-                push @{ $hardware->{interfaces} }, $interface;
-            }
-            else {
+            if (!$hw_name) {
 
                 # Managed router must not have short interface.
                 if ($interface->{ip} eq 'short') {
@@ -2256,7 +2242,50 @@ sub read_router {
                     # have a hardware name.
                     err_msg("Missing 'hardware' for $interface->{name}");
                 }
+
+                # Prevent further errors.
+                $hw_name = 'unknown';
             }
+
+            my $hardware;
+            if ($hardware = $hardware{$hw_name}) {
+
+                # All logical interfaces of one hardware interface
+                # need to use the same NAT binding,
+                # because NAT operates on hardware, not on logic.
+                aref_eq(
+                    $interface->{bind_nat} || $bind_nat0,
+                    $hardware->{bind_nat}  || $bind_nat0
+                  )
+                  or err_msg "All logical interfaces of $hw_name\n",
+                  " at $name must use identical NAT binding";
+            }
+            else {
+                $hardware = { name => $hw_name, loopback => 1 };
+                $hardware{$hw_name} = $hardware;
+                push @{ $router->{hardware} }, $hardware;
+                if (my $nat = $interface->{bind_nat}) {
+                    $hardware->{bind_nat} = $nat;
+                }
+
+                # Hardware name 'VIP' is used internally at loadbalancers.
+                    $hw_name eq 'VIP' 
+                and $model->{has_vip} 
+                and not $interface->{vip} 
+                and err_msg("Must not use hardware 'VIP' at",
+                            " $interface->{name}");
+            }
+            $interface->{hardware} = $hardware;
+
+            # Hardware keeps attribute {loopback} only if all
+            # interfaces have attribute {loopback}.
+            if (!$interface->{loopback}) {
+                delete $hardware->{loopback};
+            }
+
+            # Remember, which logical interfaces are bound
+            # to which hardware.
+            push @{ $hardware->{interfaces} }, $interface;
 
             # Interface inherits routing attribute from router.
             if ($all_routing) {
@@ -3749,6 +3778,14 @@ my $prt_udp = {
     dst_range => $aref_tcp_any
 };
 
+# DHCP server.
+my $prt_bootps = {
+    name      => 'auto_prt:bootps',
+    proto     => 'udp',
+    src_range => $aref_tcp_any,
+    dst_range => [ 67, 67]
+};
+
 # IPSec: Internet key exchange.
 # Source and destination port (range) is set to 500.
 my $prt_ike = {
@@ -3791,7 +3828,7 @@ sub order_protocols {
     # name.
     for my $prt (
         $prt_ip,  $prt_icmp, $prt_tcp,
-        $prt_udp, $prt_ike,  $prt_natt,
+        $prt_udp, $prt_bootps, $prt_ike,  $prt_natt,
         $prt_esp, $prt_ah,   values %protocols
       )
     {
@@ -4176,9 +4213,6 @@ sub link_subnet  {
         err_msg $context->(), " is subnet_of $network->{name}",
           " but its IP doesn't match that's IP/mask";
     }
-
-    # Used to check for overlaps with hosts or interfaces of $network.
-    push @{ $network->{own_subnets} }, $object;
     return;
 }
 
@@ -4635,8 +4669,6 @@ sub transform_isolated_ports {
                 $new_net->{interfaces} = [$obj];
                 $obj->{network}        = $new_net;
             }
-
-            push @{ $network->{own_subnets} }, $new_net;
             push @networks, $new_net;
 
             # Copy promiscuous interface(s) and use it to link new network
@@ -6346,9 +6378,11 @@ sub show_deleted_rules2 {
 sub warn_unused_overlaps {
     for my $key (sort keys %services) {
         my $service = $services{$key};
+        next if $service->{disabled};
         if (my $overlaps = $service->{overlaps}) {
             my $used = delete $service->{overlaps_used};
             for my $overlap (@$overlaps) {
+                next if $overlap->{disabled};
                 $used->{$overlap}
                   or warn_msg("Useless 'overlaps = $overlap->{name}'",
                               " in $service->{name}");
@@ -7992,7 +8026,7 @@ sub check_no_in_acl  {
 # This uses attributes from sub check_no_in_acl.
 sub check_crosslink  {
 
-    # Collect cluster of routers connected by crosslink networks,
+    # Collect routers connected by crosslink networks,
     # but only for Cisco routers having attribute "need_protect".
     my %crosslink_routers;
 
@@ -8048,7 +8082,8 @@ sub check_crosslink  {
     }
 
     # Find clusters of routers connected directly or indirectly by
-    # crosslink networks.
+    # crosslink networks and having at least one device with
+    # "need_protect".
     my %cluster;
     my %seen;
     my $walk;
@@ -8069,15 +8104,18 @@ sub check_crosslink  {
         }
     };
 
-    # Collect all interfaces of cluster and add to each cluster member
-    # - as list used in "protect own interfaces"
+    # Collect all interfaces of cluster belonging to device of type
+    # "need_protect" and add to each cluster member 
+    # - as list used in "protect own interfaces" 
     # - as hash used in fast lookup in distribute_rule and "protect ..".
     for my $router (values %crosslink_routers) {
         next if $seen{$router};
         %cluster = ();
         $walk->($router);
         my @crosslink_interfaces =
+          grep { !$_->{vip} }
           map { @{ $_->{interfaces} } }
+          grep { $crosslink_routers{$_} }
 
           # Sort by router name to make output deterministic.
           sort by_name values %cluster;
@@ -10843,7 +10881,7 @@ sub check_supernet_src_rule {
                 # Find security zones at all interfaces except the in_intf.
                 for my $intf (@{ $router->{interfaces} }) {
                     next if $intf eq $in_intf;
-                    next if $intf->{loopback};
+                    next if $intf->{loopback} && ! $intf->{vip};
 
                     # Nothing to be checked for an interface directly
                     # connected to src or dst.
@@ -10932,7 +10970,7 @@ sub check_supernet_dst_rule {
 
         # Check each intermediate zone only once at outgoing interface.
         next if $intf eq $in_intf;
-        next if $intf->{loopback};
+        next if $intf->{loopback} && ! $intf->{vip};
 
         # Don't check interface where src or dst is attached.
         my $zone = $intf->{zone};
@@ -13253,6 +13291,9 @@ sub set_policy_distribution_ip  {
 
                 # Filter out traffic to other devices of crosslink cluster.
                 next if not $dst->{router} eq $router;
+
+                # Loadbalancer VIP can't be used to access device.
+                next if $dst->{vip};
                 $interfaces{$dst} = $dst;
             }
         }
@@ -13453,6 +13494,18 @@ sub add_router_acls  {
                     $ref2obj{$mcast}     = $mcast;
                     $ref2prt{$src_range} = $src_range;
                     $ref2prt{$prt}       = $prt;
+                }
+
+                # Handle DHCP requests.
+                if ($interface->{dhcp_server}) {
+                    push @{ $hardware->{intf_rules} },
+                      {
+                        action    => 'permit',
+                        src       => $network_00,
+                        dst       => $network_00,
+                        src_range => $prt_bootps->{src_range},
+                        prt       => $prt_bootps->{dst_range}
+                      };
                 }
             }
         }
@@ -13688,7 +13741,7 @@ sub address {
             my ($network_ip, $network_mask) = @{$network}{ 'ip', 'mask' };
             return [ $network_ip, $network_mask ];
         }
-        if (my $nat_tag = $network->{dynamic}) {
+        elsif (my $nat_tag = $network->{dynamic}) {
             if (my $ip = $obj->{nat}->{$nat_tag}) {
 
                 # Single static NAT IP for this interface.
@@ -13717,7 +13770,8 @@ sub address {
         return $obj;
     }
     else {
-        internal_err("Unexpected object", ref $obj);
+        my $type = ref $obj;
+        internal_err("Unexpected object of type '$type'");
     }
 }
 
@@ -13903,7 +13957,7 @@ sub cisco_acl_line {
           if $config{comment_acls};
         my $spair = address($src, $no_nat_set);
         my $dpair = address($dst, $no_nat_set);
-        if ($filter_type eq 'PIX') {
+        if ($filter_type =~ /^(PIX|ACE)$/) {
 
             # Only traffic passing through the PIX.
             my ($proto_code, $src_port_code, $dst_port_code) =
@@ -13915,7 +13969,7 @@ sub cisco_acl_line {
             $result .= " $dst_port_code" if defined $dst_port_code;
             print "$result\n";
         }
-        elsif ($filter_type =~ /^(:?IOS|NX-OS|ACE)$/) {
+        elsif ($filter_type =~ /^(:?IOS|NX-OS)$/) {
             my ($proto_code, $src_port_code, $dst_port_code) =
               cisco_prt_code($src_range, $prt, $model);
             my $result = "$prefix $action $proto_code";
@@ -13942,8 +13996,8 @@ my $min_object_group_size = 2;
 sub find_object_groups  {
     my ($router, $hardware) = @_;
     my $model = $router->{model};
-    my $is_nxos = $model->{filter} eq 'NX-OS';
-    my $keyword = $is_nxos
+    my $filter_type = $model->{filter};
+    my $keyword = $filter_type eq 'NX-OS'
                 ? 'object-group ip address'
                 : 'object-group network';
 
@@ -14048,9 +14102,12 @@ sub find_object_groups  {
                         internal_err("Unexpected object with mask 0",
                                      " in object-group of $router->{name}");
                     my $adr = cisco_acl_addr($pair, $model);
-                    if ($is_nxos) {
+                    if ($filter_type eq 'NX-OS') {
                         print " $numbered $adr\n";
                         $numbered += 10;
+                    }
+                    elsif ($filter_type eq 'ACE') {
+                        print " $adr\n";
                     }
                     else {
                         print " network-object $adr\n";
@@ -15711,13 +15768,25 @@ sub print_cisco_acl_add_deny {
         $permit_any = $hardware->{no_in_acl};
     }
 
-    if ($router->{model}->{need_protect}) {
+    if ($router->{model}->{need_protect} || 
+
+        # ASA protects IOS router behind crosslink interface.
+        $router->{crosslink_intf_hash}) 
+    {
 
         # Routers connected by crosslink networks are handled like one
         # large router. Protect the collected interfaces of the whole
         # cluster at each entry.
-        my $interfaces = $router->{crosslink_interfaces}
-          || $router->{interfaces};
+        my $interfaces = $router->{crosslink_interfaces};
+        if (!$interfaces) {
+            $interfaces = $router->{interfaces};
+            if ($model->{has_vip}) {
+                $interfaces = [ grep { !$_->{vip} } @$interfaces ];
+            }
+        }
+
+        # Set crosslink_intf_hash even for routers not part of a
+        # crosslink cluster.
         $router->{crosslink_intf_hash} ||=
           { map { $_ => $_ } @{ $router->{interfaces} } };
         my $intf_hash = $router->{crosslink_intf_hash};
@@ -15768,23 +15837,23 @@ sub print_cisco_acl_add_deny {
             # - subnet/host and interface already have been checked to
             #   have disjoint ip addresses to interfaces of current router.
             next if not is_network($dst);
+              
             if ($dst->{mask} == 0) {
                 $protect_all = 1;
 
-#               debug("Protect all $router->{name}:$hardware->{name}");
+#               debug("Protect all $router->{name}: $hardware->{name}");
                 last RULE;
             }
 
-            # Find interfaces of network or subnets of network,
-            # which are directly attached to current router.
-            for my $net ($dst,
-                ($dst->{own_subnets}) ? @{ $dst->{own_subnets} } : ())
-            {
-                for my $intf (grep { $intf_hash->{$_} } @{ $net->{interfaces} })
-                {
+            my ($ip, $mask) = @{ address($dst, $no_nat_set) };
+            for my $intf (values %$intf_hash) {
+                next if $intf->{ip} =~ 
+                        /^(unnumbered|negotiated|tunnel|bridged)$/;
+                my $i = address($intf, $no_nat_set)->[0];
+                if (match_ip($i, $ip, $mask)) {
                     $need_protect{$intf} = $intf;
 
-#                   debug("Need protect $intf->{name} at $hardware->{name}");
+#                   debug("Protect $intf->{name} at $hardware->{name}");
                 }
             }
         }
@@ -15838,16 +15907,15 @@ sub print_cisco_acl_add_deny {
             $hardware->{intf_rules} = [];
         }
     }
+
+    # ASA and PIX ignore rules for own interfaces.
     else {
       $hardware->{intf_rules} = [];
     }  
 
-    # Concatenate Interface rules and ordinary rules.
+    # Concatenate interface rules and ordinary rules.
     my $intf_rules = $hardware->{intf_rules};
-    my $all_rules = $hardware->{rules};
-    if (@$intf_rules) {
-        $all_rules = [ @$intf_rules, @$rules ];
-    }
+    my $all_rules = @$intf_rules? [ @$intf_rules, @$rules ] : $rules;
     cisco_acl_line($router, $all_rules, $no_nat_set, $prefix);
     return;
 }
@@ -16401,8 +16469,7 @@ sub print_cisco_acls {
                 print "ip access-list $acl_name\n";
             }
             elsif ($filter eq 'ACE') {
-                $prefix = '';
-                print "access-list $acl_name extended\n";
+                $prefix = "access-list $acl_name extended";
             }
             elsif ($filter eq 'PIX') {
                 $prefix      = "access-list $acl_name";
@@ -16437,7 +16504,7 @@ sub print_cisco_acls {
             elsif ($filter eq 'ACE') {
                 push(
                     @{ $hardware->{subcmd} },
-                    "access-group $acl_name ${suffix}put"
+                    "access-group ${suffix}put $acl_name"
                 );
             }
             elsif ($filter eq 'PIX') {
@@ -16875,6 +16942,8 @@ sub print_interface {
     my $class = $model->{class};
     my $stateful = not $model->{stateless};
     for my $hardware (@{ $router->{hardware} }) {
+        my $name = $hardware->{name};
+        next if $name eq 'VIP' and $model->{has_vip};
         my @subcmd;
         my $secondary;
         my $addr_cmd;
@@ -16922,7 +16991,6 @@ sub print_interface {
         if (my $other = $hardware->{subcmd}) {
             push @subcmd, @$other;
         }
-        my $name = $hardware->{name};
 
         # Split name for ACE: "vlan3029" -> "vlan 3029"
         $name =~ s/(\d+)/ $1/ if ($class eq 'ACE');

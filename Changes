@@ -1,3 +1,20 @@
+3.040     2013-11-27 16:50:52 Europe/Berlin
+ 
+ - Added attribute 'dhcp_server' to interface. 
+   This adds an ACL which permits UDP port 67 to the interface.
+ - Added attribute 'vip' to interface of loadbalancer. 
+   This is used to define a virtual IP similar to a 'loopback' interface. 
+   The difference is, 
+   - that no 'hardware' attribute is needed and
+   - the interface is left out from "protect own interfaces".
+   This is currently available for model 'ACE'.
+ - Added new program 'print-service' to show expanded rules of a service.
+ - Fixed syntax of generated access-lists for ACE.
+ - Fixed "protect own interfaces" 
+   - check matching aggregates for possible access to interface,
+   - protect IOS interface at ASA if both are connected by crosslink interface.
+ - Removed pointless warning on overlaps with/at disabled sevices.
+
 3.039     2013-11-12 11:07:43 Europe/Berlin
 
  - Access to contained managed hosts is implicitly permitted now, 
