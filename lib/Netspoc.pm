@@ -13770,7 +13770,8 @@ sub address {
         return $obj;
     }
     else {
-        internal_err("Unexpected object", ref $obj);
+        my $type = ref $obj;
+        internal_err("Unexpected object of type '$type'");
     }
 }
 
