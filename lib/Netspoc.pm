@@ -435,7 +435,29 @@ my %xxrp_info = (
             ip   => gen_ip(224, 0, 0, 2),
             mask => gen_ip(255, 255, 255, 255)
         )
-    }
+    },
+    HSRPv2 => {
+        prt => {
+            name      => 'auto_prt:HSRPv2',
+            proto     => 'udp',
+            src_range => {
+                name  => 'auto_prt:HSRPv2',
+                proto => 'udp',
+                range => [ 1, 65535 ]
+            },
+            dst_range => {
+                name  => 'auto_prt:HSRPv2',
+                proto => 'udp',
+                range => [ 1985, 1985 ]
+            }
+        },
+        mcast => new(
+            'Network',
+            name => "auto_network:HSRPv2_multicast",
+            ip   => gen_ip(224, 0, 0, 102),
+            mask => gen_ip(255, 255, 255, 255)
+        )
+    },
 );
 
 ## no critic (RequireArgUnpacking)
