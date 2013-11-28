@@ -92,6 +92,8 @@ my $name = shift @ARGV;
 # Subroutines
 ####################################################################
 
+my $no_nat_set;
+
 sub ip_info {
     my ($obj) = @_;
     my ($ip, $mask) = @{ Netspoc::address($obj, $no_nat_set) }; 
@@ -157,7 +159,6 @@ Netspoc::find_subnets_in_zone();
 &abort_on_error();
 
 # Find network for resolving NAT addresses.
-my $no_nat_set;
 if($nat_net) {
     my $net = $networks{$nat_net} or 
 	die "Unknown network:$nat_net of option '-n'\n";
