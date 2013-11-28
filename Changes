@@ -1,5 +1,10 @@
 {{$NEXT}}
 
+3.041     2013-11-28 08:52:14 Europe/Berlin
+
+ - Added support for virtual interface with HSRPv2.
+ - Fixed program 'print-service' (variable declaration).
+
 3.040     2013-11-27 16:50:52 Europe/Berlin
  
  - Added attribute 'dhcp_server' to interface. 
