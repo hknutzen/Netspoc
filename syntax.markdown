@@ -94,7 +94,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     
     <VRF-name>    ::= <name>
     <filter type> ::= primary | full | standard | secondary | local
-    <model>       ::= Linux | ASA | ASA,8.4 | PIX | IOS | IOS,FW | NX-OS
+    <model>       ::= Linux | ASA | ASA,8.4 | PIX | IOS | IOS,FW | NX-OS | ACE
     <ip-prefix>   ::= <ip>/<prefix-len>
 
 ##Interface definition
@@ -117,6 +117,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ routing = ( EIGRP | OSPF | manual ); ]
          [ security_level = <int>;              ]
          [ subnet_of = network:<name>;          ]
+         [ vip;                                 ]
       }
 
 here `<object set>` must expand to networks.
