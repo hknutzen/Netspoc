@@ -107,15 +107,16 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ <virtual interface definition>       ]
          <host NAT> *
          [ bind_nat = <name>(, <name>)*;        ]
-         [ hardware = <external name>;          ]
-         [ no_in_acl;                           ]
-         [ routing = ( EIGRP | OSPF | manual ); ]
-         [ reroute_permit = <object set>;       ]
-         [ loopback;                            ]
-         [ subnet_of = network:<name>;          ]
-         [ promiscuous_port;                    ]
-         [ security_level = <int>;              ]
+         [ dhcp_server;                         ]
          [ disabled;                            ]
+         [ hardware = <external name>;          ]
+         [ loopback;                            ]
+         [ no_in_acl;                           ]
+         [ promiscuous_port;                    ]
+         [ reroute_permit = <object set>;       ]
+         [ routing = ( EIGRP | OSPF | manual ); ]
+         [ security_level = <int>;              ]
+         [ subnet_of = network:<name>;          ]
       }
 
 here `<object set>` must expand to networks.
