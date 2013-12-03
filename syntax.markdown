@@ -69,6 +69,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          <host NAT> *
          [ managed;                   ]
          [ model = Linux;             ]
+         [ server_name = <name>;      ]
          [ hardware = <external name>;]
       }
 
