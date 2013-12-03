@@ -126,7 +126,7 @@ here `<object set>` must expand to networks.
     <virtual interface definition> ::=
       virtual = { 
            ip = <ip>;
-           [ type = ( VRRP | HSRP ); ]
+           [ type = ( VRRP | HSRP | HSRPv2 ); ]
            [ id = <int>;             ]
       }
 
