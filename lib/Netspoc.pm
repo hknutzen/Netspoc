@@ -13144,6 +13144,7 @@ sub distribute_rule {
     # Validate dynamic NAT.
     if (my $dynamic_nat = $rule->{dynamic_nat}) {
         my $no_nat_set = $in_intf->{no_nat_set};
+        my $orig_rule = $rule;
         for my $where (split(/,/, $dynamic_nat)) {
             my $obj         = $rule->{$where};
             my $network     = $obj->{network};
@@ -13159,8 +13160,8 @@ sub distribute_rule {
             # But attention, this assumption only holds, if the other
             # router filters fully.  Hence disable optimization of
             # secondary rules.
-            delete $rule->{some_non_secondary};
-            delete $rule->{some_primary};
+            delete $orig_rule->{some_non_secondary};
+            delete $orig_rule->{some_primary};
 
             # Permit whole network, because no static address is known.
             # Make a copy of current rule, because the original rule
