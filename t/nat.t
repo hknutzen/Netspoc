@@ -387,4 +387,38 @@ END
 eq_or_diff(compile_err($in), $out1, $title);
 
 ############################################################
+$title = 'Interface with dynamic NAT as destination';
+############################################################
+
+$in = <<END;
+network:a = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:a = {ip = 10.1.1.1; hardware = E1; bind_nat = b;}
+ interface:t = {ip = 10.4.4.1; hardware = E2;}
+}
+network:t = { ip = 10.4.4.0/30; }
+router:r2 = {
+ interface:t = {ip = 10.4.4.2;}
+ interface:b = {ip = 10.2.2.1;}
+}
+
+network:b  = { ip = 10.2.2.0/24; nat:b = { ip = 10.9.9.4/30; dynamic; } }
+
+service:test = {
+ user = interface:r2.b;
+ permit src = user; dst = network:a; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Error: interface:r2.b needs static translation for nat:b to be valid in rule
+ permit src=network:a; dst=interface:r2.b; prt=reverse:TCP_ANY; stateless
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
 done_testing;

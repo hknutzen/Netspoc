@@ -7487,6 +7487,34 @@ sub distribute_nat_info {
             }
         }
     }
+
+    # Find interfaces with dynamic NAT which is applied at the same device.
+    # This is incomatible with device with "need_protect".
+    for my $network (@networks) {
+        my $nat = $network->{nat} or next;
+        for my $nat_tag (keys %$nat) {
+            my $nat_info = $nat->{$nat_tag};
+            $nat_info->{dynamic} or next;
+            for my $interface (@{ $network->{interfaces} }) {
+                my $intf_nat = $interface->{nat};
+
+                # Interface has static translation,
+                next if $intf_nat && $intf_nat->{$nat_tag};
+                
+                my $router = $interface->{router};
+                next if !$router->{model}->{need_protect};
+                for my $bind_intf (@{ $router->{interfaces} }) {
+                    my $bind = $bind_intf->{bind_nat} or next;
+                    grep { $_ eq $nat_tag } @$bind or next;
+                    err_msg("Must not apply dynamic NAT to $interface->{name}",
+                            " at $bind_intf->{name} of same device.\n",
+                            " This isn't supported for model",
+                            " $router->{model}->{name}.");
+                }
+            }
+        }
+    }
+
     for my $tag (keys %nat_tags2multi) {
         $nat_bound{$tag}
           or warn_msg("nat:$tag is defined, but not bound to any interface");
