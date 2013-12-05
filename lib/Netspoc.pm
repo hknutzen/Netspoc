@@ -8079,6 +8079,18 @@ sub check_no_in_acl  {
     return;
 }
 
+# If routers are connected by crosslink network then
+# no filter is needed if both have equal strength.
+# If routers have different strength, 
+# then only the weakest devices omit the filter.
+my %crosslink_strength = (
+    primary => 10,
+    full => 10,
+    standard => 9,
+    secondary => 8,
+    local => 7,
+    );
+
 # This uses attributes from sub check_no_in_acl.
 sub check_crosslink  {
 
@@ -8092,14 +8104,17 @@ sub check_crosslink  {
 
         # A crosslink network combines two or more routers
         # to one virtual router.
-        # No filtering occurs at the crosslink interfaces.
-        my @managed_type;
+        # No filtering occurs at crosslink interfaces 
+        # if all devices have the same filter strength.
+        my %strength2intf;
         my $out_acl_count = 0;
         my @no_in_acl_intf;
         for my $interface (@{ $network->{interfaces} }) {
             my $router = $interface->{router};
             if (my $managed = $router->{managed}) {
-                push @managed_type, $managed;
+                my $strength = $crosslink_strength{$managed} or 
+                    internal_err("Unexptected managed=$managed");
+                push @{ $strength2intf{$strength} }, $interface;
                 if ($router->{model}->{need_protect}) {
                     $crosslink_routers{$router} = $router;
                 }
@@ -8119,13 +8134,22 @@ sub check_crosslink  {
             }
             push @no_in_acl_intf,
               grep({ $_->{hardware}->{no_in_acl} } @{ $router->{interfaces} });
-            $hardware->{crosslink} = 1;
         }
 
-        # Ensure clear responsibility for filtering.
-        equal(@managed_type)
-          or err_msg "All devices at crosslink $network->{name}",
-          " must have identical managed type";
+        # Compare filter type of crosslink interfaces.
+        # The weakest interfaces get attribute {crosslink}.
+        my ($weakest) = sort numerically keys %strength2intf;
+        for my $interface (@{ $strength2intf{$weakest} }) {
+            $interface->{hardware}->{crosslink} = 1;
+        }
+
+        # 'secondary' and 'local' are not comparable and hence must
+        # not occur together.
+        if ($weakest == $crosslink_strength{local} && 
+            $strength2intf{$crosslink_strength{secondary}}) {
+            err_msg("Must not use 'managed=local' and 'managed=secondary'",
+                    " together\n at crosslink $network->{name}");
+        }
 
         not $out_acl_count
           or $out_acl_count == @{ $network->{interfaces} }
