@@ -686,7 +686,7 @@ sub read_mask {
 sub read_ip_opt_mask {
     my $ip = read_ip;
     check('/') or return $ip;
-    my $mask = check_ip();
+    my $mask = undef;#check_ip();
     if (defined $mask) {
         defined mask2prefix($mask)
           or syntax_err("IP mask isn't a valid prefix");
@@ -4399,17 +4399,18 @@ sub link_virtual_interfaces  {
             }
         }
     }
+
+
+    # A virtual interface is used as hop for static routing.
+    # Therefore a network behind this interface must be reachable
+    # via all virtual interfaces of the group.
+    # This can only be guaranteed, if pathrestrictions are identical
+    # on all interfaces.
+    # Exception in routing code:
+    # If the group has ony two interfaces, the one or other physical
+    # interface can be used as hop.
     for my $href (values %net2ip2virtual) {
         for my $interfaces (values %$href) {
-
-            # A virtual interface is used as hop for static routing.
-            # Therefore a network behind this interface must be reachable
-            # via all virtual interfaces of the group.
-            # This can only be guaranteed, if pathrestrictions are identical
-            # on all interfaces.
-            # Exception in routing code:
-            # If the group has ony two interfaces, the one or other
-            # physical interface can be used as hop.
             if (   @$interfaces >= 3
                 && grep { $_->{path_restrict} && !$_->{main_interface} }
                    map { @{ $_->{router}->{interfaces} } } @$interfaces)
@@ -4418,12 +4419,15 @@ sub link_virtual_interfaces  {
                         " group of 3 or more virtual interfaces\n ",
                         join(',', map { $_->{name} } @$interfaces));
             }
+        }
+    }
 
-            # Automatically add pathrestriction to interfaces
-            # belonging to $net2ip2virtual, if at least one interface
-            # is managed.
-            # Pathrestriction would be useless if all devices are unmanaged.
-            elsif (grep { $_->{router}->{managed} } @$interfaces) {
+    # Automatically add pathrestriction to interfaces belonging to
+    # $net2ip2virtual, if at least one interface is managed.
+    # Pathrestriction would be useless if all devices are unmanaged.
+    for my $href (values %net2ip2virtual) {
+        for my $interfaces (values %$href) {
+            if (grep { $_->{router}->{managed} } @$interfaces) {
                 my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
                 my $restrict = new('Pathrestriction', name => $name);
                 for my $interface (@$interfaces) {
