@@ -9016,25 +9016,22 @@ sub set_zone {
 sub check_virtual_interfaces  {
     my %seen;
     for my $interface (@virtual_interfaces) {
-        my $related = $interface->{redundancy_interfaces};
-
-        # Is not set, if other errors have been reported.
-        next if not $related;
+        my $related = $interface->{redundancy_interfaces} or next;
 
         # Loops inside a security zone are not known
         # and therefore can't be checked.
         my $router = $interface->{router};
         next if not($router->{managed} or $router->{semi_managed});
 
+        $seen{$related} and next;
+        $seen{$related} = 1;
+
         my $err;
         for my $v (@$related) {
-            next if $seen{$v};
-            $seen{$v} = 1;
             if (not $v->{router}->{loop}) {
                 err_msg("Virtual IP of $v->{name}\n",
                         " must be located inside cyclic sub-graph");
                 $err = 1;
-                next;
             }
         }
         next if $err;
@@ -12602,10 +12599,11 @@ sub check_and_convert_routes  {
                 }
                 else {
 
-                    # This can't occur, because we reject group of
-                    # more than 3 virtual interfaces together with
-                    # pathrestrictions.
-                    internal_err(
+                    # This occurs if different redundancy groups use
+                    # parts of of a group of routers.
+                    # More than 3 virtual interfaces together with
+                    # pathrestrictions have already been rejected.
+                    err_msg(
                         "$network->{name} is reached via $hop1->{name}\n",
                         " but not via all related redundancy interfaces"
                     );

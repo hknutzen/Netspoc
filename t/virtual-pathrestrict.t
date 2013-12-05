@@ -173,6 +173,82 @@ END
 eq_or_diff(compile_err($in), $out1, $title);
 
 ############################################################
+$title = 'Non matching virtual interface groups with interconnect';
+############################################################
+
+$in = <<END;
+
+router:g = {
+ managed;
+ model = ASA;
+ interface:a = {ip = 10.1.1.7; hardware = inside;}
+}
+
+network:a = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.1; virtual = {ip = 10.1.1.9;} hardware = E1;}
+ interface:b1 = {ip = 10.2.2.1; virtual = {ip = 10.2.2.9;} hardware = E2;}
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.2; virtual = {ip = 10.1.1.9;} hardware = E4;}
+ interface:b1 = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = E5;}
+ interface:t = { ip = 10.0.0.1; hardware = t1; }
+}
+
+network:t = { ip = 10.0.0.0/30; }
+
+router:r3 = {
+ managed;
+ model = IOS, FW;
+ interface:t = { ip = 10.0.0.2; hardware = t1; }
+ interface:a = {ip = 10.1.1.3; virtual = {ip = 10.1.1.9;} hardware = E6;}
+ interface:b2 = {ip = 10.3.3.3; virtual = {ip = 10.3.3.9;} hardware = E7;}
+}
+
+router:r4 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.4; virtual = {ip = 10.1.1.9;} hardware = E8;}
+ interface:b2 = {ip = 10.3.3.4; virtual = {ip = 10.3.3.9;} hardware = E9;}
+}
+
+network:b1 = { ip = 10.2.2.0/24; }
+network:b2 = { ip = 10.3.3.0/24; }
+
+service:test = {
+ user = interface:g.a;
+ permit src = user; dst = network:b1; prt = tcp 80;
+}
+END
+
+$out1 = <<END;
+Error: network:b1 is reached via interface:r1.a.virtual
+ but not via all related redundancy interfaces
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
+$title = 'Non matching virtual interface groups';
+############################################################
+
+$in =~ s/(hardware = t1;)/$1 disabled;/g;
+
+$out1 = <<END;
+Error: Virtual interfaces
+ interface:r1.a.virtual, interface:r2.a.virtual, interface:r3.a.virtual, interface:r4.a.virtual
+ must all be part of the same cyclic sub-graph
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
+
+############################################################
 $title = 'Follow implicit pathrestriction at unmanaged virtual interface';
 ############################################################
 
