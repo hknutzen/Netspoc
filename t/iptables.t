@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out1, $out2, $head1, $head2, $compiled);
+my ($title, $in, $out1, $out2, $head1, $head2);
 ############################################################
 $title = 'Merge port range with sub-range for iptables';
 ############################################################
@@ -69,13 +69,10 @@ $out2 = <<END;
 -A eth0_br0 -g c4 -d 10.4.4.0/24 -p tcp --dport 10:60
 END
 
-
 $head1 = (split /\n/, $out1)[0];
 $head2 = (split /\n/, $out2)[0];
 
-$compiled = compile($in);
-eq_or_diff(get_block($compiled, $head1), $out1, $title);
-eq_or_diff(get_block($compiled, $head2), $out2, $title);
+eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
 
 ############################################################
 $title = 'Un-merged port range with sub-range for iptables';
@@ -107,13 +104,10 @@ $out2 = <<END;
 -A eth0_br0 -g c5 -d 10.4.4.0/24 -p tcp --dport 10:60
 END
 
-
 $head1 = (split /\n/, $out1)[0];
 $head2 = (split /\n/, $out2)[0];
 
-$compiled = compile($in);
-eq_or_diff(get_block($compiled, $head1), $out1, $title);
-eq_or_diff(get_block($compiled, $head2), $out2, $title);
+eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
 
 ############################################################
 $title = 'Optimize redundant port for iptables';
@@ -128,7 +122,7 @@ network:B = { ip = 10.3.3.128/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 
 router:ras = {
  managed;
- model = IOS_FW;
+ model = ASA;
  interface:A = { ip = 10.3.3.121; hardware = Fe0; }
  interface:B = { ip = 10.3.3.129; hardware = Fe1; }
  interface:Trans = { ip = 10.1.1.2; bind_nat = C; hardware = Fe2; }
@@ -168,8 +162,7 @@ END
 
 $head1 = (split /\n/, $out1)[0];
 
-$compiled = compile($in);
-eq_or_diff(get_block($compiled, $head1), $out1, $title);
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
 done_testing;
