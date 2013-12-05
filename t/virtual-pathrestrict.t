@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out1, $out2, $head1, $head2, $compiled);
+my ($title, $in, $out1, $out2, $out3, $head1, $head2, $head3);
 
 ############################################################
 $title = 'Implicit pathrestriction with 3 virtual interfaces';
@@ -40,7 +40,6 @@ router:r3 = {
 
 network:b  = { ip = 10.2.2.0/24; }
 
-
 service:test = {
  user = network:a;
  permit src = user; dst = network:x, network:b; prt = ip;
@@ -69,6 +68,109 @@ $head1 = (split /\n/, $out1)[0];
 $head2 = (split /\n/, $out2)[0];
 
 eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+
+############################################################
+$title = 'Extra pathrestriction at 2 virtual interface';
+############################################################
+
+$in = <<END;
+network:u = { ip = 10.9.9.0/24; }
+
+router:g = {
+ managed;
+ model = IOS, FW;
+ interface:u = {ip = 10.9.9.1; hardware = F0;}
+ interface:a = {ip = 10.1.1.9; hardware = F1;}
+}
+
+network:a = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.1; hardware = E1;}
+ interface:b = {ip = 10.2.2.1; virtual = {ip = 10.2.2.9;} hardware = E2;}
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.2; hardware = E4;}
+ interface:b = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = E5;}
+}
+
+network:b  = { ip = 10.2.2.0/24; }
+
+pathrestriction:p = interface:r1.a, interface:r1.b.virtual;
+
+service:test = {
+ user = network:u;
+ permit src = user; dst = network:b; prt = ip;
+}
+END
+
+$out1 = <<END;
+ip route 10.2.2.0 255.255.255.0 10.1.1.2
+END
+
+$out2 = <<END;
+ip access-list extended E1_in
+ deny ip any any
+END
+
+$out3 = <<END;
+ip access-list extended E4_in
+ deny ip any host 10.2.2.9
+ deny ip any host 10.2.2.2
+ permit ip 10.9.9.0 0.0.0.255 10.2.2.0 0.0.0.255
+ deny ip any any
+END
+
+$head1 = (split /\n/, $out1)[0];
+$head2 = (split /\n/, $out2)[0];
+$head3 = (split /\n/, $out3)[0];
+
+eq_or_diff(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3, $title);
+
+############################################################
+$title = 'No extra pathrestriction with 3 virtual interfaces';
+############################################################
+
+$in = <<END;
+network:a = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.1; hardware = E1;}
+ interface:b = {ip = 10.2.2.1; virtual = {ip = 10.2.2.9;} hardware = E2;}
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.2; hardware = E4;}
+ interface:b = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = E5;}
+}
+
+router:r3 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.3; hardware = E6;}
+ interface:b = {ip = 10.2.2.3; virtual = {ip = 10.2.2.9;} hardware = E7;}
+}
+
+network:b  = { ip = 10.2.2.0/24; }
+
+pathrestriction:p = interface:r1.a, interface:r1.b.virtual;
+END
+
+$out1 = <<END;
+Error: Pathrestriction not supported for group of 3 or more virtual interfaces
+ interface:r1.b.virtual,interface:r2.b.virtual,interface:r3.b.virtual
+END
+
+eq_or_diff(compile_err($in), $out1, $title);
 
 ############################################################
 $title = 'Follow implicit pathrestriction at unmanaged virtual interface';
