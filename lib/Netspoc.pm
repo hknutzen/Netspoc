@@ -4411,7 +4411,7 @@ sub link_virtual_interfaces  {
             # If the group has ony two interfaces, the one or other
             # physical interface can be used as hop.
             if (   @$interfaces >= 3
-                && grep { $_->{path_restrict} } 
+                && grep { $_->{path_restrict} && !$_->{main_interface} }
                    map { @{ $_->{router}->{interfaces} } } @$interfaces)
             {
                 err_msg("Pathrestriction not supported for",

@@ -6,7 +6,69 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out, @out, $head, $compiled);
+my ($title, $in, $out1, $out2, $head1, $head2, $compiled);
+
+############################################################
+$title = 'Implicit pathrestriction with 3 virtual interfaces';
+############################################################
+
+$in = <<END;
+network:a = { ip = 10.1.1.0/24;}
+network:x = { ip = 10.3.3.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.1; hardware = E1;}
+ interface:x = {ip = 10.3.3.1; hardware = E3;}
+ interface:b = {ip = 10.2.2.1; virtual = {ip = 10.2.2.9;} hardware = E2;}
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.2; hardware = E4;}
+ interface:b = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = E5;}
+}
+
+router:r3 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.3; hardware = E6;}
+ interface:b = {ip = 10.2.2.3; virtual = {ip = 10.2.2.9;} hardware = E7;}
+}
+
+network:b  = { ip = 10.2.2.0/24; }
+
+
+service:test = {
+ user = network:a;
+ permit src = user; dst = network:x, network:b; prt = ip;
+}
+END
+
+$out1 = <<END;
+ip access-list extended E1_in
+ deny ip any host 10.3.3.1
+ deny ip any host 10.2.2.9
+ deny ip any host 10.2.2.1
+ permit ip 10.1.1.0 0.0.0.255 10.3.3.0 0.0.0.255
+ permit ip 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255
+ deny ip any any
+END
+
+$out2 = <<END;
+ip access-list extended E4_in
+ deny ip any host 10.2.2.9
+ deny ip any host 10.2.2.2
+ permit ip 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255
+ deny ip any any
+END
+
+$head1 = (split /\n/, $out1)[0];
+$head2 = (split /\n/, $out2)[0];
+
+eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
 
 ############################################################
 $title = 'Follow implicit pathrestriction at unmanaged virtual interface';
@@ -57,15 +119,15 @@ service:x = {
 }
 END
 
-$out = <<END;
+$out1 = <<END;
 ip access-list extended Ethernet2_in
  permit icmp 10.1.0.0 0.0.0.255 host 10.9.32.1 17
  deny ip any any
 END
 
-$head = (split /\n/, $out)[0];
+$head1 = (split /\n/, $out1)[0];
 
-eq_or_diff(get_block(compile($in), $head), $out, $title);
+eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
 done_testing;
