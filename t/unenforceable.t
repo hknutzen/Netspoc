@@ -145,7 +145,7 @@ network:x = { ip = 10.1.1.0/24; }
 END
 
 $out1 = <<END;
-Warning: Useless attribute 'has_unenforceable' at any:[network:x]
+Warning: Useless attribute 'has_unenforceable' at any:x
 END
 
 eq_or_diff(compile_err($in), $out1, $title);

@@ -6247,8 +6247,10 @@ sub show_unenforceable {
 sub warn_useless_unenforceable {
     for my $zone (@zones) {
         $zone->{has_unenforceable} or next;
-        $zone->{seen_unenforceable} or
-            warn_msg("Useless attribute 'has_unenforceable' at $zone->{name}");
+        $zone->{seen_unenforceable} and next;
+        my $agg00 = $zone->{ipmask2aggregate}->{'0/0'};
+        my $name = $agg00 ? $agg00->{name} : $zone->{name};
+        warn_msg("Useless attribute 'has_unenforceable' at $name");
     }
     return;
 }
