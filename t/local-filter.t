@@ -423,8 +423,6 @@ END
 
 $out1 = <<END;
 ip access-list extended vlan1_in
- deny ip any host 10.62.1.33
- deny ip any host 10.62.1.34
  deny ip any host 10.62.2.1
  permit tcp 10.62.1.32 0.0.0.31 10.62.2.0 0.0.0.31 eq 80
  permit tcp 10.62.1.32 0.0.0.31 10.62.2.0 0.0.0.31 established
@@ -436,7 +434,6 @@ $out2 = <<END;
 ip access-list extended vlan2_in
  deny ip any host 10.62.1.33
  deny ip any host 10.62.1.34
- deny ip any host 10.62.2.1
  permit tcp 10.62.2.0 0.0.0.31 10.62.1.32 0.0.0.31 eq 22
  permit tcp 10.62.2.0 0.0.0.31 10.62.1.32 0.0.0.31 established
  deny ip 10.62.0.0 0.0.31.255 10.62.0.0 0.0.31.255

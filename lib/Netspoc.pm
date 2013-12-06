@@ -15928,9 +15928,15 @@ sub print_cisco_acl_add_deny {
         # Try to optimize this case.
         my %need_protect;
         my $protect_all;
+        my $local_filter = $router->{managed} =~ /^local/;
       RULE:
         for my $rule (@{ $hardware->{rules} }) {
             next if $rule->{action} eq 'deny';
+
+            # Ignore permit_any_rule of local filter.
+            # Some other permit_any_rule from a real service
+            # wouldn't match.
+            next if $local_filter && $rule eq $permit_any_rule;
             my $dst = $rule->{dst};
 
             # We only need to check networks:
