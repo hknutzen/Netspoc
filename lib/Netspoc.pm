@@ -8251,8 +8251,6 @@ sub check_managed_local {
                     for my $network (@{ $zone->{networks} }, 
                                      values %{ $zone->{ipmask2aggregate} }) 
                     {
-                        # Crosslink network won't be used in any rule.
-                        next if $network->{crosslink};
                         my ($ip, $mask) = @{ address($network, $no_nat_set) };
 
                         # Ignore aggregate 0/0 which is available in

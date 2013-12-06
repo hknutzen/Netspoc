@@ -259,52 +259,6 @@ $head1 = (split /\n/, $out1)[0];
 eq_or_diff(get_block(compile($in), $head1), $out1, $title);
 
 ############################################################
-$title = "Crosslink";
-############################################################
-
-# Crosslink network needs not to match filter_only.
-# No deny of filter_only networks at crosslink interface.
-
-$in = <<END;
-network:n1 = { ip = 10.62.1.32/27; }
-
-router:d32 = {
- model = ASA;
- managed = local;
- filter_only =  10.62.0.0/19;
- interface:n1 = { ip = 10.62.1.33; hardware = vlan1; }
- interface:crosslink = { ip = 10.0.0.1; hardware = outside; }
-}
-
-network:crosslink = { ip = 10.0.0.0/29; crosslink; }
-
-router:crosslink = {
- model = NX-OS;
- managed = local;
- filter_only =  10.62.0.0/19,;
- interface:crosslink = { ip = 10.0.0.2; hardware = vlan14; }
-  interface:n2 = { ip = 10.62.2.1; hardware = vlan2; }
-}
-
-network:n2 = { ip = 10.62.2.0/27; }
-END
-
-$out1 = <<END;
-ip access-list vlan14_in
- 10 permit ip any any
-END
-
-$out2 = <<END;
-access-list outside_in extended permit ip any any
-access-group outside_in in interface outside
-END
-
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
-
-############################################################
 $title = "Secondary filter near local filter filters fully";
 ############################################################
 

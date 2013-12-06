@@ -15,15 +15,15 @@ router:r1 = {
  model = ASA;
  managed = _1;
  interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:cr = { ip = 10.0.0.1; hardware = vlan2; }
+ interface:cr = { ip = 10.3.3.1; hardware = vlan2; }
 }
 
-network:cr = { ip = 10.0.0.0/29; crosslink; }
+network:cr = { ip = 10.3.3.0/29; crosslink; }
 
 router:r2 = {
  model = NX-OS;
  managed = _2;
- interface:cr = { ip = 10.0.0.2; hardware = vlan3; }
+ interface:cr = { ip = 10.3.3.2; hardware = vlan3; }
  interface:n2 = { ip = 10.2.2.1; hardware = vlan4; }
 }
 
@@ -82,7 +82,7 @@ $title = 'Crosslink secondary and local_secondary';
 
 $in = $topo; 
 $in =~ s/_1/secondary/;
-$in =~ s|_2;|local_secondary; filter_only =  10.2.0.0/19;|;
+$in =~ s|_2;|local_secondary; filter_only =  10.2.0.0/15;|;
 
 $out1 = <<END;
 access-list vlan2_in extended deny ip any any
@@ -105,7 +105,7 @@ $title = 'Crosslink secondary and local';
 
 $in = $topo; 
 $in =~ s/_1/secondary/;
-$in =~ s|_2;|local; filter_only =  10.2.0.0/19;|;
+$in =~ s|_2;|local; filter_only =  10.2.0.0/15;|;
 
 $out1 = <<END;
 Error: Must not use 'managed=local' and 'managed=secondary' together
@@ -125,16 +125,16 @@ router:r1 = {
  model = ASA;
  managed = standard;
  interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:cr = { ip = 10.0.0.1; hardware = vlan2; }
+ interface:cr = { ip = 10.3.3.1; hardware = vlan2; }
 }
 
-network:cr = { ip = 10.0.0.0/29; crosslink; }
+network:cr = { ip = 10.3.3.0/29; crosslink; }
 
 router:r2 = {
  model = NX-OS;
  managed = local;
- filter_only =  10.2.0.0/19,;
- interface:cr = { ip = 10.0.0.2; hardware = vlan3; }
+ filter_only =  10.2.0.0/15;
+ interface:cr = { ip = 10.3.3.2; hardware = vlan3; }
  interface:n2 = { ip = 10.2.2.1; hardware = vlan4; }
 }
 
@@ -143,8 +143,8 @@ network:n2 = { ip = 10.2.2.0/27; }
 router:r3 = {
  model = NX-OS;
  managed = local;
- filter_only =  10.2.0.0/19,;
- interface:cr = { ip = 10.0.0.3; hardware = vlan5; }
+ filter_only =  10.2.0.0/15;
+ interface:cr = { ip = 10.3.3.3; hardware = vlan5; }
  interface:n3 = { ip = 10.2.2.33; hardware = vlan6; }
 }
 
