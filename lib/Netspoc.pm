@@ -1246,12 +1246,15 @@ sub check_managed {
     }
     elsif (check '=') {
         my $value = read_identifier;
-        if ($value =~ /^(?:secondary|standard|full|primary|local)$/) {
+        if ($value =~ 
+            /^(?:secondary|standard|full|primary|local|local_secondary)$/) 
+        {
             $managed = $value;
         }
         else {
             error_atline("Expected value:",
-                         " secondary|standard|full|primary|local");
+                         " secondary|standard|full|primary",
+                         "|local|local_secondary");
         }
         check ';';
     }
@@ -2222,11 +2225,11 @@ sub read_router {
             $router->{model} = { name => 'unknown' };
         }
 
-        if ($managed eq 'local') {
+        if ($managed =~ /^local/) {
             $router->{filter_only} or
                 err_msg("Missing attribut 'filter_only' for $name");
             $model->{has_io_acl} and
-                err_msg("Must not use 'managed = local' at $name",
+                err_msg("Must not use 'managed = $managed' at $name",
                         " of model $model->{name}");
         }
         $router->{vrf}
@@ -2388,10 +2391,10 @@ sub read_router {
         if ($model->{has_interface_level}) {
             set_pix_interface_level($router);
         }
-        if ($managed eq 'local') {
+        if ($managed =~ /^local/) {
             grep { $_->{bind_nat} } @{ $router->{interfaces} }
               and err_msg "Attribute 'bind_nat' is not allowed",
-              " at interface of $name with 'managed = local'";
+              " at interface of $name with 'managed = $managed'";
         }
         if ($model->{do_auth}) {
 
@@ -8089,6 +8092,7 @@ my %crosslink_strength = (
     standard => 9,
     secondary => 8,
     local => 7,
+    local_secondary => 6,
     );
 
 # This uses attributes from sub check_no_in_acl.
@@ -8208,14 +8212,22 @@ sub check_crosslink  {
     return;
 }
 
+# Find cluster of zones connected by 'local' or 'local_secondary' routers.
+# - Check consistency of attributes.
+# - Set unique 'local_mark' for all zones belonging to one cluster
+# - Set 'local_secondary_mark' for secondary optimization inside one cluster.
+#   Two zones get the same mark if they are connected by local_secondary router.
 sub check_managed_local {
     my %seen;
+    my $cluster_counter = 1;
     for my $router (@managed_routers) {
-        $router->{managed} eq 'local' or next;
+        $router->{managed} =~ /^local/ or next;
         next if $seen{$router};
 
         # Networks of current cluster matching {filter_only}.
         my %matched;
+
+        my $local_secondary_mark = 1;
 
         my $walk;
         $walk = sub {
@@ -8224,12 +8236,15 @@ sub check_managed_local {
             my $k;
             $seen{$router} = $router;
             for my $in_intf (@{ $router->{interfaces} }) {
+                $local_secondary_mark++ if $router->{managed} eq 'local';
                 my $no_nat_set = $in_intf->{no_nat_set};
                 my $zone0 = $in_intf->{zone};
-                my $cluster = $zone0->{zone_cluster};
-                for my $zone ($cluster ? @$cluster : ($zone0)) {
+                my $zone_cluster = $zone0->{zone_cluster};
+                for my $zone ($zone_cluster ? @$zone_cluster : ($zone0)) {
                     next if $zone->{disabled};
-                    next if $seen{$zone};
+                    next if $zone->{local_mark};
+                    $zone->{local_mark} = $cluster_counter;
+                    $zone->{local_secondary_mark} = $local_secondary_mark;
 
                     # All networks in local zone must match {filter_only}.
                   NETWORK:
@@ -8253,12 +8268,11 @@ sub check_managed_local {
                         err_msg("$network->{name} doesn't match attribute",
                                 " 'filter_only' of $router->{name}");
                     }
-                    $seen{$zone} = $zone;
                     for my $out_intf (@{ $zone->{interfaces} }) {
                         next if $out_intf eq $in_intf;
                         my $router2 = $out_intf->{router};
-                        next if not $router2->{managed};
-                        next if not $router2->{managed} eq 'local';
+                        my $managed = $router2->{managed} or next;
+                        next if $managed !~ /^local/;
                         next if $seen{$router2};
 
                         # All routers of a cluster must have same values in
@@ -8279,6 +8293,7 @@ sub check_managed_local {
         };
 
         $walk->($router);
+        $cluster_counter++;
 
         for my $pair (@{ $router->{filter_only} }) {
             my ($i, $m) = @$pair;
@@ -8775,7 +8790,8 @@ sub set_area1 {
             next;
         }
 
-        # Ignore secondary or virtual interface, because we check main interface.
+        # Ignore secondary or virtual interface, because we check main
+        # interface.
         next if $interface->{main_interface};
 
         # Ignore tunnel interface. We can't test for {real_interface} here
@@ -10921,7 +10937,7 @@ sub check_supernet_src_rule {
         if (!$m2) {
             my $managed = $dst->{router}->{managed};
             $m2 =
-                $managed =~ /^(?:secondary|local)$/
+                $managed =~ /^(?:secondary|local.*)$/
               ? $dst->{network}->{zone}->{stateful_mark}
               : -1;
         }
@@ -11353,7 +11369,7 @@ sub mark_stateful {
         if ($router->{managed}) {
             next
               if !$router->{model}->{stateless}
-                  && $router->{managed} !~ /^(?:secondary|local)$/;
+                  && $router->{managed} !~ /^(?:secondary|local.*)$/;
         }
         next if $router->{active_path};
         $router->{active_path} = 1;
@@ -11569,7 +11585,7 @@ sub mark_secondary  {
     for my $in_interface (@{ $zone->{interfaces} }) {
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
-            next if $managed !~ /^(?:secondary|local)$/;
+            next if $managed !~ /^(?:secondary|local.*)$/;
         }
         next if $router->{active_path};
         $router->{active_path} = 1;
@@ -11640,10 +11656,17 @@ sub mark_secondary_rules {
         my $src_zone = get_zone2($src);
         my $dst_zone = get_zone2($dst);
 
-        if ($src_zone->{secondary_mark} ne $dst_zone->{secondary_mark}) {
+        if ($src_zone->{secondary_mark} != $dst_zone->{secondary_mark} ||
+
+            # Local secondary optimization.
+            $src_zone->{local_mark} && $dst_zone->{local_mark} &&
+            $src_zone->{local_mark} == $dst_zone->{local_mark} &&
+            $src_zone->{local_secondary_mark} != 
+            $dst_zone->{local_secondary_mark}) 
+        {
             $rule->{some_non_secondary} = 1;
         }
-        if ($src_zone->{primary_mark} ne $dst_zone->{primary_mark}) {
+        if ($src_zone->{primary_mark} != $dst_zone->{primary_mark}) {
             $rule->{some_primary} = 1;
         }
     }
@@ -15288,7 +15311,7 @@ sub get_filter_network {
 # Remove rules on device which filters only locally.
 sub remove_non_local_rules {
     my ($router, $hardware) = @_;
-    $router->{managed} eq 'local' or return;
+    $router->{managed} =~ /^local/ or return;
 
     my $no_nat_set = $hardware->{no_nat_set};
     my $filter_only = $router->{filter_only};
@@ -15332,7 +15355,7 @@ sub remove_non_local_rules {
 # Add deny and permit rules at device which filters only locally.
 sub add_local_deny_rules {
     my ($router, $hardware) = @_;
-    $router->{managed} eq 'local' or return;
+    $router->{managed} =~ /^local/ or return;
     $hardware->{crosslink} and return;
 
     my $filter_only = $router->{filter_only};
@@ -15432,7 +15455,7 @@ sub local_optimization {
             {
                 my $router           = $interface->{router};
                 my $managed          = $router->{managed} or next;
-                my $secondary_filter = $managed eq 'secondary';
+                my $secondary_filter = $managed =~ /secondary$/;
                 my $standard_filter  = $managed eq 'standard';
                 my $do_auth          = $router->{model}->{do_auth};
                 my $hardware =

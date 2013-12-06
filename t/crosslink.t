@@ -13,7 +13,7 @@ network:n1 = { ip = 10.1.1.0/27; }
 
 router:r1 = {
  model = ASA;
- managed = #1;
+ managed = _1;
  interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
  interface:cr = { ip = 10.0.0.1; hardware = vlan2; }
 }
@@ -22,7 +22,7 @@ network:cr = { ip = 10.0.0.0/29; crosslink; }
 
 router:r2 = {
  model = NX-OS;
- managed = #2;
+ managed = _2;
  interface:cr = { ip = 10.0.0.2; hardware = vlan3; }
  interface:n2 = { ip = 10.2.2.1; hardware = vlan4; }
 }
@@ -35,8 +35,8 @@ $title = 'Crosslink primary and full';
 ############################################################
 
 $in = $topo; 
-$in =~ s/#1/primary/;
-$in =~ s/#2/full/;
+$in =~ s/_1/primary/;
+$in =~ s/_2/full/;
 
 $out1 = <<END;
 access-list vlan2_in extended permit ip any any
@@ -58,8 +58,31 @@ $title = 'Crosslink standard and secondary';
 ############################################################
 
 $in = $topo; 
-$in =~ s/#1/standard/;
-$in =~ s/#2/secondary/;
+$in =~ s/_1/standard/;
+$in =~ s/_2/secondary/;
+
+$out1 = <<END;
+access-list vlan2_in extended deny ip any any
+access-group vlan2_in in interface vlan2
+END
+
+$out2 = <<END;
+ip access-list vlan3_in
+ 10 permit ip any any
+END
+
+$head1 = (split /\n/, $out1)[0];
+$head2 = (split /\n/, $out2)[0];
+
+eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+
+############################################################
+$title = 'Crosslink secondary and local_secondary';
+############################################################
+
+$in = $topo; 
+$in =~ s/_1/secondary/;
+$in =~ s|_2;|local_secondary; filter_only =  10.2.0.0/19;|;
 
 $out1 = <<END;
 access-list vlan2_in extended deny ip any any
@@ -81,8 +104,8 @@ $title = 'Crosslink secondary and local';
 ############################################################
 
 $in = $topo; 
-$in =~ s/#1/secondary/;
-$in =~ s'#2;'local; filter_only =  10.2.0.0/19;';
+$in =~ s/_1/secondary/;
+$in =~ s|_2;|local; filter_only =  10.2.0.0/19;|;
 
 $out1 = <<END;
 Error: Must not use 'managed=local' and 'managed=secondary' together

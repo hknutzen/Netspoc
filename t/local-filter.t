@@ -495,4 +495,91 @@ $head2 = (split /\n/, $out2)[0];
 eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
 
 ############################################################
+$title = "Loop, virtual interfaces";
+############################################################
+
+$in = <<END;
+network:n1 = { ip = 10.2.1.0/27; host:h1 = { ip = 10.2.1.4; }}
+
+router:r1 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.2.0.0/16;
+ routing = manual;
+ interface:n1 = { ip = 10.2.1.1; hardware = vlan1; }
+ interface:n3 = { ip = 10.2.3.2; hardware = vlan2; }
+ interface:tr = { ip = 10.2.9.1; hardware = vlan4; }
+}
+
+network:n2 = { ip = 10.2.2.0/27;}
+
+router:r2 = {
+ model = ASA;
+ managed = local_secondary;
+ filter_only =  10.2.0.0/16;
+ routing = manual;
+ interface:n2 = { ip = 10.2.2.1; hardware = vlan5; }
+ interface:tr = { ip = 10.2.9.2; hardware = vlan6; }
+}
+
+network:n3 = { ip = 10.2.3.0/27; host:h3 = { ip = 10.2.3.4; }}
+
+router:r3 = {
+ model = ASA;
+ managed = local_secondary;
+ filter_only =  10.2.0.0/16;
+ interface:n3 = { ip = 10.2.3.1; hardware = vlan7; }
+ interface:tr = { ip = 10.2.9.3; hardware = vlan8; }
+}
+
+network:tr = { ip = 10.2.9.0/29; }
+
+router:ex = {
+ model = ASA;
+ managed = secondary;
+ interface:tr = { ip = 10.2.9.6; hardware = inside; }
+ interface:extern = { ip = 10.5.3.1; hardware = outside; }
+}
+
+network:extern = { ip = 10.5.3.0/24; }
+
+service:Mail = {
+ user = network:n2;
+ permit src = user;
+        dst = network:extern, host:h1, host:h3;
+        prt = tcp 25;
+}
+END
+
+$out1 = <<END;
+access-list inside_in extended permit tcp 10.2.2.0 255.255.255.224 10.5.3.0 255.255.255.0 eq 25
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
+END
+
+$out2 = <<END;
+object-group network g0
+ network-object host 10.2.1.4
+ network-object host 10.2.3.4
+access-list vlan4_in extended permit tcp 10.2.2.0 255.255.255.224 object-group g0 eq 25
+access-list vlan4_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
+access-list vlan4_in extended permit ip any any
+access-group vlan4_in in interface vlan4
+END
+
+$out3 = <<END;
+access-list vlan8_in extended permit ip 10.2.2.0 255.255.255.224 10.2.1.0 255.255.255.224
+access-list vlan8_in extended permit tcp 10.2.2.0 255.255.255.224 host 10.2.3.4 eq 25
+access-list vlan8_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
+access-list vlan8_in extended permit ip any any
+access-group vlan8_in in interface vlan8
+END
+
+$head1 = (split /\n/, $out1)[0];
+$head2 = (split /\n/, $out2)[0];
+$head3 = (split /\n/, $out3)[0];
+
+eq_or_diff(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3, $title);
+
+############################################################
 done_testing;
