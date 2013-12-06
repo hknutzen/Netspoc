@@ -1633,7 +1633,7 @@ sub read_network {
     defined $ip or syntax_err("Missing network IP");
 
     if ($ip eq 'unnumbered') {
-        my %ok = (ip => 1, name => 1);
+        my %ok = (ip => 1, name => 1, crosslink => 1);
 
         # Unnumbered network must not have any other attributes.
         for my $key (keys %$network) {
