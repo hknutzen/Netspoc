@@ -6050,7 +6050,7 @@ sub expand_special  {
                 err_msg "'$interface->{ip}' $interface->{name}",
                   " (from .[auto])\n", " must not be used in rule of $context";
             }
-            elsif ($interface->{ip} =~ /unnumbered/) {
+            elsif ($interface->{ip} eq 'unnumbered') {
 
                 # Ignore unnumbered interfaces.
             }
