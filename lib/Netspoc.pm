@@ -15929,6 +15929,19 @@ sub print_cisco_acl_add_deny {
         my %need_protect;
         my $protect_all;
         my $local_filter = $router->{managed} =~ /^local/;
+        my $check_intf = sub {
+            my ($ip, $mask) = @_;
+            for my $intf (values %$intf_hash) {
+                next if $intf->{ip} =~ 
+                        /^(unnumbered|negotiated|tunnel|bridged)$/;
+                my $i = address($intf, $no_nat_set)->[0];
+                if (match_ip($i, $ip, $mask)) {
+                    $need_protect{$intf} = $intf;
+
+#                   debug("Protect $intf->{name} at $hardware->{name}");
+                }
+            }
+        };
       RULE:
         for my $rule (@{ $hardware->{rules} }) {
             next if $rule->{action} eq 'deny';
@@ -15942,25 +15955,24 @@ sub print_cisco_acl_add_deny {
             # We only need to check networks:
             # - subnet/host and interface already have been checked to
             #   have disjoint ip addresses to interfaces of current router.
-            next if not is_network($dst);
-              
-            if ($dst->{mask} == 0) {
-                $protect_all = 1;
-
-#               debug("Protect all $router->{name}: $hardware->{name}");
-                last RULE;
-            }
-
-            my ($ip, $mask) = @{ address($dst, $no_nat_set) };
-            for my $intf (values %$intf_hash) {
-                next if $intf->{ip} =~ 
-                        /^(unnumbered|negotiated|tunnel|bridged)$/;
-                my $i = address($intf, $no_nat_set)->[0];
-                if (match_ip($i, $ip, $mask)) {
-                    $need_protect{$intf} = $intf;
-
-#                   debug("Protect $intf->{name} at $hardware->{name}");
+            if (is_objectgroup($dst)) {
+                my $elements = $dst->{elements};
+                for my $ip_mask ( @$elements ) {
+                    my ($ip, $mask) = split '/', $ip_mask;
+                    next if $mask == 0xffffffff;
+                    $check_intf->($ip, $mask);
                 }
+            }
+            elsif (is_network($dst)) {
+                if ($dst->{mask} == 0) {
+                    $protect_all = 1;
+                    
+#                   debug("Protect all $router->{name}: $hardware->{name}");
+                    last RULE;
+                }
+
+                my ($ip, $mask) = @{ address($dst, $no_nat_set) };
+                $check_intf->($ip, $mask);
             }
         }
 
