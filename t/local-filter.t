@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $topo, $in, $out1, $head1, $out2, $head2, $out3, $head3);
+my ($title, $topo, $in, $out);
 
 ############################################################
 $title = 'Non matching mask of filter_only attribute';
@@ -22,11 +22,11 @@ router:d32 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 Error: IP and mask don\'t match at line 5 of STDIN
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = "Missing attribute 'filter_only'";
@@ -34,12 +34,12 @@ $title = "Missing attribute 'filter_only'";
 
 $in =~ s/filter_only/#filter_only/;
 
-$out1 = <<END;
+$out = <<END;
 Error: Missing attribut 'filter_only' for router:d32
 Error: network:n1 doesn\'t match attribute 'filter_only' of router:d32
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Local network doesn\'t match filter_only attribute';
@@ -57,11 +57,11 @@ router:d32 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 Error: network:n2 doesn\'t match attribute 'filter_only' of router:d32
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Unused filter_only attribute';
@@ -69,11 +69,11 @@ $title = 'Unused filter_only attribute';
 
 $in =~ s#10.62.1.0/24#10.62.1.0/24, 10.62.2.0/24, 10.62.3.0/24#;
 
-$out1 = <<END;
+$out = <<END;
 Warning: Useless 10.62.3.0/24 in attribute 'filter_only' of router:d32
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'NAT not allowed';
@@ -91,11 +91,11 @@ router:d32 = {
 network:n2 = { ip = 10.62.2.0/27; }
 END
 
-$out1 = <<END;
+$out = <<END;
 Error: Attribute 'bind_nat' is not allowed at interface of router:d32 with 'managed = local'
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = "Cluster must have identical values in attribute 'filter_only'";
@@ -125,11 +125,11 @@ router:d12 = {
 network:n2 = { ip = 10.62.2.0/27; }
 END
 
-$out1 = <<END;
+$out = <<END;
 Error: router:d12 and router:d32 must have identical values in attribute 'filter_only'
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = "Aggregates must match attribute 'filter_only'";
@@ -149,11 +149,11 @@ router:d32 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 Error: any:n1_10_62 doesn\'t match attribute \'filter_only\' of router:d32
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Reuse object groups for deny rules';
@@ -183,25 +183,21 @@ network:extern = { ip = 10.125.3.0/24; }
 END
 
 $in = $topo;
-$out1 = <<END;
+
+$out = <<END;
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
 access-list vlan1_in extended deny ip any object-group g0
 access-list vlan1_in extended permit ip any any
 access-group vlan1_in in interface vlan1
-END
-
-$out2 = <<END;
+--
 access-list vlan2_in extended deny ip object-group g0 object-group g0
 access-list vlan2_in extended permit ip any any
 access-group vlan2_in in interface vlan2
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = "Supernet to extern";
@@ -217,7 +213,7 @@ service:Test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
@@ -226,9 +222,7 @@ access-list vlan1_in extended permit ip any any
 access-group vlan1_in in interface vlan1
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = "Supernet to local";
@@ -244,7 +238,7 @@ service:Test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
@@ -254,9 +248,7 @@ access-list vlan1_in extended permit ip any any
 access-group vlan1_in in interface vlan1
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = "Secondary filter near local filter filters fully";
@@ -292,15 +284,13 @@ service:Mail = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 access-list inside_in extended permit tcp 10.62.1.32 255.255.255.224 10.125.3.0 255.255.255.0 eq 25
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = "Different deny rules";
@@ -308,22 +298,17 @@ $title = "Different deny rules";
 
 # Reuse $in of previous test.
 
-$out1 = <<END;
+$out = <<END;
 access-list vlan1_in extended deny ip any 10.62.0.0 255.255.0.0
 access-list vlan1_in extended permit ip any any
 access-group vlan1_in in interface vlan1
-END
-
-$out2 = <<END;
+--
 access-list trans_in extended deny ip 10.62.0.0 255.255.0.0 10.62.0.0 255.255.0.0
 access-list trans_in extended permit ip any any
 access-group trans_in in interface trans
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = "Outgoing ACL";
@@ -347,31 +332,22 @@ service:test = {
 }
 END
 
-
-$out1 = <<END;
+$out = <<END;
 access-list vlan1_in extended permit ip any any
 access-group vlan1_in in interface vlan1
-END
-
-$out2 = <<END;
+--
 access-list vlan2_in extended permit tcp 10.62.2.0 255.255.255.224 10.62.1.32 255.255.255.224 eq 22
 access-list vlan2_in extended deny ip any 10.62.0.0 255.255.224.0
 access-list vlan2_in extended permit ip any any
 access-group vlan2_in in interface vlan2
-END
-
-$out3 = <<END;
+--
 access-list vlan2_out extended permit tcp 10.62.1.32 255.255.255.224 10.62.2.0 255.255.255.224 eq 80
 access-list vlan2_out extended deny ip 10.62.0.0 255.255.224.0 10.62.0.0 255.255.224.0
 access-list vlan2_out extended permit ip any any
 access-group vlan2_out out interface vlan2
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-$head3 = (split /\n/, $out3)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = "Loop, virtual interfaces";
@@ -421,16 +397,14 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended vlan1_in
  deny ip any host 10.62.2.1
  permit tcp 10.62.1.32 0.0.0.31 10.62.2.0 0.0.0.31 eq 80
  permit tcp 10.62.1.32 0.0.0.31 10.62.2.0 0.0.0.31 established
  deny ip any 10.62.0.0 0.0.31.255
  permit ip any any
-END
-
-$out2 = <<END;
+--
 ip access-list extended vlan2_in
  deny ip any host 10.62.1.33
  deny ip any host 10.62.1.34
@@ -440,10 +414,7 @@ ip access-list extended vlan2_in
  permit ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = "Loop, virtual interfaces";
@@ -502,13 +473,11 @@ service:Mail = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 access-list inside_in extended permit tcp 10.2.2.0 255.255.255.224 10.5.3.0 255.255.255.0 eq 25
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
-END
-
-$out2 = <<END;
+--
 object-group network g0
  network-object host 10.2.1.4
  network-object host 10.2.3.4
@@ -516,9 +485,7 @@ access-list vlan4_in extended permit tcp 10.2.2.0 255.255.255.224 object-group g
 access-list vlan4_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
 access-list vlan4_in extended permit ip any any
 access-group vlan4_in in interface vlan4
-END
-
-$out3 = <<END;
+--
 access-list vlan8_in extended permit ip 10.2.2.0 255.255.255.224 10.2.1.0 255.255.255.224
 access-list vlan8_in extended permit tcp 10.2.2.0 255.255.255.224 host 10.2.3.4 eq 25
 access-list vlan8_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
@@ -526,11 +493,7 @@ access-list vlan8_in extended permit ip any any
 access-group vlan8_in in interface vlan8
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-$head3 = (split /\n/, $out3)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3, $title);
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out, @out, $head, $compiled);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Only one generic aggregate in zone cluster';
@@ -46,7 +46,7 @@ $out = <<END;
 Error: Duplicate any:Trans1 and any:Trans2 in any:[network:Trans2]
 END
 
-eq_or_diff(compile_err($in), $out, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Inherit owner from all zones of zone cluster';
@@ -89,7 +89,7 @@ Warning: Useless owner:t1 at network:Trans2,
  it was already inherited from any:[network:Trans2]
 END
 
-eq_or_diff(compile_err($in), $out, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Duplicate IP from NAT in zone';
@@ -119,7 +119,7 @@ $out = <<END;
 Error: network:B and network:A have identical IP/mask inside any:[network:Trans]
 END
 
-eq_or_diff(compile_err($in), $out, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Ambiguous subnet relation from NAT in zone';
@@ -160,7 +160,7 @@ Error: Ambiguous subnet relation from NAT.
  network:B is subnet of network:Trans and network:A
 END
 
-eq_or_diff(compile_err($in), $out, $title);
+test_err($title, $in, $out);
 
 $in =~ s|\Qnat:C = { ip = 10.1.1.8/29; }\E|nat:C = { ip = 10.2.2.8/29; }|;
 
@@ -170,7 +170,7 @@ Error: Ambiguous subnet relation from NAT.
  but has no subnet relation in other NAT domain.
 END
 
-eq_or_diff(compile_err($in), $out, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'No secondary optimization for network with subnet in other zone';
@@ -215,9 +215,7 @@ ip access-list extended VLAN1_in
  deny ip any any
 END
 
-$head = (split /\n/, $out)[0];
-
-eq_or_diff(get_block(compile($in), $head), $out, $title);
+test_run($title, $in, $out);
 
 ############################################################
 

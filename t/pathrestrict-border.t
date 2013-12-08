@@ -6,14 +6,16 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
+my ($title, $in, $out);
+
 ############################################################
-my $title = 'Pathrestriction at border of loop (at router)';
+$title = 'Pathrestriction at border of loop (at router)';
 ############################################################
 
 # Soll an router:filter für Interfaces GRE und Trans unterschiedliche 
 # ACLs generieren.
 
-my $in = <<END;
+$in = <<END;
 network:Test =  { ip = 10.9.1.0/24; }
 
 router:filter = {
@@ -65,24 +67,20 @@ service:test = {
 }
 END
 
-my $out1 = <<END;
+$out = <<END;
 ip access-list extended GigabitEthernet0/1_in
  deny ip any host 10.9.1.1
  permit ip 10.9.2.0 0.0.0.255 10.9.1.0 0.0.0.255
  permit ip 10.9.3.0 0.0.0.255 10.9.1.0 0.0.0.255
  deny ip any any
-END
-my $out2 = <<END;
+--
 ip access-list extended Tunnel1_in
  deny ip any host 10.9.1.1
  permit ip 10.9.3.0 0.0.0.255 10.9.1.0 0.0.0.255
  deny ip any any
 END
 
-my $head1 = (split /\n/, $out1)[0];
-my $head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Pathrestriction at border of loop (at any)';
@@ -151,27 +149,18 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip route 10.9.1.0 255.255.255.0 10.5.6.1
-END
-
-$out2 = <<END;
+--
 ip access-list extended E0_in
  deny ip any any log
-END
-
-my $out3 = <<END;
+--
 ip access-list extended E1_in
  permit ip 10.9.2.0 0.0.0.255 10.9.1.0 0.0.0.255
  deny ip any any log
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-my $head3 = (split /\n/, $out3)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3, 
-	  $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Pathrestriction at border of nested loop';
@@ -222,19 +211,15 @@ service:intra = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended Vlan13_in
  permit ip any host 10.3.1.249
  deny ip any any
-END
-
-$out2 = <<END;
+--
 ip access-list extended Ethernet4_in
  permit ip any host 10.3.1.249
  deny ip any any
-END
-
-$out3 = <<END;
+--
 ip access-list extended Ethernet5_in
  deny ip any host 10.1.1.2
  deny ip any host 10.3.1.129
@@ -243,12 +228,7 @@ ip access-list extended Ethernet5_in
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-$head3 = (split /\n/, $out3)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3, 
-	  $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Valid pathrestriction at unmanged router';
@@ -280,19 +260,20 @@ router:Kunde = {
 pathrestriction:restrict = interface:Kunde.Trans1, interface:Kunde.Trans2;
 END
 
-eq_or_diff(compile_err($in), '', $title);
+test_err($title, $in, '');
 
 ############################################################
 $title = 'Useless pathrestriction at unmanged router';
 ############################################################
 
 $in =~ s/managed/#managed/;
-$out1 = <<END;
+
+$out = <<END;
 Warning: Useless pathrestriction:restrict.
  All interfaces are unmanaged and located inside the same security zone
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;

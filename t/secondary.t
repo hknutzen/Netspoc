@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out1, $head1, $out2, $head2, $out3, $head3);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Secondary optimization to largest safe network';
@@ -55,7 +55,7 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended Ethernet5_in
  permit ip 10.1.0.0 0.0.255.255 host 10.0.0.1
  deny ip any host 10.9.9.1
@@ -63,16 +63,13 @@ ip access-list extended Ethernet5_in
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'No optimization if sub-net of sub-net is outside of zone';
 ############################################################
 
 $in = <<END;
-
 network:src = { ip = 10.1.1.0/24; }
 
 # src must not be allowed to access subsub.
@@ -115,15 +112,13 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended Ethernet1_in
  permit ip 10.1.1.0 0.0.0.255 host 10.9.9.9
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out1, $head1, $out2, $head2, $out3, $head3);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Global permit';
@@ -25,16 +25,14 @@ network:n = { ip = 10.1.1.0/24; }
 global:permit = tcp, icmp;
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list e0_in
  10 permit icmp any any
  20 permit tcp any any
  30 deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Find redundant with global permit';
@@ -49,15 +47,15 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 Warning: protocol:Ping in service:test is redundant to global:permit
 Warning: tcp 80 in service:test is redundant to global:permit
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
-$title = 'No range in global permit';
+$title = 'No range permitted in global permit';
 ############################################################
 
 $in = <<END;
@@ -66,12 +64,12 @@ protocol:ftp-data = tcp 20:1024-65535;
 global:permit = protocol:ftp-data, tcp 80;
 END
 
-$out1 = <<END;
+$out = <<END;
 Error: Must not use ports in global permit: protocol:ftp-data
 Error: Must not use ports in global permit: tcp 80
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;

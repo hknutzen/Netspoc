@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $topo, $in, $out1, $head1, $out2, $head2, $out3, $head3, $compiled);
+my ($title, $topo, $in, $out);
 
 ############################################################
 $title = 'Implicit aggregate over 3 networks';
@@ -48,7 +48,7 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended VLAN1_in
  deny ip any host 10.9.9.1
  permit tcp 10.0.0.0 0.255.255.255 10.9.9.0 0.0.0.255 eq 80
@@ -58,9 +58,7 @@ ip access-list extended VLAN1_in
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Implicit aggregate over 2 networks';
@@ -76,7 +74,7 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended VLAN1_in
  deny ip any host 10.9.9.1
  permit tcp 10.3.3.0 0.0.0.255 10.9.9.0 0.0.0.255 eq 80
@@ -85,9 +83,7 @@ ip access-list extended VLAN1_in
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Implicit aggregate between 2 networks';
@@ -108,7 +104,7 @@ service:test2 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended VLAN1_in
  deny ip any host 10.9.9.1
  permit tcp 10.3.3.0 0.0.0.63 10.9.9.0 0.0.0.255 eq 80
@@ -116,9 +112,7 @@ ip access-list extended VLAN1_in
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Check aggregate at unnumbered interface';
@@ -152,14 +146,14 @@ service:test = {
 any:Trans = { link = network:Trans; }
 END
 
-$out1 = <<END;
+$out = <<END;
 Warning: Missing rule for supernet rule.
  permit src=any:[network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
  can\'t be effective at interface:filter1.Trans.
  Tried any:Trans as src.
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Permit matching aggregate at non matching interface';
@@ -190,22 +184,17 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 access-list Vlan2_in extended permit tcp 10.0.0.0 255.0.0.0 10.9.1.0 255.255.255.0 eq 80
 access-list Vlan2_in extended deny ip any any
 access-group Vlan2_in in interface Vlan2
-END
-
-$out2 = <<END;
+--
 access-list Vlan4_in extended permit tcp 10.0.0.0 255.0.0.0 10.9.1.0 255.255.255.0 eq 80
 access-list Vlan4_in extended deny ip any any
 access-group Vlan4_in in interface Vlan4
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Warn on missing src aggregate';
@@ -220,14 +209,14 @@ router:T = {
 network:N1 = { ip = 10.192.0.0/24; }
 END
 
-$out1 = <<END;
+$out = <<END;
 Warning: Missing rule for supernet rule.
  permit src=any:[ip=10.0.0.0/8 & network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
  can\'t be effective at interface:filter1.Trans.
  Tried network:N1 as src.
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Loop with no_in_acl and in_zone eq no_in_zone';
@@ -263,22 +252,17 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 access-list Vlan5_in extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
 access-list Vlan5_in extended deny ip any any
 access-group Vlan5_in in interface Vlan5
-END
-
-$out2 = <<END;
+--
 access-list Vlan6_out extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
 access-list Vlan6_out extended deny ip any any
 access-group Vlan6_out out interface Vlan6
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Nested aggregates';
@@ -317,16 +301,14 @@ service:test2 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.254.0 10.9.1.0 255.255.255.0 eq 80
 access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.252.0 10.9.1.0 255.255.255.0 eq 81
 access-list Vlan2_in extended deny ip any any
 access-group Vlan2_in in interface Vlan2
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Redundant nested aggregates';
@@ -339,14 +321,14 @@ service:test3 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 Warning: Redundant rules in service:test1 compared to service:test3:
  Files: STDIN STDIN
   permit src=any:[ip=10.1.0.0/23 & network:Trans]; dst=network:Test; prt=tcp 80; of service:test1
 < permit src=any:[ip=10.1.0.0/16 & network:Trans]; dst=network:Test; prt=tcp 80; of service:test3
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Redundant nested aggregates without matching network (1)';
@@ -372,14 +354,14 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 Warning: Redundant rules in service:test compared to service:test:
  Files: STDIN STDIN
   permit src=any:[ip=10.1.0.0/17 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
 < permit src=any:[ip=10.1.0.0/16 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Redundant nested aggregates without matching network (2)';
@@ -405,14 +387,14 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 Warning: Redundant rules in service:test compared to service:test:
  Files: STDIN STDIN
   permit src=any:[ip=10.1.0.0/17 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
 < permit src=any:[ip=10.1.0.0/16 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Redundant matching aggregates as subnet of network';
@@ -441,7 +423,7 @@ service:test2 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 Warning: Redundant rules in service:test1 compared to service:test1:
  Files: STDIN STDIN
   permit src=any:[ip=10.9.1.0/26 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
@@ -456,7 +438,7 @@ Warning: Redundant rules in service:test2 compared to service:test1:
 < permit src=network:Test; dst=network:Kunde; prt=tcp 80; of service:test1
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Mixed redundant matching aggregates';
@@ -485,14 +467,14 @@ service:test2 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 Warning: Redundant rules in service:test1 compared to service:test2:
  Files: STDIN STDIN
   permit src=any:[ip=10.1.1.0/26 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
 < permit src=any:[ip=10.0.0.0/8 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test2
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Mixed implicit and explicit aggregates';
@@ -517,15 +499,13 @@ service:test1 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 access-list Vlan1_in extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
 access-list Vlan1_in extended deny ip any any
 access-group Vlan1_in in interface Vlan1
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Matching aggregate of implicit aggregate';
@@ -548,15 +528,13 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 access-list Vlan1_in extended permit tcp 10.1.0.0 255.255.0.0 10.1.1.0 255.255.255.0 eq 80
 access-list Vlan1_in extended deny ip any any
 access-group Vlan1_in in interface Vlan1
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 

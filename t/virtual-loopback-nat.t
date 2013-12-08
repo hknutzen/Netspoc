@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out, @out, $head, $compiled);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Dynamic NAT to multiple virtual loopback interfaces (secondary)';
@@ -94,9 +94,7 @@ access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 END
 
-$head = (split /\n/, $out)[0];
-
-eq_or_diff(get_block(compile($in), $head), $out, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Dynamic NAT to multiple virtual loopback interfaces';
@@ -111,10 +109,7 @@ access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 END
 
-$head = (split /\n/, $out)[0];
-
-eq_or_diff(get_block(compile($in), $head), $out, $title);
-
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Routing via managed virtual interfaces to loopback';
@@ -181,33 +176,22 @@ service:test = {
 }
 END
 
-@out = ();
-$out[0] = <<END;
+$out = <<END;
+route outside 172.17.1.11 255.255.255.255 192.168.0.11
+--
+access-list inside_in extended permit tcp 10.1.1.0 255.255.255.0 host 172.17.1.11 eq 22
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
+--
 ip route 10.1.1.0 255.255.255.0 192.168.0.101
-END
-
-$out[1] = <<END;
+--
 ip access-list extended Eth0_in
  permit tcp 10.1.1.0 0.0.0.255 host 172.17.1.11 eq 22
  deny ip any any
 END
 
-$out[2] = <<END;
-route outside 172.17.1.11 255.255.255.255 192.168.0.11
-END
+test_run($title, $in, $out);
 
-$out[2] = <<END;
-access-list inside_in extended permit tcp 10.1.1.0 255.255.255.0 host 172.17.1.11 eq 22
-access-list inside_in extended deny ip any any
-access-group inside_in in interface inside
-END
-
-$compiled = compile($in);
-for my $i (0 .. $#out) {
-    my $out = $out[$i];
-    my $head = (split /\n/, $out)[0];
-    eq_or_diff(get_block($compiled, $head), $out, "$title: $i");
-}
 ############################################################
 $title = 'Routing via unmanaged virtual interfaces to loopback';
 ############################################################
@@ -218,24 +202,17 @@ $title = 'Routing via unmanaged virtual interfaces to loopback';
 
 $in =~ s/managed; #remove//msg;
 
-@out = ();
-$out[0] = <<END;
+$out = <<END;
 ! [ Routing ]
 route outside 0.0.0.0 0.0.0.0 192.168.0.1
-END
-
-$out[1] = <<END;
+--
 ! [ ACL ]
 access-list inside_in extended permit tcp 10.1.1.0 255.255.255.0 host 172.17.1.11 eq 22
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
 END
 
-$compiled = compile($in);
-for my $i (0 .. $#out) {
-    my $out = $out[$i];
-    my $head = (split /\n/, $out)[0];
-    eq_or_diff(get_block($compiled, $head), $out, "$title: $i");
-}
+test_run($title, $in, $out);
+
 ############################################################
 done_testing;

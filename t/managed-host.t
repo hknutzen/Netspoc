@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out1, $head1, $out2, $head2, $out3, $head3);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Access managed host from enclosing network';
@@ -24,15 +24,13 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.1.1.0/24 -d 10.1.1.11 -p tcp --dport 80
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Access from managed host to managed host';
@@ -51,21 +49,16 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.1.1.11 -d 10.1.1.10 -p tcp --dport 80
-END
-
-$out2 = <<END;
+--
 :eth1_self -
 -A INPUT -j eth1_self -i eth1
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Automatically add managed host to destination network';
@@ -83,15 +76,13 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.1.1.0/24 -d 10.1.1.10 -p tcp --dport 80
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Detect duplicate automatic and manual managed host';
@@ -109,14 +100,12 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 Warning: Duplicate elements in dst of rule in service:test:
  host:h1
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Automatically add managed host to destination aggregate ';
@@ -139,21 +128,16 @@ service:test2 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 -A c1 -j ACCEPT -s 10.1.0.0/16 -p tcp --dport 81
 -A c1 -j ACCEPT -s 10.0.0.0/8 -p tcp --dport 80
-END
-
-$out2 = <<END;
+--
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
 -A eth0_self -g c1 -d 10.1.1.10 -p tcp --dport 80:81
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Filter managed host in destination aggregate ';
@@ -172,15 +156,13 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.1.1.0/28 -d 10.1.1.10 -p tcp --dport 80
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'NAT with managed host';
@@ -208,22 +190,17 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.9.1.0/24 -d 10.1.1.10 -p tcp --dport 22
-END
-
-$out2 = <<END;
+--
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.99.99.69 eq 22
 access-list Vlan1_in extended deny ip any any
 access-group Vlan1_in in interface Vlan1
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = "Automatic managed and unmanaged hosts from network";
@@ -255,7 +232,8 @@ service:test3 = {
  permit src = network:Test; dst = user; prt = tcp 83;
 }
 END
-$out1 = <<END;
+
+$out = <<END;
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.11 eq 81
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.10 range 81 82
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.11 eq 83
@@ -263,9 +241,7 @@ access-list Vlan1_in extended deny ip any any
 access-group Vlan1_in in interface Vlan1
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = "Managed host doesn't count as full filter";
@@ -291,7 +267,7 @@ service:test = {
 END
 
 # Interface addresses aren't optimized into subnet currently.
-$out1 = <<END;
+$out = <<END;
 object-group network g0
  network-object host 10.1.1.10
  network-object host 10.1.1.11
@@ -300,9 +276,7 @@ access-list Vlan2_in extended deny ip any any
 access-group Vlan2_in in interface Vlan2
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = "Managed host must use standard filter";
@@ -315,11 +289,11 @@ network:N = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 Error: Only \'managed=standard\' is supported at line 3 of STDIN
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = "Duplicate IP address";
@@ -336,13 +310,13 @@ network:N = {
  host:h3 = { range = 10.1.1.8 - 10.1.1.15; }
 }
 END
-$out1 = <<END;
+$out = <<END;
 Error: Duplicate IP address for host:h1 and interface:R.N
 Error: Duplicate IP address for host:h1 and host:h2
 Error: Duplicate IP address for host:h1 and host:h3
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = "Multi homed managed host";
@@ -376,22 +350,18 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 :c1 -
 :c2 -
 -A c1 -j ACCEPT -s 10.9.1.30
 -A c1 -j ACCEPT -s 10.9.1.20
 -A c2 -g c1 -s 10.9.1.16/28
 -A c2 -j ACCEPT -s 10.9.1.10
-END
-
-$out2 = <<END;
+--
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
 -A eth0_self -g c2 -s 10.9.1.0/27 -d 10.9.1.9 -p tcp --dport 22
-END
-
-$out3 = <<END;
+--
 :c3 -
 :c4 -
 -A c3 -j ACCEPT -s 10.9.1.30
@@ -400,11 +370,7 @@ $out3 = <<END;
 -A c4 -j ACCEPT -s 10.9.1.10
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-$head3 = (split /\n/, $out3)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3, $title);
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

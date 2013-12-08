@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out1, $out2, $head1, $head2);
+my ($title, $in, $out);
 ############################################################
 $title = 'Merge port range with sub-range for iptables';
 ############################################################
@@ -51,7 +51,7 @@ service:p10-60 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 -A c1 -j ACCEPT -s 10.3.3.128/29
 -A c1 -j ACCEPT -s 10.3.3.120/29
 -A c2 -g c1 -s 10.3.3.0/24
@@ -61,18 +61,13 @@ $out1 = <<END;
 -A c4 -j c2 -s 10.0.0.0/14 -p tcp --dport 10:60
 -A c4 -g c3 -p tcp --dport 51:53
 -A c4 -g c3 -p tcp --dport 30:37
-END
-
-$out2 = <<END;
+---
 :eth0_br0 -
 -A FORWARD -j eth0_br0 -i eth0 -o br0
 -A eth0_br0 -g c4 -d 10.4.4.0/24 -p tcp --dport 10:60
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Un-merged port range with sub-range for iptables';
@@ -83,7 +78,7 @@ $title = 'Un-merged port range with sub-range for iptables';
 # and a merged range can have at most two childs.
 $in =~ s/(tcp 30-37,) (tcp 51-53)/$1 tcp 40-47, $2/;
 
-$out1 = <<END;
+$out = <<END;
 -A c1 -j ACCEPT -s 10.3.3.128/29
 -A c1 -j ACCEPT -s 10.3.3.120/29
 -A c2 -g c1 -s 10.3.3.0/24
@@ -96,18 +91,13 @@ $out1 = <<END;
 -A c5 -j c2 -s 10.0.0.0/14 -p tcp --dport 10:49
 -A c5 -g c3 -p tcp --dport 40:47
 -A c5 -g c3 -p tcp --dport 30:37
-END
-
-$out2 = <<END;
+---
 :eth0_br0 -
 -A FORWARD -j eth0_br0 -i eth0 -o br0
 -A eth0_br0 -g c5 -d 10.4.4.0/24 -p tcp --dport 10:60
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Optimize redundant port for iptables';
@@ -154,15 +144,13 @@ service:B = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 :eth0_br0 -
 -A FORWARD -j eth0_br0 -i eth0 -o br0
 -A eth0_br0 -j ACCEPT -s 10.2.2.0/24 -d 10.4.4.0/24 -p tcp --dport 50:60
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

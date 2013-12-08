@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out, $head);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Check for owners with duplicate alias names';
@@ -32,7 +32,7 @@ Error: Topology seems to be empty
 Aborted
 END
 
-eq_or_diff(compile_err($in), $out, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Check for owners with conflicting name and alias name';
@@ -57,7 +57,7 @@ Error: Topology seems to be empty
 Aborted
 END
 
-eq_or_diff(compile_err($in), $out, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Owner at bridged network';
@@ -93,7 +93,7 @@ END
 
 $out = '';
 
-eq_or_diff(compile_err($in), $out, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Redundant owner at bridged network';
@@ -106,7 +106,7 @@ Warning: Useless owner:xx at any:[network:VLAN_40_41/41],
  it was already inherited from area:all
 END
 
-eq_or_diff(compile_err($in), $out, $title);
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;

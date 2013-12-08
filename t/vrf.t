@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $topo, $in, $out1, $head1, $out2, $head2, $out3, $head3, $compiled);
+my ($title, $topo, $in, $out);
 
 ############################################################
 $title = 'Combine object-groups from different VRFs';
@@ -40,7 +40,7 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 object-group ip address g0
  10 host 10.1.1.10
  20 host 10.1.1.20
@@ -48,9 +48,7 @@ object-group ip address g0
 ip access-list e0_in
  10 permit tcp 10.2.2.0/24 addrgroup g0 established
  20 deny ip any any
-END
-
-$out2 = <<END;
+--
 object-group ip address g1
  10 host 10.1.1.10
  20 host 10.1.1.20
@@ -60,10 +58,7 @@ ip access-list e2_in
  20 deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'No admin IP found in any VRFs';
@@ -89,11 +84,11 @@ router:r1@v2 = {
 network:n = { ip = 10.1.1.0/24; }
 END
 
-$out1 = <<END;
+$out = <<END;
 Warning: Missing rule to reach at least one VRF of r1 from policy_distribution_point
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 

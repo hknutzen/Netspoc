@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out, $head, $compiled);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Split and combine host ranges';
@@ -45,9 +45,7 @@ ip access-list extended ethernet0_in
  deny ip any any
 END
 
-$head = (split /\n/, $out)[0];
-
-eq_or_diff(get_block(compile($in), $head), $out, $title);
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

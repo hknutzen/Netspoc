@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out1, $out2, $head1, $head2, $compiled);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Zone cluster with unnumbered network';
@@ -41,18 +41,19 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended eth2_in
  deny ip any host 10.1.7.33
  permit tcp any 10.1.7.32 0.0.0.31 eq 80
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
+
 
 $in =~ s/\[network:clients\]/[network:unn]/msx;
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Auto aggregate in zone cluster with unnumbered';
@@ -83,39 +84,32 @@ service:Test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended G2_in
  permit icmp any host 10.1.1.3 8
  deny ip any any
-END
-
-$out2 = <<END;
+--
 ip access-list extended G0_in
  permit icmp any host 10.1.1.3 8
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
+
 
 $in =~ s|\[user\]|[ip=10.0.0.0/8 & user]|;
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended G2_in
  permit icmp 10.0.0.0 0.255.255.255 host 10.1.1.3 8
  deny ip any any
-END
-
-$out2 = <<END;
+--
 ip access-list extended G0_in
  permit icmp 10.0.0.0 0.255.255.255 host 10.1.1.3 8
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 

@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out1, $out2, $out3, $head1, $head2, $head3);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Implicit pathrestriction with 3 virtual interfaces';
@@ -46,7 +46,7 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended E1_in
  deny ip any host 10.3.3.1
  deny ip any host 10.2.2.9
@@ -54,9 +54,7 @@ ip access-list extended E1_in
  permit ip 10.1.1.0 0.0.0.255 10.3.3.0 0.0.0.255
  permit ip 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255
  deny ip any any
-END
-
-$out2 = <<END;
+--
 ip access-list extended E4_in
  deny ip any host 10.2.2.9
  deny ip any host 10.2.2.2
@@ -64,10 +62,7 @@ ip access-list extended E4_in
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Extra pathrestriction at 2 virtual interface';
@@ -109,16 +104,12 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip route 10.2.2.0 255.255.255.0 10.1.1.2
-END
-
-$out2 = <<END;
+--
 ip access-list extended E1_in
  deny ip any any
-END
-
-$out3 = <<END;
+--
 ip access-list extended E4_in
  deny ip any host 10.2.2.9
  deny ip any host 10.2.2.2
@@ -126,11 +117,7 @@ ip access-list extended E4_in
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-$head3 = (split /\n/, $out3)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2, $head3), $out1.$out2.$out3, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'No extra pathrestriction with 3 virtual interfaces';
@@ -165,12 +152,12 @@ network:b  = { ip = 10.2.2.0/24; }
 pathrestriction:p = interface:r1.a, interface:r1.b.virtual;
 END
 
-$out1 = <<END;
+$out = <<END;
 Error: Pathrestriction not supported for group of 3 or more virtual interfaces
  interface:r1.b.virtual,interface:r2.b.virtual,interface:r3.b.virtual
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Non matching virtual interface groups with interconnect';
@@ -227,12 +214,12 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 Error: network:b1 is reached via interface:r1.a.virtual
  but not via all related redundancy interfaces
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Non matching virtual interface groups';
@@ -240,13 +227,13 @@ $title = 'Non matching virtual interface groups';
 
 $in =~ s/(hardware = t1;)/$1 disabled;/g;
 
-$out1 = <<END;
+$out = <<END;
 Error: Virtual interfaces
  interface:r1.a.virtual, interface:r2.a.virtual, interface:r3.a.virtual, interface:r4.a.virtual
  must all be part of the same cyclic sub-graph
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Follow implicit pathrestriction at unmanaged virtual interface';
@@ -297,15 +284,13 @@ service:x = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended Ethernet2_in
  permit icmp 10.1.0.0 0.0.0.255 host 10.9.32.1 17
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;
