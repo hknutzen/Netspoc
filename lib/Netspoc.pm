@@ -13076,6 +13076,9 @@ sub print_asa_nat {
         my $out_name     = $out_hw->{name};
         my $in_host_obj  = $subnet_obj->($in_host_ip, $in_host_mask);
         my $out_host_obj = $subnet_obj->($out_host_ip, $in_host_mask);
+
+        # Print with line number 1 because static host NAT must be
+        # inserted in front of dynamic network NAT.
         print("nat ($in_name,$out_name) 1 source static",
             " $in_host_obj $out_host_obj\n");
     };
