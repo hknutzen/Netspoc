@@ -1646,7 +1646,7 @@ sub read_network {
     }
     elsif ($network->{bridged}) {
         my %ok = (ip => 1, mask => 1, bridged => 1, name => 1, 
-                  identity_nat => 1, owner => 1);
+                  identity_nat => 1, owner => 1, crosslink => 1);
 
         # Bridged network must not have any other attributes.
         for my $key (keys %$network) {
