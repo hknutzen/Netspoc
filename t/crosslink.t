@@ -100,6 +100,36 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Crosslink and virtual IP';
+############################################################
+
+$in = <<END;
+network:n1 = { ip = 10.1.1.0/27; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:cr = { ip = 10.3.3.1; virtual = {ip = 10.3.3.3;} hardware = vlan2; }
+}
+
+network:cr = { ip = 10.3.3.0/29; crosslink; }
+
+router:r2 = {
+ model = NX-OS;
+ managed;
+ interface:cr = { ip = 10.3.3.2; hardware = vlan3; }
+ interface:n2 = { ip = 10.2.2.1; hardware = vlan4; }
+}
+
+network:n2 = { ip = 10.2.2.0/27; }
+END
+
+$out = '';
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Crosslink standard, local, local';
 ############################################################
 

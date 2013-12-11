@@ -8114,6 +8114,7 @@ sub check_crosslink  {
         my $out_acl_count = 0;
         my @no_in_acl_intf;
         for my $interface (@{ $network->{interfaces} }) {
+            next if check_global_active_pathrestriction($interface);
             my $router = $interface->{router};
             if (my $managed = $router->{managed}) {
                 my $strength = $crosslink_strength{$managed} or 
@@ -8129,7 +8130,8 @@ sub check_crosslink  {
                 next;
             }
             my $hardware = $interface->{hardware};
-            @{ $hardware->{interfaces} } == 1
+            1 == grep({ !check_global_active_pathrestriction($_) }
+                      @{ $hardware->{interfaces} })
               or err_msg
               "Crosslink $network->{name} must be the only network\n",
               " connected to $hardware->{name} of $router->{name}";
