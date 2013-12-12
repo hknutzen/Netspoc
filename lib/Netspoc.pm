@@ -15950,6 +15950,7 @@ sub print_cisco_acl_add_deny {
       RULE:
         for my $rule (@{ $hardware->{rules} }) {
             next if $rule->{action} eq 'deny';
+            next if $rule->{prt}->{established};
 
             # Ignore permit_any_rule of local filter.
             # Some other permit_any_rule from a real service

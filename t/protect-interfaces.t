@@ -35,7 +35,6 @@ ip access-list extended e0_in
  deny ip any any
 --
 ip access-list extended e1_in
- deny ip any host 10.1.1.1
  permit tcp 10.2.2.0 0.0.0.255 10.1.1.0 0.0.0.255 established
  deny ip any any
 END

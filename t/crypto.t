@@ -305,8 +305,6 @@ ip access-list extended ACL-Split-Tunnel
  permit ip 10.99.2.0 0.0.0.255 any
  permit ip 10.99.3.0 0.0.0.255 any
 ip access-list extended ACL-crypto-filter
- deny ip any host 10.99.2.1
- deny ip any host 10.99.3.1
  permit tcp 10.1.1.0 0.0.0.255 10.99.2.0 0.0.0.255 established
  permit tcp 10.1.1.0 0.0.0.255 10.99.3.0 0.0.0.255 established
  deny ip any any
@@ -455,7 +453,6 @@ access-group outside_in in interface outside
 ip access-list extended crypto-GigabitEthernet0-1
  permit ip 10.10.10.0 0.0.0.255 any
 ip access-list extended crypto-filter-GigabitEthernet0-1
- deny ip any host 10.10.10.1
  permit tcp host 10.1.1.111 10.10.10.0 0.0.0.255 established
  deny ip any any
 crypto map crypto-GigabitEthernet0 1 ipsec-isakmp
