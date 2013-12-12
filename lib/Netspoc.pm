@@ -5605,21 +5605,29 @@ sub expand_group1 {
                 for my $object (@$sub_objects) {
                     if (my $networks = $get_networks->($object)) {
 
-                        # Silently remove crosslink networks from
-                        # automatic groups.
-                        # Change loopback network to loopback interface.
+                        # Silently remove from automatic groups:
+                        # - crosslink network
+                        # - loopback network of managed device
+                        # Change loopback network of unmanaged device
+                        # to loopback interface.
                         push @list, $clean_autogrp
                           ? map {
                             if ($_->{loopback})
                             {
                                 my $interfaces = $_->{interfaces};
-                                if (@$interfaces > 1) {
-                                    warn_msg(
-                                        "Must not use $_->{name},",
-                                        " use interfaces instead"
-                                    );
+                                my $intf = $interfaces->[0];
+                                if ($intf->{router}->{managed}) {
+                                    ();
                                 }
-                                $interfaces->[0];
+                                else {
+                                    if (@$interfaces > 1) {
+                                        warn_msg(
+                                            "Must not use $_->{name},",
+                                            " use interfaces instead"
+                                            );
+                                    }
+                                    $intf;
+                                }
                             }
                             else {
                                 $_;

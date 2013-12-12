@@ -537,5 +537,63 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Aggregate of loopback interface';
+############################################################
+
+$topo = <<END;
+network:Trans = { ip = 10.1.1.0/24; }
+
+router:filter = {
+ managed;
+ model = IOS_FW;
+ routing = manual;
+ interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; }
+ interface:loop = { ip = 10.7.7.7; loopback; hardware = lo1; }
+ interface:Customer = { ip = 10.9.9.1; hardware = VLAN2; }
+}
+network:Customer = { ip = 10.9.9.0/24; }
+END
+
+$in = <<END;
+$topo
+service:test = {
+ user = any:[interface:filter.[all]];
+ permit src = network:Customer; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<END;
+ip access-list extended VLAN2_in
+ deny ip any host 10.1.1.1
+ deny ip any host 10.7.7.7
+ deny ip any host 10.9.9.1
+ permit tcp 10.9.9.0 0.0.0.255 any eq 22
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Remove loopback network from aggregate';
+############################################################
+
+$in = <<END;
+$topo
+service:test = {
+ user = network:[interface:filter.[all]];
+ permit src = network:Customer; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<END;
+ip access-list extended VLAN2_in
+ deny ip any host 10.1.1.1
+ permit tcp 10.9.9.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 22
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 
 done_testing;
