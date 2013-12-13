@@ -2885,6 +2885,9 @@ sub read_simple_protocol {
     }
     else {
         error_atline("Unknown protocol '$proto'");
+
+        # Prevent further errors.
+        $protocol->{proto} = 'ip';
     }
     if ($name) {
         $protocol->{name} = $name;
