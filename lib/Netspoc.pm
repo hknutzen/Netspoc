@@ -325,6 +325,7 @@ my %router_info = (
         has_interface_level => 1,
         need_identity_nat   => 1,
         no_filter_icmp_code => 1,
+        need_acl            => 1,
     },
 
     # Like PIX, but without identity NAT.
@@ -339,6 +340,7 @@ my %router_info = (
         comment_char        => '!',
         has_interface_level => 1,
         no_filter_icmp_code => 1,
+        need_acl            => 1,
         extension           => {
             VPN => {
                 crypto           => 'ASA_VPN',
@@ -16584,6 +16586,16 @@ sub print_cisco_acls {
         # Generate code for incoming and possibly for outgoing ACL.
         for my $suffix ('in', 'out') {
             next if $suffix eq 'out' and not $hardware->{need_out_acl};
+
+            # Don't generate single 'permit ip any any'.
+            if (!$model->{need_acl}) {
+                if (!grep { @{ $hardware->{$_} } != 1 ||
+                            $hardware->{$_}->[0] ne $permit_any_rule }
+                    (qw(rules intf_rules))) 
+                {
+                    next;
+                }
+            }                
 
             my $acl_name = "$hardware->{name}_$suffix";
             my $prefix;
