@@ -70,4 +70,23 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Short interface at managed router";
+############################################################
+
+$in = <<END;
+router:R = {
+ managed; 
+ model = ASA;
+ interface:N = { hardware = inside; }
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out = <<END;
+Error: Short definition of interface:R.N not allowed
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;

@@ -2255,19 +2255,20 @@ sub read_router {
               and err_msg("Must not use attribute 'vip' at $name",
                 " of $model->{name}");
 
+            # Managed router must not have short interface.
+            if ($interface->{ip} eq 'short') {
+                err_msg
+                    "Short definition of $interface->{name} not allowed";
+            }
+
             my $hw_name = $interface->{hardware};
 
+            # Interface of managed router needs to have a hardware
+            # name.
             if (!$hw_name) {
 
-                # Managed router must not have short interface.
-                if ($interface->{ip} eq 'short') {
-                    err_msg
-                      "Short definition of $interface->{name} not allowed";
-                }
-                else {
-
-                    # Interface of managed router needs to
-                    # have a hardware name.
+                # Prevent duplicate error message.
+                if ($interface->{ip} ne 'short') {
                     err_msg("Missing 'hardware' for $interface->{name}");
                 }
 
