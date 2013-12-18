@@ -631,7 +631,7 @@ sub export_assets {
     };
 
     # Different zones can use the same name from ipmask2aggregate
-    # '0/0' if the belong to the same zone_cluster. 
+    # '0/0' if they belong to the same zone_cluster. 
     # Hence augment existing hash.
     my $add_networks_hash = sub {
         my ($owner, $name, $hash) = @_;
