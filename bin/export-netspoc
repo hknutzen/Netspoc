@@ -2,6 +2,7 @@
 
 use strict;
 use warnings;
+use Getopt::Long;
 use File::Path 'make_path';
 use JSON;
 use Netspoc;
@@ -11,10 +12,12 @@ my $VERSION =
     ( split ' ', '$Id$' )[2];
 
 sub usage {
-    die "Usage: $0 netspoc-data out-directory\n";
+    die "Usage: $0 [-q] netspoc-data out-directory\n";
 }
+my $quiet;
 
 # Argument processing.
+GetOptions ('quiet!' => \$quiet) or usage();
 my $netspoc_data = shift @ARGV or usage();
 my $out_dir = shift @ARGV or usage();
 
@@ -907,7 +910,7 @@ sub copy_policy_file {
 ####################################################################
 # Initialize Netspoc data
 ####################################################################
-Netspoc::set_config({time_stamps => 1, max_errors => 9999});
+Netspoc::set_config({time_stamps => 1, max_errors => 9999, verbose => !$quiet});
 
 # Set global config variable of Netspoc to store attribute 'description'.
 Netspoc::store_description(1);
