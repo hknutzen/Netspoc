@@ -2,6 +2,7 @@
 
 use strict;
 use warnings;
+use File::Path 'make_path';
 use JSON;
 use Netspoc;
 use open qw(:std :utf8);
@@ -37,12 +38,17 @@ sub internal_err {
 sub create_dirs {
     my ($path) = @_;
     $path = "$out_dir/$path";
-    my @parts = split('/', $path);
-    my $name = shift @parts;
-    Netspoc::check_output_dir($name);
-    for my $part (@parts) {
-        $name .= "/$part";
-        Netspoc::check_output_dir($name);
+    make_path($path, {error => \my $err} );
+    if (@$err) {
+        for my $diag (@$err) {
+            my ($file, $message) = %$diag;
+            if ($file eq '') {
+                die "General error: $message\n";
+            }
+            else {
+                die "Problem creating $file: $message\n";
+            }
+        }
     }
     return;
 }
