@@ -41,9 +41,6 @@ $in =~ s/_2/full/;
 $out = <<END;
 access-list vlan2_in extended permit ip any any
 access-group vlan2_in in interface vlan2
---
-ip access-list vlan3_in
- 10 permit ip any any
 END
 
 test_run($title, $in, $out);
@@ -59,9 +56,6 @@ $in =~ s/_2/secondary/;
 $out = <<END;
 access-list vlan2_in extended deny ip any any
 access-group vlan2_in in interface vlan2
---
-ip access-list vlan3_in
- 10 permit ip any any
 END
 
 test_run($title, $in, $out);
@@ -77,9 +71,6 @@ $in =~ s|_2;|local_secondary; filter_only =  10.2.0.0/15;|;
 $out = <<END;
 access-list vlan2_in extended deny ip any any
 access-group vlan2_in in interface vlan2
---
-ip access-list vlan3_in
- 10 permit ip any any
 END
 
 test_run($title, $in, $out);
@@ -169,12 +160,6 @@ END
 $out = <<END;
 access-list vlan2_in extended deny ip any any
 access-group vlan2_in in interface vlan2
---
-ip access-list vlan3_in
- 10 permit ip any any
---
-ip access-list vlan5_in
- 10 permit ip any any
 END
 
 test_run($title, $in, $out);
