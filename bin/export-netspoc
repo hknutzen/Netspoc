@@ -764,6 +764,8 @@ sub export_services {
     export("services", \%shash);
 
     Netspoc::progress("Export users and service_lists");
+
+    # Create file even for owner having no service at all.
     $owner2type2shash{$_} ||= {} for keys %Netspoc::owners;
     for my $owner (sort keys %owner2type2shash) {
         my $type2shash = $owner2type2shash{$owner} || {};
