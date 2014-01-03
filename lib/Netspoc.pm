@@ -102,7 +102,6 @@ our @EXPORT = qw(
   find_active_routes_and_statics
   check_supernet_rules
   optimize_and_warn_deleted
-  optimize
   distribute_nat_info
   gen_reverse_rules
   mark_secondary_rules
@@ -5973,7 +5972,8 @@ my @deleted_rules;
 
 # Add rules to %rule_tree for efficient look up.
 sub add_rules {
-    my ($rules_ref) = @_;
+    my ($rules_ref, $rule_tree) = @_;
+    $rule_tree ||= \%rule_tree;
 
     for my $rule (@$rules_ref) {
         my ($stateless, $action, $src, $dst, $src_range, $prt) =
@@ -5991,7 +5991,7 @@ sub add_rules {
             $rule->{managed_intf} = 1;
         }
         my $old_rule =
-          $rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$src_range}
+          $rule_tree->{$stateless}->{$action}->{$src}->{$dst}->{$src_range}
           ->{$prt};
         if ($old_rule) {
 
@@ -6002,7 +6002,7 @@ sub add_rules {
         }
 
 #       debug("Add:", print_rule $rule);
-        $rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$src_range}
+        $rule_tree->{$stateless}->{$action}->{$src}->{$dst}->{$src_range}
           ->{$prt} = $rule;
     }
     return;
@@ -6706,6 +6706,8 @@ sub expand_services {
 
     progress('Preparing Optimization');
     add_rules($expanded_rules_aref);
+    info("Expanded rule count: ", 
+         scalar grep { !$_->{deleted} } @$expanded_rules_aref);
     show_deleted_rules1();
 
     # Set attribute {is_supernet} before calling split_expanded_rule_types.
@@ -11438,7 +11440,7 @@ sub check_supernet_rules {
 ##############################################################################
 
 sub gen_reverse_rules1  {
-    my ($rule_aref) = @_;
+    my ($rule_aref, $rule_tree) = @_;
     my @extra_rules;
     my %cache;
     for my $rule (@$rule_aref) {
@@ -11541,15 +11543,22 @@ sub gen_reverse_rules1  {
         }
     }
     push @$rule_aref, @extra_rules;
-    add_rules \@extra_rules;
+    add_rules(\@extra_rules, $rule_tree);
     return;
 }
 
 sub gen_reverse_rules {
     progress('Generating reverse rules for stateless routers');
+    my %reverse_rule_tree;
     for my $type ('deny', 'supernet', 'permit') {
-        gen_reverse_rules1 $expanded_rules{$type};
+        gen_reverse_rules1($expanded_rules{$type}, \%reverse_rule_tree);
     }
+    return if !keys %reverse_rule_tree;
+    
+    print_rulecount;
+    progress('Optimizing reverse rules');
+    optimize_rules(\%rule_tree, \%reverse_rule_tree);
+    print_rulecount;
     return;
 }
 
@@ -11907,16 +11916,11 @@ sub optimize_rules {
     return;
 }
 
-sub optimize {
-    progress('Optimizing globally');
-    setup_ref2obj;
-    optimize_rules \%rule_tree, \%rule_tree;
-    print_rulecount;
-    return;
-}
-
 sub optimize_and_warn_deleted {
-    optimize();
+    progress('Optimizing globally');
+    setup_ref2obj();
+    optimize_rules(\%rule_tree, \%rule_tree);
+    print_rulecount();
     show_deleted_rules2();
     warn_unused_overlaps();
     return;
