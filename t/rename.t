@@ -5,8 +5,8 @@ use Test::More;
 use Test::Differences;
 use File::Temp qw/ tempfile tempdir /;
 
-sub run {
-    my ($input, $args) = @_;
+sub test_run {
+    my ($title, $input, $args, $expected) = @_;
     my ($in_fh, $filename) = tempfile(UNLINK => 1);
     print $in_fh $input;
     close $in_fh;
@@ -18,7 +18,8 @@ sub run {
     $/ = undef;
     my $output = <$out_fh>;
     close($out_fh) or die "Syserr closing pipe from $cmd: $!\n";
-    return($output);
+    eq_or_diff($output, $expected, $title);
+    return;
 }
 
 ############################################################
@@ -41,7 +42,7 @@ group:G = interface:r.Toast, # comment
     ;
 END
 
-eq_or_diff(run($in, 'network:Test network:Toast'), $out, $title);
+test_run($title, $in, 'network:Test network:Toast', $out);
 
 ############################################################
 $title = 'Rename network to name with leading digit';
@@ -63,7 +64,7 @@ group:G = interface:r.1_2_3_0_Test, # comment
     ;
 END
 
-eq_or_diff(run($in, 'network:Test network:1_2_3_0_Test'), $out, $title);
+test_run($title, $in, 'network:Test network:1_2_3_0_Test', $out);
 
 ############################################################
 $title = 'Rename router';
@@ -87,7 +88,7 @@ group:G = interface:Toast.N, # comment
     ;
 END
 
-eq_or_diff(run($in, 'router:Test router:Toast'), $out, $title);
+test_run($title, $in, 'router:Test router:Toast', $out);
 
 ############################################################
 $title = 'Rename router then network';
@@ -105,9 +106,9 @@ network:N
 interface:RR.N;
 END
 
-eq_or_diff(run($in, 'router:R router:RR network:NN network:N'), $out, $title);
+test_run($title, $in, 'router:R router:RR network:NN network:N', $out);
 $title = 'Rename network then router';
-eq_or_diff(run($in, 'network:NN network:N router:R router:RR'), $out, $title);
+test_run($title, $in, 'network:NN network:N router:R router:RR', $out);
 
 ############################################################
 $title = 'Rename nat';
@@ -131,7 +132,7 @@ bind_nat =NAT-2#comment
     ;
 END
 
-eq_or_diff(run($in, 'nat:NAT-1 nat:NAT-2'), $out, $title);
+test_run($title, $in, 'nat:NAT-1 nat:NAT-2', $out);
 
 ############################################################
 $title = 'Rename umlauts';
@@ -149,8 +150,8 @@ owner:Wittmüß
 owner = Maass, Wittmüß
 END
 
-eq_or_diff(run($in, 'owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß'), 
-	   $out, $title);
+test_run($title, $in, 'owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß', 
+	 $out);
 
 ############################################################
 $title = 'Read substitutions from file';
@@ -188,7 +189,7 @@ network:xxxx = { owner = büro;
 }
 END
 
-eq_or_diff(run($in, "-f $filename"), $out, $title);
+test_run($title, $in, "-f $filename", $out);
 
 ############################################################
 done_testing;

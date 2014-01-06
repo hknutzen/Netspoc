@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out, @out, $head, $compiled);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Admin access to bridge';
@@ -52,8 +52,8 @@ router:extern = {
 network:extern = { ip = 10.9.9.0/24; }
 END
 
-$in = $topology . 
-<<END;
+$in = <<END;
+$topology
 service:admin = {
  user =  interface:bridge.dmz;
  permit src = network:intern; dst = user; prt = tcp 22; 
@@ -64,22 +64,19 @@ $out = <<END;
 ! [ IP = 192.168.0.9 ]
 END
 
-$head = (split /\n/, $out)[0];
-
-eq_or_diff(get_block(compile($in), $head), $out, $title);
-
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Admin access to bridge auto interface';
 ############################################################
 $in =~ s/interface:bridge\.dmz/interface:bridge.[auto]/;
-eq_or_diff(get_block(compile($in), $head), $out, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Admin access to bridge all interfaces';
 ############################################################
 $in =~ s/interface:bridge\.dmz/interface:bridge.[all]/;
-eq_or_diff(get_block(compile($in), $head), $out, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Access to both sides of bridged network';
@@ -101,9 +98,7 @@ access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 END
 
-$head = (split /\n/, $out)[0];
-
-eq_or_diff(get_block(compile($in), $head), $out, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Access through bridged ASA';
@@ -123,9 +118,7 @@ access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 END
 
-$head = (split /\n/, $out)[0];
-
-eq_or_diff(get_block(compile($in), $head), $out, $title);
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

@@ -136,7 +136,7 @@ use Netspoc;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '3.041'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.042'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -217,7 +217,6 @@ Netspoc::find_subnets_in_zone();
 &mark_secondary_rules();
 &abort_on_error();
 &set_abort_immediately();
-&optimize();
 &rules_distribution();
 &local_optimization();
 &print_code($out_dir);

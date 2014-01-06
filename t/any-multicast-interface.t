@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $topo, $in, $out1, $head1, $out2, $head2, $out3, $head3);
+my ($title, $topo, $in, $out);
 
 ############################################################
 $title = "Interface with DHCP server";
@@ -21,15 +21,13 @@ router:R = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended e0_in
  permit udp any any eq 67
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = "Interface with OSPF";
@@ -44,16 +42,14 @@ router:R = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 access-list e0_in extended permit 89 10.1.1.0 255.255.255.0 host 224.0.0.5
 access-list e0_in extended permit 89 10.1.1.0 255.255.255.0 host 224.0.0.6
 access-list e0_in extended permit 89 10.1.1.0 255.255.255.0 10.1.1.0 255.255.255.0
 access-list e0_in extended deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = "Interface with HSRP";
@@ -72,14 +68,12 @@ router:R = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 access-list e0_in extended permit udp 10.1.1.0 255.255.255.0 host 224.0.0.2 eq 1985
 access-list e0_in extended deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = "Interface with HSRPv2";
@@ -98,14 +92,12 @@ router:R = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 access-list e0_in extended permit udp 10.1.1.0 255.255.255.0 host 224.0.0.102 eq 1985
 access-list e0_in extended deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

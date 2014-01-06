@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out1, $out2, $out3, $head1, $head2, $head3);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Optimize subnet at secondary packet filter';
@@ -60,30 +60,21 @@ service:p2 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 # [ Routing ]
 ip route add 10.1.7.0/24 via 10.1.3.1
-END
-
-$out2 = <<END;
+--
 ! [ Routing ]
 ip route 10.1.7.32 255.255.255.224 10.1.7.30
 ip route 10.1.2.0 255.255.255.0 10.1.3.3
-END
-
-$out3 = <<END;
+--
 ! [ ACL ]
 ip access-list extended outside_in
  permit ip 10.1.7.0 0.0.0.255 10.1.2.0 0.0.0.255
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-$head3 = (split /\n/, $out3)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2, $head3), 
-           $out1.$out2.$out3, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Optimize subnet for protocol with flag dst_net';
@@ -92,17 +83,14 @@ $title = 'Optimize subnet for protocol with flag dst_net';
 $in =~ s/managed = secondary/managed/ms;
 $in =~ s/(protocol:Echo = icmp 8)/$1, dst_net/;
 
-$out1 = <<END;
+$out = <<END;
 ! [ ACL ]
 ip access-list extended outside_in
  permit icmp 10.1.7.0 0.0.0.255 10.1.2.0 0.0.0.255 8
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in, '-check_redundant_rules=0'), $head1), 
-           $out1, $title);
+test_run($title, $in, $out, '-check_redundant_rules=0');
 
 ############################################################
 $title = 'Optimize subnet of NAT network in zone';
@@ -148,23 +136,18 @@ service:p1 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ! [ Routing ]
 ip route 10.1.7.0 255.255.255.0 10.1.7.34
 ip route 10.1.2.0 255.255.255.0 10.1.3.3
-END
-
-$out2 = <<END;
+--
 ! [ ACL ]
 ip access-list extended outside_in
  permit ip 10.1.7.0 0.0.0.255 10.1.2.0 0.0.0.255
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-$head2 = (split /\n/, $out2)[0];
-
-eq_or_diff(get_block(compile($in), $head1, $head2), $out1.$out2, $title);
+test_run($title, $in, $out);
 
 ############################################################
 

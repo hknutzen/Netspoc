@@ -1,3 +1,21 @@
+3.042     2014-01-06 10:51:30 Europe/Berlin
+
+ - Improved runtime to find and delete redundant reverse rules.
+ - No ACL is added to crosslink interfaces of IOS routers which don't filter.
+   Previously, an ACL with a single "permit ip any any" was generated.
+ - Managed loopback interfaces are excluded from automatic group of networks.
+ - Added support for 'managed = local_secondary'.
+   This works similar to 'managed = secondary', but only inside a
+   cluster of zones, connected by routers with 'managed=local' or
+   'managed=local_secondary'. If a rule is already filtered by a
+   router with 'managed=local', then a router with
+   'managed=local_secondary' only checks for source network and
+   destination network.
+ - Added support for crosslinked routers with different filter strenght.
+   If devices with different filter strenght are linked together by a
+   crosslink network, then omit filter only at crosslink interface of
+   weakest device.
+
 3.041     2013-11-28 08:52:14 Europe/Berlin
 
  - Added support for virtual interface with HSRPv2.

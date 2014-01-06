@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out1, $head1, $out2, $head2, $out3, $head3);
+my ($title, $in, $out);
 
 ############################################################
 $title = "Unknown model for managed router";
@@ -21,11 +21,11 @@ router:R = {
 network:N = { ip = 10.1.1.0/24; }
 END
 
-$out1 = <<END;
+$out = <<END;
 Error: Unknown router model at line 3 of STDIN
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = "Unknown extension for model";
@@ -40,12 +40,12 @@ router:R = {
 network:N = { ip = 10.1.1.0/24; }
 END
 
-$out1 = <<END;
+$out = <<END;
 Error: Unknown extension foo at line 3 of STDIN
 Error: Unknown extension bar at line 3 of STDIN
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = "Missing hardware at interface";
@@ -63,11 +63,30 @@ router:R = {
 network:N = { ip = 10.1.1.0/24; }
 END
 
-$out1 = <<END;
+$out = <<END;
 Error: Missing 'hardware' for interface:R.N
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
+
+############################################################
+$title = "Short interface at managed router";
+############################################################
+
+$in = <<END;
+router:R = {
+ managed; 
+ model = ASA;
+ interface:N = { hardware = inside; }
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out = <<END;
+Error: Short definition of interface:R.N not allowed
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;

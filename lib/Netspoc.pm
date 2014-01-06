@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.041'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.042'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -102,7 +102,6 @@ our @EXPORT = qw(
   find_active_routes_and_statics
   check_supernet_rules
   optimize_and_warn_deleted
-  optimize
   distribute_nat_info
   gen_reverse_rules
   mark_secondary_rules
@@ -325,6 +324,7 @@ my %router_info = (
         has_interface_level => 1,
         need_identity_nat   => 1,
         no_filter_icmp_code => 1,
+        need_acl            => 1,
     },
 
     # Like PIX, but without identity NAT.
@@ -339,6 +339,7 @@ my %router_info = (
         comment_char        => '!',
         has_interface_level => 1,
         no_filter_icmp_code => 1,
+        need_acl            => 1,
         extension           => {
             VPN => {
                 crypto           => 'ASA_VPN',
@@ -502,6 +503,7 @@ sub info {
 }
 
 sub progress {
+    return if not $config{verbose};
     if ($config{time_stamps}) {
         my $diff = time() - $start_time;
         printf STDERR "%3ds ", $diff;
@@ -686,7 +688,7 @@ sub read_mask {
 sub read_ip_opt_mask {
     my $ip = read_ip;
     check('/') or return $ip;
-    my $mask = check_ip();
+    my $mask = undef;#check_ip();
     if (defined $mask) {
         defined mask2prefix($mask)
           or syntax_err("IP mask isn't a valid prefix");
@@ -1246,12 +1248,15 @@ sub check_managed {
     }
     elsif (check '=') {
         my $value = read_identifier;
-        if ($value =~ /^(?:secondary|standard|full|primary|local)$/) {
+        if ($value =~ 
+            /^(?:secondary|standard|full|primary|local|local_secondary)$/) 
+        {
             $managed = $value;
         }
         else {
             error_atline("Expected value:",
-                         " secondary|standard|full|primary|local");
+                         " secondary|standard|full|primary",
+                         "|local|local_secondary");
         }
         check ';';
     }
@@ -1630,7 +1635,7 @@ sub read_network {
     defined $ip or syntax_err("Missing network IP");
 
     if ($ip eq 'unnumbered') {
-        my %ok = (ip => 1, name => 1);
+        my %ok = (ip => 1, name => 1, crosslink => 1);
 
         # Unnumbered network must not have any other attributes.
         for my $key (keys %$network) {
@@ -1643,7 +1648,7 @@ sub read_network {
     }
     elsif ($network->{bridged}) {
         my %ok = (ip => 1, mask => 1, bridged => 1, name => 1, 
-                  identity_nat => 1, owner => 1);
+                  identity_nat => 1, owner => 1, crosslink => 1);
 
         # Bridged network must not have any other attributes.
         for my $key (keys %$network) {
@@ -2222,11 +2227,11 @@ sub read_router {
             $router->{model} = { name => 'unknown' };
         }
 
-        if ($managed eq 'local') {
+        if ($managed =~ /^local/) {
             $router->{filter_only} or
                 err_msg("Missing attribut 'filter_only' for $name");
             $model->{has_io_acl} and
-                err_msg("Must not use 'managed = local' at $name",
+                err_msg("Must not use 'managed = $managed' at $name",
                         " of model $model->{name}");
         }
         $router->{vrf}
@@ -2249,19 +2254,20 @@ sub read_router {
               and err_msg("Must not use attribute 'vip' at $name",
                 " of $model->{name}");
 
+            # Managed router must not have short interface.
+            if ($interface->{ip} eq 'short') {
+                err_msg
+                    "Short definition of $interface->{name} not allowed";
+            }
+
             my $hw_name = $interface->{hardware};
 
+            # Interface of managed router needs to have a hardware
+            # name.
             if (!$hw_name) {
 
-                # Managed router must not have short interface.
-                if ($interface->{ip} eq 'short') {
-                    err_msg
-                      "Short definition of $interface->{name} not allowed";
-                }
-                else {
-
-                    # Interface of managed router needs to
-                    # have a hardware name.
+                # Prevent duplicate error message.
+                if ($interface->{ip} ne 'short') {
                     err_msg("Missing 'hardware' for $interface->{name}");
                 }
 
@@ -2388,10 +2394,10 @@ sub read_router {
         if ($model->{has_interface_level}) {
             set_pix_interface_level($router);
         }
-        if ($managed eq 'local') {
+        if ($managed =~ /^local/) {
             grep { $_->{bind_nat} } @{ $router->{interfaces} }
               and err_msg "Attribute 'bind_nat' is not allowed",
-              " at interface of $name with 'managed = local'";
+              " at interface of $name with 'managed = $managed'";
         }
         if ($model->{do_auth}) {
 
@@ -2880,6 +2886,9 @@ sub read_simple_protocol {
     }
     else {
         error_atline("Unknown protocol '$proto'");
+
+        # Prevent further errors.
+        $protocol->{proto} = 'ip';
     }
     if ($name) {
         $protocol->{name} = $name;
@@ -4399,31 +4408,35 @@ sub link_virtual_interfaces  {
             }
         }
     }
+
+
+    # A virtual interface is used as hop for static routing.
+    # Therefore a network behind this interface must be reachable
+    # via all virtual interfaces of the group.
+    # This can only be guaranteed, if pathrestrictions are identical
+    # on all interfaces.
+    # Exception in routing code:
+    # If the group has ony two interfaces, the one or other physical
+    # interface can be used as hop.
     for my $href (values %net2ip2virtual) {
         for my $interfaces (values %$href) {
-
-            # A virtual interface is used as hop for static routing.
-            # Therefore a network behind this interface must be reachable
-            # via all virtual interfaces of the group.
-            # This can only be guaranteed, if pathrestrictions are identical
-            # on all interfaces.
-            # Exception in routing code:
-            # If the group has ony two interfaces, the one or other
-            # physical interface can be used as hop.
             if (   @$interfaces >= 3
-                && grep { $_->{path_restrict} } 
+                && grep { $_->{path_restrict} && !$_->{main_interface} }
                    map { @{ $_->{router}->{interfaces} } } @$interfaces)
             {
                 err_msg("Pathrestriction not supported for",
                         " group of 3 or more virtual interfaces\n ",
                         join(',', map { $_->{name} } @$interfaces));
             }
+        }
+    }
 
-            # Automatically add pathrestriction to interfaces
-            # belonging to $net2ip2virtual, if at least one interface
-            # is managed.
-            # Pathrestriction would be useless if all devices are unmanaged.
-            elsif (grep { $_->{router}->{managed} } @$interfaces) {
+    # Automatically add pathrestriction to interfaces belonging to
+    # $net2ip2virtual, if at least one interface is managed.
+    # Pathrestriction would be useless if all devices are unmanaged.
+    for my $href (values %net2ip2virtual) {
+        for my $interfaces (values %$href) {
+            if (grep { $_->{router}->{managed} } @$interfaces) {
                 my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
                 my $restrict = new('Pathrestriction', name => $name);
                 for my $interface (@$interfaces) {
@@ -5598,21 +5611,29 @@ sub expand_group1 {
                 for my $object (@$sub_objects) {
                     if (my $networks = $get_networks->($object)) {
 
-                        # Silently remove crosslink networks from
-                        # automatic groups.
-                        # Change loopback network to loopback interface.
+                        # Silently remove from automatic groups:
+                        # - crosslink network
+                        # - loopback network of managed device
+                        # Change loopback network of unmanaged device
+                        # to loopback interface.
                         push @list, $clean_autogrp
                           ? map {
                             if ($_->{loopback})
                             {
                                 my $interfaces = $_->{interfaces};
-                                if (@$interfaces > 1) {
-                                    warn_msg(
-                                        "Must not use $_->{name},",
-                                        " use interfaces instead"
-                                    );
+                                my $intf = $interfaces->[0];
+                                if ($intf->{router}->{managed}) {
+                                    ();
                                 }
-                                $interfaces->[0];
+                                else {
+                                    if (@$interfaces > 1) {
+                                        warn_msg(
+                                            "Must not use $_->{name},",
+                                            " use interfaces instead"
+                                            );
+                                    }
+                                    $intf;
+                                }
                             }
                             else {
                                 $_;
@@ -5951,7 +5972,8 @@ my @deleted_rules;
 
 # Add rules to %rule_tree for efficient look up.
 sub add_rules {
-    my ($rules_ref) = @_;
+    my ($rules_ref, $rule_tree) = @_;
+    $rule_tree ||= \%rule_tree;
 
     for my $rule (@$rules_ref) {
         my ($stateless, $action, $src, $dst, $src_range, $prt) =
@@ -5969,7 +5991,7 @@ sub add_rules {
             $rule->{managed_intf} = 1;
         }
         my $old_rule =
-          $rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$src_range}
+          $rule_tree->{$stateless}->{$action}->{$src}->{$dst}->{$src_range}
           ->{$prt};
         if ($old_rule) {
 
@@ -5980,7 +6002,7 @@ sub add_rules {
         }
 
 #       debug("Add:", print_rule $rule);
-        $rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$src_range}
+        $rule_tree->{$stateless}->{$action}->{$src}->{$dst}->{$src_range}
           ->{$prt} = $rule;
     }
     return;
@@ -6043,7 +6065,7 @@ sub expand_special  {
                 err_msg "'$interface->{ip}' $interface->{name}",
                   " (from .[auto])\n", " must not be used in rule of $context";
             }
-            elsif ($interface->{ip} =~ /unnumbered/) {
+            elsif ($interface->{ip} eq 'unnumbered') {
 
                 # Ignore unnumbered interfaces.
             }
@@ -6243,8 +6265,10 @@ sub show_unenforceable {
 sub warn_useless_unenforceable {
     for my $zone (@zones) {
         $zone->{has_unenforceable} or next;
-        $zone->{seen_unenforceable} or
-            warn_msg("Useless attribute 'has_unenforceable' at $zone->{name}");
+        $zone->{seen_unenforceable} and next;
+        my $agg00 = $zone->{ipmask2aggregate}->{'0/0'};
+        my $name = $agg00 ? $agg00->{name} : $zone->{name};
+        warn_msg("Useless attribute 'has_unenforceable' at $name");
     }
     return;
 }
@@ -6682,6 +6706,8 @@ sub expand_services {
 
     progress('Preparing Optimization');
     add_rules($expanded_rules_aref);
+    info("Expanded rule count: ", 
+         scalar grep { !$_->{deleted} } @$expanded_rules_aref);
     show_deleted_rules1();
 
     # Set attribute {is_supernet} before calling split_expanded_rule_types.
@@ -7487,6 +7513,34 @@ sub distribute_nat_info {
             }
         }
     }
+
+    # Find interfaces with dynamic NAT which is applied at the same device.
+    # This is incomatible with device with "need_protect".
+    for my $network (@networks) {
+        my $nat = $network->{nat} or next;
+        for my $nat_tag (keys %$nat) {
+            my $nat_info = $nat->{$nat_tag};
+            $nat_info->{dynamic} or next;
+            for my $interface (@{ $network->{interfaces} }) {
+                my $intf_nat = $interface->{nat};
+
+                # Interface has static translation,
+                next if $intf_nat && $intf_nat->{$nat_tag};
+                
+                my $router = $interface->{router};
+                next if !$router->{model}->{need_protect};
+                for my $bind_intf (@{ $router->{interfaces} }) {
+                    my $bind = $bind_intf->{bind_nat} or next;
+                    grep { $_ eq $nat_tag } @$bind or next;
+                    err_msg("Must not apply dynamic NAT to $interface->{name}",
+                            " at $bind_intf->{name} of same device.\n",
+                            " This isn't supported for model",
+                            " $router->{model}->{name}.");
+                }
+            }
+        }
+    }
+
     for my $tag (keys %nat_tags2multi) {
         $nat_bound{$tag}
           or warn_msg("nat:$tag is defined, but not bound to any interface");
@@ -8045,6 +8099,19 @@ sub check_no_in_acl  {
     return;
 }
 
+# If routers are connected by crosslink network then
+# no filter is needed if both have equal strength.
+# If routers have different strength, 
+# then only the weakest devices omit the filter.
+my %crosslink_strength = (
+    primary => 10,
+    full => 10,
+    standard => 9,
+    secondary => 8,
+    local => 7,
+    local_secondary => 6,
+    );
+
 # This uses attributes from sub check_no_in_acl.
 sub check_crosslink  {
 
@@ -8058,14 +8125,18 @@ sub check_crosslink  {
 
         # A crosslink network combines two or more routers
         # to one virtual router.
-        # No filtering occurs at the crosslink interfaces.
-        my @managed_type;
+        # No filtering occurs at crosslink interfaces 
+        # if all devices have the same filter strength.
+        my %strength2intf;
         my $out_acl_count = 0;
         my @no_in_acl_intf;
         for my $interface (@{ $network->{interfaces} }) {
+            next if check_global_active_pathrestriction($interface);
             my $router = $interface->{router};
             if (my $managed = $router->{managed}) {
-                push @managed_type, $managed;
+                my $strength = $crosslink_strength{$managed} or 
+                    internal_err("Unexptected managed=$managed");
+                push @{ $strength2intf{$strength} }, $interface;
                 if ($router->{model}->{need_protect}) {
                     $crosslink_routers{$router} = $router;
                 }
@@ -8076,7 +8147,8 @@ sub check_crosslink  {
                 next;
             }
             my $hardware = $interface->{hardware};
-            @{ $hardware->{interfaces} } == 1
+            1 == grep({ !check_global_active_pathrestriction($_) }
+                      @{ $hardware->{interfaces} })
               or err_msg
               "Crosslink $network->{name} must be the only network\n",
               " connected to $hardware->{name} of $router->{name}";
@@ -8085,13 +8157,22 @@ sub check_crosslink  {
             }
             push @no_in_acl_intf,
               grep({ $_->{hardware}->{no_in_acl} } @{ $router->{interfaces} });
-            $hardware->{crosslink} = 1;
         }
 
-        # Ensure clear responsibility for filtering.
-        equal(@managed_type)
-          or err_msg "All devices at crosslink $network->{name}",
-          " must have identical managed type";
+        # Compare filter type of crosslink interfaces.
+        # The weakest interfaces get attribute {crosslink}.
+        my ($weakest) = sort numerically keys %strength2intf;
+        for my $interface (@{ $strength2intf{$weakest} }) {
+            $interface->{hardware}->{crosslink} = 1;
+        }
+
+        # 'secondary' and 'local' are not comparable and hence must
+        # not occur together.
+        if ($weakest == $crosslink_strength{local} && 
+            $strength2intf{$crosslink_strength{secondary}}) {
+            err_msg("Must not use 'managed=local' and 'managed=secondary'",
+                    " together\n at crosslink $network->{name}");
+        }
 
         not $out_acl_count
           or $out_acl_count == @{ $network->{interfaces} }
@@ -8150,14 +8231,22 @@ sub check_crosslink  {
     return;
 }
 
+# Find cluster of zones connected by 'local' or 'local_secondary' routers.
+# - Check consistency of attributes.
+# - Set unique 'local_mark' for all zones belonging to one cluster
+# - Set 'local_secondary_mark' for secondary optimization inside one cluster.
+#   Two zones get the same mark if they are connected by local_secondary router.
 sub check_managed_local {
     my %seen;
+    my $cluster_counter = 1;
     for my $router (@managed_routers) {
-        $router->{managed} eq 'local' or next;
+        $router->{managed} =~ /^local/ or next;
         next if $seen{$router};
 
         # Networks of current cluster matching {filter_only}.
         my %matched;
+
+        my $local_secondary_mark = 1;
 
         my $walk;
         $walk = sub {
@@ -8166,20 +8255,21 @@ sub check_managed_local {
             my $k;
             $seen{$router} = $router;
             for my $in_intf (@{ $router->{interfaces} }) {
+                $local_secondary_mark++ if $router->{managed} eq 'local';
                 my $no_nat_set = $in_intf->{no_nat_set};
                 my $zone0 = $in_intf->{zone};
-                my $cluster = $zone0->{zone_cluster};
-                for my $zone ($cluster ? @$cluster : ($zone0)) {
+                my $zone_cluster = $zone0->{zone_cluster};
+                for my $zone ($zone_cluster ? @$zone_cluster : ($zone0)) {
                     next if $zone->{disabled};
-                    next if $seen{$zone};
+                    next if $zone->{local_mark};
+                    $zone->{local_mark} = $cluster_counter;
+                    $zone->{local_secondary_mark} = $local_secondary_mark;
 
                     # All networks in local zone must match {filter_only}.
                   NETWORK:
                     for my $network (@{ $zone->{networks} }, 
                                      values %{ $zone->{ipmask2aggregate} }) 
                     {
-                        # Crosslink network won't be used in any rule.
-                        next if $network->{crosslink};
                         my ($ip, $mask) = @{ address($network, $no_nat_set) };
 
                         # Ignore aggregate 0/0 which is available in
@@ -8195,12 +8285,11 @@ sub check_managed_local {
                         err_msg("$network->{name} doesn't match attribute",
                                 " 'filter_only' of $router->{name}");
                     }
-                    $seen{$zone} = $zone;
                     for my $out_intf (@{ $zone->{interfaces} }) {
                         next if $out_intf eq $in_intf;
                         my $router2 = $out_intf->{router};
-                        next if not $router2->{managed};
-                        next if not $router2->{managed} eq 'local';
+                        my $managed = $router2->{managed} or next;
+                        next if $managed !~ /^local/;
                         next if $seen{$router2};
 
                         # All routers of a cluster must have same values in
@@ -8221,6 +8310,7 @@ sub check_managed_local {
         };
 
         $walk->($router);
+        $cluster_counter++;
 
         for my $pair (@{ $router->{filter_only} }) {
             my ($i, $m) = @$pair;
@@ -8717,7 +8807,8 @@ sub set_area1 {
             next;
         }
 
-        # Ignore secondary or virtual interface, because we check main interface.
+        # Ignore secondary or virtual interface, because we check main
+        # interface.
         next if $interface->{main_interface};
 
         # Ignore tunnel interface. We can't test for {real_interface} here
@@ -8982,25 +9073,22 @@ sub set_zone {
 sub check_virtual_interfaces  {
     my %seen;
     for my $interface (@virtual_interfaces) {
-        my $related = $interface->{redundancy_interfaces};
-
-        # Is not set, if other errors have been reported.
-        next if not $related;
+        my $related = $interface->{redundancy_interfaces} or next;
 
         # Loops inside a security zone are not known
         # and therefore can't be checked.
         my $router = $interface->{router};
         next if not($router->{managed} or $router->{semi_managed});
 
+        $seen{$related} and next;
+        $seen{$related} = 1;
+
         my $err;
         for my $v (@$related) {
-            next if $seen{$v};
-            $seen{$v} = 1;
             if (not $v->{router}->{loop}) {
                 err_msg("Virtual IP of $v->{name}\n",
                         " must be located inside cyclic sub-graph");
                 $err = 1;
-                next;
             }
         }
         next if $err;
@@ -10866,7 +10954,7 @@ sub check_supernet_src_rule {
         if (!$m2) {
             my $managed = $dst->{router}->{managed};
             $m2 =
-                $managed =~ /^(?:secondary|local)$/
+                $managed =~ /^(?:secondary|local.*)$/
               ? $dst->{network}->{zone}->{stateful_mark}
               : -1;
         }
@@ -11298,7 +11386,7 @@ sub mark_stateful {
         if ($router->{managed}) {
             next
               if !$router->{model}->{stateless}
-                  && $router->{managed} !~ /^(?:secondary|local)$/;
+                  && $router->{managed} !~ /^(?:secondary|local.*)$/;
         }
         next if $router->{active_path};
         $router->{active_path} = 1;
@@ -11352,7 +11440,7 @@ sub check_supernet_rules {
 ##############################################################################
 
 sub gen_reverse_rules1  {
-    my ($rule_aref) = @_;
+    my ($rule_aref, $rule_tree) = @_;
     my @extra_rules;
     my %cache;
     for my $rule (@$rule_aref) {
@@ -11455,15 +11543,22 @@ sub gen_reverse_rules1  {
         }
     }
     push @$rule_aref, @extra_rules;
-    add_rules \@extra_rules;
+    add_rules(\@extra_rules, $rule_tree);
     return;
 }
 
 sub gen_reverse_rules {
     progress('Generating reverse rules for stateless routers');
+    my %reverse_rule_tree;
     for my $type ('deny', 'supernet', 'permit') {
-        gen_reverse_rules1 $expanded_rules{$type};
+        gen_reverse_rules1($expanded_rules{$type}, \%reverse_rule_tree);
     }
+    return if !keys %reverse_rule_tree;
+    
+    print_rulecount;
+    progress('Optimizing reverse rules');
+    optimize_rules(\%rule_tree, \%reverse_rule_tree);
+    print_rulecount;
     return;
 }
 
@@ -11514,7 +11609,7 @@ sub mark_secondary  {
     for my $in_interface (@{ $zone->{interfaces} }) {
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
-            next if $managed !~ /^(?:secondary|local)$/;
+            next if $managed !~ /^(?:secondary|local.*)$/;
         }
         next if $router->{active_path};
         $router->{active_path} = 1;
@@ -11585,10 +11680,17 @@ sub mark_secondary_rules {
         my $src_zone = get_zone2($src);
         my $dst_zone = get_zone2($dst);
 
-        if ($src_zone->{secondary_mark} ne $dst_zone->{secondary_mark}) {
+        if ($src_zone->{secondary_mark} != $dst_zone->{secondary_mark} ||
+
+            # Local secondary optimization.
+            $src_zone->{local_mark} && $dst_zone->{local_mark} &&
+            $src_zone->{local_mark} == $dst_zone->{local_mark} &&
+            $src_zone->{local_secondary_mark} != 
+            $dst_zone->{local_secondary_mark}) 
+        {
             $rule->{some_non_secondary} = 1;
         }
-        if ($src_zone->{primary_mark} ne $dst_zone->{primary_mark}) {
+        if ($src_zone->{primary_mark} != $dst_zone->{primary_mark}) {
             $rule->{some_primary} = 1;
         }
     }
@@ -11814,16 +11916,11 @@ sub optimize_rules {
     return;
 }
 
-sub optimize {
-    progress('Optimizing globally');
-    setup_ref2obj;
-    optimize_rules \%rule_tree, \%rule_tree;
-    print_rulecount;
-    return;
-}
-
 sub optimize_and_warn_deleted {
-    optimize();
+    progress('Optimizing globally');
+    setup_ref2obj();
+    optimize_rules(\%rule_tree, \%rule_tree);
+    print_rulecount();
     show_deleted_rules2();
     warn_unused_overlaps();
     return;
@@ -12568,10 +12665,11 @@ sub check_and_convert_routes  {
                 }
                 else {
 
-                    # This can't occur, because we reject group of
-                    # more than 3 virtual interfaces together with
-                    # pathrestrictions.
-                    internal_err(
+                    # This occurs if different redundancy groups use
+                    # parts of of a group of routers.
+                    # More than 3 virtual interfaces together with
+                    # pathrestrictions have already been rejected.
+                    err_msg(
                         "$network->{name} is reached via $hop1->{name}\n",
                         " but not via all related redundancy interfaces"
                     );
@@ -12999,6 +13097,9 @@ sub print_asa_nat {
         my $out_name     = $out_hw->{name};
         my $in_host_obj  = $subnet_obj->($in_host_ip, $in_host_mask);
         my $out_host_obj = $subnet_obj->($out_host_ip, $in_host_mask);
+
+        # Print with line number 1 because static host NAT must be
+        # inserted in front of dynamic network NAT.
         print("nat ($in_name,$out_name) 1 source static",
             " $in_host_obj $out_host_obj\n");
     };
@@ -13144,6 +13245,7 @@ sub distribute_rule {
     # Validate dynamic NAT.
     if (my $dynamic_nat = $rule->{dynamic_nat}) {
         my $no_nat_set = $in_intf->{no_nat_set};
+        my $orig_rule = $rule;
         for my $where (split(/,/, $dynamic_nat)) {
             my $obj         = $rule->{$where};
             my $network     = $obj->{network};
@@ -13159,8 +13261,8 @@ sub distribute_rule {
             # But attention, this assumption only holds, if the other
             # router filters fully.  Hence disable optimization of
             # secondary rules.
-            delete $rule->{some_non_secondary};
-            delete $rule->{some_primary};
+            delete $orig_rule->{some_non_secondary};
+            delete $orig_rule->{some_primary};
 
             # Permit whole network, because no static address is known.
             # Make a copy of current rule, because the original rule
@@ -15231,7 +15333,7 @@ sub get_filter_network {
 # Remove rules on device which filters only locally.
 sub remove_non_local_rules {
     my ($router, $hardware) = @_;
-    $router->{managed} eq 'local' or return;
+    $router->{managed} =~ /^local/ or return;
 
     my $no_nat_set = $hardware->{no_nat_set};
     my $filter_only = $router->{filter_only};
@@ -15275,7 +15377,7 @@ sub remove_non_local_rules {
 # Add deny and permit rules at device which filters only locally.
 sub add_local_deny_rules {
     my ($router, $hardware) = @_;
-    $router->{managed} eq 'local' or return;
+    $router->{managed} =~ /^local/ or return;
     $hardware->{crosslink} and return;
 
     my $filter_only = $router->{filter_only};
@@ -15375,7 +15477,7 @@ sub local_optimization {
             {
                 my $router           = $interface->{router};
                 my $managed          = $router->{managed} or next;
-                my $secondary_filter = $managed eq 'secondary';
+                my $secondary_filter = $managed =~ /secondary$/;
                 my $standard_filter  = $managed eq 'standard';
                 my $do_auth          = $router->{model}->{do_auth};
                 my $hardware =
@@ -15850,24 +15952,9 @@ sub print_cisco_acl_add_deny {
         # Try to optimize this case.
         my %need_protect;
         my $protect_all;
-      RULE:
-        for my $rule (@{ $hardware->{rules} }) {
-            next if $rule->{action} eq 'deny';
-            my $dst = $rule->{dst};
-
-            # We only need to check networks:
-            # - subnet/host and interface already have been checked to
-            #   have disjoint ip addresses to interfaces of current router.
-            next if not is_network($dst);
-              
-            if ($dst->{mask} == 0) {
-                $protect_all = 1;
-
-#               debug("Protect all $router->{name}: $hardware->{name}");
-                last RULE;
-            }
-
-            my ($ip, $mask) = @{ address($dst, $no_nat_set) };
+        my $local_filter = $router->{managed} =~ /^local/;
+        my $check_intf = sub {
+            my ($ip, $mask) = @_;
             for my $intf (values %$intf_hash) {
                 next if $intf->{ip} =~ 
                         /^(unnumbered|negotiated|tunnel|bridged)$/;
@@ -15877,6 +15964,40 @@ sub print_cisco_acl_add_deny {
 
 #                   debug("Protect $intf->{name} at $hardware->{name}");
                 }
+            }
+        };
+      RULE:
+        for my $rule (@{ $hardware->{rules} }) {
+            next if $rule->{action} eq 'deny';
+            next if $rule->{prt}->{established};
+
+            # Ignore permit_any_rule of local filter.
+            # Some other permit_any_rule from a real service
+            # wouldn't match.
+            next if $local_filter && $rule eq $permit_any_rule;
+            my $dst = $rule->{dst};
+
+            # We only need to check networks:
+            # - subnet/host and interface already have been checked to
+            #   have disjoint ip addresses to interfaces of current router.
+            if (is_objectgroup($dst)) {
+                my $elements = $dst->{elements};
+                for my $ip_mask ( @$elements ) {
+                    my ($ip, $mask) = split '/', $ip_mask;
+                    next if $mask == 0xffffffff;
+                    $check_intf->($ip, $mask);
+                }
+            }
+            elsif (is_network($dst)) {
+                if ($dst->{mask} == 0) {
+                    $protect_all = 1;
+                    
+#                   debug("Protect all $router->{name}: $hardware->{name}");
+                    last RULE;
+                }
+
+                my ($ip, $mask) = @{ address($dst, $no_nat_set) };
+                $check_intf->($ip, $mask);
             }
         }
 
@@ -16474,6 +16595,16 @@ sub print_cisco_acls {
         # Generate code for incoming and possibly for outgoing ACL.
         for my $suffix ('in', 'out') {
             next if $suffix eq 'out' and not $hardware->{need_out_acl};
+
+            # Don't generate single 'permit ip any any'.
+            if (!$model->{need_acl}) {
+                if (!grep { @{ $hardware->{$_} } != 1 ||
+                            $hardware->{$_}->[0] ne $permit_any_rule }
+                    (qw(rules intf_rules))) 
+                {
+                    next;
+                }
+            }                
 
             my $acl_name = "$hardware->{name}_$suffix";
             my $prefix;

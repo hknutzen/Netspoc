@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out1, $head1, $out2, $head2, $out3, $head3, $compiled);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Auto interface of network';
@@ -47,7 +47,7 @@ service:test1 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ! [ ACL ]
 ip access-list extended e1_in
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 22
@@ -62,9 +62,7 @@ ip access-list extended f1_in
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Auto interface of router';
@@ -78,7 +76,7 @@ service:test2 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ! [ ACL ]
 ip access-list extended e1_in
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 23
@@ -91,9 +89,7 @@ ip access-list extended f1_in
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Auto interfaces in nested loop';
@@ -177,7 +173,7 @@ END
 # only interface:G112 of router:R5
 # and all interfaces of other routers.
 
-$out1 = <<END;
+$out = <<END;
 object-group network g0
  network-object host 10.10.0.2
  network-object host 10.10.0.3
@@ -201,9 +197,7 @@ access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

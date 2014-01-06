@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out1, $head1, $out2, $head2, $out3, $head3);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Aggregates with identcal IP';
@@ -47,7 +47,7 @@ service:Test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended Vlan1_in
  deny ip any host 10.4.6.3
  deny ip any host 10.6.8.46
@@ -55,9 +55,7 @@ ip access-list extended Vlan1_in
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Aggregates in subnet relation';
@@ -65,7 +63,7 @@ $title = 'Aggregates in subnet relation';
 
 $in =~ s|ip = 0.0.0.0/0 &|ip = 10.0.0.0/8 &|;
 
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Redundant port';
@@ -109,7 +107,7 @@ service:B = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ! [ ACL ]
 ip access-list extended eth0_in
  deny ip any host 10.4.4.1
@@ -117,9 +115,7 @@ ip access-list extended eth0_in
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Redundant host';
@@ -162,22 +158,19 @@ service:test2 = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 ip access-list extended VLAN1_out
  permit ip 10.7.7.0 0.0.0.255 10.3.3.0 0.0.0.127
  deny ip any any
 END
 
-$head1 = (split /\n/, $out1)[0];
-
-TODO: {
-    local $TODO = "Redundant host rule isn't recognized, because protocol of network rule is changed afterwards.";
-    eq_or_diff(get_block(compile($in), $head1), $out1, $title);
-}
+Test::More->builder->todo_start("Redundant host rule isn't recognized, because protocol of network rule is changed afterwards.");
+test_run($title, $in, $out);
+Test::More->builder->todo_end;
 
 # Change order of rules.
 $in =~ s/test2/test0/;
-eq_or_diff(get_block(compile($in), $head1), $out1, $title);
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

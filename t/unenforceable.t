@@ -6,7 +6,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $in2, $out1, $head1, $compiled);
+my ($title, $in, $out);
 
 my $topo =  <<END;
 network:x = { ip = 10.1.1.0/24; 
@@ -36,25 +36,24 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 Warning: service:test has unenforceable rules:
  src=host:x9; dst=host:x7
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Zone ignoring unenforceable rule';
 ############################################################
 
-$in2 = <<END;
-$in
+$in .= <<END;
 any:x = { link = network:x; has_unenforceable; }
 END
 
-$out1 = '';
+$out = '';
 
-eq_or_diff(compile_err($in2), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Service ignoring unenforceable rule';
@@ -69,9 +68,9 @@ service:test = {
 }
 END
 
-$out1 = '';
+$out = '';
 
-eq_or_diff(compile_err($in2), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Silent unenforceable rules';
@@ -85,9 +84,9 @@ service:test = {
 }
 END
 
-$out1 = '';
+$out = '';
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Fully unenforceable rule';
@@ -112,25 +111,24 @@ service:test = {
 }
 END
 
-$out1 = <<END;
+$out = <<END;
 Warning: service:test is fully unenforceable
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Useless attribute "has_unenforceable" at service';
 ############################################################
 
-$in2 = $in;
-$in2 =~ s/#1//;
+$in =~ s/#1//;
 
-$out1 = <<END;
+$out = <<END;
 Warning: Useless attribute 'has_unenforceable' at service:test
 Warning: service:test is fully unenforceable
 END
 
-eq_or_diff(compile_err($in2), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Useless attribute "has_unenforceable" at zone';
@@ -144,11 +142,11 @@ any:x = {
 network:x = { ip = 10.1.1.0/24; }
 END
 
-$out1 = <<END;
-Warning: Useless attribute 'has_unenforceable' at any:[network:x]
+$out = <<END;
+Warning: Useless attribute 'has_unenforceable' at any:x
 END
 
-eq_or_diff(compile_err($in), $out1, $title);
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;

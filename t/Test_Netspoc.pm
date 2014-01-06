@@ -4,9 +4,10 @@ use strict;
 use warnings;
 
 our @ISA    = qw(Exporter);
-our @EXPORT = qw(compile compile_err get_block);
+our @EXPORT = qw(test_run test_err);
 
 use Test::More;
+use Test::Differences;
 use IPC::Run3;
 
 my $default_options = '-quiet';
@@ -68,6 +69,24 @@ sub get_block {
 	}
     }
     $out;
+}
+
+sub test_run {
+    my ($title, $in, $out, $options) = @_;
+
+    # Blocks of expected output are split by single lines of dashes.
+    my @out = split(/^-+\n/m, $out);
+
+    # Get first line of each block
+    my @head = map { (split /\n/, $_)[0] } @out;
+    
+    eq_or_diff(get_block(compile($in, $options), @head), 
+               join('', @out), $title);
+}
+
+sub test_err {
+    my ($title, $in, $out, $options) = @_;
+    eq_or_diff(compile_err($in, $options), $out, $title);
 }
 
 1;

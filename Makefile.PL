@@ -22,7 +22,6 @@ my %WriteMakefileArgs = (
   },
   "DISTNAME" => "Netspoc",
   "EXE_FILES" => [
-    "bin/print-service~",
     "bin/print-service",
     "bin/watchers-to-json",
     "bin/print-group",
@@ -48,7 +47,7 @@ my %WriteMakefileArgs = (
     "utf8" => 0,
     "warnings" => 0
   },
-  "VERSION" => "3.041",
+  "VERSION" => "3.042",
   "test" => {
     "TESTS" => "t/*.t"
   }
