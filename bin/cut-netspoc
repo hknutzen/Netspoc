@@ -113,6 +113,7 @@ my @all_zones;
 sub get_zones {
     my %all_zones;
     for my $network (values %Netspoc::networks) {
+        next if $network->{disabled};
         my $zone = $network->{zone};
         $all_zones{$zone} = $zone;
     }
