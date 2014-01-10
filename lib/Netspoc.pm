@@ -11073,7 +11073,7 @@ sub check_supernet_dst_rule {
     # interfaces we only need to check the direct path.
     for my $intf (
         $router->{model}->{has_io_acl}
-        ? ($in_intf)
+        ? ($out_intf)
         : @{ $router->{interfaces} }
       )
     {
