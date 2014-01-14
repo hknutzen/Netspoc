@@ -10704,6 +10704,44 @@ sub setup_ref2obj  {
 #                Additional rule required: "permit src->any:Y".
 ##############################################################################
 
+my %supernet_rule_tree;
+
+# Collect rules with destination aggregate/supernet
+# - that are filtered at the same router which is attached 
+#   to the destination zone
+# - the destination router is entered by the same interface
+# - src, src_range, prt, stateless are identical
+# - dst is supernet or aggregate with identical ip/mask
+sub collect_supernet_dst_rules {
+
+    # Function is called from path_walk.
+    my ($rule, $in_intf, $out_intf) = @_;
+
+    # Source is interface of current router.
+    return if !$in_intf;
+
+    # Ignore semi_managed router.
+    my $router = $in_intf->{router};
+    return if !$router->{managed};
+
+    my $dst  = $rule->{dst};
+    my $zone = $dst->{zone};
+    return if $out_intf->{zone} != $zone;
+
+    # Get NAT address of supernet.
+    if (!$dst->{is_aggregate}) {
+        my $no_nat_set = $in_intf->{no_nat_set};
+        my $dst = get_nat_network($dst, $no_nat_set);
+    }
+
+    my $ipmask = join('/', @{$dst}{qw(ip mask)});
+    my ($stateless, $action, $src, $src_range, $prt) =
+      @{$rule}{qw(stateless action src src_range prt)};
+    $supernet_rule_tree{$stateless}->{$src}->{$src_range}->{$prt}
+                       ->{$in_intf}->{$ipmask}->{$zone} = $rule;
+    return;
+}
+
 sub find_supernet {
     my ($net1, $net2) = @_;
 
@@ -11068,9 +11106,9 @@ sub check_supernet_dst_rule {
         return;
     }
 
-    # Check security zones at all interfaces except the out_intf.
+    # Check security zones at all interfaces except those connected to dst or src.
     # For devices which have rules for each pair of incoming and outgoing
-    # interfaces we only need to check the direct path.
+    # interfaces we only need to check the direct path to dst.
     for my $intf (
         $router->{model}->{has_io_acl}
         ? ($out_intf)
@@ -11089,6 +11127,39 @@ sub check_supernet_dst_rule {
         next if has_global_restrict($intf);
         check_supernet_in_zone($rule, 'dst', $in_intf, $zone);
     }
+    return;
+}
+
+# Optimization:
+# Call check_supernet_dst_rule not for every rule with aggregate as destination,
+# but only once for a set of rules from collect_supernet_dst_rules.
+sub check_supernet_dst_collections {
+    return if !keys %supernet_rule_tree;
+
+    for my $src2href (values %supernet_rule_tree) {
+        for my $src_range2href (values %$src2href) {
+            for my $prt2href (values %$src_range2href) {
+                for my $intf2href (values %$prt2href) {
+                    for my $ipmask2href (values %$intf2href) {
+
+                        # Check larger aggregates first. To get
+                        # deterministic error messages.
+                        for my $ipmask (sort { (split '/', $a)[1] <=> 
+                                               (split '/', $b)[1] } 
+                                     keys %$ipmask2href) 
+                        {
+                            my $zone2rule = $ipmask2href->{$ipmask};
+                            my $rule = (values %$zone2rule )[0];
+                            path_walk($rule, \&check_supernet_dst_rule);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    # Not used any longer.
+    %supernet_rule_tree = ();
     return;
 }
 
@@ -11417,9 +11488,10 @@ sub check_supernet_rules {
                 path_walk($rule, \&check_supernet_src_rule);
             }
             if ($rule->{dst}->{is_supernet}) {
-                path_walk($rule, \&check_supernet_dst_rule);
+                path_walk($rule, \&collect_supernet_dst_rules);
             }
         }
+        check_supernet_dst_collections();
         %missing_supernet = ();
     }
     if ($config{check_transient_supernet_rules}) {

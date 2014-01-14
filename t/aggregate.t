@@ -595,7 +595,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Multiple destination aggregates at one router';
+$title = 'Multiple missing destination aggregates at one router';
 ############################################################
 
 $topo = <<END;
@@ -658,6 +658,39 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Multiple missing destination networks';
+############################################################
+
+$in = <<END;
+$topo
+
+router:u = {
+ interface:n2;
+ interface:n2x;
+}
+network:n2x = { ip = 10.2.2.0/24; }
+
+service:test = {
+ user = network:trans,
+        any:[ip=10.0.0.0/9 & network:n1],
+        #any:[ip=10.1.0.0/17 & network:n2],
+        network:n3,
+        any:[ip=10.1.0.0/16 & network:n4],
+        ;
+ permit src = network:Customer; dst = user; prt = ip;
+}
+END
+
+$out = <<END;
+Warning: Missing rule for supernet rule.
+ permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
+ can't be effective at interface:r2.trans.
+ No supernet available for network:n2, network:n2x as dst.
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Multiple destination aggregates';
 ############################################################
 
@@ -666,9 +699,9 @@ $topo
 service:test = {
  user = network:trans,
         any:[ip=10.0.0.0/9 & network:n1],
-        any:[ip=10.1.0.0/17 & network:n2],
+        any:[ip=10.0.0.0/9 & network:n2],
         network:n3,
-        any:[ip=10.1.0.0/16 & network:n4],
+        any:[ip=10.0.0.0/9 & network:n4],
         # network:n128 doesn't match
         ;
  permit src = network:Customer; dst = user; prt = ip;
