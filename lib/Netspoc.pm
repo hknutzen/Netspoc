@@ -10866,6 +10866,20 @@ sub check_supernet_in_zone {
       @{$rule}{qw(stateless action src dst src_range prt)};
     my $other = $where eq 'src' ? $src : $dst;
 
+    # Fast check for access to aggregate/supernet with identical
+    # ip/mask to $zone.
+    if ($where eq 'dst') {
+
+        # Get NAT address of supernet.
+        if (!$dst->{is_aggregate}) {
+            my $no_nat_set = $interface->{no_nat_set};
+            $dst = get_nat_network($dst, $no_nat_set);
+        }
+        my $ipmask = join('/', @{$dst}{qw(ip mask)});
+        return if $supernet_rule_tree{$stateless}->{$src}->{$src_range}
+                  ->{$prt}->{$interface}->{$ipmask}->{$zone};
+    }
+
     my $networks = find_matching_supernet($interface, $zone, $other);
     return if not $networks;
     my $extra;
@@ -11135,6 +11149,7 @@ sub check_supernet_dst_rule {
 # but only once for a set of rules from collect_supernet_dst_rules.
 sub check_supernet_dst_collections {
     return if !keys %supernet_rule_tree;
+    my @check_rules;
 
     for my $src2href (values %supernet_rule_tree) {
         for my $src_range2href (values %$src2href) {
@@ -11149,13 +11164,15 @@ sub check_supernet_dst_collections {
                                      keys %$ipmask2href) 
                         {
                             my $zone2rule = $ipmask2href->{$ipmask};
-                            my $rule = (values %$zone2rule )[0];
-                            path_walk($rule, \&check_supernet_dst_rule);
+                            push @check_rules, (values %$zone2rule )[0];
                         }
                     }
                 }
             }
         }
+    }
+    for my $rule (@check_rules) {
+        path_walk($rule, \&check_supernet_dst_rule);
     }
 
     # Not used any longer.
