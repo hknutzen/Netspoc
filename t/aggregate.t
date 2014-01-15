@@ -595,5 +595,183 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Multiple missing destination aggregates at one router';
+############################################################
+
+$topo = <<END;
+network:Customer = { ip = 10.9.9.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS_FW;
+ routing = manual;
+ interface:Customer = { ip = 10.9.9.1; hardware = VLAN9; }
+ interface:trans = { ip = 10.7.7.1; hardware = VLAN7; }
+ interface:loop = { ip = 10.7.8.1; loopback; hardware = Lo1; }
+}
+
+network:trans = { ip = 10.7.7.0/24; }
+
+router:r2 = {
+ managed;
+ model = IOS_FW;
+ routing = manual;
+ interface:trans = { ip = 10.7.7.2; hardware = VLAN77; }
+ interface:n1 = { ip = 10.1.1.1; hardware = VLAN1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = VLAN2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = VLAN3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = VLAN4; }
+ interface:n128 = { ip = 10.128.1.1; hardware = VLAN128; }
+}
+
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n128 = { ip = 10.128.1.0/24; }
+END
+
+$in = <<END;
+$topo
+service:test = {
+ user = #network:trans,
+        any:[ip=10.0.0.0/9 & network:n1],
+        #any:[ip=10.1.0.0/17 & network:n2],
+        #network:n3,
+        #any:[ip=10.1.0.0/16 & network:n4],
+        ;
+ permit src = network:Customer; dst = user; prt = ip;
+}
+END
+
+$out = <<END;
+Warning: Missing rule for supernet rule.
+ permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
+ can't be effective at interface:r1.Customer.
+ Tried network:trans as dst.
+Warning: Missing rule for supernet rule.
+ permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
+ can't be effective at interface:r2.trans.
+ Tried network:n2 as dst.
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Multiple missing destination networks';
+############################################################
+
+$in = <<END;
+$topo
+
+router:u = {
+ interface:n2;
+ interface:n2x;
+}
+network:n2x = { ip = 10.2.2.0/24; }
+
+service:test = {
+ user = network:trans,
+        any:[ip=10.0.0.0/9 & network:n1],
+        #any:[ip=10.1.0.0/17 & network:n2],
+        network:n3,
+        any:[ip=10.1.0.0/16 & network:n4],
+        ;
+ permit src = network:Customer; dst = user; prt = ip;
+}
+END
+
+$out = <<END;
+Warning: Missing rule for supernet rule.
+ permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
+ can't be effective at interface:r2.trans.
+ No supernet available for network:n2, network:n2x as dst.
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Multiple destination aggregates';
+############################################################
+
+$in = <<END;
+$topo
+service:test = {
+ user = network:trans,
+        any:[ip=10.0.0.0/9 & network:n1],
+        any:[ip=10.0.0.0/9 & network:n2],
+        network:n3,
+        any:[ip=10.0.0.0/9 & network:n4],
+        # network:n128 doesn't match
+        ;
+ permit src = network:Customer; dst = user; prt = ip;
+}
+END
+
+$out = <<END;
+ip access-list extended VLAN9_in
+ deny ip any host 10.9.9.1
+ deny ip any host 10.7.7.1
+ deny ip any host 10.7.8.1
+ permit ip 10.9.9.0 0.0.0.255 10.0.0.0 0.127.255.255
+ deny ip any any
+--
+ip access-list extended VLAN77_in
+ deny ip any host 10.7.7.2
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.2.1
+ deny ip any host 10.1.3.1
+ deny ip any host 10.1.4.1
+ permit ip 10.9.9.0 0.0.0.255 10.0.0.0 0.127.255.255
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Check missing intermediate aggregate for Linux';
+############################################################
+
+# Linux only checks for missing intermediate aggregates,
+# because filter is attached to pair of incoming and outgoing interface.
+($in = $topo) =~ s/IOS_FW/Linux/g;
+
+$in .= <<END;
+service:test = {
+ user = #network:trans,
+        any:[ip=10.0.0.0/9 & network:n1],
+        ;
+ permit src = network:Customer; dst = user; prt = ip;
+}
+END
+
+$out = <<END;
+Warning: Missing rule for supernet rule.
+ permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
+ can\'t be effective at interface:r1.Customer.
+ Tried network:trans as dst.
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'No destination aggregate needed for Linux';
+############################################################
+
+# Linux only hecks for mising intermediate aggregates,
+# because filter is attached to pair of incoming and outgoing interface.
+$in =~ s/#network:trans/network:trans/g;
+
+$out = <<END;
+:VLAN77_self -
+-A INPUT -j VLAN77_self -i VLAN77
+:VLAN77_VLAN1 -
+-A FORWARD -j VLAN77_VLAN1 -i VLAN77 -o VLAN1
+-A VLAN77_VLAN1 -j ACCEPT -s 10.9.9.0/24 -d 10.0.0.0/9
+END
+
+test_run($title, $in, $out);
+
+############################################################
 
 done_testing;
