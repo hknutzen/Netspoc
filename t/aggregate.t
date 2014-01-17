@@ -729,6 +729,55 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Check destination aggregate with no_in_acl';
+############################################################
+
+# Wir wissen nicht, welches der beiden Aggregate genommen wird,
+# wegen der Optimierung in check_supernet_dst_collections.
+# Aber dennoch wird korrekt geprüft.
+# Wenn n1, dann ohne Prüfung, da an allen anderen Interfaces eine out_acl.
+# Wenn n2, dann erfolgreiche Prüfung auf n1.
+($in = $topo) =~ s/VLAN1;/VLAN1; no_in_acl;/g;
+
+$in .= <<END;
+service:test = {
+ user = network:trans,
+        any:[ip=10.0.0.0/9 & network:n1],
+        any:[ip=10.0.0.0/9 & network:n2],
+        #network:n3,
+        #any:[ip=10.1.0.0/16 & network:n4],
+        ;
+ permit src = network:Customer; dst = user; prt = ip;
+}
+END
+
+$out = <<END;
+ip access-list extended VLAN77_in
+ deny ip any host 10.7.7.2
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.2.1
+ deny ip any host 10.1.3.1
+ deny ip any host 10.1.4.1
+ permit ip 10.9.9.0 0.0.0.255 10.0.0.0 0.127.255.255
+ deny ip any any
+--
+ip access-list extended VLAN1_in
+ deny ip any host 10.7.7.2
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.2.1
+ deny ip any host 10.1.3.1
+ deny ip any host 10.1.4.1
+ deny ip any host 10.128.1.1
+ permit ip any any
+--
+ip access-list extended VLAN2_out
+ permit ip 10.9.9.0 0.0.0.255 10.0.0.0 0.127.255.255
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Check missing intermediate aggregate for Linux';
 ############################################################
 
