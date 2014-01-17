@@ -5427,12 +5427,12 @@ sub expand_group1 {
                         # Prevent duplicates and border routers.
                         my %seen;
 
-                        # Don't add border routers of this area.
+                        # Don't add routers at border of this area.
                         for my $interface (@{ $object->{border} }) {
                             $seen{ $interface->{router} } = 1;
                         }
 
-                        # Add border routers of security zones inside
+                        # Add routers at border of security zones inside
                         # current area.
                         for my $router (
                             map { $_->{router} }
@@ -5446,6 +5446,8 @@ sub expand_group1 {
                             }
                         }
                         if ($managed) {
+
+                            # Remove semi managed routers.
                             @routers = grep { $_->{managed} } @routers;
                         }
                         else {
@@ -5458,7 +5460,7 @@ sub expand_group1 {
                             push @check, map { @{ $_->{interfaces} } } @routers;
                         }
                         else {
-                            push @objects, map { get_auto_intf $_ } @routers;
+                            push @objects, map { get_auto_intf($_) } @routers;
                         }
                     }
                     elsif ($type eq 'Autointerface') {
@@ -8714,8 +8716,8 @@ sub set_zone1 {
         else {
 
             # Traverse each unmanaged router only once.
-            next if $router->{active_path};
-            $router->{active_path} = 1;
+            next if $router->{zone};
+            $router->{zone} = $zone;
             push @{ $zone->{unmanaged_routers} }, $router;
             for my $out_interface (@{ $router->{interfaces} }) {
 
@@ -8956,6 +8958,12 @@ sub set_zone {
         # Mark zone which consists only of a loopback network.
         $zone->{loopback} = 1
           if $network->{loopback} && @{ $zone->{networks} } == 1;
+
+        # Remove attribute {zone} at unmanaged routers which only have
+        # been added to prevent duplicates in {unmanaged_routers}.
+        if (my $unmanaged = $zone->{unmanaged_routers}) {
+            delete $_->{zone} for @$unmanaged;
+        }
     }
 
     for my $zone (@zones) {
