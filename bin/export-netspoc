@@ -472,6 +472,10 @@ my @all_zones;
 sub setup_part_owners {
     Netspoc::progress("Setup sub owners");
     my %all_zones;
+
+    # Don't handle interfaces here, because
+    # - unmanaged interface doesn't have owner and
+    # - managed interface isn't part of network.
     for my $host (values %Netspoc::hosts) {
         $host->{disabled} and next;
         my $host_owner = $host->{owner} or next;
