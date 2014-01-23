@@ -187,6 +187,15 @@ owner/y/service_lists
    ],
    "visible" : []
 }
+--
+owner/z/service_lists
+{
+   "owner" : [],
+   "user" : [
+      "test"
+   ],
+   "visible" : []
+}
 END
 
 test_run($title, $in, $out);
@@ -237,6 +246,46 @@ owner/y/service_lists
 {
    "owner" : [],
    "user" : [
+      "test2"
+   ],
+   "visible" : []
+}
+--
+owner/z/service_lists
+{
+   "owner" : [],
+   "user" : [
+      "test",
+      "test2"
+   ],
+   "visible" : []
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Aggregate, network and subnet have different owner';
+############################################################
+
+($in = $topo) =~ s/host:B10 =/#host:B10 =/;
+$in .= <<END;
+service:test = {
+ user = any:Sub1;
+ permit src = user; dst = network:Kunde; prt = tcp 80; 
+}
+service:test2 = {
+ user = network:Big;
+ permit src = user; dst = network:Kunde; prt = tcp 88; 
+}
+END
+
+$out = <<END;
+owner/y/service_lists
+{
+   "owner" : [],
+   "user" : [
+      "test",
       "test2"
    ],
    "visible" : []

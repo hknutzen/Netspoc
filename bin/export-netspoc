@@ -470,51 +470,78 @@ sub setup_service_info {
 my @all_zones;
 
 sub setup_part_owners {
-    Netspoc::progress("Setup sub owners");
+    Netspoc::progress("Setup part owners");
     my %all_zones;
 
+    # Handle hosts of network.
     # Don't handle interfaces here, because
     # - unmanaged interface doesn't have owner and
     # - managed interface isn't part of network.
-    for my $host (values %Netspoc::hosts) {
-        $host->{disabled} and next;
-        my $host_owner = $host->{owner} or next;
-        my $network = $host->{network};
-        my $net_owner = $network->{owner};
-        if ( not ($net_owner and $host_owner eq $net_owner)) {
-            $network->{part_owners}->{$host_owner} = $host_owner;
-#           Netspoc::debug "$network->{name} : $host_owner->{name}";
+    for my $network (values %Netspoc::networks) {
+        $network->{disabled} and next;
+        my $net_owner = $network->{owner} || '';
+        for my $host (@{ $network->{hosts} }) {
+            my $owner = $host->{owner} or next;
+            if ($owner ne $net_owner) {
+                $network->{part_owners}->{$owner} = $owner;
+#               Netspoc::debug "$network->{name} : $owner->{name}";
+            }
         }
     }
+
+    # Add owner and part_owner of network to enclosing aggregates,
+    # networks and zone.
     for my $network (values %Netspoc::networks) {
         $network->{disabled} and next;
         my @owners;
         if (my $hash = $network->{part_owners}) {
             @owners = values %$hash;
-
-            # Substitute hash by array. 
-            # Use a copy because @owners is changed below.
-            $network->{part_owners} = [ @owners ];
         }
         if (my $net_owner = $network->{owner}) {
             push @owners, $net_owner;
         }
-        my $zone = $network->{zone};
-        $all_zones{$zone} = $zone;
-        my $zone_owner = $zone->{owner};
-        for my $owner (@owners) {
-            if ( not ($zone_owner and $owner eq $zone_owner)) {
-                $zone->{part_owners}->{$owner} = $owner;
-#               Netspoc::debug "$zone->{name} : $owner->{name}";
+        my $add_part_owner = sub {
+            my($obj) = @_;
+            my $obj_owner = $obj->{owner} || '';
+            for my $owner (@owners) {
+                if ($owner ne $obj_owner) {
+                    $obj->{part_owners}->{$owner} = $owner;
+#                   Netspoc::debug "$obj->{name} : $owner->{name}";
+                }
             }
+        };            
+        my $up = $network->{up};
+        while($up) {
+            $add_part_owner->($up);
+            $up = $up->{up};
         }
+        my $zone = $network->{zone};
+        $add_part_owner->($zone);
+        $all_zones{$zone} = $zone;
     }
 
-    # Substitute hash by array.
+    # Set global variable.
     @all_zones = values %all_zones;
+
+    # Substitute hash by array in attribute {part_owners}.
+    for my $network (values %Netspoc::networks) {
+        $network->{disabled} and next;
+        if (my $hash = $network->{part_owners}) {
+            $network->{part_owners} = [ values %$hash ];
+        }
+    }
     for my $zone (@all_zones) {
         if (my $hash = $zone->{part_owners}) {
             $zone->{part_owners} = [ values %$hash ];
+        }
+        for my $obj (values %{ $zone->{ipmask2aggregate} }) {
+            if (my $hash = $obj->{part_owners}) {
+
+                # Ignore supernet which is both, network and member of
+                # ipmask2aggregate.
+                next if !$obj->{is_aggregate};
+                $obj->{part_owners} = [ values %$hash ];
+            }
         }
     }
     return;
