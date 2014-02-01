@@ -13,9 +13,9 @@ central ruleset, using a description of your network topology.
 
 ## How it works
 
-<div class="gallery" markdown="1">
+<div class="gallery">
 
-<div class="list">
+<div class="list" markdown="1">
  <a href="intro-rules.png"><img src="intro-rules.png"/></a>
 
 #### Rules
@@ -25,7 +25,7 @@ different networks.
 
 </div>
 
-<div class="list">
+<div class="list" markdown="1">
  <a href="intro-topo.png"><img src="intro-topo.png"/></a>
 
 #### Topology
@@ -36,7 +36,7 @@ The topology is a graph of networks connected by packet filters and routers.
 
 </div>
 
-<div class="list">
+<div class="list" markdown="1">
  <a href="intro-topo-with-rules.png"><img src="intro-topo-with-rules.png"/></a>
 
 #### Find paths
@@ -46,7 +46,7 @@ to destination.
 
 </div>
 
-<div class="list">
+<div class="list" markdown="1">
  <a href="intro-topo-with-rules-covered.png"><img src="intro-topo-with-rules-covered.png"/></a>
 
 #### Collect rules and generate code
