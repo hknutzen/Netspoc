@@ -9020,11 +9020,13 @@ sub set_zone {
 
     # Find subset relation between areas.
     # Complain about duplicate and overlapping areas.
+    my %seen;
     for my $zone (@zones) {
         $zone->{areas} or next;
 
+        # Sort to get deterministic error messages.
         # Ignore empty hash.
-        my @areas = values %{ $zone->{areas} } or next;
+        my @areas = sort by_name values %{ $zone->{areas} } or next;
 
         # Take the smallest area.
         @areas = sort { @{ $a->{zones} } <=> @{ $b->{zones} } } @areas;
@@ -9032,31 +9034,30 @@ sub set_zone {
 
         while (@areas) {
             my $next = shift @areas;
-            if (my $big = $small->{subset_of}) {
-                $big eq $next
-                  or internal_err("$small->{name} is subset of",
-                                  " $big->{name} and $next->{name}");
-            }
-            else {
+            next if $seen{$small}->{$next};
+            my $big = $small->{subset_of} || '';
 
-                # Each zone of $small must be part of $next.
-                my $ok = 1;
-                for my $zone (@{ $small->{zones} }) {
-                    unless ($zone->{areas}->{$small}) {
-                        $ok = 0;
-                        err_msg("Overlapping $small->{name} and $next->{name}");
-                        last;
-                    }
-                }
-                if ($ok) {
-                    if (@{ $small->{zones} } == @{ $next->{zones} }) {
-                        err_msg("Duplicate $small->{name} and $next->{name}");
-                    }
-                    else {
-                        $small->{subset_of} = $next;
-                    }
+            # Has already been checkd in other zone.
+            next if $big eq $next;
+
+            # Check that each zone of $small is part of $next.
+            my $ok = 1;
+            for my $zone (@{ $small->{zones} }) {
+                if(!$zone->{areas}->{$next}) {
+                    $ok = 0;
+                    err_msg("Overlapping $small->{name} and $next->{name}");
+                    last;
                 }
             }
+            if ($ok) {
+                if (@{ $small->{zones} } == @{ $next->{zones} }) {
+                    err_msg("Duplicate $small->{name} and $next->{name}");
+                }
+                else {
+                    $small->{subset_of} = $next;
+                }
+            }
+            $seen{$small}->{$next} = 1;
             $small = $next;
         }
     }
