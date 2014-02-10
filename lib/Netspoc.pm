@@ -1031,7 +1031,6 @@ sub read_time_val {
 
 sub add_description {
     my ($obj) = @_;
-    skip_space_and_comment();
     check 'description' or return;
     skip '=';
 
