@@ -627,11 +627,15 @@ sub skip_space_and_comment {
     return;
 }
 
+# Optimize use of CORE:regcomp. Build regex only once for each token. 
+my %token2regex;
+
 # Check for a string and skip if available.
 sub check {
     my $token = shift;
     skip_space_and_comment;
-    return $input =~ m/\G$token/gc;
+    my $regex = $token2regex{$token} ||= qr/\G$token/;
+    return $input =~ /$regex/gc;
 }
 
 # Skip a string.
