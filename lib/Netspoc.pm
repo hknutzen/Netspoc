@@ -9028,20 +9028,21 @@ sub set_zone {
     for my $zone (@zones) {
         $zone->{areas} or next;
 
-        # Sort to get deterministic error messages.
+        # Sort by size, smallest first.
         # Ignore empty hash.
-        my @areas = sort by_name values %{ $zone->{areas} } or next;
+        my @areas = sort({ @{ $a->{zones} } <=> @{ $b->{zones} } } 
+                         values %{ $zone->{areas} }) or next;
 
         # Take the smallest area.
-        @areas = sort { @{ $a->{zones} } <=> @{ $b->{zones} } } @areas;
-        my $small = shift @areas;
+        my $next = shift @areas;
 
-        while (@areas) {
-            my $next = shift @areas;
+        while(@areas) {
+            my $small = $next;
+            $next = shift @areas;
             next if $seen{$small}->{$next};
             my $big = $small->{subset_of} || '';
 
-            # Has already been checkd in other zone.
+            # Has already been checked in other zone.
             next if $big eq $next;
 
             # Check that each zone of $small is part of $next.
@@ -9055,14 +9056,15 @@ sub set_zone {
             }
             if ($ok) {
                 if (@{ $small->{zones} } == @{ $next->{zones} }) {
-                    err_msg("Duplicate $small->{name} and $next->{name}");
+                    my $names = join ' and ', sort by_name $small, $next;
+                    err_msg("Duplicate $names");
                 }
                 else {
                     $small->{subset_of} = $next;
+#                    debug "$small->{name} < $next->{name}";
                 }
             }
             $seen{$small}->{$next} = 1;
-            $small = $next;
         }
     }
     for my $area (@areas) {
