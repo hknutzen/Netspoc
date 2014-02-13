@@ -4368,6 +4368,7 @@ sub link_virtual_interfaces  {
     # inside the same network and using the same ID and type.
     my %net2id2type2virtual;
     for my $virtual1 (@virtual_interfaces) {
+        next if $virtual1->{disabled};
         my $ip    = $virtual1->{ip};
         my $net   = $virtual1->{network};
         my $type1 = $virtual1->{redundancy_type} || '';
