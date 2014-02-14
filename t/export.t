@@ -305,4 +305,63 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Owner with "extend" at nested areas';
+############################################################
+
+$in = <<'END';
+owner:x = { admins = x@b.c; extend; }
+owner:y = { admins = y@b.c; extend; }
+owner:z = { admins = z@b.c; }
+
+area:all = { anchor = network:n2; }
+area:a1 = { border = interface:asa2.n2; owner = x; }
+area:a2 = { border = interface:asa1.n1; owner = y; }
+
+
+network:n1 = {  ip = 10.1.1.0/24; owner = z; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = vlan2; }
+}
+
+network:n2 = { ip = 10.2.2.0/24; }
+
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.2.2.2; hardware = vlan2; }
+ interface:n3 = { ip = 10.3.3.1; hardware = vlan1; }
+}
+
+network:n3 = { ip = 10.3.3.0/24; owner = y; }
+END
+
+$out = <<END;
+owner/x/extended_by
+[]
+--
+owner/y/extended_by
+[
+   {
+      "name" : "x"
+   }
+]
+--
+owner/z/extended_by
+[
+   {
+      "name" : "x"
+   },
+   {
+      "name" : "y"
+   }
+]
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
