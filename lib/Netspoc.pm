@@ -6889,6 +6889,7 @@ sub propagate_owners {
             }
             $upper_owner = $owner;
             $upper_node  = $node;
+            debug "Ext: $owner->{name} $node->{name} :" . join ',', map $_->{name}, @$extend;
             $extended{$owner}->{$node} = [ @$extend, @$extend_only ];
         }
 
@@ -6948,7 +6949,7 @@ sub propagate_owners {
                 $combined = $ext1;
             }
         }
-        if (keys %$ext1) {
+        if (keys %$combined) {
             $owner->{extended_by} = [ values %$combined ];
         }
         if ($owner->{show_all}) {
