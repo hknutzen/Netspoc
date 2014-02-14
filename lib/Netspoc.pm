@@ -6871,35 +6871,35 @@ sub propagate_owners {
         my ($node, $upper_owner, $upper_node, $extend, $extend_only) = @_;
         my $owner = $node->{owner};
         if (not $owner) {
-            $node->{owner} = $upper_owner;
+            $owner = $node->{owner} = $upper_owner;
         }
         else {
             $owner->{is_used} = 1;
             if ($upper_owner) {
-                if ($owner eq $upper_owner
-                    and not $zone_got_net_owners{$upper_node})
-                {
-                    warn_msg("Useless $owner->{name} at $node->{name},\n",
-                             " it was already inherited from",
-                             " $upper_node->{name}");
+                if ($owner eq $upper_owner) {
+                    if (! $zone_got_net_owners{$upper_node})
+                    {
+                        warn_msg("Useless $owner->{name} at $node->{name},\n",
+                                 " it was already inherited from",
+                                 " $upper_node->{name}");
+                    }
                 }
-                if ($upper_owner->{extend}) {
-                    $extend = [ @$extend, $upper_owner ];
+                else {
+                    if ($upper_owner->{extend}) {
+                        $extend = [ @$extend, $upper_owner ];
+                    }
+                    $extended{$owner}->{$node} = [ @$extend, @$extend_only ];
                 }
             }
-            $upper_owner = $owner;
-            $upper_node  = $node;
-            debug "Ext: $owner->{name} $node->{name} :" . join ',', map $_->{name}, @$extend;
-            $extended{$owner}->{$node} = [ @$extend, @$extend_only ];
         }
 
         my $childs = $tree{$node} or return;
-        if ($upper_owner) {
-            if ($upper_owner->{extend_only}) {
-                $extend_only = [ @$extend_only, $upper_owner ];
-                $upper_owner = undef;
-                $upper_node  = undef;
-            }
+        $upper_owner = $owner;
+        $upper_node  = $node;
+        if ($upper_owner && $upper_owner->{extend_only}) {
+            $extend_only = [ @$extend_only, $upper_owner ];
+            $upper_owner = undef;
+            $upper_node  = undef;
         }
         for my $child (@$childs) {
             $inherit->($child, $upper_owner, $upper_node, $extend,
