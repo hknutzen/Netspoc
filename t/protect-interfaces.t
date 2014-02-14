@@ -42,6 +42,39 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = "Disable protection with attribute 'no_protect_self'";
+############################################################
+
+$in = <<END;
+network:U = { ip = 10.1.1.0/24; }
+router:R = {
+ managed; 
+ model = IOS;
+ no_protect_self;
+ interface:U = { ip = 10.1.1.1; hardware = e0; }
+ interface:N = { ip = 10.2.2.1; hardware = e1; }
+}
+network:N = { ip = 10.2.2.0/24; }
+
+service:test = {
+    user = network:U;
+    permit src = user; dst = network:N; prt = tcp 80;
+}
+END
+
+$out = <<END;
+ip access-list extended e0_in
+ permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
+ deny ip any any
+--
+ip access-list extended e1_in
+ permit tcp 10.2.2.0 0.0.0.255 10.1.1.0 0.0.0.255 established
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = "Protect all interfaces";
 ############################################################
 

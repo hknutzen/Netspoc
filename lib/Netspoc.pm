@@ -2166,6 +2166,9 @@ sub read_router {
         elsif (check_flag 'no_crypto_filter') {
             $router->{no_crypto_filter} = 1;
         }
+        elsif (check_flag 'no_protect_self') {
+            $router->{no_protect_self} = 1;
+        }
         elsif (check_flag 'std_in_acl') {
             $router->{std_in_acl} = 1;
         }
@@ -2246,6 +2249,14 @@ sub read_router {
           and not $model->{can_log_deny}
           and err_msg("Must not use attribute 'log_deny' at $name",
             " of model $model->{name}");
+
+        $router->{no_protect_self}
+          and not $model->{need_protect}
+          and err_msg("Must not use attribute 'no_protect_self' at $name",
+            " of model $model->{name}");
+        if ($model->{need_protect}) {
+            $router->{need_protect} = !delete $router->{no_protect_self};
+        }
 
         # Create objects representing hardware interfaces.
         # All logical interfaces using the same hardware are linked
@@ -7535,7 +7546,7 @@ sub distribute_nat_info {
                 next if $intf_nat && $intf_nat->{$nat_tag};
                 
                 my $router = $interface->{router};
-                next if !$router->{model}->{need_protect};
+                next if !$router->{need_protect};
                 for my $bind_intf (@{ $router->{interfaces} }) {
                     my $bind = $bind_intf->{bind_nat} or next;
                     grep { $_ eq $nat_tag } @$bind or next;
@@ -8144,7 +8155,7 @@ sub check_crosslink  {
                 my $strength = $crosslink_strength{$managed} or 
                     internal_err("Unexptected managed=$managed");
                 push @{ $strength2intf{$strength} }, $interface;
-                if ($router->{model}->{need_protect}) {
+                if ($router->{need_protect}) {
                     $crosslink_routers{$router} = $router;
                 }
             }
@@ -13796,7 +13807,7 @@ sub distribute_global_permit {
                 stateless_icmp => $stateless_icmp,
             };
             for my $router (@managed_routers) {
-                my $need_protect = $router->{model}->{need_protect};
+                my $need_protect = $router->{need_protect};
                 for my $in_intf (@{ $router->{interfaces} }) {
                     next if has_global_restrict($in_intf);
 
@@ -16002,7 +16013,7 @@ sub print_cisco_acl_add_deny {
         $permit_any = $hardware->{no_in_acl};
     }
 
-    if ($router->{model}->{need_protect} || 
+    if ($router->{need_protect} || 
 
         # ASA protects IOS router behind crosslink interface.
         $router->{crosslink_intf_hash}) 
