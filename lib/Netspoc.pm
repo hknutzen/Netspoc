@@ -9051,13 +9051,18 @@ sub set_zone {
             for my $zone (@{ $small->{zones} }) {
                 if(!$zone->{areas}->{$next}) {
                     $ok = 0;
-                    err_msg("Overlapping $small->{name} and $next->{name}");
+
+                    # Sort names to get deterministic output.
+                    my $names = join ' and ', sort($small->{name}, $next->{name});
+                    err_msg("Overlapping $names");
                     last;
                 }
             }
             if ($ok) {
                 if (@{ $small->{zones} } == @{ $next->{zones} }) {
-                    my $names = join ' and ', sort by_name $small, $next;
+
+                    # Sort names to get deterministic output.
+                    my $names = join ' and ', sort($small->{name}, $next->{name});
                     err_msg("Duplicate $names");
                 }
                 else {
