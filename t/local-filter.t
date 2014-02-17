@@ -495,5 +495,63 @@ END
 
 test_run($title, $in, $out);
 
+
+############################################################
+$title = "Multiple local_secondary with unrelated local filter";
+############################################################
+# Must not assume, that n2 is located beween n1 and n3.
+
+$in = <<END;
+network:n1 = { ip = 10.2.1.0/27; host:h1 = { ip = 10.2.1.4; }}
+
+router:r1 = {
+ model = ASA;
+ managed = local_secondary;
+ filter_only =  10.2.0.0/16;
+ routing = manual;
+ interface:n1 = { ip = 10.2.1.1; hardware = vlan1; }
+ interface:tr = { ip = 10.2.9.1; hardware = vlan4; }
+}
+
+network:n2 = { ip = 10.2.2.0/27;}
+
+router:r2 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.2.0.0/16;
+ routing = manual;
+ interface:n2 = { ip = 10.2.2.1; hardware = vlan5; }
+ interface:tr = { ip = 10.2.9.2; hardware = vlan6; }
+}
+
+network:tr = { ip = 10.2.9.0/29; }
+
+router:r3 = {
+ model = ASA;
+ managed = local_secondary;
+ filter_only =  10.2.0.0/16;
+ interface:tr = { ip = 10.2.9.6; hardware = inside; }
+ interface:n3 = { ip = 10.2.8.1; hardware = outside; }
+}
+
+network:n3 = { ip = 10.2.8.0/24; }
+
+service:Mail = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n3;
+        prt = tcp 25;
+}
+END
+
+$out = <<END;
+access-list vlan1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.8.0 255.255.255.0 eq 25
+access-list vlan1_in extended deny ip any 10.2.0.0 255.255.0.0
+access-list vlan1_in extended permit ip any any
+access-group vlan1_in in interface vlan1
+END
+
+test_run($title, $in, $out);
+
 ############################################################
 done_testing;
