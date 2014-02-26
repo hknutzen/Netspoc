@@ -8474,7 +8474,7 @@ sub link_implicit_aggregate_to_zone {
 
         # Ignore sub-subnets, i.e. supernet is smaller than new aggregate.
         if (my $up = $obj->{up}) {
-            last if $up->{mask} >= $mask;
+            next if $up->{mask} >= $mask;
         }
         $obj->{up} = $aggregate;
 #        debug "$obj->{name} -up1-> $aggregate->{name}";
