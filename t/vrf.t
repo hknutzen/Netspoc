@@ -42,17 +42,17 @@ END
 
 $out = <<END;
 object-group ip address g0
- 10 host 10.1.1.10
- 20 host 10.1.1.20
- 30 host 10.1.1.30
+ 10 10.1.1.10/32
+ 20 10.1.1.20/32
+ 30 10.1.1.30/32
 ip access-list e0_in
  10 permit tcp 10.2.2.0/24 addrgroup g0 established
  20 deny ip any any
 --
 object-group ip address g1
- 10 host 10.1.1.10
- 20 host 10.1.1.20
- 30 host 10.1.1.30
+ 10 10.1.1.10/32
+ 20 10.1.1.20/32
+ 30 10.1.1.30/32
 ip access-list e2_in
  10 permit tcp 10.2.2.0/24 addrgroup g1 established
  20 deny ip any any

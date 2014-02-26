@@ -137,12 +137,12 @@ object-group ip address g0
  20 10.2.3.0/24
  30 10.2.4.0/24
 ip access-list e0_in
- 10 deny ip any host 10.2.2.4
- 20 deny ip any host 10.2.3.4
- 30 deny ip any host 10.2.4.4
- 40 deny ip any host 10.2.2.1
- 50 deny ip any host 10.2.3.1
- 60 deny ip any host 10.2.4.1
+ 10 deny ip any 10.2.2.4/32
+ 20 deny ip any 10.2.3.4/32
+ 30 deny ip any 10.2.4.4/32
+ 40 deny ip any 10.2.2.1/32
+ 50 deny ip any 10.2.3.1/32
+ 60 deny ip any 10.2.4.1/32
  70 permit tcp 10.1.1.0/24 addrgroup g0 eq 80
  80 deny ip any any
 END

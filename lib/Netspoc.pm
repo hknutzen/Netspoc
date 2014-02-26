@@ -12924,6 +12924,7 @@ sub find_active_routes_and_statics  {
 
 sub ios_route_code;
 sub prefix_code;
+sub full_prefix_code;
 sub address;
 
 sub print_header {
@@ -13067,7 +13068,7 @@ sub print_routes {
                         print "vrf context $vrf\n";
                         $nxos_prefix = ' ';
                     }
-                    my $adr = prefix_code($netinfo);
+                    my $adr = full_prefix_code($netinfo);
                     print "${nxos_prefix}ip route $adr $hop_addr\n";
                 }
                 elsif ($type eq 'PIX') {
@@ -14138,17 +14139,17 @@ sub cisco_acl_addr {
             $model->{filter} eq 'NX-OS' ? 'addrgroup' : 'object-group';
         return "$keyword $pair->{name}";
     }
+    elsif ($pair->[0] == 0) {
+        return "any";
+    }
+    elsif ($model->{use_prefix}) {
+        return full_prefix_code($pair);
+    }
     else {
         my ($ip, $mask) = @$pair;
         my $ip_code = print_ip($ip);
         if ($mask == 0xffffffff) {
             return "host $ip_code";
-        }
-        elsif ($mask == 0) {
-            return "any";
-        }
-        elsif ($model->{use_prefix}) {
-            return prefix_code($pair);
         }
         else {
             $mask = complement_32bit($mask) if $model->{inversed_acl_mask};
@@ -14175,6 +14176,16 @@ sub prefix_code {
     my $prefix_code = mask2prefix($mask);
     return $prefix_code == 32 ? $ip_code : "$ip_code/$prefix_code";
 }
+
+sub full_prefix_code {
+    my ($pair) = @_;
+    my ($ip, $mask) = @$pair;
+    my $ip_code     = print_ip($ip);
+    my $prefix_code = mask2prefix($mask);
+    return "$ip_code/$prefix_code";
+}
+
+
 
 # Returns 3 values for building a Cisco ACL:
 # permit <val1> <src> <val2> <dst> <val3>
