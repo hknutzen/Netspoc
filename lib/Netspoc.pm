@@ -9044,9 +9044,10 @@ sub set_zone {
     for my $zone (@zones) {
         $zone->{areas} or next;
 
-        # Sort by size, smallest first.
+        # Sort by size, smallest first, then sort by name for equal size.
         # Ignore empty hash.
-        my @areas = sort({ @{ $a->{zones} } <=> @{ $b->{zones} } } 
+        my @areas = sort({ @{ $a->{zones} } <=> @{ $b->{zones} } || 
+                           $a->{name} cmp $b->{name} } 
                          values %{ $zone->{areas} }) or next;
 
         # Take the smallest area.
@@ -9066,19 +9067,13 @@ sub set_zone {
             for my $zone (@{ $small->{zones} }) {
                 if(!$zone->{areas}->{$next}) {
                     $ok = 0;
-
-                    # Sort names to get deterministic output.
-                    my $names = join ' and ', sort($small->{name}, $next->{name});
-                    err_msg("Overlapping $names");
+                    err_msg("Overlapping $small->{name} and $next->{name}");
                     last;
                 }
             }
             if ($ok) {
                 if (@{ $small->{zones} } == @{ $next->{zones} }) {
-
-                    # Sort names to get deterministic output.
-                    my $names = join ' and ', sort($small->{name}, $next->{name});
-                    err_msg("Duplicate $names");
+                    err_msg("Duplicate $small->{name} and $next->{name}");
                 }
                 else {
                     $small->{subset_of} = $next;
