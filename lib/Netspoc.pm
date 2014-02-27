@@ -4506,7 +4506,7 @@ sub check_ip_addresses {
                 }
             }
             else {
-                unless ($ip =~ /^(?:unnumbered|negotiated|tunnel)$/) {
+                unless ($ip =~ /^(?:unnumbered|negotiated|tunnel|bridged)$/) {
                     if ($interface->{router}->{managed}
                         and not $interface->{routing})
                     {
