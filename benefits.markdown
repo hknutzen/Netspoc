@@ -29,4 +29,4 @@ layout: default
 
 1. Named rulesets (services) allow to generate understandable reports.
 
-1. A central ruleset is valuable and consistent resource during security audits.
+1. A central ruleset is a valuable and consistent resource during security audits.
