@@ -57,4 +57,17 @@ the topology.
 
 </div>
 
+<div class="list" markdown="1">
+ <a href="approve.png"><img src="approve.png"/></a>
+
+#### Transfer generated code to device
+
+Use [Netspoc-Approve](https://github.com/hknutzen/Netspoc-Approve/) to
+automatically transfer generated code to the corresponding
+device. Only changed parts of the configuration are transferred. In
+compare mode, a diff file is created. It contains the commands needed
+to change the configuration of the device.
+
+</div>
+
 </div>
