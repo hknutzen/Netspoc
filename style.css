@@ -134,4 +134,5 @@ h1 {
 .maruku_toc ul {
   text-indent: 0em;
   padding-left: .5em;
+  list-style-type: none
 }
