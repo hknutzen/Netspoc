@@ -845,6 +845,16 @@ sub export_services {
 # Export all objects referenced by rules, users and assets.
 ####################################################################
 
+sub zone_and_subnet {
+    my ($obj) = @_;
+    is_network $obj or return ();
+    my $zone = $obj->{zone};
+    my $any = $zone->{ipmask2aggregate}->{'0/0'};
+    my $zone_name = $any ? $any->{name} : $zone->{name};
+    my $is_supernet = $obj->{is_supernet};
+    return (zone => $zone_name, $is_supernet ? (is_supernet => 1) : () );
+}
+
 sub export_objects {
     Netspoc::progress("Export objects");
     my %objects = map { 
@@ -853,6 +863,11 @@ sub export_objects {
 
             # Add key 'ip' and optionally key 'nat'.
             ip_nat_for_object($_),
+
+            # Add key 'zone' for network and aggregate.
+            # Optionally add key 'is_supernet' for network and aggregate.
+            zone_and_subnet($_),
+
             owner => scalar owner_for_object($_),
         } 
     } values %all_objects;
@@ -956,6 +971,7 @@ Netspoc::distribute_nat_info();
 Netspoc::setpath();
 Netspoc::find_subnets_in_zone();
 Netspoc::set_service_owner();
+Netspoc::find_subnets_in_nat_domain();
 setup_part_owners();
 setup_service_info();
 find_master_owner();
