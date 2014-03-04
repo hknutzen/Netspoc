@@ -646,9 +646,9 @@ sub export_assets {
         my %sub_result;
         for my $net (@$networks) {
             next if $net->{disabled};
-            next if $net->{loopback};
             next if $net->{ip} eq 'tunnel';
             $all_objects{$net} = $net;
+            next if $net->{loopback};
             my $net_name = $net->{name};
             my $net_owner = owner_for_object($net) || '';
 
