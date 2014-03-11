@@ -1345,6 +1345,7 @@ sub host_as_interface {
 sub read_host {
     my ($name, $network_name) = @_;
     my $host = new('Host');
+    $host->{file} = $current_file;
     $host->{private} = $private if $private;
     if (my ($id) = ($name =~ /^host:id:(.*)$/)) {
 
@@ -1445,7 +1446,7 @@ sub read_host {
         }
     }
     if ($host->{managed}) {
-        my %ok = ( name => 1, ip => 1, nat => 1, 
+        my %ok = ( name => 1, ip => 1, nat => 1, file => 1,
                    managed => 1, model => 1, hardware => 1, server_name => 1);
         for my $key (keys %$host) {
             next if $ok{$key};
@@ -1610,7 +1611,10 @@ sub read_network {
             else {
                 internal_err;
             }
-            $hosts{$host_name} and error_atline("Duplicate host:$host_name");
+            if (my $other = $hosts{$host_name}) {
+                err_msg("Duplicate definition of host:$host_name in",
+                " $current_file and $other->{file}");
+            }
             $hosts{$host_name} = $host;
         }
         elsif (my $nat_tag = check_nat_name()) {
@@ -3309,8 +3313,9 @@ sub read_netspoc {
     my ($fun, $hash) = @$descr;
     my $result = $fun->("$type:$name");
     $result->{file} = $current_file;
-    if ($hash->{$name}) {
-        error_atline("Redefining $type:$name");
+    if (my $other = $hash->{$name}) {
+        err_msg("Duplicate definition of $type:$name in",
+                " $current_file and $other->{file}");
     }
 
     # Result is not used in this module but can be useful
