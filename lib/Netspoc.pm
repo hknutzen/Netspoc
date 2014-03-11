@@ -3408,7 +3408,7 @@ sub read_json_watchers {
                 next;
             }
             $owner->{watchers} and 
-                err_msg("Redefinig watcher of owner:$owner_name from $path");
+                err_msg("Redefining watcher of owner:$owner_name from $path");
             $owner->{watchers} = $data;
         }
     }
