@@ -1345,7 +1345,6 @@ sub host_as_interface {
 sub read_host {
     my ($name, $network_name) = @_;
     my $host = new('Host');
-    $host->{file} = $current_file;
     $host->{private} = $private if $private;
     if (my ($id) = ($name =~ /^host:id:(.*)$/)) {
 
@@ -1613,7 +1612,7 @@ sub read_network {
             }
             if (my $other = $hosts{$host_name}) {
                 err_msg("Duplicate definition of host:$host_name in",
-                " $current_file and $other->{file}");
+                " $current_file and $other->{network}->{file}");
             }
             $hosts{$host_name} = $host;
         }
