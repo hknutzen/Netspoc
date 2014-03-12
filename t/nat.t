@@ -243,6 +243,33 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Must not bind multiple NAT of one network at one place';
+############################################################
+
+$in = <<END;
+network:Test =  {
+ ip = 10.0.0.0/24; 
+ nat:C = { ip = 10.8.8.0; }
+ nat:D = { ip = 10.9.9.0; }
+}
+
+router:filter = {
+ managed;
+ model = ASA, 8.4;
+ interface:Test = { ip = 10.0.0.2; hardware = inside; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C, D; }
+}
+
+network:X = { ip = 10.8.3.0/24; }
+END
+
+$out = <<END;
+Error: Must not use multiple NAT tags 'C,D' of nat:D(network:Test) at router:filter
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Check rule with host and dynamic NAT';
 ############################################################
 
