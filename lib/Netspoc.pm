@@ -1515,6 +1515,7 @@ sub read_nat {
             next if grep { $key eq $_ } qw( name identity );
             error_atline("Identity NAT must not use attribute $key");
         }
+        $nat->{dynamic} = $nat_tag;
     }
     else {
         defined($nat->{ip}) or error_atline("Missing IP address");
@@ -2685,7 +2686,7 @@ sub read_area {
         }
         elsif (my $nat_name = check_nat_name()) {
             my $nat = read_nat("nat:$nat_name");
-            defined $nat->{mask} or $nat->{hidden}
+            defined $nat->{mask} or $nat->{hidden} or $nat->{identity}
               or error_atline("Missing mask for $nat->{name}");
             $nat->{dynamic} or error_atline("$nat->{name} must be dynamic");
             $area->{nat}->{$nat_name}
@@ -8929,8 +8930,8 @@ sub inherit_nat {
                 next if $network->{ip} eq 'unnumbered';
                 next if $network->{isolated_ports};
 
-                if ($nat->{identify}) {
-                    $network->{nat}->{$nat_tag} = $network;
+                if ($nat->{identity}) {
+                    $network->{identity_nat}->{$nat_tag} = $nat
                 }
                 else {
 
