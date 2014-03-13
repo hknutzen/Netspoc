@@ -2609,6 +2609,15 @@ sub read_aggregate {
         elsif (check_flag 'no_in_acl') {
             $aggregate->{no_in_acl} = 1;
         }
+        elsif (my $nat_name = check_nat_name()) {
+            my $nat = read_nat("nat:$nat_name");
+            defined $nat->{mask} or $nat->{hidden} or $nat->{identity}
+              or error_atline("Missing mask for $nat->{name}");
+            $nat->{dynamic} or error_atline("$nat->{name} must be dynamic");
+            $aggregate->{nat}->{$nat_name}
+              and error_atline("Duplicate NAT definition");
+            $aggregate->{nat}->{$nat_name} = $nat;
+        }
         else {
             syntax_err("Expected some valid attribute");
         }
@@ -4288,14 +4297,13 @@ sub link_subnet  {
 
 sub link_subnets  {
     for my $network (values %networks) {
-        link_subnet $network, undef;
-        for my $nat (values %{ $network->{nat} }) {
-            link_subnet($nat, $network);
-        }
+        link_subnet($network, undef);
     }
-    for my $area (values %areas) {
-        for my $nat (values %{ $area->{nat} }) {
-            link_subnet($nat, $area);
+    for my $obj (values %networks, values %aggregates, values %areas) {
+        if (my $nat =  $obj->{nat}) {
+            for my $nat (values %{ $obj->{nat} }) {
+                link_subnet($nat, $obj);
+            }
         }
     }
     return;
@@ -8610,10 +8618,10 @@ sub link_aggregates {
 
             # Aggregate with ip 0/0 is used to set attributes of zone.
             if ($mask == 0) {
-                for my $zone2 ($cluster ? @$cluster : ($zone)) {
-                    for my $attr (qw(owner no_in_acl has_unenforceable)) {
-                        if ($aggregate->{$attr}) {
-                            $zone2->{$attr} = $aggregate->{$attr};
+                for my $attr (qw(has_unenforceable nat no_in_acl owner)) {
+                    if (my $v = delete $aggregate->{$attr}) {
+                        for my $zone2 ($cluster ? @$cluster : ($zone)) {
+                            $zone2->{$attr} = $v;
                         }
                     }
                 }
@@ -8921,14 +8929,41 @@ sub inherit_router_attributes {
     return;
 }
 
-# Distribute NAT from zone to networks.
-sub inherit_nat {
+# Distribute NAT from area to zones.
+sub inherit_area_nat {
     my ($area) = @_;
 
     my $hash = $area->{nat} or return;
     for my $nat_tag (keys %$hash) {
         my $nat = $hash->{$nat_tag};
         for my $zone (@{ $area->{zones} }) {
+            next if $zone->{nat}->{$nat_tag};
+            $zone->{nat}->{$nat_tag} = $nat;
+#            debug "$zone->{name}: $nat_tag from $area->{name}";
+        }
+    }
+}
+
+sub inherit_attributes_from_area {
+
+    # Areas can be nested. Proceed from small to larger ones.
+    for my $area (
+        sort { @{ $a->{zones} } <=> @{ $b->{zones} } }
+        grep { not $_->{disabled} } values %areas
+      )
+    {
+        inherit_router_attributes($area);
+        inherit_area_nat($area);
+    }
+    return;
+}
+
+# Distribute NAT from zones to networks.
+sub inherit_nat_from_zone {
+    for my $zone (@zones) {
+        my $hash = $zone->{nat} or next;
+        for my $nat_tag (keys %$hash) {
+            my $nat = $hash->{$nat_tag};
             for my $network (@{ $zone->{networks} }) {
 
                 # Ignore NAT definition from area
@@ -8941,6 +8976,7 @@ sub inherit_nat {
 
                 next if $network->{ip} eq 'unnumbered';
                 next if $network->{isolated_ports};
+#                debug "$network->{name}: $nat_tag from $zone->{name}";
 
                 if ($nat->{identity}) {
                     $network->{identity_nat}->{$nat_tag} = $nat
@@ -8950,7 +8986,7 @@ sub inherit_nat {
                     $network->{ip} eq 'bridged' and
                         err_msg("Must not inherit nat:$nat_tag",
                                 " at bridged $network->{name}",
-                                " from $area->{name}");
+                                " from $zone->{name}");
 
                     # Copy NAT defintion; append name of network.
                     $network->{nat}->{$nat_tag} = {
@@ -8962,20 +8998,6 @@ sub inherit_nat {
                 }
             }
         }
-    }
-    return;
-}
-
-sub inherit_attributes_from_area {
-
-    # Areas can be nested. Proceed from small to larger ones.
-    for my $area (
-        sort { @{ $a->{zones} } <=> @{ $b->{zones} } }
-        grep { not $_->{disabled} } values %areas
-      )
-    {
-        inherit_router_attributes($area);
-        inherit_nat($area);
     }
     return;
 }
@@ -9110,6 +9132,7 @@ sub set_zone {
     }
     link_aggregates();
     inherit_attributes_from_area();
+    inherit_nat_from_zone();
     return;
 }
 

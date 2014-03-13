@@ -325,7 +325,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'NAT from overlapping areas';
+$title = 'NAT from overlapping areas and aggregates';
 ############################################################
 
 $in = <<END;
@@ -337,14 +337,20 @@ area:B = {
  border = interface:r2.b1;
  nat:hide = { hidden; }
 }
+any:a2 = { 
+ link = network:a2; 
+ nat:hide = { identity; }
+}
 
-network:a1 = { ip = 10.4.4.0/24; }
+network:a1 = { ip = 10.5.5.0/24; }
+network:a2 = { ip = 10.4.4.0/24; }
 router:r1 =  {
  managed;
  model = ASA;
  routing = manual;
- interface:a1 = { ip = 10.4.4.1; hardware = e1; }
- interface:b1 = { ip = 10.2.2.1; hardware = e0; }
+ interface:a1 = { ip = 10.5.5.1; hardware = vlan2; }
+ interface:a2 = { ip = 10.4.4.1; hardware = vlan1; }
+ interface:b1 = { ip = 10.2.2.1; hardware = vlan0; }
 }
 network:b2 = { ip = 10.3.3.0/24; }
 router:u = { interface:b2; interface:b1; }
@@ -359,19 +365,23 @@ router:r2 = {
 network:X = { ip = 10.1.1.0/24; }
 
 service:test = {
- user = network:a1, network:b1; #, network:b2;
+ user = network:a1, network:a2, network:b1; #, network:b2;
  permit src = network:X; dst = user; prt = tcp 80;
 }
 END
 
 $out = <<END;
-access-list e0_in extended permit tcp 10.1.1.0 255.255.255.0 10.4.4.0 255.255.255.0 eq 80
-access-list e0_in extended deny ip any any
-access-group e0_in in interface e0
+object-group network g0
+ network-object 10.4.4.0 255.255.255.0
+ network-object 10.5.5.0 255.255.255.0
+access-list vlan0_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80
+access-list vlan0_in extended deny ip any any
+access-group vlan0_in in interface vlan0
 --
 ip access-list extended e1_in
  deny ip any host 10.2.2.2
  permit tcp 10.1.1.0 0.0.0.255 10.99.99.8 0.0.0.3 eq 80
+ permit tcp 10.1.1.0 0.0.0.255 10.4.4.0 0.0.0.255 eq 80
  permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
  deny ip any any
 END
