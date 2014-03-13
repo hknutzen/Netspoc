@@ -1966,6 +1966,10 @@ sub read_interface {
         elsif (@pairs = check_assign_list 'reroute_permit', \&read_typed_name) {
             $interface->{reroute_permit}
               and error_atline('Duplicate definition of reroute_permit');
+            if (grep { $_->[0] ne 'network' || ref $_->[1] } @pairs) {
+                error_atline "Must only use network names in 'reroute_permit'";
+                @pairs = ();
+            }
             $interface->{reroute_permit} = \@pairs;
         }
         elsif (check_flag 'disabled') {
@@ -2666,6 +2670,10 @@ sub read_area {
         if (my @elements = check_assign_list 'border', \&read_intersection) {
             $area->{border}
               and error_atline('Duplicate definition of border');
+            if (grep { $_->[0] ne 'interface' || ref $_->[1] } @elements) {
+                error_atline "Must only use interface names in border";
+                @elements = ();
+            }
             $area->{border} = \@elements;
         }
         elsif (check_flag 'auto_border') {
@@ -2673,6 +2681,10 @@ sub read_area {
         }
         elsif (my $pair = check_assign 'anchor', \&read_typed_name) {
             $area->{anchor} and error_atline("Duplicate attribute 'anchor'");
+            if ($pair->[0] ne 'network' || ref $pair->[1]) {
+                error_atline "Must only use network name in anchor";
+                $pair = undef;
+            }
             $area->{anchor} = $pair;
         }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
