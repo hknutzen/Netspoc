@@ -1445,7 +1445,7 @@ sub read_host {
         }
     }
     if ($host->{managed}) {
-        my %ok = ( name => 1, ip => 1, nat => 1, file => 1,
+        my %ok = ( name => 1, ip => 1, nat => 1, file => 1, private => 1,
                    managed => 1, model => 1, hardware => 1, server_name => 1);
         for my $key (keys %$host) {
             next if $ok{$key};
@@ -1642,7 +1642,7 @@ sub read_network {
     defined $ip or syntax_err("Missing network IP");
 
     if ($ip eq 'unnumbered') {
-        my %ok = (ip => 1, name => 1, crosslink => 1);
+        my %ok = (ip => 1, name => 1, crosslink => 1, private => 1);
 
         # Unnumbered network must not have any other attributes.
         for my $key (keys %$network) {
@@ -1654,7 +1654,7 @@ sub read_network {
         }
     }
     elsif ($network->{bridged}) {
-        my %ok = (ip => 1, mask => 1, bridged => 1, name => 1, 
+        my %ok = (ip => 1, mask => 1, bridged => 1, name => 1, private => 1,
                   identity_nat => 1, owner => 1, crosslink => 1);
 
         # Bridged network must not have any other attributes.
@@ -2641,7 +2641,8 @@ sub read_aggregate {
     }
     if ($mask) {
         for my $key (keys %$aggregate) {
-            next if grep { $key eq $_ } qw( name ip mask link is_aggregate);
+            next if grep({ $key eq $_ } 
+                         qw( name ip mask link is_aggregate private));
             error_atline("Must not use attribute $key if mask is set");
         }
     }
