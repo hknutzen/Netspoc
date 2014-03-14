@@ -2225,8 +2225,6 @@ sub read_router {
                 $interface->{network} = $network;
 
                 # Set private attribute of interface.
-                # If a loopback network is created below it doesn't need to get
-                # this attribute because the network can't be referenced.
                 $interface->{private} = $private if $private;
             }
         }
@@ -2515,7 +2513,7 @@ sub read_router {
                 ($net_name = $name) =~ s/^interface://;
             }
             if (not $networks{$net_name}) {
-                $networks{$net_name} = new(
+                my $network = new(
                     'Network',
                     name => $name,
                     ip   => $interface->{ip},
@@ -2526,6 +2524,10 @@ sub read_router {
                     subnet_of => delete $interface->{subnet_of},
                     is_layer3 => $interface->{is_layer3},
                 );
+                if (my $private = $interface->{private}) {
+                    $network->{private} = $private;
+                }
+                $networks{$net_name} = $network;
             }
             $interface->{network} = $net_name;
         }
@@ -2559,6 +2561,9 @@ sub read_router {
                 name => "network:$net_name",
                 ip   => 'tunnel'
             );
+            if (my $private = $interface->{private}) {
+                $tunnel_net->{private} = $private;
+            }
             $networks{$net_name} = $tunnel_net;
 
             # Tunnel network will later be attached to crypto hub.
@@ -8652,6 +8657,8 @@ sub duplicate_aggregate_to_cluster {
     for my $zone (@$cluster) {
         next if $zone->{ipmask2aggregate}->{$key};
 #        debug("Dupl. $aggregate->{name} to $zone->{name}");
+
+        # Attribute networks must not be copied.
         my $aggregate2 = new(
             'Network',
             name         => $aggregate->{name},
@@ -8711,6 +8718,9 @@ sub get_any {
                 ip           => $ip,
                 mask         => $mask,
                 );
+            if (my $private = $zone->{private}) {
+                $aggregate->{private} = $private;
+            }
             link_implicit_aggregate_to_zone($aggregate, $zone, $key);
             duplicate_aggregate_to_cluster($aggregate, 1) if $cluster;
         };
@@ -8750,6 +8760,23 @@ sub set_zone1 {
     if (not($network->{ip} =~ /^(?:unnumbered|tunnel)$/)) {
         push @{ $zone->{networks} }, $network;
     }
+
+    # Zone inherits 'private' status from enclosed networks.
+    my $private1 = $network->{private} || 'public';
+    if ($zone->{private}) {
+        my $private2 = $zone->{private};
+        if ($private1 ne $private2) {
+            my $other = $zone->{networks}->[0];
+            err_msg("All networks of $zone->{name} must have",
+                    " identical 'private' status\n",
+                    " - $other->{name}: $private2\n",
+                    " - $network->{name}: $private1");
+        }
+    }
+
+    # Attribute is removed below, if value is 'public'.
+    $zone->{private} = $private1;
+
     for my $interface (@{ $network->{interfaces} }) {
 
         # Ignore interface where we reached this network.
@@ -8784,6 +8811,7 @@ sub set_zone_cluster {
     my $restrict;
     push @$zone_aref, $zone;
     $zone->{zone_cluster} = $zone_aref;
+    my $private1 = $zone->{private} || 'public';
 
     for my $interface (@{ $zone->{interfaces} }) {
         next if $interface eq $in_interface;
@@ -8800,6 +8828,12 @@ sub set_zone_cluster {
             my $next = $out_interface->{zone};
             next if $next->{zone_cluster};
             next if check_global_active_pathrestriction($out_interface);
+            my $private2 = $next->{private} || 'public';
+            $private1 eq $private2 or
+                err_msg("Zones connected by $router->{name}",
+                        " must all have identical 'private' status\n",
+                        " - $zone->{name}: $private1\n",
+                        " - $next->{name}: $private2");
             set_zone_cluster($next, $out_interface, $zone_aref);
         }
         delete $router->{active_path};
@@ -9023,6 +9057,10 @@ sub set_zone {
         # been added to prevent duplicates in {unmanaged_routers}.
         if (my $unmanaged = $zone->{unmanaged_routers}) {
             delete $_->{zone} for @$unmanaged;
+        }
+
+        if ($zone->{private} && $zone->{private} eq 'public') {
+            delete $zone->{private};
         }
     }
 
