@@ -126,6 +126,8 @@ sub get_zones {
 ####################################################################
 
 my $config = shift @ARGV or usage;
+
+Netspoc::set_config({time_stamps => 1, max_errors => 9999});
 &show_version();
 
 # Read and process netspoc configuration data.
@@ -162,7 +164,6 @@ for my $ref (values %name2var) {
 &setpath();
 Netspoc::find_subnets_in_zone();
 &expand_services(1);
-&abort_on_error();
 
 # Process rules of services.
 sub process_rules {
