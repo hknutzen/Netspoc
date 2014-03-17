@@ -8914,8 +8914,9 @@ sub set_area1 {
 
             # Found another border of current area from wrong side.
             elsif ($lookup->{$out_interface}) {
-                err_msg("Inconsistent definition of $area->{name}",
-                        " in loop at $out_interface->{name}");
+                err_msg("Inconsistent definition of $area->{name} in loop at\n",
+                        " - $out_interface->{name}\n",
+                        " - $in_interface->{name}");
                 next;
             }
             set_area1($out_interface->{zone}, $area, $out_interface);
