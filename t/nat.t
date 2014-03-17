@@ -243,6 +243,51 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Multiple static NAT';
+############################################################
+
+$in = <<END;
+network:a1 = { 
+ ip = 10.1.1.0/24; 
+ nat:b1 = { ip = 10.8.8.0; }
+ nat:b2 = { ip = 10.9.9.0; }
+}
+
+router:r1  =  {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:a1 = { ip = 10.1.1.1; hardware = e0; }
+ interface:b1 = { ip = 10.2.2.1; hardware = e1; bind_nat = b1; }
+}
+network:b1 = { ip = 10.2.2.0/24; }
+
+router:r2  =  {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:b1 = { ip = 10.2.2.2; hardware = e2; }
+ interface:b2 = { ip = 10.3.3.1; hardware = e3; bind_nat = b2; }
+}
+network:b2 = { ip = 10.3.3.0/24; }
+
+service:test = {
+ user = network:a1;
+ permit src = network:b2; dst = user; prt = tcp;
+}
+END
+
+$out = <<END;
+! [ NAT ]
+static (e0,e1) 10.8.8.0 10.1.1.0 netmask 255.255.255.0
+--
+! [ NAT ]
+static (e2,e3) 10.9.9.0 10.8.8.0 netmask 255.255.255.0
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Must not bind multiple NAT of one network at one place';
 ############################################################
 
