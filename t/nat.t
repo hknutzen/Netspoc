@@ -508,4 +508,57 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Grouped NAT tags must only be used grouped';
+############################################################
+
+$in = <<END;
+network:n1 = { 
+ ip = 10.1.1.0/24; 
+ nat:t1 = { ip = 10.9.1.0; }
+ nat:t2 = { ip = 10.9.8.0; }
+}
+
+network:n2 = { 
+ ip = 10.1.2.0/24; 
+ nat:t2 = { ip = 10.9.9.0; }
+}
+
+router:r1 =  {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = e0; }
+ interface:n2 = { ip = 10.1.2.1; hardware = e0; }
+ interface:t  = { ip = 10.2.3.1; hardware = e1; bind_nat = t1; }
+}
+network:t = { ip = 10.2.3.0/24; }
+router:r2 =  {
+ managed;
+ model = ASA;
+ interface:t  = { ip = 10.2.3.2; hardware = e1; }
+ interface:k = { ip = 10.2.2.2; hardware = e2; bind_nat = t2; }
+}
+network:k = { ip = 10.2.2.0/24; }
+END
+
+$out = <<END;
+Error: If multiple NAT tags are used at one network,
+ these NAT tags must be used equally grouped at other networks:
+ - network:n2: t2
+ - nat:t2(network:n1): t2,t1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Grouped NAT tags with single hidden allowed';
+############################################################
+
+$in =~ s/ip = 10.9.[89].0/hidden/g;
+
+$out = <<END;
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;

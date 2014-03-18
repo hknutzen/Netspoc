@@ -7401,43 +7401,42 @@ sub distribute_no_nat_set {
 
             # NAT binding removes tag from no_nat_set.
             for my $nat_tag (@$nat_tags) {
-                if (my $href = delete $next_no_nat_set{$nat_tag}) {
-                    $nat_bound->{$nat_tag}->{ $router->{name} } = 'used';
+                my $href = delete $next_no_nat_set{$nat_tag} or next;
+                $nat_bound->{$nat_tag}->{ $router->{name} } = 'used';
 
-                    # A network having multiple NAT tags 
-                    # (i.e. multiple translations).
-                    # At most one translation can be active in a NAT domain.
-                    # Hence add the missing tag again if one of the
-                    # group of tags was removed.
-                    if (keys %$href >= 2) {
-                        for my $multi (keys %$href) {
-                            next if $multi eq $nat_tag;
-                            if (not $next_no_nat_set{$multi}) {
-                                $next_no_nat_set{$multi} = $href;
-#                                debug "multi: $multi";
+                # A network having multiple NAT tags 
+                # (i.e. multiple translations).
+                # At most one translation can be active in a NAT domain.
+                # Hence add the missing tag again if one of the
+                # group of tags was removed.
+                if (keys %$href >= 2) {
+                    for my $multi (keys %$href) {
+                        next if $multi eq $nat_tag;
+                        if (not $next_no_nat_set{$multi}) {
+                            $next_no_nat_set{$multi} = $href;
+#                           debug "multi: $multi";
 
-                                # Prevent transition from dynamic back to
-                                # static NAT for current network.
-                                if ($href->{$multi}->{hidden}) { 
-                                    if(not $href->{$nat_tag}->{hidden}) {
-                                        my $net_name = $href->{$multi}->{name};
-                                        err_msg("Must not change hidden NAT",
-                                                " for $net_name\n",
-                                                " using NAT tag '$nat_tag'",
-                                                " at $router->{name}");
-                                    }
+                            # Prevent transition from dynamic back to
+                            # static NAT for current network.
+                            if ($href->{$multi}->{hidden}) { 
+                                if(not $href->{$nat_tag}->{hidden}) {
+                                    my $net_name = $href->{$multi}->{name};
+                                    err_msg("Must not change hidden NAT",
+                                            " for $net_name\n",
+                                            " using NAT tag '$nat_tag'",
+                                            " at $router->{name}");
                                 }
-                                elsif ($href->{$multi}->{dynamic}) {
-                                    if(     not $href->{$nat_tag}->{dynamic}
-                                        and not $href->{$nat_tag}->{hidden})
-                                    {
-                                        my $net_name = $href->{$multi}->{name};
-                                        err_msg("Must not change NAT",
-                                                " from dynamic to static",
-                                                " for $net_name\n",
-                                                " using NAT tag '$nat_tag'",
-                                                " at $router->{name}");
-                                    }
+                            }
+                            elsif ($href->{$multi}->{dynamic}) {
+                                if(    not $href->{$nat_tag}->{dynamic}
+                                   and not $href->{$nat_tag}->{hidden})
+                                {
+                                    my $net_name = $href->{$multi}->{name};
+                                    err_msg("Must not change NAT",
+                                            " from dynamic to static",
+                                            " for $net_name\n",
+                                            " using NAT tag '$nat_tag'",
+                                            " at $router->{name}");
                                 }
                             }
                         }
@@ -7478,6 +7477,11 @@ sub distribute_nat_info {
     # - that NAT tags are equally used grouped or solitary.
     my %nat_tags2multi;
 
+    # Mapping from NAT tag to bool.
+    # Is set if at least one NAT tag translates to something 
+    # other than 'hidden'.
+    my %has_non_hidden;
+
     # NAT tags bound at some interface, tag => router_name => (1 | 'used').
     my %nat_bound;
 
@@ -7506,13 +7510,26 @@ sub distribute_nat_info {
         # Check consistency of grouped NAT tags at one network.
         # If NAT tags are grouped at one network,
         # the same NAT tags must be used as group at all other networks.
-        if (my $href = $network->{nat}) {
+        # This restriction is needed, because no_nat_set of grouped NAT tags
+        # is handled differently in distribute_no_nat_set.
+        # Exception:
+        # NAT tags with "hidden" can be used separately.
+        my $href = $network->{nat} or next;
+        
+        # Print error message only once per network.
+        my $err;
+        for my $nat_tag (keys %$href) {
+            $href->{$nat_tag}->{hidden} or $has_non_hidden{$nat_tag} = 1;
+            if (my $href2 = $nat_tags2multi{$nat_tag}) {
+                if (!$err && !keys_equal($href, $href2)) {
 
-            # Print error message only once per network.
-            my $err;
-            for my $nat_tag (keys %$href) {
-                if (my $href2 = $nat_tags2multi{$nat_tag}) {
-                    if (not $err and not keys_equal($href, $href2)) {
+                    # NAT tag can be used both grouped and solitary,
+                    # if and only if 
+                    # - single NAT tag translates to hidden, 
+                    # - the same NAT tag translates to hidden in group.
+                    if ($has_non_hidden{$nat_tag} ||
+                        (1 != keys %$href && 1 != keys %$href2)) 
+                    {
                         my $tags  = join(',', keys %$href);
                         my $name  = $network->{name};
                         my $tags2 = join(',', keys %$href2);
@@ -7521,21 +7538,21 @@ sub distribute_nat_info {
                         # Value is a NAT entry with name of the network.
                         my $name2 = (%$href2)[1]->{name};
                         err_msg
-                          "If multiple NAT tags are used at one network,\n",
-                          " these NAT tags must also be used together at",
-                          " other networks:\n", 
-                          " - $name: $tags\n",
-                          " - $name2: $tags2";
+                            "If multiple NAT tags are used at one network,\n",
+                            " these NAT tags must be used",
+                            " equally grouped at other networks:\n", 
+                            " - $name: $tags\n",
+                            " - $name2: $tags2";
                         $err = 1;
                     }
                 }
-                else {
-                    $nat_tags2multi{$nat_tag} = $href;
-                }
-
-#		debug("$domain->{name} no_nat_set: $nat_tag");
-                $no_nat_set{$domain}->{$nat_tag} = $href;
             }
+            else {
+                $nat_tags2multi{$nat_tag} = $href;
+            }
+
+#	    debug("$domain->{name} no_nat_set: $nat_tag");
+            $no_nat_set{$domain}->{$nat_tag} = $href;
         }
     }
 
