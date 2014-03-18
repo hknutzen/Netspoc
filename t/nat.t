@@ -315,6 +315,33 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Unused / undefined NAT tag';
+############################################################
+
+$in = <<END;
+network:Test =  {
+ ip = 10.0.0.0/24; 
+ nat:C = { ip = 10.8.8.0; }
+}
+
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.0.0.2; hardware = inside; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = D; }
+}
+
+network:X = { ip = 10.8.3.0/24; }
+END
+
+$out = <<END;
+Warning: nat:C is defined, but not bound to any interface
+Warning: Ignoring useless nat:D bound at router:filter
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Check rule with host and dynamic NAT';
 ############################################################
 
