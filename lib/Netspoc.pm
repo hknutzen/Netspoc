@@ -7355,6 +7355,8 @@ sub distribute_no_nat_set {
     # Distribute no_nat_set to adjacent NAT domains.
     for my $router (@{ $domain->{routers} }) {
         next if $router eq $in_router;
+        next if $router->{active_path};
+        $router->{active_path} = 1;
         my $in_nat_tags = $router->{nat_tags}->{$domain};
 
         for my $tag (@$in_nat_tags) {
@@ -7370,11 +7372,15 @@ sub distribute_no_nat_set {
             next if $out_dom eq $domain;
             my %next_no_nat_set = %$no_nat_set;
             my $nat_tags        = $router->{nat_tags}->{$out_dom};
+
+            # Multiple tags are bound to an interface.
             if (@$nat_tags >= 2) {
 
                 # href -> [nat_tag, ..]
                 my %multi;
                 for my $tag (@$nat_tags) {
+
+                    # A network has more than one NAT definition for these tags.
                     if (keys %{ $next_no_nat_set{$tag} } >= 2) {
                         push @{ $multi{ $next_no_nat_set{$tag} } }, $tag;
                     }
@@ -7398,14 +7404,17 @@ sub distribute_no_nat_set {
                 if (my $href = delete $next_no_nat_set{$nat_tag}) {
                     $nat_bound->{$nat_tag}->{ $router->{name} } = 'used';
 
-                    # Add other tags again if one of a group of tags
-                    # was removed.
+                    # A network having multiple NAT tags 
+                    # (i.e. multiple translations).
+                    # At most one translation can be active in a NAT domain.
+                    # Hence add the missing tag again if one of the
+                    # group of tags was removed.
                     if (keys %$href >= 2) {
-
                         for my $multi (keys %$href) {
                             next if $multi eq $nat_tag;
                             if (not $next_no_nat_set{$multi}) {
                                 $next_no_nat_set{$multi} = $href;
+#                                debug "multi: $multi";
 
                                 # Prevent transition from dynamic back to
                                 # static NAT for current network.
@@ -7436,8 +7445,9 @@ sub distribute_no_nat_set {
                 }
             }
             distribute_no_nat_set($out_dom, \%next_no_nat_set, $router,
-                $nat_bound);
+                                  $nat_bound);
         }
+        delete $router->{active_path};
     }
     delete $domain->{active_path};
     return;
