@@ -10877,6 +10877,7 @@ sub collect_supernet_dst_rules {
     if (!$dst->{is_aggregate}) {
         my $no_nat_set = $in_intf->{no_nat_set};
         my $dst = get_nat_network($dst, $no_nat_set);
+        return if $dst->{hidden};
     }
 
     my $ipmask = join('/', @{$dst}{qw(ip mask)});
@@ -10932,6 +10933,7 @@ sub find_zone_network {
     my $result   = 0;
     for my $network (@$networks) {
         my $nat_network = get_nat_network($network, $no_nat_set);
+        next if $nat_network->{hidden};
         my ($i, $m) = @{$nat_network}{qw(ip mask)};
         next if $i =~ /^(?:unnumbered|tunnel)$/;
 
@@ -11019,6 +11021,7 @@ sub check_supernet_in_zone {
         if (!$dst->{is_aggregate}) {
             my $no_nat_set = $interface->{no_nat_set};
             $dst = get_nat_network($dst, $no_nat_set);
+            return if $dst->{hidden};
         }
         my $ipmask = join('/', @{$dst}{qw(ip mask)});
         return if $supernet_rule_tree{$stateless}->{$src}->{$src_range}
