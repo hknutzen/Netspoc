@@ -9856,9 +9856,6 @@ sub cluster_path_mark  {
         last BLOCK if not $success;
         $success = 0;
 
-        # When entering sub-graph at $from_in we will leave it at $to_out.
-        $from_in->{path}->{$to_store} = $to_out;
-
         $from_in->{loop_entry}->{$to_store}    = $start_store;
         $start_store->{loop_exit}->{$to_store} = $end_store;
 
@@ -9968,6 +9965,11 @@ sub cluster_path_mark  {
                 $restrict->{active_path} = 0;
             }
         }
+    }
+    if ($success) {
+
+        # When entering sub-graph at $from_in we will leave it at $to_out.
+        $from_in->{path}->{$to_store} = $to_out;
     }
     return $success;
 }
