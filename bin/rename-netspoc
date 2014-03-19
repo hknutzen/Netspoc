@@ -57,7 +57,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2012 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2014 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -105,7 +105,6 @@ my %global_type =
     map { $_ => 1 } qw( 
 router network host any group area service
 owner protocol protocolgroup pathrestriction nat isakmp ipsec crypto
-policy servicegroup
 );
 
 # NAT is applied with bind_nat.
