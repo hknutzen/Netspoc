@@ -9267,10 +9267,10 @@ sub check_pathrestrictions {
               )
             {
                 delete $obj->{path_restrict};
-                $obj = undef;
-                $deleted = 1;
                 warn_msg("Ignoring $restrict->{name} at $obj->{name}\n",
                          " because it isn't located inside cyclic graph");
+                $obj = undef;
+                $deleted = 1;
             }
         }
         if ($deleted) {
