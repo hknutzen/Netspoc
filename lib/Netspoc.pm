@@ -14188,7 +14188,8 @@ sub address {
             else {
 
                 # This has been converted to the  whole network before.
-                internal_err("Unexpected $obj->{name} with dynamic NAT");
+                internal_err(
+                    "Unexpected $obj->{name} with dynamic nat:$nat_tag");
             }
         }
         else {
@@ -14218,7 +14219,8 @@ sub address {
                 return [ $ip, 0xffffffff ];
             }
             else {
-                internal_err("Unexpected $obj->{name} with dynamic NAT");
+                internal_err(
+                    "Unexpected $obj->{name} with dynamic nat:$nat_tag");
             }
         }
         elsif ($network->{isolated}) {
