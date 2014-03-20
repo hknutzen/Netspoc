@@ -1400,6 +1400,11 @@ sub read_host {
             $host->{radius_attributes} = $radius_attributes;
         }
         elsif (check_flag 'policy_distribution_point') {
+            $policy_distribution_point
+                and err_msg("Attribute 'policy_distribution_point'",
+                            " must only be used once:\n",
+                            " - $policy_distribution_point->{name}\n",
+                            " - $host->{name}");
             $policy_distribution_point = $host;
         }
         elsif (my $pair = check_typed_name) {
