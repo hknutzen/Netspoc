@@ -309,7 +309,7 @@ network:X = { ip = 10.8.3.0/24; }
 END
 
 $out = <<END;
-Error: Must not use multiple NAT tags 'C,D' of nat:D(network:Test) at router:filter
+Error: Must not bind multiple NAT tags 'C,D' of nat:D(network:Test) at router:filter
 END
 
 test_err($title, $in, $out);
@@ -556,6 +556,57 @@ $title = 'Grouped NAT tags with single hidden allowed';
 $in =~ s/ip = 10.9.[89].0/hidden/g;
 
 $out = <<END;
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Multiple grouped NAT tags';
+############################################################
+
+$in = <<END;
+network:U1 = {
+ ip = 10.1.1.0/24;
+ nat:t1 = { hidden; }
+ nat:t2 = { ip = 10.9.9.0; }
+ host:h = { ip = 10.1.1.10; }
+}
+network:U2 = { ip = 10.3.3.0/29;
+ nat:t1 = { ip = 10.9.1.0; }
+ nat:t2 = { ip = 10.9.2.0; } 
+}
+network:U3 = { ip = 10.3.3.8/29;
+ nat:t1 = { ip = 10.9.3.0; }
+ nat:t2 = { hidden; } 
+}
+
+router:R0 = {
+ interface:U2;
+ interface:U1;
+ interface:U3;
+ interface:T = { ip = 10.3.3.17; bind_nat = t1;}
+}
+
+network:T = { ip = 10.3.3.16/29; }
+
+router:R2 = {
+ managed;
+ model = ASA;
+ interface:T = { ip = 10.3.3.18; hardware = e0;}
+ interface:K = { ip = 10.2.2.1; hardware = e2; bind_nat = t2; }
+}
+
+network:K = { ip = 10.2.2.0/24; }
+
+service:test = {
+ user = host:h;
+ permit src = user; dst = network:K; prt = tcp;
+}
+END
+
+$out = <<END;
+Error: Must not change hidden NAT for nat:t1(network:U1)
+ using NAT tag 't2' at router:R2
 END
 
 test_err($title, $in, $out);

@@ -7322,6 +7322,39 @@ sub set_natdomain {
     return;
 }
 
+sub keys_equal {
+    my ($href1, $href2) = @_;
+    keys %$href1 == keys %$href2 or return 0;
+    for my $key (keys %$href1) {
+        exists $href2->{$key} or return 0;
+    }
+    return 1;
+}
+
+# Input: 
+# - Array with hashes
+# - Hash with { nat_tag => { dynamic => 0|1 } }
+# Output: An array collecting hashes having 
+# - more than one tag
+# - don't add, if array already contains a similar hash
+# Similar: 
+# - Keys are equal
+# - Attribute 'dynamic' is equal for all values.
+sub collect_multi_nat {
+    my ($aref, $href) = @_;
+    return $aref if keys %$href < 2;
+  H:
+    for my $h (@$aref) {
+        next if keys %$href != keys %$h;
+        for my $key (keys %$h) {
+            next H if !$href->{$key};
+            next H if $href->{$key}->{dynamic} xor $h->{$key}->{dynamic};
+        }
+        return $aref;
+    }
+    return [ @$aref, $href ];
+}
+
 # Distribute no_nat_sets from NAT domain to NAT domain.
 # Collect bound nat_tags in $nat_bound as
 #  nat_tag => router->{name} => used
@@ -7348,8 +7381,16 @@ sub distribute_no_nat_set {
 
     my $changed;
     for my $tag (keys %$no_nat_set) {
-        next if $domain->{no_nat_set}->{$tag};
-        $domain->{no_nat_set}->{$tag} = $no_nat_set->{$tag};
+        my $aref1 = $no_nat_set->{$tag};
+        if (my $aref2 = $domain->{no_nat_set}->{$tag}) {
+            my $merged = $aref2;
+            for my $h (@$aref1) {
+                $merged = collect_multi_nat($merged, $h);
+            }
+            next if $merged eq $aref2;
+            $aref1 = $merged;
+        }
+        $domain->{no_nat_set}->{$tag} = $aref1;
         $changed = 1;
     }
     return if not $changed;
@@ -7373,54 +7414,48 @@ sub distribute_no_nat_set {
                   " at $router->{name}.";
             }
         }
+
+        # Collect NAT mapping with multiple NAT for a network.
+        my %key2tags;
+        my %href2href;
         for my $out_dom (@{ $router->{nat_domains} }) {
             next if $out_dom eq $domain;
             my %next_no_nat_set = %$no_nat_set;
             my $nat_tags        = $router->{nat_tags}->{$out_dom};
 
             # Multiple tags are bound to an interface.
+            # Find all networks having multiple NAT tags, 
+            # which match at least two bound NAT tags.
             if (@$nat_tags >= 2) {
-
-                # href -> [nat_tag, ..]
-                my %multi;
                 for my $tag (@$nat_tags) {
-
-                    # A network has more than one NAT definition for these tags.
-                    if (keys %{ $next_no_nat_set{$tag} } >= 2) {
-                        push @{ $multi{ $next_no_nat_set{$tag} } }, $tag;
-                    }
-                }
-                if (keys %multi) {
-                    for my $aref (values %multi) {
-                        if (@$aref >= 2) {
-                            my $tags = join(',', @$aref);
-                            my $net_name =
-                              (values %{ $next_no_nat_set{ $aref->[0] } })[0]
-                              ->{name};
-                            err_msg "Must not use multiple NAT tags '$tags'",
-                              " of $net_name at $router->{name}";
-                        }
+                    if (my $aref = $next_no_nat_set{$tag}) {
+                       for my $href (@$aref) {
+                           $key2tags{$href}->{$tag} = $tag;
+                           $href2href{$href} = $href;
+                       }
                     }
                 }
             }
 
             # NAT binding removes tag from no_nat_set.
             for my $nat_tag (@$nat_tags) {
-                my $href = delete $next_no_nat_set{$nat_tag} or next;
+                my $aref = delete $next_no_nat_set{$nat_tag} or next;
                 $nat_bound->{$nat_tag}->{ $router->{name} } = 'used';
+                @$aref or next;
 
                 # A network having multiple NAT tags 
                 # (i.e. multiple translations).
                 # At most one translation can be active in a NAT domain.
                 # Hence add the missing tag again if one of the
                 # group of tags was removed.
-                if (keys %$href >= 2) {
+                my $set_multi;
+                for my $href (@$aref) {
                     for my $multi (keys %$href) {
                         next if $multi eq $nat_tag;
                         if (not $next_no_nat_set{$multi}) {
-                            $next_no_nat_set{$multi} = $href;
-#                           debug "multi: $multi";
+                            $set_multi = $multi;
 
+#                            debug "bound: $nat_tag multi: $multi";
                             # Prevent transition from dynamic back to
                             # static NAT for current network.
                             if ($href->{$multi}->{hidden}) { 
@@ -7447,10 +7482,22 @@ sub distribute_no_nat_set {
                         }
                     }
                 }
+                $next_no_nat_set{$set_multi} = $aref if $set_multi;
             }
             distribute_no_nat_set($out_dom, \%next_no_nat_set, $router,
                                   $nat_bound);
         }
+
+        for my $key (keys %key2tags) {
+            my $tags = $key2tags{$key};
+            next if keys %$tags < 2;
+            $tags = join(',', sort keys %$tags);
+            my $href = $href2href{$key};
+            my $net_name = (%$href)[1]->{name};
+            err_msg("Must not bind multiple NAT tags '$tags'",
+                    " of $net_name at $router->{name}");
+        }
+
         delete $router->{active_path};
     }
     delete $domain->{active_path};
@@ -7458,15 +7505,6 @@ sub distribute_no_nat_set {
 }
 
 my @natdomains;
-
-sub keys_equal {
-    my ($href1, $href2) = @_;
-    keys %$href1 == keys %$href2 or return 0;
-    for my $key (keys %$href1) {
-        exists $href2->{$key} or return 0;
-    }
-    return 1;
-}
 
 sub distribute_nat_info {
     progress('Distributing NAT');
@@ -7556,8 +7594,8 @@ sub distribute_nat_info {
                 $nat_tags2multi{$nat_tag} = $href;
             }
 
-#	    debug("$domain->{name} no_nat_set: $nat_tag");
-            $no_nat_set{$domain}->{$nat_tag} = $href;
+            my $prev = $no_nat_set{$domain}->{$nat_tag} || [];
+            $no_nat_set{$domain}->{$nat_tag} = collect_multi_nat($prev, $href);
         }
     }
 
@@ -7580,6 +7618,18 @@ sub distribute_nat_info {
     # Distribute no_nat_set to neighbor NAT domains.
     for my $domain (@natdomains) {
         distribute_no_nat_set($domain, $no_nat_set{$domain}, 0, \%nat_bound);
+    }
+
+    for my $tag (keys %nat_tags2multi) {
+        $nat_bound{$tag}
+          or warn_msg("nat:$tag is defined, but not bound to any interface");
+    }
+    for my $tag (keys %nat_bound) {
+        my $href = $nat_bound{$tag};
+        for my $router_name (keys %$href) {
+            $href->{$router_name} eq 'used'
+              or warn_msg("Ignoring useless nat:$tag bound at $router_name");
+        }
     }
 
     # Check compatibility of host/interface and network NAT.
@@ -7634,18 +7684,6 @@ sub distribute_nat_info {
                             " $router->{model}->{name}.");
                 }
             }
-        }
-    }
-
-    for my $tag (keys %nat_tags2multi) {
-        $nat_bound{$tag}
-          or warn_msg("nat:$tag is defined, but not bound to any interface");
-    }
-    for my $tag (keys %nat_bound) {
-        my $href = $nat_bound{$tag};
-        for my $router_name (keys %$href) {
-            $href->{$router_name} eq 'used'
-              or warn_msg("Ignoring useless nat:$tag bound at $router_name");
         }
     }
     return;
@@ -14164,10 +14202,7 @@ sub rules_distribution {
 # ACL Generation
 ##############################################################################
 
-# Parameters:
-# obj: this address we want to know
-# network: look inside this NAT domain
-# returns a list of [ ip, mask ] pairs
+# Returns [ ip, mask ] pair
 sub address {
     my ($obj, $no_nat_set) = @_;
     my $type = ref $obj;
