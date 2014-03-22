@@ -94,7 +94,8 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
       }
     
     <VRF-name>    ::= <name>
-    <filter type> ::= primary | full | standard | secondary | local
+    <filter type> ::= primary | full | standard | 
+                      secondary | local | local_secondary
     <model>       ::= Linux | ASA | ASA,8.4 | PIX | IOS | IOS,FW | NX-OS | ACE
     <ip-prefix>   ::= <ip>/<prefix-len>
 
