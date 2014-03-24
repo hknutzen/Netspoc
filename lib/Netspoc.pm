@@ -7428,18 +7428,19 @@ sub distribute_no_nat_set {
             }
         }
 
-        # Collect NAT mapping with multiple NAT for a network.
-        my %key2tags;
-        my %href2href;
         for my $out_dom (@{ $router->{nat_domains} }) {
             next if $out_dom eq $domain;
             my %next_no_nat_set = %$no_nat_set;
             my $nat_tags        = $router->{nat_tags}->{$out_dom};
 
             # Multiple tags are bound to an interface.
-            # Find all networks having multiple NAT tags, 
-            # which match at least two bound NAT tags.
+            # If a network has multiple matching NAT tags, 
+            # the resulting NAT mapping would be ambigous.
             if (@$nat_tags >= 2) {
+
+                # Collect NAT mapping with multiple NAT for a network.
+                my %key2tags;
+                my %href2href;
                 for my $tag (@$nat_tags) {
                     if (my $aref = $next_no_nat_set{$tag}) {
                        for my $href (@$aref) {
@@ -7447,6 +7448,15 @@ sub distribute_no_nat_set {
                            $href2href{$href} = $href;
                        }
                     }
+                }
+                for my $key (keys %key2tags) {
+                    my $tags = $key2tags{$key};
+                    next if keys %$tags < 2;
+                    $tags = join(',', sort keys %$tags);
+                    my $href = $href2href{$key};
+                    my $net_name = (%$href)[1]->{name};
+                    err_msg("Must not bind multiple NAT tags '$tags'",
+                            " of $net_name at $router->{name}");
                 }
             }
 
@@ -7499,16 +7509,6 @@ sub distribute_no_nat_set {
             }
             distribute_no_nat_set($out_dom, \%next_no_nat_set, $router,
                                   $nat_bound);
-        }
-
-        for my $key (keys %key2tags) {
-            my $tags = $key2tags{$key};
-            next if keys %$tags < 2;
-            $tags = join(',', sort keys %$tags);
-            my $href = $href2href{$key};
-            my $net_name = (%$href)[1]->{name};
-            err_msg("Must not bind multiple NAT tags '$tags'",
-                    " of $net_name at $router->{name}");
         }
 
         delete $router->{active_path};
