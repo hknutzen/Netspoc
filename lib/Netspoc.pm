@@ -7355,6 +7355,8 @@ sub collect_multi_nat {
     return [ @$aref, $href ];
 }
 
+my @natdomains;
+
 # Distribute no_nat_sets from NAT domain to NAT domain.
 # Collect bound nat_tags in $nat_bound as
 #  nat_tag => router->{name} => used
@@ -7406,8 +7408,19 @@ sub distribute_no_nat_set {
         my $in_nat_tags = $router->{nat_tags}->{$domain};
 
         for my $tag (@$in_nat_tags) {
-            if (my $href = $no_nat_set->{$tag}) {
-                my $net_name = (values %$href)[0]->{name};
+            if ($no_nat_set->{$tag}) {
+
+                # Find some network with this NAT tag for better errr message.
+                my $net_name;
+              DOMAIN:
+                for my $domain (@natdomains) {
+                    for my $network (@{ $domain->{networks} }) {
+                        if ($network->{nat} && $network->{nat}->{$tag}) {
+                            $net_name = $network->{name};
+                            last DOMAIN;
+                        }
+                    }
+                }
                 err_msg "$net_name is translated by $tag,\n",
                   " but is located inside the translation domain of $tag.\n",
                   " Probably $tag was bound to wrong interface",
@@ -7503,8 +7516,6 @@ sub distribute_no_nat_set {
     delete $domain->{active_path};
     return;
 }
-
-my @natdomains;
 
 sub distribute_nat_info {
     progress('Distributing NAT');
