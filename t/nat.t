@@ -612,4 +612,50 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Reversed dynamic NAT in loop';
+############################################################
+
+$in = <<END;
+network:U = {
+ ip = 10.1.1.0/24;
+ nat:u = { hidden; }
+ host:h = { ip = 10.1.1.10; }
+}
+
+router:R0 = {
+ model = ASA;
+ interface:U = { ip = 10.1.1.1; hardware = e0;}
+ interface:C = { ip = 10.3.3.1; hardware = e3; bind_nat = u; }
+ interface:T = { ip = 10.3.3.17; hardware = e1; }
+}
+
+network:T = { ip = 10.3.3.16/29; }
+network:C = { ip = 10.3.3.0/29; }
+
+router:R2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:T = { ip = 10.3.3.18; hardware = e0;}
+ interface:C = { ip = 10.3.3.2; hardware = e4; bind_nat = u; }
+ interface:K = { ip = 10.2.2.1; hardware = e2; }
+}
+
+network:K = { ip = 10.2.2.0/24; }
+
+service:test = {
+ user = host:h;
+ permit src = user; dst = network:K; prt = tcp;
+}
+END
+
+$out = <<END;
+Error: Must not apply reversed hidden NAT 'u' at interface:R2.C;
+ add pathrestriction to exclude this path
+Aborted
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;

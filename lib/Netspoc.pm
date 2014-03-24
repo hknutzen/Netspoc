@@ -13631,7 +13631,7 @@ sub distribute_rule {
     # Don't generate code for src any:[interface:r.loopback] at router:r.
     return if $in_intf->{loopback};
 
-    # Validate dynamic NAT.
+    # Adapt rule to dynamic NAT.
     if (my $dynamic_nat = $rule->{dynamic_nat}) {
         my $no_nat_set = $in_intf->{no_nat_set};
         my $orig_rule = $rule;
@@ -13657,6 +13657,30 @@ sub distribute_rule {
             # Make a copy of current rule, because the original rule
             # must not be changed.
             $rule = { %$rule, $where => $network };
+        }
+    }
+
+    # Check dynamic NAT in loop.
+    if ((my $nat_tags = $in_intf->{bind_nat}) &&
+        $in_intf->{loop} &&
+        (my $no_nat_set = $in_intf->{no_nat_set}))
+    {
+        my $src = $rule->{src};
+        my $is_net = is_network($src);
+        my $src_net = $is_net ? $src : $src->{network};
+        if (my $nat_hash = $src_net->{nat}) {
+            for my $nat_tag (@$nat_tags) {
+                if (my $nat_net = $nat_hash->{$nat_tag}) {
+                    if ($nat_net->{dynamic}) {
+                        if ($is_net || !$src->{nat} || !$src->{nat}->{$nat_tag}) {
+                            my $type = $nat_net->{hidden} ? 'hidden' : 'dynamic';
+                            err_msg("Must not apply reversed $type NAT",
+                                    " '$nat_tag' at $in_intf->{name};\n",
+                                    " add pathrestriction to exclude this path");
+                        }
+                    }
+                }
+            }
         }
     }
 
