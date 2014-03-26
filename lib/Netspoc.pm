@@ -7381,7 +7381,6 @@ sub distribute_no_nat_set {
         return;
     }
 
-    my $changed;
     for my $tag (keys %$no_nat_set) {
         my $aref1 = $no_nat_set->{$tag};
         if (my $aref2 = $domain->{no_nat_set}->{$tag}) {
@@ -7393,9 +7392,11 @@ sub distribute_no_nat_set {
             $aref1 = $merged;
         }
         $domain->{no_nat_set}->{$tag} = $aref1;
-        $changed = 1;
     }
-    return if not $changed;
+
+    # Don't stop recursion here, even if no_nat_set is unchanged.
+    # We need to traverse loops from each side to find all error
+    # conditions.
 
     # Activate loop detection.
     $domain->{active_path} = 1;
@@ -7405,12 +7406,15 @@ sub distribute_no_nat_set {
         next if $router eq $in_router;
         next if $router->{active_path};
         $router->{active_path} = 1;
+
+#        debug "BEG $router->{name}";
         my $in_nat_tags = $router->{nat_tags}->{$domain};
 
         for my $tag (@$in_nat_tags) {
             if ($no_nat_set->{$tag}) {
 
-                # Find some network with this NAT tag for better errr message.
+                # Find some network with this NAT tag for better error
+                # message.
                 my $net_name;
               DOMAIN:
                 for my $domain (@natdomains) {
@@ -7438,14 +7442,16 @@ sub distribute_no_nat_set {
             # the resulting NAT mapping would be ambigous.
             if (@$nat_tags >= 2) {
 
-                # Collect NAT mapping with multiple NAT for a network.
+                # Collect NAT mapping having multiple NAT for a network.
                 my %key2tags;
                 my %href2href;
                 for my $tag (@$nat_tags) {
                     if (my $aref = $next_no_nat_set{$tag}) {
                        for my $href (@$aref) {
-                           $key2tags{$href}->{$tag} = $tag;
-                           $href2href{$href} = $href;
+                           if ($href->{$tag}) {
+                               $key2tags{$href}->{$tag} = $tag;
+                               $href2href{$href} = $href;
+                           }
                        }
                     }
                 }
@@ -7462,6 +7468,8 @@ sub distribute_no_nat_set {
 
             # NAT binding removes tag from no_nat_set.
             for my $nat_tag (@$nat_tags) {
+
+#                debug "bound at $router->{name} $nat_tag";
                 my $aref = delete $next_no_nat_set{$nat_tag} or next;
                 $nat_bound->{$nat_tag}->{ $router->{name} } = 'used';
                 @$aref or next;
@@ -7478,26 +7486,30 @@ sub distribute_no_nat_set {
                         if (not $next_no_nat_set{$multi}) {
                             $set_multi = $multi;
 
-#                            debug "bound: $nat_tag multi: $multi";
+#                            debug "multi: $multi";
+
+                            # Defer error check in loops to distribute_rule.
+                            if ($router->{loop}) {
+                                next if grep { $multi eq $_ } @$in_nat_tags;
+                            }
+
                             # Prevent transition from dynamic back to
                             # static NAT for current network.
-                            if ($href->{$multi}->{hidden}) { 
-                                if(not $href->{$nat_tag}->{hidden}) {
-                                    my $net_name = $href->{$multi}->{name};
+                            my $nat_info = $href->{$multi};
+                            my $prev_info = $href->{$nat_tag};
+                            if ($nat_info->{hidden}) {
+                                if(!($prev_info && $prev_info->{hidden})) {
                                     err_msg("Must not change hidden NAT",
-                                            " for $net_name\n",
+                                            " for $nat_info->{name}\n",
                                             " using NAT tag '$nat_tag'",
                                             " at $router->{name}");
                                 }
                             }
-                            elsif ($href->{$multi}->{dynamic}) {
-                                if(    not $href->{$nat_tag}->{dynamic}
-                                   and not $href->{$nat_tag}->{hidden})
-                                {
-                                    my $net_name = $href->{$multi}->{name};
+                            elsif ($nat_info->{dynamic}) {
+                                if(!($prev_info && $prev_info->{dynamic})) {
                                     err_msg("Must not change NAT",
                                             " from dynamic to static",
-                                            " for $net_name\n",
+                                            " for $nat_info->{name}\n",
                                             " using NAT tag '$nat_tag'",
                                             " at $router->{name}");
                                 }
@@ -7510,7 +7522,7 @@ sub distribute_no_nat_set {
             distribute_no_nat_set($out_dom, \%next_no_nat_set, $router,
                                   $nat_bound);
         }
-
+#        debug "END $router->{name}";
         delete $router->{active_path};
     }
     delete $domain->{active_path};
@@ -7994,9 +8006,9 @@ sub find_subnets_in_nat_domain {
     my %seen;
 
     for my $domain (@natdomains) {
-
-#     debug("$domain->{name}");
         my $no_nat_set = $domain->{no_nat_set};
+
+#        debug("$domain->{name} ", join ',', sort keys %$no_nat_set);
         my %mask_ip_hash;
         my %identical;
         for my $network (@networks) {
