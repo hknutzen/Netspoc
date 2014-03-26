@@ -7532,6 +7532,20 @@ sub distribute_no_nat_set {
 sub distribute_nat_info {
     progress('Distributing NAT');
 
+    # Mapping from nat_tag to boolean. Is false if all NAT mappings map
+    # to hidden.
+    my %has_non_hidden;
+
+    for my $network (@networks) {
+        my $href = $network->{nat} or next;
+        for my $nat_tag (keys %$href) {
+            my $nat_info = $href->{$nat_tag};
+            if (!$nat_info->{hidden}) {
+                $has_non_hidden{$nat_tag} = 1;
+            }
+        }
+    }
+
     # Initial value for each NAT domain, distributed by distribute_no_nat_set.
     my %no_nat_set;
 
@@ -7542,11 +7556,6 @@ sub distribute_nat_info {
     # - that all bound NAT tags are defined,
     # - that NAT tags are equally used grouped or solitary.
     my %nat_tags2multi;
-
-    # Mapping from NAT tag to bool.
-    # Is set if at least one NAT tag translates to something 
-    # other than 'hidden'.
-    my %has_non_hidden;
 
     # NAT tags bound at some interface, tag => router_name => (1 | 'used').
     my %nat_bound;
@@ -7585,7 +7594,7 @@ sub distribute_nat_info {
         # Print error message only once per network.
         my $err;
         for my $nat_tag (keys %$href) {
-            $href->{$nat_tag}->{hidden} or $has_non_hidden{$nat_tag} = 1;
+            my $nat_info = $href->{$nat_tag};
             if (my $href2 = $nat_tags2multi{$nat_tag}) {
                 if (!$err && !keys_equal($href, $href2)) {
 

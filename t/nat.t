@@ -403,15 +403,15 @@ $title = 'NAT from overlapping areas and aggregates';
 $in = <<END;
 area:A = {
  border = interface:r1.a1;
- nat:hide = { ip = 10.99.99.8/30; dynamic; }
+ nat:d = { ip = 10.99.99.8/30; dynamic; }
 }
 area:B = {
  border = interface:r2.b1;
- nat:hide = { hidden; }
+ nat:d = { ip = 10.77.77.0/30; dynamic; }
 }
 any:a2 = { 
  link = network:a2; 
- nat:hide = { identity; }
+ nat:d = { identity; }
 }
 
 network:a1 = { ip = 10.5.5.0/24; }
@@ -426,18 +426,18 @@ router:r1 =  {
 }
 network:b2 = { ip = 10.3.3.0/24; }
 router:u = { interface:b2; interface:b1; }
-network:b1 = { ip = 10.2.2.0/24; nat:hide = { identity; } }
+network:b1 = { ip = 10.2.2.0/24; nat:d = { identity; } }
 router:r2 = {
  managed;
  model = IOS,FW;
  routing = manual;
  interface:b1 = { ip = 10.2.2.2; hardware = e0; }
- interface:X = { ip = 10.1.1.2; hardware = e1; bind_nat = hide; }
+ interface:X = { ip = 10.1.1.2; hardware = e1; bind_nat = d; }
 }
 network:X = { ip = 10.1.1.0/24; }
 
 service:test = {
- user = network:a1, network:a2, network:b1; #, network:b2;
+ user = network:a1, network:a2, network:b1, network:b2;
  permit src = network:X; dst = user; prt = tcp 80;
 }
 END
@@ -455,6 +455,7 @@ ip access-list extended e1_in
  permit tcp 10.1.1.0 0.0.0.255 10.99.99.8 0.0.0.3 eq 80
  permit tcp 10.1.1.0 0.0.0.255 10.4.4.0 0.0.0.255 eq 80
  permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
+ permit tcp 10.1.1.0 0.0.0.255 10.77.77.0 0.0.0.3 eq 80
  deny ip any any
 END
 
@@ -464,9 +465,12 @@ test_run($title, $in, $out);
 $title = 'Use hidden NAT from overlapping areas';
 ############################################################
 
-$in =~ s/; #//;
+$in =~ s/ip = 10.77.77.0\/30; dynamic;/hidden;/;
+$in =~ s/\Qnat:d = { ip = 10.99.99.8\/30; dynamic; }//;
 
 $out = <<END;
+Error: network:a1 is hidden by NAT in rule
+ permit src=network:X; dst=network:a1; prt=tcp 80; of service:test
 Error: network:b2 is hidden by NAT in rule
  permit src=network:X; dst=network:b2; prt=tcp 80; of service:test
 END
@@ -561,7 +565,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Multiple grouped NAT tags';
+$title = 'Prevent NAT from hidden back to IP';
 ############################################################
 
 $in = <<END;
@@ -569,21 +573,9 @@ network:U1 = {
  ip = 10.1.1.0/24;
  nat:t1 = { hidden; }
  nat:t2 = { ip = 10.9.9.0; }
- host:h = { ip = 10.1.1.10; }
 }
-network:U2 = { ip = 10.3.3.0/29;
- nat:t1 = { ip = 10.9.1.0; }
- nat:t2 = { ip = 10.9.2.0; } 
-}
-network:U3 = { ip = 10.3.3.8/29;
- nat:t1 = { ip = 10.9.3.0; }
- nat:t2 = { hidden; } 
-}
-
 router:R0 = {
- interface:U2;
  interface:U1;
- interface:U3;
  interface:T = { ip = 10.3.3.17; bind_nat = t1;}
 }
 
@@ -597,11 +589,6 @@ router:R2 = {
 }
 
 network:K = { ip = 10.2.2.0/24; }
-
-service:test = {
- user = host:h;
- permit src = user; dst = network:K; prt = tcp;
-}
 END
 
 $out = <<END;
@@ -612,47 +599,112 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Reversed dynamic NAT in loop';
+$title = 'Traverse hidden NAT domain in loop';
 ############################################################
 
 $in = <<END;
-network:U = {
+network:i1 = {
  ip = 10.1.1.0/24;
- nat:u = { hidden; }
- host:h = { ip = 10.1.1.10; }
+ nat:i1 = { ip=10.9.9.0/24; }
+ nat:h = { hidden; }
 }
 
-router:R0 = {
+router:r1 = {
  model = ASA;
- interface:U = { ip = 10.1.1.1; hardware = e0;}
- interface:C = { ip = 10.3.3.1; hardware = e3; bind_nat = u; }
- interface:T = { ip = 10.3.3.17; hardware = e1; }
-}
-
-network:T = { ip = 10.3.3.16/29; }
-network:C = { ip = 10.3.3.0/29; }
-
-router:R2 = {
  managed;
- model = ASA;
  routing = manual;
- interface:T = { ip = 10.3.3.18; hardware = e0;}
- interface:C = { ip = 10.3.3.2; hardware = e4; bind_nat = u; }
- interface:K = { ip = 10.2.2.1; hardware = e2; }
+ interface:i1 = { ip = 10.1.1.1; hardware = v1; }
+ interface:tr = { ip = 10.2.2.1; hardware = v3; bind_nat = i1; }
+ interface:si = { ip = 10.3.3.1; hardware = v4; }
 }
 
-network:K = { ip = 10.2.2.0/24; }
+network:tr = { ip = 10.2.2.0/24; }
+
+router:r2 = {
+ interface:tr;
+ interface:sh;
+}
+network:sh = { ip = 10.4.4.0/24; }
+
+router:r3 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:sh = { ip = 10.4.4.1; hardware = v5; bind_nat = i1; }
+ interface:k  = { ip = 10.5.5.1; hardware = v6; bind_nat = h; }
+}
+
+network:si = { ip = 10.3.3.0/24; }
+
+router:r4 = {
+ interface:si;
+ interface:k = { bind_nat = h; }
+}
+
+network:k = { ip = 10.5.5.0/24; }
 
 service:test = {
- user = host:h;
- permit src = user; dst = network:K; prt = tcp;
+ user = network:i1;
+ permit src = user; dst = network:sh; prt = tcp 80;
 }
 END
 
 $out = <<END;
-Error: Must not apply reversed hidden NAT 'u' at interface:R2.C;
+Error: Must not apply reversed hidden NAT 'h' at interface:r3.k;
  add pathrestriction to exclude this path
 Aborted
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'NAT tag at wrong interface in loop';
+############################################################
+
+$in = <<END;
+network:i1 = {
+ ip = 10.1.1.0/24;
+ nat:h = { hidden; }
+ nat:i1 = { hidden; }
+}
+
+router:r1 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:i1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:tr = { ip = 10.2.2.1; hardware = vlan2; bind_nat = i1; }
+ interface:si = { ip = 10.3.3.1; hardware = vlan3; }
+}
+
+network:tr = { ip = 10.2.2.0/24; }
+
+router:r2 = {
+ interface:tr = { bind_nat = i2; }
+ interface:sh;
+}
+network:sh = { ip = 10.4.4.0/24; }
+
+router:r3 = {
+ interface:sh;
+ interface:i2 = { bind_nat = h; }
+}
+
+network:si = { ip = 10.3.3.0/24; }
+
+router:r4 = {
+ interface:si = { bind_nat = i2; }
+ interface:i2 = { bind_nat = h; }
+}
+
+network:i2 = { ip = 10.1.1.0/24; nat:i2 = { hidden; } }
+END
+
+$out = <<END;
+Error: network:i1 is translated by i1,
+ but is located inside the translation domain of i1.
+ Probably i1 was bound to wrong interface at router:r1.
+Error: network:i2 and network:i1 have identical IP/mask
 END
 
 test_err($title, $in, $out);
