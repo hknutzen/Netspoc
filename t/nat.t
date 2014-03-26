@@ -548,7 +548,7 @@ $out = <<END;
 Error: If multiple NAT tags are used at one network,
  these NAT tags must be used equally grouped at other networks:
  - network:n2: t2
- - nat:t2(network:n1): t2,t1
+ - nat:t2(network:n1): t1,t2
 END
 
 test_err($title, $in, $out);

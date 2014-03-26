@@ -7605,9 +7605,9 @@ sub distribute_nat_info {
                     if ($has_non_hidden{$nat_tag} ||
                         (1 != keys %$href && 1 != keys %$href2)) 
                     {
-                        my $tags  = join(',', keys %$href);
+                        my $tags  = join(',', sort keys %$href);
                         my $name  = $network->{name};
-                        my $tags2 = join(',', keys %$href2);
+                        my $tags2 = join(',', sort keys %$href2);
 
                         # Use hash as list of pairs, take first value.
                         # Value is a NAT entry with name of the network.
