@@ -7365,13 +7365,13 @@ sub distribute_no_nat_set;
 sub distribute_no_nat_set {
     my ($domain, $no_nat_set, $in_router, $nat_bound) = @_;
 
-    if (not $no_nat_set or not keys %$no_nat_set) {
+    if (not $no_nat_set or not grep { $no_nat_set->{$_} } keys %$no_nat_set) {
 
 #        debug("Emtpy tags at $domain->{name}");
         return;
     }
 
-#    my $tags = join(',',keys %$no_nat_set);
+#    my $tags = join(',', grep { $no_nat_set->{$_} } keys %$no_nat_set);
 #    debug("distribute $tags to $domain->{name}"
 #	   . ($in_router ? " from $in_router->{name}" : ''));
     if ($domain->{active_path}) {
@@ -7381,6 +7381,7 @@ sub distribute_no_nat_set {
         return;
     }
 
+    my $changed;
     for my $tag (keys %$no_nat_set) {
         my $aref1 = $no_nat_set->{$tag};
         if (my $aref2 = $domain->{no_nat_set}->{$tag}) {
@@ -7392,6 +7393,10 @@ sub distribute_no_nat_set {
             $aref1 = $merged;
         }
         $domain->{no_nat_set}->{$tag} = $aref1;
+        $changed = 1;
+    }
+    if (!$changed) {
+#        debug "$domain->{name} unchanged";
     }
 
     # Don't stop recursion here, even if no_nat_set is unchanged.
@@ -7405,10 +7410,11 @@ sub distribute_no_nat_set {
     for my $router (@{ $domain->{routers} }) {
         next if $router eq $in_router;
         next if $router->{active_path};
-        $router->{active_path} = 1;
 
 #        debug "BEG $router->{name}";
         my $in_nat_tags = $router->{nat_tags}->{$domain};
+        my %in_no_nat_set = %$no_nat_set;
+        my $stop;
 
         for my $tag (@$in_nat_tags) {
             if ($no_nat_set->{$tag}) {
@@ -7430,11 +7436,20 @@ sub distribute_no_nat_set {
                   " Probably $tag was bound to wrong interface",
                   " at $router->{name}.";
             }
+            elsif (exists $no_nat_set->{$tag}) {
+
+#                debug "Stop at $router->{name}, inbound $tag";
+                $nat_bound->{$tag}->{ $router->{name} } = 'used';
+                $stop = 1;
+            }
+        }
+        if ($stop) {
+            next;
         }
 
         for my $out_dom (@{ $router->{nat_domains} }) {
             next if $out_dom eq $domain;
-            my %next_no_nat_set = %$no_nat_set;
+            my %next_no_nat_set = %in_no_nat_set;
             my $nat_tags        = $router->{nat_tags}->{$out_dom};
 
             # Multiple tags are bound to an interface.
@@ -7470,7 +7485,9 @@ sub distribute_no_nat_set {
             for my $nat_tag (@$nat_tags) {
 
 #                debug "bound at $router->{name} $nat_tag";
-                my $aref = delete $next_no_nat_set{$nat_tag} or next;
+                my $aref = $next_no_nat_set{$nat_tag} or next;
+                $next_no_nat_set{$nat_tag} = undef;
+#                debug "removed $nat_tag";
                 $nat_bound->{$nat_tag}->{ $router->{name} } = 'used';
                 @$aref or next;
 
@@ -7522,6 +7539,7 @@ sub distribute_no_nat_set {
             distribute_no_nat_set($out_dom, \%next_no_nat_set, $router,
                                   $nat_bound);
         }
+        $router->{active_path} = 1;
 #        debug "END $router->{name}";
         delete $router->{active_path};
     }
