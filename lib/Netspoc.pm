@@ -17052,8 +17052,8 @@ sub print_cisco_acls {
 
             # Don't generate single 'permit ip any any'.
             if (!$model->{need_acl}) {
-                if (!grep { @{ $hardware->{$_} } != 1 ||
-                            $hardware->{$_}->[0] ne $permit_any_rule }
+                if (!grep { my $rules = $hardware->{$_} || [];
+                            @$rules != 1 || $rules->[0] ne $permit_any_rule }
                     (qw(rules intf_rules))) 
                 {
                     next;
