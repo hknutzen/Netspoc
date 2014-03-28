@@ -9105,6 +9105,7 @@ sub inherit_area_nat {
 #            debug "$zone->{name}: $nat_tag from $area->{name}";
         }
     }
+    return;
 }
 
 sub inherit_attributes_from_area {
