@@ -1213,11 +1213,13 @@ sub new {
 
 our %hosts;
 
-# A single host which gets the attribute {policy_distribution_point}
-# is stored here.
+# Global or individual policy_distribution_point.
 # This is typically the netspoc server or some other server
 # which is used to distribute the generated configuration files
 # to managed devices.
+
+# Single global policy_distribution_point.
+# A host which gets the attribute {policy_distribution_point}.
 my $policy_distribution_point;
 
 sub check_radius_attributes {
@@ -2205,6 +2207,14 @@ sub read_router {
               and error_atline("Duplicate attribute 'radius_attributes'");
             $router->{radius_attributes} = $radius_attributes;
         }
+        elsif (my $pair = check_assign('policy_distribution_point', 
+                                       \&read_typed_name)) 
+        {
+            $router->{policy_distribution_point}
+              and error_atline(
+                  "Duplicate attribute 'policy_distribution_point'");
+            $router->{policy_distribution_point} = $pair;
+        }
         else {
             my $pair = read_typed_name;
             my ($type, $network) = @$pair;
@@ -2670,6 +2680,13 @@ sub check_router_attributes {
             $result->{owner} and error_atline("Duplicate attribute 'owner'");
             $result->{owner} = $owner;
         }
+        elsif (my $pair = check_assign('policy_distribution_point', 
+                                       \&read_typed_name)) 
+        {
+            $result->{policy_distribution_point} and 
+                error_atline("Duplicate attribute 'policy_distribution_point'");
+            $result->{policy_distribution_point} = $pair;
+        }
         else {
             syntax_err("Unexpected attribute");
         }
@@ -2702,7 +2719,7 @@ sub read_area {
         elsif (my $pair = check_assign 'anchor', \&read_typed_name) {
             $area->{anchor} and error_atline("Duplicate attribute 'anchor'");
             if ($pair->[0] ne 'network' || ref $pair->[1]) {
-                error_atline "Must only use network name in anchor";
+                error_atline "Must only use network name in 'anchor'";
                 $pair = undef;
             }
             $area->{anchor} = $pair;
@@ -4071,6 +4088,30 @@ sub link_owners {
     return;
 }
 
+sub link_policy_distribution_point {
+    my ($hash, $parent) = @_;
+    my $pair = $hash->{policy_distribution_point} or return;
+    my ($type, $name) = @$pair;
+    if ($type ne 'host') {
+        err_msg("Must only use 'host' in 'policy_distribution_point' of $parent");
+
+        # Prevent further errors;
+        delete $hash->{policy_distribution_point};
+        return;
+    }
+    my $host = $hosts{$name};
+    if (!$host) {
+        warn_msg("Ignoring undefined host:$name",
+                 " in 'policy_distribution_point' of $parent");
+
+        # Prevent further errors;
+        delete $hash->{policy_distribution_point};
+        return;
+    }
+    $hash->{policy_distribution_point} = $host;
+    return;
+}
+
 # Link areas with referenced interfaces or network.
 sub link_areas {
     for my $area (values %areas) {
@@ -4119,6 +4160,9 @@ sub link_areas {
                     delete $area->{border};
                 }
             }
+        }
+        if (my $router_attributes = $area->{router_attributes}) {
+            link_policy_distribution_point($router_attributes, $area);
         }
     }
     return;
@@ -4245,12 +4289,14 @@ sub check_interface_ip {
     return;
 }
 
-# Iterate of all interfaces of all routers.
+# Iterate over all interfaces of all routers.
 # Don't use values %interfaces because we want to traverse the interfaces
 # in a deterministic order.
-sub link_interfaces {
+sub link_routers {
     for my $name (sort keys %routers) {
-        link_interfaces1($routers{$name});
+        my $router = $routers{$name};
+        link_interfaces1($router);
+        link_policy_distribution_point($router, $router);
     }
     return;
 }
@@ -4611,7 +4657,7 @@ sub link_tunnels;
 
 sub link_topology {
     progress('Linking topology');
-    link_interfaces;
+    link_routers;
     link_ipsec;
     link_crypto;
     link_tunnels;
@@ -13839,7 +13885,6 @@ sub distribute_rule {
 # This address is added as a comment line to each generated code file.
 # This is to used later when approving the generated code file.
 sub set_policy_distribution_ip  {
-    return if not $policy_distribution_point;
     progress('Setting policy distribution IP');
 
     # Find all TCP ranges which include port 22 and 23.
@@ -13852,16 +13897,27 @@ sub set_policy_distribution_ip  {
     my %admin_prt;
     @admin_prt{@prt_list} = @prt_list;
 
-    my %pdp_src;
-    for my $pdp (map { $_ } @{ $policy_distribution_point->{subnets} }) {
-        while ($pdp) {
-            $pdp_src{$pdp} = $pdp;
-            $pdp = $pdp->{up};
+    my %host2pdp_src;
+    my $get_pdp_src = sub {
+        my ($host) = @_;
+        my $pdp_src;
+        if ($pdp_src = $host2pdp_src{$host}) {
+            return $pdp_src;
         }
-    }
-    my $no_nat_set =
-      $policy_distribution_point->{network}->{nat_domain}->{no_nat_set};
+        for my $pdp (map { $_ } @{ $host->{subnets} }) {
+            while ($pdp) {
+                $pdp_src->{$pdp} = $pdp;
+                $pdp = $pdp->{up};
+            }
+        }
+        return $host2pdp_src{$host} = $pdp_src;
+    };
     for my $router (@managed_routers) {
+        my $pdp = $router->{policy_distribution_point} ||= $policy_distribution_point;
+        next if !$pdp;
+        
+        my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
+        my $pdp_src = $get_pdp_src->($pdp);
         my %interfaces;
 
         # Find interfaces where some rule permits management traffic.
@@ -13873,7 +13929,7 @@ sub set_policy_distribution_ip  {
                 my ($action, $src, $dst, $prt) =
                   @{$rule}{qw(action src dst prt)};
                 next if $action eq 'deny';
-                next if not $pdp_src{$src};
+                next if not $pdp_src->{$src};
                 next if not $admin_prt{$prt};
                 next if not is_interface($dst);
 
@@ -13925,6 +13981,8 @@ sub set_policy_distribution_ip  {
     my %seen;
     for my $router (@managed_routers) {
         next if $seen{$router};
+        next if !$router->{policy_distribution_point};
+
         my $unreachable;
         if (my $vrf_members = $router->{vrf_members}) {
             grep { $_->{admin_ip} } @$vrf_members
@@ -17674,7 +17732,7 @@ sub print_code {
         print "$comment_char Generated by $program, version $version\n\n";
         print "$comment_char [ BEGIN $device_name ]\n";
         print "$comment_char [ Model = $model->{class} ]\n";
-        if ($policy_distribution_point) {
+        if ($router->{policy_distribution_point}) {
             my @ips = map({ my $ips = $_->{admin_ip}; $ips ? @$ips : (); }
                           @$vrf_members);
             if (@ips) {
