@@ -214,6 +214,7 @@ network:intern = { ip = 10.1.1.0/24;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
+ general_permit = icmp 3;
  no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint3;
@@ -305,6 +306,7 @@ ip access-list extended ACL-Split-Tunnel
  permit ip 10.99.2.0 0.0.0.255 any
  permit ip 10.99.3.0 0.0.0.255 any
 ip access-list extended ACL-crypto-filter
+ permit icmp any any 3
  permit tcp 10.1.1.0 0.0.0.255 10.99.2.0 0.0.0.255 established
  permit tcp 10.1.1.0 0.0.0.255 10.99.3.0 0.0.0.255 established
  deny ip any any
@@ -317,6 +319,7 @@ ip access-list extended e1_in
  deny ip any any
 --
 ip access-list extended e2_in
+ permit icmp any any 3
  permit tcp 10.99.2.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 80
  deny ip any any
 --

@@ -201,8 +201,8 @@ my $file_config = &read_config($in_path);
 &link_topology();
 &mark_disabled();
 &set_zone();
-&distribute_nat_info();
 &setpath();
+&distribute_nat_info();
 Netspoc::find_subnets_in_zone();
 &set_service_owner();
 &expand_services(1);	# 1: expand hosts to subnets
