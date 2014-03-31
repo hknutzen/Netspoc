@@ -17,6 +17,7 @@ network:m = { ip = 10.2.2.0/24; }
 router:r = {
  managed;
  model = NX-OS;
+ general_permit = udp;
  interface:m = { ip = 10.2.2.2; hardware = e0; }
  interface:n = { ip = 10.1.1.2; hardware = e1; }
 }
@@ -29,30 +30,11 @@ $out = <<END;
 ip access-list e0_in
  10 permit icmp any any
  20 permit tcp any any
- 30 deny ip any any
+ 30 permit udp any any
+ 40 deny ip any any
 END
 
 test_run($title, $in, $out);
-
-############################################################
-$title = 'Find redundant with global permit';
-############################################################
-
-$in .= <<END;
-protocol:Ping = icmp 8;
-service:test = {
- disabled;
- user = network:m;
- permit src = network:n; dst = user; prt = protocol:Ping, tcp 80;
-}
-END
-
-$out = <<END;
-Warning: protocol:Ping in service:test is redundant to global:permit
-Warning: tcp 80 in service:test is redundant to global:permit
-END
-
-test_err($title, $in, $out);
 
 ############################################################
 $title = 'No range permitted in global permit';

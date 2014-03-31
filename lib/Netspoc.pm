@@ -2215,6 +2215,13 @@ sub read_router {
                   "Duplicate attribute 'policy_distribution_point'");
             $router->{policy_distribution_point} = $pair;
         }
+        elsif (my @list = check_assign_list('general_permit', 
+                                            \&read_typed_name_or_simple_protocol)) 
+        {
+            $router->{general_permit} 
+              and error_atline("Duplicate attribute 'general_permit'");
+            $router->{general_permit} = \@list;
+        }
         else {
             my $pair = read_typed_name;
             my ($type, $network) = @$pair;
@@ -2686,6 +2693,13 @@ sub check_router_attributes {
             $result->{policy_distribution_point} and 
                 error_atline("Duplicate attribute 'policy_distribution_point'");
             $result->{policy_distribution_point} = $pair;
+        }
+        elsif (my @list = check_assign_list('general_permit', 
+                                            \&read_typed_name_or_simple_protocol)) 
+        {
+            $result->{general_permit} 
+              and error_atline("Duplicate attribute 'general_permit'");
+            $result->{general_permit} = \@list;
         }
         else {
             syntax_err("Unexpected attribute");
@@ -4112,6 +4126,29 @@ sub link_policy_distribution_point {
     return;
 }
 
+sub expand_general_permit {
+    my ($list, $context) = @_;
+    my $result = expand_protocols($list, $context);
+    for my $prt (@$result) {
+        my $main_prt = $prt->{main} || $prt;
+        $main_prt->{src_dst_range_list} or internal_err($main_prt->{name});
+        for my $src_dst_range (@{ $main_prt->{src_dst_range_list} }) {
+            my ($src_range, $dst_prt) = @$src_dst_range;
+            ($src_range->{range} && $src_range->{range} ne $aref_tcp_any ||
+             $dst_prt->{range} && $dst_prt->{range} ne $aref_tcp_any) and
+             err_msg("Must not use ports in global permit: $prt->{name}");
+        }
+    }
+    return $result;
+}
+
+sub link_general_permit {
+    my ($hash, $parent) = @_;
+    my $list = $hash->{general_permit} or return;
+    $hash->{general_permit} = expand_general_permit($list, $parent);
+    return;
+}
+
 # Link areas with referenced interfaces or network.
 sub link_areas {
     for my $area (values %areas) {
@@ -4163,6 +4200,7 @@ sub link_areas {
         }
         if (my $router_attributes = $area->{router_attributes}) {
             link_policy_distribution_point($router_attributes, $area);
+            link_general_permit($router_attributes, $area);
         }
     }
     return;
@@ -4297,6 +4335,7 @@ sub link_routers {
         my $router = $routers{$name};
         link_interfaces1($router);
         link_policy_distribution_point($router, $router);
+        link_general_permit($router, $router);
     }
     return;
 }
@@ -6547,7 +6586,6 @@ sub warn_unused_overlaps {
 
 # List of protocols to permit globally at any device.
 my @global_permit;
-my %global_permit_dst_range_list;
 
 # Parameters:
 # - Reference to array of unexpanded rules.
@@ -6610,21 +6648,6 @@ sub expand_rules {
                 $prt->{src_dst_range_list} or internal_err($prt->{name});
                 for my $src_dst_range (@{ $prt->{src_dst_range_list} }) {
                     my ($src_range, $prt) = @$src_dst_range;
-
-                    if (keys %global_permit_dst_range_list && 
-                        $action eq 'permit') 
-                    {
-                        my $up = $prt;
-                        while ($up) {
-                            if ($global_permit_dst_range_list{$up}) {
-                                warn_msg("$prt->{name} in $context",
-                                         " is redundant to global:permit");
-                                last;
-                            }
-                            $up = $up->{up};
-                        }
-                    }
-
                     for my $src (@$src) {
                         my $src_zone = $obj2zone{$src} || get_zone $src;
                         my $src_zone_cluster = $src_zone->{zone_cluster};
@@ -6747,19 +6770,7 @@ sub expand_services {
 
     # Handle global:permit.
     if (my $global = $global{permit}) {
-        @global_permit =
-            @{ expand_protocols($global->{prt}, "$global->{name}") };
-        for my $prt (@global_permit) {
-            my $main_prt = $prt->{main} || $prt;
-            $main_prt->{src_dst_range_list} or internal_err($main_prt->{name});
-            for my $src_dst_range (@{ $main_prt->{src_dst_range_list} }) {
-                my ($src_range, $dst_prt) = @$src_dst_range;
-                ($src_range->{range} && $src_range->{range} ne $aref_tcp_any ||
-                 $dst_prt->{range} && $dst_prt->{range} ne $aref_tcp_any) and
-                 err_msg("Must not use ports in global permit: $prt->{name}");
-                $global_permit_dst_range_list{$dst_prt} = $dst_prt;
-            }
-        }
+        @global_permit = @{ expand_general_permit($global->{prt}, "$global->{name}") };
     }
 
     my $expanded_rules_aref = [];
@@ -14188,83 +14199,116 @@ sub has_global_restrict {
     return;
 }
 
-sub distribute_global_permit {
-    for my $prt (sort by_name @global_permit) {
+sub distribute_rules {
+    my ($rules, $in_intf, $out_intf) = @_;
+    for my $rule (@$rules) {
+        distribute_rule($rule, $in_intf, $out_intf);
+    }
+    return;
+}
+
+sub create_general_permit_rules {
+    my ($protocols, $context) = @_;
+    my @rules;
+    for my $prt (sort by_name @$protocols) {
         my $stateless      = $prt->{flags} && $prt->{flags}->{stateless};
         my $stateless_icmp = $prt->{flags} && $prt->{flags}->{stateless_icmp};
-        $prt = $prt->{main} if $prt->{main};
-        $prt->{src_dst_range_list} or internal_err($prt->{name});
-        for my $src_dst_range (@{ $prt->{src_dst_range_list} }) {
-            my ($src_range, $prt) = @$src_dst_range;
-            $ref2prt{$src_range} = $src_range;
-            $ref2prt{$prt}       = $prt;
+        my $main_prt = $prt->{main} || $prt;
+        $main_prt->{src_dst_range_list} or internal_err($main_prt->{name});
+        for my $src_dst_range (@{ $main_prt->{src_dst_range_list} }) {
+            my ($src_range, $dst_prt) = @$src_dst_range;
+            $ref2prt{$src_range}      = $src_range;
+            $ref2prt{$dst_prt}        = $dst_prt;
+
+            # Don't allow port ranges. This wouldn't work, because
+            # gen_reverse_rules doesn't handle generally permitted protocols.
+            ($src_range->{range} && $src_range->{range} ne $aref_tcp_any ||
+             $dst_prt->{range} && $dst_prt->{range} ne $aref_tcp_any) and
+             err_msg("Must not use ports in $context: $prt->{name}");
+
             my $rule = {
                 action         => 'permit',
                 src            => $network_00,
                 dst            => $network_00,
                 src_range      => $src_range,
-                prt            => $prt,
+                prt            => $dst_prt,
                 stateless      => $stateless,
                 stateless_icmp => $stateless_icmp,
             };
-            for my $router (@managed_routers) {
-                my $need_protect = $router->{need_protect};
-                for my $in_intf (@{ $router->{interfaces} }) {
-                    next if has_global_restrict($in_intf);
+            push @rules, $rule;
+        }
+    }
+    return \@rules;
+}
 
-                    # At VPN hub, don't permit any -> any, but only traffic
-                    # from each encrypted network.
-                    if ($in_intf->{is_hub}) {
-                        my $id_rules = $in_intf->{id_rules};
-                        for my $src (
-                            $id_rules
-                            ? map({ $_->{src} } values %$id_rules)
-                            : @{ $in_intf->{peer_networks} }
-                          )
-                        {
-                            my $rule = {%$rule};
-                            $rule->{src} = $src;
-                            for my $out_intf (@{ $router->{interfaces} }) {
-                                next if $out_intf eq $in_intf;
-                                next if $out_intf->{ip} eq 'tunnel';
+sub distribute_global_permit {
+    my $rules = create_general_permit_rules(\@global_permit, 'global:permit');
+    for my $router (@managed_routers) {
+        if (my $general_permit = $router->{general_permit}) {
+            my $router_rules = 
+                create_general_permit_rules($general_permit,
+                                            "general_permit of $router->{name}"
+                );
+            $rules = [@$rules, @$router_rules];
+        }
+        next if !@$rules;
+        my $need_protect = $router->{need_protect};
+        for my $in_intf (@{ $router->{interfaces} }) {
+            next if has_global_restrict($in_intf);
 
-                                # Traffic traverses the device.
-                                # Traffic for the device itself isn't needed
-                                # at VPN hub.
-                                distribute_rule($rule, $in_intf, $out_intf);
-                            }
-                        }
-                    }
-                    else {
+            # At VPN hub, don't permit any -> any, but only traffic
+            # from each encrypted network.
+            if ($in_intf->{is_hub}) {
+                my $id_rules = $in_intf->{id_rules};
+                for my $src (
+                    $id_rules
+                    ? map({ $_->{src} } values %$id_rules)
+                    : @{ $in_intf->{peer_networks} }
+                    )
+                {
+                    for my $rule (@$rules) {
+                        my $rule = {%$rule};
+                        $rule->{src} = $src;
                         for my $out_intf (@{ $router->{interfaces} }) {
                             next if $out_intf eq $in_intf;
+                            next if $out_intf->{ip} eq 'tunnel';
+                            
+                            # Traffic traverses the device.
+                            # Traffic for the device itself isn't needed
+                            # at VPN hub.
+                            distribute_rule($rule, $in_intf, $out_intf);
+                        }
+                    }
+                }
+            }
+            else {
+                for my $out_intf (@{ $router->{interfaces} }) {
+                    next if $out_intf eq $in_intf;
 
-                            # For IOS and NX-OS print this rule only
-                            # once at interface filter rules below
-                            # (for incoming ACL).
-                            if ($need_protect) {
-                                my $out_hw = $out_intf->{hardware};
+                    # For IOS and NX-OS print this rule only
+                    # once at interface filter rules below
+                    # (for incoming ACL).
+                    if ($need_protect) {
+                        my $out_hw = $out_intf->{hardware};
 
                                 # For interface with outgoing ACLs
                                 # we need to add the rule.
                                 # distribute_rule would add rule to incoming,
                                 # hence we add rule directly to outgoing rules.
-                                if ($out_hw->{need_out_acl}) {
-                                    push @{ $out_hw->{out_rules} }, $rule;
-                                }
-                                next;
-                            }
-                            next if has_global_restrict($out_intf);
-
-                            # Traffic traverses the device.
-                            distribute_rule($rule, $in_intf, $out_intf);
+                        if ($out_hw->{need_out_acl}) {
+                            push @{ $out_hw->{out_rules} }, @$rules;
                         }
-
-                        # Traffic for the device itself.
-                        next if $in_intf->{ip} eq 'bridged';
-                        distribute_rule($rule, $in_intf, undef);
+                        next;
                     }
+                    next if has_global_restrict($out_intf);
+
+                    # Traffic traverses the device.
+                    distribute_rules($rules, $in_intf, $out_intf);
                 }
+
+                # Traffic for the device itself.
+                next if $in_intf->{ip} eq 'bridged';
+                distribute_rules($rules, $in_intf, undef);
             }
         }
     }
