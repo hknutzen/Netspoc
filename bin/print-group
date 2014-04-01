@@ -55,7 +55,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2013 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2014 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 This program uses module Netspoc.pm,
 a Network Security Policy Compiler,
@@ -83,7 +83,7 @@ use Netspoc;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '3.042'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.043'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -170,7 +170,12 @@ if ($show_unused) {
 		    for my $subnet (@{ $obj->{subnets} }) {
 			$subnet->{is_used} = 1;
 		    }
+                    $obj->{network}->{is_used} = 1;
 		}
+                elsif (is_interface $obj) {
+		    $obj->{is_used} = 1;
+                    $obj->{network}->{is_used} = 1;
+                }                    
 		else {
 		    $obj->{is_used} = 1;
 		}

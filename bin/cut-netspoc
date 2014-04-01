@@ -2,7 +2,7 @@
 # cut-netspoc
 # Print parts of a netspoc configuration to stdout.
 # http://hknutzen.github.com/Netspoc
-# (c) 2012 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+# (c) 2014 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@ use Netspoc;
 #use open ':locale';
 use locale;
 
-our $VERSION = '3.042'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.043'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -113,6 +113,7 @@ my @all_zones;
 sub get_zones {
     my %all_zones;
     for my $network (values %Netspoc::networks) {
+        next if $network->{disabled};
         my $zone = $network->{zone};
         $all_zones{$zone} = $zone;
     }
@@ -125,6 +126,8 @@ sub get_zones {
 ####################################################################
 
 my $config = shift @ARGV or usage;
+
+Netspoc::set_config({time_stamps => 1, max_errors => 9999});
 &show_version();
 
 # Read and process netspoc configuration data.
@@ -161,7 +164,6 @@ for my $ref (values %name2var) {
 &setpath();
 Netspoc::find_subnets_in_zone();
 &expand_services(1);
-&abort_on_error();
 
 # Process rules of services.
 sub process_rules {

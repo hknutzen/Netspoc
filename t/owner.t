@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!perl
 
 use strict;
 use Test::More;
@@ -103,6 +103,51 @@ $in =~ s|(network:VLAN_40_41/41 = \{)|$1 owner = xx; |;
 
 $out = <<END;
 Warning: Useless owner:xx at any:[network:VLAN_40_41/41],
+ it was already inherited from area:all
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Redundant owner at nested areas';
+############################################################
+
+$in = <<END;
+owner:x = {
+ admins = a\@b.c;
+}
+
+# a3 < a2 < all, a1 < all
+area:all = { owner = x; anchor = network:n1; }
+area:a1 = { owner = x; border = interface:asa1.n1; }
+area:a2 = { owner = x; border = interface:asa1.n2; }
+area:a3 = { owner = x; border = interface:asa2.n3; }
+
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+}
+END
+
+$out = <<END;
+Warning: Useless owner:x at area:a2,
+ it was already inherited from area:all
+Warning: Useless owner:x at area:a3,
+ it was already inherited from area:a2
+Warning: Useless owner:x at area:a1,
  it was already inherited from area:all
 END
 

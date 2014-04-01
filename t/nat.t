@@ -243,6 +243,105 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Multiple static NAT';
+############################################################
+
+$in = <<END;
+network:a1 = { 
+ ip = 10.1.1.0/24; 
+ nat:b1 = { ip = 10.8.8.0; }
+ nat:b2 = { ip = 10.9.9.0; }
+}
+
+router:r1  =  {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:a1 = { ip = 10.1.1.1; hardware = e0; }
+ interface:b1 = { ip = 10.2.2.1; hardware = e1; bind_nat = b1; }
+}
+network:b1 = { ip = 10.2.2.0/24; }
+
+router:r2  =  {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:b1 = { ip = 10.2.2.2; hardware = e2; }
+ interface:b2 = { ip = 10.3.3.1; hardware = e3; bind_nat = b2; }
+}
+network:b2 = { ip = 10.3.3.0/24; }
+
+service:test = {
+ user = network:a1;
+ permit src = network:b2; dst = user; prt = tcp;
+}
+END
+
+$out = <<END;
+! [ NAT ]
+static (e0,e1) 10.8.8.0 10.1.1.0 netmask 255.255.255.0
+--
+! [ NAT ]
+static (e2,e3) 10.9.9.0 10.8.8.0 netmask 255.255.255.0
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Must not bind multiple NAT of one network at one place';
+############################################################
+
+$in = <<END;
+network:Test =  {
+ ip = 10.0.0.0/24; 
+ nat:C = { ip = 10.8.8.0; }
+ nat:D = { ip = 10.9.9.0; }
+}
+
+router:filter = {
+ managed;
+ model = ASA, 8.4;
+ interface:Test = { ip = 10.0.0.2; hardware = inside; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C, D; }
+}
+
+network:X = { ip = 10.8.3.0/24; }
+END
+
+$out = <<END;
+Error: Must not bind multiple NAT tags 'C,D' of nat:D(network:Test) at router:filter
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unused / undefined NAT tag';
+############################################################
+
+$in = <<END;
+network:Test =  {
+ ip = 10.0.0.0/24; 
+ nat:C = { ip = 10.8.8.0; }
+}
+
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.0.0.2; hardware = inside; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = D; }
+}
+
+network:X = { ip = 10.8.3.0/24; }
+END
+
+$out = <<END;
+Warning: nat:C is defined, but not bound to any interface
+Warning: Ignoring useless nat:D bound at router:filter
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Check rule with host and dynamic NAT';
 ############################################################
 
@@ -298,54 +397,65 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'NAT from overlapping areas';
+$title = 'NAT from overlapping areas and aggregates';
 ############################################################
 
 $in = <<END;
 area:A = {
  border = interface:r1.a1;
- nat:hide = { ip = 10.99.99.8/30; dynamic; }
+ nat:d = { ip = 10.99.99.8/30; dynamic; }
 }
 area:B = {
  border = interface:r2.b1;
- nat:hide = { hidden; }
+ nat:d = { ip = 10.77.77.0/30; dynamic; }
+}
+any:a2 = { 
+ link = network:a2; 
+ nat:d = { identity; }
 }
 
-network:a1 = { ip = 10.4.4.0/24; }
+network:a1 = { ip = 10.5.5.0/24; }
+network:a2 = { ip = 10.4.4.0/24; }
 router:r1 =  {
  managed;
  model = ASA;
  routing = manual;
- interface:a1 = { ip = 10.4.4.1; hardware = e1; }
- interface:b1 = { ip = 10.2.2.1; hardware = e0; }
+ interface:a1 = { ip = 10.5.5.1; hardware = vlan2; }
+ interface:a2 = { ip = 10.4.4.1; hardware = vlan1; }
+ interface:b1 = { ip = 10.2.2.1; hardware = vlan0; }
 }
 network:b2 = { ip = 10.3.3.0/24; }
 router:u = { interface:b2; interface:b1; }
-network:b1 = { ip = 10.2.2.0/24; nat:hide = { identity; } }
+network:b1 = { ip = 10.2.2.0/24; nat:d = { identity; } }
 router:r2 = {
  managed;
  model = IOS,FW;
  routing = manual;
  interface:b1 = { ip = 10.2.2.2; hardware = e0; }
- interface:X = { ip = 10.1.1.2; hardware = e1; bind_nat = hide; }
+ interface:X = { ip = 10.1.1.2; hardware = e1; bind_nat = d; }
 }
 network:X = { ip = 10.1.1.0/24; }
 
 service:test = {
- user = network:a1, network:b1; #, network:b2;
+ user = network:a1, network:a2, network:b1, network:b2;
  permit src = network:X; dst = user; prt = tcp 80;
 }
 END
 
 $out = <<END;
-access-list e0_in extended permit tcp 10.1.1.0 255.255.255.0 10.4.4.0 255.255.255.0 eq 80
-access-list e0_in extended deny ip any any
-access-group e0_in in interface e0
+object-group network g0
+ network-object 10.4.4.0 255.255.255.0
+ network-object 10.5.5.0 255.255.255.0
+access-list vlan0_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80
+access-list vlan0_in extended deny ip any any
+access-group vlan0_in in interface vlan0
 --
 ip access-list extended e1_in
  deny ip any host 10.2.2.2
  permit tcp 10.1.1.0 0.0.0.255 10.99.99.8 0.0.0.3 eq 80
+ permit tcp 10.1.1.0 0.0.0.255 10.4.4.0 0.0.0.255 eq 80
  permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
+ permit tcp 10.1.1.0 0.0.0.255 10.77.77.0 0.0.0.3 eq 80
  deny ip any any
 END
 
@@ -355,9 +465,12 @@ test_run($title, $in, $out);
 $title = 'Use hidden NAT from overlapping areas';
 ############################################################
 
-$in =~ s/; #//;
+$in =~ s/ip = 10.77.77.0\/30; dynamic;/hidden;/;
+$in =~ s/\Qnat:d = { ip = 10.99.99.8\/30; dynamic; }//;
 
 $out = <<END;
+Error: network:a1 is hidden by NAT in rule
+ permit src=network:X; dst=network:a1; prt=tcp 80; of service:test
 Error: network:b2 is hidden by NAT in rule
  permit src=network:X; dst=network:b2; prt=tcp 80; of service:test
 END
@@ -397,6 +510,207 @@ Error: interface:r2.b needs static translation for nat:b to be valid in rule
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Grouped NAT tags must only be used grouped';
+############################################################
+
+$in = <<END;
+network:n1 = { 
+ ip = 10.1.1.0/24; 
+ nat:t1 = { ip = 10.9.1.0; }
+ nat:t2 = { ip = 10.9.8.0; }
+}
+
+network:n2 = { 
+ ip = 10.1.2.0/24; 
+ nat:t2 = { ip = 10.9.9.0; }
+}
+
+router:r1 =  {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = e0; }
+ interface:n2 = { ip = 10.1.2.1; hardware = e0; }
+ interface:t  = { ip = 10.2.3.1; hardware = e1; bind_nat = t1; }
+}
+network:t = { ip = 10.2.3.0/24; }
+router:r2 =  {
+ managed;
+ model = ASA;
+ interface:t  = { ip = 10.2.3.2; hardware = e1; }
+ interface:k = { ip = 10.2.2.2; hardware = e2; bind_nat = t2; }
+}
+network:k = { ip = 10.2.2.0/24; }
+END
+
+$out = <<END;
+Error: If multiple NAT tags are used at one network,
+ these NAT tags must be used equally grouped at other networks:
+ - network:n2: t2
+ - nat:t2(network:n1): t1,t2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Grouped NAT tags with single hidden allowed';
+############################################################
+
+$in =~ s/ip = 10.9.[89].0/hidden/g;
+
+$out = <<END;
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Prevent NAT from hidden back to IP';
+############################################################
+
+$in = <<END;
+network:U1 = {
+ ip = 10.1.1.0/24;
+ nat:t1 = { hidden; }
+ nat:t2 = { ip = 10.9.9.0; }
+}
+router:R0 = {
+ interface:U1;
+ interface:T = { ip = 10.3.3.17; bind_nat = t1;}
+}
+
+network:T = { ip = 10.3.3.16/29; }
+
+router:R2 = {
+ managed;
+ model = ASA;
+ interface:T = { ip = 10.3.3.18; hardware = e0;}
+ interface:K = { ip = 10.2.2.1; hardware = e2; bind_nat = t2; }
+}
+
+network:K = { ip = 10.2.2.0/24; }
+END
+
+$out = <<END;
+Error: Must not change hidden NAT for nat:t1(network:U1)
+ using NAT tag 't2' at router:R2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Traverse hidden NAT domain in loop';
+############################################################
+
+$in = <<END;
+network:i1 = {
+ ip = 10.1.1.0/24;
+ nat:i1 = { ip=10.9.9.0/24; }
+ nat:h = { hidden; }
+}
+
+router:r1 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:i1 = { ip = 10.1.1.1; hardware = v1; }
+ interface:tr = { ip = 10.2.2.1; hardware = v3; bind_nat = i1; }
+ interface:si = { ip = 10.3.3.1; hardware = v4; }
+}
+
+network:tr = { ip = 10.2.2.0/24; }
+
+router:r2 = {
+ interface:tr;
+ interface:sh;
+}
+network:sh = { ip = 10.4.4.0/24; }
+
+router:r3 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:sh = { ip = 10.4.4.1; hardware = v5; bind_nat = i1; }
+ interface:k  = { ip = 10.5.5.1; hardware = v6; bind_nat = h; }
+}
+
+network:si = { ip = 10.3.3.0/24; }
+
+router:r4 = {
+ interface:si;
+ interface:k = { bind_nat = h; }
+}
+
+network:k = { ip = 10.5.5.0/24; }
+
+service:test = {
+ user = network:i1;
+ permit src = user; dst = network:sh; prt = tcp 80;
+}
+END
+
+$out = <<END;
+Error: Must not apply reversed hidden NAT 'h' at interface:r3.k;
+ add pathrestriction to exclude this path
+Aborted
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'NAT tag at wrong interface in loop';
+############################################################
+
+$in = <<END;
+network:i1 = {
+ ip = 10.1.1.0/24;
+ nat:h = { hidden; }
+ nat:i1 = { hidden; }
+}
+
+router:r1 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:i1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:tr = { ip = 10.2.2.1; hardware = vlan2; bind_nat = i1; }
+ interface:si = { ip = 10.3.3.1; hardware = vlan3; }
+}
+
+network:tr = { ip = 10.2.2.0/24; }
+
+router:r2 = {
+ interface:tr = { bind_nat = i2; }
+ interface:sh;
+}
+network:sh = { ip = 10.4.4.0/24; }
+
+router:r3 = {
+ interface:sh;
+ interface:i2 = { bind_nat = h; }
+}
+
+network:si = { ip = 10.3.3.0/24; }
+
+router:r4 = {
+ interface:si = { bind_nat = i2; }
+ interface:i2 = { bind_nat = h; }
+}
+
+network:i2 = { ip = 10.1.1.0/24; nat:i2 = { hidden; } }
+END
+
+$out = <<END;
+Error: network:i1 is translated by i1,
+ but is located inside the translation domain of i1.
+ Probably i1 was bound to wrong interface at router:r1.
+Error: network:i2 and network:i1 have identical IP/mask
+END
+
+Test::More->builder->todo_start(
+    "Missing NAT tag isn't recognized, because traversal aborts on first matching tag");
+test_err($title, $in, $out);
+Test::More->builder->todo_end;
 
 ############################################################
 done_testing;

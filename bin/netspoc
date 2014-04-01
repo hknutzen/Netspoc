@@ -110,7 +110,7 @@ Output is generated in 'out-directory' or sent to STDOUT.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2013 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2014 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -136,7 +136,7 @@ use Netspoc;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '3.042'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.043'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -201,8 +201,8 @@ my $file_config = &read_config($in_path);
 &link_topology();
 &mark_disabled();
 &set_zone();
-&distribute_nat_info();
 &setpath();
+&distribute_nat_info();
 Netspoc::find_subnets_in_zone();
 &set_service_owner();
 &expand_services(1);	# 1: expand hosts to subnets

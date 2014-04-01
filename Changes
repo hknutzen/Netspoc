@@ -1,3 +1,45 @@
+3.043     2014-04-01 09:53:55 Europe/Berlin
+
+ - Added new attribute 'strict_secondary'.
+   With this attribute, a device accepts only rules which
+   - either are optimized secondary 
+   - or are simple: 
+     - protocol is IP
+     - src and dst is either
+       network, loopback interface or interface of managed device.
+ - Added new attribute 'no_protect_self'.
+   With this attribute no deny rules are generated to protect
+   interfaces of a managed device. It is assumed that services of the
+   device are protected by other means. This attribute is applicable
+   to routers of model IOS, NX-OS and ACE.
+ - Added new attribute 'policy_distribution_point' at router. 
+   Used this to select one of  multiple policy distribution points.
+ - Added new attribute 'general_permit' at router.
+   This is equivalent to 'global:permit', but applicable to single routers.
+ - Both new router attributes can be defined for all routers inside an area 
+   using attribute 'router_attributes'.
+ - A NAT definition can be given at an aggregate with ip 0/0 now.
+   This applies the NAT definition to all networks inside the aggregate, 
+   which don't already have a NAT definition.
+   Only dynamic and hidden NAT can be used here.
+ - Fixed generated route for NX_OS: don't omit trailing /32.
+   For NX_OS we generally create "i.i.i.i/32" instead of "host i.i.i.i" now 
+   in access-lists and object-groups.
+ - Fixed check for missing aggregate rule on intermediate path 
+   of Linux router.
+ - Improved runtime performance when checking missing aggregate rule
+   at router with many outgoing interfaces.
+ - Allow managed hosts, bridged and unnumbered network in 'private' parts 
+   of topology.
+ - Fixed corner cases for NAT in loops.
+ - Fixed corner cases for multiple NAT tags at one object.
+ - Fixed possible duplicate error message on duplicate area.
+ - Fixed value of attribute 'extended_by' (used in export.pl of NetspocWeb).
+ - Fixed command line switch '-unused' of 'print-group'. 
+   A network is unused only if all contained hosts and interfaces are unused.
+ - Ignore disabled network in command 'cut-netspoc'.
+ - 'cut-netspoc' prints output, even if errors occured.
+
 3.042     2014-01-06 10:51:30 Europe/Berlin
 
  - Improved runtime to find and delete redundant reverse rules.

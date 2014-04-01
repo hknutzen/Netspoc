@@ -57,7 +57,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2012 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2014 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -85,7 +85,7 @@ use open qw(:std :utf8);
 use utf8;
 use Encode;
 
-our $VERSION = '3.042'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.043'; # VERSION: inserted by DZP::OurPkgVersion
 my $filename_encode = 'UTF-8';
  
 my $ignore_files = '^(raw|config|CVS|RCS|\.#.*|.*~)$';
@@ -105,7 +105,6 @@ my %global_type =
     map { $_ => 1 } qw( 
 router network host any group area service
 owner protocol protocolgroup pathrestriction nat isakmp ipsec crypto
-policy servicegroup
 );
 
 # NAT is applied with bind_nat.
