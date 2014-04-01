@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.043'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.044'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -14242,14 +14242,18 @@ sub create_general_permit_rules {
 }
 
 sub distribute_global_permit {
-    my $rules = create_general_permit_rules(\@global_permit, 'global:permit');
+    my $global = create_general_permit_rules(\@global_permit, 'global:permit');
     for my $router (@managed_routers) {
+        my $rules;
         if (my $general_permit = $router->{general_permit}) {
             my $router_rules = 
                 create_general_permit_rules($general_permit,
                                             "general_permit of $router->{name}"
                 );
-            $rules = [@$rules, @$router_rules];
+            $rules = [@$global, @$router_rules];
+        }
+        else {
+            $rules = $global;
         }
         next if !@$rules;
         my $need_protect = $router->{need_protect};

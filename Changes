@@ -1,3 +1,8 @@
+3.044     2014-04-01 14:56:21 Europe/Berlin
+
+ - Fixed implementation of attribute 'general_permit'.
+   Previously it generated ACLs for unrelated routers.
+
 3.043     2014-04-01 09:53:55 Europe/Berlin
 
  - Added new attribute 'strict_secondary'.
