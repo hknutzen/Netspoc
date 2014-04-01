@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.044'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.045'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -13962,7 +13962,7 @@ sub set_policy_distribution_ip  {
 
 #           debug("$router->{name}: ", scalar keys %interfaces);
             my @front =
-              path_auto_interfaces($router, $policy_distribution_point);
+              path_auto_interfaces($router, $pdp);
 
             # If multiple management interfaces were found, take that which is
             # directed to policy_distribution_point.

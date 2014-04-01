@@ -1,3 +1,8 @@
+3.045     2014-04-01 17:41:47 Europe/Berlin
+
+ - Fixed implementation of attribute 'policy_distribution_point' at router.
+   A router with multiple matching interfaces wasn't handled correctly.
+
 3.044     2014-04-01 14:56:21 Europe/Berlin
 
  - Fixed implementation of attribute 'general_permit'.
