@@ -200,4 +200,39 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Multile interfaces talk to policy_distribution_point';
+############################################################
+
+$in = <<END;
+network:a = { ip = 10.0.0.0/24; host:netspoc = { ip = 10.0.0.10; } }
+router:r1 =  {
+ managed;
+ model = IOS,FW;
+ policy_distribution_point = host:netspoc;
+ routing = manual;
+ interface:a = { ip = 10.0.0.1; hardware = e1; }
+ interface:b1 = { ip = 10.1.1.1; hardware = e0; }
+}
+router:r2 =  {
+ managed;
+ model = IOS,FW;
+ routing = manual;
+ interface:a = { ip = 10.0.0.2; hardware = e1; }
+ interface:b1 = { ip = 10.1.1.2; hardware = e0; }
+}
+network:b1 = { ip = 10.1.1.0/24; }
+
+service:test = {
+ user = interface:r1.[auto];
+ permit src = network:a; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<END;
+! [ IP = 10.0.0.1,10.1.1.1 ]
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

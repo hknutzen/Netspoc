@@ -13962,7 +13962,7 @@ sub set_policy_distribution_ip  {
 
 #           debug("$router->{name}: ", scalar keys %interfaces);
             my @front =
-              path_auto_interfaces($router, $policy_distribution_point);
+              path_auto_interfaces($router, $pdp);
 
             # If multiple management interfaces were found, take that which is
             # directed to policy_distribution_point.
