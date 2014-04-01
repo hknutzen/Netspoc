@@ -322,6 +322,7 @@ my %router_info = (
         can_objectgroup     => 1,
         comment_char        => '!',
         has_interface_level => 1,
+        create_nat             => 1,
         need_identity_nat   => 1,
         no_filter_icmp_code => 1,
         need_acl            => 1,
@@ -338,6 +339,7 @@ my %router_info = (
         no_crypto_filter    => 1,
         comment_char        => '!',
         has_interface_level => 1,
+        create_nat             => 1,
         no_filter_icmp_code => 1,
         need_acl            => 1,
         extension           => {
@@ -9722,7 +9724,7 @@ sub get_path {
         }
     }
 
-    # This is only used, if path_walk is called from find_statics.
+    # This is only used, if path_walk is called from prepare_nat_commands.
     elsif ($type eq 'Zone') {
         $result = $obj;
     }
@@ -11974,16 +11976,7 @@ sub gen_reverse_rules {
 
 sub get_zone2 {
     my ($obj) = @_;
-    my $type = ref $obj;
-    if ($type eq 'Network') {
-        return $obj->{zone};
-    }
-    elsif ($type eq 'Subnet') {
-        return $obj->{network}->{zone};
-    }
-    elsif ($type eq 'Interface') {
-        return $obj->{network}->{zone};
-    }
+    return($obj->{zone} || $obj->{network}->{zone});
 }
 
 # Mark security zone $zone with $mark and
@@ -12435,7 +12428,7 @@ sub mark_networks_for_static {
     my $router = $out_intf->{router};
     return unless $router->{managed};
     my $model = $router->{model};
-    return unless $model->{has_interface_level};
+    return unless $model->{create_nat};
 
     # We need in_hw and out_hw for
     # - attaching attribute src_nat and
@@ -12537,8 +12530,47 @@ sub get_networks {
     }
 }
 
-sub find_statics  {
-    progress('Finding statics');
+# Mark security zone with need_nat_mark.
+# A rule only creates NAT commands, if src zone and dst zone are located
+# in differently marked zones.
+sub mark_need_nat {
+    my ($zone, $mark) = @_;
+    $zone->{need_nat_mark} = $mark;
+#    debug "nat_mark $zone->{name} : $mark";
+    for my $in_interface (@{ $zone->{interfaces} }) {
+        my $in_nat_tags = $in_interface->{bind_nat} || $bind_nat0;
+        my $router = $in_interface->{router};
+        my $create_nat;
+        if ($router->{managed} && (my $model = $router->{model})) {
+            next if $model->{need_identity_nat};
+            $create_nat = $model->{create_nat};
+        }
+        next if $router->{active_path};
+        $router->{active_path} = 1;
+        for my $out_interface (@{ $router->{interfaces} }) {
+            if ($create_nat) {
+                my $out_nat_tags = $out_interface->{bind_nat} || $bind_nat0;
+                next if !aref_eq($in_nat_tags, $out_nat_tags);
+            }
+            next if $out_interface eq $in_interface;
+            my $next_zone = $out_interface->{zone};
+            next if $next_zone->{need_nat_mark};
+            mark_need_nat($next_zone, $mark);
+        }
+        delete $router->{active_path};
+    }
+    return;
+}
+
+sub prepare_nat_commands  {
+    progress('Prepare creation of NAT commands');
+
+    my $need_nat_mark = 1;
+    for my $zone (@zones) {
+        if (not $zone->{need_nat_mark}) {
+            mark_need_nat($zone, $need_nat_mark++);
+        }
+    }
 
     # We only need to traverse the topology for each pair of
     # src-(zone/router), dst-(zone/router)
@@ -12547,8 +12579,12 @@ sub find_statics  {
     for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{supernet} })
     {
         my ($src, $dst) = @{$rule}{qw(src dst)};
-        my $from = get_zone3 $src;
-        my $to   = get_zone3 $dst;
+        my $src_zone = get_zone2($src);
+        my $dst_zone = get_zone2($dst);
+        next if $src_zone->{need_nat_mark} == $dst_zone->{need_nat_mark};
+
+        my $from = get_zone3($src);
+        my $to   = get_zone3($dst);
         $zone2zone2rule{$from}->{$to} ||= {
             src     => $from,
             dst     => $to,
@@ -13182,7 +13218,7 @@ sub check_and_convert_routes  {
 }
 
 sub find_active_routes_and_statics  {
-    find_statics;
+    prepare_nat_commands();
     find_active_routes;
     return;
 }
@@ -13670,7 +13706,7 @@ sub print_nat {
     my $model = $router->{model};
 
     # NAT commands not implemented for other models.
-    return if not $model->{has_interface_level};
+    return if not $model->{create_nat};
 
     optimize_nat_networks($router);
     if ($model->{v8_4}) {
