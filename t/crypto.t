@@ -290,6 +290,7 @@ username abc\@123.45 attributes
  service-type remote-access
  vpn-filter value vpn-filter-1
 --
+access-list outside_in extended permit icmp object-group g0 any 3
 access-list outside_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
@@ -306,7 +307,6 @@ ip access-list extended ACL-Split-Tunnel
  permit ip 10.99.2.0 0.0.0.255 any
  permit ip 10.99.3.0 0.0.0.255 any
 ip access-list extended ACL-crypto-filter
- permit icmp any any 3
  permit tcp 10.1.1.0 0.0.0.255 10.99.2.0 0.0.0.255 established
  permit tcp 10.1.1.0 0.0.0.255 10.99.3.0 0.0.0.255 established
  deny ip any any
@@ -319,7 +319,6 @@ ip access-list extended e1_in
  deny ip any any
 --
 ip access-list extended e2_in
- permit icmp any any 3
  permit tcp 10.99.2.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 80
  deny ip any any
 --
