@@ -8181,88 +8181,90 @@ sub find_subnets_in_nat_domain {
 
             for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
 
-                my $subnet0 = $mask_ip_hash{$mask}->{$ip};
-                for my $subnet ($subnet0, @{ $identical{$subnet0} }) {
+                # It is sufficient to set subset relation for only one
+                # network out of multiple identical networks.
+                # In all contexts where {is_in} is used,
+                # we apply {is_identical} to the network before.
+                my $subnet = $mask_ip_hash{$mask}->{$ip};
 
-                    # Find networks which include current subnet.
-                    my $m = $mask;
-                    my $i = $ip;
-                    while ($m) {
+                # Find networks which include current subnet.
+                my $m = $mask;
+                my $i = $ip;
+                while ($m) {
 
-                        # Clear upper bit, because left shift is undefined
-                        # otherwise.
-                        $m &= 0x7fffffff;
-                        $m <<= 1;
-                        $i = $i & $m;  # Perl bug #108480 prevents use of "&=".
-                        my $bignet = $mask_ip_hash{$m}->{$i};
-                        next if not $bignet;
+                    # Clear upper bit, because left shift is undefined
+                    # otherwise.
+                    $m &= 0x7fffffff;
+                    $m <<= 1;
+                    $i = $i & $m; # Perl bug #108480 prevents use of "&=".
+                    my $bignet = $mask_ip_hash{$m}->{$i};
+                    next if not $bignet;
 
-                        my $nat_subnet = get_nat_network($subnet, $no_nat_set);
-                        my $nat_bignet = get_nat_network($bignet, $no_nat_set);
+                    my $nat_subnet = get_nat_network($subnet, $no_nat_set);
+                    my $nat_bignet = get_nat_network($bignet, $no_nat_set);
 
-                        # Mark subnet relation.
-                        # This may differ for different NAT domains.
-                        $subnet->{is_in}->{$no_nat_set} = $bignet;
+                    # Mark subnet relation.
+                    # This may differ for different NAT domains.
+                    $subnet->{is_in}->{$no_nat_set} = $bignet;
 #                        debug "$subnet->{name} -is_in-> $bignet->{name}";
 
-                        if ($bignet->{zone} eq $subnet->{zone}) {
-                            if ($subnet->{has_other_subnet}) {
+                    if ($bignet->{zone} eq $subnet->{zone}) {
+                        if ($subnet->{has_other_subnet}) {
 #                                debug "has other1: $bignet->{name}";
-                                $bignet->{has_other_subnet} = 1;
-                            }
-                        }
-                        else {
-#                            debug "has other: $bignet->{name}";
                             $bignet->{has_other_subnet} = 1;
                         }
+                    }
+                    else {
+#                            debug "has other: $bignet->{name}";
+                        $bignet->{has_other_subnet} = 1;
+                    }
 
-                        # Mark network having subnets.  Rules having
-                        # src or dst with subnets are collected into
-                        # $expanded_rules->{supernet}
-                        $bignet->{is_supernet} = 1;
+                    # Mark network having subnets.  Rules having
+                    # src or dst with subnets are collected into
+                    # $expanded_rules->{supernet}
+                    $bignet->{is_supernet} = 1;
 
-                        if ($seen{$nat_bignet}->{$nat_subnet}) {
-                            last;
-                        }
-                        $seen{$nat_bignet}->{$nat_subnet} = 1;
+                    if ($seen{$nat_bignet}->{$nat_subnet}) {
+                        last;
+                    }
+                    $seen{$nat_bignet}->{$nat_subnet} = 1;
 
-                        if ($config{check_subnets}) {
+                    if ($config{check_subnets}) {
 
-                            # Take original $bignet, because currently
-                            # there's no method to specify a natted network
-                            # as value of subnet_of.
-                            if (
-                                not(   $bignet->{is_aggregate}
-                                    or $subnet->{is_aggregate}
-                                    or $bignet->{has_subnets}
-                                    or $nat_subnet->{subnet_of}
-                                    and $nat_subnet->{subnet_of} eq $bignet
-                                    or $nat_subnet->{is_layer3})
-                              )
-                            {
+                        # Take original $bignet, because currently
+                        # there's no method to specify a natted network
+                        # as value of subnet_of.
+                        if (
+                            not(   $bignet->{is_aggregate}
+                                   or $subnet->{is_aggregate}
+                                   or $bignet->{has_subnets}
+                                   or $nat_subnet->{subnet_of}
+                                   and $nat_subnet->{subnet_of} eq $bignet
+                                   or $nat_subnet->{is_layer3})
+                            )
+                        {
 
                                 # Prevent multiple error messages in different
                                 # NAT domains.
-                                $nat_subnet->{subnet_of} = $bignet;
+                            $nat_subnet->{subnet_of} = $bignet;
 
-                                my $msg =
-                                    "$nat_subnet->{name} is subnet of"
-                                  . " $nat_bignet->{name}\n"
-                                  . " if desired, either declare attribute"
-                                  . " 'subnet_of' or attribute 'has_subnets'";
+                            my $msg =
+                                "$nat_subnet->{name} is subnet of"
+                                . " $nat_bignet->{name}\n"
+                                . " if desired, either declare attribute"
+                                . " 'subnet_of' or attribute 'has_subnets'";
 
-                                if ($config{check_subnets} eq 'warn') {
-                                    warn_msg($msg);
-                                }
-                                else {
-                                    err_msg($msg);
-                                }
+                            if ($config{check_subnets} eq 'warn') {
+                                warn_msg($msg);
+                            }
+                            else {
+                                err_msg($msg);
                             }
                         }
-
-                        check_subnets($nat_bignet, $nat_subnet);
-                        last;
                     }
+
+                    check_subnets($nat_bignet, $nat_subnet);
+                    last;
                 }
             }
         }
