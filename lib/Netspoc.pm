@@ -12424,8 +12424,12 @@ sub optimize_and_warn_deleted {
     return;
 }
 
-# Collect networks which need NAT commands.
-sub mark_networks_for_static {
+########################################################################
+# Prepare NAT commands
+########################################################################
+
+# Collect devices which need NAT commands.
+sub collect_nat_path {
     my ($rule, $in_intf, $out_intf) = @_;
 
     # No NAT needed for directly attached interface.
@@ -12439,6 +12443,16 @@ sub mark_networks_for_static {
     my $model = $router->{model};
     return unless $model->{has_interface_level};
 
+    push @{ $rule->{nat_path} }, [ $in_intf, $out_intf ];
+}
+
+# Distribute networks needing NAT commands to device.
+sub distribute_nat_to_device {
+    my ($pair, $src_net, $dst_net) = @_;
+    my ($in_intf, $out_intf) = @$pair;
+    my $router = $out_intf->{router};
+    my $model = $router->{model};
+
     # We need in_hw and out_hw for
     # - attaching attribute src_nat and
     # - getting the NAT tag.
@@ -12449,7 +12463,7 @@ sub mark_networks_for_static {
     if ($identity_nat) {
 
         # Static dst NAT is equivalent to reversed src NAT.
-        for my $dst (@{ $rule->{dst_net} }) {
+        for my $dst (@$dst_net) {
             $out_hw->{src_nat}->{$in_hw}->{$dst} = $dst;
         }
         if ($in_hw->{level} > $out_hw->{level}) {
@@ -12459,7 +12473,7 @@ sub mark_networks_for_static {
 
     # Not identity NAT, handle real dst NAT.
     elsif (my $nat_tags = $in_hw->{bind_nat}) {
-        for my $dst (@{ $rule->{dst_net} }) {
+        for my $dst (@$dst_net) {
             my $nat_info = $dst->{nat} or next;
             grep({ $nat_info->{$_} } @$nat_tags) or next;
 
@@ -12472,7 +12486,7 @@ sub mark_networks_for_static {
     # Remember:
     # NAT tag for network located behind in_hw is attached to out_hw.
     my $nat_tags = $out_hw->{bind_nat} or return;
-    for my $src (@{ $rule->{src_net} }) {
+    for my $src (@$src_net) {
         my $nat_info = $src->{nat} or next;
 
         # We can be sure to get a single result.
@@ -12508,7 +12522,8 @@ sub get_zone3 {
         return $obj->{network}->{zone};
     }
     elsif ($type eq 'Interface') {
-        if ($obj->{router}->{managed} or $obj->{router}->{semi_managed}) {
+        my $router = $obj->{router};
+        if ($router->{managed} or $router->{semi_managed}) {
             return $obj;
         }
         else {
@@ -12525,55 +12540,62 @@ sub get_networks {
     my $type = ref $obj;
     if ($type eq 'Network') {
         if ($obj->{is_aggregate}) {
-            return @{ $obj->{networks} };
+            return $obj->{networks};
         }
         else {
-            return $obj;
+            return [ $obj ];
         }
     }
     elsif ($type eq 'Subnet' or $type eq 'Interface') {
-        return $obj->{network};
+        return [ $obj->{network} ];
     }
     else {
         internal_err("unexpected $obj->{name}");
     }
 }
 
-sub find_statics  {
-    progress('Finding statics');
+sub prepare_nat_commands  {
+    progress('Preparing NAT commands');
 
-    # We only need to traverse the topology for each pair of
+    # Caching for performance.
+    my %obj2zone;
+    my %obj2networks;
+
+    # Traverse the topology once for each pair of
     # src-(zone/router), dst-(zone/router)
-    my %zone2zone2rule;
-    my $pseudo_prt = { name => '--' };
+    my %zone2zone2info;
     for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{supernet} })
     {
         my ($src, $dst) = @{$rule}{qw(src dst)};
-        my $from = get_zone3 $src;
-        my $to   = get_zone3 $dst;
-        $zone2zone2rule{$from}->{$to} ||= {
-            src     => $from,
-            dst     => $to,
-            action  => '--',
-            prt     => $pseudo_prt,
-            src_net => {},
-            dst_net => {},
-        };
-        my $rule2 = $zone2zone2rule{$from}->{$to};
-        for my $network (get_networks($src)) {
-            $rule2->{src_net}->{$network} = $network;
+        my $from = $obj2zone{$src} ||= get_zone3($src);
+        my $to   = $obj2zone{$dst} ||= get_zone3($dst);
+        my $info = $zone2zone2info{$from}->{$to};
+        if (!$info) {
+            path_walk($rule, \&collect_nat_path, 'Router');
+            $info->{nat_path} = delete $rule->{nat_path};
+            $zone2zone2info{$from}->{$to} = $info;
         }
-        for my $network (get_networks($dst)) {
-            $rule2->{dst_net}->{$network} = $network;
+        
+        # Collect networks only if path has some NAT device.
+        if ($info->{nat_path}) {
+            my $src_networks = $obj2networks{$src} ||= get_networks($src);
+            for my $network (@$src_networks) {
+                $info->{src_net}->{$network} = $network;
+            }
+            my $dst_networks = $obj2networks{$dst} ||= get_networks($dst);
+            for my $network (@$dst_networks) {
+                $info->{dst_net}->{$network} = $network;
+            }
         }
     }
-    for my $hash (values %zone2zone2rule) {
-        for my $rule (values %$hash) {
-            $rule->{src_net} = [ values %{ $rule->{src_net} } ];
-            $rule->{dst_net} = [ values %{ $rule->{dst_net} } ];
-
-#           debug("$rule->{src}->{name}, $rule->{dst}->{name}");
-            path_walk($rule, \&mark_networks_for_static, 'Router');
+    for my $hash (values %zone2zone2info) {
+        for my $info (values %$hash) {
+            my $nat_path = $info->{nat_path} or next;
+            my $src_net = [ values %{ $info->{src_net} } ];
+            my $dst_net = [ values %{ $info->{dst_net} } ];
+            for my $pair (@$nat_path) {
+                distribute_nat_to_device($pair, $src_net, $dst_net);
+            }
         }
     }
     return;
@@ -13184,7 +13206,7 @@ sub check_and_convert_routes  {
 }
 
 sub find_active_routes_and_statics  {
-    find_statics;
+    prepare_nat_commands();
     find_active_routes;
     return;
 }
