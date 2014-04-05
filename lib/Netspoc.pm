@@ -3449,14 +3449,14 @@ sub read_json_watchers {
     my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
     closedir $dh;
     for my $owner_name (@files) {
-        next if $owner_name eq '.' or $owner_name eq '..';
+        next if $owner_name =~ /^\./;
         next if $owner_name =~ m/$config{ignore_files}/o;
         my $path = "$path/$owner_name";
         opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
         my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
         closedir $dh;
         for my $file (@files) {
-            next if $file eq '.' or $file eq '..';
+            next if $file =~ /^\./;
             next if $file =~ m/$config{ignore_files}/o;
             my $path = "$path/$file";
             if ($file ne 'watchers') {
@@ -3489,7 +3489,7 @@ sub read_json {
     my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
     closedir $dh;
     for my $file (@files) {
-        next if $file eq '.' or $file eq '..';
+        next if $file =~ /^\./;
         next if $file =~ m/$config{ignore_files}/o;
         my $path = "$path/$file";
         if ($file ne 'owner') {
@@ -3519,7 +3519,7 @@ sub read_file_or_dir {
         if (-d $path) {
             opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
             while (my $file = Encode::decode($filename_encode, readdir $dh)) {
-                next if $file eq '.' or $file eq '..';
+                next if $file =~ /^\./;
                 next if $file =~ m/$config{ignore_files}/o;
                 my $path = "$path/$file";
                 $read_nested_files->($path, $read_syntax);
@@ -3548,7 +3548,7 @@ sub read_file_or_dir {
         
     for my $file (@files) {
 
-        next if $file eq '.' or $file eq '..';
+        next if $file =~ /^\./;
         next if $file =~ m/$config{ignore_files}/o;
 
         # Ignore special files/directories.
@@ -17835,7 +17835,7 @@ sub copy_raw {
 
     opendir(my $dh, $raw_dir) or fatal_err("Can't opendir $raw_dir: $!");
     while (my $file = Encode::decode($filename_encode, readdir $dh)) {
-        next if $file eq '.' or $file eq '..';
+        next if $file  =~ /^\./;
         next if $file =~ m/$config{ignore_files}/o;
 
         # Untaint $file.
