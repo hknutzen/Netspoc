@@ -12579,13 +12579,9 @@ sub prepare_nat_commands  {
         # Collect networks only if path has some NAT device.
         if ($info->{nat_path}) {
             my $src_networks = $obj2networks{$src} ||= get_networks($src);
-            for my $network (@$src_networks) {
-                $info->{src_net}->{$network} = $network;
-            }
+            @{$info->{src_net}}{@$src_networks} = @$src_networks;
             my $dst_networks = $obj2networks{$dst} ||= get_networks($dst);
-            for my $network (@$dst_networks) {
-                $info->{dst_net}->{$network} = $network;
-            }
+            @{$info->{dst_net}}{@$dst_networks} = @$dst_networks;
         }
     }
     for my $hash (values %zone2zone2info) {
