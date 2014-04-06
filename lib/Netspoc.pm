@@ -4568,9 +4568,9 @@ sub link_virtual_interfaces  {
                 && grep { $_->{path_restrict} && !$_->{main_interface} }
                    map { @{ $_->{router}->{interfaces} } } @$interfaces)
             {
-                err_msg("Pathrestriction not supported for",
-                        " group of 3 or more virtual interfaces\n ",
-                        join(',', map { $_->{name} } @$interfaces));
+                err_msg("Pathrestriction not supported at group of routers",
+                        " having 3 or more virtual interfaces\n",
+                        join("\n", map { " - $_->{name}" } @$interfaces));
             }
         }
     }
