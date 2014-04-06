@@ -9872,7 +9872,7 @@ sub cluster_path_mark1 {
 
 # Optimize navigation inside a cluster of loops.
 # Mark each loop marker
-# with the allowed loops to be gone to reach $to.
+# with the allowed loops to be traversed to reach $to.
 # The direction is given as a loop object.
 # It can be used to look up interfaces which reference
 # this loop object in attribute {loop}.
@@ -9900,8 +9900,8 @@ sub cluster_navigation {
 
 #	    debug("- Eq: $from_loop->{exit}->{name}$from_loop to itself");
 
-            # Path $from -> $to goes through $from_loop and through $exit_loop.
-            # Inside $exit_loop, enter only $from_loop, but no other loops.
+            # Path $from -> $to traverses $from_loop and $exit_loop.
+            # Inside $exit_loop, enter only $from_loop, but not from other loops.
             my $exit_loop = $from_loop->{exit}->{loop};
             $navi->{$exit_loop}->{$from_loop} = 1;
 
