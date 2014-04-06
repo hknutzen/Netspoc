@@ -5923,13 +5923,11 @@ sub expand_group1 {
 }
 
 # Remove and warn about duplicate values in group.
-# Remove undefined values as well.
 sub remove_duplicates {
     my ($aref, $context) = @_;
     my %seen;
     my @duplicate;
     for my $obj (@$aref) {
-        next if not defined $obj;
         if ($seen{$obj}++) {
             push @duplicate, $obj;
             $obj = undef;
@@ -5939,22 +5937,37 @@ sub remove_duplicates {
         my $msg = "Duplicate elements in $context:\n "
           . join("\n ", map { $_->{name} } @duplicate);
         warn_msg($msg);
+        $aref = [ grep { defined $_ } @$aref ];
     }
-    $aref = [ grep { defined $_ } @$aref ];
     return $aref;
 }
 
 sub expand_group {
-    my ($obref, $context, $convert_hosts) = @_;
+    my ($obref, $context) = @_;
     my $aref = expand_group1 $obref, $context, 'clean_autogrp';
+    $aref = remove_duplicates($aref, $context);
 
-    # Ignore unusable objects.
+    # Ignore disabled objects.
+    my $changed;
     for my $object (@$aref) {
-        my $ignore;
         if ($object->{disabled}) {
             $object = undef;
+            $changed = 1;
         }
-        elsif (is_network $object) {
+    }
+    $aref = [ grep { defined $_ } @$aref ] if $changed;
+    return $aref;
+}
+
+sub expand_group_in_rule {
+    my ($obref, $context, $convert_hosts) = @_;
+    my $aref = expand_group($obref, $context);
+
+    # Ignore unusable objects.
+    my $changed;
+    for my $object (@$aref) {
+        my $ignore;
+        if (is_network $object) {
             if ($object->{ip} eq 'unnumbered') {
                 $ignore = "unnumbered $object->{name}";
             }
@@ -5972,11 +5985,11 @@ sub expand_group {
         }
         if ($ignore) {
             $object = undef;
+            $changed = 1;
             warn_msg("Ignoring $ignore in $context");
         }
     }
-
-    $aref = remove_duplicates($aref, $context);
+    $aref = [ grep { defined $_ } @$aref ] if $changed;
 
     if ($convert_hosts) {
         my @subnets;
@@ -6610,11 +6623,14 @@ sub expand_rules {
         for my $element ($foreach ? @$user : $user) {
             $user_object->{elements} = $element;
             my $src =
-              expand_group($unexpanded->{src}, "src of rule in $context",
-                $convert_hosts);
+              expand_group_in_rule($unexpanded->{src}, 
+                                   "src of rule in $context",
+                                   $convert_hosts);
             my $dst_context =  "dst of rule in $context";
             my $dst =
-              expand_group($unexpanded->{dst}, $dst_context, $convert_hosts);
+              expand_group_in_rule($unexpanded->{dst}, 
+                                   $dst_context, 
+                                   $convert_hosts);
             $dst = add_managed_hosts($dst, $dst_context);
             for my $prt (@$prt_list) {
                 my $flags = $prt->{flags};
@@ -6815,6 +6831,8 @@ sub expand_services {
             }
         }
 
+        # Don't convert hosts in user objects here.
+        # This will be done when expanding 'user' inside a rule.
         $service->{user} = expand_group($service->{user}, "user of $name");
         expand_rules($service, $expanded_rules_aref, $convert_hosts);
     }
