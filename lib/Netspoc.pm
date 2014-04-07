@@ -9841,6 +9841,9 @@ sub cluster_path_mark1 {
     my $allowed = $navi->{ $obj->{loop} };
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_intf;
+
+        # As optimization, ignore secondary interface early.
+        next if $interface->{main_interface};
         my $loop = $interface->{loop};
         $allowed or internal_err("Loop with empty navigation");
         next if not $loop or not $allowed->{$loop};
@@ -10054,6 +10057,10 @@ sub cluster_path_mark  {
           or internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
             " with empty navi");
         for my $interface (@{ $from->{interfaces} }) {
+
+            # Secondary interface has global_active_pathrestriction,
+            # but ignore it early to gain some performance improvement.
+            next if $interface->{main_interface};
             my $loop = $interface->{loop};
             next if not $loop;
             if (not $allowed->{$loop}) {
