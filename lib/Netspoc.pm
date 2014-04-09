@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.045'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.046'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -3449,14 +3449,14 @@ sub read_json_watchers {
     my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
     closedir $dh;
     for my $owner_name (@files) {
-        next if $owner_name eq '.' or $owner_name eq '..';
+        next if $owner_name =~ /^\./;
         next if $owner_name =~ m/$config{ignore_files}/o;
         my $path = "$path/$owner_name";
         opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
         my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
         closedir $dh;
         for my $file (@files) {
-            next if $file eq '.' or $file eq '..';
+            next if $file =~ /^\./;
             next if $file =~ m/$config{ignore_files}/o;
             my $path = "$path/$file";
             if ($file ne 'watchers') {
@@ -3489,7 +3489,7 @@ sub read_json {
     my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
     closedir $dh;
     for my $file (@files) {
-        next if $file eq '.' or $file eq '..';
+        next if $file =~ /^\./;
         next if $file =~ m/$config{ignore_files}/o;
         my $path = "$path/$file";
         if ($file ne 'owner') {
@@ -3519,7 +3519,7 @@ sub read_file_or_dir {
         if (-d $path) {
             opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
             while (my $file = Encode::decode($filename_encode, readdir $dh)) {
-                next if $file eq '.' or $file eq '..';
+                next if $file =~ /^\./;
                 next if $file =~ m/$config{ignore_files}/o;
                 my $path = "$path/$file";
                 $read_nested_files->($path, $read_syntax);
@@ -3548,7 +3548,7 @@ sub read_file_or_dir {
         
     for my $file (@files) {
 
-        next if $file eq '.' or $file eq '..';
+        next if $file =~ /^\./;
         next if $file =~ m/$config{ignore_files}/o;
 
         # Ignore special files/directories.
@@ -4568,9 +4568,9 @@ sub link_virtual_interfaces  {
                 && grep { $_->{path_restrict} && !$_->{main_interface} }
                    map { @{ $_->{router}->{interfaces} } } @$interfaces)
             {
-                err_msg("Pathrestriction not supported for",
-                        " group of 3 or more virtual interfaces\n ",
-                        join(',', map { $_->{name} } @$interfaces));
+                err_msg("Pathrestriction not supported at group of routers",
+                        " having 3 or more virtual interfaces\n",
+                        join("\n", map { " - $_->{name}" } @$interfaces));
             }
         }
     }
@@ -5923,13 +5923,11 @@ sub expand_group1 {
 }
 
 # Remove and warn about duplicate values in group.
-# Remove undefined values as well.
 sub remove_duplicates {
     my ($aref, $context) = @_;
     my %seen;
     my @duplicate;
     for my $obj (@$aref) {
-        next if not defined $obj;
         if ($seen{$obj}++) {
             push @duplicate, $obj;
             $obj = undef;
@@ -5939,22 +5937,37 @@ sub remove_duplicates {
         my $msg = "Duplicate elements in $context:\n "
           . join("\n ", map { $_->{name} } @duplicate);
         warn_msg($msg);
+        $aref = [ grep { defined $_ } @$aref ];
     }
-    $aref = [ grep { defined $_ } @$aref ];
     return $aref;
 }
 
 sub expand_group {
-    my ($obref, $context, $convert_hosts) = @_;
+    my ($obref, $context) = @_;
     my $aref = expand_group1 $obref, $context, 'clean_autogrp';
+    $aref = remove_duplicates($aref, $context);
 
-    # Ignore unusable objects.
+    # Ignore disabled objects.
+    my $changed;
     for my $object (@$aref) {
-        my $ignore;
         if ($object->{disabled}) {
             $object = undef;
+            $changed = 1;
         }
-        elsif (is_network $object) {
+    }
+    $aref = [ grep { defined $_ } @$aref ] if $changed;
+    return $aref;
+}
+
+sub expand_group_in_rule {
+    my ($obref, $context, $convert_hosts) = @_;
+    my $aref = expand_group($obref, $context);
+
+    # Ignore unusable objects.
+    my $changed;
+    for my $object (@$aref) {
+        my $ignore;
+        if (is_network $object) {
             if ($object->{ip} eq 'unnumbered') {
                 $ignore = "unnumbered $object->{name}";
             }
@@ -5972,11 +5985,11 @@ sub expand_group {
         }
         if ($ignore) {
             $object = undef;
+            $changed = 1;
             warn_msg("Ignoring $ignore in $context");
         }
     }
-
-    $aref = remove_duplicates($aref, $context);
+    $aref = [ grep { defined $_ } @$aref ] if $changed;
 
     if ($convert_hosts) {
         my @subnets;
@@ -6610,11 +6623,14 @@ sub expand_rules {
         for my $element ($foreach ? @$user : $user) {
             $user_object->{elements} = $element;
             my $src =
-              expand_group($unexpanded->{src}, "src of rule in $context",
-                $convert_hosts);
+              expand_group_in_rule($unexpanded->{src}, 
+                                   "src of rule in $context",
+                                   $convert_hosts);
             my $dst_context =  "dst of rule in $context";
             my $dst =
-              expand_group($unexpanded->{dst}, $dst_context, $convert_hosts);
+              expand_group_in_rule($unexpanded->{dst}, 
+                                   $dst_context, 
+                                   $convert_hosts);
             $dst = add_managed_hosts($dst, $dst_context);
             for my $prt (@$prt_list) {
                 my $flags = $prt->{flags};
@@ -6815,6 +6831,8 @@ sub expand_services {
             }
         }
 
+        # Don't convert hosts in user objects here.
+        # This will be done when expanding 'user' inside a rule.
         $service->{user} = expand_group($service->{user}, "user of $name");
         expand_rules($service, $expanded_rules_aref, $convert_hosts);
     }
@@ -8181,88 +8199,90 @@ sub find_subnets_in_nat_domain {
 
             for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
 
-                my $subnet0 = $mask_ip_hash{$mask}->{$ip};
-                for my $subnet ($subnet0, @{ $identical{$subnet0} }) {
+                # It is sufficient to set subset relation for only one
+                # network out of multiple identical networks.
+                # In all contexts where {is_in} is used,
+                # we apply {is_identical} to the network before.
+                my $subnet = $mask_ip_hash{$mask}->{$ip};
 
-                    # Find networks which include current subnet.
-                    my $m = $mask;
-                    my $i = $ip;
-                    while ($m) {
+                # Find networks which include current subnet.
+                my $m = $mask;
+                my $i = $ip;
+                while ($m) {
 
-                        # Clear upper bit, because left shift is undefined
-                        # otherwise.
-                        $m &= 0x7fffffff;
-                        $m <<= 1;
-                        $i = $i & $m;  # Perl bug #108480 prevents use of "&=".
-                        my $bignet = $mask_ip_hash{$m}->{$i};
-                        next if not $bignet;
+                    # Clear upper bit, because left shift is undefined
+                    # otherwise.
+                    $m &= 0x7fffffff;
+                    $m <<= 1;
+                    $i = $i & $m; # Perl bug #108480 prevents use of "&=".
+                    my $bignet = $mask_ip_hash{$m}->{$i};
+                    next if not $bignet;
 
-                        my $nat_subnet = get_nat_network($subnet, $no_nat_set);
-                        my $nat_bignet = get_nat_network($bignet, $no_nat_set);
+                    my $nat_subnet = get_nat_network($subnet, $no_nat_set);
+                    my $nat_bignet = get_nat_network($bignet, $no_nat_set);
 
-                        # Mark subnet relation.
-                        # This may differ for different NAT domains.
-                        $subnet->{is_in}->{$no_nat_set} = $bignet;
+                    # Mark subnet relation.
+                    # This may differ for different NAT domains.
+                    $subnet->{is_in}->{$no_nat_set} = $bignet;
 #                        debug "$subnet->{name} -is_in-> $bignet->{name}";
 
-                        if ($bignet->{zone} eq $subnet->{zone}) {
-                            if ($subnet->{has_other_subnet}) {
+                    if ($bignet->{zone} eq $subnet->{zone}) {
+                        if ($subnet->{has_other_subnet}) {
 #                                debug "has other1: $bignet->{name}";
-                                $bignet->{has_other_subnet} = 1;
-                            }
-                        }
-                        else {
-#                            debug "has other: $bignet->{name}";
                             $bignet->{has_other_subnet} = 1;
                         }
+                    }
+                    else {
+#                            debug "has other: $bignet->{name}";
+                        $bignet->{has_other_subnet} = 1;
+                    }
 
-                        # Mark network having subnets.  Rules having
-                        # src or dst with subnets are collected into
-                        # $expanded_rules->{supernet}
-                        $bignet->{is_supernet} = 1;
+                    # Mark network having subnets.  Rules having
+                    # src or dst with subnets are collected into
+                    # $expanded_rules->{supernet}
+                    $bignet->{is_supernet} = 1;
 
-                        if ($seen{$nat_bignet}->{$nat_subnet}) {
-                            last;
-                        }
-                        $seen{$nat_bignet}->{$nat_subnet} = 1;
+                    if ($seen{$nat_bignet}->{$nat_subnet}) {
+                        last;
+                    }
+                    $seen{$nat_bignet}->{$nat_subnet} = 1;
 
-                        if ($config{check_subnets}) {
+                    if ($config{check_subnets}) {
 
-                            # Take original $bignet, because currently
-                            # there's no method to specify a natted network
-                            # as value of subnet_of.
-                            if (
-                                not(   $bignet->{is_aggregate}
-                                    or $subnet->{is_aggregate}
-                                    or $bignet->{has_subnets}
-                                    or $nat_subnet->{subnet_of}
-                                    and $nat_subnet->{subnet_of} eq $bignet
-                                    or $nat_subnet->{is_layer3})
-                              )
-                            {
+                        # Take original $bignet, because currently
+                        # there's no method to specify a natted network
+                        # as value of subnet_of.
+                        if (
+                            not(   $bignet->{is_aggregate}
+                                   or $subnet->{is_aggregate}
+                                   or $bignet->{has_subnets}
+                                   or $nat_subnet->{subnet_of}
+                                   and $nat_subnet->{subnet_of} eq $bignet
+                                   or $nat_subnet->{is_layer3})
+                            )
+                        {
 
                                 # Prevent multiple error messages in different
                                 # NAT domains.
-                                $nat_subnet->{subnet_of} = $bignet;
+                            $nat_subnet->{subnet_of} = $bignet;
 
-                                my $msg =
-                                    "$nat_subnet->{name} is subnet of"
-                                  . " $nat_bignet->{name}\n"
-                                  . " if desired, either declare attribute"
-                                  . " 'subnet_of' or attribute 'has_subnets'";
+                            my $msg =
+                                "$nat_subnet->{name} is subnet of"
+                                . " $nat_bignet->{name}\n"
+                                . " if desired, either declare attribute"
+                                . " 'subnet_of' or attribute 'has_subnets'";
 
-                                if ($config{check_subnets} eq 'warn') {
-                                    warn_msg($msg);
-                                }
-                                else {
-                                    err_msg($msg);
-                                }
+                            if ($config{check_subnets} eq 'warn') {
+                                warn_msg($msg);
+                            }
+                            else {
+                                err_msg($msg);
                             }
                         }
-
-                        check_subnets($nat_bignet, $nat_subnet);
-                        last;
                     }
+
+                    check_subnets($nat_bignet, $nat_subnet);
+                    last;
                 }
             }
         }
@@ -9821,6 +9841,9 @@ sub cluster_path_mark1 {
     my $allowed = $navi->{ $obj->{loop} };
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_intf;
+
+        # As optimization, ignore secondary interface early.
+        next if $interface->{main_interface};
         my $loop = $interface->{loop};
         $allowed or internal_err("Loop with empty navigation");
         next if not $loop or not $allowed->{$loop};
@@ -9852,7 +9875,7 @@ sub cluster_path_mark1 {
 
 # Optimize navigation inside a cluster of loops.
 # Mark each loop marker
-# with the allowed loops to be gone to reach $to.
+# with the allowed loops to be traversed to reach $to.
 # The direction is given as a loop object.
 # It can be used to look up interfaces which reference
 # this loop object in attribute {loop}.
@@ -9880,8 +9903,8 @@ sub cluster_navigation {
 
 #	    debug("- Eq: $from_loop->{exit}->{name}$from_loop to itself");
 
-            # Path $from -> $to goes through $from_loop and through $exit_loop.
-            # Inside $exit_loop, enter only $from_loop, but no other loops.
+            # Path $from -> $to traverses $from_loop and $exit_loop.
+            # Inside $exit_loop, enter only $from_loop, but not from other loops.
             my $exit_loop = $from_loop->{exit}->{loop};
             $navi->{$exit_loop}->{$from_loop} = 1;
 
@@ -10034,6 +10057,10 @@ sub cluster_path_mark  {
           or internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
             " with empty navi");
         for my $interface (@{ $from->{interfaces} }) {
+
+            # Secondary interface has global_active_pathrestriction,
+            # but ignore it early to gain some performance improvement.
+            next if $interface->{main_interface};
             my $loop = $interface->{loop};
             next if not $loop;
             if (not $allowed->{$loop}) {
@@ -12422,8 +12449,12 @@ sub optimize_and_warn_deleted {
     return;
 }
 
-# Collect networks which need NAT commands.
-sub mark_networks_for_static {
+########################################################################
+# Prepare NAT commands
+########################################################################
+
+# Collect devices which need NAT commands.
+sub collect_nat_path {
     my ($rule, $in_intf, $out_intf) = @_;
 
     # No NAT needed for directly attached interface.
@@ -12437,6 +12468,17 @@ sub mark_networks_for_static {
     my $model = $router->{model};
     return unless $model->{has_interface_level};
 
+    push @{ $rule->{nat_path} }, [ $in_intf, $out_intf ];
+    return;
+}
+
+# Distribute networks needing NAT commands to device.
+sub distribute_nat_to_device {
+    my ($pair, $src_net, $dst_net) = @_;
+    my ($in_intf, $out_intf) = @$pair;
+    my $router = $out_intf->{router};
+    my $model = $router->{model};
+
     # We need in_hw and out_hw for
     # - attaching attribute src_nat and
     # - getting the NAT tag.
@@ -12447,7 +12489,7 @@ sub mark_networks_for_static {
     if ($identity_nat) {
 
         # Static dst NAT is equivalent to reversed src NAT.
-        for my $dst (@{ $rule->{dst_net} }) {
+        for my $dst (@$dst_net) {
             $out_hw->{src_nat}->{$in_hw}->{$dst} = $dst;
         }
         if ($in_hw->{level} > $out_hw->{level}) {
@@ -12457,7 +12499,7 @@ sub mark_networks_for_static {
 
     # Not identity NAT, handle real dst NAT.
     elsif (my $nat_tags = $in_hw->{bind_nat}) {
-        for my $dst (@{ $rule->{dst_net} }) {
+        for my $dst (@$dst_net) {
             my $nat_info = $dst->{nat} or next;
             grep({ $nat_info->{$_} } @$nat_tags) or next;
 
@@ -12470,7 +12512,7 @@ sub mark_networks_for_static {
     # Remember:
     # NAT tag for network located behind in_hw is attached to out_hw.
     my $nat_tags = $out_hw->{bind_nat} or return;
-    for my $src (@{ $rule->{src_net} }) {
+    for my $src (@$src_net) {
         my $nat_info = $src->{nat} or next;
 
         # We can be sure to get a single result.
@@ -12506,7 +12548,8 @@ sub get_zone3 {
         return $obj->{network}->{zone};
     }
     elsif ($type eq 'Interface') {
-        if ($obj->{router}->{managed} or $obj->{router}->{semi_managed}) {
+        my $router = $obj->{router};
+        if ($router->{managed} or $router->{semi_managed}) {
             return $obj;
         }
         else {
@@ -12523,55 +12566,58 @@ sub get_networks {
     my $type = ref $obj;
     if ($type eq 'Network') {
         if ($obj->{is_aggregate}) {
-            return @{ $obj->{networks} };
+            return $obj->{networks};
         }
         else {
-            return $obj;
+            return [ $obj ];
         }
     }
     elsif ($type eq 'Subnet' or $type eq 'Interface') {
-        return $obj->{network};
+        return [ $obj->{network} ];
     }
     else {
         internal_err("unexpected $obj->{name}");
     }
 }
 
-sub find_statics  {
-    progress('Finding statics');
+sub prepare_nat_commands  {
+    progress('Preparing NAT commands');
 
-    # We only need to traverse the topology for each pair of
+    # Caching for performance.
+    my %obj2zone;
+    my %obj2networks;
+
+    # Traverse the topology once for each pair of
     # src-(zone/router), dst-(zone/router)
-    my %zone2zone2rule;
-    my $pseudo_prt = { name => '--' };
+    my %zone2zone2info;
     for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{supernet} })
     {
         my ($src, $dst) = @{$rule}{qw(src dst)};
-        my $from = get_zone3 $src;
-        my $to   = get_zone3 $dst;
-        $zone2zone2rule{$from}->{$to} ||= {
-            src     => $from,
-            dst     => $to,
-            action  => '--',
-            prt     => $pseudo_prt,
-            src_net => {},
-            dst_net => {},
-        };
-        my $rule2 = $zone2zone2rule{$from}->{$to};
-        for my $network (get_networks($src)) {
-            $rule2->{src_net}->{$network} = $network;
+        my $from = $obj2zone{$src} ||= get_zone3($src);
+        my $to   = $obj2zone{$dst} ||= get_zone3($dst);
+        my $info = $zone2zone2info{$from}->{$to};
+        if (!$info) {
+            path_walk($rule, \&collect_nat_path, 'Router');
+            $info->{nat_path} = delete $rule->{nat_path};
+            $zone2zone2info{$from}->{$to} = $info;
         }
-        for my $network (get_networks($dst)) {
-            $rule2->{dst_net}->{$network} = $network;
+        
+        # Collect networks only if path has some NAT device.
+        if ($info->{nat_path}) {
+            my $src_networks = $obj2networks{$src} ||= get_networks($src);
+            @{$info->{src_net}}{@$src_networks} = @$src_networks;
+            my $dst_networks = $obj2networks{$dst} ||= get_networks($dst);
+            @{$info->{dst_net}}{@$dst_networks} = @$dst_networks;
         }
     }
-    for my $hash (values %zone2zone2rule) {
-        for my $rule (values %$hash) {
-            $rule->{src_net} = [ values %{ $rule->{src_net} } ];
-            $rule->{dst_net} = [ values %{ $rule->{dst_net} } ];
-
-#           debug("$rule->{src}->{name}, $rule->{dst}->{name}");
-            path_walk($rule, \&mark_networks_for_static, 'Router');
+    for my $hash (values %zone2zone2info) {
+        for my $info (values %$hash) {
+            my $nat_path = $info->{nat_path} or next;
+            my $src_net = [ values %{ $info->{src_net} } ];
+            my $dst_net = [ values %{ $info->{dst_net} } ];
+            for my $pair (@$nat_path) {
+                distribute_nat_to_device($pair, $src_net, $dst_net);
+            }
         }
     }
     return;
@@ -13182,7 +13228,7 @@ sub check_and_convert_routes  {
 }
 
 sub find_active_routes_and_statics  {
-    find_statics;
+    prepare_nat_commands();
     find_active_routes;
     return;
 }
@@ -17833,7 +17879,7 @@ sub copy_raw {
 
     opendir(my $dh, $raw_dir) or fatal_err("Can't opendir $raw_dir: $!");
     while (my $file = Encode::decode($filename_encode, readdir $dh)) {
-        next if $file eq '.' or $file eq '..';
+        next if $file  =~ /^\./;
         next if $file =~ m/$config{ignore_files}/o;
 
         # Untaint $file.
