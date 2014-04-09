@@ -1,5 +1,11 @@
 {{$NEXT}}
 
+3.046     2014-04-09 17:00:01 Europe/Berlin
+
+ - Unnumbered interfaces are accepted in pathrestriction now.
+ - Performace improvements.
+ - Netspoc now ignores all hidden files, not only '.' and '..'
+
 3.045     2014-04-01 17:41:47 Europe/Berlin
 
  - Fixed implementation of attribute 'policy_distribution_point' at router.
