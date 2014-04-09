@@ -12469,6 +12469,7 @@ sub collect_nat_path {
     return unless $model->{has_interface_level};
 
     push @{ $rule->{nat_path} }, [ $in_intf, $out_intf ];
+    return;
 }
 
 # Distribute networks needing NAT commands to device.
