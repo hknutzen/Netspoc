@@ -153,7 +153,7 @@ pathrestriction:p = interface:r1.a, interface:r1.b.virtual;
 END
 
 $out = <<END;
-Error: Pathrestriction not supported for group of routers having 3 or more virtual interfaces
+Error: Pathrestriction not supported at group of routers having 3 or more virtual interfaces
  - interface:r1.b.virtual
  - interface:r2.b.virtual
  - interface:r3.b.virtual
