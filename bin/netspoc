@@ -56,10 +56,6 @@ Check for missing supernet rules.
 
 Check for transient supernet rules.
 
-=item B<-check_raw=0|1|warn>
-
-Check for unused raw files.
-
 =item B<-[no]auto_default_route>
 
 Generate default route to minimize number of routing entries.

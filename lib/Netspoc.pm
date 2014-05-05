@@ -159,9 +159,6 @@ our %config = (
 # Check for transient supernet rules.
     check_transient_supernet_rules => 0,
 
-# Check for unused raw files.
-    check_raw => 'warn',
-
 # Optimize the number of routing entries per router:
 # For each router find the hop, where the largest
 # number of routing entries points to
@@ -17875,7 +17872,7 @@ sub copy_raw {
     $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
     ## use critic
 
-    my %routers = map { $_->{device_name} => 1 } @managed_routers;
+    my %device_names = map { $_->{device_name} => 1 } @managed_routers;
 
     opendir(my $dh, $raw_dir) or fatal_err("Can't opendir $raw_dir: $!");
     while (my $file = Encode::decode($filename_encode, readdir $dh)) {
@@ -17889,11 +17886,8 @@ sub copy_raw {
             warn_msg("Ignoring $raw_path");
             next;
         }
-        if (not $routers{$file}) {
-            if (my $conf = $config{check_raw}) {
-                my $msg = "Found unused $raw_path";
-                $conf eq 'warn' ? warn_msg($msg) : err_msg($msg);
-            }
+        if (not $device_names{$file}) {
+            warn_msg("Found unused $raw_path");
             next;
         }
         my $copy = "$out_dir/$raw_file.raw";
