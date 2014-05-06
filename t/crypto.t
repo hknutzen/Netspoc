@@ -9,10 +9,220 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'VPN ASA with software clients';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha_hmac;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+ tunnel_all;
+}
+
+network:intern = { ip = 10.1.1.0/24;}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = {
+  ip = 10.1.1.101; 
+  hardware = inside;
+ }
+ interface:dmz = { 
+  ip = 192.168.0.101; 
+  hub = crypto:vpn;
+  hardware = outside; 
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:extern = { 
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:softclients = {
+ interface:internet = { spoke = crypto:vpn; }
+ interface:customers1;
+ interface:customers2;
+}
+
+network:customers1 = { 
+ ip = 10.99.1.0/24; 
+ radius_attributes = {
+  banner = Willkommen;
+ }
+ host:id:foo@domain.x = {
+  ip = 10.99.1.10;
+ }
+ host:id:bar@domain.x = { 
+  ip = 10.99.1.11; 
+  radius_attributes = { banner = Willkommen zu Hause; }
+ }
+}
+
+network:customers2 = { 
+ ip = 10.99.2.0/24; 
+ radius_attributes = {
+  vpn-idle-timeout = 120; 
+  trust-point = ASDM_TrustPoint2;
+ }
+
+ host:id:@domain.x = {
+  range = 10.99.2.0 - 10.99.2.63; 
+  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+ }
+ host:id:@domain.y = {
+  range = 10.99.2.64 - 10.99.2.127;
+  radius_attributes = { vpn-idle-timeout = 40; trust-point = ASDM_TrustPoint3; } }
+}
+
+service:test1 = {
+ user = host:id:foo@domain.x.customers1, host:id:@domain.y.customers2;
+ permit src = user; dst = network:intern; prt = tcp 80; 
+}
+
+service:test2 = {
+ user = host:id:bar@domain.x.customers1, host:id:@domain.x.customers2;
+ permit src = user; dst = network:intern; prt = tcp 81; 
+}
+END
+
+$out = <<'END';
+no sysopt connection permit-vpn
+group-policy global internal
+group-policy global attributes
+ pfs enable
+--
+tunnel-group VPN-single type remote-access
+tunnel-group VPN-single general-attributes
+ authorization-server-group LOCAL
+ default-group-policy global
+ authorization-required
+ username-from-certificate EA
+tunnel-group VPN-single ipsec-attributes
+ chain
+ trust-point ASDM_TrustPoint1
+ isakmp ikev1-user-authentication none
+tunnel-group-map default-group VPN-single
+--
+access-list split-tunnel-1 standard permit 10.1.1.0 255.255.255.0
+access-list vpn-filter-1 extended permit ip 10.99.2.0 255.255.255.192 any
+access-list vpn-filter-1 extended deny ip any any
+crypto ca certificate map ca-map-1 10
+ subject-name attr ea co @domain.x
+ip local pool pool-1 10.99.2.0-10.99.2.63 mask 255.255.255.192
+group-policy VPN-group-1 internal
+group-policy VPN-group-1 attributes
+ address-pools value pool-1
+ split-tunnel-network-list value split-tunnel-1
+ split-tunnel-policy tunnelspecified
+ vpn-filter value vpn-filter-1
+ vpn-idle-timeout 120
+tunnel-group VPN-tunnel-1 type remote-access
+tunnel-group VPN-tunnel-1 general-attributes
+ default-group-policy VPN-group-1
+tunnel-group VPN-tunnel-1 ipsec-attributes
+ trust-point ASDM_TrustPoint2
+ isakmp ikev1-user-authentication none
+tunnel-group-map ca-map-1 10 VPN-tunnel-1
+--
+access-list vpn-filter-2 extended permit ip 10.99.2.64 255.255.255.192 any
+access-list vpn-filter-2 extended deny ip any any
+crypto ca certificate map ca-map-2 10
+ subject-name attr ea co @domain.y
+ip local pool pool-2 10.99.2.64-10.99.2.127 mask 255.255.255.192
+group-policy VPN-group-2 internal
+group-policy VPN-group-2 attributes
+ address-pools value pool-2
+ vpn-filter value vpn-filter-2
+ vpn-idle-timeout 40
+tunnel-group VPN-tunnel-2 type remote-access
+tunnel-group VPN-tunnel-2 general-attributes
+ default-group-policy VPN-group-2
+tunnel-group VPN-tunnel-2 ipsec-attributes
+ trust-point ASDM_TrustPoint3
+ isakmp ikev1-user-authentication none
+tunnel-group-map ca-map-2 10 VPN-tunnel-2
+--
+access-list vpn-filter-3 extended permit ip host 10.99.1.11 any
+access-list vpn-filter-3 extended deny ip any any
+group-policy VPN-group-3 internal
+group-policy VPN-group-3 attributes
+ banner value Willkommen zu Hause
+username bar@domain.x nopassword
+username bar@domain.x attributes
+ vpn-framed-ip-address 10.99.1.11 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-3
+ vpn-group-policy VPN-group-3
+--
+access-list vpn-filter-4 extended permit ip host 10.99.1.10 any
+access-list vpn-filter-4 extended deny ip any any
+group-policy VPN-group-4 internal
+group-policy VPN-group-4 attributes
+ banner value Willkommen
+username foo@domain.x nopassword
+username foo@domain.x attributes
+ vpn-framed-ip-address 10.99.1.10 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-4
+ vpn-group-policy VPN-group-4
+--
+! [ ACL ]
+access-list inside_in extended permit icmp any any 3
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
+--
+object-group network g0
+ network-object host 10.99.1.10
+ network-object host 10.99.1.11
+ network-object 10.99.2.0 255.255.255.192
+ network-object 10.99.2.64 255.255.255.192
+object-group network g1
+ network-object host 10.99.1.10
+ network-object 10.99.2.64 255.255.255.192
+object-group network g2
+ network-object host 10.99.1.11
+ network-object 10.99.2.0 255.255.255.192
+access-list outside_in extended permit icmp object-group g0 any 3
+access-list outside_in extended permit tcp object-group g1 10.1.1.0 255.255.255.0 eq 80
+access-list outside_in extended permit tcp object-group g2 10.1.1.0 255.255.255.0 eq 81
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'ASA with two crypto hubs and NAT';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
@@ -128,7 +338,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 no sysopt connection permit-vpn
 crypto isakmp policy 1
  authentication pre-share
@@ -186,7 +396,7 @@ test_run($title, $in, $out);
 $title = 'VPN ASA to EZVPN router with two local networks';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
@@ -245,7 +455,7 @@ router:vpn = {
  interface:internet = {
   negotiated;
   spoke = crypto:vpn;
-  id = abc\@123.45;
+  id = abc@123.45;
   hardware = e1;
  }
  interface:lan2 = {
@@ -267,7 +477,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 tunnel-group VPN-single type remote-access
 tunnel-group VPN-single general-attributes
  authorization-server-group LOCAL
@@ -285,8 +495,8 @@ object-group network g0
  network-object 10.99.3.0 255.255.255.0
 access-list vpn-filter-1 extended permit ip object-group g0 any
 access-list vpn-filter-1 extended deny ip any any
-username abc\@123.45 nopassword
-username abc\@123.45 attributes
+username abc@123.45 nopassword
+username abc@123.45 attributes
  service-type remote-access
  vpn-filter value vpn-filter-1
 --
@@ -342,7 +552,7 @@ test_run($title, $in, $out);
 $title = 'NAT of IPSec traffic at ASA 8.4 and NAT of VPN network at IOS';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
@@ -433,7 +643,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 access-list crypto-outside-1 extended permit ip any 10.10.10.0 255.255.255.0
 crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set peer 1.2.3.129
