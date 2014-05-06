@@ -16794,7 +16794,7 @@ EOF
             my $value = $attributes->{$key};
             my $spec  = $asa_vpn_attributes{$key};
             $spec and not $spec->{tg_general}
-              or err_msg("unknown radius_attribute '$key' for $router->{name}");
+              or err_msg("Invalid radius_attribute '$key' for $router->{name}");
             my $out = $key;
             if (defined($value)) {
                 $out .= ' value' if $spec->{need_value};
@@ -16945,7 +16945,8 @@ EOF
 
                     # Select attributes for tunnel-group general-attributes.
                     for my $key (sort keys %$attributes) {
-                        if ($asa_vpn_attributes{$key}->{tg_general}) {
+                        my $spec = $asa_vpn_attributes{$key};
+                        if ($spec && $spec->{tg_general}) {
                             my $value = delete $attributes->{$key};
                             my $out = defined($value) ? "$key $value" : $key;
                             push(@tunnel_gen_att, $out);
