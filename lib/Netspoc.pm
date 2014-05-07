@@ -10799,6 +10799,56 @@ sub crypto_behind {
     }
 }
 
+# Valid group-policy attributes.
+# Hash describes usage:
+# - tg_general: attribute is only applicable to 'tunnel-group general-attributes'
+my %asa_vpn_attributes = (
+
+    # group-policy attributes
+    banner                    => {},
+    'dns-server'              => {},
+    'default-domain'          => {},
+    'split-dns'               => {},
+    'trust-point'             => {},
+    'wins-server'             => {},
+    'vpn-access-hours'        => {},
+    'vpn-idle-timeout'        => {},
+    'vpn-session-timeout'     => {},
+    'vpn-simultaneous-logins' => {},
+    vlan                      => {},
+    'split-tunnel-policy'     => {},
+    'authentication-server-group' => { tg_general => 1 },
+    'authorization-server-group'  => { tg_general => 1 },
+    'authorization-required'      => { tg_general => 1 },
+    'username-from-certificate'   => { tg_general => 1 },
+);
+
+sub verify_asa_vpn_attributes {
+    my ($obj) = @_;
+    my $attributes = $obj->{radius_attributes} or return;
+    for my $key (sort keys %$attributes) {
+        my $spec  = $asa_vpn_attributes{$key};
+        $spec or err_msg("Invalid radius_attribute '$key' at $obj->{name}");
+        if ($key eq 'split-tunnel-policy') {
+            my $value = $attributes->{$key};
+            $value =~ /^(?:tunnelall|tunnelspecified)$/ 
+                or err_msg("Unsupported value in radius_attributes",
+                           " of $obj->{name}\n",
+                           " '$key = $value'");
+        }
+        elsif ($key eq 'trust-point') {
+            if (is_host($obj)) {
+                $obj->{range} or
+                    err_msg("Must not use radius_attribute '$key' at $obj->{name}");
+            }
+            elsif (is_network($obj)) {
+                grep { $_->{ip} } @{ $obj->{hosts} } and
+                    err_msg("Must not use radius_attribute '$key' at $obj->{name}");
+            }                    
+        }
+    }        
+}
+
 sub expand_crypto  {
     progress('Expanding crypto rules');
 
@@ -10814,10 +10864,12 @@ sub expand_crypto  {
             for my $tunnel_intf (@{ $tunnel->{interfaces} }) {
                 next if $tunnel_intf->{is_hub};
                 my $router  = $tunnel_intf->{router};
+                my $peers   = $tunnel_intf->{peers};
                 my $managed = $router->{managed};
                 my @encrypted;
                 my $has_id_hosts;
                 my $has_other_network;
+                my @verify_radius_attributes;
                 for my $interface (@{ $router->{interfaces} }) {
                     next if $interface eq $tunnel_intf;
                     if ($interface->{ip} eq 'tunnel') {
@@ -10845,6 +10897,7 @@ sub expand_crypto  {
                           and err_msg
                           "$network->{name} having ID hosts must not",
                           " be located behind managed $router->{name}";
+                        push @verify_radius_attributes, $network;
 
                         # Must not have multiple networks.
                         @all_networks > 1 and internal_err();
@@ -10858,8 +10911,10 @@ sub expand_crypto  {
                               and err_msg
                               "$host->{name} with ID must expand to",
                               "exactly one subnet";
+                            push @verify_radius_attributes, $host;
+
                             my $subnet = $subnets->[0];
-                            for my $peer (@{ $tunnel_intf->{peers} }) {
+                            for my $peer (@$peers) {
                                 $peer->{id_rules}->{$id} = {
                                     name       => "$peer->{name}.$id",
                                     ip         => 'tunnel',
@@ -10893,7 +10948,7 @@ sub expand_crypto  {
                     join(', ', map { $_->{name} } @encrypted)
                   );
 
-                for my $peer (@{ $tunnel_intf->{peers} }) {
+                for my $peer (@$peers) {
                     $peer->{peer_networks} = \@encrypted;
 
                     # ID can only be checked at hub with attribute do_auth.
@@ -10913,6 +10968,17 @@ sub expand_crypto  {
                         err_msg "$router->{name} can only check",
                           " interface or host having ID",
                           " at $tunnel_intf->{name}";
+                    }
+                }
+
+                if (my @asa_vpn_intf = 
+                    grep({ $_->{router}->{model}->{crypto} eq 'ASA_VPN' } 
+                         @$peers)) 
+                {
+                    for my $obj (map({ $_->{router} } @asa_vpn_intf),
+                                 @verify_radius_attributes) 
+                    {
+                        verify_asa_vpn_attributes($obj);
                     }
                 }
 
@@ -10972,6 +11038,14 @@ sub expand_crypto  {
                 }
             }
         }
+    }
+
+    # Move 'trust-point' from radius_attributes to router attribute.
+    for my $router (@managed_vpnhub) {
+        my $trust_point = delete $router->{radius_attributes}->{'trust-point'}
+        or err_msg
+            "Missing 'trust-point' in radius_attributes of $router->{name}";
+        $router->{trust_point} = $trust_point;
     }
 
     # Hash only needed during expand_group and expand_rules.
@@ -16708,34 +16782,10 @@ sub get_split_tunnel_nets {
           values %split_tunnel_nets ];
 }
 
-# Valid group-policy attributes.
-# Hash describes usage:
-# - need_value: value of attribute must have prefix 'value'
-# - also_user: attribute is also applicable to 'username'
-# - internal: internally generated, not allowed from config
-# - tg_general: attribute is only applicable to 'tunnel-group general-attributes'
-my %asa_vpn_attributes = (
-
-    # group-policy attributes
-    banner                    => { need_value => 1 },
-    'dns-server'              => { need_value => 1 },
-    'default-domain'          => { need_value => 1 },
-    'split-dns'               => { need_value => 1 },
-    'wins-server'             => { need_value => 1 },
-    'vpn-access-hours'        => { also_user  => 1 },
-    'vpn-idle-timeout'        => { also_user  => 1 },
-    'vpn-session-timeout'     => { also_user  => 1 },
-    'vpn-simultaneous-logins' => { also_user  => 1 },
-    vlan                      => {},
-    'address-pools'               => { need_value => 1, internal => 1 },
-    'split-tunnel-network-list'   => { need_value => 1, internal => 1 },
-    'split-tunnel-policy'         => { internal   => 1 },
-    'vpn-filter'                  => { need_value => 1, internal => 1 },
-    'authentication-server-group' => { tg_general => 1 },
-    'authorization-server-group'  => { tg_general => 1 },
-    'authorization-required'      => { tg_general => 1 },
-    'username-from-certificate'   => { tg_general => 1 },
-);
+my %asa_vpn_attr_need_value = 
+    map { $_ => 1 }
+qw(banner dns-server default-domain split-dns wins-server address-pools 
+   split-tunnel-network-list vpn-filter);
 
 sub print_asavpn  {
     my ($router)         = @_;
@@ -16752,9 +16802,7 @@ EOF
 
     # Define tunnel group used for single VPN users.
     my $default_tunnel_group = 'VPN-single';
-    my $trust_point = delete $router->{radius_attributes}->{'trust-point'}
-      or err_msg
-      "Missing 'trust-point' in radius_attributes of $router->{name}";
+    my $trust_point = $router->{trust_point};
 
     print <<"EOF";
 tunnel-group $default_tunnel_group type remote-access
@@ -16792,12 +16840,9 @@ EOF
         print "group-policy $name attributes\n";
         for my $key (sort keys %$attributes) {
             my $value = $attributes->{$key};
-            my $spec  = $asa_vpn_attributes{$key};
-            $spec and not $spec->{tg_general}
-              or err_msg("Invalid radius_attribute '$key' for $router->{name}");
             my $out = $key;
             if (defined($value)) {
-                $out .= ' value' if $spec->{need_value};
+                $out .= ' value' if $asa_vpn_attr_need_value{$key};
                 $out .= " $value";
             }
             print " $out\n";
@@ -16874,10 +16919,6 @@ EOF
                           $split_tunnel_nets;
                     }
                     $attributes->{'split-tunnel-network-list'} = $acl_name;
-                }
-                else {
-                    err_msg "Unsupported value of 'split-tunnel-policy':",
-                      " $split_tunnel_policy";
                 }
 
                 # Access list will be bound to cleartext interface.
