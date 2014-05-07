@@ -17695,14 +17695,7 @@ sub print_crypto {
             print "$prefix set ${extra_ikev1}transform-set $transform_name\n";
 
             if (my $pfs_group = $ipsec->{pfs_group}) {
-                if ($pfs_group =~ /^(1|2)$/) {
-                    $pfs_group = "group$1";
-                }
-                else {
-                    err_msg
-                      "Unsupported pfs group for $crypto_type: $pfs_group";
-                }
-                print "$prefix set pfs $pfs_group\n";
+                print "$prefix set pfs group$pfs_group\n";
             }
 
             if (my $lifetime = $ipsec->{lifetime}) {
