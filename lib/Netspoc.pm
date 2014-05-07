@@ -10971,13 +10971,10 @@ sub expand_crypto  {
                     }
                 }
 
-                if (my @asa_vpn_intf = 
-                    grep({ $_->{router}->{model}->{crypto} eq 'ASA_VPN' } 
+                if (grep({ $_->{router}->{model}->{crypto} eq 'ASA_VPN' } 
                          @$peers)) 
                 {
-                    for my $obj (map({ $_->{router} } @asa_vpn_intf),
-                                 @verify_radius_attributes) 
-                    {
+                    for my $obj (@verify_radius_attributes) {
                         verify_asa_vpn_attributes($obj);
                     }
                 }
@@ -11040,8 +11037,12 @@ sub expand_crypto  {
         }
     }
 
-    # Move 'trust-point' from radius_attributes to router attribute.
     for my $router (@managed_vpnhub) {
+        if ($router->{model}->{crypto} eq 'ASA_VPN') {
+            verify_asa_vpn_attributes($router);
+        }
+
+        # Move 'trust-point' from radius_attributes to router attribute.
         my $trust_point = delete $router->{radius_attributes}->{'trust-point'}
         or err_msg
             "Missing 'trust-point' in radius_attributes of $router->{name}";
