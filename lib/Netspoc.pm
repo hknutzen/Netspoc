@@ -10839,14 +10839,24 @@ sub verify_asa_vpn_attributes {
         elsif ($key eq 'trust-point') {
             if (is_host($obj)) {
                 $obj->{range} or
-                    err_msg("Must not use radius_attribute '$key' at $obj->{name}");
+                    err_msg("Must not use radius_attribute '$key'",
+                            " at $obj->{name}");
             }
             elsif (is_network($obj)) {
                 grep { $_->{ip} } @{ $obj->{hosts} } and
-                    err_msg("Must not use radius_attribute '$key' at $obj->{name}");
+                    err_msg("Must not use radius_attribute '$key'",
+                            " at $obj->{name}");
             }                    
         }
     }        
+}
+
+sub verify_asa_trustpoint {
+    my ($router, $crypto) = @_;
+    my $isakmp = $crypto->{type}->{key_exchange};
+    $isakmp->{trust_point}
+      or err_msg("Missing 'trust_point' in",
+                 " isakmp attributes for $router->{name}");
 }
 
 sub expand_crypto  {
@@ -10979,6 +10989,10 @@ sub expand_crypto  {
                     }
                 }
 
+                if ($managed && $router->{model}->{crypto} eq 'ASA') {
+                    verify_asa_trustpoint($router, $crypto);
+                }                    
+
                 # Add rules to permit crypto traffic between
                 # tunnel endpoints.
                 # If one tunnel endpoint has no known IP address,
@@ -11038,9 +11052,17 @@ sub expand_crypto  {
     }
 
     for my $router (@managed_vpnhub) {
-        if ($router->{model}->{crypto} eq 'ASA_VPN') {
+        my $crypto_type = $router->{model}->{crypto};
+        if ($crypto_type eq 'ASA_VPN') {
             verify_asa_vpn_attributes($router);
         }
+        elsif($crypto_type eq 'ASA') {
+            for my $interface (@{ $router->{interfaces} }) {
+                next if not $interface->{ip} eq 'tunnel';
+                verify_asa_trustpoint($router, $interface->{cyrpto});
+                last;
+            }
+        }            
 
         # Move 'trust-point' from radius_attributes to router attribute.
         my $trust_point = delete $router->{radius_attributes}->{'trust-point'}
@@ -17720,9 +17742,7 @@ sub print_crypto {
                         print " peer-id-validate nocheck\n";
                     }
                     elsif ($authentication eq 'rsasig') {
-                        my $trust_point = $isakmp->{trust_point}
-                          or err_msg "Missing 'trust_point' in",
-                          " isakmp attributes for $router->{name}";
+                        my $trust_point = $isakmp->{trust_point};
                         print " chain\n";
                         print " ${extra_ikev1}trust-point $trust_point\n";
                         if ($model->{v8_4}) {
