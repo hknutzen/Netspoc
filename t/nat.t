@@ -650,8 +650,10 @@ service:test = {
 END
 
 $out = <<END;
-Error: Must not apply reversed hidden NAT 'h' at interface:r3.k;
- add pathrestriction to exclude this path
+Error: Must not apply reversed hidden NAT 'h' at interface:r3.k
+ for
+ permit src=network:i1; dst=network:sh; prt=tcp 80; of service:test
+ Add pathrestriction to exclude this path
 Aborted
 END
 

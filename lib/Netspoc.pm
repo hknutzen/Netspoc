@@ -13920,11 +13920,18 @@ sub distribute_rule {
             for my $nat_tag (@$nat_tags) {
                 if (my $nat_net = $nat_hash->{$nat_tag}) {
                     if ($nat_net->{dynamic}) {
-                        if ($is_net || !$src->{nat} || !$src->{nat}->{$nat_tag}) {
-                            my $type = $nat_net->{hidden} ? 'hidden' : 'dynamic';
+                        if (   $is_net 
+                            || !$src->{nat}
+                            || !$src->{nat}->{$nat_tag}) 
+                        {
+                            my $type = 
+                                $nat_net->{hidden} ? 'hidden' : 'dynamic';
                             err_msg("Must not apply reversed $type NAT",
-                                    " '$nat_tag' at $in_intf->{name};\n",
-                                    " add pathrestriction to exclude this path");
+                                    " '$nat_tag' at $in_intf->{name}\n",
+                                    " for\n",
+                                    " ", print_rule($rule), "\n",
+                                    " Add pathrestriction",
+                                    " to exclude this path");
                         }
                     }
                 }
