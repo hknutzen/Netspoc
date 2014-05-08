@@ -6432,7 +6432,6 @@ sub warn_useless_unenforceable {
 sub show_deleted_rules1 {
     return if not @deleted_rules;
     my %pname2oname2deleted;
-    my %pname2file;
   RULE:
     for my $rule (@deleted_rules) {
         my $other = $rule->{deleted};
@@ -6465,8 +6464,6 @@ sub show_deleted_rules1 {
         my $ofile = $oservice->{file};
         $pfile =~ s/.*?([^\/]+)$/$1/;
         $ofile =~ s/.*?([^\/]+)$/$1/;
-        $pname2file{$pname} = $pfile;
-        $pname2file{$oname} = $ofile;
         push(@{ $pname2oname2deleted{$pname}->{$oname} }, $rule);
     }
     if (my $action = $config{check_duplicate_rules}) {
@@ -6475,8 +6472,7 @@ sub show_deleted_rules1 {
             my $hash = $pname2oname2deleted{$pname};
             for my $oname (sort keys %$hash) {
                 my $aref = $hash->{$oname};
-                my $msg  = "Duplicate rules in $pname and $oname:\n";
-                $msg .= " Files: $pname2file{$pname} $pname2file{$oname}\n  ";
+                my $msg  = "Duplicate rules in $pname and $oname:\n  ";
                 $msg .= join("\n  ", map { print_rule $_ } @$aref);
                 $print->($msg);
             }
@@ -6535,7 +6531,6 @@ sub collect_redundant_rules {
 sub show_deleted_rules2 {
     return if not @deleted_rules;
     my %pname2oname2deleted;
-    my %pname2file;
     for my $pair (@deleted_rules) {
         my ($rule, $other) = @$pair;
 
@@ -6547,8 +6542,6 @@ sub show_deleted_rules2 {
         my $ofile = $oservice->{file};
         $pfile =~ s/.*?([^\/]+)$/$1/;
         $ofile =~ s/.*?([^\/]+)$/$1/;
-        $pname2file{$pname} = $pfile;
-        $pname2file{$oname} = $ofile;
         push(@{ $pname2oname2deleted{$pname}->{$oname} }, [ $rule, $other ]);
     }
     if (my $action = $config{check_redundant_rules}) {
@@ -6557,8 +6550,7 @@ sub show_deleted_rules2 {
             my $hash = $pname2oname2deleted{$pname};
             for my $oname (sort keys %$hash) {
                 my $aref = $hash->{$oname};
-                my $msg  = "Redundant rules in $pname compared to $oname:\n";
-                $msg .= " Files: $pname2file{$pname} $pname2file{$oname}\n  ";
+                my $msg  = "Redundant rules in $pname compared to $oname:\n  ";
                 $msg .= join(
                     "\n  ",
                     map {
