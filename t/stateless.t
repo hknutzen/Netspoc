@@ -44,6 +44,7 @@ service:test2 = {
 END
 
 $out = <<END;
+--r
 ip access-list extended e0_in
  deny ip any host 10.2.2.2
  permit ip 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255

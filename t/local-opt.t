@@ -48,6 +48,7 @@ service:Test = {
 END
 
 $out = <<END;
+--R1
 ip access-list extended Vlan1_in
  deny ip any host 10.4.6.3
  deny ip any host 10.6.8.46
@@ -108,6 +109,7 @@ service:B = {
 END
 
 $out = <<END;
+--nak
 ! [ ACL ]
 ip access-list extended eth0_in
  deny ip any host 10.4.4.1
@@ -159,6 +161,7 @@ service:test2 = {
 END
 
 $out = <<END;
+--secondary
 ip access-list extended VLAN1_out
  permit ip 10.7.7.0 0.0.0.255 10.3.3.0 0.0.0.127
  deny ip any any

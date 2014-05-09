@@ -210,6 +210,7 @@ service:test = {
 END
 
 $out = <<END;
+--secondary
 ip access-list extended VLAN1_in
  permit ip host 10.3.3.5 10.9.9.0 0.0.0.255
  deny ip any any

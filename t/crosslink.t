@@ -39,6 +39,7 @@ $in =~ s/_1/primary/;
 $in =~ s/_2/full/;
 
 $out = <<END;
+-r1
 access-list vlan2_in extended permit ip any any
 access-group vlan2_in in interface vlan2
 END
@@ -54,6 +55,7 @@ $in =~ s/_1/standard/;
 $in =~ s/_2/secondary/;
 
 $out = <<END;
+-r1
 access-list vlan2_in extended deny ip any any
 access-group vlan2_in in interface vlan2
 END
@@ -69,6 +71,7 @@ $in =~ s/_1/secondary/;
 $in =~ s|_2;|local_secondary; filter_only =  10.2.0.0/15;|;
 
 $out = <<END;
+-r1
 access-list vlan2_in extended deny ip any any
 access-group vlan2_in in interface vlan2
 END
@@ -158,6 +161,7 @@ network:n3 = { ip = 10.2.2.32/27; }
 END
 
 $out = <<END;
+-r1
 access-list vlan2_in extended deny ip any any
 access-group vlan2_in in interface vlan2
 END

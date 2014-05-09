@@ -48,6 +48,7 @@ service:test = {
 END
 
 $out = <<END;
+--filter
 ! [ NAT ]
 global (outside) 1 1.1.1.1 netmask 255.255.255.255
 nat (inside) 1 10.9.1.0 255.255.255.0
@@ -97,6 +98,7 @@ service:test = {
 END
 
 $out = <<END;
+--filter
 ! [ NAT ]
 object network 10.9.1.0_255.255.255.0
  subnet 10.9.1.0 255.255.255.0
@@ -143,15 +145,16 @@ service:test = {
 END
 
 $out = <<END;
+--filter
 access-list inside_in extended permit tcp host 10.9.1.33 10.9.3.0 255.255.255.0 eq 80
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
---
+--filter
 access-list outside_in extended permit ip 10.9.3.0 255.255.255.0 host 1.1.1.23
 access-list outside_in extended permit tcp 10.9.3.0 255.255.255.0 1.1.1.16 255.255.255.240 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
---
+--filter
 ! [ NAT ]
 static (inside,outside) 1.1.1.23 10.9.1.33 netmask 255.255.255.255
 global (outside) 1 1.1.1.16-1.1.1.31 netmask 255.255.255.240
@@ -195,6 +198,7 @@ service:test = {
 END
 
 $out = <<END;
+--filter
 ! [ NAT ]
 object network 10.9.1.33_255.255.255.255
  subnet 10.9.1.33 255.255.255.255
@@ -278,9 +282,10 @@ service:test = {
 END
 
 $out = <<END;
+--r1
 ! [ NAT ]
 static (e0,e1) 10.8.8.0 10.1.1.0 netmask 255.255.255.0
---
+--r2
 ! [ NAT ]
 static (e2,e3) 10.9.9.0 10.8.8.0 netmask 255.255.255.0
 END
@@ -443,13 +448,14 @@ service:test = {
 END
 
 $out = <<END;
+--r1
 object-group network g0
  network-object 10.4.4.0 255.255.255.0
  network-object 10.5.5.0 255.255.255.0
 access-list vlan0_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80
 access-list vlan0_in extended deny ip any any
 access-group vlan0_in in interface vlan0
---
+--r2
 ip access-list extended e1_in
  deny ip any host 10.2.2.2
  permit tcp 10.1.1.0 0.0.0.255 10.99.99.8 0.0.0.3 eq 80

@@ -52,6 +52,7 @@ service:p10-60 = {
 END
 
 $out = <<END;
+--nak
 -A c1 -j ACCEPT -s 10.3.3.128/29
 -A c1 -j ACCEPT -s 10.3.3.120/29
 -A c2 -g c1 -s 10.3.3.0/24
@@ -79,6 +80,7 @@ $title = 'Un-merged port range with sub-range for iptables';
 $in =~ s/(tcp 30-37,) (tcp 51-53)/$1 tcp 40-47, $2/;
 
 $out = <<END;
+--nak
 -A c1 -j ACCEPT -s 10.3.3.128/29
 -A c1 -j ACCEPT -s 10.3.3.120/29
 -A c2 -g c1 -s 10.3.3.0/24
@@ -145,6 +147,7 @@ service:B = {
 END
 
 $out = <<END;
+--nak
 :eth0_br0 -
 -A FORWARD -j eth0_br0 -i eth0 -o br0
 -A eth0_br0 -j ACCEPT -s 10.2.2.0/24 -d 10.4.4.0/24 -p tcp --dport 50:60

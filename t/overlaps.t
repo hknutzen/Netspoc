@@ -40,7 +40,6 @@ END
 
 $out = <<END;
 Warning: Redundant rules in service:test compared to service:test2:
- Files: STDIN STDIN
   permit src=host:h1; dst=network:Test; prt=tcp 22; of service:test
 < permit src=host:h1; dst=network:Test; prt=tcp; of service:test2
 END
@@ -65,6 +64,7 @@ service:test2 = {
 END
 
 $out = <<END;
+--filter
 access-list Vlan2_in extended permit tcp host 10.1.1.10 10.9.1.0 255.255.255.0
 access-list Vlan2_in extended deny ip any any
 access-group Vlan2_in in interface Vlan2
@@ -91,7 +91,6 @@ END
 
 $out = <<END;
 Warning: Redundant rules in service:test compared to service:test:
- Files: STDIN STDIN
   permit src=host:h1; dst=network:Test; prt=tcp 22; of service:test
 < permit src=network:N; dst=network:Test; prt=tcp 22; of service:test
 END

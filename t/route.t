@@ -82,6 +82,7 @@ service:test = {
 END
 
 $out = <<END;
+--asa
 route outside 10.1.1.0 255.255.255.0 10.9.9.2
 END
 
@@ -123,6 +124,7 @@ service:test = {
 END
 
 $out = <<END;
+--r
 ip route 10.1.0.0/16 10.9.1.2
 ip route 10.1.1.0/24 10.9.2.2
 ip route 10.1.1.0/28 10.9.1.2

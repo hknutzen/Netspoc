@@ -41,6 +41,7 @@ service:test = {
 END
 
 $out = <<END;
+--r1
 object-group ip address g0
  10 10.1.1.10/32
  20 10.1.1.20/32

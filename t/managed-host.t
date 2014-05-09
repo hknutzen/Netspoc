@@ -25,6 +25,7 @@ service:test = {
 END
 
 $out = <<END;
+--host:h1
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.1.1.0/24 -d 10.1.1.11 -p tcp --dport 80
@@ -50,10 +51,11 @@ service:test = {
 END
 
 $out = <<END;
+--host:h1
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.1.1.11 -d 10.1.1.10 -p tcp --dport 80
---
+--host:h2
 :eth1_self -
 -A INPUT -j eth1_self -i eth1
 END
@@ -77,6 +79,7 @@ service:test = {
 END
 
 $out = <<END;
+--host:h1
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.1.1.0/24 -d 10.1.1.10 -p tcp --dport 80
@@ -129,6 +132,7 @@ service:test2 = {
 END
 
 $out = <<END;
+--host:h1
 -A c1 -j ACCEPT -s 10.1.0.0/16 -p tcp --dport 81
 -A c1 -j ACCEPT -s 10.0.0.0/8 -p tcp --dport 80
 --
@@ -157,6 +161,7 @@ service:test = {
 END
 
 $out = <<END;
+--host:h1
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.1.1.0/28 -d 10.1.1.10 -p tcp --dport 80
@@ -191,10 +196,11 @@ service:test = {
 END
 
 $out = <<END;
+--host:h1
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.9.1.0/24 -d 10.1.1.10 -p tcp --dport 22
---
+--filter
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.99.99.69 eq 22
 access-list Vlan1_in extended deny ip any any
 access-group Vlan1_in in interface Vlan1
@@ -234,6 +240,7 @@ service:test3 = {
 END
 
 $out = <<END;
+--filter
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.11 eq 81
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.10 range 81 82
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.11 eq 83
@@ -268,6 +275,7 @@ END
 
 # Interface addresses aren't optimized into subnet currently.
 $out = <<END;
+--filter
 object-group network g0
  network-object host 10.1.1.10
  network-object host 10.1.1.11
@@ -351,6 +359,7 @@ service:test = {
 END
 
 $out = <<END;
+--host:hugo
 :c1 -
 :c2 -
 -A c1 -j ACCEPT -s 10.9.1.30

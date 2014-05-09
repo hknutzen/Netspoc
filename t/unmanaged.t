@@ -70,6 +70,7 @@ service:test = {
 END
 
 $out = <<END;
+--FW
 object-group network g0
  network-object host 10.1.0.1
  network-object host 10.1.0.2

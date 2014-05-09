@@ -42,6 +42,7 @@ service:test = {
 END
 
 $out = <<END;
+--r
 ip access-list extended eth2_in
  deny ip any host 10.1.7.33
  permit tcp any 10.1.7.32 0.0.0.31 eq 80
@@ -85,6 +86,7 @@ service:Test = {
 END
 
 $out = <<END;
+--L
 ip access-list extended G2_in
  permit icmp any host 10.1.1.3 8
  deny ip any any
@@ -100,6 +102,7 @@ test_run($title, $in, $out);
 $in =~ s|\[user\]|[ip=10.0.0.0/8 & user]|;
 
 $out = <<END;
+--L
 ip access-list extended G2_in
  permit icmp 10.0.0.0 0.255.255.255 host 10.1.1.3 8
  deny ip any any

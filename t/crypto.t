@@ -113,6 +113,7 @@ service:test2 = {
 END
 
 $out = <<'END';
+--asavpn
 no sysopt connection permit-vpn
 group-policy global internal
 group-policy global attributes
@@ -150,7 +151,7 @@ tunnel-group VPN-tunnel-1 ipsec-attributes
  trust-point ASDM_TrustPoint2
  isakmp ikev1-user-authentication none
 tunnel-group-map ca-map-1 10 VPN-tunnel-1
---
+--asavpn
 access-list vpn-filter-2 extended permit ip 10.99.2.64 255.255.255.192 any
 access-list vpn-filter-2 extended deny ip any any
 crypto ca certificate map ca-map-2 10
@@ -168,7 +169,7 @@ tunnel-group VPN-tunnel-2 ipsec-attributes
  trust-point ASDM_TrustPoint3
  isakmp ikev1-user-authentication none
 tunnel-group-map ca-map-2 10 VPN-tunnel-2
---
+--asavpn
 access-list vpn-filter-3 extended permit ip host 10.99.1.11 any
 access-list vpn-filter-3 extended deny ip any any
 group-policy VPN-group-3 internal
@@ -339,6 +340,7 @@ service:test = {
 END
 
 $out = <<'END';
+--asavpn
 no sysopt connection permit-vpn
 crypto isakmp policy 1
  authentication pre-share
@@ -478,6 +480,7 @@ service:test = {
 END
 
 $out = <<'END';
+--asavpn
 tunnel-group VPN-single type remote-access
 tunnel-group VPN-single general-attributes
  authorization-server-group LOCAL
@@ -504,7 +507,7 @@ access-list outside_in extended permit icmp object-group g0 any 3
 access-list outside_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
---
+--vpn
 crypto ipsec client ezvpn vpn
  connect auto
  mode network-extension
@@ -644,6 +647,7 @@ service:test = {
 END
 
 $out = <<'END';
+--asavpn
 access-list crypto-outside-1 extended permit ip any 10.10.10.0 255.255.255.0
 crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set peer 1.2.3.129
@@ -661,7 +665,7 @@ crypto isakmp enable outside
 access-list outside_in extended permit tcp 10.10.10.0 255.255.255.0 host 10.1.1.111 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
---
+--vpn1
 ip access-list extended crypto-GigabitEthernet0-1
  permit ip 10.10.10.0 0.0.0.255 any
 ip access-list extended crypto-filter-GigabitEthernet0-1
