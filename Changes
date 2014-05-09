@@ -1,5 +1,13 @@
 {{$NEXT}}
 
+3.047     2014-05-09 15:19:46 Europe/Berlin
+
+ - Implemented mode for faster error checks.
+   If netspoc is called without an out-directory,
+   code isn't written to STDOUT any longer.
+   Only error checks are done.
+ - Allow pfs group5 for ASA.
+
 3.046     2014-04-09 17:00:01 Europe/Berlin
 
  - Unnumbered interfaces are accepted in pathrestriction now.
