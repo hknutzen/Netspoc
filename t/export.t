@@ -26,21 +26,26 @@ sub test_run {
         return;
     }
 
-    # Blocks of expected output are split by single lines of dashes.
-    my @out = split(/^-+\n/m, $expected);
+    # Blocks of expected output are split by single lines of dashes,
+    # followed by a device name.
+    my @expected = split(/^-+[ ]*(\S+)[ ]*\n/m, $expected);
+    my $first = shift @expected;
+    if ($first) {
+        BAIL_OUT("Missing device name in first line of code specification");
+        return;
+    }
     
     # Undef input record separator to read all output at once.
     $/ = undef;
 
-    for my $out (@out) {
-        
-        # Strip filename from first line of each block .
-        my ($fname, $out) = split(/\n/, $out, 2);
+    while (@expected) {
+        my $fname = shift @expected;
+        my $block = shift @expected;
 
         open(my $out_fh, '<', "$dir/$fname") or die "Can't open $fname";
         my $output = <$out_fh>;
         close($out_fh);
-        eq_or_diff($output, $out, "$title: $fname");
+        eq_or_diff($output, $block, "$title: $fname");
     }
     return;
 }
@@ -91,7 +96,7 @@ service:test = {
 END
 
 $out = <<END;
-owner/x/assets
+--owner/x/assets
 {
    "anys" : {
       "any:[network:Kunde]" : {
@@ -103,8 +108,7 @@ owner/x/assets
       }
    }
 }
---
-owner/y/assets
+--owner/y/assets
 {
    "anys" : {
       "any:Big" : {
@@ -121,8 +125,7 @@ owner/y/assets
       }
    }
 }
---
-owner/z/assets
+--owner/z/assets
 {
    "anys" : {
       "any:Big" : {
@@ -137,8 +140,7 @@ owner/z/assets
       }
    }
 }
---
-owner/x/service_lists
+--owner/x/service_lists
 {
    "owner" : [
       "test"
@@ -146,15 +148,13 @@ owner/x/service_lists
    "user" : [],
    "visible" : []
 }
---
-owner/y/service_lists
+--owner/y/service_lists
 {
    "owner" : [],
    "user" : [],
    "visible" : []
 }
---
-owner/z/service_lists
+--owner/z/service_lists
 {
    "owner" : [],
    "user" : [
@@ -179,7 +179,7 @@ service:test = {
 END
 
 $out = <<END;
-owner/y/service_lists
+--owner/y/service_lists
 {
    "owner" : [],
    "user" : [
@@ -187,8 +187,7 @@ owner/y/service_lists
    ],
    "visible" : []
 }
---
-owner/z/service_lists
+--owner/z/service_lists
 {
    "owner" : [],
    "user" : [
@@ -213,7 +212,7 @@ service:test = {
 END
 
 $out = <<END;
-owner/z/service_lists
+--owner/z/service_lists
 {
    "owner" : [],
    "user" : [
@@ -242,7 +241,7 @@ service:test2 = {
 END
 
 $out = <<END;
-owner/y/service_lists
+--owner/y/service_lists
 {
    "owner" : [],
    "user" : [
@@ -250,8 +249,7 @@ owner/y/service_lists
    ],
    "visible" : []
 }
---
-owner/z/service_lists
+--owner/z/service_lists
 {
    "owner" : [],
    "user" : [
@@ -281,7 +279,7 @@ service:test2 = {
 END
 
 $out = <<END;
-owner/y/service_lists
+--owner/y/service_lists
 {
    "owner" : [],
    "user" : [
@@ -290,8 +288,7 @@ owner/y/service_lists
    ],
    "visible" : []
 }
---
-owner/z/service_lists
+--owner/z/service_lists
 {
    "owner" : [],
    "user" : [
@@ -340,17 +337,15 @@ network:n3 = { ip = 10.3.3.0/24; owner = y; }
 END
 
 $out = <<END;
-owner/x/extended_by
+--owner/x/extended_by
 []
---
-owner/y/extended_by
+--owner/y/extended_by
 [
    {
       "name" : "x"
    }
 ]
---
-owner/z/extended_by
+--owner/z/extended_by
 [
    {
       "name" : "x"
