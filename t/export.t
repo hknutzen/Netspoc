@@ -18,12 +18,12 @@ sub test_run {
     run3($cmd, \undef, \$stdout, \$stderr);
     my $status = $?;
     if ($status != 0) {
-        print STDERR "Failed:\n$stderr\n";
+        BAIL_OUT("Failed:\n$stderr\n");
         return '';
     }
     if ($stderr) {
-        print STDERR "Unexpected output on STDERR:\n$stderr\n";
-        return '';
+        BAIL_OUT("Unexpected output on STDERR:\n$stderr\n");
+        return;
     }
 
     # Blocks of expected output are split by single lines of dashes.
