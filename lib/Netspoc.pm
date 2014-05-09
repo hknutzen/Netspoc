@@ -58,6 +58,7 @@ our @EXPORT = qw(
   %expanded_rules
   $error_counter
   store_description
+  fast_mode
   get_config_keys
   get_config_pattern
   check_config_pair
@@ -249,6 +250,17 @@ sub store_description {
     }
     else {
         return $new_store_description;
+    }
+}
+
+my $fast_mode;
+sub fast_mode {
+    my ($set) = @_;
+    if (defined $set) {
+        return($fast_mode = $set);
+    }
+    else {
+        return $fast_mode;
     }
 }
 
@@ -12051,6 +12063,7 @@ sub gen_reverse_rules1  {
 }
 
 sub gen_reverse_rules {
+    return if fast_mode();
     progress('Generating reverse rules for stateless routers');
     my %reverse_rule_tree;
     for my $type ('deny', 'supernet', 'permit') {
@@ -12667,6 +12680,7 @@ sub get_networks {
 }
 
 sub prepare_nat_commands  {
+    return if fast_mode();
     progress('Preparing NAT commands');
 
     # Caching for performance.
@@ -13871,35 +13885,6 @@ sub distribute_rule {
     # Don't generate code for src any:[interface:r.loopback] at router:r.
     return if $in_intf->{loopback};
 
-    # Adapt rule to dynamic NAT.
-    if (my $dynamic_nat = $rule->{dynamic_nat}) {
-        my $no_nat_set = $in_intf->{no_nat_set};
-        my $orig_rule = $rule;
-        for my $where (split(/,/, $dynamic_nat)) {
-            my $obj         = $rule->{$where};
-            my $network     = $obj->{network};
-            my $nat_network = get_nat_network($network, $no_nat_set);
-            next if $nat_network eq $network;
-            my $nat_tag = $nat_network->{dynamic} or next;
-
-            # Ignore object with static translation.
-            next if $obj->{nat}->{$nat_tag};
-
-            # Otherwise, filtering occurs at other router, therefore
-            # the whole network can pass here.
-            # But attention, this assumption only holds, if the other
-            # router filters fully.  Hence disable optimization of
-            # secondary rules.
-            delete $orig_rule->{some_non_secondary};
-            delete $orig_rule->{some_primary};
-
-            # Permit whole network, because no static address is known.
-            # Make a copy of current rule, because the original rule
-            # must not be changed.
-            $rule = { %$rule, $where => $network };
-        }
-    }
-
     # Check dynamic NAT in loop.
     if ((my $nat_tags = $in_intf->{bind_nat}) &&
         $in_intf->{loop} &&
@@ -13928,6 +13913,35 @@ sub distribute_rule {
                     }
                 }
             }
+        }
+    }
+
+    # Adapt rule to dynamic NAT.
+    if (my $dynamic_nat = $rule->{dynamic_nat}) {
+        my $no_nat_set = $in_intf->{no_nat_set};
+        my $orig_rule = $rule;
+        for my $where (split(/,/, $dynamic_nat)) {
+            my $obj         = $rule->{$where};
+            my $network     = $obj->{network};
+            my $nat_network = get_nat_network($network, $no_nat_set);
+            next if $nat_network eq $network;
+            my $nat_tag = $nat_network->{dynamic} or next;
+
+            # Ignore object with static translation.
+            next if $obj->{nat}->{$nat_tag};
+
+            # Otherwise, filtering occurs at other router, therefore
+            # the whole network can pass here.
+            # But attention, this assumption only holds, if the other
+            # router filters fully.  Hence disable optimization of
+            # secondary rules.
+            delete $orig_rule->{some_non_secondary};
+            delete $orig_rule->{some_primary};
+
+            # Permit whole network, because no static address is known.
+            # Make a copy of current rule, because the original rule
+            # must not be changed.
+            $rule = { %$rule, $where => $network };
         }
     }
 
@@ -14169,6 +14183,7 @@ my $permit_any_rule = {
 };
 
 sub add_router_acls  {
+    return if fast_mode();
     for my $router (@managed_routers) {
         my $has_io_acl = $router->{model}->{has_io_acl};
         for my $hardware (@{ $router->{hardware} }) {
@@ -14458,11 +14473,8 @@ sub distribute_global_permit {
     return;
 }
 
-sub rules_distribution {
-    progress('Distributing rules');
-
-    # Not longer used, free memory.
-    %rule_tree = ();
+sub sort_rules_by_prio {
+    return if fast_mode();
 
     # Sort rules by reverse priority of protocol.
     # This should be done late to get all auxiliary rules processed.
@@ -14476,6 +14488,15 @@ sub rules_distribution {
               } @{ $expanded_rules{$type} }
         ];
     }
+}
+
+sub rules_distribution {
+    progress('Distributing rules');
+
+    # Not longer used, free memory.
+    %rule_tree = ();
+    
+    sort_rules_by_prio();
 
     # Deny rules
     for my $rule (@{ $expanded_rules{deny} }) {
@@ -14500,16 +14521,7 @@ sub rules_distribution {
     # crosslink interfaces during add_router_acls.
     set_policy_distribution_ip();
     add_router_acls();
-
-    # Prepare rules for local_optimization.
-    # Aggregates with mask 0 are converted to network_00, to be able
-    # to compare with internally generated rules which use network_00.
-    for my $rule (@{ $expanded_rules{supernet} }) {
-        next if $rule->{deleted} and not $rule->{managed_intf};
-        my ($src, $dst) = @{$rule}{qw(src dst)};
-        $rule->{src} = $network_00 if is_network($src) && $src->{mask} == 0;
-        $rule->{dst} = $network_00 if is_network($dst) && $dst->{mask} == 0;
-    }
+    prepare_local_optimization();
 
     # No longer needed, free some memory.
     %expanded_rules = ();
@@ -16155,8 +16167,23 @@ sub add_local_deny_rules {
     return;
 }
 
+sub prepare_local_optimization {
+    return if fast_mode();
+
+    # Prepare rules for local_optimization.
+    # Aggregates with mask 0 are converted to network_00, to be able
+    # to compare with internally generated rules which use network_00.
+    for my $rule (@{ $expanded_rules{supernet} }) {
+        next if $rule->{deleted} and not $rule->{managed_intf};
+        my ($src, $dst) = @{$rule}{qw(src dst)};
+        $rule->{src} = $network_00 if is_network($src) && $src->{mask} == 0;
+        $rule->{dst} = $network_00 if is_network($dst) && $dst->{mask} == 0;
+    }
+}
+
 #use Time::HiRes qw ( time );
 sub local_optimization {
+    return if fast_mode();
     progress('Optimizing locally');
 
     # Needed in find_chains.
