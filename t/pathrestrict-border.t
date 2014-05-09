@@ -68,6 +68,7 @@ service:test = {
 END
 
 $out = <<END;
+--filter
 ip access-list extended GigabitEthernet0/1_in
  deny ip any host 10.9.1.1
  permit ip 10.9.2.0 0.0.0.255 10.9.1.0 0.0.0.255
@@ -150,6 +151,7 @@ service:test = {
 END
 
 $out = <<END;
+--Kunde
 ip route 10.9.1.0 255.255.255.0 10.5.6.1
 --
 ip access-list extended E0_in
@@ -212,10 +214,11 @@ service:intra = {
 END
 
 $out = <<END;
+--c1
 ip access-list extended Vlan13_in
  permit ip any host 10.3.1.249
  deny ip any any
---
+--c2
 ip access-list extended Ethernet4_in
  permit ip any host 10.3.1.249
  deny ip any any

@@ -37,6 +37,7 @@ service:test = {
 END
 
 $out = <<END;
+--r
 ip access-list extended ethernet0_in
  deny ip any host 192.168.1.1
  permit tcp 10.1.1.16 0.0.0.15 192.168.1.0 0.0.0.255 eq 80

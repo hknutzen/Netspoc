@@ -29,6 +29,7 @@ service:test = {
 END
 
 $out = <<END;
+--R
 ip access-list extended e0_in
  deny ip any host 10.2.2.1
  permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
@@ -63,6 +64,7 @@ service:test = {
 END
 
 $out = <<END;
+--R
 ip access-list extended e0_in
  permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
  deny ip any any
@@ -95,6 +97,7 @@ service:test = {
 END
 
 $out = <<END;
+--R
 ip access-list extended e0_in
  deny ip any host 10.1.1.1
  deny ip any host 10.2.2.1
@@ -132,6 +135,7 @@ service:test = {
 END
 
 $out = <<END;
+--R
 object-group ip address g0
  10 10.2.2.0/24
  20 10.2.3.0/24
@@ -170,6 +174,7 @@ service:test = {
 END
 
 $out = <<END;
+--R
 ip access-list extended e0_in
  deny ip any host 10.2.2.1
  permit tcp 10.1.1.0 0.0.0.255 10.2.0.0 0.0.255.255 eq 80
@@ -204,6 +209,7 @@ service:any = {
 END
 
 $out = <<END;
+--R
 ip access-list extended e0_in
  permit ip any host 10.2.2.1
  permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
@@ -234,6 +240,7 @@ service:test = {
 END
 
 $out = <<END;
+--R
 access-list e0_in extended deny ip any host 10.1.1.1
 access-list e0_in extended deny ip any host 10.2.2.1
 access-list e0_in extended permit tcp 10.1.1.0 255.255.255.0 any eq 80
@@ -272,6 +279,7 @@ service:test = {
 END
 
 $out = <<END;
+--R1
 ip access-list extended e0_in
  deny ip any host 10.1.1.1
  deny ip any host 10.9.9.1
@@ -315,12 +323,13 @@ service:test = {
 END
 
 $out = <<END;
+--R1
 access-list e0_in extended deny ip any host 10.9.9.2
 access-list e0_in extended deny ip any host 10.2.2.1
 access-list e0_in extended permit tcp 10.1.1.0 255.255.255.0 any eq 80
 access-list e0_in extended deny ip any any
 access-group e0_in in interface e0
---
+--R2
 access-list e3_in extended deny ip any any
 END
 
@@ -347,6 +356,7 @@ service:test = {
 END
 
 $out = <<END;
+--R
 ip access-list extended e0_in
  deny ip any host 10.9.9.1
  permit tcp 10.1.1.0 0.0.0.255 10.9.9.0 0.0.0.255 eq 80

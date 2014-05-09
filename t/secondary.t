@@ -56,6 +56,7 @@ service:test = {
 END
 
 $out = <<END;
+--r2
 ip access-list extended Ethernet5_in
  permit ip 10.1.0.0 0.0.255.255 host 10.0.0.1
  deny ip any host 10.9.9.1
@@ -113,6 +114,7 @@ service:test = {
 END
 
 $out = <<END;
+--r1
 ip access-list extended Ethernet1_in
  permit ip 10.1.1.0 0.0.0.255 host 10.9.9.9
  deny ip any any

@@ -22,6 +22,7 @@ router:R = {
 END
 
 $out = <<END;
+--R
 ip access-list extended e0_in
  permit udp any any eq 67
  deny ip any any
@@ -43,6 +44,7 @@ router:R = {
 END
 
 $out = <<END;
+--R
 access-list e0_in extended permit 89 10.1.1.0 255.255.255.0 host 224.0.0.5
 access-list e0_in extended permit 89 10.1.1.0 255.255.255.0 host 224.0.0.6
 access-list e0_in extended permit 89 10.1.1.0 255.255.255.0 10.1.1.0 255.255.255.0
@@ -69,6 +71,7 @@ router:R = {
 END
 
 $out = <<END;
+--R
 access-list e0_in extended permit udp 10.1.1.0 255.255.255.0 host 224.0.0.2 eq 1985
 access-list e0_in extended deny ip any any
 END
@@ -93,6 +96,7 @@ router:R = {
 END
 
 $out = <<END;
+--R
 access-list e0_in extended permit udp 10.1.1.0 255.255.255.0 host 224.0.0.102 eq 1985
 access-list e0_in extended deny ip any any
 END

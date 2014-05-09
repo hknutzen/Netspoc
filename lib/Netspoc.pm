@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.046'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.047'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -58,6 +58,7 @@ our @EXPORT = qw(
   %expanded_rules
   $error_counter
   store_description
+  fast_mode
   get_config_keys
   get_config_pattern
   check_config_pair
@@ -159,9 +160,6 @@ our %config = (
 # Check for transient supernet rules.
     check_transient_supernet_rules => 0,
 
-# Check for unused raw files.
-    check_raw => 'warn',
-
 # Optimize the number of routing entries per router:
 # For each router find the hop, where the largest
 # number of routing entries points to
@@ -252,6 +250,17 @@ sub store_description {
     }
     else {
         return $new_store_description;
+    }
+}
+
+my $fast_mode;
+sub fast_mode {
+    my ($set) = @_;
+    if (defined $set) {
+        return($fast_mode = $set);
+    }
+    else {
+        return $fast_mode;
     }
 }
 
@@ -6435,7 +6444,6 @@ sub warn_useless_unenforceable {
 sub show_deleted_rules1 {
     return if not @deleted_rules;
     my %pname2oname2deleted;
-    my %pname2file;
   RULE:
     for my $rule (@deleted_rules) {
         my $other = $rule->{deleted};
@@ -6468,8 +6476,6 @@ sub show_deleted_rules1 {
         my $ofile = $oservice->{file};
         $pfile =~ s/.*?([^\/]+)$/$1/;
         $ofile =~ s/.*?([^\/]+)$/$1/;
-        $pname2file{$pname} = $pfile;
-        $pname2file{$oname} = $ofile;
         push(@{ $pname2oname2deleted{$pname}->{$oname} }, $rule);
     }
     if (my $action = $config{check_duplicate_rules}) {
@@ -6478,8 +6484,7 @@ sub show_deleted_rules1 {
             my $hash = $pname2oname2deleted{$pname};
             for my $oname (sort keys %$hash) {
                 my $aref = $hash->{$oname};
-                my $msg  = "Duplicate rules in $pname and $oname:\n";
-                $msg .= " Files: $pname2file{$pname} $pname2file{$oname}\n  ";
+                my $msg  = "Duplicate rules in $pname and $oname:\n  ";
                 $msg .= join("\n  ", map { print_rule $_ } @$aref);
                 $print->($msg);
             }
@@ -6538,7 +6543,6 @@ sub collect_redundant_rules {
 sub show_deleted_rules2 {
     return if not @deleted_rules;
     my %pname2oname2deleted;
-    my %pname2file;
     for my $pair (@deleted_rules) {
         my ($rule, $other) = @$pair;
 
@@ -6550,8 +6554,6 @@ sub show_deleted_rules2 {
         my $ofile = $oservice->{file};
         $pfile =~ s/.*?([^\/]+)$/$1/;
         $ofile =~ s/.*?([^\/]+)$/$1/;
-        $pname2file{$pname} = $pfile;
-        $pname2file{$oname} = $ofile;
         push(@{ $pname2oname2deleted{$pname}->{$oname} }, [ $rule, $other ]);
     }
     if (my $action = $config{check_redundant_rules}) {
@@ -6560,8 +6562,7 @@ sub show_deleted_rules2 {
             my $hash = $pname2oname2deleted{$pname};
             for my $oname (sort keys %$hash) {
                 my $aref = $hash->{$oname};
-                my $msg  = "Redundant rules in $pname compared to $oname:\n";
-                $msg .= " Files: $pname2file{$pname} $pname2file{$oname}\n  ";
+                my $msg  = "Redundant rules in $pname compared to $oname:\n  ";
                 $msg .= join(
                     "\n  ",
                     map {
@@ -10802,6 +10803,68 @@ sub crypto_behind {
     }
 }
 
+# Valid group-policy attributes.
+# Hash describes usage:
+# - tg_general: attribute is only applicable to 'tunnel-group general-attributes'
+my %asa_vpn_attributes = (
+
+    # group-policy attributes
+    banner                    => {},
+    'dns-server'              => {},
+    'default-domain'          => {},
+    'split-dns'               => {},
+    'trust-point'             => {},
+    'wins-server'             => {},
+    'vpn-access-hours'        => {},
+    'vpn-idle-timeout'        => {},
+    'vpn-session-timeout'     => {},
+    'vpn-simultaneous-logins' => {},
+    vlan                      => {},
+    'split-tunnel-policy'     => {},
+    'authentication-server-group' => { tg_general => 1 },
+    'authorization-server-group'  => { tg_general => 1 },
+    'authorization-required'      => { tg_general => 1 },
+    'username-from-certificate'   => { tg_general => 1 },
+);
+
+sub verify_asa_vpn_attributes {
+    my ($obj) = @_;
+    my $attributes = $obj->{radius_attributes} or return;
+    for my $key (sort keys %$attributes) {
+        my $spec  = $asa_vpn_attributes{$key};
+        $spec or err_msg("Invalid radius_attribute '$key' at $obj->{name}");
+        if ($key eq 'split-tunnel-policy') {
+            my $value = $attributes->{$key};
+            $value =~ /^(?:tunnelall|tunnelspecified)$/ 
+                or err_msg("Unsupported value in radius_attributes",
+                           " of $obj->{name}\n",
+                           " '$key = $value'");
+        }
+        elsif ($key eq 'trust-point') {
+            if (is_host($obj)) {
+                $obj->{range} or
+                    err_msg("Must not use radius_attribute '$key'",
+                            " at $obj->{name}");
+            }
+            elsif (is_network($obj)) {
+                grep { $_->{ip} } @{ $obj->{hosts} } and
+                    err_msg("Must not use radius_attribute '$key'",
+                            " at $obj->{name}");
+            }                    
+        }
+    }    
+    return;
+}
+
+sub verify_asa_trustpoint {
+    my ($router, $crypto) = @_;
+    my $isakmp = $crypto->{type}->{key_exchange};
+    $isakmp->{trust_point}
+      or err_msg("Missing 'trust_point' in",
+                 " isakmp attributes for $router->{name}");
+    return;
+}
+
 sub expand_crypto  {
     progress('Expanding crypto rules');
 
@@ -10817,10 +10880,12 @@ sub expand_crypto  {
             for my $tunnel_intf (@{ $tunnel->{interfaces} }) {
                 next if $tunnel_intf->{is_hub};
                 my $router  = $tunnel_intf->{router};
+                my $peers   = $tunnel_intf->{peers};
                 my $managed = $router->{managed};
                 my @encrypted;
                 my $has_id_hosts;
                 my $has_other_network;
+                my @verify_radius_attributes;
                 for my $interface (@{ $router->{interfaces} }) {
                     next if $interface eq $tunnel_intf;
                     if ($interface->{ip} eq 'tunnel') {
@@ -10848,6 +10913,7 @@ sub expand_crypto  {
                           and err_msg
                           "$network->{name} having ID hosts must not",
                           " be located behind managed $router->{name}";
+                        push @verify_radius_attributes, $network;
 
                         # Must not have multiple networks.
                         @all_networks > 1 and internal_err();
@@ -10861,8 +10927,10 @@ sub expand_crypto  {
                               and err_msg
                               "$host->{name} with ID must expand to",
                               "exactly one subnet";
+                            push @verify_radius_attributes, $host;
+
                             my $subnet = $subnets->[0];
-                            for my $peer (@{ $tunnel_intf->{peers} }) {
+                            for my $peer (@$peers) {
                                 $peer->{id_rules}->{$id} = {
                                     name       => "$peer->{name}.$id",
                                     ip         => 'tunnel',
@@ -10896,7 +10964,7 @@ sub expand_crypto  {
                     join(', ', map { $_->{name} } @encrypted)
                   );
 
-                for my $peer (@{ $tunnel_intf->{peers} }) {
+                for my $peer (@$peers) {
                     $peer->{peer_networks} = \@encrypted;
 
                     # ID can only be checked at hub with attribute do_auth.
@@ -10918,6 +10986,18 @@ sub expand_crypto  {
                           " at $tunnel_intf->{name}";
                     }
                 }
+
+                if (grep({ $_->{router}->{model}->{crypto} eq 'ASA_VPN' } 
+                         @$peers)) 
+                {
+                    for my $obj (@verify_radius_attributes) {
+                        verify_asa_vpn_attributes($obj);
+                    }
+                }
+
+                if ($managed && $router->{model}->{crypto} eq 'ASA') {
+                    verify_asa_trustpoint($router, $crypto);
+                }                    
 
                 # Add rules to permit crypto traffic between
                 # tunnel endpoints.
@@ -10975,6 +11055,26 @@ sub expand_crypto  {
                 }
             }
         }
+    }
+
+    for my $router (@managed_vpnhub) {
+        my $crypto_type = $router->{model}->{crypto};
+        if ($crypto_type eq 'ASA_VPN') {
+            verify_asa_vpn_attributes($router);
+        }
+        elsif($crypto_type eq 'ASA') {
+            for my $interface (@{ $router->{interfaces} }) {
+                next if not $interface->{ip} eq 'tunnel';
+                verify_asa_trustpoint($router, $interface->{cyrpto});
+                last;
+            }
+        }            
+
+        # Move 'trust-point' from radius_attributes to router attribute.
+        my $trust_point = delete $router->{radius_attributes}->{'trust-point'}
+        or err_msg
+            "Missing 'trust-point' in radius_attributes of $router->{name}";
+        $router->{trust_point} = $trust_point;
     }
 
     # Hash only needed during expand_group and expand_rules.
@@ -12581,6 +12681,7 @@ sub get_networks {
 }
 
 sub prepare_nat_commands  {
+    return if fast_mode();
     progress('Preparing NAT commands');
 
     # Caching for performance.
@@ -13785,6 +13886,37 @@ sub distribute_rule {
     # Don't generate code for src any:[interface:r.loopback] at router:r.
     return if $in_intf->{loopback};
 
+    # Check dynamic NAT in loop.
+    if ((my $nat_tags = $in_intf->{bind_nat}) &&
+        $in_intf->{loop} &&
+        (my $no_nat_set = $in_intf->{no_nat_set}))
+    {
+        my $src = $rule->{src};
+        my $is_net = is_network($src);
+        my $src_net = $is_net ? $src : $src->{network};
+        if (my $nat_hash = $src_net->{nat}) {
+            for my $nat_tag (@$nat_tags) {
+                if (my $nat_net = $nat_hash->{$nat_tag}) {
+                    if ($nat_net->{dynamic}) {
+                        if (   $is_net 
+                            || !$src->{nat}
+                            || !$src->{nat}->{$nat_tag}) 
+                        {
+                            my $type = 
+                                $nat_net->{hidden} ? 'hidden' : 'dynamic';
+                            err_msg("Must not apply reversed $type NAT",
+                                    " '$nat_tag' at $in_intf->{name}\n",
+                                    " for\n",
+                                    " ", print_rule($rule), "\n",
+                                    " Add pathrestriction",
+                                    " to exclude this path");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     # Adapt rule to dynamic NAT.
     if (my $dynamic_nat = $rule->{dynamic_nat}) {
         my $no_nat_set = $in_intf->{no_nat_set};
@@ -13811,30 +13943,6 @@ sub distribute_rule {
             # Make a copy of current rule, because the original rule
             # must not be changed.
             $rule = { %$rule, $where => $network };
-        }
-    }
-
-    # Check dynamic NAT in loop.
-    if ((my $nat_tags = $in_intf->{bind_nat}) &&
-        $in_intf->{loop} &&
-        (my $no_nat_set = $in_intf->{no_nat_set}))
-    {
-        my $src = $rule->{src};
-        my $is_net = is_network($src);
-        my $src_net = $is_net ? $src : $src->{network};
-        if (my $nat_hash = $src_net->{nat}) {
-            for my $nat_tag (@$nat_tags) {
-                if (my $nat_net = $nat_hash->{$nat_tag}) {
-                    if ($nat_net->{dynamic}) {
-                        if ($is_net || !$src->{nat} || !$src->{nat}->{$nat_tag}) {
-                            my $type = $nat_net->{hidden} ? 'hidden' : 'dynamic';
-                            err_msg("Must not apply reversed $type NAT",
-                                    " '$nat_tag' at $in_intf->{name};\n",
-                                    " add pathrestriction to exclude this path");
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -14076,6 +14184,7 @@ my $permit_any_rule = {
 };
 
 sub add_router_acls  {
+    return if fast_mode();
     for my $router (@managed_routers) {
         my $has_io_acl = $router->{model}->{has_io_acl};
         for my $hardware (@{ $router->{hardware} }) {
@@ -14365,11 +14474,8 @@ sub distribute_global_permit {
     return;
 }
 
-sub rules_distribution {
-    progress('Distributing rules');
-
-    # Not longer used, free memory.
-    %rule_tree = ();
+sub sort_rules_by_prio {
+    return if fast_mode();
 
     # Sort rules by reverse priority of protocol.
     # This should be done late to get all auxiliary rules processed.
@@ -14383,6 +14489,16 @@ sub rules_distribution {
               } @{ $expanded_rules{$type} }
         ];
     }
+    return;
+}
+
+sub rules_distribution {
+    progress('Distributing rules');
+
+    # Not longer used, free memory.
+    %rule_tree = ();
+    
+    sort_rules_by_prio();
 
     # Deny rules
     for my $rule (@{ $expanded_rules{deny} }) {
@@ -14407,16 +14523,7 @@ sub rules_distribution {
     # crosslink interfaces during add_router_acls.
     set_policy_distribution_ip();
     add_router_acls();
-
-    # Prepare rules for local_optimization.
-    # Aggregates with mask 0 are converted to network_00, to be able
-    # to compare with internally generated rules which use network_00.
-    for my $rule (@{ $expanded_rules{supernet} }) {
-        next if $rule->{deleted} and not $rule->{managed_intf};
-        my ($src, $dst) = @{$rule}{qw(src dst)};
-        $rule->{src} = $network_00 if is_network($src) && $src->{mask} == 0;
-        $rule->{dst} = $network_00 if is_network($dst) && $dst->{mask} == 0;
-    }
+    prepare_local_optimization();
 
     # No longer needed, free some memory.
     %expanded_rules = ();
@@ -16062,8 +16169,24 @@ sub add_local_deny_rules {
     return;
 }
 
+sub prepare_local_optimization {
+    return if fast_mode();
+
+    # Prepare rules for local_optimization.
+    # Aggregates with mask 0 are converted to network_00, to be able
+    # to compare with internally generated rules which use network_00.
+    for my $rule (@{ $expanded_rules{supernet} }) {
+        next if $rule->{deleted} and not $rule->{managed_intf};
+        my ($src, $dst) = @{$rule}{qw(src dst)};
+        $rule->{src} = $network_00 if is_network($src) && $src->{mask} == 0;
+        $rule->{dst} = $network_00 if is_network($dst) && $dst->{mask} == 0;
+    }
+    return;
+}
+
 #use Time::HiRes qw ( time );
 sub local_optimization {
+    return if fast_mode();
     progress('Optimizing locally');
 
     # Needed in find_chains.
@@ -16711,34 +16834,10 @@ sub get_split_tunnel_nets {
           values %split_tunnel_nets ];
 }
 
-# Valid group-policy attributes.
-# Hash describes usage:
-# - need_value: value of attribute must have prefix 'value'
-# - also_user: attribute is also applicable to 'username'
-# - internal: internally generated, not allowed from config
-# - tg_general: attribute is only applicable to 'tunnel-group general-attributes'
-my %asa_vpn_attributes = (
-
-    # group-policy attributes
-    banner                    => { need_value => 1 },
-    'dns-server'              => { need_value => 1 },
-    'default-domain'          => { need_value => 1 },
-    'split-dns'               => { need_value => 1 },
-    'wins-server'             => { need_value => 1 },
-    'vpn-access-hours'        => { also_user  => 1 },
-    'vpn-idle-timeout'        => { also_user  => 1 },
-    'vpn-session-timeout'     => { also_user  => 1 },
-    'vpn-simultaneous-logins' => { also_user  => 1 },
-    vlan                      => {},
-    'address-pools'               => { need_value => 1, internal => 1 },
-    'split-tunnel-network-list'   => { need_value => 1, internal => 1 },
-    'split-tunnel-policy'         => { internal   => 1 },
-    'vpn-filter'                  => { need_value => 1, internal => 1 },
-    'authentication-server-group' => { tg_general => 1 },
-    'authorization-server-group'  => { tg_general => 1 },
-    'authorization-required'      => { tg_general => 1 },
-    'username-from-certificate'   => { tg_general => 1 },
-);
+my %asa_vpn_attr_need_value = 
+    map { $_ => 1 }
+qw(banner dns-server default-domain split-dns wins-server address-pools 
+   split-tunnel-network-list vpn-filter);
 
 sub print_asavpn  {
     my ($router)         = @_;
@@ -16755,9 +16854,7 @@ EOF
 
     # Define tunnel group used for single VPN users.
     my $default_tunnel_group = 'VPN-single';
-    my $trust_point = delete $router->{radius_attributes}->{'trust-point'}
-      or err_msg
-      "Missing 'trust-point' in radius_attributes of $router->{name}";
+    my $trust_point = $router->{trust_point};
 
     print <<"EOF";
 tunnel-group $default_tunnel_group type remote-access
@@ -16795,12 +16892,9 @@ EOF
         print "group-policy $name attributes\n";
         for my $key (sort keys %$attributes) {
             my $value = $attributes->{$key};
-            my $spec  = $asa_vpn_attributes{$key};
-            $spec and not $spec->{tg_general}
-              or err_msg("unknown radius_attribute '$key' for $router->{name}");
             my $out = $key;
             if (defined($value)) {
-                $out .= ' value' if $spec->{need_value};
+                $out .= ' value' if $asa_vpn_attr_need_value{$key};
                 $out .= " $value";
             }
             print " $out\n";
@@ -16878,10 +16972,6 @@ EOF
                     }
                     $attributes->{'split-tunnel-network-list'} = $acl_name;
                 }
-                else {
-                    err_msg "Unsupported value of 'split-tunnel-policy':",
-                      " $split_tunnel_policy";
-                }
 
                 # Access list will be bound to cleartext interface.
                 # Only check for valid source address at vpn-filter.
@@ -16948,7 +17038,8 @@ EOF
 
                     # Select attributes for tunnel-group general-attributes.
                     for my $key (sort keys %$attributes) {
-                        if ($asa_vpn_attributes{$key}->{tg_general}) {
+                        my $spec = $asa_vpn_attributes{$key};
+                        if ($spec && $spec->{tg_general}) {
                             my $value = delete $attributes->{$key};
                             my $out = defined($value) ? "$key $value" : $key;
                             push(@tunnel_gen_att, $out);
@@ -17656,14 +17747,7 @@ sub print_crypto {
             print "$prefix set ${extra_ikev1}transform-set $transform_name\n";
 
             if (my $pfs_group = $ipsec->{pfs_group}) {
-                if ($pfs_group =~ /^(1|2)$/) {
-                    $pfs_group = "group$1";
-                }
-                else {
-                    err_msg
-                      "Unsupported pfs group for $crypto_type: $pfs_group";
-                }
-                print "$prefix set pfs $pfs_group\n";
+                print "$prefix set pfs group$pfs_group\n";
             }
 
             if (my $lifetime = $ipsec->{lifetime}) {
@@ -17687,9 +17771,7 @@ sub print_crypto {
                         print " peer-id-validate nocheck\n";
                     }
                     elsif ($authentication eq 'rsasig') {
-                        my $trust_point = $isakmp->{trust_point}
-                          or err_msg "Missing 'trust_point' in",
-                          " isakmp attributes for $router->{name}";
+                        my $trust_point = $isakmp->{trust_point};
                         print " chain\n";
                         print " ${extra_ikev1}trust-point $trust_point\n";
                         if ($model->{v8_4}) {
@@ -17875,7 +17957,7 @@ sub copy_raw {
     $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
     ## use critic
 
-    my %routers = map { $_->{device_name} => 1 } @managed_routers;
+    my %device_names = map { $_->{device_name} => 1 } @managed_routers;
 
     opendir(my $dh, $raw_dir) or fatal_err("Can't opendir $raw_dir: $!");
     while (my $file = Encode::decode($filename_encode, readdir $dh)) {
@@ -17889,11 +17971,8 @@ sub copy_raw {
             warn_msg("Ignoring $raw_path");
             next;
         }
-        if (not $routers{$file}) {
-            if (my $conf = $config{check_raw}) {
-                my $msg = "Found unused $raw_path";
-                $conf eq 'warn' ? warn_msg($msg) : err_msg($msg);
-            }
+        if (not $device_names{$file}) {
+            warn_msg("Found unused $raw_path");
             next;
         }
         my $copy = "$out_dir/$raw_file.raw";

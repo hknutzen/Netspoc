@@ -61,6 +61,7 @@ service:admin = {
 END
 
 $out = <<END;
+--bridge
 ! [ IP = 192.168.0.9 ]
 END
 
@@ -93,6 +94,7 @@ service:test = {
 END
 
 $out = <<END;
+--bridge
 access-list outside_in extended permit tcp 192.168.0.0 255.255.255.0 host 10.1.1.111 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
@@ -113,6 +115,7 @@ service:test = {
 END
 
 $out = <<END;
+--bridge
 access-list outside_in extended permit tcp 10.9.9.0 255.255.255.0 host 10.1.1.111 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside

@@ -48,12 +48,14 @@ service:test1 = {
 END
 
 $out = <<END;
+--r1
 ! [ ACL ]
 ip access-list extended e1_in
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 22
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 22
  permit tcp 10.0.0.0 0.0.0.255 host 10.3.3.1 eq 22
  deny ip any any
+--r2
 ! [ ACL ]
 ip access-list extended f1_in
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 22
@@ -77,11 +79,13 @@ service:test2 = {
 END
 
 $out = <<END;
+--r1
 ! [ ACL ]
 ip access-list extended e1_in
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 23
  permit tcp 10.0.0.0 0.0.0.255 host 10.2.2.2 eq 23
  deny ip any any
+--r2
 ! [ ACL ]
 ip access-list extended f1_in
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 23
@@ -174,6 +178,7 @@ END
 # and all interfaces of other routers.
 
 $out = <<END;
+--FW
 object-group network g0
  network-object host 10.10.0.2
  network-object host 10.10.0.3
@@ -229,6 +234,7 @@ service:test = {
 END
 
 $out = <<END;
+--r1
 ! [ IP = 10.0.0.1,10.1.1.1 ]
 END
 

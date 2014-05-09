@@ -47,6 +47,7 @@ service:test = {
 END
 
 $out = <<END;
+--r1
 ip access-list extended E1_in
  deny ip any host 10.3.3.1
  deny ip any host 10.2.2.9
@@ -54,7 +55,7 @@ ip access-list extended E1_in
  permit ip 10.1.1.0 0.0.0.255 10.3.3.0 0.0.0.255
  permit ip 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255
  deny ip any any
---
+--r2
 ip access-list extended E4_in
  deny ip any host 10.2.2.9
  deny ip any host 10.2.2.2
@@ -105,11 +106,12 @@ service:test = {
 END
 
 $out = <<END;
+--g
 ip route 10.2.2.0 255.255.255.0 10.1.1.2
---
+--r1
 ip access-list extended E1_in
  deny ip any any
---
+--r2
 ip access-list extended E4_in
  deny ip any host 10.2.2.9
  deny ip any host 10.2.2.2
@@ -287,6 +289,7 @@ service:x = {
 END
 
 $out = <<END;
+--L
 ip access-list extended Ethernet2_in
  permit icmp 10.1.0.0 0.0.0.255 host 10.9.32.1 17
  deny ip any any

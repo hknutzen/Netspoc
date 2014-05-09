@@ -58,8 +58,9 @@ service:pdp3 = {
 END
 
 $out = <<END;
+--asa1
 ! [ IP = 10.1.1.1 ]
---
+--asa2
 ! [ IP = 10.1.3.2 ]
 END
 

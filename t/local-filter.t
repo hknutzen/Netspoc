@@ -185,6 +185,7 @@ END
 $in = $topo;
 
 $out = <<END;
+--d32
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
@@ -214,6 +215,7 @@ service:Test = {
 END
 
 $out = <<END;
+--d32
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
@@ -239,6 +241,7 @@ service:Test = {
 END
 
 $out = <<END;
+--d32
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
@@ -285,6 +288,7 @@ service:Mail = {
 END
 
 $out = <<END;
+--d31
 access-list inside_in extended permit tcp 10.62.1.32 255.255.255.224 10.125.3.0 255.255.255.0 eq 25
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
@@ -299,6 +303,7 @@ $title = "Different deny rules";
 # Reuse $in of previous test.
 
 $out = <<END;
+--d32
 access-list vlan1_in extended deny ip any 10.62.0.0 255.255.0.0
 access-list vlan1_in extended permit ip any any
 access-group vlan1_in in interface vlan1
@@ -333,6 +338,7 @@ service:test = {
 END
 
 $out = <<END;
+--d32
 access-list vlan1_in extended permit ip any any
 access-group vlan1_in in interface vlan1
 --
@@ -350,7 +356,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = "Loop, virtual interfaces";
+$title = "Loop, virtual interfaces (1)";
 ############################################################
 
 # Zone with virtual interfaces is recognized as leaf zone.
@@ -398,13 +404,14 @@ service:test = {
 END
 
 $out = <<END;
+--d1
 ip access-list extended vlan1_in
  deny ip any host 10.62.2.1
  permit tcp 10.62.1.32 0.0.0.31 10.62.2.0 0.0.0.31 eq 80
  permit tcp 10.62.1.32 0.0.0.31 10.62.2.0 0.0.0.31 established
  deny ip any 10.62.0.0 0.0.31.255
  permit ip any any
---
+--d1
 ip access-list extended vlan2_in
  deny ip any host 10.62.1.33
  deny ip any host 10.62.1.34
@@ -417,7 +424,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = "Loop, virtual interfaces";
+$title = "Loop, virtual interfaces (2)";
 ############################################################
 
 $in = <<END;
@@ -474,10 +481,11 @@ service:Mail = {
 END
 
 $out = <<END;
+--ex
 access-list inside_in extended permit tcp 10.2.2.0 255.255.255.224 10.5.3.0 255.255.255.0 eq 25
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
---
+--r1
 object-group network g0
  network-object host 10.2.1.4
  network-object host 10.2.3.4
@@ -485,7 +493,7 @@ access-list vlan4_in extended permit tcp 10.2.2.0 255.255.255.224 object-group g
 access-list vlan4_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
 access-list vlan4_in extended permit ip any any
 access-group vlan4_in in interface vlan4
---
+--r3
 access-list vlan8_in extended permit ip 10.2.2.0 255.255.255.224 10.2.1.0 255.255.255.224
 access-list vlan8_in extended permit tcp 10.2.2.0 255.255.255.224 host 10.2.3.4 eq 25
 access-list vlan8_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
@@ -545,6 +553,7 @@ service:Mail = {
 END
 
 $out = <<END;
+--r1
 access-list vlan1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.8.0 255.255.255.0 eq 25
 access-list vlan1_in extended deny ip any 10.2.0.0 255.255.0.0
 access-list vlan1_in extended permit ip any any

@@ -59,7 +59,6 @@ t/Test_Netspoc.pm
 t/aggregate.t
 t/any-multicast-interface.t
 t/area.t
-t/area.t~
 t/auto_intf.t
 t/bridged.t
 t/crosslink.t
@@ -81,10 +80,8 @@ t/rename.t
 t/route.t
 t/secondary.t
 t/stateless.t
-t/stateless.t~
 t/unenforceable.t
 t/unmanaged.t
-t/unmanaged.t~
 t/unnumbered.t
 t/virtual-loopback-nat.t
 t/virtual-pathrestrict.t

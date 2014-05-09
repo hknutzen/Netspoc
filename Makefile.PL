@@ -12,6 +12,7 @@ my %WriteMakefileArgs = (
   "ABSTRACT" => "Generates rules for many firewalls from a central ruleset.",
   "AUTHOR" => "Heinz Knutzen <heinz.knutzen\@dataport.de>",
   "BUILD_REQUIRES" => {
+    "Carp" => 0,
     "File::Temp" => 0,
     "IPC::Run3" => 0,
     "Test::Differences" => 0,
@@ -47,7 +48,7 @@ my %WriteMakefileArgs = (
     "utf8" => 0,
     "warnings" => 0
   },
-  "VERSION" => "3.046",
+  "VERSION" => "3.047",
   "test" => {
     "TESTS" => "t/*.t"
   }

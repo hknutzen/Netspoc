@@ -49,6 +49,7 @@ service:test = {
 END
 
 $out = <<END;
+--filter
 ip access-list extended VLAN1_in
  deny ip any host 10.9.9.1
  permit tcp 10.0.0.0 0.255.255.255 10.9.9.0 0.0.0.255 eq 80
@@ -75,6 +76,7 @@ service:test = {
 END
 
 $out = <<END;
+--filter
 ip access-list extended VLAN1_in
  deny ip any host 10.9.9.1
  permit tcp 10.3.3.0 0.0.0.255 10.9.9.0 0.0.0.255 eq 80
@@ -105,6 +107,7 @@ service:test2 = {
 END
 
 $out = <<END;
+--filter
 ip access-list extended VLAN1_in
  deny ip any host 10.9.9.1
  permit tcp 10.3.3.0 0.0.0.63 10.9.9.0 0.0.0.255 eq 80
@@ -185,10 +188,11 @@ service:test = {
 END
 
 $out = <<END;
+--filter1
 access-list Vlan2_in extended permit tcp 10.0.0.0 255.0.0.0 10.9.1.0 255.255.255.0 eq 80
 access-list Vlan2_in extended deny ip any any
 access-group Vlan2_in in interface Vlan2
---
+--filter2
 access-list Vlan4_in extended permit tcp 10.0.0.0 255.0.0.0 10.9.1.0 255.255.255.0 eq 80
 access-list Vlan4_in extended deny ip any any
 access-group Vlan4_in in interface Vlan4
@@ -253,10 +257,11 @@ service:test = {
 END
 
 $out = <<END;
+--filter
 access-list Vlan5_in extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
 access-list Vlan5_in extended deny ip any any
 access-group Vlan5_in in interface Vlan5
---
+--filter
 access-list Vlan6_out extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
 access-list Vlan6_out extended deny ip any any
 access-group Vlan6_out out interface Vlan6
@@ -302,6 +307,7 @@ service:test2 = {
 END
 
 $out = <<END;
+--filter
 access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.254.0 10.9.1.0 255.255.255.0 eq 80
 access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.252.0 10.9.1.0 255.255.255.0 eq 81
 access-list Vlan2_in extended deny ip any any
@@ -323,7 +329,6 @@ END
 
 $out = <<END;
 Warning: Redundant rules in service:test1 compared to service:test3:
- Files: STDIN STDIN
   permit src=any:[ip=10.1.0.0/23 & network:Trans]; dst=network:Test; prt=tcp 80; of service:test1
 < permit src=any:[ip=10.1.0.0/16 & network:Trans]; dst=network:Test; prt=tcp 80; of service:test3
 END
@@ -356,7 +361,6 @@ END
 
 $out = <<END;
 Warning: Redundant rules in service:test compared to service:test:
- Files: STDIN STDIN
   permit src=any:[ip=10.1.0.0/17 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
 < permit src=any:[ip=10.1.0.0/16 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
 END
@@ -389,7 +393,6 @@ END
 
 $out = <<END;
 Warning: Redundant rules in service:test compared to service:test:
- Files: STDIN STDIN
   permit src=any:[ip=10.1.0.0/17 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
 < permit src=any:[ip=10.1.0.0/16 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
 END
@@ -425,15 +428,12 @@ END
 
 $out = <<END;
 Warning: Redundant rules in service:test1 compared to service:test1:
- Files: STDIN STDIN
   permit src=any:[ip=10.9.1.0/26 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
 < permit src=network:Test; dst=network:Kunde; prt=tcp 80; of service:test1
 Warning: Redundant rules in service:test1 compared to service:test2:
- Files: STDIN STDIN
   permit src=any:[ip=10.9.1.0/26 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
 < permit src=any:[ip=10.9.1.0/25 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test2
 Warning: Redundant rules in service:test2 compared to service:test1:
- Files: STDIN STDIN
   permit src=any:[ip=10.9.1.0/25 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test2
 < permit src=network:Test; dst=network:Kunde; prt=tcp 80; of service:test1
 END
@@ -469,7 +469,6 @@ END
 
 $out = <<END;
 Warning: Redundant rules in service:test1 compared to service:test2:
- Files: STDIN STDIN
   permit src=any:[ip=10.1.1.0/26 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
 < permit src=any:[ip=10.0.0.0/8 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test2
 END
@@ -500,6 +499,7 @@ service:test1 = {
 END
 
 $out = <<END;
+--filter
 access-list Vlan1_in extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
 access-list Vlan1_in extended deny ip any any
 access-group Vlan1_in in interface Vlan1
@@ -529,6 +529,7 @@ service:test = {
 END
 
 $out = <<END;
+--filter
 access-list Vlan1_in extended permit tcp 10.1.0.0 255.255.0.0 10.1.1.0 255.255.255.0 eq 80
 access-list Vlan1_in extended deny ip any any
 access-group Vlan1_in in interface Vlan1
@@ -563,6 +564,7 @@ service:test = {
 END
 
 $out = <<END;
+--filter
 ip access-list extended VLAN2_in
  deny ip any host 10.1.1.1
  deny ip any host 10.7.7.7
@@ -586,6 +588,7 @@ service:test = {
 END
 
 $out = <<END;
+--filter
 ip access-list extended VLAN2_in
  deny ip any host 10.1.1.1
  permit tcp 10.9.9.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 22
@@ -709,13 +712,14 @@ service:test = {
 END
 
 $out = <<END;
+--r1
 ip access-list extended VLAN9_in
  deny ip any host 10.9.9.1
  deny ip any host 10.7.7.1
  deny ip any host 10.7.8.1
  permit ip 10.9.9.0 0.0.0.255 10.0.0.0 0.127.255.255
  deny ip any any
---
+--r2
 ip access-list extended VLAN77_in
  deny ip any host 10.7.7.2
  deny ip any host 10.1.1.1
@@ -752,6 +756,7 @@ service:test = {
 END
 
 $out = <<END;
+--r2
 ip access-list extended VLAN77_in
  deny ip any host 10.7.7.2
  deny ip any host 10.1.1.1
@@ -760,7 +765,7 @@ ip access-list extended VLAN77_in
  deny ip any host 10.1.4.1
  permit ip 10.9.9.0 0.0.0.255 10.0.0.0 0.127.255.255
  deny ip any any
---
+--r2
 ip access-list extended VLAN1_in
  deny ip any host 10.7.7.2
  deny ip any host 10.1.1.1
@@ -769,7 +774,7 @@ ip access-list extended VLAN1_in
  deny ip any host 10.1.4.1
  deny ip any host 10.128.1.1
  permit ip any any
---
+--r2
 ip access-list extended VLAN2_out
  permit ip 10.9.9.0 0.0.0.255 10.0.0.0 0.127.255.255
  deny ip any any
@@ -812,6 +817,7 @@ $title = 'No destination aggregate needed for Linux';
 $in =~ s/#network:trans/network:trans/g;
 
 $out = <<END;
+--r2
 :VLAN77_self -
 -A INPUT -j VLAN77_self -i VLAN77
 :VLAN77_VLAN1 -

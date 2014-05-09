@@ -27,6 +27,7 @@ global:permit = tcp, icmp;
 END
 
 $out = <<END;
+--r
 ip access-list e0_in
  10 permit icmp any any
  20 permit tcp any any

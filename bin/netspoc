@@ -56,10 +56,6 @@ Check for missing supernet rules.
 
 Check for transient supernet rules.
 
-=item B<-check_raw=0|1|warn>
-
-Check for unused raw files.
-
 =item B<-[no]auto_default_route>
 
 Generate default route to minimize number of routing entries.
@@ -105,7 +101,8 @@ Prints the manual page and exits.
 =head1 DESCRIPTION
 
 Compile all files from 'in-directory' or from a single 'in-file' or from STDIN.
-Output is generated in 'out-directory' or sent to STDOUT.
+Output is generated in 'out-directory'.
+If no 'out-directory' is given, no output is generated; only errors are checked.
 
 
 =head1 COPYRIGHT AND DISCLAIMER
@@ -136,7 +133,7 @@ use Netspoc;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '3.046'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.047'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -194,6 +191,9 @@ my $file_config = &read_config($in_path);
 # Command line arguments override options from 'config' file.
 # Rightmost overrides.
 &set_config($file_config, $cmd_config);
+
+# We do only error checks if no $out_dir is given.
+&fast_mode(!$out_dir);
 &show_version();
 &read_file_or_dir($in_path);
 &show_read_statistics();
@@ -219,6 +219,8 @@ Netspoc::find_subnets_in_zone();
 &set_abort_immediately();
 &rules_distribution();
 &local_optimization();
-&print_code($out_dir);
-Netspoc::copy_raw($in_path, $out_dir);
+if ($out_dir) {
+    &print_code($out_dir);
+    Netspoc::copy_raw($in_path, $out_dir);
+}
 Netspoc::show_finished();

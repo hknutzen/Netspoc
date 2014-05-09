@@ -3,6 +3,7 @@ abstract: 'Generates rules for many firewalls from a central ruleset.'
 author:
   - 'Heinz Knutzen <heinz.knutzen@dataport.de>'
 build_requires:
+  Carp: 0
   File::Temp: 0
   IPC::Run3: 0
   Test::Differences: 0
@@ -31,4 +32,4 @@ requires:
   strict: 0
   utf8: 0
   warnings: 0
-version: 3.046
+version: 3.047
