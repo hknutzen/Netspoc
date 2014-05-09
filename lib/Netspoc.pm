@@ -10852,7 +10852,8 @@ sub verify_asa_vpn_attributes {
                             " at $obj->{name}");
             }                    
         }
-    }        
+    }    
+    return;
 }
 
 sub verify_asa_trustpoint {
@@ -10861,6 +10862,7 @@ sub verify_asa_trustpoint {
     $isakmp->{trust_point}
       or err_msg("Missing 'trust_point' in",
                  " isakmp attributes for $router->{name}");
+    return;
 }
 
 sub expand_crypto  {
@@ -14488,6 +14490,7 @@ sub sort_rules_by_prio {
               } @{ $expanded_rules{$type} }
         ];
     }
+    return;
 }
 
 sub rules_distribution {
@@ -16179,6 +16182,7 @@ sub prepare_local_optimization {
         $rule->{src} = $network_00 if is_network($src) && $src->{mask} == 0;
         $rule->{dst} = $network_00 if is_network($dst) && $dst->{mask} == 0;
     }
+    return;
 }
 
 #use Time::HiRes qw ( time );
