@@ -12065,7 +12065,6 @@ sub gen_reverse_rules1  {
 }
 
 sub gen_reverse_rules {
-    return if fast_mode();
     progress('Generating reverse rules for stateless routers');
     my %reverse_rule_tree;
     for my $type ('deny', 'supernet', 'permit') {
