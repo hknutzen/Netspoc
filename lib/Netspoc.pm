@@ -4824,7 +4824,7 @@ sub transform_isolated_ports {
             next NETWORK;
         }
         elsif (@promiscuous_ports > 1) {
-            equal(map { $_->{redundancy_interfaces} || 0 } @promiscuous_ports)
+            equal(map { $_->{redundancy_interfaces} || $_ } @promiscuous_ports)
               or err_msg "All 'promiscuous_port's of $network->{name}",
               " need to be redundant to each other";
         }
