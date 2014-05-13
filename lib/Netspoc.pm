@@ -14023,14 +14023,16 @@ sub distribute_rule {
             }
             elsif (is_network $src) {
                 $src->{has_id_hosts}
-                  or internal_err("$src->{name} must have ID-hosts");
+                  or internal_err("$src->{name} must have ID-hosts\n ", 
+                                  print_rule $rule);
                 for my $id (map { $_->{id} } @{ $src->{hosts} }) {
                     push @{ $id2rules->{$id}->{$key} }, $rule;
                 }
             }
             else {
                 internal_err(
-                  "Expected host or network as src but got $src->{name}");
+                    "Expected host or network as src but got $src->{name}\n ",
+                    print_rule $rule);
             }
         }
 
