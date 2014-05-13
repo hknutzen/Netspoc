@@ -13188,37 +13188,50 @@ sub check_and_convert_routes  {
 
                 if (not $hop_routes) {
 
-                    # Try to guess default route, if only one hop is available.
+                    # Try to guess default route. 
                     my @try_hops =
-                      grep({ $_ ne $real_intf }
-                        grep({ $_->{ip} !~ /^(?:short|negotiated)$/ }
-                            @{ $real_intf->{network}->{interfaces} }));
+                      grep({ @{ $_->{router}->{interfaces} } > 1 }
+                        grep({ $_ ne $real_intf }
+                          grep({ $_->{ip} !~ /^(?:short|negotiated)$/ }
+                            @{ $real_intf->{network}->{interfaces} })));
 
-                    if (@try_hops == 1) {
-                        my $hop = $try_hops[0];
-                        $hop_routes = $real_intf->{routes}->{$hop} ||= {};
-                        $real_intf->{hop}->{$hop} = $hop;
+                    if (   @try_hops > 1
+                        && equal(map({ $_->{redundancy_interfaces} || $_ } 
+                                     @try_hops))
+                        || @try_hops == 1)
+                    {
+                        for my $hop (@try_hops) {
+                            $hop_routes = $real_intf->{routes}->{$hop} ||= {};
+                            $real_intf->{hop}->{$hop} = $hop;
+                        }
+                    }
+                    else {
+
+                        # This can only happen for vpn software clients.
+                        # For hardware clients  the route is known 
+                        # for the encrypted traffic which is allowed 
+                        # by gen_tunnel_rules (even for negotiated interface).
+                        my $count = @try_hops;
+                        my $names = join ('', 
+                                          map({ "\n - $_->{router}->{name}" }
+                                              @try_hops));
+                        err_msg(
+                            "Can't determine next hop while moving routes\n",
+                            " of $interface->{name} to $real_intf->{name}.\n",
+                            " Exactly one default route is needed,", 
+                            " but $count candidates were found:",
+                            $names
+                            );
                     }
                 }
 
                 # Use found hop to reach tunneled networks in $tunnel_routes.
-                if ($hop_routes) {
-                    for my $tunnel_net_hash (values %$tunnel_routes) {
-                        for my $tunnel_net (values %$tunnel_net_hash) {
-                            $hop_routes->{$tunnel_net} = $tunnel_net;
-                        }
+                for my $tunnel_net_hash (values %$tunnel_routes) {
+                    for my $tunnel_net (values %$tunnel_net_hash) {
+                        $hop_routes->{$tunnel_net} = $tunnel_net;
                     }
                 }
 
-                # This should never happen, because the route is known 
-                # for the encrypted traffic which is allowed 
-                # by gen_tunnel_rules (even for negotiated interface).
-                else {
-                    internal_err(
-                      "Can't determine next hop while moving routes\n",
-                      " of $interface->{name} to $real_intf->{name}"
-                    );
-                }
             }
         }
 
