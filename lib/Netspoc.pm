@@ -5983,6 +5983,14 @@ sub expand_group_in_rule {
             elsif ($object->{crosslink}) {
                 $ignore = "crosslink $object->{name}";
             }
+            elsif ($object->{is_aggregate}) {
+                if ($object->{is_tunnel}) {
+                    $ignore = "$object->{name} with tunnel";
+                }
+                elsif ($object->{has_id_hosts}) {
+                    $ignore = "$object->{name} with software clients"
+                }                    
+            }
         }
         elsif (is_interface $object) {
             if ($object->{ip} =~ /^(short|unnumbered)$/) {
@@ -8668,6 +8676,9 @@ sub link_aggregate_to_zone {
     # the same array between different aggregates.
     $aggregate->{networks} ||= [];
 
+    $zone->{is_tunnel} and $aggregate->{is_tunnel} = 1;
+    $zone->{has_id_hosts} and $aggregate->{has_id_hosts} = 1;
+
     if ($zone->{disabled}) {
         $aggregate->{disabled} = 1;
     }
@@ -8965,6 +8976,9 @@ sub set_zone1 {
     if (not($network->{ip} =~ /^(?:unnumbered|tunnel)$/)) {
         push @{ $zone->{networks} }, $network;
     }
+
+    $network->{ip} eq 'tunnel' and $zone->{is_tunnel} = 1;
+    $network->{has_id_hosts} and $zone->{has_id_hosts} = 1;
 
     # Zone inherits 'private' status from enclosed networks.
     my $private1 = $network->{private} || 'public';

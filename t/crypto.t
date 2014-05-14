@@ -335,12 +335,87 @@ router:gw_x = {
 }
 END
 
-$out = <<'END';
-Error: Can't determine next hop while moving routes
+$out = <<END;
+Error: Can\'t determine next hop while moving routes
  of interface:asavpn.tunnel:softclients to interface:asavpn.dmz.
  Exactly one default route is needed, but 2 candidates were found:
  - router:gw
  - router:gw_x
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Must not use aggregate with software clients';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha_hmac;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+ tunnel_all;
+}
+
+network:intern = { ip = 10.1.2.0/24;}
+
+router:gw = {
+ interface:intern;
+ interface:dmz = { ip = 192.168.0.2; }
+}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:dmz = { 
+  ip = 192.168.0.101; 
+  hub = crypto:vpn;
+  hardware = outside; 
+  no_check;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:softclients = {
+ interface:dmz = { spoke = crypto:vpn; }
+ interface:customers1;
+}
+
+network:customers1 = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+
+service:test1 = {
+ user = any:[network:customers1];
+ permit src = user; dst = network:intern; prt = tcp 80; 
+}
+END
+
+$out = <<END;
+Warning: Ignoring any:[network:customers1] with tunnel in src of rule in service:test1
+Warning: Ignoring any:[network:customers1] with software clients in src of rule in service:test1
 END
 
 test_err($title, $in, $out);
