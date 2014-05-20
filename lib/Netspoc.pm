@@ -8173,7 +8173,8 @@ sub find_subnets_in_nat_domain {
                 if ($error) {
                     my $name1 = $nat_network->{name};
                     my $name2 = $nat_old_net->{name};
-                    err_msg("$name1 and $name2 have identical IP/mask");
+                    err_msg("$name1 and $name2 have identical IP/mask\n",
+                            " in $domain->{name}");
                 }
                 else {
 
@@ -8278,7 +8279,8 @@ sub find_subnets_in_nat_domain {
                             my $msg =
                                 "$nat_subnet->{name} is subnet of"
                                 . " $nat_bignet->{name}\n"
-                                . " if desired, either declare attribute"
+                                . " in $domain->{name}.\n"
+                                . " If desired, either declare attribute"
                                 . " 'subnet_of' or attribute 'has_subnets'";
 
                             if ($config{check_subnets} eq 'warn') {
