@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+ - No longer accept an aggregate in rule that encloses a tunnel or
+   some ID hosts.
+
 3.047     2014-05-09 15:19:46 Europe/Berlin
 
  - Implemented mode for faster error checks.
