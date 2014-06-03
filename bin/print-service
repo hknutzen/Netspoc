@@ -147,6 +147,8 @@ sub prt_info {
 
 # Read and process Netspoc configuration file or directory.
 &read_file_or_dir($config);
+
+$name =~ s/^service://;
 if ($name) {
     $services{$name} or die "Unknown service '$name'\n";
 }
