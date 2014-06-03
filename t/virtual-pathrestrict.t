@@ -8,6 +8,58 @@ use Test_Netspoc;
 
 my ($title, $in, $out);
 
+
+############################################################
+$title = 'Path between virtual interfaces';
+############################################################
+
+$in = <<END;
+network:a = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.83; virtual = {ip = 10.1.1.2;} hardware = e0;}
+ interface:b = {ip = 10.2.2.83; hardware = e1;}
+}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.84; virtual = {ip = 10.1.1.2;} hardware = e0;}
+ interface:b = {ip = 10.2.2.84; hardware = e1;}
+}
+
+network:b = { ip = 10.2.2.0/24;}
+
+service:test = {
+ user = interface:r1.a, interface:r2.a;
+ permit src = user;
+        dst = user;
+        prt = tcp 22;
+}
+END
+
+$out = <<END;
+--r1
+ip access-list extended e0_in
+ permit tcp host 10.1.1.84 host 10.1.1.83 eq 22
+ permit tcp host 10.1.1.84 host 10.1.1.83 established
+ deny ip any any
+--
+ip access-list extended e1_in
+ deny ip any any
+--r2
+ip access-list extended e0_in
+ permit tcp host 10.1.1.83 host 10.1.1.84 eq 22
+ permit tcp host 10.1.1.83 host 10.1.1.84 established
+ deny ip any any
+--
+ip access-list extended e1_in
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
 ############################################################
 $title = 'Implicit pathrestriction with 3 virtual interfaces';
 ############################################################
