@@ -14,14 +14,14 @@ router:r = {
 network:b = { ip = 10.2.2.0/24; }
 
 
-service:tcp = tcp;
-service:http = tcp 80;
+protocol:tcp = tcp;
+protocol:http = tcp 80;
 
 # Reverse rule of (1) is redundant compared to (2).
-policy:test = {
+service:test = {
  user = network:a;
  # (1)
- permit src = user; dst = network:b; srv = service:http;
+ permit src = user; dst = network:b; prt = protocol:http;
  # (2)
- permit src = network:b; dst = user; srv = service:tcp;
+ permit src = network:b; dst = user; prt = protocol:tcp;
 }

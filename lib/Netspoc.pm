@@ -9780,45 +9780,19 @@ my %key2obj;
 sub cluster_path_mark1;
 
 sub cluster_path_mark1 {
-
-    my ($obj, $in_intf, $end, $path_tuples, $loop_leave, $start_intf, $end_intf,
-        $navi)
-      = @_;
-    my @pathrestriction =
-      $in_intf->{path_restrict}
-      ? @{ $in_intf->{path_restrict} }
-      : ();
-
-    # Handle special case where path starts or ends at an interface with
-    # pathrestriction.
-    # If the router is left / entered via the same interface, ignore the PR.
-    # If the router is left / entered via some other interface,
-    # activate the PR of the start- / end interface before checking the current
-    # interface.
-    for my $intf ($start_intf, $end_intf) {
-        if ($intf and $in_intf->{router} eq $intf->{router}) {
-            if ($in_intf eq $intf) {
-                @pathrestriction = ();
-            }
-            else {
-                for my $restrict1 (@{ $intf->{path_restrict} }) {
-                    for my $restrict2 (@pathrestriction) {
-                        return 0 if $restrict1 eq $restrict2;
-                    }
-                }
-                push @pathrestriction, @{ $intf->{path_restrict} };
-            }
-        }
-    }
+    my ($obj, $in_intf, $end, $path_tuples, $loop_leave, $navi) = @_;
+    my $pathrestriction = $in_intf->{path_restrict};
 
 #  debug("cluster_path_mark1: obj: $obj->{name},
 #        in_intf: $in_intf->{name} to: $end->{name}");
     # Check for second occurrence of path restriction.
-    for my $restrict (@pathrestriction) {
-        if ($restrict->{active_path}) {
+    if ($pathrestriction) {
+        for my $restrict (@$pathrestriction) {
+            if ($restrict->{active_path}) {
 
 #           debug(" effective $restrict->{name} at $in_intf->{name}");
-            return 0;
+                return 0;
+            }
         }
     }
 
@@ -9843,10 +9817,12 @@ sub cluster_path_mark1 {
     $obj->{active_path} = 1;
 
     # Mark first occurrence of path restriction.
-    for my $restrict (@pathrestriction) {
+    if ($pathrestriction) {
+        for my $restrict (@$pathrestriction) {
 
-#       debug(" enabled $restrict->{name} at $in_intf->{name}");
-        $restrict->{active_path} = 1;
+#           debug(" enabled $restrict->{name} at $in_intf->{name}");
+            $restrict->{active_path} = 1;
+        }
     }
     my $get_next = is_router($obj) ? 'zone' : 'router';
     my $success = 0;
@@ -9865,8 +9841,7 @@ sub cluster_path_mark1 {
         my $next = $interface->{$get_next};
         if (
             cluster_path_mark1(
-                $next,       $interface,  $end,      $path_tuples,
-                $loop_leave, $start_intf, $end_intf, $navi
+                $next, $interface, $end, $path_tuples, $loop_leave, $navi
             )
           )
         {
@@ -9880,10 +9855,12 @@ sub cluster_path_mark1 {
         }
     }
     delete $obj->{active_path};
-    for my $restrict (@pathrestriction) {
+    if ($pathrestriction) {
+        for my $restrict (@$pathrestriction) {
 
-#     debug(" disabled $restrict->{name} at $in_intf->{name}");
-        $restrict->{active_path} = undef;
+#           debug(" disabled $restrict->{name} at $in_intf->{name}");
+            $restrict->{active_path} = undef;
+        }
     }
     return $success;
 }
@@ -10027,16 +10004,39 @@ sub cluster_path_mark  {
         }
     }
 
-    # If start / end interface is part of a group of virtual
-    # interfaces (VRRP, HSRP),
-    # prevent traffic through other interfaces of this group.
+    # Temporary change path restrictions.
     for my $intf ($start_intf, $end_intf) {
-        if ($intf and (my $interfaces = $intf->{redundancy_interfaces})) {
+        next if !$intf;
+
+        # If start / end interface is part of a group of virtual
+        # interfaces (VRRP, HSRP), prevent traffic through other
+        # interfaces of this group.
+        if (my $interfaces = $intf->{redundancy_interfaces}) {
             for my $interface (@$interfaces) {
                 next if $interface eq $intf;
                 push @{ $interface->{path_restrict} },
                   $global_active_pathrestriction;
             }
+        }
+
+        # Handle special case where path starts or ends at an interface with
+        # pathrestriction.
+        # If the router is left / entered via the same interface,
+        # ignore the PR.  If the router is left / entered via some
+        # other interface, add the PR of the start- / end
+        # interface to the other interface.
+        my $router = $intf->{router};
+        next if !($router eq $from || $router eq $to);
+        my $removed = 
+            $intf->{saved_path_restrict} = 
+            delete $intf->{path_restrict};
+        for my $interface (@{ $router->{interfaces} }) {
+            next if $interface eq $intf;
+            my $orig = 
+                $interface->{saved_path_restrict} = 
+                $interface->{path_restrict};
+            $orig ||= [];
+            $interface->{path_restrict} = [ @$orig, @$removed ];
         }
     }
 
@@ -10092,8 +10092,7 @@ sub cluster_path_mark  {
 #           debug(" try: $from->{name} -> $interface->{name}");
             if (
                 cluster_path_mark1(
-                    $next,       $interface,  $to,       $path_tuples,
-                    $loop_leave, $start_intf, $end_intf, $navi
+                    $next, $interface, $to, $path_tuples, $loop_leave, $navi
                 )
               )
             {
@@ -10138,12 +10137,23 @@ sub cluster_path_mark  {
           [ map { [ @{$_}[ 1, 0, 2 ] ] } @$tuples_aref ];
     }
 
-    # Remove temporary added path restrictions.
+    # Remove temporary changed path restrictions.
     for my $intf ($start_intf, $end_intf) {
-        if ($intf and (my $interfaces = $intf->{redundancy_interfaces})) {
+        next if !$intf;
+        if (my $interfaces = $intf->{redundancy_interfaces}) {
             for my $interface (@$interfaces) {
                 next if $interface eq $intf;
                 pop @{ $interface->{path_restrict} };
+            }
+        }
+        my $router = $intf->{router};
+        next if !($router eq $from || $router eq $to);
+        for my $interface (@{ $router->{interfaces} }) {
+            if (my $orig = delete $interface->{saved_path_restrict}) {
+                $interface->{path_restrict} = $orig ;
+            }
+            else {
+                delete $interface->{path_restrict};
             }
         }
     }

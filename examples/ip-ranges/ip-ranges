@@ -5,21 +5,21 @@
 # to an IP range.
 
 
-service:IP = ip;
-service:http = tcp 80;
+protocol:IP = ip;
+protocol:http = tcp 80;
 
 # (A) summarize to an existing range (host:ix_4_7)
-policy:caesar_web = {
+service:caesar_web = {
  user = host:asterix,host:obelix,host:idefix,host:majestix;
  permit src=user;
 	dst=host:caesar;
-	srv=service:http;
+	prt=protocol:http;
 }
 
 # (B) summarize to a non existing range (auto_subnet:asterix)
-policy:east_access = {
+service:east_access = {
  user = host:asterix,host:obelix;
  permit src=user;
 	dst=network:east;
-	srv=service:IP;
+	prt=protocol:IP;
 }

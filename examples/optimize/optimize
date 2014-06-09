@@ -2,43 +2,43 @@
 #
 # Simple optimization
 
-service:IP = ip;
-service:http = tcp 80;
+protocol:IP = ip;
+protocol:http = tcp 80;
 
-policy:access = {
+service:access = {
  user = host:caesar;
 
 # (A)
  permit src=any:north, any:east, any:ocean;
         dst=user;
-        srv=service:IP;
+        prt=protocol:IP;
 
 # (B) redundant, compared to (A)
  permit src=host:asterix;
         dst=user;
-        srv=service:http;
+        prt=protocol:http;
 
 # (C) identical to (B)
  permit src=host:asterix;
         dst=user;
-        srv=service:http;
+        prt=protocol:http;
 
 # (D) redundant, compared to (A)
  permit src=network:north;
         dst=user;
-        srv=service:http;
+        prt=protocol:http;
 }
 
-policy:south = {
+service:south = {
  user = network:south;
 
 # (E) partly redundant to (F): 
 # redundant at router:rome, but not at router:paris
  permit src=host:asterix;
         dst=user;
-        srv=service:http;
+        prt=protocol:http;
 # (F)
  permit src=any:mediteran;
         dst=user;
-        srv=service:http;
+        prt=protocol:http;
 }

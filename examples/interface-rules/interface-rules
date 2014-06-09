@@ -7,41 +7,41 @@
 # This is because NetSPoC automatically protects
 # interfaces of managed routers.
 
-service:http = tcp 80;
-service:telnet = tcp 23;
-service:TCP_All = tcp;
+protocol:http = tcp 80;
+protocol:telnet = tcp 23;
+protocol:TCP_All = tcp;
 
-policy:admin_outdside = {
+service:admin_outdside = {
  user = interface:rome.south;
 # (A1)
  permit src=interface:paris.north;
         dst=user;
-        srv=service:http;
+        prt=protocol:http;
 # (A2)
  permit src=user;
         dst=interface:paris.north;
-        srv=service:http;
+        prt=protocol:http;
 }
 
 # (B)
-policy:admin_inside = {
+service:admin_inside = {
  user = interface:rome.mediteran, interface:paris.mediteran;
  permit src=user;
         dst=user;
-        srv=service:http;
+        prt=protocol:http;
 }
 
-policy:traffic_north = {
+service:traffic_north = {
 # (C1)
  user = network:south;
  permit src=network:north;
         dst=user;
-        srv=service:TCP_All;
+        prt=protocol:TCP_All;
 
 # (C2)
  permit src = user;
         dst = network:north;
-        srv = service:http;
+        prt = protocol:http;
 
 # Rule (D) will be optimized away at rome,
 # but not at paris, because dst is interface of router:paris.
@@ -49,5 +49,5 @@ policy:traffic_north = {
 # (D)
  permit src = user;
         dst = interface:paris.north;
-        srv = service:telnet;
+        prt = protocol:telnet;
 }
