@@ -45,7 +45,7 @@ network:c1 = { ip = 10.20.1.0/24; }
 network:c2 = { ip = 10.20.2.0/24; }
 network:c3 = { ip = 10.20.3.0/24; }
 
-service:telnet = tcp 23;
+protocol:telnet = tcp 23;
 
 # This group contains
 # routers r1, r2, r3, backbone.
@@ -60,7 +60,7 @@ group:customer-router =
   ].[all]
  ].[auto];
 
-policy:admin = {
+service:admin = {
  user = network:mngt;
- permit src=user; dst=group:customer-router; srv=service:telnet;
+ permit src=user; dst=group:customer-router; prt=protocol:telnet;
 }
