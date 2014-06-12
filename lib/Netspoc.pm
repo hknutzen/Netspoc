@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.047'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.048'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -483,7 +483,7 @@ sub equal {
 }
 
 # Unique union of all elements.
-# Preserves originnal order.
+# Preserves original order.
 sub unique {
     my %seen;
     return grep { !$seen{$_}++ } @_;
@@ -493,6 +493,12 @@ sub find_duplicates {
     my %dupl;
     $dupl{$_}++ for @_;
     return grep { $dupl{$_} > 1 } keys %dupl;
+}
+
+sub intersect {
+    my ($aref1, $aref2) = @_;
+    my %seen = map { $_ => 1 } @$aref1;
+    return grep { $seen{$_} } @$aref2;
 }
 
 sub max {
@@ -4414,6 +4420,19 @@ sub link_subnets  {
     return;
 }
 
+my @pathrestrictions;
+
+sub add_pathrestriction {
+    my ($name, $elements) = @_;
+    my $restrict = new('Pathrestriction', name => $name, elements => $elements);
+    for my $element (@$elements) {
+#        debug("pathrestriction $name at $element->{name}");
+        push @{ $element->{path_restrict} }, $restrict;
+    }
+    push @pathrestrictions, $restrict;
+    return;
+}
+
 sub link_pathrestrictions {
     for my $restrict (values %pathrestrictions) {
         $restrict->{elements} = expand_group $restrict->{elements},
@@ -4470,6 +4489,7 @@ sub link_pathrestrictions {
         if ($count == 1) {
             warn_msg("Ignoring $restrict->{name} with only",
                      " $restrict->{elements}->[0]->{name}");
+            $restrict->{elements} = [];
         }
         elsif ($count == 0) {
             warn_msg("Ignoring $restrict->{name} without elements");
@@ -4591,11 +4611,8 @@ sub link_virtual_interfaces  {
         for my $interfaces (values %$href) {
             if (grep { $_->{router}->{managed} } @$interfaces) {
                 my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
-                my $restrict = new('Pathrestriction', name => $name);
+                add_pathrestriction($name, $interfaces);
                 for my $interface (@$interfaces) {
-
-#                   debug("pathrestriction $name at $interface->{name}");
-                    push @{ $interface->{path_restrict} }, $restrict;
                     my $router = $interface->{router};
                     $router->{managed} or $router->{semi_managed} = 1;
                 }
@@ -4824,7 +4841,7 @@ sub transform_isolated_ports {
             next NETWORK;
         }
         elsif (@promiscuous_ports > 1) {
-            equal(map { $_->{redundancy_interfaces} || 0 } @promiscuous_ports)
+            equal(map { $_->{redundancy_interfaces} || $_ } @promiscuous_ports)
               or err_msg "All 'promiscuous_port's of $network->{name}",
               " need to be redundant to each other";
         }
@@ -4887,12 +4904,9 @@ sub transform_isolated_ports {
 
             # Automatically add pathrestriction to redundant interfaces.
             if (@redundancy_interfaces) {
-                my $restrict =
-                  new('Pathrestriction', name => "auto-virtual-$obj_name");
+                my $name = "auto-virtual-$obj_name";
+                add_pathrestriction($name, \@redundancy_interfaces);
                 for my $interface (@redundancy_interfaces) {
-                    push @{ $interface->{path_restrict} }, $restrict;
-
-#		    debug("pathrestriction at $interface->{name}");
                     $interface->{redundancy_interfaces} =
                       \@redundancy_interfaces;
                 }
@@ -5982,6 +5996,14 @@ sub expand_group_in_rule {
             }
             elsif ($object->{crosslink}) {
                 $ignore = "crosslink $object->{name}";
+            }
+            elsif ($object->{is_aggregate}) {
+                if ($object->{is_tunnel}) {
+                    $ignore = "$object->{name} with tunnel";
+                }
+                elsif ($object->{has_id_hosts}) {
+                    $ignore = "$object->{name} with software clients"
+                }                    
             }
         }
         elsif (is_interface $object) {
@@ -8165,7 +8187,8 @@ sub find_subnets_in_nat_domain {
                 if ($error) {
                     my $name1 = $nat_network->{name};
                     my $name2 = $nat_old_net->{name};
-                    err_msg("$name1 and $name2 have identical IP/mask");
+                    err_msg("$name1 and $name2 have identical IP/mask\n",
+                            " in $domain->{name}");
                 }
                 else {
 
@@ -8270,7 +8293,8 @@ sub find_subnets_in_nat_domain {
                             my $msg =
                                 "$nat_subnet->{name} is subnet of"
                                 . " $nat_bignet->{name}\n"
-                                . " if desired, either declare attribute"
+                                . " in $domain->{name}.\n"
+                                . " If desired, either declare attribute"
                                 . " 'subnet_of' or attribute 'has_subnets'";
 
                             if ($config{check_subnets} eq 'warn') {
@@ -8668,6 +8692,9 @@ sub link_aggregate_to_zone {
     # the same array between different aggregates.
     $aggregate->{networks} ||= [];
 
+    $zone->{is_tunnel} and $aggregate->{is_tunnel} = 1;
+    $zone->{has_id_hosts} and $aggregate->{has_id_hosts} = 1;
+
     if ($zone->{disabled}) {
         $aggregate->{disabled} = 1;
     }
@@ -8965,6 +8992,9 @@ sub set_zone1 {
     if (not($network->{ip} =~ /^(?:unnumbered|tunnel)$/)) {
         push @{ $zone->{networks} }, $network;
     }
+
+    $network->{ip} eq 'tunnel' and $zone->{is_tunnel} = 1;
+    $network->{has_id_hosts} and $zone->{has_id_hosts} = 1;
 
     # Zone inherits 'private' status from enclosed networks.
     my $private1 = $network->{private} || 'public';
@@ -9425,7 +9455,7 @@ sub check_pathrestrictions {
   RESTRICT:
     for my $restrict (values %pathrestrictions) {
         my $elements = $restrict->{elements};
-        next if ! @$elements;
+        next if !@$elements;
         my $deleted;
         for my $obj (@$elements) {
 
@@ -9447,8 +9477,11 @@ sub check_pathrestrictions {
         }
         if ($deleted) {
             $elements = $restrict->{elements} = [ grep { $_ } @$elements ];
+            if (1 == @$elements) {
+                $elements = $restrict->{elements} = [];
+            }
         }
-        next if ! @$elements;
+        next if !@$elements;
 
         # Check for useless pathrestriction where all interfaces
         # are located inside a loop with all routers unmanaged.
@@ -9492,6 +9525,148 @@ sub check_pathrestrictions {
                  " All interfaces are unmanaged and",
                  " located inside the same security zone"
             );
+        $restrict->{elements} = [];
+    }
+    push @pathrestrictions, grep({ @{ $_->{elements} } } 
+                                 values %pathrestrictions);
+    return;
+}
+
+####################################################################
+# Optimize a class of pathrestrictions.
+# Find partitions of cyclic graphs that are separated 
+# by pathrestrictions.
+# This allows faster graph traversal.
+# When entering a partition, we can already decide, 
+# if end of path is reachable or not.
+####################################################################
+
+sub traverse_loop_part {
+    my ($obj, $in_interface, $mark, $seen) = @_;
+    return if $obj->{reachable_part}->{$mark};
+    return if $obj->{active_path};
+    $obj->{active_path} = 1;
+
+    # Mark $obj as member of partition.
+    $obj->{reachable_part}->{$mark} = 1;
+#    debug "$obj->{name} in loop part $mark";
+    my $is_zone = is_zone($obj);
+    for my $interface (@{ $obj->{interfaces} }) {
+        next if $interface eq $in_interface;
+        next if check_global_active_pathrestriction($interface);
+        if (my $hash = $seen->{$interface}) {
+            my $current = $is_zone ? 'zone' : 'router';
+            $hash->{$current} = $mark;
+        }
+        else {
+            next if !$interface->{loop};
+            my $next = $interface->{$is_zone ? 'router' : 'zone'};
+            traverse_loop_part($next, $interface, $mark, $seen);
+        }
+    }
+    $obj->{active_path} = 0;
+    return;
+}
+
+# Find partitions of a cyclic graph that are separated by pathrestrictions.
+# Mark each found partition with a distinct number.
+sub optimize_pathrestrictions {
+    my $mark = 1;
+    for my $restrict (@pathrestrictions) {
+        my $elements = $restrict->{elements};
+
+        # Create a hash with all elements as key.
+        # Used for efficient lookup, if some interface 
+        # is part of current pathrestriction.
+        # Value is an initially empty hash.
+        # Keys 'router' and 'zone' are added during traversal.
+        # Key indicates if element was reached from router or network.
+        # Value is $mark of the adjacent partition.
+        my $seen = {};
+        for my $interface (@$elements) {
+            $seen->{$interface} = {};
+        }
+
+        # Traverse loop starting from each element of pathrestriction
+        # in both directions.
+        my $start_mark = $mark;
+        for my $interface (@$elements) {
+            my $reached = $seen->{$interface};
+            for my $direction (qw(zone router)) {
+
+                # This side of the interface has already been entered
+                # from some previously found partition.
+                next if $reached->{$direction};
+                my $obj = $interface->{$direction};
+
+                # Ignore interface at border of loop in direction
+                # leaving the loop.
+                if (!$obj->{loop}) {
+                    $reached->{$direction} = 'none';
+                    next;
+                }
+                $reached->{$direction} = $mark;
+                traverse_loop_part($obj, $interface, $mark, $seen);
+                $mark++;
+            }
+        }
+        
+        # Analyze found partitions.
+
+        # If only a single partition was found, nothing can be optimized.
+        next if $mark <= $start_mark + 1;
+
+        # No outgoing restriction needed for a pathrestriction surrounding a
+        # single zone. A rule from zone to zone would be unenforceable anyway.
+        #
+        # But this restriction is needed for one special case:
+        # src=zone, dst=interface:r.zone
+        # We must not enter router:r from outside the zone.
+#        if (equal(map { $_->{zone} } @$elements)) {
+#            $seen->{$_}->{router} = 'none' for @$elements;
+#        }
+
+        # Collect interfaces at border of newly found partitions.
+        my $has_interior;
+        for my $interface (@$elements) {
+            my $reached = $seen->{$interface};
+
+            # Check for pathrestriction inside a partition.
+            if ($reached->{zone} eq $reached->{router} && 
+                $reached->{zone} ne 'none') 
+            {
+                $has_interior++;
+            }
+            else {
+                for my $direction (qw(zone router)) {
+                    my $mark = $reached->{$direction};
+                    next if $mark eq 'none';
+                    my $obj = $interface->{$direction};
+                    push @{ $interface->{reachable_at}->{$obj} }, $mark;
+#                    debug "$interface->{name}: $direction $mark";
+                }
+            }
+        }
+
+        # Original pathrestriction is needless, if all interfaces are
+        # border of some partition. The restriction is implemented by
+        # the new attribute {reachable_at}.
+        if (!$has_interior) {
+            for my $interface (@$elements) {
+#                debug "remove $restrict->{name} from $interface->{name}";
+                aref_delete($interface->{path_restrict}, $restrict) or
+                    internal_err("Can't remove $restrict->{name}",
+                                 " from $interface->{name}");
+
+                # Delete empty array to speed up checks in cluster_path_mark.
+                if (!@{ $interface->{path_restrict} }) {
+                    delete $interface->{path_restrict};
+                }
+            }
+        }
+        else {
+#            debug "Can't opt. $restrict->{name}, has $has_interior interior";
+        }
     }
     return;
 }
@@ -9689,8 +9864,9 @@ sub setpath {
 
     # This is called here and not at link_topology because it needs
     # attribute {loop}.
-    check_pathrestrictions;
-    check_virtual_interfaces;
+    check_pathrestrictions();
+    check_virtual_interfaces();
+    optimize_pathrestrictions();
     return;
 }
 
@@ -9717,15 +9893,15 @@ sub get_path {
             # If this is a secondary interface, we can't use it to enter
             # the router, because it has an active pathrestriction attached.
             # But it doesn't matter if we use the main interface instead.
-            my $obj2 = $obj->{main_interface} || $obj;
+            $obj = $obj->{main_interface} || $obj;
 
             # Special handling needed if $src or $dst is interface
             # which has pathrestriction attached.
-            if ($obj->{path_restrict}) {
-                $result = $obj2;
+            if ($obj->{path_restrict} || $obj->{reachable_at}) {
+                $result = $obj;
             }
             else {
-                $result = $obj2->{router};
+                $result = $obj->{router};
             }
         }
         else {
@@ -9766,45 +9942,58 @@ my %key2obj;
 sub cluster_path_mark1;
 
 sub cluster_path_mark1 {
+    my ($obj, $in_intf, $end, $end_intf, $path_tuples, $loop_leave, $navi) = @_;
+    my $pathrestriction = $in_intf->{path_restrict};
+    my $reachable_at    = $in_intf->{reachable_at};
 
-    my ($obj, $in_intf, $end, $path_tuples, $loop_leave, $start_intf, $end_intf,
-        $navi)
-      = @_;
-    my @pathrestriction =
-      $in_intf->{path_restrict}
-      ? @{ $in_intf->{path_restrict} }
-      : ();
+#    debug("cluster_path_mark1: obj: $obj->{name},
+#           in_intf: $in_intf->{name} to: $end->{name}");
 
-    # Handle special case where path starts or ends at an interface with
-    # pathrestriction.
-    # If the router is left / entered via the same interface, ignore the PR.
-    # If the router is left / entered via some other interface,
-    # activate the PR of the start- / end interface before checking the current
-    # interface.
-    for my $intf ($start_intf, $end_intf) {
-        if ($intf and $in_intf->{router} eq $intf->{router}) {
-            if ($in_intf eq $intf) {
-                @pathrestriction = ();
-            }
-            else {
-                for my $restrict1 (@{ $intf->{path_restrict} }) {
-                    for my $restrict2 (@pathrestriction) {
-                        return 0 if $restrict1 eq $restrict2;
-                    }
-                }
-                push @pathrestriction, @{ $intf->{path_restrict} };
+    # Check for second occurrence of path restriction.
+    if ($pathrestriction) {
+        for my $restrict (@$pathrestriction) {
+            if ($restrict->{active_path}) {
+
+#           debug(" effective $restrict->{name} at $in_intf->{name}");
+                return 0;
             }
         }
     }
 
-#  debug("cluster_path_mark1: obj: $obj->{name},
-#        in_intf: $in_intf->{name} to: $end->{name}");
-    # Check for second occurrence of path restriction.
-    for my $restrict (@pathrestriction) {
-        if ($restrict->{active_path}) {
+    # Handle optimized pathrestriction.
+    # Check if $end_intf is located outside of current reachable_part.
+    # This must be checked before checking that $end has been reached,
+    if ($reachable_at && $end_intf && $end_intf ne $in_intf) {
+        if (my $reachable = $reachable_at->{$obj}) {
+            my $other = $end_intf->{zone};
 
-#           debug(" effective $restrict->{name} at $in_intf->{name}");
-            return 0;
+            # $other inside loop
+            if ($other->{loop}) {
+                my $has_mark = $other->{reachable_part};
+                for my $mark (@$reachable) {
+                    if (!$has_mark->{$mark}) {
+#                        debug(" unreachable: $other->{name}",
+#                              " from $in_intf->{name} to $obj->{name}");
+                        return 0;
+                    }
+                }
+            }
+
+            # $end_intf at border of loop, $other outside of loop.
+            # In this case, {reachable_part} isn't set at $other.
+            # If partition starting at $in_intf also starts at $end_intf,
+            # then $other can't be reached.
+            else {
+                if (my $reachable_at2 = $end_intf->{reachable_at}) {
+                    if (my $reachable2 = $reachable_at2->{$end_intf->{router}}) {
+                        if (intersect($reachable, $reachable2)) {
+#                            debug(" unreachable2: $other->{name}",
+#                                  " from $in_intf->{name} to $obj->{name}");
+                            return 0;
+                        }
+                    }                            
+                }
+            }
         }
     }
 
@@ -9821,19 +10010,38 @@ sub cluster_path_mark1 {
         # Mark interface where we leave the loop.
         push @$loop_leave, $in_intf;
 
-#     debug(" leave: $in_intf->{name} -> $end->{name}");
+#        debug(" leave: $in_intf->{name} -> $end->{name}");
         return 1;
+    }
+
+    # Handle optimized pathrestriction.
+    if ($reachable_at) {
+        if (my $reachable = $reachable_at->{$obj}) {
+            my $end_node = $end_intf ? $end_intf->{zone} : $end;
+            my $has_mark = $end_node->{reachable_part};
+            for my $mark (@$reachable) {
+                if (!$has_mark->{$mark}) {
+#                   debug(" unreachable3: $end_node->{name}",
+#                         " from $in_intf->{name} to $obj->{name}");
+                    return 0;
+                }
+            }
+        }
     }
 
     # Mark current path for loop detection.
     $obj->{active_path} = 1;
+#    debug "activated $obj->{name}";
 
     # Mark first occurrence of path restriction.
-    for my $restrict (@pathrestriction) {
+    if ($pathrestriction) {
+        for my $restrict (@$pathrestriction) {
 
-#       debug(" enabled $restrict->{name} at $in_intf->{name}");
-        $restrict->{active_path} = 1;
+#           debug(" enabled $restrict->{name} at $in_intf->{name}");
+            $restrict->{active_path} = 1;
+        }
     }
+
     my $get_next = is_router($obj) ? 'zone' : 'router';
     my $success = 0;
 
@@ -9849,10 +10057,11 @@ sub cluster_path_mark1 {
         $allowed or internal_err("Loop with empty navigation");
         next if not $loop or not $allowed->{$loop};
         my $next = $interface->{$get_next};
+#        debug "Try $obj->{name} -> $next->{name}";
         if (
             cluster_path_mark1(
-                $next,       $interface,  $end,      $path_tuples,
-                $loop_leave, $start_intf, $end_intf, $navi
+                $next, $interface, $end, $end_intf,
+                $path_tuples, $loop_leave, $navi
             )
           )
         {
@@ -9866,10 +10075,13 @@ sub cluster_path_mark1 {
         }
     }
     delete $obj->{active_path};
-    for my $restrict (@pathrestriction) {
+#    debug "deactivated $obj->{name}";
+    if ($pathrestriction) {
+        for my $restrict (@$pathrestriction) {
 
-#     debug(" disabled $restrict->{name} at $in_intf->{name}");
-        $restrict->{active_path} = undef;
+#           debug(" disabled $restrict->{name} at $in_intf->{name}");
+            $restrict->{active_path} = undef;
+        }
     }
     return $success;
 }
@@ -9971,7 +10183,9 @@ sub cluster_path_mark  {
         $start_intf  = $from_store;
         $start_store = $from_store;
     }
-    elsif ($from_in and $from_in->{path_restrict}) {
+    elsif ($from_in 
+           and ($from_in->{path_restrict} or $from_in->{reachable_at})) 
+    {
         $start_store = $from_in;
     }
     else {
@@ -9983,7 +10197,7 @@ sub cluster_path_mark  {
         $end_intf  = $to_store;
         $end_store = $to_store;
     }
-    elsif ($to_out and $to_out->{path_restrict}) {
+    elsif ($to_out and ($to_out->{path_restrict} or $to_out->{reachable_at})) {
         $end_store = $to_out;
     }
     else {
@@ -9991,6 +10205,7 @@ sub cluster_path_mark  {
     }
 
     my $success = 1;
+    my $from_interfaces = $from->{interfaces};
 
 #    debug("cluster_path_mark: $start_store->{name} -> $end_store->{name}");
 
@@ -10013,15 +10228,88 @@ sub cluster_path_mark  {
         }
     }
 
+    # Check optimized pathrestriction for path starting inside or
+    # outside the loop.
+  REACHABLE:
+    {
+
+        # Check if end node is reachable.
+        # Interface with pathrestriction belongs to zone.
+        my $end_node = $end_intf ? $end_intf->{zone} : $to;
+
+        # $start_intf is directly connected to $end_node.
+        # This must be handled as special case, because
+        # optimized pathrestriction doesn't prevent path through router.
+        # Ignore all interfaces except direction to zone.
+        if ($start_intf && $start_intf->{zone} eq $end_node) {
+            $from_interfaces = [ $start_intf ];
+            last REACHABLE;
+        }
+
+        # If path starts at interface of loop, then ignore restriction
+        # in direction to zone, hence check only the router.
+        my $start_node = $start_intf ? $start_intf->{router} : $from;
+        my $intf = $start_intf || $from_in;
+        my $reachable_at = $intf->{reachable_at} or last REACHABLE;            
+        my $reachable = $reachable_at->{$start_node} or last REACHABLE;
+        my $has_mark = $end_node->{reachable_part};
+        for my $mark (@$reachable) {
+            if (!$has_mark->{$mark}) {
+                if ($start_intf) {
+                    
+                    # Ignore all interfaces except direction to zone
+                    $from_interfaces = [ $start_intf ];
+                }
+                else {
+                    $success = 0;
+                }
+                last;
+            }
+        }
+    }
+
     # If start / end interface is part of a group of virtual
     # interfaces (VRRP, HSRP),
     # prevent traffic through other interfaces of this group.
     for my $intf ($start_intf, $end_intf) {
-        if ($intf and (my $interfaces = $intf->{redundancy_interfaces})) {
+        next if !$intf;
+        if (my $interfaces = $intf->{redundancy_interfaces}) {
             for my $interface (@$interfaces) {
                 next if $interface eq $intf;
                 push @{ $interface->{path_restrict} },
                   $global_active_pathrestriction;
+            }
+        }
+    }
+
+    # Handle special case where path starts or ends at an interface
+    # with pathrestriction.
+    # If the router is left / entered via the same interface, ignore
+    # the PR.  If the router is left / entered via some other
+    # interface, add the PR of the start- / end interface to the other
+    # interface.
+    for my $intf ($start_intf, $end_intf) {
+        next if !$intf;
+        my $router = $intf->{router};
+        next if !($router eq $from || $router eq $to);
+        my $removed = delete $intf->{path_restrict} or next;
+        $intf->{saved_path_restrict} = $removed;
+        for my $interface (@{ $router->{interfaces} }) {
+            next if $interface eq $intf;
+            my $orig = 
+                $interface->{saved_path_restrict} = 
+                $interface->{path_restrict};
+            if ($orig) {
+                if (intersect($orig, $removed)) {
+                    $interface->{path_restrict} = 
+                        [ $global_active_pathrestriction ];
+                }
+                else {
+                    $interface->{path_restrict} = [ @$orig, @$removed ];
+                }
+            }
+            else {
+                $interface->{path_restrict} = $removed;
             }
         }
     }
@@ -10057,7 +10345,7 @@ sub cluster_path_mark  {
         my $allowed = $navi->{ $from->{loop} }
           or internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
             " with empty navi");
-        for my $interface (@{ $from->{interfaces} }) {
+        for my $interface (@$from_interfaces) {
 
             # Secondary interface has global_active_pathrestriction,
             # but ignore it early to gain some performance improvement.
@@ -10078,8 +10366,8 @@ sub cluster_path_mark  {
 #           debug(" try: $from->{name} -> $interface->{name}");
             if (
                 cluster_path_mark1(
-                    $next,       $interface,  $to,       $path_tuples,
-                    $loop_leave, $start_intf, $end_intf, $navi
+                    $next, $interface, $to, $end_intf,
+                    $path_tuples, $loop_leave, $navi
                 )
               )
             {
@@ -10124,9 +10412,23 @@ sub cluster_path_mark  {
           [ map { [ @{$_}[ 1, 0, 2 ] ] } @$tuples_aref ];
     }
 
-    # Remove temporary added path restrictions.
+    # Restore temporary changed path restrictions.
     for my $intf ($start_intf, $end_intf) {
-        if ($intf and (my $interfaces = $intf->{redundancy_interfaces})) {
+        next if !$intf;
+        next if !$intf->{saved_path_restrict};
+        my $router = $intf->{router};
+        for my $interface (@{ $router->{interfaces} }) {
+            if (my $orig = delete $interface->{saved_path_restrict}) {
+                $interface->{path_restrict} = $orig ;
+            }
+            else {
+                delete $interface->{path_restrict};
+            }
+        }
+    }
+    for my $intf ($start_intf, $end_intf) {
+        next if !$intf;
+        if (my $interfaces = $intf->{redundancy_interfaces}) {
             for my $interface (@$interfaces) {
                 next if $interface eq $intf;
                 pop @{ $interface->{path_restrict} };
@@ -10740,10 +11042,7 @@ sub link_tunnels  {
             # of redundant hubs.
             if (@hubs > 1) {
                 my $name2 = "auto-restriction:$crypto->{name}";
-                my $restrict = new('Pathrestriction', name => $name2);
-                for my $hub (@hubs) {
-                    push @{ $hub->{path_restrict} }, $restrict;
-                }
+                add_pathrestriction($name, \@hubs);
             }
         }
     }
@@ -13188,37 +13487,50 @@ sub check_and_convert_routes  {
 
                 if (not $hop_routes) {
 
-                    # Try to guess default route, if only one hop is available.
+                    # Try to guess default route. 
                     my @try_hops =
-                      grep({ $_ ne $real_intf }
-                        grep({ $_->{ip} !~ /^(?:short|negotiated)$/ }
-                            @{ $real_intf->{network}->{interfaces} }));
+                      grep({ @{ $_->{router}->{interfaces} } > 1 }
+                        grep({ $_ ne $real_intf }
+                          grep({ $_->{ip} !~ /^(?:short|negotiated)$/ }
+                            @{ $real_intf->{network}->{interfaces} })));
 
-                    if (@try_hops == 1) {
-                        my $hop = $try_hops[0];
-                        $hop_routes = $real_intf->{routes}->{$hop} ||= {};
-                        $real_intf->{hop}->{$hop} = $hop;
+                    if (   @try_hops > 1
+                        && equal(map({ $_->{redundancy_interfaces} || $_ } 
+                                     @try_hops))
+                        || @try_hops == 1)
+                    {
+                        for my $hop (@try_hops) {
+                            $hop_routes = $real_intf->{routes}->{$hop} ||= {};
+                            $real_intf->{hop}->{$hop} = $hop;
+                        }
+                    }
+                    else {
+
+                        # This can only happen for vpn software clients.
+                        # For hardware clients  the route is known 
+                        # for the encrypted traffic which is allowed 
+                        # by gen_tunnel_rules (even for negotiated interface).
+                        my $count = @try_hops;
+                        my $names = join ('', 
+                                          map({ "\n - $_->{router}->{name}" }
+                                              @try_hops));
+                        err_msg(
+                            "Can't determine next hop while moving routes\n",
+                            " of $interface->{name} to $real_intf->{name}.\n",
+                            " Exactly one default route is needed,", 
+                            " but $count candidates were found:",
+                            $names
+                            );
                     }
                 }
 
                 # Use found hop to reach tunneled networks in $tunnel_routes.
-                if ($hop_routes) {
-                    for my $tunnel_net_hash (values %$tunnel_routes) {
-                        for my $tunnel_net (values %$tunnel_net_hash) {
-                            $hop_routes->{$tunnel_net} = $tunnel_net;
-                        }
+                for my $tunnel_net_hash (values %$tunnel_routes) {
+                    for my $tunnel_net (values %$tunnel_net_hash) {
+                        $hop_routes->{$tunnel_net} = $tunnel_net;
                     }
                 }
 
-                # This should never happen, because the route is known 
-                # for the encrypted traffic which is allowed 
-                # by gen_tunnel_rules (even for negotiated interface).
-                else {
-                    internal_err(
-                      "Can't determine next hop while moving routes\n",
-                      " of $interface->{name} to $real_intf->{name}"
-                    );
-                }
             }
         }
 
@@ -14010,14 +14322,16 @@ sub distribute_rule {
             }
             elsif (is_network $src) {
                 $src->{has_id_hosts}
-                  or internal_err("$src->{name} must have ID-hosts");
+                  or internal_err("$src->{name} must have ID-hosts\n ", 
+                                  print_rule $rule);
                 for my $id (map { $_->{id} } @{ $src->{hosts} }) {
                     push @{ $id2rules->{$id}->{$key} }, $rule;
                 }
             }
             else {
                 internal_err(
-                  "Expected host or network as src but got $src->{name}");
+                    "Expected host or network as src but got $src->{name}\n ",
+                    print_rule $rule);
             }
         }
 

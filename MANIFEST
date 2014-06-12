@@ -75,6 +75,8 @@ t/overlaps.t
 t/owner.t
 t/parser.t
 t/pathrestrict-border.t
+t/pathrestrict.t
+t/pathrestrict.t~
 t/protect-interfaces.t
 t/rename.t
 t/route.t

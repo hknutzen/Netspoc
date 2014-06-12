@@ -220,6 +220,207 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'VPN ASA with internal software clients';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha_hmac;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+ tunnel_all;
+}
+
+network:intern = { ip = 10.1.2.0/24;}
+
+router:gw = {
+ interface:intern;
+ interface:dmz = { ip = 192.168.0.2; }
+}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:dmz = { 
+  ip = 192.168.0.101; 
+  hub = crypto:vpn;
+  hardware = outside; 
+  no_check;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:softclients = {
+ interface:dmz = { spoke = crypto:vpn; }
+ interface:customers1;
+}
+
+network:customers1 = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+
+
+service:test1 = {
+ user = host:id:foo@domain.x.customers1;
+ permit src = user; dst = network:intern; prt = tcp 80; 
+}
+END
+
+$out = <<'END';
+--asavpn
+! [ Routing ]
+route outside 10.1.2.0 255.255.255.0 192.168.0.2
+route outside 10.99.1.0 255.255.255.0 192.168.0.2
+--
+tunnel-group VPN-single type remote-access
+tunnel-group VPN-single general-attributes
+ authorization-server-group LOCAL
+ default-group-policy global
+ authorization-required
+ username-from-certificate EA
+tunnel-group VPN-single ipsec-attributes
+ chain
+ trust-point ASDM_TrustPoint1
+ isakmp ikev1-user-authentication none
+tunnel-group-map default-group VPN-single
+--
+access-list vpn-filter-1 extended permit ip host 10.99.1.10 any
+access-list vpn-filter-1 extended deny ip any any
+username foo@domain.x nopassword
+username foo@domain.x attributes
+ vpn-framed-ip-address 10.99.1.10 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-1
+--
+access-list outside_in extended permit icmp any any 3
+access-list outside_in extended permit tcp host 10.99.1.10 10.1.2.0 255.255.255.0 eq 80
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
+END
+
+test_run($title, $in, $out, '-noauto_default_route');
+
+############################################################
+$title = 'Missing route for VPN ASA with internal software clients';
+############################################################
+
+$in .= <<'END';
+network:x = { ip = 10.1.1.0/24;}
+
+router:gw_x = {
+ interface:x;
+ interface:dmz = { ip = 192.168.0.3; }
+}
+END
+
+$out = <<END;
+Error: Can\'t determine next hop while moving routes
+ of interface:asavpn.tunnel:softclients to interface:asavpn.dmz.
+ Exactly one default route is needed, but 2 candidates were found:
+ - router:gw
+ - router:gw_x
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Must not use aggregate with software clients';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha_hmac;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+ tunnel_all;
+}
+
+network:intern = { ip = 10.1.2.0/24;}
+
+router:gw = {
+ interface:intern;
+ interface:dmz = { ip = 192.168.0.2; }
+}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:dmz = { 
+  ip = 192.168.0.101; 
+  hub = crypto:vpn;
+  hardware = outside; 
+  no_check;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:softclients = {
+ interface:dmz = { spoke = crypto:vpn; }
+ interface:customers1;
+}
+
+network:customers1 = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+
+service:test1 = {
+ user = any:[network:customers1];
+ permit src = user; dst = network:intern; prt = tcp 80; 
+}
+END
+
+$out = <<END;
+Warning: Ignoring any:[network:customers1] with tunnel in src of rule in service:test1
+Warning: Ignoring any:[network:customers1] with software clients in src of rule in service:test1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'ASA with two crypto hubs and NAT';
 ############################################################
 

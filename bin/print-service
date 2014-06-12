@@ -67,7 +67,7 @@ use Netspoc;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '3.047'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.048'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -147,6 +147,8 @@ sub prt_info {
 
 # Read and process Netspoc configuration file or directory.
 &read_file_or_dir($config);
+
+$name =~ s/^service://;
 if ($name) {
     $services{$name} or die "Unknown service '$name'\n";
 }
