@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+3.048     2014-06-12 09:45:08 Europe/Berlin
+
+ - Performance improvement: Optimized handling for those pathrestrictions,
+   that partition a cyclic subgraph.
  - No longer accept an aggregate in rule that encloses a tunnel or
    some ID hosts.
 
