@@ -13669,6 +13669,9 @@ sub print_routes {
     my $crypto_type           = $model->{crypto} || '';
     my %intf2hop2nets;
     my @interfaces;
+    my %mask2ip2net;
+    my %net2hop_info;
+    my %net2no_opt;
     for my $interface (@{ $router->{interfaces} }) {
         next if $interface->{ip} eq 'bridged';
         if ($interface->{routing}) {
@@ -13677,17 +13680,15 @@ sub print_routes {
         }
 
         push @interfaces, $interface;
-        my $optimize = 1;
 
         # ASA with site-to-site VPN needs individual routes for each peer.
         if ($interface->{hub} && $crypto_type eq 'ASA') {
             $do_auto_default_route = 0;
-            $optimize = 0;
         }
         my $no_nat_set = $interface->{no_nat_set};
 
         for my $hop (@{ $interface->{hop} }) {
-            my %mask_ip_hash;
+            my $hop_info = [ $interface, $hop ];
 
             # A hash having all networks reachable via current hop
             # both as key and as value.
@@ -13700,41 +13701,56 @@ sub print_routes {
                 }
 
                 # Implicitly overwrite duplicate networks.
-                $mask_ip_hash{$mask}->{$ip} = $nat_network;
+                $mask2ip2net{$mask}->{$ip} = $nat_network;
+                $net2hop_info{$nat_network} = $hop_info;
             }
-
-            # Find and remove duplicate networks.
-            # Go from smaller to larger networks.
-            my @netinfo;
-            for my $mask (reverse sort keys %mask_ip_hash) {
-              NETWORK:
-                for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
-
-                    if ($optimize) {
-                        my $m = $mask;
-                        my $i = $ip;
-                        while ($m) {
-                            
-                            # Clear upper bit, because left shift is undefined
-                            # otherwise.
-                            $m = $m & 0x7fffffff;
-                            $m <<= 1;
-                            $i = $i & $m;    # Perl bug #108480.
-                            if ($mask_ip_hash{$m}->{$i}) {
-                                
-                                # Network {$mask}->{$ip} is redundant.
-                                # It is covered by {$m}->{$i}.
-                                next NETWORK;
-                            }
-                        }
-                    }
-                    push(@netinfo, [ $ip, $mask, $mask_ip_hash{$mask}->{$ip} ]);
-                }
-            }
-            $intf2hop2nets{$interface}->{$hop} = \@netinfo;
         }
     }
     return if not @interfaces;
+
+    # Find and remove duplicate networks.
+    # Go from smaller to larger networks.
+    for my $mask (reverse sort keys %mask2ip2net) {
+      NETWORK:
+        for my $ip (sort numerically keys %{ $mask2ip2net{$mask} }) {
+            my $small = $mask2ip2net{$mask}->{$ip};
+            my $hop_info = $net2hop_info{$small};
+            my ($interface, $hop) = @$hop_info;
+
+            # ASA with site-to-site VPN needs individual routes for each peer.
+            if (!($interface->{hub} && $crypto_type eq 'ASA')) {
+
+                my $m = $mask;
+                my $i = $ip;
+                while ($m) {
+
+                    # Clear upper bit, because left shift is undefined
+                    # otherwise.
+                    $m = $m & 0x7fffffff;
+                    $m <<= 1;
+                    $i = $i & $m; # Perl bug #108480.
+                    my $ip2net = $mask2ip2net{$m} or next;
+                    my $big = $mask2ip2net{$m}->{$i} or next;
+
+                    # $small is subnet of $big.
+                    # If both use the same hop, then $small is redundant.
+                    if ($net2hop_info{$big} eq $hop_info) {
+#                        debug "Removed: $small->{name} -> $hop->{name}";
+                        next NETWORK;
+                    }
+
+                    # Otherwise $small isn't redundant, even if a bigger network
+                    # with same hop exists.
+                    # It must not be removed by default route later.
+                    $net2no_opt{$small} = 1;
+#                    debug "No opt: $small->{name} -> $hop->{name}";
+                    last;
+                }
+            }
+            push(@{ $intf2hop2nets{$interface}->{$hop} }, [ $ip, $mask, $small ]);
+        }
+    }
+
     if ($do_auto_default_route) {
 
         # Find interface and hop with largest number of routing entries.
@@ -13746,7 +13762,8 @@ sub print_routes {
         my $max = 1;
         for my $interface (@interfaces) {
             for my $hop (@{ $interface->{hop} }) {
-                my $count = @{ $intf2hop2nets{$interface}->{$hop} };
+                my $count = grep({ !$net2no_opt{$_->[2]} } 
+                                 @{ $intf2hop2nets{$interface}->{$hop} || [] });
                 if ($count > $max) {
                     $max_intf = $interface;
                     $max_hop  = $hop;
@@ -13757,7 +13774,13 @@ sub print_routes {
         if ($max_intf && $max_hop) {
 
             # Use default route for this direction.
-            $intf2hop2nets{$max_intf}->{$max_hop} = [ [ 0, 0 ] ];
+            # But still generate routes for small networks 
+            # with supernet behind other hop.
+            $intf2hop2nets{$max_intf}->{$max_hop} = 
+                [ [ 0, 0 ],
+                  grep({ $net2no_opt{$_->[2]} } 
+                       @{ $intf2hop2nets{$max_intf}->{$max_hop} })
+                ];
         }
     }
     print_header($router, 'Routing');

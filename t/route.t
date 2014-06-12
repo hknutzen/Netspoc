@@ -92,14 +92,16 @@ test_run($title, $in, $out);
 $title = 'Intermediate network hides subnet';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:n1 = { ip = 10.1.1.0/28; subnet_of = network:n2; }
 network:n2 = { ip = 10.1.1.0/24; subnet_of = network:n3; }
 network:n3 = { ip = 10.1.0.0/16; }
+network:n4 = { ip = 10.2.0.0/16; }
 
 router:h1 = {
  interface:n1;
  interface:n3;
+ interface:n4;
  interface:t1 = { ip = 10.9.1.2; }
 }
 router:h2 = {
@@ -118,20 +120,55 @@ router:r = {
 }
 
 service:test = {
- user = network:n1;
+ user = network:n1;#, network:n4;
  permit src = user; dst = network:n2; prt = icmp 8;
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r
+ip route 10.1.1.0/28 10.9.1.2
 ip route 10.1.0.0/16 10.9.1.2
 ip route 10.1.1.0/24 10.9.2.2
-ip route 10.1.1.0/28 10.9.1.2
 END
 
-Test::More->builder->todo_start("Missing route for subnet.");
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Default route with intermediate network hides subnet';
+############################################################
+
+$in =~ s/;#,/,/;
+
+$out = <<'END';
+--r
+ip route 0.0.0.0/0 10.9.1.2
+ip route 10.1.1.0/28 10.9.1.2
+ip route 10.1.1.0/24 10.9.2.2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Route for redundant subnet';
+############################################################
+
+$in .= <<'END';
+service:test2 = {
+ user = network:n3;
+ permit src = user; dst = network:n2; prt = icmp 8;
+}
+END
+
+$out = <<'END';
+--r
+ip route 0.0.0.0/0 10.9.1.2
+ip route 10.1.1.0/28 10.9.1.2
+ip route 10.1.1.0/24 10.9.2.2
+END
+
+Test::More->builder->todo_start("Add all subnets in zone.");
+test_run($title, $in, $out, '-check_redundant_rules=0');
 Test::More->builder->todo_end;
 
 ############################################################
