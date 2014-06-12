@@ -4430,6 +4430,7 @@ sub add_pathrestriction {
         push @{ $element->{path_restrict} }, $restrict;
     }
     push @pathrestrictions, $restrict;
+    return;
 }
 
 sub link_pathrestrictions {
@@ -9564,6 +9565,7 @@ sub traverse_loop_part {
         }
     }
     $obj->{active_path} = 0;
+    return;
 }
 
 # Find partitions of a cyclic graph that are separated by pathrestrictions.
@@ -9666,6 +9668,7 @@ sub optimize_pathrestrictions {
 #            debug "Can't opt. $restrict->{name}, has $has_interior interior";
         }
     }
+    return;
 }
 
 ####################################################################
@@ -10227,7 +10230,7 @@ sub cluster_path_mark  {
 
     # Check optimized pathrestriction for path starting inside or
     # outside the loop.
-  CHECK:
+  REACHABLE:
     {
 
         # Check if end node is reachable.
@@ -10240,15 +10243,15 @@ sub cluster_path_mark  {
         # Ignore all interfaces except direction to zone.
         if ($start_intf && $start_intf->{zone} eq $end_node) {
             $from_interfaces = [ $start_intf ];
-            last CHECK;
+            last REACHABLE;
         }
 
         # If path starts at interface of loop, then ignore restriction
         # in direction to zone, hence check only the router.
         my $start_node = $start_intf ? $start_intf->{router} : $from;
         my $intf = $start_intf || $from_in;
-        my $reachable_at = $intf->{reachable_at} or last CHECK;            
-        my $reachable = $reachable_at->{$start_node} or last CHECK;
+        my $reachable_at = $intf->{reachable_at} or last REACHABLE;            
+        my $reachable = $reachable_at->{$start_node} or last REACHABLE;
         my $has_mark = $end_node->{reachable_part};
         for my $mark (@$reachable) {
             if (!$has_mark->{$mark}) {
