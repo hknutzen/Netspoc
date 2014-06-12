@@ -61,6 +61,74 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Multiple virtual interface pairs with interface as destination';
+############################################################
+
+$in = <<END;
+network:a = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.83; virtual = {ip = 10.1.1.2;} hardware = e0;}
+ interface:c1 = {ip = 10.3.1.2; virtual = {ip = 10.3.1.1;} hardware = v1;}
+ interface:c2 = {ip = 10.3.2.2; virtual = {ip = 10.3.2.1;} hardware = v2;}
+ interface:b = {ip = 10.2.2.83; virtual = {ip = 10.2.2.2;} hardware = e1;}
+}
+
+network:c1 = {ip = 10.3.1.0/24;}
+network:c2 = {ip = 10.3.2.0/24;}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.84; virtual = {ip = 10.1.1.2;} hardware = e0;}
+ interface:c1 = {ip = 10.3.1.3; virtual = {ip = 10.3.1.1;} hardware = v1;}
+ interface:c2 = {ip = 10.3.2.3; virtual = {ip = 10.3.2.1;} hardware = v2;}
+ interface:b = {ip = 10.2.2.84; virtual = {ip = 10.2.2.2;} hardware = e1;}
+}
+
+network:b = { ip = 10.2.2.0/24;}
+
+service:test = {
+ user = network:a;
+ permit src = user;
+        dst = interface:r1.b;
+        prt = tcp 22;
+}
+END
+
+$out = <<END;
+--r1
+ip access-list extended e0_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.2.2.83 eq 22
+ deny ip any any
+--
+ip access-list extended v1_in
+ deny ip any any
+--
+ip access-list extended v2_in
+ deny ip any any
+--
+ip access-list extended e1_in
+ deny ip any any
+--r2
+ip access-list extended e0_in
+ deny ip any any
+--
+ip access-list extended v1_in
+ deny ip any any
+--
+ip access-list extended v2_in
+ deny ip any any
+--
+ip access-list extended e1_in
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Implicit pathrestriction with 3 virtual interfaces';
 ############################################################
 

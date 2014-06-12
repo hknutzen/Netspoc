@@ -119,6 +119,52 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Path starts at pathrestriction inside loop (2)';
+############################################################
+
+# Must not use path r1.top-r1-r2-top
+
+$in = <<END;
+$topo
+pathrestriction:p = 
+ interface:r1.top, 
+ interface:r2.top, 
+;
+
+service:test = {
+ user = interface:r1.top;
+ permit src = user;
+        dst = network:dst, network:top;
+        prt = tcp 80;
+}
+END
+
+$out = <<END;
+-- r1
+ip access-list extended Vlan1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.1 established
+ deny ip any any
+--
+ip access-list extended Ethernet1_in
+ deny ip any any
+--
+ip access-list extended Vlan2_in
+ permit tcp 10.1.2.0 0.0.0.255 host 10.1.1.1 established
+ deny ip any any
+-- r2
+ip access-list extended Vlan3_in
+ deny ip any any
+--
+ip access-list extended Ethernet3_in
+ deny ip any any
+--
+ip access-list extended Vlan4_in
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Path ends at pathrestriction inside loop';
 ############################################################
 
@@ -147,6 +193,76 @@ ip access-list extended Vlan1_in
 --
 ip access-list extended Vlan2_in
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.1 eq 80
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Path ends at pathrestriction inside loop (2)';
+############################################################
+
+$in = <<END;
+$topo
+
+pathrestriction:p1 =
+ interface:r1.top,
+ interface:r1.dst,
+;
+pathrestriction:p2 =
+ interface:r1.dst,
+ interface:r1.lft,
+;
+
+service:test = {
+ user = network:top;
+ permit src = user;
+        dst = interface:r1.lft;
+        prt = tcp 80;
+}
+END
+
+$out = <<END;
+-- r1
+ip access-list extended Vlan1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.3.1.245 eq 80
+ deny ip any any
+--
+ip access-list extended Vlan2_in
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Path ends at interface inside network, where path starts';
+############################################################
+
+# Must not enter r1 from network dst, even for optimized pathrestriction.
+
+$in = <<END;
+$topo
+
+pathrestriction:p =
+ interface:r1.top,
+ interface:r2.top,
+;
+
+service:test = {
+ user = network:top;
+ permit src = user;
+        dst = interface:r1.top;
+        prt = tcp 179;
+}
+END
+
+$out = <<END;
+-- r1
+ip access-list extended Vlan1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.1 eq 179
+ deny ip any any
+--
+ip access-list extended Vlan2_in
  deny ip any any
 END
 
