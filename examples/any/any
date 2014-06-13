@@ -2,8 +2,8 @@
 #
 # Check for consistent 'any' rules.
 
-service:http = tcp 80;
-service:TCP = tcp;
+protocol:http = tcp 80;
+protocol:TCP = tcp;
 
 # We want access from any:south to network:east.
 # But this would implicitly allow access 
@@ -16,7 +16,7 @@ service:TCP = tcp;
 # This would implictly allow access to any:north and any:ocean as well.
 # To get a consistent rule set, we need additional rules, 
 # which allow traffic FROM any:north and any:ocean to network:east.
-policy:east_web = {
+service:east_web = {
  user =
 	any:south,
 	any:mediteran,
@@ -24,15 +24,15 @@ policy:east_web = {
 	any:ocean;
  permit src=user;
         dst=network:east;
-        srv=service:http;
+        prt=protocol:http;
 }
 
 # We want access from network:south to any:north, but must permit access 
 # to any:east,any:mediteran and any:ocean as well,
 # to get a consistent rule set.
-policy:open_north = {
+service:open_north = {
  user = network:south;
  permit src=user;
         dst=any:north,any:east,any:mediteran,any:ocean;
-        srv=service:TCP;
+        prt=protocol:TCP;
 }

@@ -44,8 +44,8 @@ examples/nat/nat
 examples/optimize-reverse-rules/src
 examples/optimize/optimize
 examples/optimize/topology
+examples/protocol-modifiers/protocol-modifiers
 examples/realistic/realistic
-examples/service-modifiers/service-modifiers
 examples/topology
 lib/Netspoc.pm
 misc/anonymize

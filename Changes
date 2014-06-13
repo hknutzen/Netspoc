@@ -1,3 +1,12 @@
+3.049     2014-06-13 09:36:41 Europe/Berlin
+
+ - Fixed bad optimization that removed route to subnet.
+   Be networks N1 < N2 < N3 in subnet relation.
+   Static route for N1, N3 having next hop H1, N2 having next hop H2.
+   Route to N1 must not be removed as redundant to N3.
+   Otherwise, traffic to N1 would be routed to H2 by mistake.
+   This must also be observed if N3 is a default route.
+
 3.048     2014-06-12 09:45:08 Europe/Berlin
 
  - Performance improvement: Optimized handling for those pathrestrictions,

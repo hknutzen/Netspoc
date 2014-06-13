@@ -90,10 +90,18 @@ router:z = {
  model = ASA;
  interface:c = { ip = 20.1.3.3; hardware = inside; routing=OSPF; bind_nat = dyn; }
  interface:d = { ip = 10.1.1.1; hardware = DMZ50; bind_nat = c_src;}
- interface:e = { ip = 10.1.4.1; hardware = outside; bind_nat = global;}
+ interface:e = { ip = 10.1.4.1; hardware = outside; } #bind_nat = global;}
 }
 
-nat:global = { ip = 10.1.254.0; mask = 255.255.255.0; dynamic; }
+#area:c = { 
+# border = interface:z.c;
+# nat:global = { ip = 10.1.254.0; mask = 255.255.255.0; dynamic; }
+#}
+
+#area:d = {
+# border = interface:z.d;
+# nat:global = { ip = 10.1.254.0; mask = 255.255.255.0; dynamic; }
+#}
 
 network:d = {
  ip = 10.1.1.0; mask = 255.255.255.0; 
@@ -106,9 +114,9 @@ network:e = {
  nat:dyn = { ip = 10.1.255.0; mask = 255.255.255.0; dynamic; }
 }
 
-service:ping = icmp 8;
+protocol:ping = icmp 8;
 
-policy:test = {
+service:test = {
  user = network:b,
 	network:c,
 	network:d,
@@ -117,6 +125,6 @@ policy:test = {
  
  permit src = host:a1;
 	dst = user;
-	srv = service:ping;
+	prt = protocol:ping;
 }
 

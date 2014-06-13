@@ -116,13 +116,13 @@ network:management = {
 
 area:all = { anchor = network:service_lan; }
 
-service:http = tcp 80;
-service:telnet = tcp 23;
-service:syslog = udp 514;
-service:ping = icmp 8;
-service:pong = icmp 0;
+protocol:http = tcp 80;
+protocol:telnet = tcp 23;
+protocol:syslog = udp 514;
+protocol:ping = icmp 8;
+protocol:pong = icmp 0;
 
-policy:extranet = {
+service:extranet = {
  description = Access to extranet server
  user = #host:joe,
 	#host:bill,
@@ -130,10 +130,10 @@ policy:extranet = {
 	host:pamela;
  permit src=user;
         dst=host:extranet;
-        srv=service:http;
+        prt=protocol:http;
 }
 
-policy:management = {
+service:management = {
  description = Management services: telnet and syslog
  user = interface:big1.[auto], 
 	interface:big1.service_lan.virtual,
@@ -146,21 +146,21 @@ policy:management = {
 	;
  permit src = host:netspoc;
 	dst = user;
-	srv = service:telnet, service:ping,;
+	prt = protocol:telnet, protocol:ping,;
  permit src = user;
 	dst = host:netspoc;
-	srv = service:pong;
+	prt = protocol:pong;
  permit src = user;
 	dst = host:logger;
-	srv = service:syslog;
+	prt = protocol:syslog;
 }
 
-policy:ping_local = {
+service:ping_local = {
  description = Ping between router and its locally connected security domain
 
  user = foreach interface:[managed & area:all].[all];
  permit src = any:[user];
 	dst = user;
-	srv = service:ping, service:pong;
+	prt = protocol:ping, protocol:pong;
 }
 
