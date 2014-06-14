@@ -13801,7 +13801,10 @@ sub print_routes {
 
             for my $netinfo (@{ $intf2hop2nets{$interface}->{$hop} }) {
                 if ($config{comment_routes}) {
-                    print "$comment_char route $netinfo->[2] -> $hop->{name}\n";
+                    if (my $net = $netinfo->[2]) {
+                        print("$comment_char route",
+                              " $net->{name} -> $hop->{name}\n");
+                    }
                 }
                 if ($type eq 'IOS') {
                     my $adr = ios_route_code($netinfo);
