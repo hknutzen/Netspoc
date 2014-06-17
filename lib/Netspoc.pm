@@ -1226,6 +1226,13 @@ sub new {
     return bless $self, $type;
 }
 
+sub add_attribute {
+    my ($obj, $key, $value) = @_;
+    defined $obj->{$key} and error_atline("Duplicate attribute '$key'");
+    $obj->{$key} = $value;
+    return;
+}
+
 our %hosts;
 
 # Global or individual policy_distribution_point.
@@ -1247,8 +1254,7 @@ sub check_radius_attributes {
         my $key = read_identifier();
         my $val = check('=') ? read_string : undef;
         skip ';';
-        $result->{$key} and error_atline("Duplicate attribute '$key'");
-        $result->{$key} = $val;
+        add_attribute($result, $key => $val);
     }
     return $result;
 }
@@ -1376,45 +1382,35 @@ sub read_host {
     while (1) {
         last if check '}';
         if (my $ip = check_assign 'ip', \&read_ip) {
-            $host->{ip} and error_atline("Duplicate attribute 'ip'");
-            $host->{ip} = $ip;
+            add_attribute($host, ip => $ip);
         }
         elsif (my ($ip1, $ip2) = check_assign_pair('range', '-', \&read_ip)) {
             $ip1 <= $ip2 or error_atline("Invalid IP range");
-            $host->{range} and error_atline("Duplicate attribute 'range'");
-            $host->{range} = [ $ip1, $ip2 ];
+            add_attribute($host, range => [ $ip1, $ip2 ]);
         }
 
         # Currently, only simple 'managed' attribute,
         # because 'secondary' and 'local' isn't supported by Linux.
         elsif (my $managed = check_managed()) {
-            $host->{managed} and error_atline("Duplicate attribute 'managed'");
             $managed eq 'standard' 
               or error_atline("Only 'managed=standard' is supported");
-            $host->{managed} = 'standard';
+            add_attribute($host, managed => $managed);
         }
         elsif (my $model = check_model()) {
             $host->{model} and error_atline("Duplicate attribute 'model'");
-            $host->{model} = $model;
+            add_attribute($host, model => $model);
         }
         elsif (my $hardware = check_assign('hardware', \&read_name)) {
-            $host->{hardware}
-              and error_atline("Duplicate definition of hardware");
-            $host->{hardware} = $hardware;
+            add_attribute($host, hardware => $hardware);
         }
         elsif (my $server_name = check_assign('server_name', \&read_name)) {
-            $host->{server_name}
-              and error_atline("Duplicate definition of server_name");
-            $host->{server_name} = $server_name;
+            add_attribute($host, server_name => $server_name);
         }            
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
-            $host->{owner} and error_atline("Duplicate attribute 'owner'");
-            $host->{owner} = $owner;
+            add_attribute($host, owner => $owner);
         }
         elsif (my $radius_attributes = check_radius_attributes) {
-            $host->{radius_attributes}
-              and error_atline("Duplicate attribute 'radius_attributes'");
-            $host->{radius_attributes} = $radius_attributes;
+            add_attribute($host, radius_attributes => $radius_attributes);
         }
         elsif (check_flag 'policy_distribution_point') {
             $policy_distribution_point
@@ -1515,9 +1511,7 @@ sub read_nat {
             $nat->{dynamic} = $nat_tag;
         }
         elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
-            $nat->{subnet_of}
-              and error_atline("Duplicate attribute 'subnet_of'");
-            $nat->{subnet_of} = $pair;
+            add_attribute($nat, subnet_of => $pair);
         }
         else {
             syntax_err("Expected some valid NAT attribute");
@@ -1600,19 +1594,13 @@ sub read_network {
             $network->{isolated_ports} = 1;
         }
         elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
-            $network->{subnet_of}
-              and error_atline("Duplicate attribute 'subnet_of'");
-            $network->{subnet_of} = $pair;
+            add_attribute($network, subnet_of => $pair);
         }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
-            $network->{owner}
-              and error_atline("Duplicate attribute 'owner'");
-            $network->{owner} = $owner;
+            add_attribute($network, owner => $owner);
         }
         elsif (my $radius_attributes = check_radius_attributes) {
-            $network->{radius_attributes}
-              and error_atline("Duplicate attribute 'radius_attributes'");
-            $network->{radius_attributes} = $radius_attributes;
+            add_attribute($network, radius_attributes => $radius_attributes);
         }
         elsif (my $host_name = check_hostname()) {
             my $host = read_host("host:$host_name", $net_name);
@@ -1827,8 +1815,7 @@ sub read_interface {
     while (1) {
         last if check '}';
         if (my @ip = check_assign_list 'ip', \&read_ip) {
-            $interface->{ip} and error_atline("Duplicate attribute 'ip'");
-            $interface->{ip} = shift @ip;
+            add_attribute($interface, ip => shift(@ip));
 
             # Build interface objects for secondary IP addresses.
             # These objects are named interface:router.name.2, ...
@@ -1840,12 +1827,10 @@ sub read_interface {
             }
         }
         elsif (check_flag 'unnumbered') {
-            $interface->{ip} and error_atline("Duplicate attribute 'ip'");
-            $interface->{ip} = 'unnumbered';
+            add_attribute($interface, ip => 'unnumbered');
         }
         elsif (check_flag 'negotiated') {
-            $interface->{ip} and error_atline("Duplicate attribute 'ip'");
-            $interface->{ip} = 'negotiated';
+            add_attribute($interface, ip => 'negotiated');
         }
         elsif (check_flag 'loopback') {
             $interface->{loopback} = 1;
@@ -1862,9 +1847,7 @@ sub read_interface {
 
         # Needed for the implicitly defined network of 'loopback'.
         elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
-            $interface->{subnet_of}
-              and error_atline("Duplicate attribute 'subnet_of'");
-            $interface->{subnet_of} = $pair;
+            add_attribute($interface, subnet_of => $pair);
         }
         elsif (my @pairs = check_assign_list 'hub', \&read_typed_name) {
             for my $pair (@pairs) {
@@ -1876,21 +1859,16 @@ sub read_interface {
         elsif ($pair = check_assign 'spoke', \&read_typed_name) {
             my ($type, $name2) = @$pair;
             $type eq 'crypto' or error_atline("Expected type crypto");
-            $interface->{spoke} and error_atline("Duplicate attribute 'spoke'");
-            $interface->{spoke} = "$type:$name2";
+            add_attribute($interface, spoke => "$type:$name2");
         }
         elsif (my $id = check_assign 'id', \&read_user_id) {
-            $interface->{id}
-              and error_atline("Duplicate attribute 'id'");
-            $interface->{id} = $id;
+            add_attribute($interface, id => $id);
         }
         elsif (defined(my $level = check_assign 'security_level', \&read_int)) {
             $level > 100
               and error_atline("Maximum value for attribute security_level",
                                " is 100");
-            defined $interface->{security_level}
-              and error_atline("Duplicate attribute 'security_level'");
-            $interface->{security_level} = $level;
+            add_attribute($interface, security_level => $level);
         }
         elsif ($pair = check_typed_name) {
             my ($type, $name2) = @$pair;
@@ -1915,9 +1893,7 @@ sub read_interface {
                 while (1) {
                     last if check '}';
                     if (my $ip = check_assign 'ip', \&read_ip) {
-                        $secondary->{ip}
-                          and error_atline("Duplicate IP address");
-                        $secondary->{ip} = $ip;
+                        add_attribute($secondary, ip => $ip);
                     }
                     else {
                         syntax_err("Expected attribute IP");
@@ -1944,24 +1920,18 @@ sub read_interface {
             while (1) {
                 last if check '}';
                 if (my $ip = check_assign 'ip', \&read_ip) {
-                    $virtual->{ip}
-                      and error_atline("Duplicate virtual IP address");
-                    $virtual->{ip} = $ip;
+                    add_attribute($virtual, ip => $ip);
                 }
                 elsif (my $type = check_assign 'type', \&read_identifier) {
                     $xxrp_info{$type}
-                      or error_atline("Unknown redundancy protocol");
-                    $virtual->{redundancy_type}
-                      and error_atline("Duplicate redundancy protocol");
-                    $virtual->{redundancy_type} = $type;
+                      or error_atline("unknown redundancy protocol");
+                    add_attribute($virtual, redundancy_type => $type);
                 }
                 elsif (my $id = check_assign 'id', \&read_identifier) {
                     $id =~ /^\d+$/
                       or error_atline("Redundancy ID must be numeric");
                     $id < 256 or error_atline("Redundancy ID must be < 256");
-                    $virtual->{redundancy_id}
-                      and error_atline("Duplicate redundancy ID");
-                    $virtual->{redundancy_id} = $id;
+                    add_attribute($virtual, redundancy_id => $id);
                 }
                 else {
                     syntax_err("Expected valid attribute for virtual IP");
@@ -1976,23 +1946,17 @@ sub read_interface {
             $interface->{bind_nat} = [ unique sort @tags ];
         }
         elsif (my $hardware = check_assign 'hardware', \&read_name) {
-            $interface->{hardware}
-              and error_atline("Duplicate definition of hardware");
-            $interface->{hardware} = $hardware;
+            add_attribute($interface, hardware => $hardware);
         }
         elsif (my $routing = check_routing()) {
-            $interface->{routing} 
-              and error_atline("Duplicate attribute 'routing'");
-            $interface->{routing} = $routing;
+            add_attribute($interface, routing => $routing);
         }
         elsif (@pairs = check_assign_list 'reroute_permit', \&read_typed_name) {
-            $interface->{reroute_permit}
-              and error_atline('Duplicate definition of reroute_permit');
             if (grep { $_->[0] ne 'network' || ref $_->[1] } @pairs) {
                 error_atline "Must only use network names in 'reroute_permit'";
                 @pairs = ();
             }
-            $interface->{reroute_permit} = \@pairs;
+            add_attribute($interface, reroute_permit => \@pairs);
         }
         elsif (check_flag 'disabled') {
             $interface->{disabled} = 1;
@@ -2182,13 +2146,10 @@ sub read_router {
         elsif (my @filter_only = check_assign_list('filter_only', 
                                                    \&read_ip_prefix_pair)) 
         {
-            $router->{filter_only}
-              and error_atline("Duplicate attribute 'filter_only'");
-            $router->{filter_only} = \@filter_only;
+            add_attribute($router, filter_only => \@filter_only);
         }
         elsif (my $model = check_model()) {
-            $router->{model} and error_atline("Duplicate attribute 'model'");
-            $router->{model} = $model;
+            add_attribute($router, model => $model);
         }
         elsif (check_flag 'no_group_code') {
             $router->{no_group_code} = 1;
@@ -2209,33 +2170,23 @@ sub read_router {
             $router->{log_deny} = 1;
         }
         elsif (my $routing = check_routing()) {
-            $router->{routing} 
-              and error_atline("Duplicate attribute 'routing'");
-            $router->{routing} = $routing;
+            add_attribute($router, routing => $routing);
         }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
-            $router->{owner} and error_atline("Duplicate attribute 'owner'");
-            $router->{owner} = $owner;
+            add_attribute($router, owner => $owner);
         }
         elsif (my $radius_attributes = check_radius_attributes) {
-            $router->{radius_attributes}
-              and error_atline("Duplicate attribute 'radius_attributes'");
-            $router->{radius_attributes} = $radius_attributes;
+            add_attribute($router, radius_attributes => $radius_attributes);
         }
         elsif (my $pair = check_assign('policy_distribution_point', 
                                        \&read_typed_name)) 
         {
-            $router->{policy_distribution_point}
-              and error_atline(
-                  "Duplicate attribute 'policy_distribution_point'");
-            $router->{policy_distribution_point} = $pair;
+            add_attribute($router, policy_distribution_point => $pair);
         }
         elsif (my @list = check_assign_list('general_permit', 
                                             \&read_typed_name_or_simple_protocol)) 
         {
-            $router->{general_permit} 
-              and error_atline("Duplicate attribute 'general_permit'");
-            $router->{general_permit} = \@list;
+            add_attribute($router, general_permit => \@list);
         }
         else {
             my $pair = read_typed_name;
@@ -2628,22 +2579,16 @@ sub read_aggregate {
                   and error_atline("Duplicate IP mask");
                 $aggregate->{mask} = $mask;
             }
-            $aggregate->{ip} and error_atline("Duplicate IP address");
-            $aggregate->{ip} = $ip;
+            add_attribute($aggregate, ip => $ip);
         }
         elsif (defined($mask = check_assign 'mask', \&read_mask)) {
-            defined $aggregate->{mask} and error_atline("Duplicate IP mask");
-            $aggregate->{mask} = $mask;
+            add_attribute($aggregate, mask => $mask);
         }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
-            $aggregate->{owner}
-              and error_atline('Duplicate definition of owner');
-            $aggregate->{owner} = $owner;
+            add_attribute($aggregate, owner => $owner);
         }
         elsif (my $link = check_assign 'link', \&read_typed_name) {
-            $aggregate->{link}
-              and error_atline('Duplicate definition of link');
-            $aggregate->{link} = $link;
+            add_attribute($aggregate, link => $link);
         }
         elsif (check_flag 'has_unenforceable') {
             $aggregate->{has_unenforceable} = 1;
@@ -2699,22 +2644,17 @@ sub check_router_attributes {
     while (1) {
         last if check '}';
         if (my $owner = check_assign 'owner', \&read_identifier) {
-            $result->{owner} and error_atline("Duplicate attribute 'owner'");
-            $result->{owner} = $owner;
+            add_attribute($result, owner => $owner);
         }
         elsif (my $pair = check_assign('policy_distribution_point', 
                                        \&read_typed_name)) 
         {
-            $result->{policy_distribution_point} and 
-                error_atline("Duplicate attribute 'policy_distribution_point'");
-            $result->{policy_distribution_point} = $pair;
+            add_attribute($result, policy_distribution_point => $pair);
         }
         elsif (my @list = check_assign_list('general_permit', 
                                             \&read_typed_name_or_simple_protocol)) 
         {
-            $result->{general_permit} 
-              and error_atline("Duplicate attribute 'general_permit'");
-            $result->{general_permit} = \@list;
+            add_attribute($result, general_permit => \@list);
         }
         else {
             syntax_err("Unexpected attribute");
@@ -2734,33 +2674,27 @@ sub read_area {
     while (1) {
         last if check '}';
         if (my @elements = check_assign_list 'border', \&read_intersection) {
-            $area->{border}
-              and error_atline('Duplicate definition of border');
             if (grep { $_->[0] ne 'interface' || ref $_->[1] } @elements) {
                 error_atline "Must only use interface names in border";
                 @elements = ();
             }
-            $area->{border} = \@elements;
+            add_attribute($area, border => \@elements);
         }
         elsif (check_flag 'auto_border') {
             $area->{auto_border} = 1;
         }
         elsif (my $pair = check_assign 'anchor', \&read_typed_name) {
-            $area->{anchor} and error_atline("Duplicate attribute 'anchor'");
             if ($pair->[0] ne 'network' || ref $pair->[1]) {
                 error_atline "Must only use network name in 'anchor'";
                 $pair = undef;
             }
-            $area->{anchor} = $pair;
+            add_attribute($area, anchor => $pair);
         }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
-            $area->{owner} and error_atline("Duplicate attribute 'owner'");
-            $area->{owner} = $owner;
+            add_attribute($area, owner => $owner);
         }
         elsif (my $router_attributes = check_router_attributes()) {
-            $area->{router_attributes}
-              and error_atline("Duplicate attribute 'router_attributes'");
-            $area->{router_attributes} = $router_attributes;
+            add_attribute($area, router_attributes => $router_attributes);
         }
         elsif (my $nat_name = check_nat_name()) {
             my $nat = read_nat("nat:$nat_name");
@@ -3058,19 +2992,13 @@ sub read_service {
     while (1) {
         last if check 'user';
         if (my $sub_owner = check_assign 'sub_owner', \&read_identifier) {
-            $service->{sub_owner}
-              and error_atline("Duplicate attribute 'sub_owner'");
-            $service->{sub_owner} = $sub_owner;
+            add_attribute($service, sub_owner => $sub_owner);
         }
         elsif (my @other = check_assign_list 'overlaps', \&read_typed_name) {
-            $service->{overlaps}
-              and error_atline("Duplicate attribute 'overlaps'");
-            $service->{overlaps} = \@other;
+            add_attribute($service, overlaps => \@other);
         }
         elsif (my $visible = check_assign('visible', \&read_owner_pattern)) {
-            $service->{visible}
-              and error_atline("Duplicate attribute 'visible'");
-            $service->{visible} = $visible;
+            add_attribute($service, visible => $visible);
         }
         elsif (check_flag('multi_owner')) {
             $service->{multi_owner} = 1;
@@ -3185,8 +3113,7 @@ sub read_attributed_object {
             internal_err();
         }
         skip ';';
-        $object->{$attribute} and error_atline("Duplicate attribute");
-        $object->{$attribute} = $val;
+        add_attribute($object, $attribute => $val);
     }
     for my $attribute (keys %$attr_descr) {
         my $description = $attr_descr->{$attribute};
