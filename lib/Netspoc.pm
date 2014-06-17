@@ -4908,7 +4908,7 @@ sub check_bridged_networks {
                 if (my $layer3_intf = $in_intf->{layer3_interface}) {
                     match_ip($layer3_intf->{ip}, $ip, $mask)
                       or err_msg("$layer3_intf->{name}'s IP doesn't match",
-                        "IP/mask of bridged networks");
+                        " IP/mask of bridged networks");
                 }
                 for my $out_intf (@{ $router->{interfaces} }) {
                     next if $out_intf eq $in_intf;
@@ -8359,8 +8359,8 @@ sub check_crosslink  {
                 }
             }
             else {
-                err_msg "Crosslink $network->{name} must not be",
-                  "connected to unmanged $router->{name}";
+                err_msg("Crosslink $network->{name} must not be",
+                        " connected to unmanged $router->{name}");
                 next;
             }
             my $hardware = $interface->{hardware};
@@ -10910,7 +10910,7 @@ sub link_tunnels  {
                 if ($real_spoke->{ip} eq 'negotiated') {
                     if (not $router->{model}->{do_auth}) {
                         err_msg "$router->{name} can't establish crypto",
-                          "tunnel to $real_spoke->{name} with negotiated IP";
+                          " tunnel to $real_spoke->{name} with negotiated IP";
                     }
                 }
 
@@ -11156,7 +11156,7 @@ sub expand_crypto  {
                             @$subnets > 1
                               and err_msg
                               "$host->{name} with ID must expand to",
-                              "exactly one subnet";
+                              " exactly one subnet";
                             push @verify_radius_attributes, $host;
 
                             my $subnet = $subnets->[0];
