@@ -1454,12 +1454,10 @@ sub read_host {
                            " for $name");
     }
     if ($host->{nat}) {
-        for my $what (qw(range subnet)) {
-            if ($host->{$what}) {
+        if ($host->{range}) {
 
-                # Look at print_pix_static before changing this.
-                error_atline("No NAT supported for host with '$what'");
-            }
+            # Look at print_pix_static before changing this.
+            error_atline("No NAT supported for host with 'range'");
         }
     }
     if ($host->{managed}) {
