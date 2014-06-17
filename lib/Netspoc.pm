@@ -1538,6 +1538,9 @@ sub read_nat {
         if (defined $nat->{mask}) {
             if (not(match_ip($nat->{ip}, $nat->{ip}, $nat->{mask}))) {
                 error_atline("$nat->{name}'s IP doesn't match its mask");
+
+                # Prevent further errors.
+                $nat->{ip} &= $nat->{mask};
             }
         }
     }
@@ -2624,6 +2627,9 @@ sub read_aggregate {
         # Check if aggregate IP matches mask.
         if (not(match_ip($ip, $ip, $mask))) {
             error_atline("IP and mask don't match");
+
+            # Prevent further errors.
+            $aggregate->{ip} &= $aggregate->{mask};
         }
     }
     if ($mask) {
