@@ -50,7 +50,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     | <isakmp definition>
     )*
 
-where <global permit> is used at most once. 
+where `<global permit>` is used at most once. 
 
 ##Network definition
 
