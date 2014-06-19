@@ -30,6 +30,28 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 `"[", "]"`
 : real bracket characters
 
+## Netspoc configuration
+
+    <netspoc configuration> ::=
+    (
+      <network definition>
+    | <router definition>
+    | <aggregate defintion>
+    | <area definition>
+    | <group definition>
+    | <protocol definition>
+    | <protocol group definition>
+    | <service definition>
+    | <global permit>
+    | <pathrestriction definition>
+    | <owner definition>
+    | <crypto definition>
+    | <ipsec definition>
+    | <isakmp definition>
+    )*
+
+where <global permit> is used at most once. 
+
 ##Network definition
 
     <network definition> ::=
@@ -262,23 +284,25 @@ with
 
 ##Path restriction
 
-    pathrestriction:<name> = 
-      [ <description> ]
-      <object set> 
-    ;
+    <pathrestriction definition> ::=
+      pathrestriction:<name> = 
+        [ <description> ]
+        <object set> 
+      ;
 
 where `<object set>` must expand to interfaces.
 
 ##Owner definition
 
-    owner:<name> = {
-      [ alias = <string>; ]
-      admins = <email>(, <email>)*;
-      [ watchers = <email>(, <email>)*; ]
-      [ extend;      ]
-      [ extend_only; ]
-      [ show_all;    ]
-    }
+    <owner definition> ::=
+      owner:<name> = {
+        [ alias = <string>; ]
+        admins = <email>(, <email>)*;
+        [ watchers = <email>(, <email>)*; ]
+        [ extend;      ]
+        [ extend_only; ]
+        [ show_all;    ]
+      }
     
     <email> ::= some valid email address or 'guest'
 
@@ -286,31 +310,34 @@ where `<object set>` must expand to interfaces.
 
 ###Crypto definition
 
-    crypto:<name> = { 
-      [ <description> ]
-      type = ipsec:<name>;
-      tunnel_all;
-      [ detailed_crypto_acl; ]
-    }
+    <crypto definition> ::=
+      crypto:<name> = { 
+        [ <description> ]
+        type = ipsec:<name>;
+        tunnel_all;
+        [ detailed_crypto_acl; ]
+      }
 
-    ipsec:<name> = {
-       key_exchange = isakmp:<name>;
-       esp_encryption = ( aes | aes192 | aes256 | des | 3des | none );
-       esp_authentication = ( md5_hmac | sha_hmac | none );
-       ah = ( md5_hmac | sha_hmac | none );
-       pfs_group = ( 1 | 2 | 5 | none );
-       lifetime = <number> <timeunit>;
-    }
+    <ipsec definition> ::=
+      ipsec:<name> = {
+         key_exchange = isakmp:<name>;
+         esp_encryption = ( aes | aes192 | aes256 | des | 3des | none );
+         esp_authentication = ( md5_hmac | sha_hmac | none );
+         ah = ( md5_hmac | sha_hmac | none );
+         pfs_group = ( 1 | 2 | 5 | none );
+         lifetime = <number> <timeunit>;
+      }
 
-    isakmp:<name> = {
-       identity = ( address | fqdn );
-       nat_traversal = ( on | additional | off );
-       authentication = ( preshare | rsasig );
-       encryption = ( aes | aes192 | aes256 | des | 3des );
-       hash = ( md5 | sha );
-       group = ( 1 | 2 | 5 );
-       lifetime = <number> <timeunit>;
-    }
+    <isakmp definition> ::=
+      isakmp:<name> = {
+         identity = ( address | fqdn );
+         nat_traversal = ( on | additional | off );
+         authentication = ( preshare | rsasig );
+         encryption = ( aes | aes192 | aes256 | des | 3des );
+         hash = ( md5 | sha );
+         group = ( 1 | 2 | 5 );
+         lifetime = <number> <timeunit>;
+      }
 
 with
 
