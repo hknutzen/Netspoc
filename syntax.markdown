@@ -54,7 +54,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 
     <bridge-part> ::= <name>
     <description> ::= description = <text_to_end_of_line>[;]
-    <ip-net>      ::= <ip>/<prefix-len> | <ip>/<ip> | <ip>;mask=<ip>
+    <ip-net>      ::= <ip>/<prefix-len>
     <ip>          ::= n.n.n.n with 0 <= n <= 255
     <prefix-len>  ::= 0 | 1 | 2 | ... | 32
 
