@@ -163,13 +163,14 @@ $out = <<END;
 access-list vlan1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.3.0 255.255.255.224 eq 80
 access-list vlan1_in extended deny ip any any
 access-group vlan1_in in interface vlan1
---r2
-! [ ACL ]
-access-list vlan1_in extended permit tcp any 10.2.3.0 255.255.255.224 eq 22
-access-list vlan1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.3.0 255.255.255.224 eq 80
-access-list vlan1_in extended deny ip any any
-access-group vlan1_in in interface vlan1
 END
+#--r2
+#! [ ACL ]
+#access-list vlan1_in extended permit tcp any 10.2.3.0 255.255.255.224 eq 22
+#access-list vlan1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.3.0 255.#255.255.224 eq 80
+#access-list vlan1_in extended deny ip any any
+#access-group vlan1_in in interface vlan1
+#END
 
 
 Test::More->builder->
