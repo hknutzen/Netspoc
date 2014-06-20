@@ -80,7 +80,7 @@ $title = 'NAT not allowed';
 ############################################################
 
 $in = <<END;
-network:n1 = { ip = 10.62.1.32/27; nat:n1 = { ip = 10.62.3.0; } }
+network:n1 = { ip = 10.62.1.32/27; nat:n1 = { ip = 10.62.3.0/27; } }
 router:d32 = {
  model = ASA;
  managed = local;

@@ -2,7 +2,7 @@
 #
 
 network:big_customer = {
- ip = 10.1.1.0; mask = 255.255.255.0;
+ ip = 10.1.1.0/24;
  host:joe = { ip = 10.1.1.21; }
  host:bill = { ip = 10.1.1.23; }
  host:rick = { ip = 10.1.1.25; }
@@ -48,8 +48,8 @@ router:big2 = {
 } 
 
 network:small_customer = {
- ip = 125.1.2.0; mask = 255.255.255.0;
- nat:small = {ip = 10.1.2.0; dynamic;}
+ ip = 125.1.2.0/24;
+ nat:small = {ip = 10.1.2.0/24; dynamic;}
  host:ann = { ip = 125.1.2.31; }
  host:christie = { ip = 125.1.2.32; }
  host:pamela = { ip = 125.1.2.33; }
@@ -63,8 +63,8 @@ router:small_extern = {
   { ip = 172.17.1.6; hardware = Serial1; routing=OSPF;}
 }
 
-network:small_customer_trans1 = { ip = 172.17.1.0; mask = 255.255.255.252; }
-network:small_customer_trans2 = { ip = 172.17.1.4; mask = 255.255.255.252; }
+network:small_customer_trans1 = { ip = 172.17.1.0/30; }
+network:small_customer_trans2 = { ip = 172.17.1.4/30; }
 
 any:small_customer = { link = router:small_extern; }
 
@@ -87,7 +87,7 @@ router:small = {
  }
 } 
 
-network:service_lan = { ip = 10.10.1.0; mask = 255.255.255.0; }
+network:service_lan = { ip = 10.10.1.0/24; }
 
 router:protect_web = {
  managed = secondary;
@@ -97,7 +97,7 @@ router:protect_web = {
 }
 
 network:web_servers = {
- ip = 10.20.1.0; mask = 255.255.255.0; 
+ ip = 10.20.1.0/24; 
  host:extranet = { range = 10.20.1.10-10.20.1.19; }
 }
 
@@ -109,7 +109,7 @@ router:mngt = {
 }
 
 network:management = {
- ip = 10.1.11.0; mask = 255.255.255.0; 
+ ip = 10.1.11.0/24; 
  host:netspoc = { ip = 10.1.11.111; policy_distribution_point; }
  host:logger =  { ip = 10.1.11.20; }
 }

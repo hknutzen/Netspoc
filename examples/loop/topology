@@ -3,7 +3,7 @@
 
 
 network:north = {
- ip = 10.1.1.0; mask = 255.255.255.0;
+ ip = 10.1.1.0/24;
  host:asterix = {ip = 10.1.1.4;}
  host:obelix = {ip = 10.1.1.5;}
  host:idefix = {ip = 10.1.1.6;}
@@ -21,15 +21,15 @@ router:paris = {
  interface:ocean = {ip = 10.10.1.1; hardware = Serial0;}
 }
 
-network:ocean = { ip = 10.10.1.0; mask = 255.255.255.0; }
+network:ocean = { ip = 10.10.1.0/24; }
 any:ocean = { link = network:ocean; }
 
-network:east = { ip = 10.1.2.0; mask = 255.255.255.0;}
+network:east = { ip = 10.1.2.0/24;}
 any:east = { link = network:east; }
 
 
 network:mediteran = {
- ip = 10.2.2.0; mask = 255.255.255.0;
+ ip = 10.2.2.0/24;
  host:caesar = {ip = 10.2.2.10;}
 }
 any:mediteran = { link = network:mediteran; }
@@ -42,7 +42,7 @@ router:rome = {
 }
 
 network:south = {
- ip = 10.3.3.0; mask = 255.255.255.0;
+ ip = 10.3.3.0/24;
 }
 any:south = {link = network:south;}
 
@@ -57,12 +57,12 @@ router:cairo = {
 }
 
 network:egypt = {
- ip = 10.4.4.0; mask = 255.255.255.0;
+ ip = 10.4.4.0/24;
  host:pharao = { ip = 10.4.4.4; }
 }
 
 network:sahara = {
- ip = 10.5.5.0; mask = 255.255.255.0;
+ ip = 10.5.5.0/24;
 }
 
 router:agadir = {
@@ -83,9 +83,9 @@ router:gibraltar = {
  interface:to_equator2 = {ip = 10.11.1.5; hardware = eth3;}
 }
 
-network:to_equator = { ip = 10.11.1.0; mask = 255.255.255.252; }
+network:to_equator = { ip = 10.11.1.0/30; }
 
-network:to_equator2 = { ip = 10.11.1.4; mask = 255.255.255.252; }
+network:to_equator2 = { ip = 10.11.1.4/30; }
 
 router:equator = {
  interface:to_equator = {ip = 10.11.1.2;}
@@ -93,7 +93,7 @@ router:equator = {
  interface:equator = {ip = 10.11.2.1;}
 }
 
-network:equator =  { ip = 10.11.2.0; mask = 255.255.255.0; }
+network:equator =  { ip = 10.11.2.0/24; }
 any:equator = { link = network:equator; }
 
 pathrestriction:ocean_sahara =

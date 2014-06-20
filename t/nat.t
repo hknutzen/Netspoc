@@ -253,8 +253,8 @@ $title = 'Multiple static NAT';
 $in = <<END;
 network:a1 = { 
  ip = 10.1.1.0/24; 
- nat:b1 = { ip = 10.8.8.0; }
- nat:b2 = { ip = 10.9.9.0; }
+ nat:b1 = { ip = 10.8.8.0/24; }
+ nat:b2 = { ip = 10.9.9.0/24; }
 }
 
 router:r1  =  {
@@ -299,8 +299,8 @@ $title = 'Must not bind multiple NAT of one network at one place';
 $in = <<END;
 network:Test =  {
  ip = 10.0.0.0/24; 
- nat:C = { ip = 10.8.8.0; }
- nat:D = { ip = 10.9.9.0; }
+ nat:C = { ip = 10.8.8.0/24; }
+ nat:D = { ip = 10.9.9.0/24; }
 }
 
 router:filter = {
@@ -326,7 +326,7 @@ $title = 'Unused / undefined NAT tag';
 $in = <<END;
 network:Test =  {
  ip = 10.0.0.0/24; 
- nat:C = { ip = 10.8.8.0; }
+ nat:C = { ip = 10.8.8.0/24; }
 }
 
 router:filter = {
@@ -353,7 +353,7 @@ $title = 'Check rule with host and dynamic NAT';
 $in = <<END;
 network:Test =  {
  ip = 10.9.1.0/24; 
- nat:C = { ip = 1.9.2.0; dynamic;}
+ nat:C = { ip = 1.9.2.0/24; dynamic;}
  host:H = { ip = 10.9.1.33; }
 }
 
@@ -524,13 +524,13 @@ $title = 'Grouped NAT tags must only be used grouped';
 $in = <<END;
 network:n1 = { 
  ip = 10.1.1.0/24; 
- nat:t1 = { ip = 10.9.1.0; }
- nat:t2 = { ip = 10.9.8.0; }
+ nat:t1 = { ip = 10.9.1.0/24; }
+ nat:t2 = { ip = 10.9.8.0/24; }
 }
 
 network:n2 = { 
  ip = 10.1.2.0/24; 
- nat:t2 = { ip = 10.9.9.0; }
+ nat:t2 = { ip = 10.9.9.0/24; }
 }
 
 router:r1 =  {
@@ -563,7 +563,7 @@ test_err($title, $in, $out);
 $title = 'Grouped NAT tags with single hidden allowed';
 ############################################################
 
-$in =~ s/ip = 10.9.[89].0/hidden/g;
+$in =~ s/ip = 10.9.[89].0\/24/hidden/g;
 
 $out = <<END;
 END
@@ -578,7 +578,7 @@ $in = <<END;
 network:U1 = {
  ip = 10.1.1.0/24;
  nat:t1 = { hidden; }
- nat:t2 = { ip = 10.9.9.0; }
+ nat:t2 = { ip = 10.9.9.0/24; }
 }
 router:R0 = {
  interface:U1;

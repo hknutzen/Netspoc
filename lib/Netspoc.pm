@@ -702,30 +702,22 @@ sub read_mask {
     return $mask;
 }
 
-# Read IP address with optional prefix length or mask:
-# x.x.x.x or x.x.x.x/n or x.x.x.x/m.m.m.m
-sub read_ip_opt_mask {
+# Read IP address and prefix length.
+# x.x.x.x/n
+sub read_ip_prefix {
     my $ip = read_ip;
-    check('/') or return $ip;
-    my $mask = undef;#check_ip();
-    if (defined $mask) {
-        defined mask2prefix($mask)
-          or syntax_err("IP mask isn't a valid prefix");
-    }
-    else {
-        $mask = prefix2mask(read_int());
-        defined $mask or syntax_err("Invalid prefix");
-    }
-    return $ip, $mask;
-}
-
-sub read_ip_prefix_pair {
-    my ($ip, $mask) = read_ip_opt_mask();
-    defined $mask or syntax_err("Missing prefix len");
+    skip('/');
+    my $mask = prefix2mask(read_int());
+    defined $mask or syntax_err('Invalid prefix');
     match_ip($ip, $ip, $mask) or error_atline("IP and mask don't match");
 
     # Prevent further errors.
     $ip &= $mask;
+    return $ip, $mask;
+}
+
+sub read_ip_prefix_pair {
+    my ($ip, $mask) = read_ip_prefix();
     return [ $ip, $mask ];
 }
 
@@ -1484,17 +1476,9 @@ sub read_nat {
     skip '{';
     while (1) {
         last if check '}';
-        if (my ($ip, $mask) = check_assign 'ip', \&read_ip_opt_mask) {
-            if (defined $mask) {
-                $nat->{mask} and error_atline("Duplicate IP mask");
-                $nat->{mask} = $mask;
-            }
-            $nat->{ip} and error_atline("Duplicate IP address");
-            $nat->{ip} = $ip;
-        }
-        elsif ($mask = check_assign 'mask', \&read_mask) {
-            $nat->{mask} and error_atline("Duplicate IP mask");
-            $nat->{mask} = $mask;
+        if (my ($ip, $mask) = check_assign 'ip', \&read_ip_prefix) {
+            add_attribute($nat, ip => $ip);
+            add_attribute($nat, mask => $mask);
         }
         elsif (check_flag 'hidden') {
             $nat->{hidden} = 1;
@@ -1532,15 +1516,7 @@ sub read_nat {
         $nat->{dynamic} = $nat_tag;
     }
     else {
-        defined($nat->{ip}) or error_atline("Missing IP address");
-        if (defined $nat->{mask}) {
-            if (not(match_ip($nat->{ip}, $nat->{ip}, $nat->{mask}))) {
-                error_atline("$nat->{name}'s IP doesn't match its mask");
-
-                # Prevent further errors.
-                $nat->{ip} &= $nat->{mask};
-            }
-        }
+        defined($nat->{ip}) or error_atline('Missing IP address');
     }
     return $nat;
 }
@@ -1563,17 +1539,9 @@ sub read_network {
     add_description($network);
     while (1) {
         last if check '}';
-        if (my ($ip, $mask) = check_assign 'ip', \&read_ip_opt_mask) {
-            if (defined $mask) {
-                defined $network->{mask} and error_atline("Duplicate IP mask");
-                $network->{mask} = $mask;
-            }
-            $network->{ip} and error_atline("Duplicate IP address");
-            $network->{ip} = $ip;
-        }
-        elsif (defined($mask = check_assign 'mask', \&read_mask)) {
-            defined $network->{mask} and error_atline("Duplicate IP mask");
-            $network->{mask} = $mask;
+        if (my ($ip, $mask) = check_assign 'ip', \&read_ip_prefix) {
+            add_attribute($network, ip => $ip);
+            add_attribute($network, mask => $mask);
         }
         elsif (check_flag 'unnumbered') {
             defined $network->{ip} and error_atline("Duplicate IP address");
@@ -1680,17 +1648,6 @@ sub read_network {
     }
     else {
         my $mask = $network->{mask};
-
-        # Use 'defined' here because mask may have value '0'.
-        defined $mask or syntax_err("Missing network mask");
-
-        # Check if network IP matches mask.
-        if (not(match_ip($ip, $ip, $mask))) {
-            error_atline("IP and mask don't match");
-
-            # Prevent further errors.
-            $network->{ip} &= $mask;
-        }
         for my $host (@{ $network->{hosts} }) {
 
             # Link host with network.
@@ -1731,28 +1688,10 @@ sub read_network {
 
             # Check NAT definitions.
             for my $nat (values %{ $network->{nat} }) {
-                next if $nat->{hidden};
-                if (defined $nat->{mask}) {
-                    unless ($nat->{dynamic}) {
-                        $nat->{mask} == $mask
-                          or error_atline("Mask for non dynamic $nat->{name}",
-                                          " must be equal to network mask");
-                    }
-                }
-                else {
-
-                    # Inherit mask from network.
-                    $nat->{mask} = $mask;
-                }
-
-                # Check if IP matches mask.
-                if (not(match_ip($nat->{ip}, $nat->{ip}, $nat->{mask}))) {
-                    error_atline("IP for $nat->{name} doesn't",
-                                 " match its mask");
-
-                    # Prevent further errors.
-                    $nat->{ip} &= $nat->{mask};
-                }
+                next if $nat->{dynamic};
+                $nat->{mask} == $mask
+                    or error_atline("Mask for non dynamic $nat->{name}",
+                                    " must be equal to network mask");
             }
         }
 
@@ -2574,15 +2513,8 @@ sub read_aggregate {
     add_description($aggregate);
     while (1) {
         last if check '}';
-        if (my ($ip, $mask) = check_assign 'ip', \&read_ip_opt_mask) {
-            if (defined $mask) {
-                defined $aggregate->{mask} 
-                  and error_atline("Duplicate IP mask");
-                $aggregate->{mask} = $mask;
-            }
+        if (my ($ip, $mask) = check_assign 'ip', \&read_ip_prefix) {
             add_attribute($aggregate, ip => $ip);
-        }
-        elsif (defined($mask = check_assign 'mask', \&read_mask)) {
             add_attribute($aggregate, mask => $mask);
         }
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
@@ -2599,8 +2531,6 @@ sub read_aggregate {
         }
         elsif (my $nat_name = check_nat_name()) {
             my $nat = read_nat("nat:$nat_name");
-            defined $nat->{mask} or $nat->{hidden} or $nat->{identity}
-              or error_atline("Missing mask for $nat->{name}");
             $nat->{dynamic} or error_atline("$nat->{name} must be dynamic");
             $aggregate->{nat}->{$nat_name}
               and error_atline("Duplicate NAT definition");
@@ -2613,29 +2543,15 @@ sub read_aggregate {
     $aggregate->{link} or err_msg("Attribute 'link' must be defined for $name");
     my $ip   = $aggregate->{ip};
     my $mask = $aggregate->{mask};
-    if (defined $ip xor defined $mask) {
-        defined $ip and syntax_err('Missing mask');
-        defind $mask and syntax_err('Missing IP');
-    }
-    elsif (! defined $ip) {
-        $aggregate->{ip} = $aggregate->{mask} = 0;
-    }
-    else {
-
-        # Check if aggregate IP matches mask.
-        if (not(match_ip($ip, $ip, $mask))) {
-            error_atline("IP and mask don't match");
-
-            # Prevent further errors.
-            $aggregate->{ip} &= $aggregate->{mask};
-        }
-    }
-    if ($mask) {
+    if ($ip) {
         for my $key (keys %$aggregate) {
             next if grep({ $key eq $_ } 
                          qw( name ip mask link is_aggregate private));
             error_atline("Must not use attribute $key if mask is set");
         }
+    }
+    else  {
+        $aggregate->{ip} = $aggregate->{mask} = 0;
     }
     return $aggregate;
 }
@@ -2702,8 +2618,6 @@ sub read_area {
         }
         elsif (my $nat_name = check_nat_name()) {
             my $nat = read_nat("nat:$nat_name");
-            defined $nat->{mask} or $nat->{hidden} or $nat->{identity}
-              or error_atline("Missing mask for $nat->{name}");
             $nat->{dynamic} or error_atline("$nat->{name} must be dynamic");
             $area->{nat}->{$nat_name}
               and error_atline("Duplicate NAT definition");
