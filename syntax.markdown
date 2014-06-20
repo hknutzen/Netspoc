@@ -106,6 +106,8 @@ where `<global permit>` is used at most once.
          [ model = <model>;                           ]
          [ filter_only = <ip-prefix>(, <ip-prefix>)*; ]
          [ routing = ( EIGRP | OSPF | manual );       ]
+         [ policy_distribution_point = host:<name>;   ]
+         [ general_permit = <protocol list>;          ]
          [ strict_secondary; ]
          [ no_group_code;    ]
          [ no_crypto_filter; ]
@@ -169,6 +171,7 @@ here `<object set>` must expand to networks.
          link = ( network:<name> | router:<name> ); 
          [ ip = <ip-net>;     ]
          [ owner = <name>;    ]
+         <network NAT> *
          [ has_unenforceable; ]
          [ no_in_acl;         ]
       }
@@ -188,6 +191,8 @@ here `<object set>` must expand to networks.
     <default router attributes> ::= 
       router_attributes = {
         [ owner = <name>; ]
+        [ policy_distribution_point = host:<name>; ]
+        [ general_permit = <protocol list>;        ]
       }
 
 where `<network NAT>` must be hidden or dynamic.
@@ -247,8 +252,9 @@ where `<network NAT>` must be hidden or dynamic.
 ##Groups of protocols
 
     <protocol group definition> ::=
-      protocolgroup:<name> = <protocol>(, <protocol>)*;
+      protocolgroup:<name> = <protocol list>;
 
+    <protocol list> ::= <protocol>(, <protocol>)*
     <protocol> ::= protocol:<name> | protocolgroup:<name> | <simple protocol>
 
 
@@ -273,14 +279,14 @@ with
       permit|deny 
             src = <object set with 'user'>;
             dst = <object set with 'user'>;
-            prt = <protocol>(,<protocol>)*;
+            prt = <protocol list>;
       <object set with 'user'> is like <object set> 
        but with additional keyword 'user' allowed in <network object>
 
 ##Global permit
 
     <global permit> ::=
-      global:permit = <protocol>(, <protocol>)*;
+      global:permit = <protocol list>;
 
 ##Path restriction
 
