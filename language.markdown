@@ -3,10 +3,13 @@ layout: default
 ---
 
 
+<div class="maruku_toc" markdown="1">
 * Table of Content
 {:toc}
+</div>
 
 # Policy language
+{:.no_toc}
 
 ## Introduction
 

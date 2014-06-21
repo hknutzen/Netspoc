@@ -2,10 +2,13 @@
 layout: default
 ---
 
+<div class="maruku_toc" markdown="1">
 * Table of Content
 {:toc}
+</div>
 
 # Netspoc Policy Language
+{:.no_toc}
 
 ##General syntax
 
