@@ -666,6 +666,41 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Inconsistent NAT in loop';
+############################################################
+
+$in = <<END;
+network:a = {ip = 10.1.13.0/24; nat:h = { hidden; }}
+
+router:r1 = {
+ interface:a;
+ interface:t;
+ interface:b = { bind_nat = h; }
+}
+
+network:t = {ip = 10.3.103.240/30;}
+
+router:r2 = {
+ interface:a;
+ interface:t;
+ interface:b;
+}
+
+network:b = {ip = 10.156.5.160/28;}
+END
+
+$out = <<END;
+Error: Inconsistent NAT in loop at router:r1:
+ nat:h vs. nat:(none)
+Error: network:a is translated by h,
+ but is located inside the translation domain of h.
+ Probably h was bound to wrong interface at router:r1.
+Warning: Ignoring useless nat:h bound at router:r1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'NAT tag at wrong interface in loop';
 ############################################################
 
@@ -716,7 +751,7 @@ Error: network:i2 and network:i1 have identical IP/mask
 END
 
 Test::More->builder->todo_start(
-    "Missing NAT tag isn't recognized, because traversal aborts on first matching tag");
+    "Missing NAT tag isn't recognized, because traversal stops on first matching tag");
 test_err($title, $in, $out);
 Test::More->builder->todo_end;
 

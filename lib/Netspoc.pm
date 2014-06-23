@@ -7202,8 +7202,6 @@ sub set_natdomain {
         # where all traffic goes through a VPN tunnel.
         next if check_global_active_pathrestriction($interface);
         my $router = $interface->{router};
-        next if $router->{active_path};
-        $router->{active_path} = 1;
         my $managed  = $router->{managed}     || $router->{semi_managed};
         my $nat_tags = $interface->{bind_nat} || $bind_nat0;
         for my $out_interface (@{ $router->{interfaces} }) {
@@ -7212,13 +7210,22 @@ sub set_natdomain {
             # Current NAT domain continues behind $out_interface.
             if (aref_eq($out_nat_tags, $nat_tags)) {
 
+                # Put check for active path inside this loop, because
+                # 1. we must enter each router from each side to detect 
+                #    all inconsistencies,
+                # 2. we need the check at all to prevent deep recursion.
+                #
+                # 'local' declaration restores previous value on block exit.
+                next if $router->{active_path};
+                local $router->{active_path} = 1;
+
                 # no_nat_set will be collected at NAT domains, but is needed at
                 # logical and hardware interfaces of managed routers.
                 # Set it also for semi_managed routers to calculate
                 # {up} relation between subnets.
                 if ($managed) {
 
-#                   debug("$domain->{name}: $out_interface->{name}");
+#                   debug("$domain->{name}: NAT $out_interface->{name}");
                     $out_interface->{no_nat_set} = $no_nat_set;
                     $out_interface->{hardware}->{no_nat_set} = $no_nat_set
                       if $router->{managed};
@@ -7256,11 +7263,11 @@ sub set_natdomain {
                     next;
                 }
                 $router->{nat_tags}->{$domain} = $nat_tags;
+#                debug("TAG $out_interface->{name}");
                 push @{ $domain->{routers} },     $router;
                 push @{ $router->{nat_domains} }, $domain;
             }
         }
-        $router->{active_path} = 0;
     }
     return;
 }
