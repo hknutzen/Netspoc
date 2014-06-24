@@ -7202,6 +7202,7 @@ sub set_natdomain {
         # where all traffic goes through a VPN tunnel.
         next if check_global_active_pathrestriction($interface);
         my $router = $interface->{router};
+        my $err_seen;
         my $managed  = $router->{managed}     || $router->{semi_managed};
         my $nat_tags = $interface->{bind_nat} || $bind_nat0;
         for my $out_interface (@{ $router->{interfaces} }) {
@@ -7252,6 +7253,7 @@ sub set_natdomain {
                 # the same NAT binding. (This occurs only in loops).
                 if (my $old_nat_tags = $router->{nat_tags}->{$domain}) {
                     if (not aref_eq($old_nat_tags, $nat_tags)) {
+                        next if $err_seen->{$old_nat_tags}->{$nat_tags}++;
                         my $old_names = join(',', @$old_nat_tags) || '(none)';
                         my $new_names = join(',', @$nat_tags)     || '(none)';
                         err_msg
