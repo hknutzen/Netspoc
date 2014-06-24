@@ -563,4 +563,51 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = "Optimize external aggregate rule";
+############################################################
+
+$in = <<END;
+network:n1 = { ip = 10.1.1.0/24; }
+any:any1 = { link = network:n1; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = outside; }
+ interface:n2 = { ip = 10.2.9.6; hardware = inside; }
+}
+
+network:n2 = { ip = 10.2.9.0/29; }
+
+router:r2 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.2.0.0/16;
+ interface:n2 = { ip = 10.2.9.1; hardware = outside; }
+ interface:dst = { ip = 10.2.1.1; hardware = inside; }
+}
+
+network:dst = { ip = 10.2.1.0/27; }
+
+service:Test = {
+ user = any:any1;
+ permit src = user;
+        dst = network:dst;
+        prt = tcp 25;
+}
+END
+
+$out = <<END;
+! [ ACL ]
+access-list outside_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
+access-list outside_in extended permit ip any any
+access-group outside_in in interface outside
+END
+
+Test::More->builder->todo_start(
+    "Aggregate rule should be recognized as non local");
+test_err($title, $in, $out);
+Test::More->builder->todo_end;
+
+############################################################
 done_testing;
