@@ -1,9 +1,5 @@
 ToDo list for NetSPoC, a Network Security Policy Compiler
 
-- Internally we have a large code base for approving the generated
-  code to  real devices and for comparing if the device
-  configuration has changed. Open source his code as well.
-
 - Add documentation for objects owner, admin and attribute visible.
 
 - Add more documentation for crypto tunnels with different
@@ -62,6 +58,11 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 ============================================================================
 Done:
 ============================================================================
+
+- Internally we have a large code base for approving the generated
+  code to  real devices and for comparing if the device
+  configuration has changed. Open source his code as well.
+  See https://github.com/hknutzen/Netspoc-Approve/
 
 - Currently there is a small problem if an interface is used as
   destination of a rule and if there is a path restriction at the same
