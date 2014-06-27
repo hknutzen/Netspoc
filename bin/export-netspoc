@@ -848,6 +848,7 @@ sub export_services {
 sub zone_and_subnet {
     my ($obj) = @_;
     is_network $obj or return ();
+    $obj->{loopback} and return ();
     my $zone = $obj->{zone};
     my $any = $zone->{ipmask2aggregate}->{'0/0'};
     my $zone_name = $any ? $any->{name} : $zone->{name};
