@@ -162,16 +162,7 @@ sub ip_nat_for_object {
     elsif ($type eq 'Interface') {
         my $get_ip = sub {
             my ($obj, $network) = @_;
-            if ($obj->{ip} =~ /unnumbered|short|bridged/) {
-                $obj->{ip};
-            }
-            elsif ($obj->{ip} eq 'negotiated') {
-
-                # Take whole network.
-                join('/', 
-                     Netspoc::print_ip($network->{ip}), Netspoc::print_ip($network->{mask}));
-            }
-            elsif (my $nat_tag = $network->{dynamic}) {
+            if (my $nat_tag = $network->{dynamic}) {
                 if (my $ip = $obj->{nat}->{$nat_tag}) {
 
                     # Single static NAT IP for this interface.
@@ -193,6 +184,15 @@ sub ip_nat_for_object {
                 # Take no bits from network, because secondary isolated ports 
                 # don't match network.
                 Netspoc::print_ip($obj->{ip});
+            }
+            elsif ($obj->{ip} =~ /unnumbered|short|bridged/) {
+                $obj->{ip};
+            }
+            elsif ($obj->{ip} eq 'negotiated') {
+
+                # Take whole network.
+                join('/', 
+                     Netspoc::print_ip($network->{ip}), Netspoc::print_ip($network->{mask}));
             }
             else {
                 Netspoc::print_ip(nat($obj->{ip}, $network));
