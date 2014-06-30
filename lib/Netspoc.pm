@@ -8567,9 +8567,11 @@ sub link_aggregate_to_zone {
 sub link_implicit_aggregate_to_zone {
     my ($aggregate, $zone, $key) = @_;
     my ($ip, $mask) = split '/', $key;
+    my $ipmask2aggregate = $zone->{ipmask2aggregate};
 
     # Collect all aggregates, networks and subnets of current zone.
-    my @objects = values %{ $zone->{ipmask2aggregate} };
+    # Get aggregates in deterministic order.
+    my @objects = @{$ipmask2aggregate}{ sort keys %$ipmask2aggregate };
     my $add_subnets;
     $add_subnets = sub {
         my ($network) = @_;
