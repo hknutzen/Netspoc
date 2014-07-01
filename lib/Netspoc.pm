@@ -3967,7 +3967,8 @@ sub link_policy_distribution_point {
     my $pair = $hash->{policy_distribution_point} or return;
     my ($type, $name) = @$pair;
     if ($type ne 'host') {
-        err_msg("Must only use 'host' in 'policy_distribution_point' of $parent");
+        err_msg("Must only use 'host' in 'policy_distribution_point'",
+                " of $parent->{name}");
 
         # Prevent further errors;
         delete $hash->{policy_distribution_point};
@@ -3976,7 +3977,7 @@ sub link_policy_distribution_point {
     my $host = $hosts{$name};
     if (!$host) {
         warn_msg("Ignoring undefined host:$name",
-                 " in 'policy_distribution_point' of $parent");
+                 " in 'policy_distribution_point' of $parent->{name}");
 
         # Prevent further errors;
         delete $hash->{policy_distribution_point};
