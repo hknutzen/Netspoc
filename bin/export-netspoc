@@ -863,8 +863,10 @@ sub export_services {
 
 sub zone_and_subnet {
     my ($obj) = @_;
+    if (is_interface($obj) && $obj->{loopback}) {
+        $obj = $obj->{network};
+    }
     is_network $obj or return ();
-    $obj->{loopback} and return ();
     my $zone = $obj->{zone};
     if ($obj->{is_aggregate}) {
         if (my $cluster = $zone->{zone_cluster}) {
