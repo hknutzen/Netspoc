@@ -359,4 +359,101 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Aggregates and networks in zone cluster';
+############################################################
+
+# Checks deterministic values of attribute zone of aggregates.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.54.0/24;}
+
+router:asa = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.54.163; hardware = inside; }
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; }
+ interface:t2 = { ip = 10.9.2.1; hardware = t2; }
+}
+network:t1 = { ip = 10.9.1.0/24; }
+network:t2 = { ip = 10.9.2.0/24; }
+
+network:link1 = { ip = 10.8.1.0/24; }
+network:link2 = { ip = 10.8.2.0/24; }
+
+router:l12 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:link1 = { ip = 10.8.1.1; hardware = e1; }
+ interface:link2 = { ip = 10.8.2.1; hardware = e2; }
+}
+router:r1 = {
+ interface:t1; 
+ interface:link1;
+ interface:c1a;
+ interface:c1b;
+}
+router:r2 = {
+ interface:t2; 
+ interface:link2;
+ interface:c2;
+}
+
+network:c1a = { ip = 10.0.100.16/28;}
+network:c1b = { ip = 10.0.101.16/28;}
+network:c2 = { ip = 10.137.15.0/24;}
+any:c2     = { ip = 10.140.0.0/16; link = network:c2; }
+
+pathrestriction:r1 = 
+ interface:r1.t1, interface:r1.c1a, interface:r1.c1b
+;
+pathrestriction:r2 = 
+ interface:r2.t2, interface:r2.c2
+;
+
+service:test = {
+ user = any:[ip=10.140.0.0/16 & network:t1],
+        any:[ip=10.140.0.0/16 & network:t2],
+ ;
+
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--objects
+{
+   "any:[ip=10.140.0.0/16 & network:t1]" : {
+      "ip" : "10.140.0.0/255.255.0.0",
+      "is_supernet" : 1,
+      "owner" : null,
+      "zone" : "any:[network:t1]"
+   },
+   "any:c2" : {
+      "ip" : "10.140.0.0/255.255.0.0",
+      "is_supernet" : 1,
+      "owner" : null,
+      "zone" : "any:[network:t2]"
+   },
+   "network:n1" : {
+      "ip" : "10.1.54.0/255.255.255.0",
+      "owner" : null,
+      "zone" : "any:[network:n1]"
+   }
+}
+--owner/:unknown/users
+{
+   "test" : [
+      "any:[ip=10.140.0.0/16 & network:t1]",
+      "any:c2"
+   ]
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

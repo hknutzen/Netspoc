@@ -220,6 +220,31 @@ sub equal {
     return not grep { $_ ne $first } @_[ 1 .. $#_ ];
 }
 
+######################################################################
+# Setup zones
+######################################################################
+
+# We can't use %aggregates from Netspoc.pm because it only holds named
+# aggregates. But we need unnamed aggregates like any:[network:XX]
+# as well.
+my @all_zones;
+
+sub setup_zones {
+    Netspoc::progress('Setup zones');
+    my %seen;
+    for my $network (values %Netspoc::networks) {
+        $network->{disabled} and next;
+        my $zone = $network->{zone};
+        next if $seen{$zone}++;
+#        Netspoc::debug "$network->{name} in $zone->{name}";
+        push @all_zones, $zone;
+    }
+}
+
+######################################################################
+# Setup services
+######################################################################
+
 sub owner_for_object {  
     my ($object) = @_;
     if (my $owner_obj = $object->{owner}) {
@@ -414,8 +439,8 @@ sub setup_service_info {
                     # in export_protocols.
                     $rule->{"expanded_$what"} = 
                     [ sort by_name
-                    @{ Netspoc::expand_group($rule->{$what}, 
-                                             "$what of $pname") } ];
+                      @{ Netspoc::expand_group($rule->{$what}, 
+                                               "$what of $pname") } ];
 
                 # Expand auto interface to set of real interfaces.
                 # This changes {expanded_src} and {expanded_dst} as well.
@@ -464,14 +489,8 @@ sub setup_service_info {
 # belonging to other owners.
 ######################################################################
 
-# We can't use %aggregates from Netspoc.pm because it only holds named
-# aggregates.  But we need unnamed aggregates like any:[network:XX]
-# as well.
-my @all_zones;
-
 sub setup_part_owners {
     Netspoc::progress("Setup part owners");
-    my %all_zones;
 
     # Handle hosts of network.
     # Don't handle interfaces here, because
@@ -515,13 +534,8 @@ sub setup_part_owners {
             $add_part_owner->($up);
             $up = $up->{up};
         }
-        my $zone = $network->{zone};
-        $add_part_owner->($zone);
-        $all_zones{$zone} = $zone;
+        $add_part_owner->($network->{zone});   
     }
-
-    # Set global variable.
-    @all_zones = values %all_zones;
 
     # Substitute hash by array in attribute {part_owners}.
     for my $network (values %Netspoc::networks) {
@@ -694,6 +708,7 @@ sub export_assets {
         # Zone with network 0/0 doesn't have an aggregate 0/0.
         my $any = $zone->{ipmask2aggregate}->{'0/0'};
         my $zone_name = $any ? $any->{name} : $zone->{name};
+#        Netspoc::debug "$zone_name";
         my $zone_owner = owner_for_object($zone) || '';
         my $networks = add_subnetworks($zone->{networks});
         for my $owner (owner_for_object($zone), part_owners_for_object($zone)) {
@@ -711,6 +726,7 @@ sub export_assets {
             else {
                 $own_networks = $networks;
             }
+#            Netspoc::debug "- $_->{name}" for @$own_networks;
             $add_networks_hash->(
                 $owner, 
                 $zone_name, 
@@ -850,9 +866,18 @@ sub zone_and_subnet {
     is_network $obj or return ();
     $obj->{loopback} and return ();
     my $zone = $obj->{zone};
+    if ($obj->{is_aggregate}) {
+        if (my $cluster = $zone->{zone_cluster}) {
+
+            # Get derterministic zone for multiple aggregates with
+            # identical name from zone cluster.
+            ($zone) = @$cluster;
+        }
+    }
     my $any = $zone->{ipmask2aggregate}->{'0/0'};
     my $zone_name = $any ? $any->{name} : $zone->{name};
     my $is_supernet = $obj->{is_supernet};
+#    Netspoc::debug "$obj->{name} $zone_name";
     return (zone => $zone_name, $is_supernet ? (is_supernet => 1) : () );
 }
 
@@ -973,6 +998,7 @@ Netspoc::setpath();
 Netspoc::find_subnets_in_zone();
 Netspoc::set_service_owner();
 Netspoc::find_subnets_in_nat_domain();
+setup_zones();
 setup_part_owners();
 setup_service_info();
 find_master_owner();
