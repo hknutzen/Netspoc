@@ -448,6 +448,11 @@ $out = <<'END';
 {
    "test" : [
       "any:[ip=10.140.0.0/16 & network:t1]",
+      "any:[ip=10.140.0.0/16 & network:t1]",
+      "any:[ip=10.140.0.0/16 & network:t1]",
+      "any:[ip=10.140.0.0/16 & network:t1]",
+      "any:c2",
+      "any:c2",
       "any:c2"
    ]
 }
