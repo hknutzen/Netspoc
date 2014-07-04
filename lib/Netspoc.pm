@@ -11323,7 +11323,7 @@ sub collect_supernet_dst_rules {
 
     my $dst  = $rule->{dst};
     my $zone = $dst->{zone};
-    return if $out_intf->{zone} != $zone;
+    return if $out_intf->{zone} ne $zone;
 
     # Get NAT address of supernet.
     if (!$dst->{is_aggregate}) {
