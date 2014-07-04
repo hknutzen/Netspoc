@@ -1887,6 +1887,9 @@ sub read_interface {
         }
         elsif (my $hardware = check_assign 'hardware', \&read_name) {
             add_attribute($interface, hardware => $hardware);
+        }         
+        elsif (my $owner = check_assign 'owner', \&read_identifier) {
+            add_attribute($interface, owner => $owner);
         }
         elsif (my $routing = check_routing()) {
             add_attribute($interface, routing => $routing);
@@ -1952,13 +1955,16 @@ sub read_interface {
             error_atline("'vip' interface must not have attribute 'hardware'");
         $interface->{hardware} = 'VIP';
     }
+    if ($interface->{owner} && !$interface->{vip}) {
+        error_atline("Must use attribute 'owner' only at 'vip' interface");
+    }
     if ($interface->{loopback}) {
         my %copy = %$interface;
 
         # Only these attributes are valid.
         delete @copy{
             qw(name ip nat bind_nat hardware loopback subnet_of
-              redundant redundancy_type redundancy_id vip)
+              owner redundant redundancy_type redundancy_id vip)
           };
         if (keys %copy) {
             my $attr = join ", ", map { "'$_'" } keys %copy;
@@ -6995,12 +7001,22 @@ sub propagate_owners {
         my $owner = $router->{owner} or next;
         $owner->{is_used} = 1;
         for my $interface (@{ $router->{interfaces} }) {
-            $interface->{owner} = $owner;
-            if ($interface->{loopback}) {
-                my $network = $interface->{network};
-                $network->{owner} = $owner;
-                $network->{zone}->{owner} = $owner;
-            }
+
+            # Loadbalancer interface with {vip} can have dedicated owner.
+            $interface->{owner} ||= $owner;
+        }
+    }
+
+    # Propagate owner of loopback interface to loopback network 
+    # and loopback zone.
+    for my $router (@routers) {
+        my $managed = $router->{managed};
+        for my $interface (@{ $router->{interfaces} }) {
+            $interface->{loopback} or next;
+            my $owner = $interface->{owner} or next;
+            my $network = $interface->{network};
+            $network->{owner} = $owner;
+            $network->{zone}->{owner} = $owner if $managed;
         }
     }
 
