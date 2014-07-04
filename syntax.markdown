@@ -149,6 +149,7 @@ where `<global permit>` is used at most once.
          [ security_level = <int>;              ]
          [ subnet_of = network:<name>;          ]
          [ vip;                                 ]
+         [ owner = <name>;                      ]
       }
 
 here `<object set>` must expand to networks.
