@@ -1,9 +1,5 @@
 ToDo list for NetSPoC, a Network Security Policy Compiler
 
-- Internally we have a large code base for approving the generated
-  code to  real devices and for comparing if the device
-  configuration has changed. Open source his code as well.
-
 - Add documentation for objects owner, admin and attribute visible.
 
 - Add more documentation for crypto tunnels with different
@@ -55,6 +51,19 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
 
 - Documentation: loops / cyclic graphs.
 
+- Refine code generation for 'deny any' rules. Currently, not only the access
+  from / to a security domain is restricted, but for all network objects on
+  the path to dst / from src.
+
+============================================================================
+Done:
+============================================================================
+
+- Internally we have a large code base for approving the generated
+  code to  real devices and for comparing if the device
+  configuration has changed. Open source his code as well.
+  See https://github.com/hknutzen/Netspoc-Approve/
+
 - Currently there is a small problem if an interface is used as
   destination of a rule and if there is a path restriction at the same
   interface: access to the interface would be denied, because the
@@ -63,14 +72,6 @@ ToDo list for NetSPoC, a Network Security Policy Compiler
   the interface having an IP of it's network, is located before the
   restricting interface.
   Possible solution: Generate only a host route for an interface.
-
-- Refine code generation for 'deny any' rules. Currently, not only the access
-  from / to a security domain is restricted, but for all network objects on
-  the path to dst / from src.
-
-============================================================================
-Done:
-============================================================================
 
 - crypto access-group: Are rules stateful for IOS_FW?
 

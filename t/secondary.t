@@ -123,4 +123,60 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = "Don't optimize rule if any rule starts behind secondary router";
+############################################################
+
+$in = <<END;
+network:n1 = { ip = 10.2.1.0/27; host:h1 = { ip = 10.2.1.4; }}
+
+router:r1 = {
+ model = ASA;
+ managed = secondary;
+ interface:n1 = { ip = 10.2.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = vlan2; }
+}
+
+network:n2 = { ip = 10.2.2.0/27;}
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n2 = { ip = 10.2.2.2; hardware = vlan1; }
+ interface:n3 = { ip = 10.2.3.2; hardware = vlan2; }
+}
+
+network:n3 = { ip = 10.2.3.0/27; host:h3 = { ip = 10.2.3.4; }}
+
+service:n1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+service:any = {
+ user = any:[network:n2];
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+END
+
+$out = <<END;
+--r1
+! [ ACL ]
+access-list vlan1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.3.0 255.255.255.224 eq 80
+access-list vlan1_in extended deny ip any any
+access-group vlan1_in in interface vlan1
+END
+#--r2
+#! [ ACL ]
+#access-list vlan1_in extended permit tcp any 10.2.3.0 255.255.255.224 eq 22
+#access-list vlan1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.3.0 255.#255.255.224 eq 80
+#access-list vlan1_in extended deny ip any any
+#access-group vlan1_in in interface vlan1
+#END
+
+
+Test::More->builder->
+    todo_start("Check aggregate rules during secondary optimization");
+test_run($title, $in, $out);
+Test::More->builder->todo_end;
+
+############################################################
 done_testing;

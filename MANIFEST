@@ -1,5 +1,4 @@
 COPYING
-ChangeLog
 Changes
 INSTALL
 LICENSE
@@ -21,12 +20,6 @@ cvs-support/cvs-log.pl
 cvs-support/loginfo
 cvs-support/suid-cvs.c
 dist.ini
-doc/CSPM.pod
-doc/NEWS.html
-doc/Short-Changes
-doc/TODO
-doc/pre-lang.html
-doc/private-context.dia
 examples/Makefile
 examples/any/any
 examples/any/topology
@@ -55,6 +48,12 @@ misc/find-ip
 misc/intersect-ip
 misc/merge-definitions~
 misc/perltidyrc
+old-doc/CSPM.pod
+old-doc/ChangeLog
+old-doc/NEWS.html
+old-doc/Short-Changes
+old-doc/TODO
+old-doc/private-context.dia
 t/Test_Netspoc.pm
 t/aggregate.t
 t/any-multicast-interface.t

@@ -336,6 +336,57 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Prevent nondeterminism in nested aggregates';
+############################################################
+
+# /23 aggregates must be processed in fixed order.
+# Otherwise network:[any:[ip=10.1.0.0/17..] would be nondeterministic.
+
+$in = <<END;
+network:Test = { ip = 10.9.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Trans = { unnumbered; hardware = Vlan2; }
+}
+
+network:Trans = { unnumbered; }
+
+router:u = {
+ interface:Trans;
+ interface:Kunde1;
+ interface:Kunde2;
+}
+network:Kunde1 = { ip = 10.1.0.0/24; }
+network:Kunde2 = { ip = 10.1.2.0/24; }
+
+service:test1a = {
+ user = network:[any:[ip=10.1.0.0/23 & network:Trans]];
+ permit src = user; dst = network:Test; prt = tcp 80;
+}
+service:test1b = {
+ user = network:[any:[ip=10.1.2.0/23 & network:Trans]];
+ permit src = user; dst = network:Test; prt = tcp 81;
+}
+service:test2 = {
+ user = network:[any:[ip=10.1.0.0/17 & network:Trans]];
+ permit src = user; dst = network:Test; prt = tcp 82;
+}
+END
+
+$out = <<END;
+--filter
+access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.255.0 10.9.1.0 255.255.255.0 eq 80
+access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.255.0 10.9.1.0 255.255.255.0 eq 82
+access-list Vlan2_in extended permit tcp 10.1.2.0 255.255.255.0 10.9.1.0 255.255.255.0 range 81 82
+access-list Vlan2_in extended deny ip any any
+access-group Vlan2_in in interface Vlan2
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Redundant nested aggregates without matching network (1)';
 ############################################################
 

@@ -12,15 +12,15 @@ my ($title, $in, $out);
 $title = 'Check for owners with duplicate alias names';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 owner:xx = {
  alias = X Quadrat;
- admins = a\@b.c;
+ admins = a@b.c;
 }
 
 owner:x2 = {
  alias = X Quadrat;
- admins = a\@b.c;
+ admins = a@b.c;
 }
 END
 
@@ -38,14 +38,14 @@ test_err($title, $in, $out);
 $title = 'Check for owners with conflicting name and alias name';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 owner:y = {
  alias = z;
- admins = a\@b.c;
+ admins = a@b.c;
 }
 
 owner:z = {
- admins = a\@b.c;
+ admins = a@b.c;
 }
 END
 
@@ -63,9 +63,9 @@ test_err($title, $in, $out);
 $title = 'Owner at bridged network';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 owner:xx = {
- admins = a\@b.c;
+ admins = a@b.c;
 }
 
 area:all = { owner = xx; anchor = network:VLAN_40_41/40; }
@@ -101,7 +101,7 @@ $title = 'Redundant owner at bridged network';
 
 $in =~ s|(network:VLAN_40_41/41 = \{)|$1 owner = xx; |;
 
-$out = <<END;
+$out = <<'END';
 Warning: Useless owner:xx at any:[network:VLAN_40_41/41],
  it was already inherited from area:all
 END
@@ -112,9 +112,9 @@ test_err($title, $in, $out);
 $title = 'Redundant owner at nested areas';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 owner:x = {
- admins = a\@b.c;
+ admins = a@b.c;
 }
 
 # a3 < a2 < all, a1 < all
