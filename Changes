@@ -1,5 +1,14 @@
 {{$NEXT}}
 
+3.050     2014-07-07 10:08:39 Europe/Berlin
+
+ - Allow 'owner' attribute at 'vip' interface.
+ - Simplified syntax of IP addresses:
+   Valid: "ip = ip/prefixlen;"
+   Now invalid: "ip = ip; mask = mask;", "ip = ip/mask;"
+ - Fixed check for inconsistent NAT in loop.
+ - Fixed minor bug in path_walk at pathrestriction at exit of loop.
+
 3.049     2014-06-13 09:36:41 Europe/Berlin
 
  - Fixed bad optimization that removed route to subnet.
