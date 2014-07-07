@@ -6,16 +6,9 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out);
+my ($title, $topo, $in, $out);
 
-############################################################
-$title = 'Pathrestriction at border of loop (at router)';
-############################################################
-
-# Soll an router:filter für Interfaces GRE und Trans unterschiedliche 
-# ACLs generieren.
-
-$in = <<END;
+$topo = <<'END';
 network:Test =  { ip = 10.9.1.0/24; }
 
 router:filter = {
@@ -50,6 +43,17 @@ router:Kunde = {
 
 network:X =        { ip = 10.9.3.0/24; }
 network:Schulung = { ip = 10.9.2.0/24; }
+END
+
+############################################################
+$title = 'Pathrestriction at border of loop (at router)';
+############################################################
+
+# Soll an router:filter für Interfaces GRE und Trans unterschiedliche 
+# ACLs generieren.
+
+$in = <<"END";
+$topo
 
 pathrestriction:restrict = 
  description = Nur network:X über GRE-Tunnel.
@@ -67,7 +71,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 ip access-list extended GigabitEthernet0/1_in
  deny ip any host 10.9.1.1
@@ -84,13 +88,51 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Pathrestriction at border of loop (at router / at dst.)';
+############################################################
+
+# Soll Ausgang der Loop als Router erkennen, obwohl intern 
+# ein Interface verwendet wird.
+
+$in = <<"END";
+$topo
+
+pathrestriction:restrict = 
+ interface:filter.Test,
+ interface:filter.Trans,
+;
+
+service:test = {
+ user = network:Schulung;
+ permit src = user; 
+	dst = any:[network:Test];
+	prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--filter
+ip access-list extended GigabitEthernet0/1_in
+ deny ip any any
+--
+ip access-list extended Tunnel1_in
+ deny ip any host 10.9.1.1
+ deny ip any host 10.5.6.69
+ deny ip any host 10.5.6.81
+ permit tcp 10.9.2.0 0.0.0.255 any eq 80
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Pathrestriction at border of loop (at any)';
 ############################################################
 
 # Soll network:Trans beim path_walk wegen der Pathrestriction
 # nicht versehentlich als Router ansehen
 
-$in = <<END;
+$in = <<'END';
 network:Test =  { ip = 10.9.1.0/24; }
 
 router:filter1 = {
@@ -150,7 +192,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --Kunde
 ip route 10.9.1.0 255.255.255.0 10.5.6.1
 --
@@ -170,7 +212,7 @@ $title = 'Pathrestriction at border of nested loop';
 
 # Soll auch bei verschachtelter Loop den Pfad finden.
 
-$in = <<END;
+$in = <<'END';
 network:top = { ip = 10.1.1.0/24;}
 network:cnt = { ip = 10.3.1.240/30;}
 
@@ -213,7 +255,7 @@ service:intra = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --c1
 ip access-list extended Vlan13_in
  permit ip any host 10.3.1.249
@@ -237,7 +279,7 @@ test_run($title, $in, $out);
 $title = 'Valid pathrestriction at unmanged router';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test =  { ip = 10.9.1.0/24; }
 
 router:filter1 = {
@@ -271,7 +313,7 @@ $title = 'Useless pathrestriction at unmanged router';
 
 $in =~ s/managed/#managed/;
 
-$out = <<END;
+$out = <<'END';
 Warning: Useless pathrestriction:restrict.
  All interfaces are unmanaged and located inside the same security zone
 END

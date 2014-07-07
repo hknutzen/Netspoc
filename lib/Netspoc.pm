@@ -10467,22 +10467,19 @@ sub loop_path_walk {
     }
 
     # Process paths at exit of cyclic graph.
-    if (
-        (
-               is_router($loop_exit)
-            or is_interface($loop_exit)
-            and $loop_exit->{router} eq
-            $loop_entry->{loop_leave}->{$loop_exit}->[0]->{router}
-        ) xor $call_at_zone
-      )
-    {
+    my $exit_at_router =
+          is_router($loop_exit)
+       || (is_interface($loop_exit)
+           && $loop_exit->{router} eq
+           $loop_entry->{loop_leave}->{$loop_exit}->[0]->{router});
+    if ($exit_at_router xor $call_at_zone) {
 
 #     debug(" loop_leave");
         for my $in_intf (@{ $loop_entry->{loop_leave}->{$loop_exit} }) {
             $fun->($rule, $in_intf, $out);
         }
     }
-    return;
+    return $exit_at_router;
 }
 
 # Apply a function to a rule at every router or zone on the path from
@@ -10535,8 +10532,9 @@ sub path_walk {
         and my $loop_exit = $from_store->{loop_exit}->{$to_store})
     {
         my $loop_out = $path_store->{path}->{$to_store};
-        loop_path_walk($in, $loop_out, $from_store, $loop_exit, $at_zone, $rule,
-            $fun);
+        my $exit_at_router = 
+            loop_path_walk($in, $loop_out, $from_store, $loop_exit, $at_zone,
+                           $rule, $fun);
         if (not $loop_out) {
 
 #           debug("exit: path_walk: dst in loop");
@@ -10544,7 +10542,7 @@ sub path_walk {
         }
 
         # Continue behind loop.
-        $call_it = not(is_router($loop_exit) xor $at_zone);
+        $call_it = not($exit_at_router xor $at_zone);
         $in      = $loop_out;
         $out     = $in->{path}->{$to_store};
     }
@@ -10558,14 +10556,15 @@ sub path_walk {
         {
             my $loop_exit = $loop_entry->{loop_exit}->{$to_store};
             my $loop_out  = $in->{path}->{$to_store};
-            loop_path_walk($in, $loop_out, $loop_entry, $loop_exit, $at_zone,
-                $rule, $fun);
+            my $exit_at_router = 
+                loop_path_walk($in, $loop_out, $loop_entry, $loop_exit,
+                               $at_zone, $rule, $fun);
             if (not $loop_out) {
 
 #               debug("exit: path_walk: reached dst in loop");
                 return;
             }
-            $call_it = not(is_router($loop_exit) xor $at_zone);
+            $call_it = not($exit_at_router xor $at_zone);
             $in      = $loop_out;
             $out     = $in->{path}->{$to_store};
         }
