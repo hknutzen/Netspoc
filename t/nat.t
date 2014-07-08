@@ -314,7 +314,7 @@ network:X = { ip = 10.8.3.0/24; }
 END
 
 $out = <<END;
-Error: Must not bind multiple NAT tags 'C,D' of nat:D(network:Test) at router:filter
+Error: Must not bind multiple NAT tags 'C,D' of nat:C(network:Test) at router:filter
 END
 
 test_err($title, $in, $out);
@@ -554,7 +554,7 @@ $out = <<END;
 Error: If multiple NAT tags are used at one network,
  these NAT tags must be used equally grouped at other networks:
  - network:n2: t2
- - nat:t2(network:n1): t1,t2
+ - nat:t1(network:n1): t1,t2
 END
 
 test_err($title, $in, $out);

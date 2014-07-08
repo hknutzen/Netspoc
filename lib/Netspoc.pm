@@ -7445,7 +7445,9 @@ sub distribute_no_nat_set {
                     next if keys %$tags < 2;
                     $tags = join(',', sort keys %$tags);
                     my $href = $href2href{$key};
-                    my $net_name = (%$href)[1]->{name};
+
+                    # Take first value deterministically.
+                    my ($net_name) = sort map { $_->{name} } values %$href;
                     err_msg("Must not bind multiple NAT tags '$tags'",
                             " of $net_name at $router->{name}");
                 }
@@ -7597,9 +7599,9 @@ sub distribute_nat_info {
                         my $name  = $network->{name};
                         my $tags2 = join(',', sort keys %$href2);
 
-                        # Use hash as list of pairs, take first value.
-                        # Value is a NAT entry with name of the network.
-                        my $name2 = (%$href2)[1]->{name};
+                        # Values are NAT entries with name of the network.
+                        # Take first value deterministically.
+                        my ($name2) = sort map { $_->{name} } values %$href2;
                         err_msg
                             "If multiple NAT tags are used at one network,\n",
                             " these NAT tags must be used",
