@@ -143,12 +143,12 @@ router:asa2 = {
 END
 
 $out = <<END;
+Warning: Useless owner:x at area:a1,
+ it was already inherited from area:all
 Warning: Useless owner:x at area:a2,
  it was already inherited from area:all
 Warning: Useless owner:x at area:a3,
  it was already inherited from area:a2
-Warning: Useless owner:x at area:a1,
- it was already inherited from area:all
 END
 
 test_err($title, $in, $out);

@@ -6813,14 +6813,14 @@ sub propagate_owners {
     };
 
     # Find subset relation between areas.
-    for my $area (values %areas) {
+    for my $area (sort by_name values %areas) {
         if (my $super = $area->{subset_of}) {
             $add_node->($super, $area);
         }
     }
 
     # Find direct subset relation between areas and zones.
-    for my $area (values %areas) {
+    for my $area (sort by_name values %areas) {
         for my $zone (@{ $area->{zones} }) {
             if ($zone2area{$zone} eq $area) {
                 $add_node->($area, $zone);
@@ -6862,7 +6862,8 @@ sub propagate_owners {
     }
 
     # Find root nodes.
-    my @root_nodes = map { $ref2obj{$_} } grep { not $is_child{$_} } keys %tree;
+    my @root_nodes = 
+        sort by_name map { $ref2obj{$_} } grep { not $is_child{$_} } keys %tree;
 
     # owner is extended by e_owner at node.
     # owner->node->[e_owner, .. ]
@@ -6917,7 +6918,7 @@ sub propagate_owners {
 
     # Collect extended owners and check for inconsistent extensions.
     # Check owner with attribute {show_all}.
-    for my $owner (values %owners) {
+    for my $owner (sort by_name values %owners) {
         my $href = $extended{$owner} or next;
         my $node1;
         my $ext1;
