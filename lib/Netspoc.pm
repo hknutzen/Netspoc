@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.050'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.051'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -3961,6 +3961,10 @@ sub link_owners {
     }
     for my $router (values %routers) {
         link_to_owner($router);
+        $router->{model}->{has_vip} or next;
+        for my $interface (@{ $router->{interfaces} }) {
+            link_to_owner($interface);
+        }
     }
     for my $service (values %services) {
         link_to_owner($service, 'sub_owner');
@@ -6813,14 +6817,14 @@ sub propagate_owners {
     };
 
     # Find subset relation between areas.
-    for my $area (values %areas) {
+    for my $area (sort by_name values %areas) {
         if (my $super = $area->{subset_of}) {
             $add_node->($super, $area);
         }
     }
 
     # Find direct subset relation between areas and zones.
-    for my $area (values %areas) {
+    for my $area (sort by_name values %areas) {
         for my $zone (@{ $area->{zones} }) {
             if ($zone2area{$zone} eq $area) {
                 $add_node->($area, $zone);
@@ -6862,7 +6866,8 @@ sub propagate_owners {
     }
 
     # Find root nodes.
-    my @root_nodes = map { $ref2obj{$_} } grep { not $is_child{$_} } keys %tree;
+    my @root_nodes = 
+        sort by_name map { $ref2obj{$_} } grep { not $is_child{$_} } keys %tree;
 
     # owner is extended by e_owner at node.
     # owner->node->[e_owner, .. ]
@@ -6917,7 +6922,7 @@ sub propagate_owners {
 
     # Collect extended owners and check for inconsistent extensions.
     # Check owner with attribute {show_all}.
-    for my $owner (values %owners) {
+    for my $owner (sort by_name values %owners) {
         my $href = $extended{$owner} or next;
         my $node1;
         my $ext1;
@@ -7000,9 +7005,10 @@ sub propagate_owners {
     for my $router (@managed_routers) {
         my $owner = $router->{owner} or next;
         $owner->{is_used} = 1;
-        for my $interface (@{ $router->{interfaces} }) {
 
-            # Loadbalancer interface with {vip} can have dedicated owner.
+        # Loadbalancer interface with {vip} can have dedicated owner.
+        $router->{model}->{has_vip} or next;
+        for my $interface (@{ $router->{interfaces} }) {
             $interface->{owner} ||= $owner;
         }
     }
@@ -7017,6 +7023,10 @@ sub propagate_owners {
             my $network = $interface->{network};
             $network->{owner} = $owner;
             $network->{zone}->{owner} = $owner if $managed;
+
+            # Mark dedicated owner of {vip} interface, which is also a
+            # loopback interface.
+            $owner->{is_used} = 1;
         }
     }
 
@@ -7444,7 +7454,9 @@ sub distribute_no_nat_set {
                     next if keys %$tags < 2;
                     $tags = join(',', sort keys %$tags);
                     my $href = $href2href{$key};
-                    my $net_name = (%$href)[1]->{name};
+
+                    # Take first value deterministically.
+                    my ($net_name) = sort map { $_->{name} } values %$href;
                     err_msg("Must not bind multiple NAT tags '$tags'",
                             " of $net_name at $router->{name}");
                 }
@@ -7596,9 +7608,9 @@ sub distribute_nat_info {
                         my $name  = $network->{name};
                         my $tags2 = join(',', sort keys %$href2);
 
-                        # Use hash as list of pairs, take first value.
-                        # Value is a NAT entry with name of the network.
-                        my $name2 = (%$href2)[1]->{name};
+                        # Values are NAT entries with name of the network.
+                        # Take first value deterministically.
+                        my ($name2) = sort map { $_->{name} } values %$href2;
                         err_msg
                             "If multiple NAT tags are used at one network,\n",
                             " these NAT tags must be used",

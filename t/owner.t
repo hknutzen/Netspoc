@@ -24,7 +24,7 @@ owner:x2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Name conflict between owners
  - owner:xx with alias 'X Quadrat'
  - owner:x2 with alias 'X Quadrat'
@@ -39,7 +39,7 @@ $title = 'Check for owners with conflicting name and alias name';
 ############################################################
 
 $in = <<'END';
-owner:y = {
+owner:yy = {
  alias = z;
  admins = a@b.c;
 }
@@ -49,10 +49,10 @@ owner:z = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Name conflict between owners
  - owner:z
- - owner:y with alias 'z'
+ - owner:yy with alias 'z'
 Error: Topology seems to be empty
 Aborted
 END
@@ -142,13 +142,45 @@ router:asa2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
+Warning: Useless owner:x at area:a1,
+ it was already inherited from area:all
 Warning: Useless owner:x at area:a2,
  it was already inherited from area:all
 Warning: Useless owner:x at area:a3,
  it was already inherited from area:a2
-Warning: Useless owner:x at area:a1,
- it was already inherited from area:all
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Owner at vip interface';
+############################################################
+
+$in = <<'END';
+owner:x = { admins = x@a.b; }
+owner:y = { admins = y@a.b; }
+
+network:U = { ip = 10.1.1.0/24; }
+router:R = {
+ managed; 
+ model = ACE;
+ owner = x;
+ interface:U = { ip = 10.1.1.1; hardware = e0; }
+ interface:V = { ip = 10.3.3.3; vip; owner = y; }
+ interface:N = { ip = 10.2.2.1; hardware = e1; }
+}
+network:N = { ip = 10.2.2.0/24; }
+
+service:test = {
+    user = network:U;
+    permit src = user; dst = interface:R.V, interface:R.U; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: service:test has multiple owners:
+ x, y
 END
 
 test_err($title, $in, $out);
