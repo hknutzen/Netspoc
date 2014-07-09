@@ -7006,9 +7006,9 @@ sub propagate_owners {
         my $owner = $router->{owner} or next;
         $owner->{is_used} = 1;
 
-        # Loadbalancer interface with {vip} can have dedicated owner.
-        $router->{model}->{has_vip} or next;
         for my $interface (@{ $router->{interfaces} }) {
+
+            # Loadbalancer interface with {vip} can have dedicated owner.
             $interface->{owner} ||= $owner;
         }
     }
