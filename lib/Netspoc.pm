@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.051'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.052'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -7006,9 +7006,9 @@ sub propagate_owners {
         my $owner = $router->{owner} or next;
         $owner->{is_used} = 1;
 
-        # Loadbalancer interface with {vip} can have dedicated owner.
-        $router->{model}->{has_vip} or next;
         for my $interface (@{ $router->{interfaces} }) {
+
+            # Loadbalancer interface with {vip} can have dedicated owner.
             $interface->{owner} ||= $owner;
         }
     }
