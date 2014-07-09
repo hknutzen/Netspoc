@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+3.051     2014-07-09 14:21:06 Europe/Berlin
+
+ - Fixed 'owner' attribute at 'vip' interface.
+
 3.050     2014-07-07 10:08:39 Europe/Berlin
 
  - Allow 'owner' attribute at 'vip' interface.
