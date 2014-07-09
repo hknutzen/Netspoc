@@ -3961,6 +3961,10 @@ sub link_owners {
     }
     for my $router (values %routers) {
         link_to_owner($router);
+        $router->{model}->{has_vip} or next;
+        for my $interface (@{ $router->{interfaces} }) {
+            link_to_owner($interface);
+        }
     }
     for my $service (values %services) {
         link_to_owner($service, 'sub_owner');
@@ -7001,9 +7005,10 @@ sub propagate_owners {
     for my $router (@managed_routers) {
         my $owner = $router->{owner} or next;
         $owner->{is_used} = 1;
-        for my $interface (@{ $router->{interfaces} }) {
 
-            # Loadbalancer interface with {vip} can have dedicated owner.
+        # Loadbalancer interface with {vip} can have dedicated owner.
+        $router->{model}->{has_vip} or next;
+        for my $interface (@{ $router->{interfaces} }) {
             $interface->{owner} ||= $owner;
         }
     }
@@ -7018,6 +7023,10 @@ sub propagate_owners {
             my $network = $interface->{network};
             $network->{owner} = $owner;
             $network->{zone}->{owner} = $owner if $managed;
+
+            # Mark dedicated owner of {vip} interface, which is also a
+            # loopback interface.
+            $owner->{is_used} = 1;
         }
     }
 
