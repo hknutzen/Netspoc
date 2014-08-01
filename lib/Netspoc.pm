@@ -11358,7 +11358,7 @@ sub find_supernet {
     ($net1, $net2) = ($net2, $net1) if $net1->{mask} < $net2->{mask};
     while (1) {
         while ($net1->{mask} > $net2->{mask}) {
-            $net1 = $net1->{up};
+            $net1 = $net1->{up} or return;
         }
         return $net1 if $net1 eq $net2;
         $net2 = $net2->{up} or return;
