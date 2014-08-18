@@ -1,5 +1,12 @@
 {{$NEXT}}
 
+3.053     2014-08-18 17:48:33 Europe/Berlin
+
+ - Added new attribute 'inclusive_border'.  
+   With this attribute, the router of the border interface is part of
+   the area. The area starts at the router attached to the border
+   interface.
+
 3.052     2014-07-09 15:38:32 Europe/Berlin
 
  - Again fixed 'owner' attribute at 'vip' interface.
