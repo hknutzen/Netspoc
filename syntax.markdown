@@ -185,7 +185,9 @@ here `<object set>` must expand to networks.
     <area definition> ::=
       area:<name> = {
          [ <description> ]
-         border = <object set>; | anchor = network:<name>;
+         ( [ border = <object set>; ]
+           [ inclusive_border = <object set>; ] 
+         ) | anchor = network:<name>;
          [ auto_border;    ]
          [ owner = <name>; ]
          <network NAT> *
