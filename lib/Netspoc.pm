@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.052'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.053'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -1195,6 +1195,16 @@ sub aref_eq  {
     return 0 if @$a1 ne @$a2;
     for (my $i = 0 ; $i < @$a1 ; $i++) {
         return 0 if $a1->[$i] ne $a2->[$i];
+    }
+    return 1;
+}
+
+# Compare keys of two hash references.
+sub keys_eq  {
+    my ($h1, $h2) = @_;
+    return 0 if keys %$h1 != keys %$h2;
+    for my $key (keys %$h1) {
+        return 0 if !$h2->{$key};
     }
     return 1;
 }
@@ -2599,12 +2609,21 @@ sub read_area {
     add_description($area);
     while (1) {
         last if check '}';
-        if (my @elements = check_assign_list 'border', \&read_intersection) {
+        if (my @elements = check_assign_list('border', \&read_intersection)) {
             if (grep { $_->[0] ne 'interface' || ref $_->[1] } @elements) {
                 error_atline "Must only use interface names in border";
                 @elements = ();
             }
             add_attribute($area, border => \@elements);
+        }
+        elsif (@elements = 
+            check_assign_list('inclusive_border', \&read_intersection))
+        {
+            if (grep { $_->[0] ne 'interface' || ref $_->[1] } @elements) {
+                error_atline "Must only use interface names in border";
+                @elements = ();
+            }
+            add_attribute($area, inclusive_border => \@elements);
         }
         elsif (check_flag 'auto_border') {
             $area->{auto_border} = 1;
@@ -2633,14 +2652,12 @@ sub read_area {
             syntax_err("Expected some valid attribute");
         }
     }
-    $area->{border}
-      and $area->{anchor}
-      and err_msg "Only one of attributes 'border' and 'anchor'",
-      " may be defined for $name";
-    $area->{anchor}
-      or $area->{border}
-      or err_msg "At least one of attributes 'border' and 'anchor'",
-      " must be defined for $name";
+    (($area->{border} || $area->{inclusive_border}) && $area->{anchor})
+      and err_msg("Attribute 'anchor' must not be defined together with",
+                  " 'border' or 'inclusive_border' for $name");
+    ($area->{anchor} || $area->{border} || $area->{inclusive_border})
+      or err_msg("At least one of attributes 'border', 'inclusive_border'",
+                 " or 'anchor' must be defined for $name");
     return $area;
 }
 
@@ -4047,25 +4064,28 @@ sub link_areas {
 
         }
         else {
-            $area->{border} = expand_group $area->{border}, $area->{name};
-            for my $obj (@{ $area->{border} }) {
-                if (is_interface $obj) {
-                    my $router = $obj->{router};
-                    $router->{managed}
-                      or err_msg "Referencing unmanaged $obj->{name} ",
-                      "from $area->{name}";
+            for my $attr (qw(border inclusive_border)) {
+                next if !$area->{$attr};
+                $area->{$attr} = expand_group($area->{$attr}, $area->{name});
+                for my $obj (@{ $area->{$attr} }) {
+                    if (is_interface $obj) {
+                        my $router = $obj->{router};
+                        $router->{managed}
+                          or err_msg "Referencing unmanaged $obj->{name} ",
+                          "from $area->{name}";
 
-                    # Reverse swapped main and virtual interface.
-                    if (my $main_interface = $obj->{main_interface}) {
-                        $obj = $main_interface;
+                        # Reverse swapped main and virtual interface.
+                        if (my $main_interface = $obj->{main_interface}) {
+                            $obj = $main_interface;
+                        }
                     }
-                }
-                else {
-                    err_msg
-                      "Unexpected $obj->{name} in border of $area->{name}";
+                    else {
+                        err_msg
+                            "Unexpected $obj->{name} in $attr of $area->{name}";
 
-                    # Prevent further errors.
-                    delete $area->{border};
+                        # Prevent further errors.
+                        delete $area->{$attr};
+                    }
                 }
             }
         }
@@ -4883,7 +4903,7 @@ sub mark_disabled {
             aref_delete($interface->{hardware}->{interfaces}, $interface);
         }
     }
-    for my $area (values %areas) {
+    for my $area (sort by_name values %areas) {
         if (my $anchor = $area->{anchor}) {
             if ($anchor->{disabled}) {
                 $area->{disabled} = 1;
@@ -4893,14 +4913,18 @@ sub mark_disabled {
             }
         }
         else {
-            $area->{border} =
-              [ grep { not $_->{disabled} } @{ $area->{border} } ];
-            if (@{ $area->{border} }) {
-                push @areas, $area;
+            my $ok;
+            for my $attr (qw(border inclusive_border)) {
+                my $borders = $area->{$attr} or next;
+                $area->{$attr} = [ grep { not $_->{disabled} } @$borders ];
+                if (@{ $area->{$attr} }) {
+                    $ok = 1;
+                }
+                else {
+                    $area->{disabled} = 1;
+                }
             }
-            else {
-                $area->{disabled} = 1;
-            }
+            $ok and push @areas, $area;
         }
     }
 
@@ -6987,7 +7011,7 @@ sub propagate_owners {
             and (my $owner = $area->{router_attributes}->{owner}))
         {
             $owner->{is_used} = 1;
-            for my $router (area_managed_routers($area)) {
+            for my $router (@{ $area->{managed_routers} }) {
                 if (my $r_owner = $router->{owner}) {
                     if ($r_owner eq $owner) {
                         warn_msg(
@@ -8971,42 +8995,59 @@ sub zone_eq {
 }
 
 # Collect all zones belonging to an area.
-# Set attribute {border} for areas defined by anchor and auto_border.
+# Mark zones and managed routers with areas they belong to.
+# Set attribute {border}, {inclusive_border} for areas defined 
+# by anchor and auto_border.
 sub set_area1 {
-    my ($zone, $area, $in_interface) = @_;
-    if ($zone->{areas}->{$area}) {
+    my ($obj, $area, $in_interface) = @_;
 
-        # Found a loop.
-        return;
+    # Found a loop.
+    return if $obj->{areas}->{$area};
+    
+    # This will be used to check for duplicate and overlapping areas
+    # and for loop detection.
+    $obj->{areas}->{$area} = $area;
+        
+    my $is_zone = is_zone($obj);
+
+    # Add zone and managed router to the corresponding area, to have all zones
+    # and routers of an area available.
+    if ($is_zone) {
+        push @{ $area->{zones} }, $obj;
+    }
+    elsif ($obj->{managed}) {
+        push @{ $area->{managed_routers} }, $obj;
     }
 
-    # Add zone to the corresponding area, to have all zones of an area
-    # available.
-    push @{ $area->{zones} }, $zone;
-
-    # This will be used to prevent duplicate traversal of loops and
-    # later to check for duplicate and overlapping areas.
-    $zone->{areas}->{$area} = $area;
-    my $auto_border = $area->{auto_border};
-    my $lookup      = $area->{intf_lookup};
-    for my $interface (@{ $zone->{interfaces} }) {
+    my $auto_border  = $area->{auto_border};
+    my $lookup       = $area->{intf_lookup};
+    for my $interface (@{ $obj->{interfaces} }) {
 
         # Ignore interface where we reached this area.
         next if $interface eq $in_interface;
 
-        if ($auto_border) {
-            if ($interface->{is_border}) {
-                push @{ $area->{border} }, $interface;
-                next;
-            }
-        }
-
         # Found another border of current area.
-        elsif ($lookup->{$interface}) {
+        if ($lookup->{$interface}) {
+            my $is_inclusive = $interface->{is_inclusive};
+            if ($is_inclusive->{$area} xor !$is_zone) {
+
+                # Found another border of current area from wrong side.
+                err_msg("Inconsistent definition of $area->{name} in loop at\n",
+                        " $interface->{name}. It must not be reached from",
+                        " $obj->{name}");
+            }
 
             # Remember that we have found this other border.
             $lookup->{$interface} = 'found';
             next;
+        }
+
+        elsif ($auto_border) {
+            if ($interface->{is_border}) {
+                push(@{ $area->{$is_zone ? 'border' : 'inclusive_border'} }, 
+                     $interface);
+                next;
+            }
         }
 
         # Ignore secondary or virtual interface, because we check main
@@ -9017,55 +9058,10 @@ sub set_area1 {
         # because it may still be unknown.
         next if $interface->{ip} eq 'tunnel';
 
-        my $router = $interface->{router};
-        for my $out_interface (@{ $router->{interfaces} }) {
-
-            # Ignore interface where we reached this router.
-            next if $out_interface eq $interface;
-
-            if ($auto_border) {
-                if ($out_interface->{is_border}) {
-
-                    # Take interface where we reached this router.
-                    push @{ $area->{border} }, $interface;
-                    next;
-                }
-            }
-
-            # Found another border of current area from wrong side.
-            elsif ($lookup->{$out_interface}) {
-                err_msg("Inconsistent definition of $area->{name} in loop at\n",
-                        " - $out_interface->{name}\n",
-                        " - $in_interface->{name}");
-                next;
-            }
-            set_area1($out_interface->{zone}, $area, $out_interface);
-        }
+        my $next = $interface->{$is_zone ? 'router' : 'zone'};
+        set_area1($next, $area, $interface);
     }
     return;
-}
-
-# Find managed routers _inside_ an area.
-sub area_managed_routers {
-    my ($area) = @_;
-
-    # Fill hash with all border routers of security zones
-    # including border routers of current area.
-    my %routers =
-      map {
-        my $router = $_->{router};
-        ($router => $router)
-      }
-      map { @{ $_->{interfaces} } } @{ $area->{zones} };
-
-    # Remove border routers, because we only
-    # need routers inside this area.
-    for my $interface (@{ $area->{border} }) {
-        delete $routers{ $interface->{router} };
-    }
-
-    # Remove semi_managed routers.
-    return grep { $_->{managed} } values %routers;
 }
 
 # Distribute router_attributes
@@ -9073,7 +9069,7 @@ sub inherit_router_attributes {
     my ($area) = @_;
     my $attributes = $area->{router_attributes} or return;
     $attributes->{owner} and keys %$attributes == 1 and return;
-    for my $router (area_managed_routers($area)) {
+    for my $router (@{ $area->{managed_routers} }) {
         for my $key (keys %$attributes) {
 
             # Owner is handled in propagate_owners.
@@ -9205,35 +9201,64 @@ sub set_zone {
 
     # Mark interfaces, which are border of some area.
     # This is needed to locate auto_borders.
+    # Prepare consistency check for attributes {border} and {inclusive_border}.
+    my %has_inclusive_borders;
     for my $area (@areas) {
-        next unless $area->{border};
-        for my $interface (@{ $area->{border} }) {
-            $interface->{is_border} = 1;
+        for my $attribute (qw(border inclusive_border)) {
+            my $border = $area->{$attribute} or next;
+            for my $interface (@$border) {
+                $interface->{is_border} = $area;
+                if ($attribute eq 'inclusive_border') {
+                    $interface->{is_inclusive}->{$area} = $area;
+                    my $router = $interface->{router};
+                    $has_inclusive_borders{$router} = $router;
+                }
+            }
         }
     }
+
     for my $area (@areas) {
+        $area->{zones} = [];
         if (my $network = $area->{anchor}) {
             set_area1($network->{zone}, $area, 0);
         }
-        elsif (my $interfaces = $area->{border}) {
+        else {
 
             # For efficient look up if some interface is border of
             # current area.
-            my %lookup;
-            for my $interface (@$interfaces) {
-                $lookup{$interface} = 1;
+            my $lookup = $area->{intf_lookup} = {};
+
+            my $start;
+            my $obj1;
+            for my $attr (qw(border inclusive_border)) {
+                my $borders = $area->{$attr} or next;
+                @{$lookup}{@$borders} = @$borders;
+                next if $start;
+                $start = $borders->[0];
+                $obj1 = $attr eq 'border'
+                      ? $start->{zone}
+                      : $start->{router};
             }
-            $area->{intf_lookup} = \%lookup;
-            my $start = $interfaces->[0];
-            $lookup{$start} = 'found';
-            set_area1($start->{zone}, $area, $start);
-            if (my @bad_intf = grep { $lookup{$_} ne 'found' } @$interfaces) {
-                err_msg("Invalid border of $area->{name}\n ", join "\n ",
-                        map { $_->{name} } @bad_intf);
-                $area->{border} =
-                  [ grep { $lookup{$_} eq 'found' } @$interfaces ];
+            
+            $lookup->{$start} = 'found';
+            set_area1($obj1, $area, $start);
+
+            for my $attr (qw(border inclusive_border)) {
+                my $borders = $area->{$attr} or next;
+                my @bad_intf = grep { $lookup->{$_} ne 'found' } @$borders
+                    or next;
+                err_msg("Invalid $attr of $area->{name}:\n - ", 
+                        join("\n - ", map { $_->{name} } @bad_intf));
+                $area->{$attr} =
+                    [ grep { $lookup->{$_} eq 'found' } @$borders ];
             }
         }
+
+        # We get an empty area, if inclusive borders are placed around
+        # a single router.
+        # Abort in this case, because it is useless and confusing.
+        @{ $area->{zones} } or
+            err_msg("$area->{name} is empty");
 
 #     debug("$area->{name}:\n ", join "\n ", map $_->{name}, @{$area->{zones}});
     }
@@ -9283,12 +9308,59 @@ sub set_zone {
             $seen{$small}->{$next} = 1;
         }
     }
-    for my $area (@areas) {
 
-        # Tidy up: Delete unused attribute.
+    # Check, that subset relation of areas holds not only for zones,
+    # but also for routers included by 'inclusive_border'.
+    # This is needed to get consistent inheritance with 'router_attributes'.
+
+    # 1. If router R is located inside areas A1 and A2, then A1 and A2
+    #    must be in subset relation.
+    for my $router (sort by_name values %has_inclusive_borders) {
+
+        # Find all areas having this router as inclusive_border.
+        # Sort by size, smallest first, then sort by name for
+        # equal size.
+        my @areas =  
+            sort({ @{ $a->{zones} } <=> @{ $b->{zones} } || 
+                       $a->{name} cmp $b->{name} }
+                 values %{ $router->{areas} });
+
+        # Take the smallest area.
+        my $next = shift @areas;
+
+        # Compare pairwise for subset relation.
+        while(@areas) {
+            my $small = $next;
+            $next = shift @areas;
+            my $big = $small->{subset_of} || '';
+            next if $next eq $big;
+            err_msg("$small->{name} and $next->{name} must be",
+                    " in subset relation,\n because both have",
+                    " $router->{name} as 'inclusive_border'");
+        }
+    }
+
+    # 2. If area A1 and A2 are in subset relation and A1 includes R,
+    #    then A2 also needs to include R
+    #    - either from 'inclusive_border'
+    #    - or R is surrounded by zones located inside A2.
+    for my $area (@areas) {
+        my $big = $area->{subset_of} or next;
+        for my $router (@{ $area->{managed_routers} }) {
+            next if $router->{areas}->{$big};
+            err_msg("$router->{name} must be located in $big->{name},\n",
+                    " because it is located in $area->{name}\n",
+                    " and both areas are in subset relation\n",
+                    " (use attribute 'inclusive_border')");
+        }
+    }
+
+    # Tidy up: Delete unused attributes.
+    for my $area (@areas) {
         delete $area->{intf_lookup};
         for my $interface (@{ $area->{border} }) {
             delete $interface->{is_border};
+            delete $interface->{is_inclusive};
         }
     }
     link_aggregates();
@@ -11358,7 +11430,7 @@ sub find_supernet {
     ($net1, $net2) = ($net2, $net1) if $net1->{mask} < $net2->{mask};
     while (1) {
         while ($net1->{mask} > $net2->{mask}) {
-            $net1 = $net1->{up};
+            $net1 = $net1->{up} or return;
         }
         return $net1 if $net1 eq $net2;
         $net2 = $net2->{up} or return;

@@ -879,5 +879,44 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Missing destination aggregate with loopback';
+############################################################
+
+$in = <<'END';
+network:Customer = { ip = 10.9.9.0/24; }
+
+router:r = {
+ managed;
+ model = IOS_FW;
+ routing = manual;
+ interface:Customer = { ip = 10.9.9.1; hardware = VLAN9; }
+ interface:n1 = { ip = 10.1.1.1; hardware = VLAN1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = VLAN2; }
+}
+
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:u = {
+ interface:n2;
+ interface:l = { ip = 10.2.2.2; loopback; }
+}
+
+service:test = {
+ user = any:[network:n1];
+ permit src = network:Customer; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<END;
+Warning: Missing rule for supernet rule.
+ permit src=network:Customer; dst=any:[network:n1]; prt=tcp 80; of service:test
+ can't be effective at interface:r.Customer.
+ No supernet available for network:n2, interface:u.l as dst.
+END
+
+test_err($title, $in, $out);
+
+############################################################
 
 done_testing;
