@@ -155,7 +155,8 @@ if($nat_net) {
 }
 
 # Expand group definition(s).
-my $elements = Netspoc::expand_group(\@parsed, 'print-group', 'no_combine');
+my $elements = 
+    Netspoc::expand_group_in_rule(\@parsed, 'print-group', 'no_combine');
 
 # Find unused objects by marking used objects.
 if ($show_unused) {
