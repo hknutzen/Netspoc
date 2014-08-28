@@ -4203,8 +4203,8 @@ sub check_interface_ip {
         if ($mask == 0xffffffff) {
             if (not $network->{loopback}) {
                 warn_msg("$interface->{name} has address of its network.\n",
-                         " Remove definition of $network->{name}.\n",
-                         " Add attribute 'loopback' at",
+                         " Remove definition of $network->{name} and\n",
+                         " add attribute 'loopback' at",
                          " interface definition.");
             }
         }
