@@ -4098,7 +4098,7 @@ sub link_areas {
 }
 
 # Link interfaces with networks in both directions.
-sub link_interfaces1 {
+sub link_interfaces {
     my ($router) = @_;
     for my $interface (@{ $router->{interfaces} }) {
         my $net_name = $interface->{network};
@@ -4224,7 +4224,7 @@ sub check_interface_ip {
 sub link_routers {
     for my $name (sort keys %routers) {
         my $router = $routers{$name};
-        link_interfaces1($router);
+        link_interfaces($router);
         link_policy_distribution_point($router, $router);
         link_general_permit($router, $router);
     }
