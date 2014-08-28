@@ -4512,7 +4512,7 @@ sub check_ip_addresses {
             err_msg($msg);
         }
 
-        my %ip;
+        my %ip2obj;
 
         # 1. Check for duplicate interface addresses.
         # 2. Short interfaces must not be used, if a managed interface
@@ -4535,7 +4535,7 @@ sub check_ip_addresses {
                     {
                         $route_intf = $interface;
                     }
-                    if (my $old_intf = $ip{$ip}) {
+                    if (my $old_intf = $ip2obj{$ip}) {
                         unless ($old_intf->{redundant}
                             and $interface->{redundant})
                         {
@@ -4544,7 +4544,7 @@ sub check_ip_addresses {
                         }
                     }
                     else {
-                        $ip{$ip} = $interface;
+                        $ip2obj{$ip} = $interface;
                     }
                 }
             }
@@ -4554,32 +4554,32 @@ sub check_ip_addresses {
                   " a managed $route_intf->{name} with static routing enabled.";
             }
         }
-        my %range;
+        my %range2obj;
         for my $host (@{ $network->{hosts} }) {
             if (my $ip = $host->{ip}) {
-                if (my $other_device = $ip{$ip}) {
+                if (my $other_device = $ip2obj{$ip}) {
                     err_msg "Duplicate IP address for $other_device->{name}",
                       " and $host->{name}";
                 }
                 else {
-                    $ip{$ip} = $host;
+                    $ip2obj{$ip} = $host;
                 }
             }
             elsif (my $range = $host->{range}) {
                 my ($from, $to) = @$range;
-                if (my $other_device = $range{$from}->{$to}) {
+                if (my $other_device = $range2obj{$from}->{$to}) {
                     err_msg "Duplicate IP range for $other_device->{name}",
                       " and $host->{name}";
                 }
                 else {
-                    $range{$from}->{$to} = $host;
+                    $range2obj{$from}->{$to} = $host;
                 }
             }
         }
         for my $host (@{ $network->{hosts} }) {
             if (my $range = $host->{range}) {
                 for (my $ip = $range->[0] ; $ip <= $range->[1] ; $ip++) {
-                    if (my $other_device = $ip{$ip}) {
+                    if (my $other_device = $ip2obj{$ip}) {
                         is_host($other_device)
                           or err_msg("Duplicate IP address for",
                                      " $other_device->{name}",

@@ -49,4 +49,87 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Duplicate host ranges';
+############################################################
+
+$in = <<END;
+
+network:n = {
+ ip = 10.1.1.0/24;
+ host:a = { range = 10.1.1.15-10.1.1.19; }
+ host:b = { range = 10.1.1.15-10.1.1.19; }
+}
+
+END
+
+$out = <<END;
+Error: Duplicate IP range for host:a and host:b
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Host range and interface IP overlap';
+############################################################
+
+$in = <<END;
+
+network:n = {
+ ip = 10.1.1.0/24;
+ host:a = { range = 10.1.1.1-10.1.1.19; }
+}
+
+router:r = {
+ interface:n = { ip = 10.1.1.1; }
+}
+END
+
+$out = <<END;
+Error: Duplicate IP address for interface:r.n and host:a
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Duplicate host and interface IP';
+############################################################
+
+$in = <<END;
+
+network:n = {
+ ip = 10.1.1.0/24;
+ host:a = { ip = 10.1.1.1; }
+}
+
+router:r = {
+ interface:n = { ip = 10.1.1.1; }
+}
+END
+
+$out = <<END;
+Error: Duplicate IP address for interface:r.n and host:a
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Duplicate host IPs';
+############################################################
+
+$in = <<END;
+
+network:n = {
+ ip = 10.1.1.0/24;
+ host:a = { ip = 10.1.1.1; }
+ host:b = { ip = 10.1.1.1; }
+}
+END
+
+$out = <<END;
+Error: Duplicate IP address for host:a and host:b
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;
