@@ -9,6 +9,68 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'Network connected to loopback interface';
+############################################################
+
+$in = <<'END';
+router:r = {
+ interface:l = { ip = 10.1.1.2; loopback; }
+}
+
+network:l = { ip = 10.1.1.2/32; }
+END
+
+$out =  <<"END";
+Error: network:l isn\'t connected to any router
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Network with /32 mask should be loopback';
+############################################################
+
+$in = <<'END';
+router:r = {
+ interface:l = { ip = 10.1.1.2; }
+}
+
+network:l = { ip = 10.1.1.2/32; }
+END
+
+$out = <<'END';
+Warning: interface:r.l has address of its network.
+ Remove definition of network:l and
+ add attribute 'loopback' at interface definition.
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Loopback is subnet';
+############################################################
+
+$in = <<'END';
+network:n = {
+ ip = 10.1.1.0/24;
+}
+
+router:r = {
+ interface:n = { ip = 10.1.1.1; }
+ interface:l = { ip = 10.1.1.2; loopback; subnet_of = network:n; }
+ interface:m = { ip = 10.1.1.3; loopback; }
+}
+END
+
+$out = <<'END';
+Warning: interface:r.m is subnet of network:n
+ in nat_domain:n.
+ If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Dynamic NAT to multiple virtual loopback interfaces (secondary)';
 ############################################################
 
