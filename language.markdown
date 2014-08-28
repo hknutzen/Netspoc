@@ -173,7 +173,8 @@ A network has an IP address with prefix length.
 It contains any number of host definitions.
 
 Alternatively a network can be unnumbered.
-Unnumbered networks must have no host definitions at all.
+An unnumbered network must have no host definitions at all.
+It must be connected to at most two interfaces which all must be unnumbered.
 An unnumbered network must not be used in rules.
 
 ## Hosts
