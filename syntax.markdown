@@ -133,7 +133,7 @@ where `<global permit>` is used at most once.
     <interface definition> ::= 
       interface:<name>[/<bridge-part>] = {
          [ <description> ]
-         ip = ( <ip>(, <ip>)* | unnumbered | negotiated );
+         [ ip = ( <ip>(, <ip>)* | unnumbered | negotiated ); ]
          <secondary interface definition> *
          [ <virtual interface definition>       ]
          <host NAT> *
