@@ -4304,9 +4304,11 @@ my @pathrestrictions;
 sub add_pathrestriction {
     my ($name, $elements) = @_;
     my $restrict = new('Pathrestriction', name => $name, elements => $elements);
-    for my $element (@$elements) {
-#        debug("pathrestriction $name at $element->{name}");
-        push @{ $element->{path_restrict} }, $restrict;
+    for my $interface (@$elements) {
+#        debug("pathrestriction $name at $interface->{name}");
+        push @{ $interface->{path_restrict} }, $restrict;
+        my $router = $interface->{router};
+        $router->{managed} or $router->{semi_managed} = 1;
     }
     push @pathrestrictions, $restrict;
     return;
@@ -4491,10 +4493,6 @@ sub link_virtual_interfaces  {
             if (grep { $_->{router}->{managed} } @$interfaces) {
                 my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
                 add_pathrestriction($name, $interfaces);
-                for my $interface (@$interfaces) {
-                    my $router = $interface->{router};
-                    $router->{managed} or $router->{semi_managed} = 1;
-                }
             }
         }
     }
