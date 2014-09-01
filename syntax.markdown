@@ -206,7 +206,7 @@ where `<network NAT>` must be hidden or dynamic.
 ##Set of objects
 
     <object set>   ::= <intersection> | <object set>,<intersection>
-    <intersection> ::= <network object> | <intersection>&<complement>
+    <intersection> ::= <network object> | <intersection>&<complement> | <complement>&<intersection>
     <complement>   ::= <network object> | !<network object>
 
     <network object> ::=
