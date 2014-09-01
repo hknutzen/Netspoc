@@ -377,11 +377,11 @@ interfaces which are located *inside* area:x.
 
 - `host:[network:x]` results in all host defined inside network:x.
 
-- ` network `, ` any `, `interface` or `host`
+- `network:[...]`, `any:[...]`, `interface:[...]` or `host:[...]`
   applied to a set of objects is equivalent to applying these to
-the single elements and taking the union of results. E.g. `
-network:[host:a, host:b] ` is equivalent to ` network:[host:a],
-network:[host:b] `.
+  the single elements and taking the union of results. E.g.
+  `network:[host:a, host:b]` is equivalent to 
+  `network:[host:a], network:[host:b]`.
 
 - Auto interfaces, i.e. with selector \[auto\] must only be
   used at top-level and not as inner object of other automatic
