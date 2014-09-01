@@ -423,10 +423,10 @@ Use attribute `anchor` without `auto_border` to
 define an area which stretches across the whole topology.
 
 An area must be defined by using either attribute `anchor` or one or
-both of attributes `border` and 'inclusive_border`.
+both of attributes `border` and `inclusive_border`.
 
 Only interfaces of managed routers must be given as `border` or
-'inclusive_border`.
+`inclusive_border`.
 
 `network:[area:X]` denotes the group of all networks inside area X.
 Use `any:[area:X]` to get the group of all security zones inside area X.
