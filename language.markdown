@@ -356,8 +356,8 @@ zone any:x.
 area:x.
 
 - `any:[interface:x.y], any:[host:x], any:[network:x],
-any:[any:x]` takes the security zone wherein the inner object is
-located.
+  any:[any:x]` takes the security zone wherein the inner object is
+  located.
 
 - `any:[area:x]` takes all security zone located
 inside area:x.
@@ -369,10 +369,10 @@ inside area:x.
   equivalent to `interface:x.<selector>`.
 
 - `interface:[any:x].[all]` takes all border interfaces of security
-zone any:x.
+  zone any:x.
 
 - `interface:[area:x].[<selector>]` results in
-interfaces which are located *inside* area:x.  
+  interfaces which are located *inside* area:x.  
   Note: Border interfaces are left out.
 
 - `host:[network:x]` results in all host defined inside network:x.
@@ -383,11 +383,10 @@ interfaces which are located *inside* area:x.
   `network:[host:a, host:b]` is equivalent to 
   `network:[host:a], network:[host:b]`.
 
-- Auto interfaces, i.e. with selector \[auto\] must only be
+- Auto interfaces, i.e. with selector `[auto]` must only be
   used at top-level and not as inner object of other automatic
-  groups. There is one exception from this rule: `
-  interface:[interface:x.[auto]].[auto] ` is
-  allowed.
+  groups. There is one exception from this rule: 
+  `interface:[interface:x.[auto]].[auto]` is allowed.
 
 
 ##Groups of protocols
