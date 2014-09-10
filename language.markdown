@@ -488,7 +488,7 @@ host:extern_www and host:extern_mail are visible with addresses
     network:extern = {
      ip = 128.1.2.0/24;
      # static NAT definition
-     nat:bad128 = { ip = 10.7.128.0; }
+     nat:bad128 = { ip = 10.7.128.0/24; }
      host:extern_www = { ip = 128.1.2.10; }
      host:extern_mail = { ip = 128.1.2.25; }
     }
