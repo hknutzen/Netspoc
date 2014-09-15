@@ -7413,7 +7413,6 @@ sub distribute_no_nat_set {
     # Distribute no_nat_set to adjacent NAT domains.
     for my $router (@{ $domain->{routers} }) {
         next if $router eq $in_router;
-        next if $router->{active_path};
 
 #        debug "BEG $router->{name}";
         my $in_nat_tags = $router->{nat_tags}->{$domain};
@@ -7545,9 +7544,7 @@ sub distribute_no_nat_set {
             distribute_no_nat_set($out_dom, \%next_no_nat_set, $router,
                                   $nat_bound);
         }
-        $router->{active_path} = 1;
 #        debug "END $router->{name}";
-        delete $router->{active_path};
     }
     delete $domain->{active_path};
     return;
