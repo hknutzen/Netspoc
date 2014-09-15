@@ -7676,6 +7676,17 @@ sub distribute_nat_info {
         distribute_no_nat_set($domain, $no_nat_set{$domain}, 0, \%nat_bound);
     }
 
+    # Cleanup nat_tags with undefined values from no_nat_set.
+    # export.pl of NetspocWeb is confused otherwise.
+    for my $domain (@natdomains) {
+        my $no_nat_set = $domain->{no_nat_set};
+        for my $nat_tag (keys %$no_nat_set) {
+            if(!$no_nat_set->{$nat_tag}) {
+                delete $no_nat_set->{$nat_tag};
+            }
+        }
+    }    
+
     for my $tag (keys %nat_tags2multi) {
         $nat_bound{$tag}
           or warn_msg("nat:$tag is defined, but not bound to any interface");
