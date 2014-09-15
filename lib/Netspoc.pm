@@ -7458,7 +7458,7 @@ sub distribute_no_nat_set {
 
             # Multiple tags are bound to an interface.
             # If a network has multiple matching NAT tags, 
-            # the resulting NAT mapping would be ambigous.
+            # the resulting NAT mapping would be ambiguous.
             if (@$nat_tags >= 2) {
 
                 # Collect NAT mapping having multiple NAT for a network.
