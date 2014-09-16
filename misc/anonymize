@@ -395,7 +395,7 @@ sub subst_hw {
     $name =~ s/\s*$//;
     my ($root, $ext) = $name =~ m/^(.*?)([\d\/:]*)$/ or 
         fatal_err("Unexpected hardware: $name");
-    return $known_hw{lc $root} ? $name : "dmz$ext";
+    return $known_hw{lc $root} ? $name : random($root) . $ext;
 }
 
 sub del_char {
