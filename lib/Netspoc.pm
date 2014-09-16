@@ -882,10 +882,10 @@ sub read_typed_name {
 {
 
     # user@domain or @domain
-    my $domain_regex   = qr/@(?:[\w-]+\.)+[\w-]+/;
+    my $domain_regex   = qr/(?:[\w-]+\.)+[\w-]+/;
     my $user_regex     = qr/[\w-]+(?:\.[\w-]+)*/;
-    my $user_id_regex  = qr/$user_regex$domain_regex/;
-    my $id_regex       = qr/$user_id_regex|$domain_regex/;
+    my $user_id_regex  = qr/$user_regex[@]$domain_regex/;
+    my $id_regex       = qr/$user_id_regex|[@]?$domain_regex/;
     my $hostname_regex = qr/(?: id:$id_regex | [\w-]+ )/x;
     my $network_regex  = qr/(?: [\w-]+ (?: \/ [\w-]+ )? )/x;
 
@@ -900,7 +900,8 @@ sub read_typed_name {
 # or host:[managed & xxx:xxx, ...]
 # or any:[ ip = n.n.n.n/len & xxx:xxx, ...]
 # or network:xxx/ppp
-# or host:id:user@domain.network
+# or host:id:[user]@domain.network
+# or host:id:domain.network
 #
     sub read_extended_name {
 
@@ -1583,6 +1584,7 @@ sub read_network {
         }
         elsif (my $host_name = check_hostname()) {
             my $host = read_host("host:$host_name", $net_name);
+            $host->{network} = $network;
             if (is_host($host)) {
                 push @{ $network->{hosts} }, $host;
                 $host_name = (split_typed_name($host->{name}))[1];
@@ -1590,7 +1592,6 @@ sub read_network {
 
             # Managed host is stored as interface internally.
             elsif (is_interface($host)) {
-                $host->{network} = $network;
                 push @{ $network->{interfaces} }, $host;
                 check_interface_ip($host, $network);
 
@@ -1601,8 +1602,12 @@ sub read_network {
                 internal_err;
             }
             if (my $other = $hosts{$host_name}) {
-                err_msg("Duplicate definition of host:$host_name in",
-                " $current_file and $other->{network}->{file}");
+                my $where = $current_file;
+                my $other_net = $other->{network};
+                if ($other_net ne $network) {
+                    $where .= " $other_net->{file}";
+                }
+                err_msg("Duplicate definition of host:$host_name in $where");
             }
             $hosts{$host_name} = $host;
         }
@@ -1659,9 +1664,6 @@ sub read_network {
     else {
         my $mask = $network->{mask};
         for my $host (@{ $network->{hosts} }) {
-
-            # Link host with network.
-            $host->{network} = $network;
 
             # Check compatibility of host IP and network IP/mask.
             if (my $host_ip = $host->{ip}) {
@@ -5120,8 +5122,8 @@ sub convert_hosts {
                     $subnet->{owner}   = $owner   if $owner;
                     if ($id) {
                         if ($mask == 0xffffffff) {
-                            if (my ($name, $dom) = ($id =~ /^(.*?)(\@.*)$/)) {
-                                $name
+                            if (my ($user, $dom) = ($id =~ /^(.*?)(\@.*)$/)) {
+                                $user
                                     or err_msg("ID of $name must not start", 
                                                " with character '\@'");
                             }
@@ -5131,9 +5133,10 @@ sub convert_hosts {
                             }
                         }
                         else {
-                            $id =~ /^\@/
-                                or err_msg("ID of $name must start",
-                                           " with character '\@'");
+                            $id =~ /^.+\@/
+                                and err_msg("ID of $name must start",
+                                            " with character '\@'",
+                                            " or have no '\@' at all");
                         }
                         $subnet->{id} = $id;
                         $subnet->{radius_attributes} =
@@ -11073,6 +11076,7 @@ my %asa_vpn_attributes = (
 
     # group-policy attributes
     banner                    => {},
+    'check-subject-name'      => {},
     'dns-server'              => {},
     'default-domain'          => {},
     'split-dns'               => {},
@@ -11117,6 +11121,30 @@ sub verify_asa_vpn_attributes {
         }
     }    
     return;
+}
+
+# Host with ID that doesn't contain a '@' must use attribute 'verify-subject-name'.
+sub verify_subject_name {
+    my ($host, $peers) = @_;
+    my $id = $host->{id};
+    return if $id =~ /@/;
+    my $has_attr = sub {
+        my ($obj) = @_;
+        my $attributes = $obj->{radius_attributes};
+        return ($attributes && $attributes->{'check-subject-name'});
+    };
+    return if $has_attr->($host);
+    return if $has_attr->($host->{network});
+    my $missing;
+    for my $peer (@$peers) {
+        next if $has_attr->($peer->{router});
+        $missing = 1;
+    }
+    if ($missing) {
+        err_msg("Missing radius_attribute 'check-subject-name'\n",
+                " for $host->{name}");
+    }
+
 }
 
 sub verify_asa_trustpoint {
@@ -11255,6 +11283,9 @@ sub expand_crypto  {
                 {
                     for my $obj (@verify_radius_attributes) {
                         verify_asa_vpn_attributes($obj);
+                        if (is_host($obj)) {
+                            verify_subject_name($obj, $peers);
+                        }
                     }
                 }
 
@@ -17324,9 +17355,13 @@ EOF
                     my $mask = print_ip $src->{mask};
                     my $max =
                       print_ip($src->{ip} | complement_32bit $src->{mask});
+                    my $subject_name = delete $attributes->{'check-subject-name'};
+                    if ($id =~ /^@/) {
+                        $subject_name = 'ea';
+                    }
                     my $map_name = "ca-map-$user_counter";
                     print "crypto ca certificate map $map_name 10\n";
-                    print " subject-name attr ea co $id\n";
+                    print " subject-name attr $subject_name co $id\n";
                     print "ip local pool $pool_name $ip-$max mask $mask\n";
                     $attributes->{'vpn-filter'}    = $filter_name;
                     $attributes->{'address-pools'} = $pool_name;
