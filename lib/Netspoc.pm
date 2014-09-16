@@ -3397,10 +3397,9 @@ sub read_file_or_dir {
         return;
     }
 
-    # Recursively handle non toplevel files and directories.
-    # No special handling for "config", "raw" and "*.private".
+    # Recursively read files and directories.
     my $read_nested_files;
-    $read_nested_files = sub {
+    my $read_nested_files0 = sub {
         my ($path, $read_syntax) = @_;
         if (-d $path) {
             opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
@@ -3417,8 +3416,25 @@ sub read_file_or_dir {
         }
     };
 
+    # Special handling for "*.private".
+    $read_nested_files = sub {
+        my ($path, $read_syntax) = @_;
+
+        # Handle private directories and files.
+        if (my ($name) = ($path =~ m'([^/]*)\.private$')) {
+            if ($private) {
+                err_msg("Nested private context is not supported:\n $path");
+            }
+            local $private = $name;
+            $read_nested_files0->($path, $read_syntax);
+        }
+        else {
+            $read_nested_files0->($path, $read_syntax);
+        }
+    };
+
     # Handle toplevel directory.
-    # Special handling for "config", "raw", "JSON" and "*.private".
+    # Special handling for "config", "raw" and "JSON".
     opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
     my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
     closedir $dh;
@@ -3441,17 +3457,7 @@ sub read_file_or_dir {
         next if $file =~ /^(config|raw|JSON)$/;
 
         my $path = "$path/$file";
-
-        # Handle private directories and files.
-        if ($file =~ m'([^/]*)\.private$') {
-            local $private = $1;
-            $read_nested_files->($path, $read_syntax);
-        }
-
-        # Handle standard directories and files.
-        else {
-            $read_nested_files->($path, $read_syntax);
-        }
+        $read_nested_files->($path, $read_syntax);
     }
     if (keys %$from_json) {
         read_json("$path/JSON");
