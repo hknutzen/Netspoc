@@ -86,6 +86,7 @@ sub random2 {
 }
 
 my %subst;
+my %seen;
 
 my %global_type = (
 		   router          => \%routers         ,
@@ -110,16 +111,21 @@ sub setup_subst {
 	for my $obj (values %$table) {
 	    my $name = $obj->{name};
 	    $name =~ s/^.*://;
+            while (1) {
 
-	    # Leave first two characters of service name unchanged,
-	    # because sort order influences processing order.
-	    # Processing order needs to be unchanged for attribute 'overlaps'.
-	    my $renamed = $type eq 'service'
-                        ? random2($name) 
-                        : $name =~ /^(?:TCP|UDP|IP|ICMP)(?:[-_\d]*|_ALL)$/
-                        ? $name
-                        : random($name);
-	    $subst{$type}->{$name} = $renamed;
+                # Leave first two characters of service name
+                # unchanged, because sort order influences processing
+                # order. Processing order needs to be unchanged for
+                # attribute 'overlaps'.
+                my $renamed = $type eq 'service'
+                            ? random2($name) 
+                            : $name =~ /^(?:TCP|UDP|IP|ICMP)(?:[-_\d]*|_ALL)$/
+                            ? $name
+                            : random($name);
+                next if $seen{$type}->{$renamed};
+                $subst{$type}->{$name} = $renamed;
+                last;
+            }
 	}
     }
 
