@@ -98,7 +98,6 @@ my %global_type = (
 		   protocolgroup   => \%protocolgroups  ,
 		   service         => \%services        ,
 		   pathrestriction => \%pathrestrictions,
-		   nat             => \%global_nat      ,
 		   isakmp          => \%isakmp          ,
 		   ipsec           => \%ipsec           ,
 		   crypto          => \%crypto          ,
@@ -161,7 +160,7 @@ my %ipsubst;
 # - value ist leerer Hash: Wert von Key ist irgendwo in Benutzung
 #   Wert von key darf nicht neu vergeben werden
 # - value hat Attribut 'new'
-#   - Wert von 'new' == key: Wert bleibt beim anonymisieren unverändert
+#   - Wert von 'new' == key: Wert bleibt beim Anonymisieren unverändert
 #     darf nicht neu vergeben werden
 #   - Wert von 'new' != key: Wert wird beim Anonymisieren umgesetzt
 #     Wert von Key darf neu vergeben werden
@@ -176,6 +175,7 @@ sub setup_ip {
 
     # Sort networks by size of mask, i.e. large subnets coming first.
     for my $network ( sort { $a->{mask} <=> $b->{mask} } 
+                      grep { !$_->{hidden} }
 		      map { $_, values %{ $_->{nat} } }
 		      grep { $_->{ip} !~ /^(?:unnumbered|tunnel)/ }
 		      values %networks) 
@@ -195,7 +195,7 @@ sub setup_ip {
 		    for my $x ($i .. $i+$range) {
 			$map->{$x}->{new} = $x;
 			my $pip = print_ip($ip);
-			Netspoc::debug "Fixed $x at $shift in $pip";
+			Netspoc::debug "Freezed $x at $shift in $pip";
 		    }
 		}
 		last;
@@ -400,7 +400,7 @@ sub process {
 	$line =~ s/(\#.*)/ del_char($1) /gex;
 
 	# Rename type:name
-	$line =~ s/([a-z]+):([-\w.\@:]+)/ "$1:" . subst($1, $2) /gex;
+	$line =~ s/([a-z]+):([-\w.\@:\/]+)/ "$1:" . subst($1, $2) /gex;
 	# Rename nat = name
 	$line =~ s/(bind_nat\s*=\s*)([^;]+)/ 
              $1 . subst_list('nat', $2) /gex;
