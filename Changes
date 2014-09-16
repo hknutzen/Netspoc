@@ -1,5 +1,20 @@
 {{$NEXT}}
 
+3.054     2014-09-16 18:48:58 Europe/Berlin
+
+ - Extended valid names and handling of ID hosts. 
+   Previously, the name needed to contain a '@' and 
+   was always checked against the 'ea' field of the certificate.
+   Now a name without '@' is also valid. It is checked against some 
+   other subject-name of the certificate.
+   Use the new attribute 'check-subject-name' inside 'radius_attributes' 
+   to configure the to be checked subject-name.
+ - No longer ignore private configuration contexts (*.private) in subdirectories.
+   But nested private configuration contexts are still rejected.
+ - Fixed NAT data for export to NetspocWeb
+   by removing needless entries from no_nat_set.
+ - Fixed command "print-group". It works for hosts again.
+
 3.053     2014-08-18 17:48:33 Europe/Berlin
 
  - Added new attribute 'inclusive_border'.  
