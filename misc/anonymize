@@ -123,6 +123,7 @@ sub setup_subst {
                             ? $name
                             : random($name);
                 next if $seen{$type}->{$renamed};
+                $seen{$type}->{$renamed} = 1;
                 $subst{$type}->{$name} = $renamed;
                 last;
             }
