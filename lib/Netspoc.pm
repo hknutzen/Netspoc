@@ -7408,7 +7408,7 @@ sub distribute_no_nat_set {
     # conditions.
 
     # Activate loop detection.
-    $domain->{active_path} = 1;
+    local $domain->{active_path} = 1;
 
     # Distribute no_nat_set to adjacent NAT domains.
     for my $router (@{ $domain->{routers} }) {
@@ -7546,7 +7546,6 @@ sub distribute_no_nat_set {
         }
 #        debug "END $router->{name}";
     }
-    delete $domain->{active_path};
     return;
 }
 
@@ -8952,7 +8951,6 @@ sub set_zone1 {
                 next if $out_interface->{disabled};
                 set_zone1($out_interface->{network}, $zone, $out_interface);
             }
-            delete $router->{active_path};
         }
     }
     return;
@@ -8975,7 +8973,7 @@ sub set_zone_cluster {
         my $router = $interface->{router};
         next if $router->{managed};
         next if $router->{active_path};
-        $router->{active_path} = 1;
+        local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $interface;
             my $next = $out_interface->{zone};
@@ -8989,7 +8987,6 @@ sub set_zone_cluster {
                         " - $next->{name}: $private2");
             set_zone_cluster($next, $out_interface, $zone_aref);
         }
-        delete $router->{active_path};
     }
     return;
 }
@@ -9511,7 +9508,7 @@ sub traverse_loop_part {
     my ($obj, $in_interface, $mark, $seen) = @_;
     return if $obj->{reachable_part}->{$mark};
     return if $obj->{active_path};
-    $obj->{active_path} = 1;
+    local $obj->{active_path} = 1;
 
     # Mark $obj as member of partition.
     $obj->{reachable_part}->{$mark} = 1;
@@ -9530,7 +9527,6 @@ sub traverse_loop_part {
             traverse_loop_part($next, $interface, $mark, $seen);
         }
     }
-    $obj->{active_path} = 0;
     return;
 }
 
@@ -9676,7 +9672,7 @@ sub setpath_obj {
     }
 
     # Mark current path for loop detection.
-    $obj->{active_path} = 1;
+    local $obj->{active_path} = 1;
     $obj->{distance}    = $distance;
 
     my $get_next = is_router($obj) ? 'zone' : 'router';
@@ -9729,7 +9725,6 @@ sub setpath_obj {
             $interface->{main} = $obj;
         }
     }
-    delete $obj->{active_path};
     if ($obj->{loop} and $obj->{loop}->{exit} ne $obj) {
         return $obj->{loop};
 
@@ -9996,7 +9991,7 @@ sub cluster_path_mark1 {
     }
 
     # Mark current path for loop detection.
-    $obj->{active_path} = 1;
+    local $obj->{active_path} = 1;
 #    debug "activated $obj->{name}";
 
     # Mark first occurrence of path restriction.
@@ -10040,7 +10035,6 @@ sub cluster_path_mark1 {
             $success = 1;
         }
     }
-    delete $obj->{active_path};
 #    debug "deactivated $obj->{name}";
     if ($pathrestriction) {
         for my $restrict (@$pathrestriction) {
@@ -10306,7 +10300,7 @@ sub cluster_path_mark  {
 #	Dumpvalue->new->dumpValue($navi);
 
         # Mark current path for loop detection.
-        $from->{active_path} = 1;
+        local $from->{active_path} = 1;
         my $get_next = is_router($from) ? 'zone' : 'router';
         my $allowed = $navi->{ $from->{loop} }
           or internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
@@ -10343,7 +10337,6 @@ sub cluster_path_mark  {
 #               debug(" enter: $from->{name} -> $interface->{name}");
             }
         }
-        delete $from->{active_path};
 
         # Don't store incomplete result.
         last BLOCK if not $success;
@@ -12169,14 +12162,13 @@ sub mark_stateful {
                   && $router->{managed} !~ /^(?:secondary|local.*)$/;
         }
         next if $router->{active_path};
-        $router->{active_path} = 1;
+        local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{stateful_mark};
             mark_stateful($next_zone, $mark);
         }
-        delete $router->{active_path};
     }
     return;
 }
@@ -12393,14 +12385,13 @@ sub mark_secondary  {
             next if $managed !~ /^(?:secondary|local.*)$/;
         }
         next if $router->{active_path};
-        $router->{active_path} = 1;
+        local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{secondary_mark};
             mark_secondary $next_zone, $mark;
         }
-        delete $router->{active_path};
     }
     return;
 }
@@ -12420,14 +12411,13 @@ sub mark_primary  {
             next if $managed eq 'primary';
         }
         next if $router->{active_path};
-        $router->{active_path} = 1;
+        local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{primary_mark};
             mark_primary $next_zone, $mark;
         }
-        delete $router->{active_path};
     }
     return;
 }
@@ -12448,14 +12438,13 @@ sub mark_strict_secondary  {
             next if $router->{strict_secondary};
         }
         next if $router->{active_path};
-        $router->{active_path} = 1;
+        local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{strict_secondary_mark};
             mark_strict_secondary($next_zone, $mark);
         }
-        delete $router->{active_path};
     }
     return;
 }
@@ -12475,14 +12464,13 @@ sub mark_local_secondary  {
             next if $managed ne 'local_secondary';
         }
         next if $router->{active_path};
-        $router->{active_path} = 1;
+        local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{local_secondary_mark};
             mark_local_secondary($next_zone, $mark);
         }
-        delete $router->{active_path};
     }
     return;
 }
@@ -13067,7 +13055,7 @@ sub set_routes_in_zone  {
     $set_cluster = sub {
         my ($router, $in_intf, $cluster) = @_;
         return if $router->{active_path};
-        $router->{active_path} = 1;
+        local $router->{active_path} = 1;
         for my $interface (@{ $router->{interfaces} }) {
             next if $interface->{main_interface};
             if ($hop_interfaces{$interface}) {
@@ -13086,7 +13074,6 @@ sub set_routes_in_zone  {
                 $set_cluster->($out_intf->{router}, $out_intf, $cluster);
             }
         }
-        delete $router->{active_path};
     };
     for my $interface (values %hop_interfaces) {
         next if $hop2cluster{$interface};
