@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.053'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.054'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -882,10 +882,10 @@ sub read_typed_name {
 {
 
     # user@domain or @domain
-    my $domain_regex   = qr/@(?:[\w-]+\.)+[\w-]+/;
+    my $domain_regex   = qr/(?:[\w-]+\.)+[\w-]+/;
     my $user_regex     = qr/[\w-]+(?:\.[\w-]+)*/;
-    my $user_id_regex  = qr/$user_regex$domain_regex/;
-    my $id_regex       = qr/$user_id_regex|$domain_regex/;
+    my $user_id_regex  = qr/$user_regex[@]$domain_regex/;
+    my $id_regex       = qr/$user_id_regex|[@]?$domain_regex/;
     my $hostname_regex = qr/(?: id:$id_regex | [\w-]+ )/x;
     my $network_regex  = qr/(?: [\w-]+ (?: \/ [\w-]+ )? )/x;
 
@@ -900,7 +900,8 @@ sub read_typed_name {
 # or host:[managed & xxx:xxx, ...]
 # or any:[ ip = n.n.n.n/len & xxx:xxx, ...]
 # or network:xxx/ppp
-# or host:id:user@domain.network
+# or host:id:[user]@domain.network
+# or host:id:domain.network
 #
     sub read_extended_name {
 
@@ -1583,6 +1584,7 @@ sub read_network {
         }
         elsif (my $host_name = check_hostname()) {
             my $host = read_host("host:$host_name", $net_name);
+            $host->{network} = $network;
             if (is_host($host)) {
                 push @{ $network->{hosts} }, $host;
                 $host_name = (split_typed_name($host->{name}))[1];
@@ -1590,7 +1592,6 @@ sub read_network {
 
             # Managed host is stored as interface internally.
             elsif (is_interface($host)) {
-                $host->{network} = $network;
                 push @{ $network->{interfaces} }, $host;
                 check_interface_ip($host, $network);
 
@@ -1601,8 +1602,12 @@ sub read_network {
                 internal_err;
             }
             if (my $other = $hosts{$host_name}) {
-                err_msg("Duplicate definition of host:$host_name in",
-                " $current_file and $other->{network}->{file}");
+                my $where = $current_file;
+                my $other_net = $other->{network};
+                if ($other_net ne $network) {
+                    $where .= " $other_net->{file}";
+                }
+                err_msg("Duplicate definition of host:$host_name in $where");
             }
             $hosts{$host_name} = $host;
         }
@@ -1659,9 +1664,6 @@ sub read_network {
     else {
         my $mask = $network->{mask};
         for my $host (@{ $network->{hosts} }) {
-
-            # Link host with network.
-            $host->{network} = $network;
 
             # Check compatibility of host IP and network IP/mask.
             if (my $host_ip = $host->{ip}) {
@@ -1925,6 +1927,9 @@ sub read_interface {
         }
     }
 
+    # Interface at bridged network 
+    # - without IP is interface of bride,
+    # - with IP is interface of router.
     if ($name =~ m,/,) {
         $interface->{ip} ||= 'bridged';
     }
@@ -3394,10 +3399,9 @@ sub read_file_or_dir {
         return;
     }
 
-    # Recursively handle non toplevel files and directories.
-    # No special handling for "config", "raw" and "*.private".
+    # Recursively read files and directories.
     my $read_nested_files;
-    $read_nested_files = sub {
+    my $read_nested_files0 = sub {
         my ($path, $read_syntax) = @_;
         if (-d $path) {
             opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
@@ -3414,8 +3418,25 @@ sub read_file_or_dir {
         }
     };
 
+    # Special handling for "*.private".
+    $read_nested_files = sub {
+        my ($path, $read_syntax) = @_;
+
+        # Handle private directories and files.
+        if (my ($name) = ($path =~ m'([^/]*)\.private$')) {
+            if ($private) {
+                err_msg("Nested private context is not supported:\n $path");
+            }
+            local $private = $name;
+            $read_nested_files0->($path, $read_syntax);
+        }
+        else {
+            $read_nested_files0->($path, $read_syntax);
+        }
+    };
+
     # Handle toplevel directory.
-    # Special handling for "config", "raw", "JSON" and "*.private".
+    # Special handling for "config", "raw" and "JSON".
     opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
     my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
     closedir $dh;
@@ -3438,17 +3459,7 @@ sub read_file_or_dir {
         next if $file =~ /^(config|raw|JSON)$/;
 
         my $path = "$path/$file";
-
-        # Handle private directories and files.
-        if ($file =~ m'([^/]*)\.private$') {
-            local $private = $1;
-            $read_nested_files->($path, $read_syntax);
-        }
-
-        # Handle standard directories and files.
-        else {
-            $read_nested_files->($path, $read_syntax);
-        }
+        $read_nested_files->($path, $read_syntax);
     }
     if (keys %$from_json) {
         read_json("$path/JSON");
@@ -4098,7 +4109,7 @@ sub link_areas {
 }
 
 # Link interfaces with networks in both directions.
-sub link_interfaces1 {
+sub link_interfaces {
     my ($router) = @_;
     for my $interface (@{ $router->{interfaces} }) {
         my $net_name = $interface->{network};
@@ -4200,8 +4211,8 @@ sub check_interface_ip {
         if ($mask == 0xffffffff) {
             if (not $network->{loopback}) {
                 warn_msg("$interface->{name} has address of its network.\n",
-                         " Remove definition of $network->{name}.\n",
-                         " Add attribute 'loopback' at",
+                         " Remove definition of $network->{name} and\n",
+                         " add attribute 'loopback' at",
                          " interface definition.");
             }
         }
@@ -4224,7 +4235,7 @@ sub check_interface_ip {
 sub link_routers {
     for my $name (sort keys %routers) {
         my $router = $routers{$name};
-        link_interfaces1($router);
+        link_interfaces($router);
         link_policy_distribution_point($router, $router);
         link_general_permit($router, $router);
     }
@@ -4301,9 +4312,11 @@ my @pathrestrictions;
 sub add_pathrestriction {
     my ($name, $elements) = @_;
     my $restrict = new('Pathrestriction', name => $name, elements => $elements);
-    for my $element (@$elements) {
-#        debug("pathrestriction $name at $element->{name}");
-        push @{ $element->{path_restrict} }, $restrict;
+    for my $interface (@$elements) {
+#        debug("pathrestriction $name at $interface->{name}");
+        push @{ $interface->{path_restrict} }, $restrict;
+        my $router = $interface->{router};
+        $router->{managed} or $router->{semi_managed} = 1;
     }
     push @pathrestrictions, $restrict;
     return;
@@ -4488,10 +4501,6 @@ sub link_virtual_interfaces  {
             if (grep { $_->{router}->{managed} } @$interfaces) {
                 my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
                 add_pathrestriction($name, $interfaces);
-                for my $interface (@$interfaces) {
-                    my $router = $interface->{router};
-                    $router->{managed} or $router->{semi_managed} = 1;
-                }
             }
         }
     }
@@ -4512,7 +4521,7 @@ sub check_ip_addresses {
             err_msg($msg);
         }
 
-        my %ip;
+        my %ip2obj;
 
         # 1. Check for duplicate interface addresses.
         # 2. Short interfaces must not be used, if a managed interface
@@ -4535,7 +4544,7 @@ sub check_ip_addresses {
                     {
                         $route_intf = $interface;
                     }
-                    if (my $old_intf = $ip{$ip}) {
+                    if (my $old_intf = $ip2obj{$ip}) {
                         unless ($old_intf->{redundant}
                             and $interface->{redundant})
                         {
@@ -4544,7 +4553,7 @@ sub check_ip_addresses {
                         }
                     }
                     else {
-                        $ip{$ip} = $interface;
+                        $ip2obj{$ip} = $interface;
                     }
                 }
             }
@@ -4554,32 +4563,32 @@ sub check_ip_addresses {
                   " a managed $route_intf->{name} with static routing enabled.";
             }
         }
-        my %range;
+        my %range2obj;
         for my $host (@{ $network->{hosts} }) {
             if (my $ip = $host->{ip}) {
-                if (my $other_device = $ip{$ip}) {
+                if (my $other_device = $ip2obj{$ip}) {
                     err_msg "Duplicate IP address for $other_device->{name}",
                       " and $host->{name}";
                 }
                 else {
-                    $ip{$ip} = $host;
+                    $ip2obj{$ip} = $host;
                 }
             }
             elsif (my $range = $host->{range}) {
                 my ($from, $to) = @$range;
-                if (my $other_device = $range{$from}->{$to}) {
+                if (my $other_device = $range2obj{$from}->{$to}) {
                     err_msg "Duplicate IP range for $other_device->{name}",
                       " and $host->{name}";
                 }
                 else {
-                    $range{$from}->{$to} = $host;
+                    $range2obj{$from}->{$to} = $host;
                 }
             }
         }
         for my $host (@{ $network->{hosts} }) {
             if (my $range = $host->{range}) {
                 for (my $ip = $range->[0] ; $ip <= $range->[1] ; $ip++) {
-                    if (my $other_device = $ip{$ip}) {
+                    if (my $other_device = $ip2obj{$ip}) {
                         is_host($other_device)
                           or err_msg("Duplicate IP address for",
                                      " $other_device->{name}",
@@ -5113,8 +5122,8 @@ sub convert_hosts {
                     $subnet->{owner}   = $owner   if $owner;
                     if ($id) {
                         if ($mask == 0xffffffff) {
-                            if (my ($name, $dom) = ($id =~ /^(.*?)(\@.*)$/)) {
-                                $name
+                            if (my ($user, $dom) = ($id =~ /^(.*?)(\@.*)$/)) {
+                                $user
                                     or err_msg("ID of $name must not start", 
                                                " with character '\@'");
                             }
@@ -5124,9 +5133,10 @@ sub convert_hosts {
                             }
                         }
                         else {
-                            $id =~ /^\@/
-                                or err_msg("ID of $name must start",
-                                           " with character '\@'");
+                            $id =~ /^.+\@/
+                                and err_msg("ID of $name must start",
+                                            " with character '\@'",
+                                            " or have no '\@' at all");
                         }
                         $subnet->{id} = $id;
                         $subnet->{radius_attributes} =
@@ -7407,12 +7417,11 @@ sub distribute_no_nat_set {
     # conditions.
 
     # Activate loop detection.
-    $domain->{active_path} = 1;
+    local $domain->{active_path} = 1;
 
     # Distribute no_nat_set to adjacent NAT domains.
     for my $router (@{ $domain->{routers} }) {
         next if $router eq $in_router;
-        next if $router->{active_path};
 
 #        debug "BEG $router->{name}";
         my $in_nat_tags = $router->{nat_tags}->{$domain};
@@ -7457,7 +7466,7 @@ sub distribute_no_nat_set {
 
             # Multiple tags are bound to an interface.
             # If a network has multiple matching NAT tags, 
-            # the resulting NAT mapping would be ambigous.
+            # the resulting NAT mapping would be ambiguous.
             if (@$nat_tags >= 2) {
 
                 # Collect NAT mapping having multiple NAT for a network.
@@ -7544,11 +7553,8 @@ sub distribute_no_nat_set {
             distribute_no_nat_set($out_dom, \%next_no_nat_set, $router,
                                   $nat_bound);
         }
-        $router->{active_path} = 1;
 #        debug "END $router->{name}";
-        delete $router->{active_path};
     }
-    delete $domain->{active_path};
     return;
 }
 
@@ -7674,6 +7680,17 @@ sub distribute_nat_info {
     for my $domain (@natdomains) {
         distribute_no_nat_set($domain, $no_nat_set{$domain}, 0, \%nat_bound);
     }
+
+    # Cleanup nat_tags with undefined values from no_nat_set.
+    # export.pl of NetspocWeb is confused otherwise.
+    for my $domain (@natdomains) {
+        my $no_nat_set = $domain->{no_nat_set};
+        for my $nat_tag (keys %$no_nat_set) {
+            if(!$no_nat_set->{$nat_tag}) {
+                delete $no_nat_set->{$nat_tag};
+            }
+        }
+    }    
 
     for my $tag (keys %nat_tags2multi) {
         $nat_bound{$tag}
@@ -8943,7 +8960,6 @@ sub set_zone1 {
                 next if $out_interface->{disabled};
                 set_zone1($out_interface->{network}, $zone, $out_interface);
             }
-            delete $router->{active_path};
         }
     }
     return;
@@ -8966,7 +8982,7 @@ sub set_zone_cluster {
         my $router = $interface->{router};
         next if $router->{managed};
         next if $router->{active_path};
-        $router->{active_path} = 1;
+        local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $interface;
             my $next = $out_interface->{zone};
@@ -8980,7 +8996,6 @@ sub set_zone_cluster {
                         " - $next->{name}: $private2");
             set_zone_cluster($next, $out_interface, $zone_aref);
         }
-        delete $router->{active_path};
     }
     return;
 }
@@ -9502,7 +9517,7 @@ sub traverse_loop_part {
     my ($obj, $in_interface, $mark, $seen) = @_;
     return if $obj->{reachable_part}->{$mark};
     return if $obj->{active_path};
-    $obj->{active_path} = 1;
+    local $obj->{active_path} = 1;
 
     # Mark $obj as member of partition.
     $obj->{reachable_part}->{$mark} = 1;
@@ -9521,7 +9536,6 @@ sub traverse_loop_part {
             traverse_loop_part($next, $interface, $mark, $seen);
         }
     }
-    $obj->{active_path} = 0;
     return;
 }
 
@@ -9667,7 +9681,7 @@ sub setpath_obj {
     }
 
     # Mark current path for loop detection.
-    $obj->{active_path} = 1;
+    local $obj->{active_path} = 1;
     $obj->{distance}    = $distance;
 
     my $get_next = is_router($obj) ? 'zone' : 'router';
@@ -9720,7 +9734,6 @@ sub setpath_obj {
             $interface->{main} = $obj;
         }
     }
-    delete $obj->{active_path};
     if ($obj->{loop} and $obj->{loop}->{exit} ne $obj) {
         return $obj->{loop};
 
@@ -9987,7 +10000,7 @@ sub cluster_path_mark1 {
     }
 
     # Mark current path for loop detection.
-    $obj->{active_path} = 1;
+    local $obj->{active_path} = 1;
 #    debug "activated $obj->{name}";
 
     # Mark first occurrence of path restriction.
@@ -10031,7 +10044,6 @@ sub cluster_path_mark1 {
             $success = 1;
         }
     }
-    delete $obj->{active_path};
 #    debug "deactivated $obj->{name}";
     if ($pathrestriction) {
         for my $restrict (@$pathrestriction) {
@@ -10297,7 +10309,7 @@ sub cluster_path_mark  {
 #	Dumpvalue->new->dumpValue($navi);
 
         # Mark current path for loop detection.
-        $from->{active_path} = 1;
+        local $from->{active_path} = 1;
         my $get_next = is_router($from) ? 'zone' : 'router';
         my $allowed = $navi->{ $from->{loop} }
           or internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
@@ -10334,7 +10346,6 @@ sub cluster_path_mark  {
 #               debug(" enter: $from->{name} -> $interface->{name}");
             }
         }
-        delete $from->{active_path};
 
         # Don't store incomplete result.
         last BLOCK if not $success;
@@ -11065,6 +11076,7 @@ my %asa_vpn_attributes = (
 
     # group-policy attributes
     banner                    => {},
+    'check-subject-name'      => {},
     'dns-server'              => {},
     'default-domain'          => {},
     'split-dns'               => {},
@@ -11108,6 +11120,30 @@ sub verify_asa_vpn_attributes {
             }                    
         }
     }    
+    return;
+}
+
+# Host with ID that doesn't contain a '@' must use attribute 'verify-subject-name'.
+sub verify_subject_name {
+    my ($host, $peers) = @_;
+    my $id = $host->{id};
+    return if $id =~ /@/;
+    my $has_attr = sub {
+        my ($obj) = @_;
+        my $attributes = $obj->{radius_attributes};
+        return ($attributes && $attributes->{'check-subject-name'});
+    };
+    return if $has_attr->($host);
+    return if $has_attr->($host->{network});
+    my $missing;
+    for my $peer (@$peers) {
+        next if $has_attr->($peer->{router});
+        $missing = 1;
+    }
+    if ($missing) {
+        err_msg("Missing radius_attribute 'check-subject-name'\n",
+                " for $host->{name}");
+    }
     return;
 }
 
@@ -11247,6 +11283,9 @@ sub expand_crypto  {
                 {
                     for my $obj (@verify_radius_attributes) {
                         verify_asa_vpn_attributes($obj);
+                        if (is_host($obj)) {
+                            verify_subject_name($obj, $peers);
+                        }
                     }
                 }
 
@@ -12160,14 +12199,13 @@ sub mark_stateful {
                   && $router->{managed} !~ /^(?:secondary|local.*)$/;
         }
         next if $router->{active_path};
-        $router->{active_path} = 1;
+        local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{stateful_mark};
             mark_stateful($next_zone, $mark);
         }
-        delete $router->{active_path};
     }
     return;
 }
@@ -12384,14 +12422,13 @@ sub mark_secondary  {
             next if $managed !~ /^(?:secondary|local.*)$/;
         }
         next if $router->{active_path};
-        $router->{active_path} = 1;
+        local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{secondary_mark};
             mark_secondary $next_zone, $mark;
         }
-        delete $router->{active_path};
     }
     return;
 }
@@ -12411,14 +12448,13 @@ sub mark_primary  {
             next if $managed eq 'primary';
         }
         next if $router->{active_path};
-        $router->{active_path} = 1;
+        local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{primary_mark};
             mark_primary $next_zone, $mark;
         }
-        delete $router->{active_path};
     }
     return;
 }
@@ -12439,14 +12475,13 @@ sub mark_strict_secondary  {
             next if $router->{strict_secondary};
         }
         next if $router->{active_path};
-        $router->{active_path} = 1;
+        local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{strict_secondary_mark};
             mark_strict_secondary($next_zone, $mark);
         }
-        delete $router->{active_path};
     }
     return;
 }
@@ -12466,14 +12501,13 @@ sub mark_local_secondary  {
             next if $managed ne 'local_secondary';
         }
         next if $router->{active_path};
-        $router->{active_path} = 1;
+        local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{local_secondary_mark};
             mark_local_secondary($next_zone, $mark);
         }
-        delete $router->{active_path};
     }
     return;
 }
@@ -13058,7 +13092,7 @@ sub set_routes_in_zone  {
     $set_cluster = sub {
         my ($router, $in_intf, $cluster) = @_;
         return if $router->{active_path};
-        $router->{active_path} = 1;
+        local $router->{active_path} = 1;
         for my $interface (@{ $router->{interfaces} }) {
             next if $interface->{main_interface};
             if ($hop_interfaces{$interface}) {
@@ -13077,7 +13111,6 @@ sub set_routes_in_zone  {
                 $set_cluster->($out_intf->{router}, $out_intf, $cluster);
             }
         }
-        delete $router->{active_path};
     };
     for my $interface (values %hop_interfaces) {
         next if $hop2cluster{$interface};
@@ -17322,9 +17355,13 @@ EOF
                     my $mask = print_ip $src->{mask};
                     my $max =
                       print_ip($src->{ip} | complement_32bit $src->{mask});
+                    my $subject_name = delete $attributes->{'check-subject-name'};
+                    if ($id =~ /^@/) {
+                        $subject_name = 'ea';
+                    }
                     my $map_name = "ca-map-$user_counter";
                     print "crypto ca certificate map $map_name 10\n";
-                    print " subject-name attr ea co $id\n";
+                    print " subject-name attr $subject_name co $id\n";
                     print "ip local pool $pool_name $ip-$max mask $mask\n";
                     $attributes->{'vpn-filter'}    = $filter_name;
                     $attributes->{'address-pools'} = $pool_name;

@@ -9,6 +9,30 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'ID of host must match ip/range';
+############################################################
+
+$in = <<'END';
+network:n = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = { ip = 10.99.1.10; }
+ host:id:@domain.x    = { ip = 10.99.1.11; }
+ host:id:domain.x     = { ip = 10.99.1.12; }
+ host:id:@domain.y    = { range = 10.99.1.16-10.99.1.17; }
+ host:id:domain.y     = { range = 10.99.1.18-10.99.1.19; }
+ host:id:bar@domain.y = { range = 10.99.1.20-10.99.1.23; }
+}
+END
+
+$out = <<'END';
+Error: ID of host:id:@domain.x.n must not start with character '@'
+Error: ID of host:id:domain.x.n must contain character '@'
+Error: ID of host:id:bar@domain.y.n must start with character '@' or have no '@' at all
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'VPN ASA with software clients';
 ############################################################
 
@@ -92,9 +116,10 @@ network:customers2 = {
   trust-point = ASDM_TrustPoint2;
  }
 
- host:id:@domain.x = {
+ host:id:domain.x = {
   range = 10.99.2.0 - 10.99.2.63; 
-  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+  radius_attributes = { split-tunnel-policy = tunnelspecified; 
+                        check-subject-name = ou; }
  }
  host:id:@domain.y = {
   range = 10.99.2.64 - 10.99.2.127;
@@ -107,7 +132,7 @@ service:test1 = {
 }
 
 service:test2 = {
- user = host:id:bar@domain.x.customers1, host:id:@domain.x.customers2;
+ user = host:id:bar@domain.x.customers1, host:id:domain.x.customers2;
  permit src = user; dst = network:intern; prt = tcp 81; 
 }
 END
@@ -130,57 +155,57 @@ tunnel-group VPN-single ipsec-attributes
  trust-point ASDM_TrustPoint1
  isakmp ikev1-user-authentication none
 tunnel-group-map default-group VPN-single
---
-access-list split-tunnel-1 standard permit 10.1.1.0 255.255.255.0
-access-list vpn-filter-1 extended permit ip 10.99.2.0 255.255.255.192 any
+--asavpn
+access-list vpn-filter-1 extended permit ip 10.99.2.64 255.255.255.192 any
 access-list vpn-filter-1 extended deny ip any any
 crypto ca certificate map ca-map-1 10
- subject-name attr ea co @domain.x
-ip local pool pool-1 10.99.2.0-10.99.2.63 mask 255.255.255.192
+ subject-name attr ea co @domain.y
+ip local pool pool-1 10.99.2.64-10.99.2.127 mask 255.255.255.192
 group-policy VPN-group-1 internal
 group-policy VPN-group-1 attributes
  address-pools value pool-1
- split-tunnel-network-list value split-tunnel-1
- split-tunnel-policy tunnelspecified
  vpn-filter value vpn-filter-1
- vpn-idle-timeout 120
+ vpn-idle-timeout 40
 tunnel-group VPN-tunnel-1 type remote-access
 tunnel-group VPN-tunnel-1 general-attributes
  default-group-policy VPN-group-1
 tunnel-group VPN-tunnel-1 ipsec-attributes
- trust-point ASDM_TrustPoint2
+ trust-point ASDM_TrustPoint3
  isakmp ikev1-user-authentication none
 tunnel-group-map ca-map-1 10 VPN-tunnel-1
 --asavpn
-access-list vpn-filter-2 extended permit ip 10.99.2.64 255.255.255.192 any
+access-list vpn-filter-2 extended permit ip host 10.99.1.11 any
 access-list vpn-filter-2 extended deny ip any any
-crypto ca certificate map ca-map-2 10
- subject-name attr ea co @domain.y
-ip local pool pool-2 10.99.2.64-10.99.2.127 mask 255.255.255.192
 group-policy VPN-group-2 internal
 group-policy VPN-group-2 attributes
- address-pools value pool-2
- vpn-filter value vpn-filter-2
- vpn-idle-timeout 40
-tunnel-group VPN-tunnel-2 type remote-access
-tunnel-group VPN-tunnel-2 general-attributes
- default-group-policy VPN-group-2
-tunnel-group VPN-tunnel-2 ipsec-attributes
- trust-point ASDM_TrustPoint3
- isakmp ikev1-user-authentication none
-tunnel-group-map ca-map-2 10 VPN-tunnel-2
---asavpn
-access-list vpn-filter-3 extended permit ip host 10.99.1.11 any
-access-list vpn-filter-3 extended deny ip any any
-group-policy VPN-group-3 internal
-group-policy VPN-group-3 attributes
  banner value Willkommen zu Hause
 username bar@domain.x nopassword
 username bar@domain.x attributes
  vpn-framed-ip-address 10.99.1.11 255.255.255.0
  service-type remote-access
+ vpn-filter value vpn-filter-2
+ vpn-group-policy VPN-group-2
+--
+access-list split-tunnel-3 standard permit 10.1.1.0 255.255.255.0
+access-list vpn-filter-3 extended permit ip 10.99.2.0 255.255.255.192 any
+access-list vpn-filter-3 extended deny ip any any
+crypto ca certificate map ca-map-3 10
+ subject-name attr ou co domain.x
+ip local pool pool-3 10.99.2.0-10.99.2.63 mask 255.255.255.192
+group-policy VPN-group-3 internal
+group-policy VPN-group-3 attributes
+ address-pools value pool-3
+ split-tunnel-network-list value split-tunnel-3
+ split-tunnel-policy tunnelspecified
  vpn-filter value vpn-filter-3
- vpn-group-policy VPN-group-3
+ vpn-idle-timeout 120
+tunnel-group VPN-tunnel-3 type remote-access
+tunnel-group VPN-tunnel-3 general-attributes
+ default-group-policy VPN-group-3
+tunnel-group VPN-tunnel-3 ipsec-attributes
+ trust-point ASDM_TrustPoint2
+ isakmp ikev1-user-authentication none
+tunnel-group-map ca-map-3 10 VPN-tunnel-3
 --
 access-list vpn-filter-4 extended permit ip host 10.99.1.10 any
 access-list vpn-filter-4 extended deny ip any any

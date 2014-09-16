@@ -67,6 +67,7 @@ t/host-range.t
 t/iptables.t
 t/local-filter.t
 t/local-opt.t
+t/loopback.t
 t/managed-host.t
 t/nat.t
 t/optimize-subnet.t
@@ -84,7 +85,6 @@ t/stateless.t
 t/unenforceable.t
 t/unmanaged.t
 t/unnumbered.t
-t/virtual-loopback-nat.t
 t/virtual-pathrestrict.t
 t/vrf.t
 t/zone.t
