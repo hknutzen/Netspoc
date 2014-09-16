@@ -11144,7 +11144,7 @@ sub verify_subject_name {
         err_msg("Missing radius_attribute 'check-subject-name'\n",
                 " for $host->{name}");
     }
-
+    return;
 }
 
 sub verify_asa_trustpoint {
