@@ -368,9 +368,10 @@ sub subst {
 
 sub subst_list {
     my ($type, $list) = @_;
-    $list =~ s/\s*$//;
-    my @names = grep { $_ !~ /^$/ } split(/\s*,\s*/, $list);
-    join(', ', map { subst($type, $_) } @names);
+    $list =~ s/(,?\s*)$//;
+    my $end = $1;
+    my @names = split(/\s*,\s*/, $list);
+    join(', ', map { subst($type, $_) } @names) . $end;
 }
 
 my %known_hw = (
@@ -405,19 +406,38 @@ sub del_char {
 
 sub process {
     my ($lines) = @_;
+    my $continue;        
     for my $line (@$lines) {
+        my $check_list_end = sub {
+            my ($type) = @_;
+            if ($line =~ /^[^#]*;/) {
+                $continue = undef;
+            }
+            else {
+                $continue = $type;
+            }
+        };
 
 	# Clean up comments
 	$line =~ s/(\#.*)/ del_char($1) /gex;
 
+        if ($continue) {
+            $line =~ s/(\s*)([^;]+)/ $1 . subst_list($continue, $2) /gex;
+            $check_list_end->($continue);
+        }
+            
 	# Rename type:name
 	$line =~ s/([a-z]+):([-\w.\@:\/]+)/ "$1:" . subst($1, $2) /gex;
-	# Rename nat = name
-	$line =~ s/(bind_nat\s*=\s*)([^;]+)/ 
-             $1 . subst_list('nat', $2) /gex;
+	# Rename bind_nat = name
+	if($line =~ s/(bind_nat\s*=\s*)([^;]+)/ 
+             $1 . subst_list('nat', $2) /gex) {
+            $check_list_end->('nat');
+        }
 	# Rename owner = name, ... ;
-	$line =~ s/(owner)(\s*=\s*)([^;]+)/ 
-	    "$1$2" . subst_list($1, $3) /gex;
+	if ($line =~ s/(owner)(\s*=\s*)([^;]+)/ 
+	    "$1$2" . subst_list($1, $3) /gex) {
+            $check_list_end->('owner');
+        }
 	# Sustitute IP addresses.
 	$line =~ s/(\d+\.\d+\.\d+\.\d+)/ subst_ip($1) /gex;
         # Anonymize non standard hardware names.
