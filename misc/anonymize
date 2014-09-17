@@ -88,6 +88,28 @@ sub random2 {
 my %subst;
 my %seen;
 
+sub find_subst {
+    my ($type, $name) = @_;
+    my $i = 1;
+    while ($i++) {
+        if ($i > 20) {
+            fatal_err "Abort after $i tries: can't rename $type:$name";
+        }
+
+        # Leave first two characters of service name unchanged,
+        # because sort order influences processing order. Processing
+        # order needs to be unchanged for attribute 'overlaps'.
+        my $renamed = $type eq 'service'
+                    ? random2($name) 
+                    : $name =~ /^(?:TCP|UDP|IP|ICMP)(?:[-_\d]*|_ALL)$/
+                    ? $name
+                    : random($name);
+        next if $seen{$type}->{$renamed};
+        $seen{$type}->{$renamed} = 1;
+        $subst{$type}->{$name} = $renamed;
+        return $renamed;
+    }
+}
 my %global_type = (
 		   router          => \%routers         ,
 		   network         => \%networks        ,
@@ -111,22 +133,18 @@ sub setup_subst {
 	for my $obj (values %$table) {
 	    my $name = $obj->{name};
 	    $name =~ s/^.*://;
-            while (1) {
-
-                # Leave first two characters of service name
-                # unchanged, because sort order influences processing
-                # order. Processing order needs to be unchanged for
-                # attribute 'overlaps'.
-                my $renamed = $type eq 'service'
-                            ? random2($name) 
-                            : $name =~ /^(?:TCP|UDP|IP|ICMP)(?:[-_\d]*|_ALL)$/
-                            ? $name
-                            : random($name);
-                next if $seen{$type}->{$renamed};
-                $seen{$type}->{$renamed} = 1;
-                $subst{$type}->{$name} = $renamed;
-                last;
+            my $bridge_part;
+            ($name, $bridge_part) = split('/', $name);
+            if ($bridge_part) {
+                my $renamed = $subst{$type}->{$name} || find_subst($type, $name);
+                my $renamed_bridge = find_subst("bridge-$name", $bridge_part);
+                $renamed .= "/$renamed_bridge";
+                $subst{$type}->{"$name/$bridge_part"} = $renamed;
             }
+            else {
+                my $renamed = find_subst($type, $name);
+            }
+                
 	}
     }
 
@@ -376,6 +394,7 @@ sub subst_list {
 
 my %known_hw = (
     bri => 1,
+    device => 1,
     dialer => 1,
     ethernet => 1,
     fastethernet => 1,
