@@ -50,8 +50,31 @@ my $out = shift @ARGV or usage;
 # Read and process netspoc configuration data.
 info "Reading config";
 &read_file_or_dir($in);
+&order_protocols();
 &link_topology();
+&mark_disabled();
+&set_zone();
+&setpath();
+&distribute_nat_info();
+Netspoc::find_subnets_in_zone();
+&set_service_owner();
+&expand_services(1);	# 1: expand hosts to subnets
 die "Aborted with $error_counter error(s)\n" if $error_counter;
+
+# We can't use %aggregates from Netspoc.pm because it only holds named
+# aggregates. But we need unnamed aggregates like any:[network:XX]
+# as well.
+my @all_zones;
+
+sub setup_zones {
+    my %seen;
+    for my $network (values %networks) {
+        $network->{disabled} and next;
+        my $zone = $network->{zone};
+        next if $seen{$zone}++;
+        push @all_zones, $zone;
+    }
+}
 
 # Leave this characters unchanged.
 my $separator = qr/([-\@_.äöüß ,;]+)/;
@@ -199,80 +222,95 @@ my $oct_map = { 10 => { new => 10, },
 		192 => { new => 192, map => { 168 => { new => 168 } }, },
 	    };
 
+sub numerically { return $a <=> $b }
+
 sub setup_ip {
     my ($setup) = @_;
-    my @ip_mask = map { [ $_->{ip}, $_->{mask} ] }
-                  grep { !$_->{hidden} }
-		  map { $_, values %{ $_->{nat} } }
-		  grep { $_->{ip} !~ /^(?:unnumbered|tunnel)/ }
-                  values %networks;
-    push @ip_mask, map { @{ $_->{filter_only} || [] } } values %routers;
+    my %mask_ip;
+    my $add_ip_mask = sub {
+        for (@_) {
+            my ($ip, $mask) = @$_;
+            $mask_ip{$mask}->{$ip} = 1;
+        }
+    };
+    
+    $add_ip_mask->(map { [ $_->{ip}, $_->{mask} ] }
+                   grep { !$_->{hidden} }
+		   map { $_, values %{ $_->{nat} } }
+		   grep { $_->{ip} !~ /^(?:unnumbered|tunnel)/ }
+                   values %networks);
+    $add_ip_mask->(map { @{ $_->{filter_only} || [] } } values %routers);
+    $add_ip_mask->(map { [ $_->{ip}, $_->{mask} ] } 
+                   map { values %{ $_->{ipmask2aggregate} } } @all_zones);
 
-    # Sort ip/mask by size of mask, i.e. large subnets coming first.
-    for my $pair ( sort { $a->[1] <=> $b->[1] } @ip_mask) {
-	my ($ip, $mask) = @$pair;
+    # Sort mask, i.e. large subnets coming first.
+    for my $mask (sort numerically keys %mask_ip) {
 	next if $mask == 0;
-	my $rip = $ip;
+        my $ip_hash = $mask_ip{$mask};
+        for my $ip (sort numerically keys %$ip_hash) {
+            my $rip = $ip;
 
-	my $map = $oct_map;
-	for my $shift (24, 16, 8) {
-            my $pos = 32 - $shift;
-	    my $m = ($mask >> $shift) & 0xff;
-	    if ($m != 0xff) {
-		if ($m) {
-		    my $i = ($ip >> $shift) & $m;
-		    my $range = 0xff - $m;
-		    for my $x ($i .. $i+$range) {
-			$map->{$x}->{new} = $x;
-			my $pip = print_ip($ip);
-			Netspoc::debug "Freezed $x at /$pos in $pip";
-		    }
-		}
-		last;
-	    }
-		
-	    my $i = ($ip >> $shift) & 0xff;
-	    my $hash = $map->{$i} ||= {};
-	    if (not $setup) {
+            my $map = $oct_map;
+            for my $byte (1, 2, 3) {
+                my $shift = (4 - $byte) * 8;
+                my $m = ($mask >> $shift) & 0xff;
+                if ($m != 0xff) {
+                    if ($m) {
+                        my $i = ($ip >> $shift) & $m;
+                        my $range = 0xff - $m;
+                        for my $x ($i .. $i+$range) {
+                            $map->{$x}->{new} = $x;
+                            my $pip = print_ip($ip);
+                            my $pmask = print_ip($mask);
+                            Netspoc::debug "Freezed $x byte $byte in $pip/$pmask";
+                        }
+                    }
+                    last;
+                }
 
-                # Don't change a 0 octet. This prevents substituition of 
-                # the supernet with the value of a subnet.
-                $hash->{new} = 0 if $i == 0;
-		my $new = $hash->{new};
-		if (not defined $new) {
-		    for my $n (128 .. 254, 1 .. 126) {
-			if ($map->{$n} and
-			    ( not $map->{$n}->{new} or
-                              $map->{$n}->{new} == $n or
-                              $map->{$n}->{used})
-			    ) 
-			{
-			    next;
-			}
-			$new = $n;
-			last;
-		    }
-		    if (not defined $new) {
-			my $pip = print_ip($ip);
-			fatal_err "Values exhausted for $pip at /$pos";
-		    }
-		    $hash->{new} = $new;
-		    $map->{$new}->{used} = 1;
-		    Netspoc::debug "Change $i to $new at /$pos";
-		}
-		my $roct = $new << $shift;
-		my $rmask = Netspoc::complement_32bit(0xff << $shift);
-		$rip = ($rip & $rmask) | $roct;
-	    }
-	    $map = $hash->{map} ||= {};
-	}
-	if (not $setup) {
-	    $ipsubst{"$ip/$mask"} = $rip;
-	    my $pip = print_ip($ip);
-	    my $pmask = print_ip($mask);
-	    my $prip = print_ip($rip);
-	    Netspoc::debug "$pip/$pmask -> $prip";
-	}
+                my $i = ($ip >> $shift) & 0xff;
+                my $hash = $map->{$i} ||= {};
+                if (not $setup) {
+
+                    # Don't change a 0 octet. This prevents substituition of 
+                    # the supernet with the value of a subnet.
+                    $hash->{new} = 0 if $i == 0;
+                    my $new = $hash->{new};
+                    if (not defined $new) {
+                        for my $n (128 .. 254, 1 .. 126) {
+                            if ($map->{$n} and
+                                ( not $map->{$n}->{new} or
+                                  $map->{$n}->{new} == $n or
+                                  $map->{$n}->{used})
+                                ) 
+                            {
+                                next;
+                            }
+                            $new = $n;
+                            last;
+                        }
+                        if (not defined $new) {
+                            my $pip = print_ip($ip);
+                            fatal_err "Values exhausted for $pip at byte $byte";
+                        }
+                        $hash->{new} = $new;
+                        $map->{$new}->{used} = 1;
+                        Netspoc::debug "Change $i to $new in byte $byte";
+                    }
+                    my $roct = $new << $shift;
+                    my $rmask = Netspoc::complement_32bit(0xff << $shift);
+                    $rip = ($rip & $rmask) | $roct;
+                }
+                $map = $hash->{map} ||= {};
+            }
+            if (not $setup) {
+                $ipsubst{"$ip/$mask"} = $rip;
+                my $pip = print_ip($ip);
+                my $pmask = print_ip($mask);
+                my $prip = print_ip($rip);
+                Netspoc::debug "$pip/$pmask -> $prip";
+            }
+        }
     }
 }	
 
@@ -473,6 +511,7 @@ sub process {
     }
 }
 
+setup_zones();
 info "Setup IP substituition";
 setup_ip(1);
 setup_ip();
