@@ -201,21 +201,22 @@ my $oct_map = { 10 => { new => 10, },
 
 sub setup_ip {
     my ($setup) = @_;
+    my @ip_mask = map { [ $_->{ip}, $_->{mask} ] }
+                  grep { !$_->{hidden} }
+		  map { $_, values %{ $_->{nat} } }
+		  grep { $_->{ip} !~ /^(?:unnumbered|tunnel)/ }
+                  values %networks;
+    push @ip_mask, map { @{ $_->{filter_only} || [] } } values %routers;
 
-    # Sort networks by size of mask, i.e. large subnets coming first.
-    for my $network ( sort { $a->{mask} <=> $b->{mask} } 
-                      grep { !$_->{hidden} }
-		      map { $_, values %{ $_->{nat} } }
-		      grep { $_->{ip} !~ /^(?:unnumbered|tunnel)/ }
-		      values %networks) 
-    {
-	my $ip = $network->{ip};
-	my $mask = $network->{mask};
+    # Sort ip/mask by size of mask, i.e. large subnets coming first.
+    for my $pair ( sort { $a->[1] <=> $b->[1] } @ip_mask) {
+	my ($ip, $mask) = @$pair;
 	next if $mask == 0;
 	my $rip = $ip;
 
 	my $map = $oct_map;
 	for my $shift (24, 16, 8) {
+            my $pos = 32 - $shift;
 	    my $m = ($mask >> $shift) & 0xff;
 	    if ($m != 0xff) {
 		if ($m) {
@@ -224,7 +225,7 @@ sub setup_ip {
 		    for my $x ($i .. $i+$range) {
 			$map->{$x}->{new} = $x;
 			my $pip = print_ip($ip);
-			Netspoc::debug "Freezed $x at $shift in $pip";
+			Netspoc::debug "Freezed $x at /$pos in $pip";
 		    }
 		}
 		last;
@@ -253,11 +254,11 @@ sub setup_ip {
 		    }
 		    if (not defined $new) {
 			my $pip = print_ip($ip);
-			fatal_err "Values exhausted for $pip at >> $shift";
+			fatal_err "Values exhausted for $pip at /$pos";
 		    }
 		    $hash->{new} = $new;
 		    $map->{$new}->{used} = 1;
-		    Netspoc::debug "Change to $new at $shift";
+		    Netspoc::debug "Change $i to $new at /$pos";
 		}
 		my $roct = $new << $shift;
 		my $rmask = Netspoc::complement_32bit(0xff << $shift);
