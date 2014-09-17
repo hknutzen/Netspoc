@@ -8371,17 +8371,18 @@ sub check_crosslink  {
 
         # Compare filter type of crosslink interfaces.
         # The weakest interfaces get attribute {crosslink}.
-        my ($weakest) = sort numerically keys %strength2intf;
-        for my $interface (@{ $strength2intf{$weakest} }) {
-            $interface->{hardware}->{crosslink} = 1;
-        }
+        if (my ($weakest) = sort numerically keys %strength2intf) {
+            for my $interface (@{ $strength2intf{$weakest} }) {
+                $interface->{hardware}->{crosslink} = 1;
+            }
 
-        # 'secondary' and 'local' are not comparable and hence must
-        # not occur together.
-        if ($weakest == $crosslink_strength{local} && 
-            $strength2intf{$crosslink_strength{secondary}}) {
-            err_msg("Must not use 'managed=local' and 'managed=secondary'",
-                    " together\n at crosslink $network->{name}");
+            # 'secondary' and 'local' are not comparable and hence must
+            # not occur together.
+            if ($weakest == $crosslink_strength{local} && 
+                $strength2intf{$crosslink_strength{secondary}}) {
+                err_msg("Must not use 'managed=local' and 'managed=secondary'",
+                        " together\n at crosslink $network->{name}");
+            }
         }
 
         not $out_acl_count
