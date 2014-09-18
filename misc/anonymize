@@ -224,6 +224,22 @@ my $oct_map = { 10 => { new => 10, },
 
 sub numerically { return $a <=> $b }
 
+# Convert an IP range to minimal covering IP/mask pair.
+sub range2subnet {
+    my ($low, $high) = @_;
+    my $mask = 0xffffffff;
+    my $ip = $low;
+    while(1) {
+        my $end = $ip | Netspoc::complement_32bit($mask);
+        if ($end >= $high) {
+            return [ $ip, $mask ];
+        }
+        $mask &= 0x7fffffff;
+        $mask <<= 1;
+        $ip = $ip & $mask;
+    }
+}
+
 sub setup_ip {
     my ($setup) = @_;
     my %mask_ip;
@@ -242,6 +258,10 @@ sub setup_ip {
     $add_ip_mask->(map { @{ $_->{filter_only} || [] } } values %routers);
     $add_ip_mask->(map { [ $_->{ip}, $_->{mask} ] } 
                    map { values %{ $_->{ipmask2aggregate} } } @all_zones);
+    $add_ip_mask->(map { $_->{ip} ? [ $_->{ip}, 0xffffffff ] 
+                                  : range2subnet(@{ $_->{range} }) }
+                   map { @{ $_->{hosts} || [] } } 
+                   values %networks);                   
 
     # Sort mask, i.e. large subnets coming first.
     for my $mask (sort numerically keys %mask_ip) {
@@ -261,8 +281,8 @@ sub setup_ip {
                         for my $x ($i .. $i+$range) {
                             $map->{$x}->{new} = $x;
                             my $pip = print_ip($ip);
-                            my $pmask = print_ip($mask);
-                            Netspoc::debug "Freezed $x byte $byte in $pip/$pmask";
+                            my $prefix = Netspoc::mask2prefix($mask);
+                            Netspoc::debug "Freezed $x byte $byte in $pip/$prefix";
                         }
                     }
                     last;
@@ -306,9 +326,9 @@ sub setup_ip {
             if (not $setup) {
                 $ipsubst{"$ip/$mask"} = $rip;
                 my $pip = print_ip($ip);
-                my $pmask = print_ip($mask);
+                my $prefix = Netspoc::mask2prefix($mask);
                 my $prip = print_ip($rip);
-                Netspoc::debug "$pip/$pmask -> $prip";
+                Netspoc::debug "$pip/$prefix -> $prip";
             }
         }
     }
