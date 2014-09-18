@@ -5004,6 +5004,7 @@ sub mark_disabled {
         if (! $seen{$network}) {
             if (keys %networks > 1) {
                 err_msg("$network->{name} isn't connected to any router");
+                $network->{disabled} = 1;
             }
             else {
                 push @networks, $network;
