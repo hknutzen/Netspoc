@@ -471,7 +471,12 @@ sub setup_service_info {
         }
 
         # Add artificial owner :unknown if owner is unknown.
-        push @$owners, ':unknown' if not @$owners;
+        if (!@$owners) {
+            push @$owners, ':unknown';
+
+            # Will be visible by master owner.
+            $Netspoc::owners{':unknown'} ||= {};
+        }
         $service->{owners} = $owners;
         $service->{part_owners} = part_owners_for_objects(\@objects);
         my $uowners = $service->{uowners} = $is_coupling ? [] : owners_for_objects($users);
