@@ -9090,8 +9090,20 @@ sub inherit_router_attributes {
         for my $key (keys %$attributes) {
 
             # Owner is handled in propagate_owners.
-            if (not $key eq 'owner') {
-                $router->{$key} ||= $attributes->{$key};
+            next if $key eq 'owner';
+
+            my $val = $attributes->{$key};
+            if (my $r_val = $router->{$key}) {
+                if (   $r_val eq $val 
+                    || ref $r_val eq 'ARRAY' && ref $val eq 'ARRAY' && aref_eq($r_val, $val)) 
+                {
+                    warn_msg(
+                        "Useless attribute '$key' at $router->{name},\n",
+                        " it was already inherited from $area->{name}");
+                }
+            }
+            else {
+                $router->{$key} = $val;
             }
         }
     }
