@@ -45,7 +45,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     | <protocol definition>
     | <protocol group definition>
     | <service definition>
-    | <global permit>
     | <pathrestriction definition>
     | <owner definition>
     | <crypto definition>
@@ -53,7 +52,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     | <isakmp definition>
     )*
 
-where `<global permit>` is used at most once. 
 
 ##Network definition
 
@@ -290,10 +288,6 @@ with
       <object set with 'user'> is like <object set> 
        but with additional keyword 'user' allowed in <network object>
 
-##Global permit
-
-    <global permit> ::=
-      global:permit = <protocol list>;
 
 ##Path restriction
 
