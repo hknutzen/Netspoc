@@ -1688,7 +1688,7 @@ sub read_network {
             }
 
             # Compatibility of host and network NAT will be checked later,
-            # after global NAT definitions have been processed.
+            # after inherited NAT definitions have been processed.
         }
         if (@{ $network->{hosts} } and $network->{crosslink}) {
             error_atline("Crosslink network must not have host definitions");
@@ -3006,21 +3006,6 @@ sub read_service {
     return $service;
 }
 
-our %global;
-
-sub read_global {
-    my ($name) = @_;
-    skip '=';
-    (my $action = $name) =~ s/^global://;
-    $action eq 'permit' or error_atline("Unexpected name, use 'global:permit'");
-    my $prt = [ read_list \&read_typed_name_or_simple_protocol ];
-    return {
-        name   => $name,
-        action => $action,
-        prt    => $prt
-    };
-}
-
 our %pathrestrictions;
 
 sub read_pathrestriction {
@@ -3247,7 +3232,6 @@ my %global_type = (
     protocol        => [ \&read_protocol,        \%protocols ],
     protocolgroup   => [ \&read_protocolgroup,   \%protocolgroups ],
     service         => [ \&read_service,         \%services ],
-    global          => [ \&read_global,          \%global ],
     pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
     isakmp          => [ \&read_isakmp,          \%isakmp ],
     ipsec           => [ \&read_ipsec,           \%ipsec ],
@@ -4035,7 +4019,7 @@ sub expand_general_permit {
             my ($src_range, $dst_prt) = @$src_dst_range;
             ($src_range->{range} && $src_range->{range} ne $aref_tcp_any ||
              $dst_prt->{range} && $dst_prt->{range} ne $aref_tcp_any) and
-             err_msg("Must not use ports in global permit: $prt->{name}");
+             err_msg("Must not use ports of '$prt->{name}' in general_permit of $context");
         }
     }
     return $result;
@@ -4044,7 +4028,7 @@ sub expand_general_permit {
 sub link_general_permit {
     my ($hash, $parent) = @_;
     my $list = $hash->{general_permit} or return;
-    $hash->{general_permit} = expand_general_permit($list, $parent);
+    $hash->{general_permit} = expand_general_permit($list, $parent->{name});
     return;
 }
 
@@ -6511,9 +6495,6 @@ sub warn_unused_overlaps {
     return;
 }
 
-# List of protocols to permit globally at any device.
-my @global_permit;
-
 # Parameters:
 # - Reference to array of unexpanded rules.
 # - The service.
@@ -6697,11 +6678,6 @@ sub expand_services {
     my ($convert_hosts) = @_;
     convert_hosts if $convert_hosts;
     progress('Expanding services');
-
-    # Handle global:permit.
-    if (my $global = $global{permit}) {
-        @global_permit = @{ expand_general_permit($global->{prt}, "$global->{name}") };
-    }
 
     my $expanded_rules_aref = [];
 
@@ -14740,20 +14716,11 @@ sub create_general_permit_rules {
 }
 
 sub distribute_global_permit {
-    my $global = create_general_permit_rules(\@global_permit, 'global:permit');
     for my $router (@managed_routers) {
-        my $rules;
-        if (my $general_permit = $router->{general_permit}) {
-            my $router_rules = 
-                create_general_permit_rules($general_permit,
-                                            "general_permit of $router->{name}"
-                );
-            $rules = [@$global, @$router_rules];
-        }
-        else {
-            $rules = $global;
-        }
-        next if !@$rules;
+        my $general_permit = $router->{general_permit} or next;
+        my $rules = 
+            create_general_permit_rules(
+                $general_permit, "general_permit of $router->{name}");
         my $need_protect = $router->{need_protect};
         for my $in_intf (@{ $router->{interfaces} }) {
             next if has_global_restrict($in_intf);
