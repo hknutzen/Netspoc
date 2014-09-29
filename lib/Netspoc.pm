@@ -4009,26 +4009,25 @@ sub link_policy_distribution_point {
     return;
 }
 
-sub expand_general_permit {
-    my ($list, $context) = @_;
-    my $result = expand_protocols($list, $context);
-    for my $prt (@$result) {
+sub link_general_permit {
+    my ($hash, $parent) = @_;
+    my $list = $hash->{general_permit} or return;
+    my $context = $parent->{name};
+    $list = $hash->{general_permit} = 
+        [ sort by_name @{ expand_protocols($list, $context) } ];
+
+    # Check for errors.
+    for my $prt (@$list) {
         my $main_prt = $prt->{main} || $prt;
         $main_prt->{src_dst_range_list} or internal_err($main_prt->{name});
         for my $src_dst_range (@{ $main_prt->{src_dst_range_list} }) {
             my ($src_range, $dst_prt) = @$src_dst_range;
             ($src_range->{range} && $src_range->{range} ne $aref_tcp_any ||
              $dst_prt->{range} && $dst_prt->{range} ne $aref_tcp_any) and
-             err_msg("Must not use ports of '$prt->{name}' in general_permit of $context");
+             err_msg("Must not use ports of '$prt->{name}'",
+                     " in general_permit of $context");
         }
     }
-    return $result;
-}
-
-sub link_general_permit {
-    my ($hash, $parent) = @_;
-    my $list = $hash->{general_permit} or return;
-    $hash->{general_permit} = expand_general_permit($list, $parent->{name});
     return;
 }
 
