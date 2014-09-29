@@ -9093,7 +9093,8 @@ sub inherit_router_attributes {
             my $val = $attributes->{$key};
             if (my $r_val = $router->{$key}) {
                 if (   $r_val eq $val 
-                    || ref $r_val eq 'ARRAY' && ref $val eq 'ARRAY' && aref_eq($r_val, $val)) 
+                    || ref $r_val eq 'ARRAY' && ref $val eq 'ARRAY' 
+                    && aref_eq($r_val, $val)) 
                 {
                     warn_msg(
                         "Useless attribute '$key' at $router->{name},\n",
