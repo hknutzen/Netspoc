@@ -9109,6 +9109,25 @@ sub inherit_router_attributes {
     return;
 }
 
+sub nat_equal {
+    my ($nat1, $nat2) = @_;
+    for my $attr (qw(ip mask dynamic hidden identify)) {
+        return 0 if defined $nat1->{$attr} xor defined $nat2->{$attr};
+        next if !defined $nat1->{$attr};
+        return 0 if $nat1->{$attr} ne $nat2->{$attr};
+    }
+    return 1;
+}
+
+sub check_useless_nat {
+    my ($nat_tag, $nat1, $nat2, $obj1, $obj2) = @_;
+    if (nat_equal($nat1, $nat2)) {
+        warn_msg("Useless nat:$nat_tag at $obj2->{name},\n",
+                 " it is already inherited from $obj1->{name}");
+    }
+    return;
+}
+    
 # Distribute NAT from area to zones.
 sub inherit_area_nat {
     my ($area) = @_;
@@ -9117,9 +9136,12 @@ sub inherit_area_nat {
     for my $nat_tag (keys %$hash) {
         my $nat = $hash->{$nat_tag};
         for my $zone (@{ $area->{zones} }) {
-            next if $zone->{nat}->{$nat_tag};
+            if (my $z_nat = $zone->{nat}->{$nat_tag}) {
+                check_useless_nat($nat_tag, $nat, $z_nat, $area, $zone);
+                next;
+            }
             $zone->{nat}->{$nat_tag} = $nat;
-#            debug "$zone->{name}: $nat_tag from $area->{name}";
+#           debug "$zone->{name}: $nat_tag from $area->{name}";
         }
     }
     return;
@@ -9149,11 +9171,18 @@ sub inherit_nat_from_zone {
 
                 # Ignore NAT definition from area
                 # if network has local NAT definition or 
-                # has already inherited from smaller area.
-                next if $network->{nat}->{$nat_tag};
+                # has already inherited from zone or smaller area.
+                if (my $n_nat = $network->{nat}->{$nat_tag}) {
+                    check_useless_nat($nat_tag, $nat, $n_nat, $zone, $network);
+                    next;
+                }
 
                 # Ignore network with identity NAT.
-                next if $network->{identity_nat}->{$nat_tag};
+                if (my $id_nat = $network->{identity_nat}->{$nat_tag}) {
+                    check_useless_nat($nat_tag, $nat, $id_nat, $zone, $network);
+                    next;
+                }
+                    
 
                 next if $network->{ip} eq 'unnumbered';
                 next if $network->{isolated_ports};
