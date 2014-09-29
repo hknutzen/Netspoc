@@ -245,7 +245,7 @@ test_run($title, $in, $out);
 $title = 'No extra pathrestriction with 3 virtual interfaces';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:a = { ip = 10.1.1.0/24;}
 
 router:r1 = {
@@ -274,11 +274,11 @@ network:b  = { ip = 10.2.2.0/24; }
 pathrestriction:p = interface:r1.a, interface:r1.b.virtual;
 END
 
-$out = <<END;
-Error: Pathrestriction not supported at group of routers having 3 or more virtual interfaces
- - interface:r1.b.virtual
- - interface:r2.b.virtual
- - interface:r3.b.virtual
+$out = <<'END';
+Error: Must apply pathrestriction equally to group of routers with virtual IP:
+ - router:r1 has pathrestriction:p
+ - router:r2
+ - router:r3
 END
 
 test_err($title, $in, $out);

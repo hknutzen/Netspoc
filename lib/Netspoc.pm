@@ -4459,19 +4459,42 @@ sub link_virtual_interfaces  {
     # Therefore a network behind this interface must be reachable
     # via all virtual interfaces of the group.
     # This can only be guaranteed, if pathrestrictions are identical
-    # on all interfaces.
+    # at all interfaces.
     # Exception in routing code:
     # If the group has ony two interfaces, the one or other physical
     # interface can be used as hop.
+    my %seen;
     for my $href (values %net2ip2virtual) {
         for my $interfaces (values %$href) {
-            if (   @$interfaces >= 3
-                && grep { $_->{path_restrict} && !$_->{main_interface} }
-                   map { @{ $_->{router}->{interfaces} } } @$interfaces)
-            {
-                err_msg("Pathrestriction not supported at group of routers",
-                        " having 3 or more virtual interfaces\n",
-                        join("\n", map { " - $_->{name}" } @$interfaces));
+            next if @$interfaces <= 2;
+            my @virt_routers = map { $_->{router} } @$interfaces;
+            my %routers_hash = map { $_ => $_ } @virt_routers;
+            for my $router (@virt_routers) {
+                for my $interface (@{ $router->{interfaces} }) {
+                    next if $interface->{main_interface};
+                    my $restricts = $interface->{path_restrict} or next;
+                    for my $restrict (@$restricts) {
+                        next if $seen{$restrict};
+                        my @restrict_routers = 
+                            grep({ $routers_hash{$_} } 
+                                 map { $_->{router} } 
+                                 @{ $restrict->{elements} });
+                        next if @restrict_routers == @virt_routers;
+                        $seen{$restrict} = 1;
+                        my @info;
+                        for my $router (@virt_routers) {
+                            my $info = $router->{name};
+                            if (grep { $_ eq $router} @restrict_routers) {
+                                $info .= " has $restrict->{name}";
+                            }
+                            push @info, $info;
+                        }
+                        err_msg("Must apply pathrestriction equally to",
+                                " group of routers with virtual IP:\n",
+                                " - ", 
+                                join("\n - ", @info));
+                    }
+                }
             }
         }
     }
