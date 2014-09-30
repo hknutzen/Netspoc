@@ -5374,8 +5374,8 @@ sub expand_group1 {
                     if (my $other = $router2intf{$router}) {
                         if (ref($other) ne $type) {
                             err_msg(
-                                "Must not use $obj->{name} and",
-                                " $other->{name} together in $context"
+                                "Must not use $obj->{name} and $other->{name}",
+                                " together\n in intersection in $context"
                             );
                         }
                     }
