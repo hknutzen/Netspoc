@@ -5335,6 +5335,79 @@ sub get_auto_intf {
     return $result;
 }
 
+# Check intersection of interface and auto-interface.
+# Prevent expressions like "interface:r.x &! interface:r.[auto]",
+# because we don't know the exact value of the auto-interface.
+# The auto-interface could be "r.x" but not for sure.
+# $info is hash with attributes
+# - i => { $router => $interface, ... } 
+# - r => { $router => $autointerface, ... }
+# - n => { $router => { $network => autointerface, ... }, ... }
+#
+# interface:router.network conflicts with interface:router.[auto]
+# interface:router.network conflicts with interface:[network].[auto]
+# interface:router:[auto] conflicts with interface:[network].[auto]
+#  if router is connected to network.
+sub check_auto_intf {
+    my ($info, $elements, $context) = @_;
+    my $add_info = {};
+
+    # Check current elements with interfaces of previous elements.
+    for my $obj (@$elements) {
+        my $type = ref $obj;
+        my $other;
+        if ($type eq 'Interface') {
+            my $router = $obj->{router};
+            my $network = $obj->{network};
+            $other = $info->{r}->{$router} || $info->{n}->{$router}->{$network};
+            $add_info->{i}->{$router} = $obj;
+        }
+        elsif ($type eq 'Autointerface') {
+            my $auto = $obj->{object};
+            if (is_router($auto)) {
+                my $router = $auto;
+                $other = $info->{i}->{$router};
+                if (!$other) {
+                    my $href = $info->{n}->{$router};
+                    $other = (values %$href)[0];
+                }
+                $add_info->{r}->{$router} = $obj;
+            }
+            else {
+                my $network = $auto;
+                for my $interface (@{ $network->{interfaces} }) {
+                    my $router = $interface->{router};
+                    $other = $info->{r}->{$router};
+                    if (!$other and $other = $info->{i}->{$router}) {
+                        if (!$other->{network} eq $network) {
+                            $other = undef;
+                        }
+                    }
+                    $add_info->{n}->{$router}->{$network} = $obj;
+                }
+            }                
+        }
+        if ($other) {
+            err_msg("Must not use $other->{name} and $obj->{name} together\n",
+                    " in intersection of $context");
+        }
+    }
+
+    # Extend info with values of current elements.
+    for my $key (keys %$add_info) {
+        my $href = $add_info->{$key};
+        for my $rkey (%$href) {
+            my $val = $href->{$rkey};
+            if (ref $val) {
+                @{$info->{$key}->{$rkey}}{keys %$val} = values %$val;
+            }
+            else {
+                $info->{$key}->{$rkey} = $val;
+            }
+        }
+    }
+}
+
 # Get a reference to an array of network object descriptions and
 # return a reference to an array of network objects.
 sub expand_group1;
@@ -5348,7 +5421,7 @@ sub expand_group1 {
         if ($type eq '&') {
             my @non_compl;
             my @compl;
-            my %router2intf;
+            my %autointf_info;
             for my $element (@$name) {
                 my $element1 = $element->[0] eq '!' ? $element->[1] : $element;
                 my @elements =
@@ -5358,31 +5431,7 @@ sub expand_group1 {
                         $clean_autogrp
                     )
                   };
-                for my $obj (@elements) {
-                    my $type = ref $obj;
-                    my $router;
-                    if ($type eq 'Interface') {
-                        $router = $obj->{router};
-                    }
-                    elsif ($type eq 'Autointerface') {
-                        $router = $obj->{object};
-                        is_router($router) or next;
-                    }
-                    else {
-                        next;
-                    }
-                    if (my $other = $router2intf{$router}) {
-                        if (ref($other) ne $type) {
-                            err_msg(
-                                "Must not use $obj->{name} and $other->{name}",
-                                " together\n in intersection in $context"
-                            );
-                        }
-                    }
-                    else {
-                        $router2intf{$router} = $obj;
-                    }
-                }
+                check_auto_intf(\%autointf_info, \@elements, $context);
                 if ($element->[0] eq '!') {
                     push @compl, @elements;
                 }

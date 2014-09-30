@@ -6,13 +6,13 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out);
+my ($topo, $title, $in, $out);
 
 ############################################################
 $title = 'Auto interface of network';
 ############################################################
 
-my $topo = <<END;
+$topo = <<END;
 network:a = { ip = 10.0.0.0/24; }
 router:r1 =  {
  managed;
@@ -239,6 +239,123 @@ $out = <<END;
 END
 
 test_run($title, $in, $out);
+
+############################################################
+# Topology for multiple tests.
+############################################################
+
+$topo = <<'END';
+network:x = { ip = 10.1.1.0/24; }
+router:r = {
+ model = IOS, FW;
+ managed;
+ interface:x = { ip = 10.1.1.1; hardware = e0; }
+ interface:y = { ip = 10.2.2.2; hardware = e1; }
+}
+network:y = { ip = 10.2.2.0/24; }
+END
+
+############################################################
+$title = 'Interface and auto interface in intersection';
+############################################################
+
+$in = $topo . <<'END';
+service:test = {
+ user = interface:r.[auto] &! interface:r.x;
+ permit src = user; dst = network:y; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: Must not use interface:r.[auto] and interface:r.x together
+ in intersection of user of service:test
+Warning: Useless delete of interface:r.x in user of service:test
+Error: Must not use interface:r.[auto] and interface:r.x together
+ in intersection of user of service:test
+Warning: Useless delete of interface:r.x in user of service:test
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Interface and auto interface in union';
+############################################################
+
+$in = $topo . <<'END';
+group:g = interface:r.[auto], interface:r.x, network:y;
+service:test = {
+ user = group:g &! network:y;
+ permit src = user; dst = network:y; prt = tcp 80;
+}
+END
+
+# Must not trigger error message.
+$out = <<'END';
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Interface and auto network interface';
+############################################################
+
+$in = $topo . <<'END';
+service:test = {
+ user = interface:[network:x].[auto] &! interface:r.x;
+ permit src = user; dst = network:y; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: Must not use interface:[network:x].[auto] and interface:r.x together
+ in intersection of user of service:test
+Warning: Useless delete of interface:r.x in user of service:test
+Error: Must not use interface:[network:x].[auto] and interface:r.x together
+ in intersection of user of service:test
+Warning: Useless delete of interface:r.x in user of service:test
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Auto interface and auto network interface';
+############################################################
+
+$in = $topo . <<'END';
+service:test = {
+ user = interface:[network:x].[auto] &! interface:r.[auto];
+ permit src = user; dst = network:y; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: Must not use interface:[network:x].[auto] and interface:r.[auto] together
+ in intersection of user of service:test
+Warning: Useless delete of interface:r.[auto] in user of service:test
+Error: Must not use interface:[network:x].[auto] and interface:r.[auto] together
+ in intersection of user of service:test
+Warning: Useless delete of interface:r.[auto] in user of service:test
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Non conflicting auto network interfaces';
+############################################################
+
+$in = $topo . <<'END';
+service:test = {
+ user = interface:[network:x].[auto] &! interface:[network:y].[auto];
+ permit src = user; dst = network:y; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: Useless delete of interface:[network:y].[auto] in user of service:test
+Warning: Useless delete of interface:[network:y].[auto] in user of service:test
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;
