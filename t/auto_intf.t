@@ -205,7 +205,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Multile interfaces talk to policy_distribution_point';
+$title = 'Multiple interfaces talk to policy_distribution_point';
 ############################################################
 
 $in = <<END;
