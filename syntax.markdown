@@ -313,6 +313,8 @@ where `<object set>` must expand to interfaces.
     
     <email> ::= some valid email address or 'guest'
 
+`admins` are optional if `extend_only` is set.
+
 ##Encryption
 
 ###Crypto definition
