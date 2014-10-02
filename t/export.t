@@ -306,7 +306,7 @@ $title = 'Owner with "extend" at nested areas';
 ############################################################
 
 $in = <<'END';
-owner:x = { admins = x@b.c; extend; }
+owner:x = { admins = x@b.c; watchers = w@b.c; extend; }
 owner:y = { admins = y@b.c; extend; }
 owner:z = { admins = z@b.c; }
 
@@ -336,7 +336,7 @@ router:asa2 = {
 network:n3 = { ip = 10.3.3.0/24; owner = y; }
 END
 
-$out = <<END;
+$out = <<'END';
 --owner/x/extended_by
 []
 --owner/y/extended_by
@@ -354,6 +354,26 @@ $out = <<END;
       "name" : "y"
    }
 ]
+--email
+{
+   "w@b.c" : [
+      "x",
+      "y",
+      "z"
+   ],
+   "x@b.c" : [
+      "x",
+      "y",
+      "z"
+   ],
+   "y@b.c" : [
+      "y",
+      "z"
+   ],
+   "z@b.c" : [
+      "z"
+   ]
+}
 END
 
 test_run($title, $in, $out);

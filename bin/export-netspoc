@@ -925,34 +925,32 @@ sub export_owners {
             $email2owners{$email}->{$name} = $name;
             push @emails, $email;
         }
-        if (my $watchers = $owner->{watchers}) {
-            for my $email ( @$watchers ) {
+        for my $email ( @{ $owner->{watchers} } ) {
 
-                # Watchers are allowed to login, but aren't shown as owner.
-                $email2owners{$email}->{$name} = $name;
-                push @watchers, $email;
-            }
+            # Watchers are allowed to login, but aren't shown as owner.
+            $email2owners{$email}->{$name} = $name;
+            push @watchers, $email;
         }
-        if (my $aref = $owner->{extended_by}) {
-            for my $e_owner (@$aref) {
-                for my $email ( @{ $e_owner->{admins} } ) {
-                    $email2owners{$email}->{$name} = $name;
-                }
-                (my $e_name = $e_owner->{name}) =~ s/^owner://;
-                push @e_owners, $e_name;
-            }
-        }
-    
-        # Add master owner to other owners not having extended_by, 
-        # i.e. sub_owner
+
+        # Handle extending owners.
+        my $extended = $owner->{extended_by} || [];
+
+        # Add master owner to owners not already extended_by, 
+        # i.e. sub_owner.
         if ($master_owner && $name ne $master_owner) {
             my $m_owner = $Netspoc::owners{$master_owner};
-            for my $email ( @{ $m_owner->{admins} } ) {
+            if (!grep { $_ eq $m_owner } @$extended) {
+                push @$extended, $m_owner;
+            }
+        }
+        for my $e_owner (@$extended) {
+
+            # Allow both, admins and watchers to look at owner.
+            for my $email ( @{ $e_owner->{admins} }, @{ $e_owner->{watchers} } ) {
                 $email2owners{$email}->{$name} = $name;
             }
-            if (!grep { $_ eq $master_owner } @e_owners) {
-                push @e_owners, $master_owner;
-            }
+            (my $e_name = $e_owner->{name}) =~ s/^owner://;
+            push @e_owners, $e_name;
         }
 
         export("owner/$name/emails", 
