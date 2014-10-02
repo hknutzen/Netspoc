@@ -3206,7 +3206,11 @@ sub read_owner {
             syntax_err("Expected valid attribute");
         }
     }
-    $owner->{admins} or error_atline("Missing attribute 'admins'");
+    if (!$owner->{admins}) {
+        $owner->{extend_only} and $owner->{watchers} or 
+            error_atline("Missing attribute 'admins'");
+        $owner->{admins} = [];
+    }
     return $owner;
 }
 
