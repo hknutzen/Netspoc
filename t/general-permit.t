@@ -66,7 +66,7 @@ router:r = {
 }
 END
 $out = <<'END';
-Warning: Useless attribute \'general_permit\' at router:r,
+Warning: Useless attribute 'general_permit' at router:r,
  it was already inherited from area:all
 END
 
