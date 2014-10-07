@@ -9187,7 +9187,7 @@ sub inherit_area_nat {
     my ($area) = @_;
 
     my $hash = $area->{nat} or return;
-    for my $nat_tag (keys %$hash) {
+    for my $nat_tag (sort keys %$hash) {
         my $nat = $hash->{$nat_tag};
         for my $zone (@{ $area->{zones} }) {
             if (my $z_nat = $zone->{nat}->{$nat_tag}) {
@@ -9219,7 +9219,7 @@ sub inherit_attributes_from_area {
 sub inherit_nat_from_zone {
     for my $zone (@zones) {
         my $hash = $zone->{nat} or next;
-        for my $nat_tag (keys %$hash) {
+        for my $nat_tag (sort keys %$hash) {
             my $nat = $hash->{$nat_tag};
             for my $network (@{ $zone->{networks} }) {
 
