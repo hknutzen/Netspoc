@@ -484,6 +484,48 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Warn on useless inherited NAT';
+############################################################
+
+$in = <<END;
+area:x = {
+ border = interface:filter.x;
+ nat:C = { ip = 10.8.8.0/24; dynamic; }
+ nat:D = { hidden; }
+}
+any:x = { 
+ link = network:x; 
+ nat:C = { ip = 10.8.8.0/24; dynamic; }
+}
+network:x =  {
+ ip = 10.0.0.0/24; 
+ nat:C = { ip = 10.8.8.0/24; dynamic; }
+ nat:D = { hidden; }
+}
+
+router:filter = {
+ managed;
+ model = ASA, 8.4;
+ interface:x = { ip = 10.0.0.2; hardware = inside; }
+ interface:y = { ip = 10.8.3.1; hardware = outside; bind_nat = C; }
+}
+
+network:y = { ip = 10.8.3.0/24; }
+END
+
+$out = <<END;
+Warning: Useless nat:C at any:[network:x],
+ it is already inherited from area:x
+Warning: Useless nat:C at network:x,
+ it is already inherited from any:[network:x]
+Warning: Useless nat:D at network:x,
+ it is already inherited from any:[network:x]
+Warning: nat:D is defined, but not bound to any interface
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Interface with dynamic NAT as destination';
 ############################################################
 

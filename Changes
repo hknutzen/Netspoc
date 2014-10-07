@@ -1,3 +1,16 @@
+3.055     2014-10-07 15:12:47 Europe/Berlin
+
+ - Attribute 'admins' of owner is optional now if 'extend_only' is set.
+   But in this case some 'watchers' must be defined.
+ - Fixed check for interface and auto-interface together in intersection.
+   - Check auto-interface from network as well.
+   - No longer reject those interfaces inside a union of values.
+ - Fixed check for pathrestriction at group of routers with virtual IP.
+   Pathrestriction is allowed now if it applies to all routers of such 
+   a group.
+ - Warn when inheriting useless 'router_attributes' or NAT definitions.
+ - Fixed command misc/anonymize to support newer features of Netspoc.
+
 3.054     2014-09-16 18:48:58 Europe/Berlin
 
  - Extended valid names and handling of ID hosts. 
@@ -7,7 +20,8 @@
    other subject-name of the certificate.
    Use the new attribute 'check-subject-name' inside 'radius_attributes' 
    to configure the to be checked subject-name.
- - No longer ignore private configuration contexts (*.private) in subdirectories.
+ - No longer ignore private configuration contexts (*.private) 
+   in subdirectories.
    But nested private configuration contexts are still rejected.
  - Fixed NAT data for export to NetspocWeb
    by removing needless entries from no_nat_set.

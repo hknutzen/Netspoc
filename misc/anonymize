@@ -50,8 +50,31 @@ my $out = shift @ARGV or usage;
 # Read and process netspoc configuration data.
 info "Reading config";
 &read_file_or_dir($in);
+&order_protocols();
 &link_topology();
+&mark_disabled();
+&set_zone();
+&setpath();
+&distribute_nat_info();
+Netspoc::find_subnets_in_zone();
+&set_service_owner();
+&expand_services(1);	# 1: expand hosts to subnets
 die "Aborted with $error_counter error(s)\n" if $error_counter;
+
+# We can't use %aggregates from Netspoc.pm because it only holds named
+# aggregates. But we need unnamed aggregates like any:[network:XX]
+# as well.
+my @all_zones;
+
+sub setup_zones {
+    my %seen;
+    for my $network (values %networks) {
+        $network->{disabled} and next;
+        my $zone = $network->{zone};
+        next if $seen{$zone}++;
+        push @all_zones, $zone;
+    }
+}
 
 # Leave this characters unchanged.
 my $separator = qr/([-\@_.äöüß ,;]+)/;
@@ -86,7 +109,30 @@ sub random2 {
 }
 
 my %subst;
+my %seen;
 
+sub find_subst {
+    my ($type, $name) = @_;
+    my $i = 1;
+    while ($i++) {
+        if ($i > 20) {
+            fatal_err "Abort after $i tries: can't rename $type:$name";
+        }
+
+        # Leave first two characters of service name unchanged,
+        # because sort order influences processing order. Processing
+        # order needs to be unchanged for attribute 'overlaps'.
+        my $renamed = $type eq 'service'
+                    ? random2($name) 
+                    : $name =~ /^(?:TCP|UDP|IP|ICMP)(?:[-_\d]*|_ALL)$/
+                    ? $name
+                    : random($name);
+        next if $seen{$type}->{$renamed};
+        $seen{$type}->{$renamed} = 1;
+        $subst{$type}->{$name} = $renamed;
+        return $renamed;
+    }
+}
 my %global_type = (
 		   router          => \%routers         ,
 		   network         => \%networks        ,
@@ -110,16 +156,18 @@ sub setup_subst {
 	for my $obj (values %$table) {
 	    my $name = $obj->{name};
 	    $name =~ s/^.*://;
-
-	    # Leave first two characters of service name unchanged,
-	    # because sort order influences processing order.
-	    # Processing order needs to be unchanged for attribute 'overlaps'.
-	    my $renamed = $type eq 'service'
-                        ? random2($name) 
-                        : $name =~ /^(?:TCP|UDP|IP|ICMP)(?:[-_\d]*|_ALL)$/
-                        ? $name
-                        : random($name);
-	    $subst{$type}->{$name} = $renamed;
+            my $bridge_part;
+            ($name, $bridge_part) = split('/', $name);
+            if ($bridge_part) {
+                my $renamed = $subst{$type}->{$name} || find_subst($type, $name);
+                my $renamed_bridge = find_subst("bridge-$name", $bridge_part);
+                $renamed .= "/$renamed_bridge";
+                $subst{$type}->{"$name/$bridge_part"} = $renamed;
+            }
+            else {
+                my $renamed = find_subst($type, $name);
+            }
+                
 	}
     }
 
@@ -143,10 +191,14 @@ sub setup_subst {
 		$subst{host}->{$name} = $renamed;
 	    }
 	}
-	if (my $href = $network->{nat}) {
-	    for my $nat_tag (keys %$href) {
-		next if $subst{nat}->{$nat_tag};
-		$subst{nat}->{$nat_tag} = random($nat_tag);
+    }
+    for my $obj (values %networks, values %areas) {
+        for my $attr (qw(nat identity_nat)) {
+            if (my $href = $obj->{$attr}) {
+                for my $nat_tag (keys %$href) {
+                    next if $subst{nat}->{$nat_tag};
+                    $subst{nat}->{$nat_tag} = random($nat_tag);
+                }
 	    }
 	}
     }
@@ -170,79 +222,115 @@ my $oct_map = { 10 => { new => 10, },
 		192 => { new => 192, map => { 168 => { new => 168 } }, },
 	    };
 
+sub numerically { return $a <=> $b }
+
+# Convert an IP range to minimal covering IP/mask pair.
+sub range2subnet {
+    my ($low, $high) = @_;
+    my $mask = 0xffffffff;
+    my $ip = $low;
+    while(1) {
+        my $end = $ip | Netspoc::complement_32bit($mask);
+        if ($end >= $high) {
+            return [ $ip, $mask ];
+        }
+        $mask &= 0x7fffffff;
+        $mask <<= 1;
+        $ip = $ip & $mask;
+    }
+}
+
 sub setup_ip {
     my ($setup) = @_;
+    my %mask_ip;
+    my $add_ip_mask = sub {
+        for (@_) {
+            my ($ip, $mask) = @$_;
+            $mask_ip{$mask}->{$ip} = 1;
+        }
+    };
+    
+    $add_ip_mask->(map { [ $_->{ip}, $_->{mask} ] }
+                   grep { !$_->{hidden} }
+		   map { $_, values %{ $_->{nat} } }
+		   grep { $_->{ip} !~ /^(?:unnumbered|tunnel)/ }
+                   values %networks);
+    $add_ip_mask->(map { @{ $_->{filter_only} || [] } } values %routers);
+    $add_ip_mask->(map { [ $_->{ip}, $_->{mask} ] } 
+                   map { values %{ $_->{ipmask2aggregate} } } @all_zones);
+    $add_ip_mask->(map { $_->{ip} ? [ $_->{ip}, 0xffffffff ] 
+                                  : range2subnet(@{ $_->{range} }) }
+                   map { @{ $_->{hosts} || [] } } 
+                   values %networks);                   
 
-    # Sort networks by size of mask, i.e. large subnets coming first.
-    for my $network ( sort { $a->{mask} <=> $b->{mask} } 
-                      grep { !$_->{hidden} }
-		      map { $_, values %{ $_->{nat} } }
-		      grep { $_->{ip} !~ /^(?:unnumbered|tunnel)/ }
-		      values %networks) 
-    {
-	my $ip = $network->{ip};
-	my $mask = $network->{mask};
+    # Sort mask, i.e. large subnets coming first.
+    for my $mask (sort numerically keys %mask_ip) {
 	next if $mask == 0;
-	my $rip = $ip;
+        my $ip_hash = $mask_ip{$mask};
+        for my $ip (sort numerically keys %$ip_hash) {
+            my $rip = $ip;
 
-	my $map = $oct_map;
-	for my $shift (24, 16, 8) {
-	    my $m = ($mask >> $shift) & 0xff;
-	    if ($m != 0xff) {
-		if ($m) {
-		    my $i = ($ip >> $shift) & $m;
-		    my $range = 0xff - $m;
-		    for my $x ($i .. $i+$range) {
-			$map->{$x}->{new} = $x;
-			my $pip = print_ip($ip);
-			Netspoc::debug "Freezed $x at $shift in $pip";
-		    }
-		}
-		last;
-	    }
-		
-	    my $i = ($ip >> $shift) & 0xff;
-	    my $hash = $map->{$i} ||= {};
-	    if (not $setup) {
+            my $map = $oct_map;
+            for my $byte (1, 2, 3) {
+                my $shift = (4 - $byte) * 8;
+                my $m = ($mask >> $shift) & 0xff;
+                if ($m != 0xff) {
+                    if ($m) {
+                        my $i = ($ip >> $shift) & $m;
+                        my $range = 0xff - $m;
+                        for my $x ($i .. $i+$range) {
+                            $map->{$x}->{new} = $x;
+                            my $pip = print_ip($ip);
+                            my $prefix = Netspoc::mask2prefix($mask);
+                            Netspoc::debug "Freezed $x byte $byte in $pip/$prefix";
+                        }
+                    }
+                    last;
+                }
 
-                # Don't change a 0 octet. This prevents substituition of 
-                # the supernet with the value of a subnet.
-                $hash->{new} = 0 if $i == 0;
-		my $new = $hash->{new};
-		if (not defined $new) {
-		    for my $n (128 .. 254, 1 .. 126) {
-			if ($map->{$n} and
-			    ( not $map->{$n}->{new} or
-                              $map->{$n}->{new} == $n or
-                              $map->{$n}->{used})
-			    ) 
-			{
-			    next;
-			}
-			$new = $n;
-			last;
-		    }
-		    if (not defined $new) {
-			my $pip = print_ip($ip);
-			fatal_err "Values exhausted for $pip at >> $shift";
-		    }
-		    $hash->{new} = $new;
-		    $map->{$new}->{used} = 1;
-		    Netspoc::debug "Change to $new at $shift";
-		}
-		my $roct = $new << $shift;
-		my $rmask = Netspoc::complement_32bit(0xff << $shift);
-		$rip = ($rip & $rmask) | $roct;
-	    }
-	    $map = $hash->{map} ||= {};
-	}
-	if (not $setup) {
-	    $ipsubst{"$ip/$mask"} = $rip;
-	    my $pip = print_ip($ip);
-	    my $pmask = print_ip($mask);
-	    my $prip = print_ip($rip);
-	    Netspoc::debug "$pip/$pmask -> $prip";
-	}
+                my $i = ($ip >> $shift) & 0xff;
+                my $hash = $map->{$i} ||= {};
+                if (not $setup) {
+
+                    # Don't change a 0 octet. This prevents substituition of 
+                    # the supernet with the value of a subnet.
+                    $hash->{new} = 0 if $i == 0;
+                    my $new = $hash->{new};
+                    if (not defined $new) {
+                        for my $n (128 .. 254, 1 .. 126) {
+                            if ($map->{$n} and
+                                ( not $map->{$n}->{new} or
+                                  $map->{$n}->{new} == $n or
+                                  $map->{$n}->{used})
+                                ) 
+                            {
+                                next;
+                            }
+                            $new = $n;
+                            last;
+                        }
+                        if (not defined $new) {
+                            my $pip = print_ip($ip);
+                            fatal_err "Values exhausted for $pip at byte $byte";
+                        }
+                        $hash->{new} = $new;
+                        $map->{$new}->{used} = 1;
+                        Netspoc::debug "Change $i to $new in byte $byte";
+                    }
+                    my $roct = $new << $shift;
+                    my $rmask = Netspoc::complement_32bit(0xff << $shift);
+                    $rip = ($rip & $rmask) | $roct;
+                }
+                $map = $hash->{map} ||= {};
+            }
+            if (not $setup) {
+                $ipsubst{"$ip/$mask"} = $rip;
+                my $pip = print_ip($ip);
+                my $prefix = Netspoc::mask2prefix($mask);
+                my $prip = print_ip($rip);
+                Netspoc::debug "$pip/$prefix -> $prip";
+            }
+        }
     }
 }	
 
@@ -347,7 +435,7 @@ sub subst {
 	}
 	    
     }
-    elsif (not $global_type{$type}) {
+    elsif (!($global_type{$type} || $type eq 'nat')) {
 	$name;
     }
     else {
@@ -357,13 +445,15 @@ sub subst {
 
 sub subst_list {
     my ($type, $list) = @_;
-    $list =~ s/\s*$//;
-    my @names = grep { $_ !~ /^$/ } split(/\s*,\s*/, $list);
-    join(', ', map { subst($type, $_) } @names);
+    $list =~ s/(,?\s*)$//;
+    my $end = $1;
+    my @names = split(/\s*,\s*/, $list);
+    join(', ', map { subst($type, $_) } @names) . $end;
 }
 
 my %known_hw = (
     bri => 1,
+    device => 1,
     dialer => 1,
     ethernet => 1,
     fastethernet => 1,
@@ -383,7 +473,7 @@ sub subst_hw {
     $name =~ s/\s*$//;
     my ($root, $ext) = $name =~ m/^(.*?)([\d\/:]*)$/ or 
         fatal_err("Unexpected hardware: $name");
-    return $known_hw{lc $root} ? $name : "dmz$ext";
+    return $known_hw{lc $root} ? $name : random($root) . $ext;
 }
 
 sub del_char {
@@ -394,19 +484,38 @@ sub del_char {
 
 sub process {
     my ($lines) = @_;
+    my $continue;        
     for my $line (@$lines) {
+        my $check_list_end = sub {
+            my ($type) = @_;
+            if ($line =~ /^[^#]*;/) {
+                $continue = undef;
+            }
+            else {
+                $continue = $type;
+            }
+        };
 
 	# Clean up comments
 	$line =~ s/(\#.*)/ del_char($1) /gex;
 
+        if ($continue) {
+            $line =~ s/(\s*)([^;]+)/ $1 . subst_list($continue, $2) /gex;
+            $check_list_end->($continue);
+        }
+            
 	# Rename type:name
 	$line =~ s/([a-z]+):([-\w.\@:\/]+)/ "$1:" . subst($1, $2) /gex;
-	# Rename nat = name
-	$line =~ s/(bind_nat\s*=\s*)([^;]+)/ 
-             $1 . subst_list('nat', $2) /gex;
+	# Rename bind_nat = name
+	if($line =~ s/(bind_nat\s*=\s*)([^;]+)/ 
+             $1 . subst_list('nat', $2) /gex) {
+            $check_list_end->('nat');
+        }
 	# Rename owner = name, ... ;
-	$line =~ s/(owner)(\s*=\s*)([^;]+)/ 
-	    "$1$2" . subst_list($1, $3) /gex;
+	if ($line =~ s/(owner)(\s*=\s*)([^;]+)/ 
+	    "$1$2" . subst_list($1, $3) /gex) {
+            $check_list_end->('owner');
+        }
 	# Sustitute IP addresses.
 	$line =~ s/(\d+\.\d+\.\d+\.\d+)/ subst_ip($1) /gex;
         # Anonymize non standard hardware names.
@@ -422,6 +531,7 @@ sub process {
     }
 }
 
+setup_zones();
 info "Setup IP substituition";
 setup_ip(1);
 setup_ip();

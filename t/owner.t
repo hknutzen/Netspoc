@@ -186,4 +186,21 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Owner with only watchers';
+############################################################
+
+$in = <<'END';
+owner:x = { watchers = x@a.b; extend_only; }
+owner:y = { watchers = y@a.b; }
+area:all = { owner = x; anchor = network:n1; }
+network:n1 = { owner = y; ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Missing attribute 'admins' at line 2 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;

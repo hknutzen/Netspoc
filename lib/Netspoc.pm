@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.054'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.055'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -1688,7 +1688,7 @@ sub read_network {
             }
 
             # Compatibility of host and network NAT will be checked later,
-            # after global NAT definitions have been processed.
+            # after inherited NAT definitions have been processed.
         }
         if (@{ $network->{hosts} } and $network->{crosslink}) {
             error_atline("Crosslink network must not have host definitions");
@@ -3006,21 +3006,6 @@ sub read_service {
     return $service;
 }
 
-our %global;
-
-sub read_global {
-    my ($name) = @_;
-    skip '=';
-    (my $action = $name) =~ s/^global://;
-    $action eq 'permit' or error_atline("Unexpected name, use 'global:permit'");
-    my $prt = [ read_list \&read_typed_name_or_simple_protocol ];
-    return {
-        name   => $name,
-        action => $action,
-        prt    => $prt
-    };
-}
-
 our %pathrestrictions;
 
 sub read_pathrestriction {
@@ -3221,7 +3206,11 @@ sub read_owner {
             syntax_err("Expected valid attribute");
         }
     }
-    $owner->{admins} or error_atline("Missing attribute 'admins'");
+    if (!$owner->{admins}) {
+        $owner->{extend_only} and $owner->{watchers} or 
+            error_atline("Missing attribute 'admins'");
+        $owner->{admins} = [];
+    }
     return $owner;
 }
 
@@ -3247,7 +3236,6 @@ my %global_type = (
     protocol        => [ \&read_protocol,        \%protocols ],
     protocolgroup   => [ \&read_protocolgroup,   \%protocolgroups ],
     service         => [ \&read_service,         \%services ],
-    global          => [ \&read_global,          \%global ],
     pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
     isakmp          => [ \&read_isakmp,          \%isakmp ],
     ipsec           => [ \&read_ipsec,           \%ipsec ],
@@ -4025,26 +4013,25 @@ sub link_policy_distribution_point {
     return;
 }
 
-sub expand_general_permit {
-    my ($list, $context) = @_;
-    my $result = expand_protocols($list, $context);
-    for my $prt (@$result) {
+sub link_general_permit {
+    my ($hash, $parent) = @_;
+    my $list = $hash->{general_permit} or return;
+    my $context = $parent->{name};
+    $list = $hash->{general_permit} = 
+        [ sort by_name @{ expand_protocols($list, $context) } ];
+
+    # Check for errors.
+    for my $prt (@$list) {
         my $main_prt = $prt->{main} || $prt;
         $main_prt->{src_dst_range_list} or internal_err($main_prt->{name});
         for my $src_dst_range (@{ $main_prt->{src_dst_range_list} }) {
             my ($src_range, $dst_prt) = @$src_dst_range;
             ($src_range->{range} && $src_range->{range} ne $aref_tcp_any ||
              $dst_prt->{range} && $dst_prt->{range} ne $aref_tcp_any) and
-             err_msg("Must not use ports in global permit: $prt->{name}");
+             err_msg("Must not use ports of '$prt->{name}'",
+                     " in general_permit of $context");
         }
     }
-    return $result;
-}
-
-sub link_general_permit {
-    my ($hash, $parent) = @_;
-    my $list = $hash->{general_permit} or return;
-    $hash->{general_permit} = expand_general_permit($list, $parent);
     return;
 }
 
@@ -4476,19 +4463,42 @@ sub link_virtual_interfaces  {
     # Therefore a network behind this interface must be reachable
     # via all virtual interfaces of the group.
     # This can only be guaranteed, if pathrestrictions are identical
-    # on all interfaces.
+    # at all interfaces.
     # Exception in routing code:
     # If the group has ony two interfaces, the one or other physical
     # interface can be used as hop.
+    my %seen;
     for my $href (values %net2ip2virtual) {
         for my $interfaces (values %$href) {
-            if (   @$interfaces >= 3
-                && grep { $_->{path_restrict} && !$_->{main_interface} }
-                   map { @{ $_->{router}->{interfaces} } } @$interfaces)
-            {
-                err_msg("Pathrestriction not supported at group of routers",
-                        " having 3 or more virtual interfaces\n",
-                        join("\n", map { " - $_->{name}" } @$interfaces));
+            next if @$interfaces <= 2;
+            my @virt_routers = map { $_->{router} } @$interfaces;
+            my %routers_hash = map { $_ => $_ } @virt_routers;
+            for my $router (@virt_routers) {
+                for my $interface (@{ $router->{interfaces} }) {
+                    next if $interface->{main_interface};
+                    my $restricts = $interface->{path_restrict} or next;
+                    for my $restrict (@$restricts) {
+                        next if $seen{$restrict};
+                        my @restrict_routers = 
+                            grep({ $routers_hash{$_} } 
+                                 map { $_->{router} } 
+                                 @{ $restrict->{elements} });
+                        next if @restrict_routers == @virt_routers;
+                        $seen{$restrict} = 1;
+                        my @info;
+                        for my $router (@virt_routers) {
+                            my $info = $router->{name};
+                            if (grep { $_ eq $router} @restrict_routers) {
+                                $info .= " has $restrict->{name}";
+                            }
+                            push @info, $info;
+                        }
+                        err_msg("Must apply pathrestriction equally to",
+                                " group of routers with virtual IP:\n",
+                                " - ", 
+                                join("\n - ", @info));
+                    }
+                }
             }
         }
     }
@@ -5004,6 +5014,7 @@ sub mark_disabled {
         if (! $seen{$network}) {
             if (keys %networks > 1) {
                 err_msg("$network->{name} isn't connected to any router");
+                $network->{disabled} = 1;
             }
             else {
                 push @networks, $network;
@@ -5328,6 +5339,80 @@ sub get_auto_intf {
     return $result;
 }
 
+# Check intersection of interface and auto-interface.
+# Prevent expressions like "interface:r.x &! interface:r.[auto]",
+# because we don't know the exact value of the auto-interface.
+# The auto-interface could be "r.x" but not for sure.
+# $info is hash with attributes
+# - i => { $router => $interface, ... } 
+# - r => { $router => $autointerface, ... }
+# - n => { $router => { $network => autointerface, ... }, ... }
+#
+# interface:router.network conflicts with interface:router.[auto]
+# interface:router.network conflicts with interface:[network].[auto]
+# interface:router:[auto] conflicts with interface:[network].[auto]
+#  if router is connected to network.
+sub check_auto_intf {
+    my ($info, $elements, $context) = @_;
+    my $add_info = {};
+
+    # Check current elements with interfaces of previous elements.
+    for my $obj (@$elements) {
+        my $type = ref $obj;
+        my $other;
+        if ($type eq 'Interface') {
+            my $router = $obj->{router};
+            my $network = $obj->{network};
+            $other = $info->{r}->{$router} || $info->{n}->{$router}->{$network};
+            $add_info->{i}->{$router} = $obj;
+        }
+        elsif ($type eq 'Autointerface') {
+            my $auto = $obj->{object};
+            if (is_router($auto)) {
+                my $router = $auto;
+                $other = $info->{i}->{$router};
+                if (!$other) {
+                    my $href = $info->{n}->{$router};
+                    $other = (values %$href)[0];
+                }
+                $add_info->{r}->{$router} = $obj;
+            }
+            else {
+                my $network = $auto;
+                for my $interface (@{ $network->{interfaces} }) {
+                    my $router = $interface->{router};
+                    $other = $info->{r}->{$router};
+                    if (!$other && ($other = $info->{i}->{$router})) {
+                        if (!$other->{network} eq $network) {
+                            $other = undef;
+                        }
+                    }
+                    $add_info->{n}->{$router}->{$network} = $obj;
+                }
+            }                
+        }
+        if ($other) {
+            err_msg("Must not use $other->{name} and $obj->{name} together\n",
+                    " in intersection of $context");
+        }
+    }
+
+    # Extend info with values of current elements.
+    for my $key (keys %$add_info) {
+        my $href = $add_info->{$key};
+        for my $rkey (%$href) {
+            my $val = $href->{$rkey};
+            if (ref $val) {
+                @{$info->{$key}->{$rkey}}{keys %$val} = values %$val;
+            }
+            else {
+                $info->{$key}->{$rkey} = $val;
+            }
+        }
+    }
+    return;
+}
+
 # Get a reference to an array of network object descriptions and
 # return a reference to an array of network objects.
 sub expand_group1;
@@ -5341,7 +5426,7 @@ sub expand_group1 {
         if ($type eq '&') {
             my @non_compl;
             my @compl;
-            my %router2intf;
+            my %autointf_info;
             for my $element (@$name) {
                 my $element1 = $element->[0] eq '!' ? $element->[1] : $element;
                 my @elements =
@@ -5351,31 +5436,7 @@ sub expand_group1 {
                         $clean_autogrp
                     )
                   };
-                for my $obj (@elements) {
-                    my $type = ref $obj;
-                    my $router;
-                    if ($type eq 'Interface') {
-                        $router = $obj->{router};
-                    }
-                    elsif ($type eq 'Autointerface') {
-                        $router = $obj->{object};
-                        is_router($router) or next;
-                    }
-                    else {
-                        next;
-                    }
-                    if (my $other = $router2intf{$router}) {
-                        if (ref($other) ne $type) {
-                            err_msg(
-                                "Must not use $obj->{name} and",
-                                " $other->{name} together in $context"
-                            );
-                        }
-                    }
-                    else {
-                        $router2intf{$router} = $obj;
-                    }
-                }
+                check_auto_intf(\%autointf_info, \@elements, $context);
                 if ($element->[0] eq '!') {
                     push @compl, @elements;
                 }
@@ -6510,9 +6571,6 @@ sub warn_unused_overlaps {
     return;
 }
 
-# List of protocols to permit globally at any device.
-my @global_permit;
-
 # Parameters:
 # - Reference to array of unexpanded rules.
 # - The service.
@@ -6696,11 +6754,6 @@ sub expand_services {
     my ($convert_hosts) = @_;
     convert_hosts if $convert_hosts;
     progress('Expanding services');
-
-    # Handle global:permit.
-    if (my $global = $global{permit}) {
-        @global_permit = @{ expand_general_permit($global->{prt}, "$global->{name}") };
-    }
 
     my $expanded_rules_aref = [];
 
@@ -8371,17 +8424,18 @@ sub check_crosslink  {
 
         # Compare filter type of crosslink interfaces.
         # The weakest interfaces get attribute {crosslink}.
-        my ($weakest) = sort numerically keys %strength2intf;
-        for my $interface (@{ $strength2intf{$weakest} }) {
-            $interface->{hardware}->{crosslink} = 1;
-        }
+        if (my ($weakest) = sort numerically keys %strength2intf) {
+            for my $interface (@{ $strength2intf{$weakest} }) {
+                $interface->{hardware}->{crosslink} = 1;
+            }
 
-        # 'secondary' and 'local' are not comparable and hence must
-        # not occur together.
-        if ($weakest == $crosslink_strength{local} && 
-            $strength2intf{$crosslink_strength{secondary}}) {
-            err_msg("Must not use 'managed=local' and 'managed=secondary'",
-                    " together\n at crosslink $network->{name}");
+            # 'secondary' and 'local' are not comparable and hence must
+            # not occur together.
+            if ($weakest == $crosslink_strength{local} && 
+                $strength2intf{$crosslink_strength{secondary}}) {
+                err_msg("Must not use 'managed=local' and 'managed=secondary'",
+                        " together\n at crosslink $network->{name}");
+            }
         }
 
         not $out_acl_count
@@ -9088,25 +9142,60 @@ sub inherit_router_attributes {
         for my $key (keys %$attributes) {
 
             # Owner is handled in propagate_owners.
-            if (not $key eq 'owner') {
-                $router->{$key} ||= $attributes->{$key};
+            next if $key eq 'owner';
+
+            my $val = $attributes->{$key};
+            if (my $r_val = $router->{$key}) {
+                if (   $r_val eq $val 
+                    || ref $r_val eq 'ARRAY' && ref $val eq 'ARRAY' 
+                    && aref_eq($r_val, $val)) 
+                {
+                    warn_msg(
+                        "Useless attribute '$key' at $router->{name},\n",
+                        " it was already inherited from $area->{name}");
+                }
+            }
+            else {
+                $router->{$key} = $val;
             }
         }
     }
     return;
 }
 
+sub nat_equal {
+    my ($nat1, $nat2) = @_;
+    for my $attr (qw(ip mask dynamic hidden identify)) {
+        return 0 if defined $nat1->{$attr} xor defined $nat2->{$attr};
+        next if !defined $nat1->{$attr};
+        return 0 if $nat1->{$attr} ne $nat2->{$attr};
+    }
+    return 1;
+}
+
+sub check_useless_nat {
+    my ($nat_tag, $nat1, $nat2, $obj1, $obj2) = @_;
+    if (nat_equal($nat1, $nat2)) {
+        warn_msg("Useless nat:$nat_tag at $obj2->{name},\n",
+                 " it is already inherited from $obj1->{name}");
+    }
+    return;
+}
+    
 # Distribute NAT from area to zones.
 sub inherit_area_nat {
     my ($area) = @_;
 
     my $hash = $area->{nat} or return;
-    for my $nat_tag (keys %$hash) {
+    for my $nat_tag (sort keys %$hash) {
         my $nat = $hash->{$nat_tag};
         for my $zone (@{ $area->{zones} }) {
-            next if $zone->{nat}->{$nat_tag};
+            if (my $z_nat = $zone->{nat}->{$nat_tag}) {
+                check_useless_nat($nat_tag, $nat, $z_nat, $area, $zone);
+                next;
+            }
             $zone->{nat}->{$nat_tag} = $nat;
-#            debug "$zone->{name}: $nat_tag from $area->{name}";
+#           debug "$zone->{name}: $nat_tag from $area->{name}";
         }
     }
     return;
@@ -9130,17 +9219,24 @@ sub inherit_attributes_from_area {
 sub inherit_nat_from_zone {
     for my $zone (@zones) {
         my $hash = $zone->{nat} or next;
-        for my $nat_tag (keys %$hash) {
+        for my $nat_tag (sort keys %$hash) {
             my $nat = $hash->{$nat_tag};
             for my $network (@{ $zone->{networks} }) {
 
                 # Ignore NAT definition from area
                 # if network has local NAT definition or 
-                # has already inherited from smaller area.
-                next if $network->{nat}->{$nat_tag};
+                # has already inherited from zone or smaller area.
+                if (my $n_nat = $network->{nat}->{$nat_tag}) {
+                    check_useless_nat($nat_tag, $nat, $n_nat, $zone, $network);
+                    next;
+                }
 
                 # Ignore network with identity NAT.
-                next if $network->{identity_nat}->{$nat_tag};
+                if (my $id_nat = $network->{identity_nat}->{$nat_tag}) {
+                    check_useless_nat($nat_tag, $nat, $id_nat, $zone, $network);
+                    next;
+                }
+                    
 
                 next if $network->{ip} eq 'unnumbered';
                 next if $network->{isolated_ports};
@@ -14726,20 +14822,11 @@ sub create_general_permit_rules {
 }
 
 sub distribute_global_permit {
-    my $global = create_general_permit_rules(\@global_permit, 'global:permit');
     for my $router (@managed_routers) {
-        my $rules;
-        if (my $general_permit = $router->{general_permit}) {
-            my $router_rules = 
-                create_general_permit_rules($general_permit,
-                                            "general_permit of $router->{name}"
-                );
-            $rules = [@$global, @$router_rules];
-        }
-        else {
-            $rules = $global;
-        }
-        next if !@$rules;
+        my $general_permit = $router->{general_permit} or next;
+        my $rules = 
+            create_general_permit_rules(
+                $general_permit, "general_permit of $router->{name}");
         my $need_protect = $router->{need_protect};
         for my $in_intf (@{ $router->{interfaces} }) {
             next if has_global_restrict($in_intf);
