@@ -5382,7 +5382,7 @@ sub check_auto_intf {
                 for my $interface (@{ $network->{interfaces} }) {
                     my $router = $interface->{router};
                     $other = $info->{r}->{$router};
-                    if (!$other and $other = $info->{i}->{$router}) {
+                    if (!$other && ($other = $info->{i}->{$router})) {
                         if (!$other->{network} eq $network) {
                             $other = undef;
                         }
@@ -5410,6 +5410,7 @@ sub check_auto_intf {
             }
         }
     }
+    return;
 }
 
 # Get a reference to an array of network object descriptions and
