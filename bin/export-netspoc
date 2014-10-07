@@ -8,9 +8,6 @@ use JSON;
 use Netspoc;
 use open qw(:std :utf8);
 
-my $VERSION = 
-    ( split ' ', '$Id$' )[2];
-
 sub usage {
     die "Usage: $0 [-q] netspoc-data out-directory\n";
 }
