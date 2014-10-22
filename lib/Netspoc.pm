@@ -6492,7 +6492,7 @@ sub warn_useless_unenforceable {
 
 sub show_deleted_rules1 {
     return if not @deleted_rules;
-    my %pname2oname2deleted;
+    my %sname2oname2deleted;
   RULE:
     for my $rule (@deleted_rules) {
         my $other = $rule->{deleted};
@@ -6519,21 +6519,21 @@ sub show_deleted_rules1 {
                 }
             }
         }
-        my $pname = $service->{name};
+        my $sname = $service->{name};
         my $oname = $oservice->{name};
         my $pfile = $service->{file};
         my $ofile = $oservice->{file};
         $pfile =~ s/.*?([^\/]+)$/$1/;
         $ofile =~ s/.*?([^\/]+)$/$1/;
-        push(@{ $pname2oname2deleted{$pname}->{$oname} }, $rule);
+        push(@{ $sname2oname2deleted{$sname}->{$oname} }, $rule);
     }
     if (my $action = $config{check_duplicate_rules}) {
         my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
-        for my $pname (sort keys %pname2oname2deleted) {
-            my $hash = $pname2oname2deleted{$pname};
+        for my $sname (sort keys %sname2oname2deleted) {
+            my $hash = $sname2oname2deleted{$sname};
             for my $oname (sort keys %$hash) {
                 my $aref = $hash->{$oname};
-                my $msg  = "Duplicate rules in $pname and $oname:\n  ";
+                my $msg  = "Duplicate rules in $sname and $oname:\n  ";
                 $msg .= join("\n  ", map { print_rule $_ } @$aref);
                 $print->($msg);
             }
@@ -6591,27 +6591,27 @@ sub collect_redundant_rules {
 
 sub show_deleted_rules2 {
     return if not @deleted_rules;
-    my %pname2oname2deleted;
+    my %sname2oname2deleted;
     for my $pair (@deleted_rules) {
         my ($rule, $other) = @$pair;
 
         my $service  = $rule->{rule}->{service};
         my $oservice = $other->{rule}->{service};
-        my $pname = $service->{name};
+        my $sname = $service->{name};
         my $oname = $oservice->{name};
         my $pfile = $service->{file};
         my $ofile = $oservice->{file};
         $pfile =~ s/.*?([^\/]+)$/$1/;
         $ofile =~ s/.*?([^\/]+)$/$1/;
-        push(@{ $pname2oname2deleted{$pname}->{$oname} }, [ $rule, $other ]);
+        push(@{ $sname2oname2deleted{$sname}->{$oname} }, [ $rule, $other ]);
     }
     if (my $action = $config{check_redundant_rules}) {
         my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
-        for my $pname (sort keys %pname2oname2deleted) {
-            my $hash = $pname2oname2deleted{$pname};
+        for my $sname (sort keys %sname2oname2deleted) {
+            my $hash = $sname2oname2deleted{$sname};
             for my $oname (sort keys %$hash) {
                 my $aref = $hash->{$oname};
-                my $msg  = "Redundant rules in $pname compared to $oname:\n  ";
+                my $msg  = "Redundant rules in $sname compared to $oname:\n  ";
                 $msg .= join(
                     "\n  ",
                     map {
@@ -7250,9 +7250,9 @@ sub set_service_owner {
 
     for my $key (sort keys %services) {
         my $service = $services{$key};
-        my $pname   = $service->{name};
+        my $sname   = $service->{name};
 
-        my $users = expand_group($service->{user}, "user of $pname");
+        my $users = expand_group($service->{user}, "user of $sname");
 
         # Non 'user' objects.
         my @objects;
@@ -7269,7 +7269,7 @@ sub set_service_owner {
             for my $what (qw(src dst)) {
                 next if $what eq $has_user;
                 push(@objects,
-                    @{ expand_group($rule->{$what}, "$what of $pname") });
+                    @{ expand_group($rule->{$what}, "$what of $sname") });
             }
         }
 
@@ -7314,7 +7314,7 @@ sub set_service_owner {
           : values %$service_owners;
         if ($multi_count > 1 xor $service->{multi_owner}) {
             if ($service->{multi_owner}) {
-                warn_msg("Useless use of attribute 'multi_owner' at $pname");
+                warn_msg("Useless use of attribute 'multi_owner' at $sname");
             }
             else {
                 my $print =
@@ -7326,7 +7326,7 @@ sub set_service_owner {
                 my @names =
                   sort(map { ($_->{name} =~ /^owner:(.*)/)[0] }
                       values %$service_owners);
-                $print->("$pname has multiple owners:\n " . join(', ', @names));
+                $print->("$sname has multiple owners:\n " . join(', ', @names));
             }
         }
 
@@ -7335,13 +7335,13 @@ sub set_service_owner {
             xor $service->{unknown_owner})
         {
             if ($service->{unknown_owner}) {
-                warn_msg("Useless use of attribute 'unknown_owner' at $pname");
+                warn_msg("Useless use of attribute 'unknown_owner' at $sname");
             }
             else {
                 if ($config{check_service_unknown_owner}) {
                     for my $obj (values %$unknown_owners) {
                         $unknown2unknown{$obj} = $obj;
-                        push @{ $unknown2services{$obj} }, $pname;
+                        push @{ $unknown2services{$obj} }, $sname;
                     }
                 }
             }
