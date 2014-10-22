@@ -15922,7 +15922,7 @@ sub find_chains  {
                 # if other networks with same address exist.
                 # The loopback network is additionally checked below.
                 if ($obj->{loopback} && (my $network = $obj->{network})) {
-                    if (!($rules eq 'intf_rules' && $what eq 'dst')) {
+                    if (!($rules eq $intf_rules && $what eq 'dst')) {
                         $obj = $network;
                     }
                 }
@@ -15937,7 +15937,7 @@ sub find_chains  {
 
                 # Identical redundancy interfaces.
                 elsif (my $aref = $obj->{redundancy_interfaces}) {
-                    if (!($rules eq 'intf_rules' && $what eq 'dst')) {
+                    if (!($rules eq $intf_rules && $what eq 'dst')) {
                         $obj = $aref->[0];
                     }
                 }
