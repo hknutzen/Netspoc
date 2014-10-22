@@ -554,7 +554,7 @@ END
 
 $out = <<END;
 Error: interface:r2.b needs static translation for nat:b to be valid in rule
- permit src=network:a; dst=interface:r2.b; prt=reverse:TCP_ANY; stateless
+ permit src=network:a; dst=interface:r2.b; prt=reversed:TCP_ANY; stateless
 END
 
 test_err($title, $in, $out);

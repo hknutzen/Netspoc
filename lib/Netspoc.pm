@@ -3914,7 +3914,6 @@ my $prt_esp = { name => 'auto_prt:IPSec_ESP', proto => 50, prio => 100, };
 my $prt_ah = { name => 'auto_prt:IPSec_AH', proto => 51, prio => 99, };
 
 # Port range 'TCP any'; assigned in sub order_protocols below.
-my $range_tcp_any;
 
 # Port range 'tcp established' is needed later for reverse rules
 # and assigned below.
@@ -3945,13 +3944,12 @@ sub order_protocols {
 
     # This is guaranteed to be defined, because $prt_tcp has been processed
     # already.
-    $range_tcp_any         = $prt_hash{tcp}->{'1:65535:1:65535'};
     $range_tcp_established = {
-        %$range_tcp_any,
-        name        => 'reverse:TCP_ANY',
+        %$prt_tcp,
+        name        => 'reversed:TCP_ANY',
         established => 1
     };
-    $range_tcp_established->{up} = $range_tcp_any;
+    $range_tcp_established->{up} = $prt_tcp;
 
     order_ranges($range_hash{tcp});
     order_ranges($range_hash{udp});
