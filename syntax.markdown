@@ -230,7 +230,10 @@ where `<network NAT>` must be hidden or dynamic.
 ##Group definition
 
     <group definition> ::=
-      group:<name> = <object set>;
+      group:<name> = 
+        [ <description> ]
+        <object set>
+      ;
 
 
 ##Protocol definition
