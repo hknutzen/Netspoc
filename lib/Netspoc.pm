@@ -2908,10 +2908,9 @@ sub assign_union_allow_user {
     my ($name) = @_;
     skip $name;
     skip '=';
-    $user_object->{active}   = 1;
+    local $user_object->{active} = 1;
     $user_object->{refcount} = 0;
     my @result = read_union ';';
-    $user_object->{active} = 0;
     return \@result, $user_object->{refcount};
 }
 
