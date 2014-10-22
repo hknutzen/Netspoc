@@ -3953,10 +3953,10 @@ sub order_protocols {
 
     order_ranges($range_hash{tcp});
     order_ranges($range_hash{udp});
-    order_tcp_udp($prt_hash{tcp}, $up) if $prt_hash{tcp};
-    order_tcp_udp($prt_hash{udp}, $up, 1) if $prt_hash{udp};
-    order_icmp($prt_hash{icmp}, $up) if $prt_hash{icmp};
-    order_proto($prt_hash{proto}, $up) if $prt_hash{proto};
+    order_tcp_udp($prt_hash{tcp}, $up);
+    order_tcp_udp($prt_hash{udp}, $up, 1);
+    order_icmp($prt_hash{icmp}, $up);
+    order_proto($prt_hash{proto}, $up);
 
     # Needed by iptables code.
     $prt_tcp->{dst_range}->{up} = $prt_udp->{dst_range}->{up} = $prt_ip;
