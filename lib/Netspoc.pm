@@ -12448,7 +12448,7 @@ sub gen_reverse_rules1  {
                                  " $prt->{name}");
             }
             elsif ($proto eq 'ip') {
-                $new_prt = $rule->{prt};
+                $new_prt = $prt;
             }
             else {
                 internal_err();
@@ -12458,8 +12458,8 @@ sub gen_reverse_rules1  {
                 # This rule must only be applied to stateless routers.
                 stateless => 1,
                 action    => $rule->{action},
-                src       => $rule->{dst},
-                dst       => $rule->{src},
+                src       => $dst,
+                dst       => $src,
                 prt       => $new_prt,
             };
 
