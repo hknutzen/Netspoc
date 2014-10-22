@@ -1,3 +1,10 @@
+3.056     2014-10-22 14:04:55 Europe/Berlin
+
+ - Reduced internal size of expanded rules, 
+   giving better performance for large rule sets:
+   ~ 10% faster
+   ~ 5% less memory
+
 3.055     2014-10-07 15:12:47 Europe/Berlin
 
  - Attribute 'admins' of owner is optional now if 'extend_only' is set.

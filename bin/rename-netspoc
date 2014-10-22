@@ -71,9 +71,9 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 =cut
 
@@ -85,7 +85,7 @@ use open qw(:std :utf8);
 use utf8;
 use Encode;
 
-our $VERSION = '3.055'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.056'; # VERSION: inserted by DZP::OurPkgVersion
 my $filename_encode = 'UTF-8';
  
 my $ignore_files = '^(raw|config|CVS|RCS|\.#.*|.*~)$';

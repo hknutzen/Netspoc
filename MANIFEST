@@ -1,4 +1,3 @@
-COPYING
 Changes
 INSTALL
 LICENSE
@@ -44,9 +43,7 @@ lib/Netspoc.pm
 misc/anonymize
 misc/conv2solsoft
 misc/conv_owner.pl
-misc/find-ip
 misc/intersect-ip
-misc/merge-definitions~
 misc/perltidyrc
 old-doc/CSPM.pod
 old-doc/ChangeLog
@@ -64,7 +61,6 @@ t/crosslink.t
 t/crypto.t
 t/general-permit.t
 t/global-opt.t
-t/global-opt.t~
 t/host-range.t
 t/iptables.t
 t/local-filter.t
@@ -78,7 +74,6 @@ t/owner.t
 t/parser.t
 t/pathrestrict-border.t
 t/pathrestrict.t
-t/pathrestrict.t~
 t/protect-interfaces.t
 t/rename.t
 t/route.t
