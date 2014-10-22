@@ -6646,12 +6646,8 @@ sub warn_unused_overlaps {
 }
 
 # Parameters:
-# - Reference to array of unexpanded rules.
 # - The service.
-# - Reference to hash with attributes deny, supernet, permit for storing
-#   resulting expanded rules of different type.
-# - Reference to array of values. Occurrences of 'user' in rules
-#   will be substituted by these values.
+# - Reference to array for storing resulting expanded rules.
 # - Flag which will be passed on to expand_group.
 sub expand_rules {
     my ($service, $result, $convert_hosts) = @_;
