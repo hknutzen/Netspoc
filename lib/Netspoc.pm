@@ -3913,7 +3913,6 @@ my $prt_esp = { name => 'auto_prt:IPSec_ESP', proto => 50, prio => 100, };
 my $prt_ah = { name => 'auto_prt:IPSec_AH', proto => 51, prio => 99, };
 
 # Port range 'TCP any'; assigned in sub order_protocols below.
-my $range_tcp_any;
 
 # Port range 'tcp established' is needed later for reverse rules
 # and assigned below.
@@ -3944,20 +3943,19 @@ sub order_protocols {
 
     # This is guaranteed to be defined, because $prt_tcp has been processed
     # already.
-    $range_tcp_any         = $prt_hash{tcp}->{'1:65535:1:65535'};
     $range_tcp_established = {
-        %$range_tcp_any,
-        name        => 'reverse:TCP_ANY',
+        %$prt_tcp,
+        name        => 'reversed:TCP_ANY',
         established => 1
     };
-    $range_tcp_established->{up} = $range_tcp_any;
+    $range_tcp_established->{up} = $prt_tcp;
 
     order_ranges($range_hash{tcp});
     order_ranges($range_hash{udp});
-    order_tcp_udp($prt_hash{tcp}, $up) if $prt_hash{tcp};
-    order_tcp_udp($prt_hash{udp}, $up, 1) if $prt_hash{udp};
-    order_icmp($prt_hash{icmp}, $up) if $prt_hash{icmp};
-    order_proto($prt_hash{proto}, $up) if $prt_hash{proto};
+    order_tcp_udp($prt_hash{tcp}, $up);
+    order_tcp_udp($prt_hash{udp}, $up, 1);
+    order_icmp($prt_hash{icmp}, $up);
+    order_proto($prt_hash{proto}, $up);
 
     # Needed by iptables code.
     $prt_tcp->{dst_range}->{up} = $prt_udp->{dst_range}->{up} = $prt_ip;
@@ -12456,7 +12454,7 @@ sub gen_reverse_rules1  {
                                  " $prt->{name}");
             }
             elsif ($proto eq 'ip') {
-                $new_prt = $rule->{prt};
+                $new_prt = $prt;
             }
             else {
                 internal_err();
@@ -12466,8 +12464,8 @@ sub gen_reverse_rules1  {
                 # This rule must only be applied to stateless routers.
                 stateless => 1,
                 action    => $rule->{action},
-                src       => $rule->{dst},
-                dst       => $rule->{src},
+                src       => $dst,
+                dst       => $src,
                 prt       => $new_prt,
             };
 
@@ -15920,12 +15918,12 @@ sub find_chains  {
             for my $what (qw(src dst)) {
                 my $obj = $rule->{$what};
 
-                # Loopback interface is converted to loopback network,
-                # if other networks with same address exist.
+                # Change loopback interface to loopback network
+                # globally in rule shared by all devices.
                 # The loopback network is additionally checked below.
                 if ($obj->{loopback} && (my $network = $obj->{network})) {
-                    if (!($rules eq 'intf_rules' && $what eq 'dst')) {
-                        $obj = $network;
+                    if (!($rules eq $intf_rules && $what eq 'dst')) {
+                        $obj = $rule->{$what} = $network;
                     }
                 }
 
@@ -15939,7 +15937,7 @@ sub find_chains  {
 
                 # Identical redundancy interfaces.
                 elsif (my $aref = $obj->{redundancy_interfaces}) {
-                    if (!($rules eq 'intf_rules' && $what eq 'dst')) {
+                    if (!($rules eq $intf_rules && $what eq 'dst')) {
                         $obj = $aref->[0];
                     }
                 }
@@ -16684,12 +16682,16 @@ sub local_optimization {
                             my $obj = $rule->{$what};
                             my $obj_changed;
 
-                            # Change loopback interface to loopback network.
-                            if ($obj->{loopback} && is_interface($obj)) {
+                            # Change loopback interface to loopback
+                            # network globally in rule shared by all
+                            # devices. The loopback network is
+                            # additionally checked below.
+                            if ($obj->{loopback} && 
+                                (my $network = $obj->{network})) 
+                            {
                                 if (!($rules eq 'intf_rules' && $what eq 'dst'))
                                 {
-                                    $obj = $obj->{network};
-                                    $obj_changed = 1;
+                                    $obj = $rule->{$what} = $network;
                                 }
                             }
 
