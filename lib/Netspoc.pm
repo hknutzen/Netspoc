@@ -3978,17 +3978,24 @@ sub link_to_owner {
     $key ||= 'owner';
     if (my $value = $obj->{$key}) {
         if (my $owner = $owners{$value}) {
-            $obj->{$key} = $owner;
+            return $obj->{$key} = $owner;
         }
-        else {
-            err_msg "Can't resolve reference to '$value'",
-              " in attribute 'owner' of $obj->{name}";
-            delete $obj->{$key};
-        }
+        err_msg("Can't resolve reference to '$value'",
+                " in attribute 'owner' of $obj->{name}");
+        delete $obj->{$key};
     }
     return;
 }
 
+sub link_to_real_owner {
+    my ($obj, $key) = @_;
+    if (my $owner = link_to_owner($obj, $key)) {
+        $owner->{extend_only} and
+            err_msg("$owner->{name} with attribute 'extend_only'",
+                    " must only be used at area,\n not at $obj->{name}");
+    }
+    return;
+}
 sub link_owners {
 
     my %alias2owner;
@@ -4051,29 +4058,29 @@ sub link_owners {
         }
     }
     for my $network (values %networks) {
-        link_to_owner($network);
+        link_to_real_owner($network);
         for my $host (@{ $network->{hosts} }) {
-            link_to_owner($host);
+            link_to_real_owner($host);
         }
     }
     for my $aggregate (values %aggregates) {
-        link_to_owner($aggregate);
+        link_to_real_owner($aggregate);
     }
     for my $area (values %areas) {
         link_to_owner($area);
         if (my $router_attributes = $area->{router_attributes}) {
-            link_to_owner($router_attributes);
+            link_to_real_owner($router_attributes);
         }
     }
     for my $router (values %routers) {
-        link_to_owner($router);
+        link_to_real_owner($router);
         $router->{model}->{has_vip} or next;
         for my $interface (@{ $router->{interfaces} }) {
-            link_to_owner($interface);
+            link_to_real_owner($interface);
         }
     }
     for my $service (values %services) {
-        link_to_owner($service, 'sub_owner');
+        link_to_real_owner($service, 'sub_owner');
     }
     return;
 }
