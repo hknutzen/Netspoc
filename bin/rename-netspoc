@@ -275,7 +275,7 @@ sub process_file_or_dir {
         $path =~ s</$><>;
         opendir DIR, $path or fatal_err "Can't opendir $path: $!";
         while (my $file = Encode::decode($filename_encode, readdir DIR)) {
-            next if $file eq '.' or $file eq '..';
+            next if $file =~ /^\./;
             next if $file =~ m/$ignore_files/;
             $file = "$path/$file";
             process_file_or_dir($file);
