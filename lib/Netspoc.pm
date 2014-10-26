@@ -15912,12 +15912,12 @@ sub find_chains  {
             for my $what (qw(src dst)) {
                 my $obj = $rule->{$what};
 
-                # Change loopback interface to loopback network
-                # globally in rule shared by all devices.
+                # Loopback interface is converted to loopback network,
+                # if other networks with same address exist.
                 # The loopback network is additionally checked below.
                 if ($obj->{loopback} && (my $network = $obj->{network})) {
                     if (!($rules eq $intf_rules && $what eq 'dst')) {
-                        $obj = $rule->{$what} = $network;
+                        $obj = $network;
                     }
                 }
 
@@ -16676,16 +16676,14 @@ sub local_optimization {
                             my $obj = $rule->{$what};
                             my $obj_changed;
 
-                            # Change loopback interface to loopback
-                            # network globally in rule shared by all
-                            # devices. The loopback network is
-                            # additionally checked below.
+                            # Change loopback interface to loopback network,
+                            # if other networks with same address exist.
                             if ($obj->{loopback} && 
                                 (my $network = $obj->{network})) 
                             {
                                 if (!($rules eq 'intf_rules' && $what eq 'dst'))
                                 {
-                                    $obj = $rule->{$what} = $network;
+                                    $obj = $network;
                                 }
                             }
 
