@@ -219,6 +219,38 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = "Skip protection of loopback interface";
+############################################################
+
+$in = <<END;
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r = {
+ model = IOS, FW;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:lo = { ip = 10.1.3.3; loopback; hardware = Loopback0; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:any = {
+ user = any:[network:n1];
+ permit src = user; dst = interface:r.[all]; prt = ip;
+ permit src = user; dst = any:[network:n2]; prt = ip;
+}
+END
+
+$out = <<END;
+--r
+ip access-list extended n1_in
+ permit ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = "VIP doesn't need protection";
 ############################################################
 
