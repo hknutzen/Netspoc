@@ -212,7 +212,9 @@ for my $area (values %areas) {
             $anchor->{is_used} = 1;
         }
         else {
-            for my $interface (@{ $area->{border} }) {
+            for my $interface (@{ $area->{border} }, 
+                               @{ $area->{inclusive_border} }) 
+            {
                 mark_topology(undef, $interface, undef);
             }
         }
