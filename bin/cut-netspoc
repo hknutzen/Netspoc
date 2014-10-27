@@ -134,10 +134,7 @@ Netspoc::set_config({time_stamps => 1, max_errors => 9999});
 # Remember source code of each global definition.
 &read_file_or_dir($config, \&read_netspoc_with_src);
 
-my %name2var = ( service => \%services, 
-
-                 # Still support old syntax.
-                 policy  =>\%services);
+my %name2var = ( service => \%services);
 
 # Read names of services from command line.
 for my $arg (@ARGV) {
