@@ -225,7 +225,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Network and host having different owner';
+$title = 'Network and host as user having different owner';
 ############################################################
 
 $in = <<END;
@@ -256,6 +256,44 @@ $out = <<END;
       "test",
       "test2"
    ],
+   "visible" : []
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Network and host in rule having different owner';
+############################################################
+
+$in = <<END;
+$topo
+service:test = {
+ user = network:Kunde;
+ permit src = host:B10; dst = user; prt = tcp 80; 
+}
+service:test2 = {
+ user = network:Kunde;
+ permit src = network:Big; dst = user; prt = tcp 88; 
+}
+END
+
+$out = <<END;
+--owner/y/service_lists
+{
+   "owner" : [
+      "test2"
+   ],
+   "user" : [],
+   "visible" : []
+}
+--owner/z/service_lists
+{
+   "owner" : [
+      "test",
+      "test2"
+   ],
+   "user" : [],
    "visible" : []
 }
 END
@@ -476,6 +514,195 @@ $out = <<'END';
       "any:c2"
    ]
 }
+END
+
+test_run($title, $in, $out);
+
+############################################################
+# Changed $topo
+############################################################
+$topo = <<'END';
+owner:all  = { admins = all@b.c; extend_only; }
+owner:a123 = { admins = a123@b.c; extend; }
+owner:a12  = { admins = a12@b.c; extend_only; }
+owner:a1   = { admins = a1@b.c; }
+owner:n2   = { admins = n2@b.c; }
+
+area:all  = { owner = all; anchor = network:n1; }
+area:a123 = { owner = a123; inclusive_border = interface:r2.n4; }
+area:a12  = { owner = a12; border = interface:r2.n2; }
+area:a1   = { owner = a1; border = interface:r1.n1; }
+
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = { 
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { 
+ owner = n2;
+ ip = 10.1.2.0/24;
+ host:h10 = { ip = 10.1.2.10; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+END
+
+############################################################
+$title = 'Nested extend_only';
+############################################################
+
+$in = $topo;
+
+$out = <<'END';
+--owner/a1/assets
+{
+   "anys" : {
+      "any:[network:n1]" : {
+         "networks" : {
+            "network:n1" : [
+               "interface:r1.n1"
+            ]
+         }
+      }
+   }
+}
+--owner/n2/assets
+{
+   "anys" : {
+      "any:[network:n2]" : {
+         "networks" : {
+            "network:n2" : [
+               "host:h10",
+               "interface:r1.n2",
+               "interface:r2.n2"
+            ]
+         }
+      }
+   }
+}
+--owner/a12/assets
+{
+   "anys" : {
+      "any:[network:n1]" : {
+         "networks" : {
+            "network:n1" : [
+               "interface:r1.n1"
+            ]
+         }
+      },
+      "any:[network:n2]" : {
+         "networks" : {
+            "network:n2" : [
+               "host:h10",
+               "interface:r1.n2",
+               "interface:r2.n2"
+            ]
+         }
+      }
+   }
+}
+--owner/a123/assets
+{
+   "anys" : {
+      "any:[network:n3]" : {
+         "networks" : {
+            "network:n3" : [
+               "interface:r2.n3"
+            ]
+         }
+      }
+   }
+}
+--owner/all/assets
+{
+   "anys" : {
+      "any:[network:n1]" : {
+         "networks" : {
+            "network:n1" : [
+               "interface:r1.n1"
+            ]
+         }
+      },
+      "any:[network:n2]" : {
+         "networks" : {
+            "network:n2" : [
+               "host:h10",
+               "interface:r1.n2",
+               "interface:r2.n2"
+            ]
+         }
+      },
+      "any:[network:n3]" : {
+         "networks" : {
+            "network:n3" : [
+               "interface:r2.n3"
+            ]
+         }
+      },
+      "any:[network:n4]" : {
+         "networks" : {
+            "network:n4" : [
+               "interface:r2.n4"
+            ]
+         }
+      }
+   }
+}
+--owner/a123/extended_by
+[
+   {
+      "name" : "all"
+   }
+]
+--owner/a12/extended_by
+[
+   {
+      "name" : "a123"
+   },
+   {
+      "name" : "all"
+   }
+]
+--owner/a1/extended_by
+[
+   {
+      "name" : "a12"
+   },
+   {
+      "name" : "a123"
+   },
+   {
+      "name" : "all"
+   }
+]
+--owner/all/extended_by
+[]
+--owner/n2/extended_by
+[
+   {
+      "name" : "a12"
+   },
+   {
+      "name" : "a123"
+   },
+   {
+      "name" : "all"
+   }
+]
 END
 
 test_run($title, $in, $out);
