@@ -134,10 +134,7 @@ Netspoc::set_config({time_stamps => 1, max_errors => 9999});
 # Remember source code of each global definition.
 &read_file_or_dir($config, \&read_netspoc_with_src);
 
-my %name2var = ( service => \%services, 
-
-                 # Still support old syntax.
-                 policy  =>\%services);
+my %name2var = ( service => \%services);
 
 # Read names of services from command line.
 for my $arg (@ARGV) {
@@ -215,7 +212,9 @@ for my $area (values %areas) {
             $anchor->{is_used} = 1;
         }
         else {
-            for my $interface (@{ $area->{border} }) {
+            for my $interface (@{ $area->{border} }, 
+                               @{ $area->{inclusive_border} }) 
+            {
                 mark_topology(undef, $interface, undef);
             }
         }
@@ -294,14 +293,19 @@ for my $router (values %routers) {
     }
 }
 
-for my $obj (values %areas, values %Netspoc::aggregates,values %networks, values %hosts,
-	     values %routers) 
+for my $obj (values %areas, values %Netspoc::aggregates,
+             values %networks, values %hosts, values %routers) 
 {
     next if not $obj->{is_used};
     if (my $owner = $obj->{owner}) {
 	$owner->{is_used} = 1;
     }
 }
+for my $service (values %services) {
+    if (my $owner = $service->{sub_owner}) {
+	$owner->{is_used} = 1;
+    }
+}    
 for my $area (values %areas) {
     next if not $area->{is_used};
     my $router_attributes = $area->{router_attributes} or next;
