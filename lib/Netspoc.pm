@@ -7041,8 +7041,8 @@ sub propagate_owners {
     $inherit = sub {
         my ($node, $upper_owner, $upper_node, $extend, $extend_only) = @_;
         my $owner = $node->{owner};
-        if (not $owner) {
-            $owner = $node->{owner} = $upper_owner;
+        if (!$owner) {
+            $node->{owner} = $upper_owner;
         }
         else {
             $owner->{is_used} = 1;
@@ -7057,21 +7057,31 @@ sub propagate_owners {
                 }
                 else {
                     if ($upper_owner->{extend}) {
-                        $extend = [ @$extend, $upper_owner ];
+                        $extend = [ $upper_owner, @$extend ];
                     }
-                    $extended{$owner}->{$node} = [ @$extend, @$extend_only ];
                 }
+            }
+            my @extend_list;
+            push @extend_list, @$extend if $extend;
+            push @extend_list, @$extend_only if $extend_only;
+            $extended{$owner}->{$node} = \@extend_list if @extend_list;
+        }
+        if (!$owner || !$owner->{extend_only}) {
+            if (my $upper_extend = $extend_only->[0]) {
+                $node->{extended_owner} = $upper_extend;
             }
         }
 
-        my $childs = $tree{$node} or return;
-        $upper_owner = $owner;
-        $upper_node  = $node;
-        if ($upper_owner && $upper_owner->{extend_only}) {
-            $extend_only = [ @$extend_only, $upper_owner ];
+        if ($owner && $owner->{extend_only}) {
+            $extend_only = [ $owner, @$extend_only ];
             $upper_owner = undef;
             $upper_node  = undef;
         }
+        elsif($owner) {
+            $upper_owner = $owner;
+            $upper_node  = $node;
+        }
+        my $childs = $tree{$node} or return;
         for my $child (@$childs) {
             $inherit->($child, $upper_owner, $upper_node, $extend,
                 $extend_only);
