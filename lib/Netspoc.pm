@@ -16697,8 +16697,9 @@ sub local_optimization {
                             my $obj = $rule->{$what};
                             my $obj_changed;
 
-                            # Change loopback interface to loopback network,
-                            # if other networks with same address exist.
+                            # Change loopback interface to loopback network.
+                            # The loopback network is additionally checked
+                            # below.
                             if ($obj->{loopback} && 
                                 (my $network = $obj->{network})) 
                             {
