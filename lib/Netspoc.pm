@@ -15937,7 +15937,7 @@ sub find_chains  {
                 # if other networks with same address exist.
                 # The loopback network is additionally checked below.
                 if ($obj->{loopback} && (my $network = $obj->{network})) {
-                    if (!($rules eq $intf_rules && $what eq 'dst')) {
+                    if (!($intf_rules && $rules eq $intf_rules && $what eq 'dst')) {
                         $obj = $network;
                     }
                 }
