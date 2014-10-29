@@ -16705,6 +16705,7 @@ sub local_optimization {
                                 if (!($rules eq 'intf_rules' && $what eq 'dst'))
                                 {
                                     $obj = $network;
+                                    $obj_changed = 1;
                                 }
                             }
 
