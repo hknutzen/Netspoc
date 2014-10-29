@@ -913,7 +913,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Unmanaged VPN spoke with unnknown IP';
+$title = 'Unmanaged VPN spoke with unknown IP';
 ############################################################
 
 $in = <<'END';
@@ -983,6 +983,42 @@ Error: router:asavpn can't establish crypto tunnel to interface:vpn1.internet wi
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Unmanaged VPN spoke with known IP';
+############################################################
+
+$in =~ s/#  ip/  ip/;
+
+$out = <<'END';
+--asavpn
+no sysopt connection permit-vpn
+crypto isakmp policy 1
+ authentication rsa-sig
+ encryption aes-256
+ hash sha
+ group 2
+ lifetime 43200
+crypto ipsec transform-set Trans1 esp-aes-256 esp-sha-hmac
+access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
+crypto map crypto-outside 1 match address crypto-outside-1
+crypto map crypto-outside 1 set peer 1.1.1.1
+crypto map crypto-outside 1 set ikev1 transform-set Trans1
+crypto map crypto-outside 1 set pfs group2
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+tunnel-group 1.1.1.1 type ipsec-l2l
+tunnel-group 1.1.1.1 ipsec-attributes
+ chain
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+crypto map crypto-outside interface outside
+crypto isakmp enable outside
+--
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;
