@@ -11118,10 +11118,10 @@ sub link_tunnels  {
                 push @hubs, $hub;
 
                 # Dynamic crypto-map isn't implemented currently.
-                if ($real_spoke->{ip} eq 'negotiated') {
+                if ($real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/) {
                     if (not $router->{model}->{do_auth}) {
                         err_msg "$router->{name} can't establish crypto",
-                          " tunnel to $real_spoke->{name} with negotiated IP";
+                          " tunnel to $real_spoke->{name} with unknown IP";
                     }
                 }
 

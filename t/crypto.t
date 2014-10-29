@@ -913,4 +913,76 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Unmanaged VPN spoke with unnknown IP';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha_hmac;
+ pfs_group = 2;
+ lifetime = 3600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ nat_traversal = additional;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 43200 sec;
+ trust_point =  ASDM_TrustPoint3;
+}
+
+crypto:sts = {
+ type = ipsec:aes256SHA;
+ tunnel_all;
+}
+
+network:intern = { ip = 10.1.1.0/24; }
+
+router:asavpn = {
+ model = ASA, 8.4;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101; 
+  hardware = inside;
+ }
+ interface:dmz = { 
+  ip = 1.2.3.2; 
+  hub = crypto:sts;
+  hardware = outside; 
+ }
+}
+
+network:dmz = { ip = 1.2.3.0/25; }
+
+router:extern = { 
+ interface:dmz = { ip = 1.2.3.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:vpn1 = {
+ interface:internet = {
+#  ip = 1.1.1.1;
+  spoke = crypto:sts;
+ }
+ interface:lan1;
+}
+
+network:lan1 = { ip = 10.99.1.0/24; }
+END
+
+
+$out = <<'END';
+Error: router:asavpn can't establish crypto tunnel to interface:vpn1.internet with unknown IP
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;
