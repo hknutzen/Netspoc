@@ -9107,7 +9107,12 @@ sub set_zone1 {
 sub set_zone_cluster {
     my ($zone, $in_interface, $zone_aref) = @_;
     my $restrict;
-    push @$zone_aref, $zone;
+
+    # Ignore zone of tunnel, because 
+    # - it is useless in rules and
+    # - we would get inconsistent owner since zone of tunnel 
+    #   doesn't inherit from area.
+    push @$zone_aref, $zone if !$zone->{is_tunnel};
     $zone->{zone_cluster} = $zone_aref;
     my $private1 = $zone->{private} || 'public';
 

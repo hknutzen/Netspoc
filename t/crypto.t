@@ -439,7 +439,6 @@ service:test1 = {
 END
 
 $out = <<END;
-Warning: Ignoring any:[network:customers1] with tunnel in src of rule in service:test1
 Warning: Ignoring any:[network:customers1] with software clients in src of rule in service:test1
 END
 
