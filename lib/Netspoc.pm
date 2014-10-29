@@ -11065,6 +11065,8 @@ sub link_tunnels  {
         my $private     = $crypto->{private};
         my $real_hubs   = delete $crypto2hubs{$name};
         my $real_spokes = delete $crypto2spokes{$name};
+        $real_hubs      = [ grep { !$_->{disabled} } @$real_hubs ];
+        $real_spokes    = [ grep { !$_->{disabled} } @$real_spokes ];
         $real_hubs and @$real_hubs
           or warn_msg("No hubs have been defined for $name");
 
