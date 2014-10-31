@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+ - Owner with attribute 'extend_only' must only be used at area.
+ - Internal Attribute {extended_owner} is calculated for use in Netspoc-Web.
+ - Command "rename-netspoc" now also ignores all hidden files.
+
 3.056     2014-10-22 14:04:55 Europe/Berlin
 
  - Reduced internal size of expanded rules, 
