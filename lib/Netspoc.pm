@@ -2336,6 +2336,12 @@ sub read_router {
                 # check_subnets.
                 $layer3_intf->{is_layer3} = 1;
 
+                if ($model->{class} eq 'ASA') {
+                    $layer3_intf->{hardware}->{name} eq 'device'
+                      or
+                      err_msg("Layer3 $interface->{name} must use 'hardware'",
+                        " named 'device' for model 'ASA'");
+                }
                 if (my ($no_ip) = $layer3_intf->{ip} =~
                     /^(unnumbered|negotiated|short|bridged)$/)
                 {
@@ -2343,12 +2349,7 @@ sub read_router {
                         "Layer3 $layer3_intf->{name}",
                         " must not be $no_ip"
                     );
-                }
-                if ($model->{class} eq 'ASA') {
-                    $layer3_intf->{hardware}->{name} eq 'device'
-                      or
-                      err_msg("Layer3 $interface->{name} must use 'hardware'",
-                        " named 'device' for model 'ASA'");
+                    $layer3_intf = undef;
                 }
             }
             else {
