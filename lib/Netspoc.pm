@@ -2346,13 +2346,30 @@ sub read_router {
             }
             else {
                 err_msg("Must define interface:$layer3_name for corresponding",
-                    " bridge interfaces");
+                        " bridge interfaces");
             }
 
             # Link bridged interface to corresponding layer3 interface.
             # Used in path_auto_interfaces.
             $interface->{layer3_interface} = $layer3_intf;
             $layer3_seen{$layer3_name} = $layer3_intf;
+        }
+
+        # Delete secondary interface of layer3 interface.
+        # This prevents irritating error messages later.
+        if (keys %layer3_seen) {
+            my $changed;
+            for my $interface (@{ $router->{interfaces} }) {
+                my $main = $interface->{main_interface} or next;
+                if ($main->{is_layer3}) {
+                    err_msg("Layer3 $main->{name} must not have",
+                            " secondary $interface->{name}");
+                    $interface = undef;
+                    $changed = 1;
+                }
+            }
+            $router->{interfaces} = [ grep { $_ } @{ $router->{interfaces} } ] 
+                if $changed;
         }
         if ($model->{has_interface_level}) {
             set_pix_interface_level($router);
