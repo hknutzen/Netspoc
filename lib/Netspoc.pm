@@ -2349,6 +2349,9 @@ sub read_router {
                         "Layer3 $layer3_intf->{name}",
                         " must not be $no_ip"
                     );
+
+                    # Prevent further errors.
+                    $layer3_intf->{disabled} = 1;
                     $layer3_intf = undef;
                 }
             }
