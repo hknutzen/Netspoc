@@ -1914,7 +1914,7 @@ sub read_interface {
     }
 
     # Interface at bridged network 
-    # - without IP is interface of bride,
+    # - without IP is interface of bridge,
     # - with IP is interface of router.
     if ($name =~ m,/,) {
         $interface->{ip} ||= 'bridged';
