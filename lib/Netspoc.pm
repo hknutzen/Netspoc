@@ -2336,12 +2336,12 @@ sub read_router {
                 # check_subnets.
                 $layer3_intf->{is_layer3} = 1;
 
-                if ($layer3_intf->{ip} =~
+                if (my ($no_ip) = $layer3_intf->{ip} =~
                     /^(unnumbered|negotiated|short|bridged)$/)
                 {
                     err_msg(
                         "Layer3 $layer3_intf->{name}",
-                        " must not be $interface->{ip}"
+                        " must not be $no_ip"
                     );
                 }
                 if ($model->{class} eq 'ASA') {
