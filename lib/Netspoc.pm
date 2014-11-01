@@ -2006,6 +2006,13 @@ sub read_interface {
             push @{ $crypto2hubs{$crypto} }, $interface;
         }
     }
+    if (@secondary_interfaces) {
+        if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
+            error_atline("\u$interface->{ip} interface must not have",
+                         " secondary IP address");
+            @secondary_interfaces = ();
+        }
+    }
     for my $secondary (@secondary_interfaces) {
         $secondary->{main_interface} = $interface;
         for my $key (qw(hardware bind_nat routing disabled)) {
