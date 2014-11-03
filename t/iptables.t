@@ -156,4 +156,65 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Loopback at Linux passes other managed device';
+############################################################
+
+# Loopback interface and loopback network have identical IP address.
+# Linux would abort when generating binary trees of IP addresses,
+# where the same IP address comes from two different objects:
+# loopback ip vs.loopback network.
+# This test case would fail, if the loopback interface is 
+# changed to loopback network at r1, but left unchanged at r2
+# or vice versa.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = {ip = 10.1.2.1; hardware = n2;}
+}
+
+network:n2 = { ip = 10.1.2.0/24;}
+
+router:r2 = {
+ managed;
+ model = Linux;
+ routing = manual;
+ interface:n2 = {
+  ip = 10.1.2.2;
+  hardware = eth0;
+ }
+ interface:Mail = {
+  ip = 10.1.3.1;
+  loopback;
+  hardware = eth1;
+ }
+}
+
+service:test = {
+ user =  network:n1, network:n2;
+ permit src = user;
+	dst = interface:r2.Mail;
+	prt = tcp 25;
+}
+END
+
+$out = <<END;
+--r2
+:c1 -
+-A c1 -j ACCEPT -s 10.1.2.0/24
+-A c1 -j ACCEPT -s 10.1.1.0/24
+--
+:eth0_self -
+-A INPUT -j eth0_self -i eth0
+-A eth0_self -g c1 -s 10.1.0.0/22 -d 10.1.3.1 -p tcp --dport 25
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

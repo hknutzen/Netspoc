@@ -203,4 +203,28 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Owner with extend_only only usable at area';
+############################################################
+
+$in = <<'END';
+owner:x = { watchers = x@a.b; extend_only; }
+any:a1 = { owner = x; link = network:n1; }
+network:n1 = { 
+ owner = x; ip = 10.1.1.0/24; 
+ host:h1 = { owner = x; ip = 10.1.1.1; }
+}
+END
+
+$out = <<'END';
+Error: owner:x with attribute 'extend_only' must only be used at area,
+ not at network:n1
+Error: owner:x with attribute 'extend_only' must only be used at area,
+ not at host:h1
+Error: owner:x with attribute 'extend_only' must only be used at area,
+ not at any:a1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;

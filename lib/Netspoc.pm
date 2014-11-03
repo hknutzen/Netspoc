@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.056'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.057'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -2346,13 +2346,30 @@ sub read_router {
             }
             else {
                 err_msg("Must define interface:$layer3_name for corresponding",
-                    " bridge interfaces");
+                        " bridge interfaces");
             }
 
             # Link bridged interface to corresponding layer3 interface.
             # Used in path_auto_interfaces.
             $interface->{layer3_interface} = $layer3_intf;
             $layer3_seen{$layer3_name} = $layer3_intf;
+        }
+
+        # Delete secondary interface of layer3 interface.
+        # This prevents irritating error messages later.
+        if (keys %layer3_seen) {
+            my $changed;
+            for my $interface (@{ $router->{interfaces} }) {
+                my $main = $interface->{main_interface} or next;
+                if ($main->{is_layer3}) {
+                    err_msg("Layer3 $main->{name} must not have",
+                            " secondary $interface->{name}");
+                    $interface = undef;
+                    $changed = 1;
+                }
+            }
+            $router->{interfaces} = [ grep { $_ } @{ $router->{interfaces} } ] 
+                if $changed;
         }
         if ($model->{has_interface_level}) {
             set_pix_interface_level($router);
@@ -2908,10 +2925,9 @@ sub assign_union_allow_user {
     my ($name) = @_;
     skip $name;
     skip '=';
-    $user_object->{active}   = 1;
+    local $user_object->{active} = 1;
     $user_object->{refcount} = 0;
     my @result = read_union ';';
-    $user_object->{active} = 0;
     return \@result, $user_object->{refcount};
 }
 
@@ -3914,7 +3930,6 @@ my $prt_esp = { name => 'auto_prt:IPSec_ESP', proto => 50, prio => 100, };
 my $prt_ah = { name => 'auto_prt:IPSec_AH', proto => 51, prio => 99, };
 
 # Port range 'TCP any'; assigned in sub order_protocols below.
-my $range_tcp_any;
 
 # Port range 'tcp established' is needed later for reverse rules
 # and assigned below.
@@ -3945,20 +3960,19 @@ sub order_protocols {
 
     # This is guaranteed to be defined, because $prt_tcp has been processed
     # already.
-    $range_tcp_any         = $prt_hash{tcp}->{'1:65535:1:65535'};
     $range_tcp_established = {
-        %$range_tcp_any,
-        name        => 'reverse:TCP_ANY',
+        %$prt_tcp,
+        name        => 'reversed:TCP_ANY',
         established => 1
     };
-    $range_tcp_established->{up} = $range_tcp_any;
+    $range_tcp_established->{up} = $prt_tcp;
 
     order_ranges($range_hash{tcp});
     order_ranges($range_hash{udp});
-    order_tcp_udp($prt_hash{tcp}, $up) if $prt_hash{tcp};
-    order_tcp_udp($prt_hash{udp}, $up, 1) if $prt_hash{udp};
-    order_icmp($prt_hash{icmp}, $up) if $prt_hash{icmp};
-    order_proto($prt_hash{proto}, $up) if $prt_hash{proto};
+    order_tcp_udp($prt_hash{tcp}, $up);
+    order_tcp_udp($prt_hash{udp}, $up, 1);
+    order_icmp($prt_hash{icmp}, $up);
+    order_proto($prt_hash{proto}, $up);
 
     # Needed by iptables code.
     $prt_tcp->{dst_range}->{up} = $prt_udp->{dst_range}->{up} = $prt_ip;
@@ -3979,17 +3993,24 @@ sub link_to_owner {
     $key ||= 'owner';
     if (my $value = $obj->{$key}) {
         if (my $owner = $owners{$value}) {
-            $obj->{$key} = $owner;
+            return $obj->{$key} = $owner;
         }
-        else {
-            err_msg "Can't resolve reference to '$value'",
-              " in attribute 'owner' of $obj->{name}";
-            delete $obj->{$key};
-        }
+        err_msg("Can't resolve reference to '$value'",
+                " in attribute 'owner' of $obj->{name}");
+        delete $obj->{$key};
     }
     return;
 }
 
+sub link_to_real_owner {
+    my ($obj, $key) = @_;
+    if (my $owner = link_to_owner($obj, $key)) {
+        $owner->{extend_only} and
+            err_msg("$owner->{name} with attribute 'extend_only'",
+                    " must only be used at area,\n not at $obj->{name}");
+    }
+    return;
+}
 sub link_owners {
 
     my %alias2owner;
@@ -4052,29 +4073,29 @@ sub link_owners {
         }
     }
     for my $network (values %networks) {
-        link_to_owner($network);
+        link_to_real_owner($network);
         for my $host (@{ $network->{hosts} }) {
-            link_to_owner($host);
+            link_to_real_owner($host);
         }
     }
     for my $aggregate (values %aggregates) {
-        link_to_owner($aggregate);
+        link_to_real_owner($aggregate);
     }
     for my $area (values %areas) {
         link_to_owner($area);
         if (my $router_attributes = $area->{router_attributes}) {
-            link_to_owner($router_attributes);
+            link_to_real_owner($router_attributes);
         }
     }
     for my $router (values %routers) {
-        link_to_owner($router);
+        link_to_real_owner($router);
         $router->{model}->{has_vip} or next;
         for my $interface (@{ $router->{interfaces} }) {
-            link_to_owner($interface);
+            link_to_real_owner($interface);
         }
     }
     for my $service (values %services) {
-        link_to_owner($service, 'sub_owner');
+        link_to_real_owner($service, 'sub_owner');
     }
     return;
 }
@@ -6492,7 +6513,7 @@ sub warn_useless_unenforceable {
 
 sub show_deleted_rules1 {
     return if not @deleted_rules;
-    my %pname2oname2deleted;
+    my %sname2oname2deleted;
   RULE:
     for my $rule (@deleted_rules) {
         my $other = $rule->{deleted};
@@ -6519,21 +6540,21 @@ sub show_deleted_rules1 {
                 }
             }
         }
-        my $pname = $service->{name};
+        my $sname = $service->{name};
         my $oname = $oservice->{name};
         my $pfile = $service->{file};
         my $ofile = $oservice->{file};
         $pfile =~ s/.*?([^\/]+)$/$1/;
         $ofile =~ s/.*?([^\/]+)$/$1/;
-        push(@{ $pname2oname2deleted{$pname}->{$oname} }, $rule);
+        push(@{ $sname2oname2deleted{$sname}->{$oname} }, $rule);
     }
     if (my $action = $config{check_duplicate_rules}) {
         my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
-        for my $pname (sort keys %pname2oname2deleted) {
-            my $hash = $pname2oname2deleted{$pname};
+        for my $sname (sort keys %sname2oname2deleted) {
+            my $hash = $sname2oname2deleted{$sname};
             for my $oname (sort keys %$hash) {
                 my $aref = $hash->{$oname};
-                my $msg  = "Duplicate rules in $pname and $oname:\n  ";
+                my $msg  = "Duplicate rules in $sname and $oname:\n  ";
                 $msg .= join("\n  ", map { print_rule $_ } @$aref);
                 $print->($msg);
             }
@@ -6591,27 +6612,27 @@ sub collect_redundant_rules {
 
 sub show_deleted_rules2 {
     return if not @deleted_rules;
-    my %pname2oname2deleted;
+    my %sname2oname2deleted;
     for my $pair (@deleted_rules) {
         my ($rule, $other) = @$pair;
 
         my $service  = $rule->{rule}->{service};
         my $oservice = $other->{rule}->{service};
-        my $pname = $service->{name};
+        my $sname = $service->{name};
         my $oname = $oservice->{name};
         my $pfile = $service->{file};
         my $ofile = $oservice->{file};
         $pfile =~ s/.*?([^\/]+)$/$1/;
         $ofile =~ s/.*?([^\/]+)$/$1/;
-        push(@{ $pname2oname2deleted{$pname}->{$oname} }, [ $rule, $other ]);
+        push(@{ $sname2oname2deleted{$sname}->{$oname} }, [ $rule, $other ]);
     }
     if (my $action = $config{check_redundant_rules}) {
         my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
-        for my $pname (sort keys %pname2oname2deleted) {
-            my $hash = $pname2oname2deleted{$pname};
+        for my $sname (sort keys %sname2oname2deleted) {
+            my $hash = $sname2oname2deleted{$sname};
             for my $oname (sort keys %$hash) {
                 my $aref = $hash->{$oname};
-                my $msg  = "Redundant rules in $pname compared to $oname:\n  ";
+                my $msg  = "Redundant rules in $sname compared to $oname:\n  ";
                 $msg .= join(
                     "\n  ",
                     map {
@@ -7037,8 +7058,8 @@ sub propagate_owners {
     $inherit = sub {
         my ($node, $upper_owner, $upper_node, $extend, $extend_only) = @_;
         my $owner = $node->{owner};
-        if (not $owner) {
-            $owner = $node->{owner} = $upper_owner;
+        if (!$owner) {
+            $node->{owner} = $upper_owner;
         }
         else {
             $owner->{is_used} = 1;
@@ -7053,21 +7074,31 @@ sub propagate_owners {
                 }
                 else {
                     if ($upper_owner->{extend}) {
-                        $extend = [ @$extend, $upper_owner ];
+                        $extend = [ $upper_owner, @$extend ];
                     }
-                    $extended{$owner}->{$node} = [ @$extend, @$extend_only ];
                 }
+            }
+            my @extend_list;
+            push @extend_list, @$extend if $extend;
+            push @extend_list, @$extend_only if $extend_only;
+            $extended{$owner}->{$node} = \@extend_list if @extend_list;
+        }
+        if (!$owner || !$owner->{extend_only}) {
+            if (my $upper_extend = $extend_only->[0]) {
+                $node->{extended_owner} = $upper_extend;
             }
         }
 
-        my $childs = $tree{$node} or return;
-        $upper_owner = $owner;
-        $upper_node  = $node;
-        if ($upper_owner && $upper_owner->{extend_only}) {
-            $extend_only = [ @$extend_only, $upper_owner ];
+        if ($owner && $owner->{extend_only}) {
+            $extend_only = [ $owner, @$extend_only ];
             $upper_owner = undef;
             $upper_node  = undef;
         }
+        elsif($owner) {
+            $upper_owner = $owner;
+            $upper_node  = $node;
+        }
+        my $childs = $tree{$node} or return;
         for my $child (@$childs) {
             $inherit->($child, $upper_owner, $upper_node, $extend,
                 $extend_only);
@@ -7250,9 +7281,9 @@ sub set_service_owner {
 
     for my $key (sort keys %services) {
         my $service = $services{$key};
-        my $pname   = $service->{name};
+        my $sname   = $service->{name};
 
-        my $users = expand_group($service->{user}, "user of $pname");
+        my $users = expand_group($service->{user}, "user of $sname");
 
         # Non 'user' objects.
         my @objects;
@@ -7269,7 +7300,7 @@ sub set_service_owner {
             for my $what (qw(src dst)) {
                 next if $what eq $has_user;
                 push(@objects,
-                    @{ expand_group($rule->{$what}, "$what of $pname") });
+                    @{ expand_group($rule->{$what}, "$what of $sname") });
             }
         }
 
@@ -7314,7 +7345,7 @@ sub set_service_owner {
           : values %$service_owners;
         if ($multi_count > 1 xor $service->{multi_owner}) {
             if ($service->{multi_owner}) {
-                warn_msg("Useless use of attribute 'multi_owner' at $pname");
+                warn_msg("Useless use of attribute 'multi_owner' at $sname");
             }
             else {
                 my $print =
@@ -7326,7 +7357,7 @@ sub set_service_owner {
                 my @names =
                   sort(map { ($_->{name} =~ /^owner:(.*)/)[0] }
                       values %$service_owners);
-                $print->("$pname has multiple owners:\n " . join(', ', @names));
+                $print->("$sname has multiple owners:\n " . join(', ', @names));
             }
         }
 
@@ -7335,13 +7366,13 @@ sub set_service_owner {
             xor $service->{unknown_owner})
         {
             if ($service->{unknown_owner}) {
-                warn_msg("Useless use of attribute 'unknown_owner' at $pname");
+                warn_msg("Useless use of attribute 'unknown_owner' at $sname");
             }
             else {
                 if ($config{check_service_unknown_owner}) {
                     for my $obj (values %$unknown_owners) {
                         $unknown2unknown{$obj} = $obj;
-                        push @{ $unknown2services{$obj} }, $pname;
+                        push @{ $unknown2services{$obj} }, $sname;
                     }
                 }
             }
@@ -9093,7 +9124,12 @@ sub set_zone1 {
 sub set_zone_cluster {
     my ($zone, $in_interface, $zone_aref) = @_;
     my $restrict;
-    push @$zone_aref, $zone;
+
+    # Ignore zone of tunnel, because 
+    # - it is useless in rules and
+    # - we would get inconsistent owner since zone of tunnel 
+    #   doesn't inherit from area.
+    push @$zone_aref, $zone if !$zone->{is_tunnel};
     $zone->{zone_cluster} = $zone_aref;
     my $private1 = $zone->{private} || 'public';
 
@@ -11046,6 +11082,8 @@ sub link_tunnels  {
         my $private     = $crypto->{private};
         my $real_hubs   = delete $crypto2hubs{$name};
         my $real_spokes = delete $crypto2spokes{$name};
+        $real_hubs      = [ grep { !$_->{disabled} } @$real_hubs ];
+        $real_spokes    = [ grep { !$_->{disabled} } @$real_spokes ];
         $real_hubs and @$real_hubs
           or warn_msg("No hubs have been defined for $name");
 
@@ -11099,10 +11137,10 @@ sub link_tunnels  {
                 push @hubs, $hub;
 
                 # Dynamic crypto-map isn't implemented currently.
-                if ($real_spoke->{ip} eq 'negotiated') {
+                if ($real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/) {
                     if (not $router->{model}->{do_auth}) {
                         err_msg "$router->{name} can't establish crypto",
-                          " tunnel to $real_spoke->{name} with negotiated IP";
+                          " tunnel to $real_spoke->{name} with unknown IP";
                     }
                 }
 
@@ -12450,7 +12488,7 @@ sub gen_reverse_rules1  {
                                  " $prt->{name}");
             }
             elsif ($proto eq 'ip') {
-                $new_prt = $rule->{prt};
+                $new_prt = $prt;
             }
             else {
                 internal_err();
@@ -12460,8 +12498,8 @@ sub gen_reverse_rules1  {
                 # This rule must only be applied to stateless routers.
                 stateless => 1,
                 action    => $rule->{action},
-                src       => $rule->{dst},
-                dst       => $rule->{src},
+                src       => $dst,
+                dst       => $src,
                 prt       => $new_prt,
             };
 
@@ -15918,7 +15956,7 @@ sub find_chains  {
                 # if other networks with same address exist.
                 # The loopback network is additionally checked below.
                 if ($obj->{loopback} && (my $network = $obj->{network})) {
-                    if (!($rules eq 'intf_rules' && $what eq 'dst')) {
+                    if (!($intf_rules && $rules eq $intf_rules && $what eq 'dst')) {
                         $obj = $network;
                     }
                 }
@@ -15933,7 +15971,7 @@ sub find_chains  {
 
                 # Identical redundancy interfaces.
                 elsif (my $aref = $obj->{redundancy_interfaces}) {
-                    if (!($rules eq 'intf_rules' && $what eq 'dst')) {
+                    if (!($rules eq $intf_rules && $what eq 'dst')) {
                         $obj = $aref->[0];
                     }
                 }
@@ -16679,10 +16717,14 @@ sub local_optimization {
                             my $obj_changed;
 
                             # Change loopback interface to loopback network.
-                            if ($obj->{loopback} && is_interface($obj)) {
+                            # The loopback network is additionally checked
+                            # below.
+                            if ($obj->{loopback} && 
+                                (my $network = $obj->{network})) 
+                            {
                                 if (!($rules eq 'intf_rules' && $what eq 'dst'))
                                 {
-                                    $obj = $obj->{network};
+                                    $obj = $network;
                                     $obj_changed = 1;
                                 }
                             }

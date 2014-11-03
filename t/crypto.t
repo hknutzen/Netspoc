@@ -439,7 +439,6 @@ service:test1 = {
 END
 
 $out = <<END;
-Warning: Ignoring any:[network:customers1] with tunnel in src of rule in service:test1
 Warning: Ignoring any:[network:customers1] with software clients in src of rule in service:test1
 END
 
@@ -909,6 +908,114 @@ ip access-list extended GigabitEthernet0_in
  permit udp host 1.2.3.2 eq 500 host 1.2.3.129 eq 500
  permit udp host 1.2.3.2 eq 4500 host 1.2.3.129 eq 4500
  deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Unmanaged VPN spoke with unknown IP';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha_hmac;
+ pfs_group = 2;
+ lifetime = 3600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ nat_traversal = additional;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 43200 sec;
+ trust_point =  ASDM_TrustPoint3;
+}
+
+crypto:sts = {
+ type = ipsec:aes256SHA;
+ tunnel_all;
+}
+
+network:intern = { ip = 10.1.1.0/24; }
+
+router:asavpn = {
+ model = ASA, 8.4;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101; 
+  hardware = inside;
+ }
+ interface:dmz = { 
+  ip = 1.2.3.2; 
+  hub = crypto:sts;
+  hardware = outside; 
+ }
+}
+
+network:dmz = { ip = 1.2.3.0/25; }
+
+router:extern = { 
+ interface:dmz = { ip = 1.2.3.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:vpn1 = {
+ interface:internet = {
+#  ip = 1.1.1.1;
+  spoke = crypto:sts;
+ }
+ interface:lan1;
+}
+
+network:lan1 = { ip = 10.99.1.0/24; }
+END
+
+
+$out = <<'END';
+Error: router:asavpn can't establish crypto tunnel to interface:vpn1.internet with unknown IP
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unmanaged VPN spoke with known IP';
+############################################################
+
+$in =~ s/#  ip/  ip/;
+
+$out = <<'END';
+--asavpn
+no sysopt connection permit-vpn
+crypto isakmp policy 1
+ authentication rsa-sig
+ encryption aes-256
+ hash sha
+ group 2
+ lifetime 43200
+crypto ipsec transform-set Trans1 esp-aes-256 esp-sha-hmac
+access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
+crypto map crypto-outside 1 match address crypto-outside-1
+crypto map crypto-outside 1 set peer 1.1.1.1
+crypto map crypto-outside 1 set ikev1 transform-set Trans1
+crypto map crypto-outside 1 set pfs group2
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+tunnel-group 1.1.1.1 type ipsec-l2l
+tunnel-group 1.1.1.1 ipsec-attributes
+ chain
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+crypto map crypto-outside interface outside
+crypto isakmp enable outside
+--
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
 END
 
 test_run($title, $in, $out);
