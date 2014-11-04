@@ -3199,6 +3199,9 @@ sub read_owner {
         elsif (check_flag 'extend_only') {
             $owner->{extend_only} = 1;
         }
+        elsif (check_flag 'extend_unbounded') {
+            $owner->{extend_unbounded} = 1;
+        }
         elsif (check_flag 'extend') {
             $owner->{extend} = 1;
         }
@@ -4005,9 +4008,13 @@ sub link_to_owner {
 sub link_to_real_owner {
     my ($obj, $key) = @_;
     if (my $owner = link_to_owner($obj, $key)) {
-        $owner->{extend_only} and
+        if ($owner->{extend_only}) {
+
+            # Prevent further errors.
+            delete $owner->{extend_only};
             err_msg("$owner->{name} with attribute 'extend_only'",
                     " must only be used at area,\n not at $obj->{name}");
+        }
     }
     return;
 }
@@ -7048,7 +7055,7 @@ sub propagate_owners {
         sort by_name map { $ref2obj{$_} } grep { not $is_child{$_} } keys %tree;
 
     # owner is extended by e_owner at node.
-    # owner->node->[e_owner, .. ]
+    # owner->[[node, e_owner, .. ], .. ]
     my %extended;
 
     # upper_owner: owner object without attribute extend_only or undef
@@ -7078,10 +7085,10 @@ sub propagate_owners {
                     }
                 }
             }
-            my @extend_list;
+            my @extend_list = ($node);
             push @extend_list, @$extend if $extend;
             push @extend_list, @$extend_only if $extend_only;
-            $extended{$owner}->{$node} = \@extend_list if @extend_list;
+            push @{ $extended{$owner} }, \@extend_list;
         }
         if (!$owner || !$owner->{extend_only}) {
             if (my $upper_extend = $extend_only->[0]) {
@@ -7111,36 +7118,31 @@ sub propagate_owners {
     # Collect extended owners and check for inconsistent extensions.
     # Check owner with attribute {show_all}.
     for my $owner (sort by_name values %owners) {
-        my $href = $extended{$owner} or next;
+        my $aref = $extended{$owner} || [];
         my $node1;
         my $ext1;
         my $combined;
-        for my $ref (keys %$href) {
-            my $node = $ref2obj{$ref};
-            my $ext = { map({ ($_, $_) } @{ $href->{$ref} || [] }) };
+        for my $node_ext (@$aref) {
+            my $node = shift @$node_ext;
+            next if $zone_got_net_owners{$node};
+            my $ext = { map({ ($_, $_) } @$node_ext) };
             if ($node1) {
-                my $differ;
-                if (keys %$ext != keys %$ext1) {
-                    $differ = 1;
-                }
-                else {
-                    for my $ref (keys %$ext) {
-                        if (not $ext1->{$ref}) {
-                            $differ = 1;
-                            last;
-                        }
+                for my $owner_hash ($ext1, $ext) {
+                    next if !$config{check_owner_extend};
+                    my ($other, $owner_node, $other_node) = 
+                          $owner_hash eq $ext 
+                        ? ($ext1, $node, $node1)
+                        : ($ext, $node1, $node);
+                    for my $e_owner (values %$owner_hash) {
+                        next if $e_owner->{extend_unbounded};
+                        next if $other->{$e_owner};
+                        warn_msg("$owner->{name}",
+                             " is extended by $e_owner->{name}\n",
+                             " - only at $owner_node->{name}\n",
+                             " - but not at $other_node->{name}");
                     }
                 }
-                if ($differ) {
-                    if ($config{check_owner_extend}) {
-                        warn_msg("$owner->{name} inherits inconsistently:",
-                                 "\n - at $node1->{name}: ",
-                                 join(', ', map { $_->{name} } values %$ext1),
-                                 "\n - at $node->{name}: ",
-                                 join(', ', map { $_->{name} } values %$ext));
-                    }
-                    $combined = { %$ext, %$combined };
-                }
+                $combined = { %$ext, %$combined };
             }
             else {
                 ($node1, $ext1) = ($node, $ext);
@@ -7153,10 +7155,8 @@ sub propagate_owners {
         if ($owner->{show_all}) {
             if (@root_nodes == 1 && (my $root = $root_nodes[0])) {
                 my $root_owner = $root->{owner} || '';
-                if ($root_owner eq $owner && is_area($root)) {
-                    if (@{ $root->{zones} } == @zones) {
-                        next;
-                    }
+                if ($root_owner eq $owner) {
+                    next;
                 }
             }
             err_msg("Attribute 'show_all' is only valid for owner of area",

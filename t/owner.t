@@ -208,23 +208,74 @@ $title = 'Owner with extend_only only usable at area';
 
 $in = <<'END';
 owner:x = { watchers = x@a.b; extend_only; }
+owner:y = { watchers = y@a.b; extend_only; }
+owner:z = { watchers = z@a.b; extend_only; }
 any:a1 = { owner = x; link = network:n1; }
 network:n1 = { 
- owner = x; ip = 10.1.1.0/24; 
- host:h1 = { owner = x; ip = 10.1.1.1; }
+ owner = y; ip = 10.1.1.0/24; 
+ host:h1 = { owner = z; ip = 10.1.1.1; }
 }
 END
 
 $out = <<'END';
-Error: owner:x with attribute 'extend_only' must only be used at area,
+Error: owner:y with attribute 'extend_only' must only be used at area,
  not at network:n1
-Error: owner:x with attribute 'extend_only' must only be used at area,
+Error: owner:z with attribute 'extend_only' must only be used at area,
  not at host:h1
 Error: owner:x with attribute 'extend_only' must only be used at area,
  not at any:a1
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Inconsistend extended owners';
+############################################################
+
+$in = <<'END';
+owner:a1 = { admins = a1@b.c; extend_only; }
+owner:a3 = { admins = a3@b.c; extend_only; }
+owner:a23 = { admins = a23@b.c; extend_only; }
+owner:n1 = { admins = n1@b.c; }
+owner:n3 = { admins = n3@b.c; }
+
+area:a1 = { owner = a1; border = interface:asa1.n1; }
+area:a3 = { owner = a3; border = interface:asa1.n3; }
+area:a23 = { owner = a23; inclusive_border = interface:asa1.n1; }
+
+network:n1 = { ip = 10.1.1.0/24; owner = n1; host:h1 = { ip = 10.1.1.9; owner = n3; } }
+network:n2 = { ip = 10.1.2.0/24; owner = n1; }
+network:n3 = { ip = 10.1.3.0/24; owner = n3; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = vlan3; }
+}
+
+END
+
+$out = <<'END';
+Warning: owner:n1 is extended by owner:a1
+ - only at network:n1
+ - but not at network:n2
+Warning: owner:n1 is extended by owner:a23
+ - only at network:n2
+ - but not at network:n1
+Warning: owner:n3 is extended by owner:a1
+ - only at host:h1
+ - but not at network:n3
+Warning: owner:n3 is extended by owner:a3
+ - only at network:n3
+ - but not at host:h1
+Warning: owner:n3 is extended by owner:a23
+ - only at network:n3
+ - but not at host:h1
+END
+
+test_err($title, $in, $out, '--check_owner_extend=1');
 
 ############################################################
 done_testing;
