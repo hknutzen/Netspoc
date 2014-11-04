@@ -172,6 +172,9 @@ our %config = (
     comment_acls   => 0,
     comment_routes => 0,
 
+# Transient option.
+    check_routing_manual => 0,
+
 # Ignore these names when reading directories:
 # - CVS and RCS directories
 # - CVS working files
@@ -413,6 +416,9 @@ my %routing_info = (
             )
         ]
     },
+    dynamic => { name => 'dynamic' },
+
+    # Identical to 'dynamic', but must only be applied to router.
     manual => { name => 'manual' },
 );
 
@@ -2278,6 +2284,18 @@ sub read_router {
             # to which hardware.
             push @{ $hardware->{interfaces} }, $interface;
 
+            # Don't allow 'routing=manual' at single interface, because
+            # approve would remove manual routes otherwise.
+            # Approve only leaves routes unchanged, if Netspoc generates
+            # no routes at all.
+            if ((my $routing = $interface->{routing}) && 
+                $config{check_routing_manual}) 
+            {
+                $routing->{name} eq 'manual' and
+                    warn_msg("'routing=manual' must only be applied",
+                             " to router, not to $interface->{name}");
+            }
+
             # Interface inherits routing attribute from router.
             if ($all_routing) {
                 $interface->{routing} ||= $all_routing;
@@ -2286,7 +2304,7 @@ sub read_router {
                 $interface->{ip} eq 'unnumbered')
             {
                 my $rname = $routing->{name};
-                $rname eq 'manual' or
+                $rname =~ /^(?:manual|dynamic)$/ or
                     error_atline("Routing $rname not supported",
                                  " for unnumbered interface");
             }
@@ -14699,7 +14717,7 @@ sub add_router_acls  {
 
                 # Is dynamic routing used?
                 if (my $routing = $interface->{routing}) {
-                    unless ($routing->{name} eq 'manual') {
+                    if($routing->{name} !~ /^(?:manual|dynamic)$/) {
                         my $prt     = $routing->{prt};
                         my $network = $interface->{network};
 
