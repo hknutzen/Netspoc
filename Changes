@@ -1,3 +1,25 @@
+3.058     2014-11-05 15:01:23 Europe/Berlin
+
+ - Added new attribute 'routing=dynamic'.
+   This should be used at interface level. It has the same effect as
+   'routing=manual', but the new name shows more clearly, that the
+   route isn't configured manually but by some routing protocol.
+ - Attribute 'routing=manual' has been restricted.
+   It is no longer allowed as attribute of interface, but still at
+   router. The restriction of 'routing=manual' must be enabled by new
+   config option 'check_routing_manual'. This option will be removed in
+   the next but one release and the check will be fully enabled then.
+ - Added new attribute 'extend_unbounded' at owner.
+   Until now, check for inconsistent extended owners was disabled
+   globally by default. This check should now be enabled with
+   --check_owner_extend=1. For individual owners, the check can be
+   disabled again using attribute 'extend_unbounded'. Check has been
+   improved and a test case was added. Config option
+   'check_owner_extend' will be removed in the next but one release
+   and the check will be enabled by default.
+ - Check for validity of attribute 'show_all' of owner has been fixed.
+ - Better error message for ID host with IP range that is not a subnet.
+
 3.057     2014-11-03 10:17:30 Europe/Berlin
 
  - Owner with attribute 'extend_only' must only be used at area.
