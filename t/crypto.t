@@ -21,6 +21,8 @@ network:n = {
  host:id:@domain.y    = { range = 10.99.1.16-10.99.1.17; }
  host:id:domain.y     = { range = 10.99.1.18-10.99.1.19; }
  host:id:bar@domain.y = { range = 10.99.1.20-10.99.1.23; }
+ host:id:boo@domain.y = { range = 10.99.1.1-10.99.1.63; }
+ host:id:b1@domain.y = { range = 10.99.1.1-10.99.1.1; }
 }
 END
 
@@ -28,6 +30,8 @@ $out = <<'END';
 Error: ID of host:id:@domain.x.n must not start with character '@'
 Error: ID of host:id:domain.x.n must contain character '@'
 Error: ID of host:id:bar@domain.y.n must start with character '@' or have no '@' at all
+Error: Range of host:id:boo@domain.y.n with ID must expand to exactly one subnet
+Error: host:id:b1@domain.y.n with ID must not have single IP
 END
 
 test_err($title, $in, $out);

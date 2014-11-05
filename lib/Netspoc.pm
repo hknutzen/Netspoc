@@ -5204,10 +5204,32 @@ sub convert_hosts {
             my @ip_mask;
             if (my $ip = $host->{ip}) {
                 @ip_mask = [ $ip, 0xffffffff ];
+                if ($id) {
+                    if (my ($user, $dom) = ($id =~ /^(.*?)(\@.*)$/)) {
+                        $user or err_msg("ID of $name must not start", 
+                                         " with character '\@'");
+                    }
+                    else {
+                        err_msg("ID of $name must contain character '\@'");
+                    }
+                }
             }
             elsif ($host->{range}) {
                 my ($ip1, $ip2) = @{ $host->{range} };
                 @ip_mask = split_ip_range $ip1, $ip2;
+                if ($id) {
+                    if (@ip_mask > 1) {
+                        err_msg("Range of $name with ID must expand to",
+                                " exactly one subnet");
+                    }
+                    elsif ($ip_mask[0]->[1] == 0xffffffff) {
+                        err_msg("$name with ID must not have single IP");
+                    }
+                    elsif ($id =~ /^.+\@/) {
+                        err_msg("ID of $name must start with character '\@'",
+                                " or have no '\@' at all");
+                    }
+                }
             }
             else {
                 internal_err("unexpected host type");
@@ -5265,23 +5287,6 @@ sub convert_hosts {
                     $subnet->{private} = $private if $private;
                     $subnet->{owner}   = $owner   if $owner;
                     if ($id) {
-                        if ($mask == 0xffffffff) {
-                            if (my ($user, $dom) = ($id =~ /^(.*?)(\@.*)$/)) {
-                                $user
-                                    or err_msg("ID of $name must not start", 
-                                               " with character '\@'");
-                            }
-                            else {
-                                err_msg("ID of $name must contain",
-                                        " character '\@'");
-                            }
-                        }
-                        else {
-                            $id =~ /^.+\@/
-                                and err_msg("ID of $name must start",
-                                            " with character '\@'",
-                                            " or have no '\@' at all");
-                        }
                         $subnet->{id} = $id;
                         $subnet->{radius_attributes} =
                           $host->{radius_attributes};
@@ -11424,15 +11429,12 @@ sub expand_crypto  {
                         # Rules for single software clients are stored
                         # individually at crypto hub interface.
                         for my $host (@{ $network->{hosts} }) {
-                            my $id      = $host->{id};
-                            my $subnets = $host->{subnets};
-                            @$subnets > 1
-                              and err_msg
-                              "$host->{name} with ID must expand to",
-                              " exactly one subnet";
-                            push @verify_radius_attributes, $host;
+                            my $id     = $host->{id};
 
-                            my $subnet = $subnets->[0];
+                            # ID host has already been checked to have
+                            # exacly one subnet.
+                            my $subnet = $host->{subnets}->[0];
+                            push @verify_radius_attributes, $host;
                             for my $peer (@$peers) {
                                 $peer->{id_rules}->{$id} = {
                                     name       => "$peer->{name}.$id",
