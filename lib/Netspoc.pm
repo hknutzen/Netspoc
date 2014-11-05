@@ -7148,32 +7148,32 @@ sub propagate_owners {
         for my $node_ext (@$aref) {
             my $node = shift @$node_ext;
             next if $zone_got_net_owners{$node};
-            my $ext = { map({ ($_, $_) } @$node_ext) };
+            my $ext = $node_ext;
             if ($node1) {
-                for my $owner_hash ($ext1, $ext) {
+                for my $owner_list ($ext1, $ext) {
                     next if !$config{check_owner_extend};
                     my ($other, $owner_node, $other_node) = 
-                          $owner_hash eq $ext 
+                          $owner_list eq $ext 
                         ? ($ext1, $node, $node1)
                         : ($ext, $node1, $node);
-                    for my $e_owner (values %$owner_hash) {
+                    for my $e_owner (@$owner_list) {
                         next if $e_owner->{extend_unbounded};
-                        next if $other->{$e_owner};
+                        next if grep { $e_owner eq $_ } @$other;
                         warn_msg("$owner->{name}",
                              " is extended by $e_owner->{name}\n",
                              " - only at $owner_node->{name}\n",
                              " - but not at $other_node->{name}");
                     }
                 }
-                $combined = { %$ext, %$combined };
+                $combined = [ @$ext, @$combined ];
             }
             else {
+                $combined = $ext;
                 ($node1, $ext1) = ($node, $ext);
-                $combined = $ext1;
             }
         }
-        if (keys %$combined) {
-            $owner->{extended_by} = [ values %$combined ];
+        if ($combined && @$combined) {
+            $owner->{extended_by} = [ unique @$combined ];
         }
         if ($owner->{show_all}) {
             if (@root_nodes == 1 && (my $root = $root_nodes[0])) {
