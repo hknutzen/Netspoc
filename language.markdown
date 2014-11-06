@@ -694,8 +694,13 @@ reachable by that interface. Access control lists for this interface
 are automatically augmented to permit incoming packets of the routing
 protocol. Currently EIGRP and OSPF are supported.
 
-If `routing=manual` is set, no routing code is generated at all. Some other
-means (e.g. BGP) has to be used to get routes at this interface.
+If `routing=dynamic` is set, no routing code is generated for this
+interface. Some other means (e.g. BGP) has to be used to get routes at
+this interface.
+
+Use `routing=manual` at router level to disable generation of routing
+code for the whole device. Manually defined routes are left unchanged
+by Netspoc-Approve in this case.
 
 ###Default route
 
