@@ -4447,7 +4447,7 @@ sub link_pathrestrictions {
             # interface.
             push @{ $obj->{path_restrict} }, $restrict;
 
-            # Unmanaged router with pathrestriction is handled special.
+            # Unmanaged router with pathrestriction is handled specially.
             # It is separating zones, but gets no code.
             my $router = $obj->{router};
             $router->{managed} or $router->{semi_managed} = 1;
