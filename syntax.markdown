@@ -309,9 +309,10 @@ where `<object set>` must expand to interfaces.
         [ alias = <string>; ]
         admins = <email>(, <email>)*;
         [ watchers = <email>(, <email>)*; ]
-        [ extend;      ]
-        [ extend_only; ]
-        [ show_all;    ]
+        [ extend;           ]
+        [ extend_only;      ]
+        [ extend_unbounded; ]
+        [ show_all;         ]
       }
     
     <email> ::= some valid email address or 'guest'
