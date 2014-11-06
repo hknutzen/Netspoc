@@ -169,4 +169,35 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Crosslink network must not have hosts';
+############################################################
+$in = <<'END';
+network:cr = { 
+ ip = 10.3.3.0/29; 
+ crosslink; 
+ host:h = { ip = 10.3.3.3; }
+}
+END
+
+$out = <<END;
+Error: Crosslink network must not have host definitions at line 5 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Crosslink network must not have unmanaged interface';
+############################################################
+$in = <<'END';
+network:cr = { ip = 10.3.3.0/29; crosslink; }
+router:r = { interface:cr; }
+END
+
+$out = <<END;
+Error: Crosslink network:cr must not be connected to unmanged router:r
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;
