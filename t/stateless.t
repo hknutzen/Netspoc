@@ -8,7 +8,7 @@ use Test_Netspoc;
 
 my ($topo, $title, $in, $out);
 
-my $topo = <<'END';
+$topo = <<'END';
 network:x = { ip = 10.1.1.0/24; 
 }
 router:r = {

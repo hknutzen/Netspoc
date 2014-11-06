@@ -172,6 +172,9 @@ our %config = (
     comment_acls   => 0,
     comment_routes => 0,
 
+# Transient option.
+    check_routing_manual => 0,
+
 # Ignore these names when reading directories:
 # - CVS and RCS directories
 # - CVS working files
@@ -413,6 +416,9 @@ my %routing_info = (
             )
         ]
     },
+    dynamic => { name => 'dynamic' },
+
+    # Identical to 'dynamic', but must only be applied to router.
     manual => { name => 'manual' },
 );
 
@@ -2285,6 +2291,18 @@ sub read_router {
             # to which hardware.
             push @{ $hardware->{interfaces} }, $interface;
 
+            # Don't allow 'routing=manual' at single interface, because
+            # approve would remove manual routes otherwise.
+            # Approve only leaves routes unchanged, if Netspoc generates
+            # no routes at all.
+            if ((my $routing = $interface->{routing}) && 
+                $config{check_routing_manual}) 
+            {
+                $routing->{name} eq 'manual' and
+                    warn_msg("'routing=manual' must only be applied",
+                             " to router, not to $interface->{name}");
+            }
+
             # Interface inherits routing attribute from router.
             if ($all_routing) {
                 $interface->{routing} ||= $all_routing;
@@ -2293,7 +2311,7 @@ sub read_router {
                 $interface->{ip} eq 'unnumbered')
             {
                 my $rname = $routing->{name};
-                $rname eq 'manual' or
+                $rname =~ /^(?:manual|dynamic)$/ or
                     error_atline("Routing $rname not supported",
                                  " for unnumbered interface");
             }
@@ -3210,6 +3228,9 @@ sub read_owner {
         elsif (check_flag 'extend_only') {
             $owner->{extend_only} = 1;
         }
+        elsif (check_flag 'extend_unbounded') {
+            $owner->{extend_unbounded} = 1;
+        }
         elsif (check_flag 'extend') {
             $owner->{extend} = 1;
         }
@@ -4016,9 +4037,13 @@ sub link_to_owner {
 sub link_to_real_owner {
     my ($obj, $key) = @_;
     if (my $owner = link_to_owner($obj, $key)) {
-        $owner->{extend_only} and
+        if ($owner->{extend_only}) {
+
+            # Prevent further errors.
+            delete $owner->{extend_only};
             err_msg("$owner->{name} with attribute 'extend_only'",
                     " must only be used at area,\n not at $obj->{name}");
+        }
     }
     return;
 }
@@ -5190,10 +5215,32 @@ sub convert_hosts {
             my @ip_mask;
             if (my $ip = $host->{ip}) {
                 @ip_mask = [ $ip, 0xffffffff ];
+                if ($id) {
+                    if (my ($user, $dom) = ($id =~ /^(.*?)(\@.*)$/)) {
+                        $user or err_msg("ID of $name must not start", 
+                                         " with character '\@'");
+                    }
+                    else {
+                        err_msg("ID of $name must contain character '\@'");
+                    }
+                }
             }
             elsif ($host->{range}) {
                 my ($ip1, $ip2) = @{ $host->{range} };
                 @ip_mask = split_ip_range $ip1, $ip2;
+                if ($id) {
+                    if (@ip_mask > 1) {
+                        err_msg("Range of $name with ID must expand to",
+                                " exactly one subnet");
+                    }
+                    elsif ($ip_mask[0]->[1] == 0xffffffff) {
+                        err_msg("$name with ID must not have single IP");
+                    }
+                    elsif ($id =~ /^.+\@/) {
+                        err_msg("ID of $name must start with character '\@'",
+                                " or have no '\@' at all");
+                    }
+                }
             }
             else {
                 internal_err("unexpected host type");
@@ -5251,23 +5298,6 @@ sub convert_hosts {
                     $subnet->{private} = $private if $private;
                     $subnet->{owner}   = $owner   if $owner;
                     if ($id) {
-                        if ($mask == 0xffffffff) {
-                            if (my ($user, $dom) = ($id =~ /^(.*?)(\@.*)$/)) {
-                                $user
-                                    or err_msg("ID of $name must not start", 
-                                               " with character '\@'");
-                            }
-                            else {
-                                err_msg("ID of $name must contain",
-                                        " character '\@'");
-                            }
-                        }
-                        else {
-                            $id =~ /^.+\@/
-                                and err_msg("ID of $name must start",
-                                            " with character '\@'",
-                                            " or have no '\@' at all");
-                        }
                         $subnet->{id} = $id;
                         $subnet->{radius_attributes} =
                           $host->{radius_attributes};
@@ -7059,7 +7089,7 @@ sub propagate_owners {
         sort by_name map { $ref2obj{$_} } grep { not $is_child{$_} } keys %tree;
 
     # owner is extended by e_owner at node.
-    # owner->node->[e_owner, .. ]
+    # owner->[[node, e_owner, .. ], .. ]
     my %extended;
 
     # upper_owner: owner object without attribute extend_only or undef
@@ -7089,10 +7119,10 @@ sub propagate_owners {
                     }
                 }
             }
-            my @extend_list;
+            my @extend_list = ($node);
             push @extend_list, @$extend if $extend;
             push @extend_list, @$extend_only if $extend_only;
-            $extended{$owner}->{$node} = \@extend_list if @extend_list;
+            push @{ $extended{$owner} }, \@extend_list;
         }
         if (!$owner || !$owner->{extend_only}) {
             if (my $upper_extend = $extend_only->[0]) {
@@ -7122,52 +7152,45 @@ sub propagate_owners {
     # Collect extended owners and check for inconsistent extensions.
     # Check owner with attribute {show_all}.
     for my $owner (sort by_name values %owners) {
-        my $href = $extended{$owner} or next;
+        my $aref = $extended{$owner} || [];
         my $node1;
         my $ext1;
         my $combined;
-        for my $ref (keys %$href) {
-            my $node = $ref2obj{$ref};
-            my $ext = { map({ ($_, $_) } @{ $href->{$ref} || [] }) };
+        for my $node_ext (@$aref) {
+            my $node = shift @$node_ext;
+            next if $zone_got_net_owners{$node};
+            my $ext = $node_ext;
             if ($node1) {
-                my $differ;
-                if (keys %$ext != keys %$ext1) {
-                    $differ = 1;
-                }
-                else {
-                    for my $ref (keys %$ext) {
-                        if (not $ext1->{$ref}) {
-                            $differ = 1;
-                            last;
-                        }
+                for my $owner_list ($ext1, $ext) {
+                    next if !$config{check_owner_extend};
+                    my ($other, $owner_node, $other_node) = 
+                          $owner_list eq $ext 
+                        ? ($ext1, $node, $node1)
+                        : ($ext, $node1, $node);
+                    for my $e_owner (@$owner_list) {
+                        next if $e_owner->{extend_unbounded};
+                        next if grep { $e_owner eq $_ } @$other;
+                        warn_msg("$owner->{name}",
+                             " is extended by $e_owner->{name}\n",
+                             " - only at $owner_node->{name}\n",
+                             " - but not at $other_node->{name}");
                     }
                 }
-                if ($differ) {
-                    if ($config{check_owner_extend}) {
-                        warn_msg("$owner->{name} inherits inconsistently:",
-                                 "\n - at $node1->{name}: ",
-                                 join(', ', map { $_->{name} } values %$ext1),
-                                 "\n - at $node->{name}: ",
-                                 join(', ', map { $_->{name} } values %$ext));
-                    }
-                    $combined = { %$ext, %$combined };
-                }
+                $combined = [ @$ext, @$combined ];
             }
             else {
+                $combined = $ext;
                 ($node1, $ext1) = ($node, $ext);
-                $combined = $ext1;
             }
         }
-        if (keys %$combined) {
-            $owner->{extended_by} = [ values %$combined ];
+        if ($combined && @$combined) {
+            $owner->{extended_by} = [ unique @$combined ];
         }
         if ($owner->{show_all}) {
             if (@root_nodes == 1 && (my $root = $root_nodes[0])) {
                 my $root_owner = $root->{owner} || '';
-                if ($root_owner eq $owner && is_area($root)) {
-                    if (@{ $root->{zones} } == @zones) {
-                        next;
-                    }
+                if ($root_owner eq $owner) {
+                    next;
                 }
             }
             err_msg("Attribute 'show_all' is only valid for owner of area",
@@ -11417,15 +11440,12 @@ sub expand_crypto  {
                         # Rules for single software clients are stored
                         # individually at crypto hub interface.
                         for my $host (@{ $network->{hosts} }) {
-                            my $id      = $host->{id};
-                            my $subnets = $host->{subnets};
-                            @$subnets > 1
-                              and err_msg
-                              "$host->{name} with ID must expand to",
-                              " exactly one subnet";
-                            push @verify_radius_attributes, $host;
+                            my $id     = $host->{id};
 
-                            my $subnet = $subnets->[0];
+                            # ID host has already been checked to have
+                            # exacly one subnet.
+                            my $subnet = $host->{subnets}->[0];
+                            push @verify_radius_attributes, $host;
                             for my $peer (@$peers) {
                                 $peer->{id_rules}->{$id} = {
                                     name       => "$peer->{name}.$id",
@@ -14710,7 +14730,7 @@ sub add_router_acls  {
 
                 # Is dynamic routing used?
                 if (my $routing = $interface->{routing}) {
-                    unless ($routing->{name} eq 'manual') {
+                    if($routing->{name} !~ /^(?:manual|dynamic)$/) {
                         my $prt     = $routing->{prt};
                         my $network = $interface->{network};
 
