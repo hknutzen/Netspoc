@@ -7152,6 +7152,9 @@ sub propagate_owners {
             if ($node1) {
                 for my $owner_list ($ext1, $ext) {
                     next if !$config{check_owner_extend};
+                    my $print = $config{check_owner_extend} eq 'warn' 
+                              ? \&warn_msg 
+                              : \&err_msg;
                     my ($other, $owner_node, $other_node) = 
                           $owner_list eq $ext 
                         ? ($ext1, $node, $node1)
@@ -7159,10 +7162,10 @@ sub propagate_owners {
                     for my $e_owner (@$owner_list) {
                         next if $e_owner->{extend_unbounded};
                         next if grep { $e_owner eq $_ } @$other;
-                        warn_msg("$owner->{name}",
-                             " is extended by $e_owner->{name}\n",
-                             " - only at $owner_node->{name}\n",
-                             " - but not at $other_node->{name}");
+                        $print->("$owner->{name}",
+                                 " is extended by $e_owner->{name}\n",
+                                 " - only at $owner_node->{name}\n",
+                                 " - but not at $other_node->{name}");
                     }
                 }
                 $combined = [ @$ext, @$combined ];

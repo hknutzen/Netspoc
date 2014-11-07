@@ -275,7 +275,7 @@ Warning: owner:n3 is extended by owner:a23
  - but not at host:h1
 END
 
-test_err($title, $in, $out, '--check_owner_extend=1');
+test_err($title, $in, $out, '--check_owner_extend=warn');
 
 ############################################################
 done_testing;
