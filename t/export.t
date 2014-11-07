@@ -470,7 +470,10 @@ pathrestriction:r2 =
  interface:r2.t2, interface:r2.c2
 ;
 
+owner:o = { admins = o@b.c; }
+
 service:test = {
+ sub_owner = o;
  user = any:[ip=10.140.0.0/16 & network:t1],
         any:[ip=10.140.0.0/16 & network:t2],
  ;
@@ -502,7 +505,7 @@ $out = <<'END';
       "zone" : "any:[network:n1]"
    }
 }
---owner/:unknown/users
+--owner/o/users
 {
    "test" : [
       "any:[ip=10.140.0.0/16 & network:t1]",
