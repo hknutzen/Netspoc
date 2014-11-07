@@ -513,9 +513,6 @@ sub setup_service_info {
             $service->{sub_owner} = $service->{sub_owner}->{name};
             $service->{sub_owner} =~ s/^owner://;
         }
-
-        # Add artificial owner :unknown if owner is unknown.
-        push @$owners, ':unknown' if not @$owners;
         $service->{owners} = $owners;
         $service->{part_owners} = part_owners_for_objects(\@objects);
         $service->{extended_owners} = extended_owners_for_objects(\@objects);
@@ -841,9 +838,13 @@ sub export_services {
                 }
             }
         }
+
+        # Show artificial owner :unknown if owner is unknown.
+        my $exported_owners = $service->{owners};
+        push @$exported_owners, ':unknown' if !@$exported_owners;
         my $details = {
             description => $service->{description},
-            owner => $service->{owners},
+            owner => $exported_owners,
         };
         if ($service->{sub_owner}) {
             $details->{sub_owner} = $service->{sub_owner};
