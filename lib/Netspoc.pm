@@ -1920,7 +1920,7 @@ sub read_interface {
     }
 
     # Interface at bridged network 
-    # - without IP is interface of bride,
+    # - without IP is interface of bridge,
     # - with IP is interface of router.
     if ($name =~ m,/,) {
         $interface->{ip} ||= 'bridged';
@@ -2010,6 +2010,13 @@ sub read_interface {
         }
         for my $crypto (@$crypto_list) {
             push @{ $crypto2hubs{$crypto} }, $interface;
+        }
+    }
+    if (@secondary_interfaces) {
+        if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
+            error_atline("\u$interface->{ip} interface must not have",
+                         " secondary IP address");
+            @secondary_interfaces = ();
         }
     }
     for my $secondary (@secondary_interfaces) {
@@ -2347,19 +2354,23 @@ sub read_router {
                 # check_subnets.
                 $layer3_intf->{is_layer3} = 1;
 
-                if ($layer3_intf->{ip} =~
-                    /^(unnumbered|negotiated|short|bridged)$/)
-                {
-                    err_msg(
-                        "Layer3 $layer3_intf->{name}",
-                        " must not be $interface->{ip}"
-                    );
-                }
                 if ($model->{class} eq 'ASA') {
                     $layer3_intf->{hardware}->{name} eq 'device'
                       or
                       err_msg("Layer3 $interface->{name} must use 'hardware'",
                         " named 'device' for model 'ASA'");
+                }
+                if (my ($no_ip) = $layer3_intf->{ip} =~
+                    /^(unnumbered|negotiated|short|bridged)$/)
+                {
+                    err_msg(
+                        "Layer3 $layer3_intf->{name}",
+                        " must not be $no_ip"
+                    );
+
+                    # Prevent further errors.
+                    $layer3_intf->{disabled} = 1;
+                    $layer3_intf = undef;
                 }
             }
             else {
@@ -4461,7 +4472,7 @@ sub link_pathrestrictions {
             # interface.
             push @{ $obj->{path_restrict} }, $restrict;
 
-            # Unmanaged router with pathrestriction is handled special.
+            # Unmanaged router with pathrestriction is handled specially.
             # It is separating zones, but gets no code.
             my $router = $obj->{router};
             $router->{managed} or $router->{semi_managed} = 1;
