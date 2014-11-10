@@ -12403,8 +12403,9 @@ sub mark_stateful {
 }
 
 sub check_supernet_rules {
-    progress('Checking rules with supernet objects');
     if ($config{check_supernet_rules}) {
+        my $count = grep { !$_->{deleted} } @{ $expanded_rules{supernet} };
+        progress("Checking $count rules with supernet objects");
         my $stateful_mark = 1;
         for my $zone (@zones) {
             if (not $zone->{stateful_mark}) {
