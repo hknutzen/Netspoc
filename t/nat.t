@@ -247,6 +247,52 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'NAT network is undeclared subnet';
+############################################################
+
+$in = <<'END';
+network:Test =  {
+ ip = 10.0.0.0/28; 
+ nat:C = { ip = 10.8.3.240/28; } #subnet_of = network:X; }
+}
+
+router:filter = {
+ managed;
+ model = ASA, 8.4;
+ interface:Test = { ip = 10.0.0.2; hardware = inside; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C; }
+}
+
+network:X = { ip = 10.8.3.0/24; }
+END
+
+$out = <<'END';
+Warning: nat:C(network:Test) is subnet of network:X
+ in nat_domain:X.
+ If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'NAT network is subnet';
+############################################################
+
+$in =~ s/} #subnet_of/subnet_of/;
+$out = '';
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Declared NAT network subnet doesn\'t match';
+############################################################
+
+$in =~ s/10.8.3.240/10.8.4.240/;
+$out = <<'END';
+Error: nat:C(network:Test) of network:Test is subnet_of network:X but its IP doesn't match that's IP/mask
+END
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Multiple static NAT';
 ############################################################
 
