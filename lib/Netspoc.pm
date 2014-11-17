@@ -244,7 +244,7 @@ sub set_config {
 }
 
 # Modified only by sub store_description.
-my $new_store_description = 0;
+my $new_store_description;
 
 sub store_description {
     my ($set) = @_;
@@ -385,82 +385,11 @@ my $aref_tcp_any = [ 1, 65535 ];
 
 # Definition of dynamic routing protocols.
 # Protocols get {up} relation in order_protocols.
-my %routing_info = (
-    EIGRP => {
-        name  => 'EIGRP',
-        prt   => { name => 'auto_prt:EIGRP', proto => 88 },
-        mcast => [
-            new(
-                'Network',
-                name => "auto_network:EIGRP_multicast",
-                ip   => gen_ip(224, 0, 0, 10),
-                mask => gen_ip(255, 255, 255, 255)
-            )
-        ]
-    },
-    OSPF => {
-        name  => 'OSPF',
-        prt   => { name => 'auto_prt:OSPF', proto => 89 },
-        mcast => [
-            new(
-                'Network',
-                name => "auto_network:OSPF_multicast5",
-                ip   => gen_ip(224, 0, 0, 5),
-                mask => gen_ip(255, 255, 255, 255),
-            ),
-            new(
-                'Network',
-                name => "auto_network:OSPF_multicast6",
-                ip   => gen_ip(224, 0, 0, 6),
-                mask => gen_ip(255, 255, 255, 255)
-            )
-        ]
-    },
-    dynamic => { name => 'dynamic' },
-
-    # Identical to 'dynamic', but must only be applied to router.
-    manual => { name => 'manual' },
-);
+my %routing_info;
 
 # Definition of redundancy protocols.
 # Protocols get {up} relation in order_protocols.
-my %xxrp_info = (
-    VRRP => {
-        prt   => { name => 'auto_prt:VRRP', proto => 112 },
-        mcast => new(
-            'Network',
-            name => "auto_network:VRRP_multicast",
-            ip   => gen_ip(224, 0, 0, 18),
-            mask => gen_ip(255, 255, 255, 255)
-        )
-    },
-    HSRP => {
-        prt => {
-            name      => 'auto_prt:HSRP',
-            proto     => 'udp',
-            dst_range => [ 1985, 1985 ],
-        },
-        mcast => new(
-            'Network',
-            name => "auto_network:HSRP_multicast",
-            ip   => gen_ip(224, 0, 0, 2),
-            mask => gen_ip(255, 255, 255, 255)
-        )
-    },
-    HSRPv2 => {
-        prt => {
-            name      => 'auto_prt:HSRPv2',
-            proto     => 'udp',
-            dst_range => [ 1985, 1985 ],
-        },
-        mcast => new(
-            'Network',
-            name => "auto_network:HSRPv2_multicast",
-            ip   => gen_ip(224, 0, 0, 102),
-            mask => gen_ip(255, 255, 255, 255)
-        )
-    },
-);
+my %xxrp_info;
 
 ## no critic (RequireArgUnpacking)
 
@@ -501,7 +430,7 @@ sub max {
     return $max;
 }
 
-my $start_time = time();
+my $start_time;
 
 sub info {
     return if not $config{verbose};
@@ -563,7 +492,7 @@ sub at_line {
     return qq/ at line $line of $current_file\n/;
 }
 
-our $error_counter = 0;
+our $error_counter;
 
 sub check_abort {
     $error_counter++;
@@ -3909,57 +3838,32 @@ sub order_tcp_udp {
 
 # Protocol 'ip' is needed later for implementing secondary rules and
 # automatically generated deny rules.
-my $prt_ip = { name => 'auto_prt:ip', proto => 'ip' };
+my $prt_ip;
 
 # Protocol 'ICMP any', needed in optimization of chains for iptables.
-my $prt_icmp = {
-    name  => 'auto_prt:icmp',
-    proto => 'icmp'
-};
+my $prt_icmp;
 
 # Protocol 'TCP any'.
-my $prt_tcp = {
-    name      => 'auto_prt:tcp',
-    proto     => 'tcp',
-    dst_range => $aref_tcp_any
-};
+my $prt_tcp;
 
 # Protocol 'UDP any'.
-my $prt_udp = {
-    name      => 'auto_prt:udp',
-    proto     => 'udp',
-    dst_range => $aref_tcp_any
-};
+my $prt_udp;
 
 # DHCP server.
-my $prt_bootps = {
-    name      => 'auto_prt:bootps',
-    proto     => 'udp',
-    dst_range => [ 67, 67]
-};
+my $prt_bootps;
 
 # IPSec: Internet key exchange.
 # Source and destination port (range) is set to 500.
-my $prt_ike = {
-    name      => 'auto_prt:IPSec_IKE',
-    proto     => 'udp',
-    src_range => [ 500, 500 ],
-    dst_range => [ 500, 500 ]
-};
+my $prt_ike;
 
 # IPSec: NAT traversal.
-my $prt_natt = {
-    name      => 'auto_prt:IPSec_NATT',
-    proto     => 'udp',
-    src_range => [ 4500, 4500 ],
-    dst_range => [ 4500, 4500 ]
-};
+my $prt_natt;
 
 # IPSec: encryption security payload.
-my $prt_esp = { name => 'auto_prt:IPSec_ESP', proto => 50, prio => 100, };
+my $prt_esp;
 
 # IPSec: authentication header.
-my $prt_ah = { name => 'auto_prt:IPSec_AH', proto => 51, prio => 99, };
+my $prt_ah;
 
 # Port range 'TCP any'; assigned in sub order_protocols below.
 
@@ -7273,7 +7177,7 @@ sub expand_auto_intf {
         next if not is_autointerface($src);
         my @new;
         for my $dst (@$dst_aref) {
-            push @new, Netspoc::path_auto_interfaces($src, $dst);
+            push @new, path_auto_interfaces($src, $dst);
         }
 
         # Substitute auto interface by real interface.
@@ -7305,6 +7209,7 @@ sub show_unknown_owners {
         }
         $print->("Unknown owner for $obj->{name} in $unknown2services{$obj}");
     }
+    %unknown2services = %unknown2unknown = ();
     return;
 }
 
@@ -14665,12 +14570,7 @@ sub set_policy_distribution_ip  {
     return;
 }
 
-my $permit_any_rule = {
-    action    => 'permit',
-    src       => $network_00,
-    dst       => $network_00,
-    prt       => $prt_ip
-};
+my $permit_any_rule;
 
 sub add_router_acls  {
     return if fast_mode();
@@ -17067,12 +16967,7 @@ sub local_optimization {
     return;
 }
 
-my $deny_any_rule = {
-    action    => 'deny',
-    src       => $network_00,
-    dst       => $network_00,
-    prt       => $prt_ip
-};
+my $deny_any_rule;
 
 sub print_cisco_acl_add_deny {
     my ($router, $hardware, $no_nat_set, $model, $prefix) = @_;
@@ -18342,26 +18237,23 @@ sub print_code {
 
     # Untaint $dir. This is necessary if running setuid.
     # We can trust value of $dir because it is set by setuid wrapper.
-    if ($dir) {
-        ($dir) = ($dir =~ /(.*)/);
-        check_output_dir($dir);
-    }
+    ($dir) = ($dir =~ /(.*)/);
+    check_output_dir($dir);
 
     progress('Printing code');
     my %seen;
     for my $router (@managed_routers) {
         next if $seen{$router};
         my $device_name = $router->{device_name};
-        if ($dir) {
-            my $file = $device_name;
+        my $file = $device_name;
 
-            # Untaint $file. It has already been checked for word characters,
-            # but check again for the case of a weird locale setting.
-            $file =~ /^(.*)/;
-            $file = "$dir/$1";
-            open(STDOUT, '>', $file)
-              or fatal_err("Can't open $file for writing: $!");
-        }
+        # Untaint $file. It has already been checked for word characters,
+        # but check again for the case of a weird locale setting.
+        $file =~ /^(.*)/;
+        $file = "$dir/$1";
+        open(my $code_fd, '>', $file)
+            or fatal_err("Can't open $file for writing: $!");
+        select $code_fd;
 
         my $model        = $router->{model};
         my $comment_char = $model->{comment_char};
@@ -18392,9 +18284,8 @@ sub print_code {
         $per_vrf->(\&print_nat);
 
         print "$comment_char [ END $device_name ]\n\n";
-        if ($dir) {
-            close STDOUT or fatal_err("Can't close $dir/$device_name: $!");
-        }
+        select STDOUT;
+        close $code_fd or fatal_err("Can't close $dir/$device_name: $!");
     }
     return;
 }
@@ -18450,6 +18341,268 @@ sub show_version {
 
 sub show_finished {
     progress('Finished') if $config{time_stamps};
+    return;
+}
+
+# These must be initialized on each run, because protocols are changed
+# by prepare_prt_ordering.
+sub init_protocols {
+
+    %routing_info = (
+        EIGRP => {
+            name  => 'EIGRP',
+            prt   => { name => 'auto_prt:EIGRP', proto => 88 },
+            mcast => [
+                new(
+                    'Network',
+                    name => "auto_network:EIGRP_multicast",
+                    ip   => gen_ip(224, 0, 0, 10),
+                    mask => gen_ip(255, 255, 255, 255)
+                )
+                ]
+        },
+        OSPF => {
+            name  => 'OSPF',
+            prt   => { name => 'auto_prt:OSPF', proto => 89 },
+            mcast => [
+                new(
+                    'Network',
+                    name => "auto_network:OSPF_multicast5",
+                    ip   => gen_ip(224, 0, 0, 5),
+                    mask => gen_ip(255, 255, 255, 255),
+                ),
+                new(
+                    'Network',
+                    name => "auto_network:OSPF_multicast6",
+                    ip   => gen_ip(224, 0, 0, 6),
+                    mask => gen_ip(255, 255, 255, 255)
+                )
+                ]
+        },
+        dynamic => { name => 'dynamic' },
+
+        # Identical to 'dynamic', but must only be applied to router.
+        manual => { name => 'manual' },
+    );
+    %xxrp_info = (
+        VRRP => {
+            prt   => { name => 'auto_prt:VRRP', proto => 112 },
+            mcast => new(
+                'Network',
+                name => "auto_network:VRRP_multicast",
+                ip   => gen_ip(224, 0, 0, 18),
+                mask => gen_ip(255, 255, 255, 255)
+            )
+        },
+        HSRP => {
+            prt => {
+                name      => 'auto_prt:HSRP',
+                proto     => 'udp',
+                dst_range => [ 1985, 1985 ],
+            },
+            mcast => new(
+                'Network',
+                name => "auto_network:HSRP_multicast",
+                ip   => gen_ip(224, 0, 0, 2),
+                mask => gen_ip(255, 255, 255, 255)
+            )
+        },
+        HSRPv2 => {
+            prt => {
+                name      => 'auto_prt:HSRPv2',
+                proto     => 'udp',
+                dst_range => [ 1985, 1985 ],
+            },
+            mcast => new(
+                'Network',
+                name => "auto_network:HSRPv2_multicast",
+                ip   => gen_ip(224, 0, 0, 102),
+                mask => gen_ip(255, 255, 255, 255)
+            )
+        },
+    );
+
+    $prt_ip = { name => 'auto_prt:ip', proto => 'ip' };
+    $prt_icmp = {
+        name  => 'auto_prt:icmp',
+        proto => 'icmp'
+    };
+    $prt_tcp = {
+        name      => 'auto_prt:tcp',
+        proto     => 'tcp',
+        dst_range => $aref_tcp_any
+    };
+    $prt_udp = {
+        name      => 'auto_prt:udp',
+        proto     => 'udp',
+        dst_range => $aref_tcp_any
+    };
+    $prt_bootps = {
+        name      => 'auto_prt:bootps',
+        proto     => 'udp',
+        dst_range => [ 67, 67]
+    };
+    $prt_ike = {
+        name      => 'auto_prt:IPSec_IKE',
+        proto     => 'udp',
+        src_range => [ 500, 500 ],
+        dst_range => [ 500, 500 ]
+    };
+    $prt_natt = {
+        name      => 'auto_prt:IPSec_NATT',
+        proto     => 'udp',
+        src_range => [ 4500, 4500 ],
+        dst_range => [ 4500, 4500 ]
+    };
+    $prt_esp = { name => 'auto_prt:IPSec_ESP', proto => 50, prio => 100, };
+    $prt_ah = { name => 'auto_prt:IPSec_AH', proto => 51, prio => 99, }; 
+    $deny_any_rule = {
+        action    => 'deny',
+        src       => $network_00,
+        dst       => $network_00,
+        prt       => $prt_ip
+    };
+    $permit_any_rule = {
+        action    => 'permit',
+        src       => $network_00,
+        dst       => $network_00,
+        prt       => $prt_ip
+    };
+}
+
+sub init_global_vars {
+    $start_time = time();
+    $error_counter = 0;
+    $new_store_description = 0;
+    for my $pair (values %global_type) {
+        %{ $pair->[1] } = ();
+    }
+    %interfaces = %hosts = ();
+    @managed_routers = @virtual_interfaces = @pathrestrictions = ();
+    @managed_vpnhub = @routers = @networks = @zones = @areas = ();
+    @natdomains = ();
+    %auto_interfaces = ();
+    $from_json = undef;
+    $policy_distribution_point = undef;
+    %crypto2spokes = %crypto2hubs = ();
+    %rule_tree = ();
+    %prt_hash = %range_hash = %ref2prt = %ref2obj = %token2regex = ();
+    %ref2obj = %ref2prt = ();
+    %obj2zone = ();
+    %obj2path = ();
+    %key2obj = ();
+    %border2obj2auto = ();
+    %filter_networks = ();
+    @deleted_rules = ();
+    %unknown2services = %unknown2unknown = ();
+    %supernet_rule_tree = %missing_supernet = ();
+    %smaller_prt = ();
+    init_protocols();
+}
+
+# Call once when module is loaded.
+# Call again, before different input is processed by same instance.
+init_global_vars();
+
+####################################################################
+# Argument processing
+# Get option names from %config.
+# Write options back to %config.
+####################################################################
+
+use Getopt::Long qw(GetOptionsFromArray);
+use Pod::Usage;
+
+sub parse_options {
+    my ($args) = @_;
+    my %result;
+    my $setopt = sub {
+	my ($key, $val) = @_;
+	if (my $expected = check_config_pair($key, $val)) {
+	    die "Value '$val' invalid for option $key ($expected expected)\n";
+	}
+	$result{$key} = $val;
+    };
+
+    my %options;
+    for my $key (get_config_keys()) {
+	my $opt = get_config_pattern($key) eq '0|1' ? '!' : '=s';
+	$options{"$key$opt"} = $setopt;
+    }
+    $options{quiet} = sub { $result{verbose} = 0 };
+    $options{'help|?'} = sub { pod2usage(1) };
+    $options{man} = sub { pod2usage(-exitstatus => 0, -verbose => 2) };
+
+    GetOptionsFromArray($args, %options) or pod2usage(2);
+
+    return \%result;
+}
+
+sub parse_args {
+    my ($args) = @_;
+    my $main_file = shift @$args;
+
+    # Strip trailing slash for nicer messages.
+    defined $main_file and $main_file =~ s</$><>;
+
+    # $out_dir is used to store compilation results.
+    # For each managed router with name X a corresponding file X
+    # is created in $out_dir.
+    # If $out_dir is missing, all code is printed to STDOUT.
+    my $out_dir = shift @$args;
+
+    # Strip trailing slash for nicer messages.
+    defined $out_dir and $out_dir =~ s</$><>;
+
+    # No further arguments allowed.
+    @$args and pod2usage(2);
+    return ($main_file, $out_dir);
+}
+
+sub compile {
+    my ($args) = @_;
+   
+    my($cmd_config) = &parse_options($args);
+    my($in_path, $out_dir) = &parse_args($args);
+    my $file_config = &read_config($in_path);
+
+    # Command line options override options from 'config' file.
+    # Rightmost overrides.
+    &set_config($file_config, $cmd_config);
+
+    # Don't compile but check only for errors if no $out_dir is given.
+    &fast_mode(!$out_dir);
+    &show_version();
+    &read_file_or_dir($in_path);
+    &show_read_statistics();
+    &order_protocols();
+    &link_topology();
+    &mark_disabled();
+    &set_zone();
+    &setpath();
+    &distribute_nat_info();
+    find_subnets_in_zone();
+    &set_service_owner();
+    &expand_services(1);	# 1: expand hosts to subnets
+
+    # Abort now, if there are syntax errors and simple semantic errors.
+    &abort_on_error();
+    &expand_crypto();
+    &check_unused_groups();
+    &optimize_and_warn_deleted();
+    &check_supernet_rules();
+    &find_active_routes_and_statics();
+    &gen_reverse_rules();
+    &mark_secondary_rules();
+    &abort_on_error();
+    &set_abort_immediately();
+    &rules_distribution();
+    &local_optimization();
+    if ($out_dir) {
+        &print_code($out_dir);
+        copy_raw($in_path, $out_dir);
+    }
+    show_finished();
     return;
 }
 

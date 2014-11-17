@@ -9,26 +9,59 @@ our @EXPORT = qw(test_run test_err);
 
 use Test::More;
 use Test::Differences;
-use IPC::Run3;
+use Capture::Tiny 'capture_stderr';
 use File::Temp qw/ tempfile tempdir /;
+use lib 'lib';
+use Netspoc;
 
 my $default_options = '-quiet';
-my $netspoc_cmd = 'perl -I lib bin/netspoc';
 
-sub compile {
-    my($input, $options) = @_;
+sub run {
+    my($input, $options, $out_dir) = @_;
     $options ||= '';
-    my $dir = tempdir( CLEANUP => 1 );
-    my ($in_fh, $filename) = tempfile(UNLINK => 1);
+
+    # Prepare input directory and file(s).
+    my $in_dir = tempdir( CLEANUP => 1 );
+    my $filename = "$in_dir/STDIN";
+    open(my $in_fh, '>', $filename) or die "Can't open $filename: $!\n";
     print $in_fh $input;
     close $in_fh;
 
-    my $cmd = "$netspoc_cmd $default_options $options $filename $dir";
-    my ($stdout, $stderr);
-    run3($cmd, \undef, \$stdout, \$stderr);
-    my $status = $?;
+    # Prepare arguments.
+    my $args = [ split(' ', $default_options),
+                 split(' ', $options),
+                 $filename ];
+    push @$args, $out_dir if $out_dir;
 
-    if ($status != 0) {
+    # Compile, capture STDERR, catch errors.
+    my ($stderr, $success) = 
+        capture_stderr {
+            my $result;
+            eval {
+
+                # Global variables are initialized already when
+                # Netspoc.pm is loaded, but re-initialization is
+                # needed for multiple compiler runs.
+                Netspoc::init_global_vars();
+                Netspoc::compile($args);
+                $result = 1;
+            };
+            if($@) {
+                warn $@; 
+            };
+            $result;
+    };
+    return($stderr, $success, $in_dir);
+}
+
+sub compile {
+    my($input, $options) = @_;
+
+    # Prepare output directory.
+    my $out_dir = tempdir( CLEANUP => 1 );
+
+    my ($stderr, $success, $in_dir) = run($input, $options, $out_dir);
+    if (!$success) {
         print STDERR "Failed:\n$stderr\n";
         return '';
     }
@@ -36,19 +69,18 @@ sub compile {
         print STDERR "Unexpected output on STDERR:\n$stderr\n";
         return '';
     }
-    return($dir);
+    return($out_dir);
 }
 
 sub compile_err {
     my($input, $options) = @_;
-    $options ||= '';
-    my $cmd = "$netspoc_cmd $default_options $options";
-    my ($stdout, $stderr);
-    run3($cmd, \$input, \$stdout, \$stderr);
-    my $status = $?;
-    if ($stderr) {
-        $stderr =~ s/\nAborted with \d+ error\(s\)$//ms;
-    }
+    my ($stderr, $success, $in_dir) = run($input, $options);
+
+    # Cleanup error message.
+    $stderr =~ s/\nAborted with \d+ error\(s\)$//ms;
+
+    # Normalize input path: remove temp. dir.
+    $stderr =~ s/$in_dir\///g;
     return($stderr);
 }
 
