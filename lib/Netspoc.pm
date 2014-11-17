@@ -1243,9 +1243,9 @@ sub check_radius_attributes {
     my $result = {};
     check 'radius_attributes' or return;
     skip '=';
-    skip '{';
+    skip '\{';
     while (1) {
-        last if check '}';
+        last if check '\}';
         my $key = read_identifier();
         my $val = check('=') ? read_string : undef;
         skip ';';
@@ -1372,10 +1372,10 @@ sub read_host {
     }
     $host->{name} = $name;
     skip '=';
-    skip '{';
+    skip '\{';
     add_description($host);
     while (1) {
-        last if check '}';
+        last if check '\}';
         if (my $ip = check_assign 'ip', \&read_ip) {
             add_attribute($host, ip => $ip);
         }
@@ -1419,12 +1419,12 @@ sub read_host {
             my ($type, $name) = @$pair;
             if ($type eq 'nat') {
                 skip '=';
-                skip '{';
+                skip '\{';
                 skip 'ip';
                 skip '=';
                 my $nat_ip = read_ip;
                 skip ';';
-                skip '}';
+                skip '\}';
                 $host->{nat}->{$name}
                   and error_atline("Duplicate NAT definition");
                 $host->{nat}->{$name} = $nat_ip;
@@ -1476,9 +1476,9 @@ sub read_nat {
     my $nat = { name => $name };
     (my $nat_tag = $name) =~ s/^nat://;
     skip '=';
-    skip '{';
+    skip '\{';
     while (1) {
-        last if check '}';
+        last if check '\}';
         if (my ($ip, $mask) = check_assign 'ip', \&read_ip_prefix) {
             add_attribute($nat, ip => $ip);
             add_attribute($nat, mask => $mask);
@@ -1538,10 +1538,10 @@ sub read_network {
         $network->{bridged} = $1;
     }
     skip '=';
-    skip '{';
+    skip '\{';
     add_description($network);
     while (1) {
-        last if check '}';
+        last if check '\}';
         if (my ($ip, $mask) = check_assign 'ip', \&read_ip_prefix) {
             add_attribute($network, ip => $ip);
             add_attribute($network, mask => $mask);
@@ -1754,10 +1754,10 @@ sub read_interface {
 
     my @secondary_interfaces = ();
     my $virtual;
-    skip '{';
+    skip '\{';
     add_description($interface);
     while (1) {
-        last if check '}';
+        last if check '\}';
         if (my @ip = check_assign_list 'ip', \&read_ip) {
             add_attribute($interface, ip => shift(@ip));
 
@@ -1818,12 +1818,12 @@ sub read_interface {
             my ($type, $name2) = @$pair;
             if ($type eq 'nat') {
                 skip '=';
-                skip '{';
+                skip '\{';
                 skip 'ip';
                 skip '=';
                 my $nat_ip = read_ip;
                 skip ';';
-                skip '}';
+                skip '\}';
                 $interface->{nat}->{$name2}
                   and error_atline("Duplicate NAT definition");
                 $interface->{nat}->{$name2} = $nat_ip;
@@ -1833,9 +1833,9 @@ sub read_interface {
                 # Build new interface for secondary IP addresses.
                 my $secondary = new('Interface', name => "$name.$name2");
                 skip '=';
-                skip '{';
+                skip '\{';
                 while (1) {
-                    last if check '}';
+                    last if check '\}';
                     if (my $ip = check_assign 'ip', \&read_ip) {
                         add_attribute($secondary, ip => $ip);
                     }
@@ -1860,9 +1860,9 @@ sub read_interface {
                 redundant => 1
             );
             skip '=';
-            skip '{';
+            skip '\{';
             while (1) {
-                last if check '}';
+                last if check '\}';
                 if (my $ip = check_assign 'ip', \&read_ip) {
                     add_attribute($virtual, ip => $ip);
                 }
@@ -2094,10 +2094,10 @@ sub read_router {
         $router->{vrf} = $vrf;
     }
     skip '=';
-    skip '{';
+    skip '\{';
     add_description($router);
     while (1) {
-        last if check '}';
+        last if check '\}';
         if (my $managed = check_managed()) {
             $router->{managed} 
               and error_atline("Redefining 'managed' attribute");
@@ -2562,10 +2562,10 @@ sub read_aggregate {
     my $aggregate = new('Network', name => $name, is_aggregate => 1);
     $aggregate->{private} = $private if $private;
     skip '=';
-    skip '{';
+    skip '\{';
     add_description($aggregate);
     while (1) {
-        last if check '}';
+        last if check '\}';
         if (my ($ip, $mask) = check_assign 'ip', \&read_ip_prefix) {
             add_attribute($aggregate, ip => $ip);
             add_attribute($aggregate, mask => $mask);
@@ -2613,9 +2613,9 @@ sub check_router_attributes {
     my $result = {};
     check 'router_attributes' or return;
     skip '=';
-    skip '{';
+    skip '\{';
     while (1) {
-        last if check '}';
+        last if check '\}';
         if (my $owner = check_assign 'owner', \&read_identifier) {
             add_attribute($result, owner => $owner);
         }
@@ -2642,10 +2642,10 @@ sub read_area {
     my $name = shift;
     my $area = new('Area', name => $name);
     skip '=';
-    skip '{';
+    skip '\{';
     add_description($area);
     while (1) {
-        last if check '}';
+        last if check '\}';
         if (my @elements = check_assign_list('border', \&read_intersection)) {
             if (grep { $_->[0] ne 'interface' || ref $_->[1] } @elements) {
                 error_atline "Must only use interface names in border";
@@ -2965,7 +2965,7 @@ sub read_service {
     my $service = { name => $name, rules => [] };
     $service->{private} = $private if $private;
     skip '=';
-    skip '{';
+    skip '\{';
     add_description($service);
     while (1) {
         last if check 'user';
@@ -3004,7 +3004,7 @@ sub read_service {
     $service->{user} = \@elements;
 
     while (1) {
-        last if check '}';
+        last if check '\}';
         if (my $action = check_permit_deny) {
             my ($src, $src_user) = assign_union_allow_user 'src';
             my ($dst, $dst_user) = assign_union_allow_user 'dst';
@@ -3055,10 +3055,10 @@ sub read_attributed_object {
     my ($name, $attr_descr) = @_;
     my $object = { name => $name };
     skip '=';
-    skip '{';
+    skip '\{';
     add_description($object);
     while (1) {
-        last if check '}';
+        last if check '\}';
         my $attribute = read_identifier;
         my $val_descr = $attr_descr->{$attribute}
           or syntax_err("Unknown attribute '$attribute'");
@@ -3169,12 +3169,12 @@ our %crypto;
 sub read_crypto {
     my ($name) = @_;
     skip '=';
-    skip '{';
+    skip '\{';
     my $crypto = { name => $name };
     $crypto->{private} = $private if $private;
     add_description($crypto);
     while (1) {
-        last if check '}';
+        last if check '\}';
         if (check_flag 'tunnel_all') {
             $crypto->{tunnel_all} = 1;
         }
@@ -3202,10 +3202,10 @@ sub read_owner {
     my $name = shift;
     my $owner = new('Owner', name => $name);
     skip '=';
-    skip '{';
+    skip '\{';
     add_description($owner);
     while (1) {
-        last if check '}';
+        last if check '\}';
         if (my $alias = check_assign('alias', \&read_string)) {
             $owner->{alias}
               and error_atline("Redefining 'alias' attribute");
