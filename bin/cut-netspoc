@@ -33,7 +33,7 @@ use locale;
 # Argument processing
 ####################################################################
 sub usage {
-    die "Usage: $0 {in-file | in-directory} service:name ...\n";
+    die "Usage: $0 {in-file | in-directory} [service:name] ...\n";
 }
 
 # Give each source part an index to preserve original order.
@@ -140,22 +140,28 @@ Netspoc::set_config({time_stamps => 1, max_errors => 9999});
 
 my %name2var = ( service => \%services);
 
-# Read names of services from command line.
-for my $arg (@ARGV) {
-    my ($type, $name) = split_typed_name $arg;
-    my $ref = $name2var{$type} or usage;
-    my $thing = $ref->{$name} or fatal_err "Unknown $arg";
-    $thing->{is_used} = 1;
-}
+if (@ARGV) {
 
-# Delete unwanted global definitions.
-for my $ref (values %name2var) {
-    for my $name (keys %$ref) {
-	unless ($ref->{$name}->{is_used}) {
-	    delete $ref->{$name};
-	}
+    # Read names of services from command line.
+    for my $arg (@ARGV) {
+        my ($type, $name) = split_typed_name $arg;
+        my $ref = $name2var{$type} or usage;
+        my $thing = $ref->{$name} or fatal_err "Unknown $arg";
+        $thing->{is_used} = 1;
+    }
+
+    # Delete unwanted global definitions.
+    for my $ref (values %name2var) {
+        for my $name (keys %$ref) {
+            unless ($ref->{$name}->{is_used}) {
+                delete $ref->{$name};
+            }
+        }
     }
 }
+
+# Retain all services, if no argument is given.
+# Only remove disabled parts.
 
 &order_protocols();
 &link_topology();
