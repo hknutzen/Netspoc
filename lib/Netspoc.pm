@@ -7035,14 +7035,14 @@ sub propagate_owners {
     };
 
     # Find subset relation between areas.
-    for my $area (sort by_name values %areas) {
+    for my $area (@areas) {
         if (my $super = $area->{subset_of}) {
             $add_node->($super, $area);
         }
     }
 
     # Find direct subset relation between areas and zones.
-    for my $area (sort by_name values %areas) {
+    for my $area (@areas) {
         for my $zone (@{ $area->{zones} }) {
             if ($zone2area{$zone} eq $area) {
                 $add_node->($area, $zone);
@@ -7202,11 +7202,7 @@ sub propagate_owners {
 
     # Handle {router_attributes}->{owner} separately.
     # Areas can be nested. Proceed from small to larger ones.
-    for my $area (
-        sort { @{ $a->{zones} } <=> @{ $b->{zones} } }
-        grep { not $_->{disabled} } values %areas
-      )
-    {
+    for my $area (sort { @{ $a->{zones} } <=> @{ $b->{zones} } } @areas) {
         if ($area->{router_attributes}
             and (my $owner = $area->{router_attributes}->{owner}))
         {
@@ -9346,11 +9342,7 @@ sub inherit_area_nat {
 sub inherit_attributes_from_area {
 
     # Areas can be nested. Proceed from small to larger ones.
-    for my $area (
-        sort { @{ $a->{zones} } <=> @{ $b->{zones} } }
-        grep { not $_->{disabled} } values %areas
-      )
-    {
+    for my $area (sort { @{ $a->{zones} } <=> @{ $b->{zones} } } @areas) {
         inherit_router_attributes($area);
         inherit_area_nat($area);
     }
