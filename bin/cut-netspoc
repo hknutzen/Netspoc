@@ -36,6 +36,9 @@ sub usage {
     die "Usage: $0 {in-file | in-directory} service:name ...\n";
 }
 
+# Give each source part an index to preserve original order.
+my $src_index = 1;
+
 # Enhanced version of read_netspoc, which stores source code of each
 # global definition.
 sub read_netspoc_with_src {
@@ -43,6 +46,7 @@ sub read_netspoc_with_src {
     my $object = &read_netspoc();
     my $post   = pos $Netspoc::input;
     $object->{src_code} = substr $Netspoc::input, $pre, $post - $pre;
+    $object->{src_index} = $src_index++;
 
 #    print STDERR "$object->{name} $pre-$post\n";
     return $object;
@@ -318,7 +322,8 @@ for my $area (values %areas) {
 # Routers and networks have been marked by mark_topology.
 # Protocols have been marked while %expanded_rules have been processed above.
 # Groups and protocolroups objects have been marked during expand_services.
-for my $object (
+for my $object ( sort { $a->{src_index} <=> $b->{src_index} }
+                 map { $_->{src_index} ? ($_) : () }
     values %routers,
     values %networks,
     values %Netspoc::aggregates,
