@@ -215,6 +215,42 @@ sub process_rules {
 # Mark parts of topology which are referenced by rules of services.
 process_rules(\%expanded_rules);
 
+# Mark networks inside marked aggregates.
+get_zones();
+for my $zone (@all_zones) {
+    for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
+        if($aggregate->{is_used}) {
+            for my $network (@{ $aggregate->{networks} }) {
+                $network->{is_used} = 1;
+            }
+        }
+    }
+}
+
+# Mark zones having attributes that influence their networks.
+for my $network (values %networks) {
+    $network->{is_used} or next;
+    my $zone = $network->{zone};
+    grep { $zone->{$_} } qw(has_unenforceable nat no_in_acl) or next;
+    my $aggregate0 = $zone->{ipmask2aggregate}->{'0/0'};
+    $aggregate0->{is_used} = 1;
+    $zone->{is_used} = 1;
+}
+
+for my $zone (@all_zones) {
+    $zone->{is_used} or next;
+    $zone->{link}->{is_used} = 1;
+}
+
+# Mark areas having attributes that influence their networks.
+for my $zone (@all_zones) {
+    $zone->{is_used} or next;
+    for my $area (values %{ $zone->{areas} }) {
+        $area->{nat} or next;
+        $area->{is_used} = 1;
+    }
+}
+
 # Mark interfaces which are referenced by areas.
 for my $area (values %areas) {
     if ($area->{is_used}) {
@@ -226,18 +262,6 @@ for my $area (values %areas) {
                                @{ $area->{inclusive_border} }) 
             {
                 mark_topology(undef, $interface, undef);
-            }
-        }
-    }
-}
-
-# Mark networks inside aggregates.
-get_zones();
-for my $zone (@all_zones) {
-    for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
-        if($aggregate->{is_used}) {
-            for my $network (@{ $aggregate->{networks} }) {
-                $network->{is_used} = 1;
             }
         }
     }
@@ -368,6 +392,7 @@ for my $restrict (values %pathrestrictions) {
     print "$restrict->{name} =\n";
     for my $interface (@{ $restrict->{elements} }) {
         next unless $interface;
+        next if $interface->{ip} eq 'tunnel';
         print " $interface->{name},\n";
     }
     print ";\n";
