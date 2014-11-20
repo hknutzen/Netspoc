@@ -5066,28 +5066,27 @@ sub mark_disabled {
             aref_delete($interface->{hardware}->{interfaces}, $interface);
         }
     }
+
+    # Disable area, where all interfaces or anchor are disabled.
     for my $area (sort by_name values %areas) {
+        my $ok;
         if (my $anchor = $area->{anchor}) {
-            if ($anchor->{disabled}) {
-                $area->{disabled} = 1;
-            }
-            else {
-                push @areas, $area;
-            }
+            $ok = !$anchor->{disabled};
         }
         else {
-            my $ok;
             for my $attr (qw(border inclusive_border)) {
                 my $borders = $area->{$attr} or next;
-                $area->{$attr} = [ grep { not $_->{disabled} } @$borders ];
-                if (@{ $area->{$attr} }) {
+                if (my @active_borders = grep { !$_->{disabled} } @$borders) {
+                    $area->{$attr} = \@active_borders;
                     $ok = 1;
                 }
-                else {
-                    $area->{disabled} = 1;
-                }
             }
-            $ok and push @areas, $area;
+        }
+        if ($ok) {
+            push @areas, $area;
+        }
+        else {
+            $area->{disabled} = 1;
         }
     }
 
