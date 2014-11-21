@@ -311,9 +311,6 @@ for my $area (values %areas) {
     }
 }
 
-# Mark unmanaged parts of topology.
-mark_unmanaged();
-
 # Mark hosts inside networks.
 for my $network (values %networks) {
     if($network->{is_used}) {
@@ -333,8 +330,7 @@ for my $router (values %routers) {
 	# Mark networks referenced in attribute reroute_permit.
 	if ($interface->{reroute_permit}) {
 	    for my $net (@{ $interface->{reroute_permit} }) {
-		my $rule = {src => $interface, dst => $net, prt => {}};
-		&path_walk($rule, \&mark_topology);
+                $net->{is_used} = 1;
 	    }
 	}
  
@@ -370,6 +366,9 @@ for my $router (values %routers) {
 	}
     }
 }
+
+# Mark unmanaged parts of topology.
+mark_unmanaged();
 
 for my $obj (values %areas, values %Netspoc::aggregates,
              values %networks, values %hosts, values %routers) 
