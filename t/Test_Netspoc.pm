@@ -11,6 +11,8 @@ use Test::More;
 use Test::Differences;
 use Capture::Tiny 'capture_stderr';
 use File::Temp qw/ tempfile tempdir /;
+use File::Spec::Functions qw/ file_name_is_absolute splitpath catdir catfile /;
+use File::Path 'make_path';
 use lib 'lib';
 use Netspoc;
 
@@ -21,16 +23,43 @@ sub run {
     $options ||= '';
 
     # Prepare input directory and file(s).
+    # Input is optionally preceeded by single lines of dashes
+    # followed by a filename.
+    # If no filenames are given, a single file named STDIN is used.
+    my $delim  = qr/^-+[ ]*(\S+)[ ]*\n/m;
+    my @input = split($delim, $input);
+    my $first = shift @input;
+
+    # Input does't start with filename.
+    # No further delimiters are allowed.
+    if ($first) {
+        if (@input) {
+            BAIL_OUT("Only a single input block expected");
+            return;
+        }
+        @input = ('STDIN', $first);
+    }
     my $in_dir = tempdir( CLEANUP => 1 );
-    my $filename = "$in_dir/STDIN";
-    open(my $in_fh, '>', $filename) or die "Can't open $filename: $!\n";
-    print $in_fh $input;
-    close $in_fh;
+    while (@input) {
+        my $path = shift @input;
+        my $data = shift @input;
+        if (file_name_is_absolute $path) {
+            BAIL_OUT("Unexpected absolute path '$path'");
+            return;
+        }
+        my (undef, $dir, $file) = splitpath($path);
+        my $full_dir = catdir($in_dir, $dir);
+        make_path($full_dir);
+        my $full_path = catfile($full_dir, $file);
+        open(my $in_fh, '>', $full_path) or die "Can't open $path: $!\n";
+        print $in_fh $data;
+        close $in_fh;
+    }
 
     # Prepare arguments.
     my $args = [ split(' ', $default_options),
                  split(' ', $options),
-                 $filename ];
+                 $in_dir ];
     push @$args, $out_dir if $out_dir;
 
     # Compile, capture STDERR, catch errors.
