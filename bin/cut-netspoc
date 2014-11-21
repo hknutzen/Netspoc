@@ -281,7 +281,9 @@ for my $network (values %networks) {
 
 for my $zone (@all_zones) {
     $zone->{is_used} or next;
-    $zone->{link}->{is_used} = 1;
+    if (my $link = $zone->{link}) {
+        $link->{is_used} = 1;
+    }
 }
 
 # Mark areas having attributes that influence their networks.
