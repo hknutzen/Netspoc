@@ -274,6 +274,9 @@ for my $network (values %networks) {
     my $aggregate0 = $zone->{ipmask2aggregate}->{'0/0'};
     $aggregate0->{is_used} = 1;
     $zone->{is_used} = 1;
+
+    # Simplifies test below.
+    $aggregate0->{owner} = $zone->{owner};
 }
 
 for my $zone (@all_zones) {
