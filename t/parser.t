@@ -12,7 +12,7 @@ my ($title, $in, $out);
 $title = "Unknown model for managed router";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 router:R = {
  managed; 
  model = foo;
@@ -21,7 +21,7 @@ router:R = {
 network:N = { ip = 10.1.1.0/24; }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Unknown router model at line 3 of STDIN
 END
 
@@ -31,7 +31,7 @@ test_err($title, $in, $out);
 $title = "Unknown extension for model";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 router:R = {
  managed; 
  model = PIX, foo, bar;
@@ -40,7 +40,7 @@ router:R = {
 network:N = { ip = 10.1.1.0/24; }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Unknown extension foo at line 3 of STDIN
 Error: Unknown extension bar at line 3 of STDIN
 END
@@ -54,7 +54,7 @@ $title = "Missing hardware at interface";
 # Processing of attribute 'no_in_acl' internally uses value of
 # hardware.
 
-$in = <<END;
+$in = <<'END';
 router:R = {
  managed; 
  model = ASA;
@@ -63,7 +63,7 @@ router:R = {
 network:N = { ip = 10.1.1.0/24; }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Missing 'hardware' for interface:R.N
 END
 
@@ -73,7 +73,7 @@ test_err($title, $in, $out);
 $title = "Short interface at managed router";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 router:R = {
  managed; 
  model = ASA;
@@ -82,7 +82,7 @@ router:R = {
 network:N = { ip = 10.1.1.0/24; }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Short definition of interface:R.N not allowed
 END
 

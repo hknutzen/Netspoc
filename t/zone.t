@@ -12,7 +12,7 @@ my ($title, $in, $out);
 $title = 'Only one generic aggregate in zone cluster';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test =  { ip = 10.9.1.0/24; }
 router:filter1 = {
  managed;
@@ -42,7 +42,7 @@ any:Trans1 = { link = network:Trans1; }
 any:Trans2 = { link = network:Trans2; }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Duplicate any:Trans1 and any:Trans2 in any:[network:Trans2]
 END
 
@@ -52,7 +52,7 @@ test_err($title, $in, $out);
 $title = 'Inherit owner from all zones of zone cluster';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test =  { ip = 10.9.1.0/24; }
 
 router:filter1 = {
@@ -84,7 +84,7 @@ owner:t1 = { admins = guest; }
 any:Trans1 = { link = network:Trans1; owner = t1; }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Useless owner:t1 at network:Trans2,
  it was already inherited from any:[network:Trans2]
 END
@@ -95,7 +95,7 @@ test_err($title, $in, $out);
 $title = 'Duplicate IP from NAT in zone';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 network:B = { ip = 10.3.3.128/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 
@@ -115,7 +115,7 @@ router:filter1 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: network:B and network:A have identical IP/mask inside any:[network:Trans]
 END
 
@@ -125,7 +125,7 @@ test_err($title, $in, $out);
 $title = 'Ambiguous subnet relation from NAT in zone';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 router:filter1 = {
  managed;
  model = ASA;
@@ -155,7 +155,7 @@ router:filter2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Ambiguous subnet relation from NAT.
  network:B is subnet of network:Trans and network:A
 END
@@ -164,7 +164,7 @@ test_err($title, $in, $out);
 
 $in =~ s|\Qnat:C = { ip = 10.1.1.8/29; }\E|nat:C = { ip = 10.2.2.8/29; }|;
 
-$out = <<END;
+$out = <<'END';
 Error: Ambiguous subnet relation from NAT.
  network:B is subnet of network:A,
  but has no subnet relation in other NAT domain.
@@ -176,7 +176,7 @@ test_err($title, $in, $out);
 $title = 'No secondary optimization for network with subnet in other zone';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:A = { 
  ip = 10.3.3.0/25;
  host:h = { ip = 10.3.3.5; }
@@ -209,7 +209,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --secondary
 ip access-list extended VLAN1_in
  permit ip host 10.3.3.5 10.9.9.0 0.0.0.255

@@ -38,8 +38,7 @@ END
 $title = 'Simple duplicate pathrestriction';
 ############################################################
 
-$in = <<"END";
-$topo
+$in = $topo . <<'END';
 pathrestriction:top = 
  interface:r1.top, 
  interface:r2.top, 
@@ -58,7 +57,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: No valid path
  from any:[network:lft]
  to any:[network:rgt]
@@ -77,8 +76,7 @@ test_err($title, $in, $out);
 $title = 'Path starts at pathrestriction inside loop';
 ############################################################
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 pathrestriction:p = 
  interface:r1.top, 
  interface:r2.dst, 
@@ -92,7 +90,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 -- r1
 ip access-list extended Vlan1_in
  permit tcp 10.3.1.128 0.0.0.3 host 10.1.1.1 established
@@ -124,8 +122,7 @@ $title = 'Path starts at pathrestriction inside loop (2)';
 
 # Must not use path r1.top-r1-r2-top
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 pathrestriction:p = 
  interface:r1.top, 
  interface:r2.top, 
@@ -139,7 +136,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 -- r1
 ip access-list extended Vlan1_in
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.1 established
@@ -171,8 +168,7 @@ $title = 'Path ends at pathrestriction inside loop';
 # Must detect identical path restriction,
 # when temporary moving pathrestriction of r1.dst to r1.top.
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 pathrestriction:p = 
  interface:r1.top, 
  interface:r1.dst, 
@@ -186,7 +182,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 -- r1
 ip access-list extended Vlan1_in
  deny ip any any
@@ -202,9 +198,7 @@ test_run($title, $in, $out);
 $title = 'Path ends at pathrestriction inside loop (2)';
 ############################################################
 
-$in = <<END;
-$topo
-
+$in = $topo . <<'END';
 pathrestriction:p1 =
  interface:r1.top,
  interface:r1.dst,
@@ -222,7 +216,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 -- r1
 ip access-list extended Vlan1_in
  permit tcp 10.1.1.0 0.0.0.255 host 10.3.1.245 eq 80
@@ -240,9 +234,7 @@ $title = 'Path ends at interface inside network, where path starts';
 
 # Must not enter r1 from network dst, even for optimized pathrestriction.
 
-$in = <<END;
-$topo
-
+$in = $topo . <<'END';
 pathrestriction:p =
  interface:r1.top,
  interface:r2.top,
@@ -256,7 +248,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 -- r1
 ip access-list extended Vlan1_in
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.1 eq 179
@@ -272,7 +264,7 @@ test_run($title, $in, $out);
 $title = 'Secondary interface has implicit pathrestriction';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:a = {ip = 10.1.1.0/24;}
 router:r1 = {
  managed;
@@ -290,7 +282,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r1
 ip access-list extended E1_in
  permit udp 10.2.2.0 0.0.0.255 host 10.2.2.1 eq 69

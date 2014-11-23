@@ -12,7 +12,7 @@ my ($title, $in, $out);
 $title = 'Aggregates with identcal IP';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:N1 = { ip = 10.4.6.0/24;}
 
 router:R1 = {
@@ -47,7 +47,7 @@ service:Test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R1
 ip access-list extended Vlan1_in
  deny ip any host 10.4.6.3
@@ -70,7 +70,7 @@ test_run($title, $in, $out);
 $title = 'Redundant port';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 network:B = { ip = 10.3.3.128/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 
@@ -108,7 +108,7 @@ service:B = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --nak
 ! [ ACL ]
 ip access-list extended eth0_in
@@ -123,7 +123,7 @@ test_run($title, $in, $out);
 $title = 'Redundant host';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:A = { ip = 10.3.3.0/25; host:a = { ip = 10.3.3.3; } }
 network:sub = { ip = 10.3.3.8/29; subnet_of = network:A; }
 
@@ -160,7 +160,7 @@ service:test2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --secondary
 ip access-list extended VLAN1_out
  permit ip 10.7.7.0 0.0.0.255 10.3.3.0 0.0.0.127

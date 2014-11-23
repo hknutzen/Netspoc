@@ -8,7 +8,7 @@ use Test_Netspoc;
 
 my ($title, $in, $out);
 
-my $topo =  <<END;
+my $topo =  <<'END';
 network:x = { ip = 10.1.1.0/24; 
  host:x7 = { ip = 10.1.1.7; } 
  host:x9 = { ip = 10.1.1.9; } 
@@ -28,15 +28,14 @@ END
 $title = 'Unenforceable rule';
 ############################################################
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 service:test = {
  user = host:x7, host:x9;
  permit src = user; dst = host:x7, host:y; prt = tcp 80;
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: service:test has unenforceable rules:
  src=host:x9; dst=host:x7
 END
@@ -47,7 +46,7 @@ test_err($title, $in, $out);
 $title = 'Zone ignoring unenforceable rule';
 ############################################################
 
-$in .= <<END;
+$in .= <<'END';
 any:x = { link = network:x; has_unenforceable; }
 END
 
@@ -59,8 +58,7 @@ test_err($title, $in, $out);
 $title = 'Service ignoring unenforceable rule';
 ############################################################
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 service:test = {
  has_unenforceable;
  user = host:x7, host:x9;
@@ -76,8 +74,7 @@ test_err($title, $in, $out);
 $title = 'Silent unenforceable rules';
 ############################################################
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 service:test = {
  user = host:x7, host:y;
  permit src = user; dst = any:[user]; prt = tcp 80;
@@ -92,7 +89,7 @@ test_err($title, $in, $out);
 $title = 'Fully unenforceable rule';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 any:x = { 
  link = network:x;
 }
@@ -111,7 +108,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: service:test is fully unenforceable
 END
 
@@ -123,7 +120,7 @@ $title = 'Useless attribute "has_unenforceable" at service';
 
 $in =~ s/#1//;
 
-$out = <<END;
+$out = <<'END';
 Warning: Useless attribute 'has_unenforceable' at service:test
 Warning: service:test is fully unenforceable
 END
@@ -134,7 +131,7 @@ test_err($title, $in, $out);
 $title = 'Useless attribute "has_unenforceable" at zone';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 any:x = { 
  has_unenforceable;
  link = network:x;
@@ -142,7 +139,7 @@ any:x = {
 network:x = { ip = 10.1.1.0/24; }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Useless attribute 'has_unenforceable' at any:x
 END
 

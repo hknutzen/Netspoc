@@ -12,7 +12,7 @@ my ($title, $in, $out);
 $title = 'Find redundant rules';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:n1-sub = { 
  ip = 10.1.1.128/25; 
  subnet_of = network:n1;
@@ -117,7 +117,7 @@ service:2c = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Redundant rules in service:1a compared to service:1b:
   permit src=host:h1; dst=network:n2; prt=ip; of service:1a
 < permit src=any:a1; dst=network:n2; prt=ip; of service:1b

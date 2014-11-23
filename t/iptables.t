@@ -11,7 +11,7 @@ my ($title, $in, $out);
 $title = 'Merge port range with sub-range for iptables';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:RAS      = { ip = 10.2.2.0/24; }
 network:Hoernum  = { ip = 10.3.3.128/29; }
 network:StPeter  = { ip = 10.3.3.120/29; }
@@ -51,7 +51,7 @@ service:p10-60 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --nak
 -A c1 -j ACCEPT -s 10.3.3.128/29
 -A c1 -j ACCEPT -s 10.3.3.120/29
@@ -79,7 +79,7 @@ $title = 'Un-merged port range with sub-range for iptables';
 # and a merged range can have at most two childs.
 $in =~ s/(tcp 30-37,) (tcp 51-53)/$1 tcp 40-47, $2/;
 
-$out = <<END;
+$out = <<'END';
 --nak
 -A c1 -j ACCEPT -s 10.3.3.128/29
 -A c1 -j ACCEPT -s 10.3.3.120/29
@@ -108,7 +108,7 @@ $title = 'Optimize redundant port for iptables';
 # Port isn't already optimized during global optimization if rule is
 # applied to different objects which got the same IP from NAT.
 
-$in = <<END;
+$in = <<'END';
 network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 network:B = { ip = 10.3.3.128/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 
@@ -146,7 +146,7 @@ service:B = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --nak
 :eth0_br0 -
 -A FORWARD -j eth0_br0 -i eth0 -o br0
@@ -203,7 +203,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r2
 :c1 -
 -A c1 -j ACCEPT -s 10.1.2.0/24
