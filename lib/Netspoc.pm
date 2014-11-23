@@ -5729,14 +5729,21 @@ sub expand_group1 {
                         push @objects, $object;
                     }
 
-                    # Take aggregate directly. Below it would be
-                    # changed to non matching aggregate with IP 0/0.
+                    # Take aggregate directly. Don't use next "elsif"
+                    # clause below, where it would be changed to non
+                    # matching aggregate with IP 0/0.
                     else {
                         push @objects, @{ $object->{networks} };
                     }
                 }
                 elsif (my $aggregates = $get_aggregates->($object, 0, 0)) {
-                    push(@objects, map { @{ $_->{networks} } } @$aggregates);
+                    push(@objects, 
+
+                         # Check type, because $get_aggregates
+                         # eventually returns non aggregate network if
+                         # one matches 0/0.
+                         map({ $_->{is_aggregate} ? @{ $_->{networks} } : $_ } 
+                            @$aggregates));
                 }
                 else {
                     return;

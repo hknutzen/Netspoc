@@ -906,5 +906,52 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Supernet used as aggregate';
+############################################################
+
+$in = <<'END';
+network:intern = { ip = 10.1.1.0/24; }
+
+router:asa = {
+ model = ASA, 8.4;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101; 
+  hardware = inside;
+ }
+ interface:dmz = { 
+  ip = 1.2.3.2; 
+  hardware = outside;
+ }
+}
+
+area:internet = { border = interface:asa.dmz; }
+
+network:dmz = { ip = 1.2.3.0/25; }
+
+router:extern = { 
+ interface:dmz = { ip = 1.2.3.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+service:test = {
+ user = network:intern;
+ permit src = user; dst = network:[area:internet]; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--asa
+! [ ACL ]
+access-list inside_in extended permit tcp 10.1.1.0 255.255.255.0 any eq 80
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
+END
+
+test_run($title, $in, $out);
+
+############################################################
 
 done_testing;
