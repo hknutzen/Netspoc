@@ -371,10 +371,27 @@ for my $router (values %routers) {
 mark_unmanaged();
 
 for my $obj (values %areas, values %Netspoc::aggregates,
-             values %networks, values %hosts, values %routers) 
+             values %networks, values %routers) 
 {
     next if not $obj->{is_used};
     if (my $owner = $obj->{owner}) {
+	$owner->{is_used} = 1;
+    }
+}
+
+# Hosts are always printed, but are never marked as {is_used},
+# because only subnets are marked. Hence check network.
+for my $host (values %hosts) {
+    next if !$host->{network}->{is_used};
+    if (my $owner = $host->{owner}) {
+	$owner->{is_used} = 1;
+    }
+}
+# Interfaces are always printed, but not necessarily marked as {is_used}.
+# Hence check network.
+for my $interface (values %interfaces) {
+    next if !$interface->{router}->{is_used};
+    if (my $owner = $interface->{owner}) {
 	$owner->{is_used} = 1;
     }
 }
