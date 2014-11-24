@@ -8912,7 +8912,7 @@ sub link_aggregates {
                 }
                 $private2 = $network->{private};
                 $zone     = $network->{zone};
-
+                $zone->{link} = $network;
             }
             elsif ($type eq 'router') {
                 $router = $routers{$name};
@@ -8942,6 +8942,7 @@ sub link_aggregates {
                 }
                 $private2 = $router->{private};
                 $zone     = $router->{interfaces}->[0]->{network}->{zone};
+                $zone->{link} = $router;
             }
             else {
                 $err = "$aggregate->{name} must not be linked to $type:$name";
