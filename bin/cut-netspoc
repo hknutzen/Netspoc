@@ -270,13 +270,14 @@ for my $zone (@all_zones) {
 for my $network (values %networks) {
     $network->{is_used} or next;
     my $zone = $network->{zone};
-    grep { $zone->{$_} } qw(has_unenforceable nat no_in_acl) or next;
     my $aggregate0 = $zone->{ipmask2aggregate}->{'0/0'};
-    $aggregate0->{is_used} = 1;
-    $zone->{is_used} = 1;
 
     # Simplifies test below.
     $aggregate0->{owner} = $zone->{owner};
+
+    grep { $zone->{$_} } qw(has_unenforceable nat no_in_acl) or next;
+    $aggregate0->{is_used} = 1;
+    $zone->{is_used} = 1;
 }
 
 for my $zone (@all_zones) {
@@ -387,6 +388,7 @@ for my $host (values %hosts) {
 	$owner->{is_used} = 1;
     }
 }
+
 # Interfaces are always printed, but not necessarily marked as {is_used}.
 # Hence check network.
 for my $interface (values %interfaces) {
