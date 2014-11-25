@@ -3932,7 +3932,7 @@ sub link_to_owner {
             return $obj->{$key} = $owner;
         }
         err_msg("Can't resolve reference to '$value'",
-                " in attribute 'owner' of $obj->{name}");
+                " in attribute '$key' of $obj->{name}");
         delete $obj->{$key};
     }
     return;
