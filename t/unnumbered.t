@@ -12,7 +12,7 @@ my ($title, $in, $out);
 $title = 'Zone cluster with unnumbered network';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:servers = { ip = 10.1.7.32/27; }
 
 router:r = {
@@ -41,7 +41,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r
 ip access-list extended eth2_in
  deny ip any host 10.1.7.33
@@ -60,7 +60,7 @@ test_run($title, $in, $out);
 $title = 'Auto aggregate in zone cluster with unnumbered';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 router:Z = {
  interface:c = { unnumbered; }
  interface:L = { ip = 10.1.1.4; }
@@ -85,7 +85,7 @@ service:Test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --L
 ip access-list extended G2_in
  permit icmp any host 10.1.1.3 8
@@ -101,7 +101,7 @@ test_run($title, $in, $out);
 
 $in =~ s|\[user\]|[ip=10.0.0.0/8 & user]|;
 
-$out = <<END;
+$out = <<'END';
 --L
 ip access-list extended G2_in
  permit icmp 10.0.0.0 0.255.255.255 host 10.1.1.3 8

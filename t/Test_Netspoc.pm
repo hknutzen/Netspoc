@@ -9,26 +9,88 @@ our @EXPORT = qw(test_run test_err);
 
 use Test::More;
 use Test::Differences;
-use IPC::Run3;
+use Capture::Tiny 'capture_stderr';
 use File::Temp qw/ tempfile tempdir /;
+use File::Spec::Functions qw/ file_name_is_absolute splitpath catdir catfile /;
+use File::Path 'make_path';
+use lib 'lib';
+use Netspoc;
 
 my $default_options = '-quiet';
-my $netspoc_cmd = 'perl -I lib bin/netspoc';
+
+sub run {
+    my($input, $options, $out_dir) = @_;
+    $options ||= '';
+
+    # Prepare input directory and file(s).
+    # Input is optionally preceeded by single lines of dashes
+    # followed by a filename.
+    # If no filenames are given, a single file named STDIN is used.
+    my $delim  = qr/^-+[ ]*(\S+)[ ]*\n/m;
+    my @input = split($delim, $input);
+    my $first = shift @input;
+
+    # Input does't start with filename.
+    # No further delimiters are allowed.
+    if ($first) {
+        if (@input) {
+            BAIL_OUT("Only a single input block expected");
+            return;
+        }
+        @input = ('STDIN', $first);
+    }
+    my $in_dir = tempdir( CLEANUP => 1 );
+    while (@input) {
+        my $path = shift @input;
+        my $data = shift @input;
+        if (file_name_is_absolute $path) {
+            BAIL_OUT("Unexpected absolute path '$path'");
+            return;
+        }
+        my (undef, $dir, $file) = splitpath($path);
+        my $full_dir = catdir($in_dir, $dir);
+        make_path($full_dir);
+        my $full_path = catfile($full_dir, $file);
+        open(my $in_fh, '>', $full_path) or die "Can't open $path: $!\n";
+        print $in_fh $data;
+        close $in_fh;
+    }
+
+    # Prepare arguments.
+    my $args = [ split(' ', $default_options),
+                 split(' ', $options),
+                 $in_dir ];
+    push @$args, $out_dir if $out_dir;
+
+    # Compile, capture STDERR, catch errors.
+    my ($stderr, $success) = 
+        capture_stderr {
+            my $result;
+            eval {
+
+                # Global variables are initialized already when
+                # Netspoc.pm is loaded, but re-initialization is
+                # needed for multiple compiler runs.
+                Netspoc::init_global_vars();
+                Netspoc::compile($args);
+                $result = 1;
+            };
+            if($@) {
+                warn $@; 
+            };
+            $result;
+    };
+    return($stderr, $success, $in_dir);
+}
 
 sub compile {
     my($input, $options) = @_;
-    $options ||= '';
-    my $dir = tempdir( CLEANUP => 1 );
-    my ($in_fh, $filename) = tempfile(UNLINK => 1);
-    print $in_fh $input;
-    close $in_fh;
 
-    my $cmd = "$netspoc_cmd $default_options $options $filename $dir";
-    my ($stdout, $stderr);
-    run3($cmd, \undef, \$stdout, \$stderr);
-    my $status = $?;
+    # Prepare output directory.
+    my $out_dir = tempdir( CLEANUP => 1 );
 
-    if ($status != 0) {
+    my ($stderr, $success, $in_dir) = run($input, $options, $out_dir);
+    if (!$success) {
         print STDERR "Failed:\n$stderr\n";
         return '';
     }
@@ -36,19 +98,18 @@ sub compile {
         print STDERR "Unexpected output on STDERR:\n$stderr\n";
         return '';
     }
-    return($dir);
+    return($out_dir);
 }
 
 sub compile_err {
     my($input, $options) = @_;
-    $options ||= '';
-    my $cmd = "$netspoc_cmd $default_options $options";
-    my ($stdout, $stderr);
-    run3($cmd, \$input, \$stdout, \$stderr);
-    my $status = $?;
-    if ($stderr) {
-        $stderr =~ s/\nAborted with \d+ error\(s\)$//ms;
-    }
+    my ($stderr, $success, $in_dir) = run($input, $options);
+
+    # Cleanup error message.
+    $stderr =~ s/\nAborted with \d+ error\(s\)$//ms;
+
+    # Normalize input path: remove temp. dir.
+    $stderr =~ s/$in_dir\///g;
     return($stderr);
 }
 

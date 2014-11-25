@@ -52,9 +52,7 @@ $title = 'Pathrestriction at border of loop (at router)';
 # Soll an router:filter für Interfaces GRE und Trans unterschiedliche 
 # ACLs generieren.
 
-$in = <<"END";
-$topo
-
+$in = $topo . <<'END';
 pathrestriction:restrict = 
  description = Nur network:X über GRE-Tunnel.
  interface:filter.GRE,
@@ -94,9 +92,7 @@ $title = 'Pathrestriction at border of loop (at router / at dst.)';
 # Soll Ausgang der Loop als Router erkennen, obwohl intern 
 # ein Interface verwendet wird.
 
-$in = <<"END";
-$topo
-
+$in = $topo . <<'END';
 pathrestriction:restrict = 
  interface:filter.Test,
  interface:filter.Trans,

@@ -12,7 +12,7 @@ my ($title, $in, $out);
 $title = 'Optimize subnet at secondary packet filter';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:sub = { ip = 10.1.7.32/27; subnet_of = network:customer; }
 
 router:r = { interface:sub; interface:customer = { ip = 10.1.7.30; } }
@@ -60,7 +60,7 @@ service:p2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --b1
 # [ Routing ]
 ip route add 10.1.7.0/24 via 10.1.3.1
@@ -84,7 +84,7 @@ $title = 'Optimize subnet for protocol with flag dst_net';
 $in =~ s/managed = secondary/managed/ms;
 $in =~ s/(protocol:Echo = icmp 8)/$1, dst_net/;
 
-$out = <<END;
+$out = <<'END';
 --gw
 ! [ ACL ]
 ip access-list extended outside_in
@@ -98,7 +98,7 @@ test_run($title, $in, $out, '-check_redundant_rules=0');
 $title = 'Optimize subnet of NAT network in zone';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:customer = { 
  ip = 10.9.9.0/24; 
  nat:N = { ip = 10.1.7.0/24; dynamic; } 
@@ -138,7 +138,7 @@ service:p1 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --gw
 ! [ Routing ]
 ip route 10.1.7.0 255.255.255.0 10.1.7.34

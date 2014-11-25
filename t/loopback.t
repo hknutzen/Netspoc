@@ -20,8 +20,8 @@ router:r = {
 network:l = { ip = 10.1.1.2/32; }
 END
 
-$out =  <<"END";
-Error: network:l isn\'t connected to any router
+$out =  <<'END';
+Error: network:l isn't connected to any router
 END
 
 test_err($title, $in, $out);
@@ -77,7 +77,7 @@ $title = 'Dynamic NAT to multiple virtual loopback interfaces (secondary)';
 # Soll bei local_optimization loopback interfaces und NAT network als
 # identisch erkennen.
 
-$in = <<END;
+$in = <<'END';
 network:customer = { ip = 10.1.7.0/24; }
 
 router:gw = {
@@ -149,7 +149,7 @@ service:p2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --gw
 ! [ ACL ]
 access-list outside_in extended permit ip 10.1.7.0 255.255.255.0 host 193.1.1.2
@@ -165,7 +165,7 @@ $title = 'Dynamic NAT to multiple virtual loopback interfaces';
 
 $in =~ s/managed = secondary/managed/ms;
 
-$out = <<END;
+$out = <<'END';
 --gw
 ! [ ACL ]
 access-list outside_in extended permit icmp 10.1.7.0 255.255.255.0 host 193.1.1.2 8
@@ -182,7 +182,7 @@ $title = 'Routing via managed virtual interfaces to loopback';
 # Loopback interface is reached only via physical interface.
 # Don't use virtual IP but physical IP as next hop.
 
-$in = <<END;
+$in = <<'END';
 network:intern = { ip = 10.1.1.0/24; }
 
 router:asa = {
@@ -240,7 +240,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --asa
 route outside 172.17.1.11 255.255.255.255 192.168.0.11
 --
@@ -267,7 +267,7 @@ $title = 'Routing via unmanaged virtual interfaces to loopback';
 
 $in =~ s/managed; #remove//msg;
 
-$out = <<END;
+$out = <<'END';
 --asa
 ! [ Routing ]
 route outside 0.0.0.0 0.0.0.0 192.168.0.1

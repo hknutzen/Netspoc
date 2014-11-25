@@ -12,7 +12,7 @@ my ($title, $topo, $in, $out);
 $title = "Interface with DHCP server";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
  managed; 
@@ -21,7 +21,7 @@ router:R = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R
 ip access-list extended e0_in
  permit udp any any eq 67
@@ -34,7 +34,7 @@ test_run($title, $in, $out);
 $title = "Interface with OSPF";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
  managed; 
@@ -43,7 +43,7 @@ router:R = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R
 access-list e0_in extended permit 89 10.1.1.0 255.255.255.0 host 224.0.0.5
 access-list e0_in extended permit 89 10.1.1.0 255.255.255.0 host 224.0.0.6
@@ -57,7 +57,7 @@ test_run($title, $in, $out);
 $title = "Interface with HSRP";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
  managed; 
@@ -70,7 +70,7 @@ router:R = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R
 access-list e0_in extended permit udp 10.1.1.0 255.255.255.0 host 224.0.0.2 eq 1985
 access-list e0_in extended deny ip any any
@@ -82,7 +82,7 @@ test_run($title, $in, $out);
 $title = "Interface with HSRPv2";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
  managed; 
@@ -95,7 +95,7 @@ router:R = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R
 access-list e0_in extended permit udp 10.1.1.0 255.255.255.0 host 224.0.0.102 eq 1985
 access-list e0_in extended deny ip any any

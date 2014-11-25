@@ -12,7 +12,7 @@ my ($topo, $title, $in, $out);
 $title = 'Auto interface of network';
 ############################################################
 
-$topo = <<END;
+$topo = <<'END';
 network:a = { ip = 10.0.0.0/24; }
 router:r1 =  {
  managed;
@@ -38,8 +38,7 @@ router:u = {
 network:b3 = { ip = 10.3.3.0/24; }
 END
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 service:test1 = {
  user = interface:[network:b1].[auto],
         interface:[network:b3].[auto];
@@ -47,7 +46,7 @@ service:test1 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r1
 ! [ ACL ]
 ip access-list extended e1_in
@@ -70,15 +69,14 @@ test_run($title, $in, $out);
 $title = 'Auto interface of router';
 ############################################################
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 service:test2 = {
  user = interface:u.[auto];
  permit src = network:a; dst = user; prt = tcp 23;
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r1
 ! [ ACL ]
 ip access-list extended e1_in
@@ -99,7 +97,7 @@ test_run($title, $in, $out);
 $title = 'Auto interfaces in nested loop';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Serv = {ip = 10.10.0.0/20;}
 
 router:ZT45 = {
@@ -177,7 +175,7 @@ END
 # only interface:G112 of router:R5
 # and all interfaces of other routers.
 
-$out = <<END;
+$out = <<'END';
 --FW
 object-group network g0
  network-object host 10.10.0.2
@@ -208,7 +206,7 @@ test_run($title, $in, $out);
 $title = 'Multiple interfaces talk to policy_distribution_point';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:a = { ip = 10.0.0.0/24; host:netspoc = { ip = 10.0.0.10; } }
 router:r1 =  {
  managed;
@@ -233,7 +231,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r1
 ! [ IP = 10.0.0.1,10.1.1.1 ]
 END

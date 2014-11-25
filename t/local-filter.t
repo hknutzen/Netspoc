@@ -12,7 +12,7 @@ my ($title, $topo, $in, $out);
 $title = 'Non matching mask of filter_only attribute';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:n1 = { ip = 10.62.1.32/27; }
 router:d32 = {
  model = ASA;
@@ -22,8 +22,8 @@ router:d32 = {
 }
 END
 
-$out = <<END;
-Error: IP and mask don\'t match at line 5 of STDIN
+$out = <<'END';
+Error: IP and mask don't match at line 5 of STDIN
 END
 
 test_err($title, $in, $out);
@@ -34,9 +34,9 @@ $title = "Missing attribute 'filter_only'";
 
 $in =~ s/filter_only/#filter_only/;
 
-$out = <<END;
+$out = <<'END';
 Error: Missing attribut 'filter_only' for router:d32
-Error: network:n1 doesn\'t match attribute 'filter_only' of router:d32
+Error: network:n1 doesn't match attribute 'filter_only' of router:d32
 END
 
 test_err($title, $in, $out);
@@ -45,7 +45,7 @@ test_err($title, $in, $out);
 $title = 'Local network doesn\'t match filter_only attribute';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:n1 = { ip = 10.62.1.32/27; }
 network:n2 = { ip = 10.62.2.32/27; }
 router:d32 = {
@@ -57,8 +57,8 @@ router:d32 = {
 }
 END
 
-$out = <<END;
-Error: network:n2 doesn\'t match attribute 'filter_only' of router:d32
+$out = <<'END';
+Error: network:n2 doesn't match attribute 'filter_only' of router:d32
 END
 
 test_err($title, $in, $out);
@@ -69,7 +69,7 @@ $title = 'Unused filter_only attribute';
 
 $in =~ s#10.62.1.0/24#10.62.1.0/24, 10.62.2.0/24, 10.62.3.0/24#;
 
-$out = <<END;
+$out = <<'END';
 Warning: Useless 10.62.3.0/24 in attribute 'filter_only' of router:d32
 END
 
@@ -79,7 +79,7 @@ test_err($title, $in, $out);
 $title = 'NAT not allowed';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:n1 = { ip = 10.62.1.32/27; nat:n1 = { ip = 10.62.3.0/27; } }
 router:d32 = {
  model = ASA;
@@ -91,7 +91,7 @@ router:d32 = {
 network:n2 = { ip = 10.62.2.0/27; }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Attribute 'bind_nat' is not allowed at interface of router:d32 with 'managed = local'
 END
 
@@ -101,7 +101,7 @@ test_err($title, $in, $out);
 $title = "Cluster must have identical values in attribute 'filter_only'";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:n1 = { ip = 10.62.1.32/27; }
 
 router:d32 = {
@@ -125,7 +125,7 @@ router:d12 = {
 network:n2 = { ip = 10.62.2.0/27; }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: router:d12 and router:d32 must have identical values in attribute 'filter_only'
 END
 
@@ -137,7 +137,7 @@ $title = "Aggregates must match attribute 'filter_only'";
 
 # aggregate 0/0 is ignored, because it is available in every zone.
 
-$in = <<END;
+$in = <<'END';
 any:n1 = { link = network:n1; }
 any:n1_10_62 = { ip = 10.62.0.0/16; link = network:n1; }
 network:n1 = { ip = 10.62.1.32/27; }
@@ -149,8 +149,8 @@ router:d32 = {
 }
 END
 
-$out = <<END;
-Error: any:n1_10_62 doesn\'t match attribute \'filter_only\' of router:d32
+$out = <<'END';
+Error: any:n1_10_62 doesn't match attribute 'filter_only' of router:d32
 END
 
 test_err($title, $in, $out);
@@ -159,7 +159,7 @@ test_err($title, $in, $out);
 $title = 'Reuse object groups for deny rules';
 ############################################################
 
-$topo = <<END;
+$topo = <<'END';
 network:n1 = { ip = 10.62.1.32/27; }
 
 router:d32 = {
@@ -184,7 +184,7 @@ END
 
 $in = $topo;
 
-$out = <<END;
+$out = <<'END';
 --d32
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
@@ -204,8 +204,7 @@ test_run($title, $in, $out);
 $title = "Supernet to extern";
 ############################################################
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 service:Test = {
  user = any:[ip = 10.60.0.0/14 & network:n1, network:trans];
  permit src = user;
@@ -214,7 +213,7 @@ service:Test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --d32
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
@@ -230,8 +229,7 @@ test_run($title, $in, $out);
 $title = "Supernet to local";
 ############################################################
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 service:Test = { 
  user = any:[ip = 10.60.0.0/14 & network:n1];
  permit src = user;
@@ -240,7 +238,7 @@ service:Test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --d32
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
@@ -257,7 +255,7 @@ test_run($title, $in, $out);
 $title = "Secondary filter near local filter filters fully";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:n1 = { ip = 10.62.1.32/27; }
 
 router:d32 = {
@@ -287,7 +285,7 @@ service:Mail = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --d31
 access-list inside_in extended permit tcp 10.62.1.32 255.255.255.224 10.125.3.0 255.255.255.0 eq 25
 access-list inside_in extended deny ip any any
@@ -302,7 +300,7 @@ $title = "Different deny rules";
 
 # Reuse $in of previous test.
 
-$out = <<END;
+$out = <<'END';
 --d32
 access-list vlan1_in extended deny ip any 10.62.0.0 255.255.0.0
 access-list vlan1_in extended permit ip any any
@@ -319,7 +317,7 @@ test_run($title, $in, $out);
 $title = "Outgoing ACL";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:n1 = { ip = 10.62.1.32/27; }
 router:d32 = {
  model = ASA;
@@ -337,7 +335,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --d32
 access-list vlan1_in extended permit ip any any
 access-group vlan1_in in interface vlan1
@@ -363,7 +361,7 @@ $title = "Loop, virtual interfaces (1)";
 # Zone with other loop is handled as intermediate zone with 
 # possible connection to extern.
 
-$in = <<END;
+$in = <<'END';
 network:n1 = { ip = 10.62.1.32/27; }
 router:d1 = {
  model = IOS;
@@ -403,7 +401,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --d1
 ip access-list extended vlan1_in
  deny ip any host 10.62.2.1
@@ -427,7 +425,7 @@ test_run($title, $in, $out);
 $title = "Loop, virtual interfaces (2)";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:n1 = { ip = 10.2.1.0/27; host:h1 = { ip = 10.2.1.4; }}
 
 router:r1 = {
@@ -480,7 +478,7 @@ service:Mail = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --ex
 access-list inside_in extended permit tcp 10.2.2.0 255.255.255.224 10.5.3.0 255.255.255.0 eq 25
 access-list inside_in extended deny ip any any
@@ -509,7 +507,7 @@ $title = "Multiple local_secondary with unrelated local filter";
 ############################################################
 # Must not assume, that n2 is located beween n1 and n3.
 
-$in = <<END;
+$in = <<'END';
 network:n1 = { ip = 10.2.1.0/27; host:h1 = { ip = 10.2.1.4; }}
 
 router:r1 = {
@@ -552,7 +550,7 @@ service:Mail = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r1
 access-list vlan1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.8.0 255.255.255.0 eq 25
 access-list vlan1_in extended deny ip any 10.2.0.0 255.255.0.0
@@ -566,7 +564,7 @@ test_run($title, $in, $out);
 $title = "Optimize external aggregate rule";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 any:any1 = { link = network:n1; }
 
@@ -597,7 +595,7 @@ service:Test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 ! [ ACL ]
 access-list outside_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
 access-list outside_in extended permit ip any any
