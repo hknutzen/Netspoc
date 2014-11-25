@@ -2541,7 +2541,7 @@ sub read_aggregate {
 sub check_router_attributes {
     my ($parent) = @_;
 
-    # Add name for eror messages.
+    # Add name for error messages.
     my $result = { name => "router_attributes of $parent" };
     check 'router_attributes' or return;
     skip '=';
