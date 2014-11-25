@@ -8067,7 +8067,7 @@ sub find_subnets_in_zone {
         # Add networks of zone to %mask_ip_hash.
         my %mask_ip_hash;
 
-        # A networks has different NAT addresses inside the zone.
+        # A network has different NAT addresses inside the zone.
         my %net2nat_count;
 
         # Found that many subnet relations.
