@@ -2539,7 +2539,10 @@ sub read_aggregate {
 }
 
 sub check_router_attributes {
-    my $result = {};
+    my ($parent) = @_;
+
+    # Add name for eror messages.
+    my $result = { name => "router_attributes of $parent" };
     check 'router_attributes' or return;
     skip '=';
     skip '\{';
@@ -2604,7 +2607,7 @@ sub read_area {
         elsif (my $owner = check_assign 'owner', \&read_identifier) {
             add_attribute($area, owner => $owner);
         }
-        elsif (my $router_attributes = check_router_attributes()) {
+        elsif (my $router_attributes = check_router_attributes($name)) {
             add_attribute($area, router_attributes => $router_attributes);
         }
         elsif (my $nat_name = check_nat_name()) {
@@ -4041,35 +4044,35 @@ sub link_owners {
 }
 
 sub link_policy_distribution_point {
-    my ($hash, $parent) = @_;
-    my $pair = $hash->{policy_distribution_point} or return;
+    my ($obj) = @_;
+    my $pair = $obj->{policy_distribution_point} or return;
     my ($type, $name) = @$pair;
     if ($type ne 'host') {
         err_msg("Must only use 'host' in 'policy_distribution_point'",
-                " of $parent->{name}");
+                " of $obj->{name}");
 
         # Prevent further errors;
-        delete $hash->{policy_distribution_point};
+        delete $obj->{policy_distribution_point};
         return;
     }
     my $host = $hosts{$name};
     if (!$host) {
         warn_msg("Ignoring undefined host:$name",
-                 " in 'policy_distribution_point' of $parent->{name}");
+                 " in 'policy_distribution_point' of $obj->{name}");
 
         # Prevent further errors;
-        delete $hash->{policy_distribution_point};
+        delete $obj->{policy_distribution_point};
         return;
     }
-    $hash->{policy_distribution_point} = $host;
+    $obj->{policy_distribution_point} = $host;
     return;
 }
 
 sub link_general_permit {
-    my ($hash, $parent) = @_;
-    my $list = $hash->{general_permit} or return;
-    my $context = $parent->{name};
-    $list = $hash->{general_permit} = 
+    my ($obj) = @_;
+    my $list = $obj->{general_permit} or return;
+    my $context = $obj->{name};
+    $list = $obj->{general_permit} = 
         [ sort by_name @{ expand_protocols($list, $context) } ];
 
     # Don't allow port ranges. This wouldn't work, because
@@ -4136,8 +4139,8 @@ sub link_areas {
             }
         }
         if (my $router_attributes = $area->{router_attributes}) {
-            link_policy_distribution_point($router_attributes, $area);
-            link_general_permit($router_attributes, $area);
+            link_policy_distribution_point($router_attributes);
+            link_general_permit($router_attributes);
         }
     }
     return;
@@ -4271,8 +4274,8 @@ sub link_routers {
     for my $name (sort keys %routers) {
         my $router = $routers{$name};
         link_interfaces($router);
-        link_policy_distribution_point($router, $router);
-        link_general_permit($router, $router);
+        link_policy_distribution_point($router);
+        link_general_permit($router);
     }
     return;
 }
@@ -7114,21 +7117,19 @@ sub propagate_owners {
     # Handle {router_attributes}->{owner} separately.
     # Areas can be nested. Proceed from small to larger ones.
     for my $area (sort { @{ $a->{zones} } <=> @{ $b->{zones} } } @areas) {
-        if ($area->{router_attributes}
-            and (my $owner = $area->{router_attributes}->{owner}))
-        {
-            $owner->{is_used} = 1;
-            for my $router (@{ $area->{managed_routers} }) {
-                if (my $r_owner = $router->{owner}) {
-                    if ($r_owner eq $owner) {
-                        warn_msg(
-                          "Useless $r_owner->{name} at $router->{name},\n",
-                          " it was already inherited from $area->{name}");
-                    }
+        my $attributes = $area->{router_attributes} or next;
+        my $owner = $attributes->{owner} or next;
+        $owner->{is_used} = 1;
+        for my $router (@{ $area->{managed_routers} }) {
+            if (my $r_owner = $router->{owner}) {
+                if ($r_owner eq $owner) {
+                    warn_msg(
+                        "Useless $r_owner->{name} at $router->{name},\n",
+                        " it was already inherited from $attributes->{name}");
                 }
-                else {
-                    $router->{owner} = $owner;
-                }
+            }
+            else {
+                $router->{owner} = $owner;
             }
         }
     }
@@ -9203,7 +9204,7 @@ sub inherit_router_attributes {
                 {
                     warn_msg(
                         "Useless attribute '$key' at $router->{name},\n",
-                        " it was already inherited from $area->{name}");
+                        " it was already inherited from $attributes->{name}");
                 }
             }
             else {

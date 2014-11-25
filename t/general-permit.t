@@ -45,8 +45,8 @@ protocol:ftp-data = tcp 20:1024-65535;
 END
 
 $out = <<'END';
-Error: Must not use ports of 'protocol:ftp-data' in general_permit of area:all
-Error: Must not use ports of 'tcp 80' in general_permit of area:all
+Error: Must not use ports of 'protocol:ftp-data' in general_permit of router_attributes of area:all
+Error: Must not use ports of 'tcp 80' in general_permit of router_attributes of area:all
 END
 
 test_err($title, $in, $out);
@@ -67,7 +67,7 @@ router:r = {
 END
 $out = <<'END';
 Warning: Useless attribute 'general_permit' at router:r,
- it was already inherited from area:all
+ it was already inherited from router_attributes of area:all
 END
 
 test_err($title, $in, $out);

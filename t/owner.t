@@ -278,4 +278,29 @@ END
 test_err($title, $in, $out, '--check_owner_extend=warn');
 
 ############################################################
+$title = 'Inherit owner from router_attributes of area';
+############################################################
+
+$in = <<'END';
+area:a1 = { 
+ border = interface:asa1.n1;
+ owner = xx;
+ router_attributes = { owner = xx; }
+}
+network:n1 = { ip = 10.1.1.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+}
+END
+
+$out = <<'END';
+Error: Can't resolve reference to 'xx' in attribute 'owner' of area:a1
+Error: Can't resolve reference to 'xx' in attribute 'owner' of router_attributes of area:a1
+END
+
+test_err($title, $in, $out, '--check_owner_extend=warn');
+
+############################################################
 done_testing;
