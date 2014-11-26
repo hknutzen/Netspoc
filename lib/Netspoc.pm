@@ -7967,47 +7967,45 @@ sub find_subnets_in_zone {
         # - Use this NATed address in subnet checks.
         # - If a subnet relation exists, then this NAT must be unique inside
         #   the zone.
-        my @no_nat_sets = 
-            unique map { $_->{no_nat_set} } @{ $zone->{interfaces} };
 
-        # Add networks of zone to %mask_ip_hash.
-        my %mask_ip_hash;
+        my $first_intf = $zone->{interfaces}->[0];
+        my %seen;
 
-        # A network has different NAT addresses inside the zone.
-        my %net2nat_count;
+        # Handle different no_nat_sets visable at border of zone.
+        # For a zone without NAT, this loop is only executed once.
+        for my $interface (@{ $zone->{interfaces} }) {
+            my $no_nat_set = $interface->{no_nat_set};
+            next if $seen{$no_nat_set}++;
 
-        # Found that many subnet relations.
-        my %net2up_count;
+            # Add networks of zone to %mask_ip_hash.
+            # Use NAT IP/mask.
+            my %mask_ip_hash;
 
-        for my $network (@{ $zone->{networks} }, 
-                         values %{ $zone->{ipmask2aggregate} }) 
-        {
-            next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
+            for my $network (@{ $zone->{networks} }, 
+                             values %{ $zone->{ipmask2aggregate} }) 
+            {
+                next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
 
-            my @nat_networks = 
-                unique map { get_nat_network($network, $_) } @no_nat_sets;
-            if (@nat_networks > 1) {
-                $net2nat_count{$network} = @nat_networks;
-            }
-            for my $nat_network (@nat_networks) {
-                next if $nat_network->{hidden};
+                my $nat_network = get_nat_network($network, $no_nat_set);
+                if ($nat_network->{hidden}) {
+                    if (my $other = $network->{up}) {
+                        err_msg("Ambiguous subnet relation from NAT.\n",
+                                " $network->{name} is subnet of\n",
+                                " - $other->{name} at",
+                                " $first_intf->{name}\n",
+                                " - but has no subnet relation at",
+                                " $interface->{name}");
+                    }
+                    next;
+                }
                 my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
 
                 # Found two different networks with identical IP/mask.
                 if (my $other_net = $mask_ip_hash{$mask}->{$ip}) {
-
-                    # Different no_nat_sets map to the same network.
-                    if ($other_net eq $network) {
-                        $net2nat_count{$network}--;
-                        if (1 == $net2nat_count{$network}) {
-                            delete $net2nat_count{$network};
-                        }
-                        next;
-                    }
                     my $name1 = $network->{name};
                     my $name2 = $other_net->{name};
                     err_msg("$name1 and $name2 have identical IP/mask",
-                            " inside $zone->{name}");
+                            " at $interface->{name}");
                 }
                 else {
 
@@ -8015,80 +8013,86 @@ sub find_subnets_in_zone {
                     $mask_ip_hash{$mask}->{$ip} = $network;
                 }
             }
-        }
 
-        # Compare networks of zone.
-        # Go from smaller to larger networks.
-        for my $mask (reverse sort keys %mask_ip_hash) {
+            # Compare networks of zone.
+            # Go from smaller to larger networks.
+            for my $mask (reverse sort keys %mask_ip_hash) {
 
-            # Network 0.0.0.0/0.0.0.0 can't be subnet.
-            last if $mask == 0;
+                # Network 0.0.0.0/0.0.0.0 can't be subnet.
+                last if $mask == 0;
+              SUBNET:
+                for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
 
-            for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
+                    my $subnet = $mask_ip_hash{$mask}->{$ip};
 
-                my $subnet = $mask_ip_hash{$mask}->{$ip};
+                    # Find networks which include current subnet.
+                    my $m = $mask;
+                    my $i = $ip;
+                    while ($m) {
 
-                # Find networks which include current subnet.
-                my $m = $mask;
-                my $i = $ip;
-                while ($m) {
+                        # Clear upper bit, because left shift is undefined
+                        # otherwise.
+                        $m &= 0x7fffffff;
+                        $m <<= 1;
+                        $i = $i & $m;  # Perl bug #108480 prevents use of "&=".
+                        my $bignet = $mask_ip_hash{$m}->{$i};
+                        next if !$bignet;
 
-                    # Clear upper bit, because left shift is undefined
-                    # otherwise.
-                    $m &= 0x7fffffff;
-                    $m <<= 1;
-                    $i = $i & $m;  # Perl bug #108480 prevents use of "&=".
-                    my $bignet = $mask_ip_hash{$m}->{$i};
-                    next if not $bignet;
+                        # Collect subnet relation for first no_nat_set.
+                        if ($interface eq $first_intf) {
+                            $subnet->{up} = $bignet;
+#                           debug "$subnet->{name} -up-> $bignet->{name}";
 
-                    if ($net2nat_count{$subnet}) {
-                        $net2up_count{$subnet}++;
-                    }
-
-                    # Check for ambiguous subnet relation of network
-                    # with different NAT addresses.
-                    if (my $other = $subnet->{up}) {
-                        if ($other ne $bignet) {
-                            err_msg("Ambiguous subnet relation from NAT.\n",
-                                    " $subnet->{name} is subnet of",
-                                    " $other->{name} and $bignet->{name}");
+                            push(
+                                @{ $bignet->{networks} },
+                                $subnet->{is_aggregate}
+                                ? @{ $subnet->{networks} || [] }
+                                : ($subnet)
+                                );
+                            
+                            check_subnets($bignet, $subnet);
                         }
-                        last;                        
+
+                        # Check for ambiguous subnet relation with
+                        # other no_nat_sets.
+                        else {if (my $other = $subnet->{up}) {
+                                if ($other ne $bignet) {
+                                    err_msg(
+                                        "Ambiguous subnet relation from NAT.\n",
+                                        " $subnet->{name} is subnet of\n",
+                                        " - $other->{name} at",
+                                        " $first_intf->{name}\n",
+                                        " - $bignet->{name} at",
+                                        " $interface->{name}");
+                                }
+                            }
+                            else {
+                                err_msg(
+                                    "Ambiguous subnet relation from NAT.\n",
+                                    " $subnet->{name} is subnet of\n",
+                                    " - $bignet->{name} at",
+                                    " $interface->{name}\n",
+                                    " - but has no subnet relation at",
+                                    " $first_intf->{name}");
+                            }
+                        }
+
+                        # We only need to find the smallest enclosing
+                        # network.
+                        next SUBNET;                    
                     }
-
-                    $subnet->{up} = $bignet;
-#                    debug "$subnet->{name} -up-> $bignet->{name}";
-                    push(
-                        @{ $bignet->{networks} },
-                        $subnet->{is_aggregate}
-                        ? @{ $subnet->{networks} || [] }
-                        : ($subnet)
-                        );
-
-                    check_subnets($bignet, $subnet);
-
-                    # We only need to find the smallest enclosing network.
-                    last;
+                    if ($interface ne $first_intf) {
+                        if (my $other = $subnet->{up}) {
+                            err_msg("Ambiguous subnet relation from NAT.\n",
+                                    " $subnet->{name} is subnet of\n",
+                                    " - $other->{name} at",
+                                    " $first_intf->{name}\n",
+                                    " - but has no subnet relation at",
+                                    " $interface->{name}");
+                        }
+                    }
                 }
             }
-        }
-
-        # Check for ambiguous subnet relation.
-        for my $net_hash (keys %net2nat_count) {
-            my $up_count = $net2up_count{$net_hash};
-            next if ! $up_count;
-            my $nat_count = $net2nat_count{$net_hash};
-            next if $up_count == $nat_count;
-
-            # Find original network from hash.
-            my ($network) = grep({ $_ eq $net_hash } 
-                                 @{ $zone->{networks} }, 
-                                 values %{ $zone->{ipmask2aggregate} });
-
-            my $bignet = $network->{up};
-            err_msg("Ambiguous subnet relation from NAT.\n",
-                    " $network->{name} is subnet of $bignet->{name},\n",
-                    " but has no subnet relation in other NAT domain.");
         }
 
         # For each subnet N find the largest non-aggregate network
