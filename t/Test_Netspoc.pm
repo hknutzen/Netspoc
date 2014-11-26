@@ -109,7 +109,7 @@ sub compile_err {
     $stderr =~ s/\nAborted with \d+ error\(s\)$//ms;
 
     # Normalize input path: remove temp. dir.
-    $stderr =~ s/$in_dir\///g;
+    $stderr =~ s/\Q$in_dir\E\///g;
     return($stderr);
 }
 
