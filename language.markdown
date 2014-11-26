@@ -915,11 +915,10 @@ Encrypted VPN tunnels are supported for
 
 ### Access lists at crypto tunnels
 
-For ASA,VPN devices, filtering of incoming traffic of crypto tunnels
-is done with a per vpn-filter. Use attribute `no_crypto_filter` to
-enable "no sysopt connection permit-vpn" which switches to filter the
-VPN traffic at the interface ACL. This attribute must be activated, if
-statefull filtering is needed.
+For devices of type `ASA` or `ASA,VPN`, incoming traffic of crypto
+tunnels is filtered at interface ACL. Netspoc uses "no sysopt
+connection permit-vpn" to enable filtering of VPN traffic at interface
+ACL.
 
 For IOS routers from version 12.3(8)T up, a separate access-list is used
 for filtering incoming traffic of crypto tunnels. Use
