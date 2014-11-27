@@ -28,3 +28,4 @@ layout: default
 - Pathrestrictions allow to restrict paths inside a redundant topology.
 - Supports network with isolated ports where traffic is entered and exited 
   at the same interface of the packet filter.
+- This software has been tested to run on Linux and Windows.
