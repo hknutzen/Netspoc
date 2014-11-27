@@ -7359,6 +7359,8 @@ sub set_natdomain {
 
         # Ignore interface with globally active pathrestriction
         # where all traffic goes through a VPN tunnel.
+        # no_nat_set of crypto interface is set to no_nat_set 
+        # of tunnel interfaces below.
         next if check_global_active_pathrestriction($interface);
         my $router = $interface->{router};
         my $err_seen;
@@ -7393,6 +7395,8 @@ sub set_natdomain {
 
                 # Don't process interface where we reached this router.
                 next if $out_interface eq $interface;
+
+                # Don't pass crypto interface. But no_nat_set has been set.
                 next if check_global_active_pathrestriction($out_interface);
 
                 my $next_net = $out_interface->{network};
