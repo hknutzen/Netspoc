@@ -1892,6 +1892,7 @@ sub read_interface {
     }
     if ($interface->{owner} && !$interface->{vip}) {
         error_atline("Must use attribute 'owner' only at 'vip' interface");
+        delete $interface->{owner};
     }
     if ($interface->{loopback}) {
         my %copy = %$interface;
