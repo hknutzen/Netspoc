@@ -106,7 +106,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ managed; | managed = <filter type>;        ]
          [ model = <model>;                           ]
          [ filter_only = <ip-prefix>(, <ip-prefix>)*; ]
-         [ routing = ( EIGRP | OSPF | manual );       ]
+         [ routing = ( EIGRP | OSPF | dynamic | manual ); ]
          [ policy_distribution_point = host:<name>;   ]
          [ general_permit = <protocol list>;          ]
          [ strict_secondary; ]
@@ -143,7 +143,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ no_in_acl;                           ]
          [ promiscuous_port;                    ]
          [ reroute_permit = <object set>;       ]
-         [ routing = ( EIGRP | OSPF | manual ); ]
+         [ routing = ( EIGRP | OSPF | dynamic ); ]
          [ security_level = <int>;              ]
          [ subnet_of = network:<name>;          ]
          [ vip;                                 ]
@@ -309,9 +309,10 @@ where `<object set>` must expand to interfaces.
         [ alias = <string>; ]
         admins = <email>(, <email>)*;
         [ watchers = <email>(, <email>)*; ]
-        [ extend;      ]
-        [ extend_only; ]
-        [ show_all;    ]
+        [ extend;           ]
+        [ extend_only;      ]
+        [ extend_unbounded; ]
+        [ show_all;         ]
       }
     
     <email> ::= some valid email address or 'guest'
