@@ -11072,7 +11072,8 @@ sub link_tunnels  {
                     router         => $router,
                     network        => $spoke_net
                 );
-                $hub->{bind_nat} = $real_hub->{bind_nat} if $hub->{bind_nat};
+                $hub->{bind_nat} = $real_hub->{bind_nat}
+                  if $real_hub->{bind_nat};
                 push @{ $router->{interfaces} },    $hub;
                 push @{ $hardware->{interfaces} },  $hub;
                 push @{ $spoke_net->{interfaces} }, $hub;
