@@ -302,5 +302,65 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Skip supernet with subnet in other zone in secondary optimization';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:secondary = {
+ model = IOS, FW;
+ managed = secondary;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1; }
+ interface:t1 = { ip = 10.1.8.1; hardware = t1; }
+}
+network:t1 = { ip = 10.1.8.0/24; }
+
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:t1 = { ip = 10.1.8.2; hardware = t1; }
+ interface:t2 = { ip = 10.1.9.1; hardware = t2; }
+}
+network:t2 = { ip = 10.1.9.0/24;}
+router:trahza01 = {
+ interface:t2;
+ interface:super;
+ interface:sub1;
+}
+# Must not use super as supernet, because it has sub2 as subnet in other zone.
+network:super = {
+ has_subnets;
+ ip = 192.168.0.0/16;
+}
+network:sub1 = { ip = 192.168.1.0/24;}
+# Must not use aggregate as supernet.
+any:a1 = { ip = 192.168.0.0/21; link = network:sub2; }
+
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:t1 = {ip = 10.1.8.3; hardware = t1;}
+ interface:sub2 = { ip = 192.168.8.1; hardware = sub2; }
+}
+network:sub2 = { ip = 192.168.8.0/24; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:sub1; prt = tcp 49;
+}
+END
+
+$out = <<'END';
+--secondary
+ip access-list extended n1_in
+ permit ip 10.1.1.0 0.0.0.255 192.168.1.0 0.0.0.255
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 
 done_testing;

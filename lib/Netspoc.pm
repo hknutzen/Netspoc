@@ -8102,17 +8102,17 @@ sub find_subnets_in_zone {
 
         # For each subnet N find the largest non-aggregate network
         # which encloses N. If one exists, store it in
-        # {max_up_net}. This is used in secondary optimization.
+        # {max_routing_net}. This is used for generating static routes.
         my $set_max_net;
         $set_max_net = sub {
             my ($network) = @_;
             return if not $network;
-            if (my $max_net = $network->{max_up_net}) {
+            if (my $max_net = $network->{max_routing_net}) {
                 return $max_net;
             }
             if (my $max_net = $set_max_net->($network->{up})) {
                 if (!$network->{is_aggregate}) {
-                    $network->{max_up_net} = $max_net;
+                    $network->{max_routing_net} = $max_net;
 
 #                    debug("$network->{name} max_up $max_net->{name}");
                 }
@@ -8127,7 +8127,7 @@ sub find_subnets_in_zone {
 
         # Remove subnets of non-aggregate networks.
         $zone->{networks} = 
-            [ grep { !$_->{max_up_net} } @{ $zone->{networks} } ];
+            [ grep { !$_->{max_routing_net} } @{ $zone->{networks} } ];
 
         # Propagate managed hosts to aggregates.
         for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
@@ -8336,6 +8336,35 @@ sub find_subnets_in_nat_domain {
                 }
             }
         }
+    }
+
+    # Secondary optimization substitutes a host or interface by its
+    # largest valid supernet inside the same security zone. This
+    # supernet has already been calculated and stored in
+    # {max_routing_net}. But {max_routing_net} can't be used if it has
+    # a subnet in some other security zone. In this case we have to
+    # search again for a supernet without attribute {has_other_subnet}.
+    # The result is stored in {max_secondary_net}.
+    for my $network (@networks) {
+        my $max = $network->{max_routing_net} or next;
+        if(!$max->{has_other_subnet}) {
+            $network->{max_secondary_net} = $max;
+            next;
+        }
+        my $max_secondary;
+        my $up = $network->{up};
+        while ($up) {
+            if ($up->{has_other_subnet}) {
+                last;
+            }
+            else {
+                if (!$up->{is_aggregate}) {
+                    $max_secondary = $up;
+                }
+                $up = $up->{up};
+            }
+        }
+        $network->{max_secondary_net} = $max_secondary if $max_secondary;
     }
     return;
 }
@@ -13104,7 +13133,7 @@ sub get_route_networks {
         if ($obj->{is_aggregate}) {
             return @{ $obj->{networks} };
         }
-        elsif (my $max = $obj->{max_up_net}) {
+        elsif (my $max = $obj->{max_routing_net}) {
             return ($max, $obj);
         }
         else {
@@ -13113,7 +13142,7 @@ sub get_route_networks {
     }
     elsif ($type eq 'Subnet' or $type eq 'Interface') {
         my $net = $obj->{network};
-        if (my $max = $net->{max_up_net}) {
+        if (my $max = $net->{max_routing_net}) {
             return ($max, $net);
         }
         else {
@@ -16829,22 +16858,8 @@ sub local_optimization {
                                     next if $net->{has_other_subnet};
                                     $$ref = $net;
                                 }
-                                if (my $max = $$ref->{max_up_net}) {
-                                    if ($max->{has_other_subnet}) {
-                                        my $net = $$ref;
-                                        while (my $up = $net->{up}) {
-                                            if ($up->{has_other_subnet}) {
-                                                last;
-                                            }
-                                            else {
-                                                $net = $up;
-                                            }
-                                        }
-                                        $$ref = $net;
-                                    }
-                                    else {
-                                        $$ref = $max;
-                                    }
+                                if (my $max = $$ref->{max_secondary_net}) {
+                                    $$ref = $max;
                                 }
 
                                 # Prevent duplicate ACLs for networks which
