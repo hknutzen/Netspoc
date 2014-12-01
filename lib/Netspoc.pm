@@ -7976,8 +7976,11 @@ sub find_subnets_in_zone {
         my $first_intf = $zone->{interfaces}->[0];
         my %seen;
 
+        # Collect NAT tags, that are defined and applied inside the zone.
+        my %net2zone_nat_tags;
+
         # Handle different no_nat_sets visable at border of zone.
-        # For a zone without NAT, this loop is only executed once.
+        # For a zone without NAT, this loop is executed only once.
         for my $interface (@{ $zone->{interfaces} }) {
             my $no_nat_set = $interface->{no_nat_set};
             next if $seen{$no_nat_set}++;
@@ -7991,7 +7994,17 @@ sub find_subnets_in_zone {
             {
                 next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
 
-                my $nat_network = get_nat_network($network, $no_nat_set);
+                
+                my $nat_network = $network;
+                if (my $href = $network->{nat}) {
+                    for my $tag (keys %$href) {
+                        next if $no_nat_set->{$tag};
+                        push @{ $net2zone_nat_tags{$network} }, $tag;
+                        $nat_network = $href->{$tag};
+                        last;
+                    }
+                }
+
                 if ($nat_network->{hidden}) {
                     if (my $other = $network->{up}) {
                         err_msg("Ambiguous subnet relation from NAT.\n",
@@ -8101,18 +8114,20 @@ sub find_subnets_in_zone {
         }
 
         # For each subnet N find the largest non-aggregate network
-        # which encloses N. If one exists, store it in
-        # {max_routing_net}. This is used for generating static routes.
+        # which encloses N. If one exists, store it in %max_up_net.
+        # This is used to exclude subnets from $zone->{networks} below.
+        # It is also used to derive attribute {max_routing_net}.
+        my %max_up_net;
         my $set_max_net;
         $set_max_net = sub {
             my ($network) = @_;
             return if not $network;
-            if (my $max_net = $network->{max_routing_net}) {
+            if (my $max_net = $max_up_net{$network}) {
                 return $max_net;
             }
             if (my $max_net = $set_max_net->($network->{up})) {
                 if (!$network->{is_aggregate}) {
-                    $network->{max_routing_net} = $max_net;
+                    $max_up_net{$network} = $max_net;
 
 #                    debug("$network->{name} max_up $max_net->{name}");
                 }
@@ -8125,9 +8140,67 @@ sub find_subnets_in_zone {
         };
         $set_max_net->($_) for @{ $zone->{networks} };
 
+        # For each subnet N find the largest non-aggregate network
+        # which encloses N and which has the same NAT settings as N.
+        # If one exists, store it in {max_routing_net}. This is used
+        # for generating static routes.
+        for my $network (@{ $zone->{networks} }) {
+            my $max = $max_up_net{$network} or next;
+#            debug "Check $network->{name} $max->{name}";
+
+            my $get_zone_nat = sub {
+                my ($network) = @_;
+                my $nat = $network->{nat} || {};
+
+                # Special case:
+                # NAT is applied to $network inside the zone.
+                # Ignore NAT tag when comparing with NAT of $up.
+                if (my $aref = $net2zone_nat_tags{$network}) {
+                    $nat = { %$nat };
+                    for my $nat_tag (@$aref) {
+                        delete $nat->{$nat_tag};
+                    }
+                }
+                return $nat;
+            };
+            my $nat = $get_zone_nat->($network);
+            my $max_routing;
+            my $up = $network->{up};
+            while ($up) {
+
+                # Check if NAT settings are identical.
+                my $up_nat = $get_zone_nat->($up);
+                keys %$nat == keys %$up_nat or last;
+                for my $tag (keys %$nat) {
+                    my $up_nat_info = $up_nat->{$tag} or last;
+                    my $nat_info = $nat->{$tag};
+                    if ($nat_info->{hidden}) {
+                        $up_nat_info->{hidden} or last;
+                    }
+                    else {
+                        
+                        # Check if subnet relation is maintained
+                        # for NAT addresses.
+                        $up_nat_info->{hidden} and last;
+                        my($ip, $mask) = @{$nat_info}{qw(ip mask)};
+                        match_ip($up_nat_info->{ip}, $ip, $mask) or last;
+                        $up_nat_info->{mask} >= $mask or last;
+                    }
+                }
+                if (!$up->{is_aggregate}) {
+                    $max_routing = $up;
+                }
+                $up = $up->{up};
+            }
+            if ($max_routing) {
+                $network->{max_routing_net} = $max_routing;
+#                debug "Found $max_routing->{name}";
+            }
+        }
+        
         # Remove subnets of non-aggregate networks.
         $zone->{networks} = 
-            [ grep { !$_->{max_routing_net} } @{ $zone->{networks} } ];
+            [ grep { !$max_up_net{$_} } @{ $zone->{networks} } ];
 
         # Propagate managed hosts to aggregates.
         for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
