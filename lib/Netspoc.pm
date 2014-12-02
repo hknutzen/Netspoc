@@ -3954,6 +3954,40 @@ sub link_to_real_owner {
     }
     return;
 }
+
+# Element of attribute 'watchers' of owner A is allowed to reference
+# some other owner B. In this case all admins and watchers of B are
+# added to watchers of A.
+sub expand_watchers {
+    my ($owner) = @_;
+    my $names = $owner->{watchers};
+    if (!$names) {
+        return $owner->{admins};
+    }
+    if ($names eq 'recursive') {
+        err_msg("Found recursive definition of watchers in $owner->{name}");
+        return $owner->{watchers} = [];
+    }
+    $owner->{watchers} = 'recursive';
+    my @expanded;
+    for my $name (@$names) {
+        if (my ($o_name) = ($name =~ /^owner:(.*)$/)) {
+            my $owner_b = $owners{$o_name};
+            if (!$owner_b) {
+                err_msg("Unknown owner:$o_name referenced in watcher of",
+                        " $owner->{name}");
+                next;
+            }
+            push @expanded, @{ expand_watchers($owner_b) };
+        }
+        else {
+            push @expanded, $name;
+        }
+    }
+    $owner->{watchers} = \@expanded;
+    return [ @{ $owner->{admins} }, @expanded ];
+}
+
 sub link_owners {
 
     my %alias2owner;
@@ -3974,6 +4008,9 @@ sub link_owners {
         else {
             $alias2owner{$alias} = $owner;
         }
+
+        # Check and expand referenced owners in watchers.
+        expand_watchers($owner);
 
         # Check email addresses in admins and watchers.
         for my $attr (qw( admins watchers )) {

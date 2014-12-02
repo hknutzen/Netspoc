@@ -9,6 +9,73 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'Duplicates from other owner';
+############################################################
+
+$in = <<'END';
+owner:x = {
+ admins = a@b.c;
+ watchers = owner:y, b@b.c;
+}
+owner:y = {
+ admins = a@b.c;
+ watchers = b@b.c;
+}
+END
+
+$out = <<'END';
+Error: Duplicates in watchers of owner:x: b@b.c
+Error: Duplicates in admins/watchers of owner:x: a@b.c
+Error: Topology seems to be empty
+Aborted
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unknown owner referenced in watchers';
+############################################################
+
+$in = <<'END';
+owner:x = {
+ admins = a@b.c;
+ watchers = owner:y;
+}
+END
+
+$out = <<'END';
+Error: Unknown owner:y referenced in watcher of owner:x
+Error: Topology seems to be empty
+Aborted
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Recursive definition of watchers';
+############################################################
+
+$in = <<'END';
+owner:x = {
+ admins = a@b.c;
+ watchers = owner:y;
+}
+
+owner:y = {
+ admins = b@b.c;
+ watchers = owner:y;
+}
+END
+
+$out = <<'END';
+Error: Found recursive definition of watchers in owner:y
+Error: Topology seems to be empty
+Aborted
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Check for owners with duplicate alias names';
 ############################################################
 
