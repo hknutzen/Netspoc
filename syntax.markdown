@@ -308,7 +308,7 @@ where `<object set>` must expand to interfaces.
       owner:<name> = {
         [ alias = <string>; ]
         admins = <email>(, <email>)*;
-        [ watchers = <email>(, <email>)*; ]
+        [ watchers = <owner_or_email>(, <owner_or_email>)*; ]
         [ extend;           ]
         [ extend_only;      ]
         [ extend_unbounded; ]
@@ -316,6 +316,7 @@ where `<object set>` must expand to interfaces.
       }
     
     <email> ::= some valid email address or 'guest'
+    <owner_or_email> ::= <email> || owner:<name>
 
 `admins` are optional if `extend_only` is set.
 
