@@ -172,7 +172,7 @@ our %config = (
     comment_routes => 0,
 
 # Transient option.
-    check_routing_manual => 0,
+    check_routing_manual => 1,
 
 # Ignore these names when reading directories:
 # - CVS and RCS directories

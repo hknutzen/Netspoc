@@ -374,8 +374,8 @@ router:F = {
  managed;
  model = ASA;
  interface:M = {ip = 10.1.0.1; hardware = inside;}
- interface:A = {ip = 10.2.1.129; hardware = o1; routing = manual;}
- interface:B = {ip = 10.2.1.18; hardware = o2; routing = manual;}
+ interface:A = {ip = 10.2.1.129; hardware = o1; routing = dynamic;}
+ interface:B = {ip = 10.2.1.18; hardware = o2; routing = dynamic;}
 }
 
 network:A = {ip = 10.2.1.128/30;}
@@ -391,7 +391,8 @@ network:B = {ip = 10.2.1.16/30;}
 router:L = {
  managed;
  model = IOS;
- interface:B = {ip = 10.2.1.17; hardware = Ethernet1; no_in_acl; routing = manual;}
+ interface:B = {ip = 10.2.1.17; hardware = Ethernet1; 
+                no_in_acl; routing = dynamic;}
  interface:c  = {ip = 10.2.6.165; hardware = Ethernet2;}
  interface:K = {ip = 10.9.32.2; virtual = {ip = 10.9.32.1;} 
                 hardware = Ethernet0;}
