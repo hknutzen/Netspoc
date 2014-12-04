@@ -63,12 +63,12 @@ owner:x = {
 
 owner:y = {
  admins = b@b.c;
- watchers = owner:y;
+ watchers = owner:x;
 }
 END
 
 $out = <<'END';
-Error: Found recursive definition of watchers in owner:y
+Error: Found recursive definition of watchers in owner:x
 Error: Topology seems to be empty
 Aborted
 END
