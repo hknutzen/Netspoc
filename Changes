@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+3.059     2014-12-04 15:55:12+01:00 Europe/Berlin
+
  - New syntax: Element of attribute 'watchers' of owner A is allowed
    to reference some other owner B. In this case all admins and
    watchers of B are added to watchers of A.
