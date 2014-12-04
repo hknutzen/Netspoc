@@ -12,7 +12,7 @@ my ($title, $topo, $in, $out);
 $title = 'Implicit aggregate over 3 networks';
 ############################################################
 
-$topo = <<END;
+$topo = <<'END';
 area:test = { border = interface:filter.Trans; }
 
 network:A = { ip = 10.3.3.0/25; }
@@ -38,9 +38,7 @@ router:filter = {
 network:Customer = { ip = 10.9.9.0/24; }
 END
 
-$in = <<END;
-$topo
-
+$in = $topo . <<'END';
 service:test = {
  user = any:[ip=10.0.0.0/8 & area:test];
  permit src = user; dst = network:Customer; prt = tcp 80;
@@ -48,7 +46,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 ip access-list extended VLAN1_in
  deny ip any host 10.9.9.1
@@ -65,9 +63,7 @@ test_run($title, $in, $out);
 $title = 'Implicit aggregate over 2 networks';
 ############################################################
 
-$in = <<END;
-$topo
-
+$in = $topo . <<'END';
 service:test = {
  user = any:[ip=10.3.3.0/24 & area:test];
  permit src = user; dst = network:Customer; prt = tcp 80;
@@ -75,7 +71,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 ip access-list extended VLAN1_in
  deny ip any host 10.9.9.1
@@ -91,9 +87,7 @@ test_run($title, $in, $out);
 $title = 'Implicit aggregate between 2 networks';
 ############################################################
 
-$in = <<END;
-$topo
-
+$in = $topo . <<'END';
 service:test1 = {
  user = any:[ip=10.3.3.0/26 & area:test];
  permit src = user; dst = network:Customer; prt = tcp 80;
@@ -106,7 +100,7 @@ service:test2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 ip access-list extended VLAN1_in
  deny ip any host 10.9.9.1
@@ -121,7 +115,7 @@ test_run($title, $in, $out);
 $title = 'Check aggregate at unnumbered interface';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test = { ip = 10.9.1.0/24; }
 router:filter1 = {
  managed;
@@ -149,10 +143,10 @@ service:test = {
 any:Trans = { link = network:Trans; }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Missing rule for supernet rule.
  permit src=any:[network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
- can\'t be effective at interface:filter1.Trans.
+ can't be effective at interface:filter1.Trans.
  Tried any:Trans as src.
 END
 
@@ -162,7 +156,7 @@ test_err($title, $in, $out);
 $title = 'Permit matching aggregate at non matching interface';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test = { ip = 10.9.1.0/24; }
 router:filter1 = {
  managed;
@@ -187,7 +181,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter1
 access-list Vlan2_in extended permit tcp 10.0.0.0 255.0.0.0 10.9.1.0 255.255.255.0 eq 80
 access-list Vlan2_in extended deny ip any any
@@ -204,7 +198,7 @@ test_run($title, $in, $out);
 $title = 'Warn on missing src aggregate';
 ############################################################
 
-$in .= <<END;
+$in .= <<'END';
 router:T = {
  interface:Trans = { ip = 192.168.1.3; }
  interface:N1; 
@@ -213,10 +207,10 @@ router:T = {
 network:N1 = { ip = 10.192.0.0/24; }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Missing rule for supernet rule.
  permit src=any:[ip=10.0.0.0/8 & network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
- can\'t be effective at interface:filter1.Trans.
+ can't be effective at interface:filter1.Trans.
  Tried network:N1 as src.
 END
 
@@ -226,7 +220,7 @@ test_err($title, $in, $out);
 $title = 'Loop with no_in_acl and in_zone eq no_in_zone';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test = { ip = 10.1.0.0/16; }
 
 router:u = {
@@ -256,7 +250,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 access-list Vlan5_in extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
 access-list Vlan5_in extended deny ip any any
@@ -273,7 +267,7 @@ test_run($title, $in, $out);
 $title = 'Nested aggregates';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 
 network:Test = { ip = 10.9.1.0/24; }
 router:filter = {
@@ -306,7 +300,7 @@ service:test2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.254.0 10.9.1.0 255.255.255.0 eq 80
 access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.252.0 10.9.1.0 255.255.255.0 eq 81
@@ -320,14 +314,14 @@ test_run($title, $in, $out);
 $title = 'Redundant nested aggregates';
 ############################################################
 
-$in .= <<END;
+$in .= <<'END';
 service:test3 = {
  user = any:[ip=10.1.0.0/16 & network:Trans];
  permit src = user; dst = network:Test; prt = tcp 80;
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Redundant rules in service:test1 compared to service:test3:
   permit src=any:[ip=10.1.0.0/23 & network:Trans]; dst=network:Test; prt=tcp 80; of service:test1
 < permit src=any:[ip=10.1.0.0/16 & network:Trans]; dst=network:Test; prt=tcp 80; of service:test3
@@ -342,7 +336,7 @@ $title = 'Prevent nondeterminism in nested aggregates';
 # /23 aggregates must be processed in fixed order.
 # Otherwise network:[any:[ip=10.1.0.0/17..] would be nondeterministic.
 
-$in = <<END;
+$in = <<'END';
 network:Test = { ip = 10.9.1.0/24; }
 router:filter = {
  managed;
@@ -375,7 +369,7 @@ service:test2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.255.0 10.9.1.0 255.255.255.0 eq 80
 access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.255.0 10.9.1.0 255.255.255.0 eq 82
@@ -391,7 +385,7 @@ $title = 'Redundant nested aggregates without matching network (1)';
 ############################################################
 
 # Larger aggregate is inserted first.
-$in = <<END;
+$in = <<'END';
 network:Test = { ip = 10.9.1.0/24; }
 router:filter = {
  managed;
@@ -410,7 +404,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Redundant rules in service:test compared to service:test:
   permit src=any:[ip=10.1.0.0/17 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
 < permit src=any:[ip=10.1.0.0/16 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
@@ -423,7 +417,7 @@ $title = 'Redundant nested aggregates without matching network (2)';
 ############################################################
 
 # Small aggregate is inserted first.
-$in = <<END;
+$in = <<'END';
 network:Test = { ip = 10.9.1.0/24; }
 router:filter = {
  managed;
@@ -442,7 +436,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Redundant rules in service:test compared to service:test:
   permit src=any:[ip=10.1.0.0/17 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
 < permit src=any:[ip=10.1.0.0/16 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
@@ -454,7 +448,7 @@ test_err($title, $in, $out);
 $title = 'Redundant matching aggregates as subnet of network';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test = { ip = 10.9.1.0/24; }
 router:filter = {
  managed;
@@ -477,7 +471,7 @@ service:test2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Redundant rules in service:test1 compared to service:test1:
   permit src=any:[ip=10.9.1.0/26 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
 < permit src=network:Test; dst=network:Kunde; prt=tcp 80; of service:test1
@@ -496,7 +490,7 @@ $title = 'Mixed redundant matching aggregates';
 ############################################################
 
 # Check for sub aggregate, even if sub-network was found
-$in = <<END;
+$in = <<'END';
 network:Test = { ip = 10.9.1.0/24; }
 router:filter = {
  managed;
@@ -518,7 +512,7 @@ service:test2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Redundant rules in service:test1 compared to service:test2:
   permit src=any:[ip=10.1.1.0/26 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test1
 < permit src=any:[ip=10.0.0.0/8 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test2
@@ -530,7 +524,7 @@ test_err($title, $in, $out);
 $title = 'Mixed implicit and explicit aggregates';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 any:10_0_0_0    = { ip = 10.0.0.0/8;    link = network:Test; }
 any:10_253_0_0  = { ip = 10.253.0.0/16; link = network:Test; }
 network:Test = { ip = 10.9.1.0/24; }
@@ -549,7 +543,7 @@ service:test1 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 access-list Vlan1_in extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
 access-list Vlan1_in extended deny ip any any
@@ -562,7 +556,7 @@ test_run($title, $in, $out);
 $title = 'Matching aggregate of implicit aggregate';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test = { ip = 10.9.1.0/24; }
 router:filter = {
  managed;
@@ -579,7 +573,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 access-list Vlan1_in extended permit tcp 10.1.0.0 255.255.0.0 10.1.1.0 255.255.255.0 eq 80
 access-list Vlan1_in extended deny ip any any
@@ -592,7 +586,7 @@ test_run($title, $in, $out);
 $title = 'Aggregate of loopback interface';
 ############################################################
 
-$topo = <<END;
+$topo = <<'END';
 network:Trans = { ip = 10.1.1.0/24; }
 
 router:filter = {
@@ -606,15 +600,14 @@ router:filter = {
 network:Customer = { ip = 10.9.9.0/24; }
 END
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 service:test = {
  user = any:[interface:filter.[all]];
  permit src = network:Customer; dst = user; prt = tcp 22;
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 ip access-list extended VLAN2_in
  deny ip any host 10.1.1.1
@@ -630,15 +623,14 @@ test_run($title, $in, $out);
 $title = 'Remove loopback network from aggregate';
 ############################################################
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 service:test = {
  user = network:[interface:filter.[all]];
  permit src = network:Customer; dst = user; prt = tcp 22;
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 ip access-list extended VLAN2_in
  deny ip any host 10.1.1.1
@@ -652,7 +644,7 @@ test_run($title, $in, $out);
 $title = 'Multiple missing destination aggregates at one router';
 ############################################################
 
-$topo = <<END;
+$topo = <<'END';
 network:Customer = { ip = 10.9.9.0/24; }
 
 router:r1 = {
@@ -685,8 +677,7 @@ network:n4 = { ip = 10.1.4.0/24; }
 network:n128 = { ip = 10.128.1.0/24; }
 END
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 service:test = {
  user = #network:trans,
         any:[ip=10.0.0.0/9 & network:n1],
@@ -698,7 +689,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Missing rule for supernet rule.
  permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
  can't be effective at interface:r1.Customer.
@@ -715,9 +706,7 @@ test_err($title, $in, $out);
 $title = 'Multiple missing destination networks';
 ############################################################
 
-$in = <<END;
-$topo
-
+$in = $topo . <<'END';
 router:u = {
  interface:n2;
  interface:n2x;
@@ -735,7 +724,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Missing rule for supernet rule.
  permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
  can't be effective at interface:r2.trans.
@@ -748,8 +737,7 @@ test_err($title, $in, $out);
 $title = 'Multiple destination aggregates';
 ############################################################
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 service:test = {
  user = network:trans,
         any:[ip=10.0.0.0/9 & network:n1],
@@ -762,7 +750,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r1
 ip access-list extended VLAN9_in
  deny ip any host 10.9.9.1
@@ -794,7 +782,7 @@ $title = 'Check destination aggregate with no_in_acl';
 # Wenn n2, dann erfolgreiche Prüfung auf n1.
 ($in = $topo) =~ s/VLAN1;/VLAN1; no_in_acl;/g;
 
-$in .= <<END;
+$in .= <<'END';
 service:test = {
  user = network:trans,
         any:[ip=10.0.0.0/9 & network:n1],
@@ -806,7 +794,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r2
 ip access-list extended VLAN77_in
  deny ip any host 10.7.7.2
@@ -841,7 +829,7 @@ $title = 'Check missing intermediate aggregate for Linux';
 # because filter is attached to pair of incoming and outgoing interface.
 ($in = $topo) =~ s/IOS_FW/Linux/g;
 
-$in .= <<END;
+$in .= <<'END';
 service:test = {
  user = #network:trans,
         any:[ip=10.0.0.0/9 & network:n1],
@@ -850,10 +838,10 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Missing rule for supernet rule.
  permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
- can\'t be effective at interface:r1.Customer.
+ can't be effective at interface:r1.Customer.
  Tried network:trans as dst.
 END
 
@@ -867,7 +855,7 @@ $title = 'No destination aggregate needed for Linux';
 # because filter is attached to pair of incoming and outgoing interface.
 $in =~ s/#network:trans/network:trans/g;
 
-$out = <<END;
+$out = <<'END';
 --r2
 :VLAN77_self -
 -A INPUT -j VLAN77_self -i VLAN77
@@ -908,7 +896,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Missing rule for supernet rule.
  permit src=network:Customer; dst=any:[network:n1]; prt=tcp 80; of service:test
  can't be effective at interface:r.Customer.
@@ -916,6 +904,53 @@ Warning: Missing rule for supernet rule.
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Supernet used as aggregate';
+############################################################
+
+$in = <<'END';
+network:intern = { ip = 10.1.1.0/24; }
+
+router:asa = {
+ model = ASA, 8.4;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101; 
+  hardware = inside;
+ }
+ interface:dmz = { 
+  ip = 1.2.3.2; 
+  hardware = outside;
+ }
+}
+
+area:internet = { border = interface:asa.dmz; }
+
+network:dmz = { ip = 1.2.3.0/25; }
+
+router:extern = { 
+ interface:dmz = { ip = 1.2.3.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+service:test = {
+ user = network:intern;
+ permit src = user; dst = network:[area:internet]; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--asa
+! [ ACL ]
+access-list inside_in extended permit tcp 10.1.1.0 255.255.255.0 any eq 80
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 

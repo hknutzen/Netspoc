@@ -12,7 +12,7 @@ my ($title, $in, $out);
 $title = 'Access managed host from enclosing network';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:N = {
  ip = 10.1.1.0/24; 
  host:h1 = { managed; model = Linux; ip = 10.1.1.11; hardware = eth0; }
@@ -24,7 +24,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --host:h1
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
@@ -37,7 +37,7 @@ test_run($title, $in, $out);
 $title = 'Access from managed host to managed host';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:N = {
  ip = 10.1.1.0/24; 
  host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
@@ -50,7 +50,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --host:h1
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
@@ -66,7 +66,7 @@ test_run($title, $in, $out);
 $title = 'Automatically add managed host to destination network';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:N = {
  ip = 10.1.1.0/24; 
  host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
@@ -78,7 +78,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --host:h1
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
@@ -91,7 +91,7 @@ test_run($title, $in, $out);
 $title = 'Detect duplicate automatic and manual managed host';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:N = {
  ip = 10.1.1.0/24; 
  host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
@@ -103,7 +103,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Duplicate elements in dst of rule in service:test:
  host:h1
 END
@@ -114,7 +114,7 @@ test_err($title, $in, $out);
 $title = 'Automatically add managed host to destination aggregate ';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 any:10 = { ip=10.0.0.0/8; link = network:N; }
 network:N = {
  ip = 10.1.1.0/24; 
@@ -131,7 +131,7 @@ service:test2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --host:h1
 -A c1 -j ACCEPT -s 10.1.0.0/16 -p tcp --dport 81
 -A c1 -j ACCEPT -s 10.0.0.0/8 -p tcp --dport 80
@@ -147,7 +147,7 @@ test_run($title, $in, $out);
 $title = 'Filter managed host in destination aggregate ';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:N = {
  ip = 10.1.1.0/24; 
  host:h1 = { managed; model = Linux; ip = 10.1.1.10;  hardware = eth0; }
@@ -160,7 +160,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --host:h1
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
@@ -173,7 +173,7 @@ test_run($title, $in, $out);
 $title = 'NAT with managed host';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test = { ip = 10.9.1.0/24; }
 router:filter = {
  managed;
@@ -195,7 +195,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --host:h1
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
@@ -212,7 +212,7 @@ test_run($title, $in, $out);
 $title = "Automatic managed and unmanaged hosts from network";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test = { ip = 10.9.1.0/24; }
 router:filter = {
  managed = secondary;
@@ -239,7 +239,7 @@ service:test3 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.11 eq 81
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.10 range 81 82
@@ -254,7 +254,7 @@ test_run($title, $in, $out);
 $title = "Managed host doesn't count as full filter";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test = { ip = 10.9.1.0/24; }
 router:filter = {
  managed = secondary;
@@ -274,7 +274,7 @@ service:test = {
 END
 
 # Interface addresses aren't optimized into subnet currently.
-$out = <<END;
+$out = <<'END';
 --filter
 object-group network g0
  network-object host 10.1.1.10
@@ -290,15 +290,15 @@ test_run($title, $in, $out);
 $title = "Managed host must use standard filter";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:N = {
  ip = 10.1.1.0/24; 
  host:h1 = { managed = secondary; model = Linux; ip = 10.1.1.11; hardware = eth0; }
 }
 END
 
-$out = <<END;
-Error: Only \'managed=standard\' is supported at line 3 of STDIN
+$out = <<'END';
+Error: Only 'managed=standard' is supported at line 3 of STDIN
 END
 
 test_err($title, $in, $out);
@@ -307,7 +307,7 @@ test_err($title, $in, $out);
 $title = "Duplicate IP address";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 router:R = {
  interface:N = { ip = 10.1.1.10; }
 }
@@ -318,7 +318,7 @@ network:N = {
  host:h3 = { range = 10.1.1.8 - 10.1.1.15; }
 }
 END
-$out = <<END;
+$out = <<'END';
 Error: Duplicate IP address for host:h1 and interface:R.N
 Error: Duplicate IP address for host:h1 and host:h2
 Error: Duplicate IP address for host:h1 and host:h3
@@ -330,7 +330,7 @@ test_err($title, $in, $out);
 $title = "Multi homed managed host";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test = {
  ip = 10.9.1.0/24;
  host:t10 = { ip = 10.9.1.10; }
@@ -358,7 +358,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --host:hugo
 :c1 -
 :c2 -

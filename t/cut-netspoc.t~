@@ -26,18 +26,18 @@ sub test_run {
 my $title = 'Rename network';
 ############################################################
 
-my $in = <<'END';
+my $in = <<END;
 network:Test =  { ip = 10.9.1.0/24; }
 group:G = interface:r.Test, # comment
-    host:id:h@dom.top.Test,
+    host:id:h\@dom.top.Test,
     network:Test,
     ;
 END
 
-my $out = <<'END';
+my $out = <<END;
 network:Toast =  { ip = 10.9.1.0/24; }
 group:G = interface:r.Toast, # comment
-    host:id:h@dom.top.Toast,
+    host:id:h\@dom.top.Toast,
     network:Toast,
     ;
 END
@@ -48,18 +48,18 @@ test_run($title, $in, 'network:Test network:Toast', $out);
 $title = 'Rename network to name with leading digit';
 ############################################################
 
-$in = <<'END';
+$in = <<END;
 network:Test =  { ip = 10.9.1.0/24; }
 group:G = interface:r.Test, # comment
-    host:id:h@dom.top.Test,
+    host:id:h\@dom.top.Test,
     network:Test,
     ;
 END
 
-$out = <<'END';
+$out = <<END;
 network:1_2_3_0_Test =  { ip = 10.9.1.0/24; }
 group:G = interface:r.1_2_3_0_Test, # comment
-    host:id:h@dom.top.1_2_3_0_Test,
+    host:id:h\@dom.top.1_2_3_0_Test,
     network:1_2_3_0_Test,
     ;
 END
@@ -70,7 +70,7 @@ test_run($title, $in, 'network:Test network:1_2_3_0_Test', $out);
 $title = 'Rename router';
 ############################################################
 
-$in = <<'END';
+$in = <<END;
 router:Test = { interface:N = { ip = 10.9.1.0/24; }
  interface:M;
 }
@@ -79,7 +79,7 @@ group:G = interface:Test.N, # comment
     ;
 END
 
-$out = <<'END';
+$out = <<END;
 router:Toast = { interface:N = { ip = 10.9.1.0/24; }
  interface:M;
 }
@@ -94,13 +94,13 @@ test_run($title, $in, 'router:Test router:Toast', $out);
 $title = 'Rename router then network';
 ############################################################
 
-$in = <<'END';
+$in = <<END;
 router:R = { interface:NN = { ip = 10.9.1.0/24; } }
 network:NN
 interface:R.NN;
 END
 
-$out = <<'END';
+$out = <<END;
 router:RR = { interface:N = { ip = 10.9.1.0/24; } }
 network:N
 interface:RR.N;
@@ -114,7 +114,7 @@ test_run($title, $in, 'network:NN network:N router:R router:RR', $out);
 $title = 'Rename nat';
 ############################################################
 
-$in = <<'END';
+$in = <<END;
 network:N = { ip = 1.2.3.0/24; nat:NAT-1 = {ip = 7.8.9.0; } }
 bind_nat = NAT-1;
 bind_nat = x, # comment
@@ -123,7 +123,7 @@ bind_nat =NAT-1#comment
     ;
 END
 
-$out = <<'END';
+$out = <<END;
 network:N = { ip = 1.2.3.0/24; nat:NAT-2 = {ip = 7.8.9.0; } }
 bind_nat = NAT-2;
 bind_nat = x, # comment
@@ -138,13 +138,13 @@ test_run($title, $in, 'nat:NAT-1 nat:NAT-2', $out);
 $title = 'Rename umlauts';
 ############################################################
 
-$in = <<'END';
+$in = <<END;
 owner:Maaß
 owner:Wittmüß
 owner = Maaß, Wittmuess
 END
 
-$out = <<'END';
+$out = <<END;
 owner:Maass
 owner:Wittmüß
 owner = Maass, Wittmüß
@@ -157,7 +157,7 @@ test_run($title, $in, 'owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß',
 $title = 'Read substitutions from file';
 ############################################################
 
-my $subst = <<'END';
+my $subst = <<END;
 host:abc host:a1
 owner:foo owner:büro
 nat:tick nat:t1
@@ -169,7 +169,7 @@ my ($in_fh, $filename) = tempfile(UNLINK => 1);
 print $in_fh $subst;
 close $in_fh;
 
-$in = <<'END';;
+$in = <<END;;
 nat:ticks nat:ick
 nat:tick
 interface:net = { bind_nat = ick,
@@ -179,7 +179,7 @@ network:net = { owner = foo;
 }
 END
 
-$out = <<'END';;
+$out = <<END;;
 nat:t2 nat:_
 nat:t1
 interface:xxxx = { bind_nat = _,

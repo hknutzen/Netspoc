@@ -14,7 +14,7 @@ $title = "Unmanaged interfaces inside area";
 
 # Prevent duplicate interfaces in complicated unmanaged loop.
 
-$in = <<END;
+$in = <<'END';
 network:C1 = { ip = 10.1.0.0/21;}
 network:C2 = { ip = 10.2.0.0/21;}
 network:C3 = { ip = 10.3.0.0/21;}
@@ -69,7 +69,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --FW
 object-group network g0
  network-object host 10.1.0.1

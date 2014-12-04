@@ -1,40 +1,84 @@
 #!/usr/bin/perl
-# cut-netspoc
-# Print parts of a netspoc configuration to stdout.
-# http://hknutzen.github.com/Netspoc
-# (c) 2014 by Heinz Knutzen <heinz.knutzen@googlemail.com>
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-# 
-# You should have received a copy of the GNU General Public License along
-# with this program; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-#
+
+=head1 NAME
+
+cut-netspoc - Print parts of a netspoc configuration to stdout
+
+=head1 SYNOPSIS
+
+cut-netspoc [options] FILE|DIR [service:name] ...
+
+=head1 DESCRIPTION
+
+Reads a Netspoc configuration and prints parts of this configuration
+to STDOUT. If one or more services are given as , only those parts are
+printed, that are referenced by given serices. If no service is given,
+it acts as if all services are specified. This is useful to eliminate all disabled parts of the topology.
+
+=head1 OPTIONS
+
+=item B<-q>
+
+Quiet, don't print status messages.
+
+=item B<-help>
+
+Prints a brief help message and exits.
+
+=item B<-man>
+
+Prints the manual page and exits.
+
+=back
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+(c) 2014 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+
+http://hknutzen.github.com/Netspoc
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
 
 use strict;
 use warnings;
-use FindBin;
-use lib $FindBin::Bin;
+use Getopt::Long;
+use Pod::Usage;
 use Netspoc;
-#use open ':locale';
 use locale;
 
-our $VERSION = '3.058'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.059'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
 ####################################################################
-sub usage {
-    die "Usage: $0 {in-file | in-directory} service:name ...\n";
-}
+my $quiet;
+my $help;
+my $man;
+GetOptions ( 'quiet!' => \$quiet,
+	     'help|?' => \$help,
+	     man => \$man,
+	     ) or pod2usage(2);
+pod2usage(1) if $help;
+pod2usage(-exitstatus => 0, -verbose => 2) if $man;
+
+my $path = shift @ARGV;
+
+# Give each source part an index to preserve original order.
+my $src_index = 1;
 
 # Enhanced version of read_netspoc, which stores source code of each
 # global definition.
@@ -43,6 +87,7 @@ sub read_netspoc_with_src {
     my $object = &read_netspoc();
     my $post   = pos $Netspoc::input;
     $object->{src_code} = substr $Netspoc::input, $pre, $post - $pre;
+    $object->{src_index} = $src_index++;
 
 #    print STDERR "$object->{name} $pre-$post\n";
     return $object;
@@ -125,33 +170,37 @@ sub get_zones {
 # Main program
 ####################################################################
 
-my $config = shift @ARGV or usage;
-
-Netspoc::set_config({time_stamps => 1, max_errors => 9999});
+Netspoc::set_config({time_stamps => 1, max_errors => 9999, verbose => !$quiet});
 &show_version();
 
 # Read and process netspoc configuration data.
 # Remember source code of each global definition.
-&read_file_or_dir($config, \&read_netspoc_with_src);
+&read_file_or_dir($path, \&read_netspoc_with_src);
 
 my %name2var = ( service => \%services);
 
-# Read names of services from command line.
-for my $arg (@ARGV) {
-    my ($type, $name) = split_typed_name $arg;
-    my $ref = $name2var{$type} or usage;
-    my $thing = $ref->{$name} or fatal_err "Unknown $arg";
-    $thing->{is_used} = 1;
-}
+if (@ARGV) {
 
-# Delete unwanted global definitions.
-for my $ref (values %name2var) {
-    for my $name (keys %$ref) {
-	unless ($ref->{$name}->{is_used}) {
-	    delete $ref->{$name};
-	}
+    # Read names of services from command line.
+    for my $arg (@ARGV) {
+        my ($type, $name) = split_typed_name $arg;
+        my $ref = $name2var{$type} or pod2usage(2);
+        my $thing = $ref->{$name} or fatal_err "Unknown $arg";
+        $thing->{is_used} = 1;
+    }
+
+    # Delete unwanted global definitions.
+    for my $ref (values %name2var) {
+        for my $name (keys %$ref) {
+            unless ($ref->{$name}->{is_used}) {
+                delete $ref->{$name};
+            }
+        }
     }
 }
+
+# Retain all services, if no argument is given.
+# Only remove disabled parts.
 
 &order_protocols();
 &link_topology();
@@ -205,6 +254,48 @@ sub process_rules {
 # Mark parts of topology which are referenced by rules of services.
 process_rules(\%expanded_rules);
 
+# Mark networks inside marked aggregates.
+get_zones();
+for my $zone (@all_zones) {
+    for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
+        if($aggregate->{is_used}) {
+            for my $network (@{ $aggregate->{networks} }) {
+                $network->{is_used} = 1;
+            }
+        }
+    }
+}
+
+# Mark zones having attributes that influence their networks.
+for my $network (values %networks) {
+    $network->{is_used} or next;
+    my $zone = $network->{zone};
+    my $aggregate0 = $zone->{ipmask2aggregate}->{'0/0'};
+
+    # Simplifies test below.
+    $aggregate0->{owner} = $zone->{owner};
+
+    grep { $zone->{$_} } qw(has_unenforceable nat no_in_acl) or next;
+    $aggregate0->{is_used} = 1;
+    $zone->{is_used} = 1;
+}
+
+for my $zone (@all_zones) {
+    $zone->{is_used} or next;
+    if (my $link = $zone->{link}) {
+        $link->{is_used} = 1;
+    }
+}
+
+# Mark areas having attributes that influence their networks.
+for my $zone (@all_zones) {
+    $zone->{is_used} or next;
+    for my $area (values %{ $zone->{areas} }) {
+        $area->{nat} or next;
+        $area->{is_used} = 1;
+    }
+}
+
 # Mark interfaces which are referenced by areas.
 for my $area (values %areas) {
     if ($area->{is_used}) {
@@ -221,30 +312,6 @@ for my $area (values %areas) {
     }
 }
 
-# Mark networks inside aggregates.
-get_zones();
-for my $zone (@all_zones) {
-    for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
-        if($aggregate->{is_used}) {
-            for my $network (@{ $aggregate->{networks} }) {
-                $network->{is_used} = 1;
-            }
-        }
-    }
-}
-
-# Mark unmanaged parts of topology.
-mark_unmanaged();
-
-# Mark hosts inside networks.
-for my $network (values %networks) {
-    if($network->{is_used}) {
-	for my $host (@{ $network->{hosts} }) {
-	    $host->{is_used} = 1;
-	}
-    }
-}
-
 # Call this after topology has been marked.
 &expand_crypto();
 
@@ -255,8 +322,7 @@ for my $router (values %routers) {
 	# Mark networks referenced in attribute reroute_permit.
 	if ($interface->{reroute_permit}) {
 	    for my $net (@{ $interface->{reroute_permit} }) {
-		my $rule = {src => $interface, dst => $net, prt => {}};
-		&path_walk($rule, \&mark_topology);
+                $net->{is_used} = 1;
 	    }
 	}
  
@@ -293,11 +359,32 @@ for my $router (values %routers) {
     }
 }
 
+# Mark unmanaged parts of topology.
+mark_unmanaged();
+
 for my $obj (values %areas, values %Netspoc::aggregates,
-             values %networks, values %hosts, values %routers) 
+             values %networks, values %routers) 
 {
     next if not $obj->{is_used};
     if (my $owner = $obj->{owner}) {
+	$owner->{is_used} = 1;
+    }
+}
+
+# Hosts are always printed, but are never marked as {is_used},
+# because only subnets are marked. Hence check network.
+for my $host (values %hosts) {
+    next if !$host->{network}->{is_used};
+    if (my $owner = $host->{owner}) {
+	$owner->{is_used} = 1;
+    }
+}
+
+# Interfaces are always printed, but not necessarily marked as {is_used}.
+# Hence check network.
+for my $interface (values %interfaces) {
+    next if !$interface->{router}->{is_used};
+    if (my $owner = $interface->{owner}) {
 	$owner->{is_used} = 1;
     }
 }
@@ -318,7 +405,8 @@ for my $area (values %areas) {
 # Routers and networks have been marked by mark_topology.
 # Protocols have been marked while %expanded_rules have been processed above.
 # Groups and protocolroups objects have been marked during expand_services.
-for my $object (
+for my $object ( sort { $a->{src_index} <=> $b->{src_index} }
+                 map { $_->{src_index} ? ($_) : () }
     values %routers,
     values %networks,
     values %Netspoc::aggregates,
@@ -357,6 +445,7 @@ for my $restrict (values %pathrestrictions) {
     print "$restrict->{name} =\n";
     for my $interface (@{ $restrict->{elements} }) {
         next unless $interface;
+        next if $interface->{ip} eq 'tunnel';
         print " $interface->{name},\n";
     }
     print ";\n";

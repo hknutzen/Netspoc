@@ -12,7 +12,7 @@ my ($title, $topo, $in, $out);
 $title = 'Warn on redundant rule';
 ############################################################
 
-$topo =  <<END;
+$topo =  <<'END';
 network:Test = { ip = 10.9.1.0/24; }
 router:filter = {
  managed;
@@ -26,8 +26,7 @@ network:N = {
 }
 END
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 service:test = {
  user = host:h1;
  permit src = user; dst = network:Test; prt = tcp 22;
@@ -38,7 +37,7 @@ service:test2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Redundant rules in service:test compared to service:test2:
   permit src=host:h1; dst=network:Test; prt=tcp 22; of service:test
 < permit src=host:h1; dst=network:Test; prt=tcp; of service:test2
@@ -50,8 +49,7 @@ test_err($title, $in, $out);
 $title = 'Suppressed warning';
 ############################################################
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 service:test = {
  overlaps = service:test2;
  user = host:h1;
@@ -63,7 +61,7 @@ service:test2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 access-list Vlan2_in extended permit tcp host 10.1.1.10 10.9.1.0 255.255.255.0
 access-list Vlan2_in extended deny ip any any
@@ -76,8 +74,7 @@ test_run($title, $in, $out);
 $title = 'Multiple larger rules, one suppressed';
 ############################################################
 
-$in = <<END;
-$topo
+$in = $topo . <<'END';
 service:test = {
  overlaps = service:test2;
  user = host:h1, network:N;
@@ -89,7 +86,7 @@ service:test2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Redundant rules in service:test compared to service:test:
   permit src=host:h1; dst=network:Test; prt=tcp 22; of service:test
 < permit src=network:N; dst=network:Test; prt=tcp 22; of service:test

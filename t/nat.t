@@ -14,7 +14,7 @@ $title = 'Multiple dynamic NAT at ASA';
 
 # Soll nur einen nat-Index pro Interface verwenden.
 
-$in = <<END;
+$in = <<'END';
 network:Test =  { 
  ip = 10.9.1.0/24; 
  nat:C = { ip = 1.1.1.1/32; dynamic;} 
@@ -47,7 +47,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 ! [ NAT ]
 global (outside) 1 1.1.1.1 netmask 255.255.255.255
@@ -64,7 +64,7 @@ $title = 'Multiple dynamic NAT at ASA 8.4';
 
 # Soll nur einen nat-Index pro Interface verwenden.
 
-$in = <<END;
+$in = <<'END';
 network:Test =  { 
  ip = 10.9.1.0/24; 
  nat:C = { ip = 1.1.1.1/32; dynamic;} 
@@ -97,7 +97,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 ! [ NAT ]
 object network 10.9.1.0_255.255.255.0
@@ -117,7 +117,7 @@ test_run($title, $in, $out);
 $title = 'Dynamic NAT for network with static nat for hosts at ASA';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test =  {
  ip = 10.9.1.0/24; 
  nat:C = { ip = 1.1.1.16/28; dynamic;}
@@ -144,7 +144,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 access-list inside_in extended permit tcp host 10.9.1.33 10.9.3.0 255.255.255.0 eq 80
 access-list inside_in extended deny ip any any
@@ -167,7 +167,7 @@ test_run($title, $in, $out);
 $title = 'NAT at ASA 8.4';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test =  {
  ip = 10.9.1.0/24; 
  nat:C = { ip = 1.1.1.16/28; dynamic;}
@@ -197,7 +197,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --filter
 ! [ NAT ]
 object network 10.9.1.33_255.255.255.255
@@ -218,7 +218,7 @@ test_run($title, $in, $out);
 $title = 'Check rule with any to hidden NAT';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test =  {
  ip = 10.0.0.0/24; 
  nat:C = { hidden; }
@@ -239,7 +239,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: network:Test is hidden by NAT in rule
  permit src=any:[network:X]; dst=network:Test; prt=tcp 80; of service:test
 END
@@ -247,10 +247,56 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'NAT network is undeclared subnet';
+############################################################
+
+$in = <<'END';
+network:Test =  {
+ ip = 10.0.0.0/28; 
+ nat:C = { ip = 10.8.3.240/28; } #subnet_of = network:X; }
+}
+
+router:filter = {
+ managed;
+ model = ASA, 8.4;
+ interface:Test = { ip = 10.0.0.2; hardware = inside; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C; }
+}
+
+network:X = { ip = 10.8.3.0/24; }
+END
+
+$out = <<'END';
+Warning: nat:C(network:Test) is subnet of network:X
+ in nat_domain:X.
+ If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'NAT network is subnet';
+############################################################
+
+$in =~ s/} #subnet_of/subnet_of/;
+$out = '';
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Declared NAT network subnet doesn\'t match';
+############################################################
+
+$in =~ s/10.8.3.240/10.8.4.240/;
+$out = <<'END';
+Error: nat:C(network:Test) of network:Test is subnet_of network:X but its IP doesn't match that's IP/mask
+END
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Multiple static NAT';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:a1 = { 
  ip = 10.1.1.0/24; 
  nat:b1 = { ip = 10.8.8.0/24; }
@@ -281,7 +327,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r1
 ! [ NAT ]
 static (e0,e1) 10.8.8.0 10.1.1.0 netmask 255.255.255.0
@@ -296,7 +342,7 @@ test_run($title, $in, $out);
 $title = 'Must not bind multiple NAT of one network at one place';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test =  {
  ip = 10.0.0.0/24; 
  nat:C = { ip = 10.8.8.0/24; }
@@ -313,7 +359,7 @@ router:filter = {
 network:X = { ip = 10.8.3.0/24; }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Must not bind multiple NAT tags 'C,D' of nat:C(network:Test) at router:filter
 END
 
@@ -323,7 +369,7 @@ test_err($title, $in, $out);
 $title = 'Unused / undefined NAT tag';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test =  {
  ip = 10.0.0.0/24; 
  nat:C = { ip = 10.8.8.0/24; }
@@ -339,7 +385,7 @@ router:filter = {
 network:X = { ip = 10.8.3.0/24; }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: nat:C is defined, but not bound to any interface
 Warning: Ignoring useless nat:D bound at router:filter
 END
@@ -350,7 +396,7 @@ test_err($title, $in, $out);
 $title = 'Check rule with host and dynamic NAT';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test =  {
  ip = 10.9.1.0/24; 
  nat:C = { ip = 1.9.2.0/24; dynamic;}
@@ -383,7 +429,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: host:H needs static translation for nat:C to be valid in rule
  permit src=network:X; dst=host:H; prt=tcp 80; of service:test
 END
@@ -392,7 +438,7 @@ test_err($title, $in, $out);
 
 $in =~ s/managed; \#1//;
 
-$out = <<END;
+$out = <<'END';
 Error: host:H needs static translation for nat:C to be valid in rule
  permit src=network:X; dst=host:H; prt=tcp 80; of service:test
 Error: host:H needs static translation for nat:C to be valid in rule
@@ -405,7 +451,7 @@ test_err($title, $in, $out);
 $title = 'NAT from overlapping areas and aggregates';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 area:A = {
  border = interface:r1.a1;
  nat:d = { ip = 10.99.99.8/30; dynamic; }
@@ -447,7 +493,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r1
 object-group network g0
  network-object 10.4.4.0 255.255.255.0
@@ -474,7 +520,7 @@ $title = 'Use hidden NAT from overlapping areas';
 $in =~ s/ip = 10.77.77.0\/30; dynamic;/hidden;/;
 $in =~ s/\Qnat:d = { ip = 10.99.99.8\/30; dynamic; }//;
 
-$out = <<END;
+$out = <<'END';
 Error: network:a1 is hidden by NAT in rule
  permit src=network:X; dst=network:a1; prt=tcp 80; of service:test
 Error: network:b2 is hidden by NAT in rule
@@ -487,7 +533,7 @@ test_err($title, $in, $out);
 $title = 'Warn on useless inherited NAT';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 area:x = {
  border = interface:filter.x;
  nat:C = { ip = 10.8.8.0/24; dynamic; }
@@ -513,7 +559,7 @@ router:filter = {
 network:y = { ip = 10.8.3.0/24; }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Useless nat:C at any:[network:x],
  it is already inherited from area:x
 Warning: Useless nat:C at network:x,
@@ -529,7 +575,7 @@ test_err($title, $in, $out);
 $title = 'Interface with dynamic NAT as destination';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:a = { ip = 10.1.1.0/24;}
 
 router:r1 = {
@@ -552,7 +598,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: interface:r2.b needs static translation for nat:b to be valid in rule
  permit src=network:a; dst=interface:r2.b; prt=reversed:TCP_ANY; stateless
 END
@@ -563,7 +609,7 @@ test_err($title, $in, $out);
 $title = 'Grouped NAT tags must only be used grouped';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:n1 = { 
  ip = 10.1.1.0/24; 
  nat:t1 = { ip = 10.9.1.0/24; }
@@ -592,7 +638,7 @@ router:r2 =  {
 network:k = { ip = 10.2.2.0/24; }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: If multiple NAT tags are used at one network,
  these NAT tags must be used equally grouped at other networks:
  - network:n2: t2
@@ -607,7 +653,7 @@ $title = 'Grouped NAT tags with single hidden allowed';
 
 $in =~ s/ip = 10.9.[89].0\/24/hidden/g;
 
-$out = <<END;
+$out = <<'END';
 END
 
 test_err($title, $in, $out);
@@ -616,7 +662,7 @@ test_err($title, $in, $out);
 $title = 'Prevent NAT from hidden back to IP';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U1 = {
  ip = 10.1.1.0/24;
  nat:t1 = { hidden; }
@@ -639,7 +685,7 @@ router:R2 = {
 network:K = { ip = 10.2.2.0/24; }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Must not change hidden NAT for nat:t1(network:U1)
  using NAT tag 't2' at router:R2
 END
@@ -650,7 +696,7 @@ test_err($title, $in, $out);
 $title = 'Traverse hidden NAT domain in loop';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:i1 = {
  ip = 10.1.1.0/24;
  nat:i1 = { ip=10.9.9.0/24; }
@@ -697,7 +743,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Must not apply reversed hidden NAT 'h' at interface:r3.k
  for
  permit src=network:i1; dst=network:sh; prt=tcp 80; of service:test
@@ -711,7 +757,7 @@ test_err($title, $in, $out);
 $title = 'Inconsistent NAT in loop';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:a = {ip = 10.1.13.0/24; nat:h = { hidden; }}
 
 router:r1 = {
@@ -731,7 +777,7 @@ router:r2 = {
 network:b = {ip = 10.156.5.160/28;}
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Inconsistent NAT in loop at router:r1:
  nat:h vs. nat:(none)
 Error: network:a is translated by h,
@@ -746,7 +792,7 @@ test_err($title, $in, $out);
 $title = 'NAT tag at wrong interface in loop';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:i1 = {
  ip = 10.1.1.0/24;
  nat:h = { hidden; }
@@ -785,7 +831,7 @@ router:r4 = {
 network:i2 = { ip = 10.1.1.0/24; nat:i2 = { hidden; } }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: network:i1 is translated by i1,
  but is located inside the translation domain of i1.
  Probably i1 was bound to wrong interface at router:r1.

@@ -13,7 +13,7 @@ my ($title, $in, $out);
 $title = 'Path between virtual interfaces';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:a = { ip = 10.1.1.0/24;}
 
 router:r1 = {
@@ -39,7 +39,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r1
 ip access-list extended e0_in
  permit tcp host 10.1.1.84 host 10.1.1.83 eq 22
@@ -64,7 +64,7 @@ test_run($title, $in, $out);
 $title = 'Multiple virtual interface pairs with interface as destination';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:a = { ip = 10.1.1.0/24;}
 
 router:r1 = {
@@ -98,7 +98,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r1
 ip access-list extended e0_in
  permit tcp 10.1.1.0 0.0.0.255 host 10.2.2.83 eq 22
@@ -132,7 +132,7 @@ test_run($title, $in, $out);
 $title = 'Implicit pathrestriction with 3 virtual interfaces';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:a = { ip = 10.1.1.0/24;}
 network:x = { ip = 10.3.3.0/24;}
 
@@ -166,7 +166,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r1
 ip access-list extended E1_in
  deny ip any host 10.3.3.1
@@ -189,7 +189,7 @@ test_run($title, $in, $out);
 $title = 'Extra pathrestriction at 2 virtual interface';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:u = { ip = 10.9.9.0/24; }
 
 router:g = {
@@ -225,7 +225,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --g
 ip route 10.2.2.0 255.255.255.0 10.1.1.2
 --r1
@@ -287,7 +287,7 @@ test_err($title, $in, $out);
 $title = 'Non matching virtual interface groups with interconnect';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 
 router:g = {
  managed;
@@ -338,7 +338,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: network:b1 is reached via interface:r1.a.virtual
  but not via all related redundancy interfaces
 END
@@ -351,7 +351,7 @@ $title = 'Non matching virtual interface groups';
 
 $in =~ s/(hardware = t1;)/$1 disabled;/g;
 
-$out = <<END;
+$out = <<'END';
 Error: Virtual interfaces
  interface:r1.a.virtual, interface:r2.a.virtual, interface:r3.a.virtual, interface:r4.a.virtual
  must all be part of the same cyclic sub-graph
@@ -367,15 +367,15 @@ $title = 'Follow implicit pathrestriction at unmanaged virtual interface';
 # - Crosslink-Interface zu unmanaged Gerät
 # - mit virtueller IP auch an dem unmanged Gerät
 
-$in = <<END;
+$in = <<'END';
 network:M = { ip = 10.1.0.0/24;}
 
 router:F = {
  managed;
  model = ASA;
  interface:M = {ip = 10.1.0.1; hardware = inside;}
- interface:A = {ip = 10.2.1.129; hardware = o1; routing = manual;}
- interface:B = {ip = 10.2.1.18; hardware = o2; routing = manual;}
+ interface:A = {ip = 10.2.1.129; hardware = o1; routing = dynamic;}
+ interface:B = {ip = 10.2.1.18; hardware = o2; routing = dynamic;}
 }
 
 network:A = {ip = 10.2.1.128/30;}
@@ -391,7 +391,8 @@ network:B = {ip = 10.2.1.16/30;}
 router:L = {
  managed;
  model = IOS;
- interface:B = {ip = 10.2.1.17; hardware = Ethernet1; no_in_acl; routing = manual;}
+ interface:B = {ip = 10.2.1.17; hardware = Ethernet1; 
+                no_in_acl; routing = dynamic;}
  interface:c  = {ip = 10.2.6.165; hardware = Ethernet2;}
  interface:K = {ip = 10.9.32.2; virtual = {ip = 10.9.32.1;} 
                 hardware = Ethernet0;}
@@ -408,7 +409,7 @@ service:x = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --L
 ip access-list extended Ethernet2_in
  permit icmp 10.1.0.0 0.0.0.255 host 10.9.32.1 17

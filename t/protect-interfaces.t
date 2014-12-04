@@ -12,7 +12,7 @@ my ($title, $topo, $in, $out);
 $title = "Protect interface if network behind is accessed";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
  managed; 
@@ -28,7 +28,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R
 ip access-list extended e0_in
  deny ip any host 10.2.2.1
@@ -46,7 +46,7 @@ test_run($title, $in, $out);
 $title = "Disable protection with attribute 'no_protect_self'";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
  managed; 
@@ -63,7 +63,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R
 ip access-list extended e0_in
  permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
@@ -80,7 +80,7 @@ test_run($title, $in, $out);
 $title = "Protect all interfaces";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
  managed; 
@@ -96,7 +96,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R
 ip access-list extended e0_in
  deny ip any host 10.1.1.1
@@ -111,7 +111,7 @@ test_run($title, $in, $out);
 $title = "Protect interfaces matching object group";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
  managed; 
@@ -134,7 +134,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R
 object-group ip address g0
  10 10.2.2.0/24
@@ -157,7 +157,7 @@ test_run($title, $in, $out);
 $title = "Protect interfaces matching aggregate";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
  managed; 
@@ -173,7 +173,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R
 ip access-list extended e0_in
  deny ip any host 10.2.2.1
@@ -187,7 +187,7 @@ test_run($title, $in, $out);
 $title = "Skip protection if permit any to interface";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
  managed; 
@@ -208,7 +208,7 @@ service:any = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R
 ip access-list extended e0_in
  permit ip any host 10.2.2.1
@@ -222,7 +222,7 @@ test_run($title, $in, $out);
 $title = "Skip protection of loopback interface";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 
 router:r = {
@@ -242,7 +242,7 @@ service:any = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r
 ip access-list extended n1_in
  permit ip any any
@@ -254,7 +254,7 @@ test_run($title, $in, $out);
 $title = "VIP doesn't need protection";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
  managed; 
@@ -271,7 +271,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R
 access-list e0_in extended deny ip any host 10.1.1.1
 access-list e0_in extended deny ip any host 10.2.2.1
@@ -285,7 +285,7 @@ test_run($title, $in, $out);
 $title = "Protect interfaces of crosslink cluster";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R1 = {
  managed; 
@@ -310,7 +310,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R1
 ip access-list extended e0_in
  deny ip any host 10.1.1.1
@@ -327,7 +327,7 @@ test_run($title, $in, $out);
 $title = "Protect interfaces of mixed crosslink cluster";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R1 = {
  managed; 
@@ -354,7 +354,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R1
 access-list e0_in extended deny ip any host 10.9.9.2
 access-list e0_in extended deny ip any host 10.2.2.1
@@ -371,7 +371,7 @@ test_run($title, $in, $out);
 $title = "Protect NAT interface";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
  managed; 
@@ -387,7 +387,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --R
 ip access-list extended e0_in
  deny ip any host 10.9.9.1

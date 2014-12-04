@@ -45,7 +45,7 @@ service:test2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r
 ip access-list extended e0_in
  deny ip any host 10.2.2.2
@@ -71,7 +71,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r
 ip access-list extended e0_in
  deny ip any host 10.2.2.2
@@ -98,7 +98,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r
 ip access-list extended e0_in
  deny ip any host 10.2.2.2
@@ -125,7 +125,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r
 ip access-list extended e0_in
  deny ip any host 10.2.2.2

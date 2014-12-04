@@ -12,7 +12,7 @@ my ($title, $in, $out);
 $title = 'Only one generic aggregate in zone cluster';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test =  { ip = 10.9.1.0/24; }
 router:filter1 = {
  managed;
@@ -42,7 +42,7 @@ any:Trans1 = { link = network:Trans1; }
 any:Trans2 = { link = network:Trans2; }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Duplicate any:Trans1 and any:Trans2 in any:[network:Trans2]
 END
 
@@ -52,7 +52,7 @@ test_err($title, $in, $out);
 $title = 'Inherit owner from all zones of zone cluster';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:Test =  { ip = 10.9.1.0/24; }
 
 router:filter1 = {
@@ -84,7 +84,7 @@ owner:t1 = { admins = guest; }
 any:Trans1 = { link = network:Trans1; owner = t1; }
 END
 
-$out = <<END;
+$out = <<'END';
 Warning: Useless owner:t1 at network:Trans2,
  it was already inherited from any:[network:Trans2]
 END
@@ -95,7 +95,7 @@ test_err($title, $in, $out);
 $title = 'Duplicate IP from NAT in zone';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 network:B = { ip = 10.3.3.128/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 
@@ -115,8 +115,8 @@ router:filter1 = {
 }
 END
 
-$out = <<END;
-Error: network:B and network:A have identical IP/mask inside any:[network:Trans]
+$out = <<'END';
+Error: network:B and network:A have identical IP/mask at interface:filter1.Trans
 END
 
 test_err($title, $in, $out);
@@ -125,7 +125,7 @@ test_err($title, $in, $out);
 $title = 'Ambiguous subnet relation from NAT in zone';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 router:filter1 = {
  managed;
  model = ASA;
@@ -155,19 +155,102 @@ router:filter2 = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Ambiguous subnet relation from NAT.
- network:B is subnet of network:Trans and network:A
+ network:B is subnet of
+ - network:A at interface:filter1.B
+ - network:Trans at interface:filter2.Trans
 END
 
 test_err($title, $in, $out);
 
-$in =~ s|\Qnat:C = { ip = 10.1.1.8/29; }\E|nat:C = { ip = 10.2.2.8/29; }|;
+$in =~ s|nat:C.*|nat:C = { ip = 10.2.2.8/29; }|;
 
-$out = <<END;
+$out = <<'END';
 Error: Ambiguous subnet relation from NAT.
- network:B is subnet of network:A,
- but has no subnet relation in other NAT domain.
+ network:B is subnet of
+ - network:A at interface:filter1.B
+ - but has no subnet relation at interface:filter2.Trans
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Subnet relation with hidden subnet';
+############################################################
+
+$in =~ s|nat:C.*|nat:C = { hidden; }|;
+
+$out = <<'END';
+Error: Ambiguous subnet relation from NAT.
+ network:B is subnet of
+ - network:A at interface:filter1.B
+ - but has no subnet relation at interface:filter2.Trans
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Mutual subnet relation from NAT in zone';
+############################################################
+
+$in = <<'END';
+router:filter1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:B = { ip = 10.3.3.10; hardware = VLAN1; }
+}
+
+network:A = { ip = 10.3.3.0/24; 
+ has_subnets;
+ nat:C = { ip = 10.3.3.12/30; dynamic; } 
+}
+network:B = {
+    has_subnets;
+ ip = 10.3.3.8/29; 
+}
+
+router:ras = {
+ interface:A = { ip = 10.3.3.1; }
+ interface:B = { ip = 10.3.3.9; }
+ interface:Trans = { ip = 10.1.1.2; bind_nat = C; }
+}
+
+network:Trans = { ip = 10.1.1.0/24; has_subnets; }
+
+router:filter2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; }
+}
+END
+
+$out = <<'END';
+Error: Ambiguous subnet relation from NAT.
+ network:A is subnet of
+ - network:B at interface:filter2.Trans
+ - but has no subnet relation at interface:filter1.B
+Error: Ambiguous subnet relation from NAT.
+ network:B is subnet of
+ - network:A at interface:filter1.B
+ - but has no subnet relation at interface:filter2.Trans
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Subnet relation with hidden supernet';
+############################################################
+
+$in =~ s|nat:C.*|nat:C = { hidden; }|;
+
+$out = <<'END';
+Error: Ambiguous subnet relation from NAT.
+ network:B is subnet of
+ - network:A at interface:filter1.B
+ - but has no subnet relation at interface:filter2.Trans
 END
 
 test_err($title, $in, $out);
@@ -176,7 +259,7 @@ test_err($title, $in, $out);
 $title = 'No secondary optimization for network with subnet in other zone';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:A = { 
  ip = 10.3.3.0/25;
  host:h = { ip = 10.3.3.5; }
@@ -209,10 +292,120 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --secondary
 ip access-list extended VLAN1_in
  permit ip host 10.3.3.5 10.9.9.0 0.0.0.255
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Skip supernet with subnet in other zone in secondary optimization';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:secondary = {
+ model = IOS, FW;
+ managed = secondary;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1; }
+ interface:t1 = { ip = 10.1.8.1; hardware = t1; }
+}
+network:t1 = { ip = 10.1.8.0/24; }
+
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:t1 = { ip = 10.1.8.2; hardware = t1; }
+ interface:t2 = { ip = 10.1.9.1; hardware = t2; }
+}
+network:t2 = { ip = 10.1.9.0/24;}
+router:trahza01 = {
+ interface:t2;
+ interface:super;
+ interface:sub1;
+}
+# Must not use super as supernet, because it has sub2 as subnet in other zone.
+network:super = {
+ has_subnets;
+ ip = 192.168.0.0/16;
+}
+network:sub1 = { ip = 192.168.1.0/24;}
+# Must not use aggregate as supernet.
+any:a1 = { ip = 192.168.0.0/21; link = network:sub2; }
+
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:t1 = {ip = 10.1.8.3; hardware = t1;}
+ interface:sub2 = { ip = 192.168.8.1; hardware = sub2; }
+}
+network:sub2 = { ip = 192.168.8.0/24; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:sub1; prt = tcp 49;
+}
+END
+
+$out = <<'END';
+--secondary
+ip access-list extended n1_in
+ permit ip 10.1.1.0 0.0.0.255 192.168.1.0 0.0.0.255
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Skip supernet with NAT in secondary optimization';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:secondary = {
+ model = IOS, FW;
+ managed = secondary;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1; bind_nat = nat; }
+ interface:t1 = { ip = 10.1.8.1; hardware = t1; }
+}
+network:t1 = { ip = 10.1.8.0/24; }
+
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:t1 = { ip = 10.1.8.2; hardware = t1; }
+ interface:t2 = { ip = 10.1.9.1; hardware = t2; }
+}
+network:t2 = { ip = 10.1.9.0/24;}
+router:trahza01 = {
+ interface:t2;
+ interface:super;
+ interface:sub1;
+}
+network:super = {
+ has_subnets;
+ ip = 192.168.0.0/16;
+ nat:nat = { ip = 10.255.0.0/16; }
+}
+network:sub1 = { ip = 192.168.1.0/24;}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:sub1; prt = tcp 49;
+}
+END
+
+$out = <<'END';
+--secondary
+ip access-list extended n1_in
+ permit ip 10.1.1.0 0.0.0.255 192.168.1.0 0.0.0.255
  deny ip any any
 END
 

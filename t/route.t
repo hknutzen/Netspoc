@@ -13,7 +13,7 @@ my ($title, $topo, $in, $out);
 $title = 'Missing next hop';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:N = { ip = 10.1.1.0/24; }
 router:u = { 
  interface:N;
@@ -36,7 +36,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: interface:u.Trans must be defined in more detail, since there is
  a managed interface:asa.Trans with static routing enabled.
 END
@@ -47,7 +47,7 @@ test_err($title, $in, $out);
 $title = 'Static route to network in unmanaged loop';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:N = { ip = 10.1.1.0/24; }
 router:u1 = { 
  interface:N;
@@ -81,7 +81,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --asa
 route outside 10.1.1.0 255.255.255.0 10.9.9.2
 END

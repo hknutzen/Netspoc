@@ -12,7 +12,7 @@ my ($title, $in, $out);
 $title = 'Secondary optimization to largest safe network';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:all_10 = { ip = 10.0.0.0/8; has_subnets; }
 network:super = { ip = 10.1.0.0/16; has_subnets; }
 any:10_1_0-1 = { ip = 10.1.0.0/17; link = network:super; }
@@ -55,7 +55,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r2
 ip access-list extended Ethernet5_in
  permit ip 10.1.0.0 0.0.255.255 host 10.0.0.1
@@ -70,7 +70,7 @@ test_run($title, $in, $out);
 $title = 'No optimization if sub-net of sub-net is outside of zone';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:src = { ip = 10.1.1.0/24; }
 
 # src must not be allowed to access subsub.
@@ -113,7 +113,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r1
 ip access-list extended Ethernet1_in
  permit ip 10.1.1.0 0.0.0.255 host 10.9.9.9
@@ -126,7 +126,7 @@ test_run($title, $in, $out);
 $title = "Don't optimize rule if any rule starts behind secondary router";
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 network:n1 = { ip = 10.2.1.0/27; host:h1 = { ip = 10.2.1.4; }}
 
 router:r1 = {
@@ -157,7 +157,7 @@ service:any = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r1
 ! [ ACL ]
 access-list vlan1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.3.0 255.255.255.224 eq 80

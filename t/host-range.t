@@ -12,7 +12,7 @@ my ($title, $in, $out);
 $title = 'Split and combine host ranges';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 
 network:n = {
  ip = 10.1.1.0/24;
@@ -36,7 +36,7 @@ service:test = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 --r
 ip access-list extended ethernet0_in
  deny ip any host 192.168.1.1
@@ -52,7 +52,7 @@ test_run($title, $in, $out);
 $title = 'Duplicate host ranges';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 
 network:n = {
  ip = 10.1.1.0/24;
@@ -62,7 +62,7 @@ network:n = {
 
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Duplicate IP range for host:a and host:b
 END
 
@@ -72,7 +72,7 @@ test_err($title, $in, $out);
 $title = 'Host range and interface IP overlap';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 
 network:n = {
  ip = 10.1.1.0/24;
@@ -84,7 +84,7 @@ router:r = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Duplicate IP address for interface:r.n and host:a
 END
 
@@ -94,7 +94,7 @@ test_err($title, $in, $out);
 $title = 'Duplicate host and interface IP';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 
 network:n = {
  ip = 10.1.1.0/24;
@@ -106,7 +106,7 @@ router:r = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Duplicate IP address for interface:r.n and host:a
 END
 
@@ -116,7 +116,7 @@ test_err($title, $in, $out);
 $title = 'Duplicate host IPs';
 ############################################################
 
-$in = <<END;
+$in = <<'END';
 
 network:n = {
  ip = 10.1.1.0/24;
@@ -125,7 +125,7 @@ network:n = {
 }
 END
 
-$out = <<END;
+$out = <<'END';
 Error: Duplicate IP address for host:a and host:b
 END
 

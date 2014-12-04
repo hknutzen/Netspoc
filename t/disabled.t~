@@ -9,7 +9,7 @@ use Test_Netspoc;
 my ($title, $in, $out, $topo);
 
 ############################################################
-$topo = <<'END';
+$topo = <<END;
 # a3 < a2 < all, a1 < all
 area:all = { 
  anchor = network:n1; 
@@ -45,7 +45,9 @@ END
 $title = 'Policy distribution point from nested areas';
 ############################################################
 
-$in = $topo . <<'END';
+$in = <<END;
+$topo
+
 service:pdp1 = {
  user = interface:[managed & area:all].[auto];
  permit src = host:h1; dst = user; prt = tcp 22;
@@ -56,7 +58,7 @@ service:pdp3 = {
 }
 END
 
-$out = <<'END';
+$out = <<END;
 --asa1
 ! [ IP = 10.1.1.1 ]
 --asa2
@@ -69,11 +71,12 @@ test_run($title, $in, $out);
 $title = 'Overlapping areas';
 ############################################################
 
-$in = $topo . <<'END';
+$in = <<END;
+$topo
 area:a2x = { border = interface:asa2.n2; }
 END
 
-$out = <<'END';
+$out = <<END;
 Error: Overlapping area:a2 and area:a2x
 END
 
@@ -83,11 +86,12 @@ test_err($title, $in, $out);
 $title = 'Duplicate areas';
 ############################################################
 
-$in = $topo . <<'END';
+$in = <<END;
+$topo
 area:a2x = { border = interface:asa1.n2; }
 END
 
-$out = <<'END';
+$out = <<END;
 Error: Duplicate area:a2 and area:a2x
 END
 
@@ -96,7 +100,7 @@ test_err($title, $in, $out);
 ############################################################
 # Changed $topo
 ############################################################
-$topo = <<'END';
+$topo = <<END;
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
@@ -127,7 +131,9 @@ END
 $title = 'inclusive_border at areas without subset relation';
 ############################################################
 
-$in = $topo . <<'END';
+$in = <<END;
+$topo
+
 area:a1 = { 
  inclusive_border = interface:asa1.n1;
 }
@@ -136,7 +142,7 @@ area:a2 = {
 }
 END
 
-$out = <<'END';
+$out = <<END;
 Error: area:a2 and area:a1 must be in subset relation,
  because both have router:asa1 as 'inclusive_border'
 END
@@ -147,7 +153,9 @@ test_err($title, $in, $out);
 $title = 'Missing inclusive_border at areas in subset relation';
 ############################################################
 
-$in = $topo . <<'END';
+$in = <<END;
+$topo
+
 area:a1 = {
  inclusive_border = interface:asa1.n1, interface:asa2.n5;
 }
@@ -170,13 +178,15 @@ test_err($title, $in, $out);
 $title = 'Empty area';
 ############################################################
 
-$in = $topo . <<'END';
+$in = <<END;
+$topo
+
 area:a1 = { 
  inclusive_border = interface:asa1.n1, interface:asa1.n2, interface:asa1.n3;
 }
 END
 
-$out = <<'END';
+$out = <<END;
 Error: area:a1 is empty
 END
 
@@ -186,7 +196,10 @@ test_err($title, $in, $out);
 $title = 'Inconsistent definition of area in loop';
 ############################################################
 
-$in = $topo . <<'END';
+$in = <<END;
+$topo
+
+
 area:a1 = { 
  border = interface:asa2.n2;
  inclusive_border = interface:asa1.n2;
@@ -196,7 +209,7 @@ area:a2 = {
 }
 END
 
-$out = <<'END';
+$out = <<END;
 Error: Inconsistent definition of area:a1 in loop at
  interface:asa1.n2. It must not be reached from any:[network:n2]
 Error: Inconsistent definition of area:a2 in loop at
@@ -211,7 +224,9 @@ $title = 'ACL from inclusive area';
 
 # border and inclusive_border can contact at an interface.
 
-$in = $topo . <<'END';
+$in = <<END;
+$topo
+
 area:a1 = { 
  inclusive_border = interface:asa1.n2, interface:asa1.n3;
 }
@@ -226,7 +241,7 @@ service:t = {
 }
 END
 
-$out = <<'END';
+$out = <<END;
 -- asa1
 object-group network g0
  network-object 10.1.2.0 255.255.255.0
@@ -247,14 +262,16 @@ test_run($title, $in, $out);
 $title = 'Router attributes from inclusive area';
 ############################################################
 
-$in = $topo . <<'END';
+$in = <<END;
+$topo
+
 area:a1 = { 
  inclusive_border = interface:asa1.n2, interface:asa1.n3;
  router_attributes = { general_permit = icmp; }
 }
 END
 
-$out = <<'END';
+$out = <<END;
 -- asa1
 access-list vlan1_in extended permit icmp any any
 access-list vlan1_in extended deny ip any any

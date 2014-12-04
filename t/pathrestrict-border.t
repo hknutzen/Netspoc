@@ -14,19 +14,17 @@ network:Test =  { ip = 10.9.1.0/24; }
 router:filter = {
  managed;
  model = IOS_FW;
+ routing = manual;
  interface:Test = {
   ip = 10.9.1.1;
-  routing = manual;
   hardware = Vlan20;
  }
  interface:Trans = { 
   ip = 10.5.6.69; 
   hardware = GigabitEthernet0/1; 
-  routing = manual;
  }
  interface:GRE = {
   ip = 10.5.6.81; 
-  routing = manual;
   hardware = Tunnel1;
  } 
 }
@@ -52,9 +50,7 @@ $title = 'Pathrestriction at border of loop (at router)';
 # Soll an router:filter für Interfaces GRE und Trans unterschiedliche 
 # ACLs generieren.
 
-$in = <<"END";
-$topo
-
+$in = $topo . <<'END';
 pathrestriction:restrict = 
  description = Nur network:X über GRE-Tunnel.
  interface:filter.GRE,
@@ -94,9 +90,7 @@ $title = 'Pathrestriction at border of loop (at router / at dst.)';
 # Soll Ausgang der Loop als Router erkennen, obwohl intern 
 # ein Interface verwendet wird.
 
-$in = <<"END";
-$topo
-
+$in = $topo . <<'END';
 pathrestriction:restrict = 
  interface:filter.Test,
  interface:filter.Trans,
@@ -138,15 +132,14 @@ network:Test =  { ip = 10.9.1.0/24; }
 router:filter1 = {
  managed;
  model = PIX;
+ routing = manual;
  interface:Test = {
   ip = 10.9.1.1;
-  routing = manual;
   hardware = Vlan20;
  }
  interface:Trans = { 
   ip = 10.5.6.1; 
   hardware = GigabitEthernet0/1; 
-  routing = manual;
  }
 }
 router:filter2 = {
@@ -154,13 +147,11 @@ router:filter2 = {
  model = IOS_FW;
  interface:Test = {
   ip = 10.9.1.2;
-  routing = manual;
   hardware = Vlan20;
  }
  interface:Trans = { 
   ip = 10.5.6.2; 
   hardware = GigabitEthernet0/1; 
-  routing = manual;
  }
 }
 network:Trans = { ip = 10.5.6.0/24; }
@@ -220,16 +211,16 @@ router:c1 = {
  managed;
  model = IOS;
  interface:top = { ip = 10.1.1.1; hardware = Vlan13; }
- interface:lft = { ip = 10.3.1.245; hardware = Ethernet1; routing = manual; }
- interface:cnt = { ip = 10.3.1.241; hardware = Ethernet2; routing = manual; }
+ interface:lft = { ip = 10.3.1.245; hardware = Ethernet1; routing = dynamic; }
+ interface:cnt = { ip = 10.3.1.241; hardware = Ethernet2; routing = dynamic; }
  interface:mng = { ip = 10.3.1.249; hardware = Ethernet3; }
 }
 router:c2 = {
  managed;
  model = IOS;
  interface:top = { ip = 10.1.1.2; hardware = Vlan14; }
- interface:rgt = { ip = 10.3.1.129; hardware = Ethernet4; routing = manual; }
- interface:cnt = { ip = 10.3.1.242; hardware = Ethernet5; routing = manual; }
+ interface:rgt = { ip = 10.3.1.129; hardware = Ethernet4; routing = dynamic; }
+ interface:cnt = { ip = 10.3.1.242; hardware = Ethernet5; routing = dynamic; }
 }
 network:mng = { ip = 10.3.1.248/30;}
 network:lft = { ip = 10.3.1.244/30;}
@@ -285,14 +276,16 @@ network:Test =  { ip = 10.9.1.0/24; }
 router:filter1 = {
  managed;
  model = ASA;
- interface:Test = { ip = 10.9.1.1; routing = manual; hardware = Vlan20; }
- interface:Trans1 = { ip = 10.5.6.1; hardware = VLAN1; routing = manual; }
+ routing = manual;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan20; }
+ interface:Trans1 = { ip = 10.5.6.1; hardware = VLAN1; }
 }
 router:filter2 = {
  managed;
  model = ASA;
- interface:Test = { ip = 10.9.1.2; routing = manual; hardware = Vlan20; }
- interface:Trans2 = { ip = 10.5.7.1; hardware = VLAN1; routing = manual; }
+ routing = manual;
+ interface:Test = { ip = 10.9.1.2; hardware = Vlan20; }
+ interface:Trans2 = { ip = 10.5.7.1; hardware = VLAN1; }
 }
 network:Trans1 = { ip = 10.5.6.0/24; }
 network:Trans2 = { ip = 10.5.7.0/24; }

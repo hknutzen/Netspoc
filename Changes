@@ -1,3 +1,15 @@
+3.059     2014-12-04 15:55:12+01:00 Europe/Berlin
+
+ - New syntax: Element of attribute 'watchers' of owner A is allowed
+   to reference some other owner B. In this case all admins and
+   watchers of B are added to watchers of A.
+ - Fixed two bugs in secondary optimization, 
+   where different NAT is applied to network and supernet.
+ - Added more consistency checks for networks having NAT 
+   and that are in subnet relation
+ - Changed default for option --check_routing_manual from 0 to 1.
+ - Enhanced program 'cut-netspoc'.
+
 3.058     2014-11-05 15:01:23 Europe/Berlin
 
  - Added new attribute 'routing=dynamic'.
