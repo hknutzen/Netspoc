@@ -18393,6 +18393,8 @@ sub print_code {
         # but check again for the case of a weird locale setting.
         $file =~ /^(.*)/;
         $file = "$dir/$1";
+
+        ## no critic (RequireBriefOpen)
         open(my $code_fd, '>', $file)
             or fatal_err("Can't open $file for writing: $!");
         select $code_fd;
@@ -18427,7 +18429,9 @@ sub print_code {
 
         print "$comment_char [ END $device_name ]\n\n";
         select STDOUT;
-        close $code_fd or fatal_err("Can't close $dir/$device_name: $!");
+        close $code_fd or fatal_err("Can't close $file: $!");
+        ## use critic
+
     }
     return;
 }
