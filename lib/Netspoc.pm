@@ -18610,6 +18610,7 @@ sub init_protocols {
         dst       => $network_00,
         prt       => $prt_ip
     };
+    return;
 }
 
 sub init_global_vars {
@@ -18640,6 +18641,7 @@ sub init_global_vars {
     %supernet_rule_tree = %missing_supernet = ();
     %smaller_prt = ();
     init_protocols();
+    return;
 }
 
 # Call once when module is loaded.
