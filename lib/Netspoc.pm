@@ -3961,8 +3961,15 @@ sub link_to_real_owner {
 sub expand_watchers {
     my ($owner) = @_;
     my $names = $owner->{watchers};
+
+    # No wathers given.
     if (!$names) {
         return $owner->{admins};
+    }
+
+    # Owners, referenced in $names have already been resolved.
+    if ($owner->{is_used}) {
+        return [ @{ $owner->{admins} }, @$names ];
     }
     if ($names eq 'recursive') {
         err_msg("Found recursive definition of watchers in $owner->{name}");
@@ -3985,6 +3992,9 @@ sub expand_watchers {
         }
     }
     $owner->{watchers} = \@expanded;
+
+    # Mark: no need to expand again and for cut-netspoc.
+    $owner->{is_used} = 1;
     return [ @{ $owner->{admins} }, @expanded ];
 }
 
