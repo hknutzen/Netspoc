@@ -14613,6 +14613,8 @@ sub set_policy_distribution_ip  {
     my %admin_prt;
     @admin_prt{@prt_list} = @prt_list;
 
+    # Mapping from policy distribution host to subnets, networks and
+    # aggregate that include this host.
     my %host2pdp_src;
     my $get_pdp_src = sub {
         my ($host) = @_;
