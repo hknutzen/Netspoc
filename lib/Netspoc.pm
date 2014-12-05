@@ -6904,9 +6904,138 @@ sub expand_services {
          scalar grep { !$_->{deleted} } @$expanded_rules_aref);
     show_deleted_rules1();
 
+    # Find management IP of device after %rule_tree has been set up.
+    set_policy_distribution_ip();
+
     # Set attribute {is_supernet} before calling split_expanded_rule_types.
     find_subnets_in_nat_domain();
     split_expanded_rule_types($expanded_rules_aref);
+    return;
+}
+
+# For each device, find the IP address which is used
+# to manage the device from a central policy distribution point.
+# This address is added as a comment line to each generated code file.
+# This is to used later when approving the generated code file.
+sub set_policy_distribution_ip  {
+    progress('Setting policy distribution IP');
+
+    # Find all TCP ranges which include port 22 and 23.
+    my @admin_tcp_keys = grep({
+            my ($s1, $s2, $p1, $p2) = split(':', $_);
+              $p1 <= 22 && 22 <= $p2 || $p1 <= 23 && 23 <= $p2;
+        }
+        keys %{ $prt_hash{tcp} });
+    my @prt_list = map({ my $l = $_->{splitted_prt_list}; $l ? @$l : ($_) } 
+                       @{ $prt_hash{tcp} }{@admin_tcp_keys});
+    push @prt_list, $prt_ip;
+    my %admin_prt;
+    @admin_prt{@prt_list} = @prt_list;
+
+    # Mapping from policy distribution host to subnets, networks and
+    # aggregates that include this host.
+    my %host2pdp_src;
+    my $get_pdp_src = sub {
+        my ($host) = @_;
+        my $pdp_src;
+        if ($pdp_src = $host2pdp_src{$host}) {
+            return $pdp_src;
+        }
+        for my $pdp (map { $_ } @{ $host->{subnets} }) {
+            while ($pdp) {
+                push @$pdp_src, $pdp;
+                $pdp = $pdp->{up};
+            }
+        }
+        return $host2pdp_src{$host} = $pdp_src;
+    };
+    for my $router (@managed_routers) {
+        my $pdp = $router->{policy_distribution_point} ||= $policy_distribution_point;
+        next if !$pdp;
+        
+        my %found_interfaces;
+        my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
+        my $pdp_src = $get_pdp_src->($pdp);
+        for my $src (@$pdp_src) {
+            my $sub_rule_tree = $rule_tree{0}->{permit}->{$src} or next;
+
+            # Find interfaces where some rule permits management traffic.
+            for my $interface (@{ $router->{interfaces} }) {
+
+                # Loadbalancer VIP can't be used to access device.
+                next if $interface->{vip};
+
+                for my $prt (@prt_list) {
+                    $sub_rule_tree->{$interface}->{$prt} or next;
+                    $found_interfaces{$interface} = $interface;
+                }
+            }
+        }
+        my @result;
+
+        # Ready, if exactly one management interface was found.
+        if (keys %found_interfaces == 1) {
+            @result = values %found_interfaces;
+        }
+        else {
+
+#           debug("$router->{name}: ", scalar keys %found_interfaces);
+            my @front = path_auto_interfaces($router, $pdp);
+
+            # If multiple management interfaces were found, take that which is
+            # directed to policy_distribution_point.
+            for my $front (@front) {
+                if ($found_interfaces{$front}) {
+                    push @result, $front;
+                }
+            }
+
+            # Take all management interfaces.
+            # Preserve original order of router interfaces.
+            if (! @result) {
+                @result = grep { $found_interfaces{$_} } @{ $router->{interfaces} };
+            }
+
+            # Don't set {admin_ip} if no address is found.
+            # Warning is printed below.
+            next if not @result;
+        }
+
+        # Prefer loopback interface if available.
+        $router->{admin_ip} = [
+            map { print_ip((address($_, $no_nat_set))->[0]) }
+            sort { ($b->{loopback} || '') cmp($a->{loopback} || '') } @result
+        ];
+    }
+    my %seen;
+    for my $router (@managed_routers) {
+        next if $seen{$router};
+        next if !$router->{policy_distribution_point};
+
+        my $unreachable;
+        if (my $vrf_members = $router->{vrf_members}) {
+            grep { $_->{admin_ip} } @$vrf_members
+              or $unreachable = "at least one VRF of $router->{device_name}";
+
+            # Print VRF instance with known admin_ip first.
+            $router->{vrf_members} = [
+                sort {
+                    !$a->{admin_ip} <=> !$b->{admin_ip}
+                    || $a->{name} cmp $b->{name}
+                  } @$vrf_members
+            ];
+            $seen{$_} = 1 for @$vrf_members;
+        }
+        else {
+            $router->{admin_ip} or $unreachable = $router->{name};
+            $seen{$router} = 1;
+        }
+        $unreachable
+          and warn_msg (
+            "Missing rule to reach $unreachable",
+            " from policy_distribution_point"
+          );
+    }
     return;
 }
 
@@ -14594,140 +14723,6 @@ sub distribute_rule {
     return;
 }
 
-# For each device, find the IP address which is used
-# to manage the device from a central policy distribution point.
-# This address is added as a comment line to each generated code file.
-# This is to used later when approving the generated code file.
-sub set_policy_distribution_ip  {
-    progress('Setting policy distribution IP');
-
-    # Find all TCP ranges which include port 22 and 23.
-    my @admin_tcp_keys = grep({
-            my ($s1, $s2, $p1, $p2) = split(':', $_);
-              $p1 <= 22 && 22 <= $p2 || $p1 <= 23 && 23 <= $p2;
-        }
-        keys %{ $prt_hash{tcp} });
-    my @prt_list = map({ my $l = $_->{splitted_prt_list}; $l ? @$l : ($_) } 
-                       @{ $prt_hash{tcp} }{@admin_tcp_keys});
-    push @prt_list, $prt_ip;
-    my %admin_prt;
-    @admin_prt{@prt_list} = @prt_list;
-
-    # Mapping from policy distribution host to subnets, networks and
-    # aggregate that include this host.
-    my %host2pdp_src;
-    my $get_pdp_src = sub {
-        my ($host) = @_;
-        my $pdp_src;
-        if ($pdp_src = $host2pdp_src{$host}) {
-            return $pdp_src;
-        }
-        for my $pdp (map { $_ } @{ $host->{subnets} }) {
-            while ($pdp) {
-                $pdp_src->{$pdp} = $pdp;
-                $pdp = $pdp->{up};
-            }
-        }
-        return $host2pdp_src{$host} = $pdp_src;
-    };
-    for my $router (@managed_routers) {
-        my $pdp = $router->{policy_distribution_point} ||= $policy_distribution_point;
-        next if !$pdp;
-        
-        my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
-        my $pdp_src = $get_pdp_src->($pdp);
-        my %interfaces;
-
-        # Find interfaces where some rule permits management traffic.
-        for my $intf (@{ $router->{hardware} },
-            grep { $_->{ip} eq 'tunnel' } @{ $router->{interfaces} })
-        {
-            next if not $intf->{intf_rules};
-            for my $rule (@{ $intf->{intf_rules} }) {
-                my ($action, $src, $dst, $prt) =
-                  @{$rule}{qw(action src dst prt)};
-                next if $action eq 'deny';
-                next if not $pdp_src->{$src};
-                next if not $admin_prt{$prt};
-                next if not is_interface($dst);
-
-                # Filter out traffic to other devices of crosslink cluster.
-                next if not $dst->{router} eq $router;
-
-                # Loadbalancer VIP can't be used to access device.
-                next if $dst->{vip};
-                $interfaces{$dst} = $dst;
-            }
-        }
-        my @result;
-
-        # Ready, if exactly one management interface was found.
-        if (keys %interfaces == 1) {
-            @result = values %interfaces;
-        }
-        else {
-
-#           debug("$router->{name}: ", scalar keys %interfaces);
-            my @front =
-              path_auto_interfaces($router, $pdp);
-
-            # If multiple management interfaces were found, take that which is
-            # directed to policy_distribution_point.
-            for my $front (@front) {
-                if ($interfaces{$front}) {
-                    push @result, $front;
-                }
-            }
-
-            # Take all management interfaces.
-            # Preserve original order of router interfaces.
-            if (! @result) {
-                @result = grep { $interfaces{$_} } @{ $router->{interfaces} };
-            }
-
-            # Don't set {admin_ip} if no address is found.
-            # Warning is printed below.
-            next if not @result;
-        }
-
-        # Prefer loopback interface if available.
-        $router->{admin_ip} = [
-            map { print_ip((address($_, $no_nat_set))->[0]) }
-            sort { ($b->{loopback} || '') cmp($a->{loopback} || '') } @result
-        ];
-    }
-    my %seen;
-    for my $router (@managed_routers) {
-        next if $seen{$router};
-        next if !$router->{policy_distribution_point};
-
-        my $unreachable;
-        if (my $vrf_members = $router->{vrf_members}) {
-            grep { $_->{admin_ip} } @$vrf_members
-              or $unreachable = "at least one VRF of $router->{device_name}";
-
-            # Print VRF instance with known admin_ip first.
-            $router->{vrf_members} = [
-                sort {
-                    !$a->{admin_ip} <=> !$b->{admin_ip}
-                    || $a->{name} cmp $b->{name}
-                  } @$vrf_members
-            ];
-            $seen{$_} = 1 for @$vrf_members;
-        }
-        else {
-            $router->{admin_ip} or $unreachable = $router->{name};
-            $seen{$router} = 1;
-        }
-        $unreachable
-          and warn_msg (
-            "Missing rule to reach $unreachable",
-            " from policy_distribution_point"
-          );
-    }
-    return;
-}
-
 my $permit_any_rule;
 
 sub add_router_acls  {
@@ -15023,9 +15018,6 @@ sub rules_distribution {
         path_walk($rule, \&distribute_rule, 'Router');
     }
 
-    # Find management IP of device before ACL lines are cleared for
-    # crosslink interfaces during add_router_acls.
-    set_policy_distribution_ip();
     add_router_acls();
     prepare_local_optimization();
 
