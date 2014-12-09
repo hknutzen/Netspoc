@@ -1197,15 +1197,15 @@ sub check_managed {
     }
     elsif (check '=') {
         my $value = read_identifier;
-        if ($value =~ 
-            /^(?:secondary|standard|full|primary|local|local_secondary)$/) 
+        if ($value =~ /^(?:secondary|standard|full|primary|
+                           local|local_secondary|routing_only)$/x) 
         {
             $managed = $value;
         }
         else {
             error_atline("Expected value:",
                          " secondary|standard|full|primary",
-                         "|local|local_secondary");
+                         "|local|local_secondary|routing_only");
         }
         check ';';
     }
@@ -2107,7 +2107,6 @@ sub read_router {
         }
     }
 
-    # Detailed interface processing for managed routers.
     if (my $managed = $router->{managed}) {
         my $model = $router->{model};
         my $all_routing = $router->{routing};
@@ -2119,35 +2118,17 @@ sub read_router {
             $router->{model} = { name => 'unknown' };
         }
 
-        if ($managed =~ /^local/) {
-            $router->{filter_only} or
-                err_msg("Missing attribut 'filter_only' for $name");
-            $model->{has_io_acl} and
-                err_msg("Must not use 'managed = $managed' at $name",
-                        " of model $model->{name}");
+        # Router is semi_managed if only routes are generated.
+        if ($managed eq 'routing_only') {
+            $router->{semi_managed} = 1;
+            $router->{routing_only} = 1;
+            delete $router->{managed};
         }
+
         $router->{vrf}
           and not $model->{can_vrf}
           and err_msg("Must not use VRF at $name",
             " of model $model->{name}");
-
-        $router->{log_deny}
-          and not $model->{can_log_deny}
-          and err_msg("Must not use attribute 'log_deny' at $name",
-            " of model $model->{name}");
-
-        $router->{no_protect_self}
-          and not $model->{need_protect}
-          and err_msg("Must not use attribute 'no_protect_self' at $name",
-            " of model $model->{name}");
-        if ($model->{need_protect}) {
-            $router->{need_protect} = !delete $router->{no_protect_self};
-        }
-
-        $router->{strict_secondary}
-          and $managed !~ /secondary$/
-          and err_msg("Must not use attribute 'strict_secondary' at $name.\n",
-                      " Only valid with 'managed = secondary|local_secondary'");
 
         # Create objects representing hardware interfaces.
         # All logical interfaces using the same hardware are linked
@@ -2244,6 +2225,37 @@ sub read_router {
                     error_atline("Routing $rname not supported",
                                  " for unnumbered interface");
             }
+        }
+    }
+    if (my $managed = $router->{managed}) {
+        my $model = $router->{model};
+        if ($managed =~ /^local/) {
+            $router->{filter_only} or
+                err_msg("Missing attribut 'filter_only' for $name");
+            $model->{has_io_acl} and
+                err_msg("Must not use 'managed = $managed' at $name",
+                        " of model $model->{name}");
+        }
+        $router->{log_deny}
+          and not $model->{can_log_deny}
+          and err_msg("Must not use attribute 'log_deny' at $name",
+            " of model $model->{name}");
+
+        $router->{no_protect_self}
+          and not $model->{need_protect}
+          and err_msg("Must not use attribute 'no_protect_self' at $name",
+            " of model $model->{name}");
+        if ($model->{need_protect}) {
+            $router->{need_protect} = !delete $router->{no_protect_self};
+        }
+
+        $router->{strict_secondary}
+          and $managed !~ /secondary$/
+          and err_msg("Must not use attribute 'strict_secondary' at $name.\n",
+                      " Only valid with 'managed = secondary|local_secondary'");
+
+        # Detailed interface processing for managed routers.
+        for my $interface (@{ $router->{interfaces} }) {
             if (defined $interface->{security_level}
                 && !$model->{has_interface_level})
             {
@@ -4606,9 +4618,13 @@ sub link_virtual_interfaces  {
     # Pathrestriction would be useless if all devices are unmanaged.
     for my $href (values %net2ip2virtual) {
         for my $interfaces (values %$href) {
-            if (grep { $_->{router}->{managed} } @$interfaces) {
-                my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
-                add_pathrestriction($name, $interfaces);
+            for my $interface (@$interfaces) {
+                my $router = $interface->{router};
+                if ($router->{managed} || $router->{routing_only}) {
+                    my $name = "auto-virtual-" . print_ip $interface->{ip};
+                    add_pathrestriction($name, $interfaces);
+                    last;
+                }
             }
         }
     }
@@ -4647,8 +4663,9 @@ sub check_ip_addresses {
             }
             else {
                 unless ($ip =~ /^(?:unnumbered|negotiated|tunnel|bridged)$/) {
-                    if ($interface->{router}->{managed}
-                        and not $interface->{routing})
+                    my $router = $interface->{router};
+                    if (($router->{managed} || $router->{routing_only})
+                        && !$interface->{routing})
                     {
                         $route_intf = $interface;
                     }
@@ -4779,6 +4796,7 @@ sub disable_behind {
 
 # Lists of network objects which are left over after disabling.
 #my @managed_routers;	# defined above
+my @routing_only_routers;
 my @managed_vpnhub;
 my @routers;
 my @networks;
@@ -5016,7 +5034,7 @@ sub mark_disabled {
         # Delete disabled interfaces from routers.
         my $router = $interface->{router};
         aref_delete($router->{interfaces}, $interface);
-        if ($router->{managed}) {
+        if ($router->{managed} || $router->{routing_only}) {
             aref_delete($interface->{hardware}->{interfaces}, $interface);
         }
     }
@@ -5055,18 +5073,24 @@ sub mark_disabled {
                 push @managed_vpnhub, $router;
             }
         }
+        elsif ($router->{routing_only}) {
+            push @routing_only_routers, $router;
+        }
     }
 
     # Collect vrf instances belonging to one device.
     # This includes different managed hosts with identical server_name.
     my %name2vrf;
-    for my $router (@managed_routers) {
+    for my $router (@managed_routers, @routing_only_routers) {
         my $device_name = $router->{device_name};
         push @{ $name2vrf{$device_name} }, $router;
     }        
     for my $aref (values %name2vrf) {
         next if @$aref == 1;
-        equal(map { $_->{managed} ? $_->{model}->{name} : () } @$aref)
+        equal(map {  $_->{managed} || $_->{routing_only} 
+                   ? $_->{model}->{name} 
+                   : () } 
+              @$aref)
           or err_msg("All VRF instances of router:$aref->[0]->{device_name}",
                      " must have identical model");
 
@@ -5610,8 +5634,9 @@ sub expand_group1 {
                             }
                             elsif ($managed) {
                                 push @check,
-                                  grep { $_->{router}->{managed} }
-                                  @{ $object->{interfaces} };
+                                  grep({ $_->{router}->{managed} ||
+                                         $_->{router}->{routing_only} }
+                                       @{ $object->{interfaces} });
                             }
                             else {
                                 push @check, @{ $object->{interfaces} };
@@ -5630,7 +5655,9 @@ sub expand_group1 {
                     }
                     elsif ($type eq 'Interface') {
                         my $router = $object->{router};
-                        if ($managed and not $router->{managed}) {
+                        if ($managed && !($router->{managed} || 
+                                          $router->{routing_only})) 
+                        {
 
                             # Do nothing.
                         }
@@ -5668,7 +5695,9 @@ sub expand_group1 {
                         if ($managed) {
 
                             # Remove semi managed routers.
-                            @routers = grep { $_->{managed} } @routers;
+                            @routers = grep({ $_->{managed} ||
+                                              $_->{routing_only} } 
+                                            @routers);
                         }
                         else {
                             push @routers, map {
@@ -5686,7 +5715,9 @@ sub expand_group1 {
                     elsif ($type eq 'Autointerface') {
                         my $obj = $object->{object};
                         if (is_router $obj) {
-                            if ($managed and not $obj->{managed}) {
+                            if ($managed && !($obj->{managed} || 
+                                              $obj->{routing_only}))
+                            {
 
                                 # This router has no managed interfaces.
                             }
@@ -6228,7 +6259,9 @@ sub add_rules {
         # - it is an interface of a managed router and
         # - code is generated for exactly this router.
         # Mark such rules for easier handling.
-        if (is_interface($dst) and $dst->{router}->{managed}) {
+        if (is_interface($dst) && ($dst->{router}->{managed} ||
+                                   $dst->{router}->{routing_only}))
+        {
             $rule->{managed_intf} = 1;
         }
         my $old_rule =
@@ -6588,7 +6621,7 @@ sub collect_redundant_rules {
     my $src = $rule->{src};
     if (is_interface($src)) {
         my $router = $src->{router};
-        if ($router->{managed}) {
+        if ($router->{managed} || $router->{routing_only}) {
             return;
         }
     }
@@ -6949,7 +6982,7 @@ sub set_policy_distribution_ip  {
         }
         return $host2pdp_src{$host} = $pdp_src;
     };
-    for my $router (@managed_routers) {
+    for my $router (@managed_routers, @routing_only_routers) {
         my $pdp = $router->{policy_distribution_point} ||= $policy_distribution_point;
         next if !$pdp;
         
@@ -7008,7 +7041,7 @@ sub set_policy_distribution_ip  {
         ];
     }
     my %seen;
-    for my $router (@managed_routers) {
+    for my $router (@managed_routers, @routing_only_routers) {
         next if $seen{$router};
         next if !$router->{policy_distribution_point};
 
@@ -7147,7 +7180,8 @@ sub propagate_owners {
             $add_node->($network, $host);
         }
         for my $interface (@{ $network->{interfaces} }) {
-            if (not $interface->{router}->{managed}) {
+            my $router = $interface->{router};
+            if (!($router->{managed} || $router->{routing_only})) {
                 $add_node->($network, $interface);
             }
         }
@@ -7310,7 +7344,7 @@ sub propagate_owners {
         }
     }
 
-    for my $router (@managed_routers) {
+    for my $router (@managed_routers, @routing_only_routers) {
         my $owner = $router->{owner} or next;
         $owner->{is_used} = 1;
 
@@ -7324,7 +7358,7 @@ sub propagate_owners {
     # Propagate owner of loopback interface to loopback network 
     # and loopback zone.
     for my $router (@routers) {
-        my $managed = $router->{managed};
+        my $managed = $router->{managed} || $router->{routing_only};
         for my $interface (@{ $router->{interfaces} }) {
             $interface->{loopback} or next;
             my $owner = $interface->{owner} or next;
@@ -7567,7 +7601,7 @@ sub set_natdomain {
 #                   debug("$domain->{name}: NAT $out_interface->{name}");
                     $out_interface->{no_nat_set} = $no_nat_set;
                     $out_interface->{hardware}->{no_nat_set} = $no_nat_set
-                      if $router->{managed};
+                      if $router->{managed} || $router->{routing_only};
                 }
 
                 # Don't process interface where we reached this router.
@@ -9118,7 +9152,7 @@ sub link_aggregates {
                     $aggregate->{disabled} = 1;
                     next;
                 }
-                if ($router->{managed}) {
+                if ($router->{managed} || $router->{routing_only}) {
                     $err = "$aggregate->{name} must not be linked to"
                       . " managed $router->{name}";
                     last BLOCK;
@@ -9416,7 +9450,7 @@ sub set_area1 {
     if ($is_zone) {
         push @{ $area->{zones} }, $obj;
     }
-    elsif ($obj->{managed}) {
+    elsif ($obj->{managed} || $obj->{routing_only}) {
         push @{ $area->{managed_routers} }, $obj;
     }
 
@@ -9883,7 +9917,8 @@ sub check_pathrestrictions {
         # are located inside a loop with all routers unmanaged.
         #
         # Some router is managed.
-        grep { $_->{router}->{managed} } @$elements and next;
+        grep({ $_->{router}->{managed} || $_->{router}->{routing_only} } 
+             @$elements) and next;
 
         # Different zones or zone_clusters, hence some router is managed.
         equal(map { $_->{zone_cluster} || $_ } map { $_->{zone} } @$elements)
@@ -12638,7 +12673,9 @@ sub gen_reverse_rules1  {
 
             # If source is a managed interface,
             # reversed will get attribute managed_intf.
-            unless (is_interface($src) and $src->{router}->{managed}) {
+            unless (is_interface($src) && ($src->{router}->{managed} ||
+                                           $src->{router}->{routing_only}))
+            {
                 next;
             }
         }
@@ -13617,9 +13654,11 @@ sub find_active_routes  {
                 $rule->{deleted}
             and (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf})
             and (
-                not(is_interface $src and $src->{router}->{managed})
+                not(is_interface $src and ($src->{router}->{managed} or
+                                           $src->{router}->{routing_only}))
                 or (is_interface $rule->{deleted}->{src}
-                    and $rule->{deleted}->{src}->{router}->{managed})
+                    and ($rule->{deleted}->{src}->{router}->{managed} or
+                         $rule->{deleted}->{src}->{router}->{routing_only}))
             )
           )
         {
@@ -13666,14 +13705,18 @@ sub find_active_routes  {
         for my $network (@dst_networks) {
             $pseudo_rule->{dst_networks}->{$network} = $network;
         }
-        if (is_interface $src and $src->{router}->{managed}) {
+        if (is_interface($src) && ($src->{router}->{managed} ||
+                                   $src->{router}->{routing_only})) 
+        {
             $src = $src->{main_interface} || $src;
             $pseudo_rule->{src_interfaces}->{$src} = $src;
             for my $network (@dst_networks) {
                 $pseudo_rule->{src_intf2nets}->{$src}->{$network} = $network;
             }
         }
-        if (is_interface $dst and $dst->{router}->{managed}) {
+        if (is_interface($dst) && ($dst->{router}->{managed} ||
+                                   $dst->{router}->{routing_only})) 
+        {
             $dst = $dst->{main_interface} || $dst;
             $pseudo_rule->{dst_interfaces}->{$dst} = $dst;
             for my $network (@src_networks) {
@@ -13771,7 +13814,7 @@ sub check_and_convert_routes  {
     progress('Checking for duplicate routes');
 
     # Fix routes to bridged interfaces without IP address.
-    for my $router (@managed_routers) {
+    for my $router (@managed_routers, @routing_only_routers) {
         for my $interface (@{ $router->{interfaces} }) {
             next if not $interface->{network}->{bridged};
             for my $hop (values %{ $interface->{hop} }) {
@@ -13789,7 +13832,7 @@ sub check_and_convert_routes  {
         }
     }
 
-    for my $router (@managed_routers) {
+    for my $router (@managed_routers, @routing_only_routers) {
 
         # Adjust routes through VPN tunnel to cleartext interface.
         for my $interface (@{ $router->{interfaces} }) {
@@ -18378,7 +18421,7 @@ sub print_code {
 
     progress('Printing code');
     my %seen;
-    for my $router (@managed_routers) {
+    for my $router (@managed_routers, @routing_only_routers) {
         next if $seen{$router};
         my $device_name = $router->{device_name};
         my $file = $device_name;
@@ -18413,13 +18456,18 @@ sub print_code {
             }
         };
         $seen{$_} = 1 for @$vrf_members;
-        $per_vrf->(\&print_routes);
-        $per_vrf->(\&print_crypto);
-        print_acl_prefix($router);
-        $per_vrf->(\&print_acls);
-        print_acl_suffix($router);
-        $per_vrf->(\&print_interface);
-        $per_vrf->(\&print_nat);
+        if ($router->{managed}) {
+            $per_vrf->(\&print_routes);
+            $per_vrf->(\&print_crypto);
+            print_acl_prefix($router);
+            $per_vrf->(\&print_acls);
+            print_acl_suffix($router);
+            $per_vrf->(\&print_interface);
+            $per_vrf->(\&print_nat);
+        }
+        else {
+            $per_vrf->(\&print_routes);
+        }
 
         print "$comment_char [ END $device_name ]\n\n";
         select STDOUT;
@@ -18449,7 +18497,8 @@ sub copy_raw {
     $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
     ## use critic
 
-    my %device_names = map { $_->{device_name} => 1 } @managed_routers;
+    my %device_names = 
+        map { $_->{device_name} => 1 } @managed_routers, @routing_only_routers;
 
     opendir(my $dh, $raw_dir) or fatal_err("Can't opendir $raw_dir: $!");
     while (my $file = Encode::decode($filename_encode, readdir $dh)) {
@@ -18619,7 +18668,8 @@ sub init_global_vars {
         %{ $pair->[1] } = ();
     }
     %interfaces = %hosts = ();
-    @managed_routers = @virtual_interfaces = @pathrestrictions = ();
+    @managed_routers = @routing_only_routers = ();
+    @virtual_interfaces = @pathrestrictions = ();
     @managed_vpnhub = @routers = @networks = @zones = @areas = ();
     @natdomains = ();
     %auto_interfaces = ();
