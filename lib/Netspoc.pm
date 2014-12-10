@@ -329,6 +329,7 @@ my %router_info = (
     PIX => {
         routing             => 'PIX',
         filter              => 'PIX',
+        can_log_disable     => 1,
         stateless_icmp      => 1,
         can_objectgroup     => 1,
         comment_char        => '!',
@@ -342,6 +343,7 @@ my %router_info = (
     ASA => {
         routing             => 'PIX',
         filter              => 'PIX',
+        can_log_disable     => 1,
         stateless_icmp      => 1,
         has_out_acl         => 1,
         can_objectgroup     => 1,
@@ -2003,6 +2005,27 @@ sub set_pix_interface_level {
     return;
 }
 
+my %severity2log_level = (
+    emergencies   => 0,
+    alerts        => 1,
+    critical      => 2,
+    errors        => 3,
+    warnings      => 4,
+    notifications => 5,
+    informational => 6,
+    debugging     => 7,
+    disable       => 'disable',
+);
+
+sub read_severity {
+    my $severity = read_identifier();
+    exists $severity2log_level{$severity}
+        or error_atline("Expected value: ", 
+                        join('|', sort keys %severity2log_level));
+    skip(';');
+    return $severity;
+}        
+
 my $bind_nat0 = [];
 
 our %routers;
@@ -2079,12 +2102,21 @@ sub read_router {
         }
         else {
             my $pair = read_typed_name;
-            my ($type, $network) = @$pair;
-            $type eq 'interface'
-              or syntax_err("Expected interface definition");
+            my ($type, $name2) = @$pair;
+            if ($type eq 'log') {
+                skip '=';
+                my $severity = read_severity();
+                defined($router->{log}->{$name2})
+                  and error_atline("Duplicate 'log' definition");
+                $router->{log}->{$name2} = $severity;
+                next;
+            }
+            elsif ($type ne 'interface') {
+                syntax_err("Expected interface or log definition");
+            }
 
             # Derive interface name from router name.
-            my $iname = "$rname.$network";
+            my $iname = "$rname.$name2";
             for my $interface (read_interface "interface:$iname") {
                 push @{ $router->{interfaces} }, $interface;
                 ($iname = $interface->{name}) =~ s/interface://;
@@ -2099,7 +2131,7 @@ sub read_router {
                 $interface->{router} = $router;
 
                 # Link interface with network name (will be resolved later).
-                $interface->{network} = $network;
+                $interface->{network} = $name2;
 
                 # Set private attribute of interface.
                 $interface->{private} = $private if $private;
@@ -2957,6 +2989,10 @@ sub read_service {
                         'prt', \&read_typed_name_or_simple_protocol
                     )
                ];
+            my $log;
+            if (my @log = check_assign_list('log', \&read_identifier)) {
+                $log = \@log;
+            }
             $src_user
               or $dst_user
               or error_atline("Rule must use keyword 'user'");
@@ -2973,6 +3009,7 @@ sub read_service {
                 prt      => $prt,
                 has_user => $src_user ? $dst_user ? 'both' : 'src' : 'dst',
             };
+            $rule->{log} = $log if $log;
             push @{ $service->{rules} }, $rule;
         }
         else {
@@ -6702,6 +6739,43 @@ sub warn_unused_overlaps {
     return;
 }
 
+# All log tags defined at some routers.
+my %known_log;
+
+sub collect_log {
+    for my $router (@managed_routers) {
+        my $log = $router->{log} or next;
+        for my $tag (keys %$log) {
+            $known_log{$tag} = 1;
+            my $severity = $log->{$tag};
+            $severity eq 'disable' or next;
+            $router->{model}->{can_log_disable} and next;
+            err_msg("Must not use log:$tag = $severity at $router->{name}\n",
+                    " This isn't supported for model",
+                    " $router->{model}->{name}.");
+        }
+    }
+}
+
+sub check_log {
+    my ($log, $context) = @_;
+    for my $tag (@$log) {
+        $known_log{$tag} and next;
+        warn_msg("Referencing unknown '$tag' in log of $context");
+        aref_delete($log, $tag);
+    }
+}
+
+# Normalize lists of log tags at different rules in such a way,
+# that equal sets of tags are represented by 'eq' array references.
+my %key2log;
+sub normalize_log {
+    my ($log) = @_;
+    my @tags = sort @$log;
+    my $key = join(',', @tags);
+    return $key2log{$key} ||= \@tags;
+}        
+
 # Parameters:
 # - The service.
 # - Reference to array for storing resulting expanded rules.
@@ -6717,6 +6791,16 @@ sub expand_rules {
 
     for my $unexpanded (@$rules_ref) {
         my $action = $unexpanded->{action};
+        my $log = $unexpanded->{log};
+        if ($log) {
+            check_log($log, $context);
+            if (@$log) {
+                $log = normalize_log($log);
+            }
+            else {
+                $log = undef;
+            }
+        }
         my $prt_list = expand_protocols $unexpanded->{prt}, "rule in $context";
         for my $element ($foreach ? @$user : $user) {
             $user_object->{elements} = $element;
@@ -6821,6 +6905,7 @@ sub expand_rules {
                                         prt       => $prt,
                                         rule      => $unexpanded
                                     };
+                                    $rule->{log} = $log if $log;
                                     $rule->{orig_prt} = $orig_prt if $orig_prt;
                                     $rule->{oneway} = 1 if $flags->{oneway};
                                     $rule->{no_check_supernet_rules} = 1
@@ -6880,6 +6965,7 @@ sub expand_services {
     convert_hosts if $convert_hosts;
     progress('Expanding services');
 
+    collect_log();
     my $expanded_rules_aref = [];
 
     # Sort by service name to make output deterministic.
@@ -12760,6 +12846,9 @@ sub gen_reverse_rules1  {
                 dst       => $src,
                 prt       => $new_prt,
             };
+            if (my $log = $rule->{log}) {
+                $new_rule->{log} = $log;
+            }
 
             # Don't push to @$rule_aref while we are iterating over it.
             push @extra_rules, $new_rule;
@@ -13161,6 +13250,8 @@ sub optimize_rules {
 #                                                              ->{deleted};
                                                         my $prt =
                                                           $chg_rule->{prt};
+                                                        my $chg_log =
+                                                          $chg_rule->{log} || '';
                                                         while (1) {
                                                             if (
                                                                 my $cmp_rule
@@ -13168,11 +13259,18 @@ sub optimize_rules {
                                                                 ->{$prt}
                                                               )
                                                             {
+                                                                my $cmp_log =
+                                                                  $cmp_rule
+                                                                  ->{log} || '';
                                                                 if
                                                                   (
                                                                    $cmp_rule
                                                                    ne
                                                                    $chg_rule
+                                                                   &&
+                                                                   $cmp_log
+                                                                   eq
+                                                                   $chg_log
                                                                   )
                                                               {
 
@@ -15341,44 +15439,51 @@ sub cisco_acl_line {
     my ($router, $rules_aref, $no_nat_set, $prefix) = @_;
     my $model       = $router->{model};
     my $filter_type = $model->{filter};
+    $filter_type    =~ /^(:?IOS|NX-OS|PIX|ACE)$/
+        or internal_err("Unknown filter_type $filter_type");
     my $numbered    = 10;
+    my $active_log  = $router->{log};
     for my $rule (@$rules_aref) {
-        my ($action, $src, $dst, $prt) =
-          @{$rule}{ 'action', 'src', 'dst', 'prt' };
         print "$model->{comment_char} " . print_rule($rule) . "\n"
           if $config{comment_acls};
+        my ($action, $src, $dst, $prt) = @{$rule}{qw(action src dst prt)};
         my $spair = address($src, $no_nat_set);
         my $dpair = address($dst, $no_nat_set);
-        if ($filter_type =~ /^(PIX|ACE)$/) {
 
-            # Only traffic passing through the PIX.
-            my ($proto_code, $src_port_code, $dst_port_code) =
-                cisco_prt_code($prt, $model);
-            my $result = "$prefix $action $proto_code";
-            $result .= ' ' . cisco_acl_addr($spair, $model);
-            $result .= " $src_port_code" if defined $src_port_code;
-            $result .= ' ' . cisco_acl_addr($dpair, $model);
-            $result .= " $dst_port_code" if defined $dst_port_code;
-            print "$result\n";
-        }
-        elsif ($filter_type =~ /^(:?IOS|NX-OS)$/) {
-            my ($proto_code, $src_port_code, $dst_port_code) =
-              cisco_prt_code($prt, $model);
-            my $result = "$prefix $action $proto_code";
-            $result .= ' ' . cisco_acl_addr($spair, $model);
-            $result .= " $src_port_code" if defined $src_port_code;
-            $result .= ' ' . cisco_acl_addr($dpair, $model);
-            $result .= " $dst_port_code" if defined $dst_port_code;
-            $result .= " log" if $router->{log_deny} and $action eq 'deny';
-            if ($filter_type eq 'NX-OS') {
-                $result = " $numbered$result";
-                $numbered += 10;
+        my ($proto_code, $src_port_code, $dst_port_code) =
+            cisco_prt_code($prt, $model);
+        my $result = "$prefix $action $proto_code";
+        $result .= ' ' . cisco_acl_addr($spair, $model);
+        $result .= " $src_port_code" if defined $src_port_code;
+        $result .= ' ' . cisco_acl_addr($dpair, $model);
+        $result .= " $dst_port_code" if defined $dst_port_code;
+
+        # Add log level or "log disable".
+        my $severity;
+        if ($active_log && (my $log = $rule->{log})) {
+            for my $tag (@$log) {
+                if (my $s = $active_log->{$tag}) {
+                    $severity = $s;
+
+                    # Take first of possibly several matching tags.
+                    last;
+                }
             }
-            print "$result\n";
         }
-        else {
-            internal_err("Unknown filter_type $filter_type");
+        if ($severity) {
+            my $level = $severity2log_level{$severity};
+            $result .= " log $level";
         }
+        elsif ($router->{log_deny} && $action eq 'deny') {
+            $result .= " log";
+        }
+
+        # Add line numbers.
+        if ($filter_type eq 'NX-OS') {
+            $result = " $numbered$result";
+            $numbered += 10;
+        }
+        print "$result\n";
     }
     return;
 }
@@ -15409,13 +15514,15 @@ sub find_object_groups  {
             my %group_rule_tree;
 
             # Find groups of rules with identical
-            # action, prt, src/dst and different dst/src.
+            # action, prt, log, src/dst and different dst/src.
             for my $rule (@{ $hardware->{$rule_type} }) {
                 my $action    = $rule->{action};
                 my $that      = $rule->{$that};
                 my $this      = $rule->{$this};
                 my $prt       = $rule->{prt};
-                $group_rule_tree{$action}->{$prt}->{$that}->{$this} = $rule;
+                my $log       = $rule->{log} || '';
+                my $key       = "$action,$that,$prt,$log";
+                $group_rule_tree{$key}->{$this} = $rule;
             }
 
             # Find groups >= $min_object_group_size,
@@ -15423,37 +15530,29 @@ sub find_object_groups  {
             # put groups into an array / hash.
             for my $href (values %group_rule_tree) {
 
-                # $href is {prt => href, ...}
-               for my $href (values %$href) {
+                # $href is {dst/src => rule, ...}
+                my $size = keys %$href;
+                if ($size >= $min_object_group_size) {
+                    my $glue = {
 
-                   # $href is {src/dst => href, ...}
-                   for my $href (values %$href) {
+                        # Indicator, that no further rules need
+                        # to be processed.
+                        active => 0,
 
-                       # $href is {dst/src => rule, ...}
-                       my $size = keys %$href;
-                       if ($size >= $min_object_group_size) {
-                           my $glue = {
+                        # NAT map for address calculation.
+                        no_nat_set => $hardware->{no_nat_set},
 
-                               # Indicator, that no further rules need
-                               # to be processed.
-                               active => 0,
+                        # object-ref => rule, ...
+                        hash => $href
+                    };
 
-                               # NAT map for address calculation.
-                               no_nat_set => $hardware->{no_nat_set},
-
-                               # object-ref => rule, ...
-                               hash => $href
-                           };
-
-                           # All this rules have identical
-                           # action, prt, src/dst  and dst/src
-                           # and shall be replaced by a new object group.
-                           for my $rule (values %$href) {
-                               $rule->{group_glue} = $glue;
-                           }
-                       }
-                   }
-               }
+                    # All this rules have identical
+                    # action, prt, src/dst  and dst/src
+                    # and shall be replaced by a new object group.
+                    for my $rule (values %$href) {
+                        $rule->{group_glue} = $glue;
+                    }
+                }
             }
 
             my $calc_ip_mask_strings = sub {
@@ -16487,10 +16586,12 @@ sub print_chains  {
 
 # Find adjacent port ranges.
 sub join_ranges  {
-    my ($hardware) = @_;
+    my ($router, $hardware) = @_;
     my $changed;
+    my $active_log  = $router->{log};
     for my $rules ('intf_rules', 'rules', 'out_rules') {
         my %hash = ();
+      RULE:
         for my $rule (@{ $hardware->{$rules} }) {
             my ($action, $src, $dst, $prt) =
               @{$rule}{ 'action', 'src', 'dst', 'prt' };
@@ -16512,18 +16613,35 @@ sub join_ranges  {
                 # $href is {dst => href, ...}
                 for my $href (values %$href) {
 
+                    # Nothing to do if only a single rule.
+                    next if values %$href == 1;
+
                     # Values of %$href are rules with identical
                     # action/src/dst and a TCP or UDP protocol.
                     #
-                    # Collect rules with identical src_range
-                    my %src_range2rules;
+                    # Collect rules with 
+                    # - identical src_range and
+                    # - identical log severity.
+                    #
+                    # src_ranges from TCP and UDP with identical range
+                    # are known to be different objects, because
+                    # different attribute {prt} is set.
+                    my %key2rules;
                     for my $rule (values %$href) {
                         my $prt = $rule->{prt};
-                        my $src_range = $prt->{src_range};
-                        push @{ $src_range2rules{$src_range} }, $rule;
+                        my $key = $prt->{src_range};
+                        if (my $log = $rule->{log}) {
+                            for my $tag (@$log) {
+                                if (my $severity = $active_log->{$tag}) {
+                                    $key .= ",$severity";
+                                    last;
+                                }
+                            }
+                        }                
+                        push @{ $key2rules{$key} }, $rule;
                     }
 
-                    for my $rules (values %src_range2rules) {
+                    for my $rules (values %key2rules) {
                         
                         # When sorting these rules by low port number,
                         # rules with adjacent protocols will placed
@@ -16916,8 +17034,9 @@ sub local_optimization {
 
 #                       debug(print_rule $rule);
 #                       debug "is_supernet" if $rule->{dst}->{is_supernet};
-                        my ($action, $src, $dst, $prt) =
-                          @{$rule}{ 'action', 'src', 'dst', 'prt' };
+                        my ($action, $src, $dst, $prt, $log) =
+                          @{$rule}{qw(action src dst prt log)};
+                        $log ||= '';
 
                         while (1) {
                             my $src = $src;
@@ -16932,8 +17051,13 @@ sub local_optimization {
                                                     if (my $other_rule =
                                                         $hash->{$prt})
                                                     {
-                                                        unless ($rule eq
-                                                                $other_rule)
+                                                        my $o_log = 
+                                                          $other_rule->{log}
+                                                          || '';
+                                                        if ($rule ne
+                                                            $other_rule
+                                                            &&
+                                                            $log eq $o_log)
                                                         {
 
 # debug("del:", print_rule $rule);
@@ -17057,6 +17181,7 @@ sub local_optimization {
                                     dst       => $dst,
                                     prt       => $prt_ip,
                                 };
+                                $new_rule->{log} = $rule->{log} if $rule->{log};
 
 #				debug("sec: ", print_rule $new_rule);
                                 $id_hash2{$src}->{$dst} = $new_rule;
@@ -17089,7 +17214,7 @@ sub local_optimization {
                 # optimization has been finished, because protocols will be
                 # overlapping again after joining.
 #                my $t6 = time();
-                join_ranges($hardware);
+                join_ranges($router, $hardware);
 
 #                $time{$rname}[3] += time() - $t6;
             }
