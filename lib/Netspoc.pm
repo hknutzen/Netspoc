@@ -6755,6 +6755,7 @@ sub collect_log {
                     " $router->{model}->{name}.");
         }
     }
+    return;
 }
 
 sub check_log {
@@ -6764,6 +6765,7 @@ sub check_log {
         warn_msg("Referencing unknown '$tag' in log of $context");
         aref_delete($log, $tag);
     }
+    return;
 }
 
 # Normalize lists of log tags at different rules in such a way,
