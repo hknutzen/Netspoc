@@ -61,15 +61,15 @@ t/bridged.t
 t/crosslink.t
 t/crypto.t
 t/cut-netspoc.t
-t/cut-netspoc.t~
 t/disabled.t
-t/disabled.t~
 t/general-permit.t
 t/global-opt.t
 t/host-range.t
 t/iptables.t
 t/local-filter.t
 t/local-opt.t
+t/log.t
+t/log.t~
 t/loopback.t
 t/managed-host.t
 t/nat.t
@@ -83,6 +83,8 @@ t/private.t
 t/protect-interfaces.t
 t/rename.t
 t/route.t
+t/routing_only.t
+t/routing_only.t~
 t/secondary.t
 t/stateless.t
 t/unenforceable.t

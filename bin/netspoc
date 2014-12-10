@@ -131,6 +131,6 @@ use strict;
 use warnings;
 use Netspoc;
 
-our $VERSION = '3.059'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.060'; # VERSION: inserted by DZP::OurPkgVersion
 
 Netspoc::compile(\@ARGV);

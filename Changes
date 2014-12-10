@@ -1,3 +1,26 @@
+3.060     2014-12-10 15:17:42+01:00 Europe/Berlin
+
+ - Added support for setting log severity.
+   Logging is changed by a combination of attributes at rules and devices.
+   Define one or more lines "log:<tag> = <severity>" at devices,
+   where logging should be enabled or changed.
+   - <tag> is some valid identifier.
+   - <severity> is one of 
+     alerts|critical|debugging|disable|emergencies|
+     errors|informational|notifications|warnings
+   Define attribute "log = <tag1>, ...;" at each rule that needs
+   changed logging. A rule with logging for <tag1> is logged at each device,
+   where a matching "log:<tag1>" is defined.
+   Severity names correspond to well known UNIX log severities.
+   'disable' disables logging at devices of type ASA and PIX.
+ - Added new router type "managed = routing_only".
+   This will generate only static routes and no ACLs.
+   A device with "routing_only" doesn't split a security zone. 
+   Rules with only a routes_only device in between are ignored with 
+   warning "Unenforceable rule". 
+   Hence, for traffic inside a security zone no static routes are generated. 
+   These have to be added manually in file "raw/<device>".
+
 3.059     2014-12-04 15:55:12+01:00 Europe/Berlin
 
  - New syntax: Element of attribute 'watchers' of owner A is allowed

@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.059'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.060'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -329,6 +329,7 @@ my %router_info = (
     PIX => {
         routing             => 'PIX',
         filter              => 'PIX',
+        can_log_disable     => 1,
         stateless_icmp      => 1,
         can_objectgroup     => 1,
         comment_char        => '!',
@@ -342,6 +343,7 @@ my %router_info = (
     ASA => {
         routing             => 'PIX',
         filter              => 'PIX',
+        can_log_disable     => 1,
         stateless_icmp      => 1,
         has_out_acl         => 1,
         can_objectgroup     => 1,
@@ -1197,15 +1199,15 @@ sub check_managed {
     }
     elsif (check '=') {
         my $value = read_identifier;
-        if ($value =~ 
-            /^(?:secondary|standard|full|primary|local|local_secondary)$/) 
+        if ($value =~ /^(?:secondary|standard|full|primary|
+                           local|local_secondary|routing_only)$/x) 
         {
             $managed = $value;
         }
         else {
             error_atline("Expected value:",
                          " secondary|standard|full|primary",
-                         "|local|local_secondary");
+                         "|local|local_secondary|routing_only");
         }
         check ';';
     }
@@ -2003,6 +2005,27 @@ sub set_pix_interface_level {
     return;
 }
 
+my %severity2log_level = (
+    emergencies   => 0,
+    alerts        => 1,
+    critical      => 2,
+    errors        => 3,
+    warnings      => 4,
+    notifications => 5,
+    informational => 6,
+    debugging     => 7,
+    disable       => 'disable',
+);
+
+sub read_severity {
+    my $severity = read_identifier();
+    exists $severity2log_level{$severity}
+        or error_atline("Expected value: ", 
+                        join('|', sort keys %severity2log_level));
+    skip(';');
+    return $severity;
+}        
+
 my $bind_nat0 = [];
 
 our %routers;
@@ -2079,12 +2102,21 @@ sub read_router {
         }
         else {
             my $pair = read_typed_name;
-            my ($type, $network) = @$pair;
-            $type eq 'interface'
-              or syntax_err("Expected interface definition");
+            my ($type, $name2) = @$pair;
+            if ($type eq 'log') {
+                skip '=';
+                my $severity = read_severity();
+                defined($router->{log}->{$name2})
+                  and error_atline("Duplicate 'log' definition");
+                $router->{log}->{$name2} = $severity;
+                next;
+            }
+            elsif ($type ne 'interface') {
+                syntax_err("Expected interface or log definition");
+            }
 
             # Derive interface name from router name.
-            my $iname = "$rname.$network";
+            my $iname = "$rname.$name2";
             for my $interface (read_interface "interface:$iname") {
                 push @{ $router->{interfaces} }, $interface;
                 ($iname = $interface->{name}) =~ s/interface://;
@@ -2099,7 +2131,7 @@ sub read_router {
                 $interface->{router} = $router;
 
                 # Link interface with network name (will be resolved later).
-                $interface->{network} = $network;
+                $interface->{network} = $name2;
 
                 # Set private attribute of interface.
                 $interface->{private} = $private if $private;
@@ -2107,7 +2139,6 @@ sub read_router {
         }
     }
 
-    # Detailed interface processing for managed routers.
     if (my $managed = $router->{managed}) {
         my $model = $router->{model};
         my $all_routing = $router->{routing};
@@ -2119,35 +2150,17 @@ sub read_router {
             $router->{model} = { name => 'unknown' };
         }
 
-        if ($managed =~ /^local/) {
-            $router->{filter_only} or
-                err_msg("Missing attribut 'filter_only' for $name");
-            $model->{has_io_acl} and
-                err_msg("Must not use 'managed = $managed' at $name",
-                        " of model $model->{name}");
+        # Router is semi_managed if only routes are generated.
+        if ($managed eq 'routing_only') {
+            $router->{semi_managed} = 1;
+            $router->{routing_only} = 1;
+            delete $router->{managed};
         }
+
         $router->{vrf}
           and not $model->{can_vrf}
           and err_msg("Must not use VRF at $name",
             " of model $model->{name}");
-
-        $router->{log_deny}
-          and not $model->{can_log_deny}
-          and err_msg("Must not use attribute 'log_deny' at $name",
-            " of model $model->{name}");
-
-        $router->{no_protect_self}
-          and not $model->{need_protect}
-          and err_msg("Must not use attribute 'no_protect_self' at $name",
-            " of model $model->{name}");
-        if ($model->{need_protect}) {
-            $router->{need_protect} = !delete $router->{no_protect_self};
-        }
-
-        $router->{strict_secondary}
-          and $managed !~ /secondary$/
-          and err_msg("Must not use attribute 'strict_secondary' at $name.\n",
-                      " Only valid with 'managed = secondary|local_secondary'");
 
         # Create objects representing hardware interfaces.
         # All logical interfaces using the same hardware are linked
@@ -2244,6 +2257,37 @@ sub read_router {
                     error_atline("Routing $rname not supported",
                                  " for unnumbered interface");
             }
+        }
+    }
+    if (my $managed = $router->{managed}) {
+        my $model = $router->{model};
+        if ($managed =~ /^local/) {
+            $router->{filter_only} or
+                err_msg("Missing attribut 'filter_only' for $name");
+            $model->{has_io_acl} and
+                err_msg("Must not use 'managed = $managed' at $name",
+                        " of model $model->{name}");
+        }
+        $router->{log_deny}
+          and not $model->{can_log_deny}
+          and err_msg("Must not use attribute 'log_deny' at $name",
+            " of model $model->{name}");
+
+        $router->{no_protect_self}
+          and not $model->{need_protect}
+          and err_msg("Must not use attribute 'no_protect_self' at $name",
+            " of model $model->{name}");
+        if ($model->{need_protect}) {
+            $router->{need_protect} = !delete $router->{no_protect_self};
+        }
+
+        $router->{strict_secondary}
+          and $managed !~ /secondary$/
+          and err_msg("Must not use attribute 'strict_secondary' at $name.\n",
+                      " Only valid with 'managed = secondary|local_secondary'");
+
+        # Detailed interface processing for managed routers.
+        for my $interface (@{ $router->{interfaces} }) {
             if (defined $interface->{security_level}
                 && !$model->{has_interface_level})
             {
@@ -2945,6 +2989,10 @@ sub read_service {
                         'prt', \&read_typed_name_or_simple_protocol
                     )
                ];
+            my $log;
+            if (my @log = check_assign_list('log', \&read_identifier)) {
+                $log = \@log;
+            }
             $src_user
               or $dst_user
               or error_atline("Rule must use keyword 'user'");
@@ -2961,6 +3009,7 @@ sub read_service {
                 prt      => $prt,
                 has_user => $src_user ? $dst_user ? 'both' : 'src' : 'dst',
             };
+            $rule->{log} = $log if $log;
             push @{ $service->{rules} }, $rule;
         }
         else {
@@ -4606,9 +4655,13 @@ sub link_virtual_interfaces  {
     # Pathrestriction would be useless if all devices are unmanaged.
     for my $href (values %net2ip2virtual) {
         for my $interfaces (values %$href) {
-            if (grep { $_->{router}->{managed} } @$interfaces) {
-                my $name = "auto-virtual-" . print_ip $interfaces->[0]->{ip};
-                add_pathrestriction($name, $interfaces);
+            for my $interface (@$interfaces) {
+                my $router = $interface->{router};
+                if ($router->{managed} || $router->{routing_only}) {
+                    my $name = "auto-virtual-" . print_ip $interface->{ip};
+                    add_pathrestriction($name, $interfaces);
+                    last;
+                }
             }
         }
     }
@@ -4647,8 +4700,9 @@ sub check_ip_addresses {
             }
             else {
                 unless ($ip =~ /^(?:unnumbered|negotiated|tunnel|bridged)$/) {
-                    if ($interface->{router}->{managed}
-                        and not $interface->{routing})
+                    my $router = $interface->{router};
+                    if (($router->{managed} || $router->{routing_only})
+                        && !$interface->{routing})
                     {
                         $route_intf = $interface;
                     }
@@ -4779,6 +4833,7 @@ sub disable_behind {
 
 # Lists of network objects which are left over after disabling.
 #my @managed_routers;	# defined above
+my @routing_only_routers;
 my @managed_vpnhub;
 my @routers;
 my @networks;
@@ -5016,7 +5071,7 @@ sub mark_disabled {
         # Delete disabled interfaces from routers.
         my $router = $interface->{router};
         aref_delete($router->{interfaces}, $interface);
-        if ($router->{managed}) {
+        if ($router->{managed} || $router->{routing_only}) {
             aref_delete($interface->{hardware}->{interfaces}, $interface);
         }
     }
@@ -5055,18 +5110,24 @@ sub mark_disabled {
                 push @managed_vpnhub, $router;
             }
         }
+        elsif ($router->{routing_only}) {
+            push @routing_only_routers, $router;
+        }
     }
 
     # Collect vrf instances belonging to one device.
     # This includes different managed hosts with identical server_name.
     my %name2vrf;
-    for my $router (@managed_routers) {
+    for my $router (@managed_routers, @routing_only_routers) {
         my $device_name = $router->{device_name};
         push @{ $name2vrf{$device_name} }, $router;
     }        
     for my $aref (values %name2vrf) {
         next if @$aref == 1;
-        equal(map { $_->{managed} ? $_->{model}->{name} : () } @$aref)
+        equal(map {  $_->{managed} || $_->{routing_only} 
+                   ? $_->{model}->{name} 
+                   : () } 
+              @$aref)
           or err_msg("All VRF instances of router:$aref->[0]->{device_name}",
                      " must have identical model");
 
@@ -5610,8 +5671,9 @@ sub expand_group1 {
                             }
                             elsif ($managed) {
                                 push @check,
-                                  grep { $_->{router}->{managed} }
-                                  @{ $object->{interfaces} };
+                                  grep({ $_->{router}->{managed} ||
+                                         $_->{router}->{routing_only} }
+                                       @{ $object->{interfaces} });
                             }
                             else {
                                 push @check, @{ $object->{interfaces} };
@@ -5630,7 +5692,9 @@ sub expand_group1 {
                     }
                     elsif ($type eq 'Interface') {
                         my $router = $object->{router};
-                        if ($managed and not $router->{managed}) {
+                        if ($managed && !($router->{managed} || 
+                                          $router->{routing_only})) 
+                        {
 
                             # Do nothing.
                         }
@@ -5668,7 +5732,9 @@ sub expand_group1 {
                         if ($managed) {
 
                             # Remove semi managed routers.
-                            @routers = grep { $_->{managed} } @routers;
+                            @routers = grep({ $_->{managed} ||
+                                              $_->{routing_only} } 
+                                            @routers);
                         }
                         else {
                             push @routers, map {
@@ -5686,7 +5752,9 @@ sub expand_group1 {
                     elsif ($type eq 'Autointerface') {
                         my $obj = $object->{object};
                         if (is_router $obj) {
-                            if ($managed and not $obj->{managed}) {
+                            if ($managed && !($obj->{managed} || 
+                                              $obj->{routing_only}))
+                            {
 
                                 # This router has no managed interfaces.
                             }
@@ -6228,7 +6296,9 @@ sub add_rules {
         # - it is an interface of a managed router and
         # - code is generated for exactly this router.
         # Mark such rules for easier handling.
-        if (is_interface($dst) and $dst->{router}->{managed}) {
+        if (is_interface($dst) && ($dst->{router}->{managed} ||
+                                   $dst->{router}->{routing_only}))
+        {
             $rule->{managed_intf} = 1;
         }
         my $old_rule =
@@ -6588,7 +6658,7 @@ sub collect_redundant_rules {
     my $src = $rule->{src};
     if (is_interface($src)) {
         my $router = $src->{router};
-        if ($router->{managed}) {
+        if ($router->{managed} || $router->{routing_only}) {
             return;
         }
     }
@@ -6669,6 +6739,45 @@ sub warn_unused_overlaps {
     return;
 }
 
+# All log tags defined at some routers.
+my %known_log;
+
+sub collect_log {
+    for my $router (@managed_routers) {
+        my $log = $router->{log} or next;
+        for my $tag (keys %$log) {
+            $known_log{$tag} = 1;
+            my $severity = $log->{$tag};
+            $severity eq 'disable' or next;
+            $router->{model}->{can_log_disable} and next;
+            err_msg("Must not use log:$tag = $severity at $router->{name}\n",
+                    " This isn't supported for model",
+                    " $router->{model}->{name}.");
+        }
+    }
+    return;
+}
+
+sub check_log {
+    my ($log, $context) = @_;
+    for my $tag (@$log) {
+        $known_log{$tag} and next;
+        warn_msg("Referencing unknown '$tag' in log of $context");
+        aref_delete($log, $tag);
+    }
+    return;
+}
+
+# Normalize lists of log tags at different rules in such a way,
+# that equal sets of tags are represented by 'eq' array references.
+my %key2log;
+sub normalize_log {
+    my ($log) = @_;
+    my @tags = sort @$log;
+    my $key = join(',', @tags);
+    return $key2log{$key} ||= \@tags;
+}        
+
 # Parameters:
 # - The service.
 # - Reference to array for storing resulting expanded rules.
@@ -6684,6 +6793,16 @@ sub expand_rules {
 
     for my $unexpanded (@$rules_ref) {
         my $action = $unexpanded->{action};
+        my $log = $unexpanded->{log};
+        if ($log) {
+            check_log($log, $context);
+            if (@$log) {
+                $log = normalize_log($log);
+            }
+            else {
+                $log = undef;
+            }
+        }
         my $prt_list = expand_protocols $unexpanded->{prt}, "rule in $context";
         for my $element ($foreach ? @$user : $user) {
             $user_object->{elements} = $element;
@@ -6788,6 +6907,7 @@ sub expand_rules {
                                         prt       => $prt,
                                         rule      => $unexpanded
                                     };
+                                    $rule->{log} = $log if $log;
                                     $rule->{orig_prt} = $orig_prt if $orig_prt;
                                     $rule->{oneway} = 1 if $flags->{oneway};
                                     $rule->{no_check_supernet_rules} = 1
@@ -6847,6 +6967,7 @@ sub expand_services {
     convert_hosts if $convert_hosts;
     progress('Expanding services');
 
+    collect_log();
     my $expanded_rules_aref = [];
 
     # Sort by service name to make output deterministic.
@@ -6904,9 +7025,138 @@ sub expand_services {
          scalar grep { !$_->{deleted} } @$expanded_rules_aref);
     show_deleted_rules1();
 
+    # Find management IP of device after %rule_tree has been set up.
+    set_policy_distribution_ip();
+
     # Set attribute {is_supernet} before calling split_expanded_rule_types.
     find_subnets_in_nat_domain();
     split_expanded_rule_types($expanded_rules_aref);
+    return;
+}
+
+# For each device, find the IP address which is used
+# to manage the device from a central policy distribution point.
+# This address is added as a comment line to each generated code file.
+# This is to used later when approving the generated code file.
+sub set_policy_distribution_ip  {
+    progress('Setting policy distribution IP');
+
+    # Find all TCP ranges which include port 22 and 23.
+    my @admin_tcp_keys = grep({
+            my ($s1, $s2, $p1, $p2) = split(':', $_);
+              $p1 <= 22 && 22 <= $p2 || $p1 <= 23 && 23 <= $p2;
+        }
+        keys %{ $prt_hash{tcp} });
+    my @prt_list = map({ my $l = $_->{splitted_prt_list}; $l ? @$l : ($_) } 
+                       @{ $prt_hash{tcp} }{@admin_tcp_keys});
+    push @prt_list, $prt_ip;
+    my %admin_prt;
+    @admin_prt{@prt_list} = @prt_list;
+
+    # Mapping from policy distribution host to subnets, networks and
+    # aggregates that include this host.
+    my %host2pdp_src;
+    my $get_pdp_src = sub {
+        my ($host) = @_;
+        my $pdp_src;
+        if ($pdp_src = $host2pdp_src{$host}) {
+            return $pdp_src;
+        }
+        for my $pdp (map { $_ } @{ $host->{subnets} }) {
+            while ($pdp) {
+                push @$pdp_src, $pdp;
+                $pdp = $pdp->{up};
+            }
+        }
+        return $host2pdp_src{$host} = $pdp_src;
+    };
+    for my $router (@managed_routers, @routing_only_routers) {
+        my $pdp = $router->{policy_distribution_point} ||= $policy_distribution_point;
+        next if !$pdp;
+        
+        my %found_interfaces;
+        my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
+        my $pdp_src = $get_pdp_src->($pdp);
+        for my $src (@$pdp_src) {
+            my $sub_rule_tree = $rule_tree{0}->{permit}->{$src} or next;
+
+            # Find interfaces where some rule permits management traffic.
+            for my $interface (@{ $router->{interfaces} }) {
+
+                # Loadbalancer VIP can't be used to access device.
+                next if $interface->{vip};
+
+                for my $prt (@prt_list) {
+                    $sub_rule_tree->{$interface}->{$prt} or next;
+                    $found_interfaces{$interface} = $interface;
+                }
+            }
+        }
+        my @result;
+
+        # Ready, if exactly one management interface was found.
+        if (keys %found_interfaces == 1) {
+            @result = values %found_interfaces;
+        }
+        else {
+
+#           debug("$router->{name}: ", scalar keys %found_interfaces);
+            my @front = path_auto_interfaces($router, $pdp);
+
+            # If multiple management interfaces were found, take that which is
+            # directed to policy_distribution_point.
+            for my $front (@front) {
+                if ($found_interfaces{$front}) {
+                    push @result, $front;
+                }
+            }
+
+            # Take all management interfaces.
+            # Preserve original order of router interfaces.
+            if (! @result) {
+                @result = grep { $found_interfaces{$_} } @{ $router->{interfaces} };
+            }
+
+            # Don't set {admin_ip} if no address is found.
+            # Warning is printed below.
+            next if not @result;
+        }
+
+        # Prefer loopback interface if available.
+        $router->{admin_ip} = [
+            map { print_ip((address($_, $no_nat_set))->[0]) }
+            sort { ($b->{loopback} || '') cmp($a->{loopback} || '') } @result
+        ];
+    }
+    my %seen;
+    for my $router (@managed_routers, @routing_only_routers) {
+        next if $seen{$router};
+        next if !$router->{policy_distribution_point};
+
+        my $unreachable;
+        if (my $vrf_members = $router->{vrf_members}) {
+            grep { $_->{admin_ip} } @$vrf_members
+              or $unreachable = "at least one VRF of $router->{device_name}";
+
+            # Print VRF instance with known admin_ip first.
+            $router->{vrf_members} = [
+                sort {
+                    !$a->{admin_ip} <=> !$b->{admin_ip}
+                    || $a->{name} cmp $b->{name}
+                  } @$vrf_members
+            ];
+            $seen{$_} = 1 for @$vrf_members;
+        }
+        else {
+            $router->{admin_ip} or $unreachable = $router->{name};
+            $seen{$router} = 1;
+        }
+        $unreachable
+          and warn_msg (
+            "Missing rule to reach $unreachable",
+            " from policy_distribution_point"
+          );
+    }
     return;
 }
 
@@ -7018,7 +7268,8 @@ sub propagate_owners {
             $add_node->($network, $host);
         }
         for my $interface (@{ $network->{interfaces} }) {
-            if (not $interface->{router}->{managed}) {
+            my $router = $interface->{router};
+            if (!($router->{managed} || $router->{routing_only})) {
                 $add_node->($network, $interface);
             }
         }
@@ -7181,7 +7432,7 @@ sub propagate_owners {
         }
     }
 
-    for my $router (@managed_routers) {
+    for my $router (@managed_routers, @routing_only_routers) {
         my $owner = $router->{owner} or next;
         $owner->{is_used} = 1;
 
@@ -7195,7 +7446,7 @@ sub propagate_owners {
     # Propagate owner of loopback interface to loopback network 
     # and loopback zone.
     for my $router (@routers) {
-        my $managed = $router->{managed};
+        my $managed = $router->{managed} || $router->{routing_only};
         for my $interface (@{ $router->{interfaces} }) {
             $interface->{loopback} or next;
             my $owner = $interface->{owner} or next;
@@ -7438,7 +7689,7 @@ sub set_natdomain {
 #                   debug("$domain->{name}: NAT $out_interface->{name}");
                     $out_interface->{no_nat_set} = $no_nat_set;
                     $out_interface->{hardware}->{no_nat_set} = $no_nat_set
-                      if $router->{managed};
+                      if $router->{managed} || $router->{routing_only};
                 }
 
                 # Don't process interface where we reached this router.
@@ -8989,7 +9240,7 @@ sub link_aggregates {
                     $aggregate->{disabled} = 1;
                     next;
                 }
-                if ($router->{managed}) {
+                if ($router->{managed} || $router->{routing_only}) {
                     $err = "$aggregate->{name} must not be linked to"
                       . " managed $router->{name}";
                     last BLOCK;
@@ -9287,7 +9538,7 @@ sub set_area1 {
     if ($is_zone) {
         push @{ $area->{zones} }, $obj;
     }
-    elsif ($obj->{managed}) {
+    elsif ($obj->{managed} || $obj->{routing_only}) {
         push @{ $area->{managed_routers} }, $obj;
     }
 
@@ -9754,7 +10005,8 @@ sub check_pathrestrictions {
         # are located inside a loop with all routers unmanaged.
         #
         # Some router is managed.
-        grep { $_->{router}->{managed} } @$elements and next;
+        grep({ $_->{router}->{managed} || $_->{router}->{routing_only} } 
+             @$elements) and next;
 
         # Different zones or zone_clusters, hence some router is managed.
         equal(map { $_->{zone_cluster} || $_ } map { $_->{zone} } @$elements)
@@ -12509,7 +12761,9 @@ sub gen_reverse_rules1  {
 
             # If source is a managed interface,
             # reversed will get attribute managed_intf.
-            unless (is_interface($src) and $src->{router}->{managed}) {
+            unless (is_interface($src) && ($src->{router}->{managed} ||
+                                           $src->{router}->{routing_only}))
+            {
                 next;
             }
         }
@@ -12594,6 +12848,9 @@ sub gen_reverse_rules1  {
                 dst       => $src,
                 prt       => $new_prt,
             };
+            if (my $log = $rule->{log}) {
+                $new_rule->{log} = $log;
+            }
 
             # Don't push to @$rule_aref while we are iterating over it.
             push @extra_rules, $new_rule;
@@ -12995,6 +13252,8 @@ sub optimize_rules {
 #                                                              ->{deleted};
                                                         my $prt =
                                                           $chg_rule->{prt};
+                                                        my $chg_log =
+                                                          $chg_rule->{log} || '';
                                                         while (1) {
                                                             if (
                                                                 my $cmp_rule
@@ -13002,11 +13261,18 @@ sub optimize_rules {
                                                                 ->{$prt}
                                                               )
                                                             {
+                                                                my $cmp_log =
+                                                                  $cmp_rule
+                                                                  ->{log} || '';
                                                                 if
                                                                   (
                                                                    $cmp_rule
                                                                    ne
                                                                    $chg_rule
+                                                                   &&
+                                                                   $cmp_log
+                                                                   eq
+                                                                   $chg_log
                                                                   )
                                                               {
 
@@ -13488,9 +13754,11 @@ sub find_active_routes  {
                 $rule->{deleted}
             and (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf})
             and (
-                not(is_interface $src and $src->{router}->{managed})
+                not(is_interface $src and ($src->{router}->{managed} or
+                                           $src->{router}->{routing_only}))
                 or (is_interface $rule->{deleted}->{src}
-                    and $rule->{deleted}->{src}->{router}->{managed})
+                    and ($rule->{deleted}->{src}->{router}->{managed} or
+                         $rule->{deleted}->{src}->{router}->{routing_only}))
             )
           )
         {
@@ -13537,14 +13805,18 @@ sub find_active_routes  {
         for my $network (@dst_networks) {
             $pseudo_rule->{dst_networks}->{$network} = $network;
         }
-        if (is_interface $src and $src->{router}->{managed}) {
+        if (is_interface($src) && ($src->{router}->{managed} ||
+                                   $src->{router}->{routing_only})) 
+        {
             $src = $src->{main_interface} || $src;
             $pseudo_rule->{src_interfaces}->{$src} = $src;
             for my $network (@dst_networks) {
                 $pseudo_rule->{src_intf2nets}->{$src}->{$network} = $network;
             }
         }
-        if (is_interface $dst and $dst->{router}->{managed}) {
+        if (is_interface($dst) && ($dst->{router}->{managed} ||
+                                   $dst->{router}->{routing_only})) 
+        {
             $dst = $dst->{main_interface} || $dst;
             $pseudo_rule->{dst_interfaces}->{$dst} = $dst;
             for my $network (@src_networks) {
@@ -13642,7 +13914,7 @@ sub check_and_convert_routes  {
     progress('Checking for duplicate routes');
 
     # Fix routes to bridged interfaces without IP address.
-    for my $router (@managed_routers) {
+    for my $router (@managed_routers, @routing_only_routers) {
         for my $interface (@{ $router->{interfaces} }) {
             next if not $interface->{network}->{bridged};
             for my $hop (values %{ $interface->{hop} }) {
@@ -13660,7 +13932,7 @@ sub check_and_convert_routes  {
         }
     }
 
-    for my $router (@managed_routers) {
+    for my $router (@managed_routers, @routing_only_routers) {
 
         # Adjust routes through VPN tunnel to cleartext interface.
         for my $interface (@{ $router->{interfaces} }) {
@@ -14594,138 +14866,6 @@ sub distribute_rule {
     return;
 }
 
-# For each device, find the IP address which is used
-# to manage the device from a central policy distribution point.
-# This address is added as a comment line to each generated code file.
-# This is to used later when approving the generated code file.
-sub set_policy_distribution_ip  {
-    progress('Setting policy distribution IP');
-
-    # Find all TCP ranges which include port 22 and 23.
-    my @admin_tcp_keys = grep({
-            my ($s1, $s2, $p1, $p2) = split(':', $_);
-              $p1 <= 22 && 22 <= $p2 || $p1 <= 23 && 23 <= $p2;
-        }
-        keys %{ $prt_hash{tcp} });
-    my @prt_list = map({ my $l = $_->{splitted_prt_list}; $l ? @$l : ($_) } 
-                       @{ $prt_hash{tcp} }{@admin_tcp_keys});
-    push @prt_list, $prt_ip;
-    my %admin_prt;
-    @admin_prt{@prt_list} = @prt_list;
-
-    my %host2pdp_src;
-    my $get_pdp_src = sub {
-        my ($host) = @_;
-        my $pdp_src;
-        if ($pdp_src = $host2pdp_src{$host}) {
-            return $pdp_src;
-        }
-        for my $pdp (map { $_ } @{ $host->{subnets} }) {
-            while ($pdp) {
-                $pdp_src->{$pdp} = $pdp;
-                $pdp = $pdp->{up};
-            }
-        }
-        return $host2pdp_src{$host} = $pdp_src;
-    };
-    for my $router (@managed_routers) {
-        my $pdp = $router->{policy_distribution_point} ||= $policy_distribution_point;
-        next if !$pdp;
-        
-        my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
-        my $pdp_src = $get_pdp_src->($pdp);
-        my %interfaces;
-
-        # Find interfaces where some rule permits management traffic.
-        for my $intf (@{ $router->{hardware} },
-            grep { $_->{ip} eq 'tunnel' } @{ $router->{interfaces} })
-        {
-            next if not $intf->{intf_rules};
-            for my $rule (@{ $intf->{intf_rules} }) {
-                my ($action, $src, $dst, $prt) =
-                  @{$rule}{qw(action src dst prt)};
-                next if $action eq 'deny';
-                next if not $pdp_src->{$src};
-                next if not $admin_prt{$prt};
-                next if not is_interface($dst);
-
-                # Filter out traffic to other devices of crosslink cluster.
-                next if not $dst->{router} eq $router;
-
-                # Loadbalancer VIP can't be used to access device.
-                next if $dst->{vip};
-                $interfaces{$dst} = $dst;
-            }
-        }
-        my @result;
-
-        # Ready, if exactly one management interface was found.
-        if (keys %interfaces == 1) {
-            @result = values %interfaces;
-        }
-        else {
-
-#           debug("$router->{name}: ", scalar keys %interfaces);
-            my @front =
-              path_auto_interfaces($router, $pdp);
-
-            # If multiple management interfaces were found, take that which is
-            # directed to policy_distribution_point.
-            for my $front (@front) {
-                if ($interfaces{$front}) {
-                    push @result, $front;
-                }
-            }
-
-            # Take all management interfaces.
-            # Preserve original order of router interfaces.
-            if (! @result) {
-                @result = grep { $interfaces{$_} } @{ $router->{interfaces} };
-            }
-
-            # Don't set {admin_ip} if no address is found.
-            # Warning is printed below.
-            next if not @result;
-        }
-
-        # Prefer loopback interface if available.
-        $router->{admin_ip} = [
-            map { print_ip((address($_, $no_nat_set))->[0]) }
-            sort { ($b->{loopback} || '') cmp($a->{loopback} || '') } @result
-        ];
-    }
-    my %seen;
-    for my $router (@managed_routers) {
-        next if $seen{$router};
-        next if !$router->{policy_distribution_point};
-
-        my $unreachable;
-        if (my $vrf_members = $router->{vrf_members}) {
-            grep { $_->{admin_ip} } @$vrf_members
-              or $unreachable = "at least one VRF of $router->{device_name}";
-
-            # Print VRF instance with known admin_ip first.
-            $router->{vrf_members} = [
-                sort {
-                    !$a->{admin_ip} <=> !$b->{admin_ip}
-                    || $a->{name} cmp $b->{name}
-                  } @$vrf_members
-            ];
-            $seen{$_} = 1 for @$vrf_members;
-        }
-        else {
-            $router->{admin_ip} or $unreachable = $router->{name};
-            $seen{$router} = 1;
-        }
-        $unreachable
-          and warn_msg (
-            "Missing rule to reach $unreachable",
-            " from policy_distribution_point"
-          );
-    }
-    return;
-}
-
 my $permit_any_rule;
 
 sub add_router_acls  {
@@ -15021,9 +15161,6 @@ sub rules_distribution {
         path_walk($rule, \&distribute_rule, 'Router');
     }
 
-    # Find management IP of device before ACL lines are cleared for
-    # crosslink interfaces during add_router_acls.
-    set_policy_distribution_ip();
     add_router_acls();
     prepare_local_optimization();
 
@@ -15304,44 +15441,51 @@ sub cisco_acl_line {
     my ($router, $rules_aref, $no_nat_set, $prefix) = @_;
     my $model       = $router->{model};
     my $filter_type = $model->{filter};
+    $filter_type    =~ /^(:?IOS|NX-OS|PIX|ACE)$/
+        or internal_err("Unknown filter_type $filter_type");
     my $numbered    = 10;
+    my $active_log  = $router->{log};
     for my $rule (@$rules_aref) {
-        my ($action, $src, $dst, $prt) =
-          @{$rule}{ 'action', 'src', 'dst', 'prt' };
         print "$model->{comment_char} " . print_rule($rule) . "\n"
           if $config{comment_acls};
+        my ($action, $src, $dst, $prt) = @{$rule}{qw(action src dst prt)};
         my $spair = address($src, $no_nat_set);
         my $dpair = address($dst, $no_nat_set);
-        if ($filter_type =~ /^(PIX|ACE)$/) {
 
-            # Only traffic passing through the PIX.
-            my ($proto_code, $src_port_code, $dst_port_code) =
-                cisco_prt_code($prt, $model);
-            my $result = "$prefix $action $proto_code";
-            $result .= ' ' . cisco_acl_addr($spair, $model);
-            $result .= " $src_port_code" if defined $src_port_code;
-            $result .= ' ' . cisco_acl_addr($dpair, $model);
-            $result .= " $dst_port_code" if defined $dst_port_code;
-            print "$result\n";
-        }
-        elsif ($filter_type =~ /^(:?IOS|NX-OS)$/) {
-            my ($proto_code, $src_port_code, $dst_port_code) =
-              cisco_prt_code($prt, $model);
-            my $result = "$prefix $action $proto_code";
-            $result .= ' ' . cisco_acl_addr($spair, $model);
-            $result .= " $src_port_code" if defined $src_port_code;
-            $result .= ' ' . cisco_acl_addr($dpair, $model);
-            $result .= " $dst_port_code" if defined $dst_port_code;
-            $result .= " log" if $router->{log_deny} and $action eq 'deny';
-            if ($filter_type eq 'NX-OS') {
-                $result = " $numbered$result";
-                $numbered += 10;
+        my ($proto_code, $src_port_code, $dst_port_code) =
+            cisco_prt_code($prt, $model);
+        my $result = "$prefix $action $proto_code";
+        $result .= ' ' . cisco_acl_addr($spair, $model);
+        $result .= " $src_port_code" if defined $src_port_code;
+        $result .= ' ' . cisco_acl_addr($dpair, $model);
+        $result .= " $dst_port_code" if defined $dst_port_code;
+
+        # Add log level or "log disable".
+        my $severity;
+        if ($active_log && (my $log = $rule->{log})) {
+            for my $tag (@$log) {
+                if (my $s = $active_log->{$tag}) {
+                    $severity = $s;
+
+                    # Take first of possibly several matching tags.
+                    last;
+                }
             }
-            print "$result\n";
         }
-        else {
-            internal_err("Unknown filter_type $filter_type");
+        if ($severity) {
+            my $level = $severity2log_level{$severity};
+            $result .= " log $level";
         }
+        elsif ($router->{log_deny} && $action eq 'deny') {
+            $result .= " log";
+        }
+
+        # Add line numbers.
+        if ($filter_type eq 'NX-OS') {
+            $result = " $numbered$result";
+            $numbered += 10;
+        }
+        print "$result\n";
     }
     return;
 }
@@ -15372,13 +15516,15 @@ sub find_object_groups  {
             my %group_rule_tree;
 
             # Find groups of rules with identical
-            # action, prt, src/dst and different dst/src.
+            # action, prt, log, src/dst and different dst/src.
             for my $rule (@{ $hardware->{$rule_type} }) {
                 my $action    = $rule->{action};
                 my $that      = $rule->{$that};
                 my $this      = $rule->{$this};
                 my $prt       = $rule->{prt};
-                $group_rule_tree{$action}->{$prt}->{$that}->{$this} = $rule;
+                my $log       = $rule->{log} || '';
+                my $key       = "$action,$that,$prt,$log";
+                $group_rule_tree{$key}->{$this} = $rule;
             }
 
             # Find groups >= $min_object_group_size,
@@ -15386,37 +15532,29 @@ sub find_object_groups  {
             # put groups into an array / hash.
             for my $href (values %group_rule_tree) {
 
-                # $href is {prt => href, ...}
-               for my $href (values %$href) {
+                # $href is {dst/src => rule, ...}
+                my $size = keys %$href;
+                if ($size >= $min_object_group_size) {
+                    my $glue = {
 
-                   # $href is {src/dst => href, ...}
-                   for my $href (values %$href) {
+                        # Indicator, that no further rules need
+                        # to be processed.
+                        active => 0,
 
-                       # $href is {dst/src => rule, ...}
-                       my $size = keys %$href;
-                       if ($size >= $min_object_group_size) {
-                           my $glue = {
+                        # NAT map for address calculation.
+                        no_nat_set => $hardware->{no_nat_set},
 
-                               # Indicator, that no further rules need
-                               # to be processed.
-                               active => 0,
+                        # object-ref => rule, ...
+                        hash => $href
+                    };
 
-                               # NAT map for address calculation.
-                               no_nat_set => $hardware->{no_nat_set},
-
-                               # object-ref => rule, ...
-                               hash => $href
-                           };
-
-                           # All this rules have identical
-                           # action, prt, src/dst  and dst/src
-                           # and shall be replaced by a new object group.
-                           for my $rule (values %$href) {
-                               $rule->{group_glue} = $glue;
-                           }
-                       }
-                   }
-               }
+                    # All this rules have identical
+                    # action, prt, src/dst  and dst/src
+                    # and shall be replaced by a new object group.
+                    for my $rule (values %$href) {
+                        $rule->{group_glue} = $glue;
+                    }
+                }
             }
 
             my $calc_ip_mask_strings = sub {
@@ -16450,10 +16588,12 @@ sub print_chains  {
 
 # Find adjacent port ranges.
 sub join_ranges  {
-    my ($hardware) = @_;
+    my ($router, $hardware) = @_;
     my $changed;
+    my $active_log  = $router->{log};
     for my $rules ('intf_rules', 'rules', 'out_rules') {
         my %hash = ();
+      RULE:
         for my $rule (@{ $hardware->{$rules} }) {
             my ($action, $src, $dst, $prt) =
               @{$rule}{ 'action', 'src', 'dst', 'prt' };
@@ -16475,18 +16615,35 @@ sub join_ranges  {
                 # $href is {dst => href, ...}
                 for my $href (values %$href) {
 
+                    # Nothing to do if only a single rule.
+                    next if values %$href == 1;
+
                     # Values of %$href are rules with identical
                     # action/src/dst and a TCP or UDP protocol.
                     #
-                    # Collect rules with identical src_range
-                    my %src_range2rules;
+                    # Collect rules with 
+                    # - identical src_range and
+                    # - identical log severity.
+                    #
+                    # src_ranges from TCP and UDP with identical range
+                    # are known to be different objects, because
+                    # different attribute {prt} is set.
+                    my %key2rules;
                     for my $rule (values %$href) {
                         my $prt = $rule->{prt};
-                        my $src_range = $prt->{src_range};
-                        push @{ $src_range2rules{$src_range} }, $rule;
+                        my $key = $prt->{src_range};
+                        if (my $log = $rule->{log}) {
+                            for my $tag (@$log) {
+                                if (my $severity = $active_log->{$tag}) {
+                                    $key .= ",$severity";
+                                    last;
+                                }
+                            }
+                        }                
+                        push @{ $key2rules{$key} }, $rule;
                     }
 
-                    for my $rules (values %src_range2rules) {
+                    for my $rules (values %key2rules) {
                         
                         # When sorting these rules by low port number,
                         # rules with adjacent protocols will placed
@@ -16879,8 +17036,9 @@ sub local_optimization {
 
 #                       debug(print_rule $rule);
 #                       debug "is_supernet" if $rule->{dst}->{is_supernet};
-                        my ($action, $src, $dst, $prt) =
-                          @{$rule}{ 'action', 'src', 'dst', 'prt' };
+                        my ($action, $src, $dst, $prt, $log) =
+                          @{$rule}{qw(action src dst prt log)};
+                        $log ||= '';
 
                         while (1) {
                             my $src = $src;
@@ -16895,8 +17053,13 @@ sub local_optimization {
                                                     if (my $other_rule =
                                                         $hash->{$prt})
                                                     {
-                                                        unless ($rule eq
-                                                                $other_rule)
+                                                        my $o_log = 
+                                                          $other_rule->{log}
+                                                          || '';
+                                                        if ($rule ne
+                                                            $other_rule
+                                                            &&
+                                                            $log eq $o_log)
                                                         {
 
 # debug("del:", print_rule $rule);
@@ -17020,6 +17183,7 @@ sub local_optimization {
                                     dst       => $dst,
                                     prt       => $prt_ip,
                                 };
+                                $new_rule->{log} = $rule->{log} if $rule->{log};
 
 #				debug("sec: ", print_rule $new_rule);
                                 $id_hash2{$src}->{$dst} = $new_rule;
@@ -17052,7 +17216,7 @@ sub local_optimization {
                 # optimization has been finished, because protocols will be
                 # overlapping again after joining.
 #                my $t6 = time();
-                join_ranges($hardware);
+                join_ranges($router, $hardware);
 
 #                $time{$rname}[3] += time() - $t6;
             }
@@ -18384,7 +18548,7 @@ sub print_code {
 
     progress('Printing code');
     my %seen;
-    for my $router (@managed_routers) {
+    for my $router (@managed_routers, @routing_only_routers) {
         next if $seen{$router};
         my $device_name = $router->{device_name};
         my $file = $device_name;
@@ -18419,13 +18583,18 @@ sub print_code {
             }
         };
         $seen{$_} = 1 for @$vrf_members;
-        $per_vrf->(\&print_routes);
-        $per_vrf->(\&print_crypto);
-        print_acl_prefix($router);
-        $per_vrf->(\&print_acls);
-        print_acl_suffix($router);
-        $per_vrf->(\&print_interface);
-        $per_vrf->(\&print_nat);
+        if ($router->{managed}) {
+            $per_vrf->(\&print_routes);
+            $per_vrf->(\&print_crypto);
+            print_acl_prefix($router);
+            $per_vrf->(\&print_acls);
+            print_acl_suffix($router);
+            $per_vrf->(\&print_interface);
+            $per_vrf->(\&print_nat);
+        }
+        else {
+            $per_vrf->(\&print_routes);
+        }
 
         print "$comment_char [ END $device_name ]\n\n";
         select STDOUT;
@@ -18455,7 +18624,8 @@ sub copy_raw {
     $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
     ## use critic
 
-    my %device_names = map { $_->{device_name} => 1 } @managed_routers;
+    my %device_names = 
+        map { $_->{device_name} => 1 } @managed_routers, @routing_only_routers;
 
     opendir(my $dh, $raw_dir) or fatal_err("Can't opendir $raw_dir: $!");
     while (my $file = Encode::decode($filename_encode, readdir $dh)) {
@@ -18625,7 +18795,8 @@ sub init_global_vars {
         %{ $pair->[1] } = ();
     }
     %interfaces = %hosts = ();
-    @managed_routers = @virtual_interfaces = @pathrestrictions = ();
+    @managed_routers = @routing_only_routers = ();
+    @virtual_interfaces = @pathrestrictions = ();
     @managed_vpnhub = @routers = @networks = @zones = @areas = ();
     @natdomains = ();
     %auto_interfaces = ();

@@ -10,18 +10,6 @@ my ($title, $in, $out, $topo);
 
 ############################################################
 $topo = <<'END';
-# a3 < a2 < all, a1 < all
-area:all = { 
- anchor = network:n1; 
- router_attributes = { policy_distribution_point = host:h1; }
-}
-area:a1 = { border = interface:asa1.n1; }
-area:a2 = {
- border = interface:asa1.n2; 
- router_attributes = { policy_distribution_point = host:h3; }
-}
-area:a3 = { border = interface:asa2.n3; }
-
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
@@ -46,6 +34,18 @@ $title = 'Policy distribution point from nested areas';
 ############################################################
 
 $in = $topo . <<'END';
+# a3 < a2 < all, a1 < all
+area:all = { 
+ anchor = network:n1; 
+ router_attributes = { policy_distribution_point = host:h1; }
+}
+area:a1 = { border = interface:asa1.n1; }
+area:a2 = {
+ border = interface:asa1.n2; 
+ router_attributes = { policy_distribution_point = host:h3; }
+}
+area:a3 = { border = interface:asa2.n3; }
+
 service:pdp1 = {
  user = interface:[managed & area:all].[auto];
  permit src = host:h1; dst = user; prt = tcp 22;
@@ -70,6 +70,7 @@ $title = 'Overlapping areas';
 ############################################################
 
 $in = $topo . <<'END';
+area:a2 = { border = interface:asa1.n2; }
 area:a2x = { border = interface:asa2.n2; }
 END
 
@@ -84,6 +85,7 @@ $title = 'Duplicate areas';
 ############################################################
 
 $in = $topo . <<'END';
+area:a2 = { border = interface:asa1.n2; }
 area:a2x = { border = interface:asa1.n2; }
 END
 
