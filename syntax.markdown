@@ -109,6 +109,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ routing = ( EIGRP | OSPF | dynamic | manual ); ]
          [ policy_distribution_point = host:<name>;   ]
          [ general_permit = <protocol list>;          ]
+         ( log:<name> = <severity>; )*
          [ strict_secondary; ]
          [ no_group_code;    ]
          [ no_crypto_filter; ]
@@ -125,6 +126,8 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
                       local | local_secondary | routing_only
     <model>       ::= Linux | ASA | ASA,8.4 | PIX | IOS | IOS,FW | NX-OS | ACE
     <ip-prefix>   ::= <ip>/<prefix-len>
+    <severity>    ::= alerts|critical|debugging|disable|emergencies|
+                      errors|informational|notifications|warnings
 
 ##Interface definition
 
@@ -288,6 +291,8 @@ with
             src = <object set with 'user'>;
             dst = <object set with 'user'>;
             prt = <protocol list>;
+          [ log = <name>(, <name>)*; ]
+
       <object set with 'user'> is like <object set> 
        but with additional keyword 'user' allowed in <network object>
 

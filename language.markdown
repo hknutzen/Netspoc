@@ -662,6 +662,24 @@ devices which already have an attribute `no_in_acl` declared at some
 interface or have an attribute `std_in_acl` declared at the device
 level.
 
+## Logging
+
+The log severity can be changed individually for each combination of
+managed device and rule.
+
+Define one or more lines `log:<tag> = <severity>` at devices, where
+logging should be enabled or changed.
+
+- <tag> is some valid identifier.
+- <severity> is one of 
+  alerts | critical | debugging | disable | emergencies | errors | informational | notifications | warnings
+
+Define attribute `log = <tag1>, ...;` at each rule that needs changed logging.
+A rule with logging for <tag1> is logged at each device, where a
+matching `log:<tag1>` is defined.
+
+Severity names correspond to well known UNIX log severities.
+`disable` disables logging at devices of type ASA and PIX.
 
 ##Routing
 
