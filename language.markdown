@@ -677,10 +677,12 @@ matching `log:<tag1>` is defined.
 Some devices allow extended log definition with a device specific modifier 
 `log:<tag> = <modifier>`.
 
-For model `ASA` we have `alerts | critical | debugging | disable |
+For model `ASA` we have modifiers `alerts | critical | debugging | disable |
 emergencies | errors | informational | notifications | warnings`. The
 severity names correspond to well known UNIX log severities. The
 special name `disable` disables logging for a rule.
+
+Model `IOS` allows modifier `log-input`.
 
 ##Routing
 
