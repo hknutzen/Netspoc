@@ -150,9 +150,6 @@ our %config = (
 # Check for services where multiple owners have been derived.
     check_service_multi_owner => 'warn',
 
-# Check for inconsistent use of attributes 'extend' and 'extend_only' in owner.
-    check_owner_extend => 0,
-
 # Check for missing supernet rules.
     check_supernet_rules => 'warn',
 
@@ -170,9 +167,6 @@ our %config = (
 # Add comments to generated code.
     comment_acls   => 0,
     comment_routes => 0,
-
-# Transient option.
-    check_routing_manual => 1,
 
 # Ignore these names when reading directories:
 # - CVS and RCS directories
@@ -2227,9 +2221,7 @@ sub read_router {
             # approve would remove manual routes otherwise.
             # Approve only leaves routes unchanged, if Netspoc generates
             # no routes at all.
-            if ((my $routing = $interface->{routing}) && 
-                $config{check_routing_manual}) 
-            {
+            if ((my $routing = $interface->{routing})) {
                 $routing->{name} eq 'manual' and
                     warn_msg("'routing=manual' must only be applied",
                              " to router, not to $interface->{name}");
@@ -7384,10 +7376,6 @@ sub propagate_owners {
             my $ext = $node_ext;
             if ($node1) {
                 for my $owner_list ($ext1, $ext) {
-                    next if !$config{check_owner_extend};
-                    my $print = $config{check_owner_extend} eq 'warn' 
-                              ? \&warn_msg 
-                              : \&err_msg;
                     my ($other, $owner_node, $other_node) = 
                           $owner_list eq $ext 
                         ? ($ext1, $node, $node1)
@@ -7395,7 +7383,7 @@ sub propagate_owners {
                     for my $e_owner (@$owner_list) {
                         next if $e_owner->{extend_unbounded};
                         next if grep { $e_owner eq $_ } @$other;
-                        $print->("$owner->{name}",
+                        warn_msg("$owner->{name}",
                                  " is extended by $e_owner->{name}\n",
                                  " - only at $owner_node->{name}\n",
                                  " - but not at $other_node->{name}");

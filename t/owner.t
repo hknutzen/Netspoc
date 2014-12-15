@@ -342,7 +342,7 @@ Warning: owner:n3 is extended by owner:a23
  - but not at host:h1
 END
 
-test_err($title, $in, $out, '--check_owner_extend=warn');
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Inherit owner from router_attributes of area';
@@ -367,7 +367,7 @@ Error: Can't resolve reference to 'xx' in attribute 'owner' of area:a1
 Error: Can't resolve reference to 'xx' in attribute 'owner' of router_attributes of area:a1
 END
 
-test_err($title, $in, $out, '--check_owner_extend=warn');
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;
