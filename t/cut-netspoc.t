@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
+use warnings;
 use Test::More;
 use Test::Differences;
 use File::Temp qw/ tempfile tempdir /;
@@ -42,17 +43,17 @@ router:asa2 = {
 END
 
 ############################################################
-my $title = 'Simple service';
+$title = 'Simple service';
 ############################################################
 
-my $in = $topo . <<'END';
+$in = $topo . <<'END';
 service:test = {
     user = network:n1;
     permit src = user; dst = network:n2; prt = ip;
 }
 END
 
-my $out = <<'END';
+$out = <<'END';
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
@@ -70,10 +71,10 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-my $title = 'Named aggregate behind unmanaged';
+$title = 'Named aggregate behind unmanaged';
 ############################################################
 
-my $in = $topo . <<'END';
+$in = $topo . <<'END';
 any:n3 = { link = network:n3; }
 service:test = {
     user = network:n1;
@@ -81,7 +82,7 @@ service:test = {
 }
 END
 
-my $out = <<'END';
+$out = <<'END';
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; nat:a2 = { ip = 10.9.8.0/24; } }
@@ -105,17 +106,17 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-my $title = 'Unnamed aggregate behind unmanaged';
+$title = 'Unnamed aggregate behind unmanaged';
 ############################################################
 
-my $in = $topo . <<'END';
+$in = $topo . <<'END';
 service:test = {
     user = network:n1;
     permit src = user; dst = any:[ip=10.0.0.0/8 & network:n3]; prt = ip;
 }
 END
 
-my $out = <<'END';
+$out = <<'END';
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; nat:a2 = { ip = 10.9.8.0/24; } }
@@ -138,10 +139,10 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-my $title = 'Ignore area with owner';
+$title = 'Ignore area with owner';
 ############################################################
 
-my $in = $topo . <<'END';
+$in = $topo . <<'END';
 area:n2 = { border = interface:asa1.n2;  owner = foo; }
 owner:foo = { admins = a@example.com; }
 service:test = {
@@ -150,7 +151,7 @@ service:test = {
 }
 END
 
-my $out = <<'END';
+$out = <<'END';
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
@@ -168,10 +169,10 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-my $title = 'Area with NAT';
+$title = 'Area with NAT';
 ############################################################
 
-my $in = $topo . <<'END';
+$in = $topo . <<'END';
 area:n2 = { border = interface:asa1.n2; nat:a2 = { ip = 10.9.9.9/32; dynamic; } }
 service:test = {
     user = network:n2;
@@ -179,7 +180,7 @@ service:test = {
 }
 END
 
-my $out = <<'END';
+$out = <<'END';
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
@@ -198,10 +199,10 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-my $title = 'Useless aggregate';
+$title = 'Useless aggregate';
 ############################################################
 
-my $in = $topo . <<'END';
+$in = $topo . <<'END';
 any:a2 = { link = network:n2; }
 service:test = {
     user = network:n2;
@@ -209,7 +210,7 @@ service:test = {
 }
 END
 
-my $out = <<'END';
+$out = <<'END';
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
@@ -227,10 +228,10 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-my $title = 'Aggregate with NAT and owner';
+$title = 'Aggregate with NAT and owner';
 ############################################################
 
-my $in = $topo . <<'END';
+$in = $topo . <<'END';
 any:a2 = { 
  link = network:n2; 
  nat:a2 = { ip = 10.9.9.9/32; dynamic; }
@@ -243,7 +244,7 @@ service:test = {
 }
 END
 
-my $out = <<'END';
+$out = <<'END';
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
@@ -267,10 +268,10 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-my $title = 'Used aggregate with owner';
+$title = 'Used aggregate with owner';
 ############################################################
 
-my $in = <<'END';
+$in = <<'END';
 any:n1 = { owner = o; link = network:n1; }
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -291,10 +292,10 @@ END
 test_run($title, $in, $in);
 
 ############################################################
-my $title = 'Router with reroute_permit';
+$title = 'Router with reroute_permit';
 ############################################################
 
-my $in = <<'END';
+$in = <<'END';
 network:n1a = { ip = 10.1.1.64/26; subnet_of = network:n1; }
 router:u = {
  interface:n1a;
