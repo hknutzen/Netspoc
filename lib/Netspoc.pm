@@ -283,6 +283,7 @@ my %router_info = (
         inversed_acl_mask   => 1,
         can_vrf             => 1,
         can_log_deny        => 1,
+        log_modifiers       => { 'log-input' => ':subst' },
         has_out_acl         => 1,
         need_protect        => 1,
         crypto              => 'IOS',
@@ -304,6 +305,7 @@ my %router_info = (
         use_prefix          => 1,
         can_vrf             => 1,
         can_log_deny        => 1,
+        log_modifiers       => {},
         has_out_acl         => 1,
         need_protect        => 1,
         print_interface     => 1,
@@ -320,6 +322,7 @@ my %router_info = (
         use_prefix          => 0,
         can_vrf             => 0,
         can_log_deny        => 0,
+        log_modifiers       => {},
         has_vip             => 1,
         has_out_acl         => 1,
         need_protect        => 1,
@@ -329,7 +332,6 @@ my %router_info = (
     PIX => {
         routing             => 'PIX',
         filter              => 'PIX',
-        can_log_disable     => 1,
         stateless_icmp      => 1,
         can_objectgroup     => 1,
         comment_char        => '!',
@@ -343,7 +345,16 @@ my %router_info = (
     ASA => {
         routing             => 'PIX',
         filter              => 'PIX',
-        can_log_disable     => 1,
+        log_modifiers       => { emergencies   => 0,
+                                 alerts        => 1,
+                                 critical      => 2,
+                                 errors        => 3,
+                                 warnings      => 4,
+                                 notifications => 5,
+                                 informational => 6,
+                                 debugging     => 7,
+                                 disable       => 'disable',
+                               },
         stateless_icmp      => 1,
         has_out_acl         => 1,
         can_objectgroup     => 1,
@@ -2005,27 +2016,6 @@ sub set_pix_interface_level {
     return;
 }
 
-my %severity2log_level = (
-    emergencies   => 0,
-    alerts        => 1,
-    critical      => 2,
-    errors        => 3,
-    warnings      => 4,
-    notifications => 5,
-    informational => 6,
-    debugging     => 7,
-    disable       => 'disable',
-);
-
-sub read_severity {
-    my $severity = read_identifier();
-    exists $severity2log_level{$severity}
-        or error_atline("Expected value: ", 
-                        join('|', sort keys %severity2log_level));
-    skip(';');
-    return $severity;
-}        
-
 my $bind_nat0 = [];
 
 our %routers;
@@ -2096,7 +2086,7 @@ sub read_router {
             add_attribute($router, policy_distribution_point => $pair);
         }
         elsif (my @list = check_assign_list('general_permit', 
-                                            \&read_typed_name_or_simple_protocol)) 
+                                            \&read_typed_name_or_simple_protocol))
         {
             add_attribute($router, general_permit => \@list);
         }
@@ -2104,11 +2094,11 @@ sub read_router {
             my $pair = read_typed_name;
             my ($type, $name2) = @$pair;
             if ($type eq 'log') {
-                skip '=';
-                my $severity = read_severity();
                 defined($router->{log}->{$name2})
-                  and error_atline("Duplicate 'log' definition");
-                $router->{log}->{$name2} = $severity;
+                        and error_atline("Duplicate 'log' definition");
+                my $modifier = check('=') ? read_identifier() : 0;
+                $router->{log}->{$name2} = $modifier;
+                skip(';');
                 next;
             }
             elsif ($type ne 'interface') {
@@ -2272,6 +2262,33 @@ sub read_router {
           and not $model->{can_log_deny}
           and err_msg("Must not use attribute 'log_deny' at $name",
             " of model $model->{name}");
+
+        if (my $hash = $router->{log}) {
+            if (my $log_modifiers = $model->{log_modifiers}) {
+                for my $name2 (sort keys %$hash) {
+
+                    # 0: simple unmodified 'log' statement.
+                    my $modifier = $hash->{$name2} or next;
+
+                    $log_modifiers->{$modifier} and next;
+
+                    my $valid = join('|', sort keys %$log_modifiers);
+                    my $what = "'log:$name2 = $modifier' at $name" .
+                               " of model $model->{name}";
+                    if ($valid) {
+                        err_msg("Invalid $what\n Expected one of: $valid");
+                    }
+                    else {
+                        err_msg("Unexpected $what\n Use 'log:$name2;' only.");
+                    }
+                }
+            }
+            else {
+                my ($name2) = sort keys %$hash;
+                err_msg("Must not use attribute 'log:$name2' at $name",
+                        " of model $model->{name}");
+            }
+        }                    
 
         $router->{no_protect_self}
           and not $model->{need_protect}
@@ -2990,8 +3007,8 @@ sub read_service {
                     )
                ];
             my $log;
-            if (my @log = check_assign_list('log', \&read_identifier)) {
-                $log = \@log;
+            if (my @list = check_assign_list('log', \&read_identifier)) {
+                $log = \@list;
             }
             $src_user
               or $dst_user
@@ -6747,12 +6764,6 @@ sub collect_log {
         my $log = $router->{log} or next;
         for my $tag (keys %$log) {
             $known_log{$tag} = 1;
-            my $severity = $log->{$tag};
-            $severity eq 'disable' or next;
-            $router->{model}->{can_log_disable} and next;
-            err_msg("Must not use log:$tag = $severity at $router->{name}\n",
-                    " This isn't supported for model",
-                    " $router->{model}->{name}.");
         }
     }
     return;
@@ -12848,9 +12859,6 @@ sub gen_reverse_rules1  {
                 dst       => $src,
                 prt       => $new_prt,
             };
-            if (my $log = $rule->{log}) {
-                $new_rule->{log} = $log;
-            }
 
             # Don't push to @$rule_aref while we are iterating over it.
             push @extra_rules, $new_rule;
@@ -15460,21 +15468,31 @@ sub cisco_acl_line {
         $result .= ' ' . cisco_acl_addr($dpair, $model);
         $result .= " $dst_port_code" if defined $dst_port_code;
 
-        # Add log level or "log disable".
-        my $severity;
+        # Find code for logging.
+        my $log_code;
         if ($active_log && (my $log = $rule->{log})) {
             for my $tag (@$log) {
-                if (my $s = $active_log->{$tag}) {
-                    $severity = $s;
+                if (exists $active_log->{$tag}) {
+                    if (my $modifier = $active_log->{$tag}) {
+                        my $normalized = $model->{log_modifiers}->{$modifier};
+                        if ($normalized eq ':subst') {
+                            $log_code = $modifier;
+                        }
+                        else {
+                            $log_code = "log $normalized";
+                        }
+                    }
+                    else {
+                        $log_code = 'log';
+                    }
 
                     # Take first of possibly several matching tags.
                     last;
                 }
             }
         }
-        if ($severity) {
-            my $level = $severity2log_level{$severity};
-            $result .= " log $level";
+        if ($log_code) {
+            $result .= " $log_code";
         }
         elsif ($router->{log_deny} && $action eq 'deny') {
             $result .= " log";
@@ -16590,7 +16608,7 @@ sub print_chains  {
 sub join_ranges  {
     my ($router, $hardware) = @_;
     my $changed;
-    my $active_log  = $router->{log};
+    my $active_log = $router->{log};
     for my $rules ('intf_rules', 'rules', 'out_rules') {
         my %hash = ();
       RULE:
@@ -16623,7 +16641,7 @@ sub join_ranges  {
                     #
                     # Collect rules with 
                     # - identical src_range and
-                    # - identical log severity.
+                    # - identical log type.
                     #
                     # src_ranges from TCP and UDP with identical range
                     # are known to be different objects, because
@@ -16634,8 +16652,8 @@ sub join_ranges  {
                         my $key = $prt->{src_range};
                         if (my $log = $rule->{log}) {
                             for my $tag (@$log) {
-                                if (my $severity = $active_log->{$tag}) {
-                                    $key .= ",$severity";
+                                if (defined(my $type = $active_log->{$tag})) {
+                                    $key .= ",$type";
                                     last;
                                 }
                             }
