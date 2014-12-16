@@ -18858,7 +18858,14 @@ sub parse_options {
     $options{'help|?'} = sub { pod2usage(1) };
     $options{man} = sub { pod2usage(-exitstatus => 0, -verbose => 2) };
 
-    GetOptionsFromArray($args, %options) or pod2usage(2);
+    if (!GetOptionsFromArray($args, %options)) {
+
+        # Don't use 'exit' but 'die', so we can catch this error in tests.
+        my $out;
+        open(my $fh, '>', \$out) or die $!;
+        pod2usage(-exitstatus => 'NOEXIT', -verbose => 0, -output => $fh);
+        die($out || '');
+    }
 
     return \%result;
 }
