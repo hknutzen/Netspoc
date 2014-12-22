@@ -624,7 +624,7 @@ ACLs at the other interfaces of the same device.
 This is useful for situations like this:
 
 1. The packet filter connects multiple customers to some central
-   site.  Each customer needs to inspect the ACls of 'his' interface,
+   site.  Each customer needs to inspect the ACLs of 'his' interface,
    but must not see ACLs of the other customers.  Declaring the
    interface to the central site with 'no_in_acl' adds outgoing ACL
    to each customers interface.
