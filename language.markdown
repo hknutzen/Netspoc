@@ -472,7 +472,7 @@ this network.
 Syntax for NAT is divided into two parts:
 
 NAT definition 
-: specifies the translated IP address of an network resource.
+: specifies the translated IP address of a network resource.
 
 NAT binding
 : applies a set of NAT definitions to an interface. 
@@ -526,7 +526,7 @@ networks of the area already have a NAT defintion with the same name,
 the original definition is retained.  Use identity NAT at network
 level to exempt some network from NAT at area level.
 
-Netspoc needs to know about NAT for this reasons:
+Netspoc needs to know about NAT for these reasons:
 
 1. When generating ACLs for an interface it must use those IP
    addresses which are visible in the area attached to this interface.
