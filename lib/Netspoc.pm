@@ -15680,12 +15680,15 @@ sub find_object_groups  {
 #              $glue->{group} = $group;
 
                     $glue->{active} = 1;
+                    my $log = $rule->{log};
                     $rule = {
                         action    => $rule->{action},
                         $that     => $rule->{$that},
                         $this     => $group,
                         prt       => $rule->{prt}
                     };
+                    $rule->{log} = $log if $log;
+                    $rule
                 }
                 push @new_rules, $rule;
             }
