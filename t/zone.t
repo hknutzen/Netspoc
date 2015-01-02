@@ -186,7 +186,7 @@ $out = <<'END';
 Error: Ambiguous subnet relation from NAT.
  network:B is subnet of
  - network:A at interface:filter1.B
- - but has no subnet relation at interface:filter2.Trans
+ - but it is hidden nat:C(network:B) at interface:filter2.Trans
 END
 
 test_err($title, $in, $out);
