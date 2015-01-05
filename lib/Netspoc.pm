@@ -2123,8 +2123,30 @@ sub read_router {
         }
     }
 
+    my $model = $router->{model};
+
+    # Owner at vip interfaces is allowed for managed and unmanaged
+    # devices and hence must be checked for both.
+    {
+        my $error;
+        for my $interface (@{ $router->{interfaces} }) {
+            if ($interface->{vip} && !($model && $model->{has_vip})) {
+                $error = 1;
+
+                # Prevent further errors.
+                delete $interface->{vip};
+                delete $interface->{owner};
+            }
+        }
+        if ($error) {
+            my $valid = join(', ', grep({ $router_info{$_}->{has_vip} } 
+                                        sort keys %router_info));
+            err_msg("Must not use attribute 'vip' at $name\n",
+                    " 'vip' is only allowed for model $valid");
+        }
+    }
+
     if (my $managed = $router->{managed}) {
-        my $model = $router->{model};
         my $all_routing = $router->{routing};
 
         unless ($model) {
@@ -2151,10 +2173,6 @@ sub read_router {
         # to the same hardware object.
         my %hardware;
         for my $interface (@{ $router->{interfaces} }) {
-            $interface->{vip} 
-              and not $model->{has_vip} 
-              and err_msg("Must not use attribute 'vip' at $name",
-                " of $model->{name}");
 
             # Managed router must not have short interface.
             if ($interface->{ip} eq 'short') {
@@ -2242,7 +2260,6 @@ sub read_router {
         }
     }
     if (my $managed = $router->{managed}) {
-        my $model = $router->{model};
         if ($managed =~ /^local/) {
             $router->{filter_only} or
                 err_msg("Missing attribut 'filter_only' for $name");
@@ -2417,10 +2434,9 @@ sub read_router {
     # Unmanaged device.
     else {
         my $bridged;
-        $router->{owner}
-          and error_atline("Attribute 'owner' must only be used at",
-                           " managed device");
-
+        if (delete $router->{owner}) {
+            warn_msg("Ignoring attribute 'owner' at unmanaged $name");
+        }
         for my $interface (@{ $router->{interfaces} }) {
             if ($interface->{hub}) {
                 error_atline("Interface with attribute 'hub' must only be",
@@ -15688,7 +15704,6 @@ sub find_object_groups  {
                         prt       => $rule->{prt}
                     };
                     $rule->{log} = $log if $log;
-                    $rule
                 }
                 push @new_rules, $rule;
             }
