@@ -620,7 +620,7 @@ network:n1 = {
 
 network:n2 = { 
  ip = 10.1.2.0/24; 
- nat:t2 = { ip = 10.9.9.0/24; }
+ nat:t1 = { ip = 10.9.9.0/24; }
 }
 
 router:r1 =  {
@@ -643,7 +643,7 @@ END
 $out = <<'END';
 Error: If multiple NAT tags are used at one network,
  these NAT tags must be used equally grouped at other networks:
- - network:n2: t2
+ - network:n2: t1
  - nat:t1(network:n1): t1,t2
 END
 
