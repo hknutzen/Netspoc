@@ -279,7 +279,6 @@ owner:o = { admins = a@example.com; }
 router:asa1 = {
  managed;
  model = ASA;
- routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
  interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
 }
@@ -290,6 +289,33 @@ service:test = {
 END
 
 test_run($title, $in, $in);
+
+############################################################
+$title = 'Owner as watcher';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a@example.com; watchers = owner:o2; }
+owner:o2 = { admins = b@example.com; watchers = owner:o3; }
+owner:o3 = { admins = c@example.com; }
+owner:o4 = { admins = d@example.com; watchers = e@example.com; }
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+service:test = {
+    user = network:n2;
+    permit src = user; dst = network:n1; prt = tcp;
+}
+END
+
+($out = $in) =~ s/owner:o4 .* \n//x;
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Router with reroute_permit';

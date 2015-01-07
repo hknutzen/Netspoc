@@ -400,7 +400,21 @@ for my $area (values %areas) {
 	$owner->{is_used} = 1;
     }
 }
-    
+
+sub mark_watching_owners {
+    my ($owner) = @_;
+    my $watching_owners = $owner->{watching_owners} or return;
+    for my $w_owner (@$watching_owners) {
+        $w_owner->{is_used} = 1;
+        mark_watching_owners($w_owner);
+    }
+}
+
+for my $owner (values %owners) {
+    next if not $owner->{is_used};
+    mark_watching_owners($owner);
+}    
+
 # Print marked parts of netspoc configuration.
 # Routers and networks have been marked by mark_topology.
 # Protocols have been marked while %expanded_rules have been processed above.

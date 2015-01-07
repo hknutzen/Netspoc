@@ -4042,7 +4042,7 @@ sub expand_watchers {
     }
 
     # Owners, referenced in $names have already been resolved.
-    if ($owner->{is_used}) {
+    if ($owner->{watching_owners}) {
         return [ @{ $owner->{admins} }, @$names ];
     }
     if ($names eq 'recursive') {
@@ -4050,6 +4050,7 @@ sub expand_watchers {
         return $owner->{watchers} = [];
     }
     $owner->{watchers} = 'recursive';
+    my $watching_owners = [];
     my @expanded;
     for my $name (@$names) {
         if (my ($o_name) = ($name =~ /^owner:(.*)$/)) {
@@ -4059,6 +4060,7 @@ sub expand_watchers {
                         " $owner->{name}");
                 next;
             }
+            push @$watching_owners, $owner_b;
             push @expanded, @{ expand_watchers($owner_b) };
         }
         else {
@@ -4068,7 +4070,8 @@ sub expand_watchers {
     $owner->{watchers} = \@expanded;
 
     # Mark: no need to expand again and for cut-netspoc.
-    $owner->{is_used} = 1;
+    $owner->{watching_owners} = $watching_owners;
+
     return [ @{ $owner->{admins} }, @expanded ];
 }
 
