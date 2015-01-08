@@ -272,20 +272,26 @@ network:n2 = { ip = 10.1.2.0/24;
  host:h1 = { ip = 10.1.2.11; } 
  host:h2 = { ip = 10.1.2.12; } 
  host:h3 = { ip = 10.1.2.13; } 
+ host:h4 = { ip = 10.1.2.14; } 
 }
 
 router:asa = {
  managed;
  model = ASA;
- log:a;
+ # Different tags with equal values get grouped.
+ log:a = warnings;
+ log:b = errors;
+ log:c = warnings;
  interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
  interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
 }
 
 service:t = {
  user = network:n1;
- permit src = user; dst = host:h1, host:h2; prt = tcp 80; log = a;
- permit src = user; dst = host:h3; prt = tcp 80;
+ permit src = user; dst = host:h1; prt = tcp 80; log = a;
+ permit src = user; dst = host:h2; prt = tcp 80; log = b;
+ permit src = user; dst = host:h3; prt = tcp 80; log = c;
+ permit src = user; dst = host:h4; prt = tcp 80;
 }
 END
 
@@ -294,9 +300,10 @@ $out = <<'END';
 ! [ ACL ]
 object-group network g0
  network-object host 10.1.2.11
- network-object host 10.1.2.12
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80 log
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.2.13 eq 80
+ network-object host 10.1.2.13
+access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80 log 4
+access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.2.12 eq 80 log 3
+access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.2.14 eq 80
 access-list vlan1_in extended deny ip any any
 access-group vlan1_in in interface vlan1
 END

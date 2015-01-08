@@ -15518,6 +15518,7 @@ sub find_object_groups  {
     my ($router, $hardware) = @_;
     my $model = $router->{model};
     my $filter_type = $model->{filter};
+    my $active_log = $router->{log};
     my $keyword = $filter_type eq 'NX-OS'
                 ? 'object-group ip address'
                 : 'object-group network';
@@ -15544,8 +15545,15 @@ sub find_object_groups  {
                 my $that      = $rule->{$that};
                 my $this      = $rule->{$this};
                 my $prt       = $rule->{prt};
-                my $log       = $rule->{log} || '';
-                my $key       = "$action,$that,$prt,$log";
+                my $key       = "$action,$that,$prt";
+                if (my $log = $rule->{log}) {
+                    for my $tag (@$log) {
+                        if (defined(my $type = $active_log->{$tag})) {
+                            $key .= ",$type";
+                            last;
+                        }
+                    }
+                }                
                 $group_rule_tree{$key}->{$this} = $rule;
             }
 
