@@ -140,6 +140,7 @@ END
 $out = <<'END';
 -- r1
 ip access-list extended Vlan1_in
+ permit tcp 10.1.2.0 0.0.0.255 host 10.1.1.1 established
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.1 established
  deny ip any any
 --
@@ -151,6 +152,8 @@ ip access-list extended Vlan2_in
  deny ip any any
 -- r2
 ip access-list extended Vlan3_in
+ deny ip any host 10.1.2.2
+ permit tcp host 10.1.1.1 10.1.2.0 0.0.0.255 eq 80
  deny ip any any
 --
 ip access-list extended Ethernet3_in
@@ -224,6 +227,42 @@ ip access-list extended Vlan1_in
  deny ip any any
 --
 ip access-list extended Vlan2_in
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Path ends at pathrestriction inside loop (3)';
+############################################################
+
+$in = $topo . <<'END';
+pathrestriction:p1 =
+ interface:r1.top,
+ interface:r1.dst,
+ interface:r2.top,
+;
+
+service:test = {
+ user = interface:r1.dst;
+ permit src = user;
+        dst = network:top;
+        prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+ip access-list extended Vlan1_in
+ deny ip any any
+--
+ip access-list extended Vlan2_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.1 established
+ deny ip any any
+-- r2
+ip access-list extended Vlan4_in
+ deny ip any host 10.1.1.2
+ permit tcp host 10.1.2.1 10.1.1.0 0.0.0.255 eq 80
  deny ip any any
 END
 

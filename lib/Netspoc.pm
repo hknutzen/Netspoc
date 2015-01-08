@@ -10782,6 +10782,13 @@ sub cluster_path_mark  {
                 last;
             }
         }
+        if ($success && $start_intf) {
+
+            # Temporarily disable optimized pathrestriction in
+            # direction to zone.
+            my $zone = $start_intf->{zone};
+            $intf->{saved_reachable_at_zone} = delete $reachable_at->{$zone};
+        }
     }
 
     # If start / end interface is part of a group of virtual
@@ -10927,7 +10934,7 @@ sub cluster_path_mark  {
           [ map { [ @{$_}[ 1, 0, 2 ] ] } @$tuples_aref ];
     }
 
-    # Restore temporary changed path restrictions.
+    # Restore temporarily changed path restrictions.
     for my $intf ($start_intf, $end_intf) {
         next if !$intf;
         next if !$intf->{saved_path_restrict};
@@ -10939,6 +10946,12 @@ sub cluster_path_mark  {
             else {
                 delete $interface->{path_restrict};
             }
+        }
+    }
+    if ($start_intf) {
+        if (my $orig = delete $start_intf->{saved_reachable_at_zone}) {
+            my $zone = $start_intf->{zone};
+            $start_intf->{reachable_at}->{$zone} = $orig;
         }
     }
     for my $intf ($start_intf, $end_intf) {
