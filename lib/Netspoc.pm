@@ -13466,6 +13466,10 @@ sub prepare_nat_commands  {
     my %zone2zone2info;
     for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{supernet} })
     {
+        next
+          if $rule->{deleted}
+              and
+              (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
         my ($src, $dst) = @{$rule}{qw(src dst)};
         my $from = $obj2zone{$src} ||= get_zone3($src);
         my $to   = $obj2zone{$dst} ||= get_zone3($dst);
