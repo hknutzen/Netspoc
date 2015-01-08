@@ -705,7 +705,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Must not apply smae NAT tag multiple times';
+$title = 'Must not apply same NAT tag multiple times';
 ############################################################
 
 $in = <<'END';
