@@ -17,6 +17,8 @@
  - Removed config options check_owner_extend and check_routing_manual.
  - Fixed handling of path ending at interface with pathrestriction.
  - Allow owner with 'show_all' even if there are multiple toplevel areas.
+ - Fixed NAT for encrypted traffic of VPN tunnel. 
+   Previously a wrong peer IP was used. 
 
 3.060     2014-12-10 15:17:42+01:00 Europe/Berlin
 
