@@ -408,6 +408,7 @@ sub mark_watching_owners {
         $w_owner->{is_used} = 1;
         mark_watching_owners($w_owner);
     }
+    return;
 }
 
 for my $owner (values %owners) {
