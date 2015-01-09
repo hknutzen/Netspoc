@@ -7050,9 +7050,6 @@ sub expand_services {
          scalar grep { !$_->{deleted} } @$expanded_rules_aref);
     show_deleted_rules1();
 
-    # Find management IP of device after %rule_tree has been set up.
-    set_policy_distribution_ip();
-
     # Set attribute {is_supernet} before calling split_expanded_rule_types.
     find_subnets_in_nat_domain();
     split_expanded_rule_types($expanded_rules_aref);
@@ -7154,6 +7151,7 @@ sub set_policy_distribution_ip  {
         ];
     }
     my %seen;
+    my @unreachable;
     for my $router (@managed_routers, @routing_only_routers) {
         next if $seen{$router};
         next if !$router->{policy_distribution_point};
@@ -7161,7 +7159,7 @@ sub set_policy_distribution_ip  {
         my $unreachable;
         if (my $vrf_members = $router->{vrf_members}) {
             grep { $_->{admin_ip} } @$vrf_members
-              or $unreachable = "at least one VRF of $router->{device_name}";
+              or push @unreachable, "some VRF of router:$router->{device_name}";
 
             # Print VRF instance with known admin_ip first.
             $router->{vrf_members} = [
@@ -7173,14 +7171,19 @@ sub set_policy_distribution_ip  {
             $seen{$_} = 1 for @$vrf_members;
         }
         else {
-            $router->{admin_ip} or $unreachable = $router->{name};
+            $router->{admin_ip} 
+              or push @unreachable, $router->{name};
             $seen{$router} = 1;
         }
-        $unreachable
-          and warn_msg (
-            "Missing rule to reach $unreachable",
-            " from policy_distribution_point"
-          );
+    }
+    if (@unreachable) {
+        if (@unreachable > 4) {
+            splice(@unreachable, 3, @unreachable - 3, '...');
+        }
+        my $list = join("\n - ", @unreachable);
+        warn_msg (
+            "Missing rules to reach devices from policy_distribution_point:\n",
+            " - ", $list);
     }
     return;
 }
@@ -18961,6 +18964,7 @@ sub compile {
     &abort_on_error();
     &expand_crypto();
     &check_unused_groups();
+    set_policy_distribution_ip();
     &optimize_and_warn_deleted();
     &check_supernet_rules();
     &find_active_routes_and_statics();
