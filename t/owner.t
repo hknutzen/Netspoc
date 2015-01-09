@@ -1,6 +1,7 @@
 #!perl
 
 use strict;
+use warnings;
 use Test::More;
 use Test::Differences;
 use lib 't';
@@ -253,6 +254,40 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Owner at invalid vip interface';
+############################################################
+
+# Must not access unprocessed owner.
+
+$in = <<'END';
+owner:y = { admins = y@a.b; }
+
+network:U = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:U = { ip = 10.1.1.1; hardware = e0; }
+ interface:V = { ip = 10.3.3.3; vip; owner = y; }
+}
+router:r2 = {
+ interface:U;
+ interface:V = { ip = 10.3.3.4; vip; owner = y; }
+}
+
+END
+
+$out = <<'END';
+Error: Must not use attribute 'vip' at router:r1
+ 'vip' is only allowed for model ACE
+Error: Must not use attribute 'vip' at router:r2
+ 'vip' is only allowed for model ACE
+Warning: Unused owner:y
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Owner with only watchers';
 ############################################################
 
@@ -342,7 +377,7 @@ Warning: owner:n3 is extended by owner:a23
  - but not at host:h1
 END
 
-test_err($title, $in, $out, '--check_owner_extend=warn');
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Inherit owner from router_attributes of area';
@@ -367,7 +402,7 @@ Error: Can't resolve reference to 'xx' in attribute 'owner' of area:a1
 Error: Can't resolve reference to 'xx' in attribute 'owner' of router_attributes of area:a1
 END
 
-test_err($title, $in, $out, '--check_owner_extend=warn');
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;

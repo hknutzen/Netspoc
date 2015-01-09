@@ -44,10 +44,6 @@ Check for services where owner can't be derived.
 
 Check for services where multiple owners have been derived.
 
-=item B<-check_owner_extend=0|1|warn>
-
-Check for inconsistent use of attributes 'extend' and 'extend_only' in owner.
-
 =item B<-check_supernet_rules=0|1|warn>
 
 Check for missing supernet rules.
@@ -131,6 +127,6 @@ use strict;
 use warnings;
 use Netspoc;
 
-our $VERSION = '3.060'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.061'; # VERSION: inserted by DZP::OurPkgVersion
 
 Netspoc::compile(\@ARGV);

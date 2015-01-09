@@ -1,6 +1,7 @@
 #!perl
 
 use strict;
+use warnings;
 use Test::More;
 use Test::Differences;
 use lib 't';
@@ -14,10 +15,10 @@ network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
 
-router:asa1 = {
+router:r1 = {
  managed;
- model = ASA;
- log:a = warnings;
+ model = IOS;
+ log:a = log-input;
  interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
  interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
 }
@@ -51,13 +52,13 @@ service:t = {
 END
 
 $out = <<'END';
--- asa1
+-- r1
 ! [ ACL ]
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 4
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 range 81 84
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 85 log 4
-access-list vlan1_in extended deny ip any any
-access-group vlan1_in in interface vlan1
+ip access-list extended vlan1_in
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80 log-input
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 range 81 84
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 85 log-input
+ deny ip any any
 -- asa2
 ! [ ACL ]
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
@@ -72,12 +73,12 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Unknown log severity';
+$title = 'Unknown log severity at ASA';
 ############################################################
 
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
-router:asa1 = {
+router:r1 = {
  managed;
  model = ASA;
  log:a = foo;
@@ -86,7 +87,50 @@ router:asa1 = {
 END
 
 $out = <<'END';
-Error: Expected value: alerts|critical|debugging|disable|emergencies|errors|informational|notifications|warnings at line 5 of STDIN
+Error: Invalid 'log:a = foo' at router:r1 of model ASA
+ Expected one of: alerts|critical|debugging|disable|emergencies|errors|informational|notifications|warnings
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unknown log severity at IOS';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+router:r1 = {
+ managed;
+ model = IOS;
+ log:a = foo;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+}
+END
+
+$out = <<'END';
+Error: Invalid 'log:a = foo' at router:r1 of model IOS
+ Expected one of: log-input
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unknown log severity at NX-OS';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+router:r1 = {
+ managed;
+ model = NX-OS;
+ log:a = foo;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+}
+END
+
+$out = <<'END';
+Error: Unexpected 'log:a = foo' at router:r1 of model NX-OS
+ Use 'log:a;' only.
 END
 
 test_err($title, $in, $out);
@@ -149,12 +193,12 @@ service:t2 = {
 END
 
 $out = <<'END';
--- asa1
+-- r1
 ! [ ACL ]
-access-list vlan1_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 4
-access-list vlan1_in extended deny ip any any
-access-group vlan1_in in interface vlan1
+ip access-list extended vlan1_in
+ permit tcp any 10.1.3.0 0.0.0.255 eq 80
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80 log-input
+ deny ip any any
 -- asa2
 ! [ ACL ]
 access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 7
@@ -177,10 +221,11 @@ service:t = {
 END
 
 $out = <<'END';
--- asa1
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 4
-access-list vlan1_in extended deny ip any any
-access-group vlan1_in in interface vlan1
+-- r1
+! [ ACL ]
+ip access-list extended vlan1_in
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80 log-input
+ deny ip any any
 -- asa2
 ! [ ACL ]
 access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 3
@@ -213,6 +258,102 @@ access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 7
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
 access-list vlan2_in extended deny ip any any
 access-group vlan2_in in interface vlan2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Must not join rules with and without logging into object-group';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.11; } 
+ host:h2 = { ip = 10.1.2.12; } 
+ host:h3 = { ip = 10.1.2.13; } 
+ host:h4 = { ip = 10.1.2.14; } 
+}
+
+router:asa = {
+ managed;
+ model = ASA;
+ # Different tags with equal values get grouped.
+ log:a = warnings;
+ log:b = errors;
+ log:c = warnings;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+service:t = {
+ user = network:n1;
+ permit src = user; dst = host:h1; prt = tcp 80; log = a;
+ permit src = user; dst = host:h2; prt = tcp 80; log = b;
+ permit src = user; dst = host:h3; prt = tcp 80; log = c;
+ permit src = user; dst = host:h4; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- asa
+! [ ACL ]
+object-group network g0
+ network-object host 10.1.2.11
+ network-object host 10.1.2.13
+access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80 log 4
+access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.2.12 eq 80 log 3
+access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.2.14 eq 80
+access-list vlan1_in extended deny ip any any
+access-group vlan1_in in interface vlan1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Logging at NX-OS and ACE board';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+
+router:r1 = {
+ managed;
+ model = NX-OS;
+ log:a;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+router:r2 = {
+ managed;
+ model = ACE;
+ log:a;
+ log:b;
+ interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+}
+service:t = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80; log = a;
+ permit src = user; dst = network:n3; prt = tcp 81; log = b;
+}
+END
+
+$out = <<'END';
+-- r1
+! [ ACL ]
+ip access-list vlan1_in
+ 10 permit tcp 10.1.1.0/24 10.1.3.0/24 eq 80 log
+ 20 permit tcp 10.1.1.0/24 10.1.3.0/24 eq 81
+ 30 deny ip any any
+-- r2
+! [ ACL ]
+access-list vlan2_in extended deny ip any host 10.1.3.2
+access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 range 80 81 log
+access-list vlan2_in extended deny ip any any
 END
 
 test_run($title, $in, $out);

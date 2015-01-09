@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
+use warnings;
 use Test::More;
 use Test::Differences;
 use lib 't';
@@ -86,7 +87,8 @@ network:n = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Warning: Missing rule to reach at least one VRF of r1 from policy_distribution_point
+Warning: Missing rules to reach devices from policy_distribution_point:
+ - some VRF of router:r1
 END
 
 test_err($title, $in, $out);

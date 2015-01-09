@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
+use warnings;
 use Test::More;
 use Test::Differences;
 use lib 't';
@@ -908,9 +909,9 @@ crypto map crypto-GigabitEthernet0 1 ipsec-isakmp
  set pfs group2
 --
 ip access-list extended GigabitEthernet0_in
- permit 50 host 1.2.3.2 host 1.2.3.129
- permit udp host 1.2.3.2 eq 500 host 1.2.3.129 eq 500
- permit udp host 1.2.3.2 eq 4500 host 1.2.3.129 eq 4500
+ permit 50 host 1.2.3.2 host 10.254.254.6
+ permit udp host 1.2.3.2 eq 500 host 10.254.254.6 eq 500
+ permit udp host 1.2.3.2 eq 4500 host 10.254.254.6 eq 4500
  deny ip any any
 END
 

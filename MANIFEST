@@ -69,7 +69,6 @@ t/iptables.t
 t/local-filter.t
 t/local-opt.t
 t/log.t
-t/log.t~
 t/loopback.t
 t/managed-host.t
 t/nat.t
@@ -84,9 +83,9 @@ t/protect-interfaces.t
 t/rename.t
 t/route.t
 t/routing_only.t
-t/routing_only.t~
 t/secondary.t
 t/stateless.t
+t/t-owner.t~
 t/unenforceable.t
 t/unmanaged.t
 t/unnumbered.t

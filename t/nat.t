@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
+use warnings;
 use Test::More;
 use Test::Differences;
 use lib 't';
@@ -240,7 +241,7 @@ service:test = {
 END
 
 $out = <<'END';
-Error: network:Test is hidden by NAT in rule
+Error: network:Test is hidden by nat:C in rule
  permit src=any:[network:X]; dst=network:Test; prt=tcp 80; of service:test
 END
 
@@ -361,6 +362,7 @@ END
 
 $out = <<'END';
 Error: Must not bind multiple NAT tags 'C,D' of nat:C(network:Test) at router:filter
+Error: Grouped NAT tags 'C' and 'D' must not be both active inside nat_domain:X
 END
 
 test_err($title, $in, $out);
@@ -386,8 +388,8 @@ network:X = { ip = 10.8.3.0/24; }
 END
 
 $out = <<'END';
-Warning: nat:C is defined, but not bound to any interface
 Warning: Ignoring useless nat:D bound at router:filter
+Warning: nat:C is defined, but not bound to any interface
 END
 
 test_err($title, $in, $out);
@@ -521,9 +523,9 @@ $in =~ s/ip = 10.77.77.0\/30; dynamic;/hidden;/;
 $in =~ s/\Qnat:d = { ip = 10.99.99.8\/30; dynamic; }//;
 
 $out = <<'END';
-Error: network:a1 is hidden by NAT in rule
+Error: network:a1 is hidden by nat:d in rule
  permit src=network:X; dst=network:a1; prt=tcp 80; of service:test
-Error: network:b2 is hidden by NAT in rule
+Error: network:b2 is hidden by nat:d in rule
  permit src=network:X; dst=network:b2; prt=tcp 80; of service:test
 END
 
@@ -618,7 +620,7 @@ network:n1 = {
 
 network:n2 = { 
  ip = 10.1.2.0/24; 
- nat:t2 = { ip = 10.9.9.0/24; }
+ nat:t1 = { ip = 10.9.9.0/24; }
 }
 
 router:r1 =  {
@@ -641,7 +643,7 @@ END
 $out = <<'END';
 Error: If multiple NAT tags are used at one network,
  these NAT tags must be used equally grouped at other networks:
- - network:n2: t2
+ - network:n2: t1
  - nat:t1(network:n1): t1,t2
 END
 
@@ -654,6 +656,78 @@ $title = 'Grouped NAT tags with single hidden allowed';
 $in =~ s/ip = 10.9.[89].0\/24/hidden/g;
 
 $out = <<'END';
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Grouped NAT tags from different paths';
+############################################################
+
+$in = <<'END';
+network:a = {
+ ip = 10.1.1.0/24; 
+ nat:a1 = { ip = 10.2.1.0/24; } 
+ nat:a2 = { ip = 10.2.2.0/24; }
+}
+
+router:r11 = {
+ interface:a;
+ interface:t1 = { bind_nat = a1; }
+}
+
+network:t1 = {ip = 10.3.3.0/30;}
+
+router:r12 = {
+ interface:t1;
+ interface:b = { bind_nat = a2; }
+}
+
+router:r21 = {
+ interface:a;
+ interface:t2 = { bind_nat = a2; }
+}
+
+network:t2 = {ip = 10.3.3.4/30;}
+
+router:r22 = {
+ interface:t2;
+ interface:b = { bind_nat = a1; }
+}
+
+network:b = {ip = 10.9.9.0/24;}
+END
+
+$out = <<'END';
+Error: Grouped NAT tags 'a2' and 'a1' must not be both active inside nat_domain:b
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Must not apply same NAT tag multiple times';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n = { ip = 10.9.9.0/24; } }
+
+router:r1 = {
+ interface:n1;
+ interface:tr = { bind_nat = n; }
+}
+
+network:tr = { ip = 10.7.7.0/24; }
+
+router:r2 = {
+ interface:tr;
+ interface:n2 = { bind_nat = n; }
+}
+
+network:n2 = { ip = 10.2.2.0/24; }
+END
+
+$out = <<'END';
+Error: nat:n is applied multiple times between router:r1 and router:r2
 END
 
 test_err($title, $in, $out);
@@ -783,65 +857,9 @@ Error: Inconsistent NAT in loop at router:r1:
 Error: network:a is translated by h,
  but is located inside the translation domain of h.
  Probably h was bound to wrong interface at router:r1.
-Warning: Ignoring useless nat:h bound at router:r1
 END
 
 test_err($title, $in, $out);
-
-############################################################
-$title = 'NAT tag at wrong interface in loop';
-############################################################
-
-$in = <<'END';
-network:i1 = {
- ip = 10.1.1.0/24;
- nat:h = { hidden; }
- nat:i1 = { hidden; }
-}
-
-router:r1 = {
- model = ASA;
- managed;
- routing = manual;
- interface:i1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:tr = { ip = 10.2.2.1; hardware = vlan2; bind_nat = i1; }
- interface:si = { ip = 10.3.3.1; hardware = vlan3; }
-}
-
-network:tr = { ip = 10.2.2.0/24; }
-
-router:r2 = {
- interface:tr = { bind_nat = i2; }
- interface:sh;
-}
-network:sh = { ip = 10.4.4.0/24; }
-
-router:r3 = {
- interface:sh;
- interface:i2 = { bind_nat = h; }
-}
-
-network:si = { ip = 10.3.3.0/24; }
-
-router:r4 = {
- interface:si = { bind_nat = i2; }
- interface:i2 = { bind_nat = h; }
-}
-
-network:i2 = { ip = 10.1.1.0/24; nat:i2 = { hidden; } }
-END
-
-$out = <<'END';
-Error: network:i1 is translated by i1,
- but is located inside the translation domain of i1.
- Probably i1 was bound to wrong interface at router:r1.
-Error: network:i2 and network:i1 have identical IP/mask
-END
-
-Test::More->builder->todo_start(
-    "Missing NAT tag isn't recognized, because traversal stops on first matching tag");
-test_err($title, $in, $out);
-Test::More->builder->todo_end;
 
 ############################################################
 done_testing;
