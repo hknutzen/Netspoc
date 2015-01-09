@@ -7155,8 +7155,6 @@ sub set_policy_distribution_ip  {
     for my $router (@managed_routers, @routing_only_routers) {
         next if $seen{$router};
         next if !$router->{policy_distribution_point};
-
-        my $unreachable;
         if (my $vrf_members = $router->{vrf_members}) {
             grep { $_->{admin_ip} } @$vrf_members
               or push @unreachable, "some VRF of router:$router->{device_name}";
@@ -7863,7 +7861,6 @@ sub distribute_nat {
 
 sub distribute_nat_info {
     progress('Distributing NAT');
-    my @multi_nat_networks;
 
     # Mapping from nat_tag to boolean. Is false if all NAT mappings map
     # to hidden.
@@ -8137,6 +8134,7 @@ sub invert_nat_set {
             }
         }
     }
+    return();
 }
 
 # Real interface of crypto tunnel has got {no_nat_set} of that NAT domain, 
