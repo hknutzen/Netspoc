@@ -18905,6 +18905,7 @@ sub parse_options {
         my $out;
         open(my $fh, '>', \$out) or die $!;
         pod2usage(-exitstatus => 'NOEXIT', -verbose => 0, -output => $fh);
+        close $fh;
         die($out || '');
     }
 
