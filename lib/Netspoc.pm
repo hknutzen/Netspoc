@@ -183,6 +183,9 @@ our %config = (
 # Print progress messages with time stamps.
 # Print "finished" with time stamp when finished.
     time_stamps => 0,
+
+# Don't traverse crypto interfaces when finding areas.
+    area_ignore_crypto => 0,
 );
 
 # Valid values for config options in %config.
@@ -9537,7 +9540,9 @@ sub set_area1 {
     # Add zone and managed router to the corresponding area, to have all zones
     # and routers of an area available.
     if ($is_zone) {
-        push @{ $area->{zones} }, $obj;
+        if (!$obj->{is_tunnel}) {
+            push @{ $area->{zones} }, $obj;
+        }
     }
     elsif ($obj->{managed} || $obj->{routing_only}) {
         push @{ $area->{managed_routers} }, $obj;
@@ -9578,9 +9583,15 @@ sub set_area1 {
         # interface.
         next if $interface->{main_interface};
 
-        # Ignore tunnel interface. We can't test for {real_interface} here
-        # because it may still be unknown.
-        next if $interface->{ip} eq 'tunnel';
+        if ($config{area_ignore_crypto}) {
+            next if check_global_active_pathrestriction($interface);
+        } 
+        else {
+            
+            # Ignore tunnel interface. We can't test for
+            # {real_interface} here because it may still be unknown.
+            next if $interface->{ip} eq 'tunnel';
+        }
 
         my $next = $interface->{$is_zone ? 'router' : 'zone'};
         set_area1($next, $area, $interface);
