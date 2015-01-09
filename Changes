@@ -1,5 +1,23 @@
 {{$NEXT}}
 
+3.061     2015-01-09 10:33:56+01:00 Europe/Berlin
+
+ - Added different and now optional log modifiers:
+   - Simple 'log:x;' for IOS, NX-OS, ASA, ACE.
+   - Severities as modifier only for ASA.
+   - Modifier 'log-info' for IOS.
+   - No logging for PIX.
+   - Logging currently not implemented for Linux.
+ - Fixed 'log' attribute with object groups.
+   'log' attribute is now observed for optimized rule with object groups.
+ - Added new config option area_ignore_crypto.
+   If set, crypto interfaces aren't traversed when identifiying areas.
+   This option is currently off by default and
+   will be enabled unconditionally in next version.
+ - Removed config options check_owner_extend and check_routing_manual.
+ - Fixed handling of path ending at interface with pathrestriction.
+ - Allow owner with 'show_all' even if there are multiple toplevel areas.
+
 3.060     2014-12-10 15:17:42+01:00 Europe/Berlin
 
  - Added support for setting log severity.
