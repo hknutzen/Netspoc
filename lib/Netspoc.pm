@@ -7422,14 +7422,20 @@ sub propagate_owners {
             $owner->{extended_by} = [ unique @$combined ];
         }
         if ($owner->{show_all}) {
-            if (@root_nodes == 1 && (my $root = $root_nodes[0])) {
-                my $root_owner = $root->{owner} || '';
-                if ($root_owner eq $owner) {
-                    next;
+            my @invalid;
+            for my $node (@root_nodes) {
+                my $node_owner = $node->{owner} || '';
+                if ($node_owner ne $owner) {
+                    push @invalid, $node;
                 }
             }
-            err_msg("Attribute 'show_all' is only valid for owner of area",
-                " which spans the whole topology.");
+            if (@invalid) {
+                my $missing = join("\n - ", map { $_->{name} } @invalid);
+                err_msg("Attribute 'show_all' is only valid for owner",
+                        " which owns the whole topology.\n",
+                        " Missing:\n",
+                        " - $missing");
+            }
         }
     }
 
