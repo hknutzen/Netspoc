@@ -7835,9 +7835,7 @@ sub distribute_nat {
                     my $next_info = $href->{$nat_tag2};
                     my $what;
                     if ($nat_info->{hidden}) {
-                        if(!($next_info->{hidden})) {
-                            $what = 'hidden NAT';
-                        }
+                        $what = 'hidden NAT';
                     }
                     elsif ($nat_info->{dynamic}) {
                         if(!($next_info->{dynamic})) {
@@ -7876,6 +7874,14 @@ sub distribute_nat_info {
         }
     }
 
+    # Check that $href has exactly one hidden NAT tag or that all tags
+    # are hidden.
+    my $all_or_one_hidden = sub {
+        my ($href) = @_;
+        my $count = grep({ !$has_non_hidden{$_} } keys %$href);
+        return 1 == $count || keys %$href == $count;
+    };
+
     # A hash with all defined NAT tags.
     # It is used to check,
     # - if all NAT definitions are bound and
@@ -7900,44 +7906,64 @@ sub distribute_nat_info {
     # that NAT tags are equally used grouped or solitary.
     my %nat_tags2multi;
     for my $network (@networks) {
-        my $href1 = $network->{nat} or next;
+        my $href = $network->{nat} or next;
+#        debug $network->{name};
 
         # Print error message only once per network.
         my $err;
       NAT_TAG:
-        for my $nat_tag (keys %$href1) {
+        for my $nat_tag (sort keys %$href) {
             $nat_definitions{$nat_tag} = 1;
             if (my $href2 = $nat_tags2multi{$nat_tag}) {
-                if (keys %$href1 > keys %$href2) {
-                    $nat_tags2multi{$nat_tag} = $href1;
-                    ($href1, $href2) = ($href2, $href1);
-                }                    
+                my $href1 = $href;
                 if (!$err && !keys_equal($href1, $href2)) {
 
                     # NAT tag can be used both grouped and solitary,
                     # if and only if 
                     # - single NAT tag translates to hidden, 
                     # - the same NAT tag translates to hidden in group,
-                    # - group has no other hidden NAT tag.
+                    # - group has no other hidden NAT tag or
+                    # - group consists solely of hidden NAT tags.
+                    # Shared hidden NAT tag is ignored when comparing
+                    # grouped NAT tags for equality.
+                    # If the group has only a single tag after ignoring the 
+                    # shared one, it isn't regarded as grouped.
+                    my @intersection = grep { $href1->{$_} } keys %$href2;
                     $err = 1;
                   ERR:
                     {
-                        1 == keys %$href1 or last ERR;
+                        1 == @intersection or last ERR;
+                        my ($shared_tag) = @intersection;
+                        $has_non_hidden{$shared_tag} and last ERR;
+                        $shared_tag eq $nat_tag or last ERR;
 
-                        # $href1 holds solitary NAT tag now.
+                        # $href1 holds solitary hidden NAT tag,
                         # $href2 holds grouped NAT tags.
-                        my ($tag1) = keys %$href1;
-                        $has_non_hidden{$tag1} and last ERR;
-                        $href2->{$tag1} or last ERR;
-                        my $hidden_count = grep({ !$has_non_hidden{$_} } 
-                                                keys %$href2);
-                        1 == $hidden_count or last ERR;
+                        if (1 == keys %$href1) {
+                            $all_or_one_hidden->($href2) or last ERR;
+                        }
+
+                        # $href2 solitary, $href1 grouped.
+                        elsif (1 == keys %$href2) {
+                            $all_or_one_hidden->($href1) or last ERR;
+#                            debug "- store larger $nat_tag";
+                            $nat_tags2multi{$nat_tag} = $href1;
+                        }
+
+                        # Two single NAT tags augmented by shared hidden.
+                        elsif (2 == keys %$href1 && 2 == keys %$href2) {
+                            $all_or_one_hidden->($href1) or last ERR;
+                            $all_or_one_hidden->($href2) or last ERR;
+#                            debug "- store combined $nat_tag";
+                            $nat_tags2multi{$nat_tag} = { %$href1, %$href2 };
+                        }
+
                         $err = 0;
                         next NAT_TAG;
                     }
                     my $tags1  = join(',', sort keys %$href1);
                     my $name1  = $network->{name};
-                    my $tags2 = join(',', sort keys %$href2);
+                    my $tags2  = join(',', sort keys %$href2);
 
                     # Values are NAT entries with name of the network.
                     # Take first value deterministically.
@@ -7951,7 +7977,8 @@ sub distribute_nat_info {
                 }
             }
             else {
-                $nat_tags2multi{$nat_tag} = $href1;
+#                debug "- store $nat_tag";
+                $nat_tags2multi{$nat_tag} = $href;
             }
         }
     }
