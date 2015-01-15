@@ -11488,7 +11488,7 @@ sub link_tunnels  {
     # Collect clear-text interfaces of all tunnels.
     my @real_interfaces;
 
-    for my $crypto (values %crypto) {
+    for my $crypto (sort by_name values %crypto) {
         my $name        = $crypto->{name};
         my $private     = $crypto->{private};
         my $real_hubs   = delete $crypto2hubs{$name};
