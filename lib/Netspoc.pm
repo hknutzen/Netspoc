@@ -8130,10 +8130,12 @@ sub invert_nat_set {
     # Collect NAT tags used in each partition.
     my %partition2tags;
     for my $domain (@natdomains) {
-        my $nat_set = $domain->{nat_set};
         my $mark = $partitions{$domain};
-        for my $tag (keys %$nat_set) {
-            $partition2tags{$mark}->{$tag} = 1;
+        for my $network (@{ $domain->{networks} }) {
+            my $href = $network->{nat} or next;
+            for my $nat_tag (keys %$href) {
+                $partition2tags{$mark}->{$nat_tag} = 1;
+            }
         }
     }
 
