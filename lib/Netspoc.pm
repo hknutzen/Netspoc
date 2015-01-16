@@ -16217,7 +16217,8 @@ sub find_chains  {
     $router->{vrf_shared_data}->{chain_counter} ||= 1;
 
     my $no_nat_set = $hardware->{no_nat_set};
-    my @rule_arefs = values %{ $hardware->{io_rules} };
+    my $io_rules_hash = $hardware->{io_rules};
+    my @rule_arefs = map { $io_rules_hash->{$_} } sort keys %$io_rules_hash;
     my $intf_rules = $hardware->{intf_rules};
     push @rule_arefs, $intf_rules if $intf_rules;
 
