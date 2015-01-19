@@ -3168,7 +3168,8 @@ sub read_crypto {
     while (1) {
         last if check '\}';
         if (check_flag 'tunnel_all') {
-            $crypto->{tunnel_all} = 1;
+
+            # Optional and no longer needed.
         }
         elsif (check_flag 'detailed_crypto_acl') {
             $crypto->{detailed_crypto_acl} = 1;
@@ -3183,8 +3184,6 @@ sub read_crypto {
         }
     }
     $crypto->{type} or error_atline("Missing 'type' for $name");
-    $crypto->{tunnel_all}
-      or error_atline("Must define attribute 'tunnel_all' for $name");
     return $crypto;
 }
 
