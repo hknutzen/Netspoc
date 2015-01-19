@@ -88,7 +88,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ <description> ]
          ip = <ip>; | range = <ip>-<ip>;
          [ owner = <name>;            ]
-         [ policy_distribution_point; ]
          <host NAT> *
          [ managed;                   ]
          [ model = Linux;             ]

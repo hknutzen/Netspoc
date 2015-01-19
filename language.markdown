@@ -867,9 +867,13 @@ explicitly:
 
 ## Policy distribution point
 
-A single host inside the topology can be marked as
-"policy_distribution_point". This is set for the server, which
-distributes the Netspoc generated configuration to the managed devices.
+A server, which distributes the Netspoc generated configuration to
+managed devices is called "policy_distribution_point".  Inside a
+topology one or more policy distribution points can be used. Use
+attribute "policy_distribution_point" at routers or at
+"router_attributes" of areas to define a policy distribution point for
+each device.
+
 This allows Netspoc to know by which IP address a device is reached
 from the policy distribution point. This IP address is added as a
 comment to each generated device configuration. It is later used to
