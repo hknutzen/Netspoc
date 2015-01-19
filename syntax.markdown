@@ -333,7 +333,6 @@ where `<object set>` must expand to interfaces.
       crypto:<name> = { 
         [ <description> ]
         type = ipsec:<name>;
-        tunnel_all;
         [ detailed_crypto_acl; ]
       }
 
