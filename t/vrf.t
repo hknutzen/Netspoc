@@ -68,11 +68,12 @@ $title = 'No admin IP found in any VRFs';
 
 $in = <<'END';
 network:m = { ip = 10.2.2.0/24; 
- host:netspoc = { ip = 10.2.2.222; policy_distribution_point; }
+ host:netspoc = { ip = 10.2.2.222; }
 }
 router:r1@v1 = {
  managed;
  model = NX-OS;
+ policy_distribution_point = host:netspoc;
  interface:m = { ip = 10.2.2.1; hardware = e0; }
  interface:t = { ip = 10.9.9.1; hardware = e1; }
 }
@@ -80,6 +81,7 @@ network:t = { ip = 10.9.9.0/24; }
 router:r1@v2 = {
  managed;
  model = NX-OS;
+ policy_distribution_point = host:netspoc;
  interface:t = { ip = 10.9.9.2; hardware = e2; }
  interface:n = { ip = 10.1.1.1; hardware = e3; }
 }

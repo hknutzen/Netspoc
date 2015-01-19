@@ -1168,15 +1168,6 @@ sub add_attribute {
 
 our %hosts;
 
-# Global or individual policy_distribution_point.
-# This is typically the netspoc server or some other server
-# which is used to distribute the generated configuration files
-# to managed devices.
-
-# Single global policy_distribution_point.
-# A host which gets the attribute {policy_distribution_point}.
-my $policy_distribution_point;
-
 sub check_radius_attributes {
     my $result = {};
     check 'radius_attributes' or return;
@@ -1344,14 +1335,6 @@ sub read_host {
         }
         elsif (my $radius_attributes = check_radius_attributes) {
             add_attribute($host, radius_attributes => $radius_attributes);
-        }
-        elsif (check_flag 'policy_distribution_point') {
-            $policy_distribution_point
-                and err_msg("Attribute 'policy_distribution_point'",
-                            " must only be used once:\n",
-                            " - $policy_distribution_point->{name}\n",
-                            " - $host->{name}");
-            $policy_distribution_point = $host;
         }
         elsif (my $pair = check_typed_name) {
             my ($type, $name) = @$pair;
@@ -5212,9 +5195,6 @@ sub mark_disabled {
     }
 
     @virtual_interfaces = grep { not $_->{disabled} } @virtual_interfaces;
-    if ($policy_distribution_point and $policy_distribution_point->{disabled}) {
-        $policy_distribution_point = undef;
-    }
     check_bridged_networks();
     transform_isolated_ports();
     return;
@@ -7093,8 +7073,7 @@ sub set_policy_distribution_ip  {
         return $host2pdp_src{$host} = $pdp_src;
     };
     for my $router (@managed_routers, @routing_only_routers) {
-        my $pdp = $router->{policy_distribution_point} ||= $policy_distribution_point;
-        next if !$pdp;
+        my $pdp = $router->{policy_distribution_point} or next;
         
         my %found_interfaces;
         my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
@@ -18884,7 +18863,6 @@ sub init_global_vars {
     @natdomains = ();
     %auto_interfaces = ();
     $from_json = undef;
-    $policy_distribution_point = undef;
     %crypto2spokes = %crypto2hubs = ();
     %rule_tree = ();
     %prt_hash = %range_hash = %ref2prt = %ref2obj = %token2regex = ();

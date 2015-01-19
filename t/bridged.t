@@ -17,7 +17,7 @@ my $topology = <<'END';
 
 network:intern = { 
  ip = 10.1.1.0/24;
- host:netspoc = { ip = 10.1.1.111; policy_distribution_point;}
+ host:netspoc = { ip = 10.1.1.111; }
 }
 
 router:asa = {
@@ -38,6 +38,7 @@ network:dmz/left = { ip = 192.168.0.0/24; }
 router:bridge = {
  model = ASA;
  managed;
+ policy_distribution_point = host:netspoc;
  interface:dmz = { ip = 192.168.0.9; hardware = device; }
  interface:dmz/left = { hardware = inside; }
  interface:dmz/right = { hardware = outside; }
