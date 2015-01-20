@@ -98,7 +98,7 @@ test_run($title, $in, $out);
 $title = 'Access to both sides of bridged network';
 ############################################################
 
-$topology =~ s/policy_distribution_point;//;
+$topology =~ s/policy_distribution_point = .*;//;
 $topology =~ s/#managed/managed/;
 $in = $topology . <<'END';
 service:test = {
