@@ -185,7 +185,7 @@ our %config = (
     time_stamps => 0,
 
 # Don't traverse crypto interfaces when finding areas.
-    area_ignore_crypto => 0,
+    area_ignore_crypto => 1,
 );
 
 # Valid values for config options in %config.
