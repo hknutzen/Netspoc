@@ -14167,12 +14167,6 @@ sub check_and_convert_routes  {
     return;
 }
 
-sub find_active_routes_and_statics  {
-    prepare_nat_commands();
-    find_active_routes;
-    return;
-}
-
 sub ios_route_code;
 sub prefix_code;
 sub full_prefix_code;
@@ -18979,7 +18973,8 @@ sub compile {
     set_policy_distribution_ip();
     &optimize_and_warn_deleted();
     &check_supernet_rules();
-    &find_active_routes_and_statics();
+    prepare_nat_commands();
+    find_active_routes();
     &gen_reverse_rules();
     &mark_secondary_rules();
     &abort_on_error();
