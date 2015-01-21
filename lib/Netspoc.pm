@@ -9223,9 +9223,9 @@ sub link_implicit_aggregate_to_zone {
     return;
 }
 
-# Link aggregate to zone.  This is called late, after zones and NAT
-# domains have been set up. But before find_subnets_in_zone calculates
-# {up} and {networks} relation.
+# Link aggregate to zone. This is called late, after zones been set
+# up. But before find_subnets_in_zone calculates {up} and {networks}
+# relation.
 sub link_aggregates {
     my @aggregates_in_cluster;
     for my $name (sort keys %aggregates) {
@@ -10457,7 +10457,7 @@ sub get_path {
         }
     }
 
-    # This is only used, if called from path_auto_interfaces.
+    # This is used, if called from path_auto_interfaces.
     elsif ($type eq 'Router') {
         if ($obj->{managed} || $obj->{semi_managed}) {
             $result = $obj;
@@ -10467,12 +10467,12 @@ sub get_path {
         }
     }
 
-    # This is only used, if path_walk is called from find_statics.
+    # This is used, if path_walk is called from find_active_routes.
     elsif ($type eq 'Zone') {
         $result = $obj;
     }
 
-    # This is only used, if Netspoc.pm is called from report.pl.
+    # This is used, if expand_services without convert_hosts.
     elsif ($type eq 'Host') {
         $result = $obj->{network}->{zone};
     }
