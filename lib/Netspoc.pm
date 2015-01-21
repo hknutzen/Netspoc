@@ -7023,7 +7023,7 @@ sub expand_services {
     warn_useless_unenforceable();
     info("Expanded rule count: ", scalar @$expanded_rules_aref);
 
-    progress('Preparing Optimization');
+    progress('Preparing optimization');
     add_rules($expanded_rules_aref);
     info("Expanded rule count: ", 
          scalar grep { !$_->{deleted} } @$expanded_rules_aref);
