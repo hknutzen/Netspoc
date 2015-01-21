@@ -221,18 +221,31 @@ $title = 'Check rule with any to hidden NAT';
 
 $in = <<'END';
 network:Test =  {
- ip = 10.0.0.0/24; 
+ ip = 10.0.1.0/24; 
  nat:C = { hidden; }
 }
 
-router:filter = {
+router:r1 = {
  managed;
  model = ASA, 8.4;
- interface:Test = { ip = 10.0.0.2; hardware = inside; }
- interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C; }
+ interface:Test = { ip = 10.0.1.2; hardware = inside; }
+ interface:t1 = { ip = 10.0.2.1; hardware = outside;}
+}
+
+network:t1 = { ip = 10.0.2.0/24; }
+
+router:u = {
+ interface:t1 = { ip = 10.0.2.2; }
+ interface:X = { ip = 10.8.3.1; bind_nat = C; }
 }
 
 network:X = { ip = 10.8.3.0/24; }
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:X = { ip = 10.8.3.2; hardware = inside; }
+}
 
 service:test = {
  user = any:[network:X];
@@ -242,7 +255,7 @@ END
 
 $out = <<'END';
 Error: network:Test is hidden by nat:C in rule
- permit src=any:[network:X]; dst=network:Test; prt=tcp 80; of service:test
+ permit src=any:[network:t1]; dst=network:Test; prt=tcp 80; of service:test
 END
 
 test_err($title, $in, $out);

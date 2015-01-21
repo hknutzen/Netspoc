@@ -13190,23 +13190,25 @@ sub mark_dynamic_rules {
             my $hidden;
             my $dynamic;
 
-          TAG:
-            for my $nat_tag (keys %$nat_hash) {
+            for my $nat_tag (sort keys %$nat_hash) {
 
                 # Find $nat_tag which is effective at $other.
                 # - simple: $other is host or network, $nat_domain is known.
                 # - loop: $other is aggregate.
-                #         Check all NAT domains inside the zone 
+                #         Check all NAT domains inside corresponding zone 
                 #         for dynamic NAT.
                 if ($nat_domain) {
                     next if $no_nat_set->{$nat_tag};
                 }
                 else {
+                    my $dynamic_nat_active = 0;
                     for my $interface (@{ $other->{zone}->{interfaces} }) {
                         my $no_nat_set = $interface->{no_nat_set};
-                        next TAG if $no_nat_set->{$nat_tag};
+                        next if $no_nat_set->{$nat_tag};
+                        $dynamic_nat_active = 1;
                         last;
                     }
+                    $dynamic_nat_active or next;
                 }
 
                 my $nat_network = $nat_hash->{$nat_tag};
@@ -13227,7 +13229,7 @@ sub mark_dynamic_rules {
                 {
                     # Check error condition: Dynamic NAT address is
                     # used in ACL at managed router at the border of
-                    # the zone of $obj. 
+                    # zone of $obj. 
                     # $intf could have value 'undef' if $obj is interface of
                     # current router and destination of rule.
                     my $check = sub {
