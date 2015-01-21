@@ -110,14 +110,15 @@ pod2usage(1) if $help;
 pod2usage(-exitstatus => 0, -verbose => 2) if $man;
 $show_ip or $show_name or $show_ip = $show_name = 1;
 
-my $config = shift @ARGV or pod2usage(2);
+my $in_path = shift @ARGV or pod2usage(2);
 my $name = shift @ARGV or pod2usage(2);
 
 ####################################################################
 # Main program
 ####################################################################
 
-&set_config({ verbose => !$quiet });
+my $file_config = &read_config($in_path);
+&set_config($file_config, { verbose => !$quiet });
 
 # Parse group definition(s).
 $Netspoc::input = $name;
@@ -133,7 +134,7 @@ while (1) {
 }
 
 # Read and process Netspoc configuration file or directory.
-&read_file_or_dir($config);
+&read_file_or_dir($in_path);
 &link_topology();
 &mark_disabled();
 &set_zone();
