@@ -13187,8 +13187,8 @@ sub mark_dynamic_rules {
               ? $other->{nat_domain}    # Is undef for aggregate.
               : $other->{network}->{nat_domain};
             my $no_nat_set = $nat_domain ? $nat_domain->{no_nat_set} : {};
-            my $hidden;
-            my $dynamic;
+            my $hidden_seen;
+            my $dynamic_seen;
 
             for my $nat_tag (sort keys %$nat_hash) {
 
@@ -13214,8 +13214,8 @@ sub mark_dynamic_rules {
                 my $nat_network = $nat_hash->{$nat_tag};
 
                 # Network is hidden by NAT.
-                if ($nat_network->{hidden} and not $hidden) {
-                    $hidden = 1;
+                if ($nat_network->{hidden} && !$hidden_seen) {
+                    $hidden_seen = 1;
                     err_msg("$obj->{name} is hidden by nat:$nat_tag in rule\n ",
                             print_rule $rule);
                 }
@@ -13225,7 +13225,7 @@ sub mark_dynamic_rules {
                 if (    $nat_network->{dynamic}
                     and ($type eq 'Subnet' or $type eq 'Interface')
                     and not $obj->{nat}->{$nat_tag}
-                    and not $dynamic)
+                    and not $dynamic_seen)
                 {
                     # Check error condition: Dynamic NAT address is
                     # used in ACL at managed router at the border of
@@ -13257,7 +13257,7 @@ sub mark_dynamic_rules {
                       : $where;
 
 #		    debug("dynamic_nat: $where at ", print_rule $rule);
-                    $dynamic = 1;
+                    $dynamic_seen = 1;
                 }
             }
         }
