@@ -12958,6 +12958,7 @@ sub mark_secondary  {
 
 #    debug("$zone->{name} $mark");
     for my $in_interface (@{ $zone->{interfaces} }) {
+        next if check_global_active_pathrestriction($in_interface);
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
             next if $managed !~ /^(?:secondary|local.*)$/;
@@ -12966,6 +12967,7 @@ sub mark_secondary  {
         local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
+            next if check_global_active_pathrestriction($out_interface);
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{secondary_mark};
             mark_secondary $next_zone, $mark;
@@ -12984,6 +12986,7 @@ sub mark_primary  {
     my ($zone, $mark) = @_;
     $zone->{primary_mark} = $mark;
     for my $in_interface (@{ $zone->{interfaces} }) {
+        next if check_global_active_pathrestriction($in_interface);
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
             next if $managed eq 'primary';
@@ -12992,6 +12995,7 @@ sub mark_primary  {
         local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
+            next if check_global_active_pathrestriction($out_interface);
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{primary_mark};
             mark_primary $next_zone, $mark;
@@ -13011,6 +13015,7 @@ sub mark_strict_secondary  {
     $zone->{strict_secondary_mark} = $mark;
 #    debug "$zone->{name} : $mark";
     for my $in_interface (@{ $zone->{interfaces} }) {
+        next if check_global_active_pathrestriction($in_interface);
         my $router = $in_interface->{router};
         if ($router->{managed}) {
             next if $router->{strict_secondary};
@@ -13019,6 +13024,7 @@ sub mark_strict_secondary  {
         local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
+            next if check_global_active_pathrestriction($out_interface);
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{strict_secondary_mark};
             mark_strict_secondary($next_zone, $mark);
@@ -13037,6 +13043,7 @@ sub mark_local_secondary  {
     $zone->{local_secondary_mark} = $mark;
 #    debug "local_secondary $zone->{name} : $mark";
     for my $in_interface (@{ $zone->{interfaces} }) {
+        next if check_global_active_pathrestriction($in_interface);
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
             next if $managed ne 'local_secondary';
@@ -13045,6 +13052,7 @@ sub mark_local_secondary  {
         local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
+            next if check_global_active_pathrestriction($out_interface);
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{local_secondary_mark};
             mark_local_secondary($next_zone, $mark);
