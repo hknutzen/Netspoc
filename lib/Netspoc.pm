@@ -13691,6 +13691,7 @@ sub set_routes_in_zone  {
                 push @result, @{ $hop2networks{$out_hop} };
             }
         }
+        $hop2networks{$hop} = [ unique @result];
 #	debug("Hop: $hop->{name} ", join ',', map {$_->{name}} @result);
     };
     for my $border (values %border_networks) {
@@ -13709,6 +13710,10 @@ sub set_routes_in_zone  {
             $set_networks_behind->($hop, $border);
             for my $interface (@border_intf) {
                 for my $network (@{ $hop2networks{$hop} }) {
+
+                    # $border will be found accidently, if clusters
+                    # form a loop inside zone.
+                    next if $network eq $border;
                     push @{ $interface->{route_in_zone}->{$network} }, $hop;
                 }
             }
