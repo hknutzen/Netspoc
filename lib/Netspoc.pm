@@ -13998,68 +13998,100 @@ sub check_and_convert_routes  {
             $interface->{routes} = $interface->{hop} = {};
             my $real_intf = $interface->{real_interface};
             next if $real_intf->{routing};
+            my $real_net = $real_intf->{network};
             for my $peer (@{ $interface->{peers} }) {
                 my $real_peer = $peer->{real_interface};
                 my $peer_net  = $real_peer->{network};
 
                 # Find hop to peer network and add tunnel networks to this hop.
-                my $hop_routes;
+                my @hops;
 
-                # Special case: peer network is directly connected.
-                if ($real_intf->{network} eq $peer_net) {
+                # Peer network is directly connected.
+                if ($real_net eq $peer_net) {
                     if ($real_peer->{ip} !~ /^(?:short|negotiated)$/) {
-                        $hop_routes = $real_intf->{routes}->{$real_peer} ||= {};
-                        $real_intf->{hop}->{$real_peer} = $real_peer;
-                    }
-                }
-
-                # Search peer network behind all available hops.
-                else {
-                    for my $net_hash (values %{ $real_intf->{routes} }) {
-                        if ($net_hash->{$peer_net}) {
-                            $hop_routes = $net_hash;
-                            last;
-                        }
-                    }
-                }
-
-                if (not $hop_routes) {
-
-                    # Try to guess default route. 
-                    my @try_hops =
-                      grep({ @{ $_->{router}->{interfaces} } > 1 }
-                        grep({ $_ ne $real_intf }
-                          grep({ $_->{ip} !~ /^(?:short|negotiated)$/ }
-                            @{ $real_intf->{network}->{interfaces} })));
-
-                    if (   @try_hops > 1
-                        && equal(map({ $_->{redundancy_interfaces} || $_ } 
-                                     @try_hops))
-                        || @try_hops == 1)
-                    {
-                        for my $hop (@try_hops) {
-                            $hop_routes = $real_intf->{routes}->{$hop} ||= {};
-                            $real_intf->{hop}->{$hop} = $hop;
-                        }
+                        push @hops, $real_peer;
                     }
                     else {
-
-                        # This can only happen for vpn software clients.
-                        # For hardware clients  the route is known 
-                        # for the encrypted traffic which is allowed 
-                        # by gen_tunnel_rules (even for negotiated interface).
-                        my $count = @try_hops;
-                        my $names = join ('', 
-                                          map({ "\n - $_->{router}->{name}" }
-                                              @try_hops));
-                        err_msg(
-                            "Can't determine next hop while moving routes\n",
-                            " of $interface->{name} to $real_intf->{name}.\n",
-                            " Exactly one default route is needed,", 
-                            " but $count candidates were found:",
-                            $names
-                            );
+                        err_msg("$real_peer->{name} used to reach software clients",
+                                " must not be directly connected to",
+                                " $real_intf->{name}\n",
+                                " Connect it to some network behind next hop");
+                        next;
                     }
+                }
+
+                # Peer network is located in directly connected zone.
+                elsif ($real_net->{zone} eq $peer_net->{zone}) {
+                    my $route_in_zone = $real_intf->{route_in_zone};
+                    my $hops = $route_in_zone->{$peer_net} or 
+                        internal_err("Missing route for $peer_net->{name}",
+                                     " at $real_intf->{name} ");
+                    push @hops, @$hops;
+                }
+
+                # Find path to peer network to determine available hops.
+                else {
+                    my $pseudo_rule = {
+                        src    => $real_intf,
+                        dst    => $peer_net,
+                        action => '--',
+                        prt    => { name => '--' },
+                    };
+                    my @zone_hops;
+                    my $walk = sub {
+                        my ($rule, $in_intf, $out_intf) = @_;
+                        $in_intf eq $real_intf or return;
+                        $out_intf or internal_err("No out_intf");
+                        $out_intf->{network} or internal_err "No out net";
+                        push @zone_hops, $out_intf;
+                    };
+                    path_walk($pseudo_rule, $walk, 'Zone');
+                    my $route_in_zone = $real_intf->{route_in_zone};
+                    for my $hop (@zone_hops) {
+
+                        my $hop_net = $hop->{network};
+                        if ($hop_net eq $real_net) {
+                            push @hops, $hop;
+                        }
+                        else {
+                            my $hops = $route_in_zone->{$hop_net} or 
+                                internal_err("Missing route for $hop_net->{name}",
+                                             " at $real_intf->{name}");
+                            push @hops, @$hops;
+                        }
+                    }
+                }
+
+                my $hop_routes;
+                if (   @hops > 1
+                    && equal(map({ $_->{redundancy_interfaces} || $_ } 
+                                 @hops))
+                    || @hops == 1)
+                {
+                    for my $hop (@hops) {
+                        $hop_routes = $real_intf->{routes}->{$hop} ||= {};
+                        $real_intf->{hop}->{$hop} = $hop;
+#                        debug "Use $hop->{name} as hop for $real_peer->{name}";
+                        last;
+                    }
+                }
+                else {
+
+                    # This can only happen for vpn software clients.
+                    # For hardware clients  the route is known 
+                    # for the encrypted traffic which is allowed 
+                    # by gen_tunnel_rules (even for negotiated interface).
+                    my $count = @hops;
+                    my $names = join ('', 
+                                      map({ "\n - $_->{name}" }
+                                          @hops));
+                    err_msg(
+                        "Can't determine next hop to reach $peer_net->{name}",
+                        " while moving routes\n",
+                        " of $interface->{name} to $real_intf->{name}.\n",
+                        " Exactly one route is needed,", 
+                        " but $count candidates were found:",
+                        $names);
                 }
 
                 # Use found hop to reach tunneled networks in $tunnel_routes.
@@ -14068,7 +14100,6 @@ sub check_and_convert_routes  {
                         $hop_routes->{$tunnel_net} = $tunnel_net;
                     }
                 }
-
             }
         }
 
