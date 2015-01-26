@@ -11557,10 +11557,6 @@ sub link_tunnels  {
                 }
             }
 
-            # Remove real interface at virtual router with only
-            # software clients attached.
-            # This is necessary, because we must not add pathrestriction
-            # to this unmanaged device.
             my $router = $real_spoke->{router};
             my @other;
             my $has_id_hosts;
