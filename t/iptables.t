@@ -218,4 +218,50 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Different chains for pairs of input/ouptut interfaces';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 =  {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:k1 = { ip = 10.2.1.1; hardware = k1; }
+ interface:k2 = { ip = 10.2.2.1; hardware = k2; }
+}
+network:k1 = { ip = 10.2.1.0/24; }
+network:k2 = { ip = 10.2.2.0/24; }
+
+service:t1 = {
+ user = network:n1;
+ permit src = user; dst = network:k1, network:k2; prt = tcp 80, tcp 82;
+}
+END
+
+$out = <<'END';
+-- r1
+# [ ACL ]
+:c1 -
+:c2 -
+-A c1 -j ACCEPT -p tcp --dport 82
+-A c1 -j ACCEPT -p tcp --dport 80
+-A c2 -j ACCEPT -p tcp --dport 82
+-A c2 -j ACCEPT -p tcp --dport 80
+--
+:n1_self -
+-A INPUT -j n1_self -i n1
+:n1_k1 -
+-A FORWARD -j n1_k1 -i n1 -o k1
+-A n1_k1 -g c1 -s 10.1.1.0/24 -d 10.2.1.0/24 -p tcp --dport 80:82
+:n1_k2 -
+-A FORWARD -j n1_k2 -i n1 -o k2
+-A n1_k2 -g c2 -s 10.1.1.0/24 -d 10.2.2.0/24 -p tcp --dport 80:82
+--
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

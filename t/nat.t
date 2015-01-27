@@ -221,18 +221,31 @@ $title = 'Check rule with any to hidden NAT';
 
 $in = <<'END';
 network:Test =  {
- ip = 10.0.0.0/24; 
+ ip = 10.0.1.0/24; 
  nat:C = { hidden; }
 }
 
-router:filter = {
+router:r1 = {
  managed;
  model = ASA, 8.4;
- interface:Test = { ip = 10.0.0.2; hardware = inside; }
- interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C; }
+ interface:Test = { ip = 10.0.1.2; hardware = inside; }
+ interface:t1 = { ip = 10.0.2.1; hardware = outside;}
+}
+
+network:t1 = { ip = 10.0.2.0/24; }
+
+router:u = {
+ interface:t1 = { ip = 10.0.2.2; }
+ interface:X = { ip = 10.8.3.1; bind_nat = C; }
 }
 
 network:X = { ip = 10.8.3.0/24; }
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:X = { ip = 10.8.3.2; hardware = inside; }
+}
 
 service:test = {
  user = any:[network:X];
@@ -242,7 +255,7 @@ END
 
 $out = <<'END';
 Error: network:Test is hidden by nat:C in rule
- permit src=any:[network:X]; dst=network:Test; prt=tcp 80; of service:test
+ permit src=any:[network:t1]; dst=network:Test; prt=tcp 80; of service:test
 END
 
 test_err($title, $in, $out);
@@ -344,16 +357,21 @@ $title = 'Must not bind multiple NAT of one network at one place';
 ############################################################
 
 $in = <<'END';
-network:Test =  {
- ip = 10.0.0.0/24; 
+network:n1 =  {
+ ip = 10.0.1.0/24; 
+ nat:D = { hidden; }
+}
+network:n2 =  {
+ ip = 10.0.2.0/24; 
  nat:C = { ip = 10.8.8.0/24; }
- nat:D = { ip = 10.9.9.0/24; }
+ nat:D = { hidden; }
 }
 
 router:filter = {
  managed;
  model = ASA, 8.4;
- interface:Test = { ip = 10.0.0.2; hardware = inside; }
+ interface:n1 = { ip = 10.0.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.0.2.2; hardware = n2; }
  interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C, D; }
 }
 
@@ -361,7 +379,7 @@ network:X = { ip = 10.8.3.0/24; }
 END
 
 $out = <<'END';
-Error: Must not bind multiple NAT tags 'C,D' of nat:C(network:Test) at router:filter
+Error: Must not bind multiple NAT tags 'C,D' of nat:C(network:n2) at router:filter
 Error: Grouped NAT tags 'C' and 'D' must not be both active inside nat_domain:X
 END
 
@@ -620,22 +638,22 @@ network:n1 = {
 
 network:n2 = { 
  ip = 10.1.2.0/24; 
- nat:t1 = { ip = 10.9.9.0/24; }
+ nat:t2 = { ip = 10.9.9.0/24; }
 }
 
 router:r1 =  {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = e0; }
- interface:n2 = { ip = 10.1.2.1; hardware = e0; }
- interface:t  = { ip = 10.2.3.1; hardware = e1; bind_nat = t1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:t  = { ip = 10.2.3.1; hardware = t; bind_nat = t1; }
 }
 network:t = { ip = 10.2.3.0/24; }
 router:r2 =  {
  managed;
  model = ASA;
- interface:t  = { ip = 10.2.3.2; hardware = e1; }
- interface:k = { ip = 10.2.2.2; hardware = e2; bind_nat = t2; }
+ interface:t  = { ip = 10.2.3.2; hardware = t; }
+ interface:k = { ip = 10.2.2.2; hardware = k; bind_nat = t2; }
 }
 network:k = { ip = 10.2.2.0/24; }
 END
@@ -643,7 +661,7 @@ END
 $out = <<'END';
 Error: If multiple NAT tags are used at one network,
  these NAT tags must be used equally grouped at other networks:
- - network:n2: t1
+ - network:n2: t2
  - nat:t1(network:n1): t1,t2
 END
 
@@ -653,9 +671,215 @@ test_err($title, $in, $out);
 $title = 'Grouped NAT tags with single hidden allowed';
 ############################################################
 
-$in =~ s/ip = 10.9.[89].0\/24/hidden/g;
+$in = <<'END';
+network:n1 = { 
+ ip = 10.1.1.0/24; 
+ nat:t1 = { ip = 10.9.1.0/24; }
+ nat:h = { hidden; }
+}
+
+network:n2 = { 
+ ip = 10.1.2.0/24; 
+ nat:h = { hidden; }
+}
+
+network:n3 = { 
+ ip = 10.1.3.0/24; 
+ nat:t3 = { ip = 10.9.3.0/24; }
+ nat:h = { hidden; }
+}
+
+network:n4 = { 
+ ip = 10.1.4.0/24; 
+ nat:t4a = { ip = 10.8.1.0/24; }
+ nat:t4b = { ip = 10.8.2.0/24; }
+ nat:h = { hidden; }
+}
+router:r1 =  {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = t4a; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = t4b; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ interface:t  = { ip = 10.2.3.1; hardware = t; bind_nat = t1, t3; }
+}
+network:t = { ip = 10.2.3.0/24; }
+router:r2 =  {
+ managed;
+ model = ASA;
+ interface:t  = { ip = 10.2.3.2; hardware = t; }
+ interface:k = { ip = 10.2.2.2; hardware = k; bind_nat = h; }
+}
+network:k = { ip = 10.2.2.0/24; }
+END
 
 $out = <<'END';
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Combined single hidden allowed';
+############################################################
+
+$in = <<'END';
+network:n1 = { 
+ ip = 10.1.1.0/24; 
+ nat:t1 = { ip = 10.9.1.0/24; }
+ nat:h1 = { hidden; }
+}
+
+network:n2 = { 
+ ip = 10.1.2.0/24; 
+ nat:h1 = { hidden; }
+ nat:h2 = { hidden; }
+}
+
+network:n3 = { 
+ ip = 10.1.3.0/24; 
+ nat:t3 = { ip = 10.9.3.0/24; }
+ nat:h2 = { hidden; }
+}
+
+router:r1 =  {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:t  = { ip = 10.2.0.1; hardware = t; bind_nat = t1, t3; }
+}
+network:t = { ip = 10.2.0.0/24; }
+router:r2 =  {
+ interface:t;
+ interface:k1 = { bind_nat = h1; }
+ interface:k2 = { bind_nat = h2; }
+}
+network:k1 = { ip = 10.2.1.0/24; }
+network:k2 = { ip = 10.2.2.0/24; }
+END
+
+$out = <<'END';
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Grouped NAT tags with invalid hidden';
+############################################################
+
+$in = <<'END';
+network:n1 = { 
+ ip = 10.1.1.0/24; 
+ nat:t1 = { ip = 10.9.1.0/24; }
+ nat:h1 = { hidden; }
+ nat:h2 = { hidden; }
+}
+
+network:n2 = { 
+ ip = 10.1.2.0/24; 
+ nat:t1 = { ip = 10.9.2.0/24; }
+}
+
+network:n3 = { 
+ ip = 10.1.3.0/24; 
+ nat:h1 = { hidden; }
+}
+
+router:r1 =  {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:t1 = { ip = 10.2.1.1; hardware = t; bind_nat = t1; }
+}
+network:t1 = { ip = 10.2.1.0/24; }
+# t1 active
+router:r2 = {
+ interface:t1;
+ interface:k1 = { bind_nat = h1; }
+ interface:k2 = { bind_nat = h2; }
+}
+# h1 active
+# t1 ambiguous: still active for n2, no longer active for n1
+network:k1 = { ip = 10.2.3.0/24; }
+
+# h2 active
+# 11 ambiguous: still active for n2, no longer active for n1
+network:k2 = { ip = 10.2.2.0/24; }
+END
+
+$out = <<'END';
+Error: If multiple NAT tags are used at one network,
+ these NAT tags must be used equally grouped at other networks:
+ - network:n2: t1
+ - nat:h1(network:n1): h1,h2,t1
+Error: If multiple NAT tags are used at one network,
+ these NAT tags must be used equally grouped at other networks:
+ - network:n3: h1
+ - nat:h1(network:n1): h1,h2,t1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Grouped NAT tags with invalid hidden (2)';
+############################################################
+
+$in = <<'END';
+network:n1 = { 
+ ip = 10.1.1.0/24; 
+ nat:t1 = { ip = 10.9.1.0/24; }
+ nat:h  = { hidden; }
+}
+
+network:n2 = { 
+ ip = 10.1.2.0/24; 
+ nat:t2 = { ip = 10.9.2.0/24; }
+ nat:h  = { hidden; }
+}
+
+network:n3 = { 
+ ip = 10.1.3.0/24; 
+ nat:t1 = { ip = 10.9.3.0/24; }
+ nat:t2 = { ip = 10.9.4.0/24; }
+ nat:h  = { hidden; }
+}
+
+router:r1 =  {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:t1 = { ip = 10.2.1.1; hardware = t; bind_nat = t1; }
+}
+# t1 active
+network:t1 = { ip = 10.2.1.0/24; }
+router:r2 = {
+ interface:t1;
+ interface:t2 = { bind_nat = t2; }
+}
+# t2 active
+# t1 ambiguous: still active for n1, but no longer active for n3
+network:t2 = { ip = 10.2.2.0/24; }
+router:r3 = {
+ interface:t2;
+ interface:k = { bind_nat = h; }
+}
+network:k = { ip = 10.2.3.0/24; }
+END
+
+$out = <<'END';
+Error: If multiple NAT tags are used at one network,
+ these NAT tags must be used equally grouped at other networks:
+ - network:n3: h,t1,t2
+ - nat:h(network:n1): h,t1
 END
 
 test_err($title, $in, $out);
@@ -741,6 +965,40 @@ network:U1 = {
  ip = 10.1.1.0/24;
  nat:t1 = { hidden; }
  nat:t2 = { ip = 10.9.9.0/24; }
+}
+router:R0 = {
+ interface:U1;
+ interface:T = { ip = 10.3.3.17; bind_nat = t1;}
+}
+
+network:T = { ip = 10.3.3.16/29; }
+
+router:R2 = {
+ managed;
+ model = ASA;
+ interface:T = { ip = 10.3.3.18; hardware = e0;}
+ interface:K = { ip = 10.2.2.1; hardware = e2; bind_nat = t2; }
+}
+
+network:K = { ip = 10.2.2.0/24; }
+END
+
+$out = <<'END';
+Error: Must not change hidden NAT for nat:t1(network:U1)
+ using NAT tag 't2' at router:R2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Prevent multiple hidden NAT';
+############################################################
+
+$in = <<'END';
+network:U1 = {
+ ip = 10.1.1.0/24;
+ nat:t1 = { hidden; }
+ nat:t2 = { hidden; }
 }
 router:R0 = {
  interface:U1;

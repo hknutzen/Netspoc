@@ -67,7 +67,7 @@ use Netspoc;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '3.061'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.062'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -85,7 +85,7 @@ GetOptions ( 'nat=s'  => \$nat_net,
 pod2usage(1) if $help;
 pod2usage(-exitstatus => 0, -verbose => 2) if $man;
 
-my $config = shift @ARGV or pod2usage(2);
+my $in_path = shift @ARGV or pod2usage(2);
 my $name = shift @ARGV;
 
 ####################################################################
@@ -143,10 +143,11 @@ sub prt_info {
 # Main program
 ####################################################################
 
-&set_config({ verbose => !$quiet });
+my $file_config = &read_config($in_path);
+&set_config($file_config, { verbose => !$quiet });
 
 # Read and process Netspoc configuration file or directory.
-&read_file_or_dir($config);
+&read_file_or_dir($in_path);
 
 $name =~ s/^service://;
 if ($name) {

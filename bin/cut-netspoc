@@ -60,7 +60,7 @@ use Pod::Usage;
 use Netspoc;
 use locale;
 
-our $VERSION = '3.061'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.062'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -170,7 +170,9 @@ sub get_zones {
 # Main program
 ####################################################################
 
-Netspoc::set_config({time_stamps => 1, max_errors => 9999, verbose => !$quiet});
+my $file_config = &read_config($path);
+Netspoc::set_config($file_config, 
+                    {time_stamps => 1, max_errors => 9999, verbose => !$quiet});
 &show_version();
 
 # Read and process netspoc configuration data.

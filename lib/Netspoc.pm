@@ -6,7 +6,7 @@ Netspoc - A Network Security Policy Compiler
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2014 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.061'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.062'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -185,7 +185,7 @@ our %config = (
     time_stamps => 0,
 
 # Don't traverse crypto interfaces when finding areas.
-    area_ignore_crypto => 0,
+    area_ignore_crypto => 1,
 );
 
 # Valid values for config options in %config.
@@ -1168,15 +1168,6 @@ sub add_attribute {
 
 our %hosts;
 
-# Global or individual policy_distribution_point.
-# This is typically the netspoc server or some other server
-# which is used to distribute the generated configuration files
-# to managed devices.
-
-# Single global policy_distribution_point.
-# A host which gets the attribute {policy_distribution_point}.
-my $policy_distribution_point;
-
 sub check_radius_attributes {
     my $result = {};
     check 'radius_attributes' or return;
@@ -1344,14 +1335,6 @@ sub read_host {
         }
         elsif (my $radius_attributes = check_radius_attributes) {
             add_attribute($host, radius_attributes => $radius_attributes);
-        }
-        elsif (check_flag 'policy_distribution_point') {
-            $policy_distribution_point
-                and err_msg("Attribute 'policy_distribution_point'",
-                            " must only be used once:\n",
-                            " - $policy_distribution_point->{name}\n",
-                            " - $host->{name}");
-            $policy_distribution_point = $host;
         }
         elsif (my $pair = check_typed_name) {
             my ($type, $name) = @$pair;
@@ -3185,7 +3168,8 @@ sub read_crypto {
     while (1) {
         last if check '\}';
         if (check_flag 'tunnel_all') {
-            $crypto->{tunnel_all} = 1;
+
+            # Optional and no longer needed.
         }
         elsif (check_flag 'detailed_crypto_acl') {
             $crypto->{detailed_crypto_acl} = 1;
@@ -3200,8 +3184,6 @@ sub read_crypto {
         }
     }
     $crypto->{type} or error_atline("Missing 'type' for $name");
-    $crypto->{tunnel_all}
-      or error_atline("Must define attribute 'tunnel_all' for $name");
     return $crypto;
 }
 
@@ -5212,9 +5194,6 @@ sub mark_disabled {
     }
 
     @virtual_interfaces = grep { not $_->{disabled} } @virtual_interfaces;
-    if ($policy_distribution_point and $policy_distribution_point->{disabled}) {
-        $policy_distribution_point = undef;
-    }
     check_bridged_networks();
     transform_isolated_ports();
     return;
@@ -7044,7 +7023,7 @@ sub expand_services {
     warn_useless_unenforceable();
     info("Expanded rule count: ", scalar @$expanded_rules_aref);
 
-    progress('Preparing Optimization');
+    progress('Preparing optimization');
     add_rules($expanded_rules_aref);
     info("Expanded rule count: ", 
          scalar grep { !$_->{deleted} } @$expanded_rules_aref);
@@ -7093,8 +7072,7 @@ sub set_policy_distribution_ip  {
         return $host2pdp_src{$host} = $pdp_src;
     };
     for my $router (@managed_routers, @routing_only_routers) {
-        my $pdp = $router->{policy_distribution_point} ||= $policy_distribution_point;
-        next if !$pdp;
+        my $pdp = $router->{policy_distribution_point} or next;
         
         my %found_interfaces;
         my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
@@ -7835,9 +7813,7 @@ sub distribute_nat {
                     my $next_info = $href->{$nat_tag2};
                     my $what;
                     if ($nat_info->{hidden}) {
-                        if(!($next_info->{hidden})) {
-                            $what = 'hidden NAT';
-                        }
+                        $what = 'hidden NAT';
                     }
                     elsif ($nat_info->{dynamic}) {
                         if(!($next_info->{dynamic})) {
@@ -7876,6 +7852,14 @@ sub distribute_nat_info {
         }
     }
 
+    # Check that $href has exactly one hidden NAT tag or that all tags
+    # are hidden.
+    my $all_or_one_hidden = sub {
+        my ($href) = @_;
+        my $count = grep({ !$has_non_hidden{$_} } keys %$href);
+        return 1 == $count || keys %$href == $count;
+    };
+
     # A hash with all defined NAT tags.
     # It is used to check,
     # - if all NAT definitions are bound and
@@ -7901,51 +7885,77 @@ sub distribute_nat_info {
     my %nat_tags2multi;
     for my $network (@networks) {
         my $href = $network->{nat} or next;
+#        debug $network->{name};
 
         # Print error message only once per network.
         my $err;
-        for my $nat_tag (keys %$href) {
+      NAT_TAG:
+        for my $nat_tag (sort keys %$href) {
             $nat_definitions{$nat_tag} = 1;
             if (my $href2 = $nat_tags2multi{$nat_tag}) {
-                if (!$err && !keys_equal($href, $href2)) {
+                my $href1 = $href;
+                if (!$err && !keys_equal($href1, $href2)) {
 
                     # NAT tag can be used both grouped and solitary,
                     # if and only if 
                     # - single NAT tag translates to hidden, 
-                    # - the same NAT tag translates to hidden in group.
-                    my $remove_hidden = sub {
-                        my ($href) = @_;
-                        my $result = {};
-                        for my $tag (keys %$href) {
-                            $has_non_hidden{$tag} or next;
-                            $result->{$tag} = $href->{$tag};
-                        }
-                        return $result;
-                    };                    
-                    my $non_hidden1 = $remove_hidden->($href);
-                    my $non_hidden2 = $remove_hidden->($href2);
-                    if (grep({ $non_hidden1->{$_} } keys %$non_hidden2) &&
-                        (keys(%$non_hidden1) > 1 || keys(%$non_hidden2) > 1) &&
-                        !keys_equal($non_hidden1, $non_hidden2))
+                    # - the same NAT tag translates to hidden in group,
+                    # - group has no other hidden NAT tag or
+                    # - group consists solely of hidden NAT tags.
+                    # Shared hidden NAT tag is ignored when comparing
+                    # grouped NAT tags for equality.
+                    # If the group has only a single tag after ignoring the 
+                    # shared one, it isn't regarded as grouped.
+                    my @intersection = grep { $href1->{$_} } keys %$href2;
+                    $err = 1;
+                  ERR:
                     {
-                        my $tags  = join(',', sort keys %$href);
-                        my $name  = $network->{name};
-                        my $tags2 = join(',', sort keys %$href2);
+                        1 == @intersection or last ERR;
+                        my ($shared_tag) = @intersection;
+                        $has_non_hidden{$shared_tag} and last ERR;
+                        $shared_tag eq $nat_tag or last ERR;
 
-                        # Values are NAT entries with name of the network.
-                        # Take first value deterministically.
-                        my ($name2) = sort map { $_->{name} } values %$href2;
-                        err_msg
-                            "If multiple NAT tags are used at one network,\n",
-                            " these NAT tags must be used",
-                            " equally grouped at other networks:\n", 
-                            " - $name: $tags\n",
-                            " - $name2: $tags2";
-                        $err = 1;
+                        # $href1 holds solitary hidden NAT tag,
+                        # $href2 holds grouped NAT tags.
+                        if (1 == keys %$href1) {
+                            $all_or_one_hidden->($href2) or last ERR;
+                        }
+
+                        # $href2 solitary, $href1 grouped.
+                        elsif (1 == keys %$href2) {
+                            $all_or_one_hidden->($href1) or last ERR;
+#                            debug "- store larger $nat_tag";
+                            $nat_tags2multi{$nat_tag} = $href1;
+                        }
+
+                        # Two single NAT tags augmented by shared hidden.
+                        elsif (2 == keys %$href1 && 2 == keys %$href2) {
+                            $all_or_one_hidden->($href1) or last ERR;
+                            $all_or_one_hidden->($href2) or last ERR;
+#                            debug "- store combined $nat_tag";
+                            $nat_tags2multi{$nat_tag} = { %$href1, %$href2 };
+                        }
+
+                        $err = 0;
+                        next NAT_TAG;
                     }
+                    my $tags1  = join(',', sort keys %$href1);
+                    my $name1  = $network->{name};
+                    my $tags2  = join(',', sort keys %$href2);
+
+                    # Values are NAT entries with name of the network.
+                    # Take first value deterministically.
+                    my ($name2) = sort map { $_->{name} } values %$href2;
+                    err_msg
+                        "If multiple NAT tags are used at one network,\n",
+                        " these NAT tags must be used",
+                        " equally grouped at other networks:\n", 
+                        " - $name1: $tags1\n",
+                        " - $name2: $tags2";
                 }
             }
             else {
+#                debug "- store $nat_tag";
                 $nat_tags2multi{$nat_tag} = $href;
             }
         }
@@ -7971,6 +7981,7 @@ sub distribute_nat_info {
     for my $domain (@natdomains) {
         for my $router (@{ $domain->{routers} }) {
             my $nat_tags = $router->{nat_tags}->{$domain};
+#            debug "$domain->{name} $router->{name}: ", join(',', @$nat_tags);
 
             # Multiple tags are bound to an interface.
             # If a network has multiple matching NAT tags, 
@@ -8097,10 +8108,12 @@ sub invert_nat_set {
     # Collect NAT tags used in each partition.
     my %partition2tags;
     for my $domain (@natdomains) {
-        my $nat_set = $domain->{nat_set};
         my $mark = $partitions{$domain};
-        for my $tag (keys %$nat_set) {
-            $partition2tags{$mark}->{$tag} = 1;
+        for my $network (@{ $domain->{networks} }) {
+            my $href = $network->{nat} or next;
+            for my $nat_tag (keys %$href) {
+                $partition2tags{$mark}->{$nat_tag} = 1;
+            }
         }
     }
 
@@ -9210,13 +9223,13 @@ sub link_implicit_aggregate_to_zone {
     return;
 }
 
-# Link aggregate to zone.  This is called late, after zones and NAT
-# domains have been set up. But before find_subnets_in_zone calculates
-# {up} and {networks} relation.
+# Link aggregate to zone. This is called late, after zones been set
+# up. But before find_subnets_in_zone calculates {up} and {networks}
+# relation.
 sub link_aggregates {
     my @aggregates_in_cluster;
-    for my $key (sort keys %aggregates) {
-        my $aggregate = $aggregates{$key};
+    for my $name (sort keys %aggregates) {
+        my $aggregate = $aggregates{$name};
         my $private1 = $aggregate->{private} || 'public';
         my $private2;
         my ($type, $name) = @{ delete($aggregate->{link}) };
@@ -10444,7 +10457,7 @@ sub get_path {
         }
     }
 
-    # This is only used, if called from path_auto_interfaces.
+    # This is used, if called from path_auto_interfaces.
     elsif ($type eq 'Router') {
         if ($obj->{managed} || $obj->{semi_managed}) {
             $result = $obj;
@@ -10454,12 +10467,12 @@ sub get_path {
         }
     }
 
-    # This is only used, if path_walk is called from find_statics.
+    # This is used, if path_walk is called from find_active_routes.
     elsif ($type eq 'Zone') {
         $result = $obj;
     }
 
-    # This is only used, if Netspoc.pm is called from report.pl.
+    # This is used, if expand_services without convert_hosts.
     elsif ($type eq 'Host') {
         $result = $obj->{network}->{zone};
     }
@@ -11453,7 +11466,7 @@ sub link_tunnels  {
     # Collect clear-text interfaces of all tunnels.
     my @real_interfaces;
 
-    for my $crypto (values %crypto) {
+    for my $crypto (sort by_name values %crypto) {
         my $name        = $crypto->{name};
         my $private     = $crypto->{private};
         my $real_hubs   = delete $crypto2hubs{$name};
@@ -11544,10 +11557,6 @@ sub link_tunnels  {
                 }
             }
 
-            # Remove real interface at virtual router with only
-            # software clients attached.
-            # This is necessary, because we must not add pathrestriction
-            # to this unmanaged device.
             my $router = $real_spoke->{router};
             my @other;
             my $has_id_hosts;
@@ -12949,6 +12958,7 @@ sub mark_secondary  {
 
 #    debug("$zone->{name} $mark");
     for my $in_interface (@{ $zone->{interfaces} }) {
+        next if check_global_active_pathrestriction($in_interface);
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
             next if $managed !~ /^(?:secondary|local.*)$/;
@@ -12957,6 +12967,7 @@ sub mark_secondary  {
         local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
+            next if check_global_active_pathrestriction($out_interface);
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{secondary_mark};
             mark_secondary $next_zone, $mark;
@@ -12975,6 +12986,7 @@ sub mark_primary  {
     my ($zone, $mark) = @_;
     $zone->{primary_mark} = $mark;
     for my $in_interface (@{ $zone->{interfaces} }) {
+        next if check_global_active_pathrestriction($in_interface);
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
             next if $managed eq 'primary';
@@ -12983,6 +12995,7 @@ sub mark_primary  {
         local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
+            next if check_global_active_pathrestriction($out_interface);
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{primary_mark};
             mark_primary $next_zone, $mark;
@@ -13002,6 +13015,7 @@ sub mark_strict_secondary  {
     $zone->{strict_secondary_mark} = $mark;
 #    debug "$zone->{name} : $mark";
     for my $in_interface (@{ $zone->{interfaces} }) {
+        next if check_global_active_pathrestriction($in_interface);
         my $router = $in_interface->{router};
         if ($router->{managed}) {
             next if $router->{strict_secondary};
@@ -13010,6 +13024,7 @@ sub mark_strict_secondary  {
         local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
+            next if check_global_active_pathrestriction($out_interface);
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{strict_secondary_mark};
             mark_strict_secondary($next_zone, $mark);
@@ -13028,6 +13043,7 @@ sub mark_local_secondary  {
     $zone->{local_secondary_mark} = $mark;
 #    debug "local_secondary $zone->{name} : $mark";
     for my $in_interface (@{ $zone->{interfaces} }) {
+        next if check_global_active_pathrestriction($in_interface);
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
             next if $managed ne 'local_secondary';
@@ -13036,6 +13052,7 @@ sub mark_local_secondary  {
         local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
+            next if check_global_active_pathrestriction($out_interface);
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{local_secondary_mark};
             mark_local_secondary($next_zone, $mark);
@@ -13138,11 +13155,16 @@ sub mark_secondary_rules {
             }
         }
     }
+    return;
+}
 
-    # Find rules where dynamic NAT is applied to host or interface at
-    # src or dst on path to other end of rule.
-    # Mark found rule with attribute {dynamic_nat} and value src|dst|src,dst.
+
+# Find rules where dynamic NAT is applied to host or interface at
+# src or dst on path to other end of rule.
+# Mark found rule with attribute {dynamic_nat} and value src|dst|src,dst.
+sub mark_dynamic_rules {
     progress('Marking rules with dynamic NAT');
+
     for my $rule (
         @{ $expanded_rules{permit} },
         @{ $expanded_rules{supernet} },
@@ -13169,33 +13191,35 @@ sub mark_secondary_rules {
               ? $other->{nat_domain}    # Is undef for aggregate.
               : $other->{network}->{nat_domain};
             my $no_nat_set = $nat_domain ? $nat_domain->{no_nat_set} : {};
-            my $hidden;
-            my $dynamic;
+            my $hidden_seen;
+            my $dynamic_seen;
 
-          TAG:
-            for my $nat_tag (keys %$nat_hash) {
+            for my $nat_tag (sort keys %$nat_hash) {
 
                 # Find $nat_tag which is effective at $other.
                 # - simple: $other is host or network, $nat_domain is known.
                 # - loop: $other is aggregate.
-                #         Check all NAT domains inside the zone 
+                #         Check all NAT domains inside corresponding zone 
                 #         for dynamic NAT.
                 if ($nat_domain) {
                     next if $no_nat_set->{$nat_tag};
                 }
                 else {
+                    my $dynamic_nat_active = 0;
                     for my $interface (@{ $other->{zone}->{interfaces} }) {
                         my $no_nat_set = $interface->{no_nat_set};
-                        next TAG if $no_nat_set->{$nat_tag};
+                        next if $no_nat_set->{$nat_tag};
+                        $dynamic_nat_active = 1;
                         last;
                     }
+                    $dynamic_nat_active or next;
                 }
 
                 my $nat_network = $nat_hash->{$nat_tag};
 
                 # Network is hidden by NAT.
-                if ($nat_network->{hidden} and not $hidden) {
-                    $hidden = 1;
+                if ($nat_network->{hidden} && !$hidden_seen) {
+                    $hidden_seen = 1;
                     err_msg("$obj->{name} is hidden by nat:$nat_tag in rule\n ",
                             print_rule $rule);
                 }
@@ -13205,11 +13229,11 @@ sub mark_secondary_rules {
                 if (    $nat_network->{dynamic}
                     and ($type eq 'Subnet' or $type eq 'Interface')
                     and not $obj->{nat}->{$nat_tag}
-                    and not $dynamic)
+                    and not $dynamic_seen)
                 {
                     # Check error condition: Dynamic NAT address is
                     # used in ACL at managed router at the border of
-                    # the zone of $obj. 
+                    # zone of $obj. 
                     # $intf could have value 'undef' if $obj is interface of
                     # current router and destination of rule.
                     my $check = sub {
@@ -13237,7 +13261,7 @@ sub mark_secondary_rules {
                       : $where;
 
 #		    debug("dynamic_nat: $where at ", print_rule $rule);
-                    $dynamic = 1;
+                    $dynamic_seen = 1;
                 }
             }
         }
@@ -13667,6 +13691,7 @@ sub set_routes_in_zone  {
                 push @result, @{ $hop2networks{$out_hop} };
             }
         }
+        $hop2networks{$hop} = [ unique @result];
 #	debug("Hop: $hop->{name} ", join ',', map {$_->{name}} @result);
     };
     for my $border (values %border_networks) {
@@ -13685,6 +13710,10 @@ sub set_routes_in_zone  {
             $set_networks_behind->($hop, $border);
             for my $interface (@border_intf) {
                 for my $network (@{ $hop2networks{$hop} }) {
+
+                    # $border will be found accidently, if clusters
+                    # form a loop inside zone.
+                    next if $network eq $border;
                     push @{ $interface->{route_in_zone}->{$network} }, $hop;
                 }
             }
@@ -13974,68 +14003,100 @@ sub check_and_convert_routes  {
             $interface->{routes} = $interface->{hop} = {};
             my $real_intf = $interface->{real_interface};
             next if $real_intf->{routing};
+            my $real_net = $real_intf->{network};
             for my $peer (@{ $interface->{peers} }) {
                 my $real_peer = $peer->{real_interface};
                 my $peer_net  = $real_peer->{network};
 
                 # Find hop to peer network and add tunnel networks to this hop.
-                my $hop_routes;
+                my @hops;
 
-                # Special case: peer network is directly connected.
-                if ($real_intf->{network} eq $peer_net) {
+                # Peer network is directly connected.
+                if ($real_net eq $peer_net) {
                     if ($real_peer->{ip} !~ /^(?:short|negotiated)$/) {
-                        $hop_routes = $real_intf->{routes}->{$real_peer} ||= {};
-                        $real_intf->{hop}->{$real_peer} = $real_peer;
-                    }
-                }
-
-                # Search peer network behind all available hops.
-                else {
-                    for my $net_hash (values %{ $real_intf->{routes} }) {
-                        if ($net_hash->{$peer_net}) {
-                            $hop_routes = $net_hash;
-                            last;
-                        }
-                    }
-                }
-
-                if (not $hop_routes) {
-
-                    # Try to guess default route. 
-                    my @try_hops =
-                      grep({ @{ $_->{router}->{interfaces} } > 1 }
-                        grep({ $_ ne $real_intf }
-                          grep({ $_->{ip} !~ /^(?:short|negotiated)$/ }
-                            @{ $real_intf->{network}->{interfaces} })));
-
-                    if (   @try_hops > 1
-                        && equal(map({ $_->{redundancy_interfaces} || $_ } 
-                                     @try_hops))
-                        || @try_hops == 1)
-                    {
-                        for my $hop (@try_hops) {
-                            $hop_routes = $real_intf->{routes}->{$hop} ||= {};
-                            $real_intf->{hop}->{$hop} = $hop;
-                        }
+                        push @hops, $real_peer;
                     }
                     else {
-
-                        # This can only happen for vpn software clients.
-                        # For hardware clients  the route is known 
-                        # for the encrypted traffic which is allowed 
-                        # by gen_tunnel_rules (even for negotiated interface).
-                        my $count = @try_hops;
-                        my $names = join ('', 
-                                          map({ "\n - $_->{router}->{name}" }
-                                              @try_hops));
-                        err_msg(
-                            "Can't determine next hop while moving routes\n",
-                            " of $interface->{name} to $real_intf->{name}.\n",
-                            " Exactly one default route is needed,", 
-                            " but $count candidates were found:",
-                            $names
-                            );
+                        err_msg("$real_peer->{name} used to reach software clients",
+                                " must not be directly connected to",
+                                " $real_intf->{name}\n",
+                                " Connect it to some network behind next hop");
+                        next;
                     }
+                }
+
+                # Peer network is located in directly connected zone.
+                elsif ($real_net->{zone} eq $peer_net->{zone}) {
+                    my $route_in_zone = $real_intf->{route_in_zone};
+                    my $hops = $route_in_zone->{$peer_net} or 
+                        internal_err("Missing route for $peer_net->{name}",
+                                     " at $real_intf->{name} ");
+                    push @hops, @$hops;
+                }
+
+                # Find path to peer network to determine available hops.
+                else {
+                    my $pseudo_rule = {
+                        src    => $real_intf,
+                        dst    => $peer_net,
+                        action => '--',
+                        prt    => { name => '--' },
+                    };
+                    my @zone_hops;
+                    my $walk = sub {
+                        my ($rule, $in_intf, $out_intf) = @_;
+                        $in_intf eq $real_intf or return;
+                        $out_intf or internal_err("No out_intf");
+                        $out_intf->{network} or internal_err "No out net";
+                        push @zone_hops, $out_intf;
+                    };
+                    path_walk($pseudo_rule, $walk, 'Zone');
+                    my $route_in_zone = $real_intf->{route_in_zone};
+                    for my $hop (@zone_hops) {
+
+                        my $hop_net = $hop->{network};
+                        if ($hop_net eq $real_net) {
+                            push @hops, $hop;
+                        }
+                        else {
+                            my $hops = $route_in_zone->{$hop_net} or 
+                                internal_err("Missing route for $hop_net->{name}",
+                                             " at $real_intf->{name}");
+                            push @hops, @$hops;
+                        }
+                    }
+                }
+
+                my $hop_routes;
+                if (   @hops > 1
+                    && equal(map({ $_->{redundancy_interfaces} || $_ } 
+                                 @hops))
+                    || @hops == 1)
+                {
+                    for my $hop (@hops) {
+                        $hop_routes = $real_intf->{routes}->{$hop} ||= {};
+                        $real_intf->{hop}->{$hop} = $hop;
+#                        debug "Use $hop->{name} as hop for $real_peer->{name}";
+                        last;
+                    }
+                }
+                else {
+
+                    # This can only happen for vpn software clients.
+                    # For hardware clients  the route is known 
+                    # for the encrypted traffic which is allowed 
+                    # by gen_tunnel_rules (even for negotiated interface).
+                    my $count = @hops;
+                    my $names = join ('', 
+                                      map({ "\n - $_->{name}" }
+                                          @hops));
+                    err_msg(
+                        "Can't determine next hop to reach $peer_net->{name}",
+                        " while moving routes\n",
+                        " of $interface->{name} to $real_intf->{name}.\n",
+                        " Exactly one route is needed,", 
+                        " but $count candidates were found:",
+                        $names);
                 }
 
                 # Use found hop to reach tunneled networks in $tunnel_routes.
@@ -14044,7 +14105,6 @@ sub check_and_convert_routes  {
                         $hop_routes->{$tunnel_net} = $tunnel_net;
                     }
                 }
-
             }
         }
 
@@ -14151,12 +14211,6 @@ sub check_and_convert_routes  {
               [ sort by_name values %{ $interface->{hop} } ];
         }
     }
-    return;
-}
-
-sub find_active_routes_and_statics  {
-    prepare_nat_commands();
-    find_active_routes;
     return;
 }
 
@@ -16182,7 +16236,8 @@ sub find_chains  {
     $router->{vrf_shared_data}->{chain_counter} ||= 1;
 
     my $no_nat_set = $hardware->{no_nat_set};
-    my @rule_arefs = values %{ $hardware->{io_rules} };
+    my $io_rules_hash = $hardware->{io_rules};
+    my @rule_arefs = map { $io_rules_hash->{$_} } sort keys %$io_rules_hash;
     my $intf_rules = $hardware->{intf_rules};
     push @rule_arefs, $intf_rules if $intf_rules;
 
@@ -18848,7 +18903,6 @@ sub init_global_vars {
     @natdomains = ();
     %auto_interfaces = ();
     $from_json = undef;
-    $policy_distribution_point = undef;
     %crypto2spokes = %crypto2hubs = ();
     %rule_tree = ();
     %prt_hash = %range_hash = %ref2prt = %ref2obj = %token2regex = ();
@@ -18966,9 +19020,11 @@ sub compile {
     set_policy_distribution_ip();
     &optimize_and_warn_deleted();
     &check_supernet_rules();
-    &find_active_routes_and_statics();
+    prepare_nat_commands();
+    find_active_routes();
     &gen_reverse_rules();
     &mark_secondary_rules();
+    mark_dynamic_rules();
     &abort_on_error();
     &set_abort_immediately();
     &rules_distribution();

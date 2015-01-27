@@ -302,7 +302,7 @@ router:asavpn = {
 network:dmz = { ip = 192.168.0.0/24; }
 
 router:softclients = {
- interface:dmz = { spoke = crypto:vpn; }
+ interface:intern = { spoke = crypto:vpn; }
  interface:customers1;
 }
 
@@ -357,20 +357,20 @@ $title = 'Missing route for VPN ASA with internal software clients';
 ############################################################
 
 $in .= <<'END';
-network:x = { ip = 10.1.1.0/24;}
-
-router:gw_x = {
- interface:x;
+router:gw2 = {
+ interface:intern;
  interface:dmz = { ip = 192.168.0.3; }
 }
 END
 
 $out = <<END;
-Error: Can\'t determine next hop while moving routes
+Error: Can\'t determine next hop to reach network:intern while moving routes
  of interface:asavpn.tunnel:softclients to interface:asavpn.dmz.
- Exactly one default route is needed, but 2 candidates were found:
- - router:gw
- - router:gw_x
+ Exactly one route is needed, but 2 candidates were found:
+ - interface:gw.dmz
+ - interface:gw2.dmz
+Warning: Two static routes for network:intern
+ at interface:asavpn.dmz via interface:gw2.dmz and interface:gw.dmz
 END
 
 test_err($title, $in, $out);
@@ -428,7 +428,7 @@ router:asavpn = {
 network:dmz = { ip = 192.168.0.0/24; }
 
 router:softclients = {
- interface:dmz = { spoke = crypto:vpn; }
+ interface:intern = { spoke = crypto:vpn; }
  interface:customers1;
 }
 

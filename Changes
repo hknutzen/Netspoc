@@ -1,3 +1,29 @@
+3.062     2015-01-27 11:45:34+01:00 Europe/Berlin
+
+ - Removed global attribute 'policy_distribution_point' at host.
+   Use attribute 'policy_distribution_point' at router or area instead.
+ - Attribute 'tunnel_all' is optional and unused now.
+   Will be invalid in next version.
+ - Config option 'area_ignore_crypto' is enabled by default now.
+   Will be removed in next version.
+ - No longer guess route for crypto software clients    
+   Virtual router of software clients must no longer be directly
+   connected with VPN router. Some other router must be placed in
+   between now. This router will be used as next hop when reaching
+   tunnelled software client network.
+ - Ignore blocked crypto interface when checking secondary optimization.
+ - Handle grouped NAT tags more restrictive.
+   Restrict use of hidden NAT tag together with grouped NAT tags:
+   - Don't allow other hidden NAT tags. Otherwise we can't be sure,
+     that shared hidden NAT tag will be activated.
+   - Don't allow the same group without shared hidden NAT tag.
+     Otherwise the shared hidden NAT tag won't be activated in a NAT domain,
+     where non hidden NAT tags are no longer active.
+   - But still allow grouped pairs of hidden NAT tags.
+ - Fixed nondeterminism in generated code 
+   - for devices of model Linux with multiple interfaces and
+   - for devices with crypto tunnels of different type
+
 3.061     2015-01-09 10:33:56+01:00 Europe/Berlin
 
  - Added different and now optional log modifiers:
@@ -15,6 +41,8 @@
  - Removed config options check_owner_extend and check_routing_manual.
  - Fixed handling of path ending at interface with pathrestriction.
  - Allow owner with 'show_all' even if there are multiple toplevel areas.
+ - Fixed NAT for encrypted traffic of VPN tunnel. 
+   Previously a wrong peer IP was used. 
 
 3.060     2014-12-10 15:17:42+01:00 Europe/Berlin
 
