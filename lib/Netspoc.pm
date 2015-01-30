@@ -13162,7 +13162,7 @@ sub mark_secondary_rules {
 # Find rules where dynamic NAT is applied to host or interface at
 # src or dst on path to other end of rule.
 # Mark found rule with attribute {dynamic_nat} and value src|dst|src,dst.
-sub mark_dynamic_rules {
+sub mark_dynamic_nat_rules {
     progress('Marking rules with dynamic NAT');
 
     for my $rule (
@@ -19024,7 +19024,7 @@ sub compile {
     find_active_routes();
     &gen_reverse_rules();
     &mark_secondary_rules();
-    mark_dynamic_rules();
+    mark_dynamic_nat_rules();
     &abort_on_error();
     &set_abort_immediately();
     &rules_distribution();
