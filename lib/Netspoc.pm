@@ -13205,14 +13205,14 @@ sub mark_dynamic_nat_rules {
                     next if $no_nat_set->{$nat_tag};
                 }
                 else {
-                    my $dynamic_nat_active = 0;
+                    my $nat_active = 0;
                     for my $interface (@{ $other->{zone}->{interfaces} }) {
                         my $no_nat_set = $interface->{no_nat_set};
                         next if $no_nat_set->{$nat_tag};
-                        $dynamic_nat_active = 1;
+                        $nat_active = 1;
                         last;
                     }
-                    $dynamic_nat_active or next;
+                    $nat_active or next;
                 }
 
                 my $nat_network = $nat_hash->{$nat_tag};
