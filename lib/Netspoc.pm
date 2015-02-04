@@ -13222,6 +13222,7 @@ sub mark_dynamic_nat_rules {
                     $hidden_seen = 1;
                     err_msg("$obj->{name} is hidden by nat:$nat_tag in rule\n ",
                             print_rule $rule);
+                    next;
                 }
 
                 # Network has dynamic NAT.
