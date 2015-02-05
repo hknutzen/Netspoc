@@ -1025,6 +1025,45 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Partially hidden in destination zone';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:h = { hidden; } }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = outside; }
+ interface:t1 = { ip = 10.5.5.164; hardware = inside; bind_nat = h; }
+}
+network:t1 = { ip = 10.5.5.160/28; }
+router:u1 = {
+ interface:t1 = { bind_nat = h; }
+ interface:n2;
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:test = {
+ user =	network:n1;
+ permit src = user; dst = network:n2; prt = proto 50;
+}
+END
+
+$out = <<'END';
+Error: Must not apply hidden NAT 'h' on path between
+ - interface:r1.t1
+ - network:n2
+ for
+ permit src=network:n1; dst=network:n2; prt=proto 50; of service:test
+ Add pathrestriction to exclude this path
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Traverse hidden NAT domain in loop';
 ############################################################
 
@@ -1076,11 +1115,12 @@ service:test = {
 END
 
 $out = <<'END';
-Error: Must not apply reversed hidden NAT 'h' at interface:r3.k
+Error: Must not apply hidden NAT 'h' on path between
+ - interface:r3.k
+ - network:sh
  for
  permit src=network:i1; dst=network:sh; prt=tcp 80; of service:test
  Add pathrestriction to exclude this path
-Aborted
 END
 
 test_err($title, $in, $out);
