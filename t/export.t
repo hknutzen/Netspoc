@@ -344,7 +344,7 @@ $title = 'Owner with "extend" at nested areas';
 ############################################################
 
 $in = <<'END';
-owner:x = { admins = x@b.c; watchers = w@b.c; extend; }
+owner:x = { admins = x@b.c; watchers = w@b.c; extend; extend_unbounded; }
 owner:y = { admins = y@b.c; extend; }
 owner:z = { admins = z@b.c; }
 
