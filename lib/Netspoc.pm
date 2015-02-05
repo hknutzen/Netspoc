@@ -13159,9 +13159,11 @@ sub mark_secondary_rules {
 }
 
 
-# Find rules where dynamic NAT is applied to host or interface at
-# src or dst on path to other end of rule.
-# Mark found rule with attribute {dynamic_nat} and value src|dst|src,dst.
+# - Check for reversed hidden or dynamic NAT applied on path.
+# - Check for invalid rules accessing hidden objects.
+# - Find rules where dynamic NAT is applied to host or interface at
+#   src or dst on path to other end of rule.
+#   Mark found rule with attribute {dynamic_nat} and value src|dst|src,dst.
 sub mark_dynamic_nat_rules {
     progress('Marking rules with dynamic NAT');
 
