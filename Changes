@@ -1,3 +1,11 @@
+3.063     2015-02-06 16:28:34+01:00 Europe/Berlin
+
+ - Reject all rules which traverse a path where hidden/dynamic NAT is
+   enabled first and disabled later.
+   This additional check costs about 1% runtime performance.
+ - Improved runtime performance by about 20% in error check mode, 
+   where no code is generated.
+
 3.062     2015-01-27 11:45:34+01:00 Europe/Berlin
 
  - Removed global attribute 'policy_distribution_point' at host.

@@ -60,7 +60,7 @@ use Pod::Usage;
 use Netspoc;
 use locale;
 
-our $VERSION = '3.062'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.063'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
