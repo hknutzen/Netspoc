@@ -13159,13 +13159,44 @@ sub mark_secondary_rules {
 }
 
 
-# - Check for reversed hidden or dynamic NAT applied on path.
+# - Check for partially applied hidden or dynamic NAT on path.
 # - Check for invalid rules accessing hidden objects.
 # - Find rules where dynamic NAT is applied to host or interface at
 #   src or dst on path to other end of rule.
 #   Mark found rule with attribute {dynamic_nat} and value src|dst|src,dst.
 sub mark_dynamic_nat_rules {
     progress('Marking rules with dynamic NAT');
+
+    # Mapping from nat_tag to boolean.
+    # Value is true if hidden NAT, false if dynamic NAT.
+    my %dynamic_nat2hidden;
+    for my $network (@networks) {
+        my $href = $network->{nat} or next;
+        for my $nat_tag (sort keys %$href) {
+            my $nat_network = $href->{$nat_tag};
+            $nat_network->{dynamic} or next;
+            $dynamic_nat2hidden{$nat_tag} = $nat_network->{hidden};
+        }
+    }
+
+    # Check path for partially applied hidden or dynamic NAT.
+    my $check_dyn_nat = sub {
+        my ($rule, $in_intf, $out_intf) = @_;
+        my $no_nat_set1 = $in_intf ? $in_intf->{no_nat_set} : undef;
+        my $no_nat_set2 = $out_intf ? $out_intf->{no_nat_set} : undef;
+        for my $nat_tag (keys %dynamic_nat2hidden) {
+            if ($no_nat_set1) {
+                $no_nat_set1->{$nat_tag} or
+                    push @{ $rule->{active_nat_at}->{$nat_tag} }, $in_intf;
+            }
+            if ($no_nat_set2) {
+                $no_nat_set2->{$nat_tag} or
+                    push @{ $rule->{active_nat_at}->{$nat_tag} }, $out_intf;
+            }
+        }
+    };
+
+    my %cache;
 
     for my $rule (
         @{ $expanded_rules{permit} },
@@ -13268,54 +13299,46 @@ sub mark_dynamic_nat_rules {
 
             $hidden_seen and next;
 
+            # Check error conditition:
+            # Find sub-path where dynamic / hidden NAT is enabled,
+            # i.e. dynamic / hidden NAT is enabled first and disabled later.
+
             # Find dynamic and hidden NAT definitions of $obj.
             # Key: NAT tag,
             # value: boolean, true=hidden, false=dynamic
             my $dyn_nat_hash;
-            for my $nat_tag (sort keys %$nat_hash) {
+            for my $nat_tag (keys %$nat_hash) {
                 my $nat_network = $nat_hash->{$nat_tag};
                 $nat_network->{dynamic} or next;
                 $dyn_nat_hash->{$nat_tag} = $nat_network->{hidden};
             }
             $dyn_nat_hash or next;
 
-            # Check path for partially applied hidden or dynamic NAT.
-            my $result;
-            my $check = sub {
-                my ($rule, $in_intf, $out_intf) = @_;
-                my $no_nat_set = '';
-                for my $intf ($in_intf, $out_intf) {
-                    $intf or next;
-                    my $tmp = $intf->{no_nat_set};
-                    $no_nat_set eq $tmp and next;
-                    $no_nat_set = $tmp;
-                    for my $nat_tag (sort keys %$dyn_nat_hash) {
-                        $no_nat_set->{$nat_tag} and next;
-                        my $is_hidden = $dyn_nat_hash->{$nat_tag};
+            my $from_store = $obj2path{$obj} || get_path $obj;
+            my $to_store   = $obj2path{$other} || get_path $other;
+            my $active_nat_at = 
+                $cache{$from_store}->{$to_store} || 
+                $cache{$to_store}->{$from_store};
 
-                        # Hidden is never allowed;
-                        # dynamic is not allowed if $obj has static or identity NAT.
-                        if ($is_hidden || $static_seen) {
-                            push @{ $result->{$nat_tag} }, $intf;
-                        }
-                    }
-                }
-            };
+            if (!$active_nat_at) {
+                $cache{$from_store}->{$to_store} =
+                    $active_nat_at = $rule->{active_nat_at} = {};
+                path_walk($rule, $check_dyn_nat);
+                delete $rule->{active_nat_at};
+            }
 
-            path_walk($rule, $check);
-            $result or next;
-
-            for my $nat_tag (sort keys %$result) {
-                my $path = $result->{$nat_tag};
-                push @$path, $other if @$path < 2;
-                my $names = join("\n - ", map { $_->{name} } @$path);
+            for my $nat_tag (sort keys %$dyn_nat_hash) {
+                my $interfaces = $active_nat_at->{$nat_tag} or next;
                 my $is_hidden = $dyn_nat_hash->{$nat_tag};
+                ($is_hidden || $static_seen) or next;
+                my $names = 
+                    join("\n - ", map({ $_->{name} } sort(by_name @$interfaces)));
                 my $type = $is_hidden ? 'hidden' : 'dynamic';
-                my $reversed = $where eq 'dst' ? ' reversed' : '';
-                err_msg("Must not apply $type NAT '$nat_tag' on path between\n",
-                        " - $names\n",
-                        " for$reversed\n",
+                err_msg("Must not apply $type NAT '$nat_tag' on path\n",
+                        " of", $where eq 'dst' ? ' reversed' : '', " rule\n",
                         " ", print_rule($rule), "\n",
+                        " NAT '$nat_tag' is active at\n",
+                        " - $names\n",
                         " Add pathrestriction",
                         " to exclude this path");
             }
@@ -15246,6 +15269,7 @@ sub sort_rules_by_prio {
 }
 
 sub rules_distribution {
+    return if fast_mode();
     progress('Distributing rules');
 
     # Not longer used, free memory.

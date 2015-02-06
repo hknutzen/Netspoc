@@ -1053,11 +1053,11 @@ service:test = {
 END
 
 $out = <<'END';
-Error: Must not apply hidden NAT 'h' on path between
- - interface:r1.t1
- - network:n2
- for
+Error: Must not apply hidden NAT 'h' on path
+ of rule
  permit src=network:n1; dst=network:n2; prt=proto 50; of service:test
+ NAT 'h' is active at
+ - interface:r1.t1
  Add pathrestriction to exclude this path
 END
 
@@ -1068,61 +1068,113 @@ $title = 'Traverse hidden NAT domain in loop';
 ############################################################
 
 $in = <<'END';
-network:i1 = {
+network:n1 = {
  ip = 10.1.1.0/24;
- nat:i1 = { ip=10.9.9.0/24; }
  nat:h = { hidden; }
 }
 
 router:r1 = {
  model = ASA;
- managed;
+ managed; #r1
  routing = manual;
- interface:i1 = { ip = 10.1.1.1; hardware = v1; }
- interface:tr = { ip = 10.2.2.1; hardware = v3; bind_nat = i1; }
- interface:si = { ip = 10.3.3.1; hardware = v4; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:t1 = { ip = 10.5.5.1; hardware = t1; bind_nat = h; }
 }
 
-network:tr = { ip = 10.2.2.0/24; }
+network:t1 = { ip = 10.5.5.0/24; }
 
 router:r2 = {
- interface:tr;
- interface:sh;
+ model = ASA;
+ managed; #r2
+ routing = manual;
+ interface:t1 = { ip = 10.5.5.2; hardware = t1; }
+ interface:t2 = { ip = 10.4.4.1; hardware = t2; }
 }
-network:sh = { ip = 10.4.4.0/24; }
+
+network:t2 = { ip = 10.4.4.0/24; }
 
 router:r3 = {
  model = ASA;
- managed;
+ managed; #r3
  routing = manual;
- interface:sh = { ip = 10.4.4.1; hardware = v5; bind_nat = i1; }
- interface:k  = { ip = 10.5.5.1; hardware = v6; bind_nat = h; }
+ interface:t2 = { ip = 10.4.4.2; hardware = t2; bind_nat = h; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
 }
 
-network:si = { ip = 10.3.3.0/24; }
+network:n2 = { ip = 10.2.2.0/24; }
 
 router:r4 = {
- interface:si;
- interface:k = { bind_nat = h; }
+ model = ASA;
+ managed; #r4
+ routing = manual;
+ interface:n2 = { ip = 10.2.2.2; hardware = n2; }
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
 }
 
-network:k = { ip = 10.5.5.0/24; }
-
 service:test = {
- user = network:i1;
- permit src = user; dst = network:sh; prt = tcp 80;
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
 }
 END
 
 $out = <<'END';
-Error: Must not apply hidden NAT 'h' on path between
- - interface:r3.k
- - network:sh
- for
- permit src=network:i1; dst=network:sh; prt=tcp 80; of service:test
+Error: Must not apply hidden NAT 'h' on path
+ of rule
+ permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
+ NAT 'h' is active at
+ - interface:r1.t1
+ - interface:r2.t1
+ - interface:r2.t2
+ - interface:r3.t2
  Add pathrestriction to exclude this path
 END
 
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Traverse hidden NAT domain in loop, 1x unmanaged bind_nat';
+############################################################
+$in =~ s/managed; #r1//;
+$out = <<'END';
+Error: Must not apply hidden NAT 'h' on path
+ of rule
+ permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
+ NAT 'h' is active at
+ - interface:r2.t1
+ - interface:r2.t2
+ - interface:r3.t2
+ Add pathrestriction to exclude this path
+END
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Traverse hidden NAT domain in loop, 2x unmanaged bind_nat';
+############################################################
+$in =~ s/managed; #r3//;
+$out = <<'END';
+Error: Must not apply hidden NAT 'h' on path
+ of rule
+ permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
+ NAT 'h' is active at
+ - interface:r2.t1
+ - interface:r2.t2
+ Add pathrestriction to exclude this path
+END
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Traverse dynamic NAT domain in loop';
+############################################################
+$in =~ s/hidden;/ip = 10.9.9.0\/24; dynamic;/;
+$out = <<'END';
+Error: Must not apply dynamic NAT 'h' on path
+ of rule
+ permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
+ NAT 'h' is active at
+ - interface:r2.t1
+ - interface:r2.t2
+ Add pathrestriction to exclude this path
+END
 test_err($title, $in, $out);
 
 ############################################################
