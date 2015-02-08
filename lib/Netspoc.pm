@@ -15181,7 +15181,7 @@ sub create_general_permit_rules {
     return \@rules;
 }
 
-sub distribute_global_permit {
+sub distribute_general_permit {
     for my $router (@managed_routers) {
         my $general_permit = $router->{general_permit} or next;
         my $rules = 
@@ -15284,7 +15284,7 @@ sub rules_distribution {
     }
 
     # Handle global permit after deny rules.
-    distribute_global_permit();
+    distribute_general_permit();
 
     # Permit rules
     for my $rule (@{ $expanded_rules{supernet} }, @{ $expanded_rules{permit} })
