@@ -983,8 +983,8 @@ network:lan1 = { ip = 10.99.1.0/24; }
 END
 
 
-$out = <<'END';
-Error: router:asavpn can't establish crypto tunnel to interface:vpn1.internet with unknown IP
+$out = <<"END";
+Error: router:asavpn can\'t establish crypto tunnel to interface:vpn1.internet with unknown IP
 END
 
 test_err($title, $in, $out);
