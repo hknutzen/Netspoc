@@ -998,8 +998,8 @@ network:lan1 = { ip = 10.99.1.0/24; }
 END
 
 
-$out = <<'END';
-Error: router:asavpn can't establish crypto tunnel to interface:vpn1.internet with unknown IP
+$out = <<"END";
+Error: router:asavpn can\'t establish crypto tunnel to interface:vpn1.internet with unknown IP
 END
 
 test_err($title, $in, $out);
@@ -1039,6 +1039,32 @@ access-group outside_in in interface outside
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Must not traverse crypto interface';
+############################################################
+
+$in .= <<END;
+service:t = {
+ user = network:intern;
+ permit src = user; dst = network:dmz; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: No valid path
+ from any:[network:intern]
+ to any:[network:dmz]
+ for rule -- src=any:[network:intern]; dst=any:[network:dmz]; prt=--;
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from any:[network:intern]
+ to any:[network:dmz]
+ for rule permit src=network:intern; dst=network:dmz; prt=tcp 80; of service:t
+ Check path restrictions and crypto interfaces.
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;

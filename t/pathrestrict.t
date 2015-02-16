@@ -301,42 +301,4 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Secondary interface has implicit pathrestriction';
-############################################################
-
-$in = <<'END';
-network:a = {ip = 10.1.1.0/24;}
-router:r1 = {
- managed;
- model = IOS, FW;
- interface:a = {ip = 10.1.1.1; hardware = E0;}
- interface:b = {ip = 10.2.2.1,10.2.2.80; hardware = E1;}
-}
-network:b = { ip = 10.2.2.0/24;}
-
-service:test = {
- user = network:b;
- permit src = user;
-        dst = interface:r1.b, interface:r1.b.2;
-        prt = udp 69;
-}
-END
-
-$out = <<'END';
---r1
-ip access-list extended E1_in
- permit udp 10.2.2.0 0.0.0.255 host 10.2.2.1 eq 69
- permit udp 10.2.2.0 0.0.0.255 host 10.2.2.80 eq 69
- deny ip any any
---
-interface E1
- ip address 10.2.2.1 255.255.255.0
- ip address 10.2.2.80 255.255.255.0 secondary
- ip inspect X in
- ip access-group E1_in in
-END
-
-test_run($title, $in, $out);
-
-############################################################
 done_testing;
