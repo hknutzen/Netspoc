@@ -320,7 +320,7 @@ where `<object set>` must expand to interfaces.
       }
     
     <email> ::= some valid email address or 'guest'
-    <owner_or_email> ::= <email> || owner:<name>
+    <owner_or_email> ::= <email> | owner:<name>
 
 `admins` are optional if `extend_only` is set.
 
