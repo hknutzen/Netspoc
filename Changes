@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+ - Internal processing of crypto tunnels has been improved.
+   This gives much better runtime for configuration with 
+   many crypto tunnels.
+
 3.063     2015-02-06 16:28:34+01:00 Europe/Berlin
 
  - Reject all rules which traverse a path where hidden/dynamic NAT is

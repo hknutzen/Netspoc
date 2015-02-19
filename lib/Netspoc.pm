@@ -3217,11 +3217,7 @@ sub read_crypto {
     add_description($crypto);
     while (1) {
         last if check '\}';
-        if (check_flag 'tunnel_all') {
-
-            # Optional and no longer needed.
-        }
-        elsif (check_flag 'detailed_crypto_acl') {
+        if (check_flag 'detailed_crypto_acl') {
             $crypto->{detailed_crypto_acl} = 1;
         }
         elsif (my $type = check_assign 'type', \&read_typed_name) {

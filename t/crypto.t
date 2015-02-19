@@ -61,7 +61,6 @@ isakmp:aes256SHA = {
 
 crypto:vpn = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 
 network:intern = { ip = 10.1.1.0/24;}
@@ -273,7 +272,6 @@ isakmp:aes256SHA = {
 
 crypto:vpn = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 
 network:intern = { ip = 10.1.2.0/24; }
@@ -414,7 +412,6 @@ isakmp:aes256SHA = {
 
 crypto:vpn = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 
 network:intern = { ip = 10.1.2.0/24;}
@@ -507,12 +504,10 @@ isakmp:3desSHA = {
 
 crypto:sts1 = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 
 crypto:sts2 = {
  type = ipsec:3desSHA;
- tunnel_all;
  detailed_crypto_acl;
 }
 
@@ -663,7 +658,6 @@ isakmp:aes256SHA = {
 
 crypto:vpn = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 
 network:intern = { ip = 10.1.1.0/24;}
@@ -822,7 +816,6 @@ isakmp:aes256SHA = {
 
 crypto:sts = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 
 network:intern = { 
@@ -958,7 +951,6 @@ isakmp:aes256SHA = {
 
 crypto:sts = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 
 network:intern = { ip = 10.1.1.0/24; }

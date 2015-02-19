@@ -366,7 +366,6 @@ isakmp:aes256SHA = {
 }
 crypto:vpn = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 network:intern = { ip = 10.1.1.0/24;}
 router:asavpn = {
