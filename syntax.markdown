@@ -410,6 +410,15 @@ in attribute `radius_attributes`.
 
 ###Software client
 
+Software clients are similar to hosts, but special names are used.
+
+    network:<name> = {
+      ..
+      <Software client>*
+      <Software client group>*
+      ..
+    }
+
     <Software client> ::=
       host:id:<cert-name> = { .. }
     <Software client group> ::=
