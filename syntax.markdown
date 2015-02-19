@@ -426,8 +426,6 @@ of correspondig VPN concentrator.
 
     interface:<name> = {
       ..
-      id = <cert-name>
+      id = <cert-name>;
       ..
     }
-
-
