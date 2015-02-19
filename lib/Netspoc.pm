@@ -183,9 +183,6 @@ our %config = (
 # Print progress messages with time stamps.
 # Print "finished" with time stamp when finished.
     time_stamps => 0,
-
-# Don't traverse crypto interfaces when finding areas.
-    area_ignore_crypto => 1,
 );
 
 # Valid values for config options in %config.
@@ -9675,16 +9672,8 @@ sub set_area1 {
         # interface.
         next if $interface->{main_interface};
 
-        if ($config{area_ignore_crypto}) {
-            next if check_global_active_pathrestriction($interface);
-        } 
-        else {
-            
-            # Ignore tunnel interface. We can't test for
-            # {real_interface} here because it may still be unknown.
-            next if $interface->{ip} eq 'tunnel';
-        }
-
+        next if check_global_active_pathrestriction($interface);
+        
         my $next = $interface->{$is_zone ? 'router' : 'zone'};
         set_area1($next, $area, $interface);
     }
