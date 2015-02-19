@@ -1245,6 +1245,7 @@ sub check_model {
 }
 
 my @managed_routers;
+my @router_fragments;
 
 # Managed host is stored internally as an interface.
 # The interface gets an artificial router.
@@ -2428,9 +2429,6 @@ sub read_router {
                 error_atline("Interface with attribute 'hub' must only be",
                              " used at managed device");
             }
-            if ($interface->{spoke}) {
-                $router->{semi_managed} = 1;
-            }
             if ($interface->{promiscuous_port}) {
                 error_atline("Interface with attribute 'promiscuous_port'",
                              " must only be used at managed device");
@@ -2450,6 +2448,8 @@ sub read_router {
                          " at managed device");
         }
     }
+
+    my @move_locked;
 
     for my $interface (@{ $router->{interfaces} }) {
 
@@ -2534,9 +2534,62 @@ sub read_router {
             # Tunnel network will later be attached to crypto hub.
             push @{ $crypto2spokes{$crypto} }, $tunnel_net;
         }
+
+        if (($interface->{spoke} || $interface->{hub}) && 
+            !$interface->{no_check}) 
+        {
+            push @move_locked, $interface;
+        }
     }
 
+    move_locked_interfaces(\@move_locked) if @move_locked;
+
     return $router;
+}
+
+# No traffic must traverse crypto or secondary interface.
+# Hence split router into separate instances, one instance for each
+# crypto/secondary interface.
+# Splitted routers are tied by identical attribute {device_name}.
+sub move_locked_interfaces {
+    my ($interfaces) = @_;
+    for my $interface (@$interfaces) {
+        my $orig_router = $interface->{router};
+        my $name = $orig_router->{name};
+        my $new_router = new('Router',
+                             %$orig_router,
+                             orig_router => $orig_router,
+                             interfaces => [ $interface ]);
+        $interface->{router} = $new_router;
+        push @router_fragments, $new_router;
+
+        # Don't check fragment for reachability.
+        delete $new_router->{policy_distribution_point};
+
+        # Remove interface from old router.
+        # Retain copy of original interfaces.
+        my $interfaces = $orig_router->{interfaces};
+        $orig_router->{orig_interfaces} ||= [ @$interfaces ];
+        aref_delete($interfaces, $interface);
+
+        if ($orig_router->{managed}) {
+            my $hardware = $interface->{hardware};
+            $new_router->{hardware} = [ $hardware ];
+            my $hw_list = $orig_router->{hardware};
+
+            # Retain copy of original hardware.
+            $orig_router->{orig_hardware} = [ @$hw_list ];
+            aref_delete($hw_list, $hardware);
+            1 == @{ $hardware->{interfaces} } or
+                err_msg("Crypto $interface->{name} must not share hardware",
+                        " with other interfaces");
+            if (my $hash = $orig_router->{radius_attributes}) {
+
+                # Copy hash, because it is changed per device later.
+                $new_router->{radius_attributes} = { %$hash };
+            }
+        }        
+    }
 }
 
 our %aggregates;
@@ -4139,7 +4192,7 @@ sub link_owners {
             link_to_real_owner($router_attributes);
         }
     }
-    for my $router (values %routers) {
+    for my $router (values %routers, @router_fragments) {
         link_to_real_owner($router);
         $router->{model}->{has_vip} or next;
         for my $interface (@{ $router->{interfaces} }) {
@@ -4380,8 +4433,7 @@ sub check_interface_ip {
 # Don't use values %interfaces because we want to traverse the interfaces
 # in a deterministic order.
 sub link_routers {
-    for my $name (sort keys %routers) {
-        my $router = $routers{$name};
+    for my $router (sort(by_name values %routers), @router_fragments) {
         link_interfaces($router);
         link_policy_distribution_point($router);
         link_general_permit($router);
@@ -4707,7 +4759,9 @@ sub check_ip_addresses {
 
                 # Ignore short interface with globally active pathrestriction
                 # where all traffic goes through a VPN tunnel.
-                if (! check_global_active_pathrestriction($interface)) {
+                if (! check_global_active_pathrestriction($interface) &&
+                    1 < @{ $interface->{router}->{interfaces} })
+                {
                     $short_intf = $interface;
                 }
             }
@@ -5112,8 +5166,7 @@ sub mark_disabled {
         }
     }
 
-    for my $name (sort keys %routers) {
-        my $router = $routers{$name};
+    for my $router (sort(by_name values %routers), @router_fragments) {
         next if $router->{disabled};
         push @routers, $router;
         if ($router->{managed}) {
@@ -5483,6 +5536,19 @@ my %name2object = (
     area      => \%areas,
 );
 
+sub get_intf  {
+    my ($router) = @_;
+    if (my $orig_router = $router->{orig_router}) {
+        return @{ $orig_router->{orig_interfaces} };
+    }
+    elsif (my $orig_interfaces = $router->{orig_interfaces}) {
+        return @$orig_interfaces;
+    }
+    else {
+        return @{ $router->{interfaces} };
+    }
+}
+
 my %auto_interfaces;
 
 sub get_auto_intf {
@@ -5709,7 +5775,7 @@ sub expand_group1 {
                             # Do nothing.
                         }
                         elsif ($selector eq 'all') {
-                            push @check, @{ $router->{interfaces} };
+                            push @check, get_intf($router);
                         }
                         else {
                             push @objects, get_auto_intf $router;
@@ -5730,7 +5796,7 @@ sub expand_group1 {
                         # current area.
                         for my $router (
                             map { $_->{router} }
-                            map { @{ $_->{interfaces} } }
+                            map { get_intf($_) }
                             @{ $object->{zones} }
                           )
                         {
@@ -5753,7 +5819,7 @@ sub expand_group1 {
                             } @{ $object->{zones} };
                         }
                         if ($selector eq 'all') {
-                            push @check, map { @{ $_->{interfaces} } } @routers;
+                            push @check, map { get_intf($_) } @routers;
                         }
                         else {
                             push @objects, map { get_auto_intf($_) } @routers;
@@ -5769,7 +5835,7 @@ sub expand_group1 {
                                 # This router has no managed interfaces.
                             }
                             elsif ($selector eq 'all') {
-                                push @check, @{ $obj->{interfaces} };
+                                push @check, get_intf($obj);
                             }
                             else {
                                 push @objects, get_auto_intf $obj;
@@ -5795,7 +5861,7 @@ sub expand_group1 {
                     # Syntactically impossible.
                     $managed and internal_err();
                     if ($selector eq 'all') {
-                        push @check, @{ $router->{interfaces} };
+                        push @check, get_intf($router);
                     }
                     else {
                         push @objects, get_auto_intf $router;
@@ -7073,6 +7139,7 @@ sub set_policy_distribution_ip  {
     };
     for my $router (@managed_routers, @routing_only_routers) {
         my $pdp = $router->{policy_distribution_point} or next;
+        next if $router->{orig_router};
         
         my %found_interfaces;
         my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
@@ -7134,8 +7201,14 @@ sub set_policy_distribution_ip  {
         next if $seen{$router};
         next if !$router->{policy_distribution_point};
         if (my $vrf_members = $router->{vrf_members}) {
-            grep { $_->{admin_ip} } @$vrf_members
-              or push @unreachable, "some VRF of router:$router->{device_name}";
+            for my $member (@$vrf_members) {
+                next if $member->{orig_router};
+                if (!$member->{admin_ip}) {
+                    push(@unreachable, 
+                         "some VRF of router:$router->{device_name}");
+                    last;
+                }
+            }
 
             # Print VRF instance with known admin_ip first.
             $router->{vrf_members} = [
@@ -8163,7 +8236,6 @@ sub adjust_crypto_nat {
                 my $real_intf = $tunnel_intf->{real_interface};
                 next if $seen{$real_intf}++;
                 $real_intf->{router}->{managed} or next;
-                check_global_active_pathrestriction($real_intf) or next;
                 my $tunnel_set = $tunnel_intf->{no_nat_set};
                 keys %$tunnel_set or next;
 
@@ -9763,6 +9835,10 @@ sub set_zone {
         $zone->{loopback} = 1
           if $network->{loopback} && @{ $zone->{networks} } == 1;
 
+        # Attribute {is_tunnel} should be set if zone has only tunnel
+        # networks.
+        delete $zone->{is_tunnel} if @{ $zone->{networks} };
+
         # Remove attribute {zone} at unmanaged routers which only have
         # been added to prevent duplicates in {unmanaged_routers}.
         if (my $unmanaged = $zone->{unmanaged_routers}) {
@@ -9782,7 +9858,7 @@ sub set_zone {
         next if $zone->{zone_cluster};
         my $cluster = [];
         set_zone_cluster($zone, 0, $cluster);
-        delete $zone->{zone_cluster} if 1 == @$cluster;
+        delete $zone->{zone_cluster} if 1 >= @$cluster;
 
 #       debug('cluster: ', join(',',map($_->{name}, @{$zone->{zone_cluster}})))
 #           if $zone->{zone_cluster};
@@ -10228,7 +10304,9 @@ sub optimize_pathrestrictions {
 # $obj: a managed or semi-managed router or a zone
 # $to_zone1: interface of $obj; go this direction to reach zone1
 # $distance: distance to zone1
-# Return value:
+# Return values:
+# 1. maximal value of $distance used in current subtree.
+# 2.
 # - undef: found path is not part of a loop
 # - loop-marker:
 #   - found path is part of a loop
@@ -10241,7 +10319,7 @@ sub setpath_obj;
 sub setpath_obj {
     my ($obj, $to_zone1, $distance) = @_;
 
-#    debug("-- $distance: $obj->{name} --> $to_zone1->{name}");
+#    debug("--$distance: $obj->{name} --> ". ($to_zone1 && $to_zone1->{name}));
     if ($obj->{active_path}) {
 
         # Found a loop; this is possibly exit of the loop to zone1.
@@ -10252,15 +10330,18 @@ sub setpath_obj {
         # cluster exit object.
         # We must use an intermediate distance value for cluster_navigation
         # to work.
-        return $to_zone1->{loop} = {
+        my $new_distance = $obj->{distance} + 1;
+        my $loop = $to_zone1->{loop} = {
             exit     => $obj,
-            distance => $obj->{distance} + 1,
+            distance => $new_distance,
         };
+        return ($new_distance, $loop);
     }
 
     # Mark current path for loop detection.
     local $obj->{active_path} = 1;
-    $obj->{distance}    = $distance;
+    $obj->{distance} = $distance;
+    my $max_distance = $distance;
 
     my $get_next = is_router($obj) ? 'zone' : 'router';
     for my $interface (@{ $obj->{interfaces} }) {
@@ -10274,7 +10355,9 @@ sub setpath_obj {
         my $next = $interface->{$get_next};
 
         # Increment by 2 because we need an intermediate value above.
-        if (my $loop = setpath_obj($next, $interface, $distance + 2)) {
+        (my $max, my $loop) = setpath_obj($next, $interface, $distance + 2);
+        $max_distance = $max if $max > $max_distance;
+        if ($loop) {
             my $loop_obj = $loop->{exit};
 
             # Found exit of loop in direction to zone1.
@@ -10313,12 +10396,12 @@ sub setpath_obj {
         }
     }
     if ($obj->{loop} and $obj->{loop}->{exit} ne $obj) {
-        return $obj->{loop};
+        return ($max_distance, $obj->{loop});
 
     }
     else {
         $obj->{main} = $to_zone1;
-        return 0;
+        return $max_distance;
     }
 }
 
@@ -10352,33 +10435,25 @@ sub set_loop_cluster {
 sub setpath {
     progress('Preparing fast path traversal');
 
-    # Take a random object from @zones, name it "zone1".
     @zones or fatal_err("Topology seems to be empty");
-    my $zone1 = $zones[0];
-
-    # Starting with zone1, do a traversal of the whole topology
-    # to find a path from every zone and router to zone1.
-    # Second  parameter is used as placeholder for a not existing
-    # starting interface. Value must be "true" and unequal to any interface.
-    # Third parameter is distance from $zone1 to $zone1.
-    setpath_obj($zone1, {}, 0);
-
-    # Check if all objects are connected with zone1.
-    my @unconnected;
     my @path_routers = grep { $_->{managed} || $_->{semi_managed} } @routers;
-    for my $object (@zones, @path_routers) {
-        next if $object->{main} or $object->{loop};
-        push @unconnected, $object;
+    my $start_distance = 0;
 
-        # Ignore all other objects connected to the just found object.
-        setpath_obj($object, {}, 0);
-    }
-    if (@unconnected) {
-        my $msg = "Topology has unconnected parts:";
-        for my $object ($zone1, @unconnected) {
-            $msg .= "\n $object->{name}";
-        }
-        fatal_err($msg);
+    # Find one or more connected partitions in whole topology.
+    for my $obj (@zones, @path_routers) {
+        next if $obj->{main} or $obj->{loop};
+
+        # Take an arbitrary obj from @zones, name it "zone1".
+        my $zone1 = $obj;
+
+        # Starting with zone1, do a traversal of all connected nodes,
+        # to find a path from every zone and router to zone1.
+        # Second  parameter is used as placeholder for a not existing
+        # starting interface. 
+        # Value must be "false" and unequal to any interface.
+        # Third parameter is distance from $zone1 to $zone1.
+        my $max = setpath_obj($zone1, '', $start_distance);
+        $start_distance = $max + 1;
     }
 
     for my $obj (@zones, @path_routers) {
@@ -11074,9 +11149,16 @@ sub path_mark {
             my $from_out = $from->{main};
             unless ($from_out) {
 
+                # Reached border of partition.
+                return 0 if !$from_loop;
+
                 # $from_loop references object which is loop's exit.
                 my $exit = $from_loop->{cluster_exit};
                 $from_out = $exit->{main};
+
+                # Reached border of partition.
+                return 0 if !$from_out;
+
                 cluster_path_mark($from, $exit, $from_in, $from_out,
                     $from_store, $to_store)
                   or return 0;
@@ -11091,8 +11173,16 @@ sub path_mark {
         else {
             my $to_in = $to->{main};
             unless ($to_in) {
+                
+                # Reached border of partition.
+                return 0 if !$to_loop;
+
                 my $entry = $to_loop->{cluster_exit};
                 $to_in = $entry->{main};
+
+                # Reached border of partition.
+                return 0 if !$to_in;
+
                 cluster_path_mark($entry, $to, $to_in, $to_out, $from_store,
                     $to_store)
                   or return 0;
@@ -11213,8 +11303,10 @@ sub path_walk {
     my $at_zone = $where && $where eq 'Zone';
     my $call_it = (is_router($from) xor $at_zone);
 
-    # Path starts inside a cyclic graph.
-    if ($from_store->{loop_exit}
+    # Path starts inside a cyclic graph
+    # or at interface of router inside cyclic graph.
+    if ($from->{loop} 
+        and $from_store->{loop_exit}
         and my $loop_exit = $from_store->{loop_exit}->{$to_store})
     {
         my $loop_out = $path_store->{path}->{$to_store};
@@ -11346,12 +11438,12 @@ sub path_auto_interfaces {
     if ($from_store->{loop_exit}
         and my $exit = $from_store->{loop_exit}->{$to_store})
     {
-        @result =
-          grep { $_->{ip} ne 'tunnel' } @{ $from->{loop_enter}->{$exit} };
+        @result = @{ $from->{loop_enter}->{$exit} };
     }
     else {
         @result = ($from_store->{path}->{$to_store});
     }
+    @result = grep { $_->{ip} ne 'tunnel' } @result;
 
     # Find auto interface inside zone.
     # $src is located inside some zone.
@@ -11503,7 +11595,10 @@ sub link_tunnels  {
             # Each spoke gets a fresh hub interface.
             my @hubs;
             for my $real_hub (@$real_hubs) {
-                my $router   = $real_hub->{router};
+                my $router = $real_hub->{router};
+                if (my $orig_router = $router->{orig_router}) {
+                    $router = $orig_router;
+                }
                 my $hardware = $real_hub->{hardware};
                 (my $intf_name = $real_hub->{name}) =~ s/\..*$/.$net_name/;
                 my $hub = new(
@@ -11511,6 +11606,9 @@ sub link_tunnels  {
                     name           => $intf_name,
                     ip             => 'tunnel',
                     crypto         => $crypto,
+
+                    # Attention: shared hardware between router and
+                    # orig_router.
                     hardware       => $hardware,
                     is_hub         => 1,
                     real_interface => $real_hub,
@@ -11519,12 +11617,17 @@ sub link_tunnels  {
                 );
                 $hub->{bind_nat} = $real_hub->{bind_nat}
                   if $real_hub->{bind_nat};
-                push @{ $router->{interfaces} },    $hub;
-                push @{ $hardware->{interfaces} },  $hub;
-                push @{ $spoke_net->{interfaces} }, $hub;
-                push @{ $hub->{peers} },            $spoke;
-                push @{ $spoke->{peers} },          $hub;
+                push @{ $router->{interfaces} },      $hub;
+                push @{ $hardware->{interfaces} },    $hub;
+                push @{ $spoke_net->{interfaces} },   $hub;
+                push @{ $hub->{peers} },              $spoke;
+                push @{ $spoke->{peers} },            $hub;
                 push @hubs, $hub;
+
+                # We need hub also be available in orig_interfaces.
+                if (my $aref = $router->{orig_interfaces}) {
+                    push @$aref, $hub;
+                }
 
                 # Dynamic crypto-map isn't implemented currently.
                 if ($real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/) {
@@ -11557,7 +11660,7 @@ sub link_tunnels  {
                 }
             }
 
-            my $router = $real_spoke->{router};
+            my $router = $spoke->{router};
             my @other;
             my $has_id_hosts;
             for my $interface (@{ $router->{interfaces} }) {
@@ -11565,8 +11668,7 @@ sub link_tunnels  {
                 if ($network->{has_id_hosts}) {
                     $has_id_hosts = $network;
                 }
-                elsif ($interface ne $real_spoke
-                    && $interface->{ip} ne 'tunnel')
+                elsif ($interface->{ip} ne 'tunnel')
                 {
                     push @other, $interface;
                 }
@@ -11605,14 +11707,6 @@ sub link_tunnels  {
             err_msg "$network->{interfaces}->[0]->{name}",
               " references unknown $crypto";
         }
-    }
-
-    # Automatically add active pathrestriction to the real interface.
-    # This allows direct traffic to the real interface from outside,
-    # but no traffic from or to the real interface passing the router.
-    for my $intf1 (unique(@real_interfaces)) {
-        next if $intf1->{no_check};
-        push @{ $intf1->{path_restrict} }, $global_active_pathrestriction;
     }
     return;
 }
@@ -14123,6 +14217,7 @@ sub check_and_convert_routes  {
                     my @zone_hops;
                     my $walk = sub {
                         my ($rule, $in_intf, $out_intf) = @_;
+                        $in_intf or internal_err("No in_intf");
                         $in_intf eq $real_intf or return;
                         $out_intf or internal_err("No out_intf");
                         $out_intf->{network} or internal_err "No out net";
@@ -18718,7 +18813,35 @@ sub print_code {
 
         my $model        = $router->{model};
         my $comment_char = $model->{comment_char};
-        my $vrf_members  = $router->{vrf_members} || [ $router ];
+        my $vrf_members;
+
+        if (my $members = $router->{vrf_members}) {
+
+            # Collect VRF members.
+            # Restore or delete splitted router parts.
+            for my $member (@$members) {
+                $seen{$member} = 1;
+
+                # Ignore splitted part.
+                next if $member->{orig_router};
+
+                # Restore interfaces of original router. 
+                if (my $orig = $member->{orig_interfaces}) {
+                    $member->{interfaces} = $orig;
+                    $member->{hardware} = $member->{orig_hardware};
+                }
+                
+                push @$vrf_members, $member;
+            }
+            if (1 == @$vrf_members) {
+
+                # Remove to silence print_headers.
+                delete $vrf_members->[0]->{vrf_members};
+            }
+        }
+        else {
+            $vrf_members = [ $router ];
+        }
         print "$comment_char Generated by $program, version $version\n\n";
         print "$comment_char [ BEGIN $device_name ]\n";
         print "$comment_char [ Model = $model->{class} ]\n";
@@ -18735,7 +18858,6 @@ sub print_code {
                 $call->($vrouter);
             }
         };
-        $seen{$_} = 1 for @$vrf_members;
         if ($router->{managed}) {
             $per_vrf->(\&print_routes);
             $per_vrf->(\&print_crypto);
@@ -18948,7 +19070,7 @@ sub init_global_vars {
         %{ $pair->[1] } = ();
     }
     %interfaces = %hosts = ();
-    @managed_routers = @routing_only_routers = ();
+    @managed_routers = @routing_only_routers = @router_fragments = ();
     @virtual_interfaces = @pathrestrictions = ();
     @managed_vpnhub = @routers = @networks = @zones = @areas = ();
     @natdomains = ();
