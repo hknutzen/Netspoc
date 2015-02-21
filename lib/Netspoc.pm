@@ -5646,7 +5646,8 @@ sub expand_group1 {
             push @objects, grep { $result->{$_} } @$first_set;
         }
         elsif ($type eq '!') {
-            err_msg("Complement (!) is only supported as part of intersection");
+            err_msg("Complement (!) is only supported as part of intersection",
+                    " in $context");
         }
         elsif ($type eq 'user') {
 
