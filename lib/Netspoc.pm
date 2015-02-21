@@ -12897,12 +12897,15 @@ sub gen_reverse_rules {
     for my $type ('deny', 'supernet', 'permit') {
         gen_reverse_rules1($expanded_rules{$type}, \%reverse_rule_tree);
     }
-    return if !keys %reverse_rule_tree;
-    
-    print_rulecount;
-    progress('Optimizing reverse rules');
-    optimize_rules(\%rule_tree, \%reverse_rule_tree);
-    print_rulecount;
+    if (keys %reverse_rule_tree) {
+        print_rulecount;
+        progress('Optimizing reverse rules');
+        optimize_rules(\%rule_tree, \%reverse_rule_tree);
+        print_rulecount;
+    }
+
+    # Not longer used, free memory.
+    %rule_tree = ();
     return;
 }
 
@@ -15263,9 +15266,6 @@ sub rules_distribution {
     return if fast_mode();
     progress('Distributing rules');
 
-    # Not longer used, free memory.
-    %rule_tree = ();
-    
     sort_rules_by_prio();
 
     # Deny rules
