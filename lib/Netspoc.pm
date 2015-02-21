@@ -1130,16 +1130,6 @@ sub aref_eq  {
     return 1;
 }
 
-# Compare keys of two hash references.
-sub keys_eq  {
-    my ($h1, $h2) = @_;
-    return 0 if keys %$h1 != keys %$h2;
-    for my $key (keys %$h1) {
-        return 0 if !$h2->{$key};
-    }
-    return 1;
-}
-
 ####################################################################
 # Creation of typed structures
 # Currently we don't use OO features;
