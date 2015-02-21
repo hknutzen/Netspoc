@@ -437,7 +437,7 @@ sub max {
 }
 
 # Delete an element from an array reference.
-# Return 1 if found, 0 otherwise.
+# Return 1 if found, undef otherwise.
 sub aref_delete {
     my ($aref, $elt) = @_;
     for (my $i = 0 ; $i < @$aref ; $i++) {
@@ -448,24 +448,24 @@ sub aref_delete {
             return 1;
         }
     }
-    return 0;
+    return;
 }
 
 # Compare two array references element wise.
 sub aref_eq  {
     my ($a1, $a2) = @_;
-    return 0 if @$a1 ne @$a2;
+    return if @$a1 ne @$a2;
     for (my $i = 0 ; $i < @$a1 ; $i++) {
-        return 0 if $a1->[$i] ne $a2->[$i];
+        return if $a1->[$i] ne $a2->[$i];
     }
     return 1;
 }
 
 sub keys_eq {
     my ($href1, $href2) = @_;
-    keys %$href1 == keys %$href2 or return 0;
+    keys %$href1 == keys %$href2 or return;
     for my $key (keys %$href1) {
-        exists $href2->{$key} or return 0;
+        exists $href2->{$key} or return;
     }
     return 1;
 }
@@ -9645,9 +9645,9 @@ sub inherit_router_attributes {
 sub nat_equal {
     my ($nat1, $nat2) = @_;
     for my $attr (qw(ip mask dynamic hidden identify)) {
-        return 0 if defined $nat1->{$attr} xor defined $nat2->{$attr};
+        return if defined $nat1->{$attr} xor defined $nat2->{$attr};
         next if !defined $nat1->{$attr};
-        return 0 if $nat1->{$attr} ne $nat2->{$attr};
+        return if $nat1->{$attr} ne $nat2->{$attr};
     }
     return 1;
 }
@@ -12500,7 +12500,7 @@ sub find_smaller_prt  {
     }
     $smaller_prt{$prt1}->{$prt2} = 0;
     $smaller_prt{$prt2}->{$prt1} = 0;
-    return 0;
+    return;
 }
 
 # Example:
