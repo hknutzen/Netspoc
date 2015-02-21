@@ -439,6 +439,40 @@ sub max {
     return $max;
 }
 
+# Delete an element from an array reference.
+# Return 1 if found, 0 otherwise.
+sub aref_delete {
+    my ($aref, $elt) = @_;
+    for (my $i = 0 ; $i < @$aref ; $i++) {
+        if ($aref->[$i] eq $elt) {
+            splice @$aref, $i, 1;
+
+#debug("aref_delete: $elt->{name}");
+            return 1;
+        }
+    }
+    return 0;
+}
+
+# Compare two array references element wise.
+sub aref_eq  {
+    my ($a1, $a2) = @_;
+    return 0 if @$a1 ne @$a2;
+    for (my $i = 0 ; $i < @$a1 ; $i++) {
+        return 0 if $a1->[$i] ne $a2->[$i];
+    }
+    return 1;
+}
+
+sub keys_eq {
+    my ($href1, $href2) = @_;
+    keys %$href1 == keys %$href2 or return 0;
+    for my $key (keys %$href1) {
+        exists $href2->{$key} or return 0;
+    }
+    return 1;
+}
+
 my $start_time;
 
 sub info {
@@ -1103,31 +1137,6 @@ sub check_assign_pair {
         return $v1, $v2;
     }
     return ();
-}
-
-# Delete an element from an array reference.
-# Return 1 if found, 0 otherwise.
-sub aref_delete {
-    my ($aref, $elt) = @_;
-    for (my $i = 0 ; $i < @$aref ; $i++) {
-        if ($aref->[$i] eq $elt) {
-            splice @$aref, $i, 1;
-
-#debug("aref_delete: $elt->{name}");
-            return 1;
-        }
-    }
-    return 0;
-}
-
-# Compare two array references element wise.
-sub aref_eq  {
-    my ($a1, $a2) = @_;
-    return 0 if @$a1 ne @$a2;
-    for (my $i = 0 ; $i < @$a1 ; $i++) {
-        return 0 if $a1->[$i] ne $a2->[$i];
-    }
-    return 1;
 }
 
 ####################################################################
@@ -7714,15 +7723,6 @@ sub set_natdomain {
     return;
 }
 
-sub keys_equal {
-    my ($href1, $href2) = @_;
-    keys %$href1 == keys %$href2 or return 0;
-    for my $key (keys %$href1) {
-        exists $href2->{$key} or return 0;
-    }
-    return 1;
-}
-
 my @natdomains;
 
 # Distribute NAT tags from NAT domain to NAT domain.
@@ -7886,7 +7886,7 @@ sub distribute_nat_info {
             $nat_definitions{$nat_tag} = 1;
             if (my $href2 = $nat_tags2multi{$nat_tag}) {
                 my $href1 = $href;
-                if (!$err && !keys_equal($href1, $href2)) {
+                if (!$err && !keys_eq($href1, $href2)) {
 
                     # NAT tag can be used both grouped and solitary,
                     # if and only if 
