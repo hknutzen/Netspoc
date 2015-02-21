@@ -408,8 +408,8 @@ sub all { $_ || return 0 for @_; return 1 }
 # All arguments are 'eq'.
 sub equal {
     return 1 if not @_;
-    my $first = $_[0];
-    return not grep { $_ ne $first } @_[ 1 .. $#_ ];
+    my $first = shift;
+    return not grep { $_ ne $first } @_;
 }
 
 # Unique union of all elements.
@@ -5621,10 +5621,11 @@ sub expand_group1 {
               or err_msg "Intersection needs at least one element",
               " which is not complement in $context";
             my $result;
-            for my $element (@{ $non_compl[0] }) {
+            my $first_set = shift @non_compl;
+            for my $element (@$first_set) {
                 $result->{$element} = $element;
             }
-            for my $set (@non_compl[ 1 .. $#non_compl ]) {
+            for my $set (@non_compl) {
                 my $intersection;
                 for my $element (@$set) {
                     if ($result->{$element}) {
@@ -5642,7 +5643,7 @@ sub expand_group1 {
             # Put result into same order as the elements of first non
             # complemented set. This set contains all elements of resulting set,
             # because we are doing intersection here.
-            push @objects, grep { $result->{$_} } @{ $non_compl[0] };
+            push @objects, grep { $result->{$_} } @$first_set;
         }
         elsif ($type eq '!') {
             err_msg("Complement (!) is only supported as part of intersection");
