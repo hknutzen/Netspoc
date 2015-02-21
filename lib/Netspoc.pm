@@ -582,7 +582,11 @@ sub syntax_err {
 sub internal_err {
     my (@args) = @_;
     my ($package, $file, $line, $sub) = caller 1;
-    die "Internal error in $sub: ", @args, "\n";
+    my $msg = "Internal error in $sub";
+    $msg .= ": @args" if @args;
+
+    # String doesn't end in newline; perl adds file and line.
+    die "$msg\n ";
 }
 
 ####################################################################
