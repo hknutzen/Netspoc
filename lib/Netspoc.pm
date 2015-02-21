@@ -402,9 +402,6 @@ my %xxrp_info;
 
 ## no critic (RequireArgUnpacking)
 
-# All arguments are true.
-sub all { $_ || return 0 for @_; return 1 }
-
 # All arguments are 'eq'.
 sub equal {
     return 1 if not @_;
