@@ -14996,7 +14996,6 @@ sub distribute_rule {
 my $permit_any_rule;
 
 sub add_router_acls  {
-    return if fast_mode();
     for my $router (@managed_routers) {
         my $has_io_acl = $router->{model}->{has_io_acl};
         for my $hardware (@{ $router->{hardware} }) {
@@ -15244,7 +15243,6 @@ sub distribute_general_permit {
 }
 
 sub sort_rules_by_prio {
-    return if fast_mode();
 
     # Sort rules by reverse priority of protocol.
     # This should be done late to get all auxiliary rules processed.
@@ -17009,7 +17007,6 @@ sub add_local_deny_rules {
 }
 
 sub prepare_local_optimization {
-    return if fast_mode();
 
     # Prepare rules for local_optimization.
     # Aggregates with mask 0 are converted to network_00, to be able
