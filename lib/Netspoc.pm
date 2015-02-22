@@ -6315,6 +6315,7 @@ sub add_rules {
         {
             $rule->{managed_intf} = 1;
         }
+        $stateless ||= '';
         $deny ||= '';
         my $old_rule =
           $rule_tree->{$stateless}->{$deny}->{$src}->{$dst}->{$prt};
@@ -6827,10 +6828,7 @@ sub expand_rules {
             $dst = add_managed_hosts($dst, $dst_context);
             for my $prt (@$prt_list) {
                 my $flags = $prt->{flags};
-
-                # We must not use a unspecified boolean value but values 0 or 1,
-                # because this is used as a hash key in %rule_tree.
-                my $stateless = $flags->{stateless} ? 1 : 0;
+                my $stateless = $flags->{stateless};
 
                 my ($src, $dst) =
                   $flags->{reversed} ? ($dst, $src) : ($src, $dst);
@@ -6909,16 +6907,16 @@ sub expand_rules {
                                     next if $disabled;
 
                                     my $rule = {
-                                        stateless => $stateless,
                                         src       => $src,
                                         dst       => $dst,
                                         prt       => $prt,
                                         rule      => $unexpanded
                                     };
-                                    $rule->{deny} = $deny if $deny;
-                                    $rule->{log} = $log if $log;
-                                    $rule->{orig_prt} = $orig_prt if $orig_prt;
-                                    $rule->{oneway} = 1 if $flags->{oneway};
+                                    $rule->{stateless} = 1 if $stateless;
+                                    $rule->{deny}      = 1 if $deny;
+                                    $rule->{log}       = $log if $log;
+                                    $rule->{orig_prt}  = $orig_prt if $orig_prt;
+                                    $rule->{oneway}    = 1 if $flags->{oneway};
                                     $rule->{no_check_supernet_rules} = 1
                                       if $flags->{no_check_supernet_rules};
                                     $rule->{stateless_icmp} = 1
@@ -7082,9 +7080,10 @@ sub set_policy_distribution_ip  {
         my %found_interfaces;
         my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
         my $pdp_src = $get_pdp_src->($pdp);
+        my $stateless = '';
         my $deny = '';
         for my $src (@$pdp_src) {
-            my $sub_rule_tree = $rule_tree{0}->{$deny}->{$src} or next;
+            my $sub_rule_tree = $rule_tree{$stateless}->{$deny}->{$src} or next;
 
             # Find interfaces where some rule permits management traffic.
             for my $interface (@{ $router->{interfaces} }) {
@@ -11441,8 +11440,7 @@ sub gen_tunnel_rules  {
     my $use_esp = $ipsec->{esp_authentication} || $ipsec->{esp_encryption};
     my $nat_traversal = $ipsec->{key_exchange}->{nat_traversal};
     my @rules;
-    my $rule =
-      { stateless => 0, src => $intf1, dst => $intf2 };
+    my $rule = { src => $intf1, dst => $intf2 };
     if (not $nat_traversal or $nat_traversal ne 'on') {
         $use_ah
           and push @rules, { %$rule, prt => $prt_ah };
@@ -12029,8 +12027,8 @@ sub collect_supernet_dst_rules {
     }
 
     my $ipmask = join('/', @{$dst}{qw(ip mask)});
-    my ($stateless, $src, $prt) =
-      @{$rule}{qw(stateless src prt)};
+    my ($stateless, $src, $prt) = @{$rule}{qw(stateless src prt)};
+    $stateless ||= '';
     $supernet_rule_tree{$stateless}->{$src}->{$prt}
                        ->{$in_intf}->{$ipmask}->{$zone} = $rule;
     return;
@@ -12159,6 +12157,7 @@ sub check_supernet_in_zone {
 
     my ($stateless, $deny, $src, $dst, $prt) =
       @{$rule}{qw(stateless deny src dst prt)};
+    $stateless ||= '';
     my $other = $where eq 'src' ? $src : $dst;
 
     # Fast check for access to aggregate/supernet with identical
@@ -12551,11 +12550,12 @@ sub check_for_transient_supernet_rule {
 
         my ($stateless1, $src1, $dst1, $prt1) =
           @$rule{ 'stateless', 'src', 'dst', 'prt' };
+        $stateless1 ||= '';
         my $deny = '';
 
         # Find all rules with supernet as source, which intersect with $dst1.
         my $src2 = $dst1;
-        for my $stateless2 (1, 0) {
+        for my $stateless2 (1, '') {
             while (my ($dst2_str, $hash) =
                 each %{ $rule_tree{$stateless2}->{$deny}->{$src2} })
             {
@@ -12583,8 +12583,7 @@ sub check_for_transient_supernet_rule {
                     next if not $smaller_prt;
 
                     # Stateless rule < stateful rule, hence use ||.
-                    # Force a unique value for boolean result.
-                    my $stateless = ($stateless1 || $stateless2) + 0;
+                    my $stateless = $stateless1 || $stateless2;
 
                     # Check for a rule with $src1 and $dst2 and
                     # with $smaller_prt.
@@ -12625,9 +12624,7 @@ sub check_for_transient_supernet_rule {
                             }
                         }
                         last if !$stateless;
-
-                        # Boolean value "false" is used as hash key, hence we take '0'.
-                        $stateless = 0;
+                        $stateless = '';
                     }
 
 # debug("Src: ", print_rule $rule);
@@ -13441,7 +13438,7 @@ sub optimize_rules {
                 }
             }
             last if !$stateless;
-            $stateless = 0;
+            $stateless = '';
         }
     }
     return;
@@ -15166,9 +15163,9 @@ sub create_general_permit_rules {
                 src            => $network_00,
                 dst            => $network_00,
                 prt            => $splitted_prt,
-                stateless      => $stateless,
-                stateless_icmp => $stateless_icmp,
             };
+            $rule->{stateless} = 1 if $stateless;
+            $rule->{stateless_icmp} = 1 if $stateless_icmp;
             push @rules, $rule;
         }
     }
