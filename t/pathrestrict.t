@@ -62,7 +62,7 @@ $out = <<'END';
 Error: No valid path
  from any:[network:lft]
  to any:[network:rgt]
- for rule -- src=any:[network:lft]; dst=any:[network:rgt]; prt=--;
+ for rule permit src=any:[network:lft]; dst=any:[network:rgt]; prt=--;
  Check path restrictions and crypto interfaces.
 Error: No valid path
  from any:[network:lft]

@@ -3014,12 +3014,12 @@ sub read_service {
             }
             my $rule = {
                 service  => $service,
-                action   => $action,
                 src      => $src,
                 dst      => $dst,
                 prt      => $prt,
                 has_user => $src_user ? $dst_user ? 'both' : 'src' : 'dst',
             };
+            $rule->{deny} = 1 if $action eq 'deny';
             $rule->{log} = $log if $log;
             push @{ $service->{rules} }, $rule;
         }
@@ -3521,8 +3521,10 @@ sub print_rule {
     $extra .= " stateless_icmp"      if $rule->{stateless_icmp};
     $extra .= " of $service->{name}" if $service;
     my $prt = exists $rule->{orig_prt} ? 'orig_prt' : 'prt';
-    my $action = $rule->{action};
-    $action = $action->{name} if is_chain($action);
+    my $action = $rule->{deny} ? 'deny' : 'permit';
+    if (my $chain = $rule->{chain}) {
+        $action = $chain->{name};
+    }
     return
         $action
       . " src=$rule->{src}->{name}; dst=$rule->{dst}->{name}; "
@@ -6286,7 +6288,7 @@ sub path_auto_interfaces;
 our %expanded_rules;
 
 # Hash for ordering all rules:
-# $rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$prt}
+# $rule_tree{$stateless}->{$deny}->{$src}->{$dst}->{$prt}
 #  = $rule;
 my %rule_tree;
 
@@ -6299,8 +6301,8 @@ sub add_rules {
     $rule_tree ||= \%rule_tree;
 
     for my $rule (@$rules_ref) {
-        my ($stateless, $action, $src, $dst, $prt) =
-          @{$rule}{ 'stateless', 'action', 'src', 'dst', 'prt' };
+        my ($stateless, $deny, $src, $dst, $prt) =
+          @{$rule}{ 'stateless', 'deny', 'src', 'dst', 'prt' };
 
         # A rule with an interface as destination may be marked as deleted
         # during global optimization. But in some cases, code for this rule
@@ -6313,8 +6315,9 @@ sub add_rules {
         {
             $rule->{managed_intf} = 1;
         }
+        $deny ||= '';
         my $old_rule =
-          $rule_tree->{$stateless}->{$action}->{$src}->{$dst}->{$prt};
+          $rule_tree->{$stateless}->{$deny}->{$src}->{$dst}->{$prt};
         if ($old_rule) {
 
             # Found identical rule.
@@ -6324,7 +6327,7 @@ sub add_rules {
         }
 
 #       debug("Add:", print_rule $rule);
-        $rule_tree->{$stateless}->{$action}->{$src}->{$dst}->{$prt} = $rule;
+        $rule_tree->{$stateless}->{$deny}->{$src}->{$dst}->{$prt} = $rule;
     }
     return;
 }
@@ -6798,8 +6801,8 @@ sub expand_rules {
     my $foreach   = $service->{foreach};
 
     for my $unexpanded (@$rules_ref) {
-        my $action = $unexpanded->{action};
-        my $log = $unexpanded->{log};
+        my $deny = $unexpanded->{deny};
+        my $log  = $unexpanded->{log};
         if ($log) {
             check_log($log, $context);
             if (@$log) {
@@ -6907,12 +6910,12 @@ sub expand_rules {
 
                                     my $rule = {
                                         stateless => $stateless,
-                                        action    => $action,
                                         src       => $src,
                                         dst       => $dst,
                                         prt       => $prt,
                                         rule      => $unexpanded
                                     };
+                                    $rule->{deny} = $deny if $deny;
                                     $rule->{log} = $log if $log;
                                     $rule->{orig_prt} = $orig_prt if $orig_prt;
                                     $rule->{oneway} = 1 if $flags->{oneway};
@@ -6951,7 +6954,7 @@ sub split_expanded_rule_types {
     my (@deny, @permit, @supernet);
 
     for my $rule (@$rules_aref) {
-        if ($rule->{action} eq 'deny') {
+        if ($rule->{deny}) {
             push @deny, $rule;
         }
         elsif ($rule->{src}->{is_supernet} || $rule->{dst}->{is_supernet}) {
@@ -7079,8 +7082,9 @@ sub set_policy_distribution_ip  {
         my %found_interfaces;
         my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
         my $pdp_src = $get_pdp_src->($pdp);
+        my $deny = '';
         for my $src (@$pdp_src) {
-            my $sub_rule_tree = $rule_tree{0}->{permit}->{$src} or next;
+            my $sub_rule_tree = $rule_tree{0}->{$deny}->{$src} or next;
 
             # Find interfaces where some rule permits management traffic.
             for my $interface (@{ $router->{interfaces} }) {
@@ -11438,7 +11442,7 @@ sub gen_tunnel_rules  {
     my $nat_traversal = $ipsec->{key_exchange}->{nat_traversal};
     my @rules;
     my $rule =
-      { stateless => 0, action => 'permit', src => $intf1, dst => $intf2 };
+      { stateless => 0, src => $intf1, dst => $intf2 };
     if (not $nat_traversal or $nat_traversal ne 'on') {
         $use_ah
           and push @rules, { %$rule, prt => $prt_ah };
@@ -12025,8 +12029,8 @@ sub collect_supernet_dst_rules {
     }
 
     my $ipmask = join('/', @{$dst}{qw(ip mask)});
-    my ($stateless, $action, $src, $prt) =
-      @{$rule}{qw(stateless action src prt)};
+    my ($stateless, $src, $prt) =
+      @{$rule}{qw(stateless src prt)};
     $supernet_rule_tree{$stateless}->{$src}->{$prt}
                        ->{$in_intf}->{$ipmask}->{$zone} = $rule;
     return;
@@ -12153,8 +12157,8 @@ my %missing_supernet;
 sub check_supernet_in_zone {
     my ($rule, $where, $interface, $zone, $reversed) = @_;
 
-    my ($stateless, $action, $src, $dst, $prt) =
-      @{$rule}{qw(stateless action src dst prt)};
+    my ($stateless, $deny, $src, $dst, $prt) =
+      @{$rule}{qw(stateless deny src dst prt)};
     my $other = $where eq 'src' ? $src : $dst;
 
     # Fast check for access to aggregate/supernet with identical
@@ -12182,9 +12186,10 @@ sub check_supernet_in_zone {
 
         # $networks holds matching network and all its supernets.
         # Find first matching rule.
+        $deny ||= '';
         for my $network (@$networks) {
             ($where eq 'src' ? $src : $dst) = $network;
-            if ($rule_tree{$stateless}->{$action}->{$src}->{$dst}->{$prt}) {
+            if ($rule_tree{$stateless}->{$deny}->{$src}->{$dst}->{$prt}) {
                 return;
             }
         }
@@ -12532,7 +12537,7 @@ sub check_for_transient_supernet_rule {
 
     for my $rule (@{ $expanded_rules{supernet} }) {
         next if $rule->{deleted};
-        next if $rule->{action} ne 'permit';
+        next if $rule->{deny};
         next if $rule->{no_check_supernet_rules};
         my $dst = $rule->{dst};
         next if not $dst->{is_supernet};
@@ -12546,12 +12551,13 @@ sub check_for_transient_supernet_rule {
 
         my ($stateless1, $src1, $dst1, $prt1) =
           @$rule{ 'stateless', 'src', 'dst', 'prt' };
+        my $deny = '';
 
         # Find all rules with supernet as source, which intersect with $dst1.
         my $src2 = $dst1;
         for my $stateless2 (1, 0) {
             while (my ($dst2_str, $hash) =
-                each %{ $rule_tree{$stateless2}->{permit}->{$src2} })
+                each %{ $rule_tree{$stateless2}->{$deny}->{$src2} })
             {
 
                 # Skip reverse rules.
@@ -12583,11 +12589,11 @@ sub check_for_transient_supernet_rule {
                     # Check for a rule with $src1 and $dst2 and
                     # with $smaller_prt.
                     while (1) {
-                        my $action = 'permit';
+                        my $deny = '';
                         if (my $hash = $rule_tree{$stateless}) {
                             while (1) {
                                 my $src = $src1;
-                                if (my $hash = $hash->{$action}) {
+                                if (my $hash = $hash->{$deny}) {
                                     while (1) {
                                         my $dst = $dst2;
                                         if (my $hash = $hash->{$src}) {
@@ -12614,8 +12620,8 @@ sub check_for_transient_supernet_rule {
                                         $src = $src->{up} or last;
                                     }
                                 }
-                                last if $action eq 'deny';
-                                $action = 'deny';
+                                last if $deny;
+                                $deny = 1;
                             }
                         }
                         last if !$stateless;
@@ -12809,7 +12815,7 @@ sub gen_reverse_rules1  {
         # - there can't be an answer if the request is already denied and
         # - the 'established' optimization for TCP below would produce
         #   wrong results.
-        next if $proto eq 'tcp' and $rule->{action} eq 'deny';
+        next if $proto eq 'tcp' and $rule->{deny};
 
         my $src = $rule->{src};
         my $dst = $rule->{dst};
@@ -12876,11 +12882,11 @@ sub gen_reverse_rules1  {
 
                 # This rule must only be applied to stateless routers.
                 stateless => 1,
-                action    => $rule->{action},
                 src       => $dst,
                 dst       => $src,
                 prt       => $new_prt,
             };
+            $new_rule->{deny} = 1 if $rule->{deny};
 
             # Don't push to @$rule_aref while we are iterating over it.
             push @extra_rules, $new_rule;
@@ -13354,9 +13360,9 @@ sub optimize_rules {
     while (my ($stateless, $chg_hash) = each %$chg_hash) {
         while (1) {
             if (my $cmp_hash = $cmp_hash->{$stateless}) {
-                while (my ($action, $chg_hash) = each %$chg_hash) {
+                while (my ($deny, $chg_hash) = each %$chg_hash) {
                     while (1) {
-                        if (my $cmp_hash = $cmp_hash->{$action}) {
+                        if (my $cmp_hash = $cmp_hash->{$deny}) {
                             while (my ($src_ref, $chg_hash) = each %$chg_hash) {
                                 my $src = $ref2obj{$src_ref};
                                 while (1) {
@@ -13429,8 +13435,8 @@ sub optimize_rules {
                                 }
                             }
                         }
-                        last if $action eq 'deny';
-                        $action = 'deny';
+                        last if $deny;
+                        $deny = 1;
                     }
                 }
             }
@@ -13928,7 +13934,6 @@ sub find_active_routes  {
             $pseudo_rule = {
                 src    => $src_zone,
                 dst    => $dst_zone,
-                action => '--',
                 prt    => $pseudo_prt,
             };
             $routing_tree{$src_zone}->{$dst_zone} = $pseudo_rule;
@@ -15044,7 +15049,6 @@ sub add_router_acls  {
                                 : $hardware->{rules}
                               },
                             {
-                                action    => 'permit',
                                 src       => $network_00,
                                 dst       => $net,
                                 prt       => $prt_ip
@@ -15063,7 +15067,6 @@ sub add_router_acls  {
                         for my $mcast (@{ $routing->{mcast} }) {
                             push @{ $hardware->{intf_rules} },
                               {
-                                action => 'permit',
                                 src    => $network,
                                 dst    => $mcast,
                                 prt    => $prt
@@ -15077,7 +15080,6 @@ sub add_router_acls  {
                         # multiple addresses.
                         push @{ $hardware->{intf_rules} },
                           { 
-                            action => 'permit',
                             src    => $network,
                             dst    => $network,
                             prt    => $prt
@@ -15092,7 +15094,6 @@ sub add_router_acls  {
                     my $prt     = $xxrp_info{$type}->{prt};
                     push @{ $hardware->{intf_rules} },
                       {
-                        action    => 'permit',
                         src       => $network,
                         dst       => $mcast,
                         prt       => $prt
@@ -15104,7 +15105,6 @@ sub add_router_acls  {
                 if ($interface->{dhcp_server}) {
                     push @{ $hardware->{intf_rules} },
                       {
-                        action    => 'permit',
                         src       => $network_00,
                         dst       => $network_00,
                         prt       => $prt_bootps
@@ -15163,7 +15163,6 @@ sub create_general_permit_rules {
         my $splitted_prt = $main_prt->{splitted_prt_list};
         for my $splitted_prt ($splitted_prt ? @$splitted_prt : ($main_prt)) {
             my $rule = {
-                action         => 'permit',
                 src            => $network_00,
                 dst            => $network_00,
                 prt            => $splitted_prt,
@@ -15574,7 +15573,8 @@ sub cisco_acl_line {
     for my $rule (@$rules_aref) {
         print "$model->{comment_char} " . print_rule($rule) . "\n"
           if $config{comment_acls};
-        my ($action, $src, $dst, $prt) = @{$rule}{qw(action src dst prt)};
+        my ($deny, $src, $dst, $prt) = @{$rule}{qw(deny src dst prt)};
+        my $action = $deny ? 'deny' : 'permit';
         my $spair = address($src, $no_nat_set);
         my $dpair = address($dst, $no_nat_set);
 
@@ -15612,7 +15612,7 @@ sub cisco_acl_line {
         if ($log_code) {
             $result .= " $log_code";
         }
-        elsif ($router->{log_deny} && $action eq 'deny') {
+        elsif ($router->{log_deny} && $deny) {
             $result .= " log";
         }
 
@@ -15653,13 +15653,13 @@ sub find_object_groups  {
             my %group_rule_tree;
 
             # Find groups of rules with identical
-            # action, prt, log, src/dst and different dst/src.
+            # deny, prt, log, src/dst and different dst/src.
             for my $rule (@{ $hardware->{$rule_type} }) {
-                my $action    = $rule->{action};
-                my $that      = $rule->{$that};
-                my $this      = $rule->{$this};
-                my $prt       = $rule->{prt};
-                my $key       = "$action,$that,$prt";
+                my $deny = $rule->{deny} || '';
+                my $that = $rule->{$that};
+                my $this = $rule->{$this};
+                my $prt  = $rule->{prt};
+                my $key  = "$deny,$that,$prt";
                 if (my $log = $rule->{log}) {
                     for my $tag (@$log) {
                         if (defined(my $type = $active_log->{$tag})) {
@@ -15693,7 +15693,7 @@ sub find_object_groups  {
                     };
 
                     # All this rules have identical
-                    # action, prt, src/dst  and dst/src
+                    # deny, prt, src/dst  and dst/src
                     # and shall be replaced by a new object group.
                     for my $rule (values %$href) {
                         $rule->{group_glue} = $glue;
@@ -15838,14 +15838,15 @@ sub find_object_groups  {
 #              $glue->{group} = $group;
 
                     $glue->{active} = 1;
-                    my $log = $rule->{log};
+                    my ($deny, $srcdst, $prt, $log) = 
+                        @{$rule}{'deny', $that, 'prt', 'log'};
                     $rule = {
-                        action    => $rule->{action},
-                        $that     => $rule->{$that},
+                        $that     => $srcdst,
                         $this     => $group,
-                        prt       => $rule->{prt}
+                        prt       => $prt
                     };
-                    $rule->{log} = $log if $log;
+                    $rule->{deny} = $deny if $deny;
+                    $rule->{log}  = $log  if $log;
                 }
                 push @new_rules, $rule;
             }
@@ -16292,12 +16293,14 @@ sub find_chains  {
         # would be triggered.
         for my $rule (@$rules) {
 
-            # Copy src/dst_range from $prt to $rule, so we can handle
-            # all properties of a rule in unified manner.
+            # Add {action}, {src_range}, {dst_range} attributes to
+            # $rule, so we can handle all properties of a rule in
+            # unified manner.
             # $rule needs not to be copied:
             # - other device types will ignore this attributes,
             # - other linux devices will reuse them.
-            if (!$rule->{src_range}) {
+            if (!$rule->{action}) {
+                $rule->{action} = $rule->{deny} ? 'deny' : 'permit';
                 my $prt = $rule->{prt};
                 my $proto = $prt->{proto};
                 if ($proto eq 'tcp' || $proto eq 'udp') {
@@ -16742,18 +16745,19 @@ sub join_ranges  {
         my %hash = ();
       RULE:
         for my $rule (@{ $hardware->{$rules} }) {
-            my ($action, $src, $dst, $prt) =
-              @{$rule}{ 'action', 'src', 'dst', 'prt' };
+            my ($deny, $src, $dst, $prt) =
+              @{$rule}{ 'deny', 'src', 'dst', 'prt' };
 
             # Only ranges which have a neighbor may be successfully optimized.
             # Currently only dst_ranges are handled.
             my $dst_range = $prt->{dst_range} or next;
             $dst_range->{has_neighbor} or next;
 
-            $hash{$action}->{$src}->{$dst}->{$prt} = $rule;
+            $deny ||= '';
+            $hash{$deny}->{$src}->{$dst}->{$prt} = $rule;
         }
 
-        # %hash is {action => href, ...}
+        # %hash is {deny => href, ...}
         for my $href (values %hash) {
 
             # $href is {src => href, ...}
@@ -16766,7 +16770,7 @@ sub join_ranges  {
                     next if values %$href == 1;
 
                     # Values of %$href are rules with identical
-                    # action/src/dst and a TCP or UDP protocol.
+                    # deny/src/dst and a TCP or UDP protocol.
                     #
                     # Collect rules with 
                     # - identical src_range and
@@ -16912,7 +16916,7 @@ sub remove_non_local_rules {
         for my $rule (@{ $hardware->{$rules} }) {
 
             # Don't remove deny rule
-            next if $rule->{action} ne 'permit';
+            next if $rule->{deny};
             my $both_match = 0;
             for my $what (qw(src dst)) {
                 my $obj = $rule->{$what};
@@ -16993,10 +16997,10 @@ sub add_local_deny_rules {
             for my $dst (@dst_networks) {
                 push(@filter_rules, 
                      {
-                         action    => 'deny',
-                         src       => $src,
-                         dst       => $dst,
-                         prt       => $prt_ip
+                         deny => 1,
+                         src  => $src,
+                         dst  => $dst,
+                         prt  => $prt_ip
                      });
             }
         }
@@ -17149,11 +17153,12 @@ sub local_optimization {
                             # relation.
                             $rule = { %$rule, $what => $obj };
                         }
-                        my ($src, $dst, $action, $prt) =
-                          @{$rule}{ 'src', 'dst', 'action', 'prt' };
+                        my ($src, $dst, $deny, $prt) =
+                          @{$rule}{ 'src', 'dst', 'deny', 'prt' };
+                        $deny ||= '';
 
                         # Remove duplicate rules.
-                        if ($id_hash{$action}->{$src}->{$dst}->{$prt})
+                        if ($id_hash{$deny}->{$src}->{$dst}->{$prt})
                         {
                             $rule    = undef;
                             $changed = 1;
@@ -17161,13 +17166,13 @@ sub local_optimization {
 #                            $r2id{$rname}++;
                             next;
                         }
-                        $id_hash{$action}->{$src}->{$dst}->{$prt} = $rule;
+                        $id_hash{$deny}->{$src}->{$dst}->{$prt} = $rule;
 
                         if (   $src->{is_supernet}
                             || $dst->{is_supernet}
                             || $rule->{stateless})
                         {
-                            $hash{$action}->{$src}->{$dst}->{$prt} = $rule;
+                            $hash{$deny}->{$src}->{$dst}->{$prt} = $rule;
                         }
                     }
 
@@ -17182,13 +17187,14 @@ sub local_optimization {
 
 #                       debug(print_rule $rule);
 #                       debug "is_supernet" if $rule->{dst}->{is_supernet};
-                        my ($action, $src, $dst, $prt, $log) =
-                          @{$rule}{qw(action src dst prt log)};
-                        $log ||= '';
+                        my ($deny, $src, $dst, $prt, $log) =
+                          @{$rule}{qw(deny src dst prt log)};
+                        $deny ||= '';
+                        $log  ||= '';
 
                         while (1) {
                             my $src = $src;
-                            if (my $hash = $hash{$action}) {
+                            if (my $hash = $hash{$deny}) {
                                 while (1) {
                                     my $dst = $dst;
                                     if (my $hash = $hash->{$src}) {
@@ -17228,8 +17234,8 @@ sub local_optimization {
                                     $src = $src->{up} or last;
                                 }
                             }
-                            last if $action eq 'deny';
-                            $action = 'deny';
+                            last if $deny;
+                            $deny = 1;
                         }
 
 #                        my $t4 = time();
@@ -17240,7 +17246,7 @@ sub local_optimization {
                         if (   $secondary_filter && $rule->{some_non_secondary}
                             || $standard_filter && $rule->{some_primary})
                         {
-                            $rule->{action} eq 'permit' or internal_err();
+                            $rule->{deny} and internal_err();
                             my ($src, $dst) = @{$rule}{qw(src dst)};
 
                             # Replace obj by largest supernet in zone,
@@ -17324,7 +17330,6 @@ sub local_optimization {
                                 # identical rule is referenced at different
                                 # routers.
                                 my $new_rule = {
-                                    action    => 'permit',
                                     src       => $src,
                                     dst       => $dst,
                                     prt       => $prt_ip,
@@ -17338,7 +17343,7 @@ sub local_optimization {
                                 # already processed.
                                 if ($src->{is_supernet} || $dst->{is_supernet})
                                 {
-                                    $hash{permit}->{$src}->{$dst}->{$prt_ip}
+                                    $hash{''}->{$src}->{$dst}->{$prt_ip}
                                       ->{$prt_ip} = $new_rule;
                                 }
 
@@ -17427,10 +17432,10 @@ sub print_cisco_acl_add_deny {
 
     my $rules = $hardware->{rules} ||= [];
     if (@$rules) {
-        my ($action, $src, $dst, $prt) =
-          @{ $rules->[-1] }{ 'action', 'src', 'dst', 'prt' };
-        $permit_any =
-             $action eq 'permit'
+        my ($deny, $src, $dst, $prt) =
+          @{ $rules->[-1] }{ 'deny', 'src', 'dst', 'prt' };
+        $permit_any = 
+             !$deny
           && is_network($src)
           && $src->{mask} == 0
           && is_network($dst)
@@ -17484,7 +17489,7 @@ sub print_cisco_acl_add_deny {
         my %seen;
         my $changed;
         for my $rule (@{ $hardware->{intf_rules} }) {
-            next if $rule->{action} eq 'deny';
+            next if $rule->{deny};
             my $src = $rule->{src};
             next if not is_network($src);
             next if $src->{mask} != 0;
@@ -17524,7 +17529,7 @@ sub print_cisco_acl_add_deny {
         };
       RULE:
         for my $rule (@{ $hardware->{rules} }) {
-            next if $rule->{action} eq 'deny';
+            next if $rule->{deny};
             next if $rule->{prt}->{established};
 
             # Ignore permit_any_rule of local filter.
@@ -17595,7 +17600,7 @@ sub print_cisco_acl_add_deny {
             # Protect own interfaces.
             push @{ $hardware->{intf_rules} },
               {
-                action    => 'deny',
+                deny      => 1,
                 src       => $network_00,
                 dst       => $interface,
                 prt       => $prt_ip
@@ -17628,7 +17633,7 @@ sub get_split_tunnel_nets {
 
     my %split_tunnel_nets;
     for my $rule (@{ $interface->{rules} }, @{ $interface->{intf_rules} }) {
-        next if not $rule->{action} eq 'permit';
+        next if $rule->{deny};
         my $dst = $rule->{dst};
         my $dst_network = is_network($dst) ? $dst : $dst->{network};
 
@@ -17785,7 +17790,6 @@ EOF
                 $id_intf->{intf_rules} = [];
                 $id_intf->{rules}      = [
                     {
-                        action    => 'permit',
                         src       => $src,
                         dst       => $network_00,
                         prt       => $prt_ip,
@@ -17912,7 +17916,6 @@ EOF
             $interface->{rules}      = [
                 map {
                     {
-                        action    => 'permit',
                         src       => $_,
                         dst       => $network_00,
                         prt       => $prt_ip,
@@ -18218,7 +18221,6 @@ sub gen_crypto_rules {
             push(
                 @crypto_rules,
                 {
-                    action    => 'permit',
                     src       => $src,
                     dst       => $dst,
                     prt       => $prt_ip
@@ -18916,13 +18918,12 @@ sub init_protocols {
     $prt_esp = { name => 'auto_prt:IPSec_ESP', proto => 50, prio => 100, };
     $prt_ah = { name => 'auto_prt:IPSec_AH', proto => 51, prio => 99, }; 
     $deny_any_rule = {
-        action    => 'deny',
+        deny      => 1,
         src       => $network_00,
         dst       => $network_00,
         prt       => $prt_ip
     };
     $permit_any_rule = {
-        action    => 'permit',
         src       => $network_00,
         dst       => $network_00,
         prt       => $prt_ip
