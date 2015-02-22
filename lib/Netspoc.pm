@@ -14093,7 +14093,8 @@ sub check_and_convert_routes  {
                         push @hops, $real_peer;
                     }
                     else {
-                        err_msg("$real_peer->{name} used to reach software clients",
+                        err_msg("$real_peer->{name} used to reach",
+                                " software clients\n",
                                 " must not be directly connected to",
                                 " $real_intf->{name}\n",
                                 " Connect it to some network behind next hop");
