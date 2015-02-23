@@ -1047,7 +1047,7 @@ $out = <<'END';
 Error: No valid path
  from any:[network:intern]
  to any:[network:dmz]
- for rule -- src=any:[network:intern]; dst=any:[network:dmz]; prt=--;
+ for rule permit src=any:[network:intern]; dst=any:[network:dmz]; prt=--;
  Check path restrictions and crypto interfaces.
 Error: No valid path
  from any:[network:intern]
