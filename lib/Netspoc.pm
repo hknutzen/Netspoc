@@ -1646,12 +1646,6 @@ my $global_active_pathrestriction = new(
     active_path => 1
 );
 
-sub check_global_active_pathrestriction {
-    my ($interface) = @_;
-    my $restrict = $interface->{path_restrict} or return;
-    return(grep { $_ eq $global_active_pathrestriction } @$restrict);
-}
-
 # Tunnel networks which are already attached to tunnel interfaces
 # at spoke devices. Key is crypto name, not crypto object.
 my %crypto2spokes;
@@ -1944,11 +1938,6 @@ sub read_interface {
         for my $key (qw(hardware bind_nat routing disabled)) {
             $secondary->{$key} = $interface->{$key} if $interface->{$key};
         }
-
-        # No traffic must pass secondary interface.
-        # If secondary interface is start- or endpoint of a path,
-        # the corresponding router is entered by main interface.
-        push @{ $secondary->{path_restrict} }, $global_active_pathrestriction;
     }
     return $interface, @secondary_interfaces;
 }
@@ -4752,11 +4741,8 @@ sub check_ip_addresses {
             my $ip = $interface->{ip};
             if ($ip eq 'short') {
 
-                # Ignore short interface with globally active pathrestriction
-                # where all traffic goes through a VPN tunnel.
-                if (! check_global_active_pathrestriction($interface) &&
-                    1 < @{ $interface->{router}->{interfaces} })
-                {
+                # Ignore short interface from splitted crypto router.
+                if (1 < @{ $interface->{router}->{interfaces} }) {
                     $short_intf = $interface;
                 }
             }
@@ -7733,8 +7719,7 @@ sub set_natdomain {
         # Ignore interface where we reached this network.
         next if $interface eq $in_interface;
 
-        # Don't traverse crypto interface.
-        next if check_global_active_pathrestriction($interface);
+        next if $interface->{main_interface};
 
 #        debug("IN $interface->{name}");
         my $err_seen;
@@ -7758,7 +7743,7 @@ sub set_natdomain {
                 next if $router->{active_path};
                 local $router->{active_path} = 1;
 
-                next if check_global_active_pathrestriction($out_interface);
+                next if $out_interface->{main_interface};
 
                 my $next_net = $out_interface->{network};
                 set_natdomain($next_net, $domain, $out_interface);
@@ -8927,7 +8912,7 @@ sub check_crosslink  {
         my $out_acl_count = 0;
         my @no_in_acl_intf;
         for my $interface (@{ $network->{interfaces} }) {
-            next if check_global_active_pathrestriction($interface);
+            next if $interface->{main_interface};
             my $router = $interface->{router};
             if (my $managed = $router->{managed}) {
                 my $strength = $crosslink_strength{$managed} or 
@@ -8943,8 +8928,7 @@ sub check_crosslink  {
                 next;
             }
             my $hardware = $interface->{hardware};
-            1 == grep({ !check_global_active_pathrestriction($_) }
-                      @{ $hardware->{interfaces} })
+            1 == grep({ !$_->{main_interface} } @{ $hardware->{interfaces} })
               or err_msg
               "Crosslink $network->{name} must be the only network\n",
               " connected to $hardware->{name} of $router->{name}";
@@ -9568,10 +9552,7 @@ sub set_zone_cluster {
 
     for my $interface (@{ $zone->{interfaces} }) {
         next if $interface eq $in_interface;
-
-        # Ignore interface with globally active pathrestriction
-        # where all traffic goes through a VPN tunnel.
-        next if check_global_active_pathrestriction($interface);
+        next if $interface->{main_interface};
         my $router = $interface->{router};
         next if $router->{managed};
         next if $router->{active_path};
@@ -9580,7 +9561,7 @@ sub set_zone_cluster {
             next if $out_interface eq $interface;
             my $next = $out_interface->{zone};
             next if $next->{zone_cluster};
-            next if check_global_active_pathrestriction($out_interface);
+            next if $out_interface->{main_interface};
             my $private2 = $next->{private} || 'public';
             $private1 eq $private2 or
                 err_msg("Zones connected by $router->{name}",
@@ -9664,8 +9645,6 @@ sub set_area1 {
         # interface.
         next if $interface->{main_interface};
 
-        next if check_global_active_pathrestriction($interface);
-        
         my $next = $interface->{$is_zone ? 'router' : 'zone'};
         set_area1($next, $area, $interface);
     }
@@ -10160,7 +10139,7 @@ sub traverse_loop_part {
     my $is_zone = is_zone($obj);
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_interface;
-        next if check_global_active_pathrestriction($interface);
+        next if $interface->{main_interface};
         if (my $hash = $seen->{$interface}) {
             my $current = $is_zone ? 'zone' : 'router';
             $hash->{$current} = $mark;
@@ -10956,9 +10935,6 @@ sub cluster_path_mark  {
           or internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
             " with empty navi");
         for my $interface (@$from_interfaces) {
-
-            # Secondary interface has global_active_pathrestriction,
-            # but ignore it early to gain some performance improvement.
             next if $interface->{main_interface};
             my $loop = $interface->{loop};
             next if not $loop;
@@ -12348,7 +12324,7 @@ sub check_supernet_src_rule {
         elsif ($in_zone eq $no_acl_zone) {
         }
 
-        elsif (has_global_restrict($no_acl_intf)) {
+        elsif ($no_acl_intf->{main_interface}) {
         }
 
         # b), 2. zone X != zone Y
@@ -12400,7 +12376,7 @@ sub check_supernet_src_rule {
                 elsif ($no_acl_zone eq $src_zone) {
                 }
 
-                elsif (has_global_restrict($no_acl_intf)) {
+                elsif ($no_acl_intf->{main_interface}) {
                 }
 
                 # zone X != zone Y
@@ -12423,7 +12399,7 @@ sub check_supernet_src_rule {
                     my $zone = $intf->{zone};
                     next if $zone eq $src_zone;
                     next if $zone eq $dst_zone;
-                    next if has_global_restrict($intf);
+                    next if $intf->{main_interface};
                     check_supernet_in_zone($rule, 'src', $intf, $zone, 1);
                 }
             }
@@ -12483,7 +12459,7 @@ sub check_supernet_dst_rule {
         elsif ($no_acl_zone eq $dst_zone) {
         }
 
-        elsif (has_global_restrict($no_acl_intf)) {
+        elsif ($no_acl_intf->{main_interface}) {
         }
 
         # zone X != zone Y
@@ -12511,7 +12487,7 @@ sub check_supernet_dst_rule {
         my $zone = $intf->{zone};
         next if $zone eq $src_zone;
         next if $zone eq $dst_zone;
-        next if has_global_restrict($intf);
+        next if $intf->{main_interface};
         check_supernet_in_zone($rule, 'dst', $in_intf, $zone);
     }
     return;
@@ -13036,7 +13012,7 @@ sub mark_secondary  {
 
 #    debug("$zone->{name} $mark");
     for my $in_interface (@{ $zone->{interfaces} }) {
-        next if check_global_active_pathrestriction($in_interface);
+        next if $in_interface->{main_interface};
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
             next if $managed !~ /^(?:secondary|local.*)$/;
@@ -13045,7 +13021,7 @@ sub mark_secondary  {
         local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
-            next if check_global_active_pathrestriction($out_interface);
+            next if $out_interface->{main_interface};
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{secondary_mark};
             mark_secondary $next_zone, $mark;
@@ -13064,7 +13040,7 @@ sub mark_primary  {
     my ($zone, $mark) = @_;
     $zone->{primary_mark} = $mark;
     for my $in_interface (@{ $zone->{interfaces} }) {
-        next if check_global_active_pathrestriction($in_interface);
+        next if $in_interface->{main_interface};
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
             next if $managed eq 'primary';
@@ -13073,7 +13049,7 @@ sub mark_primary  {
         local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
-            next if check_global_active_pathrestriction($out_interface);
+            next if $out_interface->{main_interface};
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{primary_mark};
             mark_primary $next_zone, $mark;
@@ -13093,7 +13069,7 @@ sub mark_strict_secondary  {
     $zone->{strict_secondary_mark} = $mark;
 #    debug "$zone->{name} : $mark";
     for my $in_interface (@{ $zone->{interfaces} }) {
-        next if check_global_active_pathrestriction($in_interface);
+        next if $in_interface->{main_interface};
         my $router = $in_interface->{router};
         if ($router->{managed}) {
             next if $router->{strict_secondary};
@@ -13102,7 +13078,7 @@ sub mark_strict_secondary  {
         local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
-            next if check_global_active_pathrestriction($out_interface);
+            next if $out_interface->{main_interface};
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{strict_secondary_mark};
             mark_strict_secondary($next_zone, $mark);
@@ -13121,7 +13097,7 @@ sub mark_local_secondary  {
     $zone->{local_secondary_mark} = $mark;
 #    debug "local_secondary $zone->{name} : $mark";
     for my $in_interface (@{ $zone->{interfaces} }) {
-        next if check_global_active_pathrestriction($in_interface);
+        next if $in_interface->{main_interface};
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
             next if $managed ne 'local_secondary';
@@ -13130,7 +13106,7 @@ sub mark_local_secondary  {
         local $router->{active_path} = 1;
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $in_interface;
-            next if check_global_active_pathrestriction($out_interface);
+            next if $out_interface->{main_interface};
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{local_secondary_mark};
             mark_local_secondary($next_zone, $mark);
@@ -15213,16 +15189,6 @@ sub cmp_address {
     }
 }
 
-sub has_global_restrict {
-    my ($interface) = @_;
-    if (my $restrictions = $interface->{path_restrict}) {
-        for my $restrict (@$restrictions) {
-            return 1 if $restrict->{active_path};
-        }
-    }
-    return;
-}
-
 sub distribute_rules {
     my ($rules, $in_intf, $out_intf) = @_;
     for my $rule (@$rules) {
@@ -15261,7 +15227,7 @@ sub distribute_general_permit {
                 $general_permit, "general_permit of $router->{name}");
         my $need_protect = $router->{need_protect};
         for my $in_intf (@{ $router->{interfaces} }) {
-            next if has_global_restrict($in_intf);
+            next if $in_intf->{main_interface};
 
             # At VPN hub, don't permit any -> any, but only traffic
             # from each encrypted network.
@@ -15307,7 +15273,7 @@ sub distribute_general_permit {
                         }
                         next;
                     }
-                    next if has_global_restrict($out_intf);
+                    next if $out_intf->{main_interface};
 
                     # Traffic traverses the device.
                     distribute_rules($rules, $in_intf, $out_intf);
