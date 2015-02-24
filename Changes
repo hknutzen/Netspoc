@@ -1,11 +1,14 @@
 {{$NEXT}}
 
+3.064     2015-02-24 13:51:47+01:00 Europe/Berlin
+
  - Internal processing of crypto tunnels has been improved.
-   This gives much better runtime performance for configurations
-   with many crypto tunnels.
+   This gives more than 10% faster runtime for
+   configurations with many crypto tunnels.
+ - Internal storage of expanded rules has been improved.
+   This gives about 22% lower memory usage.
  - No longer support attribute 'tunnel_all'.
  - No longer support config option 'area_ignore_crypto'.
-
 
 3.063     2015-02-06 16:28:34+01:00 Europe/Berlin
 
