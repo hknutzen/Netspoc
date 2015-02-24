@@ -8145,8 +8145,7 @@ sub invert_nat_set {
 
     # Find NAT partitions.
     # NAT partitions arise, if parts of the topology are strictly
-    # separated by interfaces with global_active_pathrestriction.
-    # E.g. interfaces with crypto tunnels.
+    # separated by crypto interfaces.
     my %partitions;
     my $mark_nat_partition;
     $mark_nat_partition = sub {
