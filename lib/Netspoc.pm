@@ -2576,6 +2576,7 @@ sub move_locked_interfaces {
             }
         }        
     }
+    return;
 }
 
 our %aggregates;
