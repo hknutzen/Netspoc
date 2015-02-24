@@ -157,6 +157,7 @@ sub mark_path {
     my $rule = {src => $src, dst => $dst, prt => {}};
 #    Netspoc::debug "Path $src->{name} $dst->{name}";
     &path_walk($rule, \&mark_topology);
+    return;
 }
 
 # We can't use %aggregates from Netspoc.pm because it only holds named
@@ -423,7 +424,7 @@ sub mark_watching_owners {
 }
 
 sub by_index {
-    $a->{src_index} <=> $b->{src_index}
+    return $a->{src_index} <=> $b->{src_index}
 }
 
 for my $owner (values %owners) {
