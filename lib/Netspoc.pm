@@ -14256,8 +14256,10 @@ sub check_and_convert_routes  {
 
             next if $interface->{loop} and $interface->{routing};
             next if $interface->{ip} eq 'bridged';
-            for my $hop ( sort by_name values %{ $interface->{hop} }) {
-                for my $network (values %{ $interface->{routes}->{$hop} }) {
+            for my $hop (sort by_name values %{ $interface->{hop} }) {
+                for my $network (sort by_name 
+                                 values %{ $interface->{routes}->{$hop} }) 
+                {
                     if (my $interface2 = $net2intf{$network}) {
                         if ($interface2 ne $interface) {
 
