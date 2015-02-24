@@ -345,4 +345,98 @@ END
 test_run($title, $in, $in);
 
 ############################################################
+$title = 'Crypto definitions with router fragments';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha_hmac;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+}
+network:intern = { ip = 10.1.1.0/24;}
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = {
+  ip = 10.1.1.101; 
+  hardware = inside;
+ }
+ interface:dmz = { 
+  ip = 192.168.0.101; 
+  hub = crypto:vpn;
+  hardware = outside; 
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = { 
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+router:softclients = {
+ interface:internet = { spoke = crypto:vpn; }
+ interface:customers1;
+ interface:customers2;
+}
+network:customers1 = { 
+ ip = 10.99.1.0/24; 
+ radius_attributes = {
+  banner = Willkommen;
+ }
+ host:id:foo@domain.x = {
+  ip = 10.99.1.10;
+ }
+ host:id:bar@domain.x = { 
+  ip = 10.99.1.11; 
+  radius_attributes = { banner = Willkommen zu Hause; }
+ }
+}
+network:customers2 = { 
+ ip = 10.99.2.0/24; 
+ radius_attributes = {
+  vpn-idle-timeout = 120; 
+  trust-point = ASDM_TrustPoint2;
+ }
+
+ host:id:domain.x = {
+  range = 10.99.2.0 - 10.99.2.63; 
+  radius_attributes = { split-tunnel-policy = tunnelspecified; 
+                        check-subject-name = ou; }
+ }
+ host:id:@domain.y = {
+  range = 10.99.2.64 - 10.99.2.127;
+  radius_attributes = { vpn-idle-timeout = 40; trust-point = ASDM_TrustPoint3; } }
+}
+service:test1 = {
+ user = host:id:foo@domain.x.customers1, host:id:@domain.y.customers2;
+ permit src = user; dst = network:intern; prt = tcp 80; 
+}
+service:test2 = {
+ user = host:id:bar@domain.x.customers1, host:id:domain.x.customers2;
+ permit src = user; dst = network:intern; prt = tcp 81; 
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
 done_testing;

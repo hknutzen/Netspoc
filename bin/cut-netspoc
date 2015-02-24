@@ -60,7 +60,7 @@ use Pod::Usage;
 use Netspoc;
 use locale;
 
-our $VERSION = '3.063'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.064'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -97,8 +97,8 @@ sub read_netspoc_with_src {
 # Not only networks on path, but all connected networks need to be marked
 # to get a valid topology.
 sub mark_adjacent_networks {
-    my ($router) =@_;
-    for my $interface (@{ $router->{interfaces} }) {
+    my ($router) = @_;
+    for my $interface (Netspoc::get_intf($router)) {
         $interface->{network}->{is_used} = 1;
     }
     return;
@@ -121,9 +121,9 @@ sub path_unmanaged {
     my ($obj, $in_interface) = @_;
     return 1 if $obj->{is_used};
     return 0 if $obj->{managed};
-    return 0 if $obj->{is_checked};
+    return if $obj->{active_path};
 
-    $obj->{is_checked} = 1;
+    local $obj->{active_path} = 1;
     my $result = 0;
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_interface;
@@ -145,11 +145,20 @@ sub mark_unmanaged {
 	next if not $network->{is_used};
 	for my $interface (@{ $network->{interfaces} }) {
 	    my $router = $interface->{router};
+#	    Netspoc::debug "Path unmanaged $router->{name} $interface->{name}";
 	    path_unmanaged($router, $interface);
 	}
     }
     return;
 }	
+
+sub mark_path {
+    my ($src, $dst) = @_;
+    my $rule = {src => $src, dst => $dst, prt => {}};
+#    Netspoc::debug "Path $src->{name} $dst->{name}";
+    &path_walk($rule, \&mark_topology);
+    return;
+}
 
 # We can't use %aggregates from Netspoc.pm because it only holds named
 # aggregates. But we need unnamed aggregates like any:[network:XX]
@@ -319,7 +328,7 @@ for my $area (values %areas) {
 
 for my $router (values %routers) {
     next unless $router->{is_used};
-    for my $interface (@{$router->{interfaces}}) {
+    for my $interface (Netspoc::get_intf($router)) {
 
 	# Mark networks referenced in attribute reroute_permit.
 	if ($interface->{reroute_permit}) {
@@ -338,11 +347,13 @@ for my $router (values %routers) {
 	    $type->{key_exchange}->{is_used} = 1;
 	};
 	
-	if (my $aref = $interface->{hub}) {
-	    $mark_crypto->($_) for @$aref;
-	}
-	elsif (my $crypto = $interface->{spoke}) {
-	    $mark_crypto->($crypto);
+	if ($interface->{ip} eq 'tunnel') {
+	    $mark_crypto->($interface->{crypto});
+            my $peers = $interface->{peers};
+            for my $peer (@$peers) {
+                mark_path($interface->{real_interface}, 
+                          $peer->{real_interface}); 
+            }
 	}
     }
 
@@ -355,8 +366,7 @@ for my $router (values %routers) {
 	    my ($src) = 
 		Netspoc::path_auto_interfaces($router->{interfaces}->[0], 
 					     $host);
-	    my $rule = {src => $src, dst => $host, prt => {}};
-	    &path_walk($rule, \&mark_topology);
+            mark_path($src, $host);
 	}
     }
 }
@@ -413,6 +423,10 @@ sub mark_watching_owners {
     return;
 }
 
+sub by_index {
+    return $a->{src_index} <=> $b->{src_index}
+}
+
 for my $owner (values %owners) {
     next if not $owner->{is_used};
     mark_watching_owners($owner);
@@ -422,8 +436,7 @@ for my $owner (values %owners) {
 # Routers and networks have been marked by mark_topology.
 # Protocols have been marked while %expanded_rules have been processed above.
 # Groups and protocolroups objects have been marked during expand_services.
-for my $object ( sort { $a->{src_index} <=> $b->{src_index} }
-                 map { $_->{src_index} ? ($_) : () }
+for my $object ( sort by_index map { $_->{src_index} ? ($_) : () }
     values %routers,
     values %networks,
     values %Netspoc::aggregates,
@@ -448,7 +461,7 @@ for my $object ( sort { $a->{src_index} <=> $b->{src_index} }
 
 # Source of pathrestrictions can't be used literally,
 # but must be reconstructed from internal data structure.
-for my $restrict (values %pathrestrictions) {
+for my $restrict (sort by_index values %pathrestrictions) {
     my $used = 0;
     for my $interface (@{ $restrict->{elements} }) {
         if ($interface->{router}->{is_used}) {
@@ -469,6 +482,6 @@ for my $restrict (values %pathrestrictions) {
 }
 
 # All unwanted services have already been deleted above.
-for my $service (values %services) {
+for my $service (sort by_index values %services) {
     print $service->{src_code}, "\n";
 }

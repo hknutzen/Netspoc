@@ -67,7 +67,7 @@ use Netspoc;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '3.063'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.064'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -183,8 +183,9 @@ for my $type ('deny', 'supernet', 'permit') {
 }
 for my $service_name (sort keys %service2rules) {
     for my $rule (@{ $service2rules{$service_name} }) {
-        my ($action, $src, $dst, $src_range, $prt) = 
-            @{$rule}{qw(action src dst src_range prt)};
+        my ($deny, $src, $dst, $src_range, $prt) = 
+            @{$rule}{qw(deny src dst src_range prt)};
+        my $action   = $deny ? 'deny' : 'permit';
         my $src_info = ip_info($src);
         my $dst_info = ip_info($dst);
         my $prt_info = prt_info($src_range, $prt);

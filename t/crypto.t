@@ -61,7 +61,6 @@ isakmp:aes256SHA = {
 
 crypto:vpn = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 
 network:intern = { ip = 10.1.1.0/24;}
@@ -273,13 +272,19 @@ isakmp:aes256SHA = {
 
 crypto:vpn = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 
-network:intern = { ip = 10.1.2.0/24;}
+network:intern = { ip = 10.1.2.0/24; }
 
+router:r = {
+ model = IOS;
+ managed = routing_only;
+ interface:intern = { ip = 10.1.2.1; hardware = e0; }
+ interface:trans = { ip = 10.9.9.1; hardware = e1; }
+}
+network:trans = { ip = 10.9.9.0/24; }
 router:gw = {
- interface:intern;
+ interface:trans = { ip = 10.9.9.2; }
  interface:dmz = { ip = 192.168.0.2; }
 }
 
@@ -302,7 +307,7 @@ router:asavpn = {
 network:dmz = { ip = 192.168.0.0/24; }
 
 router:softclients = {
- interface:intern = { spoke = crypto:vpn; }
+ interface:trans = { spoke = crypto:vpn; ip = 10.9.9.3; }
  interface:customers1;
 }
 
@@ -319,9 +324,13 @@ service:test1 = {
 END
 
 $out = <<'END';
+--r
+! [ Routing ]
+ip route 10.99.1.0 255.255.255.0 10.9.9.2
 --asavpn
 ! [ Routing ]
 route outside 10.1.2.0 255.255.255.0 192.168.0.2
+route outside 10.9.9.0 255.255.255.0 192.168.0.2
 route outside 10.99.1.0 255.255.255.0 192.168.0.2
 --
 tunnel-group VPN-single type remote-access
@@ -358,19 +367,23 @@ $title = 'Missing route for VPN ASA with internal software clients';
 
 $in .= <<'END';
 router:gw2 = {
- interface:intern;
- interface:dmz = { ip = 192.168.0.3; }
+ interface:trans = { ip = 10.9.9.4; }
+ interface:dmz = { ip = 192.168.0.4; }
 }
 END
 
 $out = <<END;
-Error: Can\'t determine next hop to reach network:intern while moving routes
+Error: Can\'t determine next hop to reach network:trans while moving routes
  of interface:asavpn.tunnel:softclients to interface:asavpn.dmz.
  Exactly one route is needed, but 2 candidates were found:
  - interface:gw.dmz
  - interface:gw2.dmz
 Warning: Two static routes for network:intern
  at interface:asavpn.dmz via interface:gw2.dmz and interface:gw.dmz
+Warning: Two static routes for network:trans
+ at interface:asavpn.dmz via interface:gw2.dmz and interface:gw.dmz
+Warning: Two static routes for network:customers1
+ at interface:r.trans via interface:gw2.trans and interface:gw.trans
 END
 
 test_err($title, $in, $out);
@@ -399,7 +412,6 @@ isakmp:aes256SHA = {
 
 crypto:vpn = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 
 network:intern = { ip = 10.1.2.0/24;}
@@ -444,7 +456,7 @@ service:test1 = {
 END
 
 $out = <<END;
-Warning: Ignoring any:[network:customers1] with software clients in src of rule in service:test1
+Warning: Ignoring any:[network:tunnel:softclients] with software clients in src of rule in service:test1
 END
 
 test_err($title, $in, $out);
@@ -492,12 +504,10 @@ isakmp:3desSHA = {
 
 crypto:sts1 = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 
 crypto:sts2 = {
  type = ipsec:3desSHA;
- tunnel_all;
  detailed_crypto_acl;
 }
 
@@ -648,7 +658,6 @@ isakmp:aes256SHA = {
 
 crypto:vpn = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 
 network:intern = { ip = 10.1.1.0/24;}
@@ -807,7 +816,6 @@ isakmp:aes256SHA = {
 
 crypto:sts = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 
 network:intern = { 
@@ -943,7 +951,6 @@ isakmp:aes256SHA = {
 
 crypto:sts = {
  type = ipsec:aes256SHA;
- tunnel_all;
 }
 
 network:intern = { ip = 10.1.1.0/24; }
@@ -983,8 +990,8 @@ network:lan1 = { ip = 10.99.1.0/24; }
 END
 
 
-$out = <<'END';
-Error: router:asavpn can't establish crypto tunnel to interface:vpn1.internet with unknown IP
+$out = <<"END";
+Error: router:asavpn can\'t establish crypto tunnel to interface:vpn1.internet with unknown IP
 END
 
 test_err($title, $in, $out);
@@ -1024,6 +1031,32 @@ access-group outside_in in interface outside
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Must not traverse crypto interface';
+############################################################
+
+$in .= <<END;
+service:t = {
+ user = network:intern;
+ permit src = user; dst = network:dmz; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: No valid path
+ from any:[network:intern]
+ to any:[network:dmz]
+ for rule permit src=any:[network:intern]; dst=any:[network:dmz]; prt=--;
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from any:[network:intern]
+ to any:[network:dmz]
+ for rule permit src=network:intern; dst=network:dmz; prt=tcp 80; of service:t
+ Check path restrictions and crypto interfaces.
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;

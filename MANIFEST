@@ -80,12 +80,13 @@ t/pathrestrict-border.t
 t/pathrestrict.t
 t/private.t
 t/protect-interfaces.t
+t/protocol.t~
 t/rename.t
 t/route.t
 t/routing_only.t
+t/secondary-interface.t
 t/secondary.t
 t/stateless.t
-t/t-owner.t~
 t/unenforceable.t
 t/unmanaged.t
 t/unnumbered.t
