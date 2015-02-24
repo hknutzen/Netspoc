@@ -3053,12 +3053,12 @@ sub read_service {
             }
             my $rule = {
                 service  => $service,
+                action   => $action,
                 src      => $src,
                 dst      => $dst,
                 prt      => $prt,
                 has_user => $src_user ? $dst_user ? 'both' : 'src' : 'dst',
             };
-            $rule->{deny} = 1 if $action eq 'deny';
             $rule->{log} = $log if $log;
             push @{ $service->{rules} }, $rule;
         }
@@ -6848,7 +6848,7 @@ sub expand_rules {
     my $foreach   = $service->{foreach};
 
     for my $unexpanded (@$rules_ref) {
-        my $deny = $unexpanded->{deny};
+        my $deny = $unexpanded->{action} eq 'deny';
         my $log  = $unexpanded->{log};
         if ($log) {
             check_log($log, $context);
