@@ -7244,7 +7244,6 @@ sub propagate_owners {
         # then set owner of this zone to the one owner.
         my $owner;
         for my $network (@{ $zone->{networks} }) {
-            next if $network->{loopback};
             next if $network->{ip} eq 'tunnel';
             my $net_owner = $network->{owner};
             next ZONE if not $net_owner;
@@ -7500,7 +7499,7 @@ sub propagate_owners {
         my $owner = $router->{owner} or next;
         $owner->{is_used} = 1;
 
-        for my $interface (@{ $router->{interfaces} }) {
+        for my $interface (get_intf($router)) {
 
             # Loadbalancer interface with {vip} can have dedicated owner.
             $interface->{owner} ||= $owner;
