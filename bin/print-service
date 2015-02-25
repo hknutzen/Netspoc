@@ -149,8 +149,8 @@ my $file_config = &read_config($in_path);
 # Read and process Netspoc configuration file or directory.
 &read_file_or_dir($in_path);
 
-$name =~ s/^service://;
 if ($name) {
+    $name =~ s/^service://;
     $services{$name} or die "Unknown service '$name'\n";
 }
 &link_topology();
