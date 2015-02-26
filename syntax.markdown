@@ -56,11 +56,11 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 ##Network definition
 
     <network definition> ::=
-      network:<name>[/<bridge-part>] = {
+      network:<network name> = {
          [ <description> ]
          ip = <ip-net>; | unnumbered;
          <network NAT> *
-         [ subnet_of = network:<name>; ]
+         [ subnet_of = network:<network name>; ]
          [ has_subnets;                ]
          [ crosslink;                  ]
          [ isolated_ports;             ]
@@ -72,14 +72,15 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
       nat:<name> = { 
          ip = <ip-net>; |  hidden; | identity;
          [ dynamic;                    ]
-         [ subnet_of = network:<name>; ]
+         [ subnet_of = network:<network name>; ]
       }
 
-    <bridge-part> ::= <name>
-    <description> ::= description = <text_to_end_of_line>[;]
-    <ip-net>      ::= <ip>/<prefix-len>
-    <ip>          ::= n.n.n.n with 0 <= n <= 255
-    <prefix-len>  ::= 0 | 1 | 2 | ... | 32
+    <network name> ::= <name>[/<bridge-part>]
+    <bridge-part>  ::= <name>
+    <description>  ::= description = <text_to_end_of_line>[;]
+    <ip-net>       ::= <ip>/<prefix-len>
+    <ip>           ::= n.n.n.n with 0 <= n <= 255
+    <prefix-len>   ::= 0 | 1 | 2 | ... | 32
 
 ##Host definition
 
@@ -100,7 +101,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 ##Router definition
 
     <router definition> ::=
-      router:<name>[@<VRF-name>] = {
+      router:<router name> = {
          [ <description> ]
          [ managed; | managed = <filter type>;        ]
          [ model = <model>;                           ]
@@ -120,6 +121,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          <short interface definition> *
       }
     
+    <router name>  ::= <name>[@<VRF-name>]
     <VRF-name>     ::= <name>
     <filter type>  ::= primary | full | standard | secondary |
                        local | local_secondary | routing_only
@@ -131,7 +133,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 ##Interface definition
 
     <interface definition> ::= 
-      interface:<name>[/<bridge-part>] = {
+      interface:<network name> = {
          [ <description> ]
          [ ip = ( <ip>(, <ip>)* | unnumbered | negotiated ); ]
          <secondary interface definition> *
@@ -147,7 +149,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ reroute_permit = <object set>;       ]
          [ routing = ( EIGRP | OSPF | dynamic ); ]
          [ security_level = <int>;              ]
-         [ subnet_of = network:<name>;          ]
+         [ subnet_of = network:<network name>;          ]
          [ vip;                                 ]
          [ owner = <name>;                      ]
       }
@@ -165,14 +167,14 @@ here `<object set>` must expand to networks.
       }
 
     <short interface definition> ::=
-      interface:<name>;
+      interface:<network name>;
 
 ## Aggregate definition
 
     <aggregate defintion> ::=
       any:<name> = { 
          [ <description> ]
-         link = ( network:<name> | router:<name> ); 
+         link = ( network:<network name> | router:<router name> ); 
          [ ip = <ip-net>;     ]
          [ owner = <name>;    ]
          <network NAT> *
@@ -187,7 +189,7 @@ here `<object set>` must expand to networks.
          [ <description> ]
          ( [ border = <object set>; ]
            [ inclusive_border = <object set>; ] 
-         ) | anchor = network:<name>;
+         ) | anchor = network:<network name>;
          [ auto_border;    ]
          [ owner = <name>; ]
          <network NAT> *
@@ -205,20 +207,22 @@ where `<network NAT>` must be hidden or dynamic.
 
 ##Set of objects
 
-    <object set>   ::= <intersection> | <object set>,<intersection>
-    <intersection> ::= <network object> | <intersection>&<complement> 
-                                        | <complement>&<intersection>
-    <complement>   ::= <network object> | !<network object>
+    <object set>   ::= <intersection> | <object set> , <intersection>
+    <intersection> ::= <network object> | <intersection> & <complement> 
+                                        | <complement> & <intersection>
+    <complement>   ::= <network object> | ! <network object>
 
-    <network object> ::=
-      host:<name> | network:<name> | any:<name> | interface:<name>.<name>[.<name>] 
-      | group:<name> | <auto group>
-
+    <network object> ::= host:<name>
+                       | network:<network name>
+                       | any:<name>
+                       | interface:<router name>.<network name>[.<name>]
+                       | group:<name>
+                       | <auto group>
 
 ##Automatic group
 
     <auto group> ::=
-      interface:<name>."["<selector>"]"
+      interface:<router name>."["<selector>"]"
     | interface:"[" [ managed & ] <object set with area>"]"."["<selector>"]"
     | network:"["<object set with area>"]"
     | any:"[" [ ip = <ip-net> & ] <object set with area>"]"
@@ -412,7 +416,7 @@ in attribute `radius_attributes`.
 
 Software clients are similar to hosts, but special names are used.
 
-    network:<name> = {
+    network:<network name> = {
       ..
       <Software client>*
       <Software client group>*
