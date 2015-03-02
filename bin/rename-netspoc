@@ -299,7 +299,7 @@ sub setup_pattern {
         my ($n_type, $new_name) = ($new =~ /^(\w+):(.*)$/) or 
             fatal_err "Missing type in '$new'";
         $type eq $n_type or 
-            fatal_err "Types '$type' and '$n_type' must be identical";
+            fatal_err "Types must be identical in\n - $old\n - $new";
         setup_subst($type, $old_name, $new_name);
     }
     return;
