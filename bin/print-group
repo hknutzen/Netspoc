@@ -1,4 +1,4 @@
-#!/usr/bin/perl -CSDAL
+#!/usr/bin/perl
 
 =head1 NAME
 
@@ -79,6 +79,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 use strict;
 use warnings;
+use open qw(:std :utf8);
 use Netspoc;
 use Getopt::Long;
 use Pod::Usage;
