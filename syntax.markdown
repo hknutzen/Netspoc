@@ -411,6 +411,7 @@ in attribute `radius_attributes`.
         [ authorization-server-group = <string>;  ]
         [ authorization-required;                 ]
         [ username-from-certificate = <string>;   ]
+        [ split-tunnel-policy = tunnelall | tunnelspecified; ]
       }
 
 ###Software client
