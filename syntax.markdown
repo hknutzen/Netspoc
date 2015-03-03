@@ -397,6 +397,7 @@ in attribute `radius_attributes`.
       radius_attributes = {
         trust-point = <string>;
         [ banner = <string>;                      ]
+        [ check-subject-name = <string>;          ]
         [ dns-server = <string>;                  ]
         [ default-domain = <string>;              ]
         [ split-dns;                              ]
