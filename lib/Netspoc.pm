@@ -1379,9 +1379,7 @@ sub read_host {
                    managed => 1, model => 1, hardware => 1, server_name => 1);
         for my $key (keys %$host) {
             next if $ok{$key};
-            error_atline("Managed $host->{name} must not have ",
-                           ($key eq 'nat') ? "nat definition"
-                         :                   "attribute '$key'");
+            error_atline("Managed $host->{name} must not have attribute '$key'");
         }
         return host_as_interface($host);
     }
