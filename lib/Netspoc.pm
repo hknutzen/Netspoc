@@ -1256,13 +1256,14 @@ sub host_as_interface {
         err_msg("Missing 'model' for managed $host->{name}");
         
         # Prevent further errors.
-        $host->{model} = { name => 'unknown' };
+        $model = $host->{model} = { name => 'unknown' };
     }
-    if (! $hw_name) {
+    elsif (!$model->{can_managed_host}) {
+        err_msg("Must not use model $model->{name} at managed $name");
+    }
+    if (!$hw_name) {
         err_msg("Missing 'hardware' for $name");
     }
-    $model->{can_managed_host} 
-      or err_msg("Must not use model $model->{name} at managed $name");
 
     # Use device_name with "host:.." prefix to prevent name clash with 
     # real routers.

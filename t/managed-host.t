@@ -305,6 +305,23 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Missing model at managed host";
+############################################################
+
+$in = <<'END';
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; ip = 10.1.1.11; hardware = eth0; }
+}
+END
+
+$out = <<'END';
+Error: Missing 'model' for managed host:h1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Duplicate IP address";
 ############################################################
 
