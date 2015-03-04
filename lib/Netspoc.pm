@@ -1382,6 +1382,7 @@ sub read_host {
             next if $ok{$key};
             error_atline("Managed $host->{name} must not have attribute '$key'");
         }
+        $host->{ip} ||= 'short';
         return host_as_interface($host);
     }
     return $host;

@@ -322,6 +322,41 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Missing IP address";
+############################################################
+
+$in = <<'END';
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = Linux; hardware = eth0; }
+}
+END
+
+$out = <<'END';
+Error: Exactly one of attributes 'ip' and 'range' is needed at line 3 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Unexpected IP range";
+############################################################
+
+$in = <<'END';
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { range = 10.1.1.7-10.1.1.17; 
+             managed; model = Linux; hardware = eth0; }
+}
+END
+
+$out = <<'END';
+Error: Managed host:h1 must not have attribute 'range' at line 4 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Duplicate IP address";
 ############################################################
 
