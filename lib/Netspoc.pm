@@ -9587,6 +9587,9 @@ sub zone_eq {
 # Mark zones and managed routers with areas they belong to.
 # Set attribute {border}, {inclusive_border} for areas defined 
 # by anchor and auto_border.
+# Returns 
+# - undef on success
+# - aref of interfaces, if invalid path was found in loop.
 sub set_area1 {
     my ($obj, $area, $in_interface) = @_;
 
@@ -9623,9 +9626,8 @@ sub set_area1 {
             if ($is_inclusive->{$area} xor !$is_zone) {
 
                 # Found another border of current area from wrong side.
-                err_msg("Inconsistent definition of $area->{name} in loop at\n",
-                        " $interface->{name}. It must not be reached from",
-                        " $obj->{name}");
+                # Collect interfaces of invalid path.
+                return [ $interface ];
             }
 
             # Remember that we have found this other border.
@@ -9646,7 +9648,10 @@ sub set_area1 {
         next if $interface->{main_interface};
 
         my $next = $interface->{$is_zone ? 'router' : 'zone'};
-        set_area1($next, $area, $interface);
+        if (my $err_path = set_area1($next, $area, $interface)) {
+            push @$err_path, $interface;
+            return $err_path;
+        }
     }
     return;
 }
@@ -9779,6 +9784,21 @@ sub inherit_nat_from_zone {
     return;
 }
 
+# Return value: 
+# - undef: ok
+# - 1: error was shown
+sub set_area {
+    my ($obj, $area, $in_interface) = @_;
+    if (my $err_path = set_area1($obj, $area, $in_interface)) {
+        push @$err_path, $in_interface if $in_interface;
+        err_msg("Inconsistent definition of $area->{name} in loop.\n",
+                " It is reached from outside via this path:\n",
+                " - ", join("\n - ", map { $_->{name} } reverse @$err_path));
+        return 1;
+    }
+    return;
+}
+
 sub set_zone {
     progress('Preparing security zones and areas');
 
@@ -9848,7 +9868,7 @@ sub set_zone {
     for my $area (@areas) {
         $area->{zones} = [];
         if (my $network = $area->{anchor}) {
-            set_area1($network->{zone}, $area, 0);
+            set_area($network->{zone}, $area, 0);
         }
         else {
 
@@ -9869,7 +9889,8 @@ sub set_zone {
             }
             
             $lookup->{$start} = 'found';
-            set_area1($obj1, $area, $start);
+            my $err = set_area($obj1, $area, $start);
+            next if $err;
 
             for my $attr (qw(border inclusive_border)) {
                 my $borders = $area->{$attr} or next;

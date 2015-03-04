@@ -200,10 +200,17 @@ area:a2 = {
 END
 
 $out = <<'END';
-Error: Inconsistent definition of area:a1 in loop at
- interface:asa1.n2. It must not be reached from any:[network:n2]
-Error: Inconsistent definition of area:a2 in loop at
- interface:asa2.n2. It must not be reached from router:asa2
+Error: Inconsistent definition of area:a1 in loop.
+ It is reached from outside via this path:
+ - interface:asa2.n2
+ - interface:asa1.n2
+Error: Inconsistent definition of area:a2 in loop.
+ It is reached from outside via this path:
+ - interface:asa2.n2
+ - interface:asa1.n2
+ - interface:asa1.n3
+ - interface:asa2.n3
+ - interface:asa2.n2
 END
 
 test_err($title, $in, $out);
