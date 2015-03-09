@@ -12,7 +12,7 @@ sub test_run {
     print $in_fh $input;
     close $in_fh;
 
-    my $cmd = "perl -CSDAL -I lib bin/rename-netspoc -q - $args < $filename";
+    my $cmd = "perl -I lib bin/rename-netspoc -q - $args < $filename";
     open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
     # Undef input record separator to read all output at once.

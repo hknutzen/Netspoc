@@ -322,6 +322,9 @@ sub read_pattern {
 # Argument processing
 ####################################################################
 
+# Make @ARGV utf-8.
+$_ = Encode::decode('UTF-8' , $_) for @ARGV;
+
 # Read search / replace pairs from this file.
 my $from_file;
 my $help;
