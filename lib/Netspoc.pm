@@ -2235,7 +2235,7 @@ sub read_router {
     if (my $managed = $router->{managed}) {
         if ($managed =~ /^local/) {
             $router->{filter_only} or
-                err_msg("Missing attribut 'filter_only' for $name");
+                err_msg("Missing attribute 'filter_only' for $name");
             $model->{has_io_acl} and
                 err_msg("Must not use 'managed = $managed' at $name",
                         " of model $model->{name}");
