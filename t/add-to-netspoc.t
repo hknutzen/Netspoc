@@ -7,12 +7,12 @@ use Test::Differences;
 use File::Temp qw/ tempfile tempdir /;
 
 sub test_run {
-    my ($title, $input, $args, $expected) = @_;
+    my ($what, $title, $input, $args, $expected) = @_;
     my ($in_fh, $filename) = tempfile(UNLINK => 1);
     print $in_fh $input;
     close $in_fh;
 
-    my $cmd = "perl -I lib bin/add-to-netspoc -q - $args < $filename";
+    my $cmd = "perl -I lib $what -q - $args < $filename";
     open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
     # Undef input record separator to read all output at once.
@@ -23,10 +23,24 @@ sub test_run {
     return;
 }
 
+sub test_add {
+    my ($title, $input, $args, $expected) = @_;
+    $title = "Add: $title";
+    test_run('bin/add-to-netspoc', $title, $input, $args, $expected);
+    return;
+}
+
+sub test_rmv {
+    my ($title, $input, $args, $expected) = @_;
+    $title = "Remove: $title";
+    test_run('bin/remove-from-netspoc',  $title, $input, $args, $expected);
+    return;
+}
+
 my ($title, $in, $out);
 
 ############################################################
-$title = 'Add to network';
+$title = 'host at network';
 ############################################################
 
 $in = <<'END';
@@ -48,17 +62,18 @@ host:x, network:Test, host:Toast, host:y,
     ;
 END
 
-test_run($title, $in, 'network:Test host:Toast', $out);
+test_add($title, $in, 'network:Test host:Toast', $out);
+test_rmv($title, $out, 'host:Toast', $in);
 
 ############################################################
-$title = 'Add in service, but not in area and pathrestriction';
+$title = 'in service, but not in area and pathrestriction';
 ############################################################
 
 $in = <<'END';
 service:x = {
  user = interface:r.x, host:b;
  permit src = any:x; dst = user; prt = tcp;
- permit src = user; dst = any:x; 
+ permit src = user; dst = any:x;
         prt = tcp;
 }
 pathrestriction:p =
@@ -74,7 +89,7 @@ $out = <<'END';
 service:x = {
  user = interface:r.x, host:y, host:b;
  permit src = any:x, group:y; dst = user; prt = tcp;
- permit src = user; dst = any:x, group:y; 
+ permit src = user; dst = any:x, group:y;
         prt = tcp;
 }
 pathrestriction:p =
@@ -86,10 +101,11 @@ area:a = {
 }
 END
 
-test_run($title, $in, 'interface:r.x host:y any:x group:y', $out);
+test_add($title, $in, 'interface:r.x host:y any:x group:y', $out);
+test_rmv($title, $out, 'host:y group:y', $in);
 
 ############################################################
-$title = 'Indentation';
+$title = 'with indentation';
 ############################################################
 
 $in = <<'END';
@@ -118,13 +134,26 @@ group:x =
   host:g1;
 END
 
-test_run($title, $in, 
+test_add($title, $in, 
          'host:a host:a1 host:b host:b1 host:d host:d1'.
          ' host:e host:e1 host:f host:f1 host:g host:g1', 
          $out);
 
+$in = <<'END';
+group:x = 
+ host:a,
+  host:b, host:c,
+  host:d,
+
+  host:e,
+host:f,
+  host:g,
+  ;
+END
+
+test_rmv($title, $out, 'host:a1 host:b1 host:d1 host:e1 host:f1 host:g1', $in);
 ############################################################
-$title = 'Find and add umlauts';
+$title = 'Find and change umlauts';
 ############################################################
 
 $in = <<'END';
@@ -135,8 +164,8 @@ $out = <<'END';
 group:x = host:Müß, host:Muess, host:Mass, host:Maß;
 END
 
-test_run($title, $in, 'host:Müß host:Muess host:Mass host:Maß', $out);
-
+test_add($title, $in, 'host:Müß host:Muess host:Mass host:Maß', $out);
+test_rmv($title, $out, 'host:Muess host:Maß', $in);
 ############################################################
 $title = 'Read pairs from file';
 ############################################################
@@ -166,7 +195,27 @@ host:abc,
 network:abx;
 END
 
-test_run($title, $in, "-f $filename", $out);
+test_add($title, $in, "-f $filename", $out);
+
+my $remove_from = <<'END';
+network:abx
+host:id:xyz@dom
+group:bbb
+interface:r.n
+END
+($in_fh, $filename) = tempfile(UNLINK => 1);
+print $in_fh $remove_from;
+close $in_fh;
+
+$in = <<'END';;
+group:g = 
+interface:r.n.sec,
+any:aaa, network:xyz,
+host:abc,
+;
+END
+
+test_rmv($title, $out, "-f $filename", $in);
 
 ############################################################
 done_testing;
