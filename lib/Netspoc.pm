@@ -7842,7 +7842,7 @@ sub distribute_nat {
 
             # Must not apply one NAT tag multiple times in a row.
             if (grep { $_ eq  $nat_tag } @$out_nat_tags) {
-                err_msg("nat:$nat_tag is applied multiple times between",
+                err_msg("nat:$nat_tag is applied twice between",
                         " $in_router->{name} and $router->{name}");
                 next;
             }
