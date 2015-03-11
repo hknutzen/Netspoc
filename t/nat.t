@@ -929,7 +929,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Must not apply same NAT tag multiple times';
+$title = 'Must not apply same NAT tag twice';
 ############################################################
 
 $in = <<'END';
@@ -951,7 +951,7 @@ network:n2 = { ip = 10.2.2.0/24; }
 END
 
 $out = <<'END';
-Error: nat:n is applied multiple times between router:r1 and router:r2
+Error: nat:n is applied twice between router:r1 and router:r2
 END
 
 test_err($title, $in, $out);
