@@ -7815,12 +7815,15 @@ sub distribute_nat {
     # Network which has translation with tag $nat_tag must not be located
     # in area where this tag is effective.
     for my $network (@{ $domain->{networks} }) {
-        if ($network->{nat} and $network->{nat}->{$nat_tag}) {
-            err_msg "$network->{name} is translated by $nat_tag,\n",
-              " but is located inside the translation domain of $nat_tag.\n",
-              " Probably $nat_tag was bound to wrong interface",
-              " at $in_router->{name}.";
-        }
+        my $nat = $network->{nat} or next;
+        $nat->{$nat_tag} or next;
+        err_msg("$network->{name} is translated by $nat_tag,\n",
+                " but is located inside the translation domain of $nat_tag.\n",
+                " Probably $nat_tag was bound to wrong interface",
+                " at $in_router->{name}.");
+
+        # Show error message only once.
+        last;
     }
 
     # Activate loop detection.
