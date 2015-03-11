@@ -1955,7 +1955,7 @@ sub set_pix_interface_level {
                 map { $_->{security_level} } @{ $hardware->{interfaces} }
           )
         {
-            if (@levels > 2 && !equal(@levels)) {
+            if (@levels >= 2 && !equal(@levels)) {
                 err_msg "Must not use different values",
                   " for attribute 'security_level\n",
                   " at $router->{name}, hardware $hwname: ", join(',', @levels);
