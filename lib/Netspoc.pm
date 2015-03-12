@@ -1756,8 +1756,12 @@ sub read_interface {
                         syntax_err("Expected attribute IP");
                     }
                 }
-                $secondary->{ip} or error_atline("Missing IP address");
-                push @secondary_interfaces, $secondary;
+                if ($secondary->{ip}) {
+                    push @secondary_interfaces, $secondary;
+                }
+                else {
+                    error_atline("Missing IP address");
+                }
             }
             else {
                 syntax_err("Expected nat or secondary interface definition");
