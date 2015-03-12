@@ -7862,20 +7862,24 @@ sub distribute_nat {
                     # static NAT.
                     my $nat_info = $href->{$nat_tag};
                     my $next_info = $href->{$nat_tag2};
-                    my $what;
+
+                    # Use $next_info->{name} and not $nat_info->{name}
+                    # because $nat_info may show wrong network,
+                    # because we combined different hidden networks into
+                    # $nat_tags2multi.
                     if ($nat_info->{hidden}) {
-                        $what = 'hidden NAT';
+                        err_msg("Must not change hidden nat:$nat_tag",
+                                " using nat:$nat_tag2\n",
+                                " for $next_info->{name}",
+                                " at $router->{name}");
                     }
                     elsif ($nat_info->{dynamic}) {
                         if(!($next_info->{dynamic})) {
-                            $what = 'NAT from dynamic to static';
+                            err_msg("Must not change dynamic nat:$nat_tag",
+                                    " to static using nat:$nat_tag2\n",
+                                    " for $nat_info->{name}",
+                                    " at $router->{name}");
                         }
-                    }
-                    if ($what) {
-                        err_msg("Must not change $what",
-                                " for $nat_info->{name}\n",
-                                " using NAT tag '$nat_tag2'",
-                                " at $router->{name}");
                     }
                     next DOMAIN;
                 }
