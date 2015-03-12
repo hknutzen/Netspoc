@@ -174,7 +174,7 @@ here `<object set>` must expand to networks.
     <aggregate defintion> ::=
       any:<name> = { 
          [ <description> ]
-         link = ( network:<network name> | router:<router name> ); 
+         link = network:<network name>; 
          [ ip = <ip-net>;     ]
          [ owner = <name>;    ]
          <network NAT> *
