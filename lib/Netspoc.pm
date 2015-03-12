@@ -1889,10 +1889,12 @@ sub read_interface {
           };
         if (keys %copy) {
             my $attr = join ", ", map { "'$_'" } keys %copy;
-            error_atline("Invalid attributes $attr for loopback interface");
+            my $type = $interface->{vip} ? "'vip'" : 'loopback';
+            error_atline("Invalid attributes $attr for $type interface");
         }
         if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
-            error_atline("Loopback interface must not be $interface->{ip}");
+            my $type = $interface->{vip} ? "'vip'" : 'Loopback';
+            error_atline("$type interface must not be $interface->{ip}");
         }
     }
     elsif ($interface->{subnet_of}) {
