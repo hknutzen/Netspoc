@@ -9282,9 +9282,9 @@ sub link_implicit_aggregate_to_zone {
     return;
 }
 
-# Link aggregate to zone. This is called late, after zones been set
-# up. But before find_subnets_in_zone calculates {up} and {networks}
-# relation.
+# Link aggregate to zone. This is called late, after zones have been
+# set up. But before find_subnets_in_zone calculates {up} and
+# {networks} relation.
 sub link_aggregates {
     my @aggregates_in_cluster;
     for my $name (sort keys %aggregates) {
@@ -9295,93 +9295,57 @@ sub link_aggregates {
         my $err;
         my $router;
         my $zone;
-      BLOCK:
-        {
-            if ($type eq 'network') {
-                my $network = $networks{$name};
-                if (not $network) {
-                    $err = "Referencing undefined $type:$name"
-                      . " from $aggregate->{name}";
-                    last BLOCK;
-                }
-                if ($network->{disabled}) {
-                    $aggregate->{disabled} = 1;
-                    next;
-                }
-                $private2 = $network->{private};
-                $zone     = $network->{zone};
-                $zone->{link} = $network;
-            }
-            elsif ($type eq 'router') {
-                $router = $routers{$name};
-                if (not $router) {
-                    $err = "Referencing undefined $type:$name"
-                      . " from $aggregate->{name}";
-                    last BLOCK;
-                }
-                if ($router->{disabled}) {
-                    $aggregate->{disabled} = 1;
-                    next;
-                }
-                if ($router->{managed} || $router->{routing_only}) {
-                    $err = "$aggregate->{name} must not be linked to"
-                      . " managed $router->{name}";
-                    last BLOCK;
-                }
-                if ($router->{semi_managed}) {
-                    $err = "$aggregate->{name} must not be linked to"
-                      . " $router->{name} with pathrestriction";
-                    last BLOCK;
-                }
-                if (!$router->{interfaces}) {
-                    err_msg "$aggregate->{name} must not be linked to",
-                      " $router->{name} without interfaces";
-                    last BLOCK;
-                }
-                $private2 = $router->{private};
-                $zone     = $router->{interfaces}->[0]->{network}->{zone};
-                $zone->{link} = $router;
-            }
-            else {
-                $err = "$aggregate->{name} must not be linked to $type:$name";
-                last BLOCK;
-            }
-            $private2 ||= 'public';
-            $private1 eq $private2
-              or err_msg "$private1 $aggregate->{name} must not be linked",
-              " to $private2 $type:$name";
 
-            my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
-            my $key = "$ip/$mask";
+        if ($type ne 'network') {
+            err_msg("$aggregate->{name} must not be linked to $type:$name");
+            $aggregate->{disabled} = 1;
+            next;
+        }
+        my $network = $networks{$name};
+        if (not $network) {
+            err_msg("Referencing undefined $type:$name",
+                    " from $aggregate->{name}");
+            $aggregate->{disabled} = 1;
+            next;
+        }
+        if ($network->{disabled}) {
+            $aggregate->{disabled} = 1;
+            next;
+        }
 
-            my $cluster = $zone->{zone_cluster};
-            for my $zone2 ($cluster ? @$cluster : ($zone)) {
-                if (my $other = $zone2->{ipmask2aggregate}->{$key}) {
-                    err_msg
-                      "Duplicate $other->{name} and $aggregate->{name}",
-                      " in $zone->{name}";
-                }
-            }
-            if ($cluster) {
-                push(@aggregates_in_cluster, $aggregate);
-            }
+        $private2 = $network->{private};
+        $zone     = $network->{zone};
+        $zone->{link} = $network;
+        $private2 ||= 'public';
+        $private1 eq $private2
+            or err_msg("$private1 $aggregate->{name} must not be linked",
+                       " to $private2 $type:$name");
 
-            # Aggregate with ip 0/0 is used to set attributes of zone.
-            if ($mask == 0) {
-                for my $attr (qw(has_unenforceable nat no_in_acl owner)) {
-                    if (my $v = delete $aggregate->{$attr}) {
-                        for my $zone2 ($cluster ? @$cluster : ($zone)) {
-                            $zone2->{$attr} = $v;
-                        }
+        my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
+        my $key = "$ip/$mask";
+
+        my $cluster = $zone->{zone_cluster};
+        for my $zone2 ($cluster ? @$cluster : ($zone)) {
+            if (my $other = $zone2->{ipmask2aggregate}->{$key}) {
+                err_msg("Duplicate $other->{name} and $aggregate->{name}",
+                        " in $zone->{name}");
+            }
+        }
+        if ($cluster) {
+            push(@aggregates_in_cluster, $aggregate);
+        }
+
+        # Aggregate with ip 0/0 is used to set attributes of zone.
+        if ($mask == 0) {
+            for my $attr (qw(has_unenforceable nat no_in_acl owner)) {
+                if (my $v = delete $aggregate->{$attr}) {
+                    for my $zone2 ($cluster ? @$cluster : ($zone)) {
+                        $zone2->{$attr} = $v;
                     }
                 }
             }
-            link_aggregate_to_zone($aggregate, $zone, $key);
         }
-        if ($err) {
-            err_msg($err);
-            $aggregate->{disabled} = 1;
-        }
+        link_aggregate_to_zone($aggregate, $zone, $key);
     }
     for my $aggregate (@aggregates_in_cluster) {
         duplicate_aggregate_to_cluster($aggregate);
