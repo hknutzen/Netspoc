@@ -126,7 +126,10 @@ sub path_unmanaged {
 
     local $obj->{active_path} = 1;
     my $result = 0;
-    for my $interface (@{ $obj->{interfaces} }) {
+    for my $interface (  is_router($obj)
+                       ? Netspoc::get_intf($obj) 
+                       : @{ $obj->{interfaces} })
+    {
         next if $interface eq $in_interface;
         my $next = $interface->{is_network($obj) ? 'router' : 'network'};
 	if (path_unmanaged($next, $interface)) {
