@@ -1895,6 +1895,7 @@ sub read_interface {
         if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
             my $type = $interface->{vip} ? "'vip'" : 'Loopback';
             error_atline("$type interface must not be $interface->{ip}");
+            $interface->{disabled} = 1;
         }
     }
     elsif ($interface->{subnet_of}) {
