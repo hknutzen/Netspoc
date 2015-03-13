@@ -1360,6 +1360,16 @@ sub read_host {
     $host->{ip} xor $host->{range}
       or error_atline("Exactly one of attributes 'ip' and 'range' is needed");
 
+    if ($host->{managed}) {
+        my %ok = ( name => 1, ip => 1, nat => 1, file => 1, private => 1,
+                   managed => 1, model => 1, hardware => 1, server_name => 1);
+        for my $key (sort keys %$host) {
+            next if $ok{$key};
+            error_atline("Managed $host->{name} must not have attribute '$key'");
+        }
+        $host->{ip} ||= 'short';
+        return host_as_interface($host);
+    }
     if ($host->{id}) {
         $host->{radius_attributes} ||= {};
     }
@@ -1374,16 +1384,6 @@ sub read_host {
             # Look at print_pix_static before changing this.
             error_atline("No NAT supported for host with 'range'");
         }
-    }
-    if ($host->{managed}) {
-        my %ok = ( name => 1, ip => 1, nat => 1, file => 1, private => 1,
-                   managed => 1, model => 1, hardware => 1, server_name => 1);
-        for my $key (keys %$host) {
-            next if $ok{$key};
-            error_atline("Managed $host->{name} must not have attribute '$key'");
-        }
-        $host->{ip} ||= 'short';
-        return host_as_interface($host);
     }
     return $host;
 }
