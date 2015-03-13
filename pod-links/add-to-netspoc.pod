@@ -108,6 +108,7 @@ sub check_name {
     $valid_type{$type} or fatal_err("Can't use type in '$typed_name'");
     $name =~ /([^-\w.:\@\/])/ and
         fatal_err("Invalid character '$1' in $typed_name");
+    return;
 }
 
 # Fill %add_to with $old => $new pairs.

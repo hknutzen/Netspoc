@@ -161,6 +161,7 @@ sub print_address {
     else {
         Netspoc::internal_err "Unexpected object $obj->{name}";
     }
+    return; # unused; only for perlcritic
 }
 
 ####################################################################
