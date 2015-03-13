@@ -1,5 +1,16 @@
 {{$NEXT}}
 
+3.065     2015-03-13 17:59:49+01:00 Europe/Berlin
+
+ - Programs 'remove-from-netspoc' and 'add-to-netspoc' have been added.
+   Use them to automatically change elements of groups and rules.
+   Try option '-man' to see the manual page.
+ - Program 'print-group' no longer prints host ranges as subnets.
+ - Fixed program 'print-service'.
+ - No longer support unmanaged router in 'link' attribute of aggregate.
+ - Better error message for inconsistent area definition in loop.
+ - Better error message for inconsistent NAT definition in loop.
+
 3.064     2015-02-24 13:51:47+01:00 Europe/Berlin
 
  - Internal processing of crypto tunnels has been improved.
