@@ -22,6 +22,8 @@ my %WriteMakefileArgs = (
     "bin/print-group",
     "bin/cut-netspoc",
     "bin/netspoc",
+    "bin/remove-from-netspoc",
+    "bin/add-to-netspoc",
     "bin/rename-netspoc"
   ],
   "LICENSE" => "gpl",
@@ -50,7 +52,7 @@ my %WriteMakefileArgs = (
     "Test::More" => 0,
     "lib" => 0
   },
-  "VERSION" => "3.064",
+  "VERSION" => "3.065",
   "test" => {
     "TESTS" => "t/*.t"
   }

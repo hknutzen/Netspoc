@@ -36,7 +36,7 @@ $title = "Missing attribute 'filter_only'";
 $in =~ s/filter_only/#filter_only/;
 
 $out = <<'END';
-Error: Missing attribut 'filter_only' for router:d32
+Error: Missing attribute 'filter_only' for router:d32
 Error: network:n1 doesn't match attribute 'filter_only' of router:d32
 END
 

@@ -2,35 +2,31 @@
 
 =head1 NAME
 
-rename-netspoc - Rename one or more objects in netspoc files
+add-to-netspoc - Augment one or more objects in netspoc files
 
 =head1 SYNOPSIS
 
-rename-netspoc [options] FILE|DIR SUBSTITUTION ...
+add-to-netspoc [options] FILE|DIR PAIR ...
 
 =head1 DESCRIPTION
 
 This program reads a netspoc configuration and one or more
-SUBSTITUTIONS. It substitutes found objects with its replacement in
+PAIRS. It augments given object by specified new object in
 each file. Changes are done in place, no backup files are created. But
 only changed files are touched. If FILE is `-', read standard input
 and write to standard output.
 
-=head1 SUBSTITUTION
+=head1 PAIR
 
-A SUBSTITUTION is a pair of typed names "type:NAME1" "type:NAME2".
-NAME1 is searched and replaced by NAME2. Both types of a single
-SUBSTITUTION must use the same type. Multiple SUBSTITUTIONS can be applied in a single run of rename-netspoc.
+A pair is a tuple of typed names "type1:NAME1" "type2:NAME2".
+Occurences of "type1:NAME1" are searched and
+replaced by "type1:NAME1, type2:NAME2".
+Changes are applied only in group definitions and 
+in implicit groups inside rules, i.e. after "user =", "src =", "dst = ".
+Multiple PAIRS can be applied in a single run of add-to-netspoc.
 
-A typed name can use any valid type and name in netspoc syntax.
-Valid types are: B<router network host any group area service owner
-admin protocol protocolgroup pathrestriction nat isakmp ipsec crypto>.
-
-A SUBSTITUTION of type B<network> also changes B<interface> and B<host:id>
-which reference the given network.  A SUBSTITUTION of type B<router>
-also changes B<interfaces> which reference the given router.
-A SUBSTITUTION of type B<nat> also changes the corresponding B<bind_nat> list.
-A SUBSTITUTION of type B<owner> also changes the corresponding B<sub_owner>.
+The following types can be used in PAIRS: 
+B<network host interface any group>.
 
 =head1 OPTIONS
 
@@ -38,7 +34,7 @@ A SUBSTITUTION of type B<owner> also changes the corresponding B<sub_owner>.
 
 =item B<-f> file
 
-Read SUBSTITUTIONS from file.
+Read PAIRS from file.
 If - is specified, read from standard input. 
 
 =item B<-q>
@@ -84,7 +80,7 @@ use Getopt::Long;
 use Pod::Usage;
 use Encode;
 
-our $VERSION = '3.065'; # VERSION: inserted by DZP::OurPkgVersion
+# VERSION: inserted by DZP::OurPkgVersion
 my $filename_encode = 'UTF-8';
  
 my $ignore_files = '^(raw|config|CVS|RCS|\.#.*|.*~)$';
@@ -100,105 +96,77 @@ sub fatal_err {
 }
 ## use critic
 
-my %global_type = 
-    map { $_ => 1 } qw( 
-router network host any group area service
-owner protocol protocolgroup pathrestriction nat isakmp ipsec crypto
-);
+my %valid_type = 
+    map { $_ => 1 } qw(network host interface any group area service);
 
-# NAT is applied with bind_nat.
-# Owner is optionally referenced as sub_owner.
-my %aliases = ( nat   => ['bind_nat'],
-                owner => ['sub_owner'], );
+my %add_to;
 
-my %subst;
+sub check_name {
+    my ($typed_name) = @_;
+    my ($type, $name) = ($typed_name =~ /^(\w+):(.*)$/) or 
+        fatal_err "Missing type in '$typed_name'";
+    $valid_type{$type} or fatal_err("Can't use type in '$typed_name'");
+    $name =~ /([^-\w.:\@\/])/ and
+        fatal_err("Invalid character '$1' in $typed_name");
+    return;
+}
 
-# Fill %subst with arrays of search/replace pairs for given type.
-sub setup_subst {
-    my ($type, $search, $replace) = @_;
-    $global_type{$type} or fatal_err("Unknown type $type");
-
-    # Quote pattern metacharacters.
-    $search = qr/\Q$search\E/;
-
-    # Escape perl sigils in replace string, because we apply eval on it.
-    $replace =~ s/([@%\$])/\\$1/g;
-
-    # Standard for all types.
-    push @{ $subst{$type} }, [qr/$search/, $replace];
-
-    # Network name occurs in interface name and in id: hosts.
-    if ($type eq 'network') {
-
-        # Definition of interface inside definition of router.
-        push(@{ $subst{interface} }, [ qr/$search/, $replace ]);
-
-        # Reference to interface ouside of definition of router.
-        push(@{ $subst{interface} },
-             [ qr/([\w@-]+\.)$search((?:\..*)?)/, '${1}'.$replace.'${2}' ]);
-        push(@{ $subst{host} },
-             [ qr/(id:.*\.)$search/, '${1}'.$replace ]);
-    }
-
-    # Router name occurs in interface name.
-    elsif ($type eq 'router') {
-        push(@{ $subst{interface} }, [ qr/$search([.@].*)/, $replace.'${1}' ]);
-    }
-
-    # Name of id: host is extended with some network name.
-    elsif ($type eq 'host') {
-        push(@{ $subst{host} }, [ qr/$search([.][\w-]+)/, $replace.'${1}' ]);
-    }
-
-    elsif (my $list = $aliases{$type}) {
-        for my $other (@$list) {
-            push @{ $subst{$other} }, [qr/$search/, $replace];
-        }
-    }
+# Fill %add_to with $old => $new pairs.
+sub setup_add_to {
+    my ($old, $new) = @_;
+    check_name($old);
+    check_name($new);
+    $add_to{$old} = $new;
     return;
 }
  
-sub subst {
-    my ($type, $name) = @_;
-    my $aref = $subst{$type} or return $name;
-    for my $pair (@$aref) {
-        my ($search, $replace) = @$pair;
-
-        # 1. eval gives double quoted string.
-        # 2. eval interpolates $1, $2 inside quoted string.
-        $name =~ s/^$search$/"qq($replace)"/ee;
-    }
-    return $name;
-}
-
+# Find occurence of typed name in list of objects:
+# - group:<name> = <typed name>, ... <typed name>;
+# - src = 
+# - dst = 
+# but ignore typed name in definition:
+# - <typed name> = 
 sub process {
     my ($lines) = @_;
     my $changed = 0;
-    my $type_list;
+    my $in_list = 0;
+    my $search_eq = 0;
     for my $line (@$lines) {
         my $copy = '';
         my $line_changed = 0;
       TOKEN:
         while(1) {
-
-            # Handle list of names 
-            # - after "name = "
-            # - and on new line.
-            if ($type_list) {
+            if ($in_list) {
               LIST:
                 while (1) {
+                    
+                    # Find next "type:name".
+                    if ($line =~ /\G (\s*) (\w+ : [-\w.:\@\/]+)/gcx) {
+                        $copy .= "$1$2";
+                        my $old = $2;
+                        my $new = $add_to{$old} or next;
+                        $line_changed++;
 
-                    # Read list element.
-                    if ($line =~ /\G (\s*) ([-\w.\@:]+) /gcx) {
-                        $copy .= $1;
-                        my $name = $2;
-                        my $new = subst($type_list, $name);
-                        $copy .= $new;
-                        $line_changed++ if $name ne $new;
+                        # If current line has only one entry,
+                        # add new entry to separate line.
+                        if ($line =~ /^ ((?:\s*[\w:]+\s*=)?\s*) 
+                                        \Q$old\E 
+                                        (\s* ([,;]?) \s* ([#].*)?) $/xs)
+                        {
+                            my $prefix = $1;
+                            my $tail = $2;
+                            (my $indent = $prefix) =~ s/[^\s]/ /g;
+                            $copy = "$prefix$old,\n$indent$new$tail";
+                            $in_list = 0 if $tail =~ /^ \s* ;/x;
+                            last TOKEN;
+                        }
+                        else {
+                            $copy .= ", $new";
+                        }
                     }
 
                     # Read comma.
-                    elsif ($line =~ /\G (\s*,\s*) /gcx) {
+                    elsif ($line =~ /\G (\s*,\s*) /gcsx) {
                         $copy .= $1;
                     }
                     else {
@@ -214,21 +182,17 @@ sub process {
 
                 # Everything else terminates list.
                 else {
-                    $type_list = undef;
+                    $in_list = undef;
                 }
             }
-
-            # Find next "type:name" or "type = name".
-            elsif ($line =~ /\G (.*?) (\w+) (:|\s*=\s*) /gcx) {
-                $copy .= "$1$2$3";
-                my $type = $2;
-                next if not $subst{$type};
-                next if $type_list = ($3 eq ':') ? undef : $type;
-                $line =~ /\G  ([-\w.\@:]+) /gcx or next;
-                my $name = $1;
-                my $new = subst($type, $name);
-                $copy .= $new;
-                $line_changed++ if $name ne $new;
+            elsif ($search_eq and $line =~ /\G (\s*=\s*) /gcsx) {
+                $copy .= $1;
+                $in_list = 1;
+                $search_eq = 0;
+            }
+            elsif ($line =~ /\G (.*?) (src | dst | user | group:[-\w]+) /gcx) {
+                $copy .= "$1$2";
+                $search_eq = 1;
             }
 
             # Ignore rest of line if nothing matches.
@@ -287,24 +251,17 @@ sub process_file_or_dir {
     return;
 }
 
-sub setup_pattern {
-    my (@pattern) = @_;
-    while (@pattern) {
-        my $old = shift @pattern;
-        my $new = shift @pattern or 
-            fatal_err "Missing replace string for '$old'";
-        my ($type, $old_name) = ($old =~ /^(\w+):(.*)$/) or 
-            fatal_err "Missing type in '$old'";
-        my ($n_type, $new_name) = ($new =~ /^(\w+):(.*)$/) or 
-            fatal_err "Missing type in '$new'";
-        $type eq $n_type or 
-            fatal_err "Types must be identical in\n - $old\n - $new";
-        setup_subst($type, $old_name, $new_name);
+sub setup_pairs {
+    my (@pairs) = @_;
+    while (@pairs) {
+        my $old = shift @pairs;
+        my $new = shift @pairs or fatal_err "Missing 2nd. element for '$old'";
+        setup_add_to($old, $new);
     }
     return;
 }
 
-sub read_pattern {
+sub read_pairs {
     my ($path) = @_;
 
     # Read file as one large line.
@@ -312,9 +269,8 @@ sub read_pattern {
     open(my $file, '<', $path) or fatal_err "Can't open $path: $!";
     my $input = <$file>;
     close $file;
-    my @pattern = split(' ', $input) or
-        fatal_err "Missing pattern in $path";
-    setup_pattern(@pattern);
+    my @pairs = split(' ', $input) or fatal_err "Missing pairs in $path";
+    setup_pairs(@pairs);
     return;
 }
     
@@ -345,8 +301,8 @@ $from_file or @ARGV or pod2usage(2);
 ####################################################################
 
 # Initialize search/replace pairs.
-read_pattern($from_file) if $from_file;
-setup_pattern(@ARGV) if @ARGV;
+read_pairs($from_file) if $from_file;
+setup_pairs(@ARGV) if @ARGV;
 
 # Do substitution.
 process_file_or_dir($path);

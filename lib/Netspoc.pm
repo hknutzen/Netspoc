@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.064'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.065'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -1256,13 +1256,14 @@ sub host_as_interface {
         err_msg("Missing 'model' for managed $host->{name}");
         
         # Prevent further errors.
-        $host->{model} = { name => 'unknown' };
+        $model = $host->{model} = { name => 'unknown' };
     }
-    if (! $hw_name) {
+    elsif (!$model->{can_managed_host}) {
+        err_msg("Must not use model $model->{name} at managed $name");
+    }
+    if (!$hw_name) {
         err_msg("Missing 'hardware' for $name");
     }
-    $model->{can_managed_host} 
-      or err_msg("Must not use model $model->{name} at managed $name");
 
     # Use device_name with "host:.." prefix to prevent name clash with 
     # real routers.
@@ -1359,6 +1360,16 @@ sub read_host {
     $host->{ip} xor $host->{range}
       or error_atline("Exactly one of attributes 'ip' and 'range' is needed");
 
+    if ($host->{managed}) {
+        my %ok = ( name => 1, ip => 1, nat => 1, file => 1, private => 1,
+                   managed => 1, model => 1, hardware => 1, server_name => 1);
+        for my $key (sort keys %$host) {
+            next if $ok{$key};
+            error_atline("Managed $host->{name} must not have attribute '$key'");
+        }
+        $host->{ip} ||= 'short';
+        return host_as_interface($host);
+    }
     if ($host->{id}) {
         $host->{radius_attributes} ||= {};
     }
@@ -1373,17 +1384,6 @@ sub read_host {
             # Look at print_pix_static before changing this.
             error_atline("No NAT supported for host with 'range'");
         }
-    }
-    if ($host->{managed}) {
-        my %ok = ( name => 1, ip => 1, nat => 1, file => 1, private => 1,
-                   managed => 1, model => 1, hardware => 1, server_name => 1);
-        for my $key (keys %$host) {
-            next if $ok{$key};
-            error_atline("Managed $host->{name} must not have ",
-                           ($key eq 'nat') ? "nat definition"
-                         :                   "attribute '$key'");
-        }
-        return host_as_interface($host);
     }
     return $host;
 }
@@ -1756,8 +1756,12 @@ sub read_interface {
                         syntax_err("Expected attribute IP");
                     }
                 }
-                $secondary->{ip} or error_atline("Missing IP address");
-                push @secondary_interfaces, $secondary;
+                if ($secondary->{ip}) {
+                    push @secondary_interfaces, $secondary;
+                }
+                else {
+                    error_atline("Missing IP address");
+                }
             }
             else {
                 syntax_err("Expected nat or secondary interface definition");
@@ -1889,10 +1893,13 @@ sub read_interface {
           };
         if (keys %copy) {
             my $attr = join ", ", map { "'$_'" } keys %copy;
-            error_atline("Invalid attributes $attr for loopback interface");
+            my $type = $interface->{vip} ? "'vip'" : 'loopback';
+            error_atline("Invalid attributes $attr for $type interface");
         }
         if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
-            error_atline("Loopback interface must not be $interface->{ip}");
+            my $type = $interface->{vip} ? "'vip'" : 'Loopback';
+            error_atline("$type interface must not be $interface->{ip}");
+            $interface->{disabled} = 1;
         }
     }
     elsif ($interface->{subnet_of}) {
@@ -1955,9 +1962,9 @@ sub set_pix_interface_level {
                 map { $_->{security_level} } @{ $hardware->{interfaces} }
           )
         {
-            if (@levels > 2 && !equal(@levels)) {
+            if (@levels >= 2 && !equal(@levels)) {
                 err_msg "Must not use different values",
-                  " for attribute 'security_level\n",
+                  " for attribute 'security_level'\n",
                   " at $router->{name}, hardware $hwname: ", join(',', @levels);
             }
             else {
@@ -2235,7 +2242,7 @@ sub read_router {
     if (my $managed = $router->{managed}) {
         if ($managed =~ /^local/) {
             $router->{filter_only} or
-                err_msg("Missing attribut 'filter_only' for $name");
+                err_msg("Missing attribute 'filter_only' for $name");
             $model->{has_io_acl} and
                 err_msg("Must not use 'managed = $managed' at $name",
                         " of model $model->{name}");
@@ -7782,8 +7789,10 @@ sub set_natdomain {
 my @natdomains;
 
 # Distribute NAT tags from NAT domain to NAT domain.
-sub distribute_nat;
-sub distribute_nat {
+# Returns 
+# - undef on success
+# - aref of routers, if invalid path was found in loop.
+sub distribute_nat1 {
     my ($domain, $nat_tag, $nat_tags2multi, $in_router) = @_;
 
 #    debug "nat:$nat_tag at $domain->{name} from $in_router->{name}";
@@ -7815,15 +7824,19 @@ sub distribute_nat {
     # Network which has translation with tag $nat_tag must not be located
     # in area where this tag is effective.
     for my $network (@{ $domain->{networks} }) {
-        if ($network->{nat} and $network->{nat}->{$nat_tag}) {
-            err_msg "$network->{name} is translated by $nat_tag,\n",
-              " but is located inside the translation domain of $nat_tag.\n",
-              " Probably $nat_tag was bound to wrong interface",
-              " at $in_router->{name}.";
-        }
+        my $nat = $network->{nat} or next;
+        $nat->{$nat_tag} or next;
+        err_msg("$network->{name} is translated by $nat_tag,\n",
+                " but is located inside the translation domain of $nat_tag.\n",
+                " Probably $nat_tag was bound to wrong interface",
+                " at $in_router->{name}.");
+
+        # Show error message only once.
+        last;
     }
 
     # Activate loop detection.
+    local $in_router->{active_path} = 1;
     local $domain->{active_path} = 1;
 
     # Distribute NAT tag to adjacent NAT domains.
@@ -7835,17 +7848,30 @@ sub distribute_nat {
         # This stops effect of current NAT tag.
         next if grep { $_ eq  $nat_tag } @$in_nat_tags;
 
-      DOMAIN:
+        # Traverse loop twice to prevent inherited errors.
+        # Check for recursive and duplicate NAT.
         for my $out_domain (@{ $router->{nat_domains} }) {
             next if $out_domain eq $domain;
             my $out_nat_tags = $router->{nat_tags}->{$out_domain};
 
             # Must not apply one NAT tag multiple times in a row.
             if (grep { $_ eq  $nat_tag } @$out_nat_tags) {
-                err_msg("nat:$nat_tag is applied multiple times between",
+
+                # Check for recursive NAT in loop.
+                if ($router->{active_path}) {
+                    
+                    # Abort traversal and start collecting path.
+                    return [ $router ];
+                }
+                err_msg("nat:$nat_tag is applied twice between",
                         " $in_router->{name} and $router->{name}");
-                next;
             }
+        }
+
+      DOMAIN:
+        for my $out_domain (@{ $router->{nat_domains} }) {
+            next if $out_domain eq $domain;
+            my $out_nat_tags = $router->{nat_tags}->{$out_domain};
 
             # Effect of current NAT tag stops if another element of
             # grouped NAT tags becomes active.
@@ -7859,26 +7885,48 @@ sub distribute_nat {
                     # static NAT.
                     my $nat_info = $href->{$nat_tag};
                     my $next_info = $href->{$nat_tag2};
-                    my $what;
+
+                    # Use $next_info->{name} and not $nat_info->{name}
+                    # because $nat_info may show wrong network,
+                    # because we combined different hidden networks into
+                    # $nat_tags2multi.
                     if ($nat_info->{hidden}) {
-                        $what = 'hidden NAT';
+                        err_msg("Must not change hidden nat:$nat_tag",
+                                " using nat:$nat_tag2\n",
+                                " for $next_info->{name}",
+                                " at $router->{name}");
                     }
                     elsif ($nat_info->{dynamic}) {
                         if(!($next_info->{dynamic})) {
-                            $what = 'NAT from dynamic to static';
+                            err_msg("Must not change dynamic nat:$nat_tag",
+                                    " to static using nat:$nat_tag2\n",
+                                    " for $nat_info->{name}",
+                                    " at $router->{name}");
                         }
-                    }
-                    if ($what) {
-                        err_msg("Must not change $what",
-                                " for $nat_info->{name}\n",
-                                " using NAT tag '$nat_tag2'",
-                                " at $router->{name}");
                     }
                     next DOMAIN;
                 }
             }
-            distribute_nat($out_domain, $nat_tag, $nat_tags2multi, $router);
+
+#            debug "Caller $domain->{name}";
+            if (my $err_path = distribute_nat1($out_domain, $nat_tag, 
+                                               $nat_tags2multi, $router))
+            {
+                push @$err_path, $router;
+                return $err_path;
+            }
         }
+    }
+    return;
+}
+
+sub distribute_nat {
+    my ($domain, $nat_tag, $nat_tags2multi, $in_router) = @_;
+    if (my $err_path = distribute_nat1($domain, $nat_tag, 
+                                       $nat_tags2multi, $in_router)) {
+        push @$err_path, $in_router;
+        err_msg("nat:$nat_tag is applied recursively in loop at this path:\n",
+                " - ", join("\n - ", map { $_->{name} } reverse @$err_path));
     }
     return;
 }
@@ -9268,9 +9316,9 @@ sub link_implicit_aggregate_to_zone {
     return;
 }
 
-# Link aggregate to zone. This is called late, after zones been set
-# up. But before find_subnets_in_zone calculates {up} and {networks}
-# relation.
+# Link aggregate to zone. This is called late, after zones have been
+# set up. But before find_subnets_in_zone calculates {up} and
+# {networks} relation.
 sub link_aggregates {
     my @aggregates_in_cluster;
     for my $name (sort keys %aggregates) {
@@ -9281,93 +9329,57 @@ sub link_aggregates {
         my $err;
         my $router;
         my $zone;
-      BLOCK:
-        {
-            if ($type eq 'network') {
-                my $network = $networks{$name};
-                if (not $network) {
-                    $err = "Referencing undefined $type:$name"
-                      . " from $aggregate->{name}";
-                    last BLOCK;
-                }
-                if ($network->{disabled}) {
-                    $aggregate->{disabled} = 1;
-                    next;
-                }
-                $private2 = $network->{private};
-                $zone     = $network->{zone};
-                $zone->{link} = $network;
-            }
-            elsif ($type eq 'router') {
-                $router = $routers{$name};
-                if (not $router) {
-                    $err = "Referencing undefined $type:$name"
-                      . " from $aggregate->{name}";
-                    last BLOCK;
-                }
-                if ($router->{disabled}) {
-                    $aggregate->{disabled} = 1;
-                    next;
-                }
-                if ($router->{managed} || $router->{routing_only}) {
-                    $err = "$aggregate->{name} must not be linked to"
-                      . " managed $router->{name}";
-                    last BLOCK;
-                }
-                if ($router->{semi_managed}) {
-                    $err = "$aggregate->{name} must not be linked to"
-                      . " $router->{name} with pathrestriction";
-                    last BLOCK;
-                }
-                if (!$router->{interfaces}) {
-                    err_msg "$aggregate->{name} must not be linked to",
-                      " $router->{name} without interfaces";
-                    last BLOCK;
-                }
-                $private2 = $router->{private};
-                $zone     = $router->{interfaces}->[0]->{network}->{zone};
-                $zone->{link} = $router;
-            }
-            else {
-                $err = "$aggregate->{name} must not be linked to $type:$name";
-                last BLOCK;
-            }
-            $private2 ||= 'public';
-            $private1 eq $private2
-              or err_msg "$private1 $aggregate->{name} must not be linked",
-              " to $private2 $type:$name";
 
-            my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
-            my $key = "$ip/$mask";
+        if ($type ne 'network') {
+            err_msg("$aggregate->{name} must not be linked to $type:$name");
+            $aggregate->{disabled} = 1;
+            next;
+        }
+        my $network = $networks{$name};
+        if (not $network) {
+            err_msg("Referencing undefined $type:$name",
+                    " from $aggregate->{name}");
+            $aggregate->{disabled} = 1;
+            next;
+        }
+        if ($network->{disabled}) {
+            $aggregate->{disabled} = 1;
+            next;
+        }
 
-            my $cluster = $zone->{zone_cluster};
-            for my $zone2 ($cluster ? @$cluster : ($zone)) {
-                if (my $other = $zone2->{ipmask2aggregate}->{$key}) {
-                    err_msg
-                      "Duplicate $other->{name} and $aggregate->{name}",
-                      " in $zone->{name}";
-                }
-            }
-            if ($cluster) {
-                push(@aggregates_in_cluster, $aggregate);
-            }
+        $private2 = $network->{private};
+        $zone     = $network->{zone};
+        $zone->{link} = $network;
+        $private2 ||= 'public';
+        $private1 eq $private2
+            or err_msg("$private1 $aggregate->{name} must not be linked",
+                       " to $private2 $type:$name");
 
-            # Aggregate with ip 0/0 is used to set attributes of zone.
-            if ($mask == 0) {
-                for my $attr (qw(has_unenforceable nat no_in_acl owner)) {
-                    if (my $v = delete $aggregate->{$attr}) {
-                        for my $zone2 ($cluster ? @$cluster : ($zone)) {
-                            $zone2->{$attr} = $v;
-                        }
+        my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
+        my $key = "$ip/$mask";
+
+        my $cluster = $zone->{zone_cluster};
+        for my $zone2 ($cluster ? @$cluster : ($zone)) {
+            if (my $other = $zone2->{ipmask2aggregate}->{$key}) {
+                err_msg("Duplicate $other->{name} and $aggregate->{name}",
+                        " in $zone->{name}");
+            }
+        }
+        if ($cluster) {
+            push(@aggregates_in_cluster, $aggregate);
+        }
+
+        # Aggregate with ip 0/0 is used to set attributes of zone.
+        if ($mask == 0) {
+            for my $attr (qw(has_unenforceable nat no_in_acl owner)) {
+                if (my $v = delete $aggregate->{$attr}) {
+                    for my $zone2 ($cluster ? @$cluster : ($zone)) {
+                        $zone2->{$attr} = $v;
                     }
                 }
             }
-            link_aggregate_to_zone($aggregate, $zone, $key);
         }
-        if ($err) {
-            err_msg($err);
-            $aggregate->{disabled} = 1;
-        }
+        link_aggregate_to_zone($aggregate, $zone, $key);
     }
     for my $aggregate (@aggregates_in_cluster) {
         duplicate_aggregate_to_cluster($aggregate);
@@ -9587,6 +9599,9 @@ sub zone_eq {
 # Mark zones and managed routers with areas they belong to.
 # Set attribute {border}, {inclusive_border} for areas defined 
 # by anchor and auto_border.
+# Returns 
+# - undef on success
+# - aref of interfaces, if invalid path was found in loop.
 sub set_area1 {
     my ($obj, $area, $in_interface) = @_;
 
@@ -9623,9 +9638,8 @@ sub set_area1 {
             if ($is_inclusive->{$area} xor !$is_zone) {
 
                 # Found another border of current area from wrong side.
-                err_msg("Inconsistent definition of $area->{name} in loop at\n",
-                        " $interface->{name}. It must not be reached from",
-                        " $obj->{name}");
+                # Collect interfaces of invalid path.
+                return [ $interface ];
             }
 
             # Remember that we have found this other border.
@@ -9646,7 +9660,10 @@ sub set_area1 {
         next if $interface->{main_interface};
 
         my $next = $interface->{$is_zone ? 'router' : 'zone'};
-        set_area1($next, $area, $interface);
+        if (my $err_path = set_area1($next, $area, $interface)) {
+            push @$err_path, $interface;
+            return $err_path;
+        }
     }
     return;
 }
@@ -9779,6 +9796,21 @@ sub inherit_nat_from_zone {
     return;
 }
 
+# Return value: 
+# - undef: ok
+# - 1: error was shown
+sub set_area {
+    my ($obj, $area, $in_interface) = @_;
+    if (my $err_path = set_area1($obj, $area, $in_interface)) {
+        push @$err_path, $in_interface if $in_interface;
+        err_msg("Inconsistent definition of $area->{name} in loop.\n",
+                " It is reached from outside via this path:\n",
+                " - ", join("\n - ", map { $_->{name} } reverse @$err_path));
+        return 1;
+    }
+    return;
+}
+
 sub set_zone {
     progress('Preparing security zones and areas');
 
@@ -9848,7 +9880,7 @@ sub set_zone {
     for my $area (@areas) {
         $area->{zones} = [];
         if (my $network = $area->{anchor}) {
-            set_area1($network->{zone}, $area, 0);
+            set_area($network->{zone}, $area, 0);
         }
         else {
 
@@ -9869,7 +9901,8 @@ sub set_zone {
             }
             
             $lookup->{$start} = 'found';
-            set_area1($obj1, $area, $start);
+            my $err = set_area($obj1, $area, $start);
+            next if $err;
 
             for my $attr (qw(border inclusive_border)) {
                 my $borders = $area->{$attr} or next;

@@ -929,7 +929,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Must not apply same NAT tag multiple times';
+$title = 'Must not apply same NAT tag twice';
 ############################################################
 
 $in = <<'END';
@@ -951,7 +951,7 @@ network:n2 = { ip = 10.2.2.0/24; }
 END
 
 $out = <<'END';
-Error: nat:n is applied multiple times between router:r1 and router:r2
+Error: nat:n is applied twice between router:r1 and router:r2
 END
 
 test_err($title, $in, $out);
@@ -984,8 +984,8 @@ network:K = { ip = 10.2.2.0/24; }
 END
 
 $out = <<'END';
-Error: Must not change hidden NAT for nat:t1(network:U1)
- using NAT tag 't2' at router:R2
+Error: Must not change hidden nat:t1 using nat:t2
+ for nat:t2(network:U1) at router:R2
 END
 
 test_err($title, $in, $out);
@@ -1018,8 +1018,55 @@ network:K = { ip = 10.2.2.0/24; }
 END
 
 $out = <<'END';
-Error: Must not change hidden NAT for nat:t1(network:U1)
- using NAT tag 't2' at router:R2
+Error: Must not change hidden nat:t1 using nat:t2
+ for nat:t2(network:U1) at router:R2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Two NAT tags share single hidden NAT tag';
+############################################################
+
+$in = <<'END';
+network:n0 = { ip = 10.1.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ interface:n0 = { bind_nat = F; }
+ interface:n1;
+}
+
+router:asa = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; bind_nat = h; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; bind_nat = P; }
+ interface:n3 = { ip = 10.1.3.1; hardware = vlan3; }
+}
+
+router:r2 = {
+ interface:n3;
+ interface:n4;
+}
+
+network:n3 = { 
+ ip = 10.1.3.0/24; 
+ nat:h = { hidden; } 
+ nat:P = { ip = 10.2.3.0/24; } 
+}
+network:n4 = {
+ ip = 10.1.4.0/24;
+ nat:h = { hidden; }
+ nat:F = { ip = 10.2.4.0/24; } 
+}
+END
+
+$out = <<'END';
+Error: Must not change hidden nat:h using nat:F
+ for nat:F(network:n4) at router:r1
 END
 
 test_err($title, $in, $out);
@@ -1207,6 +1254,102 @@ Error: Inconsistent NAT in loop at router:r1:
 Error: network:a is translated by h,
  but is located inside the translation domain of h.
  Probably h was bound to wrong interface at router:r1.
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Check recursive NAT in loop';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+
+router:r1 = {
+ interface:n1;
+ interface:t1 = { bind_nat = n1; }
+ interface:t2 = { bind_nat = n2; }
+}
+network:t1 = { ip = 10.7.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+
+router:r2 = {
+ interface:n2;
+ interface:t1;
+ interface:t2 = { bind_nat = n2; }
+}
+
+network:t2 = { ip = 10.7.2.0/24; }
+END
+
+$out = <<'END';
+Error: nat:n1 is applied recursively in loop at this path:
+ - router:r1
+ - router:r2
+ - router:r1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'NAT in loop ok';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+
+router:r1 = {
+ interface:n1;
+ interface:t1 = { bind_nat = n1; }
+}
+network:t1 = { ip = 10.7.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+
+router:r2 = {
+ interface:n2;
+ interface:t1;
+ interface:t2;
+ interface:t3 = { bind_nat = n2; }
+}
+
+network:t2 = { ip = 10.7.2.0/24; }
+
+router:r3 = {
+ interface:t2;
+ interface:t3 = { bind_nat = n2; }
+}
+
+network:t3 = { ip = 10.7.3.0/24; }
+END
+
+$out = <<'END';
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'NAT is applied twice';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+
+router:r1 = {
+ interface:n1;
+ interface:t1 = { bind_nat = n1; }
+}
+network:t1 = { ip = 10.7.1.0/24; }
+
+router:r2 = {
+ interface:t1;
+ interface:t2 = { bind_nat = n1; }
+}
+
+network:t2 = { ip = 10.7.2.0/24; }
+END
+
+$out = <<'END';
+Error: nat:n1 is applied twice between router:r1 and router:r2
 END
 
 test_err($title, $in, $out);

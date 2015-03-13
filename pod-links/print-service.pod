@@ -68,7 +68,7 @@ use Netspoc;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '3.065'; # VERSION: inserted by DZP::OurPkgVersion
+# VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing

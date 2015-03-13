@@ -61,7 +61,7 @@ use Pod::Usage;
 use Netspoc;
 use locale;
 
-our $VERSION = '3.065'; # VERSION: inserted by DZP::OurPkgVersion
+# VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -100,7 +100,11 @@ sub read_netspoc_with_src {
 sub mark_adjacent_networks {
     my ($router) = @_;
     for my $interface (Netspoc::get_intf($router)) {
-        $interface->{network}->{is_used} = 1;
+        my $network = $interface->{network};
+        if (!$network->{is_used}) {
+            $network->{is_used} = 1;
+            Netspoc::debug "Marked $network->{name}";
+        }
     }
     return;
 }
@@ -118,38 +122,55 @@ sub mark_topology {
 
 # Mark unmanaged routers and adjacent networks 
 # between marked and managed parts of topology.
+# Return value:
+# 1: path to used network/router was found
+# 0: no path was found
 sub path_unmanaged {
     my ($obj, $in_interface) = @_;
-    return 1 if $obj->{is_used};
-    return 0 if $obj->{managed};
-    return if $obj->{active_path};
+    if ($obj->{is_used}) {
+        Netspoc::debug "$obj->{name} 1 is_used";
+        return 1;
+    }
+    if ($obj->{managed}) {
+        Netspoc::debug "$obj->{name} 0 managed";
+        return 0;
+    }
+    if ($obj->{active_path}) {
+        Netspoc::debug "$obj->{name} 0 active_path";
+        return 0;
+    }
 
     local $obj->{active_path} = 1;
     my $result = 0;
-    for my $interface (  is_router($obj)
-                       ? Netspoc::get_intf($obj) 
-                       : @{ $obj->{interfaces} })
-    {
+    for my $interface (is_router($obj) ? Netspoc::get_intf($obj) : @{ $obj->{interfaces} }) {
         next if $interface eq $in_interface;
         my $next = $interface->{is_network($obj) ? 'router' : 'network'};
+        Netspoc::debug "-- $next->{name} ";
 	if (path_unmanaged($next, $interface)) {
 	    $obj->{is_used} = 1;
-#	    Netspoc::debug "Marked $obj->{name}";
+	    Netspoc::debug "Marked $obj->{name} from $next->{name}";
 	    if (is_router($obj)) {
 		mark_adjacent_networks($obj);
 	    }
 	    $result = 1;
 	}
     }
+    Netspoc::debug "result $result $obj->{name}";
     return $result;
 }
 
 sub mark_unmanaged {
+    for my $obj (values %networks, values %routers) {
+        my $used = $obj->{is_used} ? 'used' : 'unused';
+        Netspoc::debug "$obj->{name} is $used"; 
+    }
+
     for my $network (values %networks) {
 	next if not $network->{is_used};
+        Netspoc::debug "- $network->{name} ";
 	for my $interface (@{ $network->{interfaces} }) {
 	    my $router = $interface->{router};
-#	    Netspoc::debug "Path unmanaged $router->{name} $interface->{name}";
+	    Netspoc::debug "Path unmanaged $router->{name} $interface->{name}";
 	    path_unmanaged($router, $interface);
 	}
     }
