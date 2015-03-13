@@ -1259,4 +1259,100 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Check recursive NAT in loop';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+
+router:r1 = {
+ interface:n1;
+ interface:t1 = { bind_nat = n1; }
+ interface:t2 = { bind_nat = n2; }
+}
+network:t1 = { ip = 10.7.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+
+router:r2 = {
+ interface:n2;
+ interface:t1;
+ interface:t2 = { bind_nat = n2; }
+}
+
+network:t2 = { ip = 10.7.2.0/24; }
+END
+
+$out = <<'END';
+Error: nat:n1 is applied recursively in loop at this path:
+ - router:r1
+ - router:r2
+ - router:r1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'NAT in loop ok';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+
+router:r1 = {
+ interface:n1;
+ interface:t1 = { bind_nat = n1; }
+}
+network:t1 = { ip = 10.7.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+
+router:r2 = {
+ interface:n2;
+ interface:t1;
+ interface:t2;
+ interface:t3 = { bind_nat = n2; }
+}
+
+network:t2 = { ip = 10.7.2.0/24; }
+
+router:r3 = {
+ interface:t2;
+ interface:t3 = { bind_nat = n2; }
+}
+
+network:t3 = { ip = 10.7.3.0/24; }
+END
+
+$out = <<'END';
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'NAT is applied twice';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+
+router:r1 = {
+ interface:n1;
+ interface:t1 = { bind_nat = n1; }
+}
+network:t1 = { ip = 10.7.1.0/24; }
+
+router:r2 = {
+ interface:t1;
+ interface:t2 = { bind_nat = n1; }
+}
+
+network:t2 = { ip = 10.7.2.0/24; }
+END
+
+$out = <<'END';
+Error: nat:n1 is applied twice between router:r1 and router:r2
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;

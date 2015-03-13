@@ -7789,8 +7789,10 @@ sub set_natdomain {
 my @natdomains;
 
 # Distribute NAT tags from NAT domain to NAT domain.
-sub distribute_nat;
-sub distribute_nat {
+# Returns 
+# - undef on success
+# - aref of routers, if invalid path was found in loop.
+sub distribute_nat1 {
     my ($domain, $nat_tag, $nat_tags2multi, $in_router) = @_;
 
 #    debug "nat:$nat_tag at $domain->{name} from $in_router->{name}";
@@ -7834,6 +7836,7 @@ sub distribute_nat {
     }
 
     # Activate loop detection.
+    local $in_router->{active_path} = 1;
     local $domain->{active_path} = 1;
 
     # Distribute NAT tag to adjacent NAT domains.
@@ -7845,17 +7848,30 @@ sub distribute_nat {
         # This stops effect of current NAT tag.
         next if grep { $_ eq  $nat_tag } @$in_nat_tags;
 
-      DOMAIN:
+        # Traverse loop twice to prevent inherited errors.
+        # Check for recursive and duplicate NAT.
         for my $out_domain (@{ $router->{nat_domains} }) {
             next if $out_domain eq $domain;
             my $out_nat_tags = $router->{nat_tags}->{$out_domain};
 
             # Must not apply one NAT tag multiple times in a row.
             if (grep { $_ eq  $nat_tag } @$out_nat_tags) {
+
+                # Check for recursive NAT in loop.
+                if ($router->{active_path}) {
+                    
+                    # Abort traversal and start collecting path.
+                    return [ $router ];
+                }
                 err_msg("nat:$nat_tag is applied twice between",
                         " $in_router->{name} and $router->{name}");
-                next;
             }
+        }
+
+      DOMAIN:
+        for my $out_domain (@{ $router->{nat_domains} }) {
+            next if $out_domain eq $domain;
+            my $out_nat_tags = $router->{nat_tags}->{$out_domain};
 
             # Effect of current NAT tag stops if another element of
             # grouped NAT tags becomes active.
@@ -7891,8 +7907,26 @@ sub distribute_nat {
                     next DOMAIN;
                 }
             }
-            distribute_nat($out_domain, $nat_tag, $nat_tags2multi, $router);
+
+#            debug "Caller $domain->{name}";
+            if (my $err_path = distribute_nat1($out_domain, $nat_tag, 
+                                               $nat_tags2multi, $router))
+            {
+                push @$err_path, $router;
+                return $err_path;
+            }
         }
+    }
+    return;
+}
+
+sub distribute_nat {
+    my ($domain, $nat_tag, $nat_tags2multi, $in_router) = @_;
+    if (my $err_path = distribute_nat1($domain, $nat_tag, 
+                                       $nat_tags2multi, $in_router)) {
+        push @$err_path, $in_router;
+        err_msg("nat:$nat_tag is applied recursively in loop at this path:\n",
+                " - ", join("\n - ", map { $_->{name} } reverse @$err_path));
     }
     return;
 }
