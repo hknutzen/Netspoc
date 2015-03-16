@@ -862,8 +862,8 @@ sub read_typed_name {
 # or host:[managed & xxx:xxx, ...]
 # or any:[ ip = n.n.n.n/len & xxx:xxx, ...]
 # or network:xxx/ppp
-# or host:id:[user]@domain.network
-# or host:id:domain.network
+# or host:id:user@domain.network
+# or host:id:[@]domain.network
 #
     sub read_extended_name {
 
@@ -944,7 +944,7 @@ sub read_typed_name {
         }
     }
 
-# host:xxx or host:id:user@domain or host:id:@domain
+# host:xxx or host:id:user@domain or host:id:[@]domain
     sub check_hostname {
         skip_space_and_comment;
         if ($input =~ m/\G host:/gcx) {
