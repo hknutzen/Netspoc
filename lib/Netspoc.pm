@@ -7095,7 +7095,7 @@ sub expand_services {
 # For each device, find the IP address which is used
 # to manage the device from a central policy distribution point.
 # This address is added as a comment line to each generated code file.
-# This is to used later when approving the generated code file.
+# This is to be used later when approving the generated code file.
 sub set_policy_distribution_ip  {
     progress('Setting policy distribution IP');
 
