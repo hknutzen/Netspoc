@@ -346,7 +346,7 @@ where `<object set>` must expand to interfaces.
          esp_authentication = ( md5_hmac | sha_hmac | none );
          ah = ( md5_hmac | sha_hmac | none );
          pfs_group = ( 1 | 2 | 5 | none );
-         lifetime = <number> <timeunit>;
+         lifetime = <int> <timeunit>;
       }
 
     <isakmp definition> ::=
@@ -357,7 +357,7 @@ where `<object set>` must expand to interfaces.
          encryption = ( aes | aes192 | aes256 | des | 3des );
          hash = ( md5 | sha );
          group = ( 1 | 2 | 5 );
-         lifetime = <number> <timeunit>;
+         lifetime = <int> <timeunit>;
       }
 
 with
