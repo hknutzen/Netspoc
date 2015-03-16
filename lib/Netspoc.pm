@@ -7707,7 +7707,7 @@ sub set_service_owner {
 # Distribute NAT bindings
 ##############################################################################
 
-# NAT Set: a set of NAT tags which are effective at at some location.
+# NAT Set: a set of NAT tags which are effective at some location.
 # NAT Domain: a maximal area of the topology (a set of connected networks)
 # where the NAT set is identical at each network.
 sub set_natdomain;
