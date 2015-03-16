@@ -1216,9 +1216,6 @@ sub check_managed {
 sub check_model {
     my ($model, @attributes) = check_assign_list('model', \&read_name)
         or return;
-    my @attr2;
-    ($model, @attr2) = split /_/, $model;
-    push @attributes, @attr2;
     my $info = $router_info{$model};
     if (not $info) {
         error_atline("Unknown router model");

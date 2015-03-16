@@ -269,7 +269,7 @@ network:sub = { ip = 10.3.3.8/29; subnet_of = network:A; }
 
 router:secondary = {
  managed = secondary;
- model = IOS_FW;
+ model = IOS, FW;
  routing = manual;
  interface:A = { ip = 10.3.3.1; hardware = VLAN1; }
  interface:sub = { ip = 10.3.3.9; hardware = VLAN9; }
