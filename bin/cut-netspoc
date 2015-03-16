@@ -100,6 +100,7 @@ sub read_netspoc_with_src {
 sub mark_adjacent_networks {
     my ($router) = @_;
     for my $interface (Netspoc::get_intf($router)) {
+        Netspoc::debug "adj. $interface->{network}->{name}";
         $interface->{network}->{is_used} = 1;
     }
     return;
@@ -126,15 +127,12 @@ sub path_unmanaged {
 
     local $obj->{active_path} = 1;
     my $result = 0;
-    for my $interface (  is_router($obj)
-                       ? Netspoc::get_intf($obj) 
-                       : @{ $obj->{interfaces} })
-    {
+    for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_interface;
         my $next = $interface->{is_network($obj) ? 'router' : 'network'};
 	if (path_unmanaged($next, $interface)) {
 	    $obj->{is_used} = 1;
-#	    Netspoc::debug "Marked $obj->{name}";
+	    Netspoc::debug "Marked $obj->{name}";
 	    if (is_router($obj)) {
 		mark_adjacent_networks($obj);
 	    }
@@ -149,7 +147,7 @@ sub mark_unmanaged {
 	next if not $network->{is_used};
 	for my $interface (@{ $network->{interfaces} }) {
 	    my $router = $interface->{router};
-#	    Netspoc::debug "Path unmanaged $router->{name} $interface->{name}";
+	    Netspoc::debug "Path unmanaged $router->{name} $interface->{name}";
 	    path_unmanaged($router, $interface);
 	}
     }
