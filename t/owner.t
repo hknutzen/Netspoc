@@ -380,6 +380,38 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Missing part in owner with attribute "show_all"';
+############################################################
+
+$in = <<'END';
+owner:a1 = { admins = a1@b.c; show_all; }
+
+area:a1 = { owner = a1; border = interface:asa1.n1; }
+
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = vlan3; }
+}
+
+END
+
+$out = <<'END';
+Error: owner:a1 has attribute 'show_all', but dosn't own whole topology.
+ Missing:
+ - any:[network:n2]
+ - any:[network:n3]
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Inherit owner from router_attributes of area';
 ############################################################
 

@@ -7475,8 +7475,8 @@ sub propagate_owners {
             }
             if (@invalid) {
                 my $missing = join("\n - ", map { $_->{name} } @invalid);
-                err_msg("Attribute 'show_all' is only valid for owner",
-                        " which owns the whole topology.\n",
+                err_msg("$owner->{name} has attribute 'show_all',",
+                        " but dosn't own whole topology.\n",
                         " Missing:\n",
                         " - $missing");
             }
