@@ -7108,8 +7108,6 @@ sub set_policy_distribution_ip  {
     my @prt_list = map({ my $l = $_->{splitted_prt_list}; $l ? @$l : ($_) } 
                        @{ $prt_hash{tcp} }{@admin_tcp_keys});
     push @prt_list, $prt_ip;
-    my %admin_prt;
-    @admin_prt{@prt_list} = @prt_list;
 
     # Mapping from policy distribution host to subnets, networks and
     # aggregates that include this host.
