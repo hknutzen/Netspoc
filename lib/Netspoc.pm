@@ -8414,14 +8414,14 @@ sub find_subnets_in_zone {
                 }
 
                 if ($nat_network->{hidden}) {
-                    if (my $other = $network->{up}) {
-                        err_msg("Ambiguous subnet relation from NAT.\n",
-                                " $network->{name} is subnet of\n",
-                                " - $other->{name} at",
-                                " $first_intf->{name}\n",
-                                " - but it is hidden $nat_network->{name} at",
-                                " $interface->{name}");
-                    }
+                    my $other = $network->{up} or next;
+                    next if get_nat_network($other, $no_nat_set)->{hidden};
+                    err_msg("Ambiguous subnet relation from NAT.\n",
+                            " $network->{name} is subnet of\n",
+                            " - $other->{name} at",
+                            " $first_intf->{name}\n",
+                            " - but it is hidden $nat_network->{name} at",
+                            " $interface->{name}");
                     next;
                 }
                 my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
