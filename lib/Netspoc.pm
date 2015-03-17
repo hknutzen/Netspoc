@@ -7808,7 +7808,7 @@ sub distribute_nat1 {
     for my $nat_tag2 (sort keys %$multi_href) {
         if ($nat_set->{$nat_tag2}) {
             err_msg("Grouped NAT tags '$nat_tag2' and '$nat_tag'",
-                    " must not be both active inside $domain->{name}");
+                    " must not both be active inside $domain->{name}");
         }
     }        
 

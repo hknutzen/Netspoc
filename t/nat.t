@@ -380,7 +380,7 @@ END
 
 $out = <<'END';
 Error: Must not bind multiple NAT tags 'C,D' of nat:C(network:n2) at router:filter
-Error: Grouped NAT tags 'C' and 'D' must not be both active inside nat_domain:X
+Error: Grouped NAT tags 'C' and 'D' must not both be active inside nat_domain:X
 END
 
 test_err($title, $in, $out);
@@ -923,7 +923,7 @@ network:b = {ip = 10.9.9.0/24;}
 END
 
 $out = <<'END';
-Error: Grouped NAT tags 'a2' and 'a1' must not be both active inside nat_domain:b
+Error: Grouped NAT tags 'a2' and 'a1' must not both be active inside nat_domain:b
 END
 
 test_err($title, $in, $out);
