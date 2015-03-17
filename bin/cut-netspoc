@@ -99,7 +99,8 @@ sub read_netspoc_with_src {
 # to get a valid topology.
 sub mark_adjacent_networks {
     my ($router) = @_;
-    for my $interface (Netspoc::get_intf($router)) {
+    for my $interface (@{ $router->{interfaces} }) {
+        Netspoc::debug "adj. $interface->{network}->{name}";
         $interface->{network}->{is_used} = 1;
     }
     return;
@@ -126,15 +127,12 @@ sub path_unmanaged {
 
     local $obj->{active_path} = 1;
     my $result = 0;
-    for my $interface (  is_router($obj)
-                       ? Netspoc::get_intf($obj) 
-                       : @{ $obj->{interfaces} })
-    {
+    for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_interface;
         my $next = $interface->{is_network($obj) ? 'router' : 'network'};
 	if (path_unmanaged($next, $interface)) {
 	    $obj->{is_used} = 1;
-#	    Netspoc::debug "Marked $obj->{name}";
+	    Netspoc::debug "Marked $obj->{name}";
 	    if (is_router($obj)) {
 		mark_adjacent_networks($obj);
 	    }
@@ -149,7 +147,7 @@ sub mark_unmanaged {
 	next if not $network->{is_used};
 	for my $interface (@{ $network->{interfaces} }) {
 	    my $router = $interface->{router};
-#	    Netspoc::debug "Path unmanaged $router->{name} $interface->{name}";
+	    Netspoc::debug "Path unmanaged $router->{name} $interface->{name}";
 	    path_unmanaged($router, $interface);
 	}
     }
@@ -330,6 +328,20 @@ for my $area (values %areas) {
 # Call this after topology has been marked.
 &expand_crypto();
 
+# 1. Call: Mark unmanaged parts of topology.
+mark_unmanaged();
+
+# Mark fragments of marked crypto routers.
+for my $router (values %routers) {
+    $router->{is_used} or next;
+    for my $interface (Netspoc::get_intf($router)) {
+        my $fragment = $interface->{router};
+        next if $fragment eq $router;
+        Netspoc::debug "Fragment: $fragment->{name}";
+        $fragment->{is_used} = 1;
+    }
+}
+
 for my $router (values %routers) {
     next unless $router->{is_used};
     for my $interface (Netspoc::get_intf($router)) {
@@ -375,7 +387,8 @@ for my $router (values %routers) {
     }
 }
 
-# Mark unmanaged parts of topology.
+# 2. Call: Mark unmanaged parts of topology.
+# Mark paths between fragments of crypto routers now.
 mark_unmanaged();
 
 for my $obj (values %areas, values %Netspoc::aggregates,
