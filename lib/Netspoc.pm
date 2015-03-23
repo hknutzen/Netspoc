@@ -7804,11 +7804,14 @@ sub distribute_nat1 {
 
     # Must not enter one NAT domain at different routers with
     # different elements of grouped NAT tags.
-    my $multi_href = $nat_tags2multi->{$nat_tag};
-    for my $nat_tag2 (sort keys %$multi_href) {
-        if ($nat_set->{$nat_tag2}) {
-            err_msg("Grouped NAT tags '$nat_tag2' and '$nat_tag'",
-                    " must not both be active inside $domain->{name}");
+    if (my $aref = $nat_tags2multi->{$nat_tag}) {
+        for my $multi_href (@$aref) {
+            for my $nat_tag2 (sort keys %$multi_href) {
+                if ($nat_set->{$nat_tag2}) {
+                    err_msg("Grouped NAT tags '$nat_tag2' and '$nat_tag'",
+                            " must not both be active inside $domain->{name}");
+                }
+            }
         }
     }        
 
@@ -7870,7 +7873,8 @@ sub distribute_nat1 {
 
             # Effect of current NAT tag stops if another element of
             # grouped NAT tags becomes active.
-            if (my $href = $nat_tags2multi->{$nat_tag}) {
+            if (my $aref = $nat_tags2multi->{$nat_tag}) {
+                for my $href (@$aref) {
                 for my $nat_tag2 (@$out_nat_tags) {
                     next if $nat_tag2 eq $nat_tag;
                     next if !$href->{$nat_tag2};
@@ -7900,6 +7904,7 @@ sub distribute_nat1 {
                         }
                     }
                     next DOMAIN;
+                }
                 }
             }
 
@@ -7962,94 +7967,136 @@ sub distribute_nat_info {
     # the same NAT tags must be used as group at all other networks.
     # Suppose tags A and B are used grouped. 
     # An occurence of bind_nat = A activates NAT:A.
-    # An adjacent bind_nat = B actives NAT:B, but implicitly disables NAT:A.
+    # An successive bind_nat = B actives NAT:B, but implicitly disables NAT:A.
     # Hence A is disabled for all networks and therefore
     # this restriction is needed.
     # Exception:
-    # NAT tags with "hidden" can be used separately.
+    # NAT tags with "hidden" can be added to some valid set of grouped tags,
+    # because we don't allow transition from hidden tag back to some other
+    # (hidden) tag.
     #
-    # A hash with all defined NAT tags as keys and a href as value.
+    # A hash with all defined NAT tags as keys and aref of hrefs as value.
     # The href has those NAT tags as keys which are used together at one
     # network.
     # This is used to check,
     # that NAT tags are equally used grouped or solitary.
     my %nat_tags2multi;
+    my %all_hidden;
     for my $network (@networks) {
         my $href = $network->{nat} or next;
-#        debug $network->{name};
+#        debug $network->{name}, " href=", join(',', sort keys %$href);
 
         # Print error message only once per network.
-        my $err;
+        my $err_shown;
+        my $show_err = sub {
+            my ($href1, $href2) = @_;
+            return if $err_shown;
+            my $tags1  = join(',', sort keys %$href1);
+            my $name1  = $network->{name};
+            my $tags2  = join(',', sort keys %$href2);
+
+            # Values are NAT entries with name of network.
+            # Take first value deterministically.
+            my ($name2) = sort map { $_->{name} } values %$href2;
+            err_msg
+                "If multiple NAT tags are used at one network,\n",
+                " these NAT tags must be used",
+                " equally grouped at other networks:\n", 
+                " - $name1: $tags1\n",
+                " - $name2: $tags2";
+            $err_shown = 1;
+            return;
+        };
+
       NAT_TAG:
         for my $nat_tag (sort keys %$href) {
             $nat_definitions{$nat_tag} = 1;
-            if (my $href2 = $nat_tags2multi{$nat_tag}) {
-                my $href1 = $href;
-                if (!$err && !keys_eq($href1, $href2)) {
+            if (my $aref = $nat_tags2multi{$nat_tag}) {
 
-                    # NAT tag can be used both grouped and solitary,
-                    # if and only if 
-                    # - single NAT tag translates to hidden, 
-                    # - the same NAT tag translates to hidden in group,
-                    # - group has no other hidden NAT tag or
-                    # - group consists solely of hidden NAT tags.
-                    # Shared hidden NAT tag is ignored when comparing
-                    # grouped NAT tags for equality.
-                    # If the group has only a single tag after ignoring the 
-                    # shared one, it isn't regarded as grouped.
-                    my @intersection = grep { $href1->{$_} } keys %$href2;
-                    $err = 1;
-                  ERR:
-                    {
-                        1 == @intersection or last ERR;
-                        my ($shared_tag) = @intersection;
-                        $has_non_hidden{$shared_tag} and last ERR;
-                        $shared_tag eq $nat_tag or last ERR;
+                # If elements have a common non hidden tag,
+                # then only a single href is allowed.
+                if ($has_non_hidden{$nat_tag}) {
+                    my $href2 = $aref->[0];
+                    keys_eq($href, $href2) or $show_err->($href, $href2);
+                    next NAT_TAG;
+                }
 
-                        # $href1 holds solitary hidden NAT tag,
-                        # $href2 holds grouped NAT tags.
-                        if (1 == keys %$href1) {
-                            $all_or_one_hidden->($href2) or last ERR;
+                # Array of hrefs has common hidden NAT tag.
+                #
+                # Ignore new href if it is identical to some previous one.
+                for my $href2 (@$aref) {
+                    keys_eq($href, $href2) and next NAT_TAG;
+                }
+
+                # Some element is non hidden, check detailed.
+                if (grep { $has_non_hidden{$_} } %$href) {
+
+                    # Check new href for consistency with previous hrefs.
+                    for my $nat_tag2 (sort keys %$href) {
+                        next if $nat_tag2 eq $nat_tag;
+                        for my $href2 (@$aref) {
+
+                            # Don't check previous href with all hidden tags.
+                            next if $all_hidden{$href2};
+
+                            # Non hidden tag must not occur in other href.
+                            if ($has_non_hidden{$nat_tag2}) {
+                                if ($href2->{$nat_tag2}) {
+                                    $show_err->($href, $href2);
+                                    next NAT_TAG
+                                }
+                            }
+
+                            # Hidden tag must occur in all other hrefs.
+                            else {
+                                if (!$href2->{$nat_tag2}) {
+                                    $show_err->($href, $href2);
+                                    next NAT_TAG
+                                }
+                            }
                         }
+                    }
+                }
 
-                        # $href2 solitary, $href1 grouped.
-                        elsif (1 == keys %$href2) {
-                            $all_or_one_hidden->($href1) or last ERR;
-#                            debug "- store larger $nat_tag";
-                            $nat_tags2multi{$nat_tag} = $href1;
-                        }
+                # All elements are hidden. Always ok.
+                else {
 
-                        # Two single NAT tags augmented by shared hidden.
-                        elsif (2 == keys %$href1 && 2 == keys %$href2) {
-                            $all_or_one_hidden->($href1) or last ERR;
-                            $all_or_one_hidden->($href2) or last ERR;
-#                            debug "- store combined $nat_tag";
-                            $nat_tags2multi{$nat_tag} = { %$href1, %$href2 };
-                        }
+                    # Mark this type of href for easier checks.
+                    $all_hidden{$href} = 1;
+                }
 
-                        $err = 0;
+                # If current href and some previous href are in subset
+                # relation, then take larger set.
+                for my $href2 (@$aref) {
+                    my $common_size = grep { $href2->{$_ } } keys %$href;
+                    if ($common_size eq keys %$href) {
+
+                        # Ignore new href, because it is subset.
                         next NAT_TAG;
                     }
-                    my $tags1  = join(',', sort keys %$href1);
-                    my $name1  = $network->{name};
-                    my $tags2  = join(',', sort keys %$href2);
+                    elsif ($common_size eq keys %$href2) {
 
-                    # Values are NAT entries with name of the network.
-                    # Take first value deterministically.
-                    my ($name2) = sort map { $_->{name} } values %$href2;
-                    err_msg
-                        "If multiple NAT tags are used at one network,\n",
-                        " these NAT tags must be used",
-                        " equally grouped at other networks:\n", 
-                        " - $name1: $tags1\n",
-                        " - $name2: $tags2";
+                        # Replace previous href by new superset.
+                        $href2 = $href;
+                        next NAT_TAG;
+                    }
+                    else {
+
+                        # Add new href below.
+                    }
                 }
             }
-            else {
-#                debug "- store $nat_tag";
-                $nat_tags2multi{$nat_tag} = $href;
-            }
+            push @{ $nat_tags2multi{$nat_tag} }, $href;
         }
+    }
+
+    # Remove single entries.
+    for my $nat_tag (keys %nat_tags2multi) {
+        my $aref = $nat_tags2multi{$nat_tag};
+        next if @$aref > 1;
+        my $href = $aref->[0];
+        next if keys %$href > 1;
+        delete $nat_tags2multi{$nat_tag};
     }
 
     # Find NAT domains.
@@ -8074,22 +8121,26 @@ sub distribute_nat_info {
             my $nat_tags = $router->{nat_tags}->{$domain};
 #            debug "$domain->{name} $router->{name}: ", join(',', @$nat_tags);
 
-            # Multiple tags are bound to an interface.
-            # If a network has multiple matching NAT tags, 
+            # Multiple tags are bound to interface.
+            # If some network has multiple matching NAT tags, 
             # the resulting NAT mapping would be ambiguous.
             if (@$nat_tags >= 2) {
+              NAT_TAG:
                 for my $nat_tag (@$nat_tags) {
-                    my $href = $nat_tags2multi{$nat_tag} or next;
-                    keys %$href >= 2 or next;
-                    if ((my @tags = grep({ $href->{$_} && $_ } 
-                                         @$nat_tags)) >=2) 
-                    {
+                    my $aref = $nat_tags2multi{$nat_tag} or next;
+                    for my $href (@$aref) {
+                        my @tags = grep { $href->{$_} && $_ } @$nat_tags;
+                        @tags >= 2 or next;
                         my $tags = join(',', @tags);
                         my $nat_net = $href->{$tags[0]};
                         err_msg("Must not bind multiple NAT tags",
                                 " '$tags' of $nat_net->{name}",
                                 " at $router->{name}");
-                        last;
+                        
+                        # Show only first error. Otherwise we
+                        # would show the same error multiple
+                        # times.
+                        last NAT_TAG;
                     }
                 }
             }
