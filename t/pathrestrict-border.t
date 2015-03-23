@@ -14,7 +14,7 @@ network:Test =  { ip = 10.9.1.0/24; }
 
 router:filter = {
  managed;
- model = IOS_FW;
+ model = IOS, FW;
  routing = manual;
  interface:Test = {
   ip = 10.9.1.1;
@@ -145,7 +145,7 @@ router:filter1 = {
 }
 router:filter2 = {
  managed;
- model = IOS_FW;
+ model = IOS, FW;
  interface:Test = {
   ip = 10.9.1.2;
   hardware = Vlan20;

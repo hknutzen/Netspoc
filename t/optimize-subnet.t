@@ -22,7 +22,7 @@ network:customer = { ip = 10.1.7.0/24; }
 
 router:gw = {
  managed = secondary;
- model = IOS_FW;
+ model = IOS, FW;
  interface:customer = { ip = 10.1.7.1;    hardware = outside;}
  interface:trans    = { ip = 10.1.3.1;   hardware = inside;}
 }
@@ -115,7 +115,7 @@ network:sub = { ip = 10.1.7.32/27; }
 
 router:gw = {
  managed = secondary;
- model = IOS_FW;
+ model = IOS, FW;
  interface:sub   = { ip = 10.1.7.33; hardware = outside;}
  interface:trans = { ip = 10.1.3.1;  hardware = inside; }
 }

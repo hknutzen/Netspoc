@@ -31,7 +31,7 @@ network:Trans = { ip = 10.1.1.0/24; }
 
 router:filter = {
  managed;
- model = IOS_FW;
+ model = IOS, FW;
  routing = manual;
  interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; }
  interface:Customer = { ip = 10.9.9.1; hardware = VLAN2; }
@@ -592,7 +592,7 @@ network:Trans = { ip = 10.1.1.0/24; }
 
 router:filter = {
  managed;
- model = IOS_FW;
+ model = IOS, FW;
  routing = manual;
  interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; }
  interface:loop = { ip = 10.7.7.7; loopback; hardware = lo1; }
@@ -650,7 +650,7 @@ network:Customer = { ip = 10.9.9.0/24; }
 
 router:r1 = {
  managed;
- model = IOS_FW;
+ model = IOS, FW;
  routing = manual;
  interface:Customer = { ip = 10.9.9.1; hardware = VLAN9; }
  interface:trans = { ip = 10.7.7.1; hardware = VLAN7; }
@@ -661,7 +661,7 @@ network:trans = { ip = 10.7.7.0/24; }
 
 router:r2 = {
  managed;
- model = IOS_FW;
+ model = IOS, FW;
  routing = manual;
  interface:trans = { ip = 10.7.7.2; hardware = VLAN77; }
  interface:n1 = { ip = 10.1.1.1; hardware = VLAN1; }
@@ -828,7 +828,7 @@ $title = 'Check missing intermediate aggregate for Linux';
 
 # Linux only checks for missing intermediate aggregates,
 # because filter is attached to pair of incoming and outgoing interface.
-($in = $topo) =~ s/IOS_FW/Linux/g;
+($in = $topo) =~ s/IOS, FW/Linux/g;
 
 $in .= <<'END';
 service:test = {
@@ -876,7 +876,7 @@ network:Customer = { ip = 10.9.9.0/24; }
 
 router:r = {
  managed;
- model = IOS_FW;
+ model = IOS, FW;
  routing = manual;
  interface:Customer = { ip = 10.9.9.1; hardware = VLAN9; }
  interface:n1 = { ip = 10.1.1.1; hardware = VLAN1; }

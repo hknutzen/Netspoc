@@ -862,8 +862,8 @@ sub read_typed_name {
 # or host:[managed & xxx:xxx, ...]
 # or any:[ ip = n.n.n.n/len & xxx:xxx, ...]
 # or network:xxx/ppp
-# or host:id:[user]@domain.network
-# or host:id:domain.network
+# or host:id:user@domain.network
+# or host:id:[@]domain.network
 #
     sub read_extended_name {
 
@@ -944,7 +944,7 @@ sub read_typed_name {
         }
     }
 
-# host:xxx or host:id:user@domain or host:id:@domain
+# host:xxx or host:id:user@domain or host:id:[@]domain
     sub check_hostname {
         skip_space_and_comment;
         if ($input =~ m/\G host:/gcx) {
@@ -1216,9 +1216,6 @@ sub check_managed {
 sub check_model {
     my ($model, @attributes) = check_assign_list('model', \&read_name)
         or return;
-    my @attr2;
-    ($model, @attr2) = split /_/, $model;
-    push @attributes, @attr2;
     my $info = $router_info{$model};
     if (not $info) {
         error_atline("Unknown router model");
@@ -7811,7 +7808,7 @@ sub distribute_nat1 {
     for my $nat_tag2 (sort keys %$multi_href) {
         if ($nat_set->{$nat_tag2}) {
             err_msg("Grouped NAT tags '$nat_tag2' and '$nat_tag'",
-                    " must not be both active inside $domain->{name}");
+                    " must not both be active inside $domain->{name}");
         }
     }        
 
@@ -8417,14 +8414,14 @@ sub find_subnets_in_zone {
                 }
 
                 if ($nat_network->{hidden}) {
-                    if (my $other = $network->{up}) {
-                        err_msg("Ambiguous subnet relation from NAT.\n",
-                                " $network->{name} is subnet of\n",
-                                " - $other->{name} at",
-                                " $first_intf->{name}\n",
-                                " - but it is hidden $nat_network->{name} at",
-                                " $interface->{name}");
-                    }
+                    my $other = $network->{up} or next;
+                    next if get_nat_network($other, $no_nat_set)->{hidden};
+                    err_msg("Ambiguous subnet relation from NAT.\n",
+                            " $network->{name} is subnet of\n",
+                            " - $other->{name} at",
+                            " $first_intf->{name}\n",
+                            " - but it is hidden $nat_network->{name} at",
+                            " $interface->{name}");
                     next;
                 }
                 my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
