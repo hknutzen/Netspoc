@@ -8846,9 +8846,9 @@ sub find_subnets_in_nat_domain {
                             )
                         {
 
-                                # Prevent multiple error messages in different
-                                # NAT domains.
-                            $nat_subnet->{subnet_of} = $bignet;
+                            # Prevent multiple error messages in
+                            # different NAT domains.
+                            $nat_subnet->{subnet_of} ||= $bignet;
 
                             my $msg =
                                 "$nat_subnet->{name} is subnet of"
