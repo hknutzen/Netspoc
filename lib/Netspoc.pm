@@ -8625,25 +8625,26 @@ sub find_subnets_in_zone {
             my $nat = $get_zone_nat->($network);
             my $max_routing;
             my $up = $network->{up};
+          UP:
             while ($up) {
 
                 # Check if NAT settings are identical.
                 my $up_nat = $get_zone_nat->($up);
-                keys %$nat == keys %$up_nat or last;
+                keys %$nat == keys %$up_nat or last UP;
                 for my $tag (keys %$nat) {
-                    my $up_nat_info = $up_nat->{$tag} or last;
+                    my $up_nat_info = $up_nat->{$tag} or last UP;
                     my $nat_info = $nat->{$tag};
                     if ($nat_info->{hidden}) {
-                        $up_nat_info->{hidden} or last;
+                        $up_nat_info->{hidden} or last UP;
                     }
                     else {
                         
                         # Check if subnet relation is maintained
                         # for NAT addresses.
-                        $up_nat_info->{hidden} and last;
+                        $up_nat_info->{hidden} and last UP;
                         my($ip, $mask) = @{$nat_info}{qw(ip mask)};
-                        match_ip($up_nat_info->{ip}, $ip, $mask) or last;
-                        $up_nat_info->{mask} >= $mask or last;
+                        match_ip($up_nat_info->{ip}, $ip, $mask) or last UP;
+                        $up_nat_info->{mask} >= $mask or last UP;
                     }
                 }
                 if (!$up->{is_aggregate}) {
