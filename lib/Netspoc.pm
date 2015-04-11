@@ -8493,27 +8493,24 @@ sub find_subnets_in_zone {
 
             # Compare networks of zone.
             # Go from smaller to larger networks.
-            for my $mask (reverse sort keys %mask_ip_hash) {
+            my @mask_list = reverse sort numerically keys %mask_ip_hash; 
+            while (my $mask = shift @mask_list) {
 
-                # Network 0.0.0.0/0.0.0.0 can't be subnet.
-                last if $mask == 0;
+                # No supernets available
+                last if not @mask_list;
+
+                my $ip_hash = $mask_ip_hash{$mask};
               SUBNET:
-                for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
+                for my $ip (sort numerically keys %$ip_hash) {
 
-                    my $subnet = $mask_ip_hash{$mask}->{$ip};
+                    my $subnet = $ip_hash->{$ip};
 
                     # Find networks which include current subnet.
-                    my $m = $mask;
-                    my $i = $ip;
-                    while ($m) {
+                    # @mask_list holds masks of potential supernets.
+                    for my $m (@mask_list) {
 
-                        # Clear upper bit, because left shift is undefined
-                        # otherwise.
-                        $m &= 0x7fffffff;
-                        $m <<= 1;
-                        $i = $i & $m;  # Perl bug #108480 prevents use of "&=".
-                        my $bignet = $mask_ip_hash{$m}->{$i};
-                        next if !$bignet;
+                        my $i = $ip & $m;
+                        my $bignet = $mask_ip_hash{$m}->{$i} or next;
 
                         # Collect subnet relation for first no_nat_set.
                         if ($interface eq $first_intf) {
