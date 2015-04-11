@@ -8688,7 +8688,8 @@ sub find_subnets_in_zone {
 # Mark networks, having subnet in other zone: $bignet->{has_other_subnet}
 # If set, this prevents secondary optimization.
 sub find_subnets_in_nat_domain {
-    progress('Finding subnets in NAT domain');
+    my $count = @natdomains;
+    progress("Finding subnets in $count NAT domains");
     my %seen;
 
     for my $domain (@natdomains) {
