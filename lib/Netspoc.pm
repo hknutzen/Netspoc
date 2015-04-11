@@ -8776,34 +8776,27 @@ sub find_subnets_in_nat_domain {
             }
         }
 
-
         # Go from smaller to larger networks.
-        for my $mask (reverse sort keys %mask_ip_hash) {
+        my @mask_list = reverse sort numerically keys %mask_ip_hash; 
+        while (my $mask = shift @mask_list) {
 
-            # Network 0.0.0.0/0.0.0.0 can't be subnet.
-            last if $mask == 0;
+            # No supernets available
+            last if not @mask_list;
 
-            for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
+            my $ip_hash = $mask_ip_hash{$mask};
+            for my $ip (sort numerically keys %$ip_hash) {
 
                 # It is sufficient to set subset relation for only one
                 # network out of multiple identical networks.
                 # In all contexts where {is_in} is used,
                 # we apply {is_identical} to the network before.
-                my $subnet = $mask_ip_hash{$mask}->{$ip};
+                my $subnet = $ip_hash->{$ip};
 
                 # Find networks which include current subnet.
-                my $m = $mask;
-                my $i = $ip;
-                while ($m) {
-
-                    # Clear upper bit, because left shift is undefined
-                    # otherwise.
-                    $m &= 0x7fffffff;
-                    $m <<= 1;
-                    $i = $i & $m; # Perl bug #108480 prevents use of "&=".
-                    my $bignet = $mask_ip_hash{$m}->{$i};
-                    next if not $bignet;
-
+                # @mask_list holds masks of potential supernets.
+                for my $m (@mask_list) {
+                    my $i = $ip & $m;
+                    my $bignet = $mask_ip_hash{$m}->{$i} or next;
                     my $nat_subnet = get_nat_network($subnet, $no_nat_set);
                     my $nat_bignet = get_nat_network($bignet, $no_nat_set);
 
