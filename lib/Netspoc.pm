@@ -7875,36 +7875,36 @@ sub distribute_nat1 {
             # grouped NAT tags becomes active.
             if (my $aref = $nat_tags2multi->{$nat_tag}) {
                 for my $href (@$aref) {
-                for my $nat_tag2 (@$out_nat_tags) {
-                    next if $nat_tag2 eq $nat_tag;
-                    next if !$href->{$nat_tag2};
+                    for my $nat_tag2 (@$out_nat_tags) {
+                        next if $nat_tag2 eq $nat_tag;
+                        next if !$href->{$nat_tag2};
 
-#                    debug "- $nat_tag2";
-                    # Prevent transition from dynamic to
-                    # static NAT.
-                    my $nat_info = $href->{$nat_tag};
-                    my $next_info = $href->{$nat_tag2};
+#                        debug "- $nat_tag2";
+                        # Prevent transition from dynamic to
+                        # static NAT.
+                        my $nat_info = $href->{$nat_tag};
+                        my $next_info = $href->{$nat_tag2};
 
-                    # Use $next_info->{name} and not $nat_info->{name}
-                    # because $nat_info may show wrong network,
-                    # because we combined different hidden networks into
-                    # $nat_tags2multi.
-                    if ($nat_info->{hidden}) {
-                        err_msg("Must not change hidden nat:$nat_tag",
-                                " using nat:$nat_tag2\n",
-                                " for $next_info->{name}",
-                                " at $router->{name}");
-                    }
-                    elsif ($nat_info->{dynamic}) {
-                        if(!($next_info->{dynamic})) {
-                            err_msg("Must not change dynamic nat:$nat_tag",
-                                    " to static using nat:$nat_tag2\n",
-                                    " for $nat_info->{name}",
+                        # Use $next_info->{name} and not $nat_info->{name}
+                        # because $nat_info may show wrong network,
+                        # because we combined different hidden networks into
+                        # $nat_tags2multi.
+                        if ($nat_info->{hidden}) {
+                            err_msg("Must not change hidden nat:$nat_tag",
+                                    " using nat:$nat_tag2\n",
+                                    " for $next_info->{name}",
                                     " at $router->{name}");
                         }
+                        elsif ($nat_info->{dynamic}) {
+                            if(!($next_info->{dynamic})) {
+                                err_msg("Must not change dynamic nat:$nat_tag",
+                                        " to static using nat:$nat_tag2\n",
+                                        " for $nat_info->{name}",
+                                        " at $router->{name}");
+                            }
+                        }
+                        next DOMAIN;
                     }
-                    next DOMAIN;
-                }
                 }
             }
 
