@@ -57,7 +57,7 @@ network:f = {
 
 router:y1 = {
  managed;
- model = IOS_FW;
+ model = IOS, FW;
  interface:b = {
   ip = 10.1.2.2;
   hardware = Fastethernet0/0;
@@ -69,7 +69,7 @@ router:y1 = {
 
 router:y2 = {
  managed;
- model = IOS_FW;
+ model = IOS, FW;
  interface:b = { 
   ip = 10.1.2.3;
   hardware = Fastethernet0/0;
