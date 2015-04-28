@@ -4887,7 +4887,7 @@ sub disable_behind {
 # Lists of network objects which are left over after disabling.
 #my @managed_routers;	# defined above
 my @routing_only_routers;
-my @managed_vpnhub;
+my @managed_crypto_hubs;
 my @routers;
 my @networks;
 my @zones;
@@ -5157,10 +5157,6 @@ sub mark_disabled {
         push @routers, $router;
         if ($router->{managed}) {
             push @managed_routers, $router;
-            if ($router->{model}->{do_auth})
-            {
-                push @managed_vpnhub, $router;
-            }
         }
         elsif ($router->{routing_only}) {
             push @routing_only_routers, $router;
@@ -11582,6 +11578,8 @@ sub gen_tunnel_rules  {
 # ToDo: Are tunnels between different private contexts allowed?
 sub link_tunnels  {
 
+    my %hub_seen;
+
     # Collect clear-text interfaces of all tunnels.
     my @real_interfaces;
 
@@ -11603,6 +11601,19 @@ sub link_tunnels  {
             for my $crypto_name (@{ $real_hub->{hub} }) {
                 $crypto_name eq $name and $crypto_name = $crypto;
             }
+
+            # Collect managed routers with crypto hub.
+            # Note: Crypto routers are splitted internally into
+            # two nodes. Typically we get get a node with only 
+            # a single crypto interface. 
+            my $router = $real_hub->{router};
+            $router->{managed} or next;
+
+            # Take original router with cleartext interface(s).
+            if (my $orig_router = $router->{orig_router}) {
+                $router = $orig_router;
+            }
+            push @managed_crypto_hubs, $router if not $hub_seen{$router}++;
         }
         push @real_interfaces, @$real_hubs;
 
@@ -11851,9 +11862,11 @@ sub verify_subject_name {
 sub verify_asa_trustpoint {
     my ($router, $crypto) = @_;
     my $isakmp = $crypto->{type}->{key_exchange};
-    $isakmp->{trust_point}
-      or err_msg("Missing 'trust_point' in",
-                 " isakmp attributes for $router->{name}");
+    if ($isakmp->{authentication} eq 'rsasig') {
+        $isakmp->{trust_point} or
+            err_msg("Missing attribute 'trust_point' in",
+                    " $isakmp->{name} for $router->{name}");
+    }
     return;
 }
 
@@ -12025,8 +12038,10 @@ sub expand_crypto  {
 
     # Check for duplicate IDs of different hosts
     # coming into current hardware interface / current device.
-    for my $router (@managed_vpnhub) {
-        my $is_asavpn = $router->{model}->{crypto} eq 'ASA_VPN';
+    for my $router (@managed_crypto_hubs) {
+        my $model = $router->{model};
+        $model->{do_auth} or next;
+        my $is_asavpn = $model->{crypto} eq 'ASA_VPN';
         my %hardware2id2tunnel;
         for my $interface (@{ $router->{interfaces} }) {
             next if not $interface->{ip} eq 'tunnel';
@@ -12049,24 +12064,24 @@ sub expand_crypto  {
         }
     }
 
-    for my $router (@managed_vpnhub) {
+    for my $router (@managed_crypto_hubs) {
         my $crypto_type = $router->{model}->{crypto};
         if ($crypto_type eq 'ASA_VPN') {
             verify_asa_vpn_attributes($router);
+
+            # Move 'trust-point' from radius_attributes to router attribute.
+            my $trust_point = 
+                delete $router->{radius_attributes}->{'trust-point'}
+                or err_msg("Missing 'trust-point' in radius_attributes",
+                           " of $router->{name}");
+            $router->{trust_point} = $trust_point;
         }
         elsif($crypto_type eq 'ASA') {
             for my $interface (@{ $router->{interfaces} }) {
-                next if not $interface->{ip} eq 'tunnel';
-                verify_asa_trustpoint($router, $interface->{cyrpto});
-                last;
+                my $crypto = $interface->{crypto} or next;
+                verify_asa_trustpoint($router, $crypto);
             }
-        }            
-
-        # Move 'trust-point' from radius_attributes to router attribute.
-        my $trust_point = delete $router->{radius_attributes}->{'trust-point'}
-        or err_msg
-            "Missing 'trust-point' in radius_attributes of $router->{name}";
-        $router->{trust_point} = $trust_point;
+        }     
     }
 
     # Hash only needed during expand_group and expand_rules.
@@ -19077,7 +19092,7 @@ sub init_global_vars {
     %interfaces = %hosts = ();
     @managed_routers = @routing_only_routers = @router_fragments = ();
     @virtual_interfaces = @pathrestrictions = ();
-    @managed_vpnhub = @routers = @networks = @zones = @areas = ();
+    @managed_crypto_hubs = @routers = @networks = @zones = @areas = ();
     @natdomains = ();
     %auto_interfaces = ();
     $from_json = undef;
