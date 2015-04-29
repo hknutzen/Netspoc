@@ -578,6 +578,12 @@ sub syntax_err {
 
 sub internal_err {
     my (@args) = @_;
+
+    # Don't show inherited error.
+    # Abort immediately, if other errors have already occured.
+    if ($error_counter) {
+        die "Aborted after $error_counter errors\n";
+    }
     my (undef, $file, $line) = caller;
     my $sub = (caller 1)[3];
     my $msg = "Internal error in $sub";
