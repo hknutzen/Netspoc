@@ -10866,20 +10866,28 @@ sub cluster_path_mark  {
 
     # Activate pathrestriction of interface at border of loop, if path starts
     # or ends outside the loop and enters the loop at such an interface.
-    for my $intf ($from_in, $to_out) {
-        if (    $intf
-            and not $intf->{loop}
-            and (my $restrictions = $intf->{path_restrict}))
-        {
-            for my $restrict (@$restrictions) {
-                if ($restrict->{active_path}) {
-
-                    # Pathrestriction at start and end interface
-                    # prevents traffic through loop.
-                    $success = 0;
-                }
-                $restrict->{active_path} = 1;
+    if (    $from_in 
+        and not $from_in->{loop} 
+        and (my $restrictions = $from_in->{path_restrict})
+        and not $start_intf)
+    {
+        for my $restrict (@$restrictions) {
+            $restrict->{active_path} = 1;
+        }
+    }
+    if (    $to_out 
+        and not $to_out->{loop} 
+        and (my $restrictions = $to_out->{path_restrict})
+        and not $end_intf)
+    {
+        for my $restrict (@$restrictions) {
+            if ($restrict->{active_path}) {
+                
+                # Pathrestriction is applied to both, incoming and outgoing interface.
+                # This prevents traffic through loop.
+                $success = 0;
             }
+            $restrict->{active_path} = 1;
         }
     }
 
