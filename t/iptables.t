@@ -264,4 +264,107 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Check udp/tcp early and combine adjacent networks';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = eth1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = eth1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = eth1; }
+}
+
+service:test1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 22, tcp 25;
+}
+service:test2 = {
+ user = network:n2, network:n3;
+ permit src = user; dst = network:n1; prt = udp 53, tcp 53;
+}
+service:test3 = {
+ user = network:n3;
+ permit src = user; dst = network:n1; prt = tcp 21;
+}
+END
+
+$out = <<'END';
+-- r1
+# [ ACL ]
+:c1 -
+:c2 -
+:c3 -
+:c4 -
+-A c1 -j ACCEPT -p tcp --dport 25
+-A c1 -j ACCEPT -p tcp --dport 22
+-A c2 -j ACCEPT -p tcp --dport 53
+-A c2 -j ACCEPT -p tcp --dport 21
+-A c3 -g c2 -s 10.1.3.0/24 -p tcp --dport 21:53
+-A c3 -j ACCEPT -s 10.1.2.0/24 -p tcp --dport 53
+-A c4 -g c1 -s 10.1.1.0/24 -d 10.1.2.0/24 -p tcp --dport 22:25
+-A c4 -g c3 -s 10.1.2.0/23 -d 10.1.1.0/24
+--
+:eth1_eth1 -
+-A FORWARD -j eth1_eth1 -i eth1 -o eth1
+-A eth1_eth1 -g c4 -d 10.1.0.0/22 -p tcp
+-A eth1_eth1 -j ACCEPT -s 10.1.2.0/23 -d 10.1.1.0/24 -p udp --dport 53
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Check icmp early ';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+
+router:u = {
+ interface:n1 = { ip = 10.1.1.1; }
+ interface:n2 = { ip = 10.1.2.1; }
+}
+
+network:n2 = { ip = 10.1.2.0/24;}
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n2 = { ip = 10.1.2.2; hardware = eth0;}
+ interface:n3 = { ip = 10.1.3.1; hardware = eth1; }
+}
+network:n3 = { ip = 10.1.3.0/24;}
+
+service:t1 = {
+ user = network:n1, network:n2;
+ permit src = network:n3; dst = user; prt = tcp 80, icmp 8;
+}
+END
+
+$out = <<'END';
+-- r1
+# [ ACL ]
+:c1 -
+:c2 -
+:c3 -
+-A c1 -j ACCEPT -d 10.1.2.0/24 -p tcp --dport 80
+-A c1 -j ACCEPT -d 10.1.1.0/24 -p tcp --dport 80
+-A c2 -j ACCEPT -d 10.1.2.0/24 -p icmp --icmp-type 8
+-A c2 -j ACCEPT -d 10.1.1.0/24 -p icmp --icmp-type 8
+-A c3 -g c1 -d 10.1.0.0/22 -p tcp
+-A c3 -g c2 -d 10.1.0.0/22 -p icmp
+--
+:eth1_eth0 -
+-A FORWARD -j eth1_eth0 -i eth1 -o eth0
+-A eth1_eth0 -g c3 -s 10.1.3.0/24
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
