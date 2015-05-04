@@ -2042,9 +2042,6 @@ sub read_router {
         elsif (check_flag 'strict_secondary') {
             $router->{strict_secondary} = 1;
         }
-        elsif (check_flag 'std_in_acl') {
-            $router->{std_in_acl} = 1;
-        }
         elsif (check_flag 'log_deny') {
             $router->{log_deny} = 1;
         }
@@ -2612,9 +2609,6 @@ sub read_aggregate {
         }
         elsif (check_flag 'has_unenforceable') {
             $aggregate->{has_unenforceable} = 1;
-        }
-        elsif (check_flag 'no_in_acl') {
-            $aggregate->{no_in_acl} = 1;
         }
         elsif (my $nat_name = check_nat_name()) {
             my $nat = read_nat("nat:$nat_name");
@@ -8900,30 +8894,6 @@ sub find_subnets_in_nat_domain {
 
 sub check_no_in_acl  {
 
-    # Propagate attribute 'no_in_acl' from zones to interfaces.
-    for my $zone (@zones) {
-        next if not $zone->{no_in_acl};
-
-#	debug("$zone->{name} has attribute 'no_in_acl'");
-        for my $interface (@{ $zone->{interfaces} }) {
-
-            # Ignore secondary interface.
-            next if $interface->{main_interface};
-
-            my $router = $interface->{router};
-
-            # Directly attached attribute 'no_in_acl' or
-            # attribute 'std_in_acl' at device overrides.
-            if ($router->{std_in_acl}
-                or grep({ $_->{no_in_acl} and not ref $_->{no_in_acl} }
-                    @{ $router->{interfaces} }))
-            {
-                next;
-            }
-            $interface->{no_in_acl} = $zone;
-        }
-    }
-
     # Move attribute 'no_in_acl' to hardware interface
     # because ACLs operate on hardware, not on logic.
     for my $router (@managed_routers) {
@@ -9411,7 +9381,7 @@ sub link_aggregates {
 
         # Aggregate with ip 0/0 is used to set attributes of zone.
         if ($mask == 0) {
-            for my $attr (qw(has_unenforceable nat no_in_acl owner)) {
+            for my $attr (qw(has_unenforceable nat owner)) {
                 if (my $v = delete $aggregate->{$attr}) {
                     for my $zone2 ($cluster ? @$cluster : ($zone)) {
                         $zone2->{$attr} = $v;
