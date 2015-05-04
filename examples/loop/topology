@@ -67,7 +67,7 @@ network:sahara = {
 
 router:agadir = {
  managed;
- model = IOS_FW;
+ model = IOS, FW;
  interface:sahara = {ip = 10.5.5.2; hardware = Ethernet0;}
  interface:ocean = {ip = 10.10.1.2; hardware = Ethernet1;}
 }
