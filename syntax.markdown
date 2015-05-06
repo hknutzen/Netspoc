@@ -114,7 +114,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ no_group_code;    ]
          [ no_crypto_filter; ]
          [ no_protect_self;  ]
-         [ std_in_acl;       ]
          [ log_deny;         ]
          [ owner = <name>;   ]
          <interface definition> *
@@ -179,7 +178,6 @@ here `<object set>` must expand to networks.
          [ owner = <name>;    ]
          <network NAT> *
          [ has_unenforceable; ]
-         [ no_in_acl;         ]
       }
 
 ## Area definition
