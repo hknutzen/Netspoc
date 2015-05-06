@@ -31,11 +31,11 @@ zone attributes are derived from the topology more directly than
 others...  )
 
 Possible zone attributes are
-*no_in_acl: ACL is not generated at the zone interfaces but ACL information is contained in the ACL of the other interfaces of the corresponding router instead. 
-*loopback: zone consists of loopback network only
-*is_tunnel: zone consists of tunnel networks only
-*private: stores the zones private-status, if not 'public'
-*has_id_hosts: ... 
+* no_in_acl: ACL is not generated at the zone interfaces but ACL information is contained in the ACL of the other interfaces of the corresponding router instead. 
+* loopback: zone consists of loopback network only
+* is_tunnel: zone consists of tunnel networks only
+* private: stores the zones private-status, if not 'public'
+* has_id_hosts: ... 
 
     for every network in networks
       if network has no zone
