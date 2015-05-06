@@ -180,7 +180,7 @@ area:a1 = {
 END
 
 $out = <<'END';
-Error: area:a1 is empty
+Warning: area:a1 is empty
 END
 
 test_err($title, $in, $out);
