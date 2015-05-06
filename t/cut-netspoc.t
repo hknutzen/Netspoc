@@ -345,6 +345,33 @@ END
 test_run($title, $in, $in);
 
 ############################################################
+$title = 'Bridged network';
+############################################################
+
+$in = <<'END';
+network:n1a = { ip = 10.1.1.64/26; subnet_of = network:n1; }
+router:u = {
+ interface:n1a;
+ interface:n1;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; reroute_permit = network:n1a; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+service:test = {
+    user = network:n2;
+    permit src = user; dst = network:n1; prt = tcp;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
 # Shared topology for crypto tests
 ############################################################
 

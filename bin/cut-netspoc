@@ -101,7 +101,21 @@ sub mark_adjacent_networks {
     my ($router) = @_;
     for my $interface (@{ $router->{interfaces} }) {
 #        Netspoc::debug "adj. $interface->{network}->{name}";
-        $interface->{network}->{is_used} = 1;
+        my $network = $interface->{network};
+        $network->{is_used} = 1;
+
+        # Mark bridge and bridged networks.
+        if ($network->{bridged}) {
+            for my $bridge_in (@{ $network->{interfaces} }) {
+                $bridge_in->{ip} eq 'bridged' or next;
+                my $bridge = $bridge_in->{router};
+                $bridge->{is_used} = 1;
+                for my $bridge_out (@{ $bridge->{interfaces} }) {
+                    $bridge_out->{ip} eq 'bridged' or next;
+                    $bridge_out->{network}->{is_used} = 1;
+                }                                           
+            }
+        }
     }
     return;
 }

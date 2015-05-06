@@ -9927,9 +9927,8 @@ sub set_zone {
 
         # We get an empty area, if inclusive borders are placed around
         # a single router.
-        # Abort in this case, because it is useless and confusing.
         @{ $area->{zones} } or
-            err_msg("$area->{name} is empty");
+            warn_msg("$area->{name} is empty");
 
 #     debug("$area->{name}:\n ", join "\n ", map $_->{name}, @{$area->{zones}});
     }
