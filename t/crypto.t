@@ -926,6 +926,18 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Missing trust_point in isakmp definition';
+############################################################
+
+$in =~ s/trust_point/#trust_point/;
+
+$out = <<"END";
+Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Unmanaged VPN spoke with unknown IP';
 ############################################################
 

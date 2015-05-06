@@ -578,6 +578,12 @@ sub syntax_err {
 
 sub internal_err {
     my (@args) = @_;
+
+    # Don't show inherited error.
+    # Abort immediately, if other errors have already occured.
+    if ($error_counter) {
+        die "Aborted after $error_counter errors\n";
+    }
     my (undef, $file, $line) = caller;
     my $sub = (caller 1)[3];
     my $msg = "Internal error in $sub";
@@ -2036,9 +2042,6 @@ sub read_router {
         elsif (check_flag 'strict_secondary') {
             $router->{strict_secondary} = 1;
         }
-        elsif (check_flag 'std_in_acl') {
-            $router->{std_in_acl} = 1;
-        }
         elsif (check_flag 'log_deny') {
             $router->{log_deny} = 1;
         }
@@ -2606,9 +2609,6 @@ sub read_aggregate {
         }
         elsif (check_flag 'has_unenforceable') {
             $aggregate->{has_unenforceable} = 1;
-        }
-        elsif (check_flag 'no_in_acl') {
-            $aggregate->{no_in_acl} = 1;
         }
         elsif (my $nat_name = check_nat_name()) {
             my $nat = read_nat("nat:$nat_name");
@@ -4887,7 +4887,7 @@ sub disable_behind {
 # Lists of network objects which are left over after disabling.
 #my @managed_routers;	# defined above
 my @routing_only_routers;
-my @managed_vpnhub;
+my @managed_crypto_hubs;
 my @routers;
 my @networks;
 my @zones;
@@ -5157,10 +5157,6 @@ sub mark_disabled {
         push @routers, $router;
         if ($router->{managed}) {
             push @managed_routers, $router;
-            if ($router->{model}->{do_auth})
-            {
-                push @managed_vpnhub, $router;
-            }
         }
         elsif ($router->{routing_only}) {
             push @routing_only_routers, $router;
@@ -8898,30 +8894,6 @@ sub find_subnets_in_nat_domain {
 
 sub check_no_in_acl  {
 
-    # Propagate attribute 'no_in_acl' from zones to interfaces.
-    for my $zone (@zones) {
-        next if not $zone->{no_in_acl};
-
-#	debug("$zone->{name} has attribute 'no_in_acl'");
-        for my $interface (@{ $zone->{interfaces} }) {
-
-            # Ignore secondary interface.
-            next if $interface->{main_interface};
-
-            my $router = $interface->{router};
-
-            # Directly attached attribute 'no_in_acl' or
-            # attribute 'std_in_acl' at device overrides.
-            if ($router->{std_in_acl}
-                or grep({ $_->{no_in_acl} and not ref $_->{no_in_acl} }
-                    @{ $router->{interfaces} }))
-            {
-                next;
-            }
-            $interface->{no_in_acl} = $zone;
-        }
-    }
-
     # Move attribute 'no_in_acl' to hardware interface
     # because ACLs operate on hardware, not on logic.
     for my $router (@managed_routers) {
@@ -9409,7 +9381,7 @@ sub link_aggregates {
 
         # Aggregate with ip 0/0 is used to set attributes of zone.
         if ($mask == 0) {
-            for my $attr (qw(has_unenforceable nat no_in_acl owner)) {
+            for my $attr (qw(has_unenforceable nat owner)) {
                 if (my $v = delete $aggregate->{$attr}) {
                     for my $zone2 ($cluster ? @$cluster : ($zone)) {
                         $zone2->{$attr} = $v;
@@ -10863,20 +10835,28 @@ sub cluster_path_mark  {
 
     # Activate pathrestriction of interface at border of loop, if path starts
     # or ends outside the loop and enters the loop at such an interface.
-    for my $intf ($from_in, $to_out) {
-        if (    $intf
-            and not $intf->{loop}
-            and (my $restrictions = $intf->{path_restrict}))
-        {
-            for my $restrict (@$restrictions) {
-                if ($restrict->{active_path}) {
-
-                    # Pathrestriction at start and end interface
-                    # prevents traffic through loop.
-                    $success = 0;
-                }
-                $restrict->{active_path} = 1;
+    if (    $from_in 
+        and not $from_in->{loop} 
+        and (my $restrictions = $from_in->{path_restrict})
+        and not $start_intf)
+    {
+        for my $restrict (@$restrictions) {
+            $restrict->{active_path} = 1;
+        }
+    }
+    if (    $to_out 
+        and not $to_out->{loop} 
+        and (my $restrictions = $to_out->{path_restrict})
+        and not $end_intf)
+    {
+        for my $restrict (@$restrictions) {
+            if ($restrict->{active_path}) {
+                
+                # Pathrestriction is applied to both, incoming and outgoing interface.
+                # This prevents traffic through loop.
+                $success = 0;
             }
+            $restrict->{active_path} = 1;
         }
     }
 
@@ -11581,6 +11561,8 @@ sub gen_tunnel_rules  {
 # ToDo: Are tunnels between different private contexts allowed?
 sub link_tunnels  {
 
+    my %hub_seen;
+
     # Collect clear-text interfaces of all tunnels.
     my @real_interfaces;
 
@@ -11602,6 +11584,19 @@ sub link_tunnels  {
             for my $crypto_name (@{ $real_hub->{hub} }) {
                 $crypto_name eq $name and $crypto_name = $crypto;
             }
+
+            # Collect managed routers with crypto hub.
+            # Note: Crypto routers are splitted internally into
+            # two nodes. Typically we get get a node with only 
+            # a single crypto interface. 
+            my $router = $real_hub->{router};
+            $router->{managed} or next;
+
+            # Take original router with cleartext interface(s).
+            if (my $orig_router = $router->{orig_router}) {
+                $router = $orig_router;
+            }
+            push @managed_crypto_hubs, $router if not $hub_seen{$router}++;
         }
         push @real_interfaces, @$real_hubs;
 
@@ -11850,9 +11845,11 @@ sub verify_subject_name {
 sub verify_asa_trustpoint {
     my ($router, $crypto) = @_;
     my $isakmp = $crypto->{type}->{key_exchange};
-    $isakmp->{trust_point}
-      or err_msg("Missing 'trust_point' in",
-                 " isakmp attributes for $router->{name}");
+    if ($isakmp->{authentication} eq 'rsasig') {
+        $isakmp->{trust_point} or
+            err_msg("Missing attribute 'trust_point' in",
+                    " $isakmp->{name} for $router->{name}");
+    }
     return;
 }
 
@@ -12024,8 +12021,10 @@ sub expand_crypto  {
 
     # Check for duplicate IDs of different hosts
     # coming into current hardware interface / current device.
-    for my $router (@managed_vpnhub) {
-        my $is_asavpn = $router->{model}->{crypto} eq 'ASA_VPN';
+    for my $router (@managed_crypto_hubs) {
+        my $model = $router->{model};
+        $model->{do_auth} or next;
+        my $is_asavpn = $model->{crypto} eq 'ASA_VPN';
         my %hardware2id2tunnel;
         for my $interface (@{ $router->{interfaces} }) {
             next if not $interface->{ip} eq 'tunnel';
@@ -12048,24 +12047,24 @@ sub expand_crypto  {
         }
     }
 
-    for my $router (@managed_vpnhub) {
+    for my $router (@managed_crypto_hubs) {
         my $crypto_type = $router->{model}->{crypto};
         if ($crypto_type eq 'ASA_VPN') {
             verify_asa_vpn_attributes($router);
+
+            # Move 'trust-point' from radius_attributes to router attribute.
+            my $trust_point = 
+                delete $router->{radius_attributes}->{'trust-point'}
+                or err_msg("Missing 'trust-point' in radius_attributes",
+                           " of $router->{name}");
+            $router->{trust_point} = $trust_point;
         }
         elsif($crypto_type eq 'ASA') {
             for my $interface (@{ $router->{interfaces} }) {
-                next if not $interface->{ip} eq 'tunnel';
-                verify_asa_trustpoint($router, $interface->{cyrpto});
-                last;
+                my $crypto = $interface->{crypto} or next;
+                verify_asa_trustpoint($router, $crypto);
             }
-        }            
-
-        # Move 'trust-point' from radius_attributes to router attribute.
-        my $trust_point = delete $router->{radius_attributes}->{'trust-point'}
-        or err_msg
-            "Missing 'trust-point' in radius_attributes of $router->{name}";
-        $router->{trust_point} = $trust_point;
+        }     
     }
 
     # Hash only needed during expand_group and expand_rules.
@@ -19076,7 +19075,7 @@ sub init_global_vars {
     %interfaces = %hosts = ();
     @managed_routers = @routing_only_routers = @router_fragments = ();
     @virtual_interfaces = @pathrestrictions = ();
-    @managed_vpnhub = @routers = @networks = @zones = @areas = ();
+    @managed_crypto_hubs = @routers = @networks = @zones = @areas = ();
     @natdomains = ();
     %auto_interfaces = ();
     $from_json = undef;
