@@ -31,6 +31,7 @@ zone attributes are derived from the topology more directly than
 others...  )
 
 Possible zone attributes are
+
 * no_in_acl: ACL is not generated at the zone interfaces but ACL information is contained in the ACL of the other interfaces of the corresponding router instead. 
 * loopback: zone consists of loopback network only
 * is_tunnel: zone consists of tunnel networks only
@@ -71,7 +72,8 @@ Functions: `set_zone`, `check_no_in_acl`
   not really zone-related task is still conducted during zone setup**
    
 Netspoc processes all managed routers and assures proper usage of
-no_in_acl corrsponding to following restrictions: 
+no_in_acl corrsponding to following restrictions:
+ 
 * number of no_in_acl interfaces per router <= 1 
 * no usage with routers perticipating in crypto-tunnels
 * usage only with router models suitable for out-acl
