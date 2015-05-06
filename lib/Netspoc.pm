@@ -9813,7 +9813,11 @@ sub set_area {
     my ($obj, $area, $in_interface) = @_;
     if (my $err_path = set_area1($obj, $area, $in_interface)) {
         push @$err_path, $in_interface if $in_interface;
-        err_msg("Inconsistent definition of $area->{name} in loop.\n",
+        my $err_intf = $err_path->[0];
+        my $is_inclusive = $err_intf->{is_inclusive};
+        my $err_obj = $err_intf->{$is_inclusive->{$area} ? 'router' : 'zone'};
+        my $in_loop = $err_obj->{areas}->{$area} ? ' in loop' : '';
+        err_msg("Inconsistent definition of $area->{name}", $in_loop, ".\n",
                 " It is reached from outside via this path:\n",
                 " - ", join("\n - ", map { $_->{name} } reverse @$err_path));
         return 1;

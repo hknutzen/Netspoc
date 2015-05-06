@@ -200,7 +200,7 @@ area:a2 = {
 END
 
 $out = <<'END';
-Error: Inconsistent definition of area:a1 in loop.
+Error: Inconsistent definition of area:a1.
  It is reached from outside via this path:
  - interface:asa2.n2
  - interface:asa1.n2
