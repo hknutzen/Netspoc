@@ -277,4 +277,20 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Invalid border definition';
+############################################################
+
+$in = $topo . <<'END';
+area:a1 = {border = interface:asa1.n1,
+                    interface:asa2.n2;}
+END
+
+$out = <<'END';
+Error: Invalid border of area:a1:
+ - interface:asa2.n2
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;
