@@ -8893,23 +8893,23 @@ sub find_subnets_in_nat_domain {
 }
 
 #############################################################################
-# Purpose  : Propagate attribute 'no_in_acl' from zones to interfaces.
-# Comments :
+# Purpose  : Moves attribute 'no_in_acl' from interfaces to hardware because 
+#            ACLs operate on hardware, not on logic. Marks interfaces needing 
+#            outgoing ACLs.
+# Comments : Not more than 1 'no_in_acl' interface/router allowed.
 sub check_no_in_acl  {
-
-    # Move attribute 'no_in_acl' to hardware interface
-    # because ACLs operate on hardware, not on logic.
+ 
+    # Process every managed router
     for my $router (@managed_routers) {
-
-        # At most one interface with 'no_in_acl' allowed.
-        # Move attribute to hardware interface.
-        my $counter = 0;
+        my $counter = 0; # count 'no_in_acl' interfaces/router
+        
+        # At interfaces with no_in_acl move attribute to hardware
         for my $interface (@{ $router->{interfaces} }) {
             if (delete $interface->{no_in_acl}) {
                 my $hardware = $interface->{hardware};
                 $hardware->{no_in_acl} = 1;
 
-                # Ignore secondary interface.
+                # Assure max number of main interfaces at no_in_acl-hardware =1 
                 1 ==
                   grep(
                     { not $_->{main_interface} } @{ $hardware->{interfaces} })
@@ -8917,16 +8917,23 @@ sub check_no_in_acl  {
                   "Only one logical interface allowed at $hardware->{name}",
                   " because it has attribute 'no_in_acl'";
                 $counter++;
+
+                # Reference no_in_acl interface in router attribute
                 $router->{no_in_acl} = $interface;
             }
         }
         next if not $counter;
+
+        # Assert maximum number of 'no_in_acl' interfaces per router 
         $counter == 1
           or err_msg "At most one interface of $router->{name}",
           " may use flag 'no_in_acl'";
+
+        # Assert router to support outigoing ACL
         $router->{model}->{has_out_acl}
           or err_msg("$router->{name} doesn't support outgoing ACL");
-
+        
+        # Assert router not to take part in crypto tunnels
         if (grep { $_->{hub} or $_->{spoke} } @{ $router->{interfaces} }) {
             err_msg "Don't use attribute 'no_in_acl' together",
               " with crypto tunnel at $router->{name}";
