@@ -9482,11 +9482,16 @@ sub get_cluster_aggregates {
         map { $_->{ipmask2aggregate}->{$key}||() } @{ $zone->{zone_cluster} };
 }
 
-# unnumbered and tunnel networks are not referenced in zone objects, as
-# they are no valid src or dst. loopback networks are referenced
+# loopback networks are referenced
 # though, because they are needed for routing. zone objects inherit
 # their private status from the included networks.
 # meike, das kann hier so nicht bleiben!
+###############################################################################
+# Purpose  : Collects all elements (networks, unmanaged routers, interfaces) ofa
+#            zone object and references the zone in its elements. Sets zone 
+#            property flags.
+# Comments : Unnumbered and tunnel networks are not referenced in zone objects,
+#            as they are no valid src or dst.
 sub set_zone1 {
     my ($network, $zone, $in_interface) = @_;
 
@@ -9495,18 +9500,18 @@ sub set_zone1 {
         return;
     }
     
-    # reference zone in network and vice versa... 
+    # Reference zone in network and vice versa... 
     $network->{zone} = $zone;
     if (not($network->{ip} =~ /^(?:unnumbered|tunnel)$/)) {# no valid src/dst
         push @{ $zone->{networks} }, $network;
     }
 #    debug("$network->{name} in $zone->{name}");
 
-    # set network property flags...
+    # Set zone property flags depending on network properties...
     $network->{ip} eq 'tunnel' and $zone->{is_tunnel} = 1;
     $network->{has_id_hosts} and $zone->{has_id_hosts} = 1;
 
-    # check network 'private' status and zone 'private' status to be equal
+    # Check network 'private' status and zone 'private' status to be equal.
     my $private1 = $network->{private} || 'public';
     if ($zone->{private}) {
         my $private2 = $zone->{private};
@@ -9519,7 +9524,7 @@ sub set_zone1 {
         }
     }
 
-    # set zone private status (attribute will be removed if value is 'public')
+    # Set zone private status (attribute will be removed if value is 'public')
     $zone->{private} = $private1;# heinz, das wird ständig neu gesetzt?
 
     # Proceed with adjacent elements...
@@ -9536,7 +9541,7 @@ sub set_zone1 {
 
             #If its an unmanaged router, reference router in zone and v.v.
             next if $router->{zone}; # Traverse each unmanaged router only once.
-            $router->{zone} = $zone;
+            $router->{zone} = $zone; # added only to prevent double traversal
             push @{ $zone->{unmanaged_routers} }, $router;
 
             # Recursively add adjacent networks. 
@@ -9550,37 +9555,47 @@ sub set_zone1 {
     return;
 }
 
-# Collect cluster of zones which are connected by semi_managed devices.
+##############################################################################
+# Purpose  : Collect zones connected by semi_managed devices into a cluster.
+# Comments : Tunnel_zones are not included in zone clusters, because 
+#               - it is useless in rules and
+#               - we would get inconsistent owner since zone of tunnel 
+#                 doesn't inherit from area.
 sub set_zone_cluster {
     my ($zone, $in_interface, $zone_aref) = @_;
-    my $restrict;
+    my $restrict;# heinz: diese variable wird nicht geutzt?
 
-    # Ignore zone of tunnel, because 
-    # - it is useless in rules and
-    # - we would get inconsistent owner since zone of tunnel 
-    #   doesn't inherit from area.
+    # Reference zone in cluster object and vice versa 
     push @$zone_aref, $zone if !$zone->{is_tunnel};
     $zone->{zone_cluster} = $zone_aref;
+
     my $private1 = $zone->{private} || 'public';
 
+    # Find zone interfaces connected to semi-managed routers...   
     for my $interface (@{ $zone->{interfaces} }) {
         next if $interface eq $in_interface;
         next if $interface->{main_interface};
         my $router = $interface->{router};
         next if $router->{managed};
-        next if $router->{active_path};
-        local $router->{active_path} = 1;
+        next if $router->{visited};
+        local $router->{visited} = 1;
+
+        # Process adjacent zones... 
         for my $out_interface (@{ $router->{interfaces} }) {
             next if $out_interface eq $interface;
             my $next = $out_interface->{zone};
-            next if $next->{zone_cluster};
+            next if $next->{zone_cluster}; #traverse zones only once
             next if $out_interface->{main_interface};
-            my $private2 = $next->{private} || 'public';
+ 
+           # Check for equal private status.  
+           my $private2 = $next->{private} || 'public';
             $private1 eq $private2 or
                 err_msg("Zones connected by $router->{name}",
                         " must all have identical 'private' status\n",
                         " - $zone->{name}: $private1\n",
                         " - $next->{name}: $private2");
+
+            # Add adjacent zone recursively.
             set_zone_cluster($next, $out_interface, $zone_aref);
         }
     }
@@ -9812,10 +9827,14 @@ sub set_area {
     return;
 }
 
+###############################################################################
+# Purpose  : Create zone objects (and set areas... perhaps that part can be 
+#            transferred to another function?)
+# Comments : 
 sub set_zone {
     progress('Preparing security zones and areas');
 
-    #  Create a new zone object for every network without a zone
+    # Create a new zone object for every network without a zone
     # It gets name of corresponding aggregate with ip 0/0. ??
     for my $network (@networks) {
         next if $network->{zone};
@@ -9823,41 +9842,53 @@ sub set_zone {
         my $zone = new('Zone', name => $name, networks => []);
         push @zones, $zone;
 
-        #
+        # Collect zone elements...
         set_zone1($network, $zone, 0);
 
         # Mark zone which consists only of a loopback network.
         $zone->{loopback} = 1
           if $network->{loopback} && @{ $zone->{networks} } == 1;
 
-        # Attribute {is_tunnel} should be set if zone has only tunnel
-        # networks.
-        delete $zone->{is_tunnel} if @{ $zone->{networks} };
+        # Attribute {is_tunnel} is set only when zone has only tunnel networks.
+        if @{ $zone->{networks} } {# tunnel networks are not referenced in zone
+            delete $zone->{is_tunnel};
+        }
 
-        # Remove attribute {zone} at unmanaged routers which only have
-        # been added to prevent duplicates in {unmanaged_routers}.
+        # Remove zone reference from unmanaged routers (no longer needed).
         if (my $unmanaged = $zone->{unmanaged_routers}) {
             delete $_->{zone} for @$unmanaged;
         }
 
+        # Remove private status, if 'public'
         if ($zone->{private} && $zone->{private} eq 'public') {
             delete $zone->{private};
         }
     }
+# heinz, ich würde hier eine neue funktion  cluster _zones anfangen... 
+##############################################################################
+# Collect clusters of zones, which are connected by an unmanaged
+# (semi_managed) device into attribute {zone_cluster}.
+# This attribute is only set, if the cluster has more than one element.
 
-    for my $zone (@zones) {
+# Purpose  : 
+# Comments :
+# sub cluster_zones {
 
-        # Collect clusters of zones, which are connected by an unmanaged
-        # (semi_managed) device into attribute {zone_cluster}.
-        # This attribute is only set, if the cluster has more than one element.
+    # Process all unclustered zones.
+    for my $zone (@zones) {        
         next if $zone->{zone_cluster};
+        
+        # Create a new cluster.
         my $cluster = [];
         set_zone_cluster($zone, 0, $cluster);
+
+        # 
         delete $zone->{zone_cluster} if 1 >= @$cluster;
 
 #       debug('cluster: ', join(',',map($_->{name}, @{$zone->{zone_cluster}})))
 #           if $zone->{zone_cluster};
     }
+# } #end of cluster_zones 
 
     check_no_in_acl();
     check_crosslink();
