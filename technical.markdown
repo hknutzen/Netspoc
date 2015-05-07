@@ -101,7 +101,7 @@ Routers connected by crosslink networks actually act as a single
 router, which is why ACLs need to be be created only at the outer
 interfaces of a crosslinked router cluster:
 
-bild!
+![Routers connected by crosslink network. If filtertypes of both routers are equally strong, no filtering is needed at the crosslink network interfaces.](crosslink.png)
 
 Netspoc processes every crosslink network assuring following requirements:
 
