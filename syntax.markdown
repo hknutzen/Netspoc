@@ -431,7 +431,7 @@ Software clients are similar to hosts, but special names are used.
       host:id:<cert-match> = { .. }
 
     <cert-name>  ::= <name>(.<name>)*@<name>.<name>(.<name>)*
-    <cert-match> ::=                 @<name>.<name>(.<name>)*
+    <cert-match> ::=                 [@]<name>.<name>(.<name>)*
 
 Host definition of software client and correspondig network definition
 can have `<radius-attributes>`, which augment or overwrite attributes
