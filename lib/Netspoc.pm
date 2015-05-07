@@ -8856,13 +8856,17 @@ sub find_subnets_in_nat_domain {
     return;
 }
 
+#############################################################################
+# Purpose  : Propagate attribute 'no_in_acl' from zones to interfaces.
+# Comments :
 sub check_no_in_acl  {
 
-    # Propagate attribute 'no_in_acl' from zones to interfaces.
+    # Process every zone with attribute {no_in_acl}
     for my $zone (@zones) {
         next if not $zone->{no_in_acl};
-
 #	debug("$zone->{name} has attribute 'no_in_acl'");
+
+        #
         for my $interface (@{ $zone->{interfaces} }) {
 
             # Ignore secondary interface.
