@@ -1,8 +1,8 @@
 protocol:ftp-command = tcp 21;
 protocol:ftp-passive-data = tcp 1024-65535, stateless;
 protocol:ftp-active-data = tcp 20:1024-65535, stateless, reversed;
-protocolgroup:ftp-passive = protocol:ftp-command, protocol:ftp-passive-data;
-protocolgroup:ftp-active = protocol:ftp-command, protocol:ftp-active-data;
+#protocolgroup:ftp-passive = protocol:ftp-command, protocol:ftp-passive-data;
+#protocolgroup:ftp-active = protocol:ftp-command, protocol:ftp-active-data;
 protocolgroup:ftp-all = 
  protocol:ftp-command, protocol:ftp-passive-data, protocol:ftp-active-data;
  
@@ -48,7 +48,7 @@ network:n3 = { ip = 10.3.3.0/24; host:server = { ip = 10.3.3.3; } }
 service:test = {
  user = network:n1;
  permit src = user; dst = host:server; prt = protocolgroup:ftp-all,
-					     #protocolgroup:tftp,
-					     #protocolgroup:netz-ping-in-out,
+					     protocolgroup:tftp,
+					     protocolgroup:netz-ping-in-out,
 					     ;
 }

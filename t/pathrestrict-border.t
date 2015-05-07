@@ -14,7 +14,7 @@ network:Test =  { ip = 10.9.1.0/24; }
 
 router:filter = {
  managed;
- model = IOS_FW;
+ model = IOS, FW;
  routing = manual;
  interface:Test = {
   ip = 10.9.1.1;
@@ -145,7 +145,7 @@ router:filter1 = {
 }
 router:filter2 = {
  managed;
- model = IOS_FW;
+ model = IOS, FW;
  interface:Test = {
   ip = 10.9.1.2;
   hardware = Vlan20;
@@ -262,6 +262,68 @@ ip access-list extended Ethernet5_in
  deny ip any host 10.3.1.129
  deny ip any host 10.3.1.242
  permit ip host 10.3.1.249 any
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Pathrestriction at border of loop and at end of path';
+############################################################
+
+$in = <<'END';
+network:n1 =  { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = Vlan20; }
+ interface:n2 = { ip = 10.1.2.1; hardware = G0/1; 
+ }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = Vlan20; }
+ interface:n2 = { ip = 10.1.2.2; hardware = G0/1;  }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r3 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.70; hardware = E0; }
+ interface:n3 = { ip = 10.1.3.1; hardware = E1; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+
+pathrestriction:restrict1 = 
+ interface:r1.n1,
+ interface:r3.n2,
+;
+pathrestriction:restrict2 = 
+ interface:r2.n1,
+ interface:r3.n2,
+;
+
+service:test = {
+ user = network:n1;
+ permit src = user; dst = interface:r3.n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r2
+! [ ACL ]
+ip access-list extended Vlan20_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.70 eq 80
+ deny ip any any
+--
+ip access-list extended G0/1_in
+ permit tcp host 10.1.2.70 10.1.1.0 0.0.0.255 established
  deny ip any any
 END
 

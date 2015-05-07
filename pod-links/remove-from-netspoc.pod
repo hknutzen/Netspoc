@@ -147,7 +147,6 @@ sub process {
                             $copy .= $2;
                             next;
                         }
-                        $line_changed++;
 
                         # If current line has only one entry, remove
                         # whole line.
@@ -156,6 +155,7 @@ sub process {
                         {
                             $remove_comma = !$1;
                             $copy = '';
+                            $line_changed++;
                             last TOKEN;
                         }
                         else {

@@ -21,21 +21,21 @@ network:t2 = { ip = 10.99.2.0/24; }
 network:t3 = { ip = 10.99.3.0/24; }
 
 router:r1 = {
- model = IOS_FW;
+ model = IOS, FW;
  managed;
  interface:t1 = { ip = 10.99.1.1; hardware = serial0; }
  interface:c1 = { ip = 10.20.1.1; hardware = eth0; }
 }
 
 router:r2 = {
- model = IOS_FW;
+ model = IOS, FW;
  managed;
  interface:t2 = { ip = 10.99.2.1; hardware = serial0; }
  interface:c2 = { ip = 10.20.2.1; hardware = eth0; }
 }
 
 router:r3 = {
- model = IOS_FW;
+ model = IOS, FW;
  managed;
  interface:t3 = { ip = 10.99.3.1; hardware = serial0; }
  interface:c3 = { ip = 10.20.3.1; hardware = eth0; }

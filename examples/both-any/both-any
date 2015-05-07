@@ -8,6 +8,7 @@ protocol:ping = icmp 8;
 area:all = { anchor = network:north; }
 
 service:ping = {
+ overlaps = service:north_east_med;
  user = any:[area:all];
  permit src = user;
 	dst = user;

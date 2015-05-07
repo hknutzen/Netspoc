@@ -578,6 +578,12 @@ sub syntax_err {
 
 sub internal_err {
     my (@args) = @_;
+
+    # Don't show inherited error.
+    # Abort immediately, if other errors have already occured.
+    if ($error_counter) {
+        die "Aborted after $error_counter errors\n";
+    }
     my (undef, $file, $line) = caller;
     my $sub = (caller 1)[3];
     my $msg = "Internal error in $sub";
@@ -862,8 +868,8 @@ sub read_typed_name {
 # or host:[managed & xxx:xxx, ...]
 # or any:[ ip = n.n.n.n/len & xxx:xxx, ...]
 # or network:xxx/ppp
-# or host:id:[user]@domain.network
-# or host:id:domain.network
+# or host:id:user@domain.network
+# or host:id:[@]domain.network
 #
     sub read_extended_name {
 
@@ -944,7 +950,7 @@ sub read_typed_name {
         }
     }
 
-# host:xxx or host:id:user@domain or host:id:@domain
+# host:xxx or host:id:user@domain or host:id:[@]domain
     sub check_hostname {
         skip_space_and_comment;
         if ($input =~ m/\G host:/gcx) {
@@ -1216,9 +1222,6 @@ sub check_managed {
 sub check_model {
     my ($model, @attributes) = check_assign_list('model', \&read_name)
         or return;
-    my @attr2;
-    ($model, @attr2) = split /_/, $model;
-    push @attributes, @attr2;
     my $info = $router_info{$model};
     if (not $info) {
         error_atline("Unknown router model");
@@ -2039,9 +2042,6 @@ sub read_router {
         elsif (check_flag 'strict_secondary') {
             $router->{strict_secondary} = 1;
         }
-        elsif (check_flag 'std_in_acl') {
-            $router->{std_in_acl} = 1;
-        }
         elsif (check_flag 'log_deny') {
             $router->{log_deny} = 1;
         }
@@ -2609,9 +2609,6 @@ sub read_aggregate {
         }
         elsif (check_flag 'has_unenforceable') {
             $aggregate->{has_unenforceable} = 1;
-        }
-        elsif (check_flag 'no_in_acl') {
-            $aggregate->{no_in_acl} = 1;
         }
         elsif (my $nat_name = check_nat_name()) {
             my $nat = read_nat("nat:$nat_name");
@@ -4890,7 +4887,7 @@ sub disable_behind {
 # Lists of network objects which are left over after disabling.
 #my @managed_routers;	# defined above
 my @routing_only_routers;
-my @managed_vpnhub;
+my @managed_crypto_hubs;
 my @routers;
 my @networks;
 my @zones;
@@ -5160,10 +5157,6 @@ sub mark_disabled {
         push @routers, $router;
         if ($router->{managed}) {
             push @managed_routers, $router;
-            if ($router->{model}->{do_auth})
-            {
-                push @managed_vpnhub, $router;
-            }
         }
         elsif ($router->{routing_only}) {
             push @routing_only_routers, $router;
@@ -7807,11 +7800,14 @@ sub distribute_nat1 {
 
     # Must not enter one NAT domain at different routers with
     # different elements of grouped NAT tags.
-    my $multi_href = $nat_tags2multi->{$nat_tag};
-    for my $nat_tag2 (sort keys %$multi_href) {
-        if ($nat_set->{$nat_tag2}) {
-            err_msg("Grouped NAT tags '$nat_tag2' and '$nat_tag'",
-                    " must not be both active inside $domain->{name}");
+    if (my $aref = $nat_tags2multi->{$nat_tag}) {
+        for my $multi_href (@$aref) {
+            for my $nat_tag2 (sort keys %$multi_href) {
+                if ($nat_set->{$nat_tag2}) {
+                    err_msg("Grouped NAT tags '$nat_tag2' and '$nat_tag'",
+                            " must not both be active inside $domain->{name}");
+                }
+            }
         }
     }        
 
@@ -7873,36 +7869,38 @@ sub distribute_nat1 {
 
             # Effect of current NAT tag stops if another element of
             # grouped NAT tags becomes active.
-            if (my $href = $nat_tags2multi->{$nat_tag}) {
-                for my $nat_tag2 (@$out_nat_tags) {
-                    next if $nat_tag2 eq $nat_tag;
-                    next if !$href->{$nat_tag2};
+            if (my $aref = $nat_tags2multi->{$nat_tag}) {
+                for my $href (@$aref) {
+                    for my $nat_tag2 (@$out_nat_tags) {
+                        next if $nat_tag2 eq $nat_tag;
+                        next if !$href->{$nat_tag2};
 
-#                    debug "- $nat_tag2";
-                    # Prevent transition from dynamic to
-                    # static NAT.
-                    my $nat_info = $href->{$nat_tag};
-                    my $next_info = $href->{$nat_tag2};
+#                        debug "- $nat_tag2";
+                        # Prevent transition from dynamic to
+                        # static NAT.
+                        my $nat_info = $href->{$nat_tag};
+                        my $next_info = $href->{$nat_tag2};
 
-                    # Use $next_info->{name} and not $nat_info->{name}
-                    # because $nat_info may show wrong network,
-                    # because we combined different hidden networks into
-                    # $nat_tags2multi.
-                    if ($nat_info->{hidden}) {
-                        err_msg("Must not change hidden nat:$nat_tag",
-                                " using nat:$nat_tag2\n",
-                                " for $next_info->{name}",
-                                " at $router->{name}");
-                    }
-                    elsif ($nat_info->{dynamic}) {
-                        if(!($next_info->{dynamic})) {
-                            err_msg("Must not change dynamic nat:$nat_tag",
-                                    " to static using nat:$nat_tag2\n",
-                                    " for $nat_info->{name}",
+                        # Use $next_info->{name} and not $nat_info->{name}
+                        # because $nat_info may show wrong network,
+                        # because we combined different hidden networks into
+                        # $nat_tags2multi.
+                        if ($nat_info->{hidden}) {
+                            err_msg("Must not change hidden nat:$nat_tag",
+                                    " using nat:$nat_tag2\n",
+                                    " for $next_info->{name}",
                                     " at $router->{name}");
                         }
+                        elsif ($nat_info->{dynamic}) {
+                            if(!($next_info->{dynamic})) {
+                                err_msg("Must not change dynamic nat:$nat_tag",
+                                        " to static using nat:$nat_tag2\n",
+                                        " for $nat_info->{name}",
+                                        " at $router->{name}");
+                            }
+                        }
+                        next DOMAIN;
                     }
-                    next DOMAIN;
                 }
             }
 
@@ -7965,94 +7963,136 @@ sub distribute_nat_info {
     # the same NAT tags must be used as group at all other networks.
     # Suppose tags A and B are used grouped. 
     # An occurence of bind_nat = A activates NAT:A.
-    # An adjacent bind_nat = B actives NAT:B, but implicitly disables NAT:A.
+    # An successive bind_nat = B actives NAT:B, but implicitly disables NAT:A.
     # Hence A is disabled for all networks and therefore
     # this restriction is needed.
     # Exception:
-    # NAT tags with "hidden" can be used separately.
+    # NAT tags with "hidden" can be added to some valid set of grouped tags,
+    # because we don't allow transition from hidden tag back to some other
+    # (hidden) tag.
     #
-    # A hash with all defined NAT tags as keys and a href as value.
+    # A hash with all defined NAT tags as keys and aref of hrefs as value.
     # The href has those NAT tags as keys which are used together at one
     # network.
     # This is used to check,
     # that NAT tags are equally used grouped or solitary.
     my %nat_tags2multi;
+    my %all_hidden;
     for my $network (@networks) {
         my $href = $network->{nat} or next;
-#        debug $network->{name};
+#        debug $network->{name}, " href=", join(',', sort keys %$href);
 
         # Print error message only once per network.
-        my $err;
+        my $err_shown;
+        my $show_err = sub {
+            my ($href1, $href2) = @_;
+            return if $err_shown;
+            my $tags1  = join(',', sort keys %$href1);
+            my $name1  = $network->{name};
+            my $tags2  = join(',', sort keys %$href2);
+
+            # Values are NAT entries with name of network.
+            # Take first value deterministically.
+            my ($name2) = sort map { $_->{name} } values %$href2;
+            err_msg
+                "If multiple NAT tags are used at one network,\n",
+                " these NAT tags must be used",
+                " equally grouped at other networks:\n", 
+                " - $name1: $tags1\n",
+                " - $name2: $tags2";
+            $err_shown = 1;
+            return;
+        };
+
       NAT_TAG:
         for my $nat_tag (sort keys %$href) {
             $nat_definitions{$nat_tag} = 1;
-            if (my $href2 = $nat_tags2multi{$nat_tag}) {
-                my $href1 = $href;
-                if (!$err && !keys_eq($href1, $href2)) {
+            if (my $aref = $nat_tags2multi{$nat_tag}) {
 
-                    # NAT tag can be used both grouped and solitary,
-                    # if and only if 
-                    # - single NAT tag translates to hidden, 
-                    # - the same NAT tag translates to hidden in group,
-                    # - group has no other hidden NAT tag or
-                    # - group consists solely of hidden NAT tags.
-                    # Shared hidden NAT tag is ignored when comparing
-                    # grouped NAT tags for equality.
-                    # If the group has only a single tag after ignoring the 
-                    # shared one, it isn't regarded as grouped.
-                    my @intersection = grep { $href1->{$_} } keys %$href2;
-                    $err = 1;
-                  ERR:
-                    {
-                        1 == @intersection or last ERR;
-                        my ($shared_tag) = @intersection;
-                        $has_non_hidden{$shared_tag} and last ERR;
-                        $shared_tag eq $nat_tag or last ERR;
+                # If elements have a common non hidden tag,
+                # then only a single href is allowed.
+                if ($has_non_hidden{$nat_tag}) {
+                    my $href2 = $aref->[0];
+                    keys_eq($href, $href2) or $show_err->($href, $href2);
+                    next NAT_TAG;
+                }
 
-                        # $href1 holds solitary hidden NAT tag,
-                        # $href2 holds grouped NAT tags.
-                        if (1 == keys %$href1) {
-                            $all_or_one_hidden->($href2) or last ERR;
+                # Array of hrefs has common hidden NAT tag.
+                #
+                # Ignore new href if it is identical to some previous one.
+                for my $href2 (@$aref) {
+                    keys_eq($href, $href2) and next NAT_TAG;
+                }
+
+                # Some element is non hidden, check detailed.
+                if (grep { $has_non_hidden{$_} } %$href) {
+
+                    # Check new href for consistency with previous hrefs.
+                    for my $nat_tag2 (sort keys %$href) {
+                        next if $nat_tag2 eq $nat_tag;
+                        for my $href2 (@$aref) {
+
+                            # Don't check previous href with all hidden tags.
+                            next if $all_hidden{$href2};
+
+                            # Non hidden tag must not occur in other href.
+                            if ($has_non_hidden{$nat_tag2}) {
+                                if ($href2->{$nat_tag2}) {
+                                    $show_err->($href, $href2);
+                                    next NAT_TAG
+                                }
+                            }
+
+                            # Hidden tag must occur in all other hrefs.
+                            else {
+                                if (!$href2->{$nat_tag2}) {
+                                    $show_err->($href, $href2);
+                                    next NAT_TAG
+                                }
+                            }
                         }
+                    }
+                }
 
-                        # $href2 solitary, $href1 grouped.
-                        elsif (1 == keys %$href2) {
-                            $all_or_one_hidden->($href1) or last ERR;
-#                            debug "- store larger $nat_tag";
-                            $nat_tags2multi{$nat_tag} = $href1;
-                        }
+                # All elements are hidden. Always ok.
+                else {
 
-                        # Two single NAT tags augmented by shared hidden.
-                        elsif (2 == keys %$href1 && 2 == keys %$href2) {
-                            $all_or_one_hidden->($href1) or last ERR;
-                            $all_or_one_hidden->($href2) or last ERR;
-#                            debug "- store combined $nat_tag";
-                            $nat_tags2multi{$nat_tag} = { %$href1, %$href2 };
-                        }
+                    # Mark this type of href for easier checks.
+                    $all_hidden{$href} = 1;
+                }
 
-                        $err = 0;
+                # If current href and some previous href are in subset
+                # relation, then take larger set.
+                for my $href2 (@$aref) {
+                    my $common_size = grep { $href2->{$_ } } keys %$href;
+                    if ($common_size eq keys %$href) {
+
+                        # Ignore new href, because it is subset.
                         next NAT_TAG;
                     }
-                    my $tags1  = join(',', sort keys %$href1);
-                    my $name1  = $network->{name};
-                    my $tags2  = join(',', sort keys %$href2);
+                    elsif ($common_size eq keys %$href2) {
 
-                    # Values are NAT entries with name of the network.
-                    # Take first value deterministically.
-                    my ($name2) = sort map { $_->{name} } values %$href2;
-                    err_msg
-                        "If multiple NAT tags are used at one network,\n",
-                        " these NAT tags must be used",
-                        " equally grouped at other networks:\n", 
-                        " - $name1: $tags1\n",
-                        " - $name2: $tags2";
+                        # Replace previous href by new superset.
+                        $href2 = $href;
+                        next NAT_TAG;
+                    }
+                    else {
+
+                        # Add new href below.
+                    }
                 }
             }
-            else {
-#                debug "- store $nat_tag";
-                $nat_tags2multi{$nat_tag} = $href;
-            }
+            push @{ $nat_tags2multi{$nat_tag} }, $href;
         }
+    }
+
+    # Remove single entries.
+    for my $nat_tag (keys %nat_tags2multi) {
+        my $aref = $nat_tags2multi{$nat_tag};
+        next if @$aref > 1;
+        my $href = $aref->[0];
+        next if keys %$href > 1;
+        delete $nat_tags2multi{$nat_tag};
     }
 
     # Find NAT domains.
@@ -8077,22 +8117,26 @@ sub distribute_nat_info {
             my $nat_tags = $router->{nat_tags}->{$domain};
 #            debug "$domain->{name} $router->{name}: ", join(',', @$nat_tags);
 
-            # Multiple tags are bound to an interface.
-            # If a network has multiple matching NAT tags, 
+            # Multiple tags are bound to interface.
+            # If some network has multiple matching NAT tags, 
             # the resulting NAT mapping would be ambiguous.
             if (@$nat_tags >= 2) {
+              NAT_TAG:
                 for my $nat_tag (@$nat_tags) {
-                    my $href = $nat_tags2multi{$nat_tag} or next;
-                    keys %$href >= 2 or next;
-                    if ((my @tags = grep({ $href->{$_} && $_ } 
-                                         @$nat_tags)) >=2) 
-                    {
+                    my $aref = $nat_tags2multi{$nat_tag} or next;
+                    for my $href (@$aref) {
+                        my @tags = grep { $href->{$_} && $_ } @$nat_tags;
+                        @tags >= 2 or next;
                         my $tags = join(',', @tags);
                         my $nat_net = $href->{$tags[0]};
                         err_msg("Must not bind multiple NAT tags",
                                 " '$tags' of $nat_net->{name}",
                                 " at $router->{name}");
-                        last;
+                        
+                        # Show only first error. Otherwise we
+                        # would show the same error multiple
+                        # times.
+                        last NAT_TAG;
                     }
                 }
             }
@@ -8417,14 +8461,14 @@ sub find_subnets_in_zone {
                 }
 
                 if ($nat_network->{hidden}) {
-                    if (my $other = $network->{up}) {
-                        err_msg("Ambiguous subnet relation from NAT.\n",
-                                " $network->{name} is subnet of\n",
-                                " - $other->{name} at",
-                                " $first_intf->{name}\n",
-                                " - but it is hidden $nat_network->{name} at",
-                                " $interface->{name}");
-                    }
+                    my $other = $network->{up} or next;
+                    next if get_nat_network($other, $no_nat_set)->{hidden};
+                    err_msg("Ambiguous subnet relation from NAT.\n",
+                            " $network->{name} is subnet of\n",
+                            " - $other->{name} at",
+                            " $first_intf->{name}\n",
+                            " - but it is hidden $nat_network->{name} at",
+                            " $interface->{name}");
                     next;
                 }
                 my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
@@ -8445,27 +8489,24 @@ sub find_subnets_in_zone {
 
             # Compare networks of zone.
             # Go from smaller to larger networks.
-            for my $mask (reverse sort keys %mask_ip_hash) {
+            my @mask_list = reverse sort numerically keys %mask_ip_hash; 
+            while (my $mask = shift @mask_list) {
 
-                # Network 0.0.0.0/0.0.0.0 can't be subnet.
-                last if $mask == 0;
+                # No supernets available
+                last if not @mask_list;
+
+                my $ip_hash = $mask_ip_hash{$mask};
               SUBNET:
-                for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
+                for my $ip (sort numerically keys %$ip_hash) {
 
-                    my $subnet = $mask_ip_hash{$mask}->{$ip};
+                    my $subnet = $ip_hash->{$ip};
 
                     # Find networks which include current subnet.
-                    my $m = $mask;
-                    my $i = $ip;
-                    while ($m) {
+                    # @mask_list holds masks of potential supernets.
+                    for my $m (@mask_list) {
 
-                        # Clear upper bit, because left shift is undefined
-                        # otherwise.
-                        $m &= 0x7fffffff;
-                        $m <<= 1;
-                        $i = $i & $m;  # Perl bug #108480 prevents use of "&=".
-                        my $bignet = $mask_ip_hash{$m}->{$i};
-                        next if !$bignet;
+                        my $i = $ip & $m;
+                        my $bignet = $mask_ip_hash{$m}->{$i} or next;
 
                         # Collect subnet relation for first no_nat_set.
                         if ($interface eq $first_intf) {
@@ -8577,25 +8618,26 @@ sub find_subnets_in_zone {
             my $nat = $get_zone_nat->($network);
             my $max_routing;
             my $up = $network->{up};
+          UP:
             while ($up) {
 
                 # Check if NAT settings are identical.
                 my $up_nat = $get_zone_nat->($up);
-                keys %$nat == keys %$up_nat or last;
+                keys %$nat == keys %$up_nat or last UP;
                 for my $tag (keys %$nat) {
-                    my $up_nat_info = $up_nat->{$tag} or last;
+                    my $up_nat_info = $up_nat->{$tag} or last UP;
                     my $nat_info = $nat->{$tag};
                     if ($nat_info->{hidden}) {
-                        $up_nat_info->{hidden} or last;
+                        $up_nat_info->{hidden} or last UP;
                     }
                     else {
                         
                         # Check if subnet relation is maintained
                         # for NAT addresses.
-                        $up_nat_info->{hidden} and last;
+                        $up_nat_info->{hidden} and last UP;
                         my($ip, $mask) = @{$nat_info}{qw(ip mask)};
-                        match_ip($up_nat_info->{ip}, $ip, $mask) or last;
-                        $up_nat_info->{mask} >= $mask or last;
+                        match_ip($up_nat_info->{ip}, $ip, $mask) or last UP;
+                        $up_nat_info->{mask} >= $mask or last UP;
                     }
                 }
                 if (!$up->{is_aggregate}) {
@@ -8639,7 +8681,8 @@ sub find_subnets_in_zone {
 # Mark networks, having subnet in other zone: $bignet->{has_other_subnet}
 # If set, this prevents secondary optimization.
 sub find_subnets_in_nat_domain {
-    progress('Finding subnets in NAT domain');
+    my $count = @natdomains;
+    progress("Finding subnets in $count NAT domains");
     my %seen;
 
     for my $domain (@natdomains) {
@@ -8726,34 +8769,27 @@ sub find_subnets_in_nat_domain {
             }
         }
 
-
         # Go from smaller to larger networks.
-        for my $mask (reverse sort keys %mask_ip_hash) {
+        my @mask_list = reverse sort numerically keys %mask_ip_hash; 
+        while (my $mask = shift @mask_list) {
 
-            # Network 0.0.0.0/0.0.0.0 can't be subnet.
-            last if $mask == 0;
+            # No supernets available
+            last if not @mask_list;
 
-            for my $ip (sort numerically keys %{ $mask_ip_hash{$mask} }) {
+            my $ip_hash = $mask_ip_hash{$mask};
+            for my $ip (sort numerically keys %$ip_hash) {
 
                 # It is sufficient to set subset relation for only one
                 # network out of multiple identical networks.
                 # In all contexts where {is_in} is used,
                 # we apply {is_identical} to the network before.
-                my $subnet = $mask_ip_hash{$mask}->{$ip};
+                my $subnet = $ip_hash->{$ip};
 
                 # Find networks which include current subnet.
-                my $m = $mask;
-                my $i = $ip;
-                while ($m) {
-
-                    # Clear upper bit, because left shift is undefined
-                    # otherwise.
-                    $m &= 0x7fffffff;
-                    $m <<= 1;
-                    $i = $i & $m; # Perl bug #108480 prevents use of "&=".
-                    my $bignet = $mask_ip_hash{$m}->{$i};
-                    next if not $bignet;
-
+                # @mask_list holds masks of potential supernets.
+                for my $m (@mask_list) {
+                    my $i = $ip & $m;
+                    my $bignet = $mask_ip_hash{$m}->{$i} or next;
                     my $nat_subnet = get_nat_network($subnet, $no_nat_set);
                     my $nat_bignet = get_nat_network($bignet, $no_nat_set);
 
@@ -8798,9 +8834,9 @@ sub find_subnets_in_nat_domain {
                             )
                         {
 
-                                # Prevent multiple error messages in different
-                                # NAT domains.
-                            $nat_subnet->{subnet_of} = $bignet;
+                            # Prevent multiple error messages in
+                            # different NAT domains.
+                            $nat_subnet->{subnet_of} ||= $bignet;
 
                             my $msg =
                                 "$nat_subnet->{name} is subnet of"
@@ -8860,31 +8896,6 @@ sub find_subnets_in_nat_domain {
 # Purpose  : Propagate attribute 'no_in_acl' from zones to interfaces.
 # Comments :
 sub check_no_in_acl  {
-
-    # Process every zone with attribute {no_in_acl}
-    for my $zone (@zones) {
-        next if not $zone->{no_in_acl};
-#	debug("$zone->{name} has attribute 'no_in_acl'");
-
-        #
-        for my $interface (@{ $zone->{interfaces} }) {
-
-            # Ignore secondary interface.
-            next if $interface->{main_interface};
-
-            my $router = $interface->{router};
-
-            # Directly attached attribute 'no_in_acl' or
-            # attribute 'std_in_acl' at device overrides.
-            if ($router->{std_in_acl}
-                or grep({ $_->{no_in_acl} and not ref $_->{no_in_acl} }
-                    @{ $router->{interfaces} }))
-            {
-                next;
-            }
-            $interface->{no_in_acl} = $zone;
-        }
-    }
 
     # Move attribute 'no_in_acl' to hardware interface
     # because ACLs operate on hardware, not on logic.
@@ -9373,7 +9384,7 @@ sub link_aggregates {
 
         # Aggregate with ip 0/0 is used to set attributes of zone.
         if ($mask == 0) {
-            for my $attr (qw(has_unenforceable nat no_in_acl owner)) {
+            for my $attr (qw(has_unenforceable nat owner)) {
                 if (my $v = delete $aggregate->{$attr}) {
                     for my $zone2 ($cluster ? @$cluster : ($zone)) {
                         $zone2->{$attr} = $v;
@@ -9953,9 +9964,8 @@ sub set_zone {
 
         # We get an empty area, if inclusive borders are placed around
         # a single router.
-        # Abort in this case, because it is useless and confusing.
         @{ $area->{zones} } or
-            err_msg("$area->{name} is empty");
+            warn_msg("$area->{name} is empty");
 
 #     debug("$area->{name}:\n ", join "\n ", map $_->{name}, @{$area->{zones}});
     }
@@ -10862,20 +10872,28 @@ sub cluster_path_mark  {
 
     # Activate pathrestriction of interface at border of loop, if path starts
     # or ends outside the loop and enters the loop at such an interface.
-    for my $intf ($from_in, $to_out) {
-        if (    $intf
-            and not $intf->{loop}
-            and (my $restrictions = $intf->{path_restrict}))
-        {
-            for my $restrict (@$restrictions) {
-                if ($restrict->{active_path}) {
-
-                    # Pathrestriction at start and end interface
-                    # prevents traffic through loop.
-                    $success = 0;
-                }
-                $restrict->{active_path} = 1;
+    if (    $from_in 
+        and not $from_in->{loop} 
+        and (my $restrictions = $from_in->{path_restrict})
+        and not $start_intf)
+    {
+        for my $restrict (@$restrictions) {
+            $restrict->{active_path} = 1;
+        }
+    }
+    if (    $to_out 
+        and not $to_out->{loop} 
+        and (my $restrictions = $to_out->{path_restrict})
+        and not $end_intf)
+    {
+        for my $restrict (@$restrictions) {
+            if ($restrict->{active_path}) {
+                
+                # Pathrestriction is applied to both, incoming and outgoing interface.
+                # This prevents traffic through loop.
+                $success = 0;
             }
+            $restrict->{active_path} = 1;
         }
     }
 
@@ -11580,6 +11598,8 @@ sub gen_tunnel_rules  {
 # ToDo: Are tunnels between different private contexts allowed?
 sub link_tunnels  {
 
+    my %hub_seen;
+
     # Collect clear-text interfaces of all tunnels.
     my @real_interfaces;
 
@@ -11601,6 +11621,19 @@ sub link_tunnels  {
             for my $crypto_name (@{ $real_hub->{hub} }) {
                 $crypto_name eq $name and $crypto_name = $crypto;
             }
+
+            # Collect managed routers with crypto hub.
+            # Note: Crypto routers are splitted internally into
+            # two nodes. Typically we get get a node with only 
+            # a single crypto interface. 
+            my $router = $real_hub->{router};
+            $router->{managed} or next;
+
+            # Take original router with cleartext interface(s).
+            if (my $orig_router = $router->{orig_router}) {
+                $router = $orig_router;
+            }
+            push @managed_crypto_hubs, $router if not $hub_seen{$router}++;
         }
         push @real_interfaces, @$real_hubs;
 
@@ -11849,9 +11882,11 @@ sub verify_subject_name {
 sub verify_asa_trustpoint {
     my ($router, $crypto) = @_;
     my $isakmp = $crypto->{type}->{key_exchange};
-    $isakmp->{trust_point}
-      or err_msg("Missing 'trust_point' in",
-                 " isakmp attributes for $router->{name}");
+    if ($isakmp->{authentication} eq 'rsasig') {
+        $isakmp->{trust_point} or
+            err_msg("Missing attribute 'trust_point' in",
+                    " $isakmp->{name} for $router->{name}");
+    }
     return;
 }
 
@@ -12023,8 +12058,10 @@ sub expand_crypto  {
 
     # Check for duplicate IDs of different hosts
     # coming into current hardware interface / current device.
-    for my $router (@managed_vpnhub) {
-        my $is_asavpn = $router->{model}->{crypto} eq 'ASA_VPN';
+    for my $router (@managed_crypto_hubs) {
+        my $model = $router->{model};
+        $model->{do_auth} or next;
+        my $is_asavpn = $model->{crypto} eq 'ASA_VPN';
         my %hardware2id2tunnel;
         for my $interface (@{ $router->{interfaces} }) {
             next if not $interface->{ip} eq 'tunnel';
@@ -12047,24 +12084,24 @@ sub expand_crypto  {
         }
     }
 
-    for my $router (@managed_vpnhub) {
+    for my $router (@managed_crypto_hubs) {
         my $crypto_type = $router->{model}->{crypto};
         if ($crypto_type eq 'ASA_VPN') {
             verify_asa_vpn_attributes($router);
+
+            # Move 'trust-point' from radius_attributes to router attribute.
+            my $trust_point = 
+                delete $router->{radius_attributes}->{'trust-point'}
+                or err_msg("Missing 'trust-point' in radius_attributes",
+                           " of $router->{name}");
+            $router->{trust_point} = $trust_point;
         }
         elsif($crypto_type eq 'ASA') {
             for my $interface (@{ $router->{interfaces} }) {
-                next if not $interface->{ip} eq 'tunnel';
-                verify_asa_trustpoint($router, $interface->{cyrpto});
-                last;
+                my $crypto = $interface->{crypto} or next;
+                verify_asa_trustpoint($router, $crypto);
             }
-        }            
-
-        # Move 'trust-point' from radius_attributes to router attribute.
-        my $trust_point = delete $router->{radius_attributes}->{'trust-point'}
-        or err_msg
-            "Missing 'trust-point' in radius_attributes of $router->{name}";
-        $router->{trust_point} = $trust_point;
+        }     
     }
 
     # Hash only needed during expand_group and expand_rules.
@@ -19075,7 +19112,7 @@ sub init_global_vars {
     %interfaces = %hosts = ();
     @managed_routers = @routing_only_routers = @router_fragments = ();
     @virtual_interfaces = @pathrestrictions = ();
-    @managed_vpnhub = @routers = @networks = @zones = @areas = ();
+    @managed_crypto_hubs = @routers = @networks = @zones = @areas = ();
     @natdomains = ();
     %auto_interfaces = ();
     $from_json = undef;

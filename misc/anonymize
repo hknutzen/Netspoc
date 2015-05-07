@@ -439,7 +439,9 @@ sub subst {
 	$name;
     }
     else {
-	$subst{$type}->{$name} or fatal_err "Unexpected $type:$name";
+
+        # If input has unresolvable names, use '_unknown_'.
+	$subst{$type}->{$name} || '_unknown_';
     } 
 }
 
