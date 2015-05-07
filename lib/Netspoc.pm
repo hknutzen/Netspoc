@@ -9482,29 +9482,31 @@ sub get_cluster_aggregates {
         map { $_->{ipmask2aggregate}->{$key}||() } @{ $zone->{zone_cluster} };
 }
 
+# unnumbered and tunnel networks are not referenced in zone objects, as
+# they are no valid src or dst. loopback networks are referenced
+# though, because they are needed for routing. zone objects inherit
+# their private status from the included networks.
+# meike, das kann hier so nicht bleiben!
 sub set_zone1 {
     my ($network, $zone, $in_interface) = @_;
-    if ($network->{zone}) {
 
-        # Found a loop inside a zone.
+    # Return if network was processed already (= loop was found).
+    if ($network->{zone}) {
         return;
     }
+    
+    # reference zone in network and vice versa... 
     $network->{zone} = $zone;
-
-#    debug("$network->{name} in $zone->{name}");
-
-    # Add network to the zone, to have all networks of a security zone
-    # available.  Unnumbered or tunnel network is left out here
-    # because it isn't valid src or dst.  Loopback network must be
-    # preserved because it is needed for routing.
-    if (not($network->{ip} =~ /^(?:unnumbered|tunnel)$/)) {
+    if (not($network->{ip} =~ /^(?:unnumbered|tunnel)$/)) {# no valid src/dst
         push @{ $zone->{networks} }, $network;
     }
+#    debug("$network->{name} in $zone->{name}");
 
+    # set network property flags...
     $network->{ip} eq 'tunnel' and $zone->{is_tunnel} = 1;
     $network->{has_id_hosts} and $zone->{has_id_hosts} = 1;
 
-    # Zone inherits 'private' status from enclosed networks.
+    # check network 'private' status and zone 'private' status to be equal
     my $private1 = $network->{private} || 'public';
     if ($zone->{private}) {
         my $private2 = $zone->{private};
@@ -9517,28 +9519,29 @@ sub set_zone1 {
         }
     }
 
-    # Attribute is removed below, if value is 'public'.
-    $zone->{private} = $private1;
+    # set zone private status (attribute will be removed if value is 'public')
+    $zone->{private} = $private1;# heinz, das wird ständig neu gesetzt?
 
-    for my $interface (@{ $network->{interfaces} }) {
-
-        # Ignore interface where we reached this network.
-        next if $interface eq $in_interface;
+    # Proceed with adjacent elements...
+    for my $interface (@{ $network->{interfaces} }) {        
+        next if $interface eq $in_interface; # Ignore Interface we came from.
         my $router = $interface->{router};
+
+        # If its a zone delimiting router, reference interface in zone and v.v. 
         if ($router->{managed} or $router->{semi_managed}) {
             $interface->{zone} = $zone;
             push @{ $zone->{interfaces} }, $interface;
         }
         else {
 
-            # Traverse each unmanaged router only once.
-            next if $router->{zone};
+            #If its an unmanaged router, reference router in zone and v.v.
+            next if $router->{zone}; # Traverse each unmanaged router only once.
             $router->{zone} = $zone;
             push @{ $zone->{unmanaged_routers} }, $router;
-            for my $out_interface (@{ $router->{interfaces} }) {
 
-                # Ignore interface where we reached this router.
-                next if $out_interface eq $interface;
+            # Recursively add adjacent networks. 
+            for my $out_interface (@{ $router->{interfaces} }) {
+                next if $out_interface eq $interface;# Ignore IF we came from.
                 next if $out_interface->{disabled};
                 set_zone1($out_interface->{network}, $zone, $out_interface);
             }
@@ -9812,13 +9815,15 @@ sub set_area {
 sub set_zone {
     progress('Preparing security zones and areas');
 
-    # Create zone objects.
-    # It gets name of corresponding aggregate with ip 0/0.
+    #  Create a new zone object for every network without a zone
+    # It gets name of corresponding aggregate with ip 0/0. ??
     for my $network (@networks) {
         next if $network->{zone};
         my $name = "any:[$network->{name}]";
         my $zone = new('Zone', name => $name, networks => []);
         push @zones, $zone;
+
+        #
         set_zone1($network, $zone, 0);
 
         # Mark zone which consists only of a loopback network.
@@ -19181,3 +19186,4 @@ sub compile {
 #  LocalWords:  netmask EOL ToDo IPSec unicast utf hk src dst ICMP IPs EIGRP
 #  LocalWords:  OSPF VRRP HSRP Arnes loop's ISAKMP stateful ACLs negatable
 #  LocalWords:  STDOUT
+foo
