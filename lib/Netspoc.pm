@@ -9563,7 +9563,6 @@ sub set_zone1 {
 #                 doesn't inherit from area.
 sub set_zone_cluster {
     my ($zone, $in_interface, $zone_aref) = @_;
-    my $restrict;# heinz: diese variable wird nicht geutzt?
 
     # Reference zone in cluster object and vice versa 
     push @$zone_aref, $zone if !$zone->{is_tunnel};
@@ -9866,23 +9865,22 @@ sub set_zone {
     }
 # heinz, ich würde hier eine neue funktion  cluster _zones anfangen... 
 ##############################################################################
-# Collect clusters of zones, which are connected by an unmanaged
-# (semi_managed) device into attribute {zone_cluster}.
-# This attribute is only set, if the cluster has more than one element.
-
-# Purpose  : 
-# Comments :
+# Purpose  : Clusters zones connected by semi_managed routers. References of all
+#            zones of a cluster are stored in the {zone_cluster} attribute of
+#            the zones.
+# Comments : This attribute is only set, if the cluster has more than one
+#            element.
 # sub cluster_zones {
 
     # Process all unclustered zones.
     for my $zone (@zones) {        
         next if $zone->{zone_cluster};
         
-        # Create a new cluster.
+        # Create a new cluster and collect its zones
         my $cluster = [];
         set_zone_cluster($zone, 0, $cluster);
 
-        # 
+        # delete clusters containing a single network only
         delete $zone->{zone_cluster} if 1 >= @$cluster;
 
 #       debug('cluster: ', join(',',map($_->{name}, @{$zone->{zone_cluster}})))
