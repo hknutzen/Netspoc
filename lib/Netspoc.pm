@@ -9854,7 +9854,7 @@ sub set_area {
 # Comments : 
 sub set_zone {
     progress('Preparing security zones and areas');
-
+  
     # Create a new zone object for every network without a zone
     # It gets name of corresponding aggregate with ip 0/0. ??
     for my $network (@networks) {
@@ -9867,11 +9867,11 @@ sub set_zone {
         set_zone1($network, $zone, 0);
 
         # Mark zone which consists only of a loopback network.
-        $zone->{loopback} = 1
+       $zone->{loopback} = 1
           if $network->{loopback} && @{ $zone->{networks} } == 1;
 
         # Attribute {is_tunnel} is set only when zone has only tunnel networks.
-        if @{ $zone->{networks} } {# tunnel networks are not referenced in zone
+        if (@{ $zone->{networks} }) {# tunnel networks arent referenced in zone
             delete $zone->{is_tunnel};
         }
 
@@ -19263,4 +19263,3 @@ sub compile {
 #  LocalWords:  netmask EOL ToDo IPSec unicast utf hk src dst ICMP IPs EIGRP
 #  LocalWords:  OSPF VRRP HSRP Arnes loop's ISAKMP stateful ACLs negatable
 #  LocalWords:  STDOUT
-foo
