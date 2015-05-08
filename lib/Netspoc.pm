@@ -9646,27 +9646,25 @@ sub zone_eq {
            ($zone2->{zone_cluster} || $zone2));
 }
 
-# Collect all zones belonging to an area.
-# Mark zones and managed routers with areas they belong to.
-# Set attribute {border}, {inclusive_border} for areas defined 
-# by anchor and auto_border.
-# Returns 
-# - undef on success
-# - aref of interfaces, if invalid path was found in loop.
+###############################################################################
+# Purpose  : Reference zones and managed routers in the area object they belong
+#            to.
+#            For areas with defined borders: Keep track of area borders found 
+#            during area traversal.
+#            For anchor/auto_border areas: fill {border} and {inclusive_border}
+#            arrays.
+# Returns  : undef (or aref of interfaces, if invalid path was found).
 sub set_area1 {
     my ($obj, $area, $in_interface) = @_;
-
-    # Found a loop.
-    return if $obj->{areas}->{$area};
     
-    # This will be used to check for duplicate and overlapping areas
-    # and for loop detection.
+    return if $obj->{areas}->{$area}; # Found a loop.
+    
+    # Used to check for duplicate and overlapping areas and for loop detection.
     $obj->{areas}->{$area} = $area;
         
     my $is_zone = is_zone($obj);
 
-    # Add zone and managed router to the corresponding area, to have all zones
-    # and routers of an area available.
+    # Reference zones and managed routers in the corresponding area
     if ($is_zone) {
         if (!$obj->{is_tunnel}) {
             push @{ $area->{zones} }, $obj;
@@ -9676,28 +9674,29 @@ sub set_area1 {
         push @{ $area->{managed_routers} }, $obj;
     }
 
-    my $auto_border  = $area->{auto_border};
+    my $auto_border  = $area->{auto_border};#heinz: wird nur 1x gefragt ... weg?
     my $lookup       = $area->{intf_lookup};
+
     for my $interface (@{ $obj->{interfaces} }) {
 
-        # Ignore interface where we reached this area.
+        # Ignore interface we came from.
         next if $interface eq $in_interface;
 
-        # Found another border of current area.
+        # For usual areas, check if another border of current area was found...
         if ($lookup->{$interface}) {
             my $is_inclusive = $interface->{is_inclusive};
-            if ($is_inclusive->{$area} xor !$is_zone) {
 
-                # Found another border of current area from wrong side.
-                # Collect interfaces of invalid path.
-                return [ $interface ];
+            # Reached border from wrong side or border classification wrong.
+            if ($is_inclusive->{$area} xor !$is_zone) {               
+                return [ $interface ]; # will be collected to show invalid path
             }
 
-            # Remember that we have found this other border.
+            # ...mark found border in lookup hash.
             $lookup->{$interface} = 'found';
             next;
         }
 
+        # For auto_border areas, just collect border/inclusive_border interface 
         elsif ($auto_border) {
             if ($interface->{is_border}) {
                 push(@{ $area->{$is_zone ? 'border' : 'inclusive_border'} }, 
@@ -9706,13 +9705,13 @@ sub set_area1 {
             }
         }
 
-        # Ignore secondary or virtual interface, because we check main
-        # interface.
-        next if $interface->{main_interface};
+        # No further traversal at secondary or virtual interfaces...?
+         next if $interface->{main_interface};# meike: kann nach oben? testcase!
 
+        # Proceed traversal with next element
         my $next = $interface->{$is_zone ? 'router' : 'zone'};
         if (my $err_path = set_area1($next, $area, $interface)) {
-            push @$err_path, $interface;
+            push @$err_path, $interface; # collect interfaces of invalid path
             return $err_path;
         }
     }
@@ -9847,9 +9846,11 @@ sub inherit_nat_from_zone {
     return;
 }
 
-# Return value: 
-# - undef: ok
-# - 1: error was shown
+###############################################################################
+# Purpose  : Collect zones, routers (and interfaces, if no borders defined) 
+#            of an area
+# Returns  : undef (or 1, if error was shown)
+# Comments : 
 sub set_area {
     my ($obj, $area, $in_interface) = @_;
     if (my $err_path = set_area1($obj, $area, $in_interface)) {
@@ -9927,24 +9928,35 @@ sub set_zone {
     check_no_in_acl();
     check_crosslink();
 
+#heinz/meike: neue funktion?
+###############################################################################
     # Mark interfaces, which are border of some area.
     # This is needed to locate auto_borders.
     # Prepare consistency check for attributes {border} and {inclusive_border}.
-    my %has_inclusive_borders;
+
+    my %has_inclusive_borders; # collects all routers with inclusive border IF 
+
+    # Identify all interfaces which are border of some area
     for my $area (@areas) {
         for my $attribute (qw(border inclusive_border)) {
             my $border = $area->{$attribute} or next;
             for my $interface (@$border) {
-                $interface->{is_border} = $area;
+                
+                # Reference delimited area in the interfaces attributes 
+                $interface->{is_border} = $area; # used for auto borders
                 if ($attribute eq 'inclusive_border') {
                     $interface->{is_inclusive}->{$area} = $area;
+
+                    # Collect routers with inclusive border interface
                     my $router = $interface->{router};
                     $has_inclusive_borders{$router} = $router;
                 }
             }
         }
     }
-
+#meike: neue funktion?
+###############################################################################
+# 
     for my $area (@areas) {
         $area->{zones} = [];
         if (my $network = $area->{anchor}) {
@@ -9952,20 +9964,23 @@ sub set_zone {
         }
         else {
 
-            # For efficient look up if some interface is border of
-            # current area.
+            # For efficient look up if some IF borders current area.
             my $lookup = $area->{intf_lookup} = {};
 
             my $start;
             my $obj1;
+
+            # Collect all area delimiting interfaces
             for my $attr (qw(border inclusive_border)) {
                 my $borders = $area->{$attr} or next;
                 @{$lookup}{@$borders} = @$borders;
                 next if $start;
+
+                # identify start interface and direction for area traversal
                 $start = $borders->[0];
                 $obj1 = $attr eq 'border'
-                      ? $start->{zone}
-                      : $start->{router};
+                      ? $start->{zone} # proceed with zone
+                      : $start->{router}; # proceed with router
             }
             
             $lookup->{$start} = 'found';
