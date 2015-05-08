@@ -8961,68 +8961,74 @@ my %crosslink_strength = (
     local_secondary => 6,
     );
 
-# This uses attributes from sub check_no_in_acl.
+##############################################################################
+# A crosslink network combines two or more routers# to one virtual router.
+# Purpose  : Assures proper usage of crosslink networks and applies the 
+#            crosslink attribute to the networks weakest interfaces (no 
+#            filtering needed at these interfaces).
+# Comments : Function uses attributes from sub check_no_in_acl.
 sub check_crosslink  {
+    my %crosslink_routers; # Collect crosslinked routers with {need_protect}
 
-    # Collect routers connected by crosslink networks,
-    # but only for Cisco routers having attribute "need_protect".
-    my %crosslink_routers;
-
+    # Process all crosslink networks 
     for my $network (values %networks) {
         next if not $network->{crosslink};
         next if $network->{disabled};
 
-        # A crosslink network combines two or more routers
-        # to one virtual router.
-        # No filtering occurs at crosslink interfaces 
-        # if all devices have the same filter strength.
-        my %strength2intf;
-        my $out_acl_count = 0;
-        my @no_in_acl_intf;
+        my %strength2intf;# To identify interfaces with min router strength
+        my $out_acl_count = 0; # Assure out_ACL at all/none of the interfaces  
+        my @no_in_acl_intf; # Assure all no_in_acl IFs to border the same zone
+
+        # Process network interfaces to fill above variables.
         for my $interface (@{ $network->{interfaces} }) {
             next if $interface->{main_interface};
             my $router = $interface->{router};
-            if (my $managed = $router->{managed}) {
-                my $strength = $crosslink_strength{$managed} or 
-                    internal_err("Unexptected managed=$managed");
-                push @{ $strength2intf{$strength} }, $interface;
-                if ($router->{need_protect}) {
-                    $crosslink_routers{$router} = $router;
-                }
-            }
-            else {
+            my $hardware = $interface->{hardware};
+
+            # Assure correct usage of crosslink network. 
+            if (!$router->{managed}) {
                 err_msg("Crosslink $network->{name} must not be",
                         " connected to unmanged $router->{name}");
                 next;
             }
-            my $hardware = $interface->{hardware};
             1 == grep({ !$_->{main_interface} } @{ $hardware->{interfaces} })
               or err_msg
               "Crosslink $network->{name} must be the only network\n",
               " connected to $hardware->{name} of $router->{name}";
+
+            # Fill variables.
+            my $managed = $router->{managed};            
+            my $strength = $crosslink_strength{$managed} or 
+                internal_err("Unexptected managed=$managed");            
+            push @{ $strength2intf{$strength} }, $interface;
+
+            if ($router->{need_protect}) {
+                $crosslink_routers{$router} = $router;
+            }
+
             if ($hardware->{need_out_acl}) {
                 $out_acl_count++;
             }
+
             push @no_in_acl_intf,
               grep({ $_->{hardware}->{no_in_acl} } @{ $router->{interfaces} });
         }
 
-        # Compare filter type of crosslink interfaces.
-        # The weakest interfaces get attribute {crosslink}.
+        # Apply attribute {crosslink} to the networks weakest interfaces.
         if (my ($weakest) = sort numerically keys %strength2intf) {
             for my $interface (@{ $strength2intf{$weakest} }) {
                 $interface->{hardware}->{crosslink} = 1;
             }
 
-            # 'secondary' and 'local' are not comparable and hence must
-            # not occur together.
+            # Assure 'secondary' and 'local' are not mixed in crosslink network.
             if ($weakest == $crosslink_strength{local} && 
                 $strength2intf{$crosslink_strength{secondary}}) {
                 err_msg("Must not use 'managed=local' and 'managed=secondary'",
                         " together\n at crosslink $network->{name}");
             }
         }
-
+        
+        # Assure proper usage of crosslink network.
         not $out_acl_count
           or $out_acl_count == @{ $network->{interfaces} }
           or err_msg "All interfaces must equally use or not use outgoing ACLs",
@@ -9032,13 +9038,18 @@ sub check_crosslink  {
           " at routers connected by\n crosslink $network->{name}",
           " must be border of the same security zone";
     }
-
+# Heinz, hier könnte man eine neue Funktion anfangen, z.B.:
+# cluster_crosslink_routers ($crosslink_routers) 
+###############################################################################
     # Find clusters of routers connected directly or indirectly by
     # crosslink networks and having at least one device with
     # "need_protect".
+
     my %cluster;
     my %seen;
     my $walk;
+
+    # add routers to cluster via depth first search 
     $walk = sub {
         my ($router) = @_;
         $cluster{$router} = $router;
@@ -9056,24 +9067,27 @@ sub check_crosslink  {
         }
     };
 
-    # Collect all interfaces of cluster belonging to device of type
-    # "need_protect" and add to each cluster member 
-    # - as list used in "protect own interfaces" 
-    # - as hash used in fast lookup in distribute_rule and "protect ..".
+    # Process all need_protect crosslinked routers
     for my $router (values %crosslink_routers) {
         next if $seen{$router};
+  
+        # Fill router cluster
         %cluster = ();
         $walk->($router);
+
+        # Collect all cluster interfaces belonging to need_protect routers...
         my @crosslink_interfaces =
           grep { !$_->{vip} }
           map { @{ $_->{interfaces} } }
-          grep { $crosslink_routers{$_} }
-
-          # Sort by router name to make output deterministic.
-          sort by_name values %cluster;
+          grep { $crosslink_routers{$_} }          
+          sort by_name values %cluster; # Sort to make output deterministic.
+ 
+        # ... add information to every cluster member 
         my %crosslink_intf_hash = map { $_ => $_ } @crosslink_interfaces;
         for my $router2 (values %cluster) {
+            # ... as list used in "protect own interfaces"
             $router2->{crosslink_interfaces} = \@crosslink_interfaces;
+            # ... as hash used in fast lookup in distribute_rule and "protect.."
             $router2->{crosslink_intf_hash}  = \%crosslink_intf_hash;
         }
     }
