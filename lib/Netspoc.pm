@@ -9647,8 +9647,8 @@ sub zone_eq {
 }
 
 ###############################################################################
-# Purpose  : Reference zones and managed routers in the area object they belong
-#            to.
+# Purpose  : Collect zones and managed routers of an area object and set a 
+#            reference to the area in its zones and routers.
 #            For areas with defined borders: Keep track of area borders found 
 #            during area traversal.
 #            For anchor/auto_border areas: fill {border} and {inclusive_border}
@@ -9848,7 +9848,7 @@ sub inherit_nat_from_zone {
 
 ###############################################################################
 # Purpose  : Collect zones, routers (and interfaces, if no borders defined) 
-#            of an area
+#            of an area.
 # Returns  : undef (or 1, if error was shown)
 # Comments : 
 sub set_area {
@@ -9956,7 +9956,8 @@ sub set_zone {
     }
 #meike: neue funktion?
 ###############################################################################
-# 
+# set_areas
+# Purpose  : Set up area objects, assure proper border definitions.
     for my $area (@areas) {
         $area->{zones} = [];
         if (my $network = $area->{anchor}) {
@@ -9982,11 +9983,13 @@ sub set_zone {
                       ? $start->{zone} # proceed with zone
                       : $start->{router}; # proceed with router
             }
-            
+ 
+            # Collect zones and routers of area and keep track of borders found.
             $lookup->{$start} = 'found';
             my $err = set_area($obj1, $area, $start);
             next if $err;
 
+            # Assert that all borders were found.
             for my $attr (qw(border inclusive_border)) {
                 my $borders = $area->{$attr} or next;
                 my @bad_intf = grep { $lookup->{$_} ne 'found' } @$borders
@@ -9998,25 +10001,28 @@ sub set_zone {
             }
         }
 
-        # We get an empty area, if inclusive borders are placed around
-        # a single router.
+        # Check whether area is empty (= consist of a single router)
         @{ $area->{zones} } or
             warn_msg("$area->{name} is empty");
 
 #     debug("$area->{name}:\n ", join "\n ", map $_->{name}, @{$area->{zones}});
     }
+#meike: neue funktion?
+###############################################################################
 
     # Find subset relation between areas.
     # Complain about duplicate and overlapping areas.
-    my %seen;
+
+    my %seen; # key:contained area, value: containing area
+
+    # Process all zones contained by one or more areas
     for my $zone (@zones) {
         $zone->{areas} or next;
 
-        # Sort by size, smallest first, then sort by name for equal size.
-        # Ignore empty hash.
-        my @areas = sort({ @{ $a->{zones} } <=> @{ $b->{zones} } || 
-                           $a->{name} cmp $b->{name} } 
-                         values %{ $zone->{areas} }) or next;
+        # Sort by zone containing areas by ascending size
+        my @areas = sort({ @{ $a->{zones} } <=> @{ $b->{zones} } ||
+                           $a->{name} cmp $b->{name} }#equal size? sort by name 
+                         values %{ $zone->{areas} }) or next; # Skip empty hash.
 
         # Take the smallest area.
         my $next = shift @areas;
