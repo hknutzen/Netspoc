@@ -3152,7 +3152,9 @@ my %isakmp_attributes = (
     authentication => { values   => [qw( preshare rsasig )], },
     encryption     => { values   => [qw( aes aes192 aes256 des 3des )], },
     hash           => { values   => [qw( md5 sha )], },
-    group          => { values   => [qw( 1 2 5 )], },
+    ike_version    => { values   => [ 1, 2 ], default => 1, },
+    lifetime       => { function => \&read_time_val, },
+    group          => { values   => [ 1, 2, 5, 14, 15, 16, 19, 20, 24 ], },
     lifetime       => { function => \&read_time_val, },
     trust_point    => {
         function => \&read_identifier,
@@ -3186,7 +3188,7 @@ my %ipsec_attributes = (
         map     => { none => undef }
     },
     pfs_group => {
-        values  => [qw( none 1 2 5 )],
+        values  => [qw( none 1 2 5 14 15 16 19 20 24 )],
         default => 'none',
         map     => { none => undef }
     },
@@ -18513,43 +18515,59 @@ sub print_crypto {
     my %ipsec2trans_name;
     for my $ipsec (@ipsec) {
         $transform_count++;
-        my $transform = '';
-        if (my $ah = $ipsec->{ah}) {
-            if ($ah =~ /^(md5|sha)_hmac$/) {
-                $transform .= "ah-$1-hmac ";
+        my $transform_name = "Trans$transform_count";
+        $ipsec2trans_name{$ipsec} = $transform_name;
+        my $isakmp = $ipsec->{key_exchange};
+
+        # IKEv2 syntax for ASA.
+        if ($crypto_type eq 'ASA' and $isakmp->{ike_version} == 2) {
+            print "crypto ipsec ikev2 ipsec-proposal $transform_name\n";
+            if (my $ah = $ipsec->{ah}) {
+                $ah =~ /^(md5|sha)_hmac$/;
+                print " protocol ah $1\n";
             }
-            else {
-                internal_err(
-                    "Unsupported IPSec AH method for $crypto_type: $ah");
+            my $esp_encr;
+            if (not(my $esp = $ipsec->{esp_encryption})) {
+                $esp_encr = 'null';
             }
-        }
-        if (not(my $esp = $ipsec->{esp_encryption})) {
-            $transform .= 'esp-null ';
-        }
-        elsif ($esp =~ /^(aes|des|3des)$/) {
-            $transform .= "esp-$1 ";
-        }
-        elsif ($esp =~ /^aes(192|256)$/) {
-            my $len = $crypto_type eq 'ASA' ? "-$1" : " $1";
-            $transform .= "esp-aes$len ";
-        }
-        else {
-            internal_err("Unsupported IPSec ESP method for $crypto_type: $esp");
-        }
-        if (my $esp_ah = $ipsec->{esp_authentication}) {
-            if ($esp_ah =~ /^(md5|sha)_hmac$/) {
-                $transform .= "esp-$1-hmac";
+            elsif ($esp =~ /^(aes|des|3des)$/) {
+                $esp_encr = $1;
             }
-            else {
-                internal_err("Unsupported IPSec ESP auth. method for",
-                             " $crypto_type: $esp_ah");
+            elsif ($esp =~ /^aes(192|256)$/) {
+                $esp_encr = "aes-$1";
+            }
+            print " protocol esp encryption $esp_encr\n";
+            if (my $esp_ah = $ipsec->{esp_authentication}) {
+                $esp_ah =~ /^(md5|sha)_hmac$/;
+                print " protocol esp integrity $1\n";
             }
         }
 
-        # Syntax is identical for IOS and ASA.
-        my $transform_name = "Trans$transform_count";
-        $ipsec2trans_name{$ipsec} = $transform_name;
-        print "crypto ipsec transform-set $transform_name $transform\n";
+        # IKEv1 syntax of ASA is identical to IOS.
+        else {
+            my $transform = '';
+            if (my $ah = $ipsec->{ah}) {
+                if ($ah =~ /^(md5|sha)_hmac$/) {
+                    $transform .= "ah-$1-hmac ";
+                }
+            }
+            if (not(my $esp = $ipsec->{esp_encryption})) {
+                $transform .= 'esp-null ';
+            }
+            elsif ($esp =~ /^(aes|des|3des)$/) {
+                $transform .= "esp-$1 ";
+            }
+            elsif ($esp =~ /^aes(192|256)$/) {
+                my $len = $crypto_type eq 'ASA' ? "-$1" : " $1";
+                $transform .= "esp-aes$len ";
+            }
+            if (my $esp_ah = $ipsec->{esp_authentication}) {
+                if ($esp_ah =~ /^(md5|sha)_hmac$/) {
+                    $transform .= "esp-$1-hmac";
+                }
+            }
+            print "crypto ipsec transform-set $transform_name $transform\n";
+        }
     }
 
     # Collect tunnel interfaces attached to one hardware interface.
@@ -18668,10 +18686,21 @@ sub print_crypto {
             }
 
             my $transform_name = $ipsec2trans_name{$ipsec};
-            my $extra_ikev1 =
-              ($crypto_type eq 'ASA' && $model->{v8_4}) ? 'ikev1 ' : '';
-            print "$prefix set ${extra_ikev1}transform-set $transform_name\n";
-
+            if ($crypto_type eq 'ASA') {
+                if ($isakmp->{ike_version} == 2) {
+                    print "$prefix set ikev2 ipsec-proposal $transform_name\n";
+                }
+                elsif ($model->{v8_4}) {
+                    print "$prefix set ikev1 transform-set $transform_name\n";
+                }
+                else {
+                    print "$prefix set transform-set $transform_name\n";
+                }
+            }
+            else {
+                print "$prefix set transform-set $transform_name\n";
+            }                
+                
             if (my $pfs_group = $ipsec->{pfs_group}) {
                 print "$prefix set pfs group$pfs_group\n";
             }
@@ -18680,8 +18709,8 @@ sub print_crypto {
 
                 # Don't print default value for backend IOS.
                 if (not($lifetime == 3600 and $crypto_type eq 'IOS')) {
-                    print "$prefix set security-association"
-                      . " lifetime seconds $lifetime\n";
+                    print("$prefix set security-association",
+                          " lifetime seconds $lifetime\n");
                 }
             }
 
@@ -18692,21 +18721,26 @@ sub print_crypto {
                                                       $no_nat_set));
                     print "tunnel-group $peer_ip type ipsec-l2l\n";
                     print "tunnel-group $peer_ip ipsec-attributes\n";
-                    if ($authentication eq 'preshare') {
-                        print " ${extra_ikev1}pre-shared-key *****\n";
-                        print " peer-id-validate nocheck\n";
-                    }
-                    elsif ($authentication eq 'rsasig') {
+                    print " peer-id-validate nocheck\n";
+                    if ($authentication eq 'rsasig') {
                         my $trust_point = $isakmp->{trust_point};
                         print " chain\n";
-                        print " ${extra_ikev1}trust-point $trust_point\n";
-                        if ($model->{v8_4}) {
+                        if ($isakmp->{ike_version} == 2) {
+                            print(" ikev2 local-authentication certificate",
+                                  " $trust_point\n");
+                            print(" ikev2 remote-authentication certificate\n");
+                        }
+                        elsif ($model->{v8_4}) {
+                            print " ikev1 trust-point $trust_point\n";
                             print " ikev1 user-authentication none\n";
                         }
                         else {
+                            print " trust-point $trust_point\n";
                             print " isakmp ikev1-user-authentication none\n";
                         }
                     }
+
+                    # Preshared key is configured manually.
                 }
             }
         }
