@@ -10054,34 +10054,37 @@ sub set_zone {
 #                    debug "$small->{name} < $next->{name}";
                 }
             }
+
+            #keep track of processed areas
             $seen{$small}->{$next} = 1;
         }
     }
+#meike: neue funktion? braucht %has_inclusive_borders als parameter!
+#############################################################################
+# Check, that subset relation of areas holds for routers: If a router
+# R is located inside areas A1 and A2 via 'inclusive_border', then A1
+# and A2 must be in subset relation. Also, if area A1 and A2 are in subset relation and A1 includes R, then A2 also needs to include R either from 'inclusive_border' or R is surrounded by zones located inside A2.
 
-    # Check, that subset relation of areas holds not only for zones,
-    # but also for routers included by 'inclusive_border'.
-    # This is needed to get consistent inheritance with 'router_attributes'.
+# Comments : This is needed to get consistent inheritance with
+#            'router_attributes'.
 
-    # 1. If router R is located inside areas A1 and A2, then A1 and A2
-    #    must be in subset relation.
+    # Case 1: Identify routers contained by areas via 'inclusive_border' 
     for my $router (sort by_name values %has_inclusive_borders) {
 
-        # Find all areas having this router as inclusive_border.
-        # Sort by size, smallest first, then sort by name for
-        # equal size.
+        # Sort all areas having this router as inclusive_border by size.
         my @areas =  
-            sort({ @{ $a->{zones} } <=> @{ $b->{zones} } || 
-                       $a->{name} cmp $b->{name} }
+            sort({ @{ $a->{zones} } <=> @{ $b->{zones} } || # ascending order
+                       $a->{name} cmp $b->{name} } # equal size? sort by name
                  values %{ $router->{areas} });
 
         # Take the smallest area.
         my $next = shift @areas;
 
-        # Compare pairwise for subset relation.
+        # Pairwisely check containing areas for subset relation.
         while(@areas) {
             my $small = $next;
             $next = shift @areas;
-            my $big = $small->{subset_of} || '';
+            my $big = $small->{subset_of} || ''; # extract containing area
             next if $next eq $big;
             err_msg("$small->{name} and $next->{name} must be",
                     " in subset relation,\n because both have",
@@ -10089,12 +10092,11 @@ sub set_zone {
         }
     }
 
-    # 2. If area A1 and A2 are in subset relation and A1 includes R,
-    #    then A2 also needs to include R
-    #    - either from 'inclusive_border'
-    #    - or R is surrounded by zones located inside A2.
+    # Case 2: Identify areas in subset relation
     for my $area (@areas) {
         my $big = $area->{subset_of} or next;
+
+        # Assure routers of the subset area to be located in containing area too
         for my $router (@{ $area->{managed_routers} }) {
             next if $router->{areas}->{$big};
             err_msg("$router->{name} must be located in $big->{name},\n",
@@ -10104,6 +10106,8 @@ sub set_zone {
         }
     }
 
+#meike: neue funktion...
+###############################################################################
     # Tidy up: Delete unused attributes.
     for my $area (@areas) {
         delete $area->{intf_lookup};
