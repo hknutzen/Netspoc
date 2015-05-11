@@ -19129,6 +19129,7 @@ sub init_global_vars {
     %unknown2services = %unknown2unknown = ();
     %supernet_rule_tree = %missing_supernet = ();
     %smaller_prt = ();
+    %known_log = %key2log = ();
     init_protocols();
     return;
 }
