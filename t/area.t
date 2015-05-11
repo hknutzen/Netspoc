@@ -71,6 +71,13 @@ $title = 'Overlapping areas';
 ############################################################
 
 $in = $topo . <<'END';
+network:n4 = { ip = 10.1.4.0/24; }
+router:asa3 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.3; hardware = vlan2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = vlan4; }
+}
 area:a2 = { border = interface:asa1.n2; }
 area:a2x = { border = interface:asa2.n2; }
 END
