@@ -8929,7 +8929,7 @@ sub check_no_in_acl  {
           or err_msg "At most one interface of $router->{name}",
           " may use flag 'no_in_acl'";
 
-        # Assert router to support outigoing ACL
+        # Assert router to support outgoing ACL
         $router->{model}->{has_out_acl}
           or err_msg("$router->{name} doesn't support outgoing ACL");
         
@@ -8966,7 +8966,7 @@ my %crosslink_strength = (
 # Purpose  : Assures proper usage of crosslink networks and applies the 
 #            crosslink attribute to the networks weakest interfaces (no 
 #            filtering needed at these interfaces).
-# Comments : Function uses attributes from sub check_no_in_acl.
+# Comments : Function uses hardware attributes from sub check_no_in_acl.
 sub check_crosslink  {
     my %crosslink_routers; # Collect crosslinked routers with {need_protect}
 
@@ -8975,6 +8975,7 @@ sub check_crosslink  {
         next if not $network->{crosslink};
         next if $network->{disabled};
 
+        # Prepare tests.
         my %strength2intf;# To identify interfaces with min router strength
         my $out_acl_count = 0; # Assure out_ACL at all/none of the interfaces  
         my @no_in_acl_intf; # Assure all no_in_acl IFs to border the same zone
@@ -9659,8 +9660,7 @@ sub set_area1 {
     
     return if $obj->{areas}->{$area}; # Found a loop.
     
-    # Used to check for duplicate and overlapping areas and for loop detection.
-    $obj->{areas}->{$area} = $area;
+    $obj->{areas}->{$area} = $area;# Find duplicate/overlapping areas or loops 
         
     my $is_zone = is_zone($obj);
 
@@ -9674,7 +9674,7 @@ sub set_area1 {
         push @{ $area->{managed_routers} }, $obj;
     }
 
-    my $auto_border  = $area->{auto_border};#heinz: wird nur 1x gefragt ... weg?
+    my $auto_border  = $area->{auto_border};
     my $lookup       = $area->{intf_lookup};
 
     for my $interface (@{ $obj->{interfaces} }) {
@@ -9682,7 +9682,10 @@ sub set_area1 {
         # Ignore interface we came from.
         next if $interface eq $in_interface;
 
-        # For usual areas, check if another border of current area was found...
+        # No further traversal at secondary interfaces
+        next if $interface->{main_interface};
+
+        # For areas with defined borders, check if border was found...
         if ($lookup->{$interface}) {
             my $is_inclusive = $interface->{is_inclusive};
 
@@ -9704,9 +9707,6 @@ sub set_area1 {
                 next;
             }
         }
-
-        # No further traversal at secondary or virtual interfaces...?
-         next if $interface->{main_interface};# meike: kann nach oben? testcase!
 
         # Proceed traversal with next element
         my $next = $interface->{$is_zone ? 'router' : 'zone'};
@@ -9845,32 +9845,9 @@ sub inherit_nat_from_zone {
     }
     return;
 }
-
-###############################################################################
-# Purpose  : Collect zones, routers (and interfaces, if no borders defined) 
-#            of an area.
-# Returns  : undef (or 1, if error was shown)
-# Comments : 
-sub set_area {
-    my ($obj, $area, $in_interface) = @_;
-    if (my $err_path = set_area1($obj, $area, $in_interface)) {
-        push @$err_path, $in_interface if $in_interface;
-        err_msg("Inconsistent definition of $area->{name} in loop.\n",
-                " It is reached from outside via this path:\n",
-                " - ", join("\n - ", map { $_->{name} } reverse @$err_path));
-        return 1;
-    }
-    return;
-}
-
-###############################################################################
-# Purpose  : Create zone objects (and set areas... perhaps that part can be 
-#            transferred to another function?)
-# Comments : 
-sub set_zone {
-    progress('Preparing security zones and areas');
-  
-    # Create a new zone object for every network without a zone
+##############################################################################
+# Purpose  : Create a new zone object for every network without a zone
+sub set_zones {
     # It gets name of corresponding aggregate with ip 0/0. ??
     for my $network (@networks) {
         next if $network->{zone};
@@ -9900,14 +9877,14 @@ sub set_zone {
             delete $zone->{private};
         }
     }
-# heinz, ich würde hier eine neue funktion  cluster _zones anfangen... 
+}
 ##############################################################################
 # Purpose  : Clusters zones connected by semi_managed routers. References of all
 #            zones of a cluster are stored in the {zone_cluster} attribute of
 #            the zones.
-# Comments : This attribute is only set, if the cluster has more than one
-#            element.
-# sub cluster_zones {
+# Comments : The {zone_cluster} attribute is only set if the cluster has more 
+#            than one element.
+sub cluster_zones {
 
     # Process all unclustered zones.
     for my $zone (@zones) {        
@@ -9923,17 +9900,13 @@ sub set_zone {
 #       debug('cluster: ', join(',',map($_->{name}, @{$zone->{zone_cluster}})))
 #           if $zone->{zone_cluster};
     }
-# } #end of cluster_zones 
+}
 
-    check_no_in_acl();
-    check_crosslink();
-
-#heinz/meike: neue funktion?
 ###############################################################################
-    # Mark interfaces, which are border of some area.
-    # This is needed to locate auto_borders.
-    # Prepare consistency check for attributes {border} and {inclusive_border}.
-
+# Purpose  : Mark interfaces, which are border of some area, prepare consistency
+#            check for attributes {border} and {inclusive_border}.
+# Comments : Area labeled interfaces are needed to locate auto_borders.
+sub prepare_area_borders {
     my %has_inclusive_borders; # collects all routers with inclusive border IF 
 
     # Identify all interfaces which are border of some area
@@ -9954,10 +9927,30 @@ sub set_zone {
             }
         }
     }
-#meike: neue funktion?
+    return \%has_inclusive_borders;
+}
+
 ###############################################################################
-# set_areas
+# Purpose  : Collect zones, routers (and interfaces, if no borders defined) 
+#            of an area.
+# Returns  : undef (or 1, if error was shown)
+sub set_area {
+    my ($obj, $area, $in_interface) = @_;
+    if (my $err_path = set_area1($obj, $area, $in_interface)) {
+        
+        # Print error path, if errors occurred 
+        push @$err_path, $in_interface if $in_interface;
+        err_msg("Inconsistent definition of $area->{name} in loop.\n",
+                " It is reached from outside via this path:\n",
+                " - ", join("\n - ", map { $_->{name} } reverse @$err_path));
+        return 1;
+    }
+    return;
+}
+
+###############################################################################s
 # Purpose  : Set up area objects, assure proper border definitions.
+sub set_areas {
     for my $area (@areas) {
         $area->{zones} = [];
         if (my $network = $area->{anchor}) {
@@ -9965,7 +9958,7 @@ sub set_zone {
         }
         else {
 
-            # For efficient look up if some IF borders current area.
+            # For efficient look up if some IF is a border of current area.
             my $lookup = $area->{intf_lookup} = {};
 
             my $start;
@@ -10007,12 +10000,12 @@ sub set_zone {
 
 #     debug("$area->{name}:\n ", join "\n ", map $_->{name}, @{$area->{zones}});
     }
-#meike: neue funktion?
+}
+
 ###############################################################################
-
-    # Find subset relation between areas.
-    # Complain about duplicate and overlapping areas.
-
+# Purpose : Find subset relation between areas, assure that no duplicate or 
+#           overlapping areas exist
+sub find_subset_relations {
     my %seen; # key:contained area, value: containing area
 
     # Process all zones contained by one or more areas
@@ -10059,17 +10052,22 @@ sub set_zone {
             $seen{$small}->{$next} = 1;
         }
     }
-#meike: neue funktion? braucht %has_inclusive_borders als parameter!
-#############################################################################
-# Check, that subset relation of areas holds for routers: If a router
-# R is located inside areas A1 and A2 via 'inclusive_border', then A1
-# and A2 must be in subset relation. Also, if area A1 and A2 are in subset relation and A1 includes R, then A2 also needs to include R either from 'inclusive_border' or R is surrounded by zones located inside A2.
+}
 
+#############################################################################
+# Purpose  : Check, that area subset relations hold for routers:
+#          : Case 1: If a router R is located inside areas A1 and A2 via 
+#            'inclusive_border', then A1 and A2 must be in subset relation.
+#          : Case 2: If area A1 and A2 are in subset relation and A1 includes R,
+#            then A2 also needs to include R either from 'inclusive_border' or 
+#            R is surrounded by zones located inside A2.
 # Comments : This is needed to get consistent inheritance with
 #            'router_attributes'.
-
+sub check_routers_in_nested_areas {
+    
+    my ($has_inclusive_borders) = @_;
     # Case 1: Identify routers contained by areas via 'inclusive_border' 
-    for my $router (sort by_name values %has_inclusive_borders) {
+    for my $router (sort by_name values %$has_inclusive_borders) {
 
         # Sort all areas having this router as inclusive_border by size.
         my @areas =  
@@ -10105,10 +10103,11 @@ sub set_zone {
                     " (use attribute 'inclusive_border')");
         }
     }
+}
 
-#meike: neue funktion...
-###############################################################################
-    # Tidy up: Delete unused attributes.
+##############################################################################
+# Purpose  : Delete unused attributes in area objects.
+sub clean_areas {
     for my $area (@areas) {
         delete $area->{intf_lookup};
         for my $interface (@{ $area->{border} }) {
@@ -10116,9 +10115,24 @@ sub set_zone {
             delete $interface->{is_inclusive};
         }
     }
-    link_aggregates();
-    inherit_attributes_from_area();
-    inherit_nat_from_zone();
+}
+
+###############################################################################
+# Purpose  : Create zones and areas.
+sub set_zone {
+    progress('Preparing security zones and areas');
+    set_zones();
+    cluster_zones();
+    check_no_in_acl(); # move no_in_acl attribute from interface to hardware
+    check_crosslink(); # meike: hier rein...
+    my $has_inclusive_borders = prepare_area_borders();
+    set_areas();
+    find_subset_relations();
+    check_routers_in_nested_areas($has_inclusive_borders);
+    clean_areas(); # delete unused attributes
+    link_aggregates();# meike: anschaun...
+    inherit_attributes_from_area();# meike: anschaun...
+    inherit_nat_from_zone();# meike: anschaun...
     return;
 }
 
