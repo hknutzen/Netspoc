@@ -10030,11 +10030,7 @@ sub set_zone {
         while(@areas) {
             my $small = $next;
             $next = shift @areas;
-            next if $seen{$small}->{$next};
-            my $big = $small->{subset_of} || '';
-
-            # Has already been checked in other zone.
-            next if $big eq $next;
+            next if $seen{$small}->{$next};# Already identified in other zone.
 
             # Check that each zone of $small is part of $next.
             my $ok = 1;
@@ -10045,10 +10041,14 @@ sub set_zone {
                     last;
                 }
             }
+
+            # check for duplicates
             if ($ok) {
                 if (@{ $small->{zones} } == @{ $next->{zones} }) {
                     err_msg("Duplicate $small->{name} and $next->{name}");
                 }
+
+                # reference containing area
                 else {
                     $small->{subset_of} = $next;
 #                    debug "$small->{name} < $next->{name}";
