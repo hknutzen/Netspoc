@@ -18724,7 +18724,6 @@ sub print_crypto {
                     print " peer-id-validate nocheck\n";
                     if ($authentication eq 'rsasig') {
                         my $trust_point = $isakmp->{trust_point};
-                        print " chain\n";
                         if ($isakmp->{ike_version} == 2) {
                             print(" ikev2 local-authentication certificate",
                                   " $trust_point\n");

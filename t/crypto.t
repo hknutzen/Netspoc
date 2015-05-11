@@ -607,7 +607,6 @@ crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 172.16.1.2 type ipsec-l2l
 tunnel-group 172.16.1.2 ipsec-attributes
  peer-id-validate nocheck
- chain
  trust-point ASDM_TrustPoint3
  isakmp ikev1-user-authentication none
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
@@ -670,7 +669,6 @@ crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 172.16.1.2 type ipsec-l2l
 tunnel-group 172.16.1.2 ipsec-attributes
  peer-id-validate nocheck
- chain
  ikev2 local-authentication certificate ASDM_TrustPoint3
  ikev2 remote-authentication certificate
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
@@ -960,7 +958,6 @@ crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 1.2.3.129 type ipsec-l2l
 tunnel-group 1.2.3.129 ipsec-attributes
  peer-id-validate nocheck
- chain
  ikev1 trust-point ASDM_TrustPoint3
  ikev1 user-authentication none
 crypto map crypto-outside interface outside
@@ -1099,7 +1096,6 @@ crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 1.1.1.1 type ipsec-l2l
 tunnel-group 1.1.1.1 ipsec-attributes
  peer-id-validate nocheck
- chain
  ikev1 trust-point ASDM_TrustPoint3
  ikev1 user-authentication none
 crypto map crypto-outside interface outside
