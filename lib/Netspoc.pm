@@ -8960,9 +8960,62 @@ my %crosslink_strength = (
     local => 7,
     local_secondary => 6,
     );
-
 ##############################################################################
-# A crosslink network combines two or more routers# to one virtual router.
+    # Find clusters of routers connected directly or indirectly by
+    # crosslink networks and having at least one device with
+    # "need_protect".
+sub cluster_crosslink_routers {
+    my ($crosslink_routers) = @_;
+    my %cluster;
+    my %seen;
+    my $walk;
+
+    # add routers to cluster via depth first search 
+    $walk = sub {
+        my ($router) = @_;
+        $cluster{$router} = $router;
+        $seen{$router}    = $router;
+        for my $in_intf (@{ $router->{interfaces} }) {
+            my $network = $in_intf->{network};
+            next if not $network->{crosslink};
+            next if $network->{disabled};
+            for my $out_intf (@{ $network->{interfaces} }) {
+                next if $out_intf eq $in_intf;
+                my $router2 = $out_intf->{router};
+                next if $cluster{$router2};
+                $walk->($router2);
+            }
+        }
+    };
+
+    # Process all need_protect crosslinked routers
+    for my $router (values %$crosslink_routers) {
+        next if $seen{$router};
+  
+        # Fill router cluster
+        %cluster = ();
+        $walk->($router);
+
+        # Collect all cluster interfaces belonging to need_protect routers...
+        my @crosslink_interfaces =
+          grep { !$_->{vip} }
+          map { @{ $_->{interfaces} } }
+          grep { $crosslink_routers->{$_} }          
+          sort by_name values %cluster; # Sort to make output deterministic.
+ 
+        # ... add information to every cluster member 
+        my %crosslink_intf_hash = map { $_ => $_ } @crosslink_interfaces;
+        for my $router2 (values %cluster) {
+            # ... as list used in "protect own interfaces"
+            $router2->{crosslink_interfaces} = \@crosslink_interfaces;
+            # ... as hash used in fast lookup in distribute_rule and "protect.."
+            $router2->{crosslink_intf_hash}  = \%crosslink_intf_hash;
+        }
+    }
+    return;
+}
+##############################################################################
+# A crosslink network combines two or more routers to one virtual router.
 # Purpose  : Assures proper usage of crosslink networks and applies the 
 #            crosslink attribute to the networks weakest interfaces (no 
 #            filtering needed at these interfaces).
@@ -9039,60 +9092,7 @@ sub check_crosslink  {
           " at routers connected by\n crosslink $network->{name}",
           " must be border of the same security zone";
     }
-# Heinz, hier könnte man eine neue Funktion anfangen, z.B.:
-# cluster_crosslink_routers ($crosslink_routers) 
-###############################################################################
-    # Find clusters of routers connected directly or indirectly by
-    # crosslink networks and having at least one device with
-    # "need_protect".
-
-    my %cluster;
-    my %seen;
-    my $walk;
-
-    # add routers to cluster via depth first search 
-    $walk = sub {
-        my ($router) = @_;
-        $cluster{$router} = $router;
-        $seen{$router}    = $router;
-        for my $in_intf (@{ $router->{interfaces} }) {
-            my $network = $in_intf->{network};
-            next if not $network->{crosslink};
-            next if $network->{disabled};
-            for my $out_intf (@{ $network->{interfaces} }) {
-                next if $out_intf eq $in_intf;
-                my $router2 = $out_intf->{router};
-                next if $cluster{$router2};
-                $walk->($router2);
-            }
-        }
-    };
-
-    # Process all need_protect crosslinked routers
-    for my $router (values %crosslink_routers) {
-        next if $seen{$router};
-  
-        # Fill router cluster
-        %cluster = ();
-        $walk->($router);
-
-        # Collect all cluster interfaces belonging to need_protect routers...
-        my @crosslink_interfaces =
-          grep { !$_->{vip} }
-          map { @{ $_->{interfaces} } }
-          grep { $crosslink_routers{$_} }          
-          sort by_name values %cluster; # Sort to make output deterministic.
- 
-        # ... add information to every cluster member 
-        my %crosslink_intf_hash = map { $_ => $_ } @crosslink_interfaces;
-        for my $router2 (values %cluster) {
-            # ... as list used in "protect own interfaces"
-            $router2->{crosslink_interfaces} = \@crosslink_interfaces;
-            # ... as hash used in fast lookup in distribute_rule and "protect.."
-            $router2->{crosslink_intf_hash}  = \%crosslink_intf_hash;
-        }
-    }
-    return;
+    cluster_crosslink_routers \%crosslink_routers;#meike: diese funktion woanders aufrufen!
 }
 
 # Find cluster of zones connected by 'local' or 'local_secondary' routers.
@@ -9219,6 +9219,8 @@ sub link_reroute_permit {
     return;  
 }
 
+##############################################################################
+# Purpose  : 
 sub add_managed_hosts_to_aggregate {
     my ($aggregate) = @_;
 
@@ -9258,6 +9260,10 @@ sub add_managed_hosts_to_aggregate {
 # Add a list of all its numbered networks to the zone.
 ####################################################################
 
+##############################################################################
+# Purpose  : Link aggragate and zone via references in both objects, set 
+#            aggregate properties according to those of the linked zone.
+#            Store aggregates in @networks (providing all srcs and dsts).
 sub link_aggregate_to_zone {
     my ($aggregate, $zone, $key) = @_;
 
@@ -9265,23 +9271,26 @@ sub link_aggregate_to_zone {
     $aggregate->{zone} = $zone;
     $zone->{ipmask2aggregate}->{$key} = $aggregate;
 
-    # Must be initialized, even if aggregate contains no networks.
     # Take a new array for each aggregate, otherwise we would share
     # the same array between different aggregates.
-    $aggregate->{networks} ||= [];
+    $aggregate->{networks} ||= [];# Has to be initialized, even if it is empty
 
+    # Set aggregate properties 
     $zone->{is_tunnel} and $aggregate->{is_tunnel} = 1;
     $zone->{has_id_hosts} and $aggregate->{has_id_hosts} = 1;
 
     if ($zone->{disabled}) {
         $aggregate->{disabled} = 1;
     }
+
+    # Store aggregate reference in global network hash 
     else {
-        push @networks, $aggregate;
+        push @networks, $aggregate; # @networks provides all srcs/dsts
     }
     return;
 }
 
+##############################################################################
 # Update relations {networks}, {up} and {owner} for implicitly defined
 # aggregates.
 # Remember:
@@ -9351,25 +9360,31 @@ sub link_implicit_aggregate_to_zone {
     return;
 }
 
-# Link aggregate to zone. This is called late, after zones have been
-# set up. But before find_subnets_in_zone calculates {up} and
-# {networks} relation.
+##############################################################################
+# Purpose  : Check proper usage of aggregates. Link every aggregate to the zone
+#            containing the aggregates link network and set aggregate and zone 
+#            properties. Add aggregates to global @networks array.
+# Comments : Has to be called after zones have been set up. But before 
+#            find_subnets_in_zone calculates {up} and {networks} relation.
 sub link_aggregates {
-    my @aggregates_in_cluster;
+
+    my @aggregates_in_cluster; # Collect all aggregates inside clusters
+
+
     for my $name (sort keys %aggregates) {
         my $aggregate = $aggregates{$name};
-        my $private1 = $aggregate->{private} || 'public';
-        my $private2;
         my ($type, $name) = @{ delete($aggregate->{link}) };
         my $err;
         my $router;
-        my $zone;
 
+        # Assure aggregates to be linked to networks only 
         if ($type ne 'network') {
             err_msg("$aggregate->{name} must not be linked to $type:$name");
             $aggregate->{disabled} = 1;
             next;
         }
+        
+        # Assure aggregate link to exist/disable aggregates without active links
         my $network = $networks{$name};
         if (not $network) {
             err_msg("Referencing undefined $type:$name",
@@ -9381,18 +9396,22 @@ sub link_aggregates {
             $aggregate->{disabled} = 1;
             next;
         }
-
-        $private2 = $network->{private};
-        $zone     = $network->{zone};
-        $zone->{link} = $network;
+        
+        # Reference network link in security zone. 
+        my $zone     = $network->{zone};
+        $zone->{link} = $network; # only used in cut-netspoc
+        
+        # Assure aggregate and network private status to be equal
+        my $private1 = $aggregate->{private} || 'public';
+        my $private2 = $network->{private};
         $private2 ||= 'public';
         $private1 eq $private2
             or err_msg("$private1 $aggregate->{name} must not be linked",
                        " to $private2 $type:$name");
 
+        # Assure that no other aggregate with same IP and mask exists in cluster
         my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
         my $key = "$ip/$mask";
-
         my $cluster = $zone->{zone_cluster};
         for my $zone2 ($cluster ? @$cluster : ($zone)) {
             if (my $other = $zone2->{ipmask2aggregate}->{$key}) {
@@ -9400,11 +9419,13 @@ sub link_aggregates {
                         " in $zone->{name}");
             }
         }
+
+        # Collect aggregates inside clusters
         if ($cluster) {
             push(@aggregates_in_cluster, $aggregate);
         }
 
-        # Aggregate with ip 0/0 is used to set attributes of zone.
+        # Use aggregate with ip 0/0 to set attributes of all zones in cluster.
         if ($mask == 0) {
             for my $attr (qw(has_unenforceable nat owner)) {
                 if (my $v = delete $aggregate->{$attr}) {
@@ -9414,28 +9435,36 @@ sub link_aggregates {
                 }
             }
         }
+        # Link aggragate and zone (also setting zone{ipmask2aggregate}
         link_aggregate_to_zone($aggregate, $zone, $key);
     }
+
+    # add aggregate to all zones in 
     for my $aggregate (@aggregates_in_cluster) {
-        duplicate_aggregate_to_cluster($aggregate);
+        duplicate_aggregate_to_cluster($aggregate);#meike: mehrfach aufgerufen
     }
     return;
 }
-
+##############################################################################
+#meike: diese funktion wird von unterschiedlichen stellen aufgerufen!!
+# Parameter: 
+# Purpose  : 
 # Duplicate aggregate to all zones of a cluster.
 # Aggregate may be a non aggregate network, 
 # e.g. a network with ip/mask 0/0.
 sub duplicate_aggregate_to_cluster {
     my ($aggregate, $implicit) = @_;
-
     my $cluster = $aggregate->{zone}->{zone_cluster};
     my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
     my $key = "$ip/$mask";
+
+    #
     for my $zone (@$cluster) {
         next if $zone->{ipmask2aggregate}->{$key};
 #        debug("Dupl. $aggregate->{name} to $zone->{name}");
 
-        # Attribute networks must not be copied.
+        # Every zone needs its own aggregate object with an unique
+        # network array ()
         my $aggregate2 = new(
             'Network',
             name         => $aggregate->{name},
@@ -10123,8 +10152,8 @@ sub set_zone {
     progress('Preparing security zones and areas');
     set_zones();
     cluster_zones();
-    check_no_in_acl(); # move no_in_acl attribute from interface to hardware
-    check_crosslink(); # meike: hier rein...
+    check_no_in_acl(); #meike - gehört nicht zu zonen & areas? 
+    check_crosslink(); #meike - gehört nicht zu zonen & areas?
     my $has_inclusive_borders = prepare_area_borders();
     set_areas();
     find_subset_relations();
