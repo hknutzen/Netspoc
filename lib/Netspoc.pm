@@ -9361,9 +9361,11 @@ sub link_implicit_aggregate_to_zone {
 }
 
 ##############################################################################
-# Purpose  : Check proper usage of aggregates. Link every aggregate to the zone
-#            containing the aggregates link network and set aggregate and zone 
-#            properties. Add aggregates to global @networks array.
+# Purpose  : Process all explicitly defined aggregates. Check proper usage of 
+#            aggregates. For every aggregate, link aggregate objects to all 
+#            zones inside the zone cluster containing the aggregates link
+#            network and set aggregate and zone properties. Add aggregate 
+#            objects to global @networks array.
 # Comments : Has to be called after zones have been set up. But before 
 #            find_subnets_in_zone calculates {up} and {networks} relation.
 sub link_aggregates {
@@ -9439,17 +9441,23 @@ sub link_aggregates {
         link_aggregate_to_zone($aggregate, $zone, $key);
     }
 
-    # add aggregate to all zones in 
+    # add aggregate to all zones in the zone cluster
     for my $aggregate (@aggregates_in_cluster) {
-        duplicate_aggregate_to_cluster($aggregate);#meike: mehrfach aufgerufen
+        duplicate_aggregate_to_cluster($aggregate);#TODO: mehrfach aufgerufen
     }
     return;
 }
 ##############################################################################
-#meike: diese funktion wird von unterschiedlichen stellen aufgerufen!!
+#TODO: diese funktion wird von unterschiedlichen stellen aufgerufen!!
 # Parameter: 
-# Purpose  : 
-# Duplicate aggregate to all zones of a cluster.
+# Purpose  : Create an aggregate object for every zone inside the zones cluster
+#            containing the aggregates link-network.
+# Comments : From users point of view, an aggregate refers to networks of a zone
+#            cluster. Internally, an aggregate object represents a set of 
+#            networks inside a zone. Therefeore, every zone inside a cluster 
+#            gets its own copy of the defined aggregate to collect the zones 
+#            networks matching the aggregates IP address.
+#TODO: Was ist damit gemeint?
 # Aggregate may be a non aggregate network, 
 # e.g. a network with ip/mask 0/0.
 sub duplicate_aggregate_to_cluster {
@@ -9458,13 +9466,12 @@ sub duplicate_aggregate_to_cluster {
     my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
     my $key = "$ip/$mask";
 
-    #
+    # Process every zone of the zone cluster 
     for my $zone (@$cluster) {
         next if $zone->{ipmask2aggregate}->{$key};
 #        debug("Dupl. $aggregate->{name} to $zone->{name}");
 
-        # Every zone needs its own aggregate object with an unique
-        # network array ()
+        # Create new aggregate object for every zone inside the cluster
         my $aggregate2 = new(
             'Network',
             name         => $aggregate->{name},
@@ -9472,6 +9479,8 @@ sub duplicate_aggregate_to_cluster {
             ip           => $aggregate->{ip},
             mask         => $aggregate->{mask},
             );
+
+        # Link new aggregate object and cluster
         if ($implicit) {
             link_implicit_aggregate_to_zone($aggregate2, $zone, $key);
         }
@@ -9482,6 +9491,7 @@ sub duplicate_aggregate_to_cluster {
     return;
 }
 
+###############################################################################
 # Find aggregate referenced from any:[..].
 # Creates new anonymous aggregate if missing.
 # If zone is part of a zone_cluster,
@@ -9747,17 +9757,23 @@ sub set_area1 {
     return;
 }
 
-# Distribute router_attributes
+###############################################################################
+# Purpose : Distribute router_attributes from the area definition to the managed
+#           routers of the area.
 sub inherit_router_attributes {
     my ($area) = @_;
+    
+    # Check for attributes to be inherited. 
     my $attributes = $area->{router_attributes} or return;
-    $attributes->{owner} and keys %$attributes == 1 and return;
+    $attributes->{owner} and keys %$attributes == 1 and return; # handled later
+
+    #Process all managed routers of the area inherited from.
     for my $router (@{ $area->{managed_routers} }) {
         for my $key (keys %$attributes) {
+            
+            next if $key eq 'owner'; # Owner is handled in propagate_owners.
 
-            # Owner is handled in propagate_owners.
-            next if $key eq 'owner';
-
+            # Warn, if attribute was already (router or smaller area definition)
             my $val = $attributes->{$key};
             if (my $r_val = $router->{$key}) {
                 if (   $r_val eq $val 
@@ -9769,6 +9785,8 @@ sub inherit_router_attributes {
                         " it was already inherited from $attributes->{name}");
                 }
             }
+
+            # ...add attribute to the router object otherwise.
             else {
                 $router->{$key} = $val;
             }
@@ -9777,16 +9795,30 @@ sub inherit_router_attributes {
     return;
 }
 
+###############################################################################
+# TODO: NAT storage information - place this elsewhere
+# NAT is defined like this:
+# network:n1 = {nat:nat_name = {nat_attribute, e.g. hidden}; ...}
+# nat_name is then used for the keys of the internal nat hash ofarea or zone, 
+# having hashes as values. The keys of these hashes are the nat_attributes.
+###############################################################################
+#
 sub nat_equal {
     my ($nat1, $nat2) = @_;
+    
+    # check whether nat attributes are different...
     for my $attr (qw(ip mask dynamic hidden identify)) {
         return if defined $nat1->{$attr} xor defined $nat2->{$attr};
-        next if !defined $nat1->{$attr};
-        return if $nat1->{$attr} ne $nat2->{$attr};
+        next if !defined $nat1->{$attr};# none of the Nats holds the attribute
+        return if $nat1->{$attr} ne $nat2->{$attr};# values of attribute differ
     }
+
+    # ...return error if not
     return 1;
 }
-
+##############################################################################
+# Purpose : Generate warning if NAT value of two objects hold the same 
+#           attributes.
 sub check_useless_nat {
     my ($nat_tag, $nat1, $nat2, $obj1, $obj2) = @_;
     if (nat_equal($nat1, $nat2)) {
@@ -9795,19 +9827,30 @@ sub check_useless_nat {
     }
     return;
 }
-    
-# Distribute NAT from area to zones.
-sub inherit_area_nat {
-    my ($area) = @_;
 
+##############################################################################
+# Purpose : Distribute NAT from area to zones.
+sub inherit_area_nat {
+
+    my ($area) = @_;
     my $hash = $area->{nat} or return;
+
+    # Process every nat definition of area
     for my $nat_tag (sort keys %$hash) {
         my $nat = $hash->{$nat_tag};
+
+        # Distribute nat definitions to every zone of area
         for my $zone (@{ $area->{zones} }) {
+
+            # skip zone, if NAT tag exists in zone already...
             if (my $z_nat = $zone->{nat}->{$nat_tag}) {
+
+                # ... and warn if zones NAT values hold the same attributes 
                 check_useless_nat($nat_tag, $nat, $z_nat, $area, $zone);
                 next;
             }
+
+            # Store NAT definition in zone otherwise
             $zone->{nat}->{$nat_tag} = $nat;
 #           debug "$zone->{name}: $nat_tag from $area->{name}";
         }
@@ -9815,6 +9858,9 @@ sub inherit_area_nat {
     return;
 }
 
+###############################################################################
+# Purpose : Assure that areas are processed in the right order, distributes the areas router attributes to their managed routers.   
+#TODO
 sub inherit_attributes_from_area {
 
     # Areas can be nested. Proceed from small to larger ones.
@@ -9825,17 +9871,22 @@ sub inherit_attributes_from_area {
     return;
 }
 
-# Distribute NAT from zones to networks.
+###############################################################################
+# Purpose  : Distributes NAT from zones to networks.
+# TODO     : Have a closer look at this when dealing with NAT!
 sub inherit_nat_from_zone {
+    
+    # Process all zones with NAT definitions 
     for my $zone (@zones) {
-        my $hash = $zone->{nat} or next;
+        my $hash = $zone->{nat} or next;# contains all nats of zone
+
         for my $nat_tag (sort keys %$hash) {
             my $nat = $hash->{$nat_tag};
             for my $network (@{ $zone->{networks} }) {
 
                 # Ignore NAT definition from area
                 # if network has local NAT definition or 
-                # has already inherited from zone or smaller area.
+                # has already inherited from zone or smaller area.#?wie sichern?
                 if (my $n_nat = $network->{nat}->{$nat_tag}) {
                     check_useless_nat($nat_tag, $nat, $n_nat, $zone, $network);
                     next;
@@ -9847,9 +9898,8 @@ sub inherit_nat_from_zone {
                     next;
                 }
                     
-
-                next if $network->{ip} eq 'unnumbered';
-                next if $network->{isolated_ports};
+                 next if $network->{ip} eq 'unnumbered'; # no nat without ip
+                next if $network->{isolated_ports}; # nat option not implemented
 
                 if ($nat->{identity}) {
                     $network->{identity_nat}->{$nat_tag} = $nat
@@ -10159,9 +10209,9 @@ sub set_zone {
     find_subset_relations();
     check_routers_in_nested_areas($has_inclusive_borders);
     clean_areas(); # delete unused attributes
-    link_aggregates();# meike: anschaun...
-    inherit_attributes_from_area();# meike: anschaun...
-    inherit_nat_from_zone();# meike: anschaun...
+    link_aggregates();
+    inherit_attributes_from_area();
+    inherit_nat_from_zone();
     return;
 }
 
