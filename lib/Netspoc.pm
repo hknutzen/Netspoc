@@ -530,13 +530,14 @@ sub at_line {
 }
 
 our $error_counter;
+our $abort_immediately;
 
 sub check_abort {
     $error_counter++;
     if ($error_counter == $config{max_errors}) {
         die "Aborted after $error_counter errors\n";
     }
-    elsif ($error_counter > $config{max_errors}) {
+    elsif ($abort_immediately) {
         die "Aborted\n";
     }
 }
@@ -547,7 +548,7 @@ sub abort_on_error {
 }
 
 sub set_abort_immediately {
-    $error_counter = $config{max_errors};
+    $abort_immediately = 1;
     return;
 }
 
@@ -19108,6 +19109,7 @@ sub init_protocols {
 sub init_global_vars {
     $start_time = time();
     $error_counter = 0;
+    $abort_immediately = undef;
     $new_store_description = 0;
     for my $pair (values %global_type) {
         %{ $pair->[1] } = ();
