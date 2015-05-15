@@ -16446,13 +16446,15 @@ sub find_chains  {
 
             my $copied;
             for my $what (qw(src dst)) {
-                my $obj = $rule->{$what};
+                my $orig = my $obj = $rule->{$what};
 
                 # Loopback interface is converted to loopback network,
-                # if other networks with same address exist.
-                # The loopback network is additionally checked below.
+                # because other networks may have this loopback network
+                # as value in {is_identical}.
                 if ($obj->{loopback} && (my $network = $obj->{network})) {
-                    if (!($intf_rules && $rules eq $intf_rules && $what eq 'dst')) {
+                    if (!($intf_rules && $rules eq $intf_rules && 
+                          $what eq 'dst')) 
+                    {
                         $obj = $network;
                     }
                 }
@@ -16467,13 +16469,14 @@ sub find_chains  {
 
                 # Identical redundancy interfaces.
                 elsif (my $aref = $obj->{redundancy_interfaces}) {
-                    if (!($rules eq $intf_rules && $what eq 'dst')) {
+                    if (!($intf_rules && $rules eq $intf_rules && 
+                          $what eq 'dst')) 
+                    {
                         $obj = $aref->[0];
                     }
                 }
-                else {
-                    next;
-                }
+
+                $obj eq $orig and next;
 
                 # Don't change rules of devices in other NAT domain
                 # where we may have other {is_identical} relation.
