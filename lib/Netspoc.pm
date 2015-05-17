@@ -1385,7 +1385,9 @@ sub read_host {
     if ($host->{nat}) {
         if ($host->{range}) {
 
-            # Look at print_pix_static before changing this.
+            # Before changing this,
+            # - look at print_pix_static,
+            # - add consistency tests in convert_hosts.
             error_atline("No NAT supported for host with 'range'");
         }
     }
@@ -6174,6 +6176,8 @@ sub expand_group {
     return $aref;
 }
 
+my %subnet_warning_seen;
+
 sub expand_group_in_rule {
     my ($obref, $context, $convert_hosts) = @_;
     my $aref = expand_group($obref, $context);
@@ -6223,7 +6227,26 @@ sub expand_group_in_rule {
 #           debug("group:$obj->{name}");
             if (is_host $obj) {
                 for my $subnet (@{ $obj->{subnets} }) {
-                    if (my $host = $subnet2host{$subnet}) {
+
+                    # Handle special case, where network and subnet
+                    # have identical address.
+                    # E.g. range = 10.1.1.0-10.1.1.255.
+                    # Convert subnet to network, because
+                    # - different objects with identical IP
+                    #   can't be checked and optimized properly,
+                    # - find_chains would fail, when building binary tree.
+                    if ($subnet->{mask} == $subnet->{network}->{mask}) {
+                        my $network = $subnet->{network};
+                        if (not $network->{has_id_hosts} and 
+                            not $subnet_warning_seen{$subnet}++)
+                        {
+                            warn_msg("Use $network->{name} instead of",
+                                     " $subnet->{name}\n",
+                                     " because both have identical address");
+                        }
+                        push @other, $network;
+                    }
+                    elsif (my $host = $subnet2host{$subnet}) {
                         warn_msg("$obj->{name} and $host->{name}",
                                  " overlap in $context");
                     }
