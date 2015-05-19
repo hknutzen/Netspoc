@@ -20,7 +20,7 @@ zones. These zones, containing networks and unmanaged routers as
 elements, are delimited by zone interfaces of managed or
 semi-manged routers.
 
-bild!
+![Security zones contain networks and unmanaged routers.](zone.png)
 
 Every network is contained by only one zone, which is referenced in
 the network object. The properties of a zone are described by
