@@ -93,7 +93,8 @@ containing a single zone only are deleted.
 
 
 * * * 
-** this is not part of zone/area generation, and could be placed somewhere else? **
+the following is not part of zone/area generation!place somewhere else?
+
 ### Apply `no_in_acl` declaration (`check_no_in_acl`)
 
 Netspoc allows router interfaces to be tagged as `no_in_acl`
@@ -112,29 +113,20 @@ ACLs. Along the way, proper usage of `no_in_acl` is checked:
 * usage only with router models suitable for outgoing acl
 * only at interfaces with one main-interface per hardware
 
-
-
-**Further restrictions (both about crosslink networks)are specified in
-  policy language documentation, but not tested for here, will
-  probably be tested later...**
- 
-As Netspoc distinguishes between interface and interface hardware
-(where ACLs are generated), Netspoc transfers the information to the
-hardware by deleting the `{no_in_acl}` attribute from the routers
-interface-objects and setting appropriate hardware flags
-`{no_in_acl}`,`{need_out_acl}` in the routers hardware objects.
-
 ### Apply crosslink information
-Functions: `set_zone`, `check_crosslink`
+
 
 Networks just connecting managed routers may be marked as crosslink
 networks during topology declaration:
 
     network: network_1 = {ip = 10.2.2.1; crosslink;} 
 
-Routers connected by crosslink networks actually act as a single
-router, which is why ACLs need to be be created only at the outer
-interfaces of a crosslinked router cluster:
+Routers connected by crosslink networks act as a single router,
+causing ACLs to be needed only at the outer interfaces of a
+crosslinked router cluster. This holds only in cases where the
+clustered routers have equal filter types though. Otherwise, interfaces of
+routers with stronger filter types still have to filter information
+coming from routers with weaker filter types, that let pass more information.
 
 
 {% include image.html src="./crosslink.png" description="Routers connected by crosslink network. If filtertypes of both routers are equally strong, no filtering is needed at the crosslink network interfaces." %}
