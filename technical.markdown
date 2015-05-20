@@ -13,7 +13,7 @@ layout: default
 Netspoc combines networks connected by unmanaged routers in security
 zones. These zones, containing networks and unmanaged routers as
 elements, are delimited by zone interfaces of managed or semi-manged
-routers. Every zone element is part of at most one zone. Zone
+routers. Every zone element is part of **at most/exactly?** one zone. Zone
 generation allows a faster traversal of the graph: As filtering takes
 place only at zone delimiting interfaces, zones can be traversed
 instead of single networks.
@@ -38,38 +38,50 @@ managed routers and networks.
 
 ### Creating security zones (`set_zone`)
 
-As every network is contained by at most one zone, zone creation
+As every network is contained by exactly one zone, zone creation
 starts at networks without a zone, adding adjacent unmanaged routers
 and networks to the zone object recursively.
 
-    for every network in networks
+    for every network
       if network has no zone
-        create new zone object in global @zones array:
+        create new zone object
           via depth-first-search (stop at managed/semi-managed routers)
             identify zone elements and borders
-            set references in zone elements/borders and zone
+            set references in zone elements/borders and zone object
       end if
     end for
 
 During the procession of networks, the following property-attributes
-of the zone are derived from its networks.
+of the zone are derived from its networks:
 
 * loopback: zone consists of loopback network only
 * is_tunnel: zone consists of tunnel networks only
 * private: stores the zones private-status, if not 'public'
                 
-### Identifying zone clusters
-Functions: `set_zone`, `set_zone_cluster`
+### Identifying zone clusters (`cluster_zones`)
 
-Netspoc combines zones connected by semi-managed routers in zone clusters:
+Netspoc generates a topology representation to find paths between
+source and destination, using zones to accelerate graph traversal.  We
+will see, that Netspoc allows users to refer to security zones in
+rules.  From users point of view, topology and security zones look
+slightly different though: Semi-managed routers, which are either
+unmanaged routers with a path restriction, or managed routers without
+filtering appear as unmanaged routers to the user. When a user refers
+to a security zone then, a set of networks is meant, that is
+internally represented as zone cluster, containing security zones
+connected by semi-managed routers and delimited by managed routers.
 
-    for every zone in zones
+Zone cluster generation starts at zones without cluster and adds
+adjacent zones connected by semi-managed routers the cluster object
+via depth first search, stopping at managed routers.
+
+    for every zone
       if zone has no cluster
-        create an empty cluster array
-        via depth-first-search starting at zone (stop at managed routers) 
+        create an empty cluster
+        via depth-first-search (stop at managed routers) 
           identify cluster members
-          reference zone in cluster array and vice versa
-          check all cluster members to have equal private status
+          set references in zone and cluster object
+          check cluster members to have equal private status
       end if
     end for
 
