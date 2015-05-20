@@ -70,6 +70,8 @@ to a security zone then, a set of networks is meant, that is
 internally represented as zone cluster, containing zones
 connected by semi-managed routers and delimited by managed routers.
 
+{% include image.html src="./zone_cluster.png" description="Zones: Netspoc representation vs. user view." %}
+
 Zone cluster generation starts at zones without cluster and adds
 adjacent zones connected by semi-managed routers the cluster object
 via depth first search, stopping at managed routers. Clusters
