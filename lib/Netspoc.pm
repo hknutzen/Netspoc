@@ -3158,7 +3158,7 @@ my %isakmp_attributes = (
     hash           => { values   => [qw( md5 sha )], },
     ike_version    => { values   => [ 1, 2 ], default => 1, },
     lifetime       => { function => \&read_time_val, },
-    group          => { values   => [ 1, 2, 5, 14, 15, 16, 19, 20, 24 ], },
+    group          => { values   => [ 1, 2, 5, 14, 15, 16, 19, 20, 21, 24 ], },
     lifetime       => { function => \&read_time_val, },
     trust_point    => {
         function => \&read_identifier,
@@ -3192,7 +3192,7 @@ my %ipsec_attributes = (
         map     => { none => undef }
     },
     pfs_group => {
-        values  => [qw( none 1 2 5 14 15 16 19 20 24 )],
+        values  => [qw( none 1 2 5 14 15 16 19 20 21 24 )],
         default => 'none',
         map     => { none => undef }
     },
