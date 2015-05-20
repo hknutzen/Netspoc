@@ -10,12 +10,13 @@ layout: default
 
 ## Preparing zones and areas (`set_zone`)
 
-Netspoc combines networks connected by unmanaged routers in zones. These zones, containing networks and unmanaged routers as
+Netspoc combines networks connected by unmanaged routers in
+zones. These zones, containing networks and unmanaged routers as
 elements, are delimited by zone interfaces of managed or semi-manged
-routers. Every zone element is part of **at most/exactly?** one zone. Zone
-generation allows a faster traversal of the graph: As filtering takes
-place only at zone delimiting interfaces, zones can be traversed
-instead of single networks.
+routers. Every zone element is part of exactly one zone. Zones help to
+speed up the traversal of the graph: As filtering takes place only at
+zone delimiting interfaces, zones can be traversed instead of single
+networks.
 
 {% include image.html src="./zone.png" description="Zones contain networks and unmanaged routers." %}
 
@@ -23,7 +24,7 @@ Areas, defined in Netspoc topology by the keyword `area`, span a
 certain part of the network topology, which is delimited by the areas
 border definitions (`border`, `inclusive_border`). The borders of an
 area refer to the interfaces of managed routers. While a `border`
-definition includes the zone but excludes the router from the area, a
+definition includes the zone but excludes the router from the area, an
 `inclusive_border` definition includes the router also.  Areas are
 used to define router attributes and nat information for all included
 managed routers and networks.
