@@ -8,17 +8,16 @@ layout: default
 {:toc}
 </div>
 
-## Preparing security zones and areas (`set_zone`)
+## Preparing zones and areas (`set_zone`)
 
-Netspoc combines networks connected by unmanaged routers in security
-zones. These zones, containing networks and unmanaged routers as
+Netspoc combines networks connected by unmanaged routers in zones. These zones, containing networks and unmanaged routers as
 elements, are delimited by zone interfaces of managed or semi-manged
 routers. Every zone element is part of **at most/exactly?** one zone. Zone
 generation allows a faster traversal of the graph: As filtering takes
 place only at zone delimiting interfaces, zones can be traversed
 instead of single networks.
 
-{% include image.html src="./zone.png" description="Security zones contain networks and unmanaged routers." %}
+{% include image.html src="./zone.png" description="Zones contain networks and unmanaged routers." %}
 
 Areas, defined in Netspoc topology by the keyword `area`, span a
 certain part of the network topology, which is delimited by the areas
@@ -36,7 +35,7 @@ managed routers and networks.
 
 {% include image.html src="./area.png" description="Areas contain security zones and managed routers." %}
 
-### Creating security zones (`set_zone`)
+### Creating zones (`set_zone`)
 
 As every network is contained by exactly one zone, zone creation
 starts at networks without a zone, adding adjacent unmanaged routers
@@ -63,17 +62,18 @@ of the zone are derived from its networks:
 Netspoc generates a topology representation to find paths between
 source and destination, using zones to accelerate graph traversal.  We
 will see, that Netspoc allows users to refer to security zones in
-rules.  From users point of view, topology and security zones look
+rules.  From users point of view, security zones look
 slightly different though: Semi-managed routers, which are either
 unmanaged routers with a path restriction, or managed routers without
 filtering appear as unmanaged routers to the user. When a user refers
 to a security zone then, a set of networks is meant, that is
-internally represented as zone cluster, containing security zones
+internally represented as zone cluster, containing zones
 connected by semi-managed routers and delimited by managed routers.
 
 Zone cluster generation starts at zones without cluster and adds
 adjacent zones connected by semi-managed routers the cluster object
-via depth first search, stopping at managed routers.
+via depth first search, stopping at managed routers. Clusters
+containing a single zone only are deleted.
 
     for every zone
       if zone has no cluster
@@ -83,23 +83,33 @@ via depth first search, stopping at managed routers.
           set references in zone and cluster object
           check cluster members to have equal private status
       end if
+      if cluster has only one zone
+         delete cluster
+      end if
     end for
 
-### Apply router declaration `no_in_acl`
-Functions: `set_zone`, `check_no_in_acl` 
 
-**originally, zone no-in-acl-declarations were applied here. Because
-  function check_no_in_acl includes further processing of
-  no_in_acl-declarations which is needed in following functions, this
-  not really zone-related task is still conducted during zone setup**
-   
-Netspoc processes all managed routers and assures proper usage of
-no_in_acl corrsponding to following restrictions:
+* * * 
+** this is not part of zone/area generation, and could be placed somewhere else? **
+### Apply `no_in_acl` declaration (`check_no_in_acl`)
+
+Netspoc allows router interfaces to be tagged as `no_in_acl`
+interfaces, indicating that no ACL is supposed to be generated at the
+tagged interface but at the other (outgoing) interfaces of the router
+instead. As a router can be connected to several networks via one
+single interface hardware, Netspoc distinguishes between logical
+interface and hardware. As ACLs are generated for the hardware, all
+managed routers with `no_in_acl` interfaces are processed now,
+transfering the tags to the hardware objects of the tagged interfaces,
+and marking the routers other hardware objects to need outgoing
+ACLs. Along the way, proper usage of `no_in_acl` is checked:
  
 * number of no_in_acl interfaces per router <= 1 
 * no usage with routers perticipating in crypto-tunnels
-* usage only with router models suitable for out-acl
-* only one main-interface per hardware
+* usage only with router models suitable for outgoing acl
+* only at interfaces with one main-interface per hardware
+
+
 
 **Further restrictions (both about crosslink networks)are specified in
   policy language documentation, but not tested for here, will
