@@ -352,6 +352,7 @@ my %router_info = (
         stateless_icmp      => 1,
         has_out_acl         => 1,
         can_objectgroup     => 1,
+        can_dyn_crypto      => 1,
         crypto              => 'ASA',
         no_crypto_filter    => 1,
         comment_char        => '!',
@@ -11656,9 +11657,9 @@ sub link_tunnels  {
                     push @$aref, $hub;
                 }
 
-                # Dynamic crypto-map isn't implemented currently.
                 if ($real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/) {
-                    if (not $router->{model}->{do_auth}) {
+                    my $model = $router->{model};
+                    if (not ( $model->{do_auth} or $model->{can_dyn_crypto})) {
                         err_msg "$router->{name} can't establish crypto",
                           " tunnel to $real_spoke->{name} with unknown IP";
                     }
@@ -11955,26 +11956,42 @@ sub expand_crypto  {
                     join(', ', map { $_->{name} } @encrypted)
                   );
 
+                my $real_spoke = $tunnel_intf->{real_interface};
                 for my $peer (@$peers) {
                     $peer->{peer_networks} = \@encrypted;
 
                     # ID can only be checked at hub with attribute do_auth.
                     my $router  = $peer->{router};
                     my $do_auth = $router->{model}->{do_auth};
+                    my $need_id = 
+                        $real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/;
                     if ($tunnel_intf->{id}) {
-                        $do_auth
-                          or err_msg "$router->{name} can't check IDs",
-                          " of $tunnel_intf->{name}";
+                        if ($do_auth or $need_id) {
+                            my $isakmp = $crypto->{type}->{key_exchange};
+                            $isakmp->{authentication} eq 'rsasig' or
+                                err_msg("Invalid attribute 'id' at",
+                                        " $tunnel_intf->{name}.\n",
+                                        " Set authentication=rsasig at",
+                                        " $isakmp->{name}");
+                        }
+                        else {
+                            warn_msg("Useless attribute 'id' at",
+                                     " $real_spoke->{name}");
+                        }
                     }
                     elsif ($encrypted[0]->{has_id_hosts}) {
                         $do_auth
-                          or err_msg "$router->{name} can't check IDs",
-                          " of $tunnel_intf->{name}";
+                          or err_msg("$router->{name} can't check IDs",
+                                     " of $tunnel_intf->{name}");
                     }
                     elsif ($do_auth) {
                         err_msg "$router->{name} can only check",
                           " interface or host having ID",
                           " at $tunnel_intf->{name}";
+                    }
+                    elsif ($need_id) {
+                        err_msg("$tunnel_intf->{name} with unnkown IP",
+                                " needs attribute 'id'");
                     }
                 }
 
@@ -11997,7 +12014,6 @@ sub expand_crypto  {
                 # tunnel endpoints.
                 # If one tunnel endpoint has no known IP address,
                 # some rules have to be added manually.
-                my $real_spoke = $tunnel_intf->{real_interface};
                 if (    $real_spoke
                     and $real_spoke->{ip} !~ /^(?:short|unnumbered)$/)
                 {
@@ -18428,6 +18444,261 @@ sub print_ezvpn {
     return;
 }
 
+# Print crypto ACL.
+# It controls which traffic needs to be encrypted.
+sub print_crypto_acl {
+    my ($interface, $suffix, $crypto, $crypto_type) = @_;
+    my $crypto_acl_name = "crypto-$suffix";
+    my $prefix;
+    if ($crypto_type eq 'IOS') {
+        $prefix = '';
+        print "ip access-list extended $crypto_acl_name\n";
+    }
+    elsif ($crypto_type eq 'ASA') {
+        $prefix = "access-list $crypto_acl_name extended";
+    }
+    else {
+        internal_err();
+    }
+
+    # Print crypto ACL entries.
+    # - either generic from remote network to any or
+    # - detailed to all networks which are used in rules.
+    my $is_hub   = $interface->{is_hub};
+    my $hub      = $is_hub ? $interface : $interface->{peers}->[0];
+    my $detailed = $crypto->{detailed_crypto_acl};
+    my $local = $detailed ? get_split_tunnel_nets($hub) : [$network_00];
+    my $remote = $hub->{peer_networks};
+    $is_hub or ($local, $remote) = ($remote, $local);
+    my $crypto_rules = gen_crypto_rules($local, $remote);
+    my $router = $interface->{router};
+    my $no_nat_set = $interface->{no_nat_set};
+    cisco_acl_line($router, $crypto_rules, $no_nat_set, $prefix);
+    return $crypto_acl_name;
+}
+
+# Print filter ACL. It controls which traffic is allowed to leave from
+# crypto tunnel. This may be needed, if we don't fully trust our peer.
+sub print_crypto_filter_acl {
+    my ($interface, $suffix, $crypto_type) = @_;
+    my $router = $interface->{router};
+
+    return if $router->{no_crypto_filter};
+    
+    my $prefix;
+    my $crypto_filter_name = "crypto-filter-$suffix";
+    if ($crypto_type eq 'IOS') {
+        $prefix = '';
+        print "ip access-list extended $crypto_filter_name\n";
+    }
+    else {
+        internal_err();
+    }
+    my $model  = $router->{model};
+    my $no_nat_set = $interface->{no_nat_set};
+    print_cisco_acl_add_deny($router, $interface, $no_nat_set, $model, $prefix);
+    return $crypto_filter_name;
+}
+
+# Called for static and dynamic crypto maps.
+sub print_crypto_map_attributes {
+    my ($prefix, $model, $crypto_type, $crypto_acl_name, $crypto_filter_name, 
+        $isakmp, $ipsec, $ipsec2trans_name) = @_;
+
+    # Bind crypto ACL to crypto map.
+    print "$prefix match address $crypto_acl_name\n";
+
+    # Bind crypto filter ACL to crypto map.
+    if ($crypto_filter_name) {
+        print "$prefix set ip access-group $crypto_filter_name in\n";
+    }
+
+    my $transform_name = $ipsec2trans_name->{$ipsec};
+    if ($crypto_type eq 'ASA') {
+        if ($isakmp->{ike_version} == 2) {
+            print "$prefix set ikev2 ipsec-proposal $transform_name\n";
+        }
+        elsif ($model->{v8_4}) {
+            print "$prefix set ikev1 transform-set $transform_name\n";
+        }
+        else {
+            print "$prefix set transform-set $transform_name\n";
+        }
+    }
+    else {
+        print "$prefix set transform-set $transform_name\n";
+    }                
+        
+    if (my $pfs_group = $ipsec->{pfs_group}) {
+        print "$prefix set pfs group$pfs_group\n";
+    }
+        
+    if (my $lifetime = $ipsec->{lifetime}) {
+            
+        # Don't print default value for backend IOS.
+        if (not($lifetime == 3600 and $crypto_type eq 'IOS')) {
+            print("$prefix set security-association",
+                  " lifetime seconds $lifetime\n");
+        }
+    }
+}
+
+sub print_tunnel_group {
+    my ($name, $interface, $isakmp) = @_;
+    my $model  = $interface->{router}->{model};
+    my $no_nat_set = $interface->{no_nat_set};
+    my $authentication = $isakmp->{authentication};
+    print "tunnel-group $name type ipsec-l2l\n";
+    print "tunnel-group $name ipsec-attributes\n";
+    print " peer-id-validate nocheck\n";
+    if ($authentication eq 'rsasig') {
+        my $trust_point = $isakmp->{trust_point};
+        if ($isakmp->{ike_version} == 2) {
+            print(" ikev2 local-authentication certificate",
+                  " $trust_point\n");
+            print(" ikev2 remote-authentication certificate\n");
+        }
+        elsif ($model->{v8_4}) {
+            print " ikev1 trust-point $trust_point\n";
+            print " ikev1 user-authentication none\n";
+        }
+        else {
+            print " trust-point $trust_point\n";
+            print " isakmp ikev1-user-authentication none\n";
+        }
+    }
+
+    # Preshared key is configured manually.
+}
+
+sub print_static_crypto_map {
+    my ($router, $hardware, $map_name, $interfaces, $ipsec2trans_name) = @_;
+    my $model = $router->{model};
+    my $crypto_type = $model->{crypto};
+    my $hw_name = $hardware->{name};
+
+    # Sequence number for parts of crypto map with different peers.
+    my $seq_num = 0;
+
+    # Crypto ACLs and peer IP must obey NAT.
+    my $no_nat_set = $hardware->{no_nat_set};
+
+    # Sort crypto maps by peer IP to get deterministic output.
+    my @sorted = sort({ $a->{peers}->[0]->{real_interface}->{ip} 
+                        <=> 
+                        $b->{peers}->[0]->{real_interface}->{ip} 
+                      } 
+                      @$interfaces);
+
+    # Build crypto map for each tunnel interface.
+    for my $interface (@sorted) {
+        $seq_num++;
+        my $suffix = "$hw_name-$seq_num";
+
+        my $crypto = $interface->{crypto};
+        my $ipsec  = $crypto->{type};
+        my $isakmp = $ipsec->{key_exchange};
+
+        my $crypto_acl_name = print_crypto_acl($interface, $suffix, $crypto,
+                                               $crypto_type);
+        my $crypto_filter_name = print_crypto_filter_acl($interface, $suffix,
+                                                         $crypto_type);
+
+
+        # Define crypto map.
+        my $prefix;
+        if ($crypto_type eq 'IOS') {
+            $prefix = '';
+            print "crypto map $map_name $seq_num ipsec-isakmp\n";
+        }
+        elsif ($crypto_type eq 'ASA') {
+            $prefix = "crypto map $map_name $seq_num";
+        }
+
+        # Set crypto peers.
+        if ($crypto_type eq 'IOS') {
+            for my $peer (@{ $interface->{peers} }) {
+                my $peer_ip = prefix_code(address($peer->{real_interface}, 
+                                                  $no_nat_set));
+                print "$prefix set peer $peer_ip\n";
+            }
+        }
+        elsif ($crypto_type eq 'ASA') {
+            print "$prefix set peer ",
+            join(' ',
+                 map { prefix_code(address($_->{real_interface}, 
+                                           $no_nat_set)) }
+                 @{ $interface->{peers} }),
+            "\n";
+        }
+
+        print_crypto_map_attributes($prefix, $model, $crypto_type, 
+                                    $crypto_acl_name, $crypto_filter_name, 
+                                    $isakmp, $ipsec, $ipsec2trans_name);
+
+
+        if ($crypto_type eq 'ASA') {
+            for my $peer (@{ $interface->{peers} }) {
+                my $peer_ip = prefix_code(address($peer->{real_interface},
+                                                  $no_nat_set));
+                print_tunnel_group($peer_ip, $interface, $isakmp);
+            }
+        }
+    }
+}
+
+sub print_dynamic_crypto_map {
+    my ($router, $hardware, $map_name, $interfaces, $ipsec2trans_name) = @_;
+    my $model = $router->{model};
+    my $crypto_type = $model->{crypto};
+    $crypto_type eq 'ASA' or internal_err();
+    my $hw_name = $hardware->{name};
+
+    # Sequence number for parts of crypto map with different certificates.
+    my $seq_num = 65536;
+
+    # Sort crypto maps by certificate to get deterministic output.
+    my @sorted = sort({ $a->{peers}->[0]->{id} cmp $b->{peers}->[0]->{id} } 
+                      @$interfaces);
+
+    # Build crypto map for each tunnel interface.
+    for my $interface (@sorted) {
+        $seq_num--;
+        my $suffix = "$hw_name-$seq_num";
+        my $id = $interface->{peers}->[0]->{id};
+
+        my $crypto = $interface->{crypto};
+        my $ipsec  = $crypto->{type};
+        my $isakmp = $ipsec->{key_exchange};
+
+        my $crypto_acl_name = print_crypto_acl($interface, $suffix, $crypto,
+                                               $crypto_type);
+        my $crypto_filter_name = print_crypto_filter_acl($interface, $suffix,
+                                                         $crypto_type);
+
+        # Define dynamic crypto map.
+        # Use certificate as name.
+        my $prefix = "crypto dynamic-map $id 10";
+
+        print_crypto_map_attributes($prefix, $model, $crypto_type, 
+                                    $crypto_acl_name, $crypto_filter_name, 
+                                    $isakmp, $ipsec, $ipsec2trans_name);
+
+        # Bind dynamic crypto map to crypto map.
+        $prefix = "crypto map $map_name $seq_num";
+        print "$prefix ipsec-isakmp dynamic $id\n";
+
+        # Use $id as tunnel-group name
+        print_tunnel_group($id, $interface, $isakmp);
+
+        # Activate tunnel-group with tunnel-group-map.
+        # Use $id as ca-map name.
+        print "crypto ca certificate map $id 10\n";
+        print " subject-name attr ea eq $id\n";
+        print "tunnel-group-map $id 10 $id\n";
+    }
+}
+
 sub print_crypto {
     my ($router) = @_;
     my $model = $router->{model};
@@ -18570,185 +18841,47 @@ sub print_crypto {
         }
     }
 
-    # Collect tunnel interfaces attached to one hardware interface.
+    # Collect tunnel interfaces attached to each hardware interface.
+    # Differentiate on peers having static or dynamic IP address.
     my %hardware2crypto;
+    my %hardware2dyn_crypto;
     for my $interface (@{ $router->{interfaces} }) {
-        if ($interface->{ip} eq 'tunnel') {
+        $interface->{ip} eq 'tunnel' or next;
+        my $ip = $interface->{peers}->[0]->{real_interface}->{ip};
+        if ($ip =~ /^(?:negotiated|short|unnumbered)$/) {
+            push @{ $hardware2dyn_crypto{ $interface->{hardware} } }, $interface;
+        }
+        else {
             push @{ $hardware2crypto{ $interface->{hardware} } }, $interface;
         }
     }
 
     for my $hardware (@{ $router->{hardware} }) {
-        next if not $hardware2crypto{$hardware};
-        my $name = $hardware->{name};
+        my $hw_name = $hardware->{name};
 
         # Name of crypto map.
-        my $map_name = "crypto-$name";
+        my $map_name = "crypto-$hw_name";
 
-        # Sequence number for parts of crypto map with different peers.
-        my $seq_num = 0;
-
-        # Crypto ACLs and peer IP must obey NAT.
-        my $no_nat_set = $hardware->{no_nat_set};
-
-        # Sort crypto maps by peer IP to get deterministic output.
-        my @tunnels = sort {
-            $a->{peers}->[0]->{real_interface}->{ip} <=> $b->{peers}->[0]
-              ->{real_interface}->{ip}
-        } @{ $hardware2crypto{$hardware} };
-
-        # Build crypto map for each tunnel interface.
-        for my $interface (@tunnels) {
-            $seq_num++;
-
-            my $crypto = $interface->{crypto};
-            my $ipsec  = $crypto->{type};
-            my $isakmp = $ipsec->{key_exchange};
-
-            # Print crypto ACL.
-            # It controls which traffic needs to be encrypted.
-            my $crypto_acl_name = "crypto-$name-$seq_num";
-            my $prefix;
-            if ($crypto_type eq 'IOS') {
-                $prefix = '';
-                print "ip access-list extended $crypto_acl_name\n";
-            }
-            elsif ($crypto_type eq 'ASA') {
-                $prefix = "access-list $crypto_acl_name extended";
-            }
-            else {
-                internal_err();
-            }
-
-            # Print crypto ACL,
-            # - either generic from remote network to any or
-            # - detailed to all networks which are used in rules.
-            my $is_hub   = $interface->{is_hub};
-            my $hub      = $is_hub ? $interface : $interface->{peers}->[0];
-            my $detailed = $crypto->{detailed_crypto_acl};
-            my $local = $detailed ? get_split_tunnel_nets($hub) : [$network_00];
-            my $remote = $hub->{peer_networks};
-            $is_hub or ($local, $remote) = ($remote, $local);
-            my $crypto_rules = gen_crypto_rules($local, $remote);
-            cisco_acl_line($router, $crypto_rules, $no_nat_set, $prefix);
-
-            # Print filter ACL. It controls which traffic is allowed to leave
-            # from crypto tunnel. This may be needed, if we don't fully trust
-            # our peer.
-            my $crypto_filter_name;
-            if (!$router->{no_crypto_filter}) {
-                $crypto_filter_name = "crypto-filter-$name-$seq_num";
-                if ($crypto_type eq 'IOS') {
-                    $prefix = '';
-                    print "ip access-list extended $crypto_filter_name\n";
-                }
-                else {
-                    internal_err();
-                }
-                print_cisco_acl_add_deny($router, $interface, $no_nat_set,
-                                         $model, $prefix);
-            }
-
-            # Define crypto map.
-            if ($crypto_type eq 'IOS') {
-                $prefix = '';
-                print "crypto map $map_name $seq_num ipsec-isakmp\n";
-            }
-            elsif ($crypto_type eq 'ASA') {
-                $prefix = "crypto map $map_name $seq_num";
-            }
-
-            # Bind crypto ACL to crypto map.
-            print "$prefix match address $crypto_acl_name\n";
-
-            # Bind crypto filter ACL to crypto map.
-            if ($crypto_filter_name) {
-                print "$prefix set ip access-group $crypto_filter_name in\n";
-            }
-
-            # Set crypto peers.
-            # Unnumbered, negotiated and short interfaces have been
-            # rejected already.
-            if ($crypto_type eq 'IOS') {
-                for my $peer (@{ $interface->{peers} }) {
-                    my $peer_ip = prefix_code(address($peer->{real_interface}, 
-                                                      $no_nat_set));
-                    print "$prefix set peer $peer_ip\n";
-                }
-            }
-            elsif ($crypto_type eq 'ASA') {
-                print "$prefix set peer ",
-                  join(' ',
-                    map { prefix_code(address($_->{real_interface}, 
-                                              $no_nat_set)) }
-                      @{ $interface->{peers} }),
-                  "\n";
-            }
-
-            my $transform_name = $ipsec2trans_name{$ipsec};
-            if ($crypto_type eq 'ASA') {
-                if ($isakmp->{ike_version} == 2) {
-                    print "$prefix set ikev2 ipsec-proposal $transform_name\n";
-                }
-                elsif ($model->{v8_4}) {
-                    print "$prefix set ikev1 transform-set $transform_name\n";
-                }
-                else {
-                    print "$prefix set transform-set $transform_name\n";
-                }
-            }
-            else {
-                print "$prefix set transform-set $transform_name\n";
-            }                
-                
-            if (my $pfs_group = $ipsec->{pfs_group}) {
-                print "$prefix set pfs group$pfs_group\n";
-            }
-
-            if (my $lifetime = $ipsec->{lifetime}) {
-
-                # Don't print default value for backend IOS.
-                if (not($lifetime == 3600 and $crypto_type eq 'IOS')) {
-                    print("$prefix set security-association",
-                          " lifetime seconds $lifetime\n");
-                }
-            }
-
-            if ($crypto_type eq 'ASA') {
-                my $authentication = $isakmp->{authentication};
-                for my $peer (@{ $interface->{peers} }) {
-                    my $peer_ip = prefix_code(address($peer->{real_interface},
-                                                      $no_nat_set));
-                    print "tunnel-group $peer_ip type ipsec-l2l\n";
-                    print "tunnel-group $peer_ip ipsec-attributes\n";
-                    print " peer-id-validate nocheck\n";
-                    if ($authentication eq 'rsasig') {
-                        my $trust_point = $isakmp->{trust_point};
-                        if ($isakmp->{ike_version} == 2) {
-                            print(" ikev2 local-authentication certificate",
-                                  " $trust_point\n");
-                            print(" ikev2 remote-authentication certificate\n");
-                        }
-                        elsif ($model->{v8_4}) {
-                            print " ikev1 trust-point $trust_point\n";
-                            print " ikev1 user-authentication none\n";
-                        }
-                        else {
-                            print " trust-point $trust_point\n";
-                            print " isakmp ikev1-user-authentication none\n";
-                        }
-                    }
-
-                    # Preshared key is configured manually.
-                }
-            }
+        my $have_crypto_map;
+        if (my $interfaces =  $hardware2crypto{$hardware}) {
+            print_static_crypto_map($router, $hardware, $map_name, $interfaces,
+                                    \%ipsec2trans_name);
+            $have_crypto_map = 1;
         }
+        if (my $interfaces =  $hardware2dyn_crypto{$hardware}) {
+            print_dynamic_crypto_map($router, $hardware, $map_name, $interfaces,
+                                    \%ipsec2trans_name);
+            $have_crypto_map = 1;
+        }
+
+        # Bind crypto map to interface.
+        $have_crypto_map or next;
         if ($crypto_type eq 'IOS') {
             push(@{ $hardware->{subcmd} }, "crypto map $map_name");
         }
         elsif ($crypto_type eq 'ASA') {
-            print "crypto map $map_name interface $name\n";
-            print "crypto isakmp enable $name\n";
+            print "crypto map $map_name interface $hw_name\n";
+            print "crypto isakmp enable $hw_name\n";
         }
     }
     return;

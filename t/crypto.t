@@ -599,8 +599,8 @@ crypto isakmp policy 2
 crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
 crypto ipsec transform-set Trans2 esp-aes-256 esp-sha-hmac
 access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
-crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set peer 172.16.1.2
+crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set transform-set Trans2
 crypto map crypto-outside 1 set pfs group15
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
@@ -611,8 +611,8 @@ tunnel-group 172.16.1.2 ipsec-attributes
  isakmp ikev1-user-authentication none
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
-crypto map crypto-outside 2 match address crypto-outside-2
 crypto map crypto-outside 2 set peer 172.16.2.2
+crypto map crypto-outside 2 match address crypto-outside-2
 crypto map crypto-outside 2 set transform-set Trans1
 crypto map crypto-outside 2 set pfs group2
 crypto map crypto-outside 2 set security-association lifetime seconds 600
@@ -661,8 +661,8 @@ crypto ipsec ikev2 ipsec-proposal Trans2
  protocol esp encryption aes-256
  protocol esp integrity sha
 access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
-crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set peer 172.16.1.2
+crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set ikev2 ipsec-proposal Trans2
 crypto map crypto-outside 1 set pfs group15
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
@@ -673,8 +673,8 @@ tunnel-group 172.16.1.2 ipsec-attributes
  ikev2 remote-authentication certificate
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
-crypto map crypto-outside 2 match address crypto-outside-2
 crypto map crypto-outside 2 set peer 172.16.2.2
+crypto map crypto-outside 2 match address crypto-outside-2
 crypto map crypto-outside 2 set transform-set Trans1
 crypto map crypto-outside 2 set pfs group2
 crypto map crypto-outside 2 set security-association lifetime seconds 600
@@ -693,6 +693,183 @@ access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 --
 static (outside,inside) 10.99.22.0 192.168.22.0 netmask 255.255.255.0
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'ASA with two dynamic crypto spokes';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha_hmac;
+ pfs_group = 15;
+ lifetime = 3600 sec;
+}
+
+isakmp:aes256SHA = {
+ ike_version = 2;
+ identity = address;
+ nat_traversal = additional;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 15;
+ lifetime = 43200 sec;
+ trust_point = ASDM_TrustPoint3;
+}
+
+ipsec:3desSHA = {
+ key_exchange = isakmp:3desSHA;
+ esp_encryption = 3des;
+ esp_authentication = sha_hmac;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:3desSHA = {
+ ike_version = 1;
+ identity = address;
+ authentication = rsasig;
+ encryption = 3des;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+ trust_point = ASDM_TrustPoint1;
+}
+
+crypto:sts1 = {
+ type = ipsec:aes256SHA;
+}
+
+crypto:sts2 = {
+ type = ipsec:3desSHA;
+ detailed_crypto_acl;
+}
+
+network:intern = { 
+ ip = 10.1.1.0/24;
+ host:netspoc = { ip = 10.1.1.111; }
+}
+
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101; 
+  bind_nat = lan2a;
+  hardware = inside;
+ }
+ interface:dmz = { 
+  ip = 192.168.0.101; 
+  hub = crypto:sts1, crypto:sts2;
+  hardware = outside; 
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:extern = { 
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:vpn1 = {
+ interface:internet = {
+  negotiated;
+  spoke = crypto:sts1;
+  id = vpn1@example.com;
+ }
+ interface:lan1 = {
+  ip = 10.99.1.1;
+ }
+}
+
+network:lan1 = { ip = 10.99.1.0/24; }
+
+router:vpn2 = {
+ interface:internet = {
+  negotiated;
+  spoke = crypto:sts2;
+  id = vpn2@example.com;
+ }
+ interface:lan2 = {
+  ip = 10.99.2.1;
+ }
+ interface:lan2a = {
+  ip = 192.168.22.1;
+ }
+}
+
+network:lan2 = { ip = 10.99.2.0/24; }
+
+network:lan2a = { 
+ ip = 192.168.22.0/24;
+ nat:lan2a = { ip = 10.99.22.0/24;}
+}
+
+protocol:http = tcp 80;
+service:test = {
+ user = network:lan1, network:lan2, network:lan2a;
+ permit src = user; dst = host:netspoc; prt = protocol:http; 
+}
+END
+
+$out = <<'END';
+--asavpn
+no sysopt connection permit-vpn
+crypto isakmp policy 1
+ authentication rsa-sig
+ encryption 3des
+ hash sha
+ group 2
+ lifetime 86400
+crypto isakmp policy 2
+ authentication rsa-sig
+ encryption aes-256
+ hash sha
+ group 15
+ lifetime 43200
+crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
+crypto ipsec ikev2 ipsec-proposal Trans2
+ protocol esp encryption aes-256
+ protocol esp integrity sha
+access-list crypto-outside-65535 extended permit ip any 10.99.1.0 255.255.255.0
+crypto dynamic-map vpn1@example.com 10 match address crypto-outside-65535
+crypto dynamic-map vpn1@example.com 10 set ikev2 ipsec-proposal Trans2
+crypto dynamic-map vpn1@example.com 10 set pfs group15
+crypto dynamic-map vpn1@example.com 10 set security-association lifetime seconds 3600
+crypto map crypto-outside 65535 ipsec-isakmp dynamic vpn1@example.com
+tunnel-group vpn1@example.com type ipsec-l2l
+tunnel-group vpn1@example.com ipsec-attributes
+ peer-id-validate nocheck
+ ikev2 local-authentication certificate ASDM_TrustPoint3
+ ikev2 remote-authentication certificate
+crypto ca certificate map vpn1@example.com 10
+ subject-name attr ea eq vpn1@example.com
+tunnel-group-map vpn1@example.com 10 vpn1@example.com
+access-list crypto-outside-65534 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
+access-list crypto-outside-65534 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
+crypto dynamic-map vpn2@example.com 10 match address crypto-outside-65534
+crypto dynamic-map vpn2@example.com 10 set transform-set Trans1
+crypto dynamic-map vpn2@example.com 10 set pfs group2
+crypto dynamic-map vpn2@example.com 10 set security-association lifetime seconds 600
+crypto map crypto-outside 65534 ipsec-isakmp dynamic vpn2@example.com
+tunnel-group vpn2@example.com type ipsec-l2l
+tunnel-group vpn2@example.com ipsec-attributes
+ peer-id-validate nocheck
+ trust-point ASDM_TrustPoint1
+ isakmp ikev1-user-authentication none
+crypto ca certificate map vpn2@example.com 10
+ subject-name attr ea eq vpn2@example.com
+tunnel-group-map vpn2@example.com 10 vpn2@example.com
+crypto map crypto-outside interface outside
+crypto isakmp enable outside
 END
 
 test_run($title, $in, $out);
@@ -950,8 +1127,8 @@ END
 $out = <<'END';
 --asavpn
 access-list crypto-outside-1 extended permit ip any 10.10.10.0 255.255.255.0
-crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set peer 1.2.3.129
+crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
@@ -973,9 +1150,9 @@ ip access-list extended crypto-filter-GigabitEthernet0-1
  permit tcp host 10.1.1.111 10.10.10.0 0.0.0.255 established
  deny ip any any
 crypto map crypto-GigabitEthernet0 1 ipsec-isakmp
+ set peer 1.2.3.2
  match address crypto-GigabitEthernet0-1
  set ip access-group crypto-filter-GigabitEthernet0-1 in
- set peer 1.2.3.2
  set transform-set Trans1
  set pfs group2
 --
@@ -1066,7 +1243,7 @@ END
 
 
 $out = <<"END";
-Error: router:asavpn can\'t establish crypto tunnel to interface:vpn1.internet with unknown IP
+Error: interface:vpn1.tunnel:vpn1 with unnkown IP needs attribute 'id'
 END
 
 test_err($title, $in, $out);
@@ -1088,8 +1265,8 @@ crypto isakmp policy 1
  lifetime 43200
 crypto ipsec transform-set Trans1 esp-aes-256 esp-sha-hmac
 access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
-crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set peer 1.1.1.1
+crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
