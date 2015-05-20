@@ -29,32 +29,34 @@ definition includes the zone but excludes the router from the area, a
 used to define router attributes and nat information for all included
 managed routers and networks.
 
+    area:a1 = {
+      border = interface:r1.n1;
+      inclusive_border = interface:r3,n2;
+    }      
+
 {% include image.html src="./area.png" description="Areas contain security zones and managed routers." %}
 
-### Creating security zones
-Functions: `set_zone`, `set_zone1`
+### Creating security zones (`set_zone`)
 
-Every network is contained by at most one zone, which is referenced in
-the network object. The properties of a zone are described by
-attributes, that are derived from the topology declarations.
-
-Possible zone attributes are
-
-* no_in_acl: ACL is not generated at the zone interfaces but ACL information is contained in the ACL of the other interfaces of the corresponding router instead. 
-* loopback: zone consists of loopback network only
-* is_tunnel: zone consists of tunnel networks only
-* private: stores the zones private-status, if not 'public'
-* has_id_hosts: ... 
+As every network is contained by at most one zone, zone creation
+starts at networks without a zone, adding adjacent unmanaged routers
+and networks to the zone object recursively.
 
     for every network in networks
       if network has no zone
         create new zone object in global @zones array:
-          via depth-first-search starting at zone (stop at managed/semi-managed routers)
-            identify zone elements
-            reference zone element in zone object, and vice versa
-          set zone attributes 
+          via depth-first-search (stop at managed/semi-managed routers)
+            identify zone elements and borders
+            set references in zone elements/borders and zone
       end if
     end for
+
+During the procession of networks, the following property-attributes
+of the zone are derived from its networks.
+
+* loopback: zone consists of loopback network only
+* is_tunnel: zone consists of tunnel networks only
+* private: stores the zones private-status, if not 'public'
                 
 ### Identifying zone clusters
 Functions: `set_zone`, `set_zone_cluster`
@@ -143,3 +145,5 @@ containing at least one router with `need_protect` flag set,
 references to the the respective interfaces of these routers are saved
 within every router object of the cluster. ** why?**
 
+* * *
+* no_in_acl: ACL is not generated at the zone interfaces but ACL information is contained in the ACL of the other interfaces of the corresponding router instead. 
