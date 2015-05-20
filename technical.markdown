@@ -100,13 +100,13 @@ the following is not part of zone/area generation!place somewhere else?
 Netspoc allows router interfaces to be tagged as `no_in_acl`
 interfaces, indicating that no ACL is supposed to be generated at the
 tagged interface but at the other (outgoing) interfaces of the router
-instead. As a router can be connected to several networks via one
-single interface hardware, Netspoc distinguishes between logical
-interface and hardware. As ACLs are generated for the hardware, all
-managed routers with `no_in_acl` interfaces are processed now,
-transfering the tags to the hardware objects of the tagged interfaces,
-and marking the routers other hardware objects to need outgoing
-ACLs. Along the way, proper usage of `no_in_acl` is checked:
+instead. Netspoc distinguishes between logical interface and hardware,
+because several networks can be connected to a router via one single
+interface hardware. As ACLs are generated for the hardware, all managed
+routers with `no_in_acl` interfaces are processed now, transfering the
+tags to the hardware objects of the tagged interfaces, and marking the
+routers other hardware objects to need outgoing ACLs. Along the way,
+proper usage of `no_in_acl` is checked:
  
 * number of no_in_acl interfaces per router <= 1 
 * no usage with routers perticipating in crypto-tunnels
@@ -115,11 +115,10 @@ ACLs. Along the way, proper usage of `no_in_acl` is checked:
 
 ### Apply crosslink information
 
-
 Networks just connecting managed routers may be marked as crosslink
 networks during topology declaration:
 
-    network: network_1 = {ip = 10.2.2.1; crosslink;} 
+    network:network_1 = {ip = 10.2.2.1; crosslink;} 
 
 Routers connected by crosslink networks act as a single router,
 causing ACLs to be needed only at the outer interfaces of a
@@ -128,25 +127,54 @@ clustered routers have equal filter types though. Otherwise, interfaces of
 routers with stronger filter types still have to filter information
 coming from routers with weaker filter types, that let pass more information.
 
+{% include image.html src="./crosslink.png" description="Routers connected by crosslink network." %}
 
-{% include image.html src="./crosslink.png" description="Routers connected by crosslink network. If filtertypes of both routers are equally strong, no filtering is needed at the crosslink network interfaces." %}
+Netspoc processes every crosslink network to identify the adjacent
+routers with weakest filter strength, tagging the hardware of the appropriate
+interfaces with the crosslink flag, indicating that no ACL needs to be
+generated. Simultaneously, the proper usage of crosslink network is checked: 
 
-Netspoc processes every crosslink network assuring following requirements:
+* All routers connected by crosslink networks are managed.
+* Hardware of crosslink network interfaces is not used for other networks.
+* Routers with filtertypes `secondary` and `local` are not included in one router cluster.
+* All no_in_acl-interfaces of routers connected by a crosslink network border the same security zone (consistent border definitions are required, as the cluster represents a single router).
+* Either all or none of the crosslink networks interfaces use need_out_acl
 
-* All routers connected by crosslink networks are managed
-* Routers with filtertypes `secondary` and `local` are not included in one router cluster ** - why?**
-* Interface hardware of crosslink network interfaces is not used for other interfaces/networks
-* All no_in_acl-interfaces of a router cluster border on the same security zone(consistent border definitions are required, as the cluster represents a single router) 
-* Either all or none of the crosslink networks interfaces use need_out_acl **why?**
- 
-Netspoc then sets the crosslink flag for crosslink network interfaces
-connected to those routers of the cluster that have the weakest filter
-type (filtertypes, should probably be placed elsewhere:
+
+### Cluster crosslinked routers 
+
+Netspoc uses the term 'router' for both routers and firewalls. While
+firewalls recognize, whether the destination of a data packet is
+the firewalls interface with IP = 10.1.1.1. or the network with IP =
+10.1.1.0/24 connected to this interface, routers do not. Therefore,
+in routers ACLs, access to the interface must be denied if a permission
+for the network is given. This is denoted in Netspoc by the `need-protect` flag.
+
+In routers connected by crosslink networks, some of the interfaces of
+a `need_protect`-labeled router do not generate ACLs, relying on the
+adjacent routers to do the filtering. Thus, these routers must be
+informed about the interfaces of the `need_protect`-labeled router to
+include appropriate deny-clauses in their ACLs.
+
+Netspoc generates clusters of crosslinked routers containing at least
+one router labels with the `need_protect` tag, and references the
+interfaces of the clusters `need_protect` routers in every router of
+the cluster.
+
+Router clusters are generated by processing every crosslinked `need_protect` router, adding crosslinked routers via depth first search on the adjacent crosslink networks.  
+
+
+  When generating ACLs,
+some routers need to be protected against access to their
+interfaces. Netspoc then sets the crosslink flag for crosslink network
+interfaces connected to those routers of the cluster that have the
+weakest filter type (filtertypes, should probably be placed elsewhere:
 `primary`/`full`>`standard`>`secondary`>`local`>`local_secondary`). The
 crosslink flag indicates that no ACL needs to be generated at the
 corresponing interface. Interfaces belonging to routers of stronger
 filter types still need to filter information coming from routers with
 lower filter types, which filter less strictly.
+
  
 **Place this somewhere else?** In Netspoc policy language, the term
 router is used for both routers and firewalls. While firewalls
