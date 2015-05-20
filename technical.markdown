@@ -8,27 +8,35 @@ layout: default
 {:toc}
 </div>
 
-## Preparing security zones and areas
-Function: set_zone
-... security zones and areas are established by Netspoc::set_zone...
+## Preparing security zones and areas (`set_zone`)
+
+Netspoc combines networks connected by unmanaged routers in security
+zones. These zones, containing networks and unmanaged routers as
+elements, are delimited by zone interfaces of managed or semi-manged
+routers. Every zone element is part of at most one zone. Zone
+generation allows a faster traversal of the graph: As filtering takes
+place only at zone delimiting interfaces, zones can be traversed
+instead of single networks.
+
+{% include image.html src="./zone.png" description="Security zones contain networks and unmanaged routers." %}
+
+Areas, defined in Netspoc topology by the keyword `area`, span a
+certain part of the network topology, which is delimited by the areas
+border definitions (`border`, `inclusive_border`). The borders of an
+area refer to the interfaces of managed routers. While a `border`
+definition includes the zone but excludes the router from the area, a
+`inclusive_border` definition includes the router also.  Areas are
+used to define router attributes and nat information for all included
+managed routers and networks.
+
+{% include image.html src="./area.png" description="Areas contain security zones and managed routers." %}
 
 ### Creating security zones
 Functions: `set_zone`, `set_zone1`
 
-Netspoc combines networks connected by unmanaged routers in security
-zones. These zones, containing networks and unmanaged routers as
-elements, are delimited by zone interfaces of managed or
-semi-manged routers.
-
-![Security zones contain networks and unmanaged routers.](zone.png)
-
-Every network is contained by only one zone, which is referenced in
+Every network is contained by at most one zone, which is referenced in
 the network object. The properties of a zone are described by
-atrributes, which can either be set during topology definition or
-derived during code procession. (this needs more clarification: in
-truth, zones can not be declared in topology - aggragates can. But some
-zone attributes are derived from the topology more directly than
-others...  )
+attributes, that are derived from the topology declarations.
 
 Possible zone attributes are
 
