@@ -462,7 +462,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'ASA with two crypto hubs and NAT';
+$title = 'ASA with two crypto spokes and NAT';
 ############################################################
 
 $in = <<'END';
@@ -636,7 +636,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'ASA with two crypto hubs and NAT (IKEv2)';
+$title = 'ASA with two crypto spokes and NAT (IKEv2)';
 ############################################################
 
 $in =~ s/ike_version = 1/ike_version = 2/;
