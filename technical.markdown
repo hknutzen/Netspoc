@@ -181,16 +181,35 @@ the direction of the traversal: If it is of type `border`, the
 adjacent zone is part of the area, while the router is not. If
 otherwise the type is `inclusive_border` the router is included in the
 area, but not the zone.  Every zone and managed router is collected in
-the area object, and references to the area are stored in the zones
-and routers. While the areas are set up, Netspoc checks for proper
-border definitions.
+the area object, and references to the area are stored in its zones
+and managed routers. If an area object contains no zones, it is deleted.
+Netspoc checks for proper border definitions during area set up.
 
 Areas may be defined by the user as anchor areas, that
 is, without border definitions, but an anchor network instead. For
-these areas, depth first search starts at the zone of the anchor
+these areas, depth first search starts at the zone containing the anchor
 network and stops at interfaces that are borders to other
 areas. References of these interfaces are stored in the anchor area
 object as borders.
+
+
+### Finding subset relations
+
+Areas may be nested, with one area being a proper subset of another
+area. Zones and managed routers included by more than one area always
+inherit the attributes of the innermost area. For this reason,
+intersection of two areas can not be allowed.
+
+{% include image.html src="./nested_area.png" description="Area 2 is a proper subset of area 1." %}
+
+Netspoc detects subset relations by processing every zone contained by
+one or more areas, identifying all areas containing the zone. Then,
+each of these areas is compared with the one next in size to check
+whether every zone inside the samller area is also contained in the
+bigger one. A reference to the superset area is added to proper subset
+areas. If duplicate areas or areas with intersections are found,
+Netspoc will throw an error.
+
 
 
 * * *
