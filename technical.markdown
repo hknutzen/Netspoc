@@ -157,8 +157,7 @@ crosslinked routers to do the filtering. Thus, these routers must be
 informed about the interfaces of the `need_protect`-labeled router to
 include appropriate deny-clauses in their ACLs.
 
-{% include image.html src="./crosslink_with_need_protect.png"
- description="Routers connected by crosslink network." %}
+{% include image.html src="./crosslink_with_need_protect.png" description="need_protect Router connected by crosslink network." %}
 
 Netspoc identifies clusters of crosslinked routers containing at least
 one router labeled with `need_protect` using depth first search,
