@@ -36,6 +36,7 @@ managed routers and networks.
 
 {% include image.html src="./area.png" description="Areas contain security zones and managed routers." %}
 
+
 ### Creating zones (`set_zone`)
 
 As every network is contained by exactly one zone, zone creation
@@ -95,6 +96,7 @@ containing a single zone only are deleted.
 * * * 
 the following is not part of zone/area generation!place somewhere else?
 
+
 ### Apply `no_in_acl` declaration (`check_no_in_acl`)
 
 Netspoc allows router interfaces to be tagged as `no_in_acl`
@@ -112,6 +114,7 @@ proper usage of `no_in_acl` is checked:
 * no usage with routers perticipating in crypto-tunnels
 * usage only with router models suitable for outgoing acl
 * only at interfaces with one main-interface per hardware
+
 
 ### Apply crosslink information
 
@@ -164,6 +167,31 @@ one router labeled with `need_protect` using depth first search,
 starting at `need_protect`labeled routers and traversing routers and
 crosslink networks only.The interfaces of the clusters `need_protect`
 routers are then referenced in every router of the cluster.
+
+
+### Setting up areas
+
+As was seen above, areas are used to set attributes for routers and
+networks included by the areas borders. To do so, Netspoc has to
+identify the networks and managed routers of every area: Starting at
+one of the areas borders, a depth first search is conducted,
+traversing the adjacent zones and routers and stopping at the areas
+border interfaces. The border type of the start interface indicates
+the direction of the traversal: If it is of type `border`, the
+adjacent zone is part of the area, while the router is not. If
+otherwise the type is `inclusive_border` the router is included in the
+area, but not the zone.  Every zone and managed router is collected in
+the area object, and references to the area are stored in the zones
+and routers. While the areas are set up, Netspoc checks for proper
+border definitions.
+
+Areas may be defined by the user as anchor areas, that
+is, without border definitions, but an anchor network instead. For
+these areas, depth first search starts at the zone of the anchor
+network and stops at interfaces that are borders to other
+areas. References of these interfaces are stored in the anchor area
+object as borders.
+
 
 * * *
 crosslink networks:
