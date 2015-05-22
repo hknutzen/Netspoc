@@ -143,25 +143,28 @@ generated. Simultaneously, the proper usage of crosslink network is checked:
 
 ### Cluster crosslinked routers 
 
-Netspoc uses the term 'router' for both routers and firewalls. While
-firewalls recognize, whether the destination of a data packet is
-the firewalls interface with IP = 10.1.1.1. or the network with IP =
-10.1.1.0/24 connected to this interface, routers do not. Therefore,
-in routers ACLs, access to the interface must be denied if a permission
-for the network is given. This is denoted in Netspoc by the `need-protect` flag.
+Firewalls recognize, whether the destination of a data packet is the
+firewalls interface with IP = 10.1.1.1. or the network with IP =
+10.1.1.0/24 connected to this interface, while routers do not. This is
+why in router ACLs, access to the interface must be denied if a
+permission for the network is given. As Netspoc uses the term 'router'
+for both routers and firewalls, router devices that need interface
+denial in their ACLs are labeled by the `need-protect` flag.
 
-In routers connected by crosslink networks, some of the interfaces of
-a `need_protect`-labeled router do not generate ACLs, relying on the
-adjacent routers to do the filtering. Thus, these routers must be
+When connected by crosslink networks, some of the interfaces of
+ `need_protect`-labeled routers will not generate ACLs, relying on the
+crosslinked routers to do the filtering. Thus, these routers must be
 informed about the interfaces of the `need_protect`-labeled router to
 include appropriate deny-clauses in their ACLs.
 
-To do so, Netspoc identifies clusters of crosslinked routers
-containing at least one router labels with the `need_protect` tag,
-using depth first search, starting at `need_protect`labeled routers
-and traversing routers and crosslink networks only.The interfaces of
-the clusters `need_protect` routers are then referenced in every
-router of the cluster.
+{% include image.html src="./crosslink_with_need_protect.png"
+ description="Routers connected by crosslink network." %}
+
+Netspoc identifies clusters of crosslinked routers containing at least
+one router labeled with `need_protect` using depth first search,
+starting at `need_protect`labeled routers and traversing routers and
+crosslink networks only.The interfaces of the clusters `need_protect`
+routers are then referenced in every router of the cluster.
 
 * * *
 crosslink networks:
