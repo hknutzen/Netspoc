@@ -169,6 +169,15 @@ crosslink networks only.The interfaces of the clusters `need_protect`
 routers are then referenced in every router of the cluster.
 
 
+### Preparing area set up
+
+The area borders are defined in the area objects. To set up the areas,
+netspoc needs the information whether an interface is an border or not
+needs to be available at the interfaces also. Therefore, references to
+the limited area are set in border interfaces now. By the way, routers
+that are included into an area by inclusive area borders are collected
+for later use.
+
 ### Setting up areas
 
 As was seen above, areas are used to set attributes for routers and
@@ -219,6 +228,13 @@ well. If the router is placed at the border of the area via
 overlapping area.
 
 {% include image.html src="./areas_overlapping_router.png" description="Overlapping areas with router as intersection." %}
+
+To assure proper subset relations for routers, every router contained
+via `inclusive_border` is processed like the zones above: each of the
+areas containing a certain router as `inclusive_border` compared with
+the area next in size to check whether every zone inside the smaller
+area is also contained in the bigger one. If intersecting areas are
+found, Netspoc will throw an error.
 
 
 * * *
