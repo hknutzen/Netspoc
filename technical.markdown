@@ -210,6 +210,15 @@ bigger one. A reference to the superset area is added to proper subset
 areas. If duplicate areas or areas with intersections are found,
 Netspoc will throw an error.
 
+Naturally, proper subset relations have to hold not only for zones,
+but also for routers. If a router is part of an area and surrounded by
+zones that are part of the area also, the subset realation has been
+proved for the surrounding zones and thus hold for the router as
+well. If the router is placed at the border of the area via
+`inclusive_border` though, it could still belong to another,
+overlapping area.
+
+{% include image.html src="./areas_overlapping_router.png" description="Overlapping areas with router as intersection." %}
 
 
 * * *
