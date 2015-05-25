@@ -102,10 +102,11 @@ sub random {
 }
 
 sub random2 {
-    my ($old) = @_;    
+    my ($old) = @_;
+    return $old if length($old) <= 2;
     my $first = substr($old, 0, 2);
     my $rest = substr($old, 2);
-    $first . random($rest);
+    return $first . random($rest);
 }
 
 my %subst;
