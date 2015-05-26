@@ -227,7 +227,7 @@ though, subset relations can be violated:
 
 {% include image.html src="./areas_overlapping_router.png" description="Overlapping areas with router as intersection." %}
 
-**Routers as intersection** to prevent overlapping areas with a single
+**Routers as intersection.** to prevent overlapping areas with a single
 router as intersection, every router contained via `inclusive_border`
 is processed: each of the areas containing a certain router as
 `inclusive_border` is compared with the area next in size to check
@@ -237,16 +237,63 @@ error.
 
 {% include image.html src="./areas_overlapping_router2.png" description="Wrong border definition of router violates proper subset relation ." %}
 
-**Routers with wrong border classification** It might happen that
-areas froming a proper subset relation regarding their zones are
+**Routers with wrong border classification.** It might happen that
+areas forming a proper subset relation regarding their zones are
 overlapping just because a router is included in the smaller area
 but not in the big one. To find such cases, all areas are processed,
 checking whether they are a subset of a bigger area. If so, all
 managed routers of the smaller area are checked to be included in
-the bigger area also. Netspoc will throw an error, ifoverlapping areas are found.
+the bigger area also. Netspoc will throw an error, if overlapping areas are found.
 
-### Establish aggregates
 
+### Linking aggregates
+
+Users may use the keyword `any` to define aggregates. Aggregates refer
+to a set of networks and can be used as source or destination in
+rules. Internally, aggregates are therefore represented by network
+objects with an `is_aggregate` flag set. An aggregate includes either
+all networks of a zone cluster or, if a specific IP mask is defined,
+just those networks of the zone cluster matching the aggregates IP
+mask. The zone cluster an aggregate refers to is specified by its link
+network, which is a network inside the cluster:
+
+    any:aggregate1 = {link = network:networkA;}
+    any:aggregate2 = {link = network:networkB; ip = 10.2.3.0/24;}
+
+Aggregates with no specified IP or IP = 0/0 are used to pass the
+aggregates nat definition and owner attributes to the included zones.
+
+Netspoc now processes the aggregates, assuring proper usage of the
+aggregates and linking the aggregates to the zones of the zone
+cluster. Because aggregate objects hold an array of all networks of
+the zone included by the aggregate, several objects have to be build
+for a single aggregate when linking aggregates and zones: To avoid all
+networks of the zone cluster being included in this array, every zone
+needs its own aggregate object.
+All aggregates are stored within the global Network hash for later use.
+
+
+### Inheriting area attributes
+
+Area attributes are now passed to the zones and managed routers of an
+area. To enable inheritance from the innermost area when areas are
+nested, areas are processed in ascending order regarding their size.
+Then, router attributes are passed on to the areas routers and nat
+attributes are passed to the areas zones. If routers or zones already
+have an attribute of the area set, because of router/zone definitions
+or because of inheritance from another (smaller) area, the attribute
+value is not overwritten. Netspoc generates a warning though if the
+area and zone/router values of the attribute are equal.
+
+
+### Passing NAT to networks
+
+NAT information is needed within the network objects that are supposed
+to have address translation. Netspoc therefore processes all zones
+with NAT definitions and passes them to each of the zones networks. If
+a NAT attribute of the zone is already set in a network, the networks
+NAT attribute is not overwritten, but a warning is emitted if the NAT
+attributes values are equal for both zone and network.
 
 
 * * *
