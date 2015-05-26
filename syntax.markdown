@@ -114,7 +114,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ no_group_code;    ]
          [ no_crypto_filter; ]
          [ no_protect_self;  ]
-         [ std_in_acl;       ]
          [ log_deny;         ]
          [ owner = <name>;   ]
          <interface definition> *
@@ -179,7 +178,6 @@ here `<object set>` must expand to networks.
          [ owner = <name>;    ]
          <network NAT> *
          [ has_unenforceable; ]
-         [ no_in_acl;         ]
       }
 
 ## Area definition
@@ -343,20 +341,21 @@ where `<object set>` must expand to interfaces.
       ipsec:<name> = {
          key_exchange = isakmp:<name>;
          esp_encryption = ( aes | aes192 | aes256 | des | 3des | none );
-         esp_authentication = ( md5_hmac | sha_hmac | none );
-         ah = ( md5_hmac | sha_hmac | none );
-         pfs_group = ( 1 | 2 | 5 | none );
+         esp_authentication = ( md5 | sha | sha256 | sha384 | sha512 | none );
+         ah = ( md5 | sha |sha256 | sha384 | sha512 | none );
+         pfs_group = ( 1 | 2 | 5 | 14 | 15 | 16 | 19 | 20 | 21 | 24 | none );
          lifetime = <int> <timeunit>;
       }
 
     <isakmp definition> ::=
       isakmp:<name> = {
+         ike_version = ( 1 | 2 );
          identity = ( address | fqdn );
          nat_traversal = ( on | additional | off );
          authentication = ( preshare | rsasig );
          encryption = ( aes | aes192 | aes256 | des | 3des );
-         hash = ( md5 | sha );
-         group = ( 1 | 2 | 5 );
+         hash = ( md5 | sha | sha256 | sha384 | sha512 );
+         group = ( 1 | 2 | 5 | 14 | 15 | 16 | 19 | 20 | 21 | 24 );
          lifetime = <int> <timeunit>;
       }
 
