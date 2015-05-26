@@ -8,7 +8,7 @@ layout: default
 {:toc}
 </div>
 
-## Preparing zones and areas (`set_zone`)
+## `set_zone` - Preparing zones and areas
 
 Netspoc combines networks connected by unmanaged routers in
 zones. These zones, containing networks and unmanaged routers as
@@ -22,12 +22,11 @@ networks.
 
 Areas, defined in Netspoc topology by the keyword `area`, span a
 certain part of the network topology, which is delimited by the areas
-border definitions (`border`, `inclusive_border`). The borders of an
-area refer to the interfaces of managed routers. While a `border`
-definition includes the zone but excludes the router from the area, an
-`inclusive_border` definition includes the router also.  Areas are
-used to define router attributes and nat information for all included
-managed routers and networks.
+border definitions. The borders of an area refer to the interfaces of
+managed routers. While a `border` definition includes the zone but
+excludes the router from the area, an `inclusive_border` definition
+includes the router also.  Areas are used to define router attributes
+and nat information for all included managed routers and networks.
 
     area:a1 = {
       border = interface:r1.n1;
@@ -37,32 +36,26 @@ managed routers and networks.
 {% include image.html src="./area.png" description="Areas contain security zones and managed routers." %}
 
 
-### Creating zones (`set_zone`)
+### Creating zones
 
-As every network is contained by exactly one zone, zone creation
-starts at networks without a zone, adding adjacent unmanaged routers
-and networks to the zone object recursively.
-
-    for every network
-      if network has no zone
-        create new zone object
-          via depth-first-search (stop at managed/semi-managed routers)
-            identify zone elements and borders
-            set references in zone elements/borders and zone object
-      end if
-    end for
-
+As every network is contained by exactly one zone, all networks are
+processed, creating a new zone object for every network without a
+zone. Then a depth first search is conducted, beginning at the network
+and stopping at managed or semi-managed routers to collect the zones
+elements and border interfaces in the zone object. References to the
+zone are set in the collected objects.
 During the procession of networks, the following property-attributes
 of the zone are derived from its networks:
 
 * loopback: zone consists of loopback network only
 * is_tunnel: zone consists of tunnel networks only
 * private: stores the zones private-status, if not 'public'
+
                 
-### Identifying zone clusters (`cluster_zones`)
+### Identifying zone clusters
 
 Netspoc generates a topology representation to find paths between
-source and destination, using zones to accelerate graph traversal.  We
+source and destination, using zones to accelerate graph traversal. We
 will see, that Netspoc allows users to refer to security zones in
 rules.  From users point of view, security zones look
 slightly different though: Semi-managed routers, which are either
@@ -74,30 +67,17 @@ connected by semi-managed routers and delimited by managed routers.
 
 {% include image.html src="./zone_cluster.png" description="Zones: Netspoc representation vs. user view." %}
 
-Zone cluster generation starts at zones without cluster and adds
-adjacent zones connected by semi-managed routers the cluster object
-via depth first search, stopping at managed routers. Clusters
-containing a single zone only are deleted.
-
-    for every zone
-      if zone has no cluster
-        create an empty cluster
-        via depth-first-search (stop at managed routers) 
-          identify cluster members
-          set references in zone and cluster object
-          check cluster members to have equal private status
-      end if
-      if cluster has only one zone
-         delete cluster
-      end if
-    end for
-
+For zone cluster generation zones are processed. If a zone is found
+that is not included in a cluster, a new cluster object is
+created. Then a depth first search is conducted, starting at the zone
+and stopping at managed routers to collect all zones of the cluster.
+If the cluster contains a single zone only, it is deleted.
 
 * * * 
 the following is not part of zone/area generation!place somewhere else?
 
 
-### Apply `no_in_acl` declaration (`check_no_in_acl`)
+### Apply no_in_acl declaration
 
 Netspoc allows router interfaces to be tagged as `no_in_acl`
 interfaces, indicating that no ACL is supposed to be generated at the
