@@ -220,21 +220,33 @@ areas. If duplicate areas or areas with intersections are found,
 Netspoc will throw an error.
 
 Naturally, proper subset relations have to hold not only for zones,
-but also for routers. If a router is part of an area and surrounded by
-zones that are part of the area also, the subset realation has been
-proved for the surrounding zones and thus hold for the router as
-well. If the router is placed at the border of the area via
-`inclusive_border` though, it could still belong to another,
-overlapping area.
+but also for routers. For most of the routers, proper subset relation
+has been assured already by proving subset relations for the
+surrounding zones. If the routers are placed at the border of an area
+though, subset relations can be violated: 
 
 {% include image.html src="./areas_overlapping_router.png" description="Overlapping areas with router as intersection." %}
 
-To assure proper subset relations for routers, every router contained
-via `inclusive_border` is processed like the zones above: each of the
-areas containing a certain router as `inclusive_border` compared with
-the area next in size to check whether every zone inside the smaller
-area is also contained in the bigger one. If intersecting areas are
-found, Netspoc will throw an error.
+**Routers as intersection** to prevent overlapping areas with a single
+router as intersection, every router contained via `inclusive_border`
+is processed: each of the areas containing a certain router as
+`inclusive_border` is compared with the area next in size to check
+whether every zone inside the smaller area is also contained in the
+bigger one. If intersecting areas are found, Netspoc will throw an
+error.
+
+{% include image.html src="./areas_overlapping_router2.png" description="Wrong border definition of router violates proper subset relation ." %}
+
+**Routers with wrong border classification** It might happen that
+areas froming a proper subset relation regarding their zones are
+overlapping just because a router is included in the smaller area
+but not in the big one. To find such cases, all areas are processed,
+checking whether they are a subset of a bigger area. If so, all
+managed routers of the smaller area are checked to be included in
+the bigger area also. Netspoc will throw an error, ifoverlapping areas are found.
+
+### Establish aggregates
+
 
 
 * * *
