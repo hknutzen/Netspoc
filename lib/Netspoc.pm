@@ -3155,7 +3155,7 @@ my %isakmp_attributes = (
     },
     authentication => { values   => [qw( preshare rsasig )], },
     encryption     => { values   => [qw( aes aes192 aes256 des 3des )], },
-    hash           => { values   => [qw( md5 sha )], },
+    hash           => { values   => [qw( md5 sha sha256 sha384 sha512 )], },
     ike_version    => { values   => [ 1, 2 ], default => 1, },
     lifetime       => { function => \&read_time_val, },
     group          => { values   => [ 1, 2, 5, 14, 15, 16, 19, 20, 21, 24 ], },
@@ -3182,14 +3182,17 @@ my %ipsec_attributes = (
         map     => { none => undef }
     },
     esp_authentication => {
-        values  => [qw( none md5_hmac sha_hmac )],
+        values  => [qw( none md5_hmac sha_hmac md5 sha sha256 sha384 sha512 )],
         default => 'none',
-        map     => { none => undef }
+        map     => { none => undef,
+
+                     # Compatibility for old version.
+                     md5_hmac => 'md5', sha_hmac => 'sha', }
     },
     ah => {
-        values  => [qw( none md5_hmac sha_hmac )],
+        values  => [qw( none md5_hmac sha_hmac md5 sha sha256 sha384 sha512 )],
         default => 'none',
-        map     => { none => undef }
+        map     => { none => undef, md5_hmac => 'md5', sha_hmac => 'sha', }
     },
     pfs_group => {
         values  => [qw( none 1 2 5 14 15 16 19 20 21 24 )],
@@ -18821,8 +18824,7 @@ sub print_crypto {
         if ($crypto_type eq 'ASA' and $isakmp->{ike_version} == 2) {
             print "crypto ipsec ikev2 ipsec-proposal $transform_name\n";
             if (my $ah = $ipsec->{ah}) {
-                $ah =~ /^(md5|sha)_hmac$/;
-                print " protocol ah $1\n";
+                print " protocol ah $ah\n";
             }
             my $esp_encr;
             if (not(my $esp = $ipsec->{esp_encryption})) {
@@ -18836,8 +18838,7 @@ sub print_crypto {
             }
             print " protocol esp encryption $esp_encr\n";
             if (my $esp_ah = $ipsec->{esp_authentication}) {
-                $esp_ah =~ /^(md5|sha)_hmac$/;
-                print " protocol esp integrity $1\n";
+                print " protocol esp integrity $esp_ah\n";
             }
         }
 
@@ -18845,9 +18846,7 @@ sub print_crypto {
         else {
             my $transform = '';
             if (my $ah = $ipsec->{ah}) {
-                if ($ah =~ /^(md5|sha)_hmac$/) {
-                    $transform .= "ah-$1-hmac ";
-                }
+                $transform .= "ah-$ah-hmac ";
             }
             if (not(my $esp = $ipsec->{esp_encryption})) {
                 $transform .= 'esp-null ';
@@ -18860,9 +18859,7 @@ sub print_crypto {
                 $transform .= "esp-aes$len ";
             }
             if (my $esp_ah = $ipsec->{esp_authentication}) {
-                if ($esp_ah =~ /^(md5|sha)_hmac$/) {
-                    $transform .= "esp-$1-hmac";
-                }
+                $transform .= "esp-$esp_ah-hmac";
             }
             print "crypto ipsec transform-set $transform_name $transform\n";
         }
