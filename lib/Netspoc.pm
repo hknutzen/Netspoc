@@ -4380,18 +4380,6 @@ sub check_interface_ip {
                 "to unnumbered $network->{name}");
     }
     elsif ($ip eq 'negotiated') {
-        my $network_mask = $network->{mask};
-
-        # Negotiated interfaces are dangerous: If the attached
-        # network has address 0.0.0.0/0, we would accidentally
-        # permit 'any'.  We allow this only, if local networks are
-        # protected by crypto.
-        if ($network_mask == 0 && !$interface->{spoke}) {
-            err_msg("$interface->{name} has negotiated IP",
-                    " in range 0.0.0.0/0.\n",
-                    " This is only allowed for interface",
-                    " protected by crypto spoke");
-        }
     }
     elsif ($ip eq 'bridged') {
 
