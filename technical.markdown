@@ -140,7 +140,7 @@ crosslinked routers to do the filtering. Thus, these routers must be
 informed about the interfaces of the `need_protect`-labeled router to
 include appropriate deny-clauses in their ACLs.
 
-{% include image.html src="./images/crosslink_with_need_protect.png" description="As no filtering takes place at IF1 and IF4, routers R1 and R2 need to filter packets for IF 1-4." %}
+{% include image.html src="./images/crosslink_with_need_protect.png" description="As no filtering takes place at IF1 and IF4, routers R2 and R3 need to filter packets for IF 1-4." %}
 
 Netspoc identifies clusters of crosslinked routers containing at least
 one router labeled with `need_protect` using depth first search,
