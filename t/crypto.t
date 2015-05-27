@@ -470,19 +470,20 @@ ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
  esp_authentication = sha_hmac;
- pfs_group = 2;
+ pfs_group = 15;
  lifetime = 3600 sec;
 }
 
 isakmp:aes256SHA = {
+ ike_version = 1;
  identity = address;
  nat_traversal = additional;
  authentication = rsasig;
  encryption = aes256;
  hash = sha;
- group = 2;
+ group = 15;
  lifetime = 43200 sec;
- trust_point =  ASDM_TrustPoint3;
+ trust_point = ASDM_TrustPoint3;
 }
 
 ipsec:3desSHA = {
@@ -494,6 +495,7 @@ ipsec:3desSHA = {
 }
 
 isakmp:3desSHA = {
+ ike_version = 1;
  identity = address;
  authentication = preshare;
  encryption = 3des;
@@ -592,7 +594,7 @@ crypto isakmp policy 2
  authentication rsa-sig
  encryption aes-256
  hash sha
- group 2
+ group 15
  lifetime 43200
 crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
 crypto ipsec transform-set Trans2 esp-aes-256 esp-sha-hmac
@@ -600,11 +602,11 @@ access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
 crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set peer 172.16.1.2
 crypto map crypto-outside 1 set transform-set Trans2
-crypto map crypto-outside 1 set pfs group2
+crypto map crypto-outside 1 set pfs group15
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 172.16.1.2 type ipsec-l2l
 tunnel-group 172.16.1.2 ipsec-attributes
- chain
+ peer-id-validate nocheck
  trust-point ASDM_TrustPoint3
  isakmp ikev1-user-authentication none
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
@@ -616,7 +618,68 @@ crypto map crypto-outside 2 set pfs group2
 crypto map crypto-outside 2 set security-association lifetime seconds 600
 tunnel-group 172.16.2.2 type ipsec-l2l
 tunnel-group 172.16.2.2 ipsec-attributes
- pre-shared-key *****
+ peer-id-validate nocheck
+crypto map crypto-outside interface outside
+crypto isakmp enable outside
+--
+object-group network g0
+ network-object 10.99.1.0 255.255.255.0
+ network-object 10.99.2.0 255.255.255.0
+ network-object 192.168.22.0 255.255.255.0
+access-list outside_in extended permit tcp object-group g0 host 10.1.1.111 eq 80
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
+--
+static (outside,inside) 10.99.22.0 192.168.22.0 netmask 255.255.255.0
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'ASA with two crypto hubs and NAT (IKEv2)';
+############################################################
+
+$in =~ s/ike_version = 1/ike_version = 2/;
+
+$out = <<'END';
+--asavpn
+no sysopt connection permit-vpn
+crypto isakmp policy 1
+ authentication pre-share
+ encryption 3des
+ hash sha
+ group 2
+ lifetime 86400
+crypto isakmp policy 2
+ authentication rsa-sig
+ encryption aes-256
+ hash sha
+ group 15
+ lifetime 43200
+crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
+crypto ipsec ikev2 ipsec-proposal Trans2
+ protocol esp encryption aes-256
+ protocol esp integrity sha
+access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
+crypto map crypto-outside 1 match address crypto-outside-1
+crypto map crypto-outside 1 set peer 172.16.1.2
+crypto map crypto-outside 1 set ikev2 ipsec-proposal Trans2
+crypto map crypto-outside 1 set pfs group15
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+tunnel-group 172.16.1.2 type ipsec-l2l
+tunnel-group 172.16.1.2 ipsec-attributes
+ peer-id-validate nocheck
+ ikev2 local-authentication certificate ASDM_TrustPoint3
+ ikev2 remote-authentication certificate
+access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
+access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
+crypto map crypto-outside 2 match address crypto-outside-2
+crypto map crypto-outside 2 set peer 172.16.2.2
+crypto map crypto-outside 2 set transform-set Trans1
+crypto map crypto-outside 2 set pfs group2
+crypto map crypto-outside 2 set security-association lifetime seconds 600
+tunnel-group 172.16.2.2 type ipsec-l2l
+tunnel-group 172.16.2.2 ipsec-attributes
  peer-id-validate nocheck
 crypto map crypto-outside interface outside
 crypto isakmp enable outside
@@ -894,7 +957,7 @@ crypto map crypto-outside 1 set pfs group2
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 1.2.3.129 type ipsec-l2l
 tunnel-group 1.2.3.129 ipsec-attributes
- chain
+ peer-id-validate nocheck
  ikev1 trust-point ASDM_TrustPoint3
  ikev1 user-authentication none
 crypto map crypto-outside interface outside
@@ -924,6 +987,18 @@ ip access-list extended GigabitEthernet0_in
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Missing trust_point in isakmp definition';
+############################################################
+
+$in =~ s/trust_point/#trust_point/;
+
+$out = <<"END";
+Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Unmanaged VPN spoke with unknown IP';
@@ -1020,7 +1095,7 @@ crypto map crypto-outside 1 set pfs group2
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 1.1.1.1 type ipsec-l2l
 tunnel-group 1.1.1.1 ipsec-attributes
- chain
+ peer-id-validate nocheck
  ikev1 trust-point ASDM_TrustPoint3
  ikev1 user-authentication none
 crypto map crypto-outside interface outside

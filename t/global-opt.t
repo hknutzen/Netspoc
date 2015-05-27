@@ -172,4 +172,51 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Range spans whole network';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24; 
+ host:range  = { range = 10.1.1.0 - 10.1.1.255; }
+}
+
+router:u = {
+ interface:n1;
+ interface:t1 = { ip = 10.9.1.1; }
+}
+
+network:t1 = { ip = 10.9.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:t1 = { ip = 10.9.1.2; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:test1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+
+service:test2 = {
+ user = host:range;
+ permit src = user; dst = network:n2; prt = tcp 80-90;
+}
+END
+
+$out = <<'END';
+Warning: Use network:n1 instead of host:range
+ because both have identical address
+Warning: Redundant rules in service:test1 compared to service:test2:
+  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test1
+< permit src=network:n1; dst=network:n2; prt=tcp 80-90; of service:test2
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;

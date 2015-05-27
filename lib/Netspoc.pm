@@ -530,13 +530,14 @@ sub at_line {
 }
 
 our $error_counter;
+our $abort_immediately;
 
 sub check_abort {
     $error_counter++;
     if ($error_counter == $config{max_errors}) {
         die "Aborted after $error_counter errors\n";
     }
-    elsif ($error_counter > $config{max_errors}) {
+    elsif ($abort_immediately) {
         die "Aborted\n";
     }
 }
@@ -547,7 +548,7 @@ sub abort_on_error {
 }
 
 sub set_abort_immediately {
-    $error_counter = $config{max_errors};
+    $abort_immediately = 1;
     return;
 }
 
@@ -578,6 +579,12 @@ sub syntax_err {
 
 sub internal_err {
     my (@args) = @_;
+
+    # Don't show inherited error.
+    # Abort immediately, if other errors have already occured.
+    if ($error_counter) {
+        die "Aborted after $error_counter errors\n";
+    }
     my (undef, $file, $line) = caller;
     my $sub = (caller 1)[3];
     my $msg = "Internal error in $sub";
@@ -1378,7 +1385,9 @@ sub read_host {
     if ($host->{nat}) {
         if ($host->{range}) {
 
-            # Look at print_pix_static before changing this.
+            # Before changing this,
+            # - look at print_pix_static,
+            # - add consistency tests in convert_hosts.
             error_atline("No NAT supported for host with 'range'");
         }
     }
@@ -2036,9 +2045,6 @@ sub read_router {
         elsif (check_flag 'strict_secondary') {
             $router->{strict_secondary} = 1;
         }
-        elsif (check_flag 'std_in_acl') {
-            $router->{std_in_acl} = 1;
-        }
         elsif (check_flag 'log_deny') {
             $router->{log_deny} = 1;
         }
@@ -2607,9 +2613,6 @@ sub read_aggregate {
         elsif (check_flag 'has_unenforceable') {
             $aggregate->{has_unenforceable} = 1;
         }
-        elsif (check_flag 'no_in_acl') {
-            $aggregate->{no_in_acl} = 1;
-        }
         elsif (my $nat_name = check_nat_name()) {
             my $nat = read_nat("nat:$nat_name");
             $nat->{dynamic} or error_atline("$nat->{name} must be dynamic");
@@ -3154,7 +3157,9 @@ my %isakmp_attributes = (
     authentication => { values   => [qw( preshare rsasig )], },
     encryption     => { values   => [qw( aes aes192 aes256 des 3des )], },
     hash           => { values   => [qw( md5 sha )], },
-    group          => { values   => [qw( 1 2 5 )], },
+    ike_version    => { values   => [ 1, 2 ], default => 1, },
+    lifetime       => { function => \&read_time_val, },
+    group          => { values   => [ 1, 2, 5, 14, 15, 16, 19, 20, 24 ], },
     lifetime       => { function => \&read_time_val, },
     trust_point    => {
         function => \&read_identifier,
@@ -3188,7 +3193,7 @@ my %ipsec_attributes = (
         map     => { none => undef }
     },
     pfs_group => {
-        values  => [qw( none 1 2 5 )],
+        values  => [qw( none 1 2 5 14 15 16 19 20 24 )],
         default => 'none',
         map     => { none => undef }
     },
@@ -4824,7 +4829,7 @@ sub disable_behind {
 # Lists of network objects which are left over after disabling.
 #my @managed_routers;	# defined above
 my @routing_only_routers;
-my @managed_vpnhub;
+my @managed_crypto_hubs;
 my @routers;
 my @networks;
 my @zones;
@@ -5094,10 +5099,6 @@ sub mark_disabled {
         push @routers, $router;
         if ($router->{managed}) {
             push @managed_routers, $router;
-            if ($router->{model}->{do_auth})
-            {
-                push @managed_vpnhub, $router;
-            }
         }
         elsif ($router->{routing_only}) {
             push @routing_only_routers, $router;
@@ -6112,6 +6113,8 @@ sub expand_group {
     return $aref;
 }
 
+my %subnet_warning_seen;
+
 sub expand_group_in_rule {
     my ($obref, $context, $convert_hosts) = @_;
     my $aref = expand_group($obref, $context);
@@ -6161,7 +6164,26 @@ sub expand_group_in_rule {
 #           debug("group:$obj->{name}");
             if (is_host $obj) {
                 for my $subnet (@{ $obj->{subnets} }) {
-                    if (my $host = $subnet2host{$subnet}) {
+
+                    # Handle special case, where network and subnet
+                    # have identical address.
+                    # E.g. range = 10.1.1.0-10.1.1.255.
+                    # Convert subnet to network, because
+                    # - different objects with identical IP
+                    #   can't be checked and optimized properly,
+                    # - find_chains would fail, when building binary tree.
+                    if ($subnet->{mask} == $subnet->{network}->{mask}) {
+                        my $network = $subnet->{network};
+                        if (not $network->{has_id_hosts} and 
+                            not $subnet_warning_seen{$subnet}++)
+                        {
+                            warn_msg("Use $network->{name} instead of",
+                                     " $subnet->{name}\n",
+                                     " because both have identical address");
+                        }
+                        push @other, $network;
+                    }
+                    elsif (my $host = $subnet2host{$subnet}) {
                         warn_msg("$obj->{name} and $host->{name}",
                                  " overlap in $context");
                     }
@@ -8878,30 +8900,6 @@ sub find_subnets_in_nat_domain {
 
 sub check_no_in_acl  {
 
-    # Propagate attribute 'no_in_acl' from zones to interfaces.
-    for my $zone (@zones) {
-        next if not $zone->{no_in_acl};
-
-#	debug("$zone->{name} has attribute 'no_in_acl'");
-        for my $interface (@{ $zone->{interfaces} }) {
-
-            # Ignore secondary interface.
-            next if $interface->{main_interface};
-
-            my $router = $interface->{router};
-
-            # Directly attached attribute 'no_in_acl' or
-            # attribute 'std_in_acl' at device overrides.
-            if ($router->{std_in_acl}
-                or grep({ $_->{no_in_acl} and not ref $_->{no_in_acl} }
-                    @{ $router->{interfaces} }))
-            {
-                next;
-            }
-            $interface->{no_in_acl} = $zone;
-        }
-    }
-
     # Move attribute 'no_in_acl' to hardware interface
     # because ACLs operate on hardware, not on logic.
     for my $router (@managed_routers) {
@@ -9389,7 +9387,7 @@ sub link_aggregates {
 
         # Aggregate with ip 0/0 is used to set attributes of zone.
         if ($mask == 0) {
-            for my $attr (qw(has_unenforceable nat no_in_acl owner)) {
+            for my $attr (qw(has_unenforceable nat owner)) {
                 if (my $v = delete $aggregate->{$attr}) {
                     for my $zone2 ($cluster ? @$cluster : ($zone)) {
                         $zone2->{$attr} = $v;
@@ -9821,7 +9819,11 @@ sub set_area {
     my ($obj, $area, $in_interface) = @_;
     if (my $err_path = set_area1($obj, $area, $in_interface)) {
         push @$err_path, $in_interface if $in_interface;
-        err_msg("Inconsistent definition of $area->{name} in loop.\n",
+        my $err_intf = $err_path->[0];
+        my $is_inclusive = $err_intf->{is_inclusive};
+        my $err_obj = $err_intf->{$is_inclusive->{$area} ? 'router' : 'zone'};
+        my $in_loop = $err_obj->{areas}->{$area} ? ' in loop' : '';
+        err_msg("Inconsistent definition of $area->{name}", $in_loop, ".\n",
                 " It is reached from outside via this path:\n",
                 " - ", join("\n - ", map { $_->{name} } reverse @$err_path));
         return 1;
@@ -9935,9 +9937,8 @@ sub set_zone {
 
         # We get an empty area, if inclusive borders are placed around
         # a single router.
-        # Abort in this case, because it is useless and confusing.
         @{ $area->{zones} } or
-            err_msg("$area->{name} is empty");
+            warn_msg("$area->{name} is empty");
 
 #     debug("$area->{name}:\n ", join "\n ", map $_->{name}, @{$area->{zones}});
     }
@@ -10844,20 +10845,28 @@ sub cluster_path_mark  {
 
     # Activate pathrestriction of interface at border of loop, if path starts
     # or ends outside the loop and enters the loop at such an interface.
-    for my $intf ($from_in, $to_out) {
-        if (    $intf
-            and not $intf->{loop}
-            and (my $restrictions = $intf->{path_restrict}))
-        {
-            for my $restrict (@$restrictions) {
-                if ($restrict->{active_path}) {
-
-                    # Pathrestriction at start and end interface
-                    # prevents traffic through loop.
-                    $success = 0;
-                }
-                $restrict->{active_path} = 1;
+    if (    $from_in 
+        and not $from_in->{loop} 
+        and (my $restrictions = $from_in->{path_restrict})
+        and not $start_intf)
+    {
+        for my $restrict (@$restrictions) {
+            $restrict->{active_path} = 1;
+        }
+    }
+    if (    $to_out 
+        and not $to_out->{loop} 
+        and (my $restrictions = $to_out->{path_restrict})
+        and not $end_intf)
+    {
+        for my $restrict (@$restrictions) {
+            if ($restrict->{active_path}) {
+                
+                # Pathrestriction is applied to both, incoming and outgoing interface.
+                # This prevents traffic through loop.
+                $success = 0;
             }
+            $restrict->{active_path} = 1;
         }
     }
 
@@ -11572,6 +11581,8 @@ sub gen_tunnel_rules  {
 # ToDo: Are tunnels between different private contexts allowed?
 sub link_tunnels  {
 
+    my %hub_seen;
+
     # Collect clear-text interfaces of all tunnels.
     my @real_interfaces;
 
@@ -11593,6 +11604,19 @@ sub link_tunnels  {
             for my $crypto_name (@{ $real_hub->{hub} }) {
                 $crypto_name eq $name and $crypto_name = $crypto;
             }
+
+            # Collect managed routers with crypto hub.
+            # Note: Crypto routers are splitted internally into
+            # two nodes. Typically we get get a node with only 
+            # a single crypto interface. 
+            my $router = $real_hub->{router};
+            $router->{managed} or next;
+
+            # Take original router with cleartext interface(s).
+            if (my $orig_router = $router->{orig_router}) {
+                $router = $orig_router;
+            }
+            push @managed_crypto_hubs, $router if not $hub_seen{$router}++;
         }
         push @real_interfaces, @$real_hubs;
 
@@ -11841,9 +11865,11 @@ sub verify_subject_name {
 sub verify_asa_trustpoint {
     my ($router, $crypto) = @_;
     my $isakmp = $crypto->{type}->{key_exchange};
-    $isakmp->{trust_point}
-      or err_msg("Missing 'trust_point' in",
-                 " isakmp attributes for $router->{name}");
+    if ($isakmp->{authentication} eq 'rsasig') {
+        $isakmp->{trust_point} or
+            err_msg("Missing attribute 'trust_point' in",
+                    " $isakmp->{name} for $router->{name}");
+    }
     return;
 }
 
@@ -12015,8 +12041,10 @@ sub expand_crypto  {
 
     # Check for duplicate IDs of different hosts
     # coming into current hardware interface / current device.
-    for my $router (@managed_vpnhub) {
-        my $is_asavpn = $router->{model}->{crypto} eq 'ASA_VPN';
+    for my $router (@managed_crypto_hubs) {
+        my $model = $router->{model};
+        $model->{do_auth} or next;
+        my $is_asavpn = $model->{crypto} eq 'ASA_VPN';
         my %hardware2id2tunnel;
         for my $interface (@{ $router->{interfaces} }) {
             next if not $interface->{ip} eq 'tunnel';
@@ -12039,24 +12067,24 @@ sub expand_crypto  {
         }
     }
 
-    for my $router (@managed_vpnhub) {
+    for my $router (@managed_crypto_hubs) {
         my $crypto_type = $router->{model}->{crypto};
         if ($crypto_type eq 'ASA_VPN') {
             verify_asa_vpn_attributes($router);
+
+            # Move 'trust-point' from radius_attributes to router attribute.
+            my $trust_point = 
+                delete $router->{radius_attributes}->{'trust-point'}
+                or err_msg("Missing 'trust-point' in radius_attributes",
+                           " of $router->{name}");
+            $router->{trust_point} = $trust_point;
         }
         elsif($crypto_type eq 'ASA') {
             for my $interface (@{ $router->{interfaces} }) {
-                next if not $interface->{ip} eq 'tunnel';
-                verify_asa_trustpoint($router, $interface->{cyrpto});
-                last;
+                my $crypto = $interface->{crypto} or next;
+                verify_asa_trustpoint($router, $crypto);
             }
-        }            
-
-        # Move 'trust-point' from radius_attributes to router attribute.
-        my $trust_point = delete $router->{radius_attributes}->{'trust-point'}
-        or err_msg
-            "Missing 'trust-point' in radius_attributes of $router->{name}";
-        $router->{trust_point} = $trust_point;
+        }     
     }
 
     # Hash only needed during expand_group and expand_rules.
@@ -16440,11 +16468,11 @@ sub find_chains  {
 
             my $copied;
             for my $what (qw(src dst)) {
-                my $obj = $rule->{$what};
+                my $orig = my $obj = $rule->{$what};
 
                 # Loopback interface is converted to loopback network,
-                # if other networks with same address exist.
-                # The loopback network is additionally checked below.
+                # because other networks may have this loopback network
+                # as value in {is_identical}.
                 if ($obj->{loopback} && (my $network = $obj->{network})) {
                     if (!($intf_rules && $rules eq $intf_rules && 
                           $what eq 'dst')) 
@@ -16463,13 +16491,14 @@ sub find_chains  {
 
                 # Identical redundancy interfaces.
                 elsif (my $aref = $obj->{redundancy_interfaces}) {
-                    if (!($rules eq $intf_rules && $what eq 'dst')) {
+                    if (!($intf_rules && $rules eq $intf_rules && 
+                          $what eq 'dst')) 
+                    {
                         $obj = $aref->[0];
                     }
                 }
-                else {
-                    next;
-                }
+
+                $obj eq $orig and next;
 
                 # Don't change rules of devices in other NAT domain
                 # where we may have other {is_identical} relation.
@@ -18505,43 +18534,59 @@ sub print_crypto {
     my %ipsec2trans_name;
     for my $ipsec (@ipsec) {
         $transform_count++;
-        my $transform = '';
-        if (my $ah = $ipsec->{ah}) {
-            if ($ah =~ /^(md5|sha)_hmac$/) {
-                $transform .= "ah-$1-hmac ";
+        my $transform_name = "Trans$transform_count";
+        $ipsec2trans_name{$ipsec} = $transform_name;
+        my $isakmp = $ipsec->{key_exchange};
+
+        # IKEv2 syntax for ASA.
+        if ($crypto_type eq 'ASA' and $isakmp->{ike_version} == 2) {
+            print "crypto ipsec ikev2 ipsec-proposal $transform_name\n";
+            if (my $ah = $ipsec->{ah}) {
+                $ah =~ /^(md5|sha)_hmac$/;
+                print " protocol ah $1\n";
             }
-            else {
-                internal_err(
-                    "Unsupported IPSec AH method for $crypto_type: $ah");
+            my $esp_encr;
+            if (not(my $esp = $ipsec->{esp_encryption})) {
+                $esp_encr = 'null';
             }
-        }
-        if (not(my $esp = $ipsec->{esp_encryption})) {
-            $transform .= 'esp-null ';
-        }
-        elsif ($esp =~ /^(aes|des|3des)$/) {
-            $transform .= "esp-$1 ";
-        }
-        elsif ($esp =~ /^aes(192|256)$/) {
-            my $len = $crypto_type eq 'ASA' ? "-$1" : " $1";
-            $transform .= "esp-aes$len ";
-        }
-        else {
-            internal_err("Unsupported IPSec ESP method for $crypto_type: $esp");
-        }
-        if (my $esp_ah = $ipsec->{esp_authentication}) {
-            if ($esp_ah =~ /^(md5|sha)_hmac$/) {
-                $transform .= "esp-$1-hmac";
+            elsif ($esp =~ /^(aes|des|3des)$/) {
+                $esp_encr = $1;
             }
-            else {
-                internal_err("Unsupported IPSec ESP auth. method for",
-                             " $crypto_type: $esp_ah");
+            elsif ($esp =~ /^aes(192|256)$/) {
+                $esp_encr = "aes-$1";
+            }
+            print " protocol esp encryption $esp_encr\n";
+            if (my $esp_ah = $ipsec->{esp_authentication}) {
+                $esp_ah =~ /^(md5|sha)_hmac$/;
+                print " protocol esp integrity $1\n";
             }
         }
 
-        # Syntax is identical for IOS and ASA.
-        my $transform_name = "Trans$transform_count";
-        $ipsec2trans_name{$ipsec} = $transform_name;
-        print "crypto ipsec transform-set $transform_name $transform\n";
+        # IKEv1 syntax of ASA is identical to IOS.
+        else {
+            my $transform = '';
+            if (my $ah = $ipsec->{ah}) {
+                if ($ah =~ /^(md5|sha)_hmac$/) {
+                    $transform .= "ah-$1-hmac ";
+                }
+            }
+            if (not(my $esp = $ipsec->{esp_encryption})) {
+                $transform .= 'esp-null ';
+            }
+            elsif ($esp =~ /^(aes|des|3des)$/) {
+                $transform .= "esp-$1 ";
+            }
+            elsif ($esp =~ /^aes(192|256)$/) {
+                my $len = $crypto_type eq 'ASA' ? "-$1" : " $1";
+                $transform .= "esp-aes$len ";
+            }
+            if (my $esp_ah = $ipsec->{esp_authentication}) {
+                if ($esp_ah =~ /^(md5|sha)_hmac$/) {
+                    $transform .= "esp-$1-hmac";
+                }
+            }
+            print "crypto ipsec transform-set $transform_name $transform\n";
+        }
     }
 
     # Collect tunnel interfaces attached to one hardware interface.
@@ -18660,10 +18705,21 @@ sub print_crypto {
             }
 
             my $transform_name = $ipsec2trans_name{$ipsec};
-            my $extra_ikev1 =
-              ($crypto_type eq 'ASA' && $model->{v8_4}) ? 'ikev1 ' : '';
-            print "$prefix set ${extra_ikev1}transform-set $transform_name\n";
-
+            if ($crypto_type eq 'ASA') {
+                if ($isakmp->{ike_version} == 2) {
+                    print "$prefix set ikev2 ipsec-proposal $transform_name\n";
+                }
+                elsif ($model->{v8_4}) {
+                    print "$prefix set ikev1 transform-set $transform_name\n";
+                }
+                else {
+                    print "$prefix set transform-set $transform_name\n";
+                }
+            }
+            else {
+                print "$prefix set transform-set $transform_name\n";
+            }                
+                
             if (my $pfs_group = $ipsec->{pfs_group}) {
                 print "$prefix set pfs group$pfs_group\n";
             }
@@ -18672,8 +18728,8 @@ sub print_crypto {
 
                 # Don't print default value for backend IOS.
                 if (not($lifetime == 3600 and $crypto_type eq 'IOS')) {
-                    print "$prefix set security-association"
-                      . " lifetime seconds $lifetime\n";
+                    print("$prefix set security-association",
+                          " lifetime seconds $lifetime\n");
                 }
             }
 
@@ -18684,21 +18740,25 @@ sub print_crypto {
                                                       $no_nat_set));
                     print "tunnel-group $peer_ip type ipsec-l2l\n";
                     print "tunnel-group $peer_ip ipsec-attributes\n";
-                    if ($authentication eq 'preshare') {
-                        print " ${extra_ikev1}pre-shared-key *****\n";
-                        print " peer-id-validate nocheck\n";
-                    }
-                    elsif ($authentication eq 'rsasig') {
+                    print " peer-id-validate nocheck\n";
+                    if ($authentication eq 'rsasig') {
                         my $trust_point = $isakmp->{trust_point};
-                        print " chain\n";
-                        print " ${extra_ikev1}trust-point $trust_point\n";
-                        if ($model->{v8_4}) {
+                        if ($isakmp->{ike_version} == 2) {
+                            print(" ikev2 local-authentication certificate",
+                                  " $trust_point\n");
+                            print(" ikev2 remote-authentication certificate\n");
+                        }
+                        elsif ($model->{v8_4}) {
+                            print " ikev1 trust-point $trust_point\n";
                             print " ikev1 user-authentication none\n";
                         }
                         else {
+                            print " trust-point $trust_point\n";
                             print " isakmp ikev1-user-authentication none\n";
                         }
                     }
+
+                    # Preshared key is configured manually.
                 }
             }
         }
@@ -19064,6 +19124,7 @@ sub init_protocols {
 sub init_global_vars {
     $start_time = time();
     $error_counter = 0;
+    $abort_immediately = undef;
     $new_store_description = 0;
     for my $pair (values %global_type) {
         %{ $pair->[1] } = ();
@@ -19071,7 +19132,7 @@ sub init_global_vars {
     %interfaces = %hosts = ();
     @managed_routers = @routing_only_routers = @router_fragments = ();
     @virtual_interfaces = @pathrestrictions = ();
-    @managed_vpnhub = @routers = @networks = @zones = @areas = ();
+    @managed_crypto_hubs = @routers = @networks = @zones = @areas = ();
     @natdomains = ();
     %auto_interfaces = ();
     $from_json = undef;
@@ -19088,6 +19149,7 @@ sub init_global_vars {
     %unknown2services = %unknown2unknown = ();
     %supernet_rule_tree = %missing_supernet = ();
     %smaller_prt = ();
+    %known_log = %key2log = ();
     init_protocols();
     return;
 }

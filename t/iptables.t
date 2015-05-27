@@ -218,6 +218,81 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'loopback interface, loopback network and NAT with same IP';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h = {ip = 10.1.2.11;}
+}
+
+router:u = {
+ interface:n2;
+ interface:n1;
+ interface:n3 = { ip = 10.1.3.1;}
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n3 = { ip = 10.1.3.2; hardware = eth1; }
+ interface:n4 = { ip = 10.1.4.1; hardware = eth0; }
+}
+
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r2 = {
+ managed;
+ model = Linux;
+ interface:n4 = { ip = 10.1.4.2; hardware = eth0; bind_nat = nat1; }
+ interface:lo = { ip = 1.1.1.1; hardware = eth1; loopback; }
+ interface:n5 = { ip = 10.1.5.17; hardware = eth1; }
+}
+
+network:n5 = {
+ ip = 10.1.5.16/28;
+ nat:nat1 = { ip = 1.1.1.1/32; dynamic; }
+}
+
+protocol:Ping_Net = icmp 8, src_net, dst_net;
+
+service:t1 = {
+ user = network:n5;
+ permit src = user; dst = network:n1; prt = icmp 8;
+}
+service:t2 = {
+ user = interface:r2.lo;
+ permit src = user; dst = host:h; prt = tcp 2200, protocol:Ping_Net;
+}
+END
+
+$out = <<'END';
+-- r1
+# [ ACL ]
+:c1 -
+:c2 -
+-A c1 -j ACCEPT -d 10.1.2.0/24
+-A c1 -j ACCEPT -d 10.1.1.0/24
+-A c2 -j ACCEPT -d 10.1.2.11 -p tcp --dport 2200
+-A c2 -g c1 -d 10.1.0.0/22 -p icmp --icmp-type 8
+--
+:eth1_self -
+-A INPUT -j eth1_self -i eth1
+--
+:eth0_self -
+-A INPUT -j eth0_self -i eth0
+:eth0_eth1 -
+-A FORWARD -j eth0_eth1 -i eth0 -o eth1
+-A eth0_eth1 -g c2 -s 1.1.1.1
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Different chains for pairs of input/ouptut interfaces';
 ############################################################
 
