@@ -8,6 +8,23 @@ layout: default
 {:toc}
 </div>
 
+# Technical documentation
+
+On this page, we are going to develop a technical netspoc
+ducumentation that is supposed to describe how Nespoc works
+internally. The structure of this documentation will follow the
+Netspoc programm procedure, providing a general overview over the
+programm as well as orientation when joining in the source
+code. Network architectures are represented and processed by Netspoc
+as graphs, with routers and networks as nodes and interfaces as
+edges. For better understanding, several pictures are included in this
+documentation, following using symbols from the legend below. As you
+might have noticed, there is no symbol for interfaces included. As
+interfaces are needed whenecver a netis connected with a router, we
+omitted their explicit representation.
+
+{% include image.html src="./images/legend.png" description="Zones contain networks and unmanaged routers." %}
+
 ## `set_zone` - Preparing zones and areas
 
 Netspoc combines networks connected by unmanaged routers in
