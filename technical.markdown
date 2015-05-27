@@ -14,11 +14,11 @@ On this page, we are going to develop a technical netspoc
 documentation describing how Nespoc works
 internally. The structure of this documentation will follow the
 Netspoc programm procedure, providing a general overview over the
-programm as well as orientation when joining in the source
+programm as well as orientation when contributing to the source
 code. Network architectures are represented and processed by Netspoc
 as graphs, with routers and networks as nodes and interfaces as
 edges. For better understanding, several pictures are included in this
-documentation, using symbols from the legend below. As you
+documentation, using symbols depicted below. As you
 might have noticed, there is no symbol for interfaces included. As
 interfaces are needed whenever a network is connected to a router, we
 omitted their explicit representation.
@@ -30,24 +30,31 @@ omitted their explicit representation.
 Netspoc combines networks connected by unmanaged routers in
 zones. These zones, containing networks and unmanaged routers as
 elements, are delimited by zone interfaces of managed or semi-manged
-routers. Every zone element is part of exactly one zone. Zones help to
-speed up the traversal of the graph: As filtering takes place only at
-zone delimiting interfaces, zones can be traversed instead of single
-networks.
+routers. Every zone element is part of exactly one zone. Partitioning
+the network topology into zones results in several benefits: Zones can
+be used to define attributes for all networks located in a zone, users
+may refer to zones as source or destination in rule definition and
+finally, zones help to speed up the traversal of the graph. As
+filtering takes place only at zone delimiting interfaces, zones can be
+traversed instead of single networks. Second, zones can be used to
+define attributes for all networks located in a zone, and finally,
+users may refer to zones as source or destination in rule definition
 
 {% include image.html src="./images/zone.png" description="Zones contain networks and unmanaged routers." %}
 
 Areas, defined in Netspoc topology by the keyword `area`, span a
-certain part of the network topology, which is delimited by the areas
-border definitions. The borders of an area refer to interfaces of
-managed routers. While a `border` definition includes the adjacent zone but
-excludes the adjacent router from the area, an `inclusive_border` definition
-includes the router but not the zone.  Areas are used to define router attributes
-and NAT information for all included managed routers and networks.
+certain part of the network topology, which is enclosed by the areas
+borders. The borders of an area refer to interfaces of managed
+routers. While a `border` definition includes the adjacent zone but
+excludes the adjacent router from the area, an `inclusive_border`
+definition includes the router but not the zone. Areas are used to
+define attributes and NAT information for all included managed routers
+and networks and may be used by the user as source or destination in
+rule definition.
 
     area:a1 = {
-      border = interface:r1.n1;
-      inclusive_border = interface:r3,n2;
+      border = interface:R1.n1;
+      inclusive_border = interface:R3.n2;
     }      
 
 {% include image.html src="./images/area.png" description="Areas contain security zones and managed routers." %}
@@ -59,10 +66,9 @@ As every network is contained by exactly one zone, all networks are
 processed, creating a new zone object for every network without a
 zone. Then a depth first search is conducted beginning at the network
 and stopping at managed or semi-managed routers, to collect the zones
-elements and border interfaces in the zone object. References to the
-zone are set in the collected objects.  During the traversal,
-attributes defining the zones properties are derived from its
-networks.
+elements and border interfaces of a zone object. References to the
+zone are set in the collected objects. Zone attributes are set
+according to the properties of the included networks.
 
                 
 ### Identifying zone clusters
@@ -74,10 +80,10 @@ zones in rules.  From users point of view, security zones look
 slightly different from the Netspoc representation though:
 Semi-managed routers, which are either unmanaged routers with a path
 restriction or managed routers without filtering, appear as unmanaged
-routers to the user. When a user refers to a security zone then, a set
-of networks is supposed, that is internally represented as zone cluster,
-containing zones connected by semi-managed routers and delimited by
-managed routers.
+routers to the user. Thus, when a user refers to a security zone, a
+set of networks is supposed that is internally represented as zone
+cluster. Zone clusters contain zones connected by semi-managed routers
+and delimited by managed routers.
 
 {% include image.html src="./images/zone_cluster.png" description="Zones: Netspoc representation vs. user view." %}
 
@@ -136,7 +142,7 @@ firewalls interface with IP = 10.1.1.1. or the network with IP =
 why in router ACLs, access to the interface must be denied if a
 permission for the network is given. As Netspoc uses the term `router`
 for both routers and firewalls, router devices that need interface
-denial in their ACLs are labeled with the `need-protect` flag.
+denial in their ACLs are labeled with the `need_protect` flag.
 
 When connected by crosslink networks, some of the interfaces of
  `need_protect` labeled routers will not generate ACLs, relying on the
@@ -157,12 +163,12 @@ cluster.
 
 ### Preparing area set up
 
-Area borders are defined in the area objects. To set up the areas,
-Netspoc needs the information whether an interface is a border or not
-to be available at the interface objects also. Therefore, references to the
-limited area are set in border interfaces now. By the way, routers
-that are included in an area via `inclusive_border` are collected
-for later use.
+The border interfaces of an area are referenced in the area object. To
+set up the areas, Netspoc needs the information whether an interface
+is a border or not, to be available at the interface objects
+also. Therefore, references to the limited area are set in border
+interfaces now. Along the way, routers that are included in an area via
+`inclusive_border` are collected for later use.
 
 ### Setting up areas
 
@@ -180,12 +186,12 @@ the area object, and references to the area are stored in its zones
 and managed routers. If an area object contains no zones, it is deleted.
 Netspoc checks for proper border definitions during area set up.
 
-Areas may be defined by the user as anchor areas, that
-is, without border definitions, but an anchor network instead. For
-these areas, depth first search starts at the zone containing the anchor
-network and stops at interfaces that are borders to other
-areas. References of these interfaces are stored in the anchor area
-object as borders.
+Areas may be defined by the user as anchor areas, that is, without
+border definitions, but an anchor network and the attribute
+`auto_border` instead. For these areas, depth first search starts at
+the zone containing the anchor network and stops at interfaces that
+are borders to other areas. References of these interfaces are stored
+in the anchor area object as borders.
 
 
 ### Finding subset relations
@@ -208,12 +214,12 @@ Netspoc will emit an error message.
 Of course, proper subset relations have to hold not only for zones,
 but also for routers. For most of the routers, proper subset relation
 has been assured already by proving subset relations for the
-surrounding zones. If outers are placed at the border of an area
+surrounding zones. If routers are placed at the border of an area
 though, subset relations can be violated: 
 
 {% include image.html src="./images/areas_overlapping_router.png" description="Overlapping areas with router as intersection." %}
 
-**Routers as intersection.** to prevent overlapping areas with a single
+**Routers as intersection.** To prevent overlapping areas with a single
 router as intersection, every router contained via `inclusive_border`
 is processed: each of the areas containing a certain router as
 `inclusive_border` is compared with the area next in size to check
@@ -234,13 +240,13 @@ the bigger area also.
 ### Linking aggregates
 
 Users may use the keyword `any` to define aggregates. Aggregates refer
-to a set of networks and can be used as source or destination in
-rules. Internally, aggregates are therefore represented by network
-objects with an `is_aggregate` flag set. Aggregates include either
-all networks of a zone cluster or, if a specific IP mask is defined,
-just those networks of the zone cluster matching the aggregates IP
-mask. The zone cluster an aggregate refers to is specified by its link
-network, which is a network inside the cluster.
+to a set of IP addresses inside a zone and can be used as source or
+destination in rules. Internally, aggregates are represented by
+network objects with an `is_aggregate` flag set. Aggregates include
+either all networks of a zone cluster or, if a specific IP mask is
+defined, just those networks of the zone cluster matching the
+aggregates IP mask. The zone cluster an aggregate refers to is
+specified by its link network, which is a network inside the cluster.
 
     any:aggregate1 = {link = network:networkA;}
     any:aggregate2 = {link = network:networkB; ip = 10.2.3.0/24;}
