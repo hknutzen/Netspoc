@@ -9740,7 +9740,7 @@ sub inherit_router_attributes {
 
 sub nat_equal {
     my ($nat1, $nat2) = @_;
-    for my $attr (qw(ip mask dynamic hidden identify)) {
+    for my $attr (qw(ip mask dynamic hidden identity)) {
         return if defined $nat1->{$attr} xor defined $nat2->{$attr};
         next if !defined $nat1->{$attr};
         return if $nat1->{$attr} ne $nat2->{$attr};
