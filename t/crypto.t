@@ -584,18 +584,6 @@ END
 $out = <<'END';
 --asavpn
 no sysopt connection permit-vpn
-crypto isakmp policy 1
- authentication pre-share
- encryption 3des
- hash sha
- group 2
- lifetime 86400
-crypto isakmp policy 2
- authentication rsa-sig
- encryption aes-256
- hash sha
- group 15
- lifetime 43200
 crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
 crypto ipsec transform-set Trans2 esp-aes-256 esp-sha-hmac
 access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
@@ -620,7 +608,6 @@ tunnel-group 172.16.2.2 type ipsec-l2l
 tunnel-group 172.16.2.2 ipsec-attributes
  peer-id-validate nocheck
 crypto map crypto-outside interface outside
-crypto isakmp enable outside
 --
 object-group network g0
  network-object 10.99.1.0 255.255.255.0
@@ -644,18 +631,6 @@ $in =~ s/ike_version = 1/ike_version = 2/;
 $out = <<'END';
 --asavpn
 no sysopt connection permit-vpn
-crypto isakmp policy 1
- authentication pre-share
- encryption 3des
- hash sha
- group 2
- lifetime 86400
-crypto isakmp policy 2
- authentication rsa-sig
- encryption aes-256
- hash sha
- group 15
- lifetime 43200
 crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
 crypto ipsec ikev2 ipsec-proposal Trans2
  protocol esp encryption aes-256
@@ -682,7 +657,6 @@ tunnel-group 172.16.2.2 type ipsec-l2l
 tunnel-group 172.16.2.2 ipsec-attributes
  peer-id-validate nocheck
 crypto map crypto-outside interface outside
-crypto isakmp enable outside
 --
 object-group network g0
  network-object 10.99.1.0 255.255.255.0
@@ -823,18 +797,6 @@ END
 $out = <<'END';
 --asavpn
 no sysopt connection permit-vpn
-crypto isakmp policy 1
- authentication rsa-sig
- encryption 3des
- hash sha
- group 2
- lifetime 86400
-crypto isakmp policy 2
- authentication rsa-sig
- encryption aes-256
- hash sha
- group 15
- lifetime 43200
 crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
 crypto ipsec ikev2 ipsec-proposal Trans2
  protocol esp encryption aes-256
@@ -869,7 +831,6 @@ crypto ca certificate map vpn2@example.com 10
  subject-name attr ea eq vpn2@example.com
 tunnel-group-map vpn2@example.com 10 vpn2@example.com
 crypto map crypto-outside interface outside
-crypto isakmp enable outside
 END
 
 test_run($title, $in, $out);
@@ -1138,7 +1099,6 @@ tunnel-group 1.2.3.129 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
  ikev1 user-authentication none
 crypto map crypto-outside interface outside
-crypto isakmp enable outside
 --
 access-list outside_in extended permit tcp 10.10.10.0 255.255.255.0 host 10.1.1.111 eq 80
 access-list outside_in extended deny ip any any
@@ -1257,12 +1217,6 @@ $in =~ s/#  ip/  ip/;
 $out = <<'END';
 --asavpn
 no sysopt connection permit-vpn
-crypto isakmp policy 1
- authentication rsa-sig
- encryption aes-256
- hash sha
- group 2
- lifetime 43200
 crypto ipsec transform-set Trans1 esp-aes-256 esp-sha-hmac
 access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
 crypto map crypto-outside 1 set peer 1.1.1.1
@@ -1276,7 +1230,6 @@ tunnel-group 1.1.1.1 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
  ikev1 user-authentication none
 crypto map crypto-outside interface outside
-crypto isakmp enable outside
 --
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside

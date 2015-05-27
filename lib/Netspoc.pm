@@ -18780,6 +18780,10 @@ sub print_crypto {
 
     my $isakmp_count = 0;
     for my $isakmp (@isakmp) {
+
+        # Only print isakmp for IOS. Approve for ASA will ignore it anyway.
+        $crypto_type eq 'IOS' or next;
+
         $isakmp_count++;
         print "crypto isakmp policy $isakmp_count\n";
 
@@ -18788,7 +18792,7 @@ sub print_crypto {
         $authentication =~ s/rsasig/rsa-sig/;
 
         # Don't print default value for backend IOS.
-        if (not($authentication eq 'rsa-sig' and $crypto_type eq 'IOS')) {
+        if (not($authentication eq 'rsa-sig')) {
             print " authentication $authentication\n";
         }
 
@@ -18806,7 +18810,7 @@ sub print_crypto {
         my $lifetime = $isakmp->{lifetime};
 
         # Don't print default value for backend IOS.
-        if (not($lifetime == 86400 and $crypto_type eq 'IOS')) {
+        if (not($lifetime == 86400)) {
             print " lifetime $lifetime\n";
         }
     }
@@ -18905,7 +18909,6 @@ sub print_crypto {
         }
         elsif ($crypto_type eq 'ASA') {
             print "crypto map $map_name interface $hw_name\n";
-            print "crypto isakmp enable $hw_name\n";
         }
     }
     return;
