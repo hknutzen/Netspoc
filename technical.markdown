@@ -18,7 +18,7 @@ speed up the traversal of the graph: As filtering takes place only at
 zone delimiting interfaces, zones can be traversed instead of single
 networks.
 
-{% include image.html src="./zone.png" description="Zones contain networks and unmanaged routers." %}
+{% include image.html src="./images/zone.png" description="Zones contain networks and unmanaged routers." %}
 
 Areas, defined in Netspoc topology by the keyword `area`, span a
 certain part of the network topology, which is delimited by the areas
@@ -33,7 +33,7 @@ and nat information for all included managed routers and networks.
       inclusive_border = interface:r3,n2;
     }      
 
-{% include image.html src="./area.png" description="Areas contain security zones and managed routers." %}
+{% include image.html src="./images/area.png" description="Areas contain security zones and managed routers." %}
 
 
 ### Creating zones
@@ -65,7 +65,7 @@ to a security zone then, a set of networks is meant, that is
 internally represented as zone cluster, containing zones
 connected by semi-managed routers and delimited by managed routers.
 
-{% include image.html src="./zone_cluster.png" description="Zones: Netspoc representation vs. user view." %}
+{% include image.html src="./images/zone_cluster.png" description="Zones: Netspoc representation vs. user view." %}
 
 For zone cluster generation zones are processed. If a zone is found
 that is not included in a cluster, a new cluster object is
@@ -110,7 +110,7 @@ clustered routers have equal filter types though. Otherwise, interfaces of
 routers with stronger filter types still have to filter information
 coming from routers with weaker filter types, that let pass more information.
 
-{% include image.html src="./crosslink.png" description="Routers connected by crosslink network." %}
+{% include image.html src="./images/crosslink.png" description="Routers connected by crosslink network." %}
 
 Netspoc processes every crosslink network to identify the adjacent
 routers with weakest filter strength, tagging the hardware of the appropriate
@@ -140,7 +140,7 @@ crosslinked routers to do the filtering. Thus, these routers must be
 informed about the interfaces of the `need_protect`-labeled router to
 include appropriate deny-clauses in their ACLs.
 
-{% include image.html src="./crosslink_with_need_protect.png" description="need_protect Router connected by crosslink network." %}
+{% include image.html src="./images/crosslink_with_need_protect.png" description="need_protect Router connected by crosslink network." %}
 
 Netspoc identifies clusters of crosslinked routers containing at least
 one router labeled with `need_protect` using depth first search,
@@ -189,7 +189,7 @@ area. Zones and managed routers included by more than one area always
 inherit the attributes of the innermost area. For this reason,
 intersection of two areas can not be allowed.
 
-{% include image.html src="./nested_area.png" description="Area 2 is a proper subset of area 1." %}
+{% include image.html src="./images/nested_area.png" description="Area 2 is a proper subset of area 1." %}
 
 Netspoc detects subset relations by processing every zone contained by
 one or more areas, identifying all areas containing the zone. Then,
@@ -205,7 +205,7 @@ has been assured already by proving subset relations for the
 surrounding zones. If the routers are placed at the border of an area
 though, subset relations can be violated: 
 
-{% include image.html src="./areas_overlapping_router.png" description="Overlapping areas with router as intersection." %}
+{% include image.html src="./images/areas_overlapping_router.png" description="Overlapping areas with router as intersection." %}
 
 **Routers as intersection.** to prevent overlapping areas with a single
 router as intersection, every router contained via `inclusive_border`
@@ -215,7 +215,7 @@ whether every zone inside the smaller area is also contained in the
 bigger one. If intersecting areas are found, Netspoc will throw an
 error.
 
-{% include image.html src="./areas_overlapping_router2.png" description="Wrong border definition of router violates proper subset relation ." %}
+{% include image.html src="./images/areas_overlapping_router2.png" description="Wrong border definition of router violates proper subset relation ." %}
 
 **Routers with wrong border classification.** It might happen that
 areas forming a proper subset relation regarding their zones are
@@ -274,11 +274,3 @@ with NAT definitions and passes them to each of the zones networks. If
 a NAT attribute of the zone is already set in a network, the networks
 NAT attribute is not overwritten, but a warning is emitted if the NAT
 attributes values are equal for both zone and network.
-
-
-* * *
-crosslink networks:
-(filtertypes, should probably be placed elsewhere:
-`primary`/`full`>`standard`>`secondary`>`local`>`local_secondary`).
-
-* no_in_acl: ACL is not generated at the zone interfaces but ACL information is contained in the ACL of the other interfaces of the corresponding router instead. 
