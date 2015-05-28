@@ -8,6 +8,8 @@ layout: default
 
 [Policy language](language.html)
 
+[Technical documentation](technical.html)
+
 # Manual pages
 
 [netspoc](https://github.com/hknutzen/Netspoc/blob/master/pod-links/netspoc.pod#___top)
