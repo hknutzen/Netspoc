@@ -18,10 +18,10 @@ programm as well as orientation when contributing to the source
 code. Network architectures are represented and processed by Netspoc
 as graphs, with routers and networks as nodes and interfaces as
 edges. For better understanding, several pictures are included in this
-documentation, using symbols depicted below. As you
+documentation, using the symbols depicted below. As you
 might have noticed, there is no symbol for interfaces included. As
 interfaces are needed whenever a network is connected to a router, we
-omitted their explicit representation.
+omit their explicit representation.
 
 {% include image.html src="./images/legend.png" description="Legend of used symbols." %}
 
@@ -36,9 +36,7 @@ be used to define attributes for all networks located in a zone, users
 may refer to zones as source or destination in rule definition and
 finally, zones help to speed up the traversal of the graph. As
 filtering takes place only at zone delimiting interfaces, zones can be
-traversed instead of single networks. Second, zones can be used to
-define attributes for all networks located in a zone, and finally,
-users may refer to zones as source or destination in rule definition
+traversed instead of single networks.
 
 {% include image.html src="./images/zone.png" description="Zones contain networks and unmanaged routers." %}
 
