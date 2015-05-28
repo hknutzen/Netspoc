@@ -8894,7 +8894,7 @@ sub find_subnets_in_nat_domain {
 
 #############################################################################
 # Purpose  : Moves attribute 'no_in_acl' from interfaces to hardware because 
-#            ACLs operate on hardware, not on logic. Marks interfaces needing 
+#            ACLs operate on hardware, not on logic. Marks hardware needing 
 #            outgoing ACLs.
 # Comments : Not more than 1 'no_in_acl' interface/router allowed.
 sub check_no_in_acl  {
@@ -8996,7 +8996,7 @@ sub cluster_crosslink_routers {
         %cluster = ();
         $walk->($router);
 
-        # Collect all cluster interfaces belonging to need_protect routers...
+        # Collect all interfaces belonging to need_protect routers of cluster...
         my @crosslink_interfaces =
           grep { !$_->{vip} }
           map { @{ $_->{interfaces} } }
@@ -9092,7 +9092,7 @@ sub check_crosslink  {
           " at routers connected by\n crosslink $network->{name}",
           " must be border of the same security zone";
     }
-    cluster_crosslink_routers \%crosslink_routers;#meike: diese funktion woanders aufrufen!
+    return \%crosslink_routers;
 }
 
 # Find cluster of zones connected by 'local' or 'local_secondary' routers.
@@ -9261,7 +9261,7 @@ sub add_managed_hosts_to_aggregate {
 ####################################################################
 
 ##############################################################################
-# Purpose  : Link aggragate and zone via references in both objects, set 
+# Purpose  : Link aggregate and zone via references in both objects, set 
 #            aggregate properties according to those of the linked zone.
 #            Store aggregates in @networks (providing all srcs and dsts).
 sub link_aggregate_to_zone {
@@ -9443,13 +9443,12 @@ sub link_aggregates {
 
     # add aggregate to all zones in the zone cluster
     for my $aggregate (@aggregates_in_cluster) {
-        duplicate_aggregate_to_cluster($aggregate);#TODO: mehrfach aufgerufen
+        duplicate_aggregate_to_cluster($aggregate);
     }
     return;
 }
 ##############################################################################
-#TODO: diese funktion wird von unterschiedlichen stellen aufgerufen!!
-# Parameter: 
+# Parameter: $aggregate object reference, $implicit flag 
 # Purpose  : Create an aggregate object for every zone inside the zones cluster
 #            containing the aggregates link-network.
 # Comments : From users point of view, an aggregate refers to networks of a zone
@@ -9457,9 +9456,8 @@ sub link_aggregates {
 #            networks inside a zone. Therefeore, every zone inside a cluster 
 #            gets its own copy of the defined aggregate to collect the zones 
 #            networks matching the aggregates IP address.
-#TODO: Was ist damit gemeint?
-# Aggregate may be a non aggregate network, 
-# e.g. a network with ip/mask 0/0.
+# TDOD     : Aggregate may be a non aggregate network, 
+#            e.g. a network with ip/mask 0/0. ??
 sub duplicate_aggregate_to_cluster {
     my ($aggregate, $implicit) = @_;
     my $cluster = $aggregate->{zone}->{zone_cluster};
@@ -9558,14 +9556,10 @@ sub get_cluster_aggregates {
         map { $_->{ipmask2aggregate}->{$key}||() } @{ $zone->{zone_cluster} };
 }
 
-# loopback networks are referenced
-# though, because they are needed for routing. zone objects inherit
-# their private status from the included networks.
-# meike, das kann hier so nicht bleiben!
 ###############################################################################
-# Purpose  : Collects all elements (networks, unmanaged routers, interfaces) ofa
-#            zone object and references the zone in its elements. Sets zone 
-#            property flags.
+# Purpose  : Collects all elements (networks, unmanaged routers, interfaces) of
+#            a zone object and references the zone in its elements. Sets zone 
+#            property flags and private status.
 # Comments : Unnumbered and tunnel networks are not referenced in zone objects,
 #            as they are no valid src or dst.
 sub set_zone1 {
@@ -9601,7 +9595,7 @@ sub set_zone1 {
     }
 
     # Set zone private status (attribute will be removed if value is 'public')
-    $zone->{private} = $private1;# heinz, das wird ständig neu gesetzt?
+    $zone->{private} = $private1;# TODO: is set in every iteration. else clause?
 
     # Proceed with adjacent elements...
     for my $interface (@{ $network->{interfaces} }) {        
@@ -9773,10 +9767,10 @@ sub inherit_router_attributes {
             
             next if $key eq 'owner'; # Owner is handled in propagate_owners.
 
-            # Warn, if attribute was already (router or smaller area definition)
+            # if attribute exists in router (router or smaller area definition)
             my $val = $attributes->{$key};
             if (my $r_val = $router->{$key}) {
-                if (   $r_val eq $val 
+                if (   $r_val eq $val  # warn, if attributes are equal
                     || ref $r_val eq 'ARRAY' && ref $val eq 'ARRAY' 
                     && aref_eq($r_val, $val)) 
                 {
@@ -9786,7 +9780,7 @@ sub inherit_router_attributes {
                 }
             }
 
-            # ...add attribute to the router object otherwise.
+            # Add attribute to the router object if not yet set.
             else {
                 $router->{$key} = $val;
             }
@@ -9796,13 +9790,7 @@ sub inherit_router_attributes {
 }
 
 ###############################################################################
-# TODO: NAT storage information - place this elsewhere
-# NAT is defined like this:
-# network:n1 = {nat:nat_name = {nat_attribute, e.g. hidden}; ...}
-# nat_name is then used for the keys of the internal nat hash ofarea or zone, 
-# having hashes as values. The keys of these hashes are the nat_attributes.
-###############################################################################
-#
+# Purpose : Return an error if the nat hashes are equal
 sub nat_equal {
     my ($nat1, $nat2) = @_;
     
@@ -9859,8 +9847,8 @@ sub inherit_area_nat {
 }
 
 ###############################################################################
-# Purpose : Assure that areas are processed in the right order, distributes the areas router attributes to their managed routers.   
-#TODO
+# Purpose : Assure that areas are processed in the right order and distribute 
+#           area attributes to the networks and managed routers.   
 sub inherit_attributes_from_area {
 
     # Areas can be nested. Proceed from small to larger ones.
@@ -9927,9 +9915,12 @@ sub inherit_nat_from_zone {
 ##############################################################################
 # Purpose  : Create a new zone object for every network without a zone
 sub set_zones {
-    # It gets name of corresponding aggregate with ip 0/0. ??
+
+    # Process networks without a zone
     for my $network (@networks) {
         next if $network->{zone};
+
+        # Create zone object with name of corresponding aggregate and ip 0/0.
         my $name = "any:[$network->{name}]";
         my $zone = new('Zone', name => $name, networks => []);
         push @zones, $zone;
@@ -10043,7 +10034,7 @@ sub set_areas {
             my $start;
             my $obj1;
 
-            # Collect all area delimiting interfaces
+            # Collect all area delimiting interfaces in border lookup array
             for my $attr (qw(border inclusive_border)) {
                 my $borders = $area->{$attr} or next;
                 @{$lookup}{@$borders} = @$borders;
@@ -10091,7 +10082,7 @@ sub find_subset_relations {
     for my $zone (@zones) {
         $zone->{areas} or next;
 
-        # Sort by zone containing areas by ascending size
+        # Sort areas containing zone by ascending size
         my @areas = sort({ @{ $a->{zones} } <=> @{ $b->{zones} } ||
                            $a->{name} cmp $b->{name} }#equal size? sort by name 
                          values %{ $zone->{areas} }) or next; # Skip empty hash.
@@ -10202,8 +10193,9 @@ sub set_zone {
     progress('Preparing security zones and areas');
     set_zones();
     cluster_zones();
-    check_no_in_acl(); #meike - gehört nicht zu zonen & areas? 
-    check_crosslink(); #meike - gehört nicht zu zonen & areas?
+    check_no_in_acl(); #TODO: place somewhere else?  
+    my $crosslink_routers = check_crosslink(); #TODO: place somewhere else?
+    cluster_crosslink_routers($crosslink_routers); #TODO: place somewhere else?
     my $has_inclusive_borders = prepare_area_borders();
     set_areas();
     find_subset_relations();
