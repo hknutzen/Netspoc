@@ -6,6 +6,7 @@ use Test::More;
 use Test::Differences;
 use lib 't';
 use Test_Netspoc;
+use Test_Group;
 
 my ($title, $in, $out, $topo);
 
@@ -102,6 +103,99 @@ Error: Duplicate area:a2 and area:a2x
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Secondary interface as area border';
+############################################################
+
+$in = $topo . <<'END';
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:asa3 = {
+ managed;
+ model = ASA;
+ interface:n2 = { 
+  ip = 10.1.2.3; secondary:2 = { ip = 10.1.2.4; } hardware = vlan2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = vlan4; }
+}
+
+area:a1 = { border = interface:asa3.n2.2; }
+group:g1 = network:[area:a1];
+END
+
+$out = <<'END';
+10.1.1.0/24	network:n1
+10.1.2.0/24	network:n2
+10.1.3.0/24	network:n3
+END
+
+test_group($title, $in, 'group:g1', $out);
+
+############################################################
+$title = 'Secondary interface with name = virtual as border';
+############################################################
+
+$in = $topo . <<'END';
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:asa3 = {
+ managed;
+ model = ASA;
+ interface:n2 = { 
+  ip = 10.1.2.3; secondary:virtual = { ip = 10.1.2.4; } hardware = vlan2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = vlan4; }
+}
+
+area:a1 = { border = interface:asa3.n2.virtual; }
+group:g1 = network:[area:a1];
+END
+
+$out = <<'END';
+10.1.1.0/24	network:n1
+10.1.2.0/24	network:n2
+10.1.3.0/24	network:n3
+END
+
+test_group($title, $in, 'group:g1', $out);
+
+############################################################
+$title = 'Virtual interface as border';
+############################################################
+
+$in = $topo . <<'END';
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:asa3 = {
+ managed;
+ model = ASA;
+ interface:n2 = { 
+   ip = 10.1.2.3; virtual = { ip = 10.1.2.10; } hardware = vlan2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = vlan4; }
+}
+
+router:asa4 = {
+ managed;
+ model = ASA;
+ interface:n2 = { 
+   ip = 10.1.2.4; virtual = { ip = 10.1.2.10; } hardware = vlan2; }
+ interface:n4 = { ip = 10.1.4.2; hardware = vlan4; }
+}
+
+area:a1 = { 
+  border = interface:asa3.n2.virtual,
+           interface:asa4.n2.virtual;
+}
+
+group:g1 = network:[area:a1];
+END
+
+$out = <<'END';
+10.1.1.0/24	network:n1
+10.1.2.0/24	network:n2
+10.1.3.0/24	network:n3
+END
+
+test_group($title, $in, 'group:g1', $out);
 
 ############################################################
 # Changed $topo
