@@ -105,6 +105,23 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Area with auto_border';
+############################################################
+
+$in = $topo . <<'END';
+area:a1 = { border = interface:asa2.n3;}
+area:a2 = {anchor = network:n1; auto_border; }
+group:g1 = network:[area:a2];
+END
+
+$out = <<'END';
+10.1.1.0/24	network:n1
+10.1.2.0/24	network:n2
+END
+
+test_group($title, $in, 'group:g1', $out);
+
+############################################################
 $title = 'Secondary interface as area border';
 ############################################################
 
