@@ -954,5 +954,36 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Aggregate linked to non-network';
+############################################################
 
+$in = <<'END';
+network:Test = { ip = 10.9.1.0/24; }
+router:filter1 = {
+ managed;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = Vlan1; }
+ interface:Trans = { unnumbered; hardware = Vlan2; }
+}
+
+network:Trans = { unnumbered; }
+
+router:filter2 = {
+ managed;
+ model = ASA;
+ interface:Trans = { unnumbered; hardware = Vlan3; }
+ interface:Kunde = { ip = 10.1.1.1; hardware = Vlan4; }
+}
+network:Kunde = { ip = 10.1.1.0/24; }
+
+any:Trans = { link = router:filter2; }
+END
+
+$out = <<'END';
+Error: any:Trans must not be linked to router:filter2
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;
