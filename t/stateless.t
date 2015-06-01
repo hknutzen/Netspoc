@@ -88,6 +88,33 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'UDP source port with unspecified destination port';
+############################################################
+
+$in = $topo . <<'END';
+protocol:ike = udp 69:1-65535;
+service:test = {
+ user = network:x;
+ permit src = user; dst = network:y; prt = protocol:ike;
+}
+END
+
+$out = <<'END';
+--r
+ip access-list extended e0_in
+ deny ip any host 10.2.2.2
+ permit udp 10.1.1.0 0.0.0.255 eq 69 10.2.2.0 0.0.0.255
+ deny ip any any
+--
+ip access-list extended e1_in
+ deny ip any host 10.1.1.1
+ permit udp 10.2.2.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 69
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'UDP source ports';
 ############################################################
 
