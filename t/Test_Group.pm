@@ -19,7 +19,10 @@ sub test_group {
     print $in_fh $input;
     close $in_fh;
 
-    my $cmd = "$^X -I lib bin/print-group $options $filename '$group'";
+    # Propagate options to perl process.
+    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
+    my $cmd = 
+        "$^X $perl_opt -I lib bin/print-group $options $filename '$group'";
     open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
     # Undef input record separator to read all output at once.
