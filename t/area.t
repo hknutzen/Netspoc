@@ -109,7 +109,25 @@ $title = 'Area with auto_border';
 ############################################################
 
 $in = $topo . <<'END';
-area:a1 = { border = interface:asa2.n3;}
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:asa3 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.3; hardware = vlan2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = vlan4; }
+}
+
+router:asa4 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.3; hardware = vlan2; }
+ interface:n4 = { ip = 10.1.4.2; hardware = vlan4; }
+}
+
+area:a1 = { border = interface:asa3.n4;
+            inclusive_border = interface:asa2.n2; 
+}
 area:a2 = {anchor = network:n1; auto_border; }
 group:g1 = network:[area:a2];
 END
