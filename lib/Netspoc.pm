@@ -19013,7 +19013,10 @@ sub print_crypto {
             if (my $esp_ah = $ipsec->{esp_authentication}) {
                 $transform .= "esp-$esp_ah-hmac";
             }
-            print "crypto ipsec transform-set $transform_name $transform\n";
+            my $prefix = ($crypto_type eq 'ASA' and $model->{v8_4})
+                       ? 'crypto ipsec ikev1'
+                       : 'crypto ipsec';
+            print "$prefix transform-set $transform_name $transform\n";
         }
     }
 

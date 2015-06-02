@@ -1217,7 +1217,7 @@ $in =~ s/#  ip/  ip/;
 $out = <<'END';
 --asavpn
 no sysopt connection permit-vpn
-crypto ipsec transform-set Trans1 esp-aes-256 esp-sha-hmac
+crypto ipsec ikev1 transform-set Trans1 esp-aes-256 esp-sha-hmac
 access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
 crypto map crypto-outside 1 set peer 1.1.1.1
 crypto map crypto-outside 1 match address crypto-outside-1

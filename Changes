@@ -1,5 +1,24 @@
 {{$NEXT}}
 
+ - Changes in generated crypto code for ASA:
+   - Added support for dynamic crypto map.
+     Dynamic crypto map is generated at crypto hub, 
+     if corresponding crypto spoke has no known IP address.
+   - No longer print "chain" command in tunnel-group.
+   - Added isakmp attribute 'ike_version = 2' 
+     to activate IKEv2 in site-to-site VPN.
+   - ISAKMP commands are not printed any longer, because
+     Netspoc-Approve will ignore them anyway.
+ - General crypto changes:   
+   - Keywords sha256, sha384, sha512 are accepted now.
+   - Syntax change: Use md5, sha instead of md5_hmac, sha_hmac.
+   - DH groups 14, 15, 16, 19, 20, 21, 24 are accepted now.
+ - Model name 'IOS_FW' isn't supported any longer. Use 'IOS, FW' instead.
+ - No longer support attribute no_in_acl at zone and std_in_acl at router.
+ - Src-range is stored in rules again instead of protocol.
+   This fixes issue #11, but order of ACL lines may change.
+ - Protocol having modifiers is no longer valid in "general_permit".
+
 3.065     2015-03-13 17:59:49+01:00 Europe/Berlin
 
  - Programs 'remove-from-netspoc' and 'add-to-netspoc' have been added.
