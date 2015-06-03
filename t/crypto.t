@@ -679,7 +679,7 @@ $in = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
- esp_authentication = sha_hmac;
+ esp_authentication = sha384;
  pfs_group = 15;
  lifetime = 3600 sec;
 }
@@ -800,7 +800,7 @@ no sysopt connection permit-vpn
 crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
 crypto ipsec ikev2 ipsec-proposal Trans2
  protocol esp encryption aes-256
- protocol esp integrity sha
+ protocol esp integrity sha-384
 access-list crypto-outside-65535 extended permit ip any 10.99.1.0 255.255.255.0
 crypto dynamic-map vpn1@example.com 10 match address crypto-outside-65535
 crypto dynamic-map vpn1@example.com 10 set ikev2 ipsec-proposal Trans2

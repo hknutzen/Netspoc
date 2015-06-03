@@ -18990,6 +18990,7 @@ sub print_crypto {
             }
             print " protocol esp encryption $esp_encr\n";
             if (my $esp_ah = $ipsec->{esp_authentication}) {
+                $esp_ah =~ s/^(.+?)(\d+)/$1-$2/;
                 print " protocol esp integrity $esp_ah\n";
             }
         }
