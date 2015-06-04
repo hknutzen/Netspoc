@@ -217,12 +217,11 @@ though, subset relations can be violated:
 
 {% include image.html src="./images/areas_overlapping_router.png" description="Overlapping areas with router as intersection." %}
 
-**Routers as intersection.** To prevent overlapping areas with a single
-router as intersection, every router contained via `inclusive_border`
-is processed: each of the areas containing a certain router as
-`inclusive_border` is compared with the area next in size to check
-whether every zone inside the smaller area is also contained in the
-bigger one.
+**Routers as intersection.** To prevent overlapping areas with a
+single router as intersection, every router contained via
+`inclusive_border` is processed: each of the areas containing a
+certain router as `inclusive_border` is checked to be in a proper
+subset relation with the area next in size regardingthe zones.
 
 {% include image.html src="./images/areas_overlapping_router2.png" description="Wrong border definition of router violates proper subset relation ." %}
 
@@ -282,3 +281,9 @@ with NAT definitions and passes them to each of the zones networks. If
 a NAT attribute of the zone is already set in a network, the networks
 NAT attribute is not overwritten, but a warning is emitted if the NAT
 attributes values are equal for both zone and network.
+
+
+## Preparing fast path traversal
+
+
+{% include image.html src="./images/setpath_obj_cactus.png" description="Overlapping areas with router as intersection." %}
