@@ -1,1 +1,11 @@
 markdown: kramdown
+
+defaults:
+  -
+   scope:
+     path: ""
+     type: "pages"
+   values:
+     layout: "default"
+     author: "Heinz Knutzen"
+
