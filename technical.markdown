@@ -286,5 +286,33 @@ attributes values are equal for both zone and network.
 
 ## Preparing fast path traversal
 
+For the following steps regarding graph traversal and finding paths,
+we consider the graph to consist of zones and managed routers as nodes
+and interfaces as edges. To achieve a clearer representation, zones
+will be depicted as lines and managed routers by an uncolored router
+symbol.
 
-{% include image.html src="./images/setpath_obj_cactus.png" description="Overlapping areas with router as intersection." %}
+{% include image.html src="./images/traversal_graph_representation.png" description="To explain graph traversal, zones will be depicted as lines and managed routers by uncoloured router symbols." %}
+
+* * *
+This might be placed somewhere else... or will be replaced anyway...
+
+Netspoc has to find paths from a certain source to a destination. In
+order to find paths fast, the graph, consisting of managed routers and
+zones as nodes and interfaces as edges, is now prepared. With a single
+depth first search, the distances of all node objects to a randomly
+chosen `zone1` are identified and stored in the respective objects.
+Then, the path from source to destination can be easily found by
+starting at source and destination and walking towards smaller
+distances/ `zone1` until the paths meet. Loops are contracted to a
+single node.
+
+{% include image.html src="./images/find_paths.png" description="Paths are found by walking from source and destination towards zone1." %}
+
+* * *
+
+ To To enable a fast path traversal, Netspoc prepares the graph consisting of zones and managed routers (nodes) and interfaces (edges). of the
+graph are traversed now via depth first search, starting at a randomly
+chosen start zone. Within every zone and router object, the distance to zone1 is stored. Additionally, at every interface  and the 
+
+{% include image.html src="./images/setpath_obj_cactus.png" description="Finding cactus loops." %}
