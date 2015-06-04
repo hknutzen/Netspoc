@@ -9643,8 +9643,8 @@ sub set_zone_cluster {
         next if $interface->{main_interface};
         my $router = $interface->{router};
         next if $router->{managed};
-        next if $router->{visited};
-        local $router->{visited} = 1;
+        next if $router->{active_path};
+        local $router->{active_path} = 1;
 
         # Process adjacent zones... 
         for my $out_interface (@{ $router->{interfaces} }) {
