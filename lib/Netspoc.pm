@@ -3604,7 +3604,6 @@ sub prepare_prt_ordering {
         # with combined src and dst port ranges. An expanded rule has
         # distinct references to src and dst protocols with a single
         # port range.
-        my $flags = $prt->{flags};
         for my $where ('src_range', 'dst_range') {
 
             # An array with low and high port.
@@ -3617,7 +3616,6 @@ sub prepare_prt_ordering {
                     proto => $proto,
                     range => $range,
                 };
-                $range_prt->{flags} = $flags if $flags;
                 $prt_hash{$proto}->{$key} = $range_prt;
 
                 # Set up ref2prt.
@@ -6299,15 +6297,16 @@ sub expand_protocols {
             next;
         }
 
+        # Collect splitted src_range / dst_range pairs.
         my $dst_range = $prt->{dst_range};
         my $src_range = $prt->{src_range};
 
-        # Collect splitted src_range / dst_range pairs.
         # Remember original protocol as third value
         # - if src_range is given or
+        # - if original protocol has flags or
         # - if $dst_range is shared between different protocols.
         # Cache list of triples at original protocol for re-use.
-        if ($src_range || $dst_range->{name} ne $prt->{name}) {
+        if ($src_range or $prt->{flags} or $dst_range->{name} ne $prt->{name}) {
             my $aref_list = $prt->{src_dst_range_list};
             if (not $aref_list) {
                 for my $src_split (expand_splitted_protocols $src_range) {
