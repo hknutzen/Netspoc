@@ -66,6 +66,46 @@ test_add($title, $in, 'network:Test host:Toast', $out);
 test_rmv($title, $out, 'host:Toast', $in);
 
 ############################################################
+$title = 'host after automatic group';
+############################################################
+
+$in = <<'END';
+group:abc =
+ any:[ ip = 10.1.0.0/16 & network:def ],
+ host:xyz,
+;
+END
+
+$out = <<'END';
+group:abc =
+ any:[ ip = 10.1.0.0/16 & network:def ],
+;
+END
+
+test_rmv($title, $in, 'host:xyz', $out);
+
+############################################################
+$title = 'network in automatic group';
+############################################################
+
+$in = <<'END';
+group:abc =
+ any:[ ip = 10.1.0.0/16 & network:n1, network:n2,
+       network:n3, ],
+;
+END
+
+$out = <<'END';
+group:abc =
+ any:[ ip = 10.1.0.0/16 & network:n1, network:n1a, network:n2,
+       network:n3, network:n4, ],
+;
+END
+
+test_add($title, $in, 'network:n1 network:n1a network:n3 network:n4', $out);
+test_rmv($title, $out, 'network:n1a network:n4', $in);
+
+############################################################
 $title = 'in service, but not in area and pathrestriction';
 ############################################################
 
