@@ -311,8 +311,13 @@ single node.
 
 * * *
 
- To To enable a fast path traversal, Netspoc prepares the graph consisting of zones and managed routers (nodes) and interfaces (edges). of the
-graph are traversed now via depth first search, starting at a randomly
-chosen start zone. Within every zone and router object, the distance to zone1 is stored. Additionally, at every interface  and the 
+To enable fast path traversal, Netspoc prepares the topology graph now
+consisting of zones and managed routers (nodes) and interfaces
+(edges). of the graph are traversed now via depth first search,
+starting at a randomly chosen start zone. Within every zone and router
+object, the distance to zone1 is stored. Additionally, at every
+interface and the
+
+{% include image.html src="./images/setpath.png" description="Finding loops." %}
 
 {% include image.html src="./images/setpath_obj_cactus.png" description="Finding cactus loops." %}
