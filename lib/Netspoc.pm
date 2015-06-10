@@ -1458,11 +1458,6 @@ sub read_network {
             # Duplicate use of this flag doesn't matter.
             $network->{crosslink} = 1;
         }
-        elsif (check_flag 'isolated_ports') {
-
-            # Duplicate use of this flag doesn't matter.
-            $network->{isolated_ports} = 1;
-        }
         elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
             add_attribute($network, subnet_of => $pair);
         }
@@ -1584,9 +1579,6 @@ sub read_network {
             error_atline("Crosslink network must not have host definitions");
         }
         if ($network->{nat}) {
-            $network->{isolated_ports}
-              and error_atline("Attribute 'isolated_ports' isn't supported",
-                " together with NAT");
 
             # Check NAT definitions.
             for my $nat (values %{ $network->{nat} }) {
@@ -1806,9 +1798,6 @@ sub read_interface {
         }
         elsif (check_flag 'no_check') {
             $interface->{no_check} = 1;
-        }
-        elsif (check_flag 'promiscuous_port') {
-            $interface->{promiscuous_port} = 1;
         }
         else {
             syntax_err('Expected some valid attribute');
@@ -2397,10 +2386,6 @@ sub read_router {
             if ($interface->{hub}) {
                 error_atline("Interface with attribute 'hub' must only be",
                              " used at managed device");
-            }
-            if ($interface->{promiscuous_port}) {
-                error_atline("Interface with attribute 'promiscuous_port'",
-                             " must only be used at managed device");
             }
             if (delete $interface->{reroute_permit}) {
                 warn_msg("Ignoring attribute 'reroute_permit'",
@@ -4785,144 +4770,6 @@ my @networks;
 my @zones;
 my @areas;
 
-# Transform topology for networks with isolated ports.
-# If a network has attribute 'isolated_ports',
-# hosts inside this network are not allowed to talk directly to each other.
-# Instead the traffic must go through an interface which is marked as
-# 'promiscuous_port'.
-# To achieve the desired traffic flow, we transform the topology such
-# that each host is moved to a separate /32 network.
-# Non promiscuous interfaces are isolated as well. They are handled like hosts
-# and get a separate network too.
-sub transform_isolated_ports {
-  NETWORK:
-    for my $network (@networks) {
-        if (not $network->{isolated_ports}) {
-            for my $interface (@{ $network->{interfaces} }) {
-                $interface->{promiscuous_port}
-                  and warn_msg("Useless 'promiscuous_port' at",
-                               " $interface->{name}");
-            }
-            next;
-        }
-        $network->{ip} eq 'unnumbered' and internal_err();
-        my @promiscuous_ports;
-        my @isolated_interfaces;
-        my @secondary_isolated;
-        for my $interface (@{ $network->{interfaces} }) {
-            if ($interface->{promiscuous_port}) {
-                push @promiscuous_ports, $interface;
-            }
-            elsif ($interface->{redundant}) {
-                err_msg
-                  "Redundant $interface->{name} must not be isolated port";
-            }
-            elsif ($interface->{main_interface}) {
-                push @secondary_isolated, $interface
-                  if not $interface->{main_interface}->{promiscuous_port};
-            }
-            else {
-                push @isolated_interfaces, $interface;
-            }
-        }
-
-        if (not @promiscuous_ports) {
-            err_msg("Missing 'promiscuous_port' for $network->{name}",
-                " with 'isolated_ports'");
-
-            # Abort transformation.
-            next NETWORK;
-        }
-        elsif (@promiscuous_ports > 1) {
-            equal(map { $_->{redundancy_interfaces} || $_ } @promiscuous_ports)
-              or err_msg "All 'promiscuous_port's of $network->{name}",
-              " need to be redundant to each other";
-        }
-        $network->{hosts}
-          or @isolated_interfaces
-          or warn_msg("Useless attribute 'isolated_ports' at $network->{name}");
-
-        for my $obj (@{ $network->{hosts} }, @isolated_interfaces) {
-            my $ip = $obj->{ip};
-
-            # Add separate network for each isolated host or interface.
-            my $obj_name = $obj->{name};
-            my $new_net  = new(
-                'Network',
-
-                # Take name of $obj for artificial network.
-                name      => $obj_name,
-                ip        => $ip,
-                mask      => 0xffffffff,
-                subnet_of => $network,
-                isolated  => 1,
-            );
-            if (is_host($obj)) {
-                $new_net->{hosts} = [$obj];
-            }
-            else {
-
-                #  Don't use unnumbered, negotiated, tunnel interfaces.
-                $ip =~ /^\w/ or internal_err();
-                $new_net->{interfaces} = [$obj];
-                $obj->{network}        = $new_net;
-            }
-            push @networks, $new_net;
-
-            # Copy promiscuous interface(s) and use it to link new network
-            # with router.
-            my @redundancy_interfaces;
-            for my $interface (@promiscuous_ports) {
-                my $router = $interface->{router};
-                (my $router_name = $router->{name}) =~ s/^router://;
-                my $hardware = $interface->{hardware};
-                my $new_intf = new(
-                    'Interface',
-                    name     => "interface:$router_name.$obj_name",
-                    ip       => $interface->{ip},
-                    hardware => $hardware,
-                    router   => $router,
-                    network  => $new_net,
-                );
-                push @{ $hardware->{interfaces} }, $new_intf;
-                push @{ $new_net->{interfaces} },  $new_intf;
-                push @{ $router->{interfaces} },   $new_intf;
-                if ($interface->{redundant}) {
-                    @{$new_intf}{qw(redundant redundancy_type redundancy_id)} =
-                      @{$interface}
-                      {qw(redundant redundancy_type redundancy_id)};
-                    push @redundancy_interfaces, $new_intf;
-                }
-            }
-
-            # Automatically add pathrestriction to redundant interfaces.
-            if (@redundancy_interfaces) {
-                my $name = "auto-virtual-$obj_name";
-                add_pathrestriction($name, \@redundancy_interfaces);
-                for my $interface (@redundancy_interfaces) {
-                    $interface->{redundancy_interfaces} =
-                      \@redundancy_interfaces;
-                }
-            }
-        }
-
-        # Move secondary isolated interfaces to same artificial network
-        # where the corresponding main interface has been moved to.
-        for my $secondary (@secondary_isolated) {
-            my $new_net = $secondary->{main_interface}->{network};
-            push @{ $new_net->{interfaces} }, $secondary;
-            $secondary->{network} = $new_net;
-        }
-
-        # Remove hosts and isolated interfaces from original network.
-        $network->{hosts} = undef;
-        for my $interface (@isolated_interfaces, @secondary_isolated) {
-            aref_delete $network->{interfaces}, $interface;
-        }
-    }
-    return;
-}
-
 # Group bridged networks by prefix of name.
 # Each group
 # - must have the same IP address and mask,
@@ -5123,7 +4970,6 @@ sub mark_disabled {
 
     @virtual_interfaces = grep { not $_->{disabled} } @virtual_interfaces;
     check_bridged_networks();
-    transform_isolated_ports();
     return;
 }
 
