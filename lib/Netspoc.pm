@@ -12095,11 +12095,24 @@ sub expand_crypto  {
                             my $subnet = $host->{subnets}->[0];
                             push @verify_radius_attributes, $host;
                             for my $peer (@$peers) {
+                                my $no_nat_set = $peer->{no_nat_set};
+                                if (my $other = $peer->{id_rules}->{$id}) {
+                                    my $src = $other->{src};
+                                    my $ip1 = prefix_code(address($src, 
+                                                                  $no_nat_set));
+                                    my $ip2 = prefix_code(address($subnet, 
+                                                                  $no_nat_set));
+                                    err_msg("Duplicate ID-host $id having",
+                                            " IP $ip1 and IP $ip2",
+                                            " with tunnel to",
+                                            " $other->{router}->{name}");
+                                    next;
+                                }
                                 $peer->{id_rules}->{$id} = {
                                     name       => "$peer->{name}.$id",
                                     ip         => 'tunnel',
                                     src        => $subnet,
-                                    no_nat_set => $peer->{no_nat_set},
+                                    no_nat_set => $no_nat_set,
 
                                     # Needed during local_optimization.
                                     router => $peer->{router},
@@ -12214,28 +12227,33 @@ sub expand_crypto  {
     }
 
     # Check for duplicate IDs of different hosts
-    # coming into current hardware interface / current device.
+    # coming into different hardware at current device.
+    # ASA_VPN can't distinguish different hosts with same ID
+    # coming into different hardware interfaces.
     for my $router (@managed_crypto_hubs) {
         my $model = $router->{model};
-        $model->{do_auth} or next;
-        my $is_asavpn = $model->{crypto} eq 'ASA_VPN';
-        my %hardware2id2tunnel;
-        for my $interface (@{ $router->{interfaces} }) {
-            next if not $interface->{ip} eq 'tunnel';
-
-            # ASA_VPN can't distinguish different hosts with same ID
-            # coming into different hardware interfaces.
-            my $hardware = $is_asavpn ? 'one4all' : $interface->{hardware};
-            my $tunnel = $interface->{network};
-            if (my $hash = $interface->{id_rules}) {
-                for my $id (keys %$hash) {
-                    if (my $tunnel2 = $hardware2id2tunnel{$hardware}->{$id}) {
-                        err_msg "Using identical ID $id from different",
-                          " $tunnel->{name} and $tunnel2->{name}";
-                    }
-                    else {
-                        $hardware2id2tunnel{$hardware}->{$id} = $tunnel;
-                    }
+        my $crypto = $model->{crypto} or next;
+        $crypto eq 'ASA_VPN' or next;
+        my @id_rules_interfaces = 
+            grep { $_->{id_rules} } @{ $router->{interfaces} };
+        @id_rules_interfaces >= 2 or next;
+        my %id2src;
+        for my $interface (@id_rules_interfaces) {
+            my $hash = $interface->{id_rules};
+            for my $id (keys %$hash) {
+                my $src1 = $hash->{$id}->{src};
+                if (my $src2 = $id2src{$id}) {
+                    my $no_nat_set1 = $src1->{no_nat_set};
+                    my $no_nat_set2 = $src2->{no_nat_set};
+                    my $ip1 = prefix_code(address($src1, $no_nat_set1));
+                    my $ip2 = prefix_code(address($src2, $no_nat_set2));
+                    err_msg("Duplicate ID-host $id having",
+                            " IP $ip1 and IP $ip2",
+                            " with tunnel to",
+                            " $router->{name}");
+                }
+                else {
+                    $id2src{$id} = $src1;
                 }
             }
         }

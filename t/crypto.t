@@ -462,6 +462,122 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Duplicate ID-hosts';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn1 = {
+ type = ipsec:aes256SHA;
+}
+
+crypto:vpn2 = {
+ type = ipsec:aes256SHA;
+}
+
+network:intern = { ip = 10.1.1.0/24;}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = {
+  ip = 10.1.1.101; 
+  hardware = inside;
+ }
+ interface:dmz1 = { 
+  ip = 192.168.1.1; 
+  hub = crypto:vpn1;
+  hardware = dmz1; 
+ }
+ interface:dmz2 = { 
+  ip = 192.168.2.1; 
+  hub = crypto:vpn2;
+  hardware = dmz2; 
+ }
+}
+
+network:dmz1 = { ip = 192.168.1.0/24; }
+
+router:extern = { 
+ interface:dmz1 = { ip = 192.168.1.2; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:softclients1 = {
+ interface:internet = { spoke = crypto:vpn1; }
+ interface:customers1;
+ interface:customers2;
+}
+
+network:customers1 = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = { ip = 10.99.1.10; }
+}
+
+network:customers2 = { 
+ ip = 10.99.2.0/24; 
+ host:id:foo@domain.x = { ip = 10.99.2.10; }
+}
+
+network:dmz2 = { ip = 192.168.2.0/24; }
+
+router:gw = {
+ interface:dmz2 = { ip = 192.168.2.2; }
+ interface:trans = { ip = 10.9.9.2; }
+}
+
+network:trans = { ip = 10.9.9.0/24; }
+
+router:softclients2 = {
+ interface:trans = { spoke = crypto:vpn2; ip = 10.9.9.3; }
+ interface:customers3;
+}
+
+network:customers3 = { 
+ ip = 10.99.3.0/24; 
+ host:id:foo@domain.x = { ip = 10.99.3.10; }
+}
+
+service:test1 = {
+ user = host:id:foo@domain.x.customers1,
+        host:id:foo@domain.x.customers2,
+        host:id:foo@domain.x.customers3,
+ ;
+ permit src = user; dst = network:intern; prt = tcp 80; 
+}
+END
+
+$out = <<'END';
+Error: Duplicate ID-host foo@domain.x having IP 10.99.1.10 and IP 10.99.2.10 with tunnel to router:asavpn
+Error: Duplicate ID-host foo@domain.x having IP 10.99.3.10 and IP 10.99.1.10 with tunnel to router:asavpn
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'ASA with two crypto spokes and NAT';
 ############################################################
 
