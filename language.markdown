@@ -655,13 +655,6 @@ These restrictions apply:
 
 Outgoing ACLs are supported for model NX-OS, IOS and ASA. 
 
-For convenience, the attribute `no_in_acl` can be added to a named
-aggregate which represents a security zone. It is then inherited by
-all border interfaces of this security zone. Inheritance is stopped for
-devices which already have an attribute `no_in_acl` declared at some
-interface or have an attribute `std_in_acl` declared at the device
-level.
-
 ## Logging
 
 Logging can be changed individually for each combination of managed
