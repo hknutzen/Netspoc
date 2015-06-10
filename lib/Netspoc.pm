@@ -666,12 +666,6 @@ sub read_ip {
     return $result;
 }
 
-sub read_mask {
-    my $mask = read_ip();
-    defined mask2prefix($mask) or syntax_err("IP mask isn't a valid prefix");
-    return $mask;
-}
-
 # Read IP address and prefix length.
 # x.x.x.x/n
 sub read_ip_prefix {
@@ -701,12 +695,6 @@ sub gen_ip {
 sub print_ip {
     my $ip = shift;
     return sprintf "%vd", pack 'N', $ip;
-}
-
-# Generate a list of IP strings from an ref of an array of integers.
-sub print_ip_aref {
-    my $aref = shift;
-    return map { print_ip $_; } @$aref;
 }
 
 # Conversion from netmask to prefix and vice versa.
@@ -1057,22 +1045,6 @@ sub check_flag {
     }
     else {
         return;
-    }
-}
-
-sub read_assign {
-    my ($token, $fun) = @_;
-    skip $token;
-    skip '=';
-    if (wantarray) {
-        my @val = &$fun;
-        skip(';');
-        return @val;
-    }
-    else {
-        my $val = &$fun;
-        skip(';');
-        return $val;
     }
 }
 
@@ -3289,18 +3261,6 @@ sub read_owner {
         $owner->{admins} = [];
     }
     return $owner;
-}
-
-# For reading arbitrary names.
-# Don't be greedy in regex, to prevent reading over multiple semicolons.
-sub read_to_semicolon {
-    skip_space_and_comment;
-    if ($input =~ m/\G(.*?)(?=\s*;)/gco) {
-        return $1;
-    }
-    else {
-        syntax_err("Expected string ending with semicolon!");
-    }
 }
 
 my %global_type = (
@@ -7940,14 +7900,6 @@ sub distribute_nat_info {
             }
         }
     }
-
-    # Check that $href has exactly one hidden NAT tag or that all tags
-    # are hidden.
-    my $all_or_one_hidden = sub {
-        my ($href) = @_;
-        my $count = grep({ !$has_non_hidden{$_} } keys %$href);
-        return 1 == $count || keys %$href == $count;
-    };
 
     # A hash with all defined NAT tags.
     # It is used to check,
