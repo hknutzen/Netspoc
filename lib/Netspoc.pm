@@ -12098,14 +12098,10 @@ sub expand_crypto  {
                                 my $no_nat_set = $peer->{no_nat_set};
                                 if (my $other = $peer->{id_rules}->{$id}) {
                                     my $src = $other->{src};
-                                    my $ip1 = prefix_code(address($src, 
-                                                                  $no_nat_set));
-                                    my $ip2 = prefix_code(address($subnet, 
-                                                                  $no_nat_set));
-                                    err_msg("Duplicate ID-host $id having",
-                                            " IP $ip1 and IP $ip2",
-                                            " with tunnel to",
-                                            " $other->{router}->{name}");
+                                    err_msg("Duplicate ID-host $id from",
+                                            " $src->{network}->{name} and",
+                                            " $subnet->{network}->{name}",
+                                            " at $peer->{router}->{name}");
                                     next;
                                 }
                                 $peer->{id_rules}->{$id} = {
@@ -12243,14 +12239,10 @@ sub expand_crypto  {
             for my $id (keys %$hash) {
                 my $src1 = $hash->{$id}->{src};
                 if (my $src2 = $id2src{$id}) {
-                    my $no_nat_set1 = $src1->{no_nat_set};
-                    my $no_nat_set2 = $src2->{no_nat_set};
-                    my $ip1 = prefix_code(address($src1, $no_nat_set1));
-                    my $ip2 = prefix_code(address($src2, $no_nat_set2));
-                    err_msg("Duplicate ID-host $id having",
-                            " IP $ip1 and IP $ip2",
-                            " with tunnel to",
-                            " $router->{name}");
+                    err_msg("Duplicate ID-host $id from",
+                            " $src1->{network}->{name} and",
+                            " $src2->{network}->{name}",
+                            " at $router->{name}");
                 }
                 else {
                     $id2src{$id} = $src1;

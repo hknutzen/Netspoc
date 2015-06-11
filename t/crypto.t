@@ -571,8 +571,8 @@ service:test1 = {
 END
 
 $out = <<'END';
-Error: Duplicate ID-host foo@domain.x having IP 10.99.1.10 and IP 10.99.2.10 with tunnel to router:asavpn
-Error: Duplicate ID-host foo@domain.x having IP 10.99.3.10 and IP 10.99.1.10 with tunnel to router:asavpn
+Error: Duplicate ID-host foo@domain.x from network:customers1 and network:customers2 at router:asavpn
+Error: Duplicate ID-host foo@domain.x from network:customers3 and network:customers1 at router:asavpn
 END
 
 test_err($title, $in, $out);
