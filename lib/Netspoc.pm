@@ -9742,7 +9742,9 @@ sub set_zones {
             delete $zone->{private};
         }
     }
+    return;
 }
+
 ##############################################################################
 # Purpose  : Clusters zones connected by semi_managed routers. References of all
 #            zones of a cluster are stored in the {zone_cluster} attribute of
@@ -9765,6 +9767,7 @@ sub cluster_zones {
 #       debug('cluster: ', join(',',map($_->{name}, @{$zone->{zone_cluster}})))
 #           if $zone->{zone_cluster};
     }
+    return;
 }
 
 ###############################################################################
@@ -9869,6 +9872,7 @@ sub set_areas {
 
 #     debug("$area->{name}:\n ", join "\n ", map $_->{name}, @{$area->{zones}});
     }
+    return;
 }
 
 ###############################################################################
@@ -9921,6 +9925,7 @@ sub find_subset_relations {
             $seen{$small}->{$next} = 1;
         }
     }
+    return;
 }
 
 #############################################################################
@@ -9972,6 +9977,7 @@ sub check_routers_in_nested_areas {
                     " (use attribute 'inclusive_border')");
         }
     }
+    return;
 }
 
 ##############################################################################
@@ -9984,6 +9990,7 @@ sub clean_areas {
             delete $interface->{is_inclusive};
         }
     }
+    return;
 }
 
 ###############################################################################
@@ -11893,11 +11900,20 @@ sub expand_crypto  {
                             my $subnet = $host->{subnets}->[0];
                             push @verify_radius_attributes, $host;
                             for my $peer (@$peers) {
+                                my $no_nat_set = $peer->{no_nat_set};
+                                if (my $other = $peer->{id_rules}->{$id}) {
+                                    my $src = $other->{src};
+                                    err_msg("Duplicate ID-host $id from",
+                                            " $src->{network}->{name} and",
+                                            " $subnet->{network}->{name}",
+                                            " at $peer->{router}->{name}");
+                                    next;
+                                }
                                 $peer->{id_rules}->{$id} = {
                                     name       => "$peer->{name}.$id",
                                     ip         => 'tunnel',
                                     src        => $subnet,
-                                    no_nat_set => $peer->{no_nat_set},
+                                    no_nat_set => $no_nat_set,
 
                                     # Needed during local_optimization.
                                     router => $peer->{router},
@@ -12012,28 +12028,29 @@ sub expand_crypto  {
     }
 
     # Check for duplicate IDs of different hosts
-    # coming into current hardware interface / current device.
+    # coming into different hardware at current device.
+    # ASA_VPN can't distinguish different hosts with same ID
+    # coming into different hardware interfaces.
     for my $router (@managed_crypto_hubs) {
         my $model = $router->{model};
-        $model->{do_auth} or next;
-        my $is_asavpn = $model->{crypto} eq 'ASA_VPN';
-        my %hardware2id2tunnel;
-        for my $interface (@{ $router->{interfaces} }) {
-            next if not $interface->{ip} eq 'tunnel';
-
-            # ASA_VPN can't distinguish different hosts with same ID
-            # coming into different hardware interfaces.
-            my $hardware = $is_asavpn ? 'one4all' : $interface->{hardware};
-            my $tunnel = $interface->{network};
-            if (my $hash = $interface->{id_rules}) {
-                for my $id (keys %$hash) {
-                    if (my $tunnel2 = $hardware2id2tunnel{$hardware}->{$id}) {
-                        err_msg "Using identical ID $id from different",
-                          " $tunnel->{name} and $tunnel2->{name}";
-                    }
-                    else {
-                        $hardware2id2tunnel{$hardware}->{$id} = $tunnel;
-                    }
+        my $crypto = $model->{crypto} or next;
+        $crypto eq 'ASA_VPN' or next;
+        my @id_rules_interfaces = 
+            grep { $_->{id_rules} } @{ $router->{interfaces} };
+        @id_rules_interfaces >= 2 or next;
+        my %id2src;
+        for my $interface (@id_rules_interfaces) {
+            my $hash = $interface->{id_rules};
+            for my $id (keys %$hash) {
+                my $src1 = $hash->{$id}->{src};
+                if (my $src2 = $id2src{$id}) {
+                    err_msg("Duplicate ID-host $id from",
+                            " $src1->{network}->{name} and",
+                            " $src2->{network}->{name}",
+                            " at $router->{name}");
+                }
+                else {
+                    $id2src{$id} = $src1;
                 }
             }
         }
@@ -16818,14 +16835,14 @@ sub print_chains  {
                     $result .= ' -d ' . prefix_code($ip_mask);
                 }
             }
-          CHECK:
+          ADD_PROTO:
             {
                 my $src_prt = $rule->{src_prt};
                 my $prt     = $rule->{prt};
-                last CHECK if not $src_prt and not $prt;
-                last CHECK if $prt and $prt->{proto} eq 'ip';
+                last ADD_PROTO if not $src_prt and not $prt;
+                last ADD_PROTO if $prt and $prt->{proto} eq 'ip';
                 if (not $prt) {
-                    last CHECK if $src_prt->{proto} eq 'ip';
+                    last ADD_PROTO if $src_prt->{proto} eq 'ip';
                     $prt =
                         $src_prt->{proto} eq 'tcp'  ? $prt_tcp->{dst_range}
                       : $src_prt->{proto} eq 'udp'  ? $prt_udp->{dst_range}
@@ -18516,6 +18533,7 @@ sub print_crypto_map_attributes {
                   " lifetime seconds $lifetime\n");
         }
     }
+    return;
 }
 
 sub print_tunnel_group {
@@ -18544,6 +18562,7 @@ sub print_tunnel_group {
     }
 
     # Preshared key is configured manually.
+    return;
 }
 
 sub print_static_crypto_map {
@@ -18620,6 +18639,7 @@ sub print_static_crypto_map {
             }
         }
     }
+    return;
 }
 
 sub print_dynamic_crypto_map {
@@ -18672,6 +18692,7 @@ sub print_dynamic_crypto_map {
         print " subject-name attr ea eq $id\n";
         print "tunnel-group-map $id 10 $id\n";
     }
+    return;
 }
 
 sub print_crypto {
