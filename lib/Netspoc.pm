@@ -154,7 +154,7 @@ our %config = (
     check_supernet_rules => 'warn',
 
 # Check for transient supernet rules.
-    check_transient_supernet_rules => 0,
+    check_transient_supernet_rules => 'warn',
 
 # Optimize the number of routing entries per router:
 # For each router find the hop, where the largest
