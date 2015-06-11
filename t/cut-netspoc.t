@@ -345,10 +345,37 @@ END
 test_run($title, $in, $in);
 
 ############################################################
-$title = 'Crypto definitions with router fragments';
+$title = 'Bridged network';
 ############################################################
 
 $in = <<'END';
+network:n1a = { ip = 10.1.1.64/26; subnet_of = network:n1; }
+router:u = {
+ interface:n1a;
+ interface:n1;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; reroute_permit = network:n1a; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+service:test = {
+    user = network:n2;
+    permit src = user; dst = network:n1; prt = tcp;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
+# Shared topology for crypto tests
+############################################################
+
+$topo = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
@@ -392,10 +419,12 @@ router:extern = {
  interface:internet;
 }
 network:internet = { ip = 0.0.0.0/0; has_subnets; }
-router:softclients = {
+END
+
+my $clients1 = <<'END';
+router:softclients1 = {
  interface:internet = { spoke = crypto:vpn; }
  interface:customers1;
- interface:customers2;
 }
 network:customers1 = { 
  ip = 10.99.1.0/24; 
@@ -409,6 +438,13 @@ network:customers1 = {
   ip = 10.99.1.11; 
   radius_attributes = { banner = Willkommen zu Hause; }
  }
+}
+END
+
+my $clients2 = <<'END';
+router:softclients2 = {
+ interface:internet = { spoke = crypto:vpn; }
+ interface:customers2;
 }
 network:customers2 = { 
  ip = 10.99.2.0/24; 
@@ -424,8 +460,16 @@ network:customers2 = {
  }
  host:id:@domain.y = {
   range = 10.99.2.64 - 10.99.2.127;
-  radius_attributes = { vpn-idle-timeout = 40; trust-point = ASDM_TrustPoint3; } }
+  radius_attributes = { vpn-idle-timeout = 40; trust-point = ASDM_TrustPoint3; } 
+ }
 }
+END
+
+############################################################
+$title = 'Crypto definitions with router fragments';
+############################################################
+
+$in = $topo . $clients1 . $clients2 . <<'END';
 service:test1 = {
  user = host:id:foo@domain.x.customers1, host:id:@domain.y.customers2;
  permit src = user; dst = network:intern; prt = tcp 80; 
@@ -437,6 +481,21 @@ service:test2 = {
 END
 
 test_run($title, $in, $in);
+
+############################################################
+$title = 'Take one of multiple crypto networks';
+############################################################
+
+my $service = <<'END';
+service:test1 = {
+ user = host:id:foo@domain.x.customers1;
+ permit src = user; dst = network:intern; prt = tcp 80; 
+}
+END
+
+$in = $topo . $clients1 . $clients2 . $service;
+$out = $topo . $clients1 . $service;
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

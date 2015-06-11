@@ -165,6 +165,23 @@ sub process {
                         }
                     }
 
+                    elsif (
+                        # Start of automatic group; list continues.
+                        $line =~ /\G ( \s* \w+ : \[ )/gcx or 
+
+                        # Managed automatic group.
+                        $line =~ /\G ( \s* managed \s* & )/gcx or
+
+                        # IP for automatic group.
+                        $line =~ /\G ( \s* ip \s* = \s* [0-9.\/]+ \s* & )/gcx or
+
+                        # End of automatic group.
+                        $line =~ /\G (\s* \])/gcx
+                        ) 
+                    {
+                        $copy .= $1;
+                    }
+
                     # Read comma.
                     elsif ($line =~ /\G (\s*,\s*) /gcsx) {
                         $copy .= $1;

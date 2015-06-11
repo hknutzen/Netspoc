@@ -45,7 +45,7 @@ $in = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
- esp_authentication = sha_hmac;
+ esp_authentication = sha;
  pfs_group = 2;
  lifetime = 600 sec;
 }
@@ -256,7 +256,7 @@ $in = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
- esp_authentication = sha_hmac;
+ esp_authentication = sha;
  pfs_group = 2;
  lifetime = 600 sec;
 }
@@ -396,7 +396,7 @@ $in = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
- esp_authentication = sha_hmac;
+ esp_authentication = sha;
  pfs_group = 2;
  lifetime = 600 sec;
 }
@@ -462,38 +462,156 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'ASA with two crypto hubs and NAT';
+$title = 'Duplicate ID-hosts';
 ############################################################
 
 $in = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
- esp_authentication = sha_hmac;
+ esp_authentication = sha;
  pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn1 = {
+ type = ipsec:aes256SHA;
+}
+
+crypto:vpn2 = {
+ type = ipsec:aes256SHA;
+}
+
+network:intern = { ip = 10.1.1.0/24;}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = {
+  ip = 10.1.1.101; 
+  hardware = inside;
+ }
+ interface:dmz1 = { 
+  ip = 192.168.1.1; 
+  hub = crypto:vpn1;
+  hardware = dmz1; 
+ }
+ interface:dmz2 = { 
+  ip = 192.168.2.1; 
+  hub = crypto:vpn2;
+  hardware = dmz2; 
+ }
+}
+
+network:dmz1 = { ip = 192.168.1.0/24; }
+
+router:extern = { 
+ interface:dmz1 = { ip = 192.168.1.2; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:softclients1 = {
+ interface:internet = { spoke = crypto:vpn1; }
+ interface:customers1;
+ interface:customers2;
+}
+
+network:customers1 = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = { ip = 10.99.1.10; }
+}
+
+network:customers2 = { 
+ ip = 10.99.2.0/24; 
+ host:id:foo@domain.x = { ip = 10.99.2.10; }
+}
+
+network:dmz2 = { ip = 192.168.2.0/24; }
+
+router:gw = {
+ interface:dmz2 = { ip = 192.168.2.2; }
+ interface:trans = { ip = 10.9.9.2; }
+}
+
+network:trans = { ip = 10.9.9.0/24; }
+
+router:softclients2 = {
+ interface:trans = { spoke = crypto:vpn2; ip = 10.9.9.3; }
+ interface:customers3;
+}
+
+network:customers3 = { 
+ ip = 10.99.3.0/24; 
+ host:id:foo@domain.x = { ip = 10.99.3.10; }
+}
+
+service:test1 = {
+ user = host:id:foo@domain.x.customers1,
+        host:id:foo@domain.x.customers2,
+        host:id:foo@domain.x.customers3,
+ ;
+ permit src = user; dst = network:intern; prt = tcp 80; 
+}
+END
+
+$out = <<'END';
+Error: Duplicate ID-host foo@domain.x from network:customers1 and network:customers2 at router:asavpn
+Error: Duplicate ID-host foo@domain.x from network:customers3 and network:customers1 at router:asavpn
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'ASA with two crypto spokes and NAT';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 15;
  lifetime = 3600 sec;
 }
 
 isakmp:aes256SHA = {
+ ike_version = 1;
  identity = address;
  nat_traversal = additional;
  authentication = rsasig;
  encryption = aes256;
  hash = sha;
- group = 2;
+ group = 15;
  lifetime = 43200 sec;
- trust_point =  ASDM_TrustPoint3;
+ trust_point = ASDM_TrustPoint3;
 }
 
 ipsec:3desSHA = {
  key_exchange = isakmp:3desSHA;
  esp_encryption = 3des;
- esp_authentication = sha_hmac;
+ esp_authentication = sha;
  pfs_group = 2;
  lifetime = 600 sec;
 }
 
 isakmp:3desSHA = {
+ ike_version = 1;
  identity = address;
  authentication = preshare;
  encryption = 3des;
@@ -582,44 +700,30 @@ END
 $out = <<'END';
 --asavpn
 no sysopt connection permit-vpn
-crypto isakmp policy 1
- authentication pre-share
- encryption 3des
- hash sha
- group 2
- lifetime 86400
-crypto isakmp policy 2
- authentication rsa-sig
- encryption aes-256
- hash sha
- group 2
- lifetime 43200
 crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
 crypto ipsec transform-set Trans2 esp-aes-256 esp-sha-hmac
 access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
-crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set peer 172.16.1.2
+crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set transform-set Trans2
-crypto map crypto-outside 1 set pfs group2
+crypto map crypto-outside 1 set pfs group15
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 172.16.1.2 type ipsec-l2l
 tunnel-group 172.16.1.2 ipsec-attributes
- chain
+ peer-id-validate nocheck
  trust-point ASDM_TrustPoint3
  isakmp ikev1-user-authentication none
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
-crypto map crypto-outside 2 match address crypto-outside-2
 crypto map crypto-outside 2 set peer 172.16.2.2
+crypto map crypto-outside 2 match address crypto-outside-2
 crypto map crypto-outside 2 set transform-set Trans1
 crypto map crypto-outside 2 set pfs group2
 crypto map crypto-outside 2 set security-association lifetime seconds 600
 tunnel-group 172.16.2.2 type ipsec-l2l
 tunnel-group 172.16.2.2 ipsec-attributes
- pre-shared-key *****
  peer-id-validate nocheck
 crypto map crypto-outside interface outside
-crypto isakmp enable outside
 --
 object-group network g0
  network-object 10.99.1.0 255.255.255.0
@@ -635,6 +739,219 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'ASA with two crypto spokes and NAT (IKEv2)';
+############################################################
+
+$in =~ s/ike_version = 1/ike_version = 2/;
+
+$out = <<'END';
+--asavpn
+no sysopt connection permit-vpn
+crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
+crypto ipsec ikev2 ipsec-proposal Trans2
+ protocol esp encryption aes-256
+ protocol esp integrity sha
+access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
+crypto map crypto-outside 1 set peer 172.16.1.2
+crypto map crypto-outside 1 match address crypto-outside-1
+crypto map crypto-outside 1 set ikev2 ipsec-proposal Trans2
+crypto map crypto-outside 1 set pfs group15
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+tunnel-group 172.16.1.2 type ipsec-l2l
+tunnel-group 172.16.1.2 ipsec-attributes
+ peer-id-validate nocheck
+ ikev2 local-authentication certificate ASDM_TrustPoint3
+ ikev2 remote-authentication certificate
+access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
+access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
+crypto map crypto-outside 2 set peer 172.16.2.2
+crypto map crypto-outside 2 match address crypto-outside-2
+crypto map crypto-outside 2 set transform-set Trans1
+crypto map crypto-outside 2 set pfs group2
+crypto map crypto-outside 2 set security-association lifetime seconds 600
+tunnel-group 172.16.2.2 type ipsec-l2l
+tunnel-group 172.16.2.2 ipsec-attributes
+ peer-id-validate nocheck
+crypto map crypto-outside interface outside
+--
+object-group network g0
+ network-object 10.99.1.0 255.255.255.0
+ network-object 10.99.2.0 255.255.255.0
+ network-object 192.168.22.0 255.255.255.0
+access-list outside_in extended permit tcp object-group g0 host 10.1.1.111 eq 80
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
+--
+static (outside,inside) 10.99.22.0 192.168.22.0 netmask 255.255.255.0
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'ASA with two dynamic crypto spokes';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha384;
+ pfs_group = 15;
+ lifetime = 3600 sec;
+}
+
+isakmp:aes256SHA = {
+ ike_version = 2;
+ identity = address;
+ nat_traversal = additional;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 15;
+ lifetime = 43200 sec;
+ trust_point = ASDM_TrustPoint3;
+}
+
+ipsec:3desSHA = {
+ key_exchange = isakmp:3desSHA;
+ esp_encryption = 3des;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:3desSHA = {
+ ike_version = 1;
+ identity = address;
+ authentication = rsasig;
+ encryption = 3des;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+ trust_point = ASDM_TrustPoint1;
+}
+
+crypto:sts1 = {
+ type = ipsec:aes256SHA;
+}
+
+crypto:sts2 = {
+ type = ipsec:3desSHA;
+ detailed_crypto_acl;
+}
+
+network:intern = { 
+ ip = 10.1.1.0/24;
+ host:netspoc = { ip = 10.1.1.111; }
+}
+
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101; 
+  bind_nat = lan2a;
+  hardware = inside;
+ }
+ interface:dmz = { 
+  ip = 192.168.0.101; 
+  hub = crypto:sts1, crypto:sts2;
+  hardware = outside; 
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:extern = { 
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:vpn1 = {
+ interface:internet = {
+  negotiated;
+  spoke = crypto:sts1;
+  id = vpn1@example.com;
+ }
+ interface:lan1 = {
+  ip = 10.99.1.1;
+ }
+}
+
+network:lan1 = { ip = 10.99.1.0/24; }
+
+router:vpn2 = {
+ interface:internet = {
+  negotiated;
+  spoke = crypto:sts2;
+  id = vpn2@example.com;
+ }
+ interface:lan2 = {
+  ip = 10.99.2.1;
+ }
+ interface:lan2a = {
+  ip = 192.168.22.1;
+ }
+}
+
+network:lan2 = { ip = 10.99.2.0/24; }
+
+network:lan2a = { 
+ ip = 192.168.22.0/24;
+ nat:lan2a = { ip = 10.99.22.0/24;}
+}
+
+protocol:http = tcp 80;
+service:test = {
+ user = network:lan1, network:lan2, network:lan2a;
+ permit src = user; dst = host:netspoc; prt = protocol:http; 
+}
+END
+
+$out = <<'END';
+--asavpn
+no sysopt connection permit-vpn
+crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
+crypto ipsec ikev2 ipsec-proposal Trans2
+ protocol esp encryption aes-256
+ protocol esp integrity sha-384
+access-list crypto-outside-65535 extended permit ip any 10.99.1.0 255.255.255.0
+crypto dynamic-map vpn1@example.com 10 match address crypto-outside-65535
+crypto dynamic-map vpn1@example.com 10 set ikev2 ipsec-proposal Trans2
+crypto dynamic-map vpn1@example.com 10 set pfs group15
+crypto dynamic-map vpn1@example.com 10 set security-association lifetime seconds 3600
+crypto map crypto-outside 65535 ipsec-isakmp dynamic vpn1@example.com
+tunnel-group vpn1@example.com type ipsec-l2l
+tunnel-group vpn1@example.com ipsec-attributes
+ peer-id-validate nocheck
+ ikev2 local-authentication certificate ASDM_TrustPoint3
+ ikev2 remote-authentication certificate
+crypto ca certificate map vpn1@example.com 10
+ subject-name attr ea eq vpn1@example.com
+tunnel-group-map vpn1@example.com 10 vpn1@example.com
+access-list crypto-outside-65534 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
+access-list crypto-outside-65534 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
+crypto dynamic-map vpn2@example.com 10 match address crypto-outside-65534
+crypto dynamic-map vpn2@example.com 10 set transform-set Trans1
+crypto dynamic-map vpn2@example.com 10 set pfs group2
+crypto dynamic-map vpn2@example.com 10 set security-association lifetime seconds 600
+crypto map crypto-outside 65534 ipsec-isakmp dynamic vpn2@example.com
+tunnel-group vpn2@example.com type ipsec-l2l
+tunnel-group vpn2@example.com ipsec-attributes
+ peer-id-validate nocheck
+ trust-point ASDM_TrustPoint1
+ isakmp ikev1-user-authentication none
+crypto ca certificate map vpn2@example.com 10
+ subject-name attr ea eq vpn2@example.com
+tunnel-group-map vpn2@example.com 10 vpn2@example.com
+crypto map crypto-outside interface outside
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'VPN ASA to EZVPN router with two local networks';
 ############################################################
 
@@ -642,7 +959,7 @@ $in = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
- esp_authentication = sha_hmac;
+ esp_authentication = sha;
  pfs_group = 2;
  lifetime = 600 sec;
 }
@@ -798,7 +1115,7 @@ $in = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
- esp_authentication = sha_hmac;
+ esp_authentication = sha;
  pfs_group = 2;
  lifetime = 3600 sec;
 }
@@ -887,18 +1204,17 @@ END
 $out = <<'END';
 --asavpn
 access-list crypto-outside-1 extended permit ip any 10.10.10.0 255.255.255.0
-crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set peer 1.2.3.129
+crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 1.2.3.129 type ipsec-l2l
 tunnel-group 1.2.3.129 ipsec-attributes
- chain
+ peer-id-validate nocheck
  ikev1 trust-point ASDM_TrustPoint3
  ikev1 user-authentication none
 crypto map crypto-outside interface outside
-crypto isakmp enable outside
 --
 access-list outside_in extended permit tcp 10.10.10.0 255.255.255.0 host 10.1.1.111 eq 80
 access-list outside_in extended deny ip any any
@@ -910,9 +1226,9 @@ ip access-list extended crypto-filter-GigabitEthernet0-1
  permit tcp host 10.1.1.111 10.10.10.0 0.0.0.255 established
  deny ip any any
 crypto map crypto-GigabitEthernet0 1 ipsec-isakmp
+ set peer 1.2.3.2
  match address crypto-GigabitEthernet0-1
  set ip access-group crypto-filter-GigabitEthernet0-1 in
- set peer 1.2.3.2
  set transform-set Trans1
  set pfs group2
 --
@@ -926,6 +1242,18 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Missing trust_point in isakmp definition';
+############################################################
+
+$in =~ s/trust_point/#trust_point/;
+
+$out = <<"END";
+Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Unmanaged VPN spoke with unknown IP';
 ############################################################
 
@@ -933,7 +1261,7 @@ $in = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
- esp_authentication = sha_hmac;
+ esp_authentication = sha;
  pfs_group = 2;
  lifetime = 3600 sec;
 }
@@ -991,7 +1319,7 @@ END
 
 
 $out = <<"END";
-Error: router:asavpn can\'t establish crypto tunnel to interface:vpn1.internet with unknown IP
+Error: interface:vpn1.tunnel:vpn1 with unnkown IP needs attribute 'id'
 END
 
 test_err($title, $in, $out);
@@ -1005,26 +1333,19 @@ $in =~ s/#  ip/  ip/;
 $out = <<'END';
 --asavpn
 no sysopt connection permit-vpn
-crypto isakmp policy 1
- authentication rsa-sig
- encryption aes-256
- hash sha
- group 2
- lifetime 43200
-crypto ipsec transform-set Trans1 esp-aes-256 esp-sha-hmac
+crypto ipsec ikev1 transform-set Trans1 esp-aes-256 esp-sha-hmac
 access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
-crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set peer 1.1.1.1
+crypto map crypto-outside 1 match address crypto-outside-1
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 1.1.1.1 type ipsec-l2l
 tunnel-group 1.1.1.1 ipsec-attributes
- chain
+ peer-id-validate nocheck
  ikev1 trust-point ASDM_TrustPoint3
  ikev1 user-authentication none
 crypto map crypto-outside interface outside
-crypto isakmp enable outside
 --
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside

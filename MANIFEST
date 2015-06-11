@@ -61,9 +61,9 @@ pod-links/print-group.pod
 pod-links/print-service.pod
 pod-links/remove-from-netspoc.pod
 pod-links/rename-netspoc.pod
+t/Test_Group.pm
 t/Test_Netspoc.pm
 t/add-to-netspoc.t
-t/add-to-netspoc.t~
 t/aggregate.t
 t/any-multicast-interface.t
 t/area.t
@@ -75,6 +75,7 @@ t/cut-netspoc.t
 t/disabled.t
 t/general-permit.t
 t/global-opt.t
+t/group.t
 t/host-range.t
 t/iptables.t
 t/local-filter.t
@@ -91,7 +92,9 @@ t/pathrestrict-border.t
 t/pathrestrict.t
 t/private.t
 t/protect-interfaces.t
-t/protocol.t~
+t/protocols.t
+t/protocols.t~
+t/remove-from.t~
 t/rename.t
 t/route.t
 t/routing_only.t

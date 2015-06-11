@@ -78,7 +78,7 @@ use Getopt::Long;
 use Pod::Usage;
 use Encode;
 
-our $VERSION = '3.065'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.066'; # VERSION: inserted by DZP::OurPkgVersion
 my $filename_encode = 'UTF-8';
  
 my $ignore_files = '^(raw|config|CVS|RCS|\.#.*|.*~)$';
@@ -161,6 +161,24 @@ sub process {
                         else {
                             $remove_comma = 1;
                         }
+                    }
+
+                    elsif (
+                        # Start of automatic group; list continues.
+                        $line =~ /\G ( \s* \w+ : \[ )/gcx or 
+
+                        # Managed automatic group.
+                        $line =~ /\G ( \s* managed \s* & )/gcx or
+
+                        # IP for automatic group.
+                        $line =~ /\G ( \s* ip \s* = \s* [0-9.\/]+ \s* & )/gcx or
+
+                        # End of automatic group.
+                        $line =~ /\G (\s* \])/gcx
+                        ) 
+                    {
+                        $copy .= $1;
+                        $remove_comma = 0;
                     }
 
                     # Read comma. Don't remove EOL.

@@ -49,8 +49,8 @@ router:big2 = {
 
 network:small_customer = {
  ip = 125.1.2.0/24;
- nat:small = {ip = 10.1.2.0/24; dynamic;}
- host:ann = { ip = 125.1.2.31; }
+ nat:small = { ip = 10.1.2.0/24; }
+ host:ann =  { ip = 125.1.2.31; }
  host:christie = { ip = 125.1.2.32; }
  host:pamela = { ip = 125.1.2.33; }
 }
@@ -66,14 +66,14 @@ router:small_extern = {
 network:small_customer_trans1 = { ip = 172.17.1.0/30; }
 network:small_customer_trans2 = { ip = 172.17.1.4/30; }
 
-any:small_customer = { link = router:small_extern; }
+any:small_customer = { link = network:small_customer; }
 
 # Secondary packet filter: dont't check fully, but only for src and
 # dst network, if there is another full packet filter on the path from
 # src to dst.
 router:small = {
  managed = secondary;
- model = IOS_FW;
+ model = IOS, FW;
  interface:small_customer_trans1 =
   { ip = 172.17.1.1; hardware = Serial0; routing=OSPF;}
  interface:small_customer_trans2 =
@@ -110,11 +110,16 @@ router:mngt = {
 
 network:management = {
  ip = 10.1.11.0/24; 
- host:netspoc = { ip = 10.1.11.111; policy_distribution_point; }
+ host:netspoc = { ip = 10.1.11.111; }
  host:logger =  { ip = 10.1.11.20; }
 }
 
-area:all = { anchor = network:service_lan; }
+area:all = { 
+ anchor = network:service_lan;
+ router_attributes = {
+  policy_distribution_point = host:netspoc; 
+ }
+}
 
 protocol:http = tcp 80;
 protocol:telnet = tcp 23;
@@ -135,6 +140,7 @@ service:extranet = {
 
 service:management = {
  description = Management services: telnet and syslog
+ overlaps = service:ping_local;
  user = interface:big1.[auto], 
 	interface:big1.service_lan.virtual,
         interface:big2.[auto], 
