@@ -286,37 +286,62 @@ attributes values are equal for both zone and network.
 
 ## Preparing fast path traversal
 
-For the following steps regarding graph traversal and finding paths,
-we consider the graph to consist of zones and managed routers as nodes
-and interfaces as edges. To achieve a clearer representation, zones
-will be depicted as lines and managed routers by an uncolored router
-symbol.
+Netspoc finds paths inside the network topology. As we have seen
+above, zones have been applied to accelerate graph traversal, and
+consistently, we will consider the network topology graph to be build
+by zones and managed routers (nodes) and interfaces (edges). For a
+clearer representation, we will therefore omit the representation of
+networks and unmanaged routers in the following pictures. Zones will
+be depicted as lines and managed routers by an uncolored router symbol
+instead.
 
 {% include image.html src="./images/traversal_graph_representation.png" description="To explain graph traversal, zones will be depicted as lines and managed routers by uncoloured router symbols." %}
 
 * * *
 This might be placed somewhere else... or will be replaced anyway...
 
-Netspoc has to find paths from a certain source to a destination. In
-order to find paths fast, the graph, consisting of managed routers and
-zones as nodes and interfaces as edges, is now prepared. With a single
-depth first search, the distances of all node objects to a randomly
-chosen `zone1` are identified and stored in the respective objects.
-Then, the path from source to destination can be easily found by
-starting at source and destination and walking towards smaller
-distances/ `zone1` until the paths meet. Loops are contracted to a
-single node.
+For the Netspoc approach to find paths from a certain source to a
+destination, the topology graph is prepared by a single depth first
+search starting at a randomly chosen `zone1`. The distances of the
+graphs node objects to `zone1` are identified and stored in the
+respective objects. Then, the path from source to destination can be
+easily found by starting at source and destination and walking towards
+smaller distances/ `zone1` until the paths meet. Loops are contracted
+to a single node.
 
 {% include image.html src="./images/find_paths.png" description="Paths are found by walking from source and destination towards zone1." %}
 
 * * *
 
-To enable fast path traversal, Netspoc prepares the topology graph now
-consisting of zones and managed routers (nodes) and interfaces
-(edges). of the graph are traversed now via depth first search,
-starting at a randomly chosen start zone. Within every zone and router
-object, the distance to zone1 is stored. Additionally, at every
-interface and the
+Netspoc now conducts the depth first search from a randomly chosen
+`zone1`. Within every zone and router object reached, the distance
+(x2!) to `zone1` is stored. Additionally, the interface leading to
+`zone1` is stored in the objects and the zones or routers facing to
+`zone1` are stored in every processed interface. Thus, every
+interface, router and zone knows where to go to reach `zone1`.
+
+Whenever a loop is found, that is, a node that has already been
+discovered is reached again, a loop object is created (Fig. x, 10,
+13). This loop object contains the node that has been visited twice as
+loop `exit` and the distance of that node to `zone1` +1. Then, Netspoc
+returns from recursion and references this loop object in the loop
+variable of all nodes located on the loop path (Fig. x, 11-12, 15-21).
+As we want all nodes inside a loop to be represented as a single node,
+Netspoc needs to recognize nested loops. Whenever Netspoc is on a loop
+return path and finds a node already referencing a loop object (Fig.x,
+16), the loop objects are compared. The nodes loop reference is then
+set to the object of the bigger loop (that is, the loop with a lower
+distance to `zone1`). Additionally, a reference to the bigger loop
+object is set in the `redirect` variable of the smaller loop. Thus,
+nodes of the smaller loop that are not on the loop path of the bigger
+loop can be identified later to reset the loop reference.
+
+When Netspoc is on a loop return path and reaches the exit node of the
+loop, a loop exit object is created and referenced in the loop
+variable of the exit node (Fig. x, 22). Like the loop object, the loop
+exit object stores a reference to the exit node and a distance value,
+which is exactly the distance value of the exit node.
+
 
 {% include image.html src="./images/setpath.png" description="Finding loops." %}
 
