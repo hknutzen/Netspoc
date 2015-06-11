@@ -3846,7 +3846,7 @@ sub order_ranges {
     return;
 }
 
-sub expand_splitted_protocols  {
+sub expand_splitted_protocol {
     my ($prt) = @_;
 
     # Handle unset src_range.
@@ -3855,8 +3855,8 @@ sub expand_splitted_protocols  {
     }
     elsif (my $split = $prt->{split}) {
         my ($prt1, $prt2) = @$split;
-        return (expand_splitted_protocols($prt1), 
-                expand_splitted_protocols($prt2));
+        return (expand_splitted_protocol($prt1), 
+                expand_splitted_protocol($prt2));
     }
     else {
         return $prt;
@@ -4149,7 +4149,7 @@ sub link_general_permit {
         [ sort { (ref $a eq 'ARRAY' ? $a->[2]->{name} : $a->{name})
                  cmp
                  (ref $b eq 'ARRAY' ? $b->[2]->{name} : $b->{name}) } 
-          @{ expand_protocols($list, $context) } ];
+          @{ split_protocols(expand_protocols($list, $context)) } ];
 
     # Don't allow port ranges. This wouldn't work, because
     # gen_reverse_rules doesn't handle generally permitted protocols.
@@ -6233,7 +6233,6 @@ sub check_unused_groups {
 sub expand_protocols {
     my ($aref, $context) = @_;
     my @protocols;
-    my @splitted_protocols;
     for my $pair (@$aref) {
 
         # Handle anonymous protocol.
@@ -6277,7 +6276,7 @@ sub expand_protocols {
                 }
 
                 # Split only once.
-                push @splitted_protocols, @$elements;
+                push @protocols, @$elements;
             }
             else {
                 err_msg("Can't resolve reference to $type:$name in $context");
@@ -6288,9 +6287,14 @@ sub expand_protocols {
             err_msg("Unknown type of $type:$name in $context");
         }
     }
+    return \@protocols;
+}
 
-    # Expand splitted protocols.
-    for my $prt (@protocols) {
+# Expand splitted protocols.
+sub split_protocols {
+    my ($protocols, $context) = @_;
+    my @splitted_protocols;
+    for my $prt (@$protocols) {
         my $proto = $prt->{proto};
         if (not($proto eq 'tcp' or $proto eq 'udp')) {
             push @splitted_protocols, $prt;
@@ -6309,8 +6313,8 @@ sub expand_protocols {
         if ($src_range or $prt->{flags} or $dst_range->{name} ne $prt->{name}) {
             my $aref_list = $prt->{src_dst_range_list};
             if (not $aref_list) {
-                for my $src_split (expand_splitted_protocols $src_range) {
-                    for my $dst_split (expand_splitted_protocols $dst_range) {
+                for my $src_split (expand_splitted_protocol $src_range) {
+                    for my $dst_split (expand_splitted_protocol $dst_range) {
                         push @$aref_list, [$src_split, $dst_split, $prt];
                     }
                 }
@@ -6319,7 +6323,7 @@ sub expand_protocols {
             push @splitted_protocols, @$aref_list;
         }
         else {
-            for my $dst_split (expand_splitted_protocols $dst_range) {
+            for my $dst_split (expand_splitted_protocol $dst_range) {
                 push @splitted_protocols, $dst_split;
             }
         }
@@ -6864,7 +6868,8 @@ sub expand_rules {
                 $log = undef;
             }
         }
-        my $prt_list = expand_protocols($unexpanded->{prt}, "rule in $context");
+        my $prt_list = split_protocols(expand_protocols($unexpanded->{prt},
+                                                        "rule in $context"));
         for my $element ($foreach ? @$user : $user) {
             $user_object->{elements} = $element;
             my $src = expand_group_in_rule($unexpanded->{src}, 
