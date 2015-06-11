@@ -17030,14 +17030,14 @@ sub print_chains  {
                     $result .= ' -d ' . prefix_code($ip_mask);
                 }
             }
-          CHECK:
+          ADD_PROTO:
             {
                 my $src_prt = $rule->{src_prt};
                 my $prt     = $rule->{prt};
-                last CHECK if not $src_prt and not $prt;
-                last CHECK if $prt and $prt->{proto} eq 'ip';
+                last ADD_PROTO if not $src_prt and not $prt;
+                last ADD_PROTO if $prt and $prt->{proto} eq 'ip';
                 if (not $prt) {
-                    last CHECK if $src_prt->{proto} eq 'ip';
+                    last ADD_PROTO if $src_prt->{proto} eq 'ip';
                     $prt =
                         $src_prt->{proto} eq 'tcp'  ? $prt_tcp->{dst_range}
                       : $src_prt->{proto} eq 'udp'  ? $prt_udp->{dst_range}
