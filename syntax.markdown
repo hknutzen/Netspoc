@@ -63,7 +63,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ subnet_of = network:<network name>; ]
          [ has_subnets;                ]
          [ crosslink;                  ]
-         [ isolated_ports;             ]
          [ owner = <name>;             ]
          <host definition> *
       }
@@ -144,7 +143,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ hardware = <external name>;          ]
          [ loopback;                            ]
          [ no_in_acl;                           ]
-         [ promiscuous_port;                    ]
          [ reroute_permit = <object set>;       ]
          [ routing = ( EIGRP | OSPF | dynamic ); ]
          [ security_level = <int>;              ]
