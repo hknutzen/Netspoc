@@ -322,7 +322,7 @@ interface, router and zone knows where to go to reach `zone1`.
 
 Whenever a loop is found, that is, a node that has already been
 discovered is reached again, a loop object is created (Fig. x, 10,
-13). This loop object contains the node that has been visited twice as
+14). This loop object contains the node that has been visited twice as
 loop `exit` and the distance of that node to `zone1` +1. Then, Netspoc
 returns from recursion and references this loop object in the loop
 variable of all nodes located on the loop path (Fig. x, 11-12, 15-21).
@@ -336,13 +336,24 @@ object is set in the `redirect` variable of the smaller loop. Thus,
 nodes of the smaller loop that are not on the loop path of the bigger
 loop can be identified later to reset the loop reference.
 
+{% include image.html src="./images/setpath.png" description="Finding loops." %}
+
 When Netspoc is on a loop return path and reaches the exit node of the
 loop, a loop exit object is created and referenced in the loop
 variable of the exit node (Fig. x, 22). Like the loop object, the loop
 exit object stores a reference to the exit node and a distance value,
 which is exactly the distance value of the exit node.
 
-
-{% include image.html src="./images/setpath.png" description="Finding loops." %}
+The use of different loop objects for loop nodes and loop exit nodes
+shows when a special topology is considered (Fig y). In so called
+cactus graphs, cycles have single nodes in common. When looking for
+paths in such graphs, it is helpful if loops sharing a single node are
+represented as different loops and not as a single one: Different loop
+distances help to find the fastes path to `zone1`.  When Netspoc finds
+a loop connecting node (Fig. y, 16) different objects for loop and
+loop exit allow to keep the already found (green) loop and to
+establish the new (orange) loop with a distance closer to
+`zone1`. Without different objects, the green loop object would have
+been redirected to the orange loop.
 
 {% include image.html src="./images/setpath_obj_cactus.png" description="Finding cactus loops." %}
