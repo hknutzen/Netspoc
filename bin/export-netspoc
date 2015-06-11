@@ -357,20 +357,22 @@ sub proto_descr {
         my $desc = my $ptype = $protocol->{proto};
         my $num;
         if ($ptype eq 'tcp' or $ptype eq 'udp') {
-            my $port_code = sub ( $$ ) {
-                my ($v1, $v2) = @_;
+            my $port_code = sub {
+                my ($range_obj) = @_;
+                my ($v1, $v2) = @{ $range_obj->{range} };
                 if ($v1 == $v2) {
                     return $v1;
                 }
                 elsif ($v1 == 1 and $v2 == 65535) {
-                    return '';
+                    return (undef);
                 }
                 else {
                     return "$v1-$v2";
                 }
             };
-            my $sport  = $port_code->(@{ $protocol->{src_range}->{range} });
-            my $dport  = $port_code->(@{ $protocol->{dst_range}->{range} });
+            my $src_range = $protocol->{src_range};
+            my $sport = $src_range && $port_code->($src_range);
+            my $dport = $port_code->($protocol->{dst_range});
             if ($sport) {
                 $desc .= " $sport:$dport";
             }
