@@ -9944,7 +9944,9 @@ sub set_zones {
             delete $zone->{private};
         }
     }
+    return;
 }
+
 ##############################################################################
 # Purpose  : Clusters zones connected by semi_managed routers. References of all
 #            zones of a cluster are stored in the {zone_cluster} attribute of
@@ -9967,6 +9969,7 @@ sub cluster_zones {
 #       debug('cluster: ', join(',',map($_->{name}, @{$zone->{zone_cluster}})))
 #           if $zone->{zone_cluster};
     }
+    return;
 }
 
 ###############################################################################
@@ -10071,6 +10074,7 @@ sub set_areas {
 
 #     debug("$area->{name}:\n ", join "\n ", map $_->{name}, @{$area->{zones}});
     }
+    return;
 }
 
 ###############################################################################
@@ -10123,6 +10127,7 @@ sub find_subset_relations {
             $seen{$small}->{$next} = 1;
         }
     }
+    return;
 }
 
 #############################################################################
@@ -10174,6 +10179,7 @@ sub check_routers_in_nested_areas {
                     " (use attribute 'inclusive_border')");
         }
     }
+    return;
 }
 
 ##############################################################################
@@ -10186,6 +10192,7 @@ sub clean_areas {
             delete $interface->{is_inclusive};
         }
     }
+    return;
 }
 
 ###############################################################################
@@ -18728,6 +18735,7 @@ sub print_crypto_map_attributes {
                   " lifetime seconds $lifetime\n");
         }
     }
+    return;
 }
 
 sub print_tunnel_group {
@@ -18756,6 +18764,7 @@ sub print_tunnel_group {
     }
 
     # Preshared key is configured manually.
+    return;
 }
 
 sub print_static_crypto_map {
@@ -18832,6 +18841,7 @@ sub print_static_crypto_map {
             }
         }
     }
+    return;
 }
 
 sub print_dynamic_crypto_map {
@@ -18884,6 +18894,7 @@ sub print_dynamic_crypto_map {
         print " subject-name attr ea eq $id\n";
         print "tunnel-group-map $id 10 $id\n";
     }
+    return;
 }
 
 sub print_crypto {
