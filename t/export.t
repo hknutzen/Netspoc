@@ -718,7 +718,6 @@ $title = 'Owner of aggregate at tunnel of unmanaged device';
 
 $in = <<'END';
 owner:Extern_VPN = { admins = abc@d.com; }
-area:internet_vpn = { owner = Extern_VPN; border = interface:r.n2; }
 
 isakmp:ikeaes256SHA = {
  identity = address;
@@ -735,7 +734,7 @@ ipsec:ipsecaes256SHA = {
  pfs_group = 2;
  lifetime = 3600 sec;
 }
-crypto:vpn = { type = ipsec:ipsecaes256SHA; tunnel_all; }
+crypto:vpn = { type = ipsec:ipsecaes256SHA; }
 
 network:n1 = { ip = 10.1.1.0/24;}
 
@@ -745,6 +744,8 @@ router:r = {
  interface:n1 = { ip = 10.1.1.1; hardware = inside; }
  interface:n2 = { ip = 192.168.1.2; hardware = outside; hub = crypto:vpn; }
 }
+
+area:vpn = { owner = Extern_VPN; inclusive_border = interface:r.n1; }
 
 network:n2 = { ip = 192.168.1.0/28;}
 
@@ -775,7 +776,7 @@ network:v3 = { ip = 10.9.3.0/24; }
 
 
 service:Test = {
- user = network:[any:[ip=10.9.0.0/21 & area:internet_vpn]];
+ user = network:[any:[ip=10.9.0.0/21 & area:vpn]];
  permit src = network:n1; dst = user; prt = udp 53;
 }
 END
@@ -783,12 +784,6 @@ END
 $out = <<'END';
 --objects
 {
-   "any:[ip=10.9.0.0/21 & network:Internet]" : {
-      "ip" : "10.9.0.0/255.255.248.0",
-      "is_supernet" : 1,
-      "owner" : "Extern_VPN",
-      "zone" : "any:[network:Internet]"
-   },
    "any:[ip=10.9.0.0/21 & network:v1]" : {
       "ip" : "10.9.0.0/255.255.248.0",
       "is_supernet" : 1,
@@ -807,57 +802,22 @@ $out = <<'END';
       "owner" : "Extern_VPN",
       "zone" : "any:[network:v3]"
    },
-   "interface:VPN1.Internet" : {
-      "ip" : "1.1.1.1",
-      "owner" : "Extern_VPN"
-   },
    "interface:VPN1.v1" : {
       "ip" : "short",
-      "owner" : "Extern_VPN"
-   },
-   "interface:VPN2.Internet" : {
-      "ip" : "1.1.1.2",
       "owner" : "Extern_VPN"
    },
    "interface:VPN2.v2" : {
       "ip" : "short",
       "owner" : "Extern_VPN"
    },
-   "interface:VPN3.Internet" : {
-      "ip" : "1.1.1.3",
-      "owner" : "Extern_VPN"
-   },
    "interface:VPN3.v3" : {
       "ip" : "short",
       "owner" : "Extern_VPN"
-   },
-   "interface:dmz.Internet" : {
-      "ip" : "short",
-      "owner" : "Extern_VPN"
-   },
-   "interface:dmz.n2" : {
-      "ip" : "192.168.1.1",
-      "owner" : "Extern_VPN"
-   },
-   "interface:r.n2" : {
-      "ip" : "192.168.1.2",
-      "owner" : null
-   },
-   "network:Internet" : {
-      "ip" : "0.0.0.0/0.0.0.0",
-      "is_supernet" : 1,
-      "owner" : "Extern_VPN",
-      "zone" : "any:[network:Internet]"
    },
    "network:n1" : {
       "ip" : "10.1.1.0/255.255.255.0",
       "owner" : null,
       "zone" : "any:[network:n1]"
-   },
-   "network:n2" : {
-      "ip" : "192.168.1.0/255.255.255.240",
-      "owner" : "Extern_VPN",
-      "zone" : "any:[network:Internet]"
    },
    "network:v1" : {
       "ip" : "10.9.1.0/255.255.255.0",
@@ -898,6 +858,14 @@ $out = <<'END';
          }
       ]
    }
+}
+--owner/Extern_VPN/users
+{
+   "Test" : [
+      "network:v1",
+      "network:v2",
+      "network:v3"
+   ]
 }
 END
 
