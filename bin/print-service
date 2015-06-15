@@ -103,23 +103,24 @@ sub ip_info {
 }
 
 sub prt_info {
-    my ($prt) = @_;
+    my ($src_range, $prt) = @_;
     my $desc = my $ptype = $prt->{proto};
     if ($ptype eq 'tcp' or $ptype eq 'udp') {
         my $port_code = sub {
-            my ($v1, $v2) = @_;
+            my ($range_obj) = @_;
+            my ($v1, $v2) = @{ $range_obj->{range} };
             if ($v1 == $v2) {
                 return $v1;
             }
             elsif ($v1 == 1 and $v2 == 65535) {
-                return '';
+                return undef;
             }
             else {
                 return "$v1-$v2";
             }
         };
-        my $sport  = $port_code->(@{ $prt->{src_range}->{range} });
-        my $dport  = $port_code->(@{ $prt->{dst_range}->{range} });
+        my $sport = $src_range && $port_code->($src_range);
+        my $dport = $port_code->($prt);
         if ($sport) {
             $desc .= " $sport:$dport";
         }
@@ -184,12 +185,12 @@ for my $type ('deny', 'supernet', 'permit') {
 }
 for my $service_name (sort keys %service2rules) {
     for my $rule (@{ $service2rules{$service_name} }) {
-        my ($deny, $src, $dst, $prt) = 
-            @{$rule}{qw(deny src dst prt)};
+        my ($deny, $src, $dst, $src_range, $prt) = 
+            @{$rule}{qw(deny src dst src_range prt)};
         my $action   = $deny ? 'deny' : 'permit';
         my $src_info = ip_info($src);
         my $dst_info = ip_info($dst);
-        my $prt_info = prt_info($prt);
+        my $prt_info = prt_info($src_range, $prt);
         print "$service_name:$action $src_info $dst_info $prt_info\n";
     }
 }
