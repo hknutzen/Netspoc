@@ -6,8 +6,8 @@ export-netspoc - Export data from Netspoc for use in Netspoc-Web
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2014 by Heinz Knutzen     <heinz.knutzen@gmail.com>
-            Daniel Brunkhorst <daniel.brunkhorst@web.de>
+(c) 2015 by Heinz Knutzen <heinz.knutzen@gmail.com>
+(c) 2014 by Daniel Brunkhorst <daniel.brunkhorst@web.de>
 
 https://github.com/hknutzen/Netspoc-Web
 
