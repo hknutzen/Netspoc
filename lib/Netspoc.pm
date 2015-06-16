@@ -10471,28 +10471,28 @@ sub optimize_pathrestrictions {
 ####################################################################
 # Set paths for efficient topology traversal
 ####################################################################
+# Purpose  : Find a path from every zone and router to zone1, store the 
+#            distance to zone1 inevery object visited, identify loops.
+# Parameter: $obj: zone or managed or semi-managed router
+#            $to_zone1: interface of $obj; denotes the direction to reach zone1
+#            $distance: distance to zone1
+# Returns  : 1. maximal value of $distance used in current subtree.
+#            2. undef: found path is not part of a loop/loop-marker: found path
+#                      is part of a loop
 
-# Parameters:
-# $obj: a managed or semi-managed router or a zone
-# $to_zone1: interface of $obj; go this direction to reach zone1
-# $distance: distance to zone1
-# Return values:
-# 1. maximal value of $distance used in current subtree.
-# 2.
-# - undef: found path is not part of a loop
-# - loop-marker:
-#   - found path is part of a loop
-#   - a hash, which is referenced by all members of the loop
-#     with this attributes:
-#     - exit: that node of the loop where zone1 is reached
-#     - distance: distance of the exit node + 1.
+# Comments : Loop marker is a hash, which is referenced by all members of the
+#            loop except for the loop entrance. Its attributes are:
+#            - exit: that node of the loop where zone1 is reached
+#            - distance: distance of the exit node + 1.
+
 sub setpath_obj;
 
 sub setpath_obj {
     my ($obj, $to_zone1, $distance) = @_;
+    #debug("--$distance: $obj->{name} --> ". ($to_zone1 && $to_zone1->{name}));
 
-#    debug("--$distance: $obj->{name} --> ". ($to_zone1 && $to_zone1->{name}));
-    if ($obj->{active_path}) {
+    # Return from recursion if loop was found.
+    if ($obj->{active_path}) { # Loop found.
 
         # Found a loop; this is possibly exit of the loop to zone1.
         # Generate unique loop marker which references this object.
@@ -10502,6 +10502,8 @@ sub setpath_obj {
         # cluster exit object.
         # We must use an intermediate distance value for cluster_navigation
         # to work.
+
+        # Create loop marker, which will be added to all loop members
         my $new_distance = $obj->{distance} + 1;
         my $loop = $to_zone1->{loop} = {
             exit     => $obj,
@@ -10510,44 +10512,49 @@ sub setpath_obj {
         return ($new_distance, $loop);
     }
 
-    # Mark current path for loop detection.
-    local $obj->{active_path} = 1;
+    local $obj->{active_path} = 1;# Mark current path for loop detection.
     $obj->{distance} = $distance;
     my $max_distance = $distance;
+    my $get_next = is_router($obj) ? 'zone' : 'router'; #meike: runter?
 
-    my $get_next = is_router($obj) ? 'zone' : 'router';
+    # Process all of the objects interfaces.
     for my $interface (@{ $obj->{interfaces} }) {
+        
+        # Skip interfaces:
+        next if $interface eq $to_zone1; # interface where we reached this obj.
+        next if $interface->{loop};# interface is entry of an already marked loop
 
-        # Ignore interface where we reached this obj.
-        next if $interface eq $to_zone1;
-
-        # Ignore interface which is the other entry of a loop which is
-        # already marked.
-        next if $interface->{loop};
+        # Get adjacent object/node.
         my $next = $interface->{$get_next};
 
         # Increment by 2 because we need an intermediate value above.
         (my $max, my $loop) = setpath_obj($next, $interface, $distance + 2);
         $max_distance = $max if $max > $max_distance;
+
+        # Node is on a loop path.
         if ($loop) {
+            $interface->{loop} = $loop;
             my $loop_obj = $loop->{exit};
 
             # Found exit of loop in direction to zone1.
             if ($obj eq $loop_obj) {
-
-                # Mark with a different marker linking to itself.
+                # Mark exit node with a different loop marker linking to itself.
                 # If current loop is part of a cluster,
                 # this marker will be overwritten later.
                 # Otherwise this is the exit of a cluster of loops.
                 $obj->{loop} ||= { exit => $obj, distance => $distance, };
             }
 
-            # Found intermediate loop node which was marked before.
+            # Found intermediate loop node which was marked as loop before.
             elsif (my $loop2 = $obj->{loop}) {
-                if ($loop ne $loop2) {
+                if ($loop ne $loop2) { # Node is part of another loop.
+
+                    # If the actual loops exit is closer to zone1 
                     if ($loop->{distance} < $loop2->{distance}) {
-                        $loop2->{redirect} = $loop;
-                        $obj->{loop}       = $loop;
+                        # Reference containing in loop object of loop2.
+                        $loop2->{redirect} = $loop; #
+                        # Overwrite loop ref at the node.
+                        $obj->{loop}       = $loop; # Overwrite loop ref
                     }
                     else {
                         $loop->{redirect} = $loop2;
@@ -10559,7 +10566,6 @@ sub setpath_obj {
             else {
                 $obj->{loop} = $loop;
             }
-            $interface->{loop} = $loop;
         }
         else {
 
@@ -10567,6 +10573,8 @@ sub setpath_obj {
             $interface->{main} = $obj;
         }
     }
+
+    # Return from recursion.
     if ($obj->{loop} and $obj->{loop}->{exit} ne $obj) {
         return ($max_distance, $obj->{loop});
 
@@ -10577,24 +10585,30 @@ sub setpath_obj {
     }
 }
 
-# Find cluster of directly connected loops.
-# Find exit node of the cluster in direction to zone1;
-# Its loop attribute has a reference to the node itself.
-# Add this exit node as marker to all loops belonging to the cluster.
+################################################################################
+# Purpose : Identify clusters of directly connected loops in cactus graphs. 
+#           Find exit node of the cluster in direction to zone1; add this exit 
+#           node as marker to all loops belonging to the cluster.
+# Params  : $loop: Top-level loop object (after redirection).
 sub set_loop_cluster {
     my ($loop) = @_;
+
+    # Return loop cluster exit node, if loop has been processed before.
     if (my $marker = $loop->{cluster_exit}) {
         return $marker;
     }
     else {
+
+        # Continue with the loop object referenced in the loops exit node.
         my $exit = $loop->{exit};
 
-        # Exit node has loop marker which references the node itself.
-        if ($exit->{loop} eq $loop) {
+        # Found exit node of cactus graph loop cluster or usual loop.
+        if ($exit->{loop} eq $loop) { # Exit node references itself. 
 
-#           debug("Loop $exit->{name},$loop->{distance} is in cluster $exit->{name}");
+#            debug("Loop $exit->{name},$loop->{distance} is in cluster $exit->{name}");
             return $loop->{cluster_exit} = $exit;
         }
+        # Found another loop inside the cactus graph loop cluster 
         else {
             my $cluster = set_loop_cluster($exit->{loop});
 
@@ -10604,6 +10618,10 @@ sub set_loop_cluster {
     }
 }
 
+###############################################################################
+# Purpose : Set distances to a randomly chosen start zone. Identify loops 
+#           inside the graph topology and provide a common distance for nodes 
+#           of a cycle or cycle cluster. 
 sub setpath {
     progress('Preparing fast path traversal');
 
@@ -10613,39 +10631,38 @@ sub setpath {
 
     # Find one or more connected partitions in whole topology.
     for my $obj (@zones, @path_routers) {
-        next if $obj->{main} or $obj->{loop};
+        next if $obj->{main} or $obj->{loop}; # included in a processed partition
 
-        # Take an arbitrary obj from @zones, name it "zone1".
+        # Chose an arbitrary obj from @zones to start from.
         my $zone1 = $obj;
 
-        # Starting with zone1, do a traversal of all connected nodes,
-        # to find a path from every zone and router to zone1.
-        # Second  parameter is used as placeholder for a not existing
-        # starting interface. 
+        # Traverse all nodes connected to zone1.
+        # Second parameter stands for not existing starting interface. 
         # Value must be "false" and unequal to any interface.
-        # Third parameter is distance from $zone1 to $zone1.
         my $max = setpath_obj($zone1, '', $start_distance);
-        $start_distance = $max + 1;
+        $start_distance = $max + 1; # TODO: To mark unconnected partitions - WHY?
     }
 
+    # Check all zones located inside a cyclic graph.
     for my $obj (@zones, @path_routers) {
         my $loop = $obj->{loop} or next;
-
-        # Check all zones and routers located inside a cyclic
-        # graph. Propagate loop exit into sub-loops.
+ 
+        # Include sub-loop elements into top-level loop.
         while (my $next = $loop->{redirect}) {
 
-#           debug("Redirect: $loop->{exit}->{name} -> $next->{exit}->{name}");
+            #debug("Redirect: $loop->{exit}->{name} -> $next->{exit}->{name}");
             $loop = $next;
         }
         $obj->{loop} = $loop;
 
-        # Mark connected loops with cluster exit.
+        # Mark loops with cluster exit, important for cactus graph loop clusters.
         set_loop_cluster($loop);
 
         # Set distance of loop objects to value of cluster exit.
-        $obj->{distance} = $loop->{cluster_exit}->{distance};
+        $obj->{distance} = $loop->{cluster_exit}->{distance};# loop dist persists 
     }
+
+    # Include sub-loop interfaces into top-level loop.
     for my $router (@path_routers) {
         for my $interface (@{ $router->{interfaces} }) {
             if (my $loop = $interface->{loop}) {
