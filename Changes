@@ -1,5 +1,12 @@
 {{$NEXT}}
 
+ - Changes in generated crypto code for ASA:
+   - Always add tunnel-group-map if authentication=preshare.
+     This is needed even for tunnel-group having IP address as name.
+ - Moved program bin/export-netspoc from package Netspoc-Web
+   into this package.
+ - Revert changes in subroutine 'expand_protocols'.
+   This broke commands print-service and export-netspoc.
  - No longer support isolated and promiscuous ports.
 
 3.066     2015-06-11 13:36:34+02:00 Europe/Berlin
