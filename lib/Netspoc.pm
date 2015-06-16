@@ -11568,8 +11568,11 @@ sub link_tunnels  {
         $real_spokes and @$real_spokes
           or warn_msg("No spokes have been defined for $name");
 
-        # Substitute crypto name by crypto object.
+        my $isakmp = $crypto->{type}->{key_exchange};
+        my $need_id = $isakmp->{authentication} eq 'rsasig';
         for my $real_hub (@$real_hubs) {
+
+            # Substitute crypto name by crypto object.
             for my $crypto_name (@{ $real_hub->{hub} }) {
                 $crypto_name eq $name and $crypto_name = $crypto;
             }
@@ -11580,6 +11583,12 @@ sub link_tunnels  {
             # a single crypto interface. 
             my $router = $real_hub->{router};
             $router->{managed} or next;
+
+            # Router of type {do_auth} can only check certificates,
+            # not pre-shared keys.
+            $router->{model}->{do_auth} and not $need_id and
+                err_msg("$router->{name} needs authentication=rsasig",
+                        " in $isakmp->{name}");
 
             # Take original router with cleartext interface(s).
             if (my $orig_router = $router->{orig_router}) {
@@ -11849,6 +11858,8 @@ sub expand_crypto  {
 
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
+        my $isakmp = $crypto->{type}->{key_exchange};
+        my $need_id = $isakmp->{authentication} eq 'rsasig';
 
         # Do consistency checks and
         # add rules which allow encrypted traffic.
@@ -11950,39 +11961,28 @@ sub expand_crypto  {
                 my $real_spoke = $tunnel_intf->{real_interface};
                 for my $peer (@$peers) {
                     $peer->{peer_networks} = \@encrypted;
-
-                    # ID can only be checked at hub with attribute do_auth.
                     my $router  = $peer->{router};
                     my $do_auth = $router->{model}->{do_auth};
-                    my $need_id = 
-                        $real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/;
+                    my $unknown_ip = 
+                        $real_spoke->{ip} =~ 
+                        /^(?:negotiated|short|unnumbered)$/;
                     if ($tunnel_intf->{id}) {
-                        if ($do_auth or $need_id) {
-                            my $isakmp = $crypto->{type}->{key_exchange};
-                            $isakmp->{authentication} eq 'rsasig' or
-                                err_msg("Invalid attribute 'id' at",
-                                        " $tunnel_intf->{name}.\n",
-                                        " Set authentication=rsasig at",
-                                        " $isakmp->{name}");
-                        }
-                        else {
-                            warn_msg("Useless attribute 'id' at",
-                                     " $real_spoke->{name}");
-                        }
+                        $need_id or
+                            err_msg("Invalid attribute 'id' at",
+                                    " $tunnel_intf->{name}.\n",
+                                    " Set authentication=rsasig at",
+                                    " $isakmp->{name}");
                     }
                     elsif ($encrypted[0]->{has_id_hosts}) {
                         $do_auth
                           or err_msg("$router->{name} can't check IDs",
-                                     " of $tunnel_intf->{name}");
-                    }
-                    elsif ($do_auth) {
-                        err_msg "$router->{name} can only check",
-                          " interface or host having ID",
-                          " at $tunnel_intf->{name}";
+                                     " of $encrypted[0]->{name}");
                     }
                     elsif ($need_id) {
-                        err_msg("$tunnel_intf->{name} with unnkown IP",
-                                " needs attribute 'id'");
+                        err_msg("$tunnel_intf->{name}",
+                                " needs attribute 'id',",
+                                " because $isakmp->{name}",
+                                " has authentication=rsasig");
                     }
                 }
 
@@ -18570,6 +18570,16 @@ sub print_tunnel_group {
     return;
 }
 
+sub print_ca_and_tunnel_group_map {
+    my ($id, $tg_name) = @_;
+
+    # Activate tunnel-group with tunnel-group-map.
+    # Use $id as ca-map name.
+    print "crypto ca certificate map $id 10\n";
+    print " subject-name attr ea eq $id\n";
+    print "tunnel-group-map $id 10 $tg_name\n";
+}
+
 sub print_static_crypto_map {
     my ($router, $hardware, $map_name, $interfaces, $ipsec2trans_name) = @_;
     my $model = $router->{model};
@@ -18641,6 +18651,12 @@ sub print_static_crypto_map {
                 my $peer_ip = prefix_code(address($peer->{real_interface},
                                                   $no_nat_set));
                 print_tunnel_group($peer_ip, $interface, $isakmp);
+
+                # Tunnel group needs to be activated, if certificate
+                # is in use.
+                if (my $id = $peer->{id}) {
+                    print_ca_and_tunnel_group_map($id, $peer_ip);
+                }
             }
         }
     }
@@ -18692,10 +18708,7 @@ sub print_dynamic_crypto_map {
         print_tunnel_group($id, $interface, $isakmp);
 
         # Activate tunnel-group with tunnel-group-map.
-        # Use $id as ca-map name.
-        print "crypto ca certificate map $id 10\n";
-        print " subject-name attr ea eq $id\n";
-        print "tunnel-group-map $id 10 $id\n";
+        print_ca_and_tunnel_group_map($id, $id);
     }
     return;
 }
