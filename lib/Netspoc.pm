@@ -14294,12 +14294,10 @@ sub check_and_convert_routes  {
                                  @hops))
                     || @hops == 1)
                 {
-                    for my $hop (@hops) {
-                        $hop_routes = $real_intf->{routes}->{$hop} ||= {};
-                        $real_intf->{hop}->{$hop} = $hop;
-#                        debug "Use $hop->{name} as hop for $real_peer->{name}";
-                        last;
-                    }
+                    my $hop = shift @hops;
+                    $hop_routes = $real_intf->{routes}->{$hop} ||= {};
+                    $real_intf->{hop}->{$hop} = $hop;
+#                    debug "Use $hop->{name} as hop for $real_peer->{name}";
                 }
                 else {
 
