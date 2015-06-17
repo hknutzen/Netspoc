@@ -10247,17 +10247,18 @@ sub check_virtual_interfaces  {
 ####################################################################
 # Check pathrestrictions
 ####################################################################
-
+# Purpose : Check the (already set?) pathrestrictions to be located at 
+#           interfaces that are inside or at the border of cyclic graphs. 
 sub check_pathrestrictions {
   RESTRICT:
     for my $restrict (values %pathrestrictions) {
-        my $elements = $restrict->{elements};
+        my $elements = $restrict->{elements}; # Extract interfaces. 
         next if !@$elements;
         my $deleted;
-        for my $obj (@$elements) {
 
-            # Interfaces with pathrestriction need to be located
-            # inside or at the border of cyclic graphs.
+        # Assure interfaces to be located inside or at the border of cyclic graphs
+        for my $obj (@$elements) { 
+
             if (
                 not(   $obj->{loop}
                     || $obj->{router}->{loop}
@@ -10268,28 +10269,32 @@ sub check_pathrestrictions {
                 delete $obj->{path_restrict};
                 warn_msg("Ignoring $restrict->{name} at $obj->{name}\n",
                          " because it isn't located inside cyclic graph");
-                $obj = undef;
+                $obj = undef; # Stop referencing illegal pathrestriction IF.
                 $deleted = 1;
             }
         }
+
+        # Remove illegal interfaces from elements array. 
         if ($deleted) {
             $elements = $restrict->{elements} = [ grep { $_ } @$elements ];
-            if (1 == @$elements) {
+            if (1 == @$elements) { # Min. 2 interfaces/path restriction needed! 
                 $elements = $restrict->{elements} = [];
             }
         }
+
         next if !@$elements;
 
         # Check for useless pathrestriction where all interfaces
         # are located inside a loop with all routers unmanaged.
         #
-        # Some router is managed.
+        # Some router is managed -> continue with next iteration
         grep({ $_->{router}->{managed} || $_->{router}->{routing_only} } 
              @$elements) and next;
 
+        #meike: könnte doch auch ein semi-managed router sein...?
         # Different zones or zone_clusters, hence some router is managed.
         equal(map { $_->{zone_cluster} || $_ } map { $_->{zone} } @$elements)
-            or next;
+            or next;# -> continue with next iteration
 
         # If there exists some neighbour zone or zone_cluster, located
         # inside the same loop, then some router is managed.
@@ -10299,9 +10304,13 @@ sub check_pathrestrictions {
         my $loop = $element->{loop};
         my $zone = $element->{zone};
         my $zone_cluster = $zone->{zone_cluster} || [ $zone ];
+
+        # Process every zone in zone cluster...
         for my $zone1 (@$zone_cluster) {
             for my $interface (@{ $zone->{interfaces} }) {
                 my $router = $interface->{router};
+                
+                # ...examine its neighbour zones:
                 for my $interface2 (@{ $router->{interfaces} }) {
                     my $zone2 = $interface2->{zone};
                     next if $zone2 eq $zone;
@@ -10311,7 +10320,7 @@ sub check_pathrestrictions {
                     if (my $loop2 = $zone2->{loop}) {
                         if ($loop eq $loop2) {
                         
-                            # Found other zone in same loop.
+                            # Found other zone cluster in same loop.
                             next RESTRICT;
                         }
                     }
@@ -10319,6 +10328,7 @@ sub check_pathrestrictions {
             }
         }
         
+        # Delete useless pathrestrictions (those with no effect on ACLs)
         warn_msg("Useless $restrict->{name}.\n",
                  " All interfaces are unmanaged and",
                  " located inside the same security zone"
