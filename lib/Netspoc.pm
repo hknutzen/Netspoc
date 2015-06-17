@@ -14324,6 +14324,11 @@ sub check_and_convert_routes  {
                         $hop_routes->{$tunnel_net} = $tunnel_net;
                     }
                 }
+
+                # Add route to reach peer interface.
+                if ($peer_net ne $real_net) {
+                    $hop_routes->{$peer_net} = $peer_net;
+                }
             }
         }
 

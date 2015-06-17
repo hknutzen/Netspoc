@@ -63,6 +63,19 @@ crypto:vpn = {
  type = ipsec:aes256SHA;
 }
 
+network:work1 = { ip = 10.0.1.0/24; }
+network:work2 = { ip = 10.0.2.0/24; }
+network:work3 = { ip = 10.0.3.0/24; }
+network:work4 = { ip = 10.0.4.0/24; }
+
+router:u = {
+ interface:work1;
+ interface:work2;
+ interface:work3;
+ interface:work4;
+ interface:intern = { ip = 10.1.1.1; }
+}
+
 network:intern = { ip = 10.1.1.0/24;}
 
 router:asavpn = {
@@ -130,19 +143,33 @@ network:customers2 = {
   radius_attributes = { vpn-idle-timeout = 40; trust-point = ASDM_TrustPoint3; } }
 }
 
+group:work = 
+ network:work1,
+ network:work2,
+ network:work3,
+ network:work4,
+;
+
 service:test1 = {
  user = host:id:foo@domain.x.customers1, host:id:@domain.y.customers2;
- permit src = user; dst = network:intern; prt = tcp 80; 
+ permit src = user; dst = group:work; prt = tcp 80; 
 }
 
 service:test2 = {
  user = host:id:bar@domain.x.customers1, host:id:domain.x.customers2;
- permit src = user; dst = network:intern; prt = tcp 81; 
+ permit src = user; dst = group:work; prt = tcp 81; 
 }
 END
 
 $out = <<'END';
 --asavpn
+! [ Routing ]
+route inside 10.0.1.0 255.255.255.0 10.1.1.1
+route inside 10.0.2.0 255.255.255.0 10.1.1.1
+route inside 10.0.3.0 255.255.255.0 10.1.1.1
+route inside 10.0.4.0 255.255.255.0 10.1.1.1
+route outside 0.0.0.0 0.0.0.0 192.168.0.1
+--
 no sysopt connection permit-vpn
 group-policy global internal
 group-policy global attributes
@@ -190,7 +217,10 @@ username bar@domain.x attributes
  vpn-filter value vpn-filter-2
  vpn-group-policy VPN-group-2
 --
-access-list split-tunnel-3 standard permit 10.1.1.0 255.255.255.0
+access-list split-tunnel-3 standard permit 10.0.1.0 255.255.255.0
+access-list split-tunnel-3 standard permit 10.0.2.0 255.255.255.0
+access-list split-tunnel-3 standard permit 10.0.3.0 255.255.255.0
+access-list split-tunnel-3 standard permit 10.0.4.0 255.255.255.0
 access-list vpn-filter-3 extended permit ip 10.99.2.0 255.255.255.192 any
 access-list vpn-filter-3 extended deny ip any any
 crypto ca certificate map ca-map-3 10
@@ -239,9 +269,14 @@ object-group network g1
 object-group network g2
  network-object host 10.99.1.11
  network-object 10.99.2.0 255.255.255.192
+object-group network g3
+ network-object 10.0.1.0 255.255.255.0
+ network-object 10.0.2.0 255.255.255.0
+ network-object 10.0.3.0 255.255.255.0
+ network-object 10.0.4.0 255.255.255.0
 access-list outside_in extended permit icmp object-group g0 any 3
-access-list outside_in extended permit tcp object-group g1 10.1.1.0 255.255.255.0 eq 80
-access-list outside_in extended permit tcp object-group g2 10.1.1.0 255.255.255.0 eq 81
+access-list outside_in extended permit tcp object-group g1 object-group g3 eq 80
+access-list outside_in extended permit tcp object-group g2 object-group g3 eq 81
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 END
