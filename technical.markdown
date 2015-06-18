@@ -313,6 +313,8 @@ to a single node.
 
 * * *
 
+### Identifying distances and loops 
+
 Netspoc now conducts the depth first search from a randomly chosen
 `zone1`. Within every zone and router object reached, the distance
 (x2!) to `zone1` is stored. Additionally, the interface leading to
@@ -330,10 +332,10 @@ As we want all nodes inside a loop to be represented as a single node,
 Netspoc needs to recognize nested loops. Whenever Netspoc is on a loop
 return path and finds a node already referencing a loop object (Fig.x,
 16), the loop objects are compared. The nodes loop reference is then
-set to the object of the bigger loop (that is, the loop with a lower
+set to the object of the bigger top level loop (that is, the loop with a lower
 distance to `zone1`). Additionally, a reference to the bigger loop
-object is set in the `redirect` variable of the smaller loop. Thus,
-nodes of the smaller loop that are not on the loop path of the bigger
+object is set in the `redirect` variable of the smaller sub loop. Thus,
+nodes of the sub loop that are not on the loop path of the bigger
 loop can be identified later to reset the loop reference.
 
 {% include image.html src="./images/setpath.png" description="Finding loops." %}
@@ -348,12 +350,33 @@ The use of different loop objects for loop nodes and loop exit nodes
 shows when a special topology is considered (Fig y). In so called
 cactus graphs, cycles have single nodes in common. When looking for
 paths in such graphs, it is helpful if loops sharing a single node are
-represented as different loops and not as a single one: Different loop
+represented as different loops and not summarized to one: Different loop
 distances help to find the fastes path to `zone1`.  When Netspoc finds
 a loop connecting node (Fig. y, 16) different objects for loop and
 loop exit allow to keep the already found (green) loop and to
 establish the new (orange) loop with a distance closer to
 `zone1`. Without different objects, the green loop object would have
-been redirected to the orange loop.
+been redirected to and included in the orange loop.
 
 {% include image.html src="./images/setpath_obj_cactus.png" description="Finding cactus loops." %}
+
+### Loop preparation
+
+Then, Netspoc iterates over all loop nodes. If a node references a
+nested loop in its loop variable, the reference is reset to the top
+level containing loop using the information from the redirect variable
+of the loop object.
+
+Finally, Netspoc clusters all cactus graph loops by adding a reference
+to the exit node of the whole cluster as `cluster_exit` to all loop
+objects of the cluster. *TODO:picture?*
+
+### Checking for proper pathrestrictions
+
+In cyclic graphs, several paths exists from a destination to a
+source. Per default, Netspoc finds all such paths and generates
+appropriate ACLs. To exclude paths, pathrestrictions can be
+defined. Pathrestrictions refer to 2 or more interfaces inside or at
+the borders of a cycle. Netspoc excludes paths including at least 2 of
+the interfaces specified in the pathrestriction from ACL
+generation.
