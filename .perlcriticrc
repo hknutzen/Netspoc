@@ -5,6 +5,6 @@ include = ProhibitUnusedVariables ProhibitMismatchedOperators ProhibitCaptureWit
 exclude = ProhibitAutomaticExportation ProhibitOneArgSelect
 
 [Subroutines::RequireFinalReturn]
-terminal_funcs = syntax_err fatal_err internal_err
+terminal_funcs = syntax_err fatal_err internal_err abort
 [RegularExpressions::ProhibitCaptureWithoutTest]
 exception_source = syntax_err
