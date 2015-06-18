@@ -385,3 +385,8 @@ while path C is not. This is reflected in the interfaces ACLs: traffic
 between n1 and n4 is not routed by these interfaces.
 
 {% include image.html src="./images/pathrestriction.png" description="Pathrestrictions on interfaces 1 and 2." %}
+
+Netspoc assures all defined pathrestrictions to fulfill the
+requirements. Additionally, it is checked whether the defined
+pathrestriction have an effect on ACL generation. Proper
+pathrestrictions are then stored in a global array.
