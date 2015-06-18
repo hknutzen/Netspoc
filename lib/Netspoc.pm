@@ -70,6 +70,8 @@ our @EXPORT = qw(
   set_abort_immediately
   err_msg
   fatal_err
+  unique
+  equal
   read_ip
   print_ip
   show_version

@@ -86,11 +86,6 @@ sub export {
     return;
 }
 
-# Unique union of all elements.
-sub unique {
-    return values %{ {map { $_ => $_ } @_}}; 
-}
-
 sub by_name { return($a->{name} cmp $b->{name}) }
 
 # Take higher bits from network NAT, lower bits from original IP.
@@ -232,13 +227,6 @@ sub ip_nat_for_object {
         internal_err "Unexpected object $obj->{name}";
     }
     return $nat ? ( ip => $ip, nat => $nat ) : ( ip => $ip );
-}
-
-# Check if all arguments are 'eq'.
-sub equal {
-    return 1 if not @_;
-    my $first = $_[0];
-    return not grep { $_ ne $first } @_[ 1 .. $#_ ];
 }
 
 ######################################################################
