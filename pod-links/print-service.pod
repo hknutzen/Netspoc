@@ -113,7 +113,7 @@ sub prt_info {
                 return $v1;
             }
             elsif ($v1 == 1 and $v2 == 65535) {
-                return undef;
+                return;
             }
             else {
                 return "$v1-$v2";
