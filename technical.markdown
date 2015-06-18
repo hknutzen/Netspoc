@@ -378,5 +378,10 @@ source. Per default, Netspoc finds all such paths and generates
 appropriate ACLs. To exclude paths, pathrestrictions can be
 defined. Pathrestrictions refer to 2 or more interfaces inside or at
 the borders of a cycle. Netspoc excludes paths including at least 2 of
-the interfaces specified in the pathrestriction from ACL
-generation.
+the interfaces specified in the pathrestriction from ACL generation:
+In the picture below, pathrestrictions are defined for interfaces 1
+and 2. Therefore, paths A and B are considered during ACL generation,
+while path C is not. This is reflected in the interfaces ACLs: traffic
+between n1 and n4 is not routed by these interfaces.
+
+{% include image.html src="./images/pathrestriction.png" description="Pathrestrictions on interfaces 1 and 2." %}
