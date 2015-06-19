@@ -380,13 +380,25 @@ defined. Pathrestrictions refer to 2 or more interfaces inside or at
 the borders of a cycle. Netspoc excludes paths including at least 2 of
 the interfaces specified in the pathrestriction from ACL generation:
 In the picture below, pathrestrictions are defined for interfaces 1
-and 2. Therefore, paths A and B are considered during ACL generation,
-while path C is not. This is reflected in the interfaces ACLs: traffic
-between n1 and n4 is not routed by these interfaces.
+and 2. Therefore, paths from n1 to n5 and n6 are considered during ACL
+generation, while the path from n1 to n4 is not. This is reflected in
+the interfaces ACLs: traffic between n1 and n4 is not routed by these
+interfaces.
 
-{% include image.html src="./images/pathrestriction.png" description="Pathrestrictions on interfaces 1 and 2." %}
+{% include image.html src="./images/pathrestriction.png" description="Pathrestrictions on interfaces IF1 and IF2." %}
 
 Netspoc assures all defined pathrestrictions to fulfill the
 requirements. Additionally, it is checked whether the defined
 pathrestriction have an effect on ACL generation. Proper
 pathrestrictions are then stored in a global array.
+
+### Checking usage of virtual interfaces
+
+Virtual interfaces are used to provide a redundant connection from one
+network to another via different routers. These routers share a single
+ip address which is defined for one interface at every participating
+router:
+
+    
+
+ Virtual interfaces are defined at one interface with each of the participating routers  All participating routers, are connected to an interface   
