@@ -248,6 +248,7 @@ sub setup_zones {
 #        Netspoc::debug "$network->{name} in $zone->{name}";
         push @all_zones, $zone;
     }
+    return;
 }
 
 ######################################################################

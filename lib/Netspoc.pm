@@ -18583,6 +18583,7 @@ sub print_ca_and_tunnel_group_map {
     print "crypto ca certificate map $id 10\n";
     print " subject-name attr ea eq $id\n";
     print "tunnel-group-map $id 10 $tg_name\n";
+    return;
 }
 
 sub print_static_crypto_map {
