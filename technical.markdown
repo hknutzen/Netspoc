@@ -26,6 +26,28 @@ omit their explicit representation.
 
 {% include image.html src="./images/legend.png" description="Legend of used symbols." %}
 
+## Netspocs perspective
+
+Netspoc generates ACLs and static routes for a given network policy,
+consisting of a set of services and a network topology. It does so by
+finding all paths inside the topology graph for a certain source and
+destination pair. It is important to notice, that the network topology
+best fed to Netspoc is not necassarily an exact copy of the real
+network. Instead, the input topology should be a model of the network
+that provides just as much information as needed for Netspocs
+purpose. For example, complex parts of the network with dynamic
+routing and without filtering are not affected by Netspoc at all. They
+should therefore be replaced in the input topology by a single
+unmanaged router. This saves time and space during compilation and is
+easier to maintain. In very complex network topologies, even
+constellations may occur where it is suitable to include parts of the
+network twice to reduce complexity. As long as the ACLs and static
+routes are not affected, that would also provide a valid model of the
+network.
+
+Beneath the abstraction that is received from the input topology 
+
+
 ## Preparing zones and areas
 
 Netspoc combines networks connected by unmanaged routers in
@@ -371,7 +393,7 @@ Finally, Netspoc clusters all cactus graph loops by adding a reference
 to the exit node of the whole cluster as `cluster_exit` to all loop
 objects of the cluster. *TODO:picture?*
 
-### Checking for proper pathrestrictions
+### Check for proper pathrestrictions
 
 In cyclic graphs, several paths exists from a destination to a
 source. Per default, Netspoc finds all such paths and generates
@@ -392,12 +414,24 @@ requirements. Additionally, it is checked whether the defined
 pathrestriction have an effect on ACL generation. Proper
 pathrestrictions are then stored in a global array.
 
-### Checking usage of virtual interfaces
+### Check usage of virtual interfaces
 
+To assure that a connection between two networks will be guaranteed,
+they can be connected by more than one router, using HSRP or VRRP and
+a virtual IP address to establish a redundant connection.
+
+In Netspoc, such a situation is modelled by additional virtual
+interfaces at the participating routers (Fig. )
+
+  and several routers can be established for that connection. these routers share a virtual 
 Virtual interfaces are used to provide a redundant connection from one
-network to another via different routers. These routers share a single
-ip address which is defined for one interface at every participating
-router:
+network to another via different routers. These routers share a
+virtual interface with a single ip address. This interface is represented by interfaces with distinct IP addresses, with every participating router providing one. A rank order defines which router is in charge for routing packets through the interfacevirtual interface. In every router participating in the virtual interface, one interface is provided to    
+its interfaces representing the virtual interface. If the router in
+charge falls apart, the subsequent router will continue the
+routing. Obviously, the ACLs of all interfaces participating in the virtual interface have 
+
+Netspoc  
 
     
 
