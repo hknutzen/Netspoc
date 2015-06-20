@@ -4363,10 +4363,9 @@ sub link_subnets  {
         link_subnet($network, undef);
     }
     for my $obj (values %networks, values %aggregates, values %areas) {
-        if (my $nat =  $obj->{nat}) {
-            for my $nat (values %{ $obj->{nat} }) {
-                link_subnet($nat, $obj);
-            }
+        my $nat = $obj->{nat} or next;
+        for my $nat (values %{ $obj->{nat} }) {
+            link_subnet($nat, $obj);
         }
     }
     return;
