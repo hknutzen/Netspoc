@@ -9681,7 +9681,6 @@ sub inherit_nat_from_zone {
                 }
                     
                  next if $network->{ip} eq 'unnumbered'; # no nat without ip
-                next if $network->{isolated_ports}; # nat option not implemented
 
                 if ($nat->{identity}) {
                     $network->{identity_nat}->{$nat_tag} = $nat
@@ -15495,12 +15494,6 @@ sub address {
                 internal_err(
                     "Unexpected $obj->{name} with dynamic nat:$nat_tag");
             }
-        }
-        elsif ($network->{isolated}) {
-
-            # NAT not allowed for isolated ports. Take no bits from network,
-            # because secondary isolated ports don't match network.
-            return [ $obj->{ip}, 0xffffffff ];
         }
         else {
 
