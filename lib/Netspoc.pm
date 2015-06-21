@@ -9617,17 +9617,17 @@ sub inherit_area_nat {
     my ($area) = @_;
     my $hash = $area->{nat} or return;
 
-    # Process every nat definition of area
+    # Process every nat definition of area.
     for my $nat_tag (sort keys %$hash) {
         my $nat = $hash->{$nat_tag};
 
-        # Distribute nat definitions to every zone of area
+        # Distribute nat definitions to every zone of area.
         for my $zone (@{ $area->{zones} }) {
 
-            # skip zone, if NAT tag exists in zone already...
+            # Skip zone, if NAT tag exists in zone already...
             if (my $z_nat = $zone->{nat}->{$nat_tag}) {
 
-                # ... and warn if zones NAT values hold the same attributes 
+                # ... and warn if zones NAT value holds the same attributes.
                 check_useless_nat($nat_tag, $nat, $z_nat, $area, $zone);
                 next;
             }
@@ -9664,23 +9664,26 @@ sub inherit_nat_from_zone {
 
         for my $nat_tag (sort keys %$hash) {
             my $nat = $hash->{$nat_tag};
+
+            # Distribute nat definitions to every network of zone.
             for my $network (@{ $zone->{networks} }) {
 
-                # Ignore NAT definition from area
-                # if network has local NAT definition or 
-                # has already inherited from zone or smaller area.#?wie sichern?
+                # Skip network, if NAT tag exists in network already...
                 if (my $n_nat = $network->{nat}->{$nat_tag}) {
+
+                    # ... and warn if networks NAT value holds the
+                    # same attributes.
                     check_useless_nat($nat_tag, $nat, $n_nat, $zone, $network);
                     next;
                 }
 
-                # Ignore network with identity NAT.
+                # Ignore network having identity NAT.
                 if (my $id_nat = $network->{identity_nat}->{$nat_tag}) {
                     check_useless_nat($nat_tag, $nat, $id_nat, $zone, $network);
                     next;
                 }
                     
-                 next if $network->{ip} eq 'unnumbered'; # no nat without ip
+                next if $network->{ip} eq 'unnumbered'; # no nat without ip
 
                 if ($nat->{identity}) {
                     $network->{identity_nat}->{$nat_tag} = $nat
