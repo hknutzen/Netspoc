@@ -30,23 +30,28 @@ omit their explicit representation.
 
 Netspoc generates ACLs and static routes for a given network policy,
 consisting of a set of services and a network topology. It does so by
-finding all paths inside the topology graph for a certain source and
-destination pair. It is important to notice, that the network topology
-best fed to Netspoc is not necassarily an exact copy of the real
-network. Instead, the input topology should be a model of the network
-that provides just as much information as needed for Netspocs
-purpose. For example, complex parts of the network with dynamic
-routing and without filtering are not affected by Netspoc at all. They
-should therefore be replaced in the input topology by a single
-unmanaged router. This saves time and space during compilation and is
-easier to maintain. In very complex network topologies, even
-constellations may occur where it is suitable to include parts of the
-network twice to reduce complexity. As long as the ACLs and static
-routes are not affected, that would also provide a valid model of the
-network.
+finding all paths inside the network topology for a certain source and
+destination pair specified in a rule from the service set. It is
+important to notice, that the network topology best fed to Netspoc is
+not necassarily an exact copy of the real network. Instead, the input
+topology should be a model of the network that provides just as much
+information as needed for Netspocs purpose. For example, complex parts
+of the network with dynamic routing and without filtering are not
+affected by Netspoc at all. They should therefore be replaced in the
+input topology by a single unmanaged router. This saves time and space
+during compilation and is easier to maintain. In very complex network
+topologies, even constellations may occur where it is suitable to
+include parts of the network twice to reduce complexity. As long as
+the ACLs and static routes are not affected, that would also provide a
+valid model of the network.
 
-Beneath the abstraction that is received from the input topology 
-
+When the abstract topology model created by the user is handed over to
+Netspoc, Netspoc takes several steps to transform it into a graph
+representation to work on. As before, this representation is not
+designed to reproduce reality, but to represent those aspects of the
+topology that are important for generating ACLs and static
+routes. Moreover, these aspects are modeled to allow completing these
+tasks as efficiently as possible.
 
 ## Preparing zones and areas
 
