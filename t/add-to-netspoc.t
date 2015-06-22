@@ -80,10 +80,35 @@ END
 $out = <<'END';
 group:abc =
  any:[ ip = 10.1.0.0/16 & network:def ],
+ host:xyz,
+ host:h,
 ;
 END
 
-test_rmv($title, $in, 'host:xyz', $out);
+test_add($title, $in, 'host:xyz host:h', $out);
+test_rmv($title, $out, 'host:h', $in);
+
+############################################################
+$title = 'network after intersection';
+############################################################
+
+$in = <<'END';
+group:abc =
+ group:g &! host:xyz,
+ network:def,
+;
+END
+
+$out = <<'END';
+group:abc =
+ group:g &! host:xyz,
+ network:def,
+ network:n,
+;
+END
+
+test_add($title, $in, 'network:def network:n', $out);
+test_rmv($title, $out, 'network:n', $in);
 
 ############################################################
 $title = 'network in automatic group';
