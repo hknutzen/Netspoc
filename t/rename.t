@@ -11,8 +11,9 @@ sub test_run {
     my ($in_fh, $filename) = tempfile(UNLINK => 1);
     print $in_fh $input;
     close $in_fh;
+    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
 
-    my $cmd = "perl -I lib bin/rename-netspoc -q - $args < $filename";
+    my $cmd = "$^X $perl_opt -I lib bin/rename-netspoc -q - $args < $filename";
     open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
     # Undef input record separator to read all output at once.

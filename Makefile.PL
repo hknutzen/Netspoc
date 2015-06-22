@@ -19,6 +19,7 @@ my %WriteMakefileArgs = (
   "EXE_FILES" => [
     "bin/print-service",
     "bin/watchers-to-json",
+    "bin/export-netspoc",
     "bin/print-group",
     "bin/cut-netspoc",
     "bin/netspoc",
@@ -48,11 +49,12 @@ my %WriteMakefileArgs = (
     "Carp" => 0,
     "File::Spec::Functions" => 0,
     "File::Temp" => 0,
+    "IPC::Run3" => 0,
     "Test::Differences" => 0,
     "Test::More" => 0,
     "lib" => 0
   },
-  "VERSION" => "3.066",
+  "VERSION" => "3.067",
   "test" => {
     "TESTS" => "t/*.t"
   }
@@ -69,6 +71,7 @@ my %FallbackPrereqs = (
   "File::Spec::Functions" => 0,
   "File::Temp" => 0,
   "Getopt::Long" => 0,
+  "IPC::Run3" => 0,
   "JSON" => 0,
   "Module::Load::Conditional" => 0,
   "Pod::Usage" => 0,

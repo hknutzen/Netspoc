@@ -9,6 +9,7 @@ README
 README.md
 bin/add-to-netspoc
 bin/cut-netspoc
+bin/export-netspoc
 bin/netspoc
 bin/print-group
 bin/print-service
@@ -73,6 +74,7 @@ t/crosslink.t
 t/crypto.t
 t/cut-netspoc.t
 t/disabled.t
+t/export.t
 t/general-permit.t
 t/global-opt.t
 t/group.t
@@ -90,6 +92,8 @@ t/owner.t
 t/parser.t
 t/pathrestrict-border.t
 t/pathrestrict.t
+t/print-service.t
+t/print-service.t~
 t/private.t
 t/protect-interfaces.t
 t/protocols.t

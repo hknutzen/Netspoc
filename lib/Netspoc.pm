@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.066'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.067'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -70,6 +70,8 @@ our @EXPORT = qw(
   set_abort_immediately
   err_msg
   fatal_err
+  unique
+  equal
   read_ip
   print_ip
   show_version
@@ -154,7 +156,7 @@ our %config = (
     check_supernet_rules => 'warn',
 
 # Check for transient supernet rules.
-    check_transient_supernet_rules => 0,
+    check_transient_supernet_rules => 'warn',
 
 # Optimize the number of routing entries per router:
 # For each router find the hop, where the largest
@@ -666,12 +668,6 @@ sub read_ip {
     return $result;
 }
 
-sub read_mask {
-    my $mask = read_ip();
-    defined mask2prefix($mask) or syntax_err("IP mask isn't a valid prefix");
-    return $mask;
-}
-
 # Read IP address and prefix length.
 # x.x.x.x/n
 sub read_ip_prefix {
@@ -701,12 +697,6 @@ sub gen_ip {
 sub print_ip {
     my $ip = shift;
     return sprintf "%vd", pack 'N', $ip;
-}
-
-# Generate a list of IP strings from an ref of an array of integers.
-sub print_ip_aref {
-    my $aref = shift;
-    return map { print_ip $_; } @$aref;
 }
 
 # Conversion from netmask to prefix and vice versa.
@@ -1057,22 +1047,6 @@ sub check_flag {
     }
     else {
         return;
-    }
-}
-
-sub read_assign {
-    my ($token, $fun) = @_;
-    skip $token;
-    skip '=';
-    if (wantarray) {
-        my @val = &$fun;
-        skip(';');
-        return @val;
-    }
-    else {
-        my $val = &$fun;
-        skip(';');
-        return $val;
     }
 }
 
@@ -1486,11 +1460,6 @@ sub read_network {
             # Duplicate use of this flag doesn't matter.
             $network->{crosslink} = 1;
         }
-        elsif (check_flag 'isolated_ports') {
-
-            # Duplicate use of this flag doesn't matter.
-            $network->{isolated_ports} = 1;
-        }
         elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
             add_attribute($network, subnet_of => $pair);
         }
@@ -1612,9 +1581,6 @@ sub read_network {
             error_atline("Crosslink network must not have host definitions");
         }
         if ($network->{nat}) {
-            $network->{isolated_ports}
-              and error_atline("Attribute 'isolated_ports' isn't supported",
-                " together with NAT");
 
             # Check NAT definitions.
             for my $nat (values %{ $network->{nat} }) {
@@ -1834,9 +1800,6 @@ sub read_interface {
         }
         elsif (check_flag 'no_check') {
             $interface->{no_check} = 1;
-        }
-        elsif (check_flag 'promiscuous_port') {
-            $interface->{promiscuous_port} = 1;
         }
         else {
             syntax_err('Expected some valid attribute');
@@ -2425,10 +2388,6 @@ sub read_router {
             if ($interface->{hub}) {
                 error_atline("Interface with attribute 'hub' must only be",
                              " used at managed device");
-            }
-            if ($interface->{promiscuous_port}) {
-                error_atline("Interface with attribute 'promiscuous_port'",
-                             " must only be used at managed device");
             }
             if (delete $interface->{reroute_permit}) {
                 warn_msg("Ignoring attribute 'reroute_permit'",
@@ -3291,18 +3250,6 @@ sub read_owner {
     return $owner;
 }
 
-# For reading arbitrary names.
-# Don't be greedy in regex, to prevent reading over multiple semicolons.
-sub read_to_semicolon {
-    skip_space_and_comment;
-    if ($input =~ m/\G(.*?)(?=\s*;)/gco) {
-        return $1;
-    }
-    else {
-        syntax_err("Expected string ending with semicolon!");
-    }
-}
-
 my %global_type = (
     router          => [ \&read_router,          \%routers ],
     network         => [ \&read_network,         \%networks ],
@@ -3846,7 +3793,7 @@ sub order_ranges {
     return;
 }
 
-sub expand_splitted_protocols  {
+sub expand_splitted_protocol {
     my ($prt) = @_;
 
     # Handle unset src_range.
@@ -3855,8 +3802,8 @@ sub expand_splitted_protocols  {
     }
     elsif (my $split = $prt->{split}) {
         my ($prt1, $prt2) = @$split;
-        return (expand_splitted_protocols($prt1), 
-                expand_splitted_protocols($prt2));
+        return (expand_splitted_protocol($prt1), 
+                expand_splitted_protocol($prt2));
     }
     else {
         return $prt;
@@ -4149,7 +4096,7 @@ sub link_general_permit {
         [ sort { (ref $a eq 'ARRAY' ? $a->[2]->{name} : $a->{name})
                  cmp
                  (ref $b eq 'ARRAY' ? $b->[2]->{name} : $b->{name}) } 
-          @{ expand_protocols($list, $context) } ];
+          @{ split_protocols(expand_protocols($list, $context)) } ];
 
     # Don't allow port ranges. This wouldn't work, because
     # gen_reverse_rules doesn't handle generally permitted protocols.
@@ -4418,10 +4365,9 @@ sub link_subnets  {
         link_subnet($network, undef);
     }
     for my $obj (values %networks, values %aggregates, values %areas) {
-        if (my $nat =  $obj->{nat}) {
-            for my $nat (values %{ $obj->{nat} }) {
-                link_subnet($nat, $obj);
-            }
+        my $nat = $obj->{nat} or next;
+        for my $nat (values %{ $obj->{nat} }) {
+            link_subnet($nat, $obj);
         }
     }
     return;
@@ -4825,144 +4771,6 @@ my @networks;
 my @zones;
 my @areas;
 
-# Transform topology for networks with isolated ports.
-# If a network has attribute 'isolated_ports',
-# hosts inside this network are not allowed to talk directly to each other.
-# Instead the traffic must go through an interface which is marked as
-# 'promiscuous_port'.
-# To achieve the desired traffic flow, we transform the topology such
-# that each host is moved to a separate /32 network.
-# Non promiscuous interfaces are isolated as well. They are handled like hosts
-# and get a separate network too.
-sub transform_isolated_ports {
-  NETWORK:
-    for my $network (@networks) {
-        if (not $network->{isolated_ports}) {
-            for my $interface (@{ $network->{interfaces} }) {
-                $interface->{promiscuous_port}
-                  and warn_msg("Useless 'promiscuous_port' at",
-                               " $interface->{name}");
-            }
-            next;
-        }
-        $network->{ip} eq 'unnumbered' and internal_err();
-        my @promiscuous_ports;
-        my @isolated_interfaces;
-        my @secondary_isolated;
-        for my $interface (@{ $network->{interfaces} }) {
-            if ($interface->{promiscuous_port}) {
-                push @promiscuous_ports, $interface;
-            }
-            elsif ($interface->{redundant}) {
-                err_msg
-                  "Redundant $interface->{name} must not be isolated port";
-            }
-            elsif ($interface->{main_interface}) {
-                push @secondary_isolated, $interface
-                  if not $interface->{main_interface}->{promiscuous_port};
-            }
-            else {
-                push @isolated_interfaces, $interface;
-            }
-        }
-
-        if (not @promiscuous_ports) {
-            err_msg("Missing 'promiscuous_port' for $network->{name}",
-                " with 'isolated_ports'");
-
-            # Abort transformation.
-            next NETWORK;
-        }
-        elsif (@promiscuous_ports > 1) {
-            equal(map { $_->{redundancy_interfaces} || $_ } @promiscuous_ports)
-              or err_msg "All 'promiscuous_port's of $network->{name}",
-              " need to be redundant to each other";
-        }
-        $network->{hosts}
-          or @isolated_interfaces
-          or warn_msg("Useless attribute 'isolated_ports' at $network->{name}");
-
-        for my $obj (@{ $network->{hosts} }, @isolated_interfaces) {
-            my $ip = $obj->{ip};
-
-            # Add separate network for each isolated host or interface.
-            my $obj_name = $obj->{name};
-            my $new_net  = new(
-                'Network',
-
-                # Take name of $obj for artificial network.
-                name      => $obj_name,
-                ip        => $ip,
-                mask      => 0xffffffff,
-                subnet_of => $network,
-                isolated  => 1,
-            );
-            if (is_host($obj)) {
-                $new_net->{hosts} = [$obj];
-            }
-            else {
-
-                #  Don't use unnumbered, negotiated, tunnel interfaces.
-                $ip =~ /^\w/ or internal_err();
-                $new_net->{interfaces} = [$obj];
-                $obj->{network}        = $new_net;
-            }
-            push @networks, $new_net;
-
-            # Copy promiscuous interface(s) and use it to link new network
-            # with router.
-            my @redundancy_interfaces;
-            for my $interface (@promiscuous_ports) {
-                my $router = $interface->{router};
-                (my $router_name = $router->{name}) =~ s/^router://;
-                my $hardware = $interface->{hardware};
-                my $new_intf = new(
-                    'Interface',
-                    name     => "interface:$router_name.$obj_name",
-                    ip       => $interface->{ip},
-                    hardware => $hardware,
-                    router   => $router,
-                    network  => $new_net,
-                );
-                push @{ $hardware->{interfaces} }, $new_intf;
-                push @{ $new_net->{interfaces} },  $new_intf;
-                push @{ $router->{interfaces} },   $new_intf;
-                if ($interface->{redundant}) {
-                    @{$new_intf}{qw(redundant redundancy_type redundancy_id)} =
-                      @{$interface}
-                      {qw(redundant redundancy_type redundancy_id)};
-                    push @redundancy_interfaces, $new_intf;
-                }
-            }
-
-            # Automatically add pathrestriction to redundant interfaces.
-            if (@redundancy_interfaces) {
-                my $name = "auto-virtual-$obj_name";
-                add_pathrestriction($name, \@redundancy_interfaces);
-                for my $interface (@redundancy_interfaces) {
-                    $interface->{redundancy_interfaces} =
-                      \@redundancy_interfaces;
-                }
-            }
-        }
-
-        # Move secondary isolated interfaces to same artificial network
-        # where the corresponding main interface has been moved to.
-        for my $secondary (@secondary_isolated) {
-            my $new_net = $secondary->{main_interface}->{network};
-            push @{ $new_net->{interfaces} }, $secondary;
-            $secondary->{network} = $new_net;
-        }
-
-        # Remove hosts and isolated interfaces from original network.
-        $network->{hosts} = undef;
-        for my $interface (@isolated_interfaces, @secondary_isolated) {
-            aref_delete $network->{interfaces}, $interface;
-        }
-    }
-    return;
-}
-
 # Group bridged networks by prefix of name.
 # Each group
 # - must have the same IP address and mask,
@@ -5163,7 +4971,6 @@ sub mark_disabled {
 
     @virtual_interfaces = grep { not $_->{disabled} } @virtual_interfaces;
     check_bridged_networks();
-    transform_isolated_ports();
     return;
 }
 
@@ -6233,7 +6040,6 @@ sub check_unused_groups {
 sub expand_protocols {
     my ($aref, $context) = @_;
     my @protocols;
-    my @splitted_protocols;
     for my $pair (@$aref) {
 
         # Handle anonymous protocol.
@@ -6277,7 +6083,7 @@ sub expand_protocols {
                 }
 
                 # Split only once.
-                push @splitted_protocols, @$elements;
+                push @protocols, @$elements;
             }
             else {
                 err_msg("Can't resolve reference to $type:$name in $context");
@@ -6288,9 +6094,14 @@ sub expand_protocols {
             err_msg("Unknown type of $type:$name in $context");
         }
     }
+    return \@protocols;
+}
 
-    # Expand splitted protocols.
-    for my $prt (@protocols) {
+# Expand splitted protocols.
+sub split_protocols {
+    my ($protocols, $context) = @_;
+    my @splitted_protocols;
+    for my $prt (@$protocols) {
         my $proto = $prt->{proto};
         if (not($proto eq 'tcp' or $proto eq 'udp')) {
             push @splitted_protocols, $prt;
@@ -6309,8 +6120,8 @@ sub expand_protocols {
         if ($src_range or $prt->{flags} or $dst_range->{name} ne $prt->{name}) {
             my $aref_list = $prt->{src_dst_range_list};
             if (not $aref_list) {
-                for my $src_split (expand_splitted_protocols $src_range) {
-                    for my $dst_split (expand_splitted_protocols $dst_range) {
+                for my $src_split (expand_splitted_protocol $src_range) {
+                    for my $dst_split (expand_splitted_protocol $dst_range) {
                         push @$aref_list, [$src_split, $dst_split, $prt];
                     }
                 }
@@ -6319,7 +6130,7 @@ sub expand_protocols {
             push @splitted_protocols, @$aref_list;
         }
         else {
-            for my $dst_split (expand_splitted_protocols $dst_range) {
+            for my $dst_split (expand_splitted_protocol $dst_range) {
                 push @splitted_protocols, $dst_split;
             }
         }
@@ -6864,7 +6675,8 @@ sub expand_rules {
                 $log = undef;
             }
         }
-        my $prt_list = expand_protocols($unexpanded->{prt}, "rule in $context");
+        my $prt_list = split_protocols(expand_protocols($unexpanded->{prt},
+                                                        "rule in $context"));
         for my $element ($foreach ? @$user : $user) {
             $user_object->{elements} = $element;
             my $src = expand_group_in_rule($unexpanded->{src}, 
@@ -7464,7 +7276,7 @@ sub propagate_owners {
             if (@invalid) {
                 my $missing = join("\n - ", map { $_->{name} } @invalid);
                 err_msg("$owner->{name} has attribute 'show_all',",
-                        " but dosn't own whole topology.\n",
+                        " but doesn't own whole topology.\n",
                         " Missing:\n",
                         " - $missing");
             }
@@ -7940,14 +7752,6 @@ sub distribute_nat_info {
             }
         }
     }
-
-    # Check that $href has exactly one hidden NAT tag or that all tags
-    # are hidden.
-    my $all_or_one_hidden = sub {
-        my ($href) = @_;
-        my $count = grep({ !$has_non_hidden{$_} } keys %$href);
-        return 1 == $count || keys %$href == $count;
-    };
 
     # A hash with all defined NAT tags.
     # It is used to check,
@@ -9820,17 +9624,17 @@ sub inherit_area_nat {
     my ($area) = @_;
     my $hash = $area->{nat} or return;
 
-    # Process every nat definition of area
+    # Process every nat definition of area.
     for my $nat_tag (sort keys %$hash) {
         my $nat = $hash->{$nat_tag};
 
-        # Distribute nat definitions to every zone of area
+        # Distribute nat definitions to every zone of area.
         for my $zone (@{ $area->{zones} }) {
 
-            # skip zone, if NAT tag exists in zone already...
+            # Skip zone, if NAT tag exists in zone already...
             if (my $z_nat = $zone->{nat}->{$nat_tag}) {
 
-                # ... and warn if zones NAT values hold the same attributes 
+                # ... and warn if zones NAT value holds the same attributes.
                 check_useless_nat($nat_tag, $nat, $z_nat, $area, $zone);
                 next;
             }
@@ -9867,24 +9671,26 @@ sub inherit_nat_from_zone {
 
         for my $nat_tag (sort keys %$hash) {
             my $nat = $hash->{$nat_tag};
+
+            # Distribute nat definitions to every network of zone.
             for my $network (@{ $zone->{networks} }) {
 
-                # Ignore NAT definition from area
-                # if network has local NAT definition or 
-                # has already inherited from zone or smaller area.#?wie sichern?
+                # Skip network, if NAT tag exists in network already...
                 if (my $n_nat = $network->{nat}->{$nat_tag}) {
+
+                    # ... and warn if networks NAT value holds the
+                    # same attributes.
                     check_useless_nat($nat_tag, $nat, $n_nat, $zone, $network);
                     next;
                 }
 
-                # Ignore network with identity NAT.
+                # Ignore network having identity NAT.
                 if (my $id_nat = $network->{identity_nat}->{$nat_tag}) {
                     check_useless_nat($nat_tag, $nat, $id_nat, $zone, $network);
                     next;
                 }
                     
-                 next if $network->{ip} eq 'unnumbered'; # no nat without ip
-                next if $network->{isolated_ports}; # nat option not implemented
+                next if $network->{ip} eq 'unnumbered'; # no nat without ip
 
                 if ($nat->{identity}) {
                     $network->{identity_nat}->{$nat_tag} = $nat
@@ -11765,8 +11571,11 @@ sub link_tunnels  {
         $real_spokes and @$real_spokes
           or warn_msg("No spokes have been defined for $name");
 
-        # Substitute crypto name by crypto object.
+        my $isakmp = $crypto->{type}->{key_exchange};
+        my $need_id = $isakmp->{authentication} eq 'rsasig';
         for my $real_hub (@$real_hubs) {
+
+            # Substitute crypto name by crypto object.
             for my $crypto_name (@{ $real_hub->{hub} }) {
                 $crypto_name eq $name and $crypto_name = $crypto;
             }
@@ -11777,6 +11586,12 @@ sub link_tunnels  {
             # a single crypto interface. 
             my $router = $real_hub->{router};
             $router->{managed} or next;
+
+            # Router of type {do_auth} can only check certificates,
+            # not pre-shared keys.
+            $router->{model}->{do_auth} and not $need_id and
+                err_msg("$router->{name} needs authentication=rsasig",
+                        " in $isakmp->{name}");
 
             # Take original router with cleartext interface(s).
             if (my $orig_router = $router->{orig_router}) {
@@ -12046,6 +11861,8 @@ sub expand_crypto  {
 
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
+        my $isakmp = $crypto->{type}->{key_exchange};
+        my $need_id = $isakmp->{authentication} eq 'rsasig';
 
         # Do consistency checks and
         # add rules which allow encrypted traffic.
@@ -12147,39 +11964,28 @@ sub expand_crypto  {
                 my $real_spoke = $tunnel_intf->{real_interface};
                 for my $peer (@$peers) {
                     $peer->{peer_networks} = \@encrypted;
-
-                    # ID can only be checked at hub with attribute do_auth.
                     my $router  = $peer->{router};
                     my $do_auth = $router->{model}->{do_auth};
-                    my $need_id = 
-                        $real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/;
+                    my $unknown_ip = 
+                        $real_spoke->{ip} =~ 
+                        /^(?:negotiated|short|unnumbered)$/;
                     if ($tunnel_intf->{id}) {
-                        if ($do_auth or $need_id) {
-                            my $isakmp = $crypto->{type}->{key_exchange};
-                            $isakmp->{authentication} eq 'rsasig' or
-                                err_msg("Invalid attribute 'id' at",
-                                        " $tunnel_intf->{name}.\n",
-                                        " Set authentication=rsasig at",
-                                        " $isakmp->{name}");
-                        }
-                        else {
-                            warn_msg("Useless attribute 'id' at",
-                                     " $real_spoke->{name}");
-                        }
+                        $need_id or
+                            err_msg("Invalid attribute 'id' at",
+                                    " $tunnel_intf->{name}.\n",
+                                    " Set authentication=rsasig at",
+                                    " $isakmp->{name}");
                     }
                     elsif ($encrypted[0]->{has_id_hosts}) {
                         $do_auth
                           or err_msg("$router->{name} can't check IDs",
-                                     " of $tunnel_intf->{name}");
-                    }
-                    elsif ($do_auth) {
-                        err_msg "$router->{name} can only check",
-                          " interface or host having ID",
-                          " at $tunnel_intf->{name}";
+                                     " of $encrypted[0]->{name}");
                     }
                     elsif ($need_id) {
-                        err_msg("$tunnel_intf->{name} with unnkown IP",
-                                " needs attribute 'id'");
+                        err_msg("$tunnel_intf->{name}",
+                                " needs attribute 'id',",
+                                " because $isakmp->{name}",
+                                " has authentication=rsasig");
                     }
                 }
 
@@ -14491,12 +14297,10 @@ sub check_and_convert_routes  {
                                  @hops))
                     || @hops == 1)
                 {
-                    for my $hop (@hops) {
-                        $hop_routes = $real_intf->{routes}->{$hop} ||= {};
-                        $real_intf->{hop}->{$hop} = $hop;
-#                        debug "Use $hop->{name} as hop for $real_peer->{name}";
-                        last;
-                    }
+                    my $hop = shift @hops;
+                    $hop_routes = $real_intf->{routes}->{$hop} ||= {};
+                    $real_intf->{hop}->{$hop} = $hop;
+#                    debug "Use $hop->{name} as hop for $real_peer->{name}";
                 }
                 else {
 
@@ -14522,6 +14326,11 @@ sub check_and_convert_routes  {
                     for my $tunnel_net (values %$tunnel_net_hash) {
                         $hop_routes->{$tunnel_net} = $tunnel_net;
                     }
+                }
+
+                # Add route to reach peer interface.
+                if ($peer_net ne $real_net) {
+                    $hop_routes->{$peer_net} = $peer_net;
                 }
             }
         }
@@ -15698,12 +15507,6 @@ sub address {
                 internal_err(
                     "Unexpected $obj->{name} with dynamic nat:$nat_tag");
             }
-        }
-        elsif ($network->{isolated}) {
-
-            # NAT not allowed for isolated ports. Take no bits from network,
-            # because secondary isolated ports don't match network.
-            return [ $obj->{ip}, 0xffffffff ];
         }
         else {
 
@@ -18767,6 +18570,17 @@ sub print_tunnel_group {
     return;
 }
 
+sub print_ca_and_tunnel_group_map {
+    my ($id, $tg_name) = @_;
+
+    # Activate tunnel-group with tunnel-group-map.
+    # Use $id as ca-map name.
+    print "crypto ca certificate map $id 10\n";
+    print " subject-name attr ea eq $id\n";
+    print "tunnel-group-map $id 10 $tg_name\n";
+    return;
+}
+
 sub print_static_crypto_map {
     my ($router, $hardware, $map_name, $interfaces, $ipsec2trans_name) = @_;
     my $model = $router->{model};
@@ -18838,6 +18652,12 @@ sub print_static_crypto_map {
                 my $peer_ip = prefix_code(address($peer->{real_interface},
                                                   $no_nat_set));
                 print_tunnel_group($peer_ip, $interface, $isakmp);
+
+                # Tunnel group needs to be activated, if certificate
+                # is in use.
+                if (my $id = $peer->{id}) {
+                    print_ca_and_tunnel_group_map($id, $peer_ip);
+                }
             }
         }
     }
@@ -18889,10 +18709,7 @@ sub print_dynamic_crypto_map {
         print_tunnel_group($id, $interface, $isakmp);
 
         # Activate tunnel-group with tunnel-group-map.
-        # Use $id as ca-map name.
-        print "crypto ca certificate map $id 10\n";
-        print " subject-name attr ea eq $id\n";
-        print "tunnel-group-map $id 10 $id\n";
+        print_ca_and_tunnel_group_map($id, $id);
     }
     return;
 }

@@ -1,3 +1,17 @@
+3.067     2015-06-22 13:35:39+02:00 Europe/Berlin
+
+ - Changes in generated crypto code for ASA:
+   - Always add tunnel-group-map if authentication=rsasig.
+     This is needed even for tunnel-group having IP address as name.
+   - Add route to reach VPN software clients.
+ - Moved program bin/export-netspoc from package Netspoc-Web
+   into this package.
+ - Option 'check_transient_supernet_rules' is activated by default.
+   Category is set to 'warn'.
+ - Revert changes in subroutine 'expand_protocols'.
+   This broke commands print-service and export-netspoc.
+ - No longer support isolated and promiscuous ports.
+
 3.066     2015-06-11 13:36:34+02:00 Europe/Berlin
 
  - Changes in generated crypto code for ASA:

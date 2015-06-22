@@ -63,6 +63,19 @@ crypto:vpn = {
  type = ipsec:aes256SHA;
 }
 
+network:work1 = { ip = 10.0.1.0/24; }
+network:work2 = { ip = 10.0.2.0/24; }
+network:work3 = { ip = 10.0.3.0/24; }
+network:work4 = { ip = 10.0.4.0/24; }
+
+router:u = {
+ interface:work1;
+ interface:work2;
+ interface:work3;
+ interface:work4;
+ interface:intern = { ip = 10.1.1.1; }
+}
+
 network:intern = { ip = 10.1.1.0/24;}
 
 router:asavpn = {
@@ -130,19 +143,33 @@ network:customers2 = {
   radius_attributes = { vpn-idle-timeout = 40; trust-point = ASDM_TrustPoint3; } }
 }
 
+group:work = 
+ network:work1,
+ network:work2,
+ network:work3,
+ network:work4,
+;
+
 service:test1 = {
  user = host:id:foo@domain.x.customers1, host:id:@domain.y.customers2;
- permit src = user; dst = network:intern; prt = tcp 80; 
+ permit src = user; dst = group:work; prt = tcp 80; 
 }
 
 service:test2 = {
  user = host:id:bar@domain.x.customers1, host:id:domain.x.customers2;
- permit src = user; dst = network:intern; prt = tcp 81; 
+ permit src = user; dst = group:work; prt = tcp 81; 
 }
 END
 
 $out = <<'END';
 --asavpn
+! [ Routing ]
+route inside 10.0.1.0 255.255.255.0 10.1.1.1
+route inside 10.0.2.0 255.255.255.0 10.1.1.1
+route inside 10.0.3.0 255.255.255.0 10.1.1.1
+route inside 10.0.4.0 255.255.255.0 10.1.1.1
+route outside 0.0.0.0 0.0.0.0 192.168.0.1
+--
 no sysopt connection permit-vpn
 group-policy global internal
 group-policy global attributes
@@ -190,7 +217,10 @@ username bar@domain.x attributes
  vpn-filter value vpn-filter-2
  vpn-group-policy VPN-group-2
 --
-access-list split-tunnel-3 standard permit 10.1.1.0 255.255.255.0
+access-list split-tunnel-3 standard permit 10.0.1.0 255.255.255.0
+access-list split-tunnel-3 standard permit 10.0.2.0 255.255.255.0
+access-list split-tunnel-3 standard permit 10.0.3.0 255.255.255.0
+access-list split-tunnel-3 standard permit 10.0.4.0 255.255.255.0
 access-list vpn-filter-3 extended permit ip 10.99.2.0 255.255.255.192 any
 access-list vpn-filter-3 extended deny ip any any
 crypto ca certificate map ca-map-3 10
@@ -239,9 +269,14 @@ object-group network g1
 object-group network g2
  network-object host 10.99.1.11
  network-object 10.99.2.0 255.255.255.192
+object-group network g3
+ network-object 10.0.1.0 255.255.255.0
+ network-object 10.0.2.0 255.255.255.0
+ network-object 10.0.3.0 255.255.255.0
+ network-object 10.0.4.0 255.255.255.0
 access-list outside_in extended permit icmp object-group g0 any 3
-access-list outside_in extended permit tcp object-group g1 10.1.1.0 255.255.255.0 eq 80
-access-list outside_in extended permit tcp object-group g2 10.1.1.0 255.255.255.0 eq 81
+access-list outside_in extended permit tcp object-group g1 object-group g3 eq 80
+access-list outside_in extended permit tcp object-group g2 object-group g3 eq 81
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 END
@@ -661,6 +696,7 @@ network:internet = { ip = 0.0.0.0/0; has_subnets; }
 router:vpn1 = {
  interface:internet = {
   ip = 172.16.1.2;
+  id = cert@example.com;
   spoke = crypto:sts1;
  }
  interface:lan1 = {
@@ -713,6 +749,9 @@ tunnel-group 172.16.1.2 ipsec-attributes
  peer-id-validate nocheck
  trust-point ASDM_TrustPoint3
  isakmp ikev1-user-authentication none
+crypto ca certificate map cert@example.com 10
+ subject-name attr ea eq cert@example.com
+tunnel-group-map cert@example.com 10 172.16.1.2
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
 crypto map crypto-outside 2 set peer 172.16.2.2
@@ -762,6 +801,9 @@ tunnel-group 172.16.1.2 ipsec-attributes
  peer-id-validate nocheck
  ikev2 local-authentication certificate ASDM_TrustPoint3
  ikev2 remote-authentication certificate
+crypto ca certificate map cert@example.com 10
+ subject-name attr ea eq cert@example.com
+tunnel-group-map cert@example.com 10 172.16.1.2
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
 crypto map crypto-outside 2 set peer 172.16.2.2
@@ -1178,6 +1220,7 @@ router:vpn1 = {
  model = IOS;
  interface:dmz1 = {
   ip = 10.254.254.6;
+id = cert@example.com;
   nat:vpn1 = { ip = 1.2.3.129; }
   spoke = crypto:sts;
   bind_nat = lan1;
@@ -1214,6 +1257,9 @@ tunnel-group 1.2.3.129 ipsec-attributes
  peer-id-validate nocheck
  ikev1 trust-point ASDM_TrustPoint3
  ikev1 user-authentication none
+crypto ca certificate map cert@example.com 10
+ subject-name attr ea eq cert@example.com
+tunnel-group-map cert@example.com 10 1.2.3.129
 crypto map crypto-outside interface outside
 --
 access-list outside_in extended permit tcp 10.10.10.0 255.255.255.0 host 10.1.1.111 eq 80
@@ -1254,7 +1300,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Unmanaged VPN spoke with unknown IP';
+$title = 'Unmanaged VPN spoke with unknown ID';
 ############################################################
 
 $in = <<'END';
@@ -1308,7 +1354,8 @@ network:internet = { ip = 0.0.0.0/0; has_subnets; }
 
 router:vpn1 = {
  interface:internet = {
-#  ip = 1.1.1.1;
+    ip = 1.1.1.1;
+#  id = cert@example.com;
   spoke = crypto:sts;
  }
  interface:lan1;
@@ -1319,16 +1366,16 @@ END
 
 
 $out = <<"END";
-Error: interface:vpn1.tunnel:vpn1 with unnkown IP needs attribute 'id'
+Error: interface:vpn1.tunnel:vpn1 needs attribute \'id\', because isakmp:aes256SHA has authentication=rsasig
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Unmanaged VPN spoke with known IP';
+$title = 'Unmanaged VPN spoke with known ID';
 ############################################################
 
-$in =~ s/#  ip/  ip/;
+$in =~ s/#  id/  id/;
 
 $out = <<'END';
 --asavpn
@@ -1345,6 +1392,9 @@ tunnel-group 1.1.1.1 ipsec-attributes
  peer-id-validate nocheck
  ikev1 trust-point ASDM_TrustPoint3
  ikev1 user-authentication none
+crypto ca certificate map cert@example.com 10
+ subject-name attr ea eq cert@example.com
+tunnel-group-map cert@example.com 10 1.1.1.1
 crypto map crypto-outside interface outside
 --
 access-list outside_in extended deny ip any any

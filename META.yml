@@ -7,6 +7,7 @@ build_requires:
   Carp: '0'
   File::Spec::Functions: '0'
   File::Temp: '0'
+  IPC::Run3: '0'
   Test::Differences: '0'
   Test::More: '0'
   lib: '0'
@@ -33,4 +34,4 @@ requires:
   strict: '0'
   utf8: '0'
   warnings: '0'
-version: '3.066'
+version: '3.067'
