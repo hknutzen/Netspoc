@@ -9649,7 +9649,7 @@ sub inherit_area_nat {
 
 ###############################################################################
 # Purpose : Assure that areas are processed in the right order and distribute 
-#           area attributes to the networks and managed routers.   
+#           area attributes to zones and managed routers.   
 sub inherit_attributes_from_area {
 
     # Areas can be nested. Proceed from small to larger ones.
