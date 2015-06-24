@@ -453,6 +453,9 @@ For this reason, Netspoc policy language allows to model virtual IP addresses:
 
 Within Netspocs graph representation of the topology, the virtual IP
 address is included twice, with an additional virtual interface at
-every participating router (Fig. )
+every participating router (Fig. ). Obviously, virtual interfaces are
+reasonable only within cycles. Therefore Netspoc checks, whether all
+virtual interfaces sharing a single virtual IP address are located inside
+the same loop.
 
 {% include image.html src="./images/virtual_interface.png" description="Virtual IP adresses are represented in Netspoc as additional interfaces" %}
