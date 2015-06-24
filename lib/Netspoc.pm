@@ -241,6 +241,7 @@ sub set_config {
 # Modified only by sub store_description.
 my $new_store_description;
 
+# Stores the last used description and returns this if the currently passed description is undefined.
 sub store_description {
     my ($set) = @_;
     if (defined $set) {
@@ -642,6 +643,7 @@ sub check_int {
     }
 }
 
+# Returns an integer value from input, or prints an error message if input cannot be parsed as an integer.
 sub read_int {
     my $result = check_int();
     defined $result or syntax_err("Integer expected");
@@ -662,6 +664,7 @@ sub check_ip {
     }
 }
 
+# Returns the IP or prints an error message if the IP could not be read.
 sub read_ip {
     my $result = check_ip();
     defined $result or syntax_err("IP address expected");
@@ -997,6 +1000,7 @@ sub read_time_val {
     return $int * $factor;
 }
 
+# Sets the description for the passed object if set in $input.
 sub add_description {
     my ($obj) = @_;
     check 'description' or return;
@@ -1138,6 +1142,7 @@ sub new {
     return bless $self, $type;
 }
 
+# Adds the passed key/value to the hash of the passed object, or prints an error message if the hash already contains the key.
 sub add_attribute {
     my ($obj, $key, $value) = @_;
     defined $obj->{$key} and error_atline("Duplicate attribute '$key'");
@@ -1267,6 +1272,15 @@ sub host_as_interface {
     return $interface;
 }
 
+# Parameter: "host:$host_name"
+# Parameter: $net_name: network name
+#
+# Return: Host object
+#
+# Uses global: $input: Content of the current file
+# Uses global: $router_info: Map of different router models
+#
+# Called while the creation of Network objects by read_network
 sub read_host {
     my ($name, $network_name) = @_;
     my $host = new('Host');
@@ -1426,6 +1440,10 @@ sub read_nat {
 
 our %networks;
 
+# Parameter: "network:$name"
+# Return: Network object
+#
+# Uses global: $input: Content of the current file
 sub read_network {
     my $name = shift;
 
@@ -1627,6 +1645,14 @@ my %crypto2spokes;
 # Key is crypto name, not crypto object.
 my %crypto2hubs;
 
+# Parameter: "interface:$iname"
+# Return: Interface object, Array of secondary Interface objects
+#
+# Uses global: $input: Content of the current file
+# Uses global: $file: 
+# Uses global: %token2regex: Cache of regexes
+#
+# Called while the creation of Router objects by read_router
 sub read_interface {
     my ($name) = @_;
     my $interface = new('Interface', name => $name);
@@ -1964,6 +1990,11 @@ my $bind_nat0 = [];
 
 our %routers;
 
+# Parameter: "router:$name"
+# Return: Router object
+#
+# Uses global: $input: Content of the current file
+# Uses global: $router_info: Map of different router models
 sub read_router {
     my $name = shift;
 
@@ -2551,6 +2582,9 @@ sub move_locked_interfaces {
 
 our %aggregates;
 
+# Parameter: "any:$name"
+# Return: Network object
+# Uses global: $input: Content of the current file
 sub read_aggregate {
     my $name = shift;
     my $aggregate = new('Network', name => $name, is_aggregate => 1);
@@ -2632,6 +2666,9 @@ sub check_router_attributes {
 
 our %areas;
 
+# Parameter: "area:$name"
+# Return: Area object
+# Uses global: $input: Content of the current file
 sub read_area {
     my $name = shift;
     my $area = new('Area', name => $name);
@@ -2694,6 +2731,10 @@ sub read_area {
 
 our %groups;
 
+# Parameter: "group:$name"
+# Return: Group object
+#
+# Uses global: $input: Content of the current file
 sub read_group {
     my $name = shift;
     skip '=';
@@ -2707,6 +2748,10 @@ sub read_group {
 
 our %protocolgroups;
 
+# Parameter: "protocolgroup:$name"
+# Return: Protocolgroup object
+#
+# Uses global: $input: Content of the current file
 sub read_protocolgroup {
     my $name = shift;
     skip '=';
@@ -2861,6 +2906,14 @@ sub gen_protocol_name {
 
 our %protocols;
 
+# Adds additional parameters to the passed HASH, adds it to the cache and returns it. If the HASH is already in the cache that protocol is returned.
+#
+# Parameter: Protocol HASH
+# Return: Protocol HASH 
+#
+# Uses global: %protocols: Cache of already parsed protocols
+#
+# Called by read_simple_protocol which is called by read_protocol
 sub cache_anonymous_protocol {
     my ($protocol) = @_;
     my $name = gen_protocol_name($protocol);
@@ -2875,6 +2928,12 @@ sub cache_anonymous_protocol {
     }
 }
 
+# Parameter: "$name"
+# Return: HASH
+#
+# Uses global: $input: Content of the current file
+#
+# Called by read_protocol, read_service
 sub read_simple_protocol {
     my $name     = shift;
     my $protocol = {};
@@ -2935,6 +2994,9 @@ sub read_typed_name_or_simple_protocol {
     return (check_typed_name() || read_simple_protocol());
 }
 
+# Parameter: "protocol:$name"
+# Return: Protocol HASH
+# Uses global: $input: Content of the current file
 sub read_protocol {
     my $name = shift;
     skip '=';
@@ -2956,6 +3018,11 @@ sub assign_union_allow_user {
     return \@result, $user_object->{refcount};
 }
 
+# Parameter: "service:$name"
+# Return: Service HASH
+#
+# Uses global: $input: Content of the current file
+# Uses global: $user_object
 sub read_service {
     my ($name) = @_;
     my $service = { name => $name, rules => [] };
@@ -3041,6 +3108,10 @@ sub read_service {
 
 our %pathrestrictions;
 
+# Parameter: "pathrestriction:$name"
+# Return: Pathrestriction object
+#
+# Uses global: $input: Content of the current file
 sub read_pathrestriction {
     my $name = shift;
     skip '=';
@@ -3130,6 +3201,10 @@ my %isakmp_attributes = (
 
 our %isakmp;
 
+# Parameter: "isakmp:$name"
+# Return: HASH
+#
+# Uses global: $input: Content of the current file
 sub read_isakmp {
     my ($name) = @_;
     return read_attributed_object $name, \%isakmp_attributes;
@@ -3165,6 +3240,10 @@ my %ipsec_attributes = (
 
 our %ipsec;
 
+# Parameter: "ipsec:$name"
+# Return: HASH
+#
+# Uses global: $input: Content of the current file
 sub read_ipsec {
     my ($name) = @_;
     return read_attributed_object $name, \%ipsec_attributes;
@@ -3172,6 +3251,10 @@ sub read_ipsec {
 
 our %crypto;
 
+# Parameter: "crypto:$name"
+# Return: HASH
+#
+# Uses global: $input: Content of the current file
 sub read_crypto {
     my ($name) = @_;
     skip '=';
@@ -3199,6 +3282,10 @@ sub read_crypto {
 
 our %owners;
 
+# Parameter: "$owner:$name"
+# Return: Owner object
+#
+# Uses global: $input: Content of the current file
 sub read_owner {
     my $name = shift;
     my $owner = new('Owner', name => $name);
