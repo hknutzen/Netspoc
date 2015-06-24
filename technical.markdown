@@ -438,17 +438,21 @@ For this reason, Netspoc policy language allows to model virtual IP addresses:
     network:n2 = {ip = 10.1.2.0/24;}
 
     router:r1 = {
-     interface:n1 = {ip = 10.1.1.11; virtual = {ip = 10.1.1.1; type = HSPR} hardware Ethernet1;} 
+     interface:n1 = {ip = 10.1.1.11; 
+                     virtual = {ip = 10.1.1.1; type = HSPR} 
+                     hardware Ethernet1;} 
      interface: n2 = {ip = 10.1.2.1; hardware = Ethernet2;}
     } 
 
     router:r2 = {
-     interface:n1 = {ip = 10.1.1.12; virtual = {ip = 10.1.1.1; type = HSPR} hardware Ethernet1;} 
+     interface:n1 = {ip = 10.1.1.12;
+                     virtual = {ip = 10.1.1.1; type = HSPR} 
+                     hardware Ethernet1;} 
      interface: n2 = {ip = 10.1.2.2; hardware = Ethernet2;}
     } 
 
 Within Netspocs graph representation of the topology, the virtual IP
-address is includes twice, with one additional virtual interfaces at
+address is included twice, with an additional virtual interface at
 every participating router (Fig. )
 
 {% include image.html src="./images/virtual_interface.png" description="Virtual IP adresses are represented in Netspoc as additional interfaces" %}
