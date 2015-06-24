@@ -406,18 +406,17 @@ appropriate ACLs. To exclude paths, pathrestrictions can be
 defined. Pathrestrictions refer to 2 or more interfaces inside or at
 the borders of a cycle. Netspoc excludes paths including at least 2 of
 the interfaces specified in the pathrestriction from ACL generation:
-In the picture below, pathrestrictions are defined for interfaces 1
+In the picture below, a pathrestrictions is defined for interfaces 1
 and 2. Therefore, paths from n1 to n5 and n6 are considered during ACL
 generation, while the path from n1 to n4 is not. This is reflected in
 the interfaces ACLs: traffic between n1 and n4 is not routed by these
 interfaces.
 
-{% include image.html src="./images/pathrestriction.png" description="Pathrestrictions on interfaces IF1 and IF2." %}
+{% include image.html src="./images/pathrestriction.png" description="Pathrestriction including interfaces IF1 and IF2." %}
 
 Netspoc assures all defined pathrestrictions to fulfill the
-requirements. Additionally, it is checked whether the defined
-pathrestriction have an effect on ACL generation. Proper
-pathrestrictions are then stored in a global array.
+requirements and checks tat they have an effect on ACL
+generation. Proper pathrestrictions are then stored in a global array.
 
 ### Check usage of virtual interfaces
 
@@ -425,19 +424,31 @@ To assure that a connection between two networks will be guaranteed,
 they can be connected by more than one router, using HSRP or VRRP and
 a virtual IP address to establish a redundant connection.
 
-In Netspoc, such a situation is modelled by additional virtual
-interfaces at the participating routers (Fig. )
+The usage of virtual IP addresses within the topology affects the
+generation of both ACLs and static routes: Routers sharing a virtual
+IP address need to communicate to determine which router is
+active. Therefore the usage of virtual ip addresses will be reflected
+in the ACLs of the participating interfaces. And for the generation of
+static routes, the virtual IP if the interfaces has to be used instead
+of the real one.
 
-  and several routers can be established for that connection. these routers share a virtual 
-Virtual interfaces are used to provide a redundant connection from one
-network to another via different routers. These routers share a
-virtual interface with a single ip address. This interface is represented by interfaces with distinct IP addresses, with every participating router providing one. A rank order defines which router is in charge for routing packets through the interfacevirtual interface. In every router participating in the virtual interface, one interface is provided to    
-its interfaces representing the virtual interface. If the router in
-charge falls apart, the subsequent router will continue the
-routing. Obviously, the ACLs of all interfaces participating in the virtual interface have 
+For this reason, Netspoc policy language allows to model virtual IP addresses:
 
-Netspoc  
+    network:n1 = {ip = 10.1.1.0/24;}
+    network:n2 = {ip = 10.1.2.0/24;}
 
-    
+    router:r1 = {
+     interface:n1 = {ip = 10.1.1.11; virtual = {ip = 10.1.1.1; type = HSPR} hardware Ethernet1;} 
+     interface: n2 = {ip = 10.1.2.1; hardware = Ethernet2;}
+    } 
 
- Virtual interfaces are defined at one interface with each of the participating routers  All participating routers, are connected to an interface   
+    router:r2 = {
+     interface:n1 = {ip = 10.1.1.12; virtual = {ip = 10.1.1.1; type = HSPR} hardware Ethernet1;} 
+     interface: n2 = {ip = 10.1.2.2; hardware = Ethernet2;}
+    } 
+
+Within Netspocs graph representation of the topology, the virtual IP
+address is includes twice, with one additional virtual interfaces at
+every participating router (Fig. )
+
+{% include image.html src="./images/virtual_interface.png" description="Virtual IP adresses are represented in Netspoc as additional interfaces" %}
