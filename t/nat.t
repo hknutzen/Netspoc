@@ -470,7 +470,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'NAT from overlapping areas and aggregates';
+$title = 'Inherit NAT from overlapping areas and zones';
 ############################################################
 
 $in = <<'END';
@@ -550,6 +550,101 @@ Error: network:b2 is hidden by nat:d in rule
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Inherit NAT from aggregates and supernets inside zone';
+############################################################
+
+$in = <<'END';
+# NAT is inherited to all 10.* subnets by default.
+network:n   = {
+ ip = 10.0.0.0/8;
+ nat:d = { ip = 11.0.0.0/8; }
+ has_subnets; 
+}
+
+# NAT is disabled for 10.0.0.0/16 and 10.1.0.0/16
+any:a1 = { 
+ ip = 10.0.0.0/15;
+ link = network:n; 
+ nat:d = { identity; }
+}
+
+# NAT is enabled for this network and 
+# inherited to 10.1.1.0/24 and 10.1.2.0/24
+network:n1 = {
+ ip = 10.1.0.0/16;
+ nat:d = { ip = 10.99.1.0/24; dynamic; }
+ has_subnets; 
+}
+
+# NAT is inherited to 10.1.1.0/24;
+any:a1x = { 
+ ip = 10.1.0.0/23;
+ link = network:n1; 
+ nat:d = { ip = 10.99.2.0/24; dynamic; }
+}
+
+network:n0 = { ip = 10.0.0.0/16; }
+network:n11 = { ip = 10.1.1.0/24; }
+network:n12 = { ip = 10.1.2.0/24; }
+network:n3  = { ip = 10.3.0.0/16; host:h3 = { ip = 10.3.3.10; } }
+
+router:u = {
+ interface:n;
+ interface:n0;
+ interface:n1;
+ interface:n11;
+ interface:n12;
+ interface:n3;
+ interface:t1;
+}
+
+network:t1 = { ip = 10.9.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS,FW;
+ routing = manual;
+ interface:t1 = { ip = 10.9.1.1; hardware = e0; }
+ interface:X = { ip = 10.2.1.2; hardware = e1; bind_nat = d; }
+}
+network:X = { ip = 10.2.1.0/24; }
+
+service:s1 = {
+ user = network:X;
+# NAT to 11.0.0.0/8
+ permit src = user; dst = network:n; prt = tcp 80;
+# NAT to 10.99.1.0
+ permit src = user; dst = network:n1; prt = tcp 81;
+# inherit from any:a1x, 10.99.2.0
+ permit src = user; dst = network:n11; prt = tcp 82;
+# inherit from network:n1, 10.99.1.0
+ permit src = user; dst = network:n12; prt = tcp 83;
+# inherit from network:n, 11.3.3.10
+ permit src = user; dst = host:h3; prt = tcp 84;
+# inherit from any:a1, no NAT, 10.0.0.0/16
+ permit src = user; dst = network:n0; prt = tcp 85;
+# inherit from network:n, 11.9.1.0
+ permit src = user; dst = network:t1; prt = tcp 86;
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended e1_in
+ deny ip any host 11.9.1.1
+ permit tcp 10.2.1.0 0.0.0.255 11.0.0.0 0.255.255.255 eq 80
+ permit tcp 10.2.1.0 0.0.0.255 10.99.1.0 0.0.0.255 eq 81
+ permit tcp 10.2.1.0 0.0.0.255 10.99.1.0 0.0.0.255 eq 83
+ permit tcp 10.2.1.0 0.0.0.255 10.99.2.0 0.0.0.255 eq 82
+ permit tcp 10.2.1.0 0.0.0.255 host 11.3.3.10 eq 84
+ permit tcp 10.2.1.0 0.0.0.255 10.0.0.0 0.0.255.255 eq 85
+ permit tcp 10.2.1.0 0.0.0.255 11.9.1.0 0.0.0.255 eq 86
+ deny ip any any
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Warn on useless inherited NAT';
