@@ -226,8 +226,12 @@ sub check_config_pair {
     return ($value =~ /^($pattern)$/ ? undef : $pattern);
 }
 
-# Set %config with pairs from one or more hashrefs.
-# Rightmost hash overrides previous values with same key.
+# Purpose: overrides parameters from the config file with command line arguments inplace in the 'config' file HASH.
+#
+# Parameter: HASH containing values from the 'config' file
+# Parameter: HASH containing command line arguments
+#
+# Return: -nothing-
 sub set_config {
     my (@hrefs) = @_;
     for my $href (@hrefs) {
@@ -473,12 +477,21 @@ sub keys_eq {
 
 my $start_time;
 
+# Prints the given string to STDERR if in verbose mode.
+# Parameter: string to print
+# Return: -nothing-
 sub info {
     return if not $config{verbose};
     print STDERR @_, "\n";
     return;
 }
 
+# Prints the time since start and the given message to STDERR if in verbose mode.
+#
+# Parameter: string to print
+# Return: -nothing-
+#
+# Uses global: $start_time: set in init_global_vars when this module is loaded
 sub progress {
     return if not $config{verbose};
     if ($config{time_stamps}) {
@@ -570,6 +583,9 @@ sub err_msg {
     return;
 }
 
+# Prints the given string to STDERR and ends the script.
+#
+# Parameter: string
 sub fatal_err {
     my (@args) = @_;
     print STDERR "Error: ", @args, "\n";
@@ -3406,6 +3422,9 @@ sub read_file {
 }
 
 # Try to read file 'config' in toplevel directory $path.
+#
+# Parameter: full qualified input directory, might also be a file
+# Return: HASH containing values from the file 'config' in the passed input directory if the file exists, else empty HASH
 sub read_config {
     my ($path) = @_;
     my %result;
@@ -3490,6 +3509,10 @@ sub read_json {
     return;
 }
 
+# Parameter: full qualified input directory, might also be a file
+# Parameter: function which gets passed to read_file() to process the input file, if undefined read_netspoc() is used
+#
+# Return: -nothing-
 sub read_file_or_dir {
     my ($path, $read_syntax) = @_;
     $read_syntax ||= \&read_netspoc;
@@ -3568,6 +3591,9 @@ sub read_file_or_dir {
     return;
 }
 
+# Purpose: prints number of parsed entities to STDERR if in verbose mode.
+# Parameter: -none-
+# Return: -nothing-
 sub show_read_statistics {
     my $n  = keys %networks;
     my $h  = keys %hosts;
@@ -3625,9 +3651,14 @@ sub print_rule {
 # Hash for converting a reference of a protocol back to this protocol.
 our %ref2prt;
 
-# Look up a protocol object by its defining attributes.
+# Look up a protocol HASH by its defining attributes.
 my %prt_hash;
 
+# Parameter: HASH with port parameters, contains 'name', 'proto' and optional 'src_range', 'dst_range', 'prio', 'is_used' and others.
+#
+# Return: -nothing-
+# 
+# Uses global: %prt_hash: Look up a protocol HASH by its defining attributes
 sub prepare_prt_ordering {
     my ($prt) = @_;
     my $proto = $prt->{proto};
@@ -3690,6 +3721,10 @@ sub prepare_prt_ordering {
     return;
 }
 
+# Parameter: protocol HASH
+# Parameter: Protocol 'ip' -> global $prt_ip
+#
+# Return: -nothing-
 sub order_icmp {
     my ($hash, $up) = @_;
 
@@ -3716,6 +3751,10 @@ sub order_icmp {
     return;
 }
 
+# Parameter: protocol HASH
+# Parameter: Protocol 'ip' -> global $prt_ip
+#
+# Return: -nothing-
 sub order_proto {
     my ($hash, $up) = @_;
     for my $prt (values %$hash) {
@@ -3733,6 +3772,11 @@ sub order_proto {
 # Set attribute {has_neighbor} to range adjacent to upper port.
 # Find overlapping ranges and split one of them to eliminate the overlap.
 # Set attribute {split} at original range, referencing pair of splitted ranges.
+#
+# Parameter: protocol HASH
+# Parameter: Protocol 'ip' -> global $prt_ip
+#
+# Return: -nothing-
 sub order_ranges {
     my ($range_href, $up) = @_;
     my @sorted =
@@ -3937,6 +3981,22 @@ my $range_tcp_established;
 
 # Order protocols. We need this to simplify optimization.
 # Additionally add internal predefined protocols.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %xxrp_info: Definition of redundancy protocols
+# Uses global: %protocols: Cache of already parsed protocols
+# Uses global: %prt_hash: Look up a protocol HASH by its defining attributes
+# Uses global: $prt_ip
+# Uses global: $prt_icmp
+# Uses global: $prt_tcp
+# Uses global: $prt_udp
+# Uses global: $prt_bootps
+# Uses global: $prt_ike
+# Uses global: $prt_natt
+# Uses global: $prt_esp
+# Uses global: $prt_ah
 sub order_protocols {
     progress('Arranging protocols');
 
@@ -4056,6 +4116,15 @@ sub expand_watchers {
     return [ @{ $owner->{admins} }, @expanded ];
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %owners
+# Uses global: %networks
+# Uses global: %aggregates
+# Uses global: %areas
+# Uses global: @router_fragments
+# Uses global: %services
 sub link_owners {
 
     my %alias2owner;
@@ -4148,6 +4217,8 @@ sub link_owners {
     return;
 }
 
+# Parameter: Router object
+# Return: -nothing-
 sub link_policy_distribution_point {
     my ($obj) = @_;
     my $pair = $obj->{policy_distribution_point} or return;
@@ -4173,6 +4244,8 @@ sub link_policy_distribution_point {
     return;
 }
 
+# Parameter: Router object
+# Return: -nothing-
 sub link_general_permit {
     my ($obj) = @_;
     my $list = $obj->{general_permit} or return;
@@ -4218,6 +4291,11 @@ sub link_general_permit {
 }
 
 # Link areas with referenced interfaces or network.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %areas
 sub link_areas {
     for my $area (values %areas) {
         if ($area->{anchor}) {
@@ -4278,6 +4356,9 @@ sub link_areas {
 }
 
 # Link interfaces with networks in both directions.
+#
+# Parameter: Router object
+# Return: -nothing-
 sub link_interfaces {
     my ($router) = @_;
     for my $interface (@{ $router->{interfaces} }) {
@@ -4389,6 +4470,12 @@ sub check_interface_ip {
 # Iterate over all interfaces of all routers.
 # Don't use values %interfaces because we want to traverse the interfaces
 # in a deterministic order.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %routers
+# Uses global: @router_fragments
 sub link_routers {
     for my $router (sort(by_name values %routers), @router_fragments) {
         link_interfaces($router);
@@ -4449,6 +4536,12 @@ sub link_subnet  {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %networks
+# Uses global: %aggregates
+# Uses global: %areas
 sub link_subnets  {
     for my $network (values %networks) {
         link_subnet($network, undef);
@@ -4477,6 +4570,10 @@ sub add_pathrestriction {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %pathrestrictions
 sub link_pathrestrictions {
     for my $restrict (values %pathrestrictions) {
         $restrict->{elements} = expand_group $restrict->{elements},
@@ -4572,6 +4669,11 @@ sub link_pathrestrictions {
 # - The same ID must not be used by some other group
 #   - connected to the same network
 #   - emploing the same redundancy type
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @virtual_interfaces
 sub link_virtual_interfaces  {
 
     # Collect array of virtual interfaces with same IP at same network.
@@ -4689,6 +4791,10 @@ sub link_virtual_interfaces  {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %networks
 sub check_ip_addresses {
     for my $network (values %networks) {
         if (    $network->{ip} eq 'unnumbered'
@@ -4932,6 +5038,14 @@ sub check_bridged_networks {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %interfaces
+# Uses global: @router_fragments
+# Uses global: @routing_only_routers
+# Uses global: @managed_routers
+# Uses global: @virtual_interfaces
 sub mark_disabled {
     my @disabled_interfaces = grep { $_->{disabled} } values %interfaces;
 
@@ -6244,6 +6358,15 @@ my %rule_tree;
 my @deleted_rules;
 
 # Add rules to %rule_tree for efficient look up.
+#
+# Parameter: ARRAY of rule HASHes
+# Parameter: $rule_tree if undefined %rule_tree will be used
+#
+# Return: -nothing- 
+#
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
+# Uses global: %rule_tree: Hash for ordering all rules
+# Uses global: @deleted_rules: Collect deleted rules for further inspection
 sub add_rules {
     my ($rules_ref, $rule_tree) = @_;
     $rule_tree ||= \%rule_tree;
@@ -6987,6 +7110,14 @@ sub expand_services {
 # to manage the device from a central policy distribution point.
 # This address is added as a comment line to each generated code file.
 # This is to be used later when approving the generated code file.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
+# Uses global: %prt_hash: Look up a protocol HASH by its defining attributes
+# Uses global: @managed_routers: 
+# Uses global: @routing_only_routers
 sub set_policy_distribution_ip  {
     progress('Setting policy distribution IP');
 
@@ -7477,6 +7608,12 @@ sub show_unknown_owners {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %services
+# Uses global: %unknown2unknown
+# Uses global: %owners
 sub set_service_owner {
     progress('Checking service owner');
 
@@ -7825,6 +7962,11 @@ sub distribute_nat {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %networks
+# Uses global: @natdomains
 sub distribute_nat_info {
     progress('Distributing NAT');
 
@@ -8238,6 +8380,11 @@ sub get_nat_network {
 
 # All interfaces and hosts of a network must be located in that part
 # of the network which doesn't overlap with some subnet.
+#
+# Parameter: Network object
+# Parameter: Network object
+#
+# Return: -nothing-
 sub check_subnets {
     my ($network, $subnet)   = @_;
     return if $network->{is_aggregate} || $subnet->{is_aggregate};
@@ -8319,6 +8466,11 @@ sub link_reroute_permit;
 
 # Find subnet relation between networks inside a zone.
 # - $subnet->{up} = $bignet;
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @zones
 sub find_subnets_in_zone {
     progress('Finding subnets in zone');
     for my $zone (@zones) {
@@ -8799,6 +8951,11 @@ sub find_subnets_in_nat_domain {
 #            ACLs operate on hardware, not on logic. Marks hardware needing 
 #            outgoing ACLs.
 # Comments : Not more than 1 'no_in_acl' interface/router allowed.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @managed_routers
 sub check_no_in_acl  {
  
     # Process every managed router
@@ -8866,6 +9023,9 @@ my %crosslink_strength = (
     # Find clusters of routers connected directly or indirectly by
     # crosslink networks and having at least one device with
     # "need_protect".
+    #
+    # Parameter: HASH with Router object as key and value
+    # Return: -nothing-
 sub cluster_crosslink_routers {
     my ($crosslink_routers) = @_;
     my %cluster;
@@ -8922,6 +9082,11 @@ sub cluster_crosslink_routers {
 #            crosslink attribute to the networks weakest interfaces (no 
 #            filtering needed at these interfaces).
 # Comments : Function uses hardware attributes from sub check_no_in_acl.
+#
+# Parameter: -none-
+# Return: HASH with Router object as key and value
+#
+# Uses global: %networks
 sub check_crosslink  {
     my %crosslink_routers; # Collect crosslinked routers with {need_protect}
 
@@ -9166,6 +9331,12 @@ sub add_managed_hosts_to_aggregate {
 # Purpose  : Link aggregate and zone via references in both objects, set 
 #            aggregate properties according to those of the linked zone.
 #            Store aggregates in @networks (providing all srcs and dsts).
+#
+# Parameter: Network object
+# Parameter: Zone object
+# Parameter: string of "IP/MASK", ip and mask is an integer
+#
+# Return: -nothing-
 sub link_aggregate_to_zone {
     my ($aggregate, $zone, $key) = @_;
 
@@ -9270,6 +9441,11 @@ sub link_implicit_aggregate_to_zone {
 #            objects to global @networks array.
 # Comments : Has to be called after zones have been set up. But before 
 #            find_subnets_in_zone calculates {up} and {networks} relation.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %aggregates
 sub link_aggregates {
 
     my @aggregates_in_cluster; # Collect all aggregates inside clusters
@@ -9355,7 +9531,6 @@ sub link_aggregates {
     return;
 }
 ##############################################################################
-# Parameter: $aggregate object reference, $implicit flag 
 # Purpose  : Create an aggregate object for every zone inside the zones cluster
 #            containing the aggregates link-network.
 # Comments : From users point of view, an aggregate refers to networks of a zone
@@ -9365,6 +9540,11 @@ sub link_aggregates {
 #            networks matching the aggregates IP address.
 # TDOD     : Aggregate may be a non aggregate network, 
 #            e.g. a network with ip/mask 0/0. ??
+#
+# Parameter: Network object
+# Parameter: implicit flag
+#
+# Return: -nothing- 
 sub duplicate_aggregate_to_cluster {
     my ($aggregate, $implicit) = @_;
     my $cluster = $aggregate->{zone}->{zone_cluster};
@@ -9661,6 +9841,9 @@ sub set_area1 {
 ###############################################################################
 # Purpose : Distribute router_attributes from the area definition to the managed
 #           routers of the area.
+#
+# Parameter: Area object
+# Return: -nothing-
 sub inherit_router_attributes {
     my ($area) = @_;
     
@@ -9725,6 +9908,9 @@ sub check_useless_nat {
 
 ##############################################################################
 # Purpose : Distribute NAT from area to zones.
+#
+# Parameter: Area object
+# Return: -nothing-
 sub inherit_area_nat {
 
     my ($area) = @_;
@@ -9755,7 +9941,12 @@ sub inherit_area_nat {
 
 ###############################################################################
 # Purpose : Assure that areas are processed in the right order and distribute 
-#           area attributes to zones and managed routers.   
+#           area attributes to zones and managed routers.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %areas
 sub inherit_attributes_from_area {
 
     # Areas can be nested. Proceed from small to larger ones.
@@ -9771,6 +9962,11 @@ sub inherit_attributes_from_area {
 #            in same zone, that are in subnet relation.
 #            If a network A is subnet of multiple networks B < C, 
 #            then NAT of B is used.
+#
+# Parameter: Network object
+# Parameter: Zone object
+#
+# Return: -noting-
 sub inherit_nat_to_subnets_in_zone {
     my ($net_or_zone, $zone) = @_;
     my ($ip1, $mask1) = is_network($net_or_zone)
@@ -9828,6 +10024,10 @@ sub inherit_nat_to_subnets_in_zone {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @zones
 sub inherit_nat_in_zone {
     for my $zone (@zones) {
 
@@ -9852,6 +10052,12 @@ sub inherit_nat_in_zone {
 }
 ##############################################################################
 # Purpose  : Create a new zone object for every network without a zone
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %networks
+# Uses global: @zones
 sub set_zones {
 
     # Process networks without a zone
@@ -9894,6 +10100,11 @@ sub set_zones {
 #            the zones.
 # Comments : The {zone_cluster} attribute is only set if the cluster has more 
 #            than one element.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @zones
 sub cluster_zones {
 
     # Process all unclustered zones.
@@ -9917,6 +10128,11 @@ sub cluster_zones {
 # Purpose  : Mark interfaces, which are border of some area, prepare consistency
 #            check for attributes {border} and {inclusive_border}.
 # Comments : Area labeled interfaces are needed to locate auto_borders.
+#
+# Parameter: -none-
+# Return: HASH with Router object as key and value
+#
+# Uses global: %areas
 sub prepare_area_borders {
     my %has_inclusive_borders; # collects all routers with inclusive border IF 
 
@@ -9965,6 +10181,11 @@ sub set_area {
 
 ###############################################################################s
 # Purpose  : Set up area objects, assure proper border definitions.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %areas
 sub set_areas {
     for my $area (@areas) {
         $area->{zones} = [];
@@ -10021,6 +10242,11 @@ sub set_areas {
 ###############################################################################
 # Purpose : Find subset relation between areas, assure that no duplicate or 
 #           overlapping areas exist
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @zones
 sub find_subset_relations {
     my %seen; # key:contained area, value: containing area
 
@@ -10080,6 +10306,9 @@ sub find_subset_relations {
 #            R is surrounded by zones located inside A2.
 # Comments : This is needed to get consistent inheritance with
 #            'router_attributes'.
+#
+# Parameter: HASH with Router object as key and value
+# Return: -nothing-
 sub check_routers_in_nested_areas {
     
     my ($has_inclusive_borders) = @_;
@@ -10125,6 +10354,11 @@ sub check_routers_in_nested_areas {
 
 ##############################################################################
 # Purpose  : Delete unused attributes in area objects.
+# 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %areas
 sub clean_areas {
     for my $area (@areas) {
         delete $area->{intf_lookup};
@@ -10138,6 +10372,9 @@ sub clean_areas {
 
 ###############################################################################
 # Purpose  : Create zones and areas.
+#
+# Parameter: -none-
+# Return: -nothing-
 sub set_zone {
     progress('Preparing security zones and areas');
     set_zones();
@@ -10161,6 +10398,11 @@ sub set_zone {
 ####################################################################
 
 # Interfaces with identical virtual IP must be located inside the same loop.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @virtual_interfaces
 sub check_virtual_interfaces  {
     my %seen;
     for my $interface (@virtual_interfaces) {
@@ -10193,6 +10435,11 @@ sub check_virtual_interfaces  {
 
 ####################################################################
 # Check pathrestrictions
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %pathrestrictions
 ####################################################################
 
 sub check_pathrestrictions {
@@ -10314,6 +10561,11 @@ sub traverse_loop_part {
 
 # Find partitions of a cyclic graph that are separated by pathrestrictions.
 # Mark each found partition with a distinct number.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %pathrestrictions
 sub optimize_pathrestrictions {
     my $mark = 1;
     for my $restrict (@pathrestrictions) {
@@ -10551,6 +10803,10 @@ sub set_loop_cluster {
     }
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %routers
 sub setpath {
     progress('Preparing fast path traversal');
 
@@ -11615,6 +11871,11 @@ sub path_auto_interfaces {
 # Handling of crypto tunnels.
 ########################################################################
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %ipsec
+# Uses global: %isakmp
 sub link_ipsec  {
     for my $ipsec (values %ipsec) {
 
@@ -11633,6 +11894,10 @@ sub link_ipsec  {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %ipsec
 sub link_crypto  {
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
@@ -11654,6 +11919,17 @@ sub link_crypto  {
 }
 
 # Generate rules to permit crypto traffic between tunnel endpoints.
+#
+# Parameter: Interface object
+# Parameter: Interface object
+# Parameter: HASH
+#
+# Return: HASH of Rules
+#
+# Uses global: $prt_ah: IPSec: authentication header
+# Uses global: $prt_esp: IPSec: encryption security payload
+# Uses global: IPSec: NAT traversal
+# Uses global: $prt_ike: IPSec: Internet key exchange.
 sub gen_tunnel_rules  {
     my ($intf1, $intf2, $ipsec) = @_;
     my $use_ah = $ipsec->{ah};
@@ -11686,6 +11962,11 @@ sub gen_tunnel_rules  {
 
 # Link tunnel networks with tunnel hubs.
 # ToDo: Are tunnels between different private contexts allowed?
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @managed_crypto_hubs
 sub link_tunnels  {
 
     my %hub_seen;
@@ -12279,6 +12560,12 @@ my %supernet_rule_tree;
 # - the destination router is entered by the same interface
 # - src, src_range, prt, stateless are identical
 # - dst is supernet or aggregate with identical ip/mask
+#
+# Parameter: -none-
+#
+# Return: -nothing-
+#
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
 sub collect_supernet_dst_rules {
 
     # Function is called from path_walk.
@@ -12430,6 +12717,10 @@ my %missing_supernet;
 #        If $where is 'src', then $zone is attached to $interface
 #        If $where is 'dst', then $zone is at other side of device.
 # $reversed: (optional) the check is for reversed rule at stateless device
+#
+# Return: -nothing-
+#
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
 sub check_supernet_in_zone {
     my ($rule, $where, $interface, $zone, $reversed) = @_;
 
@@ -12813,6 +13104,14 @@ sub find_smaller_prt  {
 # Checking of other aggregates is too complicate (NAT, intersection).
 
 # Collect info about unwanted implied rules.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules
+# Uses global: %ref2prt: Hash for converting a reference of a protocol back to this protocol
+# Uses global: %rule_tree: Hash for ordering all rules
+# Uses global: %obj2zone
 sub check_for_transient_supernet_rule {
     my %missing_rule_tree;
     my $missing_count = 0;
@@ -13082,6 +13381,14 @@ sub check_supernet_rules {
 # with swapped src, dst and src-port, dst-port.
 # For rules with a tcp protocol, the reverse rule gets a tcp protocol
 # without range checking but with checking for 'established` flag.
+#
+# Parameter: ARRAY
+# Parameter: HASH
+#
+# Return: -nothing-
+#
+# Uses global: $range_tcp_established: Port range 'tcp established'
+# Uses global: $prt_udp: Protocol 'UDP any'
 ##############################################################################
 
 sub gen_reverse_rules1  {
@@ -13364,6 +13671,11 @@ sub mark_local_secondary  {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
+# Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
 sub mark_secondary_rules {
     progress('Marking rules for secondary optimization');
 
@@ -13969,6 +14281,9 @@ sub get_route_networks {
 # For each border interface I and each network N inside the security zone
 # we need to find the hop interface H via which N is reached from I.
 # This is stored in an attribute {route_in_zone} of I.
+#
+# Parameter: Zone object (one of global @zone)
+# Return: -nothing-
 sub set_routes_in_zone  {
     my ($zone) = @_;
 
@@ -14152,6 +14467,11 @@ sub get_route_path {
 
 sub check_and_convert_routes;
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: $input: Content of the current file
+# Uses global: $router_info: Map of different router models
 sub find_active_routes  {
     progress('Finding routes');
     for my $zone (@zones) {
@@ -15288,6 +15608,14 @@ sub distribute_rule {
 
 my $permit_any_rule;
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: $prt_bootps DHCP server
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules
+# Uses global: @managed_routers:
+# Uses global: %ref2obj: Hash for converting a reference of an object back to this object
+# Uses global: %xxrp_info: Definition of redundancy protocols
 sub add_router_acls  {
     for my $router (@managed_routers) {
         my $has_io_acl = $router->{model}->{has_io_acl};
@@ -16549,6 +16877,15 @@ my %ref_type = (
     prt     => \%ref2prt,
 );
 
+# Parameter: Router object
+# Parameter: HASH containing Interfaces and other data
+#
+# Return: -nothing-
+#
+# Uses global: $prt_udp: Protocol 'UDP any'
+# Uses global: $prt_tcp: Protocol 'TCP any'
+# Uses global: $prt_icmp: Protocol 'ICMP any', needed in optimization of chains for iptables
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
 sub find_chains  {
     my ($router, $hardware) = @_;
 
@@ -16921,6 +17258,12 @@ sub find_chains  {
 # Print chains of iptables.
 # Objects have already been normalized to ip/mask pairs.
 # NAT has already been applied.
+#
+# Parameter:
+# Return: -nothing-
+#
+# Uses global: $prt_tcp: Protocol 'TCP any'
+# Uses global: $prt_icmp: Protocol 'ICMP any', needed in optimization of chains for iptables
 sub print_chains  {
     my ($router) = @_;
 
@@ -17008,6 +17351,11 @@ sub print_chains  {
 }
 
 # Find adjacent port ranges.
+#
+# Parameter: Router object
+# Parameter: HASH which contains Interfaces and other data
+#
+# Uses global: %prt_hash: Look up a protocol HASH by its defining attributes
 sub join_ranges  {
     my ($router, $hardware) = @_;
     my $changed;
@@ -17215,6 +17563,11 @@ sub remove_non_local_rules {
 }
 
 # Add deny and permit rules at device which filters only locally.
+#
+# Parameter: Router object
+# Parameter: HASH which contains Interfaces and other data
+#
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
 sub add_local_deny_rules {
     my ($router, $hardware) = @_;
     $router->{managed} =~ /^local/ or return;
@@ -17291,6 +17644,7 @@ sub prepare_local_optimization {
 }
 
 #use Time::HiRes qw ( time );
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
 sub local_optimization {
     return if fast_mode();
     progress('Optimizing locally');
@@ -17695,6 +18049,7 @@ sub local_optimization {
 
 my $deny_any_rule;
 
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
 sub print_cisco_acl_add_deny {
     my ($router, $hardware, $no_nat_set, $model, $prefix) = @_;
     my $permit_any;
@@ -17920,6 +18275,7 @@ my %asa_vpn_attr_need_value =
 qw(banner dns-server default-domain split-dns wins-server address-pools 
    split-tunnel-network-list vpn-filter);
 
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
 sub print_asavpn  {
     my ($router)         = @_;
     my $model            = $router->{model};
@@ -18237,6 +18593,7 @@ EOF
     return;
 }
 
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
 sub iptables_acl_line {
     my ($rule, $no_nat_set, $prefix) = @_;
     my ($action, $src, $dst, $src_range, $prt) =
@@ -18482,6 +18839,7 @@ sub print_acls {
     return;
 }
 
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
 sub gen_crypto_rules {
     my ($local, $remote) = @_;
     my @crypto_rules;
@@ -19262,6 +19620,7 @@ sub show_finished {
 
 # These must be initialized on each run, because protocols are changed
 # by prepare_prt_ordering.
+# Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
 sub init_protocols {
 
     %routing_info = (
@@ -19432,6 +19791,10 @@ init_global_vars();
 use Getopt::Long qw(GetOptionsFromArray);
 use Pod::Usage;
 
+# Purpose: Parses named command line switches into a key/value representation, e.g. '-quiet' to 'verbose'=>0.
+#
+# Parameter: ARRAY of command line parameters
+# Return: HASH of parsed command line parameters
 sub parse_options {
     my ($args) = @_;
     my %result;
@@ -19465,6 +19828,10 @@ sub parse_options {
     return \%result;
 }
 
+# Purpose: Parses the input file and the output directory from the passed command line arguments.
+#  
+# Parameter: ARRAY of remaining command line parameters which aren't handled by parse_options.
+# Return: ARRAY with (input_file, output_directory)
 sub parse_args {
     my ($args) = @_;
     my $main_file = shift @$args;
@@ -19509,6 +19876,7 @@ sub compile {
     &setpath();
     &distribute_nat_info();
     find_subnets_in_zone();
+    # TODO KW: document following subs
     &set_service_owner();
     &expand_services(1);	# 1: expand hosts to subnets
 
