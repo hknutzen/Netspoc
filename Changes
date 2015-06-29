@@ -1,3 +1,18 @@
+3.068     2015-06-29 13:33:46+02:00 Europe/Berlin
+
+ - Attribute 'peer-id-validate nocheck' of tunnel-group ipsec-attributes
+   is no longer printed for certificates, but only for preshared key.
+ - NAT attributes are inherited from matching aggregate and supernet
+   to matching subnets in zone.
+   - Attribute 'nat' can now be defined for matching aggregates.
+     It is inherited to all matching networks inside corresponding zone.
+   - Attribute 'nat' of supernet N is inherited now to all subnets S of N
+     inside corresponding zone. Subnet relation between N and S 
+     is determined without consideration of NAT inside zone.
+ - Added check for useless identity NAT.
+ - Fixed add-to-netspoc / remove-from-netspoc for occurence after
+   negation or intersection.
+
 3.067     2015-06-22 13:35:39+02:00 Europe/Berlin
 
  - Changes in generated crypto code for ASA:

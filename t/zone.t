@@ -208,8 +208,9 @@ network:A = { ip = 10.3.3.0/24;
  nat:C = { ip = 10.3.3.12/30; dynamic; } 
 }
 network:B = {
-    has_subnets;
+ has_subnets;
  ip = 10.3.3.8/29; 
+ nat:C = { identity; }
 }
 
 router:ras = {
@@ -395,7 +396,10 @@ network:super = {
  ip = 192.168.0.0/16;
  nat:nat = { ip = 10.255.0.0/16; }
 }
-network:sub1 = { ip = 192.168.1.0/24;}
+network:sub1 = {
+ ip = 192.168.1.0/24;
+ nat:nat = { identity; }
+}
 
 service:s1 = {
  user = network:n1;

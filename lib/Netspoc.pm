@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.067'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.068'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -1500,16 +1500,11 @@ sub read_network {
         }
         elsif (my $nat_tag = check_nat_name()) {
             my $nat = read_nat("nat:$nat_tag");
-            ($network->{nat} && $network->{nat}->{$nat_tag} ||
-             $network->{identity_nat} && $network->{identity_nat}->{$nat_tag})
+            ($network->{nat} && $network->{nat}->{$nat_tag})
               and error_atline("Duplicate NAT definition");
-            if ($nat->{identity}) {
-                $network->{identity_nat}->{$nat_tag} = $nat;
-            } 
-            else {
-                $nat->{name} .= "($name)";
-                $network->{nat}->{$nat_tag} = $nat;
-            } 
+            
+            $nat->{name} .= "($name)";
+            $network->{nat}->{$nat_tag} = $nat;
         }
         else {
             syntax_err("Expected some valid attribute");
@@ -1536,7 +1531,7 @@ sub read_network {
     }
     elsif ($network->{bridged}) {
         my %ok = (ip => 1, mask => 1, bridged => 1, name => 1, private => 1,
-                  identity_nat => 1, owner => 1, crosslink => 1);
+                  nat => 1, owner => 1, crosslink => 1);
 
         # Bridged network must not have any other attributes.
         for my $key (keys %$network) {
@@ -1544,8 +1539,15 @@ sub read_network {
             error_atline(
               "Bridged $network->{name} must not have ",
                 ($key eq 'hosts') ? "host definition (not implemented)"
-              : ($key eq 'nat')   ? "nat definition"
-              :                     "attribute '$key'");
+                                  : "attribute '$key'");
+        }
+        if (my $hash = $network->{nat}) {
+            for my $nat_tag (sort keys %$hash) {
+                $hash->{$nat_tag}->{identity} and next;
+                delete $hash->{$nat_tag};
+                err_msg("Only identity NAT allowed for bridged $network->{name}");
+                last;
+            }
         }
     }
     else {
@@ -2590,7 +2592,7 @@ sub read_aggregate {
     if ($ip) {
         for my $key (keys %$aggregate) {
             next if grep({ $key eq $_ } 
-                         qw( name ip mask link is_aggregate private));
+                         qw( name ip mask link is_aggregate private nat));
             error_atline("Must not use attribute $key if mask is set");
         }
     }
@@ -8283,7 +8285,7 @@ sub find_subnets_in_zone {
                 }
                 else {
 
-                    # Store network under IP/mask.
+                    # Store original network under NAT IP/mask.
                     $mask_ip_hash{$mask}->{$ip} = $network;
                 }
             }
@@ -9229,8 +9231,13 @@ sub link_aggregates {
         }
 
         # Use aggregate with ip 0/0 to set attributes of all zones in cluster.
+        #
+        # Even NAT is moved to zone for aggregate 0/0 although we
+        # retain NAT at other aggregates.
+        # This is an optimization to prevent the creation of many aggregates 0/0
+        # if only inheritance of NAT from area to network is needed.
         if ($mask == 0) {
-            for my $attr (qw(has_unenforceable nat owner)) {
+            for my $attr (qw(has_unenforceable owner nat)) {
                 if (my $v = delete $aggregate->{$attr}) {
                     for my $zone2 ($cluster ? @$cluster : ($zone)) {
                         $zone2->{$attr} = $v;
@@ -9591,7 +9598,7 @@ sub inherit_router_attributes {
 }
 
 ###############################################################################
-# Purpose : Return an error if the nat hashes are equal
+# Purpose : Returns true if nat hashes are equal.
 sub nat_equal {
     my ($nat1, $nat2) = @_;
 
@@ -9602,17 +9609,22 @@ sub nat_equal {
         return if $nat1->{$attr} ne $nat2->{$attr};# values of attribute differ
     }
 
-    # ...return error if not
+    # ...return true if no difference found.
     return 1;
 }
 ##############################################################################
-# Purpose : Generate warning if NAT value of two objects hold the same 
-#           attributes.
+# Purpose : 1. Generate warning if NAT value of two objects hold the same 
+#              attributes.
+#           2. Mark occurence of identity NAT that masks inheritance.
+#              This is used later to warn on useless identity NAT.
 sub check_useless_nat {
     my ($nat_tag, $nat1, $nat2, $obj1, $obj2) = @_;
     if (nat_equal($nat1, $nat2)) {
         warn_msg("Useless nat:$nat_tag at $obj2->{name},\n",
                  " it is already inherited from $obj1->{name}");
+    }
+    if ($nat2->{identity}) {
+        $nat2->{is_used} = 1;
     }
     return;
 }
@@ -9649,7 +9661,7 @@ sub inherit_area_nat {
 
 ###############################################################################
 # Purpose : Assure that areas are processed in the right order and distribute 
-#           area attributes to the networks and managed routers.   
+#           area attributes to zones and managed routers.   
 sub inherit_attributes_from_area {
 
     # Areas can be nested. Proceed from small to larger ones.
@@ -9661,60 +9673,120 @@ sub inherit_attributes_from_area {
 }
 
 ###############################################################################
-# Purpose  : Distributes NAT from zones to networks.
-# TODO     : Have a closer look at this when dealing with NAT!
-sub inherit_nat_from_zone {
-    
-    # Process all zones with NAT definitions 
-    for my $zone (@zones) {
-        my $hash = $zone->{nat} or next;# contains all nats of zone
+# Purpose  : Distributes NAT from aggregates and networks to other networks
+#            in same zone, that are in subnet relation.
+#            If a network A is subnet of multiple networks B < C, 
+#            then NAT of B is used.
+sub inherit_nat_to_subnets_in_zone {
+    my ($net_or_zone, $zone) = @_;
+    my ($ip1, $mask1) = is_network($net_or_zone)
+                      ? @{$net_or_zone}{qw(ip mask)} 
+                      : (0, 0);
+    my $hash = $net_or_zone->{nat};
+    for my $nat_tag (sort keys %$hash) {
+        my $nat = $hash->{$nat_tag};
+#        debug "inherit $nat_tag from $net_or_zone->{name}";
 
-        for my $nat_tag (sort keys %$hash) {
-            my $nat = $hash->{$nat_tag};
+        # Distribute nat definitions to every subnet of supernet, aggregate or zone.
+        for my $network (@{ $zone->{networks} }) {
+            my ($ip2, $mask2) = @{$network}{qw(ip mask)};
 
-            # Distribute nat definitions to every network of zone.
-            for my $network (@{ $zone->{networks} }) {
+            # Only process subnets.
+            $mask2 > $mask1 or next;
+            match_ip($ip2, $ip1, $mask1) or next;
 
-                # Skip network, if NAT tag exists in network already...
-                if (my $n_nat = $network->{nat}->{$nat_tag}) {
+            # Skip network, if NAT tag exists in network already...
+            if (my $n_nat = $network->{nat}->{$nat_tag}) {
 
-                    # ... and warn if networks NAT value holds the
-                    # same attributes.
-                    check_useless_nat($nat_tag, $nat, $n_nat, $zone, $network);
-                    next;
+                # ... and warn if networks NAT value holds the
+                # same attributes.
+                check_useless_nat($nat_tag, $nat, $n_nat, $net_or_zone, $network);
+            }
+
+            elsif ($network->{ip} eq 'bridged' and not $nat->{identity}) {
+                err_msg("Must not inherit nat:$nat_tag at bridged",
+                        " $network->{name} from $net_or_zone->{name}");
+            }
+
+            # Copy NAT defintion; append name of network.
+            else {
+                my $sub_nat = {
+                    %$nat,
+
+                    # Needed for error messages.
+                    name => "nat:$nat_tag($network->{name})",
+                };
+
+                # For static NAT from net_or_zone,
+                # - merge IP from supernet and subnet,
+                # - adapt mask to size of subnet
+                if (not $nat->{dynamic}) {
+
+                    # Take higher bits from NAT IP, lower bits from original IP.
+                    $sub_nat->{ip}  |= $ip2 & complement_32bit($mask1);
+                    $sub_nat->{mask} = $mask2;
                 }
 
-                # Ignore network having identity NAT.
-                if (my $id_nat = $network->{identity_nat}->{$nat_tag}) {
-                    check_useless_nat($nat_tag, $nat, $id_nat, $zone, $network);
-                    next;
-                }
-                    
-                next if $network->{ip} eq 'unnumbered'; # no nat without ip
-
-                if ($nat->{identity}) {
-                    $network->{identity_nat}->{$nat_tag} = $nat
-                }
-                else {
-
-                    $network->{ip} eq 'bridged' and
-                        err_msg("Must not inherit nat:$nat_tag",
-                                " at bridged $network->{name}",
-                                " from $zone->{name}");
-
-                    # Copy NAT defintion; append name of network.
-                    $network->{nat}->{$nat_tag} = {
-                        %$nat,
-                        
-                        # Needed for error messages.
-                        name => "nat:$nat_tag($network->{name})",
-                    };
-                }
+                $network->{nat}->{$nat_tag} = $sub_nat;                    
             }
         }
     }
     return;
 }
+
+sub inherit_nat_in_zone {
+    for my $zone (@zones) {
+
+        # Find all networks and aggregates of current zone,
+        # that have NAT definitions.
+        my @nat_supernets = grep({ $_->{nat} } 
+                                 @{ $zone->{networks} },
+                                 values %{ $zone->{ipmask2aggregate} });
+
+        # Add zone object instead of aggregate 0/0, because NAT is stored
+        # at zone in this case.
+        my @nat_zone = $zone->{nat} ? ($zone) : ();
+
+        # Proceed from smaller to larger objects. (Bigger mask first.)
+        for my $supernet (sort({ $b->{mask} <=> $a->{mask} } @nat_supernets), 
+                          @nat_zone) 
+        {
+            inherit_nat_to_subnets_in_zone($supernet, $zone);
+        }   
+    }
+    return;
+}
+
+sub cleanup_after_inheritance {
+
+    # 1. Remove NAT entries from aggregates.
+    #    These are only used during NAT inheritance.
+    # 2. Remove identity NAT entries.
+    #    These are only needed during NAT inheritance.
+    for my $network (@networks) {
+        my $href = $network->{nat} or next;
+        if ($network->{is_aggregate}) {
+            delete $network->{nat};
+            next;
+        }
+        for my $nat_tag (keys %$href) {
+            my $nat_network = $href->{$nat_tag};
+            $nat_network->{identity} or next;
+            delete $href->{$nat_tag};
+            $nat_network->{is_used} or
+                warn_msg("Useless identity nat:$nat_tag at $network->{name}");
+        }
+    }
+    return;
+}
+
+sub inherit_attributes {
+    inherit_attributes_from_area();
+    inherit_nat_in_zone();
+    cleanup_after_inheritance();
+    return;
+}
+
 ##############################################################################
 # Purpose  : Create a new zone object for every network without a zone
 sub set_zones {
@@ -10016,8 +10088,7 @@ sub set_zone {
     check_routers_in_nested_areas($has_inclusive_borders);
     clean_areas(); # delete unused attributes
     link_aggregates();
-    inherit_attributes_from_area();
-    inherit_nat_from_zone();
+    inherit_attributes();
     return;
 }
 
@@ -18548,7 +18619,6 @@ sub print_tunnel_group {
     my $authentication = $isakmp->{authentication};
     print "tunnel-group $name type ipsec-l2l\n";
     print "tunnel-group $name ipsec-attributes\n";
-    print " peer-id-validate nocheck\n";
     if ($authentication eq 'rsasig') {
         my $trust_point = $isakmp->{trust_point};
         if ($isakmp->{ike_version} == 2) {
@@ -18567,6 +18637,9 @@ sub print_tunnel_group {
     }
 
     # Preshared key is configured manually.
+    else {
+        print " peer-id-validate nocheck\n";
+    }
     return;
 }
 

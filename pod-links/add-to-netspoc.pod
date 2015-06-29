@@ -176,7 +176,10 @@ sub process {
                         $line =~ /\G ( \s* ip \s* = \s* [0-9.\/]+ \s* & )/gcx or
 
                         # End of automatic group.
-                        $line =~ /\G (\s* \])/gcx
+                        $line =~ /\G (\s* \])/gcx or
+
+                        # Negation / intersection.
+                        $line =~ /\G (\s* [&!])/gcx
                         ) 
                     {
                         $copy .= $1;
