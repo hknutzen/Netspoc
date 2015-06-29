@@ -396,7 +396,9 @@ of the loop object.
 
 Finally, Netspoc clusters all cactus graph loops by adding a reference
 to the exit node of the whole cluster as `cluster_exit` to all loop
-objects of the cluster. *TODO:picture?*
+objects of the cluster. 
+
+*Possible addition: Picture of clustering*
 
 ### Check for proper pathrestrictions
 
@@ -418,6 +420,8 @@ Netspoc assures all defined pathrestrictions to fulfill the
 requirements and checks tat they have an effect on ACL
 generation. Proper pathrestrictions are then stored in a global array.
 
+*Possible addition: When does a pathrestriction affect ACLs?*
+
 ### Check usage of virtual interfaces
 
 To assure that a connection between two networks will be guaranteed,
@@ -427,8 +431,8 @@ a virtual IP address to establish a redundant connection.
 The usage of virtual IP addresses within the topology affects the
 generation of both ACLs and static routes: Routers sharing a virtual
 IP address need to communicate to determine which router is
-active. Therefore the usage of virtual ip addresses will be reflected
-in the ACLs of the participating interfaces. And for the generation of
+active. Therefore the usage of virtual IP addresses will be reflected
+in the ACLs of the participating interfaces. For the generation of
 static routes, the virtual IP if the interfaces has to be used instead
 of the real one.
 
@@ -459,3 +463,26 @@ virtual interfaces sharing a single virtual IP address are located inside
 the same loop.
 
 {% include image.html src="./images/virtual_interface.png" description="Virtual IP adresses are represented in Netspoc as additional interfaces" %}
+
+### Optimize Pathrestrictions
+
+When Netspoc finds paths between source and destination by alternating
+in taking steps from both towards `zone1`. We have seen before that
+Netspoc is guided by the distance values that have been attached to
+every router and zone. Loops are subsumed by a single distance value,
+while their loop exit nodes are marked with own (smaller)
+distances (Fig.  ). Therefore, whenever a loop is entered during pathfinding,
+Netspoc knows which node is the node to proceed with on the path
+towards `zone1` (namely the loop exit node). But it is obvious that
+Netspoc needs to examine every loop in detail to find all paths from
+the entrance to the exit node aswell to generate ACLs for the managed
+routers inside the loop.
+
+{% include image.html src="./images/find_loop_paths.png" description="To generate ACLs for managed routers inside loops, all paths from loop entrance to loop exit node have to be found." %}
+
+Finding of paths inside loop can be a very expensive step, especially
+with big and nested cycles. It is therefore a good idea to stop
+examining invalid paths as early as possible, which is why we have a
+closer look at the pathrestrictions now. Currently, the interfaces
+participating in a pathrestriction store a reference to the
+pathrestriction object. 
