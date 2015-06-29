@@ -470,19 +470,27 @@ When Netspoc finds paths between source and destination by alternating
 in taking steps from both towards `zone1`. We have seen before that
 Netspoc is guided by the distance values that have been attached to
 every router and zone. Loops are subsumed by a single distance value,
-while their loop exit nodes are marked with own (smaller)
-distances (Fig.  ). Therefore, whenever a loop is entered during pathfinding,
+while their loop exit nodes are marked with own (smaller) distances
+(Fig.  ). Therefore, whenever a loop is entered during pathfinding,
 Netspoc knows which node is the node to proceed with on the path
 towards `zone1` (namely the loop exit node). But it is obvious that
 Netspoc needs to examine every loop in detail to find all paths from
 the entrance to the exit node aswell to generate ACLs for the managed
-routers inside the loop.
+routers inside the loop. In the figure below, Netspoc would then find
+two paths from loop entrance to loop exit node, marked by the gren and
+the red arrow.
 
-{% include image.html src="./images/find_loop_paths.png" description="To generate ACLs for managed routers inside loops, all paths from loop entrance to loop exit node have to be found." %}
+{% include image.html src="./images/find_loop_paths1.png" description="To generate ACLs for managed routers inside loops, all paths from loop entrance to loop exit node have to be found." %}
 
-Finding of paths inside loop can be a very expensive step, especially
+Path exploration inside loops can be a very expensive step, especially
 with big and nested cycles. It is therefore a good idea to stop
 examining invalid paths as early as possible, which is why we have a
-closer look at the pathrestrictions now. Currently, the interfaces
-participating in a pathrestriction store a reference to the
-pathrestriction object. 
+closer look at pathrestrictions now. Imagine a pathrestriction was
+added to the topology (Fig.). Then, the red path from figure x is no
+longer valid. Currently, the pathrestriction is referenced in every
+participating interface object and contains information about these
+interfaces only. Netspoc therefore would have to follow the red path
+until the second interface of the pathrestriction is reached, to find
+the path to be invalid. To save these steps, Netspoc divides loops
+with pathrestrictions into partitions and stores at every
+pathrestricted interface the partitions that can be reached.
