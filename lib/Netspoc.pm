@@ -232,6 +232,8 @@ sub check_config_pair {
 # Parameter: HASH containing command line arguments
 #
 # Return: -nothing-
+#
+# Uses global: %config: User configurable options
 sub set_config {
     my (@hrefs) = @_;
     for my $href (@hrefs) {
@@ -478,8 +480,13 @@ sub keys_eq {
 my $start_time;
 
 # Prints the given string to STDERR if in verbose mode.
+#
 # Parameter: string to print
 # Return: -nothing-
+#
+# Uses global: %config: User configurable options
+#
+# See also debug()
 sub info {
     return if not $config{verbose};
     print STDERR @_, "\n";
@@ -492,6 +499,7 @@ sub info {
 # Return: -nothing-
 #
 # Uses global: $start_time: set in init_global_vars when this module is loaded
+# Uses global: %config: User configurable options
 sub progress {
     return if not $config{verbose};
     if ($config{time_stamps}) {
@@ -502,11 +510,23 @@ sub progress {
     return;
 }
 
+# Prints the given string to STDERR.
+#
+# Parameter: string to print
+# Return: -nothing-
 sub warn_msg {
     print STDERR "Warning: ", @_, "\n";
     return;
 }
 
+# Prints the given string to STDERR if in verbose mode.
+#
+# Parameter: string to print
+# Return: -nothing-
+#
+# Uses global: %config: User configurable options
+#
+# See also info()
 sub debug {
     return if not $config{verbose};
     print STDERR @_, "\n";
@@ -559,11 +579,19 @@ sub check_abort {
     }
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: $error_counter
 sub abort_on_error {
     die "Aborted with $error_counter error(s)\n" if $error_counter;
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: $abort_immediately
 sub set_abort_immediately {
     $abort_immediately = 1;
     return;
@@ -3513,6 +3541,8 @@ sub read_json {
 # Parameter: function which gets passed to read_file() to process the input file, if undefined read_netspoc() is used
 #
 # Return: -nothing-
+#
+# Uses global: %config: User configurable options
 sub read_file_or_dir {
     my ($path, $read_syntax) = @_;
     $read_syntax ||= \&read_netspoc;
@@ -3592,6 +3622,7 @@ sub read_file_or_dir {
 }
 
 # Purpose: prints number of parsed entities to STDERR if in verbose mode.
+#
 # Parameter: -none-
 # Return: -nothing-
 sub show_read_statistics {
@@ -6208,6 +6239,13 @@ sub expand_group_in_rule {
 
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %config: User configurable options
+# Uses global: %groups
+# Uses global: %protocolgroups
+# Uses global: %protocols: Cache of already parsed protocols
 sub check_unused_groups {
     my $check = sub {
         my ($hash, $print_type) = @_;
@@ -6661,6 +6699,10 @@ sub show_unenforceable {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+# 
+# Uses global: @zones
 sub warn_useless_unenforceable {
     for my $zone (@zones) {
         $zone->{has_unenforceable} or next;
@@ -6771,6 +6813,11 @@ sub collect_redundant_rules {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @deleted_rules: Collection of deleted rules for further inspection
+# Uses global: %config: User configurable options
 sub show_deleted_rules2 {
     return if not @deleted_rules;
     my %sname2oname2deleted;
@@ -6812,6 +6859,10 @@ sub show_deleted_rules2 {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %services
 sub warn_unused_overlaps {
     for my $key (sort keys %services) {
         my $service = $services{$key};
@@ -6832,6 +6883,13 @@ sub warn_unused_overlaps {
 # All log tags defined at some routers.
 my %known_log;
 
+# Stores all log tags in %known_log in shape of <TAG> => 1. No actual messages are contained!
+#
+# Parameter: none
+# Return: -nothing-
+#
+# Uses global: @managed_routers
+# Uses global: %known_log: All log tags defined at some routers
 sub collect_log {
     for my $router (@managed_routers) {
         my $log = $router->{log} or next;
@@ -7005,6 +7063,12 @@ sub expand_rules {
     return;
 }
 
+# Prints the total number of expanded (deny, supernet, permit) rules to STDERR.
+# 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
 sub print_rulecount  {
     my $count = 0;
     for my $type ('deny', 'supernet', 'permit') {
@@ -7037,6 +7101,10 @@ sub split_expanded_rule_types {
     return;
 }
 
+# Parameter: if true, hosts are converted to subnets
+# Return: -nothing-
+#
+# Uses global: %services
 sub expand_services {
     my ($convert_hosts) = @_;
     convert_hosts if $convert_hosts;
@@ -7252,8 +7320,13 @@ sub set_policy_distribution_ip  {
 
 ##############################################################################
 # Distribute owner, identify service owner
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @zones
+# Uses global: %routers
 ##############################################################################
-
 sub propagate_owners {
     my %zone_got_net_owners;
     my %clusters;
@@ -7614,6 +7687,7 @@ sub show_unknown_owners {
 # Uses global: %services
 # Uses global: %unknown2unknown
 # Uses global: %owners
+# Uses global: %config: User configurable options
 sub set_service_owner {
     progress('Checking service owner');
 
@@ -8734,6 +8808,11 @@ sub find_subnets_in_zone {
 #
 # Mark networks, having subnet in other zone: $bignet->{has_other_subnet}
 # If set, this prevents secondary optimization.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %config: User configurable options
 sub find_subnets_in_nat_domain {
     my $count = @natdomains;
     progress("Finding subnets in $count NAT domains");
@@ -12162,6 +12241,10 @@ my $network_00 = new(
     is_supernet  => 1
 );
 
+# Parameter: Interface object
+# Parameter: managed flag of Router (primary | full | standard | secondary | local | local_secondary | routing_only)
+#
+# Return: if managed flag is set, the network of the zone of the passed interface, else the network of the passed interface
 sub crypto_behind {
     my ($interface, $managed) = @_;
     if ($managed) {
@@ -12270,6 +12353,10 @@ sub verify_asa_trustpoint {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @managed_crypto_hubs
 sub expand_crypto  {
     progress('Expanding crypto rules');
 
@@ -12508,6 +12595,11 @@ sub expand_crypto  {
 # Hash for converting a reference of an object back to this object.
 my %ref2obj;
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %networks
+# Uses global: %ref2obj: Hash for converting a reference of an object back to this object
 sub setup_ref2obj  {
     for my $network (@networks) {
         $ref2obj{$network} = $network;
@@ -12721,6 +12813,7 @@ my %missing_supernet;
 # Return: -nothing-
 #
 # Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
+# Uses global: %config: User configurable options
 sub check_supernet_in_zone {
     my ($rule, $where, $interface, $zone, $reversed) = @_;
 
@@ -13013,6 +13106,11 @@ sub check_supernet_dst_rule {
 # Optimization:
 # Call check_supernet_dst_rule not for every rule with aggregate as destination,
 # but only once for a set of rules from collect_supernet_dst_rules.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %supernet_rule_tree
 sub check_supernet_dst_collections {
     return if !keys %supernet_rule_tree;
     my @check_rules;
@@ -13112,6 +13210,7 @@ sub find_smaller_prt  {
 # Uses global: %ref2prt: Hash for converting a reference of a protocol back to this protocol
 # Uses global: %rule_tree: Hash for ordering all rules
 # Uses global: %obj2zone
+# Uses global: %config: User configurable options
 sub check_for_transient_supernet_rule {
     my %missing_rule_tree;
     my $missing_count = 0;
@@ -13321,6 +13420,11 @@ sub check_for_transient_supernet_rule {
 
 # Mark zones connected by stateless or secondary packet filters or by
 # semi_managed devices.
+#
+# Parameter: Zone object
+# Parameter: An integer to set as a marker in the passed Zone.
+#
+# Return: -nothing-
 sub mark_stateful {
     my ($zone, $mark) = @_;
     $zone->{stateful_mark} = $mark;
@@ -13343,6 +13447,14 @@ sub mark_stateful {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @zones
+# Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
+# Uses global: %missing_supernet: Prevent multiple error messages about missing supernet rules
+# Uses global: %obj2zone
+# Uses global: %config: User configurable options
 sub check_supernet_rules {
     if ($config{check_supernet_rules}) {
         my $count = grep { !$_->{deleted} } @{ $expanded_rules{supernet} };
@@ -13505,6 +13617,11 @@ sub gen_reverse_rules1  {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
+# Uses global: %rule_tree: Hash for ordering all rules
 sub gen_reverse_rules {
     progress('Generating reverse rules for stateless routers');
     my %reverse_rule_tree;
@@ -13779,6 +13896,12 @@ sub mark_secondary_rules {
 # - Find rules where dynamic NAT is applied to host or interface at
 #   src or dst on path to other end of rule.
 #   Mark found rule with attribute {dynamic_nat} and value src|dst|src,dst.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %networks
+# Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
 sub mark_dynamic_nat_rules {
     progress('Marking rules with dynamic NAT');
 
@@ -13966,8 +14089,12 @@ sub mark_dynamic_nat_rules {
 ##############################################################################
 # Optimize expanded rules by deleting identical rules and
 # rules which are overlapped by a more general rule
+#
+# Parameter: HASH of rules
+# Parameter: HASH of rules
+#
+# Return: -nothing-
 ##############################################################################
-
 sub optimize_rules {
  my ($cmp_hash, $chg_hash) = @_;
  while (my ($stateless, $chg_hash) = each %$chg_hash) {
@@ -14037,6 +14164,8 @@ sub optimize_rules {
  return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
 sub optimize_and_warn_deleted {
     progress('Optimizing globally');
     setup_ref2obj();
@@ -14071,6 +14200,12 @@ sub collect_nat_path {
 }
 
 # Distribute networks needing NAT commands to device.
+#
+# Parameter: ARRAY of two Interfaces (in and out interface)
+# Parameter: ARRAY of Network objects
+# Parameter: ARRAY of Network objects
+#
+# Return: -nothing-
 sub distribute_nat_to_device {
     my ($pair, $src_net, $dst_net) = @_;
     my ($in_intf, $out_intf) = @$pair;
@@ -14178,6 +14313,10 @@ sub get_networks {
     }
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
 sub prepare_nat_commands  {
     return if fast_mode();
     progress('Preparing NAT commands');
@@ -15422,8 +15561,9 @@ sub print_nat {
 
 ##############################################################################
 # Distributing rules to managed devices
+#
+# Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
 ##############################################################################
-
 sub distribute_rule {
     my ($rule, $in_intf, $out_intf) = @_;
 
@@ -15616,6 +15756,7 @@ my $permit_any_rule;
 # Uses global: @managed_routers:
 # Uses global: %ref2obj: Hash for converting a reference of an object back to this object
 # Uses global: %xxrp_info: Definition of redundancy protocols
+# Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
 sub add_router_acls  {
     for my $router (@managed_routers) {
         my $has_io_acl = $router->{model}->{has_io_acl};
@@ -15762,6 +15903,7 @@ sub distribute_rules {
     return;
 }
 
+# Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
 sub create_general_permit_rules {
     my ($protocols, $context) = @_;
     my @rules;
@@ -15871,6 +16013,12 @@ sub sort_rules_by_prio {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
+# Uses global: %obj2path
+# Uses global: %key2obj: Converts hash key of reference back to reference
 sub rules_distribution {
     return if fast_mode();
     progress('Distributing rules');
@@ -16886,6 +17034,7 @@ my %ref_type = (
 # Uses global: $prt_tcp: Protocol 'TCP any'
 # Uses global: $prt_icmp: Protocol 'ICMP any', needed in optimization of chains for iptables
 # Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
+# Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
 sub find_chains  {
     my ($router, $hardware) = @_;
 
@@ -17355,6 +17504,8 @@ sub print_chains  {
 # Parameter: Router object
 # Parameter: HASH which contains Interfaces and other data
 #
+# Return: -nothing-
+#
 # Uses global: %prt_hash: Look up a protocol HASH by its defining attributes
 sub join_ranges  {
     my ($router, $hardware) = @_;
@@ -17519,6 +17670,11 @@ sub get_filter_network {
 }
 
 # Remove rules on device which filters only locally.
+#
+# Parameter: Router object
+# Parameter: HASH containing Interfaces and other data
+#
+# Return: -nothing-
 sub remove_non_local_rules {
     my ($router, $hardware) = @_;
     $router->{managed} =~ /^local/ or return;
@@ -17567,7 +17723,11 @@ sub remove_non_local_rules {
 # Parameter: Router object
 # Parameter: HASH which contains Interfaces and other data
 #
+# Return: -nothing-
+#
 # Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
+# Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
+# Uses global: $permit_any_rule
 sub add_local_deny_rules {
     my ($router, $hardware) = @_;
     $router->{managed} =~ /^local/ or return;
@@ -17629,6 +17789,7 @@ sub add_local_deny_rules {
     return;
 }
 
+# Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
 sub prepare_local_optimization {
 
     # Prepare rules for local_optimization.
@@ -17644,7 +17805,15 @@ sub prepare_local_optimization {
 }
 
 #use Time::HiRes qw ( time );
+#
+# Parameter: -none-
+# Return: -nothing-
+#
 # Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
+# Uses global: @natdomains
+# Uses global: %ref2obj: Hash for converting a reference of an object back to this object
+# Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
+# Uses global: %networks
 sub local_optimization {
     return if fast_mode();
     progress('Optimizing locally');
@@ -18050,6 +18219,7 @@ sub local_optimization {
 my $deny_any_rule;
 
 # Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
+# Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
 sub print_cisco_acl_add_deny {
     my ($router, $hardware, $no_nat_set, $model, $prefix) = @_;
     my $permit_any;
@@ -18276,6 +18446,7 @@ qw(banner dns-server default-domain split-dns wins-server address-pools
    split-tunnel-network-list vpn-filter);
 
 # Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
+# Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
 sub print_asavpn  {
     my ($router)         = @_;
     my $model            = $router->{model};
@@ -18858,6 +19029,7 @@ sub gen_crypto_rules {
     return \@crypto_rules;
 }
 
+# Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
 sub print_ezvpn {
     my ($router)     = @_;
     my $model        = $router->{model};
@@ -18936,6 +19108,8 @@ sub print_ezvpn {
 
 # Print crypto ACL.
 # It controls which traffic needs to be encrypted.
+#
+# Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
 sub print_crypto_acl {
     my ($interface, $suffix, $crypto, $crypto_type) = @_;
     my $crypto_acl_name = "crypto-$suffix";
@@ -19466,6 +19640,9 @@ sub print_interface {
 }
 
 # Make output directory available.
+#
+# Parameter: directory to create
+# Return: -nothing-
 sub check_output_dir {
     my ($dir) = @_;
     unless (-e $dir) {
@@ -19477,6 +19654,12 @@ sub check_output_dir {
 }
 
 # Print generated code for each managed router.
+#
+# Parameter: output directory
+# Return: -nothing-
+#
+# Uses global: @managed_routers
+# Uses global: @routing_only_routers
 sub print_code {
     my ($dir) = @_;
 
@@ -19563,6 +19746,13 @@ sub print_code {
     return;
 }
 
+# Parameter: full qualified input directory, might also be a file
+# Parameter: output directory
+#
+# Return: -nothing-
+#
+# Uses global: @managed_routers
+# Uses global: @routing_only_routers
 sub copy_raw {
     my ($in_path, $out_dir) = @_;
     return if ! (defined $in_path && -d $in_path);
@@ -19620,7 +19810,9 @@ sub show_finished {
 
 # These must be initialized on each run, because protocols are changed
 # by prepare_prt_ordering.
+#
 # Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
+# Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
 sub init_protocols {
 
     %routing_info = (
@@ -19876,7 +20068,6 @@ sub compile {
     &setpath();
     &distribute_nat_info();
     find_subnets_in_zone();
-    # TODO KW: document following subs
     &set_service_owner();
     &expand_services(1);	# 1: expand hosts to subnets
 
