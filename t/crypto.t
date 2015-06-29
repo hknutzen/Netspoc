@@ -746,7 +746,6 @@ crypto map crypto-outside 1 set pfs group15
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 172.16.1.2 type ipsec-l2l
 tunnel-group 172.16.1.2 ipsec-attributes
- peer-id-validate nocheck
  trust-point ASDM_TrustPoint3
  isakmp ikev1-user-authentication none
 crypto ca certificate map cert@example.com 10
@@ -798,7 +797,6 @@ crypto map crypto-outside 1 set pfs group15
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 172.16.1.2 type ipsec-l2l
 tunnel-group 172.16.1.2 ipsec-attributes
- peer-id-validate nocheck
  ikev2 local-authentication certificate ASDM_TrustPoint3
  ikev2 remote-authentication certificate
 crypto ca certificate map cert@example.com 10
@@ -967,7 +965,6 @@ crypto dynamic-map vpn1@example.com 10 set security-association lifetime seconds
 crypto map crypto-outside 65535 ipsec-isakmp dynamic vpn1@example.com
 tunnel-group vpn1@example.com type ipsec-l2l
 tunnel-group vpn1@example.com ipsec-attributes
- peer-id-validate nocheck
  ikev2 local-authentication certificate ASDM_TrustPoint3
  ikev2 remote-authentication certificate
 crypto ca certificate map vpn1@example.com 10
@@ -982,7 +979,6 @@ crypto dynamic-map vpn2@example.com 10 set security-association lifetime seconds
 crypto map crypto-outside 65534 ipsec-isakmp dynamic vpn2@example.com
 tunnel-group vpn2@example.com type ipsec-l2l
 tunnel-group vpn2@example.com ipsec-attributes
- peer-id-validate nocheck
  trust-point ASDM_TrustPoint1
  isakmp ikev1-user-authentication none
 crypto ca certificate map vpn2@example.com 10
@@ -1254,7 +1250,6 @@ crypto map crypto-outside 1 set pfs group2
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 1.2.3.129 type ipsec-l2l
 tunnel-group 1.2.3.129 ipsec-attributes
- peer-id-validate nocheck
  ikev1 trust-point ASDM_TrustPoint3
  ikev1 user-authentication none
 crypto ca certificate map cert@example.com 10
@@ -1389,7 +1384,6 @@ crypto map crypto-outside 1 set pfs group2
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 1.1.1.1 type ipsec-l2l
 tunnel-group 1.1.1.1 ipsec-attributes
- peer-id-validate nocheck
  ikev1 trust-point ASDM_TrustPoint3
  ikev1 user-authentication none
 crypto ca certificate map cert@example.com 10

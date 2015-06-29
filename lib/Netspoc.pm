@@ -9777,6 +9777,7 @@ sub cleanup_after_inheritance {
                 warn_msg("Useless identity nat:$nat_tag at $network->{name}");
         }
     }
+    return;
 }
 
 sub inherit_attributes {
@@ -18618,7 +18619,6 @@ sub print_tunnel_group {
     my $authentication = $isakmp->{authentication};
     print "tunnel-group $name type ipsec-l2l\n";
     print "tunnel-group $name ipsec-attributes\n";
-    print " peer-id-validate nocheck\n";
     if ($authentication eq 'rsasig') {
         my $trust_point = $isakmp->{trust_point};
         if ($isakmp->{ike_version} == 2) {
@@ -18637,6 +18637,9 @@ sub print_tunnel_group {
     }
 
     # Preshared key is configured manually.
+    else {
+        print " peer-id-validate nocheck\n";
+    }
     return;
 }
 
