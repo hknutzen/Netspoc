@@ -8048,23 +8048,11 @@ sub distribute_nat_info {
     # to hidden.
     my %has_non_hidden;
 
-    # 1. Remove NAT entries from aggregates.
-    #    These are only used during NAT inheritance.
-    # 2. Remove identity NAT entries.
-    #    These are only needed during NAT inheritance.
-    # 3. Fill %has_non_hidden.
     for my $network (@networks) {
         my $href = $network->{nat} or next;
-        if ($network->{is_aggregate}) {
-            delete $network->{nat};
-            next;
-        }
         for my $nat_tag (keys %$href) {
             my $nat_network = $href->{$nat_tag};
-            if ($nat_network->{identity}) {
-                delete $href->{$nat_tag};
-            }
-            elsif (!$nat_network->{hidden}) {
+            if (!$nat_network->{hidden}) {
                 $has_non_hidden{$nat_tag} = 1;
             }
         }
@@ -9959,7 +9947,7 @@ sub inherit_router_attributes {
 }
 
 ###############################################################################
-# Purpose : Return an error if the nat hashes are equal
+# Purpose : Returns true if nat hashes are equal.
 sub nat_equal {
     my ($nat1, $nat2) = @_;
 
@@ -9970,17 +9958,22 @@ sub nat_equal {
         return if $nat1->{$attr} ne $nat2->{$attr};# values of attribute differ
     }
 
-    # ...return error if not
+    # ...return true if no difference found.
     return 1;
 }
 ##############################################################################
-# Purpose : Generate warning if NAT value of two objects hold the same 
-#           attributes.
+# Purpose : 1. Generate warning if NAT value of two objects hold the same 
+#              attributes.
+#           2. Mark occurence of identity NAT that masks inheritance.
+#              This is used later to warn on useless identity NAT.
 sub check_useless_nat {
     my ($nat_tag, $nat1, $nat2, $obj1, $obj2) = @_;
     if (nat_equal($nat1, $nat2)) {
         warn_msg("Useless nat:$nat_tag at $obj2->{name},\n",
                  " it is already inherited from $obj1->{name}");
+    }
+    if ($nat2->{identity}) {
+        $nat2->{is_used} = 1;
     }
     return;
 }
@@ -10056,7 +10049,7 @@ sub inherit_nat_to_subnets_in_zone {
         my $nat = $hash->{$nat_tag};
 #        debug "inherit $nat_tag from $net_or_zone->{name}";
 
-        # Distribute nat definitions to every subnet of zone.
+        # Distribute nat definitions to every subnet of supernet, aggregate or zone.
         for my $network (@{ $zone->{networks} }) {
             my ($ip2, $mask2) = @{$network}{qw(ip mask)};
 
@@ -10129,6 +10122,37 @@ sub inherit_nat_in_zone {
     }
     return;
 }
+
+sub cleanup_after_inheritance {
+
+    # 1. Remove NAT entries from aggregates.
+    #    These are only used during NAT inheritance.
+    # 2. Remove identity NAT entries.
+    #    These are only needed during NAT inheritance.
+    for my $network (@networks) {
+        my $href = $network->{nat} or next;
+        if ($network->{is_aggregate}) {
+            delete $network->{nat};
+            next;
+        }
+        for my $nat_tag (keys %$href) {
+            my $nat_network = $href->{$nat_tag};
+            $nat_network->{identity} or next;
+            delete $href->{$nat_tag};
+            $nat_network->{is_used} or
+                warn_msg("Useless identity nat:$nat_tag at $network->{name}");
+        }
+    }
+    return;
+}
+
+sub inherit_attributes {
+    inherit_attributes_from_area();
+    inherit_nat_in_zone();
+    cleanup_after_inheritance();
+    return;
+}
+
 ##############################################################################
 # Purpose  : Create a new zone object for every network without a zone
 #
@@ -10467,8 +10491,7 @@ sub set_zone {
     check_routers_in_nested_areas($has_inclusive_borders);
     clean_areas(); # delete unused attributes
     link_aggregates();
-    inherit_attributes_from_area();
-    inherit_nat_in_zone();
+    inherit_attributes();
     return;
 }
 
@@ -19215,7 +19238,6 @@ sub print_tunnel_group {
     my $authentication = $isakmp->{authentication};
     print "tunnel-group $name type ipsec-l2l\n";
     print "tunnel-group $name ipsec-attributes\n";
-    print " peer-id-validate nocheck\n";
     if ($authentication eq 'rsasig') {
         my $trust_point = $isakmp->{trust_point};
         if ($isakmp->{ike_version} == 2) {
@@ -19234,6 +19256,9 @@ sub print_tunnel_group {
     }
 
     # Preshared key is configured manually.
+    else {
+        print " peer-id-validate nocheck\n";
+    }
     return;
 }
 
