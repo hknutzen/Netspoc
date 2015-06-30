@@ -36,29 +36,29 @@ technical documentation page, providing an elaborative description of
 the individual functions. *The relevant part of the technical
 information could be linked within the descriptions below...?*
 
-## 1. Parsing the input
+### 1. Parsing the input
 
-### Read files or directory
+#### Read files or directory
 
 NetSpoC parses the input files and transfers the contents into formats
 to work with. For the topology, objects are generated and made
 accessible by name in the working memory. Along the way, the input is checked
 for errors that are already recognizeable at this stage.
 
-### Order protocols *- move this into step 3!*
+#### Order protocols *- move this into step 3!*
 
 Prepare the input protocols to receive their contained-in relations.
 
-## 2. Creating the topology graph.
+### 2. Creating the topology graph.
 
-### Link topology
+#### Link topology
 
 The objects generated from the topology input are linked via
 references to form the topology graph, and additional specifications
 such as crypto tunneling, path restrictions, bridged networks or
 disabled topology parts are applied.
 
-### Prepare security zones and areas 
+#### [Prepare security zones and areas] (http://hknutzen.github.io/Netspoc/technical.html) 
 
 The topology graph is now abstracted, and parts of the graph are
 abstracted to zones and areas. This allows an easy attachment of
@@ -71,7 +71,7 @@ The graph is divided into treelike and cycclic parts, and informations
 for the navigation during path traversal is added to every node of the
 graph.
 
-### Add NAT information
+#### Add NAT information
 
 If Network Address Translation is specified in the input, the topology
 graph is prepared to deal with NAT. Information about valid IP
@@ -85,12 +85,12 @@ remove as much redundancay as possible from the ruleset of elementary
 rules, duplicate rules will be deleted from the ruleset as well as
 rules that are contained in other rules.
 
-### (Order protocols) 
+#### (Order protocols) 
 
 To recognize whether a rule is contained in another rule regarding its
 protocols, the input protocols are prepared to receive their
 contained-in relations.
 
-### Find subnet relations...?
+#### Find subnet relations...?
 
 
