@@ -1675,6 +1675,7 @@ sub read_network {
     return $network;
 }
 
+# HASH of interface name as key and Interface object as value.
 our %interfaces;
 my @virtual_interfaces;
 my $global_active_pathrestriction = new(
@@ -2034,13 +2035,15 @@ sub set_pix_interface_level {
 
 my $bind_nat0 = [];
 
+# HASH of router device_name as key and Router object as value.
 our %routers;
 
 # Parameter: "router:$name"
 # Return: Router object
 #
 # Uses global: $input: Content of the current file
-# Uses global: $router_info: Map of different router models
+# Uses global: $router_info: HASH of different router models. Router name => Router parameter HASH
+# Uses global: %interfaces: HASH of interface name => Interface object
 sub read_router {
     my $name = shift;
 
@@ -2710,6 +2713,7 @@ sub check_router_attributes {
     return $result;
 }
 
+# HASH of area name as key and Area object as value.
 our %areas;
 
 # Parameter: "area:$name"
@@ -2775,6 +2779,7 @@ sub read_area {
     return $area;
 }
 
+# HASH of group name as key and Group object as value.
 our %groups;
 
 # Parameter: "group:$name"
@@ -2906,6 +2911,10 @@ sub read_proto_nr {
     return;
 }
 
+# Creates a string representation from the passed protocol, e.g. "tcp 80" for {'proto'=>'tcp', 'dst_range'=>[80, 80]}.
+#
+# Parameter: HASH of the protocol, e.g. contains 'proto', 'dst_range' (ARRAY), etc.
+# Return: string representation of the protocol
 sub gen_protocol_name {
     my ($protocol) = @_;
     my $proto      = $protocol->{proto};
@@ -3052,6 +3061,7 @@ sub read_protocol {
     return $protocol;
 }
 
+# HASH of service name as key and service parameter HASH as value.
 our %services;
 
 sub assign_union_allow_user {
@@ -3326,6 +3336,7 @@ sub read_crypto {
     return $crypto;
 }
 
+# HASH of owner name as key and Owner object as value.
 our %owners;
 
 # Parameter: "$owner:$name"
@@ -4073,6 +4084,14 @@ sub order_protocols {
 
 sub expand_group;
 
+# Replaces the owner name by the actual Owner object in the passed object and aditionally returns the Owner object.
+#
+# Parameter: Area, Network, Router or Host object
+# Parameter: name of the owner in the HASH of the passed object. If undefined 'owner' is used.
+#
+# Return: the Owner object if it was found in the global HASH, else -nothing- 
+#
+# Uses global: %owners: HASH of owner name => Owner object
 sub link_to_owner {
     my ($obj, $key) = @_;
     $key ||= 'owner';
@@ -4087,6 +4106,15 @@ sub link_to_owner {
     return;
 }
 
+# Calls link_to_owner() to replace the owner name by the actual Owner object in the passed object.
+# Validates that the parameter 'extend_only' of the Owner object is not set.
+#
+# Parameter: Area, Network, Router or Host object
+# Parameter: name of the owner in the HASH of the passed object. If undefined 'owner' is used.
+#
+# Return: -nothing- 
+#
+# See also link_to_owner()
 sub link_to_real_owner {
     my ($obj, $key) = @_;
     if (my $owner = link_to_owner($obj, $key)) {
@@ -4104,6 +4132,14 @@ sub link_to_real_owner {
 # Element of attribute 'watchers' of owner A is allowed to reference
 # some other owner B. In this case all admins and watchers of B are
 # added to watchers of A.
+#
+# Parameter: Owner object
+#
+# Returns the first of the following which meets the condition:
+#         - if Owner has no watchers:     ARRAY of admin names 
+#         - if Owner has watching owners: ARRAY of admin names and watcher names 
+#         - if watchers eq 'recursive':   Empty ARRAY 
+#         - else:                         ARRAY of admin names and expanded watchers
 sub expand_watchers {
     my ($owner) = @_;
     my $names = $owner->{watchers};
@@ -4150,12 +4186,12 @@ sub expand_watchers {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %owners
+# Uses global: %owners: HASH of owner name => Owner object
 # Uses global: %networks
 # Uses global: %aggregates
-# Uses global: %areas
+# Uses global: %areas: HASH of area name => Area object
 # Uses global: @router_fragments
-# Uses global: %services
+# Uses global: %services: HASH of service name => service parameter HASH
 sub link_owners {
 
     my %alias2owner;
@@ -4326,7 +4362,7 @@ sub link_general_permit {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %areas
+# Uses global: %areas: HASH of area name => Area object
 sub link_areas {
     for my $area (values %areas) {
         if ($area->{anchor}) {
@@ -4505,7 +4541,7 @@ sub check_interface_ip {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %routers
+# Uses global: %routers: HASH of router device_name => Router object
 # Uses global: @router_fragments
 sub link_routers {
     for my $router (sort(by_name values %routers), @router_fragments) {
@@ -4572,7 +4608,7 @@ sub link_subnet  {
 #
 # Uses global: %networks
 # Uses global: %aggregates
-# Uses global: %areas
+# Uses global: %areas: HASH of area name => Area object
 sub link_subnets  {
     for my $network (values %networks) {
         link_subnet($network, undef);
@@ -5072,7 +5108,7 @@ sub check_bridged_networks {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %interfaces
+# Uses global: %interfaces: HASH of interface name => Interface object
 # Uses global: @router_fragments
 # Uses global: @routing_only_routers
 # Uses global: @managed_routers
@@ -5612,6 +5648,7 @@ sub check_auto_intf {
 # return a reference to an array of network objects.
 sub expand_group1;
 
+# Uses global: %interfaces: HASH of interface name => Interface object
 sub expand_group1 {
     my ($aref, $context, $clean_autogrp) = @_;
     my @objects;
@@ -6243,7 +6280,7 @@ sub expand_group_in_rule {
 # Return: -nothing-
 #
 # Uses global: %config: User configurable options
-# Uses global: %groups
+# Uses global: %groups: HASH of group name => Group object
 # Uses global: %protocolgroups
 # Uses global: %protocols: Cache of already parsed protocols
 sub check_unused_groups {
@@ -6862,7 +6899,7 @@ sub show_deleted_rules2 {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %services
+# Uses global: %services: HASH of service name => service parameter HASH
 sub warn_unused_overlaps {
     for my $key (sort keys %services) {
         my $service = $services{$key};
@@ -7104,7 +7141,7 @@ sub split_expanded_rule_types {
 # Parameter: if true, hosts are converted to subnets
 # Return: -nothing-
 #
-# Uses global: %services
+# Uses global: %services: HASH of service name => service parameter HASH
 sub expand_services {
     my ($convert_hosts) = @_;
     convert_hosts if $convert_hosts;
@@ -7325,7 +7362,7 @@ sub set_policy_distribution_ip  {
 # Return: -nothing-
 #
 # Uses global: @zones
-# Uses global: %routers
+# Uses global: %routers: HASH of router device_name => Router object
 ##############################################################################
 sub propagate_owners {
     my %zone_got_net_owners;
@@ -7684,9 +7721,9 @@ sub show_unknown_owners {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %services
+# Uses global: %services: HASH of service name => service parameter HASH
 # Uses global: %unknown2unknown
-# Uses global: %owners
+# Uses global: %owners: HASH of owner name => Owner object
 # Uses global: %config: User configurable options
 sub set_service_owner {
     progress('Checking service owner');
@@ -9716,6 +9753,12 @@ sub get_cluster_aggregates {
 #            property flags and private status.
 # Comments : Unnumbered and tunnel networks are not referenced in zone objects,
 #            as they are no valid src or dst.
+#
+# Parameter: Network object
+# Parameter: Zone object
+# Parameter: Interface object, might be 0
+#
+# Return: -nothing-
 sub set_zone1 {
     my ($network, $zone, $in_interface) = @_;
 
@@ -9785,6 +9828,12 @@ sub set_zone1 {
 #               - it is useless in rules and
 #               - we would get inconsistent owner since zone of tunnel 
 #                 doesn't inherit from area.
+#
+# Parameter: Zone object
+# Parameter: Interface object, might be 0
+# Parameter: ARRAY of Zone objects
+#
+# Return: -nothing-
 sub set_zone_cluster {
     my ($zone, $in_interface, $zone_aref) = @_;
 
@@ -10018,7 +10067,7 @@ sub inherit_area_nat {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %areas
+# Uses global: %areas: HASH of area name => Area object
 sub inherit_attributes_from_area {
 
     # Areas can be nested. Proceed from small to larger ones.
@@ -10123,6 +10172,10 @@ sub inherit_nat_in_zone {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %networks
 sub cleanup_after_inheritance {
 
     # 1. Remove NAT entries from aggregates.
@@ -10235,7 +10288,7 @@ sub cluster_zones {
 # Parameter: -none-
 # Return: HASH with Router object as key and value
 #
-# Uses global: %areas
+# Uses global: %areas: HASH of area name => Area object
 sub prepare_area_borders {
     my %has_inclusive_borders; # collects all routers with inclusive border IF 
 
@@ -10288,7 +10341,7 @@ sub set_area {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %areas
+# Uses global: %areas: HASH of area name => Area object
 sub set_areas {
     for my $area (@areas) {
         $area->{zones} = [];
@@ -10461,7 +10514,7 @@ sub check_routers_in_nested_areas {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %areas
+# Uses global: %areas: HASH of area name => Area object
 sub clean_areas {
     for my $area (@areas) {
         delete $area->{intf_lookup};
@@ -10908,7 +10961,7 @@ sub set_loop_cluster {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %routers
+# Uses global: %routers: HASH of router device_name => Router object
 sub setpath {
     progress('Preparing fast path traversal');
 
