@@ -9,7 +9,8 @@ author: Meike Bruns
 {:toc}
 </div>
 
-# <a name="pookie"></a> Netspoc: A workflow outline.
+<a name="pookie"></a>
+# Netspoc: A workflow outline.
 
 NetSPoC is a Network Security Policy Compiler. It takes a set of
 access rules (services) and a given network topology specified in
