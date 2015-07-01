@@ -39,13 +39,14 @@ information could be linked within the descriptions below...?*
 ### 1. Parsing the input
 
 * **Read files or directory:**
-    [read_file_or_dir](/Netspoc/oops.html) NetSpoC parses
-    the input files and transfers the contents into formats to work
-    with. For the topology, objects are generated and made accessible
-    by name in the working memory. Along the way, the input is checked
-    for errors that are already recognizeable at this stage.
+    [read_file_or_dir](/Netspoc/oops.html)  
+    NetSpoC parses the input files and transfers the contents into formats
+    to work with. For the topology, objects are generated and made
+    accessible by name in the working memory. Along the way, the input
+    is checked for errors that are already recognizeable at this
+    stage.
 
-* **Order protocols:** [order_protocols](/Netspoc/oops.html)
+* **Order protocols:** [order_protocols](/Netspoc/oops.html) 
     *- move this into step 3!* Prepare the input protocols to receive
     their contained-in relations.
 
@@ -54,35 +55,34 @@ information could be linked within the descriptions below...?*
 In this step, the topology input from the policy files is used to
 create a topology graph in working memory.
 
-* **Link topology:**[link_topology](/Netspoc/oops.html) The
-    objects generated from the topology input are linked via
+* **Link topology:**[link_topology](/Netspoc/oops.html)  
+    The objects generated from the topology input are linked via
     references to form the topology graph, and additional
     specifications such as crypto tunneling, path restrictions,
     bridged networks or disabled topology parts are applied.
 
 * **Prepare security zones and areas:**
-    [set_zone](/Netspoc/technical.html#prepare_zones) The topology
-    graph is now abstracted, and parts of the graph are abstracted to
-    zones and areas. This allows an easy attachment of properties to
-    the objects of an area as well as a faster path traversal on the
-    abstracted graph.
+    [set_zone](/Netspoc/technical.html#prepare_zones)  
+    The topology graph is now abstracted, and parts of the graph are
+    abstracted to zones and areas. This allows an easy attachment of
+    properties to the objects of an area as well as a faster path
+    traversal on the abstracted graph.
 
 * **Prepare fast path traversal:**
-    [setpath](/Netspoc/technical.html#prepare_traversal) The graph is
-    divided into treelike and cyclic parts, and informations for the
-    navigation during path traversal is added to every node of the
-    graph.
+    [setpath](/Netspoc/technical.html#prepare_traversal)  
+    The graph is divided into treelike and cyclic parts, and informations
+    for the navigation during path traversal is added to every node of
+    the graph.
 
 * **Distribute NAT information:**
-    [distribute_nat_info](/Netspoc/oops.html) If Network
-    Address Translation is specified in the input, the topology graph
-    is prepared to deal with NAT. Information about valid IP addresses
-    of objects is distributed to the different parts of the network
-    topology.
+    [distribute_nat_info](/Netspoc/oops.html)  
+    If Network Address Translation is specified in the input, the topology
+    graph is prepared to deal with NAT. Information about valid IP
+    addresses of objects is distributed to the different parts of the
+    network topology.
 
 * **Identifying subnet relations:**
-    [find_subnets_in_zone](/Netspoc/oops.html) 
-
+    [find_subnets_in_zone](/Netspoc/oops.html)  
     When the rules are processed, redundant rules will be rejected
     from the ruleset. Rules can be redunant, because they are
     contained in other rules, for example if two rules are identical
@@ -92,7 +92,7 @@ create a topology graph in working memory.
     single zone are determined.
 
 * **Transfer ownership information:**
-  [propagate_owners](/Netspoc/oops.html)  
+  [propagate_owners](/Netspoc/oops.html)    
   *part of set_service_owners, the second part, `check_service_owners`
   should maybe be extracted and placed within step 3...* The policy
   contains information about the group or person responsible (owner)
@@ -102,14 +102,14 @@ create a topology graph in working memory.
   3)* to validate the rules.
 
 * **Coverting hosts to subnets:**
-    [convert_hosts](/Netspoc/oops.html)*is part of function
-    `expand_services` and called in there before everything
-    else. Maybe it should be called dirctly from the compile
-    function.* Single IP addresses and IP address ranges of hosts are
-    converted into subnets with a matching netmask. This helps with
-    identifying contained-in relations when processing the rules, and
-    allows to generate ACLs, that can refer to subnets but not to IP
-    ranges.
+    [convert_hosts](/Netspoc/oops.html)  
+    *is part of function `expand_services` and called in there before
+    everything else. Maybe it should be called dirctly from the
+    compile function.* Single IP addresses and IP address ranges of
+    hosts are converted into subnets with a matching netmask. This
+    helps with identifying contained-in relations when processing the
+    rules, and allows to generate ACLs, that can refer to subnets but
+    not to IP ranges.
 
 
 
