@@ -58,14 +58,14 @@ references to form the topology graph, and additional specifications
 such as crypto tunneling, path restrictions, bridged networks or
 disabled topology parts are applied.
 
-#### [Prepare security zones and areas](/Netspoc/technical.html#prep_zones)
+#### [Prepare security zones and areas](/Netspoc/technical.html#zones)
 
 The topology graph is now abstracted, and parts of the graph are
 abstracted to zones and areas. This allows an easy attachment of
 properties to the objects of an area as well as a faster path
 traversal on the abstracted graph.
 
-### [Prepare fast path traversal](/Netspoc/technical.html#prep_path_traversal)
+### [Prepare fast path traversal](/Netspoc/technical.html#prep-path-traversal)
 
 The graph is divided into treelike and cycclic parts, and informations
 for the navigation during path traversal is added to every node of the
