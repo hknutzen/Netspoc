@@ -22,8 +22,9 @@ For this task, five steps are conducted:
 
 1. Parsing network topology and rule set.
 2. Connecting the elements of the topology to form a topology graph.
-3. Breaking the rule set down to elementary rules with exactly one source 
-   and destination, remove duplicate and contained rules.
+3. Breaking the rule set down to elementary rules with exactly one
+   source and destination, identify inconsistencies and remove
+   duplicate and contained rules.
 4. Processing the elementary rules by finding all paths in the network 
    graph for every source and destination pair, marking the managed 
    routers on these paths with the respective rule. 
@@ -39,14 +40,14 @@ information could be linked within the descriptions below...?*
 ### 1. Parsing the input
 
 * **Read files or directory:**
-    [read_file_or_dir](/Netspoc/oops.html)  
+    [read_file_or_dir]()  
     NetSpoC parses the input files and transfers the contents into formats
     to work with. For the topology, objects are generated and made
     accessible by name in the working memory. Along the way, the input
     is checked for errors that are already recognizeable at this
     stage.
 
-* **Order protocols:** [order_protocols](/Netspoc/oops.html) 
+* **Order protocols:** [order_protocols]() 
     *- move this into step 3!* Prepare the input protocols to receive
     their contained-in relations.
 
@@ -55,11 +56,12 @@ information could be linked within the descriptions below...?*
 In this step, the topology input from the policy files is used to
 create a topology graph in working memory.
 
-* **Link topology:**[link_topology](/Netspoc/oops.html)  
+* **Link topology:**[link_topology]()  
     The objects generated from the topology input are linked via
     references to form the topology graph, and additional
     specifications such as crypto tunneling, path restrictions,
-    bridged networks or disabled topology parts are applied.
+    bridged networks or disabled topology parts (*currently handeled
+    in another function!*) are applied.
 
 * **Prepare security zones and areas:**
     [set_zone](/Netspoc/technical.html#prepare_zones)  
@@ -75,24 +77,24 @@ create a topology graph in working memory.
     the graph.
 
 * **Distribute NAT information:**
-    [distribute_nat_info](/Netspoc/oops.html)  
+    [distribute_nat_info]()  
     If Network Address Translation is specified in the input, the topology
     graph is prepared to deal with NAT. Information about valid IP
     addresses of objects is distributed to the different parts of the
     network topology.
 
 * **Identifying subnet relations:**
-    [find_subnets_in_zone](/Netspoc/oops.html)  
-    When the rules are processed, redundant rules will be rejected
+    [find_subnets_in_zone]()  
+    When rules are processed, redundant rules will be rejected
     from the ruleset. Rules can be redunant, because they are
     contained in other rules, for example if two rules are identical
     except for their destinations, but one destination is a subnet of
-    the other. To enable redundancy checks in step 3, the subnet
+    the other. To enable redundancy checks in step 3, subnet
     relations (also contained-in relations) of networks in every
     single zone are determined.
 
 * **Transfer ownership information:**
-  [propagate_owners](/Netspoc/oops.html)    
+  [propagate_owners]()    
   *part of set_service_owners, the second part, `check_service_owners`
   should maybe be extracted and placed within step 3...* The policy
   contains information about the group or person responsible (owner)
@@ -102,16 +104,14 @@ create a topology graph in working memory.
   3)* to validate the rules.
 
 * **Coverting hosts to subnets:**
-    [convert_hosts](/Netspoc/oops.html)  
+    [convert_hosts]()  
     *is part of function `expand_services` and called in there before
-    everything else. Maybe it should be called dirctly from the
+    everything else. Maybe it can be called directly from the
     compile function.* Single IP addresses and IP address ranges of
     hosts are converted into subnets with a matching netmask. This
     helps with identifying contained-in relations when processing the
     rules, and allows to generate ACLs, that can refer to subnets but
     not to IP ranges.
-
-
 
 ### 3. Rule preparation
 
@@ -120,12 +120,41 @@ remove as much redundancay as possible from the ruleset of elementary
 rules, duplicate rules will be deleted from the ruleset as well as
 rules that are contained in other rules.
 
-#### (Order protocols) 
+* **Detect contained-in relations of input protocols:** [order_protocols]()   
+  *As mentioned before, this function should possibly be placed here.*
 
-To recognize whether a rule is contained in another rule regarding its
-protocols, the input protocols are prepared to receive their
-contained-in relations.
+* **Check rules for ownership:** [check_service_owners]()  
+    *This function has been executed in step 2 already, but is part of
+    rule processing and should therefore be placed here. As it is
+    merely a detail of rule validation, it could maybe be skipped
+    at all...?* The source and destination values of the rules are
+    checked to have valid owners.
 
-#### Find subnet relations...
+* **Preparing rule optimization:** [expand_services]()  
+    The services and rules specified in the input policy are now
+    expanded into elementary rules. These are stored in the rule tree,
+    a data structure that enables an efficient evaluation to detect
+    contained rules.
+
+* **Include crypto rules:** [expand_crypto]()  
+    Rules derived from crypto tunneling are expanded to elementary
+    rules and added to the rule tree. *could this be included in
+    expand_services...?*
+
+* **Check rules to allow access to every managed device:**
+    [set_policy-distribution_ip]()  
+    The ACLs and static routes that are generated by NetSPoC have to
+    be delivered from the Netspoc server to every managed device. To
+    guarantee that this is possible, the rule set is now checked to
+    allow access on the managed routers. Along the way, the IP
+    addresses that are to be used by the Netspoc server for
+    distribution are determined.
+
+* **Optimize ruleset:** [optimize_and_warn_delete]()  
+    Compare elementary rules to identify and remove redundancies.
+
+* **Perform consistency checks** [check_supernet_rules]()  
+    Check rules that have networks or aggregates with subnets for
+    consistency.
 
 
