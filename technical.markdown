@@ -311,7 +311,7 @@ NAT attribute is not overwritten, but a warning is emitted if the NAT
 attributes values are equal for both zone and network.
 
 
-## Preparing fast path traversal {#preparetraversal}
+## Preparing fast path traversal {#prep}
 
 Netspoc finds paths inside the network topology. As we have seen
 above, zones have been applied to accelerate graph traversal, and
