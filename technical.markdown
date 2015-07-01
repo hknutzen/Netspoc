@@ -496,3 +496,6 @@ with pathrestrictions into partitions and stores at every
 pathrestricted interface the partitions that can be reached.
 
 {% include image.html src="./images/find_loop_paths.png" description="" %}
+
+
+## Sorry, we have not finished documentation yet! {#oops}

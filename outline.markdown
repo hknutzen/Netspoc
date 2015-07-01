@@ -81,22 +81,23 @@ create a topology graph in working memory.
     topology.
 
 * **Identifying subnet relations:**
-    [find_subnets_in_zone](/Netspoc/technical.html#oops) When the
-    rules are processed, redundant rules will be rejected from the
-    ruleset. Rules can be redunant, because they are contained in
-    other rules, for example if two rules are identical except for
-    their destinations, but one destination is a subnet of the
-    other. To enable redundancy checks in step 3, the subnet relations
-    (also contained-in relations) of networks in every single zone are
-    determined.
+    [find_subnets_in_zone](/Netspoc/technical.html#oops) 
+
+    When the rules are processed, redundant rules will be rejected
+    from the ruleset. Rules can be redunant, because they are
+    contained in other rules, for example if two rules are identical
+    except for their destinations, but one destination is a subnet of
+    the other. To enable redundancy checks in step 3, the subnet
+    relations (also contained-in relations) of networks in every
+    single zone are determined.
 
 * **Transfer ownership information:**
-  [propagate_owners](/Netspoc/technical.html#oops) *part of
-  set_service_owners, the second part, `check_service_owners` should
-  maybe be extracted and placed within step 3...* The policy contains
-  information about the group or person responsible (owner) for
-  certain parts of the topology. This information is now added to the
-  topology objects. While ownership is rather needed for Netspoc
+  [propagate_owners](/Netspoc/technical.html#oops)  
+  *part of set_service_owners, the second part, `check_service_owners`
+  should maybe be extracted and placed within step 3...* The policy
+  contains information about the group or person responsible (owner)
+  for certain parts of the topology. This information is now added to
+  the topology objects. While ownership is rather needed for Netspoc
   Policy Web than for the Netspoc compiler, it is still used *(in step
   3)* to validate the rules.
 
