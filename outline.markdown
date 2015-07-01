@@ -86,7 +86,7 @@ create a topology graph in working memory.
 * **Identifying subnet relations:**
     [find_subnets_in_zone]()  
     When rules are processed, redundant rules will be rejected
-    from the ruleset. Rules can be redunant, because they are
+    from the ruleset. Rules can be redundant, because they are
     contained in other rules, for example if two rules are identical
     except for their destinations, but one destination is a subnet of
     the other. To enable redundancy checks in step 3, subnet
@@ -115,10 +115,10 @@ create a topology graph in working memory.
 
 ### 3. Rule preparation
 
-Rules are now prepared to receive a ruleset of elementary rules. To
-remove as much redundancay as possible from the ruleset of elementary
-rules, duplicate rules will be deleted from the ruleset as well as
-rules that are contained in other rules.
+Rules are now prepared to receive a rule set of valid elementary
+rules. To remove as much redundancy as possible from the rule set,
+duplicates and rules that are contained in other rules will be
+deleted.
 
 * **Detect contained-in relations of input protocols:** [order_protocols]()   
   *As mentioned before, this function should possibly be placed here.*
@@ -151,7 +151,7 @@ rules that are contained in other rules.
     distribution are determined.
 
 * **Optimize ruleset:** [optimize_and_warn_delete]()  
-    Compare elementary rules to identify and remove redundancies.
+    Elementary rules are compared to identify and remove redundancies.
 
 * **Perform consistency checks** [check_supernet_rules]()  
     Check rules that have networks or aggregates with subnets for
