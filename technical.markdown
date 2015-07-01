@@ -53,7 +53,7 @@ topology that are important for generating ACLs and static
 routes. Moreover, these aspects are modeled to allow completing these
 tasks as efficiently as possible.
 
-## Preparing zones and areas {#zones}
+## Preparing zones and areas {#prep_zones}
 
 Netspoc combines networks connected by unmanaged routers in
 zones. These zones, containing networks and unmanaged routers as
@@ -311,7 +311,7 @@ NAT attribute is not overwritten, but a warning is emitted if the NAT
 attributes values are equal for both zone and network.
 
 
-## Preparing fast path traversal
+## Preparing fast path traversal {#prep_path_traversal}
 
 Netspoc finds paths inside the network topology. As we have seen
 above, zones have been applied to accelerate graph traversal, and
