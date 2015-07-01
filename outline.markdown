@@ -9,7 +9,7 @@ author: Meike Bruns
 {:toc}
 </div>
 
-<a name="pookie"></a>
+{#pookie}
 # Netspoc: A workflow outline.
 
 NetSPoC is a Network Security Policy Compiler. It takes a set of
