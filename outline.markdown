@@ -38,14 +38,13 @@ information could be linked within the descriptions below...?*
 
 ### 1. Parsing the input
 
-#### Read files or directory
+* **Read files or directory:**[read_file_or_dir](/Netspoc/technical.html)
+  NetSpoC parses the input files and transfers the contents into formats
+  to work with. For the topology, objects are generated and made
+  accessible by name in the working memory. Along the way, the input is checked
+  for errors that are already recognizeable at this stage.
 
-NetSpoC parses the input files and transfers the contents into formats
-to work with. For the topology, objects are generated and made
-accessible by name in the working memory. Along the way, the input is checked
-for errors that are already recognizeable at this stage.
-
-#### Order protocols *- move this into step 3!*
+* **Order protocols:**[order_protocols]() *- move this into step 3!*
 
 Prepare the input protocols to receive their contained-in relations.
 
