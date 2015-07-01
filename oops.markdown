@@ -5,13 +5,13 @@ author: Meike Bruns
 
 
 <div class="maruku_toc" markdown="1">
-* Table of Content
 {:toc}
 </div>
 
 
-# Sorry, we have not documented this function yet.  
+# Sorry!
+## We have not documented this function yet.  
 
-We are still working on our documentation. Of course, you are always
-welcome to have a look at the source code and the inline documentation
-in there!
+The technical documentation is still under construction. Of course,
+you are always welcome to have a look at the source code and the
+inline documentation in there!
