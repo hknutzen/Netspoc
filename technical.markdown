@@ -53,7 +53,7 @@ topology that are important for generating ACLs and static
 routes. Moreover, these aspects are modeled to allow completing these
 tasks as efficiently as possible.
 
-## Preparing zones and areas {#zones}
+## Preparing zones and areas {#prepare_zones}
 
 Netspoc combines networks connected by unmanaged routers in
 zones. These zones, containing networks and unmanaged routers as
