@@ -39,13 +39,13 @@ information could be linked within the descriptions below...?*
 ### 1. Parsing the input
 
 * **Read files or directory:**
-    [read_file_or_dir](/Netspoc/technical.html#oops) NetSpoC parses
+    [read_file_or_dir](/Netspoc/oops.html) NetSpoC parses
     the input files and transfers the contents into formats to work
     with. For the topology, objects are generated and made accessible
     by name in the working memory. Along the way, the input is checked
     for errors that are already recognizeable at this stage.
 
-* **Order protocols:** [order_protocols](/Netspoc/technical.html#oops)
+* **Order protocols:** [order_protocols](/Netspoc/oops.html)
     *- move this into step 3!* Prepare the input protocols to receive
     their contained-in relations.
 
@@ -54,7 +54,7 @@ information could be linked within the descriptions below...?*
 In this step, the topology input from the policy files is used to
 create a topology graph in working memory.
 
-* **Link topology:**[link_topology](/Netspoc/technical.html#oops) The
+* **Link topology:**[link_topology](/Netspoc/oops.html) The
     objects generated from the topology input are linked via
     references to form the topology graph, and additional
     specifications such as crypto tunneling, path restrictions,
@@ -74,14 +74,14 @@ create a topology graph in working memory.
     graph.
 
 * **Distribute NAT information:**
-    [distribute_nat_info](/Netspoc/technical.html#oops) If Network
+    [distribute_nat_info](/Netspoc/oops.html) If Network
     Address Translation is specified in the input, the topology graph
     is prepared to deal with NAT. Information about valid IP addresses
     of objects is distributed to the different parts of the network
     topology.
 
 * **Identifying subnet relations:**
-    [find_subnets_in_zone](/Netspoc/technical.html#oops) 
+    [find_subnets_in_zone](/Netspoc/oops.html) 
 
     When the rules are processed, redundant rules will be rejected
     from the ruleset. Rules can be redunant, because they are
@@ -92,7 +92,7 @@ create a topology graph in working memory.
     single zone are determined.
 
 * **Transfer ownership information:**
-  [propagate_owners](/Netspoc/technical.html#oops)  
+  [propagate_owners](/Netspoc/oops.html)  
   *part of set_service_owners, the second part, `check_service_owners`
   should maybe be extracted and placed within step 3...* The policy
   contains information about the group or person responsible (owner)
@@ -102,7 +102,7 @@ create a topology graph in working memory.
   3)* to validate the rules.
 
 * **Coverting hosts to subnets:**
-    [convert_hosts](/Netspoc/technical.html#oops)*is part of function
+    [convert_hosts](/Netspoc/oops.html)*is part of function
     `expand_services` and called in there before everything
     else. Maybe it should be called dirctly from the compile
     function.* Single IP addresses and IP address ranges of hosts are
