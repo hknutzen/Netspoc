@@ -65,9 +65,9 @@ abstracted to zones and areas. This allows an easy attachment of
 properties to the objects of an area as well as a faster path
 traversal on the abstracted graph.
 
-#### [Prepare fast path traversal](/Netspoc/technical.html#prep)
+#### [Prepare fast path traversal](/Netspoc/technical.html#prepare_traversal)
 
-The graph is divided into treelike and cycclic parts, and informations
+The graph is divided into treelike and cyclic parts, and informations
 for the navigation during path traversal is added to every node of the
 graph.
 
