@@ -1,3 +1,15 @@
+---
+layout: default
+author: Meike Bruns
+---
+
+
+<div class="maruku_toc" markdown="1">
+* Table of Content
+{:toc}
+</div>
+
+
 # Sorry, we have not documented this function yet.  
 
 We are still working on our documentation. Of course, you are always
