@@ -9,7 +9,7 @@ author: Meike Bruns
 {:toc}
 </div>
 
-# Netspoc: A workflow outline. {#pookie}
+# Netspoc: A workflow outline.
 
 NetSPoC is a Network Security Policy Compiler. It takes a set of
 access rules (services) and a given network topology specified in
@@ -58,7 +58,7 @@ references to form the topology graph, and additional specifications
 such as crypto tunneling, path restrictions, bridged networks or
 disabled topology parts are applied.
 
-#### [Prepare security zones and areas](#pookie)
+#### [Prepare security zones and areas](/Netspoc/outline.html#zones)
 
 The topology graph is now abstracted, and parts of the graph are
 abstracted to zones and areas. This allows an easy attachment of
