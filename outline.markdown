@@ -58,7 +58,7 @@ references to form the topology graph, and additional specifications
 such as crypto tunneling, path restrictions, bridged networks or
 disabled topology parts are applied.
 
-#### <a href="/Netspoc/technical.html#zones">Prepare security zones and area</a> 
+#### <a href="/Netspoc/technical.html#zones">Prepare security zones and areas</a> 
 
 The topology graph is now abstracted, and parts of the graph are
 abstracted to zones and areas. This allows an easy attachment of
