@@ -27,7 +27,7 @@ For this task, five steps are conducted:
    duplicate and contained rules.
 4. Processing the elementary rules by finding all paths in the network 
    graph for every source and destination pair, marking the managed 
-   routers on these paths with the respective rule. 
+   routers on these paths with respective routing informations. 
 5. Converting the rules collected at managed routers into configurations 
    for the devices and writing a configuration file for every managed router.
 
@@ -157,4 +157,51 @@ deleted.
     Check rules that have networks or aggregates with subnets for
     consistency.
 
+### 4. Rule processing
+
+* **Identify devices that require NAT: prepare_nat_commands**  
+    For every source and destination pair of the ruleset, the topology
+    is traversed to determine the devices that need NAT
+    configurations. The specific NAT configurations are stored within
+    the router objects.
+
+* **Find routes for rules: find_active_routes**  
+    Again, the topology is traversed for every source and destination
+    pair, generating static routing information and storing it in the
+    router objects.
+
+* **Generate reverse rules: gen_reverse_rules**  
+    For devices that are not stateful, ACLs need to permit traffic
+    into both directions. Therefore, for rules that were found during
+    path traversal to have a stateless device on a path connecting
+    source and destination, a reverse rule is generated and added to
+    the ruleset, if it has not been contained before.
+
+* **Identify rules that can be reduced at secondary routers:
+    mark_secondary_rules**  
+    If all routes between a source and destination pair of a rule
+    contain at least one managed router, simplified ACLs may be
+    generated for that rule on secondary routers. Rules that have been
+    identified to fulfill this requirement during path traversal are
+    now marked. 
+
+* **Mark rules with NAT on path: mark_dynamic_nat_rules**  
+
+* **Distribute rules to managed devices: rules_distribution**  
+    For every source and destination pair of the rule set, the
+    topology is traversed again, adding the associated rule
+    information to every managed router on the found paths.
+
+### 5. Convert information collected at routers to configuration files
+
+* **Optimize distributed rules: local_optimization**  
+    The rule information stored in managed routers is examined to
+    detect and remove redundant rules. As the rules are still in an
+    elementary format, summarized rules refering to ranges are
+    generated if that is possible.
+
+* **Generate configuration code: print_code**  
+    The optimized rules stored in the router objects are transformed
+    into configuration commands. These are printed to file, with an
+    individual file for every router.
 
