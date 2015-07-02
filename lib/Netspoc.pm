@@ -197,15 +197,33 @@ our %config_type = (
     _default => '0|1',
 );
 
+# Returns the keys of the global config HASH.
+#
+# Parameter: -none-
+# Return: the keys of the global config
+#
+# Uses global: %config: User configurable options
 sub get_config_keys {
     return keys %config;
 }
 
+# Checks if the passed key is contained in the global config HASH.
+#
+# Parameter string, key to check
+# Return: true if the key exists in the global config HASH, else false.
+#
+# Uses global: %config: User configurable options
 sub valid_config_key {
     my ($key) = @_;
     return exists $config{$key};
 }
 
+# Returns the config pattern for the passed key. The config pattern defines which values are expected for this key. If no pattern is found for the passed key a default pattern is returned.
+#
+# Parameter: string, key to lookup the config pattern
+# Return: the config pattern for the key, default pattern if none was found
+#
+# Uses global: %config_type: Valid values for config options in %config
 sub get_config_pattern {
     my ($key) = @_;
     my $pattern;
@@ -468,6 +486,12 @@ sub aref_eq  {
     return 1;
 }
 
+# Checks if two HASHes contains the same keys. Values can be different.
+#
+# Parameter: HASH
+# Parameter: HASH
+#
+# Return: 1 if the passed HASHes contains the same keys, else undefined
 sub keys_eq {
     my ($href1, $href2) = @_;
     keys %$href1 == keys %$href2 or return;
