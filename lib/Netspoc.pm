@@ -595,6 +595,14 @@ sub at_line {
 our $error_counter;
 our $abort_immediately;
 
+# Checks if the number of counted errors exceeds the configured value. In that case, or if $abort_immediately is set the script terminates.
+# 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: $error_counter
+# Uses global: $abort_immediately
+# Uses global: %config: User configurable options
 sub check_abort {
     $error_counter++;
     if ($error_counter == $config{max_errors}) {
@@ -1071,6 +1079,11 @@ sub read_time_val {
 }
 
 # Sets the description for the passed object if set in $input.
+#
+# Parameter: Object, one of: Network, Host, Area, Interface, Router. Or a HASH.
+# Return: -nothing-
+#
+# Uses global: $input: Content of the current file
 sub add_description {
     my ($obj) = @_;
     check 'description' or return;
@@ -1206,6 +1219,11 @@ my $from_json;
 
 # Create a new structure of given type;
 # initialize it with key / value pairs.
+#
+# Parameter: string, type of the Object, e.g. Interface
+# Parameter: HASH of object values
+#
+# Return: blessed HASH which was passed with the type which was passed
 sub new {
     my ($type, @pairs) = @_;
     my $self = {@pairs};
@@ -1213,6 +1231,12 @@ sub new {
 }
 
 # Adds the passed key/value to the hash of the passed object, or prints an error message if the hash already contains the key.
+#
+# Parameter: Object
+# Parameter: string, key in the Object's HASH
+# Parameter: string, value in the Object's HASH
+#
+# Return: -nothing-
 sub add_attribute {
     my ($obj, $key, $value) = @_;
     defined $obj->{$key} and error_atline("Duplicate attribute '$key'");
@@ -3205,6 +3229,10 @@ sub read_pathrestriction {
     return $restriction;
 }
 
+# Parameter: string, the name which is set as object parameter.
+# Parameter: HASH, either %isakmp_attributes or %ipsec_attributes
+#
+# Return: HASH
 sub read_attributed_object {
     my ($name, $attr_descr) = @_;
     my $object = { name => $name };
@@ -3286,7 +3314,7 @@ our %isakmp;
 # Parameter: "isakmp:$name"
 # Return: HASH
 #
-# Uses global: $input: Content of the current file
+# Uses global: %isakmp_attributes
 sub read_isakmp {
     my ($name) = @_;
     return read_attributed_object $name, \%isakmp_attributes;
@@ -3325,7 +3353,7 @@ our %ipsec;
 # Parameter: "ipsec:$name"
 # Return: HASH
 #
-# Uses global: $input: Content of the current file
+# Uses global: %ipsec_attributes
 sub read_ipsec {
     my ($name) = @_;
     return read_attributed_object $name, \%ipsec_attributes;
@@ -3693,6 +3721,10 @@ sub is_autointerface { ref($_[0]) eq 'Autointerface'; }
 
 ## use critic
 
+# Creates a string representation of a rule.
+#
+# Parameter: HASH containing rule parameters.
+# Return: string representation of the passed rule
 sub print_rule {
     my ($rule) = @_;
     my $extra = '';
@@ -3994,6 +4026,8 @@ sub order_ranges {
     return;
 }
 
+# Parameter: HASH, containing: proto, range[], split[]
+# Return: single protocol HASH, or ARRAY of multiple protocol HASHes.
 sub expand_splitted_protocol {
     my ($prt) = @_;
 
@@ -4505,6 +4539,10 @@ sub link_interfaces {
     return;
 }
 
+# Parameter: Interface object
+# Parameter: Network object
+#
+# Return: -nothing-
 sub check_interface_ip {
     my ($interface, $network) = @_;
     my $ip         = $interface->{ip};
@@ -4578,6 +4616,10 @@ sub link_routers {
     return;
 }
 
+# Parameter: Network object
+# Parameter: Network object
+#
+# Return: -nothing-
 sub link_subnet  {
     my ($object, $parent) = @_;
 
@@ -4993,6 +5035,10 @@ sub link_ipsec;
 sub link_crypto;
 sub link_tunnels;
 
+# Starts the linking of all network components. This is a basic operation which is called from the compile method.
+#
+# Parameter: -none-
+# Return: -nothing-
 sub link_topology {
     progress('Linking topology');
     link_routers;
@@ -6540,8 +6586,16 @@ sub add_rules {
     return;
 }
 
+# HASH of object (AutoInterface, Network, Subnet, Interface, Router or Host) => Zone object.
 my %obj2zone;
 
+# Retrieves the Zone object from the passed object.
+# Creates a global HASH with Object as key and the Zone object as value.
+#
+# Parameter: Object, one of: AutoInterface, Network, Subnet, Interface, Router, Host
+# Return: Zone object
+#
+# Uses global: %obj2zone: HASH of object (AutoInterface, Network, Subnet, Interface, Router or Host) => Zone object.
 sub get_zone {
     my ($obj) = @_;
     my $type = ref $obj;
@@ -6871,6 +6925,12 @@ sub show_deleted_rules1 {
     return;
 }
 
+# Parameter: HASH
+# Parameter: HASH
+#
+# Return: -nothing-
+#
+# Uses global: @deleted_rules: Collection of deleted rules for further inspection
 sub collect_redundant_rules {
     my ($rule, $other) = @_;
 
@@ -7759,6 +7819,14 @@ sub expand_auto_intf {
 my %unknown2services;
 my %unknown2unknown;
 
+# Prints the elements which have an unknown owner. According to the configuration this happens as a warning or as an error.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %unknown2services
+# Uses global: %unknown2unknown
+# Uses global: %config: User configurable options
 sub show_unknown_owners {
     for my $polices (values %unknown2services) {
         $polices = join(',', sort @$polices);
@@ -8526,6 +8594,10 @@ sub adjust_crypto_nat {
     return;
 }
 
+# Parameter: Network object
+# Parameter: HASH, either empty or contains the nat-name as key and 1 as value.
+#
+# Return: A HASH or a Network object
 sub get_nat_network {
     my ($network, $no_nat_set) = @_;
     if (my $href = $network->{nat} and $no_nat_set) {
@@ -10067,6 +10139,11 @@ sub inherit_router_attributes {
 
 ###############################################################################
 # Purpose : Returns true if nat hashes are equal.
+#
+# Parameter: HASH of nat attributes
+# Parameter: HASH of nat attributes
+#
+# Return: true if no difference was found, else false
 sub nat_equal {
     my ($nat1, $nat2) = @_;
 
@@ -10666,7 +10743,6 @@ sub check_virtual_interfaces  {
 #
 # Uses global: %pathrestrictions
 ####################################################################
-
 sub check_pathrestrictions {
   RESTRICT:
     for my $restrict (values %pathrestrictions) {
@@ -10757,7 +10833,6 @@ sub check_pathrestrictions {
 # When entering a partition, we can already decide, 
 # if end of path is reachable or not.
 ####################################################################
-
 sub traverse_loop_part {
     my ($obj, $in_interface, $mark, $seen) = @_;
     return if $obj->{reachable_part}->{$mark};
@@ -13648,7 +13723,6 @@ sub check_supernet_rules {
 # Uses global: $range_tcp_established: Port range 'tcp established'
 # Uses global: $prt_udp: Protocol 'UDP any'
 ##############################################################################
-
 sub gen_reverse_rules1  {
     my ($rule_aref, $rule_tree) = @_;
     my @extra_rules;
@@ -13805,7 +13879,6 @@ sub gen_reverse_rules {
 # - the device is standard and the rule has attribute 'some_primary'.
 # Otherwise a rules is implemented typical.
 ##############################################################################
-
 sub get_zone2 {
     my ($obj) = @_;
     my $type = ref $obj;
@@ -14417,6 +14490,10 @@ sub distribute_nat_to_device {
     return;
 }
 
+# Retrieves the Zone object from the passed object.
+#
+# Parameter: Object, one of: Network, Subnet, Interface
+# Return: Zone object
 sub get_zone3 {
     my ($obj) = @_;
     my $type = ref $obj;
