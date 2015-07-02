@@ -492,6 +492,8 @@ sub aref_eq  {
 # Parameter: HASH
 #
 # Return: 1 if the passed HASHes contains the same keys, else undefined
+#
+# ToDo: comparing keys first and then iterating and check key existance seems to be redundant. One might be removed.
 sub keys_eq {
     my ($href1, $href2) = @_;
     keys %$href1 == keys %$href2 or return;
