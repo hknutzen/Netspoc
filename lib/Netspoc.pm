@@ -4622,8 +4622,15 @@ sub link_subnets  {
     return;
 }
 
+# ARRAY of Pathrestriction objects.
 my @pathrestrictions;
 
+# Parameter string, name of the pathrestriction.
+# Parameter ARRAY of Interface objects
+#
+# Return: -nothing-
+#
+# Uses global: @pathrestrictions ARRAY of Pathrestriction objects
 sub add_pathrestriction {
     my ($name, $elements) = @_;
     my $restrict = new('Pathrestriction', name => $name, elements => $elements);
@@ -5648,6 +5655,15 @@ sub check_auto_intf {
 # return a reference to an array of network objects.
 sub expand_group1;
 
+# Parameter: ARRAY containing ARRAYs of [string:type, HASH:elements, ARRAY:ext]
+#            type string is one of '&', '!', 'user', 'interface'
+#            elements HASH contains the following keys: 'active', 'elements', 'refcount'
+#            ext ARRAY contains two elements: 'selector' and 'managed' flag, it only applies for type=interface
+# Parameter: string description of the calling context for logging purpose.
+# Parameter: string
+#
+# Return: ARRAY
+#
 # Uses global: %interfaces: HASH of interface name => Interface object
 sub expand_group1 {
     my ($aref, $context, $clean_autogrp) = @_;
@@ -6145,6 +6161,11 @@ sub expand_group1 {
 }
 
 # Remove and warn about duplicate values in group.
+#
+# Parameter: ARRAY
+# Parameter: string description of the calling context for logging purpose.
+#
+# Return: the passed ARRAY without duplicates
 sub remove_duplicates {
     my ($aref, $context) = @_;
     my %seen;
@@ -6164,6 +6185,11 @@ sub remove_duplicates {
     return $aref;
 }
 
+# Parameter: ARRAY containing ARRAYs of [string:type, HASH:elements, ARRAY:ext]
+#            type string is one of '&', '!', 'user', 'interface'
+#            elements HASH contains the following keys: 'active', 'elements', 'refcount'
+#            ext ARRAY contains two elements: 'selector' and 'managed' flag, it only applies for type=interface
+# Parameter: string description of the calling context for logging purpose.
 sub expand_group {
     my ($obref, $context) = @_;
     my $aref = expand_group1 $obref, $context, 'clean_autogrp';
@@ -6183,6 +6209,12 @@ sub expand_group {
 
 my %subnet_warning_seen;
 
+# Parameter: ARRAY containing ARRAYs of [string:type, HASH:elements, ARRAY:ext]
+#            type string is one of '&', '!', 'user', 'interface'
+#            elements HASH contains the following keys: 'active', 'elements', 'refcount'
+#            ext ARRAY contains two elements: 'selector' and 'managed' flag, it only applies for type=interface
+# Parameter: string description of the calling context for logging purpose.
+# Parameter: if true, hosts are converted to subnets
 sub expand_group_in_rule {
     my ($obref, $context, $convert_hosts) = @_;
     my $aref = expand_group($obref, $context);
@@ -6695,6 +6727,8 @@ sub collect_unenforceable  {
     return;
 }
 
+# Parameter: HASH containing service parameter
+# Return: -nothing-
 sub show_unenforceable {
     my ($service) = @_;
     my $context = $service->{name};
@@ -6751,6 +6785,11 @@ sub warn_useless_unenforceable {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @deleted_rules: Collection of deleted rules for further inspection
+# Uses global: %config: User configurable options
 sub show_deleted_rules1 {
     return if not @deleted_rules;
     my %sname2oname2deleted;
@@ -6960,7 +6999,7 @@ sub normalize_log {
 # Parameters:
 # - The service.
 # - Reference to array for storing resulting expanded rules.
-# - Flag which will be passed on to expand_group.
+# - Flag which will be passed on to expand_group. If true, hosts are converted to subnets
 sub expand_rules {
     my ($service, $result, $convert_hosts) = @_;
     my $rules_ref = $service->{rules};
@@ -9360,6 +9399,11 @@ sub check_managed_local {
 # wouldn't work.
 #
 # Reroute permit is not allowed between different security zones.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @zones
 sub link_reroute_permit {
     for my $zone (@zones) {
         for my $interface (@{ $zone->{interfaces} }) {
@@ -19824,13 +19868,16 @@ sub print_code {
     return;
 }
 
-# Parameter: full qualified input directory, might also be a file
+# Copies raw configuration files of devices into out_dir if device is known from topology and is not ignored.
+#
+# Parameter: full qualified input directory
 # Parameter: output directory
 #
 # Return: -nothing-
 #
 # Uses global: @managed_routers
 # Uses global: @routing_only_routers
+# Uses global: %config: User configurable options
 sub copy_raw {
     my ($in_path, $out_dir) = @_;
     return if ! (defined $in_path && -d $in_path);
