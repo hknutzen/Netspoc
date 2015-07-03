@@ -5109,6 +5109,8 @@ my @routing_only_routers;
 my @managed_crypto_hubs;
 my @routers;
 my @networks;
+
+# ARRAY of Zone objects, identified zones
 my @zones;
 my @areas;
 
@@ -6853,7 +6855,7 @@ sub show_unenforceable {
 # Parameter: -none-
 # Return: -nothing-
 # 
-# Uses global: @zones
+# Uses global: @zones: ARRAY of Zone objects, identified zones
 sub warn_useless_unenforceable {
     for my $zone (@zones) {
         $zone->{has_unenforceable} or next;
@@ -7486,7 +7488,7 @@ sub set_policy_distribution_ip  {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: @zones
+# Uses global: @zones: ARRAY of Zone objects, identified zones
 # Uses global: %routers: HASH of router device_name => Router object
 ##############################################################################
 sub propagate_owners {
@@ -8706,7 +8708,7 @@ sub link_reroute_permit;
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: @zones
+# Uses global: @zones: ARRAY of Zone objects, identified zones
 sub find_subnets_in_zone {
     progress('Finding subnets in zone');
     for my $zone (@zones) {
@@ -9501,7 +9503,7 @@ sub check_managed_local {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: @zones
+# Uses global: @zones: ARRAY of Zone objects, identified zones
 sub link_reroute_permit {
     for my $zone (@zones) {
         for my $interface (@{ $zone->{interfaces} }) {
@@ -10295,7 +10297,7 @@ sub inherit_nat_to_subnets_in_zone {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: @zones
+# Uses global: @zones: ARRAY of Zone objects, identified zones
 sub inherit_nat_in_zone {
     for my $zone (@zones) {
 
@@ -10360,7 +10362,7 @@ sub inherit_attributes {
 # Return: -nothing-
 #
 # Uses global: %networks
-# Uses global: @zones
+# Uses global: @zones: ARRAY of Zone objects, identified zones
 sub set_zones {
 
     # Process networks without a zone
@@ -10407,7 +10409,7 @@ sub set_zones {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: @zones
+# Uses global: @zones: ARRAY of Zone objects, identified zones
 sub cluster_zones {
 
     # Process all unclustered zones.
@@ -10549,7 +10551,7 @@ sub set_areas {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: @zones
+# Uses global: @zones: ARRAY of Zone objects, identified zones
 sub find_subset_relations {
     my %seen; # key:contained area, value: containing area
 
@@ -12912,6 +12914,10 @@ sub collect_supernet_dst_rules {
     return;
 }
 
+# Parameter: Network object
+# Parameter: Network object
+#
+# Return: Network Object or -nothing-
 sub find_supernet {
     my ($net1, $net2) = @_;
 
@@ -13365,10 +13371,17 @@ sub check_supernet_dst_collections {
     return;
 }
 
-# Find smaller protocol of two protocols.
-# Cache results.
+# Cache results of find_smaller_prt().
 my %smaller_prt;
 
+# Find smaller protocol of two protocols.
+#
+# Parameter: HASH of protocol parameters
+# Parameter: HASH of protocol parameters
+#
+# Return: HASH of protocol parameters or -nothing-
+#
+# Uses global: %smaller_prt: HASH of HASHes which maps protocol1->protocol2->smaller protocol
 sub find_smaller_prt  {
     my ($prt1, $prt2) = @_;
 
@@ -13671,7 +13684,7 @@ sub mark_stateful {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: @zones
+# Uses global: @zones: ARRAY of Zone objects, identified zones
 # Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
 # Uses global: %missing_supernet: Prevent multiple error messages about missing supernet rules
 # Uses global: %obj2zone
@@ -13898,6 +13911,10 @@ sub get_zone2 {
 # which are connected with $zone by secondary packet filters.
 sub mark_secondary;
 
+# Parameter: Zone object
+# Parameter: integer
+#
+# Return: -nothing-
 sub mark_secondary  {
     my ($zone, $mark) = @_;
     $zone->{secondary_mark} = $mark;
@@ -13928,6 +13945,10 @@ sub mark_secondary  {
 # Test for {active_path} has been added to prevent deep recursion.
 sub mark_primary;
 
+# Parameter: Zone object
+# Parameter: integer
+#
+# Return: -nothing-
 sub mark_primary  {
     my ($zone, $mark) = @_;
     $zone->{primary_mark} = $mark;
@@ -13956,6 +13977,10 @@ sub mark_primary  {
 # packet filters.
 sub mark_strict_secondary;
 
+# Parameter: Zone object
+# Parameter: integer
+#
+# Return: -nothing-
 sub mark_strict_secondary  {
     my ($zone, $mark) = @_;
     $zone->{strict_secondary_mark} = $mark;
@@ -13984,6 +14009,10 @@ sub mark_strict_secondary  {
 # packet filters.
 sub mark_local_secondary;
 
+# Parameter: Zone object
+# Parameter: integer
+#
+# Return: -nothing-
 sub mark_local_secondary  {
     my ($zone, $mark) = @_;
     $zone->{local_secondary_mark} = $mark;
@@ -14517,6 +14546,8 @@ sub get_zone3 {
     }
 }
 
+# Parameter: Network, Subnet or Interface object
+# Return: ARRAY of Network object(s)
 sub get_networks {
     my ($obj) = @_;
     my $type = ref $obj;
@@ -14601,7 +14632,6 @@ sub prepare_nat_commands  {
 # can have different next hops at end of path.
 # For an aggregate, take all matching networks inside the zone.
 # These are supernets by design.
-
 sub get_route_networks {
     my ($obj) = @_;
     my $type = ref $obj;
@@ -14832,8 +14862,8 @@ sub check_and_convert_routes;
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: $input: Content of the current file
-# Uses global: $router_info: Map of different router models
+# Uses global: @zones: ARRAY of Zone objects, identified zones
+# Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
 sub find_active_routes  {
     progress('Finding routes');
     for my $zone (@zones) {
@@ -14977,16 +15007,16 @@ sub find_active_routes  {
     return;
 }
 
-# Parameters:
-# - a bridged interface without an IP address, not usable as hop.
-# - the network for which the hop was found.
-# Result:
-# - one or more layer 3 interfaces, usable as hop.
+sub fix_bridged_hops;
+
 # Non optimized version.
 # Doesn't matter as long we have only a few bridged networks
 # or don't use static routing at the border of bridged networks.
-sub fix_bridged_hops;
-
+#
+# Parameter: Interface object, a bridged interface without an IP address, not usable as hop.
+# Parameter: Network object, the network for which the hop was found.
+#
+# Return: One or more layer 3 interfaces, usable as hop.
 sub fix_bridged_hops {
     my ($hop, $network) = @_;
     my @result;
