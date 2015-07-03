@@ -194,7 +194,7 @@ sub setup_subst {
 	}
     }
 
-    # setup loopback interfaces like networks.
+    # Setup loopback interfaces like networks.
     for my $router (values %routers) {
         for my $interface (@{ $router->{interfaces} }) {
             $interface->{loopback} or next;
@@ -216,17 +216,15 @@ sub setup_subst {
         }            
     }
 
-    for my $obj (values %networks, values %areas) {
-        for my $attr (qw(nat identity_nat)) {
-            if (my $href = $obj->{$attr}) {
-                for my $nat_tag (keys %$href) {
-                    next if $subst{nat}->{$nat_tag};
-                    $subst{nat}->{$nat_tag} = random($nat_tag);
-                }
-	    }
-	}
+    for my $obj (values %networks, values %Netspoc::aggregates, values %areas) {
+        my $href = $obj->{nat} or next;
+        for my $nat_tag (keys %$href) {
+            next if $subst{nat}->{$nat_tag};
+            $subst{nat}->{$nat_tag} = random($nat_tag);
+        }
     }
 }
+
 
 # Key: "ip/mask", value: "new-ip/mask"
 my %ipsubst;
