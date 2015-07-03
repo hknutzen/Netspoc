@@ -15543,9 +15543,9 @@ sub address {
             }
             else {
 
-                # This has been converted to the  whole network before.
-                internal_err(
-                    "Unexpected $obj->{name} with dynamic nat:$nat_tag");
+                # This has been converted to the  whole network before,
+                # and hence should never happen.
+                return [ $network->{ip}, $network->{mask} ];
             }
         }
         else {
@@ -15575,8 +15575,10 @@ sub address {
                 return [ $ip, 0xffffffff ];
             }
             else {
-                internal_err(
-                    "Unexpected $obj->{name} with dynamic nat:$nat_tag");
+
+                # Should never happen.
+                # aborts with error in mark_dynamic_nat_rules.
+                return [ $network->{ip}, $network->{mask} ];
             }
         }
         else {
