@@ -193,6 +193,29 @@ sub setup_subst {
 	    }
 	}
     }
+
+    # setup loopback interfaces like networks.
+    for my $router (values %routers) {
+        for my $interface (@{ $router->{interfaces} }) {
+            $interface->{loopback} or next;
+            next if $interface->{is_layer3};
+            my $name = $interface->{name};
+
+            # Remove type part.
+	    $name =~ s/^.*://;
+
+            # Remove router part.
+            $name =~ s/^[^.]*.//;
+
+            # Handle loopback name like network name.
+            my $renamed = $name =~ /^loopback[-_0-9]*$/i
+                        ? $name
+                        : random($name);
+            $subst{network}->{$name} ||= $renamed;
+            
+        }            
+    }
+
     for my $obj (values %networks, values %areas) {
         for my $attr (qw(nat identity_nat)) {
             if (my $href = $obj->{$attr}) {
@@ -428,17 +451,14 @@ sub subst {
     $type = 'admin' if $type eq 'admins';
     if ($type eq 'interface') {
 	if ($name !~ /[.]/) {
-	    $subst{network}->{$name} || 
-
-		# Leave name of loopback interface unchanged.
-		$name;
+	    $subst{network}->{$name};
 	}
 	elsif ($name =~ /^(.+?)[.](.+?)([.].*)?$/) {
 	    my $router = $1;
 	    my $net = $2;
 	    my $ext = $3 || '';
 	    my $rrouter = $subst{router}->{$router};
-	    my $rnet = $subst{network}->{$net} || $net;
+	    my $rnet = $subst{network}->{$net};
 	    "$rrouter.$rnet$ext";
 	}
 	elsif($name =~ /^(.*?)[.]$/) {
