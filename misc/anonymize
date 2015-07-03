@@ -367,14 +367,29 @@ sub subst_ip {
     }
 }
 
+sub cleanup_comments {
+    my ($lines) = @_;
+    for my $line (@$lines) {
+	$line =~ s/(\#.*)/ del_char($1) /gex;
+    }
+}
+
+sub process_config_file {
+    my ($path, $out) = @_;
+    -d $path or return;
+    my $in = "$path/config";
+    -f $in or return;
+    process_file($in, "$out/config", \&cleanup_comments);
+}
+
 sub process_file {
-    my ($in, $out) = @_;
+    my ($in, $out, $worker) = @_;
     local *FILE;
     print STDERR "File $in\n";
     open FILE, $in or fatal_err "Can't open $in: $!";
     my @input = <FILE>;
     close FILE;
-    process(\@input);
+    $worker->(\@input);
     open FILE, ">$out" or fatal_err "Can't create $out: $!";
     print FILE @input;
     close FILE;
@@ -404,7 +419,7 @@ sub process_file_or_dir {
         closedir DIR;
     }
     else {
-        process_file($path, $out);
+        process_file($path, $out, \&process);
     }
 }
 
@@ -542,3 +557,4 @@ info "Setup name substituition";
 setup_subst();
 info "Substitute";
 process_file_or_dir($in, $out);
+process_config_file($in, $out);
