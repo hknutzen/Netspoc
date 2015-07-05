@@ -12,8 +12,9 @@ sub test_run {
     my ($in_fh, $filename) = tempfile(UNLINK => 1);
     print $in_fh $input;
     close $in_fh;
+    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
 
-    my $cmd = "perl bin/export-netspoc -quiet $filename $dir";
+    my $cmd = "$^X $perl_opt -I lib bin/export-netspoc -quiet $filename $dir";
     my ($stdout, $stderr);
     run3($cmd, \undef, \$stdout, \$stderr);
     my $status = $?;
