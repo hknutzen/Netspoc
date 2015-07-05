@@ -445,10 +445,10 @@ sub setup_service_info {
     Netspoc::progress("Setup service info");
     for my $service (values %Netspoc::services) {
         next if $service->{disabled};
-        my $pname = $service->{name};
+        my $sname = $service->{name};
 
         my $users = $service->{expanded_user} =
-            Netspoc::expand_group($service->{user}, "user of $pname");
+            Netspoc::expand_group($service->{user}, "user of $sname");
 
         # Non 'user' objects.
         my @objects;
@@ -460,7 +460,7 @@ sub setup_service_info {
             my $has_user = $rule->{has_user};
             $rule->{expanded_prt} =
                 proto_descr(Netspoc::expand_protocols($rule->{prt}, 
-                                                     "rule in $pname"));
+                                                     "rule in $sname"));
             if ($has_user eq 'both') {
                 $is_coupling = 1;
                 next;
@@ -475,7 +475,7 @@ sub setup_service_info {
                     $rule->{"expanded_$what"} = 
                     [ sort by_name
                       @{ Netspoc::expand_group($rule->{$what}, 
-                                               "$what of $pname") } ];
+                                               "$what of $sname") } ];
 
                 # Expand auto interface to set of real interfaces.
                 # This changes {expanded_src} and {expanded_dst} as well.
