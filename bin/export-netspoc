@@ -487,18 +487,28 @@ sub setup_service_info {
 
         @objects = unique(@objects);
 
-        # Expand auto interface to set of real interfaces.
+        # Expand auto interfaces in users with counterpart in
+        # - users and objects
+        # - only users
+        # - only objects.
         # This changes {expanded_user} as well.
-        expand_auto_intf($users, \@objects);
-
-        # Store referenced objects for later use during export.
-        @all_objects{@objects, @$users} = (@objects, @$users);
-
-        # Take elements of 'user' object, if service has coupling rule.
+        # Add elements of expanded users to objects.
         if ($is_coupling) {
+            if (@objects) {
+                expand_auto_intf($users, [ @objects, @$users ]);
+            }
+            else {
+                expand_auto_intf($users, $users);
+            }
             @objects = unique(@objects, @$users);
             $users = [];
         }
+        else {
+            expand_auto_intf($users, \@objects);
+        }
+
+        # Store referenced objects for later use during export.
+        @all_objects{@objects, @$users} = (@objects, @$users);
 
         # Input: owner objects, output: owner names
         my $owners = owners_for_objects(\@objects); 

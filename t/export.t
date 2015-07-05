@@ -873,4 +873,98 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Multi owner from auto interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; owner = a; }
+network:n3 = { ip = 10.1.3.0/24; owner = b; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+router:r = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = vlan4; }
+}
+
+owner:a = { admins = a@example.com; }
+owner:b = { admins = b@example.com; }
+
+service:s1 = {
+ multi_owner;
+ user = network:n1, network:n4;
+ permit src = user; dst = interface:r.[auto]; prt = tcp 22;
+}
+service:s2 = {
+ user = network:n1, network:n4, interface:r.[auto];
+ permit src = user; dst = user; prt = tcp 23;
+}
+END
+
+$out = <<'END';
+--services
+{
+   "s1" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "a",
+            "b"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "interface:r.n2",
+               "interface:r.n3"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 22"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s2" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "a",
+            "b"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [],
+            "has_user" : "both",
+            "prt" : [
+               "tcp 23"
+            ],
+            "src" : []
+         }
+      ]
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

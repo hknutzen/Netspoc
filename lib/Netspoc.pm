@@ -7421,13 +7421,25 @@ sub set_service_owner {
             }
         }
 
-        # Expand auto interface to set of real interfaces.
+        # Expand auto interface of objects in rules to set of real interfaces.
         expand_auto_intf(\@objects, $users);
-        expand_auto_intf($users,    \@objects);
 
-        # Take elements of 'user' object, if service has coupling rule.
+        # Expand auto interfaces in users with counterpart in
+        # - users and objects
+        # - only users
+        # - only objects.
+        # Add elements of expanded users to objects.
         if ($is_coupling) {
+            if (@objects) {
+                expand_auto_intf($users, [ @objects, @$users ]);
+            }
+            else {
+                expand_auto_intf($users, $users);
+            }
             push @objects, @$users;
+        }
+        else {
+            expand_auto_intf($users, \@objects);
         }
 
         # Collect service owners and unknown owners;
