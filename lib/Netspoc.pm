@@ -7357,7 +7357,8 @@ sub expand_auto_intf {
             push @new, path_auto_interfaces($src, $dst);
         }
 
-        # Substitute auto interface by real interface.
+        # Substitute auto interface by real interface(s).
+        # Possible duplicate elements in @new are removed later.
         splice(@$src_aref, $i, 1, @new);
     }
     return;
