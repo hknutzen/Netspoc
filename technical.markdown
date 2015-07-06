@@ -494,7 +494,23 @@ until the second interface of the pathrestriction is reached, to find
 the path to be invalid. To save these steps, Netspoc divides loops
 with pathrestrictions into partitions and stores at every
 pathrestricted interface the partitions that can be reached when the
-interface is passed from router to zone (zone direction) or from
-zone to router (router direction).
+interface is passed from router to zone (zone direction) or from zone
+to router (router direction). In doing so, Netspoc can decide at the
+first pathrestricted interface, whether a certain destination can or can not be
+reached on the way passing the pathrestricted interface.
 
 {% include image.html src="./images/find_loop_paths.png" description="" %}
+
+To receive loop partitioning, every pathrestriction interface that is
+located within a cycle is considered. The loop path is traversed from
+the interface until another interface of the same pathrestriction is
+reached. Nodes that are visited during traversal lie in between both
+pathrestrictions and are labeled with a unique partition
+number. Within the adjacent interface objects, this partition number
+is stored to keep track on the partitions that can be reached from the
+interfaces. Obviously, every interface can border two partitions,
+which is why two numbers are stored in every interface object: one for
+zone and one for router direction.  Consequently, loop path traversal
+has to be performed twice per interface, if the interface has not been
+found during a traversal starting from another interface of the same
+pathrestriction.
