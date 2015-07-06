@@ -23,13 +23,13 @@ For this task, five steps are conducted:
 1. Parsing network topology and rule set.
 2. Connecting elements of the topology to form a topology graph.
 3. Breaking the rule set down to elementary rules with exactly one
-   source and destination, identify inconsistencies and remove
-   duplicate and contained rules.
+   source, destination and protocol; identify inconsistencies and remove
+   duplicate and redundant rules.
 4. Processing elementary rules by finding all paths in the network 
    graph for every source and destination pair, marking managed 
-   routers on these paths with respective routing informations. 
-5. Converting the rules collected at managed routers into
-   configurations for the router devices and writing a configuration
+   routers on these paths with the respective rule. 
+5. Converting rules collected at managed routers into configurations
+   for the corresponding router devices and writing a configuration
    file for every managed router.
 
 Each of the steps consists of several tasks and operations that will
@@ -44,17 +44,17 @@ below.
 * **Read files or directory:** `read_file_or_dir`  
     Netspoc parses input files and transfers the contents into formats
     to work with. For the topology, objects are generated and made
-    accessible by name in the working memory. Along the way, the input
-    is checked for errors that are already recognizeable at this
-    stage.
+    accessible by name. Along the way, the input is checked for errors
+    that are already recognizeable at this stage.
 
 * **Order protocols:** `order_protocols`   
-    Process input protocols to receive their contained-in
-    relations. *(This should be moved into step 3!)*
+    Process protocols of the services and rules specified in the input
+    to receive their contained-in relations. *(This should be moved
+    into step 3!)*
 
 ### 2. Creating the topology graph
 
-In this step, topology input from the policy files is used to create a
+In this step, topology objects created by the parser are used to create a
 topology graph in working memory.
 
 * **Link topology:** `link_topology`    
@@ -67,22 +67,22 @@ topology graph in working memory.
 * **Prepare security zones and areas:** 
     [set_zone](/Netspoc/technical.html#prepare_zones)  
     The topology graph is now abstracted, with parts of the graph
-    being bundled to zones and areas. This allows easy attachment of
-    properties to an areas objects as well as faster path traversal on
-    the abstracted graph.
+    being bundled to zones and areas. This allows inheritance of
+    properties to objects located inside an area as well as faster
+    path traversal on the abstracted graph.
 
-* **Prepare fast path traversal:** 
+* **Prepare fast path traversal:**
     [setpath](/Netspoc/technical.html#prepare_traversal)  
-    Information to simplify navigation during path traversal is added
-    to every node of the graph.
+    The graph is annotated with information, that allows efficient
+    path traversal.
 
 * **Distribute NAT information:** `distribute_nat_info`  
-    If Network Address Translation is specified in the input, the topology
-    graph has to be prepared to deal with NAT. Information about which IP
-    addresses are valid in which topology part is distributed.
+    If Network Address Translation (NAT) is specified in the input,
+    validity areas of IP addresses are distributed to the different
+    topology parts.
 
-* **Identifying subnet relations:** `find_subnets_in_zone`  
-    During rule procession, redundant rules will be rejected
+* **Identify subnet relations:** `find_subnets_in_zone`  
+    During rule processing, redundant rules will be removed
     from the rule set. Rules can be redundant, because they are
     contained in other rules, for example if two rules are identical
     except for their destinations, but one destination is a subnet of
@@ -94,8 +94,8 @@ topology graph in working memory.
 
   The policy contains information about groups or persons responsible
   for certain parts of the topology (owner). This information is now
-  added to the topology objects. While ownership is rather needed for
-  Netspoc Policy Web than for the Netspoc compiler, it is also used
+  added to the topology objects. While ownership is primarily needed for
+  Netspoc-Web than for the Netspoc compiler, it is also used
   *(in step 3, somewhen)* to validate rules. *(This function is the
   first part of `set_service_owners`, the second part,
   `check_service_owners` should maybe be extracted and placed within
