@@ -493,6 +493,8 @@ interfaces only. Netspoc therefore would have to follow the red path
 until the second interface of the pathrestriction is reached, to find
 the path to be invalid. To save these steps, Netspoc divides loops
 with pathrestrictions into partitions and stores at every
-pathrestricted interface the partitions that can be reached.
+pathrestricted interface the partitions that can be reached when the
+interface is passed from router to zone (zone direction) or from
+zone to router (router direction).
 
 {% include image.html src="./images/find_loop_paths.png" description="" %}
