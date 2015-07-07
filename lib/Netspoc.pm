@@ -277,6 +277,12 @@ sub store_description {
 }
 
 my $fast_mode;
+# Sets and returns the flag $fast_mode. If no parameter is passed the current value is returned and remains unchanged.
+#
+# Parameter: boolean, value to set for the global $fast_mode
+# Return: the current value of $fast_mode
+#
+# Uses global: $fast_mode
 sub fast_mode {
     my ($set) = @_;
     if (defined $set) {
@@ -428,6 +434,11 @@ my %xxrp_info;
 ## no critic (RequireArgUnpacking)
 
 # All arguments are 'eq'.
+#
+# Parameter: ARRAY
+# Parameter: ARRAY
+#
+# Return: true if the two passed ARRAYs are equal
 sub equal {
     return 1 if not @_;
     my $first = shift;
@@ -1532,6 +1543,7 @@ sub read_nat {
     return $nat;
 }
 
+# HASH of network name as key and Network object as value.
 our %networks;
 
 # Parameter: "network:$name"
@@ -2933,6 +2945,8 @@ sub read_icmp_type_code {
     return;
 }
 
+# Parameter: HASH
+# Return: -nothing-
 sub read_proto_nr {
     my ($prt) = @_;
     if (defined(my $nr = check_int)) {
@@ -4247,7 +4261,7 @@ sub expand_watchers {
 # Return: -nothing-
 #
 # Uses global: %owners: HASH of owner name => Owner object
-# Uses global: %networks
+# Uses global: %networks: HASH of network name => Network object
 # Uses global: %aggregates
 # Uses global: %areas: HASH of area name => Area object
 # Uses global: @router_fragments
@@ -4674,7 +4688,7 @@ sub link_subnet  {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %networks
+# Uses global: %networks: HASH of network name => Network object
 # Uses global: %aggregates
 # Uses global: %areas: HASH of area name => Area object
 sub link_subnets  {
@@ -4936,7 +4950,7 @@ sub link_virtual_interfaces  {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %networks
+# Uses global: %networks: HASH of network name => Network object
 sub check_ip_addresses {
     for my $network (values %networks) {
         if (    $network->{ip} eq 'unnumbered'
@@ -5351,6 +5365,7 @@ sub split_ip_range {
     return @result;
 }
 
+# Uses global: @networks
 sub convert_hosts {
     progress('Converting hosts to subnets');
     for my $network (@networks) {
@@ -8224,7 +8239,7 @@ sub distribute_nat {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %networks
+# Uses global: @networks
 # Uses global: @natdomains
 sub distribute_nat_info {
     progress('Distributing NAT');
@@ -9342,7 +9357,7 @@ sub cluster_crosslink_routers {
 # Parameter: -none-
 # Return: HASH with Router object as key and value
 #
-# Uses global: %networks
+# Uses global: %networks: HASH of network name => Network object
 sub check_crosslink  {
     my %crosslink_routers; # Collect crosslinked routers with {need_protect}
 
@@ -10337,7 +10352,7 @@ sub inherit_nat_in_zone {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %networks
+# Uses global: @networks
 sub cleanup_after_inheritance {
 
     # 1. Remove NAT entries from aggregates.
@@ -10374,7 +10389,7 @@ sub inherit_attributes {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %networks
+# Uses global: @networks
 # Uses global: @zones: ARRAY of Zone objects, identified zones
 sub set_zones {
 
@@ -12834,7 +12849,7 @@ my %ref2obj;
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %networks
+# Uses global: @networks
 # Uses global: %ref2obj: Hash for converting a reference of an object back to this object
 sub setup_ref2obj  {
     for my $network (@networks) {
@@ -14161,7 +14176,7 @@ sub mark_secondary_rules {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %networks
+# Uses global: @networks
 # Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
 sub mark_dynamic_nat_rules {
     progress('Marking rules with dynamic NAT');
@@ -14442,6 +14457,12 @@ sub optimize_and_warn_deleted {
 ########################################################################
 
 # Collect devices which need NAT commands.
+#
+# Parameter: HASH
+# Parameter: Interface object
+# Parameter: Interface object
+#
+# Return: -nothing-
 sub collect_nat_path {
     my ($rule, $in_intf, $out_intf) = @_;
 
@@ -14823,6 +14844,11 @@ sub add_path_routes  {
 # $dst_networks are located inside the security zone.
 # For each element N of $dst_networks find the next hop H to reach N.
 # Add routing entries at $interface that N is reachable via H.
+#
+# Parameter: Interface object
+# Parameter: ARRAY of Network objects
+# 
+# Return: -nothing-
 sub add_end_routes  {
     my ($interface, $dst_networks) = @_;
     return if $interface->{routing};
@@ -17923,6 +17949,10 @@ sub join_ranges  {
 # so we get reused object-groups.
 my %filter_networks;
 
+# Parameter: IP as integer
+# Parameter: IP mask as integer
+#
+# Return: Network object
 sub get_filter_network {
     my ($ip, $mask) = @_;
     my $key = "$ip/$mask";
@@ -18055,7 +18085,11 @@ sub add_local_deny_rules {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
 # Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
+# Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
 sub prepare_local_optimization {
 
     # Prepare rules for local_optimization.
@@ -18079,7 +18113,7 @@ sub prepare_local_optimization {
 # Uses global: @natdomains
 # Uses global: %ref2obj: Hash for converting a reference of an object back to this object
 # Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
-# Uses global: %networks
+# Uses global: @networks
 sub local_optimization {
     return if fast_mode();
     progress('Optimizing locally');
