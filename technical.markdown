@@ -316,83 +316,84 @@ attributes values are equal for both zone and network.
 Netspoc finds paths inside the network topology. As we have seen
 above, zones have been applied to accelerate graph traversal, and
 consistently, we will consider the network topology graph to be build
-by zones and managed routers (nodes) and interfaces (edges). For a
-clearer representation, we will therefore omit the representation of
-networks and unmanaged routers in the following pictures. Zones will
-be depicted as lines and managed routers by an uncolored router symbol
-instead.
+by zones and managed routers (nodes) and interfaces (edges) when it
+comes to graph traversal. For a clearer representation, we will
+therefore omit the representation of networks and unmanaged routers in
+the following pictures. Zones will be depicted as lines and managed
+routers by an uncolored router symbol instead.
 
-{% include image.html src="./images/traversal_graph_representation.png" description="To explain graph traversal, zones will be depicted as lines and managed routers by uncoloured router symbols." %}
+{% include image.html src="./images/traversal_graph_representation.png" description="**Topology representation for graph traversal:** Zones are depicted as lines and managed routers by uncoloured router symbols." %}
 
-* * *
-This might be placed somewhere else... or will be replaced anyway...
+### Netspocs approach to path finding
 
-For the Netspoc approach to find paths from a certain source to a
-destination, the topology graph is prepared by a single depth first
-search starting at a randomly chosen `zone1`. The distances of the
-graphs node objects to `zone1` are identified and stored in the
-respective objects. Then, the path from source to destination can be
-easily found by starting at source and destination and walking towards
-smaller distances/ `zone1` until the paths meet. Loops are contracted
-to a single node.
+To find paths from a certain source to a destination, the topology
+graph is prepared by a single depth first search starting at a
+randomly chosen `zone1`. The distances of the graphs node objects to
+`zone1` are identified and stored in the respective objects. Then, the
+path from source to destination can be easily found by starting at
+source and destination nodes, walking towards smaller
+distances/`zone1` until the paths meet. Loops are contracted to a
+single node with a common intermediate distance being applied to all
+loop nodes, except for the loop exit to `zone1`.
 
-{% include image.html src="./images/find_paths.png" description="Paths are found by walking from source and destination towards zone1." %}
-
-* * *
+{% include image.html src="./images/find_paths.png" description="**Path finding in Netspoc:** Paths are found by walking from source and destination towards zone1 until the connecting node is found." %}
 
 ### Identifying distances and loops 
 
 Netspoc now conducts the depth first search from a randomly chosen
 `zone1`. Within every zone and router object reached, the distance
-(x2!) to `zone1` is stored. Additionally, the interface leading to
-`zone1` is stored in the objects and the zones or routers facing to
-`zone1` are stored in every processed interface. Thus, every
-interface, router and zone knows where to go to reach `zone1`.
+(x2!) to `zone1` is stored. To have the direction to `zone1` available
+at every node, the interface (for zones/routers) or zone/router object
+(for interfaces) leading to `zone1` is stored in the node objects.
 
 Whenever a loop is found, that is, a node that has already been
-discovered is reached again, a loop object is created (Fig. x, 10,
-14). This loop object contains the node that has been visited twice as
-loop `exit` and the distance of that node to `zone1` +1. Then, Netspoc
-returns from recursion and references this loop object in the loop
-variable of all nodes located on the loop path (Fig. x, 11-12, 15-21).
-As we want all nodes inside a loop to be represented as a single node,
-Netspoc needs to recognize nested loops. Whenever Netspoc is on a loop
-return path and finds a node already referencing a loop object (Fig.x,
-16), the loop objects are compared. The nodes loop reference is then
-set to the object of the bigger top level loop (that is, the loop with a lower
-distance to `zone1`). Additionally, a reference to the bigger loop
-object is set in the `redirect` variable of the smaller sub loop. Thus,
-nodes of the sub loop that are not on the loop path of the bigger
-loop can be identified later to reset the loop reference.
+discovered is reached again, a loop object is created (**Applying
+distances**, 10, 14). This loop object contains the node that has been
+visited twice as loop `exit` and the distance of that node to `zone1`
++1 as loop distance. Then, Netspoc returns from recursion and
+references the loop object in the loop variable of all nodes located
+on the loop path (**Applying distances**, 11-12, 15-21). As we want
+all nodes inside a loop to be represented as a single node, Netspoc
+recognizes nested loops: Whenever Netspoc is on a loop return path and
+finds a node already referencing a loop object (**Applying
+distances**, 16), the loop objects are compared. The nodes loop
+reference is then set to the object of the bigger loop (that
+is, the loop with a lower distance to `zone1`). Additionally, a
+reference to the bigger loop object is set in the `redirect` variable
+of the smaller (nested) loop. Thus, nodes of the nested loop that are not on
+the loop path of the bigger loop can be identified later to reset the
+loop reference.
 
-{% include image.html src="./images/setpath.png" description="Finding loops." %}
+{% include image.html src="./images/setpath.png" description="**Applying distances:** Distances to `zone1` are applied to all nodes; loops are identified and labeled with loop distances." %}
 
 When Netspoc is on a loop return path and reaches the exit node of the
 loop, a loop exit object is created and referenced in the loop
-variable of the exit node (Fig. x, 22). Like the loop object, the loop
-exit object stores a reference to the exit node and a distance value,
-which is exactly the distance value of the exit node.
+variable of the exit node (**Applying distances:**, 22). Like the loop
+object, the loop exit object stores a reference to the exit node and a
+distance value, which is exactly the distance value of the exit node.
 
 The use of different loop objects for loop nodes and loop exit nodes
-shows when a special topology is considered (Fig y). In so called
-cactus graphs, cycles have single nodes in common. When looking for
-paths in such graphs, it is helpful if loops sharing a single node are
-represented as different loops and not summarized to one: Different loop
-distances help to find the fastes path to `zone1`.  When Netspoc finds
-a loop connecting node (Fig. y, 16) different objects for loop and
-loop exit allow to keep the already found (green) loop and to
-establish the new (orange) loop with a distance closer to
-`zone1`. Without different objects, the green loop object would have
-been redirected to and included in the orange loop.
+shows when a special topology is considered (**Cactus loops**). In so
+called cactus graphs, cycles have single nodes in common. When looking
+for paths in such graphs, it is helpful if loops sharing a single node
+are represented as different loops and not summarized to one:
+Different loop distances help to find the fastes path to `zone1`.
+When Netspoc finds a loop connecting node (**Cactus loops**, 16)
+different objects for loop and loop exit allow to keep the already
+found (green) loop and to establish the new (orange) loop and to
+preserve the different distances to `zone1`. Without different
+objects, the green loop object would have been redirected to and
+included in the orange loop.
 
-{% include image.html src="./images/setpath_obj_cactus.png" description="Finding cactus loops." %}
+{% include image.html src="./images/setpath_obj_cactus.png" description="**Cactus loops:** By attaching different loop objects to loop nodes and loop exit nodes, information about the different distances to `zone1` can be kept within the loop cluster." %}
 
 ### Loop preparation
 
-Then, Netspoc iterates over all loop nodes. If a node references a
-nested loop in its loop variable, the reference is reset to the top
-level containing loop using the information from the redirect variable
-of the loop object.
+To subsume all nodes of nested cycles within a single loop, Netspoc
+iterates over all loop nodes. If a node references a nested loop in
+its loop variable, the reference is reset to the top level containing
+loop using the information from the redirect variable of the loop
+object.
 
 Finally, Netspoc clusters all cactus graph loops by adding a reference
 to the exit node of the whole cluster as `cluster_exit` to all loop
@@ -400,41 +401,47 @@ objects of the cluster.
 
 *Possible addition: Picture of clustering*
 
-### Check for proper pathrestrictions
+### Perform consistency checks
+
+Now that loops are identified and labeled, pathrestrictions and
+virtual IP addresses, both features that are defined for loops, can be
+checked for consistency.
+
+#### Check for proper pathrestrictions
 
 In cyclic graphs, several paths exists from a destination to a
 source. Per default, Netspoc finds all such paths and generates
 appropriate ACLs. To exclude paths, pathrestrictions can be
 defined. Pathrestrictions refer to 2 or more interfaces inside or at
-the borders of a cycle. Netspoc excludes paths including at least 2 of
-the interfaces specified in the pathrestriction from ACL generation:
-In the picture below, a pathrestrictions is defined for interfaces 1
-and 2. Therefore, paths from n1 to n5 and n6 are considered during ACL
-generation, while the path from n1 to n4 is not. This is reflected in
-the interfaces ACLs: traffic between n1 and n4 is not routed by these
-interfaces.
+the borders of a cycle. Netspoc excludes paths including at least 2
+interfaces of a pathrestriction from ACL generation: In the figure
+below (**Pathrestriction**), a pathrestrictions is defined for
+interfaces 1 and 2. Therefore, paths from n1 to n5 and n6 are
+considered during ACL generation, while the path from n1 to n4 is
+not. This is reflected in the interfaces ACLs: traffic between n1 and
+n4 is not routed by these interfaces.
 
-{% include image.html src="./images/pathrestriction.png" description="Pathrestriction including interfaces IF1 and IF2." %}
+{% include image.html src="./images/pathrestriction.png" description="**Pathrestriction** The pathrestriction at interfaces IF1 and IF2 results in adapted ACLs." %}
 
 Netspoc assures all defined pathrestrictions to fulfill the
-requirements and checks tat they have an effect on ACL
+requirements and checks that they have an effect on ACL
 generation. Proper pathrestrictions are then stored in a global array.
 
 *Possible addition: When does a pathrestriction affect ACLs?*
 
-### Check usage of virtual interfaces
+#### Check usage of virtual interfaces
 
-To assure that a connection between two networks will be guaranteed,
-they can be connected by more than one router, using HSRP or VRRP and
-a virtual IP address to establish a redundant connection.
+To assure a connection between two networks, they can be connected by
+more than one router, using HSRP or VRRP and a virtual IP address to
+establish a redundant connection.
 
 The usage of virtual IP addresses within the topology affects the
 generation of both ACLs and static routes: Routers sharing a virtual
 IP address need to communicate to determine which router is
 active. Therefore the usage of virtual IP addresses will be reflected
 in the ACLs of the participating interfaces. For the generation of
-static routes, the virtual IP if the interfaces has to be used instead
-of the real one.
+static routes, the interfaces virtual IPs have to be used instead of
+the real ones.
 
 For this reason, Netspoc policy language allows to model virtual IP addresses:
 
@@ -455,51 +462,51 @@ For this reason, Netspoc policy language allows to model virtual IP addresses:
      interface: n2 = {ip = 10.1.2.2; hardware = Ethernet2;}
     } 
 
-Within Netspocs graph representation of the topology, the virtual IP
-address is included twice, with an additional virtual interface at
-every participating router (Fig. ). Obviously, virtual interfaces are
-reasonable only within cycles. Therefore Netspoc checks, whether all
-virtual interfaces sharing a single virtual IP address are located inside
+Within the graph representation of topology, the virtual IP address is
+included more than once, with an additional virtual interface at every
+participating router (**Virtual IP** ). Obviously, virtual interfaces
+are reasonable only within cycles. Therefore Netspoc checks, whether
+all interfaces sharing a single virtual IP address are located inside
 the same loop.
 
-{% include image.html src="./images/virtual_interface.png" description="Virtual IP adresses are represented in Netspoc as additional interfaces" %}
+{% include image.html src="./images/virtual_interface.png" description="**Virtual IP:** Virtual IP adresses are represented in Netspoc as additional interfaces" %}
 
 ### Optimize Pathrestrictions
 
-When Netspoc finds paths between source and destination by alternating
-in taking steps from both towards `zone1`. We have seen before that
-Netspoc is guided by the distance values that have been attached to
-every router and zone. Loops are subsumed by a single distance value,
-while their loop exit nodes are marked with own (smaller) distances
-(Fig.  ). Therefore, whenever a loop is entered during pathfinding,
-Netspoc knows which node is the node to proceed with on the path
-towards `zone1` (namely the loop exit node). But it is obvious that
-Netspoc needs to examine every loop in detail to find all paths from
-the entrance to the exit node aswell to generate ACLs for the managed
-routers inside the loop. In the figure below, Netspoc would then find
-two paths from loop entrance to loop exit node, marked by the gren and
-the red arrow.
+Netspoc finds paths between source and destination by walking from
+both towards `zone1` until a common node is found. We have seen before
+that Netspoc is guided by distance values that have been attached to
+every router and zone. Loops are subsumed by single distance values,
+with the loop exit node being referenced within every loop node
+(**Finding loop paths**). Therefore, whenever a loop is entered during
+pathfinding, Netspoc knows which node is the node to proceed with on
+the path towards `zone1`. Obviously, Netspoc still needs to examine
+every loop in detail to find all paths from entrance to exit node to
+generate ACLs for the managed routers inside the loop. In the figure
+below, Netspoc would then find two paths from loop entrance to loop
+exit node, marked by the green and the red arrow.
 
-{% include image.html src="./images/find_loop_paths1.png" description="To generate ACLs for managed routers inside loops, all paths from loop entrance to loop exit node have to be found." %}
+{% include image.html src="./images/find_loop_paths1.png" description="**Finding loop paths:** To generate ACLs for managed routers inside loops, all paths from loop entrance to loop exit node have to be found." %}
 
 Path exploration inside loops can be a very expensive step, especially
 with big and nested cycles. It is therefore a good idea to stop
 examining invalid paths as early as possible, which is why we have a
 closer look at pathrestrictions now. Imagine a pathrestriction was
-added to the topology (Fig.). Then, the red path from figure x is no
-longer valid. Currently, the pathrestriction is referenced in every
-participating interface object and contains information about these
-interfaces only. Netspoc therefore would have to follow the red path
-until the second interface of the pathrestriction is reached, to find
-the path to be invalid. To save these steps, Netspoc divides loops
-with pathrestrictions into partitions and stores at every
-pathrestricted interface the partitions that can be reached when the
-interface is passed from router to zone (zone direction) or from zone
-to router (router direction). In doing so, Netspoc can decide at the
-first pathrestricted interface, whether a certain destination can or can not be
-reached on the way passing the pathrestricted interface.
+added to the topology (**Loop partitioning**, 1). Then, the red path
+from figure **Finding loop paths** is no longer valid. Currently,
+pathrestrictions are referenced in every participating interface
+object and contains information about participating interfaces
+only. Netspoc therefore would have to follow the red path until the
+pathrestrictions second interface is reached to find the path to be
+invalid. To save these steps, Netspoc divides loops with
+pathrestrictions into partitions and stores at every pathrestricted
+interface the partitions that can be reached when the interface is
+passed from router to zone (zone direction) or from zone to router
+(router direction). In doing so, Netspoc can decide at the first
+pathrestricted interface, whether a certain destination can or can not
+be reached on the path passing the interface.
 
-{% include image.html src="./images/find_loop_paths.png" description="" %}
+{% include image.html src="./images/find_loop_paths.png" description="**Loop partitioning:** The cycle is divided into different parts that can be reached from pathrestricted interfaces." %}
 
 To receive loop partitioning, every pathrestriction interface that is
 located within a cycle is considered. The loop path is traversed from
@@ -512,5 +519,5 @@ interfaces. Obviously, every interface can border two partitions,
 which is why two numbers are stored in every interface object: one for
 zone and one for router direction.  Consequently, loop path traversal
 has to be performed twice per interface, if the interface has not been
-found during a traversal starting from another interface of the same
+found before during a traversal starting from another interface of the same
 pathrestriction.
