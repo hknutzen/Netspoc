@@ -159,7 +159,6 @@ routers with weakest filter strength. The hardware of the appropriate
 interfaces is then tagged with the crosslink flag, indicating that no
 ACL needs to be generated.
 
-
 ### Cluster crosslinked routers 
 
 Firewalls recognize, whether the destination of a data packet is the
