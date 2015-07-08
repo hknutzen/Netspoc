@@ -1330,6 +1330,7 @@ sub check_model {
     return $info;
 }
 
+# ARRAY of artificial Router objects which were created for an interface which represents a managed host.
 my @managed_routers;
 my @router_fragments;
 
@@ -5079,7 +5080,6 @@ sub link_topology {
 # Mark all interfaces at loop entry as disabled,
 # otherwise the whole topology will get disabled.
 ####################################################################
-
 sub disable_behind;
 
 sub disable_behind {
@@ -5206,7 +5206,7 @@ sub check_bridged_networks {
 # Uses global: %interfaces: HASH of interface name => Interface object
 # Uses global: @router_fragments
 # Uses global: @routing_only_routers
-# Uses global: @managed_routers
+# Uses global: @managed_routers: ARRAY of artificial Router objects which were created for an interface which represents a managed host
 # Uses global: @virtual_interfaces
 sub mark_disabled {
     my @disabled_interfaces = grep { $_->{disabled} } values %interfaces;
@@ -5365,6 +5365,9 @@ sub split_ip_range {
     return @result;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
 # Uses global: @networks
 sub convert_hosts {
     progress('Converting hosts to subnets');
@@ -7067,7 +7070,7 @@ my %known_log;
 # Parameter: none
 # Return: -nothing-
 #
-# Uses global: @managed_routers
+# Uses global: @managed_routers: ARRAY of artificial Router objects which were created for an interface which represents a managed host
 # Uses global: %known_log: All log tags defined at some routers
 sub collect_log {
     for my $router (@managed_routers) {
@@ -7363,7 +7366,7 @@ sub expand_services {
 #
 # Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
 # Uses global: %prt_hash: Look up a protocol HASH by its defining attributes
-# Uses global: @managed_routers: 
+# Uses global: @managed_routers: ARRAY of artificial Router objects which were created for an interface which represents a managed host
 # Uses global: @routing_only_routers
 sub set_policy_distribution_ip  {
     progress('Setting policy distribution IP');
@@ -9226,7 +9229,7 @@ sub find_subnets_in_nat_domain {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: @managed_routers
+# Uses global: @managed_routers: ARRAY of artificial Router objects which were created for an interface which represents a managed host
 sub check_no_in_acl  {
  
     # Process every managed router
@@ -16045,7 +16048,7 @@ my $permit_any_rule;
 #
 # Uses global: $prt_bootps DHCP server
 # Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules
-# Uses global: @managed_routers:
+# Uses global: @managed_routers: ARRAY of artificial Router objects which were created for an interface which represents a managed host
 # Uses global: %ref2obj: Hash for converting a reference of an object back to this object
 # Uses global: %xxrp_info: Definition of redundancy protocols
 # Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
@@ -16195,6 +16198,11 @@ sub distribute_rules {
     return;
 }
 
+# Parameter: ARRAY of HASHes
+# Parameter: string, "general_permit of <router name>"
+#
+# Returns: ARRAY of HASHes containing src, dst and prt
+#
 # Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
 sub create_general_permit_rules {
     my ($protocols, $context) = @_;
@@ -16219,6 +16227,10 @@ sub create_general_permit_rules {
     return \@rules;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @managed_routers: ARRAY of artificial Router objects which were created for an interface which represents a managed host
 sub distribute_general_permit {
     for my $router (@managed_routers) {
         my $general_permit = $router->{general_permit} or next;
@@ -19960,7 +19972,7 @@ sub check_output_dir {
 # Parameter: output directory
 # Return: -nothing-
 #
-# Uses global: @managed_routers
+# Uses global: @managed_routers: ARRAY of artificial Router objects which were created for an interface which represents a managed host
 # Uses global: @routing_only_routers
 sub print_code {
     my ($dir) = @_;
@@ -20055,7 +20067,7 @@ sub print_code {
 #
 # Return: -nothing-
 #
-# Uses global: @managed_routers
+# Uses global: @managed_routers: ARRAY of artificial Router objects which were created for an interface which represents a managed host
 # Uses global: @routing_only_routers
 # Uses global: %config: User configurable options
 sub copy_raw {
