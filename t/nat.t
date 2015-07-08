@@ -692,6 +692,43 @@ test_err($title, $in, $out);
 $title = 'Interface with dynamic NAT as destination';
 ############################################################
 
+# Should ignore error in policy_distribution_point,
+# because other error message is shown.
+$in = <<'END';
+network:n2 = { ip = 10.1.2.0/24; nat:dyn = { ip = 10.9.9.9/32; dynamic; }}
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ policy_distribution_point = host:h3;
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = vlan3; bind_nat = dyn; }
+}
+
+service:s = {
+ user = interface:asa1.n2;
+ permit src = host:h3; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Error: interface:asa1.n2 needs static translation for nat:dyn to be valid in rule
+ permit src=host:h3; dst=interface:asa1.n2; prt=tcp 22; of service:s
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Interface with dynamic NAT as destination in reversed rule';
+############################################################
+
 $in = <<'END';
 network:a = { ip = 10.1.1.0/24;}
 

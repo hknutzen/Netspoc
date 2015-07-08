@@ -193,17 +193,38 @@ sub setup_subst {
 	    }
 	}
     }
-    for my $obj (values %networks, values %areas) {
-        for my $attr (qw(nat identity_nat)) {
-            if (my $href = $obj->{$attr}) {
-                for my $nat_tag (keys %$href) {
-                    next if $subst{nat}->{$nat_tag};
-                    $subst{nat}->{$nat_tag} = random($nat_tag);
-                }
-	    }
-	}
+
+    # Setup loopback interfaces like networks.
+    for my $router (values %routers) {
+        for my $interface (@{ $router->{interfaces} }) {
+            $interface->{loopback} or next;
+            next if $interface->{is_layer3};
+            my $name = $interface->{name};
+
+            # Remove type part.
+	    $name =~ s/^.*://;
+
+            # Remove router part.
+            $name =~ s/^[^.]*.//;
+
+            # Handle loopback name like network name.
+            my $renamed = $name =~ /^loopback[-_0-9]*$/i
+                        ? $name
+                        : random($name);
+            $subst{network}->{$name} ||= $renamed;
+            
+        }            
+    }
+
+    for my $obj (values %networks, values %Netspoc::aggregates, values %areas) {
+        my $href = $obj->{nat} or next;
+        for my $nat_tag (keys %$href) {
+            next if $subst{nat}->{$nat_tag};
+            $subst{nat}->{$nat_tag} = random($nat_tag);
+        }
     }
 }
+
 
 # Key: "ip/mask", value: "new-ip/mask"
 my %ipsubst;
@@ -367,14 +388,29 @@ sub subst_ip {
     }
 }
 
+sub cleanup_comments {
+    my ($lines) = @_;
+    for my $line (@$lines) {
+	$line =~ s/(\#.*)/ del_char($1) /gex;
+    }
+}
+
+sub process_config_file {
+    my ($path, $out) = @_;
+    -d $path or return;
+    my $in = "$path/config";
+    -f $in or return;
+    process_file($in, "$out/config", \&cleanup_comments);
+}
+
 sub process_file {
-    my ($in, $out) = @_;
+    my ($in, $out, $worker) = @_;
     local *FILE;
     print STDERR "File $in\n";
     open FILE, $in or fatal_err "Can't open $in: $!";
     my @input = <FILE>;
     close FILE;
-    process(\@input);
+    $worker->(\@input);
     open FILE, ">$out" or fatal_err "Can't create $out: $!";
     print FILE @input;
     close FILE;
@@ -404,7 +440,7 @@ sub process_file_or_dir {
         closedir DIR;
     }
     else {
-        process_file($path, $out);
+        process_file($path, $out, \&process);
     }
 }
 
@@ -413,17 +449,14 @@ sub subst {
     $type = 'admin' if $type eq 'admins';
     if ($type eq 'interface') {
 	if ($name !~ /[.]/) {
-	    $subst{network}->{$name} || 
-
-		# Leave name of loopback interface unchanged.
-		$name;
+	    $subst{network}->{$name};
 	}
 	elsif ($name =~ /^(.+?)[.](.+?)([.].*)?$/) {
 	    my $router = $1;
 	    my $net = $2;
 	    my $ext = $3 || '';
 	    my $rrouter = $subst{router}->{$router};
-	    my $rnet = $subst{network}->{$net} || $net;
+	    my $rnet = $subst{network}->{$net};
 	    "$rrouter.$rnet$ext";
 	}
 	elsif($name =~ /^(.*?)[.]$/) {
@@ -542,3 +575,4 @@ info "Setup name substituition";
 setup_subst();
 info "Substitute";
 process_file_or_dir($in, $out);
+process_config_file($in, $out);
