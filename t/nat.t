@@ -1289,6 +1289,51 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Ignore hidden network in NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {
+  ip = 10.1.1.1;
+  routing = OSPF;
+  hardware = outside;
+  bind_nat = h;
+ }
+ interface:t1 = { ip = 10.5.5.164; hardware = inside; }
+}
+network:t1 = { ip = 10.5.5.160/28; }
+router:u1 = {
+ interface:t1 = { ip = 10.5.5.161; }
+ interface:n2;
+ interface:n3;
+}
+
+network:n2 = { ip = 10.1.2.0/24; nat:h = { hidden; } }
+network:n3 = { ip = 10.1.3.0/24; }
+any:10_1   = { ip = 10.1.0.0/16; link = network:n2; }
+
+service:test = {
+ user =	network:n1;
+ permit src = user; dst = any:10_1; prt = proto 50;
+}
+END
+
+$out = <<'END';
+-- r1
+! [ ACL ]
+access-list outside_in extended permit 50 10.1.1.0 255.255.255.0 10.1.0.0 255.255.0.0
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Traverse hidden NAT domain in loop';
 ############################################################
 

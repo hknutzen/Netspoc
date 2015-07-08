@@ -14753,15 +14753,22 @@ sub print_nat1 {
               sort {
                      $a->{ip} <=> $b->{ip}
                   || $a->{mask} <=> $b->{mask}
-                  || get_nat_network($a, $out_nat)
-                  ->{ip} <=> get_nat_network($b, $out_nat)->{ip}
+
+                  # Use value 0 for hidden network.
+                  ||     (get_nat_network($a, $out_nat)->{ip} || 0)
+                     <=> (get_nat_network($b, $out_nat)->{ip} || 0)
               } values %$net_hash;
 
             for my $network (@networks) {
-                my ($in_ip, $in_mask, $in_dynamic) =
-                  @{ get_nat_network($network, $in_nat) }{qw(ip mask dynamic)};
-                my ($out_ip, $out_mask, $out_dynamic) =
-                  @{ get_nat_network($network, $out_nat) }{qw(ip mask dynamic)};
+                my ($in_ip, $in_mask, $in_dynamic, $in_hidden) =
+                  @{ get_nat_network($network, $in_nat) }{qw(ip mask dynamic 
+                                                                     hidden)};
+                my ($out_ip, $out_mask, $out_dynamic, $out_hidden) =
+                  @{ get_nat_network($network, $out_nat) }{qw(ip mask dynamic
+                                                                      hidden)};
+
+                # Ignore hidden network.
+                next if $in_hidden or $out_hidden;
 
                 # Ignore dynamic translation, which doesn't occur at
                 # current router
