@@ -881,7 +881,7 @@ part of the topology which is seen when looking from the router to
 that interface. All occurrences of disabled network resources in groups and
 rules are silently discarded.
 
-## Disabling object-groups
+## Disable generation of object-groups
 
 Netspoc generates optimized code using object-groups for Cisco ASA and
 PIX firewalls.  Use router attribute `no_group_code` to disable this
