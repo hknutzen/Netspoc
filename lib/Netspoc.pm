@@ -101,7 +101,6 @@ our @EXPORT = qw(
   check_unused_groups
   setpath
   path_walk
-  find_active_routes_and_statics
   check_supernet_rules
   optimize_and_warn_deleted
   distribute_nat_info
