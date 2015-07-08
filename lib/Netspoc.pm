@@ -14576,6 +14576,7 @@ sub print_routes {
             my $net_hash = $interface->{routes}->{$hop};
             for my $network (values %$net_hash) {
                 my $nat_network = get_nat_network($network, $no_nat_set);
+                next if $nat_network->{hidden};
                 my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
                 if ($ip == 0 and $mask == 0) {
                     $do_auto_default_route = 0;
