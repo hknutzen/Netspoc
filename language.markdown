@@ -399,8 +399,15 @@ empty.  Intersection and complement is not defined for protocol groups.
 
 An area denotes a part of the topology which is delimited by a set
 of managed interfaces. An area typically spans multiple security
-zones. Areas are used to easily denote all networks or security
-zones of some part of the topology.
+zones. Areas are used
+
+- to easily denote all networks or security zones of some part of the
+  topology,
+
+- to inherit attributes `nat` or `owner` to enclosed security zones
+  and networks or
+
+- to inherit `router_attributes` to managed routers inside the area.
 
 Use attributes `border` or `inclusive_border` to define interfaces
 which are border of the area. `border` is exclusive. The router of the
