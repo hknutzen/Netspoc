@@ -458,12 +458,22 @@ sub find_duplicates {
     return grep { $dupl{$_} > 1 } keys %dupl;
 }
 
+# Returns the intersecting elements of two ARRAYs.
+#
+# Parameter: ARRAY
+# Parameter: ARRAY
+#
+# Return: ARRAY
 sub intersect {
     my ($aref1, $aref2) = @_;
     my %seen = map { $_ => 1 } @$aref1;
     return grep { $seen{$_} } @$aref2;
 }
 
+# Returns the highest integer from the passed ARRAY.
+#
+# Parameter: ARRAY containing integers
+# Return: highest integer
 sub max {
     my $max = shift(@_);
     for my $el (@_) {
@@ -473,7 +483,11 @@ sub max {
 }
 
 # Delete an element from an array reference.
-# Return 1 if found, undef otherwise.
+#
+# Parameter: ARRAY of objects, may contain: Pathrestriction, Interface
+# Parameter: One of: HASH, Interface, Pathrestriction
+#
+# Return: 1 if found, undef otherwise.
 sub aref_delete {
     my ($aref, $elt) = @_;
     for (my $i = 0 ; $i < @$aref ; $i++) {
@@ -488,6 +502,11 @@ sub aref_delete {
 }
 
 # Compare two array references element wise.
+#
+# Parameter: ARRAY
+# Parameter: ARRAY
+#
+# Return: 1 if the passed ARRAYs contains the same elements in the same order, else -nothing-
 sub aref_eq  {
     my ($a1, $a2) = @_;
     return if @$a1 ne @$a2;
@@ -1337,6 +1356,11 @@ my @router_fragments;
 # Managed host is stored internally as an interface.
 # The interface gets an artificial router.
 # Both, router and interface get name "host:xx".
+#
+# Parameter: Host object
+# Return: Interface object
+#
+# Uses global: @managed_routers: ARRAY of artificial Router objects which were created for an interface which represents a managed host
 sub host_as_interface {
     my ($host) = @_;
     my $name = $host->{name};
@@ -2058,6 +2082,9 @@ sub read_interface {
 # PIX firewalls have a security level associated with each interface.
 # Use attribute 'security_level' or
 # try to derive the level from the interface name.
+#
+# Parameter: Router object
+# Return: -nothing-
 sub set_pix_interface_level {
     my ($router) = @_;
     for my $hardware (@{ $router->{hardware} }) {
@@ -2650,6 +2677,10 @@ sub read_router {
 # Hence split router into separate instances, one instance for each
 # crypto/secondary interface.
 # Splitted routers are tied by identical attribute {device_name}.
+#
+# Parameter ARRAY of Interface objects
+#
+# Uses global: @router_fragments
 sub move_locked_interfaces {
     my ($interfaces) = @_;
     for my $interface (@$interfaces) {
@@ -5079,6 +5110,9 @@ sub link_topology {
 # Be cautious with loops:
 # Mark all interfaces at loop entry as disabled,
 # otherwise the whole topology will get disabled.
+#
+# Parameter: Interface object
+# Return: -nothing-
 ####################################################################
 sub disable_behind;
 
@@ -5137,6 +5171,11 @@ my @areas;
 # - IP addresses of hosts must be disjoint (ToDo).
 # Each router having a bridged interface
 # must connect at least two bridged networks of the same group.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @networks
 sub check_bridged_networks {
     my %prefix2net;
     for my $network (@networks) {
@@ -5349,6 +5388,13 @@ sub mark_disabled {
 my @inverse_masks = map { complement_32bit prefix2mask $_ } (0 .. 32);
 
 # Convert an IP range to a set of covering IP/mask pairs.
+#
+# Parameter: integer, beginning of the IP range
+# Parameter: integer, end of the IP range
+#
+# Return: ARRAY of ARRAYs containing two elements for lower and upper IP of the range
+#
+# Uses global: @inverse_masks
 sub split_ip_range {
     my ($low, $high) = @_;
     my @result;
@@ -5365,6 +5411,8 @@ sub split_ip_range {
     return @result;
 }
 
+# Converts hosts to subnets.
+#
 # Parameter: -none-
 # Return: -nothing-
 #
@@ -5574,6 +5622,9 @@ sub convert_hosts {
 }
 
 # Find adjacent subnets and substitute them by their enclosing subnet.
+#
+# Parameter: ARRAY of Subnet objects
+# Return: ARRAY of sorted Subnet objects
 sub combine_subnets  {
     my ($subnets) = @_;
     my %hash = map { $_ => $_ } @$subnets;
@@ -5627,6 +5678,7 @@ my %name2object = (
     area      => \%areas,
 );
 
+# Parameter: Router object
 sub get_intf  {
     my ($router) = @_;
     if (my $orig_router = $router->{orig_router}) {
@@ -5640,8 +5692,17 @@ sub get_intf  {
     }
 }
 
+# Cache of created Autointerface objects: Parent object -> managed flag -> Autointerface object
 my %auto_interfaces;
 
+# Creates an Autointerface from the passed object.
+#
+# Parameter: Network or Router object
+# Parameter: managed flag, defaults to 0 if not set
+#
+# Return: Autointerface object
+#
+# Uses global: %auto_interfaces: Cache of created Autointerface objects: Parent object -> managed flag -> Autointerface object
 sub get_auto_intf {
     my ($object, $managed) = @_;
     $managed ||= 0;
@@ -5754,7 +5815,7 @@ sub expand_group1;
 # Parameter: string description of the calling context for logging purpose.
 # Parameter: string
 #
-# Return: ARRAY
+# Return: ARRAY of objects: Network, Subnet, Interface, Autointerface, Host
 #
 # Uses global: %interfaces: HASH of interface name => Interface object
 sub expand_group1 {
@@ -6254,7 +6315,7 @@ sub expand_group1 {
 
 # Remove and warn about duplicate values in group.
 #
-# Parameter: ARRAY
+# Parameter: ARRAY of objects: Network, Subnet, Interface, Autointerface, Host
 # Parameter: string description of the calling context for logging purpose.
 #
 # Return: the passed ARRAY without duplicates
@@ -6282,6 +6343,7 @@ sub remove_duplicates {
 #            elements HASH contains the following keys: 'active', 'elements', 'refcount'
 #            ext ARRAY contains two elements: 'selector' and 'managed' flag, it only applies for type=interface
 # Parameter: string description of the calling context for logging purpose.
+# Return: ARRAY
 sub expand_group {
     my ($obref, $context) = @_;
     my $aref = expand_group1 $obref, $context, 'clean_autogrp';
@@ -6307,6 +6369,7 @@ my %subnet_warning_seen;
 #            ext ARRAY contains two elements: 'selector' and 'managed' flag, it only applies for type=interface
 # Parameter: string description of the calling context for logging purpose.
 # Parameter: if true, hosts are converted to subnets
+# Return: ARRAY
 sub expand_group_in_rule {
     my ($obref, $context, $convert_hosts) = @_;
     my $aref = expand_group($obref, $context);
@@ -6500,6 +6563,14 @@ sub expand_protocols {
 }
 
 # Expand splitted protocols.
+#
+# Parameter: ARRAY of HASHes:
+#            - non TCP/UDP protocol
+#            - dst_range of (splitted) TCP/UDP protocol 
+#            - [ src_range, dst_range, orig_prt ] of (splitted) protocol having src_range or main_prt. 
+# Parameter: string description of the calling context for logging purpose.
+#
+# Return: HASH
 sub split_protocols {
     my ($protocols, $context) = @_;
     my @splitted_protocols;
@@ -6741,6 +6812,11 @@ sub expand_special  {
 }
 
 # Add managed hosts of networks and aggregates.
+#
+# Parameter: ARRAY of objects: Network, Subnet, Interface, Autointerface, Host
+# Parameter: string description of the calling context for logging purpose.
+#
+# Return: the passed ARRAYs extended by manages hosts
 sub add_managed_hosts {
     my ($aref, $context) = @_;
     my @extra;
@@ -7260,6 +7336,10 @@ sub print_rulecount  {
     return;
 }
 
+# Parameter: ARRAY of rule HASHes
+# Return: -nothing-
+#
+# Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
 sub split_expanded_rule_types {
     my ($rules_aref) = @_;
 
@@ -8013,6 +8093,12 @@ sub set_service_owner {
 # NAT Set: a set of NAT tags which are effective at some location.
 # NAT Domain: a maximal area of the topology (a set of connected networks)
 # where the NAT set is identical at each network.
+#
+# Parameter: Network object
+# Parameter: nat_domain object
+# Parameter: Interface object or 0
+#
+# Return: -nothing-
 sub set_natdomain;
 
 sub set_natdomain {
@@ -8526,6 +8612,10 @@ sub distribute_nat_info {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @natdomains
 sub invert_nat_set {
 
     # Find NAT partitions.
@@ -8600,6 +8690,9 @@ sub invert_nat_set {
 # where encrypted traffic passes. But real interface gets ACL that filter 
 # both encrypted and unencrypted traffic. Hence no_nat_set must be extended by 
 # no_nat_set of some corresponding tunnel interface.
+#
+# Parameter: -none-
+# Return: -nothing-
 sub adjust_crypto_nat {
     my %seen;
     for my $crypto (values %crypto) {
@@ -8700,6 +8793,11 @@ sub check_subnets {
 
 # Dynamic NAT to loopback interface is OK,
 # if NAT is applied at device of loopback interface.
+#
+# Parameter: Network object
+# Parameter: HASH
+#
+# Return: 1 if all devices were checked successfully
 sub nat_to_loopback_ok {
     my ($loopback_network, $nat_network) = @_;
 
@@ -9567,6 +9665,9 @@ sub link_reroute_permit {
 
 ##############################################################################
 # Purpose  : 
+#
+# Parameter: Network object
+# Return: -nothing-
 sub add_managed_hosts_to_aggregate {
     my ($aggregate) = @_;
 
@@ -9649,6 +9750,12 @@ sub link_aggregate_to_zone {
 # {up} is relation inside set of all networks and aggregates.
 # {networks} is attribute of aggregates and networks, 
 #            but value is list of networks.
+#
+# Parameter: Network object
+# Parameter: Zone object
+# Parameter: string, IP/MASK as integer/integer
+#
+# Return: -nothing-
 sub link_implicit_aggregate_to_zone {
     my ($aggregate, $zone, $key) = @_;
     my ($ip, $mask) = split '/', $key;
@@ -10052,6 +10159,11 @@ sub set_zone_cluster {
 # Two zones are zone_eq, if
 # - zones are equal or
 # - both belong to the same zone cluster.
+#
+# Parameter: Zone object
+# Parameter: Zone object
+#
+# Return: 1 if the zones are equal
 sub zone_eq {
     my ($zone1, $zone2) = @_;
     return(($zone1->{zone_cluster} || $zone1) eq 
@@ -10865,6 +10977,13 @@ sub check_pathrestrictions {
 # This allows faster graph traversal.
 # When entering a partition, we can already decide, 
 # if end of path is reachable or not.
+#
+# Parameter: Zone object
+# Parameter: Interface object
+# Parameter: integer
+# Parameter: HASH, Interface object => HASH containing zone or router as key and $mark as value
+#
+# Return: -nohthing-
 ####################################################################
 sub traverse_loop_part {
     my ($obj, $in_interface, $mark, $seen) = @_;
@@ -10898,7 +11017,7 @@ sub traverse_loop_part {
 # Parameter: -none-
 # Return: -nothing-
 #
-# Uses global: %pathrestrictions
+# Uses global: @pathrestrictions ARRAY of Pathrestriction objects
 sub optimize_pathrestrictions {
     my $mark = 1;
     for my $restrict (@pathrestrictions) {
@@ -11207,6 +11326,10 @@ sub setpath {
 
 my %obj2path;
 
+# Parameter: Object, one of: Network, Subnet, Interface, Router, Zone, Host
+# Return: Zone object
+#
+# Uses global: %obj2path
 sub get_path {
     my ($obj) = @_;
     my $type = ref $obj;
@@ -12080,6 +12203,10 @@ sub path_walk {
 
 my %border2obj2auto;
 
+# Parameter: Interface object
+# Return: -nothing-
+#
+# Uses global: %border2obj2auto
 sub set_auto_intf_from_border  {
     my ($border) = @_;
     my %active_path;
@@ -12543,6 +12670,8 @@ my %asa_vpn_attributes = (
     'username-from-certificate'   => { tg_general => 1 },
 );
 
+# Parameter: Object, one of: Network, Host, Router
+# Return: -nothing-
 sub verify_asa_vpn_attributes {
     my ($obj) = @_;
     my $attributes = $obj->{radius_attributes} or return;
@@ -12573,6 +12702,11 @@ sub verify_asa_vpn_attributes {
 }
 
 # Host with ID that doesn't contain a '@' must use attribute 'verify-subject-name'.
+#
+# Parameter: Host object
+# Parameter: ARRAY of Interface objects 
+#
+# Return: -nothing-
 sub verify_subject_name {
     my ($host, $peers) = @_;
     my $id = $host->{id};
@@ -12596,6 +12730,10 @@ sub verify_subject_name {
     return;
 }
 
+# Parameter: Router object
+# Parameter: HASH
+#
+# Return: -nothing-
 sub verify_asa_trustpoint {
     my ($router, $crypto) = @_;
     my $isakmp = $crypto->{type}->{key_exchange};
@@ -12968,6 +13106,13 @@ sub find_supernet {
 # - equal to ip/mask or
 # - subnet of ip/mask
 # Leave out small networks which are subnet of a matching network.
+#
+# Parameter: Interface object, where traffic reaches the device, this is used to determine no_nat_set
+# Parameter: Zone object to be checked
+#            If $where is 'src', then $zone is attached to $interface
+#            If $where is 'dst', then $zone is at other side of device.
+# Parameter: Network object
+#
 # Result:
 # 0: no network found
 # network:
@@ -13023,6 +13168,13 @@ sub find_zone_network {
 }
 
 # Find all networks in zone, which match network from other zone.
+#
+# Parameter: Interface object, where traffic reaches the device, this is used to determine no_nat_set
+# Parameter: Zone object to be checked
+#            If $where is 'src', then $zone is attached to $interface
+#            If $where is 'dst', then $zone is at other side of device.
+# Parameter: Network object
+#
 # Result:
 # undef: No network of zone matches $other.
 # []   : Multiple networks match, but no supernet exists.
@@ -13922,6 +14074,9 @@ sub gen_reverse_rules {
 # - the device is secondary and the rule has attribute 'some_non_secondary' or
 # - the device is standard and the rule has attribute 'some_primary'.
 # Otherwise a rules is implemented typical.
+#
+# Parameter: Object, one of: Network, Subnet, Interface
+# Return: Zone object
 ##############################################################################
 sub get_zone2 {
     my ($obj) = @_;
@@ -14669,6 +14824,9 @@ sub prepare_nat_commands  {
 # can have different next hops at end of path.
 # For an aggregate, take all matching networks inside the zone.
 # These are supernets by design.
+#
+# Parameter: Object, one of: Network, Subnet, Interface
+# Return: Network object, or ARRAY of two Network objects
 sub get_route_networks {
     my ($obj) = @_;
     my $type = ref $obj;
@@ -14827,6 +14985,12 @@ sub set_routes_in_zone  {
 # A security zone is entered at $in_intf and exited at $out_intf.
 # Find the hop H to reach $out_intf from $in_intf.
 # Add routing entries at $in_intf that $dst_networks are reachable via H.
+#
+# Parameter: Interface object
+# Parameter: Interface object
+# Parameter: ARRAY of Network objects
+#
+# Return: -nothing-
 sub add_path_routes  {
     my ($in_intf, $out_intf, $dst_networks) = @_;
     return if $in_intf->{routing};
@@ -14877,6 +15041,12 @@ sub add_end_routes  {
 # If $in_intf and $out_intf are both defined, packets traverse this zone.
 # If $in_intf is not defined, the src is this zone.
 # If $out_intf is not defined, dst is this zone;
+#
+# Parameter: HASH
+# Parameter: Interface object
+# Parameter: Interface object
+#
+# Return: -nothing-
 sub get_route_path {
     my ($rule, $in_intf, $out_intf) = @_;
 
@@ -15083,6 +15253,11 @@ sub fix_bridged_hops {
     return @result;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @managed_routers: ARRAY of artificial Router objects which were created for an interface which represents a managed host
+# Uses global: @routing_only_routers
 sub check_and_convert_routes  {
     progress('Checking for duplicate routes');
 
@@ -16176,6 +16351,9 @@ sub add_router_acls  {
 # - if the device is accessed over an IPSec tunnel
 # - and we change the ACL incrementally,
 # the connection may be lost.
+#
+# Parameter: Network, Subnet or Interface object
+# Return: "IP,MASK" for Network and Subnet, "IP,255" for Interface
 sub cmp_address {
     my ($obj) = @_;
     my $type = ref $obj;
@@ -16300,6 +16478,12 @@ sub distribute_general_permit {
     return;
 }
 
+# Sort rules by reverse priority of protocol.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
 sub sort_rules_by_prio {
 
     # Sort rules by reverse priority of protocol.
@@ -16362,7 +16546,10 @@ sub rules_distribution {
 # ACL Generation
 ##############################################################################
 
-# Returns [ ip, mask ] pair
+# Parameter: Object one of: Network, Subnet, Interface, Objectgroup
+# Parameter: HASH
+#
+# Return: [ ip, mask ] pair
 sub address {
     my ($obj, $no_nat_set) = @_;
     my $type = ref $obj;
@@ -19324,6 +19511,11 @@ sub print_acls {
     return;
 }
 
+# Parameter ARRAY of Network objects (local)
+# Parameter ARRAY of Network objects (remote)
+#
+# Return: ARRAY of HASHes
+#
 # Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
 sub gen_crypto_rules {
     my ($local, $remote) = @_;
@@ -19976,6 +20168,8 @@ sub check_output_dir {
 #
 # Uses global: @managed_routers: ARRAY of artificial Router objects which were created for an interface which represents a managed host
 # Uses global: @routing_only_routers
+# Uses global: $program: The display name of Netspoc
+# Uses global: $version: The version of Netspoc
 sub print_code {
     my ($dir) = @_;
 
@@ -20117,11 +20311,22 @@ sub copy_raw {
     return;
 }
 
+# Prints the version of netspoc
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: $program: The display name of Netspoc
+# Uses global: $version: The version of Netspoc
 sub show_version {
     progress("$program, version $version");
     return;
 }
 
+# Prints the string "Finished" if $config{time_stamps} is set.
+#
+# Parameter: -none-
+# Return: -nothing-
 sub show_finished {
     progress('Finished') if $config{time_stamps};
     return;
