@@ -8,6 +8,8 @@ layout: default
 
 [Policy language](language.html)
 
+[Program workflow outline](outline.html)
+
 [Technical documentation](technical.html)
 
 # Manual pages

@@ -803,14 +803,6 @@ A crosslink network combines two or more routers to a cluster of
   other logical networks attached.
 - Crosslink networks are silently removed from automatic groups.
 
-##Network with isolated ports
-
-For a network with attribute `isolated_ports`, hosts inside this
-network are not allowed to talk directly to each other. Instead, the
-traffic must go through an interface which is marked with attribute
-`promiscuous_port`.  Non promiscuous interfaces are isolated as well
-and handled like hosts.
-
 ## Protocol modifiers
 
 One or more protocol modifiers can optionally be appended to a named

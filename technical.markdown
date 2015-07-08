@@ -24,9 +24,36 @@ might have noticed, there is no symbol for interfaces included. As
 interfaces are needed whenever a network is connected to a router, we
 omit their explicit representation.
 
-{% include image.html src="./images/legend.png" description="Legend of used symbols." %}
+{% include image.html src="./images/legend.png" title="" description="Legend of used symbols." %}
 
-## Preparing zones and areas
+## Netspocs perspective
+
+Netspoc generates ACLs and static routes for a given network policy,
+consisting of a set of services and a network topology. It does so by
+finding all paths inside the network topology for a certain source and
+destination pair specified in a rule from the service set. It is
+important to notice, that the network topology best fed to Netspoc is
+not necassarily an exact copy of the real network. Instead, the input
+topology should be a model of the network that provides just as much
+information as needed for Netspocs purpose. For example, complex parts
+of the network with dynamic routing and without filtering are not
+affected by Netspoc at all. They should therefore be replaced in the
+input topology by a single unmanaged router. This saves time and space
+during compilation and is easier to maintain. In very complex network
+topologies, even constellations may occur where it is suitable to
+include parts of the network twice to reduce complexity. As long as
+the ACLs and static routes are not affected, that would also provide a
+valid model of the network.
+
+When the abstract topology model created by the user is handed over to
+Netspoc, Netspoc takes several steps to transform it into a graph
+representation to work on. As before, this representation is not
+designed to reproduce reality, but to represent those aspects of the
+topology that are important for generating ACLs and static
+routes. Moreover, these aspects are modeled to allow completing these
+tasks as efficiently as possible.
+
+## Preparing zones and areas {#prepare_zones}
 
 Netspoc combines networks connected by unmanaged routers in
 zones. These zones, containing networks and unmanaged routers as
@@ -39,7 +66,7 @@ finally, zones help to speed up the traversal of the graph. As
 filtering takes place only at zone delimiting interfaces, zones can be
 traversed instead of single networks.
 
-{% include image.html src="./images/zone.png" description="Zones contain networks and unmanaged routers." %}
+{% include image.html src="./images/zone.png" title="" description="Zones contain networks and unmanaged routers." %}
 
 Areas, defined in Netspoc topology by the keyword `area`, span a
 certain part of the network topology, which is enclosed by the areas
@@ -56,7 +83,7 @@ rule definition.
       inclusive_border = interface:R3.n2;
     }      
 
-{% include image.html src="./images/area.png" description="Areas contain security zones and managed routers." %}
+{% include image.html src="./images/area.png" title="" description="Areas contain security zones and managed routers." %}
 
 
 ### Creating zones
@@ -84,7 +111,7 @@ set of networks is supposed that is internally represented as zone
 cluster. Zone clusters contain zones connected by semi-managed routers
 and delimited by managed routers.
 
-{% include image.html src="./images/zone_cluster.png" description="Zones: Netspoc representation vs. user view." %}
+{% include image.html src="./images/zone_cluster.png" title="" description="Zones: Netspoc representation vs. user view." %}
 
 To generate zone clusters, the zones are processed. If a zone is found
 that is not included in a cluster, a new cluster object is
@@ -125,13 +152,12 @@ clustered routers have equal filter types only though. Otherwise, interfaces of
 routers with stronger filter types still have to filter information
 coming from routers with weaker filter types, letting pass more information.
 
-{% include image.html src="./images/crosslink.png" description="Routers connected by crosslink network." %}
+{% include image.html src="./images/crosslink.png" title="" description="Routers connected by crosslink network." %}
 
 Netspoc processes every crosslink network to identify the adjacent
 routers with weakest filter strength. The hardware of the appropriate
 interfaces is then tagged with the crosslink flag, indicating that no
 ACL needs to be generated.
-
 
 ### Cluster crosslinked routers 
 
@@ -149,7 +175,7 @@ crosslinked routers to do the filtering. Thus, these routers must be
 informed about the interfaces of the `need_protect`-labeled router to
 include appropriate deny-clauses in their ACLs.
 
-{% include image.html src="./images/crosslink_with_need_protect.png" description="As no filtering takes place at IF1 and IF4, routers R2 and R3 need to filter packets for IF 1-4." %}
+{% include image.html src="./images/crosslink_with_need_protect.png" title="" description="As no filtering takes place at IF1 and IF4, routers R2 and R3 need to filter packets for IF 1-4." %}
 
 Netspoc identifies clusters of crosslinked routers containing at least
 one router labeled with `need_protect`. To do so, a depth first search
@@ -200,7 +226,7 @@ area. Zones and managed routers included by more than one area always
 inherit the attributes of the innermost area. For this reason,
 intersection of two areas can not be allowed.
 
-{% include image.html src="./images/nested_area.png" description="Area 2 is a proper subset of area 1." %}
+{% include image.html src="./images/nested_area.png" title="" description="Area 2 is a proper subset of area 1." %}
 
 Netspoc detects subset relations by processing every zone contained by
 one or more areas, identifying all areas containing the zone. Then,
@@ -216,7 +242,7 @@ has been assured already by proving subset relations for the
 surrounding zones. If routers are placed at the border of an area
 though, subset relations can be violated: 
 
-{% include image.html src="./images/areas_overlapping_router.png" description="Overlapping areas with router as intersection." %}
+{% include image.html src="./images/areas_overlapping_router.png" title="" description="Overlapping areas with router as intersection." %}
 
 **Routers as intersection.** To prevent overlapping areas with a
 single router as intersection, every router contained via
@@ -224,7 +250,7 @@ single router as intersection, every router contained via
 certain router as `inclusive_border` is checked to be in a proper
 subset relation with the area next in size regardingthe zones.
 
-{% include image.html src="./images/areas_overlapping_router2.png" description="Wrong border definition of router violates proper subset relation ." %}
+{% include image.html src="./images/areas_overlapping_router2.png" title="" description="Wrong border definition of router violates proper subset relation ." %}
 
 **Routers with wrong border classification.** It might happen that
 areas forming a proper subset relation regarding their zones are
@@ -256,7 +282,7 @@ Netspoc now processes the aggregates, linking them to the zones of the
 zone cluster. Because aggregate objects hold an array of all networks
 included by both the aggregare and the linked zone, a new aggregate
 object has to be created for every zone to avoid all networks of the
-zone cluster being included in the array.  All aggregate objects are
+zone cluster being included in the array. All aggregate objects are
 stored within the global network hash for later use.
 
 
@@ -284,40 +310,213 @@ NAT attribute is not overwritten, but a warning is emitted if the NAT
 attributes values are equal for both zone and network.
 
 
-## Preparing fast path traversal
+## Preparing fast path traversal {#prepare_traversal}
 
-For the following steps regarding graph traversal and finding paths,
-we consider the graph to consist of zones and managed routers as nodes
-and interfaces as edges. To achieve a clearer representation, zones
-will be depicted as lines and managed routers by an uncolored router
-symbol.
+Netspoc finds paths inside the network topology. As we have seen
+above, zones have been applied to accelerate graph traversal, and
+consistently, we will consider the network topology graph to be build
+by zones and managed routers (nodes) and interfaces (edges) when it
+comes to graph traversal. For a clearer representation, we will
+therefore omit the representation of networks and unmanaged routers in
+the following pictures. Zones will be depicted as lines and managed
+routers by an uncolored router symbol instead.
 
-{% include image.html src="./images/traversal_graph_representation.png" description="To explain graph traversal, zones will be depicted as lines and managed routers by uncoloured router symbols." %}
+{% include image.html src="./images/traversal_graph_representation.png" title="Topology representation for graph traversal:" description="Zones are depicted as lines and managed routers by uncoloured router symbols." %}
 
-* * *
-This might be placed somewhere else... or will be replaced anyway...
+### Netspocs approach to path finding
 
-Netspoc has to find paths from a certain source to a destination. In
-order to find paths fast, the graph, consisting of managed routers and
-zones as nodes and interfaces as edges, is now prepared. With a single
-depth first search, the distances of all node objects to a randomly
-chosen `zone1` are identified and stored in the respective objects.
-Then, the path from source to destination can be easily found by
-starting at source and destination and walking towards smaller
-distances/ `zone1` until the paths meet. Loops are contracted to a
-single node.
+To find paths from a certain source to a destination, the topology
+graph is prepared by a single depth first search starting at a
+randomly chosen `zone1`. The distances of the graphs node objects to
+`zone1` are identified and stored in the respective objects. Then, the
+path from source to destination can be easily found by starting at
+source and destination nodes, walking towards smaller
+distances/`zone1` until the paths meet. Loops are contracted to a
+single node with a common intermediate distance being applied to all
+loop nodes, except for the loop exit to `zone1`.
 
-{% include image.html src="./images/find_paths.png" description="Paths are found by walking from source and destination towards zone1." %}
+{% include image.html src="./images/find_paths.png" title="Path finding in Netspoc:" description="Paths are found by walking from source and destination towards zone1 until the connecting node is found." %}
 
-* * *
+### Identifying distances and loops 
 
-To enable fast path traversal, Netspoc prepares the topology graph now
-consisting of zones and managed routers (nodes) and interfaces
-(edges). of the graph are traversed now via depth first search,
-starting at a randomly chosen start zone. Within every zone and router
-object, the distance to zone1 is stored. Additionally, at every
-interface and the
+Netspoc now conducts the depth first search from a randomly chosen
+`zone1`. Within every zone and router object reached, the distance
+(x2!) to `zone1` is stored. To have the direction to `zone1` available
+at every node, the interface (for zones/routers) or zone/router object
+(for interfaces) leading to `zone1` is stored in the node objects.
 
-{% include image.html src="./images/setpath.png" description="Finding loops." %}
+Whenever a loop is found, that is, a node that has already been
+discovered is reached again, a loop object is created (**Applying
+distances**, 10, 14). This loop object contains the node that has been
+visited twice as loop `exit` and the distance of that node to `zone1`
++1 as loop distance. Then, Netspoc returns from recursion and
+references the loop object in the loop variable of all nodes located
+on the loop path (**Applying distances**, 11-12, 15-21). As we want
+all nodes inside a loop to be represented as a single node, Netspoc
+recognizes nested loops: Whenever Netspoc is on a loop return path and
+finds a node already referencing a loop object (**Applying
+distances**, 16), the loop objects are compared. The nodes loop
+reference is then set to the object of the bigger loop (that
+is, the loop with a lower distance to `zone1`). Additionally, a
+reference to the bigger loop object is set in the `redirect` variable
+of the smaller (nested) loop. Thus, nodes of the nested loop that are not on
+the loop path of the bigger loop can be identified later to reset the
+loop reference.
 
-{% include image.html src="./images/setpath_obj_cactus.png" description="Finding cactus loops." %}
+{% include image.html src="./images/setpath.png" title="Applying distances:" description="Distances to `zone1` are applied to all nodes; loops are identified and labeled with loop distances." %}
+
+When Netspoc is on a loop return path and reaches the exit node of the
+loop, a loop exit object is created and referenced in the loop
+variable of the exit node (**Applying distances:**, 22). Like the loop
+object, the loop exit object stores a reference to the exit node and a
+distance value, which is exactly the distance value of the exit node.
+
+The use of different loop objects for loop nodes and loop exit nodes
+shows when a special topology is considered (**Cactus loops**). In so
+called cactus graphs, cycles have single nodes in common. When looking
+for paths in such graphs, it is helpful if loops sharing a single node
+are represented as different loops and not summarized to one:
+Different loop distances help to find the fastes path to `zone1`.
+When Netspoc finds a loop connecting node (**Cactus loops**, 16)
+different objects for loop and loop exit allow to keep the already
+found (green) loop and to establish the new (orange) loop and to
+preserve the different distances to `zone1`. Without different
+objects, the green loop object would have been redirected to and
+included in the orange loop.
+
+{% include image.html src="./images/setpath_obj_cactus.png" title="Cactus loops:" description="By attaching different loop objects to loop nodes and loop exit nodes, information about the different distances to `zone1` can be kept within the loop cluster." %}
+
+### Loop preparation
+
+To subsume all nodes of nested cycles within a single loop, Netspoc
+iterates over all loop nodes. If a node references a nested loop in
+its loop variable, the reference is reset to the top level containing
+loop using the information from the redirect variable of the loop
+object.
+
+Finally, Netspoc clusters all cactus graph loops by adding a reference
+to the exit node of the whole cluster as `cluster_exit` to all loop
+objects of the cluster. 
+
+*Possible addition: Picture of clustering*
+
+### Perform consistency checks
+
+Now that loops are identified and labeled, pathrestrictions and
+virtual IP addresses, both features that are defined for loops, can be
+checked for consistency.
+
+#### Check for proper pathrestrictions
+
+In cyclic graphs, several paths exists from a destination to a
+source. Per default, Netspoc finds all such paths and generates
+appropriate ACLs. To exclude paths, pathrestrictions can be
+defined. Pathrestrictions refer to 2 or more interfaces inside or at
+the borders of a cycle. Netspoc excludes paths including at least 2
+interfaces of a pathrestriction from ACL generation: In the figure
+below (**Pathrestriction**), a pathrestrictions is defined for
+interfaces 1 and 2. Therefore, paths from n1 to n5 and n6 are
+considered during ACL generation, while the path from n1 to n4 is
+not. This is reflected in the interfaces ACLs: traffic between n1 and
+n4 is not routed by these interfaces.
+
+{% include image.html src="./images/pathrestriction.png" title="Pathrestriction:" description="The pathrestriction at interfaces IF1 and IF2 results in adapted ACLs." %}
+
+Netspoc assures all defined pathrestrictions to fulfill the
+requirements and checks that they have an effect on ACL
+generation. Proper pathrestrictions are then stored in a global array.
+
+*Possible addition: When does a pathrestriction affect ACLs?*
+
+#### Check usage of virtual interfaces
+
+To assure a connection between two networks, they can be connected by
+more than one router, using HSRP or VRRP and a virtual IP address to
+establish a redundant connection.
+
+The usage of virtual IP addresses within the topology affects the
+generation of both ACLs and static routes: Routers sharing a virtual
+IP address need to communicate to determine which router is
+active. Therefore the usage of virtual IP addresses will be reflected
+in the ACLs of the participating interfaces. For the generation of
+static routes, the interfaces virtual IPs have to be used instead of
+the real ones.
+
+For this reason, Netspoc policy language allows to model virtual IP addresses:
+
+    network:n1 = {ip = 10.1.1.0/24;}
+    network:n2 = {ip = 10.1.2.0/24;}
+
+    router:r1 = {
+     interface:n1 = {ip = 10.1.1.11; 
+                     virtual = {ip = 10.1.1.1; type = HSPR} 
+                     hardware Ethernet1;} 
+     interface: n2 = {ip = 10.1.2.1; hardware = Ethernet2;}
+    } 
+
+    router:r2 = {
+     interface:n1 = {ip = 10.1.1.12;
+                     virtual = {ip = 10.1.1.1; type = HSPR} 
+                     hardware Ethernet1;} 
+     interface: n2 = {ip = 10.1.2.2; hardware = Ethernet2;}
+    } 
+
+Within the graph representation of topology, the virtual IP address is
+included more than once, with an additional virtual interface at every
+participating router (**Virtual IP** ). Obviously, virtual interfaces
+are reasonable only within cycles. Therefore Netspoc checks, whether
+all interfaces sharing a single virtual IP address are located inside
+the same loop.
+
+{% include image.html src="./images/virtual_interface.png" title="Virtual IP:" description="Virtual IP adresses are represented in Netspoc as additional interfaces" %}
+
+### Optimize Pathrestrictions
+
+Netspoc finds paths between source and destination by walking from
+both towards `zone1` until a common node is found. We have seen before
+that Netspoc is guided by distance values that have been attached to
+every router and zone. Loops are subsumed by single distance values,
+with the loop exit node being referenced within every loop node
+(**Finding loop paths**). Therefore, whenever a loop is entered during
+pathfinding, Netspoc knows which node is the node to proceed with on
+the path towards `zone1`. Obviously, Netspoc still needs to examine
+every loop in detail to find all paths from entrance to exit node to
+generate ACLs for the managed routers inside the loop. In the figure
+below, Netspoc would then find two paths from loop entrance to loop
+exit node, marked by the green and the red arrow.
+
+{% include image.html src="./images/find_loop_paths1.png" title = "Finding loop paths:" description="To generate ACLs for managed routers inside loops, all paths from loop entrance to loop exit node have to be found." %}
+
+Path exploration inside loops can be a very expensive step, especially
+with big and nested cycles. It is therefore a good idea to stop
+examining invalid paths as early as possible, which is why we have a
+closer look at pathrestrictions now. Imagine a pathrestriction was
+added to the topology (**Loop partitioning**, 1). Then, the red path
+from figure **Finding loop paths** is no longer valid. Currently,
+pathrestrictions are referenced in every participating interface
+object and contains information about participating interfaces
+only. Netspoc therefore would have to follow the red path until the
+pathrestrictions second interface is reached to find the path to be
+invalid. To save these steps, Netspoc divides loops with
+pathrestrictions into partitions and stores at every pathrestricted
+interface the partitions that can be reached when the interface is
+passed from router to zone (zone direction) or from zone to router
+(router direction). In doing so, Netspoc can decide at the first
+pathrestricted interface, whether a certain destination can or can not
+be reached on the path passing the interface.
+
+{% include image.html src="./images/find_loop_paths.png" title="Loop partitioning:"description="The cycle is divided into different parts that can be reached from pathrestricted interfaces." %}
+
+To receive loop partitioning, every pathrestriction interface that is
+located within a cycle is considered. The loop path is traversed from
+the interface until another interface of the same pathrestriction is
+reached. Nodes that are visited during traversal lie in between both
+pathrestrictions and are labeled with a unique partition
+number. Within the adjacent interface objects, this partition number
+is stored to keep track on the partitions that can be reached from the
+interfaces. Obviously, every interface can border two partitions,
+which is why two numbers are stored in every interface object: one for
+zone and one for router direction.  Consequently, loop path traversal
+has to be performed twice per interface, if the interface has not been
+found before during a traversal starting from another interface of the same
+pathrestriction.
