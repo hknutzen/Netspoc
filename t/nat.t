@@ -692,6 +692,43 @@ test_err($title, $in, $out);
 $title = 'Interface with dynamic NAT as destination';
 ############################################################
 
+# Should ignore error in policy_distribution_point,
+# because other error message is shown.
+$in = <<'END';
+network:n2 = { ip = 10.1.2.0/24; nat:dyn = { ip = 10.9.9.9/32; dynamic; }}
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ policy_distribution_point = host:h3;
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = vlan3; bind_nat = dyn; }
+}
+
+service:s = {
+ user = interface:asa1.n2;
+ permit src = host:h3; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Error: interface:asa1.n2 needs static translation for nat:dyn to be valid in rule
+ permit src=host:h3; dst=interface:asa1.n2; prt=tcp 22; of service:s
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Interface with dynamic NAT as destination in reversed rule';
+############################################################
+
 $in = <<'END';
 network:a = { ip = 10.1.1.0/24;}
 
@@ -1208,6 +1245,93 @@ Error: Must not apply hidden NAT 'h' on path
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Ignore hidden network in static routes';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {
+  ip = 10.1.1.1;
+  routing = OSPF;
+  hardware = outside;
+ }
+ interface:t1 = { ip = 10.5.5.164; hardware = inside; }
+}
+network:t1 = { ip = 10.5.5.160/28; }
+router:u1 = {
+ interface:t1 = { ip = 10.5.5.161;  bind_nat = h; }
+ interface:n2;
+ interface:n3;
+}
+
+network:n2 = { ip = 10.1.2.0/24; nat:h = { hidden; } }
+network:n3 = { ip = 10.1.3.0/24; }
+any:10_1   = { ip = 10.1.0.0/16; link = network:n2; }
+
+service:test = {
+ user =	network:n1;
+ permit src = user; dst = any:10_1; prt = proto 50;
+}
+END
+
+$out = <<'END';
+-- r1
+! [ Routing ]
+route inside 10.1.3.0 255.255.255.0 10.5.5.161
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Ignore hidden network in NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {
+  ip = 10.1.1.1;
+  routing = OSPF;
+  hardware = outside;
+  bind_nat = h;
+ }
+ interface:t1 = { ip = 10.5.5.164; hardware = inside; }
+}
+network:t1 = { ip = 10.5.5.160/28; }
+router:u1 = {
+ interface:t1 = { ip = 10.5.5.161; }
+ interface:n2;
+ interface:n3;
+}
+
+network:n2 = { ip = 10.1.2.0/24; nat:h = { hidden; } }
+network:n3 = { ip = 10.1.3.0/24; }
+any:10_1   = { ip = 10.1.0.0/16; link = network:n2; }
+
+service:test = {
+ user =	network:n1;
+ permit src = user; dst = any:10_1; prt = proto 50;
+}
+END
+
+$out = <<'END';
+-- r1
+! [ ACL ]
+access-list outside_in extended permit 50 10.1.1.0 255.255.255.0 10.1.0.0 255.255.0.0
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Traverse hidden NAT domain in loop';

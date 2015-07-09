@@ -445,10 +445,10 @@ sub setup_service_info {
     Netspoc::progress("Setup service info");
     for my $service (values %Netspoc::services) {
         next if $service->{disabled};
-        my $pname = $service->{name};
+        my $sname = $service->{name};
 
         my $users = $service->{expanded_user} =
-            Netspoc::expand_group($service->{user}, "user of $pname");
+            Netspoc::expand_group($service->{user}, "user of $sname");
 
         # Non 'user' objects.
         my @objects;
@@ -460,7 +460,7 @@ sub setup_service_info {
             my $has_user = $rule->{has_user};
             $rule->{expanded_prt} =
                 proto_descr(Netspoc::expand_protocols($rule->{prt}, 
-                                                     "rule in $pname"));
+                                                     "rule in $sname"));
             if ($has_user eq 'both') {
                 $is_coupling = 1;
                 next;
@@ -469,34 +469,45 @@ sub setup_service_info {
 
                 next if $what eq $has_user;
                 my $all = 
-
-                    # Store expanded src and dst for later use 
-                    # in export_protocols.
-                    $rule->{"expanded_$what"} = 
                     [ sort by_name
                       @{ Netspoc::expand_group($rule->{$what}, 
-                                               "$what of $pname") } ];
+                                               "$what of $sname") } ];
 
                 # Expand auto interface to set of real interfaces.
-                # This changes {expanded_src} and {expanded_dst} as well.
                 expand_auto_intf($all, $users);
+
+                # Store expanded src and dst for later use 
+                # in export_services.
+                $rule->{"expanded_$what"} = $all;
+
                 push(@objects, @$all);
             }
         }
 
         @objects = unique(@objects);
 
-        # Expand auto interface to set of real interfaces.
+        # Expand auto interfaces in users with counterpart in
+        # - users and objects
+        # - only users
+        # - only objects.
         # This changes {expanded_user} as well.
-        expand_auto_intf($users, \@objects);
+        # Add elements of expanded users to objects.
+        if ($is_coupling) {
+            if (@objects) {
+                expand_auto_intf($users, [ @objects, @$users ]);
+            }
+            else {
+                expand_auto_intf($users, $users);
+            }
+            @objects = unique(@objects, @$users);
+            $users = [];
+        }
+        else {
+            expand_auto_intf($users, \@objects);
+        }
 
         # Store referenced objects for later use during export.
         @all_objects{@objects, @$users} = (@objects, @$users);
-
-        # Take elements of 'user' object, if service has coupling rule.
-        if ($is_coupling) {
-            @objects = unique(@objects, @$users);
-        }
 
         # Input: owner objects, output: owner names
         my $owners = owners_for_objects(\@objects); 
@@ -507,13 +518,11 @@ sub setup_service_info {
         $service->{owners} = $owners;
         $service->{part_owners} = part_owners_for_objects(\@objects);
         $service->{extended_owners} = extended_owners_for_objects(\@objects);
-        my $uowners = $service->{uowners} = 
-            $is_coupling ? [] : owners_for_objects($users);
-        $service->{part_uowners} = 
-            $is_coupling ? [] : part_owners_for_objects($users);
 
-        $service->{extended_uowners} = 
-            $is_coupling ? [] : extended_owners_for_objects($users);
+        my $uowners = owners_for_objects($users);
+        $service->{uowners} = $uowners;
+        $service->{part_uowners} = part_owners_for_objects($users);
+        $service->{extended_uowners} = extended_owners_for_objects($users);
 
         # Für Übergangszeit aus aktueller Benutzung bestimmen.
         $service->{visible} ||= find_visibility($owners, $uowners);

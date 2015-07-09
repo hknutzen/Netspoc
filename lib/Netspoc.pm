@@ -34,7 +34,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '3.068'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.069'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Network Security Policy Compiler';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -101,7 +101,6 @@ our @EXPORT = qw(
   check_unused_groups
   setpath
   path_walk
-  find_active_routes_and_statics
   check_supernet_rules
   optimize_and_warn_deleted
   distribute_nat_info
@@ -454,7 +453,7 @@ sub aref_delete {
 # Compare two array references element wise.
 sub aref_eq  {
     my ($a1, $a2) = @_;
-    return if @$a1 ne @$a2;
+    @$a1 == @$a2 or return;
     for (my $i = 0 ; $i < @$a1 ; $i++) {
         return if $a1->[$i] ne $a2->[$i];
     }
@@ -7357,7 +7356,8 @@ sub expand_auto_intf {
             push @new, path_auto_interfaces($src, $dst);
         }
 
-        # Substitute auto interface by real interface.
+        # Substitute auto interface by real interface(s).
+        # Possible duplicate elements in @new are removed later.
         splice(@$src_aref, $i, 1, @new);
     }
     return;
@@ -7420,13 +7420,25 @@ sub set_service_owner {
             }
         }
 
-        # Expand auto interface to set of real interfaces.
+        # Expand auto interface of objects in rules to set of real interfaces.
         expand_auto_intf(\@objects, $users);
-        expand_auto_intf($users,    \@objects);
 
-        # Take elements of 'user' object, if service has coupling rule.
+        # Expand auto interfaces in users with counterpart in
+        # - users and objects
+        # - only users
+        # - only objects.
+        # Add elements of expanded users to objects.
         if ($is_coupling) {
+            if (@objects) {
+                expand_auto_intf($users, [ @objects, @$users ]);
+            }
+            else {
+                expand_auto_intf($users, $users);
+            }
             push @objects, @$users;
+        }
+        else {
+            expand_auto_intf($users, \@objects);
         }
 
         # Collect service owners and unknown owners;
@@ -14563,6 +14575,7 @@ sub print_routes {
             my $net_hash = $interface->{routes}->{$hop};
             for my $network (values %$net_hash) {
                 my $nat_network = get_nat_network($network, $no_nat_set);
+                next if $nat_network->{hidden};
                 my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
                 if ($ip == 0 and $mask == 0) {
                     $do_auto_default_route = 0;
@@ -14740,15 +14753,22 @@ sub print_nat1 {
               sort {
                      $a->{ip} <=> $b->{ip}
                   || $a->{mask} <=> $b->{mask}
-                  || get_nat_network($a, $out_nat)
-                  ->{ip} <=> get_nat_network($b, $out_nat)->{ip}
+
+                  # Use value 0 for hidden network.
+                  ||     (get_nat_network($a, $out_nat)->{ip} || 0)
+                     <=> (get_nat_network($b, $out_nat)->{ip} || 0)
               } values %$net_hash;
 
             for my $network (@networks) {
-                my ($in_ip, $in_mask, $in_dynamic) =
-                  @{ get_nat_network($network, $in_nat) }{qw(ip mask dynamic)};
-                my ($out_ip, $out_mask, $out_dynamic) =
-                  @{ get_nat_network($network, $out_nat) }{qw(ip mask dynamic)};
+                my ($in_ip, $in_mask, $in_dynamic, $in_hidden) =
+                  @{ get_nat_network($network, $in_nat) }{qw(ip mask dynamic 
+                                                                     hidden)};
+                my ($out_ip, $out_mask, $out_dynamic, $out_hidden) =
+                  @{ get_nat_network($network, $out_nat) }{qw(ip mask dynamic
+                                                                      hidden)};
+
+                # Ignore hidden network.
+                next if $in_hidden or $out_hidden;
 
                 # Ignore dynamic translation, which doesn't occur at
                 # current router
@@ -15543,9 +15563,9 @@ sub address {
             }
             else {
 
-                # This has been converted to the  whole network before.
-                internal_err(
-                    "Unexpected $obj->{name} with dynamic nat:$nat_tag");
+                # This has been converted to the  whole network before,
+                # and hence should never happen.
+                return [ $network->{ip}, $network->{mask} ];
             }
         }
         else {
@@ -15575,8 +15595,10 @@ sub address {
                 return [ $ip, 0xffffffff ];
             }
             else {
-                internal_err(
-                    "Unexpected $obj->{name} with dynamic nat:$nat_tag");
+
+                # Should never happen.
+                # aborts with error in mark_dynamic_nat_rules.
+                return [ $network->{ip}, $network->{mask} ];
             }
         }
         else {

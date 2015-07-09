@@ -1,3 +1,10 @@
+3.069     2015-07-09 10:44:08+02:00 Europe/Berlin
+
+ - Ignore hidden networks when processing static routes and NAT 
+   for networks of aggregates.
+ - Fixed owner of auto-interfaces in users-user rules.
+ - Fixed 'misc/anonymize'.
+
 3.068     2015-06-29 13:33:46+02:00 Europe/Berlin
 
  - Attribute 'peer-id-validate nocheck' of tunnel-group ipsec-attributes
