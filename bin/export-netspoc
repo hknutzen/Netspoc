@@ -474,7 +474,6 @@ sub setup_service_info {
                                                "$what of $sname") } ];
 
                 # Expand auto interface to set of real interfaces.
-                # This changes {expanded_src} and {expanded_dst} as well.
                 expand_auto_intf($all, $users);
 
                 # Store expanded src and dst for later use 

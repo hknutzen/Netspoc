@@ -453,7 +453,7 @@ sub aref_delete {
 # Compare two array references element wise.
 sub aref_eq  {
     my ($a1, $a2) = @_;
-    return if @$a1 ne @$a2;
+    @$a1 == @$a2 or return;
     for (my $i = 0 ; $i < @$a1 ; $i++) {
         return if $a1->[$i] ne $a2->[$i];
     }
