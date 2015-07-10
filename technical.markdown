@@ -505,7 +505,7 @@ passed from router to zone (zone direction) or from zone to router
 pathrestricted interface, whether a certain destination can or can not
 be reached on the path passing the interface.
 
-{% include image.html src="./images/find_loop_paths.png" title="Loop partitioning:"description="The cycle is divided into different parts that can be reached from pathrestricted interfaces." %}
+{% include image.html src="./images/find_loop_paths.png" title="Loop partitioning:" description="The cycle is divided into different parts that can be reached from pathrestricted interfaces." %}
 
 To receive loop partitioning, every pathrestriction interface that is
 located within a cycle is considered. The loop path is traversed from

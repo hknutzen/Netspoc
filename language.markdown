@@ -399,8 +399,15 @@ empty.  Intersection and complement is not defined for protocol groups.
 
 An area denotes a part of the topology which is delimited by a set
 of managed interfaces. An area typically spans multiple security
-zones. Areas are used to easily denote all networks or security
-zones of some part of the topology.
+zones. Areas are used
+
+- to easily denote all networks or security zones of some part of the
+  topology,
+
+- to inherit attributes `nat` or `owner` to enclosed security zones
+  and networks or
+
+- to inherit `router_attributes` to managed routers inside the area.
 
 Use attributes `border` or `inclusive_border` to define interfaces
 which are border of the area. `border` is exclusive. The router of the
@@ -796,14 +803,6 @@ A crosslink network combines two or more routers to a cluster of
   other logical networks attached.
 - Crosslink networks are silently removed from automatic groups.
 
-##Network with isolated ports
-
-For a network with attribute `isolated_ports`, hosts inside this
-network are not allowed to talk directly to each other. Instead, the
-traffic must go through an interface which is marked with attribute
-`promiscuous_port`.  Non promiscuous interfaces are isolated as well
-and handled like hosts.
-
 ## Protocol modifiers
 
 One or more protocol modifiers can optionally be appended to a named
@@ -881,7 +880,7 @@ part of the topology which is seen when looking from the router to
 that interface. All occurrences of disabled network resources in groups and
 rules are silently discarded.
 
-## Disabling object-groups
+## Disable generation of object-groups
 
 Netspoc generates optimized code using object-groups for Cisco ASA and
 PIX firewalls.  Use router attribute `no_group_code` to disable this
