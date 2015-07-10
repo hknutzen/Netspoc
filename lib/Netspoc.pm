@@ -604,6 +604,9 @@ our $input;
 # Current line number of input file.
 our $line;
 
+# Uses global: $current_file: Name of current input file
+# Uses global: $input: Content of the current file
+# Uses global: $line: Current line number of input file
 sub context {
     my $context;
     if (pos $input == length $input) {
@@ -617,6 +620,8 @@ sub context {
     return qq/ at line $line of $current_file, $context\n/;
 }
 
+# Uses global: $current_file: Name of current input file
+# Uses global: $line: Current line number of input file
 sub at_line {
     return qq/ at line $line of $current_file\n/;
 }
@@ -688,6 +693,7 @@ sub syntax_err {
     die "Syntax error: ", @args, context();
 }
 
+# Uses global: $error_counter
 sub internal_err {
     my (@args) = @_;
 
@@ -710,6 +716,9 @@ sub internal_err {
 
 # $input is used as input buffer, it holds content of current input file.
 # Progressive matching is used. \G is used to match current position.
+#
+# Uses global: $input: Content of the current file
+# Uses global: $line: Current line number of input file
 sub skip_space_and_comment {
 
     # Ignore trailing white space and comments.
@@ -726,6 +735,8 @@ sub skip_space_and_comment {
 my %token2regex;
 
 # Check for a string and skip if available.
+#
+# Uses global: $input: Content of the current file
 sub check {
     my $token = shift;
     skip_space_and_comment;
@@ -740,6 +751,8 @@ sub skip {
 }
 
 # Check, if an integer is available.
+#
+# Uses global: $input: Content of the current file
 sub check_int {
     skip_space_and_comment;
     if ($input =~ m/\G(\d+)/gc) {
@@ -758,6 +771,8 @@ sub read_int {
 }
 
 # Read IP address. Internally it is stored as an integer.
+#
+# Uses global: $input: Content of the current file
 sub check_ip {
     skip_space_and_comment;
     if ($input =~ m/\G(\d+)\.(\d+)\.(\d+)\.(\d+)/gc) {
@@ -844,6 +859,7 @@ sub match_ip {
     return ($ip == ($ip1 & $mask));
 }
 
+# Uses global: $input: Content of the current file
 sub read_identifier {
     skip_space_and_comment;
     if ($input =~ m/(\G[\w-]+)/gc) {
@@ -855,6 +871,8 @@ sub read_identifier {
 }
 
 # Pattrern for attribute "visible": "*" or "name*".
+#
+# Uses global: $input: Content of the current file
 sub read_owner_pattern {
     skip_space_and_comment;
     if ($input =~ m/ ( \G [\w-]* [*] ) /gcx) {
@@ -866,6 +884,8 @@ sub read_owner_pattern {
 }
 
 # Used for reading hardware name, model, admins, watchers.
+#
+# Uses global: $input: Content of the current file
 sub read_name {
     skip_space_and_comment;
     if ($input =~ m/(\G[^;,\s""'']+)/gc) {
@@ -877,6 +897,8 @@ sub read_name {
 }
 
 # Used for reading alias name or radius attributes.
+#
+# Uses global: $input: Content of the current file
 sub read_string {
     skip_space_and_comment;
     if ($input =~ m/\G([^;,""''\n]+)/gc) {
@@ -918,6 +940,8 @@ sub read_union {
 }
 
 # Check for xxx:xxx | router:xx@xx | network:xx/xx | interface:xx/xx
+#
+# Uses global: $input: Content of the current file
 sub check_typed_name {
     skip_space_and_comment;
     $input =~ m/ \G (\w+) : /gcx or return;
@@ -973,6 +997,7 @@ sub read_typed_name {
 # or host:id:user@domain.network
 # or host:id:[@]domain.network
 #
+# Uses global: $input: Content of the current file
     sub read_extended_name {
 
         if (check 'user') {
@@ -1042,6 +1067,8 @@ sub read_typed_name {
     }
 
 # user@domain
+#
+# Uses global: $input: Content of the current file
     sub read_user_id {
         skip_space_and_comment;
         if ($input =~ m/\G($user_id_regex)/gco) {
@@ -1053,6 +1080,8 @@ sub read_typed_name {
     }
 
 # host:xxx or host:id:user@domain or host:id:[@]domain
+#
+# Uses global: $input: Content of the current file
     sub check_hostname {
         skip_space_and_comment;
         if ($input =~ m/\G host:/gcx) {
@@ -1129,6 +1158,8 @@ sub add_description {
 }
 
 # Check if one of the keywords 'permit' or 'deny' is available.
+#
+# Uses global: $input: Content of the current file
 sub check_permit_deny {
     skip_space_and_comment();
     if ($input =~ m/\G(permit|deny)/gc) {
@@ -1139,6 +1170,7 @@ sub check_permit_deny {
     }
 }
 
+# Uses global: $input: Content of the current file
 sub check_nat_name {
     skip_space_and_comment;
     if ($input =~ m/\G nat:([\w-]+)/gcx) {
@@ -1406,8 +1438,7 @@ sub host_as_interface {
 #
 # Return: Host object
 #
-# Uses global: $input: Content of the current file
-# Uses global: $router_info: Map of different router models
+# Uses global: $private: Propagate private flag from a directory to it's files and sub-directories
 #
 # Called while the creation of Network objects by read_network
 sub read_host {
@@ -1573,7 +1604,9 @@ our %networks;
 # Parameter: "network:$name"
 # Return: Network object
 #
-# Uses global: $input: Content of the current file
+# Uses global: $current_file: Name of current input file
+# Uses global: $private: Propagate private flag from a directory to it's files and sub-directories
+# Uses global: %hosts
 sub read_network {
     my $name = shift;
 
@@ -1781,7 +1814,6 @@ my %crypto2hubs;
 # Parameter: "interface:$iname"
 # Return: Interface object, Array of secondary Interface objects
 #
-# Uses global: $input: Content of the current file
 # Uses global: $file: 
 # Uses global: %token2regex: Cache of regexes
 #
@@ -2130,9 +2162,10 @@ our %routers;
 # Parameter: "router:$name"
 # Return: Router object
 #
-# Uses global: $input: Content of the current file
 # Uses global: $router_info: HASH of different router models. Router name => Router parameter HASH
 # Uses global: %interfaces: HASH of interface name => Interface object
+# Uses global: $private: Propagate private flag from a directory to it's files and sub-directories
+# Uses global: %networks: HASH of network name => Network object
 sub read_router {
     my $name = shift;
 
@@ -2726,7 +2759,8 @@ our %aggregates;
 
 # Parameter: "any:$name"
 # Return: Network object
-# Uses global: $input: Content of the current file
+#
+# Uses global: $private: Propagate private flag from a directory to it's files and sub-directories
 sub read_aggregate {
     my $name = shift;
     my $aggregate = new('Network', name => $name, is_aggregate => 1);
@@ -2811,7 +2845,6 @@ our %areas;
 
 # Parameter: "area:$name"
 # Return: Area object
-# Uses global: $input: Content of the current file
 sub read_area {
     my $name = shift;
     my $area = new('Area', name => $name);
@@ -2878,7 +2911,7 @@ our %groups;
 # Parameter: "group:$name"
 # Return: Group object
 #
-# Uses global: $input: Content of the current file
+# Uses global: $private: Propagate private flag from a directory to it's files and sub-directories
 sub read_group {
     my $name = shift;
     skip '=';
@@ -2895,7 +2928,6 @@ our %protocolgroups;
 # Parameter: "protocolgroup:$name"
 # Return: Protocolgroup object
 #
-# Uses global: $input: Content of the current file
 sub read_protocolgroup {
     my $name = shift;
     skip '=';
@@ -3081,8 +3113,6 @@ sub cache_anonymous_protocol {
 # Parameter: "$name"
 # Return: HASH
 #
-# Uses global: $input: Content of the current file
-#
 # Called by read_protocol, read_service
 sub read_simple_protocol {
     my $name     = shift;
@@ -3146,7 +3176,6 @@ sub read_typed_name_or_simple_protocol {
 
 # Parameter: "protocol:$name"
 # Return: Protocol HASH
-# Uses global: $input: Content of the current file
 sub read_protocol {
     my $name = shift;
     skip '=';
@@ -3172,8 +3201,8 @@ sub assign_union_allow_user {
 # Parameter: "service:$name"
 # Return: Service HASH
 #
-# Uses global: $input: Content of the current file
 # Uses global: $user_object
+# Uses global: $private: Propagate private flag from a directory to it's files and sub-directories
 sub read_service {
     my ($name) = @_;
     my $service = { name => $name, rules => [] };
@@ -3262,7 +3291,7 @@ our %pathrestrictions;
 # Parameter: "pathrestriction:$name"
 # Return: Pathrestriction object
 #
-# Uses global: $input: Content of the current file
+# Uses global: $private: Propagate private flag from a directory to it's files and sub-directories
 sub read_pathrestriction {
     my $name = shift;
     skip '=';
@@ -3409,7 +3438,7 @@ our %crypto;
 # Parameter: "crypto:$name"
 # Return: HASH
 #
-# Uses global: $input: Content of the current file
+# Uses global: $private: Propagate private flag from a directory to it's files and sub-directories
 sub read_crypto {
     my ($name) = @_;
     skip '=';
@@ -3440,8 +3469,6 @@ our %owners;
 
 # Parameter: "$owner:$name"
 # Return: Owner object
-#
-# Uses global: $input: Content of the current file
 sub read_owner {
     my $name = shift;
     my $owner = new('Owner', name => $name);
@@ -3509,6 +3536,7 @@ my %global_type = (
     crypto          => [ \&read_crypto,          \%crypto ],
 );
 
+# Uses global: $current_file: Name of current input file
 sub read_netspoc {
 
     # Check for global definitions.
@@ -3530,6 +3558,10 @@ sub read_netspoc {
 }
 
 # Read input from file and process it by function which is given as argument.
+#
+# Uses global: $input: Content of the current file
+# Uses global: $current_file: Name of current input file
+# Uses global: $line: Current line number of input file
 sub read_file {
     local $current_file = shift;
     my $read_syntax = shift;
@@ -3589,6 +3621,8 @@ sub read_config {
     return \%result;
 }
 
+# Uses global: %config: User configurable options
+# Uses global: %owners: HASH of owner name => Owner object
 sub read_json_watchers {
     my ($path) = @_;
     opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
@@ -3628,7 +3662,8 @@ sub read_json_watchers {
     }
     return;
 }
-       
+
+# Uses global: %config: User configurable options
 sub read_json {
     my ($path) = @_;
     opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
@@ -3735,6 +3770,14 @@ sub read_file_or_dir {
 #
 # Parameter: -none-
 # Return: -nothing-
+#
+# Uses global: %groups: HASH of group name => Group object
+# Uses global: %hosts
+# Uses global: %networks: HASH of network name => Network object
+# Uses global: %protocolgroups
+# Uses global: %protocols: Cache of already parsed protocols
+# Uses global: %routers: HASH of router device_name => Router object
+# Uses global: %services: HASH of service name => service parameter HASH
 sub show_read_statistics {
     my $n  = keys %networks;
     my $h  = keys %hosts;
@@ -3804,6 +3847,7 @@ my %prt_hash;
 # Return: -nothing-
 # 
 # Uses global: %prt_hash: Look up a protocol HASH by its defining attributes
+# Uses global: %ref2prt: HASH of reference of a protocol => protocol
 sub prepare_prt_ordering {
     my ($prt) = @_;
     my $proto = $prt->{proto};
@@ -3870,6 +3914,8 @@ sub prepare_prt_ordering {
 # Parameter: Protocol 'ip' -> global $prt_ip
 #
 # Return: -nothing-
+#
+# Uses global: %ref2prt: HASH of reference of a protocol => protocol
 sub order_icmp {
     my ($hash, $up) = @_;
 
@@ -3900,6 +3946,8 @@ sub order_icmp {
 # Parameter: Protocol 'ip' -> global $prt_ip
 #
 # Return: -nothing-
+#
+# Uses global: %ref2prt: HASH of reference of a protocol => protocol
 sub order_proto {
     my ($hash, $up) = @_;
     for my $prt (values %$hash) {
@@ -4144,6 +4192,7 @@ my $range_tcp_established;
 # Uses global: $prt_natt
 # Uses global: $prt_esp
 # Uses global: $prt_ah
+# Uses global: %ref2prt: HASH of reference of a protocol => protocol
 sub order_protocols {
     progress('Arranging protocols');
 
@@ -4245,6 +4294,8 @@ sub link_to_real_owner {
 #         - if Owner has watching owners: ARRAY of admin names and watcher names 
 #         - if watchers eq 'recursive':   Empty ARRAY 
 #         - else:                         ARRAY of admin names and expanded watchers
+#
+# Uses global: %owners: HASH of owner name => Owner object
 sub expand_watchers {
     my ($owner) = @_;
     my $names = $owner->{watchers};
@@ -4297,6 +4348,7 @@ sub expand_watchers {
 # Uses global: %areas: HASH of area name => Area object
 # Uses global: @router_fragments
 # Uses global: %services: HASH of service name => service parameter HASH
+# Uses global: %routers: HASH of router device_name => Router object
 sub link_owners {
 
     my %alias2owner;
@@ -4391,6 +4443,8 @@ sub link_owners {
 
 # Parameter: Router object
 # Return: -nothing-
+#
+# Uses global: %hosts
 sub link_policy_distribution_point {
     my ($obj) = @_;
     my $pair = $obj->{policy_distribution_point} or return;
@@ -4531,6 +4585,8 @@ sub link_areas {
 #
 # Parameter: Router object
 # Return: -nothing-
+#
+# Uses global: %networks: HASH of network name => Network object
 sub link_interfaces {
     my ($router) = @_;
     for my $interface (@{ $router->{interfaces} }) {
@@ -4665,6 +4721,8 @@ sub link_routers {
 # Parameter: Network object
 #
 # Return: -nothing-
+#
+# Uses global: %networks: HASH of network name => Network object
 sub link_subnet  {
     my ($object, $parent) = @_;
 
@@ -5246,6 +5304,9 @@ sub check_bridged_networks {
 # Uses global: @routing_only_routers
 # Uses global: @managed_routers: ARRAY of artificial Router objects which were created for an interface which represents a managed host
 # Uses global: @virtual_interfaces
+# Uses global: %areas: HASH of area name => Area object
+# Uses global: %networks: HASH of network name => Network object
+# Uses global: %routers: HASH of router device_name => Router object
 sub mark_disabled {
     my @disabled_interfaces = grep { $_->{disabled} } values %interfaces;
 
@@ -5817,6 +5878,7 @@ sub expand_group1;
 # Return: ARRAY of objects: Network, Subnet, Interface, Autointerface, Host
 #
 # Uses global: %interfaces: HASH of interface name => Interface object
+# Uses global: %routers: HASH of router device_name => Router object
 sub expand_group1 {
     my ($aref, $context, $clean_autogrp) = @_;
     my @objects;
@@ -6501,6 +6563,9 @@ sub check_unused_groups {
 # - dst_range of (splitted) TCP/UDP protocol 
 # - [ src_range, dst_range, orig_prt ] 
 #     of (splitted) protocol having src_range or main_prt.
+#
+# Uses global: %protocolgroups
+# Uses global: %protocols: Cache of already parsed protocols
 sub expand_protocols {
     my ($aref, $context) = @_;
     my @protocols;
@@ -6904,6 +6969,8 @@ sub collect_unenforceable  {
 
 # Parameter: HASH containing service parameter
 # Return: -nothing-
+#
+# Uses global: %config: User configurable options
 sub show_unenforceable {
     my ($service) = @_;
     my $context = $service->{name};
@@ -7365,6 +7432,7 @@ sub split_expanded_rule_types {
 # Parameter: if true, hosts are converted to subnets
 # Return: -nothing-
 #
+# Uses global: %owners: HASH of owner name => Owner object
 # Uses global: %services: HASH of service name => service parameter HASH
 sub expand_services {
     my ($convert_hosts) = @_;
@@ -7587,6 +7655,7 @@ sub set_policy_distribution_ip  {
 #
 # Uses global: @zones: ARRAY of Zone objects, identified zones
 # Uses global: %routers: HASH of router device_name => Router object
+# Uses global: %owners: HASH of owner name => Owner object
 ##############################################################################
 sub propagate_owners {
     my %zone_got_net_owners;
@@ -8692,6 +8761,8 @@ sub invert_nat_set {
 #
 # Parameter: -none-
 # Return: -nothing-
+#
+# Uses global: %crypto
 sub adjust_crypto_nat {
     my %seen;
     for my $crypto (values %crypto) {
@@ -9831,6 +9902,7 @@ sub link_implicit_aggregate_to_zone {
 # Return: -nothing-
 #
 # Uses global: %aggregates
+# Uses global: %networks: HASH of network name => Network object
 sub link_aggregates {
 
     my @aggregates_in_cluster; # Collect all aggregates inside clusters
@@ -12357,6 +12429,7 @@ sub link_ipsec  {
 # Return: -nothing-
 #
 # Uses global: %ipsec
+# Uses global: %crypto
 sub link_crypto  {
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
@@ -12426,6 +12499,7 @@ sub gen_tunnel_rules  {
 # Return: -nothing-
 #
 # Uses global: @managed_crypto_hubs
+# Uses global: %crypto
 sub link_tunnels  {
 
     my %hub_seen;
@@ -12748,6 +12822,8 @@ sub verify_asa_trustpoint {
 # Return: -nothing-
 #
 # Uses global: @managed_crypto_hubs
+# Uses global: %crypto
+# Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
 sub expand_crypto  {
     progress('Expanding crypto rules');
 
@@ -13627,6 +13703,7 @@ sub find_smaller_prt  {
 # Uses global: %rule_tree: Hash for ordering all rules
 # Uses global: %obj2zone
 # Uses global: %config: User configurable options
+# Uses global: %expanded_rules: Hash with attributes deny, supernet, permit for storing expanded rules of different type
 sub check_for_transient_supernet_rule {
     my %missing_rule_tree;
     my $missing_count = 0;
@@ -14527,6 +14604,8 @@ sub mark_dynamic_nat_rules {
 # Parameter: HASH of rules
 #
 # Return: -nothing-
+#
+# Uses global: %ref2prt: HASH of reference of a protocol => protocol
 ##############################################################################
 sub optimize_rules {
  my ($cmp_hash, $chg_hash) = @_;
@@ -15519,6 +15598,7 @@ sub print_header {
     return;
 }
 
+# Uses global: %config: User configurable options
 sub print_routes {
     my ($router)              = @_;
     my $model                 = $router->{model};
@@ -16812,6 +16892,7 @@ sub iptables_prt_code {
     }
 }
 
+# Uses global: %config: User configurable options
 sub cisco_acl_line {
     my ($router, $rules_aref, $no_nat_set, $prefix) = @_;
     my $model       = $router->{model};
@@ -19345,6 +19426,7 @@ sub print_acl_suffix {
     return;
 }
 
+# Uses global: %config: User configurable options
 sub print_iptables_acls {
     my ($router)     = @_;
     my $model        = $router->{model};
@@ -19396,6 +19478,7 @@ sub print_iptables_acls {
     return;
 }
 
+# Uses global: %config: User configurable options
 sub print_cisco_acls {
     my ($router)     = @_;
     my $model        = $router->{model};
@@ -20334,6 +20417,8 @@ sub show_version {
 #
 # Parameter: -none-
 # Return: -nothing-
+#
+# Uses global: %config: User configurable options
 sub show_finished {
     progress('Finished') if $config{time_stamps};
     return;
@@ -20468,6 +20553,11 @@ sub init_protocols {
     return;
 }
 
+# Uses global: $abort_immediately
+# Uses global: $error_counter
+# Uses global: %hosts
+# Uses global: %interfaces: HASH of interface name => Interface object
+# Uses global: %ref2prt: HASH of reference of a protocol => protocol
 sub init_global_vars {
     $start_time = time();
     $error_counter = 0;
