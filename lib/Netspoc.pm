@@ -10975,6 +10975,8 @@ sub cluster_path_mark  {
     # If start / end interface is part of a group of virtual
     # interfaces (VRRP, HSRP),
     # prevent traffic through other interfaces of this group.
+    # This simulates automatically added pathrestriction added at 
+    # redundancy interfaces.
     for my $intf ($start_intf, $end_intf) {
         next if !$intf;
         if (my $interfaces = $intf->{redundancy_interfaces}) {
