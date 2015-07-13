@@ -236,7 +236,11 @@ sub get_config_pattern {
 }
 
 # Checks for valid config key/value pair.
-# Returns false on success, the expected pattern on failure.
+#
+# Parameter: string, the key of the config pattern
+# Parameter: string, the value which is checked agains the regex with $key
+#
+# Return: false on success, the expected pattern on failure.
 sub check_config_pair {
     my ($key, $value) = @_;
     my $pattern = get_config_pattern($key);
@@ -604,6 +608,9 @@ our $input;
 # Current line number of input file.
 our $line;
 
+# Parameter: -none-
+# Return: string, like " at line <line> of <file>, <context dependent message>\n"
+#
 # Uses global: $current_file: Name of current input file
 # Uses global: $input: Content of the current file
 # Uses global: $line: Current line number of input file
@@ -620,6 +627,8 @@ sub context {
     return qq/ at line $line of $current_file, $context\n/;
 }
 
+# Return: String like " at line <line> of <file>\n"
+#
 # Uses global: $current_file: Name of current input file
 # Uses global: $line: Current line number of input file
 sub at_line {
@@ -647,6 +656,8 @@ sub check_abort {
     }
 }
 
+# Ends the script if $error_counter is set.
+#
 # Parameter: -none-
 # Return: -nothing-
 #
@@ -665,6 +676,12 @@ sub set_abort_immediately {
     return;
 }
 
+# Prints the passed ARRAY of strings to STDERR and may terminate the script.
+#
+# Parameter: ARRAY of strings
+# Return: -nothing-
+#
+# See also: err_msg() and at_line()
 sub error_atline {
     my (@args) = @_;
     print STDERR "Error: ", @args, at_line();
@@ -672,6 +689,10 @@ sub error_atline {
     return;
 }
 
+# Prints the passed ARRAY of strings to STDERR and may terminate the script.
+#
+# Parameter: ARRAY of strings
+# Return: -nothing-
 sub err_msg {
     my (@args) = @_;
     print STDERR "Error: ", @args, "\n";
@@ -717,6 +738,9 @@ sub internal_err {
 # $input is used as input buffer, it holds content of current input file.
 # Progressive matching is used. \G is used to match current position.
 #
+# Parameter: -none-
+# Return: -nothing-
+#
 # Uses global: $input: Content of the current file
 # Uses global: $line: Current line number of input file
 sub skip_space_and_comment {
@@ -736,6 +760,9 @@ my %token2regex;
 
 # Check for a string and skip if available.
 #
+# Parameter: string to check if it is contained in the opened file input after the current position
+# Return: 1 if the passed string is contained
+#
 # Uses global: $input: Content of the current file
 sub check {
     my $token = shift;
@@ -751,6 +778,9 @@ sub skip {
 }
 
 # Check, if an integer is available.
+#
+# Parameter: -none-
+# Return: the integer or undef if no integer could be read
 #
 # Uses global: $input: Content of the current file
 sub check_int {
@@ -771,6 +801,9 @@ sub read_int {
 }
 
 # Read IP address. Internally it is stored as an integer.
+#
+# Parameter: -none-
+# Return: the IP as integer or undef if no IP could be read
 #
 # Uses global: $input: Content of the current file
 sub check_ip {
@@ -848,6 +881,8 @@ sub print_ip {
     }
 }
 
+# Parameter: IP as integer
+# Return: the 32bit complement as integer
 sub complement_32bit {
     my ($ip) = @_;
     return ~$ip & 0xffffffff;
@@ -913,6 +948,10 @@ sub read_string {
 # This is only 'active' while parsing src or dst of the rule of a service.
 my $user_object = { active => 0, refcount => 0, elements => undef };
 
+# Parameter: string, delimiting line end character
+# Return: ARRAY
+#
+# Uses global: $user_object: Representing 'user'
 sub read_union {
     my ($delimiter) = @_;
     my @vals;
@@ -940,6 +979,9 @@ sub read_union {
 }
 
 # Check for xxx:xxx | router:xx@xx | network:xx/xx | interface:xx/xx
+#
+# Parameter: -none-
+# Return: ARRAY containing type and name
 #
 # Uses global: $input: Content of the current file
 sub check_typed_name {
@@ -996,6 +1038,12 @@ sub read_typed_name {
 # or network:xxx/ppp
 # or host:id:user@domain.network
 # or host:id:[@]domain.network
+#
+# Parameter: -none-
+# Return: ARRAY:
+#         - for user definition: ['user', $user_object]
+#         - for an object definition: [$type, $name]
+#         - for an interface with additional auto or all configuration: ['interface', $name, 'auto'|'all']
 #
 # Uses global: $input: Content of the current file
     sub read_extended_name {
@@ -1081,6 +1129,9 @@ sub read_typed_name {
 
 # host:xxx or host:id:user@domain or host:id:[@]domain
 #
+# Parameter: -none-
+# Return: the hostname or undef if hostname cannot be parsed
+# 
 # Uses global: $input: Content of the current file
     sub check_hostname {
         skip_space_and_comment;
@@ -1098,6 +1149,8 @@ sub read_typed_name {
     }
 }
 
+# Parameter: -none-
+# Return: parsed line as ARRAY, if line contains '!' the ARRAY is nested in a parent ARRAY.
 sub read_complement {
     if (check '!') {
         return [ '!', read_extended_name() ];
@@ -1107,6 +1160,10 @@ sub read_complement {
     }
 }
 
+# Parameter: -none-
+# Return: string or ARRAY
+#         - if line has no intersection the type
+#         - if line has an intersection an ARRAY is returned which contains the ARRAYs of the extended name
 sub read_intersection {
     my @result = read_complement();
     while (check '&') {
@@ -1159,6 +1216,9 @@ sub add_description {
 
 # Check if one of the keywords 'permit' or 'deny' is available.
 #
+# Parameter: -none-
+# Return: 'permit', 'deny' or undef
+#
 # Uses global: $input: Content of the current file
 sub check_permit_deny {
     skip_space_and_comment();
@@ -1170,6 +1230,11 @@ sub check_permit_deny {
     }
 }
 
+# Reads the nat name from the global $input.
+#
+# Paramter: -none-
+# Return: the nat name or undef
+#
 # Uses global: $input: Content of the current file
 sub check_nat_name {
     skip_space_and_comment;
@@ -1187,6 +1252,10 @@ sub split_typed_name {
     return split /[:]/, $name, 2;
 }
 
+# Checks if the passed $token is contained in the global $input.
+#
+# Parameter: string to check if it is contained in the global $input
+# Return: 1 if the passed $token is contained in the global $input, else undef
 sub check_flag {
     my $token = shift;
     if (check $token) {
@@ -1198,6 +1267,12 @@ sub check_flag {
     }
 }
 
+# Checks if the passed $token (key) is contained in the global $input and reads in its value by using the passed sub $func.
+#
+# Parameter: string, $token to lookup in the global $input
+# Parameter: function to parse the value of the $token, one of: read_identifier, read_ip, read_name, read_ip_prefix, read_typed_name, read_user_id, read_owner_pattern, read_string
+#
+# Return: ARRAY if the caller is awaiting an ARRAY (wantarray), else string scalar. If $token is not contained undef is returned.
 sub check_assign {
     my ($token, $fun) = @_;
     if (check($token)) {
@@ -1216,6 +1291,10 @@ sub check_assign {
     return;
 }
 
+# Uses the passed function to read data from the global $input until reaching a ';'.
+#
+# Parameter: function to parse data from the global $input
+# Return: ARRAY containing the elements read by the passed function
 sub read_list {
     my ($fun) = @_;
     my @vals;
@@ -1245,6 +1324,12 @@ sub read_assign_list {
     return read_list($fun);
 }
 
+# Checks if the passed $token (key) is contained in the global $input and reads in its value as a list by using the passed sub $func.
+#
+# Parameter: string, $token to lookup in the global $input
+# Parameter: function to parse the value of the $token, one of: read_name, read_ip, read_typed_name, read_identifier, read_ip_prefix_pair, read_typed_name_or_simple_protocol, read_intersection, read_owner_pattern
+#
+# Return: ARRAY containing the elements read by the passed function, or empty ARRAY if $token is not contained.
 sub check_assign_list {
     my ($token, $fun) = @_;
     if (check $token) {
@@ -1254,6 +1339,12 @@ sub check_assign_list {
     return ();
 }
 
+# Checks if the passed $token (key) is contained in the global $input and reads in its value as a key/value pair which is delimited by $delimiter.
+#
+# Parameter: string, $token to lookup in the global $input
+# Parameter: function to parse the value of the $token, one of: read_ip
+#
+# Return: ARRAY with key/value as first and second element, or empty ARRAY if $token is not contained.
 sub check_assign_pair {
     my ($token, $delimiter, $fun) = @_;
     if (check $token) {
@@ -1307,6 +1398,8 @@ sub add_attribute {
 
 our %hosts;
 
+# Parameter: -none-
+# Return: HASH
 sub check_radius_attributes {
     my $result = {};
     check 'radius_attributes' or return;
@@ -1322,6 +1415,10 @@ sub check_radius_attributes {
     return $result;
 }
 
+# Parameter: -none-
+# Return: HASH
+#
+# Uses global: %routing_info: Definition of dynamic routing protocols
 sub check_routing {
     my $protocol = check_assign('routing', \&read_identifier) or return;
     my $routing = $routing_info{$protocol}
@@ -1329,6 +1426,10 @@ sub check_routing {
     return $routing;
 }
 
+# Checks if the global $input contains a managed tag. If the tag is found its value is returned, otherwise an error message is logged and the script terminates.
+#
+# Parameter: -none-
+# Return: string, managed flag
 sub check_managed {
     check('managed') or return;
     my $managed;
@@ -1355,6 +1456,10 @@ sub check_managed {
     return $managed;
 }
 
+# Reads a model definition from the global $input and returns a HASH with its information.
+#
+# Parameter: -none-
+# Return: HASH or undef
 sub check_model {
     my ($model, @attributes) = check_assign_list('model', \&read_name)
         or return;
@@ -1392,6 +1497,7 @@ my @router_fragments;
 # Return: Interface object
 #
 # Uses global: @managed_routers: ARRAY of artificial Router objects which were created for an interface which represents a managed host
+# Uses global: %routing_info: Definition of dynamic routing protocols
 sub host_as_interface {
     my ($host) = @_;
     my $name = $host->{name};
@@ -2810,6 +2916,8 @@ sub read_aggregate {
     return $aggregate;
 }
 
+# Parameter: "area:$name"
+# Return: HASH
 sub check_router_attributes {
     my ($parent) = @_;
 
@@ -3151,6 +3259,8 @@ sub read_simple_protocol {
     return $protocol;
 }
 
+# Parameter: HASH
+# Return: -nothing-
 sub check_protocol_flags {
     my ($protocol) = @_;
     while (check ',') {
@@ -3188,6 +3298,10 @@ sub read_protocol {
 # HASH of service name as key and service parameter HASH as value.
 our %services;
 
+# Parameter: string, 'src' or 'dst'
+# Return: ARRAY, integer. ARRAY
+#
+# Uses global: $user_object: Representing 'user'
 sub assign_union_allow_user {
     my ($name) = @_;
     skip $name;
@@ -4193,6 +4307,7 @@ my $range_tcp_established;
 # Uses global: $prt_esp
 # Uses global: $prt_ah
 # Uses global: %ref2prt: HASH of reference of a protocol => protocol
+# Uses global: %routing_info: Definition of dynamic routing protocols
 sub order_protocols {
     progress('Arranging protocols');
 
@@ -5803,6 +5918,12 @@ sub get_auto_intf {
 # interface:router.network conflicts with interface:[network].[auto]
 # interface:router:[auto] conflicts with interface:[network].[auto]
 #  if router is connected to network.
+#
+# Parameter: HASH
+# Parameter: ARRAY of Autointerface objects
+# Parameter: string description of the calling context for logging purpose.
+#
+# Return: -nothing-
 sub check_auto_intf {
     my ($info, $elements, $context) = @_;
     my $add_info = {};
@@ -6564,6 +6685,11 @@ sub check_unused_groups {
 # - [ src_range, dst_range, orig_prt ] 
 #     of (splitted) protocol having src_range or main_prt.
 #
+# Parameter: ARRAY
+# Parameter: string description of the calling context for logging purpose.
+#
+# Return: ARRAY
+#
 # Uses global: %protocolgroups
 # Uses global: %protocols: Cache of already parsed protocols
 sub expand_protocols {
@@ -6903,6 +7029,13 @@ sub add_managed_hosts {
 # - subnets/hosts of different networks.
 # Rules between identical objects are silently ignored.
 # But a message is shown if a service only has rules between identical objects.
+#
+# Parameter: Object, one of Subnet, Network, Interface
+# Parameter: Object, one of Subnet, Network, Interface
+# Parameter: Zone object
+# Parameter: HASH
+#
+# Return: -nothing-
 sub collect_unenforceable  {
     my ($src, $dst, $zone, $service) = @_;
 
@@ -7224,6 +7357,12 @@ sub collect_log {
     return;
 }
 
+# Parameter: ARRAY containing log tags.
+# Parameter: string description of the calling context for logging purpose.
+#
+# Return: -nothing-
+#
+# Uses global: %known_log: All log tags defined at some routers
 sub check_log {
     my ($log, $context) = @_;
     for my $tag (@$log) {
@@ -7968,6 +8107,10 @@ sub propagate_owners {
     return;
 }
 
+# Parameter: ARRAY
+# Parameter: ARRAY
+#
+# Return: -nothing-
 sub expand_auto_intf {
     my ($src_aref, $dst_aref) = @_;
     for (my $i = 0 ; $i < @$src_aref ; $i++) {
@@ -8246,7 +8389,13 @@ sub set_natdomain {
 my @natdomains;
 
 # Distribute NAT tags from NAT domain to NAT domain.
-# Returns 
+#
+# Parameter: nat_domain object
+# Parameter: string, nat name
+# Parameter: HASH
+# Parameter: Router object
+#
+# Return_ 
 # - undef on success
 # - aref of routers, if invalid path was found in loop.
 sub distribute_nat1 {
@@ -8382,6 +8531,12 @@ sub distribute_nat1 {
     return;
 }
 
+# Parameter: nat_domain object
+# Parameter: string, nat name
+# Parameter: HASH
+# Parameter: Router object
+#
+# Return: -nothing-
 sub distribute_nat {
     my ($domain, $nat_tag, $nat_tags2multi, $in_router) = @_;
     if (my $err_path = distribute_nat1($domain, $nat_tag, 
@@ -9609,6 +9764,11 @@ sub check_crosslink  {
 # - Set unique 'local_mark' for all zones belonging to one cluster
 # - Set 'local_secondary_mark' for secondary optimization inside one cluster.
 #   Two zones get the same mark if they are connected by local_secondary router.
+#
+# Parameter: -none-
+# Return: -nothing-
+#
+# Uses global: @managed_routers: ARRAY of artificial Router objects which were created for an interface which represents a managed host
 sub check_managed_local {
     my %seen;
     my $cluster_counter = 1;
@@ -10378,6 +10538,14 @@ sub nat_equal {
 #              attributes.
 #           2. Mark occurence of identity NAT that masks inheritance.
 #              This is used later to warn on useless identity NAT.
+#
+# Parameter: string
+# Parameter: HASH
+# Parameter: HASH
+# Parameter: object, one of: Area, Network, Zone
+# Parameter: object, one of: Area, Network, Zone
+#
+# Return: -nothing-
 sub check_useless_nat {
     my ($nat_tag, $nat1, $nat2, $obj1, $obj2) = @_;
     if (nat_equal($nat1, $nat2)) {
@@ -13380,6 +13548,12 @@ sub check_supernet_in_zone {
 # reverse rule
 #  permit dst supernet1
 # which would accidentally permit traffic to supernet:[zone4] as well.
+#
+# Paramter: HASH
+# Parameter: Interface object
+# Parameter: Interface object
+#
+# Return: -nothing-	
 sub check_supernet_src_rule {
 
     # Function is called from path_walk.
@@ -13524,6 +13698,12 @@ sub check_supernet_src_rule {
 #  permit src supernet2
 #  permit src supernet3
 #  permit src supernet4
+#
+# Parameter: HASH
+# Parameter: Interface object
+# Parameter: Interface object
+#
+# Return: -nothing-
 sub check_supernet_dst_rule {
 
     # Function is called from path_walk.
@@ -16119,6 +16299,12 @@ sub print_nat {
 ##############################################################################
 # Distributing rules to managed devices
 #
+# Parameter: HASH
+# Parameter: Interface object
+# Parameter: Interface object
+#
+# Return: -nothing-
+#
 # Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
 ##############################################################################
 sub distribute_rule {
@@ -16455,6 +16641,13 @@ sub cmp_address {
     }
 }
 
+# Calls distribute_rule for each HASH in the passed ARRAY.
+#
+# Parameter: ARRAY of HASHes
+# Parameter: Interface object
+# Parameter: Interface object
+#
+# Return: -nothing-
 sub distribute_rules {
     my ($rules, $in_intf, $out_intf) = @_;
     for my $rule (@$rules) {
@@ -17193,6 +17386,8 @@ sub find_object_groups  {
 
 # Handle iptables.
 #
+# Parameter: HASH
+# Parameter: string
 sub debug_bintree {
     my ($tree, $depth) = @_;
     $depth ||= '';
@@ -17210,6 +17405,11 @@ sub debug_bintree {
 # Redundant nodes are discarded while inserting.
 # A node with value of sub-tree S is discarded,
 # if some parent node already has sub-tree S.
+#
+# Parameter: Network object
+# Parameter: Network object
+#
+# Return: Network object
 sub add_bintree;
 
 sub add_bintree  {
@@ -20429,6 +20629,7 @@ sub show_finished {
 #
 # Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
 # Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
+# Uses global: %routing_info: Definition of dynamic routing protocols
 sub init_protocols {
 
     %routing_info = (
