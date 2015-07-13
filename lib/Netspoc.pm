@@ -10149,23 +10149,37 @@ sub check_pathrestrictions {
         my $elements = $restrict->{elements};
         next if !@$elements;
         my $deleted;
-        for my $obj (@$elements) {
+        my $prev_interface;
+        my $prev_cluster;
+        for my $interface (@$elements) {
+            next if $interface->{disabled};
+            my $loop = $interface->{loop}
+                    || $interface->{router}->{loop}
+                    || $interface->{zone}->{loop};
 
             # Interfaces with pathrestriction need to be located
             # inside or at the border of cyclic graphs.
-            if (
-                not(   $obj->{loop}
-                    || $obj->{router}->{loop}
-                    || $obj->{zone}->{loop}
-                    || $obj->{disabled})
-              )
-            {
-                delete $obj->{path_restrict};
-                warn_msg("Ignoring $restrict->{name} at $obj->{name}\n",
+            if (not $loop) {
+                delete $interface->{path_restrict};
+                warn_msg("Ignoring $restrict->{name} at $interface->{name}\n",
                          " because it isn't located inside cyclic graph");
-                $obj = undef;
+                $interface = undef;
                 $deleted = 1;
             }
+
+            # Interfaces must belong to same loop cluster.
+            my $cluster = $loop->{cluster_exit};
+            if ($prev_cluster) {
+                $cluster eq $prev_cluster or
+                    err_msg("$restrict->{name} must not have elements",
+                            " from different loops:\n",
+                            " - $prev_interface->{name}\n",
+                            " - $interface->{name}");
+            }
+            else {
+                $prev_cluster   = $cluster;
+                $prev_interface = $interface;
+            }                            
         }
         if ($deleted) {
             $elements = $restrict->{elements} = [ grep { $_ } @$elements ];

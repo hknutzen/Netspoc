@@ -301,4 +301,69 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Pathrestriction located in different loops';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2a = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; }
+}
+
+network:t1 = { ip = 10.9.1.0/24; }
+
+router:r2b = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:t1 = { ip = 10.9.1.2; hardware = t1; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+
+router:r3 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+pathrestriction:p1 =
+ interface:r2a.n2,
+ interface:r2b.n3,
+;
+
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = network:n3; prt = udp 123;
+}
+END
+
+$out = <<'END';
+Error: pathrestriction:p1 must not have elements from different loops:
+ - interface:r2a.n2
+ - interface:r2b.n3
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;
