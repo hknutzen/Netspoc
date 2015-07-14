@@ -1474,9 +1474,7 @@ END
 $out = <<'END';
 Error: Inconsistent NAT in loop at router:r1:
  nat:h vs. nat:(none)
-Error: network:a is translated by h,
- but is located inside the translation domain of h.
- Probably h was bound to wrong interface at router:r1.
+Warning: nat:h is defined, but not bound to any interface
 END
 
 test_err($title, $in, $out);

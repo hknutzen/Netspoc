@@ -7532,6 +7532,10 @@ sub set_natdomain {
     # Found a loop inside a NAT domain.
     return if $network->{nat_domain};
 
+    my $check_nat_err = sub {
+        my ($router, $nat_tags1, $nat_tags2) = @_;
+    };
+
 #    debug("$domain->{name}: $network->{name}");
     $network->{nat_domain} = $domain;
     push @{ $domain->{networks} }, $network;
@@ -7539,32 +7543,42 @@ sub set_natdomain {
 
         # Ignore interface where we reached this network.
         next if $interface eq $in_interface;
-
         next if $interface->{main_interface};
 
 #        debug("IN $interface->{name}");
-        my $err_seen;
         my $nat_tags = $interface->{bind_nat} || $bind_nat0;
         my $router = $interface->{router};
+
+        # Found loop.
+        # If one router is connected to the same NAT domain
+        # by different interfaces, all interfaces must have
+        # the same NAT binding.
+        if (my $entry_nat_tags = $router->{active_path}) {
+            next if aref_eq($nat_tags, $entry_nat_tags);
+            my $names1 = join(',', @$nat_tags) || '(none)';
+            my $names2 = join(',', @$entry_nat_tags) || '(none)';
+            next if $router->{nat_err_seen}->{"$names1 $names2"}++;
+            err_msg("Inconsistent NAT in loop at $router->{name}:\n",
+                    " nat:$names1 vs. nat:$names2");
+
+#            debug("LOOP $interface->{name}");
+            next;
+        }
+
+        # 'local' declaration restores previous value on block exit.
+        # Remember NAT tags at loop entry.    
+        local $router->{active_path} = $nat_tags;
+
         for my $out_interface (@{ $router->{interfaces} }) {
 
             # Don't process interface where we reached this router.
             next if $out_interface eq $interface;
+            next if $out_interface->{main_interface};
 
+#            debug("OUT $out_interface->{name}");
             # Current NAT domain continues behind $out_interface.
             my $out_nat_tags = $out_interface->{bind_nat} || $bind_nat0;
             if (aref_eq($out_nat_tags, $nat_tags)) {
-
-                # Put check for active path inside this loop, because
-                # 1. we must enter each router from each side to detect 
-                #    all inconsistencies,
-                # 2. we need the check at all to prevent deep recursion.
-                #
-                # 'local' declaration restores previous value on block exit.
-                next if $router->{active_path};
-                local $router->{active_path} = 1;
-
-                next if $out_interface->{main_interface};
 
                 my $next_net = $out_interface->{network};
                 set_natdomain($next_net, $domain, $out_interface);
@@ -7572,26 +7586,8 @@ sub set_natdomain {
 
             # New NAT domain starts at some interface of current router.
             # Remember NAT tag of current domain.
-            else {
-
-                # If one router is connected to the same NAT domain
-                # by different interfaces, all interfaces must have
-                # the same NAT binding. (This occurs only in loops).
-                if (my $old_nat_tags = $router->{nat_tags}->{$domain}) {
-                    if (not aref_eq($old_nat_tags, $nat_tags)) {
-                        next if $err_seen->{$old_nat_tags}->{$nat_tags}++;
-                        my $old_names = join(',', @$old_nat_tags) || '(none)';
-                        my $new_names = join(',', @$nat_tags)     || '(none)';
-                        err_msg
-                          "Inconsistent NAT in loop at $router->{name}:\n",
-                          " nat:$old_names vs. nat:$new_names";
-                    }
-
-                    # NAT domain and router have been linked together already.
-                    next;
-                }
+            elsif (not $router->{nat_tags}->{$domain}) {
                 $router->{nat_tags}->{$domain} = $nat_tags;
-#                debug("OUT $out_interface->{name}");
                 push @{ $domain->{routers} },     $router;
                 push @{ $router->{nat_domains} }, $domain;
             }
@@ -7795,7 +7791,7 @@ sub distribute_nat_info {
     my %all_hidden;
     for my $network (@networks) {
         my $href = $network->{nat} or next;
-#        debug $network->{name}, " href=", join(',', sort keys %$href);
+#        debug $network->{name}, " nat=", join(',', sort keys %$href);
 
         # Print error message only once per network.
         my $err_shown;
