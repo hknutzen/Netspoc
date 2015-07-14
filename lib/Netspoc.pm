@@ -269,6 +269,8 @@ sub set_config {
 my $new_store_description;
 
 # Stores the last used description and returns this if the currently passed description is undefined.
+#
+# Uses global: $new_store_description
 sub store_description {
     my ($set) = @_;
     if (defined $set) {
@@ -450,11 +452,18 @@ sub equal {
 
 # Unique union of all elements.
 # Preserves original order.
+#
+# Parameter: ARRAY
+# Return: ARRAY without duplicates
 sub unique {
     my %seen;
     return grep { !$seen{$_}++ } @_;
 }
 
+# Checks the passed ARRAY for duplicates and returns duplicated elements.
+#
+# Parameter: ARRAY to check
+# Return: ARRAY with duplicated elements
 sub find_duplicates {
     my %dupl;
     $dupl{$_}++ for @_;
@@ -702,18 +711,28 @@ sub err_msg {
 
 # Prints the given string to STDERR and ends the script.
 #
-# Parameter: string
+# Parameter: ARRAY of strings
+# Return: -nothing-
 sub fatal_err {
     my (@args) = @_;
     print STDERR "Error: ", @args, "\n";
     die "Aborted\n";
 }
 
+# Prints the given string together with the current context to STDERR and ends the script.
+#
+# Parameter: ARRAY of strings
+# Return: -nothing-
+#
+# See also: context()
 sub syntax_err {
     my (@args) = @_;
     die "Syntax error: ", @args, context();
 }
 
+# Parameter: ARRAY of strings
+# Return: -nothing-
+#
 # Uses global: $error_counter
 sub internal_err {
     my (@args) = @_;
@@ -771,7 +790,10 @@ sub check {
     return $input =~ /$regex/gc;
 }
 
-# Skip a string.
+# Skip a string if available. If it is not available an error is printed and the script terminates.
+#
+# Parameter: string, token to skip
+# Return: 1 if the passed string was skipped
 sub skip {
     my $token = shift;
     return(check $token or syntax_err("Expected '$token'"));
@@ -794,6 +816,9 @@ sub check_int {
 }
 
 # Returns an integer value from input, or prints an error message if input cannot be parsed as an integer.
+#
+# Parameter: -none-
+# Return: integer value from input
 sub read_int {
     my $result = check_int();
     defined $result or syntax_err("Integer expected");
@@ -820,6 +845,9 @@ sub check_ip {
 }
 
 # Returns the IP or prints an error message if the IP could not be read.
+#
+# Parameter: -none-
+# Return: the read IP
 sub read_ip {
     my $result = check_ip();
     defined $result or syntax_err("IP address expected");
@@ -845,6 +873,12 @@ sub read_ip_prefix_pair {
     return [ $ip, $mask ];
 }
 
+# Parameter: integer, first IP element
+# Parameter: integer, second IP element
+# Parameter: integer, third IP element
+# Parameter: integer, fourth IP element
+#
+# Return: IP as single integer
 sub gen_ip {
     my ($byte1, $byte2, $byte3, $byte4) = @_;
     return unpack 'N', pack('C4', $byte1, $byte2, $byte3, $byte4);
@@ -870,11 +904,22 @@ sub print_ip {
     }
 
     # Convert a network mask to a prefix ranging from 0 to 32.
+    #
+    # Parameter: integer
+    # Return: integer
+    #
+    # See also: prefix2mask()
     sub mask2prefix {
         my $mask = shift;
         return $mask2prefix{$mask};
     }
 
+	# Convert a prefix ranging from 0 to 32 to a network mask.
+    #
+    # Parameter: integer
+    # Return: integer
+    #
+    # See also: mask2prefix()
     sub prefix2mask {
         my $prefix = shift;
         return $prefix2mask{$prefix};
@@ -889,11 +934,20 @@ sub complement_32bit {
 }
 
 # Check if $ip1 is located inside network $ip/$mask.
+#
+# Parameter: integer
+# Parameter: integer
+# Parameter: integer
+#
+# Return: 1 if $ip1 is included
 sub match_ip {
     my ($ip1, $ip, $mask) = @_;
     return ($ip == ($ip1 & $mask));
 }
 
+# Parameter: -none-
+# Return: the read identifier
+#
 # Uses global: $input: Content of the current file
 sub read_identifier {
     skip_space_and_comment;
@@ -906,6 +960,9 @@ sub read_identifier {
 }
 
 # Pattrern for attribute "visible": "*" or "name*".
+#
+# Parameter: -none-
+# Return: the read pattern
 #
 # Uses global: $input: Content of the current file
 sub read_owner_pattern {
@@ -920,6 +977,9 @@ sub read_owner_pattern {
 
 # Used for reading hardware name, model, admins, watchers.
 #
+# Parameter: -none-
+# Return: the read name
+#
 # Uses global: $input: Content of the current file
 sub read_name {
     skip_space_and_comment;
@@ -932,6 +992,9 @@ sub read_name {
 }
 
 # Used for reading alias name or radius attributes.
+#
+# Parameter: -none-
+# Return: the read string
 #
 # Uses global: $input: Content of the current file
 sub read_string {
@@ -1116,6 +1179,9 @@ sub read_typed_name {
 
 # user@domain
 #
+# Parameter: -none-
+# Return: the user ID
+#
 # Uses global: $input: Content of the current file
     sub read_user_id {
         skip_space_and_comment;
@@ -1245,6 +1311,11 @@ sub check_nat_name {
         return;
     }
 }
+
+# Splits the passed string at the first ':' and returns the two parts as an ARRAY. Following collons are preserved.
+#
+# Parameter: string
+# Return: ARRAY with two elements if the passed string could be splitted. Else it contains one element with the passed string.
 sub split_typed_name {
     my ($name) = @_;
 
@@ -1311,12 +1382,20 @@ sub read_list {
     return @vals;
 }
 
+# Checks if the global $input contains a ';'. If not undef is returned otherwise the result of read_list().
+#
+# Parameter: function to parse data from the global $input
+# Return: the result of read_list()
 sub read_list_or_null {
     my ($fun) = @_;
     return () if check(';');
     return read_list($fun);
 }
 
+# Parameter: string, $token to lookup in the global $input
+# Parameter: function to parse the value of the $token, one of: read_typed_name_or_simple_protocol
+#
+# Return: ARRAY containing the elements read by the passed function
 sub read_assign_list {
     my ($token, $fun) = @_;
     skip $token;
@@ -1649,6 +1728,8 @@ sub read_host {
     return $host;
 }
 
+# Parameter: "nat:$nat_name"
+# Return: HASH
 sub read_nat {
     my $name = shift;
 
@@ -2816,7 +2897,8 @@ sub read_router {
 # crypto/secondary interface.
 # Splitted routers are tied by identical attribute {device_name}.
 #
-# Parameter ARRAY of Interface objects
+# Parameter: ARRAY of Interface objects
+# Return: -nothing-
 #
 # Uses global: @router_fragments
 sub move_locked_interfaces {
@@ -3035,7 +3117,6 @@ our %protocolgroups;
 
 # Parameter: "protocolgroup:$name"
 # Return: Protocolgroup object
-#
 sub read_protocolgroup {
     my $name = shift;
     skip '=';
@@ -3043,6 +3124,10 @@ sub read_protocolgroup {
     return new('Protocolgroup', name => $name, elements => \@pairs);
 }
 
+# Parameter: -none-
+# Return: ARRAY, the port range, or global $aref_tcp_any
+#
+# Uses global: $aref_tcp_any: default src and dst port
 sub read_port_range {
     if (defined(my $port1 = check_int)) {
         error_atline("Too large port number $port1") if $port1 > 65535;
@@ -3073,6 +3158,8 @@ sub read_port_range {
     }
 }
 
+# Parameter: HASH
+# Return: -nothing-
 sub read_port_ranges {
     my ($prt) = @_;
     my $range = read_port_range;
@@ -3088,6 +3175,8 @@ sub read_port_ranges {
     return;
 }
 
+# Parameter: HASH
+# Return: -nothing-
 sub read_icmp_type_code {
     my ($prt) = @_;
     if (defined(my $type = check_int)) {
@@ -3672,6 +3761,11 @@ sub read_netspoc {
 }
 
 # Read input from file and process it by function which is given as argument.
+#
+# Parameter: string, absolute file path
+# Parameter: function pointer
+#
+# Return: -nothing-
 #
 # Uses global: $input: Content of the current file
 # Uses global: $current_file: Name of current input file
@@ -5854,6 +5948,7 @@ my %name2object = (
 );
 
 # Parameter: Router object
+# Return: ARRAY or Interface object
 sub get_intf  {
     my ($router) = @_;
     if (my $orig_router = $router->{orig_router}) {
@@ -7376,6 +7471,11 @@ sub check_log {
 # Normalize lists of log tags at different rules in such a way,
 # that equal sets of tags are represented by 'eq' array references.
 my %key2log;
+
+# Parameter: ARRAY
+# Return: ARRAY
+#
+# Uses global: %key2log
 sub normalize_log {
     my ($log) = @_;
     my @tags = sort @$log;
@@ -10198,6 +10298,12 @@ sub duplicate_aggregate_to_cluster {
 # Creates new anonymous aggregate if missing.
 # If zone is part of a zone_cluster,
 # return aggregates for each zone of the cluster.
+#
+# Parameter: Zone object
+# Parameter: integer, ip
+# Parameter: integer, ip mask
+#
+# Return: Network object
 sub get_any {
     my ($zone, $ip, $mask) = @_;
     my $key = "$ip/$mask";
@@ -10253,6 +10359,12 @@ sub get_any {
 
 # Get set of aggregates of a zone cluster.
 # Ignore zone having no aggregate from unnumbered network.
+#
+# Parameter: Zone object
+# Parameter: integer, ip
+# Parameter: integer, ip mask
+#
+# Return: Network object
 sub get_cluster_aggregates {
     my ($zone, $ip, $mask) = @_;
     my $key = "$ip/$mask";
@@ -10847,6 +10959,11 @@ sub prepare_area_borders {
 ###############################################################################
 # Purpose  : Collect zones, routers (and interfaces, if no borders defined) 
 #            of an area.
+#
+# Parameter: Object, one of Zone, Router, 
+# Parameter: Area object
+# Parameter: Interface object
+#
 # Returns  : undef (or 1, if error was shown)
 sub set_area {
     my ($obj, $area, $in_interface) = @_;
@@ -10866,7 +10983,7 @@ sub set_area {
     return;
 }
 
-###############################################################################s
+###############################################################################
 # Purpose  : Set up area objects, assure proper border definitions.
 #
 # Parameter: -none-
@@ -11471,6 +11588,9 @@ sub setpath_obj {
 # Find exit node of the cluster in direction to zone1;
 # Its loop attribute has a reference to the node itself.
 # Add this exit node as marker to all loops belonging to the cluster.
+#
+# Parameter: HASH
+# Return: Object, one of: Zone, Router
 sub set_loop_cluster {
     my ($loop) = @_;
     if (my $marker = $loop->{cluster_exit}) {
@@ -12274,6 +12394,16 @@ sub path_mark {
 }
 
 # Walk paths inside cyclic graph
+#
+# Parameter: Interface object
+# Parameter: Interface object
+# Parameter: Object, one of: Router, Zone, Interface
+# Parameter: Object, one of: Router, Zone, Interface
+# Parameter: integer
+# Parameter: HASH
+# Parameter: function
+#
+# Return: 1 or undef
 sub loop_path_walk {
     my ($in, $out, $loop_entry, $loop_exit, $call_at_zone, $rule, $fun) = @_;
 
@@ -12487,6 +12617,13 @@ sub set_auto_intf_from_border  {
 # $src is an auto_interface, interface or router.
 # Result is the set of interfaces of $src located at the front side
 # of the direction to $dst.
+#
+# Parameter: Object, one of: Router, Autointerface
+# Parameter: Object, one of: Host, Subnet, Network
+#
+# Return: Interface object
+#
+# Uses global: %border2obj2auto
 sub path_auto_interfaces {
     my ($src, $dst) = @_;
     my @result;
@@ -16938,6 +17075,8 @@ sub cisco_acl_addr {
     }
 }
 
+# Parameter: ARRAY, [IP, MASK] as integers
+# Return: string, "$ip $mask", eg. 0.0.0.0 0.0.0.0
 sub ios_route_code {
     my ($pair) = @_;
     my ($ip, $mask) = @$pair;
@@ -16948,6 +17087,9 @@ sub ios_route_code {
 
 # Given an IP and mask, return its address
 # as "x.x.x.x/x" or "x.x.x.x" if prefix == 32.
+#
+# Parameter: ARRAY, [IP, MASK] as integers
+# Return: string
 sub prefix_code {
     my ($pair) = @_;
     my ($ip, $mask) = @$pair;
@@ -16956,6 +17098,8 @@ sub prefix_code {
     return $prefix_code == 32 ? $ip_code : "$ip_code/$prefix_code";
 }
 
+# Parameter: ARRAY, [IP, MASK] as integers
+# Return: string, "$ip/$mask", eg. 0.0.0.0/24
 sub full_prefix_code {
     my ($pair) = @_;
     my ($ip, $mask) = @$pair;
@@ -17033,6 +17177,11 @@ sub cisco_prt_code {
 }
 
 # Returns iptables code for filtering a protocol.
+#
+# Parameter: HASH
+# Parameter: HASH
+#
+# Return: string
 sub iptables_prt_code {
     my ($src_range, $prt) = @_;
     my $proto = $prt->{proto};
@@ -17153,6 +17302,12 @@ sub cisco_acl_line {
 
 my $min_object_group_size = 2;
 
+# Parameter: Router object
+# Parameter: HASH
+#
+# Return: -nothing-
+#
+# Uses global: $min_object_group_size
 sub find_object_groups  {
     my ($router, $hardware) = @_;
     my $model = $router->{model};
@@ -17507,6 +17662,12 @@ sub add_bintree  {
 }
 
 # Build a binary tree for src/dst objects.
+#
+# Parameter: ARRAY
+# Parameter: HASH
+# Parameter: HASH
+#
+# Return: Network object
 sub gen_addr_bintree  {
     my ($elements, $tree, $no_nat_set) = @_;
 
@@ -17551,6 +17712,11 @@ sub gen_addr_bintree  {
 # Additional attribute {subtree} is set with corresponding subtree of
 # protocol object if current node comes from a rule and wasn't inserted
 # for optimization.
+#
+# Parameter: ARRAY
+# Parameter: HASH
+#
+# Return: HASH
 sub gen_prt_bintree  {
     my ($elements, $tree) = @_;
 
@@ -19554,6 +19720,12 @@ EOF
 }
 
 # Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
+#
+# Parameter: HASH
+# Parameter: HASH
+# Parameter: string
+#
+# Return: -nothing-
 sub iptables_acl_line {
     my ($rule, $no_nat_set, $prefix) = @_;
     my ($action, $src, $dst, $src_range, $prt) =
@@ -20759,6 +20931,7 @@ sub init_protocols {
 # Uses global: %hosts
 # Uses global: %interfaces: HASH of interface name => Interface object
 # Uses global: %ref2prt: HASH of reference of a protocol => protocol
+# Uses global: $new_store_description
 sub init_global_vars {
     $start_time = time();
     $error_counter = 0;
