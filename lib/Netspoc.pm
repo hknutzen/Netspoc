@@ -10753,9 +10753,9 @@ sub cluster_path_mark1 {
 
         # As optimization, ignore secondary interface early.
         next if $interface->{main_interface};
-        my $loop = $interface->{loop};
+        my $loop = $interface->{loop} or next;
         $allowed or internal_err("Loop with empty navigation");
-        next if not $loop or not $allowed->{$loop};
+        $allowed->{$loop} or next;
         my $next = $interface->{$get_next};
 #        debug "Try $obj->{name} -> $next->{name}";
         if (
