@@ -99,11 +99,22 @@ sub read_netspoc_with_src {
 # to get a valid topology.
 sub mark_adjacent_networks {
     my ($router) = @_;
-    for my $interface (Netspoc::get_intf($router)) {
+    for my $interface (@{ $router->{interfaces} }) {
+#        Netspoc::debug "adj. $interface->{network}->{name}";
         my $network = $interface->{network};
-        if (!$network->{is_used}) {
-            $network->{is_used} = 1;
-            Netspoc::debug "Marked $network->{name}";
+        $network->{is_used} = 1;
+
+        # Mark bridge and bridged networks.
+        if ($network->{bridged}) {
+            for my $bridge_in (@{ $network->{interfaces} }) {
+                $bridge_in->{ip} eq 'bridged' or next;
+                my $bridge = $bridge_in->{router};
+                $bridge->{is_used} = 1;
+                for my $bridge_out (@{ $bridge->{interfaces} }) {
+                    $bridge_out->{ip} eq 'bridged' or next;
+                    $bridge_out->{network}->{is_used} = 1;
+                }                                           
+            }
         }
     }
     return;
@@ -122,55 +133,35 @@ sub mark_topology {
 
 # Mark unmanaged routers and adjacent networks 
 # between marked and managed parts of topology.
-# Return value:
-# 1: path to used network/router was found
-# 0: no path was found
 sub path_unmanaged {
     my ($obj, $in_interface) = @_;
-    if ($obj->{is_used}) {
-        Netspoc::debug "$obj->{name} 1 is_used";
-        return 1;
-    }
-    if ($obj->{managed}) {
-        Netspoc::debug "$obj->{name} 0 managed";
-        return 0;
-    }
-    if ($obj->{active_path}) {
-        Netspoc::debug "$obj->{name} 0 active_path";
-        return 0;
-    }
+    return 1 if $obj->{is_used};
+    return 0 if $obj->{managed};
+    return if $obj->{active_path};
 
     local $obj->{active_path} = 1;
     my $result = 0;
-    for my $interface (is_router($obj) ? Netspoc::get_intf($obj) : @{ $obj->{interfaces} }) {
+    for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_interface;
         my $next = $interface->{is_network($obj) ? 'router' : 'network'};
-        Netspoc::debug "-- $next->{name} ";
 	if (path_unmanaged($next, $interface)) {
 	    $obj->{is_used} = 1;
-	    Netspoc::debug "Marked $obj->{name} from $next->{name}";
+#	    Netspoc::debug "Marked $obj->{name}";
 	    if (is_router($obj)) {
 		mark_adjacent_networks($obj);
 	    }
 	    $result = 1;
 	}
     }
-    Netspoc::debug "result $result $obj->{name}";
     return $result;
 }
 
 sub mark_unmanaged {
-    for my $obj (values %networks, values %routers) {
-        my $used = $obj->{is_used} ? 'used' : 'unused';
-        Netspoc::debug "$obj->{name} is $used"; 
-    }
-
     for my $network (values %networks) {
 	next if not $network->{is_used};
-        Netspoc::debug "- $network->{name} ";
 	for my $interface (@{ $network->{interfaces} }) {
 	    my $router = $interface->{router};
-	    Netspoc::debug "Path unmanaged $router->{name} $interface->{name}";
+#	    Netspoc::debug "Path unmanaged $router->{name} $interface->{name}";
 	    path_unmanaged($router, $interface);
 	}
     }
@@ -351,6 +342,20 @@ for my $area (values %areas) {
 # Call this after topology has been marked.
 &expand_crypto();
 
+# 1. Call: Mark unmanaged parts of topology.
+mark_unmanaged();
+
+# Mark fragments of marked crypto routers.
+for my $router (values %routers) {
+    $router->{is_used} or next;
+    for my $interface (Netspoc::get_intf($router)) {
+        my $fragment = $interface->{router};
+        next if $fragment eq $router;
+#        Netspoc::debug "Fragment: $fragment->{name}";
+        $fragment->{is_used} = 1;
+    }
+}
+
 for my $router (values %routers) {
     next unless $router->{is_used};
     for my $interface (Netspoc::get_intf($router)) {
@@ -396,7 +401,8 @@ for my $router (values %routers) {
     }
 }
 
-# Mark unmanaged parts of topology.
+# 2. Call: Mark unmanaged parts of topology.
+# Mark paths between fragments of crypto routers now.
 mark_unmanaged();
 
 for my $obj (values %areas, values %Netspoc::aggregates,

@@ -11,8 +11,9 @@ sub test_run {
     my ($in_fh, $filename) = tempfile(UNLINK => 1);
     print $in_fh $input;
     close $in_fh;
+    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
 
-    my $cmd = "perl -I lib $what -q - $args < $filename";
+    my $cmd = "$^X $perl_opt -I lib $what -q - $args < $filename";
     open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
     # Undef input record separator to read all output at once.
@@ -64,6 +65,71 @@ END
 
 test_add($title, $in, 'network:Test host:Toast', $out);
 test_rmv($title, $out, 'host:Toast', $in);
+
+############################################################
+$title = 'host after automatic group';
+############################################################
+
+$in = <<'END';
+group:abc =
+ any:[ ip = 10.1.0.0/16 & network:def ],
+ host:xyz,
+;
+END
+
+$out = <<'END';
+group:abc =
+ any:[ ip = 10.1.0.0/16 & network:def ],
+ host:xyz,
+ host:h,
+;
+END
+
+test_add($title, $in, 'host:xyz host:h', $out);
+test_rmv($title, $out, 'host:h', $in);
+
+############################################################
+$title = 'network after intersection';
+############################################################
+
+$in = <<'END';
+group:abc =
+ group:g &! host:xyz,
+ network:def,
+;
+END
+
+$out = <<'END';
+group:abc =
+ group:g &! host:xyz,
+ network:def,
+ network:n,
+;
+END
+
+test_add($title, $in, 'network:def network:n', $out);
+test_rmv($title, $out, 'network:n', $in);
+
+############################################################
+$title = 'network in automatic group';
+############################################################
+
+$in = <<'END';
+group:abc =
+ any:[ ip = 10.1.0.0/16 & network:n1, network:n2,
+       network:n3, ],
+;
+END
+
+$out = <<'END';
+group:abc =
+ any:[ ip = 10.1.0.0/16 & network:n1, network:n1a, network:n2,
+       network:n3, network:n4, ],
+;
+END
+
+test_add($title, $in, 'network:n1 network:n1a network:n3 network:n4', $out);
+test_rmv($title, $out, 'network:n1a network:n4', $in);
 
 ############################################################
 $title = 'in service, but not in area and pathrestriction';

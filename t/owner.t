@@ -403,7 +403,7 @@ router:asa1 = {
 END
 
 $out = <<'END';
-Error: owner:a1 has attribute 'show_all', but dosn't own whole topology.
+Error: owner:a1 has attribute 'show_all', but doesn't own whole topology.
  Missing:
  - any:[network:n2]
  - any:[network:n3]

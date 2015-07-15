@@ -470,7 +470,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'NAT from overlapping areas and aggregates';
+$title = 'Inherit NAT from overlapping areas and zones';
 ############################################################
 
 $in = <<'END';
@@ -552,6 +552,101 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Inherit NAT from aggregates and supernets inside zone';
+############################################################
+
+$in = <<'END';
+# NAT is inherited to all 10.* subnets by default.
+network:n   = {
+ ip = 10.0.0.0/8;
+ nat:d = { ip = 11.0.0.0/8; }
+ has_subnets; 
+}
+
+# NAT is disabled for 10.0.0.0/16 and 10.1.0.0/16
+any:a1 = { 
+ ip = 10.0.0.0/15;
+ link = network:n; 
+ nat:d = { identity; }
+}
+
+# NAT is enabled for this network and 
+# inherited to 10.1.1.0/24 and 10.1.2.0/24
+network:n1 = {
+ ip = 10.1.0.0/16;
+ nat:d = { ip = 10.99.1.0/24; dynamic; }
+ has_subnets; 
+}
+
+# NAT is inherited to 10.1.1.0/24;
+any:a1x = { 
+ ip = 10.1.0.0/23;
+ link = network:n1; 
+ nat:d = { ip = 10.99.2.0/24; dynamic; }
+}
+
+network:n0 = { ip = 10.0.0.0/16; }
+network:n11 = { ip = 10.1.1.0/24; }
+network:n12 = { ip = 10.1.2.0/24; }
+network:n3  = { ip = 10.3.0.0/16; host:h3 = { ip = 10.3.3.10; } }
+
+router:u = {
+ interface:n;
+ interface:n0;
+ interface:n1;
+ interface:n11;
+ interface:n12;
+ interface:n3;
+ interface:t1;
+}
+
+network:t1 = { ip = 10.9.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS,FW;
+ routing = manual;
+ interface:t1 = { ip = 10.9.1.1; hardware = e0; }
+ interface:X = { ip = 10.2.1.2; hardware = e1; bind_nat = d; }
+}
+network:X = { ip = 10.2.1.0/24; }
+
+service:s1 = {
+ user = network:X;
+# NAT to 11.0.0.0/8
+ permit src = user; dst = network:n; prt = tcp 80;
+# NAT to 10.99.1.0
+ permit src = user; dst = network:n1; prt = tcp 81;
+# inherit from any:a1x, 10.99.2.0
+ permit src = user; dst = network:n11; prt = tcp 82;
+# inherit from network:n1, 10.99.1.0
+ permit src = user; dst = network:n12; prt = tcp 83;
+# inherit from network:n, 11.3.3.10
+ permit src = user; dst = host:h3; prt = tcp 84;
+# inherit from any:a1, no NAT, 10.0.0.0/16
+ permit src = user; dst = network:n0; prt = tcp 85;
+# inherit from network:n, 11.9.1.0
+ permit src = user; dst = network:t1; prt = tcp 86;
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended e1_in
+ deny ip any host 11.9.1.1
+ permit tcp 10.2.1.0 0.0.0.255 11.0.0.0 0.255.255.255 eq 80
+ permit tcp 10.2.1.0 0.0.0.255 10.99.1.0 0.0.0.255 eq 81
+ permit tcp 10.2.1.0 0.0.0.255 10.99.1.0 0.0.0.255 eq 83
+ permit tcp 10.2.1.0 0.0.0.255 10.99.2.0 0.0.0.255 eq 82
+ permit tcp 10.2.1.0 0.0.0.255 host 11.3.3.10 eq 84
+ permit tcp 10.2.1.0 0.0.0.255 10.0.0.0 0.0.255.255 eq 85
+ permit tcp 10.2.1.0 0.0.0.255 11.9.1.0 0.0.0.255 eq 86
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Warn on useless inherited NAT';
 ############################################################
 
@@ -595,6 +690,43 @@ test_err($title, $in, $out);
 
 ############################################################
 $title = 'Interface with dynamic NAT as destination';
+############################################################
+
+# Should ignore error in policy_distribution_point,
+# because other error message is shown.
+$in = <<'END';
+network:n2 = { ip = 10.1.2.0/24; nat:dyn = { ip = 10.9.9.9/32; dynamic; }}
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ policy_distribution_point = host:h3;
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = vlan3; bind_nat = dyn; }
+}
+
+service:s = {
+ user = interface:asa1.n2;
+ permit src = host:h3; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Error: interface:asa1.n2 needs static translation for nat:dyn to be valid in rule
+ permit src=host:h3; dst=interface:asa1.n2; prt=tcp 22; of service:s
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Interface with dynamic NAT as destination in reversed rule';
 ############################################################
 
 $in = <<'END';
@@ -1113,6 +1245,93 @@ Error: Must not apply hidden NAT 'h' on path
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Ignore hidden network in static routes';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {
+  ip = 10.1.1.1;
+  routing = OSPF;
+  hardware = outside;
+ }
+ interface:t1 = { ip = 10.5.5.164; hardware = inside; }
+}
+network:t1 = { ip = 10.5.5.160/28; }
+router:u1 = {
+ interface:t1 = { ip = 10.5.5.161;  bind_nat = h; }
+ interface:n2;
+ interface:n3;
+}
+
+network:n2 = { ip = 10.1.2.0/24; nat:h = { hidden; } }
+network:n3 = { ip = 10.1.3.0/24; }
+any:10_1   = { ip = 10.1.0.0/16; link = network:n2; }
+
+service:test = {
+ user =	network:n1;
+ permit src = user; dst = any:10_1; prt = proto 50;
+}
+END
+
+$out = <<'END';
+-- r1
+! [ Routing ]
+route inside 10.1.3.0 255.255.255.0 10.5.5.161
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Ignore hidden network in NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {
+  ip = 10.1.1.1;
+  routing = OSPF;
+  hardware = outside;
+  bind_nat = h;
+ }
+ interface:t1 = { ip = 10.5.5.164; hardware = inside; }
+}
+network:t1 = { ip = 10.5.5.160/28; }
+router:u1 = {
+ interface:t1 = { ip = 10.5.5.161; }
+ interface:n2;
+ interface:n3;
+}
+
+network:n2 = { ip = 10.1.2.0/24; nat:h = { hidden; } }
+network:n3 = { ip = 10.1.3.0/24; }
+any:10_1   = { ip = 10.1.0.0/16; link = network:n2; }
+
+service:test = {
+ user =	network:n1;
+ permit src = user; dst = any:10_1; prt = proto 50;
+}
+END
+
+$out = <<'END';
+-- r1
+! [ ACL ]
+access-list outside_in extended permit 50 10.1.1.0 255.255.255.0 10.1.0.0 255.255.0.0
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Traverse hidden NAT domain in loop';

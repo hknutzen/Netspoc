@@ -210,6 +210,7 @@ network:n1 = {
 }
 network:n2 = {
  ip = 10.2.1.0/24;
+ nat:h = { identity; }
  subnet_of = network:n3; 
 }
 network:n3 = {

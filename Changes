@@ -1,5 +1,67 @@
 {{$NEXT}}
 
+3.069     2015-07-09 10:44:08+02:00 Europe/Berlin
+
+ - Ignore hidden networks when processing static routes and NAT 
+   for networks of aggregates.
+ - Fixed owner of auto-interfaces in users-user rules.
+ - Fixed 'misc/anonymize'.
+
+3.068     2015-06-29 13:33:46+02:00 Europe/Berlin
+
+ - Attribute 'peer-id-validate nocheck' of tunnel-group ipsec-attributes
+   is no longer printed for certificates, but only for preshared key.
+ - NAT attributes are inherited from matching aggregate and supernet
+   to matching subnets in zone.
+   - Attribute 'nat' can now be defined for matching aggregates.
+     It is inherited to all matching networks inside corresponding zone.
+   - Attribute 'nat' of supernet N is inherited now to all subnets S of N
+     inside corresponding zone. Subnet relation between N and S 
+     is determined without consideration of NAT inside zone.
+ - Added check for useless identity NAT.
+ - Fixed add-to-netspoc / remove-from-netspoc for occurence after
+   negation or intersection.
+
+3.067     2015-06-22 13:35:39+02:00 Europe/Berlin
+
+ - Changes in generated crypto code for ASA:
+   - Always add tunnel-group-map if authentication=rsasig.
+     This is needed even for tunnel-group having IP address as name.
+   - Add route to reach VPN software clients.
+ - Moved program bin/export-netspoc from package Netspoc-Web
+   into this package.
+ - Option 'check_transient_supernet_rules' is activated by default.
+   Category is set to 'warn'.
+ - Revert changes in subroutine 'expand_protocols'.
+   This broke commands print-service and export-netspoc.
+ - No longer support isolated and promiscuous ports.
+
+3.066     2015-06-11 13:36:34+02:00 Europe/Berlin
+
+ - Changes in generated crypto code for ASA:
+   - Added support for dynamic crypto map.
+     Dynamic crypto map is generated at crypto hub, 
+     if corresponding crypto spoke has no known IP address.
+   - No longer print 'chain' command in tunnel-group.
+   - Added isakmp attribute 'ike_version = 2' 
+     to activate IKEv2 in site-to-site VPN.
+   - Added missing 'ikev1' in 'crypto ipsec transform-set'.
+   - ISAKMP commands are not printed any longer, because
+     Netspoc-Approve will ignore them anyway.
+ - General crypto changes:   
+   - Keywords sha256, sha384, sha512 are accepted now.
+   - Syntax change: Use md5, sha instead of md5_hmac, sha_hmac.
+   - DH groups 14, 15, 16, 19, 20, 21, 24 are accepted now.
+ - Model name 'IOS_FW' isn't supported any longer. Use 'IOS, FW' instead.
+ - No longer support attribute no_in_acl at zone and std_in_acl at router.
+ - Src-range is stored in rules again instead of protocol.
+   This fixes issue #11, but order of ACL lines may change.
+ - Protocols of "general_permit" are generated for Linux devices now.
+ - Protocol with modifiers is no longer valid in "general_permit".
+ - Different ID-hosts with identical ID must not terminate 
+   their VPN tunnel at a single VPN hub.
+ - Fixed handling of automatic groups in add-to/remove-from-netspoc.
+
 3.065     2015-03-13 17:59:49+01:00 Europe/Berlin
 
  - Programs 'remove-from-netspoc' and 'add-to-netspoc' have been added.
