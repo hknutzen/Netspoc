@@ -11371,7 +11371,7 @@ sub path_walk {
     $from and $to or internal_err(print_rule $rule);
     $from eq $to and internal_err("Unenforceable:\n ", print_rule $rule);
 
-    if (!$path_store->{path}->{$to_store}) {
+    if (not exists $path_store->{path}->{$to_store}) {
         if (!path_mark($from, $to, $from_store, $to_store)) {
             err_msg("No valid path\n",
                     " from $from_store->{name}\n",
