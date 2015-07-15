@@ -10747,14 +10747,14 @@ sub cluster_path_mark1 {
 
     # Fill hash for restoring reference from hash key.
     $key2obj{$in_intf} = $in_intf;
-    my $allowed = $navi->{ $obj->{loop} };
+    my $allowed = $navi->{ $obj->{loop} } or 
+        internal_err("Loop with empty navigation");
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_intf;
 
         # As optimization, ignore secondary interface early.
         next if $interface->{main_interface};
         my $loop = $interface->{loop} or next;
-        $allowed or internal_err("Loop with empty navigation");
         $allowed->{$loop} or next;
         my $next = $interface->{$get_next};
 #        debug "Try $obj->{name} -> $next->{name}";
