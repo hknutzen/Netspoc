@@ -7018,6 +7018,12 @@ sub get_zone {
 
 sub path_walk;
 
+# Parameter: Object, one of: Network, Subnet, Interface
+# Parameter: Object, one of: Network, Subnet, Interface
+# Parameter: HASH
+# Parameter: string description of the calling context for logging purpose.
+#
+# Return: Object, one of: Network, Subnet, Interface
 sub expand_special  {
     my ($src, $dst, $flags, $context) = @_;
     my @result;
@@ -10842,6 +10848,8 @@ sub cleanup_after_inheritance {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
 sub inherit_attributes {
     inherit_attributes_from_area();
     inherit_nat_in_zone();
@@ -13425,7 +13433,9 @@ my %supernet_rule_tree;
 # - src, src_range, prt, stateless are identical
 # - dst is supernet or aggregate with identical ip/mask
 #
-# Parameter: -none-
+# Parameter: HASH
+# Parameter: Interface object
+# Parameter: Interface object
 #
 # Return: -nothing-
 #
@@ -17048,6 +17058,11 @@ sub address {
 }
 
 # Given an IP and mask, return its address in Cisco syntax.
+#
+# Parameter: Objectgroup object or ARRAY of [IP, MASK] as integers or ARRAY of [0]
+# Parameter: HASH
+#
+# Return: string
 sub cisco_acl_addr {
     my ($pair, $model) = @_;
     if (is_objectgroup $pair) {
@@ -17234,6 +17249,13 @@ sub iptables_prt_code {
     }
 }
 
+# Parameter: Router object
+# Parameter: ARRAY
+# Parameter: HASH
+# Parameter: string
+#
+# Return: -nothing-
+#
 # Uses global: %config: User configurable options
 sub cisco_acl_line {
     my ($router, $rules_aref, $no_nat_set, $prefix) = @_;
@@ -20799,6 +20821,9 @@ sub show_finished {
 # These must be initialized on each run, because protocols are changed
 # by prepare_prt_ordering.
 #
+# Parameter: -none-
+# Return: -nothing-
+#
 # Uses global: $prt_ip: Protocol 'ip' is needed later for implementing secondary rules and automatically generated deny rules.
 # Uses global: $network_00: Needed for crypto_rules, for default route optimization, while generating chains of iptables and for local optimization.
 # Uses global: %routing_info: Definition of dynamic routing protocols
@@ -20926,6 +20951,9 @@ sub init_protocols {
     return;
 }
 
+# Parameter: -none-
+# Return: -nothing-
+#
 # Uses global: $abort_immediately
 # Uses global: $error_counter
 # Uses global: %hosts
@@ -21040,6 +21068,8 @@ sub parse_args {
     return ($main_file, $out_dir);
 }
 
+# Parameter: ARRAY of command line parameters
+# Return: -nothing-
 sub compile {
     my ($args) = @_;
    
