@@ -10193,7 +10193,7 @@ sub check_pathrestrictions {
         equal(map { $_->{zone_cluster} || $_ } map { $_->{zone} } @$elements)
             or next;
 
-        # Pathrestrictions in loops with < 1 zone cluster have an effect.
+        # Pathrestrictions in loops with > 1 zone cluster have an effect.
         my $element = $elements->[0];
         my $loop = $element->{loop};
         my $zone = $element->{zone};
@@ -10222,7 +10222,7 @@ sub check_pathrestrictions {
             }
         }
         
-        # Empty interface array of useless pathrestriction
+        # Empty interface array of useless pathrestrictions
         warn_msg("Useless $restrict->{name}.\n",
                  " All interfaces are unmanaged and",
                  " located inside the same security zone"
@@ -10543,12 +10543,10 @@ sub set_loop_cluster {
 }
 
 ###############################################################################
-# Purpose : Set distances to a randomly chosen start zone. Identify loops 
-#           inside the graph topology and provide a common distance for nodes 
-#           of a cycle or cycle cluster. 
-sub setpath {
-    progress('Preparing fast path traversal');
-    #TODO: new function set distances
+# Purpose : Set node distances to a randomly chosen start zone. Identify loops 
+#           inside the graph topology and tag nodes of a cycle with a common 
+#           loop object and distance.
+sub find_dists_and_loops {
     @zones or fatal_err("Topology seems to be empty");
     my @path_routers = grep { $_->{managed} || $_->{semi_managed} } @routers;
     my $start_distance = 0;
@@ -10566,13 +10564,20 @@ sub setpath {
         my $max = setpath_obj($zone1, '', $start_distance);
         $start_distance = $max + 1; # TODO: mark unconnected partitions - WHY?
     }
-    # end of function set distances
-    # TODO: new function - loop preparation
-    # Check all zones located inside a cyclic graph.
+    return;
+}
+
+###############################################################################
+# Purpose : Include node objects and interfaces of nested loops in the
+#           containing loop; add loop cluster exits; adjust distances of
+#           loop nodes.  
+sub process_loops {
+    # Check all nodes located inside a cyclic graph.
+    my @path_routers = grep { $_->{managed} || $_->{semi_managed} } @routers;
     for my $obj (@zones, @path_routers) {
         my $loop = $obj->{loop} or next;
  
-        # Include sub-loop elements into top-level loop.
+        # Include sub-loop nodes into top-level loop.
         while (my $next = $loop->{redirect}) {
 
             #debug("Redirect: $loop->{exit}->{name} -> $next->{exit}->{name}");
@@ -10583,8 +10588,8 @@ sub setpath {
         # Mark loops with cluster exit, needed for cactus graph loop clusters.
         set_loop_cluster($loop);
 
-        # Set distance of loop objects to value of cluster exit.
-        $obj->{distance} = $loop->{cluster_exit}->{distance};# loop dist stays 
+        # Set distance of loop node to value of cluster exit.
+        $obj->{distance} = $loop->{cluster_exit}->{distance};# keeps loop dist 
     }
 
     # Include sub-loop interfaces into top-level loop.
@@ -10598,11 +10603,20 @@ sub setpath {
             }
         }
     }
-    # Loop preparation - end of function
-    # Further linking of the topology, needs attribute {loop}.
-    check_pathrestrictions();
-    check_virtual_interfaces();
-    optimize_pathrestrictions();
+    return;
+}
+
+###############################################################################
+# Purpose : Add navigation information to the nodes of the graph to 
+#           enable fast traversal; identify loops and perform further 
+#           consistency checks.
+sub setpath {
+    progress('Preparing fast path traversal');
+    find_dists_and_loops(); 
+    process_loops();    
+    check_pathrestrictions(); # Consistency checks, need {loop} attribute.
+    check_virtual_interfaces(); # Consistency check, needs {loop} attribute.
+    optimize_pathrestrictions(); # Add navigation info to pathrestricted IFs.
     return;
 }
 
