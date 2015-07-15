@@ -10751,8 +10751,6 @@ sub cluster_path_mark1 {
         internal_err("Loop with empty navigation");
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_intf;
-
-        # As optimization, ignore secondary interface early.
         next if $interface->{main_interface};
         my $loop = $interface->{loop} or next;
         $allowed->{$loop} or next;
