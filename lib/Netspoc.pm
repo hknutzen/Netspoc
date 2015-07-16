@@ -4601,6 +4601,14 @@ sub link_virtual_interfaces  {
     return;
 }
 
+sub is_redundany_group {
+    my ($interfaces) = @_;
+    my $group = $interfaces->[0]->{redundancy_interfaces} or return;
+    my $count = grep({ $_->{redundancy_interfaces} || '' eq $group } 
+                     @$interfaces);
+    return $count == @$interfaces;    
+}
+
 sub check_ip_addresses {
     for my $network (values %networks) {
         if (    $network->{ip} eq 'unnumbered'
@@ -13927,6 +13935,11 @@ sub get_route_networks {
 # For each border interface I and each network N inside the security zone
 # we need to find the hop interface H via which N is reached from I.
 # This is stored in an attribute {route_in_zone} of I.
+#
+# Optimization:
+# Store default route for those border interfaces, that reach 
+# networks in zone via a single hop.
+# This is stored as I->{route_in_zone}->{default} = [H].
 sub set_routes_in_zone  {
     my ($zone) = @_;
 
@@ -14022,6 +14035,18 @@ sub set_routes_in_zone  {
                 push @hop_intf, $interface;
             }
         }
+
+        # Optimization: All networks in zone are located behind single hop.
+        if (1 == @hop_intf or is_redundany_group(\@hop_intf)) {
+            for my $interface (@border_intf) {
+
+#                debug("Default hop $interface->{name} ",
+#                      join(',', map {$_->{name}} @hop_intf));
+                $interface->{route_in_zone}->{default} = \@hop_intf;
+            }
+            next;
+        }
+
         for my $hop (@hop_intf) {
             $set_networks_behind->($hop, $border);
             for my $interface (@border_intf) {
@@ -14044,8 +14069,16 @@ sub set_routes_in_zone  {
 sub add_path_routes  {
     my ($in_intf, $out_intf, $dst_networks) = @_;
     return if $in_intf->{routing};
+    my $in_net = $in_intf->{network};
     my $out_net = $out_intf->{network};
-    my $hops = $in_intf->{route_in_zone}->{$out_net} || [$out_intf];
+    my $hops;
+    if ($in_net eq $out_net) {
+        $hops = [$out_intf];
+    }
+    else {
+        my $route_in_zone = $in_intf->{route_in_zone};
+        $hops = $route_in_zone->{default} || $route_in_zone->{$out_net};
+    }
     for my $hop (@$hops) {
         $in_intf->{hop}->{$hop} = $hop;
         for my $network (@$dst_networks) {
@@ -14068,7 +14101,7 @@ sub add_end_routes  {
     my $route_in_zone = $interface->{route_in_zone};
     for my $network (@$dst_networks) {
         next if $network eq $intf_net;
-        my $hops = $route_in_zone->{$network}
+        my $hops = $route_in_zone->{default} || $route_in_zone->{$network}
           or internal_err("Missing route for $network->{name}",
                           " at $interface->{name}");
         for my $hop (@$hops) {
@@ -14344,7 +14377,8 @@ sub check_and_convert_routes  {
                 # Peer network is located in directly connected zone.
                 elsif ($real_net->{zone} eq $peer_net->{zone}) {
                     my $route_in_zone = $real_intf->{route_in_zone};
-                    my $hops = $route_in_zone->{$peer_net} or 
+                    my $hops = ($route_in_zone->{default} || 
+                                $route_in_zone->{$peer_net}) or 
                         internal_err("Missing route for $peer_net->{name}",
                                      " at $real_intf->{name} ");
                     push @hops, @$hops;
@@ -14376,7 +14410,8 @@ sub check_and_convert_routes  {
                             push @hops, $hop;
                         }
                         else {
-                            my $hops = $route_in_zone->{$hop_net} or 
+                            my $hops = ($route_in_zone->{default} || 
+                                        $route_in_zone->{$hop_net}) or 
                                 internal_err("Missing route for $hop_net->{name}",
                                              " at $real_intf->{name}");
                             push @hops, @$hops;
