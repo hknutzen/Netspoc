@@ -3595,9 +3595,9 @@ sub prepare_prt_ordering {
         # Found duplicate protocol definition.  Link $prt with $main_prt.
         # We link all duplicate protocols to the first protocol found.
         # This assures that we always reach the main protocol from any duplicate
-        # protocol in one step via ->{main}.  This is used later to substitute
-        # occurrences of $prt with $main_prt.
-        $prt->{main} = $main_prt;
+        # protocol in one step via ->{to_zone1}. This is used later to 
+        #substitute occurrences of $prt with $main_prt.
+        $prt->{to_zone1} = $main_prt;
     }
     return;
 }
@@ -6709,7 +6709,7 @@ sub expand_rules {
                 if (ref $prt eq 'ARRAY') {
                     ($src_range, $prt, $orig_prt) = @$prt;
                 }
-                elsif (my $main_prt = $prt->{main}) {
+                elsif (my $main_prt = $prt->{to_zone1}) {
                     $orig_prt = $prt;
                     $prt      = $main_prt;
                 }
@@ -10111,21 +10111,21 @@ sub set_zone {
 ####################################################################
 # Virtual interfaces
 ####################################################################
-
-# Interfaces with identical virtual IP must be located inside the same loop.
+# Purpose : Assure interfaces with identical virtual IP are located inside 
+#           the same loop.
 sub check_virtual_interfaces  {
     my %seen;
     for my $interface (@virtual_interfaces) {
         my $related = $interface->{redundancy_interfaces} or next;
 
-        # Loops inside a security zone are not known
-        # and therefore can't be checked.
+        # Loops inside a security zone are not known and can not be checked
         my $router = $interface->{router};
         next if not($router->{managed} or $router->{semi_managed});
 
         $seen{$related} and next;
         $seen{$related} = 1;
 
+        # Check whether all virtual interfaces are part of a loop. 
         my $err;
         for my $v (@$related) {
             if (not $v->{router}->{loop}) {
@@ -10135,6 +10135,8 @@ sub check_virtual_interfaces  {
             }
         }
         next if $err;
+        
+        # Check whether all virtual interfaces are part of the same loop.
         equal(map { $_->{loop} } @$related)
           or err_msg("Virtual interfaces\n ",
                      join(', ', map({ $_->{name} } @$related)),
@@ -10146,13 +10148,18 @@ sub check_virtual_interfaces  {
 ####################################################################
 # Check pathrestrictions
 ####################################################################
-
+# Purpose : Collect proper & effective pathrestrictions in a global array.
+#           Pathrestrictions have to fulfill following requirements:
+#           - Located inside or at the border of cycles.
+#           - At least 2 interfaces per pathrestriction.
+#           - Have an effect on ACL generation. 
 sub check_pathrestrictions {
   RESTRICT:
+    # Process every pathrestriction.
     for my $restrict (values %pathrestrictions) {
-        my $elements = $restrict->{elements};
+        my $elements = $restrict->{elements}; # Extract interfaces. 
         next if !@$elements;
-        my $deleted;
+        my $deleted; # Flags whether interfaces have been deleted. 
         my $prev_interface;
         my $prev_cluster;
         for my $interface (@$elements) {
@@ -10167,7 +10174,7 @@ sub check_pathrestrictions {
                 delete $interface->{path_restrict};
                 warn_msg("Ignoring $restrict->{name} at $interface->{name}\n",
                          " because it isn't located inside cyclic graph");
-                $interface = undef;
+                $interface = undef; # No longer reference this interface.
                 $deleted = 1;
             }
 
@@ -10185,36 +10192,38 @@ sub check_pathrestrictions {
                 $prev_interface = $interface;
             }                            
         }
+
+        # Remove illegal interfaces from elements array. 
         if ($deleted) {
             $elements = $restrict->{elements} = [ grep { $_ } @$elements ];
-            if (1 == @$elements) {
+            if (1 == @$elements) { # Min. 2 interfaces/path restriction needed! 
                 $elements = $restrict->{elements} = [];
             }
         }
+
         next if !@$elements;
 
-        # Check for useless pathrestriction where all interfaces
-        # are located inside a loop with all routers unmanaged.
-        #
-        # Some router is managed.
+        # Check for useless pathrestrictions that do not affect any ACLs...
+        # Pathrestrictions at managed routers do most probably have an effect.
         grep({ $_->{router}->{managed} || $_->{router}->{routing_only} } 
              @$elements) and next;
 
-        # Different zones or zone_clusters, hence some router is managed.
+        # Pathrestrictions spanning different zone clusters have an effect.
         equal(map { $_->{zone_cluster} || $_ } map { $_->{zone} } @$elements)
             or next;
 
-        # If there exists some neighbour zone or zone_cluster, located
-        # inside the same loop, then some router is managed.
-        # Interface is known to have attribute {loop}, 
-        # because it is unmanaged and has pathrestriction.
+        # Pathrestrictions in loops with > 1 zone cluster have an effect.
         my $element = $elements->[0];
         my $loop = $element->{loop};
         my $zone = $element->{zone};
         my $zone_cluster = $zone->{zone_cluster} || [ $zone ];
+
+        # Process every zone in zone cluster...
         for my $zone1 (@$zone_cluster) {
             for my $interface (@{ $zone->{interfaces} }) {
                 my $router = $interface->{router};
+                
+                # ...examine its neighbour zones:
                 for my $interface2 (@{ $router->{interfaces} }) {
                     my $zone2 = $interface2->{zone};
                     next if $zone2 eq $zone;
@@ -10224,7 +10233,7 @@ sub check_pathrestrictions {
                     if (my $loop2 = $zone2->{loop}) {
                         if ($loop eq $loop2) {
                         
-                            # Found other zone in same loop.
+                            # Found other zone cluster in same loop.
                             next RESTRICT;
                         }
                     }
@@ -10232,12 +10241,15 @@ sub check_pathrestrictions {
             }
         }
         
+        # Empty interface array of useless pathrestrictions
         warn_msg("Useless $restrict->{name}.\n",
                  " All interfaces are unmanaged and",
                  " located inside the same security zone"
             );
         $restrict->{elements} = [];
     }
+
+    # Collect all effective pathrestrictions.
     push @pathrestrictions, grep({ @{ $_->{elements} } } 
                                  values %pathrestrictions);
     return;
@@ -10251,131 +10263,158 @@ sub check_pathrestrictions {
 # When entering a partition, we can already decide, 
 # if end of path is reachable or not.
 ####################################################################
-
+#############################################################################
+# Purpose  : Mark every element of a loop partition with the partitions 
+#            identity number.
+# Parameter: $obj - current node on loop path (zone/router)
+#            $in_interface - interface we come from 
+#            $mark - unique identity number of the loop partition
+#            $lookup - hash stores interfaces of the processed pathrestriction
 sub traverse_loop_part {
-    my ($obj, $in_interface, $mark, $seen) = @_;
+    my ($obj, $in_interface, $mark, $lookup) = @_;
+ 
+    # Return if current node has been processed before.
     return if $obj->{reachable_part}->{$mark};
     return if $obj->{active_path};
-    local $obj->{active_path} = 1;
 
-    # Mark $obj as member of partition.
-    $obj->{reachable_part}->{$mark} = 1;
-#    debug "$obj->{name} in loop part $mark";
+    local $obj->{active_path} = 1;
     my $is_zone = is_zone($obj);
+
+    # Mark current node ($obj) as member of partition.    
+    $obj->{reachable_part}->{$mark} = 1;
+    #debug "$obj->{name} in loop part $mark";
+
+    # Proceed pathwalk with adjacent objects.    
     for my $interface (@{ $obj->{interfaces} }) {
+
+        # Skip unessential interfaces.
         next if $interface eq $in_interface;
         next if $interface->{main_interface};
-        if (my $hash = $seen->{$interface}) {
+
+        # Stop at other interfaces of the processed pathrestriction.
+        if (my $reached = $lookup->{$interface}) {
             my $current = $is_zone ? 'zone' : 'router';
-            $hash->{$current} = $mark;
+            $reached->{$current} = $mark; # store partition in lookup hash
         }
+
+        # Continue path walk on loop path otherwise.
         else {
             next if !$interface->{loop};
             my $next = $interface->{$is_zone ? 'router' : 'zone'};
-            traverse_loop_part($next, $interface, $mark, $seen);
+            traverse_loop_part($next, $interface, $mark, $lookup);
         }
     }
     return;
 }
 
-# Find partitions of a cyclic graph that are separated by pathrestrictions.
-# Mark each found partition with a distinct number.
+#############################################################################
+# Purpose    : Analyze found partitions and optimize pathrestrictions.
+# Parameters : $restrict - pathrestriction to optimize (hash reference)
+#              $elements - interfaces of the pathrestriction (array reference)
+#              $lookup - stores adjacent partitions for every IF in elements. 
+sub apply_optimization {
+    my ($restrict, $elements, $lookup) = @_;
+    
+    # No outgoing restriction needed for a pathrestriction surrounding a
+    # single zone. A rule from zone to zone would be unenforceable anyway.
+    #
+    # But this restriction is needed for one special case:
+    # src=zone, dst=interface:r.zone
+    # We must not enter router:r from outside the zone.
+#        if (equal(map { $_->{zone} } @$elements)) {
+#            $lookup->{$_}->{router} = 'none' for @$elements;
+#        }
+
+    # Examine interfaces in or between found partitions.
+    my $has_interior; # To count number of interfaces inside a partition.
+    for my $interface (@$elements) {
+        my $reached = $lookup->{$interface};
+
+        # Count pathrestriction interfaces inside a partition.
+        if ($reached->{zone} eq $reached->{router} &&
+            $reached->{zone} ne 'none') 
+        {
+            $has_interior++;
+        }
+
+        # Store reachable partitions in the interfaces {reachable_at} hash
+        else {
+            for my $direction (qw(zone router)) {
+                my $mark = $reached->{$direction};
+                next if $mark eq 'none';
+                my $obj = $interface->{$direction};
+                push @{ $interface->{reachable_at}->{$obj} }, $mark;
+                #debug "$interface->{name}: $direction $mark";
+            }
+        }
+    }
+
+    # Delete pathrestriction objects, if {reachable_at} holds entire info.
+    if (!$has_interior) { # Interfaces must not be located inside a partition.
+        for my $interface (@$elements) {
+            #debug "remove $restrict->{name} from $interface->{name}";
+            aref_delete($interface->{path_restrict}, $restrict) or
+                internal_err("Can't remove $restrict->{name}",
+                             " from $interface->{name}");
+
+            # Delete empty array to speed up checks in cluster_path_mark.
+            if (!@{ $interface->{path_restrict} }) {
+                delete $interface->{path_restrict};
+            }
+        }
+    }
+    else {
+#            debug "Can't opt. $restrict->{name}, has $has_interior interior";
+    }
+    return;
+}
+
+#############################################################################
+# Purpose : Find partitions of loops that are separated by pathrestrictions.
+#           Mark every node of a partition with a unique number that is 
+#           attached to the partitions routers and zones, and every 
+#           pathrestriction with a list of partitions that ca be reached.
 sub optimize_pathrestrictions {
     my $mark = 1;
+
+    # Process every pathrestriction.
     for my $restrict (@pathrestrictions) {
         my $elements = $restrict->{elements};
 
-        # Create a hash with all elements as key.
-        # Used for efficient lookup, if some interface 
-        # is part of current pathrestriction.
-        # Value is an initially empty hash.
-        # Keys 'router' and 'zone' are added during traversal.
-        # Key indicates if element was reached from router or network.
-        # Value is $mark of the adjacent partition.
-        my $seen = {};
+        # Create lookup hash with the pathrestrictions interfaces as keys to
+        # store the partitions every interface adjoins in zone/router direction.
+        my $lookup = {};
         for my $interface (@$elements) {
-            $seen->{$interface} = {};
+            $lookup->{$interface} = {}; # Initial values are empty hashes.
         }
 
-        # Traverse loop starting from each element of pathrestriction
-        # in both directions.
+        # From every interface, traverse loop in both directions.
         my $start_mark = $mark;
         for my $interface (@$elements) {
-            my $reached = $seen->{$interface};
+            my $reached = $lookup->{$interface};
             for my $direction (qw(zone router)) {
 
-                # This side of the interface has already been entered
-                # from some previously found partition.
-                next if $reached->{$direction};
-                my $obj = $interface->{$direction};
+                # Skip direction where interface was already reached from.
+                next if $reached->{$direction}; # Already a partition stored.
 
-                # Ignore interface at border of loop in direction
-                # leaving the loop.
+                # For interfaces at loop border, skip direction leaving the loop
+                my $obj = $interface->{$direction};
                 if (!$obj->{loop}) {
                     $reached->{$direction} = 'none';
                     next;
                 }
+
+                # Store adjoining partition of the interface.
                 $reached->{$direction} = $mark;
-                traverse_loop_part($obj, $interface, $mark, $seen);
+
+                # Traverse loop path and mark loop partition. 
+                traverse_loop_part($obj, $interface, $mark, $lookup);
                 $mark++;
             }
         }
-        
-        # Analyze found partitions.
-
-        # If only a single partition was found, nothing can be optimized.
-        next if $mark <= $start_mark + 1;
-
-        # No outgoing restriction needed for a pathrestriction surrounding a
-        # single zone. A rule from zone to zone would be unenforceable anyway.
-        #
-        # But this restriction is needed for one special case:
-        # src=zone, dst=interface:r.zone
-        # We must not enter router:r from outside the zone.
-#        if (equal(map { $_->{zone} } @$elements)) {
-#            $seen->{$_}->{router} = 'none' for @$elements;
-#        }
-
-        # Collect interfaces at border of newly found partitions.
-        my $has_interior;
-        for my $interface (@$elements) {
-            my $reached = $seen->{$interface};
-
-            # Check for pathrestriction inside a partition.
-            if ($reached->{zone} eq $reached->{router} && 
-                $reached->{zone} ne 'none') 
-            {
-                $has_interior++;
-            }
-            else {
-                for my $direction (qw(zone router)) {
-                    my $mark = $reached->{$direction};
-                    next if $mark eq 'none';
-                    my $obj = $interface->{$direction};
-                    push @{ $interface->{reachable_at}->{$obj} }, $mark;
-#                    debug "$interface->{name}: $direction $mark";
-                }
-            }
-        }
-
-        # Original pathrestriction is needless, if all interfaces are
-        # border of some partition. The restriction is implemented by
-        # the new attribute {reachable_at}.
-        if (!$has_interior) {
-            for my $interface (@$elements) {
-#                debug "remove $restrict->{name} from $interface->{name}";
-                aref_delete($interface->{path_restrict}, $restrict) or
-                    internal_err("Can't remove $restrict->{name}",
-                                 " from $interface->{name}");
-
-                # Delete empty array to speed up checks in cluster_path_mark.
-                if (!@{ $interface->{path_restrict} }) {
-                    delete $interface->{path_restrict};
-                }
-            }
-        }
-        else {
-#            debug "Can't opt. $restrict->{name}, has $has_interior interior";
+        # Optimize pathrestrictions
+        if ($mark > $start_mark + 1){ # Optimization needs 2 partitions min.
+            apply_optimization($restrict, $elements, $lookup);
         }
     }
     return;
@@ -10384,82 +10423,80 @@ sub optimize_pathrestrictions {
 ####################################################################
 # Set paths for efficient topology traversal
 ####################################################################
-
-# Parameters:
-# $obj: a managed or semi-managed router or a zone
-# $to_zone1: interface of $obj; go this direction to reach zone1
-# $distance: distance to zone1
-# Return values:
-# 1. maximal value of $distance used in current subtree.
-# 2.
-# - undef: found path is not part of a loop
-# - loop-marker:
-#   - found path is part of a loop
-#   - a hash, which is referenced by all members of the loop
-#     with this attributes:
-#     - exit: that node of the loop where zone1 is reached
-#     - distance: distance of the exit node + 1.
+# Purpose  : Find a path from every zone and router to zone1; store the 
+#            distance to zone1 in every object visited; identify loops and 
+#            add loop marker references to loop nodes.
+# Parameter: $obj     : zone or managed or semi-managed router
+#            $to_zone1: interface of $obj; denotes the direction to reach zone1
+#            $distance: distance to zone1
+# Returns  : 1. maximal value of $distance used in current subtree.
+#            2. undef, if found path is not part of a loop or loop-marker 
+#               otherwise.
+# Comments : Loop markers store following information:
+#            - exit: node of the loop where zone1 is reached
+#            - distance: distance of loop exit node + 1. It is needed, as the
+#            nodes own distance values are later reset zo the value of the 
+#            cluster exit object. The intermediate value is required by 
+#            cluster_navigation to work.
 sub setpath_obj;
 
 sub setpath_obj {
     my ($obj, $to_zone1, $distance) = @_;
+    #debug("--$distance: $obj->{name} --> ". ($to_zone1 && $to_zone1->{name}));
 
-#    debug("--$distance: $obj->{name} --> ". ($to_zone1 && $to_zone1->{name}));
-    if ($obj->{active_path}) {
+    # Return from recursion if loop was found.
+    if ($obj->{active_path}) { # Loop found, node might be loop exit to zone1. 
 
-        # Found a loop; this is possibly exit of the loop to zone1.
-        # Generate unique loop marker which references this object.
-        # Distance is needed for cluster navigation.
-        # We need a copy of the distance value inside the loop marker
-        # because distance at object is reset later to the value of the
-        # cluster exit object.
-        # We must use an intermediate distance value for cluster_navigation
-        # to work.
+        # Create unique loop marker, which will be added to all loop members.
         my $new_distance = $obj->{distance} + 1;
         my $loop = $to_zone1->{loop} = {
-            exit     => $obj,
-            distance => $new_distance,
+            exit     => $obj, # Reference exit node.
+            distance => $new_distance, # Required for cluster navigation.
         };
         return ($new_distance, $loop);
     }
 
-    # Mark current path for loop detection.
-    local $obj->{active_path} = 1;
+    # Continue graph exploration otherwise.
+    local $obj->{active_path} = 1;# Mark current path for loop detection.
     $obj->{distance} = $distance;
     my $max_distance = $distance;
 
-    my $get_next = is_router($obj) ? 'zone' : 'router';
+    # Process all of the objects interfaces.
     for my $interface (@{ $obj->{interfaces} }) {
+        
+        # Skip interfaces:
+        next if $interface eq $to_zone1; # Interface where we reached this obj.
+        next if $interface->{loop};# Interface is entry of already marked loop.
 
-        # Ignore interface where we reached this obj.
-        next if $interface eq $to_zone1;
-
-        # Ignore interface which is the other entry of a loop which is
-        # already marked.
-        next if $interface->{loop};
+        # Get adjacent object/node.
+        my $get_next = is_router($obj) ? 'zone' : 'router';
         my $next = $interface->{$get_next};
 
-        # Increment by 2 because we need an intermediate value above.
+        # Proceed with next node (distance + 2 to enable intermediate values).
         (my $max, my $loop) = setpath_obj($next, $interface, $distance + 2);
         $max_distance = $max if $max > $max_distance;
+
+        # Process recursion stack: Node is on a loop path.
         if ($loop) {
+            $interface->{loop} = $loop;
             my $loop_obj = $loop->{exit};
 
             # Found exit of loop in direction to zone1.
             if ($obj eq $loop_obj) {
-
-                # Mark with a different marker linking to itself.
+                # Mark exit node with a different loop marker linking to itself.
                 # If current loop is part of a cluster,
                 # this marker will be overwritten later.
                 # Otherwise this is the exit of a cluster of loops.
                 $obj->{loop} ||= { exit => $obj, distance => $distance, };
             }
 
-            # Found intermediate loop node which was marked before.
+            # Found intermediate loop node which was marked as loop before.
             elsif (my $loop2 = $obj->{loop}) {
-                if ($loop ne $loop2) {
+                if ($loop ne $loop2) { # Node is also part of another loop.
+
+                    # Set reference to loop object with exit closer to zone1 
                     if ($loop->{distance} < $loop2->{distance}) {
-                        $loop2->{redirect} = $loop;
+                        $loop2->{redirect} = $loop; # keep info in other loop
                         $obj->{loop}       = $loop;
                     }
                     else {
@@ -10472,42 +10509,52 @@ sub setpath_obj {
             else {
                 $obj->{loop} = $loop;
             }
-            $interface->{loop} = $loop;
         }
         else {
 
-            # Continue marking loop-less path.
-            $interface->{main} = $obj;
+            # Mark loop-less path.
+            $interface->{to_zone1} = $obj;
         }
     }
+
+    # Return from recursion after all interfaces have been processed.
     if ($obj->{loop} and $obj->{loop}->{exit} ne $obj) {
         return ($max_distance, $obj->{loop});
 
     }
     else {
-        $obj->{main} = $to_zone1;
+        $obj->{to_zone1} = $to_zone1;
         return $max_distance;
     }
 }
 
-# Find cluster of directly connected loops.
-# Find exit node of the cluster in direction to zone1;
-# Its loop attribute has a reference to the node itself.
-# Add this exit node as marker to all loops belonging to the cluster.
+################################################################################
+# Purpose  : Identify clusters of directly connected loops in cactus graphs. 
+#            Find exit node of loop cluster or single loop in direction to 
+#            zone1; add this exit node as marker to all loop objects of the
+#            cluster.
+# Parameter: $loop: Top-level loop object (after redirection).
+# Returns  : A reference to the loop cluster exit node. 
 sub set_loop_cluster {
     my ($loop) = @_;
+
+    # Return loop cluster exit node, if loop has been processed before.
     if (my $marker = $loop->{cluster_exit}) {
         return $marker;
     }
     else {
+
+        # Examine the loop object referenced in the loops exit node.
         my $exit = $loop->{exit};
 
-        # Exit node has loop marker which references the node itself.
-        if ($exit->{loop} eq $loop) {
+        # Exit node references itself: loop cluster exit found.
+        if ($exit->{loop} eq $loop) { # Exit node references itself. 
 
-#           debug("Loop $exit->{name},$loop->{distance} is in cluster $exit->{name}");
+#            debug("Loop $exit->{name},$loop->{distance} is in cluster $exit->{name}");
             return $loop->{cluster_exit} = $exit;
         }
+
+        # Exit node references another loop: proceed with next loop of cluster 
         else {
             my $cluster = set_loop_cluster($exit->{loop});
 
@@ -10517,48 +10564,57 @@ sub set_loop_cluster {
     }
 }
 
-sub setpath {
-    progress('Preparing fast path traversal');
-
+###############################################################################
+# Purpose : Set node distances to a randomly chosen start zone. Identify loops 
+#           inside the graph topology, tag nodes of a cycle with a common 
+#           loop object and distance.
+sub find_dists_and_loops {
     @zones or fatal_err("Topology seems to be empty");
     my @path_routers = grep { $_->{managed} || $_->{semi_managed} } @routers;
     my $start_distance = 0;
 
-    # Find one or more connected partitions in whole topology.
+    # Find one or more disconnected parts in whole topology.
     for my $obj (@zones, @path_routers) {
-        next if $obj->{main} or $obj->{loop};
+        next if $obj->{to_zone1} or $obj->{loop}; # Objects have been processed 
 
-        # Take an arbitrary obj from @zones, name it "zone1".
+        # Chose an arbitrary node to start from.
         my $zone1 = $obj;
 
-        # Starting with zone1, do a traversal of all connected nodes,
-        # to find a path from every zone and router to zone1.
-        # Second  parameter is used as placeholder for a not existing
-        # starting interface. 
+        # Traverse all nodes connected to zone1.
+        # Second parameter stands for not existing starting interface. 
         # Value must be "false" and unequal to any interface.
-        # Third parameter is distance from $zone1 to $zone1.
         my $max = setpath_obj($zone1, '', $start_distance);
-        $start_distance = $max + 1;
+        $start_distance = $max + 1; # TODO: why mark disconnected partitions?
     }
+    return;
+}
 
+###############################################################################
+# Purpose : Include node objects and interfaces of nested loops in the
+#           containing loop; add loop cluster exits; adjust distances of
+#           loop nodes.  
+sub process_loops {
+    # Check all nodes located inside a cyclic graph.
+    my @path_routers = grep { $_->{managed} || $_->{semi_managed} } @routers;
     for my $obj (@zones, @path_routers) {
         my $loop = $obj->{loop} or next;
-
-        # Check all zones and routers located inside a cyclic
-        # graph. Propagate loop exit into sub-loops.
+ 
+        # Include sub-loop nodes into containing loop with exit closest to zone1
         while (my $next = $loop->{redirect}) {
 
-#           debug("Redirect: $loop->{exit}->{name} -> $next->{exit}->{name}");
+            #debug("Redirect: $loop->{exit}->{name} -> $next->{exit}->{name}");
             $loop = $next;
         }
         $obj->{loop} = $loop;
 
-        # Mark connected loops with cluster exit.
+        # Mark loops with cluster exit, needed for cactus graph loop clusters.
         set_loop_cluster($loop);
 
-        # Set distance of loop objects to value of cluster exit.
-        $obj->{distance} = $loop->{cluster_exit}->{distance};
+        # Set distance of loop node to value of cluster exit.
+        $obj->{distance} = $loop->{cluster_exit}->{distance};# keeps loop dist 
     }
+
+    # Include sub-loop IFs into containing loop with exit closest to zone1.
     for my $router (@path_routers) {
         for my $interface (@{ $router->{interfaces} }) {
             if (my $loop = $interface->{loop}) {
@@ -10569,12 +10625,20 @@ sub setpath {
             }
         }
     }
+    return;
+}
 
-    # This is called here and not at link_topology because it needs
-    # attribute {loop}.
-    check_pathrestrictions();
-    check_virtual_interfaces();
-    optimize_pathrestrictions();
+###############################################################################
+# Purpose : Add navigation information to the nodes of the graph to 
+#           enable fast traversal; identify loops and perform further 
+#           consistency checks.
+sub setpath {
+    progress('Preparing fast path traversal');
+    find_dists_and_loops(); # Add navigation info.
+    process_loops(); # Refine navigation info at loop nodes.   
+    check_pathrestrictions(); # Consistency checks, need {loop} attribute.
+    check_virtual_interfaces(); # Consistency check, needs {loop} attribute.
+    optimize_pathrestrictions(); # Add navigation info to pathrestricted IFs.
     return;
 }
 
@@ -11236,7 +11300,7 @@ sub path_mark {
 
             # Mark has already been set for a sub-path.
             return 1 if $from_in->{path}->{$to_store};
-            my $from_out = $from->{main};
+            my $from_out = $from->{to_zone1};
             unless ($from_out) {
 
                 # Reached border of partition.
@@ -11244,7 +11308,7 @@ sub path_mark {
 
                 # $from_loop references object which is loop's exit.
                 my $exit = $from_loop->{cluster_exit};
-                $from_out = $exit->{main};
+                $from_out = $exit->{to_zone1};
 
                 # Reached border of partition.
                 return 0 if !$from_out;
@@ -11257,18 +11321,18 @@ sub path_mark {
 #            debug(" $from_in->{name} -> ".($from_out ? $from_out->{name}:''));
             $from_in->{path}->{$to_store} = $from_out;
             $from_in                      = $from_out;
-            $from                         = $from_out->{main};
+            $from                         = $from_out->{to_zone1};
             $from_loop                    = $from->{loop};
         }
         else {
-            my $to_in = $to->{main};
+            my $to_in = $to->{to_zone1};
             unless ($to_in) {
                 
                 # Reached border of partition.
                 return 0 if !$to_loop;
 
                 my $entry = $to_loop->{cluster_exit};
-                $to_in = $entry->{main};
+                $to_in = $entry->{to_zone1};
 
                 # Reached border of partition.
                 return 0 if !$to_in;
@@ -11281,7 +11345,7 @@ sub path_mark {
 #            debug(" $to_in->{name} -> ".($to_out ? $to_out->{name}:''));
             $to_in->{path}->{$to_store} = $to_out;
             $to_out                     = $to_in;
-            $to                         = $to_in->{main};
+            $to                         = $to_in->{to_zone1};
             $to_loop                    = $to->{loop};
         }
     }
@@ -15445,7 +15509,7 @@ sub create_general_permit_rules {
         if (ref $prt eq 'ARRAY') {
             (my $src_range, $prt, my $orig_prt) = @$prt;
         }
-        elsif (my $main_prt = $prt->{main}) {
+        elsif (my $main_prt = $prt->{to_zone1}) {
             $prt = $main_prt;
         }
         my $rule = {
