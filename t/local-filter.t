@@ -48,18 +48,27 @@ $title = 'Local network doesn\'t match filter_only attribute';
 
 $in = <<'END';
 network:n1 = { ip = 10.62.1.32/27; }
-network:n2 = { ip = 10.62.2.32/27; }
-router:d32 = {
+router:r1 = {
  model = ASA;
  managed = local;
  filter_only =  10.62.1.0/24;
  interface:n1 = { ip = 10.62.1.33; hardware = vlan1; }
  interface:n2 = { ip = 10.62.2.33; hardware = vlan2; }
 }
+network:n2 = { ip = 10.62.2.32/27; }
+router:r2 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.62.1.0/24;
+ interface:n2 = { ip = 10.62.2.34; hardware = vlan2; }
+ interface:n3 = { ip = 10.62.1.1; hardware = vlan3; }
+}
+network:n3 = { ip = 10.62.1.0/27; }
 END
 
+# Show message only once.
 $out = <<'END';
-Error: network:n2 doesn't match attribute 'filter_only' of router:d32
+Error: network:n2 doesn't match attribute 'filter_only' of router:r1
 END
 
 test_err($title, $in, $out);
@@ -68,10 +77,20 @@ test_err($title, $in, $out);
 $title = 'Unused filter_only attribute';
 ############################################################
 
-$in =~ s#10.62.1.0/24#10.62.1.0/24, 10.62.2.0/24, 10.62.3.0/24#;
+$in = <<'END';
+network:n1 = { ip = 10.62.1.32/27; }
+router:r1 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.62.1.0/24, 10.62.2.0/24, 10.62.3.0/24;
+ interface:n1 = { ip = 10.62.1.33; hardware = vlan1; }
+ interface:n2 = { ip = 10.62.2.33; hardware = vlan2; }
+}
+network:n2 = { ip = 10.62.2.32/27; }
+END
 
 $out = <<'END';
-Warning: Useless 10.62.3.0/24 in attribute 'filter_only' of router:d32
+Warning: Useless 10.62.3.0/24 in attribute 'filter_only' of router:r1
 END
 
 test_err($title, $in, $out);
