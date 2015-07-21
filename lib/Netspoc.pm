@@ -8917,8 +8917,6 @@ sub check_crosslink  {
 # Find cluster of zones connected by 'local' or 'local_secondary' routers.
 # - Check consistency of attributes.
 # - Set unique 'local_mark' for all zones belonging to one cluster
-# - Set 'local_secondary_mark' for secondary optimization inside one cluster.
-#   Two zones get the same mark if they are connected by local_secondary router.
 sub check_managed_local {
     my %seen;
     my $cluster_counter = 1;
@@ -8936,6 +8934,9 @@ sub check_managed_local {
             my $k;
             $seen{$router} = $router;
             for my $in_intf (@{ $router->{interfaces} }) {
+
+                # no_nat_set is known to be identical inside 'local' cluster,
+                # because attribute 'bind_nat' not valid at 'local' routers.
                 my $no_nat_set = $in_intf->{no_nat_set};
                 my $zone0 = $in_intf->{zone};
                 my $zone_cluster = $zone0->{zone_cluster};
@@ -13366,9 +13367,8 @@ sub mark_strict_secondary  {
     return;
 }
 
-# Mark security zone $zone with $mark and additionally mark all
-# security zones which are connected with $zone by local_secondary
-# packet filters.
+# Set 'local_secondary_mark' for secondary optimization inside one cluster.
+# Two zones get the same mark if they are connected by local_secondary router.
 sub mark_local_secondary;
 
 sub mark_local_secondary  {
