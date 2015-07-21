@@ -8484,12 +8484,6 @@ sub find_subnets_in_zone {
     # networks. This can be useful to add optimization rules at an
     # intermediate device.
 
-    # Change NAT at interface after above checks.
-    adjust_crypto_nat();
-
-    # Call late after $zone->{networks} has been set up.
-    link_reroute_permit();
-    check_managed_local();
     return;
 }
 
@@ -19578,6 +19572,16 @@ sub compile {
     &setpath();
     &distribute_nat_info();
     find_subnets_in_zone();
+
+    # Call after find_subnets_in_zone, because original no_nat_set was
+    # needed there.
+    adjust_crypto_nat();
+
+    # Call after find_subnets_in_zone, where $zone->{networks} has
+    # been set up.
+    link_reroute_permit();
+    check_managed_local();
+
     &set_service_owner();
     &expand_services(1);	# 1: expand hosts to subnets
 

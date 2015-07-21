@@ -236,6 +236,7 @@ if (@ARGV) {
 &distribute_nat_info();
 &setpath();
 Netspoc::find_subnets_in_zone();
+Netspoc::link_reroute_permit();
 &expand_services(1);
 
 # Process rules of services.
