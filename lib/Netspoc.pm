@@ -19568,8 +19568,11 @@ sub compile {
     prepare_nat_commands();
     find_active_routes();
     &gen_reverse_rules();
+
+    # Reverse rules are marked also.
     &mark_secondary_rules();
     mark_dynamic_nat_rules();
+
     &abort_on_error();
 
     # No errors expected after this point.
@@ -19587,6 +19590,6 @@ sub compile {
 1;
 
 #  LocalWords:  Netspoc Knutzen internet CVS IOS iproute iptables STDERR Perl
-#  LocalWords:  netmask EOL ToDo IPSec unicast utf hk src dst ICMP IPs EIGRP
-#  LocalWords:  OSPF VRRP HSRP Arnes loop's ISAKMP stateful ACLs negatable
+#  LocalWords:  netmask EOL ToDo IPSec unicast utf src dst ICMP IPs EIGRP
+#  LocalWords:  OSPF VRRP HSRP loop's ISAKMP stateful ACLs
 #  LocalWords:  STDOUT
