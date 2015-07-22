@@ -6149,8 +6149,8 @@ sub split_protocols {
 
 sub path_auto_interfaces;
 
-# Hash with attributes deny, supernet, permit for storing
-# expanded rules of different type.
+# Hash with attributes deny, permit for storing expanded rules with
+# different action.
 our %expanded_rules;
 
 # Hash for ordering all rules.
@@ -6664,7 +6664,7 @@ sub normalize_log {
 # - Reference to array for storing resulting expanded rules.
 # - Flag which will be passed on to expand_group.
 sub expand_rules {
-    my ($service, $result, $convert_hosts) = @_;
+    my ($service, $convert_hosts) = @_;
     my $rules_ref = $service->{rules};
     my $user      = $service->{user};
     my $context   = $service->{name};
@@ -6674,6 +6674,7 @@ sub expand_rules {
 
     for my $unexpanded (@$rules_ref) {
         my $deny = $unexpanded->{action} eq 'deny';
+        my $store_type = $deny ? 'deny' : 'permit';
         my $log  = $unexpanded->{log};
         if ($log) {
             check_log($log, $context);
@@ -6788,7 +6789,7 @@ sub expand_rules {
                                 $rule->{stateless_icmp} = 1
                                   if $flags->{stateless_icmp};
 
-                                push @$result, $rule;
+                                push(@{ $expanded_rules{$store_type} }, $rule);
                             }
                         }
                     }
@@ -6804,35 +6805,13 @@ sub expand_rules {
 
 sub print_rulecount  {
     my $count = 0;
-    for my $type ('deny', 'supernet', 'permit') {
+    for my $type ('deny', 'permit') {
         $count += grep { not $_->{deleted} } @{ $expanded_rules{$type} };
     }
     info("Expanded rule count: $count");
     return;
 }
 
-sub split_expanded_rule_types {
-    my ($rules_aref) = @_;
-
-    my (@deny, @permit, @supernet);
-
-    for my $rule (@$rules_aref) {
-        if ($rule->{deny}) {
-            push @deny, $rule;
-        }
-        elsif ($rule->{src}->{is_supernet} || $rule->{dst}->{is_supernet}) {
-            push @supernet, $rule;
-        }
-        else {
-            push @permit, $rule;
-        }
-    }
-
-    %expanded_rules = (deny => \@deny,
-                       permit => \@permit,
-                       supernet => \@supernet);
-    return;
-}
 
 sub expand_services {
     my ($convert_hosts) = @_;
@@ -6840,7 +6819,6 @@ sub expand_services {
     progress('Expanding services');
 
     collect_log();
-    my $expanded_rules_aref = [];
 
     # Sort by service name to make output deterministic.
     for my $key (sort keys %services) {
@@ -6885,21 +6863,17 @@ sub expand_services {
         # Don't convert hosts in user objects here.
         # This will be done when expanding 'user' inside a rule.
         $service->{user} = expand_group($service->{user}, "user of $name");
-        expand_rules($service, $expanded_rules_aref, $convert_hosts);
+        expand_rules($service, $convert_hosts);
     }
 
     warn_useless_unenforceable();
-    info("Expanded rule count: ", scalar @$expanded_rules_aref);
-
+    print_rulecount();
     progress('Preparing optimization');
-    add_rules($expanded_rules_aref);
-    info("Expanded rule count: ", 
-         scalar grep { !$_->{deleted} } @$expanded_rules_aref);
+    for my $type (qw(deny permit)) {
+        add_rules($expanded_rules{$type});
+    }
+    print_rulecount();
     show_deleted_rules1();
-
-    # Set attribute {is_supernet} before calling split_expanded_rule_types.
-    find_subnets_in_nat_domain();
-    split_expanded_rule_types($expanded_rules_aref);
     return;
 }
 
@@ -8622,9 +8596,7 @@ sub find_subnets_in_nat_domain {
                         $bignet->{has_other_subnet} = 1;
                     }
 
-                    # Mark network having subnets.  Rules having
-                    # src or dst with subnets are collected into
-                    # $expanded_rules->{supernet}
+                    # Mark network having subnets.
                     $bignet->{is_supernet} = 1;
 
                     if ($seen{$nat_bignet}->{$nat_subnet}) {
@@ -12839,10 +12811,11 @@ sub find_smaller_prt  {
 
 # Collect info about unwanted implied rules.
 sub check_for_transient_supernet_rule {
+    my ($rules) = @_;
     my %missing_rule_tree;
     my $missing_count = 0;
 
-    for my $rule (@{ $expanded_rules{supernet} }) {
+    for my $rule (@$rules) {
         next if $rule->{deleted};
         next if $rule->{deny};
         next if $rule->{no_check_supernet_rules};
@@ -13070,8 +13043,17 @@ sub mark_stateful {
 }
 
 sub check_supernet_rules {
+    my @supernet_rules;
+    if ($config{check_supernet_rules} or 
+        $config{check_transient_supernet_rules}) 
+    {
+        @supernet_rules = grep({ not $_->{deleted} and
+                                 ($_->{src}->{is_supernet} or
+                                  $_->{dst}->{is_supernet}) } 
+                               @{ $expanded_rules{permit} });
+    }
     if ($config{check_supernet_rules}) {
-        my $count = grep { !$_->{deleted} } @{ $expanded_rules{supernet} };
+        my $count = @supernet_rules;
         progress("Checking $count rules with supernet objects");
         my $stateful_mark = 1;
         for my $zone (@zones) {
@@ -13079,7 +13061,7 @@ sub check_supernet_rules {
                 mark_stateful($zone, $stateful_mark++);
             }
         }
-        for my $rule (@{ $expanded_rules{supernet} }) {
+        for my $rule (@supernet_rules) {
             next if $rule->{deleted};
             next if $rule->{no_check_supernet_rules};
             if ($rule->{src}->{is_supernet}) {
@@ -13093,10 +13075,10 @@ sub check_supernet_rules {
         %missing_supernet = ();
     }
     if ($config{check_transient_supernet_rules}) {
-        check_for_transient_supernet_rule();
+        check_for_transient_supernet_rule(\@supernet_rules);
     }
 
-    # no longer needed; free some memory.
+    # No longer needed; free some memory.
     %obj2zone = ();
     return;
 }
@@ -13226,7 +13208,7 @@ sub gen_reverse_rules1  {
 sub gen_reverse_rules {
     progress('Generating reverse rules for stateless routers');
     my %reverse_rule_tree;
-    for my $type ('deny', 'supernet', 'permit') {
+    for my $type ('deny', 'permit') {
         gen_reverse_rules1($expanded_rules{$type}, \%reverse_rule_tree);
     }
     if (keys %reverse_rule_tree) {
@@ -13413,8 +13395,7 @@ sub mark_secondary_rules {
     # Mark only normal rules for secondary optimization.
     # Don't modify a deny rule from e.g. tcp to ip.
     # Don't modify supernet rules, because path isn't fully known.
-    for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{supernet} })
-    {
+    for my $rule (@{ $expanded_rules{permit} }) {
         next
           if $rule->{deleted}
               and
@@ -13525,12 +13506,7 @@ sub mark_dynamic_nat_rules {
 
     my %cache;
 
-    for my $rule (
-        @{ $expanded_rules{permit} },
-        @{ $expanded_rules{supernet} },
-        @{ $expanded_rules{deny} }
-      )
-    {
+    for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{deny} }) {
         next
           if $rule->{deleted}
               and
@@ -13901,8 +13877,7 @@ sub prepare_nat_commands  {
     # Traverse the topology once for each pair of
     # src-(zone/router), dst-(zone/router)
     my %zone2zone2info;
-    for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{supernet} })
-    {
+    for my $rule (@{ $expanded_rules{permit} }) {
         next
           if $rule->{deleted}
               and
@@ -14208,8 +14183,7 @@ sub find_active_routes  {
     }
     my %routing_tree;
     my $pseudo_prt = { name => '--' };
-    for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{supernet} })
-    {
+    for my $rule (@{ $expanded_rules{permit} }) {
         my ($src, $dst) = ($rule->{src}, $rule->{dst});
 
         # Ignore deleted rules.
@@ -15589,7 +15563,7 @@ sub sort_rules_by_prio {
 
     # Sort rules by reverse priority of protocol.
     # This should be done late to get all auxiliary rules processed.
-    for my $type ('deny', 'supernet', 'permit') {
+    for my $type ('deny', 'permit') {
         $expanded_rules{$type} = [
             sort {
                      ($b->{prt}->{prio} || 0) <=> ($a->{prt}->{prio} || 0)
@@ -15618,8 +15592,7 @@ sub rules_distribution {
     distribute_general_permit();
 
     # Permit rules
-    for my $rule (@{ $expanded_rules{supernet} }, @{ $expanded_rules{permit} })
-    {
+    for my $rule (@{ $expanded_rules{permit} }) {
         next
           if $rule->{deleted}
               and
@@ -17342,7 +17315,7 @@ sub prepare_local_optimization {
     # Prepare rules for local_optimization.
     # Aggregates with mask 0 are converted to network_00, to be able
     # to compare with internally generated rules which use network_00.
-    for my $rule (@{ $expanded_rules{supernet} }) {
+    for my $rule (@{ $expanded_rules{permit} }) {
         next if $rule->{deleted} and not $rule->{managed_intf};
         my ($src, $dst) = @{$rule}{qw(src dst)};
         $rule->{src} = $network_00 if is_network($src) && $src->{mask} == 0;
@@ -19465,7 +19438,7 @@ sub init_global_vars {
     %auto_interfaces = ();
     $from_json = undef;
     %crypto2spokes = %crypto2hubs = ();
-    %rule_tree = ();
+    %expanded_rules = %rule_tree = ();
     %prt_hash = %ref2prt = %ref2obj = %token2regex = ();
     %ref2obj = %ref2prt = ();
     %obj2zone = ();
@@ -19585,12 +19558,13 @@ sub compile {
     &set_service_owner();
     &expand_services(1);	# 1: expand hosts to subnets
 
-    # Abort now, if there are syntax errors and simple semantic errors.
+    # Abort now, if there had been syntax errors and simple semantic errors.
     &abort_on_error();
     &expand_crypto();
     &check_unused_groups();
     set_policy_distribution_ip();
     &optimize_and_warn_deleted();
+    find_subnets_in_nat_domain();
     &check_supernet_rules();
     prepare_nat_commands();
     find_active_routes();
@@ -19598,6 +19572,8 @@ sub compile {
     &mark_secondary_rules();
     mark_dynamic_nat_rules();
     &abort_on_error();
+
+    # No errors expected after this point.
     &set_abort_immediately();
     &rules_distribution();
     &local_optimization();

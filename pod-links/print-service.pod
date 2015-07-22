@@ -175,7 +175,7 @@ my %service2rules;
 &order_protocols();
 &expand_services(1);
 &abort_on_error();
-for my $type ('deny', 'supernet', 'permit') {
+for my $type ('deny', 'permit') {
     for my $rule (@{ $expanded_rules{$type} }) {
         my $service_name = $rule->{rule}->{service}->{name};
         $service_name =~ s/^service://;
