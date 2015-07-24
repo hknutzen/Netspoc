@@ -37,7 +37,6 @@ $in =~ s/filter_only/#filter_only/;
 
 $out = <<'END';
 Error: Missing attribute 'filter_only' for router:d32
-Error: network:n1 doesn't match attribute 'filter_only' of router:d32
 END
 
 test_err($title, $in, $out);
@@ -67,8 +66,8 @@ network:n3 = { ip = 10.62.1.0/27; }
 END
 
 # Show message only once.
-$out = <<'END';
-Error: network:n2 doesn't match attribute 'filter_only' of router:r1
+$out = <<"END";
+Error: network:n2 doesn\'t match attribute 'filter_only' of router:r1
 END
 
 test_err($title, $in, $out);
@@ -152,30 +151,6 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Aggregates must match attribute 'filter_only'";
-############################################################
-
-# aggregate 0/0 is ignored, because it is available in every zone.
-
-$in = <<'END';
-any:n1 = { link = network:n1; }
-any:n1_10_62 = { ip = 10.62.0.0/16; link = network:n1; }
-network:n1 = { ip = 10.62.1.32/27; }
-router:d32 = {
- model = ASA;
- managed = local;
- filter_only =  10.62.0.0/19;
- interface:n1 = { ip = 10.62.1.33; hardware = vlan1; }
-}
-END
-
-$out = <<'END';
-Error: any:n1_10_62 doesn't match attribute 'filter_only' of router:d32
-END
-
-test_err($title, $in, $out);
-
-############################################################
 $title = 'Reuse object groups for deny rules';
 ############################################################
 
@@ -221,7 +196,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = "Supernet to extern";
+$title = "Aggregate to extern";
 ############################################################
 
 $in = $topo . <<'END';
@@ -246,7 +221,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = "Supernet to local";
+$title = "Aggregate to local";
 ############################################################
 
 $in = $topo . <<'END';
@@ -267,6 +242,124 @@ access-list vlan1_in extended permit tcp 10.60.0.0 255.252.0.0 10.62.241.0 255.2
 access-list vlan1_in extended deny ip any object-group g0
 access-list vlan1_in extended permit ip any any
 access-group vlan1_in in interface vlan1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "Ignore non matching local aggregate";
+############################################################
+
+$in = $topo . <<'END';
+service:Test = { 
+ user = any:[ip = 10.99.0.0/16 & network:n1];
+ permit src = user;
+        dst = network:trans;
+        prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--d32
+object-group network g0
+ network-object 10.62.0.0 255.255.248.0
+ network-object 10.62.241.0 255.255.255.0
+access-list vlan1_in extended deny ip any object-group g0
+access-list vlan1_in extended permit ip any any
+access-group vlan1_in in interface vlan1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "External supernet of local network";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.62.1.0/24; subnet_of = network:extern; }
+
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.62.0.0/16, 10.9.0.0/16;
+ interface:n1 = { ip = 10.62.1.1; hardware = vlan1; }
+ interface:trans = { ip = 10.9.1.1; hardware = trans; }
+}
+
+network:trans = { ip = 10.9.1.0/29; }
+
+router:d31 = {
+ model = ASA;
+ managed = secondary;
+ interface:trans = { ip = 10.9.1.2; hardware = inside; }
+ interface:extern = { ip = 10.62.0.1; hardware = outside; }
+}
+
+network:extern = { ip = 10.62.0.0/17; }
+
+service:Test = {
+ user = network:n1;
+ permit src = network:extern;
+        dst = user;
+        prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--d32
+access-list trans_in extended permit tcp 10.62.0.0 255.255.128.0 10.62.1.0 255.255.255.0 eq 80
+access-list trans_in extended deny ip object-group g0 object-group g0
+access-list trans_in extended permit ip any any
+access-group trans_in in interface trans
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "Subnet of external supernet";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.62.1.0/24; subnet_of = network:extern; }
+
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.62.0.0/16, 10.9.0.0/16;
+ interface:n1 = { ip = 10.62.1.1; hardware = vlan1; }
+ interface:trans = { ip = 10.9.1.1; hardware = trans; }
+}
+
+network:trans = { ip = 10.9.1.0/29; }
+
+router:d31 = {
+ model = ASA;
+ managed = secondary;
+ interface:trans = { ip = 10.9.1.2; hardware = inside; }
+ interface:extern = { ip = 10.62.0.1; hardware = outside; }
+}
+
+network:extern = { ip = 10.62.0.0/15; }
+router:u = {
+ interface:extern = { ip = 10.62.0.2; }
+ interface:sub;
+}
+network:sub = { ip = 10.62.2.0/24; subnet_of = network:extern; }
+
+service:Test = {
+ user = network:n1;
+ permit src = network:sub;
+        dst = user;
+        prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--d32
+access-list trans_in extended permit tcp 10.62.2.0 255.255.255.0 10.62.1.0 255.255.255.0 eq 80
+access-list trans_in extended deny ip object-group g0 object-group g0
+access-list trans_in extended permit ip any any
+access-group trans_in in interface trans
 END
 
 test_run($title, $in, $out);
@@ -581,7 +674,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = "Optimize external aggregate rule";
+$title = "Don't check external aggregate rules";
 ############################################################
 
 $in = <<'END';
@@ -607,25 +700,61 @@ router:r2 = {
 
 network:dst = { ip = 10.2.1.0/27; }
 
-service:Test = {
+service:t1 = {
  user = any:any1;
  permit src = user;
         dst = network:dst;
         prt = tcp 25;
 }
+
+service:t2 = {
+ user = any:any1;
+ permit src = network:dst;
+        dst = user;
+        prt = tcp 110;
+}
 END
 
 $out = <<'END';
+--r2
 ! [ ACL ]
 access-list outside_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
 access-list outside_in extended permit ip any any
 access-group outside_in in interface outside
 END
 
-Test::More->builder->todo_start(
-    "Aggregate rule should be recognized as non local");
-test_err($title, $in, $out);
-Test::More->builder->todo_end;
+test_run($title, $in, $out);
+
+############################################################
+$title = "general_permit";
+############################################################
+
+# Must not ignore general_permit rules at local filter.
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16;
+ general_permit = icmp;
+ interface:n1 = { ip = 10.1.1.1; hardware = outside; }
+ interface:n2 = { ip = 10.1.2.1; hardware = inside; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+access-list outside_in extended permit icmp any any
+access-list outside_in extended deny ip any 10.1.0.0 255.255.0.0
+access-list outside_in extended permit ip any any
+access-group outside_in in interface outside
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

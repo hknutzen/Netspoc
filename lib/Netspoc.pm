@@ -8880,93 +8880,191 @@ sub check_crosslink  {
     return \%crosslink_routers;
 }
 
+# Used
+# - for crypto_rules,
+# - rules from general_permit,
+# - for default route optimization,
+# - while generating chains of iptables and
+# - in local optimization.
+my $network_00 = new(
+    'Network',
+    name         => "network:0/0",
+    ip           => 0,
+    mask         => 0,
+    is_aggregate => 1,
+    is_supernet  => 1
+);
+
 # Find cluster of zones connected by 'local' or 'local_secondary' routers.
 # - Check consistency of attributes.
-# - Set unique 'local_mark' for all zones belonging to one cluster
-sub check_managed_local {
-    my %seen;
-    my $cluster_counter = 1;
-    for my $router (@managed_routers) {
-        $router->{managed} =~ /^local/ or next;
-        next if $seen{$router};
+# - Set unique 'local_mark' for all zones and managed routers 
+#   belonging to one cluster.
+# Returns array of cluster infos, a hash with attributes
+# - no_nat_set
+# - filter_only
+# - mark
+sub get_managed_local_clusters {
+    my $local_mark = 1;
+    my @result;
+    for my $router0 (@managed_routers) {
+        $router0->{managed} =~ /^local/ or next;
+        next if $router0->{local_mark};
+        my $filter_only = $router0->{filter_only};
+        my $info = { mark => $local_mark, filter_only => $filter_only };
+        my $no_nat_set;
+        my $k0;
 
-        # Networks of current cluster matching {filter_only}.
+        # Mark network outside of cluster, that 
+        # - is supernet of network inside current cluster
+        # - and doesn't match {filter_only} and hence wouldn't be
+        #   found in mark_managed_local.
+        my $mark_supernets = sub {
+            my ($network, $i, $m) = @_;
+            my $bignet = $network->{is_in}->{$no_nat_set};
+            while($bignet) {
+                if (not $bignet->{is_aggregate}) {
+                    my (undef, $mask) = @{ address($bignet, $no_nat_set) };
+                    if ($mask >= $m) {
+                        $bignet->{filter_at}->{$local_mark} = 1;
+                    }
+                }
+                $bignet = $bignet->{is_in}->{$no_nat_set};
+            }
+        };
+
+        # IP/mask pairs of current cluster matching {filter_only}.
         my %matched;
 
         my $walk;
         $walk = sub {
             my ($router) = @_;
-            my $filter_only = $router->{filter_only};
-            my $k;
-            $seen{$router} = $router;
+            $router->{local_mark} = $local_mark;
+            if ($filter_only ne $router->{filter_only}) {
+
+                # All routers of a cluster must have same values in
+                # {filter_only}.
+                $k0 ||= join(',', map({ join('/', @$_) } 
+                                      @{ $router0->{filter_only} }));
+                my $k = join(',', map({ join('/', @$_) } 
+                                      @{ $router->{filter_only} }));
+                $k eq $k0 or 
+                    err_msg("$router0->{name} and $router->{name}",
+                            " must have identical values in",
+                            " attribute 'filter_only'");
+            }
+
             for my $in_intf (@{ $router->{interfaces} }) {
 
                 # no_nat_set is known to be identical inside 'local' cluster,
-                # because attribute 'bind_nat' not valid at 'local' routers.
-                my $no_nat_set = $in_intf->{no_nat_set};
+                # because attribute 'bind_nat' is not valid at 'local' routers.
+                $no_nat_set ||= $in_intf->{no_nat_set};
+                $info->{no_nat_set} ||= $no_nat_set;
                 my $zone0 = $in_intf->{zone};
                 my $zone_cluster = $zone0->{zone_cluster};
                 for my $zone ($zone_cluster ? @$zone_cluster : ($zone0)) {
                     next if $zone->{disabled};
                     next if $zone->{local_mark};
-                    $zone->{local_mark} = $cluster_counter;
+
+                    # Needed for local_secondary optimization.
+                    $zone->{local_mark} = $local_mark;
 
                     # All networks in local zone must match {filter_only}.
                   NETWORK:
-                    for my $network (@{ $zone->{networks} }, 
-                                     values %{ $zone->{ipmask2aggregate} }) 
-                    {
+                    for my $network (@{ $zone->{networks} }) {
                         my ($ip, $mask) = @{ address($network, $no_nat_set) };
-
-                        # Ignore aggregate 0/0 which is available in
-                        # every zone.
-                        next if $mask == 0 && $network->{is_aggregate};
                         for my $pair (@$filter_only) {
                             my ($i, $m) = @$pair;
                             if ($mask >= $m && match_ip($ip, $i, $m)) {
                                 $matched{"$i/$m"} = 1;
+
+                                # Find supernets of $network, that match $pair.
+                                if ($mask > $m) {
+                                    $mark_supernets->($network, $i, $m);
+                                }
                                 next NETWORK;
                             }
                         }
                         err_msg("$network->{name} doesn't match attribute",
                                 " 'filter_only' of $router->{name}");
                     }
+
                     for my $out_intf (@{ $zone->{interfaces} }) {
                         next if $out_intf eq $in_intf;
                         my $router2 = $out_intf->{router};
                         my $managed = $router2->{managed} or next;
                         next if $managed !~ /^local/;
-                        next if $seen{$router2};
-
-                        # All routers of a cluster must have same values in
-                        # {filter_only}.
-                        $k ||= join(',', map({ join('/', @$_) } 
-                                             @$filter_only));
-                        my $k2 = join(',', map({ join('/', @$_) } 
-                                               @{ $router2->{filter_only} }));
-                        $k2 eq $k or 
-                            err_msg("$router->{name} and $router2->{name}",
-                                    " must have identical values in",
-                                    " attribute 'filter_only'");
-
+                        next if $router2->{local_mark};
                         $walk->($router2);
                     }
                 }
             }
         };
 
-        $walk->($router);
-        $cluster_counter++;
+        $walk->($router0);
+        push @result, $info;
+        $local_mark++;
 
-        for my $pair (@{ $router->{filter_only} }) {
+        for my $pair (@{ $router0->{filter_only} }) {
             my ($i, $m) = @$pair;
             $matched{"$i/$m"} and next;
             my $ip = print_ip($i);
             my $prefix = mask2prefix($m);
             warn_msg("Useless $ip/$prefix in attribute 'filter_only'",
-                     " of $router->{name}");
+                     " of $router0->{name}");
         }
     }
+    return \@result;
+}
+
+# Mark networks and aggregates, that are filtered at some
+# managed=local devices.
+# A network is marked by adding the number of the corresponding
+# managed=local cluster as key to a hash in attribute {filter_at}.
+sub mark_managed_local {
+    my $managed_local_clusters = get_managed_local_clusters();
+    for my $cluster (@$managed_local_clusters) {
+        my ($no_nat_set, $filter_only, $mark) = 
+            @{$cluster}{qw(no_nat_set filter_only mark)};
+
+        my $mark_networks;
+        $mark_networks = sub {
+            my ($networks) = @_;
+            for my $network (@$networks) {
+
+                if (my $subnetworks = $network->{networks}) {
+                    $mark_networks->($subnetworks);
+                }
+
+                my $nat_network = get_nat_network($network, $no_nat_set);
+                next if $nat_network->{hidden};
+                next if $nat_network->{ip} eq 'unnumbered';
+                my ($ip, $mask) = @{$nat_network}{qw(ip mask)};
+                for my $pair (@$filter_only) {
+                    my ($i, $m) = @$pair;
+                    $mask > $m && match_ip($ip, $i, $m) or next;
+
+                    # Mark network and enclosing aggregates.
+                    my $obj = $network;
+                    while ($obj) {
+
+                        # Has already been processed as supernet of
+                        # other network.
+                        last if $obj->{filter_at}->{$mark};
+                        $obj->{filter_at}->{$mark} = 1;
+#                        debug "Filter $obj->{name} at $mark";
+                        $obj = $obj->{up}
+                    }
+                }
+            }
+        };
+        for my $zone (@zones) {
+            $mark_networks->($zone->{networks});
+        }
+
+        # Rules from general_permit should be applied to all devices
+        # with 'managed=local'.
+        $network_00->{filter_at}->{$mark} = 1;
+    }    
     return;
 }
 
@@ -11864,19 +11962,6 @@ sub link_tunnels  {
     return;
 }
 
-# Needed for crypto_rules,
-# for default route optimization,
-# while generating chains of iptables and
-# for local optimization.
-my $network_00 = new(
-    'Network',
-    name         => "network:0/0",
-    ip           => 0,
-    mask         => 0,
-    is_aggregate => 1,
-    is_supernet  => 1
-);
-
 sub crypto_behind {
     my ($interface, $managed) = @_;
     if ($managed) {
@@ -12518,9 +12603,10 @@ sub check_supernet_src_rule {
 
     # Ignore semi_managed router.
     my $router = $in_intf->{router};
-    return if not $router->{managed};
+    my $managed = $router->{managed} or return;
 
     my $out_zone = $out_intf->{zone};
+    my $src      = $rule->{src};
     my $dst      = $rule->{dst};
     my $dst_zone = get_zone($dst);
     if ($dst->{is_supernet} && $out_zone eq $dst_zone) {
@@ -12531,6 +12617,17 @@ sub check_supernet_src_rule {
         # check_supernet_dst_rule
         return;
     }
+
+    # Non matching rule will be ignored at 'managed=local' router and
+    # hence must no be checked.
+    if (my $mark = $router->{local_mark}) {
+        my $src_net = $src; # $src is known to be aggregate or supernet.
+        my $dst_net = $dst->{network} || $dst;        
+        my $src_filter_at = $src_net->{filter_at} or return;
+        my $dst_filter_at = $dst_net->{filter_at} or return;
+        $src_filter_at->{$mark} and $dst_filter_at->{$mark} or return;
+    }
+
     my $in_zone = $in_intf->{zone};
 
     # Check case II, outgoing ACL, (A)
@@ -12554,7 +12651,6 @@ sub check_supernet_src_rule {
             check_supernet_in_zone($rule, 'src', $no_acl_intf, $no_acl_zone);
         }
     }
-    my $src      = $rule->{src};
     my $src_zone = $src->{zone};
 
     # Check if reverse rule would be created and would need additional rules.
@@ -12664,8 +12760,19 @@ sub check_supernet_dst_rule {
     return if not $router->{managed};
 
     my $src      = $rule->{src};
-    my $src_zone = get_zone($src);
     my $dst      = $rule->{dst};
+
+    # Non matching rule will be ignored at 'managed=local' router and
+    # hence must not be checked.
+    if (my $mark = $router->{local_mark}) {
+        my $src_net = $src->{network} || $src;
+        my $dst_net = $dst; # $dst is known to be aggregate or supernet.        
+        my $src_filter_at = $src_net->{filter_at} or return;
+        my $dst_filter_at = $dst_net->{filter_at} or return;
+        $src_filter_at->{$mark} and $dst_filter_at->{$mark} or return;
+    }
+
+    my $src_zone = get_zone($src);
     my $dst_zone = $dst->{zone};
 
     # Check case II, outgoing ACL, (B), interface Y without ACL.
@@ -15146,7 +15253,7 @@ sub distribute_rule {
     # Outgoing packets from a router itself are never filtered.
     return unless $in_intf;
     my $router = $in_intf->{router};
-    return if not $router->{managed};
+    my $managed = $router->{managed} or return;
     my $model = $router->{model};
 
     # Rules of type stateless must only be processed at
@@ -15187,6 +15294,17 @@ sub distribute_rule {
 
     # Don't generate code for src any:[interface:r.loopback] at router:r.
     return if $in_intf->{loopback};
+
+    # Apply only matching rules to 'managed=local' router.
+    # Rule is matching if src and dst are matching attribute {filter_only}.
+    if (my $mark = $router->{local_mark}) {
+        my $src = $rule->{src};
+        my $src_net = $src->{network} || $src;
+        my $dst_net = $dst->{network} || $dst;        
+        my $src_filter_at = $src_net->{filter_at} or return;
+        my $dst_filter_at = $dst_net->{filter_at} or return;
+        $src_filter_at->{$mark} and $dst_filter_at->{$mark} or return;
+    }
 
     # Adapt rule to dynamic NAT.
     if (my $dynamic_nat = $rule->{dynamic_nat}) {
@@ -17203,50 +17321,6 @@ sub get_filter_network {
     return $net;
 }
 
-# Remove rules on device which filters only locally.
-sub remove_non_local_rules {
-    my ($router, $hardware) = @_;
-    $router->{managed} =~ /^local/ or return;
-
-    my $no_nat_set = $hardware->{no_nat_set};
-    my $filter_only = $router->{filter_only};
-    for my $rules ('rules', 'out_rules') {
-        my $changed;
-        for my $rule (@{ $hardware->{$rules} }) {
-
-            # Don't remove deny rule
-            next if $rule->{deny};
-            my $both_match = 0;
-            for my $what (qw(src dst)) {
-                my $obj = $rule->{$what};
-                my ($ip, $mask) = @{ address($obj, $no_nat_set) };
-                for my $pair (@$filter_only) {
-                    my ($i, $m) = @$pair;
-
-                    # src/dst matches filter_only or
-                    # filter_only matches src/dst.
-                    if ($mask > $m && match_ip($ip, $i, $m) ||
-                        match_ip($i, $ip, $mask)) 
-                    {
-                        $both_match++;
-                        last;
-                    }
-                }
-            }
-
-            # Either src or dst or both are extern.
-            # The rule will not be filtered at this device.
-            if ($both_match < 2) {
-                $rule = undef;
-                $changed = 1;
-            }
-        }
-        $changed and 
-            $hardware->{$rules} = [ grep { $_ } @{ $hardware->{$rules} } ];
-    }
-    return;
-}
-
 # Add deny and permit rules at device which filters only locally.
 sub add_local_deny_rules {
     my ($router, $hardware) = @_;
@@ -17380,8 +17454,6 @@ sub local_optimization {
                     find_chains $router, $hardware;
                     next;
                 }
-
-                remove_non_local_rules($router, $hardware);
 
 #               my $rname = $router->{name};
 #               debug("$router->{name}");
@@ -19552,7 +19624,6 @@ sub compile {
     # Call after find_subnets_in_zone, where $zone->{networks} has
     # been set up.
     link_reroute_permit();
-    check_managed_local();
 
     &set_service_owner();
     &expand_services(1);	# 1: expand hosts to subnets
@@ -19564,6 +19635,13 @@ sub compile {
     set_policy_distribution_ip();
     &optimize_and_warn_deleted();
     find_subnets_in_nat_domain();
+
+
+    # Call after {up} relation for anonymous aggregates in rules have
+    # been set up and
+    # after {is_in} relation has been set up.
+    mark_managed_local();
+
     &check_supernet_rules();
     prepare_nat_commands();
     find_active_routes();
