@@ -15557,11 +15557,6 @@ sub add_router_acls  {
     return;
 }
 
-# At least for $prt_esp and $prt_ah the ACL lines need to have a fixed order.
-# Otherwise,
-# - if the device is accessed over an IPSec tunnel
-# - and we change the ACL incrementally,
-# the connection may be lost.
 sub cmp_address {
     my ($obj) = @_;
     my $type = ref $obj;
@@ -15576,6 +15571,30 @@ sub cmp_address {
     }
 }
 
+# Sort rules by 
+# 1. reverse priority of protocol
+# 2. only if priority is given, then additionally by
+#    - src ip,mask
+#    - dst ip,mask
+# This should be done late to get all auxiliary rules processed.
+#
+# At least for $prt_esp and $prt_ah the ACL lines need to have a fixed order.
+# Otherwise the connection may be lost,
+# - if the device is accessed over an IPSec tunnel
+# - and we change the ACL incrementally.
+sub sort_rules_by_prio {
+    for my $type ('deny', 'permit') {
+        $expanded_rules{$type} = [
+            sort {
+                     ($b->{prt}->{prio} || 0) <=> ($a->{prt}->{prio} || 0)
+                  || ($a->{prt}->{prio} || 0)
+                  && ( cmp_address($a->{src}) cmp cmp_address($b->{src})
+                    || cmp_address($a->{dst}) cmp cmp_address($b->{dst}))
+              } @{ $expanded_rules{$type} }
+        ];
+    }
+    return;
+}
 sub distribute_rules {
     my ($rules, $in_intf, $out_intf) = @_;
     for my $rule (@$rules) {
@@ -15672,23 +15691,6 @@ sub distribute_general_permit {
                 distribute_rules($rules, $in_intf, undef);
             }
         }
-    }
-    return;
-}
-
-sub sort_rules_by_prio {
-
-    # Sort rules by reverse priority of protocol.
-    # This should be done late to get all auxiliary rules processed.
-    for my $type ('deny', 'permit') {
-        $expanded_rules{$type} = [
-            sort {
-                     ($b->{prt}->{prio} || 0) <=> ($a->{prt}->{prio} || 0)
-                  || ($a->{prt}->{prio} || 0)
-                  && ( cmp_address($a->{src}) cmp cmp_address($b->{src})
-                    || cmp_address($a->{dst}) cmp cmp_address($b->{dst}))
-              } @{ $expanded_rules{$type} }
-        ];
     }
     return;
 }
