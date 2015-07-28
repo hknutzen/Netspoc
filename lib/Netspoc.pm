@@ -8776,16 +8776,18 @@ my %crosslink_strength = (
     local_secondary => 6,
     );
 ##############################################################################
-    # Find clusters of routers connected directly or indirectly by
-    # crosslink networks and having at least one device with
-    # "need_protect".
+# Purpose   : Find clusters of routers connected directly or indirectly by
+#             crosslink networks and having at least one device with
+#             "need_protect".
+# Parameter : Hash reference storing crosslinked routers with {need_protect} 
+#             flag set.
 sub cluster_crosslink_routers {
     my ($crosslink_routers) = @_;
     my %cluster;
     my %seen;
     my $walk;
 
-    # add routers to cluster via depth first search 
+    # Add routers to cluster via depth first search. 
     $walk = sub {
         my ($router) = @_;
         $cluster{$router} = $router;
@@ -8803,7 +8805,7 @@ sub cluster_crosslink_routers {
         }
     };
 
-    # Process all need_protect crosslinked routers
+    # Process all need_protect crosslinked routers.
     for my $router (values %$crosslink_routers) {
         next if $seen{$router};
   
@@ -8834,6 +8836,7 @@ sub cluster_crosslink_routers {
 # Purpose  : Assures proper usage of crosslink networks and applies the 
 #            crosslink attribute to the networks weakest interfaces (no 
 #            filtering needed at these interfaces).
+# Returns  : Hash storing crosslinked routers with {need_protect} flag set. 
 # Comments : Function uses hardware attributes from sub check_no_in_acl.
 sub check_crosslink  {
     my %crosslink_routers; # Collect crosslinked routers with {need_protect}
@@ -9970,7 +9973,7 @@ sub set_areas {
 ###############################################################################
 # Purpose : Find subset relation between areas, assure that no duplicate or 
 #           overlapping areas exist
-sub find_subset_relations {
+sub find_area_subset_relations {
     my %seen; # key:contained area, value: containing area
 
     # Process all zones contained by one or more areas
@@ -10096,7 +10099,7 @@ sub set_zone {
     cluster_crosslink_routers($crosslink_routers); #TODO: place somewhere else?
     my $has_inclusive_borders = prepare_area_borders();
     set_areas();
-    find_subset_relations();
+    find_area_subset_relations();
     check_routers_in_nested_areas($has_inclusive_borders);
     clean_areas(); # delete unused attributes
     link_aggregates();
@@ -10294,7 +10297,7 @@ sub traverse_loop_part {
 # Parameters : $restrict - pathrestriction to optimize (hash reference)
 #              $elements - interfaces of the pathrestriction (array reference)
 #              $lookup - stores adjacent partitions for every IF in elements. 
-sub apply_optimization {
+sub apply_pathrestriction_optimization {
     my ($restrict, $elements, $lookup) = @_;
     
     # No outgoing restriction needed for a pathrestriction surrounding a
@@ -10394,9 +10397,9 @@ sub optimize_pathrestrictions {
                 $mark++;
             }
         }
-        # Optimize pathrestrictions
+        # Optimize pathrestriction.
         if ($mark > $start_mark + 1){ # Optimization needs 2 partitions min.
-            apply_optimization($restrict, $elements, $lookup);
+            apply_pathrestriction_optimization($restrict, $elements, $lookup);
         }
     }
     return;
