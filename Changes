@@ -1,5 +1,12 @@
 {{$NEXT}}
 
+ - Optimized processing for rules at device with managed=local.
+ - No longer check supernet rules at a device with managed=local, 
+   if a rule isn't distributed to this device.
+ - No longer move supernet rules to front of ACL.
+   This was changed for code simplification,
+   but may change the order of generated ACLs.
+
 3.069     2015-07-09 10:44:08+02:00 Europe/Berlin
 
  - Ignore hidden networks when processing static routes and NAT 
