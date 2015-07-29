@@ -71,6 +71,51 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Multiple interfaces with attribute 'no_in_acl'";
+############################################################
+
+$in = <<'END';
+network:N1 = { ip = 10.1.1.0/24; }
+network:N2 = { ip = 10.1.2.0/24; }
+
+router:R = {
+ managed; 
+ model = ASA;
+ interface:N1 = { ip = 10.1.1.1; no_in_acl; hardware = n1; }
+ interface:N2 = { ip = 10.1.2.1; no_in_acl; hardware = n2; }
+}
+END
+
+$out = <<'END';
+Error: At most one interface of router:R may use flag 'no_in_acl'
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Multiple interfaces with 'no_in_acl' at one hardware";
+############################################################
+
+$in = <<'END';
+network:N1 = { ip = 10.1.1.0/24; }
+network:N2 = { ip = 10.1.2.0/24; }
+
+router:R = {
+ managed; 
+ model = ASA;
+ interface:N1 = { ip = 10.1.1.1; no_in_acl; hardware = x; }
+ interface:N2 = { ip = 10.1.2.1; no_in_acl; hardware = x; }
+}
+END
+
+$out = <<'END';
+Error: Only one logical interface allowed at hardware 'x' of router:R
+ because of attribute 'no_in_acl'
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Short interface at managed router";
 ############################################################
 

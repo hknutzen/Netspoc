@@ -242,4 +242,51 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Networks inside and outside of zone';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ model = NX-OS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:t1 = { ip = 10.9.1.1; hardware = vlan2; }
+}
+
+router:r2 = {
+ model = NX-OS;
+ managed;
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan1; }
+ interface:t1 = { ip = 10.9.1.2; hardware = vlan2; }
+}
+
+network:t1 = { ip = 10.9.1.0/24; }
+
+router:u = {
+ interface:t1 = { ip = 10.9.1.3; }
+ interface:n3;
+}
+service:test = {
+ user = network:n2, network:n3;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r1
+! [ Routing ]
+ip route 10.1.2.0/24 10.9.1.2
+ip route 10.1.3.0/24 10.9.1.3
+--r2
+! [ Routing ]
+ip route 10.1.1.0/24 10.9.1.1
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

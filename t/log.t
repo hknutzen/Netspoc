@@ -196,13 +196,13 @@ $out = <<'END';
 -- r1
 ! [ ACL ]
 ip access-list extended vlan1_in
- permit tcp any 10.1.3.0 0.0.0.255 eq 80
  permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80 log-input
+ permit tcp any 10.1.3.0 0.0.0.255 eq 80
  deny ip any any
 -- asa2
 ! [ ACL ]
-access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 7
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
+access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 7
 access-list vlan2_in extended deny ip any any
 access-group vlan2_in in interface vlan2
 END
@@ -254,8 +254,8 @@ END
 $out = <<'END';
 -- asa2
 ! [ ACL ]
-access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 7
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
+access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 7
 access-list vlan2_in extended deny ip any any
 access-group vlan2_in in interface vlan2
 END
