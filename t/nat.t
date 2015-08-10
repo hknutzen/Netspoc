@@ -636,8 +636,8 @@ ip access-list extended e1_in
  deny ip any host 11.9.1.1
  permit tcp 10.2.1.0 0.0.0.255 11.0.0.0 0.255.255.255 eq 80
  permit tcp 10.2.1.0 0.0.0.255 10.99.1.0 0.0.0.255 eq 81
- permit tcp 10.2.1.0 0.0.0.255 10.99.1.0 0.0.0.255 eq 83
  permit tcp 10.2.1.0 0.0.0.255 10.99.2.0 0.0.0.255 eq 82
+ permit tcp 10.2.1.0 0.0.0.255 10.99.1.0 0.0.0.255 eq 83
  permit tcp 10.2.1.0 0.0.0.255 host 11.3.3.10 eq 84
  permit tcp 10.2.1.0 0.0.0.255 10.0.0.0 0.0.255.255 eq 85
  permit tcp 10.2.1.0 0.0.0.255 11.9.1.0 0.0.0.255 eq 86
@@ -1474,9 +1474,7 @@ END
 $out = <<'END';
 Error: Inconsistent NAT in loop at router:r1:
  nat:h vs. nat:(none)
-Error: network:a is translated by h,
- but is located inside the translation domain of h.
- Probably h was bound to wrong interface at router:r1.
+Warning: nat:h is defined, but not bound to any interface
 END
 
 test_err($title, $in, $out);

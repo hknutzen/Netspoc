@@ -243,7 +243,7 @@ if ($show_unused) {
     &order_protocols();
     &expand_services(0);
     &abort_on_error();
-    for my $type ('deny', 'supernet', 'permit') {
+    for my $type ('deny', 'permit') {
 	for my $rule (@{ $expanded_rules{$type} }) {
 	    for my $where ('src', 'dst') {
 		my $obj = $rule->{$where};

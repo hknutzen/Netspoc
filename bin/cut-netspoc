@@ -61,7 +61,7 @@ use Pod::Usage;
 use Netspoc;
 use locale;
 
-our $VERSION = '3.069'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '3.070'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -236,12 +236,13 @@ if (@ARGV) {
 &distribute_nat_info();
 &setpath();
 Netspoc::find_subnets_in_zone();
+Netspoc::link_reroute_permit();
 &expand_services(1);
 
 # Process rules of services.
 sub process_rules {
     my ($expanded_rules) = @_;
-    for my $type ('deny', 'supernet', 'permit') {
+    for my $type ('deny', 'permit') {
 	for my $rule (@{ $expanded_rules->{$type} }) {
 	    for my $where ('src', 'dst') {
 
@@ -465,7 +466,7 @@ for my $owner (values %owners) {
 
 # Print marked parts of netspoc configuration.
 # Routers and networks have been marked by mark_topology.
-# Protocols have been marked while %expanded_rules have been processed above.
+# Protocols have been marked while @expanded_rules have been processed above.
 # Groups and protocolroups objects have been marked during expand_services.
 for my $object ( sort by_index map { $_->{src_index} ? ($_) : () }
     values %routers,

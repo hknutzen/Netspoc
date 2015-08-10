@@ -689,6 +689,7 @@ t/general-permit.t
 t/global-opt.t
 t/group.t
 t/host-range.t
+t/huge.t
 t/iptables.t
 t/local-filter.t
 t/local-opt.t
