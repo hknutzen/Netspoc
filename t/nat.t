@@ -470,6 +470,61 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'No secondary optimization with host and dynamic NAT';
+############################################################
+
+# Secondary optimization must be disabled at router:r2.
+$in = <<'END';
+network:a = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:a = {ip = 10.1.1.1; hardware = a; bind_nat = b;}
+ interface:t = {ip = 10.4.4.1; hardware = t;}
+}
+network:t = { ip = 10.4.4.0/30; }
+router:r2 = {
+ managed = secondary;
+ model = ASA;
+ routing = manual;
+ interface:t = {ip = 10.4.4.2; hardware = t;}
+ interface:b = {ip = 10.2.2.1; hardware = b;}
+}
+
+network:b  = {
+ ip = 10.2.2.0/24;
+ nat:b = { ip = 10.9.9.4/30; dynamic; } 
+ host:b10 = { ip = 10.2.2.10; }
+}
+
+service:test = {
+ user = network:a;
+ permit src = user; dst = host:b10; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! [ ACL ]
+ip access-list extended a_in
+ permit tcp 10.1.1.0 0.0.0.255 10.9.9.4 0.0.0.3 eq 80
+ deny ip any any
+--
+ip access-list extended t_in
+ permit tcp host 10.2.2.10 10.1.1.0 0.0.0.255 established
+ deny ip any any
+-- r2
+! [ ACL ]
+access-list t_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.2.2.10 eq 80
+access-list t_in extended deny ip any any
+access-group t_in in interface t
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Inherit NAT from overlapping areas and zones';
 ############################################################
 
