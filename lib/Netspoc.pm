@@ -14002,6 +14002,10 @@ sub mark_dynamic_nat_rules {
                     };
                     path_walk($rule, $check);
 
+                    # If no error was found, detailed filtering occurs
+                    # at some router. Therefore the whole network will be
+                    # allowed for src/dst at routers, where dynamic NAT
+                    # is effective. Mark rule accordingly.
                     $dynamic_nat =
                       $dynamic_nat
                       ? "$dynamic_nat,$where"
@@ -14064,7 +14068,18 @@ sub mark_dynamic_nat_rules {
                 );
             }
         }
-        $rule->{dynamic_nat} = $dynamic_nat if $dynamic_nat;
+
+        if ($dynamic_nat) {
+
+            # Mark rule, that whole network will be permitted at NAT devices.
+            $rule->{dynamic_nat} = $dynamic_nat;
+
+            # But attention, this is only valid, if some other router
+            # filters fully.
+            # Hence disable optimization of secondary rules.
+            delete $rule->{some_non_secondary};
+            delete $rule->{some_primary};
+        }
     }
     return;
 }
@@ -15702,7 +15717,6 @@ sub distribute_rule {
     # Adapt rule to dynamic NAT.
     if (my $dynamic_nat = $rule->{dynamic_nat}) {
         my $no_nat_set = $in_intf->{no_nat_set};
-        my $orig_rule  = $rule;
         for my $where (split(/,/, $dynamic_nat)) {
             my $obj         = $rule->{$where};
             my $network     = $obj->{network};
@@ -15712,14 +15726,6 @@ sub distribute_rule {
 
             # Ignore object with static translation.
             next if $obj->{nat}->{$nat_tag};
-
-            # Otherwise, filtering occurs at other router, therefore
-            # the whole network can pass here.
-            # But attention, this assumption only holds, if the other
-            # router filters fully.  Hence disable optimization of
-            # secondary rules.
-            delete $orig_rule->{some_non_secondary};
-            delete $orig_rule->{some_primary};
 
             # Permit whole network, because no static address is known.
             # Make a copy of current rule, because the original rule
