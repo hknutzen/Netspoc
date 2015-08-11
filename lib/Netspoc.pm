@@ -13975,9 +13975,8 @@ sub mark_dynamic_nat_rules {
 
                     # Check error condition: Dynamic NAT address is
                     # used in ACL at managed router at the border of
-                    # zone of $obj.
-                    # $intf could have value 'undef' if $obj is interface of
-                    # current router and destination of rule.
+                    # zone of $obj and hence the whole network would
+                    # accidentally be permitted.
                     my $check = sub {
                         my ($rule, $in_intf, $out_intf) = @_;
                         my $no_nat_set = $in_intf->{no_nat_set};
@@ -13987,12 +13986,18 @@ sub mark_dynamic_nat_rules {
                         return if not $nat_tag;
                         return if $obj->{nat}->{$nat_tag};
                         my $intf = $where eq 'src' ? $in_intf : $out_intf;
+
+                        # $intf could have value 'undef' if $obj is
+                        # interface of current router and destination
+                        # of rule.
                         if (!$intf
                             || zone_eq($network->{zone}, $intf->{zone}))
                         {
-                            err_msg "$obj->{name} needs static translation",
-                              " for nat:$nat_tag to be valid in rule\n ",
-                              print_rule $rule;
+                            my $router = ($in_intf || $out_intf)->{router};
+                            err_msg("$obj->{name} needs static translation",
+                                    " for nat:$nat_tag at $router->{name}",
+                                    " to be valid in rule\n ",
+                                    print_rule $rule);
                         }
                     };
                     path_walk($rule, $check);

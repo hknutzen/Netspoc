@@ -452,7 +452,7 @@ service:test = {
 END
 
 $out = <<'END';
-Error: host:H needs static translation for nat:C to be valid in rule
+Error: host:H needs static translation for nat:C at router:C to be valid in rule
  permit src=network:X; dst=host:H; prt=tcp 80; of service:test
 END
 
@@ -461,9 +461,9 @@ test_err($title, $in, $out);
 $in =~ s/managed; \#1//;
 
 $out = <<'END';
-Error: host:H needs static translation for nat:C to be valid in rule
+Error: host:H needs static translation for nat:C at router:filter to be valid in rule
  permit src=network:X; dst=host:H; prt=tcp 80; of service:test
-Error: host:H needs static translation for nat:C to be valid in rule
+Error: host:H needs static translation for nat:C at router:filter to be valid in rule
  permit src=host:H; dst=network:X; prt=tcp 80; of service:test
 END
 
@@ -719,7 +719,7 @@ service:s = {
 END
 
 $out = <<'END';
-Error: interface:asa1.n2 needs static translation for nat:dyn to be valid in rule
+Error: interface:asa1.n2 needs static translation for nat:dyn at router:asa2 to be valid in rule
  permit src=host:h3; dst=interface:asa1.n2; prt=tcp 22; of service:s
 END
 
@@ -753,7 +753,7 @@ service:test = {
 END
 
 $out = <<'END';
-Error: interface:r2.b needs static translation for nat:b to be valid in rule
+Error: interface:r2.b needs static translation for nat:b at router:r1 to be valid in rule
  permit src=network:a; dst=interface:r2.b; prt=reversed:TCP_ANY; stateless
 END
 
