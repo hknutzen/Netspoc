@@ -165,10 +165,6 @@ our %config = (
 # which have no default route to the internet.
     auto_default_route => 1,
 
-# Add comments to generated code.
-    comment_acls   => 0,
-    comment_routes => 0,
-
 # Ignore these names when reading directories:
 # - CVS and RCS directories
 # - CVS working files
@@ -15409,7 +15405,6 @@ sub print_routes {
     my $model                 = $router->{model};
     my $type                  = $model->{routing};
     my $vrf                   = $router->{vrf};
-    my $comment_char          = $model->{comment_char};
     my $do_auto_default_route = $config{auto_default_route};
     my $crypto_type = $model->{crypto} || '';
     my %intf2hop2nets;
@@ -15552,12 +15547,6 @@ sub print_routes {
               : print_ip $hop->{ip};
 
             for my $netinfo (@{ $intf2hop2nets{$interface}->{$hop} }) {
-                if ($config{comment_routes}) {
-                    if (my $net = $netinfo->[2]) {
-                        print("$comment_char route",
-                            " $net->{name} -> $hop->{name}\n");
-                    }
-                }
                 if ($type eq 'IOS') {
                     my $adr = ios_route_code($netinfo);
                     print "ip route $ios_vrf$adr $hop_addr\n";
@@ -15601,9 +15590,6 @@ sub print_routes {
 
 sub print_nat1 {
     my ($router, $print_dynamic, $print_static_host, $print_static) = @_;
-    my $model        = $router->{model};
-    my $comment_char = $model->{comment_char};
-
     print_header($router, 'NAT');
 
     my @hardware =
@@ -16683,8 +16669,6 @@ sub cisco_acl_line {
     my $numbered   = 10;
     my $active_log = $router->{log};
     for my $rule (@$rules_aref) {
-        print "$model->{comment_char} " . print_rule($rule) . "\n"
-          if $config{comment_acls};
         my ($deny, $src, $dst, $src_range, $prt) =
           @{$rule}{qw(deny src dst src_range prt)};
         my $action = $deny ? 'deny' : 'permit';
@@ -19133,7 +19117,6 @@ sub print_acl_suffix {
 sub print_iptables_acls {
     my ($router)     = @_;
     my $model        = $router->{model};
-    my $comment_char = $model->{comment_char};
 
     print_chains $router;
 
@@ -19144,11 +19127,6 @@ sub print_iptables_acls {
 
         my $in_hw      = $hardware->{name};
         my $no_nat_set = $hardware->{no_nat_set};
-        if ($config{comment_acls}) {
-
-            # Name of first logical interface
-            print "$comment_char $hardware->{interfaces}->[0]->{name}\n";
-        }
 
         # Print chain and declaration for interface rules.
         # Add call to chain in INPUT chain.
@@ -19185,7 +19163,6 @@ sub print_cisco_acls {
     my ($router)     = @_;
     my $model        = $router->{model};
     my $filter       = $model->{filter};
-    my $comment_char = $model->{comment_char};
 
     for my $hardware (@{ $router->{hardware} }) {
 
@@ -19226,11 +19203,6 @@ sub print_cisco_acls {
 
             my $acl_name = "$hardware->{name}_$suffix";
             my $prefix;
-            if ($config{comment_acls}) {
-
-                # Name of first logical interface
-                print "$comment_char $hardware->{interfaces}->[0]->{name}\n";
-            }
             if ($filter eq 'IOS') {
                 $prefix = '';
                 print "ip access-list extended $acl_name\n";
@@ -19293,7 +19265,6 @@ sub print_acls {
     my ($router)     = @_;
     my $model        = $router->{model};
     my $filter       = $model->{filter};
-    my $comment_char = $model->{comment_char};
     print_header($router, 'ACL');
 
     if ($filter eq 'iptables') {
@@ -19690,7 +19661,6 @@ sub print_crypto {
     # Sort entries by name to get deterministic output.
     my @isakmp = sort by_name unique(map { $_->{key_exchange} } @ipsec);
 
-    my $comment_char = $model->{comment_char};
     print_header($router, 'Crypto');
 
     if ($crypto_type eq 'EZVPN') {

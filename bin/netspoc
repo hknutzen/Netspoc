@@ -56,14 +56,6 @@ Check for transient supernet rules.
 
 Generate default route to minimize number of routing entries.
 
-=item B<-[no]comment_acls>
-
-Add comments to generated access lists.
-
-=item B<-[no]comment_routes>
-
-Add comments to generated route commands.
-
 =item B<-ignore_files={regex}>
 
 Ignore these names when reading directories.
