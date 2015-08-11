@@ -760,6 +760,44 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Interface with dynamic NAT applied at same device';
+############################################################
+
+$in = <<'END';
+network:a = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:a = {ip = 10.1.1.1; hardware = a;}
+ interface:t = {ip = 10.4.4.1; hardware = t;}
+}
+network:t = { ip = 10.4.4.0/30; }
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:t = {ip = 10.4.4.2; hardware = t; bind_nat = b;}
+ interface:b = {ip = 10.2.2.1; hardware = b;}
+}
+
+network:b  = { ip = 10.2.2.0/24; nat:b = { ip = 10.9.9.4/30; dynamic; } }
+
+service:test = {
+ user = network:a;
+ permit src = user; dst = interface:r2.b; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: interface:r2.b needs static translation for nat:b at router:r2 to be valid in rule
+ permit src=network:a; dst=interface:r2.b; prt=tcp 80; of service:test
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Grouped NAT tags must only be used grouped';
 ############################################################
 
