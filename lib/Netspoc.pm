@@ -13886,15 +13886,13 @@ sub mark_secondary_rules {
 sub mark_dynamic_nat_rules {
     progress('Marking rules with dynamic NAT');
 
-    # Mapping from nat_tag to boolean.
-    # Value is true if hidden NAT, false if dynamic NAT.
-    my %dynamic_nat2hidden;
+    # Collect hidden or dynamic NAT tags.
+    my %is_dynamic_nat_tag;
     for my $network (@networks) {
         my $href = $network->{nat} or next;
         for my $nat_tag (sort keys %$href) {
             my $nat_network = $href->{$nat_tag};
-            $nat_network->{dynamic} or next;
-            $dynamic_nat2hidden{$nat_tag} = $nat_network->{hidden};
+            $nat_network->{dynamic} and $is_dynamic_nat_tag{$nat_tag} = 1;
         }
     }
 
@@ -13903,7 +13901,7 @@ sub mark_dynamic_nat_rules {
         my ($rule, $in_intf, $out_intf) = @_;
         my $no_nat_set1 = $in_intf  ? $in_intf->{no_nat_set}  : undef;
         my $no_nat_set2 = $out_intf ? $out_intf->{no_nat_set} : undef;
-        for my $nat_tag (keys %dynamic_nat2hidden) {
+        for my $nat_tag (keys %is_dynamic_nat_tag) {
             if ($no_nat_set1) {
                 $no_nat_set1->{$nat_tag}
                   or push @{ $rule->{active_nat_at}->{$nat_tag} }, $in_intf;
