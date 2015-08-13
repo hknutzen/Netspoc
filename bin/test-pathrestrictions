@@ -1,0 +1,54 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Netspoc;
+use open qw(:std :utf8); #meike: check das mal.
+
+
+##############################################################################
+# Main
+
+# Get input file.
+if (@ARGV != 1) {
+    print "Usage:\n" .
+        "\ttest-pathrestrictions FILE|DIR\n\n";
+    exit;
+}
+my ($in_path) = @ARGV;
+
+# Process required netspoc steps. 
+&read_file_or_dir($in_path); #hier werden alle services nicht gebraucht...
+&link_topology();
+&mark_disabled();
+&set_zone();
+&distribute_nat_info();#meike: brauchst Du das?
+
+Netspoc::find_dists_and_loops();
+Netspoc::process_loops();
+Netspoc::check_pathrestrictions();
+
+# Andere Möglichkeit: @pathrestrictions als globale Variable deklarieren!
+my $size = keys  %Netspoc::pathrestrictions; # alle (auch ungültige) PRs
+print "number of pathrestrictions: $size\n";
+
+Netspoc::optimize_pathrestrictions();
+
+for my $restriction (values %Netspoc::pathrestrictions) {
+    next if not $restriction->{elements}; # keine elemente drin...
+    my $num_if = @{ $restriction->{elements}};
+    my $num_pr = 0;
+    my $num_reachable = 0;
+    for my $interface (@{ $restriction->{elements} }) {
+        if (@{$interface->{path_restrict}}) {
+            $num_pr += 1;
+        }
+        if ($interface->{reachable_at}) {
+            $num_reachable += 1;
+        }
+    }
+    print "number of interfaces: $num_if\n" .
+          "number of pathrestrictions at interfaces: $num_pr\n" . 
+          "number of reachable_at attributes: $num_reachable\n";
+}
+
