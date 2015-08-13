@@ -5,6 +5,44 @@ use warnings;
 use Netspoc;
 use open qw(:std :utf8); #meike: check das mal.
 
+##############################################################################
+# Purpose : Read next definition from input. 
+# Comment : This function is a modification of Netspoc::read_netspoc that skips
+#           rule related information. 
+my $read = sub {
+
+    # Check for global definitions.
+    my $pair = Netspoc::check_typed_name or Netspoc::syntax_err('');
+    my ($type, $name) = @$pair;
+    print "$type\n";
+    # Skip service declarations.
+    if ($type eq "service") {
+        while (1) { # Adjust input position.
+            last if Netspoc::check '\}';
+            Netspoc::skip('.*');
+        }
+        return;
+    }
+    # Skip group/protocol/protocolgroup declarations.TODO: erwischt nicht alle.
+    if ($type eq "group" || $type eq "protocolgroup" || $type eq "protocol") {
+        while (1) { # Adjust input position.
+            last if Netspoc::check '.*;';
+            Netspoc::skip('.*');
+        }
+        return;
+    }
+
+    my $descr = $Netspoc::global_type{$type}
+      or Netspoc::syntax_err("Unknown global definition");
+    my ($fun, $hash) = @$descr;
+    my $result = $fun->("$type:$name");
+    $result->{file} = $Netspoc::current_file;
+    if (my $other = $hash->{$name}) {
+        err_msg("Duplicate definition of $type:$name in",
+                " $Netspoc::current_file and $other->{file}");
+    }
+    return $hash->{$name} = $result;
+};
 
 ##############################################################################
 # Main
@@ -17,12 +55,16 @@ if (@ARGV != 1) {
 }
 my ($in_path) = @ARGV;
 
-# Process required netspoc steps. 
-&read_file_or_dir($in_path); #hier werden alle services nicht gebraucht...
+# Process required netspoc steps.
+#my $file_config = &read_config($in_path);
+#&set_config($file_config, { verbose => "quiet" });
+
+&read_file_or_dir($in_path, $read);#skip rule related infos
+&show_read_statistics;
 &link_topology();
 &mark_disabled();
 &set_zone();
-&distribute_nat_info();#meike: brauchst Du das?
+&distribute_nat_info();#TODO: do i need this?
 
 Netspoc::find_dists_and_loops();
 Netspoc::process_loops();
@@ -55,9 +97,9 @@ for my $restriction (@Netspoc::pathrestrictions) {
 # Interessant wäre zu wissen, an welchen Pathrestrictions es liegt,
 # aber an diese Information komme ich nicht ran: für Interfaces, die
 # innerhalb einer partition liegen wird zwar für die betreffende
-# Pathrestriction kein reachable_at angelegt, aber es ist durchaus
-# möglich, dass an dem Interface ein reachable_at für eine andere
-# Pathrestriction existiert. das Vorhandensein des Reachable_at ist
+# Pathrestriction kein {reachable_at} angelegt, aber es ist durchaus
+# möglich, dass an dem Interface ein {reachable_a}t für eine andere
+# Pathrestriction existiert. das Vorhandensein des {reachable_at} ist
 # daher kein Zeichen dafür, dass das Interface optimierbar ist. Die
 # Zusammenhörigkeit von partition marks und pathrestrictions, die für
 # die Beantwortung der Frage notwendig wären, wird leider nirgends
@@ -67,22 +109,20 @@ for my $restriction (@Netspoc::pathrestrictions) {
 #ungültige Pathrestrictions auch die Markierungen an den Interfaces
 #gelöscht:
 
-# Collect all interfaces with pathrestriction. 
-push my @restricted_interfaces, grep({ $_->{path_restrict} } 
-                                 values %Netspoc::interfaces);
-
-# vergleiche die pathrestrictions an den interfaces mit denen, die valide sind:
-for my $interface (@restricted_interfaces) {
-    my $num = @{ $interface->{path_restrict} };
-    print "$interface->{name} has $num attached pathrestrictions\n";
-    my @pr_to_delete;
-    for my $check (@{ $interface->{path_restrict} }) {
-        my $valid = grep {$_ == $check} @Netspoc::pathrestrictions;
-        if ($valid == 0) {
-            print "$check->{name} is invalid\n";
-        }
-    }
-}
+# Collect all interfaces with pathrestriction.
+ 
+#push my @restricted_interfaces, grep({ $_->{path_restrict} } 
+#                                 values %Netspoc::interfaces);
+#
+## vergleiche die pathrestrictions an den interfaces mit denen, die valide sind:
+#for my $interface (@restricted_interfaces) {
+#    for my $check (@{ $interface->{path_restrict} }) {
+#        my $valid = grep {$_ == $check} @Netspoc::pathrestrictions;
+#        if ($valid == 0) {
+#            print "pathrestriction $check->{name} is invalid\n";
+#        }
+#    }
+#}
 
 # das scheint allerdings in der Produktionstopologie nicht vorzukommen...
 # klar, da sind ja auch keine ungültigen PRs drinne...

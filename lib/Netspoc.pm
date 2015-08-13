@@ -3379,7 +3379,7 @@ sub read_owner {
     return $owner;
 }
 
-my %global_type = (
+our %global_type = (
     router          => [ \&read_router,          \%routers ],
     network         => [ \&read_network,         \%networks ],
     any             => [ \&read_aggregate,       \%aggregates ],
