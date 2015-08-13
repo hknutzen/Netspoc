@@ -3,7 +3,9 @@
 use strict;
 use warnings;
 use Netspoc;
-use open qw(:std :utf8); #meike: check das mal.
+use Getopt::Long;
+
+use open qw(:std :utf8); #TODO: check das mal.
 
 ##############################################################################
 # Purpose : Read next definition from input. 
@@ -14,7 +16,7 @@ my $read = sub {
     # Check for global definitions.
     my $pair = Netspoc::check_typed_name or Netspoc::syntax_err('');
     my ($type, $name) = @$pair;
-    print "$type\n";
+
     # Skip service declarations.
     if ($type eq "service") {
         while (1) { # Adjust input position.
@@ -45,7 +47,15 @@ my $read = sub {
 };
 
 ##############################################################################
-# Main
+# Process Netspoc input until pathrestrictions are applied and optimized.
+# Print applied pathrestrictions and pathrestrictions that could not be 
+# optimized to stdout.
+
+# Get Option
+my $quiet;
+GetOptions ( 'quiet' => \$quiet,
+	     ); # or pod2usage(2); TODO: this could be added...
+
 
 # Get input file.
 if (@ARGV != 1) {
@@ -56,9 +66,8 @@ if (@ARGV != 1) {
 my ($in_path) = @ARGV;
 
 # Process required netspoc steps.
-#my $file_config = &read_config($in_path);
-#&set_config($file_config, { verbose => "quiet" });
-
+my $file_config = &read_config($in_path);
+&set_config($file_config, { verbose => !$quiet });
 &read_file_or_dir($in_path, $read);#skip rule related infos
 &show_read_statistics;
 &link_topology();
@@ -69,17 +78,20 @@ my ($in_path) = @ARGV;
 Netspoc::find_dists_and_loops();
 Netspoc::process_loops();
 Netspoc::check_pathrestrictions();
-
 Netspoc::optimize_pathrestrictions();
 
+
+# Evaluate defined and evaluated pathrestrictions.
 my $defined = keys %Netspoc::pathrestrictions;
 my $applied = @Netspoc::pathrestrictions;
 
 print "$defined pathrestriction(s) defined.\n";
 print "$applied pathrestriction(s) applied.\n";
-print "Optimization failed at:\n";
 
-for my $restriction (@Netspoc::pathrestrictions) {
+# Print pathrestrictions where optimization failed. 
+my $fail_flag = 0;
+my @sorted_pathrestrictions = sort @Netspoc::pathrestrictions;
+for my $restriction (@sorted_pathrestrictions) { 
     my $fail = 0;
     for my $interface (@ {$restriction->{elements}} ) {
          if ($interface->{path_restrict}) {
@@ -87,7 +99,11 @@ for my $restriction (@Netspoc::pathrestrictions) {
                               @{$interface->{path_restrict}};
         }
         if ($fail > 0) {
-             last;
+            if ($fail_flag == 0) {
+                print "Optimization failed at:\n";
+                $fail_flag = 1;
+            }
+            last;
         }
     }
     if ($fail > 0) {
