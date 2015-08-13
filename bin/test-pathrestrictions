@@ -28,27 +28,61 @@ Netspoc::find_dists_and_loops();
 Netspoc::process_loops();
 Netspoc::check_pathrestrictions();
 
-# Andere Möglichkeit: @pathrestrictions als globale Variable deklarieren!
-my $size = keys  %Netspoc::pathrestrictions; # alle (auch ungültige) PRs
-print "number of pathrestrictions: $size\n";
-
 Netspoc::optimize_pathrestrictions();
 
-for my $restriction (values %Netspoc::pathrestrictions) {
-    next if not $restriction->{elements}; # keine elemente drin...
-    my $num_if = @{ $restriction->{elements}};
-    my $num_pr = 0;
-    my $num_reachable = 0;
-    for my $interface (@{ $restriction->{elements} }) {
-        if (@{$interface->{path_restrict}}) {
-            $num_pr += 1;
+my $defined = keys %Netspoc::pathrestrictions;
+my $applied = @Netspoc::pathrestrictions;
+
+print "$defined pathrestriction(s) defined.\n";
+print "$applied pathrestriction(s) applied.\n";
+print "Optimization failed at:\n";
+
+for my $restriction (@Netspoc::pathrestrictions) {
+    my $fail = 0;
+    for my $interface (@ {$restriction->{elements}} ) {
+         if ($interface->{path_restrict}) {
+            $fail = grep {$_ == $restriction} 
+                              @{$interface->{path_restrict}};
         }
-        if ($interface->{reachable_at}) {
-            $num_reachable += 1;
+        if ($fail > 0) {
+             last;
         }
     }
-    print "number of interfaces: $num_if\n" .
-          "number of pathrestrictions at interfaces: $num_pr\n" . 
-          "number of reachable_at attributes: $num_reachable\n";
+    if ($fail > 0) {
+        print "  $restriction->{name}\n";
+    }
+}
+# Interessant wäre zu wissen, an welchen Pathrestrictions es liegt,
+# aber an diese Information komme ich nicht ran: für Interfaces, die
+# innerhalb einer partition liegen wird zwar für die betreffende
+# Pathrestriction kein reachable_at angelegt, aber es ist durchaus
+# möglich, dass an dem Interface ein reachable_at für eine andere
+# Pathrestriction existiert. das Vorhandensein des Reachable_at ist
+# daher kein Zeichen dafür, dass das Interface optimierbar ist. Die
+# Zusammenhörigkeit von partition marks und pathrestrictions, die für
+# die Beantwortung der Frage notwendig wären, wird leider nirgends
+# gespeichert.
+
+#Hier besteht eventuell noch Aufräumpotential: nicht immer werden für
+#ungültige Pathrestrictions auch die Markierungen an den Interfaces
+#gelöscht:
+
+# Collect all interfaces with pathrestriction. 
+push my @restricted_interfaces, grep({ $_->{path_restrict} } 
+                                 values %Netspoc::interfaces);
+
+# vergleiche die pathrestrictions an den interfaces mit denen, die valide sind:
+for my $interface (@restricted_interfaces) {
+    my $num = @{ $interface->{path_restrict} };
+    print "$interface->{name} has $num attached pathrestrictions\n";
+    my @pr_to_delete;
+    for my $check (@{ $interface->{path_restrict} }) {
+        my $valid = grep {$_ == $check} @Netspoc::pathrestrictions;
+        if ($valid == 0) {
+            print "$check->{name} is invalid\n";
+        }
+    }
 }
 
+# das scheint allerdings in der Produktionstopologie nicht vorzukommen...
+# klar, da sind ja auch keine ungültigen PRs drinne...

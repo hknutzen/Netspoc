@@ -4524,7 +4524,7 @@ sub link_subnets {
     return;
 }
 
-my @pathrestrictions;
+our @pathrestrictions;
 
 sub add_pathrestriction {
     my ($name, $elements) = @_;
@@ -10475,12 +10475,11 @@ sub check_pathrestrictions {
             # inside or at the border of cyclic graphs.
             if (not $loop) {
                 delete $interface->{path_restrict};
-                warn_msg(
-                    "Ignoring $restrict->{name} at $interface->{name}\n",
-                    " because it isn't located inside cyclic graph"
-                );
-                $interface = undef;    # No longer reference this interface.
-                $deleted   = 1;
+                warn_msg("Ignoring $restrict->{name} at $interface->{name}\n",
+                         " because it isn't located inside cyclic graph");
+                $interface = undef; # No longer reference this interface.
+                $deleted = 1;
+                next;
             }
 
             # Interfaces must belong to same loop cluster.
@@ -10501,7 +10500,7 @@ sub check_pathrestrictions {
             }
         }
 
-        # Remove illegal interfaces from elements array.
+        # Check whether pathrestriction is still valid. 
         if ($deleted) {
             $elements = $restrict->{elements} = [ grep { $_ } @$elements ];
             if (1 == @$elements) { # Min. 2 interfaces/path restriction needed! 
@@ -10509,6 +10508,7 @@ sub check_pathrestrictions {
             }
         }
 
+        # Remove invalid pathrestrictions. 
         if ($invalid) {
             $elements = $restrict->{elements} = [];
             next;
