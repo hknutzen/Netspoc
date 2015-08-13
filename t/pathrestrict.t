@@ -358,7 +358,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Error: pathrestriction:p1 must not have elements from different loops:
+Warning: pathrestriction:p1 must not have elements from different loops:
  - interface:r2a.n2
  - interface:r2b.n3
 END
