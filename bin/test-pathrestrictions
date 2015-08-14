@@ -7,6 +7,9 @@ use Getopt::Long;
 
 use open qw(:std :utf8); #TODO: check das mal.
 
+my $protocolcount = 0;
+my $protocolgroupcount = 0;
+
 ##############################################################################
 # Purpose : Read next definition from input. 
 # Comment : This function is a modification of Netspoc::read_netspoc that skips
@@ -25,8 +28,10 @@ my $read = sub {
         }
         return;
     }
-    # Skip group/protocol/protocolgroup declarations.TODO: erwischt nicht alle.
-    if ($type eq "group" || $type eq "protocolgroup" || $type eq "protocol") {
+
+    # Skip group/protocol/protocolgroup declarations.
+    # Anonymous protocols used by general_permit will still be read, though. 
+    if ($type eq "group" || $type eq "protocolgroup" || $type eq "protocol" ) {
         while (1) { # Adjust input position.
             last if Netspoc::check '.*;';
             Netspoc::skip('.*');
@@ -69,6 +74,9 @@ my ($in_path) = @ARGV;
 my $file_config = &read_config($in_path);
 &set_config($file_config, { verbose => !$quiet });
 &read_file_or_dir($in_path, $read);#skip rule related infos
+while (my ($key, $value) = each %{ $Netspoc::global_type{protocol}[1]}){
+    print "Key:$key, Value:$value\n";
+}
 &show_read_statistics;
 &link_topology();
 &mark_disabled();
