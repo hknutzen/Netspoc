@@ -9,14 +9,16 @@ our @EXPORT = qw(test_run test_err);
 
 use Test::More;
 use Test::Differences;
-use Capture::Tiny 'capture_stderr';
+use IPC::Run3;
 use File::Temp qw/ tempfile tempdir /;
 use File::Spec::Functions qw/ file_name_is_absolute splitpath catdir catfile /;
 use File::Path 'make_path';
-use lib 'lib';
-use Netspoc;
+
+$ENV{PERL5LIB} = "./lib";
+$ENV{PATH} = "./bin:$ENV{PATH}";
 
 my $default_options = '-quiet';
+my $netspoc_cmd = 'netspoc';
 
 sub run {
     my($input, $options, $out_dir) = @_;
@@ -57,29 +59,14 @@ sub run {
     }
 
     # Prepare arguments.
-    my $args = [ split(' ', $default_options),
-                 split(' ', $options),
-                 $in_dir ];
-    push @$args, $out_dir if $out_dir;
+    my $cmd = "$netspoc_cmd $default_options $options $in_dir";
+    $cmd .= " $out_dir" if $out_dir;
+    my ($stdout, $stderr);
 
-    # Compile, capture STDERR, catch errors.
-    my ($stderr, $success) = 
-        capture_stderr {
-            my $result;
-            eval {
+    # Run netspoc, collect STDOUT and STDERR.
+    run3($cmd, \undef, \$stdout, \$stderr);
+    my $success = ($? == 0);
 
-                # Global variables are initialized already when
-                # Netspoc.pm is loaded, but re-initialization is
-                # needed for multiple compiler runs.
-                Netspoc::init_global_vars();
-                Netspoc::compile($args);
-                $result = 1;
-            };
-            if($@) {
-                warn $@; 
-            };
-            $result;
-    };
     return($stderr, $success, $in_dir);
 }
 

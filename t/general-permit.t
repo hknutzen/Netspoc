@@ -74,22 +74,22 @@ $out = <<'END';
 -A c5 -j ACCEPT -p icmp --icmp-type 3
 --
 :e0_self -
--A INPUT -j e0_self -i e0
 -A e0_self -j ACCEPT -p tcp
 -A e0_self -g c3 -p icmp
+-A INPUT -j e0_self -i e0
 :e0_e1 -
--A FORWARD -j e0_e1 -i e0 -o e1
 -A e0_e1 -j ACCEPT -p tcp
 -A e0_e1 -g c2 -p icmp
+-A FORWARD -j e0_e1 -i e0 -o e1
 --
 :e1_self -
--A INPUT -j e1_self -i e1
 -A e1_self -j ACCEPT -p tcp
 -A e1_self -g c5 -p icmp
+-A INPUT -j e1_self -i e1
 :e1_e0 -
--A FORWARD -j e1_e0 -i e1 -o e0
 -A e1_e0 -j ACCEPT -p tcp
 -A e1_e0 -g c4 -p icmp
+-A FORWARD -j e1_e0 -i e1 -o e0
 END
 
 test_run($title, $in, $out);
@@ -163,9 +163,9 @@ END
 $out = <<'END';
 --host:h1
 :eth0_self -
--A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.1.1.160/27 -d 10.1.1.166 -p tcp --dport 111
 -A eth0_self -j ACCEPT -p icmp
+-A INPUT -j eth0_self -i eth0
 END
 
 test_run($title, $in, $out);
