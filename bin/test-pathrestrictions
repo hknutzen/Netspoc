@@ -1,20 +1,73 @@
 #!/usr/bin/perl
 
+=head1 NAME
+
+test-pathrestrictions - print status of pathrestrictions applied.
+
+=head1 SYNOPSIS
+
+test-pathrestrictions [options] FILE|DIR
+
+=head1 DESCRIPTION
+
+This program prints the number of pathresrictions that have been
+defined in a netspoc input topology, applied for the topology
+(including pathrestrictions needed for virtual interfaces or tunnel
+networks) as well as the number or names of pathrestrictions that could not be
+optimized.  
+
+=head1 OPTIONS
+
+=over 2
+
+=item B<-quiet>
+
+Don't print progress messages.
+
+=item B<-help>
+
+Prints a brief help message and exits.
+
+=back
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+(c) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+
+This program uses module Netspoc.pm,
+a Network Security Policy Compiler,
+http://hknutzen.github.com/Netspoc
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
+
+
+
 use strict;
 use warnings;
 use Netspoc;
 use Getopt::Long;
-
-use open qw(:std :utf8); #TODO: check das mal.
-
-my $protocolcount = 0;
-my $protocolgroupcount = 0;
+use open qw(:std :utf8);
+use Pod::Usage;
 
 ##############################################################################
 # Purpose : Read next definition from input. 
 # Comment : This function is a modification of Netspoc::read_netspoc that skips
 #           rule related information. 
-my $read = sub {
+sub read_input {
 
     # Check for global definitions.
     my $pair = Netspoc::check_typed_name or Netspoc::syntax_err('');
@@ -52,15 +105,19 @@ my $read = sub {
 };
 
 ##############################################################################
-# Process Netspoc input until pathrestrictions are applied and optimized.
-# Print applied pathrestrictions and pathrestrictions that could not be 
-# optimized to stdout.
+# Purpose : Process Netspoc input until pathrestrictions are applied and 
+#           optimized. Print applied pathrestrictions and pathrestrictions 
+#           that could not be optimized to stdout.
 
 # Get Option
 my $quiet;
+my $names;
+my $help;
 GetOptions ( 'quiet' => \$quiet,
-	     ); # or pod2usage(2); TODO: this could be added...
-
+             'help|?' => \$help,
+             'names' => \$names,
+	     ) or pod2usage(2);
+pod2usage(1) if $help;
 
 # Get input file.
 if (@ARGV != 1) {
@@ -73,15 +130,11 @@ my ($in_path) = @ARGV;
 # Process required netspoc steps.
 my $file_config = &read_config($in_path);
 &set_config($file_config, { verbose => !$quiet });
-&read_file_or_dir($in_path, $read);#skip rule related infos
-while (my ($key, $value) = each %{ $Netspoc::global_type{protocol}[1]}){
-    print "Key:$key, Value:$value\n";
-}
+&read_file_or_dir($in_path, \&read_input);#skip rule related infos
 &show_read_statistics;
 &link_topology();
 &mark_disabled();
 &set_zone();
-&distribute_nat_info();#TODO: do i need this?
 
 Netspoc::find_dists_and_loops();
 Netspoc::process_loops();
@@ -97,7 +150,7 @@ print "$defined pathrestriction(s) defined.\n";
 print "$applied pathrestriction(s) applied.\n";
 
 # Print pathrestrictions where optimization failed. 
-my $fail_flag = 0;
+my $fail_count = 0;
 my @sorted_pathrestrictions = sort @Netspoc::pathrestrictions;
 for my $restriction (@sorted_pathrestrictions) { 
     my $fail = 0;
@@ -107,46 +160,28 @@ for my $restriction (@sorted_pathrestrictions) {
                               @{$interface->{path_restrict}};
         }
         if ($fail > 0) {
-            if ($fail_flag == 0) {
+            if ($names && $fail_count == 0) {
                 print "Optimization failed at:\n";
-                $fail_flag = 1;
             }
             last;
         }
     }
     if ($fail > 0) {
-        print "  $restriction->{name}\n";
+        $names && print "  $restriction->{name}\n";
+        $fail_count += 1;         
     }
 }
-# Interessant wäre zu wissen, an welchen Pathrestrictions es liegt,
-# aber an diese Information komme ich nicht ran: für Interfaces, die
-# innerhalb einer partition liegen wird zwar für die betreffende
-# Pathrestriction kein {reachable_at} angelegt, aber es ist durchaus
-# möglich, dass an dem Interface ein {reachable_a}t für eine andere
-# Pathrestriction existiert. das Vorhandensein des {reachable_at} ist
-# daher kein Zeichen dafür, dass das Interface optimierbar ist. Die
-# Zusammenhörigkeit von partition marks und pathrestrictions, die für
-# die Beantwortung der Frage notwendig wären, wird leider nirgends
-# gespeichert.
+$names || print "Failed to optimize $fail_count pathrestriction(s).\n";
 
-#Hier besteht eventuell noch Aufräumpotential: nicht immer werden für
-#ungültige Pathrestrictions auch die Markierungen an den Interfaces
-#gelöscht:
 
-# Collect all interfaces with pathrestriction.
- 
-#push my @restricted_interfaces, grep({ $_->{path_restrict} } 
-#                                 values %Netspoc::interfaces);
-#
-## vergleiche die pathrestrictions an den interfaces mit denen, die valide sind:
-#for my $interface (@restricted_interfaces) {
-#    for my $check (@{ $interface->{path_restrict} }) {
-#        my $valid = grep {$_ == $check} @Netspoc::pathrestrictions;
-#        if ($valid == 0) {
-#            print "pathrestriction $check->{name} is invalid\n";
-#        }
-#    }
-#}
+# It might be interesting to know, which interface(s) of a
+# pathrestriction prevent optimization. This information can not be
+# easily obtained though: Although interfaces inside a partition do
+# not get a {reachable_at} tag, it might still be that such interfaces
+# have {reachable_at} tags attached due to other
+# pathrestrictions. Thus, the existance of these tags does not
+# indicate that an interface can be optimized. The relation of
+# partition marks and pathrestrictions, which could be used to
+# identify optimization inhibiting interfaces is unfortuntely not
+# kept.
 
-# das scheint allerdings in der Produktionstopologie nicht vorzukommen...
-# klar, da sind ja auch keine ungültigen PRs drinne...

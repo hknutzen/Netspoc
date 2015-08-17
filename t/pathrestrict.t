@@ -422,9 +422,7 @@ END
 $out = <<'END';
 2 pathrestriction(s) defined.
 2 pathrestriction(s) applied.
-Optimization failed at:
-  pathrestriction:pr1
-  pathrestriction:pr2
+Failed to optimize 2 pathrestriction(s).
 END
 
 test_pathrestrictions($title, $in, $out);
