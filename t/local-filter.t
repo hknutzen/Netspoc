@@ -23,8 +23,8 @@ router:d32 = {
 }
 END
 
-$out = <<'END';
-Error: IP and mask don't match at line 5 of STDIN
+$out = <<"END";
+Error: IP and mask don\'t match at line 5 of STDIN
 END
 
 test_err($title, $in, $out);
@@ -721,6 +721,75 @@ $out = <<'END';
 access-list outside_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
 access-list outside_in extended permit ip any any
 access-group outside_in in interface outside
+--
+access-list inside_in extended deny ip any 10.2.0.0 255.255.0.0
+access-list inside_in extended permit ip any any
+access-group inside_in in interface inside
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "Check external aggregate covering filter_only network";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+any:any1 = { link = network:n1; }
+
+router:u = {
+  interface:n1;
+ interface:t1 =  { ip = 10.2.9.9; }
+}
+
+network:t1 = { ip = 10.2.9.8/29; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:t1 = { ip = 10.2.9.10; hardware = outside; }
+ interface:t2 = { ip = 10.2.9.6; hardware = inside; }
+}
+
+network:t2 = { ip = 10.2.9.0/29; }
+
+router:r2 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.2.0.0/16;
+ interface:t2 = { ip = 10.2.9.1; hardware = outside; }
+ interface:dst = { ip = 10.2.1.1; hardware = inside; }
+}
+
+network:dst = { ip = 10.2.1.0/27; }
+
+service:t1 = {
+ user = any:any1, any:[network:t2];
+ permit src = user;
+        dst = network:dst;
+        prt = tcp 25;
+}
+
+service:t2 = {
+ user = any:any1, any:[network:t2];
+ permit src = network:dst;
+        dst = user;
+        prt = tcp 110;
+}
+END
+
+$out = <<'END';
+--r2
+! [ ACL ]
+access-list outside_in extended permit tcp any 10.2.1.0 255.255.255.224 eq 25
+access-list outside_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
+access-list outside_in extended permit ip any any
+access-group outside_in in interface outside
+--
+access-list inside_in extended permit tcp 10.2.1.0 255.255.255.224 any eq 110
+access-list inside_in extended deny ip any 10.2.0.0 255.255.0.0
+access-list inside_in extended permit ip any any
+access-group inside_in in interface inside
 END
 
 test_run($title, $in, $out);
