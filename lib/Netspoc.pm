@@ -4753,6 +4753,10 @@ sub link_virtual_interfaces {
     return;
 }
 
+##############################################################################
+# Purpose    : Check, whether input IFs belong to the same redundancy group.
+# Parameters : Array keeping all interfaces of a network.
+# Returns    : True, if all IFs belong to same redundancy group, false otherwise
 sub is_redundany_group {
     my ($interfaces) = @_;
     my $group = $interfaces->[0]->{redundancy_interfaces} or return;
@@ -10586,7 +10590,7 @@ sub traverse_loop_part {
     # Mark current node ($obj) as member of partition.
     $obj->{reachable_part}->{$mark} = 1;
 
-    #debug "$obj->{name} in loop part $mark";
+    debug "$obj->{name} in loop part $mark";
 
     # Proceed pathwalk with adjacent objects.
     for my $interface (@{ $obj->{interfaces} }) {
@@ -10956,12 +10960,21 @@ sub setpath {
 # Efficient path traversal.
 ####################################################################
 
-my %obj2path;
+my %obj2path; # lookup hash, keys: source/destination objects, 
+              #              values: corresponding path node objects
 
+##############################################################################
+# Purpose   : Provide path node objects for objects specified as src or dst.
+# Parameter : Source or destination object from an elementary rule.
+# Returns   : Reference to zone or router of the given object or reference 
+#             to object itself, if it is a pathrestricted interface. 
+# Results   : Return value for given object is stored in %obj2path lookup hash.
 sub get_path {
     my ($obj) = @_;
     my $type = ref $obj;
     my $result;
+    
+    # Check whether path node of object is a zone or router.
     if ($type eq 'Network') {
         $result = $obj->{zone};
     }
@@ -10986,8 +10999,8 @@ sub get_path {
                 $result = $obj->{router};
             }
         }
-        else {
-            $result = $obj->{network}->{zone};
+        else { # Unmanaged routers are part of zone objects.
+            $result = $obj->{network}->{zone}; 
         }
     }
 
@@ -11014,42 +11027,59 @@ sub get_path {
         internal_err("unexpected $obj->{name}");
     }
 
-#    debug("get_path: $obj->{name} -> $result->{name}");
+    #debug("get_path: $obj->{name} -> $result->{name}");
     return ($obj2path{$obj} = $result);
 }
 
-# Converts hash key of reference back to reference.
+# When used as hash keys, Perl converts references to address strings - 
+# this  hash is used to convert them back to references. 
 my %key2obj;
 
-sub cluster_path_mark1;
-
+##############################################################################
+# Purpose    : Recursively find path through a loop or loop cluster for a 
+#              given pair (start, end) of loop nodes, collect path information. 
+# Parameters : $obj - current (or start) loop node (zone or router).
+#              $in_intf - interface current loop node was entered from. 
+#              $end - loop node that is to be reached.
+#              $end_intf - dst interface, if it is a pathrestricted interface
+#                          in or at border of current loop, undef otherwise.
+#              $path_tuples - hash to collect in and out interfaces of nodes on
+#                             detected path.
+#              $loop_leave - hash to collect last interfaces of loop path.
+#              $navi - lookup hash to reduce search space, holds loops to enter.
+# Returns   :  1, if path is found, 0 otherwise.
 sub cluster_path_mark1 {
     my ($obj, $in_intf, $end, $end_intf, $path_tuples, $loop_leave, $navi) = @_;
+
+    # Check if IF current node was entered at ($in_interface) is pathrestricted.
     my $pathrestriction = $in_intf->{path_restrict};
     my $reachable_at    = $in_intf->{reachable_at};
 
 #    debug("cluster_path_mark1: obj: $obj->{name},
 #           in_intf: $in_intf->{name} to: $end->{name}");
 
-    # Check for second occurrence of path restriction.
+    # Stop path exploration when activated PR (2nd occurrence) was passed.
     if ($pathrestriction) {
         for my $restrict (@$pathrestriction) {
             if ($restrict->{active_path}) {
-
 #           debug(" effective $restrict->{name} at $in_intf->{name}");
                 return 0;
             }
         }
     }
 
-    # Handle optimized pathrestriction.
-    # Check if $end_intf is located outside of current reachable_part.
-    # This must be checked before checking that $end has been reached,
-    if ($reachable_at && $end_intf && $end_intf ne $in_intf) {
+    # Check optimized pathrestriction: is $end_intf reachable?
+    # To achieve equal routes for every IP of a network, zone of 
+    # $end_intf (instead of its router) must be reached to find a valid path.
+    # As the interfaces zone can be located behind its router, which is the 
+    # end node of the loop path, this test must be performed before checking
+    # whether end node was reached and a path was found.   
+    if ($reachable_at && $end_intf && 
+        $end_intf ne $in_intf) { # Valid path found otherwise.  
         if (my $reachable = $reachable_at->{$obj}) {
             my $other = $end_intf->{zone};
 
-            # $other inside loop
+            # If zone is located in loop, perform usual reachable check for it.
             if ($other->{loop}) {
                 my $has_mark = $other->{reachable_part};
                 for my $mark (@$reachable) {
@@ -11062,17 +11092,16 @@ sub cluster_path_mark1 {
                 }
             }
 
-            # $end_intf at border of loop, $other outside of loop.
-            # In this case, {reachable_part} isn't set at $other.
+            # If $end_intf is at border of loop, its zone might be located
+            # outside of loop and no {reachable_part} is set at $other.
             # If partition starting at $in_intf also starts at $end_intf,
-            # then $other can't be reached.
+            # path to $other includes 2 pathrestrictions and is invalid.
             else {
                 if (my $reachable_at2 = $end_intf->{reachable_at}) {
                     if (my $reachable2 =
                         $reachable_at2->{ $end_intf->{router} })
                     {
                         if (intersect($reachable, $reachable2)) {
-
 #                            debug(" unreachable2: $other->{name}",
 #                                  " from $in_intf->{name} to $obj->{name}");
                             return 0;
@@ -11083,7 +11112,7 @@ sub cluster_path_mark1 {
         }
     }
 
-    # Don't walk loops.
+    # Node has been visited before - return to avoid walking loops.
     if ($obj->{active_path}) {
 
 #       debug(" active: $obj->{name}");
@@ -11093,21 +11122,21 @@ sub cluster_path_mark1 {
     # Found a path to router or zone.
     if ($obj eq $end) {
 
-        # Mark interface where we leave the loop.
+        # Store interface where we leave the loop.
         push @$loop_leave, $in_intf;
 
 #        debug(" leave: $in_intf->{name} -> $end->{name}");
         return 1;
     }
 
-    # Handle optimized pathrestriction.
+    # Stop exploration if optimized pathrestriction inhibits reaching end node.
+    # This is not grouped with other PR checks to avoid unneccessary execution.
     if ($reachable_at) {
         if (my $reachable = $reachable_at->{$obj}) {
-            my $end_node = $end_intf ? $end_intf->{zone} : $end;
+            my $end_node = $end_intf ? $end_intf->{zone} : $end;#for consistency
             my $has_mark = $end_node->{reachable_part};
             for my $mark (@$reachable) {
                 if (!$has_mark->{$mark}) {
-
 #                   debug(" unreachable3: $end_node->{name}",
 #                         " from $in_intf->{name} to $obj->{name}");
                     return 0;
@@ -11121,7 +11150,7 @@ sub cluster_path_mark1 {
 
 #    debug "activated $obj->{name}";
 
-    # Mark first occurrence of path restriction.
+    # Activate passed path restrictions.
     if ($pathrestriction) {
         for my $restrict (@$pathrestriction) {
 
@@ -11133,10 +11162,14 @@ sub cluster_path_mark1 {
     my $get_next = is_router($obj) ? 'zone' : 'router';
     my $success = 0;
 
-    # Fill hash for restoring reference from hash key.
+    # Fill hash for restoring references from hash key.
     $key2obj{$in_intf} = $in_intf;
+
+    # Extract navigation lookup hash.
     my $allowed = $navi->{ $obj->{loop} }
       or internal_err("Loop with empty navigation");
+
+    # Proceed loop path exploration with every loop interface of current node.
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_intf;
         next if $interface->{main_interface};
@@ -11145,6 +11178,8 @@ sub cluster_path_mark1 {
         my $next = $interface->{$get_next};
 
 #        debug "Try $obj->{name} -> $next->{name}";
+
+        # If a valid path is found from next node to $end...
         if (
             cluster_path_mark1(
                 $next,        $interface,  $end, $end_intf,
@@ -11153,15 +11188,15 @@ sub cluster_path_mark1 {
           )
         {
 
-            # Found a valid path from $next to $end.
+            # ...collect path information.
             $key2obj{$interface} = $interface;
             $path_tuples->{$in_intf}->{$interface} = is_router($obj);
-
 #	    debug(" loop: $in_intf->{name} -> $interface->{name}");
             $success = 1;
         }
     }
 
+    # Deactivate pathrestrictions activated on path.
 #    debug "deactivated $obj->{name}";
     if ($pathrestriction) {
         for my $restrict (@$pathrestriction) {
@@ -11173,55 +11208,69 @@ sub cluster_path_mark1 {
     return $success;
 }
 
-# Optimize navigation inside a cluster of loops.
-# Mark each loop marker
-# with the allowed loops to be traversed to reach $to.
-# The direction is given as a loop object.
-# It can be used to look up interfaces which reference
-# this loop object in attribute {loop}.
-# Return value:
-# A hash with pairs: object -> loop-marker
+##############################################################################
+# Purpose    : Optimize navigation inside a cluster of loops: For a pair 
+#              ($from,$to) of loop nodes, identify order of loops passed 
+#              on the path from $from to $to. Store information as lookup
+#              hash at node $from to reduce search space when finding paths
+#              from $from to $to.
+# Parameters : $from, $to - loop nodes pair.
+# Returns    : Hash with order/navigation information: keys = loops,
+#              values = loops that may be entered next from key loop.
+# Results    : $from node holds navigation hash suggesting for every loop
+#              of the cluster those loops, that are allowed to be entered when  
+#              traversing the path to $to. 
 sub cluster_navigation {
+#    debug("Navi: $from->{name}, $to->{name}");    
+
     my ($from, $to) = @_;
-    my $from_loop = $from->{loop};
-    my $to_loop   = $to->{loop};
+    my $navi;    
 
-#    debug("Navi: $from->{name}, $to->{name}");
-
-    my $navi;
+    # Return filled navi hash, if pair ($from, $to) has been processed before.
     if (($navi = $from->{navi}->{$to}) and scalar keys %$navi) {
-
 #	debug(" Cached");
         return $navi;
     }
+
+    # Attach navi hash to $from node object.
     $navi = $from->{navi}->{$to} = {};
-
+ 
+    # Determine loops that are passed on path from $from to $to. 
+    my $from_loop = $from->{loop};
+    my $to_loop   = $to->{loop};
     while (1) {
-        if ($from_loop eq $to_loop) {
-            last if $from eq $to;
-            $navi->{$from_loop}->{$from_loop} = 1;
 
+        # Loops are equal, order of loops has been detected.
+        if ($from_loop eq $to_loop) {
+            last if $from eq $to; # Same node, no loop path to detect. 
+
+            # Add loops that may be entered from loop during path traversal.
+            $navi->{$from_loop}->{$from_loop} = 1; # TODO: Why not include exit?
 #	    debug("- Eq: $from_loop->{exit}->{name}$from_loop to itself");
 
             # Path $from -> $to traverses $from_loop and $exit_loop.
-            # Inside $exit_loop, enter only $from_loop, but not from other loops.
+            # Inside $exit_loop, enter only $from_loop, but not from other loops
             my $exit_loop = $from_loop->{exit}->{loop};
             $navi->{$exit_loop}->{$from_loop} = 1;
+
 
 #	    debug("- Add $from_loop->{exit}->{name}$from_loop to exit $exit_loop->{exit}->{name}$exit_loop");
             last;
         }
+
+        # Different loops, take next step from loop with higher distance.
         elsif ($from_loop->{distance} >= $to_loop->{distance}) {
-            $navi->{$from_loop}->{$from_loop} = 1;
+            $navi->{$from_loop}->{$from_loop} = 1;# TODO: Why not include exit?
 
 #	    debug("- Fr: $from_loop->{exit}->{name}$from_loop to itself");
             $from      = $from_loop->{exit};
             $from_loop = $from->{loop};
         }
-        else {
-            $navi->{$to_loop}->{$to_loop} = 1;
 
-#	    debug("- To: $to_loop->{exit}->{name}$to_loop to itself");
+        # Take step from to_loop.
+        else {
+            #debug("- To: $to_loop->{exit}->{name}$to_loop to itself");
+            $navi->{$to_loop}->{$to_loop} = 1;
             $to = $to_loop->{exit};
             my $entry_loop = $to->{loop};
             $navi->{$entry_loop}->{$to_loop} = 1;
@@ -11233,44 +11282,45 @@ sub cluster_navigation {
     return $navi;
 }
 
-# Mark paths inside a cluster of loops.
-# $from and $to are entry and exit objects inside the cluster.
-# The cluster is entered at interface $from_in and left at interface $to_out.
-# For each pair of $from / $to, we collect attributes:
-# {loop_enter}: interfaces of $from, where the cluster is entered,
-# {path_tuples}: tuples of interfaces, which describe all valid paths,
-# {loop_leave}: interfaces of $to, where the cluster is left.
-# Return value is true if a valid path was found.
-#
-# $from_store is the starting object of the whole path.
-# If the path starts at an interface of a loop and it has a pathrestriction attached,
-# $from_store contains this interface.
+##############################################################################
+# Purpose    : Collect path information through a loop for a pair ($from,$to)
+#              of loop nodes, store it at the object where loop paths begins.
+# Parameters : $from - node (zone or router) loop cluster is entered at
+#              $to - node (zone or router) loop cluster is left at.
+#              $from_in - interface $from is entered at 
+#              $to_out - interface $to is left at. 
+#              $from_store - source node or interface reference, if source is a 
+#                            pathrestricted interface.  
+#              $to_store - destination node or interface reference, if 
+#                          destination is a pathrestricted interface.
+# Returns    : True if a valid path was found, False otherwise.
+# Results    : Loop entering interface holds reference to where loop path 
+#              information is stored (starting at node or pathrestricted IF
+#              may lead to different paths). Referenced object holds loop path 
+#              description.
 sub cluster_path_mark {
     my ($from, $to, $from_in, $to_out, $from_store, $to_store) = @_;
 
     # This particular path through this sub-graph is already known.
     return 1 if $from_in->{path}->{$to_store};
 
-    # Start and end interface or undef.
-    # It is set, if the path starts / ends
-    # - at an interface inside the loop or
-    # - at an interface at the border of the loop
-    #   (an interface of a router/zone inside the loop)
-    # - this interface has a pathrestriction attached.
+    # Allow easy checks for whether source or destination are pathrestricted 
+    # interfaces in or at border of current loop by setting these, if so.
     my ($start_intf, $end_intf);
 
-    # Check, if loop is entered or left at interface with pathrestriction.
-    # - is $from_store located inside or at border of current loop?
-    # - does $from_in at border of current loop have pathrestriction ?
-    # dito for $to_store and $to_out.
+    # Define objects to store path information in by setting these. 
+    # Path may differ depending on whether loop entering IF is pathrestricted
+    # or not. Storing path information in different objects respects this.
     my ($start_store, $end_store);
-    if (is_interface($from_store)
+
+    # Set declared variables.
+    if (is_interface($from_store) # Src is pathrestricted IF of $from loop node.
         and ($from_store->{router} eq $from or $from_store->{zone} eq $from))
     {
         $start_intf  = $from_store;
         $start_store = $from_store;
     }
-    elsif ($from_in
+     elsif ($from_in # Loop is entered from  pathrestricted interface.
         and ($from_in->{path_restrict} or $from_in->{reachable_at}))
     {
         $start_store = $from_in;
@@ -11278,13 +11328,15 @@ sub cluster_path_mark {
     else {
         $start_store = $from;
     }
-    if (is_interface($to_store)
+
+    if (is_interface($to_store) # Dst is pathrestricted IF of $to loop node.
         and ($to_store->{router} eq $to or $to_store->{zone} eq $to))
     {
         $end_intf  = $to_store;
         $end_store = $to_store;
     }
-    elsif ($to_out and ($to_out->{path_restrict} or $to_out->{reachable_at})) {
+    elsif ($to_out # Loop is left at pathrestricted interface.
+           and ($to_out->{path_restrict} or $to_out->{reachable_at})) {
         $end_store = $to_out;
     }
     else {
@@ -11293,88 +11345,89 @@ sub cluster_path_mark {
 
     my $success         = 1;
     my $from_interfaces = $from->{interfaces};
-
 #    debug("cluster_path_mark: $start_store->{name} -> $end_store->{name}");
 
-    # Activate pathrestriction of interface at border of loop, if path starts
-    # or ends outside the loop and enters the loop at such an interface.
+    # Activate pathrestrictions at interface the loop is entered at.
     if (    $from_in
-        and not $from_in->{loop}
-        and (my $restrictions = $from_in->{path_restrict})
-        and not $start_intf)
+        and not $from_in->{loop} # Loop path is entered from outside loop via
+        and (my $restrictions = $from_in->{path_restrict}) # pathrestricted IF
+        and not $start_intf) # that is not source of path.
     {
-        for my $restrict (@$restrictions) {
+        for my $restrict (@$restrictions) {# set flag for passed p-restrictions
             $restrict->{active_path} = 1;
         }
     }
+
+    # Activate pathrestrictions at interface the loop is left at.
     if (    $to_out
-        and not $to_out->{loop}
-        and (my $restrictions = $to_out->{path_restrict})
-        and not $end_intf)
+        and not $to_out->{loop} # Loop path is left via
+        and (my $restrictions = $to_out->{path_restrict}) # pathrestricted IF
+        and not $end_intf) # that is not destination of path.
     {
         for my $restrict (@$restrictions) {
-            if ($restrict->{active_path}) {
 
-                # Pathrestriction is applied to both, incoming and outgoing interface.
-                # This prevents traffic through loop.
+            # No path possible, if restriction was activated at in_interface.
+            if ($restrict->{active_path}) {
                 $success = 0;
             }
             $restrict->{active_path} = 1;
         }
     }
 
-    # Check optimized pathrestriction for path starting inside or
-    # outside the loop.
+  # Check whether valid paths are possible due to optimized pathrestrictions.
   REACHABLE:
     {
-
-        # Check if end node is reachable.
-        # Interface with pathrestriction belongs to zone.
+        # If dst is a pathrestricted IF, consider it to be part of its zone. 
+        # This guarantees equal routes for all IP addresses of a network. 
         my $end_node = $end_intf ? $end_intf->{zone} : $to;
 
-        # $start_intf is directly connected to $end_node.
-        # This must be handled as special case, because
-        # optimized pathrestriction doesn't prevent path through router.
-        # Ignore all interfaces except direction to zone.
+        # If start-interface is directly connected to an $end_node zone, use
+        # this direct path and ignore all other possible paths (=interfaces).
         if ($start_intf && $start_intf->{zone} eq $end_node) {
             $from_interfaces = [$start_intf];
             last REACHABLE;
         }
 
-        # If path starts at interface of loop, then ignore restriction
-        # in direction to zone, hence check only the router.
-        my $start_node = $start_intf ? $start_intf->{router} : $from;
+        # Check, whether enter-/start-interface has optimized pathrestriction. 
         my $intf = $start_intf || $from_in;
         my $reachable_at = $intf->{reachable_at}        or last REACHABLE;
+
+        # Check, whether end node is reachable from enter-/start-interface.
+        # For enter-interfaces, just the direction towards loop is of interest,
+        # for start-interfaces, pathrestrictions in zone direction do not hold,
+        # hence check router direction only.
+        # Only one direction needs to be checked in both cases.
+        my $start_node = $start_intf ? $start_intf->{router} : $from;
         my $reachable    = $reachable_at->{$start_node} or last REACHABLE;
         my $has_mark     = $end_node->{reachable_part};
         for my $mark (@$reachable) {
-            if (!$has_mark->{$mark}) {
-                if ($start_intf) {
 
-                    # Ignore all interfaces except direction to zone
-                    $from_interfaces = [$start_intf];
+            # End node is not reachable via enter-/start-interface.
+            if (!$has_mark->{$mark}) {
+
+                # For start-interfaces, path in zone direction might exist.
+                if ($start_intf) {                    
+                    $from_interfaces = [$start_intf];# Ignore all other IFs.
                 }
+
+                # For enter-interfaces, no valid path is possible.
                 else {
                     $success = 0;
                 }
                 last;
             }
         }
-        if ($success && $start_intf) {
 
-            # Temporarily disable optimized pathrestriction in
-            # direction to zone.
+        # For start-IF, temporarily disable optimized PRs in direction to zone.
+        if ($success && $start_intf) {
             my $zone = $start_intf->{zone};
             $intf->{saved_reachable_at_zone} = delete $reachable_at->{$zone};
         }
-    }
+    } # end reachable
 
-    # If start / end interface is part of a group of virtual
-    # interfaces (VRRP, HSRP),
-    # prevent traffic through other interfaces of this group.
-    # This simulates automatically added pathrestriction added at
-    # redundancy interfaces.
+    # If start-/end- interface is part of a group of virtual interfaces 
+    # (VRRP, HSRP), prevent traffic through other interfaces of this group
+    # by temporarily adding activated pathrestrictions at redundancy interfaces.
     for my $intf ($start_intf, $end_intf) {
         next if !$intf;
         if (my $interfaces = $intf->{redundancy_interfaces}) {
@@ -11386,27 +11439,45 @@ sub cluster_path_mark {
         }
     }
 
-    # Handle special case where path starts or ends at an interface
-    # with pathrestriction.
-    # If the router is left / entered via the same interface, ignore
-    # the PR.  If the router is left / entered via some other
-    # interface, add the PR of the start- / end interface to the other
-    # interface.
+    # For start-/end interfaces (path starts or ends at an interface
+    # with pathrestriction), pathrestrictions are required to be activated 
+    # in router, not in zone direction. The basic algorithm starts path 
+    # exploration at the router of such an interface though. Per default, 
+    # path restriction activation is therefore contrary to the requirements.
+    # To fix this, pathrestrictions are temporarily moved from the start-/end 
+    # interface to the other interfaces of the router. 
+    # TODO: How about activating the pathrestrictions and temporarily 
+    # deleting it from the interface? Or let exploration start at the 
+    # interfaces zone in this case (would lead to a gap within the marked path)?
     for my $intf ($start_intf, $end_intf) {
         next if !$intf;
+
+        # Check whether from/to node is router of start-/and-interface
         my $router = $intf->{router};
         next if !($router eq $from || $router eq $to);
+
+        # Delete pathrestriction from start/end interface 
         my $removed = delete $intf->{path_restrict} or next;
         $intf->{saved_path_restrict} = $removed;
+
+        # Move pathrestriction to other interfaces of router.
         for my $interface (@{ $router->{interfaces} }) {
             next if $interface eq $intf;
+
+            # Check whether pathrestrictions are defined for these IFs. 
             my $orig = $interface->{saved_path_restrict} =
               $interface->{path_restrict};
             if ($orig) {
+ 
+                # If pathrestrictions exist in both IF and start-/end-interface,
+                # prohibit path by adding activated global pathrestriction.
+                # TODO: what aboutjust excluding IF from from-IFs?
                 if (intersect($orig, $removed)) {
                     $interface->{path_restrict} =
                       [$global_active_pathrestriction];
                 }
+
+                # Otherwise, add pathrestrictions to interface.
                 else {
                     $interface->{path_restrict} = [ @$orig, @$removed ];
                 }
@@ -11417,30 +11488,35 @@ sub cluster_path_mark {
         }
     }
 
+  # Find loop paths via DFS.
   BLOCK:
     {
-        last BLOCK if not $success;
+        last BLOCK if not $success; # No valid path due to pathrestrictions.
         $success = 0;
 
-        $from_in->{loop_entry}->{$to_store}    = $start_store;
+        # Collect path information at beginning of loop path ($start_store).
+        # Loop paths beginning at loop node can differ depending on the way
+        # the node is entered (interface with/without pathrestriction,
+        # pathrestricted src/dst interface), requirings storing path 
+        #information at different objects.
+        # {loop_entry} attribute shows, where path information can be found.
+        $from_in->{loop_entry}->{$to_store}    = $start_store;# node or IF w. PR
         $start_store->{loop_exit}->{$to_store} = $end_store;
 
-        # Path from $start_store to $end_store inside cyclic graph
-        # has been marked already.
+        # Path from $start_store to $end_store has been marked already.
         if ($start_store->{loop_enter}->{$end_store}) {
             $success = 1;
             last BLOCK;
         }
 
-        my $loop_enter  = [];
-        my $path_tuples = {};
-        my $loop_leave  = [];
-
+        # Create variables to store the loop path. 
+        my $loop_enter  = [];# Interfaces of $from, where path enters cluster.
+        my $path_tuples = {};# Tuples of interfaces, describing all valid paths.
+        my $loop_leave  = [];# Interfaces of $to, where cluster is left.
+        
+        # Create navigation look up hash to reduce search space in loop cluster.
         my $navi = cluster_navigation($from, $to)
           or internal_err("Empty navi");
-
-#	use Dumpvalue;
-#	Dumpvalue->new->dumpValue($navi);
 
         # Mark current path for loop detection.
         local $from->{active_path} = 1;
@@ -11448,21 +11524,25 @@ sub cluster_path_mark {
         my $allowed = $navi->{ $from->{loop} }
           or internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
             " with empty navi");
+
+        # To find paths, process every loop interface of $from node.
         for my $interface (@$from_interfaces) {
             next if $interface->{main_interface};
             my $loop = $interface->{loop};
             next if not $loop;
-            if (not $allowed->{$loop}) {
 
+            # Skip interfaces that will not lead to a path....
+            if (not $allowed->{$loop}) { #  ...nodes not included in navi.
 #		debug("No: $loop->{exit}->{name}$loop");
                 next;
             }
+            next if ($interface->{loopback} # ...networks connecting virtual 
+                     and $get_next eq 'zone');# loopback interfaces.
 
-            # Don't enter network which connects pair of virtual loopback
-            # interfaces.
-            next if $interface->{loopback} and $get_next eq 'zone';
+            # Extract adjacent node (= next node on path).
             my $next = $interface->{$get_next};
 
+            # Search path from next node to $to, store it in provided variables.
 #           debug(" try: $from->{name} -> $interface->{name}");
             if (
                 cluster_path_mark1(
@@ -11481,10 +11561,10 @@ sub cluster_path_mark {
         # Don't store incomplete result.
         last BLOCK if not $success;
 
-        # Convert { intf->intf->node_type } to [ intf, intf, node_type ]
+        # Convert $path_tuples: {intf->intf->node_type} to [intf,intf,node_type]
         my $tuples_aref = [];
         for my $in_intf_ref (keys %$path_tuples) {
-            my $in_intf = $key2obj{$in_intf_ref}
+            my $in_intf = $key2obj{$in_intf_ref} 
               or internal_err("Unknown in_intf at tuple");
             my $hash = $path_tuples->{$in_intf_ref};
             for my $out_intf_ref (keys %$hash) {
@@ -11497,9 +11577,10 @@ sub cluster_path_mark {
             }
         }
 
-        # Remove duplicates, which occur from nested loops..
+        # Remove duplicates, which occur from nested loops.
         $loop_leave = [ unique(@$loop_leave) ];
 
+        # Add loop path information to start node or interface.
         $start_store->{loop_enter}->{$end_store}  = $loop_enter;
         $start_store->{loop_leave}->{$end_store}  = $loop_leave;
         $start_store->{path_tuples}->{$end_store} = $tuples_aref;
@@ -11511,7 +11592,7 @@ sub cluster_path_mark {
           [ map { [ @{$_}[ 1, 0, 2 ] ] } @$tuples_aref ];
     }
 
-    # Restore temporarily changed path restrictions.
+    # Restore temporarily moved path restrictions.
     for my $intf ($start_intf, $end_intf) {
         next if !$intf;
         next if !$intf->{saved_path_restrict};
@@ -11525,12 +11606,16 @@ sub cluster_path_mark {
             }
         }
     }
+
+    # Restore temporarily deleted optimized pathrestrictions.
     if ($start_intf) {
         if (my $orig = delete $start_intf->{saved_reachable_at_zone}) {
             my $zone = $start_intf->{zone};
             $start_intf->{reachable_at}->{$zone} = $orig;
         }
     }
+
+    # Remove temporarily added activated pathrestrictions at redundancy IFs. 
     for my $intf ($start_intf, $end_intf) {
         next if !$intf;
         if (my $interfaces = $intf->{redundancy_interfaces}) {
@@ -11552,50 +11637,51 @@ sub cluster_path_mark {
             }
         }
     }
-    if ($success) {
 
-        # When entering sub-graph at $from_in we will leave it at $to_out.
-        $from_in->{path}->{$to_store} = $to_out;
+    # If loop path was found, set path information at $from_in and $to_out IFs.
+    # TODO: Needed only if paths meet in loop, otherwise path_mark sets these.
+    if ($success) {
+        $from_in->{path}->{$to_store} = $to_out; 
     }
     return $success;
 }
 
-# Mark path from $from to $to.
-# $from and $to are either a router or a zone.
-# For a path without loops, $from_store equals $from and $to_store equals $to.
-# If the path starts at an interface inside a cluster of loops
-# or at the border of a cluster,
-# and the interface has a pathrestriction attached,
-# then $from_store contains this interface.
-# If the path ends at an interface inside a loop or at the border of a loop,
-# $to_store contains this interface.
-# At each interface on the path from $from to $to,
-# we place a reference to the next interface on the path to $to_store.
-# This reference is found in a hash at attribute {path}.
-# Additionally we attach the path attribute to the src object.
-# Return value is true if a valid path was found.
+##############################################################################
+# Purpose   : Find and mark path from an elementary rules source to its 
+#             destination.   
+# Parameter : $from - zone or router corresponding to elementary rules source
+#             $to - zone or router corresponding to the rules destination
+#             $from_store - $from or interface reference, if source is a 
+#                           pathrestricted interface  
+#             $to_store - $to or interface reference, if destination is a 
+#                         pathrestricted interface 
+# Returns   : True if valid path is found, False otherwise.
+# Results   : A reference to the next interface towards destination is stored
+#             in the {path} hash attribute of the source or its corresponding 
+#             zone/router and every interface object on path.
 sub path_mark {
     my ($from, $to, $from_store, $to_store) = @_;
 
-#    debug("path_mark $from_store->{name} --> $to_store->{name}");
+#    debug("path_mark $froma_store->{name} --> $to_store->{name}");
 
     my $from_loop = $from->{loop};
-    my $to_loop   = $to->{loop};
+    my $to_loop = $to->{loop};
 
-    # $from_store and $from differ if path starts at an interface
-    # with pathrestriction.
-    # Inside a loop, use $from_store, not $from,
-    # because the path may differ depending on the start interface.
-    # But outside a loop (pathrestriction is allowed at the border of a loop)
-    # we have only a single path which enters the loop.
-    # In this case we must not use the interface but the router,
-    # otherwise we would get an invalid {path}:
-    # $from_store->{path}->{$to_store} = $from_store;
-    my $from_in = $from_store->{loop} ? $from_store : $from;
-    my $to_out = undef;
+    # Identify first and last object on path to hold path information.
+    # Outside a loop, path marks are always stored in the corresponding router 
+    # object. Paths beginning at pathrestricted interfaces in loops can be 
+    # different though from the paths that are found for the associated router, 
+    # as in such cases, the interface is considered to be part of the zone 
+    # to achieve equal routing for all interfaces of a network. 
+    # To distinguish the different paths, path information is stored within
+    # the interface in such cases (otherwise it is stored within router).
+    my $from_in = $from_store->{loop} ? $from_store : $from; # Src obj. to mark
+    my $to_out = undef; # No subsequent interface for last interface on path.
+
+    # Follow paths from source and destination towards zone1 until they meet.
     while (1) {
+# debug("Dist: $from->{distance} $from->{name} ->Dist: $to->{distance} $to->{name}");
 
-#        debug("Dist: $from->{distance} $from->{name} ->Dist: $to->{distance} $to->{name}");
         # Paths meet outside a loop or at the edge of a loop.
         if ($from eq $to) {
 
@@ -11609,58 +11695,77 @@ sub path_mark {
             && $to_loop
             && $from_loop->{cluster_exit} eq $to_loop->{cluster_exit})
         {
-            return cluster_path_mark($from, $to, $from_in, $to_out, $from_store,
-                $to_store);
+            return cluster_path_mark($from, $to, $from_in, $to_out,
+                                     $from_store, $to_store);
         }
 
-        if ($from->{distance} >= $to->{distance}) {
+        # Otherwise, take a step towards zone1 from the more distant node.
+        if ($from->{distance} >= $to->{distance}) { # Take step from node $from.
 
-            # Mark has already been set for a sub-path.
+            # Return, if mark has already been set for a sub-path.
             return 1 if $from_in->{path}->{$to_store};
+ 
+            # Get interface towards zone1.
             my $from_out = $from->{to_zone1};
+
+            # If from is a loop node, mark whole loop path within this step. 
             unless ($from_out) {
 
-                # Reached border of partition.
+                # Reached border of graph partition.
                 return 0 if !$from_loop;
 
-                # $from_loop references object which is loop's exit.
+                # Get next interface behind loop from loop cluster exit.
                 my $exit = $from_loop->{cluster_exit};
                 $from_out = $exit->{to_zone1};
 
-                # Reached border of partition.
+                # Reached border of graph partition.
                 return 0 if !$from_out;
-
+                
+                # Mark loop path towards next interface.
                 cluster_path_mark($from, $exit, $from_in, $from_out,
                     $from_store, $to_store)
                   or return 0;
             }
 
-#            debug(" $from_in->{name} -> ".($from_out ? $from_out->{name}:''));
-            $from_in->{path}->{$to_store} = $from_out;
+#         debug(" $from_in->{name} -> ".($from_out ? $from_out->{name}:''));
+            # Mark path at the interface we came from (step in path direction)
+            $from_in->{path}->{$to_store} = $from_out; #ref to next path IF
+
+            # Go to next node towards zone1.
             $from_in                      = $from_out;
             $from                         = $from_out->{to_zone1};
             $from_loop                    = $from->{loop};
         }
+
+        # Take step towards zone1 from node $to (backwards on path).
         else {
+            # Get interface towards zone1.
             my $to_in = $to->{to_zone1};
+
+            # If to is a loop node, mark whole loop path within this step.
             unless ($to_in) {
 
-                # Reached border of partition.
+                # Reached border of graph partition.
                 return 0 if !$to_loop;
 
+                # Get next interface behind loop from loop cluster exit.
                 my $entry = $to_loop->{cluster_exit};
                 $to_in = $entry->{to_zone1};
 
-                # Reached border of partition.
+                # Reached border of graph partition.
                 return 0 if !$to_in;
 
+                # Mark loop path towards next interface.
                 cluster_path_mark($entry, $to, $to_in, $to_out, $from_store,
                     $to_store)
                   or return 0;
             }
 
-#            debug(" $to_in->{name} -> ".($to_out ? $to_out->{name}:''));
+#             debug(" $to_in->{name} -> ".($to_out ? $to_out->{name}:''));
+            # Mark path at interface we go to (step in opposite path direction).
             $to_in->{path}->{$to_store} = $to_out;
+
+            # Go to next node towards zone1.
             $to_out                     = $to_in;
             $to                         = $to_in->{to_zone1};
             $to_loop                    = $to->{loop};
@@ -11669,7 +11774,19 @@ sub path_mark {
     return 0;    # unused; only for perlcritic
 }
 
-# Walk paths inside cyclic graph
+##############################################################################
+# Purpose :    Walk loop section of a path from a rules source to its 
+#              destination. Apply given function to every zone or router 
+#              on loop path.
+# Parameters : $in - interface the loop is entered at.
+#              $out - interface loop is left at.
+#              $loop_entry - entry object, holding path information.
+#              $loop_exit - loop exit node.
+#              $call_at_zone - flag for node function is to be called at 
+#                              (1 - zone. 0 - router)
+#              $rule - elementary rule providing source and destination.
+#              $fun - Function to be applied.
+ 
 sub loop_path_walk {
     my ($in, $out, $loop_entry, $loop_exit, $call_at_zone, $rule, $fun) = @_;
 
@@ -11728,20 +11845,30 @@ sub loop_path_walk {
     return $exit_at_router;
 }
 
-# Apply a function to a rule at every router or zone on the path from
-# src to dst of the rule.
-# $where tells, where the function gets called: at 'Router' or 'Zone'.
-# Default is 'Router'.
+##############################################################################
+# Purpose    : For a given rule, visit every node on path from rules source
+#              to its destination. At every second node (every router or
+#              every zone node) call given function.
+# Parameters : $rule - rule object.
+#              $fun - function to be called.
+#              $where - 'Router' or 'Zone', specifies where the function gets
+#              called, default is 'Router'.
 sub path_walk {
     my ($rule, $fun, $where) = @_;
     internal_err("undefined rule") unless $rule;
     my $src = $rule->{src};
     my $dst = $rule->{dst};
 
+    # Extract path node objects (zone/router/pathrestricted IF) of src and dst.
     my $from_store = $obj2path{$src}       || get_path $src;
     my $to_store   = $obj2path{$dst}       || get_path $dst;
+
+    # If path node is a pathrestricted IF, extract router. 
     my $from       = $from_store->{router} || $from_store;
     my $to         = $to_store->{router}   || $to_store;
+
+    # Get access to stored paths - for pathrestricted IFs, take IF path store
+    # (allowed paths may differ from those of the associated router).
     my $path_store = $from_store->{loop} ? $from_store : $from;
 
 #    debug(print_rule $rule);
@@ -11754,11 +11881,16 @@ sub path_walk {
 #       debug(" Walk: $in_name, $out_name");
 #       $fun2->(@_);
 #    };
+
+    # Perform consistency checks.
     $from and $to or internal_err(print_rule $rule);
     $from eq $to and internal_err("Unenforceable:\n ", print_rule $rule);
 
+    # Identify path from source to destination if not known.
     if (not exists $path_store->{path}->{$to_store}) {
-        if (!path_mark($from, $to, $from_store, $to_store)) {
+        if (!path_mark($from, $to, $from_store, $to_store)) { # Find path.
+
+            # Break, if path does not exist.
             err_msg(
                 "No valid path\n",
                 " from $from_store->{name}\n",
@@ -11772,28 +11904,32 @@ sub path_walk {
             return;
         }
     }
+
+    # Set switch whether to call function at first node visited (in 1.iteration)
+    my $at_zone = $where && $where eq 'Zone'; # 1, if func is called at zones. 
+    my $call_it = (is_router($from) xor $at_zone); # Set switch accordingly. 
+
     my $in = undef;
     my $out;
-    my $at_zone = $where && $where eq 'Zone';
-    my $call_it = (is_router($from) xor $at_zone);
 
-    # Path starts inside a cyclic graph
-    # or at interface of router inside cyclic graph.
+    # If Path starts inside cyclic graph or at IF of router inside cyclic graph.
     if (    $from->{loop}
-        and $from_store->{loop_exit}
-        and my $loop_exit = $from_store->{loop_exit}->{$to_store})
+        and $from_store->{loop_exit} # Path exists for start node, leading to...
+        and my $loop_exit = $from_store->{loop_exit}->{$to_store}) # ...dst.
     {
         my $loop_out = $path_store->{path}->{$to_store};
+
+        # ... walk loop path first.
         my $exit_at_router =
           loop_path_walk($in, $loop_out, $from_store, $loop_exit, $at_zone,
             $rule, $fun);
-        if (not $loop_out) {
 
+        if (not $loop_out) {
 #           debug("exit: path_walk: dst in loop");
             return;
         }
 
-        # Continue behind loop.
+        # Then prepare to begin with path behind loop.
         $call_it = not($exit_at_router xor $at_zone);
         $in      = $loop_out;
         $out     = $in->{path}->{$to_store};
@@ -11801,36 +11937,48 @@ sub path_walk {
     else {
         $out = $path_store->{path}->{$to_store};
     }
+
+    # Start walking path. 
     while (1) {
+
+        # Path continues with loop: walk whole loop path in this iteration step.
         if (    $in
-            and $in->{loop_entry}
-            and my $loop_entry = $in->{loop_entry}->{$to_store})
+            and $in->{loop_entry} # In interface is entry to a loop path...
+            and my $loop_entry = $in->{loop_entry}->{$to_store}) # ...to dest.
         {
-            my $loop_exit = $loop_entry->{loop_exit}->{$to_store};
-            my $loop_out  = $in->{path}->{$to_store};
-            my $exit_at_router =
+            my $loop_exit = $loop_entry->{loop_exit}->{$to_store};# exit object.
+            my $loop_out  = $in->{path}->{$to_store};# exit interface
+
+            my $exit_at_router = # last node of loop is a router ? 1 : 0 
               loop_path_walk($in, $loop_out, $loop_entry, $loop_exit,
-                $at_zone, $rule, $fun);
+                $at_zone, $rule, $fun); # Process whole loop path.
+ 
+            # End of path has been reached.
             if (not $loop_out) {
 
 #               debug("exit: path_walk: reached dst in loop");
                 return;
             }
+
+            # Prepare next iteration step.
             $call_it = not($exit_at_router xor $at_zone);
             $in      = $loop_out;
             $out     = $in->{path}->{$to_store};
         }
+
+        # Non-loop path continues - call function, if switch is set.
         else {
             if ($call_it) {
                 $fun->($rule, $in, $out);
             }
 
-            # End of path has been reached.
+            # Return, if end of path has been reached.
             if (not $out) {
-
 #               debug("exit: path_walk: reached dst");
                 return;
             }
+            
+            # Prepare next iteration otherwise.
             $call_it = !$call_it;
             $in      = $out;
             $out     = $in->{path}->{$to_store};
@@ -13561,6 +13709,7 @@ sub gen_reverse_rules1 {
                         last PATH_WALK if $use_nonlocal_exit;
                     }
                 };
+
                 path_walk($rule, $mark_reverse_rule);
             }
             $cache{$from_store}->{$to_store} = $has_stateless_router || 0;
@@ -13647,6 +13796,10 @@ sub gen_reverse_rules {
 # Otherwise a rules is implemented typical.
 ##############################################################################
 
+##############################################################################
+# Purpose    : Identify the zone an object belongs to.
+# Parameters : $obj - a network, subnet or interface object.
+# Returns    : The identified zone.
 sub get_zone2 {
     my ($obj) = @_;
     my $type = ref $obj;
@@ -14394,6 +14547,8 @@ sub prepare_nat_commands {
 # Routing
 ########################################################################
 
+##############################################################################
+# TODO: Add standard function comment.
 # Get networks for routing.
 # Add largest supernet inside the zone, if available.
 # This is needed, because we use the supernet in
@@ -14403,7 +14558,6 @@ sub prepare_nat_commands {
 # can have different next hops at end of path.
 # For an aggregate, take all matching networks inside the zone.
 # These are supernets by design.
-
 sub get_route_networks {
     my ($obj) = @_;
     my $type = ref $obj;
@@ -14432,35 +14586,32 @@ sub get_route_networks {
     }
 }
 
-# Set up data structure to find routing info inside a security zone.
-# Some definitions:
-# - Border interfaces are directly attached to the security zone.
-# - Border networks are located inside the security zone and are attached
-#   to border interfaces.
-# - All interfaces of border networks, which are not border interfaces,
-#   are called hop interfaces, because they are used as next hop from
-#   border interfaces.
-# - A cluster is a maximal set of connected networks of the security zone,
-#   which is surrounded by hop interfaces. A cluster can be empty.
-# For each border interface I and each network N inside the security zone
-# we need to find the hop interface H via which N is reached from I.
-# This is stored in an attribute {route_in_zone} of I.
-#
-# Optimization:
-# Store default route for those border interfaces, that reach
-# networks in zone via a single hop.
-# This is stored as I->{route_in_zone}->{default} = [H].
+##############################################################################
+# Purpose    : Provide routing information inside a security zone.
+# Parameters : $zone - a zone object.
+# Results    : Every zone border interface I contains a hash attribute
+#              {route_in_zone}, keeping the zones networks N reachable from I as
+#              keys and the next hop interface H towards N as values.
+# Comments   : A cluster is a maximal set of connected networks of the security
+#              zone surrounded by hop interfaces. Clusters can be empty.
+#              Optimization: a default route I->{route_in_zone}->{default} = [H]
+#              is stored for those border interfaces, that reach networks in 
+#              zone via a single hop.
 sub set_routes_in_zone {
     my ($zone) = @_;
 
-    # Mark border networks and hop interfaces.
+    # Collect networks at zone border and next hop interfaces in lookup hashes.
     my %border_networks;
     my %hop_interfaces;
+
+    # Collect networks at the zones interfaces as border networks.
     for my $in_interface (@{ $zone->{interfaces} }) {
         next if $in_interface->{main_interface};
         my $network = $in_interface->{network};
         next if $border_networks{$network};
         $border_networks{$network} = $network;
+
+        # Collect non-zone interfaces of border networks as next hop interfaces.
         for my $out_interface (@{ $network->{interfaces} }) {
             next if $out_interface->{zone};
             next if $out_interface->{main_interface};
@@ -14468,25 +14619,36 @@ sub set_routes_in_zone {
         }
     }
     return if not keys %hop_interfaces;
-    my %hop2cluster;
-    my %cluster2borders;
+
+    # Zone preprocessing: define set of networks surrounded by hop IFs (cluster)
+    # via depth first search to accelerate later DFS runs starting at hop IFs.
+    my %hop2cluster; # Store hop IFs as key and reached clusters as values.
+    my %cluster2borders; # Store directly linked border networks for clusters.
     my $set_cluster;
     $set_cluster = sub {
         my ($router, $in_intf, $cluster) = @_;
         return if $router->{active_path};
         local $router->{active_path} = 1;
+
+        # Process every interface.
         for my $interface (@{ $router->{interfaces} }) {
             next if $interface->{main_interface};
+
+            # Found hop interface. Add its entries on the fly and skip.
             if ($hop_interfaces{$interface}) {
-                $hop2cluster{$interface} = $cluster;
+                $hop2cluster{$interface} = $cluster; 
                 my $network = $interface->{network};
                 $cluster2borders{$cluster}->{$network} = $network;
                 next;
             }
             next if $interface eq $in_intf;
+
+            # Add network behind interface to cluster.
             my $network = $interface->{network};
             next if $cluster->{$network};
             $cluster->{$network} = $network;
+
+            # Recursively proceed with adjacent routers. 
             for my $out_intf (@{ $network->{interfaces} }) {
                 next if $out_intf eq $interface;
                 next if $out_intf->{main_interface};
@@ -14494,8 +14656,10 @@ sub set_routes_in_zone {
             }
         }
     };
+
+    # Identify network cluster for every hop interface.
     for my $interface (values %hop_interfaces) {
-        next if $hop2cluster{$interface};
+        next if $hop2cluster{$interface}; # Hop interface was processed before. 
         my $cluster = {};
         $set_cluster->($interface->{router}, $interface, $cluster);
 
@@ -14503,40 +14667,46 @@ sub set_routes_in_zone {
 #             join ',', map {$_->{name}} values %$cluster);
     }
 
-    # Find all networks located behind a hop interface.
-    my %hop2networks;
+    # Perform depth first search to collect all networks behind a hop interface.
+    my %hop2networks; # Hash to store the collected sets. 
     my $set_networks_behind;
     $set_networks_behind = sub {
         my ($hop, $in_border) = @_;
-        return if $hop2networks{$hop};
-        my $cluster = $hop2cluster{$hop};
+        return if $hop2networks{$hop}; # Hop IF network set is known already.  
 
-        # Add networks of directly attached cluster to result.
-        my @result = values %$cluster;
+        # Optimization: add networks of directly attached cluster.
+        my $cluster = $hop2cluster{$hop};
+        my @result = values %$cluster; # Spare multiple processing of branches.
         $hop2networks{$hop} = \@result;
 
+        # Proceed depth first search with adjacent border networks.
         for my $border (values %{ $cluster2borders{$cluster} }) {
             next if $border eq $in_border;
+            push @result, $border; # Add reachable border networks to set.
 
-            # Add other border networks to result.
-            push @result, $border;
+            # Add cluster members of clusters reachable via border networks:
             for my $out_hop (@{ $border->{interfaces} }) {
                 next if not $hop_interfaces{$out_hop};
                 next if $hop2cluster{$out_hop} eq $cluster;
-                $set_networks_behind->($out_hop, $border);
 
-                # Add networks from clusters located behind
-                # other border networks.
+                # Create hop2networks entry for reachable hops and add networks
+                $set_networks_behind->($out_hop, $border);
                 push @result, @{ $hop2networks{$out_hop} };
             }
         }
+        # Keep every found network only once per result set.
         $hop2networks{$hop} = [ unique @result ];
 
 #	debug("Hop: $hop->{name} ", join ',', map {$_->{name}} @result);
     };
+
+    # In every border IF, store reachable networks and corresponding hop IF.
+    # Process every border network.
     for my $border (values %border_networks) {
         my @border_intf;
         my @hop_intf;
+
+        # Collect border and hop interfaces of the current border network.
         for my $interface (@{ $border->{interfaces} }) {
             next if $interface->{main_interface};
             if ($interface->{zone}) {
@@ -14547,19 +14717,23 @@ sub set_routes_in_zone {
             }
         }
 
-        # Optimization: All networks in zone are located behind single hop.
+        # Optimization: All networks in zone are located behind single hop:
         if (1 == @hop_intf or is_redundany_group(\@hop_intf)) {
             for my $interface (@border_intf) {
 
-#                debug("Default hop $interface->{name} ",
-#                      join(',', map {$_->{name}} @hop_intf));
+                # Spare reachable network specification.
+                # debug("Default hop $interface->{name} ",
+                #        join(',', map {$_->{name}} @hop_intf));
                 $interface->{route_in_zone}->{default} = \@hop_intf;
             }
-            next;
+            next; # Proceed with next border network.
         }
 
+        # For every hop IF of current network, gather reachable network set.
         for my $hop (@hop_intf) {
             $set_networks_behind->($hop, $border);
+
+            # In border IF of current network, store reachable networks and hops
             for my $interface (@border_intf) {
                 for my $network (@{ $hop2networks{$hop} }) {
 
@@ -14574,15 +14748,25 @@ sub set_routes_in_zone {
     return;
 }
 
-# A security zone is entered at $in_intf and exited at $out_intf.
-# Find the hop H to reach $out_intf from $in_intf.
-# Add routing entries at $in_intf that $dst_networks are reachable via H.
+##############################################################################
+# Purpose    : Gather rule specific routing information at zone interfaces:
+#              For a pair ($in_intf,$out_intf) of zone interfaces that lies 
+#              on a path from src to dst, the next hop interfaces H to reach 
+#              $out_intf from $in_intf are determined and stored.
+# Parameters : $in_intf - interface zone is entered from.
+#              $out_intf - interface zone is left at.
+#              $dst_networks - destination networks of associated pseudo rule.
+# Results    : $in_intf holds routing information that $dst_networks are
+#              reachable via next hop interface H.
 sub add_path_routes {
     my ($in_intf, $out_intf, $dst_networks) = @_;
-    return if $in_intf->{routing};
+    return if $in_intf->{routing}; # Interface with manual routing.
+
     my $in_net  = $in_intf->{network};
     my $out_net = $out_intf->{network};
     my $hops;
+
+    # Identify hop interface(s).
     if ($in_net eq $out_net) {
         $hops = [$out_intf];
     }
@@ -14590,10 +14774,11 @@ sub add_path_routes {
         my $route_in_zone = $in_intf->{route_in_zone};
         $hops = $route_in_zone->{default} || $route_in_zone->{$out_net};
     }
-    for my $hop (@$hops) {
-        $in_intf->{hop}->{$hop} = $hop;
-        for my $network (@$dst_networks) {
 
+    # Store hop interfaces and routing information within in_intf.
+    for my $hop (@$hops) {
+        $in_intf->{hopref2obj}->{$hop} = $hop;
+        for my $network (@$dst_networks) {
 #	    debug("$in_intf->{name} -> $hop->{name}: $network->{name}");
             $in_intf->{routes}->{$hop}->{$network} = $network;
         }
@@ -14601,35 +14786,47 @@ sub add_path_routes {
     return;
 }
 
-# A security zone is entered at $interface.
-# $dst_networks are located inside the security zone.
-# For each element N of $dst_networks find the next hop H to reach N.
-# Add routing entries at $interface that N is reachable via H.
+
+#############################################################################
+# Purpose    : Generate routing information for a single interface at zone
+#              border. Store next hop interface to every destination network
+#              inside zone within the given interface object.
+# Parameters : $interface - border interface of a zone.
+#              $dst_networks - destination networks inside the same zone.
+# Results    : $interface holds routing entries about which hops to use to 
+#              reach the networks specified in $dst_networks. 
 sub add_end_routes {
     my ($interface, $dst_networks) = @_;
-    return if $interface->{routing};
+    return if $interface->{routing}; # Interface with manual routing.
     my $intf_net      = $interface->{network};
     my $route_in_zone = $interface->{route_in_zone};
+
+    # For every dst network, check the hops that can be used to get there.
     for my $network (@$dst_networks) {
         next if $network eq $intf_net;
         my $hops = $route_in_zone->{default} || $route_in_zone->{$network}
           or internal_err("Missing route for $network->{name}",
             " at $interface->{name}");
-        for my $hop (@$hops) {
-            $interface->{hop}->{$hop} = $hop;
 
-#	    debug("$interface->{name} -> $hop->{name}: $network->{name}");
+        # Store the used hops and routes within the interface object. 
+        for my $hop (@$hops) {
+            $interface->{hopref2obj}->{$hop} = $hop;
+#	     debug("$interface->{name} -> $hop->{name}: $network->{name}");
             $interface->{routes}->{$hop}->{$network} = $network;
         }
     }
     return;
 }
 
-# This function is called for each zone on the path from src to dst
-# of $rule.
-# If $in_intf and $out_intf are both defined, packets traverse this zone.
-# If $in_intf is not defined, the src is this zone.
-# If $out_intf is not defined, dst is this zone;
+##############################################################################
+# Purpose    : Transfer routing information from interfaces passed on the 
+#              route for a given pseudo rule into the rule object.
+# Parameters : $rule - reference of a pseudo rule from routing tree.
+#              $in_intf - interface the zone is entered from.
+#              $out_intf -interface the zone is left at.
+# Comment    : path_walk calls this function for each zone on path from src
+#              to dst to create complete route documentation for the path from 
+#              src to dst within the rule object.
 sub get_route_path {
     my ($rule, $in_intf, $out_intf) = @_;
 
@@ -14640,40 +14837,49 @@ sub get_route_path {
 #    $info .= $out_intf->{name} if $out_intf;
 #    debug($info);
 
+    # Packets traverse the zone.
     if ($in_intf and $out_intf) {
         push @{ $rule->{path} }, [ $in_intf, $out_intf ];
     }
+
+    # Zone contains rule source.
     elsif (not $in_intf) {
         push @{ $rule->{path_entries} }, $out_intf;
     }
+
+    # Zone contains rule destination.
     else {
         push @{ $rule->{path_exits} }, $in_intf;
     }
     return;
 }
 
-sub check_and_convert_routes;
-
-sub find_active_routes {
-    progress('Finding routes');
-    for my $zone (@zones) {
-        set_routes_in_zone $zone;
-    }
+#############################################################################
+# Purpose : Generate the routing tree, holding pseudo rules that represent 
+#           the whole optimized elementary rule set. As the pseudo rules are 
+#           generated to determine routes, ports can be omitted, and rules 
+#           refering to the same src and dst zones can be summarized.
+# Returns : A reference to the generated routing tree.
+# Comment : Deleted elementary rules with managed iterfaces as src and/or dst
+#           are also processed. While their (src, dst) zone pair is included 
+#           anyway because of a containing rule, their src/dst interfaces are 
+#           not represented within the pseudo rule.   
+sub generate_routing_tree {
     my %routing_tree;
     my $pseudo_prt = { name => '--' };
+
+    # Process every elementary rule.
     for my $rule (@{ $expanded_rules{permit} }) {
         my ($src, $dst) = ($rule->{src}, $rule->{dst});
 
-        # Ignore deleted rules.
-        # Add the typical check for {managed_intf}
-        # which covers the destination interface.
-        # Because we handle both directions at once,
-        # we would need an attribute {managed_intf}
-        # for the source interface as well. But this attribute doesn't exist
-        # and we add an equivalent check for source.
+        # Ignore deleted rules, if src and dst are not managed interfaces:
         if (
                 $rule->{deleted}
+
+            # Attribute {managed_intf} refers to destination interface only.
             and (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf})
+
+            # Perform an equivalent check for source to handle both directions.
             and (
                 not(
                     is_interface $src
@@ -14690,38 +14896,46 @@ sub find_active_routes {
         {
             next;
         }
+
+        # Check, whether src and dst lie within the same zone.
         my $src_zone = get_zone2 $src;
         my $dst_zone = get_zone2 $dst;
-
-        # Source interface is located in security zone of destination or
-        # destination interface is located in security zone of source.
-        # path_walk will do nothing.
         if ($src_zone eq $dst_zone) {
+
+            # If so, directly detect next hop IFs for zone interfaces.
             for my $from ($src, $dst) {
                 my $to = $from eq $src ? $dst : $src;
-                next if not is_interface($from);
-                next if not $from->{zone};
+                next if not is_interface($from); # Not a zone interface.
+                next if not $from->{zone}; # Not a zone interface. 
                 $from = $from->{main_interface} || $from;
                 my @networks = get_route_networks($to);
                 add_end_routes($from, \@networks);
             }
             next;
         }
+
+        # Construct a pseudo rule with zones as src and dest and store it.  
         my $pseudo_rule;
+
+        # Check whether pseudo rule for src and dest pair is stored already.
         if ($pseudo_rule = $routing_tree{$src_zone}->{$dst_zone}) {
         }
         elsif ($pseudo_rule = $routing_tree{$dst_zone}->{$src_zone}) {
             ($src,      $dst)      = ($dst,      $src);
             ($src_zone, $dst_zone) = ($dst_zone, $src_zone);
         }
+
+        # Generate new pseudo rule otherwise.
         else {
             $pseudo_rule = {
                 src => $src_zone,
                 dst => $dst_zone,
-                prt => $pseudo_prt,
+                prt => $pseudo_prt, # Port is dispensable for routing.
             };
             $routing_tree{$src_zone}->{$dst_zone} = $pseudo_rule;
         }
+
+        # Store src and dest networks of elementary rule within pseudo rule.
         my @src_networks = get_route_networks($src);
         for my $network (@src_networks) {
             $pseudo_rule->{src_networks}->{$network} = $network;
@@ -14730,6 +14944,8 @@ sub find_active_routes {
         for my $network (@dst_networks) {
             $pseudo_rule->{dst_networks}->{$network} = $network;
         }
+
+        # If src/dst are IFs of managed routers, add this info to pseudo rule.
         if (
             is_interface($src)
             && (   $src->{router}->{managed}
@@ -14755,20 +14971,47 @@ sub find_active_routes {
             }
         }
     }
-    for my $href (values %routing_tree) {
+ 
+    return \%routing_tree;
+}
+
+##############################################################################
+# Purpose    : Generate routing information for every (source,destination)
+#              pair of the ruleset and store it in the affected interfaces.
+# Parameters : $routing_tree - a pseudo rule set.
+# Results    : Every interface object holds next hop routing information
+#              for the rules of original ruleset requiring a path passing the 
+#              interface.   
+sub generate_routing_info {
+    my ($routing_tree) = @_;
+
+    # Process every pseudo rule. Within its {path} atrribute....
+    for my $href (values %$routing_tree) {
         for my $pseudo_rule (values %$href) {
+
+            # store a pair (in_interface, exit_interface) for every passed zone.
             path_walk($pseudo_rule, \&get_route_path, 'Zone');
+
+            # Extract sources and destinations from pseudo rule.
             my $src_networks   = [ values %{ $pseudo_rule->{src_networks} } ];
             my $dst_networks   = [ values %{ $pseudo_rule->{dst_networks} } ];
             my @src_interfaces = values %{ $pseudo_rule->{src_interfaces} };
             my @dst_interfaces = values %{ $pseudo_rule->{dst_interfaces} };
+
+            # Determine routing information for every interface pair.
             for my $tuple (@{ $pseudo_rule->{path} }) {
                 my ($in_intf, $out_intf) = @$tuple;
-                add_path_routes($in_intf,  $out_intf, $dst_networks);
-                add_path_routes($out_intf, $in_intf,  $src_networks);
+                add_path_routes($in_intf,  $out_intf, $dst_networks); # IFs incl
+                add_path_routes($out_intf, $in_intf,  $src_networks); # IFs incl
             }
+
+            # Determine routing information for IF of first zone on path.
             for my $entry (@{ $pseudo_rule->{path_entries} }) {
+
+                # For src IFs at managed routers, generate routes in both IFs. 
                 for my $src_intf (@src_interfaces) {
+
+                    # Do not generate routes for src IFs at path entry routers. 
                     next if $src_intf->{router} eq $entry->{router};
                     if (my $redun_intf = $src_intf->{redundancy_interfaces}) {
                         if (grep { $_->{router} eq $entry->{router} }
@@ -14782,10 +15025,18 @@ sub find_active_routes {
                     ];
                     add_path_routes($src_intf, $entry, $intf_nets);
                 }
+
+                # For src networks, generate routes for zone IF only. 
                 add_end_routes($entry, $src_networks);
             }
+
+            # Determine routing information for IF of last zone on path.
             for my $exit (@{ $pseudo_rule->{path_exits} }) {
+ 
+                # For dst IFs at managed routers, generate routes in both IFs.
                 for my $dst_intf (@dst_interfaces) {
+
+                    # Do not generate routes for dst IFs at path exit routers.
                     next if $dst_intf->{router} eq $exit->{router};
                     if (my $redun_intf = $dst_intf->{redundancy_interfaces}) {
                         if (grep { $_->{router} eq $exit->{router} }
@@ -14799,10 +15050,33 @@ sub find_active_routes {
                     ];
                     add_path_routes($dst_intf, $exit, $intf_nets);
                 }
+
+                # For dst networks, generate routes for zone IF only.
                 add_end_routes($exit, $dst_networks);
             }
         }
     }
+    return;
+}
+
+sub check_and_convert_routes;
+#############################################################################
+# Purpose  : Generate and store routing information for all managed interfaces.
+sub find_active_routes {
+    progress('Finding routes');
+
+    # Generate navigation information for routing inside zones.
+    for my $zone (@zones) {
+        set_routes_in_zone $zone;
+    }
+
+    # Generate pseudo rule set with all src dst pairs to determine routes for.
+    my $routing_tree = generate_routing_tree;
+
+    # Generate routing info for every pseudo rule and store it in interfaces.
+    generate_routing_info $routing_tree;
+
+    # TODO
     check_and_convert_routes;
     return;
 }
@@ -14824,7 +15098,7 @@ sub fix_bridged_hops {
     for my $interface (@{ $router->{interfaces} }) {
         next if $interface eq $hop;
       HOP:
-        for my $hop2 (values %{ $interface->{hop} }) {
+        for my $hop2 (values %{ $interface->{hopref2obj} }) {
             for my $network2 (values %{ $interface->{routes}->{$hop2} }) {
                 if ($network eq $network2) {
                     if ($hop2->{ip} eq 'bridge') {
@@ -14848,16 +15122,16 @@ sub check_and_convert_routes {
     for my $router (@managed_routers, @routing_only_routers) {
         for my $interface (@{ $router->{interfaces} }) {
             next if not $interface->{network}->{bridged};
-            for my $hop (values %{ $interface->{hop} }) {
+            for my $hop (values %{ $interface->{hopref2obj} }) {
                 next if $hop->{ip} ne 'bridged';
                 for my $network (values %{ $interface->{routes}->{$hop} }) {
                     my @real_hop = fix_bridged_hops($hop, $network);
                     for my $rhop (@real_hop) {
-                        $interface->{hop}->{$rhop} = $rhop;
+                        $interface->{hopref2obj}->{$rhop} = $rhop;
                         $interface->{routes}->{$rhop}->{$network} = $network;
                     }
                 }
-                delete $interface->{hop}->{$hop};
+                delete $interface->{hopref2obj}->{$hop};
                 delete $interface->{routes}->{$hop};
             }
         }
@@ -14869,7 +15143,7 @@ sub check_and_convert_routes {
         for my $interface (@{ $router->{interfaces} }) {
             next if not $interface->{ip} eq 'tunnel';
             my $tunnel_routes = $interface->{routes};
-            $interface->{routes} = $interface->{hop} = {};
+            $interface->{routes} = $interface->{hopref2obj} = {};
             my $real_intf = $interface->{real_interface};
             next if $real_intf->{routing};
             my $real_net = $real_intf->{network};
@@ -14951,7 +15225,7 @@ sub check_and_convert_routes {
                 {
                     my $hop = shift @hops;
                     $hop_routes = $real_intf->{routes}->{$hop} ||= {};
-                    $real_intf->{hop}->{$hop} = $hop;
+                    $real_intf->{hopref2obj}->{$hop} = $hop;
 
 #                    debug "Use $hop->{name} as hop for $real_peer->{name}";
                 }
@@ -15003,7 +15277,7 @@ sub check_and_convert_routes {
 
             next if $interface->{loop} and $interface->{routing};
             next if $interface->{ip} eq 'bridged';
-            for my $hop (sort by_name values %{ $interface->{hop} }) {
+            for my $hop (sort by_name values %{ $interface->{hopref2obj} }) {
                 for my $network (
                     sort by_name values %{ $interface->{routes}->{$hop} })
                 {
@@ -15071,7 +15345,7 @@ sub check_and_convert_routes {
                 if (@$hops == 1 && (my $phys_hop = $hop1->{orig_main})) {
                     delete $interface->{routes}->{$hop1}->{$net_ref};
                     $interface->{routes}->{$phys_hop}->{$network} = $network;
-                    $interface->{hop}->{$phys_hop} = $phys_hop;
+                    $interface->{hopref2obj}->{$phys_hop} = $phys_hop;
                 }
                 else {
 
@@ -15088,8 +15362,8 @@ sub check_and_convert_routes {
 
             # Convert to array, because hash isn't needed any longer.
             # Array is sorted to get deterministic output.
-            $interface->{hop} =
-              [ sort by_name values %{ $interface->{hop} } ];
+            $interface->{hopref2obj} =
+              [ sort by_name values %{ $interface->{hopref2obj} } ];
         }
     }
     return;
@@ -15137,7 +15411,7 @@ sub print_routes {
         }
         my $no_nat_set = $interface->{no_nat_set};
 
-        for my $hop (@{ $interface->{hop} }) {
+        for my $hop (@{ $interface->{hopref2obj} }) {
             my $hop_info = [ $interface, $hop ];
 
             # A hash having all networks reachable via current hop
@@ -15217,7 +15491,7 @@ sub print_routes {
         # if there are at least two entries.
         my $max = 1;
         for my $interface (@interfaces) {
-            for my $hop (@{ $interface->{hop} }) {
+            for my $hop (@{ $interface->{hopref2obj} }) {
                 my $count = grep({ !$net2no_opt{ $_->[2] } }
                     @{ $intf2hop2nets{$interface}->{$hop} || [] });
                 if ($count > $max) {
@@ -15246,7 +15520,7 @@ sub print_routes {
     my $nxos_prefix = '';
 
     for my $interface (@interfaces) {
-        for my $hop (@{ $interface->{hop} }) {
+        for my $hop (@{ $interface->{hopref2obj} }) {
 
             # For unnumbered and negotiated interfaces use interface name
             # as next hop.
