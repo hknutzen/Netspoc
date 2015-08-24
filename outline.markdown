@@ -167,7 +167,8 @@ ACLs and static routes.
     configurations. The specific NAT configurations are stored within
     the found router objects.
 
-* **Find routes for rules:** `find_active_routes`  
+* **Find routes for rules:** 
+    [find_active_routes](/Netspoc/technical.html#find_routes)   
     Again, the topology is traversed for every source and destination
     pair, generating static routing information and storing it in the
     router objects.

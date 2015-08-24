@@ -520,3 +520,34 @@ zone and one for router direction.  Consequently, loop path traversal
 has to be performed twice per interface, if the interface has not been
 found before during a traversal starting from another interface of the same
 pathrestriction.
+
+## Finding active routes {#find_routes}
+
+After rules have been processed and optimized elementary rules have
+been generated, every source/destination pair is identified and the
+routes for every pair are discovered.
+
+### Generate in-zone routing information 
+
+### Create the routing tree
+
+### Process the routing tree
+
+Every pseudo rule in the routing tree is now processed...
+
+First, path walk is called on the pseudo rule ...
+
+... in path walk, the path from source to destination is identified by
+path_mark, if not yet known ...
+
+Basically, path mark finds paths from source to destination as
+explained above (link!) Starting from the source and destination
+objects of a rule, a while loop iteratively steps towards `zone1`
+(lower distances, that is) until the paths meet. Along the way, the
+next interface on the path towards destination is stored in the
+sources path variable as well as in the path variables of every
+interface on the path towards destination.
+
+{% include image.html src="./images/path_mark-simple.png" title="path_mark" description="The path from src to dst is marked iteratively, starting at both src and dst until the paths meet. In every Iteration, first path information is added to the interfaces, then the pointer is moved to the next node in direction to zone 1." %}
+
+
