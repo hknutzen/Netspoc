@@ -527,7 +527,57 @@ After rules have been processed and optimized elementary rules have
 been generated, every source/destination pair is identified and the
 routes for every pair are discovered.
 
-### Generate in-zone routing information 
+### Generate in-zone routing information
+
+As was mentioned before, paths are searched and found on an abstract
+representation of the topology having routers and zones as
+nodes. While this is sufficient for generating ACL information, it is
+not for the generation of routing information. For this reason,
+routing information for the networks whithin a zone should be
+determined and provided at the zone border interfaces of every single
+zone. This achieved by `set_routes_in_zone`. To understand what it
+does, let us have a closer look at the routing information we need:
+
+{% include image.html src="./images/set_routes_in_zone.png" title="In-Zone routing information:" description="In every border interface of the zone, information about reachable networks and the hop interfaces leading to these networks is stored." %}
+
+At every border interface of the zone, we want following information
+to be stored:
+ * Which networks can be reached?
+ * What is the next interface (next hop interface) on the path to
+   these networks?
+
+To answer these questions, all networks at the border of a zone
+(border networks) are examined. The interfaces of a border network
+that are not border interfaces of the zone are the networks next hop
+interfaces. For every hop interface, a depth first search is conducted
+to collect all zone networks reachable from the interface. Then, at
+every zone/border interface of the border network, a lookup hash is
+stored with the reachable networks as keys and the hop interfaces leading to
+these networks as values.
+
+To avoid processing paths several times, a preprocessing step is
+conducted. Networks reachable from a hop interface without crossing
+other hop interfaces are collected in 'clusters' (many
+forms of clusters out here...), also via depth first search.
+
+Thus, when the main depth first search is conducted, there is no need
+to process all networks of a cluster repeatedly. Instead, whenever an
+interface leading to a cluster is processed, all networks of the
+cluster can be added to the reachable network set at once and search
+can proceed with the next interface.
+
+
+
+ 
+
+
+
+
+
+
+
+
+
 
 ### Create the routing tree
 
