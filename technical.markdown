@@ -540,14 +540,85 @@ First, path walk is called on the pseudo rule ...
 ... in path walk, the path from source to destination is identified by
 path_mark, if not yet known ...
 
+#### Marking paths 
+
 Basically, path mark finds paths from source to destination as
-explained above (link!) Starting from the source and destination
-objects of a rule, a while loop iteratively steps towards `zone1`
-(lower distances, that is) until the paths meet. Along the way, the
-next interface on the path towards destination is stored in the
-sources path variable as well as in the path variables of every
-interface on the path towards destination.
+explained above (link!). It works on the abstract zone/router
+representation of the topology, and usually starts from the source and
+destination nodes (router or zone) of a rule. From both of these, a
+while loop iteratively steps towards `zone1` (lower distances, that
+is), taking the next step from the node with a higher distance, until
+the paths meet. Along the way, the next interface on the path towards
+destination is stored in the sources path variable as well as in the
+path variables of every interface on the path towards destination.
 
 {% include image.html src="./images/path_mark-simple.png" title="path_mark" description="The path from src to dst is marked iteratively, starting at both src and dst until the paths meet. In every Iteration, first path information is added to the interfaces, then the pointer is moved to the next node in direction to zone 1." %}
+
+Due to special cases like pathrestrictions and loops, the basic
+Algorithm described above has several extensions, that are supposed to
+be explained in detail.
+
+#### Marking paths in cycles
+
+It may happen, that a path leads through loops. In the simplified
+explanation above(link!), loops were considered as one step within the
+basic process. This is true as far as the processing of loops takes
+place within a single step of the basic algorithm. During this step,
+the paths through the loop have to be identified though. This happens
+within `cluster_path_mark`. To describe how the algorithm works, we
+will assume a topology without pathrestrictions.
+
+`cluster_path_mark` is called with a pair of loop nodes that specify
+the start and end node of the path through the cluster (as well as the
+interfaces through which these nodes are left or entered on the path
+from source to destination).  Then, a depth first search is conducted,
+beginning at start node, to find all paths through the loop part that
+reach the end node. During this depth first search run, only loop
+nodes are processed. When the end node has been found, the algorithm
+returns from recursion and collects path information. In contrast to
+the basic algorithm, path information is not stored within the
+interface paths interface object, but within a special data structure,
+that holds for every interface on the path the next interface towards
+end node. The data structure is then stored within start
+node. (additionally, the interfaces, where paths from start to end
+start and leave are stored there, but within other data
+structures... important? perhaps for special cases?)
+
+(picture - simple cluster path mark?)
+
+As the depth first search approach can be rather expensive, especially
+with loop clusters, search space is reduced to those loops that are
+actually and necessarily passed on the path from start to end node.
+
+To identify these loops, `cluster_navigation` is called on the
+(start,end) node pair.  It identifies paths through the loop cluster
+in a way similar to the basic `path_mark` algorithm. Beginning at the
+loops of end and start node, steps are iteratively taken towards
+`zone1`. Within every step, the navi lookup hash is filled, that
+stores for every loop those loops that are purposeful to enter from
+the actual loop on the path from start to end node. When the
+navi hash is completely filled, it is attached to start node and can
+be used to limit search space during cluster path mark: Whenever a new
+node is to be entered during depth first search, the loop of the
+actual node can be looked up in navi. If the loop of the next node is
+not within the set of purposeful loops, the node to enter can not lie on
+the searched path. It can therefore be excluded from the serach space.
+
+(picture - simplified cluster-navigation?)
+
+#### Dealing with path restrictions
+
+As soon as pathrestrictions are added to the topology, lots of special
+cases and side effects have to be considered when marking paths.
+
+A closer look at pathrestrictions during `path_mark`will follow soon!
+
+
+
+
+
+ 
+
+
 
 
