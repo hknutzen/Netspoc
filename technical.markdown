@@ -523,30 +523,34 @@ pathrestriction.
 
 ## Finding active routes {#find_routes}
 
-After rules have been processed and optimized elementary rules have
-been generated, every source/destination pair is identified and the
-routes for every pair are discovered.
+After the elementary rule set has been optimized, static routing
+information is generated for every (source,destination) of the set.
 
-### Generate in-zone routing information
+### Precalculate next hop interfaces
 
 As was mentioned before, paths are searched and found on an abstract
 topology representation, having routers and zones as nodes. While this
 is sufficient for generating ACL information, it is not for the
-generation of routing information. For this reason, routing
-information for networks whithin a zone should be determined and
-provided at the zone border interfaces of every single zone. This is
-achieved by `set_routes_in_zone`. To understand what it does, let us
-have a closer look at the routing information we need:
+generation of routing information. Routing information, which is
+attached to every interface of a managed router (= zone interface),
+provides next hop interfaces for all routes defined in the rule
+set. Next hop interfaces are those interfaces that are next to the
+managed interface on the path to a certain network. Obviously, next
+hop interfaces for a managed interface are not necessarily managed
+interfaces (= zone interfaces), too, but often lie within the zone.
+To accelerate the creation of rule specific routing information,
+`set_routes_in_zone` precalculates next hop information for all
+networks of a zone and all zone interfaces:
 
 {% include image.html src="./images/set_routes_in_zone.png" title="In-Zone routing information:" description="In every border interface of the zone, information about reachable networks and the hop interfaces leading to these networks is stored." %}
 
-At every border interface of the zone, we want following information
-to be stored:
+At every border interface of the zone, following information is to be
+stored:
 * Which networks can be reached?
 * What is the next interface (next hop interface) on the path to
    these networks?
 
-To answer these questions, all networks at the border of a zone
+For this purpose, all networks at the border of a zone
 (border networks) are examined. Interfaces of a border network
 that are not border interfaces of the zone are the networks next hop
 interfaces. For every hop interface, a depth first search is conducted
@@ -568,9 +572,43 @@ can proceed with the next interface.
 
 ### Create the routing tree
 
-### Process the routing tree
+The routing tree is a variation of the rule tree, holding a pseudo
+rule for every source and destination zone pair of the optimized rule
+set. As ports are dispensable for routing information, port
+information can be omitted. To generate routing information for the
+first and last interface of a route, all source and destination
+networks extracted from the elementary rule set are stored within
+every pseudo rule. Source and destination zone pairs of deleted rules
+are contained within the routing tree because of a containing rule. If
+however either source or destination or both are interfaces of a
+managed router, routing information for these interfaces must also be
+generated. For this reason, deleted rules with such properties are
+also processed and their source and destination are stored within the
+pseudo rule.
 
-Every pseudo rule in the routing tree is now processed...
+### Generate routing information
+
+Every pseudo rule is now processed to generate routing information for
+every single interface. First, route paths for the rules
+(source,destination) pairs are found via `path_mark`. The way this
+function works has been briefly touched opon above (link) and will be
+explained in detail below. It stores in every zone interface on a path
+from source to destination the next zone interface in direction to
+destination. After the path has been found, every zone of the path is
+visited again by `path_walk`. This function, applies another function
+to every zone or router on a path. As it is repeatedly used within
+Netspoc, is is described (somewhere else!). In this case, the called
+function collects a pair of interfaces, for every visited zone,
+consisting of the interface the zone is entered from and the interface
+the zone is left at. For the first and last zone on path, no pair can
+be collected, as these zones are not crossed, but the path starts or
+ends within these zones instead.
+
+Next hop information is generated then for zone interface pairs and
+single zone interfaces, using the in-zone next hop information
+generated before.
+
+
 
 First, path walk is called on the pseudo rule ...
 
@@ -606,7 +644,7 @@ within `cluster_path_mark`. To describe how the algorithm works, we
 will assume a topology without pathrestrictions.
 
 `cluster_path_mark` is called with a pair of loop nodes that specify
-the start and end node of the path through the cluster (as well as the
+start and end node of a path through the cluster (as well as the
 interfaces through which these nodes are left or entered on the path
 from source to destination).  Then, a depth first search is conducted,
 beginning at start node, to find all paths through the loop part that
@@ -648,7 +686,7 @@ the searched path. It can therefore be excluded from the serach space.
 As soon as pathrestrictions are added to the topology, lots of special
 cases and side effects have to be considered when marking paths.
 
-A closer look at pathrestrictions during `path_mark`will follow soon!
+A closer look at pathrestrictions during `path_mark` will follow soon!
 
 
 
