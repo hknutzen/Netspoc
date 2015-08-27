@@ -529,27 +529,37 @@ information is generated for every (source,destination) of the set.
 ### Precalculate next hop interfaces
 
 As was mentioned before, paths are searched and found on an abstract
-topology representation, having routers and zones as nodes. While this
-is sufficient for generating ACL information, it is not for the
-generation of routing information. Routing information, which is
-attached to every interface of a managed router (= zone interface),
-provides next hop interfaces for all routes defined in the rule
-set. Next hop interfaces are those interfaces that are next to the
-managed interface on the path to a certain network. Obviously, next
-hop interfaces for a managed interface are not necessarily managed
-interfaces (= zone interfaces), too, but often lie within the zone.
-To accelerate the creation of rule specific routing information,
-`set_routes_in_zone` precalculates next hop information for all
-networks of a zone and all zone interfaces:
-
-{% include image.html src="./images/set_routes_in_zone.png" title="In-Zone routing information:" description="In every border interface of the zone, information about reachable networks and the hop interfaces leading to these networks is stored." %}
-
-At every border interface of the zone, following information is to be
-stored:
+topology representation, having routers and zones as nodes.  When it
+comes to routing information thogh, routers within zones are also of
+interest. Routing information is attached to every interface of a
+managed router (= zone interface) and provides a next hop interface to
+a certain destination. Next hop interfaces are not necessarily at
+managed routers, but often located inside zones. As routing
+information needs to be generated for every source and destination
+pair defined in the rule set, precalculating next hop information
+accelerates the process of route finding. Therefore, `set_routes_in_zone`
+determines next hop interfaces to every network of a zone for all zone
+interfaces.  After the function call, every border interface of the
+zone holds following information:
 * Which networks can be reached?
 * What is the next interface (next hop interface) on the path to
    these networks?
 
+
+{% include image.html src="./images/set_routes_in_zone.png" title="In-Zone routing information:" description="In every border interface of the zone, information about reachable networks and the hop interfaces leading to these networks is stored." %}
+
+If the path of a (source,destination) pair is identified, the
+interfaces a zone is entered from and left at are known, and the next
+hop interfaces can be looked up easily within the interface.
+
+For example, if source and destination in the above picture was
+(`n2`,`n11`), from the path through the graph of managed routers and
+zones, we know that the green zone is entered at `r2.n5` and left at `r9.n10`. from
+the general routing information at IF `r2.n5` we can deduce that the
+next hop interface to network n10 is `r7.n5`.
+
+
+To generate the general routing information at the zones border interfaces, 
 For this purpose, all networks at the border of a zone
 (border networks) are examined. Interfaces of a border network
 that are not border interfaces of the zone are the networks next hop
