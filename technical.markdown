@@ -536,28 +536,28 @@ managed router (= zone interface) and provides a next hop interface to
 a certain destination. Next hop interfaces are not necessarily at
 managed routers, but often located inside zones. As routing
 information needs to be generated for every source and destination
-pair defined in the rule set, precalculating next hop information
-accelerates the process of route finding. Therefore, `set_routes_in_zone`
-determines next hop interfaces to every network of a zone for all zone
-interfaces.  After the function call, every border interface of the
-zone holds following information:
-* Which networks can be reached?
-* What is the next interface (next hop interface) on the path to
-   these networks?
+pair defined in the rule set, precalculating a general next hop
+routing information at zone borders accelerates the process of route
+finding. Therefore, `set_routes_in_zone` determines next hop
+interfaces to every network of a zone for all zone interfaces.  After
+the function call, every border interface of the zone holds following
+information: * Which networks can be reached?  * What is the next
+interface (next hop interface) on the path to these networks?
 
 
 {% include image.html src="./images/set_routes_in_zone.png" title="In-Zone routing information:" description="In every border interface of the zone, information about reachable networks and the hop interfaces leading to these networks is stored." %}
 
-If the path of a (source,destination) pair is identified, the
-interfaces a zone is entered from and left at are known, and the next
-hop interfaces can be looked up easily within the interface.
+If the path of a (source,destination) pair is known, the interfaces a
+zone is entered from and left at can be identified and the next hop
+interfaces can be looked up easily within the interface.
 
-For example, if source and destination in the above picture was
-(`n2`,`n11`), from the path through the graph of managed routers and
-zones, we know that the green zone is entered at `r2.n5` and left at `r9.n10`. from
-the general routing information at IF `r2.n5` we can deduce that the
-next hop interface to network n10 is `r7.n5`.
-
+For example,let source and destination in the above picture be
+(`n2`,`n11`). From a path
+(`r2.n2`,`r2.n5`,`r7.n5`,`r7.n9`,`r8.n9`,`r8.n10`,`r9.n10`,`r9.n11`)
+through the graph of managed routers and zones can be deduced that the
+green zone is entered at `r2.n5` and left at `r9.n10`. Looking up
+`n10` in the general routing information at IF `r2.n5` we find `r7.n5`
+to be the next hop interface.
 
 To generate the general routing information at the zones border interfaces, 
 For this purpose, all networks at the border of a zone
@@ -580,21 +580,48 @@ interface leading to a cluster is processed, all networks of the
 cluster can be added to the reachable network set at once and search
 can proceed with the next interface.
 
-### Create the routing tree
+### Create routing rule set
 
-The routing tree is a variation of the rule tree, holding a pseudo
-rule for every source and destination zone pair of the optimized rule
-set. As ports are dispensable for routing information, port
-information can be omitted. To generate routing information for the
-first and last interface of a route, all source and destination
-networks extracted from the elementary rule set are stored within
-every pseudo rule. Source and destination zone pairs of deleted rules
-are contained within the routing tree because of a containing rule. If
-however either source or destination or both are interfaces of a
-managed router, routing information for these interfaces must also be
-generated. For this reason, deleted rules with such properties are
-also processed and their source and destination are stored within the
-pseudo rule.
+For routing, the optimized rule set is further reduced. As routing
+information is calculated for zone borders, mainly the source and
+destination zone pairs of the optimized rule set are of interest,
+while protocol information is completely dispensable. Therefore, a
+pseudo rule is generated for every source and destination zone pair
+and stored in the routing tree. To generate routing information for
+the first and last interface of a route, source and destination
+networks for every pair are extracted from the elementary rule set and
+stored within the associated pseudo rule. Source and destination zone
+pairs of rules deleted during optimization are contained within the
+routing tree because of a containing rule. If however either source or
+destination or both are interfaces of a managed router, routing
+information for these interfaces must also be generated. For this
+reason, deleted rules with such properties are also processed and
+their source and destination are stored within the pseudo rule.
+
+In the rule set below, `rule2`is contained within `rule1`and was
+therefore tagged as deleted.
+
+    rule1: action = permit, source = n2, dest = n6, prt = tcp 80-90
+    rule2: action = permit, source = r1.n2, dest = n6, prt = tcp 80 - deleted
+
+When the rule for `rule1`is created, contains the source and destinarion pair of
+both `rule1` and `rule2`. 
+
+    pseudo rule: action: permit, source: n2, dest: n6, prt: ---
+    src networks: n2, dst networks: n6
+
+A closer look at the corresponding topology reveals, that in this
+case, `r1.n2` is an interface of a managed router.
+
+{% include image.html src="./images/rules_for_routing.png" title="Pseudo rule example:" description="Interface r1.n2 belongs to a managed router." %}
+
+Thus, although `rule2`s source `r1.n2` is an address within `n2`, it is still a
+managed interface that needs routing information. Therefore, `rule2`
+needs to be considered in the pseudo rule by additional information:
+
+    pseudo rule: action: permit, source: n1, dest: n5, prt: ---
+    src networks: n2, dst networks: n6,
+    src interfaces: r1.n2, dst networks for src interfaces: n6
 
 ### Generate routing information
 
@@ -617,13 +644,6 @@ ends within these zones instead.
 Next hop information is generated then for zone interface pairs and
 single zone interfaces, using the in-zone next hop information
 generated before.
-
-
-
-First, path walk is called on the pseudo rule ...
-
-... in path walk, the path from source to destination is identified by
-path_mark, if not yet known ...
 
 #### Marking paths 
 
