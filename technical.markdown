@@ -524,7 +524,7 @@ pathrestriction.
 ## Finding active routes {#find_routes}
 
 After the elementary rule set has been optimized, static routing
-information is generated for every (source,destination) of the set.
+information is generated for every (source,destination) pair of the set.
 
 ### Precalculate next hop interfaces
 
@@ -533,16 +533,20 @@ topology representation, having routers and zones as nodes.  When it
 comes to routing information thogh, routers within zones are also of
 interest. Routing information is attached to every interface of a
 managed router (= zone interface) and provides a next hop interface to
-a certain destination. Next hop interfaces are not necessarily at
-managed routers, but often located inside zones. As routing
-information needs to be generated for every source and destination
-pair defined in the rule set, precalculating a general next hop
-routing information at zone borders accelerates the process of route
-finding. Therefore, `set_routes_in_zone` determines next hop
+a certain destination. Next hop interfaces are not necessarily
+interfaces of managed routers, but often located inside zones. As
+routing information needs to be generated for every source and
+destination pair defined in the rule set, precalculating a general
+next hop routing information at zone borders accelerates the process
+of route finding. Therefore, `set_routes_in_zone` determines next hop
 interfaces to every network of a zone for all zone interfaces.  After
 the function call, every border interface of the zone holds following
-information: * Which networks can be reached?  * What is the next
-interface (next hop interface) on the path to these networks?
+information: 
+
+* Which networks can be reached?  
+
+* What is the next interface (next hop interface) on the path to these
+  networks?
 
 
 {% include image.html src="./images/set_routes_in_zone.png" title="In-Zone routing information:" description="In every border interface of the zone, information about reachable networks and the hop interfaces leading to these networks is stored." %}
@@ -551,30 +555,35 @@ If the path of a (source,destination) pair is known, the interfaces a
 zone is entered from and left at can be identified and the next hop
 interfaces can be looked up easily within the interface.
 
-For example,let source and destination in the above picture be
-(n2, n11). From a path
-(r2.n2, r2.n5, r7.n5, r7.n9, r8.n9, r8.n10, r9.n10, r9.n11)
-through the graph of managed routers and zones can be deduced that the
-green zone is entered at r2.n5 and left at r9.n10. Looking up
-n10 in the general routing information at IF r2.n5 we find r7.n5
-to be the next hop interface.
+For example,let source and destination be (n2, n11) in the above
+picture. From a path (r2.n2, r2.n5, r9.n10, r9.n11) through the graph
+of managed routers and zones can be deduced that the green zone is
+entered at r2.n5 and left at r9.n10. Looking up n10 in the general
+routing information at IF r2.n5 we find r7.n5 to be the next hop
+interface.
 
-To generate the general routing information at the zones border interfaces, 
-For this purpose, all networks at the border of a zone
-(border networks) are examined. Interfaces of a border network
-that are not border interfaces of the zone are the networks next hop
-interfaces. For every hop interface, a depth first search is conducted
-to collect all zone networks reachable from the interface. Then, at
-every zone/border interface of the border network, a lookup hash is
-stored with the reachable networks as keys and the hop interfaces leading to
-these networks as values.
+To create general routing information at zone border interfaces, all
+networks at the border of a zone (border networks) are
+examined. Interfaces of a border network that are not border
+interfaces of the zone are the networks next hop interfaces. For every
+next hop interface, a depth first search is conducted to collect all
+zone networks reachable from the interface. Then, at every zone/border
+interface of the border network, a lookup hash is stored with
+reachable networks as keys and hop interfaces leading to these
+networks as values.
 
 To avoid processing paths several times, a preprocessing step is
 conducted. Networks reachable from a hop interface without crossing
-other hop interfaces are collected in 'clusters' (many
-forms of clusters out here...), also via depth first search.
+other hop interfaces are collected in clusters via depth first search.
 
-Thus, when the main depth first search is conducted, there is no need
+For an example, have a closer look at the picture below: For hop
+interfaces r4.n4 and r4.n5, cluster1 is reachable without crossing
+another hop interface, while for next hop interface r5.n5, cluster2 is
+reachable.
+
+{% include image.html src="./images/set_routes_in_zone-optimization.png" title="In-Zone routing information:" description="In every border interface of the zone, information about reachable networks and the hop interfaces leading to these networks is stored." %}
+
+When the main depth first search is conducted, there is no need
 to process all networks of a cluster repeatedly. Instead, whenever an
 interface leading to a cluster is processed, all networks of the
 cluster can be added to the reachable network set at once and search
