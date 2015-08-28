@@ -323,7 +323,7 @@ routers by an uncolored router symbol instead.
 
 {% include image.html src="./images/traversal_graph_representation.png" title="Topology representation for graph traversal:" description="Zones are depicted as lines and managed routers by uncoloured router symbols." %}
 
-### Netspocs approach to path finding
+### Netspocs approach to path finding {#path_finding}
 
 To find paths from a certain source to a destination, the topology
 graph is prepared by a single depth first search starting at a
@@ -552,11 +552,11 @@ zone is entered from and left at can be identified and the next hop
 interfaces can be looked up easily within the interface.
 
 For example,let source and destination in the above picture be
-(`n2`,`n11`). From a path
-(`r2.n2`,`r2.n5`,`r7.n5`,`r7.n9`,`r8.n9`,`r8.n10`,`r9.n10`,`r9.n11`)
+(n2, n11). From a path
+(r2.n2, r2.n5, r7.n5, r7.n9, r8.n9, r8.n10, r9.n10, r9.n11)
 through the graph of managed routers and zones can be deduced that the
-green zone is entered at `r2.n5` and left at `r9.n10`. Looking up
-`n10` in the general routing information at IF `r2.n5` we find `r7.n5`
+green zone is entered at r2.n5 and left at r9.n10. Looking up
+n10 in the general routing information at IF r2.n5 we find r7.n5
 to be the next hop interface.
 
 To generate the general routing information at the zones border interfaces, 
@@ -598,25 +598,25 @@ information for these interfaces must also be generated. For this
 reason, deleted rules with such properties are also processed and
 their source and destination are stored within the pseudo rule.
 
-In the rule set below, `rule2`is contained within `rule1`and was
+In the rule set below, rule2 is contained within `rule1`and was
 therefore tagged as deleted.
 
     rule1: action = permit, source = n2, dest = n6, prt = tcp 80-90
     rule2: action = permit, source = r1.n2, dest = n6, prt = tcp 80 - deleted
 
-When the rule for `rule1`is created, contains the source and destinarion pair of
-both `rule1` and `rule2`. 
+When the rule for rule1 is created, contains the source and destinarion pair of
+both rule1 and rule2. 
 
     pseudo rule: action: permit, source: n2, dest: n6, prt: ---
     src networks: n2, dst networks: n6
 
 A closer look at the corresponding topology reveals, that in this
-case, `r1.n2` is an interface of a managed router.
+case, r1.n2 is an interface of a managed router.
 
 {% include image.html src="./images/rules_for_routing.png" title="Pseudo rule example:" description="Interface r1.n2 belongs to a managed router." %}
 
-Thus, although `rule2`s source `r1.n2` is an address within `n2`, it is still a
-managed interface that needs routing information. Therefore, `rule2`
+Thus, although rule2s source r1.n2 is an address within n2, it is still a
+managed interface that needs routing information. Therefore, rule2
 needs to be considered in the pseudo rule by additional information:
 
     pseudo rule: action: permit, source: n1, dest: n5, prt: ---
@@ -625,24 +625,24 @@ needs to be considered in the pseudo rule by additional information:
 
 ### Generate routing information
 
-Every pseudo rule is now processed to generate routing information for
-every single interface. First, route paths for the rules
-(source,destination) pairs are found via `path_mark`. The way this
-function works has been briefly touched opon above (link) and will be
-explained in detail below. It stores in every zone interface on a path
-from source to destination the next zone interface in direction to
-destination. After the path has been found, every zone of the path is
-visited again by `path_walk`. This function, applies another function
-to every zone or router on a path. As it is repeatedly used within
-Netspoc, is is described (somewhere else!). In this case, the called
-function collects a pair of interfaces, for every visited zone,
-consisting of the interface the zone is entered from and the interface
-the zone is left at. For the first and last zone on path, no pair can
-be collected, as these zones are not crossed, but the path starts or
-ends within these zones instead.
+Every pseudo rule is now processed to generate rule specific routing
+information. First, route paths for the rules (source,destination)
+pair are found via `path_mark`. The way this function works has been
+briefly touched opon [above](#path_finding) and will be explained in detail
+below. It stores in every zone interface on a path from source to
+destination the next zone interface in direction to destination. After
+the path has been found, every zone of the path is visited again by
+`path_walk`. This function applies another function to every zone or
+router on path. As it is repeatedly used within Netspoc, is is
+described in general [below](#path_walk). In this case, the called function
+collects a pair of interfaces, for every visited zone, consisting of
+the interface the zone is entered from and the interface the zone is
+left at. For the first and last zone on path, no pair can be
+collected, as these zones are not crossed, but the path starts or ends
+within these zones instead. Just one interface is stored for these zones.
 
 Next hop information is generated then for zone interface pairs and
-single zone interfaces, using the in-zone next hop information
+single zone interfaces, using the zones general next hop information
 generated before.
 
 #### Marking paths 
@@ -719,7 +719,7 @@ cases and side effects have to be considered when marking paths.
 A closer look at pathrestrictions during `path_mark` will follow soon!
 
 
-
+#### Path_walk {#path_walk}
 
 
  
