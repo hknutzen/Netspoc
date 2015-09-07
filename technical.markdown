@@ -689,12 +689,12 @@ For paths leading through loops, path information that is attached to
 interfaces is not sufficient: within the loop, several paths to a
 certain destination might exist, beginning at different sources. Due
 to pathrestrictions, path information valid for one of them is not
-necessarily valid for the other. Example **EXAMPLE** shows, that path
+necessarily valid for the other. The example below shows, that path
 attributes at interfaces r1.n2 and r2.n2 differ, depending on the
 source - the path from src1 to dst has to pass the loop clockwise,
 while a path from src2 is only possible the other way round.
 
-(EXAMPLE)
+{% include image.html src="./images/mark_loop_example.png" title="Loop path mark:" description="Within loops, the direction towards a destination can be ambiguous, depending on source and pathrestrictions." %}
 
 For this reason, path information for the whole loop path is stored at
 the loop entry node, providing exactly the same information that is
