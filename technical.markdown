@@ -323,7 +323,7 @@ routers by an uncolored router symbol instead.
 
 {% include image.html src="./images/traversal_graph_representation.png" title="Topology representation for graph traversal:" description="Zones are depicted as lines and managed routers by uncoloured router symbols." %}
 
-### Netspocs approach to path finding {#path_finding}
+### Netspocs approach to path finding {#simple_path_finding}
 
 To find paths from a certain source to a destination, the topology
 graph is prepared by a single depth first search starting at a
@@ -581,7 +581,7 @@ interfaces r4.n4 and r4.n5, cluster1 is reachable without crossing
 another hop interface, while for next hop interface r5.n5, cluster2 is
 reachable.
 
-{% include image.html src="./images/set_routes_in_zone-optimization.png" title="In-Zone routing information:" description="In every border interface of the zone, information about reachable networks and the hop interfaces leading to these networks is stored." %}
+{% include image.html src="./images/set_routes_in_zone-optimization.png" title="Optimize DFS at next hop interfaces:" description="Clustering networks reachable from a hop interface without crossing other hop interfaces prevents traversing these networks more than once." %}
 
 When the main depth first search is conducted, there is no need
 to process all networks of a cluster repeatedly. Instead, whenever an
@@ -654,17 +654,28 @@ Next hop information is generated then for zone interface pairs and
 single zone interfaces, using the zones general next hop information
 generated before.
 
-#### Marking paths 
+### Working on paths 
 
-Basically, path mark finds paths from source to destination as
-explained above (link!). It works on the abstract zone/router
-representation of the topology, and usually starts from the source and
-destination nodes (router or zone) of a rule. From both of these, a
+Throughout the Netspoc program workflow, paths from rules source to
+destination are processed several times, for example to generate ACL
+or routing information for interfaces on a rules path. 
+
+To avoid unnecessary calculations, every path is explored only once,
+using the `path_mark` function and information is stored to reconstruct
+the path from.
+
+Basically, path mark finds paths from source to destination as has
+been briefly explained [above](#simple_path_finding). On the abstract
+zone/router representation of the topology, it starts from a rules
+source and destination nodes (router or zone). From both of these, a
 while loop iteratively steps towards `zone1` (lower distances, that
-is), taking the next step from the node with a higher distance, until
-the paths meet. Along the way, the next interface on the path towards
-destination is stored in the sources path variable as well as in the
-path variables of every interface on the path towards destination.
+is), always taking the next step from the node with higher distance,
+until the paths meet. Path information is stored within the interfaces
+on path, with every interface holding the next interface towards
+destination within the destination specific `path` attribute. A path
+attribute is also created within the source object. Thus, the path can
+easily be reconstructed whenever it is to be explored again. A simple
+example of path mark is depicted in the figure below.
 
 {% include image.html src="./images/path_mark-simple.png" title="path_mark" description="The path from src to dst is marked iteratively, starting at both src and dst until the paths meet. In every Iteration, first path information is added to the interfaces, then the pointer is moved to the next node in direction to zone 1." %}
 
@@ -674,31 +685,69 @@ be explained in detail.
 
 #### Marking paths in cycles
 
-It may happen, that a path leads through loops. In the simplified
-explanation above(link!), loops were considered as one step within the
-basic process. This is true as far as the processing of loops takes
-place within a single step of the basic algorithm. During this step,
-the paths through the loop have to be identified though. This happens
-within `cluster_path_mark`. To describe how the algorithm works, we
-will assume a topology without pathrestrictions.
+For paths leading through loops, path information that is attached to
+interfaces is not sufficient: within the loop, several paths to a
+certain destination might exist, beginning at different sources. Due
+to pathrestrictions, path information valid for one of them is not
+necessarily valid for the other. Example **EXAMPLE** shows, that path
+attributes at interfaces r1.n2 and r2.n2 differ, depending on the
+source - the path from src1 to dst has to pass the loop clockwise,
+while a path from src2 is only possible the other way round.
 
-`cluster_path_mark` is called with a pair of loop nodes that specify
-start and end node of a path through the cluster (as well as the
-interfaces through which these nodes are left or entered on the path
-from source to destination).  Then, a depth first search is conducted,
-beginning at start node, to find all paths through the loop part that
-reach the end node. During this depth first search run, only loop
-nodes are processed. When the end node has been found, the algorithm
-returns from recursion and collects path information. In contrast to
-the basic algorithm, path information is not stored within the
-interface paths interface object, but within a special data structure,
-that holds for every interface on the path the next interface towards
-end node. The data structure is then stored within start
-node. (additionally, the interfaces, where paths from start to end
-start and leave are stored there, but within other data
-structures... important? perhaps for special cases?)
+(EXAMPLE)
+
+For this reason, path information for the whole loop path is stored at
+the loop entry node, providing exactly the same information that is
+otherwise stored within the interfaces in the form of path tuples,
+holding for every node (zone and router) on the path the interface the
+node is entered from and left at.
+
+As was touched upon already, the procession of a loop or loop cluster
+on the path is taking place within a single step of the basic
+algorithm. Accordingly, within the path attribute of the loop entering
+interface, the interface the loop is left at is stored as next
+interface on path and not the next interface inside the loop.
+
+Of course, the path through the loop still needs to be detected. For
+later path reconstruction, an indicator is needed within the loop
+entering interface, that is is required to pass a loop to get to the
+next interface stored in the path variable.
+
+This happens within `cluster_path_mark`. Usually, loop topologies
+would have pathrestrictions attached. As pathrestrictions require lots
+of checks and tests that obfuscate the underlying algorithm, first
+assume a topology without pathrestrictions to explain it.
 
 (picture - simple cluster path mark?)
+
+`cluster_path_mark` is called with a pair of loop nodes that specify
+start and end node of a path through the cluster. If neither source
+nor destination are located within the loop, the start node is the
+loop exit node, and the end node is the node where the loop is entered
+from. Then, a depth first search is conducted, beginning at start
+node, to find all paths through the loop part that reach the end
+node. During this depth first search run, only loop nodes are
+processed. When the end node has been found, the algorithm returns
+from recursion and collects path information. In contrast to the basic
+algorithm, path information is not stored within the interfaces on
+path but within the first node of the loop, holding for every possible
+path through the loop the interfaces where the loop path starts and
+ends as well as an array, holding tuples of path information for every
+loop node on path in following form: [entrance interface, exit
+interface, router flag] for every loop node on path.
+
+<table border="0">
+<tr>
+  <td>1.</td>
+  <td>{% include image.html src="./images/cluster_path_mark-simple1.png" title="" description="" %}</td>
+  <td>During `path_mark`, a loop node was found. To find the paths from loop exit node to the loop node just identified to be on the path, `cluster_path_mark` is called.</td>
+</tr>
+</table>
+
+
+To indicate, that the path to the stored next node leads through a loop, the interface also holds an attribute `loop_ entry` storing a reference to the first loop node  
+
+
 
 As the depth first search approach can be rather expensive, especially
 with loop clusters, search space is reduced to those loops that are
