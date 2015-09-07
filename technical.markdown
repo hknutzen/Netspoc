@@ -736,13 +736,7 @@ ends as well as an array, holding tuples of path information for every
 loop node on path in following form: [entrance interface, exit
 interface, router flag] for every loop node on path.
 
-<table border="0">
-<tr>
-  <td>1.</td>
-  <td>{% include image.html src="./images/cluster_path_mark-simple1.png" title="" description="" %}</td>
-  <td>During `path_mark`, a loop node was found. To find the paths from loop exit node to the loop node just identified to be on the path, `cluster_path_mark` is called.</td>
-</tr>
-</table>
+{% include table.html no="1." img="./images/cluster_path_mark-simple1.png" txt="During `path_mark`, a loop node (r4) was found. To find the paths from loop exit node (r1) to the detected loop node, `cluster_path_mark` is called." %}
 
 
 To indicate, that the path to the stored next node leads through a loop, the interface also holds an attribute `loop_ entry` storing a reference to the first loop node  
