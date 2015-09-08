@@ -707,18 +707,17 @@ on the path is taking place within a single step of the basic
 algorithm. Accordingly, within the path attribute of the loop entering
 interface, the interface the loop is left at is stored as next
 interface on path and not the next interface inside the loop.
+For later path reconstruction, a marker is attached to the loop
+entering interface, indicating that is is required to pass a loop to
+get to the next interface stored in the path variable.
 
-Of course, the path through the loop still needs to be detected. For
-later path reconstruction, an indicator is needed within the loop
-entering interface, that is is required to pass a loop to get to the
-next interface stored in the path variable.
+Of course, the path through the loop still needs to be detected, using
+function `cluster_path_mark`. Usually, loop topologies would have
+pathrestrictions attached. As pathrestrictions require lots of checks
+and tests that obfuscate the underlying algorithm, first assume a
+topology without pathrestrictions to explain it.
 
-This happens within `cluster_path_mark`. Usually, loop topologies
-would have pathrestrictions attached. As pathrestrictions require lots
-of checks and tests that obfuscate the underlying algorithm, first
-assume a topology without pathrestrictions to explain it.
-
-(picture - simple cluster path mark?)
+{% include table.html no="1." img="./images/cluster_path_mark-simple1.png" txt="During `path_mark`, a loop node (r4) was found. `path_mark` stores the path information in the next interface of the linear path and calls `cluster_path_mark` to find the paths from loop exit node (r1) to the detected loop node." %}
 
 `cluster_path_mark` is called with a pair of loop nodes that specify
 start and end node of a path through the cluster. If neither source
@@ -736,8 +735,6 @@ ends as well as an array, holding tuples of path information for every
 loop node on path in following form: [entrance interface, exit
 interface, router flag] for every loop node on path.
 
-{% include table.html no="1." img="./images/cluster_path_mark-simple1.png" txt="During `path_mark`, a loop node (r4) was found. `path_mark` stores the path information in the next interface of the linear path and calls `cluster_path_mark` to find the paths from loop exit node (r1) to the detected loop node." %}
-
 {% include table.html no="2." img="./images/cluster_path_mark-simple2.png" txt="Cluster_path_mark adds loop entry information to the next interface on path and performs a depth first search on loop nodes, starting at loop exit node (r1). It returns when a path (the initiating loop node) is found." %}
 
 {% include table.html no="3." img="./images/cluster_path_mark-simple3.png" txt="As the recursion stack is processed, path information isgenerated and stored within the first node on loop path from source to destination (r1)." %}
@@ -746,27 +743,26 @@ interface, router flag] for every loop node on path.
 
 {% include table.html no="5." img="./images/cluster_path_mark-simple5.png" txt="Adding further path information to the loop exit node." %}
 
-To indicate, that the path to the stored next node leads through a loop, the interface also holds an attribute `loop_ entry` storing a reference to the first loop node  
-
-
-
 As the depth first search approach can be rather expensive, especially
 with loop clusters, search space is reduced to those loops that are
-actually and necessarily passed on the path from start to end node.
+actually and necessarily passed on the path from source to destination.
 
-To identify these loops, `cluster_navigation` is called on the
-(start,end) node pair.  It identifies paths through the loop cluster
-in a way similar to the basic `path_mark` algorithm. Beginning at the
-loops of end and start node, steps are iteratively taken towards
-`zone1`. Within every step, the navi lookup hash is filled, that
-stores for every loop those loops that are purposeful to enter from
-the actual loop on the path from start to end node. When the
-navi hash is completely filled, it is attached to start node and can
-be used to limit search space during cluster path mark: Whenever a new
-node is to be entered during depth first search, the loop of the
-actual node can be looked up in navi. If the loop of the next node is
-not within the set of purposeful loops, the node to enter can not lie on
-the searched path. It can therefore be excluded from the serach space.
+{% include image.html src="./images/cluster_navigation.png" title="Path trough a loop cluster:" description="Only loops 1, 3 and 5 need to be passed on a way from source to destination." %}
+
+To identify these loops, `cluster_navigation` is called with the nodes
+where the loop cluster is entered and left as arguments.  It
+identifies paths through the loop cluster in a way similar to the
+basic `path_mark` algorithm. Beginning at the loops of the given nodes
+node, steps are iteratively taken towards lower distances. Within every step,
+a navigation lookup hash is filled, that stores for every loop those loops
+that are purposeful to enter from the actual loop on the path from
+start to end node. When the navi hash is completely filled, it is
+attached to start node and can be used to limit search space during
+cluster path mark: Whenever a new node is to be entered during depth
+first search, the loop of the actual node can be looked up in navi. If
+the loop of the next node is not within the set of purposeful loops,
+the node to enter can not lie on the searched path. It can therefore
+be excluded from the serach space.
 
 (picture - simplified cluster-navigation?)
 
