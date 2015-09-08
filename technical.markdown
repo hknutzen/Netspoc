@@ -738,7 +738,7 @@ interface, router flag] for every loop node on path.
 
 {% include table.html no="1." img="./images/cluster_path_mark-simple1.png" txt="During `path_mark`, a loop node (r4) was found. `path_mark` stores the path information in the next interface of the linear path and calls `cluster_path_mark` to find the paths from loop exit node (r1) to the detected loop node." %}
 
-{% include table.html no="2." img="./images/cluster_path_mark-simple2.png" txt="Cluster_path_mark performs a depth first search on loop nodes, starting at loop exit node (r1). It returns when a path (the initiating loop node) is found." %}
+{% include table.html no="2." img="./images/cluster_path_mark-simple2.png" txt="Cluster_path_mark adds loop entry information to the next interface on path and performs a depth first search on loop nodes, starting at loop exit node (r1). It returns when a path (the initiating loop node) is found." %}
 
 {% include table.html no="3." img="./images/cluster_path_mark-simple3.png" txt="As the recursion stack is processed, path information isgenerated and stored within the first node on loop path from source to destination (r1)." %}
 
