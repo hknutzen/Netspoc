@@ -736,7 +736,7 @@ ends as well as an array, holding tuples of path information for every
 loop node on path in following form: [entrance interface, exit
 interface, router flag] for every loop node on path.
 
-{% include table.html no="1." img="./images/cluster_path_mark-simple1.png" txt="During `path_mark`, a loop node (r4) was found. To find the paths from loop exit node (r1) to the detected loop node, `cluster_path_mark` is called." %}
+{% include table.html no="1." img="./images/cluster_path_mark-simple1.png" txt="During `path_mark`, a loop node (r4) was found. `path_mark` stores the path information in the next interface of the linear path and calls `cluster_path_mark` to find the paths from loop exit node (r1) to the detected loop node." %}
 
 {% include table.html no="2." img="./images/cluster_path_mark-simple2.png" txt="Cluster_path_mark performs a depth first search on loop nodes, starting at loop exit node (r1). It returns when a path (the initiating loop node) is found." %}
 
