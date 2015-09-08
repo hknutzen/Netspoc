@@ -752,19 +752,24 @@ actually and necessarily passed on the path from source to destination.
 To identify these loops, `cluster_navigation` is called with the nodes
 where the loop cluster is entered and left as arguments.  It
 identifies paths through the loop cluster in a way similar to the
-basic `path_mark` algorithm. Beginning at the loops of the given nodes
-node, steps are iteratively taken towards lower distances. Within every step,
-a navigation lookup hash is filled, that stores for every loop those loops
-that are purposeful to enter from the actual loop on the path from
-start to end node. When the navi hash is completely filled, it is
-attached to start node and can be used to limit search space during
-cluster path mark: Whenever a new node is to be entered during depth
-first search, the loop of the actual node can be looked up in navi. If
-the loop of the next node is not within the set of purposeful loops,
-the node to enter can not lie on the searched path. It can therefore
-be excluded from the serach space.
+basic `path_mark` algorithm. Beginning at the loops of the given
+nodes, steps are iteratively taken towards lower distances. Within
+every step, a navigation lookup hash is filled, that stores for every
+loop those loops that are purposeful to enter from the actual loop on
+the path from source to destination. For the topology above, following
+hash would be generated:
 
-(picture - simplified cluster-navigation?)
+    Loop5      -> Loop5
+    Loop3      -> Loop3, Loop5
+    Loop1      -> Loop1, Loop3
+    Loop1 Exit -> Loop1 Exit, Loop1    
+
+The navigation hash is then attached to start node and can be used to
+limit search space during cluster path mark: Whenever a new node is to
+be entered during depth first search, the loop of the actual node can
+be looked up in navi. If the loop of the next node is not within the
+set of purposeful loops, the node to enter can not lie on the searched
+path. It can therefore be excluded from the serach space.
 
 #### Dealing with path restrictions
 
