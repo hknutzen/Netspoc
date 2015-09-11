@@ -2,11 +2,11 @@
 
 =head1 NAME
 
-test-pathrestrictions - print status of pathrestrictions applied.
+check-pathrestrictions - print status of pathrestrictions applied.
 
 =head1 SYNOPSIS
 
-test-pathrestrictions [options] FILE|DIR
+check-pathrestrictions [options] FILE|DIR
 
 =head1 DESCRIPTION
 
@@ -126,7 +126,7 @@ pod2usage(1) if $help;
 # Get input file.
 if (@ARGV != 1) {
     print "Usage:\n" .
-        "\ttest-pathrestrictions FILE|DIR\n\n";
+        "\tcheck-pathrestrictions FILE|DIR\n\n";
     exit;
 }
 my ($in_path) = @ARGV;

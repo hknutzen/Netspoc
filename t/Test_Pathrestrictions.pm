@@ -20,7 +20,7 @@ sub test_pathrestrictions {
 
     # Call test-pathrestrictions on input file, save in (tmp?) outputfile
     my $cmd = 
-          "perl -I lib bin/test-pathrestrictions $default_option $filename";
+          "perl -I lib bin/check-pathrestrictions $default_option $filename";
     open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
     # Compare real output with expected output.
