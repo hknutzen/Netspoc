@@ -10514,8 +10514,6 @@ sub check_pathrestrictions {
             next;
         }
 
-#        next if !@$elements; #meike: any other possibility but invalid=1 ?
-
         # Check for useless pathrestrictions that do not affect any ACLs...
         # Pathrestrictions at managed routers do most probably have an effect.
         grep({ $_->{router}->{managed} || $_->{router}->{routing_only} }
