@@ -24,6 +24,10 @@ optimized.
 
 Don't print progress messages.
 
+=item B<-all>
+
+Show list of pathrestrictions without optimization.
+
 =item B<-help>
 
 Prints a brief help message and exits.
@@ -111,11 +115,11 @@ sub read_input {
 
 # Get Option
 my $quiet;
-my $names;
+my $all;
 my $help;
 GetOptions ( 'quiet' => \$quiet,
              'help|?' => \$help,
-             'names' => \$names,
+             'all' => \$all,
 	     ) or pod2usage(2);
 pod2usage(1) if $help;
 
@@ -159,19 +163,19 @@ for my $restriction (@sorted_pathrestrictions) {
             $fail = grep {$_ == $restriction} 
                               @{$interface->{path_restrict}};
         }
-        if ($fail > 0) {
-            if ($names && $fail_count == 0) {
+        if ($all && $fail > 0) {
+            if ($fail_count == 0) {
                 print "Optimization failed at:\n";
             }
             last;
         }
     }
     if ($fail > 0) {
-        $names && print "  $restriction->{name}\n";
+        $all && print "  $restriction->{name}\n";
         $fail_count += 1;         
     }
 }
-$names || print "Failed to optimize $fail_count pathrestriction(s).\n";
+$all || print "Failed to optimize $fail_count pathrestriction(s).\n";
 
 
 # It might be interesting to know, which interface(s) of a
