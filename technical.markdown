@@ -747,7 +747,7 @@ As the depth first search approach can be rather expensive, especially
 with loop clusters, search space is reduced to those loops that are
 actually and necessarily passed on the path from source to destination.
 
-{% include image.html src="./images/cluster_navigation.png" title="Path trough a loop cluster:" description="Only loops 1, 3 and 5 need to be passed on a way from source to destination." %}
+{% include image.html src="./images/cluster_navigation.png" title="Path trough a loop cluster:" description="Only Loop1 Exit, Loop1, Loop3 and Loop5 need to be passed on a way from source to destination." %}
 
 To identify these loops, `cluster_navigation` is called with the nodes
 where the loop cluster is entered and left as arguments.  It
@@ -780,6 +780,25 @@ A closer look at pathrestrictions during `path_mark` will follow soon!
 
 
 #### Path_walk {#path_walk}
+
+For a given rule, path walk applies a function that is specified
+within the arguments at every router or zone node of the path from
+rules source to its destination. As a very generic function it is used
+all over the programm to generate and collect information like static
+routes or ACLs.
+
+If the path for the rules source, destination pair is not yet known,
+`path_walk`calls `path_mark` to calculate it.
+
+Then, every node of the path is visited, according to the path
+information stored at the interfaces, and the given function is called
+at every router or zone node, depending on the arguments given.
+
+As with `path_mark`, loop paths are processed in a single iteration
+step of the basic algorithm, processing the path information stored in
+the first node of the loop path.
+
+
 
 
  
