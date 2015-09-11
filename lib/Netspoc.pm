@@ -10479,6 +10479,7 @@ sub check_pathrestrictions {
                 );
                 $interface = undef;    # No longer reference this interface.
                 $deleted   = 1;
+                next;
             }
 
             # Interfaces must belong to same loop cluster.
