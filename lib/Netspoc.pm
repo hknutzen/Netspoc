@@ -12359,7 +12359,7 @@ sub link_tunnels {
             # of redundant hubs.
             if (@hubs > 1) {
                 my $name2 = "auto-restriction:$crypto->{name}";
-                add_pathrestriction($name, \@hubs);
+                add_pathrestriction($name2, \@hubs);
             }
         }
     }
