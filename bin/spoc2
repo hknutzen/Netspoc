@@ -256,6 +256,12 @@ sub order_proto {
     }
     return;
 }
+
+# Set {up} relation from port range to the smallest port range which
+# includes it.
+# If no including range is found, link it with next larger protocol.
+# Set attribute {has_neighbor} to range adjacent to upper port.
+# Abort on overlapping ranges.
 sub order_ranges {
     my ($range_href, $up) = @_;
     my @sorted =
@@ -269,6 +275,7 @@ sub order_ranges {
       } values %$range_href;
 
     # Check current range [a1, a2] for sub-ranges, starting at position $i.
+    # Set attributes {up} and {has_neighbor}.
     # Return position of range which isn't sub-range or undef
     # if end of array is reached.
     my $check_subrange;
@@ -287,6 +294,16 @@ sub order_ranges {
                 # Mark protocol as candidate for joining of port ranges during
                 # optimization.
                 $a->{has_neighbor} = $b->{has_neighbor} = 1;
+
+                # Mark other ranges having identical start port.
+                my $j = $i + 1;
+                while ($j < @sorted) {
+                    my $c = $sorted[$j];
+                    my $c1 = $c->{range}->[0];
+                    $a2 + 1 == $c1 or last;
+                    $c->{has_neighbor} = 1;
+                    $j++;
+                }                    
             }
 
             # Not related.
@@ -308,10 +325,6 @@ sub order_ranges {
             # $a and $b are overlapping.
             # aaaaa
             #   bbbbbb
-            my $x1 = $b1;
-            my $x2 = $a2;
-            my $y1 = $a2 + 1;
-            my $y2 = $b2;
             fatal_err("Unexpected overlapping ranges [$a1-$a2] [$b1-$b2]");
         }
     };

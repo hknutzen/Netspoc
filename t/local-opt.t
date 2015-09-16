@@ -177,6 +177,88 @@ $in =~ s/test2/test0/;
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Join adjacent and overlapping ports';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asa = {
+ managed;
+ model = ASA;
+ log:a = warnings;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+service:t1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80-82;
+ permit src = user; dst = network:n2; prt = tcp 83-86;
+}
+
+service:t2 = {
+ user = host:h1;
+ permit src = network:n2; dst = user; prt = tcp 70-81;
+ permit src = network:n2; dst = user; prt = tcp 82-85;
+}
+END
+
+$out = <<'END';
+-- asa
+! [ ACL ]
+access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 range 80 86
+access-list vlan1_in extended deny ip any any
+access-group vlan1_in in interface vlan1
+--
+access-list vlan2_in extended permit tcp 10.1.2.0 255.255.255.0 host 10.1.1.10 range 70 85
+access-list vlan2_in extended deny ip any any
+access-group vlan2_in in interface vlan2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Join multiple adjacent ranges';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asa = {
+ managed;
+ model = ASA;
+ log:a = warnings;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+service:t1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80-82;
+ permit src = user; dst = network:n2; prt = tcp 83-86;
+}
+
+service:t2 = {
+ user = host:h1;
+ permit src = user; dst = network:n2; prt = tcp 83-90;
+}
+END
+
+$out = <<'END';
+-- asa
+! [ ACL ]
+access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 range 80 86
+access-list vlan1_in extended permit tcp host 10.1.1.10 10.1.2.0 255.255.255.0 range 83 90
+access-list vlan1_in extended deny ip any any
+access-group vlan1_in in interface vlan1
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Don\'t join adjacent TCP and UDP ports';
 ############################################################
 
