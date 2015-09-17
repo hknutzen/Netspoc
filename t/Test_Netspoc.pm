@@ -14,11 +14,7 @@ use File::Temp qw/ tempfile tempdir /;
 use File::Spec::Functions qw/ file_name_is_absolute splitpath catdir catfile /;
 use File::Path 'make_path';
 
-$ENV{PERL5LIB} = "./lib";
-$ENV{PATH} = "./bin:$ENV{PATH}";
-
 my $default_options = '-quiet';
-my $netspoc_cmd = 'netspoc';
 
 sub run {
     my($input, $options, $out_dir) = @_;
@@ -58,14 +54,28 @@ sub run {
         close $in_fh;
     }
 
-    # Prepare arguments.
-    my $cmd = "$netspoc_cmd $default_options $options $in_dir";
-    $cmd .= " $out_dir" if $out_dir;
+    # Propagate options to perl process.
+    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
+    $perl_opt .= ' -I lib';
+
+    # Prepare arguments for pass 1.
+    my $pass1 = "$^X $perl_opt bin/spoc1 $default_options $options $in_dir";
+    $pass1 .= " $out_dir" if $out_dir;
     my ($stdout, $stderr);
 
-    # Run netspoc, collect STDOUT and STDERR.
-    run3($cmd, \undef, \$stdout, \$stderr);
+    # Run pass1, collect STDOUT and STDERR.
+    run3($pass1, \undef, \$stdout, \$stderr);
     my $success = ($? == 0);
+
+    # Run pass 2
+    if ($out_dir and $success) {
+        my $pass2 = "$^X $perl_opt bin/spoc2 $default_options $out_dir";
+        my ($stdout2, $stderr2);
+        run3($pass2, \undef, \$stdout2, \$stderr2);
+        $success = ($? == 0);
+        $stdout .= $stdout2;
+        $stderr .= $stderr2;
+    }
 
     return($stderr, $success, $in_dir);
 }

@@ -17256,6 +17256,8 @@ sub print_crypto_acl {
         name => $crypto_acl_name,
         rules => $crypto_rules,
         no_nat_set => $no_nat_set,
+        is_crypto_acl => 1,
+
     };
     push @{ $router->{acl_list} }, $acl_info;
     print_acl_placeholder($crypto_acl_name);
@@ -17778,9 +17780,8 @@ sub print_prt {
     my @result = ($proto);
 
     if ($proto eq 'tcp' or $proto eq 'udp') {
-        my ($v1, $v2) = @{ $prt->{range} };
-        push @result, "$v1-$v2";
-        push @result, 'estab' if $prt->{established};
+        push @result,  @{ $prt->{range} };
+        push @result, 'established' if $prt->{established};
     }
     elsif ($proto eq 'icmp') {
         if (defined(my $type = $prt->{type})) {
@@ -17990,13 +17991,28 @@ sub print_acls {
 }
 
 # Make output directory available.
+# Move old content into subdirectory ".prev/" for reuse during pass 2.
 sub check_output_dir {
     my ($dir) = @_;
-    unless (-e $dir) {
+    if (not -e $dir) {
         mkdir $dir
           or fatal_err("Can't create output directory $dir: $!");
     }
-    -d $dir or fatal_err("$dir isn't a directory");
+    else {
+        -d $dir or fatal_err("$dir isn't a directory");
+
+        my $prev = "$dir/.prev";
+        if (not -d $prev) {
+            my @old_files = glob("$dir/*");
+            if (@old_files) {
+                info "Moving old files of '$dir' into subdirectory '.prev'";
+                mkdir $prev or 
+                    fatal_err("Can't create directory $prev: $!");
+                system('mv', @old_files, $prev) == 0 or
+                    fatal_err("Can't mv old files to $prev: $!");
+            }
+        }
+    }
     return;
 }
 
@@ -18107,7 +18123,8 @@ sub copy_raw {
     # Trusted because set by setuid wrapper.
     ($in_path) = ($in_path =~ /(.*)/);
     ($out_dir) = ($out_dir =~ /(.*)/);
-    check_output_dir($out_dir);
+
+    # $out_dir has already been checked / created in print_code.
 
     my $raw_dir = "$in_path/raw";
     return if not -d $raw_dir;

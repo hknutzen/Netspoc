@@ -121,6 +121,58 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Redundant tcp established';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n2-sub = { ip = 10.1.2.129; hardware = n2-sub; }
+}
+
+network:n2-sub = { ip = 10.1.2.128/25; subnet_of = network:n2; }
+
+service:s1 = {
+ user = any:[network:n1], any:[network:n2];
+ permit src = user; dst = network:n2-sub; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n2;
+ permit src = user; dst = any:[network:n1]; prt = tcp;
+}
+END
+
+$out = <<'END';
+-- r1
+ip access-list extended n1_in
+ permit tcp any 10.1.2.128 0.0.0.127 eq 80
+ permit tcp any 10.1.2.0 0.0.0.255 established
+ deny ip any any
+--
+ip access-list extended n2_in
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.2.1
+ permit tcp 10.1.2.0 0.0.0.255 any
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Redundant host';
 ############################################################
 
@@ -168,9 +220,7 @@ ip access-list extended VLAN1_out
  deny ip any any
 END
 
-Test::More->builder->todo_start("Redundant host rule isn't recognized, because protocol of network rule is changed afterwards.");
- test_run($title, $in, $out);
-Test::More->builder->todo_end;
+test_run($title, $in, $out);
 
 # Change order of rules.
 $in =~ s/test2/test0/;

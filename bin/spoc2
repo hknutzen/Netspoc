@@ -6,15 +6,15 @@ spoc2 - Optimizing second pass of Netspoc
 
 =head1 SYNOPSIS
 
-spoc2 CODE-DIR
+spoc2 [ -quiet ] CODE-DIR
 
 =head1 DESCRIPTION
 
 Generate code files from intermediate files in CODE-DIR.
 Reads files X.rules and X.config and writes file X.
 
-First input file contains rules in device independent format.
-Second input file is incomplete device configuration.
+X.rules file contains rules in device independent format.
+X.config file is incomplete device configuration.
 
 Optimize rules and generate access-lists in device specific format.
 Combine imcomplete device configuration with access-lists into complete
@@ -47,11 +47,15 @@ use warnings;
 use JSON;
 use Pod::Usage;
 use File::Basename;
+use Getopt::Long qw(GetOptionsFromArray);
+use Pod::Usage;
 use open qw(:std :utf8);
 
 # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
+
+our %config = ( verbose => 1, );
 
 sub fatal_err {
     my (@args) = @_;
@@ -60,6 +64,13 @@ sub fatal_err {
 }
 
 sub debug {
+    return if not $config{verbose};
+    print STDERR @_, "\n";
+    return;
+}
+
+sub info {
+    return if not $config{verbose};
     print STDERR @_, "\n";
     return;
 }
@@ -140,20 +151,19 @@ sub create_ip_obj {
 
 sub create_prt_obj {
     my ($descr) = @_;
-    my ($proto, $i1, $i2) = split ' ', $descr;
+    my ($proto, $i1, $i2, $established) = split ' ', $descr;
     my $prt = { proto => $proto, name => $descr };
     
     if ($proto eq 'tcp' or $proto eq 'udp') {
-        my ($v1, $v2) = split '-', $i1;
-        $prt->{range} = [ $v1, $v2 ];
-        $prt->{established} = 1 if $i2;
+        $prt->{range} = [ $i1, $i2 ];
+        $prt->{established} = 1 if $established;
     }
     elsif ($proto eq 'icmp') {
         if (defined($i1)) {
             $prt->{type} = $i1;
-        }
-        if (defined($i2)) {
-            $prt->{code} = $i2
+            if (defined($i2)) {
+                $prt->{code} = $i2
+            }
         }
     }
     return $prt;
@@ -164,7 +174,7 @@ sub setup_ip_net_relation {
     $ip_net2obj->{'0.0.0.0/0'} ||= create_ip_obj('0.0.0.0/0');
     my %mask_ip_hash;
 
-    # Collect networks in %mask_ip_hash.
+    # Collect networks into %mask_ip_hash.
     for my $network (values %$ip_net2obj) {
         my ($ip, $mask) = @{$network}{qw(ip mask)};
         $mask_ip_hash{$mask}->{$ip} = $network;        
@@ -219,42 +229,12 @@ sub mark_supernets_of_need_protect {
     }
 }
 
+# Needed for model=Linux.
 sub add_tcp_udp_icmp {
     my ($prt2obj) = @_;
-    $prt2obj->{'tcp 1-65535'} ||= create_prt_obj('tcp 1-65535');
-    $prt2obj->{'udp 1-65535'} ||= create_prt_obj('udp 1-65535');
+    $prt2obj->{'tcp 1 65535'} ||= create_prt_obj('tcp 1 65535');
+    $prt2obj->{'udp 1 65535'} ||= create_prt_obj('udp 1 65535');
     $prt2obj->{icmp} ||= create_prt_obj('icmp');
-}
-
-sub order_icmp {
-    my ($hash, $up) = @_;
-
-    # Handle 'icmp any'.
-    if (my $prt = $hash->{''}) {
-        $prt->{up} = $up;
-        $up = $prt;
-    }
-    for my $prt (values %$hash) {
-
-        # 'icmp any' has been handled above.
-        if (!defined $prt->{type}) {
-        }
-        elsif (defined $prt->{code}) {
-            $prt->{up} = ($hash->{ $prt->{type} } or $up);
-        }
-        else {
-            $prt->{up} = $up;
-        }
-    }
-    return;
-}
-
-sub order_proto {
-    my ($hash, $up) = @_;
-    for my $prt (values %$hash) {
-        $prt->{up} = $up;
-    }
-    return;
 }
 
 # Set {up} relation from port range to the smallest port range which
@@ -263,7 +243,7 @@ sub order_proto {
 # Set attribute {has_neighbor} to range adjacent to upper port.
 # Abort on overlapping ranges.
 sub order_ranges {
-    my ($range_href, $up) = @_;
+    my ($proto, $prt2obj, $up) = @_;
     my @sorted =
 
       # Sort by low port. If low ports are equal, sort reverse by high port.
@@ -272,7 +252,9 @@ sub order_ranges {
       sort {
              $a->{range}->[0] <=> $b->{range}->[0]
           || $b->{range}->[1] <=> $a->{range}->[1]
-      } values %$range_href;
+      } 
+      grep { $_->{proto} eq $proto and not $_->{established} } 
+      values %$prt2obj;
 
     # Check current range [a1, a2] for sub-ranges, starting at position $i.
     # Set attributes {up} and {has_neighbor}.
@@ -344,58 +326,114 @@ sub order_ranges {
 sub setup_prt_relation {
     my ($prt2obj) = @_;
     my $prt_ip = $prt2obj->{ip} ||= create_prt_obj('ip');
-    my $tcp_establ;
+    my $icmp_up = $prt2obj->{icmp} || $prt_ip;
     my %prt_hash;
     for my $prt (values %$prt2obj) {
         my $proto = $prt->{proto};
-        if ($proto eq 'tcp' or $proto eq 'udp') {
-
-            # Handle separately.
-            if ($prt->{established}) {
-                $tcp_establ = $prt;
-                next;
+        if ($proto eq 'icmp') {
+            my ($type, $code) = @{$prt}{qw(type code)};
+            if (defined $type) {
+                if (defined $prt->{code}) {
+                    $prt->{up} = $prt2obj->{"icmp $type"} || $icmp_up;
+                }
+                else {
+                    $prt->{up} = $icmp_up;
+                }
             }
-
-            my $range = $prt->{range};
-            my $key = join ':', @$range;
-            $prt_hash{$proto}->{$key} = $prt;
+            else {
+                $prt->{up} = $prt_ip;
+            }
         }
-        elsif ($proto eq 'icmp') {
-            my $type = $prt->{type};
-            my $code = $prt->{code};
-            my $key  = 
-                defined $type ? (defined $code ? "$type:$code" : $type) : '';
-            $prt_hash{$proto}->{$key} = $prt;
-        }
-        elsif ($proto eq 'ip') {
-            $prt_hash{$proto} = $prt;
-        }
-        else {
             
-            # Other protocol.
-            my $key = $proto;
-            $prt_hash{proto}->{$key} = $prt;
+        # Numeric protocol.
+        elsif ($proto =~ /^\d+$/) {
+            my $prt->{up} = $prt_ip;
         }
     }
-    my $up = $prt_ip;
-    order_ranges($prt_hash{tcp}, $up);
-    order_ranges($prt_hash{udp}, $up);
-    order_icmp($prt_hash{icmp}, $up);
-    order_proto($prt_hash{proto}, $up);
 
-    if ($tcp_establ) {
-        $tcp_establ->{up} = $prt_hash{tcp}->{'1:65535'} || $up;
+    order_ranges('tcp', $prt2obj, $prt_ip);
+    order_ranges('udp', $prt2obj, $prt_ip);
+
+    if (my $tcp_establ = $prt2obj->{'tcp 1 65535 established'}) {
+        $tcp_establ->{up} = $prt2obj->{'tcp 1 65535'} || $prt_ip;
     }
 
-    return \%prt_hash;
+    return;
 }
 
-sub local_optimization {
-    my ($rules, $prt_ip) = @_;
+sub print_rule {
+    my ($rule) = @_;
+    my ($deny, $src, $dst, $prt) = @{$rule}{qw(deny src dst prt)};
+    my $action = $deny ? 'deny' : 'permit';
+    return "$action $src->{name} $dst->{name} $prt->{name}";
+}
+
+sub optimize_redundant_rules {
+    my ($cmp_hash, $chg_hash, $acl_info) = @_;
+    my $ip_net2obj = $acl_info->{ip_net2obj};
+    my $prt2obj    = $acl_info->{prt2obj};
+    my $changed;
+    while (my ($deny, $chg_hash) = each %$chg_hash) {
+     while (1) {
+      if (my $cmp_hash = $cmp_hash->{$deny}) {
+       while (my ($src_range_name, $chg_hash) = each %$chg_hash) {
+        my $src_range = $prt2obj->{$src_range_name};
+        while (1) {
+         if (my $cmp_hash = $cmp_hash->{$src_range->{name}}) {
+          while (my ($src_name, $chg_hash) = each %$chg_hash) {
+           my $src = $ip_net2obj->{$src_name};
+           while (1) {
+            if (my $cmp_hash = $cmp_hash->{$src->{name}}) {
+             while (my ($dst_name, $chg_hash) = each %$chg_hash) {
+              my $dst = $ip_net2obj->{$dst_name};
+              while (1) {
+               if (my $cmp_hash = $cmp_hash->{$dst->{name}}) {
+                for my $chg_rule (values %$chg_hash) {
+                 next if $chg_rule->{deleted};
+                 my $prt = $chg_rule->{prt};
+                 my $chg_log = $chg_rule->{log} || '';
+                 while (1) {
+                  if (my $cmp_rule = $cmp_hash->{$prt->{name}}) {
+                   my $cmp_log = $cmp_rule->{log} || '';
+                   if ($cmp_rule ne $chg_rule && $cmp_log eq $chg_log) {
+
+#                   debug "del: ", print_rule $chg_rule;
+                    $chg_rule->{deleted} = $cmp_rule;
+                    $changed = 1;
+                    last;
+                   }
+                  }
+                  $prt = $prt ->{up} or last;
+                 }
+                }
+               }
+               $dst = $dst->{up} or last;
+              }
+             }
+            }
+            $src = $src->{up} or last;
+           }
+          }
+         }
+         $src_range = $src_range->{up} or last;
+        }
+       }
+      }
+      last if $deny;
+      $deny = 1;
+     }
+    }
+    return $changed;
+}
+
+sub optimize_rules {
+    my ($rules, $acl_info) = @_;
+    my $prt_ip = $acl_info->{prt2obj}->{ip};
     
-    # For comparing rules during optimization.
+    # For comparing redundant rules.
     my %rule_tree;
 
+    # Fill rule tree.
     my $changed = 0;
     for my $rule (@$rules) {
 
@@ -403,68 +441,33 @@ sub local_optimization {
             @{$rule}{qw(src dst deny src_range prt)};
         $deny      ||= '';
         $src_range ||= $prt_ip;
+        $src = $src->{name};
+        $dst = $dst->{name};
+        $src_range = $src_range->{name};
+        $prt = $prt->{name};
 
         # Remove duplicate rules.
         if ($rule_tree{$deny}->{$src_range}->{$src}->{$dst}->{$prt}) {
-            $rule    = undef;
+            $rule->{deleted} = 1;
             $changed = 1;
             next;
         }
         $rule_tree{$deny}->{$src_range}->{$src}->{$dst}->{$prt} = $rule;
     }
 
+    my $changed2 =
+        optimize_redundant_rules (\%rule_tree, \%rule_tree, $acl_info);
+    $changed ||= $changed2;
+
+    # Implement rules as secondary rule, if possible.
+    my %secondary_tree;
+    my $ip_key = $prt_ip->{name};
   RULE:
     for my $rule (@$rules) {
-        next if not $rule;
-        my ($deny, $src, $dst, $src_range, $prt, $log) =
-            @{$rule}{qw(deny src dst src_range prt log)};
-        $deny      ||= '';
-        $src_range ||= $prt_ip;
-        $log       ||= '';
-
-        while (1) {
-            my $src_range = $src_range;
-            if (my $rule_tree = $rule_tree{$deny}) {
-                while (1) {
-                    my $src = $src;
-                    if (my $rule_tree = $rule_tree->{$src_range}) {
-                        while (1) {
-                            my $dst = $dst;
-                            if (my $rule_tree = $rule_tree->{$src}) {
-                                while (1) {
-                                    my $prt = $prt;
-                                    if (my $rule_tree = $rule_tree->{$dst}) {
-                                        while (1) {
-                                            if (my $other = $rule_tree->{$prt})
-                                            {
-                                                my $o_log = $other->{log} || '';
-                                                if ($rule ne $other
-                                                    && $log eq $o_log)
-                                                {
-                                                    $rule = undef;
-                                                    $changed = 1;
-                                                    next RULE;
-                                                }
-                                            }
-                                            $prt = $prt->{up} or last;
-                                        }
-                                    }
-                                    $dst = $dst->{up} or last;
-                                }
-                            }
-                            $src = $src->{up} or last;
-                        }
-                    }
-                    $src_range = $src_range->{up} or last;
-                }
-            }
-            last if $deny;
-            $deny = 1;
-        }
-
-        # Implement remaining rules as secondary rule, if possible.
         $rule->{opt_secondary} or next;
-        $rule->{deny} and fatal_err("Unexpected deny rule with opt_secondary");
+        next if $rule->{deleted};
+
+        my ($src, $dst, $prt) = @{$rule}{qw(src dst prt)};
 
         # Replace obj by supernet.
         if (my $supernet = $src->{opt_secondary}) {
@@ -477,34 +480,43 @@ sub local_optimization {
         # Change protocol to IP.
         $rule->{prt} = $prt_ip;
 
-        # Add new rule to rule_tree. If multiple rules are converted to the
-        # same secondary rule, only the first one will be generated.
-        if (my $other = $rule_tree{''}->{$prt_ip}->{$src}->{$dst}->{$prt_ip}) {
-
-            # Don't remove if rule already was in optimized form.
-            next if $rule eq $other;
+        # Add new rule to secondary_tree. If multiple rules are
+        # converted to the same secondary rule, only the first one
+        # will be created.
+        $src = $src->{name};
+        $dst = $dst->{name};
+        if ($secondary_tree{''}->{$ip_key}->{$src}->{$dst}->{$ip_key}) {
 
 #           debug("sec delete: ", print_rule $rule);
-            $rule    = undef;
+            $rule->{deleted} = 1;
             $changed = 1;
         }
         else {
 
-#            debug("sec: ", print_rule $rule);
-            # Further optimization only works if smaller rule hasn't
-            # already been processed.
-            $rule_tree{''}->{$prt_ip}->{$src}->{$dst}->{$prt_ip} = $rule;
+#           debug("sec: ", print_rule $rule);
+            $secondary_tree{''}->{$ip_key}->{$src}->{$dst}->{$ip_key} = 
+                $rule;
         }
     }
+
+    if (keys %secondary_tree) {
+        $changed2 = optimize_redundant_rules(\%secondary_tree, 
+                                             \%secondary_tree, $acl_info);
+        $changed ||= $changed2;
+        $changed2 = optimize_redundant_rules(\%secondary_tree, 
+                                             \%rule_tree, $acl_info);
+        $changed ||= $changed2;
+    }
+
     if ($changed) {
-        $rules = [ grep { $_ } @$rules ];
+        $rules = [ grep { not $_->{deleted} } @$rules ];
     }
     return $rules;
 }
 
 # Join adjacent port ranges.
 sub join_ranges {
-    my ($rules, $prt_hash) = @_;
+    my ($rules, $prt2obj) = @_;
     my $changed;
     my %rule_tree = ();
   RULE:
@@ -609,19 +621,18 @@ sub join_ranges {
             # Process rules with joined port ranges.
             # Remove auxiliary attribute {range} from rules.
             if (my $range = delete $rule->{range}) {
-                my $prt   = $rule->{prt};
-                my $proto = $prt->{proto};
-                my $key   = join(':', @$range);
+                my $proto = $rule->{prt}->{proto};
+                my $key   = "$proto $range->[0]-$range->[1]";
 
                 # Try to find existing prt with matching range.
                 # This is needed for find_objectgroups to work.
-                my $new_prt = $prt_hash->{$proto}->{$key};
+                my $new_prt = $prt2obj->{$key};
                 if (not $new_prt) {
                     $new_prt = {
                         proto => $proto,
                         range => $range
                     };
-                    $prt_hash->{$proto}->{$key} = $new_prt;
+                    $prt2obj->{$key} = $new_prt;
                 }
                 my $new_rule = { %$rule, prt => $new_prt };
                 push @rules, $new_rule;
@@ -1378,8 +1389,8 @@ sub find_chains {
 
     my $prt_ip     = $prt2obj->{ip};
     my $prt_icmp   = $prt2obj->{icmp};
-    my $prt_tcp    = $prt2obj->{'tcp 1-65535'};
-    my $prt_udp    = $prt2obj->{'udp 1-65535'};
+    my $prt_tcp    = $prt2obj->{'tcp 1 65535'};
+    my $prt_udp    = $prt2obj->{'udp 1 65535'};
     my $network_00 = $ip_net2obj->{'0.0.0.0/0'};
 
     # For generating names of chains.
@@ -1703,8 +1714,8 @@ sub print_chains {
     my $prt2obj    = $acl_info->{prt2obj};
     my $prt_ip     = $prt2obj->{ip};
     my $prt_icmp   = $prt2obj->{icmp};
-    my $prt_tcp    = $prt2obj->{'tcp 1-65535'};
-    my $prt_udp    = $prt2obj->{'udp 1-65535'};
+    my $prt_tcp    = $prt2obj->{'tcp 1 65535'};
+    my $prt_udp    = $prt2obj->{'udp 1 65535'};
 
     # Declare chain names.
     for my $chain (@$chains) {
@@ -1880,8 +1891,8 @@ sub prepare_acls {
             add_tcp_udp_icmp($prt2obj);
         }
         
-        my $prt_hash = setup_prt_relation($prt2obj);
-        my $prt_ip = $acl_info->{prt_ip} = $prt2obj->{ip};
+        setup_prt_relation($prt2obj);
+        $acl_info->{prt_ip} = $prt2obj->{ip};
         
         if ($model eq 'Linux') {
             find_chains($acl_info, $router_data);
@@ -1889,12 +1900,12 @@ sub prepare_acls {
         else {
             for my $what (qw(intf_rules rules)) {
                 my $rules = $acl_info->{$what} or next;
-                $rules = local_optimization($rules, $prt_ip);
+                $rules = optimize_rules($rules, $acl_info);
     
                 # Join adjacent port ranges. This must be called after
                 # local optimization, because protocols will be
                 # overlapping again after joining.
-                $rules = join_ranges($rules, $prt_hash);
+                $rules = join_ranges($rules, $prt2obj);
                 $acl_info->{$what} = $rules;
             }
 
@@ -2191,16 +2202,86 @@ sub print_combined {
     return;
 }
 
+# Check if identical files with extension .config and .rules
+# exist in directory .prev/ .
+sub check_prev {
+    my ($base_path) = @_;
+    -f ".prev/$base_path" or return;
+    for my $ext (qw(.config .rules)) {
+        my $path = "$base_path$ext";
+        my $prev_path = ".prev/$path";
+        -f $prev_path or return;
+        system("cmp -s $path $prev_path") == 0 or return;
+    }
+    return 1;        
+}
+
+sub parse_options {
+    my ($args) = @_;
+    my %options;
+    $options{quiet} = sub { $config{verbose} = 0 };
+    $options{'help|?'} = sub { pod2usage(1) };
+    $options{man} = sub { pod2usage(-exitstatus => 0, -verbose => 2) };
+
+    if (!GetOptionsFromArray($args, %options)) {
+
+        # Don't use 'exit' but 'die', so we can catch this error in tests.
+        my $out;
+        open(my $fh, '>', \$out) or die $!;
+        pod2usage(-exitstatus => 'NOEXIT', -verbose => 0, -output => $fh);
+        close $fh;
+        die($out || '');
+    }
+
+    return;
+}
+
+# Generate code files from *.config and *.rules files.
 sub pass2 {
     my ($args) = @_;
+    parse_options($args);
     my ($dir, @extra) = @$args;
     ($dir and not @extra) or pod2usage(2);
-    for my $config_path (glob("$dir/*.config")) {
-        my $base_path = "$dir/" . basename($config_path, '.config');
-        my $rules_path = "$base_path.rules";
-        my $router_data = prepare_acls($rules_path);
-        my $config = read_file_lines($config_path);
-        print_combined($config, $router_data, $base_path);
+    chdir $dir or fatal_err("Can't chdir to '$dir': $!");
+    my $has_prev = -d '.prev';
+    my @pass1_list = map { basename($_, '.config') } glob('*.config');
+    my @pass2_list;
+
+    my $count = @pass1_list;
+    info("Starting second pass");
+    my $reused;
+    for my $base_path (@pass1_list) {
+
+        # Try to reuse prevously generated code file.
+        if ($has_prev and check_prev($base_path) and
+            system("cp -p .prev/$base_path $base_path") == 0)
+        {
+            $reused++;
+            next;
+        }
+        push @pass2_list, $base_path;
+    }
+    if ($reused) {
+        info("Reusing $reused files from previous run");
+    }
+
+    # Generate new code files.
+    if ($count = @pass2_list) {
+        info("Generating optimized code for $count devices");
+        for my $base_path (@pass2_list) {
+            my $config_path = "$base_path.config";
+            my $rules_path  = "$base_path.rules";
+            my $router_data = prepare_acls($rules_path);
+            my $config = read_file_lines($config_path);
+            print_combined($config, $router_data, $base_path);
+        }
+    }
+
+    # Remove directory '.prev', if created by pass1.
+    # Don't remove if '.prev' is symlink created by newpolicy.pl.
+    if ($has_prev and not -l '.prev') {
+        system("rm -rf .prev") == 0 or
+            fatal_err("Can't remove $dir/.prev: $!");
     }
 }
 
