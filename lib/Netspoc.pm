@@ -3379,7 +3379,7 @@ sub read_owner {
     return $owner;
 }
 
-my %global_type = (
+our %global_type = (
     router          => [ \&read_router,          \%routers ],
     network         => [ \&read_network,         \%networks ],
     any             => [ \&read_aggregate,       \%aggregates ],
@@ -4524,7 +4524,7 @@ sub link_subnets {
     return;
 }
 
-my @pathrestrictions;
+our @pathrestrictions;
 
 sub add_pathrestriction {
     my ($name, $elements) = @_;
@@ -10459,7 +10459,9 @@ sub check_pathrestrictions {
     for my $restrict (values %pathrestrictions) {
         my $elements = $restrict->{elements};    # Extract interfaces.
         next if !@$elements;
-        my $deleted;    # Flags whether interfaces have been deleted.
+
+        my $deleted; # Flags whether interfaces have been deleted.
+        my $invalid; # Flags whether pathrestriction is invalid. 
         my $prev_interface;
         my $prev_cluster;
         for my $interface (@$elements) {
@@ -10473,25 +10475,24 @@ sub check_pathrestrictions {
             # inside or at the border of cyclic graphs.
             if (not $loop) {
                 delete $interface->{path_restrict};
-                warn_msg(
-                    "Ignoring $restrict->{name} at $interface->{name}\n",
-                    " because it isn't located inside cyclic graph"
-                );
-                $interface = undef;    # No longer reference this interface.
-                $deleted   = 1;
+                warn_msg("Ignoring $restrict->{name} at $interface->{name}\n",
+                         " because it isn't located inside cyclic graph");
+                $interface = undef; # No longer reference this interface.
+                $deleted = 1;
                 next;
             }
 
             # Interfaces must belong to same loop cluster.
             my $cluster = $loop->{cluster_exit};
             if ($prev_cluster) {
-                $cluster eq $prev_cluster
-                  or err_msg(
-                    "$restrict->{name} must not have elements",
-                    " from different loops:\n",
-                    " - $prev_interface->{name}\n",
-                    " - $interface->{name}"
-                  );
+                if (not $cluster eq $prev_cluster) {
+                    warn_msg("$restrict->{name} must not have elements",
+                            " from different loops:\n",
+                            " - $prev_interface->{name}\n",
+                            " - $interface->{name}");
+                    $invalid = 1;
+                    last;
+                }
             }
             else {
                 $prev_cluster   = $cluster;
@@ -10499,15 +10500,19 @@ sub check_pathrestrictions {
             }
         }
 
-        # Remove illegal interfaces from elements array.
+        # Check whether pathrestriction is still valid. 
         if ($deleted) {
             $elements = $restrict->{elements} = [ grep { $_ } @$elements ];
-            if (1 == @$elements) {  # Min. 2 interfaces/path restriction needed!
-                $elements = $restrict->{elements} = [];
+            if (1 == @$elements) { # Min. 2 interfaces/path restriction needed! 
+                $invalid = 1;
             }
         }
 
-        next if !@$elements;
+        # Remove invalid pathrestrictions. 
+        if ($invalid) {
+            $elements = $restrict->{elements} = [];
+            next;
+        }
 
         # Check for useless pathrestrictions that do not affect any ACLs...
         # Pathrestrictions at managed routers do most probably have an effect.
@@ -10558,8 +10563,9 @@ sub check_pathrestrictions {
     }
 
     # Collect all effective pathrestrictions.
-    push @pathrestrictions,
-      grep({ @{ $_->{elements} } } values %pathrestrictions);
+    push @pathrestrictions, grep({ @{ $_->{elements} } } 
+                                 values %pathrestrictions);
+
     return;
 }
 
@@ -12351,7 +12357,7 @@ sub link_tunnels {
             # of redundant hubs.
             if (@hubs > 1) {
                 my $name2 = "auto-restriction:$crypto->{name}";
-                add_pathrestriction($name, \@hubs);
+                add_pathrestriction($name2, \@hubs);
             }
         }
     }
