@@ -1,4 +1,4 @@
-package Netspoc;
+package Netspoc::Compiler::Pass1;
 
 =head1 NAME
 
@@ -44,6 +44,7 @@ our @EXPORT = qw(
   %interfaces
   %networks
   %hosts
+  %aggregates
   %owners
   %areas
   %pathrestrictions
@@ -54,7 +55,12 @@ our @EXPORT = qw(
   %isakmp
   %ipsec
   %crypto
+  %global_type
   %expanded_rules
+  @pathrestrictions
+  *input
+  $current_file
+  $line
   $error_counter
   store_description
   fast_mode
@@ -63,18 +69,28 @@ our @EXPORT = qw(
   check_config_pair
   read_config
   set_config
-  info
+  *info
+  debug
   progress
   abort_on_error
   set_abort_immediately
+  syntax_err
+  internal_err
   err_msg
   fatal_err
   unique
   equal
   read_ip
   print_ip
+  mask2prefix
+  complement_32bit
   show_version
   split_typed_name
+  skip_space_and_comment
+  check
+  skip
+  check_typed_name
+  read_intersection
   is_network
   is_router
   is_interface
@@ -86,6 +102,7 @@ our @EXPORT = qw(
   is_objectgroup
   is_chain
   is_autointerface
+  get_intf
   read_netspoc
   read_file
   read_file_or_dir
@@ -95,20 +112,36 @@ our @EXPORT = qw(
   mark_disabled
   set_zone
   set_service_owner
+  link_reroute_permit
+  expand_protocols
+  expand_group
+  expand_group_in_rule
   expand_services
   expand_crypto
   check_unused_groups
   setpath
+  find_subnets_in_zone
+  find_subnets_in_nat_domain
+  convert_hosts
+  propagate_owners
+  find_dists_and_loops
+  process_loops
+  check_pathrestrictions
+  optimize_pathrestrictions
   path_walk
+  path_auto_interfaces
   check_supernet_rules
   optimize_and_warn_deleted
   distribute_nat_info
+  get_nat_network
   gen_reverse_rules
   mark_secondary_rules
   rules_distribution
   local_optimization
   check_output_dir
-  print_code );
+  address
+  print_code
+  compile );
 
 ####################################################################
 # User configurable options.

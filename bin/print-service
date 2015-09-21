@@ -64,7 +64,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 use strict;
 use warnings;
 use open qw(:std :utf8);
-use Netspoc;
+use Netspoc::Compiler::Pass1;
 use Getopt::Long;
 use Pod::Usage;
 
@@ -97,8 +97,8 @@ my $no_nat_set;
 
 sub ip_info {
     my ($obj) = @_;
-    my ($ip, $mask) = @{ Netspoc::address($obj, $no_nat_set) }; 
-    my $prefix_len = Netspoc::mask2prefix($mask);
+    my ($ip, $mask) = @{ address($obj, $no_nat_set) }; 
+    my $prefix_len = mask2prefix($mask);
     return(print_ip($ip) . ($prefix_len == 32 ? '' : "/$prefix_len"));
 }
 
@@ -160,7 +160,7 @@ if ($name) {
 &set_zone();
 &distribute_nat_info();
 &setpath();
-Netspoc::find_subnets_in_zone();
+find_subnets_in_zone();
 &abort_on_error();
 
 # Find network for resolving NAT addresses.

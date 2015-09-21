@@ -29,7 +29,7 @@ use warnings;
 use Getopt::Long;
 use File::Path 'make_path';
 use JSON;
-use Netspoc;
+use Netspoc::Compiler::Pass1;
 use open qw(:std :utf8);
 
 sub usage {
@@ -52,11 +52,6 @@ my $policy_file = "$netspoc_data/POLICY";
 sub abort {
     my ($msg) = @_;
     die "$msg\n";
-}
-
-sub internal_err {
-    my ($msg) = @_;
-    abort "internal: $msg";
 }
 
 sub create_dirs {
@@ -92,7 +87,7 @@ sub by_name { return($a->{name} cmp $b->{name}) }
 # This works with and without NAT.
 sub nat {
     my ($ip, $network) = @_;
-    return($network->{ip} | $ip & Netspoc::complement_32bit ($network->{mask}));
+    return($network->{ip} | $ip & complement_32bit ($network->{mask}));
 }
 
 sub ip_nat_for_object {
@@ -100,7 +95,7 @@ sub ip_nat_for_object {
     my $ip;
     my $nat;
 
-# This code is a modified copy of Netspoc::address.
+# This code is a modified copy of address.
 # - It needs to handle objects of type 'Host' instead of 'Subnet'.
 # - Handles dynamic NAT for hosts.
 # - It returns strings of textual ip/mask, not pairs of numbers.
@@ -118,16 +113,16 @@ sub ip_nat_for_object {
             # Don't print mask for loopback network. It needs to have
             # exactly the same address as the corresponding loopback interface.
             elsif ($obj->{loopback}) {
-                Netspoc::print_ip($obj->{ip});
+                print_ip($obj->{ip});
             }
 
             # Print no mask for aggregate with mask 0, for compatibility
             # with old version.
             elsif ($obj->{is_aggregate} && $obj->{mask} == 0) {
-                Netspoc::print_ip($obj->{ip});
+                print_ip($obj->{ip});
             }
             else {
-                join('/', Netspoc::print_ip($obj->{ip}), Netspoc::print_ip($obj->{mask}));
+                join('/', print_ip($obj->{ip}), print_ip($obj->{mask}));
             }
         };
         $ip = $get_ip->($obj);
@@ -145,7 +140,7 @@ sub ip_nat_for_object {
                 if ($obj->{nat} and (my $ip = $obj->{nat}->{$nat_tag})) {
 
                     # Single static NAT IP for this host.
-                    Netspoc::print_ip($ip);
+                    print_ip($ip);
                 }
                 elsif ($network->{hidden}) {
                     'hidden';
@@ -154,15 +149,15 @@ sub ip_nat_for_object {
 
                     # Dynamic NAT, take whole network.
                     join('/', 
-                         Netspoc::print_ip($network->{ip}), Netspoc::print_ip($network->{mask}));
+                         print_ip($network->{ip}), print_ip($network->{mask}));
                 }
             }
             else {
                 if ( my $range = $obj->{range} ) {
-                    join('-', map { Netspoc::print_ip(nat($_, $network)) } @$range);
+                    join('-', map { print_ip(nat($_, $network)) } @$range);
                 }
                 else {
-                    Netspoc::print_ip(nat($obj->{ip}, $network));
+                    print_ip(nat($obj->{ip}, $network));
                 }
             }
         };
@@ -182,7 +177,7 @@ sub ip_nat_for_object {
                 if (my $ip = $obj->{nat}->{$nat_tag}) {
 
                     # Single static NAT IP for this interface.
-                    Netspoc::print_ip($ip);
+                    print_ip($ip);
                 }
                 elsif ($network->{hidden}) {
                     'hidden';
@@ -191,7 +186,7 @@ sub ip_nat_for_object {
                     
                     # Dynamic NAT, take whole network.
                     join('/', 
-                         Netspoc::print_ip($network->{ip}), Netspoc::print_ip($network->{mask}));
+                         print_ip($network->{ip}), print_ip($network->{mask}));
                 }
             }
             elsif ($network->{isolated}) {
@@ -199,7 +194,7 @@ sub ip_nat_for_object {
                 # NAT not allowed for isolated ports. 
                 # Take no bits from network, because secondary isolated ports 
                 # don't match network.
-                Netspoc::print_ip($obj->{ip});
+                print_ip($obj->{ip});
             }
             elsif ($obj->{ip} =~ /unnumbered|short|bridged/) {
                 $obj->{ip};
@@ -208,10 +203,10 @@ sub ip_nat_for_object {
 
                 # Take whole network.
                 join('/', 
-                     Netspoc::print_ip($network->{ip}), Netspoc::print_ip($network->{mask}));
+                     print_ip($network->{ip}), print_ip($network->{mask}));
             }
             else {
-                Netspoc::print_ip(nat($obj->{ip}, $network));
+                print_ip(nat($obj->{ip}, $network));
             }
         };
         my $network = $obj->{network};
@@ -239,13 +234,13 @@ sub ip_nat_for_object {
 my @all_zones;
 
 sub setup_zones {
-    Netspoc::progress('Setup zones');
+    progress('Setup zones');
     my %seen;
-    for my $network (values %Netspoc::networks) {
+    for my $network (values %networks) {
         $network->{disabled} and next;
         my $zone = $network->{zone};
         next if $seen{$zone}++;
-#        Netspoc::debug "$network->{name} in $zone->{name}";
+#        debug "$network->{name} in $zone->{name}";
         push @all_zones, $zone;
     }
     return;
@@ -321,11 +316,11 @@ sub expand_auto_intf {
     my ($src_aref, $dst_aref) = @_;
     for (my $i = 0; $i < @$src_aref; $i++) {
         my $src = $src_aref->[$i];
-        next if not Netspoc::is_autointerface($src);
+        next if not is_autointerface($src);
         my @new;
         my %seen;
         for my $dst (@$dst_aref) {
-            for my $interface (Netspoc::path_auto_interfaces($src, $dst)) {
+            for my $interface (path_auto_interfaces($src, $dst)) {
                 if (not $seen{$interface}++) {
                     push @new, $interface;
                 }
@@ -442,13 +437,13 @@ sub find_visibility {
 my %all_objects;
 
 sub setup_service_info {
-    Netspoc::progress("Setup service info");
-    for my $service (values %Netspoc::services) {
+    progress("Setup service info");
+    for my $service (values %services) {
         next if $service->{disabled};
         my $sname = $service->{name};
 
         my $users = $service->{expanded_user} =
-            Netspoc::expand_group($service->{user}, "user of $sname");
+            expand_group($service->{user}, "user of $sname");
 
         # Non 'user' objects.
         my @objects;
@@ -459,7 +454,7 @@ sub setup_service_info {
         for my $rule (@{ $service->{rules} }) {
             my $has_user = $rule->{has_user};
             $rule->{expanded_prt} =
-                proto_descr(Netspoc::expand_protocols($rule->{prt}, 
+                proto_descr(expand_protocols($rule->{prt}, 
                                                      "rule in $sname"));
             if ($has_user eq 'both') {
                 $is_coupling = 1;
@@ -470,7 +465,7 @@ sub setup_service_info {
                 next if $what eq $has_user;
                 my $all = 
                     [ sort by_name
-                      @{ Netspoc::expand_group($rule->{$what}, 
+                      @{ expand_group($rule->{$what}, 
                                                "$what of $sname") } ];
 
                 # Expand auto interface to set of real interfaces.
@@ -537,27 +532,27 @@ sub setup_service_info {
 ######################################################################
 
 sub setup_part_owners {
-    Netspoc::progress("Setup part owners");
+    progress("Setup part owners");
 
     # Handle hosts of network.
     # Don't handle interfaces here, because
     # - unmanaged interface doesn't have owner and
     # - managed interface isn't part of network.
-    for my $network (values %Netspoc::networks) {
+    for my $network (values %networks) {
         $network->{disabled} and next;
         my $net_owner = $network->{owner} || '';
         for my $host (@{ $network->{hosts} }) {
             my $owner = $host->{owner} or next;
             if ($owner ne $net_owner) {
                 $network->{part_owners}->{$owner} = $owner;
-#               Netspoc::debug "$network->{name} : $owner->{name}";
+#               debug "$network->{name} : $owner->{name}";
             }
         }
     }
 
     # Add owner and part_owner of network to enclosing aggregates,
     # networks and zone.
-    for my $network (values %Netspoc::networks) {
+    for my $network (values %networks) {
         $network->{disabled} and next;
         my @owners;
         if (my $hash = $network->{part_owners}) {
@@ -572,7 +567,7 @@ sub setup_part_owners {
             for my $owner (@owners) {
                 if ($owner ne $obj_owner) {
                     $obj->{part_owners}->{$owner} = $owner;
-#                   Netspoc::debug "$obj->{name} : $owner->{name}";
+#                   debug "$obj->{name} : $owner->{name}";
                 }
             }
         };            
@@ -585,7 +580,7 @@ sub setup_part_owners {
     }
 
     # Substitute hash by array in attribute {part_owners}.
-    for my $network (values %Netspoc::networks) {
+    for my $network (values %networks) {
         $network->{disabled} and next;
         if (my $hash = $network->{part_owners}) {
             $network->{part_owners} = [ values %$hash ];
@@ -611,11 +606,11 @@ sub setup_part_owners {
 my $master_owner;
 
 sub find_master_owner {
-    for my $owner (values %Netspoc::owners) {
+    for my $owner (values %owners) {
         if ($owner->{show_all}) {
             (my $name = $owner->{name}) =~ s/^owner://;
             $master_owner = $name;
-            Netspoc::progress("Found master owner: $name");
+            progress("Found master owner: $name");
             last;
         }
     }
@@ -629,9 +624,9 @@ sub find_master_owner {
 ######################################################################
 
 sub export_no_nat_set {
-    Netspoc::progress("Export no-NAT-sets");
+    progress("Export no-NAT-sets");
     my %owner2net;
-    for my $network (values %Netspoc::networks) {
+    for my $network (values %networks) {
         $network->{disabled} and next;
         for my $owner_name 
             (owner_for_object($network), 
@@ -644,7 +639,7 @@ sub export_no_nat_set {
     }
     my %owner2no_nat_set;
     my %all_nat_tags;
-    $owner2net{$_} ||= {} for keys %Netspoc::owners;
+    $owner2net{$_} ||= {} for keys %owners;
     for my $owner_name (sort keys %owner2net) {
         my %nat_domains;
         for my $network (values %{ $owner2net{$owner_name} }) {
@@ -670,7 +665,7 @@ sub export_no_nat_set {
         # Build union of no_nat_sets
         my $no_nat_set = [ sort(unique(map { keys(%{ $_->{no_nat_set} }) } 
                                            @nat_domains)) ];
-#       Netspoc::debug "$owner_name: ", join(',', sort @$no_nat_set);
+#       debug "$owner_name: ", join(',', sort @$no_nat_set);
         $owner2no_nat_set{$owner_name} = $no_nat_set;
         @all_nat_tags{@$no_nat_set} = @$no_nat_set;
     }
@@ -702,7 +697,7 @@ sub add_subnetworks {
 }
 
 sub export_assets {
-    Netspoc::progress("Export assets");
+    progress("Export assets");
     my %result;
 
     my $export_networks = sub {
@@ -759,12 +754,12 @@ sub export_assets {
         # Zone with network 0/0 doesn't have an aggregate 0/0.
         my $any = $zone->{ipmask2aggregate}->{'0/0'};
         my $zone_name = $any ? $any->{name} : $zone->{name};
-#        Netspoc::debug "$zone_name";
+#        debug "$zone_name";
         my $networks = add_subnetworks($zone->{networks});
         for my $owner (owner_for_object($zone), 
                        extended_owners_for_object($zone))
         {
-#            Netspoc::debug "- $_->{name}" for @$own_networks;
+#            debug "- $_->{name}" for @$own_networks;
             $add_networks_hash->(
                 $owner, 
                 $zone_name, 
@@ -778,7 +773,7 @@ sub export_assets {
                   { grep({ $owner eq $_ } 
                          owner_for_object($_), part_owners_for_object($_)) }
                   @$networks ];
-#            Netspoc::debug "- $_->{name}" for @$own_networks;
+#            debug "- $_->{name}" for @$own_networks;
             $add_networks_hash->(
                 $owner, 
                 $zone_name, 
@@ -792,7 +787,7 @@ sub export_assets {
         }
     }
 
-    $result{$_} ||= {} for keys %Netspoc::owners;
+    $result{$_} ||= {} for keys %owners;
     for my $owner (keys %result) {
         my $hash = $result{$owner};
         create_dirs("owner/$owner");
@@ -806,10 +801,10 @@ sub export_assets {
 ####################################################################
 
 sub export_services {
-    Netspoc::progress("Export services");
+    progress("Export services");
     my %shash;
     my %owner2type2shash;
-    for my $service (sort by_name values %Netspoc::services) {
+    for my $service (sort by_name values %services) {
         next if $service->{disabled};
         if ($master_owner) {
             $owner2type2shash{$master_owner}->{owner}->{$service} = $service;
@@ -829,7 +824,7 @@ sub export_services {
                 $owner2type2shash{$owner}->{user}->{$service} = $service;
             }
         }
-        for my $owner (keys %Netspoc::owners) {
+        for my $owner (keys %owners) {
             if (not ($owner2type2shash{$owner}->{owner}->{$service} or 
                      $owner2type2shash{$owner}->{user}->{$service})) 
             {
@@ -869,10 +864,10 @@ sub export_services {
     }
     export("services", \%shash);
 
-    Netspoc::progress("Export users and service_lists");
+    progress("Export users and service_lists");
 
     # Create file even for owner having no service at all.
-    $owner2type2shash{$_} ||= {} for keys %Netspoc::owners;
+    $owner2type2shash{$_} ||= {} for keys %owners;
     for my $owner (sort keys %owner2type2shash) {
         my $type2shash = $owner2type2shash{$owner} || {};
         my %type2snames;
@@ -934,12 +929,12 @@ sub zone_and_subnet {
     my $any = $zone->{ipmask2aggregate}->{'0/0'};
     my $zone_name = $any ? $any->{name} : $zone->{name};
     my $is_supernet = $obj->{is_supernet};
-#    Netspoc::debug "$obj->{name} $zone_name";
+#    debug "$obj->{name} $zone_name";
     return (zone => $zone_name, $is_supernet ? (is_supernet => 1) : () );
 }
 
 sub export_objects {
-    Netspoc::progress("Export objects");
+    progress("Export objects");
     my %objects = map { 
         $_->{name} => { 
 
@@ -963,10 +958,10 @@ sub export_objects {
 ####################################################################
 
 sub export_owners {
-    Netspoc::progress("Export owners");
+    progress("Export owners");
     my %email2owners;
-    for my $name ( keys %Netspoc::owners ) {
-        my $owner = $Netspoc::owners{$name};
+    for my $name ( keys %owners ) {
+        my $owner = $owners{$name};
         my @emails;
         my @watchers;
         my @e_owners;
@@ -988,7 +983,7 @@ sub export_owners {
         # Add master owner to owners not already extended_by, 
         # i.e. sub_owner.
         if ($master_owner && $name ne $master_owner) {
-            my $m_owner = $Netspoc::owners{$master_owner};
+            my $m_owner = $owners{$master_owner};
             if (!grep { $_ eq $m_owner } @$extended) {
                 push @$extended, $m_owner;
             }
@@ -1017,8 +1012,8 @@ sub export_owners {
     export("email", \%email2owners);
 
     my %owner2alias;
-    for my $name (keys %Netspoc::owners) {
-        my $owner = $Netspoc::owners{$name};
+    for my $name (keys %owners) {
+        my $owner = $owners{$name};
         if (my $alias = $owner->{alias}) {
             $owner2alias{$name} = $alias;
         }
@@ -1039,20 +1034,20 @@ sub copy_policy_file {
 ####################################################################
 # Initialize Netspoc data
 ####################################################################
-Netspoc::set_config({time_stamps => 1, max_errors => 9999, verbose => !$quiet});
+set_config({time_stamps => 1, max_errors => 9999, verbose => !$quiet});
 
 # Set global config variable of Netspoc to store attribute 'description'.
-Netspoc::store_description(1);
-Netspoc::read_file_or_dir($netspoc_data);
-Netspoc::order_protocols();
-Netspoc::link_topology();
-Netspoc::mark_disabled();
-Netspoc::set_zone();
-Netspoc::distribute_nat_info();
-Netspoc::setpath();
-Netspoc::find_subnets_in_zone();
-Netspoc::set_service_owner();
-Netspoc::find_subnets_in_nat_domain();
+store_description(1);
+read_file_or_dir($netspoc_data);
+order_protocols();
+link_topology();
+mark_disabled();
+set_zone();
+distribute_nat_info();
+setpath();
+find_subnets_in_zone();
+set_service_owner();
+find_subnets_in_nat_domain();
 setup_zones();
 setup_part_owners();
 setup_service_info();
@@ -1068,4 +1063,4 @@ export_services();
 export_objects();
 export_no_nat_set();
 copy_policy_file();
-Netspoc::progress("Ready");
+progress("Ready");
