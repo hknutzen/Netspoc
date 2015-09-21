@@ -10591,7 +10591,7 @@ sub traverse_loop_part {
     # Mark current node ($obj) as member of partition.
     $obj->{reachable_part}->{$mark} = 1;
 
-    debug "$obj->{name} in loop part $mark";
+#    debug "$obj->{name} in loop part $mark";
 
     # Proceed pathwalk with adjacent objects.
     for my $interface (@{ $obj->{interfaces} }) {
