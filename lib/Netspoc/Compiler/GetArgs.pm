@@ -218,27 +218,27 @@ sub parse_args {
 # Read key value pairs from file '$path/config' if file exists.
 sub read_config {
     my ($dir) = @_;
+    $dir or return {};
     my $file = "$dir/config";
-    my %result;
+    -f $file and -r $file or return {};
 
-    if (-f $file and -r $file) {
-        my $lines = read_file_lines($file);
-        for my $line (@$lines) {
-            chomp $line;
-            $line =~ /^\s*#/ and next;
-            $line =~ /^\s*$/ and next;
-            if (my ($key, $val) = ($line =~ /\s* (\w+) \s* = \s* (\w+) ;/x)) {
-                valid_config_key($key) or 
-                    die("Invalid keyword in $file: $key\n");
-                if (my $expected = check_config_pair($key, $val)) {
-                    die("Invalid value for $key in $file,",
-                        " expected '$expected'\n");
-                }
-                $result{$key} = $val;
+    my %result;
+    my $lines = read_file_lines($file);
+    for my $line (@$lines) {
+        chomp $line;
+        $line =~ /^\s*#/ and next;
+        $line =~ /^\s*$/ and next;
+        if (my ($key, $val) = ($line =~ /\s* (\w+) \s* = \s* (\w+) ;/x)) {
+            valid_config_key($key) or 
+                die("Invalid keyword in $file: $key\n");
+            if (my $expected = check_config_pair($key, $val)) {
+                die("Invalid value for $key in $file,",
+                    " expected '$expected'\n");
             }
-            else {
-                die("Unexpected line in $file: $line\n");
-            }
+            $result{$key} = $val;
+        }
+        else {
+            die("Unexpected line in $file: $line\n");
         }
     }
     return \%result;
