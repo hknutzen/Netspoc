@@ -138,7 +138,7 @@ our @EXPORT = qw(
   check_output_dir
   address
   print_code
-  compile );
+);
 
 # Modified only by sub store_description.
 my $new_store_description;
@@ -18161,7 +18161,7 @@ sub init_global_vars {
 # Call again, before different input is processed by same instance.
 init_global_vars();
 
-sub compile {
+sub pass1 {
     my ($args) = @_;
 
     my ($in_path, $out_dir);
