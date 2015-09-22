@@ -26,7 +26,7 @@ sub test_group {
     open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
     # Undef input record separator to read all output at once.
-    $/ = undef;
+    local $/ = undef;
     my $output = <$out_fh>;
     close($out_fh) or die "Syserr closing pipe from $cmd: $!\n";
     eq_or_diff($output, $expected, $title);

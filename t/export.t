@@ -37,7 +37,7 @@ sub test_run {
     }
     
     # Undef input record separator to read all output at once.
-    $/ = undef;
+    local $/ = undef;
 
     while (@expected) {
         my $fname = shift @expected;

@@ -10,9 +10,13 @@ our @EXPORT = qw(test_run test_err);
 use Test::More;
 use Test::Differences;
 use IPC::Run3;
+use Capture::Tiny 'capture_stderr';
 use File::Temp qw/ tempfile tempdir /;
 use File::Spec::Functions qw/ file_name_is_absolute splitpath catdir catfile /;
 use File::Path 'make_path';
+use lib 'lib';
+use Netspoc::Compiler::Pass1;
+use Netspoc::Compiler::Pass2;
 
 my $default_options = '-quiet';
 
@@ -59,23 +63,33 @@ sub run {
     $perl_opt .= ' -I lib';
 
     # Prepare arguments for pass 1.
-    my $pass1 = "$^X $perl_opt bin/spoc1 $default_options $options $in_dir";
-    $pass1 .= " $out_dir" if $out_dir;
-    my ($stdout, $stderr);
+    my $args = [ split(' ', $default_options),
+                 split(' ', $options),
+                 $in_dir ];
+    push @$args, $out_dir if $out_dir;
 
-    # Run pass1, collect STDOUT and STDERR.
-    run3($pass1, \undef, \$stdout, \$stderr);
-    my $success = ($? == 0);
+    # Compile, capture STDERR, catch errors.
+    my ($stderr, $success) = 
+        capture_stderr {
+            my $result;
+            eval {
 
-    # Run pass 2
-    if ($out_dir and $success) {
-        (my $pass2 = $pass1) =~ s/spoc1/spoc2/;
-        my ($stdout2, $stderr2);
-        run3($pass2, \undef, \$stdout2, \$stderr2);
-        $success = ($? == 0);
-        $stdout .= $stdout2;
-        $stderr .= $stderr2;
-    }
+                # Global variables are initialized already when
+                # Pass1.pm is loaded, but re-initialization is
+                # needed for multiple compiler runs.
+                Netspoc::Compiler::Pass1::init_global_vars();
+
+                # Copy unchanged arguments.
+                my $args2 = [ @$args ];
+                Netspoc::Compiler::Pass1::pass1($args);
+                Netspoc::Compiler::Pass2::pass2($args2);
+                $result = 1;
+            };
+            if($@) {
+                warn $@; 
+            };
+            $result;
+    };
 
     return($stderr, $success, $in_dir);
 }
@@ -140,7 +154,7 @@ sub test_run {
     my $dir = compile($in, $options);
 
     # Undef input record separator to read all output at once.
-    $/ = undef;
+    local $/ = undef;
 
     # Blocks of expected output are split by single lines of dashes,
     # followed by an optional device name.
