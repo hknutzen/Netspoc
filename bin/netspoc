@@ -1,14 +1,4 @@
 #!/bin/sh
 
-set -e
-
-error () { echo "Error: $1" >&2; exit 1; }
-status () { echo "$1" >&2; }
-
-out_dir=$(spoc1 "$@")
-[ $out_dir ] || exit
-
-#count=$(ls *.config|wc -l)
-#status "Processing code for $count devices"
-spoc2 $out_dir
-#status Finished
+spoc1 "$@" && 
+spoc2 "$@"

@@ -29,103 +29,15 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 use strict;
 use warnings;
 use JSON;
-use Pod::Usage;
 use File::Basename;
-use Getopt::Long qw(GetOptionsFromArray);
-use Pod::Usage;
+use Netspoc::Compiler::GetArgs qw(get_args);
+use Netspoc::Compiler::File;
+use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 
 # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
-
-our %config = ( verbose => 1, );
-
-sub fatal_err {
-    my (@args) = @_;
-    print STDERR "Error: ", @args, "\n";
-    die "Aborted\n";
-}
-
-sub debug {
-    return if not $config{verbose};
-    print STDERR @_, "\n";
-    return;
-}
-
-sub info {
-    return if not $config{verbose};
-    print STDERR @_, "\n";
-    return;
-}
-
-sub numerically { return $a <=> $b }
-
-sub read_file {
-    my ($path) = @_;
-    open(my $fh, '<', $path) or fatal_err("Can't open $path");
-    my $data;
-    {
-        local $/ = undef;
-        $data = <$fh>;
-    }
-    close($fh);
-    return $data;
-}
-
-sub read_file_lines {
-    my ($path) = @_;
-    open(my $fh, '<', $path) or fatal_err("Can't open $path");
-    my @lines = <$fh>;
-    close($fh);
-    return \@lines;
-}
-
-sub ip2int {
-    my ($ip) = @_;
-    my ($i1,$i2,$i3,$i4) = split '\.', $ip;
-    return ((((($i1<<8)+$i2)<<8)+$i3)<<8)+$i4;
-}
-
-sub int2ip {
-    my ($int) = @_;
-    return sprintf "%vd", pack 'N', $int;
-}
-
-sub complement_32bit {
-    my ($ip) = @_;
-    return ~$ip & 0xffffffff;
-}
-
-# Conversion from netmask to prefix and vice versa.
-{
-
-    # Initialize private variables of this block.
-    my %mask2prefix;
-    my %prefix2mask;
-    for my $prefix (0 .. 32) {
-        my $mask = 2**32 - 2**(32 - $prefix);
-        $mask2prefix{$mask}   = $prefix;
-        $prefix2mask{$prefix} = $mask;
-    }
-
-    # Convert a network mask to a prefix ranging from 0 to 32.
-    sub mask2prefix {
-        my $mask = shift;
-        return $mask2prefix{$mask};
-    }
-
-    sub prefix2mask {
-        my $prefix = shift;
-        return $prefix2mask{$prefix};
-    }
-}
-
-# Check if $ip1 is located inside network $ip/$mask.
-sub match_ip {
-    my ($ip1, $ip, $mask) = @_;
-    return ($ip == ($ip1 & $mask));
-}
 
 sub create_ip_obj {
     my ($ip_net) = @_;
@@ -2189,61 +2101,44 @@ sub print_combined {
 # Check if identical files with extension .config and .rules
 # exist in directory .prev/ .
 sub check_prev {
-    my ($base_path) = @_;
-    -f ".prev/$base_path" or return;
-    for my $ext (qw(.config .rules)) {
-        my $path = "$base_path$ext";
-        my $prev_path = ".prev/$path";
-        -f $prev_path or return;
-        system("cmp -s $path $prev_path") == 0 or return;
+    my ($code_file, $prev_file) = @_;
+    -f "$prev_file" or return;
+    for my $ext (qw(config rules)) {
+        my $pass1name = "$code_file.$ext";
+        my $pass1prev = "$prev_file.$ext";
+        -f $pass1prev or return;
+        system("cmp -s $pass1name $pass1prev") == 0 or return;
     }
     return 1;        
-}
-
-sub parse_options {
-    my ($args) = @_;
-    my %options;
-    $options{quiet} = sub { $config{verbose} = 0 };
-    $options{'help|?'} = sub { pod2usage(1) };
-    $options{man} = sub { pod2usage(-exitstatus => 0, -verbose => 2) };
-
-    if (!GetOptionsFromArray($args, %options)) {
-
-        # Don't use 'exit' but 'die', so we can catch this error in tests.
-        my $out;
-        open(my $fh, '>', \$out) or die $!;
-        pod2usage(-exitstatus => 'NOEXIT', -verbose => 0, -output => $fh);
-        close $fh;
-        die($out || '');
-    }
-
-    return;
 }
 
 # Generate code files from *.config and *.rules files.
 sub pass2 {
     my ($args) = @_;
-    parse_options($args);
-    my ($dir, @extra) = @$args;
-    ($dir and not @extra) or pod2usage(2);
-    chdir $dir or fatal_err("Can't chdir to '$dir': $!");
-    my $has_prev = -d '.prev';
-    my @pass1_list = map { basename($_, '.config') } glob('*.config');
+
+    ($config, undef, my $dir) = get_args($args);
+    return if not $dir;
+
+    my $prev = "$dir/.prev";
+    my $has_prev = -d $prev;
+    my @pass1_base = map { basename($_, '.config') } glob("$dir/*.config");
     my @pass2_list;
 
-    my $count = @pass1_list;
+    my $count = @pass1_base;
     info("Starting second pass");
     my $reused;
-    for my $base_path (@pass1_list) {
+    for my $basename (@pass1_base) {
+        my $code_file = "$dir/$basename";
+        my $prev_file = "$prev/$basename";
 
         # Try to reuse prevously generated code file.
-        if ($has_prev and check_prev($base_path) and
-            system("cp -p .prev/$base_path $base_path") == 0)
+        if ($has_prev and check_prev($code_file, $prev_file) and
+            system("cp -p $prev_file $code_file") == 0)
         {
             $reused++;
             next;
         }
-        push @pass2_list, $base_path;
+        push @pass2_list, $code_file;
     }
     if ($reused) {
         info("Reusing $reused files from previous run");
@@ -2252,19 +2147,19 @@ sub pass2 {
     # Generate new code files.
     if ($count = @pass2_list) {
         info("Generating optimized code for $count devices");
-        for my $base_path (@pass2_list) {
-            my $config_path = "$base_path.config";
-            my $rules_path  = "$base_path.rules";
-            my $router_data = prepare_acls($rules_path);
-            my $config = read_file_lines($config_path);
-            print_combined($config, $router_data, $base_path);
+        for my $file (@pass2_list) {
+            my $router_data = prepare_acls("$file.rules");
+            my $config = read_file_lines("$file.config");
+            print_combined($config, $router_data, $file);
         }
     }
 
     # Remove directory '.prev', if created by pass1.
     # Don't remove if '.prev' is symlink created by newpolicy.pl.
-    if ($has_prev and not -l '.prev') {
-        system("rm -rf .prev") == 0 or
-            fatal_err("Can't remove $dir/.prev: $!");
+    if ($has_prev and not -l $prev) {
+        system("rm -rf $prev") == 0 or
+            fatal_err("Can't remove $prev: $!");
     }
 }
+
+1;

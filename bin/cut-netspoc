@@ -58,6 +58,8 @@ use strict;
 use warnings;
 use Getopt::Long;
 use Pod::Usage;
+use Netspoc::Compiler::GetArgs qw(read_config combine_config);
+use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use locale;
 
@@ -196,7 +198,7 @@ sub get_zones {
 ####################################################################
 
 my $file_config = &read_config($path);
-set_config($file_config, 
+$config = combine_config($file_config, 
                     {time_stamps => 1, max_errors => 9999, verbose => !$quiet});
 &show_version();
 

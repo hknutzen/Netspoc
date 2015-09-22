@@ -29,6 +29,8 @@ use warnings;
 use Getopt::Long;
 use File::Path 'make_path';
 use JSON;
+use Netspoc::Compiler::GetArgs qw(read_config combine_config);
+use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use open qw(:std :utf8);
 
@@ -1034,7 +1036,8 @@ sub copy_policy_file {
 ####################################################################
 # Initialize Netspoc data
 ####################################################################
-set_config({time_stamps => 1, max_errors => 9999, verbose => !$quiet});
+$config = 
+    combine_config({time_stamps => 1, max_errors => 9999, verbose => !$quiet});
 
 # Set global config variable of Netspoc to store attribute 'description'.
 store_description(1);

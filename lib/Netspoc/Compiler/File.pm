@@ -1,30 +1,8 @@
-#!/usr/bin/perl
+package Netspoc::Compiler::File;
 
 =head1 NAME
 
-spoc2 - Optimizing second pass of Netspoc
-
-=head1 SYNOPSIS
-
-spoc2 [options] in-file-or-directory CODE-DIR
-
-=head1 OPTIONS
-
-See options of program 'netspoc'.
-
-=back
-
-=head1 DESCRIPTION
-
-Generate code files from intermediate files in CODE-DIR.
-Reads files X.rules and X.config and writes file X.
-
-X.rules file contains rules in device independent format.
-X.config file is incomplete device configuration.
-
-Optimize rules and generate access-lists in device specific format.
-Combine imcomplete device configuration with access-lists into complete
-device configuration.
+File operations
 
 =head1 COPYRIGHT AND DISCLAIMER
 
@@ -50,10 +28,29 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 use strict;
 use warnings;
-use Netspoc::Compiler::Pass2;
 
-# VERSION: inserted by DZP::OurPkgVersion
-my $program = 'Netspoc';
-my $version = __PACKAGE__->VERSION || 'devel';
+use Exporter;
+our @ISA    = qw(Exporter);
+our @EXPORT = qw(read_file read_file_lines);
 
-Netspoc::Compiler::Pass2::pass2(\@ARGV);
+sub read_file {
+    my ($path) = @_;
+    open(my $fh, '<', $path) or die("Can't open $path: $!\n");
+    my $data;
+    {
+        local $/ = undef;
+        $data = <$fh>;
+    }
+    close($fh);
+    return $data;
+}
+
+sub read_file_lines {
+    my ($path) = @_;
+    open(my $fh, '<', $path) or die("Can't open $path: $!\n");
+    my @lines = <$fh>;
+    close($fh);
+    return \@lines;
+}
+
+1;

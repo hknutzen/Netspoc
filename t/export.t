@@ -23,7 +23,7 @@ sub test_run {
         return '';
     }
     if ($stderr) {
-        BAIL_OUT("Unexpected output on STDERR:\n$stderr\n");
+        print STDERR "Unexpected output on STDERR:\n$stderr\n";
         return;
     }
 

@@ -69,7 +69,7 @@ sub run {
 
     # Run pass 2
     if ($out_dir and $success) {
-        my $pass2 = "$^X $perl_opt bin/spoc2 $default_options $out_dir";
+        (my $pass2 = $pass1) =~ s/spoc1/spoc2/;
         my ($stdout2, $stderr2);
         run3($pass2, \undef, \$stdout2, \$stderr2);
         $success = ($? == 0);

@@ -62,6 +62,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 use strict;
 use warnings;
+use Netspoc::Compiler::GetArgs qw(read_config combine_config);
+use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Getopt::Long;
 use open qw(:std :utf8);
@@ -133,7 +135,7 @@ my ($in_path) = @ARGV;
 
 # Process required netspoc steps.
 my $file_config = &read_config($in_path);
-&set_config($file_config, { verbose => !$quiet });
+$config = combine_config($file_config, { verbose => !$quiet });
 &read_file_or_dir($in_path, \&read_input);#skip rule related infos
 &show_read_statistics;
 &link_topology();

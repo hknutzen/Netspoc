@@ -64,6 +64,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 use strict;
 use warnings;
 use open qw(:std :utf8);
+use Netspoc::Compiler::GetArgs qw(read_config combine_config);
+use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Getopt::Long;
 use Pod::Usage;
@@ -146,7 +148,7 @@ sub prt_info {
 ####################################################################
 
 my $file_config = &read_config($in_path);
-&set_config($file_config, { verbose => !$quiet });
+$config = combine_config($file_config, { verbose => !$quiet });
 
 # Read and process Netspoc configuration file or directory.
 &read_file_or_dir($in_path);

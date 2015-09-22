@@ -29,6 +29,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 use strict;
 use warnings;
 use JSON;
+use Netspoc::Compiler::GetArgs qw(get_args);
+use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
@@ -64,11 +66,6 @@ our @EXPORT = qw(
   $error_counter
   store_description
   fast_mode
-  get_config_keys
-  get_config_pattern
-  check_config_pair
-  read_config
-  set_config
   *info
   debug
   progress
@@ -142,128 +139,6 @@ our @EXPORT = qw(
   address
   print_code
   compile );
-
-####################################################################
-# User configurable options.
-####################################################################
-
-# Valid values:
-# - Default: 0|1
-# - Option with name "check_*": 0,1,'warn'
-#  - 0: no check
-#  - 1: throw an error if check fails
-#  - warn: print warning if check fails
-# - Option with name "max_*": integer
-# Other: string
-our %config = (
-
-# Check for unused groups and protocolgroups.
-    check_unused_groups => 'warn',
-
-# Check for unused protocol definitions.
-    check_unused_protocols => 0,
-
-# Allow subnets only
-# - if the enclosing network is marked as 'has_subnets' or
-# - if the subnet is marked as 'subnet_of'
-    check_subnets => 'warn',
-
-# Check for unenforceable rules, i.e. no managed device between src and dst.
-    check_unenforceable => 'warn',
-
-# Check for duplicate rules.
-    check_duplicate_rules => 'warn',
-
-# Check for redundant rules.
-    check_redundant_rules => 'warn',
-
-# Check for services where owner can't be derived.
-    check_service_unknown_owner => 0,
-
-# Check for services where multiple owners have been derived.
-    check_service_multi_owner => 'warn',
-
-# Check for missing supernet rules.
-    check_supernet_rules => 'warn',
-
-# Check for transient supernet rules.
-    check_transient_supernet_rules => 'warn',
-
-# Optimize the number of routing entries per router:
-# For each router find the hop, where the largest
-# number of routing entries points to
-# and replace them with a single default route.
-# This is only applicable for internal networks
-# which have no default route to the internet.
-    auto_default_route => 1,
-
-# Ignore these names when reading directories:
-# - CVS and RCS directories
-# - CVS working files
-# - Editor backup files: emacs: *~
-    ignore_files => '^(CVS|RCS|\.#.*|.*~)$',
-
-# Abort after this many errors.
-    max_errors => 10,
-
-# Print progress messages.
-    verbose => 1,
-
-# Print progress messages with time stamps.
-# Print "finished" with time stamp when finished.
-    time_stamps => 0,
-);
-
-# Valid values for config options in %config.
-# Key is prefix or string "default".
-# Value is pattern for checking valid values.
-our %config_type = (
-    check_   => '0|1|warn',
-    max_     => '\d+',
-    ignore_  => '\S+',
-    _default => '0|1',
-);
-
-sub get_config_keys {
-    return keys %config;
-}
-
-sub valid_config_key {
-    my ($key) = @_;
-    return exists $config{$key};
-}
-
-sub get_config_pattern {
-    my ($key) = @_;
-    my $pattern;
-    for my $prefix (keys %config_type) {
-        if ($key =~ /^$prefix/) {
-            $pattern = $config_type{$prefix};
-            last;
-        }
-    }
-    return $pattern || $config_type{_default};
-}
-
-# Checks for valid config key/value pair.
-# Returns false on success, the expected pattern on failure.
-sub check_config_pair {
-    my ($key, $value) = @_;
-    my $pattern = get_config_pattern($key);
-    return ($value =~ /^($pattern)$/ ? undef : $pattern);
-}
-
-# Set %config with pairs from one or more hashrefs.
-# Rightmost hash overrides previous values with same key.
-sub set_config {
-    my (@hrefs) = @_;
-    for my $href (@hrefs) {
-        while (my ($key, $val) = each %$href) {
-            $config{$key} = $val;
-        }
-    }
-    return;
-}
 
 # Modified only by sub store_description.
 my $new_store_description;
@@ -501,15 +376,9 @@ sub keys_eq {
 
 my $start_time;
 
-sub info {
-    return if not $config{verbose};
-    print STDERR @_, "\n";
-    return;
-}
-
 sub progress {
-    return if not $config{verbose};
-    if ($config{time_stamps}) {
+    return if not $config->{verbose};
+    if ($config->{time_stamps}) {
         my $diff = time() - $start_time;
         printf STDERR "%3ds ", $diff;
     }
@@ -522,11 +391,6 @@ sub warn_msg {
     return;
 }
 
-sub debug {
-    return if not $config{verbose};
-    print STDERR @_, "\n";
-    return;
-}
 ## use critic
 
 # Name of current input file.
@@ -566,7 +430,7 @@ our $abort_immediately;
 
 sub check_abort {
     $error_counter++;
-    if ($error_counter == $config{max_errors}) {
+    if ($error_counter == $config->{max_errors}) {
         die "Aborted after $error_counter errors\n";
     }
     elsif ($abort_immediately) {
@@ -596,12 +460,6 @@ sub err_msg {
     print STDERR "Error: ", @args, "\n";
     check_abort();
     return;
-}
-
-sub fatal_err {
-    my (@args) = @_;
-    print STDERR "Error: ", @args, "\n";
-    die "Aborted\n";
 }
 
 sub syntax_err {
@@ -726,41 +584,6 @@ sub gen_ip {
 sub print_ip {
     my $ip = shift;
     return sprintf "%vd", pack 'N', $ip;
-}
-
-# Conversion from netmask to prefix and vice versa.
-{
-
-    # Initialize private variables of this block.
-    my %mask2prefix;
-    my %prefix2mask;
-    for my $prefix (0 .. 32) {
-        my $mask = 2**32 - 2**(32 - $prefix);
-        $mask2prefix{$mask}   = $prefix;
-        $prefix2mask{$prefix} = $mask;
-    }
-
-    # Convert a network mask to a prefix ranging from 0 to 32.
-    sub mask2prefix {
-        my $mask = shift;
-        return $mask2prefix{$mask};
-    }
-
-    sub prefix2mask {
-        my $prefix = shift;
-        return $prefix2mask{$prefix};
-    }
-}
-
-sub complement_32bit {
-    my ($ip) = @_;
-    return ~$ip & 0xffffffff;
-}
-
-# Check if $ip1 is located inside network $ip/$mask.
-sub match_ip {
-    my ($ip1, $ip, $mask) = @_;
-    return ($ip == ($ip1 & $mask));
 }
 
 sub read_identifier {
@@ -3475,33 +3298,6 @@ sub read_file {
     return;
 }
 
-# Try to read file 'config' in toplevel directory $path.
-sub read_config {
-    my ($path) = @_;
-    my %result;
-    my $read_config_data = sub {
-        my $key = read_identifier();
-        valid_config_key($key) or syntax_err("Invalid keyword");
-        skip('=');
-        my $val = read_identifier;
-        if (my $expected = check_config_pair($key, $val)) {
-            syntax_err("Expected value matching '$expected'");
-        }
-        skip(';');
-        $result{$key} = $val;
-    };
-
-    if (defined $path && -d $path) {
-        opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
-        if (grep { $_ eq 'config' } readdir $dh) {
-            $path = "$path/config";
-            read_file $path, $read_config_data;
-        }
-        closedir $dh;
-    }
-    return \%result;
-}
-
 sub read_json_watchers {
     my ($path) = @_;
     opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
@@ -3509,14 +3305,14 @@ sub read_json_watchers {
     closedir $dh;
     for my $owner_name (@files) {
         next if $owner_name =~ /^\./;
-        next if $owner_name =~ m/$config{ignore_files}/o;
+        next if $owner_name =~ m/$config->{ignore_files}/o;
         my $path = "$path/$owner_name";
         opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
         my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
         closedir $dh;
         for my $file (@files) {
             next if $file =~ /^\./;
-            next if $file =~ m/$config{ignore_files}/o;
+            next if $file =~ m/$config->{ignore_files}/o;
             my $path = "$path/$file";
             if ($file ne 'watchers') {
                 err_msg("Ignoring $path");
@@ -3549,7 +3345,7 @@ sub read_json {
     closedir $dh;
     for my $file (@files) {
         next if $file =~ /^\./;
-        next if $file =~ m/$config{ignore_files}/o;
+        next if $file =~ m/$config->{ignore_files}/o;
         my $path = "$path/$file";
         if ($file ne 'owner') {
             err_msg("Ignoring $path");
@@ -3578,7 +3374,7 @@ sub read_file_or_dir {
             opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
             while (my $file = Encode::decode($filename_encode, readdir $dh)) {
                 next if $file =~ /^\./;
-                next if $file =~ m/$config{ignore_files}/o;
+                next if $file =~ m/$config->{ignore_files}/o;
                 my $path = "$path/$file";
                 $read_nested_files->($path, $read_syntax);
             }
@@ -3622,7 +3418,7 @@ sub read_file_or_dir {
     for my $file (@files) {
 
         next if $file =~ /^\./;
-        next if $file =~ m/$config{ignore_files}/o;
+        next if $file =~ m/$config->{ignore_files}/o;
 
         # Ignore special files/directories.
         next if $file =~ /^(config|raw|JSON)$/;
@@ -6219,12 +6015,12 @@ sub check_unused_groups {
             $print->("unused $value->{name}");
         }
     };
-    if (my $conf = $config{check_unused_groups}) {
+    if (my $conf = $config->{check_unused_groups}) {
         for my $hash (\%groups, \%protocolgroups) {
             $check->($hash, $conf);
         }
     }
-    if (my $conf = $config{check_unused_protocols}) {
+    if (my $conf = $config->{check_unused_protocols}) {
         for my $hash (\%protocols) {
             $check->($hash, $conf);
         }
@@ -6626,10 +6422,10 @@ sub show_unenforceable {
     {
         warn_msg("Useless attribute 'has_unenforceable' at $context");
     }
-    return if !$config{check_unenforceable};
+    return if !$config->{check_unenforceable};
     return if $service->{disabled};
 
-    my $print = $config{check_unenforceable} eq 'warn' ? \&warn_msg : \&err_msg;
+    my $print = $config->{check_unenforceable} eq 'warn' ? \&warn_msg : \&err_msg;
 
     # Warning about fully unenforceable service can't be disabled with
     # attribute has_unenforceable.
@@ -6706,7 +6502,7 @@ sub show_deleted_rules1 {
         $ofile =~ s/.*?([^\/]+)$/$1/;
         push(@{ $sname2oname2deleted{$sname}->{$oname} }, $rule);
     }
-    if (my $action = $config{check_duplicate_rules}) {
+    if (my $action = $config->{check_duplicate_rules}) {
         my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
         for my $sname (sort keys %sname2oname2deleted) {
             my $hash = $sname2oname2deleted{$sname};
@@ -6784,7 +6580,7 @@ sub show_deleted_rules2 {
         $ofile =~ s/.*?([^\/]+)$/$1/;
         push(@{ $sname2oname2deleted{$sname}->{$oname} }, [ $rule, $other ]);
     }
-    if (my $action = $config{check_redundant_rules}) {
+    if (my $action = $config->{check_redundant_rules}) {
         my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
         for my $sname (sort keys %sname2oname2deleted) {
             my $hash = $sname2oname2deleted{$sname};
@@ -7565,7 +7361,7 @@ sub show_unknown_owners {
         $polices = join(',', sort @$polices);
     }
     my $print =
-      $config{check_service_unknown_owner} eq 'warn'
+      $config->{check_service_unknown_owner} eq 'warn'
       ? \&warn_msg
       : \&err_msg;
   UNKNOWN:
@@ -7671,8 +7467,8 @@ sub set_service_owner {
             }
             else {
                 my $print =
-                    $config{check_service_multi_owner}
-                  ? $config{check_service_multi_owner} eq 'warn'
+                    $config->{check_service_multi_owner}
+                  ? $config->{check_service_multi_owner} eq 'warn'
                       ? \&warn_msg
                       : \&err_msg
                   : sub { };
@@ -7691,7 +7487,7 @@ sub set_service_owner {
                 warn_msg("Useless use of attribute 'unknown_owner' at $sname");
             }
             else {
-                if ($config{check_service_unknown_owner}) {
+                if ($config->{check_service_unknown_owner}) {
                     for my $obj (values %$unknown_owners) {
                         $unknown2unknown{$obj} = $obj;
                         push @{ $unknown2services{$obj} }, $sname;
@@ -8441,7 +8237,6 @@ sub nat_to_loopback_ok {
     return ($all_device_ok == $device_count);
 }
 
-sub numerically { return $a <=> $b }
 sub by_name     { return $a->{name} cmp $b->{name} }
 
 sub link_reroute_permit;
@@ -8855,7 +8650,7 @@ sub find_subnets_in_nat_domain {
                     }
                     $seen{$nat_bignet}->{$nat_subnet} = 1;
 
-                    if ($config{check_subnets}) {
+                    if ($config->{check_subnets}) {
 
                         # Take original $bignet, because currently
                         # there's no method to specify a natted network
@@ -8881,7 +8676,7 @@ sub find_subnets_in_nat_domain {
                               . " If desired, either declare attribute"
                               . " 'subnet_of' or attribute 'has_subnets'";
 
-                            if ($config{check_subnets} eq 'warn') {
+                            if ($config->{check_subnets} eq 'warn') {
                                 warn_msg($msg);
                             }
                             else {
@@ -13021,7 +12816,7 @@ sub check_supernet_in_zone {
     $rule = print_rule $rule;
     $reversed = $reversed ? 'reversed ' : '';
     my $print =
-      $config{check_supernet_rules} eq 'warn' ? \&warn_msg : \&err_msg;
+      $config->{check_supernet_rules} eq 'warn' ? \&warn_msg : \&err_msg;
     $print->(
         "Missing rule for ${reversed}supernet rule.\n",
         " $rule\n",
@@ -13530,7 +13325,7 @@ sub check_for_transient_supernet_rule {
     if ($missing_count) {
 
         my $print =
-          $config{check_transient_supernet_rules} eq 'warn'
+          $config->{check_transient_supernet_rules} eq 'warn'
           ? \&warn_msg
           : \&err_msg;
         $print->("Missing transient rules: $missing_count");
@@ -13626,14 +13421,14 @@ sub mark_stateful {
 
 sub check_supernet_rules {
     my @supernet_rules;
-    if (   $config{check_supernet_rules}
-        or $config{check_transient_supernet_rules})
+    if (   $config->{check_supernet_rules}
+        or $config->{check_transient_supernet_rules})
     {
         @supernet_rules = grep({ not $_->{deleted} and ($_->{src}->{is_supernet}
                     or $_->{dst}->{is_supernet}) }
             @{ $expanded_rules{permit} });
     }
-    if ($config{check_supernet_rules}) {
+    if ($config->{check_supernet_rules}) {
         my $count = @supernet_rules;
         progress("Checking $count rules with supernet objects");
         my $stateful_mark = 1;
@@ -13655,7 +13450,7 @@ sub check_supernet_rules {
         check_supernet_dst_collections();
         %missing_supernet = ();
     }
-    if ($config{check_transient_supernet_rules}) {
+    if ($config->{check_transient_supernet_rules}) {
         check_for_transient_supernet_rule(\@supernet_rules);
     }
 
@@ -15434,7 +15229,7 @@ sub print_routes {
     my $model                 = $router->{model};
     my $type                  = $model->{routing};
     my $vrf                   = $router->{vrf};
-    my $do_auto_default_route = $config{auto_default_route};
+    my $do_auto_default_route = $config->{auto_default_route};
     my $crypto_type = $model->{crypto} || '';
     my %intf2hop2nets;
     my @interfaces;
@@ -18173,7 +17968,7 @@ sub copy_raw {
     opendir(my $dh, $raw_dir) or fatal_err("Can't opendir $raw_dir: $!");
     while (my $file = Encode::decode($filename_encode, readdir $dh)) {
         next if $file =~ /^\./;
-        next if $file =~ m/$config{ignore_files}/o;
+        next if $file =~ m/$config->{ignore_files}/o;
 
         # Untaint $file.
         my ($raw_file) = ($file =~ /^(.*)/);
@@ -18199,7 +17994,7 @@ sub show_version {
 }
 
 sub show_finished {
-    progress('Finished') if $config{time_stamps};
+    progress('Finished') if $config->{time_stamps};
     return;
 }
 
@@ -18366,79 +18161,11 @@ sub init_global_vars {
 # Call again, before different input is processed by same instance.
 init_global_vars();
 
-####################################################################
-# Argument processing
-# Get option names from %config.
-# Write options back to %config.
-####################################################################
-
-use Getopt::Long qw(GetOptionsFromArray);
-use Pod::Usage;
-
-sub parse_options {
-    my ($args) = @_;
-    my %result;
-    my $setopt = sub {
-        my ($key, $val) = @_;
-        if (my $expected = check_config_pair($key, $val)) {
-            die "Value '$val' invalid for option $key ($expected expected)\n";
-        }
-        $result{$key} = $val;
-    };
-
-    my %options;
-    for my $key (get_config_keys()) {
-        my $opt = get_config_pattern($key) eq '0|1' ? '!' : '=s';
-        $options{"$key$opt"} = $setopt;
-    }
-    $options{quiet} = sub { $result{verbose} = 0 };
-    $options{'help|?'} = sub { pod2usage(1) };
-    $options{man} = sub { pod2usage(-exitstatus => 0, -verbose => 2) };
-
-    if (!GetOptionsFromArray($args, %options)) {
-
-        # Don't use 'exit' but 'die', so we can catch this error in tests.
-        my $out;
-        open(my $fh, '>', \$out) or die $!;
-        pod2usage(-exitstatus => 'NOEXIT', -verbose => 0, -output => $fh);
-        close $fh;
-        die($out || '');
-    }
-
-    return \%result;
-}
-
-sub parse_args {
-    my ($args) = @_;
-    my $main_file = shift @$args;
-
-    # Strip trailing slash for nicer messages.
-    defined $main_file and $main_file =~ s</$><>;
-
-    # $out_dir is used to store compilation results.
-    # For each managed router with name X a corresponding file X
-    # is created in $out_dir.
-    # If $out_dir is missing, all code is printed to STDOUT.
-    my $out_dir = shift @$args;
-
-    # Strip trailing slash for nicer messages.
-    defined $out_dir and $out_dir =~ s</$><>;
-
-    # No further arguments allowed.
-    @$args and pod2usage(2);
-    return ($main_file, $out_dir);
-}
-
 sub compile {
     my ($args) = @_;
 
-    my ($cmd_config) = &parse_options($args);
-    my ($in_path, $out_dir) = &parse_args($args);
-    my $file_config = &read_config($in_path);
-
-    # Command line options override options from 'config' file.
-    # Rightmost overrides.
-    &set_config($file_config, $cmd_config);
+    my ($in_path, $out_dir);
+    ($config, $in_path, $out_dir) = get_args($args);
 
     # Don't compile but check only for errors if no $out_dir is given.
     &fast_mode(!$out_dir);
@@ -18492,10 +18219,6 @@ sub compile {
     &set_abort_immediately();
     &rules_distribution();
     if ($out_dir) {
-
-        # Signal value to calling program.
-        print $out_dir;
-
         &print_code($out_dir);
         copy_raw($in_path, $out_dir);
     }
@@ -18504,8 +18227,3 @@ sub compile {
 }
 
 1;
-
-#  LocalWords:  Netspoc Knutzen internet CVS IOS iproute iptables STDERR Perl
-#  LocalWords:  netmask EOL ToDo IPSec unicast utf src dst ICMP IPs EIGRP
-#  LocalWords:  OSPF VRRP HSRP loop's ISAKMP stateful ACLs
-#  LocalWords:  STDOUT

@@ -95,7 +95,7 @@ If no 'out-directory' is given, no output is generated; only errors are checked.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2014 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
