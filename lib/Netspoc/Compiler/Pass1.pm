@@ -16369,7 +16369,7 @@ sub get_split_tunnel_nets {
         my $dst = $rule->{dst};
         my $dst_network = is_network($dst) ? $dst : $dst->{network};
 
-        # Dont add 'any' (resulting from global:permit)
+        # Don't add 'any' (resulting from global:permit)
         # to split_tunnel networks.
         next if $dst_network->{mask} == 0;
         $split_tunnel_nets{$dst_network} = $dst_network;
