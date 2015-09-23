@@ -967,11 +967,6 @@ sub check_assign_pair {
 # We use 'bless' only to give each structure a distinct type.
 ####################################################################
 
-# A hash, describing, which parts are read fom JSON.
-# Possible keys:
-# - watchers
-my $from_json;
-
 # Create a new structure of given type;
 # initialize it with key / value pairs.
 sub new {
@@ -3184,10 +3179,6 @@ sub read_owner {
             $owner->{admins} = \@admins;
         }
         elsif (my @watchers = check_assign_list('watchers', \&read_name)) {
-            if ($from_json->{watchers}) {
-                error_atline("Watchers must only be defined",
-                    " in JSON/ directory");
-            }
             $owner->{watchers}
               and error_atline("Redefining 'watchers' attribute");
             $owner->{watchers} = \@watchers;
@@ -3284,64 +3275,6 @@ sub read_file {
     return;
 }
 
-sub read_json_watchers {
-    my ($path) = @_;
-    opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
-    my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
-    closedir $dh;
-    for my $owner_name (@files) {
-        next if $owner_name =~ /^\./;
-        next if $owner_name =~ m/$config->{ignore_files}/o;
-        my $path = "$path/$owner_name";
-        opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
-        my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
-        closedir $dh;
-        for my $file (@files) {
-            next if $file =~ /^\./;
-            next if $file =~ m/$config->{ignore_files}/o;
-            my $path = "$path/$file";
-            if ($file ne 'watchers') {
-                err_msg("Ignoring $path");
-                next;
-            }
-            open(my $fh, '<', $path) or fatal_err("Can't open $path");
-            my $data;
-            {
-                local $/ = undef;
-                $data = from_json(<$fh>);
-            }
-            close($fh);
-            my $owner = $owners{$owner_name};
-            if (!$owner) {
-                err_msg("Referencing unknown owner:$owner_name in $path");
-                next;
-            }
-            $owner->{watchers}
-              and err_msg("Redefining watcher of owner:$owner_name from $path");
-            $owner->{watchers} = $data;
-        }
-    }
-    return;
-}
-
-sub read_json {
-    my ($path) = @_;
-    opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
-    my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
-    closedir $dh;
-    for my $file (@files) {
-        next if $file =~ /^\./;
-        next if $file =~ m/$config->{ignore_files}/o;
-        my $path = "$path/$file";
-        if ($file ne 'owner') {
-            err_msg("Ignoring $path");
-            next;
-        }
-        read_json_watchers($path);
-    }
-    return;
-}
-
 sub read_file_or_dir {
     my ($path, $read_syntax) = @_;
     $read_syntax ||= \&read_netspoc;
@@ -3389,17 +3322,10 @@ sub read_file_or_dir {
     };
 
     # Handle toplevel directory.
-    # Special handling for "config", "raw" and "JSON".
+    # Special handling for "config" and "raw".
     opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
     my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
     closedir $dh;
-
-    if (grep { $_ eq 'JSON' } @files) {
-        $from_json = { JSON => 1 };
-        if (-e "$path/JSON/owner") {
-            $from_json->{watchers} = 1;
-        }
-    }
 
     for my $file (@files) {
 
@@ -3407,13 +3333,10 @@ sub read_file_or_dir {
         next if $file =~ m/$config->{ignore_files}/o;
 
         # Ignore special files/directories.
-        next if $file =~ /^(config|raw|JSON)$/;
+        next if $file =~ /^(config|raw)$/;
 
         my $path = "$path/$file";
         $read_nested_files->($path, $read_syntax);
-    }
-    if (keys %$from_json) {
-        read_json("$path/JSON");
     }
     return;
 }
@@ -18088,7 +18011,6 @@ sub init_global_vars {
     @managed_crypto_hubs = @routers = @networks = @zones = @areas = ();
     @natdomains         = ();
     %auto_interfaces    = ();
-    $from_json          = undef;
     %crypto2spokes      = %crypto2hubs = ();
     %expanded_rules     = %rule_tree = ();
     %prt_hash           = %ref2prt = %ref2obj = %token2regex = ();
