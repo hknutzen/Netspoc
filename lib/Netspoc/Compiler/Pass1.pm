@@ -13772,11 +13772,8 @@ sub mark_secondary_rules {
 
 # - Check for partially applied hidden or dynamic NAT on path.
 # - Check for invalid rules accessing hidden objects.
-# - Find rules where dynamic NAT is applied to host or interface at
-#   src or dst on path to other end of rule.
-#   Mark found rule with attribute {dynamic_nat} and value src|dst|src,dst.
-sub mark_dynamic_nat_rules {
-    progress('Marking rules with dynamic NAT');
+sub check_dynamic_nat_rules {
+    progress('Checking rules with dynamic NAT');
 
     # Collect hidden or dynamic NAT tags.
     my %is_dynamic_nat_tag;
@@ -13898,10 +13895,7 @@ sub mark_dynamic_nat_rules {
                     # at some router. Therefore the whole network will be
                     # allowed for src/dst at routers, where dynamic NAT
                     # is effective. Mark rule accordingly.
-                    $dynamic_nat =
-                      $dynamic_nat
-                      ? "$dynamic_nat,$where"
-                      : $where;
+                    $dynamic_nat = 1;
 
 #		    debug("dynamic_nat: $where at ", print_rule $rule);
                     $dynamic_seen = 1;
@@ -13963,9 +13957,8 @@ sub mark_dynamic_nat_rules {
 
         if ($dynamic_nat) {
 
-            # Mark rule, that whole network will be permitted at NAT devices.
-            $rule->{dynamic_nat} = $dynamic_nat;
-
+            # For this rule, that whole network will be permitted at
+            # NAT devices.
             # But attention, this is only valid, if some other router
             # filters fully.
             # Hence disable optimization of secondary rules.
@@ -15717,26 +15710,6 @@ sub distribute_rule {
         $src_filter_at->{$mark} and $dst_filter_at->{$mark} or return;
     }
 
-    # Adapt rule to dynamic NAT.
-    if (my $dynamic_nat = $rule->{dynamic_nat}) {
-        my $no_nat_set = $in_intf->{no_nat_set};
-        for my $where (split(/,/, $dynamic_nat)) {
-            my $obj         = $rule->{$where};
-            my $network     = $obj->{network};
-            my $nat_network = get_nat_network($network, $no_nat_set);
-            next if $nat_network eq $network;
-            my $nat_tag = $nat_network->{dynamic} or next;
-
-            # Ignore object with static translation.
-            next if $obj->{nat}->{$nat_tag};
-
-            # Permit whole network, because no static address is known.
-            # Make a copy of current rule, because the original rule
-            # must not be changed.
-            $rule = { %$rule, $where => $network };
-        }
-    }
-
     my $key;
 
     # Packets for the router itself or for some interface of a
@@ -16160,9 +16133,6 @@ sub address {
                 return [ $ip, 0xffffffff ];
             }
             else {
-
-                # This has been converted to the  whole network before,
-                # and hence should never happen.
                 return [ $network->{ip}, $network->{mask} ];
             }
         }
@@ -16193,9 +16163,6 @@ sub address {
                 return [ $ip, 0xffffffff ];
             }
             else {
-
-                # Should never happen.
-                # aborts with error in mark_dynamic_nat_rules.
                 return [ $network->{ip}, $network->{mask} ];
             }
         }
@@ -18080,7 +18047,7 @@ sub compile {
 
     # Reverse rules are marked also.
     &mark_secondary_rules();
-    mark_dynamic_nat_rules();
+    check_dynamic_nat_rules();
 
     &abort_on_error();
 
