@@ -66,9 +66,7 @@ our @EXPORT = qw(
   $error_counter
   store_description
   fast_mode
-  *info
-  debug
-  progress
+  init_global_vars
   abort_on_error
   set_abort_immediately
   syntax_err
@@ -372,18 +370,6 @@ sub keys_eq {
         exists $href2->{$key} or return;
     }
     return 1;
-}
-
-my $start_time;
-
-sub progress {
-    return if not $config->{verbose};
-    if ($config->{time_stamps}) {
-        my $diff = time() - $start_time;
-        printf STDERR "%3ds ", $diff;
-    }
-    info(@_);
-    return;
 }
 
 sub warn_msg {
@@ -17832,8 +17818,9 @@ sub check_output_dir {
         my $prev = "$dir/.prev";
         if (not -d $prev) {
             my @old_files = glob("$dir/*");
-            if (@old_files) {
-                info "Moving old files of '$dir' into subdirectory '.prev'";
+            if (my $count = @old_files) {
+                progress("Moving $count old files in '$dir' to",
+                         " subdirectory '.prev'");
                 mkdir $prev or 
                     fatal_err("Can't create directory $prev: $!");
                 system('mv', @old_files, $prev) == 0 or
@@ -17993,11 +17980,6 @@ sub show_version {
     return;
 }
 
-sub show_finished {
-    progress('Finished') if $config->{time_stamps};
-    return;
-}
-
 # These must be initialized on each run, because protocols are changed
 # by prepare_prt_ordering.
 sub init_protocols {
@@ -18125,7 +18107,7 @@ sub init_protocols {
 }
 
 sub init_global_vars {
-    $start_time            = time();
+    $start_time            = $config->{start_time} || time();
     $error_counter         = 0;
     $abort_immediately     = undef;
     $new_store_description = 0;
@@ -18157,15 +18139,12 @@ sub init_global_vars {
     return;
 }
 
-# Call once when module is loaded.
-# Call again, before different input is processed by same instance.
-init_global_vars();
-
 sub pass1 {
     my ($args) = @_;
 
     my ($in_path, $out_dir);
     ($config, $in_path, $out_dir) = get_args($args);
+    init_global_vars();
 
     # Don't compile but check only for errors if no $out_dir is given.
     &fast_mode(!$out_dir);
@@ -18222,7 +18201,6 @@ sub pass1 {
         &print_code($out_dir);
         copy_raw($in_path, $out_dir);
     }
-    show_finished();
     return;
 }
 

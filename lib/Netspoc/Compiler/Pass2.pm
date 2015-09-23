@@ -2112,12 +2112,18 @@ sub check_prev {
     return 1;        
 }
 
+sub show_finished {
+    progress('Finished') if $config->{time_stamps};
+    return;
+}
+
 # Generate code files from *.config and *.rules files.
 sub pass2 {
     my ($args) = @_;
 
     ($config, undef, my $dir) = get_args($args);
     return if not $dir;
+    $start_time = $config->{start_time} || time();
 
     my $prev = "$dir/.prev";
     my $has_prev = -d $prev;
@@ -2125,7 +2131,7 @@ sub pass2 {
     my @pass2_list;
 
     my $count = @pass1_base;
-    info("Starting second pass");
+    progress("Starting second pass");
     my $reused;
     for my $basename (@pass1_base) {
         my $code_file = "$dir/$basename";
@@ -2141,12 +2147,12 @@ sub pass2 {
         push @pass2_list, $code_file;
     }
     if ($reused) {
-        info("Reusing $reused files from previous run");
+        progress("Reusing $reused files from previous run");
     }
 
     # Generate new code files.
     if ($count = @pass2_list) {
-        info("Generating optimized code for $count devices");
+        progress("Generating optimized code for $count devices");
         for my $file (@pass2_list) {
             my $router_data = prepare_acls("$file.rules");
             my $config = read_file_lines("$file.config");
@@ -2160,6 +2166,8 @@ sub pass2 {
         system("rm -rf $prev") == 0 or
             fatal_err("Can't remove $prev: $!");
     }
+    show_finished();
+    return;
 }
 
 1;

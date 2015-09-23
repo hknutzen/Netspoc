@@ -200,6 +200,7 @@ my $name = shift @ARGV or pod2usage(2);
 
 my $file_config = &read_config($in_path);
 $config = combine_config($file_config, { verbose => !$quiet });
+init_global_vars();
 
 # Parse group definition(s).
 $input = $name;

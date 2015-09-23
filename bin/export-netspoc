@@ -1038,6 +1038,7 @@ sub copy_policy_file {
 ####################################################################
 $config = 
     combine_config({time_stamps => 1, max_errors => 9999, verbose => !$quiet});
+init_global_vars();
 
 # Set global config variable of Netspoc to store attribute 'description'.
 store_description(1);

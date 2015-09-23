@@ -33,6 +33,7 @@ use Exporter;
 our @ISA    = qw(Exporter);
 our @EXPORT = qw(
  *config fatal_err debug info
+ $start_time progress
  numerically *a *b
  ip2int int2ip complement_32bit mask2prefix prefix2mask match_ip
 );
@@ -54,6 +55,18 @@ sub debug {
 sub info {
     return if not $config->{verbose};
     print STDERR @_, "\n";
+    return;
+}
+
+our $start_time;
+
+sub progress {
+    return if not $config->{verbose};
+    if ($config->{time_stamps}) {
+        my $diff = time() - $start_time;
+        printf STDERR "%3ds ", $diff;
+    }
+    info(@_);
     return;
 }
 

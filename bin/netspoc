@@ -1,4 +1,5 @@
 #!/bin/sh
 
-spoc1 "$@" && 
-spoc2 "$@"
+start_time=$(date +%s)
+spoc1 --start_time=$start_time "$@" && 
+spoc2 --start_time=$start_time "$@"

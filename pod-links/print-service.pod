@@ -149,6 +149,7 @@ sub prt_info {
 
 my $file_config = &read_config($in_path);
 $config = combine_config($file_config, { verbose => !$quiet });
+init_global_vars();
 
 # Read and process Netspoc configuration file or directory.
 &read_file_or_dir($in_path);

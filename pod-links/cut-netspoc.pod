@@ -200,6 +200,7 @@ sub get_zones {
 my $file_config = &read_config($path);
 $config = combine_config($file_config, 
                     {time_stamps => 1, max_errors => 9999, verbose => !$quiet});
+init_global_vars();
 &show_version();
 
 # Read and process netspoc configuration data.

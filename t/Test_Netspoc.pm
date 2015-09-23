@@ -74,11 +74,6 @@ sub run {
             my $result;
             eval {
 
-                # Global variables are initialized already when
-                # Pass1.pm is loaded, but re-initialization is
-                # needed for multiple compiler runs.
-                Netspoc::Compiler::Pass1::init_global_vars();
-
                 # Copy unchanged arguments.
                 my $args2 = [ @$args ];
                 Netspoc::Compiler::Pass1::pass1($args);

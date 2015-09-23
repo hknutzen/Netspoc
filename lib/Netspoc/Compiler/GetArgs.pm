@@ -106,6 +106,9 @@ our %config = (
 # Print progress messages with time stamps.
 # Print "finished" with time stamp when finished.
     time_stamps => 0,
+
+# Use this value when printing passed time span.
+    start_time => 0,
 );
 
 # Valid values for config options in %config.
@@ -114,6 +117,7 @@ our %config = (
 our %config_type = (
     check_   => '0|1|warn',
     max_     => '\d+',
+    start_   => '\d+',
     ignore_  => '\S+',
     _default => '0|1',
 );
