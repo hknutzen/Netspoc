@@ -16537,7 +16537,7 @@ EOF
                 my $filter_name = "vpn-filter-$user_counter";
                 my $acl_info = {
                     name => $filter_name,
-                    rules => $id_intf->{rules},
+                    rules => delete $id_intf->{rules},
                     add_deny => 1,
                     no_nat_set => $no_nat_set,
                 };
@@ -16654,15 +16654,15 @@ EOF
 
             # Access list will be bound to cleartext interface.
             # Only check for correct source address at vpn-filter.
-            $interface->{intf_rules} = [];
-            $interface->{rules}      = [
-                map { { src => $_, dst => $network_00, prt => $prt_ip, } }
-                  @{ $interface->{peer_networks} }
-            ];
+            delete $interface->{intf_rules};
+            delete $interface->{rules};
+            my @rules =
+                map({ { src => $_, dst => $network_00, prt => $prt_ip, } }
+                    @{ $interface->{peer_networks} });
             my $filter_name = "vpn-filter-$user_counter";
             my $acl_info = {
                 name => $filter_name,
-                rules => $interface->{rules},
+                rules => \@rules,
                 add_deny => 1,
                 no_nat_set => $no_nat_set,
             };
@@ -16768,7 +16768,7 @@ sub print_iptables_acls {
         my $intf_acl_name = "${in_hw}_self";
         my $intf_acl_info = {
             name => $intf_acl_name,
-            rules => $hardware->{intf_rules} || [],
+            rules => delete $hardware->{intf_rules},
             add_deny => 1,
             no_nat_set => $no_nat_set,
         };
@@ -16784,7 +16784,7 @@ sub print_iptables_acls {
             my $acl_name = "${in_hw}_$out_hw";
             my $acl_info = {
                 name => $acl_name,
-                rules => $rules_hash->{$out_hw},
+                rules => delete $rules_hash->{$out_hw},
                 add_deny => 1,
                 no_nat_set => $no_nat_set,
             };
@@ -16896,7 +16896,7 @@ sub print_cisco_acls {
 
             # Outgoing ACL
             else {
-                $acl_info->{rules} = $hardware->{out_rules} ||= [];
+                $acl_info->{rules} = delete $hardware->{out_rules};
                 $acl_info->{add_deny} = 1;
 
             }
@@ -17031,8 +17031,8 @@ sub print_ezvpn {
     # Crypto filter ACL.
     $acl_info = {
         name         => $crypto_filter_name,
-        rules        => $tunnel_intf->{rules} || [],
-        intf_rules   => $tunnel_intf->{intf_rules} || [],
+        rules        => delete $tunnel_intf->{rules},
+        intf_rules   => delete $tunnel_intf->{intf_rules},
         add_deny     => 1,
         protect_self => 1,
         no_nat_set   => $no_nat_set,
@@ -17089,8 +17089,8 @@ sub print_crypto_filter_acl {
     my $no_nat_set = $interface->{no_nat_set};
     my $acl_info = {
         name         => $crypto_filter_name,
-        rules        => $interface->{rules} || [],
-        intf_rules   => $interface->{intf_rules} || [],
+        rules        => delete $interface->{rules},
+        intf_rules   => delete $interface->{intf_rules},
         add_deny     => 1,
         protect_self => 1,
         no_nat_set   => $no_nat_set,
