@@ -76,8 +76,8 @@ sub run {
 
                 # Copy unchanged arguments.
                 my $args2 = [ @$args ];
-                Netspoc::Compiler::Pass1::pass1($args);
-                Netspoc::Compiler::Pass2::pass2($args2);
+                Netspoc::Compiler::Pass1::compile($args);
+                Netspoc::Compiler::Pass2::compile($args2);
                 $result = 1;
             };
             if($@) {

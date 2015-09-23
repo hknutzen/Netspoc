@@ -56,4 +56,4 @@ use Netspoc::Compiler::Pass2;
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
-Netspoc::Compiler::Pass2::pass2(\@ARGV);
+Netspoc::Compiler::Pass2::compile(\@ARGV);

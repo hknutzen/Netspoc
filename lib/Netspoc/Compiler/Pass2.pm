@@ -2118,7 +2118,7 @@ sub show_finished {
 }
 
 # Generate code files from *.config and *.rules files.
-sub pass2 {
+sub compile {
     my ($args) = @_;
 
     ($config, undef, my $dir) = get_args($args);

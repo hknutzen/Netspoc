@@ -18139,7 +18139,7 @@ sub init_global_vars {
     return;
 }
 
-sub pass1 {
+sub compile {
     my ($args) = @_;
 
     my ($in_path, $out_dir);
