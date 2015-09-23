@@ -64,10 +64,10 @@ $out = <<'END';
 :c5 -
 -A c1 -j ACCEPT -p icmp --icmp-type 0
 -A c1 -j ACCEPT -p icmp --icmp-type 3
--A c2 -j c1 -p icmp
--A c2 -j ACCEPT -s 10.2.2.0/24 -d 10.1.1.0/24 -p icmp
--A c3 -j ACCEPT -p icmp --icmp-type 0
--A c3 -j ACCEPT -p icmp --icmp-type 3
+-A c2 -j ACCEPT -p icmp --icmp-type 0
+-A c2 -j ACCEPT -p icmp --icmp-type 3
+-A c3 -j c2 -p icmp
+-A c3 -j ACCEPT -s 10.2.2.0/24 -d 10.1.1.0/24 -p icmp
 -A c4 -j ACCEPT -p icmp --icmp-type 0
 -A c4 -j ACCEPT -p icmp --icmp-type 3
 -A c5 -j ACCEPT -p icmp --icmp-type 0
@@ -75,20 +75,20 @@ $out = <<'END';
 --
 :e0_self -
 -A e0_self -j ACCEPT -p tcp
--A e0_self -g c3 -p icmp
+-A e0_self -g c1 -p icmp
 -A INPUT -j e0_self -i e0
 :e0_e1 -
 -A e0_e1 -j ACCEPT -p tcp
--A e0_e1 -g c2 -p icmp
+-A e0_e1 -g c3 -p icmp
 -A FORWARD -j e0_e1 -i e0 -o e1
 --
 :e1_self -
 -A e1_self -j ACCEPT -p tcp
--A e1_self -g c5 -p icmp
+-A e1_self -g c4 -p icmp
 -A INPUT -j e1_self -i e1
 :e1_e0 -
 -A e1_e0 -j ACCEPT -p tcp
--A e1_e0 -g c4 -p icmp
+-A e1_e0 -g c5 -p icmp
 -A FORWARD -j e1_e0 -i e1 -o e0
 END
 

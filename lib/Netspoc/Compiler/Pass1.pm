@@ -16772,6 +16772,7 @@ sub print_iptables_acls {
             add_deny => 1,
             no_nat_set => $no_nat_set,
         };
+        push @{ $router->{acl_list} }, $intf_acl_info;
         print_acl_placeholder($intf_acl_name);
         print "-A INPUT -j $intf_acl_name -i $in_hw\n";
 
@@ -16791,9 +16792,6 @@ sub print_iptables_acls {
             print_acl_placeholder($acl_name);
             print "-A FORWARD -j $acl_name -i $in_hw -o $out_hw\n";
         }
-
-        # Add late for compatibility of output.
-        push @{ $router->{acl_list} }, $intf_acl_info;
 
         # Empty line after each chain.
         print "\n";
