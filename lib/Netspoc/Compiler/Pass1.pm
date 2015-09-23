@@ -16846,7 +16846,7 @@ sub print_cisco_acls {
             # - protect own interfaces,
             # - set {filter_any_src}.
             if ($suffix eq 'in') {
-                $acl_info->{rules} = $hardware->{rules};
+                $acl_info->{rules} = delete $hardware->{rules};
 
                 # Marker: Generate protect_self rules, if available.
                 $acl_info->{protect_self} = 1;
@@ -17646,11 +17646,11 @@ sub print_acls {
             }
         }
 
-        for my $acl (@{ $router->{acl_list} }) {
+        my $aref = delete $router->{acl_list} or next;
+        for my $acl (@$aref) {
 
             # Don't modify loop variable.
-            # Otherwise we get some memory loss.
-            my $acl = { %$acl };
+            my $acl = $acl;
 
             # Collect networks used in secondary optimization.
             my %opt_addr;
@@ -17668,7 +17668,6 @@ sub print_acls {
 
             for my $what (qw(intf_rules rules)) {
                 my $rules = $acl->{$what} or next;
-                my @new_rules;
                 for my $rule (@$rules) {
                     my $new_rule = {};
 
@@ -17768,9 +17767,8 @@ sub print_acls {
                     if (my $src_range = $rule->{src_range}) {
                         $new_rule->{src_range} = print_prt($src_range);
                     }
-                    push @new_rules, $new_rule;
+                    $rule = $new_rule;
                 }
-                $acl->{$what} = \@new_rules;
             }
 
             if (keys %opt_addr) {
