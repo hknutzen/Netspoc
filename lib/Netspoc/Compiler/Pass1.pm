@@ -16294,34 +16294,6 @@ sub address {
     }
 }
 
-# Given an IP and mask, return its address in Cisco syntax.
-sub cisco_acl_addr {
-    my ($pair, $model) = @_;
-    if (is_objectgroup $pair) {
-        my $keyword =
-          $model->{filter} eq 'NX-OS' ? 'addrgroup' : 'object-group';
-        return "$keyword $pair->{name}";
-    }
-    elsif ($pair->[0] == 0) {
-        return "any";
-    }
-    elsif ($model->{use_prefix}) {
-        return full_prefix_code($pair);
-    }
-    else {
-        my ($ip, $mask) = @$pair;
-        my $ip_code = print_ip($ip);
-        if ($mask == 0xffffffff) {
-            return "host $ip_code";
-        }
-        else {
-            $mask = complement_32bit($mask) if $model->{inversed_acl_mask};
-            my $mask_code = print_ip($mask);
-            return "$ip_code $mask_code";
-        }
-    }
-}
-
 sub ios_route_code {
     my ($pair) = @_;
     my ($ip, $mask) = @$pair;
