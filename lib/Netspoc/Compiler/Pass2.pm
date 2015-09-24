@@ -518,7 +518,7 @@ sub join_ranges {
             # Remove auxiliary attribute {range} from rules.
             if (my $range = delete $rule->{range}) {
                 my $proto = $rule->{prt}->{proto};
-                my $key   = "$proto $range->[0]-$range->[1]";
+                my $key   = "$proto $range->[0] $range->[1]";
 
                 # Try to find existing prt with matching range.
                 # This is needed for find_objectgroups to work.

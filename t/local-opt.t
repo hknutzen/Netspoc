@@ -309,6 +309,56 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Find object-group after join ranges';
+############################################################
+
+$in = <<'END';
+network:A1 = { ip = 10.1.1.0/24; }
+network:A2 = { ip = 10.1.2.0/24; }
+
+router:u = {
+ interface:A1 = { ip = 10.1.1.1; }
+ interface:A2 = { ip = 10.1.2.1; }
+ interface:t = { ip = 10.9.1.1; }
+}
+
+network:t = { ip = 10.9.1.0/24; }
+
+router:r = {
+ model = ASA;
+ managed;
+ interface:t = { ip = 10.9.1.2; hardware = t; }
+ interface:B = { ip = 10.2.1.1; hardware = B; }
+}
+
+network:B = { ip = 10.2.1.0/24; }
+
+service:s1 = {
+ user = network:A1;
+ permit src = user; dst = network:B; prt = tcp 80-85;
+ permit src = user; dst = network:B; prt = tcp 86;
+}
+
+service:s2 = {
+ user = network:A2;
+ permit src = user; dst = network:B; prt = tcp 80-86;
+}
+END
+
+$out = <<'END';
+-- r
+! [ ACL ]
+object-group network g0
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.1.2.0 255.255.255.0
+access-list t_in extended permit tcp object-group g0 10.2.1.0 255.255.255.0 range 80 86
+access-list t_in extended deny ip any any
+access-group t_in in interface t
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Don\'t join adjacent TCP and UDP ports';
 ############################################################
 
