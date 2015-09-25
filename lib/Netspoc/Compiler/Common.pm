@@ -47,26 +47,29 @@ sub fatal_err {
 }
 
 sub debug {
+    my (@args) = @_;
     return if not $config->{verbose};
-    print STDERR @_, "\n";
+    print STDERR @args, "\n";
     return;
 }
 
 sub info {
+    my (@args) = @_;
     return if not $config->{verbose};
-    print STDERR @_, "\n";
+    print STDERR @args, "\n";
     return;
 }
 
 our $start_time;
 
 sub progress {
+    my (@args) = @_;
     return if not $config->{verbose};
     if ($config->{time_stamps}) {
         my $diff = time() - $start_time;
         printf STDERR "%3ds ", $diff;
     }
-    info(@_);
+    info(@args);
     return;
 }
 
