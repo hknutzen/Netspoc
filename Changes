@@ -1,5 +1,27 @@
 {{$NEXT}}
 
+4.0       2015-09-25 13:31:34+02:00 Europe/Berlin
+
+ - Netspoc is a two pass compiler now.
+   Second pass optionally reuses code files from previous compiler run,
+   if intermediate code hasn't changed.
+   This gives a huge runtime improvement, because changes in ruleset 
+   typically effect only a small part of all managed devices.
+   - First pass reads netspoc configuration and 
+     generates intermediate files *.config and *.rules in code directory.
+   - Second pass reads intermediate files, 
+     applies local and secondary optimization, finds object-groups 
+     and generates final code files.
+   - Previous intermediate and code files are stored in subdirectory '.prev/'.
+   - Uses namespace Netspoc::Compiler.
+ - Fixed optimizations:
+   - A port range [B--C] was't merged with [A--(B-1)], 
+     if some larger port range [B--D] with D>C existed.
+   - Subnet relation is recognized in more complicated cases now.
+   - Local and secondary optimization work more synchronized now.
+ - Removed options --comment_acls, --comment_routes.
+ - Removed unused feature to read watchers from JSON.
+
 3.070     2015-08-10 14:43:35+02:00 Europe/Berlin
 
  - Optimized processing for rules at device with managed=local.
