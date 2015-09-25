@@ -861,8 +861,8 @@ $out = <<'END';
 :VLAN77_self -
 -A INPUT -j VLAN77_self -i VLAN77
 :VLAN77_VLAN1 -
--A FORWARD -j VLAN77_VLAN1 -i VLAN77 -o VLAN1
 -A VLAN77_VLAN1 -j ACCEPT -s 10.9.9.0/24 -d 10.0.0.0/9
+-A FORWARD -j VLAN77_VLAN1 -i VLAN77 -o VLAN1
 END
 
 test_run($title, $in, $out);

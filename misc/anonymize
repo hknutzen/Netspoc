@@ -22,7 +22,7 @@
 
 use strict;
 use warnings;
-use Netspoc;
+use Netspoc::Compiler::Pass1;
 use Data::Random::String;
 use open qw(:std :utf8);
 use utf8;
@@ -56,12 +56,12 @@ info "Reading config";
 &set_zone();
 &setpath();
 &distribute_nat_info();
-Netspoc::find_subnets_in_zone();
+find_subnets_in_zone();
 &set_service_owner();
 &expand_services(1);	# 1: expand hosts to subnets
 die "Aborted with $error_counter error(s)\n" if $error_counter;
 
-# We can't use %aggregates from Netspoc.pm because it only holds named
+# We can't use %aggregates from Pass1.pm because it only holds named
 # aggregates. But we need unnamed aggregates like any:[network:XX]
 # as well.
 my @all_zones;
@@ -137,7 +137,7 @@ sub find_subst {
 my %global_type = (
 		   router          => \%routers         ,
 		   network         => \%networks        ,
-		   any             => \%Netspoc::aggregates ,
+		   any             => \%aggregates ,
 		   area            => \%areas           ,
 		   owner           => \%owners          ,
 		   group           => \%groups          ,
@@ -216,7 +216,7 @@ sub setup_subst {
         }            
     }
 
-    for my $obj (values %networks, values %Netspoc::aggregates, values %areas) {
+    for my $obj (values %networks, values %aggregates, values %areas) {
         my $href = $obj->{nat} or next;
         for my $nat_tag (keys %$href) {
             next if $subst{nat}->{$nat_tag};
@@ -252,7 +252,7 @@ sub range2subnet {
     my $mask = 0xffffffff;
     my $ip = $low;
     while(1) {
-        my $end = $ip | Netspoc::complement_32bit($mask);
+        my $end = $ip | complement_32bit($mask);
         if ($end >= $high) {
             return [ $ip, $mask ];
         }
@@ -303,8 +303,8 @@ sub setup_ip {
                         for my $x ($i .. $i+$range) {
                             $map->{$x}->{new} = $x;
                             my $pip = print_ip($ip);
-                            my $prefix = Netspoc::mask2prefix($mask);
-                            Netspoc::debug "Freezed $x byte $byte in $pip/$prefix";
+                            my $prefix = mask2prefix($mask);
+                            debug "Freezed $x byte $byte in $pip/$prefix";
                         }
                     }
                     last;
@@ -337,10 +337,10 @@ sub setup_ip {
                         }
                         $hash->{new} = $new;
                         $map->{$new}->{used} = 1;
-                        Netspoc::debug "Change $i to $new in byte $byte";
+                        debug "Change $i to $new in byte $byte";
                     }
                     my $roct = $new << $shift;
-                    my $rmask = Netspoc::complement_32bit(0xff << $shift);
+                    my $rmask = complement_32bit(0xff << $shift);
                     $rip = ($rip & $rmask) | $roct;
                 }
                 $map = $hash->{map} ||= {};
@@ -348,9 +348,9 @@ sub setup_ip {
             if (not $setup) {
                 $ipsubst{"$ip/$mask"} = $rip;
                 my $pip = print_ip($ip);
-                my $prefix = Netspoc::mask2prefix($mask);
+                my $prefix = mask2prefix($mask);
                 my $prip = print_ip($rip);
-                Netspoc::debug "$pip/$prefix -> $prip";
+                debug "$pip/$prefix -> $prip";
             }
         }
     }
@@ -374,7 +374,7 @@ sub subst_ip {
     while ($mask) {
 	my $cip = $ip & $mask;
 	if (my $rip = $ipsubst{"$cip/$mask"}) {
-	    $result = $rip | $ip & Netspoc::complement_32bit($mask);
+	    $result = $rip | $ip & complement_32bit($mask);
 	    last;
 	}
 	$mask &= 0x7fffffff;

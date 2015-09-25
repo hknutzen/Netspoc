@@ -62,26 +62,28 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 use strict;
 use warnings;
-use Netspoc;
+use Netspoc::Compiler::GetArgs qw(read_config combine_config);
+use Netspoc::Compiler::Common;
+use Netspoc::Compiler::Pass1;
 use Getopt::Long;
 use open qw(:std :utf8);
 use Pod::Usage;
 
 ##############################################################################
 # Purpose : Read next definition from input. 
-# Comment : This function is a modification of Netspoc::read_netspoc that skips
+# Comment : This function is a modification of read_netspoc that skips
 #           rule related information. 
 sub read_input {
 
     # Check for global definitions.
-    my $pair = Netspoc::check_typed_name or Netspoc::syntax_err('');
+    my $pair = check_typed_name or syntax_err('');
     my ($type, $name) = @$pair;
 
     # Skip service declarations.
     if ($type eq "service") {
         while (1) { # Adjust input position.
-            last if Netspoc::check '\}';
-            Netspoc::skip('.*');
+            last if check '\}';
+            skip('.*');
         }
         return;
     }
@@ -90,20 +92,20 @@ sub read_input {
     # Anonymous protocols used by general_permit will still be read, though. 
     if ($type eq "group" || $type eq "protocolgroup" || $type eq "protocol" ) {
         while (1) { # Adjust input position.
-            last if Netspoc::check '.*;';
-            Netspoc::skip('.*');
+            last if check '.*;';
+            skip('.*');
         }
         return;
     }
 
-    my $descr = $Netspoc::global_type{$type}
-      or Netspoc::syntax_err("Unknown global definition");
+    my $descr = $global_type{$type}
+      or syntax_err("Unknown global definition");
     my ($fun, $hash) = @$descr;
     my $result = $fun->("$type:$name");
-    $result->{file} = $Netspoc::current_file;
+    $result->{file} = $current_file;
     if (my $other = $hash->{$name}) {
         err_msg("Duplicate definition of $type:$name in",
-                " $Netspoc::current_file and $other->{file}");
+                " $current_file and $other->{file}");
     }
     return $hash->{$name} = $result;
 };
@@ -133,29 +135,29 @@ my ($in_path) = @ARGV;
 
 # Process required netspoc steps.
 my $file_config = &read_config($in_path);
-&set_config($file_config, { verbose => !$quiet });
+$config = combine_config($file_config, { verbose => !$quiet });
 &read_file_or_dir($in_path, \&read_input);#skip rule related infos
 &show_read_statistics;
 &link_topology();
 &mark_disabled();
 &set_zone();
 
-Netspoc::find_dists_and_loops();
-Netspoc::process_loops();
-Netspoc::check_pathrestrictions();
-Netspoc::optimize_pathrestrictions();
+find_dists_and_loops();
+process_loops();
+check_pathrestrictions();
+optimize_pathrestrictions();
 
 
 # Evaluate defined and evaluated pathrestrictions.
-my $defined = keys %Netspoc::pathrestrictions;
-my $applied = @Netspoc::pathrestrictions;
+my $defined = keys %pathrestrictions;
+my $applied = @pathrestrictions;
 
 print "$defined pathrestriction(s) defined.\n";
 print "$applied pathrestriction(s) applied.\n";
 
 # Print pathrestrictions where optimization failed. 
 my $fail_count = 0;
-my @sorted_pathrestrictions = sort @Netspoc::pathrestrictions;
+my @sorted_pathrestrictions = sort @pathrestrictions;
 for my $restriction (@sorted_pathrestrictions) { 
     my $fail = 0;
     for my $interface (@ {$restriction->{elements}} ) {

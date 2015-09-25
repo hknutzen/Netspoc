@@ -121,6 +121,58 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Redundant tcp established';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n2-sub = { ip = 10.1.2.129; hardware = n2-sub; }
+}
+
+network:n2-sub = { ip = 10.1.2.128/25; subnet_of = network:n2; }
+
+service:s1 = {
+ user = any:[network:n1], any:[network:n2];
+ permit src = user; dst = network:n2-sub; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n2;
+ permit src = user; dst = any:[network:n1]; prt = tcp;
+}
+END
+
+$out = <<'END';
+-- r1
+ip access-list extended n1_in
+ permit tcp any 10.1.2.128 0.0.0.127 eq 80
+ permit tcp any 10.1.2.0 0.0.0.255 established
+ deny ip any any
+--
+ip access-list extended n2_in
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.2.1
+ permit tcp 10.1.2.0 0.0.0.255 any
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Redundant host';
 ############################################################
 
@@ -168,12 +220,142 @@ ip access-list extended VLAN1_out
  deny ip any any
 END
 
-Test::More->builder->todo_start("Redundant host rule isn't recognized, because protocol of network rule is changed afterwards.");
 test_run($title, $in, $out);
-Test::More->builder->todo_end;
 
 # Change order of rules.
 $in =~ s/test2/test0/;
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Join adjacent and overlapping ports';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asa = {
+ managed;
+ model = ASA;
+ log:a = warnings;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+service:t1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80-82;
+ permit src = user; dst = network:n2; prt = tcp 83-86;
+}
+
+service:t2 = {
+ user = host:h1;
+ permit src = network:n2; dst = user; prt = tcp 70-81;
+ permit src = network:n2; dst = user; prt = tcp 82-85;
+}
+END
+
+$out = <<'END';
+-- asa
+! [ ACL ]
+access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 range 80 86
+access-list vlan1_in extended deny ip any any
+access-group vlan1_in in interface vlan1
+--
+access-list vlan2_in extended permit tcp 10.1.2.0 255.255.255.0 host 10.1.1.10 range 70 85
+access-list vlan2_in extended deny ip any any
+access-group vlan2_in in interface vlan2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Join multiple adjacent ranges';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asa = {
+ managed;
+ model = ASA;
+ log:a = warnings;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+service:t1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80-82;
+ permit src = user; dst = network:n2; prt = tcp 83-86;
+}
+
+service:t2 = {
+ user = host:h1;
+ permit src = user; dst = network:n2; prt = tcp 83-90;
+}
+END
+
+$out = <<'END';
+-- asa
+! [ ACL ]
+access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 range 80 86
+access-list vlan1_in extended permit tcp host 10.1.1.10 10.1.2.0 255.255.255.0 range 83 90
+access-list vlan1_in extended deny ip any any
+access-group vlan1_in in interface vlan1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Find object-group after join ranges';
+############################################################
+
+$in = <<'END';
+network:A1 = { ip = 10.1.1.0/24; }
+network:A2 = { ip = 10.1.2.0/24; }
+
+router:u = {
+ interface:A1 = { ip = 10.1.1.1; }
+ interface:A2 = { ip = 10.1.2.1; }
+ interface:t = { ip = 10.9.1.1; }
+}
+
+network:t = { ip = 10.9.1.0/24; }
+
+router:r = {
+ model = ASA;
+ managed;
+ interface:t = { ip = 10.9.1.2; hardware = t; }
+ interface:B = { ip = 10.2.1.1; hardware = B; }
+}
+
+network:B = { ip = 10.2.1.0/24; }
+
+service:s1 = {
+ user = network:A1;
+ permit src = user; dst = network:B; prt = tcp 80-85;
+ permit src = user; dst = network:B; prt = tcp 86;
+}
+
+service:s2 = {
+ user = network:A2;
+ permit src = user; dst = network:B; prt = tcp 80-86;
+}
+END
+
+$out = <<'END';
+-- r
+! [ ACL ]
+object-group network g0
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.1.2.0 255.255.255.0
+access-list t_in extended permit tcp object-group g0 10.2.1.0 255.255.255.0 range 80 86
+access-list t_in extended deny ip any any
+access-group t_in in interface t
+END
+
 test_run($title, $in, $out);
 
 ############################################################

@@ -1069,7 +1069,8 @@ network:lan3 = { ip = 10.99.3.0/24; }
 
 service:test = {
  user = network:lan2, network:lan3;
- permit src = user; dst = network:intern; prt = tcp 80; 
+ permit src = user; dst = network:intern; prt = tcp 80;
+ permit src = network:intern; dst = user; prt = udp 123;
 }
 END
 
@@ -1114,6 +1115,10 @@ ip access-list extended ACL-Split-Tunnel
  permit ip 10.99.2.0 0.0.0.255 any
  permit ip 10.99.3.0 0.0.0.255 any
 ip access-list extended ACL-crypto-filter
+ deny ip any host 10.99.2.1
+ deny ip any host 10.99.3.1
+ permit udp 10.1.1.0 0.0.0.255 10.99.2.0 0.0.0.255 eq 123
+ permit udp 10.1.1.0 0.0.0.255 10.99.3.0 0.0.0.255 eq 123
  permit tcp 10.1.1.0 0.0.0.255 10.99.2.0 0.0.0.255 established
  permit tcp 10.1.1.0 0.0.0.255 10.99.3.0 0.0.0.255 established
  deny ip any any
@@ -1127,6 +1132,7 @@ ip access-list extended e1_in
 --
 ip access-list extended e2_in
  permit tcp 10.99.2.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 80
+ permit udp 10.99.2.0 0.0.0.255 eq 123 10.1.1.0 0.0.0.255
  deny ip any any
 --
 interface e1
@@ -1233,10 +1239,10 @@ network:lan1 = {
  nat:lan1 = { ip = 10.10.10.0/24; }
 }
 
-protocol:http = tcp 80;
 service:test = {
  user = network:lan1;
- permit src = user; dst = host:netspoc; prt = protocol:http; 
+ permit src = user; dst = host:netspoc; prt = tcp 80;
+ permit src = host:netspoc; dst = user; prt = udp 123;
 }
 END
 
@@ -1264,6 +1270,8 @@ access-group outside_in in interface outside
 ip access-list extended crypto-GigabitEthernet0-1
  permit ip 10.10.10.0 0.0.0.255 any
 ip access-list extended crypto-filter-GigabitEthernet0-1
+ deny ip any host 10.10.10.1
+ permit udp host 10.1.1.111 10.10.10.0 0.0.0.255 eq 123
  permit tcp host 10.1.1.111 10.10.10.0 0.0.0.255 established
  deny ip any any
 crypto map crypto-GigabitEthernet0 1 ipsec-isakmp
