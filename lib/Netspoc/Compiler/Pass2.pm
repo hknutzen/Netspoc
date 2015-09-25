@@ -223,7 +223,6 @@ sub setup_prt_relation {
     my ($prt2obj) = @_;
     my $prt_ip = $prt2obj->{ip} ||= create_prt_obj('ip');
     my $icmp_up = $prt2obj->{icmp} || $prt_ip;
-    my %prt_hash;
     for my $prt (values %$prt2obj) {
         my $proto = $prt->{proto};
         if ($proto eq 'icmp') {
@@ -736,7 +735,6 @@ sub add_protect_rules {
     # permits any traffic to the interface.
     # This permit rule can be deleted if there is a permit any any rule.
     my %no_protect;
-    my %seen;
     my $changed;
     for my $rule (@{ $acl_info->{intf_rules} }) {
         next if $rule->{deny};
