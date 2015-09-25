@@ -1,4 +1,4 @@
-package Test_Group;
+package Test_Pathrestrictions;
 
 use strict;
 use warnings;
@@ -7,28 +7,29 @@ use Test::Differences;
 use File::Temp qw/ tempfile tempdir /;
 
 our @ISA    = qw(Exporter);
-our @EXPORT = qw(test_group);
+our @EXPORT = qw(test_pathrestrictions);
 
-my $default_options = '-quiet';
+sub test_pathrestrictions {
+    my ($title, $input, $expected) = @_;
+    my $default_option = '-quiet';
 
-sub test_group {
-    my ($title, $input, $group, $expected, $options) = @_;
-    $options ||= '';
-    $options = "$default_options $options";
+    # Print input to temp file.
     my ($in_fh, $filename) = tempfile(UNLINK => 1);
     print $in_fh $input;
     close $in_fh;
 
-    # Propagate options to perl process.
-    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
+    # Call test-pathrestrictions on input file, pipe to filehandle.
     my $cmd = 
-        "$^X $perl_opt -I lib bin/print-group $options $filename '$group'";
+          "perl -I lib bin/check-pathrestrictions $default_option $filename";
     open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
     # Undef input record separator to read all output at once.
     local $/ = undef;
     my $output = <$out_fh>;
     close($out_fh) or die "Syserr closing pipe from $cmd: $!\n";
+
+    # Compare real output with expected output.
     eq_or_diff($output, $expected, $title);
     return;
+
 }

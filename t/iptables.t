@@ -65,8 +65,8 @@ $out = <<'END';
 -A c4 -g c3 -p tcp --dport 30:37
 ---
 :eth0_br0 -
--A FORWARD -j eth0_br0 -i eth0 -o br0
 -A eth0_br0 -g c4 -d 10.4.4.0/24 -p tcp --dport 10:60
+-A FORWARD -j eth0_br0 -i eth0 -o br0
 END
 
 test_run($title, $in, $out);
@@ -96,8 +96,8 @@ $out = <<'END';
 -A c5 -g c3 -p tcp --dport 30:37
 ---
 :eth0_br0 -
--A FORWARD -j eth0_br0 -i eth0 -o br0
 -A eth0_br0 -g c5 -d 10.4.4.0/24 -p tcp --dport 10:60
+-A FORWARD -j eth0_br0 -i eth0 -o br0
 END
 
 test_run($title, $in, $out);
@@ -150,8 +150,8 @@ END
 $out = <<'END';
 --nak
 :eth0_br0 -
--A FORWARD -j eth0_br0 -i eth0 -o br0
 -A eth0_br0 -j ACCEPT -s 10.2.2.0/24 -d 10.4.4.0/24 -p tcp --dport 50:60
+-A FORWARD -j eth0_br0 -i eth0 -o br0
 END
 
 test_run($title, $in, $out);
@@ -211,8 +211,8 @@ $out = <<'END';
 -A c1 -j ACCEPT -s 10.1.1.0/24
 --
 :eth0_self -
--A INPUT -j eth0_self -i eth0
 -A eth0_self -g c1 -s 10.1.0.0/22 -d 10.1.3.1 -p tcp --dport 25
+-A INPUT -j eth0_self -i eth0
 END
 
 test_run($title, $in, $out);
@@ -286,8 +286,8 @@ $out = <<'END';
 :eth0_self -
 -A INPUT -j eth0_self -i eth0
 :eth0_eth1 -
--A FORWARD -j eth0_eth1 -i eth0 -o eth1
 -A eth0_eth1 -g c2 -s 1.1.1.1
+-A FORWARD -j eth0_eth1 -i eth0 -o eth1
 END
 
 test_run($title, $in, $out);
@@ -328,11 +328,11 @@ $out = <<'END';
 :n1_self -
 -A INPUT -j n1_self -i n1
 :n1_k1 -
--A FORWARD -j n1_k1 -i n1 -o k1
 -A n1_k1 -g c1 -s 10.1.1.0/24 -d 10.2.1.0/24 -p tcp --dport 80:82
+-A FORWARD -j n1_k1 -i n1 -o k1
 :n1_k2 -
--A FORWARD -j n1_k2 -i n1 -o k2
 -A n1_k2 -g c2 -s 10.1.1.0/24 -d 10.2.2.0/24 -p tcp --dport 80:82
+-A FORWARD -j n1_k2 -i n1 -o k2
 --
 END
 
@@ -386,9 +386,9 @@ $out = <<'END';
 -A c4 -g c3 -s 10.1.2.0/23 -d 10.1.1.0/24
 --
 :eth1_eth1 -
--A FORWARD -j eth1_eth1 -i eth1 -o eth1
 -A eth1_eth1 -g c4 -d 10.1.0.0/22 -p tcp
 -A eth1_eth1 -j ACCEPT -s 10.1.2.0/23 -d 10.1.1.0/24 -p udp --dport 53
+-A FORWARD -j eth1_eth1 -i eth1 -o eth1
 END
 
 test_run($title, $in, $out);
@@ -435,8 +435,8 @@ $out = <<'END';
 -A c3 -g c2 -d 10.1.0.0/22 -p icmp
 --
 :eth1_eth0 -
--A FORWARD -j eth1_eth0 -i eth1 -o eth0
 -A eth1_eth0 -g c3 -s 10.1.3.0/24
+-A FORWARD -j eth1_eth0 -i eth1 -o eth0
 END
 
 test_run($title, $in, $out);

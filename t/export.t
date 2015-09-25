@@ -23,7 +23,7 @@ sub test_run {
         return '';
     }
     if ($stderr) {
-        BAIL_OUT("Unexpected output on STDERR:\n$stderr\n");
+        print STDERR "Unexpected output on STDERR:\n$stderr\n";
         return;
     }
 
@@ -37,7 +37,7 @@ sub test_run {
     }
     
     # Undef input record separator to read all output at once.
-    $/ = undef;
+    local $/ = undef;
 
     while (@expected) {
         my $fname = shift @expected;

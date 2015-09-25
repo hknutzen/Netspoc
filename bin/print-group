@@ -80,17 +80,19 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 use strict;
 use warnings;
 use open qw(:std :utf8);
-use Netspoc;
+use Netspoc::Compiler::GetArgs qw(read_config combine_config);
+use Netspoc::Compiler::Common;
+use Netspoc::Compiler::Pass1;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '3.070'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.0'; # VERSION: inserted by DZP::OurPkgVersion
 
 # Take higher bits from network NAT, lower bits from original IP.
 # This works with and without NAT.
 sub nat {
     my ($ip, $network) = @_;
-    return($network->{ip} | $ip & Netspoc::complement_32bit ($network->{mask}));
+    return($network->{ip} | $ip & complement_32bit ($network->{mask}));
 }
 
 # Print IP address of $obj in context of $no_nat_set.
@@ -98,7 +100,7 @@ sub print_address {
     my ($obj, $no_nat_set) = @_;
     my $type = ref $obj;
     if ($type eq 'Network') {
-        $obj = Netspoc::get_nat_network($obj, $no_nat_set);
+        $obj = get_nat_network($obj, $no_nat_set);
         my $ip = $obj->{ip};
         if ($ip eq 'unnumbered') {
             return $ip;
@@ -107,17 +109,17 @@ sub print_address {
             return 'hidden';
         }
         else {
-            my $prefix = Netspoc::mask2prefix($obj->{mask});
+            my $prefix = mask2prefix($obj->{mask});
             return print_ip($ip) . ($prefix == 32 ? '' : "/$prefix");
         }
     }
     elsif ($type eq 'Host' or $type eq 'Interface') {
-        my $network = Netspoc::get_nat_network($obj->{network}, $no_nat_set);
+        my $network = get_nat_network($obj->{network}, $no_nat_set);
         if (my $nat_tag = $network->{dynamic}) {
             if ($obj->{nat} and (my $ip = $obj->{nat}->{$nat_tag})) {
 
                 # Single static NAT IP for this object.
-                return Netspoc::print_ip($ip);
+                return print_ip($ip);
             }
             elsif ($network->{hidden}) {
                 return 'hidden';
@@ -126,7 +128,7 @@ sub print_address {
                 
                 # Dynamic NAT, take whole network.
                 my $ip = $network->{ip};
-                my $prefix = Netspoc::mask2prefix($network->{mask});
+                my $prefix = mask2prefix($network->{mask});
                 return print_ip($ip) . ($prefix == 32 ? '' : "/$prefix");
             }
         }
@@ -135,11 +137,11 @@ sub print_address {
             # NAT not allowed for isolated ports. 
             # Take no bits from network, because secondary isolated ports 
             # don't match network.
-            return Netspoc::print_ip($obj->{ip});
+            return print_ip($obj->{ip});
         }
         elsif (my $range = $obj->{range}) {
             return 
-                join('-', map { Netspoc::print_ip(nat($_, $network)) } @$range);
+                join('-', map { print_ip(nat($_, $network)) } @$range);
         }
         elsif ($obj->{ip} =~ /unnumbered|short|bridged/) {
             return $obj->{ip};
@@ -148,18 +150,18 @@ sub print_address {
             
             # Take whole network.
             my $ip = $network->{ip};
-            my $prefix = Netspoc::mask2prefix($network->{mask});
+            my $prefix = mask2prefix($network->{mask});
             return print_ip($ip) . ($prefix == 32 ? '' : "/$prefix");
         }
         else {
-            return Netspoc::print_ip(nat($obj->{ip}, $network));
+            return print_ip(nat($obj->{ip}, $network));
         }
     }
     elsif ($type eq 'Autointerface') {
         return 'unknown';
     }
     else {
-        Netspoc::internal_err "Unexpected object $obj->{name}";
+        internal_err "Unexpected object $obj->{name}";
     }
     return; # unused; only for perlcritic
 }
@@ -197,19 +199,20 @@ my $name = shift @ARGV or pod2usage(2);
 ####################################################################
 
 my $file_config = &read_config($in_path);
-&set_config($file_config, { verbose => !$quiet });
+$config = combine_config($file_config, { verbose => !$quiet });
+init_global_vars();
 
 # Parse group definition(s).
-$Netspoc::input = $name;
-$Netspoc::current_file = 'group definition';
-$Netspoc::line = 1;
+$input = $name;
+$current_file = 'group definition';
+$line = 1;
 my @parsed;
-Netspoc::skip_space_and_comment();
+skip_space_and_comment();
 while (1) {
-    push @parsed, Netspoc::read_intersection;
-    Netspoc::skip_space_and_comment;
-    last if pos $Netspoc::input == length $Netspoc::input;
-    Netspoc::check(',');
+    push @parsed, read_intersection;
+    skip_space_and_comment;
+    last if pos $input == length $input;
+    check(',');
 }
 
 # Read and process Netspoc configuration file or directory.
@@ -219,10 +222,10 @@ while (1) {
 &set_zone();
 &distribute_nat_info();
 &setpath();
-Netspoc::find_subnets_in_zone();
-Netspoc::convert_hosts();
+find_subnets_in_zone();
+convert_hosts();
 if ($show_owner) {
-    Netspoc::propagate_owners();
+    propagate_owners();
 }
 &abort_on_error();
 
@@ -236,7 +239,7 @@ if($nat_net) {
 
 # Expand group definition(s).
 my $elements = 
-    Netspoc::expand_group_in_rule(\@parsed, 'print-group', 0);
+    expand_group_in_rule(\@parsed, 'print-group', 0);
 
 # Find unused objects by marking used objects.
 if ($show_unused) {

@@ -18,13 +18,16 @@ my %WriteMakefileArgs = (
   "DISTNAME" => "Netspoc",
   "EXE_FILES" => [
     "bin/print-service",
+    "bin/check-pathrestrictions",
     "bin/watchers-to-json",
     "bin/export-netspoc",
     "bin/print-group",
+    "bin/spoc1",
     "bin/cut-netspoc",
     "bin/netspoc",
     "bin/remove-from-netspoc",
     "bin/add-to-netspoc",
+    "bin/spoc2",
     "bin/rename-netspoc"
   ],
   "LICENSE" => "gpl",
@@ -32,10 +35,10 @@ my %WriteMakefileArgs = (
   "PREREQ_PM" => {
     "Encode" => 0,
     "Exporter" => 0,
+    "File::Basename" => 0,
     "File::Path" => 0,
     "Getopt::Long" => 0,
     "JSON" => 0,
-    "Module::Load::Conditional" => 0,
     "Pod::Usage" => 0,
     "bytes" => 0,
     "locale" => 0,
@@ -54,7 +57,7 @@ my %WriteMakefileArgs = (
     "Test::More" => 0,
     "lib" => 0
   },
-  "VERSION" => "3.070",
+  "VERSION" => "4.0",
   "test" => {
     "TESTS" => "t/*.t"
   }
@@ -67,13 +70,13 @@ my %FallbackPrereqs = (
   "Encode" => 0,
   "Exporter" => 0,
   "ExtUtils::MakeMaker" => 0,
+  "File::Basename" => 0,
   "File::Path" => 0,
   "File::Spec::Functions" => 0,
   "File::Temp" => 0,
   "Getopt::Long" => 0,
   "IPC::Run3" => 0,
   "JSON" => 0,
-  "Module::Load::Conditional" => 0,
   "Pod::Usage" => 0,
   "Test::Differences" => 0,
   "Test::More" => 0,

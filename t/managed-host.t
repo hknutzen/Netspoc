@@ -28,8 +28,8 @@ END
 $out = <<'END';
 --host:h1
 :eth0_self -
--A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.1.1.0/24 -d 10.1.1.11 -p tcp --dport 80
+-A INPUT -j eth0_self -i eth0
 END
 
 test_run($title, $in, $out);
@@ -54,8 +54,8 @@ END
 $out = <<'END';
 --host:h1
 :eth0_self -
--A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.1.1.11 -d 10.1.1.10 -p tcp --dport 80
+-A INPUT -j eth0_self -i eth0
 --host:h2
 :eth1_self -
 -A INPUT -j eth1_self -i eth1
@@ -82,8 +82,8 @@ END
 $out = <<'END';
 --host:h1
 :eth0_self -
--A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.1.1.0/24 -d 10.1.1.10 -p tcp --dport 80
+-A INPUT -j eth0_self -i eth0
 END
 
 test_run($title, $in, $out);
@@ -138,8 +138,8 @@ $out = <<'END';
 -A c1 -j ACCEPT -s 10.0.0.0/8 -p tcp --dport 80
 --
 :eth0_self -
--A INPUT -j eth0_self -i eth0
 -A eth0_self -g c1 -d 10.1.1.10 -p tcp --dport 80:81
+-A INPUT -j eth0_self -i eth0
 END
 
 test_run($title, $in, $out);
@@ -164,8 +164,8 @@ END
 $out = <<'END';
 --host:h1
 :eth0_self -
--A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.1.1.0/28 -d 10.1.1.10 -p tcp --dport 80
+-A INPUT -j eth0_self -i eth0
 END
 
 test_run($title, $in, $out);
@@ -199,8 +199,8 @@ END
 $out = <<'END';
 --host:h1
 :eth0_self -
--A INPUT -j eth0_self -i eth0
 -A eth0_self -j ACCEPT -s 10.9.1.0/24 -d 10.1.1.10 -p tcp --dport 22
+-A INPUT -j eth0_self -i eth0
 --filter
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.99.99.69 eq 22
 access-list Vlan1_in extended deny ip any any
@@ -415,21 +415,21 @@ $out = <<'END';
 --host:hugo
 :c1 -
 :c2 -
+:c3 -
+:c4 -
 -A c1 -j ACCEPT -s 10.9.1.30
 -A c1 -j ACCEPT -s 10.9.1.20
 -A c2 -g c1 -s 10.9.1.16/28
 -A c2 -j ACCEPT -s 10.9.1.10
---
-:eth0_self -
--A INPUT -j eth0_self -i eth0
--A eth0_self -g c2 -s 10.9.1.0/27 -d 10.9.1.9 -p tcp --dport 22
---
-:c3 -
-:c4 -
 -A c3 -j ACCEPT -s 10.9.1.30
 -A c3 -j ACCEPT -s 10.9.1.20
 -A c4 -g c3 -s 10.9.1.16/28
 -A c4 -j ACCEPT -s 10.9.1.10
+--
+:eth0_self -
+-A eth0_self -g c2 -s 10.9.1.0/27 -d 10.9.1.9 -p tcp --dport 22
+-A INPUT -j eth0_self -i eth0
+--
 END
 
 test_run($title, $in, $out);

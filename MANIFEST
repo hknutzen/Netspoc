@@ -8,6 +8,7 @@ Makefile.PL
 README
 README.md
 bin/add-to-netspoc
+bin/check-pathrestrictions
 bin/cut-netspoc
 bin/export-netspoc
 bin/netspoc
@@ -15,6 +16,8 @@ bin/print-group
 bin/print-service
 bin/remove-from-netspoc
 bin/rename-netspoc
+bin/spoc1
+bin/spoc2
 bin/watchers-to-json
 cover_db/-usr-local-lib-perl5-5-20-1-B-Debug-pm--branch.html
 cover_db/-usr-local-lib-perl5-5-20-1-B-Debug-pm--condition.html
@@ -653,11 +656,16 @@ examples/optimize/topology
 examples/protocol-modifiers/protocol-modifiers
 examples/realistic/realistic
 examples/topology
-lib/Netspoc.pm
+lib/Netspoc/Compiler/Common.pm
+lib/Netspoc/Compiler/Common.pm~
+lib/Netspoc/Compiler/File.pm
+lib/Netspoc/Compiler/File.pm~
+lib/Netspoc/Compiler/GetArgs.pm
+lib/Netspoc/Compiler/GetArgs.pm~
+lib/Netspoc/Compiler/Pass1.pm
+lib/Netspoc/Compiler/Pass2.pm
 misc/anonymize
-misc/conv2solsoft
 misc/conv_owner.pl
-misc/intersect-ip
 misc/perltidyrc
 old-doc/CSPM.pod
 old-doc/ChangeLog
@@ -674,6 +682,7 @@ pod-links/remove-from-netspoc.pod
 pod-links/rename-netspoc.pod
 t/Test_Group.pm
 t/Test_Netspoc.pm
+t/Test_Pathrestrictions.pm
 t/add-to-netspoc.t
 t/aggregate.t
 t/any-multicast-interface.t
@@ -704,12 +713,9 @@ t/parser.t
 t/pathrestrict-border.t
 t/pathrestrict.t
 t/print-service.t
-t/print-service.t~
 t/private.t
 t/protect-interfaces.t
 t/protocols.t
-t/protocols.t~
-t/remove-from.t~
 t/rename.t
 t/route.t
 t/routing_only.t

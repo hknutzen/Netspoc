@@ -9,12 +9,14 @@ our @EXPORT = qw(test_run test_err);
 
 use Test::More;
 use Test::Differences;
+use IPC::Run3;
 use Capture::Tiny 'capture_stderr';
 use File::Temp qw/ tempfile tempdir /;
 use File::Spec::Functions qw/ file_name_is_absolute splitpath catdir catfile /;
 use File::Path 'make_path';
 use lib 'lib';
-use Netspoc;
+use Netspoc::Compiler::Pass1;
+use Netspoc::Compiler::Pass2;
 
 my $default_options = '-quiet';
 
@@ -56,7 +58,11 @@ sub run {
         close $in_fh;
     }
 
-    # Prepare arguments.
+    # Propagate options to perl process.
+    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
+    $perl_opt .= ' -I lib';
+
+    # Prepare arguments for pass 1.
     my $args = [ split(' ', $default_options),
                  split(' ', $options),
                  $in_dir ];
@@ -68,11 +74,10 @@ sub run {
             my $result;
             eval {
 
-                # Global variables are initialized already when
-                # Netspoc.pm is loaded, but re-initialization is
-                # needed for multiple compiler runs.
-                Netspoc::init_global_vars();
-                Netspoc::compile($args);
+                # Copy unchanged arguments.
+                my $args2 = [ @$args ];
+                Netspoc::Compiler::Pass1::compile($args);
+                Netspoc::Compiler::Pass2::compile($args2);
                 $result = 1;
             };
             if($@) {
@@ -80,6 +85,7 @@ sub run {
             };
             $result;
     };
+
     return($stderr, $success, $in_dir);
 }
 
@@ -143,7 +149,7 @@ sub test_run {
     my $dir = compile($in, $options);
 
     # Undef input record separator to read all output at once.
-    $/ = undef;
+    local $/ = undef;
 
     # Blocks of expected output are split by single lines of dashes,
     # followed by an optional device name.

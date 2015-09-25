@@ -452,7 +452,7 @@ service:test = {
 END
 
 $out = <<'END';
-Error: host:H needs static translation for nat:C to be valid in rule
+Error: host:H needs static translation for nat:C at router:C to be valid in rule
  permit src=network:X; dst=host:H; prt=tcp 80; of service:test
 END
 
@@ -461,13 +461,68 @@ test_err($title, $in, $out);
 $in =~ s/managed; \#1//;
 
 $out = <<'END';
-Error: host:H needs static translation for nat:C to be valid in rule
+Error: host:H needs static translation for nat:C at router:filter to be valid in rule
  permit src=network:X; dst=host:H; prt=tcp 80; of service:test
-Error: host:H needs static translation for nat:C to be valid in rule
+Error: host:H needs static translation for nat:C at router:filter to be valid in rule
  permit src=host:H; dst=network:X; prt=tcp 80; of service:test
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'No secondary optimization with host and dynamic NAT';
+############################################################
+
+# Secondary optimization must be disabled at router:r2.
+$in = <<'END';
+network:a = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:a = {ip = 10.1.1.1; hardware = a; bind_nat = b;}
+ interface:t = {ip = 10.4.4.1; hardware = t;}
+}
+network:t = { ip = 10.4.4.0/30; }
+router:r2 = {
+ managed = secondary;
+ model = ASA;
+ routing = manual;
+ interface:t = {ip = 10.4.4.2; hardware = t;}
+ interface:b = {ip = 10.2.2.1; hardware = b;}
+}
+
+network:b  = {
+ ip = 10.2.2.0/24;
+ nat:b = { ip = 10.9.9.4/30; dynamic; } 
+ host:b10 = { ip = 10.2.2.10; }
+}
+
+service:test = {
+ user = network:a;
+ permit src = user; dst = host:b10; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! [ ACL ]
+ip access-list extended a_in
+ permit tcp 10.1.1.0 0.0.0.255 10.9.9.4 0.0.0.3 eq 80
+ deny ip any any
+--
+ip access-list extended t_in
+ permit tcp host 10.2.2.10 10.1.1.0 0.0.0.255 established
+ deny ip any any
+-- r2
+! [ ACL ]
+access-list t_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.2.2.10 eq 80
+access-list t_in extended deny ip any any
+access-group t_in in interface t
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Inherit NAT from overlapping areas and zones';
@@ -719,7 +774,7 @@ service:s = {
 END
 
 $out = <<'END';
-Error: interface:asa1.n2 needs static translation for nat:dyn to be valid in rule
+Error: interface:asa1.n2 needs static translation for nat:dyn at router:asa2 to be valid in rule
  permit src=host:h3; dst=interface:asa1.n2; prt=tcp 22; of service:s
 END
 
@@ -753,8 +808,46 @@ service:test = {
 END
 
 $out = <<'END';
-Error: interface:r2.b needs static translation for nat:b to be valid in rule
+Error: interface:r2.b needs static translation for nat:b at router:r1 to be valid in rule
  permit src=network:a; dst=interface:r2.b; prt=reversed:TCP_ANY; stateless
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Interface with dynamic NAT applied at same device';
+############################################################
+
+$in = <<'END';
+network:a = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:a = {ip = 10.1.1.1; hardware = a;}
+ interface:t = {ip = 10.4.4.1; hardware = t;}
+}
+network:t = { ip = 10.4.4.0/30; }
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:t = {ip = 10.4.4.2; hardware = t; bind_nat = b;}
+ interface:b = {ip = 10.2.2.1; hardware = b;}
+}
+
+network:b  = { ip = 10.2.2.0/24; nat:b = { ip = 10.9.9.4/30; dynamic; } }
+
+service:test = {
+ user = network:a;
+ permit src = user; dst = interface:r2.b; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: interface:r2.b needs static translation for nat:b at router:r2 to be valid in rule
+ permit src=network:a; dst=interface:r2.b; prt=tcp 80; of service:test
 END
 
 test_err($title, $in, $out);

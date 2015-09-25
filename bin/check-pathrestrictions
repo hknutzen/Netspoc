@@ -1,0 +1,193 @@
+#!/usr/bin/perl
+
+=head1 NAME
+
+check-pathrestrictions - print status of pathrestrictions applied.
+
+=head1 SYNOPSIS
+
+check-pathrestrictions [options] FILE|DIR
+
+=head1 DESCRIPTION
+
+This program prints the number of pathresrictions that have been
+defined in a netspoc input topology, applied for the topology
+(including pathrestrictions needed for virtual interfaces or tunnel
+networks) as well as the number or names of pathrestrictions that could not be
+optimized.  
+
+=head1 OPTIONS
+
+=over 2
+
+=item B<-quiet>
+
+Don't print progress messages.
+
+=item B<-all>
+
+Show list of pathrestrictions without optimization.
+
+=item B<-help>
+
+Prints a brief help message and exits.
+
+=back
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+(c) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+
+This program uses module Netspoc.pm,
+a Network Security Policy Compiler,
+http://hknutzen.github.com/Netspoc
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
+
+
+
+use strict;
+use warnings;
+use Netspoc::Compiler::GetArgs qw(read_config combine_config);
+use Netspoc::Compiler::Common;
+use Netspoc::Compiler::Pass1;
+use Getopt::Long;
+use open qw(:std :utf8);
+use Pod::Usage;
+
+##############################################################################
+# Purpose : Read next definition from input. 
+# Comment : This function is a modification of read_netspoc that skips
+#           rule related information. 
+sub read_input {
+
+    # Check for global definitions.
+    my $pair = check_typed_name or syntax_err('');
+    my ($type, $name) = @$pair;
+
+    # Skip service declarations.
+    if ($type eq "service") {
+        while (1) { # Adjust input position.
+            last if check '\}';
+            skip('.*');
+        }
+        return;
+    }
+
+    # Skip group/protocol/protocolgroup declarations.
+    # Anonymous protocols used by general_permit will still be read, though. 
+    if ($type eq "group" || $type eq "protocolgroup" || $type eq "protocol" ) {
+        while (1) { # Adjust input position.
+            last if check '.*;';
+            skip('.*');
+        }
+        return;
+    }
+
+    my $descr = $global_type{$type}
+      or syntax_err("Unknown global definition");
+    my ($fun, $hash) = @$descr;
+    my $result = $fun->("$type:$name");
+    $result->{file} = $current_file;
+    if (my $other = $hash->{$name}) {
+        err_msg("Duplicate definition of $type:$name in",
+                " $current_file and $other->{file}");
+    }
+    return $hash->{$name} = $result;
+};
+
+##############################################################################
+# Purpose : Process Netspoc input until pathrestrictions are applied and 
+#           optimized. Print applied pathrestrictions and pathrestrictions 
+#           that could not be optimized to stdout.
+
+# Get Option
+my $quiet;
+my $all;
+my $help;
+GetOptions ( 'quiet' => \$quiet,
+             'help|?' => \$help,
+             'all' => \$all,
+	     ) or pod2usage(2);
+pod2usage(1) if $help;
+
+# Get input file.
+if (@ARGV != 1) {
+    print "Usage:\n" .
+        "\tcheck-pathrestrictions FILE|DIR\n\n";
+    exit;
+}
+my ($in_path) = @ARGV;
+
+# Process required netspoc steps.
+my $file_config = &read_config($in_path);
+$config = combine_config($file_config, { verbose => !$quiet });
+&read_file_or_dir($in_path, \&read_input);#skip rule related infos
+&show_read_statistics;
+&link_topology();
+&mark_disabled();
+&set_zone();
+
+find_dists_and_loops();
+process_loops();
+check_pathrestrictions();
+optimize_pathrestrictions();
+
+
+# Evaluate defined and evaluated pathrestrictions.
+my $defined = keys %pathrestrictions;
+my $applied = @pathrestrictions;
+
+print "$defined pathrestriction(s) defined.\n";
+print "$applied pathrestriction(s) applied.\n";
+
+# Print pathrestrictions where optimization failed. 
+my $fail_count = 0;
+my @sorted_pathrestrictions = sort @pathrestrictions;
+for my $restriction (@sorted_pathrestrictions) { 
+    my $fail = 0;
+    for my $interface (@ {$restriction->{elements}} ) {
+         if ($interface->{path_restrict}) {
+            $fail = grep {$_ == $restriction} 
+                              @{$interface->{path_restrict}};
+        }
+        if ($all && $fail > 0) {
+            if ($fail_count == 0) {
+                print "Optimization failed at:\n";
+            }
+            last;
+        }
+    }
+    if ($fail > 0) {
+        $all && print "  $restriction->{name}\n";
+        $fail_count += 1;         
+    }
+}
+$all || print "Failed to optimize $fail_count pathrestriction(s).\n";
+
+
+# It might be interesting to know, which interface(s) of a
+# pathrestriction prevent optimization. This information can not be
+# easily obtained though: Although interfaces inside a partition do
+# not get a {reachable_at} tag, it might still be that such interfaces
+# have {reachable_at} tags attached due to other
+# pathrestrictions. Thus, the existance of these tags does not
+# indicate that an interface can be optimized. The relation of
+# partition marks and pathrestrictions, which could be used to
+# identify optimization inhibiting interfaces is unfortuntely not
+# kept.
+
