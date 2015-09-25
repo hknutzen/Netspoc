@@ -2157,11 +2157,6 @@ sub pass2 {
     }
 }
 
-sub show_finished {
-    progress('Finished') if $config->{time_stamps};
-    return;
-}
-
 # Generate code files from *.config and *.rules files.
 sub compile {
     my ($args) = @_;
@@ -2170,7 +2165,7 @@ sub compile {
     if ($dir) {
         pass2($dir);
     }
-    show_finished();
+    progress('Finished');
     return;
 }
 
