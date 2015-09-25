@@ -243,7 +243,7 @@ sub setup_prt_relation {
             
         # Numeric protocol.
         elsif ($proto =~ /^\d+$/) {
-            my $prt->{up} = $prt_ip;
+            $prt->{up} = $prt_ip;
         }
     }
 
