@@ -2112,19 +2112,8 @@ sub check_prev {
     return 1;        
 }
 
-sub show_finished {
-    progress('Finished') if $config->{time_stamps};
-    return;
-}
-
-# Generate code files from *.config and *.rules files.
-sub compile {
-    my ($args) = @_;
-
-    ($config, undef, my $dir) = get_args($args);
-    return if not $dir;
-    $start_time = $config->{start_time} || time();
-
+sub pass2 {
+    my ($dir) = @_;
     my $prev = "$dir/.prev";
     my $has_prev = -d $prev;
     my @pass1_base = map { basename($_, '.config') } glob("$dir/*.config");
@@ -2165,6 +2154,21 @@ sub compile {
     if ($has_prev and not -l $prev) {
         system("rm -rf $prev") == 0 or
             fatal_err("Can't remove $prev: $!");
+    }
+}
+
+sub show_finished {
+    progress('Finished') if $config->{time_stamps};
+    return;
+}
+
+# Generate code files from *.config and *.rules files.
+sub compile {
+    my ($args) = @_;
+    ($config, undef, my $dir) = get_args($args);
+    $start_time = $config->{start_time} || time();
+    if ($dir) {
+        pass2($dir);
     }
     show_finished();
     return;
