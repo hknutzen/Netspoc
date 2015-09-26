@@ -5102,8 +5102,9 @@ sub convert_hosts {
         }
 
         # Attribute {up} has been set for all subnets now.
-        # Do the same for interfaces.
+        # Do the same for unmanaged interfaces.
         for my $interface (@{ $network->{interfaces} }) {
+            next if $interface->{router}->{managed};
             $interface->{up} = $network;
         }
     }
@@ -6071,21 +6072,6 @@ sub add_rules {
     for my $rule (@$rules_ref) {
         my ($stateless, $deny, $src, $dst, $src_range, $prt) =
           @{$rule}{qw(stateless deny src dst src_range prt)};
-
-        # A rule with an interface as destination may be marked as deleted
-        # during global optimization. But in some cases, code for this rule
-        # must be generated anyway. This happens, if
-        # - it is an interface of a managed router and
-        # - code is generated for exactly this router.
-        # Mark such rules for easier handling.
-        if (
-            is_interface($dst)
-            && (   $dst->{router}->{managed}
-                || $dst->{router}->{routing_only})
-          )
-        {
-            $rule->{managed_intf} = 1;
-        }
         $stateless ||= '';
         $deny      ||= '';
         $src_range ||= $prt_ip;
@@ -6439,11 +6425,6 @@ sub collect_redundant_rules {
     my $prt1 = $rule->{orig_prt}  || $rule->{prt};
     my $prt2 = $other->{orig_prt} || $other->{prt};
     return if $prt1->{flags}->{overlaps} && $prt2->{flags}->{overlaps};
-
-    # Rule is still needed at device of $rule->{dst}.
-    if ($rule->{managed_intf} and not $rule->{deleted}->{managed_intf}) {
-        return;
-    }
 
     # Automatically generated reverse rule for stateless router
     # is still needed, even for stateful routers for static routes.
@@ -13381,20 +13362,7 @@ sub gen_reverse_rules1 {
     my @extra_rules;
     my %cache;
     for my $rule (@$rule_aref) {
-        if ($rule->{deleted}) {
-            my $src = $rule->{src};
-
-            # If source is a managed interface,
-            # reversed will get attribute managed_intf.
-            unless (
-                is_interface($src)
-                && (   $src->{router}->{managed}
-                    || $src->{router}->{routing_only})
-              )
-            {
-                next;
-            }
-        }
+        next if $rule->{deleted};
         my $prt   = $rule->{prt};
         my $proto = $prt->{proto};
         next unless $proto eq 'tcp' or $proto eq 'udp' or $proto eq 'ip';
@@ -13691,9 +13659,7 @@ sub mark_secondary_rules {
     # Don't modify a deny rule from e.g. tcp to ip.
     # Don't modify supernet rules, because path isn't fully known.
     for my $rule (@{ $expanded_rules{permit} }) {
-        next
-          if $rule->{deleted}
-          and (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
+        next if $rule->{deleted};
 
         my ($src, $dst) = @{$rule}{qw(src dst)};
         next if $src->{is_aggregate} || $dst->{is_aggregate};
@@ -13805,10 +13771,7 @@ sub check_dynamic_nat_rules {
     my %cache;
 
     for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{deny} }) {
-        next
-          if $rule->{deleted}
-          and (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
-
+        next if $rule->{deleted};
         my $dynamic_nat;
         for my $where ('src', 'dst') {
             my $obj  = $rule->{$where};
@@ -14253,9 +14216,7 @@ sub prepare_nat_commands {
     # src-(zone/router), dst-(zone/router)
     my %zone2zone2info;
     for my $rule (@{ $expanded_rules{permit} }) {
-        next
-          if $rule->{deleted}
-          and (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
+        next if $rule->{deleted};
         my ($src, $dst) = @{$rule}{qw(src dst)};
         my $from = $obj2zone{$src} ||= get_zone3($src);
         my $to   = $obj2zone{$dst} ||= get_zone3($dst);
@@ -14614,34 +14575,10 @@ sub generate_routing_tree {
 
     # Process every elementary rule.
     for my $rule (@{ $expanded_rules{permit} }) {
-        my ($src, $dst) = ($rule->{src}, $rule->{dst});
-
-        # Ignore deleted rules, if src and dst are not managed interfaces:
-        if (
-                $rule->{deleted}
-
-            # Attribute {managed_intf} refers to destination interface only.
-            and (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf})
-
-            # Perform an equivalent check for source to handle both directions.
-            and (
-                not(
-                    is_interface $src
-                    and (  $src->{router}->{managed}
-                        or $src->{router}->{routing_only})
-                )
-                or (
-                    is_interface $rule->{deleted}->{src}
-                    and (  $rule->{deleted}->{src}->{router}->{managed}
-                        or $rule->{deleted}->{src}->{router}->{routing_only})
-                )
-            )
-          )
-        {
-            next;
-        }
+        next if $rule->{deleted};
 
         # Check, whether src and dst lie within the same zone.
+        my ($src, $dst) = @{$rule}{qw(src dst)};
         my $src_zone = get_zone2 $src;
         my $dst_zone = get_zone2 $dst;
         if ($src_zone eq $dst_zone) {
@@ -15679,25 +15616,10 @@ sub distribute_rule {
     # which don't handle stateless_icmp automatically;
     return if $rule->{stateless_icmp} and not $model->{stateless_icmp};
 
-    my $dst       = $rule->{dst};
-    my $intf_hash = $router->{crosslink_intf_hash};
-
-    # Rule to managed interface must be processed
-    # - at the corresponding router or
-    # - at the edge of a cluster of crosslinked routers
-    # even if the rule is marked as deleted,
-    # because code for interface is placed separately into {intf_rules}.
-    if ($rule->{deleted}) {
-
-        # We are at an intermediate router.
-        return if $out_intf and (!$intf_hash || !$intf_hash->{$dst});
-
-        # No code needed if it is deleted by another rule to the same interface.
-        return if $rule->{deleted}->{managed_intf};
-    }
-
     # Don't generate code for src any:[interface:r.loopback] at router:r.
     return if $in_intf->{loopback};
+
+    my $dst = $rule->{dst};
 
     # Apply only matching rules to 'managed=local' router.
     # Rule is matching if src and dst are matching attribute {filter_only}.
@@ -15714,6 +15636,7 @@ sub distribute_rule {
 
     # Packets for the router itself or for some interface of a
     # crosslinked cluster of routers (only IOS, NX-OS with "need_protect").
+    my $intf_hash = $router->{crosslink_intf_hash};
     if (!$out_intf || $intf_hash && $intf_hash->{$dst}) {
 
         # Packets for the router itself.  For PIX we can only reach that
@@ -16090,9 +16013,7 @@ sub rules_distribution {
 
     # Permit rules
     for my $rule (@{ $expanded_rules{permit} }) {
-        next
-          if $rule->{deleted}
-          and (not $rule->{managed_intf} or $rule->{deleted}->{managed_intf});
+        next if $rule->{deleted};
         path_walk($rule, \&distribute_rule, 'Router');
     }
 
