@@ -566,7 +566,7 @@ sub add_local_deny_rules {
             }
             else {
                 $group = { name => "g$router_data->{obj_group_counter}",
-                           elements => [ map { $_->{name} } @$obj_list ] };
+                           elements => $obj_list };
                 $router_data->{obj_group_counter}++;
                 push @{ $acl_info->{object_groups} }, $group;
                 $router_data->{filter_only_group} = $group;
@@ -627,8 +627,7 @@ sub find_objectgroups {
         }
 
         # Find groups >= $min_object_group_size,
-        # mark rules belonging to one group,
-        # put groups into an array / hash.
+        # mark rules belonging to one group.
         for my $href (values %group_rule_tree) {
 
             # $href is {dst/src => rule, ...}
@@ -636,7 +635,7 @@ sub find_objectgroups {
 
             my $glue = {
 
-                # Indicator, that no further rules need to be processed.
+                # Indicator, that group has already beed added to some rule.
                 active => 0,
 
                 # object-key => rule, ...
@@ -651,54 +650,44 @@ sub find_objectgroups {
             }
         }
 
-        my $build_group = sub {
-            my ($obj_key_list) = @_;
-            my $group = { name => "g$router_data->{obj_group_counter}", 
-                          elements => $obj_key_list };
-            $router_data->{obj_group_counter}++;
-
-            # Store group for later printing of its definition.
-            push @{ $acl_info->{object_groups} }, $group;
-            return $group;
-        };
-
         # Find group with identical elements or define a new one.
         my $get_group = sub {
             my ($glue) = @_;
             my $hash   = $glue->{hash};
 
-            # Keys are "i.i.i.i/len".
-            # Sort keys by IP and prefixlen for normalized output and
-            # to get some "first" element.
-            my @obj_key_list  =
-                map { $_->{name} }
+            # Sort keys by IP and mask for normalized output and
+            # to get some "first" element for efficent hashing.
+            my @elements  =
                 sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
                 map { $ip_net2obj->{$_} }
                 keys %$hash;
 
-            my $first = $obj_key_list[0];
-            my $size  = @obj_key_list;
+            my $size  = @elements;
+            my $first = $elements[0]->{name};
 
-            # Find group with identical elements.
+            # Search group with identical elements.
           HASH:
-            for my $group_hash (
-                @{ $size2first2group->{$size}->{$first} })
-            {
-                my $href = $group_hash->{hash};
+            for my $group (@{ $size2first2group->{$size}->{$first} }) {
+                my $href = $group->{hash};
 
                 # Check elements for equality.
-                for my $key (@obj_key_list) {
+                for my $key (keys %$hash) {
                     $href->{$key} or next HASH;
                 }
 
-                # Found $group_hash with matching elements.
-                return $group_hash->{group};
+                # Found $group with matching elements.
+                return $group;
             }
 
-            # No group hash found, build new group hash with new group.
-            my $group      = $build_group->(\@obj_key_list);
-            my $group_hash = { hash  => $hash, group => $group, };
-            push(@{ $size2first2group->{$size}->{$first} }, $group_hash);
+            # No group found, build new group.
+            my $group = { name     => "g$router_data->{obj_group_counter}", 
+                          elements => \@elements,
+                          hash     => $hash, };
+            $router_data->{obj_group_counter}++;
+
+            # Store group for later printing of its definition.
+            push @{ $acl_info->{object_groups} }, $group;
+            push(@{ $size2first2group->{$size}->{$first} }, $group);
             return $group;
         };
 
@@ -1862,15 +1851,15 @@ sub print_object_groups {
 
         my $numbered = 10;
         print "$keyword $group->{name}\n";
-        for my $key (@{ $group->{elements} }) {
+        for my $element (@{ $group->{elements} }) {
 
             # Reject network with mask = 0 in group.
             # This occurs if optimization didn't work correctly.
-            $key eq '0.0.0.0/0'
+            0 == $element->{mask} 
                 and fatal_err(
                     "Unexpected network with mask 0 in object-group"
                 );
-            my $adr = cisco_acl_addr($ip_net2obj->{$key}, $model);
+            my $adr = cisco_acl_addr($element, $model);
             if ($model eq 'NX-OS') {
                 print " $numbered $adr\n";
                 $numbered += 10;
