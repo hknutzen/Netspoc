@@ -5105,7 +5105,8 @@ sub convert_hosts {
         # Attribute {up} has been set for all subnets now.
         # Do the same for unmanaged interfaces.
         for my $interface (@{ $network->{interfaces} }) {
-            next if $interface->{router}->{managed};
+            my $router = $interface->{router};
+            next if $router->{managed} or $router->{routing_only};
             $interface->{up} = $network;
         }
     }
