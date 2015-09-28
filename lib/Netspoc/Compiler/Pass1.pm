@@ -4485,9 +4485,10 @@ sub link_virtual_interfaces {
 }
 
 ##############################################################################
-# Purpose    : Check, whether input IFs belong to the same redundancy group.
+# Purpose    : Check, whether input Interfaces belong to same redundancy group.
 # Parameters : Array keeping all interfaces of a network.
-# Returns    : True, if all IFs belong to same redundancy group, false otherwise
+# Returns    : True, if all interfacss belong to same redundancy group,
+#              false otherwise.
 sub is_redundany_group {
     my ($interfaces) = @_;
     my $group = $interfaces->[0]->{redundancy_interfaces} or return;
@@ -10938,11 +10939,11 @@ sub cluster_path_mark1 {
 #              of the cluster those loops, that are allowed to be entered when  
 #              traversing the path to $to. 
 sub cluster_navigation {
-#    debug("Navi: $from->{name}, $to->{name}");    
 
     my ($from, $to) = @_;
-    my $navi;    
+    # debug("Navi: $from->{name}, $to->{name}");
 
+    my $navi;    
     # Return filled navi hash, if pair ($from, $to) has been processed before.
     if (($navi = $from->{navi}->{$to}) and scalar keys %$navi) {
 #	debug(" Cached");
@@ -14316,7 +14317,7 @@ sub set_routes_in_zone {
         next if $border_networks{$network};
         $border_networks{$network} = $network;
 
-        # Collect non-zone interfaces of border networks as next hop interfaces.
+        # Collect non border interfaces of the networks as next hop interfaces.
         for my $out_interface (@{ $network->{interfaces} }) {
             next if $out_interface->{zone};
             next if $out_interface->{main_interface};
@@ -14454,10 +14455,11 @@ sub set_routes_in_zone {
 }
 
 ##############################################################################
-# Purpose    : Gather rule specific routing information at zone interfaces:
-#              For a pair ($in_intf,$out_intf) of zone interfaces that lies 
-#              on a path from src to dst, the next hop interfaces H to reach 
-#              $out_intf from $in_intf are determined and stored.
+# Purpose    : Gather rule specific routing information at zone border 
+#              interfaces: For a pair ($in_intf,$out_intf) of zone border
+#              interfaces that lies on a path from src to dst, the next hop
+#              interfaces H to reach $out_intf from $in_intf are determined
+#              and stored.
 # Parameters : $in_intf - interface zone is entered from.
 #              $out_intf - interface zone is left at.
 #              $dst_networks - destination networks of associated pseudo rule.
@@ -14577,17 +14579,18 @@ sub generate_routing_tree {
     for my $rule (@{ $expanded_rules{permit} }) {
         next if $rule->{deleted};
 
-        # Check, whether src and dst lie within the same zone.
+        # Check, whether src and dst lie within the same zone. 
+        # In this case, path_walk will do nothing.
         my ($src, $dst) = @{$rule}{qw(src dst)};
         my $src_zone = get_zone2 $src;
         my $dst_zone = get_zone2 $dst;
         if ($src_zone eq $dst_zone) {
 
-            # If so, directly detect next hop IFs for zone interfaces.
+            # Detect next hop interfaces if src/dst are zone border interfaces.
             for my $from ($src, $dst) {
                 my $to = $from eq $src ? $dst : $src;
-                next if not is_interface($from); # Not a zone interface.
-                next if not $from->{zone}; # Not a zone interface. 
+                next if not is_interface($from); # Not a zone border interface.
+                next if not $from->{zone}; # Not a zone border interface. 
                 $from = $from->{main_interface} || $from;
                 my @networks = get_route_networks($to);
                 add_end_routes($from, \@networks);
