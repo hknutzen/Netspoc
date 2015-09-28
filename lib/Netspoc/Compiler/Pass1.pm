@@ -13215,29 +13215,30 @@ sub check_for_transient_supernet_rule {
     %smaller_prt = ();
 
     if ($missing_count) {
-
-        my $print =
-          $config->{check_transient_supernet_rules} eq 'warn'
-          ? \&warn_msg
-          : \&err_msg;
-        $print->("Missing transient rules: $missing_count");
-
+        my @msg = ("Missing transient rules: $missing_count");
         while (my ($src_service, $hash) = each %missing_rule_tree) {
             while (my ($dst_service, $hash) = each %$hash) {
                 while (my ($supernet, $hash) = each %$hash) {
-                    info
-                      "Rules of $src_service and $dst_service match at $supernet";
-                    info("Missing transient rules:");
+                    push(@msg, "Rules of $src_service and $dst_service" .
+                         " match at $supernet");
+                    push(@msg, "Missing transient rules:");
                     while (my ($src, $hash) = each %$hash) {
                         while (my ($dst, $hash) = each %$hash) {
                             while (my ($prt, $hash) = each %$hash) {
-                                info(" permit src=$src; dst=$dst; prt=$prt");
+                                push(@msg, 
+                                     " permit src=$src; dst=$dst; prt=$prt");
                             }
                         }
                     }
                 }
             }
         }
+        my $print =
+          $config->{check_transient_supernet_rules} eq 'warn'
+          ? \&warn_msg
+          : \&err_msg;
+        $print->(join "\n", @msg);
+
     }
     return;
 }
