@@ -3457,9 +3457,9 @@ sub prepare_prt_ordering {
         # Found duplicate protocol definition.  Link $prt with $main_prt.
         # We link all duplicate protocols to the first protocol found.
         # This assures that we always reach the main protocol from any duplicate
-        # protocol in one step via ->{to_zone1}. This is used later to
-        #substitute occurrences of $prt with $main_prt.
-        $prt->{to_zone1} = $main_prt;
+        # protocol in one step via ->{main}. This is used later to
+        # substitute occurrences of $prt with $main_prt.
+        $prt->{main} = $main_prt;
     }
     return;
 }
@@ -6598,7 +6598,7 @@ sub expand_rules {
                 if (ref $prt eq 'ARRAY') {
                     ($src_range, $prt, $orig_prt) = @$prt;
                 }
-                elsif (my $main_prt = $prt->{to_zone1}) {
+                elsif (my $main_prt = $prt->{main}) {
                     $orig_prt = $prt;
                     $prt      = $main_prt;
                 }
@@ -15914,7 +15914,7 @@ sub create_general_permit_rules {
         if (ref $prt eq 'ARRAY') {
             (my $src_range, $prt, my $orig_prt) = @$prt;
         }
-        elsif (my $main_prt = $prt->{to_zone1}) {
+        elsif (my $main_prt = $prt->{main}) {
             $prt = $main_prt;
         }
         my $rule = {
