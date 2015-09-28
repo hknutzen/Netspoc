@@ -14579,11 +14579,14 @@ sub generate_routing_tree {
     for my $rule (@{ $expanded_rules{permit} }) {
         next if $rule->{deleted};
 
-        # Check, whether src and dst lie within the same zone. 
-        # In this case, path_walk will do nothing.
         my ($src, $dst) = @{$rule}{qw(src dst)};
         my $src_zone = get_zone2 $src;
         my $dst_zone = get_zone2 $dst;
+
+        # Check, whether
+        # source interface is located in security zone of destination or
+        # destination interface is located in security zone of source.
+        # In this case, path_walk will do nothing.
         if ($src_zone eq $dst_zone) {
 
             # Detect next hop interfaces if src/dst are zone border interfaces.
