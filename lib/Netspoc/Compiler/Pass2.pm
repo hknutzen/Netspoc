@@ -541,6 +541,51 @@ sub join_ranges {
     return $rules;
 }
 
+# Protocols ESP and AH are be placed first in Cisco ACL
+# for performance reasons.
+# These rules need to have a fixed order.
+# Otherwise the connection may be lost,
+# - if the device is accessed over an IPSec tunnel
+# - and we change the ACL incrementally.
+sub move_rules_esp_ah {
+    my ($acl_info) = @_;
+    my $prt2obj = $acl_info->{prt2obj};
+    my $prt_esp = $prt2obj->{50};
+    my $prt_ah  = $prt2obj->{51};
+    $prt_esp or $prt_ah or return;
+    for my $what (qw(intf_rules rules)) {
+        my $rules = $acl_info->{$what} or next;
+        my @deny_rules;
+        my @crypto_rules;
+        my @permit_rules;
+        for my $rule (@$rules) {
+            if ($rule->{deny}) {
+                push @deny_rules, $rule;
+            }
+            elsif ($prt_esp and $rule->{prt} eq $prt_esp) {
+                push @crypto_rules, $rule;
+            }
+            elsif ($prt_ah and $rule->{prt} eq $prt_ah) {
+                push @crypto_rules, $rule;
+            }
+            else {
+                push @permit_rules, $rule;
+            }
+        }
+
+        # Sort crypto rules.
+        @crypto_rules =
+            sort({ my ($s_a, $d_a) = @{$a}{qw(src dst)};
+                   my ($s_b, $d_b) = @{$b}{qw(src dst)};
+                   $a->{prt}->{proto} <=> $b->{prt}->{proto} ||
+                   $s_a->{ip} <=> $s_b->{ip} || $s_a->{mask} <=> $s_b->{mask} ||
+                   $d_a->{ip} <=> $d_b->{ip} || $d_a->{mask} <=> $d_b->{mask} } 
+                 @crypto_rules);
+        $acl_info->{$what} = [ @deny_rules, @crypto_rules, @permit_rules ];
+    }
+    return;
+}
+
 # Add deny and permit rules at device which filters only locally.
 sub add_local_deny_rules {
     my ($acl_info, $router_data) = @_;
@@ -1791,6 +1836,7 @@ sub prepare_acls {
                 $rules = join_ranges($rules, $prt2obj);
                 $acl_info->{$what} = $rules;
             }
+            move_rules_esp_ah($acl_info);
 
             my $has_final_permit = check_final_permit($acl_info, $router_data);
             add_protect_rules($acl_info, $router_data, 

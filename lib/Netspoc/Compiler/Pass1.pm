@@ -15865,45 +15865,6 @@ sub add_router_acls {
     return;
 }
 
-sub cmp_address {
-    my ($obj) = @_;
-    my $type = ref $obj;
-    if ($type eq 'Network' or $type eq 'Subnet') {
-        return "$obj->{ip},$obj->{mask}";
-    }
-    elsif ($type eq 'Interface') {
-        return ("$obj->{ip}," . 0xffffffff);  ## no critic (MismatchedOperators)
-    }
-    else {
-        internal_err();
-    }
-}
-
-# Sort rules by
-# 1. reverse priority of protocol
-# 2. only if priority is given, then additionally by
-#    - src ip,mask
-#    - dst ip,mask
-# This should be done late to get all auxiliary rules processed.
-#
-# At least for $prt_esp and $prt_ah the ACL lines need to have a fixed order.
-# Otherwise the connection may be lost,
-# - if the device is accessed over an IPSec tunnel
-# - and we change the ACL incrementally.
-sub sort_rules_by_prio {
-    for my $type ('deny', 'permit') {
-        $expanded_rules{$type} = [
-            sort {
-                     ($b->{prt}->{prio} || 0) <=> ($a->{prt}->{prio} || 0)
-                  || ($a->{prt}->{prio} || 0)
-                  && ( cmp_address($a->{src}) cmp cmp_address($b->{src})
-                    || cmp_address($a->{dst}) cmp cmp_address($b->{dst}))
-            } @{ $expanded_rules{$type} }
-        ];
-    }
-    return;
-}
-
 sub distribute_rules {
     my ($rules, $in_intf, $out_intf) = @_;
     for my $rule (@$rules) {
@@ -16007,8 +15968,6 @@ sub distribute_general_permit {
 sub rules_distribution {
     return if fast_mode();
     progress('Distributing rules');
-
-    sort_rules_by_prio();
 
     # Deny rules
     for my $rule (@{ $expanded_rules{deny} }) {
@@ -17877,8 +17836,8 @@ sub init_protocols {
         src_range => [ 4500, 4500 ],
         dst_range => [ 4500, 4500 ]
     };
-    $prt_esp = { name => 'auto_prt:IPSec_ESP', proto => 50, prio => 100, };
-    $prt_ah  = { name => 'auto_prt:IPSec_AH',  proto => 51, prio => 99, };
+    $prt_esp = { name => 'auto_prt:IPSec_ESP', proto => 50, };
+    $prt_ah  = { name => 'auto_prt:IPSec_AH',  proto => 51, };
     $deny_any_rule = {
         deny => 1,
         src  => $network_00,
