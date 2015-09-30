@@ -13226,7 +13226,7 @@ sub check_for_transient_supernet_rule {
                         while (my ($dst, $hash) = each %$hash) {
                             while (my ($prt, $hash) = each %$hash) {
                                 push(@msg, 
-                                     " permit src=$src; dst=$dst; prt=$prt");
+                                     " permit src=$src; dst=$dst; prt=$prt;");
                             }
                         }
                     }
