@@ -8429,17 +8429,12 @@ sub find_subnets_in_nat_domain {
                         $error = 1;
                     }
                     else {
-                        if (!$old_net->{is_aggregate}) {
 
-                            # This network has aggregate (with
-                            # subnets) in other zone. Hence this
-                            # network must not be used in secondary
-                            # optimization.
-                            $old_net->{has_other_subnet} = 1;
-                        }
-                        elsif (!$network->{is_aggregate}) {
-                            $network->{has_other_subnet} = 1;
-                        }
+                        # Check supernet rules and prevent secondary
+                        # optimization, if identical IP address
+                        # occurrs in different zones.
+                        $old_net->{has_other_subnet} = 1;
+                        $network->{has_other_subnet} = 1;
                     }
                 }
                 elsif ($nat_old_net->{dynamic} and $nat_network->{dynamic}) {
@@ -8483,7 +8478,6 @@ sub find_subnets_in_nat_domain {
 
         # Link identical networks to one representative one.
         for my $networks (values %identical) {
-            $_->{is_supernet} = 1 for @$networks;
             my $one_net = shift(@$networks);
             for my $network (@$networks) {
                 $network->{is_identical}->{$no_nat_set} = $one_net;
@@ -8522,20 +8516,19 @@ sub find_subnets_in_nat_domain {
 
 #                        debug "$subnet->{name} -is_in-> $bignet->{name}";
 
+                    # Mark network having subnet in other zone.
                     if ($bignet->{zone} eq $subnet->{zone}) {
                         if ($subnet->{has_other_subnet}) {
 
-#                                debug "has other1: $bignet->{name}";
+#                           debug "has other1: $bignet->{name}";
                             $bignet->{has_other_subnet} = 1;
                         }
                     }
                     else {
-#                            debug "has other: $bignet->{name}";
+
+#                       debug "has other: $bignet->{name}";
                         $bignet->{has_other_subnet} = 1;
                     }
-
-                    # Mark network having subnets.
-                    $bignet->{is_supernet} = 1;
 
                     if ($seen{$nat_bignet}->{$nat_subnet}) {
                         last;
@@ -8784,7 +8777,6 @@ my $network_00 = new(
     ip               => 0,
     mask             => 0,
     is_aggregate     => 1,
-    is_supernet      => 1,
     has_other_subnet => 1,
 );
 
@@ -12754,7 +12746,7 @@ sub check_supernet_src_rule {
     my $src      = $rule->{src};
     my $dst      = $rule->{dst};
     my $dst_zone = get_zone($dst);
-    if ($dst->{is_supernet} && $out_zone eq $dst_zone) {
+    if ($dst->{has_other_subnet} && $out_zone eq $dst_zone) {
 
         # Both src and dst are supernets and are directly connected
         # at current router. Hence there can't be any missing rules.
@@ -13072,7 +13064,7 @@ sub check_for_transient_supernet_rule {
         next if $rule->{deny};
         next if $rule->{no_check_supernet_rules};
         my $dst = $rule->{dst};
-        next if not $dst->{is_supernet};
+        next if not $dst->{has_other_subnet};
 
         # Check only 0/0 aggregates.
         next if $dst->{mask} != 0;
@@ -13318,9 +13310,10 @@ sub check_supernet_rules {
     if (   $config->{check_supernet_rules}
         or $config->{check_transient_supernet_rules})
     {
-        @supernet_rules = grep({ not $_->{deleted} and ($_->{src}->{is_supernet}
-                    or $_->{dst}->{is_supernet}) }
-            @{ $expanded_rules{permit} });
+        @supernet_rules = grep({ not $_->{deleted} and 
+                                     ($_->{src}->{has_other_subnet}
+                                      or $_->{dst}->{has_other_subnet}) }
+                               @{ $expanded_rules{permit} });
     }
     if ($config->{check_supernet_rules}) {
         my $count = @supernet_rules;
@@ -13334,10 +13327,10 @@ sub check_supernet_rules {
         for my $rule (@supernet_rules) {
             next if $rule->{deleted};
             next if $rule->{no_check_supernet_rules};
-            if ($rule->{src}->{is_supernet}) {
+            if ($rule->{src}->{has_other_subnet}) {
                 path_walk($rule, \&check_supernet_src_rule);
             }
-            if ($rule->{dst}->{is_supernet}) {
+            if ($rule->{dst}->{has_other_subnet}) {
                 path_walk($rule, \&collect_supernet_dst_rules);
             }
         }
