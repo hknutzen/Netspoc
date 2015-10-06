@@ -224,8 +224,8 @@ $in = <<'END';
 network:A = { ip = 10.3.3.0/25; host:a = { ip = 10.3.3.3; } }
 network:sub = { ip = 10.3.3.8/29; subnet_of = network:A; }
 
-router:secondary = {
- managed = secondary;
+router:r1 = {
+ managed;
  model = IOS, FW;
  routing = manual;
  interface:A = { ip = 10.3.3.1; hardware = VLAN1; }
@@ -235,7 +235,7 @@ router:secondary = {
 
 network:Trans = { ip = 10.1.1.0/24; }
 
-router:filter = {
+router:r2 = {
  managed;
  model = ASA;
  interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; bind_nat = dyn; }
@@ -253,14 +253,14 @@ service:test1 = {
 
 service:test2 = {
  user = network:A;
- permit src = network:Customer2; dst = user; prt = tcp 81;
+ permit src = network:Customer2; dst = user; prt = tcp 80-90;
 }
 END
 
 $out = <<'END';
---secondary
+--r1
 ip access-list extended VLAN1_out
- permit ip 10.7.7.0 0.0.0.255 10.3.3.0 0.0.0.127
+ permit tcp 10.7.7.0 0.0.0.255 10.3.3.0 0.0.0.127 range 80 90
  deny ip any any
 END
 

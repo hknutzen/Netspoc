@@ -289,15 +289,15 @@ router:filter = {
 network:Customer = { ip = 10.9.9.0/24; }
 
 service:test = {
- user = host:h;
- permit src = user; dst = network:Customer; prt = tcp 80;
+ user = network:Customer;
+ permit src = user; dst = host:h; prt = tcp 80;
 }
 END
 
 $out = <<'END';
 --secondary
-ip access-list extended VLAN1_in
- permit ip host 10.3.3.5 10.9.9.0 0.0.0.255
+ip access-list extended VLAN2_in
+ permit ip 10.9.9.0 0.0.0.255 host 10.3.3.5
  deny ip any any
 END
 

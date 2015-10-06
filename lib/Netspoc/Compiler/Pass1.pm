@@ -8780,11 +8780,12 @@ sub check_crosslink {
 # - in local optimization.
 my $network_00 = new(
     'Network',
-    name         => "network:0/0",
-    ip           => 0,
-    mask         => 0,
-    is_aggregate => 1,
-    is_supernet  => 1
+    name             => "network:0/0",
+    ip               => 0,
+    mask             => 0,
+    is_aggregate     => 1,
+    is_supernet      => 1,
+    has_other_subnet => 1,
 );
 
 # Find cluster of zones connected by 'local' or 'local_secondary' routers.
@@ -13660,12 +13661,13 @@ sub mark_secondary_rules {
 
     # Mark only normal rules for secondary optimization.
     # Don't modify a deny rule from e.g. tcp to ip.
-    # Don't modify supernet rules, because path isn't fully known.
+    # Don't modify rules with {has_other_subnet}, because this could
+    # introduce new missing supernet rules.
     for my $rule (@{ $expanded_rules{permit} }) {
         next if $rule->{deleted};
 
         my ($src, $dst) = @{$rule}{qw(src dst)};
-        next if $src->{is_aggregate} || $dst->{is_aggregate};
+        next if $src->{has_other_subnet} || $dst->{has_other_subnet};
         my $src_zone = get_zone2($src);
         my $dst_zone = get_zone2($dst);
 

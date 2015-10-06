@@ -124,6 +124,52 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = "No optimization on supernet";
+############################################################
+
+# Optimized rule "A -> B IP" would allow "A -> subB IP" accidently.
+$in = <<'END';
+network:A = { ip = 10.3.3.0/25; host:a = { ip = 10.3.3.3; } }
+network:subB = { ip = 10.8.8.8/29; subnet_of = network:B; }
+
+router:secondary = {
+ managed = secondary;
+ model = IOS, FW;
+ routing = manual;
+ interface:A = { ip = 10.3.3.1; hardware = A; }
+ interface:subB = { ip = 10.8.8.9; hardware = subB; }
+ interface:Trans = { ip = 10.1.1.2; hardware = Trans; }
+}
+
+network:Trans = { ip = 10.1.1.0/24; }
+
+router:filter = {
+ managed;
+ model = ASA;
+ interface:Trans = { ip = 10.1.1.1; hardware = Trans; }
+ interface:B = { ip = 10.8.8.1; hardware = B; }
+}
+
+network:B = { ip = 10.8.8.0/24; }
+
+service:test1 = {
+ user = network:A;
+ permit src = user; dst = network:B, network:subB; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--secondary
+! [ ACL ]
+ip access-list extended A_in
+ deny ip any host 10.8.8.9
+ permit tcp 10.3.3.0 0.0.0.127 10.8.8.0 0.0.0.255 eq 80
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = "Don't optimize rule if any rule starts behind secondary router";
 ############################################################
 
