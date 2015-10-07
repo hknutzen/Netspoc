@@ -803,13 +803,13 @@ network:b  = { ip = 10.2.2.0/24; nat:b = { ip = 10.9.9.4/30; dynamic; } }
 
 service:test = {
  user = interface:r2.b;
- permit src = user; dst = network:a; prt = tcp 80;
+ permit src = user; dst = network:a; prt = udp 445;
 }
 END
 
 $out = <<'END';
-Error: interface:r2.b needs static translation for nat:b at router:r1 to be valid in rule
- permit src=network:a; dst=interface:r2.b; prt=reversed:TCP_ANY; stateless
+Error: interface:r2.b needs static translation for nat:b at router:r1 to be valid in reversed rule for
+ permit src=interface:r2.b; dst=network:a; prt=udp 445; of service:test
 END
 
 test_err($title, $in, $out);
