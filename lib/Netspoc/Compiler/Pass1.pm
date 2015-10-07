@@ -13836,7 +13836,7 @@ sub check_dynamic_nat_rules {
                            : $other->{zone}->{multi_no_nat_set};
 
             my $cache_obj = $network->{has_dynamic_host} ? $obj : $network;
-            next if $seen{$cache_obj}->{no_nat_set}++;
+            next if $seen{$cache_obj}->{$no_nat_set}++;
 
             my $nat_seen;
             my $hidden_seen;

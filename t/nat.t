@@ -247,15 +247,21 @@ router:r2 = {
  interface:X = { ip = 10.8.3.2; hardware = inside; }
 }
 
-service:test = {
+service:s1 = {
  user = any:[network:X];
  permit src = user; dst = network:Test; prt = tcp 80;
+}
+service:s2 = {
+ user = network:X;
+ permit src = user; dst = network:Test; prt = tcp 81;
 }
 END
 
 $out = <<'END';
 Error: network:Test is hidden by nat:C in rule
- permit src=any:[network:t1]; dst=network:Test; prt=tcp 80; of service:test
+ permit src=any:[network:t1]; dst=network:Test; prt=tcp 80; of service:s1
+Error: network:Test is hidden by nat:C in rule
+ permit src=network:X; dst=network:Test; prt=tcp 81; of service:s2
 END
 
 test_err($title, $in, $out);
