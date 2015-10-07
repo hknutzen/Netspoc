@@ -463,8 +463,6 @@ $in =~ s/managed; \#1//;
 $out = <<'END';
 Error: host:H needs static translation for nat:C at router:filter to be valid in rule
  permit src=network:X; dst=host:H; prt=tcp 80; of service:test
-Error: host:H needs static translation for nat:C at router:filter to be valid in rule
- permit src=host:H; dst=network:X; prt=tcp 80; of service:test
 END
 
 test_err($title, $in, $out);
