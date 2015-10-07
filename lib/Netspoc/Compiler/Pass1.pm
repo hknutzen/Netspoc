@@ -13816,19 +13816,12 @@ sub check_dynamic_nat_rules {
     for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{deny} }) {
         next if $rule->{deleted};
         for my $where ('src', 'dst') {
-            my $obj  = $rule->{$where};
-            my $type = ref $obj;
-            my $network =
-              ($type eq 'Network')
-              ? $obj
-              : $obj->{network};
-            my $nat_hash = $network->{nat} or next;
+            my $obj        = $rule->{$where};
+            my $network    = $obj->{network} || $obj;
+            my $nat_hash   = $network->{nat} or next;
             my $other      = $where eq 'src' ? $rule->{dst} : $rule->{src};
-            my $onetwork   = $other->{network} || $other;
-            my $nat_domain = $onetwork->{nat_domain}; # Is undef for aggregate.
-
-            my $hidden_seen;
-            my $static_seen;
+            my $other_net  = $other->{network} || $other;
+            my $nat_domain = $other_net->{nat_domain}; # Is undef for aggregate.
 
             # Find $nat_tag which is effective at $other.
             # - single: $other is host or network, $nat_domain is known.
@@ -13841,10 +13834,12 @@ sub check_dynamic_nat_rules {
             my $cache_obj = $network->{has_dynamic_host} ? $obj : $network;
             next if $seen{$cache_obj}->{no_nat_set}++;
 
-            my $nat_found;
+            my $nat_seen;
+            my $hidden_seen;
+            my $static_seen;
             for my $nat_tag (sort keys %$nat_hash) {
                 next if $no_nat_set->{$nat_tag};
-                $nat_found = 1;
+                $nat_seen = 1;
                 my $nat_network = $nat_hash->{$nat_tag};
 
                 # Network is hidden by NAT.
@@ -13854,13 +13849,13 @@ sub check_dynamic_nat_rules {
                         " in rule\n ", print_rule $rule);
                     next;
                 }
-                if (!$nat_network->{dynamic}) {
+                if (not $nat_network->{dynamic}) {
                     $static_seen = 1;
                     next;
                 }
 
                 # Detailed check for host / interface follows.
-                $type eq 'Subnet' or $type eq 'Interface' or next;
+                next if $obj eq $network;
 
                 # Ignore host / interface with static NAT.
                 next if $obj->{nat}->{$nat_tag};
@@ -13933,7 +13928,7 @@ sub check_dynamic_nat_rules {
 
 #	        debug("dynamic_nat: $where at ", print_rule $rule);
             }
-            $nat_found or $static_seen = 1;
+            $nat_seen or $static_seen = 1;
 
             $hidden_seen and next;
 
