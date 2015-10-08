@@ -17606,6 +17606,9 @@ sub check_output_dir {
             if (my $count = @old_files) {
                 progress("Moving $count old files in '$dir' to",
                          " subdirectory '.prev'");
+
+                # Try to remove file or symlink with same name.
+                unlink $prev;
                 mkdir $prev or 
                     fatal_err("Can't create directory $prev: $!");
                 system('mv', @old_files, $prev) == 0 or
