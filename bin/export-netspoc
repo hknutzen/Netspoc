@@ -930,7 +930,10 @@ sub zone_and_subnet {
     }
     my $any = $zone->{ipmask2aggregate}->{'0/0'};
     my $zone_name = $any ? $any->{name} : $zone->{name};
-    my $is_supernet = $obj->{is_supernet};
+
+    # Netspoc-Web only needs info about subnets in other zone.
+    # Attribute name is different for historic reasons.
+    my $is_supernet = $obj->{has_other_subnet};
 #    debug "$obj->{name} $zone_name";
     return (zone => $zone_name, $is_supernet ? (is_supernet => 1) : () );
 }

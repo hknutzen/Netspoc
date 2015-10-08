@@ -173,6 +173,50 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Redundant managed interface at intermediate router';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+}
+
+service:s1 = {
+ user = network:n2, interface:r2.n2;
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+-- r1
+! [ ACL ]
+ip access-list extended vlan1_in
+ deny ip any host 10.1.2.1
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 22
+ deny ip any any
+--
+ip access-list extended vlan2_in
+ permit tcp 10.1.2.0 0.0.0.255 10.1.1.0 0.0.0.255 established
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Redundant host';
 ############################################################
 
@@ -180,8 +224,8 @@ $in = <<'END';
 network:A = { ip = 10.3.3.0/25; host:a = { ip = 10.3.3.3; } }
 network:sub = { ip = 10.3.3.8/29; subnet_of = network:A; }
 
-router:secondary = {
- managed = secondary;
+router:r1 = {
+ managed;
  model = IOS, FW;
  routing = manual;
  interface:A = { ip = 10.3.3.1; hardware = VLAN1; }
@@ -191,7 +235,7 @@ router:secondary = {
 
 network:Trans = { ip = 10.1.1.0/24; }
 
-router:filter = {
+router:r2 = {
  managed;
  model = ASA;
  interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; bind_nat = dyn; }
@@ -209,14 +253,14 @@ service:test1 = {
 
 service:test2 = {
  user = network:A;
- permit src = network:Customer2; dst = user; prt = tcp 81;
+ permit src = network:Customer2; dst = user; prt = tcp 80-90;
 }
 END
 
 $out = <<'END';
---secondary
+--r1
 ip access-list extended VLAN1_out
- permit ip 10.7.7.0 0.0.0.255 10.3.3.0 0.0.0.127
+ permit tcp 10.7.7.0 0.0.0.255 10.3.3.0 0.0.0.127 range 80 90
  deny ip any any
 END
 

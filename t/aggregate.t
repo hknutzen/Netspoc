@@ -907,6 +907,48 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Missing transient rule with managed interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n2]; prt = ip;
+}
+service:s2 = {
+ user = interface:r2.n2;
+ permit src = any:[user]; dst = user; prt = proto 50;
+}
+END
+
+$out = <<'END';
+Warning: Missing transient rules: 1
+Rules of service:s1 and service:s2 match at any:[network:n2]
+Missing transient rules:
+ permit src=network:n1; dst=interface:r2.n2; prt=auto_prt:IPSec_ESP;
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Supernet used as aggregate';
 ############################################################
 
