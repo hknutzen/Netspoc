@@ -1,5 +1,25 @@
 {{$NEXT}}
 
+4.1       2015-10-08 15:21:12+02:00 Europe/Berlin
+
+ - NAT commands for model ASA, 8.4 are no longer generated.
+   - These commands have to be configured manually now.
+   - Only use this version with Netspoc-Approve version >= 1.104,
+     that no longer touches "twice NAT" command of ASA 8.4.
+ - ACL lines with protocol ESP or AH are moved to the very first position now.
+   - Previously 'general permit' rules hat been put before them.
+   - Only use this version with Netspoc-Approve version >= 1.104,
+     which takes care, for not locking out from device during approve.
+ - Secondary optimization now leaves out supernets, that have
+   subnet in other zone. This gives slightly worse optimization, 
+   but no longer generates unwanted supernet rules.
+ - Runtime improvements
+   - 'Checking rules with hidden or dynamic NAT' 
+     is called earlier and runs much faster now.
+   - 'Check supernet rules' no longer checks rules with network having
+     any subnet, but only network having subnet in other zone.
+   - Optimization of rules for managed interfaces has been moved to pass 2.
+
 4.0       2015-09-25 13:31:34+02:00 Europe/Berlin
 
  - Netspoc is a two pass compiler now.
