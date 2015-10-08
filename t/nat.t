@@ -59,59 +59,6 @@ END
 
 test_run($title, $in, $out);
 
-############################################################
-$title = 'Multiple dynamic NAT at ASA 8.4';
-############################################################
-
-# Soll nur einen nat-Index pro Interface verwenden.
-
-$in = <<'END';
-network:Test =  { 
- ip = 10.9.1.0/24; 
- nat:C = { ip = 1.1.1.1/32; dynamic;} 
- nat:D = { ip = 9.9.9.8/30; dynamic;} 
-}
-
-router:filter = {
- managed;
- model = ASA, 8.4;
- interface:Test = {
-  ip = 10.9.1.1;
-  hardware = inside;
- }
- interface:X = { ip = 10.9.2.1; hardware = outside; bind_nat = C;}
- interface:Y = { ip = 10.9.3.1; hardware = DMZ50; bind_nat = C;}
- interface:Z = { ip = 10.9.4.1; hardware = DMZ70; bind_nat = D;}
-}
-
-network:X = { ip = 10.9.2.0/24; }
-network:Y = { ip = 10.9.3.0/24; }
-network:Z = { ip = 10.9.4.0/24; }
-
-protocol:IP = ip;
-
-service:test = {
- user = network:X, network:Y, network:Z;
- permit src = user; 
-	dst = network:Test;
-	prt = protocol:IP;
-}
-END
-
-$out = <<'END';
---filter
-! [ NAT ]
-object network 10.9.1.0_255.255.255.0
- subnet 10.9.1.0 255.255.255.0
-object network 1.1.1.1
- host 1.1.1.1
-nat (inside,outside) source dynamic 10.9.1.0_255.255.255.0 1.1.1.1
-nat (inside,DMZ50) source dynamic 10.9.1.0_255.255.255.0 1.1.1.1
-object network 9.9.9.8-9.9.9.11
- range 9.9.9.8 9.9.9.11
-nat (inside,DMZ70) source dynamic 10.9.1.0_255.255.255.0 9.9.9.8-9.9.9.11
-END
-
 test_run($title, $in, $out);
 
 ############################################################
@@ -160,57 +107,6 @@ access-group outside_in in interface outside
 static (inside,outside) 1.1.1.23 10.9.1.33 netmask 255.255.255.255
 global (outside) 1 1.1.1.16-1.1.1.31 netmask 255.255.255.240
 nat (inside) 1 10.9.1.0 255.255.255.0
-END
-
-test_run($title, $in, $out);
-
-############################################################
-$title = 'NAT at ASA 8.4';
-############################################################
-
-$in = <<'END';
-network:Test =  {
- ip = 10.9.1.0/24; 
- nat:C = { ip = 1.1.1.16/28; dynamic;}
- host:H = { ip = 10.9.1.33; nat:C = { ip = 1.1.1.23; } }
-}
-
-router:filter = {
- managed;
- model = ASA, 8.4;
- interface:Test = {
-  ip = 10.9.1.1;
-  hardware = inside;
- }
- interface:X = { ip = 10.9.3.1; hardware = outside; bind_nat = C;}
-}
-
-network:X = { ip = 10.9.3.0/24; }
-
-protocol:IP = ip;
-protocol:HTTP = tcp 80;
-
-service:test = {
- user = network:X;
- permit src = user;   dst = host:H;       prt = protocol:IP;
- permit src = host:H; dst = user;         prt = protocol:HTTP;
- permit src = user;   dst = network:Test; prt = protocol:HTTP;
-}
-END
-
-$out = <<'END';
---filter
-! [ NAT ]
-object network 10.9.1.33_255.255.255.255
- subnet 10.9.1.33 255.255.255.255
-object network 1.1.1.23_255.255.255.255
- subnet 1.1.1.23 255.255.255.255
-nat (inside,outside) 1 source static 10.9.1.33_255.255.255.255 1.1.1.23_255.255.255.255
-object network 10.9.1.0_255.255.255.0
- subnet 10.9.1.0 255.255.255.0
-object network 1.1.1.16-1.1.1.31
- range 1.1.1.16 1.1.1.31
-nat (inside,outside) source dynamic 10.9.1.0_255.255.255.0 1.1.1.16-1.1.1.31
 END
 
 test_run($title, $in, $out);
