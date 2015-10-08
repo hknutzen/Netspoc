@@ -247,15 +247,21 @@ router:r2 = {
  interface:X = { ip = 10.8.3.2; hardware = inside; }
 }
 
-service:test = {
+service:s1 = {
  user = any:[network:X];
  permit src = user; dst = network:Test; prt = tcp 80;
+}
+service:s2 = {
+ user = network:X;
+ permit src = user; dst = network:Test; prt = tcp 81;
 }
 END
 
 $out = <<'END';
 Error: network:Test is hidden by nat:C in rule
- permit src=any:[network:t1]; dst=network:Test; prt=tcp 80; of service:test
+ permit src=any:[network:t1]; dst=network:Test; prt=tcp 80; of service:s1
+Error: network:Test is hidden by nat:C in rule
+ permit src=network:X; dst=network:Test; prt=tcp 81; of service:s2
 END
 
 test_err($title, $in, $out);
@@ -422,7 +428,8 @@ $in = <<'END';
 network:Test =  {
  ip = 10.9.1.0/24; 
  nat:C = { ip = 1.9.2.0/24; dynamic;}
- host:H = { ip = 10.9.1.33; }
+ host:h3 = { ip = 10.9.1.3; }
+ host:h4 = { ip = 10.9.1.4; }
 }
 
 router:C = {
@@ -444,16 +451,16 @@ router:filter = {
 
 network:X = { ip = 10.8.3.0/24; }
 
-service:test = {
+service:s1 = {
  user = network:X;
- permit src = user;   dst = host:H;       prt = tcp 80;
- permit src = host:H; dst = user;         prt = tcp 80;
+ permit src = user;   dst = host:h3;       prt = tcp 80;
+ permit src = host:h4; dst = user;         prt = tcp 80;
 }
 END
 
 $out = <<'END';
-Error: host:H needs static translation for nat:C at router:C to be valid in rule
- permit src=network:X; dst=host:H; prt=tcp 80; of service:test
+Error: host:h3 needs static translation for nat:C at router:C to be valid in rule
+ permit src=network:X; dst=host:h3; prt=tcp 80; of service:s1
 END
 
 test_err($title, $in, $out);
@@ -461,10 +468,10 @@ test_err($title, $in, $out);
 $in =~ s/managed; \#1//;
 
 $out = <<'END';
-Error: host:H needs static translation for nat:C at router:filter to be valid in rule
- permit src=network:X; dst=host:H; prt=tcp 80; of service:test
-Error: host:H needs static translation for nat:C at router:filter to be valid in rule
- permit src=host:H; dst=network:X; prt=tcp 80; of service:test
+Error: host:h3 needs static translation for nat:C at router:filter to be valid in rule
+ permit src=network:X; dst=host:h3; prt=tcp 80; of service:s1
+Error: host:h4 needs static translation for nat:C at router:filter to be valid in rule
+ permit src=host:h4; dst=network:X; prt=tcp 80; of service:s1
 END
 
 test_err($title, $in, $out);
