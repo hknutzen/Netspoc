@@ -1941,9 +1941,6 @@ sub read_router {
         elsif (check_flag 'no_protect_self') {
             $router->{no_protect_self} = 1;
         }
-        elsif (check_flag 'strict_secondary') {
-            $router->{strict_secondary} = 1;
-        }
         elsif (check_flag 'log_deny') {
             $router->{log_deny} = 1;
         }
@@ -2198,13 +2195,6 @@ sub read_router {
         if ($model->{need_protect}) {
             $router->{need_protect} = !delete $router->{no_protect_self};
         }
-
-        $router->{strict_secondary}
-          and $managed !~ /secondary$/
-          and err_msg(
-            "Must not use attribute 'strict_secondary' at $name.\n",
-            " Only valid with 'managed = secondary|local_secondary'"
-          );
 
         # Detailed interface processing for managed routers.
         for my $interface (@{ $router->{interfaces} }) {
@@ -13574,36 +13564,6 @@ sub mark_primary {
     return;
 }
 
-# Mark security zone $zone with $mark and
-# additionally mark all security zones
-# which are connected with $zone by non-strict-secondary
-# packet filters.
-sub mark_strict_secondary;
-
-sub mark_strict_secondary {
-    my ($zone, $mark) = @_;
-    $zone->{strict_secondary_mark} = $mark;
-
-#    debug "$zone->{name} : $mark";
-    for my $in_interface (@{ $zone->{interfaces} }) {
-        next if $in_interface->{main_interface};
-        my $router = $in_interface->{router};
-        if ($router->{managed}) {
-            next if $router->{strict_secondary};
-        }
-        next if $router->{active_path};
-        local $router->{active_path} = 1;
-        for my $out_interface (@{ $router->{interfaces} }) {
-            next if $out_interface eq $in_interface;
-            next if $out_interface->{main_interface};
-            my $next_zone = $out_interface->{zone};
-            next if $next_zone->{strict_secondary_mark};
-            mark_strict_secondary($next_zone, $mark);
-        }
-    }
-    return;
-}
-
 # Set 'local_secondary_mark' for secondary optimization inside one cluster.
 # Two zones get the same mark if they are connected by local_secondary router.
 sub mark_local_secondary;
@@ -13637,7 +13597,6 @@ sub mark_secondary_rules {
 
     my $secondary_mark        = 1;
     my $primary_mark          = 1;
-    my $strict_secondary_mark = 1;
     my $local_secondary_mark  = 1;
     for my $zone (@zones) {
         if (not $zone->{secondary_mark}) {
@@ -13645,9 +13604,6 @@ sub mark_secondary_rules {
         }
         if (not $zone->{primary_mark}) {
             mark_primary $zone, $primary_mark++;
-        }
-        if (not $zone->{strict_secondary_mark}) {
-            mark_strict_secondary($zone, $strict_secondary_mark++);
         }
         if (not $zone->{local_secondary_mark}) {
             mark_local_secondary($zone, $local_secondary_mark++);
@@ -13682,55 +13638,6 @@ sub mark_secondary_rules {
         }
         if ($src_zone->{primary_mark} != $dst_zone->{primary_mark}) {
             $rule->{some_primary} = 1;
-        }
-
-        # A device with attribute 'strict_secondary' is located
-        # between src and dst.
-        # Each rule must
-        # - either be optimized secondary
-        # - or be simple:
-        #   - protocol IP
-        #   - src and dst be either
-        #     - network
-        #     - loopback interface
-        #     - interface of managed device
-        if ($src_zone->{strict_secondary_mark} !=
-            $dst_zone->{strict_secondary_mark})
-        {
-            if (!$rule->{some_non_secondary}) {
-                my $err;
-                my ($src, $dst, $prt) =
-                  @{$rule}{qw(src dst prt)};
-                if ($prt ne $prt_ip) {
-                    $err = "'prt = ip'";
-                }
-                else {
-                    for my $where (qw(src dst)) {
-                        my $what = $rule->{$where};
-                        if (
-                            !is_network($what)
-                            && !(
-                                is_interface($what) && ($what->{loopback}
-                                    || $what->{router}->{managed})
-                            )
-                          )
-                        {
-                            $err =
-                              "network or managed/loopback interface as "
-                              . $where;
-                            last;
-                        }
-                    }
-                }
-                if ($err) {
-                    err_msg(
-                        "Invalid rule at router with attribute",
-                        " 'strict_secondary'.\n",
-                        " Rule must only use $err.\n ",
-                        print_rule($rule)
-                    );
-                }
-            }
         }
     }
     return;
