@@ -109,7 +109,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ policy_distribution_point = host:<name>;   ]
          [ general_permit = <protocol list>;          ]
          ( log:<name> [= (<ASA-modifier> | <IOS-modifier>)]; )*
-         [ strict_secondary; ]
          [ no_group_code;    ]
          [ no_crypto_filter; ]
          [ no_protect_self;  ]
