@@ -210,7 +210,7 @@ Currently these router models are supported:
 - `PIX` for Cisco PIX.
 
 For ASA devices the attribute `, 8.4` can be added to the model definition.
-This changes generated NAT and IPSec commands.
+This changes generated IPSec commands.
 
 ## Interfaces
 
@@ -531,8 +531,8 @@ Netspoc needs to know about NAT for these reasons:
 1. When generating ACLs for an interface it must use those IP
    addresses which are visible in the area attached to this interface.
 2. The same is true when generating static routing entries.
-3. For some types of devices Netspoc is able to actually generate the
-   NAT translation rules. This is currently true for Cisco ASA and PIX devices.
+3. For devices of type PIX Netspoc is able to actually generate the
+   NAT translation rules. For other devices, NAT has to be configured manually.
 
 ##Secondary packet filters
 

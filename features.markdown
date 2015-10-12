@@ -16,7 +16,6 @@ layout: default
 - IPSec configuration for Cisco ASA, ASA v8.4 and IOS is generated.
 - Commands for static routing are generated (optionally).
 - Network address translation (NAT) is supported.
-- NAT configuration for Cisco ASA and ASA v8.4 is generated.
 - HSRP / VRRP clusters are supported.
 - Multicast traffic for OSPF, EIGRP, HSRP, VRRP is supported.
 - Powerful rules language 
