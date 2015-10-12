@@ -269,7 +269,7 @@ my %router_info = (
                 do_auth          => 1,
             },
             EZVPN => { crypto => 'ASA_EZVPN' },
-            '8.4' => { v8_4   => 1, },
+            '8.4' => {},
         },
     },
     Linux => {
@@ -16015,20 +16015,13 @@ tunnel-group $default_tunnel_group ipsec-attributes
  chain
 EOF
 
-    if ($model->{v8_4}) {
-        print <<"EOF";
+    print <<"EOF";
  ikev1 trust-point $trust_point
  ikev1 user-authentication none
 tunnel-group $default_tunnel_group webvpn-attributes
  authentication certificate
 EOF
-    }
-    else {
-        print <<"EOF";
- trust-point $trust_point
- isakmp ikev1-user-authentication none
-EOF
-    }
+
     print <<"EOF";
 tunnel-group-map default-group $default_tunnel_group
 
@@ -16153,10 +16146,8 @@ EOF
                 if ($src->{mask} == 0xffffffff) {
 
                     # For anyconnect clients.
-                    if ($model->{v8_4}) {
-                        my ($name, $domain) = ($id =~ /^(.*?)(\@.*)$/);
-                        $single_cert_map{$domain} = 1;
-                    }
+                    my ($name, $domain) = ($id =~ /^(.*?)(\@.*)$/);
+                    $single_cert_map{$domain} = 1;
 
                     my $mask = print_ip $network->{mask};
                     my $group_policy_name;
@@ -16206,14 +16197,9 @@ EOF
                     my $trustpoint2 = delete $attributes->{'trust-point'}
                       || $trust_point;
                     my @tunnel_ipsec_att =
-                      $model->{v8_4}
-                      ? (
+                      (
                         "ikev1 trust-point $trustpoint2",
                         'ikev1 user-authentication none'
-                      )
-                      : (
-                        "trust-point $trustpoint2",
-                        'isakmp ikev1-user-authentication none'
                       );
 
                     $print_group_policy->($group_policy_name, $attributes);
@@ -16236,13 +16222,11 @@ EOF
                     }
 
                     # For anyconnect clients.
-                    if ($model->{v8_4}) {
-                        print <<"EOF";
+                    print <<"EOF";
 tunnel-group $tunnel_group_name webvpn-attributes
  authentication certificate
 EOF
-                        $cert_group_map{$map_name} = $tunnel_group_name;
-                    }
+                    $cert_group_map{$map_name} = $tunnel_group_name;
 
                     print <<"EOF";
 tunnel-group-map ca-map-$user_counter 10 $tunnel_group_name
@@ -16723,11 +16707,8 @@ sub print_crypto_map_attributes {
         if ($isakmp->{ike_version} == 2) {
             print "$prefix set ikev2 ipsec-proposal $transform_name\n";
         }
-        elsif ($model->{v8_4}) {
-            print "$prefix set ikev1 transform-set $transform_name\n";
-        }
         else {
-            print "$prefix set transform-set $transform_name\n";
+            print "$prefix set ikev1 transform-set $transform_name\n";
         }
     }
     else {
@@ -16764,13 +16745,9 @@ sub print_tunnel_group {
             print(" ikev2 local-authentication certificate", " $trust_point\n");
             print(" ikev2 remote-authentication certificate\n");
         }
-        elsif ($model->{v8_4}) {
+        else {
             print " ikev1 trust-point $trust_point\n";
             print " ikev1 user-authentication none\n";
-        }
-        else {
-            print " trust-point $trust_point\n";
-            print " isakmp ikev1-user-authentication none\n";
         }
     }
 
@@ -17056,10 +17033,9 @@ sub print_crypto {
             if (my $esp_ah = $ipsec->{esp_authentication}) {
                 $transform .= "esp-$esp_ah-hmac";
             }
-            my $prefix =
-              ($crypto_type eq 'ASA' and $model->{v8_4})
-              ? 'crypto ipsec ikev1'
-              : 'crypto ipsec';
+            my $prefix = ($crypto_type eq 'ASA')
+                       ? 'crypto ipsec ikev1'
+                       : 'crypto ipsec';
             print "$prefix transform-set $transform_name $transform\n";
         }
     }

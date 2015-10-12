@@ -183,8 +183,10 @@ tunnel-group VPN-single general-attributes
  username-from-certificate EA
 tunnel-group VPN-single ipsec-attributes
  chain
- trust-point ASDM_TrustPoint1
- isakmp ikev1-user-authentication none
+ ikev1 trust-point ASDM_TrustPoint1
+ ikev1 user-authentication none
+tunnel-group VPN-single webvpn-attributes
+ authentication certificate
 tunnel-group-map default-group VPN-single
 --asavpn
 access-list vpn-filter-1 extended permit ip 10.99.2.64 255.255.255.192 any
@@ -201,8 +203,10 @@ tunnel-group VPN-tunnel-1 type remote-access
 tunnel-group VPN-tunnel-1 general-attributes
  default-group-policy VPN-group-1
 tunnel-group VPN-tunnel-1 ipsec-attributes
- trust-point ASDM_TrustPoint3
- isakmp ikev1-user-authentication none
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+tunnel-group VPN-tunnel-1 webvpn-attributes
+ authentication certificate
 tunnel-group-map ca-map-1 10 VPN-tunnel-1
 --asavpn
 access-list vpn-filter-2 extended permit ip host 10.99.1.11 any
@@ -237,8 +241,10 @@ tunnel-group VPN-tunnel-3 type remote-access
 tunnel-group VPN-tunnel-3 general-attributes
  default-group-policy VPN-group-3
 tunnel-group VPN-tunnel-3 ipsec-attributes
- trust-point ASDM_TrustPoint2
- isakmp ikev1-user-authentication none
+ ikev1 trust-point ASDM_TrustPoint2
+ ikev1 user-authentication none
+tunnel-group VPN-tunnel-3 webvpn-attributes
+ authentication certificate
 tunnel-group-map ca-map-3 10 VPN-tunnel-3
 --
 access-list vpn-filter-4 extended permit ip host 10.99.1.10 any
@@ -376,8 +382,10 @@ tunnel-group VPN-single general-attributes
  username-from-certificate EA
 tunnel-group VPN-single ipsec-attributes
  chain
- trust-point ASDM_TrustPoint1
- isakmp ikev1-user-authentication none
+ ikev1 trust-point ASDM_TrustPoint1
+ ikev1 user-authentication none
+tunnel-group VPN-single webvpn-attributes
+ authentication certificate
 tunnel-group-map default-group VPN-single
 --
 access-list vpn-filter-1 extended permit ip host 10.99.1.10 any
@@ -736,18 +744,18 @@ END
 $out = <<'END';
 --asavpn
 no sysopt connection permit-vpn
-crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
-crypto ipsec transform-set Trans2 esp-aes-256 esp-sha-hmac
+crypto ipsec ikev1 transform-set Trans1 esp-3des esp-sha-hmac
+crypto ipsec ikev1 transform-set Trans2 esp-aes-256 esp-sha-hmac
 access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
 crypto map crypto-outside 1 set peer 172.16.1.2
 crypto map crypto-outside 1 match address crypto-outside-1
-crypto map crypto-outside 1 set transform-set Trans2
+crypto map crypto-outside 1 set ikev1 transform-set Trans2
 crypto map crypto-outside 1 set pfs group15
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
 tunnel-group 172.16.1.2 type ipsec-l2l
 tunnel-group 172.16.1.2 ipsec-attributes
- trust-point ASDM_TrustPoint3
- isakmp ikev1-user-authentication none
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
 crypto ca certificate map cert@example.com 10
  subject-name attr ea eq cert@example.com
 tunnel-group-map cert@example.com 10 172.16.1.2
@@ -755,7 +763,7 @@ access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
 crypto map crypto-outside 2 set peer 172.16.2.2
 crypto map crypto-outside 2 match address crypto-outside-2
-crypto map crypto-outside 2 set transform-set Trans1
+crypto map crypto-outside 2 set ikev1 transform-set Trans1
 crypto map crypto-outside 2 set pfs group2
 crypto map crypto-outside 2 set security-association lifetime seconds 600
 tunnel-group 172.16.2.2 type ipsec-l2l
@@ -783,7 +791,7 @@ $in =~ s/ike_version = 1/ike_version = 2/;
 $out = <<'END';
 --asavpn
 no sysopt connection permit-vpn
-crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
+crypto ipsec ikev1 transform-set Trans1 esp-3des esp-sha-hmac
 crypto ipsec ikev2 ipsec-proposal Trans2
  protocol esp encryption aes-256
  protocol esp integrity sha
@@ -804,7 +812,7 @@ access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0
 access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
 crypto map crypto-outside 2 set peer 172.16.2.2
 crypto map crypto-outside 2 match address crypto-outside-2
-crypto map crypto-outside 2 set transform-set Trans1
+crypto map crypto-outside 2 set ikev1 transform-set Trans1
 crypto map crypto-outside 2 set pfs group2
 crypto map crypto-outside 2 set security-association lifetime seconds 600
 tunnel-group 172.16.2.2 type ipsec-l2l
@@ -949,7 +957,7 @@ END
 $out = <<'END';
 --asavpn
 no sysopt connection permit-vpn
-crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
+crypto ipsec ikev1 transform-set Trans1 esp-3des esp-sha-hmac
 crypto ipsec ikev2 ipsec-proposal Trans2
  protocol esp encryption aes-256
  protocol esp integrity sha-384
@@ -969,14 +977,14 @@ tunnel-group-map vpn1@example.com 10 vpn1@example.com
 access-list crypto-outside-65534 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
 access-list crypto-outside-65534 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
 crypto dynamic-map vpn2@example.com 10 match address crypto-outside-65534
-crypto dynamic-map vpn2@example.com 10 set transform-set Trans1
+crypto dynamic-map vpn2@example.com 10 set ikev1 transform-set Trans1
 crypto dynamic-map vpn2@example.com 10 set pfs group2
 crypto dynamic-map vpn2@example.com 10 set security-association lifetime seconds 600
 crypto map crypto-outside 65534 ipsec-isakmp dynamic vpn2@example.com
 tunnel-group vpn2@example.com type ipsec-l2l
 tunnel-group vpn2@example.com ipsec-attributes
- trust-point ASDM_TrustPoint1
- isakmp ikev1-user-authentication none
+ ikev1 trust-point ASDM_TrustPoint1
+ ikev1 user-authentication none
 crypto ca certificate map vpn2@example.com 10
  subject-name attr ea eq vpn2@example.com
 tunnel-group-map vpn2@example.com 10 vpn2@example.com
@@ -1080,8 +1088,10 @@ tunnel-group VPN-single general-attributes
  username-from-certificate EA
 tunnel-group VPN-single ipsec-attributes
  chain
- trust-point ASDM_TrustPoint3
- isakmp ikev1-user-authentication none
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+tunnel-group VPN-single webvpn-attributes
+ authentication certificate
 tunnel-group-map default-group VPN-single
 --
 object-group network g0
@@ -1148,7 +1158,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'NAT of IPSec traffic at ASA 8.4 and NAT of VPN network at IOS';
+$title = 'NAT of IPSec traffic at ASA and NAT of VPN network at IOS';
 ############################################################
 
 $in = <<'END';
@@ -1181,7 +1191,7 @@ network:intern = {
 }
 
 router:asavpn = {
- model = ASA, 8.4;
+ model = ASA;
  managed;
  interface:intern = {
   ip = 10.1.1.101; 
@@ -1329,7 +1339,7 @@ crypto:sts = {
 network:intern = { ip = 10.1.1.0/24; }
 
 router:asavpn = {
- model = ASA, 8.4;
+ model = ASA;
  managed;
  interface:intern = {
   ip = 10.1.1.101; 
