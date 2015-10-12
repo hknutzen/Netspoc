@@ -323,7 +323,7 @@ routers by an uncolored router symbol instead.
 
 {% include image.html src="./images/traversal_graph_representation.png" title="Topology representation for graph traversal:" description="Zones are depicted as lines and managed routers by uncoloured router symbols." %}
 
-### Netspocs approach to path finding
+### Netspocs approach to path finding {#simple_path_finding}
 
 To find paths from a certain source to a destination, the topology
 graph is prepared by a single depth first search starting at a
@@ -505,7 +505,7 @@ passed from router to zone (zone direction) or from zone to router
 pathrestricted interface, whether a certain destination can or can not
 be reached on the path passing the interface.
 
-{% include image.html src="./images/find_loop_paths.png" title="Loop partitioning:"description="The cycle is divided into different parts that can be reached from pathrestricted interfaces." %}
+{% include image.html src="./images/find_loop_paths.png" title="Loop partitioning:" description="The cycle is divided into different parts that can be reached from pathrestricted interfaces." %}
 
 To receive loop partitioning, every pathrestriction interface that is
 located within a cycle is considered. The loop path is traversed from
@@ -520,3 +520,317 @@ zone and one for router direction.  Consequently, loop path traversal
 has to be performed twice per interface, if the interface has not been
 found before during a traversal starting from another interface of the same
 pathrestriction.
+
+## Finding active routes {#find_routes}
+
+After the elementary rule set has been optimized, static routing
+information is generated for every (source,destination) pair of the set.
+
+### Precalculate next hop interfaces
+
+As was mentioned before, paths are searched and found on an abstract
+topology representation, having routers and zones as nodes.  When it
+comes to routing information thogh, routers within zones are also of
+interest. Routing information is attached to every interface of a
+managed router (= zone interface) and provides a next hop interface to
+a certain destination. Next hop interfaces are not necessarily
+interfaces of managed routers, but often located inside zones. As
+routing information needs to be generated for every source and
+destination pair defined in the rule set, precalculating a general
+next hop routing information at zone borders accelerates the process
+of route finding. Therefore, `set_routes_in_zone` determines next hop
+interfaces to every network of a zone for all zone interfaces.  After
+the function call, every border interface of the zone holds following
+information: 
+
+* Which networks can be reached?  
+
+* What is the next interface (next hop interface) on the path to these
+  networks?
+
+
+{% include image.html src="./images/set_routes_in_zone.png" title="In-Zone routing information:" description="In every border interface of the zone, information about reachable networks and the hop interfaces leading to these networks is stored." %}
+
+If the path of a (source,destination) pair is known, the interfaces a
+zone is entered from and left at can be identified and the next hop
+interfaces can be looked up easily within the interface.
+
+For example,let source and destination be (n2, n11) in the above
+picture. From a path (r2.n2, r2.n5, r9.n10, r9.n11) through the graph
+of managed routers and zones can be deduced that the green zone is
+entered at r2.n5 and left at r9.n10. Looking up n10 in the general
+routing information at IF r2.n5 we find r7.n5 to be the next hop
+interface.
+
+To create general routing information at zone border interfaces, all
+networks at the border of a zone (border networks) are
+examined. Interfaces of a border network that are not border
+interfaces of the zone are the networks next hop interfaces. For every
+next hop interface, a depth first search is conducted to collect all
+zone networks reachable from the interface. Then, at every zone/border
+interface of the border network, a lookup hash is stored with
+reachable networks as keys and hop interfaces leading to these
+networks as values.
+
+To avoid processing paths several times, a preprocessing step is
+conducted. Networks reachable from a hop interface without crossing
+other hop interfaces are collected in clusters via depth first search.
+
+For an example, have a closer look at the picture below: For hop
+interfaces r4.n4 and r4.n5, cluster1 is reachable without crossing
+another hop interface, while for next hop interface r5.n5, cluster2 is
+reachable.
+
+{% include image.html src="./images/set_routes_in_zone-optimization.png" title="Optimize DFS at next hop interfaces:" description="Clustering networks reachable from a hop interface without crossing other hop interfaces prevents traversing these networks more than once." %}
+
+When the main depth first search is conducted, there is no need
+to process all networks of a cluster repeatedly. Instead, whenever an
+interface leading to a cluster is processed, all networks of the
+cluster can be added to the reachable network set at once and search
+can proceed with the next interface.
+
+### Create routing rule set
+
+For routing, the optimized rule set is further reduced. As routing
+information is calculated for zone borders, mainly the source and
+destination zone pairs of the optimized rule set are of interest,
+while protocol information is completely dispensable. Therefore, a
+pseudo rule is generated for every source and destination zone pair
+and stored in the routing tree. To generate routing information for
+the first and last interface of a route, source and destination
+networks for every pair are extracted from the elementary rule set and
+stored within the associated pseudo rule. Source and destination zone
+pairs of rules deleted during optimization are contained within the
+routing tree because of a containing rule. If however either source or
+destination or both are interfaces of a managed router, routing
+information for these interfaces must also be generated. For this
+reason, deleted rules with such properties are also processed and
+their source and destination are stored within the pseudo rule.
+
+In the rule set below, rule2 is contained within rule1 and was
+therefore tagged as deleted.
+
+    rule1: action = permit, source = n2, dest = n6, prt = tcp 80-90
+    rule2: action = permit, source = r1.n2, dest = n6, prt = tcp 80 - deleted
+
+When the rule for rule1 is created, contains the source and destinarion pair of
+both rule1 and rule2. 
+
+    pseudo rule: action: permit, source: n2, dest: n6, prt: ---
+    src networks: n2, dst networks: n6
+
+A closer look at the corresponding topology reveals, that in this
+case, r1.n2 is an interface of a managed router.
+
+{% include image.html src="./images/rules_for_routing.png" title="Pseudo rule example:" description="Interface r1.n2 belongs to a managed router." %}
+
+Thus, although rule2s source r1.n2 is an address within n2, it is still a
+managed interface that needs routing information. Therefore, rule2
+needs to be considered in the pseudo rule by additional information:
+
+    pseudo rule: action: permit, source: n1, dest: n5, prt: ---
+    src networks: n2, dst networks: n6,
+    src interfaces: r1.n2, dst networks for src interfaces: n6
+
+### Generate routing information
+
+Every pseudo rule is now processed to generate rule specific routing
+information. First, route paths for the rules (source,destination)
+pair are found via `path_mark`. The way this function works has been
+briefly touched opon [above](#path_finding) and will be explained in
+detail below. For an abstract zone and router topology, it stores in
+every interface on a path from source to destination the next
+interface in direction to destination. After the path has been found,
+every zone of the path is visited again by `path_walk`. This function
+applies a given function to every zone or router on path. As it is
+repeatedly used within Netspoc, is is described in general
+[below](#path_walk). In this case, the called function collects a pair
+of interfaces for every visited zone, consisting of the interface the
+zone is entered from and the interface the zone is left at. For the
+first and last zone on path, no pair can be collected, as these zones
+are not crossed, but the path starts or ends within these zones
+instead. Just one interface is stored for these zones.
+
+Next hop information is generated then for zone interface pairs and
+single zone interfaces, using the zones general next hop information
+generated before.
+
+### Working on paths 
+
+Throughout the Netspoc program workflow, paths from rule sources to
+destinations are processed several times, for example to generate ACL
+or routing information for interfaces on a rules path. 
+
+To avoid unnecessary calculations, every path is explored only once,
+using the `path_mark` function and information is stored to reconstruct
+the path from.
+
+Basically, path mark finds paths from source to destination as has
+been briefly explained [above](#simple_path_finding). On the abstract
+zone/router representation of the topology, it starts from a rules
+source and destination nodes (router or zone). From both of these, a
+while loop iteratively steps towards `zone1` (lower distances, that
+is), always taking the next step from the node with higher distance,
+until the paths meet. Path information is stored within the interfaces
+on path, with every interface holding the next interface towards
+destination within the destination specific `path` attribute. A path
+attribute is also created within the source object. Thus, the path can
+easily be reconstructed whenever it is to be traversed again. A simple
+example of path mark is depicted in the figure below.
+
+{% include image.html src="./images/path_mark-simple.png" title="Path_mark:" description="The path from src to dst is marked iteratively, starting at both src and dst until the paths meet. In every iteration, first path information is added to the interfaces, then the pointer is moved to the next node in direction to zone 1." %}
+
+Due to special cases like pathrestrictions and loops, the basic
+algorithm described above has several extensions, that are supposed to
+be explained in detail.
+
+#### Marking paths in cycles
+
+For paths leading through loops, path information that is attached to
+interfaces is not sufficient: within the loop, several paths to a
+certain destination might exist, beginning at different sources. Due
+to pathrestrictions, path information valid for one of them is not
+necessarily valid for the other. The example below shows, that path
+attributes at interfaces r1.n2 and r2.n2 differ, depending on the
+source - the path from src1 to dst has to pass the loop clockwise,
+while a path from src2 is only possible the other way round.
+
+{% include image.html src="./images/mark_loop_example.png" title="Loop path mark:" description="Within loops, the direction towards a destination depends on source node and pathrestrictions." %}
+
+For this reason, path information for the whole loop path is stored at
+the loop entry node, providing exactly the same information that is
+otherwise stored within the interfaces in the form of path tuples,
+holding for every node (zone and router) on the path the interface the
+node is entered from and left at.
+
+As was touched upon already, the procession of a loop or loop cluster
+on the path is taking place within a single step of the basic
+algorithm. Accordingly, within the path attribute of the loop entering
+interface, the interface the loop is left at is stored as next
+interface on path and not the next interface inside the loop.
+For later path reconstruction, a marker is attached to the loop
+entering interface, indicating that is is required to pass a loop to
+get to the next interface stored in the path variable.
+
+Of course, the path through the loop still needs to be detected, using
+function `cluster_path_mark`. Usually, loop topologies would have
+pathrestrictions attached. As pathrestrictions require checks
+and tests that obfuscate the underlying algorithm, first assume a
+topology without pathrestrictions to explain it:
+
+{% include table.html no="1." img="./images/cluster_path_mark-simple1.png" txt="During path_mark, a loop node (r4) was found. path_mark stores the path information in the next interface of the linear path and calls cluster_path_mark to find the paths from loop exit node (r1) to the detected loop node." %}
+
+`cluster_path_mark` is called with a pair of loop nodes that specify
+start and end node of a path through the cluster. If neither source
+nor destination are located within the loop, the start node is the
+loop exit node, and the end node is the node where the loop is entered
+from. Then, a depth first search is conducted, beginning at start
+node, to find all paths through the loop that reach the end
+node. During this depth first search run, only loop nodes are
+processed. When the end node has been found, the algorithm returns
+from recursion and collects path information. In contrast to the basic
+algorithm, path information is not stored within the interfaces on
+path but within the first node of the loop. It holds for every
+possible path through the loop the interfaces where the loop path
+starts and ends as well as an array of tuples describing the
+path. Every tuple holds [entrance interface, exit interface, router
+flag] for a loop node on path.
+
+{% include table.html no="2." img="./images/cluster_path_mark-simple2.png" txt="Cluster_path_mark adds loop entry information to the next interface on path and performs a depth first search on loop nodes, starting at loop exit node (r1). It returns when a path (the initiating loop node) is found." %}
+
+{% include table.html no="3." img="./images/cluster_path_mark-simple3.png" txt="As the recursion stack is processed, path information isgenerated and stored within the first node on loop path from source to destination (r1)." %}
+
+{% include table.html no="4." img="./images/cluster_path_mark-simple4.png" txt="Depth first search proceeds until all possible loop paths are tested." %}
+
+{% include table.html no="5." img="./images/cluster_path_mark-simple5.png" txt="Adding further path information to the loop exit node." %}
+
+As the depth first search approach can be rather expensive, especially
+with loop clusters, search space is reduced to those loops that are
+actually and necessarily passed on the path from source to destination.
+
+{% include image.html src="./images/cluster_navigation.png" title="Path trough a loop cluster:" description="Only Loop1 Exit, Loop1, Loop3 and Loop5 need to be passed on a way from source to destination." %}
+
+To identify these loops, `cluster_navigation` is called with the nodes
+where the loop cluster is entered and left as arguments.  It
+identifies paths through the loop cluster in a way similar to the
+basic `path_mark` algorithm. Beginning at the loops of the given
+nodes, steps are iteratively taken towards lower distances. Within
+every step, a new loop is entered, and a navigation lookup hash is
+filled. It stores for every loop those loops that are purposeful to
+enter from the actual loop on the path from source to destination. For
+the topology above, following hash would be generated:
+
+    Loop5      -> Loop5
+    Loop3      -> Loop3, Loop5
+    Loop1      -> Loop1, Loop3
+    Loop1 Exit -> Loop1 Exit, Loop1    
+
+The navigation hash is then attached to start node and can be used to
+limit search space during cluster path mark: Whenever a new node is to
+be entered during depth first search, the loop of the actual node can
+be looked up in the navigation hash. If the loop of the next node is
+not within the set of purposeful loops, the node to enter can not lie
+on the searched path. It can therefore be excluded from the serach
+space.
+
+#### Dealing with path restrictions
+
+As soon as pathrestrictions are added to the topology, lots of special
+cases and side effects have to be considered when marking paths.
+
+A closer look at pathrestrictions during `path_mark` will follow soon!
+Just some notes for now:
+
+* Within every step on the loop path (in `cluster_path_mark`)
+  pathrestrictions need to be checked. Normal pathrestrictions must be
+  activated at first occurrence, and path exploration must be stopped
+  at second occurrence. At optimized pathrestrictions it must be
+  checked whether the loop node that is to be reached is reachable.
+
+
+* When entering a loop, it might be a difference whether the loop is
+  entered via a usual or a pathrestricted interface. For the latter,
+  path information is therefore not stored within the loop entry node,
+  but within the interface. The marker at the loop entry interface
+  shows not only, that the path continues on a loop path, but contains
+  also, where loop path information can be found.
+
+* Usually, path exploration for paths that have interfaces as source
+  or destination starts at the corresponding router node. If source or
+  destination of a rule are pathrestricted interfaces though, the
+  interface is considered to be part of the adjacent zone to achieve
+  equal routes for all IP adresses of the attached network. (Different
+  routes might be found for the interfaces router and zone.) Thus,
+  when checking pathrestrictions, reachability of the zone is of
+  interest. As the loop node that is given as loop exit node to the
+  `cluster_path_mark` function is a router, additional checks need to
+  be performed.
+
+
+#### Path_walk {#path_walk}
+
+For a given rule, path walk applies a function that is specified
+within the arguments at every router or zone node of the path from
+rules source to its destination. As a very generic function it is used
+all over the programm to generate and collect information like static
+routes or ACLs.
+
+If the path for the rules (source, destination) pair is not yet known,
+`path_walk` calls `path_mark` to calculate it.
+
+Then, every node of the path is visited, following the path
+information stored at the interfaces, and the given function is called
+at every router or zone node, depending on the arguments given.
+
+As with `path_mark`, loop paths are processed in a single iteration
+step of the basic algorithm, processing the path information stored in
+the first node of the loop path.
+
+
+
+
+ 
+
+
+
+
