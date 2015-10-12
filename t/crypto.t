@@ -770,8 +770,6 @@ object-group network g0
 access-list outside_in extended permit tcp object-group g0 host 10.1.1.111 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
---
-static (outside,inside) 10.99.22.0 192.168.22.0 netmask 255.255.255.0
 END
 
 test_run($title, $in, $out);
@@ -821,8 +819,6 @@ object-group network g0
 access-list outside_in extended permit tcp object-group g0 host 10.1.1.111 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
---
-static (outside,inside) 10.99.22.0 192.168.22.0 netmask 255.255.255.0
 END
 
 test_run($title, $in, $out);

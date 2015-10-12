@@ -260,7 +260,6 @@ my %router_info = (
         crypto              => 'ASA',
         no_crypto_filter    => 1,
         comment_char        => '!',
-        has_interface_level => 1,
         no_filter_icmp_code => 1,
         need_acl            => 1,
         extension           => {
@@ -270,9 +269,7 @@ my %router_info = (
                 do_auth          => 1,
             },
             EZVPN => { crypto => 'ASA_EZVPN' },
-            '8.4' => { v8_4   => 1, 
-                       has_interface_level => 0,
-            },
+            '8.4' => { v8_4   => 1, },
         },
     },
     Linux => {
