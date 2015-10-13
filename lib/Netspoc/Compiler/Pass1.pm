@@ -17339,9 +17339,7 @@ sub print_acls {
                                 my $max = $obj->{max_secondary_net} or next;
                                 $obj = $max;
                             }
-
-                            my $addr = print_address($obj, $no_nat_set);
-                            $opt_addr{$addr} = 1;
+                            $opt_addr{$obj} = $obj;
                         }
                         $new_rule->{opt_secondary} = 1 if $opt_secondary;
                     }
@@ -17355,8 +17353,11 @@ sub print_acls {
                 }
             }
 
-            if (keys %opt_addr) {
-                $acl->{opt_secondary} = [ sort keys %opt_addr ];
+            if (values %opt_addr) {
+                $acl->{opt_secondary} = [ 
+                    sort 
+                    map { print_address($_, $no_nat_set) } 
+                    values %opt_addr ];
             }
             push @acl_list, $acl;
         }
