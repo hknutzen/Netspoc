@@ -374,7 +374,64 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'No secondary optimization with host and dynamic NAT';
+$title = 'No secondary optimization with host and dynamic NAT (1)';
+############################################################
+
+# Secondary optimization must be disabled at router:S,
+# because router:R can't distinguish between h33 and h34.
+$in = <<'END';
+network:Test =  {
+ ip = 10.9.1.0/24; 
+ nat:C = { ip = 1.9.9.9/32; dynamic;}
+ host:h33 = { ip = 10.9.1.33; }
+ host:h34 = { ip = 10.9.1.34; }
+}
+
+router:S = {
+ managed = secondary;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = inside;}
+ interface:Trans = { ip = 10.0.0.1; hardware = outside; bind_nat = C;}
+}
+network:Trans = { ip = 10.0.0.0/24; }
+router:R = {
+ managed;
+ model = ASA;
+ interface:Trans = {
+  ip = 10.0.0.2;
+  hardware = inside;
+ }
+ interface:X = { ip = 10.8.3.1; hardware = outside; }
+}
+
+network:X = { ip = 10.8.3.0/24; }
+
+service:s1 = {
+ user = network:X;
+ permit src = host:h33; dst = user;         prt = tcp 80;
+ permit src = host:h34; dst = user;         prt = tcp 22;
+}
+END
+
+$out = <<'END';
+-- S
+! [ ACL ]
+access-list inside_in extended permit tcp host 10.9.1.33 10.8.3.0 255.255.255.0 eq 80
+access-list inside_in extended permit tcp host 10.9.1.34 10.8.3.0 255.255.255.0 eq 22
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
+-- R
+! [ ACL ]
+access-list inside_in extended permit tcp host 1.9.9.9 10.8.3.0 255.255.255.0 eq 80
+access-list inside_in extended permit tcp host 1.9.9.9 10.8.3.0 255.255.255.0 eq 22
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'No secondary optimization with host and dynamic NAT (2)';
 ############################################################
 
 # Secondary optimization must be disabled at router:r2.
