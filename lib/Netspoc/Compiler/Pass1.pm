@@ -13640,17 +13640,23 @@ sub mark_secondary_rules {
     return;
 }
 
-# 1. Check for invalid rules accessing hidden objects.
-# 2. Check host rule with dynamic NAT.
-# 3. Check for partially applied hidden or dynamic NAT on path.
-sub check_dynamic_nat_rules {
-    progress('Checking rules with hidden or dynamic NAT');
+sub get_zone_cluster_borders {
+    my ($zone) = @_;
+    my $zone_cluster = $zone->{zone_cluster} || [$zone];
+    return (
+        grep { $_->{router}->{managed} }
+        map { @{ $_->{interfaces} } }
+        @$zone_cluster);
+}
 
-    # Mark networks having host or interface with dynamic NAT.
-    # In this case secondary optimization must not applied,
-    # because we could accidently permit traffic for the whole network
-    # where only a single host should be permitted.
-    # This problem doesn't occur for dynamic NAT to /32 address.
+# Analyze networks having host or interface with dynamic NAT.
+# In this case secondary optimization must be disabled
+# at border routers of zone cluster of these networks,
+# because we could accidently permit traffic for the whole network
+# where only a single host should be permitted.
+sub mark_dynamic_host_nets {
+
+    my %zone2dynamic;
   NETWORK:
     for my $network (@networks) {
         my $href = $network->{nat} or next;
@@ -13658,15 +13664,37 @@ sub check_dynamic_nat_rules {
             my $nat_network = $href->{$nat_tag};
             $nat_network->{dynamic} or next;
             next if $nat_network->{hidden};
-            next if 0xffffffff == $nat_network->{mask};
             for my $obj (@{ $network->{hosts} }, @{ $network->{interfaces} }) {
                 $obj->{nat} and $obj->{nat}->{$nat_tag} and next;
                 $network->{has_dynamic_host} = 1;
+                my $zone = $network->{zone};
+                push @{ $zone2dynamic{$zone} }, $network;
                 next NETWORK;
             }
         }
     }
-    
+    for my $zone (@zones) {
+        my $dynamic_nets = $zone2dynamic{$zone} or next;
+        for my $interface (get_zone_cluster_borders($zone)) {
+            my $router = $interface->{router};
+            my $managed = $router->{managed};
+            next if ($managed eq 'primary' or $managed eq 'full');
+
+            # Secondary optimization will or may be applicable
+            # and must be disabled for $dynamic_nets.
+            @{ $router->{no_secondary_opt} }{@$dynamic_nets} = @$dynamic_nets;
+        }
+    }
+}
+
+# 1. Check for invalid rules accessing hidden objects.
+# 2. Check host rule with dynamic NAT.
+# 3. Check for partially applied hidden or dynamic NAT on path.
+sub check_dynamic_nat_rules {
+    progress('Checking rules with hidden or dynamic NAT');
+
+    mark_dynamic_host_nets();
+
     # Collect hidden or dynamic NAT tags.
     my %is_dynamic_nat_tag;
     for my $network (@networks) {
@@ -17321,9 +17349,11 @@ sub print_acls {
                             if ($type eq 'Subnet' or $type eq 'Interface') {
                                 my $net = $obj->{network};
                                 next if $net->{has_other_subnet};
-                                if ($net->{has_dynamic_host}) {
-                                    $opt_secondary = undef;
-                                    last;
+                                if (my $no_opt = $router->{no_secondary_opt}) {
+                                    if ($no_opt->{$net}) {
+                                        $opt_secondary = undef;
+                                        last;
+                                    }
                                 }
                                 $obj = $net;
                                 if (my $max = $obj->{max_secondary_net}) {
