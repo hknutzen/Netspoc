@@ -235,7 +235,7 @@ sub mark_path {
     my ($src, $dst) = @_;
     my $rule = {src => $src, dst => $dst, prt => {}};
 #    debug "Path $src->{name} $dst->{name}";
-    &path_walk($rule, \&mark_topology);
+    &single_path_walk($rule, \&mark_topology);
     return;
 }
 
@@ -333,7 +333,7 @@ sub process_rules {
 		    fatal_err "Unexpected type $type";
 		}		    
 	    }
-	    &path_walk($rule, \&mark_topology);
+	    &single_path_walk($rule, \&mark_topology);
 	    if($rule->{orig_prt}){
 		$rule->{orig_prt}->{is_used} = 1;
 	    } else {

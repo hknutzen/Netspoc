@@ -123,7 +123,7 @@ our @EXPORT = qw(
   process_loops
   check_pathrestrictions
   optimize_pathrestrictions
-  path_walk
+  single_path_walk
   path_auto_interfaces
   check_supernet_rules
   optimize_and_warn_deleted
@@ -13479,8 +13479,8 @@ sub gen_reverse_rules1 {
                 stateless => 1,
                 src       => $rule->{dst},
                 dst       => $rule->{src},
-                src_path  => $rule->{src_path},
-                dst_path  => $rule->{dst_path},
+                src_path  => $rule->{dst_path},
+                dst_path  => $rule->{src_path},
                 prt       => $prt_group,
             };
             $new_rule->{src_range} = $src_range if $src_range ne $prt_ip;
@@ -13647,6 +13647,18 @@ sub mark_secondary_rules {
     # because we assume that traffic from / to that router gets
     # filtered at that router.
     for my $router (@managed_routers) {
+
+        # Don't trust managed host.
+        my $interface1 = $router->{interfaces}->[0];
+        if ($interface1->{is_managed_host}) {
+            my $zone = $interface1->{zone};
+            for my $mark (qw(secondary_mark primary_mark local_secondary_mark))
+            {
+                $router->{$mark} = $zone->{$mark}
+            }
+            next;
+        }
+            
         if (not $router->{secondary_mark}) {
             $router->{secondary_mark} = $secondary_mark++;
         }
@@ -14115,6 +14127,10 @@ sub group_rules {
      for my $this ('src', 'dst', 'prt') {
          my $attr = $other_rule_attr{$this};
          my %group_rule_tree;
+         my $index1 = 1;
+         my %key2index;
+         my $index2 = 1;
+         my %this2index;
 
          # Find groups of rules with identical
          # action, src_range, log and @$attr
@@ -14126,8 +14142,13 @@ sub group_rules {
              if (my $log = $rule->{log}) {
                  $key .= ",$log";
              }
-             my $this      = $rule->{$this};
-             $group_rule_tree{$key}->{$this} = $rule;
+
+             # Use numerical index as key, to mostly preserve original
+             # order of expanded_rules.
+             my $key_index  = $key2index{$key} ||= $index1++;
+             my $this       = $rule->{$this};
+             my $this_index = $this2index{$this} ||= $index2++;
+             $group_rule_tree{$key_index}->{$this_index} = $rule;
          }
 
          # Collect new rules with group in attribute $this.
@@ -14135,8 +14156,10 @@ sub group_rules {
 
          # $href is {src/dst/prt => rule, ...}
          # All rules are identical in all attributes except in $this.
-         for my $href (values %group_rule_tree) {
-             my $group = [ sort by_name map { $_->{$this} } values %$href ];
+         for my $key (sort numerically keys %group_rule_tree) {
+             my $href = $group_rule_tree{$key};
+             my $group = [ map { $_->{$this} }
+                           @{$href}{sort numerically keys %$href} ];
              my $is_new = 1;
 
              # Find group with identical elements or define a new one.
@@ -14166,16 +14189,16 @@ sub group_rules {
 
              # Build grouped rules with found group as attribute.
              # Other attributes like {stateless} are taken from original rule.
-             my $expanded_rule = (values %$href)[0];
+             my $expanded_rule = $href->{$this2index{$first}};
              my $grouped_rule = { %$expanded_rule };
              $grouped_rule->{$this} = $group;
              $grouped_rule->{src_path} = $src_path;
              $grouped_rule->{dst_path} = $dst_path;
 
              # Remember one expanded_rule for error messages.
-             # ToDo: Choose expanded_rule deterministically.
              $grouped_rule->{orig_rule} = $expanded_rule;
              push @new_rules, $grouped_rule;
+#             debug print_rule $grouped_rule;
          }
          $rules = \@new_rules;
      }
@@ -14192,23 +14215,33 @@ sub group_path_rules {
          # Collect rules that use identical path and modifiers.
          my %path2rules;
 
-         # Convert path name to path object.
-         my %key2path;
+         # Use numerical index as hash key to preserve original order
+         # of expanded_rules.
+         my $index1 = 1;
+         my %src_path2index;
+         my $index2 = 1;
+         my %dst_path2index;
+         my $index3 = 1;
+         my %attr2index;
+
+         # Convert key to path object.
+         my %src_key2path;
+         my %dst_key2path;
          for my $rule (@$rules) {
              my ($src, $dst) = @{$rule}{qw(src dst)};
              my $src_path = $obj2path{$src} || get_path($src);
              my $dst_path = $obj2path{$dst} || get_path($dst);
-             my $src_key  = $src_path->{name};
-             my $dst_key  = $dst_path->{name};
-             $key2path{$src_key} = $src_path;
-             $key2path{$dst_key} = $dst_path;
+             my $src_key  = $src_path2index{$src_path} ||= $index1++;
+             my $dst_key  = $dst_path2index{$dst_path} ||= $index2++;
+             $src_key2path{$src_key} = $src_path;
+             $dst_key2path{$dst_key} = $dst_path;
              my $src_range = $rule->{src_range} || '';
              my $log       = $rule->{log} || '';
              my $oneway    = $rule->{oneway} || '';
              my $stateless = $rule->{stateless} || '';
              my $stateless_icmp = $rule->{stateless_icmp} || '';
-             my $attr_key = 
-                 "$src_range,$log,$oneway,$stateless,$stateless_icmp";
+             my $attr = "$src_range,$log,$oneway,$stateless,$stateless_icmp";
+             my $attr_key = $attr2index{$attr} ||= $index3++;
              push @{ $path2rules{$attr_key}->{$src_key}->{$dst_key} }, $rule;
          }
 
@@ -14217,11 +14250,11 @@ sub group_path_rules {
 
          for my $attr_key (sort keys %path2rules) {
              my $href = $path2rules{$attr_key};
-             for my $src_key (sort keys %$href) {
-                 my $src_path = $key2path{$src_key};
+             for my $src_key (sort numerically keys %$href) {
+                 my $src_path = $src_key2path{$src_key};
                  my $href = $href->{$src_key};
-                 for my $dst_key (sort keys %$href) {
-                     my $dst_path = $key2path{$dst_key};
+                 for my $dst_key (sort numerically keys %$href) {
+                     my $dst_path = $dst_key2path{$dst_key};
                      my $path_rules = $href->{$dst_key};
                      group_rules ($path_rules, 
                                   $src_path, $dst_path,
@@ -14367,8 +14400,10 @@ sub prepare_nat_commands {
         # Collect networks only if path has some NAT device.
         if ($info->{nat_path}) {
             my ($src, $dst) = @{$rule}{qw(src dst)};
-            add_networks($src, $info->{src_net});
-            add_networks($dst, $info->{dst_net});
+            my $src_net = $info->{src_net} ||= {};
+            my $dst_net = $info->{dst_net} ||= {};
+            add_networks($src, $src_net);
+            add_networks($dst, $dst_net);
         }
     }
     for my $hash (values %zone2zone2info) {
@@ -14702,14 +14737,14 @@ sub get_route_path {
 
 #############################################################################
 # Purpose : Generate the routing tree, holding pseudo rules that represent 
-#           the whole grouped rule set. As the pseudo rules are 
-#           generated to determine routes, ports are omitted, and rules 
+#           the whole grouped rule set. As the pseudo rules are
+#           generated to determine routes, ports are omitted, and rules
 #           refering to the same src and dst zones are summarized.
 # Returns : A reference to the generated routing tree.
 sub generate_routing_tree1 {
     my ($rule, $is_intf, $routing_tree) = @_;
 
-    my ($src, $dst, $src_zone, $dst_zone) = 
+    my ($src, $dst, $src_zone, $dst_zone) =
         @{$rule}{qw(src dst src_path dst_path)};
 
     # Check, whether
@@ -14721,7 +14756,7 @@ sub generate_routing_tree1 {
         # Detect next hop interfaces if src/dst are zone border interfaces.
         for my $what (split ',', $is_intf) {
             my $from = $rule->{$what}->[0];
-            my $to = $from eq $src ? $dst : $src;
+            my $to = $what eq 'src' ? $dst : $src;
             $from = $from->{main_interface} || $from;
             my $networks = get_route_networks($to);
             add_end_routes($from, $networks);
@@ -14729,7 +14764,7 @@ sub generate_routing_tree1 {
         return;
     }
 
-    # Construct a pseudo rule with zones as src and dst and store it.  
+    # Construct a pseudo rule with zones as src and dst and store it.
     my $pseudo_rule;
 
     # Check whether pseudo rule for src and dst pair is stored already.
@@ -14738,7 +14773,7 @@ sub generate_routing_tree1 {
     elsif ($pseudo_rule = $routing_tree->{$dst_zone}->{$src_zone}) {
         ($src,      $dst)      = ($dst,      $src);
         ($src_zone, $dst_zone) = ($dst_zone, $src_zone);
-        $is_intf &&= 
+        $is_intf &&=
             $is_intf eq 'src' ? 'dst' : $is_intf eq 'dst' ? 'src' : $is_intf;
     }
 
@@ -14773,9 +14808,9 @@ sub generate_routing_tree1 {
             $router->{managed} or $router->{routing_only} or next;
             $intf = $intf->{main_interface} || $intf;
             $pseudo_rule->{"${what}_interfaces"}->{$intf} = $intf;
-            for my $network ($what eq 'src' ? @$src_networks : @$dst_networks) {
+            for my $network ($what eq 'src' ? @$dst_networks : @$src_networks) {
                 $pseudo_rule->{"${what}_intf2nets"}
-                  ->{$src}->{$network} = $network;
+                  ->{$intf}->{$network} = $network;
             }
         }
     }
@@ -17511,6 +17546,7 @@ sub print_acls {
                         for my $where (qw(src dst)) {
                             my $obj_list = $rule->{$where};
                             for my $obj (@$obj_list) {
+                                my $subst;
 
                                 # Prepare secondary optimization.
                                 my $type = ref($obj);
@@ -17521,14 +17557,14 @@ sub print_acls {
                                 # address.
                                 if ($do_auth) {
 
-                                # Single ID-hosts must not be converted to
-                                # network.
+                                    # Single ID-hosts must not be
+                                    # converted to network.
                                     if ($type eq 'Subnet') {
                                         next if $obj->{id};
                                     }
 
-                                # Network with ID-hosts must not be
-                                # optimized at all.
+                                    # Network with ID-hosts must not
+                                    # be optimized at all.
                                     if ($obj->{has_id_hosts}) {
                                         $no_opt_addr{$obj} = $obj;
                                         last;
@@ -17546,31 +17582,31 @@ sub print_acls {
                                             last;
                                         }
                                     }
-                                    $obj = $net;
-                                    if (my $max = $obj->{max_secondary_net}) {
-                                        $obj = $max;
+                                    $subst = $net;
+                                    if (my $max = $subst->{max_secondary_net}) {
+                                        $subst = $max;
                                     }
 
-                                # Ignore loopback network.
-                                    next if $obj->{mask} == 0xffffffff;
+                                    # Ignore loopback network.
+                                    next if $subst->{mask} == 0xffffffff;
                                 }
 
                                 # Network or aggregate.
                                 else {
 
-                                # Don't modify protocol of rule with
-                                # {has_other_subnet}, because this
-                                # could introduce new missing supernet
-                                # rules.
+                                    # Don't modify protocol of rule
+                                    # with {has_other_subnet}, because
+                                    # this could introduce new missing
+                                    # supernet rules.
                                     if ($obj->{has_other_subnet}) {
                                         $no_opt_addr{$obj} = $obj;
                                         last;
 
                                     }
                                     my $max = $obj->{max_secondary_net} or next;
-                                    $obj = $max;
+                                    $subst = $max;
                                 }
-                                $opt_addr{$obj} = $obj;
+                                $opt_addr{$subst} = $subst if $subst;
                             }
                         }
                         $new_rule->{opt_secondary} = 1;
@@ -17588,6 +17624,7 @@ sub print_acls {
                 }
             }
 
+            # ToDo: add comment, rename {no_opt_secondary}.
             if (values %opt_addr) {
                 $acl->{opt_secondary} = [ 
                     sort 
