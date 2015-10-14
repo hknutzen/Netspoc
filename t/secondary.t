@@ -256,7 +256,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = "No optimization on supernet";
+$title = "No optimization on supernet, but partly on host";
 ############################################################
 
 # Optimized rule "A -> B IP" would allow "A -> subB IP" accidently.
@@ -282,11 +282,15 @@ router:filter = {
  interface:B = { ip = 10.8.8.1; hardware = B; }
 }
 
-network:B = { ip = 10.8.8.0/24; }
+network:B = { ip = 10.8.8.0/24; host:B = { ip = 10.8.8.7; } }
 
 service:test1 = {
  user = network:A;
  permit src = user; dst = network:B, network:subB; prt = tcp 80;
+}
+service:test2 = {
+ user = network:A;
+ permit src = user; dst = host:B; prt = tcp 22;
 }
 END
 
@@ -296,13 +300,20 @@ $out = <<'END';
 ip access-list extended A_in
  deny ip any host 10.8.8.9
  permit tcp 10.3.3.0 0.0.0.127 10.8.8.0 0.0.0.255 eq 80
+ permit ip 10.3.3.0 0.0.0.127 host 10.8.8.7
  deny ip any any
+-- filter
+! [ ACL ]
+access-list Trans_in extended permit tcp 10.3.3.0 255.255.255.128 10.8.8.0 255.255.255.0 eq 80
+access-list Trans_in extended permit tcp 10.3.3.0 255.255.255.128 host 10.8.8.7 eq 22
+access-list Trans_in extended deny ip any any
+access-group Trans_in in interface Trans
 END
 
 test_run($title, $in, $out);
 
 ############################################################
-$title = "Don't optimize rule if any rule starts behind secondary router";
+$title = "Don't optimize rule if aggregate rule starts behind secondary router";
 ############################################################
 
 $in = <<'END';
