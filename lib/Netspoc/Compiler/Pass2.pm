@@ -104,18 +104,13 @@ sub setup_ip_net_relation {
         }
     }
 
-    # Propagate content of attributes {opt_secondary} and
-    # {no_opt_secondary} to all subnets.
+    # Propagate content of attributes {opt_networks} to all subnets.
     # Go from large to smaller networks.
     for my $obj (sort { $a->{mask} <=> $b->{mask} } values %$ip_net2obj) {
         my $up = $obj->{up} or next;
-        if (my $opt_secondary = $up->{opt_secondary}) {
-            $obj->{opt_secondary} = $opt_secondary;
-#           debug "secondary: $obj->{name} $opt_secondary->{name}";
-        }
-        if ($up->{no_opt_secondary}) {
-            $obj->{no_opt_secondary} = 1;
-#           debug "no secondary: $obj->{name}";
+        if (my $opt_networks = $up->{opt_networks}) {
+            $obj->{opt_networks} = $opt_networks;
+#           debug "secondary: $obj->{name} $opt_networks->{name}";
         }
     }
 }
@@ -369,14 +364,14 @@ sub optimize_rules {
         next if $rule->{deleted};
 
         my ($src, $dst, $prt) = @{$rule}{qw(src dst prt)};
-        next if $src->{no_opt_secondary};
-        next if $dst->{no_opt_secondary};
+        next if $src->{no_opt_addrs};
+        next if $dst->{no_opt_addrs};
 
         # Replace obj by supernet.
-        if (my $supernet = $src->{opt_secondary}) {
+        if (my $supernet = $src->{opt_networks}) {
             $src = $rule->{src} = $supernet;
         }
-        if (my $supernet = $dst->{opt_secondary} and not $dst->{need_protect}) {
+        if (my $supernet = $dst->{opt_networks} and not $dst->{need_protect}) {
             $dst = $rule->{dst} = $supernet;
         }
 
@@ -1837,7 +1832,7 @@ sub prepare_acls {
 
         convert_rule_objects($acl_info);
 
-        for my $what (qw(opt_secondary no_opt_secondary need_protect)) {
+        for my $what (qw(opt_networks no_opt_addrs need_protect)) {
             if (my $list = $acl_info->{$what}) {
                 for my $ip_net (@$list) {
                     my $obj = $ip_net2obj->{$ip_net} ||= create_ip_obj($ip_net);

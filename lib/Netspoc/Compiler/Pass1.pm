@@ -17487,7 +17487,7 @@ sub print_acls {
             my %opt_addr;
 
             # Collect networks forbidden in secondary optimization.
-            my %no_opt_addr;
+            my %no_opt_addrs;
 
             my $no_nat_set = delete $acl->{no_nat_set};
 
@@ -17566,8 +17566,8 @@ sub print_acls {
                                     # Network with ID-hosts must not
                                     # be optimized at all.
                                     if ($obj->{has_id_hosts}) {
-                                        $no_opt_addr{$obj} = $obj;
-                                        last;
+                                        $no_opt_addrs{$obj} = $obj;
+                                        next;
                                     }
                                 }
 
@@ -17578,8 +17578,8 @@ sub print_acls {
                                         $router->{no_secondary_opt}) 
                                     {
                                         if ($no_opt->{$net}) {
-                                            $no_opt_addr{$net} = $net;
-                                            last;
+                                            $no_opt_addrs{$obj} = $obj;
+                                            next;
                                         }
                                     }
                                     $subst = $net;
@@ -17599,8 +17599,8 @@ sub print_acls {
                                     # this could introduce new missing
                                     # supernet rules.
                                     if ($obj->{has_other_subnet}) {
-                                        $no_opt_addr{$obj} = $obj;
-                                        last;
+                                        $no_opt_addrs{$obj} = $obj;
+                                        next;
 
                                     }
                                     my $max = $obj->{max_secondary_net} or next;
@@ -17624,18 +17624,29 @@ sub print_acls {
                 }
             }
 
-            # ToDo: add comment, rename {no_opt_secondary}.
+            # Secondary optimization is done in pass 2.
+            # It converts protocol to IP and 
+            # src/dst address to network address.
+            # It is controlled by this three attributes:
+            # - {opt_secondary} enables secondary optimization
+            # - if enabled, then networks in {opt_networks} are used
+            #   for optimization.
+            # - if src/dst matches {no_opt_networks}, then
+            #   optimization is disabled for this single rule.
+            #   This is needed because {opt_secondary} is set for
+            #   grouped rules and we need to control optimization 
+            #   for sinlge rules.
             if (values %opt_addr) {
-                $acl->{opt_secondary} = [ 
+                $acl->{opt_networks} = [ 
                     sort 
                     map { print_address($_, $no_nat_set) } 
                     values %opt_addr ];
             }
-            if (values %no_opt_addr) {
-                $acl->{no_opt_secondary} = [ 
+            if (values %no_opt_addrs) {
+                $acl->{no_opt_addrs} = [ 
                     sort 
                     map { print_address($_, $no_nat_set) } 
-                    values %no_opt_addr ];
+                    values %no_opt_addrs ];
             }
             push @acl_list, $acl;
         }
