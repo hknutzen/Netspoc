@@ -1,1 +1,0 @@
-{"subroutine":[[58,"BEGIN"]],"start":{"-1":{"__COVER__":[{"statement":3,"condition":null,"time":null,"subroutine":1,"branch":null,"pod":null}]},"58":{"BEGIN":[{"pod":null,"branch":null,"subroutine":null,"time":null,"condition":null,"statement":null}]}},"file":"/usr/local/lib/perl5/5.20.1/i686-linux/Fcntl.pm","statement":[58,58,58],"digest":"70707096a90be3068ba6feae636d5ad6"}

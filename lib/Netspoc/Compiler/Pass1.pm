@@ -35,7 +35,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '4.1'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.2'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -260,7 +260,6 @@ my %router_info = (
         crypto              => 'ASA',
         no_crypto_filter    => 1,
         comment_char        => '!',
-        has_interface_level => 1,
         no_filter_icmp_code => 1,
         need_acl            => 1,
         extension           => {
@@ -270,9 +269,7 @@ my %router_info = (
                 do_auth          => 1,
             },
             EZVPN => { crypto => 'ASA_EZVPN' },
-            '8.4' => { v8_4   => 1, 
-                       has_interface_level => 0,
-            },
+            '8.4' => {},
         },
     },
     Linux => {
@@ -1941,9 +1938,6 @@ sub read_router {
         elsif (check_flag 'no_protect_self') {
             $router->{no_protect_self} = 1;
         }
-        elsif (check_flag 'strict_secondary') {
-            $router->{strict_secondary} = 1;
-        }
         elsif (check_flag 'log_deny') {
             $router->{log_deny} = 1;
         }
@@ -2198,13 +2192,6 @@ sub read_router {
         if ($model->{need_protect}) {
             $router->{need_protect} = !delete $router->{no_protect_self};
         }
-
-        $router->{strict_secondary}
-          and $managed !~ /secondary$/
-          and err_msg(
-            "Must not use attribute 'strict_secondary' at $name.\n",
-            " Only valid with 'managed = secondary|local_secondary'"
-          );
 
         # Detailed interface processing for managed routers.
         for my $interface (@{ $router->{interfaces} }) {
@@ -13574,36 +13561,6 @@ sub mark_primary {
     return;
 }
 
-# Mark security zone $zone with $mark and
-# additionally mark all security zones
-# which are connected with $zone by non-strict-secondary
-# packet filters.
-sub mark_strict_secondary;
-
-sub mark_strict_secondary {
-    my ($zone, $mark) = @_;
-    $zone->{strict_secondary_mark} = $mark;
-
-#    debug "$zone->{name} : $mark";
-    for my $in_interface (@{ $zone->{interfaces} }) {
-        next if $in_interface->{main_interface};
-        my $router = $in_interface->{router};
-        if ($router->{managed}) {
-            next if $router->{strict_secondary};
-        }
-        next if $router->{active_path};
-        local $router->{active_path} = 1;
-        for my $out_interface (@{ $router->{interfaces} }) {
-            next if $out_interface eq $in_interface;
-            next if $out_interface->{main_interface};
-            my $next_zone = $out_interface->{zone};
-            next if $next_zone->{strict_secondary_mark};
-            mark_strict_secondary($next_zone, $mark);
-        }
-    }
-    return;
-}
-
 # Set 'local_secondary_mark' for secondary optimization inside one cluster.
 # Two zones get the same mark if they are connected by local_secondary router.
 sub mark_local_secondary;
@@ -13637,7 +13594,6 @@ sub mark_secondary_rules {
 
     my $secondary_mark        = 1;
     my $primary_mark          = 1;
-    my $strict_secondary_mark = 1;
     my $local_secondary_mark  = 1;
     for my $zone (@zones) {
         if (not $zone->{secondary_mark}) {
@@ -13645,9 +13601,6 @@ sub mark_secondary_rules {
         }
         if (not $zone->{primary_mark}) {
             mark_primary $zone, $primary_mark++;
-        }
-        if (not $zone->{strict_secondary_mark}) {
-            mark_strict_secondary($zone, $strict_secondary_mark++);
         }
         if (not $zone->{local_secondary_mark}) {
             mark_local_secondary($zone, $local_secondary_mark++);
@@ -13683,57 +13636,55 @@ sub mark_secondary_rules {
         if ($src_zone->{primary_mark} != $dst_zone->{primary_mark}) {
             $rule->{some_primary} = 1;
         }
+    }
+    return;
+}
 
-        # A device with attribute 'strict_secondary' is located
-        # between src and dst.
-        # Each rule must
-        # - either be optimized secondary
-        # - or be simple:
-        #   - protocol IP
-        #   - src and dst be either
-        #     - network
-        #     - loopback interface
-        #     - interface of managed device
-        if ($src_zone->{strict_secondary_mark} !=
-            $dst_zone->{strict_secondary_mark})
-        {
-            if (!$rule->{some_non_secondary}) {
-                my $err;
-                my ($src, $dst, $prt) =
-                  @{$rule}{qw(src dst prt)};
-                if ($prt ne $prt_ip) {
-                    $err = "'prt = ip'";
-                }
-                else {
-                    for my $where (qw(src dst)) {
-                        my $what = $rule->{$where};
-                        if (
-                            !is_network($what)
-                            && !(
-                                is_interface($what) && ($what->{loopback}
-                                    || $what->{router}->{managed})
-                            )
-                          )
-                        {
-                            $err =
-                              "network or managed/loopback interface as "
-                              . $where;
-                            last;
-                        }
-                    }
-                }
-                if ($err) {
-                    err_msg(
-                        "Invalid rule at router with attribute",
-                        " 'strict_secondary'.\n",
-                        " Rule must only use $err.\n ",
-                        print_rule($rule)
-                    );
-                }
+sub get_zone_cluster_borders {
+    my ($zone) = @_;
+    my $zone_cluster = $zone->{zone_cluster} || [$zone];
+    return (
+        grep { $_->{router}->{managed} }
+        map { @{ $_->{interfaces} } }
+        @$zone_cluster);
+}
+
+# Analyze networks having host or interface with dynamic NAT.
+# In this case secondary optimization must be disabled
+# at border routers of zone cluster of these networks,
+# because we could accidently permit traffic for the whole network
+# where only a single host should be permitted.
+sub mark_dynamic_host_nets {
+
+    my %zone2dynamic;
+  NETWORK:
+    for my $network (@networks) {
+        my $href = $network->{nat} or next;
+        for my $nat_tag (keys %$href) {
+            my $nat_network = $href->{$nat_tag};
+            $nat_network->{dynamic} or next;
+            next if $nat_network->{hidden};
+            for my $obj (@{ $network->{hosts} }, @{ $network->{interfaces} }) {
+                $obj->{nat} and $obj->{nat}->{$nat_tag} and next;
+                $network->{has_dynamic_host} = 1;
+                my $zone = $network->{zone};
+                push @{ $zone2dynamic{$zone} }, $network;
+                next NETWORK;
             }
         }
     }
-    return;
+    for my $zone (@zones) {
+        my $dynamic_nets = $zone2dynamic{$zone} or next;
+        for my $interface (get_zone_cluster_borders($zone)) {
+            my $router = $interface->{router};
+            my $managed = $router->{managed};
+            next if ($managed eq 'primary' or $managed eq 'full');
+
+            # Secondary optimization will or may be applicable
+            # and must be disabled for $dynamic_nets.
+            @{ $router->{no_secondary_opt} }{@$dynamic_nets} = @$dynamic_nets;
+        }
+    }
 }
 
 # 1. Check for invalid rules accessing hidden objects.
@@ -13742,27 +13693,8 @@ sub mark_secondary_rules {
 sub check_dynamic_nat_rules {
     progress('Checking rules with hidden or dynamic NAT');
 
-    # Mark networks having host or interface with dynamic NAT.
-    # In this case secondary optimization must not applied,
-    # because we could accidently permit traffic for the whole network
-    # where only a single host should be permitted.
-    # This problem doesn't occur for dynamic NAT to /32 address.
-  NETWORK:
-    for my $network (@networks) {
-        my $href = $network->{nat} or next;
-        for my $nat_tag (keys %$href) {
-            my $nat_network = $href->{$nat_tag};
-            $nat_network->{dynamic} or next;
-            next if $nat_network->{hidden};
-            next if 0xffffffff == $nat_network->{mask};
-            for my $obj (@{ $network->{hosts} }, @{ $network->{interfaces} }) {
-                $obj->{nat} and $obj->{nat}->{$nat_tag} and next;
-                $network->{has_dynamic_host} = 1;
-                next NETWORK;
-            }
-        }
-    }
-    
+    mark_dynamic_host_nets();
+
     # Collect hidden or dynamic NAT tags.
     my %is_dynamic_nat_tag;
     for my $network (@networks) {
@@ -16111,20 +16043,13 @@ tunnel-group $default_tunnel_group ipsec-attributes
  chain
 EOF
 
-    if ($model->{v8_4}) {
-        print <<"EOF";
+    print <<"EOF";
  ikev1 trust-point $trust_point
  ikev1 user-authentication none
 tunnel-group $default_tunnel_group webvpn-attributes
  authentication certificate
 EOF
-    }
-    else {
-        print <<"EOF";
- trust-point $trust_point
- isakmp ikev1-user-authentication none
-EOF
-    }
+
     print <<"EOF";
 tunnel-group-map default-group $default_tunnel_group
 
@@ -16249,10 +16174,8 @@ EOF
                 if ($src->{mask} == 0xffffffff) {
 
                     # For anyconnect clients.
-                    if ($model->{v8_4}) {
-                        my ($name, $domain) = ($id =~ /^(.*?)(\@.*)$/);
-                        $single_cert_map{$domain} = 1;
-                    }
+                    my ($name, $domain) = ($id =~ /^(.*?)(\@.*)$/);
+                    $single_cert_map{$domain} = 1;
 
                     my $mask = print_ip $network->{mask};
                     my $group_policy_name;
@@ -16302,14 +16225,9 @@ EOF
                     my $trustpoint2 = delete $attributes->{'trust-point'}
                       || $trust_point;
                     my @tunnel_ipsec_att =
-                      $model->{v8_4}
-                      ? (
+                      (
                         "ikev1 trust-point $trustpoint2",
                         'ikev1 user-authentication none'
-                      )
-                      : (
-                        "trust-point $trustpoint2",
-                        'isakmp ikev1-user-authentication none'
                       );
 
                     $print_group_policy->($group_policy_name, $attributes);
@@ -16332,13 +16250,11 @@ EOF
                     }
 
                     # For anyconnect clients.
-                    if ($model->{v8_4}) {
-                        print <<"EOF";
+                    print <<"EOF";
 tunnel-group $tunnel_group_name webvpn-attributes
  authentication certificate
 EOF
-                        $cert_group_map{$map_name} = $tunnel_group_name;
-                    }
+                    $cert_group_map{$map_name} = $tunnel_group_name;
 
                     print <<"EOF";
 tunnel-group-map ca-map-$user_counter 10 $tunnel_group_name
@@ -16819,11 +16735,8 @@ sub print_crypto_map_attributes {
         if ($isakmp->{ike_version} == 2) {
             print "$prefix set ikev2 ipsec-proposal $transform_name\n";
         }
-        elsif ($model->{v8_4}) {
-            print "$prefix set ikev1 transform-set $transform_name\n";
-        }
         else {
-            print "$prefix set transform-set $transform_name\n";
+            print "$prefix set ikev1 transform-set $transform_name\n";
         }
     }
     else {
@@ -16860,13 +16773,9 @@ sub print_tunnel_group {
             print(" ikev2 local-authentication certificate", " $trust_point\n");
             print(" ikev2 remote-authentication certificate\n");
         }
-        elsif ($model->{v8_4}) {
+        else {
             print " ikev1 trust-point $trust_point\n";
             print " ikev1 user-authentication none\n";
-        }
-        else {
-            print " trust-point $trust_point\n";
-            print " isakmp ikev1-user-authentication none\n";
         }
     }
 
@@ -17152,10 +17061,9 @@ sub print_crypto {
             if (my $esp_ah = $ipsec->{esp_authentication}) {
                 $transform .= "esp-$esp_ah-hmac";
             }
-            my $prefix =
-              ($crypto_type eq 'ASA' and $model->{v8_4})
-              ? 'crypto ipsec ikev1'
-              : 'crypto ipsec';
+            my $prefix = ($crypto_type eq 'ASA')
+                       ? 'crypto ipsec ikev1'
+                       : 'crypto ipsec';
             print "$prefix transform-set $transform_name $transform\n";
         }
     }
@@ -17441,9 +17349,11 @@ sub print_acls {
                             if ($type eq 'Subnet' or $type eq 'Interface') {
                                 my $net = $obj->{network};
                                 next if $net->{has_other_subnet};
-                                if ($net->{has_dynamic_host}) {
-                                    $opt_secondary = undef;
-                                    last;
+                                if (my $no_opt = $router->{no_secondary_opt}) {
+                                    if ($no_opt->{$net}) {
+                                        $opt_secondary = undef;
+                                        last;
+                                    }
                                 }
                                 $obj = $net;
                                 if (my $max = $obj->{max_secondary_net}) {
@@ -17459,9 +17369,7 @@ sub print_acls {
                                 my $max = $obj->{max_secondary_net} or next;
                                 $obj = $max;
                             }
-
-                            my $addr = print_address($obj, $no_nat_set);
-                            $opt_addr{$addr} = 1;
+                            $opt_addr{$obj} = $obj;
                         }
                         $new_rule->{opt_secondary} = 1 if $opt_secondary;
                     }
@@ -17475,8 +17383,11 @@ sub print_acls {
                 }
             }
 
-            if (keys %opt_addr) {
-                $acl->{opt_secondary} = [ sort keys %opt_addr ];
+            if (values %opt_addr) {
+                $acl->{opt_secondary} = [ 
+                    sort 
+                    map { print_address($_, $no_nat_set) } 
+                    values %opt_addr ];
             }
             push @acl_list, $acl;
         }

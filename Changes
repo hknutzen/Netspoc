@@ -1,3 +1,16 @@
+4.2       2015-10-15 12:38:33+02:00 Europe/Berlin
+
+ - NAT commands for all models of ASA are no longer generated.
+   - These commands have to be configured manually now.
+   - Only use this version with Netspoc-Approve version >= 1.105,
+     that no longer touches global, static and nat command of ASA.
+ - Version >= 8.4 is default for ASA crypto commands.
+   - Old crypto commands are no longer suppported.
+   - ACLs are still supported for all ASA versions.
+ - Next version of Netspoc will no longer support extension '8.4',
+   because it is the default now.
+ - Support for router attribute 'strict_secondary' has been removed.
+
 4.1       2015-10-08 15:21:12+02:00 Europe/Berlin
 
  - NAT commands for model ASA, 8.4 are no longer generated.

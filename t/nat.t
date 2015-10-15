@@ -10,7 +10,7 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
-$title = 'Multiple dynamic NAT at ASA';
+$title = 'Multiple dynamic NAT at PIX';
 ############################################################
 
 # Soll nur einen nat-Index pro Interface verwenden.
@@ -24,7 +24,7 @@ network:Test =  {
 
 router:filter = {
  managed;
- model = ASA;
+ model = PIX;
  interface:Test = {
   ip = 10.9.1.1;
   hardware = inside;
@@ -59,10 +59,8 @@ END
 
 test_run($title, $in, $out);
 
-test_run($title, $in, $out);
-
 ############################################################
-$title = 'Dynamic NAT for network with static nat for hosts at ASA';
+$title = 'Dynamic NAT for network with static nat for hosts at PIX';
 ############################################################
 
 $in = <<'END';
@@ -74,7 +72,7 @@ network:Test =  {
 
 router:filter = {
  managed;
- model = ASA;
+ model = PIX;
  interface:Test = {
   ip = 10.9.1.1;
   hardware = inside;
@@ -94,19 +92,20 @@ END
 
 $out = <<'END';
 --filter
-access-list inside_in extended permit tcp host 10.9.1.33 10.9.3.0 255.255.255.0 eq 80
-access-list inside_in extended deny ip any any
+access-list inside_in permit tcp host 10.9.1.33 10.9.3.0 255.255.255.0 eq 80
+access-list inside_in deny ip any any
 access-group inside_in in interface inside
 --filter
-access-list outside_in extended permit ip 10.9.3.0 255.255.255.0 host 1.1.1.23
-access-list outside_in extended permit tcp 10.9.3.0 255.255.255.0 1.1.1.16 255.255.255.240 eq 80
-access-list outside_in extended deny ip any any
+access-list outside_in permit ip 10.9.3.0 255.255.255.0 host 1.1.1.23
+access-list outside_in permit tcp 10.9.3.0 255.255.255.0 1.1.1.16 255.255.255.240 eq 80
+access-list outside_in deny ip any any
 access-group outside_in in interface outside
 --filter
 ! [ NAT ]
 static (inside,outside) 1.1.1.23 10.9.1.33 netmask 255.255.255.255
 global (outside) 1 1.1.1.16-1.1.1.31 netmask 255.255.255.240
 nat (inside) 1 10.9.1.0 255.255.255.0
+nat (inside) 0 0.0.0.0 0.0.0.0
 END
 
 test_run($title, $in, $out);
@@ -221,7 +220,7 @@ network:a1 = {
 
 router:r1  =  {
  managed;
- model = ASA;
+ model = PIX;
  routing = manual;
  interface:a1 = { ip = 10.1.1.1; hardware = e0; }
  interface:b1 = { ip = 10.2.2.1; hardware = e1; bind_nat = b1; }
@@ -230,7 +229,7 @@ network:b1 = { ip = 10.2.2.0/24; }
 
 router:r2  =  {
  managed;
- model = ASA;
+ model = PIX;
  routing = manual;
  interface:b1 = { ip = 10.2.2.2; hardware = e2; }
  interface:b2 = { ip = 10.3.3.1; hardware = e3; bind_nat = b2; }
@@ -247,9 +246,11 @@ $out = <<'END';
 --r1
 ! [ NAT ]
 static (e0,e1) 10.8.8.0 10.1.1.0 netmask 255.255.255.0
+nat (e1) 0 0.0.0.0 0.0.0.0
 --r2
 ! [ NAT ]
 static (e2,e3) 10.9.9.0 10.8.8.0 netmask 255.255.255.0
+nat (e3) 0 0.0.0.0 0.0.0.0
 END
 
 test_run($title, $in, $out);
@@ -373,7 +374,64 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'No secondary optimization with host and dynamic NAT';
+$title = 'No secondary optimization with host and dynamic NAT (1)';
+############################################################
+
+# Secondary optimization must be disabled at router:S,
+# because router:R can't distinguish between h33 and h34.
+$in = <<'END';
+network:Test =  {
+ ip = 10.9.1.0/24; 
+ nat:C = { ip = 1.9.9.9/32; dynamic;}
+ host:h33 = { ip = 10.9.1.33; }
+ host:h34 = { ip = 10.9.1.34; }
+}
+
+router:S = {
+ managed = secondary;
+ model = ASA;
+ interface:Test = { ip = 10.9.1.1; hardware = inside;}
+ interface:Trans = { ip = 10.0.0.1; hardware = outside; bind_nat = C;}
+}
+network:Trans = { ip = 10.0.0.0/24; }
+router:R = {
+ managed;
+ model = ASA;
+ interface:Trans = {
+  ip = 10.0.0.2;
+  hardware = inside;
+ }
+ interface:X = { ip = 10.8.3.1; hardware = outside; }
+}
+
+network:X = { ip = 10.8.3.0/24; }
+
+service:s1 = {
+ user = network:X;
+ permit src = host:h33; dst = user;         prt = tcp 80;
+ permit src = host:h34; dst = user;         prt = tcp 22;
+}
+END
+
+$out = <<'END';
+-- S
+! [ ACL ]
+access-list inside_in extended permit tcp host 10.9.1.33 10.8.3.0 255.255.255.0 eq 80
+access-list inside_in extended permit tcp host 10.9.1.34 10.8.3.0 255.255.255.0 eq 22
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
+-- R
+! [ ACL ]
+access-list inside_in extended permit tcp host 1.9.9.9 10.8.3.0 255.255.255.0 eq 80
+access-list inside_in extended permit tcp host 1.9.9.9 10.8.3.0 255.255.255.0 eq 22
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'No secondary optimization with host and dynamic NAT (2)';
 ############################################################
 
 # Secondary optimization must be disabled at router:r2.

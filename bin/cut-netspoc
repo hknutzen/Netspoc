@@ -63,7 +63,7 @@ use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use locale;
 
-our $VERSION = '4.1'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.2'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
