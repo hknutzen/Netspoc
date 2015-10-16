@@ -8659,15 +8659,10 @@ sub cluster_crosslink_routers {
           grep { $crosslink_routers->{$_} }
           sort by_name values %cluster;    # Sort to make output deterministic.
 
-        # ... add information to every cluster member
-        my %crosslink_intf_hash = map { $_ => $_ } @crosslink_interfaces;
+        # ... add information to every cluster member as list 
+        # used in print_acls.
         for my $router2 (values %cluster) {
-
-            # ... as list used in "protect own interfaces"
             $router2->{crosslink_interfaces} = \@crosslink_interfaces;
-
-            # ... as hash used in fast lookup in distribute_rule and "protect.."
-            $router2->{crosslink_intf_hash} = \%crosslink_intf_hash;
         }
     }
     return;
@@ -15789,10 +15784,8 @@ sub distribute_rule {
 
     my $key;
 
-    # Packets for the router itself or for some interface of a
-    # crosslinked cluster of routers (only IOS, NX-OS with "need_protect").
-    my $intf_hash; ### ToDo = $router->{crosslink_intf_hash};
-    if (!$out_intf) { ### ToDo || $intf_hash && $intf_hash->{$dst}) {
+    # Packets for the router itself.
+    if (!$out_intf) {
 
 =head ToDo
         # Packets for the router itself.  For PIX we can only reach that
