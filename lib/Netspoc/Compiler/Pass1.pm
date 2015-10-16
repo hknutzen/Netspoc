@@ -11177,7 +11177,7 @@ sub cluster_path_mark {
  
                 # If pathrestrictions exist in both IF and start-/end-interface,
                 # prohibit path by adding activated global pathrestriction.
-                # TODO: what aboutjust excluding IF from from-IFs?
+                # TODO: what about just excluding IF from from-IFs?
                 if (intersect($orig, $removed)) {
                     $interface->{path_restrict} =
                       [$global_active_pathrestriction];
@@ -14735,12 +14735,11 @@ sub get_route_path {
     return;
 }
 
-#############################################################################
-# Purpose : Generate the routing tree, holding pseudo rules that represent 
-#           the whole grouped rule set. As the pseudo rules are
-#           generated to determine routes, ports are omitted, and rules
-#           refering to the same src and dst zones are summarized.
-# Returns : A reference to the generated routing tree.
+##############################################################################
+# Purpose    : Add information from single grouped rule to routing tree.
+# Parameters : $rule - to be added grouped rule.
+#              $is_intf - marker: which of src and/or dst is an interface.
+#              $routing_tree - the routing tree.
 sub generate_routing_tree1 {
     my ($rule, $is_intf, $routing_tree) = @_;
 
@@ -14824,6 +14823,12 @@ sub generate_routing_tree1 {
     return;
 }
 
+#############################################################################
+# Purpose : Generate the routing tree, holding pseudo rules that represent 
+#           the whole grouped rule set. As the pseudo rules are
+#           generated to determine routes, ports are omitted, and rules
+#           refering to the same src and dst zones are summarized.
+# Returns : A reference to the generated routing tree.
 sub generate_routing_tree {
     my $routing_tree = {};
 
@@ -16132,7 +16137,6 @@ sub address {
     if ($type eq 'Network') {
         $obj = get_nat_network($obj, $no_nat_set);
 
-        # ToDo: Is it OK to permit a dynamic address as destination?
         if ($obj->{ip} eq 'unnumbered') {
             internal_err("Unexpected unnumbered $obj->{name}");
         }
