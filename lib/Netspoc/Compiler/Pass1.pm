@@ -15785,39 +15785,11 @@ sub distribute_rule {
     my $key;
 
     # Packets for the router itself.
-    if (!$out_intf) {
+    if (not $out_intf) {
 
-=head ToDo
-        # Packets for the router itself.  For PIX we can only reach that
-        # interface, where traffic enters the PIX.
-        if ($model->{filter} eq 'PIX') {
-            if ($dst eq $in_intf) {
-            }
-            elsif ($dst eq $network_00 or $dst eq $in_intf->{network}) {
+        # No ACL generated for traffic to device itself.
+        return if $model->{filter} eq 'PIX';
 
-                # Ignore rule, because generated code would permit traffic
-                # to cleartext interface as well.
-                return if $in_intf->{ip} eq 'tunnel';
-
-                # Change destination in $rule to interface.
-                # Make a copy of current rule, because the
-                # original rule must not be changed.
-                $rule = {%$rule};
-                $rule->{dst} = $in_intf;
-            }
-
-            # Permit management access through tunnel.
-            # On ASA device use command "management-access".
-            # Permit management access through bridged interface.
-            elsif ($in_intf->{ip} =~ /^(?:tunnel|bridged)/) {
-            }
-
-            # Silently ignore everything else.
-            else {
-                return;
-            }
-        }
-=cut
         $key = 'intf_rules';
     }
     elsif ($out_intf->{hardware}->{need_out_acl}) {
