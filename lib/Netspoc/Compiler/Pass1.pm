@@ -14435,9 +14435,9 @@ sub prepare_nat_commands {
 # For an aggregate, take all matching networks inside the zone.
 # These are supernets by design.
 sub get_route_networks {
-    my ($group) = @_;
+    my ($list) = @_;
     my @result;
-    for my $obj (@$group) {
+    for my $obj (@$list) {
         my $type = ref $obj;
         if ($type eq 'Network') {
             if ($obj->{is_aggregate}) {
@@ -14773,6 +14773,9 @@ sub generate_routing_tree1 {
     elsif ($pseudo_rule = $routing_tree->{$dst_zone}->{$src_zone}) {
         ($src,      $dst)      = ($dst,      $src);
         ($src_zone, $dst_zone) = ($dst_zone, $src_zone);
+
+        # Change only if set:
+        # 'src' -> 'dst, 'dst' -> 'src', 'src,dst' unchanged.
         $is_intf &&=
             $is_intf eq 'src' ? 'dst' : $is_intf eq 'dst' ? 'src' : $is_intf;
     }
@@ -14803,7 +14806,9 @@ sub generate_routing_tree1 {
     # pseudo rule.
     if ($is_intf) {
         for my $what (split ',', $is_intf) {
-            my $intf = $rule->{$what}->[0];
+            my $intf = ($what eq 'src' ? $src : $dst)->[0];
+
+#            debug "${what}_intf: $intf->{name}";
             my $router = $intf->{router};
             $router->{managed} or $router->{routing_only} or next;
             $intf = $intf->{main_interface} || $intf;
@@ -14811,6 +14816,8 @@ sub generate_routing_tree1 {
             for my $network ($what eq 'src' ? @$dst_networks : @$src_networks) {
                 $pseudo_rule->{"${what}_intf2nets"}
                   ->{$intf}->{$network} = $network;
+
+#                debug "${what}_intf_net: $network->{name}";
             }
         }
     }
@@ -14823,6 +14830,8 @@ sub generate_routing_tree {
     # Special handling needed for rules grouped not at zone pairs but
     # grouped at routers.
     for my $rule (@{ $grouped_rules{permit} }) {
+
+#        debug print_rule $rule;
         my ($src, $dst, $src_path, $dst_path) =
             @{$rule}{qw(src dst src_path dst_path)};
         if (is_zone($src_path)) {
@@ -14893,6 +14902,7 @@ sub generate_routing_info {
             # Determine routing information for every interface pair.
             for my $tuple (@{ $pseudo_rule->{path} }) {
                 my ($in_intf, $out_intf) = @$tuple;
+#                debug "$in_intf->{name} => $out_intf->{name}";
                 add_path_routes($in_intf,  $out_intf, $dst_networks); # IFs incl
                 add_path_routes($out_intf, $in_intf,  $src_networks); # IFs incl
             }
