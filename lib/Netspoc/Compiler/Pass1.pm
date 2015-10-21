@@ -1204,8 +1204,7 @@ sub read_host {
     }
     else {
         $host->{radius_attributes}
-          and error_atline("Attribute 'radius_attributes' is not allowed",
-            " for $name");
+          and warn_msg("Ignoring 'radius_attributes' at $name");
     }
     if ($host->{nat}) {
         if ($host->{range}) {
@@ -1471,8 +1470,7 @@ sub read_network {
         }
         else {
             $network->{radius_attributes}
-              and error_atline("Attribute 'radius_attributes' is",
-                " not allowed for $name");
+              and warn_msg("Ignoring 'radius_attributes' at $name");
         }
     }
     return $network;
@@ -2308,8 +2306,7 @@ sub read_router {
         }
         else {
             $router->{radius_attributes}
-              and err_msg "Attribute 'radius_attributes' is not allowed",
-              " for $name";
+              and warn_msg("Ignoring 'radius_attributes' at $name");
         }
         if ($model->{no_crypto_filter}) {
             $router->{no_crypto_filter} = 1;
