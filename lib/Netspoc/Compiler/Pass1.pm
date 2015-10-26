@@ -12313,6 +12313,14 @@ sub expand_crypto {
                             " of $encrypted[0]->{name}"
                           );
                     }
+                    elsif ($do_auth) {
+                        err_msg(
+                            "Networks need to have ID hosts because",
+                            " $router->{name} has attribute 'do_auth':",
+                            "\n - ",
+                            join("\n - ", map { $_->{name} } @encrypted)
+                        );
+                    }
                     elsif ($need_id) {
                         err_msg(
                             "$tunnel_intf->{name}",
