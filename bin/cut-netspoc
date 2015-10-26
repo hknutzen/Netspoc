@@ -61,7 +61,7 @@ use Pod::Usage;
 use Netspoc::Compiler::GetArgs qw(read_config combine_config);
 use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
-use locale;
+use Encode qw(decode_utf8);
 
 # VERSION: inserted by DZP::OurPkgVersion
 
@@ -273,7 +273,7 @@ my %name2var = ( service => \%services);
 if (@ARGV) {
 
     # Read names of services from command line.
-    for my $arg (@ARGV) {
+    for my $arg (map { decode_utf8($_, 1) } @ARGV) {
         my ($type, $name) = split_typed_name $arg;
         my $ref = $name2var{$type} or pod2usage(2);
         my $thing = $ref->{$name} or fatal_err "Unknown $arg";
