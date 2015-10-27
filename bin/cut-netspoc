@@ -405,6 +405,15 @@ for my $area (values %areas) {
     }
 }
 
+# Mark networks having attributes that influence their subnets.
+for my $network (values %networks) {
+    $network->{is_used} or next;
+    my $up = $network->{up} or next;
+    $up->{nat} or next;
+    $network->{zone} eq $up->{zone} or next;
+    $up->{is_used} = 1;
+}
+
 # Call this after topology has been marked.
 &expand_crypto();
 
