@@ -495,6 +495,11 @@ for my $router (values %routers) {
                 $mark_crypto->($_) for @$crypto_list;
             }
 	}
+
+        # Mark crypto, referenced at hub without any tunnels.
+        if (my $crypto_list = $interface->{hub}) {
+            $mark_crypto->($_) for @$crypto_list;
+        }
     }
 
     # Remove unused hosts referenced in attribute radius_servers.
