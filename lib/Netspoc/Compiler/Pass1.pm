@@ -10686,15 +10686,15 @@ sub get_path {
             # If this is a secondary interface, we can't use it to enter
             # the router, because it has an active pathrestriction attached.
             # But it doesn't matter if we use the main interface instead.
-            $obj = $obj->{main_interface} || $obj;
+            my $main = $obj->{main_interface} || $obj;
 
             # Special handling needed if $src or $dst is interface
             # which has pathrestriction attached.
-            if ($obj->{path_restrict} || $obj->{reachable_at}) {
-                $result = $obj;
+            if ($main->{path_restrict} || $main->{reachable_at}) {
+                $result = $main;
             }
             else {
-                $result = $obj->{router};
+                $result = $main->{router};
             }
         }
         else { # Unmanaged routers are part of zone objects.
