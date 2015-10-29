@@ -14116,47 +14116,41 @@ my %other_rule_attr = ( src => [qw(dst prt)],
                         prt => [qw(src dst)], );
 
 sub group_rules {
-     my ($rules, $src_path, $dst_path, $result) = @_;
+     my ($rules) = @_;
 
      # Reuse identical groups from different grouped rules.
      my $size2first2group;
 
-     # Find groups in attribute $this of rules.
-     for my $this ('src', 'dst', 'prt') {
-         my $attr = $other_rule_attr{$this};
+     # Find groups in attribute $where of rules.
+     # Group first by prt, because we later split src and dst again.
+     for my $where ('prt', 'dst', 'src') {
+         my $attr = $other_rule_attr{$where};
          my %group_rule_tree;
+
+         # Use numerical index as hash key to preserve original order
+         # of expanded_rules.
          my $index1 = 1;
          my %key2index;
          my $index2 = 1;
          my %this2index;
 
-         # Find groups of rules with identical
-         # action, src_range, log and @$attr
+         # Find groups of rules with identical @$attr.
          for my $rule (@$rules) {
-             next if $rule->{deleted};
-             my $deny      = $rule->{deny} || '';
-             my $src_range = $rule->{src_range} || '';
-             my $key       = join(',', @{$rule}{@$attr}, $deny, $src_range);
-             if (my $log = $rule->{log}) {
-                 $key .= ",$log";
-             }
-
-             # Use numerical index as key, to mostly preserve original
-             # order of expanded_rules.
+             my $key        = join ',', @{$rule}{@$attr};
              my $key_index  = $key2index{$key} ||= $index1++;
-             my $this       = $rule->{$this};
+             my $this       = $rule->{$where};
              my $this_index = $this2index{$this} ||= $index2++;
              $group_rule_tree{$key_index}->{$this_index} = $rule;
          }
 
-         # Collect new rules with group in attribute $this.
+         # Collect new rules with group in attribute $where.
          my @new_rules;
 
          # $href is {src/dst/prt => rule, ...}
-         # All rules are identical in all attributes except in $this.
+         # All rules are identical in all attributes except in $where.
          for my $key (sort numerically keys %group_rule_tree) {
              my $href = $group_rule_tree{$key};
-             my $group = [ map { $_->{$this} }
+             my $group = [ map { $_->{$where} }
                            @{$href}{sort numerically keys %$href} ];
              my $is_new = 1;
 
@@ -14189,9 +14183,7 @@ sub group_rules {
              # Other attributes like {stateless} are taken from original rule.
              my $expanded_rule = $href->{$this2index{$first}};
              my $grouped_rule = { %$expanded_rule };
-             $grouped_rule->{$this} = $group;
-             $grouped_rule->{src_path} = $src_path;
-             $grouped_rule->{dst_path} = $dst_path;
+             $grouped_rule->{$where} = $group;
 
              # Remember one expanded_rule for error messages.
              $grouped_rule->{orig_rule} = $expanded_rule;
@@ -14200,8 +14192,7 @@ sub group_rules {
          }
          $rules = \@new_rules;
      }
-     push @$result, @$rules;
-     return;
+     return $rules;
 }
 
 sub group_path_rules {
@@ -14210,55 +14201,72 @@ sub group_path_rules {
      for my $action (qw(permit deny)) {
          my $rules = delete $expanded_rules{$action} or next;
 
-         # Collect rules that use identical path and modifiers.
-         my %path2rules;
+         # Collect rules that use identical modifiers.
+         my %attr2rules;
 
          # Use numerical index as hash key to preserve original order
          # of expanded_rules.
-         my $index1 = 1;
-         my %src_path2index;
-         my $index2 = 1;
-         my %dst_path2index;
-         my $index3 = 1;
+         my $index = 1;
          my %attr2index;
 
-         # Convert key to path object.
-         my %src_key2path;
-         my %dst_key2path;
          for my $rule (@$rules) {
-             my ($src, $dst) = @{$rule}{qw(src dst)};
-             my $src_path = $obj2path{$src} || get_path($src);
-             my $dst_path = $obj2path{$dst} || get_path($dst);
-             my $src_key  = $src_path2index{$src_path} ||= $index1++;
-             my $dst_key  = $dst_path2index{$dst_path} ||= $index2++;
-             $src_key2path{$src_key} = $src_path;
-             $dst_key2path{$dst_key} = $dst_path;
+             next if $rule->{deleted};
              my $src_range = $rule->{src_range} || '';
              my $log       = $rule->{log} || '';
              my $oneway    = $rule->{oneway} || '';
              my $stateless = $rule->{stateless} || '';
              my $stateless_icmp = $rule->{stateless_icmp} || '';
              my $attr = "$src_range,$log,$oneway,$stateless,$stateless_icmp";
-             my $attr_key = $attr2index{$attr} ||= $index3++;
-             push @{ $path2rules{$attr_key}->{$src_key}->{$dst_key} }, $rule;
+             my $key = $attr2index{$attr} ||= $index++;
+             push @{ $attr2rules{$key} }, $rule;
          }
 
-         # Used to collect grouped rules.
+         # Collect grouped rules.
          my $grouped_rules = [];
 
-         for my $attr_key (sort keys %path2rules) {
-             my $href = $path2rules{$attr_key};
-             for my $src_key (sort numerically keys %$href) {
-                 my $src_path = $src_key2path{$src_key};
-                 my $href = $href->{$src_key};
-                 for my $dst_key (sort numerically keys %$href) {
-                     my $dst_path = $dst_key2path{$dst_key};
-                     my $path_rules = $href->{$dst_key};
-                     group_rules ($path_rules, 
-                                  $src_path, $dst_path,
-                                  $grouped_rules);
+         for my $attr_key (sort numerically keys %attr2rules) {
+             my $attr_rules = $attr2rules{$attr_key};
+             push @$grouped_rules, @{ group_rules($attr_rules) };
+         }
+
+         # Split grouped rules such, that all elements of src and dst
+         # have identical src_path/dst_path.
+         for my $where ('src', 'dst') {
+             my $where_path = "${where}_path";
+             my @new_rules;
+             for my $rule (@$grouped_rules) {
+                 my $group = $rule->{$where};
+                 my $element0 = $group->[0];
+                 my $path0 = $obj2path{$element0} || get_path($element0);
+
+                 # Group has elements from different zones and must be split.
+                 if (grep { $path0 ne ($obj2path{$_} || get_path($_)) } @$group)
+                 {
+                     my $index = 1;
+                     my %path2index;
+                     my %key2group;
+                     for my $element (@$group) {
+                         my $path = $obj2path{$element};
+                         my $key  = $path2index{$path} ||= $index++;
+                         push @{ $key2group{$key}}, $element;
+                     }
+                     for my $key (sort numerically keys %key2group) {
+                         my $path_group = $key2group{$key};
+                         my $path = $obj2path{$path_group->[0]};
+                         my $new_rule = { %$rule,
+                                          $where      => $path_group,
+                                          $where_path => $path };
+                         push @new_rules, $new_rule;
+                     }
+                 }
+
+                 # Use unchanged group, add path info.
+                 else {
+                     $rule->{$where_path} = $path0;
+                     push @new_rules, $rule;
                  }
              }
+             $grouped_rules = \@new_rules;
          }
          $grouped_rules{$action} = $grouped_rules;
          $count += @$grouped_rules;
