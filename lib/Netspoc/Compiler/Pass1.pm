@@ -13428,9 +13428,11 @@ sub gen_reverse_rules1 {
         $has_stateless_router or next;
 
         # Create reverse rule.
-        my $src_group = $rule->{src};
-        my $dst_group = $rule->{dst};
-        my %src_range2prt_group;
+        # Create new rule for different values of src_range.
+        my %key2prt_group;
+        my $index = 1;
+        my %src_range2index;
+        my %index2src_range;
         my $tcp_seen;
         for my $prt (@new_prt_group) {
             my $proto = $prt->{proto};
@@ -13461,13 +13463,14 @@ sub gen_reverse_rules1 {
             else {
                 internal_err();
             }
-            push @{ $src_range2prt_group{$new_src_range} }, $new_prt;
+            $index2src_range{$index} = $new_src_range;
+            my $key = $src_range2index{$new_src_range} ||= $index++;
+            push @{ $key2prt_group{$key} }, $new_prt;
         }
        
-        for my $src_range (sort by_name map { $_ && $ref2prt{$_} } 
-                           keys %src_range2prt_group)
-        {
-            my $prt_group = $src_range2prt_group{$src_range};
+        for my $key (sort numerically keys %key2prt_group) {
+            my $prt_group = $key2prt_group{$key};
+            my $src_range = $index2src_range{$key};
             my $new_rule = {
 
                 # This rule must only be applied to stateless routers.
