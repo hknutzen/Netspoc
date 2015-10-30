@@ -13623,6 +13623,37 @@ sub mark_local_secondary {
     return;
 }
 
+sub get_zones {
+    my ($path, $group) = @_;
+    my $type = ref $path;
+    if ($type eq 'Zone') {
+        return [ $path ];
+    }
+    elsif ($type eq 'Interface') {
+        return [ $path->{zone} ];
+    }
+    else {
+        return [ unique map { $_->{zone} } @$group ];
+    }
+}
+
+sub have_different_marks {
+    my ($src_zones, $dst_zones, $mark) = @_;
+    if (1 == @$src_zones and 1 == @$dst_zones) {
+        return $src_zones->[0]->{$mark} ne $dst_zones->[0]->{$mark};
+    }
+    my $src_marks = [ map { $_->{$mark} } @$src_zones ];
+    my $dst_marks = [ map { $_->{$mark} } @$dst_zones ];
+    return not intersect($src_marks, $dst_marks);    
+}
+
+sub have_set_and_equal_marks {
+    my ($src_zones, $dst_zones, $mark) = @_;
+    my $src_marks = [ map { $_->{$mark} or return; } @$src_zones ];
+    my $dst_marks = [ map { $_->{$mark} or return; } @$dst_zones ];
+    return equal(@$src_marks, @$dst_marks);
+}
+
 sub mark_secondary_rules {
     progress('Marking rules for secondary optimization');
 
@@ -13641,61 +13672,28 @@ sub mark_secondary_rules {
         }
     }
 
-    # Managed border routers get fresh marks different from all zones,
-    # because we assume that traffic from / to that router gets
-    # filtered at that router.
-    for my $router (@managed_routers) {
-
-        # Don't trust managed host.
-        my $interface1 = $router->{interfaces}->[0];
-        if ($interface1->{is_managed_host}) {
-            my $zone = $interface1->{zone};
-            for my $mark (qw(secondary_mark primary_mark local_secondary_mark))
-            {
-                $router->{$mark} = $zone->{$mark}
-            }
-            next;
-        }
-            
-        if (not $router->{secondary_mark}) {
-            $router->{secondary_mark} = $secondary_mark++;
-        }
-        if (not $router->{primary_mark}) {
-            $router->{primary_mark} = $primary_mark++;
-        }
-        if (not $router->{local_secondary_mark}) {
-            $router->{local_secondary_mark} = $local_secondary_mark++;
-        }
-    }
-
     # Mark only permit rules for secondary optimization.
     # Don't modify a deny rule from e.g. tcp to ip.
     for my $rule (@{ $grouped_rules{permit} }) {
         my ($src, $dst, $src_path, $dst_path) = 
             @{$rule}{qw(src dst src_path dst_path)};
-            
-        my $src_zone_or_router = $src_path->{router} || $src_path;
-        my $dst_zone_or_router = $dst_path->{router} || $dst_path;
 
-        if (
-            $src_zone_or_router->{secondary_mark} != 
-            $dst_zone_or_router->{secondary_mark}
-            ||
-
-            # Local secondary optimization.
-               $src_zone_or_router->{local_mark}
-            && $dst_zone_or_router->{local_mark}
-            && $src_zone_or_router->{local_mark} == 
-               $dst_zone_or_router->{local_mark}
-            && $src_zone_or_router->{local_secondary_mark} !=
-               $dst_zone_or_router->{local_secondary_mark}
-          )
+        # Type of $src_path / $dst_path is zone, interface or router.
+        # If type is router, then src/dst may contain interfaces of
+        # different zones with different values of secondary_mark/primary_mark.
+        # Only do optimization, if all interfaces would allow optimization.
+        my $src_zones = get_zones($src_path, $src);
+        my $dst_zones = get_zones($dst_path, $dst);
+        if (have_different_marks($src_zones, $dst_zones, 'secondary_mark')) {
+            $rule->{some_non_secondary} = 1;
+        }
+        elsif (have_set_and_equal_marks($src_zones, $dst_zones, 'local_mark') and
+               have_different_marks($src_zones, $dst_zones, 
+                                    'local_secondary_mark')) 
         {
             $rule->{some_non_secondary} = 1;
         }
-        if ($src_zone_or_router->{primary_mark} != 
-            $dst_zone_or_router->{primary_mark}) 
-        {
+        if (have_different_marks($src_zones, $dst_zones, 'primary_mark')) {
             $rule->{some_primary} = 1;
         }
     }

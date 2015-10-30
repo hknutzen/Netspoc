@@ -313,6 +313,52 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = "Interface of standard router as destination";
+############################################################
+# interface:r2.n2 must not be otimized
+# Optimization of interface:r2.n3 is not implemented.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.4; } }
+
+router:r1 = {
+ model = ASA;
+ managed = secondary;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+
+service:n1 = {
+ user = interface:r2.n2, interface:r2.n3;
+ permit src = host:h1; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+object-group network g0
+ network-object host 10.1.2.2
+ network-object host 10.1.3.2
+access-list vlan1_in extended permit tcp host 10.1.1.4 object-group g0 eq 80
+access-list vlan1_in extended deny ip any any
+access-group vlan1_in in interface vlan1
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = "Don't optimize rule if aggregate rule starts behind secondary router";
 ############################################################
 
