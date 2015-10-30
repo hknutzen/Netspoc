@@ -289,4 +289,96 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Zone cluster, two directions';
+############################################################
+
+# Find route from r1.n2 to n3, even if path from n2 to n3 is reused.
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = {ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2  = {ip = 10.1.2.0/24;}
+
+router:r2 = {
+ managed = routing_only;
+ model = ASA;
+ interface:n2 = {ip = 10.1.2.2; hardware = n2;}
+ interface:n3 = {ip = 10.1.3.1; hardware = n3;}
+}
+
+network:n3  = {ip = 10.1.3.0/24;}
+
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n3 = {ip = 10.1.3.2; hardware = n3;}
+}
+
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = interface:r3.n3; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n3;
+ permit src = user; dst = interface:r1.n2; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r1
+! [ Routing ]
+route n2 10.1.3.0 255.255.255.0 10.1.2.2
+--r3
+! [ Routing ]
+route n3 10.1.2.0 255.255.255.0 10.1.3.1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Zone cluster reaching multiple interfaces of router';
+############################################################
+
+# Generates route for n2, although n2 is directly connected.
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = {ip = 10.1.2.1; hardware = n2; routing = OSPF;}
+}
+
+router:u1 = {
+ interface:n1 = {ip = 10.1.1.2;}
+ interface:n2 = {ip = 10.1.2.2;}
+}
+
+network:n2  = {ip = 10.1.2.0/24;}
+
+pathrestriction:n1 = interface:u1.n1, interface:r1.n1;
+
+service:ping_local = {
+ user = foreach interface:r1.n1, interface:r1.n2;
+ permit src = any:[user]; dst = user; prt = icmp 8;
+}
+END
+
+$out = <<'END';
+--r1
+! [ Routing ]
+ip route 10.1.2.0 255.255.255.0 10.1.1.2
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

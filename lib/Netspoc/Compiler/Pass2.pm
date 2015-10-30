@@ -35,7 +35,7 @@ use Netspoc::Compiler::File;
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 
-our $VERSION = '4.2'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.3'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -104,13 +104,14 @@ sub setup_ip_net_relation {
         }
     }
 
-    # Propagate content of attribute {opt_secondary} to all subnets.
+    # Propagate content of attributes {opt_networks} to all subnets.
     # Go from large to smaller networks.
     for my $obj (sort { $a->{mask} <=> $b->{mask} } values %$ip_net2obj) {
         my $up = $obj->{up} or next;
-        my $opt_secondary = $up->{opt_secondary} or next;
-        $obj->{opt_secondary} = $opt_secondary;
-#        debug "secondary: $obj->{name} $opt_secondary->{name}";
+        if (my $opt_networks = $up->{opt_networks}) {
+            $obj->{opt_networks} = $opt_networks;
+#           debug "secondary: $obj->{name} $opt_networks->{name}";
+        }
     }
 }
 
@@ -363,12 +364,14 @@ sub optimize_rules {
         next if $rule->{deleted};
 
         my ($src, $dst, $prt) = @{$rule}{qw(src dst prt)};
+        next if $src->{no_opt_addrs};
+        next if $dst->{no_opt_addrs};
 
         # Replace obj by supernet.
-        if (my $supernet = $src->{opt_secondary}) {
+        if (my $supernet = $src->{opt_networks}) {
             $src = $rule->{src} = $supernet;
         }
-        if (my $supernet = $dst->{opt_secondary} and not $dst->{need_protect}) {
+        if (my $supernet = $dst->{opt_networks} and not $dst->{need_protect}) {
             $dst = $rule->{dst} = $supernet;
         }
 
@@ -1760,6 +1763,54 @@ sub print_iptables_acl {
     }
 }
 
+sub expand_rule {
+    my ($rule) = @_;
+    my $src_list = $rule->{src};
+    my $dst_list = $rule->{dst};
+    my $prt_list = $rule->{prt};
+    my @expanded;
+    for my $src (@$src_list) {
+        for my $dst (@$dst_list) {
+            for my $prt (@$prt_list) {
+                push @expanded, { %$rule, 
+                                  src => $src, dst => $dst, prt => $prt };
+            }
+        }
+    }
+    return \@expanded;    
+}
+
+sub convert_rule_objects {
+    my ($acl_info) = @_;
+    my $ip_net2obj = $acl_info->{ip_net2obj};
+    my $prt2obj    = $acl_info->{prt2obj};
+
+    for my $what (qw(intf_rules rules)) {
+        my $rules = $acl_info->{$what} or next;
+        my @expanded;
+        for my $rule (@$rules) {
+            my $src_list = $rule->{src};
+            for my $ip_net (@$src_list) {
+                $ip_net = $ip_net2obj->{$ip_net} ||= create_ip_obj($ip_net);
+            }
+            my $dst_list = $rule->{dst};
+            for my $ip_net (@$dst_list) {
+                $ip_net = $ip_net2obj->{$ip_net} ||= create_ip_obj($ip_net);
+            }
+            my $prt_list = $rule->{prt};
+            for my $prt (@$prt_list) {
+                $prt = $prt2obj->{$prt} ||= create_prt_obj($prt);
+            }
+            if (my $prt = $rule->{src_range}) {
+                $rule->{src_range} = 
+                    $prt2obj->{$prt} ||= create_prt_obj($prt);
+            }
+            push @expanded, @{ expand_rule($rule) };
+        }
+        $acl_info->{$what} = \@expanded;
+    }
+}
+
 sub prepare_acls {
     my ($path) = @_;
     my $router_data = from_json(read_file($path));
@@ -1778,34 +1829,16 @@ sub prepare_acls {
                 map { $ip_net2obj->{$_} ||= create_ip_obj($_); }
                 @$filter_only ]
         }
-            
-        for my $what (qw(intf_rules rules)) {
-            my $rules = $acl_info->{$what} or next;
-            for my $rule (@$rules) {
-                my $ip_net = $rule->{src};
-                $rule->{src} = $ip_net2obj->{$ip_net} ||= create_ip_obj($ip_net);
-                $ip_net = $rule->{dst};
-                $rule->{dst} = $ip_net2obj->{$ip_net} ||= create_ip_obj($ip_net);
-                my $prt = $rule->{prt};
-                $rule->{prt} = $prt2obj->{$prt} ||= create_prt_obj($prt);
-                if (my $prt = $rule->{src_range}) {
-                    $rule->{src_range} = 
-                        $prt2obj->{$prt} ||= create_prt_obj($prt);
+
+        convert_rule_objects($acl_info);
+
+        for my $what (qw(opt_networks no_opt_addrs need_protect)) {
+            if (my $list = $acl_info->{$what}) {
+                for my $ip_net (@$list) {
+                    my $obj = $ip_net2obj->{$ip_net} ||= create_ip_obj($ip_net);
+                    $obj->{$what} = $obj;
+                    $ip_net = $obj;
                 }
-            }
-        }
-        if (my $opt_secondary = $acl_info->{opt_secondary}) {
-            for my $ip_net (@$opt_secondary) {
-                my $obj = $ip_net2obj->{$ip_net} ||= create_ip_obj($ip_net);
-                $obj->{opt_secondary} = $obj;
-                $ip_net = $obj;
-            }
-        }
-        if (my $need_protect = $acl_info->{need_protect}) {
-            for my $ip_net (@$need_protect) {
-                my $obj = $ip_net2obj->{$ip_net} ||= create_ip_obj($ip_net);
-                $obj->{need_protect} = 1;
-                $ip_net = $obj;
             }
         }
 

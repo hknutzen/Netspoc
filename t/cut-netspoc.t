@@ -26,7 +26,11 @@ sub test_run {
 
 my ($title, $in, $out, $topo);
 $topo = <<'END';
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n1 = { ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+ host:h12 = { ip = 10.1.1.12; }
+}
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; nat:a2 = { ip = 10.9.8.0/24; } }
 
@@ -44,7 +48,7 @@ router:asa2 = {
 END
 
 ############################################################
-$title = 'Simple service';
+$title = 'Simple service, remove all hosts';
 ############################################################
 
 $in = $topo . <<'END';
@@ -55,7 +59,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n1 = { ip = 10.1.1.0/24;
+}
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
@@ -65,6 +70,37 @@ router:asa1 = {
 }
 service:test = {
     user = network:n1;
+    permit src = user; dst = network:n2; prt = ip;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Simple service, remove one host';
+############################################################
+
+$in = $topo . <<'END';
+service:test = {
+    user = host:h11, host:h12;
+    permit src = user; dst = network:n2; prt = ip;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24;
+ host:h11 = { ip = 10.1.1.11; }
+ host:h12 = { ip = 10.1.1.12; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+service:test = {
+    user = host:h11, host:h12;
     permit src = user; dst = network:n2; prt = ip;
 }
 END
@@ -84,7 +120,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n1 = { ip = 10.1.1.0/24;
+}
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; nat:a2 = { ip = 10.9.8.0/24; } }
 router:asa1 = {
@@ -112,13 +149,15 @@ $title = 'Unnamed aggregate behind unmanaged';
 
 $in = $topo . <<'END';
 service:test = {
-    user = network:n1;
+    user = host:h10;
     permit src = user; dst = any:[ip=10.0.0.0/8 & network:n3]; prt = ip;
 }
 END
 
 $out = <<'END';
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n1 = { ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+}
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; nat:a2 = { ip = 10.9.8.0/24; } }
 router:asa1 = {
@@ -132,7 +171,7 @@ router:asa2 = {
  interface:n3;
 }
 service:test = {
-    user = network:n1;
+    user = host:h10;
     permit src = user; dst = any:[ip=10.0.0.0/8 & network:n3]; prt = ip;
 }
 END
@@ -153,7 +192,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n1 = { ip = 10.1.1.0/24;
+}
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
@@ -182,7 +222,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n1 = { ip = 10.1.1.0/24;
+}
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
@@ -212,7 +253,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n1 = { ip = 10.1.1.0/24;
+}
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
@@ -246,7 +288,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n1 = { ip = 10.1.1.0/24;
+}
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
@@ -257,9 +300,7 @@ router:asa1 = {
 any:a2 = { 
  link = network:n2; 
  nat:a2 = { ip = 10.9.9.9/32; dynamic; }
- owner = foo;
 }
-owner:foo = { admins = a@example.com; }
 service:test = {
     user = network:n2;
     permit src = user; dst = network:n1; prt = tcp;
@@ -289,18 +330,9 @@ service:test = {
 }
 END
 
-test_run($title, $in, $in);
-
-############################################################
-$title = 'Owner as watcher';
-############################################################
-
-$in = <<'END';
-owner:o1 = { admins = a@example.com; watchers = owner:o2; }
-owner:o2 = { admins = b@example.com; watchers = owner:o3; }
-owner:o3 = { admins = c@example.com; }
-owner:o4 = { admins = d@example.com; watchers = e@example.com; }
-network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+$out = <<'END';
+any:n1 = { link = network:n1; }
+network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
@@ -310,22 +342,73 @@ router:asa1 = {
 }
 service:test = {
     user = network:n2;
-    permit src = user; dst = network:n1; prt = tcp;
+    permit src = user; dst = any:n1; prt = tcp;
 }
 END
-
-($out = $in) =~ s/owner:o4 .* \n//x;
 
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Router with reroute_permit';
+$title = 'Owner at network and host';
 ############################################################
 
 $in = <<'END';
-network:n1a = { ip = 10.1.1.64/26; subnet_of = network:n1; }
+owner:o1 = { admins = a@example.com; watchers = owner:o2; }
+owner:o2 = { admins = b@example.com; watchers = owner:o3; }
+owner:o3 = { admins = c@example.com; }
+owner:o4 = { admins = d@example.com; watchers = e@example.com; }
+network:n1 = { ip = 10.1.1.0/24; owner = o1;
+ host:h10 = { ip = 10.1.1.10; owner = o2;}
+ host:h11 = { ip = 10.1.1.11;
+ # owner =
+ owner = o3;
+ }
+ host:h12 = { ip = 10.1.1.12; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+service:test = {
+    user = host:h11;
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h11 = { ip = 10.1.1.11;
+ # owner =
+ }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+service:test = {
+    user = host:h11;
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Cleanup reroute_permit';
+############################################################
+
+$in = <<'END';
+network:n1a = { ip = 10.1.1.64/27; subnet_of = network:n1; }
+network:n1b = { ip = 10.1.1.96/27; subnet_of = network:n1; }
 router:u = {
  interface:n1a;
+ interface:n1b;
  interface:n1;
 }
 network:n1 = { ip = 10.1.1.0/24; }
@@ -334,39 +417,63 @@ router:asa1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; reroute_permit = network:n1a; }
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; reroute_permit = network:n1a, network:n1b; }
  interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
 }
 service:test = {
-    user = network:n2;
-    permit src = user; dst = network:n1; prt = tcp;
+    user = network:n1b;
+    permit src = user; dst = network:n2; prt = tcp;
 }
 END
 
-test_run($title, $in, $in);
+$out = <<'END';
+network:n1b = { ip = 10.1.1.96/27; subnet_of = network:n1; }
+router:u = {
+ interface:n1b;
+ interface:n1;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; reroute_permit = network:n1b; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+service:test = {
+    user = network:n1b;
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Bridged network';
 ############################################################
 
 $in = <<'END';
-network:n1a = { ip = 10.1.1.64/26; subnet_of = network:n1; }
-router:u = {
- interface:n1a;
- interface:n1;
+network:n1/left = { ip = 10.1.1.0/24; }
+router:bridge = {
+ managed;
+ model = ASA;
+ interface:n1/left = { hardware = left; }
+ interface:n1/right = { hardware = right; }
+ interface:n1 = { ip = 10.1.1.2; hardware = device; }
 }
-network:n1 = { ip = 10.1.1.0/24; }
+network:n1/right = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; reroute_permit = network:n1a; }
+ interface:n1/right = { ip = 10.1.1.1; hardware = vlan1; }
  interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
 }
 service:test = {
-    user = network:n2;
-    permit src = user; dst = network:n1; prt = tcp;
+    user = network:n1/right;
+    permit src = user; dst = network:n2; prt = tcp 80;
 }
 END
 
@@ -392,7 +499,10 @@ isakmp:aes256SHA = {
  group = 2;
  lifetime = 86400 sec;
 }
-crypto:vpn = {
+crypto:vpn1 = {
+ type = ipsec:aes256SHA;
+}
+crypto:vpn2 = {
  type = ipsec:aes256SHA;
 }
 network:intern = { ip = 10.1.1.0/24;}
@@ -410,7 +520,7 @@ router:asavpn = {
  }
  interface:dmz = { 
   ip = 192.168.0.101; 
-  hub = crypto:vpn;
+  hub = crypto:vpn1, crypto:vpn2;
   hardware = outside; 
  }
 }
@@ -424,7 +534,7 @@ END
 
 my $clients1 = <<'END';
 router:softclients1 = {
- interface:internet = { spoke = crypto:vpn; }
+ interface:internet = { spoke = crypto:vpn1; }
  interface:customers1;
 }
 network:customers1 = { 
@@ -444,7 +554,7 @@ END
 
 my $clients2 = <<'END';
 router:softclients2 = {
- interface:internet = { spoke = crypto:vpn; }
+ interface:internet = { spoke = crypto:vpn2; }
  interface:customers2;
 }
 network:customers2 = { 
@@ -495,7 +605,22 @@ service:test1 = {
 END
 
 $in = $topo . $clients1 . $clients2 . $service;
-$out = $topo . $clients1 . $service;
+$out = $topo . <<'END'
+router:softclients1 = {
+ interface:internet = { spoke = crypto:vpn1; }
+ interface:customers1;
+}
+network:customers1 = { 
+ ip = 10.99.1.0/24; 
+ radius_attributes = {
+  banner = Willkommen;
+ }
+ host:id:foo@domain.x = {
+  ip = 10.99.1.10;
+ }
+}
+END
+. $service;
 test_run($title, $in, $out);
 
 ############################################################

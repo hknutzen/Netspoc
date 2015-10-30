@@ -41,7 +41,6 @@ my %WriteMakefileArgs = (
     "JSON" => 0,
     "Pod::Usage" => 0,
     "bytes" => 0,
-    "locale" => 0,
     "open" => 0,
     "strict" => 0,
     "utf8" => 0,
@@ -57,7 +56,7 @@ my %WriteMakefileArgs = (
     "Test::More" => 0,
     "lib" => 0
   },
-  "VERSION" => "4.2",
+  "VERSION" => "4.3",
   "test" => {
     "TESTS" => "t/*.t"
   }
@@ -82,7 +81,6 @@ my %FallbackPrereqs = (
   "Test::More" => 0,
   "bytes" => 0,
   "lib" => 0,
-  "locale" => 0,
   "open" => 0,
   "strict" => 0,
   "utf8" => 0,

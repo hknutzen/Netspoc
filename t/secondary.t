@@ -10,6 +10,138 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'Secondary, primary, standard, full';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+
+router:sec = {
+ managed = secondary;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; }
+}
+network:t1 = { ip = 10.9.1.0/30; }
+
+router:pri = {
+ managed = primary;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:t2 = { ip = 10.9.2.1; hardware = t2; }
+}
+network:t2 = { ip = 10.9.2.0/30; }
+
+router:ful = {
+ managed = full;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:t3 = { ip = 10.9.3.1; hardware = t3; }
+}
+network:t3 = { ip = 10.9.3.0/30; }
+
+router:std = {
+ managed = standard;
+ model = ASA;
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ interface:t4 = { ip = 10.9.4.1; hardware = t4; }
+}
+network:t4 = { ip = 10.9.4.0/30; }
+
+router:hub = {
+ managed = secondary;
+ model = IOS;
+ interface:t1 = { ip = 10.9.1.2; hardware = t1; }
+ interface:t2 = { ip = 10.9.2.2; hardware = t2; }
+ interface:t3 = { ip = 10.9.3.2; hardware = t3; }
+ interface:t4 = { ip = 10.9.4.2; hardware = t4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+}
+
+service:s1 = {
+ user = host:h1, host:h2;
+ permit src = user;
+        dst = network:n3, network:n4, network:n5;
+        prt = tcp 80, udp 53;
+}
+END
+ 
+$out = <<'END';
+-- sec
+! [ ACL ]
+object-group network g0
+ network-object 10.1.3.0 255.255.255.0
+ network-object 10.1.4.0 255.255.255.0
+access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 object-group g0
+access-list n1_in extended permit tcp host 10.1.1.10 10.1.5.0 255.255.255.0 eq 80
+access-list n1_in extended permit udp host 10.1.1.10 10.1.5.0 255.255.255.0 eq 53
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+-- pri
+! [ ACL ]
+object-group network g0
+ network-object 10.1.3.0 255.255.255.0
+ network-object 10.1.4.0 255.255.255.0
+ network-object 10.1.5.0 255.255.255.0
+access-list n2_in extended permit tcp host 10.1.2.10 object-group g0 eq 80
+access-list n2_in extended permit udp host 10.1.2.10 object-group g0 eq 53
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+-- ful
+object-group network g0
+ network-object host 10.1.1.10
+ network-object host 10.1.2.10
+access-list t3_in extended permit tcp object-group g0 10.1.3.0 255.255.255.0 eq 80
+access-list t3_in extended permit udp object-group g0 10.1.3.0 255.255.255.0 eq 53
+access-list t3_in extended deny ip any any
+access-group t3_in in interface t3
+-- std
+access-list t4_in extended permit tcp host 10.1.1.10 10.1.4.0 255.255.255.0 eq 80
+access-list t4_in extended permit udp host 10.1.1.10 10.1.4.0 255.255.255.0 eq 53
+access-list t4_in extended permit ip 10.1.2.0 255.255.255.0 10.1.4.0 255.255.255.0
+access-list t4_in extended deny ip any any
+access-group t4_in in interface t4
+-- hub
+! [ ACL ]
+ip access-list extended t1_in
+ deny ip any host 10.1.5.1
+ permit ip 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255
+ permit ip 10.1.1.0 0.0.0.255 10.1.4.0 0.0.0.255
+ permit tcp host 10.1.1.10 10.1.5.0 0.0.0.255 eq 80
+ permit udp host 10.1.1.10 10.1.5.0 0.0.0.255 eq 53
+ deny ip any any
+--
+ip access-list extended t2_in
+ deny ip any host 10.1.5.1
+ permit ip 10.1.2.0 0.0.0.255 10.1.3.0 0.0.0.255
+ permit ip 10.1.2.0 0.0.0.255 10.1.4.0 0.0.0.255
+ permit ip 10.1.2.0 0.0.0.255 10.1.5.0 0.0.0.255
+ deny ip any any
+--
+ip access-list extended t3_in
+ permit ip 10.1.3.0 0.0.0.255 10.1.1.0 0.0.0.255
+ permit ip 10.1.3.0 0.0.0.255 10.1.2.0 0.0.0.255
+ deny ip any any
+--
+ip access-list extended t4_in
+ permit ip 10.1.4.0 0.0.0.255 10.1.1.0 0.0.0.255
+ permit ip 10.1.4.0 0.0.0.255 10.1.2.0 0.0.0.255
+ deny ip any any
+--
+ip access-list extended n5_in
+ permit tcp 10.1.5.0 0.0.0.255 host 10.1.1.10 established
+ permit udp 10.1.5.0 0.0.0.255 eq 53 host 10.1.1.10
+ permit ip 10.1.5.0 0.0.0.255 10.1.2.0 0.0.0.255
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Secondary optimization to largest safe network';
 ############################################################
 
@@ -124,7 +256,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = "No optimization on supernet";
+$title = "No optimization on supernet, but partly on host";
 ############################################################
 
 # Optimized rule "A -> B IP" would allow "A -> subB IP" accidently.
@@ -150,11 +282,15 @@ router:filter = {
  interface:B = { ip = 10.8.8.1; hardware = B; }
 }
 
-network:B = { ip = 10.8.8.0/24; }
+network:B = { ip = 10.8.8.0/24; host:B = { ip = 10.8.8.7; } }
 
 service:test1 = {
  user = network:A;
  permit src = user; dst = network:B, network:subB; prt = tcp 80;
+}
+service:test2 = {
+ user = network:A;
+ permit src = user; dst = host:B; prt = tcp 22;
 }
 END
 
@@ -164,13 +300,66 @@ $out = <<'END';
 ip access-list extended A_in
  deny ip any host 10.8.8.9
  permit tcp 10.3.3.0 0.0.0.127 10.8.8.0 0.0.0.255 eq 80
+ permit ip 10.3.3.0 0.0.0.127 host 10.8.8.7
  deny ip any any
+-- filter
+! [ ACL ]
+access-list Trans_in extended permit tcp 10.3.3.0 255.255.255.128 10.8.8.0 255.255.255.0 eq 80
+access-list Trans_in extended permit tcp 10.3.3.0 255.255.255.128 host 10.8.8.7 eq 22
+access-list Trans_in extended deny ip any any
+access-group Trans_in in interface Trans
 END
 
 test_run($title, $in, $out);
 
 ############################################################
-$title = "Don't optimize rule if any rule starts behind secondary router";
+$title = "Interface of standard router as destination";
+############################################################
+# interface:r2.n2 must not be otimized
+# Optimization of interface:r2.n3 is not implemented.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.4; } }
+
+router:r1 = {
+ model = ASA;
+ managed = secondary;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+
+service:n1 = {
+ user = interface:r2.n2, interface:r2.n3;
+ permit src = host:h1; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+object-group network g0
+ network-object host 10.1.2.2
+ network-object host 10.1.3.2
+access-list vlan1_in extended permit tcp host 10.1.1.4 object-group g0 eq 80
+access-list vlan1_in extended deny ip any any
+access-group vlan1_in in interface vlan1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "Don't optimize rule if aggregate rule starts behind secondary router";
 ############################################################
 
 $in = <<'END';

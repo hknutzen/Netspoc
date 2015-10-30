@@ -1,3 +1,10 @@
+4.3       2015-10-30 13:50:13+01:00 Europe/Berlin
+
+ - Significant runtime improvement by combining expanded rules 
+   to grouped rules.
+ - Improved program 'cut-netspoc'. 
+   It removes unused hosts and interfaces now.
+
 4.2       2015-10-15 12:38:33+02:00 Europe/Berlin
 
  - NAT commands for all models of ASA are no longer generated.
