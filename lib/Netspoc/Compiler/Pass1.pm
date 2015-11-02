@@ -14197,7 +14197,8 @@ sub group_path_rules {
      progress("Grouping rules");
      my $count = 0;
      for my $action (qw(permit deny)) {
-         my $rules = delete $expanded_rules{$action} or next;
+         my $rules = delete $expanded_rules{$action};
+         @$rules or next;
 
          # Collect rules that use identical modifiers.
          my %attr2rules;
@@ -14218,6 +14219,7 @@ sub group_path_rules {
              my $key = $attr2index{$attr} ||= $index++;
              push @{ $attr2rules{$key} }, $rule;
          }
+         $rules = undef;
 
          # Collect grouped rules.
          my $grouped_rules = [];
@@ -14226,6 +14228,7 @@ sub group_path_rules {
              my $attr_rules = $attr2rules{$attr_key};
              push @$grouped_rules, @{ group_rules($attr_rules) };
          }
+         %attr2rules = %attr2index = ();
 
          # Split grouped rules such, that all elements of src and dst
          # have identical src_path/dst_path.
