@@ -740,7 +740,7 @@ crypto:vpn = { type = ipsec:ipsecaes256SHA; }
 network:n1 = { ip = 10.1.1.0/24;}
 
 router:r = {
- model = ASA, 8.4;
+ model = ASA;
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = inside; }
  interface:n2 = { ip = 192.168.1.2; hardware = outside; hub = crypto:vpn; }

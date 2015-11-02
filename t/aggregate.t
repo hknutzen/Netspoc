@@ -956,7 +956,7 @@ $in = <<'END';
 network:intern = { ip = 10.1.1.0/24; }
 
 router:asa = {
- model = ASA, 8.4;
+ model = ASA;
  managed;
  interface:intern = {
   ip = 10.1.1.101; 

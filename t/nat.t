@@ -122,7 +122,7 @@ network:Test =  {
 
 router:r1 = {
  managed;
- model = ASA, 8.4;
+ model = ASA;
  interface:Test = { ip = 10.0.1.2; hardware = inside; }
  interface:t1 = { ip = 10.0.2.1; hardware = outside;}
 }
@@ -173,7 +173,7 @@ network:Test =  {
 
 router:filter = {
  managed;
- model = ASA, 8.4;
+ model = ASA;
  interface:Test = { ip = 10.0.0.2; hardware = inside; }
  interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C; }
 }
@@ -273,7 +273,7 @@ network:n2 =  {
 
 router:filter = {
  managed;
- model = ASA, 8.4;
+ model = ASA;
  interface:n1 = { ip = 10.0.1.2; hardware = n1; }
  interface:n2 = { ip = 10.0.2.2; hardware = n2; }
  interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C, D; }
@@ -684,7 +684,7 @@ network:x =  {
 
 router:filter = {
  managed;
- model = ASA, 8.4;
+ model = ASA;
  interface:x = { ip = 10.0.0.2; hardware = inside; }
  interface:y = { ip = 10.8.3.1; hardware = outside; bind_nat = C; }
 }

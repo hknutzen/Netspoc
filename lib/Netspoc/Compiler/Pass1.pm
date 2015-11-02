@@ -269,7 +269,6 @@ my %router_info = (
                 do_auth          => 1,
             },
             EZVPN => { crypto => 'ASA_EZVPN' },
-            '8.4' => {},
         },
     },
     Linux => {
