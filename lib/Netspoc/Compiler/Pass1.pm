@@ -35,7 +35,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '4.3'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.4'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -269,7 +269,6 @@ my %router_info = (
                 do_auth          => 1,
             },
             EZVPN => { crypto => 'ASA_EZVPN' },
-            '8.4' => {},
         },
     },
     Linux => {
@@ -14197,7 +14196,8 @@ sub group_path_rules {
      progress("Grouping rules");
      my $count = 0;
      for my $action (qw(permit deny)) {
-         my $rules = delete $expanded_rules{$action} or next;
+         my $rules = delete $expanded_rules{$action};
+         @$rules or next;
 
          # Collect rules that use identical modifiers.
          my %attr2rules;
@@ -14218,6 +14218,7 @@ sub group_path_rules {
              my $key = $attr2index{$attr} ||= $index++;
              push @{ $attr2rules{$key} }, $rule;
          }
+         $rules = undef;
 
          # Collect grouped rules.
          my $grouped_rules = [];
@@ -14226,6 +14227,7 @@ sub group_path_rules {
              my $attr_rules = $attr2rules{$attr_key};
              push @$grouped_rules, @{ group_rules($attr_rules) };
          }
+         %attr2rules = %attr2index = ();
 
          # Split grouped rules such, that all elements of src and dst
          # have identical src_path/dst_path.

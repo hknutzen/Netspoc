@@ -56,7 +56,7 @@ network:b = {ip = 10.9.16.112/29; }
 router:FW = {
  managed;
  routing = manual;
- model = ASA, 8.4;
+ model = ASA;
  interface:b = {ip = 10.9.16.116; hardware = outside;}
  interface:D = {ip = 10.1.11.1; hardware = inside;}
 }
