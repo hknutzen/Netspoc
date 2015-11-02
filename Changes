@@ -1,5 +1,10 @@
 {{$NEXT}}
 
+4.4       2015-11-02 10:29:59+01:00 Europe/Berlin
+
+ - Use about 10% less memory.
+ - 'ASA, 8.4' is no longer supported. Use 'ASA' instead.
+
 4.3       2015-10-30 13:50:13+01:00 Europe/Berlin
 
  - Significant runtime improvement by combining expanded rules 
