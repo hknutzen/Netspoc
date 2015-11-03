@@ -1,5 +1,10 @@
 {{$NEXT}}
 
+4.5       2015-11-03 16:48:57+01:00 Europe/Berlin
+
+ - Routes to adjacent networks are combined now, 
+   if both use same hop and if combined network doesn't already exist.
+
 4.4       2015-11-02 10:29:59+01:00 Europe/Berlin
 
  - Use about 10% less memory.
