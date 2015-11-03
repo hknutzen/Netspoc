@@ -165,9 +165,8 @@ $out = <<'END';
 --asavpn
 ! [ Routing ]
 route inside 10.0.1.0 255.255.255.0 10.1.1.1
-route inside 10.0.2.0 255.255.255.0 10.1.1.1
-route inside 10.0.3.0 255.255.255.0 10.1.1.1
 route inside 10.0.4.0 255.255.255.0 10.1.1.1
+route inside 10.0.2.0 255.255.254.0 10.1.1.1
 route outside 0.0.0.0 0.0.0.0 192.168.0.1
 --
 no sysopt connection permit-vpn

@@ -9,6 +9,80 @@ use Test_Netspoc;
 
 my ($title, $topo, $in, $out);
 
+############################################################
+$title = 'Combine adjacent routes to same hop';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ model = NX-OS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; }
+}
+
+network:t1 = { ip = 10.9.1.0/24; }
+
+router:u1 = {
+ interface:t1 = { ip = 10.9.1.2; }
+ interface:n2a;
+ interface:n2b;
+ interface:n2c;
+ interface:n3a;
+ interface:n4a;
+ interface:n4b;
+}
+router:u2 = {
+ interface:t1 = { ip = 10.9.1.3; }
+ interface:n3b;
+ interface:n4;
+ interface:l5a = { ip = 10.5.0.4; loopback; }
+ interface:l5b = { ip = 10.5.0.5; loopback; }
+ interface:l5c = { ip = 10.5.0.6; loopback; }
+ interface:l5d = { ip = 10.5.0.7; loopback; }
+}
+
+network:n2a = { ip = 10.1.2.0/26; }
+network:n2b = { ip = 10.1.2.64/26; }
+network:n2c = { ip = 10.1.2.128/25; }
+network:n3a = { ip = 10.1.3.0/25; }
+network:n3b = { ip = 10.1.3.128/25; }
+network:n4a = { ip = 10.1.4.0/25; subnet_of = network:n4; }
+network:n4b = { ip = 10.1.4.128/25; subnet_of = network:n4; }
+network:n4  = { ip = 10.1.4.0/24; }
+
+service:test = {
+ user = network:n2a,
+        network:n2b,
+        network:n2c,
+        network:n3a,
+        network:n3b,
+        network:n4a, 
+        network:n4b,
+        interface:u2.l5a,
+        interface:u2.l5b,
+        interface:u2.l5c,
+        interface:u2.l5d,
+ ;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r1
+! [ Routing ]
+ip route 10.1.3.0/25 10.9.1.2
+ip route 10.1.4.0/25 10.9.1.2
+ip route 10.1.4.128/25 10.9.1.2
+ip route 10.1.2.0/24 10.9.1.2
+ip route 10.5.0.4/30 10.9.1.3
+ip route 10.1.3.128/25 10.9.1.3
+ip route 10.1.4.0/24 10.9.1.3
+END
+
+test_run($title, $in, $out, '-noauto_default_route');
 
 ############################################################
 $title = 'Missing next hop';

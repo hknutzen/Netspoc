@@ -35,7 +35,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '4.4'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.5'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -15344,6 +15344,49 @@ sub print_routes {
         }
     }
     return if not @interfaces;
+ 
+    # Combine adjacent networks, if both use same hop and if combined
+    # network doesn't already exist.
+    # Prepare @inv_prefix_aref.
+    my @inv_prefix_aref;
+    for my $mask (keys %mask2ip2net) {
+        my $inv_prefix  = 32 - mask2prefix($mask);
+        my $ip2net = $mask2ip2net{$mask};
+        for my $ip (keys %$ip2net) {
+            $inv_prefix_aref[$inv_prefix]->{$ip} = $ip2net->{$ip};
+        }
+    }
+
+    # Go from small to large networks. So we combine newly added
+    # networks as well.
+    for (my $i = 0 ; $i < @inv_prefix_aref ; $i++) {
+        my $ip2net = $inv_prefix_aref[$i] or next;
+        my $next   = 2**$i;
+        my $modulo = 2 * $next;
+        for my $ip (keys %$ip2net) {
+
+            # Only analyze left part of two adjacent networks.
+            $ip % $modulo == 0 or next;
+            my $left     = $ip2net->{$ip};
+            my $hop_left = $net2hop_info{$left};
+            my $next_ip  = $ip + $next;
+
+            # Find right part.
+            my $right = $ip2net->{$next_ip} or next;
+            my $hop_right = $net2hop_info{$right};
+            $hop_left eq $hop_right or next;
+            my $up_inv_prefix = $i + 1;
+
+            # Combined network already exists.
+            next if $inv_prefix_aref[$up_inv_prefix]->{$ip};
+
+            my $mask = prefix2mask(32 - $up_inv_prefix);
+            my $combined = { ip => $ip, mask => $mask };
+            $inv_prefix_aref[$up_inv_prefix]->{$ip} = $combined;
+            $mask2ip2net{$mask}->{$ip} = $combined;
+            $net2hop_info{$combined} = $hop_left;
+        }
+    }
 
     # Find and remove duplicate networks.
     # Go from smaller to larger networks.
