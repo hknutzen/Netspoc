@@ -56,4 +56,43 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'icmp type with different codes';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+ user = network:n1;
+ permit src = user; 
+        dst = network:n2; 
+        prt = icmp 3/2, icmp 3/1, icmp 3/0, icmp 3/13, icmp 3/3;
+}
+
+protocol:TCP_21_Reply = tcp 21, reversed;
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ permit icmp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 3 2
+ permit icmp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 3 1
+ permit icmp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 3 0
+ permit icmp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 3 13
+ permit icmp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 3 3
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
