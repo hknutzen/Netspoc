@@ -16150,7 +16150,6 @@ sub rules_distribution {
 
     # Permit rules
     for my $rule (@{ $grouped_rules{permit} }) {
-        next if $rule->{deleted};
         path_walk($rule, \&distribute_rule, 'Router');
     }
 
