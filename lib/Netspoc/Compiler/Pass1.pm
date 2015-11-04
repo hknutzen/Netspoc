@@ -17595,7 +17595,6 @@ sub print_acls {
                         for my $where (qw(src dst)) {
                             my $obj_list = $rule->{$where};
                             for my $obj (@$obj_list) {
-                                my $subst;
 
                                 # Prepare secondary optimization.
                                 my $type = ref($obj);
@@ -17620,6 +17619,7 @@ sub print_acls {
                                     }
                                 }
 
+                                my $subst;
                                 if ($type eq 'Subnet' or $type eq 'Interface') {
                                     my $net = $obj->{network};
                                     next if $net->{has_other_subnet};
@@ -17655,7 +17655,7 @@ sub print_acls {
                                     my $max = $obj->{max_secondary_net} or next;
                                     $subst = $max;
                                 }
-                                $opt_addr{$subst} = $subst if $subst;
+                                $opt_addr{$subst} = $subst;
                             }
                         }
                         $new_rule->{opt_secondary} = 1;
