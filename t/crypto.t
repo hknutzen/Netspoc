@@ -919,11 +919,11 @@ router:vpn1 = {
   id = vpn1@example.com;
  }
  interface:lan1 = {
-  ip = 10.99.1.1;
+  ip = 10.99.2.1;
  }
 }
 
-network:lan1 = { ip = 10.99.1.0/24; }
+network:lan1 = { ip = 10.99.2.0/24; }
 
 router:vpn2 = {
  interface:internet = {
@@ -932,14 +932,14 @@ router:vpn2 = {
   id = vpn2@example.com;
  }
  interface:lan2 = {
-  ip = 10.99.2.1;
+  ip = 10.99.3.1;
  }
  interface:lan2a = {
   ip = 192.168.22.1;
  }
 }
 
-network:lan2 = { ip = 10.99.2.0/24; }
+network:lan2 = { ip = 10.99.3.0/24; }
 
 network:lan2a = { 
  ip = 192.168.22.0/24;
@@ -953,14 +953,21 @@ service:test = {
 }
 END
 
+# Use individual routes to VPN peers, even if all have same next hop.
 $out = <<'END';
 --asavpn
+! [ Routing ]
+route outside 10.99.2.0 255.255.255.0 192.168.0.1
+route outside 10.99.3.0 255.255.255.0 192.168.0.1
+route outside 192.168.22.0 255.255.255.0 192.168.0.1
+route outside 0.0.0.0 0.0.0.0 192.168.0.1
+--
 no sysopt connection permit-vpn
 crypto ipsec ikev1 transform-set Trans1 esp-3des esp-sha-hmac
 crypto ipsec ikev2 ipsec-proposal Trans2
  protocol esp encryption aes-256
  protocol esp integrity sha-384
-access-list crypto-outside-65535 extended permit ip any 10.99.1.0 255.255.255.0
+access-list crypto-outside-65535 extended permit ip any 10.99.2.0 255.255.255.0
 crypto dynamic-map vpn1@example.com 10 match address crypto-outside-65535
 crypto dynamic-map vpn1@example.com 10 set ikev2 ipsec-proposal Trans2
 crypto dynamic-map vpn1@example.com 10 set pfs group15
@@ -973,7 +980,7 @@ tunnel-group vpn1@example.com ipsec-attributes
 crypto ca certificate map vpn1@example.com 10
  subject-name attr ea eq vpn1@example.com
 tunnel-group-map vpn1@example.com 10 vpn1@example.com
-access-list crypto-outside-65534 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
+access-list crypto-outside-65534 extended permit ip 10.1.1.0 255.255.255.0 10.99.3.0 255.255.255.0
 access-list crypto-outside-65534 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
 crypto dynamic-map vpn2@example.com 10 match address crypto-outside-65534
 crypto dynamic-map vpn2@example.com 10 set ikev1 transform-set Trans1

@@ -15302,6 +15302,7 @@ sub print_routes {
     my $vrf                   = $router->{vrf};
     my $do_auto_default_route = $config->{auto_default_route};
     my $crypto_type = $model->{crypto} || '';
+    my $asa_crypto = $crypto_type eq 'ASA';
     my %intf2hop2nets;
     my @interfaces;
     my %mask2ip2net;
@@ -15318,7 +15319,7 @@ sub print_routes {
         push @interfaces, $interface;
 
         # ASA with site-to-site VPN needs individual routes for each peer.
-        if ($interface->{hub} && $crypto_type eq 'ASA') {
+        if ($asa_crypto && $interface->{hub}) {
             $do_auto_default_route = 0;
         }
         my $no_nat_set = $interface->{no_nat_set};
@@ -15345,46 +15346,62 @@ sub print_routes {
     }
     return if not @interfaces;
  
-    # Combine adjacent networks, if both use same hop and if combined
-    # network doesn't already exist.
+    # Combine adjacent networks, if both use same hop and 
+    # if combined network doesn't already exist.
     # Prepare @inv_prefix_aref.
     my @inv_prefix_aref;
     for my $mask (keys %mask2ip2net) {
         my $inv_prefix  = 32 - mask2prefix($mask);
         my $ip2net = $mask2ip2net{$mask};
         for my $ip (keys %$ip2net) {
-            $inv_prefix_aref[$inv_prefix]->{$ip} = $ip2net->{$ip};
+            my $network = $ip2net->{$ip};
+
+            # Don't combine peers of ASA with site-to-site VPN.
+            if ($asa_crypto) {
+                my $hop_info = $net2hop_info{$network};
+                my $interface = $hop_info->[0];
+                next if $interface->{hub};
+            }
+            $inv_prefix_aref[$inv_prefix]->{$ip} = $network;
         }
     }
 
     # Go from small to large networks. So we combine newly added
     # networks as well.
-    for (my $i = 0 ; $i < @inv_prefix_aref ; $i++) {
-        my $ip2net = $inv_prefix_aref[$i] or next;
-        my $next   = 2**$i;
+    for (my $inv_prefix = 0 ; $inv_prefix < @inv_prefix_aref ; $inv_prefix++) {
+        my $ip2net = $inv_prefix_aref[$inv_prefix] or next;
+        my $next   = 2**$inv_prefix;
         my $modulo = 2 * $next;
         for my $ip (keys %$ip2net) {
 
             # Only analyze left part of two adjacent networks.
             $ip % $modulo == 0 or next;
-            my $left     = $ip2net->{$ip};
-            my $hop_left = $net2hop_info{$left};
-            my $next_ip  = $ip + $next;
+            my $left = $ip2net->{$ip};
 
             # Find right part.
-            my $right = $ip2net->{$next_ip} or next;
+            my $next_ip = $ip + $next;
+            my $right   = $ip2net->{$next_ip} or next;
+
+            # Both parts must use equal next hop.
+            my $hop_left  = $net2hop_info{$left};
             my $hop_right = $net2hop_info{$right};
             $hop_left eq $hop_right or next;
-            my $up_inv_prefix = $i + 1;
 
             # Combined network already exists.
-            next if $inv_prefix_aref[$up_inv_prefix]->{$ip};
+            my $combined_inv_prefix = $inv_prefix + 1;
+            next if $inv_prefix_aref[$combined_inv_prefix]->{$ip};
 
-            my $mask = prefix2mask(32 - $up_inv_prefix);
+            # Add combined route.
+            my $mask = 0xffffffff - $modulo + 1;
             my $combined = { ip => $ip, mask => $mask };
-            $inv_prefix_aref[$up_inv_prefix]->{$ip} = $combined;
+            $inv_prefix_aref[$combined_inv_prefix]->{$ip} = $combined;
             $mask2ip2net{$mask}->{$ip} = $combined;
             $net2hop_info{$combined} = $hop_left;
+
+            # Left and right part are no longer used.
+            my $part_mask = 0xffffffff - $next + 1;
+            delete $mask2ip2net{$part_mask}->{$ip};
+            delete $mask2ip2net{$part_mask}->{$next_ip};
         }
     }
 
@@ -15398,7 +15415,7 @@ sub print_routes {
             my ($interface, $hop) = @$hop_info;
 
             # ASA with site-to-site VPN needs individual routes for each peer.
-            if (!($interface->{hub} && $crypto_type eq 'ASA')) {
+            if (!($asa_crypto && $interface->{hub})) {
 
                 my $m = $mask;
                 my $i = $ip;
