@@ -359,4 +359,39 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Log deny';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ log_deny;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:t = {
+ user = network:n1;
+ deny src = user; dst = network:n2; prt = tcp 22;
+ permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+$out = <<'END';
+-- r1
+! [ ACL ]
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ deny tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 22 log
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
+ deny ip any any log
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
