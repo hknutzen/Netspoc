@@ -257,12 +257,12 @@ sub setup_prt_relation {
     return;
 }
 
-sub print_rule {
-    my ($rule) = @_;
-    my ($deny, $src, $dst, $prt) = @{$rule}{qw(deny src dst prt)};
-    my $action = $deny ? 'deny' : 'permit';
-    return "$action $src->{name} $dst->{name} $prt->{name}";
-}
+#sub print_rule {
+#    my ($rule) = @_;
+#    my ($deny, $src, $dst, $prt) = @{$rule}{qw(deny src dst prt)};
+#    my $action = $deny ? 'deny' : 'permit';
+#    return "$action $src->{name} $dst->{name} $prt->{name}";
+#}
 
 sub optimize_redundant_rules {
     my ($cmp_hash, $chg_hash, $acl_info) = @_;
@@ -907,18 +907,18 @@ sub iptables_prt_code {
 
 # Handle iptables.
 #
-sub debug_bintree {
-    my ($tree, $depth) = @_;
-    $depth ||= '';
-    my $ip      = int2ip($tree->{ip});
-    my $mask    = mask2prefix($tree->{mask});
-    my $subtree = $tree->{subtree} ? 'subtree' : '';
-
+#sub debug_bintree {
+#    my ($tree, $depth) = @_;
+#    $depth ||= '';
+#    my $ip      = int2ip($tree->{ip});
+#    my $mask    = mask2prefix($tree->{mask});
+#    my $subtree = $tree->{subtree} ? 'subtree' : '';
+#
 #    debug($depth, " $ip/$mask $subtree");
 #    debug_bintree($tree->{lo}, "${depth}l") if $tree->{lo};
 #    debug_bintree($tree->{hi}, "${depth}h") if $tree->{hi};
-    return;
-}
+#    return;
+#}
 
 # Nodes are reverse sorted before being added to bintree.
 # Redundant nodes are discarded while inserting.
@@ -1352,17 +1352,17 @@ sub find_chains {
 
     my %cache;
 
-    my $print_tree;
-    $print_tree = sub {
-        my ($tree, $order, $depth) = @_;
-        for my $name (keys %$tree) {
-
+#    my $print_tree;
+#    $print_tree = sub {
+#        my ($tree, $order, $depth) = @_;
+#        for my $name (keys %$tree) {
+#
 #            debug(' ' x $depth, $name);
-            if ($depth < $#$order) {
-                $print_tree->($tree->{$name}, $order, $depth + 1);
-            }
-        }
-    };
+#            if ($depth < $#$order) {
+#                $print_tree->($tree->{$name}, $order, $depth + 1);
+#            }
+#        }
+#    };
 
     my $insert_bintree = sub {
         my ($tree, $order, $depth) = @_;
