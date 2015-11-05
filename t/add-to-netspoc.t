@@ -218,6 +218,34 @@ host:f,
 END
 
 test_rmv($title, $out, 'host:a1 host:b1 host:d1 host:e1 host:f1 host:g1', $in);
+
+############################################################
+$title = 'Find group after commented group';
+############################################################
+
+$in = <<'END';
+# group:g1 =
+# host:c,
+# ;
+
+group:g2 =
+ host:a,
+ host:b,
+; 
+END
+
+$out = <<'END';
+# group:g1 =
+# host:c,
+# ;
+
+group:g2 =
+ host:b,
+; 
+END
+
+test_rmv($title, $in, 'host:a', $out);
+
 ############################################################
 $title = 'Find and change umlauts';
 ############################################################
@@ -232,6 +260,7 @@ END
 
 test_add($title, $in, 'host:Müß host:Muess host:Mass host:Maß', $out);
 test_rmv($title, $out, 'host:Muess host:Maß', $in);
+
 ############################################################
 $title = 'Read pairs from file';
 ############################################################

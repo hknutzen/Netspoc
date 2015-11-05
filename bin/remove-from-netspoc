@@ -211,11 +211,21 @@ sub process {
                     $in_list = undef;
                 }
             }
+
+            # Ignore comment.
+            elsif ($line =~ /\G (\s* [#] .*) /gcx) {
+                $copy .= $1;
+                last TOKEN;
+            }
+
+            # Find equal sign.
             elsif ($search_eq and $line =~ /\G (\s*=\s*) /gcsx) {
                 $copy .= $1;
                 $in_list = 1;
                 $search_eq = 0;
             }
+
+            # Find start of group.
             elsif ($line =~ /\G (.*?) (src | dst | user | group:[-\w]+) /gcx) {
                 $copy .= "$1$2";
                 $search_eq = 1;
