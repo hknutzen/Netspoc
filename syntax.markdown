@@ -122,7 +122,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     <VRF-name>     ::= <name>
     <filter type>  ::= primary | full | standard | secondary |
                        local | local_secondary | routing_only
-    <model>        ::= Linux | ASA | ASA,8.4 | PIX | IOS | IOS,FW | NX-OS | ACE
+    <model>        ::= Linux | ASA | PIX | IOS | IOS,FW | NX-OS | ACE
     <ASA-modifier> ::= alerts | critical | debugging | disable | emergencies |
                        errors | informational | notifications | warnings
     <IOS-modifier> ::= log-input
