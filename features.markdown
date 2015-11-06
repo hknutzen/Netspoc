@@ -13,7 +13,7 @@ layout: default
   - Redundant rules are removed and optionally warned about.
 - Highly optimized chains for iptables are generated.
 - Object-groups for ASA, PIX and NX-OS are generated.
-- IPSec configuration for Cisco ASA, ASA v8.4 and IOS is generated.
+- IPSec configuration for Cisco ASA and IOS is generated.
 - Commands for static routing are generated (optionally).
 - Network address translation (NAT) is supported.
 - HSRP / VRRP clusters are supported.
@@ -25,6 +25,4 @@ layout: default
   if a data stream has already been filtered at some other device.
 - Complex topologies with redundant paths are supported.
 - Pathrestrictions allow to restrict paths inside a redundant topology.
-- Supports network with isolated ports where traffic is entered and exited 
-  at the same interface of the packet filter.
-- This software has been tested to run on Linux and Windows.
+- This software has been tested to run on Linux.
