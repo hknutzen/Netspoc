@@ -116,14 +116,13 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Auto interface expands to unnumbered interface';
+$title = 'Auto interface expands to short interface';
 ############################################################
-# and this unnumbered interface is silently ignored.
 
 $in = <<'END';
 router:u1 = {
  model = IOS;
- interface:dummy = { unnumbered; }
+ interface:dummy;
 }
 
 network:dummy = { unnumbered; }
@@ -151,6 +150,20 @@ service:s1 = {
 	prt = tcp 22;
 }
 END
+
+$out = <<'END';
+Error: 'short' interface:u1.dummy (from .[auto])
+ must not be used in rule of service:s1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Auto interface expands to unnumbered interface';
+############################################################
+# and this unnumbered interface is silently ignored.
+
+$in =~ s/interface:dummy;/interface:dummy = { unnumbered; }/;
 
 $out = <<'END';
 --r1
