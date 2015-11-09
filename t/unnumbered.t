@@ -116,5 +116,51 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Auto interface expands to unnumbered interface';
+############################################################
+# and this unnumbered interface is silently ignored.
+
+$in = <<'END';
+router:u1 = {
+ model = IOS;
+ interface:dummy = { unnumbered; }
+}
+
+network:dummy = { unnumbered; }
+
+router:u2 = {
+ interface:dummy = { unnumbered; }
+ interface:n1 = { ip = 10.1.1.2; }
+}
+
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = {ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s1 = {
+ user = interface:u1.[auto];
+ permit src = network:n2;
+        dst = user;
+	prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
 
 done_testing;
