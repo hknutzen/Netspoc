@@ -223,7 +223,6 @@ while (1) {
 &distribute_nat_info();
 &setpath();
 find_subnets_in_zone();
-convert_hosts();
 if ($show_owner) {
     propagate_owners();
 }
@@ -238,31 +237,24 @@ if($nat_net) {
 }
 
 # Expand group definition(s).
-my $elements = 
-    expand_group_in_rule(\@parsed, 'print-group', 0);
+my $elements = expand_group_in_rule(\@parsed, 'print-group');
 
 # Find unused objects by marking used objects.
 if ($show_unused) {
-    &order_protocols();
-    &expand_services(0);
-    &abort_on_error();
-    for my $type ('deny', 'permit') {
-	for my $rule (@{ $expanded_rules{$type} }) {
-	    for my $where ('src', 'dst') {
-		my $obj = $rule->{$where};
-		if (is_host $obj) {
-		    for my $subnet (@{ $obj->{subnets} }) {
-			$subnet->{is_used} = 1;
-		    }
-                    $obj->{network}->{is_used} = 1;
-		}
-                elsif (is_interface $obj) {
-		    $obj->{is_used} = 1;
-                    $obj->{network}->{is_used} = 1;
-                }                    
-		else {
-		    $obj->{is_used} = 1;
-		}
+    order_protocols();
+    normalize_services();
+    abort_on_error();
+    for my $action (qw(permit deny)) {
+        my $rules = $service_rules{$action} or next;
+        for my $rule (@$rules) {
+            for my $what (qw(src dst)) {
+                my $group = $rule->{$what};
+                for my $obj (@$group) {
+                    $obj->{is_used} = 1;
+                    if (is_host($obj) or is_interface($obj)) {
+                        $obj->{network}->{is_used} = 1;
+                    }
+                }
 	    }
 	}
     }

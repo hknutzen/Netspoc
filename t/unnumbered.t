@@ -175,5 +175,62 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Auto interface to unnumbered with different destination';
+############################################################
+# Must not internally create rule with empty src-list from auto interface.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.1.2.0/24;}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = {ip = 10.1.2.1; hardware = n2;}
+ interface:n3 = {ip = 10.1.3.1; hardware = n3;}
+}
+
+network:n3 = {ip = 10.1.3.0/24;}
+
+router:r2 = {
+ interface:n3 = {ip = 10.1.3.2;}
+ interface:u  = {unnumbered;}
+}
+
+network:u = {unnumbered;}
+
+router:r3 = {
+ interface:u = {unnumbered;}
+}
+
+service:s1  = {
+ user = interface:r3.[auto], interface:r2.n3;
+ permit src = user;
+        dst = network:n1, network:n2;
+        prt = tcp 49;
+}
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+--
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+--
+object-group network g0
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.1.2.0 255.255.255.0
+access-list n3_in extended permit tcp host 10.1.3.2 object-group g0 eq 49
+access-list n3_in extended deny ip any any
+access-group n3_in in interface n3
+END
+
+test_run($title, $in, $out);
+
+############################################################
 
 done_testing;

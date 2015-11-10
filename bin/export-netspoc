@@ -444,8 +444,7 @@ sub setup_service_info {
         next if $service->{disabled};
         my $sname = $service->{name};
 
-        my $users = $service->{expanded_user} =
-            expand_group($service->{user}, "user of $sname");
+        my $users = $service->{expanded_user} = $service->{user};
 
         # Non 'user' objects.
         my @objects;
@@ -1053,6 +1052,8 @@ set_zone();
 distribute_nat_info();
 setpath();
 find_subnets_in_zone();
+propagate_owners();
+normalize_services();
 set_service_owner();
 find_subnets_in_nat_domain();
 setup_zones();

@@ -301,7 +301,8 @@ if (@ARGV) {
 &setpath();
 find_subnets_in_zone();
 link_reroute_permit();
-&expand_services(1);
+normalize_services();
+expand_services();
 
 # Process rules of services.
 sub process_rules {
@@ -318,7 +319,7 @@ sub process_rules {
 #		    debug "Used $obj->{name}";
 		    $obj->{is_used} = 1;
 		}
-		elsif ($type eq 'Subnet') {
+		elsif ($type eq 'Host') {
 		    $obj->{is_used} = 1;
 #		    debug "Used $obj->{name}";
 		    $obj->{network}->{is_used} = 1;
@@ -532,20 +533,12 @@ for my $network (values %networks) {
     # Retain at least one host of network with ID hosts.
     if ($network->{has_id_hosts}) {
         if (not grep { $_->{is_used} } @$hosts) {
-            $hosts->[0]->{subnets}->[0]->{is_used} = 1;
+            $hosts->[0]->{is_used} = 1;
         }
     }
 
-  HOST:
     for my $host (@$hosts) {
-        for my $subnet (@{ $host->{subnets} }) {
-            my $up = $subnet;
-            while ($up and is_subnet($up)) {
-                next HOST if $up->{is_used};
-                $up = $up->{up};
-            }
-        }
-
+        next if $host->{is_used};
         my $name = $host->{name};
 
         # Remove trailing network name of ID-host.

@@ -178,4 +178,95 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Modifier src_net to interface with pathrestriction';
+############################################################
+# Implicit pathrestriction from virtual interface.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1; }
+ interface:t1 = {ip = 10.254.1.12; hardware = t1; }
+}
+network:t1 = {ip = 10.254.1.8/29;}
+
+router:u1 = {
+ interface:t1 = {ip = 10.254.1.9;}
+ interface:n2 = {ip = 10.1.2.254; virtual = {ip = 10.1.2.1; }}
+}
+router:r2 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:t1 = {ip = 10.254.1.10; hardware = t1;}
+ interface:n2 = {ip = 10.1.2.253; virtual = {ip = 10.1.2.1; } hardware = n2; }	
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+protocol:Ping_Netz = icmp 8, src_net, dst_net;
+
+service:s1 = {
+ user =  interface:u1.n2;
+ permit src = user; dst = network:n1; prt = protocol:Ping_Netz;
+}
+END
+
+$out = <<'END';
+--r2
+ip access-list extended n2_in
+ permit icmp 10.1.2.0 0.0.0.255 10.1.1.0 0.0.0.255 8
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'src_net with complex protocol';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { ip = 10.1.1.10; }
+}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = {ip = 10.1.2.1; hardware = n2; }	
+}
+network:n2 = { ip = 10.1.2.0/24; 
+ host:h2 = { range = 10.1.2.4 - 10.1.2.6; }
+}
+
+protocol:tftp_net = udp 69:69, src_net, dst_net, oneway;
+
+service:s1 = {
+ user = host:h1;
+ permit src = user; dst = host:h2; prt = protocol:tftp_net, udp 68;
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ permit udp host 10.1.1.10 10.1.2.4 0.0.0.1 eq 68
+ permit udp host 10.1.1.10 host 10.1.2.6 eq 68
+ permit udp 10.1.1.0 0.0.0.255 eq 69 10.1.2.0 0.0.0.255 eq 69
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit udp 10.1.2.4 0.0.0.1 eq 68 host 10.1.1.10
+ permit udp host 10.1.2.6 eq 68 host 10.1.1.10
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
