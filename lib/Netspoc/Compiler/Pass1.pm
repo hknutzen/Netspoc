@@ -5220,6 +5220,7 @@ sub check_auto_intf {
 
     # Check current elements with interfaces of previous elements.
     for my $obj (@$elements) {
+        next if $obj->{disabled};
         my $type = ref $obj;
         my $other;
         if ($type eq 'Interface') {
