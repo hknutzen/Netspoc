@@ -11,20 +11,73 @@ my ($title, $in, $out, $topo);
 
 ############################################################
 $topo = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 
-router:asa1 = {
+router:r1 = {
  managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.1; hardware = vlan3; }
- interface:n4 = { ip = 10.1.4.1; hardware = vlan4; }
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 END
+
+############################################################
+$title = 'Different protocol modifiers';
+############################################################
+
+$in = $topo . <<'END';
+protocolgroup:tftp = protocol:tftp-request, 
+		     protocol:tftp-server-answer, 
+		     protocol:tftp-client-answer,
+;
+protocol:tftp-request= udp 69, oneway;
+protocol:tftp-server-answer = udp 1024-65535, stateless, reversed, oneway;
+protocol:tftp-client-answer = udp 1024-65535, stateless, oneway;
+
+protocolgroup:Ping_Net_both =
+ protocol:Ping_Net,
+ protocol:Ping_Net_Reply,
+;
+protocol:Ping_Net       = icmp 8, src_net, dst_net, overlaps, no_check_supernet_rules;
+protocol:Ping_Net_Reply = icmp 8, src_net, dst_net, overlaps, reversed, no_check_supernet_rules;
+
+service:test = {
+ user = host:h1;
+ permit src = user; dst = network:n2; prt = protocolgroup:tftp, udp 123;
+ permit src = user; dst = network:n3; prt = icmp 3, protocolgroup:Ping_Net_both;
+}
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ deny ip any host 10.1.3.1
+ permit udp host 10.1.1.10 10.1.2.0 0.0.0.255 eq 123
+ permit udp host 10.1.1.10 10.1.2.0 0.0.0.255 eq 69
+ permit udp host 10.1.1.10 10.1.2.0 0.0.0.255 gt 1023
+ permit icmp host 10.1.1.10 10.1.3.0 0.0.0.255 3
+ permit icmp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 8
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit udp 10.1.2.0 0.0.0.255 host 10.1.1.10 gt 1023
+ permit udp 10.1.2.0 0.0.0.255 eq 123 host 10.1.1.10
+ deny ip any any
+--
+ip access-list extended n3_in
+ deny ip any host 10.1.1.1
+ permit icmp 10.1.3.0 0.0.0.255 10.1.1.0 0.0.0.255 8
+ deny ip any any
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Overlapping TCP ranges and modifier "reversed"';
@@ -44,13 +97,16 @@ protocol:TCP_21_Reply = tcp 21, reversed;
 END
 
 $out = <<'END';
---asa1
+--r1
 ! [ ACL ]
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 range 21 22
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 range 20 21
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.4.0 255.255.255.0 eq 21
-access-list vlan1_in extended deny ip any any
-access-group vlan1_in in interface vlan1
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ deny ip any host 10.1.3.1
+ deny ip any host 10.1.4.1
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 range 21 22
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 range 20 21
+ permit tcp 10.1.1.0 0.0.0.255 10.1.4.0 0.0.0.255 eq 21
+ deny ip any any
 END
 
 test_run($title, $in, $out);
@@ -59,24 +115,13 @@ test_run($title, $in, $out);
 $title = 'icmp type with different codes';
 ############################################################
 
-$in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-
-router:r1 = {
- managed;
- model = IOS;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
+$in = $topo . <<'END';
 service:test = {
  user = network:n1;
  permit src = user; 
         dst = network:n2; 
         prt = icmp 3/2, icmp 3/1, icmp 3/0, icmp 3/13, icmp 3/3;
 }
-
-protocol:TCP_21_Reply = tcp 21, reversed;
 END
 
 $out = <<'END';
