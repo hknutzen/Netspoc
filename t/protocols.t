@@ -140,4 +140,42 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Overlapping udp oneway';
+############################################################
+
+$in = $topo . <<'END';
+protocol:tftp-request= udp 69, oneway;
+
+service:s1 = {
+ user = network:n1;
+ permit src = network:n2;
+        dst = user;
+        prt = protocol:tftp-request;
+}
+service:s2 = {
+ overlaps = service:s1;
+ user = network:n1;
+ permit src = network:n2;
+        dst = user;
+        prt = udp 69;
+}
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ permit udp 10.1.1.0 0.0.0.255 eq 69 10.1.2.0 0.0.0.255
+ deny ip any any
+--
+ip access-list extended n2_in
+ deny ip any host 10.1.1.1
+ permit udp 10.1.2.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 69
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
