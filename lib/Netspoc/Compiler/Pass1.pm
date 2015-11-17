@@ -4896,6 +4896,47 @@ sub split_ip_range {
     return @result;
 }
 
+sub check_host_compatibility {
+    my ($host, $other_subnet) = @_;
+    my $nat  = $host->{nat};
+    my $nat2 = $other_subnet->{nat};
+    my $nat_error;
+    if ($nat xor $nat2) {
+        $nat_error = 1;
+    }
+    elsif ($nat and $nat2) {
+
+        # Number of entries is equal.
+        if (keys %$nat == keys %$nat2) {
+
+            # Entries are equal.
+            for my $name (keys %$nat) {
+                unless ($nat2->{$name}
+                        and $nat->{$name} eq $nat2->{$name})
+                {
+                    $nat_error = 1;
+                    last;
+                }
+            }
+        }
+        else {
+            $nat_error = 1;
+        }
+    }
+    $nat_error
+        and err_msg "Inconsistent NAT definition for",
+        " $other_subnet->{name} and $host->{name}";
+
+    my $owner  = $host->{owner};
+    my $owner2 = $other_subnet->{owner};
+    if (($owner xor $owner2)
+        || $owner && $owner2 && $owner ne $owner2)
+    {
+        err_msg "Inconsistent owner definition for",
+        " $other_subnet->{name} and $host->{name}";
+    }
+}
+
 sub convert_hosts {
     progress('Converting hosts to subnets');
     for my $network (@networks) {
@@ -4947,41 +4988,7 @@ sub convert_hosts {
                 my ($ip, $mask) = @$ip_mask;
                 my $inv_prefix = 32 - mask2prefix $mask;
                 if (my $other_subnet = $inv_prefix_aref[$inv_prefix]->{$ip}) {
-                    my $nat2 = $other_subnet->{nat};
-                    my $nat_error;
-                    if ($nat xor $nat2) {
-                        $nat_error = 1;
-                    }
-                    elsif ($nat and $nat2) {
-
-                        # Number of entries is equal.
-                        if (keys %$nat == keys %$nat2) {
-
-                            # Entries are equal.
-                            for my $name (keys %$nat) {
-                                unless ($nat2->{$name}
-                                    and $nat->{$name} eq $nat2->{$name})
-                                {
-                                    $nat_error = 1;
-                                    last;
-                                }
-                            }
-                        }
-                        else {
-                            $nat_error = 1;
-                        }
-                    }
-                    $nat_error
-                      and err_msg "Inconsistent NAT definition for",
-                      " $other_subnet->{name} and $host->{name}";
-
-                    my $owner2 = $other_subnet->{owner};
-                    if (($owner xor $owner2)
-                        || $owner && $owner2 && $owner ne $owner2)
-                    {
-                        err_msg "Inconsistent owner definition for",
-                          " $other_subnet->{name} and $host->{name}";
-                    }
+                    check_host_compatibility($host, $other_subnet);
                     push @{ $host->{subnets} }, $other_subnet;
                 }
                 else {
@@ -5004,6 +5011,29 @@ sub convert_hosts {
                     push @{ $host->{subnets} },    $subnet;
                     push @{ $network->{subnets} }, $subnet;
                 }
+            }
+        }
+
+        # Set {up} relation and 
+        # check compatibility of hosts in subnet relation
+        for (my $i = 0 ; $i < @inv_prefix_aref ; $i++) {
+            my $ip2subnet = $inv_prefix_aref[$i] or next;
+            for my $ip (keys %$ip2subnet) {
+                my $subnet = $ip2subnet->{$ip};
+
+                # Search for enclosing subnet.
+                for (my $j = $i + 1 ; $j < @inv_prefix_aref ; $j++) {
+                    my $mask = prefix2mask(32 - $j);
+                    $ip = $ip & $mask;    # Perl bug #108480
+                    if (my $up = $inv_prefix_aref[$j]->{$ip}) {
+                        $subnet->{up} = $up;
+                        check_host_compatibility($subnet, $up);
+                        last;
+                    }
+                }
+
+                # Use network, if no enclosing subnet found.
+                $subnet->{up} ||= $network;
             }
         }
 
@@ -5074,22 +5104,6 @@ sub convert_hosts {
                             next;
                         }
                     }
-
-                    # For neighbors, {up} has been set already.
-                    next if $subnet->{up};
-
-                    # Search for enclosing subnet.
-                    for (my $j = $i + 1 ; $j < @inv_prefix_aref ; $j++) {
-                        my $mask = prefix2mask(32 - $j);
-                        $ip = $ip & $mask;    # Perl bug #108480
-                        if (my $up = $inv_prefix_aref[$j]->{$ip}) {
-                            $subnet->{up} = $up;
-                            last;
-                        }
-                    }
-
-                    # Use network, if no enclosing subnet found.
-                    $subnet->{up} ||= $network;
                 }
             }
         }

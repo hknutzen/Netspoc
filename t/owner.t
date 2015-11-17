@@ -402,8 +402,8 @@ router:asa1 = {
 
 END
 
-$out = <<'END';
-Error: owner:a1 has attribute 'show_all', but doesn't own whole topology.
+$out = <<"END";
+Error: owner:a1 has attribute \'show_all\', but doesn\'t own whole topology.
  Missing:
  - any:[network:n2]
  - any:[network:n3]
@@ -432,6 +432,39 @@ END
 $out = <<'END';
 Error: Can't resolve reference to 'xx' in attribute 'owner' of area:a1
 Error: Can't resolve reference to 'xx' in attribute 'owner' of router_attributes of area:a1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Owner mismatch of overlapping hosts';
+############################################################
+
+$in = <<'END';
+owner:a1 = { admins = a1@b.c; }
+owner:a2 = { admins = a2@b.c; }
+owner:a3 = { admins = a3@b.c; }
+
+network:n1 = { ip = 10.1.1.0/24;
+ host:h1 = { range = 10.1.1.7-10.1.1.15; owner = a1; }
+ host:h2 = { range = 10.1.1.7-10.1.1.16; owner = a2; }
+ host:h3 = { ip = 10.1.1.7; owner = a3; }
+ host:h4 = { ip = 10.1.1.16; owner = a3; }
+ host:h5 = { range = 10.1.1.8-10.1.1.11; owner = a3; }
+}
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+}
+END
+
+$out = <<'END';
+Error: Inconsistent owner definition for host:h1 and host:h2
+Error: Inconsistent owner definition for host:h1 and host:h2
+Error: Inconsistent owner definition for host:h1 and host:h3
+Error: Inconsistent owner definition for host:h2 and host:h4
+Error: Inconsistent owner definition for host:h1 and host:h5
 END
 
 test_err($title, $in, $out);
