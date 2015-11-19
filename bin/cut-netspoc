@@ -197,7 +197,7 @@ sub mark_topology {
 sub path_unmanaged {
     my ($obj, $in_interface) = @_;
     return 1 if $obj->{is_used};
-    return if $obj->{managed};
+    return if $obj->{managed} || $obj->{semi_managed};
     return if $obj->{active_path};
 
     local $obj->{active_path} = 1;
@@ -221,7 +221,7 @@ sub mark_unmanaged {
 #        debug "Path unmanaged $network->{name}";
 	for my $interface (@{ $network->{interfaces} }) {
 	    my $router = $interface->{router};
-#	    debug "Path unmanaged $router->{name} $interface->{name}";
+#	    debug "Try $router->{name} $interface->{name}";
 	    if (path_unmanaged($router, $interface)) {
                 $interface->{is_used} = 1;
 #                debug "Marked $interface->{name}";
@@ -423,6 +423,7 @@ mark_unmanaged();
 
 # Mark bridge and bridged networks.
 for my $network (values %networks) {
+    $network->{is_used} or next;
     $network->{bridged} or next;
     for my $bridge_in (@{ $network->{interfaces} }) {
         $bridge_in->{ip} eq 'bridged' or next;
