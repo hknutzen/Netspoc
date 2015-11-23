@@ -255,7 +255,7 @@ where `<network NAT>` must be hidden or dynamic.
 
     <protocol modifier> ::= 
       stateless | oneway | reversed 
-      | src_net | dst_net | src_any | dst_any
+      | src_net | dst_net
       | overlaps | no_check_supernet_rules
 
 ##Groups of protocols

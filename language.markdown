@@ -824,13 +824,8 @@ dst_net
 network N and replace destination by N. Exception: hosts having a
 VPN id and interfaces of manged routers are left unchanged.
 
-dst_any
-: First apply rules of modifier dst_net above. If afterwards the
-destination of rule is a network, find the aggregate of the
-enclosing security zone X and replace destination by X.
-
-src_net, src_any
-: Equivalent to dst_* modifiers but applied to source of rule. 
+src_net
+: Equivalent to dst_net modifier but applied to source of rule. 
 
 ## Keyword "foreach" in services
 
