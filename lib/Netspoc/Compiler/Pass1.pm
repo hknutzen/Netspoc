@@ -2863,20 +2863,18 @@ sub read_simple_protocol {
     return $protocol;
 }
 
-sub check_protocol_flags {
+sub check_protocol_modifiers {
     my ($protocol) = @_;
     while (check ',') {
         my $flag = read_identifier;
-        if ($flag =~ /^(src|dst)_(net|any)$/) {
-            $protocol->{flags}->{$1}->{$2} = 1;
-        }
-        elsif ($flag =~
-            /^(?:stateless|reversed|oneway|overlaps|no_check_supernet_rules)/)
+        if ($flag =~ /^(?:reversed | stateless | oneway |
+                          src_net | dst_net |
+                          overlaps | no_check_supernet_rules )/x)
         {
             $protocol->{flags}->{$flag} = 1;
         }
         else {
-            syntax_err("Unknown flag '$flag'");
+            syntax_err("Unknown modifier '$flag'");
         }
     }
     return;
@@ -2890,7 +2888,7 @@ sub read_protocol {
     my $name = shift;
     skip '=';
     my $protocol = read_simple_protocol($name);
-    check_protocol_flags($protocol);
+    check_protocol_modifiers($protocol);
     skip ';';
     return $protocol;
 }
@@ -6161,11 +6159,15 @@ sub classify_protocols {
                 $service->{prt2orig_prt}->{$prt} = $orig_prt;
             }
         }
-        my $src_flag = $flags->{src} || '';
-        my $dst_flag = $flags->{dst} || '';
-        my $key = "$src_flag:$dst_flag";
-        $key = '' if ':' eq $key;
-        if (grep {$_ ne 'src' and $_ ne 'dst' } keys %$flags or $src_range) {
+        my $src_net = $flags->{src_net} || '';
+        my $dst_net = $flags->{dst_net} || '';
+        my $key = $src_net || $dst_net ? "$src_net:$dst_net" : '';
+        if (keys %$flags
+            and
+            grep {$_ ne 'src_net' and $_ ne 'dst_net' } keys %$flags
+            or 
+            $src_range) 
+        {
             push @{$result{$key}->{complex}}, [ $prt, $src_range, $flags ];
         }
         else {
@@ -6231,7 +6233,7 @@ sub normalize_service_rules {
             for my $src_dst_net (sort keys %$src_dst_net2prt_lists) {
                 my ($simple_prt_list, $complex_prt_list) =
                     @{$src_dst_net2prt_lists->{$src_dst_net}}{'simple',
-                                                                  'complex'};
+                                                              'complex'};
                 for my $src_dst_list (@extra_src_dst) {
                     my ($src_list, $dst_list) = @$src_dst_list;
                     if ($simple_prt_list) {
@@ -6802,14 +6804,15 @@ sub set_service_owner {
 }
 
 sub apply_src_dst_modifier {
-    my ($group, $flag) = @_;
+    my ($group) = @_;
     my @modified;
     my @unmodified;
     for my $obj (@$group) {
         my $type = ref $obj;
         my $network;
         if ($type eq 'Network') {
-            $network = $obj;
+            push @unmodified, $obj;
+            next;
         }
         elsif ($type eq 'Host') {
             if ($obj->{id}) {
@@ -6828,12 +6831,8 @@ sub apply_src_dst_modifier {
         else {
             internal_err("unexpected $obj->{name}");
         }
-        if ($flag eq 'any') {
-            push @modified, get_any($network->{zone}, 0, 0);
-        }
-        else {
-            push @modified, $network if $network->{ip} ne 'unnumbered';
-        }
+        next if $network->{ip} eq 'unnumbered';
+        push @modified, $network;
     }
     return [ @unmodified, unique(@modified) ];
 }
@@ -6843,15 +6842,13 @@ sub convert_hosts_in_rules {
     for my $action (qw(permit deny)) {
         my $rules = $service_rules{$action} or next;
         for my $rule (@$rules) {
-            if (my $src_dst_net = $rule->{src_dst_net}) {
+            if (my $src_dst_net = delete $rule->{src_dst_net}) {
                 my ($src_net, $dst_net) = split ':', $src_dst_net;
                 if ($src_net) {
-                    $rule->{src} = 
-                        apply_src_dst_modifier($rule->{src}, $src_net);
+                    $rule->{src} = apply_src_dst_modifier($rule->{src});
                 }
                 if ($dst_net) {
-                    $rule->{dst} = 
-                        apply_src_dst_modifier($rule->{dst}, $dst_net);
+                    $rule->{dst} = apply_src_dst_modifier($rule->{dst});
                 }
             }
             for my $what (qw(src dst)) {
