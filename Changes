@@ -1,5 +1,16 @@
 {{$NEXT}}
 
+4.6       2015-11-23 13:55:13+01:00 Europe/Berlin
+
+ - Overlapping IP address ranges of hosts must have identical owner now.
+ - Protocol modifiers src_any, dst_any are no longer supported.
+ - Routes for ID-hosts (i.e. VPN software clients) are 
+   no longer combined at VPN hub.
+ - Fixed small bug in remove-from-netspoc. 
+   It ignores start of group definition in comments now.
+ - Significant runtime and memory improvement by finding grouped rules 
+   directly from rules of services.
+
 4.5       2015-11-03 16:48:57+01:00 Europe/Berlin
 
  - Routes to adjacent networks are combined now, 
