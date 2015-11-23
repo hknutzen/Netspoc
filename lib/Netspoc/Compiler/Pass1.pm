@@ -3378,7 +3378,8 @@ sub print_rule {
         ref $$what eq 'ARRAY' or next;
         $$what = $$what->[0];
     }
-    $prt = get_orig_prt({%$rule, src => $src, dst => $dst, prt => $prt});
+    my $simple_rule = { %$rule, src => $src, dst => $dst, prt => $prt };
+    $prt = get_orig_prt($simple_rule);
     return
         "$action src=$src->{name}; dst=$dst->{name}; prt=$prt->{name};$extra";
 }
