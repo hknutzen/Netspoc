@@ -23,7 +23,8 @@ sub test_run {
         return '';
     }
     if ($stderr) {
-        print STDERR "Unexpected output on STDERR:\n$stderr\n";
+        ok(0);
+        diag("Unexpected output on STDERR:\n$stderr\n");
         return;
     }
 
@@ -956,6 +957,66 @@ $out = <<'END';
             "has_user" : "both",
             "prt" : [
                "tcp 23"
+            ],
+            "src" : []
+         }
+      ]
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Owner of service with reversed rule';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = o1@b.c; }
+owner:o2 = { admins = o2@b.c; }
+
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; owner = o2; }
+
+protocol:echo = icmp 8;
+protocol:echo-reply = icmp 0, reversed;
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; 
+        dst = network:n2; 
+        prt = protocol:echo, protocol:echo-reply;
+}
+END
+
+$out = <<'END';
+--services
+{
+   "s1" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "o2"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n2"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "icmp 0, reversed",
+               "icmp 8"
             ],
             "src" : []
          }

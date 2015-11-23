@@ -6,6 +6,7 @@ use Test::More;
 use Test::Differences;
 use lib 't';
 use Test_Group;
+use Test_Netspoc;
 
 my ($title, $in, $out, $topo);
 
@@ -58,6 +59,50 @@ $out = <<'END';
 END
 
 test_group($title, $in, 'group:g1 &! network:n2', $out);
+
+############################################################
+$title = 'Mark group in empty rule as used';
+############################################################
+# Don't show warning "unused group:g2 
+$in = <<'END';
+network:n = { ip = 10.1.1.0/24; }
+
+group:g1 = ;
+group:g2 = network:n;
+
+service:s1 = {
+ user = group:g1;
+ permit src = user; dst = group:g2; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Mark group in disabled rule as used';
+############################################################
+# Don't show warning "unused group:g2 
+$in = <<'END';
+network:n = { ip = 10.1.1.0/24; }
+
+group:g1 = ;
+group:g2 = network:n;
+
+service:s1 = {
+ disabled;
+ user = group:g2;
+ permit src = user; dst = group:g2; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Warning: unused group:g1
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;

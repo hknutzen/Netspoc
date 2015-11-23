@@ -242,8 +242,8 @@ END
 
 $out = <<'END';
 --filter
-access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.10 range 81 82
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.11 eq 81
+access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.10 range 81 82
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.11 eq 83
 access-list Vlan1_in extended deny ip any any
 access-group Vlan1_in in interface Vlan1

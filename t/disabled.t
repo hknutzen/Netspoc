@@ -51,4 +51,31 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Ignore disabled interface in intersection';
+############################################################
+
+$in = <<'END';
+#network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; disabled; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+service:test = {
+ user = interface:asa1.[all] &! interface:asa1.n1;
+ permit src = user; dst = network:n2; prt = tcp 22;
+}
+END
+
+$out = <<END;
+Warning: Referencing undefined network:n1 from interface:asa1.n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;

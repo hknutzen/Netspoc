@@ -219,4 +219,50 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Redundant combined hosts';
+############################################################
+# Must recognize combined subnet as redundant.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h1 = {ip = 10.1.2.50;}
+ host:h2 = {ip = 10.1.2.51;}
+}
+
+service:s1 = {
+ overlaps = service:s3;
+ user = network:n1;
+ permit src = user; dst = host:h1; prt = tcp 80;
+}
+service:s2 = {
+ overlaps = service:s3;
+ user = network:n1;
+ permit src = user; dst = host:h2; prt = tcp 80;
+}
+service:s3 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! [ ACL ]
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

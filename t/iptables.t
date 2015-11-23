@@ -442,4 +442,58 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Deterministic output of icmp codes';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+ user = network:n1;
+ permit src = user; 
+        dst = network:n2; 
+        prt = icmp 3/2, icmp 3/1, icmp 3/0, icmp 3/13, icmp 3/3;
+ permit src = network:n2;
+        dst =  user;
+        prt = icmp 3/0, icmp 3/1, icmp 3/2, icmp 3/3, icmp 3/13;
+}
+
+protocol:TCP_21_Reply = tcp 21, reversed;
+END
+
+$out = <<'END';
+--r1
+# [ ACL ]
+:c1 -
+:c2 -
+-A c1 -j ACCEPT -p icmp --icmp-type icmp/0
+-A c1 -j ACCEPT -p icmp --icmp-type icmp/1
+-A c1 -j ACCEPT -p icmp --icmp-type icmp/2
+-A c1 -j ACCEPT -p icmp --icmp-type icmp/3
+-A c1 -j ACCEPT -p icmp --icmp-type icmp/13
+-A c2 -j ACCEPT -p icmp --icmp-type icmp/0
+-A c2 -j ACCEPT -p icmp --icmp-type icmp/1
+-A c2 -j ACCEPT -p icmp --icmp-type icmp/2
+-A c2 -j ACCEPT -p icmp --icmp-type icmp/3
+-A c2 -j ACCEPT -p icmp --icmp-type icmp/13
+--
+:n1_n2 -
+-A n1_n2 -g c1 -s 10.1.1.0/24 -d 10.1.2.0/24 -p icmp --icmp-type 3
+-A FORWARD -j n1_n2 -i n1 -o n2
+--
+:n2_n1 -
+-A n2_n1 -g c2 -s 10.1.2.0/24 -d 10.1.1.0/24 -p icmp --icmp-type 3
+-A FORWARD -j n2_n1 -i n2 -o n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

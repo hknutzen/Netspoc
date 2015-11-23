@@ -63,7 +63,7 @@ use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Encode qw(decode_utf8);
 
-our $VERSION = '4.5'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.6'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -197,7 +197,7 @@ sub mark_topology {
 sub path_unmanaged {
     my ($obj, $in_interface) = @_;
     return 1 if $obj->{is_used};
-    return if $obj->{managed};
+    return if $obj->{managed} || $obj->{semi_managed};
     return if $obj->{active_path};
 
     local $obj->{active_path} = 1;
@@ -221,7 +221,7 @@ sub mark_unmanaged {
 #        debug "Path unmanaged $network->{name}";
 	for my $interface (@{ $network->{interfaces} }) {
 	    my $router = $interface->{router};
-#	    debug "Path unmanaged $router->{name} $interface->{name}";
+#	    debug "Try $router->{name} $interface->{name}";
 	    if (path_unmanaged($router, $interface)) {
                 $interface->{is_used} = 1;
 #                debug "Marked $interface->{name}";
@@ -301,7 +301,8 @@ if (@ARGV) {
 &setpath();
 find_subnets_in_zone();
 link_reroute_permit();
-&expand_services(1);
+normalize_services();
+expand_services();
 
 # Process rules of services.
 sub process_rules {
@@ -318,7 +319,7 @@ sub process_rules {
 #		    debug "Used $obj->{name}";
 		    $obj->{is_used} = 1;
 		}
-		elsif ($type eq 'Subnet') {
+		elsif ($type eq 'Host') {
 		    $obj->{is_used} = 1;
 #		    debug "Used $obj->{name}";
 		    $obj->{network}->{is_used} = 1;
@@ -423,6 +424,7 @@ mark_unmanaged();
 
 # Mark bridge and bridged networks.
 for my $network (values %networks) {
+    $network->{is_used} or next;
     $network->{bridged} or next;
     for my $bridge_in (@{ $network->{interfaces} }) {
         $bridge_in->{ip} eq 'bridged' or next;
@@ -500,6 +502,12 @@ for my $router (values %routers) {
         if (my $crypto_list = $interface->{hub}) {
             $mark_crypto->($_) for @$crypto_list;
         }
+
+        # Mark networks referenced by interfaces 
+        # implictly marked by expand_group.
+        if ($interface->{is_used}) {
+            $interface->{network}->{is_used} = 1;
+        }
     }
 
     # Remove unused hosts referenced in attribute radius_servers.
@@ -525,20 +533,12 @@ for my $network (values %networks) {
     # Retain at least one host of network with ID hosts.
     if ($network->{has_id_hosts}) {
         if (not grep { $_->{is_used} } @$hosts) {
-            $hosts->[0]->{subnets}->[0]->{is_used} = 1;
+            $hosts->[0]->{is_used} = 1;
         }
     }
 
-  HOST:
     for my $host (@$hosts) {
-        for my $subnet (@{ $host->{subnets} }) {
-            my $up = $subnet;
-            while ($up and is_subnet($up)) {
-                next HOST if $up->{is_used};
-                $up = $up->{up};
-            }
-        }
-
+        next if $host->{is_used};
         my $name = $host->{name};
 
         # Remove trailing network name of ID-host.

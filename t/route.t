@@ -242,9 +242,7 @@ ip route 10.1.1.0/28 10.9.1.2
 ip route 10.1.1.0/24 10.9.2.2
 END
 
-Test::More->builder->todo_start("Add all subnets in zone.");
 test_run($title, $in, $out, '-check_redundant_rules=0');
-Test::More->builder->todo_end;
 
 ############################################################
 $title = 'Check NAT when finding largest supernet for route.';

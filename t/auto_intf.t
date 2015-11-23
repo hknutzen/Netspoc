@@ -204,6 +204,94 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Different paths to auto interface with same result';
+############################################################
+
+$in = <<'END';
+network:n1 = {ip = 10.1.1.0/24;}
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = {ip = 10.1.1.1;hardware = n1;}
+ interface:n2 = {ip = 10.1.2.1;hardware = n2;}
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h2 = { ip = 10.1.2.10;}
+}
+
+router:r2 = {
+ model = Linux;
+ managed;
+ interface:n2 = {ip = 10.1.2.2; hardware = n2;}
+}
+
+service:s1 = {
+ user = host:h2, network:n1;
+ permit src = user;
+	dst = interface:r2.[auto];
+	prt = udp 161;
+}
+END
+
+$out = <<'END';
+--r2
+# [ ACL ]
+:c1 -
+-A c1 -j ACCEPT -s 10.1.2.10
+-A c1 -j ACCEPT -s 10.1.1.0/24
+--
+:n2_self -
+-A n2_self -g c1 -s 10.1.0.0/22 -d 10.1.2.2 -p udp --dport 161
+-A INPUT -j n2_self -i n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Different paths to auto interface with different result';
+############################################################
+
+$in = <<'END';
+network:n1 = {ip = 10.1.1.0/24;}
+
+router:r1 = {
+ model = Linux;
+ managed;
+ interface:n1 = {ip = 10.1.1.1;hardware = n1;}
+ interface:n2 = {ip = 10.1.2.1;hardware = n2;}
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h2 = { ip = 10.1.2.10;}
+}
+
+service:s1 = {
+ user = host:h2, network:n1;
+ permit src = user;
+	dst = interface:r1.[auto];
+	prt = udp 161;
+}
+END
+
+$out = <<'END';
+--r1
+# [ ACL ]
+:n1_self -
+-A n1_self -j ACCEPT -s 10.1.1.0/24 -d 10.1.1.1 -p udp --dport 161
+-A INPUT -j n1_self -i n1
+--
+:n2_self -
+-A n2_self -j ACCEPT -s 10.1.2.10 -d 10.1.2.1 -p udp --dport 161
+-A INPUT -j n2_self -i n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Multiple interfaces talk to policy_distribution_point';
 ############################################################
 
@@ -269,9 +357,6 @@ $out = <<'END';
 Error: Must not use interface:r.[auto] and interface:r.x together
  in intersection of user of service:test
 Warning: Useless delete of interface:r.x in user of service:test
-Error: Must not use interface:r.[auto] and interface:r.x together
- in intersection of user of service:test
-Warning: Useless delete of interface:r.x in user of service:test
 END
 
 test_err($title, $in, $out);
@@ -309,9 +394,6 @@ $out = <<'END';
 Error: Must not use interface:[network:x].[auto] and interface:r.x together
  in intersection of user of service:test
 Warning: Useless delete of interface:r.x in user of service:test
-Error: Must not use interface:[network:x].[auto] and interface:r.x together
- in intersection of user of service:test
-Warning: Useless delete of interface:r.x in user of service:test
 END
 
 test_err($title, $in, $out);
@@ -331,9 +413,6 @@ $out = <<'END';
 Error: Must not use interface:[network:x].[auto] and interface:r.[auto] together
  in intersection of user of service:test
 Warning: Useless delete of interface:r.[auto] in user of service:test
-Error: Must not use interface:[network:x].[auto] and interface:r.[auto] together
- in intersection of user of service:test
-Warning: Useless delete of interface:r.[auto] in user of service:test
 END
 
 test_err($title, $in, $out);
@@ -350,7 +429,6 @@ service:test = {
 END
 
 $out = <<'END';
-Warning: Useless delete of interface:[network:y].[auto] in user of service:test
 Warning: Useless delete of interface:[network:y].[auto] in user of service:test
 END
 
