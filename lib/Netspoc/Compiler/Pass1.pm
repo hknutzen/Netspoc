@@ -110,6 +110,7 @@ our @EXPORT = qw(
   set_service_owner
   link_reroute_permit
   expand_protocols
+  get_orig_prt
   expand_group
   expand_group_in_rule
   normalize_services

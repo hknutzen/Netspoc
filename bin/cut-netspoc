@@ -335,11 +335,8 @@ sub process_rules {
 		}		    
 	    }
 	    &single_path_walk($rule, \&mark_topology);
-	    if($rule->{orig_prt}){
-		$rule->{orig_prt}->{is_used} = 1;
-	    } else {
-		$rule->{prt}->{is_used} = 1;
-	    }
+            my $prt = get_orig_prt($rule);
+            $prt->{is_used} = 1;
 	}
     }
     return;
