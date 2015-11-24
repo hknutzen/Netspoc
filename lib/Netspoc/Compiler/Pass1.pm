@@ -136,7 +136,6 @@ our @EXPORT = qw(
   gen_reverse_rules
   mark_secondary_rules
   rules_distribution
-  local_optimization
   check_output_dir
   address
   print_code
@@ -12540,9 +12539,6 @@ sub expand_crypto {
                                     ip         => 'tunnel',
                                     src        => $subnet,
                                     no_nat_set => $no_nat_set,
-
-                                    # Needed during local_optimization.
-                                    router => $peer->{router},
                                 };
                             }
                         }
