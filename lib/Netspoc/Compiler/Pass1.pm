@@ -4946,7 +4946,7 @@ sub check_host_compatibility {
                     " $other_subnet->{name} and $host->{name}");
 
     owner_eq($host, $other_subnet) or
-        err_msg("Inconsistent owner definition for",
+        warn_msg("Inconsistent owner definition for",
                 " $other_subnet->{name} and $host->{name}");
 }
 
