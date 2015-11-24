@@ -92,11 +92,9 @@ our @EXPORT = qw(
   is_interface
   is_host
   is_subnet
-  is_every
   is_group
   is_protocolgroup
   is_objectgroup
-  is_chain
   is_autointerface
   get_intf
   read_netspoc
@@ -3357,7 +3355,6 @@ sub is_zone          { ref($_[0]) eq 'Zone'; }
 sub is_group         { ref($_[0]) eq 'Group'; }
 sub is_protocolgroup { ref($_[0]) eq 'Protocolgroup'; }
 sub is_objectgroup   { ref($_[0]) eq 'Objectgroup'; }
-sub is_chain         { ref($_[0]) eq 'Chain'; }
 sub is_autointerface { ref($_[0]) eq 'Autointerface'; }
 
 ## use critic
