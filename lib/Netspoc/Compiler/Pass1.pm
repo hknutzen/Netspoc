@@ -2440,9 +2440,9 @@ sub read_router {
     return $router;
 }
 
-# No traffic must traverse crypto or secondary interface.
+# No traffic must traverse crypto interface.
 # Hence split router into separate instances, one instance for each
-# crypto/secondary interface.
+# crypto interface.
 # Splitted routers are tied by identical attribute {device_name}.
 sub move_locked_interfaces {
     my ($interfaces) = @_;
