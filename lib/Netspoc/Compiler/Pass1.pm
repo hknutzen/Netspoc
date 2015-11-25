@@ -9308,9 +9308,7 @@ sub link_aggregates {
 
     for my $name (sort keys %aggregates) {
         my $aggregate = $aggregates{$name};
-        my ($type, $name) = @{ delete($aggregate->{link}) };
-        my $err;
-        my $router;
+        my ($type, $name) = @{ $aggregate->{link} };
 
         # Assure aggregates to be linked to networks only
         if ($type ne 'network') {
