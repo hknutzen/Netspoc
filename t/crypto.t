@@ -1220,8 +1220,15 @@ router:extern = {
 network:internet = { ip = 0.0.0.0/0; has_subnets; }
 
 router:firewall = {
- interface:internet = { bind_nat = vpn1; }
- interface:dmz1 = { ip = 10.254.254.144; }
+ managed;
+ model = ASA;
+ interface:internet = { 
+  ip = 1.1.1.1;
+  bind_nat = vpn1;
+  routing = dynamic;
+  hardware = outside; 
+ }
+ interface:dmz1 = { ip = 10.254.254.144; hardware = inside; }
 }
 
 network:dmz1 = {
@@ -1298,6 +1305,19 @@ ip access-list extended GigabitEthernet0_in
  permit udp host 1.2.3.2 eq 500 host 10.254.254.6 eq 500
  permit udp host 1.2.3.2 eq 4500 host 10.254.254.6 eq 4500
  deny ip any any
+--firewall
+! [ ACL ]
+access-list outside_in extended permit 50 host 1.2.3.2 host 1.2.3.129
+access-list outside_in extended permit udp host 1.2.3.2 eq 500 host 1.2.3.129 eq 500
+access-list outside_in extended permit udp host 1.2.3.2 eq 4500 host 1.2.3.129 eq 4500
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
+--
+access-list inside_in extended permit 50 host 10.254.254.6 host 1.2.3.2
+access-list inside_in extended permit udp host 10.254.254.6 eq 500 host 1.2.3.2 eq 500
+access-list inside_in extended permit udp host 10.254.254.6 eq 4500 host 1.2.3.2 eq 4500
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
 END
 
 test_run($title, $in, $out);
