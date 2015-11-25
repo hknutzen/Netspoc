@@ -18175,8 +18175,8 @@ sub compile {
     # been set up.
     link_reroute_permit();
 
-    propagate_owners();
     normalize_services();
+    propagate_owners();
     set_service_owner();
     convert_hosts_in_rules();
     expand_services();

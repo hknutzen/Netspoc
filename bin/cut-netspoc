@@ -297,8 +297,8 @@ if (@ARGV) {
 &link_topology();
 &mark_disabled();
 &set_zone();
-&distribute_nat_info();
 &setpath();
+&distribute_nat_info();
 find_subnets_in_zone();
 link_reroute_permit();
 normalize_services();
