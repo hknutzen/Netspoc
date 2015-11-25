@@ -9279,16 +9279,6 @@ sub link_implicit_aggregate_to_zone {
         last;
     }
 
-    # Inherit owner from smallest supernet having owner or from zone.
-    my $up = $aggregate->{up};
-    my $owner;
-    while ($up) {
-        $owner = $up->{owner} and last;
-        $up = $up->{up};
-    }
-    $owner ||= $zone->{owner};
-    $owner and $aggregate->{owner} = $owner;
-
     link_aggregate_to_zone($aggregate, $zone, $key);
     add_managed_hosts_to_aggregate($aggregate);
     return;
