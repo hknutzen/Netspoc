@@ -13685,24 +13685,6 @@ sub gen_reverse_rules {
 # Otherwise a rules is implemented typical.
 ##############################################################################
 
-##############################################################################
-# Purpose    : Identify the zone an object belongs to.
-# Parameters : $obj - a network, subnet or interface object.
-# Returns    : The identified zone.
-sub get_zone2 {
-    my ($obj) = @_;
-    my $type = ref $obj;
-    if ($type eq 'Network') {
-        return $obj->{zone};
-    }
-    elsif ($type eq 'Subnet') {
-        return $obj->{network}->{zone};
-    }
-    elsif ($type eq 'Interface') {
-        return $obj->{network}->{zone};
-    }
-}
-
 # Mark security zone $zone with $mark and
 # additionally mark all security zones
 # which are connected with $zone by secondary packet filters.
