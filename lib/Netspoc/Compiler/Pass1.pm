@@ -7540,13 +7540,14 @@ sub set_policy_distribution_ip {
         }
     }
     if (@unreachable) {
-        if (@unreachable > 4) {
+        my $count = @unreachable;
+        if ($count > 4) {
             splice(@unreachable, 3, @unreachable - 3, '...');
         }
         my $list = join("\n - ", @unreachable);
-        warn_msg(
-            "Missing rules to reach devices from policy_distribution_point:\n",
-            " - ",
+        warn_msg("Missing rules to reach $count devices from",
+                 " policy_distribution_point:\n",
+                 " - ",
             $list
         );
     }
