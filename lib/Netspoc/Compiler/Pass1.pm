@@ -255,6 +255,7 @@ my %router_info = (
         },
         stateless_icmp      => 1,
         has_out_acl         => 1,
+        can_acl_use_real_ip  => 1,
         can_objectgroup     => 1,
         can_dyn_crypto      => 1,
         crypto              => 'ASA',
@@ -1895,6 +1896,7 @@ our %routers;
 
 sub read_router {
     my $name = shift;
+    my $has_bind_nat;
 
     # Extract
     # - router name without prefix "router:", needed to build interface name
@@ -1937,6 +1939,9 @@ sub read_router {
         }
         elsif (check_flag 'log_deny') {
             $router->{log_deny} = 1;
+        }
+        elsif (check_flag 'acl_use_real_ip') {
+            $router->{acl_use_real_ip} = 1;
         }
         elsif (my $routing = check_routing()) {
             add_attribute($router, routing => $routing);
@@ -2110,6 +2115,8 @@ sub read_router {
                 delete $hardware->{loopback};
             }
 
+            $has_bind_nat = 1 if $interface->{bind_nat};
+
             # Remember, which logical interfaces are bound
             # to which hardware.
             push @{ $hardware->{interfaces} }, $interface;
@@ -2191,6 +2198,7 @@ sub read_router {
         }
 
         # Detailed interface processing for managed routers.
+        my $has_crypto;
         for my $interface (@{ $router->{interfaces} }) {
             if (defined $interface->{security_level}
                 && !$model->{has_interface_level})
@@ -2199,6 +2207,7 @@ sub read_router {
                     " at $interface->{name}");
             }
             if ($interface->{hub} or $interface->{spoke}) {
+                $has_crypto = 1;
                 $model->{crypto}
                   or err_msg "Crypto not supported for $name",
                   " of model $model->{name}";
@@ -2284,22 +2293,35 @@ sub read_router {
 
         check_no_in_acl($router);
 
+        if ($router->{acl_use_real_ip}) {
+            $has_bind_nat or 
+                warn_msg("Ignoring attribute 'acl_use_real_ip' at $name,\n",
+                         " because it has no interface with 'bind_nat'");
+            $model->{can_acl_use_real_ip} or
+                warn_msg("Ignoring attribute 'acl_use_real_ip' at $name,",
+                         " of model $model->{name}");
+            2 == @{ $router->{hardware} } or
+                err_msg("Can't use attribute 'acl_use_real_ip' at $name,\n",
+                        " it is only applicable at device with 2 interfaces");
+            $router->{has_crypto} and
+                err_msg("Must not use attribute 'acl_use_real_ip' at $name",
+                        " having crypto interfaces");
+        }
         if ($managed =~ /^local/) {
-            grep { $_->{bind_nat} } @{ $router->{interfaces} }
-              and err_msg "Attribute 'bind_nat' is not allowed",
-              " at interface of $name with 'managed = $managed'";
+            $has_bind_nat and 
+                err_msg("Attribute 'bind_nat' is not allowed",
+                        " at interface of $name with 'managed = $managed'");
         }
         if ($model->{do_auth}) {
-
             grep { $_->{hub} } @{ $router->{interfaces} }
-              or err_msg "Attribute 'hub' needs to be defined",
-              "  at an interface of $name of model $model->{name}";
+              or err_msg("Attribute 'hub' needs to be defined",
+                         " at an interface of $name of model $model->{name}");
 
             # Don't support NAT for VPN, otherwise code generation for VPN
             # devices will become more difficult.
-            grep { $_->{bind_nat} } @{ $router->{interfaces} }
-              and err_msg "Attribute 'bind_nat' is not allowed",
-              " at interface of $name of model $model->{name}";
+            $has_bind_nat and
+              err_msg("Attribute 'bind_nat' is not allowed",
+                      " at interface of $name of model $model->{name}");
 
             $router->{radius_attributes} ||= {};
         }
@@ -16759,8 +16781,9 @@ sub print_cisco_acls {
     my $model         = $router->{model};
     my $filter        = $model->{filter};
     my $managed_local = $router->{managed} =~ /^local/;
-
-    for my $hardware (@{ $router->{hardware} }) {
+    my $hw_list       = $router->{hardware};
+    
+    for my $hardware (@$hw_list) {
 
         # Ignore if all logical interfaces are loopback interfaces.
         next if $hardware->{loopback};
@@ -16796,6 +16819,12 @@ sub print_cisco_acls {
                 name => $acl_name,
                 no_nat_set => $no_nat_set,
             };
+
+            if ($router->{acl_use_real_ip}) {
+                my $hw0 = $hw_list->[0];
+                my $dst_hw = $hardware eq $hw0 ? $hw_list->[1] : $hw0;
+                $acl_info->{dst_no_nat_set} = $dst_hw->{no_nat_set};
+            }
 
             # - Collect incoming ACLs,
             # - protect own interfaces,
@@ -17593,6 +17622,7 @@ sub print_acls {
             my %no_opt_addrs;
 
             my $no_nat_set = delete $acl->{no_nat_set};
+            my $dst_no_nat_set = delete $acl->{dst_no_nat_set} || $no_nat_set;
 
             if ($need_protect and delete $acl->{protect_self}) {
                 $acl->{need_protect} = [
@@ -17716,7 +17746,8 @@ sub print_acls {
                     }
                     $new_rule->{src} = [ map { print_address($_, $no_nat_set) } 
                                          @{ $rule->{src} } ];
-                    $new_rule->{dst} = [ map { print_address($_, $no_nat_set) }
+                    $new_rule->{dst} = [ map { print_address($_, 
+                                                             $dst_no_nat_set) }
                                          @{ $rule->{dst} } ];
                     $new_rule->{prt} = [ map { print_prt($_) }
                                          @{ $rule->{prt} } ];
