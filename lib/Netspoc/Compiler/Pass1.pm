@@ -7404,7 +7404,7 @@ sub expand_services {
     show_unenforceable();
     warn_useless_unenforceable();
     print_rulecount();
-    progress('Preparing optimization');
+    progress('Finding duplicate rules');
     for my $type (qw(deny permit)) {
         add_rules($expanded_rules{$type});
     }
@@ -14266,7 +14266,7 @@ sub optimize_rules {
 }
 
 sub optimize_and_warn_deleted {
-    progress('Optimizing globally');
+    progress('Finding redundant rules');
     setup_ref2obj();
     optimize_rules(\%rule_tree, \%rule_tree);
     print_rulecount();
