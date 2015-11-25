@@ -7567,10 +7567,6 @@ sub set_natdomain {
     # Found a loop inside a NAT domain.
     return if $network->{nat_domain};
 
-    my $check_nat_err = sub {
-        my ($router, $nat_tags1, $nat_tags2) = @_;
-    };
-
 #    debug("$domain->{name}: $network->{name}");
     $network->{nat_domain} = $domain;
     push @{ $domain->{networks} }, $network;
