@@ -94,7 +94,6 @@ our @EXPORT = qw(
   is_subnet
   is_group
   is_protocolgroup
-  is_objectgroup
   is_autointerface
   get_intf
   read_netspoc
@@ -3354,7 +3353,6 @@ sub is_area          { ref($_[0]) eq 'Area'; }
 sub is_zone          { ref($_[0]) eq 'Zone'; }
 sub is_group         { ref($_[0]) eq 'Group'; }
 sub is_protocolgroup { ref($_[0]) eq 'Protocolgroup'; }
-sub is_objectgroup   { ref($_[0]) eq 'Objectgroup'; }
 sub is_autointerface { ref($_[0]) eq 'Autointerface'; }
 
 ## use critic
@@ -16310,9 +16308,6 @@ sub address {
               $network->{ip} | $obj->{ip} & complement_32bit $network->{mask};
             return [ $ip, 0xffffffff ];
         }
-    }
-    elsif ($type eq 'Objectgroup') {
-        return $obj;
     }
     else {
         my $type = ref $obj;
