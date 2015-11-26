@@ -7434,7 +7434,7 @@ sub expand_services {
 }
 
 # For each device, find the IP address which is used
-# to manage the device from a central policy distribution point.
+# to manage the device from a central policy distribution point (PDP).
 # This address is added as a comment line to each generated code file.
 # This is to be used later when approving the generated code file.
 sub set_policy_distribution_ip {
@@ -7447,56 +7447,45 @@ sub set_policy_distribution_ip {
         }
         keys %{ $prt_hash{tcp} });
     my @prt_list = (@{ $prt_hash{tcp} }{@admin_tcp_keys}, $prt_hash{ip});
+    my %is_admin_prt = map { $_ => 1 } @prt_list;
 
     # Mapping from policy distribution host to subnets, networks and
     # aggregates that include this host.
-    my %host2pdp_src;
+    my %host2is_pdp_src;
     my $get_pdp_src = sub {
         my ($host) = @_;
-        my $pdp_src;
-        if ($pdp_src = $host2pdp_src{$host}) {
-            return $pdp_src;
+        my $is_pdp_src;
+        if ($is_pdp_src = $host2is_pdp_src{$host}) {
+            return $is_pdp_src;
         }
         for my $pdp (map { $_ } @{ $host->{subnets} }) {
             while ($pdp) {
-                push @$pdp_src, $pdp;
+                $is_pdp_src->{$pdp} = 1;
                 $pdp = $pdp->{up};
             }
         }
-        return $host2pdp_src{$host} = $pdp_src;
+        return $host2is_pdp_src{$host} = $is_pdp_src;
     };
+    my %router2found_interfaces;
+    for my $rule (@{ $path_rules{permit} }) {
+        my $dst_path = $rule->{dst_path};
+        next if is_zone($dst_path);
+        my $router = $dst_path->{router} || $dst_path;
+        my $pdp = $router->{policy_distribution_point} or next;
+        grep { $is_admin_prt{$_} } @{ $rule->{prt} } or next;
+        my $is_pdp_src = $get_pdp_src->($pdp);
+        grep { $is_pdp_src->{$_} } @{ $rule->{src} } or next;
+        my @dst_list = grep { not $_->{vip} } @{ $rule->{dst} };
+        @{$router2found_interfaces{$router}}{@dst_list} = @dst_list;
+    }
     for my $router (@managed_routers, @routing_only_routers) {
         my $pdp = $router->{policy_distribution_point} or next;
-        next if $router->{orig_router};
-
-        my %found_interfaces;
-        my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
-        my $pdp_src    = $get_pdp_src->($pdp);
-        my $stateless  = '';
-        my $deny       = '';
-        my $src_range  = $prt_ip;
-        for my $src (@$pdp_src) {
-            my $sub_rule_tree =
-              $rule_tree{$stateless}->{$deny}->{$src_range}->{$src}
-              or next;
-
-            # Find interfaces where some rule permits management traffic.
-            for my $interface (@{ $router->{interfaces} }) {
-
-                # Loadbalancer VIP can't be used to access device.
-                next if $interface->{vip};
-
-                for my $prt (@prt_list) {
-                    $sub_rule_tree->{$interface}->{$prt} or next;
-                    $found_interfaces{$interface} = $interface;
-                }
-            }
-        }
+        my $found_interfaces = $router2found_interfaces{$router};
         my @result;
 
         # Ready, if exactly one management interface was found.
-        if (keys %found_interfaces == 1) {
-            @result = values %found_interfaces;
+        if (keys %$found_interfaces == 1) {
+            @result = values %$found_interfaces;
         }
         else {
 
@@ -7506,7 +7495,7 @@ sub set_policy_distribution_ip {
             # If multiple management interfaces were found, take that which is
             # directed to policy_distribution_point.
             for my $front (@front) {
-                if ($found_interfaces{$front}) {
+                if ($found_interfaces->{$front}) {
                     push @result, $front;
                 }
             }
@@ -7515,7 +7504,7 @@ sub set_policy_distribution_ip {
             # Preserve original order of router interfaces.
             if (!@result) {
                 @result =
-                  grep { $found_interfaces{$_} } @{ $router->{interfaces} };
+                  grep { $found_interfaces->{$_} } @{ $router->{interfaces} };
             }
 
             # Don't set {admin_ip} if no address is found.
@@ -7523,7 +7512,10 @@ sub set_policy_distribution_ip {
             next if not @result;
         }
 
+        # Lookup interface address in NAT domain of PDP, because PDP
+        # needs to access the device.
         # Prefer loopback interface if available.
+        my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
         $router->{admin_ip} = [
             map { print_ip((address($_, $no_nat_set))->[0]) }
             sort { ($b->{loopback} || '') cmp($a->{loopback} || '') } @result
@@ -18190,7 +18182,6 @@ sub compile {
     # Abort now, if there had been syntax errors and simple semantic errors.
     &abort_on_error();
     &check_unused_groups();
-    set_policy_distribution_ip();
     &optimize_and_warn_deleted();
     find_subnets_in_nat_domain();
 
@@ -18202,6 +18193,7 @@ sub compile {
     &check_supernet_rules();
 
     group_path_rules();
+    set_policy_distribution_ip();
     &expand_crypto();
     prepare_nat_commands();
     find_active_routes();
