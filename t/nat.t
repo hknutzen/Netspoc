@@ -318,6 +318,28 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'NAT tag without effect';
+############################################################
+
+$in = <<'END';
+network:n1 =  { ip = 10.1.1.0/24; nat:x = { ip = 10.9.9.0/24; } }
+
+router:r1 = {
+ interface:n1 = { bind_nat = x; }
+ interface:n2 = { bind_nat = x; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Warning: Ignoring nat:x without effect, bound at every interface of router:r1
+Warning: nat:x is defined, but not bound to any interface
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Check rule with host and dynamic NAT';
 ############################################################
 

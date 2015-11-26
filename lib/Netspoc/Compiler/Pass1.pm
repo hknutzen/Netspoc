@@ -7622,7 +7622,9 @@ sub set_natdomain {
         # Remember NAT tags at loop entry.
         local $router->{active_path} = $nat_tags;
 
-        for my $out_interface (@{ $router->{interfaces} }) {
+        my $useless_nat = 1;
+        my $interfaces = $router->{interfaces};
+        for my $out_interface (@$interfaces) {
 
             # Don't process interface where we reached this router.
             next if $out_interface eq $interface;
@@ -7640,10 +7642,18 @@ sub set_natdomain {
             # New NAT domain starts at some interface of current router.
             # Remember NAT tag of current domain.
             elsif (not $router->{nat_tags}->{$domain}) {
+                $useless_nat = undef;
                 $router->{nat_tags}->{$domain} = $nat_tags;
                 push @{ $domain->{routers} },     $router;
                 push @{ $router->{nat_domains} }, $domain;
             }
+        }
+        if ($useless_nat and @$nat_tags and
+            grep { not $_->{hub} and not $_->{spoke} } @$interfaces)
+        {
+            my $list = join ',', map { "nat:$_" } @$nat_tags;
+            warn_msg("Ignoring $list without effect, bound at",
+                     " every interface of $router->{name}");
         }
     }
     return;
