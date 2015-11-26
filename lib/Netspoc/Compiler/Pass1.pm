@@ -2151,8 +2151,10 @@ sub read_router {
     }
     if (my $managed = $router->{managed}) {
         if ($managed =~ /^local/) {
-            $router->{filter_only}
-              or err_msg("Missing attribute 'filter_only' for $name");
+            if (not $router->{filter_only}) {
+                $router->{filter_only} = [];
+                err_msg("Missing attribute 'filter_only' for $name");
+            }
             $model->{has_io_acl}
               and err_msg("Must not use 'managed = $managed' at $name",
                 " of model $model->{name}");
@@ -13924,8 +13926,6 @@ sub mark_dynamic_host_nets {
 sub check_dynamic_nat_rules {
     progress('Checking rules with hidden or dynamic NAT');
 
-    mark_dynamic_host_nets();
-
     # Collect hidden or dynamic NAT tags.
     my %is_dynamic_nat_tag;
     for my $network (@networks) {
@@ -18172,17 +18172,11 @@ sub compile {
     # been set up.
     link_reroute_permit();
 
-    normalize_services();
-    propagate_owners();
-    set_service_owner();
-    convert_hosts_in_rules();
-    expand_services();
-    check_dynamic_nat_rules();
+    # Sets attributes used in check_dynamic_nat_rules and 
+    # for ACL generation.
+    mark_dynamic_host_nets();
 
-    # Abort now, if there had been syntax errors and simple semantic errors.
-    &abort_on_error();
-    &check_unused_groups();
-    &optimize_and_warn_deleted();
+    normalize_services();
     find_subnets_in_nat_domain();
 
     # Call after {up} relation for anonymous aggregates in rules have
@@ -18190,6 +18184,17 @@ sub compile {
     # after {is_in} relation has been set up.
     mark_managed_local();
 
+    propagate_owners();
+    set_service_owner();
+    # Abort now, if there had been syntax errors and simple semantic errors.
+    &abort_on_error();
+
+    convert_hosts_in_rules();
+
+    &check_unused_groups();
+    expand_services();
+    check_dynamic_nat_rules();
+    &optimize_and_warn_deleted();
     &check_supernet_rules();
 
     group_path_rules();
