@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+ - New attribute 'acl_use_real_ip' for model 'ASA'.
+   If set and NAT is applied at this device, ACLs are created with
+   real IP instead of translated IP.
+
 4.6       2015-11-23 13:55:13+01:00 Europe/Berlin
 
  - Overlapping IP address ranges of hosts must have identical owner now.
