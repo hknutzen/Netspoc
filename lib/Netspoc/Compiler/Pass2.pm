@@ -2175,24 +2175,78 @@ sub check_prev {
         -f $pass1prev or return;
         system("cmp -s $pass1name $pass1prev") == 0 or return;
     }
-    return 1;        
+    return 1;
+}
+
+sub pass2_file {
+    my ($file) = @_;
+    my $router_data = prepare_acls("$file.rules");
+    my $config = read_file_lines("$file.config");
+    print_combined($config, $router_data, $file);
+}
+
+# Start $code in background.
+sub background {
+    my ($code, @args) = @_;
+    my $pid = fork();
+    defined $pid or die "Can't fork:$!";
+    if (0 == $pid) {
+        $code->(@args);
+        exit;
+    }
+}
+
+sub apply_concurrent {
+    my ($code, $list, $concurrent) = @_;
+
+    # Process sequentially.
+    if (1 >= $concurrent) {
+        for my $arg (@$list) {
+            $code->($arg);
+        }
+    }
+
+    # Process with $concurrent background jobs.
+    # Error messages are send directly to STDERR.
+    else {
+        my $errors;
+        for my $arg (@$list) {
+
+            # Start concurrent jobs.
+            if (0 < $concurrent) {
+                background($code, $arg);
+                $concurrent--;
+                next;
+            }
+            
+            # Start next job, after some job has finished.
+            my $pid = wait();
+            if ($pid != -1) {
+                $? and $errors++;
+            }
+            background($code, $arg);
+        }
+        $errors and die "Failed\n";
+    }
 }
 
 sub pass2 {
     my ($dir) = @_;
+    progress("Starting second pass");
+
     my $prev = "$dir/.prev";
     my $has_prev = -d $prev;
     my @pass1_base = map { basename($_, '.config') } glob("$dir/*.config");
     my @pass2_list;
 
     my $count = @pass1_base;
-    progress("Starting second pass");
     my $reused;
+
+    # Try to reuse previously generated code files.
     for my $basename (@pass1_base) {
         my $code_file = "$dir/$basename";
         my $prev_file = "$prev/$basename";
 
-        # Try to reuse prevously generated code file.
         if ($has_prev and check_prev($code_file, $prev_file) and
             system("cp -p $prev_file $code_file") == 0)
         {
@@ -2207,12 +2261,12 @@ sub pass2 {
 
     # Generate new code files.
     if ($count = @pass2_list) {
-        progress("Generating optimized code for $count devices");
-        for my $file (@pass2_list) {
-            my $router_data = prepare_acls("$file.rules");
-            my $config = read_file_lines("$file.config");
-            print_combined($config, $router_data, $file);
-        }
+        my $concurrent = $config->{concurrency_pass2};
+        $concurrent = $count if $concurrent > $count;
+        my $msg = "Generating optimized code for $count devices";
+        $msg .= " using $concurrent processes" if $concurrent > 1;
+        progress($msg);
+        apply_concurrent(\&pass2_file, \@pass2_list, $concurrent);
     }
 
     # Remove directory '.prev', if created by pass1.

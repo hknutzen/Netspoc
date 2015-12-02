@@ -99,6 +99,7 @@ our %config = (
 
 # Set value to >= 2 to start concurrent processing.
     concurrency_pass1 => 1,
+    concurrency_pass2 => 1,
 
 # Abort after this many errors.
     max_errors => 10,
