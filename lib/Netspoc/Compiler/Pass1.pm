@@ -69,7 +69,6 @@ our @EXPORT = qw(
   fast_mode
   init_global_vars
   abort_on_error
-  set_abort_immediately
   syntax_err
   internal_err
   err_msg
@@ -406,30 +405,28 @@ sub context {
     return qq/ at line $line of $current_file, $context\n/;
 }
 
+sub syntax_err {
+    my (@args) = @_;
+    die "Syntax error: ", @args, context();
+}
+
 sub at_line {
     return qq/ at line $line of $current_file\n/;
 }
 
 our $error_counter;
-our $abort_immediately;
 
 sub check_abort {
     $error_counter++;
-    if ($error_counter == $config->{max_errors}) {
+    if ($error_counter >= $config->{max_errors}) {
         die "Aborted after $error_counter errors\n";
-    }
-    elsif ($abort_immediately) {
-        die "Aborted\n";
     }
 }
 
 sub abort_on_error {
-    die "Aborted with $error_counter error(s)\n" if $error_counter;
-    return;
-}
-
-sub set_abort_immediately {
-    $abort_immediately = 1;
+    if ($error_counter) {
+        die "Aborted with $error_counter error(s)\n" 
+    }
     return;
 }
 
@@ -447,25 +444,20 @@ sub err_msg {
     return;
 }
 
-sub syntax_err {
-    my (@args) = @_;
-    die "Syntax error: ", @args, context();
-}
-
 sub internal_err {
     my (@args) = @_;
 
     # Don't show inherited error.
     # Abort immediately, if other errors have already occured.
-    if ($error_counter) {
-        die "Aborted after $error_counter errors\n";
-    }
+    abort_on_error();
+
+    $error_counter++;
     my (undef, $file, $line) = caller;
     my $sub = (caller 1)[3];
     my $msg = "Internal error in $sub";
     $msg .= ": @args" if @args;
-
-    die "$msg\n at $file line $line\n";
+    $msg = "$msg\n at $file line $line\n";
+    die $msg;
 }
 
 ####################################################################
@@ -17989,6 +17981,69 @@ sub show_version {
     return;
 }
 
+# Start concurrent jobs.
+sub concurrent {
+    my ($code1, $code2) = @_;
+
+    # Process sequentially.
+    if (1 >= $config->{concurrency_pass1}) {
+        $code1->();
+        $code2->();
+    }
+
+    # Parent.
+    # Fork process and read output of child process.
+    elsif (my $child_pid = open(my $child_fd, '-|')) {
+
+        $code1->();
+
+        # Show child ouput.
+        progress('Output of background job:');
+        while (my $line = <$child_fd>) {
+
+            # Indent output of child.
+            print STDERR " $line";
+        }
+
+        # Check exit status of child.
+        if (not close ($child_fd)) {
+            my $status = $?;
+            if ($status != 0) {
+                my $err_count = $status >> 8;
+                if (not $err_count) {
+                    internal_err("Background process died with status $status");
+                }
+                $error_counter += $err_count;
+            }
+        }
+        abort_on_error();
+    }
+
+    # Child
+    elsif (defined $child_pid) {
+
+        # Catch errors,
+        eval { 
+
+            # Redirect STDERR to STDOUT, so parent can read output of child.
+            open (STDERR, ">&STDOUT") or internal_err("Can't dup STDOUT: $!");
+
+            $code2->(); 
+        };
+        if ($@) {
+
+            # Show internal errors, but not "Aborted" message.
+            if ($@ !~ /^Aborted /) {
+                print STDOUT $@;
+            }
+        }
+        exit $error_counter;
+    }
+    else {
+        internal_err("Can't start child: $!");
+    }
+}
+
 # These must be initialized on each run, because protocols are changed
 # by prepare_prt_ordering.
 sub init_protocols {
@@ -18114,7 +18169,6 @@ sub init_protocols {
 sub init_global_vars {
     $start_time            = $config->{start_time} || time();
     $error_counter         = 0;
-    $abort_immediately     = undef;
     $new_store_description = 0;
     for my $pair (values %global_type) {
         %{ $pair->[1] } = ();
@@ -18186,34 +18240,37 @@ sub compile {
 
     propagate_owners();
     set_service_owner();
+    convert_hosts_in_rules();
+
     # Abort now, if there had been syntax errors and simple semantic errors.
     &abort_on_error();
 
-    convert_hosts_in_rules();
+    concurrent(
+        sub {
+            &check_unused_groups();
+            expand_services();
+            check_dynamic_nat_rules();
+            &optimize_and_warn_deleted();
+            &check_supernet_rules();
+        },
+        sub {
+            group_path_rules();
+            set_policy_distribution_ip();
+            &expand_crypto();
+            prepare_nat_commands();
+            find_active_routes();
+            &gen_reverse_rules();
+            &mark_secondary_rules();
 
-    &check_unused_groups();
-    expand_services();
-    check_dynamic_nat_rules();
-    &optimize_and_warn_deleted();
-    &check_supernet_rules();
+            # No errors expected after this point.
+            &rules_distribution();
 
-    group_path_rules();
-    set_policy_distribution_ip();
-    &expand_crypto();
-    prepare_nat_commands();
-    find_active_routes();
-    &gen_reverse_rules();
-    &mark_secondary_rules();
-    &abort_on_error();
+            if ($out_dir) {
+                &print_code($out_dir);
+                copy_raw($in_path, $out_dir);
+            }
+        });
 
-    # No errors expected after this point.
-    &set_abort_immediately();
-    &rules_distribution();
-
-    if ($out_dir) {
-        &print_code($out_dir);
-        copy_raw($in_path, $out_dir);
-    }
     return;
 }
 
