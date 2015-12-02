@@ -1,8 +1,16 @@
 {{$NEXT}}
 
+4.7       2015-12-02 19:03:14+01:00 Europe/Berlin
+
+ - Use concurrent processes for significant performance improvement.
+   - Use option 'concurrency_pass1=2' 
+     to run pass1 with two processes.
+   - Use option 'concurrency_pass2=2|3|...'
+     to compiles pass2 files with that many processes.
  - New attribute 'acl_use_real_ip' for model 'ASA'.
    If set and NAT is applied at this device, ACLs are created with
    real IP instead of translated IP.
+   Currently this is only implemented for devices with two interfaces.
 
 4.6       2015-11-23 13:55:13+01:00 Europe/Berlin
 
