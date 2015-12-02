@@ -67,7 +67,7 @@ sub progress {
     return if not $config->{verbose};
     if ($config->{time_stamps}) {
         my $diff = time() - $start_time;
-        printf STDERR "%3ds ", $diff;
+        unshift @args, sprintf "%3ds ", $diff;
     }
     info(@args);
     return;
