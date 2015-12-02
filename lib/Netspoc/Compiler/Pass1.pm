@@ -14279,7 +14279,7 @@ sub split_rules_by_path {
     for my $rule (@$rules) {
         my $group = $rule->{$where};
         my $element0 = $group->[0];
-        $element0 or debug print_rule $rule;
+        $element0 or internal_err print_rule $rule;
         my $path0 = $obj2path{$element0} || get_path($element0);
 
         # Group has elements from different zones and must be split.
