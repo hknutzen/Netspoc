@@ -17993,6 +17993,7 @@ sub concurrent {
 
     # Parent.
     # Fork process and read output of child process.
+    ## no critic (RequireBriefOpen)
     elsif (my $child_pid = open(my $child_fd, '-|')) {
 
         $code1->();
@@ -18018,6 +18019,7 @@ sub concurrent {
         }
         abort_on_error();
     }
+    ## use critic
 
     # Child
     elsif (defined $child_pid) {
