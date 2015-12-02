@@ -63,7 +63,7 @@ use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Encode qw(decode_utf8);
 
-our $VERSION = '4.6'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.7'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -297,8 +297,8 @@ if (@ARGV) {
 &link_topology();
 &mark_disabled();
 &set_zone();
-&distribute_nat_info();
 &setpath();
+&distribute_nat_info();
 find_subnets_in_zone();
 link_reroute_permit();
 normalize_services();
@@ -335,11 +335,8 @@ sub process_rules {
 		}		    
 	    }
 	    &single_path_walk($rule, \&mark_topology);
-	    if($rule->{orig_prt}){
-		$rule->{orig_prt}->{is_used} = 1;
-	    } else {
-		$rule->{prt}->{is_used} = 1;
-	    }
+            my $prt = get_orig_prt($rule);
+            $prt->{is_used} = 1;
 	}
     }
     return;

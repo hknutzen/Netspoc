@@ -97,6 +97,10 @@ our %config = (
 # - Editor backup files: emacs: *~
     ignore_files => '^(CVS|RCS|\.#.*|.*~)$',
 
+# Set value to >= 2 to start concurrent processing.
+    concurrency_pass1 => 1,
+    concurrency_pass2 => 1,
+
 # Abort after this many errors.
     max_errors => 10,
 
@@ -118,6 +122,7 @@ our %config_type = (
     check_   => '0|1|warn',
     max_     => '\d+',
     start_   => '\d+',
+    concurr  => '\d+',
     ignore_  => '\S+',
     _default => '0|1',
 );

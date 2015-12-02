@@ -71,7 +71,7 @@ use Netspoc::Compiler::Pass1;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '4.6'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.7'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -160,11 +160,12 @@ if ($name) {
     $name =~ s/^service://;
     $services{$name} or die "Unknown service '$name'\n";
 }
+&order_protocols();
 &link_topology();
 &mark_disabled();
 &set_zone();
-&distribute_nat_info();
 &setpath();
+&distribute_nat_info();
 find_subnets_in_zone();
 &abort_on_error();
 
@@ -177,7 +178,6 @@ if($nat_net) {
 
 # Expand services
 my %service2rules;
-&order_protocols();
 normalize_services();
 convert_hosts_in_rules();
 expand_services();

@@ -460,11 +460,11 @@ router:asa1 = {
 END
 
 $out = <<'END';
-Error: Inconsistent owner definition for host:h1 and host:h2
-Error: Inconsistent owner definition for host:h1 and host:h2
-Error: Inconsistent owner definition for host:h1 and host:h3
-Error: Inconsistent owner definition for host:h2 and host:h4
-Error: Inconsistent owner definition for host:h1 and host:h5
+Warning: Inconsistent owner definition for host:h1 and host:h2
+Warning: Inconsistent owner definition for host:h1 and host:h2
+Warning: Inconsistent owner definition for host:h1 and host:h3
+Warning: Inconsistent owner definition for host:h2 and host:h4
+Warning: Inconsistent owner definition for host:h1 and host:h5
 END
 
 test_err($title, $in, $out);

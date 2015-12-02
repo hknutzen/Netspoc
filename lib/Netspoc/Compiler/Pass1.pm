@@ -35,7 +35,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '4.6'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.7'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -69,7 +69,6 @@ our @EXPORT = qw(
   fast_mode
   init_global_vars
   abort_on_error
-  set_abort_immediately
   syntax_err
   internal_err
   err_msg
@@ -92,11 +91,8 @@ our @EXPORT = qw(
   is_interface
   is_host
   is_subnet
-  is_every
   is_group
   is_protocolgroup
-  is_objectgroup
-  is_chain
   is_autointerface
   get_intf
   read_netspoc
@@ -110,6 +106,7 @@ our @EXPORT = qw(
   set_service_owner
   link_reroute_permit
   expand_protocols
+  get_orig_prt
   expand_group
   expand_group_in_rule
   normalize_services
@@ -135,7 +132,6 @@ our @EXPORT = qw(
   gen_reverse_rules
   mark_secondary_rules
   rules_distribution
-  local_optimization
   check_output_dir
   address
   print_code
@@ -258,6 +254,7 @@ my %router_info = (
         },
         stateless_icmp      => 1,
         has_out_acl         => 1,
+        can_acl_use_real_ip  => 1,
         can_objectgroup     => 1,
         can_dyn_crypto      => 1,
         crypto              => 'ASA',
@@ -408,30 +405,28 @@ sub context {
     return qq/ at line $line of $current_file, $context\n/;
 }
 
+sub syntax_err {
+    my (@args) = @_;
+    die "Syntax error: ", @args, context();
+}
+
 sub at_line {
     return qq/ at line $line of $current_file\n/;
 }
 
 our $error_counter;
-our $abort_immediately;
 
 sub check_abort {
     $error_counter++;
-    if ($error_counter == $config->{max_errors}) {
+    if ($error_counter >= $config->{max_errors}) {
         die "Aborted after $error_counter errors\n";
-    }
-    elsif ($abort_immediately) {
-        die "Aborted\n";
     }
 }
 
 sub abort_on_error {
-    die "Aborted with $error_counter error(s)\n" if $error_counter;
-    return;
-}
-
-sub set_abort_immediately {
-    $abort_immediately = 1;
+    if ($error_counter) {
+        die "Aborted with $error_counter error(s)\n" 
+    }
     return;
 }
 
@@ -449,25 +444,20 @@ sub err_msg {
     return;
 }
 
-sub syntax_err {
-    my (@args) = @_;
-    die "Syntax error: ", @args, context();
-}
-
 sub internal_err {
     my (@args) = @_;
 
     # Don't show inherited error.
     # Abort immediately, if other errors have already occured.
-    if ($error_counter) {
-        die "Aborted after $error_counter errors\n";
-    }
+    abort_on_error();
+
+    $error_counter++;
     my (undef, $file, $line) = caller;
     my $sub = (caller 1)[3];
     my $msg = "Internal error in $sub";
     $msg .= ": @args" if @args;
-
-    die "$msg\n at $file line $line\n";
+    $msg = "$msg\n at $file line $line\n";
+    die $msg;
 }
 
 ####################################################################
@@ -1898,6 +1888,7 @@ our %routers;
 
 sub read_router {
     my $name = shift;
+    my $has_bind_nat;
 
     # Extract
     # - router name without prefix "router:", needed to build interface name
@@ -1940,6 +1931,9 @@ sub read_router {
         }
         elsif (check_flag 'log_deny') {
             $router->{log_deny} = 1;
+        }
+        elsif (check_flag 'acl_use_real_ip') {
+            $router->{acl_use_real_ip} = 1;
         }
         elsif (my $routing = check_routing()) {
             add_attribute($router, routing => $routing);
@@ -2113,6 +2107,8 @@ sub read_router {
                 delete $hardware->{loopback};
             }
 
+            $has_bind_nat = 1 if $interface->{bind_nat};
+
             # Remember, which logical interfaces are bound
             # to which hardware.
             push @{ $hardware->{interfaces} }, $interface;
@@ -2147,8 +2143,10 @@ sub read_router {
     }
     if (my $managed = $router->{managed}) {
         if ($managed =~ /^local/) {
-            $router->{filter_only}
-              or err_msg("Missing attribute 'filter_only' for $name");
+            if (not $router->{filter_only}) {
+                $router->{filter_only} = [];
+                err_msg("Missing attribute 'filter_only' for $name");
+            }
             $model->{has_io_acl}
               and err_msg("Must not use 'managed = $managed' at $name",
                 " of model $model->{name}");
@@ -2194,6 +2192,7 @@ sub read_router {
         }
 
         # Detailed interface processing for managed routers.
+        my $has_crypto;
         for my $interface (@{ $router->{interfaces} }) {
             if (defined $interface->{security_level}
                 && !$model->{has_interface_level})
@@ -2202,6 +2201,7 @@ sub read_router {
                     " at $interface->{name}");
             }
             if ($interface->{hub} or $interface->{spoke}) {
+                $has_crypto = 1;
                 $model->{crypto}
                   or err_msg "Crypto not supported for $name",
                   " of model $model->{name}";
@@ -2287,22 +2287,35 @@ sub read_router {
 
         check_no_in_acl($router);
 
+        if ($router->{acl_use_real_ip}) {
+            $has_bind_nat or 
+                warn_msg("Ignoring attribute 'acl_use_real_ip' at $name,\n",
+                         " because it has no interface with 'bind_nat'");
+            $model->{can_acl_use_real_ip} or
+                warn_msg("Ignoring attribute 'acl_use_real_ip' at $name,",
+                         " of model $model->{name}");
+            2 == @{ $router->{hardware} } or
+                err_msg("Can't use attribute 'acl_use_real_ip' at $name,\n",
+                        " it is only applicable at device with 2 interfaces");
+            $router->{has_crypto} and
+                err_msg("Must not use attribute 'acl_use_real_ip' at $name",
+                        " having crypto interfaces");
+        }
         if ($managed =~ /^local/) {
-            grep { $_->{bind_nat} } @{ $router->{interfaces} }
-              and err_msg "Attribute 'bind_nat' is not allowed",
-              " at interface of $name with 'managed = $managed'";
+            $has_bind_nat and 
+                err_msg("Attribute 'bind_nat' is not allowed",
+                        " at interface of $name with 'managed = $managed'");
         }
         if ($model->{do_auth}) {
-
             grep { $_->{hub} } @{ $router->{interfaces} }
-              or err_msg "Attribute 'hub' needs to be defined",
-              "  at an interface of $name of model $model->{name}";
+              or err_msg("Attribute 'hub' needs to be defined",
+                         " at an interface of $name of model $model->{name}");
 
             # Don't support NAT for VPN, otherwise code generation for VPN
             # devices will become more difficult.
-            grep { $_->{bind_nat} } @{ $router->{interfaces} }
-              and err_msg "Attribute 'bind_nat' is not allowed",
-              " at interface of $name of model $model->{name}";
+            $has_bind_nat and
+              err_msg("Attribute 'bind_nat' is not allowed",
+                      " at interface of $name of model $model->{name}");
 
             $router->{radius_attributes} ||= {};
         }
@@ -2442,9 +2455,9 @@ sub read_router {
     return $router;
 }
 
-# No traffic must traverse crypto or secondary interface.
+# No traffic must traverse crypto interface.
 # Hence split router into separate instances, one instance for each
-# crypto/secondary interface.
+# crypto interface.
 # Splitted routers are tied by identical attribute {device_name}.
 sub move_locked_interfaces {
     my ($interfaces) = @_;
@@ -3356,8 +3369,6 @@ sub is_area          { ref($_[0]) eq 'Area'; }
 sub is_zone          { ref($_[0]) eq 'Zone'; }
 sub is_group         { ref($_[0]) eq 'Group'; }
 sub is_protocolgroup { ref($_[0]) eq 'Protocolgroup'; }
-sub is_objectgroup   { ref($_[0]) eq 'Objectgroup'; }
-sub is_chain         { ref($_[0]) eq 'Chain'; }
 sub is_autointerface { ref($_[0]) eq 'Autointerface'; }
 
 ## use critic
@@ -4946,7 +4957,7 @@ sub check_host_compatibility {
                     " $other_subnet->{name} and $host->{name}");
 
     owner_eq($host, $other_subnet) or
-        err_msg("Inconsistent owner definition for",
+        warn_msg("Inconsistent owner definition for",
                 " $other_subnet->{name} and $host->{name}");
 }
 
@@ -6998,87 +7009,6 @@ sub get_zone {
     return ($obj2zone{$obj} = $result);
 }
 
-sub path_walk;
-
-sub expand_special {
-    my ($src, $dst, $flags, $context) = @_;
-    my @result;
-    if (is_autointerface $src) {
-        for my $interface (path_auto_interfaces $src, $dst) {
-            if ($interface->{ip} eq 'short') {
-                err_msg "'$interface->{ip}' $interface->{name}",
-                  " (from .[auto])\n", " must not be used in rule of $context";
-            }
-            elsif ($interface->{ip} eq 'unnumbered') {
-
-                # Ignore unnumbered interfaces.
-            }
-            else {
-                push @result, $interface;
-            }
-        }
-    }
-    else {
-        @result = ($src);
-    }
-    if ($flags->{net}) {
-        my @networks;
-        my @other;
-        for my $obj (@result) {
-            my $type = ref $obj;
-            my $network;
-            if ($type eq 'Network') {
-                $network = $obj;
-            }
-            elsif ($type eq 'Subnet' or $type eq 'Host') {
-                if ($obj->{id}) {
-                    push @other, $obj;
-                    next;
-                }
-                else {
-                    $network = $obj->{network};
-                }
-            }
-            elsif ($type eq 'Interface') {
-                if ($obj->{router}->{managed} || $obj->{loopback}) {
-                    push @other, $obj;
-                    next;
-                }
-                else {
-                    $network = $obj->{network};
-                }
-            }
-            else {
-                internal_err("unexpected $obj->{name}");
-            }
-            push @networks, $network if $network->{ip} ne 'unnumbered';
-        }
-        @result = (@other, unique(@networks));
-
-#        debug "special: ", join(', ', map { $_->{name} } @result);
-    }
-    if ($flags->{any}) {
-        my %zones;
-        for my $obj (@result) {
-            my $type = ref $obj;
-            my $zone;
-            if ($type eq 'Network') {
-                $zone = $obj->{zone};
-            }
-            elsif ($type eq 'Subnet' or $type eq 'Interface' or $type eq 'Host')
-            {
-                $zone = $obj->{network}->{zone};
-            }
-            else {
-                internal_err("unexpected $obj->{name}");
-            }
-            $zones{$zone} = $zone;
-        }
-        @result = map { get_any($_, 0, 0) } values %zones;
-    }
-    return @result;
-}
-
 # Add managed hosts of networks and aggregates.
 sub add_managed_hosts {
     my ($aref, $context) = @_;
@@ -7488,7 +7418,7 @@ sub expand_services {
     show_unenforceable();
     warn_useless_unenforceable();
     print_rulecount();
-    progress('Preparing optimization');
+    progress('Finding duplicate rules');
     for my $type (qw(deny permit)) {
         add_rules($expanded_rules{$type});
     }
@@ -7498,7 +7428,7 @@ sub expand_services {
 }
 
 # For each device, find the IP address which is used
-# to manage the device from a central policy distribution point.
+# to manage the device from a central policy distribution point (PDP).
 # This address is added as a comment line to each generated code file.
 # This is to be used later when approving the generated code file.
 sub set_policy_distribution_ip {
@@ -7511,56 +7441,45 @@ sub set_policy_distribution_ip {
         }
         keys %{ $prt_hash{tcp} });
     my @prt_list = (@{ $prt_hash{tcp} }{@admin_tcp_keys}, $prt_hash{ip});
+    my %is_admin_prt = map { $_ => 1 } @prt_list;
 
     # Mapping from policy distribution host to subnets, networks and
     # aggregates that include this host.
-    my %host2pdp_src;
+    my %host2is_pdp_src;
     my $get_pdp_src = sub {
         my ($host) = @_;
-        my $pdp_src;
-        if ($pdp_src = $host2pdp_src{$host}) {
-            return $pdp_src;
+        my $is_pdp_src;
+        if ($is_pdp_src = $host2is_pdp_src{$host}) {
+            return $is_pdp_src;
         }
         for my $pdp (map { $_ } @{ $host->{subnets} }) {
             while ($pdp) {
-                push @$pdp_src, $pdp;
+                $is_pdp_src->{$pdp} = 1;
                 $pdp = $pdp->{up};
             }
         }
-        return $host2pdp_src{$host} = $pdp_src;
+        return $host2is_pdp_src{$host} = $is_pdp_src;
     };
+    my %router2found_interfaces;
+    for my $rule (@{ $path_rules{permit} }) {
+        my $dst_path = $rule->{dst_path};
+        next if is_zone($dst_path);
+        my $router = $dst_path->{router} || $dst_path;
+        my $pdp = $router->{policy_distribution_point} or next;
+        grep { $is_admin_prt{$_} } @{ $rule->{prt} } or next;
+        my $is_pdp_src = $get_pdp_src->($pdp);
+        grep { $is_pdp_src->{$_} } @{ $rule->{src} } or next;
+        my @dst_list = grep { not $_->{vip} } @{ $rule->{dst} };
+        @{$router2found_interfaces{$router}}{@dst_list} = @dst_list;
+    }
     for my $router (@managed_routers, @routing_only_routers) {
         my $pdp = $router->{policy_distribution_point} or next;
-        next if $router->{orig_router};
-
-        my %found_interfaces;
-        my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
-        my $pdp_src    = $get_pdp_src->($pdp);
-        my $stateless  = '';
-        my $deny       = '';
-        my $src_range  = $prt_ip;
-        for my $src (@$pdp_src) {
-            my $sub_rule_tree =
-              $rule_tree{$stateless}->{$deny}->{$src_range}->{$src}
-              or next;
-
-            # Find interfaces where some rule permits management traffic.
-            for my $interface (@{ $router->{interfaces} }) {
-
-                # Loadbalancer VIP can't be used to access device.
-                next if $interface->{vip};
-
-                for my $prt (@prt_list) {
-                    $sub_rule_tree->{$interface}->{$prt} or next;
-                    $found_interfaces{$interface} = $interface;
-                }
-            }
-        }
+        my $found_interfaces = $router2found_interfaces{$router};
         my @result;
 
         # Ready, if exactly one management interface was found.
-        if (keys %found_interfaces == 1) {
-            @result = values %found_interfaces;
+        if (keys %$found_interfaces == 1) {
+            @result = values %$found_interfaces;
         }
         else {
 
@@ -7570,7 +7489,7 @@ sub set_policy_distribution_ip {
             # If multiple management interfaces were found, take that which is
             # directed to policy_distribution_point.
             for my $front (@front) {
-                if ($found_interfaces{$front}) {
+                if ($found_interfaces->{$front}) {
                     push @result, $front;
                 }
             }
@@ -7579,7 +7498,7 @@ sub set_policy_distribution_ip {
             # Preserve original order of router interfaces.
             if (!@result) {
                 @result =
-                  grep { $found_interfaces{$_} } @{ $router->{interfaces} };
+                  grep { $found_interfaces->{$_} } @{ $router->{interfaces} };
             }
 
             # Don't set {admin_ip} if no address is found.
@@ -7587,7 +7506,10 @@ sub set_policy_distribution_ip {
             next if not @result;
         }
 
+        # Lookup interface address in NAT domain of PDP, because PDP
+        # needs to access the device.
         # Prefer loopback interface if available.
+        my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
         $router->{admin_ip} = [
             map { print_ip((address($_, $no_nat_set))->[0]) }
             sort { ($b->{loopback} || '') cmp($a->{loopback} || '') } @result
@@ -7624,13 +7546,14 @@ sub set_policy_distribution_ip {
         }
     }
     if (@unreachable) {
-        if (@unreachable > 4) {
+        my $count = @unreachable;
+        if ($count > 4) {
             splice(@unreachable, 3, @unreachable - 3, '...');
         }
         my $list = join("\n - ", @unreachable);
-        warn_msg(
-            "Missing rules to reach devices from policy_distribution_point:\n",
-            " - ",
+        warn_msg("Missing rules to reach $count devices from",
+                 " policy_distribution_point:\n",
+                 " - ",
             $list
         );
     }
@@ -7651,10 +7574,6 @@ sub set_natdomain {
 
     # Found a loop inside a NAT domain.
     return if $network->{nat_domain};
-
-    my $check_nat_err = sub {
-        my ($router, $nat_tags1, $nat_tags2) = @_;
-    };
 
 #    debug("$domain->{name}: $network->{name}");
     $network->{nat_domain} = $domain;
@@ -7689,7 +7608,9 @@ sub set_natdomain {
         # Remember NAT tags at loop entry.
         local $router->{active_path} = $nat_tags;
 
-        for my $out_interface (@{ $router->{interfaces} }) {
+        my $useless_nat = 1;
+        my $interfaces = $router->{interfaces};
+        for my $out_interface (@$interfaces) {
 
             # Don't process interface where we reached this router.
             next if $out_interface eq $interface;
@@ -7707,10 +7628,18 @@ sub set_natdomain {
             # New NAT domain starts at some interface of current router.
             # Remember NAT tag of current domain.
             elsif (not $router->{nat_tags}->{$domain}) {
+                $useless_nat = undef;
                 $router->{nat_tags}->{$domain} = $nat_tags;
                 push @{ $domain->{routers} },     $router;
                 push @{ $router->{nat_domains} }, $domain;
             }
+        }
+        if ($useless_nat and @$nat_tags and
+            grep { not $_->{hub} and not $_->{spoke} } @$interfaces)
+        {
+            my $list = join ',', map { "nat:$_" } @$nat_tags;
+            warn_msg("Ignoring $list without effect, bound at",
+                     " every interface of $router->{name}");
         }
     }
     return;
@@ -9363,16 +9292,6 @@ sub link_implicit_aggregate_to_zone {
         last;
     }
 
-    # Inherit owner from smallest supernet having owner or from zone.
-    my $up = $aggregate->{up};
-    my $owner;
-    while ($up) {
-        $owner = $up->{owner} and last;
-        $up = $up->{up};
-    }
-    $owner ||= $zone->{owner};
-    $owner and $aggregate->{owner} = $owner;
-
     link_aggregate_to_zone($aggregate, $zone, $key);
     add_managed_hosts_to_aggregate($aggregate);
     return;
@@ -9392,9 +9311,7 @@ sub link_aggregates {
 
     for my $name (sort keys %aggregates) {
         my $aggregate = $aggregates{$name};
-        my ($type, $name) = @{ delete($aggregate->{link}) };
-        my $err;
-        my $router;
+        my ($type, $name) = @{ $aggregate->{link} };
 
         # Assure aggregates to be linked to networks only
         if ($type ne 'network') {
@@ -12539,9 +12456,6 @@ sub expand_crypto {
                                     ip         => 'tunnel',
                                     src        => $subnet,
                                     no_nat_set => $no_nat_set,
-
-                                    # Needed during local_optimization.
-                                    router => $peer->{router},
                                 };
                             }
                         }
@@ -13789,24 +13703,6 @@ sub gen_reverse_rules {
 # Otherwise a rules is implemented typical.
 ##############################################################################
 
-##############################################################################
-# Purpose    : Identify the zone an object belongs to.
-# Parameters : $obj - a network, subnet or interface object.
-# Returns    : The identified zone.
-sub get_zone2 {
-    my ($obj) = @_;
-    my $type = ref $obj;
-    if ($type eq 'Network') {
-        return $obj->{zone};
-    }
-    elsif ($type eq 'Subnet') {
-        return $obj->{network}->{zone};
-    }
-    elsif ($type eq 'Interface') {
-        return $obj->{network}->{zone};
-    }
-}
-
 # Mark security zone $zone with $mark and
 # additionally mark all security zones
 # which are connected with $zone by secondary packet filters.
@@ -14021,8 +13917,6 @@ sub mark_dynamic_host_nets {
 # 3. Check for partially applied hidden or dynamic NAT on path.
 sub check_dynamic_nat_rules {
     progress('Checking rules with hidden or dynamic NAT');
-
-    mark_dynamic_host_nets();
 
     # Collect hidden or dynamic NAT tags.
     my %is_dynamic_nat_tag;
@@ -14365,7 +14259,7 @@ sub optimize_rules {
 }
 
 sub optimize_and_warn_deleted {
-    progress('Optimizing globally');
+    progress('Finding redundant rules');
     setup_ref2obj();
     optimize_rules(\%rule_tree, \%rule_tree);
     print_rulecount();
@@ -14385,7 +14279,7 @@ sub split_rules_by_path {
     for my $rule (@$rules) {
         my $group = $rule->{$where};
         my $element0 = $group->[0];
-        $element0 or debug print_rule $rule;
+        $element0 or internal_err print_rule $rule;
         my $path0 = $obj2path{$element0} || get_path($element0);
 
         # Group has elements from different zones and must be split.
@@ -16409,9 +16303,6 @@ sub address {
             return [ $ip, 0xffffffff ];
         }
     }
-    elsif ($type eq 'Objectgroup') {
-        return $obj;
-    }
     else {
         my $type = ref $obj;
         internal_err("Unexpected object of type '$type'");
@@ -16884,8 +16775,9 @@ sub print_cisco_acls {
     my $model         = $router->{model};
     my $filter        = $model->{filter};
     my $managed_local = $router->{managed} =~ /^local/;
-
-    for my $hardware (@{ $router->{hardware} }) {
+    my $hw_list       = $router->{hardware};
+    
+    for my $hardware (@$hw_list) {
 
         # Ignore if all logical interfaces are loopback interfaces.
         next if $hardware->{loopback};
@@ -16921,6 +16813,12 @@ sub print_cisco_acls {
                 name => $acl_name,
                 no_nat_set => $no_nat_set,
             };
+
+            if ($router->{acl_use_real_ip}) {
+                my $hw0 = $hw_list->[0];
+                my $dst_hw = $hardware eq $hw0 ? $hw_list->[1] : $hw0;
+                $acl_info->{dst_no_nat_set} = $dst_hw->{no_nat_set};
+            }
 
             # - Collect incoming ACLs,
             # - protect own interfaces,
@@ -17718,6 +17616,7 @@ sub print_acls {
             my %no_opt_addrs;
 
             my $no_nat_set = delete $acl->{no_nat_set};
+            my $dst_no_nat_set = delete $acl->{dst_no_nat_set} || $no_nat_set;
 
             if ($need_protect and delete $acl->{protect_self}) {
                 $acl->{need_protect} = [
@@ -17841,7 +17740,8 @@ sub print_acls {
                     }
                     $new_rule->{src} = [ map { print_address($_, $no_nat_set) } 
                                          @{ $rule->{src} } ];
-                    $new_rule->{dst} = [ map { print_address($_, $no_nat_set) }
+                    $new_rule->{dst} = [ map { print_address($_, 
+                                                             $dst_no_nat_set) }
                                          @{ $rule->{dst} } ];
                     $new_rule->{prt} = [ map { print_prt($_) }
                                          @{ $rule->{prt} } ];
@@ -18081,6 +17981,71 @@ sub show_version {
     return;
 }
 
+# Start concurrent jobs.
+sub concurrent {
+    my ($code1, $code2) = @_;
+
+    # Process sequentially.
+    if (1 >= $config->{concurrency_pass1}) {
+        $code1->();
+        $code2->();
+    }
+
+    # Parent.
+    # Fork process and read output of child process.
+    ## no critic (RequireBriefOpen)
+    elsif (my $child_pid = open(my $child_fd, '-|')) {
+
+        $code1->();
+
+        # Show child ouput.
+        progress('Output of background job:');
+        while (my $line = <$child_fd>) {
+
+            # Indent output of child.
+            print STDERR " $line";
+        }
+
+        # Check exit status of child.
+        if (not close ($child_fd)) {
+            my $status = $?;
+            if ($status != 0) {
+                my $err_count = $status >> 8;
+                if (not $err_count) {
+                    internal_err("Background process died with status $status");
+                }
+                $error_counter += $err_count;
+            }
+        }
+        abort_on_error();
+    }
+    ## use critic
+
+    # Child
+    elsif (defined $child_pid) {
+
+        # Catch errors,
+        eval { 
+
+            # Redirect STDERR to STDOUT, so parent can read output of child.
+            open (STDERR, ">&STDOUT") or internal_err("Can't dup STDOUT: $!");
+
+            $code2->(); 
+        };
+        if ($@) {
+
+            # Show internal errors, but not "Aborted" message.
+            if ($@ !~ /^Aborted /) {
+                print STDOUT $@;
+            }
+        }
+        exit $error_counter;
+    }
+    else {
+        internal_err("Can't start child: $!");
+    }
+}
+
 # These must be initialized on each run, because protocols are changed
 # by prepare_prt_ordering.
 sub init_protocols {
@@ -18206,7 +18171,6 @@ sub init_protocols {
 sub init_global_vars {
     $start_time            = $config->{start_time} || time();
     $error_counter         = 0;
-    $abort_immediately     = undef;
     $new_store_description = 0;
     for my $pair (values %global_type) {
         %{ $pair->[1] } = ();
@@ -18264,18 +18228,11 @@ sub compile {
     # been set up.
     link_reroute_permit();
 
-    propagate_owners();
-    normalize_services();
-    set_service_owner();
-    convert_hosts_in_rules();
-    expand_services();
-    check_dynamic_nat_rules();
+    # Sets attributes used in check_dynamic_nat_rules and 
+    # for ACL generation.
+    mark_dynamic_host_nets();
 
-    # Abort now, if there had been syntax errors and simple semantic errors.
-    &abort_on_error();
-    &check_unused_groups();
-    set_policy_distribution_ip();
-    &optimize_and_warn_deleted();
+    normalize_services();
     find_subnets_in_nat_domain();
 
     # Call after {up} relation for anonymous aggregates in rules have
@@ -18283,24 +18240,39 @@ sub compile {
     # after {is_in} relation has been set up.
     mark_managed_local();
 
-    &check_supernet_rules();
+    propagate_owners();
+    set_service_owner();
+    convert_hosts_in_rules();
 
-    group_path_rules();
-    &expand_crypto();
-    prepare_nat_commands();
-    find_active_routes();
-    &gen_reverse_rules();
-    &mark_secondary_rules();
+    # Abort now, if there had been syntax errors and simple semantic errors.
     &abort_on_error();
 
-    # No errors expected after this point.
-    &set_abort_immediately();
-    &rules_distribution();
+    concurrent(
+        sub {
+            &check_unused_groups();
+            expand_services();
+            check_dynamic_nat_rules();
+            &optimize_and_warn_deleted();
+            &check_supernet_rules();
+        },
+        sub {
+            group_path_rules();
+            set_policy_distribution_ip();
+            &expand_crypto();
+            prepare_nat_commands();
+            find_active_routes();
+            &gen_reverse_rules();
+            &mark_secondary_rules();
 
-    if ($out_dir) {
-        &print_code($out_dir);
-        copy_raw($in_path, $out_dir);
-    }
+            # No errors expected after this point.
+            &rules_distribution();
+
+            if ($out_dir) {
+                &print_code($out_dir);
+                copy_raw($in_path, $out_dir);
+            }
+        });
+
     return;
 }
 

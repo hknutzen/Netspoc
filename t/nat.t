@@ -318,6 +318,28 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'NAT tag without effect';
+############################################################
+
+$in = <<'END';
+network:n1 =  { ip = 10.1.1.0/24; nat:x = { ip = 10.9.9.0/24; } }
+
+router:r1 = {
+ interface:n1 = { bind_nat = x; }
+ interface:n2 = { bind_nat = x; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Warning: Ignoring nat:x without effect, bound at every interface of router:r1
+Warning: nat:x is defined, but not bound to any interface
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Check rule with host and dynamic NAT';
 ############################################################
 
@@ -1628,6 +1650,52 @@ Error: nat:n1 is applied twice between router:r1 and router:r2
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Attribute acl_use_real_ip';
+############################################################
+
+$in = <<'END';
+network:intern =  { ip = 10.1.1.0/24; nat:intern = { ip = 2.2.1.0/24; } }
+
+router:filter = {
+ managed;
+ model = ASA;
+ acl_use_real_ip;
+ interface:intern = {
+  ip = 10.1.1.1;
+  hardware = inside;
+  bind_nat = extern;
+ }
+ interface:extern = {
+  ip = 2.2.2.1; 
+  hardware = outside;
+  bind_nat = intern;
+ }
+}
+
+network:extern = { ip = 2.2.2.0/24; nat:extern = { ip = 10.1.2.0/24; } }
+
+service:test = {
+ user = network:extern;
+ permit src = user;           dst = network:intern; prt = tcp 80;
+ permit src = network:intern; dst = user;           prt = tcp 22;
+}
+END
+
+$out = <<'END';
+-- filter
+! [ ACL ]
+access-list inside_in extended permit tcp 10.1.1.0 255.255.255.0 2.2.2.0 255.255.255.0 eq 22
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
+--
+access-list outside_in extended permit tcp 2.2.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

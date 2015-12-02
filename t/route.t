@@ -119,6 +119,45 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Two static unmanaged hops';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r = {
+ model = NX-OS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:t1 = { ip = 10.9.1.1; hardware = vlan1; }
+}
+
+network:t1 = { ip = 10.9.1.0/29; }
+
+router:h1 = {
+ interface:t1 = { ip = 10.9.1.2; }
+ interface:n2;
+}
+router:h2 = {
+ interface:t1 = { ip = 10.9.1.3; }
+ interface:n2;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:test = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: Two static routes for network:n2
+ at interface:r.t1 via interface:h2.t1 and interface:h1.t1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Static route to network in unmanaged loop';
 ############################################################
 

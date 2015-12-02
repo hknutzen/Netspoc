@@ -136,7 +136,7 @@ network:n = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Warning: Missing rules to reach devices from policy_distribution_point:
+Warning: Missing rules to reach 1 devices from policy_distribution_point:
  - some VRF of router:r1
 END
 
