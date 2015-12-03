@@ -2226,6 +2226,14 @@ sub apply_concurrent {
             }
             background($code, $arg);
         }
+
+        # Wait for all jobs to be finished.
+        while (1) {
+            my $pid = wait();
+            last if -1 == $pid;
+            $? and $errors++;
+        }
+
         $errors and die "Failed\n";
     }
 }
