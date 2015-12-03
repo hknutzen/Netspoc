@@ -18017,7 +18017,6 @@ sub concurrent {
                 $error_counter += $err_count;
             }
         }
-        abort_on_error();
     }
     ## use critic
 
@@ -18272,6 +18271,8 @@ sub compile {
                 copy_raw($in_path, $out_dir);
             }
         });
+
+    abort_on_error();
 
     return;
 }
