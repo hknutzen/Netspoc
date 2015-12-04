@@ -14928,9 +14928,8 @@ sub generate_routing_tree {
             # Split group of destination interfaces, one for each zone.
             else {
                 for my $interface (@$dst) {
-                    my $split_rule = { src => $src,
+                    my $split_rule = { %$rule,
                                        dst => [ $interface ],
-                                       src_path => $src_path,
                                        dst_path => $interface->{zone}, };
                     generate_routing_tree1($split_rule, 'dst',$routing_tree);
                 }
@@ -14938,21 +14937,22 @@ sub generate_routing_tree {
         }
         elsif (is_zone($dst_path)) {
             for my $interface (@$src) {
-                my $split_rule = { src => [ $interface ],
-                                   dst => $dst,
-                                   src_path => $interface->{zone},
-                                   dst_path => $dst_path, };
+                my $split_rule = { %$rule,
+                                   src => [ $interface ],
+                                   src_path => $interface->{zone},};
                 generate_routing_tree1($split_rule, 'src', $routing_tree);
             }
         }
         else {
             for my $src_intf (@$src) {
                 for my $dst_intf (@$dst) {
-                    my $split_rule = { src => [ $src_intf ],
+                    my $split_rule = { %$rule, 
+                                       src => [ $src_intf ],
                                        dst => [ $dst_intf ],
                                        src_path => $src_intf->{zone},
                                        dst_path => $dst_intf->{zone}, };
-                    generate_routing_tree1($split_rule, 'src,dst',$routing_tree);
+                    generate_routing_tree1($split_rule, 'src,dst',
+                                           $routing_tree);
                 }
             }
         }
