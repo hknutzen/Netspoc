@@ -497,7 +497,7 @@ service:s = {
 END
 
 # Should give better error message.
-# Some hint, that parts arn't connected.
+# Some hint, that parts aren't connected.
 $out = <<'END';
 Error: No valid path
  from any:[network:n1]
