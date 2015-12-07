@@ -1,5 +1,12 @@
 {{$NEXT}}
 
+4.8       2015-12-07 14:48:17+01:00 Europe/Berlin
+
+ - Also find interface with pathrestriction as result of [auto] interface.
+ - Bug fixes:
+   - Wait for all background jobs of pass 2 to be finished.
+   - Check for pass 1 errors even if concurrency is disabed.
+
 4.7       2015-12-02 19:03:14+01:00 Europe/Berlin
 
  - Use concurrent processes for significant performance improvement.
