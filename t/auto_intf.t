@@ -292,6 +292,127 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Auto interface with pathrestriction';
+############################################################
+# Would not find result if search starts at router.
+
+$in = <<'END';
+network:n1 =  { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = Vlan20; }
+ interface:n2 = { ip = 10.1.2.1; hardware = G0/1; 
+ }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = Vlan20; }
+ interface:n2 = { ip = 10.1.2.2; hardware = G0/1;  }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r3 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.70; hardware = E0; }
+ interface:n3 = { ip = 10.1.3.1; hardware = E1; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+
+pathrestriction:restrict1 = 
+ interface:r1.n1,
+ interface:r3.n2,
+;
+pathrestriction:restrict2 = 
+ interface:r2.n1,
+ interface:r3.n2,
+;
+
+service:test = {
+ user = network:n1;
+ permit src = user; dst = interface:r3.[auto]; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+access-list Vlan20_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.2.70 eq 80
+access-list Vlan20_in extended deny ip any any
+access-group Vlan20_in in interface Vlan20
+--r2
+! [ ACL ]
+ip access-list extended Vlan20_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.70 eq 80
+ deny ip any any
+--r3
+! [ ACL ]
+ip access-list extended E0_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.70 eq 80
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Ignore interface with pathrestriction at border of loop';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:t1 = { ip = 10.9.1.2; hardware = t1; }
+ interface:t2 = { ip = 10.9.2.2; hardware = t2; }
+}
+
+network:t1 = { ip = 10.9.1.0/24; }
+network:t2 = { ip = 10.9.2.0/24; }
+
+router:r2 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; }
+ interface:t2 = { ip = 10.9.2.1; hardware = t2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2 ;}
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+pathrestriction:p =
+ interface:r1.n1,
+ interface:r1.t2,
+;
+service:test = {
+ user = interface:r1.[auto];
+ permit src = network:n2; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r2
+object-group network g0
+ network-object host 10.9.1.2
+ network-object host 10.9.2.2
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 object-group g0 eq 22
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Multiple interfaces talk to policy_distribution_point';
 ############################################################
 

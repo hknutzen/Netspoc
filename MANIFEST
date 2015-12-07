@@ -103,9 +103,7 @@ t/any-multicast-interface.t
 t/area.t
 t/auto_intf.t
 t/bridged.t
-t/concurrency_pass1.t
-t/concurrency_pass1.t~
-t/concurrent.t~
+t/concurrency.t
 t/crosslink.t
 t/crypto.t
 t/cut-netspoc.t

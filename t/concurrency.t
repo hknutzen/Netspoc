@@ -10,7 +10,7 @@ use Test_Netspoc;
 my ($title, $in, $out, $topo);
 
 ############################################################
-$title = 'Simple concurrency';
+$title = 'Pass 1';
 ############################################################
 
 $in = <<'END';
@@ -177,6 +177,46 @@ Aborted after 1 errors
 END
 
 test_err($title, $in, $out, '--max_errors=1 --concurrency_pass1=2');
+
+############################################################
+$title = 'Pass 2';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+
+END
+
+# Expect normal operation with concurrency enabled.
+$out = <<'END';
+-- asa1
+! [ ACL ]
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+--
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+-- asa2
+! [ ACL ]
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out, '--concurrency_pass2=8');
 
 ############################################################
 done_testing;

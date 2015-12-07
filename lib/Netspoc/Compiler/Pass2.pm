@@ -35,7 +35,7 @@ use Netspoc::Compiler::File;
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 
-our $VERSION = '4.7'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.8'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -2226,6 +2226,14 @@ sub apply_concurrent {
             }
             background($code, $arg);
         }
+
+        # Wait for all jobs to be finished.
+        while (1) {
+            my $pid = wait();
+            last if -1 == $pid;
+            $? and $errors++;
+        }
+
         $errors and die "Failed\n";
     }
 }

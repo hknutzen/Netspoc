@@ -35,7 +35,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '4.7'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.8'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -11915,12 +11915,20 @@ sub set_auto_intf_from_border {
     return;
 }
 
-# $src is an auto_interface, interface or router.
+# Add pathrestricted interfaces.
+sub add_pathresticted_interfaces {
+    my ($obj) = @_;
+    is_router($obj) or return ($obj);
+    my $interfaces = $obj->{interfaces};
+    return ($obj,
+            grep { $_->{path_restrict} || $_->{reachable_at} } @$interfaces);
+}
+
+# $src is an auto_interface or router.
 # Result is the set of interfaces of $src located at the front side
 # of the direction to $dst.
 sub path_auto_interfaces {
     my ($src, $dst) = @_;
-    my @result;
     my ($src2, $managed) =
       is_autointerface($src)
       ? @{$src}{ 'object', 'managed' }
@@ -11933,29 +11941,60 @@ sub path_auto_interfaces {
     my $to         = $to_store->{router}   || $to_store;
 
     $from eq $to and return ();
-    if (!$from_store->{path}->{$to_store}) {
-        if (!path_mark($from, $to, $from_store, $to_store)) {
-            err_msg(
-                "No valid path\n",
-                " from $from_store->{name}\n",
-                " to $to_store->{name}\n",
-                " while resolving $src->{name}",
-                " (destination is $dst->{name}).\n",
-                " Check path restrictions and crypto interfaces."
-            );
-            delete $from_store->{path}->{$to_store};
-            return;
+
+    # Check path separately for interfaces with pathrestriction,
+    # because path from inside the router to destination may be restricted.
+    my @from_list = add_pathresticted_interfaces($from);
+    my @to_list   = add_pathresticted_interfaces($to);
+    my @result;
+    for my $from_store (@from_list) {
+        for my $to_store (@to_list) {
+            if (!$from_store->{path}->{$to_store}) {
+                if (!path_mark($from, $to, $from_store, $to_store)) {
+                    delete $from_store->{path}->{$to_store};
+                    next;
+                }
+            }
+            if ($from_store->{loop_exit}
+                and my $exit = $from_store->{loop_exit}->{$to_store})
+            {
+                my @enter = @{ $from_store->{loop_enter}->{$exit} };
+                if (is_interface($from_store)) {
+
+                    # At least one path goes to other router.
+                    if (grep { $_->{router} ne $from } @enter) {
+                        push @result, $from_store;
+                    }
+                }
+                else {                    
+                    push @result, @enter;
+                }
+            }
+            else {
+                my $next = $from_store->{path}->{$to_store};
+                if (is_interface($from_store)) {
+                    if ($next and $next->{router} ne $from) {
+                        push @result, $from_store;
+                    }
+                }
+                else {
+                    push @result, $next;
+                }
+            }
         }
     }
-    if ($from_store->{loop_exit}
-        and my $exit = $from_store->{loop_exit}->{$to_store})
-    {
-        @result = @{ $from->{loop_enter}->{$exit} };
+    if (not @result) {
+        err_msg(
+            "No valid path\n",
+            " from $from_store->{name}\n",
+            " to $to_store->{name}\n",
+            " while resolving $src->{name}",
+            " (destination is $dst->{name}).\n",
+            " Check path restrictions and crypto interfaces."
+            );
+        return;
     }
-    else {
-        @result = ($from_store->{path}->{$to_store});
-    }
-    @result = grep { $_->{ip} ne 'tunnel' } @result;
+    @result = grep { $_->{ip} ne 'tunnel' } unique @result;
 
     # Find auto interface inside zone.
     # $src is located inside some zone.
@@ -14928,9 +14967,8 @@ sub generate_routing_tree {
             # Split group of destination interfaces, one for each zone.
             else {
                 for my $interface (@$dst) {
-                    my $split_rule = { src => $src,
+                    my $split_rule = { %$rule,
                                        dst => [ $interface ],
-                                       src_path => $src_path,
                                        dst_path => $interface->{zone}, };
                     generate_routing_tree1($split_rule, 'dst',$routing_tree);
                 }
@@ -14938,21 +14976,22 @@ sub generate_routing_tree {
         }
         elsif (is_zone($dst_path)) {
             for my $interface (@$src) {
-                my $split_rule = { src => [ $interface ],
-                                   dst => $dst,
-                                   src_path => $interface->{zone},
-                                   dst_path => $dst_path, };
+                my $split_rule = { %$rule,
+                                   src => [ $interface ],
+                                   src_path => $interface->{zone},};
                 generate_routing_tree1($split_rule, 'src', $routing_tree);
             }
         }
         else {
             for my $src_intf (@$src) {
                 for my $dst_intf (@$dst) {
-                    my $split_rule = { src => [ $src_intf ],
+                    my $split_rule = { %$rule, 
+                                       src => [ $src_intf ],
                                        dst => [ $dst_intf ],
                                        src_path => $src_intf->{zone},
                                        dst_path => $dst_intf->{zone}, };
-                    generate_routing_tree1($split_rule, 'src,dst',$routing_tree);
+                    generate_routing_tree1($split_rule, 'src,dst',
+                                           $routing_tree);
                 }
             }
         }
@@ -18017,7 +18056,6 @@ sub concurrent {
                 $error_counter += $err_count;
             }
         }
-        abort_on_error();
     }
     ## use critic
 
@@ -18030,7 +18068,8 @@ sub concurrent {
             # Redirect STDERR to STDOUT, so parent can read output of child.
             open (STDERR, ">&STDOUT") or internal_err("Can't dup STDOUT: $!");
 
-            $code2->(); 
+            $code2->();
+            progress('Finished background job') if $config->{time_stamps};
         };
         if ($@) {
 
@@ -18272,6 +18311,8 @@ sub compile {
                 copy_raw($in_path, $out_dir);
             }
         });
+
+    abort_on_error();
 
     return;
 }
