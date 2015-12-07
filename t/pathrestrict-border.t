@@ -311,7 +311,7 @@ pathrestriction:restrict2 =
 
 service:test = {
  user = network:n1;
- permit src = user; dst = interface:r3.n2; prt = tcp 80;
+ permit src = user; dst = interface:r3.[auto]; prt = tcp 80;
 }
 END
 
