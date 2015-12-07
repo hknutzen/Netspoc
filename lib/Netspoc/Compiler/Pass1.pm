@@ -18068,7 +18068,8 @@ sub concurrent {
             # Redirect STDERR to STDOUT, so parent can read output of child.
             open (STDERR, ">&STDOUT") or internal_err("Can't dup STDOUT: $!");
 
-            $code2->(); 
+            $code2->();
+            progress('Finished background job') if $config->{time_stamps};
         };
         if ($@) {
 
