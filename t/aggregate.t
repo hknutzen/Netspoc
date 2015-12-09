@@ -144,10 +144,10 @@ service:test = {
 any:Trans = { link = network:Trans; }
 END
 
-$out = <<'END';
+$out = <<"END";
 Warning: Missing rule for supernet rule.
  permit src=any:[network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
- can't be effective at interface:filter1.Trans.
+ can\'t be effective at interface:filter1.Trans.
  Tried any:Trans as src.
 END
 
@@ -208,10 +208,10 @@ router:T = {
 network:N1 = { ip = 10.192.0.0/24; }
 END
 
-$out = <<'END';
+$out = <<"END";
 Warning: Missing rule for supernet rule.
  permit src=any:[ip=10.0.0.0/8 & network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
- can't be effective at interface:filter1.Trans.
+ can\'t be effective at interface:filter1.Trans.
  Tried network:N1 as src.
 END
 
@@ -690,14 +690,14 @@ service:test = {
 }
 END
 
-$out = <<'END';
+$out = <<"END";
 Warning: Missing rule for supernet rule.
  permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
- can't be effective at interface:r1.Customer.
+ can\'t be effective at interface:r1.Customer.
  Tried network:trans as dst.
 Warning: Missing rule for supernet rule.
  permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
- can't be effective at interface:r2.trans.
+ can\'t be effective at interface:r2.trans.
  Tried network:n2 as dst.
 END
 
@@ -725,10 +725,10 @@ service:test = {
 }
 END
 
-$out = <<'END';
+$out = <<"END";
 Warning: Missing rule for supernet rule.
  permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
- can't be effective at interface:r2.trans.
+ can\'t be effective at interface:r2.trans.
  No supernet available for network:n2, network:n2x as dst.
 END
 
@@ -839,10 +839,10 @@ service:test = {
 }
 END
 
-$out = <<'END';
+$out = <<"END";
 Warning: Missing rule for supernet rule.
  permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
- can't be effective at interface:r1.Customer.
+ can\'t be effective at interface:r1.Customer.
  Tried network:trans as dst.
 END
 
@@ -897,10 +897,10 @@ service:test = {
 }
 END
 
-$out = <<'END';
+$out = <<"END";
 Warning: Missing rule for supernet rule.
  permit src=network:Customer; dst=any:[network:n1]; prt=tcp 80; of service:test
- can't be effective at interface:r.Customer.
+ can\'t be effective at interface:r.Customer.
  No supernet available for network:n2, interface:u.l as dst.
 END
 
