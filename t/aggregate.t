@@ -907,6 +907,99 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Missing aggregates for reverse rule';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS; #1
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:trans = { ip = 10.7.7.1; hardware = trans; }
+ interface:loop = { ip = 10.7.8.1; loopback; hardware = Lo1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:trans = { ip = 10.7.7.0/24; }
+
+router:r2 = {
+ managed;
+ model = IOS; #2
+ routing = manual;
+ interface:trans = { ip = 10.7.7.2; hardware = trans; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+service:test = {
+ user = any:[ ip = 10.0.0.0/8 & network:n1 ],
+        network:trans,
+ ;
+ permit src = user; dst = network:n4; prt = udp 123;
+}
+END
+
+$out = <<"END";
+Warning: Missing rule for reversed supernet rule.
+ permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
+ can\'t be effective at interface:r1.n2.
+ Tried network:n2 as src.
+Warning: Missing rule for reversed supernet rule.
+ permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
+ can\'t be effective at interface:r2.n3.
+ Tried network:n3 as src.
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Effect of stateful router in reversed direction';
+############################################################
+# router:r1 sees only reply packets filtered by stateful router:r2
+# Hence no warning is shown.
+
+$in =~ s/; [#]2/, FW;/;
+$out = <<'END';
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ permit udp 10.0.0.0 0.255.255.255 10.1.4.0 0.0.0.255 eq 123
+ deny ip any any
+--
+ip access-list extended trans_in
+ deny ip any host 10.1.1.1
+ deny ip any host 10.7.7.1
+ deny ip any host 10.7.8.1
+ deny ip any host 10.1.2.1
+ permit udp 10.1.4.0 0.0.0.255 eq 123 10.0.0.0 0.255.255.255
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'No effect of stateful router in forward direction';
+############################################################
+
+$in =~ s/, FW//;
+$in =~ s/; [#]1/, FW;/;
+$out = <<'END';
+Warning: Missing rule for reversed supernet rule.
+ permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
+ can't be effective at interface:r2.n3.
+ Tried network:n3 as src.
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Missing transient rule with managed interface';
 ############################################################
 
