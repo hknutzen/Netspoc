@@ -852,7 +852,7 @@ test_err($title, $in, $out);
 $title = 'No destination aggregate needed for Linux';
 ############################################################
 
-# Linux only hecks for mising intermediate aggregates,
+# Linux only checks for missing intermediate aggregates,
 # because filter is attached to pair of incoming and outgoing interface.
 $in =~ s/#network:trans/network:trans/g;
 
