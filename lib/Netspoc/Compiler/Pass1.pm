@@ -12709,47 +12709,6 @@ sub setup_ref2obj {
 #                Additional rule required: "permit src->any:Y".
 ##############################################################################
 
-my %supernet_rule_tree;
-
-# Collect rules with destination aggregate/supernet
-# - that are filtered at the same router which is attached
-#   to the destination zone
-# - the destination router is entered by the same interface
-# - src, src_range, prt, stateless are identical
-# - dst is supernet or aggregate with identical ip/mask
-sub collect_supernet_dst_rules {
-
-    # Function is called from path_walk.
-    my ($rule, $in_intf, $out_intf) = @_;
-
-    # Source is interface of current router.
-    return if !$in_intf;
-
-    # Ignore semi_managed router.
-    my $router = $in_intf->{router};
-    return if !$router->{managed};
-
-    my $dst  = $rule->{dst};
-    my $zone = $dst->{zone};
-    return if $out_intf->{zone} ne $zone;
-
-    # Get NAT address of supernet.
-    if (!$dst->{is_aggregate}) {
-        my $no_nat_set = $in_intf->{no_nat_set};
-        my $dst = get_nat_network($dst, $no_nat_set);
-        return if $dst->{hidden};
-    }
-
-    my $ipmask = join('/', @{$dst}{qw(ip mask)});
-    my ($stateless, $src, $src_range, $prt) =
-      @{$rule}{qw(stateless src src_range prt)};
-    $stateless ||= '';
-    $src_range ||= $prt_ip;
-    $supernet_rule_tree{$stateless}->{$src}->{$src_range}->{$prt}->{$in_intf}
-      ->{$ipmask}->{$zone} = $rule;
-    return;
-}
-
 sub find_supernet {
     my ($net1, $net2) = @_;
 
@@ -12873,29 +12832,11 @@ my %missing_supernet;
 sub check_supernet_in_zone {
     my ($rule, $where, $interface, $zone, $reversed) = @_;
 
-    my ($stateless, $deny, $src, $dst, $src_range, $prt) =
-      @{$rule}{qw(stateless deny src dst src_range prt)};
-    $stateless ||= '';
-    $src_range ||= $prt_ip;
-    my $other = $where eq 'src' ? $src : $dst;
+    my $service = $rule->{rule}->{service};
+    return if $missing_supernet{$interface}->{$service};
 
-    # Fast check for access to aggregate/supernet with identical
-    # ip/mask to $zone.
-    if ($where eq 'dst') {
-
-        # Get NAT address of supernet.
-        if (!$dst->{is_aggregate}) {
-            my $no_nat_set = $interface->{no_nat_set};
-            $dst = get_nat_network($dst, $no_nat_set);
-            return if $dst->{hidden};
-        }
-        my $ipmask = join('/', @{$dst}{qw(ip mask)});
-        return
-          if $supernet_rule_tree{$stateless}->{$src}->{$src_range}->{$prt}
-          ->{$interface}->{$ipmask}->{$zone};
-    }
-
-    my $networks = find_matching_supernet($interface, $zone, $other);
+    my $supernet = $rule->{$where}->[0];
+    my $networks = find_matching_supernet($interface, $zone, $supernet);
     return if not $networks;
     my $extra;
     if (!ref($networks)) {
@@ -12904,21 +12845,14 @@ sub check_supernet_in_zone {
     else {
 
         # $networks holds matching network and all its supernets.
-        # Find first matching rule.
-        $deny ||= '';
+        # Find smallest matching rule.
+        my $net_hash = $rule->{zone2net_hash}->{$zone};
         for my $network (@$networks) {
-            ($where eq 'src' ? $src : $dst) = $network;
-            if ($rule_tree{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}
-                ->{$prt})
-            {
-                return;
-            }
+            return if $net_hash->{$network}
         }
         $extra = "Tried " . join(', ', map { $_->{name} } @$networks);
     }
 
-    my $service = $rule->{rule}->{service};
-    return if $missing_supernet{$interface}->{$service};
     $missing_supernet{$interface}->{$service} = 1;
 
     $rule = print_rule $rule;
@@ -12932,6 +12866,23 @@ sub check_supernet_in_zone {
         " $extra as $where."
     );
     return;
+}
+
+# Check if path between $supernet and $obj_list ist filtered by
+# device with $mark from $router->{local_mark}.
+sub is_filtered_at {
+    my ($mark, $supernet, $obj_list) = @_;
+    my $supernet_filter_at = $supernet->{filter_at} or return;
+    $supernet_filter_at->{$mark} or return;
+    my $found_filtered;
+    for my $obj (@$obj_list) {
+        my $obj_net       = $obj->{network} || $obj;
+        my $obj_filter_at = $obj_net->{filter_at} or next;
+        $obj_filter_at->{$mark} or next;
+        $found_filtered = 1;
+        last;
+    }
+    return $found_filtered;
 }
 
 # If such rule is defined
@@ -12953,8 +12904,6 @@ sub check_supernet_in_zone {
 #  permit dst supernet1
 # which would accidentally permit traffic to supernet:[zone4] as well.
 sub check_supernet_src_rule {
-
-    # Function is called from path_walk.
     my ($rule, $in_intf, $out_intf) = @_;
 
     # Destination is interface of current router and therefore there is
@@ -12965,29 +12914,15 @@ sub check_supernet_src_rule {
     my $router = $in_intf->{router};
     my $managed = $router->{managed} or return;
 
-    my $out_zone = $out_intf->{zone};
-    my $src      = $rule->{src};
-    my $dst      = $rule->{dst};
-    my $dst_zone = get_zone($dst);
-    if ($dst->{has_other_subnet} && $out_zone eq $dst_zone) {
-
-        # Both src and dst are supernets and are directly connected
-        # at current router. Hence there can't be any missing rules.
-        # Note: Additional checks will be done for this situation at
-        # check_supernet_dst_rule
-        return;
-    }
+    my $src      = $rule->{src}->[0];
 
     # Non matching rule will be ignored at 'managed=local' router and
     # hence must no be checked.
     if (my $mark = $router->{local_mark}) {
-        my $src_net = $src;    # $src is known to be aggregate or supernet.
-        my $dst_net       = $dst->{network} || $dst;
-        my $src_filter_at = $src_net->{filter_at} or return;
-        my $dst_filter_at = $dst_net->{filter_at} or return;
-        $src_filter_at->{$mark} and $dst_filter_at->{$mark} or return;
+        is_filtered_at($mark, $src, $rule->{dst}) or return;
     }
 
+    my $dst_zone = $rule->{dst_path};
     my $in_zone = $in_intf->{zone};
 
     # Check case II, outgoing ACL, (A)
@@ -13011,13 +12946,16 @@ sub check_supernet_src_rule {
             check_supernet_in_zone($rule, 'src', $no_acl_intf, $no_acl_zone);
         }
     }
+
     my $src_zone = $src->{zone};
+    my $out_zone = $out_intf->{zone};
 
     # Check if reverse rule would be created and would need additional rules.
     if ($router->{model}->{stateless} && !$rule->{oneway})
 
     {
-        my $proto = $rule->{prt}->{proto};
+        my $prt_list = $rule->{prt};
+        my $is_reversed = grep { $_->{proto} =~ /^(?:tcp|udp|ip)$/ } @$prt_list;
 
         # Reverse rule wouldn't allow too much traffic, if a non
         # secondary stateful device filters between current device and dst.
@@ -13031,15 +12969,13 @@ sub check_supernet_src_rule {
         my $m1 = $out_zone->{stateful_mark};
         my $m2 = $dst_zone->{stateful_mark};
         if (!$m2) {
-            my $managed = $dst->{router}->{managed};
+            my $managed = $dst_zone->{router}->{managed};
             $m2 =
                 $managed =~ /^(?:secondary|local.*)$/
-              ? $dst->{network}->{zone}->{stateful_mark}
+              ? $dst_zone->{network}->{zone}->{stateful_mark}
               : -1;
         }
-        if (($proto eq 'tcp' || $proto eq 'udp' || $proto eq 'ip')
-            && $m1 == $m2)
-        {
+        if ($is_reversed && $m1 == $m2) {
 
             # Check case II, outgoing ACL, (B), interface Y without ACL.
             if (my $no_acl_intf = $router->{no_in_acl}) {
@@ -13060,7 +12996,7 @@ sub check_supernet_src_rule {
                 # zone X != zone Y
                 else {
                     check_supernet_in_zone($rule, 'src', $no_acl_intf,
-                        $no_acl_zone, 1);
+                                           $no_acl_zone, 1);
                 }
             }
 
@@ -13108,8 +13044,6 @@ sub check_supernet_src_rule {
 #  permit src supernet3
 #  permit src supernet4
 sub check_supernet_dst_rule {
-
-    # Function is called from path_walk.
     my ($rule, $in_intf, $out_intf) = @_;
 
     # Source is interface of current router.
@@ -13119,20 +13053,15 @@ sub check_supernet_dst_rule {
     my $router = $in_intf->{router};
     return if not $router->{managed};
 
-    my $src = $rule->{src};
-    my $dst = $rule->{dst};
+    my $dst = $rule->{dst}->[0];
 
     # Non matching rule will be ignored at 'managed=local' router and
     # hence must not be checked.
     if (my $mark = $router->{local_mark}) {
-        my $src_net = $src->{network} || $src;
-        my $dst_net = $dst;    # $dst is known to be aggregate or supernet.
-        my $src_filter_at = $src_net->{filter_at} or return;
-        my $dst_filter_at = $dst_net->{filter_at} or return;
-        $src_filter_at->{$mark} and $dst_filter_at->{$mark} or return;
+        is_filtered_at($mark, $dst, $rule->{src}) or return;
     }
 
-    my $src_zone = get_zone($src);
+    my $src_zone = $rule->{src_path};
     my $dst_zone = $dst->{zone};
 
     # Check case II, outgoing ACL, (B), interface Y without ACL.
@@ -13182,41 +13111,41 @@ sub check_supernet_dst_rule {
     return;
 }
 
-# Optimization:
-# Call check_supernet_dst_rule not for every rule with aggregate as destination,
-# but only once for a set of rules from collect_supernet_dst_rules.
-sub check_supernet_dst_collections {
-    return if !keys %supernet_rule_tree;
-    my @check_rules;
+# Check missing supernet of each service_rule.
+sub check_missing_supernet_rules {
+    my ($what, $worker) = @_;
+    my $other      = $what eq 'src' ? 'dst' : 'src';
+    my $other_path = "${other}_path";
+    my $what_path  = "${what}_path";
 
-    for my $src2href (values %supernet_rule_tree) {
-        for my $src_range2href (values %$src2href) {
-            for my $prt2href (values %$src_range2href) {
-                for my $intf2href (values %$prt2href) {
-                    for my $ipmask2href (values %$intf2href) {
+    my $rules = $service_rules{permit};
+    for my $rule (@$rules) {
+        next if $rule->{no_check_supernet_rules};
+        my $list = $rule->{$what};
+        my @supernets = grep { $_->{has_other_subnet} } @$list or next;
 
-                        # Check larger aggregates first. To get
-                        # deterministic error messages.
-                        for my $ipmask (
-                            sort { (split '/', $a)[1] <=> (split '/', $b)[1] }
-                            keys %$ipmask2href
-                          )
-                        {
-                            my $zone2rule = $ipmask2href->{$ipmask};
-                            push @check_rules, (values %$zone2rule)[0];
-                        }
-                    }
-                }
+        # Build mapping from zone to hash of all src/dst networks of
+        # current rule.
+        my %zone2net_hash;
+        for my $obj (@$list) {
+            is_network($obj) or next;
+            my $zone = $obj->{zone};
+            $zone2net_hash{$zone}->{$obj} = $obj;
+        }
+        $rule->{zone2net_hash} = \%zone2net_hash;
+        my $path_rules = split_rules_by_path([$rule], $other);
+        for my $supernet (@supernets) {
+            my $zone = $supernet->{zone};
+            for my $path_rule (@$path_rules) {
+                my $other_zone = get_zone($path_rule->{$other_path});
+                next if zone_eq($zone, $other_zone);
+                my $check_rule = { %$path_rule,
+                                   $what      => [$supernet],
+                                   $what_path => $zone, };
+                path_walk($check_rule, $worker);
             }
         }
     }
-    for my $rule (@check_rules) {
-        single_path_walk($rule, \&check_supernet_dst_rule);
-    }
-
-    # Not used any longer.
-    %supernet_rule_tree = ();
-    return;
 }
 
 # Find smaller protocol of two protocols.
@@ -13529,38 +13458,26 @@ sub mark_stateful {
 }
 
 sub check_supernet_rules {
-    my @supernet_rules;
-    if (   $config->{check_supernet_rules}
-        or $config->{check_transient_supernet_rules})
-    {
-        @supernet_rules = grep({ not $_->{deleted} and 
-                                     ($_->{src}->{has_other_subnet}
-                                      or $_->{dst}->{has_other_subnet}) }
-                               @{ $expanded_rules{permit} });
-    }
     if ($config->{check_supernet_rules}) {
-        my $count = @supernet_rules;
-        progress("Checking $count rules with supernet objects");
+        progress("Checking supernet rules");
         my $stateful_mark = 1;
         for my $zone (@zones) {
             if (not $zone->{stateful_mark}) {
                 mark_stateful($zone, $stateful_mark++);
             }
         }
-        for my $rule (@supernet_rules) {
-            next if $rule->{deleted};
-            next if $rule->{no_check_supernet_rules};
-            if ($rule->{src}->{has_other_subnet}) {
-                single_path_walk($rule, \&check_supernet_src_rule);
-            }
-            if ($rule->{dst}->{has_other_subnet}) {
-                single_path_walk($rule, \&collect_supernet_dst_rules);
-            }
-        }
-        check_supernet_dst_collections();
+#        progress("Checking for missing src in supernet rules");
+        check_missing_supernet_rules('src', \&check_supernet_src_rule);
+#        progress("Checking for missing dst in supernet rules");
+        check_missing_supernet_rules('dst', \&check_supernet_dst_rule);
         %missing_supernet = ();
     }
     if ($config->{check_transient_supernet_rules}) {
+#        progress("Checking transient supernet rules");
+        my @supernet_rules = grep({ not $_->{deleted} and 
+                                        ($_->{src}->{has_other_subnet}
+                                         or $_->{dst}->{has_other_subnet}) }
+                                  @{ $expanded_rules{permit} });
         check_for_transient_supernet_rule(\@supernet_rules);
     }
 
@@ -18231,7 +18148,7 @@ sub init_global_vars {
     %border2obj2auto    = ();
     @deleted_rules      = ();
     %unknown2services   = %unknown2unknown = ();
-    %supernet_rule_tree = %missing_supernet = ();
+    %missing_supernet = ();
     %smaller_prt        = ();
     %known_log          = %key2log = ();
     %obj2nat2address    = %prt2code = ();
