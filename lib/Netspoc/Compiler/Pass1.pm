@@ -6935,7 +6935,7 @@ sub convert_hosts_in_rules {
 my %rule_tree;
 
 # Collect deleted rules for further inspection.
-my @deleted_rules;
+my @duplicate_rules;
 
 # Add rules to %rule_tree for efficient look up.
 sub add_rules {
@@ -6955,7 +6955,7 @@ sub add_rules {
 
             # Found identical rule.
             $rule->{deleted} = $old_rule;
-            push @deleted_rules, $rule;
+            push @duplicate_rules, $rule;
             next;
         }
 
@@ -7161,11 +7161,11 @@ sub warn_useless_unenforceable {
     return;
 }
 
-sub show_deleted_rules1 {
-    return if not @deleted_rules;
-    my %sname2oname2deleted;
+sub show_duplicate_rules {
+    @duplicate_rules or return;
+    my %sname2oname2duplicate;
   RULE:
-    for my $rule (@deleted_rules) {
+    for my $rule (@duplicate_rules) {
         my $other = $rule->{deleted};
 
         my $prt1 = get_orig_prt($rule);
@@ -7196,53 +7196,35 @@ sub show_deleted_rules1 {
         my $ofile = $oservice->{file};
         $pfile =~ s/.*?([^\/]+)$/$1/;
         $ofile =~ s/.*?([^\/]+)$/$1/;
-        push(@{ $sname2oname2deleted{$sname}->{$oname} }, $rule);
+        push(@{ $sname2oname2duplicate{$sname}->{$oname} }, $rule);
     }
-    if (my $action = $config->{check_duplicate_rules}) {
-        my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
-        for my $sname (sort keys %sname2oname2deleted) {
-            my $hash = $sname2oname2deleted{$sname};
-            for my $oname (sort keys %$hash) {
-                my $aref = $hash->{$oname};
-                my $msg  = "Duplicate rules in $sname and $oname:\n  ";
-                $msg .= join("\n  ", map { print_rule $_ } @$aref);
-                $print->($msg);
-            }
+    @duplicate_rules = ();
+
+    my $action = $config->{check_duplicate_rules} or return;
+    my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
+    for my $sname (sort keys %sname2oname2duplicate) {
+        my $hash = $sname2oname2duplicate{$sname};
+        for my $oname (sort keys %$hash) {
+            my $aref = $hash->{$oname};
+            my $msg  = "Duplicate rules in $sname and $oname:\n  ";
+            $msg .= join("\n  ", map { print_rule $_ } @$aref);
+            $print->($msg);
         }
     }
-
-    # Variable will be reused during sub optimize.
-    @deleted_rules = ();
     return;
 }
 
+my @redundant_rules;
+
 sub collect_redundant_rules {
     my ($rule, $other) = @_;
-
-    # Ignore automatically generated rules from crypto or from reverse rules.
-    return if !$rule->{rule};
-    return if !$other->{rule};
 
     my $prt1 = get_orig_prt($rule);
     my $prt2 = get_orig_prt($other);
     return if $prt1->{flags}->{overlaps} && $prt2->{flags}->{overlaps};
 
-    # Automatically generated reverse rule for stateless router
-    # is still needed, even for stateful routers for static routes.
-    my $src = $rule->{src};
-    if (is_interface($src)) {
-        my $router = $src->{router};
-        if ($router->{managed} || $router->{routing_only}) {
-            return;
-        }
-    }
-
     my $service  = $rule->{rule}->{service};
     my $oservice = $other->{rule}->{service};
-    if (!$oservice) {
-        debug "d:", print_rule $rule;
-        debug "o:", print_rule $other;
-    }
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
             if ($oservice eq $overlap) {
@@ -7251,14 +7233,14 @@ sub collect_redundant_rules {
             }
         }
     }
-    push @deleted_rules, [ $rule, $other ];
+    push @redundant_rules, [ $rule, $other ];
     return;
 }
 
-sub show_deleted_rules2 {
-    return if not @deleted_rules;
-    my %sname2oname2deleted;
-    for my $pair (@deleted_rules) {
+sub show_redundant_rules {
+    @redundant_rules or return;
+    my %sname2oname2redundant;
+    for my $pair (@redundant_rules) {
         my ($rule, $other) = @$pair;
 
         my $service  = $rule->{rule}->{service};
@@ -7269,30 +7251,29 @@ sub show_deleted_rules2 {
         my $ofile    = $oservice->{file};
         $pfile =~ s/.*?([^\/]+)$/$1/;
         $ofile =~ s/.*?([^\/]+)$/$1/;
-        push(@{ $sname2oname2deleted{$sname}->{$oname} }, [ $rule, $other ]);
-    }
-    if (my $action = $config->{check_redundant_rules}) {
-        my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
-        for my $sname (sort keys %sname2oname2deleted) {
-            my $hash = $sname2oname2deleted{$sname};
-            for my $oname (sort keys %$hash) {
-                my $aref = $hash->{$oname};
-                my $msg  = "Redundant rules in $sname compared to $oname:\n  ";
-                $msg .= join(
-                    "\n  ",
-                    map {
-                        my ($r, $o) = @$_;
-                        print_rule($r) . "\n< " . print_rule($o);
-                    } @$aref
-                );
-                $print->($msg);
-            }
-        }
+        push(@{ $sname2oname2redundant{$sname}->{$oname} }, [ $rule, $other ]);
     }
 
     # Free memory.
-    @deleted_rules = ();
+    @redundant_rules = ();
 
+    my $action = $config->{check_redundant_rules} or return;
+    my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
+    for my $sname (sort keys %sname2oname2redundant) {
+        my $hash = $sname2oname2redundant{$sname};
+        for my $oname (sort keys %$hash) {
+            my $aref = $hash->{$oname};
+            my $msg  = "Redundant rules in $sname compared to $oname:\n  ";
+            $msg .= join(
+                "\n  ",
+                map {
+                    my ($r, $o) = @$_;
+                    print_rule($r) . "\n< " . print_rule($o);
+                } @$aref
+                );
+            $print->($msg);
+        }
+    }
     return;
 }
 
@@ -7431,7 +7412,7 @@ sub expand_services {
         add_rules($expanded_rules{$type});
     }
     print_rulecount();
-    show_deleted_rules1();
+    show_duplicate_rules();
     return;
 }
 
@@ -14117,7 +14098,7 @@ sub optimize_and_warn_deleted {
     setup_ref2obj();
     optimize_rules(\%rule_tree, \%rule_tree);
     print_rulecount();
-    show_deleted_rules2();
+    show_redundant_rules();
     warn_unused_overlaps();
     return;
 }
@@ -18044,7 +18025,7 @@ sub init_global_vars {
     %obj2path           = ();
     %key2obj            = ();
     %border2obj2auto    = ();
-    @deleted_rules      = ();
+    @duplicate_rules    = @redundant_rules = ();
     %unknown2services   = %unknown2unknown = ();
     %missing_supernet = ();
     %known_log          = %key2log = ();
