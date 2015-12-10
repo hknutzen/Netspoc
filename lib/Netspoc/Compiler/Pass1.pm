@@ -328,6 +328,14 @@ sub intersect {
     return grep { $seen{$_} } @$aref2;
 }
 
+# Check if first list is subset of second list.
+sub subset_of {
+    my ($aref1, $aref2) = @_;
+    my %seen = map { $_ => 1 } @$aref1;
+    my $count = grep { $seen{$_} } @$aref2;
+    return @$aref1 == $count;
+}
+
 sub max {
     my $max = shift(@_);
     for my $el (@_) {
@@ -13148,39 +13156,54 @@ sub check_missing_supernet_rules {
     }
 }
 
-# Find smaller protocol of two protocols.
-# Cache results.
-my %smaller_prt;
-
-sub find_smaller_prt {
+sub match_prt {
     my ($prt1, $prt2) = @_;
-
-    if ($prt1 eq $prt2) {
-        return $prt1;
+    my $proto1 = $prt1->{proto};
+    my $proto2 = $prt2->{proto};
+    return 1 if $proto1 eq 'ip';
+    return 1 if $proto2 eq 'ip';
+    $proto1 eq $proto2 or return;
+    if ($proto1 eq 'tcp' or $proto1 eq 'udp') {
+        my ($l1, $h1) = @{ $prt1->{range} };
+        my ($l2, $h2) = @{ $prt2->{range} };
+        return $l1 <= $l2 && $h2 <= $h1 || $l2 <= $l1 && $h1 <= $h2;
     }
-    if (defined(my $prt = $smaller_prt{$prt1}->{$prt2})) {
-        return $prt;
+    elsif ($proto1 eq 'icmp') {
+        my $type1 = $prt1->{type};
+        return 1 if not defined $type1;
+        my $type2 = $prt2->{type};
+        return 1 if not defined $type2;
+        $type1 == $type2 or return;
+        my $code1 = $prt1->{code};
+        return 1 if not defined $code1;
+        my $code2 = $prt2->{code};
+        return 1 if not defined $code2;
+        return $code1 == $code2;
     }
+    else {
+        return 1;
+    }
+}
 
-    my $prt = $prt1;
-    while ($prt = $prt->{up}) {
-        if ($prt eq $prt2) {
-            $smaller_prt{$prt1}->{$prt2} = $prt1;
-            $smaller_prt{$prt2}->{$prt1} = $prt1;
-            return $prt1;
+sub match_prt_list {
+    my ($prt_list1, $prt_list2) = @_;
+    for my $prt1 (@$prt_list1) {
+        for my $prt2 (@$prt_list2) {
+            match_prt($prt1, $prt2) or return;
         }
     }
-    $prt = $prt2;
-    while ($prt = $prt->{up}) {
-        if ($prt eq $prt1) {
-            $smaller_prt{$prt1}->{$prt2} = $prt2;
-            $smaller_prt{$prt2}->{$prt1} = $prt2;
-            return $prt2;
-        }
+    return 1;
+}
+
+sub elements_in_one_zone {
+    my ($list1, $list2) = @_;
+    my $obj0 = $list1->[0];
+    my $zone0 = $obj2zone{$obj0} || get_zone($obj0);
+    for my $obj (@$list1, @$list2) {
+        my $zone =  $obj2zone{$obj} || get_zone($obj);
+        zone_eq($zone0, $zone) or return;
     }
-    $smaller_prt{$prt1}->{$prt2} = 0;
-    $smaller_prt{$prt2}->{$prt1} = 0;
-    return;
+    return 1;
 }
 
 # Example:
@@ -13206,186 +13229,71 @@ sub find_smaller_prt {
 # Checking of other aggregates is too complicate (NAT, intersection).
 
 # Collect info about unwanted implied rules.
-sub check_for_transient_supernet_rule {
-    my ($rules) = @_;
-    my %missing_rule_tree;
-    my $missing_count = 0;
+sub check_transient_supernet_rules {
+    my $rules = $service_rules{permit};
 
+    # Build mapping from supernet to service rules having supernet as src.
+    my %supernet2rules;
     for my $rule (@$rules) {
-        next if $rule->{deleted};
-        next if $rule->{deny};
         next if $rule->{no_check_supernet_rules};
-        my $dst = $rule->{dst};
-        next if not $dst->{has_other_subnet};
+        my $src_list = $rule->{src};
+        for my $obj (@$src_list) {
+            $obj->{has_other_subnet} or next;
 
-        # Check only 0/0 aggregates.
-        next if $dst->{mask} != 0;
+            # Check only 0/0 aggregates.
+            $obj->{mask} == 0 or next;
 
-        # A leaf security zone has only one interface.
-        # It can't lead to unwanted rule chains.
-        next if @{ $dst->{zone}->{interfaces} } <= 1;
+            push @{ $supernet2rules{$obj} }, $rule;
+        }
+    }
+    keys %supernet2rules or return;
 
-        my ($stateless1, $src1, $dst1, $src_range1, $prt1) =
-          @$rule{qw(stateless src dst src_range prt)};
-        $stateless1 ||= '';
-        my $deny = '';
-        $src_range1 ||= $prt_ip;
+    my $print = $config->{check_transient_supernet_rules} eq 'warn'
+              ? \&warn_msg
+              : \&err_msg;
 
-        # Find all rules with supernet as source, which intersect with $dst1.
-        my $src2 = $dst1;
-        for my $stateless2 (1, '') {
-            my $hash = $rule_tree{$stateless2} or next;
-            $hash = $hash->{$deny} or next;
-            while (my ($src_range2_str, $hash) = each %$hash) {
-                my $src_range2 = $ref2prt{$src_range2_str};
-                my $smaller_src_range =
-                  find_smaller_prt($src_range1, $src_range2)
-                  or next;
+    # Search rules having supernet as dst.
+    for my $rule1 (@$rules) {
+        next if $rule1->{no_check_supernet_rules};
+        my $dst_list = $rule1->{dst};
+        for my $obj (@$dst_list) {
+            $obj->{has_other_subnet} or next;
+            $obj->{mask} == 0 or next;
 
-                $hash = $hash->{$src2} or next;
-                while (my ($dst2_str, $hash) = each %$hash) {
+            # A leaf security zone has only one interface.
+            # It can't lead to unwanted rule chains.
+            next if @{ $obj->{zone}->{interfaces} } <= 1;
 
-                    # Skip reverse rules.
-                    next if $src1 eq $dst2_str;
+            my $other_rules = $supernet2rules{$obj} or next;
+            for my $rule2 (@$other_rules) {
+                match_prt_list($rule1->{prt}, $rule2->{prt}) or next;
+                match_prt($rule1->{src_range} || $prt_ip,
+                          $rule2->{src_range} || $prt_ip) or next;
 
-                    my $dst2 = $ref2obj{$dst2_str};
-
-                    # Skip rules with src and dst inside a single zone.
-                    next
-                      if (($obj2zone{$src1} || get_zone $src1) eq
-                        ($obj2zone{$dst2} || get_zone $dst2));
-
-                  RULE2:
-                    while (my ($prt2_str, $rule2) = each %$hash) {
-                        next if $rule2->{no_check_supernet_rules};
-
-                        my $prt2 = $rule2->{prt};
-                        my $src_range2 = $rule2->{src_range} || $prt_ip;
-
-                        # Find smaller protocol of two rules found.
-                        my $smaller_prt = find_smaller_prt($prt1, $prt2);
-
-                        # If protocols are disjoint, we do not have
-                        # transient-supernet-problem for $rule and $rule2.
-                        next if not $smaller_prt;
-
-                        # Stateless rule < stateful rule, hence use ||.
-                        my $stateless = $stateless1 || $stateless2;
-
-                        # Check for a rule with $src1 and $dst2 and
-                        # with $smaller_prt.
-                        while (1) {
-                            my $deny = '';
-                            if (my $hash = $rule_tree{$stateless}) {
-                                while (1) {
-                                    my $src_range = $smaller_src_range;
-                                    if (my $hash = $hash->{$deny}) {
-                                        while (1) {
-                                            my $src = $src1;
-                                            if (my $hash = $hash->{$src_range})
-                                            {
-                                                while (1) {
-                                                    my $dst = $dst2;
-                                                    if (my $hash =
-                                                        $hash->{$src})
-                                                    {
-                                                        while (1) {
-                                                            my $prt =
-                                                              $smaller_prt;
-                                                            if (my $hash =
-                                                                $hash->{$dst})
-                                                            {
-                                                                while (1) {
-                                                                    if (
-                                                                        my $other_rule
-                                                                        = $hash
-                                                                        ->{$prt}
-                                                                      )
-                                                                    {
-
-#                       debug(print_rule $r_rule);
-                                                                        next
-                                                                          RULE2;
-                                                                    }
-                                                                    $prt =
-                                                                      $prt->{up}
-                                                                      or last;
-                                                                }
-                                                            }
-                                                            $dst = $dst->{up}
-                                                              or last;
-                                                        }
-                                                    }
-                                                    $src = $src->{up} or last;
-                                                }
-                                            }
-                                            $src_range = $src_range->{up}
-                                              or last;
-                                        }
-                                    }
-                                    last if $deny;
-                                    $deny = 1;
-                                }
-                            }
-                            last if !$stateless;
-                            $stateless = '';
-                        }
-
-#           debug("Src: ", print_rule $rule);
-#           debug("Dst: ", print_rule $rule2);
-                        my $src_service = $rule->{rule}->{service}->{name};
-                        my $dst_service = $rule2->{rule}->{service}->{name};
-                        my $prt_name    = $smaller_prt->{name};
-                        $prt_name =~ s/^.part_/[part]/;
-                        if ($smaller_src_range ne $prt_ip) {
-                            my ($p1, $p2) = @{ $smaller_src_range->{range} };
-                            $prt_name = "[src:$p1-$p2]$prt_name";
-                        }
-                        my $new =
-                          not $missing_rule_tree{$src_service}->{$dst_service}
-
-                          # The matching supernet object.
-                          ->{ $dst1->{name} }
-
-                          # The missing rule
-                          ->{ $src1->{name} }->{ $dst2->{name} }->{$prt_name}++;
-                        $missing_count++ if $new;
-                    }
+                # Found transient rules $rule1 and $rule2.
+                # Check, that 
+                # - either src elements of $rule1 are also src of $rule2
+                # - or dst elements of $rule2 are also dst of $rule1,
+                # - but no problem if src1 and dst2 are located in same zone,
+                #   i.e. transient traffic back to src.
+                my $src_list1 = $rule1->{src};
+                my $dst_list1 = $rule1->{dst};
+                my $src_list2 = $rule2->{src};
+                my $dst_list2 = $rule2->{dst};
+                if (not (subset_of($src_list1, $src_list2) or
+                         subset_of($dst_list2, $dst_list1))
+                    and not elements_in_one_zone($src_list1, $dst_list2))
+                {
+                    my $srv1 = $rule1->{rule}->{service}->{name};
+                    my $srv2 = $rule2->{rule}->{service}->{name};
+                    my $match = $obj->{name};
+                    $print->("Missing transient supernet rules\n",
+                             " between src of $srv1 and dst of $srv2,\n",
+                             " matching at $match");
                 }
             }
         }
     }
-
-    # No longer needed; free some memory.
-    %smaller_prt = ();
-
-    if ($missing_count) {
-        my @msg = ("Missing transient rules: $missing_count");
-        while (my ($src_service, $hash) = each %missing_rule_tree) {
-            while (my ($dst_service, $hash) = each %$hash) {
-                while (my ($supernet, $hash) = each %$hash) {
-                    push(@msg, "Rules of $src_service and $dst_service" .
-                         " match at $supernet");
-                    push(@msg, "Missing transient rules:");
-                    while (my ($src, $hash) = each %$hash) {
-                        while (my ($dst, $hash) = each %$hash) {
-                            while (my ($prt, $hash) = each %$hash) {
-                                push(@msg, 
-                                     " permit src=$src; dst=$dst; prt=$prt;");
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        my $print =
-          $config->{check_transient_supernet_rules} eq 'warn'
-          ? \&warn_msg
-          : \&err_msg;
-        $print->(join "\n", @msg);
-
-    }
-    return;
 }
 
 # Handling of supernet rules created by gen_reverse_rules.
@@ -13474,18 +13382,8 @@ sub check_supernet_rules {
     }
     if ($config->{check_transient_supernet_rules}) {
 #        progress("Checking transient supernet rules");
-        my @supernet_rules = grep({ not $_->{deleted} and 
-                                        ($_->{src}->{has_other_subnet}
-                                         or $_->{dst}->{has_other_subnet}) }
-                                  @{ $expanded_rules{permit} });
-        check_for_transient_supernet_rule(\@supernet_rules);
+        check_transient_supernet_rules();
     }
-
-    # No longer needed; free some memory.
-    %expanded_rules = ();
-    %rule_tree = ();
-    %ref2obj = ();
-    %obj2zone = ();
     return;
 }
 
@@ -18149,7 +18047,6 @@ sub init_global_vars {
     @deleted_rules      = ();
     %unknown2services   = %unknown2unknown = ();
     %missing_supernet = ();
-    %smaller_prt        = ();
     %known_log          = %key2log = ();
     %obj2nat2address    = %prt2code = ();
     init_protocols();
