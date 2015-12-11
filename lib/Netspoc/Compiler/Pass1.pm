@@ -59,6 +59,7 @@ our @EXPORT = qw(
   %crypto
   %global_type
   %service_rules
+  %path_rules
   @pathrestrictions
   *input
   $current_file
@@ -109,7 +110,7 @@ our @EXPORT = qw(
   expand_group
   expand_group_in_rule
   normalize_services
-  expand_services
+  group_path_rules
   expand_crypto
   check_unused_groups
   setpath
@@ -122,6 +123,7 @@ our @EXPORT = qw(
   process_loops
   check_pathrestrictions
   optimize_pathrestrictions
+  path_walk
   single_path_walk
   path_auto_interfaces
   check_supernet_rules
