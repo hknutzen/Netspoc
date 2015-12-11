@@ -7494,9 +7494,24 @@ sub check_expanded_rules {
     }
     for my $key (sort numerically keys %key2rules) {
         my $rules = $key2rules{$key};
-        my $expanded_rules = expand_rules($rules);
-        my $rule_tree = build_rule_tree($expanded_rules);
-        find_redundant_rules($rule_tree, $rule_tree);
+
+# We could add another layer to reduce memory usage even more.
+#        my $index = 1;
+#        my %path2index;
+#        my %key2rules;
+#        for my $rule (@$rules) {
+#            my $path = $rule->{dst_path};
+#            my $key  = $path2index{$path} ||= $index++;
+#            push @{ $key2rules{$key} }, $rule;
+#        }
+#        for my $key (sort numerically keys %key2rules) {
+#            my $rules = $key2rules{$key};
+
+            my $expanded_rules = expand_rules($rules);
+            my $rule_tree = build_rule_tree($expanded_rules);
+            find_redundant_rules($rule_tree, $rule_tree);
+
+#        }
     }
     show_duplicate_rules();
     show_redundant_rules();
