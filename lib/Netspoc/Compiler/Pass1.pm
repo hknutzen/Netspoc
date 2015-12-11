@@ -59,7 +59,6 @@ our @EXPORT = qw(
   %crypto
   %global_type
   %service_rules
-  %expanded_rules
   @pathrestrictions
   *input
   $current_file
@@ -6040,9 +6039,8 @@ sub split_protocols {
 
 sub path_auto_interfaces;
 
-# Hash with attributes deny, permit for storing expanded rules with
+# Hash with attributes deny, permit for storing path rules with
 # different action.
-our %expanded_rules;
 our %path_rules;
 
 ########################################################################
@@ -6197,6 +6195,39 @@ sub classify_protocols {
     return \%result;
 }
 
+sub check_private_service {
+    my ($service, $src_list, $dst_list) = @_;
+    my $private = $service->{private};
+    my $context = $service->{name};
+    for my $src (@$src_list) {
+        for my $dst (@$dst_list) {
+
+            if ($private) {
+                my $src_p = $src->{private};
+                my $dst_p = $dst->{private};
+                $src_p and $src_p eq $private
+                    or $dst_p and $dst_p eq $private
+                    or err_msg(
+                        "Rule of $private.private $context",
+                        " must reference at least one object",
+                        " out of $private.private");
+            }
+            else {
+                $src->{private}
+                and err_msg(
+                    "Rule of public $context must not",
+                    " reference $src->{name} of",
+                    " $src->{private}.private");
+                $dst->{private}
+                and err_msg(
+                    "Rule of public $context must not",
+                    " reference $dst->{name} of",
+                    " $dst->{private}.private");
+            }
+        }
+    }
+}
+
 sub normalize_service_rules {
     my ($service) = @_;
     my $rules   = $service->{rules};
@@ -6250,12 +6281,13 @@ sub normalize_service_rules {
             elsif(not @extra_src_dst) {
                 next;
             }
-            for my $src_dst_net (sort keys %$src_dst_net2prt_lists) {
-                my ($simple_prt_list, $complex_prt_list) =
-                    @{$src_dst_net2prt_lists->{$src_dst_net}}{'simple',
-                                                              'complex'};
-                for my $src_dst_list (@extra_src_dst) {
-                    my ($src_list, $dst_list) = @$src_dst_list;
+            for my $src_dst_list (@extra_src_dst) {
+                my ($src_list, $dst_list) = @$src_dst_list;
+                check_private_service($service, $src_list, $dst_list);
+                for my $src_dst_net (sort keys %$src_dst_net2prt_lists) {
+                    my ($simple_prt_list, $complex_prt_list) =
+                        @{$src_dst_net2prt_lists->{$src_dst_net}}{'simple',
+                                                                  'complex'};
                     if ($simple_prt_list) {
                         $dst_list = add_managed_hosts($dst_list, $dst_context);
                         my $rule = {
@@ -6927,30 +6959,25 @@ sub convert_hosts_in_rules {
 # Expand rules and check them for redundancy
 ########################################################################
 
-# Hash for ordering all rules.
-# Put attributes with small value set first, to get a more
-# memory efficient tree with few branches at root.
-# $rule_tree{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}->{$prt}
-#  = $rule;
-my %rule_tree;
-
 # Collect deleted rules for further inspection.
 my @duplicate_rules;
 
-# Add rules to %rule_tree for efficient look up.
-sub add_rules {
-    my ($rules_ref, $rule_tree) = @_;
-    $rule_tree ||= \%rule_tree;
-
-    for my $rule (@$rules_ref) {
+# Build rule tree from expanded rules for efficient comparison of rules.
+# Rule tree is a hash for ordering all rules.
+# Put attributes with small value set first, to get a more
+# memory efficient tree with few branches at root.
+sub build_rule_tree {
+    my ($rules) = @_;
+    my $rule_tree = {};
+    for my $rule (@$rules) {
         my ($stateless, $deny, $src, $dst, $src_range, $prt) =
-          @{$rule}{qw(stateless deny src dst src_range prt)};
+            @{$rule}{qw(stateless deny src dst src_range prt)};
         $stateless ||= '';
         $deny      ||= '';
         $src_range ||= $prt_ip;
         my $old_rule =
-          $rule_tree->{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}
-          ->{$prt};
+            $rule_tree->{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}
+        ->{$prt};
         if ($old_rule) {
 
             # Found identical rule.
@@ -6959,11 +6986,11 @@ sub add_rules {
             next;
         }
 
-#       debug("Add:", print_rule $rule);
-        $rule_tree->{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}->{$prt}
-          = $rule;
+#           debug("Add:", print_rule $rule);
+        $rule_tree->{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}
+        ->{$prt} = $rule;
     }
-    return;
+    return $rule_tree;
 }
 
 my %obj2zone;
@@ -7041,7 +7068,8 @@ sub add_managed_hosts {
 # Rules between identical objects are silently ignored.
 # But a message is shown if a service only has rules between identical objects.
 sub collect_unenforceable {
-    my ($src, $dst, $zone, $service) = @_;
+    my ($rule, $zone) = @_;
+    my $service = $rule->{rule}->{service};
 
     if ($zone->{has_unenforceable}) {
         $zone->{seen_unenforceable}      = 1;
@@ -7051,57 +7079,58 @@ sub collect_unenforceable {
 
     my $context = $service->{name};
     $service->{silent_unenforceable} = 1;
+    my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
 
-    # A rule between identical objects is a common case
-    # which results from rules with "src=user;dst=user;".
-    return if $src eq $dst;
+    for my $src (@$src_list) {
+        for my $dst (@$dst_list) {
 
-    if (is_router $zone) {
+            # A rule between identical objects is a common case
+            # which results from rules with "src=user;dst=user;".
+            next if $src eq $dst;
 
-        # Auto interface is assumed to be identical
-        # to each other interface of a single router.
-        return if is_autointerface($src) or is_autointerface($dst);
-    }
-    elsif (is_subnet $src and is_subnet($dst)) {
+            if (is_subnet $src and is_subnet($dst)) {
 
-        # For rules with different subnets of a single network we don't
-        # know if the subnets have been split from a single range.
-        # E.g. range 1-4 becomes four subnets 1,2-3,4
-        # For most splits the resulting subnets would be adjacent.
-        # Hence we check for adjacency.
-        if ($src->{network} eq $dst->{network}) {
-            my ($a, $b) = $src->{ip} > $dst->{ip} ? ($dst, $src) : ($src, $dst);
-            if ($a->{ip} + complement_32bit($a->{mask}) + 1 == $b->{ip}) {
-                return;
+                # For rules with different subnets of a single network we don't
+                # know if the subnets have been split from a single range.
+                # E.g. range 1-4 becomes four subnets 1,2-3,4
+                # For most splits the resulting subnets would be adjacent.
+                # Hence we check for adjacency.
+                if ($src->{network} eq $dst->{network}) {
+                    my ($a, $b) = $src->{ip} > $dst->{ip} 
+                                ? ($dst, $src) 
+                                : ($src, $dst);
+                    if ($a->{ip} + complement_32bit($a->{mask}) + 1 == $b->{ip})
+                    {
+                        next;
+                    }
+                }
             }
+
+            # Both are aggregates, having identical ip and mask.
+            elsif ($src->{is_aggregate} && $dst->{is_aggregate} &&
+                   $src->{ip}   == $dst->{ip} &&
+                   $src->{mask} == $dst->{mask})
+            {
+                next;
+            }
+
+            # This is a common case, which results from rules like
+            # group:some_networks -> any:[group:some_networks]
+            elsif ($src->{is_aggregate} && $src->{mask} == 0) {
+                next;
+            }
+            elsif ($dst->{is_aggregate} && $dst->{mask} == 0) {
+                next;
+            }
+
+            # Network or aggregate was only used for its managed_hosts
+            # to be added automatically in expand_group.
+            elsif ($dst->{managed_hosts}) {
+                next;
+            }
+            $service->{seen_unenforceable}->{$src}->{$dst} ||= [ $src, $dst ];
         }
     }
-    elsif ($src->{is_aggregate} && $dst->{is_aggregate}) {
-
-        # Both are aggregates,
-        # - belonging to same zone cluster and
-        # - having identical ip and mask
-        return
-          if ( zone_eq($src->{zone}, $dst->{zone})
-            && $src->{ip} == $dst->{ip}
-            && $src->{mask} == $dst->{mask});
-    }
-    elsif ($src->{is_aggregate} && $src->{mask} == 0) {
-
-        # This is a common case, which results from rules like
-        # group:some_networks -> any:[group:some_networks]
-        return if zone_eq($src->{zone}, get_zone($dst));
-    }
-    elsif ($dst->{is_aggregate} && $dst->{mask} == 0) {
-        return if zone_eq($dst->{zone}, get_zone($src));
-    }
-    elsif ($dst->{managed_hosts}) {
-
-        # Network or aggregate was only used for its managed_hosts
-        # to be added automatically in expand_group.
-        return;
-    }
-    $service->{seen_unenforceable}->{$src}->{$dst} ||= [ $src, $dst ];
     return;
 }
 
@@ -7328,91 +7357,54 @@ sub normalize_log {
     return $key2log{$key} ||= \@tags;
 }
 
-# Expands rules in global variable %service_rules 
-# to rules in global variable %path_rules.
+# Expand path_rules to elementary rules.
 sub expand_rules {
-    for my $action (qw(permit deny)) {
-        my $rules = $service_rules{$action} or next;
-        my $expanded = $expanded_rules{$action} ||= [];
-        for my $rule (@$rules) {
-            my $service  = $rule->{rule}->{service};
-            my $context  = $service->{name};
-            my $private  = $service->{private};
-            my $src_flag = $rule->{src_flag};
-            my $dst_flag = $rule->{dst_flag};
-            my $src_list = $rule->{src};
-            my $dst_list = $rule->{dst};
-            my $prt_list = $rule->{prt};
-            for my $src (@$src_list) {
-                my $src_zone = $obj2zone{$src} || get_zone($src);
-                for my $dst (@$dst_list) {
-                    my $dst_zone = $obj2zone{$dst} || get_zone($dst);
-                    if (zone_eq($src_zone, $dst_zone)) {
-                        collect_unenforceable($src, $dst, $src_zone, $service);
-                        next;
-                    }
-
-                    # At least one rule is enforceable.
-                    # This is used to decide, if a service is fully
-                    # unenforceable.
-                    $service->{seen_enforceable} = 1;
-                    if ($private) {
-                        my $src_p = $src->{private};
-                        my $dst_p = $dst->{private};
-                        $src_p and $src_p eq $private
-                            or $dst_p and $dst_p eq $private
-                            or err_msg
-                            "Rule of $private.private $context",
-                            " must reference at least one object",
-                            " out of $private.private";
-                    }
-                    else {
-                        $src->{private}
-                        and err_msg
-                            "Rule of public $context must not",
-                            " reference $src->{name} of",
-                            " $src->{private}.private";
-                        $dst->{private}
-                        and err_msg
-                            "Rule of public $context must not",
-                            " reference $dst->{name} of",
-                            " $dst->{private}.private";
-                    }
-
-                    for my $prt (@$prt_list) {
-                        my $e_rule = { %$rule, 
-                                       src => $src, 
-                                       dst => $dst, 
-                                       prt => $prt };
-                        push @$expanded, $e_rule;
-                    }
+    my ($rules) = @_;
+    my $result = [];
+    for my $rule (@$rules) {
+        my ($src_list, $dst_list, $prt_list) = @{$rule}{qw(src dst prt)};
+        for my $src (@$src_list) {
+            for my $dst (@$dst_list) {
+                for my $prt (@$prt_list) {
+                    push @$result, { %$rule, 
+                                     src => $src, 
+                                     dst => $dst, 
+                                     prt => $prt };
                 }
             }
         }
     }
+    return $result;
 }
 
-sub print_rulecount {
-    my $count = 0;
-    for my $type ('deny', 'permit') {
-        $count += grep { not $_->{deleted} } @{ $expanded_rules{$type} };
+sub check_expanded_rules {
+    progress('Checking expanded rules');
+    setup_ref2obj();
+
+    # Process rules in chunks to reduce memory usage.
+    # Rules with different src_path / dst_path can't be 
+    # redundant to each other.
+    # Keep deterministic order of rules.
+    my $index = 1;
+    my %path2index;
+    my %key2rules;
+    for my $rule (@{ $path_rules{deny} }, @{ $path_rules{permit} }) {
+        my $path = $rule->{src_path};
+        my $key  = $path2index{$path} ||= $index++;
+        push @{ $key2rules{$key} }, $rule;
     }
-    info("Expanded rule count: $count");
-    return;
-}
-
-sub expand_services {
-    progress('Expanding services');
-    expand_rules();
+    for my $key (sort numerically keys %key2rules) {
+        my $rules = $key2rules{$key};
+        my $expanded_rules = expand_rules($rules);
+        check_dynamic_nat_rules($expanded_rules);
+        my $rule_tree = build_rule_tree($expanded_rules);
+        find_redundant_rules($rule_tree, $rule_tree);
+    }
     show_unenforceable();
     warn_useless_unenforceable();
-    print_rulecount();
-    progress('Finding duplicate rules');
-    for my $type (qw(deny permit)) {
-        add_rules($expanded_rules{$type});
-    }
-    print_rulecount();
     show_duplicate_rules();
+    show_redundant_rules();
+    warn_unused_overlaps();
     return;
 }
 
@@ -13751,7 +13743,8 @@ sub mark_dynamic_host_nets {
 # 2. Check host rule with dynamic NAT.
 # 3. Check for partially applied hidden or dynamic NAT on path.
 sub check_dynamic_nat_rules {
-    progress('Checking rules with hidden or dynamic NAT');
+    my ($expanded_rules) = @_;
+#    progress('Checking rules with hidden or dynamic NAT');
 
     # Collect hidden or dynamic NAT tags.
     my %is_dynamic_nat_tag;
@@ -13809,7 +13802,7 @@ sub check_dynamic_nat_rules {
     # Remember, if path has already been checked for inversed dynamic NAT.
     my %cache;
 
-    for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{deny} }) {
+    for my $rule (@$expanded_rules) {
         next if $rule->{deleted};
         for my $where ('src', 'dst') {
             my $obj        = $rule->{$where};
@@ -13963,144 +13956,77 @@ sub check_dynamic_nat_rules {
 }
 
 ##############################################################################
-# Optimize expanded rules by deleting identical rules and
-# rules which are overlapped by a more general rule
+# Find redundant rules which are overlapped by a more general rule
 ##############################################################################
-
-sub optimize_rules {
-    my ($cmp_hash, $chg_hash) = @_;
-    while (my ($stateless, $chg_hash) = each %$chg_hash) {
+sub find_redundant_rules {
+ my ($cmp_hash, $chg_hash) = @_;
+ while (my ($stateless, $chg_hash) = each %$chg_hash) {
+  while (1) {
+   if (my $cmp_hash = $cmp_hash->{$stateless}) {
+    while (my ($deny, $chg_hash) = each %$chg_hash) {
+     while (1) {
+      if (my $cmp_hash = $cmp_hash->{$deny}) {
+       while (my ($src_range_ref, $chg_hash) = each %$chg_hash) {
+        my $src_range = $ref2prt{$src_range_ref};
         while (1) {
-            if (my $cmp_hash = $cmp_hash->{$stateless}) {
-                while (my ($deny, $chg_hash) = each %$chg_hash) {
-                    while (1) {
-                        if (my $cmp_hash = $cmp_hash->{$deny}) {
-                            while (my ($src_range_ref, $chg_hash) =
-                                each %$chg_hash)
-                            {
-                                my $src_range = $ref2prt{$src_range_ref};
-                                while (1) {
-                                    if (my $cmp_hash = $cmp_hash->{$src_range})
-                                    {
-                                        while (my ($src_ref, $chg_hash) =
-                                            each %$chg_hash)
-                                        {
-                                            my $src = $ref2obj{$src_ref};
-                                            while (1) {
-                                                if (my $cmp_hash =
-                                                    $cmp_hash->{$src})
-                                                {
-                                                    while (
-                                                        my ($dst_ref, $chg_hash)
-                                                        = each %$chg_hash)
-                                                    {
-                                                        my $dst =
-                                                          $ref2obj{$dst_ref};
-                                                        while (1) {
-                                                            if (my $cmp_hash =
-                                                                $cmp_hash
-                                                                ->{$dst})
-                                                            {
-                                                                for
-                                                                  my $chg_rule (
-                                                                    values
-                                                                    %$chg_hash)
-                                                                {
+         if (my $cmp_hash = $cmp_hash->{$src_range}) {
+          while (my ($src_ref, $chg_hash) = each %$chg_hash) {
+           my $src = $ref2obj{$src_ref};
+           while (1) {
+            if (my $cmp_hash = $cmp_hash->{$src}) {
+             while (my ($dst_ref, $chg_hash) = each %$chg_hash) {
+              my $dst = $ref2obj{$dst_ref};
+              while (1) {
+               if (my $cmp_hash = $cmp_hash ->{$dst}) {
+                for my $chg_rule (values %$chg_hash) {
 
-                                                                    # Even if $change_rule already is marked as deleted,
-                                                                    # don't stop here, but go on and find all redundant
-                                                                    # pairs of ($change_rule, $cmp_rule).
-                                                                    # This is needed, because some instances of $cmp_rule
-                                                                    # may have an {overlaps} attribute, which prevents
-                                                                    # a warning message to be printed.
-                                                                    my $prt =
-                                                                      $chg_rule
-                                                                      ->{prt};
-                                                                    my $chg_log
-                                                                      = $chg_rule
-                                                                      ->{log}
-                                                                      || '';
-                                                                    while (1) {
-                                                                        if (
-                                                                            my $cmp_rule
-                                                                            = $cmp_hash
-                                                                            ->{
-                                                                                $prt
-                                                                            }
-                                                                          )
-                                                                        {
-                                                                            my $cmp_log
-                                                                              = $cmp_rule
-                                                                              ->
-                                                                              {log}
-                                                                              ||
-                                                                              '';
-                                                                            if (
-                                                                                $cmp_rule
-                                                                                ne
-                                                                                $chg_rule
-                                                                                &&
-                                                                                $cmp_log
-                                                                                eq
-                                                                                $chg_log
-                                                                              )
-                                                                            {
+                 # Even if $change_rule already is marked as deleted,
+                 # don't stop here, but go on and find all redundant
+                 # pairs of ($change_rule, $cmp_rule).
+                 # This is needed, because some instances of $cmp_rule
+                 # may have an {overlaps} attribute, which prevents
+                 # a warning message to be printed.
+                 my $prt = $chg_rule->{prt};
+                 my $chg_log = $chg_rule->{log} || '';
+                 while (1) {
+                  if (my $cmp_rule = $cmp_hash->{$prt}) {
+                   my $cmp_log = $cmp_rule->{log} || '';
+                   if ($cmp_rule ne $chg_rule &&
+                       $cmp_log eq $chg_log)
+                   {
 #                   debug("Del:", print_rule $chg_rule);
 #                   debug("Oth:", print_rule $cmp_rule);
-                                                                                $chg_rule
-                                                                                  ->
-                                                                                  {deleted}
-                                                                                  =
-                                                                                  $cmp_rule;
-                                                                                collect_redundant_rules(
-                                                                                    $chg_rule,
-                                                                                    $cmp_rule
-                                                                                  )
-                                                                                  ;
-                                                                                last;
-                                                                            }
-                                                                        }
-                                                                        $prt =
-                                                                          $prt
-                                                                          ->{up}
-                                                                          or
-                                                                          last;
-                                                                    }
-                                                                }
-                                                            }
-                                                            $dst = $dst->{up}
-                                                              or last;
-                                                        }
-                                                    }
-                                                }
-                                                $src = $src->{up} or last;
-                                            }
-                                        }
-                                    }
-                                    $src_range = $src_range->{up} or last;
-                                }
-                            }
-                        }
-                        last if $deny;
-                        $deny = 1;
-                    }
+                    $chg_rule->{deleted} = $cmp_rule;
+                    collect_redundant_rules($chg_rule, $cmp_rule);
+                    last;
+                   }
+                  }
+                  $prt = $prt->{up} or last;
+                 }
                 }
+               }
+               $dst = $dst->{up} or last;
+              }
+             }
             }
-            last if !$stateless;
-            $stateless = '';
+            $src = $src->{up} or last;
+           }
+          }
+         }
+         $src_range = $src_range->{up} or last;
         }
+       }
+      }
+      last if $deny;
+      $deny = 1;
+     }
     }
-    return;
-}
-
-sub optimize_and_warn_deleted {
-    progress('Finding redundant rules');
-    setup_ref2obj();
-    optimize_rules(\%rule_tree, \%rule_tree);
-    print_rulecount();
-    show_redundant_rules();
-    warn_unused_overlaps();
-    return;
+   }
+   last if !$stateless;
+   $stateless = '';
+  }
+ }
+ return;
 }
 
 ########################################################################
@@ -14151,11 +14077,20 @@ sub remove_unenforceable_rules {
     my ($rules) = @_;
     for (my $i = 0; $i < @$rules; $i++) {
         my $rule = $rules->[$i];
-        my $src_zone = get_zone($rule->{src_path});
-        my $dst_zone = get_zone($rule->{dst_path});
+        my ($src_path, $dst_path) = @{$rule}{qw(src_path dst_path)};
+        my $src_zone = $obj2zone{$src_path} || get_zone($src_path);
+        my $dst_zone = $obj2zone{$dst_path} || get_zone($dst_path);
         if (zone_eq($src_zone, $dst_zone)) {
+            collect_unenforceable($rule, $src_zone);
             splice(@$rules, $i, 1);
             $i--;
+        }
+        else {
+
+            # At least one rule of service is enforceable.
+            # This is used to decide, if a service is fully unenforceable.
+            my $service = $rule->{rule}->{service};
+            $service->{seen_enforceable} = 1;
         }
     }    
 }
@@ -14178,7 +14113,7 @@ sub group_path_rules {
     info("Grouped rule count: $count");
 
     #  No longer needed, free some memory.
-    %service_rules = ();
+#    %service_rules = ();
 }
 
 ########################################################################
@@ -18018,7 +17953,6 @@ sub init_global_vars {
     %auto_interfaces    = ();
     %crypto2spokes      = %crypto2hubs = ();
     %service_rules      = %path_rules = ();
-    %expanded_rules     = %rule_tree = ();
     %prt_hash           = %ref2prt = %ref2obj = %token2regex = ();
     %ref2obj            = %ref2prt = ();
     %obj2zone           = ();
@@ -18077,20 +18011,18 @@ sub compile {
     propagate_owners();
     set_service_owner();
     convert_hosts_in_rules();
+    group_path_rules();
 
     # Abort now, if there had been syntax errors and simple semantic errors.
     &abort_on_error();
 
     concurrent(
         sub {
-            &check_unused_groups();
-            expand_services();
-            check_dynamic_nat_rules();
-            &optimize_and_warn_deleted();
-            &check_supernet_rules();
+            check_unused_groups();
+            check_expanded_rules();
+            check_supernet_rules();
         },
         sub {
-            group_path_rules();
             set_policy_distribution_ip();
             &expand_crypto();
             prepare_nat_commands();

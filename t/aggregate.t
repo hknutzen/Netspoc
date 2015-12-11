@@ -990,10 +990,11 @@ $title = 'No effect of stateful router in forward direction';
 
 $in =~ s/, FW//;
 $in =~ s/; [#]1/, FW;/;
-$out = <<'END';
+
+$out = <<"END";
 Warning: Missing rule for reversed supernet rule.
  permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
- can't be effective at interface:r2.n3.
+ can\'t be effective at interface:r2.n3.
  Tried network:n3 as src.
 END
 
@@ -1033,13 +1034,117 @@ service:s2 = {
 END
 
 $out = <<'END';
-Warning: Missing transient rules: 1
-Rules of service:s1 and service:s2 match at any:[network:n2]
-Missing transient rules:
- permit src=network:n1; dst=interface:r2.n2; prt=auto_prt:IPSec_ESP;
+Warning: Missing transient supernet rules
+ between src of service:s1 and dst of service:s2,
+ matching at any:[network:n2]
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'No missing transient rule for src and dst in same zone';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+
+service:s1 = {
+ user = any:[network:n2];
+ permit src = network:n1; dst = user; prt = udp 123;
+}
+
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user; dst = network:n1; prt = udp 100-200;
+}
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.2.1
+ permit udp 10.1.1.0 0.0.0.255 any eq 123
+ deny ip any any
+--
+ip access-list extended n2_in
+ deny ip any host 10.1.1.1
+ permit udp any 10.1.1.0 0.0.0.255 range 100 200
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'No missing transient rule for leaf zone';
+############################################################
+# A leaf security zone has only one interface.
+# It can't lead to unwanted rule chains.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+network:n3 = { ip = 10.1.3.0/24; }
+
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = any:[network:n1]; prt = tcp 80;
+}
+
+service:s2 = {
+ user = any:[network:n1];
+ permit src = user; dst = network:n3; prt = tcp;
+}
+END
+
+$out = <<'END';
+--r1
+# [ ACL ]
+:n1_self -
+-A INPUT -j n1_self -i n1
+:n1_n3 -
+-A n1_n3 -j ACCEPT -d 10.1.3.0/24 -p tcp
+-A FORWARD -j n1_n3 -i n1 -o n3
+--
+:n2_self -
+-A INPUT -j n2_self -i n2
+:n2_n1 -
+-A n2_n1 -j ACCEPT -s 10.1.2.0/24 -p tcp --dport 80
+-A FORWARD -j n2_n1 -i n2 -o n1
+--
+:n3_self -
+-A INPUT -j n3_self -i n3
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Supernet used as aggregate';
