@@ -6039,11 +6039,43 @@ sub split_protocols {
     return \@splitted_protocols;
 }
 
-sub path_auto_interfaces;
+########################################################################
+# Handling of log attribute of rules.
+########################################################################
 
-# Hash with attributes deny, permit for storing path rules with
-# different action.
-our %path_rules;
+# All log tags defined at some routers.
+my %known_log;
+
+sub collect_log {
+    for my $router (@managed_routers) {
+        my $log = $router->{log} or next;
+        for my $tag (keys %$log) {
+            $known_log{$tag} = 1;
+        }
+    }
+    return;
+}
+
+sub check_log {
+    my ($log, $context) = @_;
+    for my $tag (@$log) {
+        $known_log{$tag} and next;
+        warn_msg("Referencing unknown '$tag' in log of $context");
+        aref_delete($log, $tag);
+    }
+    return;
+}
+
+# Normalize lists of log tags at different rules in such a way,
+# that equal sets of tags are represented by 'eq' array references.
+my %key2log;
+
+sub normalize_log {
+    my ($log) = @_;
+    my @tags = sort @$log;
+    my $key = join(',', @tags);
+    return $key2log{$key} ||= \@tags;
+}
 
 ########################################################################
 # Normalize rules of services and 
@@ -6055,6 +6087,8 @@ our %service_rules;
 sub get_path;
 my %obj2path; # lookup hash, keys: source/destination objects, 
               #              values: corresponding path node objects
+
+my %obj2zone;
 
 ##############################################################################
 # Purpose    : Expand auto interface to one or more real interfaces
@@ -6081,7 +6115,7 @@ sub expand_auto_intf_with_dst_list {
 
         if (not $result) {
             $result = [];
-            for my $interface (path_auto_interfaces $auto_intf, $path) {
+            for my $interface (path_auto_interfaces($auto_intf, $path)) {
                 if ($interface->{ip} eq 'short') {
                     err_msg("'$interface->{ip}' $interface->{name}",
                             " (from .[auto])\n", 
@@ -6857,6 +6891,10 @@ sub set_service_owner {
     return;
 }
 
+########################################################################
+# Convert hosts in normalized service_rules to subnets or to networks.
+########################################################################
+
 sub apply_src_dst_modifier {
     my ($group) = @_;
     my @modified;
@@ -6958,108 +6996,8 @@ sub convert_hosts_in_rules {
 }
 
 ########################################################################
-# Expand rules and check them for redundancy
+# Collect and show unenforceable rules.
 ########################################################################
-
-# Collect deleted rules for further inspection.
-my @duplicate_rules;
-
-# Build rule tree from expanded rules for efficient comparison of rules.
-# Rule tree is a hash for ordering all rules.
-# Put attributes with small value set first, to get a more
-# memory efficient tree with few branches at root.
-sub build_rule_tree {
-    my ($rules) = @_;
-    my $rule_tree = {};
-    for my $rule (@$rules) {
-        my ($stateless, $deny, $src, $dst, $src_range, $prt) =
-            @{$rule}{qw(stateless deny src dst src_range prt)};
-        $stateless ||= '';
-        $deny      ||= '';
-        $src_range ||= $prt_ip;
-        my $old_rule =
-            $rule_tree->{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}
-        ->{$prt};
-        if ($old_rule) {
-
-            # Found identical rule.
-            $rule->{deleted} = $old_rule;
-            push @duplicate_rules, $rule;
-            next;
-        }
-
-#           debug("Add:", print_rule $rule);
-        $rule_tree->{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}
-        ->{$prt} = $rule;
-    }
-    return $rule_tree;
-}
-
-my %obj2zone;
-
-sub get_zone {
-    my ($obj) = @_;
-    my $type = ref $obj;
-    my $result;
-
-    # A router or network with [auto] interface.
-    if ($type eq 'Autointerface') {
-        $obj  = $obj->{object};
-        $type = ref $obj;
-    }
-
-    if ($type eq 'Network') {
-        $result = $obj->{zone};
-    }
-    elsif ($type eq 'Subnet') {
-        $result = $obj->{network}->{zone};
-    }
-    elsif ($type eq 'Interface') {
-        if ($obj->{router}->{managed}) {
-            $result = $obj->{router};
-        }
-        else {
-            $result = $obj->{network}->{zone};
-        }
-    }
-
-    # Only used when called from expand_rules.
-    elsif ($type eq 'Router') {
-        if ($obj->{managed}) {
-            $result = $obj;
-        }
-        else {
-            $result = $obj->{interfaces}->[0]->{network}->{zone};
-        }
-    }
-
-    # Used, when called from remove_unenforceable_rules.
-    elsif ($type eq 'Zone') {
-        $result = $obj;
-    }
-    elsif ($type eq 'Host') {
-        $result = $obj->{network}->{zone};
-    }
-    else {
-        internal_err("unexpected $obj->{name}");
-    }
-    return ($obj2zone{$obj} = $result);
-}
-
-# Add managed hosts of networks and aggregates.
-sub add_managed_hosts {
-    my ($aref, $context) = @_;
-    my @extra;
-    for my $object (@$aref) {
-        my $managed_hosts = $object->{managed_hosts} or next;
-        push @extra, @$managed_hosts;
-    }
-    if (@extra) {
-        push @$aref, @extra;
-        $aref = remove_duplicates($aref, $context);
-    }
-    return $aref;
-}
 
 # This handles a rule between objects inside a single security zone or
 # between interfaces of a single managed router.
@@ -7190,6 +7128,199 @@ sub warn_useless_unenforceable {
         warn_msg("Useless attribute 'has_unenforceable' at $name");
     }
     return;
+}
+
+sub remove_unenforceable_rules {
+    my ($rules) = @_;
+    for (my $i = 0; $i < @$rules; $i++) {
+        my $rule = $rules->[$i];
+        my ($src_path, $dst_path) = @{$rule}{qw(src_path dst_path)};
+        my $src_zone = $obj2zone{$src_path} || get_zone($src_path);
+        my $dst_zone = $obj2zone{$dst_path} || get_zone($dst_path);
+        if (zone_eq($src_zone, $dst_zone)) {
+            collect_unenforceable($rule, $src_zone);
+            splice(@$rules, $i, 1);
+            $i--;
+        }
+        else {
+
+            # At least one rule of service is enforceable.
+            # This is used to decide, if a service is fully unenforceable.
+            my $service = $rule->{rule}->{service};
+            $service->{seen_enforceable} = 1;
+        }
+    }    
+}
+
+########################################################################
+# Convert normalized service rules to grouped path rules.
+########################################################################
+
+sub split_rules_by_path {
+    my ($rules, $where) = @_;
+    my $where_path = "${where}_path";
+    my @new_rules;
+    for my $rule (@$rules) {
+        my $group = $rule->{$where};
+        my $element0 = $group->[0];
+        $element0 or internal_err print_rule $rule;
+        my $path0 = $obj2path{$element0} || get_path($element0);
+
+        # Group has elements from different zones and must be split.
+        if (grep { $path0 ne ($obj2path{$_} || get_path($_)) } @$group)
+        {
+            my $index = 1;
+            my %path2index;
+            my %key2group;
+            for my $element (@$group) {
+                my $path = $obj2path{$element};
+                my $key  = $path2index{$path} ||= $index++;
+                push @{ $key2group{$key}}, $element;
+            }
+            for my $key (sort numerically keys %key2group) {
+                my $path_group = $key2group{$key};
+                my $path = $obj2path{$path_group->[0]};
+                my $new_rule = { %$rule,
+                                 $where      => $path_group,
+                                 $where_path => $path };
+                push @new_rules, $new_rule;
+            }
+        }
+
+        # Use unchanged group, add path info.
+        else {
+            $rule->{$where_path} = $path0;
+            push @new_rules, $rule;
+        }
+    }
+    return \@new_rules;
+}
+
+# Hash with attributes deny, permit for storing path rules with
+# different action.
+our %path_rules;
+
+sub group_path_rules {
+    progress("Grouping rules");
+    my $count = 0;
+
+    for my $action (qw(permit deny)) {
+        my $rules = $service_rules{$action} or next;
+
+        # Split grouped rules such, that all elements of src and dst
+        # have identical src_path/dst_path.
+        $rules = split_rules_by_path($rules, 'src');
+        $rules = split_rules_by_path($rules, 'dst');
+        remove_unenforceable_rules($rules);
+        $path_rules{$action} = $rules;
+        $count += @$rules;
+    }
+    info("Grouped rule count: $count");
+
+    show_unenforceable();
+    warn_useless_unenforceable();
+}
+
+########################################################################
+# Expand rules and check them for redundancy
+########################################################################
+
+# Collect deleted rules for further inspection.
+my @duplicate_rules;
+
+# Build rule tree from expanded rules for efficient comparison of rules.
+# Rule tree is a hash for ordering all rules.
+# Put attributes with small value set first, to get a more
+# memory efficient tree with few branches at root.
+sub build_rule_tree {
+    my ($rules) = @_;
+    my $rule_tree = {};
+    for my $rule (@$rules) {
+        my ($stateless, $deny, $src, $dst, $src_range, $prt) =
+            @{$rule}{qw(stateless deny src dst src_range prt)};
+        $stateless ||= '';
+        $deny      ||= '';
+        $src_range ||= $prt_ip;
+        my $old_rule =
+            $rule_tree->{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}
+        ->{$prt};
+        if ($old_rule) {
+
+            # Found identical rule.
+            $rule->{deleted} = $old_rule;
+            push @duplicate_rules, $rule;
+            next;
+        }
+
+#           debug("Add:", print_rule $rule);
+        $rule_tree->{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}
+        ->{$prt} = $rule;
+    }
+    return $rule_tree;
+}
+
+sub get_zone {
+    my ($obj) = @_;
+    my $type = ref $obj;
+    my $result;
+
+    # A router or network with [auto] interface.
+    if ($type eq 'Autointerface') {
+        $obj  = $obj->{object};
+        $type = ref $obj;
+    }
+
+    if ($type eq 'Network') {
+        $result = $obj->{zone};
+    }
+    elsif ($type eq 'Subnet') {
+        $result = $obj->{network}->{zone};
+    }
+    elsif ($type eq 'Interface') {
+        if ($obj->{router}->{managed}) {
+            $result = $obj->{router};
+        }
+        else {
+            $result = $obj->{network}->{zone};
+        }
+    }
+
+    # Only used when called from expand_rules.
+    elsif ($type eq 'Router') {
+        if ($obj->{managed}) {
+            $result = $obj;
+        }
+        else {
+            $result = $obj->{interfaces}->[0]->{network}->{zone};
+        }
+    }
+
+    # Used, when called from remove_unenforceable_rules.
+    elsif ($type eq 'Zone') {
+        $result = $obj;
+    }
+    elsif ($type eq 'Host') {
+        $result = $obj->{network}->{zone};
+    }
+    else {
+        internal_err("unexpected $obj->{name}");
+    }
+    return ($obj2zone{$obj} = $result);
+}
+
+# Add managed hosts of networks and aggregates.
+sub add_managed_hosts {
+    my ($aref, $context) = @_;
+    my @extra;
+    for my $object (@$aref) {
+        my $managed_hosts = $object->{managed_hosts} or next;
+        push @extra, @$managed_hosts;
+    }
+    if (@extra) {
+        push @$aref, @extra;
+        $aref = remove_duplicates($aref, $context);
+    }
+    return $aref;
 }
 
 sub show_duplicate_rules {
@@ -7325,40 +7456,6 @@ sub warn_unused_overlaps {
     return;
 }
 
-# All log tags defined at some routers.
-my %known_log;
-
-sub collect_log {
-    for my $router (@managed_routers) {
-        my $log = $router->{log} or next;
-        for my $tag (keys %$log) {
-            $known_log{$tag} = 1;
-        }
-    }
-    return;
-}
-
-sub check_log {
-    my ($log, $context) = @_;
-    for my $tag (@$log) {
-        $known_log{$tag} and next;
-        warn_msg("Referencing unknown '$tag' in log of $context");
-        aref_delete($log, $tag);
-    }
-    return;
-}
-
-# Normalize lists of log tags at different rules in such a way,
-# that equal sets of tags are represented by 'eq' array references.
-my %key2log;
-
-sub normalize_log {
-    my ($log) = @_;
-    my @tags = sort @$log;
-    my $key = join(',', @tags);
-    return $key2log{$key} ||= \@tags;
-}
-
 # Expand path_rules to elementary rules.
 sub expand_rules {
     my ($rules) = @_;
@@ -7380,7 +7477,7 @@ sub expand_rules {
 }
 
 sub check_expanded_rules {
-    progress('Checking expanded rules');
+    progress('Checking for redundant rules');
     setup_ref2obj();
 
     # Process rules in chunks to reduce memory usage.
@@ -7401,8 +7498,6 @@ sub check_expanded_rules {
         my $rule_tree = build_rule_tree($expanded_rules);
         find_redundant_rules($rule_tree, $rule_tree);
     }
-    show_unenforceable();
-    warn_useless_unenforceable();
     show_duplicate_rules();
     show_redundant_rules();
     warn_unused_overlaps();
@@ -14042,93 +14137,6 @@ sub find_redundant_rules {
 }
 
 ########################################################################
-# Convert normalized service rules to grouped rules.
-########################################################################
-
-sub split_rules_by_path {
-    my ($rules, $where) = @_;
-    my $where_path = "${where}_path";
-    my @new_rules;
-    for my $rule (@$rules) {
-        my $group = $rule->{$where};
-        my $element0 = $group->[0];
-        $element0 or internal_err print_rule $rule;
-        my $path0 = $obj2path{$element0} || get_path($element0);
-
-        # Group has elements from different zones and must be split.
-        if (grep { $path0 ne ($obj2path{$_} || get_path($_)) } @$group)
-        {
-            my $index = 1;
-            my %path2index;
-            my %key2group;
-            for my $element (@$group) {
-                my $path = $obj2path{$element};
-                my $key  = $path2index{$path} ||= $index++;
-                push @{ $key2group{$key}}, $element;
-            }
-            for my $key (sort numerically keys %key2group) {
-                my $path_group = $key2group{$key};
-                my $path = $obj2path{$path_group->[0]};
-                my $new_rule = { %$rule,
-                                 $where      => $path_group,
-                                 $where_path => $path };
-                push @new_rules, $new_rule;
-            }
-        }
-
-        # Use unchanged group, add path info.
-        else {
-            $rule->{$where_path} = $path0;
-            push @new_rules, $rule;
-        }
-    }
-    return \@new_rules;
-}
-
-sub remove_unenforceable_rules {
-    my ($rules) = @_;
-    for (my $i = 0; $i < @$rules; $i++) {
-        my $rule = $rules->[$i];
-        my ($src_path, $dst_path) = @{$rule}{qw(src_path dst_path)};
-        my $src_zone = $obj2zone{$src_path} || get_zone($src_path);
-        my $dst_zone = $obj2zone{$dst_path} || get_zone($dst_path);
-        if (zone_eq($src_zone, $dst_zone)) {
-            collect_unenforceable($rule, $src_zone);
-            splice(@$rules, $i, 1);
-            $i--;
-        }
-        else {
-
-            # At least one rule of service is enforceable.
-            # This is used to decide, if a service is fully unenforceable.
-            my $service = $rule->{rule}->{service};
-            $service->{seen_enforceable} = 1;
-        }
-    }    
-}
-
-sub group_path_rules {
-    progress("Grouping rules");
-    my $count = 0;
-
-    for my $action (qw(permit deny)) {
-        my $rules = $service_rules{$action} or next;
-
-        # Split grouped rules such, that all elements of src and dst
-        # have identical src_path/dst_path.
-        $rules = split_rules_by_path($rules, 'src');
-        $rules = split_rules_by_path($rules, 'dst');
-        remove_unenforceable_rules($rules);
-        $path_rules{$action} = $rules;
-        $count += @$rules;
-    }
-    info("Grouped rule count: $count");
-
-    #  No longer needed, free some memory.
-#    %service_rules = ();
-}
-
-########################################################################
 # Prepare NAT commands
 ########################################################################
 
@@ -18032,10 +18040,11 @@ sub compile {
         sub {
             check_unused_groups();
             check_dynamic_nat_rules();
-            check_expanded_rules();
             check_supernet_rules();
+            check_expanded_rules();
         },
         sub {
+            %service_rules = ();
             set_policy_distribution_ip();
             &expand_crypto();
             prepare_nat_commands();
