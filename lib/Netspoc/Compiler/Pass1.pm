@@ -6353,7 +6353,6 @@ sub normalize_service_rules {
                         $rule->{deny}      = 1          if $deny;
                         $rule->{log}       = $log       if $log;
                         $rule->{src_range} = $src_range if $src_range;
-                        $rule->{reversed}  = 1          if $flags->{reversed};
                         $rule->{stateless} = 1          if $flags->{stateless};
                         $rule->{oneway}    = 1          if $flags->{oneway};
                         $rule->{no_check_supernet_rules} = 1
@@ -6361,6 +6360,9 @@ sub normalize_service_rules {
                         $rule->{stateless_icmp} = 1
                             if $flags->{stateless_icmp};
                         $rule->{src_dst_net} = $src_dst_net if $src_dst_net;
+
+                        # Only used in set_service_owner.
+                        $rule->{reversed}  = 1 if $flags->{reversed};
 
                         push(@{ $service_rules{$store_type} }, $rule);
                     }
@@ -6798,7 +6800,7 @@ sub set_service_owner {
             if ($has_user eq 'both') {
                 $info->{is_coupling} = 1;
             }
-            elsif ($rule->{reversed}) {
+            elsif (delete $rule->{reversed}) { # Attribute is no longer needed.
                 $has_user = $has_user eq 'src' ? 'dst' : 'src';
             }
 
