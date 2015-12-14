@@ -7132,15 +7132,15 @@ sub warn_useless_unenforceable {
 
 sub remove_unenforceable_rules {
     my ($rules) = @_;
-    for (my $i = 0; $i < @$rules; $i++) {
-        my $rule = $rules->[$i];
+    my $changed;
+    for my $rule (@$rules) {
         my ($src_path, $dst_path) = @{$rule}{qw(src_path dst_path)};
         my $src_zone = $obj2zone{$src_path} || get_zone($src_path);
         my $dst_zone = $obj2zone{$dst_path} || get_zone($dst_path);
         if (zone_eq($src_zone, $dst_zone)) {
             collect_unenforceable($rule, $src_zone);
-            splice(@$rules, $i, 1);
-            $i--;
+            $rule = undef;
+            $changed = 1;
         }
         else {
 
@@ -7149,7 +7149,11 @@ sub remove_unenforceable_rules {
             my $service = $rule->{rule}->{service};
             $service->{seen_enforceable} = 1;
         }
-    }    
+    }
+    if ($changed) {
+        $rules = [ grep { $_ } @$rules ];
+    }
+    return $rules;
 }
 
 ########################################################################
@@ -7211,7 +7215,7 @@ sub group_path_rules {
         # have identical src_path/dst_path.
         $rules = split_rules_by_path($rules, 'src');
         $rules = split_rules_by_path($rules, 'dst');
-        remove_unenforceable_rules($rules);
+        $rules = remove_unenforceable_rules($rules);
         $path_rules{$action} = $rules;
         $count += @$rules;
     }
