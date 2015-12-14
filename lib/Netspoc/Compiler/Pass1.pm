@@ -7221,6 +7221,42 @@ sub group_path_rules {
     warn_useless_unenforceable();
 }
 
+sub remove_simple_duplicate_rules {
+    progress("Removing simple duplicate rules");
+    for my $action (qw(permit deny)) {
+        my $rules = $path_rules{$action} or next;
+        my %src2dst2prt2rule;
+        my $count = 0;
+      RULE:
+        for my $rule (@$rules) {
+            my $src = $rule->{src};
+            @$src == 1 or next;
+            my $dst = $rule->{dst};
+            @$dst == 1 or next;
+            my $prt = $rule->{prt};
+            @$prt == 1 or next;
+            for my $attr (qw(src_range log oneway stateless stateless_icmp)) {
+                next RULE if $rule->{$attr};
+            }
+            $src = $src->[0];
+            $dst = $dst->[0];
+            $prt = $prt->[0];
+            if ($src2dst2prt2rule{$src}->{$dst}->{$prt}) {
+                $rule = undef;
+                $count++;
+            }
+            else {
+                $src2dst2prt2rule{$src}->{$dst}->{$prt} = $rule;
+            }
+        }
+        if ($count) {
+            $path_rules{$action} = [ grep { $_ } @$rules ];
+#            info("Removed $count $action rules");
+        }
+    }
+}
+
+
 ########################################################################
 # Expand rules and check them for redundancy
 ########################################################################
@@ -18060,6 +18096,7 @@ sub compile {
         },
         sub {
             %service_rules = ();
+            remove_simple_duplicate_rules();
             set_policy_distribution_ip();
             &expand_crypto();
             prepare_nat_commands();
