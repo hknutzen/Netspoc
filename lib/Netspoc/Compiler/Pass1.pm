@@ -2473,8 +2473,7 @@ sub move_locked_interfaces {
     for my $interface (@$interfaces) {
         my $orig_router = $interface->{router};
 
-        # Use different and uniqe name, because name is used as hash
-        # key in group_rules.
+        # Use different and uniqe name for each splitted router.
         (my $name       = $interface->{name}) =~ s/^interface:/router/;
         my $new_router  = new(
             'Router',
