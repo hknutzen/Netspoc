@@ -65,7 +65,6 @@ our @EXPORT = qw(
   $current_file
   $line
   $error_counter
-  store_description
   init_global_vars
   abort_on_error
   syntax_err
@@ -137,18 +136,6 @@ our @EXPORT = qw(
   print_code
 );
 
-# Modified only by sub store_description.
-my $new_store_description;
-
-sub store_description {
-    my ($set) = @_;
-    if (defined $set) {
-        return ($new_store_description = $set);
-    }
-    else {
-        return $new_store_description;
-    }
-}
 
 # Use non-local function exit for efficiency.
 # Perl profiler doesn't work if this is active.
@@ -834,9 +821,7 @@ sub add_description {
     # We must use '$' here to match EOL,
     # otherwise $line would be out of sync.
     $input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*$/gcm;
-    if (store_description()) {
-        $obj->{description} = $1;
-    }
+    $obj->{description} = $1;
     return;
 }
 
@@ -17991,7 +17976,6 @@ sub init_protocols {
 sub init_global_vars {
     $start_time            = $config->{start_time} || time();
     $error_counter         = 0;
-    $new_store_description = 0;
     for my $pair (values %global_type) {
         %{ $pair->[1] } = ();
     }
@@ -18078,7 +18062,6 @@ sub compile {
             find_active_routes();
             gen_reverse_rules();
             mark_secondary_rules();
-
             if ($out_dir) {
                 rules_distribution();
                 prepare_nat_commands();
