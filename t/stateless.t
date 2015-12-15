@@ -169,5 +169,33 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'No warning on overlapping stateless range';
+############################################################
+
+$in = $topo . <<'END';
+protocol:ftp-passive-data = tcp 1024-65535, stateless;
+
+service:s = {
+ user = network:x;
+ permit src =   user;
+        dst =   network:y;
+        prt =   protocol:ftp-passive-data, 
+                tcp 3389,
+                ;
+}
+END
+
+$out = <<'END';
+--r
+! [ ACL ]
+ip access-list extended e0_in
+ deny ip any host 10.2.2.2
+ permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 gt 1023
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 
 done_testing;
