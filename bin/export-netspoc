@@ -378,13 +378,13 @@ sub proto_descr {
                 $num = $type;
             }
         }
-        if (my $flags = $protocol->{flags}) {
-            for my $key (sort keys %$flags) {
+        if (my $modifiers = $protocol->{modifiers}) {
+            for my $key (sort keys %$modifiers) {
                 next if $key eq 'stateless_icmp';
                 next if $key eq 'overlaps';
                 next if $key eq 'no_check_supernet_rules';
                 if ($key eq 'src' or $key eq 'dst') {
-                    for my $part (sort keys %{$flags->{$key}}) {
+                    for my $part (sort keys %{$modifiers->{$key}}) {
                         $desc .= ", ${key}_$part";
                     }
                 }

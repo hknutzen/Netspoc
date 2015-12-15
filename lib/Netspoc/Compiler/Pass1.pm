@@ -2748,7 +2748,7 @@ sub read_icmp_type_code {
         else {
             $prt->{type} = $type;
             if ($type == 0 || $type == 3 || $type == 11) {
-                $prt->{flags}->{stateless_icmp} = 1;
+                $prt->{modifiers}->{stateless_icmp} = 1;
             }
         }
     }
@@ -2892,7 +2892,7 @@ sub check_protocol_modifiers {
                           src_net | dst_net |
                           overlaps | no_check_supernet_rules )/x)
         {
-            $protocol->{flags}->{$flag} = 1;
+            $protocol->{modifiers}->{$flag} = 1;
         }
         else {
             syntax_err("Unknown modifier '$flag'");
@@ -4008,7 +4008,7 @@ sub link_general_permit {
             $orig_prt = $prt;
         }
         my @reason;
-        if (my $flags = $orig_prt->{flags}) {
+        if (my $modifiers = $orig_prt->{modifiers}) {
             push @reason, 'modifiers';
         }
         if ($src_range || $range && $range ne $aref_tcp_any) {
@@ -6014,10 +6014,12 @@ sub split_protocols {
 
         # Remember original protocol as third value
         # - if src_range is given or
-        # - if original protocol has flags or
+        # - if original protocol has modifiers or
         # - if $dst_range is shared between different protocols.
         # Cache list of triples at original protocol for re-use.
-        if ($src_range or $prt->{flags} or $dst_range->{name} ne $prt->{name}) {
+        if ($src_range or $prt->{modifiers} or 
+            $dst_range->{name} ne $prt->{name}) 
+        {
             my $aref_list = $prt->{src_dst_range_list};
             if (not $aref_list) {
                 for my $src_split (expand_splitted_protocol $src_range) {
@@ -6190,7 +6192,7 @@ sub classify_protocols {
 
         # If $prt is duplicate of an identical protocol, use the
         # main protocol, but remember the original one to retrieve
-        # {flags}.
+        # {modifiers}.
         my $orig_prt;
         my $src_range;
         if (ref $prt eq 'ARRAY') {
@@ -6200,7 +6202,7 @@ sub classify_protocols {
             $orig_prt = $prt;
             $prt      = $main_prt;
         }
-        my $flags = $orig_prt ? $orig_prt->{flags} : $prt->{flags};
+        my $modifiers = $orig_prt ? $orig_prt->{modifiers} : $prt->{modifiers};
         if ($orig_prt) {
             if ($src_range) {
 #               debug "$context +:$prt->{name} => $orig_prt->{name}";
@@ -6212,16 +6214,16 @@ sub classify_protocols {
                 $service->{prt2orig_prt}->{$prt} = $orig_prt;
             }
         }
-        my $src_net = $flags->{src_net} || '';
-        my $dst_net = $flags->{dst_net} || '';
+        my $src_net = $modifiers->{src_net} || '';
+        my $dst_net = $modifiers->{dst_net} || '';
         my $key = $src_net || $dst_net ? "$src_net:$dst_net" : '';
-        if (keys %$flags
+        if (keys %$modifiers
             and
-            grep {$_ ne 'src_net' and $_ ne 'dst_net' } keys %$flags
+            grep {$_ ne 'src_net' and $_ ne 'dst_net' } keys %$modifiers
             or 
             $src_range) 
         {
-            push @{$result{$key}->{complex}}, [ $prt, $src_range, $flags ];
+            push @{$result{$key}->{complex}}, [ $prt, $src_range, $modifiers ];
         }
         else {
             push @{$result{$key}->{simple}}, $prt;
@@ -6337,8 +6339,8 @@ sub normalize_service_rules {
                         push(@{ $service_rules{$store_type} }, $rule);
                     }
                     for my $tuple (@$complex_prt_list) {
-                        my ($prt, $src_range, $flags) = @$tuple;
-                        my ($src_list, $dst_list) = $flags->{reversed} 
+                        my ($prt, $src_range, $modifiers) = @$tuple;
+                        my ($src_list, $dst_list) = $modifiers->{reversed} 
                                                   ? ($dst_list, $src_list) 
                                                   : ($src_list, $dst_list);
 
@@ -6352,16 +6354,16 @@ sub normalize_service_rules {
                         $rule->{deny}      = 1          if $deny;
                         $rule->{log}       = $log       if $log;
                         $rule->{src_range} = $src_range if $src_range;
-                        $rule->{stateless} = 1          if $flags->{stateless};
-                        $rule->{oneway}    = 1          if $flags->{oneway};
+                        $rule->{stateless} = 1          if $modifiers->{stateless};
+                        $rule->{oneway}    = 1          if $modifiers->{oneway};
                         $rule->{no_check_supernet_rules} = 1
-                            if $flags->{no_check_supernet_rules};
+                            if $modifiers->{no_check_supernet_rules};
                         $rule->{stateless_icmp} = 1
-                            if $flags->{stateless_icmp};
+                            if $modifiers->{stateless_icmp};
                         $rule->{src_dst_net} = $src_dst_net if $src_dst_net;
 
                         # Only used in set_service_owner.
-                        $rule->{reversed}  = 1 if $flags->{reversed};
+                        $rule->{reversed}  = 1 if $modifiers->{reversed};
 
                         push(@{ $service_rules{$store_type} }, $rule);
                     }
@@ -7373,7 +7375,7 @@ sub show_duplicate_rules {
 
         my $prt1 = get_orig_prt($rule);
         my $prt2 = get_orig_prt($other);
-        next if $prt1->{flags}->{overlaps} && $prt2->{flags}->{overlaps};
+        next if $prt1->{modifiers}->{overlaps} && $prt2->{modifiers}->{overlaps};
 
         my $service  = $rule->{rule}->{service};
         my $oservice = $other->{rule}->{service};
@@ -7424,7 +7426,7 @@ sub collect_redundant_rules {
 
     my $prt1 = get_orig_prt($rule);
     my $prt2 = get_orig_prt($other);
-    return if $prt1->{flags}->{overlaps} && $prt2->{flags}->{overlaps};
+    return if $prt1->{modifiers}->{overlaps} && $prt2->{modifiers}->{overlaps};
 
     my $service  = $rule->{rule}->{service};
     my $oservice = $other->{rule}->{service};
