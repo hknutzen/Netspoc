@@ -6266,7 +6266,7 @@ sub normalize_service_rules {
 
     for my $unexpanded (@$rules) {
         my $deny       = $unexpanded->{action} eq 'deny';
-        my $store_type = $deny ? 'deny' : 'permit';
+        my $store      = $service_rules{$deny ? 'deny' : 'permit'} ||= [];
         my $log        = $unexpanded->{log};
         if ($log) {
             check_log($log, $context);
@@ -6324,7 +6324,7 @@ sub normalize_service_rules {
                     };
                     $rule->{deny} = 1    if $deny;
                     $rule->{log}  = $log if $log;
-                    push(@{ $service_rules{$store_type} }, $rule);
+                    push @$store, $rule;
                 }
                 for my $tuple (@$complex_prt_list) {
                     my ($prt, $src_range, $modifiers) = @$tuple;
@@ -6352,9 +6352,9 @@ sub normalize_service_rules {
                     $rule->{dst_net}   = 1          if $modifiers->{dst_net};
 
                     # Only used in set_service_owner.
-                    $rule->{reversed}  = 1 if $modifiers->{reversed};
+                    $rule->{reversed}  = 1          if $modifiers->{reversed};
 
-                    push(@{ $service_rules{$store_type} }, $rule);
+                    push @$store, $rule;
                 }
             }
         }
