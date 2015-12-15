@@ -6089,8 +6089,6 @@ sub get_path;
 my %obj2path; # lookup hash, keys: source/destination objects, 
               #              values: corresponding path node objects
 
-my %obj2zone;
-
 ##############################################################################
 # Purpose    : Expand auto interface to one or more real interfaces
 #              with respect to list of destination objects. 
@@ -6255,6 +6253,21 @@ sub check_private_service {
             }
         }
     }
+}
+
+# Add managed hosts of networks and aggregates.
+sub add_managed_hosts {
+    my ($aref, $context) = @_;
+    my @extra;
+    for my $object (@$aref) {
+        my $managed_hosts = $object->{managed_hosts} or next;
+        push @extra, @$managed_hosts;
+    }
+    if (@extra) {
+        push @$aref, @extra;
+        $aref = remove_duplicates($aref, $context);
+    }
+    return $aref;
 }
 
 sub normalize_service_rules {
@@ -6984,6 +6997,60 @@ sub convert_hosts_in_rules {
 }
 
 ########################################################################
+# Get zone of object
+########################################################################
+
+my %obj2zone;
+
+sub get_zone {
+    my ($obj) = @_;
+    my $type = ref $obj;
+    my $result;
+
+    # A router or network with [auto] interface.
+    if ($type eq 'Autointerface') {
+        $obj  = $obj->{object};
+        $type = ref $obj;
+    }
+
+    if ($type eq 'Network') {
+        $result = $obj->{zone};
+    }
+    elsif ($type eq 'Subnet') {
+        $result = $obj->{network}->{zone};
+    }
+    elsif ($type eq 'Interface') {
+        if ($obj->{router}->{managed}) {
+            $result = $obj->{router};
+        }
+        else {
+            $result = $obj->{network}->{zone};
+        }
+    }
+
+    # Used, when called on src_path / dst_path.
+    elsif ($type eq 'Router') {
+        if ($obj->{managed}) {
+            $result = $obj;
+        }
+        else {
+            $result = $obj->{interfaces}->[0]->{network}->{zone};
+        }
+    }
+    elsif ($type eq 'Zone') {
+        $result = $obj;
+    }
+
+    elsif ($type eq 'Host') {
+        $result = $obj->{network}->{zone};
+    }
+    else {
+        internal_err("Unexpected $obj->{name}");
+    }
+    return ($obj2zone{$obj} = $result);
+}
+
+########################################################################
 # Collect and show unenforceable rules.
 ########################################################################
 
@@ -7283,69 +7350,6 @@ sub build_rule_tree {
     return $rule_tree;
 }
 
-sub get_zone {
-    my ($obj) = @_;
-    my $type = ref $obj;
-    my $result;
-
-    # A router or network with [auto] interface.
-    if ($type eq 'Autointerface') {
-        $obj  = $obj->{object};
-        $type = ref $obj;
-    }
-
-    if ($type eq 'Network') {
-        $result = $obj->{zone};
-    }
-    elsif ($type eq 'Subnet') {
-        $result = $obj->{network}->{zone};
-    }
-    elsif ($type eq 'Interface') {
-        if ($obj->{router}->{managed}) {
-            $result = $obj->{router};
-        }
-        else {
-            $result = $obj->{network}->{zone};
-        }
-    }
-
-    # Used, when called on src_path / dst_path.
-    elsif ($type eq 'Router') {
-        if ($obj->{managed}) {
-            $result = $obj;
-        }
-        else {
-            $result = $obj->{interfaces}->[0]->{network}->{zone};
-        }
-    }
-    elsif ($type eq 'Zone') {
-        $result = $obj;
-    }
-
-    elsif ($type eq 'Host') {
-        $result = $obj->{network}->{zone};
-    }
-    else {
-        internal_err("Unexpected $obj->{name}");
-    }
-    return ($obj2zone{$obj} = $result);
-}
-
-# Add managed hosts of networks and aggregates.
-sub add_managed_hosts {
-    my ($aref, $context) = @_;
-    my @extra;
-    for my $object (@$aref) {
-        my $managed_hosts = $object->{managed_hosts} or next;
-        push @extra, @$managed_hosts;
-    }
-    if (@extra) {
-        push @$aref, @extra;
-        $aref = remove_duplicates($aref, $context);
-    }
-    return $aref;
-}
-
 my @duplicate_rules;
 
 sub collect_duplicate_rules {
@@ -7540,6 +7544,10 @@ sub check_expanded_rules {
     warn_unused_overlaps();
     return;
 }
+
+##############################################################################
+# Find IP of each device, reachable from policy distribution point.
+##############################################################################
 
 # For each device, find the IP address which is used
 # to manage the device from a central policy distribution point (PDP).
@@ -13306,7 +13314,7 @@ sub elements_in_one_zone {
     my $obj0 = $list1->[0];
     my $zone0 = $obj2zone{$obj0} || get_zone($obj0);
     for my $obj (@$list1, @$list2) {
-        my $zone =  $obj2zone{$obj} || get_zone($obj);
+        my $zone = $obj2zone{$obj} || get_zone($obj);
         zone_eq($zone0, $zone) or return;
     }
     return 1;
