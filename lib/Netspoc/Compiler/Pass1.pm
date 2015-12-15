@@ -66,7 +66,6 @@ our @EXPORT = qw(
   $line
   $error_counter
   store_description
-  fast_mode
   init_global_vars
   abort_on_error
   syntax_err
@@ -148,18 +147,6 @@ sub store_description {
     }
     else {
         return $new_store_description;
-    }
-}
-
-my $fast_mode;
-
-sub fast_mode {
-    my ($set) = @_;
-    if (defined $set) {
-        return ($fast_mode = $set);
-    }
-    else {
-        return $fast_mode;
     }
 }
 
@@ -14294,13 +14281,13 @@ sub add_networks {
 }
 
 sub prepare_nat_commands {
-    return if fast_mode();
     progress('Preparing NAT commands');
 
     # Traverse the topology once for each pair of
     # src-(zone/router), dst-(zone/router)
     my %zone2zone2info;
     for my $rule (@{ $path_rules{permit} }) {
+        next if $rule->{stateless};
         my ($src_path, $dst_path) = @{$rule}{qw(src_path dst_path)};
         my $info = $zone2zone2info{$src_path}->{$dst_path};
         if (!$info) {
@@ -16044,7 +16031,6 @@ sub distribute_general_permit {
 }
 
 sub rules_distribution {
-    return if fast_mode();
     progress('Distributing rules');
 
     # Deny rules
@@ -18038,9 +18024,6 @@ sub compile {
     my ($in_path, $out_dir);
     ($config, $in_path, $out_dir) = get_args($args);
     init_global_vars();
-
-    # Don't compile but check only for errors if no $out_dir is given.
-    &fast_mode(!$out_dir);
     &show_version();
     &read_file_or_dir($in_path);
     &show_read_statistics();
@@ -18078,7 +18061,7 @@ sub compile {
     group_path_rules();
 
     # Abort now, if there had been syntax errors and simple semantic errors.
-    &abort_on_error();
+    abort_on_error();
 
     concurrent(
         sub {
@@ -18091,17 +18074,15 @@ sub compile {
             %service_rules = ();
             remove_simple_duplicate_rules();
             set_policy_distribution_ip();
-            &expand_crypto();
-            prepare_nat_commands();
+            expand_crypto();
             find_active_routes();
-            &gen_reverse_rules();
-            &mark_secondary_rules();
-
-            # No errors expected after this point.
-            &rules_distribution();
+            gen_reverse_rules();
+            mark_secondary_rules();
 
             if ($out_dir) {
-                &print_code($out_dir);
+                rules_distribution();
+                prepare_nat_commands();
+                print_code($out_dir);
                 copy_raw($in_path, $out_dir);
             }
         });
