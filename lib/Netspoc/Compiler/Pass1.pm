@@ -6265,9 +6265,9 @@ sub normalize_service_rules {
     my $foreach = $service->{foreach};
 
     for my $unexpanded (@$rules) {
-        my $deny       = $unexpanded->{action} eq 'deny';
-        my $store      = $service_rules{$deny ? 'deny' : 'permit'} ||= [];
-        my $log        = $unexpanded->{log};
+        my $deny  = $unexpanded->{action} eq 'deny';
+        my $store = $service_rules{$deny ? 'deny' : 'permit'} ||= [];
+        my $log   = $unexpanded->{log};
         if ($log) {
             check_log($log, $context);
             if (@$log) {
@@ -6376,7 +6376,7 @@ sub normalize_services {
 
         # Substitute service name by service object.
         if (my $overlaps = $service->{overlaps}) {
-            my @pobjects;
+            my @sobjects;
             for my $pair (@$overlaps) {
                 my ($type, $oname) = @$pair;
                 if (!$type eq 'service') {
@@ -6384,14 +6384,14 @@ sub normalize_services {
                       " of $name";
                 }
                 elsif (my $other = $services{$oname}) {
-                    push(@pobjects, $other);
+                    push(@sobjects, $other);
                 }
                 else {
                     warn_msg("Unknown $type:$oname in attribute 'overlaps'",
                         " of $name");
                 }
             }
-            $service->{overlaps} = \@pobjects;
+            $service->{overlaps} = \@sobjects;
         }
 
         # Attribute "visible" is known to have value "*" or "name*".
@@ -7159,8 +7159,7 @@ sub split_rules_by_path {
         my $path0 = $obj2path{$element0} || get_path($element0);
 
         # Group has elements from different zones and must be split.
-        if (grep { $path0 ne ($obj2path{$_} || get_path($_)) } @$group)
-        {
+        if (grep { $path0 ne ($obj2path{$_} || get_path($_)) } @$group) {
             my $index = 1;
             my %path2index;
             my %key2group;
@@ -7270,8 +7269,8 @@ sub build_rule_tree {
         $deny      ||= '';
         $src_range ||= $prt_ip;
         my $old_rule =
-            $rule_tree->{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}
-        ->{$prt};
+            $rule_tree->{$stateless}->{$deny}->{$src_range}
+                      ->{$src}->{$dst}->{$prt};
         if ($old_rule) {
 
             # Found identical rule.
@@ -7280,9 +7279,9 @@ sub build_rule_tree {
             next;
         }
 
-#           debug("Add:", print_rule $rule);
-        $rule_tree->{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}
-        ->{$prt} = $rule;
+#       debug("Add:", print_rule $rule);
+        $rule_tree->{$stateless}->{$deny}->{$src_range}
+                  ->{$src}->{$dst}->{$prt} = $rule;
     }
     return $rule_tree;
 }
@@ -7313,7 +7312,7 @@ sub get_zone {
         }
     }
 
-    # Only used when called from expand_rules.
+    # Used, when called on src_path / dst_path.
     elsif ($type eq 'Router') {
         if ($obj->{managed}) {
             $result = $obj;
@@ -7322,16 +7321,15 @@ sub get_zone {
             $result = $obj->{interfaces}->[0]->{network}->{zone};
         }
     }
-
-    # Used, when called from remove_unenforceable_rules.
     elsif ($type eq 'Zone') {
         $result = $obj;
     }
+
     elsif ($type eq 'Host') {
         $result = $obj->{network}->{zone};
     }
     else {
-        internal_err("unexpected $obj->{name}");
+        internal_err("Unexpected $obj->{name}");
     }
     return ($obj2zone{$obj} = $result);
 }
@@ -7360,7 +7358,9 @@ sub show_duplicate_rules {
 
         my $prt1 = get_orig_prt($rule);
         my $prt2 = get_orig_prt($other);
-        next if $prt1->{modifiers}->{overlaps} && $prt2->{modifiers}->{overlaps};
+        if ($prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps}) {
+            next 
+        }
 
         my $service  = $rule->{rule}->{service};
         my $oservice = $other->{rule}->{service};
@@ -7391,7 +7391,7 @@ sub show_duplicate_rules {
     @duplicate_rules = ();
 
     my $action = $config->{check_duplicate_rules} or return;
-    my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
+    my $print  = $action eq 'warn' ? \&warn_msg : \&err_msg;
     for my $sname (sort keys %sname2oname2duplicate) {
         my $hash = $sname2oname2duplicate{$sname};
         for my $oname (sort keys %$hash) {
