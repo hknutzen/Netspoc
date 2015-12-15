@@ -7252,9 +7252,6 @@ sub remove_simple_duplicate_rules {
 # Expand rules and check them for redundancy
 ########################################################################
 
-# Collect deleted rules for further inspection.
-my @duplicate_rules;
-
 # Build rule tree from expanded rules for efficient comparison of rules.
 # Rule tree is a hash for ordering all rules.
 # Put attributes with small value set first, to get a more
@@ -7274,14 +7271,14 @@ sub build_rule_tree {
         if ($old_rule) {
 
             # Found identical rule.
-            $rule->{deleted} = $old_rule;
-            push @duplicate_rules, $rule;
-            next;
+            collect_duplicate_rules($rule, $old_rule);
         }
+        else {
 
-#       debug("Add:", print_rule $rule);
-        $rule_tree->{$stateless}->{$deny}->{$src_range}
-                  ->{$src}->{$dst}->{$prt} = $rule;
+#           debug("Add:", print_rule $rule);
+            $rule_tree->{$stateless}->{$deny}->{$src_range}
+                      ->{$src}->{$dst}->{$prt} = $rule;
+        }
     }
     return $rule_tree;
 }
@@ -7349,43 +7346,46 @@ sub add_managed_hosts {
     return $aref;
 }
 
+my @duplicate_rules;
+
+sub collect_duplicate_rules {
+    my ($rule, $other) = @_;
+
+    my $prt1 = get_orig_prt($rule);
+    my $prt2 = get_orig_prt($other);
+    return if $prt1->{modifiers}->{overlaps} && $prt2->{modifiers}->{overlaps};
+
+    my $service  = $rule->{rule}->{service};
+    my $oservice = $other->{rule}->{service};
+    if (my $overlaps = $service->{overlaps}) {
+        for my $overlap (@$overlaps) {
+            if ($oservice eq $overlap) {
+                $service->{overlaps_used}->{$overlap} = $overlap;
+                return;
+            }
+        }
+    }
+    if (my $overlaps = $oservice->{overlaps}) {
+        for my $overlap (@$overlaps) {
+            if ($service eq $overlap) {
+                $oservice->{overlaps_used}->{$overlap} = $overlap;
+                return;
+            }
+        }
+    }
+    push @duplicate_rules, [ $rule, $other ];
+    return;
+}
+
 sub show_duplicate_rules {
     @duplicate_rules or return;
     my %sname2oname2duplicate;
   RULE:
-    for my $rule (@duplicate_rules) {
-        my $other = $rule->{deleted};
+    for my $pair (@duplicate_rules) {
+        my ($rule, $other) = @$pair;
 
-        my $prt1 = get_orig_prt($rule);
-        my $prt2 = get_orig_prt($other);
-        if ($prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps}) {
-            next 
-        }
-
-        my $service  = $rule->{rule}->{service};
-        my $oservice = $other->{rule}->{service};
-        if (my $overlaps = $service->{overlaps}) {
-            for my $overlap (@$overlaps) {
-                if ($oservice eq $overlap) {
-                    $service->{overlaps_used}->{$overlap} = $overlap;
-                    next RULE;
-                }
-            }
-        }
-        if (my $overlaps = $oservice->{overlaps}) {
-            for my $overlap (@$overlaps) {
-                if ($service eq $overlap) {
-                    $oservice->{overlaps_used}->{$overlap} = $overlap;
-                    next RULE;
-                }
-            }
-        }
-        my $sname = $service->{name};
-        my $oname = $oservice->{name};
-        my $pfile = $service->{file};
-        my $ofile = $oservice->{file};
-        $pfile =~ s/.*?([^\/]+)$/$1/;
-        $ofile =~ s/.*?([^\/]+)$/$1/;
+        my $sname = $rule->{rule}->{service}->{name};
+        my $oname = $other->{rule}->{service}->{name};
         push(@{ $sname2oname2duplicate{$sname}->{$oname} }, $rule);
     }
     @duplicate_rules = ();
@@ -7433,14 +7433,8 @@ sub show_redundant_rules {
     for my $pair (@redundant_rules) {
         my ($rule, $other) = @$pair;
 
-        my $service  = $rule->{rule}->{service};
-        my $oservice = $other->{rule}->{service};
-        my $sname    = $service->{name};
-        my $oname    = $oservice->{name};
-        my $pfile    = $service->{file};
-        my $ofile    = $oservice->{file};
-        $pfile =~ s/.*?([^\/]+)$/$1/;
-        $ofile =~ s/.*?([^\/]+)$/$1/;
+        my $sname = $rule->{rule}->{service}->{name};
+        my $oname = $other->{rule}->{service}->{name};
         push(@{ $sname2oname2redundant{$sname}->{$oname} }, [ $rule, $other ]);
     }
 
@@ -14146,7 +14140,6 @@ sub find_redundant_rules {
                    {
 #                   debug("Del:", print_rule $chg_rule);
 #                   debug("Oth:", print_rule $cmp_rule);
-                    $chg_rule->{deleted} = $cmp_rule;
                     collect_redundant_rules($chg_rule, $cmp_rule);
                     last;
                    }
