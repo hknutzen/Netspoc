@@ -6184,7 +6184,7 @@ sub substitute_auto_intf {
 
 sub classify_protocols {
     my ($prt_list, $service) = @_;
-    my %result;
+    my ($simple_prt_list, $complex_prt_list);
     for my $prt (@$prt_list) {
 
         # Prevent modification of original array.
@@ -6214,22 +6214,14 @@ sub classify_protocols {
                 $service->{prt2orig_prt}->{$prt} = $orig_prt;
             }
         }
-        my $src_net = $modifiers->{src_net} || '';
-        my $dst_net = $modifiers->{dst_net} || '';
-        my $key = $src_net || $dst_net ? "$src_net:$dst_net" : '';
-        if (keys %$modifiers
-            and
-            grep {$_ ne 'src_net' and $_ ne 'dst_net' } keys %$modifiers
-            or 
-            $src_range) 
-        {
-            push @{$result{$key}->{complex}}, [ $prt, $src_range, $modifiers ];
+        if (keys %$modifiers or $src_range) {
+            push @$complex_prt_list, [ $prt, $src_range, $modifiers ];
         }
         else {
-            push @{$result{$key}->{simple}}, $prt;
+            push @$simple_prt_list, $prt;
         }
     }
-    return \%result;
+    return [$simple_prt_list, $complex_prt_list];
 }
 
 sub check_private_service {
@@ -6289,7 +6281,7 @@ sub normalize_service_rules {
           split_protocols(
             expand_protocols($unexpanded->{prt}, "rule in $context"));
         @$prt_list or next;
-        my $src_dst_net2prt_lists = classify_protocols($prt_list, $service);
+        my $prt_list_pair = classify_protocols($prt_list, $service);
 
         for my $element ($foreach ? @$user : ($user)) {
             $user_object->{elements} = $element;
@@ -6321,52 +6313,48 @@ sub normalize_service_rules {
             for my $src_dst_list (@extra_src_dst) {
                 my ($src_list, $dst_list) = @$src_dst_list;
                 check_private_service($service, $src_list, $dst_list);
-                for my $src_dst_net (sort keys %$src_dst_net2prt_lists) {
-                    my ($simple_prt_list, $complex_prt_list) =
-                        @{$src_dst_net2prt_lists->{$src_dst_net}}{'simple',
-                                                                  'complex'};
-                    if ($simple_prt_list) {
-                        $dst_list = add_managed_hosts($dst_list, $dst_context);
-                        my $rule = {
-                            src  => $src_list,
-                            dst  => $dst_list,
-                            prt  => $simple_prt_list,
-                            rule => $unexpanded
-                        };
-                        $rule->{deny} = 1    if $deny;
-                        $rule->{log}  = $log if $log;
-                        $rule->{src_dst_net} = $src_dst_net if $src_dst_net;
-                        push(@{ $service_rules{$store_type} }, $rule);
-                    }
-                    for my $tuple (@$complex_prt_list) {
-                        my ($prt, $src_range, $modifiers) = @$tuple;
-                        my ($src_list, $dst_list) = $modifiers->{reversed} 
-                                                  ? ($dst_list, $src_list) 
-                                                  : ($src_list, $dst_list);
+                my ($simple_prt_list, $complex_prt_list) = @$prt_list_pair;
+                if ($simple_prt_list) {
+                    $dst_list = add_managed_hosts($dst_list, $dst_context);
+                    my $rule = {
+                        src  => $src_list,
+                        dst  => $dst_list,
+                        prt  => $simple_prt_list,
+                        rule => $unexpanded
+                    };
+                    $rule->{deny} = 1    if $deny;
+                    $rule->{log}  = $log if $log;
+                    push(@{ $service_rules{$store_type} }, $rule);
+                }
+                for my $tuple (@$complex_prt_list) {
+                    my ($prt, $src_range, $modifiers) = @$tuple;
+                    my ($src_list, $dst_list) = $modifiers->{reversed} 
+                                              ? ($dst_list, $src_list) 
+                                              : ($src_list, $dst_list);
 
-                        $dst_list = add_managed_hosts($dst_list, $dst_context);
-                        my $rule = {
-                            src  => $src_list,
-                            dst  => $dst_list,
-                            prt  => [$prt],
-                            rule => $unexpanded
-                        };
-                        $rule->{deny}      = 1          if $deny;
-                        $rule->{log}       = $log       if $log;
-                        $rule->{src_range} = $src_range if $src_range;
-                        $rule->{stateless} = 1          if $modifiers->{stateless};
-                        $rule->{oneway}    = 1          if $modifiers->{oneway};
-                        $rule->{no_check_supernet_rules} = 1
-                            if $modifiers->{no_check_supernet_rules};
-                        $rule->{stateless_icmp} = 1
-                            if $modifiers->{stateless_icmp};
-                        $rule->{src_dst_net} = $src_dst_net if $src_dst_net;
+                    $dst_list = add_managed_hosts($dst_list, $dst_context);
+                    my $rule = {
+                        src  => $src_list,
+                        dst  => $dst_list,
+                        prt  => [$prt],
+                        rule => $unexpanded
+                    };
+                    $rule->{deny}      = 1          if $deny;
+                    $rule->{log}       = $log       if $log;
+                    $rule->{src_range} = $src_range if $src_range;
+                    $rule->{stateless} = 1          if $modifiers->{stateless};
+                    $rule->{oneway}    = 1          if $modifiers->{oneway};
+                    $rule->{no_check_supernet_rules} = 1
+                        if $modifiers->{no_check_supernet_rules};
+                    $rule->{stateless_icmp} = 1
+                        if $modifiers->{stateless_icmp};
+                    $rule->{src_net}   = 1          if $modifiers->{src_net};
+                    $rule->{dst_net}   = 1          if $modifiers->{dst_net};
 
-                        # Only used in set_service_owner.
-                        $rule->{reversed}  = 1 if $modifiers->{reversed};
+                    # Only used in set_service_owner.
+                    $rule->{reversed}  = 1 if $modifiers->{reversed};
 
-                        push(@{ $service_rules{$store_type} }, $rule);
-                    }
+                    push(@{ $service_rules{$store_type} }, $rule);
                 }
             }
         }
@@ -6937,14 +6925,11 @@ sub convert_hosts_in_rules {
     for my $action (qw(permit deny)) {
         my $rules = $service_rules{$action} or next;
         for my $rule (@$rules) {
-            if (my $src_dst_net = delete $rule->{src_dst_net}) {
-                my ($src_net, $dst_net) = split ':', $src_dst_net;
-                if ($src_net) {
-                    $rule->{src} = apply_src_dst_modifier($rule->{src});
-                }
-                if ($dst_net) {
-                    $rule->{dst} = apply_src_dst_modifier($rule->{dst});
-                }
+            if ($rule->{src_net}) {
+                $rule->{src} = apply_src_dst_modifier($rule->{src});
+            }
+            if ($rule->{dst_net}) {
+                $rule->{dst} = apply_src_dst_modifier($rule->{dst});
             }
             for my $what (qw(src dst)) {
                 my $group = $rule->{$what};
