@@ -277,26 +277,29 @@ my %xxrp_info;
 
 ## no critic (RequireArgUnpacking)
 
-# All arguments are 'eq'.
+# Check if all arguments are 'eq'.
 sub equal {
     return 1 if not @_;
     my $first = shift;
     return not grep { $_ ne $first } @_;
 }
 
-# Unique union of all elements.
+# Return unique union of all arguments.
 # Preserves original order.
 sub unique {
     my %seen;
     return grep { !$seen{$_}++ } @_;
 }
 
+# Check passed arguments for duplicates.
+# Return duplicate elements.
 sub find_duplicates {
     my %dupl;
     $dupl{$_}++ for @_;
     return grep { $dupl{$_} > 1 } keys %dupl;
 }
 
+# Return the intersecting elements of two array references.
 sub intersect {
     my ($aref1, $aref2) = @_;
     my %seen = map { $_ => 1 } @$aref1;
@@ -311,6 +314,7 @@ sub subset_of {
     return @$aref1 == $count;
 }
 
+# Return highest number among all arguments.
 sub max {
     my $max = shift(@_);
     for my $el (@_) {
@@ -320,7 +324,7 @@ sub max {
 }
 
 # Delete an element from an array reference.
-# Return 1 if found, undef otherwise.
+# Return true if element was found.
 sub aref_delete {
     my ($aref, $elt) = @_;
     for (my $i = 0 ; $i < @$aref ; $i++) {
@@ -335,6 +339,7 @@ sub aref_delete {
 }
 
 # Compare two array references element wise.
+# Return true if both arrays contain the same elements in same order.
 sub aref_eq {
     my ($a1, $a2) = @_;
     @$a1 == @$a2 or return;
@@ -344,6 +349,7 @@ sub aref_eq {
     return 1;
 }
 
+# Check if two hashes contain the same keys. Values can be different.
 sub keys_eq {
     my ($href1, $href2) = @_;
     keys %$href1 == keys %$href2 or return;
@@ -353,6 +359,7 @@ sub keys_eq {
     return 1;
 }
 
+# Print arguments as warning to STDERR..
 sub warn_msg {
     print STDERR "Warning: ", @_, "\n";
     return;
@@ -375,6 +382,8 @@ our $input;
 # Current line number of input file.
 our $line;
 
+# Use content and match position of current input file.
+# Return string describing current match position.
 sub context {
     my $context;
     if (pos $input == length $input) {
@@ -388,17 +397,22 @@ sub context {
     return qq/ at line $line of $current_file, $context\n/;
 }
 
+# Return current input file and line number.
+sub at_line {
+    return qq/ at line $line of $current_file\n/;
+}
+
+# Print arguments together with current context to STDERR
+# and abort the script.
 sub syntax_err {
     my (@args) = @_;
     die "Syntax error: ", @args, context();
 }
 
-sub at_line {
-    return qq/ at line $line of $current_file\n/;
-}
-
 our $error_counter;
 
+# Increment error counter.
+# Abort, if the maximum number of errors is exceeded.
 sub check_abort {
     $error_counter++;
     if ($error_counter >= $config->{max_errors}) {
@@ -406,6 +420,7 @@ sub check_abort {
     }
 }
 
+# Abort, if $error_counter is set.
 sub abort_on_error {
     if ($error_counter) {
         die "Aborted with $error_counter error(s)\n" 
@@ -413,6 +428,7 @@ sub abort_on_error {
     return;
 }
 
+# Print error message with current input file and line number.
 sub error_atline {
     my (@args) = @_;
     print STDERR "Error: ", @args, at_line();
@@ -420,6 +436,7 @@ sub error_atline {
     return;
 }
 
+# Print error message.
 sub err_msg {
     my (@args) = @_;
     print STDERR "Error: ", @args, "\n";
@@ -427,6 +444,7 @@ sub err_msg {
     return;
 }
 
+# Print internal error message and aborts.
 sub internal_err {
     my (@args) = @_;
 
@@ -464,7 +482,7 @@ sub skip_space_and_comment {
 # Optimize use of CORE:regcomp. Build regex only once for each token.
 my %token2regex;
 
-# Check for a string and skip if available.
+# Check for argument token and skip if available.
 sub check {
     my $token = shift;
     skip_space_and_comment;
@@ -472,7 +490,8 @@ sub check {
     return $input =~ /$regex/gc;
 }
 
-# Skip a string.
+# Skip argument token.
+# If it is not available an error is printed and the script terminates.
 sub skip {
     my $token = shift;
     return (check $token or syntax_err("Expected '$token'"));
@@ -489,6 +508,7 @@ sub check_int {
     }
 }
 
+# Read an integer.
 sub read_int {
     my $result = check_int();
     defined $result or syntax_err("Integer expected");
@@ -509,6 +529,7 @@ sub check_ip {
     }
 }
 
+# Read an IP address.
 sub read_ip {
     my $result = check_ip();
     defined $result or syntax_err("IP address expected");
@@ -517,6 +538,7 @@ sub read_ip {
 
 # Read IP address and prefix length.
 # x.x.x.x/n
+# Return two values: IP, mask.
 sub read_ip_prefix {
     my $ip = read_ip;
     skip('/');
@@ -529,11 +551,14 @@ sub read_ip_prefix {
     return $ip, $mask;
 }
 
+# Read IP address and prefix length.
+# Return an array containing IP, mask.
 sub read_ip_prefix_pair {
     my ($ip, $mask) = read_ip_prefix();
     return [ $ip, $mask ];
 }
 
+# Generate an IP address as internal integer.
 sub gen_ip {
     my ($byte1, $byte2, $byte3, $byte4) = @_;
     return unpack 'N', pack('C4', $byte1, $byte2, $byte3, $byte4);
@@ -556,7 +581,7 @@ sub read_identifier {
     }
 }
 
-# Pattrern for attribute "visible": "*" or "name*".
+# Read pattern for attribute "visible": "*" or "name*".
 sub read_owner_pattern {
     skip_space_and_comment;
     if ($input =~ m/ ( \G [\w-]* [*] ) /gcx) {
@@ -593,6 +618,8 @@ sub read_string {
 # This is only 'active' while parsing src or dst of the rule of a service.
 my $user_object = { active => 0, refcount => 0, elements => undef };
 
+# Read list of syntax elements delimited by $delimter.
+# Return list of read elements.
 sub read_union {
     my ($delimiter) = @_;
     my @vals;
@@ -812,6 +839,7 @@ sub read_time_val {
     return $int * $factor;
 }
 
+# Set description for passed object if next input is a description.
 sub add_description {
     my ($obj) = @_;
     check 'description' or return;
@@ -836,6 +864,7 @@ sub check_permit_deny {
     }
 }
 
+# Check if 'nat:xxx' is available in input.
 sub check_nat_name {
     skip_space_and_comment;
     if ($input =~ m/\G nat:([\w-]+)/gcx) {
@@ -846,6 +875,7 @@ sub check_nat_name {
     }
 }
 
+# Split argument at first ':' and return the two parts.
 sub split_typed_name {
     my ($name) = @_;
 
@@ -853,6 +883,8 @@ sub split_typed_name {
     return split /[:]/, $name, 2;
 }
 
+# Check if argument token is available as input.
+# If found, a following ';' is required.
 sub check_flag {
     my $token = shift;
     if (check $token) {
@@ -864,6 +896,10 @@ sub check_flag {
     }
 }
 
+# Check if argument token is available as input.
+# If found, '=' and value(s) are required.
+# Second argument function is used to read value(s).
+# Depending on calling context, one or multiple values are returned.
 sub check_assign {
     my ($token, $fun) = @_;
     if (check($token)) {
@@ -882,6 +918,9 @@ sub check_assign {
     return;
 }
 
+# Use the passed function to read one or more elements from global
+# input until reaching a ';'.
+# Return read elements.
 sub read_list {
     my ($fun) = @_;
     my @vals;
@@ -898,12 +937,16 @@ sub read_list {
     return @vals;
 }
 
+# Use the passed function to read zero or more elements from global
+# input until reaching a ';'.
+# Return read elements.
 sub read_list_or_null {
     my ($fun) = @_;
     return () if check(';');
     return read_list($fun);
 }
 
+# Read 'token = value, ..., value;'
 sub read_assign_list {
     my ($token, $fun) = @_;
     skip $token;
@@ -911,6 +954,7 @@ sub read_assign_list {
     return read_list($fun);
 }
 
+# Check for 'token = value, ..., value;'
 sub check_assign_list {
     my ($token, $fun) = @_;
     if (check $token) {
@@ -920,6 +964,7 @@ sub check_assign_list {
     return ();
 }
 
+# Check for 'token = value delimiter value;'
 sub check_assign_pair {
     my ($token, $delimiter, $fun) = @_;
     if (check $token) {
@@ -934,19 +979,21 @@ sub check_assign_pair {
 }
 
 ####################################################################
-# Creation of typed structures
+# Creation of typed hashes.
 # Currently we don't use OO features;
-# We use 'bless' only to give each structure a distinct type.
+# We use 'bless' only to give each hash a distinct type.
 ####################################################################
 
-# Create a new structure of given type;
+# Create a new hash, blessed to given type;
 # initialize it with key / value pairs.
 sub new {
     my ($type, @pairs) = @_;
-    my $self = {@pairs};
+    my $self = { @pairs };
     return bless $self, $type;
 }
 
+# Add the passed key/value to the hash object, 
+# or prints an error message if key already exists.
 sub add_attribute {
     my ($obj, $key, $value) = @_;
     defined $obj->{$key} and error_atline("Duplicate attribute '$key'");
@@ -971,6 +1018,8 @@ sub check_radius_attributes {
     return $result;
 }
 
+# Uses global variable %routing_info with definition of dynamic
+# routing protocols
 sub check_routing {
     my $protocol = check_assign('routing', \&read_identifier) or return;
     my $routing = $routing_info{$protocol}
@@ -1033,7 +1082,10 @@ sub check_model {
     return $info;
 }
 
+# List of all managed routers.
 my @managed_routers;
+
+# List of router fragments, split from crypto routers.
 my @router_fragments;
 
 # Managed host is stored internally as an interface.
@@ -1080,6 +1132,8 @@ sub host_as_interface {
     return $interface;
 }
 
+# Read definition of host.
+# Is called while definition of network is read.
 sub read_host {
     my ($name, $network_name) = @_;
     my $host = new('Host');
@@ -1246,6 +1300,7 @@ sub read_nat {
     return $nat;
 }
 
+# Mapping from network names to network objects.
 our %networks;
 
 sub read_network {
@@ -1449,7 +1504,9 @@ sub read_network {
     return $network;
 }
 
+# Mapping from interface names to interface objects.
 our %interfaces;
+
 my @virtual_interfaces;
 my $global_active_pathrestriction = new(
     'Pathrestriction',
@@ -1865,6 +1922,7 @@ sub check_no_in_acl {
 
 my $bind_nat0 = [];
 
+# Mapping from router names to router objects.
 our %routers;
 
 sub read_router {
@@ -2487,6 +2545,7 @@ sub move_locked_interfaces {
     return;
 }
 
+# Mapping from aggregate names to aggregate objects.
 our %aggregates;
 
 sub read_aggregate {
@@ -2572,6 +2631,7 @@ sub check_router_attributes {
     return $result;
 }
 
+# Mapping from area names to area objects.
 our %areas;
 
 sub read_area {
@@ -2636,6 +2696,7 @@ sub read_area {
     return $area;
 }
 
+# Mapping from group names to group objects.
 our %groups;
 
 sub read_group {
@@ -2759,6 +2820,8 @@ sub read_proto_nr {
     return;
 }
 
+# Creates a readable, unique name for passed protocol,
+# e.g. "tcp 80" for { proto => 'tcp', dst_range => [80, 80] }.
 sub gen_protocol_name {
     my ($protocol) = @_;
     my $proto      = $protocol->{proto};
@@ -2803,6 +2866,7 @@ sub gen_protocol_name {
     return $name;
 }
 
+# Mapping from protocol names to protocol objects.
 our %protocols;
 
 sub cache_anonymous_protocol {
@@ -2886,6 +2950,7 @@ sub read_protocol {
     return $protocol;
 }
 
+# Mapping from service names to service objects.
 our %services;
 
 sub assign_union_allow_user {
@@ -3141,6 +3206,7 @@ sub read_crypto {
     return $crypto;
 }
 
+# Mapping from owner names to owner objects.
 our %owners;
 
 sub read_owner {
@@ -3324,6 +3390,7 @@ sub read_file_or_dir {
     return;
 }
 
+# Prints number of read entities if in verbose mode.
 sub show_read_statistics {
     my $n  = keys %networks;
     my $h  = keys %hosts;
@@ -3353,6 +3420,7 @@ sub is_autointerface { ref($_[0]) eq 'Autointerface'; }
 
 ## use critic
 
+# Creates a string representation of a rule.
 sub print_rule {
     my ($rule) = @_;
 
@@ -3396,6 +3464,8 @@ our %ref2prt;
 # Look up a protocol object by its defining attributes.
 my %prt_hash;
 
+# Add protocol to %prt_hash.
+# Link duplicate protocol definitions via attribute {main}.
 sub prepare_prt_ordering {
     my ($prt) = @_;
     my $proto = $prt->{proto};
@@ -3458,6 +3528,8 @@ sub prepare_prt_ordering {
     return;
 }
 
+# Set {up} relation between all ICMP protocols and to larger 'ip' protocol.
+# Additionally fill global variable %ref2prt.
 sub order_icmp {
     my ($hash, $up) = @_;
 
@@ -3484,6 +3556,8 @@ sub order_icmp {
     return;
 }
 
+# Set {up} relation for all numeric protocols to larger 'ip' protocol.
+# Additionally fill global variable %ref2prt.
 sub order_proto {
     my ($hash, $up) = @_;
     for my $prt (values %$hash) {
@@ -3501,6 +3575,7 @@ sub order_proto {
 # Set attribute {has_neighbor} to range adjacent to upper port.
 # Find overlapping ranges and split one of them to eliminate the overlap.
 # Set attribute {split} at original range, referencing pair of splitted ranges.
+# Additionally fill global variable %ref2prt.
 sub order_ranges {
     my ($range_href, $up) = @_;
     my @sorted =
@@ -3754,6 +3829,10 @@ sub order_protocols {
 
 sub expand_group;
 
+# Replace the owner name by the actual owner object inside the passed
+# object and aditionally returns the owner object.
+# Owner attribute defaults to 'owner', but other attribute name can be used,
+# e.g. 'sub_owner'.
 sub link_to_owner {
     my ($obj, $key) = @_;
     $key ||= 'owner';
@@ -5191,8 +5270,11 @@ sub get_intf {
     }
 }
 
+# Cache created autointerface objects: 
+# Parent object -> managed flag -> autointerface object
 my %auto_interfaces;
 
+# Create an autointerface from the passed router or network.
 sub get_auto_intf {
     my ($object, $managed) = @_;
     $managed ||= 0;
@@ -6019,6 +6101,7 @@ sub split_protocols {
 # All log tags defined at some routers.
 my %known_log;
 
+# Store defining log tags as keys in %known_log.
 sub collect_log {
     for my $router (@managed_routers) {
         my $log = $router->{log} or next;
@@ -6029,6 +6112,7 @@ sub collect_log {
     return;
 }
 
+# Check for referencing log tags, that corresponding defining log tags exist.
 sub check_log {
     my ($log, $context) = @_;
     for my $tag (@$log) {
@@ -17735,6 +17819,8 @@ sub print_code {
     return;
 }
 
+# Copy raw configuration files of devices into out_dir for devices
+# known from topology.
 sub copy_raw {
     my ($in_path, $out_dir) = @_;
     return if !(defined $in_path && -d $in_path);

@@ -136,6 +136,9 @@ sub valid_config_key {
     return exists $config{$key};
 }
 
+# Return the config pattern for the passed key. The config pattern
+# defines which values are expected for this key. If no pattern is
+# found for the passed key a default pattern is returned.
 sub get_config_pattern {
     my ($key) = @_;
     my $pattern;
@@ -148,8 +151,8 @@ sub get_config_pattern {
     return $pattern || $config_type{_default};
 }
 
-# Checks for valid config key/value pair.
-# Returns false on success, the expected pattern on failure.
+# Check for valid config key/value pair.
+# Return false on success, the expected pattern on failure.
 sub check_config_pair {
     my ($key, $value) = @_;
     my $pattern = get_config_pattern($key);
@@ -170,6 +173,8 @@ sub combine_config {
 # Write option values back to %config.
 ####################################################################
 
+# Parses named command line switches into a key/value representation,
+# e.g. '-quiet' to { verbose => 0 }.
 sub parse_options {
     my ($args) = @_;
     my %result;
@@ -203,6 +208,8 @@ sub parse_options {
     return \%result;
 }
 
+# Read names of input file/directory and output directory from 
+# passed command line arguments.
 sub parse_args {
     my ($args) = @_;
     my $main_file = shift @$args;
