@@ -85,6 +85,47 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Two pathrestrictions at border of loop (at router)';
+############################################################
+
+$in = $topo . <<'END';
+pathrestriction:restrict1 = 
+ description = Nur network:X über GRE-Tunnel.
+ interface:filter.GRE,
+ interface:Kunde.Schulung,
+;
+pathrestriction:restrict2 = 
+ description = network:X nur über GRE-Tunnel.
+ interface:filter.Trans,
+ interface:Kunde.X,
+;
+
+protocol:IP = ip;
+
+service:test = {
+ user = network:Schulung, network:X;
+ permit src = user; 
+	dst = network:Test;
+	prt = protocol:IP;
+}
+END
+
+$out = <<'END';
+--filter
+ip access-list extended GigabitEthernet0/1_in
+ deny ip any host 10.9.1.1
+ permit ip 10.9.2.0 0.0.0.255 10.9.1.0 0.0.0.255
+ deny ip any any
+--
+ip access-list extended Tunnel1_in
+ deny ip any host 10.9.1.1
+ permit ip 10.9.3.0 0.0.0.255 10.9.1.0 0.0.0.255
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Pathrestriction at border of loop (at router / at dst.)';
 ############################################################
 

@@ -338,6 +338,19 @@ sub aref_delete {
     return;
 }
 
+# Substitute an element in an array reference.
+# Return true if element was found.
+sub aref_subst {
+    my ($aref, $elt, $new) = @_;
+    for (my $i = 0 ; $i < @$aref ; $i++) {
+        if ($aref->[$i] eq $elt) {
+            splice @$aref, $i, 1, $new;
+            return 1;
+        }
+    }
+    return;
+}
+
 # Compare two array references element wise.
 # Return true if both arrays contain the same elements in same order.
 sub aref_eq {
@@ -4432,6 +4445,120 @@ sub link_pathrestrictions {
     return;
 }
 
+# If a pathrestriction is added to an unmanged router, it is marked as
+# semi_managed. As a consequence, a new zone would be created at each
+# interface of this router.
+# If an unmanaged router has a large number of interfaces, but only
+# one or a few pathrestrictions attached, we would get a large
+# number of useless zones.
+# To reduce the number of newly created zones, we split an unmanaged
+# router with pathrestrictions, if it has more than two interfaces
+# without pathrestriction:
+# - original part having only interfaces without pathrestrictions,
+# - one split part for each interface with pathrestrictions.
+# All parts are connected by an freshly created unnumbered network.
+sub split_semi_managed_router {
+    for my $router (values %routers) {
+
+        # Router is marked as semi_managed, if it 
+        # - has pathrestriction 
+        # - or is managed=routing_only.
+        $router->{semi_managed} or next;
+
+        # Don't split device with 'managed=routing_only'.
+        next if $router->{routing_only};
+
+        # Count interfaces without pathrestriction.
+        # Check if router has pathrestriction at all.
+        my $interfaces = $router->{interfaces};
+        my $has_pathrestriction;
+        my $count = 0;
+        for my $interface (@$interfaces) {
+            next if $interface->{main_interface};
+            if ($interface->{path_restrict}) {
+                $has_pathrestriction = 1;
+            }
+            else {
+                $count++;
+            }
+        }
+        $count > 1 and $has_pathrestriction or next;
+
+        # Split router into two or more parts.
+        # Move each interface with pathrestriction and
+        # corresponding secondary interface to new router.
+#        debug "split $router->{name}";
+        my @split_routers;
+        my @split_secondary;
+        my $name = $router->{name};
+        for my $interface (@$interfaces) { 
+            if (my $main = $interface->{main_interface}) {
+                $main->{path_restrict} or next;
+                push @split_secondary, $interface;
+                $interface = undef;
+                next;
+            }
+            $interface->{path_restrict} or next;
+            
+            # Create new semi_manged router with identical name.
+            # Set mark for post processing in check_pathrestrictions.
+            my $new_router = new('Router',
+                                 name => $name,
+                                 semi_managed => 1,
+                                 split_router => $router,
+                                 interfaces => [$interface]);
+            $interface->{router} = $new_router;
+            push @split_routers, $new_router;
+
+            # Mark interface as deleted in current router.
+            $interface = undef;
+        }
+
+        # Delete moved interfaces.
+        # Original router is no longer semi_manged.
+        $interfaces = $router->{interfaces} = [ grep { $_ } @$interfaces ];
+        delete $router->{semi_managed};
+
+        # Add secondary interfaces
+        for my $interface (@split_secondary) {
+            my $main_intf = $interface->{main_interface};
+            my $new_router = $main_intf->{router};
+            $interface->{router} = $new_router;
+            push @{ $new_router->{interfaces} }, $interface;
+            
+        }
+        push @router_fragments, @split_routers;
+
+        # Link current and newly created routers by unnumbered network.
+        $name =~ s/^router:/network:split:/;
+        my $net_interfaces = [];
+        my $network = new('Network', 
+                          name => $name, 
+                          ip => 'unnumbered',
+                          interfaces => $net_interfaces);
+        $name =~ s/^network:/interface:/;
+        my $intf1 = new('Interface', 
+                        name => $name, 
+                        ip => 'unnumbered',
+                        router => $router,
+                        network => $network);
+        push @$interfaces, $intf1;
+        push @$net_interfaces, $intf1;
+        for my $new_router (@split_routers) {
+
+            # Use identical name for both interfaces.
+            # Name is used only in error messages.
+            my $intf2 = new('Interface',
+                            name => $new_router->{interfaces}->[0]->{name},
+                            ip => 'unnumbered',
+                            router => $new_router,
+                            network => $network);
+            push @{ $new_router->{interfaces} }, $intf2;
+            push @$net_interfaces, $intf2;
+        }
+    }
+}
+
 # Collect groups of virtual interfaces
 # - be connected to the same network and
 # - having the same IP address.
@@ -4678,6 +4805,7 @@ sub link_topology {
     link_tunnels;
     link_pathrestrictions;
     link_virtual_interfaces;
+    split_semi_managed_router();
     link_areas;
     link_subnets;
     link_owners;
@@ -10499,10 +10627,30 @@ sub check_pathrestrictions {
         my $prev_cluster;
         for my $interface (@$elements) {
             next if $interface->{disabled};
+            my $router = $interface->{router};
             my $loop =
                  $interface->{loop}
-              || $interface->{router}->{loop}
+              || $router->{loop}
               || $interface->{zone}->{loop};
+
+            # This router is split part of an unmanaged router.
+            # It has exactly two non secondary interfaces.
+            # Move pathrestriction to other interface, if that one is
+            # located at border of loop.
+            if ($router->{split_router} and not $loop) {
+                my $rlist = delete $interface->{path_restrict};
+                my ($other) = grep({ not $_->{main_interface}
+                                     and $_ ne $interface } 
+                                   @{ $router->{interfaces} });
+                if ($loop = $other->{zone}->{loop}) {
+#                    debug "Moved $restrict->{name} to other";
+                    $other->{path_restrict} = $rlist;
+                    for my $restrict (@$rlist) {
+                        my $elements = $restrict->{elements};
+                        aref_subst($elements, $interface, $other);
+                    }
+                }
+            }
 
             # Interfaces with pathrestriction need to be located
             # inside or at the border of cyclic graphs.
