@@ -7519,6 +7519,7 @@ sub remove_simple_duplicate_rules {
 # memory efficient tree with few branches at root.
 sub build_rule_tree {
     my ($rules) = @_;
+    my $count = 0;
     my $rule_tree = {};
     for my $rule (@$rules) {
         my ($stateless, $deny, $src, $dst, $src_range, $prt) =
@@ -7533,6 +7534,7 @@ sub build_rule_tree {
 
             # Found identical rule.
             collect_duplicate_rules($rule, $old_rule);
+            $count++;
         }
         else {
 
@@ -7541,7 +7543,7 @@ sub build_rule_tree {
                       ->{$src}->{$dst}->{$prt} = $rule;
         }
     }
-    return $rule_tree;
+    return($rule_tree, $count);
 }
 
 my @duplicate_rules;
@@ -7699,6 +7701,9 @@ sub expand_rules {
 sub check_expanded_rules {
     progress('Checking for redundant rules');
     setup_ref2obj();
+    my $count  = 0;
+    my $dcount = 0;
+    my $rcount = 0;
 
     # Process rules in chunks to reduce memory usage.
     # Rules with different src_path / dst_path can't be 
@@ -7728,14 +7733,17 @@ sub check_expanded_rules {
 #            my $rules = $key2rules{$key};
 
             my $expanded_rules = expand_rules($rules);
-            my $rule_tree = build_rule_tree($expanded_rules);
-            find_redundant_rules($rule_tree, $rule_tree);
+            $count += @$expanded_rules;
+            my ($rule_tree, $deleted) = build_rule_tree($expanded_rules);
+            $dcount += $deleted;
+            $rcount += find_redundant_rules($rule_tree, $rule_tree);
 
 #        }
     }
     show_duplicate_rules();
     show_redundant_rules();
     warn_unused_overlaps();
+    info("Expanded rule count: $count; duplicate: $dcount; redundant: $rcount");
     return;
 }
 
@@ -14275,6 +14283,7 @@ sub check_dynamic_nat_rules {
 ##############################################################################
 sub find_redundant_rules {
  my ($cmp_hash, $chg_hash) = @_;
+ my $count = 0;
  while (my ($stateless, $chg_hash) = each %$chg_hash) {
   while (1) {
    if (my $cmp_hash = $cmp_hash->{$stateless}) {
@@ -14312,6 +14321,7 @@ sub find_redundant_rules {
 #                   debug("Del:", print_rule $chg_rule);
 #                   debug("Oth:", print_rule $cmp_rule);
                     collect_redundant_rules($chg_rule, $cmp_rule);
+                    $count++;
                     last;
                    }
                   }
@@ -14340,7 +14350,7 @@ sub find_redundant_rules {
    $stateless = '';
   }
  }
- return;
+ return $count;
 }
 
 ########################################################################
