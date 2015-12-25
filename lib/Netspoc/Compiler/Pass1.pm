@@ -1531,9 +1531,9 @@ my $global_active_pathrestriction = new(
 # at spoke devices. Key is crypto name, not crypto object.
 my %crypto2spokes;
 
-# Real interfaces at crypto hub, where tunnels are attached.
+# Real interface at crypto hub, where tunnels are attached.
 # Key is crypto name, not crypto object.
-my %crypto2hubs;
+my %crypto2hub;
 
 sub read_interface {
     my ($name) = @_;
@@ -1815,7 +1815,14 @@ sub read_interface {
             error_atline("Crypto hub must not be $interface->{ip} interface");
         }
         for my $crypto (@$crypto_list) {
-            push @{ $crypto2hubs{$crypto} }, $interface;
+            if (my $other = $crypto2hub{$crypto}) {
+                err_msg("Must use $crypto exactly once, not at both\n",
+                        " - $other->{name}\n",
+                        " - $interface->{name}");
+            }
+            else {
+                $crypto2hub{$crypto} = $interface;
+            }
         }
     }
     if (@secondary_interfaces) {
@@ -12455,31 +12462,34 @@ sub link_tunnels {
     for my $crypto (sort by_name values %crypto) {
         my $name        = $crypto->{name};
         my $private     = $crypto->{private};
-        my $real_hubs   = delete $crypto2hubs{$name};
+        my $real_hub    = delete $crypto2hub{$name};
         my $real_spokes = delete $crypto2spokes{$name};
-        $real_hubs   = [ grep { !$_->{disabled} } @$real_hubs ];
+        if (not $real_hub or $real_hub->{disabled}) {
+            warn_msg("No hub has been defined for $name");
+            next;
+        }
         $real_spokes = [ grep { !$_->{disabled} } @$real_spokes ];
-        $real_hubs and @$real_hubs
-          or warn_msg("No hubs have been defined for $name");
-
-        $real_spokes and @$real_spokes
+        @$real_spokes
           or warn_msg("No spokes have been defined for $name");
 
         my $isakmp  = $crypto->{type}->{key_exchange};
         my $need_id = $isakmp->{authentication} eq 'rsasig';
-        for my $real_hub (@$real_hubs) {
 
-            # Substitute crypto name by crypto object.
-            for my $crypto_name (@{ $real_hub->{hub} }) {
-                $crypto_name eq $name and $crypto_name = $crypto;
-            }
+        # Substitute crypto name by crypto object.
+        for my $crypto_name (@{ $real_hub->{hub} }) {
+            $crypto_name eq $name and $crypto_name = $crypto;
+        }
 
-            # Collect managed routers with crypto hub.
-            # Note: Crypto routers are splitted internally into
-            # two nodes. Typically we get get a node with only
-            # a single crypto interface.
-            my $router = $real_hub->{router};
-            $router->{managed} or next;
+        # Note: Crypto router is split internally into two nodes.
+        # Typically we get get a node with only a single crypto interface.
+        my $router = $real_hub->{router};
+
+        # Take original router with cleartext interface(s).
+        if (my $orig_router = $router->{orig_router}) {
+            $router = $orig_router;
+        }
+
+        if ($router->{managed}) {
 
             # Router of type {do_auth} can only check certificates,
             # not pre-shared keys.
@@ -12488,19 +12498,11 @@ sub link_tunnels {
               and err_msg("$router->{name} needs authentication=rsasig",
                 " in $isakmp->{name}");
 
-            # Take original router with cleartext interface(s).
-            if (my $orig_router = $router->{orig_router}) {
-                $router = $orig_router;
-            }
             push @managed_crypto_hubs, $router if not $hub_seen{$router}++;
         }
-        push @real_interfaces, @$real_hubs;
+        push @real_interfaces, $real_hub;
 
         # Generate a single tunnel from each spoke to a single hub.
-        # If there are multiple hubs, they are assumed to form
-        # a high availability cluster. In this case a single tunnel is created
-        # with all hubs as possible endpoints. Traffic between hubs is
-        # prevented by automatically added pathrestrictions.
         for my $spoke_net (@$real_spokes) {
             (my $net_name = $spoke_net->{name}) =~ s/network://;
             push @{ $crypto->{tunnels} }, $spoke_net;
@@ -12509,78 +12511,68 @@ sub link_tunnels {
             my $real_spoke = $spoke->{real_interface};
             $real_spoke->{spoke} = $crypto;
 
-            # Each spoke gets a fresh hub interface.
-            my @hubs;
-            for my $real_hub (@$real_hubs) {
-                my $router = $real_hub->{router};
-                if (my $orig_router = $router->{orig_router}) {
-                    $router = $orig_router;
-                }
-                my $hardware = $real_hub->{hardware};
-                (my $intf_name = $real_hub->{name}) =~ s/\..*$/.$net_name/;
-                my $hub = new(
-                    'Interface',
-                    name   => $intf_name,
-                    ip     => 'tunnel',
-                    crypto => $crypto,
+            my $hardware = $real_hub->{hardware};
+            (my $intf_name = $real_hub->{name}) =~ s/\..*$/.$net_name/;
+            my $hub = new(
+                'Interface',
+                name   => $intf_name,
+                ip     => 'tunnel',
+                crypto => $crypto,
 
-                    # Attention: shared hardware between router and
-                    # orig_router.
-                    hardware       => $hardware,
-                    is_hub         => 1,
-                    real_interface => $real_hub,
-                    router         => $router,
-                    network        => $spoke_net
-                );
-                $hub->{bind_nat} = $real_hub->{bind_nat}
-                  if $real_hub->{bind_nat};
-                push @{ $router->{interfaces} },    $hub;
-                push @{ $hardware->{interfaces} },  $hub;
-                push @{ $spoke_net->{interfaces} }, $hub;
-                push @{ $hub->{peers} },            $spoke;
-                push @{ $spoke->{peers} },          $hub;
-                push @hubs, $hub;
+                # Attention: shared hardware between router and
+                # orig_router.
+                hardware       => $hardware,
+                is_hub         => 1,
+                real_interface => $real_hub,
+                router         => $router,
+                network        => $spoke_net
+            );
+            $hub->{bind_nat} = $real_hub->{bind_nat} if $real_hub->{bind_nat};
+            $hub->{peer}     = $spoke;
+            $spoke->{peer}   = $hub;
+            push @{ $router->{interfaces} },    $hub;
+            push @{ $hardware->{interfaces} },  $hub;
+            push @{ $spoke_net->{interfaces} }, $hub;
 
-                # We need hub also be available in orig_interfaces.
-                if (my $aref = $router->{orig_interfaces}) {
-                    push @$aref, $hub;
-                }
+            # We need hub also be available in orig_interfaces.
+            if (my $aref = $router->{orig_interfaces}) {
+                push @$aref, $hub;
+            }
 
-                if ($real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/) {
-                    my $model = $router->{model};
-                    if (not($model->{do_auth} or $model->{can_dyn_crypto})) {
-                        err_msg "$router->{name} can't establish crypto",
-                          " tunnel to $real_spoke->{name} with unknown IP";
-                    }
-                }
-
-                if ($private) {
-                    my $s_p = $real_spoke->{private};
-                    my $h_p = $real_hub->{private};
-                    $s_p and $s_p eq $private
-                      or $h_p and $h_p eq $private
-                      or err_msg
-                      "Tunnel $real_spoke->{name} to $real_hub->{name}",
-                      " of $private.private $name",
-                      " must reference at least one object",
-                      " out of $private.private";
-                }
-                else {
-                    $real_spoke->{private}
-                      and err_msg "Tunnel of public $name must not",
-                      " reference $real_spoke->{name} of",
-                      " $real_spoke->{private}.private";
-                    $real_hub->{private}
-                      and err_msg "Tunnel of public $name must not",
-                      " reference $real_hub->{name} of",
-                      " $real_hub->{private}.private";
+            if ($real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/) {
+                my $model = $router->{model};
+                if (not($model->{do_auth} or $model->{can_dyn_crypto})) {
+                    err_msg "$router->{name} can't establish crypto",
+                      " tunnel to $real_spoke->{name} with unknown IP";
                 }
             }
 
-            my $router = $spoke->{router};
+            if ($private) {
+                my $s_p = $real_spoke->{private};
+                my $h_p = $real_hub->{private};
+                $s_p and $s_p eq $private
+                  or $h_p and $h_p eq $private
+                  or err_msg
+                  "Tunnel $real_spoke->{name} to $real_hub->{name}",
+                  " of $private.private $name",
+                  " must reference at least one object",
+                  " out of $private.private";
+            }
+            else {
+                $real_spoke->{private}
+                  and err_msg "Tunnel of public $name must not",
+                  " reference $real_spoke->{name} of",
+                  " $real_spoke->{private}.private";
+                $real_hub->{private}
+                  and err_msg "Tunnel of public $name must not",
+                  " reference $real_hub->{name} of",
+                  " $real_hub->{private}.private";
+            }
+
+            my $spoke_router = $spoke->{router};
             my @other;
             my $has_id_hosts;
-            for my $interface (@{ $router->{interfaces} }) {
+            for my $interface (@{ $spoke_router->{interfaces} }) {
                 my $network = $interface->{network};
                 if ($network->{has_id_hosts}) {
                     $has_id_hosts = $network;
@@ -12596,27 +12588,19 @@ sub link_tunnels {
             }
             push @real_interfaces, $real_spoke;
 
-            if ($router->{managed} && $crypto->{detailed_crypto_acl}) {
+            if ($spoke_router->{managed} && $crypto->{detailed_crypto_acl}) {
                 err_msg(
                     "Attribute 'detailed_crypto_acl' is not",
-                    " allowed for managed spoke $router->{name}"
+                    " allowed for managed spoke $spoke_router->{name}"
                 );
-            }
-
-            # Automatically add pathrestriction between interfaces
-            # of redundant hubs.
-            if (@hubs > 1) {
-                my $name2 = "auto-restriction:$crypto->{name}";
-                add_pathrestriction($name2, \@hubs);
             }
         }
     }
 
     # Check for undefined crypto references.
-    for my $crypto (keys %crypto2hubs) {
-        for my $interface (@{ $crypto2hubs{$crypto} }) {
-            err_msg("$interface->{name} references unknown $crypto");
-        }
+    for my $crypto (keys %crypto2hub) {
+        my $interface = $crypto2hub{$crypto};
+        err_msg("$interface->{name} references unknown $crypto");
     }
     for my $crypto (keys %crypto2spokes) {
         for my $network (@{ $crypto2spokes{$crypto} }) {
@@ -12702,9 +12686,10 @@ sub verify_asa_vpn_attributes {
     return;
 }
 
-# Host with ID that doesn't contain a '@' must use attribute 'verify-subject-name'.
+# Host with ID that doesn't contain a '@' must use attribute
+# 'verify-subject-name'.
 sub verify_subject_name {
-    my ($host, $peers) = @_;
+    my ($host, $peer) = @_;
     my $id = $host->{id};
     return if $id =~ /@/;
     my $has_attr = sub {
@@ -12714,14 +12699,9 @@ sub verify_subject_name {
     };
     return if $has_attr->($host);
     return if $has_attr->($host->{network});
-    my $missing;
-    for my $peer (@$peers) {
-        next if $has_attr->($peer->{router});
-        $missing = 1;
-    }
-    if ($missing) {
+    if (not $has_attr->($peer->{router})) {
         err_msg("Missing radius_attribute 'check-subject-name'\n",
-            " for $host->{name}");
+                " for $host->{name}");
     }
     return;
 }
@@ -12756,7 +12736,7 @@ sub expand_crypto {
             for my $tunnel_intf (@{ $tunnel->{interfaces} }) {
                 next if $tunnel_intf->{is_hub};
                 my $router  = $tunnel_intf->{router};
-                my $peers   = $tunnel_intf->{peers};
+                my $peer    = $tunnel_intf->{peer};
                 my $managed = $router->{managed};
                 my @encrypted;
                 my $has_id_hosts;
@@ -12804,25 +12784,23 @@ sub expand_crypto {
                             # exacly one subnet.
                             my $subnet = $host->{subnets}->[0];
                             push @verify_radius_attributes, $host;
-                            for my $peer (@$peers) {
-                                my $no_nat_set = $peer->{no_nat_set};
-                                if (my $other = $peer->{id_rules}->{$id}) {
-                                    my $src = $other->{src};
-                                    err_msg(
-                                        "Duplicate ID-host $id from",
-                                        " $src->{network}->{name} and",
-                                        " $subnet->{network}->{name}",
-                                        " at $peer->{router}->{name}"
-                                    );
-                                    next;
-                                }
-                                $peer->{id_rules}->{$id} = {
-                                    name       => "$peer->{name}.$id",
-                                    ip         => 'tunnel',
-                                    src        => $subnet,
-                                    no_nat_set => $no_nat_set,
-                                };
+                            my $no_nat_set = $peer->{no_nat_set};
+                            if (my $other = $peer->{id_rules}->{$id}) {
+                                my $src = $other->{src};
+                                err_msg(
+                                    "Duplicate ID-host $id from",
+                                    " $src->{network}->{name} and",
+                                    " $subnet->{network}->{name}",
+                                    " at $peer->{router}->{name}"
+                                );
+                                next;
                             }
+                            $peer->{id_rules}->{$id} = {
+                                name       => "$peer->{name}.$id",
+                                ip         => 'tunnel',
+                                src        => $subnet,
+                                no_nat_set => $no_nat_set,
+                            };
                         }
                         push @encrypted, $network;
                     }
@@ -12847,60 +12825,55 @@ sub expand_crypto {
                   );
 
                 my $real_spoke = $tunnel_intf->{real_interface};
-                for my $peer (@$peers) {
-                    $peer->{peer_networks} = \@encrypted;
-                    my $router  = $peer->{router};
-                    my $do_auth = $router->{model}->{do_auth};
-                    my $unknown_ip =
-                      $real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/;
-                    if ($tunnel_intf->{id}) {
-                        $need_id
-                          or err_msg(
-                            "Invalid attribute 'id' at",
-                            " $tunnel_intf->{name}.\n",
-                            " Set authentication=rsasig at",
-                            " $isakmp->{name}"
-                          );
-                    }
-                    elsif ($encrypted[0]->{has_id_hosts}) {
-                        $do_auth
-                          or err_msg(
-                            "$router->{name} can't check IDs",
-                            " of $encrypted[0]->{name}"
-                          );
-                    }
-                    elsif ($do_auth) {
-                        err_msg(
-                            "Networks need to have ID hosts because",
-                            " $router->{name} has attribute 'do_auth':",
-                            "\n - ",
-                            join("\n - ", map { $_->{name} } @encrypted)
-                        );
-                    }
-                    elsif ($need_id) {
-                        err_msg(
-                            "$tunnel_intf->{name}",
-                            " needs attribute 'id',",
-                            " because $isakmp->{name}",
-                            " has authentication=rsasig"
-                        );
-                    }
+                $peer->{peer_networks} = \@encrypted;
+                my $hub_router = $peer->{router};
+                my $do_auth = $hub_router->{model}->{do_auth};
+                my $unknown_ip =
+                  $real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/;
+                if ($tunnel_intf->{id}) {
+                    $need_id
+                      or err_msg(
+                        "Invalid attribute 'id' at",
+                        " $tunnel_intf->{name}.\n",
+                        " Set authentication=rsasig at",
+                        " $isakmp->{name}"
+                      );
+                }
+                elsif ($encrypted[0]->{has_id_hosts}) {
+                    $do_auth
+                      or err_msg(
+                        "$hub_router->{name} can't check IDs",
+                        " of $encrypted[0]->{name}"
+                      );
+                }
+                elsif ($do_auth) {
+                    err_msg(
+                        "Networks need to have ID hosts because",
+                        " $hub_router->{name} has attribute 'do_auth':",
+                        "\n - ",
+                        join("\n - ", map { $_->{name} } @encrypted)
+                    );
+                }
+                elsif ($need_id) {
+                    err_msg(
+                        "$tunnel_intf->{name}",
+                        " needs attribute 'id',",
+                        " because $isakmp->{name}",
+                        " has authentication=rsasig"
+                    );
                 }
 
-                if (
-                    grep({ $_->{router}->{model}->{crypto} eq 'ASA_VPN' }
-                        @$peers))
-                {
+                if ($peer->{router}->{model}->{crypto} eq 'ASA_VPN') {
                     for my $obj (@verify_radius_attributes) {
                         verify_asa_vpn_attributes($obj);
                         if (is_host($obj)) {
-                            verify_subject_name($obj, $peers);
+                            verify_subject_name($obj, $peer);
                         }
                     }
                 }
 
                 if ($managed && $router->{model}->{crypto} eq 'ASA') {
-                    verify_asa_trustpoint($router, $crypto);
+                    verify_asa_trustpoint($hub_router, $crypto);
                 }
 
                 # Add rules to permit crypto traffic between
@@ -12910,22 +12883,21 @@ sub expand_crypto {
                 if (    $real_spoke
                     and $real_spoke->{ip} !~ /^(?:short|unnumbered)$/)
                 {
-                    for my $hub (@{ $tunnel_intf->{peers} }) {
-                        my $real_hub = $hub->{real_interface};
-                        for my $pair (
-                            [ $real_spoke, $real_hub ],
-                            [ $real_hub,   $real_spoke ]
-                          )
-                        {
-                            my ($intf1, $intf2) = @$pair;
+                    my $hub = $tunnel_intf->{peer};
+                    my $real_hub = $hub->{real_interface};
+                    for my $pair (
+                        [ $real_spoke, $real_hub ],
+                        [ $real_hub,   $real_spoke ]
+                      )
+                    {
+                        my ($intf1, $intf2) = @$pair;
 
-                            # Don't generate incoming ACL from unknown
-                            # address.
-                            next if $intf1->{ip} eq 'negotiated';
-                            my $rules_ref =
-                              gen_tunnel_rules($intf1, $intf2, $crypto->{type});
-                            push @{ $path_rules{permit} }, @$rules_ref;
-                        }
+                        # Don't generate incoming ACL from unknown
+                        # address.
+                        next if $intf1->{ip} eq 'negotiated';
+                        my $rules_ref =
+                          gen_tunnel_rules($intf1, $intf2, $crypto->{type});
+                        push @{ $path_rules{permit} }, @$rules_ref;
                     }
                 }
             }
@@ -15170,118 +15142,117 @@ sub check_and_convert_routes {
             $interface->{routes} = $interface->{hopref2obj} = {};
             my $real_intf = $interface->{real_interface};
             next if $real_intf->{routing};
-            my $real_net = $real_intf->{network};
-            for my $peer (@{ $interface->{peers} }) {
-                my $real_peer = $peer->{real_interface};
-                my $peer_net  = $real_peer->{network};
+            my $real_net  = $real_intf->{network};
+            my $peer      = $interface->{peer};
+            my $real_peer = $peer->{real_interface};
+            my $peer_net  = $real_peer->{network};
 
-                # Find hop to peer network and add tunnel networks to this hop.
-                my @hops;
+            # Find hop to peer network and add tunnel networks to this hop.
+            my @hops;
 
-                # Peer network is directly connected.
-                if ($real_net eq $peer_net) {
-                    if ($real_peer->{ip} !~ /^(?:short|negotiated)$/) {
-                        push @hops, $real_peer;
+            # Peer network is directly connected.
+            if ($real_net eq $peer_net) {
+                if ($real_peer->{ip} !~ /^(?:short|negotiated)$/) {
+                    push @hops, $real_peer;
+                }
+                else {
+                    err_msg(
+                        "$real_peer->{name} used to reach",
+                        " software clients\n",
+                        " must not be directly connected to",
+                        " $real_intf->{name}\n",
+                        " Connect it to some network behind next hop"
+                    );
+                    next;
+                }
+            }
+
+            # Peer network is located in directly connected zone.
+            elsif ($real_net->{zone} eq $peer_net->{zone}) {
+                my $route_in_zone = $real_intf->{route_in_zone};
+                my $hops =
+                  ($route_in_zone->{default} || $route_in_zone->{$peer_net})
+                  or internal_err("Missing route for $peer_net->{name}",
+                    " at $real_intf->{name} ");
+                push @hops, @$hops;
+            }
+
+            # Find path to peer network to determine available hops.
+            else {
+                my $pseudo_rule = {
+                    src    => $real_intf,
+                    dst    => $peer_net,
+                    action => '--',
+                    prt    => { name => '--' },
+                };
+                my @zone_hops;
+                my $walk = sub {
+                    my ($rule, $in_intf, $out_intf) = @_;
+                    $in_intf               or internal_err("No in_intf");
+                    $in_intf eq $real_intf or return;
+                    $out_intf              or internal_err("No out_intf");
+                    $out_intf->{network}   or internal_err "No out net";
+                    push @zone_hops, $out_intf;
+                };
+                single_path_walk($pseudo_rule, $walk, 'Zone');
+                my $route_in_zone = $real_intf->{route_in_zone};
+                for my $hop (@zone_hops) {
+
+                    my $hop_net = $hop->{network};
+                    if ($hop_net eq $real_net) {
+                        push @hops, $hop;
                     }
                     else {
-                        err_msg(
-                            "$real_peer->{name} used to reach",
-                            " software clients\n",
-                            " must not be directly connected to",
-                            " $real_intf->{name}\n",
-                            " Connect it to some network behind next hop"
-                        );
-                        next;
+                        my $hops =
+                          (      $route_in_zone->{default}
+                              || $route_in_zone->{$hop_net})
+                          or
+                          internal_err("Missing route for $hop_net->{name}",
+                            " at $real_intf->{name}");
+                        push @hops, @$hops;
                     }
                 }
+            }
 
-                # Peer network is located in directly connected zone.
-                elsif ($real_net->{zone} eq $peer_net->{zone}) {
-                    my $route_in_zone = $real_intf->{route_in_zone};
-                    my $hops =
-                      ($route_in_zone->{default} || $route_in_zone->{$peer_net})
-                      or internal_err("Missing route for $peer_net->{name}",
-                        " at $real_intf->{name} ");
-                    push @hops, @$hops;
+            my $hop_routes;
+            if (@hops > 1
+                && equal(map({ $_->{redundancy_interfaces} || $_ } @hops))
+                || @hops == 1)
+            {
+                my $hop = shift @hops;
+                $hop_routes = $real_intf->{routes}->{$hop} ||= {};
+                $real_intf->{hopref2obj}->{$hop} = $hop;
+
+#                debug "Use $hop->{name} as hop for $real_peer->{name}";
+            }
+            else {
+
+                # This can only happen for vpn software clients.
+                # For hardware clients  the route is known
+                # for the encrypted traffic which is allowed
+                # by gen_tunnel_rules (even for negotiated interface).
+                my $count = @hops;
+                my $names = join('', map({ "\n - $_->{name}" } @hops));
+                err_msg(
+                    "Can't determine next hop to reach $peer_net->{name}",
+                    " while moving routes\n",
+                    " of $interface->{name} to $real_intf->{name}.\n",
+                    " Exactly one route is needed,",
+                    " but $count candidates were found:",
+                    $names
+                );
+            }
+
+            # Use found hop to reach tunneled networks in $tunnel_routes.
+            for my $tunnel_net_hash (values %$tunnel_routes) {
+                for my $tunnel_net (values %$tunnel_net_hash) {
+                    $hop_routes->{$tunnel_net} = $tunnel_net;
                 }
+            }
 
-                # Find path to peer network to determine available hops.
-                else {
-                    my $pseudo_rule = {
-                        src    => $real_intf,
-                        dst    => $peer_net,
-                        action => '--',
-                        prt    => { name => '--' },
-                    };
-                    my @zone_hops;
-                    my $walk = sub {
-                        my ($rule, $in_intf, $out_intf) = @_;
-                        $in_intf               or internal_err("No in_intf");
-                        $in_intf eq $real_intf or return;
-                        $out_intf              or internal_err("No out_intf");
-                        $out_intf->{network}   or internal_err "No out net";
-                        push @zone_hops, $out_intf;
-                    };
-                    single_path_walk($pseudo_rule, $walk, 'Zone');
-                    my $route_in_zone = $real_intf->{route_in_zone};
-                    for my $hop (@zone_hops) {
-
-                        my $hop_net = $hop->{network};
-                        if ($hop_net eq $real_net) {
-                            push @hops, $hop;
-                        }
-                        else {
-                            my $hops =
-                              (      $route_in_zone->{default}
-                                  || $route_in_zone->{$hop_net})
-                              or
-                              internal_err("Missing route for $hop_net->{name}",
-                                " at $real_intf->{name}");
-                            push @hops, @$hops;
-                        }
-                    }
-                }
-
-                my $hop_routes;
-                if (@hops > 1
-                    && equal(map({ $_->{redundancy_interfaces} || $_ } @hops))
-                    || @hops == 1)
-                {
-                    my $hop = shift @hops;
-                    $hop_routes = $real_intf->{routes}->{$hop} ||= {};
-                    $real_intf->{hopref2obj}->{$hop} = $hop;
-
-#                    debug "Use $hop->{name} as hop for $real_peer->{name}";
-                }
-                else {
-
-                    # This can only happen for vpn software clients.
-                    # For hardware clients  the route is known
-                    # for the encrypted traffic which is allowed
-                    # by gen_tunnel_rules (even for negotiated interface).
-                    my $count = @hops;
-                    my $names = join('', map({ "\n - $_->{name}" } @hops));
-                    err_msg(
-                        "Can't determine next hop to reach $peer_net->{name}",
-                        " while moving routes\n",
-                        " of $interface->{name} to $real_intf->{name}.\n",
-                        " Exactly one route is needed,",
-                        " but $count candidates were found:",
-                        $names
-                    );
-                }
-
-                # Use found hop to reach tunneled networks in $tunnel_routes.
-                for my $tunnel_net_hash (values %$tunnel_routes) {
-                    for my $tunnel_net (values %$tunnel_net_hash) {
-                        $hop_routes->{$tunnel_net} = $tunnel_net;
-                    }
-                }
-
-                # Add route to reach peer interface.
-                if ($peer_net ne $real_net) {
-                    $hop_routes->{$peer_net} = $peer_net;
-                }
+            # Add route to reach peer interface.
+            if ($peer_net ne $real_net) {
+                $hop_routes->{$peer_net} = $peer_net;
             }
         }
 
@@ -16677,8 +16648,8 @@ EOF
             push @{ $router->{acl_list} }, $acl_info;
             print_acl_placeholder($filter_name);
 
-            my $id = $interface->{peers}->[0]->{id}
-              or internal_err("Missing ID at $interface->{peers}->[0]->{name}");
+            my $id = $interface->{peer}->{id}
+              or internal_err("Missing ID at $interface->{peer}->{name}");
             my $attributes = $router->{radius_attributes};
 
             my $group_policy_name;
@@ -16985,14 +16956,11 @@ sub print_ezvpn {
     print " connect auto\n";
     print " mode network-extension\n";
 
-    for my $peer (@{ $tunnel_intf->{peers} }) {
-
-        # Unnumbered, negotiated and short interfaces have been
-        # rejected already.
-        my $peer_ip =
-          prefix_code(address($peer->{real_interface}, $no_nat_set));
-        print " peer $peer_ip\n";
-    }
+    # Unnumbered, negotiated and short interfaces have been
+    # rejected already.
+    my $peer = $tunnel_intf->{peer};
+    my $peer_ip = prefix_code(address($peer->{real_interface}, $no_nat_set));
+    print " peer $peer_ip\n";
 
     # Bind split tunnel ACL.
     print " acl $crypto_acl_name\n";
@@ -17019,7 +16987,7 @@ sub print_ezvpn {
       and internal_err("Unexpected attribute 'detailed_crypto_acl'",
         " at $router->{name}");
     my $crypto_rules =
-      gen_crypto_rules($tunnel_intf->{peers}->[0]->{peer_networks},
+      gen_crypto_rules($tunnel_intf->{peer}->{peer_networks},
         [$network_00]);
     my $acl_info = {
         name => $crypto_acl_name,
@@ -17058,7 +17026,7 @@ sub print_crypto_acl {
     # - either generic from remote network to any or
     # - detailed to all networks which are used in rules.
     my $is_hub   = $interface->{is_hub};
-    my $hub      = $is_hub ? $interface : $interface->{peers}->[0];
+    my $hub      = $is_hub ? $interface : $interface->{peer};
     my $detailed = $crypto->{detailed_crypto_acl};
     my $local    = $detailed ? get_split_tunnel_nets($hub) : [$network_00];
     my $remote   = $hub->{peer_networks};
@@ -17197,8 +17165,8 @@ sub print_static_crypto_map {
 
     # Sort crypto maps by peer IP to get deterministic output.
     my @sorted = sort(
-        { $a->{peers}->[0]->{real_interface}->{ip}
-              <=> $b->{peers}->[0]->{real_interface}->{ip} } @$interfaces);
+        { $a->{peer}->{real_interface}->{ip}
+              <=> $b->{peer}->{real_interface}->{ip} } @$interfaces);
 
     # Build crypto map for each tunnel interface.
     for my $interface (@sorted) {
@@ -17224,37 +17192,22 @@ sub print_static_crypto_map {
             $prefix = "crypto map $map_name $seq_num";
         }
 
-        # Set crypto peers.
-        if ($crypto_type eq 'IOS') {
-            for my $peer (@{ $interface->{peers} }) {
-                my $peer_ip =
-                  prefix_code(address($peer->{real_interface}, $no_nat_set));
-                print "$prefix set peer $peer_ip\n";
-            }
-        }
-        elsif ($crypto_type eq 'ASA') {
-            print "$prefix set peer ",
-              join(' ',
-                map { prefix_code(address($_->{real_interface}, $no_nat_set)) }
-                  @{ $interface->{peers} }),
-              "\n";
-        }
+        # Set crypto peer.
+        my $peer = $interface->{peer};
+        my $peer_ip = 
+            prefix_code(address($peer->{real_interface}, $no_nat_set));
+        print "$prefix set peer $peer_ip\n";
 
         print_crypto_map_attributes($prefix, $model, $crypto_type,
             $crypto_acl_name, $crypto_filter_name,
             $isakmp, $ipsec, $ipsec2trans_name);
 
         if ($crypto_type eq 'ASA') {
-            for my $peer (@{ $interface->{peers} }) {
-                my $peer_ip =
-                  prefix_code(address($peer->{real_interface}, $no_nat_set));
-                print_tunnel_group($peer_ip, $interface, $isakmp);
+            print_tunnel_group($peer_ip, $interface, $isakmp);
 
-                # Tunnel group needs to be activated, if certificate
-                # is in use.
-                if (my $id = $peer->{id}) {
-                    print_ca_and_tunnel_group_map($id, $peer_ip);
-                }
+            # Tunnel group needs to be activated, if certificate is in use.
+            if (my $id = $peer->{id}) {
+                print_ca_and_tunnel_group_map($id, $peer_ip);
             }
         }
     }
@@ -17272,14 +17225,13 @@ sub print_dynamic_crypto_map {
     my $seq_num = 65536;
 
     # Sort crypto maps by certificate to get deterministic output.
-    my @sorted =
-      sort({ $a->{peers}->[0]->{id} cmp $b->{peers}->[0]->{id} } @$interfaces);
+    my @sorted = sort({ $a->{peer}->{id} cmp $b->{peer}->{id} } @$interfaces);
 
     # Build crypto map for each tunnel interface.
     for my $interface (@sorted) {
         $seq_num--;
         my $suffix = "$hw_name-$seq_num";
-        my $id     = $interface->{peers}->[0]->{id};
+        my $id     = $interface->{peer}->{id};
 
         my $crypto = $interface->{crypto};
         my $ipsec  = $crypto->{type};
@@ -17460,7 +17412,7 @@ sub print_crypto {
     my %hardware2dyn_crypto;
     for my $interface (@{ $router->{interfaces} }) {
         $interface->{ip} eq 'tunnel' or next;
-        my $ip = $interface->{peers}->[0]->{real_interface}->{ip};
+        my $ip = $interface->{peer}->{real_interface}->{ip};
         if ($ip =~ /^(?:negotiated|short|unnumbered)$/) {
             push @{ $hardware2dyn_crypto{ $interface->{hardware} } },
               $interface;
@@ -18219,7 +18171,7 @@ sub init_global_vars {
     @managed_crypto_hubs = @routers = @networks = @zones = @areas = ();
     @natdomains         = ();
     %auto_interfaces    = ();
-    %crypto2spokes      = %crypto2hubs = ();
+    %crypto2spokes      = %crypto2hub = ();
     %service_rules      = %path_rules = ();
     %prt_hash           = %ref2prt = %ref2obj = %token2regex = ();
     %ref2obj            = %ref2prt = ();

@@ -483,11 +483,9 @@ for my $router (values %routers) {
 	
 	if ($interface->{ip} eq 'tunnel') {
 	    $mark_crypto->($interface->{crypto});
-            my $peers = $interface->{peers};
+            my $peer = $interface->{peer};
             my $real_intf = $interface->{real_interface};
-            for my $peer (@$peers) {
-                mark_path($real_intf, $peer->{real_interface}); 
-            }
+            mark_path($real_intf, $peer->{real_interface}); 
 
             # Mark possibly unused crypto, referenced at hub.
             if (my $crypto_list = $real_intf->{hub}) {
