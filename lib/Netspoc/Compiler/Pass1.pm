@@ -6618,6 +6618,9 @@ sub normalize_services {
         $service->{user} = expand_group($service->{user}, "user of $name");
         normalize_service_rules($service);
     }
+
+    # Only needed during normalize_service_rules.
+    %auto_interfaces = ();
 }
 
 ##############################################################################
@@ -12455,10 +12458,6 @@ sub gen_tunnel_rules {
 sub link_tunnels {
 
     my %hub_seen;
-
-    # Collect clear-text interfaces of all tunnels.
-    my @real_interfaces;
-
     for my $crypto (sort by_name values %crypto) {
         my $name        = $crypto->{name};
         my $private     = $crypto->{private};
@@ -12482,27 +12481,23 @@ sub link_tunnels {
 
         # Note: Crypto router is split internally into two nodes.
         # Typically we get get a node with only a single crypto interface.
-        my $router = $real_hub->{router};
-
         # Take original router with cleartext interface(s).
+        my $router = $real_hub->{router};
         if (my $orig_router = $router->{orig_router}) {
             $router = $orig_router;
         }
+        my $model = $router->{model};
 
-        if ($router->{managed}) {
-
-            # Router of type {do_auth} can only check certificates,
-            # not pre-shared keys.
-            $router->{model}->{do_auth}
-              and not $need_id
-              and err_msg("$router->{name} needs authentication=rsasig",
-                " in $isakmp->{name}");
-
-            push @managed_crypto_hubs, $router if not $hub_seen{$router}++;
+        # Router of type {do_auth} can only check certificates,
+        # not pre-shared keys.
+        if ($model->{do_auth} and not $need_id) {
+            err_msg("$router->{name} needs authentication=rsasig",
+                    " in $isakmp->{name}");
         }
-        push @real_interfaces, $real_hub;
+        
+        push @managed_crypto_hubs, $router if not $hub_seen{$router}++;
 
-        # Generate a single tunnel from each spoke to a single hub.
+        # Generate a single tunnel from each spoke to single hub.
         for my $spoke_net (@$real_spokes) {
             (my $net_name = $spoke_net->{name}) =~ s/network://;
             push @{ $crypto->{tunnels} }, $spoke_net;
@@ -12519,8 +12514,7 @@ sub link_tunnels {
                 ip     => 'tunnel',
                 crypto => $crypto,
 
-                # Attention: shared hardware between router and
-                # orig_router.
+                # Attention: shared hardware between router and orig_router.
                 hardware       => $hardware,
                 is_hub         => 1,
                 real_interface => $real_hub,
@@ -12540,7 +12534,6 @@ sub link_tunnels {
             }
 
             if ($real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/) {
-                my $model = $router->{model};
                 if (not($model->{do_auth} or $model->{can_dyn_crypto})) {
                     err_msg "$router->{name} can't establish crypto",
                       " tunnel to $real_spoke->{name} with unknown IP";
@@ -12586,7 +12579,6 @@ sub link_tunnels {
                   " together with networks having no ID host: ",
                   join(',', map { $_->{name} } @other);
             }
-            push @real_interfaces, $real_spoke;
 
             if ($spoke_router->{managed} && $crypto->{detailed_crypto_acl}) {
                 err_msg(
@@ -12743,6 +12735,7 @@ sub expand_crypto {
                 my $has_other_network;
                 my @verify_radius_attributes;
 
+                # Analyze cleartext networks behind spoke router.
                 for my $interface (@{ $router->{interfaces} }) {
                     next if $interface eq $tunnel_intf;
                     if ($interface->{ip} eq 'tunnel') {
@@ -12828,8 +12821,6 @@ sub expand_crypto {
                 $peer->{peer_networks} = \@encrypted;
                 my $hub_router = $peer->{router};
                 my $do_auth = $hub_router->{model}->{do_auth};
-                my $unknown_ip =
-                  $real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/;
                 if ($tunnel_intf->{id}) {
                     $need_id
                       or err_msg(
@@ -12909,9 +12900,8 @@ sub expand_crypto {
     # ASA_VPN can't distinguish different hosts with same ID
     # coming into different hardware interfaces.
     for my $router (@managed_crypto_hubs) {
-        my $model = $router->{model};
-        my $crypto = $model->{crypto} or next;
-        $crypto eq 'ASA_VPN' or next;
+        my $crypto_type = $router->{model}->{crypto};
+        $crypto_type eq 'ASA_VPN' or next;
         my @id_rules_interfaces =
           grep { $_->{id_rules} } @{ $router->{interfaces} };
         @id_rules_interfaces >= 2 or next;
@@ -12954,9 +12944,6 @@ sub expand_crypto {
             }
         }
     }
-
-    # Hash only needed during expand_group and expand_rules.
-    %auto_interfaces = ();
     return;
 }
 
