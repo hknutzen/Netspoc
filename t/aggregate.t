@@ -907,6 +907,83 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Missing destination aggregates in loop';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:t1 = { ip = 10.7.1.1; hardware = t1; }
+ interface:t2 = { ip = 10.7.2.1; hardware = t2; }
+}
+
+network:t1 = { ip = 10.7.1.0/24; }
+network:t2 = { ip = 10.7.2.0/24; }
+
+router:u = {
+ interface:t1;
+ interface:t3;
+ interface:t2;
+ interface:t4;
+}
+
+network:t3 = { ip = 10.7.3.0/24; }
+network:t4 = { ip = 10.7.4.0/24; }
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:t3 = { ip = 10.7.3.2; hardware = t3; }
+ interface:t4 = { ip = 10.7.4.2; hardware = t4; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+pathrestriction:p1 =
+ interface:r1.t2,
+ interface:u.t4,
+;
+
+pathrestriction:p2 =
+ interface:u.t1,
+ interface:r2.t3,
+;
+
+service:test = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n2]; prt = udp 123;
+}
+END
+
+# TODO:
+# First warning should show missing networks t1, t2, t3 and t4.
+$out = <<"END";
+Warning: Missing rule for supernet rule.
+ permit src=network:n1; dst=any:[network:n2]; prt=udp 123; of service:test
+ can\'t be effective at interface:r1.n1.
+ Tried network:t1 as dst.
+Warning: Missing rule for supernet rule.
+ permit src=network:n1; dst=any:[network:n2]; prt=udp 123; of service:test
+ can\'t be effective at interface:r2.t4.
+ Tried network:n3 as dst.
+Warning: Missing rule for supernet rule.
+ permit src=network:n1; dst=any:[network:n2]; prt=udp 123; of service:test
+ can\'t be effective at interface:r2.t3.
+ Tried network:n3 as dst.
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Missing aggregates for reverse rule';
 ############################################################
 
@@ -996,6 +1073,60 @@ Warning: Missing rule for reversed supernet rule.
  permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
  can\'t be effective at interface:r2.n3.
  Tried network:n3 as src.
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Missing aggregate for reverse rule in loop';
+############################################################
+
+# Don't find network:t1 and network:t2 as missing,
+# because both are located in same zone_cluster as dst.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:t1 = { ip = 10.7.1.1; hardware = t1; }
+ interface:t2 = { ip = 10.7.2.1; hardware = t2; }
+}
+
+network:t1 = { ip = 10.7.1.0/24; }
+network:t2 = { ip = 10.7.2.0/24; }
+
+router:u = {
+ interface:t1;
+ interface:t2;
+ interface:n3;
+ interface:n4 = { ip = 10.1.4.1; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+pathrestriction:p =
+ interface:r.t2,
+ interface:u.n4,
+;
+
+service:test = {
+ user = any:[ ip = 10.0.0.0/8 & network:n1 ];
+ permit src = user; dst = interface:u.n4; prt = udp 123;
+}
+END
+
+$out = <<"END";
+Warning: Missing rule for reversed supernet rule.
+ permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=interface:u.n4; prt=udp 123; of service:test
+ can\'t be effective at interface:r.n2.
+ Tried network:n2 as src.
 END
 
 test_err($title, $in, $out);

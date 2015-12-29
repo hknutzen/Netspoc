@@ -13204,10 +13204,10 @@ sub check_supernet_src_rule {
     return unless $out_intf;
 
     # Ignore semi_managed router.
-    my $router = $in_intf->{router};
+    my $router  = $in_intf->{router};
     my $managed = $router->{managed} or return;
 
-    my $src      = $rule->{src}->[0];
+    my $src     = $rule->{src}->[0];
 
     # Non matching rule will be ignored at 'managed=local' router and
     # hence must no be checked.
@@ -13216,7 +13216,17 @@ sub check_supernet_src_rule {
     }
 
     my $dst_zone = $rule->{dst_path};
-    my $in_zone = $in_intf->{zone};
+    if (is_interface($dst_zone)) {
+        if (not $dst_zone->{router}->{managed}) {
+            $dst_zone = $dst_zone->{zone};
+        }
+    }
+    elsif(is_router($dst_zone)) {
+        if (not $dst_zone->{managed}) {
+            $dst_zone = $dst_zone->{interfaces}->[0]->{zone};
+        }        
+    }
+    my $in_zone  = $in_intf->{zone};
 
     # Check case II, outgoing ACL, (A)
     my $no_acl_intf;
@@ -13224,11 +13234,11 @@ sub check_supernet_src_rule {
         my $no_acl_zone = $no_acl_intf->{zone};
 
         # a) dst behind Y
-        if ($no_acl_zone eq $dst_zone) {
+        if (zone_eq($no_acl_zone, $dst_zone)) {
         }
 
         # b), 1. zone X == zone Y
-        elsif ($in_zone eq $no_acl_zone) {
+        elsif (zone_eq($in_zone, $no_acl_zone)) {
         }
 
         elsif ($no_acl_intf->{main_interface}) {
@@ -13244,43 +13254,52 @@ sub check_supernet_src_rule {
     my $out_zone = $out_intf->{zone};
 
     # Check if reverse rule would be created and would need additional rules.
-    if ($router->{model}->{stateless} && !$rule->{oneway})
+    if ($router->{model}->{stateless} 
+        and not $rule->{oneway}
+        and grep { $_->{proto} =~ /^(?:tcp|udp|ip)$/ } @{ $rule->{prt} })
 
     {
-        my $prt_list = $rule->{prt};
-        my $is_reversed = grep { $_->{proto} =~ /^(?:tcp|udp|ip)$/ } @$prt_list;
 
         # Reverse rule wouldn't allow too much traffic, if a non
         # secondary stateful device filters between current device and dst.
         # This is true if $out_zone and $dst_zone have different
         # {stateful_mark}.
-        # If dst is managed interface, {stateful_mark} is undef
-        # - if device is secondary managed, take mark of attached network
+        # If dst is interface or router, {stateful_mark} is undef
+        # - if device is semi_managed or secondary managed, 
+        #   take mark of attached network
         # - else take value -1, different from all marks.
         # $src is supernet (not an interface) by definition
         # and hence $m1 is well defined.
         my $m1 = $out_zone->{stateful_mark};
         my $m2 = $dst_zone->{stateful_mark};
         if (!$m2) {
-            my $managed = $dst_zone->{router}->{managed};
-            $m2 =
-                $managed =~ /^(?:secondary|local.*)$/
-              ? $dst_zone->{network}->{zone}->{stateful_mark}
-              : -1;
+            if (is_router($dst_zone)) {
+                my $managed = $dst_zone->{managed};
+                $m2 = ($managed =~ /^(?:secondary|local.*)$/)
+                    ? $dst_zone->{interfaces}->[0]->{network}->{zone}
+                               ->{stateful_mark}
+                    : -1;
+            }
+            else {
+                my $managed = $dst_zone->{router}->{managed};
+                $m2 = ($managed =~ /^(?:secondary|local.*)$/)
+                    ? $dst_zone->{network}->{zone}->{stateful_mark}
+                    : -1;
+            }
         }
-        if ($is_reversed && $m1 == $m2) {
+        if ($m1 == $m2) {
 
             # Check case II, outgoing ACL, (B), interface Y without ACL.
             if (my $no_acl_intf = $router->{no_in_acl}) {
                 my $no_acl_zone = $no_acl_intf->{zone};
 
                 # a) dst behind Y
-                if ($no_acl_zone eq $dst_zone) {
+                if (zone_eq($no_acl_zone, $dst_zone)) {
                 }
 
                 # b) dst not behind Y
                 # zone X == zone Y
-                elsif ($no_acl_zone eq $src_zone) {
+                elsif (zone_eq($no_acl_zone, $src_zone)) {
                 }
 
                 elsif ($no_acl_intf->{main_interface}) {
@@ -13304,8 +13323,8 @@ sub check_supernet_src_rule {
                     # Nothing to be checked for an interface directly
                     # connected to src or dst.
                     my $zone = $intf->{zone};
-                    next if $zone eq $src_zone;
-                    next if $zone eq $dst_zone;
+                    next if zone_eq($zone, $src_zone);
+                    next if zone_eq($zone, $dst_zone);
                     next if $intf->{main_interface};
                     check_supernet_in_zone($rule, 'src', $intf, $zone, 1);
                 }
@@ -13355,6 +13374,16 @@ sub check_supernet_dst_rule {
     }
 
     my $src_zone = $rule->{src_path};
+    if (is_interface($src_zone)) {
+        if (not $src_zone->{router}->{managed}) {
+            $src_zone = $src_zone->{zone};
+        }
+    }
+    elsif(is_router($src_zone)) {
+        if (not $src_zone->{managed}) {
+            $src_zone = $src_zone->{interfaces}->[0]->{zone};
+        }        
+    }
     my $dst_zone = $dst->{zone};
 
     # Check case II, outgoing ACL, (B), interface Y without ACL.
@@ -13362,12 +13391,12 @@ sub check_supernet_dst_rule {
         my $no_acl_zone = $no_acl_intf->{zone};
 
         # a) src behind Y
-        if ($no_acl_zone eq $src_zone) {
+        if (zone_eq($no_acl_zone, $src_zone)) {
         }
 
         # b) src not behind Y
         # zone X == zone Y
-        elsif ($no_acl_zone eq $dst_zone) {
+        elsif (zone_eq($no_acl_zone, $dst_zone)) {
         }
 
         elsif ($no_acl_intf->{main_interface}) {
@@ -13380,9 +13409,11 @@ sub check_supernet_dst_rule {
         return;
     }
 
-    # Check security zones at all interfaces except those connected to dst or src.
+    # Check security zones at all interfaces except those connected 
+    # to dst or src.
     # For devices which have rules for each pair of incoming and outgoing
     # interfaces we only need to check the direct path to dst.
+    my $in_zone = $in_intf->{zone};
     for my $intf (
         $router->{model}->{has_io_acl}
         ? ($out_intf)
@@ -13396,8 +13427,9 @@ sub check_supernet_dst_rule {
 
         # Don't check interface where src or dst is attached.
         my $zone = $intf->{zone};
-        next if $zone eq $src_zone;
-        next if $zone eq $dst_zone;
+        next if zone_eq($zone, $src_zone);
+        next if zone_eq($zone, $dst_zone);
+        next if zone_eq($zone, $in_zone);
         next if $intf->{main_interface};
         check_supernet_in_zone($rule, 'dst', $in_intf, $zone);
     }
@@ -13633,10 +13665,12 @@ sub mark_stateful {
     $zone->{stateful_mark} = $mark;
     for my $in_interface (@{ $zone->{interfaces} }) {
         my $router = $in_interface->{router};
-        if ($router->{managed}) {
-            next
-              if !$router->{model}->{stateless}
-              && $router->{managed} !~ /^(?:secondary|local.*)$/;
+        my $managed = $router->{managed};
+        if ($managed 
+            and not $router->{model}->{stateless}
+            and not $managed =~ /^(?:secondary|local.*)$/)
+        {
+            next;
         }
         next if $router->{active_path};
         local $router->{active_path} = 1;
