@@ -10598,8 +10598,10 @@ sub check_virtual_interfaces {
         my $router = $interface->{router};
         next if not($router->{managed} or $router->{semi_managed});
 
-        $seen{$related} and next;
-        $seen{$related} = 1;
+        # Ignore single virtual interface.
+        next if @$related <= 1;
+
+        next if $seen{$related}++;
 
         # Check whether all virtual interfaces are part of a loop.
         my $err;
@@ -10985,6 +10987,7 @@ sub setpath_obj {
         # Skip interfaces:
         next if $interface eq $to_zone1;  # Interface where we reached this obj.
         next if $interface->{loop}; # Interface is entry of already marked loop.
+        next if $interface->{main_interface};
 
         # Get adjacent object/node.
         my $get_next = is_router($obj) ? 'zone' : 'router';
