@@ -61,6 +61,20 @@ END
 test_group($title, $in, 'group:g1 &! network:n2', $out);
 
 ############################################################
+$title = 'Umlaut in group name';
+############################################################
+
+$in = $topo . <<'END';
+group:Über = network:n1;
+END
+
+$out = <<'END';
+10.1.1.0/24	network:n1
+END
+
+test_group($title, $in, 'group:Über', $out);
+
+############################################################
 $title = 'Mark group in empty rule as used';
 ############################################################
 # Don't show warning "unused group:g2 
