@@ -4491,77 +4491,75 @@ sub split_semi_managed_router {
         }
         $count > 1 and $has_pathrestriction or next;
 
+        # Retain copy of original interfaces for finding [all] interfaces.
+        $router->{orig_interfaces} ||= [@$interfaces];
+
         # Split router into two or more parts.
         # Move each interface with pathrestriction and
         # corresponding secondary interface to new router.
 #        debug "split $router->{name}";
-        my @split_routers;
         my @split_secondary;
         my $name = $router->{name};
+
         for my $interface (@$interfaces) { 
             if (my $main = $interface->{main_interface}) {
                 $main->{path_restrict} or next;
                 push @split_secondary, $interface;
-                $interface = undef;
                 next;
             }
             $interface->{path_restrict} or next;
             
             # Create new semi_manged router with identical name.
-            # Set mark for post processing in check_pathrestrictions.
+            # Add reference to original router having {orig_interfaces}.
             my $new_router = new('Router',
-                                 name => $name,
+                                 name => "$name(split)",
                                  semi_managed => 1,
-                                 split_router => $router,
+                                 orig_router => $router,
                                  interfaces => [$interface]);
             $interface->{router} = $new_router;
-            push @split_routers, $new_router;
+            push @router_fragments, $new_router;
 
-            # Mark interface as deleted in current router.
-            $interface = undef;
+            # Link current and newly created router by unnumbered network.
+            my $intf_name = $interface->{name};
+            my $network = new('Network', 
+                              name => "$intf_name(split Network)", 
+                              ip => 'unnumbered');
+
+            # Use identical name for both interfaces.
+            # Name is used only in error messages.
+            my $intf1 = new('Interface', 
+                            name => "$intf_name(split1)", 
+                            ip => 'unnumbered',
+                            router => $router,
+                            network => $network);
+            my $intf2 = new('Interface',
+                            name => "$intf_name(split2)",
+                            ip => 'unnumbered',
+                            router => $new_router,
+                            network => $network);
+            $network->{interfaces} = [$intf1, $intf2];
+            $new_router->{interfaces} = [$intf2, $interface];
+
+            # Add reference to other interface at original interface
+            # at newly created router. This is needed for post
+            # processing in check_pathrestrictions.
+            $interface->{split_other} = $intf2;
+
+            # Replace original interface at current router.
+            $interface = $intf1;
         }
 
-        # Delete moved interfaces.
         # Original router is no longer semi_manged.
-        $interfaces = $router->{interfaces} = [ grep { $_ } @$interfaces ];
         delete $router->{semi_managed};
 
-        # Add secondary interfaces
+        # Move secondary interfaces.
         for my $interface (@split_secondary) {
+            aref_delete($interfaces, $interface);
             my $main_intf = $interface->{main_interface};
             my $new_router = $main_intf->{router};
             $interface->{router} = $new_router;
             push @{ $new_router->{interfaces} }, $interface;
             
-        }
-        push @router_fragments, @split_routers;
-
-        # Link current and newly created routers by unnumbered network.
-        $name =~ s/^router:/network:split:/;
-        my $net_interfaces = [];
-        my $network = new('Network', 
-                          name => $name, 
-                          ip => 'unnumbered',
-                          interfaces => $net_interfaces);
-        $name =~ s/^network:/interface:/;
-        my $intf1 = new('Interface', 
-                        name => $name, 
-                        ip => 'unnumbered',
-                        router => $router,
-                        network => $network);
-        push @$interfaces, $intf1;
-        push @$net_interfaces, $intf1;
-        for my $new_router (@split_routers) {
-
-            # Use identical name for both interfaces.
-            # Name is used only in error messages.
-            my $intf2 = new('Interface',
-                            name => $new_router->{interfaces}->[0]->{name},
-                            ip => 'unnumbered',
-                            router => $new_router,
-                            network => $network);
-            push @{ $new_router->{interfaces} }, $intf2;
-            push @$net_interfaces, $intf2;
         }
     }
 }
@@ -5412,6 +5410,11 @@ my %auto_interfaces;
 # Create an autointerface from the passed router or network.
 sub get_auto_intf {
     my ($object, $managed) = @_;
+
+    # Restore effect of split router from transformation in
+    # split_semi_managed_router and move_locked_interfaces.
+    $object = $object->{orig_router} || $object;
+
     $managed ||= 0;
     my $result = $auto_interfaces{$object}->{$managed};
     if (not $result) {
@@ -5427,8 +5430,8 @@ sub get_auto_intf {
             'Autointerface',
             name    => $name,
             object  => $object,
-            managed => $managed
         );
+        $result->{managed} = $managed if $managed;
         $result->{disabled} = 1 if $object->{disabled};
         $auto_interfaces{$object}->{$managed} = $result;
 
@@ -10657,13 +10660,10 @@ sub check_pathrestrictions {
             # It has exactly two non secondary interfaces.
             # Move pathrestriction to other interface, if that one is
             # located at border of loop.
-            if ($router->{split_router} and not $loop) {
+            if (my $other = $interface->{split_other} and not $loop) {
                 my $rlist = delete $interface->{path_restrict};
-                my ($other) = grep({ not $_->{main_interface}
-                                     and $_ ne $interface } 
-                                   @{ $router->{interfaces} });
                 if ($loop = $other->{zone}->{loop}) {
-#                    debug "Moved $restrict->{name} to other";
+#                   debug "Moved $restrict->{name} to other";
                     $other->{path_restrict} = $rlist;
                     for my $restrict (@$rlist) {
                         my $elements = $restrict->{elements};
@@ -11725,7 +11725,7 @@ sub cluster_path_mark {
         # Loop paths beginning at loop node can differ depending on the way
         # the node is entered (interface with/without pathrestriction,
         # pathrestricted src/dst interface), requirings storing path 
-        #information at different objects.
+        # information at different objects.
         # {loop_entry} attribute shows, where path information can be found.
         $from_in->{loop_entry}->{$to_store}    = $start_store;# node or IF w. PR
         $start_store->{loop_exit}->{$to_store} = $end_store;
@@ -12041,7 +12041,7 @@ sub loop_path_walk {
       )
     {
 
-#     debug(" loop_enter");
+#        debug(" loop_enter");
         for my $out_intf (@{ $loop_entry->{loop_enter}->{$loop_exit} }) {
             $fun->($rule, $in, $out_intf);
         }
@@ -12064,7 +12064,7 @@ sub loop_path_walk {
         $loop_entry->{loop_leave}->{$loop_exit}->[0]->{router});
     if ($exit_at_router xor $call_at_zone) {
 
-#     debug(" loop_leave");
+#        debug(" loop_leave");
         for my $in_intf (@{ $loop_entry->{loop_leave}->{$loop_exit} }) {
             $fun->($rule, $in_intf, $out);
         }
@@ -12262,18 +12262,28 @@ sub set_auto_intf_from_border {
     return;
 }
 
-# Add pathrestricted interfaces.
 sub add_pathresticted_interfaces {
-    my ($obj) = @_;
-    is_router($obj) or return ($obj);
-    my $interfaces = $obj->{interfaces};
-    return ($obj,
-            grep { $_->{path_restrict} || $_->{reachable_at} } @$interfaces);
+    my ($path, $obj) = @_;
+    is_router($obj) or return ($path);
+    my @interfaces = get_intf($obj);
+    return ($path,
+            grep { $_->{path_restrict} || $_->{reachable_at} } @interfaces);
+}
+
+# Find auto interface inside zone.
+# $border is interface at border of zone.
+# $src2 is unmanaged router or network inside zone.
+sub auto_intf_in_zone {
+    my ($border, $src2) = @_;
+    my %result;
+    if (not $border2obj2auto{$border}) {
+        set_auto_intf_from_border($border);
+    }
+    return @{ $border2obj2auto{$border}->{$src2} };
 }
 
 # $src is an auto_interface or router.
-# Result is the set of interfaces of $src located at the front side
-# of the direction to $dst.
+# Result is the set of interfaces of $src located at direction to $dst.
 sub path_auto_interfaces {
     my ($src, $dst) = @_;
     my ($src2, $managed) =
@@ -12282,20 +12292,21 @@ sub path_auto_interfaces {
       : ($src, undef);
     my $dst2 = is_autointerface($dst) ? $dst->{object} : $dst;
 
-    my $from_store = $obj2path{$src2}      || get_path $src2;
-    my $to_store   = $obj2path{$dst2}      || get_path $dst2;
-    my $from       = $from_store->{router} || $from_store;
-    my $to         = $to_store->{router}   || $to_store;
-
-    $from eq $to and return ();
+    my $src_path = $obj2path{$src2} || get_path($src2);
+    my $dst_path = $obj2path{$dst2} || get_path($dst2);
+    return if $src_path eq $dst_path;
 
     # Check path separately for interfaces with pathrestriction,
     # because path from inside the router to destination may be restricted.
-    my @from_list = add_pathresticted_interfaces($from);
-    my @to_list   = add_pathresticted_interfaces($to);
+    my @from_list = add_pathresticted_interfaces($src_path, $src2);
+    my @to_list   = add_pathresticted_interfaces($dst_path, $dst2);
     my @result;
     for my $from_store (@from_list) {
         for my $to_store (@to_list) {
+
+            my $from = $from_store->{router} || $from_store;
+            my $to   = $to_store->{router}   || $to_store;
+
             if (!$from_store->{path}->{$to_store}) {
                 if (!path_mark($from, $to, $from_store, $to_store)) {
                     delete $from_store->{path}->{$to_store};
@@ -12305,16 +12316,36 @@ sub path_auto_interfaces {
             if ($from_store->{loop_exit}
                 and my $exit = $from_store->{loop_exit}->{$to_store})
             {
-                my @enter = @{ $from_store->{loop_enter}->{$exit} };
+                my $enter = $from_store->{loop_enter}->{$exit};
                 if (is_interface($from_store)) {
 
-                    # At least one path goes to other router.
-                    if (grep { $_->{router} ne $from } @enter) {
-                        push @result, $from_store;
+                    # Path is only ok, if it doesn't traverse
+                    # corrensponding router.
+                    my $path_ok;
+
+                    # Path starts inside loop.
+                    # Check if some path doesn't traverse current router.
+                    # Then interface is ok as [auto] interface.
+                    if ($from_store->{loop}) {
+                        if (grep { $_ eq $from_store } @$enter) {
+                            $path_ok = 1;
+                        }   
                     }
+
+                    # Otherwise path starts at border of loop.
+                    # If node inside the loop is a zone, then node
+                    # outside the loop is a router and interface is ok
+                    # as [auto] interface.
+                    elsif(not $from->{loop}) {
+                        $path_ok = 1;
+                    }
+                    push @result, $from_store if $path_ok;
+                }
+                elsif (not is_router($from)) {
+                    push @result, map { auto_intf_in_zone($_, $src2) } @$enter;
                 }
                 else {                    
-                    push @result, @enter;
+                    push @result, @$enter;
                 }
             }
             else {
@@ -12323,6 +12354,9 @@ sub path_auto_interfaces {
                     if ($next and $next->{router} ne $from) {
                         push @result, $from_store;
                     }
+                }
+                elsif (not is_router($from)) {
+                    push @result, auto_intf_in_zone($next, $src2);
                 }
                 else {
                     push @result, $next;
@@ -12333,8 +12367,8 @@ sub path_auto_interfaces {
     if (not @result) {
         err_msg(
             "No valid path\n",
-            " from $from_store->{name}\n",
-            " to $to_store->{name}\n",
+            " from $src_path->{name}\n",
+            " to $dst_path->{name}\n",
             " while resolving $src->{name}",
             " (destination is $dst->{name}).\n",
             " Check path restrictions and crypto interfaces."
@@ -12342,23 +12376,6 @@ sub path_auto_interfaces {
         return;
     }
     @result = grep { $_->{ip} ne 'tunnel' } unique @result;
-
-    # Find auto interface inside zone.
-    # $src is located inside some zone.
-    # $src2 is known to be unmanaged router or network.
-    if (!is_router($from)) {
-        my %result;
-        for my $border (@result) {
-            if (not $border2obj2auto{$border}) {
-                set_auto_intf_from_border($border);
-            }
-            my $auto_intf = $border2obj2auto{$border}->{$src2};
-            for my $interface (@$auto_intf) {
-                $result{$interface} = $interface;
-            }
-        }
-        @result = sort by_name values %result;
-    }
 
     my $bridged_count = 0;
     for my $interface (@result) {

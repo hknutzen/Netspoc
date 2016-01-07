@@ -413,6 +413,250 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Find auto interface with pathrestriction in loop';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3;}
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+
+pathrestriction:p =
+ interface:r1.n2,
+ interface:r2.n2,
+;
+
+service:s = {
+ user = interface:r1.[auto];
+ permit src = network:n3; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r2
+object-group network g0
+ network-object host 10.1.1.1
+ network-object host 10.1.2.1
+access-list n3_in extended permit tcp 10.1.3.0 255.255.255.0 object-group g0 eq 22
+access-list n3_in extended deny ip any any
+access-group n3_in in interface n3
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Auto interface of internally split router with pathrestriction (1)';
+############################################################
+
+$in = <<'END';
+network:n1 =  { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+# r1 is split internally into two parts
+# r1 with n1,n2
+# r1' with n3
+# both connected by unnumbered network.
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+pathrestriction:r = 
+ interface:r1.n3,
+ interface:r2.n3,
+;
+
+service:s = {
+ user = network:n4;
+
+ # Find split interface r1.n3 from original router:r1
+ permit src = user; dst = interface:r1.[auto]; prt = tcp 22;
+
+ # Find original router:r1 from split interface:r1.n3
+ permit src = user; dst = interface:[interface:r1.n3].[auto]; prt = tcp 23;
+
+ # Check that all interfaces are found.
+ permit src = user; dst = interface:r1.[all]; prt = tcp 24;
+ permit src = user; dst = interface:[interface:r1.n3].[all]; prt = tcp 25;
+}
+END
+
+$out = <<'END';
+--r2
+! [ ACL ]
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+--
+object-group network g0
+ network-object host 10.1.1.1
+ network-object host 10.1.3.1
+access-list n4_in extended permit tcp 10.1.4.0 255.255.255.0 object-group g0 range 22 25
+access-list n4_in extended permit tcp 10.1.4.0 255.255.255.0 host 10.1.2.1 range 24 25
+access-list n4_in extended deny ip any any
+access-group n4_in in interface n4
+--
+access-list n3_in extended deny ip any any
+access-group n3_in in interface n3
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Auto interface of internally split router with pathrestriction (2)';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ interface:n1 = { ip = 10.1.1.2; }
+ interface:n4 = { ip = 10.1.4.2; loopback; }
+ interface:n3 = { ip = 10.1.3.2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.9; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+}
+
+network:n5 = { ip = 10.1.5.0/24; }
+
+pathrestriction:r = 
+ interface:r1.n2,
+ interface:r2.n3,
+;
+
+service:s = {
+ user = interface:r2.[auto];
+ permit src = network:n5; dst = user; prt = tcp 22;
+}
+END
+
+# Don't accidently assume, that interface:r2.n3 is located in zone of 
+# original unmanaged router:r2.
+# In this case we would get a path to interface:r2.n3 through router:r1.
+$out = <<'END';
+--r1
+access-list n2_in extended permit tcp 10.1.5.0 255.255.255.0 host 10.1.1.2 eq 22
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Auto interface of internally split router with pathrestriction (3)';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r2 = {
+ interface:n1 = { ip = 10.1.1.2; }
+ interface:n4 = { ip = 10.1.4.2; }
+ interface:n3 = { ip = 10.1.3.2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r3 = {
+ interface:n2;
+ interface:n3;
+ interface:n5;
+}
+
+network:n5 = { ip = 10.1.5.0/24; }
+
+router:r4 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+ interface:n6 = { ip = 10.1.6.1; hardware = n6; }
+}
+
+network:n6 = { ip = 10.1.6.0/24; }
+
+pathrestriction:r = 
+ interface:r1.n2,
+ interface:r2.n3,
+;
+
+service:s = {
+ user = interface:r2.[auto];
+ permit src = network:n6; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r4
+object-group network g0
+ network-object host 10.1.1.2
+ network-object host 10.1.3.2
+access-list n6_in extended permit tcp 10.1.6.0 255.255.255.0 object-group g0 eq 22
+access-list n6_in extended deny ip any any
+access-group n6_in in interface n6
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Multiple interfaces talk to policy_distribution_point';
 ############################################################
 
@@ -444,6 +688,55 @@ END
 $out = <<'END';
 --r1
 ! [ IP = 10.0.0.1,10.1.1.1 ]
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Only one interface in loop talks to policy_distribution_point';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ policy_distribution_point = host:netspoc;
+ interface:n1 = { ip = 10.1.1.3; hardware = n1; virtual = { ip = 10.1.1.1; } }
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; virtual = { ip = 10.1.2.1; } }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ policy_distribution_point = host:netspoc;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; virtual = { ip = 10.1.1.1; } }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; virtual = { ip = 10.1.2.1; } }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.9; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; host:netspoc = { ip = 10.1.3.9; } }
+
+service:s = {
+ user = interface:r1.[auto], interface:r2.[auto];
+ permit src = network:n3; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r1
+! [ IP = 10.1.2.3 ]
+--r2
+! [ IP = 10.1.2.2 ]
 END
 
 test_run($title, $in, $out);
