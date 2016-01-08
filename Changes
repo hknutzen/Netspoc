@@ -1,5 +1,15 @@
 {{$NEXT}}
 
+4.9       2016-01-08 15:15:10+01:00 Europe/Berlin
+
+ - Improved finding of [auto] interface with pathrestriction.
+ - Fixed command "print-group" to allow argument with umlauts.
+ - Expanded rules are processed in chunks now.
+   This reduces memory usage by about 50%. 
+ - Unmanaged routers having interface with pathrestriction are split
+   internally, to reduce the number of artificially created zones.
+ - Redundant crypto hubs are no longer supported.
+
 4.8       2015-12-07 14:48:17+01:00 Europe/Berlin
 
  - Also find interface with pathrestriction as result of [auto] interface.
