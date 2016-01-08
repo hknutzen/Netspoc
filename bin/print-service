@@ -71,7 +71,7 @@ use Netspoc::Compiler::Pass1;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '4.8'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.9'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -180,14 +180,23 @@ if($nat_net) {
 my %service2rules;
 normalize_services();
 convert_hosts_in_rules();
-expand_services();
+group_path_rules();
 &abort_on_error();
-for my $type ('deny', 'permit') {
-    for my $rule (@{ $expanded_rules{$type} }) {
-        my $service_name = $rule->{rule}->{service}->{name};
-        $service_name =~ s/^service://;
-        $name and $name ne $service_name and next;
-        push @{ $service2rules{$service_name} }, $rule;
+for my $rule (@{ $path_rules{deny} }, @{ $path_rules{permit} }) {
+    my $service_name = $rule->{rule}->{service}->{name};
+    $service_name =~ s/^service://;
+    $name and $name ne $service_name and next;
+    my $aref = $service2rules{$service_name} ||= [];
+    my ($src_list, $dst_list, $prt_list) = @{$rule}{qw(src dst prt)};
+    for my $src (@$src_list) {
+        for my $dst (@$dst_list) {
+            for my $prt (@$prt_list) {
+                    push @$aref, { %$rule, 
+                                   src => $src, 
+                                   dst => $dst, 
+                                   prt => $prt };
+            }
+        }
     }
 }
 for my $service_name (sort keys %service2rules) {

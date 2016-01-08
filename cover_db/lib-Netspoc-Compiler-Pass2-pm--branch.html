@@ -20,7 +20,7 @@ http://www.pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">lib/Netspoc/Compiler/Pass2.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">86.7%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">85.7%</td></tr>
 </table>
 <div><br/></div>
 <table>
@@ -274,12 +274,23 @@ http://www.pjcj.net
 <tr><td class="h"><a id="L2171">2171</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless -f &quot;$prev_file&quot;</td></tr>
 <tr><td class="h"><a id="L2175">2175</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless -f $pass1prev</td></tr>
 <tr><td class="h"><a id="L2176">2176</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless system(&quot;cmp -s $pass1name $pass1prev&quot;) == 0</td></tr>
-<tr><td class="h"><a id="L2196">2196</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if ($has_prev and check_prev($code_file, $prev_file) and system(&quot;cp -p $prev_file $code_file&quot;) == 0)</td></tr>
-<tr><td class="h"><a id="L2204">2204</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($reused)</td></tr>
-<tr><td class="h"><a id="L2209">2209</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if ($count = @pass2_list)</td></tr>
-<tr><td class="h"><a id="L2220">2220</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($has_prev and not -l $prev)</td></tr>
-<tr><td class="h"><a id="L2221">2221</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless system(&quot;rm -rf $prev&quot;) == 0</td></tr>
-<tr><td class="h"><a id="L2231">2231</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($dir)</td></tr>
+<tr><td class="h"><a id="L2192">2192</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $pid</td></tr>
+<tr><td class="h"><a id="L2193">2193</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (0 == $pid)</td></tr>
+<tr><td class="h"><a id="L2203">2203</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (1 &gt;= $concurrent) { }</td></tr>
+<tr><td class="h"><a id="L2216">2216</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (0 &lt; $concurrent)</td></tr>
+<tr><td class="h"><a id="L2224">2224</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if ($pid != -1)</td></tr>
+<tr><td class="h"><a id="L2225">2225</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if $?</td></tr>
+<tr><td class="h"><a id="L2233">2233</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if -1 == $pid</td></tr>
+<tr><td class="h"><a id="L2234">2234</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $?</td></tr>
+<tr><td class="h"><a id="L2237">2237</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $errors</td></tr>
+<tr><td class="h"><a id="L2258">2258</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if ($has_prev and check_prev($code_file, $prev_file) and system(&quot;cp -p $prev_file $code_file&quot;) == 0)</td></tr>
+<tr><td class="h"><a id="L2266">2266</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($reused)</td></tr>
+<tr><td class="h"><a id="L2271">2271</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if ($count = @pass2_list)</td></tr>
+<tr><td class="h"><a id="L2273">2273</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $concurrent &gt; $count</td></tr>
+<tr><td class="h"><a id="L2275">2275</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $concurrent &gt; 1</td></tr>
+<tr><td class="h"><a id="L2282">2282</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($has_prev and not -l $prev)</td></tr>
+<tr><td class="h"><a id="L2283">2283</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless system(&quot;rm -rf $prev&quot;) == 0</td></tr>
+<tr><td class="h"><a id="L2293">2293</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($dir)</td></tr>
 </table>
 </body>
 </html>

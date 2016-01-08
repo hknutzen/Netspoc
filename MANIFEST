@@ -41,11 +41,11 @@ cover_db/lib-Netspoc-Compiler-Pass2-pm--branch.html
 cover_db/lib-Netspoc-Compiler-Pass2-pm--condition.html
 cover_db/lib-Netspoc-Compiler-Pass2-pm--subroutine.html
 cover_db/lib-Netspoc-Compiler-Pass2-pm.html
-cover_db/structure/56719d18f559be0a20390b058362b7ad
-cover_db/structure/5bfaf7d355b1928b6610dcedc36f6ee2
+cover_db/structure/2950ad60d22e82668dbee4dc511a24a5
+cover_db/structure/99c780037a1f5230b9a5d67b7a70ee12
+cover_db/structure/99d408ab2cd84ae201fab29539996603
+cover_db/structure/a7d6e0c41aba73da343c1225fcd8bfe3
 cover_db/structure/a7e69414a956a1f9dad54ae09fab2017
-cover_db/structure/a7e8b30b1ecfc0a79c0eb51b2e31792d
-cover_db/structure/db11e75337b73f337b6bac7b70e917e1
 cvs-support/Makefile
 cvs-support/append-commitlog.c
 cvs-support/cvs-SETXID_SUPPORT.patch

@@ -35,7 +35,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '4.8'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.9'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -59,14 +59,12 @@ our @EXPORT = qw(
   %crypto
   %global_type
   %service_rules
-  %expanded_rules
+  %path_rules
   @pathrestrictions
   *input
   $current_file
   $line
   $error_counter
-  store_description
-  fast_mode
   init_global_vars
   abort_on_error
   syntax_err
@@ -110,7 +108,7 @@ our @EXPORT = qw(
   expand_group
   expand_group_in_rule
   normalize_services
-  expand_services
+  group_path_rules
   expand_crypto
   check_unused_groups
   setpath
@@ -123,6 +121,7 @@ our @EXPORT = qw(
   process_loops
   check_pathrestrictions
   optimize_pathrestrictions
+  path_walk
   single_path_walk
   path_auto_interfaces
   check_supernet_rules
@@ -137,30 +136,6 @@ our @EXPORT = qw(
   print_code
 );
 
-# Modified only by sub store_description.
-my $new_store_description;
-
-sub store_description {
-    my ($set) = @_;
-    if (defined $set) {
-        return ($new_store_description = $set);
-    }
-    else {
-        return $new_store_description;
-    }
-}
-
-my $fast_mode;
-
-sub fast_mode {
-    my ($set) = @_;
-    if (defined $set) {
-        return ($fast_mode = $set);
-    }
-    else {
-        return $fast_mode;
-    }
-}
 
 # Use non-local function exit for efficiency.
 # Perl profiler doesn't work if this is active.
@@ -302,32 +277,44 @@ my %xxrp_info;
 
 ## no critic (RequireArgUnpacking)
 
-# All arguments are 'eq'.
+# Check if all arguments are 'eq'.
 sub equal {
     return 1 if not @_;
     my $first = shift;
     return not grep { $_ ne $first } @_;
 }
 
-# Unique union of all elements.
+# Return unique union of all arguments.
 # Preserves original order.
 sub unique {
     my %seen;
     return grep { !$seen{$_}++ } @_;
 }
 
+# Check passed arguments for duplicates.
+# Return duplicate elements.
 sub find_duplicates {
     my %dupl;
     $dupl{$_}++ for @_;
     return grep { $dupl{$_} > 1 } keys %dupl;
 }
 
+# Return the intersecting elements of two array references.
 sub intersect {
     my ($aref1, $aref2) = @_;
     my %seen = map { $_ => 1 } @$aref1;
     return grep { $seen{$_} } @$aref2;
 }
 
+# Check if first list is subset of second list.
+sub subset_of {
+    my ($aref1, $aref2) = @_;
+    my %seen = map { $_ => 1 } @$aref1;
+    my $count = grep { $seen{$_} } @$aref2;
+    return @$aref1 == $count;
+}
+
+# Return highest number among all arguments.
 sub max {
     my $max = shift(@_);
     for my $el (@_) {
@@ -337,7 +324,7 @@ sub max {
 }
 
 # Delete an element from an array reference.
-# Return 1 if found, undef otherwise.
+# Return true if element was found.
 sub aref_delete {
     my ($aref, $elt) = @_;
     for (my $i = 0 ; $i < @$aref ; $i++) {
@@ -351,7 +338,21 @@ sub aref_delete {
     return;
 }
 
+# Substitute an element in an array reference.
+# Return true if element was found.
+sub aref_subst {
+    my ($aref, $elt, $new) = @_;
+    for (my $i = 0 ; $i < @$aref ; $i++) {
+        if ($aref->[$i] eq $elt) {
+            splice @$aref, $i, 1, $new;
+            return 1;
+        }
+    }
+    return;
+}
+
 # Compare two array references element wise.
+# Return true if both arrays contain the same elements in same order.
 sub aref_eq {
     my ($a1, $a2) = @_;
     @$a1 == @$a2 or return;
@@ -361,6 +362,7 @@ sub aref_eq {
     return 1;
 }
 
+# Check if two hashes contain the same keys. Values can be different.
 sub keys_eq {
     my ($href1, $href2) = @_;
     keys %$href1 == keys %$href2 or return;
@@ -370,6 +372,7 @@ sub keys_eq {
     return 1;
 }
 
+# Print arguments as warning to STDERR..
 sub warn_msg {
     print STDERR "Warning: ", @_, "\n";
     return;
@@ -392,6 +395,8 @@ our $input;
 # Current line number of input file.
 our $line;
 
+# Use content and match position of current input file.
+# Return string describing current match position.
 sub context {
     my $context;
     if (pos $input == length $input) {
@@ -405,17 +410,22 @@ sub context {
     return qq/ at line $line of $current_file, $context\n/;
 }
 
+# Return current input file and line number.
+sub at_line {
+    return qq/ at line $line of $current_file\n/;
+}
+
+# Print arguments together with current context to STDERR
+# and abort the script.
 sub syntax_err {
     my (@args) = @_;
     die "Syntax error: ", @args, context();
 }
 
-sub at_line {
-    return qq/ at line $line of $current_file\n/;
-}
-
 our $error_counter;
 
+# Increment error counter.
+# Abort, if the maximum number of errors is exceeded.
 sub check_abort {
     $error_counter++;
     if ($error_counter >= $config->{max_errors}) {
@@ -423,6 +433,7 @@ sub check_abort {
     }
 }
 
+# Abort, if $error_counter is set.
 sub abort_on_error {
     if ($error_counter) {
         die "Aborted with $error_counter error(s)\n" 
@@ -430,6 +441,7 @@ sub abort_on_error {
     return;
 }
 
+# Print error message with current input file and line number.
 sub error_atline {
     my (@args) = @_;
     print STDERR "Error: ", @args, at_line();
@@ -437,6 +449,7 @@ sub error_atline {
     return;
 }
 
+# Print error message.
 sub err_msg {
     my (@args) = @_;
     print STDERR "Error: ", @args, "\n";
@@ -444,6 +457,7 @@ sub err_msg {
     return;
 }
 
+# Print internal error message and aborts.
 sub internal_err {
     my (@args) = @_;
 
@@ -481,7 +495,7 @@ sub skip_space_and_comment {
 # Optimize use of CORE:regcomp. Build regex only once for each token.
 my %token2regex;
 
-# Check for a string and skip if available.
+# Check for argument token and skip if available.
 sub check {
     my $token = shift;
     skip_space_and_comment;
@@ -489,7 +503,8 @@ sub check {
     return $input =~ /$regex/gc;
 }
 
-# Skip a string.
+# Skip argument token.
+# If it is not available an error is printed and the script terminates.
 sub skip {
     my $token = shift;
     return (check $token or syntax_err("Expected '$token'"));
@@ -506,6 +521,7 @@ sub check_int {
     }
 }
 
+# Read an integer.
 sub read_int {
     my $result = check_int();
     defined $result or syntax_err("Integer expected");
@@ -526,6 +542,7 @@ sub check_ip {
     }
 }
 
+# Read an IP address.
 sub read_ip {
     my $result = check_ip();
     defined $result or syntax_err("IP address expected");
@@ -534,6 +551,7 @@ sub read_ip {
 
 # Read IP address and prefix length.
 # x.x.x.x/n
+# Return two values: IP, mask.
 sub read_ip_prefix {
     my $ip = read_ip;
     skip('/');
@@ -546,11 +564,14 @@ sub read_ip_prefix {
     return $ip, $mask;
 }
 
+# Read IP address and prefix length.
+# Return an array containing IP, mask.
 sub read_ip_prefix_pair {
     my ($ip, $mask) = read_ip_prefix();
     return [ $ip, $mask ];
 }
 
+# Generate an IP address as internal integer.
 sub gen_ip {
     my ($byte1, $byte2, $byte3, $byte4) = @_;
     return unpack 'N', pack('C4', $byte1, $byte2, $byte3, $byte4);
@@ -573,7 +594,7 @@ sub read_identifier {
     }
 }
 
-# Pattrern for attribute "visible": "*" or "name*".
+# Read pattern for attribute "visible": "*" or "name*".
 sub read_owner_pattern {
     skip_space_and_comment;
     if ($input =~ m/ ( \G [\w-]* [*] ) /gcx) {
@@ -610,6 +631,8 @@ sub read_string {
 # This is only 'active' while parsing src or dst of the rule of a service.
 my $user_object = { active => 0, refcount => 0, elements => undef };
 
+# Read list of syntax elements delimited by $delimter.
+# Return list of read elements.
 sub read_union {
     my ($delimiter) = @_;
     my @vals;
@@ -829,6 +852,7 @@ sub read_time_val {
     return $int * $factor;
 }
 
+# Set description for passed object if next input is a description.
 sub add_description {
     my ($obj) = @_;
     check 'description' or return;
@@ -837,8 +861,7 @@ sub add_description {
     # Read up to end of line, but ignore ';' at EOL.
     # We must use '$' here to match EOL,
     # otherwise $line would be out of sync.
-    $input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*$/gcm;
-    if (store_description()) {
+    if($input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*$/gcm) {
         $obj->{description} = $1;
     }
     return;
@@ -855,6 +878,7 @@ sub check_permit_deny {
     }
 }
 
+# Check if 'nat:xxx' is available in input.
 sub check_nat_name {
     skip_space_and_comment;
     if ($input =~ m/\G nat:([\w-]+)/gcx) {
@@ -865,6 +889,7 @@ sub check_nat_name {
     }
 }
 
+# Split argument at first ':' and return the two parts.
 sub split_typed_name {
     my ($name) = @_;
 
@@ -872,6 +897,8 @@ sub split_typed_name {
     return split /[:]/, $name, 2;
 }
 
+# Check if argument token is available as input.
+# If found, a following ';' is required.
 sub check_flag {
     my $token = shift;
     if (check $token) {
@@ -883,6 +910,10 @@ sub check_flag {
     }
 }
 
+# Check if argument token is available as input.
+# If found, '=' and value(s) are required.
+# Second argument function is used to read value(s).
+# Depending on calling context, one or multiple values are returned.
 sub check_assign {
     my ($token, $fun) = @_;
     if (check($token)) {
@@ -901,6 +932,9 @@ sub check_assign {
     return;
 }
 
+# Use the passed function to read one or more elements from global
+# input until reaching a ';'.
+# Return read elements.
 sub read_list {
     my ($fun) = @_;
     my @vals;
@@ -917,12 +951,16 @@ sub read_list {
     return @vals;
 }
 
+# Use the passed function to read zero or more elements from global
+# input until reaching a ';'.
+# Return read elements.
 sub read_list_or_null {
     my ($fun) = @_;
     return () if check(';');
     return read_list($fun);
 }
 
+# Read 'token = value, ..., value;'
 sub read_assign_list {
     my ($token, $fun) = @_;
     skip $token;
@@ -930,6 +968,7 @@ sub read_assign_list {
     return read_list($fun);
 }
 
+# Check for 'token = value, ..., value;'
 sub check_assign_list {
     my ($token, $fun) = @_;
     if (check $token) {
@@ -939,6 +978,7 @@ sub check_assign_list {
     return ();
 }
 
+# Check for 'token = value delimiter value;'
 sub check_assign_pair {
     my ($token, $delimiter, $fun) = @_;
     if (check $token) {
@@ -953,19 +993,21 @@ sub check_assign_pair {
 }
 
 ####################################################################
-# Creation of typed structures
+# Creation of typed hashes.
 # Currently we don't use OO features;
-# We use 'bless' only to give each structure a distinct type.
+# We use 'bless' only to give each hash a distinct type.
 ####################################################################
 
-# Create a new structure of given type;
+# Create a new hash, blessed to given type;
 # initialize it with key / value pairs.
 sub new {
     my ($type, @pairs) = @_;
-    my $self = {@pairs};
+    my $self = { @pairs };
     return bless $self, $type;
 }
 
+# Add the passed key/value to the hash object, 
+# or prints an error message if key already exists.
 sub add_attribute {
     my ($obj, $key, $value) = @_;
     defined $obj->{$key} and error_atline("Duplicate attribute '$key'");
@@ -990,6 +1032,8 @@ sub check_radius_attributes {
     return $result;
 }
 
+# Uses global variable %routing_info with definition of dynamic
+# routing protocols
 sub check_routing {
     my $protocol = check_assign('routing', \&read_identifier) or return;
     my $routing = $routing_info{$protocol}
@@ -1052,7 +1096,10 @@ sub check_model {
     return $info;
 }
 
+# List of all managed routers.
 my @managed_routers;
+
+# List of router fragments, split from crypto routers.
 my @router_fragments;
 
 # Managed host is stored internally as an interface.
@@ -1099,6 +1146,8 @@ sub host_as_interface {
     return $interface;
 }
 
+# Read definition of host.
+# Is called while definition of network is read.
 sub read_host {
     my ($name, $network_name) = @_;
     my $host = new('Host');
@@ -1265,6 +1314,7 @@ sub read_nat {
     return $nat;
 }
 
+# Mapping from network names to network objects.
 our %networks;
 
 sub read_network {
@@ -1468,7 +1518,9 @@ sub read_network {
     return $network;
 }
 
+# Mapping from interface names to interface objects.
 our %interfaces;
+
 my @virtual_interfaces;
 my $global_active_pathrestriction = new(
     'Pathrestriction',
@@ -1480,9 +1532,9 @@ my $global_active_pathrestriction = new(
 # at spoke devices. Key is crypto name, not crypto object.
 my %crypto2spokes;
 
-# Real interfaces at crypto hub, where tunnels are attached.
+# Real interface at crypto hub, where tunnels are attached.
 # Key is crypto name, not crypto object.
-my %crypto2hubs;
+my %crypto2hub;
 
 sub read_interface {
     my ($name) = @_;
@@ -1764,7 +1816,14 @@ sub read_interface {
             error_atline("Crypto hub must not be $interface->{ip} interface");
         }
         for my $crypto (@$crypto_list) {
-            push @{ $crypto2hubs{$crypto} }, $interface;
+            if (my $other = $crypto2hub{$crypto}) {
+                err_msg("Must use $crypto exactly once, not at both\n",
+                        " - $other->{name}\n",
+                        " - $interface->{name}");
+            }
+            else {
+                $crypto2hub{$crypto} = $interface;
+            }
         }
     }
     if (@secondary_interfaces) {
@@ -1884,6 +1943,7 @@ sub check_no_in_acl {
 
 my $bind_nat0 = [];
 
+# Mapping from router names to router objects.
 our %routers;
 
 sub read_router {
@@ -2464,8 +2524,7 @@ sub move_locked_interfaces {
     for my $interface (@$interfaces) {
         my $orig_router = $interface->{router};
 
-        # Use different and uniqe name, because name is used as hash
-        # key in group_rules.
+        # Use different and uniqe name for each splitted router.
         (my $name       = $interface->{name}) =~ s/^interface:/router/;
         my $new_router  = new(
             'Router',
@@ -2507,6 +2566,7 @@ sub move_locked_interfaces {
     return;
 }
 
+# Mapping from aggregate names to aggregate objects.
 our %aggregates;
 
 sub read_aggregate {
@@ -2592,6 +2652,7 @@ sub check_router_attributes {
     return $result;
 }
 
+# Mapping from area names to area objects.
 our %areas;
 
 sub read_area {
@@ -2656,6 +2717,7 @@ sub read_area {
     return $area;
 }
 
+# Mapping from group names to group objects.
 our %groups;
 
 sub read_group {
@@ -2740,7 +2802,7 @@ sub read_icmp_type_code {
         else {
             $prt->{type} = $type;
             if ($type == 0 || $type == 3 || $type == 11) {
-                $prt->{flags}->{stateless_icmp} = 1;
+                $prt->{modifiers}->{stateless_icmp} = 1;
             }
         }
     }
@@ -2779,6 +2841,8 @@ sub read_proto_nr {
     return;
 }
 
+# Creates a readable, unique name for passed protocol,
+# e.g. "tcp 80" for { proto => 'tcp', dst_range => [80, 80] }.
 sub gen_protocol_name {
     my ($protocol) = @_;
     my $proto      = $protocol->{proto};
@@ -2823,6 +2887,7 @@ sub gen_protocol_name {
     return $name;
 }
 
+# Mapping from protocol names to protocol objects.
 our %protocols;
 
 sub cache_anonymous_protocol {
@@ -2884,7 +2949,7 @@ sub check_protocol_modifiers {
                           src_net | dst_net |
                           overlaps | no_check_supernet_rules )/x)
         {
-            $protocol->{flags}->{$flag} = 1;
+            $protocol->{modifiers}->{$flag} = 1;
         }
         else {
             syntax_err("Unknown modifier '$flag'");
@@ -2906,6 +2971,7 @@ sub read_protocol {
     return $protocol;
 }
 
+# Mapping from service names to service objects.
 our %services;
 
 sub assign_union_allow_user {
@@ -3161,6 +3227,7 @@ sub read_crypto {
     return $crypto;
 }
 
+# Mapping from owner names to owner objects.
 our %owners;
 
 sub read_owner {
@@ -3344,6 +3411,7 @@ sub read_file_or_dir {
     return;
 }
 
+# Prints number of read entities if in verbose mode.
 sub show_read_statistics {
     my $n  = keys %networks;
     my $h  = keys %hosts;
@@ -3373,6 +3441,7 @@ sub is_autointerface { ref($_[0]) eq 'Autointerface'; }
 
 ## use critic
 
+# Creates a string representation of a rule.
 sub print_rule {
     my ($rule) = @_;
 
@@ -3416,6 +3485,8 @@ our %ref2prt;
 # Look up a protocol object by its defining attributes.
 my %prt_hash;
 
+# Add protocol to %prt_hash.
+# Link duplicate protocol definitions via attribute {main}.
 sub prepare_prt_ordering {
     my ($prt) = @_;
     my $proto = $prt->{proto};
@@ -3478,6 +3549,8 @@ sub prepare_prt_ordering {
     return;
 }
 
+# Set {up} relation between all ICMP protocols and to larger 'ip' protocol.
+# Additionally fill global variable %ref2prt.
 sub order_icmp {
     my ($hash, $up) = @_;
 
@@ -3504,6 +3577,8 @@ sub order_icmp {
     return;
 }
 
+# Set {up} relation for all numeric protocols to larger 'ip' protocol.
+# Additionally fill global variable %ref2prt.
 sub order_proto {
     my ($hash, $up) = @_;
     for my $prt (values %$hash) {
@@ -3521,6 +3596,7 @@ sub order_proto {
 # Set attribute {has_neighbor} to range adjacent to upper port.
 # Find overlapping ranges and split one of them to eliminate the overlap.
 # Set attribute {split} at original range, referencing pair of splitted ranges.
+# Additionally fill global variable %ref2prt.
 sub order_ranges {
     my ($range_href, $up) = @_;
     my @sorted =
@@ -3774,6 +3850,10 @@ sub order_protocols {
 
 sub expand_group;
 
+# Replace the owner name by the actual owner object inside the passed
+# object and aditionally returns the owner object.
+# Owner attribute defaults to 'owner', but other attribute name can be used,
+# e.g. 'sub_owner'.
 sub link_to_owner {
     my ($obj, $key) = @_;
     $key ||= 'owner';
@@ -4000,7 +4080,7 @@ sub link_general_permit {
             $orig_prt = $prt;
         }
         my @reason;
-        if (my $flags = $orig_prt->{flags}) {
+        if (my $modifiers = $orig_prt->{modifiers}) {
             push @reason, 'modifiers';
         }
         if ($src_range || $range && $range ne $aref_tcp_any) {
@@ -4373,6 +4453,118 @@ sub link_pathrestrictions {
     return;
 }
 
+# If a pathrestriction is added to an unmanged router, it is marked as
+# semi_managed. As a consequence, a new zone would be created at each
+# interface of this router.
+# If an unmanaged router has a large number of interfaces, but only
+# one or a few pathrestrictions attached, we would get a large
+# number of useless zones.
+# To reduce the number of newly created zones, we split an unmanaged
+# router with pathrestrictions, if it has more than two interfaces
+# without pathrestriction:
+# - original part having only interfaces without pathrestrictions,
+# - one split part for each interface with pathrestrictions.
+# All parts are connected by an freshly created unnumbered network.
+sub split_semi_managed_router {
+    for my $router (values %routers) {
+
+        # Router is marked as semi_managed, if it 
+        # - has pathrestriction 
+        # - or is managed=routing_only.
+        $router->{semi_managed} or next;
+
+        # Don't split device with 'managed=routing_only'.
+        next if $router->{routing_only};
+
+        # Count interfaces without pathrestriction.
+        # Check if router has pathrestriction at all.
+        my $interfaces = $router->{interfaces};
+        my $has_pathrestriction;
+        my $count = 0;
+        for my $interface (@$interfaces) {
+            next if $interface->{main_interface};
+            if ($interface->{path_restrict}) {
+                $has_pathrestriction = 1;
+            }
+            else {
+                $count++;
+            }
+        }
+        $count > 1 and $has_pathrestriction or next;
+
+        # Retain copy of original interfaces for finding [all] interfaces.
+        $router->{orig_interfaces} ||= [@$interfaces];
+
+        # Split router into two or more parts.
+        # Move each interface with pathrestriction and
+        # corresponding secondary interface to new router.
+#        debug "split $router->{name}";
+        my @split_secondary;
+        my $name = $router->{name};
+
+        for my $interface (@$interfaces) { 
+            if (my $main = $interface->{main_interface}) {
+                $main->{path_restrict} or next;
+                push @split_secondary, $interface;
+                next;
+            }
+            $interface->{path_restrict} or next;
+            
+            # Create new semi_manged router with identical name.
+            # Add reference to original router having {orig_interfaces}.
+            my $new_router = new('Router',
+                                 name => "$name(split)",
+                                 semi_managed => 1,
+                                 orig_router => $router,
+                                 interfaces => [$interface]);
+            $interface->{router} = $new_router;
+            push @router_fragments, $new_router;
+
+            # Link current and newly created router by unnumbered network.
+            my $intf_name = $interface->{name};
+            my $network = new('Network', 
+                              name => "$intf_name(split Network)", 
+                              ip => 'unnumbered');
+
+            # Use identical name for both interfaces.
+            # Name is used only in error messages.
+            my $intf1 = new('Interface', 
+                            name => "$intf_name(split1)", 
+                            ip => 'unnumbered',
+                            router => $router,
+                            network => $network);
+            my $intf2 = new('Interface',
+                            name => "$intf_name(split2)",
+                            ip => 'unnumbered',
+                            router => $new_router,
+                            network => $network);
+            $network->{interfaces} = [$intf1, $intf2];
+            $new_router->{interfaces} = [$intf2, $interface];
+
+            # Add reference to other interface at original interface
+            # at newly created router. This is needed for post
+            # processing in check_pathrestrictions.
+            $interface->{split_other} = $intf2;
+
+            # Replace original interface at current router.
+            $interface = $intf1;
+        }
+
+        # Original router is no longer semi_manged.
+        delete $router->{semi_managed};
+
+        # Move secondary interfaces.
+        for my $interface (@split_secondary) {
+            aref_delete($interfaces, $interface);
+            my $main_intf = $interface->{main_interface};
+            my $new_router = $main_intf->{router};
+            $interface->{router} = $new_router;
+            push @{ $new_router->{interfaces} }, $interface;
+            
+        }
+    }
+}
+
 # Collect groups of virtual interfaces
 # - be connected to the same network and
 # - having the same IP address.
@@ -4619,6 +4811,7 @@ sub link_topology {
     link_tunnels;
     link_pathrestrictions;
     link_virtual_interfaces;
+    split_semi_managed_router();
     link_areas;
     link_subnets;
     link_owners;
@@ -5211,10 +5404,18 @@ sub get_intf {
     }
 }
 
+# Cache created autointerface objects: 
+# Parent object -> managed flag -> autointerface object
 my %auto_interfaces;
 
+# Create an autointerface from the passed router or network.
 sub get_auto_intf {
     my ($object, $managed) = @_;
+
+    # Restore effect of split router from transformation in
+    # split_semi_managed_router and move_locked_interfaces.
+    $object = $object->{orig_router} || $object;
+
     $managed ||= 0;
     my $result = $auto_interfaces{$object}->{$managed};
     if (not $result) {
@@ -5230,8 +5431,8 @@ sub get_auto_intf {
             'Autointerface',
             name    => $name,
             object  => $object,
-            managed => $managed
         );
+        $result->{managed} = $managed if $managed;
         $result->{disabled} = 1 if $object->{disabled};
         $auto_interfaces{$object}->{$managed} = $result;
 
@@ -6006,10 +6207,12 @@ sub split_protocols {
 
         # Remember original protocol as third value
         # - if src_range is given or
-        # - if original protocol has flags or
+        # - if original protocol has modifiers or
         # - if $dst_range is shared between different protocols.
         # Cache list of triples at original protocol for re-use.
-        if ($src_range or $prt->{flags} or $dst_range->{name} ne $prt->{name}) {
+        if ($src_range or $prt->{modifiers} or 
+            $dst_range->{name} ne $prt->{name}) 
+        {
             my $aref_list = $prt->{src_dst_range_list};
             if (not $aref_list) {
                 for my $src_split (expand_splitted_protocol $src_range) {
@@ -6030,12 +6233,45 @@ sub split_protocols {
     return \@splitted_protocols;
 }
 
-sub path_auto_interfaces;
+########################################################################
+# Handling of log attribute of rules.
+########################################################################
 
-# Hash with attributes deny, permit for storing expanded rules with
-# different action.
-our %expanded_rules;
-our %path_rules;
+# All log tags defined at some routers.
+my %known_log;
+
+# Store defining log tags as keys in %known_log.
+sub collect_log {
+    for my $router (@managed_routers) {
+        my $log = $router->{log} or next;
+        for my $tag (keys %$log) {
+            $known_log{$tag} = 1;
+        }
+    }
+    return;
+}
+
+# Check for referencing log tags, that corresponding defining log tags exist.
+sub check_log {
+    my ($log, $context) = @_;
+    for my $tag (@$log) {
+        $known_log{$tag} and next;
+        warn_msg("Referencing unknown '$tag' in log of $context");
+        aref_delete($log, $tag);
+    }
+    return;
+}
+
+# Normalize lists of log tags at different rules in such a way,
+# that equal sets of tags are represented by 'eq' array references.
+my %key2log;
+
+sub normalize_log {
+    my ($log) = @_;
+    my @tags = sort @$log;
+    my $key = join(',', @tags);
+    return $key2log{$key} ||= \@tags;
+}
 
 ########################################################################
 # Normalize rules of services and 
@@ -6073,7 +6309,7 @@ sub expand_auto_intf_with_dst_list {
 
         if (not $result) {
             $result = [];
-            for my $interface (path_auto_interfaces $auto_intf, $path) {
+            for my $interface (path_auto_interfaces($auto_intf, $path)) {
                 if ($interface->{ip} eq 'short') {
                     err_msg("'$interface->{ip}' $interface->{name}",
                             " (from .[auto])\n", 
@@ -6141,7 +6377,7 @@ sub substitute_auto_intf {
 
 sub classify_protocols {
     my ($prt_list, $service) = @_;
-    my %result;
+    my ($simple_prt_list, $complex_prt_list);
     for my $prt (@$prt_list) {
 
         # Prevent modification of original array.
@@ -6149,7 +6385,7 @@ sub classify_protocols {
 
         # If $prt is duplicate of an identical protocol, use the
         # main protocol, but remember the original one to retrieve
-        # {flags}.
+        # {modifiers}.
         my $orig_prt;
         my $src_range;
         if (ref $prt eq 'ARRAY') {
@@ -6159,7 +6395,7 @@ sub classify_protocols {
             $orig_prt = $prt;
             $prt      = $main_prt;
         }
-        my $flags = $orig_prt ? $orig_prt->{flags} : $prt->{flags};
+        my $modifiers = $orig_prt ? $orig_prt->{modifiers} : $prt->{modifiers};
         if ($orig_prt) {
             if ($src_range) {
 #               debug "$context +:$prt->{name} => $orig_prt->{name}";
@@ -6171,22 +6407,62 @@ sub classify_protocols {
                 $service->{prt2orig_prt}->{$prt} = $orig_prt;
             }
         }
-        my $src_net = $flags->{src_net} || '';
-        my $dst_net = $flags->{dst_net} || '';
-        my $key = $src_net || $dst_net ? "$src_net:$dst_net" : '';
-        if (keys %$flags
-            and
-            grep {$_ ne 'src_net' and $_ ne 'dst_net' } keys %$flags
-            or 
-            $src_range) 
-        {
-            push @{$result{$key}->{complex}}, [ $prt, $src_range, $flags ];
+        if (keys %$modifiers or $src_range) {
+            push @$complex_prt_list, [ $prt, $src_range, $modifiers ];
         }
         else {
-            push @{$result{$key}->{simple}}, $prt;
+            push @$simple_prt_list, $prt;
         }
     }
-    return \%result;
+    return [$simple_prt_list, $complex_prt_list];
+}
+
+sub check_private_service {
+    my ($service, $src_list, $dst_list) = @_;
+    my $private = $service->{private};
+    my $context = $service->{name};
+    for my $src (@$src_list) {
+        for my $dst (@$dst_list) {
+
+            if ($private) {
+                my $src_p = $src->{private};
+                my $dst_p = $dst->{private};
+                $src_p and $src_p eq $private
+                    or $dst_p and $dst_p eq $private
+                    or err_msg(
+                        "Rule of $private.private $context",
+                        " must reference at least one object",
+                        " out of $private.private");
+            }
+            else {
+                $src->{private}
+                and err_msg(
+                    "Rule of public $context must not",
+                    " reference $src->{name} of",
+                    " $src->{private}.private");
+                $dst->{private}
+                and err_msg(
+                    "Rule of public $context must not",
+                    " reference $dst->{name} of",
+                    " $dst->{private}.private");
+            }
+        }
+    }
+}
+
+# Add managed hosts of networks and aggregates.
+sub add_managed_hosts {
+    my ($aref, $context) = @_;
+    my @extra;
+    for my $object (@$aref) {
+        my $managed_hosts = $object->{managed_hosts} or next;
+        push @extra, @$managed_hosts;
+    }
+    if (@extra) {
+        push @$aref, @extra;
+        $aref = remove_duplicates($aref, $context);
+    }
+    return $aref;
 }
 
 sub normalize_service_rules {
@@ -6197,9 +6473,9 @@ sub normalize_service_rules {
     my $foreach = $service->{foreach};
 
     for my $unexpanded (@$rules) {
-        my $deny       = $unexpanded->{action} eq 'deny';
-        my $store_type = $deny ? 'deny' : 'permit';
-        my $log        = $unexpanded->{log};
+        my $deny  = $unexpanded->{action} eq 'deny';
+        my $store = $service_rules{$deny ? 'deny' : 'permit'} ||= [];
+        my $log   = $unexpanded->{log};
         if ($log) {
             check_log($log, $context);
             if (@$log) {
@@ -6213,7 +6489,7 @@ sub normalize_service_rules {
           split_protocols(
             expand_protocols($unexpanded->{prt}, "rule in $context"));
         @$prt_list or next;
-        my $src_dst_net2prt_lists = classify_protocols($prt_list, $service);
+        my $prt_list_pair = classify_protocols($prt_list, $service);
 
         for my $element ($foreach ? @$user : ($user)) {
             $user_object->{elements} = $element;
@@ -6242,52 +6518,51 @@ sub normalize_service_rules {
             elsif(not @extra_src_dst) {
                 next;
             }
-            for my $src_dst_net (sort keys %$src_dst_net2prt_lists) {
-                my ($simple_prt_list, $complex_prt_list) =
-                    @{$src_dst_net2prt_lists->{$src_dst_net}}{'simple',
-                                                              'complex'};
-                for my $src_dst_list (@extra_src_dst) {
-                    my ($src_list, $dst_list) = @$src_dst_list;
-                    if ($simple_prt_list) {
-                        $dst_list = add_managed_hosts($dst_list, $dst_context);
-                        my $rule = {
-                            src  => $src_list,
-                            dst  => $dst_list,
-                            prt  => $simple_prt_list,
-                            rule => $unexpanded
-                        };
-                        $rule->{deny} = 1    if $deny;
-                        $rule->{log}  = $log if $log;
-                        $rule->{src_dst_net} = $src_dst_net if $src_dst_net;
-                        push(@{ $service_rules{$store_type} }, $rule);
-                    }
-                    for my $tuple (@$complex_prt_list) {
-                        my ($prt, $src_range, $flags) = @$tuple;
-                        my ($src_list, $dst_list) = $flags->{reversed} 
-                                                  ? ($dst_list, $src_list) 
-                                                  : ($src_list, $dst_list);
+            for my $src_dst_list (@extra_src_dst) {
+                my ($src_list, $dst_list) = @$src_dst_list;
+                check_private_service($service, $src_list, $dst_list);
+                my ($simple_prt_list, $complex_prt_list) = @$prt_list_pair;
+                if ($simple_prt_list) {
+                    $dst_list = add_managed_hosts($dst_list, $dst_context);
+                    my $rule = {
+                        src  => $src_list,
+                        dst  => $dst_list,
+                        prt  => $simple_prt_list,
+                        rule => $unexpanded
+                    };
+                    $rule->{deny} = 1    if $deny;
+                    $rule->{log}  = $log if $log;
+                    push @$store, $rule;
+                }
+                for my $tuple (@$complex_prt_list) {
+                    my ($prt, $src_range, $modifiers) = @$tuple;
+                    my ($src_list, $dst_list) = $modifiers->{reversed} 
+                                              ? ($dst_list, $src_list) 
+                                              : ($src_list, $dst_list);
 
-                        $dst_list = add_managed_hosts($dst_list, $dst_context);
-                        my $rule = {
-                            src  => $src_list,
-                            dst  => $dst_list,
-                            prt  => [$prt],
-                            rule => $unexpanded
-                        };
-                        $rule->{deny}      = 1          if $deny;
-                        $rule->{log}       = $log       if $log;
-                        $rule->{src_range} = $src_range if $src_range;
-                        $rule->{reversed}  = 1          if $flags->{reversed};
-                        $rule->{stateless} = 1          if $flags->{stateless};
-                        $rule->{oneway}    = 1          if $flags->{oneway};
-                        $rule->{no_check_supernet_rules} = 1
-                            if $flags->{no_check_supernet_rules};
-                        $rule->{stateless_icmp} = 1
-                            if $flags->{stateless_icmp};
-                        $rule->{src_dst_net} = $src_dst_net if $src_dst_net;
+                    $dst_list = add_managed_hosts($dst_list, $dst_context);
+                    my $rule = {
+                        src  => $src_list,
+                        dst  => $dst_list,
+                        prt  => [$prt],
+                        rule => $unexpanded
+                    };
+                    $rule->{deny}      = 1          if $deny;
+                    $rule->{log}       = $log       if $log;
+                    $rule->{src_range} = $src_range if $src_range;
+                    $rule->{stateless} = 1          if $modifiers->{stateless};
+                    $rule->{oneway}    = 1          if $modifiers->{oneway};
+                    $rule->{no_check_supernet_rules} = 1
+                        if $modifiers->{no_check_supernet_rules};
+                    $rule->{stateless_icmp} = 1
+                        if $modifiers->{stateless_icmp};
+                    $rule->{src_net}   = 1          if $modifiers->{src_net};
+                    $rule->{dst_net}   = 1          if $modifiers->{dst_net};
 
-                        push(@{ $service_rules{$store_type} }, $rule);
-                    }
+                    # Only used in set_service_owner.
+                    $rule->{reversed}  = 1          if $modifiers->{reversed};
+
+                    push @$store, $rule;
                 }
             }
         }
@@ -6309,7 +6584,7 @@ sub normalize_services {
 
         # Substitute service name by service object.
         if (my $overlaps = $service->{overlaps}) {
-            my @pobjects;
+            my @sobjects;
             for my $pair (@$overlaps) {
                 my ($type, $oname) = @$pair;
                 if (!$type eq 'service') {
@@ -6317,14 +6592,14 @@ sub normalize_services {
                       " of $name";
                 }
                 elsif (my $other = $services{$oname}) {
-                    push(@pobjects, $other);
+                    push(@sobjects, $other);
                 }
                 else {
                     warn_msg("Unknown $type:$oname in attribute 'overlaps'",
                         " of $name");
                 }
             }
-            $service->{overlaps} = \@pobjects;
+            $service->{overlaps} = \@sobjects;
         }
 
         # Attribute "visible" is known to have value "*" or "name*".
@@ -6347,6 +6622,9 @@ sub normalize_services {
         $service->{user} = expand_group($service->{user}, "user of $name");
         normalize_service_rules($service);
     }
+
+    # Only needed during normalize_service_rules.
+    %auto_interfaces = ();
 }
 
 ##############################################################################
@@ -6722,7 +7000,7 @@ sub set_service_owner {
             if ($has_user eq 'both') {
                 $info->{is_coupling} = 1;
             }
-            elsif ($rule->{reversed}) {
+            elsif (delete $rule->{reversed}) { # Attribute is no longer needed.
                 $has_user = $has_user eq 'src' ? 'dst' : 'src';
             }
 
@@ -6815,6 +7093,10 @@ sub set_service_owner {
     return;
 }
 
+########################################################################
+# Convert hosts in normalized service_rules to subnets or to networks.
+########################################################################
+
 sub apply_src_dst_modifier {
     my ($group) = @_;
     my @modified;
@@ -6854,14 +7136,11 @@ sub convert_hosts_in_rules {
     for my $action (qw(permit deny)) {
         my $rules = $service_rules{$action} or next;
         for my $rule (@$rules) {
-            if (my $src_dst_net = delete $rule->{src_dst_net}) {
-                my ($src_net, $dst_net) = split ':', $src_dst_net;
-                if ($src_net) {
-                    $rule->{src} = apply_src_dst_modifier($rule->{src});
-                }
-                if ($dst_net) {
-                    $rule->{dst} = apply_src_dst_modifier($rule->{dst});
-                }
+            if ($rule->{src_net}) {
+                $rule->{src} = apply_src_dst_modifier($rule->{src});
+            }
+            if ($rule->{dst_net}) {
+                $rule->{dst} = apply_src_dst_modifier($rule->{dst});
             }
             for my $what (qw(src dst)) {
                 my $group = $rule->{$what};
@@ -6916,47 +7195,8 @@ sub convert_hosts_in_rules {
 }
 
 ########################################################################
-# Expand rules and check them for redundancy
+# Get zone of object
 ########################################################################
-
-# Hash for ordering all rules.
-# Put attributes with small value set first, to get a more
-# memory efficient tree with few branches at root.
-# $rule_tree{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}->{$prt}
-#  = $rule;
-my %rule_tree;
-
-# Collect deleted rules for further inspection.
-my @deleted_rules;
-
-# Add rules to %rule_tree for efficient look up.
-sub add_rules {
-    my ($rules_ref, $rule_tree) = @_;
-    $rule_tree ||= \%rule_tree;
-
-    for my $rule (@$rules_ref) {
-        my ($stateless, $deny, $src, $dst, $src_range, $prt) =
-          @{$rule}{qw(stateless deny src dst src_range prt)};
-        $stateless ||= '';
-        $deny      ||= '';
-        $src_range ||= $prt_ip;
-        my $old_rule =
-          $rule_tree->{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}
-          ->{$prt};
-        if ($old_rule) {
-
-            # Found identical rule.
-            $rule->{deleted} = $old_rule;
-            push @deleted_rules, $rule;
-            next;
-        }
-
-#       debug("Add:", print_rule $rule);
-        $rule_tree->{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}->{$prt}
-          = $rule;
-    }
-    return;
-}
 
 my %obj2zone;
 
@@ -6986,7 +7226,7 @@ sub get_zone {
         }
     }
 
-    # Only used when called from expand_rules.
+    # Used, when called on src_path / dst_path.
     elsif ($type eq 'Router') {
         if ($obj->{managed}) {
             $result = $obj;
@@ -6995,34 +7235,22 @@ sub get_zone {
             $result = $obj->{interfaces}->[0]->{network}->{zone};
         }
     }
-
-    # Used, when called from remove_unenforceable_rules.
     elsif ($type eq 'Zone') {
         $result = $obj;
     }
+
     elsif ($type eq 'Host') {
         $result = $obj->{network}->{zone};
     }
     else {
-        internal_err("unexpected $obj->{name}");
+        internal_err("Unexpected $obj->{name}");
     }
     return ($obj2zone{$obj} = $result);
 }
 
-# Add managed hosts of networks and aggregates.
-sub add_managed_hosts {
-    my ($aref, $context) = @_;
-    my @extra;
-    for my $object (@$aref) {
-        my $managed_hosts = $object->{managed_hosts} or next;
-        push @extra, @$managed_hosts;
-    }
-    if (@extra) {
-        push @$aref, @extra;
-        $aref = remove_duplicates($aref, $context);
-    }
-    return $aref;
-}
+########################################################################
+# Collect and show unenforceable rules.
+########################################################################
 
 # This handles a rule between objects inside a single security zone or
 # between interfaces of a single managed router.
@@ -7033,7 +7261,8 @@ sub add_managed_hosts {
 # Rules between identical objects are silently ignored.
 # But a message is shown if a service only has rules between identical objects.
 sub collect_unenforceable {
-    my ($src, $dst, $zone, $service) = @_;
+    my ($rule, $zone) = @_;
+    my $service = $rule->{rule}->{service};
 
     if ($zone->{has_unenforceable}) {
         $zone->{seen_unenforceable}      = 1;
@@ -7043,57 +7272,58 @@ sub collect_unenforceable {
 
     my $context = $service->{name};
     $service->{silent_unenforceable} = 1;
+    my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
 
-    # A rule between identical objects is a common case
-    # which results from rules with "src=user;dst=user;".
-    return if $src eq $dst;
+    for my $src (@$src_list) {
+        for my $dst (@$dst_list) {
 
-    if (is_router $zone) {
+            # A rule between identical objects is a common case
+            # which results from rules with "src=user;dst=user;".
+            next if $src eq $dst;
 
-        # Auto interface is assumed to be identical
-        # to each other interface of a single router.
-        return if is_autointerface($src) or is_autointerface($dst);
-    }
-    elsif (is_subnet $src and is_subnet($dst)) {
+            if (is_subnet $src and is_subnet($dst)) {
 
-        # For rules with different subnets of a single network we don't
-        # know if the subnets have been split from a single range.
-        # E.g. range 1-4 becomes four subnets 1,2-3,4
-        # For most splits the resulting subnets would be adjacent.
-        # Hence we check for adjacency.
-        if ($src->{network} eq $dst->{network}) {
-            my ($a, $b) = $src->{ip} > $dst->{ip} ? ($dst, $src) : ($src, $dst);
-            if ($a->{ip} + complement_32bit($a->{mask}) + 1 == $b->{ip}) {
-                return;
+                # For rules with different subnets of a single network we don't
+                # know if the subnets have been split from a single range.
+                # E.g. range 1-4 becomes four subnets 1,2-3,4
+                # For most splits the resulting subnets would be adjacent.
+                # Hence we check for adjacency.
+                if ($src->{network} eq $dst->{network}) {
+                    my ($a, $b) = $src->{ip} > $dst->{ip} 
+                                ? ($dst, $src) 
+                                : ($src, $dst);
+                    if ($a->{ip} + complement_32bit($a->{mask}) + 1 == $b->{ip})
+                    {
+                        next;
+                    }
+                }
             }
+
+            # Both are aggregates, having identical ip and mask.
+            elsif ($src->{is_aggregate} && $dst->{is_aggregate} &&
+                   $src->{ip}   == $dst->{ip} &&
+                   $src->{mask} == $dst->{mask})
+            {
+                next;
+            }
+
+            # This is a common case, which results from rules like
+            # group:some_networks -> any:[group:some_networks]
+            elsif ($src->{is_aggregate} && $src->{mask} == 0) {
+                next;
+            }
+            elsif ($dst->{is_aggregate} && $dst->{mask} == 0) {
+                next;
+            }
+
+            # Network or aggregate was only used for its managed_hosts
+            # to be added automatically in expand_group.
+            elsif ($dst->{managed_hosts}) {
+                next;
+            }
+            $service->{seen_unenforceable}->{$src}->{$dst} ||= [ $src, $dst ];
         }
     }
-    elsif ($src->{is_aggregate} && $dst->{is_aggregate}) {
-
-        # Both are aggregates,
-        # - belonging to same zone cluster and
-        # - having identical ip and mask
-        return
-          if ( zone_eq($src->{zone}, $dst->{zone})
-            && $src->{ip} == $dst->{ip}
-            && $src->{mask} == $dst->{mask});
-    }
-    elsif ($src->{is_aggregate} && $src->{mask} == 0) {
-
-        # This is a common case, which results from rules like
-        # group:some_networks -> any:[group:some_networks]
-        return if zone_eq($src->{zone}, get_zone($dst));
-    }
-    elsif ($dst->{is_aggregate} && $dst->{mask} == 0) {
-        return if zone_eq($dst->{zone}, get_zone($src));
-    }
-    elsif ($dst->{managed_hosts}) {
-
-        # Network or aggregate was only used for its managed_hosts
-        # to be added automatically in expand_group.
-        return;
-    }
-    $service->{seen_unenforceable}->{$src}->{$dst} ||= [ $src, $dst ];
     return;
 }
 
@@ -7153,88 +7383,184 @@ sub warn_useless_unenforceable {
     return;
 }
 
-sub show_deleted_rules1 {
-    return if not @deleted_rules;
-    my %sname2oname2deleted;
-  RULE:
-    for my $rule (@deleted_rules) {
-        my $other = $rule->{deleted};
-
-        my $prt1 = get_orig_prt($rule);
-        my $prt2 = get_orig_prt($other);
-        next if $prt1->{flags}->{overlaps} && $prt2->{flags}->{overlaps};
-
-        my $service  = $rule->{rule}->{service};
-        my $oservice = $other->{rule}->{service};
-        if (my $overlaps = $service->{overlaps}) {
-            for my $overlap (@$overlaps) {
-                if ($oservice eq $overlap) {
-                    $service->{overlaps_used}->{$overlap} = $overlap;
-                    next RULE;
-                }
-            }
+sub remove_unenforceable_rules {
+    my ($rules) = @_;
+    my $changed;
+    for my $rule (@$rules) {
+        my ($src_path, $dst_path) = @{$rule}{qw(src_path dst_path)};
+        my $src_zone = $obj2zone{$src_path} || get_zone($src_path);
+        my $dst_zone = $obj2zone{$dst_path} || get_zone($dst_path);
+        if (zone_eq($src_zone, $dst_zone)) {
+            collect_unenforceable($rule, $src_zone);
+            $rule = undef;
+            $changed = 1;
         }
-        if (my $overlaps = $oservice->{overlaps}) {
-            for my $overlap (@$overlaps) {
-                if ($service eq $overlap) {
-                    $oservice->{overlaps_used}->{$overlap} = $overlap;
-                    next RULE;
-                }
-            }
-        }
-        my $sname = $service->{name};
-        my $oname = $oservice->{name};
-        my $pfile = $service->{file};
-        my $ofile = $oservice->{file};
-        $pfile =~ s/.*?([^\/]+)$/$1/;
-        $ofile =~ s/.*?([^\/]+)$/$1/;
-        push(@{ $sname2oname2deleted{$sname}->{$oname} }, $rule);
-    }
-    if (my $action = $config->{check_duplicate_rules}) {
-        my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
-        for my $sname (sort keys %sname2oname2deleted) {
-            my $hash = $sname2oname2deleted{$sname};
-            for my $oname (sort keys %$hash) {
-                my $aref = $hash->{$oname};
-                my $msg  = "Duplicate rules in $sname and $oname:\n  ";
-                $msg .= join("\n  ", map { print_rule $_ } @$aref);
-                $print->($msg);
-            }
+        else {
+
+            # At least one rule of service is enforceable.
+            # This is used to decide, if a service is fully unenforceable.
+            my $service = $rule->{rule}->{service};
+            $service->{seen_enforceable} = 1;
         }
     }
-
-    # Variable will be reused during sub optimize.
-    @deleted_rules = ();
-    return;
+    if ($changed) {
+        $rules = [ grep { $_ } @$rules ];
+    }
+    return $rules;
 }
 
-sub collect_redundant_rules {
-    my ($rule, $other) = @_;
+########################################################################
+# Convert normalized service rules to grouped path rules.
+########################################################################
 
-    # Ignore automatically generated rules from crypto or from reverse rules.
-    return if !$rule->{rule};
-    return if !$other->{rule};
+sub split_rules_by_path {
+    my ($rules, $where) = @_;
+    my $where_path = "${where}_path";
+    my @new_rules;
+    for my $rule (@$rules) {
+        my $group = $rule->{$where};
+        my $element0 = $group->[0];
+        $element0 or internal_err print_rule $rule;
+        my $path0 = $obj2path{$element0} || get_path($element0);
+
+        # Group has elements from different zones and must be split.
+        if (grep { $path0 ne ($obj2path{$_} || get_path($_)) } @$group) {
+            my $index = 1;
+            my %path2index;
+            my %key2group;
+            for my $element (@$group) {
+                my $path = $obj2path{$element};
+                my $key  = $path2index{$path} ||= $index++;
+                push @{ $key2group{$key}}, $element;
+            }
+            for my $key (sort numerically keys %key2group) {
+                my $path_group = $key2group{$key};
+                my $path = $obj2path{$path_group->[0]};
+                my $new_rule = { %$rule,
+                                 $where      => $path_group,
+                                 $where_path => $path };
+                push @new_rules, $new_rule;
+            }
+        }
+
+        # Use unchanged group, add path info.
+        else {
+            $rule->{$where_path} = $path0;
+            push @new_rules, $rule;
+        }
+    }
+    return \@new_rules;
+}
+
+# Hash with attributes deny, permit for storing path rules with
+# different action.
+our %path_rules;
+
+sub group_path_rules {
+    progress("Grouping rules");
+    my $count = 0;
+
+    for my $action (qw(permit deny)) {
+        my $rules = $service_rules{$action} or next;
+
+        # Split grouped rules such, that all elements of src and dst
+        # have identical src_path/dst_path.
+        $rules = split_rules_by_path($rules, 'src');
+        $rules = split_rules_by_path($rules, 'dst');
+        $rules = remove_unenforceable_rules($rules);
+        $path_rules{$action} = $rules;
+        $count += @$rules;
+    }
+    info("Grouped rule count: $count");
+
+    show_unenforceable();
+    warn_useless_unenforceable();
+}
+
+sub remove_simple_duplicate_rules {
+    progress("Removing simple duplicate rules");
+    for my $action (qw(permit deny)) {
+        my $rules = $path_rules{$action} or next;
+        my %src2dst2prt2rule;
+        my $count = 0;
+      RULE:
+        for my $rule (@$rules) {
+            my $src = $rule->{src};
+            @$src == 1 or next;
+            my $dst = $rule->{dst};
+            @$dst == 1 or next;
+            my $prt = $rule->{prt};
+            @$prt == 1 or next;
+            for my $attr (qw(src_range log oneway stateless stateless_icmp)) {
+                next RULE if $rule->{$attr};
+            }
+            $src = $src->[0];
+            $dst = $dst->[0];
+            $prt = $prt->[0];
+            if ($src2dst2prt2rule{$src}->{$dst}->{$prt}) {
+                $rule = undef;
+                $count++;
+            }
+            else {
+                $src2dst2prt2rule{$src}->{$dst}->{$prt} = $rule;
+            }
+        }
+        if ($count) {
+            $path_rules{$action} = [ grep { $_ } @$rules ];
+#            info("Removed $count $action rules");
+        }
+    }
+}
+
+
+########################################################################
+# Expand rules and check them for redundancy
+########################################################################
+
+# Build rule tree from expanded rules for efficient comparison of rules.
+# Rule tree is a hash for ordering all rules.
+# Put attributes with small value set first, to get a more
+# memory efficient tree with few branches at root.
+sub build_rule_tree {
+    my ($rules) = @_;
+    my $count = 0;
+    my $rule_tree = {};
+    for my $rule (@$rules) {
+        my ($stateless, $deny, $src, $dst, $src_range, $prt) =
+            @{$rule}{qw(stateless deny src dst src_range prt)};
+        $stateless ||= '';
+        $deny      ||= '';
+        $src_range ||= $prt_ip;
+        my $old_rule =
+            $rule_tree->{$stateless}->{$deny}->{$src_range}
+                      ->{$src}->{$dst}->{$prt};
+        if ($old_rule) {
+
+            # Found identical rule.
+            collect_duplicate_rules($rule, $old_rule);
+            $count++;
+        }
+        else {
+
+#           debug("Add:", print_rule $rule);
+            $rule_tree->{$stateless}->{$deny}->{$src_range}
+                      ->{$src}->{$dst}->{$prt} = $rule;
+        }
+    }
+    return($rule_tree, $count);
+}
+
+my @duplicate_rules;
+
+sub collect_duplicate_rules {
+    my ($rule, $other) = @_;
 
     my $prt1 = get_orig_prt($rule);
     my $prt2 = get_orig_prt($other);
-    return if $prt1->{flags}->{overlaps} && $prt2->{flags}->{overlaps};
-
-    # Automatically generated reverse rule for stateless router
-    # is still needed, even for stateful routers for static routes.
-    my $src = $rule->{src};
-    if (is_interface($src)) {
-        my $router = $src->{router};
-        if ($router->{managed} || $router->{routing_only}) {
-            return;
-        }
-    }
+    return if $prt1->{modifiers}->{overlaps} && $prt2->{modifiers}->{overlaps};
 
     my $service  = $rule->{rule}->{service};
     my $oservice = $other->{rule}->{service};
-    if (!$oservice) {
-        debug "d:", print_rule $rule;
-        debug "o:", print_rule $other;
-    }
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
             if ($oservice eq $overlap) {
@@ -7243,48 +7569,99 @@ sub collect_redundant_rules {
             }
         }
     }
-    push @deleted_rules, [ $rule, $other ];
-    return;
-}
-
-sub show_deleted_rules2 {
-    return if not @deleted_rules;
-    my %sname2oname2deleted;
-    for my $pair (@deleted_rules) {
-        my ($rule, $other) = @$pair;
-
-        my $service  = $rule->{rule}->{service};
-        my $oservice = $other->{rule}->{service};
-        my $sname    = $service->{name};
-        my $oname    = $oservice->{name};
-        my $pfile    = $service->{file};
-        my $ofile    = $oservice->{file};
-        $pfile =~ s/.*?([^\/]+)$/$1/;
-        $ofile =~ s/.*?([^\/]+)$/$1/;
-        push(@{ $sname2oname2deleted{$sname}->{$oname} }, [ $rule, $other ]);
-    }
-    if (my $action = $config->{check_redundant_rules}) {
-        my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
-        for my $sname (sort keys %sname2oname2deleted) {
-            my $hash = $sname2oname2deleted{$sname};
-            for my $oname (sort keys %$hash) {
-                my $aref = $hash->{$oname};
-                my $msg  = "Redundant rules in $sname compared to $oname:\n  ";
-                $msg .= join(
-                    "\n  ",
-                    map {
-                        my ($r, $o) = @$_;
-                        print_rule($r) . "\n< " . print_rule($o);
-                    } @$aref
-                );
-                $print->($msg);
+    if (my $overlaps = $oservice->{overlaps}) {
+        for my $overlap (@$overlaps) {
+            if ($service eq $overlap) {
+                $oservice->{overlaps_used}->{$overlap} = $overlap;
+                return;
             }
         }
     }
+    push @duplicate_rules, [ $rule, $other ];
+    return;
+}
+
+sub show_duplicate_rules {
+    @duplicate_rules or return;
+    my %sname2oname2duplicate;
+  RULE:
+    for my $pair (@duplicate_rules) {
+        my ($rule, $other) = @$pair;
+
+        my $sname = $rule->{rule}->{service}->{name};
+        my $oname = $other->{rule}->{service}->{name};
+        push(@{ $sname2oname2duplicate{$sname}->{$oname} }, $rule);
+    }
+    @duplicate_rules = ();
+
+    my $action = $config->{check_duplicate_rules} or return;
+    my $print  = $action eq 'warn' ? \&warn_msg : \&err_msg;
+    for my $sname (sort keys %sname2oname2duplicate) {
+        my $hash = $sname2oname2duplicate{$sname};
+        for my $oname (sort keys %$hash) {
+            my $aref = $hash->{$oname};
+            my $msg  = "Duplicate rules in $sname and $oname:\n  ";
+            $msg .= join("\n  ", map { print_rule $_ } @$aref);
+            $print->($msg);
+        }
+    }
+    return;
+}
+
+my @redundant_rules;
+
+sub collect_redundant_rules {
+    my ($rule, $other) = @_;
+
+    my $prt1 = get_orig_prt($rule);
+    my $prt2 = get_orig_prt($other);
+    return if $prt1->{modifiers}->{overlaps} && $prt2->{modifiers}->{overlaps};
+
+    my $service  = $rule->{rule}->{service};
+    my $oservice = $other->{rule}->{service};
+    if (my $overlaps = $service->{overlaps}) {
+        for my $overlap (@$overlaps) {
+            if ($oservice eq $overlap) {
+                $service->{overlaps_used}->{$overlap} = $overlap;
+                return;
+            }
+        }
+    }
+    push @redundant_rules, [ $rule, $other ];
+    return;
+}
+
+sub show_redundant_rules {
+    @redundant_rules or return;
+    my %sname2oname2redundant;
+    for my $pair (@redundant_rules) {
+        my ($rule, $other) = @$pair;
+
+        my $sname = $rule->{rule}->{service}->{name};
+        my $oname = $other->{rule}->{service}->{name};
+        push(@{ $sname2oname2redundant{$sname}->{$oname} }, [ $rule, $other ]);
+    }
 
     # Free memory.
-    @deleted_rules = ();
+    @redundant_rules = ();
 
+    my $action = $config->{check_redundant_rules} or return;
+    my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
+    for my $sname (sort keys %sname2oname2redundant) {
+        my $hash = $sname2oname2redundant{$sname};
+        for my $oname (sort keys %$hash) {
+            my $aref = $hash->{$oname};
+            my $msg  = "Redundant rules in $sname compared to $oname:\n  ";
+            $msg .= join(
+                "\n  ",
+                map {
+                    my ($r, $o) = @$_;
+                    print_rule($r) . "\n< " . print_rule($o);
+                } @$aref
+                );
+            $print->($msg);
+        }
+    }
     return;
 }
 
@@ -7305,127 +7682,78 @@ sub warn_unused_overlaps {
     return;
 }
 
-# All log tags defined at some routers.
-my %known_log;
-
-sub collect_log {
-    for my $router (@managed_routers) {
-        my $log = $router->{log} or next;
-        for my $tag (keys %$log) {
-            $known_log{$tag} = 1;
-        }
-    }
-    return;
-}
-
-sub check_log {
-    my ($log, $context) = @_;
-    for my $tag (@$log) {
-        $known_log{$tag} and next;
-        warn_msg("Referencing unknown '$tag' in log of $context");
-        aref_delete($log, $tag);
-    }
-    return;
-}
-
-# Normalize lists of log tags at different rules in such a way,
-# that equal sets of tags are represented by 'eq' array references.
-my %key2log;
-
-sub normalize_log {
-    my ($log) = @_;
-    my @tags = sort @$log;
-    my $key = join(',', @tags);
-    return $key2log{$key} ||= \@tags;
-}
-
-# Expands rules in global variable %service_rules 
-# to rules in global variable %path_rules.
+# Expand path_rules to elementary rules.
 sub expand_rules {
-    for my $action (qw(permit deny)) {
-        my $rules = $service_rules{$action} or next;
-        my $expanded = $expanded_rules{$action} ||= [];
-        for my $rule (@$rules) {
-            my $service  = $rule->{rule}->{service};
-            my $context  = $service->{name};
-            my $private  = $service->{private};
-            my $src_flag = $rule->{src_flag};
-            my $dst_flag = $rule->{dst_flag};
-            my $src_list = $rule->{src};
-            my $dst_list = $rule->{dst};
-            my $prt_list = $rule->{prt};
-            for my $src (@$src_list) {
-                my $src_zone = $obj2zone{$src} || get_zone($src);
-                for my $dst (@$dst_list) {
-                    my $dst_zone = $obj2zone{$dst} || get_zone($dst);
-                    if (zone_eq($src_zone, $dst_zone)) {
-                        collect_unenforceable($src, $dst, $src_zone, $service);
-                        next;
-                    }
-
-                    # At least one rule is enforceable.
-                    # This is used to decide, if a service is fully
-                    # unenforceable.
-                    $service->{seen_enforceable} = 1;
-                    if ($private) {
-                        my $src_p = $src->{private};
-                        my $dst_p = $dst->{private};
-                        $src_p and $src_p eq $private
-                            or $dst_p and $dst_p eq $private
-                            or err_msg
-                            "Rule of $private.private $context",
-                            " must reference at least one object",
-                            " out of $private.private";
-                    }
-                    else {
-                        $src->{private}
-                        and err_msg
-                            "Rule of public $context must not",
-                            " reference $src->{name} of",
-                            " $src->{private}.private";
-                        $dst->{private}
-                        and err_msg
-                            "Rule of public $context must not",
-                            " reference $dst->{name} of",
-                            " $dst->{private}.private";
-                    }
-
-                    for my $prt (@$prt_list) {
-                        my $e_rule = { %$rule, 
-                                       src => $src, 
-                                       dst => $dst, 
-                                       prt => $prt };
-                        push @$expanded, $e_rule;
-                    }
+    my ($rules) = @_;
+    my $result = [];
+    for my $rule (@$rules) {
+        my ($src_list, $dst_list, $prt_list) = @{$rule}{qw(src dst prt)};
+        for my $src (@$src_list) {
+            for my $dst (@$dst_list) {
+                for my $prt (@$prt_list) {
+                    push @$result, { %$rule, 
+                                     src => $src, 
+                                     dst => $dst, 
+                                     prt => $prt };
                 }
             }
         }
     }
+    return $result;
 }
 
-sub print_rulecount {
-    my $count = 0;
-    for my $type ('deny', 'permit') {
-        $count += grep { not $_->{deleted} } @{ $expanded_rules{$type} };
+sub check_expanded_rules {
+    progress('Checking for redundant rules');
+    setup_ref2obj();
+    my $count  = 0;
+    my $dcount = 0;
+    my $rcount = 0;
+
+    # Process rules in chunks to reduce memory usage.
+    # Rules with different src_path / dst_path can't be 
+    # redundant to each other.
+    # Keep deterministic order of rules.
+    my $index = 1;
+    my %path2index;
+    my %key2rules;
+    for my $rule (@{ $path_rules{deny} }, @{ $path_rules{permit} }) {
+        my $path = $rule->{src_path};
+        my $key  = $path2index{$path} ||= $index++;
+        push @{ $key2rules{$key} }, $rule;
     }
-    info("Expanded rule count: $count");
+    for my $key (sort numerically keys %key2rules) {
+        my $rules = $key2rules{$key};
+
+# We could add another layer to reduce memory usage even more.
+#        my $index = 1;
+#        my %path2index;
+#        my %key2rules;
+#        for my $rule (@$rules) {
+#            my $path = $rule->{dst_path};
+#            my $key  = $path2index{$path} ||= $index++;
+#            push @{ $key2rules{$key} }, $rule;
+#        }
+#        for my $key (sort numerically keys %key2rules) {
+#            my $rules = $key2rules{$key};
+
+            my $expanded_rules = expand_rules($rules);
+            $count += @$expanded_rules;
+            my ($rule_tree, $deleted) = build_rule_tree($expanded_rules);
+            $dcount += $deleted;
+            $rcount += find_redundant_rules($rule_tree, $rule_tree);
+
+#        }
+    }
+    show_duplicate_rules();
+    show_redundant_rules();
+    warn_unused_overlaps();
+    info("Expanded rule count: $count; duplicate: $dcount; redundant: $rcount");
     return;
 }
 
-sub expand_services {
-    progress('Expanding services');
-    expand_rules();
-    show_unenforceable();
-    warn_useless_unenforceable();
-    print_rulecount();
-    progress('Finding duplicate rules');
-    for my $type (qw(deny permit)) {
-        add_rules($expanded_rules{$type});
-    }
-    print_rulecount();
-    show_deleted_rules1();
-    return;
-}
+##############################################################################
+# Find IP of each device, reachable from policy distribution point.
+##############################################################################
 
 # For each device, find the IP address which is used
 # to manage the device from a central policy distribution point (PDP).
@@ -10274,8 +10602,10 @@ sub check_virtual_interfaces {
         my $router = $interface->{router};
         next if not($router->{managed} or $router->{semi_managed});
 
-        $seen{$related} and next;
-        $seen{$related} = 1;
+        # Ignore single virtual interface.
+        next if @$related <= 1;
+
+        next if $seen{$related}++;
 
         # Check whether all virtual interfaces are part of a loop.
         my $err;
@@ -10321,10 +10651,27 @@ sub check_pathrestrictions {
         my $prev_cluster;
         for my $interface (@$elements) {
             next if $interface->{disabled};
+            my $router = $interface->{router};
             my $loop =
                  $interface->{loop}
-              || $interface->{router}->{loop}
+              || $router->{loop}
               || $interface->{zone}->{loop};
+
+            # This router is split part of an unmanaged router.
+            # It has exactly two non secondary interfaces.
+            # Move pathrestriction to other interface, if that one is
+            # located at border of loop.
+            if (my $other = $interface->{split_other} and not $loop) {
+                my $rlist = delete $interface->{path_restrict};
+                if ($loop = $other->{zone}->{loop}) {
+#                   debug "Moved $restrict->{name} to other";
+                    $other->{path_restrict} = $rlist;
+                    for my $restrict (@$rlist) {
+                        my $elements = $restrict->{elements};
+                        aref_subst($elements, $interface, $other);
+                    }
+                }
+            }
 
             # Interfaces with pathrestriction need to be located
             # inside or at the border of cyclic graphs.
@@ -10641,6 +10988,7 @@ sub setpath_obj {
         # Skip interfaces:
         next if $interface eq $to_zone1;  # Interface where we reached this obj.
         next if $interface->{loop}; # Interface is entry of already marked loop.
+        next if $interface->{main_interface};
 
         # Get adjacent object/node.
         my $get_next = is_router($obj) ? 'zone' : 'router';
@@ -11378,7 +11726,7 @@ sub cluster_path_mark {
         # Loop paths beginning at loop node can differ depending on the way
         # the node is entered (interface with/without pathrestriction,
         # pathrestricted src/dst interface), requirings storing path 
-        #information at different objects.
+        # information at different objects.
         # {loop_entry} attribute shows, where path information can be found.
         $from_in->{loop_entry}->{$to_store}    = $start_store;# node or IF w. PR
         $start_store->{loop_exit}->{$to_store} = $end_store;
@@ -11694,7 +12042,7 @@ sub loop_path_walk {
       )
     {
 
-#     debug(" loop_enter");
+#        debug(" loop_enter");
         for my $out_intf (@{ $loop_entry->{loop_enter}->{$loop_exit} }) {
             $fun->($rule, $in, $out_intf);
         }
@@ -11717,7 +12065,7 @@ sub loop_path_walk {
         $loop_entry->{loop_leave}->{$loop_exit}->[0]->{router});
     if ($exit_at_router xor $call_at_zone) {
 
-#     debug(" loop_leave");
+#        debug(" loop_leave");
         for my $in_intf (@{ $loop_entry->{loop_leave}->{$loop_exit} }) {
             $fun->($rule, $in_intf, $out);
         }
@@ -11877,12 +12225,10 @@ my %border2obj2auto;
 
 sub set_auto_intf_from_border {
     my ($border) = @_;
-    my %active_path;
     my $reach_from_border;
     $reach_from_border = sub {
         my ($network, $in_intf, $result) = @_;
-        $active_path{$network} = 1;
-        $result->{$network}->{$in_intf} = $in_intf;
+        push @{ $result->{$network} }, $in_intf;
 
 #        debug "$network->{name}: $in_intf->{name}";
         for my $interface (@{ $network->{interfaces} }) {
@@ -11890,9 +12236,9 @@ sub set_auto_intf_from_border {
             next if $interface->{zone};
             next if $interface->{orig_main};
             my $router = $interface->{router};
-            next if $active_path{$router};
-            $active_path{$router} = 1;
-            $result->{$router}->{$interface} = $interface;
+            next if $router->{active_path};
+            local $router->{active_path} = 1;
+            push @{ $result->{$router} }, $interface;
 
 #            debug "$router->{name}: $interface->{name}";
 
@@ -11902,31 +12248,38 @@ sub set_auto_intf_from_border {
                 my $out_net = $out_intf->{network};
                 $reach_from_border->($out_net, $out_intf, $result);
             }
-            $active_path{$router} = 0;
         }
-        $active_path{$network} = 0;
     };
     my $result = {};
     $reach_from_border->($border->{network}, $border, $result);
-    for my $href (values %$result) {
-        $href = [ values %$href ];
+    for my $aref (values %$result) {
+        $aref = [ unique @$aref ];
     }
     $border2obj2auto{$border} = $result;
     return;
 }
 
-# Add pathrestricted interfaces.
+# Find auto interface inside zone.
+# $border is interface at border of zone.
+# $src2 is unmanaged router or network inside zone.
+sub auto_intf_in_zone {
+    my ($border, $src2) = @_;
+    if (not $border2obj2auto{$border}) {
+        set_auto_intf_from_border($border);
+    }
+    return @{ $border2obj2auto{$border}->{$src2} };
+}
+
 sub add_pathresticted_interfaces {
-    my ($obj) = @_;
-    is_router($obj) or return ($obj);
-    my $interfaces = $obj->{interfaces};
-    return ($obj,
-            grep { $_->{path_restrict} || $_->{reachable_at} } @$interfaces);
+    my ($path, $obj) = @_;
+    is_router($obj) or return ($path);
+    my @interfaces = get_intf($obj);
+    return ($path,
+            grep { $_->{path_restrict} || $_->{reachable_at} } @interfaces);
 }
 
 # $src is an auto_interface or router.
-# Result is the set of interfaces of $src located at the front side
-# of the direction to $dst.
+# Result is the set of interfaces of $src located at direction to $dst.
 sub path_auto_interfaces {
     my ($src, $dst) = @_;
     my ($src2, $managed) =
@@ -11935,20 +12288,21 @@ sub path_auto_interfaces {
       : ($src, undef);
     my $dst2 = is_autointerface($dst) ? $dst->{object} : $dst;
 
-    my $from_store = $obj2path{$src2}      || get_path $src2;
-    my $to_store   = $obj2path{$dst2}      || get_path $dst2;
-    my $from       = $from_store->{router} || $from_store;
-    my $to         = $to_store->{router}   || $to_store;
-
-    $from eq $to and return ();
+    my $src_path = $obj2path{$src2} || get_path($src2);
+    my $dst_path = $obj2path{$dst2} || get_path($dst2);
+    return if $src_path eq $dst_path;
 
     # Check path separately for interfaces with pathrestriction,
     # because path from inside the router to destination may be restricted.
-    my @from_list = add_pathresticted_interfaces($from);
-    my @to_list   = add_pathresticted_interfaces($to);
+    my @from_list = add_pathresticted_interfaces($src_path, $src2);
+    my @to_list   = add_pathresticted_interfaces($dst_path, $dst2);
     my @result;
     for my $from_store (@from_list) {
         for my $to_store (@to_list) {
+
+            my $from = $from_store->{router} || $from_store;
+            my $to   = $to_store->{router}   || $to_store;
+
             if (!$from_store->{path}->{$to_store}) {
                 if (!path_mark($from, $to, $from_store, $to_store)) {
                     delete $from_store->{path}->{$to_store};
@@ -11958,16 +12312,36 @@ sub path_auto_interfaces {
             if ($from_store->{loop_exit}
                 and my $exit = $from_store->{loop_exit}->{$to_store})
             {
-                my @enter = @{ $from_store->{loop_enter}->{$exit} };
+                my $enter = $from_store->{loop_enter}->{$exit};
                 if (is_interface($from_store)) {
 
-                    # At least one path goes to other router.
-                    if (grep { $_->{router} ne $from } @enter) {
-                        push @result, $from_store;
+                    # Path is only ok, if it doesn't traverse
+                    # corrensponding router.
+                    my $path_ok;
+
+                    # Path starts inside loop.
+                    # Check if some path doesn't traverse current router.
+                    # Then interface is ok as [auto] interface.
+                    if ($from_store->{loop}) {
+                        if (grep { $_ eq $from_store } @$enter) {
+                            $path_ok = 1;
+                        }   
                     }
+
+                    # Otherwise path starts at border of loop.
+                    # If node inside the loop is a zone, then node
+                    # outside the loop is a router and interface is ok
+                    # as [auto] interface.
+                    elsif(not $from->{loop}) {
+                        $path_ok = 1;
+                    }
+                    push @result, $from_store if $path_ok;
+                }
+                elsif (not is_router($from)) {
+                    push @result, map { auto_intf_in_zone($_, $src2) } @$enter;
                 }
                 else {                    
-                    push @result, @enter;
+                    push @result, @$enter;
                 }
             }
             else {
@@ -11976,6 +12350,9 @@ sub path_auto_interfaces {
                     if ($next and $next->{router} ne $from) {
                         push @result, $from_store;
                     }
+                }
+                elsif (not is_router($from)) {
+                    push @result, auto_intf_in_zone($next, $src2);
                 }
                 else {
                     push @result, $next;
@@ -11986,8 +12363,8 @@ sub path_auto_interfaces {
     if (not @result) {
         err_msg(
             "No valid path\n",
-            " from $from_store->{name}\n",
-            " to $to_store->{name}\n",
+            " from $src_path->{name}\n",
+            " to $dst_path->{name}\n",
             " while resolving $src->{name}",
             " (destination is $dst->{name}).\n",
             " Check path restrictions and crypto interfaces."
@@ -11995,23 +12372,6 @@ sub path_auto_interfaces {
         return;
     }
     @result = grep { $_->{ip} ne 'tunnel' } unique @result;
-
-    # Find auto interface inside zone.
-    # $src is located inside some zone.
-    # $src2 is known to be unmanaged router or network.
-    if (!is_router($from)) {
-        my %result;
-        for my $border (@result) {
-            if (not $border2obj2auto{$border}) {
-                set_auto_intf_from_border($border);
-            }
-            my $auto_intf = $border2obj2auto{$border}->{$src2};
-            for my $interface (@$auto_intf) {
-                $result{$interface} = $interface;
-            }
-        }
-        @result = sort by_name values %result;
-    }
 
     my $bridged_count = 0;
     for my $interface (@result) {
@@ -12122,59 +12482,46 @@ sub gen_tunnel_rules {
 sub link_tunnels {
 
     my %hub_seen;
-
-    # Collect clear-text interfaces of all tunnels.
-    my @real_interfaces;
-
     for my $crypto (sort by_name values %crypto) {
         my $name        = $crypto->{name};
         my $private     = $crypto->{private};
-        my $real_hubs   = delete $crypto2hubs{$name};
+        my $real_hub    = delete $crypto2hub{$name};
         my $real_spokes = delete $crypto2spokes{$name};
-        $real_hubs   = [ grep { !$_->{disabled} } @$real_hubs ];
+        if (not $real_hub or $real_hub->{disabled}) {
+            warn_msg("No hub has been defined for $name");
+            next;
+        }
         $real_spokes = [ grep { !$_->{disabled} } @$real_spokes ];
-        $real_hubs and @$real_hubs
-          or warn_msg("No hubs have been defined for $name");
-
-        $real_spokes and @$real_spokes
+        @$real_spokes
           or warn_msg("No spokes have been defined for $name");
 
         my $isakmp  = $crypto->{type}->{key_exchange};
         my $need_id = $isakmp->{authentication} eq 'rsasig';
-        for my $real_hub (@$real_hubs) {
 
-            # Substitute crypto name by crypto object.
-            for my $crypto_name (@{ $real_hub->{hub} }) {
-                $crypto_name eq $name and $crypto_name = $crypto;
-            }
-
-            # Collect managed routers with crypto hub.
-            # Note: Crypto routers are splitted internally into
-            # two nodes. Typically we get get a node with only
-            # a single crypto interface.
-            my $router = $real_hub->{router};
-            $router->{managed} or next;
-
-            # Router of type {do_auth} can only check certificates,
-            # not pre-shared keys.
-            $router->{model}->{do_auth}
-              and not $need_id
-              and err_msg("$router->{name} needs authentication=rsasig",
-                " in $isakmp->{name}");
-
-            # Take original router with cleartext interface(s).
-            if (my $orig_router = $router->{orig_router}) {
-                $router = $orig_router;
-            }
-            push @managed_crypto_hubs, $router if not $hub_seen{$router}++;
+        # Substitute crypto name by crypto object.
+        for my $crypto_name (@{ $real_hub->{hub} }) {
+            $crypto_name eq $name and $crypto_name = $crypto;
         }
-        push @real_interfaces, @$real_hubs;
 
-        # Generate a single tunnel from each spoke to a single hub.
-        # If there are multiple hubs, they are assumed to form
-        # a high availability cluster. In this case a single tunnel is created
-        # with all hubs as possible endpoints. Traffic between hubs is
-        # prevented by automatically added pathrestrictions.
+        # Note: Crypto router is split internally into two nodes.
+        # Typically we get get a node with only a single crypto interface.
+        # Take original router with cleartext interface(s).
+        my $router = $real_hub->{router};
+        if (my $orig_router = $router->{orig_router}) {
+            $router = $orig_router;
+        }
+        my $model = $router->{model};
+
+        # Router of type {do_auth} can only check certificates,
+        # not pre-shared keys.
+        if ($model->{do_auth} and not $need_id) {
+            err_msg("$router->{name} needs authentication=rsasig",
+                    " in $isakmp->{name}");
+        }
+        
+        push @managed_crypto_hubs, $router if not $hub_seen{$router}++;
+
+        # Generate a single tunnel from each spoke to single hub.
         for my $spoke_net (@$real_spokes) {
             (my $net_name = $spoke_net->{name}) =~ s/network://;
             push @{ $crypto->{tunnels} }, $spoke_net;
@@ -12183,78 +12530,66 @@ sub link_tunnels {
             my $real_spoke = $spoke->{real_interface};
             $real_spoke->{spoke} = $crypto;
 
-            # Each spoke gets a fresh hub interface.
-            my @hubs;
-            for my $real_hub (@$real_hubs) {
-                my $router = $real_hub->{router};
-                if (my $orig_router = $router->{orig_router}) {
-                    $router = $orig_router;
-                }
-                my $hardware = $real_hub->{hardware};
-                (my $intf_name = $real_hub->{name}) =~ s/\..*$/.$net_name/;
-                my $hub = new(
-                    'Interface',
-                    name   => $intf_name,
-                    ip     => 'tunnel',
-                    crypto => $crypto,
+            my $hardware = $real_hub->{hardware};
+            (my $intf_name = $real_hub->{name}) =~ s/\..*$/.$net_name/;
+            my $hub = new(
+                'Interface',
+                name   => $intf_name,
+                ip     => 'tunnel',
+                crypto => $crypto,
 
-                    # Attention: shared hardware between router and
-                    # orig_router.
-                    hardware       => $hardware,
-                    is_hub         => 1,
-                    real_interface => $real_hub,
-                    router         => $router,
-                    network        => $spoke_net
-                );
-                $hub->{bind_nat} = $real_hub->{bind_nat}
-                  if $real_hub->{bind_nat};
-                push @{ $router->{interfaces} },    $hub;
-                push @{ $hardware->{interfaces} },  $hub;
-                push @{ $spoke_net->{interfaces} }, $hub;
-                push @{ $hub->{peers} },            $spoke;
-                push @{ $spoke->{peers} },          $hub;
-                push @hubs, $hub;
+                # Attention: shared hardware between router and orig_router.
+                hardware       => $hardware,
+                is_hub         => 1,
+                real_interface => $real_hub,
+                router         => $router,
+                network        => $spoke_net
+            );
+            $hub->{bind_nat} = $real_hub->{bind_nat} if $real_hub->{bind_nat};
+            $hub->{peer}     = $spoke;
+            $spoke->{peer}   = $hub;
+            push @{ $router->{interfaces} },    $hub;
+            push @{ $hardware->{interfaces} },  $hub;
+            push @{ $spoke_net->{interfaces} }, $hub;
 
-                # We need hub also be available in orig_interfaces.
-                if (my $aref = $router->{orig_interfaces}) {
-                    push @$aref, $hub;
-                }
+            # We need hub also be available in orig_interfaces.
+            if (my $aref = $router->{orig_interfaces}) {
+                push @$aref, $hub;
+            }
 
-                if ($real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/) {
-                    my $model = $router->{model};
-                    if (not($model->{do_auth} or $model->{can_dyn_crypto})) {
-                        err_msg "$router->{name} can't establish crypto",
-                          " tunnel to $real_spoke->{name} with unknown IP";
-                    }
-                }
-
-                if ($private) {
-                    my $s_p = $real_spoke->{private};
-                    my $h_p = $real_hub->{private};
-                    $s_p and $s_p eq $private
-                      or $h_p and $h_p eq $private
-                      or err_msg
-                      "Tunnel $real_spoke->{name} to $real_hub->{name}",
-                      " of $private.private $name",
-                      " must reference at least one object",
-                      " out of $private.private";
-                }
-                else {
-                    $real_spoke->{private}
-                      and err_msg "Tunnel of public $name must not",
-                      " reference $real_spoke->{name} of",
-                      " $real_spoke->{private}.private";
-                    $real_hub->{private}
-                      and err_msg "Tunnel of public $name must not",
-                      " reference $real_hub->{name} of",
-                      " $real_hub->{private}.private";
+            if ($real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/) {
+                if (not($model->{do_auth} or $model->{can_dyn_crypto})) {
+                    err_msg "$router->{name} can't establish crypto",
+                      " tunnel to $real_spoke->{name} with unknown IP";
                 }
             }
 
-            my $router = $spoke->{router};
+            if ($private) {
+                my $s_p = $real_spoke->{private};
+                my $h_p = $real_hub->{private};
+                $s_p and $s_p eq $private
+                  or $h_p and $h_p eq $private
+                  or err_msg
+                  "Tunnel $real_spoke->{name} to $real_hub->{name}",
+                  " of $private.private $name",
+                  " must reference at least one object",
+                  " out of $private.private";
+            }
+            else {
+                $real_spoke->{private}
+                  and err_msg "Tunnel of public $name must not",
+                  " reference $real_spoke->{name} of",
+                  " $real_spoke->{private}.private";
+                $real_hub->{private}
+                  and err_msg "Tunnel of public $name must not",
+                  " reference $real_hub->{name} of",
+                  " $real_hub->{private}.private";
+            }
+
+            my $spoke_router = $spoke->{router};
             my @other;
             my $has_id_hosts;
-            for my $interface (@{ $router->{interfaces} }) {
+            for my $interface (@{ $spoke_router->{interfaces} }) {
                 my $network = $interface->{network};
                 if ($network->{has_id_hosts}) {
                     $has_id_hosts = $network;
@@ -12268,29 +12603,20 @@ sub link_tunnels {
                   " together with networks having no ID host: ",
                   join(',', map { $_->{name} } @other);
             }
-            push @real_interfaces, $real_spoke;
 
-            if ($router->{managed} && $crypto->{detailed_crypto_acl}) {
+            if ($spoke_router->{managed} && $crypto->{detailed_crypto_acl}) {
                 err_msg(
                     "Attribute 'detailed_crypto_acl' is not",
-                    " allowed for managed spoke $router->{name}"
+                    " allowed for managed spoke $spoke_router->{name}"
                 );
-            }
-
-            # Automatically add pathrestriction between interfaces
-            # of redundant hubs.
-            if (@hubs > 1) {
-                my $name2 = "auto-restriction:$crypto->{name}";
-                add_pathrestriction($name2, \@hubs);
             }
         }
     }
 
     # Check for undefined crypto references.
-    for my $crypto (keys %crypto2hubs) {
-        for my $interface (@{ $crypto2hubs{$crypto} }) {
-            err_msg("$interface->{name} references unknown $crypto");
-        }
+    for my $crypto (keys %crypto2hub) {
+        my $interface = $crypto2hub{$crypto};
+        err_msg("$interface->{name} references unknown $crypto");
     }
     for my $crypto (keys %crypto2spokes) {
         for my $network (@{ $crypto2spokes{$crypto} }) {
@@ -12376,9 +12702,10 @@ sub verify_asa_vpn_attributes {
     return;
 }
 
-# Host with ID that doesn't contain a '@' must use attribute 'verify-subject-name'.
+# Host with ID that doesn't contain a '@' must use attribute
+# 'verify-subject-name'.
 sub verify_subject_name {
-    my ($host, $peers) = @_;
+    my ($host, $peer) = @_;
     my $id = $host->{id};
     return if $id =~ /@/;
     my $has_attr = sub {
@@ -12388,14 +12715,9 @@ sub verify_subject_name {
     };
     return if $has_attr->($host);
     return if $has_attr->($host->{network});
-    my $missing;
-    for my $peer (@$peers) {
-        next if $has_attr->($peer->{router});
-        $missing = 1;
-    }
-    if ($missing) {
+    if (not $has_attr->($peer->{router})) {
         err_msg("Missing radius_attribute 'check-subject-name'\n",
-            " for $host->{name}");
+                " for $host->{name}");
     }
     return;
 }
@@ -12430,13 +12752,14 @@ sub expand_crypto {
             for my $tunnel_intf (@{ $tunnel->{interfaces} }) {
                 next if $tunnel_intf->{is_hub};
                 my $router  = $tunnel_intf->{router};
-                my $peers   = $tunnel_intf->{peers};
+                my $peer    = $tunnel_intf->{peer};
                 my $managed = $router->{managed};
                 my @encrypted;
                 my $has_id_hosts;
                 my $has_other_network;
                 my @verify_radius_attributes;
 
+                # Analyze cleartext networks behind spoke router.
                 for my $interface (@{ $router->{interfaces} }) {
                     next if $interface eq $tunnel_intf;
                     if ($interface->{ip} eq 'tunnel') {
@@ -12478,25 +12801,23 @@ sub expand_crypto {
                             # exacly one subnet.
                             my $subnet = $host->{subnets}->[0];
                             push @verify_radius_attributes, $host;
-                            for my $peer (@$peers) {
-                                my $no_nat_set = $peer->{no_nat_set};
-                                if (my $other = $peer->{id_rules}->{$id}) {
-                                    my $src = $other->{src};
-                                    err_msg(
-                                        "Duplicate ID-host $id from",
-                                        " $src->{network}->{name} and",
-                                        " $subnet->{network}->{name}",
-                                        " at $peer->{router}->{name}"
-                                    );
-                                    next;
-                                }
-                                $peer->{id_rules}->{$id} = {
-                                    name       => "$peer->{name}.$id",
-                                    ip         => 'tunnel',
-                                    src        => $subnet,
-                                    no_nat_set => $no_nat_set,
-                                };
+                            my $no_nat_set = $peer->{no_nat_set};
+                            if (my $other = $peer->{id_rules}->{$id}) {
+                                my $src = $other->{src};
+                                err_msg(
+                                    "Duplicate ID-host $id from",
+                                    " $src->{network}->{name} and",
+                                    " $subnet->{network}->{name}",
+                                    " at $peer->{router}->{name}"
+                                );
+                                next;
                             }
+                            $peer->{id_rules}->{$id} = {
+                                name       => "$peer->{name}.$id",
+                                ip         => 'tunnel',
+                                src        => $subnet,
+                                no_nat_set => $no_nat_set,
+                            };
                         }
                         push @encrypted, $network;
                     }
@@ -12521,60 +12842,53 @@ sub expand_crypto {
                   );
 
                 my $real_spoke = $tunnel_intf->{real_interface};
-                for my $peer (@$peers) {
-                    $peer->{peer_networks} = \@encrypted;
-                    my $router  = $peer->{router};
-                    my $do_auth = $router->{model}->{do_auth};
-                    my $unknown_ip =
-                      $real_spoke->{ip} =~ /^(?:negotiated|short|unnumbered)$/;
-                    if ($tunnel_intf->{id}) {
-                        $need_id
-                          or err_msg(
-                            "Invalid attribute 'id' at",
-                            " $tunnel_intf->{name}.\n",
-                            " Set authentication=rsasig at",
-                            " $isakmp->{name}"
-                          );
-                    }
-                    elsif ($encrypted[0]->{has_id_hosts}) {
-                        $do_auth
-                          or err_msg(
-                            "$router->{name} can't check IDs",
-                            " of $encrypted[0]->{name}"
-                          );
-                    }
-                    elsif ($do_auth) {
-                        err_msg(
-                            "Networks need to have ID hosts because",
-                            " $router->{name} has attribute 'do_auth':",
-                            "\n - ",
-                            join("\n - ", map { $_->{name} } @encrypted)
-                        );
-                    }
-                    elsif ($need_id) {
-                        err_msg(
-                            "$tunnel_intf->{name}",
-                            " needs attribute 'id',",
-                            " because $isakmp->{name}",
-                            " has authentication=rsasig"
-                        );
-                    }
+                $peer->{peer_networks} = \@encrypted;
+                my $hub_router = $peer->{router};
+                my $do_auth = $hub_router->{model}->{do_auth};
+                if ($tunnel_intf->{id}) {
+                    $need_id
+                      or err_msg(
+                        "Invalid attribute 'id' at",
+                        " $tunnel_intf->{name}.\n",
+                        " Set authentication=rsasig at",
+                        " $isakmp->{name}"
+                      );
+                }
+                elsif ($encrypted[0]->{has_id_hosts}) {
+                    $do_auth
+                      or err_msg(
+                        "$hub_router->{name} can't check IDs",
+                        " of $encrypted[0]->{name}"
+                      );
+                }
+                elsif ($do_auth) {
+                    err_msg(
+                        "Networks need to have ID hosts because",
+                        " $hub_router->{name} has attribute 'do_auth':",
+                        "\n - ",
+                        join("\n - ", map { $_->{name} } @encrypted)
+                    );
+                }
+                elsif ($need_id) {
+                    err_msg(
+                        "$tunnel_intf->{name}",
+                        " needs attribute 'id',",
+                        " because $isakmp->{name}",
+                        " has authentication=rsasig"
+                    );
                 }
 
-                if (
-                    grep({ $_->{router}->{model}->{crypto} eq 'ASA_VPN' }
-                        @$peers))
-                {
+                if ($peer->{router}->{model}->{crypto} eq 'ASA_VPN') {
                     for my $obj (@verify_radius_attributes) {
                         verify_asa_vpn_attributes($obj);
                         if (is_host($obj)) {
-                            verify_subject_name($obj, $peers);
+                            verify_subject_name($obj, $peer);
                         }
                     }
                 }
 
                 if ($managed && $router->{model}->{crypto} eq 'ASA') {
-                    verify_asa_trustpoint($router, $crypto);
+                    verify_asa_trustpoint($hub_router, $crypto);
                 }
 
                 # Add rules to permit crypto traffic between
@@ -12584,22 +12898,21 @@ sub expand_crypto {
                 if (    $real_spoke
                     and $real_spoke->{ip} !~ /^(?:short|unnumbered)$/)
                 {
-                    for my $hub (@{ $tunnel_intf->{peers} }) {
-                        my $real_hub = $hub->{real_interface};
-                        for my $pair (
-                            [ $real_spoke, $real_hub ],
-                            [ $real_hub,   $real_spoke ]
-                          )
-                        {
-                            my ($intf1, $intf2) = @$pair;
+                    my $hub = $tunnel_intf->{peer};
+                    my $real_hub = $hub->{real_interface};
+                    for my $pair (
+                        [ $real_spoke, $real_hub ],
+                        [ $real_hub,   $real_spoke ]
+                      )
+                    {
+                        my ($intf1, $intf2) = @$pair;
 
-                            # Don't generate incoming ACL from unknown
-                            # address.
-                            next if $intf1->{ip} eq 'negotiated';
-                            my $rules_ref =
-                              gen_tunnel_rules($intf1, $intf2, $crypto->{type});
-                            push @{ $path_rules{permit} }, @$rules_ref;
-                        }
+                        # Don't generate incoming ACL from unknown
+                        # address.
+                        next if $intf1->{ip} eq 'negotiated';
+                        my $rules_ref =
+                          gen_tunnel_rules($intf1, $intf2, $crypto->{type});
+                        push @{ $path_rules{permit} }, @$rules_ref;
                     }
                 }
             }
@@ -12611,9 +12924,8 @@ sub expand_crypto {
     # ASA_VPN can't distinguish different hosts with same ID
     # coming into different hardware interfaces.
     for my $router (@managed_crypto_hubs) {
-        my $model = $router->{model};
-        my $crypto = $model->{crypto} or next;
-        $crypto eq 'ASA_VPN' or next;
+        my $crypto_type = $router->{model}->{crypto};
+        $crypto_type eq 'ASA_VPN' or next;
         my @id_rules_interfaces =
           grep { $_->{id_rules} } @{ $router->{interfaces} };
         @id_rules_interfaces >= 2 or next;
@@ -12656,9 +12968,6 @@ sub expand_crypto {
             }
         }
     }
-
-    # Hash only needed during expand_group and expand_rules.
-    %auto_interfaces = ();
     return;
 }
 
@@ -12708,47 +13017,6 @@ sub setup_ref2obj {
 #                src->any:Y, bad
 #                Additional rule required: "permit src->any:Y".
 ##############################################################################
-
-my %supernet_rule_tree;
-
-# Collect rules with destination aggregate/supernet
-# - that are filtered at the same router which is attached
-#   to the destination zone
-# - the destination router is entered by the same interface
-# - src, src_range, prt, stateless are identical
-# - dst is supernet or aggregate with identical ip/mask
-sub collect_supernet_dst_rules {
-
-    # Function is called from path_walk.
-    my ($rule, $in_intf, $out_intf) = @_;
-
-    # Source is interface of current router.
-    return if !$in_intf;
-
-    # Ignore semi_managed router.
-    my $router = $in_intf->{router};
-    return if !$router->{managed};
-
-    my $dst  = $rule->{dst};
-    my $zone = $dst->{zone};
-    return if $out_intf->{zone} ne $zone;
-
-    # Get NAT address of supernet.
-    if (!$dst->{is_aggregate}) {
-        my $no_nat_set = $in_intf->{no_nat_set};
-        my $dst = get_nat_network($dst, $no_nat_set);
-        return if $dst->{hidden};
-    }
-
-    my $ipmask = join('/', @{$dst}{qw(ip mask)});
-    my ($stateless, $src, $src_range, $prt) =
-      @{$rule}{qw(stateless src src_range prt)};
-    $stateless ||= '';
-    $src_range ||= $prt_ip;
-    $supernet_rule_tree{$stateless}->{$src}->{$src_range}->{$prt}->{$in_intf}
-      ->{$ipmask}->{$zone} = $rule;
-    return;
-}
 
 sub find_supernet {
     my ($net1, $net2) = @_;
@@ -12873,29 +13141,11 @@ my %missing_supernet;
 sub check_supernet_in_zone {
     my ($rule, $where, $interface, $zone, $reversed) = @_;
 
-    my ($stateless, $deny, $src, $dst, $src_range, $prt) =
-      @{$rule}{qw(stateless deny src dst src_range prt)};
-    $stateless ||= '';
-    $src_range ||= $prt_ip;
-    my $other = $where eq 'src' ? $src : $dst;
+    my $service = $rule->{rule}->{service};
+    return if $missing_supernet{$interface}->{$service};
 
-    # Fast check for access to aggregate/supernet with identical
-    # ip/mask to $zone.
-    if ($where eq 'dst') {
-
-        # Get NAT address of supernet.
-        if (!$dst->{is_aggregate}) {
-            my $no_nat_set = $interface->{no_nat_set};
-            $dst = get_nat_network($dst, $no_nat_set);
-            return if $dst->{hidden};
-        }
-        my $ipmask = join('/', @{$dst}{qw(ip mask)});
-        return
-          if $supernet_rule_tree{$stateless}->{$src}->{$src_range}->{$prt}
-          ->{$interface}->{$ipmask}->{$zone};
-    }
-
-    my $networks = find_matching_supernet($interface, $zone, $other);
+    my $supernet = $rule->{$where}->[0];
+    my $networks = find_matching_supernet($interface, $zone, $supernet);
     return if not $networks;
     my $extra;
     if (!ref($networks)) {
@@ -12904,21 +13154,14 @@ sub check_supernet_in_zone {
     else {
 
         # $networks holds matching network and all its supernets.
-        # Find first matching rule.
-        $deny ||= '';
+        # Find smallest matching rule.
+        my $net_hash = $rule->{zone2net_hash}->{$zone};
         for my $network (@$networks) {
-            ($where eq 'src' ? $src : $dst) = $network;
-            if ($rule_tree{$stateless}->{$deny}->{$src_range}->{$src}->{$dst}
-                ->{$prt})
-            {
-                return;
-            }
+            return if $net_hash->{$network}
         }
         $extra = "Tried " . join(', ', map { $_->{name} } @$networks);
     }
 
-    my $service = $rule->{rule}->{service};
-    return if $missing_supernet{$interface}->{$service};
     $missing_supernet{$interface}->{$service} = 1;
 
     $rule = print_rule $rule;
@@ -12932,6 +13175,23 @@ sub check_supernet_in_zone {
         " $extra as $where."
     );
     return;
+}
+
+# Check if path between $supernet and $obj_list ist filtered by
+# device with $mark from $router->{local_mark}.
+sub is_filtered_at {
+    my ($mark, $supernet, $obj_list) = @_;
+    my $supernet_filter_at = $supernet->{filter_at} or return;
+    $supernet_filter_at->{$mark} or return;
+    my $found_filtered;
+    for my $obj (@$obj_list) {
+        my $obj_net       = $obj->{network} || $obj;
+        my $obj_filter_at = $obj_net->{filter_at} or next;
+        $obj_filter_at->{$mark} or next;
+        $found_filtered = 1;
+        last;
+    }
+    return $found_filtered;
 }
 
 # If such rule is defined
@@ -12953,8 +13213,6 @@ sub check_supernet_in_zone {
 #  permit dst supernet1
 # which would accidentally permit traffic to supernet:[zone4] as well.
 sub check_supernet_src_rule {
-
-    # Function is called from path_walk.
     my ($rule, $in_intf, $out_intf) = @_;
 
     # Destination is interface of current router and therefore there is
@@ -12962,33 +13220,29 @@ sub check_supernet_src_rule {
     return unless $out_intf;
 
     # Ignore semi_managed router.
-    my $router = $in_intf->{router};
+    my $router  = $in_intf->{router};
     my $managed = $router->{managed} or return;
 
-    my $out_zone = $out_intf->{zone};
-    my $src      = $rule->{src};
-    my $dst      = $rule->{dst};
-    my $dst_zone = get_zone($dst);
-    if ($dst->{has_other_subnet} && $out_zone eq $dst_zone) {
-
-        # Both src and dst are supernets and are directly connected
-        # at current router. Hence there can't be any missing rules.
-        # Note: Additional checks will be done for this situation at
-        # check_supernet_dst_rule
-        return;
-    }
+    my $src     = $rule->{src}->[0];
 
     # Non matching rule will be ignored at 'managed=local' router and
     # hence must no be checked.
     if (my $mark = $router->{local_mark}) {
-        my $src_net = $src;    # $src is known to be aggregate or supernet.
-        my $dst_net       = $dst->{network} || $dst;
-        my $src_filter_at = $src_net->{filter_at} or return;
-        my $dst_filter_at = $dst_net->{filter_at} or return;
-        $src_filter_at->{$mark} and $dst_filter_at->{$mark} or return;
+        is_filtered_at($mark, $src, $rule->{dst}) or return;
     }
 
-    my $in_zone = $in_intf->{zone};
+    my $dst_zone = $rule->{dst_path};
+    if (is_interface($dst_zone)) {
+        if (not $dst_zone->{router}->{managed}) {
+            $dst_zone = $dst_zone->{zone};
+        }
+    }
+    elsif(is_router($dst_zone)) {
+        if (not $dst_zone->{managed}) {
+            $dst_zone = $dst_zone->{interfaces}->[0]->{zone};
+        }        
+    }
+    my $in_zone  = $in_intf->{zone};
 
     # Check case II, outgoing ACL, (A)
     my $no_acl_intf;
@@ -12996,11 +13250,11 @@ sub check_supernet_src_rule {
         my $no_acl_zone = $no_acl_intf->{zone};
 
         # a) dst behind Y
-        if ($no_acl_zone eq $dst_zone) {
+        if (zone_eq($no_acl_zone, $dst_zone)) {
         }
 
         # b), 1. zone X == zone Y
-        elsif ($in_zone eq $no_acl_zone) {
+        elsif (zone_eq($in_zone, $no_acl_zone)) {
         }
 
         elsif ($no_acl_intf->{main_interface}) {
@@ -13011,47 +13265,57 @@ sub check_supernet_src_rule {
             check_supernet_in_zone($rule, 'src', $no_acl_intf, $no_acl_zone);
         }
     }
+
     my $src_zone = $src->{zone};
+    my $out_zone = $out_intf->{zone};
 
     # Check if reverse rule would be created and would need additional rules.
-    if ($router->{model}->{stateless} && !$rule->{oneway})
+    if ($router->{model}->{stateless} 
+        and not $rule->{oneway}
+        and grep { $_->{proto} =~ /^(?:tcp|udp|ip)$/ } @{ $rule->{prt} })
 
     {
-        my $proto = $rule->{prt}->{proto};
 
         # Reverse rule wouldn't allow too much traffic, if a non
         # secondary stateful device filters between current device and dst.
         # This is true if $out_zone and $dst_zone have different
         # {stateful_mark}.
-        # If dst is managed interface, {stateful_mark} is undef
-        # - if device is secondary managed, take mark of attached network
+        # If dst is interface or router, {stateful_mark} is undef
+        # - if device is semi_managed or secondary managed, 
+        #   take mark of attached network
         # - else take value -1, different from all marks.
         # $src is supernet (not an interface) by definition
         # and hence $m1 is well defined.
         my $m1 = $out_zone->{stateful_mark};
         my $m2 = $dst_zone->{stateful_mark};
         if (!$m2) {
-            my $managed = $dst->{router}->{managed};
-            $m2 =
-                $managed =~ /^(?:secondary|local.*)$/
-              ? $dst->{network}->{zone}->{stateful_mark}
-              : -1;
+            if (is_router($dst_zone)) {
+                my $managed = $dst_zone->{managed};
+                $m2 = ($managed =~ /^(?:secondary|local.*)$/)
+                    ? $dst_zone->{interfaces}->[0]->{network}->{zone}
+                               ->{stateful_mark}
+                    : -1;
+            }
+            else {
+                my $managed = $dst_zone->{router}->{managed};
+                $m2 = ($managed =~ /^(?:secondary|local.*)$/)
+                    ? $dst_zone->{network}->{zone}->{stateful_mark}
+                    : -1;
+            }
         }
-        if (($proto eq 'tcp' || $proto eq 'udp' || $proto eq 'ip')
-            && $m1 == $m2)
-        {
+        if ($m1 == $m2) {
 
             # Check case II, outgoing ACL, (B), interface Y without ACL.
             if (my $no_acl_intf = $router->{no_in_acl}) {
                 my $no_acl_zone = $no_acl_intf->{zone};
 
                 # a) dst behind Y
-                if ($no_acl_zone eq $dst_zone) {
+                if (zone_eq($no_acl_zone, $dst_zone)) {
                 }
 
                 # b) dst not behind Y
                 # zone X == zone Y
-                elsif ($no_acl_zone eq $src_zone) {
+                elsif (zone_eq($no_acl_zone, $src_zone)) {
                 }
 
                 elsif ($no_acl_intf->{main_interface}) {
@@ -13060,7 +13324,7 @@ sub check_supernet_src_rule {
                 # zone X != zone Y
                 else {
                     check_supernet_in_zone($rule, 'src', $no_acl_intf,
-                        $no_acl_zone, 1);
+                                           $no_acl_zone, 1);
                 }
             }
 
@@ -13075,8 +13339,8 @@ sub check_supernet_src_rule {
                     # Nothing to be checked for an interface directly
                     # connected to src or dst.
                     my $zone = $intf->{zone};
-                    next if $zone eq $src_zone;
-                    next if $zone eq $dst_zone;
+                    next if zone_eq($zone, $src_zone);
+                    next if zone_eq($zone, $dst_zone);
                     next if $intf->{main_interface};
                     check_supernet_in_zone($rule, 'src', $intf, $zone, 1);
                 }
@@ -13108,8 +13372,6 @@ sub check_supernet_src_rule {
 #  permit src supernet3
 #  permit src supernet4
 sub check_supernet_dst_rule {
-
-    # Function is called from path_walk.
     my ($rule, $in_intf, $out_intf) = @_;
 
     # Source is interface of current router.
@@ -13119,20 +13381,25 @@ sub check_supernet_dst_rule {
     my $router = $in_intf->{router};
     return if not $router->{managed};
 
-    my $src = $rule->{src};
-    my $dst = $rule->{dst};
+    my $dst = $rule->{dst}->[0];
 
     # Non matching rule will be ignored at 'managed=local' router and
     # hence must not be checked.
     if (my $mark = $router->{local_mark}) {
-        my $src_net = $src->{network} || $src;
-        my $dst_net = $dst;    # $dst is known to be aggregate or supernet.
-        my $src_filter_at = $src_net->{filter_at} or return;
-        my $dst_filter_at = $dst_net->{filter_at} or return;
-        $src_filter_at->{$mark} and $dst_filter_at->{$mark} or return;
+        is_filtered_at($mark, $dst, $rule->{src}) or return;
     }
 
-    my $src_zone = get_zone($src);
+    my $src_zone = $rule->{src_path};
+    if (is_interface($src_zone)) {
+        if (not $src_zone->{router}->{managed}) {
+            $src_zone = $src_zone->{zone};
+        }
+    }
+    elsif(is_router($src_zone)) {
+        if (not $src_zone->{managed}) {
+            $src_zone = $src_zone->{interfaces}->[0]->{zone};
+        }        
+    }
     my $dst_zone = $dst->{zone};
 
     # Check case II, outgoing ACL, (B), interface Y without ACL.
@@ -13140,12 +13407,12 @@ sub check_supernet_dst_rule {
         my $no_acl_zone = $no_acl_intf->{zone};
 
         # a) src behind Y
-        if ($no_acl_zone eq $src_zone) {
+        if (zone_eq($no_acl_zone, $src_zone)) {
         }
 
         # b) src not behind Y
         # zone X == zone Y
-        elsif ($no_acl_zone eq $dst_zone) {
+        elsif (zone_eq($no_acl_zone, $dst_zone)) {
         }
 
         elsif ($no_acl_intf->{main_interface}) {
@@ -13158,9 +13425,11 @@ sub check_supernet_dst_rule {
         return;
     }
 
-    # Check security zones at all interfaces except those connected to dst or src.
+    # Check security zones at all interfaces except those connected 
+    # to dst or src.
     # For devices which have rules for each pair of incoming and outgoing
     # interfaces we only need to check the direct path to dst.
+    my $in_zone = $in_intf->{zone};
     for my $intf (
         $router->{model}->{has_io_acl}
         ? ($out_intf)
@@ -13174,84 +13443,100 @@ sub check_supernet_dst_rule {
 
         # Don't check interface where src or dst is attached.
         my $zone = $intf->{zone};
-        next if $zone eq $src_zone;
-        next if $zone eq $dst_zone;
+        next if zone_eq($zone, $src_zone);
+        next if zone_eq($zone, $dst_zone);
+        next if zone_eq($zone, $in_zone);
         next if $intf->{main_interface};
         check_supernet_in_zone($rule, 'dst', $in_intf, $zone);
     }
     return;
 }
 
-# Optimization:
-# Call check_supernet_dst_rule not for every rule with aggregate as destination,
-# but only once for a set of rules from collect_supernet_dst_rules.
-sub check_supernet_dst_collections {
-    return if !keys %supernet_rule_tree;
-    my @check_rules;
+# Check missing supernet of each service_rule.
+sub check_missing_supernet_rules {
+    my ($what, $worker) = @_;
+    my $other      = $what eq 'src' ? 'dst' : 'src';
+    my $other_path = "${other}_path";
+    my $what_path  = "${what}_path";
 
-    for my $src2href (values %supernet_rule_tree) {
-        for my $src_range2href (values %$src2href) {
-            for my $prt2href (values %$src_range2href) {
-                for my $intf2href (values %$prt2href) {
-                    for my $ipmask2href (values %$intf2href) {
+    my $rules = $service_rules{permit};
+    for my $rule (@$rules) {
+        next if $rule->{no_check_supernet_rules};
+        my $list = $rule->{$what};
+        my @supernets = grep { $_->{has_other_subnet} } @$list or next;
 
-                        # Check larger aggregates first. To get
-                        # deterministic error messages.
-                        for my $ipmask (
-                            sort { (split '/', $a)[1] <=> (split '/', $b)[1] }
-                            keys %$ipmask2href
-                          )
-                        {
-                            my $zone2rule = $ipmask2href->{$ipmask};
-                            push @check_rules, (values %$zone2rule)[0];
-                        }
-                    }
-                }
+        # Build mapping from zone to hash of all src/dst networks of
+        # current rule.
+        my %zone2net_hash;
+        for my $obj (@$list) {
+            is_network($obj) or next;
+            my $zone = $obj->{zone};
+            $zone2net_hash{$zone}->{$obj} = $obj;
+        }
+        $rule->{zone2net_hash} = \%zone2net_hash;
+        my $path_rules = split_rules_by_path([$rule], $other);
+        for my $supernet (@supernets) {
+            my $zone = $supernet->{zone};
+            for my $path_rule (@$path_rules) {
+                my $other_zone = get_zone($path_rule->{$other_path});
+                next if zone_eq($zone, $other_zone);
+                my $check_rule = { %$path_rule,
+                                   $what      => [$supernet],
+                                   $what_path => $zone, };
+                path_walk($check_rule, $worker);
             }
         }
     }
-    for my $rule (@check_rules) {
-        single_path_walk($rule, \&check_supernet_dst_rule);
-    }
-
-    # Not used any longer.
-    %supernet_rule_tree = ();
-    return;
 }
 
-# Find smaller protocol of two protocols.
-# Cache results.
-my %smaller_prt;
-
-sub find_smaller_prt {
+sub match_prt {
     my ($prt1, $prt2) = @_;
-
-    if ($prt1 eq $prt2) {
-        return $prt1;
+    my $proto1 = $prt1->{proto};
+    my $proto2 = $prt2->{proto};
+    return 1 if $proto1 eq 'ip';
+    return 1 if $proto2 eq 'ip';
+    $proto1 eq $proto2 or return;
+    if ($proto1 eq 'tcp' or $proto1 eq 'udp') {
+        my ($l1, $h1) = @{ $prt1->{range} };
+        my ($l2, $h2) = @{ $prt2->{range} };
+        return $l1 <= $l2 && $h2 <= $h1 || $l2 <= $l1 && $h1 <= $h2;
     }
-    if (defined(my $prt = $smaller_prt{$prt1}->{$prt2})) {
-        return $prt;
+    elsif ($proto1 eq 'icmp') {
+        my $type1 = $prt1->{type};
+        return 1 if not defined $type1;
+        my $type2 = $prt2->{type};
+        return 1 if not defined $type2;
+        $type1 == $type2 or return;
+        my $code1 = $prt1->{code};
+        return 1 if not defined $code1;
+        my $code2 = $prt2->{code};
+        return 1 if not defined $code2;
+        return $code1 == $code2;
     }
+    else {
+        return 1;
+    }
+}
 
-    my $prt = $prt1;
-    while ($prt = $prt->{up}) {
-        if ($prt eq $prt2) {
-            $smaller_prt{$prt1}->{$prt2} = $prt1;
-            $smaller_prt{$prt2}->{$prt1} = $prt1;
-            return $prt1;
+sub match_prt_list {
+    my ($prt_list1, $prt_list2) = @_;
+    for my $prt1 (@$prt_list1) {
+        for my $prt2 (@$prt_list2) {
+            match_prt($prt1, $prt2) or return;
         }
     }
-    $prt = $prt2;
-    while ($prt = $prt->{up}) {
-        if ($prt eq $prt1) {
-            $smaller_prt{$prt1}->{$prt2} = $prt2;
-            $smaller_prt{$prt2}->{$prt1} = $prt2;
-            return $prt2;
-        }
+    return 1;
+}
+
+sub elements_in_one_zone {
+    my ($list1, $list2) = @_;
+    my $obj0 = $list1->[0];
+    my $zone0 = $obj2zone{$obj0} || get_zone($obj0);
+    for my $obj (@$list1, @$list2) {
+        my $zone = $obj2zone{$obj} || get_zone($obj);
+        zone_eq($zone0, $zone) or return;
     }
-    $smaller_prt{$prt1}->{$prt2} = 0;
-    $smaller_prt{$prt2}->{$prt1} = 0;
-    return;
+    return 1;
 }
 
 # Example:
@@ -13277,186 +13562,71 @@ sub find_smaller_prt {
 # Checking of other aggregates is too complicate (NAT, intersection).
 
 # Collect info about unwanted implied rules.
-sub check_for_transient_supernet_rule {
-    my ($rules) = @_;
-    my %missing_rule_tree;
-    my $missing_count = 0;
+sub check_transient_supernet_rules {
+    my $rules = $service_rules{permit};
 
+    # Build mapping from supernet to service rules having supernet as src.
+    my %supernet2rules;
     for my $rule (@$rules) {
-        next if $rule->{deleted};
-        next if $rule->{deny};
         next if $rule->{no_check_supernet_rules};
-        my $dst = $rule->{dst};
-        next if not $dst->{has_other_subnet};
+        my $src_list = $rule->{src};
+        for my $obj (@$src_list) {
+            $obj->{has_other_subnet} or next;
 
-        # Check only 0/0 aggregates.
-        next if $dst->{mask} != 0;
+            # Check only 0/0 aggregates.
+            $obj->{mask} == 0 or next;
 
-        # A leaf security zone has only one interface.
-        # It can't lead to unwanted rule chains.
-        next if @{ $dst->{zone}->{interfaces} } <= 1;
+            push @{ $supernet2rules{$obj} }, $rule;
+        }
+    }
+    keys %supernet2rules or return;
 
-        my ($stateless1, $src1, $dst1, $src_range1, $prt1) =
-          @$rule{qw(stateless src dst src_range prt)};
-        $stateless1 ||= '';
-        my $deny = '';
-        $src_range1 ||= $prt_ip;
+    my $print = $config->{check_transient_supernet_rules} eq 'warn'
+              ? \&warn_msg
+              : \&err_msg;
 
-        # Find all rules with supernet as source, which intersect with $dst1.
-        my $src2 = $dst1;
-        for my $stateless2 (1, '') {
-            my $hash = $rule_tree{$stateless2} or next;
-            $hash = $hash->{$deny} or next;
-            while (my ($src_range2_str, $hash) = each %$hash) {
-                my $src_range2 = $ref2prt{$src_range2_str};
-                my $smaller_src_range =
-                  find_smaller_prt($src_range1, $src_range2)
-                  or next;
+    # Search rules having supernet as dst.
+    for my $rule1 (@$rules) {
+        next if $rule1->{no_check_supernet_rules};
+        my $dst_list = $rule1->{dst};
+        for my $obj (@$dst_list) {
+            $obj->{has_other_subnet} or next;
+            $obj->{mask} == 0 or next;
 
-                $hash = $hash->{$src2} or next;
-                while (my ($dst2_str, $hash) = each %$hash) {
+            # A leaf security zone has only one interface.
+            # It can't lead to unwanted rule chains.
+            next if @{ $obj->{zone}->{interfaces} } <= 1;
 
-                    # Skip reverse rules.
-                    next if $src1 eq $dst2_str;
+            my $other_rules = $supernet2rules{$obj} or next;
+            for my $rule2 (@$other_rules) {
+                match_prt_list($rule1->{prt}, $rule2->{prt}) or next;
+                match_prt($rule1->{src_range} || $prt_ip,
+                          $rule2->{src_range} || $prt_ip) or next;
 
-                    my $dst2 = $ref2obj{$dst2_str};
-
-                    # Skip rules with src and dst inside a single zone.
-                    next
-                      if (($obj2zone{$src1} || get_zone $src1) eq
-                        ($obj2zone{$dst2} || get_zone $dst2));
-
-                  RULE2:
-                    while (my ($prt2_str, $rule2) = each %$hash) {
-                        next if $rule2->{no_check_supernet_rules};
-
-                        my $prt2 = $rule2->{prt};
-                        my $src_range2 = $rule2->{src_range} || $prt_ip;
-
-                        # Find smaller protocol of two rules found.
-                        my $smaller_prt = find_smaller_prt($prt1, $prt2);
-
-                        # If protocols are disjoint, we do not have
-                        # transient-supernet-problem for $rule and $rule2.
-                        next if not $smaller_prt;
-
-                        # Stateless rule < stateful rule, hence use ||.
-                        my $stateless = $stateless1 || $stateless2;
-
-                        # Check for a rule with $src1 and $dst2 and
-                        # with $smaller_prt.
-                        while (1) {
-                            my $deny = '';
-                            if (my $hash = $rule_tree{$stateless}) {
-                                while (1) {
-                                    my $src_range = $smaller_src_range;
-                                    if (my $hash = $hash->{$deny}) {
-                                        while (1) {
-                                            my $src = $src1;
-                                            if (my $hash = $hash->{$src_range})
-                                            {
-                                                while (1) {
-                                                    my $dst = $dst2;
-                                                    if (my $hash =
-                                                        $hash->{$src})
-                                                    {
-                                                        while (1) {
-                                                            my $prt =
-                                                              $smaller_prt;
-                                                            if (my $hash =
-                                                                $hash->{$dst})
-                                                            {
-                                                                while (1) {
-                                                                    if (
-                                                                        my $other_rule
-                                                                        = $hash
-                                                                        ->{$prt}
-                                                                      )
-                                                                    {
-
-#                       debug(print_rule $r_rule);
-                                                                        next
-                                                                          RULE2;
-                                                                    }
-                                                                    $prt =
-                                                                      $prt->{up}
-                                                                      or last;
-                                                                }
-                                                            }
-                                                            $dst = $dst->{up}
-                                                              or last;
-                                                        }
-                                                    }
-                                                    $src = $src->{up} or last;
-                                                }
-                                            }
-                                            $src_range = $src_range->{up}
-                                              or last;
-                                        }
-                                    }
-                                    last if $deny;
-                                    $deny = 1;
-                                }
-                            }
-                            last if !$stateless;
-                            $stateless = '';
-                        }
-
-#           debug("Src: ", print_rule $rule);
-#           debug("Dst: ", print_rule $rule2);
-                        my $src_service = $rule->{rule}->{service}->{name};
-                        my $dst_service = $rule2->{rule}->{service}->{name};
-                        my $prt_name    = $smaller_prt->{name};
-                        $prt_name =~ s/^.part_/[part]/;
-                        if ($smaller_src_range ne $prt_ip) {
-                            my ($p1, $p2) = @{ $smaller_src_range->{range} };
-                            $prt_name = "[src:$p1-$p2]$prt_name";
-                        }
-                        my $new =
-                          not $missing_rule_tree{$src_service}->{$dst_service}
-
-                          # The matching supernet object.
-                          ->{ $dst1->{name} }
-
-                          # The missing rule
-                          ->{ $src1->{name} }->{ $dst2->{name} }->{$prt_name}++;
-                        $missing_count++ if $new;
-                    }
+                # Found transient rules $rule1 and $rule2.
+                # Check, that 
+                # - either src elements of $rule1 are also src of $rule2
+                # - or dst elements of $rule2 are also dst of $rule1,
+                # - but no problem if src1 and dst2 are located in same zone,
+                #   i.e. transient traffic back to src.
+                my $src_list1 = $rule1->{src};
+                my $dst_list1 = $rule1->{dst};
+                my $src_list2 = $rule2->{src};
+                my $dst_list2 = $rule2->{dst};
+                if (not (subset_of($src_list1, $src_list2) or
+                         subset_of($dst_list2, $dst_list1))
+                    and not elements_in_one_zone($src_list1, $dst_list2))
+                {
+                    my $srv1 = $rule1->{rule}->{service}->{name};
+                    my $srv2 = $rule2->{rule}->{service}->{name};
+                    my $match = $obj->{name};
+                    $print->("Missing transient supernet rules\n",
+                             " between src of $srv1 and dst of $srv2,\n",
+                             " matching at $match");
                 }
             }
         }
     }
-
-    # No longer needed; free some memory.
-    %smaller_prt = ();
-
-    if ($missing_count) {
-        my @msg = ("Missing transient rules: $missing_count");
-        while (my ($src_service, $hash) = each %missing_rule_tree) {
-            while (my ($dst_service, $hash) = each %$hash) {
-                while (my ($supernet, $hash) = each %$hash) {
-                    push(@msg, "Rules of $src_service and $dst_service" .
-                         " match at $supernet");
-                    push(@msg, "Missing transient rules:");
-                    while (my ($src, $hash) = each %$hash) {
-                        while (my ($dst, $hash) = each %$hash) {
-                            while (my ($prt, $hash) = each %$hash) {
-                                push(@msg, 
-                                     " permit src=$src; dst=$dst; prt=$prt;");
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        my $print =
-          $config->{check_transient_supernet_rules} eq 'warn'
-          ? \&warn_msg
-          : \&err_msg;
-        $print->(join "\n", @msg);
-
-    }
-    return;
 }
 
 # Handling of supernet rules created by gen_reverse_rules.
@@ -13511,10 +13681,12 @@ sub mark_stateful {
     $zone->{stateful_mark} = $mark;
     for my $in_interface (@{ $zone->{interfaces} }) {
         my $router = $in_interface->{router};
-        if ($router->{managed}) {
-            next
-              if !$router->{model}->{stateless}
-              && $router->{managed} !~ /^(?:secondary|local.*)$/;
+        my $managed = $router->{managed};
+        if ($managed 
+            and not $router->{model}->{stateless}
+            and not $managed =~ /^(?:secondary|local.*)$/)
+        {
+            next;
         }
         next if $router->{active_path};
         local $router->{active_path} = 1;
@@ -13529,46 +13701,24 @@ sub mark_stateful {
 }
 
 sub check_supernet_rules {
-    my @supernet_rules;
-    if (   $config->{check_supernet_rules}
-        or $config->{check_transient_supernet_rules})
-    {
-        @supernet_rules = grep({ not $_->{deleted} and 
-                                     ($_->{src}->{has_other_subnet}
-                                      or $_->{dst}->{has_other_subnet}) }
-                               @{ $expanded_rules{permit} });
-    }
     if ($config->{check_supernet_rules}) {
-        my $count = @supernet_rules;
-        progress("Checking $count rules with supernet objects");
+        progress("Checking supernet rules");
         my $stateful_mark = 1;
         for my $zone (@zones) {
             if (not $zone->{stateful_mark}) {
                 mark_stateful($zone, $stateful_mark++);
             }
         }
-        for my $rule (@supernet_rules) {
-            next if $rule->{deleted};
-            next if $rule->{no_check_supernet_rules};
-            if ($rule->{src}->{has_other_subnet}) {
-                single_path_walk($rule, \&check_supernet_src_rule);
-            }
-            if ($rule->{dst}->{has_other_subnet}) {
-                single_path_walk($rule, \&collect_supernet_dst_rules);
-            }
-        }
-        check_supernet_dst_collections();
+#        progress("Checking for missing src in supernet rules");
+        check_missing_supernet_rules('src', \&check_supernet_src_rule);
+#        progress("Checking for missing dst in supernet rules");
+        check_missing_supernet_rules('dst', \&check_supernet_dst_rule);
         %missing_supernet = ();
     }
     if ($config->{check_transient_supernet_rules}) {
-        check_for_transient_supernet_rule(\@supernet_rules);
+#        progress("Checking transient supernet rules");
+        check_transient_supernet_rules();
     }
-
-    # No longer needed; free some memory.
-    %expanded_rules = ();
-    %rule_tree = ();
-    %ref2obj = ();
-    %obj2zone = ();
     return;
 }
 
@@ -13967,7 +14117,7 @@ sub check_dynamic_nat_rules {
         }
     }
 
-    # Collect no_nat_sets appliable in zone
+    # Collect no_nat_sets applicable in zone
     # and combine them into {multi_no_nat_set}.
     my %zone2no_nat_set;
     for my $network (@networks) {
@@ -14013,376 +14163,244 @@ sub check_dynamic_nat_rules {
     # Remember, if path has already been checked for inversed dynamic NAT.
     my %cache;
 
-    for my $rule (@{ $expanded_rules{permit} }, @{ $expanded_rules{deny} }) {
-        next if $rule->{deleted};
-        for my $where ('src', 'dst') {
-            my $obj        = $rule->{$where};
-            my $network    = $obj->{network} || $obj;
-            my $nat_hash   = $network->{nat} or next;
-            my $other      = $where eq 'src' ? $rule->{dst} : $rule->{src};
-            my $other_net  = $other->{network} || $other;
-            my $nat_domain = $other_net->{nat_domain}; # Is undef for aggregate.
+    my $check_dyn_nat_path = sub {
+        my ($path_rule, $obj, $other, $reversed) = @_;
 
-            # Find $nat_tag which is effective at $other.
-            # - single: $other is host or network, $nat_domain is known.
-            # - multiple: $other is aggregate.
-            #             Use intersection of all no_nat_sets active in zone.
-            my $no_nat_set = $nat_domain 
-                           ? $nat_domain->{no_nat_set} 
-                           : $other->{zone}->{multi_no_nat_set};
+        my $network    = $obj->{network} || $obj;
+        my $nat_hash   = $network->{nat} or return;
+        my $other_net  = $other->{network} || $other;
+        my $nat_domain = $other_net->{nat_domain}; # Is undef for aggregate.
 
-            my $cache_obj = $network->{has_dynamic_host} ? $obj : $network;
-            next if $seen{$cache_obj}->{$no_nat_set}++;
+        # Find $nat_tag which is effective at $other.
+        # - single: $other is host or network, $nat_domain is known.
+        # - multiple: $other is aggregate.
+        #             Use intersection of all no_nat_sets active in zone.
+        my $no_nat_set = $nat_domain 
+                       ? $nat_domain->{no_nat_set} 
+                       : $other->{zone}->{multi_no_nat_set};
 
-            my $nat_seen;
-            my $hidden_seen;
-            my $static_seen;
-            for my $nat_tag (sort keys %$nat_hash) {
-                next if $no_nat_set->{$nat_tag};
-                $nat_seen = 1;
-                my $nat_network = $nat_hash->{$nat_tag};
+        my $cache_obj = $network->{has_dynamic_host} ? $obj : $network;
+        return if $seen{$cache_obj}->{$no_nat_set}++;
 
-                # Network is hidden by NAT.
-                if ($nat_network->{hidden}) {
-                    $hidden_seen++
-                      or err_msg("$obj->{name} is hidden by nat:$nat_tag",
-                        " in rule\n ", print_rule $rule);
-                    next;
-                }
-                if (not $nat_network->{dynamic}) {
-                    $static_seen = 1;
-                    next;
-                }
+        my $show_rule = sub {
+            my $rule = { %$path_rule };
+            @{$rule}{qw(src dst)} = 
+                $reversed ? ($other, $obj) : ($obj, $other); 
+            return print_rule($rule);
+        };
 
-                # Detailed check for host / interface with dynamic NAT.
-                # 1. Dynamic NAT address of host / interface object is
-                # used in ACL at managed router at the border of zone
-                # of that object. Hence the whole network would
-                # accidentally be permitted.
-                # 2. Check later to be added reverse rule as well.
+        my $nat_seen;
+        my $hidden_seen;
+        my $static_seen;
+        for my $nat_tag (sort keys %$nat_hash) {
+            next if $no_nat_set->{$nat_tag};
+            $nat_seen = 1;
+            my $nat_network = $nat_hash->{$nat_tag};
 
-                # Ignore network.
-                next if $obj eq $network;
+            # Network is hidden by NAT.
+            if ($nat_network->{hidden}) {
+                $hidden_seen++
+                  or err_msg("$obj->{name} is hidden by nat:$nat_tag",
+                    " in rule\n ", $show_rule->());
+                next;
+            }
+            if (not $nat_network->{dynamic}) {
+                $static_seen = 1;
+                next;
+            }
 
-                # Ignore host / interface with static NAT.
-                next if $obj->{nat}->{$nat_tag};
+            # Detailed check for host / interface with dynamic NAT.
+            # 1. Dynamic NAT address of host / interface object is
+            # used in ACL at managed router at the border of zone
+            # of that object. Hence the whole network would
+            # accidentally be permitted.
+            # 2. Check later to be added reverse rule as well.
 
-                my $check = sub {
-                    my ($rule, $in_intf, $out_intf) = @_;
-                    my $router = ($in_intf || $out_intf)->{router};
+            # Ignore network.
+            next if $obj eq $network;
 
-                    my $check_common = sub {
-                        my ($nat_intf, $reversed) = @_;
-                        my $no_nat_set = $nat_intf->{no_nat_set};
-                        my $nat_network =
-                            get_nat_network($network, $no_nat_set);
-                        my $nat_tag = $nat_network->{dynamic};
-                        return if not $nat_tag;
-                        return if $obj->{nat}->{$nat_tag};
-                        my $intf = $where eq 'src' ? $in_intf : $out_intf;
+            # Ignore host / interface with static NAT.
+            next if $obj->{nat}->{$nat_tag};
 
-                        # $intf could have value 'undef' if $obj is
-                        # interface of current router and src/dst of rule.
-                        if (!$intf || zone_eq($network->{zone}, $intf->{zone}))
-                        {
-                            err_msg("$obj->{name} needs static translation",
-                                    " for nat:$nat_tag at $router->{name}",
-                                    " to be valid in",
-                                    $reversed ? ' reversed rule for' : ' rule',
-                                    "\n ",
-                                    print_rule $rule);
-                        }
-                    };
-                    $check_common->($in_intf);
-                    if ($router->{model}->{stateless}) {
-                        my $proto = $rule->{prt}->{proto};
+            my $check = sub {
+                my ($rule, $in_intf, $out_intf) = @_;
+                my $router = ($in_intf || $out_intf)->{router};
 
-                        # Reversed tcp rule would check for
-                        # 'established' flag and hence is harmless
-                        # even if it can reach whole network, because
-                        # it only sends answer back for correctly
-                        # established connection.
-                        if ($proto eq 'udp' or $proto eq 'ip') { 
-                            $check_common->($out_intf, 1);
-                        }
+                my $check_common = sub {
+                    my ($nat_intf, $reversed2) = @_;
+                    my $no_nat_set = $nat_intf->{no_nat_set};
+                    my $nat_network =
+                        get_nat_network($network, $no_nat_set);
+                    my $nat_tag = $nat_network->{dynamic};
+                    return if not $nat_tag;
+                    return if $obj->{nat}->{$nat_tag};
+                    my $intf = $reversed ? $out_intf : $in_intf;
+
+                    # $intf would have value 'undef' if $obj is
+                    # interface of current router and src/dst of rule.
+                    if (!$intf || zone_eq($network->{zone}, $intf->{zone})) {
+                        err_msg("$obj->{name} needs static translation",
+                                " for nat:$nat_tag at $router->{name}",
+                                " to be valid in",
+                                $reversed2 ? ' reversed rule for' : ' rule',
+                                "\n ",
+                                $show_rule->());
                     }
                 };
-                single_path_walk($rule, $check);
-            }
-            $nat_seen or $static_seen = 1;
+                $check_common->($in_intf);
+                if ($router->{model}->{stateless}) {
+                    my $prt_list = $rule->{prt};
 
-            $hidden_seen and next;
-
-            # Check error conditition:
-            # Find sub-path where dynamic / hidden NAT is inversed,
-            # i.e. dynamic / hidden NAT is enabled first and disabled later.
-
-            # Find dynamic and hidden NAT definitions of $obj.
-            # Key: NAT tag,
-            # value: boolean, true=hidden, false=dynamic
-            my $dyn_nat_hash;
-            for my $nat_tag (keys %$nat_hash) {
-                my $nat_network = $nat_hash->{$nat_tag};
-                $nat_network->{dynamic} or next;
-                $dyn_nat_hash->{$nat_tag} = $nat_network->{hidden};
-            }
-            $dyn_nat_hash or next;
-
-            my $from_store = $obj2path{$obj}   || get_path $obj;
-            my $to_store   = $obj2path{$other} || get_path $other;
-            my $active_nat_at = $cache{$from_store}->{$to_store}
-              || $cache{$to_store}->{$from_store};
-
-            if (!$active_nat_at) {
-                $cache{$from_store}->{$to_store} =
-                  $active_nat_at = $rule->{active_nat_at} = {};
-                single_path_walk($rule, $check_dyn_nat);
-                delete $rule->{active_nat_at};
-            }
-
-            for my $nat_tag (sort keys %$dyn_nat_hash) {
-                my $interfaces = $active_nat_at->{$nat_tag} or next;
-                my $is_hidden = $dyn_nat_hash->{$nat_tag};
-                ($is_hidden || $static_seen) or next;
-                my $names =
-                  join("\n - ", map({ $_->{name} } sort(by_name @$interfaces)));
-                my $type = $is_hidden ? 'hidden' : 'dynamic';
-                err_msg(
-                    "Must not apply $type NAT '$nat_tag' on path\n",
-                    " of",
-                    $where eq 'dst' ? ' reversed' : '',
-                    " rule\n",
-                    " ",
-                    print_rule($rule),
-                    "\n",
-                    " NAT '$nat_tag' is active at\n",
-                    " - $names\n",
-                    " Add pathrestriction",
-                    " to exclude this path"
-                );
-            }
-        }
-    }
-    return;
-}
-
-##############################################################################
-# Optimize expanded rules by deleting identical rules and
-# rules which are overlapped by a more general rule
-##############################################################################
-
-sub optimize_rules {
-    my ($cmp_hash, $chg_hash) = @_;
-    while (my ($stateless, $chg_hash) = each %$chg_hash) {
-        while (1) {
-            if (my $cmp_hash = $cmp_hash->{$stateless}) {
-                while (my ($deny, $chg_hash) = each %$chg_hash) {
-                    while (1) {
-                        if (my $cmp_hash = $cmp_hash->{$deny}) {
-                            while (my ($src_range_ref, $chg_hash) =
-                                each %$chg_hash)
-                            {
-                                my $src_range = $ref2prt{$src_range_ref};
-                                while (1) {
-                                    if (my $cmp_hash = $cmp_hash->{$src_range})
-                                    {
-                                        while (my ($src_ref, $chg_hash) =
-                                            each %$chg_hash)
-                                        {
-                                            my $src = $ref2obj{$src_ref};
-                                            while (1) {
-                                                if (my $cmp_hash =
-                                                    $cmp_hash->{$src})
-                                                {
-                                                    while (
-                                                        my ($dst_ref, $chg_hash)
-                                                        = each %$chg_hash)
-                                                    {
-                                                        my $dst =
-                                                          $ref2obj{$dst_ref};
-                                                        while (1) {
-                                                            if (my $cmp_hash =
-                                                                $cmp_hash
-                                                                ->{$dst})
-                                                            {
-                                                                for
-                                                                  my $chg_rule (
-                                                                    values
-                                                                    %$chg_hash)
-                                                                {
-
-                                                                    # Even if $change_rule already is marked as deleted,
-                                                                    # don't stop here, but go on and find all redundant
-                                                                    # pairs of ($change_rule, $cmp_rule).
-                                                                    # This is needed, because some instances of $cmp_rule
-                                                                    # may have an {overlaps} attribute, which prevents
-                                                                    # a warning message to be printed.
-                                                                    my $prt =
-                                                                      $chg_rule
-                                                                      ->{prt};
-                                                                    my $chg_log
-                                                                      = $chg_rule
-                                                                      ->{log}
-                                                                      || '';
-                                                                    while (1) {
-                                                                        if (
-                                                                            my $cmp_rule
-                                                                            = $cmp_hash
-                                                                            ->{
-                                                                                $prt
-                                                                            }
-                                                                          )
-                                                                        {
-                                                                            my $cmp_log
-                                                                              = $cmp_rule
-                                                                              ->
-                                                                              {log}
-                                                                              ||
-                                                                              '';
-                                                                            if (
-                                                                                $cmp_rule
-                                                                                ne
-                                                                                $chg_rule
-                                                                                &&
-                                                                                $cmp_log
-                                                                                eq
-                                                                                $chg_log
-                                                                              )
-                                                                            {
-#                   debug("Del:", print_rule $chg_rule);
-#                   debug("Oth:", print_rule $cmp_rule);
-                                                                                $chg_rule
-                                                                                  ->
-                                                                                  {deleted}
-                                                                                  =
-                                                                                  $cmp_rule;
-                                                                                collect_redundant_rules(
-                                                                                    $chg_rule,
-                                                                                    $cmp_rule
-                                                                                  )
-                                                                                  ;
-                                                                                last;
-                                                                            }
-                                                                        }
-                                                                        $prt =
-                                                                          $prt
-                                                                          ->{up}
-                                                                          or
-                                                                          last;
-                                                                    }
-                                                                }
-                                                            }
-                                                            $dst = $dst->{up}
-                                                              or last;
-                                                        }
-                                                    }
-                                                }
-                                                $src = $src->{up} or last;
-                                            }
-                                        }
-                                    }
-                                    $src_range = $src_range->{up} or last;
-                                }
-                            }
-                        }
-                        last if $deny;
-                        $deny = 1;
+                    # Reversed tcp rule would check for
+                    # 'established' flag and hence is harmless
+                    # even if it can reach whole network, because
+                    # it only sends answer back for correctly
+                    # established connection.
+                    if (grep { $_->{proto} =~ /^(?:udp|ip)$/ } @$prt_list) { 
+                        $check_common->($out_intf, 1);
                     }
                 }
+            };
+            path_walk($path_rule, $check);
+        }
+        $nat_seen or $static_seen = 1;
+
+        $hidden_seen and return;
+
+        # Check error conditition:
+        # Find sub-path where dynamic / hidden NAT is inversed,
+        # i.e. dynamic / hidden NAT is enabled first and disabled later.
+
+        # Find dynamic and hidden NAT definitions of $obj.
+        # Key: NAT tag,
+        # value: boolean, true=hidden, false=dynamic
+        my $dyn_nat_hash;
+        for my $nat_tag (keys %$nat_hash) {
+            my $nat_network = $nat_hash->{$nat_tag};
+            $nat_network->{dynamic} or next;
+            $dyn_nat_hash->{$nat_tag} = $nat_network->{hidden};
+        }
+        $dyn_nat_hash or return;
+
+        my ($src_path, $dst_path) = @{$path_rule}{qw(src_path dst_path)};
+        my $active_nat_at = $cache{$src_path}->{$dst_path}
+          || $cache{$dst_path}->{$src_path};
+
+        if (!$active_nat_at) {
+            $path_rule->{active_nat_at} = {};
+            path_walk($path_rule, $check_dyn_nat);
+            $cache{$src_path}->{$dst_path} =
+                $active_nat_at = delete $path_rule->{active_nat_at};
+        }
+
+        for my $nat_tag (sort keys %$dyn_nat_hash) {
+            my $interfaces = $active_nat_at->{$nat_tag} or next;
+            my $is_hidden = $dyn_nat_hash->{$nat_tag};
+            ($is_hidden || $static_seen) or next;
+            my $names =
+              join("\n - ", map({ $_->{name} } sort(by_name @$interfaces)));
+            my $type = $is_hidden ? 'hidden' : 'dynamic';
+            err_msg(
+                "Must not apply $type NAT '$nat_tag' on path\n",
+                " of",
+                $reversed ? ' reversed' : '',
+                " rule\n",
+                " ",
+                $show_rule->(),
+                "\n",
+                " NAT '$nat_tag' is active at\n",
+                " - $names\n",
+                " Add pathrestriction",
+                " to exclude this path"
+            );
+        }
+    };
+
+    for my $rule (@{ $path_rules{deny} }, @{ $path_rules{permit} }) {
+        my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
+        for my $src (@$src_list) {
+            for my $dst (@$dst_list) {
+                $check_dyn_nat_path->($rule, $src, $dst);
+                $check_dyn_nat_path->($rule, $dst, $src, 'reversed');
             }
-            last if !$stateless;
-            $stateless = '';
         }
     }
     return;
 }
 
-sub optimize_and_warn_deleted {
-    progress('Finding redundant rules');
-    setup_ref2obj();
-    optimize_rules(\%rule_tree, \%rule_tree);
-    print_rulecount();
-    show_deleted_rules2();
-    warn_unused_overlaps();
-    return;
-}
+##############################################################################
+# Find redundant rules which are overlapped by some more general rule
+##############################################################################
+sub find_redundant_rules {
+ my ($cmp_hash, $chg_hash) = @_;
+ my $count = 0;
+ while (my ($stateless, $chg_hash) = each %$chg_hash) {
+  while (1) {
+   if (my $cmp_hash = $cmp_hash->{$stateless}) {
+    while (my ($deny, $chg_hash) = each %$chg_hash) {
+     while (1) {
+      if (my $cmp_hash = $cmp_hash->{$deny}) {
+       while (my ($src_range_ref, $chg_hash) = each %$chg_hash) {
+        my $src_range = $ref2prt{$src_range_ref};
+        while (1) {
+         if (my $cmp_hash = $cmp_hash->{$src_range}) {
+          while (my ($src_ref, $chg_hash) = each %$chg_hash) {
+           my $src = $ref2obj{$src_ref};
+           while (1) {
+            if (my $cmp_hash = $cmp_hash->{$src}) {
+             while (my ($dst_ref, $chg_hash) = each %$chg_hash) {
+              my $dst = $ref2obj{$dst_ref};
+              while (1) {
+               if (my $cmp_hash = $cmp_hash ->{$dst}) {
+                for my $chg_rule (values %$chg_hash) {
 
-########################################################################
-# Convert normalized service rules to grouped rules.
-########################################################################
-
-sub split_rules_by_path {
-    my ($rules, $where) = @_;
-    my $where_path = "${where}_path";
-    my @new_rules;
-    for my $rule (@$rules) {
-        my $group = $rule->{$where};
-        my $element0 = $group->[0];
-        $element0 or internal_err print_rule $rule;
-        my $path0 = $obj2path{$element0} || get_path($element0);
-
-        # Group has elements from different zones and must be split.
-        if (grep { $path0 ne ($obj2path{$_} || get_path($_)) } @$group)
-        {
-            my $index = 1;
-            my %path2index;
-            my %key2group;
-            for my $element (@$group) {
-                my $path = $obj2path{$element};
-                my $key  = $path2index{$path} ||= $index++;
-                push @{ $key2group{$key}}, $element;
+                 # Even if $change_rule already is marked as deleted,
+                 # don't stop here, but go on and find all redundant
+                 # pairs of ($change_rule, $cmp_rule).
+                 # This is needed, because some instances of $cmp_rule
+                 # may have an {overlaps} attribute, which prevents
+                 # a warning message to be printed.
+                 my $prt = $chg_rule->{prt};
+                 my $chg_log = $chg_rule->{log} || '';
+                 while (1) {
+                  if (my $cmp_rule = $cmp_hash->{$prt}) {
+                   my $cmp_log = $cmp_rule->{log} || '';
+                   if ($cmp_rule ne $chg_rule &&
+                       $cmp_log eq $chg_log)
+                   {
+#                   debug("Del:", print_rule $chg_rule);
+#                   debug("Oth:", print_rule $cmp_rule);
+                    collect_redundant_rules($chg_rule, $cmp_rule);
+                    $count++;
+                    last;
+                   }
+                  }
+                  $prt = $prt->{up} or last;
+                 }
+                }
+               }
+               $dst = $dst->{up} or last;
+              }
+             }
             }
-            for my $key (sort numerically keys %key2group) {
-                my $path_group = $key2group{$key};
-                my $path = $obj2path{$path_group->[0]};
-                my $new_rule = { %$rule,
-                                 $where      => $path_group,
-                                 $where_path => $path };
-                push @new_rules, $new_rule;
-            }
+            $src = $src->{up} or last;
+           }
+          }
+         }
+         $src_range = $src_range->{up} or last;
         }
-
-        # Use unchanged group, add path info.
-        else {
-            $rule->{$where_path} = $path0;
-            push @new_rules, $rule;
-        }
+       }
+      }
+      last if $deny;
+      $deny = 1;
+     }
     }
-    return \@new_rules;
-}
-
-sub remove_unenforceable_rules {
-    my ($rules) = @_;
-    for (my $i = 0; $i < @$rules; $i++) {
-        my $rule = $rules->[$i];
-        my $src_zone = get_zone($rule->{src_path});
-        my $dst_zone = get_zone($rule->{dst_path});
-        if (zone_eq($src_zone, $dst_zone)) {
-            splice(@$rules, $i, 1);
-            $i--;
-        }
-    }    
-}
-
-sub group_path_rules {
-    progress("Grouping rules");
-    my $count = 0;
-
-    for my $action (qw(permit deny)) {
-        my $rules = $service_rules{$action} or next;
-
-        # Split grouped rules such, that all elements of src and dst
-        # have identical src_path/dst_path.
-        $rules = split_rules_by_path($rules, 'src');
-        $rules = split_rules_by_path($rules, 'dst');
-        remove_unenforceable_rules($rules);
-        $path_rules{$action} = $rules;
-        $count += @$rules;
-    }
-    info("Grouped rule count: $count");
-
-    #  No longer needed, free some memory.
-    %service_rules = ();
+   }
+   last if !$stateless;
+   $stateless = '';
+  }
+ }
+ return $count;
 }
 
 ########################################################################
@@ -14499,13 +14517,13 @@ sub add_networks {
 }
 
 sub prepare_nat_commands {
-    return if fast_mode();
     progress('Preparing NAT commands');
 
     # Traverse the topology once for each pair of
     # src-(zone/router), dst-(zone/router)
     my %zone2zone2info;
     for my $rule (@{ $path_rules{permit} }) {
+        next if $rule->{stateless};
         my ($src_path, $dst_path) = @{$rule}{qw(src_path dst_path)};
         my $info = $zone2zone2info{$src_path}->{$dst_path};
         if (!$info) {
@@ -15171,118 +15189,117 @@ sub check_and_convert_routes {
             $interface->{routes} = $interface->{hopref2obj} = {};
             my $real_intf = $interface->{real_interface};
             next if $real_intf->{routing};
-            my $real_net = $real_intf->{network};
-            for my $peer (@{ $interface->{peers} }) {
-                my $real_peer = $peer->{real_interface};
-                my $peer_net  = $real_peer->{network};
+            my $real_net  = $real_intf->{network};
+            my $peer      = $interface->{peer};
+            my $real_peer = $peer->{real_interface};
+            my $peer_net  = $real_peer->{network};
 
-                # Find hop to peer network and add tunnel networks to this hop.
-                my @hops;
+            # Find hop to peer network and add tunnel networks to this hop.
+            my @hops;
 
-                # Peer network is directly connected.
-                if ($real_net eq $peer_net) {
-                    if ($real_peer->{ip} !~ /^(?:short|negotiated)$/) {
-                        push @hops, $real_peer;
+            # Peer network is directly connected.
+            if ($real_net eq $peer_net) {
+                if ($real_peer->{ip} !~ /^(?:short|negotiated)$/) {
+                    push @hops, $real_peer;
+                }
+                else {
+                    err_msg(
+                        "$real_peer->{name} used to reach",
+                        " software clients\n",
+                        " must not be directly connected to",
+                        " $real_intf->{name}\n",
+                        " Connect it to some network behind next hop"
+                    );
+                    next;
+                }
+            }
+
+            # Peer network is located in directly connected zone.
+            elsif ($real_net->{zone} eq $peer_net->{zone}) {
+                my $route_in_zone = $real_intf->{route_in_zone};
+                my $hops =
+                  ($route_in_zone->{default} || $route_in_zone->{$peer_net})
+                  or internal_err("Missing route for $peer_net->{name}",
+                    " at $real_intf->{name} ");
+                push @hops, @$hops;
+            }
+
+            # Find path to peer network to determine available hops.
+            else {
+                my $pseudo_rule = {
+                    src    => $real_intf,
+                    dst    => $peer_net,
+                    action => '--',
+                    prt    => { name => '--' },
+                };
+                my @zone_hops;
+                my $walk = sub {
+                    my ($rule, $in_intf, $out_intf) = @_;
+                    $in_intf               or internal_err("No in_intf");
+                    $in_intf eq $real_intf or return;
+                    $out_intf              or internal_err("No out_intf");
+                    $out_intf->{network}   or internal_err "No out net";
+                    push @zone_hops, $out_intf;
+                };
+                single_path_walk($pseudo_rule, $walk, 'Zone');
+                my $route_in_zone = $real_intf->{route_in_zone};
+                for my $hop (@zone_hops) {
+
+                    my $hop_net = $hop->{network};
+                    if ($hop_net eq $real_net) {
+                        push @hops, $hop;
                     }
                     else {
-                        err_msg(
-                            "$real_peer->{name} used to reach",
-                            " software clients\n",
-                            " must not be directly connected to",
-                            " $real_intf->{name}\n",
-                            " Connect it to some network behind next hop"
-                        );
-                        next;
+                        my $hops =
+                          (      $route_in_zone->{default}
+                              || $route_in_zone->{$hop_net})
+                          or
+                          internal_err("Missing route for $hop_net->{name}",
+                            " at $real_intf->{name}");
+                        push @hops, @$hops;
                     }
                 }
+            }
 
-                # Peer network is located in directly connected zone.
-                elsif ($real_net->{zone} eq $peer_net->{zone}) {
-                    my $route_in_zone = $real_intf->{route_in_zone};
-                    my $hops =
-                      ($route_in_zone->{default} || $route_in_zone->{$peer_net})
-                      or internal_err("Missing route for $peer_net->{name}",
-                        " at $real_intf->{name} ");
-                    push @hops, @$hops;
+            my $hop_routes;
+            if (@hops > 1
+                && equal(map({ $_->{redundancy_interfaces} || $_ } @hops))
+                || @hops == 1)
+            {
+                my $hop = shift @hops;
+                $hop_routes = $real_intf->{routes}->{$hop} ||= {};
+                $real_intf->{hopref2obj}->{$hop} = $hop;
+
+#                debug "Use $hop->{name} as hop for $real_peer->{name}";
+            }
+            else {
+
+                # This can only happen for vpn software clients.
+                # For hardware clients  the route is known
+                # for the encrypted traffic which is allowed
+                # by gen_tunnel_rules (even for negotiated interface).
+                my $count = @hops;
+                my $names = join('', map({ "\n - $_->{name}" } @hops));
+                err_msg(
+                    "Can't determine next hop to reach $peer_net->{name}",
+                    " while moving routes\n",
+                    " of $interface->{name} to $real_intf->{name}.\n",
+                    " Exactly one route is needed,",
+                    " but $count candidates were found:",
+                    $names
+                );
+            }
+
+            # Use found hop to reach tunneled networks in $tunnel_routes.
+            for my $tunnel_net_hash (values %$tunnel_routes) {
+                for my $tunnel_net (values %$tunnel_net_hash) {
+                    $hop_routes->{$tunnel_net} = $tunnel_net;
                 }
+            }
 
-                # Find path to peer network to determine available hops.
-                else {
-                    my $pseudo_rule = {
-                        src    => $real_intf,
-                        dst    => $peer_net,
-                        action => '--',
-                        prt    => { name => '--' },
-                    };
-                    my @zone_hops;
-                    my $walk = sub {
-                        my ($rule, $in_intf, $out_intf) = @_;
-                        $in_intf               or internal_err("No in_intf");
-                        $in_intf eq $real_intf or return;
-                        $out_intf              or internal_err("No out_intf");
-                        $out_intf->{network}   or internal_err "No out net";
-                        push @zone_hops, $out_intf;
-                    };
-                    single_path_walk($pseudo_rule, $walk, 'Zone');
-                    my $route_in_zone = $real_intf->{route_in_zone};
-                    for my $hop (@zone_hops) {
-
-                        my $hop_net = $hop->{network};
-                        if ($hop_net eq $real_net) {
-                            push @hops, $hop;
-                        }
-                        else {
-                            my $hops =
-                              (      $route_in_zone->{default}
-                                  || $route_in_zone->{$hop_net})
-                              or
-                              internal_err("Missing route for $hop_net->{name}",
-                                " at $real_intf->{name}");
-                            push @hops, @$hops;
-                        }
-                    }
-                }
-
-                my $hop_routes;
-                if (@hops > 1
-                    && equal(map({ $_->{redundancy_interfaces} || $_ } @hops))
-                    || @hops == 1)
-                {
-                    my $hop = shift @hops;
-                    $hop_routes = $real_intf->{routes}->{$hop} ||= {};
-                    $real_intf->{hopref2obj}->{$hop} = $hop;
-
-#                    debug "Use $hop->{name} as hop for $real_peer->{name}";
-                }
-                else {
-
-                    # This can only happen for vpn software clients.
-                    # For hardware clients  the route is known
-                    # for the encrypted traffic which is allowed
-                    # by gen_tunnel_rules (even for negotiated interface).
-                    my $count = @hops;
-                    my $names = join('', map({ "\n - $_->{name}" } @hops));
-                    err_msg(
-                        "Can't determine next hop to reach $peer_net->{name}",
-                        " while moving routes\n",
-                        " of $interface->{name} to $real_intf->{name}.\n",
-                        " Exactly one route is needed,",
-                        " but $count candidates were found:",
-                        $names
-                    );
-                }
-
-                # Use found hop to reach tunneled networks in $tunnel_routes.
-                for my $tunnel_net_hash (values %$tunnel_routes) {
-                    for my $tunnel_net (values %$tunnel_net_hash) {
-                        $hop_routes->{$tunnel_net} = $tunnel_net;
-                    }
-                }
-
-                # Add route to reach peer interface.
-                if ($peer_net ne $real_net) {
-                    $hop_routes->{$peer_net} = $peer_net;
-                }
+            # Add route to reach peer interface.
+            if ($peer_net ne $real_net) {
+                $hop_routes->{$peer_net} = $peer_net;
             }
         }
 
@@ -16249,7 +16266,6 @@ sub distribute_general_permit {
 }
 
 sub rules_distribution {
-    return if fast_mode();
     progress('Distributing rules');
 
     # Deny rules
@@ -16679,8 +16695,8 @@ EOF
             push @{ $router->{acl_list} }, $acl_info;
             print_acl_placeholder($filter_name);
 
-            my $id = $interface->{peers}->[0]->{id}
-              or internal_err("Missing ID at $interface->{peers}->[0]->{name}");
+            my $id = $interface->{peer}->{id}
+              or internal_err("Missing ID at $interface->{peer}->{name}");
             my $attributes = $router->{radius_attributes};
 
             my $group_policy_name;
@@ -16987,14 +17003,11 @@ sub print_ezvpn {
     print " connect auto\n";
     print " mode network-extension\n";
 
-    for my $peer (@{ $tunnel_intf->{peers} }) {
-
-        # Unnumbered, negotiated and short interfaces have been
-        # rejected already.
-        my $peer_ip =
-          prefix_code(address($peer->{real_interface}, $no_nat_set));
-        print " peer $peer_ip\n";
-    }
+    # Unnumbered, negotiated and short interfaces have been
+    # rejected already.
+    my $peer = $tunnel_intf->{peer};
+    my $peer_ip = prefix_code(address($peer->{real_interface}, $no_nat_set));
+    print " peer $peer_ip\n";
 
     # Bind split tunnel ACL.
     print " acl $crypto_acl_name\n";
@@ -17021,7 +17034,7 @@ sub print_ezvpn {
       and internal_err("Unexpected attribute 'detailed_crypto_acl'",
         " at $router->{name}");
     my $crypto_rules =
-      gen_crypto_rules($tunnel_intf->{peers}->[0]->{peer_networks},
+      gen_crypto_rules($tunnel_intf->{peer}->{peer_networks},
         [$network_00]);
     my $acl_info = {
         name => $crypto_acl_name,
@@ -17060,7 +17073,7 @@ sub print_crypto_acl {
     # - either generic from remote network to any or
     # - detailed to all networks which are used in rules.
     my $is_hub   = $interface->{is_hub};
-    my $hub      = $is_hub ? $interface : $interface->{peers}->[0];
+    my $hub      = $is_hub ? $interface : $interface->{peer};
     my $detailed = $crypto->{detailed_crypto_acl};
     my $local    = $detailed ? get_split_tunnel_nets($hub) : [$network_00];
     my $remote   = $hub->{peer_networks};
@@ -17199,8 +17212,8 @@ sub print_static_crypto_map {
 
     # Sort crypto maps by peer IP to get deterministic output.
     my @sorted = sort(
-        { $a->{peers}->[0]->{real_interface}->{ip}
-              <=> $b->{peers}->[0]->{real_interface}->{ip} } @$interfaces);
+        { $a->{peer}->{real_interface}->{ip}
+              <=> $b->{peer}->{real_interface}->{ip} } @$interfaces);
 
     # Build crypto map for each tunnel interface.
     for my $interface (@sorted) {
@@ -17226,37 +17239,22 @@ sub print_static_crypto_map {
             $prefix = "crypto map $map_name $seq_num";
         }
 
-        # Set crypto peers.
-        if ($crypto_type eq 'IOS') {
-            for my $peer (@{ $interface->{peers} }) {
-                my $peer_ip =
-                  prefix_code(address($peer->{real_interface}, $no_nat_set));
-                print "$prefix set peer $peer_ip\n";
-            }
-        }
-        elsif ($crypto_type eq 'ASA') {
-            print "$prefix set peer ",
-              join(' ',
-                map { prefix_code(address($_->{real_interface}, $no_nat_set)) }
-                  @{ $interface->{peers} }),
-              "\n";
-        }
+        # Set crypto peer.
+        my $peer = $interface->{peer};
+        my $peer_ip = 
+            prefix_code(address($peer->{real_interface}, $no_nat_set));
+        print "$prefix set peer $peer_ip\n";
 
         print_crypto_map_attributes($prefix, $model, $crypto_type,
             $crypto_acl_name, $crypto_filter_name,
             $isakmp, $ipsec, $ipsec2trans_name);
 
         if ($crypto_type eq 'ASA') {
-            for my $peer (@{ $interface->{peers} }) {
-                my $peer_ip =
-                  prefix_code(address($peer->{real_interface}, $no_nat_set));
-                print_tunnel_group($peer_ip, $interface, $isakmp);
+            print_tunnel_group($peer_ip, $interface, $isakmp);
 
-                # Tunnel group needs to be activated, if certificate
-                # is in use.
-                if (my $id = $peer->{id}) {
-                    print_ca_and_tunnel_group_map($id, $peer_ip);
-                }
+            # Tunnel group needs to be activated, if certificate is in use.
+            if (my $id = $peer->{id}) {
+                print_ca_and_tunnel_group_map($id, $peer_ip);
             }
         }
     }
@@ -17274,14 +17272,13 @@ sub print_dynamic_crypto_map {
     my $seq_num = 65536;
 
     # Sort crypto maps by certificate to get deterministic output.
-    my @sorted =
-      sort({ $a->{peers}->[0]->{id} cmp $b->{peers}->[0]->{id} } @$interfaces);
+    my @sorted = sort({ $a->{peer}->{id} cmp $b->{peer}->{id} } @$interfaces);
 
     # Build crypto map for each tunnel interface.
     for my $interface (@sorted) {
         $seq_num--;
         my $suffix = "$hw_name-$seq_num";
-        my $id     = $interface->{peers}->[0]->{id};
+        my $id     = $interface->{peer}->{id};
 
         my $crypto = $interface->{crypto};
         my $ipsec  = $crypto->{type};
@@ -17462,7 +17459,7 @@ sub print_crypto {
     my %hardware2dyn_crypto;
     for my $interface (@{ $router->{interfaces} }) {
         $interface->{ip} eq 'tunnel' or next;
-        my $ip = $interface->{peers}->[0]->{real_interface}->{ip};
+        my $ip = $interface->{peer}->{real_interface}->{ip};
         if ($ip =~ /^(?:negotiated|short|unnumbered)$/) {
             push @{ $hardware2dyn_crypto{ $interface->{hardware} } },
               $interface;
@@ -17969,6 +17966,8 @@ sub print_code {
     return;
 }
 
+# Copy raw configuration files of devices into out_dir for devices
+# known from topology.
 sub copy_raw {
     my ($in_path, $out_dir) = @_;
     return if !(defined $in_path && -d $in_path);
@@ -18210,7 +18209,6 @@ sub init_protocols {
 sub init_global_vars {
     $start_time            = $config->{start_time} || time();
     $error_counter         = 0;
-    $new_store_description = 0;
     for my $pair (values %global_type) {
         %{ $pair->[1] } = ();
     }
@@ -18220,19 +18218,17 @@ sub init_global_vars {
     @managed_crypto_hubs = @routers = @networks = @zones = @areas = ();
     @natdomains         = ();
     %auto_interfaces    = ();
-    %crypto2spokes      = %crypto2hubs = ();
+    %crypto2spokes      = %crypto2hub = ();
     %service_rules      = %path_rules = ();
-    %expanded_rules     = %rule_tree = ();
     %prt_hash           = %ref2prt = %ref2obj = %token2regex = ();
     %ref2obj            = %ref2prt = ();
     %obj2zone           = ();
     %obj2path           = ();
     %key2obj            = ();
     %border2obj2auto    = ();
-    @deleted_rules      = ();
+    @duplicate_rules    = @redundant_rules = ();
     %unknown2services   = %unknown2unknown = ();
-    %supernet_rule_tree = %missing_supernet = ();
-    %smaller_prt        = ();
+    %missing_supernet = ();
     %known_log          = %key2log = ();
     %obj2nat2address    = %prt2code = ();
     init_protocols();
@@ -18245,9 +18241,6 @@ sub compile {
     my ($in_path, $out_dir);
     ($config, $in_path, $out_dir) = get_args($args);
     init_global_vars();
-
-    # Don't compile but check only for errors if no $out_dir is given.
-    &fast_mode(!$out_dir);
     &show_version();
     &read_file_or_dir($in_path);
     &show_read_statistics();
@@ -18282,32 +18275,30 @@ sub compile {
     propagate_owners();
     set_service_owner();
     convert_hosts_in_rules();
+    group_path_rules();
 
     # Abort now, if there had been syntax errors and simple semantic errors.
-    &abort_on_error();
+    abort_on_error();
 
     concurrent(
         sub {
-            &check_unused_groups();
-            expand_services();
+            check_unused_groups();
             check_dynamic_nat_rules();
-            &optimize_and_warn_deleted();
-            &check_supernet_rules();
+            check_supernet_rules();
+            check_expanded_rules();
         },
         sub {
-            group_path_rules();
+            %service_rules = ();
+            remove_simple_duplicate_rules();
             set_policy_distribution_ip();
-            &expand_crypto();
-            prepare_nat_commands();
+            expand_crypto();
             find_active_routes();
-            &gen_reverse_rules();
-            &mark_secondary_rules();
-
-            # No errors expected after this point.
-            &rules_distribution();
-
+            gen_reverse_rules();
+            mark_secondary_rules();
             if ($out_dir) {
-                &print_code($out_dir);
+                rules_distribution();
+                prepare_nat_commands();
+                print_code($out_dir);
                 copy_raw($in_path, $out_dir);
             }
         });

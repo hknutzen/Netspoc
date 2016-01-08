@@ -378,13 +378,13 @@ sub proto_descr {
                 $num = $type;
             }
         }
-        if (my $flags = $protocol->{flags}) {
-            for my $key (sort keys %$flags) {
+        if (my $modifiers = $protocol->{modifiers}) {
+            for my $key (sort keys %$modifiers) {
                 next if $key eq 'stateless_icmp';
                 next if $key eq 'overlaps';
                 next if $key eq 'no_check_supernet_rules';
                 if ($key eq 'src' or $key eq 'dst') {
-                    for my $part (sort keys %{$flags->{$key}}) {
+                    for my $part (sort keys %{$modifiers->{$key}}) {
                         $desc .= ", ${key}_$part";
                     }
                 }
@@ -1041,9 +1041,6 @@ sub copy_policy_file {
 $config = 
     combine_config({time_stamps => 1, max_errors => 9999, verbose => !$quiet});
 init_global_vars();
-
-# Set global config variable of Netspoc to store attribute 'description'.
-store_description(1);
 read_file_or_dir($netspoc_data);
 order_protocols();
 link_topology();

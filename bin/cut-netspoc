@@ -63,7 +63,7 @@ use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Encode qw(decode_utf8);
 
-our $VERSION = '4.8'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '4.9'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -302,40 +302,40 @@ if (@ARGV) {
 find_subnets_in_zone();
 link_reroute_permit();
 normalize_services();
-expand_services();
+group_path_rules();
 
 # Process rules of services.
 sub process_rules {
-    my ($expanded_rules) = @_;
-    for my $type ('deny', 'permit') {
-	for my $rule (@{ $expanded_rules->{$type} }) {
-	    for my $where ('src', 'dst') {
+    my ($path_rules) = @_;
+    for my $rule (@{ $path_rules->{deny} }, @{ $path_rules->{permit} }) {
+        my ($src_list, $dst_list, $prt_list) = @{$rule}{qw(src dst prt)};
+        for my $obj (@$src_list, @$dst_list) {
 
-		# path_walk only handles managed routers and interfaces.
-		# Mark all objects additionally here.
-		my $obj = $rule->{$where};
-		my $type = ref $obj;
-		if ($type eq 'Network') {
-#		    debug "Used $obj->{name}";
-		    $obj->{is_used} = 1;
-		}
-		elsif ($type eq 'Host') {
-		    $obj->{is_used} = 1;
-#		    debug "Used $obj->{name}";
-		    $obj->{network}->{is_used} = 1;
-		}
-		elsif ($type eq 'Interface') {
-		    $obj->{is_used} = 1;
-#		    debug "Used $obj->{name}";
-		    $obj->{router}->{is_used} = 1;
-		    $obj->{network}->{is_used} = 1;
-		}
-		else {
-		    fatal_err "Unexpected type $type";
-		}		    
-	    }
-	    &single_path_walk($rule, \&mark_topology);
-            my $prt = get_orig_prt($rule);
+            # path_walk only handles managed routers and interfaces.
+            # Mark all objects additionally here.
+            my $type = ref $obj;
+            if ($type eq 'Network') {
+#	        debug "Used $obj->{name}";
+                $obj->{is_used} = 1;
+            }
+            elsif ($type eq 'Host') {
+                $obj->{is_used} = 1;
+#	        debug "Used $obj->{name}";
+                $obj->{network}->{is_used} = 1;
+            }
+            elsif ($type eq 'Interface') {
+                $obj->{is_used} = 1;
+#	        debug "Used $obj->{name}";
+                $obj->{router}->{is_used} = 1;
+                $obj->{network}->{is_used} = 1;
+            }
+            else {
+                fatal_err "Unexpected type $type";
+            }		    
+        }
+        &path_walk($rule, \&mark_topology);
+        for my $prt (@$prt_list) {
+            my $orig_prt = get_orig_prt(+{ %$rule, prt => $prt });
             $prt->{is_used} = 1;
 	}
     }
@@ -343,7 +343,7 @@ sub process_rules {
 }
 
 # Mark parts of topology which are referenced by rules of services.
-process_rules(\%expanded_rules);
+process_rules(\%path_rules);
 
 # Mark networks inside marked aggregates.
 get_zones();
@@ -483,11 +483,9 @@ for my $router (values %routers) {
 	
 	if ($interface->{ip} eq 'tunnel') {
 	    $mark_crypto->($interface->{crypto});
-            my $peers = $interface->{peers};
+            my $peer = $interface->{peer};
             my $real_intf = $interface->{real_interface};
-            for my $peer (@$peers) {
-                mark_path($real_intf, $peer->{real_interface}); 
-            }
+            mark_path($real_intf, $peer->{real_interface}); 
 
             # Mark possibly unused crypto, referenced at hub.
             if (my $crypto_list = $real_intf->{hub}) {
@@ -604,7 +602,7 @@ sub by_index {
 
 # Print marked parts of netspoc configuration.
 # Routers and networks have been marked by mark_topology.
-# Protocols have been marked while @expanded_rules have been processed above.
+# Protocols have been marked while @path_rules have been processed above.
 # Groups and protocolroups objects have been marked during expand_services.
 for my $object ( sort by_index map { $_->{src_index} ? ($_) : () }
     values %routers,

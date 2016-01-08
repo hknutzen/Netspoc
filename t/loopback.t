@@ -21,8 +21,8 @@ router:r = {
 network:l = { ip = 10.1.1.2/32; }
 END
 
-$out =  <<'END';
-Error: network:l isn't connected to any router
+$out =  <<"END";
+Error: network:l isn\'t connected to any router
 END
 
 test_err($title, $in, $out);

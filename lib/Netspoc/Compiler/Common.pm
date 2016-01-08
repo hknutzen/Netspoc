@@ -40,12 +40,14 @@ our @EXPORT = qw(
 
 our $config;
 
+# Print error message and aborts.
 sub fatal_err {
     my (@args) = @_;
     print STDERR "Error: ", @args, "\n";
     die "Aborted\n";
 }
 
+# Print arguments to STDERR if in verbose mode.
 sub debug {
     my (@args) = @_;
     return if not $config->{verbose};
@@ -53,6 +55,7 @@ sub debug {
     return;
 }
 
+# Print arguments to STDERR if in verbose mode.
 sub info {
     my (@args) = @_;
     return if not $config->{verbose};
@@ -62,6 +65,8 @@ sub info {
 
 our $start_time;
 
+# Print arguments to STDERR if in verbose mode.
+# Add time stamps to output if configured.
 sub progress {
     my (@args) = @_;
     return if not $config->{verbose};
