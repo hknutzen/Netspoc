@@ -12224,12 +12224,10 @@ my %border2obj2auto;
 
 sub set_auto_intf_from_border {
     my ($border) = @_;
-    my %active_path;
     my $reach_from_border;
     $reach_from_border = sub {
         my ($network, $in_intf, $result) = @_;
-        $active_path{$network} = 1;
-        $result->{$network}->{$in_intf} = $in_intf;
+        push @{ $result->{$network} }, $in_intf;
 
 #        debug "$network->{name}: $in_intf->{name}";
         for my $interface (@{ $network->{interfaces} }) {
@@ -12237,9 +12235,9 @@ sub set_auto_intf_from_border {
             next if $interface->{zone};
             next if $interface->{orig_main};
             my $router = $interface->{router};
-            next if $active_path{$router};
-            $active_path{$router} = 1;
-            $result->{$router}->{$interface} = $interface;
+            next if $router->{active_path};
+            local $router->{active_path} = 1;
+            push @{ $result->{$router} }, $interface;
 
 #            debug "$router->{name}: $interface->{name}";
 
@@ -12249,25 +12247,15 @@ sub set_auto_intf_from_border {
                 my $out_net = $out_intf->{network};
                 $reach_from_border->($out_net, $out_intf, $result);
             }
-            $active_path{$router} = 0;
         }
-        $active_path{$network} = 0;
     };
     my $result = {};
     $reach_from_border->($border->{network}, $border, $result);
-    for my $href (values %$result) {
-        $href = [ values %$href ];
+    for my $aref (values %$result) {
+        $aref = [ unique @$aref ];
     }
     $border2obj2auto{$border} = $result;
     return;
-}
-
-sub add_pathresticted_interfaces {
-    my ($path, $obj) = @_;
-    is_router($obj) or return ($path);
-    my @interfaces = get_intf($obj);
-    return ($path,
-            grep { $_->{path_restrict} || $_->{reachable_at} } @interfaces);
 }
 
 # Find auto interface inside zone.
@@ -12280,6 +12268,14 @@ sub auto_intf_in_zone {
         set_auto_intf_from_border($border);
     }
     return @{ $border2obj2auto{$border}->{$src2} };
+}
+
+sub add_pathresticted_interfaces {
+    my ($path, $obj) = @_;
+    is_router($obj) or return ($path);
+    my @interfaces = get_intf($obj);
+    return ($path,
+            grep { $_->{path_restrict} || $_->{reachable_at} } @interfaces);
 }
 
 # $src is an auto_interface or router.
