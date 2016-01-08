@@ -335,7 +335,7 @@ sub process_rules {
         }
         &path_walk($rule, \&mark_topology);
         for my $prt (@$prt_list) {
-            my $orig_prt = get_orig_prt({%$rule, prt => $prt});
+            my $orig_prt = get_orig_prt(+{ %$rule, prt => $prt });
             $prt->{is_used} = 1;
 	}
     }

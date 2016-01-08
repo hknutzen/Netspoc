@@ -861,8 +861,9 @@ sub add_description {
     # Read up to end of line, but ignore ';' at EOL.
     # We must use '$' here to match EOL,
     # otherwise $line would be out of sync.
-    $input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*$/gcm;
-    $obj->{description} = $1;
+    if($input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*$/gcm) {
+        $obj->{description} = $1;
+    }
     return;
 }
 
@@ -12263,7 +12264,6 @@ sub set_auto_intf_from_border {
 # $src2 is unmanaged router or network inside zone.
 sub auto_intf_in_zone {
     my ($border, $src2) = @_;
-    my %result;
     if (not $border2obj2auto{$border}) {
         set_auto_intf_from_border($border);
     }
