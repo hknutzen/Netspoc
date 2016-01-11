@@ -78,4 +78,33 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Internally disable hosts of unconnected network';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.3; hardware = n1; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
+
+protocol:Ping_Netz = icmp 8, src_net, dst_net;
+
+service:s = {
+ user = network:n1;
+ permit src = host:h2; dst = user; prt = protocol:Ping_Netz;
+}
+END
+
+$out = <<END;
+Error: network:n2 isn't connected to any router
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;
