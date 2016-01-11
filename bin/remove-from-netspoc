@@ -209,6 +209,7 @@ sub process {
                 # Everything else terminates list.
                 else {
                     $in_list = undef;
+                    $remove_comma = 0;
                 }
             }
 

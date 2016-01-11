@@ -247,6 +247,34 @@ END
 test_rmv($title, $in, 'host:a', $out);
 
 ############################################################
+$title = 'When all elements in one list are removed, do not change next list';
+############################################################
+
+$in = <<'END';
+service:s1 = {
+ user = host:a,
+        host:b;
+ permit src = host:c,
+              host:d;
+        dst = user;
+        prt = tcp 80 90;
+}
+END
+
+$out = <<'END';
+service:s1 = {
+ user =
+        ;
+ permit src = host:c,
+              host:d;
+        dst = user;
+        prt = tcp 80 90;
+}
+END
+
+test_rmv($title, $in, 'host:a host:b', $out);
+
+############################################################
 $title = 'Find and change umlauts';
 ############################################################
 
