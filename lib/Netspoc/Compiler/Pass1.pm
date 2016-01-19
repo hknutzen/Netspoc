@@ -8905,6 +8905,21 @@ sub find_subnets_in_nat_domain {
     my %seen;
 
     for my $domain (@natdomains) {
+
+        # Ignore NAT domain consisting only of a single unnumbered network and
+        # surrounded by unmanaged devices.
+        # A address conflict would not be observable inside this NAT domain.
+        my $domain_networks = $domain->{networks};
+        if (1 == @$domain_networks) {
+            my $network = $domain_networks->[0];
+            if ($network->{ip} eq 'unnumbered') {
+                my $interfaces = $network->{interfaces};
+                if (not grep { $_->{router}->{managed} } @$interfaces) {
+                    next;
+                }
+            }
+        }
+
         my $no_nat_set = $domain->{no_nat_set};
 
 #        debug("$domain->{name} ", join ',', sort keys %$no_nat_set);
@@ -10773,6 +10788,51 @@ sub check_pathrestrictions {
     return;
 }
 
+sub remove_redundant_pathrestrictions {
+
+    # For each element E, find pathrestrictions that contain E.
+    my %element2restrictions;
+    for my $restrict (@pathrestrictions) 
+    {
+        my $elements = $restrict->{elements};
+        for my $element (@$elements) {
+            $element2restrictions{$element}->{$restrict} = $restrict;
+        }
+    }
+
+    # Check all elements that occur in two or more pathrestrictions.
+    # Check each restriction only once.
+    my %seen;
+    for my $elt_ref (keys %element2restrictions) {
+        my $href = $element2restrictions{$elt_ref};
+        my @list = sort({ @{ $a->{elements} } <=> @{ $b->{elements} } } 
+                        values %$href);
+        while (@list >= 2) {
+            my $restrict = shift @list;
+            next if $seen{$restrict}++;
+            my $elements = $restrict->{elements};
+            for my $element (@$elements) {
+                next if $element eq $elt_ref;
+                my $href2 = $element2restrictions{$element};
+                my $intersection;
+                for my $restrict2 (values %$href) {
+                    next if $restrict2 eq $restrict;
+                    if ($href2->{$restrict2}) {
+                        $intersection->{$restrict2} = $restrict2;
+                    }
+                }
+                $href = $intersection or last;
+            }
+            if ($href) {
+                $restrict->{deleted} = 1;
+                my ($other) = values %$href;
+                debug "$restrict->{name} < $other->{name}";
+            }
+        }
+    }
+    @pathrestrictions = grep { not $_->{deleted} } @pathrestrictions;
+}
+
 ####################################################################
 # Optimize a class of pathrestrictions.
 # Find partitions of cyclic graphs that are separated
@@ -10885,7 +10945,7 @@ sub apply_pathrestriction_optimization {
         }
     }
     else {
-#            debug "Can't opt. $restrict->{name}, has $has_interior interior";
+            debug "Can't opt. $restrict->{name}, has $has_interior interior";
     }
     return;
 }
@@ -10935,7 +10995,7 @@ sub optimize_pathrestrictions {
         }
 
         # Optimize pathrestriction.
-        if ($mark > $start_mark + 1) {    # Optimization needs 2 partitions min.
+        if ($mark > $start_mark + 0) {    # Optimization needs 2 partitions min.
             apply_pathrestriction_optimization($restrict, $elements, $lookup);
         }
     }
@@ -11164,6 +11224,7 @@ sub setpath {
     process_loops();                # Refine navigation info at loop nodes.
     check_pathrestrictions();       # Consistency checks, need {loop} attribute.
     check_virtual_interfaces();     # Consistency check, needs {loop} attribute.
+    remove_redundant_pathrestrictions();
     optimize_pathrestrictions();    # Add navigation info to pathrestricted IFs.
     return;
 }
