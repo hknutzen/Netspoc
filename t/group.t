@@ -14,7 +14,10 @@ my ($title, $in, $out, $topo);
 $topo = <<'END';
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+network:n3 = { ip = 10.1.3.0/24; 
+ host:h3a = { range = 10.1.3.10-10.1.3.15; } 
+ host:h3b = { ip = 10.1.3.26; } 
+}
 
 router:asa1 = {
  managed;
@@ -30,6 +33,24 @@ router:asa2 = {
  interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
 }
 END
+
+############################################################
+$title = 'Find unused hosts';
+############################################################
+
+$in = $topo . <<'END';
+service:s = {
+ user = host:h3a;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+10.1.1.10	host:h1
+10.1.3.26	host:h3b
+END
+
+test_group($title, $in, 'host:[network:n1, network:n3]', $out, '-unused');
 
 ############################################################
 $title = 'Intersection';
