@@ -1025,7 +1025,7 @@ router:r2 = {
 network:k1 = { ip = 10.2.3.0/24; }
 
 # h2 active
-# 11 ambiguous: still active for n2, no longer active for n1
+# t1 ambiguous: still active for n2, no longer active for n1
 network:k2 = { ip = 10.2.2.0/24; }
 END
 
