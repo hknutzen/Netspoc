@@ -2591,6 +2591,9 @@ sub read_aggregate {
         elsif (check_flag 'has_unenforceable') {
             $aggregate->{has_unenforceable} = 1;
         }
+        elsif (check_flag 'no_check_supernet_rules') {
+            $aggregate->{no_check_supernet_rules} = 1;
+        }
         elsif (my $nat_name = check_nat_name()) {
             my $nat = read_nat("nat:$nat_name");
             $nat->{dynamic} or error_atline("$nat->{name} must be dynamic");
@@ -9713,7 +9716,9 @@ sub link_aggregates {
         # This is an optimization to prevent the creation of many aggregates 0/0
         # if only inheritance of NAT from area to network is needed.
         if ($mask == 0) {
-            for my $attr (qw(has_unenforceable owner nat)) {
+            for my $attr (qw(has_unenforceable owner nat 
+                             no_check_supernet_rules))
+            {
                 if (my $v = delete $aggregate->{$attr}) {
                     for my $zone2 ($cluster ? @$cluster : ($zone)) {
                         $zone2->{$attr} = $v;
@@ -10255,6 +10260,36 @@ sub inherit_nat_in_zone {
     return;
 }
 
+sub check_attr_no_check_supernet_rules {
+    my $check_subnets;
+    $check_subnets = sub {
+        my ($network_or_zone) = @_;
+        my $error_list;
+        my $hosts = $network_or_zone->{hosts};
+        if ($hosts and @$hosts) {
+            push @$error_list, $network_or_zone;
+        }
+        if (my $subnets = $network_or_zone->{networks}) {
+            for my $subnet (@$subnets) {
+                if (my $sub_error = $check_subnets->($subnet)) {
+                    push @$error_list, @$sub_error;
+                }
+            }
+        }
+        return $error_list;
+    };
+    for my $zone (@zones) {
+        $zone->{no_check_supernet_rules} or next;
+        if (my $bad_networks = $check_subnets->($zone)) {
+            err_msg("Must not use attribute 'no_check_supernet_rules'",
+                    " at $zone->{name}\n",
+                    " with networks having host definitions:\n",
+                    " - ", 
+                    join "\n - ", map { $_->{name} } @$bad_networks);
+        }
+    }
+}
+
 sub cleanup_after_inheritance {
 
     # 1. Remove NAT entries from aggregates.
@@ -10281,6 +10316,7 @@ sub cleanup_after_inheritance {
 sub inherit_attributes {
     inherit_attributes_from_area();
     inherit_nat_in_zone();
+    check_attr_no_check_supernet_rules();
     cleanup_after_inheritance();
     return;
 }
@@ -10826,7 +10862,7 @@ sub remove_redundant_pathrestrictions {
             if ($href) {
                 $restrict->{deleted} = 1;
                 my ($other) = values %$href;
-                debug "$restrict->{name} < $other->{name}";
+#                debug "$restrict->{name} < $other->{name}";
             }
         }
     }
@@ -10945,7 +10981,7 @@ sub apply_pathrestriction_optimization {
         }
     }
     else {
-            debug "Can't opt. $restrict->{name}, has $has_interior interior";
+#            debug "Can't opt. $restrict->{name}, has $has_interior interior";
     }
     return;
 }
@@ -13109,6 +13145,7 @@ sub find_supernet {
 #         String has the name of first two networks.
 sub find_zone_network {
     my ($interface, $zone, $other) = @_;
+    return 0 if $zone->{no_check_supernet_rules};
     my $no_nat_set = $interface->{no_nat_set};
     my $nat_other = get_nat_network($other, $no_nat_set);
     return 0 if $nat_other->{hidden};
