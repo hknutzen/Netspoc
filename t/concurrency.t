@@ -64,7 +64,7 @@ $out = <<'END';
   - router:asa1
 END
 
-test_err($title, $in, $out, '--concurrency_pass1=2');
+test_warn($title, $in, $out, '--concurrency_pass1=2');
 
 ############################################################
 $title = 'Error from background job';

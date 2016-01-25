@@ -151,7 +151,7 @@ Warning: Missing rule for supernet rule.
  Tried any:Trans as src.
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Permit matching aggregate at non matching interface';
@@ -215,7 +215,7 @@ Warning: Missing rule for supernet rule.
  Tried network:N1 as src.
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Loop with no_in_acl and in_zone eq no_in_zone';
@@ -328,7 +328,7 @@ Warning: Redundant rules in service:test1 compared to service:test3:
 < permit src=any:[ip=10.1.0.0/16 & network:Trans]; dst=network:Test; prt=tcp 80; of service:test3
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Prevent nondeterminism in nested aggregates';
@@ -411,7 +411,7 @@ Warning: Redundant rules in service:test compared to service:test:
 < permit src=any:[ip=10.1.0.0/16 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Redundant nested aggregates without matching network (2)';
@@ -443,7 +443,7 @@ Warning: Redundant rules in service:test compared to service:test:
 < permit src=any:[ip=10.1.0.0/16 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Redundant matching aggregates as subnet of network';
@@ -484,7 +484,7 @@ Warning: Redundant rules in service:test2 compared to service:test1:
 < permit src=network:Test; dst=network:Kunde; prt=tcp 80; of service:test1
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Mixed redundant matching aggregates';
@@ -519,7 +519,7 @@ Warning: Redundant rules in service:test1 compared to service:test2:
 < permit src=any:[ip=10.0.0.0/8 & network:Test]; dst=network:Kunde; prt=tcp 80; of service:test2
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Mixed implicit and explicit aggregates';
@@ -701,7 +701,7 @@ Warning: Missing rule for supernet rule.
  Tried network:n2 as dst.
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Multiple missing destination networks';
@@ -732,7 +732,7 @@ Warning: Missing rule for supernet rule.
  No supernet available for network:n2, network:n2x as dst.
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Multiple destination aggregates';
@@ -846,7 +846,7 @@ Warning: Missing rule for supernet rule.
  Tried network:trans as dst.
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'No destination aggregate needed for Linux';
@@ -904,7 +904,7 @@ Warning: Missing rule for supernet rule.
  No supernet available for network:n2, interface:u.l as dst.
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Missing destination aggregates in loop';
@@ -981,7 +981,7 @@ Warning: Missing rule for supernet rule.
  Tried network:n3 as dst.
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Missing aggregates for reverse rule';
@@ -1034,7 +1034,7 @@ Warning: Missing rule for reversed supernet rule.
  Tried network:n3 as src.
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Effect of stateful router in reversed direction';
@@ -1075,7 +1075,7 @@ Warning: Missing rule for reversed supernet rule.
  Tried network:n3 as src.
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Missing aggregate for reverse rule in loop';
@@ -1129,6 +1129,66 @@ Warning: Missing rule for reversed supernet rule.
  Tried network:n2 as src.
 END
 
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Suppress warning about missing aggregate rule';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:sub = { ip = 10.1.1.128/25; subnet_of = network:n1; 
+# host:h = { ip = 10.1.1.130; }
+}
+
+router:u = {
+ interface:n1;
+ interface:sub;
+ interface:t;
+}
+
+network:t = { ip = 10.9.2.0/24; }
+
+any:t = {
+ link = network:t;
+ no_check_supernet_rules;
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:filter = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:t = { ip = 10.9.2.1; hardware = t; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+
+service:s = {
+ user = any:[ ip = 10.1.0.0/16 & network:n2 ];
+ permit src = network:n3; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<"END";
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Must not use no_check_supernet_rules with hosts';
+############################################################
+
+$in =~ s/# host:h/ host:h/;
+
+$out = <<"END";
+Error: Must not use attribute 'no_check_supernet_rules' at any:[network:t]
+ with networks having host definitions:
+ - network:sub
+END
+
 test_err($title, $in, $out);
 
 ############################################################
@@ -1170,7 +1230,7 @@ Warning: Missing transient supernet rules
  matching at any:[network:n2]
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'No missing transient rule for src and dst in same zone';

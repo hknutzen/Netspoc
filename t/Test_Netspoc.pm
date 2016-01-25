@@ -5,7 +5,7 @@ use warnings;
 use Carp;
 
 our @ISA    = qw(Exporter);
-our @EXPORT = qw(test_run test_err);
+our @EXPORT = qw(test_run test_warn test_err);
 
 use Test::More;
 use Test::Differences;
@@ -89,36 +89,6 @@ sub run {
     return($stderr, $success, $in_dir);
 }
 
-sub compile {
-    my($input, $options) = @_;
-
-    # Prepare output directory.
-    my $out_dir = tempdir( CLEANUP => 1 );
-
-    my ($stderr, $success, $in_dir) = run($input, $options, $out_dir);
-    if (!$success) {
-        print STDERR "Failed:\n$stderr\n";
-        return '';
-    }
-    if ($stderr) {
-        print STDERR "Unexpected output on STDERR:\n$stderr\n";
-        return '';
-    }
-    return($out_dir);
-}
-
-sub compile_err {
-    my($input, $options) = @_;
-    my ($stderr, $success, $in_dir) = run($input, $options);
-
-    # Cleanup error message.
-    $stderr =~ s/\nAborted with \d+ error\(s\)$//ms;
-
-    # Normalize input path: remove temp. dir.
-    $stderr =~ s/\Q$in_dir\E\///g;
-    return($stderr);
-}
-
 # Find lines in $data which equal elements in @find.
 # Output found line and subsequent lines up to empty line or comment line.
 sub get_block {
@@ -144,24 +114,52 @@ sub get_block {
     $out;
 }
 
-sub test_run {
-    my ($title, $in, $expected, $options) = @_;
-    my $dir = compile($in, $options);
+sub compare_warnings_and_devices {
+    my ($title, $in, $expected, $options, $check_stderr) = @_;
 
-    # Undef input record separator to read all output at once.
-    local $/ = undef;
+    # Prepare output directory.
+    my $dir = tempdir( CLEANUP => 1 );
 
-    # Blocks of expected output are split by single lines of dashes,
-    # followed by an optional device name.
-    my $delim  = qr/^-+[ ]*(\S*)[ ]*\n/m;
-    my @expected = split($delim, $expected);
-    my $first = shift @expected;
-    if ($first) {
-        BAIL_OUT("Missing device name in first line of code specification");
+    my ($stderr, $success, $in_dir) = run($in, $options, $dir);
+    if (!$success) {
+        diag("Unexpected failure");
+        fail($title);
         return;
     }
 
-    my $device = '(missing)';
+    # Blocks of expected output are split by single lines of dashes,
+    # followed by an optional device name.
+    my $delim = qr/^-+[ ]*(\S*)[ ]*\n/m;
+
+    # warnings_or_empty, name1, expected1, name2_or_empty, expected2, ...
+    my @expected = split($delim, $expected);
+    my $warnings = shift @expected;
+
+    if ($check_stderr) {
+        eq_or_diff($warnings, $stderr, $title);
+    }
+    else {
+        if ($stderr) {
+            diag("Unexpected output on STDERR:\n$stderr");
+            fail($title);
+            return;
+        }
+        if ($warnings) {
+            diag("Missing device name in first line of code specification");
+            fail($title);
+            return;
+        }
+    }
+
+    @expected or return;
+
+    my $device = $expected[0];
+    if (not $device) {
+        diag("Missing device name in first dashed line");
+        fail($title);
+        return;
+    }
+
     my %device2blocks;
     while (@expected) {
         if (my $next_device = shift @expected) {
@@ -171,9 +169,15 @@ sub test_run {
         push @{ $device2blocks{$device} }, $text;
     }
 
-    my $multi = keys %device2blocks > 1;
+    # Undef input record separator to read all output at once.
+    local $/ = undef;
+    my $multi = keys %device2blocks > 1 || $check_stderr;
     for my $device (sort keys %device2blocks) {
-        open(my $out_fh, '<', "$dir/$device") or croak("Can't open '$device'");
+        open(my $out_fh, '<', "$dir/$device") or do {
+            diag("Can't open '$device'");
+            fail($title);
+            return;
+        };
         my $output = <$out_fh>;
         close($out_fh);
 
@@ -187,9 +191,38 @@ sub test_run {
     }
 }
 
+# $expected has multiple fields,
+# the expected output of each tested device.
+sub test_run {
+    my ($title, $in, $expected, $options) = @_;
+    compare_warnings_and_devices($title, $in, $expected, $options, 0);
+}
+
+# First, unnamed field of $expected is warning message,
+# next (optional) fields are expected output of tested devices.
+sub test_warn {
+    my ($title, $in, $expected, $options) = @_;
+    compare_warnings_and_devices($title, $in, $expected, $options, 1);
+}
+
+# $expected has one field,
+# the expected error message
 sub test_err {
     my ($title, $in, $expected, $options) = @_;
-    eq_or_diff(compile_err($in, $options), $expected, $title);
+    my ($stderr, $success, $in_dir) = run($in, $options);
+    if ($success) {
+        diag("Unexpected success");
+        fail($title);
+        return;
+    }
+
+    # Cleanup error message.
+    $stderr =~ s/\nAborted with \d+ error\(s\)$//ms;
+
+    # Normalize input path: remove temp. dir.
+    $stderr =~ s/\Q$in_dir\E\///g;
+
+    eq_or_diff($stderr, $expected, $title);
 }
 
 1;

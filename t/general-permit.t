@@ -130,7 +130,7 @@ Warning: Useless attribute 'general_permit' at router:r,
  it was already inherited from router_attributes of area:all
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Managed host';

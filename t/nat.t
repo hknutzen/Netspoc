@@ -187,7 +187,7 @@ Warning: nat:C(network:Test) is subnet of network:X
  If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'NAT network is subnet';
@@ -195,7 +195,7 @@ $title = 'NAT network is subnet';
 
 $in =~ s/} #subnet_of/subnet_of/;
 $out = '';
-test_err($title, $in, $out);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Declared NAT network subnet doesn\'t match';
@@ -315,7 +315,7 @@ Warning: Ignoring useless nat:D bound at router:filter
 Warning: nat:C is defined, but not bound to any interface
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'NAT tag without effect';
@@ -337,7 +337,7 @@ Warning: Ignoring nat:x without effect, bound at every interface of router:r1
 Warning: nat:x is defined, but not bound to any interface
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Check rule with host and dynamic NAT';
@@ -724,7 +724,7 @@ Warning: Useless nat:D at network:x,
 Warning: nat:D is defined, but not bound to any interface
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Interface with dynamic NAT as destination';
@@ -933,7 +933,7 @@ END
 $out = <<'END';
 END
 
-test_err($title, $in, $out);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Combined single hidden allowed';
@@ -980,7 +980,7 @@ END
 $out = <<'END';
 END
 
-test_err($title, $in, $out);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Grouped NAT tags with invalid hidden';
@@ -1622,7 +1622,7 @@ END
 $out = <<'END';
 END
 
-test_err($title, $in, $out);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'NAT is applied twice';

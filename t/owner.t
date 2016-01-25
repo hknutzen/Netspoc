@@ -161,7 +161,7 @@ END
 
 $out = '';
 
-test_err($title, $in, $out);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Redundant owner at bridged network';
@@ -174,7 +174,7 @@ Warning: Useless owner:xx at any:[network:VLAN_40_41/41],
  it was already inherited from area:all
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Redundant owner at nested areas';
@@ -219,7 +219,7 @@ Warning: Useless owner:x at area:a3,
  it was already inherited from area:a2
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Owner at vip interface';
@@ -251,7 +251,7 @@ Warning: service:test has multiple owners:
  x, y
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Owner at invalid vip interface';
@@ -377,7 +377,7 @@ Warning: owner:n3 is extended by owner:a23
  - but not at host:h1
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Missing part in owner with attribute "show_all"';
@@ -467,7 +467,7 @@ Warning: Inconsistent owner definition for host:h2 and host:h4
 Warning: Inconsistent owner definition for host:h1 and host:h5
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 done_testing;

@@ -140,7 +140,7 @@ Warning: Missing rules to reach 1 devices from policy_distribution_point:
  - some VRF of router:r1
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 

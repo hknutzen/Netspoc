@@ -44,7 +44,7 @@ Warning: Redundant rules in service:test compared to service:test2:
 < permit src=host:h1; dst=network:Test; prt=tcp; of service:test2
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Suppressed warning';
@@ -93,7 +93,7 @@ Warning: Redundant rules in service:test compared to service:test:
 < permit src=network:N; dst=network:Test; prt=tcp 22; of service:test
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 

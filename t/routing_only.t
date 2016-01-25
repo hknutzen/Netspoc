@@ -72,7 +72,7 @@ $out = <<'END';
 Warning: service:test is fully unenforceable
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'VRFs';

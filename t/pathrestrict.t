@@ -364,7 +364,7 @@ Warning: pathrestriction:p1 must not have elements from different loops:
  - interface:r2b.n3
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Pathrestrictions can not be optimized';
@@ -469,7 +469,7 @@ Warning: Ignoring pathrestriction:p1 at interface:r3.n3
  because it isn\'t located inside cyclic graph
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Unconnected topology';

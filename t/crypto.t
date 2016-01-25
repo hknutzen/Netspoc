@@ -501,7 +501,7 @@ $out = <<END;
 Warning: Ignoring any:[network:tunnel:softclients] with software clients in src of rule in service:test1
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Duplicate ID-hosts';

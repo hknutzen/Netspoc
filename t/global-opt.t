@@ -136,7 +136,7 @@ Warning: Redundant rules in service:2b compared to service:2c:
 < permit src=network:n1; dst=any:a3; prt=tcp; of service:2c
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Relation between src and dst ranges';
@@ -169,7 +169,7 @@ Warning: Redundant rules in service:t1 compared to service:t1:
 < permit src=network:n1; dst=network:n2; prt=protocol:p2; of service:t1
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Range spans whole network';
@@ -216,7 +216,7 @@ Warning: Redundant rules in service:test1 compared to service:test2:
 < permit src=network:n1; dst=network:n2; prt=tcp 80-90; of service:test2
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Redundant combined hosts';

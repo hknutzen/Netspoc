@@ -791,7 +791,7 @@ END
 $out = <<'END';
 END
 
-test_err($title, $in, $out);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Interface and auto network interface';
@@ -846,7 +846,7 @@ $out = <<'END';
 Warning: Useless delete of interface:[network:y].[auto] in user of service:test
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 done_testing;

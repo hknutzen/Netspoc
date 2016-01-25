@@ -319,7 +319,7 @@ $out = <<'END';
 Warning: area:a1 is empty
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Inconsistent definition of area in loop';

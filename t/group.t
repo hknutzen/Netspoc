@@ -114,7 +114,7 @@ END
 $out = <<'END';
 END
 
-test_err($title, $in, $out);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Mark group in disabled rule as used';
@@ -137,7 +137,7 @@ $out = <<'END';
 Warning: unused group:g1
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 done_testing;

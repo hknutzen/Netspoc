@@ -75,7 +75,7 @@ $out = <<END;
 Warning: Referencing undefined network:n1 from interface:asa1.n1
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Internally disable hosts of unconnected network';

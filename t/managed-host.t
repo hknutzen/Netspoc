@@ -109,7 +109,7 @@ Warning: Duplicate elements in dst of rule in service:test:
  host:h1
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Automatically add managed host to destination aggregate ';
