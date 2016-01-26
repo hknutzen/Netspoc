@@ -17318,7 +17318,10 @@ sub print_static_crypto_map {
     # Build crypto map for each tunnel interface.
     for my $interface (@sorted) {
         $seq_num++;
-        my $suffix = "$hw_name-$seq_num";
+        my $peer = $interface->{peer};
+        my $peer_ip = 
+            prefix_code(address($peer->{real_interface}, $no_nat_set));
+        my $suffix = $peer_ip;
 
         my $crypto = $interface->{crypto};
         my $ipsec  = $crypto->{type};
@@ -17340,9 +17343,6 @@ sub print_static_crypto_map {
         }
 
         # Set crypto peer.
-        my $peer = $interface->{peer};
-        my $peer_ip = 
-            prefix_code(address($peer->{real_interface}, $no_nat_set));
         print "$prefix set peer $peer_ip\n";
 
         print_crypto_map_attributes($prefix, $model, $crypto_type,
@@ -17377,8 +17377,8 @@ sub print_dynamic_crypto_map {
     # Build crypto map for each tunnel interface.
     for my $interface (@sorted) {
         $seq_num--;
-        my $suffix = "$hw_name-$seq_num";
         my $id     = $interface->{peer}->{id};
+        my $suffix = $id;
 
         my $crypto = $interface->{crypto};
         my $ipsec  = $crypto->{type};

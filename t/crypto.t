@@ -745,9 +745,9 @@ $out = <<'END';
 no sysopt connection permit-vpn
 crypto ipsec ikev1 transform-set Trans1 esp-3des esp-sha-hmac
 crypto ipsec ikev1 transform-set Trans2 esp-aes-256 esp-sha-hmac
-access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
+access-list crypto-172.16.1.2 extended permit ip any 10.99.1.0 255.255.255.0
 crypto map crypto-outside 1 set peer 172.16.1.2
-crypto map crypto-outside 1 match address crypto-outside-1
+crypto map crypto-outside 1 match address crypto-172.16.1.2
 crypto map crypto-outside 1 set ikev1 transform-set Trans2
 crypto map crypto-outside 1 set pfs group15
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
@@ -758,10 +758,10 @@ tunnel-group 172.16.1.2 ipsec-attributes
 crypto ca certificate map cert@example.com 10
  subject-name attr ea eq cert@example.com
 tunnel-group-map cert@example.com 10 172.16.1.2
-access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
-access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
+access-list crypto-172.16.2.2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
+access-list crypto-172.16.2.2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
 crypto map crypto-outside 2 set peer 172.16.2.2
-crypto map crypto-outside 2 match address crypto-outside-2
+crypto map crypto-outside 2 match address crypto-172.16.2.2
 crypto map crypto-outside 2 set ikev1 transform-set Trans1
 crypto map crypto-outside 2 set pfs group2
 crypto map crypto-outside 2 set security-association lifetime seconds 600
@@ -794,9 +794,9 @@ crypto ipsec ikev1 transform-set Trans1 esp-3des esp-sha-hmac
 crypto ipsec ikev2 ipsec-proposal Trans2
  protocol esp encryption aes-256
  protocol esp integrity sha
-access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
+access-list crypto-172.16.1.2 extended permit ip any 10.99.1.0 255.255.255.0
 crypto map crypto-outside 1 set peer 172.16.1.2
-crypto map crypto-outside 1 match address crypto-outside-1
+crypto map crypto-outside 1 match address crypto-172.16.1.2
 crypto map crypto-outside 1 set ikev2 ipsec-proposal Trans2
 crypto map crypto-outside 1 set pfs group15
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
@@ -807,10 +807,10 @@ tunnel-group 172.16.1.2 ipsec-attributes
 crypto ca certificate map cert@example.com 10
  subject-name attr ea eq cert@example.com
 tunnel-group-map cert@example.com 10 172.16.1.2
-access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
-access-list crypto-outside-2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
+access-list crypto-172.16.2.2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.0 255.255.255.0
+access-list crypto-172.16.2.2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
 crypto map crypto-outside 2 set peer 172.16.2.2
-crypto map crypto-outside 2 match address crypto-outside-2
+crypto map crypto-outside 2 match address crypto-172.16.2.2
 crypto map crypto-outside 2 set ikev1 transform-set Trans1
 crypto map crypto-outside 2 set pfs group2
 crypto map crypto-outside 2 set security-association lifetime seconds 600
@@ -967,8 +967,8 @@ crypto ipsec ikev1 transform-set Trans1 esp-3des esp-sha-hmac
 crypto ipsec ikev2 ipsec-proposal Trans2
  protocol esp encryption aes-256
  protocol esp integrity sha-384
-access-list crypto-outside-65535 extended permit ip any 10.99.2.0 255.255.255.0
-crypto dynamic-map vpn1@example.com 10 match address crypto-outside-65535
+access-list crypto-vpn1@example.com extended permit ip any 10.99.2.0 255.255.255.0
+crypto dynamic-map vpn1@example.com 10 match address crypto-vpn1@example.com
 crypto dynamic-map vpn1@example.com 10 set ikev2 ipsec-proposal Trans2
 crypto dynamic-map vpn1@example.com 10 set pfs group15
 crypto dynamic-map vpn1@example.com 10 set security-association lifetime seconds 3600
@@ -980,9 +980,9 @@ tunnel-group vpn1@example.com ipsec-attributes
 crypto ca certificate map vpn1@example.com 10
  subject-name attr ea eq vpn1@example.com
 tunnel-group-map vpn1@example.com 10 vpn1@example.com
-access-list crypto-outside-65534 extended permit ip 10.1.1.0 255.255.255.0 10.99.3.0 255.255.255.0
-access-list crypto-outside-65534 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
-crypto dynamic-map vpn2@example.com 10 match address crypto-outside-65534
+access-list crypto-vpn2@example.com extended permit ip 10.1.1.0 255.255.255.0 10.99.3.0 255.255.255.0
+access-list crypto-vpn2@example.com extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
+crypto dynamic-map vpn2@example.com 10 match address crypto-vpn2@example.com
 crypto dynamic-map vpn2@example.com 10 set ikev1 transform-set Trans1
 crypto dynamic-map vpn2@example.com 10 set pfs group2
 crypto dynamic-map vpn2@example.com 10 set security-association lifetime seconds 600
@@ -1267,9 +1267,9 @@ END
 
 $out = <<'END';
 --asavpn
-access-list crypto-outside-1 extended permit ip any 10.10.10.0 255.255.255.0
+access-list crypto-1.2.3.129 extended permit ip any 10.10.10.0 255.255.255.0
 crypto map crypto-outside 1 set peer 1.2.3.129
-crypto map crypto-outside 1 match address crypto-outside-1
+crypto map crypto-outside 1 match address crypto-1.2.3.129
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
@@ -1286,17 +1286,17 @@ access-list outside_in extended permit tcp 10.10.10.0 255.255.255.0 host 10.1.1.
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 --vpn1
-ip access-list extended crypto-GigabitEthernet0-1
+ip access-list extended crypto-1.2.3.2
  permit ip 10.10.10.0 0.0.0.255 any
-ip access-list extended crypto-filter-GigabitEthernet0-1
+ip access-list extended crypto-filter-1.2.3.2
  deny ip any host 10.10.10.1
  permit udp host 10.1.1.111 10.10.10.0 0.0.0.255 eq 123
  permit tcp host 10.1.1.111 10.10.10.0 0.0.0.255 established
  deny ip any any
 crypto map crypto-GigabitEthernet0 1 ipsec-isakmp
  set peer 1.2.3.2
- match address crypto-GigabitEthernet0-1
- set ip access-group crypto-filter-GigabitEthernet0-1 in
+ match address crypto-1.2.3.2
+ set ip access-group crypto-filter-1.2.3.2 in
  set transform-set Trans1
  set pfs group2
 --
@@ -1416,9 +1416,9 @@ $out = <<'END';
 --asavpn
 no sysopt connection permit-vpn
 crypto ipsec ikev1 transform-set Trans1 esp-aes-256 esp-sha-hmac
-access-list crypto-outside-1 extended permit ip any 10.99.1.0 255.255.255.0
+access-list crypto-1.1.1.1 extended permit ip any 10.99.1.0 255.255.255.0
 crypto map crypto-outside 1 set peer 1.1.1.1
-crypto map crypto-outside 1 match address crypto-outside-1
+crypto map crypto-outside 1 match address crypto-1.1.1.1
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
 crypto map crypto-outside 1 set security-association lifetime seconds 3600
