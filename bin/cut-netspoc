@@ -132,6 +132,10 @@ sub change_attribute_src_code {
 
             # Read complex value.
             if ($check->('{')) {
+                if ($check->('description')) {
+                    $check->('=');
+                    $code =~ /\G .* \n/gcx;
+                }                    
                 while (1) {
                     last if $check->('}');
                     $read_token->();
@@ -216,6 +220,7 @@ sub path_unmanaged {
 }
 
 sub mark_unmanaged {
+    progress('Marking unmanged routers');
     for my $network (values %networks) {
 	next if not $network->{is_used};
 #        debug "Path unmanaged $network->{name}";
@@ -521,6 +526,7 @@ for my $router (values %routers) {
 mark_unmanaged();
 
 # Remove definitions of unused hosts from networks.
+progress('Removing unused hosts');
 for my $network (values %networks) {
     $network->{is_used} or next;
     my $hosts = $network->{hosts};
@@ -540,11 +546,13 @@ for my $network (values %networks) {
         if ($name =~ /^host:id:/) {
             $name =~ s/ [.] [^.]+ $ //x;
         }
+#        progress("- $name");
         remove_attribute_src_code($name, $network);
     }
 }
 
 # Remove definitions of unused interfaces from routers
+progress('Removing unused interfaces');
 for my $router (values %routers) {
     $router->{is_used} or next;
     for my $interface (get_intf($router)) {
@@ -555,16 +563,17 @@ for my $router (values %routers) {
         my $name = $interface->{name};
         $name =~ s/ : [^.]+ [.] /:/x;
 
-        # Rename "interface:network.virtual" to "interface:network".
-        # (internally we use virtual interface as main interface.)
-        $name =~ s/[.]virtual$//;
+        # Ignore secondary and virtual interfaces.
+        next if $name =~ s/[.]\w+$//;
 
+#        progress("- $name");
         remove_attribute_src_code($name, $router);
     }
 }
 
 # Remove one or multiple occurences of attribute 'owner'.
 # Multiple from embedded host or interface definiton.
+progress('Removing referenced owners');
 for my $object (values %networks, values %routers,
                 values %areas, values %aggregates)
 {
@@ -576,6 +585,7 @@ for my $object (values %networks, values %routers,
 }
 
 # Remove attribute 'sub_owner'.
+progress('Remove referenced sub_owners');
 for my $service (values %services) {
     $service->{sub_owner} or next;
     remove_attribute_src_code('sub_owner', $service);
@@ -590,9 +600,11 @@ for my $area (values %areas) {
 }
 
 # Remove attribute 'policy_distribution_point'
+progress('Remove referenced policy_distribution_point');
 for my $router (values %routers) {
     $router->{is_used} or next;
     $router->{policy_distribution_point} or next;
+    $router->{src_code} =~ /^[^#]policy_distribution_point/m or next;
     remove_attribute_src_code('policy_distribution_point', $router);
 }
 
