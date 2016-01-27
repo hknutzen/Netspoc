@@ -136,7 +136,8 @@ sub compare_warnings_and_devices {
     my $warnings = shift @expected;
 
     if ($check_stderr) {
-        eq_or_diff($warnings, $stderr, $title);
+        $warnings ||= '';
+        eq_or_diff($stderr, $warnings, $title);
     }
     else {
         if ($stderr) {
