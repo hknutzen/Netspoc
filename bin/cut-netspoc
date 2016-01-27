@@ -662,5 +662,6 @@ for my $restrict (sort by_index values %pathrestrictions) {
 
 # All unwanted services have already been deleted above.
 for my $service (sort by_index values %services) {
+    next if $service->{disabled};
     print $service->{src_code}, "\n";
 }
