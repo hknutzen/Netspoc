@@ -72,6 +72,30 @@ $out = '';
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Mixed ignoring and reporting unenforceable service';
+############################################################
+# Must not ignore others, if first is ignored.
+
+$in = $topo . <<'END';
+service:test1 = {
+ has_unenforceable;
+ user = host:x7, host:x9;
+ permit src = user; dst = host:x7, host:y; prt = tcp 80;
+}
+service:test2 = {
+ user = host:x7, host:x9;
+ permit src = user; dst = host:x7, host:y; prt = tcp 81;
+}
+END
+
+$out = <<'END';
+Warning: service:test2 has unenforceable rules:
+ src=host:x9; dst=host:x7
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Silent unenforceable rules';
 ############################################################
 

@@ -7333,7 +7333,7 @@ sub collect_unenforceable {
 
 sub show_unenforceable {
     for my $key (sort keys %services) {
-        my ($service) = $services{$key};
+        my $service = $services{$key};
         my $context = $service->{name};
 
         if ($service->{has_unenforceable}
@@ -7342,8 +7342,8 @@ sub show_unenforceable {
         {
             warn_msg("Useless attribute 'has_unenforceable' at $context");
         }
-        return if !$config->{check_unenforceable};
-        return if $service->{disabled};
+        next if !$config->{check_unenforceable};
+        next if $service->{disabled};
 
         my $print = 
             $config->{check_unenforceable} eq 'warn' ? \&warn_msg : \&err_msg;
@@ -7358,9 +7358,9 @@ sub show_unenforceable {
             {
                 $print->("$context is fully unenforceable");
             }
-            return;
+            next;
         }
-        return if $service->{has_unenforceable};
+        next if $service->{has_unenforceable};
 
         if (my $hash = delete $service->{seen_unenforceable}) {
             my $msg = "$context has unenforceable rules:";
