@@ -53,7 +53,7 @@ END
 
 $out = '';
 
-test_run($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Service ignoring unenforceable rule';
@@ -69,7 +69,7 @@ END
 
 $out = '';
 
-test_run($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Silent unenforceable rules';
@@ -84,7 +84,7 @@ END
 
 $out = '';
 
-test_run($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Fully unenforceable rule';

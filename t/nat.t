@@ -195,7 +195,7 @@ $title = 'NAT network is subnet';
 
 $in =~ s/} #subnet_of/subnet_of/;
 $out = '';
-test_run($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Declared NAT network subnet doesn\'t match';
@@ -933,7 +933,7 @@ END
 $out = <<'END';
 END
 
-test_run($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Combined single hidden allowed';
@@ -980,7 +980,7 @@ END
 $out = <<'END';
 END
 
-test_run($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Grouped NAT tags with invalid hidden';
@@ -1622,7 +1622,7 @@ END
 $out = <<'END';
 END
 
-test_run($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'NAT is applied twice';

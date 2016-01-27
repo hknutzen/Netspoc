@@ -791,7 +791,7 @@ END
 $out = <<'END';
 END
 
-test_run($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Interface and auto network interface';

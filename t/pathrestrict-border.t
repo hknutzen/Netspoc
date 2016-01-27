@@ -402,7 +402,7 @@ router:Kunde = {
 pathrestriction:restrict = interface:Kunde.Trans1, interface:Kunde.Trans2;
 END
 
-test_run($title, $in, '');
+test_warn($title, $in, '');
 
 ############################################################
 $title = 'Useless pathrestriction at unmanged router';

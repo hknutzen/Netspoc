@@ -114,7 +114,7 @@ END
 $out = <<'END';
 END
 
-test_run($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Mark group in disabled rule as used';

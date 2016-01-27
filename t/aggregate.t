@@ -1175,7 +1175,7 @@ END
 $out = <<"END";
 END
 
-test_run($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Must not use no_check_supernet_rules with hosts';

@@ -146,7 +146,12 @@ sub compare_warnings_and_devices {
             return;
         }
         if ($warnings) {
-            diag("Missing device name in first line of code specification");
+            diag("Missing device name in first line of output specification");
+            fail($title);
+            return;
+        }
+        if (not @expected) {
+            diag('Missing output specifications');
             fail($title);
             return;
         }
