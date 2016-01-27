@@ -1028,4 +1028,34 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Owner as watcher';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = o1@b.c; watchers = owner:o2; }
+owner:o2 = { admins = o2a@b.b; watchers = o2w@b.c; }
+
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+END
+
+$out = <<'END';
+-- email
+{
+   "o1@b.c" : [
+      "o1"
+   ],
+   "o2a@b.b" : [
+      "o1",
+      "o2"
+   ],
+   "o2w@b.c" : [
+      "o1",
+      "o2"
+   ]
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

@@ -3272,11 +3272,7 @@ sub read_owner {
             syntax_err("Expected valid attribute");
         }
     }
-    if (!$owner->{admins}) {
-        $owner->{extend_only} and $owner->{watchers}
-          or error_atline("Missing attribute 'admins'");
-        $owner->{admins} = [];
-    }
+    $owner->{admins} ||= [];
     return $owner;
 }
 
@@ -3875,18 +3871,20 @@ sub link_to_owner {
 
 sub link_to_real_owner {
     my ($obj, $key) = @_;
-    if (my $owner = link_to_owner($obj, $key)) {
-        if ($owner->{extend_only}) {
-
-            # Prevent further errors.
-            delete $owner->{extend_only};
-            err_msg(
-                "$owner->{name} with attribute 'extend_only'",
-                " must only be used at area,\n not at $obj->{name}"
-            );
-        }
+    my $owner = link_to_owner($obj, $key) or return;
+    if (not @{ $owner->{admins} }) {
+        $owner->{err_seen}++ or
+            err_msg("Missing attribute 'admins' in $owner->{name}",
+                    " of $obj->{name}");
+        
     }
-    return;
+    if ($owner->{extend_only}) {
+        
+        # Prevent further errors.
+        delete $owner->{extend_only};
+        err_msg("$owner->{name} with attribute 'extend_only'",
+                " must only be used at area,\n not at $obj->{name}");
+    }
 }
 
 # Element of attribute 'watchers' of owner A is allowed to reference
@@ -3920,6 +3918,7 @@ sub expand_watchers {
                     " $owner->{name}");
                 next;
             }
+            $owner_b->{is_used} = 1;
             push @$watching_owners, $owner_b;
             push @expanded,         @{ expand_watchers($owner_b) };
         }
