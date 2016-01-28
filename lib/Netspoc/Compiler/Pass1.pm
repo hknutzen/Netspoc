@@ -1300,6 +1300,13 @@ sub read_nat {
 
         # This simplifies error checks for overlapping addresses.
         $nat->{dynamic} = $nat_tag;
+
+        # Provide an unusable address.
+        # This prevents 'Use of uninitialized value' 
+        # if code generation is started concurrently,
+        # before all error conditions are checked.
+        $nat->{ip} = 0;
+        $nat->{mask} = 0xffffffff;
     }
     elsif ($nat->{identity}) {
         for my $key (keys %$nat) {
