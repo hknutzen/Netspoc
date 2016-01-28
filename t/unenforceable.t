@@ -41,7 +41,7 @@ Warning: service:test has unenforceable rules:
  src=host:x9; dst=host:x7
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Zone ignoring unenforceable rule';
@@ -53,7 +53,7 @@ END
 
 $out = '';
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Service ignoring unenforceable rule';
@@ -69,7 +69,31 @@ END
 
 $out = '';
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Mixed ignoring and reporting unenforceable service';
+############################################################
+# Must not ignore others, if first is ignored.
+
+$in = $topo . <<'END';
+service:test1 = {
+ has_unenforceable;
+ user = host:x7, host:x9;
+ permit src = user; dst = host:x7, host:y; prt = tcp 80;
+}
+service:test2 = {
+ user = host:x7, host:x9;
+ permit src = user; dst = host:x7, host:y; prt = tcp 81;
+}
+END
+
+$out = <<'END';
+Warning: service:test2 has unenforceable rules:
+ src=host:x9; dst=host:x7
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Silent unenforceable rules';
@@ -84,7 +108,7 @@ END
 
 $out = '';
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Fully unenforceable rule';
@@ -113,7 +137,7 @@ $out = <<'END';
 Warning: service:test is fully unenforceable
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Useless attribute "has_unenforceable" at service';
@@ -126,7 +150,7 @@ Warning: Useless attribute 'has_unenforceable' at service:test
 Warning: service:test is fully unenforceable
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Useless attribute "has_unenforceable" at zone';
@@ -144,7 +168,7 @@ $out = <<'END';
 Warning: Useless attribute 'has_unenforceable' at any:x
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 done_testing;

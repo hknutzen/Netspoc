@@ -1,3 +1,17 @@
+5.0       2016-01-28 18:05:50+01:00 Europe/Berlin
+
+ - Introduced new attribute 'no_check_supernet_rules' at zone.
+   This disables check for missing supernet rules at all networks
+   inside the marked zone. This attribute is only valid for zones
+   having only networks without hosts.
+ - Fixed missing warnings about unenforceable rules.
+   These where missing in most cases since v4.6.
+ - Fixed invalid warning about "unused owner" for an owner that is
+   used only as watcher of another owner.
+ - Fixed command "remove-from-netspoc" to no longer remove unrelated comma.
+ - Changed names for ACLs referenced in crypto maps of ASA and IOS devices.
+   Peer ID or peer IP is used as part of name now.
+
 4.9       2016-01-08 15:15:10+01:00 Europe/Berlin
 
  - Improved finding of [auto] interface with pathrestriction.

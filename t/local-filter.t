@@ -93,7 +93,7 @@ $out = <<'END';
 Warning: Useless 10.62.3.0/24 in attribute 'filter_only' of router:r1
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'NAT not allowed';

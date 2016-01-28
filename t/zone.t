@@ -90,7 +90,7 @@ Warning: Useless owner:t1 at network:Trans2,
  it was already inherited from any:[network:Trans2]
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Duplicate IP from NAT in zone';

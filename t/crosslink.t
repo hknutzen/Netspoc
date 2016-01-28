@@ -122,7 +122,7 @@ END
 
 $out = '';
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Crosslink standard, local, local';

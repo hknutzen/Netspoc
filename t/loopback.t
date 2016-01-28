@@ -45,7 +45,7 @@ Warning: interface:r.l has address of its network.
  add attribute 'loopback' at interface definition.
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Loopback is subnet';
@@ -69,7 +69,7 @@ Warning: interface:r.m is subnet of network:n
  If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Dynamic NAT to multiple virtual loopback interfaces (secondary)';

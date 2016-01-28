@@ -161,7 +161,7 @@ END
 
 $out = '';
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Redundant owner at bridged network';
@@ -174,7 +174,7 @@ Warning: Useless owner:xx at any:[network:VLAN_40_41/41],
  it was already inherited from area:all
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Redundant owner at nested areas';
@@ -219,7 +219,7 @@ Warning: Useless owner:x at area:a3,
  it was already inherited from area:a2
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Owner at vip interface';
@@ -251,7 +251,7 @@ Warning: service:test has multiple owners:
  x, y
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Owner at invalid vip interface';
@@ -299,7 +299,7 @@ network:n1 = { owner = y; ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Missing attribute 'admins' at line 2 of STDIN
+Error: Missing attribute 'admins' in owner:y of network:n1
 END
 
 test_err($title, $in, $out);
@@ -309,8 +309,8 @@ $title = 'Owner with extend_only only usable at area';
 ############################################################
 
 $in = <<'END';
-owner:x = { watchers = x@a.b; extend_only; }
-owner:y = { watchers = y@a.b; extend_only; }
+owner:x = { admins = a@a.b; watchers = x@a.b; extend_only; }
+owner:y = { admins = b@a.b; watchers = y@a.b; extend_only; }
 owner:z = { watchers = z@a.b; extend_only; }
 any:a1 = { owner = x; link = network:n1; }
 network:n1 = { 
@@ -322,6 +322,7 @@ END
 $out = <<'END';
 Error: owner:y with attribute 'extend_only' must only be used at area,
  not at network:n1
+Error: Missing attribute 'admins' in owner:z of host:h1
 Error: owner:z with attribute 'extend_only' must only be used at area,
  not at host:h1
 Error: owner:x with attribute 'extend_only' must only be used at area,
@@ -377,7 +378,7 @@ Warning: owner:n3 is extended by owner:a23
  - but not at host:h1
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Missing part in owner with attribute "show_all"';
@@ -467,7 +468,7 @@ Warning: Inconsistent owner definition for host:h2 and host:h4
 Warning: Inconsistent owner definition for host:h1 and host:h5
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 done_testing;

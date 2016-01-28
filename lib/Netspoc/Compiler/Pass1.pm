@@ -35,7 +35,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '4.9'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.0'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -2591,6 +2591,9 @@ sub read_aggregate {
         elsif (check_flag 'has_unenforceable') {
             $aggregate->{has_unenforceable} = 1;
         }
+        elsif (check_flag 'no_check_supernet_rules') {
+            $aggregate->{no_check_supernet_rules} = 1;
+        }
         elsif (my $nat_name = check_nat_name()) {
             my $nat = read_nat("nat:$nat_name");
             $nat->{dynamic} or error_atline("$nat->{name} must be dynamic");
@@ -3269,11 +3272,7 @@ sub read_owner {
             syntax_err("Expected valid attribute");
         }
     }
-    if (!$owner->{admins}) {
-        $owner->{extend_only} and $owner->{watchers}
-          or error_atline("Missing attribute 'admins'");
-        $owner->{admins} = [];
-    }
+    $owner->{admins} ||= [];
     return $owner;
 }
 
@@ -3872,18 +3871,20 @@ sub link_to_owner {
 
 sub link_to_real_owner {
     my ($obj, $key) = @_;
-    if (my $owner = link_to_owner($obj, $key)) {
-        if ($owner->{extend_only}) {
-
-            # Prevent further errors.
-            delete $owner->{extend_only};
-            err_msg(
-                "$owner->{name} with attribute 'extend_only'",
-                " must only be used at area,\n not at $obj->{name}"
-            );
-        }
+    my $owner = link_to_owner($obj, $key) or return;
+    if (not @{ $owner->{admins} }) {
+        $owner->{err_seen}++ or
+            err_msg("Missing attribute 'admins' in $owner->{name}",
+                    " of $obj->{name}");
+        
     }
-    return;
+    if ($owner->{extend_only}) {
+        
+        # Prevent further errors.
+        delete $owner->{extend_only};
+        err_msg("$owner->{name} with attribute 'extend_only'",
+                " must only be used at area,\n not at $obj->{name}");
+    }
 }
 
 # Element of attribute 'watchers' of owner A is allowed to reference
@@ -3917,6 +3918,7 @@ sub expand_watchers {
                     " $owner->{name}");
                 next;
             }
+            $owner_b->{is_used} = 1;
             push @$watching_owners, $owner_b;
             push @expanded,         @{ expand_watchers($owner_b) };
         }
@@ -5069,14 +5071,16 @@ sub mark_disabled {
     # Find networks not connected to any router.
     for my $network (values %networks) {
         next if $network->{disabled};
-        if (!$seen{$network}) {
-            if (keys %networks > 1) {
-                err_msg("$network->{name} isn't connected to any router");
-                $network->{disabled} = 1;
+        next if $seen{$network};
+        if (keys %networks > 1 or keys %routers) {
+            err_msg("$network->{name} isn't connected to any router");
+            $network->{disabled} = 1;
+            for my $host (@{ $network->{hosts} }) {
+                $host->{disabled} = 1;
             }
-            else {
-                push @networks, $network;
-            }
+        }
+        else {
+            push @networks, $network;
         }
     }
 
@@ -7329,7 +7333,7 @@ sub collect_unenforceable {
 
 sub show_unenforceable {
     for my $key (sort keys %services) {
-        my ($service) = $services{$key};
+        my $service = $services{$key};
         my $context = $service->{name};
 
         if ($service->{has_unenforceable}
@@ -7338,8 +7342,8 @@ sub show_unenforceable {
         {
             warn_msg("Useless attribute 'has_unenforceable' at $context");
         }
-        return if !$config->{check_unenforceable};
-        return if $service->{disabled};
+        next if !$config->{check_unenforceable};
+        next if $service->{disabled};
 
         my $print = 
             $config->{check_unenforceable} eq 'warn' ? \&warn_msg : \&err_msg;
@@ -7354,9 +7358,9 @@ sub show_unenforceable {
             {
                 $print->("$context is fully unenforceable");
             }
-            return;
+            next;
         }
-        return if $service->{has_unenforceable};
+        next if $service->{has_unenforceable};
 
         if (my $hash = delete $service->{seen_unenforceable}) {
             my $msg = "$context has unenforceable rules:";
@@ -8903,6 +8907,21 @@ sub find_subnets_in_nat_domain {
     my %seen;
 
     for my $domain (@natdomains) {
+
+        # Ignore NAT domain consisting only of a single unnumbered network and
+        # surrounded by unmanaged devices.
+        # A address conflict would not be observable inside this NAT domain.
+        my $domain_networks = $domain->{networks};
+        if (1 == @$domain_networks) {
+            my $network = $domain_networks->[0];
+            if ($network->{ip} eq 'unnumbered') {
+                my $interfaces = $network->{interfaces};
+                if (not grep { $_->{router}->{managed} } @$interfaces) {
+                    next;
+                }
+            }
+        }
+
         my $no_nat_set = $domain->{no_nat_set};
 
 #        debug("$domain->{name} ", join ',', sort keys %$no_nat_set);
@@ -9696,7 +9715,9 @@ sub link_aggregates {
         # This is an optimization to prevent the creation of many aggregates 0/0
         # if only inheritance of NAT from area to network is needed.
         if ($mask == 0) {
-            for my $attr (qw(has_unenforceable owner nat)) {
+            for my $attr (qw(has_unenforceable owner nat 
+                             no_check_supernet_rules))
+            {
                 if (my $v = delete $aggregate->{$attr}) {
                     for my $zone2 ($cluster ? @$cluster : ($zone)) {
                         $zone2->{$attr} = $v;
@@ -10238,6 +10259,36 @@ sub inherit_nat_in_zone {
     return;
 }
 
+sub check_attr_no_check_supernet_rules {
+    my $check_subnets;
+    $check_subnets = sub {
+        my ($network_or_zone) = @_;
+        my $error_list;
+        my $hosts = $network_or_zone->{hosts};
+        if ($hosts and @$hosts) {
+            push @$error_list, $network_or_zone;
+        }
+        if (my $subnets = $network_or_zone->{networks}) {
+            for my $subnet (@$subnets) {
+                if (my $sub_error = $check_subnets->($subnet)) {
+                    push @$error_list, @$sub_error;
+                }
+            }
+        }
+        return $error_list;
+    };
+    for my $zone (@zones) {
+        $zone->{no_check_supernet_rules} or next;
+        if (my $bad_networks = $check_subnets->($zone)) {
+            err_msg("Must not use attribute 'no_check_supernet_rules'",
+                    " at $zone->{name}\n",
+                    " with networks having host definitions:\n",
+                    " - ", 
+                    join "\n - ", map { $_->{name} } @$bad_networks);
+        }
+    }
+}
+
 sub cleanup_after_inheritance {
 
     # 1. Remove NAT entries from aggregates.
@@ -10264,6 +10315,7 @@ sub cleanup_after_inheritance {
 sub inherit_attributes {
     inherit_attributes_from_area();
     inherit_nat_in_zone();
+    check_attr_no_check_supernet_rules();
     cleanup_after_inheritance();
     return;
 }
@@ -10771,6 +10823,51 @@ sub check_pathrestrictions {
     return;
 }
 
+sub remove_redundant_pathrestrictions {
+
+    # For each element E, find pathrestrictions that contain E.
+    my %element2restrictions;
+    for my $restrict (@pathrestrictions) 
+    {
+        my $elements = $restrict->{elements};
+        for my $element (@$elements) {
+            $element2restrictions{$element}->{$restrict} = $restrict;
+        }
+    }
+
+    # Check all elements that occur in two or more pathrestrictions.
+    # Check each restriction only once.
+    my %seen;
+    for my $elt_ref (keys %element2restrictions) {
+        my $href = $element2restrictions{$elt_ref};
+        my @list = sort({ @{ $a->{elements} } <=> @{ $b->{elements} } } 
+                        values %$href);
+        while (@list >= 2) {
+            my $restrict = shift @list;
+            next if $seen{$restrict}++;
+            my $elements = $restrict->{elements};
+            for my $element (@$elements) {
+                next if $element eq $elt_ref;
+                my $href2 = $element2restrictions{$element};
+                my $intersection;
+                for my $restrict2 (values %$href) {
+                    next if $restrict2 eq $restrict;
+                    if ($href2->{$restrict2}) {
+                        $intersection->{$restrict2} = $restrict2;
+                    }
+                }
+                $href = $intersection or last;
+            }
+            if ($href) {
+                $restrict->{deleted} = 1;
+                my ($other) = values %$href;
+#                debug "$restrict->{name} < $other->{name}";
+            }
+        }
+    }
+    @pathrestrictions = grep { not $_->{deleted} } @pathrestrictions;
+}
+
 ####################################################################
 # Optimize a class of pathrestrictions.
 # Find partitions of cyclic graphs that are separated
@@ -10933,7 +11030,7 @@ sub optimize_pathrestrictions {
         }
 
         # Optimize pathrestriction.
-        if ($mark > $start_mark + 1) {    # Optimization needs 2 partitions min.
+        if ($mark > $start_mark + 0) {    # Optimization needs 2 partitions min.
             apply_pathrestriction_optimization($restrict, $elements, $lookup);
         }
     }
@@ -11162,6 +11259,7 @@ sub setpath {
     process_loops();                # Refine navigation info at loop nodes.
     check_pathrestrictions();       # Consistency checks, need {loop} attribute.
     check_virtual_interfaces();     # Consistency check, needs {loop} attribute.
+    remove_redundant_pathrestrictions();
     optimize_pathrestrictions();    # Add navigation info to pathrestricted IFs.
     return;
 }
@@ -13046,6 +13144,7 @@ sub find_supernet {
 #         String has the name of first two networks.
 sub find_zone_network {
     my ($interface, $zone, $other) = @_;
+    return 0 if $zone->{no_check_supernet_rules};
     my $no_nat_set = $interface->{no_nat_set};
     my $nat_other = get_nat_network($other, $no_nat_set);
     return 0 if $nat_other->{hidden};
@@ -17218,7 +17317,10 @@ sub print_static_crypto_map {
     # Build crypto map for each tunnel interface.
     for my $interface (@sorted) {
         $seq_num++;
-        my $suffix = "$hw_name-$seq_num";
+        my $peer = $interface->{peer};
+        my $peer_ip = 
+            prefix_code(address($peer->{real_interface}, $no_nat_set));
+        my $suffix = $peer_ip;
 
         my $crypto = $interface->{crypto};
         my $ipsec  = $crypto->{type};
@@ -17240,9 +17342,6 @@ sub print_static_crypto_map {
         }
 
         # Set crypto peer.
-        my $peer = $interface->{peer};
-        my $peer_ip = 
-            prefix_code(address($peer->{real_interface}, $no_nat_set));
         print "$prefix set peer $peer_ip\n";
 
         print_crypto_map_attributes($prefix, $model, $crypto_type,
@@ -17277,8 +17376,8 @@ sub print_dynamic_crypto_map {
     # Build crypto map for each tunnel interface.
     for my $interface (@sorted) {
         $seq_num--;
-        my $suffix = "$hw_name-$seq_num";
         my $id     = $interface->{peer}->{id};
+        my $suffix = $id;
 
         my $crypto = $interface->{crypto};
         my $ipsec  = $crypto->{type};

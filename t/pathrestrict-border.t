@@ -402,7 +402,7 @@ router:Kunde = {
 pathrestriction:restrict = interface:Kunde.Trans1, interface:Kunde.Trans2;
 END
 
-test_err($title, $in, '');
+test_warn($title, $in, '');
 
 ############################################################
 $title = 'Useless pathrestriction at unmanged router';
@@ -415,7 +415,7 @@ Warning: Useless pathrestriction:restrict.
  All interfaces are unmanaged and located inside the same security zone
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 done_testing;

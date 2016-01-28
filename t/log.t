@@ -150,7 +150,7 @@ $out = <<'END';
 Warning: Referencing unknown 'd' in log of service:t
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Global optimization with log tag';
@@ -174,7 +174,7 @@ Warning: Redundant rules in service:t1 compared to service:t2:
 < permit src=any:[network:n1]; dst=network:n3; prt=tcp 80; of service:t2
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'No global optimization with different log tag';
