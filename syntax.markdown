@@ -172,10 +172,11 @@ here `<object set>` must expand to networks.
       any:<name> = { 
          [ <description> ]
          link = network:<network name>; 
-         [ ip = <ip-net>;     ]
-         [ owner = <name>;    ]
+         [ ip = <ip-net>;           ]
+         [ owner = <name>;          ]
          <network NAT> *
-         [ has_unenforceable; ]
+         [ has_unenforceable;       ]
+         [ no_check_supernet_rules; ]
       }
 
 ## Area definition
