@@ -11211,7 +11211,11 @@ sub find_dists_and_loops {
         # Second parameter stands for not existing starting interface.
         # Value must be "false" and unequal to any interface.
         my $max = setpath_obj($zone1, '', $start_distance);
-        $start_distance = $max + 1;    # TODO: why mark disconnected partitions?
+
+        # Use other distance values in disconnected partition.
+        # Otherwise pathmark would erroneously find a path between
+        # disconnected objects.
+        $start_distance = $max + 1;
     }
     return;
 }
