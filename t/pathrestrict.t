@@ -471,47 +471,5 @@ END
 
 test_warn($title, $in, $out);
 
-############################################################
-$title = 'Unconnected topology';
-############################################################
-$in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-
-router:r1 = {
- model = IOS;
- managed;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
-}
-
-router:r2 = {
- model = IOS;
- managed;
- interface:n2 = { ip = 10.1.2.2; hardware = n2; }
-}
-
-service:s = {
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
-END
-
-# Should give better error message.
-# Some hint, that parts aren't connected.
-$out = <<'END';
-Error: No valid path
- from any:[network:n1]
- to any:[network:n2]
- for rule permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s
- Check path restrictions and crypto interfaces.
-Error: No valid path
- from any:[network:n1]
- to any:[network:n2]
- for rule permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s
- Check path restrictions and crypto interfaces.
-END
-
-test_err($title, $in, $out);
-
 ###########################################################
 done_testing;

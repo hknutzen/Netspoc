@@ -5068,7 +5068,12 @@ sub mark_disabled {
     # Derive order from order of routers and interfaces.
     my %seen;
     for my $router (@routers) {
-        for my $interface (@{ $router->{interfaces} }) {
+        my $interfaces = $router->{interfaces};
+        if (not $interfaces or not @$interfaces) {
+            err_msg("$router->{name} isn't connected to any network");
+            next;
+        }
+        for my $interface (@$interfaces) {
             next if $interface->{disabled};
             my $network = $interface->{network};
             $seen{$network}++ or push @networks, $network;
@@ -11192,20 +11197,30 @@ sub set_loop_cluster {
 }
 
 ###############################################################################
-# Purpose : Set node distances to a randomly chosen start zone. Identify loops
-#           inside the graph topology, tag nodes of a cycle with a common
-#           loop object and distance.
+# Purpose : Set direction and distances to an arbitrary chosen start zone.
+#           Identify loops inside the graph topology, tag nodes of a
+#           cycle with a common loop object and distance.
+#           Check for multiple unconnected parts of topology.
 sub find_dists_and_loops {
     @zones or fatal_err("Topology seems to be empty");
-    my @path_routers = grep { $_->{managed} || $_->{semi_managed} } @routers;
+    my $path_routers = 
+        [ grep { $_->{managed} || $_->{semi_managed} } @routers ];
     my $start_distance = 0;
+    my @partitions;
+    my %partition2split_crypto;
+    my %router2partition;
 
-    # Find one or more disconnected parts in whole topology.
-    for my $obj (@zones, @path_routers) {
-        next if $obj->{to_zone1} or $obj->{loop};  # Objects have been processed
+    # Find one or more connected partitions in whole topology.
+    # Only iterate zones, because unconnected routers have been
+    # rejected before.
+    for my $zone (@zones) {
+
+        # Zone is connected to some previously processed partition.
+        next if $zone->{to_zone1} or $zone->{loop};
 
         # Chose an arbitrary node to start from.
-        my $zone1 = $obj;
+        my $zone1 = $zone;
+#        debug $zone1->{name};
 
         # Traverse all nodes connected to zone1.
         # Second parameter stands for not existing starting interface.
@@ -11216,7 +11231,50 @@ sub find_dists_and_loops {
         # Otherwise pathmark would erroneously find a path between
         # disconnected objects.
         $start_distance = $max + 1;
+
+        # Collect zone1 of each partition.
+        push @partitions, $zone1;
+        
+        # Check if split crypto parts are located inside current partition.
+        # Collect remaining routers for next partititions.
+        my @unconnected;
+        for my $router (@$path_routers) {
+            if ($router->{to_zone1} or $router->{loop}) {
+                $router2partition{$router} = $zone1;
+                if ($router->{orig_router}) {
+                    push @{ $partition2split_crypto{$zone1} }, $router;
+                }
+            }
+            else {
+                push @unconnected, $router;
+            }
+        }
+        $path_routers = \@unconnected;
     }
+
+    # Check for unconnected partitions.
+    # Ignore partition, that is linked to some other partition
+    # by split crypto router.
+    my @unconnected;
+  PARTITION:
+    for my $zone1 (@partitions) {
+        if (my $crypto_parts = $partition2split_crypto{$zone1}) {
+            for my $part (@$crypto_parts) {
+                my $orig_router = $part->{orig_router};
+                if (my $zone2 = $router2partition{$orig_router}) {
+                    next PARTITION if $zone1 ne $zone2;
+                }
+            }
+        }
+        push @unconnected, $zone1;
+    }
+
+    if (@unconnected > 1) {
+        err_msg("Topology has unconnected parts:\n",
+                " - ", 
+                join "\n - ", map { $_->{name} } @unconnected);
+    }
+            
     return;
 }
 
