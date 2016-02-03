@@ -4534,9 +4534,6 @@ sub split_semi_managed_router {
             my $network = new('Network', 
                               name => "$intf_name(split Network)", 
                               ip => 'unnumbered');
-
-            # Use identical name for both interfaces.
-            # Name is used only in error messages.
             my $intf1 = new('Interface', 
                             name => "$intf_name(split1)", 
                             ip => 'unnumbered',
@@ -10728,7 +10725,8 @@ sub check_pathrestrictions {
             if (my $other = $interface->{split_other} and not $loop) {
                 my $rlist = delete $interface->{path_restrict};
                 if ($loop = $other->{zone}->{loop}) {
-#                   debug "Moved $restrict->{name} to other";
+#                   debug("Move $restrict->{name}", 
+#                         " from $interface->{name} to $other->{name}");
                     $other->{path_restrict} = $rlist;
                     for my $restrict (@$rlist) {
                         my $elements = $restrict->{elements};
@@ -11818,7 +11816,28 @@ sub cluster_path_mark {
             my $zone = $start_intf->{zone};
             $intf->{saved_reachable_at_zone} = delete $reachable_at->{$zone};
         }
-    } # end reachable
+    } # end REACHABLE
+
+    # Check whether valid paths are possible due to optimized pathrestriction
+    # at outgoing interface at border of loop
+  REACHABLE_TO_OUT:
+    {
+
+        # Check, whether start node is reachable from exit-interface.
+        # For exit-interface, just the direction towards loop is of interest.
+        $to_out or last REACHABLE_TO_OUT;
+        my $reachable_at = $to_out->{reachable_at} or last REACHABLE_TO_OUT;
+        my $reachable    = $reachable_at->{$to} or last REACHABLE_TO_OUT;
+        my $has_mark     = $from->{reachable_part};
+        for my $mark (@$reachable) {
+
+            # Start node is not reachable via exit-interface.
+            if (!$has_mark->{$mark}) {
+                $success = 0;
+                last;
+            }
+        }
+    } # end REACHABLE_TO_OUT
 
     # If start-/end- interface is part of a group of virtual interfaces 
     # (VRRP, HSRP), prevent traffic through other interfaces of this group
