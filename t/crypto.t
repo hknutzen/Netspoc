@@ -188,75 +188,75 @@ tunnel-group VPN-single webvpn-attributes
  authentication certificate
 tunnel-group-map default-group VPN-single
 --asavpn
-access-list vpn-filter-1 extended permit ip 10.99.2.64 255.255.255.192 any
-access-list vpn-filter-1 extended deny ip any any
-crypto ca certificate map ca-map-1 10
+access-list vpn-filter-@domain.y extended permit ip 10.99.2.64 255.255.255.192 any
+access-list vpn-filter-@domain.y extended deny ip any any
+crypto ca certificate map ca-map-@domain.y 10
  subject-name attr ea co @domain.y
-ip local pool pool-1 10.99.2.64-10.99.2.127 mask 255.255.255.192
-group-policy VPN-group-1 internal
-group-policy VPN-group-1 attributes
- address-pools value pool-1
- vpn-filter value vpn-filter-1
+ip local pool pool-@domain.y 10.99.2.64-10.99.2.127 mask 255.255.255.192
+group-policy VPN-group-@domain.y internal
+group-policy VPN-group-@domain.y attributes
+ address-pools value pool-@domain.y
+ vpn-filter value vpn-filter-@domain.y
  vpn-idle-timeout 40
-tunnel-group VPN-tunnel-1 type remote-access
-tunnel-group VPN-tunnel-1 general-attributes
- default-group-policy VPN-group-1
-tunnel-group VPN-tunnel-1 ipsec-attributes
+tunnel-group VPN-tunnel-@domain.y type remote-access
+tunnel-group VPN-tunnel-@domain.y general-attributes
+ default-group-policy VPN-group-@domain.y
+tunnel-group VPN-tunnel-@domain.y ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
  ikev1 user-authentication none
-tunnel-group VPN-tunnel-1 webvpn-attributes
+tunnel-group VPN-tunnel-@domain.y webvpn-attributes
  authentication certificate
-tunnel-group-map ca-map-1 10 VPN-tunnel-1
+tunnel-group-map ca-map-@domain.y 10 VPN-tunnel-@domain.y
 --asavpn
-access-list vpn-filter-2 extended permit ip host 10.99.1.11 any
-access-list vpn-filter-2 extended deny ip any any
-group-policy VPN-group-2 internal
-group-policy VPN-group-2 attributes
+access-list vpn-filter-bar@domain.x extended permit ip host 10.99.1.11 any
+access-list vpn-filter-bar@domain.x extended deny ip any any
+group-policy VPN-group-bar@domain.x internal
+group-policy VPN-group-bar@domain.x attributes
  banner value Willkommen zu Hause
 username bar@domain.x nopassword
 username bar@domain.x attributes
  vpn-framed-ip-address 10.99.1.11 255.255.255.0
  service-type remote-access
- vpn-filter value vpn-filter-2
- vpn-group-policy VPN-group-2
+ vpn-filter value vpn-filter-bar@domain.x
+ vpn-group-policy VPN-group-bar@domain.x
 --
-access-list split-tunnel-3 standard permit 10.0.1.0 255.255.255.0
-access-list split-tunnel-3 standard permit 10.0.2.0 255.255.255.0
-access-list split-tunnel-3 standard permit 10.0.3.0 255.255.255.0
-access-list split-tunnel-3 standard permit 10.0.4.0 255.255.255.0
-access-list vpn-filter-3 extended permit ip 10.99.2.0 255.255.255.192 any
-access-list vpn-filter-3 extended deny ip any any
-crypto ca certificate map ca-map-3 10
+access-list split-tunnel-domain.x standard permit 10.0.1.0 255.255.255.0
+access-list split-tunnel-domain.x standard permit 10.0.2.0 255.255.255.0
+access-list split-tunnel-domain.x standard permit 10.0.3.0 255.255.255.0
+access-list split-tunnel-domain.x standard permit 10.0.4.0 255.255.255.0
+access-list vpn-filter-domain.x extended permit ip 10.99.2.0 255.255.255.192 any
+access-list vpn-filter-domain.x extended deny ip any any
+crypto ca certificate map ca-map-domain.x 10
  subject-name attr ou co domain.x
-ip local pool pool-3 10.99.2.0-10.99.2.63 mask 255.255.255.192
-group-policy VPN-group-3 internal
-group-policy VPN-group-3 attributes
- address-pools value pool-3
- split-tunnel-network-list value split-tunnel-3
+ip local pool pool-domain.x 10.99.2.0-10.99.2.63 mask 255.255.255.192
+group-policy VPN-group-domain.x internal
+group-policy VPN-group-domain.x attributes
+ address-pools value pool-domain.x
+ split-tunnel-network-list value split-tunnel-domain.x
  split-tunnel-policy tunnelspecified
- vpn-filter value vpn-filter-3
+ vpn-filter value vpn-filter-domain.x
  vpn-idle-timeout 120
-tunnel-group VPN-tunnel-3 type remote-access
-tunnel-group VPN-tunnel-3 general-attributes
- default-group-policy VPN-group-3
-tunnel-group VPN-tunnel-3 ipsec-attributes
+tunnel-group VPN-tunnel-domain.x type remote-access
+tunnel-group VPN-tunnel-domain.x general-attributes
+ default-group-policy VPN-group-domain.x
+tunnel-group VPN-tunnel-domain.x ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint2
  ikev1 user-authentication none
-tunnel-group VPN-tunnel-3 webvpn-attributes
+tunnel-group VPN-tunnel-domain.x webvpn-attributes
  authentication certificate
-tunnel-group-map ca-map-3 10 VPN-tunnel-3
+tunnel-group-map ca-map-domain.x 10 VPN-tunnel-domain.x
 --
-access-list vpn-filter-4 extended permit ip host 10.99.1.10 any
-access-list vpn-filter-4 extended deny ip any any
-group-policy VPN-group-4 internal
-group-policy VPN-group-4 attributes
+access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any
+access-list vpn-filter-foo@domain.x extended deny ip any any
+group-policy VPN-group-foo@domain.x internal
+group-policy VPN-group-foo@domain.x attributes
  banner value Willkommen
 username foo@domain.x nopassword
 username foo@domain.x attributes
  vpn-framed-ip-address 10.99.1.10 255.255.255.0
  service-type remote-access
- vpn-filter value vpn-filter-4
- vpn-group-policy VPN-group-4
+ vpn-filter value vpn-filter-foo@domain.x
+ vpn-group-policy VPN-group-foo@domain.x
 --
 ! [ ACL ]
 access-list inside_in extended permit icmp any any 3
@@ -387,13 +387,13 @@ tunnel-group VPN-single webvpn-attributes
  authentication certificate
 tunnel-group-map default-group VPN-single
 --
-access-list vpn-filter-1 extended permit ip host 10.99.1.10 any
-access-list vpn-filter-1 extended deny ip any any
+access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any
+access-list vpn-filter-foo@domain.x extended deny ip any any
 username foo@domain.x nopassword
 username foo@domain.x attributes
  vpn-framed-ip-address 10.99.1.10 255.255.255.0
  service-type remote-access
- vpn-filter value vpn-filter-1
+ vpn-filter value vpn-filter-foo@domain.x
 --
 access-list outside_in extended permit icmp any any 3
 access-list outside_in extended permit tcp host 10.99.1.10 10.1.2.0 255.255.255.0 eq 80
@@ -1103,12 +1103,12 @@ tunnel-group-map default-group VPN-single
 object-group network g0
  network-object 10.99.2.0 255.255.255.0
  network-object 10.99.3.0 255.255.255.0
-access-list vpn-filter-1 extended permit ip object-group g0 any
-access-list vpn-filter-1 extended deny ip any any
+access-list vpn-filter-abc@123.45 extended permit ip object-group g0 any
+access-list vpn-filter-abc@123.45 extended deny ip any any
 username abc@123.45 nopassword
 username abc@123.45 attributes
  service-type remote-access
- vpn-filter value vpn-filter-1
+ vpn-filter value vpn-filter-abc@123.45
 --
 access-list outside_in extended permit icmp object-group g0 any 3
 access-list outside_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80

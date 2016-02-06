@@ -16652,7 +16652,6 @@ EOF
 
     my %cert_group_map;
     my %single_cert_map;
-    my $user_counter = 0;
     for my $interface (@{ $router->{interfaces} }) {
         next if not $interface->{ip} eq 'tunnel';
         my %split_t_cache;
@@ -16661,7 +16660,6 @@ EOF
             for my $id (sort keys %$hash) {
                 my $id_intf = $hash->{$id};
                 my $src     = $id_intf->{src};
-                $user_counter++;
                 my $pool_name;
                 my $attributes = {
                     %{ $router->{radius_attributes} },
@@ -16701,7 +16699,7 @@ EOF
                         }
                     }
                     if (not $acl_name) {
-                        $acl_name = "split-tunnel-$user_counter";
+                        $acl_name = "split-tunnel-$id";
                         my $rules;
                         if (@$split_tunnel_nets) {
                             $rules = [ {
@@ -16737,7 +16735,7 @@ EOF
                         prt => [ $prt_ip ],
                     }
                 ];
-                my $filter_name = "vpn-filter-$user_counter";
+                my $filter_name = "vpn-filter-$id";
                 my $acl_info = {
                     name => $filter_name,
                     rules => delete $id_intf->{rules},
@@ -16758,7 +16756,7 @@ EOF
                     my $mask = print_ip $network->{mask};
                     my $group_policy_name;
                     if (%$attributes) {
-                        $group_policy_name = "VPN-group-$user_counter";
+                        $group_policy_name = "VPN-group-$id";
                         $print_group_policy->($group_policy_name, $attributes);
                     }
                     print "username $id nopassword\n";
@@ -16771,7 +16769,7 @@ EOF
                     print "\n";
                 }
                 else {
-                    $pool_name = "pool-$user_counter";
+                    $pool_name = "pool-$id";
                     my $mask = print_ip $src->{mask};
                     my $max =
                       print_ip($src->{ip} | complement_32bit $src->{mask});
@@ -16780,13 +16778,13 @@ EOF
                     if ($id =~ /^@/) {
                         $subject_name = 'ea';
                     }
-                    my $map_name = "ca-map-$user_counter";
+                    my $map_name = "ca-map-$id";
                     print "crypto ca certificate map $map_name 10\n";
                     print " subject-name attr $subject_name co $id\n";
                     print "ip local pool $pool_name $ip-$max mask $mask\n";
                     $attributes->{'vpn-filter'}    = $filter_name;
                     $attributes->{'address-pools'} = $pool_name;
-                    my $group_policy_name = "VPN-group-$user_counter";
+                    my $group_policy_name = "VPN-group-$id";
                     my @tunnel_gen_att =
                       ("default-group-policy $group_policy_name");
 
@@ -16810,7 +16808,7 @@ EOF
 
                     $print_group_policy->($group_policy_name, $attributes);
 
-                    my $tunnel_group_name = "VPN-tunnel-$user_counter";
+                    my $tunnel_group_name = "VPN-tunnel-$id";
                     print <<"EOF";
 tunnel-group $tunnel_group_name type remote-access
 tunnel-group $tunnel_group_name general-attributes
@@ -16835,7 +16833,7 @@ EOF
                     $cert_group_map{$map_name} = $tunnel_group_name;
 
                     print <<"EOF";
-tunnel-group-map ca-map-$user_counter 10 $tunnel_group_name
+tunnel-group-map $map_name 10 $tunnel_group_name
 
 EOF
                 }
@@ -16844,7 +16842,6 @@ EOF
 
         # A VPN network.
         else {
-            $user_counter++;
 
             # Access list will be bound to cleartext interface.
             # Only check for correct source address at vpn-filter.
@@ -16852,8 +16849,11 @@ EOF
             delete $interface->{rules};
             my $rules = [ { src => $interface->{peer_networks}, 
                             dst => [ $network_00 ], 
+
                             prt => [ $prt_ip ] } ];
-            my $filter_name = "vpn-filter-$user_counter";
+            my $id = $interface->{peer}->{id}
+              or internal_err("Missing ID at $interface->{peer}->{name}");
+            my $filter_name = "vpn-filter-$id";
             my $acl_info = {
                 name => $filter_name,
                 rules => $rules,
@@ -16863,13 +16863,11 @@ EOF
             push @{ $router->{acl_list} }, $acl_info;
             print_acl_placeholder($filter_name);
 
-            my $id = $interface->{peer}->{id}
-              or internal_err("Missing ID at $interface->{peer}->{name}");
             my $attributes = $router->{radius_attributes};
 
             my $group_policy_name;
             if (keys %$attributes) {
-                $group_policy_name = "VPN-router-$user_counter";
+                $group_policy_name = "VPN-router-$id";
                 $print_group_policy->($group_policy_name, $attributes);
             }
             print "username $id nopassword\n";
@@ -16885,8 +16883,7 @@ EOF
     # Generate certificate-group-map for anyconnect/ikev2 clients.
     if (keys %cert_group_map or keys %single_cert_map) {
         for my $id (sort keys %single_cert_map) {
-            $user_counter++;
-            my $map_name = "ca-map-$user_counter";
+            my $map_name = "ca-map-$id";
             print "crypto ca certificate map $map_name 10\n";
             print " subject-name attr ea co $id\n";
             $cert_group_map{$map_name} = $default_tunnel_group;
