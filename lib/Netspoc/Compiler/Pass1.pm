@@ -17827,8 +17827,8 @@ sub print_acls {
 
             my $no_nat_set = delete $acl->{no_nat_set};
             my $dst_no_nat_set = delete $acl->{dst_no_nat_set} || $no_nat_set;
-
-            if ($need_protect and delete $acl->{protect_self}) {
+            my $protect_self = delete $acl->{protect_self};
+            if ($need_protect and $protect_self) {
                 $acl->{need_protect} = [
 
                     # Remove duplicate addresses from redundancy interfaces.
