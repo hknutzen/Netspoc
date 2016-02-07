@@ -1872,12 +1872,13 @@ sub prepare_acls {
             move_rules_esp_ah($acl_info);
 
             my $has_final_permit = check_final_permit($acl_info, $router_data);
+            my $add_permit       = $acl_info->{add_permit};
             add_protect_rules($acl_info, $router_data, 
-                              $has_final_permit || $acl_info->{add_permit});
+                              $has_final_permit || $add_permit);
             if ($do_objectgroup and not $acl_info->{is_crypto_acl}) {
                 find_objectgroups($acl_info, $router_data);
             }
-            if ($filter_only) {
+            if ($filter_only and not $add_permit) {
                 add_local_deny_rules($acl_info, $router_data);
             }
             elsif (not $has_final_permit) {
