@@ -342,7 +342,7 @@ END
 
 $out = <<'END';
 --r1
-! [ ACL ]
+! Vlan20_in
 access-list Vlan20_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.2.70 eq 80
 access-list Vlan20_in extended deny ip any any
 access-group Vlan20_in in interface Vlan20
@@ -402,6 +402,7 @@ END
 
 $out = <<'END';
 --r2
+! n2_in
 object-group network g0
  network-object host 10.9.1.2
  network-object host 10.9.2.2
@@ -452,6 +453,7 @@ END
 
 $out = <<'END';
 --r2
+! n3_in
 object-group network g0
  network-object host 10.1.1.1
  network-object host 10.1.2.1
@@ -513,10 +515,11 @@ END
 
 $out = <<'END';
 --r2
-! [ ACL ]
+! n1_in
 access-list n1_in extended deny ip any any
 access-group n1_in in interface n1
 --
+! n4_in
 object-group network g0
  network-object host 10.1.1.1
  network-object host 10.1.3.1
@@ -525,6 +528,7 @@ access-list n4_in extended permit tcp 10.1.4.0 255.255.255.0 host 10.1.2.1 range
 access-list n4_in extended deny ip any any
 access-group n4_in in interface n4
 --
+! n3_in
 access-list n3_in extended deny ip any any
 access-group n3_in in interface n3
 END
@@ -582,6 +586,7 @@ END
 # In this case we would get a path to interface:r2.n3 through router:r1.
 $out = <<'END';
 --r1
+! n2_in
 access-list n2_in extended permit tcp 10.1.5.0 255.255.255.0 host 10.1.1.2 eq 22
 access-list n2_in extended deny ip any any
 access-group n2_in in interface n2

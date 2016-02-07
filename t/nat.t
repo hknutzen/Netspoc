@@ -92,15 +92,17 @@ END
 
 $out = <<'END';
 --filter
+! inside_in
 access-list inside_in permit tcp host 10.9.1.33 10.9.3.0 255.255.255.0 eq 80
 access-list inside_in deny ip any any
 access-group inside_in in interface inside
---filter
+--
+! outside_in
 access-list outside_in permit ip 10.9.3.0 255.255.255.0 host 1.1.1.23
 access-list outside_in permit tcp 10.9.3.0 255.255.255.0 1.1.1.16 255.255.255.240 eq 80
 access-list outside_in deny ip any any
 access-group outside_in in interface outside
---filter
+--
 ! [ NAT ]
 static (inside,outside) 1.1.1.23 10.9.1.33 netmask 255.255.255.255
 global (outside) 1 1.1.1.16-1.1.1.31 netmask 255.255.255.240
@@ -437,13 +439,13 @@ END
 
 $out = <<'END';
 -- S
-! [ ACL ]
+! inside_in
 access-list inside_in extended permit tcp host 10.9.1.33 10.8.3.0 255.255.255.0 eq 80
 access-list inside_in extended permit tcp host 10.9.1.34 10.8.3.0 255.255.255.0 eq 22
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
 -- R
-! [ ACL ]
+! inside_in
 access-list inside_in extended permit tcp host 1.9.9.9 10.8.3.0 255.255.255.0 eq 80
 access-list inside_in extended permit tcp host 1.9.9.9 10.8.3.0 255.255.255.0 eq 22
 access-list inside_in extended deny ip any any
@@ -499,7 +501,7 @@ ip access-list extended t_in
  permit tcp host 10.2.2.10 10.1.1.0 0.0.0.255 established
  deny ip any any
 -- r2
-! [ ACL ]
+! t_in
 access-list t_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.2.2.10 eq 80
 access-list t_in extended deny ip any any
 access-group t_in in interface t
@@ -555,6 +557,7 @@ END
 
 $out = <<'END';
 --r1
+! vlan0_in
 object-group network g0
  network-object 10.4.4.0 255.255.255.0
  network-object 10.5.5.0 255.255.255.0
@@ -1401,7 +1404,7 @@ END
 
 $out = <<'END';
 -- r1
-! [ ACL ]
+! outside_in
 access-list outside_in extended permit 50 10.1.1.0 255.255.255.0 10.1.0.0 255.255.0.0
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
@@ -1685,11 +1688,12 @@ END
 
 $out = <<'END';
 -- filter
-! [ ACL ]
+! inside_in
 access-list inside_in extended permit tcp 10.1.1.0 255.255.255.0 2.2.2.0 255.255.255.0 eq 22
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
 --
+! outside_in
 access-list outside_in extended permit tcp 2.2.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside

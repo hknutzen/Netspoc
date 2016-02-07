@@ -152,7 +152,7 @@ END
 
 $out = <<'END';
 --gw
-! [ ACL ]
+! outside_in
 access-list outside_in extended permit ip 10.1.7.0 255.255.255.0 host 193.1.1.2
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
@@ -168,7 +168,7 @@ $in =~ s/managed = secondary/managed/ms;
 
 $out = <<'END';
 --gw
-! [ ACL ]
+! outside_in
 access-list outside_in extended permit icmp 10.1.7.0 255.255.255.0 host 193.1.1.2 8
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
@@ -245,6 +245,7 @@ $out = <<'END';
 --asa
 route outside 172.17.1.11 255.255.255.255 192.168.0.11
 --
+! inside_in
 access-list inside_in extended permit tcp 10.1.1.0 255.255.255.0 host 172.17.1.11 eq 22
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
@@ -273,7 +274,7 @@ $out = <<'END';
 ! [ Routing ]
 route outside 0.0.0.0 0.0.0.0 192.168.0.1
 --
-! [ ACL ]
+! inside_in
 access-list inside_in extended permit tcp 10.1.1.0 255.255.255.0 host 172.17.1.11 eq 22
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside

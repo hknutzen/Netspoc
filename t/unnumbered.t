@@ -167,7 +167,7 @@ $in =~ s/interface:dummy;/interface:dummy = { unnumbered; }/;
 
 $out = <<'END';
 --r1
-! [ ACL ]
+! n1_in
 access-list n1_in extended deny ip any any
 access-group n1_in in interface n1
 END
@@ -214,13 +214,15 @@ END
 
 $out = <<'END';
 --r1
-! [ ACL ]
+! n1_in
 access-list n1_in extended deny ip any any
 access-group n1_in in interface n1
 --
+! n2_in
 access-list n2_in extended deny ip any any
 access-group n2_in in interface n2
 --
+! n3_in
 object-group network g0
  network-object 10.1.1.0 255.255.255.0
  network-object 10.1.2.0 255.255.255.0

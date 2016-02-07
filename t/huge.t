@@ -68,11 +68,12 @@ $out = <<'END';
 ! [ Routing ]
 route a 10.0.100.0 255.255.255.128 10.0.1.129
 --
-! [ ACL ]
+! n_in
 access-list n_in extended permit tcp 10.0.1.0 255.255.255.128 10.0.100.0 255.255.255.128 eq 80
 access-list n_in extended deny ip any any
 access-group n_in in interface n
 --
+! a_in
 access-list a_in extended permit tcp 10.0.100.0 255.255.255.128 10.0.1.0 255.255.255.128 eq 80
 access-list a_in extended deny ip any any
 access-group a_in in interface a

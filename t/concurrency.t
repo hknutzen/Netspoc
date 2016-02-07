@@ -33,7 +33,7 @@ END
 # No errors expected.
 $out = <<'END';
 -- asa1
-! [ ACL ]
+! n1_in
 access-list n1_in extended permit tcp host 10.1.1.10 10.1.2.0 255.255.255.0 eq 22
 access-list n1_in extended deny ip any any
 access-group n1_in in interface n1
@@ -204,14 +204,15 @@ END
 # Expect normal operation with concurrency enabled.
 $out = <<'END';
 -- asa1
-! [ ACL ]
+! n1_in
 access-list n1_in extended deny ip any any
 access-group n1_in in interface n1
 --
+! n2_in
 access-list n2_in extended deny ip any any
 access-group n2_in in interface n2
 -- asa2
-! [ ACL ]
+! n2_in
 access-list n2_in extended deny ip any any
 access-group n2_in in interface n2
 END

@@ -16561,7 +16561,16 @@ sub full_prefix_code {
 my $deny_any_rule;
 
 sub print_acl_placeholder {
-    my ($acl_name) = @_;
+    my ($router, $acl_name) = @_;
+
+    # Add comment at start of ACL to easier find first ACL line in tests.
+    my $model = $router->{model};
+    my $filter = $model->{filter};
+    if ($filter =~ /^(?:PIX|ACE)$/) {
+        my $comment_char = $model->{comment_char};
+        print "$comment_char $acl_name\n";
+    }
+        
     print "#insert $acl_name\n";
 }
 
@@ -16721,7 +16730,7 @@ EOF
                             is_crypto_acl => 1,
                         };
                         push @{ $router->{acl_list} }, $acl_info;
-                        print_acl_placeholder($acl_name);
+                        print_acl_placeholder($router, $acl_name);
                     }
                     $attributes->{'split-tunnel-network-list'} = $acl_name;
                 }
@@ -16743,7 +16752,7 @@ EOF
                     no_nat_set => $no_nat_set,
                 };
                 push @{ $router->{acl_list} }, $acl_info;
-                print_acl_placeholder($filter_name);
+                print_acl_placeholder($router, $filter_name);
 
                 my $ip      = print_ip $src->{ip};
                 my $network = $src->{network};
@@ -16861,7 +16870,7 @@ EOF
                 no_nat_set => $no_nat_set,
             };
             push @{ $router->{acl_list} }, $acl_info;
-            print_acl_placeholder($filter_name);
+            print_acl_placeholder($router, $filter_name);
 
             my $attributes = $router->{radius_attributes};
 
@@ -16964,7 +16973,7 @@ sub print_iptables_acls {
             no_nat_set => $no_nat_set,
         };
         push @{ $router->{acl_list} }, $intf_acl_info;
-        print_acl_placeholder($intf_acl_name);
+        print_acl_placeholder($router, $intf_acl_name);
         print "-A INPUT -j $intf_acl_name -i $in_hw\n";
 
         # Collect forward rules.
@@ -16980,7 +16989,7 @@ sub print_iptables_acls {
                 no_nat_set => $no_nat_set,
             };
             push @{ $router->{acl_list} }, $acl_info;
-            print_acl_placeholder($acl_name);
+            print_acl_placeholder($router, $acl_name);
             print "-A FORWARD -j $acl_name -i $in_hw -o $out_hw\n";
         }
 
@@ -17100,7 +17109,7 @@ sub print_cisco_acls {
             }
 
             push @{ $router->{acl_list} }, $acl_info;
-            print_acl_placeholder($acl_name);
+            print_acl_placeholder($router, $acl_name);
 
             # Post-processing for hardware interface
             if ($filter eq 'IOS' || $filter eq 'NX-OS') {
@@ -17208,7 +17217,7 @@ sub print_ezvpn {
         is_crypto_acl => 1,
     };
     push @{ $router->{acl_list} }, $acl_info;
-    print_acl_placeholder($crypto_acl_name);
+    print_acl_placeholder($router, $crypto_acl_name);
 
     # Crypto filter ACL.
     $acl_info = {
@@ -17220,7 +17229,7 @@ sub print_ezvpn {
         no_nat_set   => $no_nat_set,
     };
     push @{ $router->{acl_list} }, $acl_info;
-    print_acl_placeholder($crypto_filter_name);
+    print_acl_placeholder($router, $crypto_filter_name);
 
     # Bind crypto filter ACL to virtual template.
     print "interface Virtual-Template$virtual_interface_number type tunnel\n";
@@ -17254,7 +17263,7 @@ sub print_crypto_acl {
 
     };
     push @{ $router->{acl_list} }, $acl_info;
-    print_acl_placeholder($crypto_acl_name);
+    print_acl_placeholder($router, $crypto_acl_name);
     return $crypto_acl_name;
 }
 
@@ -17278,7 +17287,7 @@ sub print_crypto_filter_acl {
         no_nat_set   => $no_nat_set,
     };
     push @{ $router->{acl_list} }, $acl_info;
-    print_acl_placeholder($crypto_filter_name);
+    print_acl_placeholder($router, $crypto_filter_name);
     return $crypto_filter_name;
 }
 

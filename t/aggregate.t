@@ -1376,7 +1376,7 @@ END
 
 $out = <<'END';
 --asa
-! [ ACL ]
+! inside_in
 access-list inside_in extended permit tcp 10.1.1.0 255.255.255.0 any eq 80
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside

@@ -60,7 +60,7 @@ ip access-list extended vlan1_in
  permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 85 log-input
  deny ip any any
 -- asa2
-! [ ACL ]
+! vlan2_in
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 81 log 7
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 range 82 83 log disable
@@ -200,7 +200,7 @@ ip access-list extended vlan1_in
  permit tcp any 10.1.3.0 0.0.0.255 eq 80
  deny ip any any
 -- asa2
-! [ ACL ]
+! vlan2_in
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
 access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 7
 access-list vlan2_in extended deny ip any any
@@ -227,7 +227,7 @@ ip access-list extended vlan1_in
  permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80 log-input
  deny ip any any
 -- asa2
-! [ ACL ]
+! vlan2_in
 access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 3
 access-list vlan2_in extended deny ip any any
 access-group vlan2_in in interface vlan2
@@ -253,7 +253,7 @@ END
 
 $out = <<'END';
 -- asa2
-! [ ACL ]
+! vlan2_in
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
 access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 7
 access-list vlan2_in extended deny ip any any
@@ -297,7 +297,7 @@ END
 
 $out = <<'END';
 -- asa
-! [ ACL ]
+! vlan1_in
 object-group network g0
  network-object host 10.1.2.11
  network-object host 10.1.2.13
@@ -350,7 +350,7 @@ ip access-list vlan1_in
  20 permit tcp 10.1.1.0/24 10.1.3.0/24 eq 81
  30 deny ip any any
 -- r2
-! [ ACL ]
+! vlan2_in
 access-list vlan2_in extended deny ip any host 10.1.3.2
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 range 80 81 log
 access-list vlan2_in extended deny ip any any

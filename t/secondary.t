@@ -72,7 +72,7 @@ END
  
 $out = <<'END';
 -- sec
-! [ ACL ]
+! n1_in
 object-group network g0
  network-object 10.1.3.0 255.255.255.0
  network-object 10.1.4.0 255.255.255.0
@@ -82,7 +82,7 @@ access-list n1_in extended permit udp host 10.1.1.10 10.1.5.0 255.255.255.0 eq 5
 access-list n1_in extended deny ip any any
 access-group n1_in in interface n1
 -- pri
-! [ ACL ]
+! n2_in
 object-group network g0
  network-object 10.1.3.0 255.255.255.0
  network-object 10.1.4.0 255.255.255.0
@@ -92,6 +92,7 @@ access-list n2_in extended permit udp host 10.1.2.10 object-group g0 eq 53
 access-list n2_in extended deny ip any any
 access-group n2_in in interface n2
 -- ful
+! t3_in
 object-group network g0
  network-object host 10.1.1.10
  network-object host 10.1.2.10
@@ -100,6 +101,7 @@ access-list t3_in extended permit udp object-group g0 10.1.3.0 255.255.255.0 eq 
 access-list t3_in extended deny ip any any
 access-group t3_in in interface t3
 -- std
+! t4_in
 access-list t4_in extended permit tcp host 10.1.1.10 10.1.4.0 255.255.255.0 eq 80
 access-list t4_in extended permit udp host 10.1.1.10 10.1.4.0 255.255.255.0 eq 53
 access-list t4_in extended permit ip 10.1.2.0 255.255.255.0 10.1.4.0 255.255.255.0
@@ -303,7 +305,7 @@ ip access-list extended A_in
  permit ip 10.3.3.0 0.0.0.127 host 10.8.8.7
  deny ip any any
 -- filter
-! [ ACL ]
+! Trans_in
 access-list Trans_in extended permit tcp 10.3.3.0 255.255.255.128 10.8.8.0 255.255.255.0 eq 80
 access-list Trans_in extended permit tcp 10.3.3.0 255.255.255.128 host 10.8.8.7 eq 22
 access-list Trans_in extended deny ip any any
@@ -347,7 +349,7 @@ END
 
 $out = <<'END';
 --r1
-! [ ACL ]
+! vlan1_in
 object-group network g0
  network-object host 10.1.2.2
  network-object host 10.1.3.2
@@ -395,7 +397,7 @@ END
 
 $out = <<'END';
 --r1
-! [ ACL ]
+! vlan1_in
 access-list vlan1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.3.0 255.255.255.224 eq 80
 access-list vlan1_in extended deny ip any any
 access-group vlan1_in in interface vlan1
