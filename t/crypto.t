@@ -222,11 +222,11 @@ username bar@domain.x attributes
  vpn-filter value vpn-filter-bar@domain.x
  vpn-group-policy VPN-group-bar@domain.x
 --
-! split-tunnel-domain.x
-access-list split-tunnel-domain.x standard permit 10.0.1.0 255.255.255.0
-access-list split-tunnel-domain.x standard permit 10.0.2.0 255.255.255.0
-access-list split-tunnel-domain.x standard permit 10.0.3.0 255.255.255.0
-access-list split-tunnel-domain.x standard permit 10.0.4.0 255.255.255.0
+! split-tunnel-1
+access-list split-tunnel-1 standard permit 10.0.1.0 255.255.255.0
+access-list split-tunnel-1 standard permit 10.0.2.0 255.255.255.0
+access-list split-tunnel-1 standard permit 10.0.3.0 255.255.255.0
+access-list split-tunnel-1 standard permit 10.0.4.0 255.255.255.0
 --
 ! vpn-filter-domain.x
 access-list vpn-filter-domain.x extended permit ip 10.99.2.0 255.255.255.192 any
@@ -237,7 +237,7 @@ ip local pool pool-domain.x 10.99.2.0-10.99.2.63 mask 255.255.255.192
 group-policy VPN-group-domain.x internal
 group-policy VPN-group-domain.x attributes
  address-pools value pool-domain.x
- split-tunnel-network-list value split-tunnel-domain.x
+ split-tunnel-network-list value split-tunnel-1
  split-tunnel-policy tunnelspecified
  vpn-filter value vpn-filter-domain.x
  vpn-idle-timeout 120

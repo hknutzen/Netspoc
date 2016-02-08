@@ -16680,6 +16680,7 @@ EOF
 
     my %cert_group_map;
     my %single_cert_map;
+    my $acl_counter = 0;
     for my $interface (@{ $router->{interfaces} }) {
         next if not $interface->{ip} eq 'tunnel';
         my %split_t_cache;
@@ -16727,7 +16728,8 @@ EOF
                         }
                     }
                     if (not $acl_name) {
-                        $acl_name = "split-tunnel-$id";
+                        $acl_counter++;
+                        $acl_name = "split-tunnel-$acl_counter";
                         my $rules;
                         if (@$split_tunnel_nets) {
                             $rules = [ {
