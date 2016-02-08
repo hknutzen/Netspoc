@@ -2200,43 +2200,34 @@ sub background {
 sub apply_concurrent {
     my ($code, $list, $concurrent) = @_;
 
-    # Process sequentially.
-    if (1 >= $concurrent) {
-        for my $arg (@$list) {
-            $code->($arg);
-        }
-    }
-
     # Process with $concurrent background jobs.
     # Error messages are send directly to STDERR.
-    else {
-        my $errors;
-        for my $arg (@$list) {
+    my $errors;
+    for my $arg (@$list) {
 
-            # Start concurrent jobs.
-            if (0 < $concurrent) {
-                background($code, $arg);
-                $concurrent--;
-                next;
-            }
-            
-            # Start next job, after some job has finished.
-            my $pid = wait();
-            if ($pid != -1) {
-                $? and $errors++;
-            }
+        # Start concurrent jobs.
+        if (0 < $concurrent) {
             background($code, $arg);
+            $concurrent--;
+            next;
         }
 
-        # Wait for all jobs to be finished.
-        while (1) {
-            my $pid = wait();
-            last if -1 == $pid;
+        # Start next job, after some job has finished.
+        my $pid = wait();
+        if ($pid != -1) {
             $? and $errors++;
         }
-
-        $errors and die "Failed\n";
+        background($code, $arg);
     }
+
+    # Wait for all jobs to be finished.
+    while (1) {
+        my $pid = wait();
+        last if -1 == $pid;
+        $? and $errors++;
+    }
+
+    $errors and die "Failed\n";
 }
 
 sub pass2 {
