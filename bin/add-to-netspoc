@@ -106,7 +106,7 @@ sub check_name {
     my ($type, $name) = ($typed_name =~ /^(\w+):(.*)$/) or 
         fatal_err "Missing type in '$typed_name'";
     $valid_type{$type} or fatal_err("Can't use type in '$typed_name'");
-    $name =~ /([^-\w.:\@\/])/ and
+    $name =~ /([^-\w.:\@\/\[\]])/ and
         fatal_err("Invalid character '$1' in $typed_name");
     return;
 }
@@ -144,6 +144,9 @@ sub process {
                     if ($line =~ /\G (\s*) (\w+ : [-\w.:\@\/]+)/gcx) {
                         $copy .= "$1$2";
                         my $old = $2;
+                        if ($line =~ /\G ( \[ (?: auto | all ) \] )/gcx) {
+                            $old .= $1;
+                        }
                         my $new = $add_to{$old} or next;
                         $line_changed++;
 

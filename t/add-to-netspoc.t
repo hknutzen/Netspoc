@@ -89,6 +89,50 @@ test_add($title, $in, 'host:xyz host:h', $out);
 test_rmv($title, $out, 'host:h', $in);
 
 ############################################################
+$title = 'host after automatic interface';
+############################################################
+
+$in = <<'END';
+group:abc =
+ interface:r1@vrf.[auto],
+ network:xyz,
+;
+END
+
+$out = <<'END';
+group:abc =
+ interface:r1@vrf.[auto],
+ host:h,
+ network:xyz,
+;
+END
+
+test_add($title, $in, 'interface:r1@vrf.\[auto\] host:h', $out);
+test_rmv($title, $out, 'host:h', $in);
+
+############################################################
+$title = 'automatic interface after host';
+############################################################
+
+$in = <<'END';
+group:abc =
+ host:h,
+ network:xyz,
+;
+END
+
+$out = <<'END';
+group:abc =
+ host:h,
+ interface:r1@vrf.[auto],
+ network:xyz,
+;
+END
+
+test_add($title, $in, 'host:h interface:r1@vrf.\[auto\]', $out);
+test_rmv($title, $out, 'interface:r1@vrf.\[auto\]', $in);
+
+############################################################
 $title = 'network after intersection';
 ############################################################
 
