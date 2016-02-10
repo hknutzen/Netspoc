@@ -28,7 +28,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 use strict;
 use warnings;
-use JSON;
+use JSON::XS;
 use Netspoc::Compiler::GetArgs qw(get_args);
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
@@ -18030,7 +18030,7 @@ sub print_acls {
         $result->{log_deny} = 'log';
     }
 
-    print $fh to_json($result, { pretty => 1, canonical => 1 });
+    print $fh JSON::XS->new->pretty(1)->canonical(1)->encode($result);
 }
 
 # Make output directory available.
