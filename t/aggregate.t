@@ -113,6 +113,96 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Multiple implicit aggregates';
+############################################################
+
+$in = <<'END';
+network:Test =  { ip = 10.9.1.0/24; }
+router:filter1 = {
+  managed;
+  model = ASA;
+  routing = manual;
+  interface:Test = { ip = 10.9.1.1; hardware = Vlan20; }
+  interface:Trans1 = { ip = 10.3.6.1; hardware = VLAN1; }
+}
+router:filter2 = {
+  managed;
+  model = ASA;
+  routing = manual;
+  interface:Test = { ip = 10.9.1.2; hardware = Vlan20; }
+  interface:Trans2 = { ip = 10.5.7.1; hardware = VLAN1; }
+}
+network:Trans1 = { ip = 10.3.6.0/24; }
+network:Trans2 = { ip = 10.5.7.0/24; }
+
+router:Kunde = {
+  interface:Trans1 = { ip = 10.3.6.2; }
+  interface:Trans2 = { ip = 10.5.7.2; }
+  interface:Trans3 = { ip = 10.5.8.1; }
+}
+
+network:Trans3 = { ip = 10.5.8.0/24; }
+
+router:r2 = {
+  managed;
+  model = ASA;
+  routing = manual;
+  interface:Trans3 = { ip = 10.5.8.2; hardware = Vlan20; }
+  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+pathrestriction:restrict = interface:Kunde.Trans1, interface:Kunde.Trans2;
+
+service:t1 = {
+  user = any:[ip=10.0.0.0/12 & network:n2],
+         any:[ip=10.0.0.0/13 & network:Trans1],
+         any:[ip=10.0.0.0/13 & network:Trans2],
+  ;
+  permit src = user; dst = network:Test; prt = tcp 81;
+}
+service:t2 = {
+  user = any:[ip=10.0.0.0/14 & network:n2],
+         any:[ip=10.0.0.0/14 & network:Trans1],
+         network:Trans2,
+  ;
+  permit src = user; dst = network:Test; prt = tcp 82;
+}
+END
+
+# Warning is sub optimal.
+# Netspoc doesn't show original aggregate names.
+$out = <<"END";
+Warning: Duplicate elements in user of service:t1:
+ any:[ip=10.0.0.0/13 & network:Trans1]
+ any:[ip=10.0.0.0/13 & network:Trans1]
+ any:[ip=10.0.0.0/13 & network:Trans1]
+-- filter1
+! VLAN1_in
+access-list VLAN1_in extended permit tcp 10.0.0.0 255.240.0.0 10.9.1.0 255.255.255.0 eq 81
+access-list VLAN1_in extended permit tcp 10.0.0.0 255.252.0.0 10.9.1.0 255.255.255.0 eq 82
+access-list VLAN1_in extended deny ip any any
+access-group VLAN1_in in interface VLAN1
+-- filter2
+! VLAN1_in
+object-group network g0
+ network-object 10.0.0.0 255.252.0.0
+ network-object 10.5.7.0 255.255.255.0
+access-list VLAN1_in extended permit tcp 10.0.0.0 255.240.0.0 10.9.1.0 255.255.255.0 eq 81
+access-list VLAN1_in extended permit tcp object-group g0 10.9.1.0 255.255.255.0 eq 82
+access-list VLAN1_in extended deny ip any any
+access-group VLAN1_in in interface VLAN1
+-- r2
+! n2_in
+access-list n2_in extended permit tcp 10.0.0.0 255.240.0.0 10.9.1.0 255.255.255.0 eq 81
+access-list n2_in extended permit tcp 10.0.0.0 255.252.0.0 10.9.1.0 255.255.255.0 eq 82
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Check aggregate at unnumbered interface';
 ############################################################
 
