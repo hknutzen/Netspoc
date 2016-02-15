@@ -6693,7 +6693,7 @@ sub propagate_owners {
             )
           )
         {
-            $_->{owner} = undef for @implicit_owner_zones;
+            delete $_->{owner} for @implicit_owner_zones;
 
 #            debug("Reset owner");
 #            debug($_->{name}) for @implicit_owner_zones;
@@ -6790,8 +6790,8 @@ sub propagate_owners {
     $inherit = sub {
         my ($node, $upper_owner, $upper_node, $extend, $extend_only) = @_;
         my $owner = $node->{owner};
-        if (!$owner) {
-            $node->{owner} = $upper_owner;
+        if (not $owner) {
+            $node->{owner} = $upper_owner if $upper_owner;
         }
         else {
             $owner->{is_used} = 1;
@@ -6956,7 +6956,8 @@ sub propagate_owners {
             while ($up = $up->{up}) {
                 last if !$up->{is_aggregate};
             }
-            $aggregate->{owner} = ($up ? $up : $zone)->{owner};
+            my $owner = ($up ? $up : $zone)->{owner} or next;
+            $aggregate->{owner} = $owner;
         }
     }
     return;
