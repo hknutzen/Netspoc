@@ -465,6 +465,206 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Multiple auto interfaces in src and dst';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r4 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+service:s = {
+ user = interface:r1.[auto], interface:r2.[auto];
+ permit src = user; 
+        dst = interface:r3.[auto], interface:r4.[auto]; 
+        prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r1
+! n1_in
+object-group network g0
+ network-object host 10.1.1.2
+ network-object host 10.1.2.1
+object-group network g1
+ network-object host 10.1.2.2
+ network-object host 10.1.3.1
+ network-object host 10.1.3.2
+ network-object host 10.1.4.1
+access-list n1_in extended permit tcp object-group g0 object-group g1 eq 22
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+-- r2
+! n1_in
+object-group network g0
+ network-object host 10.1.1.1
+ network-object host 10.1.4.2
+object-group network g1
+ network-object host 10.1.2.2
+ network-object host 10.1.3.1
+ network-object host 10.1.3.2
+ network-object host 10.1.4.1
+access-list n1_in extended permit tcp object-group g0 object-group g1 eq 22
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+--r3
+! n2_in
+object-group network g0
+ network-object host 10.1.1.1
+ network-object host 10.1.1.2
+ network-object host 10.1.2.1
+ network-object host 10.1.4.2
+object-group network g1
+ network-object host 10.1.3.2
+ network-object host 10.1.4.1
+access-list n2_in extended permit tcp object-group g0 object-group g1 eq 22
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+-- r4
+ip access-list extended n3_in
+ permit tcp host 10.1.1.1 host 10.1.3.2 eq 22
+ permit tcp host 10.1.1.1 host 10.1.4.1 eq 22
+ permit tcp host 10.1.4.2 host 10.1.3.2 eq 22
+ permit tcp host 10.1.4.2 host 10.1.4.1 eq 22
+ permit tcp host 10.1.1.2 host 10.1.4.1 eq 22
+ permit tcp host 10.1.1.2 host 10.1.3.2 eq 22
+ permit tcp host 10.1.2.1 host 10.1.4.1 eq 22
+ permit tcp host 10.1.2.1 host 10.1.3.2 eq 22
+ deny ip any any
+--
+ip access-list extended n4_in
+ permit tcp host 10.1.1.1 host 10.1.3.2 eq 22
+ permit tcp host 10.1.1.1 host 10.1.4.1 eq 22
+ permit tcp host 10.1.4.2 host 10.1.3.2 eq 22
+ permit tcp host 10.1.4.2 host 10.1.4.1 eq 22
+ permit tcp host 10.1.1.2 host 10.1.4.1 eq 22
+ permit tcp host 10.1.1.2 host 10.1.3.2 eq 22
+ permit tcp host 10.1.2.1 host 10.1.4.1 eq 22
+ permit tcp host 10.1.2.1 host 10.1.3.2 eq 22
+ permit tcp host 10.1.1.1 host 10.1.2.2 eq 22
+ permit tcp host 10.1.1.1 host 10.1.3.1 eq 22
+ permit tcp host 10.1.4.2 host 10.1.2.2 eq 22
+ permit tcp host 10.1.4.2 host 10.1.3.1 eq 22
+ permit tcp host 10.1.1.2 host 10.1.3.1 eq 22
+ permit tcp host 10.1.1.2 host 10.1.2.2 eq 22
+ permit tcp host 10.1.2.1 host 10.1.3.1 eq 22
+ permit tcp host 10.1.2.1 host 10.1.2.2 eq 22
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Multiple auto interfaces in src and dst with pathrestriction';
+############################################################
+# pathrestriction leads to mor complicated expansion of auto interfaces,
+# because result is different for different destinations.
+$in .= <<'END';
+pathrestriction:r = interface:r1.n4, interface:r3.n3;
+END
+
+$out = <<'END';
+--r1
+! n1_in
+object-group network g0
+ network-object host 10.1.1.2
+ network-object host 10.1.2.1
+object-group network g1
+ network-object host 10.1.3.1
+ network-object host 10.1.3.2
+ network-object host 10.1.4.1
+access-list n1_in extended permit tcp object-group g0 object-group g1 eq 22
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+--r2
+! n1_in
+object-group network g0
+ network-object host 10.1.1.1
+ network-object host 10.1.4.2
+object-group network g1
+ network-object host 10.1.3.1
+ network-object host 10.1.3.2
+ network-object host 10.1.4.1
+access-list n1_in extended permit tcp object-group g0 host 10.1.2.2 eq 22
+access-list n1_in extended permit tcp host 10.1.1.1 object-group g1 eq 22
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+--r3
+! n2_in
+object-group network g0
+ network-object host 10.1.1.1
+ network-object host 10.1.1.2
+ network-object host 10.1.2.1
+object-group network g1
+ network-object host 10.1.3.2
+ network-object host 10.1.4.1
+access-list n2_in extended permit tcp object-group g0 object-group g1 eq 22
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+--r4
+! [ ACL ]
+ip access-list extended n3_in
+ permit tcp host 10.1.1.2 host 10.1.4.1 eq 22
+ permit tcp host 10.1.1.2 host 10.1.3.2 eq 22
+ permit tcp host 10.1.2.1 host 10.1.4.1 eq 22
+ permit tcp host 10.1.2.1 host 10.1.3.2 eq 22
+ permit tcp host 10.1.1.1 host 10.1.3.2 eq 22
+ permit tcp host 10.1.1.1 host 10.1.4.1 eq 22
+ deny ip any any
+--
+ip access-list extended n4_in
+ permit tcp host 10.1.1.2 host 10.1.4.1 eq 22
+ permit tcp host 10.1.1.2 host 10.1.3.2 eq 22
+ permit tcp host 10.1.2.1 host 10.1.4.1 eq 22
+ permit tcp host 10.1.2.1 host 10.1.3.2 eq 22
+ permit tcp host 10.1.1.1 host 10.1.3.2 eq 22
+ permit tcp host 10.1.1.1 host 10.1.4.1 eq 22
+ permit tcp host 10.1.4.2 host 10.1.4.1 eq 22
+ permit tcp host 10.1.1.1 host 10.1.3.1 eq 22
+ permit tcp host 10.1.4.2 host 10.1.2.2 eq 22
+ permit tcp host 10.1.4.2 host 10.1.3.1 eq 22
+ permit tcp host 10.1.2.1 host 10.1.3.1 eq 22
+ permit tcp host 10.1.1.2 host 10.1.3.1 eq 22
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Auto interface of internally split router with pathrestriction (1)';
 ############################################################
 

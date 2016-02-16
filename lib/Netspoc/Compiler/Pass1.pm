@@ -6519,9 +6519,27 @@ sub normalize_service_rules {
             next if $service->{disabled};
 
             @$dst_list or next;
+
+            # Expand auto interfaces in src.
             my @extra_src_dst = 
                 substitute_auto_intf($src_list, $dst_list, $context);
-            @$src_list or @extra_src_dst or next;
+
+            # Expand auto interfaces in dst of extra_src_dst.
+            if (@extra_src_dst) {
+                my @extra_extra;
+                for my $src_dst_list (@extra_src_dst) {
+                    my ($src_list, $dst_list) = @$src_dst_list;
+                    push(@extra_extra,
+                         map { [ $_->[1], $_->[0] ] }
+                         substitute_auto_intf($dst_list, $src_list, $context));
+                }
+                push @extra_src_dst, @extra_extra;
+            }
+            elsif (not @$src_list) {
+                next;
+            }
+
+            # Expand auto interfaces in dst.
             push(@extra_src_dst,
                  map { [ $_->[1], $_->[0] ] }
                  substitute_auto_intf($dst_list, $src_list, $context));
