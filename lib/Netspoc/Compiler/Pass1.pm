@@ -15724,7 +15724,7 @@ sub print_routes {
 
     # Find and remove duplicate networks.
     # Go from smaller to larger networks.
-    for my $mask (reverse sort keys %mask2ip2net) {
+    for my $mask (reverse sort numerically keys %mask2ip2net) {
       NETWORK:
         for my $ip (sort numerically keys %{ $mask2ip2net{$mask} }) {
             my $small    = $mask2ip2net{$mask}->{$ip};
