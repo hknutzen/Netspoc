@@ -14539,7 +14539,7 @@ sub find_redundant_rules {
              while (my ($dst_ref, $chg_hash) = each %$chg_hash) {
               my $dst = $ref2obj{$dst_ref};
               while (1) {
-               if (my $cmp_hash = $cmp_hash ->{$dst}) {
+               if (my $cmp_hash = $cmp_hash->{$dst}) {
                 for my $chg_rule (values %$chg_hash) {
 
                  # Even if $change_rule already is marked as deleted,
