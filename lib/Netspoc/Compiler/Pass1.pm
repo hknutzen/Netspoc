@@ -535,6 +535,7 @@ sub check_ip {
         if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
             error_atline("Invalid IP address");
         }
+        no warnings 'pack';
         return unpack 'N', pack 'C4', $1, $2, $3, $4;
     }
     else {
