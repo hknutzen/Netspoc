@@ -11439,7 +11439,7 @@ my %key2obj;
 #                          in or at border of current loop, undef otherwise.
 #              $path_tuples - hash to collect in and out interfaces of nodes on
 #                             detected path.
-#              $loop_leave - hash to collect last interfaces of loop path.
+#              $loop_leave - array to collect last interfaces of loop path.
 #              $navi - lookup hash to reduce search space, holds loops to enter.
 # Returns   :  1, if path is found, 0 otherwise.
 sub cluster_path_mark1 {
