@@ -10,6 +10,75 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'Duplicate IP address';
+############################################################
+
+$in = <<'END';
+network:n1a = { 
+ ip = 10.1.1.0/24; 
+ nat:t1 = { ip = 10.9.1.0/24; }
+}
+
+router:r1 = {
+ interface:n1a = { bind_nat = t2; }
+ interface:u;
+}
+
+network:u = { ip = 10.2.2.0/24; }
+
+router:r2 = {
+ interface:u;
+ interface:n1b = { bind_nat = t1; }
+}
+
+network:n1b = { 
+ ip = 10.1.1.0/24; 
+ nat:t2 = { ip = 10.9.2.0/24; }
+}
+END
+
+$out = <<'END';
+Error: network:n1b and network:n1a have identical IP/mask
+ in nat_domain:u
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Ignore duplicate IP address at unnumbered';
+############################################################
+# Address conflict is not observable at unnumbered network
+# surrounded by unmanged routers.
+
+$in =~ s/ip = 10.2.2.0\/24/unnumbered/;
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'NAT bound in wrong direction';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:x = { hidden; } }
+router:r = {
+ interface:n1 = { bind_nat = x; }
+ interface:n2;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Error: network:n1 is translated by x,
+ but is located inside the translation domain of x.
+ Probably x was bound to wrong interface at router:r.
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Multiple dynamic NAT at PIX';
 ############################################################
 
@@ -1240,6 +1309,40 @@ END
 
 $out = <<'END';
 Error: nat:n is applied twice between router:r1 and router:r2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Prevent NAT from dynamic to static';
+############################################################
+
+$in = <<'END';
+network:U1 = {
+ ip = 10.1.1.0/24;
+ nat:t1 = { ip = 10.8.8.0/23; dynamic; }
+ nat:t2 = { ip = 10.9.9.0/24; }
+}
+router:R0 = {
+ interface:U1;
+ interface:T = { ip = 10.3.3.17; bind_nat = t1;}
+}
+
+network:T = { ip = 10.3.3.16/29; }
+
+router:R2 = {
+ managed;
+ model = ASA;
+ interface:T = { ip = 10.3.3.18; hardware = e0;}
+ interface:K = { ip = 10.2.2.1; hardware = e2; bind_nat = t2; }
+}
+
+network:K = { ip = 10.2.2.0/24; }
+END
+
+$out = <<'END';
+Error: Must not change dynamic nat:t1 to static using nat:t2
+ for nat:t1(network:U1) at router:R2
 END
 
 test_err($title, $in, $out);
