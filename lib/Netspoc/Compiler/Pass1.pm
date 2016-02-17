@@ -13232,7 +13232,6 @@ sub find_supernet {
         return $net1 if $net1 eq $net2;
         $net2 = $net2->{up} or return;
     }
-    return;    # unused; only for perlcritic
 }
 
 # Find networks in zone with address
