@@ -333,7 +333,7 @@ network:N = {
 END
 
 $out = <<'END';
-Error: Exactly one of attributes 'ip' and 'range' is needed at line 3 of STDIN
+Error: host:h1 needs exactly one of attributes 'ip' and 'range'
 END
 
 test_err($title, $in, $out);
@@ -351,7 +351,7 @@ network:N = {
 END
 
 $out = <<'END';
-Error: Managed host:h1 must not have attribute 'range' at line 4 of STDIN
+Error: Managed host:h1 must not have attribute 'range'
 END
 
 test_err($title, $in, $out);

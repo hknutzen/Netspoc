@@ -1219,7 +1219,7 @@ sub read_host {
         }
     }
     $host->{ip} xor $host->{range}
-      or error_atline("Exactly one of attributes 'ip' and 'range' is needed");
+      or err_msg("$name needs exactly one of attributes 'ip' and 'range'");
 
     if ($host->{managed}) {
         my %ok = (
@@ -1235,8 +1235,7 @@ sub read_host {
         );
         for my $key (sort keys %$host) {
             next if $ok{$key};
-            error_atline(
-                "Managed $host->{name} must not have attribute '$key'");
+            err_msg("Managed $name must not have attribute '$key'");
         }
         $host->{ip} ||= 'short';
         return host_as_interface($host);
@@ -1254,7 +1253,7 @@ sub read_host {
             # Before changing this,
             # - look at print_pix_static,
             # - add consistency tests in convert_hosts.
-            error_atline("No NAT supported for host with 'range'");
+            err_msg("No NAT supported for $name with 'range'");
         }
     }
     return $host;
@@ -1422,8 +1421,8 @@ sub read_network {
         # Unnumbered network must not have any other attributes.
         for my $key (keys %$network) {
             next if $ok{$key};
-            error_atline(
-                "Unnumbered $network->{name} must not have ",
+            err_msg(
+                "Unnumbered $name must not have ",
                 ($key eq 'hosts') ? "host definition"
                 : ($key eq 'nat') ? "nat definition"
                 :                   "attribute '$key'"
@@ -1445,8 +1444,8 @@ sub read_network {
         # Bridged network must not have any other attributes.
         for my $key (keys %$network) {
             next if $ok{$key};
-            error_atline(
-                "Bridged $network->{name} must not have ",
+            err_msg(
+                "Bridged $name must not have ",
                 ($key eq 'hosts')
                 ? "host definition (not implemented)"
                 : "attribute '$key'"
@@ -1469,8 +1468,8 @@ sub read_network {
             # Check compatibility of host IP and network IP/mask.
             if (my $host_ip = $host->{ip}) {
                 if (not(match_ip($host_ip, $ip, $mask))) {
-                    error_atline("$host->{name}'s IP doesn't match"
-                          . " network IP/mask");
+                    err_msg("IP of $host->{name} doesn't match",
+                            " IP/mask of $name");
                 }
             }
             elsif ($host->{range}) {
@@ -1480,8 +1479,8 @@ sub read_network {
                         and match_ip($ip2, $ip, $mask))
                   )
                 {
-                    error_atline("$host->{name}'s IP range doesn't match",
-                        " network IP/mask");
+                    err_msg("IP range of $host->{name} doesn't match",
+                            " IP/mask of $name");
                 }
             }
             else {
@@ -1492,7 +1491,7 @@ sub read_network {
             # after inherited NAT definitions have been processed.
         }
         if (@{ $network->{hosts} } and $network->{crosslink}) {
-            error_atline("Crosslink network must not have host definitions");
+            err_msg("Crosslink $name must not have host definitions");
         }
         if ($network->{nat}) {
 
@@ -1500,10 +1499,8 @@ sub read_network {
             for my $nat (values %{ $network->{nat} }) {
                 next if $nat->{dynamic};
                 $nat->{mask} == $mask
-                  or error_atline(
-                    "Mask for non dynamic $nat->{name}",
-                    " must be equal to network mask"
-                  );
+                  or err_msg("Mask for non dynamic $nat->{name}",
+                             " must be equal to mask of $name");
             }
         }
 
@@ -1512,7 +1509,7 @@ sub read_network {
 
             # If one host has ID, all hosts must have ID.
             @{ $network->{hosts} } == $id_hosts_count
-              or error_atline("All hosts must have ID in $name");
+              or err_msg("All hosts must have ID in $name");
 
             # Mark network.
             $network->{has_id_hosts} = 1;
@@ -1599,13 +1596,13 @@ sub read_interface {
         elsif (my @pairs = check_assign_list 'hub', \&read_typed_name) {
             for my $pair (@pairs) {
                 my ($type, $name2) = @$pair;
-                $type eq 'crypto' or error_atline("Expected type 'crypto'");
+                $type eq 'crypto' or error_atline("Expected type 'crypto:'");
                 push @{ $interface->{hub} }, "$type:$name2";
             }
         }
         elsif ($pair = check_assign 'spoke', \&read_typed_name) {
             my ($type, $name2) = @$pair;
-            $type eq 'crypto' or error_atline("Expected type crypto");
+            $type eq 'crypto' or error_atline("Expected type 'crypto:'");
             add_attribute($interface, spoke => "$type:$name2");
         }
         elsif (my $id = check_assign 'id', \&read_user_id) {
@@ -1675,7 +1672,7 @@ sub read_interface {
                 }
                 elsif (my $type = check_assign 'type', \&read_identifier) {
                     $xxrp_info{$type}
-                      or error_atline("unknown redundancy protocol");
+                      or error_atline("Unknown redundancy protocol");
                     add_attribute($virtual, redundancy_type => $type);
                 }
                 elsif (my $id = check_assign 'id', \&read_identifier) {
@@ -1927,7 +1924,7 @@ sub check_no_in_acl {
     # Assert maximum number of 'no_in_acl' interfaces per router
     1 == $no_in_acl_counter
       or err_msg("At most one interface of $router->{name}",
-        " may use flag 'no_in_acl'");
+                 " may use flag 'no_in_acl'");
 
     # Assert router to support outgoing ACL
     $router->{model}->{has_out_acl}
@@ -2202,10 +2199,8 @@ sub read_router {
             {
                 my $rname = $routing->{name};
                 $rname =~ /^(?:manual|dynamic)$/
-                  or error_atline(
-                    "Routing $rname not supported",
-                    " for unnumbered interface"
-                  );
+                  or err_msg("Routing $rname not supported",
+                             " for unnumbered $interface->{name}");
             }
         }
     }
@@ -2217,12 +2212,12 @@ sub read_router {
             }
             $model->{has_io_acl}
               and err_msg("Must not use 'managed = $managed' at $name",
-                " of model $model->{name}");
+                          " of model $model->{name}");
         }
         $router->{log_deny}
           and not $model->{can_log_deny}
           and err_msg("Must not use attribute 'log_deny' at $name",
-            " of model $model->{name}");
+                      " of model $model->{name}");
 
         if (my $hash = $router->{log}) {
             if (my $log_modifiers = $model->{log_modifiers}) {
@@ -2247,7 +2242,7 @@ sub read_router {
             else {
                 my ($name2) = sort keys %$hash;
                 err_msg("Must not use attribute 'log:$name2' at $name",
-                    " of model $model->{name}");
+                        " of model $model->{name}");
             }
         }
 
@@ -2404,8 +2399,8 @@ sub read_router {
         }
         for my $interface (@{ $router->{interfaces} }) {
             if ($interface->{hub}) {
-                error_atline("Interface with attribute 'hub' must only be",
-                    " used at managed device");
+                err_msg("$interface->{name} with attribute 'hub'",
+                          " must not be used at unmanaged $name");
             }
             if (delete $interface->{reroute_permit}) {
                 warn_msg(
@@ -2420,8 +2415,7 @@ sub read_router {
 
         # Unmanaged bridge would complicate generation of static routes.
         if ($bridged) {
-            error_atline("Bridged interfaces must only be used",
-                " at managed device");
+            err_msg("Bridged interfaces must not be used at unmanged $name");
         }
     }
 
@@ -2604,7 +2598,8 @@ sub read_aggregate {
         }
         elsif (my $nat_name = check_nat_name()) {
             my $nat = read_nat("nat:$nat_name");
-            $nat->{dynamic} or error_atline("$nat->{name} must be dynamic");
+            $nat->{dynamic} or 
+                err_msg("$nat->{name} must be dynamic for $name");
             $aggregate->{nat}->{$nat_name}
               and error_atline("Duplicate NAT definition");
             $aggregate->{nat}->{$nat_name} = $nat;
@@ -2621,7 +2616,7 @@ sub read_aggregate {
             next
               if grep({ $key eq $_ }
                 qw( name ip mask link is_aggregate private nat));
-            error_atline("Must not use attribute $key if mask is set");
+            err_msg("Must not use attribute '$key' if mask is set for $name");
         }
     }
     else {
@@ -2676,7 +2671,7 @@ sub read_area {
         last if check '\}';
         if (my @elements = check_assign_list('border', \&read_intersection)) {
             if (grep { $_->[0] ne 'interface' || ref $_->[1] } @elements) {
-                error_atline "Must only use interface names in border";
+                error_atline("Must only use interface names in 'border'");
                 @elements = ();
             }
             add_attribute($area, border => \@elements);
@@ -2685,7 +2680,8 @@ sub read_area {
             check_assign_list('inclusive_border', \&read_intersection))
         {
             if (grep { $_->[0] ne 'interface' || ref $_->[1] } @elements) {
-                error_atline "Must only use interface names in border";
+                error_atline("Must only use interface names in",
+                             " 'inclusive_border'");
                 @elements = ();
             }
             add_attribute($area, inclusive_border => \@elements);
@@ -3124,7 +3120,7 @@ sub read_attributed_object {
                 $object->{$attribute} = $default;
             }
             else {
-                error_atline("Missing '$attribute' for $object->{name}");
+                err_msg("Missing '$attribute' for $name");
             }
         }
 
@@ -3234,7 +3230,7 @@ sub read_crypto {
             syntax_err("Expected valid attribute");
         }
     }
-    $crypto->{type} or error_atline("Missing 'type' for $name");
+    $crypto->{type} or err_msg("Missing 'type' for $name");
     return $crypto;
 }
 

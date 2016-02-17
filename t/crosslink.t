@@ -181,7 +181,7 @@ network:cr = {
 END
 
 $out = <<'END';
-Error: Crosslink network must not have host definitions at line 5 of STDIN
+Error: Crosslink network:cr must not have host definitions
 END
 
 test_err($title, $in, $out);
