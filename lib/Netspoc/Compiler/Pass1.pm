@@ -8410,9 +8410,9 @@ sub distribute_nat_info {
                         }
                     }
                     else {
-                        err_msg "nat:$nat_tag not allowed for ",
-                          "$obj->{name} because $network->{name} ",
-                          "doesn't have dynamic NAT definition";
+                        warn_msg("Ignoring nat:$nat_tag at $obj->{name}",
+                                 " because $network->{name} has static",
+                                 " NAT definition");
                     }
                 }
             }
