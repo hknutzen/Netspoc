@@ -218,6 +218,7 @@ sub test_err {
     my ($stderr, $success, $in_dir) = run($in, $options);
     if ($success) {
         diag("Unexpected success");
+        diag($stderr) if $stderr;
         fail($title);
         return;
     }
