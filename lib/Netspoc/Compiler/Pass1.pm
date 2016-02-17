@@ -7194,7 +7194,7 @@ sub convert_hosts_in_rules {
                         if ($subnet->{mask} == $subnet->{network}->{mask}) {
                             my $network = $subnet->{network};
                             if (    not $network->{has_id_hosts}
-                                    and not $subnet_warning_seen{$subnet}++)
+                                and not $subnet_warning_seen{$subnet}++)
                             {
                                 warn_msg(
                                     "Use $network->{name} instead of",
@@ -8603,7 +8603,7 @@ sub check_subnets {
                     return;
                 }
             }
-            warn_msg("$object->{name}'s IP overlaps with subnet",
+            warn_msg("IP of $object->{name} overlaps with subnet",
                 " $subnet->{name}");
         }
     };
