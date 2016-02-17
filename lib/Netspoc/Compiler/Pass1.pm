@@ -8405,8 +8405,8 @@ sub distribute_nat_info {
                         my $obj_ip = $obj->{nat}->{$nat_tag};
                         my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
                         if (not(match_ip($obj_ip, $ip, $mask))) {
-                            err_msg "nat:$nat_tag: $obj->{name}'s IP ",
-                              "doesn't match $network->{name}'s IP/mask";
+                            err_msg ("nat:$nat_tag: IP of $obj->{name} doesn't",
+                                     " match IP/mask of $network->{name}");
                         }
                     }
                     else {
