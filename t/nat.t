@@ -320,6 +320,79 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Non matching static NAT mask';
+############################################################
+
+$in = <<'END';
+network:n1 =  { ip = 10.1.1.0/24; nat:x = { ip = 10.8.8.0/23; } }
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = x; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Error: Mask for non dynamic nat:x(network:n1) must be equal to mask of network:n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Non matching NAT IP of host and interaface';
+############################################################
+
+$in = <<'END';
+network:n1 =  {
+ ip = 10.1.1.0/24;
+ nat:x = { ip = 10.8.8.0/23; dynamic; } 
+ host:h1 = { ip = 10.1.1.10; nat:x = { ip = 10.7.7.7; } }
+}
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; nat:x = { ip = 10.7.7.1; } }
+ interface:n2 = { bind_nat = x; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<"END";
+Error: nat:x: IP of host:h1 doesn't match IP/mask of network:n1
+Error: nat:x: IP of interface:r1.n1 doesn't match IP/mask of network:n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Useless NAT IP of host and interaface with static NAT';
+############################################################
+
+$in = <<'END';
+network:n1 =  {
+ ip = 10.1.1.0/24;
+ nat:x = { ip = 10.8.8.0/24; } 
+ host:h1 = { ip = 10.1.1.10; nat:x = { ip = 10.8.8.12; } }
+}
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; nat:x = { ip = 10.7.7.1; } }
+ interface:n2 = { bind_nat = x; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<"END";
+Warning: Ignoring nat:x at host:h1 because network:n1 has static NAT definition
+Warning: Ignoring nat:x at interface:r1.n1 because network:n1 has static NAT definition
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'NAT tag without effect';
 ############################################################
 
