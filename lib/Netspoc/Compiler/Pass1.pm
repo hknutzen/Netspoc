@@ -1421,6 +1421,7 @@ sub read_network {
         # Unnumbered network must not have any other attributes.
         for my $key (sort keys %$network) {
             next if $ok{$key};
+            delete $network->{$key};
             err_msg(
                 "Unnumbered $name must not have ",
                 ($key eq 'hosts') ? "host definition"
@@ -1430,26 +1431,9 @@ sub read_network {
         }
     }
     elsif ($network->{bridged}) {
-        my %ok = (
-            ip        => 1,
-            mask      => 1,
-            bridged   => 1,
-            name      => 1,
-            private   => 1,
-            nat       => 1,
-            owner     => 1,
-            crosslink => 1
-        );
-
-        # Bridged network must not have any other attributes.
-        for my $key (keys %$network) {
-            next if $ok{$key};
-            err_msg(
-                "Bridged $name must not have ",
-                ($key eq 'hosts')
-                ? "host definition (not implemented)"
-                : "attribute '$key'"
-            );
+        if (delete $network->{hosts}) {
+            err_msg("Bridged $name must not have ",
+                    "host definition (not implemented)");
         }
         if (my $hash = $network->{nat}) {
             for my $nat_tag (sort keys %$hash) {
