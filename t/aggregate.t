@@ -1469,6 +1469,50 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'No missing transient rule for unenforceable rule';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+any:n1 = { link = network:n1; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+
+# network:n1 -> any:n1 is unenforceable
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = any:n1, network:n3;
+        prt = tcp 445;
+}
+service:s2 = {
+ user = any:n1;
+ permit src = user; dst = network:n2; prt = tcp 445; 
+}
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Supernet used as aggregate';
 ############################################################
 

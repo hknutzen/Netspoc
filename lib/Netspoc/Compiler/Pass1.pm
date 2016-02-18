@@ -13808,14 +13808,17 @@ sub check_transient_supernet_rules {
                 # - either src elements of $rule1 are also src of $rule2
                 # - or dst elements of $rule2 are also dst of $rule1,
                 # - but no problem if src1 and dst2 are located in same zone,
-                #   i.e. transient traffic back to src.
+                #   i.e. transient traffic back to src,
+                # - also need to ignore unenforceable $rule1 and $rule2.
                 my $src_list1 = $rule1->{src};
                 my $dst_list1 = $rule1->{dst};
                 my $src_list2 = $rule2->{src};
                 my $dst_list2 = $rule2->{dst};
                 if (not (subset_of($src_list1, $src_list2) or
                          subset_of($dst_list2, $dst_list1))
-                    and not elements_in_one_zone($src_list1, $dst_list2))
+                    and not elements_in_one_zone($src_list1, $dst_list2)
+                    and not elements_in_one_zone($src_list1, [ $obj ])
+                    and not elements_in_one_zone([ $obj ], $dst_list2))
                 {
                     my $srv1 = $rule1->{rule}->{service}->{name};
                     my $srv2 = $rule2->{rule}->{service}->{name};
