@@ -13720,14 +13720,15 @@ sub match_prt {
     }
 }
 
+# Matches, if at least one pair protocols matches.
 sub match_prt_list {
     my ($prt_list1, $prt_list2) = @_;
     for my $prt1 (@$prt_list1) {
         for my $prt2 (@$prt_list2) {
-            match_prt($prt1, $prt2) or return;
+            match_prt($prt1, $prt2) and return 1;
         }
     }
-    return 1;
+    return 0;
 }
 
 sub elements_in_one_zone {
@@ -13756,9 +13757,6 @@ sub elements_in_one_zone {
 # which may be undesired.
 # In order to avoid this, a warning is generated if the implied rule is not
 # explicitly defined.
-#
-# ToDo:
-# Do we need to check for {zone_cluster} equality?
 #
 # Currently we only check aggregates/supernets with mask = 0.
 # Checking of other aggregates is too complicate (NAT, intersection).

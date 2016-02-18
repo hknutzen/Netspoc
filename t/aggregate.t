@@ -1282,6 +1282,47 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Missing transient rule with multiple protocols';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n2]; prt = tcp 80, icmp 3;
+}
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user; dst = network:n3; prt = icmp 4/4, tcp 80-90;
+}
+END
+
+$out = <<'END';
+Warning: Missing transient supernet rules
+ between src of service:s1 and dst of service:s2,
+ matching at any:[network:n2]
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Missing transient rule with managed interface';
 ############################################################
 
