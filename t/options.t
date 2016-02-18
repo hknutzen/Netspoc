@@ -15,7 +15,10 @@ $title = 'Options from config file';
 
 $in = <<'END';
 -- config
+# comment
 check_unused_groups = 1;
+# empty line follows
+
 ignore_files = ^foo$;
 max_errors = 2;
 -- foo
