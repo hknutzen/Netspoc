@@ -10,6 +10,47 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'Unnumbered network must not have attributes';
+############################################################
+
+$in = <<'END';
+network:u = {
+ unnumbered;
+ nat:x = { ip = 10.1.2.0/24; }
+ host:h = { ip = 10.1.1.10; }
+ has_subnets;
+}
+END
+
+$out = <<'END';
+Error: Unnumbered network:u must not have attribute 'has_subnets'
+Error: Unnumbered network:u must not have host definition
+Error: Unnumbered network:u must not have nat definition
+Warning: nat:x is defined, but not bound to any interface
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unnumbered network to interface with IP';
+############################################################
+
+$in = <<'END';
+network:u = {
+ unnumbered;
+}
+router:r1 = {
+  interface:u = { ip = 10.1.1.1; }
+} 
+END
+
+$out = <<'END';
+Error: interface:r1.u must not be linked to unnumbered network:u
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Zone cluster with unnumbered network';
 ############################################################
 
