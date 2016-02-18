@@ -487,6 +487,45 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'NAT for interface with multiple IP addresses';
+############################################################
+
+$in = <<'END';
+network:n1 =  {
+ ip = 10.1.1.0/24;
+ nat:x = { ip = 10.8.8.0/28; dynamic; } 
+}
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1, 10.1.1.2; nat:x = { ip = 10.8.8.1; } }
+ interface:t1 = { ip = 10.1.9.1; bind_nat = x; }
+}
+
+network:t1 = { ip = 10.1.9.0/24; }
+
+router:filter = {
+ managed;
+ model = ASA;
+ interface:t1 = { ip = 10.1.9.2; hardware = t1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s = {
+ user = interface:r1.[all];
+ permit src = user; dst = network:n2; prt = udp 123;
+}
+END
+
+$out = <<"END";
+Error: interface:r1.n1.2 needs static translation for nat:x at router:filter to be valid in rule
+ permit src=interface:r1.n1.2; dst=network:n2; prt=udp 123; of service:s
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'NAT tag without effect';
 ############################################################
 
