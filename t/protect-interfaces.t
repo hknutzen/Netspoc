@@ -429,7 +429,7 @@ Error: Must not apply dynamic NAT to interface:r1.n2 at interface:r1.n1 of same 
  This isn't supported for model IOS.
 END
 
-test_run($title, $in, $out);
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;
