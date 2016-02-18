@@ -238,7 +238,7 @@ sub read_config {
     my ($dir) = @_;
     $dir or return {};
     my $file = "$dir/config";
-    -f $file and -r $file or return {};
+    -f $file or return {};
 
     my %result;
     my $lines = read_file_lines($file);
