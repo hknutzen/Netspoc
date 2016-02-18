@@ -436,7 +436,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Useless NAT IP of host and interaface with static NAT';
+$title = 'Useless NAT IP of host and interface with static NAT';
 ############################################################
 
 $in = <<'END';
@@ -460,6 +460,31 @@ Warning: Ignoring nat:x at interface:r1.n1 because network:n1 has static NAT def
 END
 
 test_warn($title, $in, $out);
+
+############################################################
+$title = 'Must not define NAT for host range.';
+############################################################
+
+$in = <<'END';
+network:n1 =  {
+ ip = 10.1.1.0/24;
+ nat:x = { ip = 10.8.8.0/24; dynamic; } 
+ host:h1 = { range = 10.1.1.10-10.1.1.15; nat:x = { ip = 10.8.8.12; } }
+}
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = x; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<"END";
+Error: No NAT supported for host:h1 with 'range'
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'NAT tag without effect';
