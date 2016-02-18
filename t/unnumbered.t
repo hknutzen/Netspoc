@@ -26,7 +26,6 @@ $out = <<'END';
 Error: Unnumbered network:u must not have attribute 'has_subnets'
 Error: Unnumbered network:u must not have host definition
 Error: Unnumbered network:u must not have nat definition
-Warning: nat:x is defined, but not bound to any interface
 END
 
 test_err($title, $in, $out);
