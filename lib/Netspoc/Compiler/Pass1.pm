@@ -1419,7 +1419,7 @@ sub read_network {
         my %ok = (ip => 1, name => 1, crosslink => 1, private => 1);
 
         # Unnumbered network must not have any other attributes.
-        for my $key (keys %$network) {
+        for my $key (sort keys %$network) {
             next if $ok{$key};
             err_msg(
                 "Unnumbered $name must not have ",
