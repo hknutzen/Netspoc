@@ -21,6 +21,8 @@ check_unused_groups = 1;
 
 ignore_files = ^foo$;
 max_errors = 2;
+verbose = 1;
+time_stamps = 0;
 -- foo
 SOME INVALID DATA
 -- bar
