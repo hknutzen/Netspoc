@@ -38,6 +38,48 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Unkown crypto at hub and spoke';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = { 
+  ip = 10.1.1.1; 
+  hub = crypto:vpn;
+  hardware = n1; 
+  no_check;
+ }
+}
+
+router:softclients = {
+ interface:n1 = { spoke = crypto:vpn; }
+ interface:clients;
+}
+
+network:clients = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+END
+
+$out = <<'END';
+Error: interface:asavpn.n1 references unknown crypto:vpn
+Error: interface:softclients.n1 references unknown crypto:vpn
+Error: Topology has unconnected parts:
+ - any:[network:n1]
+ - any:[network:clients]
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'VPN ASA with software clients';
 ############################################################
 
