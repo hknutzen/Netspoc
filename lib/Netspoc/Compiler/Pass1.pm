@@ -3366,7 +3366,7 @@ sub read_file_or_dir {
         my ($path, $read_syntax) = @_;
 
         # Handle private directories and files.
-        if (my ($name) = ($path =~ m'([^/]*)\.private$')) {
+        if (my ($name) = ($path =~ m'([^/]*\.private)$')) {
             if ($private) {
                 err_msg("Nested private context is not supported:\n $path");
             }
@@ -4176,18 +4176,10 @@ sub link_interfaces {
         # Private network must be connected to private interface
         # of same context.
         if (my $private1 = $network->{private}) {
-            if (my $private2 = $interface->{private}) {
-                $private1 eq $private2
-                  or err_msg(
-                    "$private2.private $interface->{name} must not",
-                    " be connected to $private1.private",
-                    " $network->{name}"
-                  );
-            }
-            else {
-                err_msg("Public $interface->{name} must not be connected to",
-                    " $private1.private $network->{name}");
-            }
+            my $private2 = $interface->{private} || 'public';
+            $private1 eq $private2
+                or err_msg("$private2 $interface->{name} must not",
+                           " be connected to $private1 $network->{name}");
         }
 
         # Public network may connect to private interface.
@@ -4396,13 +4388,13 @@ sub link_pathrestrictions {
             else {
                 if (my $obj_p = $obj->{private}) {
                     err_msg "Public $restrict->{name} must not reference",
-                      " $obj_p.private $obj->{name}";
+                      " $obj_p $obj->{name}";
                 }
             }
         }
         if ($no_private) {
-            err_msg "$private.private $restrict->{name} must reference",
-              " at least one interface out of $private.private";
+            err_msg "$private $restrict->{name} must reference",
+              " at least one interface out of $private";
         }
         if ($changed) {
             $restrict->{elements} = [ grep { $_ } @{ $restrict->{elements} } ];
@@ -6424,21 +6416,21 @@ sub check_private_service {
                 $src_p and $src_p eq $private
                     or $dst_p and $dst_p eq $private
                     or err_msg(
-                        "Rule of $private.private $context",
+                        "Rule of $private $context",
                         " must reference at least one object",
-                        " out of $private.private");
+                        " out of $private");
             }
             else {
                 $src->{private}
                 and err_msg(
                     "Rule of public $context must not",
                     " reference $src->{name} of",
-                    " $src->{private}.private");
+                    " $src->{private}");
                 $dst->{private}
                 and err_msg(
                     "Rule of public $context must not",
                     " reference $dst->{name} of",
-                    " $dst->{private}.private");
+                    " $dst->{private}");
             }
         }
     }
@@ -9889,7 +9881,7 @@ sub set_zone1 {
         if ($private1 ne $private2) {
             my $other = $zone->{networks}->[0];
             err_msg(
-                "All networks of $zone->{name} must have",
+                "Networks of $zone->{name} all must have",
                 " identical 'private' status\n",
                 " - $other->{name}: $private2\n",
                 " - $network->{name}: $private1"
@@ -12757,19 +12749,19 @@ sub link_tunnels {
                   or $h_p and $h_p eq $private
                   or err_msg
                   "Tunnel $real_spoke->{name} to $real_hub->{name}",
-                  " of $private.private $name",
+                  " of $private $name",
                   " must reference at least one object",
-                  " out of $private.private";
+                  " out of $private";
             }
             else {
                 $real_spoke->{private}
                   and err_msg "Tunnel of public $name must not",
                   " reference $real_spoke->{name} of",
-                  " $real_spoke->{private}.private";
+                  " $real_spoke->{private}";
                 $real_hub->{private}
                   and err_msg "Tunnel of public $name must not",
                   " reference $real_hub->{name} of",
-                  " $real_hub->{private}.private";
+                  " $real_hub->{private}";
             }
 
             my $spoke_router = $spoke->{router};

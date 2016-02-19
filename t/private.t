@@ -43,8 +43,25 @@ router:r2 = { interface:n1; }
 END
 
 $out = <<'END';
-Error: Public interface:r1.n1 must not be connected to a.private network:n1
+Error: public interface:r1.n1 must not be connected to a.private network:n1
 Error: c.private interface:r2.n1 must not be connected to a.private network:n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Public aggregate linked to private network';
+############################################################
+
+$in = <<'END';
+-- subdir/a.private
+network:n1 = { ip = 10.1.1.0/24; }
+-- b
+any:n1 = { link = network:n1; }
+END
+
+$out = <<'END';
+Error: public any:n1 must not be linked to a.private network:n1
 END
 
 test_err($title, $in, $out);
@@ -65,8 +82,8 @@ network:n2 = { ip = 10.1.2.0/24; }
 END
 
 $out = <<'END';
-Error: All networks of any:[network:n1] must have identical 'private' status
- - network:n1: a
+Error: Networks of any:[network:n1] all must have identical 'private' status
+ - network:n1: a.private
  - network:n2: public
 END
 
@@ -91,7 +108,7 @@ END
 
 $out = <<'END';
 Error: Zones connected by router:r must all have identical 'private' status
- - any:[network:n1]: a
+ - any:[network:n1]: a.private
  - any:[network:n2]: public
 END
 
