@@ -296,6 +296,19 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Missing radius_attribute check-subject-name';
+############################################################
+
+$in =~ s/check-subject-name = ou;//;
+
+$out = <<'END';
+Error: Missing radius_attribute 'check-subject-name'
+ for host:id:domain.x.customers2
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'VPN ASA with internal software clients';
 ############################################################
 
