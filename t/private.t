@@ -10,7 +10,7 @@ use Test_Netspoc;
 my ($title, $in, $out, $topo);
 
 ############################################################
-$title = 'Netsted private contexts';
+$title = 'Nested private contexts';
 ############################################################
 
 $in = <<'END';
