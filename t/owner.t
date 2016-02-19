@@ -471,4 +471,117 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Useless sub_owner, multi_owner, unknown_owner';
+############################################################
+
+$in = <<'END';
+owner:o2 = { admins = a2@b.c; }
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; owner = o2; }
+
+service:s1 = {
+ unknown_owner;
+ multi_owner;
+ sub_owner = o2;
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: Useless owner:o2 at service:s1
+Warning: Useless use of attribute 'multi_owner' at service:s1
+Warning: Useless use of attribute 'unknown_owner' at service:s1
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Unknown service owner';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.10; }
+ host:h2 = { ip = 10.1.2.11; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+ permit src = user; dst = host:h1; prt = tcp 81;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 82;
+ permit src = user; dst = host:h1; prt = tcp 83;
+}
+service:s3 = {
+ user = network:n1;
+ permit src = user; dst = host:h2; prt = tcp 83;
+}
+END
+
+$out = <<'END';
+Warning: Unknown owner for host:h1 in service:s1, service:s2
+Warning: Unknown owner for host:h2 in service:s3
+Warning: Unknown owner for network:n2 in service:s1, service:s2
+END
+
+test_warn($title, $in, $out, '-check_service_unknown_owner=warn');
+
+############################################################
+$title = 'Multiple service owners';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24; 
+ host:h1 = { ip = 10.1.2.10; owner = o1; }
+ host:h2 = { ip = 10.1.2.11; owner = o2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = host:h1, host:h2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: service:s1 has multiple owners:
+ o1, o2
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 done_testing;

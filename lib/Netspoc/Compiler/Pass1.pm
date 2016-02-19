@@ -6954,37 +6954,12 @@ sub propagate_owners {
     return;
 }
 
-my %unknown2services;
-my %unknown2unknown;
-
-sub show_unknown_owners {
-    for my $names (values %unknown2services) {
-        $names = join(',', sort @$names);
-    }
-    my $print =
-      $config->{check_service_unknown_owner} eq 'warn'
-      ? \&warn_msg
-      : \&err_msg;
-  UNKNOWN:
-    for my $obj (values %unknown2unknown) {
-        my $up = $obj;
-        while ($up = $up->{up}) {
-            if (    $unknown2services{$up}
-                and $unknown2services{$obj} eq $unknown2services{$up})
-            {
-                next UNKNOWN;
-            }
-        }
-        $print->("Unknown owner for $obj->{name} in $unknown2services{$obj}");
-    }
-    %unknown2services = %unknown2unknown = ();
-    return;
-}
-
 sub set_service_owner {
     progress('Checking service owner');
 
     my %sname2info;
+    my %unknown2services;
+    my %unknown2unknown;
 
     for my $action (qw(permit deny)) {
         my $rules = $service_rules{$action} or next;
@@ -7094,7 +7069,18 @@ sub set_service_owner {
         delete $owner->{is_used} or warn_msg("Unused $owner->{name}");
     }
 
-    show_unknown_owners();
+
+    # Show objects that are unknown owners of services.
+    for my $names (values %unknown2services) {
+        $names = join(', ', sort @$names);
+    }
+    my $print = $config->{check_service_unknown_owner} eq 'warn'
+              ? \&warn_msg
+              : \&err_msg;
+    for my $obj (sort by_name values %unknown2unknown) {
+        $print->("Unknown owner for $obj->{name} in $unknown2services{$obj}");
+    }
+
     return;
 }
 
@@ -18414,8 +18400,7 @@ sub init_global_vars {
     %key2obj            = ();
     %border2obj2auto    = ();
     @duplicate_rules    = @redundant_rules = ();
-    %unknown2services   = %unknown2unknown = ();
-    %missing_supernet = ();
+    %missing_supernet   = ();
     %known_log          = %key2log = ();
     %obj2nat2address    = %prt2code = ();
     init_protocols();
