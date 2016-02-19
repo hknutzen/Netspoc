@@ -440,6 +440,111 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Directly connected software clients';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+}
+
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+# routing = manual;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = { 
+  ip = 10.1.1.1; 
+  hub = crypto:vpn;
+  hardware = n1; 
+  no_check;
+ }
+}
+
+router:softclients = {
+ interface:n1 = { 
+  spoke = crypto:vpn; 
+  ip = 10.1.1.2; 
+ }
+ interface:clients;
+}
+
+network:clients = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+
+service:s1 = {
+ user = host:id:foo@domain.x.clients;
+ permit src = user; dst = network:n1; prt = tcp 80; 
+}
+END
+
+$out = <<END;
+-- asavpn
+! [ Routing ]
+route n1 10.99.1.0 255.255.255.0 10.1.1.2
+--
+! n1_in
+access-list n1_in extended permit tcp host 10.99.1.10 10.1.1.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Directly connected software clients; peer without IP';
+############################################################
+
+$in =~ s/ip = 10.1.1.2;//;
+
+$out = <<END;
+Error: interface:softclients.n1 used to reach software clients
+ must not be directly connected to interface:asavpn.n1
+ Connect it to some network behind next hop
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Directly connected software clients; without routing';
+############################################################
+
+$in =~ s/# routing = manual/ routing = manual/;
+
+$out = <<END;
+-- asavpn
+! n1_in
+access-list n1_in extended permit tcp host 10.99.1.10 10.1.1.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Must not use aggregate with software clients';
 ############################################################
 
