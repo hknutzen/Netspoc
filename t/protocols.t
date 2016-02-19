@@ -269,4 +269,32 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Recursive protocolgroup';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = {ip = 10.1.2.1; hardware = n2; }	
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+protocolgroup:g1 = tcp 80, protocolgroup:g2;
+protocolgroup:g2 = tcp 90, protocolgroup:g1;
+service:s1 = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = protocolgroup:g1;
+}
+END
+
+$out = <<'END';
+Error: Found recursion in definition of protocolgroup:g2
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;
