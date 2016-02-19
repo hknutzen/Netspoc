@@ -12806,8 +12806,8 @@ sub link_tunnels {
     }
     for my $crypto (keys %crypto2spokes) {
         for my $network (@{ $crypto2spokes{$crypto} }) {
-            err_msg "$network->{interfaces}->[0]->{name}",
-              " references unknown $crypto";
+            my $interface = $network->{interfaces}->[0]->{real_interface};
+            err_msg "$interface->{name} references unknown $crypto";
         }
     }
     return;
