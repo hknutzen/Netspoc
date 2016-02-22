@@ -5134,8 +5134,7 @@ sub convert_hosts {
         # Converts hosts and ranges to subnets.
         # Eliminate duplicate subnets.
         for my $host (@{ $network->{hosts} }) {
-            my ($name, $nat, $id, $private, $owner) =
-              @{$host}{qw(name nat id private owner)};
+            my ($name, $nat, $id, $owner) = @{$host}{qw(name nat id owner)};
             my @ip_mask;
             if (my $ip = $host->{ip}) {
                 @ip_mask = [ $ip, 0xffffffff ];
@@ -5188,7 +5187,6 @@ sub convert_hosts {
                         mask    => $mask,
                     );
                     $subnet->{nat}     = $nat     if $nat;
-                    $subnet->{private} = $private if $private;
                     $subnet->{owner}   = $owner   if $owner;
                     if ($id) {
                         $subnet->{id} = $id;
@@ -5280,9 +5278,6 @@ sub convert_hosts {
                                     mask    => $mask,
                                     up      => $subnet->{up},
                                 );
-                                if (my $private = $subnet->{private}) {
-                                    $up->{private} = $private if $private;
-                                }
                                 $inv_prefix_aref[$up_inv_prefix]->{$ip} = $up;
                                 push @{ $network->{subnets} }, $up;
                             }
