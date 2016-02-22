@@ -191,8 +191,8 @@ network:t1 = { ip = 10.9.1.0/24; }
 router:r1 = {
  managed;
  model = ASA;
- interface:t1 = { ip = 10.9.1.2; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:t1 = { ip = 10.9.1.2; hardware = t1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 network:n2 = { ip = 10.1.2.0/24; }
@@ -217,6 +217,49 @@ Warning: Redundant rules in service:test1 compared to service:test2:
 END
 
 test_warn($title, $in, $out);
+
+############################################################
+$title = 'Combine adjacent ranges to whole network';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24; 
+ host:range1 = { range = 10.1.1.0 - 10.1.1.127; }
+ host:range2 = { range = 10.1.1.128 - 10.1.1.255; }
+}
+
+router:u = {
+ interface:n1;
+ interface:t1 = { ip = 10.9.1.1; }
+}
+
+network:t1 = { ip = 10.9.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:t1 = { ip = 10.9.1.2; hardware = t1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:test1 = {
+ user = host:range1, host:range2;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! t1_in
+access-list t1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
+access-list t1_in extended deny ip any any
+access-group t1_in in interface t1
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Redundant combined hosts';
