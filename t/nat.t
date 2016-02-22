@@ -487,6 +487,34 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Must not define NAT for host range.';
+############################################################
+
+$in = <<'END';
+network:n1 = { 
+ ip = 10.1.1.0/24; 
+ nat:d = { ip = 10.9.1.0/28; dynamic; }
+ host:h1 = { ip = 10.1.1.10; nat:d = { ip = 10.9.1.10; } }
+ host:h2 = { range = 10.1.1.9 - 10.1.1.10; }
+ host:h3 = { range = 10.1.1.8 - 10.1.1.15; }
+}
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = d; }
+}
+
+network:n2 = { ip = 10.2.2.0/24; }
+END
+
+$out = <<'END';
+Error: Inconsistent NAT definition for host:h1 and host:h2
+Error: Inconsistent NAT definition for host:h3 and host:h1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'NAT for interface with multiple IP addresses';
 ############################################################
 

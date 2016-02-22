@@ -5113,23 +5113,8 @@ sub check_host_compatibility {
         $nat_error = 1;
     }
     elsif ($nat and $nat2) {
-
-        # Number of entries is equal.
-        if (keys %$nat == keys %$nat2) {
-
-            # Entries are equal.
-            for my $name (keys %$nat) {
-                unless ($nat2->{$name}
-                        and $nat->{$name} eq $nat2->{$name})
-                {
-                    $nat_error = 1;
-                    last;
-                }
-            }
-        }
-        else {
-            $nat_error = 1;
-        }
+        internal_err("Unexpected NAT at host range",
+                     " $host->{name} or $other_subnet->{name}");
     }
     $nat_error
         and err_msg("Inconsistent NAT definition for",
