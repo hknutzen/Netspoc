@@ -332,7 +332,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Inconsistend extended owners';
+$title = 'Inconsistent extended owners';
 ############################################################
 
 $in = <<'END';
