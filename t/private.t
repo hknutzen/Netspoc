@@ -10,6 +10,47 @@ use Test_Netspoc;
 my ($title, $in, $out, $topo);
 
 ############################################################
+$title = 'Reference private object from public service';
+############################################################
+
+$in = <<'END';
+-- n1.private
+network:n1 = {
+ ip = 10.1.1.0/24;
+
+ # Detect private status, even if hosts are combined to range internally.
+ host:h1 = { ip = 10.1.1.10; }
+ host:h2 = { ip = 10.1.1.11; }
+}
+router:filter = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+-- public
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = host:h1, host:h2, interface:filter.n1;
+ permit src = user; dst = network:n2; prt = tcp 81;
+}
+END
+
+$out = <<'END';
+Error: Rule of public service:s1 must not reference network:n1 of n1.private
+Error: Rule of public service:s2 must not reference host:h1 of n1.private
+Error: Rule of public service:s2 must not reference host:h2 of n1.private
+Error: Rule of public service:s2 must not reference interface:filter.n1 of n1.private
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Nested private contexts';
 ############################################################
 
