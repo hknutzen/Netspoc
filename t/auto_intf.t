@@ -1054,4 +1054,21 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Non conflicting auto network interface with interface';
+############################################################
+
+$in = $topo . <<'END';
+service:test = {
+ user = interface:[network:x].[auto] &! interface:r.y;
+ permit src = user; dst = network:y; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: Useless delete of interface:r.y in user of service:test
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 done_testing;
