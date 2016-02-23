@@ -7050,7 +7050,7 @@ sub set_service_owner {
     }
 
 
-    # Show objects that are unknown owners of services.
+    # Show objects with unknown owner.
     for my $names (values %unknown2services) {
         $names = join(', ', sort @$names);
     }
