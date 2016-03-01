@@ -1058,4 +1058,55 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Remove auto interface in rule';
+############################################################
+# Auto interface of group and auto interface of rule must be
+# identical, when rule is exported.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+group:g = interface:asa1.[auto];
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; 
+        dst = group:g &! interface:asa1.[auto]; 
+        prt = tcp 22;
+}
+END
+
+$out = <<'END';
+-- services
+{
+   "s1" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            ":unknown"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 22"
+            ],
+            "src" : []
+         }
+      ]
+   }
+}
+END
+
+test_run($title, $in, $out);
+############################################################
 done_testing;
