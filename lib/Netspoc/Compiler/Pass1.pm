@@ -4672,6 +4672,50 @@ sub link_virtual_interfaces {
     return;
 }
 
+sub link_services {
+
+    # Sort by service name to make output deterministic.
+    for my $key (sort keys %services) {
+        my $service = $services{$key};
+        my $name    = $service->{name};
+
+        # Substitute service name by service object.
+        if (my $overlaps = $service->{overlaps}) {
+            my @sobjects;
+            for my $pair (@$overlaps) {
+                my ($type, $oname) = @$pair;
+                if (!$type eq 'service') {
+                    err_msg "Unexpected type '$type' in attribute 'overlaps'",
+                      " of $name";
+                }
+                elsif (my $other = $services{$oname}) {
+                    push(@sobjects, $other);
+                }
+                else {
+                    warn_msg("Unknown $type:$oname in attribute 'overlaps'",
+                        " of $name");
+                }
+            }
+            $service->{overlaps} = \@sobjects;
+        }
+
+        # Attribute "visible" is known to have value "*" or "name*".
+        # It must match prefix of some owner name.
+        # Change value to regex to simplify tests: # name* -> /^name.*$/
+        if (my $visible = $service->{visible}) {
+            if (my ($prefix) = ($visible =~ /^ (\S*) [*] $/x)) {
+                if ($prefix) {
+                    if (not grep { /^$prefix/ } keys %owners) {
+                        warn_msg("Attribute 'visible' of $name doesn't match",
+                            " any owner");
+                    }
+                }
+                $service->{visible} = qr/^$prefix.*$/;
+            }
+        }
+    }
+}
+
 ##############################################################################
 # Purpose    : Check, whether input Interfaces belong to same redundancy group.
 # Parameters : Array keeping all interfaces of a network.
@@ -4797,6 +4841,7 @@ sub link_topology {
     link_areas;
     link_subnets;
     link_owners;
+    link_services;
     check_ip_addresses();
     return;
 }
@@ -6560,45 +6605,7 @@ sub normalize_service_rules {
 sub normalize_services {
     progress('Normalizing services');
 
-    # Sort by service name to make output deterministic.
-    for my $key (sort keys %services) {
-        my $service = $services{$key};
-        my $name    = $service->{name};
-
-        # Substitute service name by service object.
-        if (my $overlaps = $service->{overlaps}) {
-            my @sobjects;
-            for my $pair (@$overlaps) {
-                my ($type, $oname) = @$pair;
-                if (!$type eq 'service') {
-                    err_msg "Unexpected type '$type' in attribute 'overlaps'",
-                      " of $name";
-                }
-                elsif (my $other = $services{$oname}) {
-                    push(@sobjects, $other);
-                }
-                else {
-                    warn_msg("Unknown $type:$oname in attribute 'overlaps'",
-                        " of $name");
-                }
-            }
-            $service->{overlaps} = \@sobjects;
-        }
-
-        # Attribute "visible" is known to have value "*" or "name*".
-        # It must match prefix of some owner name.
-        # Change value to regex to simplify tests: # name* -> /^name.*$/
-        if (my $visible = $service->{visible}) {
-            if (my ($prefix) = ($visible =~ /^ (\S*) [*] $/x)) {
-                if ($prefix) {
-                    if (not grep { /^$prefix/ } keys %owners) {
-                        warn_msg("Attribute 'visible' of $name doesn't match",
-                            " any owner");
-                    }
-                }
-                $service->{visible} = qr/^$prefix.*$/;
-            }
-        }
+    for my $service (sort by_name values %services) {
         normalize_service_rules($service);
     }
 
