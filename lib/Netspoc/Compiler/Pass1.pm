@@ -2222,6 +2222,9 @@ sub read_router {
                         err_msg("Unexpected $what\n Use 'log:$name2;' only.");
                     }
                 }
+
+                # Store defining log tags in global %known_log.
+                collect_log($hash);
             }
             else {
                 my ($name2) = sort keys %$hash;
@@ -6208,13 +6211,10 @@ my %known_log;
 
 # Store defining log tags as keys in %known_log.
 sub collect_log {
-    for my $router (@managed_routers) {
-        my $log = $router->{log} or next;
-        for my $tag (keys %$log) {
-            $known_log{$tag} = 1;
-        }
+    my ($log_hash) = @_;
+    for my $tag (keys %$log_hash) {
+        $known_log{$tag} = 1;
     }
-    return;
 }
 
 # Check for referencing log tags, that corresponding defining log tags exist.
@@ -6559,8 +6559,6 @@ sub normalize_service_rules {
 
 sub normalize_services {
     progress('Normalizing services');
-
-    collect_log();
 
     # Sort by service name to make output deterministic.
     for my $key (sort keys %services) {
