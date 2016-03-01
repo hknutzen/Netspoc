@@ -19,12 +19,13 @@ sub test_run {
     run3($cmd, \undef, \$stdout, \$stderr);
     my $status = $?;
     if ($status != 0) {
-        BAIL_OUT("Failed:\n$stderr\n");
-        return '';
+        diag("Failed:\n$stderr");
+        fail($title);
+        return;
     }
     if ($stderr) {
-        ok(0);
-        diag("Unexpected output on STDERR:\n$stderr\n");
+        diag("Unexpected output on STDERR:\n$stderr");
+        fail($title);
         return;
     }
 
@@ -33,7 +34,8 @@ sub test_run {
     my @expected = split(/^-+[ ]*(\S+)[ ]*\n/m, $expected);
     my $first = shift @expected;
     if ($first) {
-        BAIL_OUT("Missing device name in first line of code specification");
+        diag("Missing device name in first line of code specification");
+        fail($title);
         return;
     }
     
