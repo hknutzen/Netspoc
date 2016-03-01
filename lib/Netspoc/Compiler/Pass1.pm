@@ -6433,9 +6433,10 @@ sub add_managed_hosts {
 
 sub normalize_service_rules {
     my ($service) = @_;
-    my $rules   = $service->{rules};
-    my $user    = $service->{user};
     my $context = $service->{name};
+    my $user    = $service->{user} 
+                = expand_group($service->{user}, "user of $context");
+    my $rules   = $service->{rules};
     my $foreach = $service->{foreach};
 
     for my $unexpanded (@$rules) {
@@ -6600,10 +6601,6 @@ sub normalize_services {
                 $service->{visible} = qr/^$prefix.*$/;
             }
         }
-
-        # Don't convert hosts in user objects here.
-        # This will be done when expanding 'user' inside a rule.
-        $service->{user} = expand_group($service->{user}, "user of $name");
         normalize_service_rules($service);
     }
 
