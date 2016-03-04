@@ -19,12 +19,13 @@ sub test_run {
     run3($cmd, \undef, \$stdout, \$stderr);
     my $status = $?;
     if ($status != 0) {
-        BAIL_OUT("Failed:\n$stderr\n");
-        return '';
+        diag("Failed:\n$stderr");
+        fail($title);
+        return;
     }
     if ($stderr) {
-        ok(0);
-        diag("Unexpected output on STDERR:\n$stderr\n");
+        diag("Unexpected output on STDERR:\n$stderr");
+        fail($title);
         return;
     }
 
@@ -33,7 +34,8 @@ sub test_run {
     my @expected = split(/^-+[ ]*(\S+)[ ]*\n/m, $expected);
     my $first = shift @expected;
     if ($first) {
-        BAIL_OUT("Missing device name in first line of code specification");
+        diag("Missing device name in first line of code specification");
+        fail($title);
         return;
     }
     
@@ -874,14 +876,14 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Multi owner from auto interface';
+$title = 'Split service and multi owner from auto interface';
 ############################################################
 
 $in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; owner = a; }
-network:n3 = { ip = 10.1.3.0/24; owner = b; }
-network:n4 = { ip = 10.1.4.0/24; }
+network:n1 = { ip = 10.1.1.0/24; owner = a; }
+network:n2 = { ip = 10.1.2.0/24; owner = b; }
+network:n3 = { ip = 10.1.3.0/24; owner = c; }
+network:n4 = { ip = 10.1.4.0/24; owner = d; }
 
 router:asa1 = {
  managed;
@@ -904,6 +906,8 @@ router:asa2 = {
 
 owner:a = { admins = a@example.com; }
 owner:b = { admins = b@example.com; }
+owner:c = { admins = c@example.com; }
+owner:d = { admins = d@example.com; }
 
 service:s1 = {
  multi_owner;
@@ -919,19 +923,17 @@ END
 $out = <<'END';
 --services
 {
-   "s1" : {
+   "s1(OlWkR_nb)" : {
       "details" : {
          "description" : null,
          "owner" : [
-            "a",
-            "b"
+            "c"
          ]
       },
       "rules" : [
          {
             "action" : "permit",
             "dst" : [
-               "interface:r.n2",
                "interface:r.n3"
             ],
             "has_user" : "src",
@@ -942,12 +944,94 @@ $out = <<'END';
          }
       ]
    },
-   "s2" : {
+   "s1(Wq2IaGjr)" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            ":unknown"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 22"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s1(aZ1_3Qf8)" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "b"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "interface:r.n2"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 22"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s2(6J6zzaOm)" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "d"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n4"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 23"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s2(6w6A9_c5)" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "a"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n1"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 23"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s2(VzSrSJ63)" : {
       "details" : {
          "description" : null,
          "owner" : [
             "a",
-            "b"
+            "d"
          ]
       },
       "rules" : [
@@ -961,7 +1045,111 @@ $out = <<'END';
             "src" : []
          }
       ]
+   },
+   "s2(en0TO5Ls)" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "b"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "interface:r.n2"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 23"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s2(fOSUGYLe)" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "c"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "interface:r.n3"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 23"
+            ],
+            "src" : []
+         }
+      ]
    }
+}
+--owner/a/users
+{
+   "s1(Wq2IaGjr)" : [
+      "network:n1"
+   ],
+   "s1(aZ1_3Qf8)" : [
+      "network:n1"
+   ],
+   "s2(6w6A9_c5)" : [
+      "interface:r.n2"
+   ],
+   "s2(VzSrSJ63)" : [
+      "network:n1",
+      "network:n4"
+   ],
+   "s2(en0TO5Ls)" : [
+      "network:n1"
+   ]
+}
+--owner/b/users
+{
+   "s1(aZ1_3Qf8)" : [
+      "network:n1"
+   ],
+   "s2(6w6A9_c5)" : [
+      "interface:r.n2"
+   ],
+   "s2(en0TO5Ls)" : [
+      "network:n1"
+   ]
+}
+--owner/c/users
+{
+   "s1(OlWkR_nb)" : [
+      "network:n4"
+   ],
+   "s2(6J6zzaOm)" : [
+      "interface:r.n3"
+   ],
+   "s2(fOSUGYLe)" : [
+      "network:n4"
+   ]
+}
+--owner/d/users
+{
+   "s1(OlWkR_nb)" : [
+      "network:n4"
+   ],
+   "s1(Wq2IaGjr)" : [
+      "network:n4"
+   ],
+   "s2(6J6zzaOm)" : [
+      "interface:r.n3"
+   ],
+   "s2(VzSrSJ63)" : [
+      "network:n1",
+      "network:n4"
+   ],
+   "s2(fOSUGYLe)" : [
+      "network:n4"
+   ]
 }
 END
 
@@ -1052,6 +1240,200 @@ $out = <<'END';
       "o1",
       "o2"
    ]
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Remove auto interface in rule';
+############################################################
+# Auto interface of group and auto interface of rule must be
+# identical, when rule is exported.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+group:g = network:n2, interface:asa1.[auto];
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; 
+        dst = group:g &! interface:asa1.[auto]; 
+        prt = tcp 22;
+}
+END
+
+$out = <<'END';
+-- services
+{
+   "s1" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            ":unknown"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n2"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 22"
+            ],
+            "src" : []
+         }
+      ]
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Service with empty rule';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; owner = a; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+owner:a = { admins = a@example.com; }
+
+group:g = ;
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = group:g; prt = udp 162;
+}
+END
+
+$out = <<'END';
+-- owner/a/service_lists
+{
+   "owner" : [],
+   "user" : [
+      "s1"
+   ],
+   "visible" : []
+}
+-- owner/a/users
+{
+   "s1" : [
+      "network:n1"
+   ]
+}
+-- services
+{
+   "s1" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            ":unknown"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [],
+            "has_user" : "src",
+            "prt" : [
+               "udp 162"
+            ],
+            "src" : []
+         }
+      ]
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+
+############################################################
+$title = 'Split service with "foreach"';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = {ip = 10.1.2.1; hardware = n2; routing = OSPF;}
+}
+
+network:n2  = {ip = 10.1.2.0/24;}
+
+service:ping_local = {
+ user = foreach interface:r1.[all];
+ permit src = any:[user]; dst = user; prt = icmp 8;
+}
+END
+
+$out = <<'END';
+--services
+{
+   "ping_local(82hHHn8T)" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            ":unknown"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "interface:r1.n1"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "icmp 8"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "ping_local(x8vMymBh)" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            ":unknown"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "interface:r1.n2"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "icmp 8"
+            ],
+            "src" : []
+         }
+      ]
+   }
 }
 END
 

@@ -10,6 +10,46 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'Unnumbered network must not have attributes';
+############################################################
+
+$in = <<'END';
+network:u = {
+ unnumbered;
+ nat:x = { ip = 10.1.2.0/24; }
+ host:h = { ip = 10.1.1.10; }
+ has_subnets;
+}
+END
+
+$out = <<'END';
+Error: Unnumbered network:u must not have attribute 'has_subnets'
+Error: Unnumbered network:u must not have host definition
+Error: Unnumbered network:u must not have nat definition
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unnumbered network to interface with IP';
+############################################################
+
+$in = <<'END';
+network:u = {
+ unnumbered;
+}
+router:r1 = {
+  interface:u = { ip = 10.1.1.1; }
+} 
+END
+
+$out = <<'END';
+Error: interface:r1.u must not be linked to unnumbered network:u
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Zone cluster with unnumbered network';
 ############################################################
 
@@ -167,7 +207,7 @@ $in =~ s/interface:dummy;/interface:dummy = { unnumbered; }/;
 
 $out = <<'END';
 --r1
-! [ ACL ]
+! n1_in
 access-list n1_in extended deny ip any any
 access-group n1_in in interface n1
 END
@@ -214,13 +254,15 @@ END
 
 $out = <<'END';
 --r1
-! [ ACL ]
+! n1_in
 access-list n1_in extended deny ip any any
 access-group n1_in in interface n1
 --
+! n2_in
 access-list n2_in extended deny ip any any
 access-group n2_in in interface n2
 --
+! n3_in
 object-group network g0
  network-object 10.1.1.0 255.255.255.0
  network-object 10.1.2.0 255.255.255.0

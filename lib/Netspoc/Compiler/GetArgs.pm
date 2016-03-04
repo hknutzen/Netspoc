@@ -6,7 +6,7 @@ Get arguments and options from command line and config file.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2016 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -28,6 +28,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 use strict;
 use warnings;
+use Netspoc::Compiler::Common;
 use Netspoc::Compiler::File;
 use Getopt::Long qw(GetOptionsFromArray);
 use Pod::Usage;
@@ -181,7 +182,7 @@ sub parse_options {
     my $setopt = sub {
         my ($key, $val) = @_;
         if (my $expected = check_config_pair($key, $val)) {
-            die "Invalid value for option $key, expected '$expected'\n";
+            fatal_err("Invalid value for option $key, expected '$expected'");
         }
         $result{$key} = $val;
     };
@@ -202,7 +203,8 @@ sub parse_options {
         open(my $fh, '>', \$out) or die $!;
         pod2usage(-exitstatus => 'NOEXIT', -verbose => 0, -output => $fh);
         close $fh;
-        die($out || '');
+        $out ||= '';
+        die("$out\n");
     }
 
     return \%result;
@@ -236,7 +238,7 @@ sub read_config {
     my ($dir) = @_;
     $dir or return {};
     my $file = "$dir/config";
-    -f $file and -r $file or return {};
+    -f $file or return {};
 
     my %result;
     my $lines = read_file_lines($file);
@@ -244,17 +246,18 @@ sub read_config {
         chomp $line;
         $line =~ /^\s*#/ and next;
         $line =~ /^\s*$/ and next;
-        if (my ($key, $val) = ($line =~ /\s* (\w+) \s* = \s* (\w+) ;/x)) {
+        if (my ($key, $val) = 
+            ($line =~ /\s* (\w+) \s* = \s* (\S+) ;/x)) {
             valid_config_key($key) or 
-                die("Invalid keyword in $file: $key\n");
+                fatal_err("Invalid keyword in $file: $key");
             if (my $expected = check_config_pair($key, $val)) {
-                die("Invalid value for $key in $file,",
-                    " expected '$expected'\n");
+                fatal_err("Invalid value for $key in $file,",
+                          " expected '$expected'");
             }
             $result{$key} = $val;
         }
         else {
-            die("Unexpected line in $file: $line\n");
+            fatal_err("Unexpected line in $file: $line");
         }
     }
     return \%result;

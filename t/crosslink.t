@@ -181,7 +181,7 @@ network:cr = {
 END
 
 $out = <<'END';
-Error: Crosslink network must not have host definitions at line 5 of STDIN
+Error: Crosslink network:cr must not have host definitions
 END
 
 test_err($title, $in, $out);
@@ -199,6 +199,160 @@ Error: Crosslink network:cr must not be connected to unmanged router:r
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'different no_in_acl at crosslink routers';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/27; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; no_in_acl; }
+ interface:cr = { ip = 10.3.3.1; hardware = cr; }
+}
+
+network:cr = { ip = 10.3.3.0/29; crosslink; }
+
+router:r2 = {
+ model = NX-OS;
+ managed;
+ interface:cr = { ip = 10.3.3.2; hardware = cr; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.2.2.0/27; }
+END
+
+$out = <<'END';
+Error: All interfaces must equally use or not use outgoing ACLs at crosslink network:cr
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'no_in_acl outside of crosslink routers';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/27; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; no_in_acl; }
+ interface:cr = { ip = 10.3.3.1; hardware = cr; }
+}
+
+network:cr = { ip = 10.3.3.0/29; crosslink; }
+
+router:r2 = {
+ model = NX-OS;
+ managed;
+ interface:cr = { ip = 10.3.3.2; hardware = cr; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; no_in_acl; }
+}
+
+network:n2 = { ip = 10.2.2.0/27; }
+END
+
+$out = <<'END';
+Error: All interfaces with attribute 'no_in_acl' at routers connected by
+ crosslink network:cr must be border of the same security zone
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'no_in_acl at crosslink routers at same zone';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/27; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; no_in_acl; }
+ interface:cr = { ip = 10.3.3.1; hardware = cr; }
+}
+
+network:cr = { ip = 10.3.3.0/29; crosslink; }
+
+router:r2 = {
+ model = NX-OS;
+ managed;
+ interface:cr = { ip = 10.3.3.2; hardware = cr; }
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; no_in_acl; }
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended deny ip any host 10.3.3.2
+access-list n1_in extended deny ip any host 10.1.1.2
+access-list n1_in extended permit ip any any
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'no_in_acl inside of crosslink routers';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/27; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:cr = { ip = 10.3.3.1; hardware = cr; no_in_acl; }
+}
+
+network:cr = { ip = 10.3.3.0/29; crosslink; }
+
+router:r2 = {
+ model = NX-OS;
+ managed;
+ interface:cr = { ip = 10.3.3.2; hardware = cr; no_in_acl; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.2.2.0/27; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended deny ip any host 10.2.2.1
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.224 10.2.2.0 255.255.255.224 eq 80
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+--
+! n1_out
+access-list n1_out extended deny ip any any
+access-group n1_out out interface n1
+-- r2
+ip access-list n2_in
+ 10 permit tcp 10.2.2.0/27 10.1.1.0/27 established
+ 20 deny ip any any
+--
+ip access-list n2_out
+ 10 permit tcp 10.1.1.0/27 10.2.2.0/27 eq 80
+ 20 deny ip any any
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

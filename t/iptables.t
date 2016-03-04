@@ -8,8 +8,124 @@ use lib 't';
 use Test_Netspoc;
 
 my ($title, $in, $out);
+
+
 ############################################################
-$title = 'Merge port range with sub-range for iptables';
+$title = 'Different port ranges';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 =  {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; 
+        dst = network:n2; 
+        prt = tcp 1-1023,
+              udp 1024-65535,
+              tcp 4080-4090,
+              udp 123,
+        ;
+ permit src = network:n2; dst = user; prt = udp 1 - 65535;
+}
+END
+
+$out = <<'END';
+--r1
+# [ ACL ]
+:c1 -
+:c2 -
+:c3 -
+-A c1 -j ACCEPT -p tcp --dport 4080:4090
+-A c1 -j ACCEPT -p tcp --dport :1023
+-A c2 -j ACCEPT -p udp --dport 1024:
+-A c2 -j ACCEPT -p udp --dport 123
+-A c3 -g c1 -p tcp --dport :4090
+-A c3 -g c2 -p udp --dport 123:
+--
+:n1_self -
+-A INPUT -j n1_self -i n1
+:n1_n2 -
+-A n1_n2 -g c3 -s 10.1.1.0/24 -d 10.1.2.0/24
+-A FORWARD -j n1_n2 -i n1 -o n2
+--
+:n2_self -
+-A INPUT -j n2_self -i n2
+:n2_n1 -
+-A n2_n1 -j ACCEPT -s 10.1.2.0/24 -d 10.1.1.0/24 -p udp
+-A FORWARD -j n2_n1 -i n2 -o n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Different src and dst port ranges';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 =  {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; 
+        dst = network:n2; 
+        prt = tcp 4080-4090:1-1023,
+              tcp 1-1023:4080-4090,
+              tcp 1024-65535:4080-4085,
+              udp 1024-65535:1024-65535,
+              udp 123:123,
+        ;
+ permit src = network:n2; dst = user; prt = udp 1-511:1 - 65535;
+}
+END
+
+$out = <<'END';
+--r1
+# [ ACL ]
+:c1 -
+:c2 -
+:c3 -
+-A c1 -j ACCEPT -p tcp --sport 1024: --dport 4080:4085
+-A c1 -j ACCEPT -p tcp --sport 4080:4090 --dport :1023
+-A c2 -g c1 -p tcp --sport 1024:
+-A c2 -j ACCEPT -p tcp --sport :1023 --dport 4080:4090
+-A c3 -g c2 -p tcp
+-A c3 -j ACCEPT -p udp --sport 1024: --dport 1024:
+-A c3 -j ACCEPT -p udp --sport 123 --dport 123
+--
+:n1_self -
+-A INPUT -j n1_self -i n1
+:n1_n2 -
+-A n1_n2 -g c3 -s 10.1.1.0/24 -d 10.1.2.0/24
+-A FORWARD -j n1_n2 -i n1 -o n2
+--
+:n2_self -
+-A INPUT -j n2_self -i n2
+:n2_n1 -
+-A n2_n1 -j ACCEPT -s 10.1.2.0/24 -d 10.1.1.0/24 -p udp --sport :511
+-A FORWARD -j n2_n1 -i n2 -o n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Merge port range with sub-range';
 ############################################################
 
 $in = <<'END';
@@ -72,7 +188,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Un-merged port range with sub-range for iptables';
+$title = 'Un-merged port range with sub-range';
 ############################################################
 
 # Ranges 10-49 and 50-60 can't be merged,
@@ -103,7 +219,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Optimize redundant port for iptables';
+$title = 'Optimize redundant port';
 ############################################################
 
 # Port isn't already optimized during global optimization if rule is

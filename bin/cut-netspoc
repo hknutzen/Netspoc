@@ -34,7 +34,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2016 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -63,7 +63,7 @@ use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Encode qw(decode_utf8);
 
-our $VERSION = '5.0'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.001'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -580,12 +580,13 @@ for my $object (values %networks, values %routers,
     $object->{is_used} or next;
     $object->{src_code} or next;
     while ($object->{src_code} =~ /^[^#]*owner *=/m) {
+#        progress("- $object->{name}");
         remove_attribute_src_code('owner', $object);
     }
 }
 
 # Remove attribute 'sub_owner'.
-progress('Remove referenced sub_owners');
+progress('Removing referenced sub_owners');
 for my $service (values %services) {
     $service->{sub_owner} or next;
     remove_attribute_src_code('sub_owner', $service);
@@ -600,7 +601,7 @@ for my $area (values %areas) {
 }
 
 # Remove attribute 'policy_distribution_point'
-progress('Remove referenced policy_distribution_point');
+progress('Removing referenced policy_distribution_point');
 for my $router (values %routers) {
     $router->{is_used} or next;
     $router->{policy_distribution_point} or next;

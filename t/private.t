@@ -10,7 +10,48 @@ use Test_Netspoc;
 my ($title, $in, $out, $topo);
 
 ############################################################
-$title = 'Netsted private contexts';
+$title = 'Reference private object from public service';
+############################################################
+
+$in = <<'END';
+-- n1.private
+network:n1 = {
+ ip = 10.1.1.0/24;
+
+ # Detect private status, even if hosts are combined to range internally.
+ host:h1 = { ip = 10.1.1.10; }
+ host:h2 = { ip = 10.1.1.11; }
+}
+router:filter = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+-- public
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = host:h1, host:h2, interface:filter.n1;
+ permit src = user; dst = network:n2; prt = tcp 81;
+}
+END
+
+$out = <<'END';
+Error: Rule of public service:s1 must not reference network:n1 of n1.private
+Error: Rule of public service:s2 must not reference host:h1 of n1.private
+Error: Rule of public service:s2 must not reference host:h2 of n1.private
+Error: Rule of public service:s2 must not reference interface:filter.n1 of n1.private
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Nested private contexts';
 ############################################################
 
 $in = <<'END';
@@ -43,8 +84,25 @@ router:r2 = { interface:n1; }
 END
 
 $out = <<'END';
-Error: Public interface:r1.n1 must not be connected to a.private network:n1
+Error: public interface:r1.n1 must not be connected to a.private network:n1
 Error: c.private interface:r2.n1 must not be connected to a.private network:n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Public aggregate linked to private network';
+############################################################
+
+$in = <<'END';
+-- subdir/a.private
+network:n1 = { ip = 10.1.1.0/24; }
+-- b
+any:n1 = { link = network:n1; }
+END
+
+$out = <<'END';
+Error: public any:n1 must not be linked to a.private network:n1
 END
 
 test_err($title, $in, $out);
@@ -65,8 +123,8 @@ network:n2 = { ip = 10.1.2.0/24; }
 END
 
 $out = <<'END';
-Error: All networks of any:[network:n1] must have identical 'private' status
- - network:n1: a
+Error: Networks of any:[network:n1] all must have identical 'private' status
+ - network:n1: a.private
  - network:n2: public
 END
 
@@ -91,7 +149,7 @@ END
 
 $out = <<'END';
 Error: Zones connected by router:r must all have identical 'private' status
- - any:[network:n1]: a
+ - any:[network:n1]: a.private
  - any:[network:n2]: public
 END
 

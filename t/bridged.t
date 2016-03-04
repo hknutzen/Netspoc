@@ -10,6 +10,63 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'Bridged network must not have hosts or NAT';
+############################################################
+
+$in = <<'END';
+network:n1/left = {
+ ip = 10.1.1.0/24;
+ nat:x = { ip = 10.1.2.0/24; }
+ host:h = { ip = 10.1.1.10; }
+ has_subnets;
+}
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left = { hardware = inside; }
+ interface:n1/right = { hardware = outside; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Bridged network:n1/left must not have host definition (not implemented)
+Error: Only identity NAT allowed for bridged network:n1/left
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Bridged network must not be unnumbered';
+############################################################
+
+$in = <<'END';
+network:n1/left = { unnumbered; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { unnumbered; hardware = device; }
+ interface:n1/left = { hardware = inside; }
+ interface:n1/right = { hardware = outside; }
+}
+
+network:n1/right = { unnumbered; }
+END
+
+$out = <<'END';
+Error: Unnumbered network:n1/left must not have attribute 'bridged'
+Error: Layer3 interface:bridge.n1 must not be unnumbered
+Error: Unnumbered network:n1/right must not have attribute 'bridged'
+Error: interface:bridge.n1/left must not be linked to unnumbered network:n1/left
+Error: interface:bridge.n1/right must not be linked to unnumbered network:n1/right
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Admin access to bridge';
 ############################################################
 

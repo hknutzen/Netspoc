@@ -182,6 +182,7 @@ $in = $topo;
 
 $out = <<'END';
 --d32
+! vlan1_in
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
@@ -189,6 +190,7 @@ access-list vlan1_in extended deny ip any object-group g0
 access-list vlan1_in extended permit ip any any
 access-group vlan1_in in interface vlan1
 --
+! vlan2_in
 access-list vlan2_in extended deny ip object-group g0 object-group g0
 access-list vlan2_in extended permit ip any any
 access-group vlan2_in in interface vlan2
@@ -211,6 +213,7 @@ END
 
 $out = <<'END';
 --d32
+! vlan1_in
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
@@ -236,6 +239,7 @@ END
 
 $out = <<'END';
 --d32
+! vlan1_in
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
@@ -262,6 +266,7 @@ END
 
 $out = <<'END';
 --d32
+! vlan1_in
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
@@ -308,6 +313,7 @@ END
 
 $out = <<'END';
 --d32
+! trans_in
 access-list trans_in extended permit tcp 10.62.0.0 255.255.128.0 10.62.1.0 255.255.255.0 eq 80
 access-list trans_in extended deny ip object-group g0 object-group g0
 access-list trans_in extended permit ip any any
@@ -357,6 +363,7 @@ END
 
 $out = <<'END';
 --d32
+! trans_in
 access-list trans_in extended permit tcp 10.62.2.0 255.255.255.0 10.62.1.0 255.255.255.0 eq 80
 access-list trans_in extended deny ip object-group g0 object-group g0
 access-list trans_in extended permit ip any any
@@ -401,6 +408,7 @@ END
 
 $out = <<'END';
 --d31
+! inside_in
 access-list inside_in extended permit tcp 10.62.1.32 255.255.255.224 10.125.3.0 255.255.255.0 eq 25
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
@@ -416,10 +424,12 @@ $title = "Different deny rules";
 
 $out = <<'END';
 --d32
+! vlan1_in
 access-list vlan1_in extended deny ip any 10.62.0.0 255.255.0.0
 access-list vlan1_in extended permit ip any any
 access-group vlan1_in in interface vlan1
 --
+! trans_in
 access-list trans_in extended deny ip 10.62.0.0 255.255.0.0 10.62.0.0 255.255.0.0
 access-list trans_in extended permit ip any any
 access-group trans_in in interface trans
@@ -451,14 +461,17 @@ END
 
 $out = <<'END';
 --d32
+! vlan1_in
 access-list vlan1_in extended permit ip any any
 access-group vlan1_in in interface vlan1
 --
+! vlan2_in
 access-list vlan2_in extended permit tcp 10.62.2.0 255.255.255.224 10.62.1.32 255.255.255.224 eq 22
 access-list vlan2_in extended deny ip any 10.62.0.0 255.255.224.0
 access-list vlan2_in extended permit ip any any
 access-group vlan2_in in interface vlan2
 --
+! vlan2_out
 access-list vlan2_out extended permit tcp 10.62.1.32 255.255.255.224 10.62.2.0 255.255.255.224 eq 80
 access-list vlan2_out extended deny ip 10.62.0.0 255.255.224.0 10.62.0.0 255.255.224.0
 access-list vlan2_out extended permit ip any any
@@ -594,10 +607,12 @@ END
 
 $out = <<'END';
 --ex
+! inside_in
 access-list inside_in extended permit tcp 10.2.2.0 255.255.255.224 10.5.3.0 255.255.255.0 eq 25
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
 --r1
+! vlan4_in
 object-group network g0
  network-object host 10.2.1.4
  network-object host 10.2.3.4
@@ -606,6 +621,7 @@ access-list vlan4_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
 access-list vlan4_in extended permit ip any any
 access-group vlan4_in in interface vlan4
 --r3
+! vlan8_in
 access-list vlan8_in extended permit ip 10.2.2.0 255.255.255.224 10.2.1.0 255.255.255.224
 access-list vlan8_in extended permit tcp 10.2.2.0 255.255.255.224 host 10.2.3.4 eq 25
 access-list vlan8_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
@@ -666,6 +682,7 @@ END
 
 $out = <<'END';
 --r1
+! vlan1_in
 access-list vlan1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.8.0 255.255.255.0 eq 25
 access-list vlan1_in extended deny ip any 10.2.0.0 255.255.0.0
 access-list vlan1_in extended permit ip any any
@@ -718,11 +735,12 @@ END
 
 $out = <<'END';
 --r2
-! [ ACL ]
+! outside_in
 access-list outside_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
 access-list outside_in extended permit ip any any
 access-group outside_in in interface outside
 --
+! inside_in
 access-list inside_in extended deny ip any 10.2.0.0 255.255.0.0
 access-list inside_in extended permit ip any any
 access-group inside_in in interface inside
@@ -781,12 +799,13 @@ END
 
 $out = <<'END';
 --r2
-! [ ACL ]
+! outside_in
 access-list outside_in extended permit tcp any 10.2.1.0 255.255.255.224 eq 25
 access-list outside_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
 access-list outside_in extended permit ip any any
 access-group outside_in in interface outside
 --
+! inside_in
 access-list inside_in extended permit tcp 10.2.1.0 255.255.255.224 any eq 110
 access-list inside_in extended deny ip any 10.2.0.0 255.255.0.0
 access-list inside_in extended permit ip any any
@@ -817,7 +836,7 @@ END
 
 $out = <<'END';
 --r1
-! [ ACL ]
+! outside_in
 access-list outside_in extended permit icmp any any
 access-list outside_in extended deny ip any 10.1.0.0 255.255.0.0
 access-list outside_in extended permit ip any any

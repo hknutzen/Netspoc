@@ -10,6 +10,75 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'Duplicate IP address';
+############################################################
+
+$in = <<'END';
+network:n1a = { 
+ ip = 10.1.1.0/24; 
+ nat:t1 = { ip = 10.9.1.0/24; }
+}
+
+router:r1 = {
+ interface:n1a = { bind_nat = t2; }
+ interface:u;
+}
+
+network:u = { ip = 10.2.2.0/24; }
+
+router:r2 = {
+ interface:u;
+ interface:n1b = { bind_nat = t1; }
+}
+
+network:n1b = { 
+ ip = 10.1.1.0/24; 
+ nat:t2 = { ip = 10.9.2.0/24; }
+}
+END
+
+$out = <<'END';
+Error: network:n1b and network:n1a have identical IP/mask
+ in nat_domain:u
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Ignore duplicate IP address at unnumbered';
+############################################################
+# Address conflict is not observable at unnumbered network
+# surrounded by unmanged routers.
+
+$in =~ s/ip = 10.2.2.0\/24/unnumbered/;
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'NAT bound in wrong direction';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:x = { hidden; } }
+router:r = {
+ interface:n1 = { bind_nat = x; }
+ interface:n2;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Error: network:n1 is translated by x,
+ but is located inside the translation domain of x.
+ Probably x was bound to wrong interface at router:r.
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Multiple dynamic NAT at PIX';
 ############################################################
 
@@ -92,15 +161,17 @@ END
 
 $out = <<'END';
 --filter
+! inside_in
 access-list inside_in permit tcp host 10.9.1.33 10.9.3.0 255.255.255.0 eq 80
 access-list inside_in deny ip any any
 access-group inside_in in interface inside
---filter
+--
+! outside_in
 access-list outside_in permit ip 10.9.3.0 255.255.255.0 host 1.1.1.23
 access-list outside_in permit tcp 10.9.3.0 255.255.255.0 1.1.1.16 255.255.255.240 eq 80
 access-list outside_in deny ip any any
 access-group outside_in in interface outside
---filter
+--
 ! [ NAT ]
 static (inside,outside) 1.1.1.23 10.9.1.33 netmask 255.255.255.255
 global (outside) 1 1.1.1.16-1.1.1.31 netmask 255.255.255.240
@@ -318,6 +389,171 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Non matching static NAT mask';
+############################################################
+
+$in = <<'END';
+network:n1 =  { ip = 10.1.1.0/24; nat:x = { ip = 10.8.8.0/23; } }
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = x; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Error: Mask for non dynamic nat:x(network:n1) must be equal to mask of network:n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Non matching NAT IP of host and interaface';
+############################################################
+
+$in = <<'END';
+network:n1 =  {
+ ip = 10.1.1.0/24;
+ nat:x = { ip = 10.8.8.0/23; dynamic; } 
+ host:h1 = { ip = 10.1.1.10; nat:x = { ip = 10.7.7.7; } }
+}
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; nat:x = { ip = 10.7.7.1; } }
+ interface:n2 = { bind_nat = x; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<"END";
+Error: nat:x: IP of host:h1 doesn't match IP/mask of network:n1
+Error: nat:x: IP of interface:r1.n1 doesn't match IP/mask of network:n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Useless NAT IP of host and interface with static NAT';
+############################################################
+
+$in = <<'END';
+network:n1 =  {
+ ip = 10.1.1.0/24;
+ nat:x = { ip = 10.8.8.0/24; } 
+ host:h1 = { ip = 10.1.1.10; nat:x = { ip = 10.8.8.12; } }
+}
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; nat:x = { ip = 10.7.7.1; } }
+ interface:n2 = { bind_nat = x; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<"END";
+Warning: Ignoring nat:x at host:h1 because network:n1 has static NAT definition
+Warning: Ignoring nat:x at interface:r1.n1 because network:n1 has static NAT definition
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Must not define NAT for host range.';
+############################################################
+
+$in = <<'END';
+network:n1 =  {
+ ip = 10.1.1.0/24;
+ nat:x = { ip = 10.8.8.0/24; dynamic; } 
+ host:h1 = { range = 10.1.1.10-10.1.1.15; nat:x = { ip = 10.8.8.12; } }
+}
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = x; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<"END";
+Error: No NAT supported for host:h1 with 'range'
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Must not define NAT for host range.';
+############################################################
+
+$in = <<'END';
+network:n1 = { 
+ ip = 10.1.1.0/24; 
+ nat:d = { ip = 10.9.1.0/28; dynamic; }
+ host:h1 = { ip = 10.1.1.10; nat:d = { ip = 10.9.1.10; } }
+ host:h2 = { range = 10.1.1.9 - 10.1.1.10; }
+ host:h3 = { range = 10.1.1.8 - 10.1.1.15; }
+}
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = d; }
+}
+
+network:n2 = { ip = 10.2.2.0/24; }
+END
+
+$out = <<'END';
+Error: Inconsistent NAT definition for host:h1 and host:h2
+Error: Inconsistent NAT definition for host:h3 and host:h1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'NAT for interface with multiple IP addresses';
+############################################################
+
+$in = <<'END';
+network:n1 =  {
+ ip = 10.1.1.0/24;
+ nat:x = { ip = 10.8.8.0/28; dynamic; } 
+}
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1, 10.1.1.2; nat:x = { ip = 10.8.8.1; } }
+ interface:t1 = { ip = 10.1.9.1; bind_nat = x; }
+}
+
+network:t1 = { ip = 10.1.9.0/24; }
+
+router:filter = {
+ managed;
+ model = ASA;
+ interface:t1 = { ip = 10.1.9.2; hardware = t1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s = {
+ user = interface:r1.[all];
+ permit src = user; dst = network:n2; prt = udp 123;
+}
+END
+
+$out = <<"END";
+Error: interface:r1.n1.2 needs static translation for nat:x at router:filter to be valid in rule
+ permit src=interface:r1.n1.2; dst=network:n2; prt=udp 123; of service:s
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'NAT tag without effect';
 ############################################################
 
@@ -437,13 +673,13 @@ END
 
 $out = <<'END';
 -- S
-! [ ACL ]
+! inside_in
 access-list inside_in extended permit tcp host 10.9.1.33 10.8.3.0 255.255.255.0 eq 80
 access-list inside_in extended permit tcp host 10.9.1.34 10.8.3.0 255.255.255.0 eq 22
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
 -- R
-! [ ACL ]
+! inside_in
 access-list inside_in extended permit tcp host 1.9.9.9 10.8.3.0 255.255.255.0 eq 80
 access-list inside_in extended permit tcp host 1.9.9.9 10.8.3.0 255.255.255.0 eq 22
 access-list inside_in extended deny ip any any
@@ -499,7 +735,7 @@ ip access-list extended t_in
  permit tcp host 10.2.2.10 10.1.1.0 0.0.0.255 established
  deny ip any any
 -- r2
-! [ ACL ]
+! t_in
 access-list t_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.2.2.10 eq 80
 access-list t_in extended deny ip any any
 access-group t_in in interface t
@@ -555,6 +791,7 @@ END
 
 $out = <<'END';
 --r1
+! vlan0_in
 object-group network g0
  network-object 10.4.4.0 255.255.255.0
  network-object 10.5.5.0 255.255.255.0
@@ -1169,6 +1406,40 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Prevent NAT from dynamic to static';
+############################################################
+
+$in = <<'END';
+network:U1 = {
+ ip = 10.1.1.0/24;
+ nat:t1 = { ip = 10.8.8.0/23; dynamic; }
+ nat:t2 = { ip = 10.9.9.0/24; }
+}
+router:R0 = {
+ interface:U1;
+ interface:T = { ip = 10.3.3.17; bind_nat = t1;}
+}
+
+network:T = { ip = 10.3.3.16/29; }
+
+router:R2 = {
+ managed;
+ model = ASA;
+ interface:T = { ip = 10.3.3.18; hardware = e0;}
+ interface:K = { ip = 10.2.2.1; hardware = e2; bind_nat = t2; }
+}
+
+network:K = { ip = 10.2.2.0/24; }
+END
+
+$out = <<'END';
+Error: Must not change dynamic nat:t1 to static using nat:t2
+ for nat:t1(network:U1) at router:R2
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Prevent NAT from hidden back to IP';
 ############################################################
 
@@ -1401,7 +1672,7 @@ END
 
 $out = <<'END';
 -- r1
-! [ ACL ]
+! outside_in
 access-list outside_in extended permit 50 10.1.1.0 255.255.255.0 10.1.0.0 255.255.0.0
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
@@ -1685,11 +1956,12 @@ END
 
 $out = <<'END';
 -- filter
-! [ ACL ]
+! inside_in
 access-list inside_in extended permit tcp 10.1.1.0 255.255.255.0 2.2.2.0 255.255.255.0 eq 22
 access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
 --
+! outside_in
 access-list outside_in extended permit tcp 2.2.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside

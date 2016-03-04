@@ -87,6 +87,7 @@ t/global-opt.t
 t/group.t
 t/host-range.t
 t/huge.t
+t/ip-check.t
 t/iptables.t
 t/local-filter.t
 t/local-opt.t
@@ -95,6 +96,7 @@ t/loopback.t
 t/managed-host.t
 t/nat.t
 t/optimize-subnet.t
+t/options.t
 t/overlaps.t
 t/owner.t
 t/parser.t
@@ -110,6 +112,7 @@ t/routing_only.t
 t/secondary-interface.t
 t/secondary.t
 t/stateless.t
+t/unconnected.t
 t/unenforceable.t
 t/unmanaged.t
 t/unnumbered.t

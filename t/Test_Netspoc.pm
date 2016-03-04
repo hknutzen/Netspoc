@@ -122,7 +122,7 @@ sub compare_warnings_and_devices {
 
     my ($stderr, $success, $in_dir) = run($in, $options, $dir);
     if (!$success) {
-        diag("Unexpected failure");
+        diag("Unexpected failure:\n$stderr");
         fail($title);
         return;
     }
@@ -218,6 +218,7 @@ sub test_err {
     my ($stderr, $success, $in_dir) = run($in, $options);
     if ($success) {
         diag("Unexpected success");
+        diag($stderr) if $stderr;
         fail($title);
         return;
     }

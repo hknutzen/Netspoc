@@ -399,4 +399,37 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = "Interface has dynamic NAT address";
+############################################################
+# Address for protect self rules is unknown.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed; 
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = d; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24; 
+ nat:d = { ip = 10.9.9.0/25; dynamic; }
+}
+
+service:s = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: Must not apply dynamic NAT to interface:r1.n2 at interface:r1.n1 of same device.
+ This isn't supported for model IOS.
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;

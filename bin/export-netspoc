@@ -29,6 +29,7 @@ use warnings;
 use Getopt::Long;
 use File::Path 'make_path';
 use JSON;
+use Digest::SHA qw(sha1_base64);
 use Netspoc::Compiler::GetArgs qw(read_config combine_config);
 use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
@@ -438,13 +439,104 @@ sub find_visibility {
 # All objects referenced in rules and in networks and hosts of owners.
 my %all_objects;
 
-sub setup_service_info {
-    progress("Setup service info");
+# Copy of %services with those services split, that have different 'user'.
+my @normalized_services;
+
+# Split service, if 'user' has different values in normalized rules.
+sub normalize_services_for_export {
+    progress("Normalize services for export");
+ 
     for my $service (values %services) {
         next if $service->{disabled};
-        my $sname = $service->{name};
+        my $sname   = $service->{name};
+        my $context = $sname;
+        my $user    = expand_group($service->{user}, "user of $context");
+        my $rules   = $service->{rules};
+        my $foreach = $service->{foreach};
 
-        my $users = $service->{expanded_user} = $service->{user};
+        my %key2rules;
+        my %key2user;
+
+        my $seen_as_user = sub {
+            my ($list) = @_;
+            my $list_key = join(',', map { $_->{name} } @$list);
+            return $key2user{$list_key};
+        };
+
+        for my $unexpanded (@$rules) {
+            my $action   = $unexpanded->{action};
+            my $prt_list = proto_descr(expand_protocols($unexpanded->{prt}, 
+                                                        "rule in $context"));
+            my $has_user = $unexpanded->{has_user};
+        
+            for my $element ($foreach ? @$user : ($user)) {
+                my $src_dst_list_pairs = 
+                    normalize_src_dst_list($unexpanded, $element, $context);
+                for my $src_dst_list (@$src_dst_list_pairs) {
+                    my ($src_list, $dst_list) = @$src_dst_list;
+
+                    # Artificially take one of 'src' and 'dst' as user
+                    # for case like
+                    # src = user; dst = any:[user];
+                    if ($has_user eq 'both' and
+                        not aref_eq($src_list, $dst_list)) 
+                    {
+                        if ($seen_as_user->($src_list)) {
+                            $has_user = 'src';
+                        }
+                        elsif($seen_as_user->($dst_list)) {
+                            $has_user = 'dst';
+                        }
+                        elsif(@$src_list >= @$dst_list) {
+                            $has_user = 'src';
+                        }
+                        else {                                
+                            $has_user = 'dst';
+                        }
+                    }
+                    my $rule = {
+                        action   => $action,
+                        prt      => $prt_list,
+                        has_user => $has_user,
+                    };
+                    if ($has_user eq 'src') {
+                        $rule->{dst} = $dst_list;
+                    }
+                    elsif ($has_user eq 'dst') {
+                        $rule->{src} = $src_list;
+                    }
+
+                    my $user_list = $has_user eq 'dst' ? $dst_list : $src_list;
+                    my $user_key = join(',', map { $_->{name} } @$user_list);
+                    push @{ $key2rules{$user_key} }, $rule;
+                    $key2user{$user_key} = $user_list;
+                }
+            }
+        }
+
+        # 'user' has different value for some rules
+        # and we get multiple services with identical name.
+        my $is_split = (1 < keys %key2rules);
+
+        for my $user_key (keys %key2rules) {
+            my $user_list = $key2user{$user_key};
+            my $rules     = $key2rules{$user_key};
+            my $new_service = { %$service,
+                                user  => $user_list,
+                                rules => $rules, 
+            };
+            $new_service->{is_split} = 1 if $is_split;
+            push @normalized_services, $new_service;
+        }
+    }
+}
+      
+sub setup_service_info {
+    progress("Setup service info");
+    
+    for my $service (@normalized_services) {
+        my $sname = $service->{name};
+        my $users = $service->{user};
 
         # Non 'user' objects.
         my @objects;
@@ -454,9 +546,6 @@ sub setup_service_info {
 
         for my $rule (@{ $service->{rules} }) {
             my $has_user = $rule->{has_user};
-            $rule->{expanded_prt} =
-                proto_descr(expand_protocols($rule->{prt}, 
-                                                     "rule in $sname"));
             if ($has_user eq 'both') {
                 $is_coupling = 1;
                 next;
@@ -464,42 +553,16 @@ sub setup_service_info {
             for my $what (qw(src dst)) {
 
                 next if $what eq $has_user;
-                my $all = 
-                    [ sort by_name
-                      @{ expand_group($rule->{$what}, 
-                                               "$what of $sname") } ];
-
-                # Expand auto interface to set of real interfaces.
-                expand_auto_intf($all, $users);
-
-                # Store expanded src and dst for later use 
-                # in export_services.
-                $rule->{"expanded_$what"} = $all;
-
+                my $all = $rule->{$what};
                 push(@objects, @$all);
             }
         }
 
         @objects = unique(@objects);
 
-        # Expand auto interfaces in users with counterpart in
-        # - users and objects
-        # - only users
-        # - only objects.
-        # This changes {expanded_user} as well.
-        # Add elements of expanded users to objects.
         if ($is_coupling) {
-            if (@objects) {
-                expand_auto_intf($users, [ @objects, @$users ]);
-            }
-            else {
-                expand_auto_intf($users, $users);
-            }
             @objects = unique(@objects, @$users);
             $users = [];
-        }
-        else {
-            expand_auto_intf($users, \@objects);
         }
 
         # Store referenced objects for later use during export.
@@ -524,7 +587,6 @@ sub setup_service_info {
         $service->{visible} ||= find_visibility($owners, $uowners);
         $service->{visible} and $service->{visible} =~ s/\*$/.*/;
     }
-    return;
 }
 
 ######################################################################
@@ -801,12 +863,43 @@ sub export_assets {
 # Services, rules, users
 ####################################################################
 
+# Calculate unique id for set of rules.
+# Take first 8 characters of base64 encoded SHA1 hash.
+# This gives 8x6=48 bits.
+# Collisions would occur with probability of 0.5 for 2^24 different ids.
+# We should be extremely safe for up to 2^14 different ids.
+sub calc_rules_key {
+    my ($rules) = @_;
+    my $text = to_json($rules, {canonical => 1});
+    my $digest = sha1_base64($text);
+    my $result = substr($digest, 0, 8);
+    $result =~ tr/+\//-_/;
+    return $result;
+}
+
 sub export_services {
     progress("Export services");
     my %shash;
     my %owner2type2shash;
-    for my $service (sort by_name values %services) {
+    for my $service (sort by_name @normalized_services) {
         next if $service->{disabled};
+
+        my @rules = map {
+            { 
+                action => $_->{action},
+                has_user => $_->{has_user},
+                src => [ sort map { $_->{name} } @{ $_->{src} } ],
+                dst => [ sort map { $_->{name} } @{ $_->{dst} } ],
+                prt => $_->{prt},
+            }
+        } @{ $service->{rules} };
+
+        # Add extension to make name of split service unique.
+        if ($service->{is_split}) {
+            my $rules_key = calc_rules_key(\@rules);
+            $service->{name} .= "($rules_key)";
+        }
+
         if ($master_owner) {
             $owner2type2shash{$master_owner}->{owner}->{$service} = $service;
         }
@@ -851,15 +944,6 @@ sub export_services {
 #           $details->{part_owners} = $service->{part_owners};
 #       }
 
-        my @rules = map {
-            { 
-                action => $_->{action},
-                has_user => $_->{has_user},
-                src => [ map { $_->{name} } @{ $_->{expanded_src} } ],
-                dst => [ map { $_->{name} } @{ $_->{expanded_dst} } ],
-                prt => $_->{expanded_prt},
-            }
-        } @{ $service->{rules} };
         (my $sname = $service->{name}) =~ s/^\w+://;
         $shash{$sname} = { details => $details, rules => \@rules };
     }
@@ -882,10 +966,10 @@ sub export_services {
                 next if $type eq 'visible';
                 my @users;
                 if ($type eq 'owner') {
-                    @users = @{ $service->{expanded_user} };
+                    @users = @{ $service->{user} };
                 }
                 elsif ($type eq 'user') {
-                    for my $user (@{ $service->{expanded_user} }) {
+                    for my $user (@{ $service->{user} }) {
                         my $uowner = owner_for_object($user);
                         if ($uowner && $uowner eq $owner ||
                             grep({ $_ eq $owner } 
@@ -1049,9 +1133,8 @@ set_zone();
 setpath();
 distribute_nat_info();
 find_subnets_in_zone();
-normalize_services();
+normalize_services_for_export();
 propagate_owners();
-set_service_owner();
 find_subnets_in_nat_domain();
 setup_zones();
 setup_part_owners();
