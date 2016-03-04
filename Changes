@@ -1,5 +1,23 @@
 {{$NEXT}}
 
+5.001     2016-03-04 14:19:00+01:00 Europe/Berlin
+
+ - Certificates are used as part of names now for router model "ASA,VPN".
+   This affects names of 
+   split-tunnel-ACL, vpn-filter-ACL, 
+   group policy, IP pool, certificate map, tunnel group.   
+ - Topology is checked for unconnected parts now.
+ - Fixed optimized pathrestriction at border of loop exit.
+ - Fixed ACL generation for router using both "managed=local" and "no_in_acl".
+ - Fixed expansion of autointerfaces in rule with multiple autointerfaces
+   both in src and dst.
+ - Commands 'add-to-netspoc' and 'remove-from-netspoc' now correctly handle
+   automatic interfaces like "interface:r.[auto]" and "interface:r.[all]".
+ - Complicated services with an ambiguous user list couldn't be
+   presented correctly in Netspoc-Web.  
+   Command 'export-netspoc' now splits such services into multiple
+   simpler services with names like "ping_local(t_CRj8Vo)"
+
 5.0       2016-01-28 18:05:50+01:00 Europe/Berlin
 
  - Introduced new attribute 'no_check_supernet_rules' at zone.
