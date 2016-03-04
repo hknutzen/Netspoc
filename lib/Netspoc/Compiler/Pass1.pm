@@ -73,6 +73,7 @@ our @EXPORT = qw(
   fatal_err
   unique
   equal
+  aref_eq
   read_ip
   print_ip
   mask2prefix
@@ -107,6 +108,7 @@ our @EXPORT = qw(
   get_orig_prt
   expand_group
   expand_group_in_rule
+  normalize_src_dst_list
   normalize_services
   group_path_rules
   expand_crypto
@@ -6476,6 +6478,37 @@ sub add_managed_hosts {
     return $aref;
 }
 
+sub normalize_src_dst_list {
+    my ($rule, $user, $context) = @_;
+    $user_object->{elements} = $user;
+    my $src_list = expand_group_in_rule($rule->{src},
+                                        "src of rule in $context");
+    my $dst_list = expand_group_in_rule($rule->{dst},
+                                        "dst of rule in $context");
+
+    # Expand auto interfaces in src.
+    my @extra_src_dst = substitute_auto_intf($src_list, $dst_list, $context);
+
+    # Expand auto interfaces in dst of extra_src_dst.
+    if (@extra_src_dst) {
+        my @extra_extra;
+        for my $src_dst_list (@extra_src_dst) {
+            my ($src_list, $dst_list) = @$src_dst_list;
+            push(@extra_extra,
+                 map { [ $_->[1], $_->[0] ] }
+                 substitute_auto_intf($dst_list, $src_list, $context));
+        }
+        push @extra_src_dst, @extra_extra;
+    }
+
+    # Expand auto interfaces in dst.
+    push(@extra_src_dst,
+         map { [ $_->[1], $_->[0] ] }
+         substitute_auto_intf($dst_list, $src_list, $context));
+    unshift @extra_src_dst, [ $src_list, $dst_list ];
+    return \@extra_src_dst;
+}
+
 sub normalize_service_rules {
     my ($service) = @_;
     my $context = $service->{name};
@@ -6504,56 +6537,17 @@ sub normalize_service_rules {
         my $prt_list_pair = classify_protocols($prt_list, $service);
 
         for my $element ($foreach ? @$user : ($user)) {
-            $user_object->{elements} = $element;
-            my $src_list =
-                expand_group_in_rule($unexpanded->{src},
-                                     "src of rule in $context");
-            my $dst_context = "dst of rule in $context";
-            my $dst_list = expand_group_in_rule($unexpanded->{dst},
-                                                $dst_context);
-
-            # Stop late to get all referenced groups expanded.
-            # Otherwise groups would be shown as unused.
-            @$src_list or next;
+            my $src_dst_list_pairs = 
+                normalize_src_dst_list($unexpanded, $element, $context);
             next if $service->{disabled};
-
-            @$dst_list or next;
-
-            # Expand auto interfaces in src.
-            my @extra_src_dst = 
-                substitute_auto_intf($src_list, $dst_list, $context);
-
-            # Expand auto interfaces in dst of extra_src_dst.
-            if (@extra_src_dst) {
-                my @extra_extra;
-                for my $src_dst_list (@extra_src_dst) {
-                    my ($src_list, $dst_list) = @$src_dst_list;
-                    push(@extra_extra,
-                         map { [ $_->[1], $_->[0] ] }
-                         substitute_auto_intf($dst_list, $src_list, $context));
-                }
-                push @extra_src_dst, @extra_extra;
-            }
-            elsif (not @$src_list) {
-                next;
-            }
-
-            # Expand auto interfaces in dst.
-            push(@extra_src_dst,
-                 map { [ $_->[1], $_->[0] ] }
-                 substitute_auto_intf($dst_list, $src_list, $context));
-            if (@$src_list and @$dst_list) {
-                unshift @extra_src_dst, [ $src_list, $dst_list ];
-            }
-            elsif(not @extra_src_dst) {
-                next;
-            }
-            for my $src_dst_list (@extra_src_dst) {
+            for my $src_dst_list (@$src_dst_list_pairs) {
                 my ($src_list, $dst_list) = @$src_dst_list;
+                @$src_list and @$dst_list or next;
                 check_private_service($service, $src_list, $dst_list);
                 my ($simple_prt_list, $complex_prt_list) = @$prt_list_pair;
                 if ($simple_prt_list) {
-                    $dst_list = add_managed_hosts($dst_list, $dst_context);
+                    $dst_list = add_managed_hosts($dst_list, 
+                                                  "dst of rule in $context");
                     my $rule = {
                         src  => $src_list,
                         dst  => $dst_list,
@@ -6570,7 +6564,8 @@ sub normalize_service_rules {
                                               ? ($dst_list, $src_list) 
                                               : ($src_list, $dst_list);
 
-                    $dst_list = add_managed_hosts($dst_list, $dst_context);
+                    $dst_list = add_managed_hosts($dst_list, 
+                                                  "dst of rule in $context");
                     my $rule = {
                         src  => $src_list,
                         dst  => $dst_list,
