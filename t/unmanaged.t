@@ -74,14 +74,11 @@ $out = <<'END';
 --FW
 object-group network g0
  network-object host 10.1.0.1
- network-object host 10.1.0.2
- network-object host 10.1.0.3
+ network-object 10.1.0.2 255.255.255.254
  network-object host 10.2.0.1
- network-object host 10.2.0.2
- network-object host 10.2.0.3
+ network-object 10.2.0.2 255.255.255.254
  network-object host 10.3.0.1
- network-object host 10.3.0.2
- network-object host 10.3.0.3
+ network-object 10.3.0.2 255.255.255.254
  network-object host 10.9.5.1
  network-object host 10.9.5.2
  network-object host 10.9.16.117
