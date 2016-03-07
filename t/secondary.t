@@ -85,8 +85,7 @@ access-group n1_in in interface n1
 ! n2_in
 object-group network g0
  network-object 10.1.3.0 255.255.255.0
- network-object 10.1.4.0 255.255.255.0
- network-object 10.1.5.0 255.255.255.0
+ network-object 10.1.4.0 255.255.254.0
 access-list n2_in extended permit tcp host 10.1.2.10 object-group g0 eq 80
 access-list n2_in extended permit udp host 10.1.2.10 object-group g0 eq 53
 access-list n2_in extended deny ip any any

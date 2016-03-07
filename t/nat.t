@@ -79,56 +79,6 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Multiple dynamic NAT at PIX';
-############################################################
-
-# Soll nur einen nat-Index pro Interface verwenden.
-
-$in = <<'END';
-network:Test =  { 
- ip = 10.9.1.0/24; 
- nat:C = { ip = 1.1.1.1/32; dynamic;} 
- nat:D = { ip = 9.9.9.8/30; dynamic;} 
-}
-
-router:filter = {
- managed;
- model = PIX;
- interface:Test = {
-  ip = 10.9.1.1;
-  hardware = inside;
- }
- interface:X = { ip = 10.9.2.1; hardware = outside; bind_nat = C;}
- interface:Y = { ip = 10.9.3.1; hardware = DMZ50; bind_nat = C;}
- interface:Z = { ip = 10.9.4.1; hardware = DMZ70; bind_nat = D;}
-}
-
-network:X = { ip = 10.9.2.0/24; }
-network:Y = { ip = 10.9.3.0/24; }
-network:Z = { ip = 10.9.4.0/24; }
-
-protocol:IP = ip;
-
-service:test = {
- user = network:X, network:Y, network:Z;
- permit src = user; 
-	dst = network:Test;
-	prt = protocol:IP;
-}
-END
-
-$out = <<'END';
---filter
-! [ NAT ]
-global (outside) 1 1.1.1.1 netmask 255.255.255.255
-nat (inside) 1 10.9.1.0 255.255.255.0
-global (DMZ50) 1 1.1.1.1 netmask 255.255.255.255
-global (DMZ70) 1 9.9.9.8-9.9.9.11 netmask 255.255.255.252
-END
-
-test_run($title, $in, $out);
-
-############################################################
 $title = 'Dynamic NAT for network with static nat for hosts at PIX';
 ############################################################
 
@@ -171,12 +121,6 @@ access-list outside_in permit ip 10.9.3.0 255.255.255.0 host 1.1.1.23
 access-list outside_in permit tcp 10.9.3.0 255.255.255.0 1.1.1.16 255.255.255.240 eq 80
 access-list outside_in deny ip any any
 access-group outside_in in interface outside
---
-! [ NAT ]
-static (inside,outside) 1.1.1.23 10.9.1.33 netmask 255.255.255.255
-global (outside) 1 1.1.1.16-1.1.1.31 netmask 255.255.255.240
-nat (inside) 1 10.9.1.0 255.255.255.0
-nat (inside) 0 0.0.0.0 0.0.0.0
 END
 
 test_run($title, $in, $out);
@@ -277,54 +221,6 @@ $out = <<'END';
 Error: nat:C(network:Test) of network:Test is subnet_of network:X but its IP doesn't match that's IP/mask
 END
 test_err($title, $in, $out);
-
-############################################################
-$title = 'Multiple static NAT';
-############################################################
-
-$in = <<'END';
-network:a1 = { 
- ip = 10.1.1.0/24; 
- nat:b1 = { ip = 10.8.8.0/24; }
- nat:b2 = { ip = 10.9.9.0/24; }
-}
-
-router:r1  =  {
- managed;
- model = PIX;
- routing = manual;
- interface:a1 = { ip = 10.1.1.1; hardware = e0; }
- interface:b1 = { ip = 10.2.2.1; hardware = e1; bind_nat = b1; }
-}
-network:b1 = { ip = 10.2.2.0/24; }
-
-router:r2  =  {
- managed;
- model = PIX;
- routing = manual;
- interface:b1 = { ip = 10.2.2.2; hardware = e2; }
- interface:b2 = { ip = 10.3.3.1; hardware = e3; bind_nat = b2; }
-}
-network:b2 = { ip = 10.3.3.0/24; }
-
-service:test = {
- user = network:a1;
- permit src = network:b2; dst = user; prt = tcp;
-}
-END
-
-$out = <<'END';
---r1
-! [ NAT ]
-static (e0,e1) 10.8.8.0 10.1.1.0 netmask 255.255.255.0
-nat (e1) 0 0.0.0.0 0.0.0.0
---r2
-! [ NAT ]
-static (e2,e3) 10.9.9.0 10.8.8.0 netmask 255.255.255.0
-nat (e3) 0 0.0.0.0 0.0.0.0
-END
-
-test_run($title, $in, $out);
 
 ############################################################
 $title = 'Must not bind multiple NAT of one network at one place';

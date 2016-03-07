@@ -1,3 +1,11 @@
+5.002     2016-03-07 16:41:20+01:00 Europe/Berlin
+
+ - Adjacent networks are combined now in object groups.
+   This also applies to loopback and vip interfaces.
+ - NAT commands for Cisco PIX are no longer generated.
+   Only use this version with Netspoc-Approve version >= 1.108,
+   that no longer touches global, static and nat command of PIX.
+ 
 5.001     2016-03-04 14:19:00+01:00 Europe/Berlin
 
  - Certificates are used as part of names now for router model "ASA,VPN".

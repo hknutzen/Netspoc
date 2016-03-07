@@ -278,8 +278,7 @@ END
 $out = <<'END';
 --filter
 object-group network g0
- network-object host 10.1.1.10
- network-object host 10.1.1.11
+ network-object 10.1.1.10 255.255.255.254
 access-list Vlan2_in extended permit tcp object-group g0 10.9.1.0 255.255.255.0 eq 22
 access-list Vlan2_in extended deny ip any any
 access-group Vlan2_in in interface Vlan2

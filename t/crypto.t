@@ -313,10 +313,8 @@ access-group inside_in in interface inside
 --
 ! outside_in
 object-group network g0
- network-object host 10.99.1.10
- network-object host 10.99.1.11
- network-object 10.99.2.0 255.255.255.192
- network-object 10.99.2.64 255.255.255.192
+ network-object 10.99.1.10 255.255.255.254
+ network-object 10.99.2.0 255.255.255.128
 object-group network g1
  network-object host 10.99.1.10
  network-object 10.99.2.64 255.255.255.192
@@ -325,8 +323,7 @@ object-group network g2
  network-object 10.99.2.0 255.255.255.192
 object-group network g3
  network-object 10.0.1.0 255.255.255.0
- network-object 10.0.2.0 255.255.255.0
- network-object 10.0.3.0 255.255.255.0
+ network-object 10.0.2.0 255.255.254.0
  network-object 10.0.4.0 255.255.255.0
 access-list outside_in extended permit icmp object-group g0 any 3
 access-list outside_in extended permit tcp object-group g1 object-group g3 eq 80
@@ -1285,8 +1282,7 @@ tunnel-group-map default-group VPN-single
 --
 ! vpn-filter-abc@123.45
 object-group network g0
- network-object 10.99.2.0 255.255.255.0
- network-object 10.99.3.0 255.255.255.0
+ network-object 10.99.2.0 255.255.254.0
 access-list vpn-filter-abc@123.45 extended permit ip object-group g0 any
 access-list vpn-filter-abc@123.45 extended deny ip any any
 username abc@123.45 nopassword

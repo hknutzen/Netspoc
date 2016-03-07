@@ -138,9 +138,8 @@ END
 $out = <<'END';
 --R
 object-group ip address g0
- 10 10.2.2.0/24
- 20 10.2.3.0/24
- 30 10.2.4.0/24
+ 10 10.2.2.0/23
+ 20 10.2.4.0/24
 ip access-list e0_in
  10 deny ip any 10.2.2.4/32
  20 deny ip any 10.2.3.4/32

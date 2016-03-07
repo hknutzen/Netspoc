@@ -308,4 +308,76 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Combine adjacent networks';
+############################################################
+
+$in = <<'END';
+network:n0 = { ip = 10.1.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3a = { ip = 10.1.3.0/25; }
+network:n3b = { ip = 10.1.3.128/25; }
+network:n4 = { ip = 10.4.0.0/16; }
+network:n5 = { ip = 10.5.0.0/16; }
+
+router:u1 = {
+ interface:n0;
+ interface:n1;
+ interface:n2;
+ interface:n3a;
+ interface:n3b;
+ interface:l0 = { ip = 10.2.1.0; loopback; }
+ interface:l1 = { ip = 10.2.1.1; loopback; }
+ interface:t1;
+}
+
+network:t1 = { ip = 10.9.1.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; }
+ interface:t2 = { ip = 10.9.2.1; hardware = t2; }
+}
+
+network:t2 = { ip = 10.9.2.0/24; }
+
+router:u2 = {
+ interface:t2;
+ interface:n4;
+ interface:n5;
+}
+
+service:t = {
+ user = network:n0, 
+        network:n2, 
+        network:n1, 
+        interface:u1.l0,
+        interface:u1.l1,
+        network:n3b,
+        network:n3a,
+        ;
+ permit src = user; 
+        dst = network:n4, network:n5; 
+        prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- asa1
+! t1_in
+object-group network g0
+ network-object 10.1.0.0 255.255.252.0
+ network-object 10.2.1.0 255.255.255.254
+object-group network g1
+ network-object 10.4.0.0 255.254.0.0
+access-list t1_in extended permit tcp object-group g0 object-group g1 eq 80
+access-list t1_in extended deny ip any any
+access-group t1_in in interface t1
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

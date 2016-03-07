@@ -35,7 +35,7 @@ use Netspoc::Compiler::File;
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 
-our $VERSION = '5.001'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.002'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -43,6 +43,12 @@ sub create_ip_obj {
     my ($ip_net) = @_;
     my ($ip, $prefix) = split '/', $ip_net;
     return { ip => ip2int($ip), mask => prefix2mask($prefix), name => $ip_net };
+}
+
+sub get_ip_obj {
+    my ($ip, $mask, $ip_net2obj) = @_;
+    my $name = int2ip($ip) . '/' . mask2prefix($mask);
+    return $ip_net2obj->{$name} ||= { ip => $ip, mask => $mask, name => $name };
 }
 
 sub create_prt_obj {
@@ -639,6 +645,70 @@ sub add_local_deny_rules {
     return;
 }
 
+##############################################################################
+# Purpose    : Create a list of IP/mask objects from a hash of IP/mask names.
+#              Adjacent IP/mask objects are combined to larger objects.
+#              It is assumed, that no duplicate or redundant IP/mask objects
+#              are given.
+# Parameters : $hash - hash with IP/mask names as keys and 
+#                      IP/mask objects as values.
+#              $ip_net2obj - hash of all known IP/mask objects
+# Result     : Reference to array of sorted and combined IP/mask objects.
+sub combine_adjacent_ip_mask {
+    my ($hash, $ip_net2obj) = @_;
+
+    # Convert names to objects.
+    # Sort by mask. Adjacent networks will be adjacent elements then.
+    my $elements = [
+        sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
+        map { $ip_net2obj->{$_} }
+        keys %$hash ];
+
+    # Find left and rigth part with identical mask and combine them
+    # into next larger network.
+    # Compare up to last but one element.
+    my $i = 0;
+    for (my $i = 0 ; $i < @$elements - 1 ; $i++) {
+        my $element1 = $elements->[$i];
+        my $element2 = $elements->[$i+1];
+        my $mask = $element1->{mask};
+        $mask == $element2->{mask} or next;
+        my $up_bit = complement_32bit($mask) + 1;
+        my $ip = $element1->{ip};
+        0 == ($ip & $up_bit) or next;
+        $ip + $up_bit == $element2->{ip} or next;
+        my $up_mask = $mask & complement_32bit($up_bit);
+        my $up_element = get_ip_obj($ip, $up_mask, $ip_net2obj);
+
+        # Substitute left part by combined network.
+        $elements->[$i] = $up_element;
+
+        # Remove right part.
+        splice @$elements, $i+1, 1;
+
+        # Add new element and remove left and rigth parts.
+        $hash->{$up_element->{name}} = $up_element;
+        delete($hash->{$element1});
+        delete($hash->{$element2});
+        
+        if ($i > 0) {
+            my $next_bit = complement_32bit($up_mask) + 1;
+
+            # Check previous network again, if newly created network
+            # is left part.
+            $i-- if ($ip & $next_bit);
+        }
+
+        # Only one element left.
+        # Condition of for-loop isn't effective, because of 'redo' below.
+        last if $i >= @$elements - 1;
+
+        # Compare current network again.
+        redo;
+    }
+    return $elements;
+}
+
 my $min_object_group_size = 2;
 
 sub find_objectgroups {
@@ -703,15 +773,12 @@ sub find_objectgroups {
             my ($glue) = @_;
             my $hash   = $glue->{hash};
 
-            # Sort keys by IP and mask for normalized output and
-            # to get some "first" element for efficent hashing.
-            my @elements  =
-                sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
-                map { $ip_net2obj->{$_} }
-                keys %$hash;
+            # Get sorted and combined list of objects from hash of names.
+            my $elements = combine_adjacent_ip_mask($hash, $ip_net2obj);
 
-            my $size  = @elements;
-            my $first = $elements[0]->{name};
+            # Use size and first element as keys for efficient hashing.
+            my $size  = @$elements;
+            my $first = $elements->[0]->{name};
 
             # Search group with identical elements.
           HASH:
@@ -729,7 +796,7 @@ sub find_objectgroups {
 
             # No group found, build new group.
             my $group = { name     => "g$router_data->{obj_group_counter}", 
-                          elements => \@elements,
+                          elements => $elements,
                           hash     => $hash, };
             $router_data->{obj_group_counter}++;
 
