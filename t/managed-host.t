@@ -274,12 +274,10 @@ service:test = {
 }
 END
 
-# Interface addresses aren't optimized into subnet currently.
 $out = <<'END';
 --filter
-object-group network g0
- network-object 10.1.1.10 255.255.255.254
-access-list Vlan2_in extended permit tcp object-group g0 10.9.1.0 255.255.255.0 eq 22
+! Vlan2_in
+access-list Vlan2_in extended permit tcp 10.1.1.10 255.255.255.254 10.9.1.0 255.255.255.0 eq 22
 access-list Vlan2_in extended deny ip any any
 access-group Vlan2_in in interface Vlan2
 END

@@ -770,11 +770,16 @@ sub find_objectgroups {
 
         # Find group with identical elements or define a new one.
         my $get_group = sub {
-            my ($glue) = @_;
-            my $hash   = $glue->{hash};
+            my ($hash) = @_;
 
             # Get sorted and combined list of objects from hash of names.
             my $elements = combine_adjacent_ip_mask($hash, $ip_net2obj);
+
+            # If all elements have been combined into one single network,
+            # don't create a group, but take single element as result.
+            if (1 == @$elements) {
+                return $elements->[0];
+            }
 
             # Use size and first element as keys for efficient hashing.
             my $size  = @$elements;
@@ -810,11 +815,9 @@ sub find_objectgroups {
         my @new_rules;
         for my $rule (@$rules) {
             if (my $glue = delete $rule->{group_glue}) {
-                if ($glue->{active}) {
-                    next;
-                }
-                my $group = $get_group->($glue);
+                next if $glue->{active};
                 $glue->{active} = 1;
+                my $group = $get_group->($glue->{hash});
                 $rule->{$this} = $group;
             }
             push @new_rules, $rule;
