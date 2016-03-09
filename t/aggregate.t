@@ -9,10 +9,6 @@ use Test_Netspoc;
 
 my ($title, $topo, $in, $out);
 
-############################################################
-$title = 'Implicit aggregate over 3 networks';
-############################################################
-
 $topo = <<'END';
 area:test = { border = interface:filter.Trans; }
 
@@ -38,6 +34,10 @@ router:filter = {
 }
 network:Customer = { ip = 10.9.9.0/24; }
 END
+
+############################################################
+$title = 'Implicit aggregate over 3 networks';
+############################################################
 
 $in = $topo . <<'END';
 service:test = {
@@ -693,7 +693,7 @@ END
 
 $in = $topo . <<'END';
 service:test = {
- user = any:[interface:filter.[all]];
+ user = any:[interface:filter.[all]] &! any:[network:Customer];
  permit src = network:Customer; dst = user; prt = tcp 22;
 }
 END
@@ -716,7 +716,7 @@ $title = 'Remove loopback network from aggregate';
 
 $in = $topo . <<'END';
 service:test = {
- user = network:[interface:filter.[all]];
+ user = network:[interface:filter.[all]] &! network:Customer;
  permit src = network:Customer; dst = user; prt = tcp 22;
 }
 END

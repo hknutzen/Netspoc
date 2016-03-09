@@ -7239,49 +7239,54 @@ sub collect_unenforceable {
     }
 
     my $context = $service->{name};
+    my $is_coupling = $rule->{rule}->{has_user} eq 'both';
     $service->{silent_unenforceable} = 1;
     my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
 
     for my $src (@$src_list) {
         for my $dst (@$dst_list) {
 
-            # A rule between identical objects is a common case
-            # which results from rules with "src=user;dst=user;".
-            next if $src eq $dst;
+            if ($is_coupling) {
+                if ($src eq $dst) {
+                    next;
+                }
+                elsif (is_subnet $src and is_subnet($dst)) {
 
-            if (is_subnet $src and is_subnet($dst)) {
-
-                # For rules with different subnets of a single network we don't
-                # know if the subnets have been split from a single range.
-                # E.g. range 1-4 becomes four subnets 1,2-3,4
-                # For most splits the resulting subnets would be adjacent.
-                # Hence we check for adjacency.
-                if ($src->{network} eq $dst->{network}) {
-                    my ($a, $b) = $src->{ip} > $dst->{ip} 
-                                ? ($dst, $src) 
-                                : ($src, $dst);
-                    if ($a->{ip} + complement_32bit($a->{mask}) + 1 == $b->{ip})
-                    {
-                        next;
+                    # For rules with different subnets of a single
+                    # network we don't know if the subnets have been
+                    # split from a single range.  
+                    # E.g. range 1-4 becomes four subnets 1,2-3,4 
+                    # For most splits the resulting subnets would be
+                    # adjacent. Hence we check for adjacency.
+                    if ($src->{network} eq $dst->{network}) {
+                        my ($a, $b) = $src->{ip} > $dst->{ip} 
+                                    ? ($dst, $src) 
+                                    : ($src, $dst);
+                        if ($a->{ip} + complement_32bit($a->{mask}) + 1 == 
+                            $b->{ip})
+                        {
+                            next;
+                        }
                     }
                 }
-            }
 
-            # Both are aggregates, having identical ip and mask.
-            elsif ($src->{is_aggregate} && $dst->{is_aggregate} &&
-                   $src->{ip}   == $dst->{ip} &&
-                   $src->{mask} == $dst->{mask})
-            {
-                next;
-            }
+                # Different aggregates with identical IP, 
+                # inside a zone cluster must be considered as equal.
+                elsif ($src->{is_aggregate} && $dst->{is_aggregate} &&
+                       $src->{ip}   == $dst->{ip} &&
+                       $src->{mask} == $dst->{mask})
+                {
+                    next;
+                }
 
-            # This is a common case, which results from rules like
-            # group:some_networks -> any:[group:some_networks]
-            elsif ($src->{is_aggregate} && $src->{mask} == 0) {
-                next;
-            }
-            elsif ($dst->{is_aggregate} && $dst->{mask} == 0) {
-                next;
+                # This is a common case, which results from rules like
+                # user -> any:[user]
+                elsif ($src->{is_aggregate} && $src->{mask} == 0) {
+                    next;
+                }
+                elsif ($dst->{is_aggregate} && $dst->{mask} == 0) {
+                    next;
+                }
             }
 
             # Network or aggregate was only used for its managed_hosts
@@ -7327,14 +7332,16 @@ sub show_unenforceable {
         next if $service->{has_unenforceable};
 
         if (my $hash = delete $service->{seen_unenforceable}) {
-            my $msg = "$context has unenforceable rules:";
+            my @list;
             for my $hash (values %$hash) {
                 for my $aref (values %$hash) {
                     my ($src, $dst) = @$aref;
-                    $msg .= "\n src=$src->{name}; dst=$dst->{name}";
+                    push @list, "src=$src->{name}; dst=$dst->{name}";
                 }
             }
-            $print->($msg);
+            $print->(join "\n ", 
+                     "$context has unenforceable rules:",
+                     sort @list);
         }
         delete $service->{silent_unenforceable};
     }
