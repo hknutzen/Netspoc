@@ -1364,6 +1364,77 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Transient rule together with "foreach"';
+############################################################
+# Transient rule is not found, because rule with "foreach" is split
+# into multiple rules internally.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:tr = { ip = 10.9.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:tr = { ip = 10.9.1.1; hardware = tr; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:tr = { ip = 10.9.1.2; hardware = tr; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+
+area:a1 = { anchor = network:tr;}
+
+protocol:oneway_IP = ip, oneway;
+
+# Allow unfiltered communication,
+# but check src IP of each incoming network:n_i.
+service:s1 = {
+ user = foreach 
+        any:[network:tr],
+	network:[area:a1] & ! network:tr;
+
+ permit src = user;
+	dst = any:[area:a1] &! any:[user];
+	prt = protocol:oneway_IP;
+}
+END
+
+$out = <<'END';
+Warning: Missing transient supernet rules
+ between src of service:s1 and dst of service:s1,
+ matching at any:[network:tr]
+Warning: Missing transient supernet rules
+ between src of service:s1 and dst of service:s1,
+ matching at any:[network:tr]
+-- r1
+! n1_in
+access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 any
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+--
+! tr_in
+access-list tr_in extended permit ip any any
+access-group tr_in in interface tr
+-- r2
+! tr_in
+access-list tr_in extended permit ip any any
+access-group tr_in in interface tr
+--
+! n2_in
+access-list n2_in extended permit ip 10.1.2.0 255.255.255.0 any
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'No missing transient rule for src and dst in same zone';
 ############################################################
 
@@ -1508,6 +1579,8 @@ service:s2 = {
 END
 
 $out = <<'END';
+Warning: service:s1 has unenforceable rules:
+ src=network:n1; dst=any:n1
 END
 
 test_warn($title, $in, $out);
