@@ -35,7 +35,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '5.002'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.003'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -7239,49 +7239,54 @@ sub collect_unenforceable {
     }
 
     my $context = $service->{name};
+    my $is_coupling = $rule->{rule}->{has_user} eq 'both';
     $service->{silent_unenforceable} = 1;
     my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
 
     for my $src (@$src_list) {
         for my $dst (@$dst_list) {
 
-            # A rule between identical objects is a common case
-            # which results from rules with "src=user;dst=user;".
-            next if $src eq $dst;
+            if ($is_coupling) {
+                if ($src eq $dst) {
+                    next;
+                }
+                elsif (is_subnet $src and is_subnet($dst)) {
 
-            if (is_subnet $src and is_subnet($dst)) {
-
-                # For rules with different subnets of a single network we don't
-                # know if the subnets have been split from a single range.
-                # E.g. range 1-4 becomes four subnets 1,2-3,4
-                # For most splits the resulting subnets would be adjacent.
-                # Hence we check for adjacency.
-                if ($src->{network} eq $dst->{network}) {
-                    my ($a, $b) = $src->{ip} > $dst->{ip} 
-                                ? ($dst, $src) 
-                                : ($src, $dst);
-                    if ($a->{ip} + complement_32bit($a->{mask}) + 1 == $b->{ip})
-                    {
-                        next;
+                    # For rules with different subnets of a single
+                    # network we don't know if the subnets have been
+                    # split from a single range.  
+                    # E.g. range 1-4 becomes four subnets 1,2-3,4 
+                    # For most splits the resulting subnets would be
+                    # adjacent. Hence we check for adjacency.
+                    if ($src->{network} eq $dst->{network}) {
+                        my ($a, $b) = $src->{ip} > $dst->{ip} 
+                                    ? ($dst, $src) 
+                                    : ($src, $dst);
+                        if ($a->{ip} + complement_32bit($a->{mask}) + 1 == 
+                            $b->{ip})
+                        {
+                            next;
+                        }
                     }
                 }
-            }
 
-            # Both are aggregates, having identical ip and mask.
-            elsif ($src->{is_aggregate} && $dst->{is_aggregate} &&
-                   $src->{ip}   == $dst->{ip} &&
-                   $src->{mask} == $dst->{mask})
-            {
-                next;
-            }
+                # Different aggregates with identical IP, 
+                # inside a zone cluster must be considered as equal.
+                elsif ($src->{is_aggregate} && $dst->{is_aggregate} &&
+                       $src->{ip}   == $dst->{ip} &&
+                       $src->{mask} == $dst->{mask})
+                {
+                    next;
+                }
 
-            # This is a common case, which results from rules like
-            # group:some_networks -> any:[group:some_networks]
-            elsif ($src->{is_aggregate} && $src->{mask} == 0) {
-                next;
-            }
-            elsif ($dst->{is_aggregate} && $dst->{mask} == 0) {
-                next;
+                # This is a common case, which results from rules like
+                # user -> any:[user]
+                elsif ($src->{is_aggregate} && $src->{mask} == 0) {
+                    next;
+                }
+                elsif ($dst->{is_aggregate} && $dst->{mask} == 0) {
+                    next;
+                }
             }
 
             # Network or aggregate was only used for its managed_hosts
@@ -7327,14 +7332,16 @@ sub show_unenforceable {
         next if $service->{has_unenforceable};
 
         if (my $hash = delete $service->{seen_unenforceable}) {
-            my $msg = "$context has unenforceable rules:";
+            my @list;
             for my $hash (values %$hash) {
                 for my $aref (values %$hash) {
                     my ($src, $dst) = @$aref;
-                    $msg .= "\n src=$src->{name}; dst=$dst->{name}";
+                    push @list, "src=$src->{name}; dst=$dst->{name}";
                 }
             }
-            $print->($msg);
+            $print->(join "\n ", 
+                     "$context has unenforceable rules:",
+                     sort @list);
         }
         delete $service->{silent_unenforceable};
     }
@@ -11520,7 +11527,6 @@ sub cluster_path_mark1 {
     # Proceed loop path exploration with every loop interface of current node.
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_intf;
-        next if $interface->{main_interface};
         my $loop = $interface->{loop} or next;
         $allowed->{$loop} or next;
         my $next = $interface->{$get_next};
@@ -11896,9 +11902,7 @@ sub cluster_path_mark {
 
         # To find paths, process every loop interface of $from node.
         for my $interface (@$from_interfaces) {
-            next if $interface->{main_interface};
-            my $loop = $interface->{loop};
-            next if not $loop;
+            my $loop = $interface->{loop} or next;
 
             # Skip interfaces that will not lead to a path....
             if (not $allowed->{$loop}) { #  ...nodes not included in navi.
@@ -12166,14 +12170,15 @@ sub loop_path_walk {
 #    debug($info);
 
     # Process entry of cyclic graph.
+    my $entry_type = ref $loop_entry;
     if (
         (
-            is_router($loop_entry)
+            $entry_type eq 'Router'
             or
 
             # $loop_entry is interface with pathrestriction of original
             # loop_entry.
-            is_interface($loop_entry)
+            $entry_type eq 'Interface'
             and
 
             # Take only interface which originally was a router.
@@ -12200,8 +12205,9 @@ sub loop_path_walk {
     }
 
     # Process paths at exit of cyclic graph.
-    my $exit_at_router = is_router($loop_exit)
-      || (is_interface($loop_exit)
+    my $exit_type = ref $loop_exit;
+    my $exit_at_router = $exit_type eq 'Router'
+      || ($exit_type eq 'Interface'
         && $loop_exit->{router} eq
         $loop_entry->{loop_leave}->{$loop_exit}->[0]->{router});
     if ($exit_at_router xor $call_at_zone) {
@@ -17426,8 +17432,8 @@ sub print_acls {
 
                     # Add code for logging.
                     # This code is machine specific.
-                    my $log_code;
                     if ($active_log && (my $log = $rule->{log})) {
+                        my $log_code;
                         for my $tag (@$log) {
                             if (exists $active_log->{$tag}) {
                                 if (my $modifier = $active_log->{$tag}) {
@@ -17448,12 +17454,9 @@ sub print_acls {
                                 last;
                             }
                         }
-                    }
-                    if ($log_code) {
-                        $new_rule->{log} = $log_code;
-                    }
-                    elsif ($router->{log_deny} && $deny) {
-                        $new_rule->{log} = 'log';
+                        if ($log_code) {
+                            $new_rule->{log} = $log_code;
+                        }
                     }
 
                     if (   $secondary_filter && $rule->{some_non_secondary}
@@ -17671,6 +17674,9 @@ sub print_code {
         else {
             $vrf_members = [$router];
         }
+
+        # Print version header.
+        print "$comment_char Generated by $program, version $version\n\n";
 
         print "$comment_char [ BEGIN $device_name ]\n";
         print "$comment_char [ Model = $model->{class} ]\n";

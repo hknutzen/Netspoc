@@ -345,6 +345,7 @@ network:t2 = { ip = 10.9.2.0/24; }
 
 router:u2 = {
  interface:t2;
+# Don't create group with one element.
  interface:n4;
  interface:n5;
 }
@@ -370,9 +371,7 @@ $out = <<'END';
 object-group network g0
  network-object 10.1.0.0 255.255.252.0
  network-object 10.2.1.0 255.255.255.254
-object-group network g1
- network-object 10.4.0.0 255.254.0.0
-access-list t1_in extended permit tcp object-group g0 object-group g1 eq 80
+access-list t1_in extended permit tcp object-group g0 10.4.0.0 255.254.0.0 eq 80
 access-list t1_in extended deny ip any any
 access-group t1_in in interface t1
 END

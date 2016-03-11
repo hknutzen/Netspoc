@@ -385,7 +385,7 @@ $out = <<'END';
 -- r1
 ! [ ACL ]
 ip access-list extended n1_in
- deny ip any host 10.1.2.1
+ deny ip any host 10.1.2.1 log
  deny tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 22 log
  permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
  deny ip any any log

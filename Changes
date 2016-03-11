@@ -1,3 +1,14 @@
+5.003     2016-03-11 12:21:32+01:00 Europe/Berlin
+
+ - Stricter check for unenforceable rules has been enabled.
+   Traffic from an object to itself is only silently ignored, for
+   coupling rule with "src=user; dst=user".
+ - Object groups with only one element are no longer created
+   when combining adjacent networks.
+ - Pass2 files are recreated always now when running 
+   a new version of Netspoc.
+ - Minor performance improvements.
+
 5.002     2016-03-07 16:41:20+01:00 Europe/Berlin
 
  - Adjacent networks are combined now in object groups.

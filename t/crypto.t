@@ -1281,9 +1281,7 @@ tunnel-group VPN-single webvpn-attributes
 tunnel-group-map default-group VPN-single
 --
 ! vpn-filter-abc@123.45
-object-group network g0
- network-object 10.99.2.0 255.255.254.0
-access-list vpn-filter-abc@123.45 extended permit ip object-group g0 any
+access-list vpn-filter-abc@123.45 extended permit ip 10.99.2.0 255.255.254.0 any
 access-list vpn-filter-abc@123.45 extended deny ip any any
 username abc@123.45 nopassword
 username abc@123.45 attributes
@@ -1291,8 +1289,8 @@ username abc@123.45 attributes
  vpn-filter value vpn-filter-abc@123.45
 --
 ! outside_in
-access-list outside_in extended permit icmp object-group g0 any 3
-access-list outside_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80
+access-list outside_in extended permit icmp 10.99.2.0 255.255.254.0 any 3
+access-list outside_in extended permit tcp 10.99.2.0 255.255.254.0 10.1.1.0 255.255.255.0 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 --vpn
