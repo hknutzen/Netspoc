@@ -12170,14 +12170,15 @@ sub loop_path_walk {
 #    debug($info);
 
     # Process entry of cyclic graph.
+    my $entry_type = ref $loop_entry;
     if (
         (
-            is_router($loop_entry)
+            $entry_type eq 'Router'
             or
 
             # $loop_entry is interface with pathrestriction of original
             # loop_entry.
-            is_interface($loop_entry)
+            $entry_type eq 'Interface'
             and
 
             # Take only interface which originally was a router.
@@ -12204,8 +12205,9 @@ sub loop_path_walk {
     }
 
     # Process paths at exit of cyclic graph.
-    my $exit_at_router = is_router($loop_exit)
-      || (is_interface($loop_exit)
+    my $exit_type = ref $loop_exit;
+    my $exit_at_router = $exit_type eq 'Router'
+      || ($exit_type eq 'Interface'
         && $loop_exit->{router} eq
         $loop_entry->{loop_leave}->{$loop_exit}->[0]->{router});
     if ($exit_at_router xor $call_at_zone) {
