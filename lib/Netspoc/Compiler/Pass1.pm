@@ -17433,8 +17433,8 @@ sub print_acls {
 
                     # Add code for logging.
                     # This code is machine specific.
-                    my $log_code;
                     if ($active_log && (my $log = $rule->{log})) {
+                        my $log_code;
                         for my $tag (@$log) {
                             if (exists $active_log->{$tag}) {
                                 if (my $modifier = $active_log->{$tag}) {
@@ -17455,12 +17455,9 @@ sub print_acls {
                                 last;
                             }
                         }
-                    }
-                    if ($log_code) {
-                        $new_rule->{log} = $log_code;
-                    }
-                    elsif ($router->{log_deny} && $deny) {
-                        $new_rule->{log} = 'log';
+                        if ($log_code) {
+                            $new_rule->{log} = $log_code;
+                        }
                     }
 
                     if (   $secondary_filter && $rule->{some_non_secondary}

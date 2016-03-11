@@ -912,9 +912,6 @@ sub add_final_permit_deny_rule {
     my $rule = { src => $net_00, dst => $net_00, prt => $prt_ip };
     if ($acl_info->{add_deny}) {
         $rule->{deny} = 1;
-        if (my $log_deny = $router_data->{log_deny}) {
-            $rule->{log} = $log_deny;
-        }
     }
     push @{ $acl_info->{rules} }, $rule;
 
@@ -2118,7 +2115,8 @@ sub print_cisco_std_acl {
 }
 
 sub print_cisco_acl {
-    my ($acl_info, $model) = @_;
+    my ($acl_info, $router_data) = @_;
+    my $model = $router_data->{model};
 
     if ($acl_info->{is_std_acl}) {
         print_cisco_std_acl($acl_info, $model);
@@ -2160,7 +2158,7 @@ sub print_cisco_acl {
         $result .= ' ' . cisco_acl_addr($dst, $model);
         $result .= " $dst_port_code" if defined $dst_port_code;
 
-        if (my $log = $rule->{log}) {
+        if (my $log = $rule->{log} || $deny && $router_data->{log_deny}) {
             $result .= " $log";
         }
 
@@ -2191,7 +2189,7 @@ sub print_acl {
         if (my $groups = $acl_info->{object_groups}) {
             print_object_groups($groups, $acl_info, $model);
         }    
-        print_cisco_acl($acl_info, $model);
+        print_cisco_acl($acl_info, $router_data);
     }
 }
 
