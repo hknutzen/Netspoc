@@ -86,10 +86,11 @@ sub ip2int {
     return ((((($i1<<8)+$i2)<<8)+$i3)<<8)+$i4;
 }
 
+## no critic (RequireArgUnpacking)
 sub int2ip {
-    my ($int) = @_;
-    return sprintf "%vd", pack 'N', $int;
+    return sprintf "%vd", pack 'N', $_[0];
 }
+## use critic
 
 sub complement_32bit {
     my ($ip) = @_;
