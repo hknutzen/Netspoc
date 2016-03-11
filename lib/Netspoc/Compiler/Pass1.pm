@@ -11527,7 +11527,6 @@ sub cluster_path_mark1 {
     # Proceed loop path exploration with every loop interface of current node.
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_intf;
-        next if $interface->{main_interface};
         my $loop = $interface->{loop} or next;
         $allowed->{$loop} or next;
         my $next = $interface->{$get_next};
@@ -11903,9 +11902,7 @@ sub cluster_path_mark {
 
         # To find paths, process every loop interface of $from node.
         for my $interface (@$from_interfaces) {
-            next if $interface->{main_interface};
-            my $loop = $interface->{loop};
-            next if not $loop;
+            my $loop = $interface->{loop} or next;
 
             # Skip interfaces that will not lead to a path....
             if (not $allowed->{$loop}) { #  ...nodes not included in navi.
