@@ -111,7 +111,7 @@ sub change_attribute_src_code {
 
     # Helper functions to parse attribute value.
     my $skip_space_and_comment = sub {
-        $code =~ /\G (?: \s* | (?: [#] .* (?: \n | $ )))*/gcx;
+        $code =~ /\G (?:(?: [#] .* (?: \n | $ )) | \s*)*/gcx;
     };
     my $check = sub {
         my ($string) = @_;
