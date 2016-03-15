@@ -1,5 +1,11 @@
 {{$NEXT}}
 
+5.004     2016-03-15 08:41:20+01:00 Europe/Berlin
+
+ - Only use short certificates as part of names for model "ASA,VPN".
+   For certificates with length >= 46 characters, fall back to
+   sequential integers as names.
+
 5.003     2016-03-11 12:21:32+01:00 Europe/Berlin
 
  - Stricter check for unenforceable rules has been enabled.
