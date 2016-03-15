@@ -35,7 +35,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '5.003'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.004'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -16242,9 +16242,20 @@ EOF
         }
     };
 
+    # Use id with normal length as name for group-policy, etc.
+    # Total length is limited to 64 characters.
+    # Max prefix is 11 characters "VPN-tunnel-"
+    # Max postfix is 7 "-drc-nn".
+    # Hence, usable length is limited to 46 characters.
+    # Use running integer, if id is too long.
+    my $id_counter = 1;
+    my $gen_id_name = sub {
+        my ($id) = @_;
+        return length($id) <= 46 ? $id : $id_counter++;
+    };
     my %cert_group_map;
     my %single_cert_map;
-    my $acl_counter = 0;
+    my $acl_counter = 1;
     for my $interface (@{ $router->{interfaces} }) {
         next if not $interface->{ip} eq 'tunnel';
         my %split_t_cache;
@@ -16252,6 +16263,7 @@ EOF
         if (my $hash = $interface->{id_rules}) {
             for my $id (sort keys %$hash) {
                 my $id_intf = $hash->{$id};
+                my $id_name = $gen_id_name->($id);
                 my $src     = $id_intf->{src};
                 my $pool_name;
                 my $attributes = {
@@ -16292,8 +16304,8 @@ EOF
                         }
                     }
                     if (not $acl_name) {
-                        $acl_counter++;
                         $acl_name = "split-tunnel-$acl_counter";
+                        $acl_counter++;
                         my $rules;
                         if (@$split_tunnel_nets) {
                             $rules = [ {
@@ -16329,7 +16341,7 @@ EOF
                         prt => [ $prt_ip ],
                     }
                 ];
-                my $filter_name = "vpn-filter-$id";
+                my $filter_name = "vpn-filter-$id_name";
                 my $acl_info = {
                     name => $filter_name,
                     rules => delete $id_intf->{rules},
@@ -16350,7 +16362,7 @@ EOF
                     my $mask = print_ip $network->{mask};
                     my $group_policy_name;
                     if (%$attributes) {
-                        $group_policy_name = "VPN-group-$id";
+                        $group_policy_name = "VPN-group-$id_name";
                         $print_group_policy->($group_policy_name, $attributes);
                     }
                     print "username $id nopassword\n";
@@ -16363,7 +16375,7 @@ EOF
                     print "\n";
                 }
                 else {
-                    $pool_name = "pool-$id";
+                    $pool_name = "pool-$id_name";
                     my $mask = print_ip $src->{mask};
                     my $max =
                       print_ip($src->{ip} | complement_32bit $src->{mask});
@@ -16372,13 +16384,13 @@ EOF
                     if ($id =~ /^@/) {
                         $subject_name = 'ea';
                     }
-                    my $map_name = "ca-map-$id";
+                    my $map_name = "ca-map-$id_name";
                     print "crypto ca certificate map $map_name 10\n";
                     print " subject-name attr $subject_name co $id\n";
                     print "ip local pool $pool_name $ip-$max mask $mask\n";
                     $attributes->{'vpn-filter'}    = $filter_name;
                     $attributes->{'address-pools'} = $pool_name;
-                    my $group_policy_name = "VPN-group-$id";
+                    my $group_policy_name = "VPN-group-$id_name";
                     my @tunnel_gen_att =
                       ("default-group-policy $group_policy_name");
 
@@ -16402,7 +16414,7 @@ EOF
 
                     $print_group_policy->($group_policy_name, $attributes);
 
-                    my $tunnel_group_name = "VPN-tunnel-$id";
+                    my $tunnel_group_name = "VPN-tunnel-$id_name";
                     print <<"EOF";
 tunnel-group $tunnel_group_name type remote-access
 tunnel-group $tunnel_group_name general-attributes
@@ -16447,7 +16459,8 @@ EOF
                             prt => [ $prt_ip ] } ];
             my $id = $interface->{peer}->{id}
               or internal_err("Missing ID at $interface->{peer}->{name}");
-            my $filter_name = "vpn-filter-$id";
+            my $id_name = $gen_id_name->($id);
+            my $filter_name = "vpn-filter-$id_name";
             my $acl_info = {
                 name => $filter_name,
                 rules => $rules,
@@ -16461,7 +16474,7 @@ EOF
 
             my $group_policy_name;
             if (keys %$attributes) {
-                $group_policy_name = "VPN-router-$id";
+                $group_policy_name = "VPN-router-$id_name";
                 $print_group_policy->($group_policy_name, $attributes);
             }
             print "username $id nopassword\n";
@@ -16477,7 +16490,8 @@ EOF
     # Generate certificate-group-map for anyconnect/ikev2 clients.
     if (keys %cert_group_map or keys %single_cert_map) {
         for my $id (sort keys %single_cert_map) {
-            my $map_name = "ca-map-$id";
+            my $id_name = $gen_id_name->($id);
+            my $map_name = "ca-map-$id_name";
             print "crypto ca certificate map $map_name 10\n";
             print " subject-name attr ea co $id\n";
             $cert_group_map{$map_name} = $default_tunnel_group;

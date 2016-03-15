@@ -412,12 +412,17 @@ router:softclients = {
 
 network:customers1 = { 
  ip = 10.99.1.0/24; 
- host:id:foo@domain.x = {  ip = 10.99.1.10; }
+ host:id:foo@domain.x = { ip = 10.99.1.10; }
+ host:id:long-first-name.long-second-name@long-domain.xyz = {
+  ip = 10.99.1.11;
+  radius_attributes = { banner = Willkommen zu Hause; }
+ }
 }
 
 
 service:test1 = {
- user = host:id:foo@domain.x.customers1;
+ user = host:id:foo@domain.x.customers1,
+        host:id:long-first-name.long-second-name@long-domain.xyz.customers1;
  permit src = user; dst = network:intern; prt = tcp 80; 
 }
 END
@@ -455,9 +460,30 @@ username foo@domain.x attributes
  service-type remote-access
  vpn-filter value vpn-filter-foo@domain.x
 --
+! vpn-filter-1
+access-list vpn-filter-1 extended permit ip host 10.99.1.11 any
+access-list vpn-filter-1 extended deny ip any any
+group-policy VPN-group-1 internal
+group-policy VPN-group-1 attributes
+ banner value Willkommen zu Hause
+username long-first-name.long-second-name@long-domain.xyz nopassword
+username long-first-name.long-second-name@long-domain.xyz attributes
+ vpn-framed-ip-address 10.99.1.11 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-1
+ vpn-group-policy VPN-group-1
+--
+crypto ca certificate map ca-map-@domain.x 10
+ subject-name attr ea co @domain.x
+crypto ca certificate map ca-map-@long-domain.xyz 10
+ subject-name attr ea co @long-domain.xyz
+webvpn
+ certificate-group-map ca-map-@domain.x 10 VPN-single
+ certificate-group-map ca-map-@long-domain.xyz 10 VPN-single
+--
 ! outside_in
 access-list outside_in extended permit icmp any any 3
-access-list outside_in extended permit tcp host 10.99.1.10 10.1.2.0 255.255.255.0 eq 80
+access-list outside_in extended permit tcp 10.99.1.10 255.255.255.254 10.1.2.0 255.255.255.0 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 END
