@@ -15375,7 +15375,8 @@ sub check_and_convert_routes {
             for my $net_ref (keys %net2group) {
                 my $hops = $net2group{$net_ref};
                 my $hop1 = $hops->[0];
-                next if @$hops == @{ $hop1->{redundancy_interfaces} };
+                my $missing = @{ $hop1->{redundancy_interfaces} } - @$hops;
+                next if not $missing;
                 my $network = $interface->{routes}->{$hop1}->{$net_ref};
 
                 # A network is routed to a single physical interface.
@@ -15392,9 +15393,13 @@ sub check_and_convert_routes {
                     # parts of of a group of routers.
                     # More than 3 virtual interfaces together with
                     # pathrestrictions have already been rejected.
+                    my $names =
+                        join("\n - ", map({ $_->{name} } sort(by_name @$hops)));
                     err_msg(
-                        "$network->{name} is reached via $hop1->{name}\n",
-                        " but not via all related redundancy interfaces"
+                        "$network->{name} is reached via group of",
+                        " redundancy interfaces:\n",
+                        " - $names\n",
+                        " But $missing interfaces of group are missing."
                     );
                 }
             }
