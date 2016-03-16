@@ -3653,7 +3653,7 @@ sub order_ranges {
 
 #        debug("$b->{name} [$b1-$b2] split into [$x1-$x2] and [$y1-$y2]");
             my $find_or_insert_range = sub {
-                my ($a1, $a2, $i, $orig, $prefix) = @_;
+                my ($a1, $a2, $i, $orig) = @_;
                 while (1) {
                     if ($i == @sorted) {
                         last;
@@ -3694,9 +3694,10 @@ sub order_ranges {
                     # It must be inserted in front of current range.
                     last;
                 }
+                my $proto = $orig->{proto};
                 my $new_range = {
-                    name  => "$prefix$orig->{name}",
-                    proto => $orig->{proto},
+                    name  => "$proto $a1-$a2",
+                    proto => $proto,
                     range => [ $a1, $a2 ],
 
                     # Mark for range optimization.
@@ -3711,8 +3712,8 @@ sub order_ranges {
 
                 return $new_range;
             };
-            my $left  = $find_or_insert_range->($x1, $x2, $i + 1, $b, 'lpart_');
-            my $rigth = $find_or_insert_range->($y1, $y2, $i + 1, $b, 'rpart_');
+            my $left  = $find_or_insert_range->($x1, $x2, $i + 1, $b);
+            my $rigth = $find_or_insert_range->($y1, $y2, $i + 1, $b);
             $b->{split} = [ $left, $rigth ];
 
             # Continue processing with next element.
