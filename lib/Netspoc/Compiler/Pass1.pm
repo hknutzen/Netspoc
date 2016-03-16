@@ -14794,23 +14794,19 @@ sub add_path_routes {
 
     my $in_net  = $in_intf->{network};
     my $out_net = $out_intf->{network};
-    my $hops;
 
     # Identify hop interface(s).
+    # Store hop interfaces and routing information within in_intf.
     if ($in_net eq $out_net) {
-        $hops = [$out_intf];
+        $in_intf->{hopref2obj}->{$out_intf} = $out_intf;
+        @{ $in_intf->{routes}->{$out_intf} }{@$dst_networks} = @$dst_networks;
     }
     else {
         my $route_in_zone = $in_intf->{route_in_zone};
-        $hops = $route_in_zone->{default} || $route_in_zone->{$out_net};
-    }
-
-    # Store hop interfaces and routing information within in_intf.
-    for my $hop (@$hops) {
-        $in_intf->{hopref2obj}->{$hop} = $hop;
-        for my $network (@$dst_networks) {
-#	    debug("$in_intf->{name} -> $hop->{name}: $network->{name}");
-            $in_intf->{routes}->{$hop}->{$network} = $network;
+        my $hops = $route_in_zone->{default} || $route_in_zone->{$out_net};
+        for my $hop (@$hops) {
+            $in_intf->{hopref2obj}->{$hop} = $hop;
+            @{ $in_intf->{routes}->{$hop} }{@$dst_networks} = @$dst_networks;
         }
     }
     return;
