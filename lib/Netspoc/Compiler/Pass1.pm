@@ -14941,15 +14941,12 @@ sub generate_routing_tree1 {
         $routing_tree->{$src_zone}->{$dst_zone} = $pseudo_rule;
     }
 
-    # Store src and dest networks of grouped rule within pseudo rule.
+    # Store src and dst networks of grouped rule within pseudo rule.
     my $src_networks = get_route_networks($src);
-    for my $network (@$src_networks) {
-        $pseudo_rule->{src_networks}->{$network} = $network;
-    }
+    @{ $pseudo_rule->{src_networks} }{@$src_networks} = @$src_networks;
     my $dst_networks = get_route_networks($dst);
-    for my $network (@$dst_networks) {
-        $pseudo_rule->{dst_networks}->{$network} = $network;
-    }
+    @{ $pseudo_rule->{dst_networks} }{@$dst_networks} = @$dst_networks;
+
 
     # If src/dst is interface of managed routers, add this info to
     # pseudo rule.
