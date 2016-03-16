@@ -7526,6 +7526,32 @@ sub build_rule_tree {
     return($rule_tree, $count);
 }
 
+# Derive reduced {local_up} relation from {up} reltion between protocols.
+# Reduced relation has only protocols that are referenced in list of rules.
+# New relation is used in find_redundant_rules.
+# We get better performance compared to original relation, because
+# transient chain from some protocol to largest protocol becomes shorter.
+sub set_local_prt_relation {
+    my ($rules) = @_;
+    my %prt_hash;
+    for my $rule (@$rules) {
+        my $prt_list = $rule->{prt};
+        @prt_hash{@$prt_list} = @$prt_list;
+    }
+    for my $prt (values %prt_hash) {
+        my $local_up = undef;
+        my $up = $prt->{up};
+        while ($up) {
+            if ($prt_hash{$up}) {
+                $local_up = $up;
+                last;
+            }
+            $up = $up->{up};
+        }
+        $prt->{local_up} = $local_up;
+    }
+}
+
 my @duplicate_rules;
 
 sub collect_duplicate_rules {
@@ -7700,25 +7726,25 @@ sub check_expanded_rules {
     for my $key (sort numerically keys %key2rules) {
         my $rules = $key2rules{$key};
 
-# We could add another layer to reduce memory usage even more.
-#        my $index = 1;
-#        my %path2index;
-#        my %key2rules;
-#        for my $rule (@$rules) {
-#            my $path = $rule->{dst_path};
-#            my $key  = $path2index{$path} ||= $index++;
-#            push @{ $key2rules{$key} }, $rule;
-#        }
-#        for my $key (sort numerically keys %key2rules) {
-#            my $rules = $key2rules{$key};
+        my $index = 1;
+        my %path2index;
+        my %key2rules;
+        for my $rule (@$rules) {
+            my $path = $rule->{dst_path};
+            my $key  = $path2index{$path} ||= $index++;
+            push @{ $key2rules{$key} }, $rule;
+        }
+        for my $key (sort numerically keys %key2rules) {
+            my $rules = $key2rules{$key};
 
             my $expanded_rules = expand_rules($rules);
             $count += @$expanded_rules;
             my ($rule_tree, $deleted) = build_rule_tree($expanded_rules);
             $dcount += $deleted;
+            set_local_prt_relation($rules);
             $rcount += find_redundant_rules($rule_tree, $rule_tree);
 
-#        }
+        }
     }
     show_duplicate_rules();
     show_redundant_rules();
@@ -14502,13 +14528,6 @@ sub find_redundant_rules {
               while (1) {
                if (my $cmp_hash = $cmp_hash->{$dst}) {
                 for my $chg_rule (values %$chg_hash) {
-
-                 # Even if $change_rule already is marked as deleted,
-                 # don't stop here, but go on and find all redundant
-                 # pairs of ($change_rule, $cmp_rule).
-                 # This is needed, because some instances of $cmp_rule
-                 # may have an {overlaps} attribute, which prevents
-                 # a warning message to be printed.
                  my $prt = $chg_rule->{prt};
                  my $chg_log = $chg_rule->{log} || '';
                  while (1) {
@@ -14517,14 +14536,12 @@ sub find_redundant_rules {
                    if ($cmp_rule ne $chg_rule &&
                        $cmp_log eq $chg_log)
                    {
-#                   debug("Del:", print_rule $chg_rule);
-#                   debug("Oth:", print_rule $cmp_rule);
                     collect_redundant_rules($chg_rule, $cmp_rule);
                     $count++;
                     last;
                    }
                   }
-                  $prt = $prt->{up} or last;
+                  $prt = $prt->{local_up} or last;
                  }
                 }
                }
