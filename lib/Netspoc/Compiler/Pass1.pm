@@ -102,7 +102,6 @@ our @EXPORT = qw(
   link_topology
   mark_disabled
   set_zone
-  set_service_owner
   link_reroute_permit
   expand_protocols
   get_orig_prt
@@ -6585,7 +6584,7 @@ sub normalize_service_rules {
                     $rule->{src_net}   = 1          if $modifiers->{src_net};
                     $rule->{dst_net}   = 1          if $modifiers->{dst_net};
 
-                    # Only used in set_service_owner.
+                    # Only used in check_service_owner.
                     $rule->{reversed}  = 1          if $modifiers->{reversed};
 
                     push @$store, $rule;
@@ -6932,8 +6931,10 @@ sub propagate_owners {
     return;
 }
 
-sub set_service_owner {
+sub check_service_owner {
     progress('Checking service owner');
+
+    propagate_owners();
 
     my %sname2info;
     my %unknown2services;
@@ -18053,8 +18054,7 @@ sub compile {
     # after {is_in} relation has been set up.
     mark_managed_local();
 
-    propagate_owners();
-    set_service_owner();
+    check_service_owner();
     convert_hosts_in_rules();
     group_path_rules();
 
