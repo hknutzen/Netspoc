@@ -15548,7 +15548,8 @@ sub print_routes {
 
     # Find and remove duplicate networks.
     # Go from smaller to larger networks.
-    for my $mask (reverse sort numerically keys %mask2ip2net) {
+    my @masks = reverse sort numerically keys %mask2ip2net;
+    while (defined(my $mask = shift @masks)) {
       NETWORK:
         for my $ip (sort numerically keys %{ $mask2ip2net{$mask} }) {
             my $small    = $mask2ip2net{$mask}->{$ip};
@@ -15558,17 +15559,11 @@ sub print_routes {
             # ASA with site-to-site VPN needs individual routes for each peer.
             if (!($asa_crypto && $interface->{hub})) {
 
-                my $m = $mask;
-                my $i = $ip;
-                while ($m) {
-
-                    # Clear upper bit, because left shift is undefined
-                    # otherwise.
-                    $m = $m & 0x7fffffff;
-                    $m <<= 1;
-                    $i = $i & $m;    # Perl bug #108480.
-                    my $ip2net = $mask2ip2net{$m}       or next;
-                    my $big    = $mask2ip2net{$m}->{$i} or next;
+                # Compare current $mask with masks of larger networks.
+                for my $m (@masks) {
+                    my $i = $ip & $m;
+                    my $ip2net = $mask2ip2net{$m} or next;
+                    my $big    = $ip2net->{$i}    or next;
 
                     # $small is subnet of $big.
                     # If both use the same hop, then $small is redundant.
@@ -18083,7 +18078,9 @@ sub compile {
             mark_secondary_rules();
             if ($out_dir) {
                 rules_distribution();
+#                DB::enable_profile();
                 print_code($out_dir);
+#                DB::disable_profile();
                 copy_raw($in_path, $out_dir);
             }
         });
