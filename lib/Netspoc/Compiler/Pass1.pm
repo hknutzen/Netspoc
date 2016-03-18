@@ -3404,16 +3404,11 @@ sub read_file_or_dir {
 
 # Prints number of read entities if in verbose mode.
 sub show_read_statistics {
-    my $n  = keys %networks;
-    my $h  = keys %hosts;
-    my $r  = keys %routers;
-    my $g  = keys %groups;
-    my $s  = keys %protocols;
-    my $sg = keys %protocolgroups;
-    my $p  = keys %services;
-    info("Read $r routers, $n networks, $h hosts");
-    info("Read $p services, $g groups, $s protocols, $sg protocol groups");
-    return;
+    my $n = keys %networks;
+    my $h = keys %hosts;
+    my $r = keys %routers;
+    my $s = keys %services;
+    info("Read $r routers, $n networks, $h hosts, $s services");
 }
 
 ## no critic (RequireArgUnpacking RequireFinalReturn)
