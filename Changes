@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+ - Performance improvement while checking for redundant rules.
+
 5.004     2016-03-15 08:41:20+01:00 Europe/Berlin
 
  - Only use short certificates as part of names for model "ASA,VPN".
