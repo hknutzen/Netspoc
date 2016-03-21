@@ -9302,26 +9302,6 @@ sub get_managed_local_clusters {
         my $no_nat_set;
         my $k0;
 
-        # Mark network outside of cluster, that
-        # - is supernet of network inside current cluster
-        # - and doesn't match {filter_only} and hence wouldn't be
-        #   found in mark_managed_local.
-        my $mark_supernets = sub {
-            my ($network, $i, $m) = @_;
-            my $bignet = $network->{is_in}->{$no_nat_set};
-            while ($bignet) {
-                if (not $bignet->{is_aggregate}) {
-                    my (undef, $mask) = @{ address($bignet, $no_nat_set) };
-                    if ($mask >= $m) {
-
-#                        debug "Filter is_in $bignet->{name} at $local_mark";
-                        $bignet->{filter_at}->{$local_mark} = 1;
-                    }
-                }
-                $bignet = $bignet->{is_in}->{$no_nat_set};
-            }
-        };
-
         # IP/mask pairs of current cluster matching {filter_only}.
         my %matched;
 
@@ -9369,11 +9349,6 @@ sub get_managed_local_clusters {
                             my ($i, $m) = @$pair;
                             if ($mask >= $m && match_ip($ip, $i, $m)) {
                                 $matched{"$i/$m"} = 1;
-
-                                # Find supernets of $network, that match $pair.
-                                if ($mask > $m) {
-                                    $mark_supernets->($network, $i, $m);
-                                }
                                 next NETWORK;
                             }
                         }
