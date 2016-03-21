@@ -9313,6 +9313,8 @@ sub get_managed_local_clusters {
                 if (not $bignet->{is_aggregate}) {
                     my (undef, $mask) = @{ address($bignet, $no_nat_set) };
                     if ($mask >= $m) {
+
+#                        debug "Filter is_in $bignet->{name} at $local_mark";
                         $bignet->{filter_at}->{$local_mark} = 1;
                     }
                 }
@@ -9434,7 +9436,7 @@ sub mark_managed_local {
                 my ($ip, $mask) = @{$nat_network}{qw(ip mask)};
                 for my $pair (@$filter_only) {
                     my ($i, $m) = @$pair;
-                    ($mask > $m && match_ip($ip, $i, $m)) or next;
+                    ($mask >= $m && match_ip($ip, $i, $m)) or next;
 
                     # Mark network and enclosing aggregates.
                     my $obj = $network;
