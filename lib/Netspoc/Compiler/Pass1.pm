@@ -8889,10 +8889,7 @@ sub find_subnets_in_zone {
     return;
 }
 
-# Find subnet relation inside a NAT domain.
-# - $subnet->{is_in}->{$no_nat_set} = $bignet;
-# - $net1->{is_identical}->{$no_nat_set} = $net2
-#
+# Find networks with identical IP in different NAT domains.
 # Mark networks, having subnet in other zone: $bignet->{has_other_subnet}
 # If set, this prevents secondary optimization.
 sub find_subnets_in_nat_domain {
@@ -8920,7 +8917,7 @@ sub find_subnets_in_nat_domain {
 
 #        debug("$domain->{name} ", join ',', sort keys %$no_nat_set);
         my %mask_ip_hash;
-        my %identical;
+        my %has_identical;
         for my $network (@networks) {
             next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
             my $nat_network = get_nat_network($network, $no_nat_set);
@@ -8972,25 +8969,15 @@ sub find_subnets_in_nat_domain {
                 }
                 else {
 
-                    # Remember identical networks.
-                    $identical{$old_net} ||= [$old_net];
-                    push @{ $identical{$old_net} }, $network;
+                    # Mark duplicate aggregates / networks.
+                    $has_identical{$old_net} = 1;
+                    $has_identical{$network} = 1;
                 }
             }
             else {
 
                 # Store original network under NAT IP/mask.
                 $mask_ip_hash{$mask}->{$ip} = $network;
-            }
-        }
-
-        # Link identical networks to one representative one.
-        for my $networks (values %identical) {
-            my $one_net = shift(@$networks);
-            for my $network (@$networks) {
-                $network->{is_identical}->{$no_nat_set} = $one_net;
-
-#               debug("Identical: $network->{name}: $one_net->{name}");
             }
         }
 
@@ -9003,11 +8990,6 @@ sub find_subnets_in_nat_domain {
 
             my $ip_hash = $mask_ip_hash{$mask};
             for my $ip (sort numerically keys %$ip_hash) {
-
-                # It is sufficient to set subset relation for only one
-                # network out of multiple identical networks.
-                # In all contexts where {is_in} is used,
-                # we apply {is_identical} to the network before.
                 my $subnet = $ip_hash->{$ip};
 
                 # Find networks which include current subnet.
@@ -9018,21 +9000,11 @@ sub find_subnets_in_nat_domain {
                     my $nat_subnet = get_nat_network($subnet, $no_nat_set);
                     my $nat_bignet = get_nat_network($bignet, $no_nat_set);
 
-                    # Mark subnet relation.
-                    # This may differ for different NAT domains.
-                    $subnet->{is_in}->{$no_nat_set} = $bignet;
-
-#                        debug "$subnet->{name} -is_in-> $bignet->{name}";
-
                     # Mark network having subnet in other zone.
-                    if ($bignet->{zone} eq $subnet->{zone}) {
-                        if ($subnet->{has_other_subnet}) {
-
-#                           debug "has other1: $bignet->{name}";
-                            $bignet->{has_other_subnet} = 1;
-                        }
-                    }
-                    else {
+                    if ($bignet->{zone} ne $subnet->{zone} or
+                        $subnet->{has_other_subnet} or
+                        $has_identical{$subnet})
+                    {
 
 #                       debug "has other: $bignet->{name}";
                         $bignet->{has_other_subnet} = 1;
@@ -18020,9 +17992,7 @@ sub compile {
     normalize_services();
     find_subnets_in_nat_domain();
 
-    # Call after {up} relation for anonymous aggregates in rules have
-    # been set up and
-    # after {is_in} relation has been set up.
+    # Call after {up} relation for anonymous aggregates has been set up.
     mark_managed_local();
 
     check_service_owner();
