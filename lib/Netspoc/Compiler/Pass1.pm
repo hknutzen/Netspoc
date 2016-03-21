@@ -15710,12 +15710,9 @@ sub distribute_rule {
     # Don't generate code for src any:[interface:r.loopback] at router:r.
     return if $in_intf->{loopback};
 
-    my $dst_list = $rule->{dst};
-
     # Apply only matching rules to 'managed=local' router.
     # Filter out non matching elements from src_list and dst_list.
     if (my $mark = $router->{local_mark}) {
-        my $src_list = $rule->{src};
         my $match = sub {
             my ($obj) = @_;
             my $net       = $obj->{network} || $obj;
@@ -15724,7 +15721,9 @@ sub distribute_rule {
         };
 
         # Filter src_list and dst_list. Ignore rule if no matching element.
+        my $src_list = $rule->{src};
         my @matching_src = grep { $match->($_) } @$src_list or return;
+        my $dst_list = $rule->{dst};
         my @matching_dst = grep { $match->($_) } @$dst_list or return;
 
         # Create copy of rule. Try to reuse original src_list / dst_list.
