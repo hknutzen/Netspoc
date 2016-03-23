@@ -17394,9 +17394,7 @@ sub print_acls {
                 my $rules = $acl->{$what} or next;
                 for my $rule (@$rules) {
                     my $new_rule = {};
-
-                    my $deny = $rule->{deny};
-                    $new_rule->{deny} = 1 if $deny;
+                    $new_rule->{deny} = 1 if $rule->{deny};
 
                     # Add code for logging.
                     # This code is machine specific.
