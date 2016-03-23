@@ -13876,9 +13876,9 @@ sub gen_reverse_rules1 {
         @new_prt_group or next;
 
         # Check path for existence of stateless router.
-        my $from_store           = $rule->{src_path};
-        my $to_store             = $rule->{dst_path};
-        my $has_stateless_router = $cache{$from_store}->{$to_store};
+        my $src_path             = $rule->{src_path};
+        my $dst_path             = $rule->{dst_path};
+        my $has_stateless_router = $cache{$src_path}->{$dst_path};
         if (!defined $has_stateless_router) {
           PATH_WALK:
             {
@@ -13916,7 +13916,7 @@ sub gen_reverse_rules1 {
 
                 path_walk($rule, $mark_reverse_rule);
             }
-            $cache{$from_store}->{$to_store} = $has_stateless_router || 0;
+            $cache{$src_path}->{$dst_path} = $has_stateless_router || 0;
         }
         $has_stateless_router or next;
 
@@ -13970,8 +13970,8 @@ sub gen_reverse_rules1 {
                 stateless => 1,
                 src       => $rule->{dst},
                 dst       => $rule->{src},
-                src_path  => $rule->{dst_path},
-                dst_path  => $rule->{src_path},
+                src_path  => $dst_path,
+                dst_path  => $src_path,
                 prt       => $prt_group,
             };
             $new_rule->{src_range} = $src_range if $src_range ne $prt_ip;
