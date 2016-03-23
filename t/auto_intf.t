@@ -27,16 +27,17 @@ router:r2 =  {
  model = IOS,FW;
  routing = manual;
  interface:a = { ip = 10.0.0.2; hardware = f1; }
- interface:b2 = { ip = 10.2.2.1; hardware = f0; }
+ interface:b2 = { ip = 10.1.2.1; hardware = f0; }
 }
 network:b1 = { ip = 10.1.1.0/24; }
-network:b2 = { ip = 10.2.2.0/24; }
+network:b2 = { ip = 10.1.2.0/24; }
 router:u = { 
  interface:b1 = { ip = 10.1.1.2; }
- interface:b2 = { ip = 10.2.2.2; } 
- interface:b3 = { ip = 10.3.3.1; } 
+ interface:b2 = { ip = 10.1.2.2; } 
+ interface:b3 = { ip = 10.1.3.1; } 
 }
-network:b3 = { ip = 10.3.3.0/24; }
+network:b3 = { ip = 10.1.3.0/24; }
+any:b = { link = network:b1; }
 END
 
 $in = $topo . <<'END';
@@ -53,14 +54,14 @@ $out = <<'END';
 ip access-list extended e1_in
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 22
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 22
- permit tcp 10.0.0.0 0.0.0.255 host 10.3.3.1 eq 22
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.3.1 eq 22
  deny ip any any
 --r2
 ! [ ACL ]
 ip access-list extended f1_in
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 22
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 22
- permit tcp 10.0.0.0 0.0.0.255 host 10.3.3.1 eq 22
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.3.1 eq 22
  deny ip any any
 END
 
@@ -82,17 +83,168 @@ $out = <<'END';
 ! [ ACL ]
 ip access-list extended e1_in
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 23
- permit tcp 10.0.0.0 0.0.0.255 host 10.2.2.2 eq 23
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.2.2 eq 23
  deny ip any any
 --r2
 ! [ ACL ]
 ip access-list extended f1_in
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 23
- permit tcp 10.0.0.0 0.0.0.255 host 10.2.2.2 eq 23
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.2.2 eq 23
  deny ip any any
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'All interfaces of aggregate';
+############################################################
+
+$in = $topo . <<'END';
+service:s = {
+ user = interface:[any:b].[all];
+ permit src = network:a; dst = user; prt = tcp 23;
+}
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+ip access-list extended e1_in
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 23
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.2.1 eq 23
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'All interfaces of implicit aggregate';
+############################################################
+
+$in = $topo . <<'END';
+service:s = {
+ user = interface:[any:[network:b3]].[all];
+ permit src = network:a; dst = user; prt = tcp 23;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Managed interfaces of implicit aggregate';
+############################################################
+# Border interfaces of zone are managed by definition.
+
+$in = $topo . <<'END';
+service:s = {
+ user = interface:[managed & any:[network:b3]].[all];
+ permit src = network:a; dst = user; prt = tcp 23;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Interfaces of matching implicit aggregate';
+############################################################
+
+$in = $topo . <<END;
+service:s = {
+ user = interface:[any:[ip = 10.1.0.0/16 & network:b3]].[all];
+ permit src = network:a; dst = user; prt = tcp 23;
+}
+END
+
+$out = <<'END';
+Error: Must not use interface:[..].[all]
+ with any:[ip=10.1.0.0/16 & network:b1] having ip/mask
+ in user of service:s
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Auto interfaces of aggregate';
+############################################################
+
+$in = $topo . <<'END';
+service:s = {
+ user = interface:[any:b].[auto];
+ permit src = network:a; dst = user; prt = tcp 23;
+}
+END
+
+$out = <<'END';
+Error: Must not use interface:[any:..].[auto] in user of service:s
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'All interfaces of network';
+############################################################
+
+$in = $topo . <<'END';
+service:s = {
+ user = interface:[network:b1].[all];
+ permit src = network:a; dst = user; prt = tcp 23;
+}
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+ip access-list extended e1_in
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 23
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 23
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Managed interfaces of network';
+############################################################
+
+$in = $topo . <<'END';
+service:s = {
+ user = interface:[managed & network:b1].[all];
+ permit src = network:a; dst = user; prt = tcp 23;
+}
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+ip access-list extended e1_in
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 23
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Ignore short interface of network';
+############################################################
+
+($in = $topo) =~ s/\Qinterface:b1 = { ip = 10.1.1.2; }\E/interface:b1;/;
+$in .= <<'END';
+service:s = {
+ user = interface:[network:b1].[all];
+ permit src = network:a; dst = user; prt = tcp 23;
+}
+END
+
+$out = <<'END';
+Warning: Ignoring short interface:u.b1 in dst of rule in service:s
+--r1
+! [ ACL ]
+ip access-list extended e1_in
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 23
+ deny ip any any
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Auto interfaces in nested loop';
@@ -955,9 +1107,9 @@ router:r = {
  model = IOS, FW;
  managed;
  interface:x = { ip = 10.1.1.1; hardware = e0; }
- interface:y = { ip = 10.2.2.2; hardware = e1; }
+ interface:y = { ip = 10.1.2.2; hardware = e1; }
 }
-network:y = { ip = 10.2.2.0/24; }
+network:y = { ip = 10.1.2.0/24; }
 END
 
 ############################################################
