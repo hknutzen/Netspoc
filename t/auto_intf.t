@@ -247,6 +247,108 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'All interfaces from auto interface of network';
+############################################################
+
+$in = $topo . <<'END';
+service:s = {
+ user = interface:[interface:[network:b1].[auto]].[all];
+ permit src = network:a; dst = user; prt = tcp 23;
+}
+END
+
+$out = <<"END";
+Error: Can\'t use interface:[network:b1].[auto] inside interface:[..].[all] of user of service:s
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'All interfaces from auto interface of router';
+############################################################
+
+$in = $topo . <<'END';
+service:s = {
+ user = interface:[interface:u.[auto]].[all];
+ permit src = network:a; dst = user; prt = tcp 23;
+}
+END
+
+$out = <<"END";
+-- r1
+! [ ACL ]
+ip access-list extended e1_in
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 23
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.2.2 eq 23
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.3.1 eq 23
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'All interfaces from auto interface of router';
+############################################################
+
+$in = $topo . <<'END';
+service:s = {
+ user = interface:[interface:u.[auto]].[all];
+ permit src = network:a; dst = user; prt = tcp 23;
+}
+END
+
+$out = <<"END";
+-- r1
+! [ ACL ]
+ip access-list extended e1_in
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 23
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.2.2 eq 23
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.3.1 eq 23
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Auto interface from auto interface of router';
+############################################################
+
+$in = $topo . <<'END';
+service:s = {
+ user = interface:[interface:u.[auto]].[auto];
+ permit src = network:a; dst = user; prt = tcp 23;
+}
+END
+
+$out = <<"END";
+-- r1
+! [ ACL ]
+ip access-list extended e1_in
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 23
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.2.2 eq 23
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Auto interface from auto interface';
+############################################################
+
+$in = $topo . <<'END';
+service:s = {
+ user = interface:[interface:[network:b1].[auto]].[auto];
+ permit src = network:a; dst = user; prt = tcp 23;
+}
+END
+
+$out = <<"END";
+Error: Can\'t use interface:[network:b1].[auto] inside interface:[..].[auto] of user of service:s
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Auto interfaces in nested loop';
 ############################################################
 
