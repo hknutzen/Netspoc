@@ -581,10 +581,11 @@ sub gen_ip {
 
 # Convert IP address from internal integer representation to
 # readable string.
+## no critic (RequireArgUnpacking RequireFinalReturn)
 sub print_ip {
-    my $ip = shift;
-    return sprintf "%vd", pack 'N', $ip;
+    sprintf "%vd", pack 'N', $_[0];
 }
+## use critic
 
 sub read_identifier {
     skip_space_and_comment;
