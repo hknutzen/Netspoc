@@ -123,8 +123,11 @@ END
 
 # Output is indented
 $out = <<'END';
- Error: network:b1 is reached via interface:r1.a.virtual
-  but not via all related redundancy interfaces
+ Error: network:b1 is reached via group of redundancy interfaces:
+  - interface:r1.a.virtual
+  - interface:r2.a.virtual
+  - interface:r3.a.virtual
+  But 1 interfaces of group are missing.
 END
 
 test_err($title, $in, $out, '--concurrency_pass1=2');

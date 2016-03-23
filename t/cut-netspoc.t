@@ -450,6 +450,64 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Remove router_attributes';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+area:a = {
+ inclusive_border = interface:r1.n2;
+ router_attributes = {
+  general_permit = icmp 0, icmp 3, icmp 11;
+ }
+ nat:h = { ip = 10.9.9.9/32; dynamic; }
+}
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = outside; }
+ interface:n2 = { ip = 10.1.2.1; hardware = inside; bind_nat = h; }
+}
+
+service:s = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = ip;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+area:a = {
+ inclusive_border = interface:r1.n2;
+ nat:h = { ip = 10.9.9.9/32; dynamic; }
+}
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = outside; }
+ interface:n2 = { ip = 10.1.2.1; hardware = inside; bind_nat = h; }
+}
+service:s = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = ip;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Remove router_attributes (2)';
+############################################################
+
+$in =~ s/general_permit/#general_permit/;
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Bridged network';
 ############################################################
 

@@ -35,15 +35,15 @@ $title = "Missing attribute 'filter_only'";
 
 $in =~ s/filter_only/#filter_only/;
 
-$out = <<'END';
+$out = <<"END";
 Error: Missing attribute 'filter_only' for router:d32
-Error: network:n1 doesn't match attribute 'filter_only' of router:d32
+Error: network:n1 doesn\'t match attribute 'filter_only' of router:d32
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Local network doesn\'t match filter_only attribute';
+$title = "Local network doesn't match filter_only attribute";
 ############################################################
 
 $in = <<'END';
@@ -368,6 +368,60 @@ access-list trans_in extended permit tcp 10.62.2.0 255.255.255.0 10.62.1.0 255.2
 access-list trans_in extended deny ip object-group g0 object-group g0
 access-list trans_in extended permit ip any any
 access-group trans_in in interface trans
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "Internal / extrnal network exactly match filter_only";
+
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.4.2.0/24; subnet_of = network:extern; }
+
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16, 10.4.0.0/16;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.4.2.1; hardware = n2; }
+ interface:intern = { ip = 10.2.0.1; hardware = intern; }
+}
+
+network:intern = { ip = 10.2.0.0/16; }
+
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = 10.2.0.2; hardware = inside; }
+ interface:extern = { ip = 10.4.0.1; hardware = outside; }
+}
+
+network:extern = { ip = 10.4.0.0/16; }
+
+service:Test = {
+ user = network:extern, network:intern;
+ permit src = user;
+        dst = network:n1, network:n2;
+        prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--d32
+! intern_in
+object-group network g1
+ network-object 10.2.0.0 255.255.0.0
+ network-object 10.4.0.0 255.255.0.0
+object-group network g2
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.4.2.0 255.255.255.0
+access-list intern_in extended permit tcp object-group g1 object-group g2 eq 80
+access-list intern_in extended deny ip object-group g0 object-group g0
+access-list intern_in extended permit ip any any
+access-group intern_in in interface intern
 END
 
 test_run($title, $in, $out);

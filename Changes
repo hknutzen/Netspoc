@@ -1,3 +1,9 @@
+5.005     2016-03-23 16:05:56+01:00 Europe/Berlin
+
+ - Runtime and memory performance improvement while checking for 
+   redundant rules.
+ - Multiple minor performance improvements.
+
 5.004     2016-03-15 08:41:20+01:00 Europe/Berlin
 
  - Only use short certificates as part of names for model "ASA,VPN".

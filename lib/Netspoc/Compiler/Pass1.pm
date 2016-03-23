@@ -35,7 +35,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '5.004'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.005'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -102,7 +102,6 @@ our @EXPORT = qw(
   link_topology
   mark_disabled
   set_zone
-  set_service_owner
   link_reroute_permit
   expand_protocols
   get_orig_prt
@@ -582,10 +581,11 @@ sub gen_ip {
 
 # Convert IP address from internal integer representation to
 # readable string.
+## no critic (RequireArgUnpacking RequireFinalReturn)
 sub print_ip {
-    my $ip = shift;
-    return sprintf "%vd", pack 'N', $ip;
+    sprintf "%vd", pack 'N', $_[0];
 }
+## use critic
 
 sub read_identifier {
     skip_space_and_comment;
@@ -3405,16 +3405,11 @@ sub read_file_or_dir {
 
 # Prints number of read entities if in verbose mode.
 sub show_read_statistics {
-    my $n  = keys %networks;
-    my $h  = keys %hosts;
-    my $r  = keys %routers;
-    my $g  = keys %groups;
-    my $s  = keys %protocols;
-    my $sg = keys %protocolgroups;
-    my $p  = keys %services;
-    info("Read $r routers, $n networks, $h hosts");
-    info("Read $p services, $g groups, $s protocols, $sg protocol groups");
-    return;
+    my $n = keys %networks;
+    my $h = keys %hosts;
+    my $r = keys %routers;
+    my $s = keys %services;
+    info("Read $r routers, $n networks, $h hosts, $s services");
 }
 
 ## no critic (RequireArgUnpacking RequireFinalReturn)
@@ -3653,7 +3648,7 @@ sub order_ranges {
 
 #        debug("$b->{name} [$b1-$b2] split into [$x1-$x2] and [$y1-$y2]");
             my $find_or_insert_range = sub {
-                my ($a1, $a2, $i, $orig, $prefix) = @_;
+                my ($a1, $a2, $i, $orig) = @_;
                 while (1) {
                     if ($i == @sorted) {
                         last;
@@ -3694,9 +3689,10 @@ sub order_ranges {
                     # It must be inserted in front of current range.
                     last;
                 }
+                my $proto = $orig->{proto};
                 my $new_range = {
-                    name  => "$prefix$orig->{name}",
-                    proto => $orig->{proto},
+                    name  => "$proto $a1-$a2",
+                    proto => $proto,
                     range => [ $a1, $a2 ],
 
                     # Mark for range optimization.
@@ -3711,8 +3707,8 @@ sub order_ranges {
 
                 return $new_range;
             };
-            my $left  = $find_or_insert_range->($x1, $x2, $i + 1, $b, 'lpart_');
-            my $rigth = $find_or_insert_range->($y1, $y2, $i + 1, $b, 'rpart_');
+            my $left  = $find_or_insert_range->($x1, $x2, $i + 1, $b);
+            my $rigth = $find_or_insert_range->($y1, $y2, $i + 1, $b);
             $b->{split} = [ $left, $rigth ];
 
             # Continue processing with next element.
@@ -6584,7 +6580,7 @@ sub normalize_service_rules {
                     $rule->{src_net}   = 1          if $modifiers->{src_net};
                     $rule->{dst_net}   = 1          if $modifiers->{dst_net};
 
-                    # Only used in set_service_owner.
+                    # Only used in check_service_owner.
                     $rule->{reversed}  = 1          if $modifiers->{reversed};
 
                     push @$store, $rule;
@@ -6931,8 +6927,10 @@ sub propagate_owners {
     return;
 }
 
-sub set_service_owner {
+sub check_service_owner {
     progress('Checking service owner');
+
+    propagate_owners();
 
     my %sname2info;
     my %unknown2services;
@@ -7525,6 +7523,32 @@ sub build_rule_tree {
     return($rule_tree, $count);
 }
 
+# Derive reduced {local_up} relation from {up} reltion between protocols.
+# Reduced relation has only protocols that are referenced in list of rules.
+# New relation is used in find_redundant_rules.
+# We get better performance compared to original relation, because
+# transient chain from some protocol to largest protocol becomes shorter.
+sub set_local_prt_relation {
+    my ($rules) = @_;
+    my %prt_hash;
+    for my $rule (@$rules) {
+        my $prt_list = $rule->{prt};
+        @prt_hash{@$prt_list} = @$prt_list;
+    }
+    for my $prt (values %prt_hash) {
+        my $local_up = undef;
+        my $up = $prt->{up};
+        while ($up) {
+            if ($prt_hash{$up}) {
+                $local_up = $up;
+                last;
+            }
+            $up = $up->{up};
+        }
+        $prt->{local_up} = $local_up;
+    }
+}
+
 my @duplicate_rules;
 
 sub collect_duplicate_rules {
@@ -7699,25 +7723,25 @@ sub check_expanded_rules {
     for my $key (sort numerically keys %key2rules) {
         my $rules = $key2rules{$key};
 
-# We could add another layer to reduce memory usage even more.
-#        my $index = 1;
-#        my %path2index;
-#        my %key2rules;
-#        for my $rule (@$rules) {
-#            my $path = $rule->{dst_path};
-#            my $key  = $path2index{$path} ||= $index++;
-#            push @{ $key2rules{$key} }, $rule;
-#        }
-#        for my $key (sort numerically keys %key2rules) {
-#            my $rules = $key2rules{$key};
+        my $index = 1;
+        my %path2index;
+        my %key2rules;
+        for my $rule (@$rules) {
+            my $path = $rule->{dst_path};
+            my $key  = $path2index{$path} ||= $index++;
+            push @{ $key2rules{$key} }, $rule;
+        }
+        for my $key (sort numerically keys %key2rules) {
+            my $rules = $key2rules{$key};
 
             my $expanded_rules = expand_rules($rules);
             $count += @$expanded_rules;
             my ($rule_tree, $deleted) = build_rule_tree($expanded_rules);
             $dcount += $deleted;
+            set_local_prt_relation($rules);
             $rcount += find_redundant_rules($rule_tree, $rule_tree);
 
-#        }
+        }
     }
     show_duplicate_rules();
     show_redundant_rules();
@@ -8866,10 +8890,7 @@ sub find_subnets_in_zone {
     return;
 }
 
-# Find subnet relation inside a NAT domain.
-# - $subnet->{is_in}->{$no_nat_set} = $bignet;
-# - $net1->{is_identical}->{$no_nat_set} = $net2
-#
+# Find networks with identical IP in different NAT domains.
 # Mark networks, having subnet in other zone: $bignet->{has_other_subnet}
 # If set, this prevents secondary optimization.
 sub find_subnets_in_nat_domain {
@@ -8897,7 +8918,7 @@ sub find_subnets_in_nat_domain {
 
 #        debug("$domain->{name} ", join ',', sort keys %$no_nat_set);
         my %mask_ip_hash;
-        my %identical;
+        my %has_identical;
         for my $network (@networks) {
             next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
             my $nat_network = get_nat_network($network, $no_nat_set);
@@ -8949,25 +8970,15 @@ sub find_subnets_in_nat_domain {
                 }
                 else {
 
-                    # Remember identical networks.
-                    $identical{$old_net} ||= [$old_net];
-                    push @{ $identical{$old_net} }, $network;
+                    # Mark duplicate aggregates / networks.
+                    $has_identical{$old_net} = 1;
+                    $has_identical{$network} = 1;
                 }
             }
             else {
 
                 # Store original network under NAT IP/mask.
                 $mask_ip_hash{$mask}->{$ip} = $network;
-            }
-        }
-
-        # Link identical networks to one representative one.
-        for my $networks (values %identical) {
-            my $one_net = shift(@$networks);
-            for my $network (@$networks) {
-                $network->{is_identical}->{$no_nat_set} = $one_net;
-
-#               debug("Identical: $network->{name}: $one_net->{name}");
             }
         }
 
@@ -8980,11 +8991,6 @@ sub find_subnets_in_nat_domain {
 
             my $ip_hash = $mask_ip_hash{$mask};
             for my $ip (sort numerically keys %$ip_hash) {
-
-                # It is sufficient to set subset relation for only one
-                # network out of multiple identical networks.
-                # In all contexts where {is_in} is used,
-                # we apply {is_identical} to the network before.
                 my $subnet = $ip_hash->{$ip};
 
                 # Find networks which include current subnet.
@@ -8995,21 +9001,11 @@ sub find_subnets_in_nat_domain {
                     my $nat_subnet = get_nat_network($subnet, $no_nat_set);
                     my $nat_bignet = get_nat_network($bignet, $no_nat_set);
 
-                    # Mark subnet relation.
-                    # This may differ for different NAT domains.
-                    $subnet->{is_in}->{$no_nat_set} = $bignet;
-
-#                        debug "$subnet->{name} -is_in-> $bignet->{name}";
-
                     # Mark network having subnet in other zone.
-                    if ($bignet->{zone} eq $subnet->{zone}) {
-                        if ($subnet->{has_other_subnet}) {
-
-#                           debug "has other1: $bignet->{name}";
-                            $bignet->{has_other_subnet} = 1;
-                        }
-                    }
-                    else {
+                    if ($bignet->{zone} ne $subnet->{zone} or
+                        $subnet->{has_other_subnet} or
+                        $has_identical{$subnet})
+                    {
 
 #                       debug "has other: $bignet->{name}";
                         $bignet->{has_other_subnet} = 1;
@@ -9279,24 +9275,6 @@ sub get_managed_local_clusters {
         my $no_nat_set;
         my $k0;
 
-        # Mark network outside of cluster, that
-        # - is supernet of network inside current cluster
-        # - and doesn't match {filter_only} and hence wouldn't be
-        #   found in mark_managed_local.
-        my $mark_supernets = sub {
-            my ($network, $i, $m) = @_;
-            my $bignet = $network->{is_in}->{$no_nat_set};
-            while ($bignet) {
-                if (not $bignet->{is_aggregate}) {
-                    my (undef, $mask) = @{ address($bignet, $no_nat_set) };
-                    if ($mask >= $m) {
-                        $bignet->{filter_at}->{$local_mark} = 1;
-                    }
-                }
-                $bignet = $bignet->{is_in}->{$no_nat_set};
-            }
-        };
-
         # IP/mask pairs of current cluster matching {filter_only}.
         my %matched;
 
@@ -9344,11 +9322,6 @@ sub get_managed_local_clusters {
                             my ($i, $m) = @$pair;
                             if ($mask >= $m && match_ip($ip, $i, $m)) {
                                 $matched{"$i/$m"} = 1;
-
-                                # Find supernets of $network, that match $pair.
-                                if ($mask > $m) {
-                                    $mark_supernets->($network, $i, $m);
-                                }
                                 next NETWORK;
                             }
                         }
@@ -9411,7 +9384,7 @@ sub mark_managed_local {
                 my ($ip, $mask) = @{$nat_network}{qw(ip mask)};
                 for my $pair (@$filter_only) {
                     my ($i, $m) = @$pair;
-                    ($mask > $m && match_ip($ip, $i, $m)) or next;
+                    ($mask >= $m && match_ip($ip, $i, $m)) or next;
 
                     # Mark network and enclosing aggregates.
                     my $obj = $network;
@@ -13903,9 +13876,9 @@ sub gen_reverse_rules1 {
         @new_prt_group or next;
 
         # Check path for existence of stateless router.
-        my $from_store           = $rule->{src_path};
-        my $to_store             = $rule->{dst_path};
-        my $has_stateless_router = $cache{$from_store}->{$to_store};
+        my $src_path             = $rule->{src_path};
+        my $dst_path             = $rule->{dst_path};
+        my $has_stateless_router = $cache{$src_path}->{$dst_path};
         if (!defined $has_stateless_router) {
           PATH_WALK:
             {
@@ -13943,7 +13916,7 @@ sub gen_reverse_rules1 {
 
                 path_walk($rule, $mark_reverse_rule);
             }
-            $cache{$from_store}->{$to_store} = $has_stateless_router || 0;
+            $cache{$src_path}->{$dst_path} = $has_stateless_router || 0;
         }
         $has_stateless_router or next;
 
@@ -13997,8 +13970,8 @@ sub gen_reverse_rules1 {
                 stateless => 1,
                 src       => $rule->{dst},
                 dst       => $rule->{src},
-                src_path  => $rule->{dst_path},
-                dst_path  => $rule->{src_path},
+                src_path  => $dst_path,
+                dst_path  => $src_path,
                 prt       => $prt_group,
             };
             $new_rule->{src_range} = $src_range if $src_range ne $prt_ip;
@@ -14501,29 +14474,19 @@ sub find_redundant_rules {
               while (1) {
                if (my $cmp_hash = $cmp_hash->{$dst}) {
                 for my $chg_rule (values %$chg_hash) {
-
-                 # Even if $change_rule already is marked as deleted,
-                 # don't stop here, but go on and find all redundant
-                 # pairs of ($change_rule, $cmp_rule).
-                 # This is needed, because some instances of $cmp_rule
-                 # may have an {overlaps} attribute, which prevents
-                 # a warning message to be printed.
                  my $prt = $chg_rule->{prt};
                  my $chg_log = $chg_rule->{log} || '';
                  while (1) {
                   if (my $cmp_rule = $cmp_hash->{$prt}) {
-                   my $cmp_log = $cmp_rule->{log} || '';
                    if ($cmp_rule ne $chg_rule &&
-                       $cmp_log eq $chg_log)
+                       ($cmp_rule->{log} || '') eq $chg_log)
                    {
-#                   debug("Del:", print_rule $chg_rule);
-#                   debug("Oth:", print_rule $cmp_rule);
                     collect_redundant_rules($chg_rule, $cmp_rule);
                     $count++;
                     last;
                    }
                   }
-                  $prt = $prt->{up} or last;
+                  $prt = $prt->{local_up} or last;
                  }
                 }
                }
@@ -14777,23 +14740,19 @@ sub add_path_routes {
 
     my $in_net  = $in_intf->{network};
     my $out_net = $out_intf->{network};
-    my $hops;
 
     # Identify hop interface(s).
+    # Store hop interfaces and routing information within in_intf.
     if ($in_net eq $out_net) {
-        $hops = [$out_intf];
+        $in_intf->{hopref2obj}->{$out_intf} = $out_intf;
+        @{ $in_intf->{routes}->{$out_intf} }{@$dst_networks} = @$dst_networks;
     }
     else {
         my $route_in_zone = $in_intf->{route_in_zone};
-        $hops = $route_in_zone->{default} || $route_in_zone->{$out_net};
-    }
-
-    # Store hop interfaces and routing information within in_intf.
-    for my $hop (@$hops) {
-        $in_intf->{hopref2obj}->{$hop} = $hop;
-        for my $network (@$dst_networks) {
-#	    debug("$in_intf->{name} -> $hop->{name}: $network->{name}");
-            $in_intf->{routes}->{$hop}->{$network} = $network;
+        my $hops = $route_in_zone->{default} || $route_in_zone->{$out_net};
+        for my $hop (@$hops) {
+            $in_intf->{hopref2obj}->{$hop} = $hop;
+            @{ $in_intf->{routes}->{$hop} }{@$dst_networks} = @$dst_networks;
         }
     }
     return;
@@ -14924,15 +14883,12 @@ sub generate_routing_tree1 {
         $routing_tree->{$src_zone}->{$dst_zone} = $pseudo_rule;
     }
 
-    # Store src and dest networks of grouped rule within pseudo rule.
+    # Store src and dst networks of grouped rule within pseudo rule.
     my $src_networks = get_route_networks($src);
-    for my $network (@$src_networks) {
-        $pseudo_rule->{src_networks}->{$network} = $network;
-    }
+    @{ $pseudo_rule->{src_networks} }{@$src_networks} = @$src_networks;
     my $dst_networks = get_route_networks($dst);
-    for my $network (@$dst_networks) {
-        $pseudo_rule->{dst_networks}->{$network} = $network;
-    }
+    @{ $pseudo_rule->{dst_networks} }{@$dst_networks} = @$dst_networks;
+
 
     # If src/dst is interface of managed routers, add this info to
     # pseudo rule.
@@ -15375,7 +15331,8 @@ sub check_and_convert_routes {
             for my $net_ref (keys %net2group) {
                 my $hops = $net2group{$net_ref};
                 my $hop1 = $hops->[0];
-                next if @$hops == @{ $hop1->{redundancy_interfaces} };
+                my $missing = @{ $hop1->{redundancy_interfaces} } - @$hops;
+                next if not $missing;
                 my $network = $interface->{routes}->{$hop1}->{$net_ref};
 
                 # A network is routed to a single physical interface.
@@ -15392,9 +15349,13 @@ sub check_and_convert_routes {
                     # parts of of a group of routers.
                     # More than 3 virtual interfaces together with
                     # pathrestrictions have already been rejected.
+                    my $names =
+                        join("\n - ", map({ $_->{name} } sort(by_name @$hops)));
                     err_msg(
-                        "$network->{name} is reached via $hop1->{name}\n",
-                        " but not via all related redundancy interfaces"
+                        "$network->{name} is reached via group of",
+                        " redundancy interfaces:\n",
+                        " - $names\n",
+                        " But $missing interfaces of group are missing."
                     );
                 }
             }
@@ -15533,7 +15494,8 @@ sub print_routes {
 
     # Find and remove duplicate networks.
     # Go from smaller to larger networks.
-    for my $mask (reverse sort numerically keys %mask2ip2net) {
+    my @masks = reverse sort numerically keys %mask2ip2net;
+    while (defined(my $mask = shift @masks)) {
       NETWORK:
         for my $ip (sort numerically keys %{ $mask2ip2net{$mask} }) {
             my $small    = $mask2ip2net{$mask}->{$ip};
@@ -15543,17 +15505,11 @@ sub print_routes {
             # ASA with site-to-site VPN needs individual routes for each peer.
             if (!($asa_crypto && $interface->{hub})) {
 
-                my $m = $mask;
-                my $i = $ip;
-                while ($m) {
-
-                    # Clear upper bit, because left shift is undefined
-                    # otherwise.
-                    $m = $m & 0x7fffffff;
-                    $m <<= 1;
-                    $i = $i & $m;    # Perl bug #108480.
-                    my $ip2net = $mask2ip2net{$m}       or next;
-                    my $big    = $mask2ip2net{$m}->{$i} or next;
+                # Compare current $mask with masks of larger networks.
+                for my $m (@masks) {
+                    my $i = $ip & $m;
+                    my $ip2net = $mask2ip2net{$m} or next;
+                    my $big    = $ip2net->{$i}    or next;
 
                     # $small is subnet of $big.
                     # If both use the same hop, then $small is redundant.
@@ -15704,12 +15660,9 @@ sub distribute_rule {
     # Don't generate code for src any:[interface:r.loopback] at router:r.
     return if $in_intf->{loopback};
 
-    my $dst_list = $rule->{dst};
-
     # Apply only matching rules to 'managed=local' router.
     # Filter out non matching elements from src_list and dst_list.
     if (my $mark = $router->{local_mark}) {
-        my $src_list = $rule->{src};
         my $match = sub {
             my ($obj) = @_;
             my $net       = $obj->{network} || $obj;
@@ -15718,7 +15671,9 @@ sub distribute_rule {
         };
 
         # Filter src_list and dst_list. Ignore rule if no matching element.
+        my $src_list = $rule->{src};
         my @matching_src = grep { $match->($_) } @$src_list or return;
+        my $dst_list = $rule->{dst};
         my @matching_dst = grep { $match->($_) } @$dst_list or return;
 
         # Create copy of rule. Try to reuse original src_list / dst_list.
@@ -17440,9 +17395,7 @@ sub print_acls {
                 my $rules = $acl->{$what} or next;
                 for my $rule (@$rules) {
                     my $new_rule = {};
-
-                    my $deny = $rule->{deny};
-                    $new_rule->{deny} = 1 if $deny;
+                    $new_rule->{deny} = 1 if $rule->{deny};
 
                     # Add code for logging.
                     # This code is machine specific.
@@ -18038,13 +17991,10 @@ sub compile {
     normalize_services();
     find_subnets_in_nat_domain();
 
-    # Call after {up} relation for anonymous aggregates in rules have
-    # been set up and
-    # after {is_in} relation has been set up.
+    # Call after {up} relation for anonymous aggregates has been set up.
     mark_managed_local();
 
-    propagate_owners();
-    set_service_owner();
+    check_service_owner();
     convert_hosts_in_rules();
     group_path_rules();
 
@@ -18068,7 +18018,9 @@ sub compile {
             mark_secondary_rules();
             if ($out_dir) {
                 rules_distribution();
+#                DB::enable_profile();
                 print_code($out_dir);
+#                DB::disable_profile();
                 copy_raw($in_path, $out_dir);
             }
         });
