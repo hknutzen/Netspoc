@@ -145,7 +145,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ no_in_acl;                           ]
          [ reroute_permit = <object set>;       ]
          [ routing = ( EIGRP | OSPF | dynamic ); ]
-         [ security_level = <int>;              ]
          [ subnet_of = network:<network name>;          ]
          [ vip;                                 ]
          [ owner = <name>;                      ]
