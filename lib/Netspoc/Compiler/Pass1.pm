@@ -207,7 +207,6 @@ my %router_info = (
         stateless_icmp      => 1,
         can_objectgroup     => 1,
         comment_char        => '!',
-        has_interface_level => 1,
         need_identity_nat   => 1,
         no_filter_icmp_code => 1,
         need_acl            => 1,
@@ -1594,12 +1593,6 @@ sub read_interface {
         elsif (my $id = check_assign 'id', \&read_user_id) {
             add_attribute($interface, id => $id);
         }
-        elsif (defined(my $level = check_assign 'security_level', \&read_int)) {
-            $level > 100
-              and error_atline("Maximum value for attribute security_level",
-                " is 100");
-            add_attribute($interface, security_level => $level);
-        }
         elsif ($pair = check_typed_name) {
             my ($type, $name2) = @$pair;
             if ($type eq 'nat') {
@@ -2246,12 +2239,6 @@ sub read_router {
         # Detailed interface processing for managed routers.
         my $has_crypto;
         for my $interface (@{ $router->{interfaces} }) {
-            if (defined $interface->{security_level}
-                && !$model->{has_interface_level})
-            {
-                warn_msg("Ignoring attribute 'security_level'",
-                    " at $interface->{name}");
-            }
             if ($interface->{hub} or $interface->{spoke}) {
                 $has_crypto = 1;
                 $model->{crypto}
@@ -2332,9 +2319,6 @@ sub read_router {
             }
             $router->{interfaces} = [ grep { $_ } @{ $router->{interfaces} } ]
               if $changed;
-        }
-        if ($model->{has_interface_level}) {
-            set_pix_interface_level($router);
         }
 
         check_no_in_acl($router);
