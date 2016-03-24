@@ -3298,21 +3298,15 @@ sub read_file {
 
     # Read file as one large line.
     local $/;
-    local $input;
 
-    if (defined $current_file) {
-        open(my $fh, '<', $current_file)
-          or fatal_err("Can't open $current_file: $!");
+    open(my $fh, '<', $current_file)
+        or fatal_err("Can't open $current_file: $!");
 
-        # Fill buffer with content of whole file.
-        # Content is implicitly freed when subroutine is left.
-        $input = <$fh>;
-        close $fh;
-    }
-    else {
-        $current_file = 'STDIN';
-        $input        = <>;
-    }
+    # Fill buffer with content of whole file.
+    # Content is implicitly freed when subroutine is left.
+    local $input = <$fh>;
+    close $fh;
+
     local $line = 1;
     my $length = length $input;
     while (skip_space_and_comment, pos $input != $length) {
@@ -3326,7 +3320,7 @@ sub read_file_or_dir {
     $read_syntax ||= \&read_netspoc;
 
     # Handle toplevel file.
-    if (!(defined $path && -d $path)) {
+    if (not -d $path) {
         read_file($path, $read_syntax);
         return;
     }

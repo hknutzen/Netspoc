@@ -6,7 +6,7 @@ spoc1 - First pass of Netspoc
 
 =head1 SYNOPSIS
 
-spoc1 [options] [in-directory | in-file] [CODE-DIR]
+spoc1 [options] IN-DIR|IN-FILE [CODE-DIR]
 
 =head1 OPTIONS
 
@@ -16,13 +16,13 @@ See options of program 'netspoc'.
 
 =head1 DESCRIPTION
 
-Compile all files from 'in-directory' or from a single 'in-file' or from STDIN.
-Intermdiate code is generated in CODE-DIR.
+Compile all files from IN-DIR or from a single IN-FILE.
+Intermediate code is generated in CODE-DIR.
 If no CODE-DIR is given, no code is generated; only errors are checked.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2016 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 

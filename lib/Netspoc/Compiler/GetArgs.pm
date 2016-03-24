@@ -214,10 +214,7 @@ sub parse_options {
 # passed command line arguments.
 sub parse_args {
     my ($args) = @_;
-    my $main_file = shift @$args;
-
-    # Strip trailing slash for nicer messages.
-    defined $main_file and $main_file =~ s</$><>;
+    my $main_file = shift @$args or pod2usage(2);
 
     # $out_dir is used to store compilation results.
     # For each managed router with name X a corresponding file X
@@ -226,6 +223,7 @@ sub parse_args {
     my $out_dir = shift @$args;
 
     # Strip trailing slash for nicer messages.
+    $main_file =~ s</$><>;
     defined $out_dir and $out_dir =~ s</$><>;
 
     # No further arguments allowed.
