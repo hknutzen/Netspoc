@@ -222,7 +222,7 @@ sub parse_args {
     # $out_dir is used to store compilation results.
     # For each managed router with name X a corresponding file X
     # is created in $out_dir.
-    # If $out_dir is missing, all code is printed to STDOUT.
+    # If $out_dir is missing, no code is generated.
     my $out_dir = shift @$args;
 
     # Strip trailing slash for nicer messages.
