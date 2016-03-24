@@ -207,7 +207,6 @@ init_global_vars();
 # Parse group definition(s).
 $input = $name;
 $current_file = 'group definition';
-$line = 1;
 my @parsed;
 skip_space_and_comment();
 while (1) {

@@ -63,7 +63,6 @@ our @EXPORT = qw(
   @pathrestrictions
   *input
   $current_file
-  $line
   $error_counter
   init_global_vars
   abort_on_error
@@ -392,9 +391,6 @@ our $private;
 # Content of current file.
 our $input;
 
-# Current line number of input file.
-our $line;
-
 # Use content and match position of current input file.
 # Return string describing current match position.
 sub context {
@@ -407,12 +403,15 @@ sub context {
           $input =~ m/([^ \t\n,;={}]*[,;={} \t]*)\G([,;={} \t]*[^ \t\n,;={}]*)/;
         $context = qq/near "$pre<--HERE-->$post"/;
     }
-    return qq/ at line $line of $current_file, $context\n/;
+    return at_line() . ", $context\n";
 }
 
 # Return current input file and line number.
 sub at_line {
-    return qq/ at line $line of $current_file\n/;
+    my $seen_lines = substr($input, 0, pos($input));
+    my $number = 1;
+    $number++ while $seen_lines =~ m/\n/g;
+    return " at line $number of $current_file";
 }
 
 # Print arguments together with current context to STDERR
@@ -444,7 +443,7 @@ sub abort_on_error {
 # Print error message with current input file and line number.
 sub error_atline {
     my (@args) = @_;
-    print STDERR "Error: ", @args, at_line();
+    print STDERR "Error: ", @args, at_line(), "\n";
     check_abort();
     return;
 }
@@ -480,16 +479,9 @@ sub internal_err {
 
 # $input is used as input buffer, it holds content of current input file.
 # Progressive matching is used. \G is used to match current position.
+
 sub skip_space_and_comment {
-
-    # Ignore trailing white space and comments.
-    while ($input =~ m'\G[ \t]*(?:[#].*)?(?:\n|$)'gc) {
-        $line++;
-    }
-
-    # Ignore leading white space.
-    $input =~ m/\G[ \t]*/gc;
-    return;
+    $input =~ m/ \G [ \t\n]* (?: [#].* $ [ \t\n]* )* /gcmx;
 }
 
 # Optimize use of CORE:regcomp. Build regex only once for each token.
@@ -861,8 +853,6 @@ sub add_description {
     skip '=';
 
     # Read up to end of line, but ignore ';' at EOL.
-    # We must use '$' here to match EOL,
-    # otherwise $line would be out of sync.
     if($input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*$/gcm) {
         $obj->{description} = $1;
     }
@@ -3307,7 +3297,6 @@ sub read_file {
     local $input = <$fh>;
     close $fh;
 
-    local $line = 1;
     my $length = length $input;
     while (skip_space_and_comment, pos $input != $length) {
         &$read_syntax;
