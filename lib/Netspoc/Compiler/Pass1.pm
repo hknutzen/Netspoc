@@ -939,13 +939,16 @@ sub read_list {
     my @vals;
     while (1) {
         push @vals, &$fun;
-        last if check(';');
-        my $comma_seen = check ',';
+        my $token = read_token();
+        last if $token eq ';';
+        if ($token eq ',') {
 
-        # Allow trailing comma.
-        last if check(';');
-
-        $comma_seen or syntax_err("Comma expected in list of values");
+            # Allow trailing comma.
+            last if check(';');
+        }
+        else {
+            syntax_err("Comma expected in list of values");
+        }
     }
     return @vals;
 }
