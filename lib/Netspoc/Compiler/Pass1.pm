@@ -948,24 +948,6 @@ sub read_assign_list {
     return read_list($fun);
 }
 
-# Read 'token = value, ..., value;'
-sub read2_assign_list {
-    my ($token, $fun) = @_;
-    skip $token;
-    skip '=';
-    return read_list($fun);
-}
-
-# Check for 'token = value, ..., value;'
-sub check_assign_list {
-    my ($token, $fun) = @_;
-    if (check $token) {
-        skip '=';
-        return &read_list($fun);
-    }
-    return ();
-}
-
 ####################################################################
 # Creation of typed hashes.
 # Currently we don't use OO features;
@@ -3038,7 +3020,7 @@ sub assign_union_allow_user {
     skip '=';
     local $user_object->{active} = 1;
     $user_object->{refcount} = 0;
-    my @result = read_union ';';
+    my @result = read_union(';');
     return \@result, $user_object->{refcount};
 }
 
@@ -3051,10 +3033,8 @@ sub read_service {
     add_description($service);
     while (1) {
         my $token = read_token();
-        if ($token eq 'user') {
-            last;
-        }
-        elsif ($token eq 'sub_owner') {
+        last if $token eq 'user';
+        if ($token eq 'sub_owner') {
             my $sub_owner = read_assign(\&read_identifier);
             add_attribute($service, sub_owner => $sub_owner);
         }
@@ -3089,7 +3069,7 @@ sub read_service {
 
     # 'user' has already been read above.
     skip '=';
-    if (check 'foreach') {
+    if (check('foreach')) {
         $service->{foreach} = 1;
     }
     my @elements = read_list \&read_intersection;
@@ -3097,43 +3077,33 @@ sub read_service {
 
     while (1) {
         my $token = read_token();
-        if ($token eq '}') {
-            last;
-        }
-        if ($token eq 'permit' or $token eq 'deny') {
-            my $action = $token;
-            my ($src, $src_user) = assign_union_allow_user('src');
-            my ($dst, $dst_user) = assign_union_allow_user('dst');
-            my $prt = [ 
-                read2_assign_list('prt', \&read_typed_name_or_simple_protocol) 
-            ];
-            $src_user
-              or $dst_user
-              or error_atline("Rule must use keyword 'user'");
-            if ($service->{foreach} and not($src_user and $dst_user)) {
-                warn_msg(
-                    "Rule of $name should reference 'user'",
-                    " in 'src' and 'dst'\n",
-                    " because service has keyword 'foreach'"
-                );
-            }
-            my $rule = {
-                service  => $service,
-                action   => $action,
-                src      => $src,
-                dst      => $dst,
-                prt      => $prt,
-                has_user => $src_user ? $dst_user ? 'both' : 'src' : 'dst',
-            };
-            if (my @list = check_assign_list('log', \&read_identifier)) {
-                my $log = \@list;
-                $rule->{log} = $log;
-            }
-            push @{ $service->{rules} }, $rule;
-        }
-        else {
+        last if $token eq '}';
+        $token eq 'permit' or $token eq 'deny' or 
             syntax_err("Expected 'permit' or 'deny'");
+        my $action = $token;
+        my ($src, $src_user) = assign_union_allow_user('src');
+        my ($dst, $dst_user) = assign_union_allow_user('dst');
+        skip('prt');
+        my $prt = [ read_assign_list(\&read_typed_name_or_simple_protocol) ];
+        $src_user or $dst_user or error_atline("Rule must use keyword 'user'");
+        if ($service->{foreach} and not($src_user and $dst_user)) {
+            warn_msg(
+                "Rule of $name should reference 'user' in 'src' and 'dst'\n",
+                " because service has keyword 'foreach'");
         }
+        my $rule = {
+            service  => $service,
+            action   => $action,
+            src      => $src,
+            dst      => $dst,
+            prt      => $prt,
+            has_user => $src_user ? $dst_user ? 'both' : 'src' : 'dst',
+        };
+        if (check('log')) {
+            my @list = read_assign_list(\&read_identifier);
+            $rule->{log} = \@list;
+        }
+        push @{ $service->{rules} }, $rule;
     }
     return $service;
 }
