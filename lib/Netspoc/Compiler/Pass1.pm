@@ -662,13 +662,16 @@ sub read_union {
     my $has_user_ref   = $user_object->{refcount} > $count;
     my $user_ref_error = 0;
     while (1) {
-        last if check $delimiter;
-        my $comma_seen = check ',';
+        my $token = read_token();
+        last if $token eq $delimiter;
+        if ($token eq ',') {
 
-        # Allow trailing comma.
-        last if check $delimiter;
-
-        $comma_seen or syntax_err("Comma expected in union of values");
+            # Allow trailing comma.
+            last if check($delimiter);
+        }
+        else {
+            syntax_err("Comma expected in union of values");
+        }
         $count = $user_object->{refcount};
         push @vals, read_intersection();
         $user_ref_error ||=
