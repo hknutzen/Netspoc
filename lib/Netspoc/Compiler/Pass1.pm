@@ -1847,48 +1847,6 @@ sub read_interface {
     return $interface, @secondary_interfaces;
 }
 
-# PIX firewalls have a security level associated with each interface.
-# Use attribute 'security_level' or
-# try to derive the level from the interface name.
-sub set_pix_interface_level {
-    my ($router) = @_;
-    for my $hardware (@{ $router->{hardware} }) {
-        my $hwname = $hardware->{name};
-        my $level;
-        if (
-            my @levels = grep { defined($_) }
-            map { $_->{security_level} } @{ $hardware->{interfaces} }
-          )
-        {
-            if (@levels >= 2 && !equal(@levels)) {
-                err_msg "Must not use different values",
-                  " for attribute 'security_level'\n",
-                  " at $router->{name}, hardware $hwname: ",
-                  join(',', @levels);
-            }
-            else {
-                $level = $levels[0];
-            }
-        }
-        elsif ($hwname =~ 'inside') {
-            $level = 100;
-        }
-        elsif ($hwname =~ 'outside') {
-            $level = 0;
-        }
-
-        # It is not necessary the find the exact level; what we need to know
-        # is the relation of the security levels to each other.
-        elsif (($level) = ($hwname =~ /(\d+)$/) and $level <= 100) {
-        }
-        else {
-            $level = 50;
-        }
-        $hardware->{level} = $level;
-    }
-    return;
-}
-
 #############################################################################
 # Purpose  : Moves attribute 'no_in_acl' from interfaces to hardware because
 #            ACLs operate on hardware, not on logic. Marks hardware needing
