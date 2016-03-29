@@ -884,36 +884,12 @@ sub add_description {
     return;
 }
 
-# Check if 'nat:xxx' is available in input.
-sub check_nat_name {
-    skip_space_and_comment;
-    if ($input =~ m/\G nat:([\w-]+)/gcx) {
-        return $1;
-    }
-    else {
-        return;
-    }
-}
-
 # Split argument at first ':' and return the two parts.
 sub split_typed_name {
     my ($name) = @_;
 
     # Split at first colon; the name may contain further colons.
     return split /[:]/, $name, 2;
-}
-
-# Check if argument token is available as input.
-# If found, a following ';' is required.
-sub check_flag {
-    my $token = shift;
-    if (check $token) {
-        skip(';');
-        return 1;
-    }
-    else {
-        return;
-    }
 }
 
 # Read '=' and value(s).
