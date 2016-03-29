@@ -486,7 +486,7 @@ sub skip_space_and_comment {
 
 sub read_token {
     skip_space_and_comment;
-    $input =~ m/\G( [^ \t\n;,={}]+ | [;,={}] )/gcx or 
+    $input =~ m/\G( [^ \t\n;,={}\[\]]+ | [;,={}\[\]] )/gcx or 
         syntax_err("Unexpected end of file");
     return $1;
 }
@@ -502,11 +502,24 @@ sub check {
     return $input =~ /$regex/gc;
 }
 
+# Skip argument regex.
+# Usable for non token characters.
+# Returns matched string.
+sub skip_regex {
+    my ($expected) = @_;
+    skip_space_and_comment;
+    my $regex = $token2regex{$expected} ||= qr/\G($expected)/;
+    $input =~ /$regex/gc or syntax_err("Expected '$expected'");
+    return $1;
+}
+
 # Skip argument token.
 # If it is not available an error is printed and the script terminates.
 sub skip {
-    my $token = shift;
-    return (check $token or syntax_err("Expected '$token'"));
+    my ($expected) = @_;
+    my $token = read_token();;
+    $token eq $expected or syntax_err("Expected '$expected'");
+    return;
 }
 
 # Check, if an integer is available.
@@ -527,35 +540,32 @@ sub read_int {
     return $result;
 }
 
-# Read IP address. Internally it is stored as an integer.
-sub check_ip {
-    skip_space_and_comment;
-    if ($input =~ m/\G(\d+)\.(\d+)\.(\d+)\.(\d+)/gc) {
-        if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
-            error_atline("Invalid IP address");
-        }
-        no warnings 'pack';
-        return unpack 'N', pack 'C4', $1, $2, $3, $4;
+# Check and convert IP address to integer.
+sub convert_ip {
+    my ($token) = @_;
+    $token =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)/ or 
+        syntax_err("IP address expected");
+    if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
+        error_atline("Invalid IP address");
     }
-    else {
-        return;
-    }
+    no warnings 'pack';
+    return unpack 'N', pack 'C4', $1, $2, $3, $4;
 }
 
 # Read an IP address.
 sub read_ip {
-    my $result = check_ip();
-    defined $result or syntax_err("IP address expected");
-    return $result;
+    return convert_ip(read_token());
 }
 
 # Read IP address and prefix length.
 # x.x.x.x/n
 # Return two values: IP, mask.
 sub read_ip_prefix {
-    my $ip = read_ip;
-    skip('/');
-    my $mask = prefix2mask(read_int());
+    my $token = read_token();
+    my ($part1, $part2) = $token =~ m/^(.*)\/(.*)$/ or
+        syntax_err("Expected 'IP/prefixlen'");
+    my $ip = convert_ip($part1);
+    my $mask = prefix2mask($part2);
     defined $mask or syntax_err('Invalid prefix');
     match_ip($ip, $ip, $mask) or error_atline("IP and mask don't match");
 
@@ -569,6 +579,16 @@ sub read_ip_prefix {
 sub read_ip_prefix_pair {
     my ($ip, $mask) = read_ip_prefix();
     return [ $ip, $mask ];
+}
+
+# Read IP range.
+sub read_ip_range {
+    skip '=';
+    my $ip1 = convert_ip(skip_regex('[\d.]+'));
+    skip_regex('-');
+    my $ip2 = convert_ip(skip_regex('[\d.]+'));
+    skip(';');
+    return $ip1, $ip2;
 }
 
 # Generate an IP address as internal integer.
@@ -770,7 +790,7 @@ sub read_typed_name {
                 $selector =~ /^(auto|all)$/
                   or syntax_err("Expected [auto|all]");
                 $ext = [ $selector, $ext ];
-                skip '\]';
+                skip ']';
             }
             else {
                 $ext and syntax_err("Keyword 'managed' not allowed");
@@ -964,17 +984,6 @@ sub check_assign_list {
     return ();
 }
 
-# Check for '= value delimiter value;'
-sub read_assign_pair {
-    my ($delimiter, $fun) = @_;
-    skip '=';
-    my $v1 = &$fun;
-    skip $delimiter;
-    my $v2 = &$fun;
-    skip(';');
-    return $v1, $v2;
-}
-
 ####################################################################
 # Creation of typed hashes.
 # Currently we don't use OO features;
@@ -1003,7 +1012,7 @@ our %hosts;
 sub read_radius_attributes {
     my $result = {};
     skip '=';
-    skip '\{';
+    skip '{';
     while (1) {
         my $token = read_token();
         if ($token eq '}') {
@@ -1143,7 +1152,7 @@ sub read_host {
     }
     $host->{name} = $name;
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($host);
     while (1) {
         my $token = read_token();
@@ -1155,7 +1164,7 @@ sub read_host {
             add_attribute($host, ip => $ip);
         }
         elsif ($token eq 'range') {
-            my ($ip1, $ip2) = read_assign_pair('-', \&read_ip);
+            my ($ip1, $ip2) = read_ip_range();
             $ip1 <= $ip2 or error_atline("Invalid IP range");
             add_attribute($host, range => [ $ip1, $ip2 ]);
         }
@@ -1193,12 +1202,12 @@ sub read_host {
             if ($type eq 'nat') {
                 verify_name($name2);
                 skip '=';
-                skip '\{';
+                skip '{';
                 skip 'ip';
                 skip '=';
                 my $nat_ip = read_ip;
                 skip ';';
-                skip '\}';
+                skip '}';
                 $host->{nat}->{$name2}
                   and error_atline("Duplicate NAT definition");
                 $host->{nat}->{$name2} = $nat_ip;
@@ -1259,7 +1268,7 @@ sub read_nat {
     my $nat = { name => $name };
     (my $nat_tag = $name) =~ s/^nat://;
     skip '=';
-    skip '\{';
+    skip '{';
     while (1) {
         my $token = read_token();
         if ($token eq '}') {
@@ -1337,7 +1346,7 @@ sub read_network {
         $network->{bridged} = $1;
     }
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($network);
     while (1) {
         my $token = read_token();
@@ -1554,7 +1563,7 @@ sub read_interface {
     my @secondary_interfaces = ();
     my $virtual;
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($interface);
     while (1) {
         my $token = read_token();
@@ -1626,12 +1635,12 @@ sub read_interface {
             if ($type eq 'nat') {
                 verify_name($name2);
                 skip '=';
-                skip '\{';
+                skip '{';
                 skip 'ip';
                 skip '=';
                 my $nat_ip = read_ip;
                 skip ';';
-                skip '\}';
+                skip '}';
                 $interface->{nat}->{$name2}
                   and error_atline("Duplicate NAT definition");
                 $interface->{nat}->{$name2} = $nat_ip;
@@ -1642,7 +1651,7 @@ sub read_interface {
                 # Build new interface for secondary IP addresses.
                 my $secondary = new('Interface', name => "$name.$name2");
                 skip '=';
-                skip '\{';
+                skip '{';
                 while (1) {
                     my $token = read_token();
                     if ($token eq '}') {
@@ -1677,7 +1686,7 @@ sub read_interface {
                 redundant => 1
             );
             skip '=';
-            skip '\{';
+            skip '{';
             while (1) {
                 my $token = read_token();
                 if ($token eq '}') {
@@ -1994,7 +2003,7 @@ sub read_router {
         $router->{vrf} = $vrf;
     }
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($router);
     while (1) {
         my $token = read_token();
@@ -2608,7 +2617,7 @@ sub read_aggregate {
     my $aggregate = new('Network', name => $name, is_aggregate => 1);
     $aggregate->{private} = $private if $private;
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($aggregate);
     while (1) {
         my $token = read_token();
@@ -2678,7 +2687,7 @@ sub read_router_attributes {
     # Add name for error messages.
     my $result = { name => "router_attributes of $parent" };
     skip '=';
-    skip '\{';
+    skip '{';
     while (1) {
         my $token = read_token();
         if ($token eq '}') {
@@ -2710,7 +2719,7 @@ sub read_area {
     my $name = shift;
     my $area = new('Area', name => $name);
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($area);
     while (1) {
         my $token = read_token();
@@ -3056,7 +3065,7 @@ sub read_service {
     my $service = { name => $name, rules => [] };
     $service->{private} = $private if $private;
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($service);
     while (1) {
         my $token = read_token();
@@ -3164,7 +3173,7 @@ sub read_attributed_object {
     my ($name, $attr_descr) = @_;
     my $object = { name => $name };
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($object);
     while (1) {
         my $token = read_token();
@@ -3290,7 +3299,7 @@ our %crypto;
 sub read_crypto {
     my ($name) = @_;
     skip '=';
-    skip '\{';
+    skip '{';
     my $crypto = { name => $name };
     $crypto->{private} = $private if $private;
     add_description($crypto);
@@ -3322,7 +3331,7 @@ sub read_owner {
     my $name = shift;
     my $owner = new('Owner', name => $name);
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($owner);
     while (1) {
         my $token = read_token();
