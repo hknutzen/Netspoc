@@ -1001,11 +1001,12 @@ sub read_routing {
 
 sub read_managed {
     my $managed;
-    if (check ';') {
+    my $token = read_token();
+    if ($token eq ';') {
         $managed = 'standard';
     }
-    elsif (check '=') {
-        my $value = read_identifier;
+    elsif ($token eq '=') {
+        my $value = read_token();
         if (
             $value =~ /^(?:secondary|standard|full|primary|
                            local|local_secondary|routing_only)$/x
@@ -1020,7 +1021,7 @@ sub read_managed {
                 "|local|local_secondary|routing_only"
             );
         }
-        check ';';
+        skip(';');
     }
     else {
         syntax_err("Expected ';' or '='");
