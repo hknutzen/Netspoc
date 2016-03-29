@@ -652,7 +652,7 @@ sub read_string {
 # This is only 'active' while parsing src or dst of the rule of a service.
 my $user_object = { active => 0, refcount => 0, elements => undef };
 
-# Read list of syntax elements delimited by $delimter.
+# Read comman separated list of syntax elements stopped by $delimiter.
 # Return list of read elements.
 sub read_union {
     my ($delimiter) = @_;
