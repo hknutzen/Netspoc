@@ -83,7 +83,7 @@ our @EXPORT = qw(
   check
   skip
   check_typed_name
-  read_intersection
+  read_union
   is_network
   is_router
   is_interface
@@ -484,9 +484,12 @@ sub skip_space_and_comment {
     $input =~ m/ \G [ \t\n]* (?: [#].* $ [ \t\n]* )* /gcmx;
 }
 
+# Find next named token or separator token.
 sub read_token {
-    skip_space_and_comment;
-    $input =~ m/\G( [^ \t\n;,={}\[\]]+ | [;,={}\[\]] )/gcx or 
+
+    # Regex of skip_space_and_comment is inlined for performance.
+    $input =~ m/ \G [ \t\n]* (?: [#].* $ [ \t\n]* )* 
+                 ( [^ \t\n;,={}\[\]&!]+ | \S ) /gcmx or 
         syntax_err("Unexpected end of file");
     return $1;
 }
@@ -513,13 +516,22 @@ sub skip_regex {
     return $1;
 }
 
+# Skip argument regex without skipping whitespace.
+# Usable for non token characters.
+# Returns matched string.
+sub skip_direct {
+    my ($expected) = @_;
+    my $regex = $token2regex{$expected} ||= qr/\G($expected)/;
+    $input =~ /$regex/gc or syntax_err("Expected '$expected'");
+    return $1;
+}
+
 # Skip argument token.
 # If it is not available an error is printed and the script terminates.
 sub skip {
     my ($expected) = @_;
     my $token = read_token();;
     $token eq $expected or syntax_err("Expected '$expected'");
-    return;
 }
 
 # Check, if an integer is available.
@@ -652,37 +664,44 @@ sub read_string {
 # This is only 'active' while parsing src or dst of the rule of a service.
 my $user_object = { active => 0, refcount => 0, elements => undef };
 
-# Read comman separated list of syntax elements stopped by $delimiter.
+# Read comma or '&' separated list of syntax elements stopped by $stop_token.
 # Return list of read elements.
+# Sequences of '&' separated elements are stored together in one 
+# array reference marked with leading '&'.
 sub read_union {
-    my ($delimiter) = @_;
-    my @vals;
-    my $count = $user_object->{refcount};
-    push @vals, read_intersection();
-    my $has_user_ref   = $user_object->{refcount} > $count;
-    my $user_ref_error = 0;
+    my ($stop_token) = @_;
+    my @union;
+    my $token = read_token();
+    push @union, read_complement($token);
+
     while (1) {
-        my $token = read_token();
-        last if $token eq $delimiter;
-        if ($token eq ',') {
+        $token = read_token();
+        if ($token eq $stop_token) {
+            last;
+        }
+        elsif ($token eq ',') {
 
             # Allow trailing comma.
-            last if check($delimiter);
+            $token = read_token();
+            last if $token eq $stop_token;
+            push @union, read_complement($token);
+        }
+        elsif ($token eq '&') {
+            $token = read_token();
+            my $value = read_complement($token);
+            my $prev = $union[-1];
+            if ($prev->[0] eq '&') {
+                push @{ $prev->[1] }, $value;
+            }
+            else {
+                $union[-1] = [ '&', [ $prev, $value ] ];
+            }
         }
         else {
             syntax_err("Comma expected in union of values");
         }
-        $count = $user_object->{refcount};
-        push @vals, read_intersection();
-        $user_ref_error ||=
-          $has_user_ref != ($user_object->{refcount} > $count);
     }
-    $user_ref_error
-      and error_atline(
-        "The sub-expressions of union equally must\n",
-        " either reference 'user' or must not reference 'user'"
-      );
-    return @vals;
+    return \@union;
 }
 
 # Check for xxx:xxx | router:xx@xx | network:xx/xx | interface:xx/xx
@@ -742,8 +761,9 @@ sub read_typed_name {
 # or host:id:[@]domain.network
 #
     sub read_extended_name {
+        my ($token) = @_;
 
-        if (check 'user') {
+        if ($token eq 'user') {
 
             # Global variable for linking occurrences of 'user'.
             $user_object->{active}
@@ -751,12 +771,49 @@ sub read_typed_name {
             $user_object->{refcount}++;
             return [ 'user', $user_object ];
         }
-        $input =~ m/\G([\w-]+):/gc or syntax_err("Type expected");
-        my $type      = $1;
+
+        my ($type, $name) = $token =~ /^([\w-]+):(.*)$/ or 
+            syntax_err("Object type expected");
         my $interface = $type eq 'interface';
-        my $name;
         my $ext;
-        if ($input =~ m/ \G \[ /gcox) {
+
+        my $read_auto_all = sub {
+            skip_direct('\[');
+            my $selector = read_identifier;
+            $selector =~ /^(auto|all)$/ or syntax_err("Expected [auto|all]");
+            $ext = [ $selector, $ext ];
+            skip ']';
+        };
+
+        if ($name) {
+            if ($type eq 'host') {
+                verify_hostname($name) or 
+                    syntax_err("Name or ID-name expected");
+            }
+            elsif ($type eq 'network') {
+                $name =~ m/^ $network_regex $/xo or
+                    syntax_err("Name or bridged name expected");
+            }
+            elsif ($interface) {
+                my ($router_name, $net_name) =
+                    $name =~ m/^ ( [\w-]+ (?: \@ [\w-]+ )? ) [.] 
+                                 ( $network_regex (?: [.] [\w-]+)? )? $/x or
+                    syntax_err("Interface name expected");
+                $name = $router_name;
+                if ($net_name) {
+                    $ext = $net_name;
+                }
+                else {
+                    $read_auto_all->();
+                }
+                    
+            }
+            else {
+                $name =~ m/^ [\w-]+ $/x or syntax_err("Name expected");
+            }
+        }
+        else {
+            skip_direct('\[');
             if (($interface || $type eq 'host') && check('managed')) {
                 $ext = 1;
                 skip '&';
@@ -766,46 +823,11 @@ sub read_typed_name {
                 $ext = read_ip_prefix_pair();
                 skip '&';
             }
-            $name = [ read_union(']') ];
-        }
-        elsif ($type eq 'host') {
-            $input =~ m/ \G ( $hostname_regex ) /gcox
-              or syntax_err("Name or ID-name expected");
-            $name = $1;
-        }
-        elsif ($type eq 'network') {
-            $input =~ m/ \G ( $network_regex ) /gcox
-              or syntax_err("Name or bridged name expected");
-            $name = $1;
-        }
-        elsif ($interface && $input =~ m/ \G ( [\w-]+ (?: \@ [\w-]+ ) ) /gcx
-            || $input =~ m/ \G ( [\w-]+ ) /gcx)
-        {
-            $name = $1;
-        }
-        else {
-            syntax_err("Identifier or '[' expected");
-        }
-        if ($interface) {
-            $input =~ m/ \G \. /gcox or syntax_err("Expected '.'");
-            if ($input =~ m/ \G \[ /gcox) {
-                my $selector = read_identifier;
-                $selector =~ /^(auto|all)$/
-                  or syntax_err("Expected [auto|all]");
-                $ext = [ $selector, $ext ];
-                skip ']';
-            }
-            else {
-                $ext and syntax_err("Keyword 'managed' not allowed");
-                $input =~ m/ \G ( $network_regex ) /gcox
-                  or syntax_err("Name or bridged name expected");
-                $ext = $1;
-
-                # ID of secondary interface.
-                if ($input =~ m/ \G \. /gcox) {
-                    $ext .= '.' . read_identifier;
-                }
-            }
+            $name = read_union(']');
+            if ($interface) {
+                skip_direct('[.]');
+                $read_auto_all->();
+            }                
         }
         return $ext ? [ $type, $name, $ext ] : [ $type, $name ];
     }
@@ -834,25 +856,16 @@ sub verify_name {
 }
 
 sub read_complement {
-    if (check '!') {
-        return [ '!', read_extended_name() ];
+    my ($token) = @_;
+    my $result;
+    if ($token eq '!') {
+        $token = read_token();
+        $result = [ '!', read_extended_name($token) ];
     }
     else {
-        return read_extended_name();
+        $result = read_extended_name($token);
     }
-}
-
-sub read_intersection {
-    my @result = read_complement();
-    while (check '&') {
-        push @result, read_complement();
-    }
-    if (@result == 1) {
-        return $result[0];
-    }
-    else {
-        return [ '&', \@result ];
-    }
+    return $result;
 }
 
 # Setup standard time units with different names and plural forms.
@@ -930,15 +943,6 @@ sub read_list {
         }
     }
     return @vals;
-}
-
-# Use the passed function to read zero or more elements from global
-# input until reaching a ';'.
-# Return read elements.
-sub read_list_or_null {
-    my ($fun) = @_;
-    return () if check(';');
-    return read_list($fun);
 }
 
 # Read '= value, ..., value;'
@@ -2650,21 +2654,23 @@ sub read_area {
             last;
         }
         elsif ($token eq 'border') {
-            my @elements = read_assign_list(\&read_intersection);
-            if (grep { $_->[0] ne 'interface' || ref $_->[1] } @elements) {
+            skip '=';
+            my $elements = read_union(';');
+            if (grep { $_->[0] ne 'interface' || ref $_->[1] } @$elements) {
                 error_atline("Must only use interface names in 'border'");
-                @elements = ();
+                $elements = [];
             }
-            add_attribute($area, border => \@elements);
+            add_attribute($area, border => $elements);
         }
         elsif ($token eq 'inclusive_border') {
-            my @elements = read_assign_list(\&read_intersection);
-            if (grep { $_->[0] ne 'interface' || ref $_->[1] } @elements) {
+            skip '=';
+            my $elements = read_union(';');
+            if (grep { $_->[0] ne 'interface' || ref $_->[1] } @$elements) {
                 error_atline("Must only use interface names in",
                              " 'inclusive_border'");
-                @elements = ();
+                $elements = [];
             }
-            add_attribute($area, inclusive_border => \@elements);
+            add_attribute($area, inclusive_border => $elements);
         }
         elsif ($token eq 'auto_border') {
             skip(';');
@@ -2725,8 +2731,8 @@ sub read_group {
     my $group = new('Group', name => $name);
     $group->{private} = $private if $private;
     add_description($group);
-    my @elements = read_list_or_null \&read_intersection;
-    $group->{elements} = \@elements;
+    my $elements = check(';') ? [] : read_union(';');
+    $group->{elements} = $elements;
     return $group;
 }
 
@@ -2735,7 +2741,8 @@ our %protocolgroups;
 sub read_protocolgroup {
     my $name = shift;
     skip '=';
-    my @pairs = read_list_or_null \&read_typed_name_or_simple_protocol;
+    my @pairs = 
+        check(';') ? () : read_list(\&read_typed_name_or_simple_protocol);
     return new('Protocolgroup', name => $name, elements => \@pairs);
 }
 
@@ -2973,14 +2980,53 @@ sub read_protocol {
 # Mapping from service names to service objects.
 our %services;
 
+sub has_user {
+    my ($element, $context) = @_;
+    my ($type, $name) = @$element;
+    if ($type eq 'user') {
+        return 1;
+    }
+    elsif ($type eq '!') {
+        return check_user_in_union([$name], $context);
+    }
+    elsif ($type eq  '&') {
+        return check_user_in_intersection($name, $context);
+    }
+    elsif (ref $name) {
+        return check_user_in_union($name, $context);
+    }
+    else {
+        return 0;
+    }
+}
+   
+sub check_user_in_intersection {
+    my ($elements, $context) = @_;
+    my $count = grep { has_user($_, $context) } @$elements;
+    return $count ? 1 : 0;
+}
+
+sub check_user_in_union {
+    my ($elements, $context) = @_;
+    my $count = grep { has_user($_, $context) } @$elements;
+    $count == 0 or $count == @$elements or
+        err_msg("The sub-expressions of union in $context equally must\n",
+                " either reference 'user' or must not reference 'user'");
+    return $count ? 1 : 0;    
+}
+
 sub assign_union_allow_user {
-    my ($name) = @_;
+    my ($name, $sname) = @_;
     skip $name;
     skip '=';
     local $user_object->{active} = 1;
     $user_object->{refcount} = 0;
-    my @result = read_union(';');
-    return \@result, $user_object->{refcount};
+    my $result = read_union(';');
+    my $user_seen = $user_object->{refcount};
+    if ($user_seen) {
+        check_user_in_union($result, "$name of $sname");
+    }
+    return $result, $user_seen;
 }
 
 sub read_service {
@@ -3031,8 +3077,7 @@ sub read_service {
     if (check('foreach')) {
         $service->{foreach} = 1;
     }
-    my @elements = read_list \&read_intersection;
-    $service->{user} = \@elements;
+    $service->{user} = read_union(';');
 
     while (1) {
         my $token = read_token();
@@ -3040,8 +3085,8 @@ sub read_service {
         $token eq 'permit' or $token eq 'deny' or 
             syntax_err("Expected 'permit' or 'deny'");
         my $action = $token;
-        my ($src, $src_user) = assign_union_allow_user('src');
-        my ($dst, $dst_user) = assign_union_allow_user('dst');
+        my ($src, $src_user) = assign_union_allow_user('src', $name);
+        my ($dst, $dst_user) = assign_union_allow_user('dst', $name);
         skip('prt');
         my $prt = [ read_assign_list(\&read_typed_name_or_simple_protocol) ];
         $src_user or $dst_user or error_atline("Rule must use keyword 'user'");
@@ -3075,8 +3120,7 @@ sub read_pathrestriction {
     my $restriction = new('Pathrestriction', name => $name);
     $restriction->{private} = $private if $private;
     add_description($restriction);
-    my @elements = read_list \&read_intersection;
-    $restriction->{elements} = \@elements;
+    $restriction->{elements} = read_union(';');
     return $restriction;
 }
 
@@ -17977,6 +18021,7 @@ sub compile {
     &show_version();
     &read_file_or_dir($in_path);
     &show_read_statistics();
+    return;
     &order_protocols();
     &link_topology();
     &mark_disabled();
