@@ -76,7 +76,7 @@ use Pod::Usage;
 sub read_input {
 
     # Check for global definitions.
-    my $pair = check_typed_name or syntax_err('');
+    my $pair = read_typed_name();
     my ($type, $name) = @$pair;
 
     # Skip service declarations.

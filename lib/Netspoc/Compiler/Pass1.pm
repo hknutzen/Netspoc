@@ -82,7 +82,7 @@ our @EXPORT = qw(
   skip_space_and_comment
   check
   skip
-  check_typed_name
+  read_typed_name
   read_union
   is_network
   is_router
@@ -3348,7 +3348,7 @@ our %global_type = (
 sub read_netspoc {
 
     # Check for global definitions.
-    my $pair = check_typed_name or syntax_err('');
+    my $pair = read_typed_name();
     my ($type, $name) = @$pair;
     my $descr = $global_type{$type}
       or syntax_err("Unknown global definition");
@@ -18021,7 +18021,6 @@ sub compile {
     &show_version();
     &read_file_or_dir($in_path);
     &show_read_statistics();
-    return;
     &order_protocols();
     &link_topology();
     &mark_disabled();
